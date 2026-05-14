@@ -129,7 +129,7 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
     }));
   } catch (err) {
     logger.warn(
-      `[memory-core] linkAddresses: failed to query review findings: ${String(err)}`
+      `[anytime-memory] linkAddresses: failed to query review findings: ${String(err)}`
     );
     return { findings_linked: 0, edges_inserted: 0 };
   }
@@ -240,7 +240,7 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
       findingsLinked += 1;
     } catch (err) {
       logger.warn(
-        `[memory-core] linkAddresses: failed to process finding id=${finding.id}: ${String(err)}`
+        `[anytime-memory] linkAddresses: failed to process finding id=${finding.id}: ${String(err)}`
       );
     }
   }

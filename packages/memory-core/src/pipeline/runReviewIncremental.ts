@@ -165,11 +165,11 @@ export async function runReviewIncremental(input: {
         .filter((f) => f.endsWith('.md'))
         .map((f) => path.join(reviewDir, f));
     } catch (err) {
-      logger.error(`[memory-core] runReviewIncremental: failed to list reviewDir=${reviewDir}`, err);
+      logger.error(`[anytime-memory] runReviewIncremental: failed to list reviewDir=${reviewDir}`, err);
       mdFiles = [];
     }
 
-    logger.info(`[memory-core] review incremental (Route A): ${mdFiles.length} review docs to process`);
+    logger.info(`[anytime-memory] review incremental (Route A): ${mdFiles.length} review docs to process`);
     let routeAProcessed = 0;
     for (const filePath of mdFiles) {
       const relPath = path.relative(path.dirname(reviewDir), filePath);
@@ -177,7 +177,7 @@ export async function runReviewIncremental(input: {
       routeAProcessed += 1;
       if (routeAProcessed % PROGRESS_LOG_INTERVAL === 0) {
         logger.info(
-          `[memory-core] review incremental Route A progress: ${routeAProcessed}/${mdFiles.length}`
+          `[anytime-memory] review incremental Route A progress: ${routeAProcessed}/${mdFiles.length}`
         );
       }
 
@@ -197,14 +197,14 @@ export async function runReviewIncremental(input: {
 
         if (existingHash !== null && existingHash === sha1) {
           // Already processed, hash unchanged — skip
-          logger.info(`[memory-core] runReviewIncremental: skip unchanged file=${relPath}`);
+          logger.info(`[anytime-memory] runReviewIncremental: skip unchanged file=${relPath}`);
           continue;
         }
 
         const doc = parseReviewDoc({ rel_path: relPath, content });
         if (doc === null) {
           // Not a review doc (e.g. type: spec) — skip silently
-          logger.info(`[memory-core] runReviewIncremental: not a review doc, skip=${relPath}`);
+          logger.info(`[anytime-memory] runReviewIncremental: not a review doc, skip=${relPath}`);
           continue;
         }
 
@@ -229,7 +229,7 @@ export async function runReviewIncremental(input: {
       } catch (err) {
         const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
         logger.error(
-          `[memory-core] runReviewIncremental: failed to process file=${filePath}`,
+          `[anytime-memory] runReviewIncremental: failed to process file=${filePath}`,
           err,
         );
         recordFailedItem(db, SCOPE_DOC, relPath, 'parse_error', detail);
@@ -238,7 +238,7 @@ export async function runReviewIncremental(input: {
     }
   } else {
     logger.info(
-      `[memory-core] runReviewIncremental: reviewDir does not exist, skipping Route A (dir=${reviewDir})`,
+      `[anytime-memory] runReviewIncremental: reviewDir does not exist, skipping Route A (dir=${reviewDir})`,
     );
   }
 
@@ -257,14 +257,14 @@ export async function runReviewIncremental(input: {
 
     let maxReviewedAt = lastProcessedAt;
 
-    logger.info(`[memory-core] review incremental (Route B): ${sessions.length} sessions to process`);
+    logger.info(`[anytime-memory] review incremental (Route B): ${sessions.length} sessions to process`);
     let routeBProcessed = 0;
     for (const session of sessions) {
       totals.items_processed += 1;
       routeBProcessed += 1;
       if (routeBProcessed % PROGRESS_LOG_INTERVAL === 0) {
         logger.info(
-          `[memory-core] review incremental Route B progress: ${routeBProcessed}/${sessions.length}`
+          `[anytime-memory] review incremental Route B progress: ${routeBProcessed}/${sessions.length}`
         );
       }
       try {
@@ -292,7 +292,7 @@ export async function runReviewIncremental(input: {
       } catch (err) {
         const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
         logger.error(
-          `[memory-core] runReviewIncremental: failed to process session=${session.session_id}`,
+          `[anytime-memory] runReviewIncremental: failed to process session=${session.session_id}`,
           err,
         );
         recordFailedItem(
@@ -313,7 +313,7 @@ export async function runReviewIncremental(input: {
       });
     }
   } catch (err) {
-    logger.error(`[memory-core] runReviewIncremental: Route B failed`, err);
+    logger.error(`[anytime-memory] runReviewIncremental: Route B failed`, err);
     itemsFailed += 1;
   }
 
@@ -330,7 +330,7 @@ export async function runReviewIncremental(input: {
     });
     totals.edges_inserted += linkResult.edges_inserted;
   } catch (err) {
-    logger.error(`[memory-core] runReviewIncremental: linkAddresses failed`, err);
+    logger.error(`[anytime-memory] runReviewIncremental: linkAddresses failed`, err);
   }
 
   try {
@@ -343,7 +343,7 @@ export async function runReviewIncremental(input: {
     });
     totals.edges_inserted += precedesResult.edges_inserted;
   } catch (err) {
-    logger.error(`[memory-core] runReviewIncremental: linkPrecedesBugs failed`, err);
+    logger.error(`[anytime-memory] runReviewIncremental: linkPrecedesBugs failed`, err);
   }
 
   // ── Finalize ──────────────────────────────────────────────────────────────
@@ -361,7 +361,7 @@ export async function runReviewIncremental(input: {
   const durationMs = Date.now() - startMs;
 
   logger.info(
-    `[memory-core] runReviewIncremental: done status=${finalStatus}, items_processed=${totals.items_processed}, ` +
+    `[anytime-memory] runReviewIncremental: done status=${finalStatus}, items_processed=${totals.items_processed}, ` +
       `reviews_inserted=${reviewsInserted}, findings_inserted=${findingsInserted}, ` +
       `edges_inserted=${totals.edges_inserted}, duration_ms=${durationMs}`,
   );

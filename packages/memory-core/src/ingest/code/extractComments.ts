@@ -112,7 +112,7 @@ function upsertFileEntity(
     );
   } catch (err) {
     logger.error(
-      `[memory-core] extractComments: failed to upsert File entity path="${filePath}"`,
+      `[anytime-memory] extractComments: failed to upsert File entity path="${filePath}"`,
       err
     );
   }
@@ -228,7 +228,7 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
           if (db.getRowsModified() > 0) stats.decisions_inserted += 1;
         } catch (err) {
           logger.error(
-            `[memory-core] extractComments: failed to upsert Decision entity ` +
+            `[anytime-memory] extractComments: failed to upsert Decision entity ` +
               `file="${relFilePath}" line=${line}`,
             err
           );
@@ -252,7 +252,7 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
           if (db.getRowsModified() > 0) stats.edges_inserted += 1;
         } catch (err) {
           logger.error(
-            `[memory-core] extractComments: failed to insert edge ` +
+            `[anytime-memory] extractComments: failed to insert edge ` +
               `file="${relFilePath}" line=${line}`,
             err
           );
@@ -266,7 +266,7 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
   }
 
   logger.info(
-    `[memory-core] extractComments: repo="${input.repoName}" ` +
+    `[anytime-memory] extractComments: repo="${input.repoName}" ` +
       `decisions=${stats.decisions_inserted} edges=${stats.edges_inserted}`
   );
 

@@ -37,7 +37,7 @@ export function runAgentRunWatchdog(input: {
 
   if (ids.length > 0) {
     logger.warn?.(
-      `[memory-core] agent watchdog: ${ids.length} stale run(s) timed out (>${timeoutMinutes} min)`,
+      `[anytime-memory] agent watchdog: ${ids.length} stale run(s) timed out (>${timeoutMinutes} min)`,
     );
   }
 

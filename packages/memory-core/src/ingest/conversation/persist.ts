@@ -126,7 +126,7 @@ export function persistEpisodeFacts(opts: {
       }
     } catch (err) {
       logger.error(
-        `[memory-core] persist: failed to upsert entity type=${ent.type} name=${ent.name}`,
+        `[anytime-memory] persist: failed to upsert entity type=${ent.type} name=${ent.name}`,
         err
       );
     }
@@ -164,7 +164,7 @@ export function persistEpisodeFacts(opts: {
         entityIdMap.set(mapKey, eId);
       } catch (err) {
         logger.warn?.(
-          `[memory-core] persist: failed to auto-upsert endpoint ${mapKey}`,
+          `[anytime-memory] persist: failed to auto-upsert endpoint ${mapKey}`,
         );
       }
     }
@@ -174,7 +174,7 @@ export function persistEpisodeFacts(opts: {
 
     if (subjectId === undefined || objectId === undefined) {
       logger.warn?.(
-        `[memory-core] persist: skipping edge "${rel.predicate}" — endpoint upsert failed ` +
+        `[anytime-memory] persist: skipping edge "${rel.predicate}" — endpoint upsert failed ` +
           `(subject=${subjectMapKey}, object=${objectMapKey})`,
       );
       continue;
@@ -205,7 +205,7 @@ export function persistEpisodeFacts(opts: {
       stats.edges_inserted += 1;
     } catch (err) {
       logger.error(
-        `[memory-core] persist: failed to insert edge id=${eId} predicate=${rel.predicate}`,
+        `[anytime-memory] persist: failed to insert edge id=${eId} predicate=${rel.predicate}`,
         err
       );
       continue;
@@ -233,7 +233,7 @@ export function persistEpisodeFacts(opts: {
       );
     } catch (err) {
       logger.error(
-        `[memory-core] persist: failed to insert episode_entity epId=${epId} entityId=${eId} mapKey=${mapKey}`,
+        `[anytime-memory] persist: failed to insert episode_entity epId=${epId} entityId=${eId} mapKey=${mapKey}`,
         err
       );
     }
@@ -259,7 +259,7 @@ export function persistEpisodeFacts(opts: {
       );
     } catch (err) {
       logger.error(
-        `[memory-core] persist: failed to upsert Question entity text="${q.text}"`,
+        `[anytime-memory] persist: failed to upsert Question entity text="${q.text}"`,
         err
       );
       continue;
@@ -275,7 +275,7 @@ export function persistEpisodeFacts(opts: {
       );
     } catch (err) {
       logger.error(
-        `[memory-core] persist: failed episode_entity for question entity qId=${qId}`,
+        `[anytime-memory] persist: failed episode_entity for question entity qId=${qId}`,
         err
       );
     }
@@ -295,7 +295,7 @@ export function persistEpisodeFacts(opts: {
       stats.edges_inserted += 1;
     } catch (err) {
       logger.error(
-        `[memory-core] persist: failed to insert asked_by edge for question qId=${qId}`,
+        `[anytime-memory] persist: failed to insert asked_by edge for question qId=${qId}`,
         err
       );
     }
@@ -328,7 +328,7 @@ export function persistEpisodeFacts(opts: {
       stats.edges_inserted += 1;
     } catch (err) {
       logger.error(
-        `[memory-core] persist: failed to insert answered_in edge for question qId=${qId}`,
+        `[anytime-memory] persist: failed to insert answered_in edge for question qId=${qId}`,
         err
       );
     }

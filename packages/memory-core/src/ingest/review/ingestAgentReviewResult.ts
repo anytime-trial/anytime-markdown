@@ -71,7 +71,7 @@ export async function ingestAgentReviewResult(input: {
     const runId = typeof rawRunId === 'string' ? rawRunId : 'unknown';
     const detail = JSON.stringify(parseResult.error.issues);
     logger.error(
-      `[memory-core] ingestAgentReviewResult: zod validation failed run_id=${runId}`,
+      `[anytime-memory] ingestAgentReviewResult: zod validation failed run_id=${runId}`,
       parseResult.error,
     );
     recordFailedItem(db, 'review', runId, 'zod_error', detail);
@@ -97,7 +97,7 @@ export async function ingestAgentReviewResult(input: {
 
   if (!ALLOWED_HOSTS.has(endpointHost)) {
     logger.error(
-      `[memory-core] ingestAgentReviewResult: rejected external endpoint=${parsed.ollama_endpoint}`,
+      `[anytime-memory] ingestAgentReviewResult: rejected external endpoint=${parsed.ollama_endpoint}`,
     );
     const durationMs =
       new Date(parsed.finished_at).getTime() - new Date(parsed.started_at).getTime();
@@ -208,7 +208,7 @@ export async function ingestAgentReviewResult(input: {
           newEmbedding = embResult.embedding;
         } catch (err) {
           logger.warn?.(
-            `[memory-core] ingestAgentReviewResult: embedding failed for finding ${finding.finding_index}`,
+            `[anytime-memory] ingestAgentReviewResult: embedding failed for finding ${finding.finding_index}`,
           );
           newEmbedding = new Float32Array(0);
         }
@@ -292,7 +292,7 @@ export async function ingestAgentReviewResult(input: {
     } catch (err) {
       const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
       logger.error(
-        `[memory-core] ingestAgentReviewResult: failed finding ${finding.finding_index}`,
+        `[anytime-memory] ingestAgentReviewResult: failed finding ${finding.finding_index}`,
         err,
       );
       itemsFailed += 1;
@@ -327,7 +327,7 @@ export async function ingestAgentReviewResult(input: {
   );
 
   logger.info(
-    `[memory-core] ingestAgentReviewResult: done run_id=${parsed.run_id} status=${finalStatus} ` +
+    `[anytime-memory] ingestAgentReviewResult: done run_id=${parsed.run_id} status=${finalStatus} ` +
       `findings_inserted=${findingsInserted} findings_merged=${findingsMerged}`,
   );
 

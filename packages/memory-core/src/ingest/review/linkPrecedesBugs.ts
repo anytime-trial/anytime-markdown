@@ -52,7 +52,7 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
     }));
   } catch (err) {
     logger.warn(
-      `[memory-core] linkPrecedesBugs: failed to query review findings: ${String(err)}`
+      `[anytime-memory] linkPrecedesBugs: failed to query review findings: ${String(err)}`
     );
     return { edges_inserted: 0 };
   }
@@ -135,7 +135,7 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
       }
     } catch (err) {
       logger.warn(
-        `[memory-core] linkPrecedesBugs: failed to process finding id=${finding.id}: ${String(err)}`
+        `[anytime-memory] linkPrecedesBugs: failed to process finding id=${finding.id}: ${String(err)}`
       );
     }
   }

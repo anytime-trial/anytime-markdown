@@ -164,14 +164,14 @@ export async function runCodeIncremental(opts: {
 
   if (graphUpdatedAt === null) {
     logger.info(
-      `[memory-core] runCodeIncremental: no code graph found for repo "${repoName}" — skipping`
+      `[anytime-memory] runCodeIncremental: no code graph found for repo "${repoName}" — skipping`
     );
     return { status: 'skipped', items_processed: 0, entities_inserted: 0, edges_inserted: 0, duration_ms: 0, current_entity_ids: new Set() };
   }
 
   if (graphUpdatedAt <= last_processed_at) {
     logger.info(
-      `[memory-core] runCodeIncremental: graph not updated (updated_at=${graphUpdatedAt}, last_processed_at=${last_processed_at}) — skipping`
+      `[anytime-memory] runCodeIncremental: graph not updated (updated_at=${graphUpdatedAt}, last_processed_at=${last_processed_at}) — skipping`
     );
     return { status: 'skipped', items_processed: 0, entities_inserted: 0, edges_inserted: 0, duration_ms: 0, current_entity_ids: new Set() };
   }
@@ -189,7 +189,7 @@ export async function runCodeIncremental(opts: {
   try {
     commitSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: gitRoot, encoding: 'utf8' }).trim();
   } catch (err) {
-    logger.error(`[memory-core] runCodeIncremental: failed to resolve HEAD commit`, err);
+    logger.error(`[anytime-memory] runCodeIncremental: failed to resolve HEAD commit`, err);
   }
 
   const recordedAt = new Date().toISOString();
@@ -203,7 +203,7 @@ export async function runCodeIncremental(opts: {
     });
   } catch (err) {
     logger.error(
-      `[memory-core] runCodeIncremental: analyzeWithProgram failed (tsconfigPath=${tsconfigPath})`,
+      `[anytime-memory] runCodeIncremental: analyzeWithProgram failed (tsconfigPath=${tsconfigPath})`,
       err
     );
     recordFailedItem(db, 'code', tsconfigPath, 'analyze_failed', err instanceof Error ? (err.stack ?? err.message) : String(err));
@@ -234,7 +234,7 @@ export async function runCodeIncremental(opts: {
     totals.entities_inserted += stats.packages_upserted + stats.files_upserted;
     totals.edges_inserted += stats.edges_inserted;
   } catch (err) {
-    logger.error(`[memory-core] runCodeIncremental: fromTrailGraph failed`, err);
+    logger.error(`[anytime-memory] runCodeIncremental: fromTrailGraph failed`, err);
     hasIngestFailure = true;
   }
 
@@ -247,7 +247,7 @@ export async function runCodeIncremental(opts: {
     totals.edges_inserted += stats.edges_inserted;
     for (const id of stats.current_entity_ids) currentEntityIds.add(id);
   } catch (err) {
-    logger.error(`[memory-core] runCodeIncremental: ingestAstFacts failed`, err);
+    logger.error(`[anytime-memory] runCodeIncremental: ingestAstFacts failed`, err);
     hasIngestFailure = true;
   }
 
@@ -257,7 +257,7 @@ export async function runCodeIncremental(opts: {
     totals.entities_inserted += stats.decisions_inserted;
     totals.edges_inserted += stats.edges_inserted;
   } catch (err) {
-    logger.error(`[memory-core] runCodeIncremental: extractDecisionComments failed`, err);
+    logger.error(`[anytime-memory] runCodeIncremental: extractDecisionComments failed`, err);
     hasIngestFailure = true;
   }
 
@@ -273,7 +273,7 @@ export async function runCodeIncremental(opts: {
     totals.entities_inserted += stats.decisions_inserted;
     totals.edges_inserted += stats.edges_inserted;
   } catch (err) {
-    logger.error(`[memory-core] runCodeIncremental: extractCommitRationale failed`, err);
+    logger.error(`[anytime-memory] runCodeIncremental: extractCommitRationale failed`, err);
     hasIngestFailure = true;
   }
 

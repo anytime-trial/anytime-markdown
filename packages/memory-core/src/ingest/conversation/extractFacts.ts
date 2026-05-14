@@ -136,12 +136,12 @@ export async function extractFactsFromEpisode(opts: {
     responseText = result.response;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    logger.error(`[memory-core] Ollama generate failed: ${msg}`, err);
+    logger.error(`[anytime-memory] Ollama generate failed: ${msg}`, err);
     return null;
   }
 
   if (!responseText) {
-    logger.error(`[memory-core] Empty response from Ollama for episode ${episode.message_uuid_start}`);
+    logger.error(`[anytime-memory] Empty response from Ollama for episode ${episode.message_uuid_start}`);
     return null;
   }
 
@@ -150,7 +150,7 @@ export async function extractFactsFromEpisode(opts: {
     parsed = JSON.parse(responseText);
   } catch (err) {
     logger.error(
-      `[memory-core] JSON.parse failed for episode ${episode.message_uuid_start}: ${responseText.slice(0, 200)}`,
+      `[anytime-memory] JSON.parse failed for episode ${episode.message_uuid_start}: ${responseText.slice(0, 200)}`,
       err,
     );
     return null;
@@ -159,7 +159,7 @@ export async function extractFactsFromEpisode(opts: {
   const validation = ExtractionResultSchema.safeParse(parsed);
   if (!validation.success) {
     logger.error(
-      `[memory-core] zod validation failed for episode ${episode.message_uuid_start}: ${validation.error?.message ?? JSON.stringify(validation.error)}`,
+      `[anytime-memory] zod validation failed for episode ${episode.message_uuid_start}: ${validation.error?.message ?? JSON.stringify(validation.error)}`,
     );
     return null;
   }

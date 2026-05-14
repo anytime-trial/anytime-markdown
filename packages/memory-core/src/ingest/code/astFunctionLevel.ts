@@ -123,7 +123,7 @@ function upsertFileEntity(
     );
   } catch (err) {
     logger.error(
-      `[memory-core] astFunctionLevel: failed to upsert File entity path="${filePath}"`,
+      `[anytime-memory] astFunctionLevel: failed to upsert File entity path="${filePath}"`,
       err
     );
   }
@@ -196,7 +196,7 @@ function upsertFunctionEntity(
     );
   } catch (err) {
     logger.error(
-      `[memory-core] astFunctionLevel: failed to upsert Function entity ` +
+      `[anytime-memory] astFunctionLevel: failed to upsert Function entity ` +
         `path="${filePath}" symbol="${symbolName}"`,
       err
     );
@@ -228,7 +228,7 @@ function upsertLibraryEntity(
     );
   } catch (err) {
     logger.error(
-      `[memory-core] astFunctionLevel: failed to upsert Library entity name="${moduleName}"`,
+      `[anytime-memory] astFunctionLevel: failed to upsert Library entity name="${moduleName}"`,
       err
     );
   }
@@ -344,7 +344,7 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
       if (db.getRowsModified() > 0) stats.facts_inserted += 1;
     } catch (err) {
       logger.error(
-        `[memory-core] astFunctionLevel: failed to insert fact type="${factType}" ` +
+        `[anytime-memory] astFunctionLevel: failed to insert fact type="${factType}" ` +
           `file="${filePath}" value="${factValue}"`,
         err
       );
@@ -381,7 +381,7 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
       if (db.getRowsModified() > 0) stats.edges_inserted += 1;
     } catch (err) {
       logger.error(
-        `[memory-core] astFunctionLevel: failed to insert edge pred="${predicate}" ` +
+        `[anytime-memory] astFunctionLevel: failed to insert edge pred="${predicate}" ` +
           `src="${filePath}" tgt="${edge.target}"`,
         err
       );
@@ -397,7 +397,7 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
   }
 
   logger.info(
-    `[memory-core] astFunctionLevel: repo="${repoName}" ` +
+    `[anytime-memory] astFunctionLevel: repo="${repoName}" ` +
       `facts=${stats.facts_inserted} edges=${stats.edges_inserted} ` +
       `functions=${stats.function_entities_upserted}`
   );

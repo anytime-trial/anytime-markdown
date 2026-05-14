@@ -81,7 +81,7 @@ export async function extractClaims(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error(
-      `[memory-core] Ollama generate failed during spec claim extraction: ${msg}`,
+      `[anytime-memory] Ollama generate failed during spec claim extraction: ${msg}`,
       err,
     );
     return null;
@@ -92,7 +92,7 @@ export async function extractClaims(
     parsed = JSON.parse(responseText);
   } catch (err) {
     logger.error(
-      `[memory-core] JSON.parse failed for spec claim extraction response`,
+      `[anytime-memory] JSON.parse failed for spec claim extraction response`,
       err,
     );
     return null;
@@ -101,7 +101,7 @@ export async function extractClaims(
   const validated = ExtractResultSchema.safeParse(parsed);
   if (!validated.success) {
     logger.error(
-      `[memory-core] Zod validation failed for spec claim extraction: ${validated.error.message}`,
+      `[anytime-memory] Zod validation failed for spec claim extraction: ${validated.error.message}`,
       validated.error,
     );
     return null;
@@ -110,7 +110,7 @@ export async function extractClaims(
   const data = validated.data;
   if (!hasSummaryField(parsed)) {
     logger.warn?.(
-      `[memory-core] spec claim extraction: LLM omitted 'summary' field (continuing with empty summary)`,
+      `[anytime-memory] spec claim extraction: LLM omitted 'summary' field (continuing with empty summary)`,
     );
   }
   const filteredClaims = data.claims.filter(

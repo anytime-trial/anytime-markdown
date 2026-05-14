@@ -155,7 +155,7 @@ export async function runSpecIncremental(
   const startTime = Date.now();
   const startedAt = new Date(startTime).toISOString();
 
-  logger.info(`[${startedAt}] [INFO] [memory-core] runSpecIncremental: starting (specRoot=${specRoot})`);
+  logger.info(`[${startedAt}] [INFO] [anytime-memory] runSpecIncremental: starting (specRoot=${specRoot})`);
 
   // 1. Insert running row into memory_pipeline_runs
   const runId = startPipelineRun(db, SCOPE, startedAt);
@@ -173,7 +173,7 @@ export async function runSpecIncremental(
     // 2. Discover changed specs
     const changedSpecs = await discoverChangedSpecs({ specRoot, db, logger });
     const total = changedSpecs.length;
-    logger.info(`[${new Date().toISOString()}] [INFO] [memory-core] runSpecIncremental: discovered ${total} changed spec(s)`);
+    logger.info(`[${new Date().toISOString()}] [INFO] [anytime-memory] runSpecIncremental: discovered ${total} changed spec(s)`);
 
     // items_skipped = all MD files that were not in changedSpecs (hash matched)
     // We can't know the total without re-scanning, so we track skips from discoverChangedSpecs
@@ -204,13 +204,13 @@ export async function runSpecIncremental(
     items_skipped = Math.max(0, totalMdCount - changedSpecs.length);
 
     // 3. Process each changed spec
-    logger.info(`[memory-core] spec incremental: ${changedSpecs.length} changed specs to process`);
+    logger.info(`[anytime-memory] spec incremental: ${changedSpecs.length} changed specs to process`);
     let processedCount = 0;
     for (const spec of changedSpecs) {
       processedCount += 1;
       if (processedCount % PROGRESS_LOG_INTERVAL === 0) {
         logger.info(
-          `[memory-core] spec incremental progress: ${processedCount}/${changedSpecs.length} ` +
+          `[anytime-memory] spec incremental progress: ${processedCount}/${changedSpecs.length} ` +
             `(failed=${items_failed})`
         );
       }
@@ -222,13 +222,13 @@ export async function runSpecIncremental(
           content = fs.readFileSync(spec.abs_path, 'utf-8');
         } catch (readErr) {
           const detail = readErr instanceof Error ? readErr.message : String(readErr);
-          logger.error(`[${recordedAt}] [ERROR] [memory-core] runSpecIncremental: failed to read ${spec.rel_path}`, readErr);
+          logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: failed to read ${spec.rel_path}`, readErr);
           recordFailedItem(db, 'spec', spec.rel_path, 'read_error', detail, recordedAt);
           items_failed++;
           consecutiveFailures++;
           if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
             finalStatus = 'partial';
-            logger.error(`[${recordedAt}] [ERROR] [memory-core] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
+            logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
             break;
           }
           continue;
@@ -239,19 +239,19 @@ export async function runSpecIncremental(
         if (!parseResult.ok) {
           if (parseResult.reason === 'missing') {
             // No --- block: legacy file without frontmatter — soft skip, not a transient failure
-            logger.warn?.(`[${recordedAt}] [WARN] [memory-core] runSpecIncremental: skipping ${spec.rel_path} (no frontmatter)`);
+            logger.warn?.(`[${recordedAt}] [WARN] [anytime-memory] runSpecIncremental: skipping ${spec.rel_path} (no frontmatter)`);
             items_skipped++;
             continue;
           }
           // reason === 'invalid': has --- block but zod validation failed — data quality issue
           const detail = `parseFrontmatter invalid: ${parseResult.detail}`;
-          logger.error(`[${recordedAt}] [ERROR] [memory-core] runSpecIncremental: ${detail} for ${spec.rel_path}`);
+          logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: ${detail} for ${spec.rel_path}`);
           recordFailedItem(db, 'spec', spec.rel_path, 'parse_error', detail, recordedAt);
           items_failed++;
           consecutiveFailures++;
           if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
             finalStatus = 'partial';
-            logger.error(`[${recordedAt}] [ERROR] [memory-core] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
+            logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
             break;
           }
           continue;
@@ -274,13 +274,13 @@ export async function runSpecIncremental(
           if (!extractResult) {
             // LLM failure — check if it's a connection error
             const detail = 'extractClaims returned null (LLM failure)';
-            logger.error(`[${recordedAt}] [ERROR] [memory-core] runSpecIncremental: ${detail} for ${spec.rel_path}`);
+            logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: ${detail} for ${spec.rel_path}`);
             recordFailedItem(db, 'spec', spec.rel_path, 'llm_error', detail, recordedAt);
             items_failed++;
             consecutiveFailures++;
             if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
               finalStatus = 'partial';
-              logger.error(`[${recordedAt}] [ERROR] [memory-core] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
+              logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
               break;
             }
             continue;
@@ -332,7 +332,7 @@ export async function runSpecIncremental(
         consecutiveFailures = 0;
 
         logger.info(
-          `[${recordedAt}] [INFO] [memory-core] runSpecIncremental: processed ${spec.rel_path} ` +
+          `[${recordedAt}] [INFO] [anytime-memory] runSpecIncremental: processed ${spec.rel_path} ` +
           `(entities_inserted=${claimResult.entities_inserted}, edges_inserted=${claimResult.edges_inserted + c4Result.edges_inserted})`,
         );
       } catch (err) {
@@ -343,7 +343,7 @@ export async function runSpecIncremental(
         const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err);
 
         if (isConnRefused) {
-          logger.error(`[${recordedAt}] [ERROR] [memory-core] runSpecIncremental: LLM connection refused — aborting`, err);
+          logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: LLM connection refused — aborting`, err);
           finalStatus = 'error';
           errorDetail = detail;
           recordFailedItem(db, 'spec', spec.rel_path, 'llm_connection_error', detail, recordedAt);
@@ -351,20 +351,20 @@ export async function runSpecIncremental(
           break;
         }
 
-        logger.error(`[${recordedAt}] [ERROR] [memory-core] runSpecIncremental: unexpected error processing ${spec.rel_path}`, err);
+        logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: unexpected error processing ${spec.rel_path}`, err);
         recordFailedItem(db, 'spec', spec.rel_path, 'unexpected_error', detail, recordedAt);
         items_failed++;
         consecutiveFailures++;
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
           finalStatus = 'partial';
-          logger.error(`[${recordedAt}] [ERROR] [memory-core] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
+          logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
           break;
         }
       }
     }
   } catch (err) {
     const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err);
-    logger.error(`[${new Date().toISOString()}] [ERROR] [memory-core] runSpecIncremental: fatal error`, err);
+    logger.error(`[${new Date().toISOString()}] [ERROR] [anytime-memory] runSpecIncremental: fatal error`, err);
     finalStatus = 'error';
     errorDetail = detail;
   }
@@ -402,7 +402,7 @@ export async function runSpecIncremental(
   };
 
   logger.info(
-    `[${finishedAt}] [INFO] [memory-core] runSpecIncremental: done ` +
+    `[${finishedAt}] [INFO] [anytime-memory] runSpecIncremental: done ` +
     `status=${finalStatus}, items_processed=${items_processed}, items_skipped=${items_skipped}, ` +
     `entities_inserted=${entities_inserted}, edges_inserted=${edges_inserted}, duration_ms=${durationMs}`,
   );

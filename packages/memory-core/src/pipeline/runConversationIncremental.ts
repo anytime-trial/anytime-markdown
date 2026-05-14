@@ -261,7 +261,7 @@ export async function runConversationIncremental(opts: {
 
         if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
           logger.info(
-            `[memory-core] conversation incremental progress: ${totals.items_processed} processed ` +
+            `[anytime-memory] conversation incremental progress: ${totals.items_processed} processed ` +
               `(${totals.items_failed} failed, ${totals.items_skipped} skipped, ` +
               `entities_inserted=${totals.entities_inserted})`
           );
@@ -275,7 +275,7 @@ export async function runConversationIncremental(opts: {
           if (save) {
             const t0 = Date.now();
             save();
-            logger.info(`[memory-core] conversation incremental: checkpoint save ${Date.now() - t0}ms`);
+            logger.info(`[anytime-memory] conversation incremental: checkpoint save ${Date.now() - t0}ms`);
           }
           if (progress) progress(totals.items_processed, totals.items_failed);
         }
@@ -298,7 +298,7 @@ export async function runConversationIncremental(opts: {
           });
         } catch (err) {
           logger.error(
-            `[memory-core] runConversationIncremental: unexpected error in extractFacts for episode ${episode.message_uuid_start}`,
+            `[anytime-memory] runConversationIncremental: unexpected error in extractFacts for episode ${episode.message_uuid_start}`,
             err
           );
           extracted = null;
@@ -316,7 +316,7 @@ export async function runConversationIncremental(opts: {
 
           if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
             logger.error(
-              `[memory-core] runConversationIncremental: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
+              `[anytime-memory] runConversationIncremental: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
             );
             upsertPipelineState(db, {
               status: 'quarantine',
@@ -349,7 +349,7 @@ export async function runConversationIncremental(opts: {
           totals.edges_invalidated += persisted.edges_invalidated;
         } catch (err) {
           logger.error(
-            `[memory-core] runConversationIncremental: persist failed for episode ${episode.message_uuid_start}`,
+            `[anytime-memory] runConversationIncremental: persist failed for episode ${episode.message_uuid_start}`,
             err
           );
           totals.items_failed += 1;
@@ -372,7 +372,7 @@ export async function runConversationIncremental(opts: {
     }
   } catch (err) {
     logger.error(
-      `[memory-core] runConversationIncremental: fatal error during session iteration`,
+      `[anytime-memory] runConversationIncremental: fatal error during session iteration`,
       err
     );
     finalStatus = 'error';
