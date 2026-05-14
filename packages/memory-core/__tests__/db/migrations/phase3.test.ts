@@ -2,7 +2,6 @@ import * as os from 'os';
 import type { MemoryDbConnection } from '../../../src/db/connection/types';
 import * as path from 'path';
 import * as fs from 'fs';
-import type { Database } from 'sql.js';
 import { openMemoryCoreDb } from '../../../src/db/connection';
 
 function makeTmpDb(): string {

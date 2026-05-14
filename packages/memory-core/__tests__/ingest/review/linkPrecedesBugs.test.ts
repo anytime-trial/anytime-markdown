@@ -1,4 +1,3 @@
-import type { Database } from 'sql.js';
 import type { MemoryDbConnection } from '../../../src/db/connection/types';
 import * as os from 'os';
 import * as path from 'path';
