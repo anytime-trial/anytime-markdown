@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced `sql.js` (WASM) with `better-sqlite3` (native) for all SQLite access. memory-core / trail-db / trail-server are all on better-sqlite3 now and `vsce package --no-dependencies` bundling pattern is no longer in use, so the WASM round-trip is unnecessary. The `tmp + rename` atomic write in `openTrailDb` is replaced by better-sqlite3's WAL checkpoint on close.
+
 ## [0.10.1] - 2026-05-08
 
 ### Added
