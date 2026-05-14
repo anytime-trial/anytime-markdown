@@ -468,11 +468,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	const backupIntervalDays = dbConfig.get<number>('backupIntervalDays', 1);
 	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir, backupGenerations, TrailLogger, backupIntervalDays);
 
-	// Memory Core output channel + native binding paths are needed by:
+	// Anytime Memory output channel + native binding paths are needed by:
 	//   - MemoryCoreService (ingest pipeline ホスト)
 	//   - memory chat (ChatBridge / RebuildScheduler)
 	// なので拡張側の責務として早期に解決しておく。
-	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Memory Core');
+	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Anytime Memory');
 	const memoryCoreNativeBinding = path.join(
 		extensionDistPath,
 		'node_modules',
@@ -1024,13 +1024,13 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (memoryCoreService) {
 					const status = await memoryCoreService.pause('vscode-command');
 					vscode.window.showInformationMessage(
-						`Memory Core: ingest paused (by=${status.pausedBy})`,
+						`Anytime Memory: ingest paused (by=${status.pausedBy})`,
 					);
 					return;
 				}
 				const daemonUrl = TrailPanel.getDaemonUrl();
 				if (!daemonUrl) {
-					vscode.window.showWarningMessage('Memory Core: no local service and no daemon URL available');
+					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
 					return;
 				}
 				const res = await fetch(`${daemonUrl}/api/memory-core/pause`, {
@@ -1039,14 +1039,14 @@ export async function activate(context: vscode.ExtensionContext) {
 					body: JSON.stringify({ by: 'vscode-command' }),
 				});
 				if (!res.ok) {
-					vscode.window.showErrorMessage(`Memory Core pause failed: HTTP ${res.status}`);
+					vscode.window.showErrorMessage(`Anytime Memory pause failed: HTTP ${res.status}`);
 					return;
 				}
-				vscode.window.showInformationMessage('Memory Core: ingest paused on daemon');
+				vscode.window.showInformationMessage('Anytime Memory: ingest paused on daemon');
 			} catch (err) {
 				TrailLogger.error('pauseIngest failed', err);
 				vscode.window.showErrorMessage(
-					`Memory Core pause failed: ${err instanceof Error ? err.message : String(err)}`,
+					`Anytime Memory pause failed: ${err instanceof Error ? err.message : String(err)}`,
 				);
 			}
 		}),
@@ -1054,24 +1054,24 @@ export async function activate(context: vscode.ExtensionContext) {
 			try {
 				if (memoryCoreService) {
 					await memoryCoreService.resume();
-					vscode.window.showInformationMessage('Memory Core: ingest resumed');
+					vscode.window.showInformationMessage('Anytime Memory: ingest resumed');
 					return;
 				}
 				const daemonUrl = TrailPanel.getDaemonUrl();
 				if (!daemonUrl) {
-					vscode.window.showWarningMessage('Memory Core: no local service and no daemon URL available');
+					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
 					return;
 				}
 				const res = await fetch(`${daemonUrl}/api/memory-core/resume`, { method: 'POST' });
 				if (!res.ok) {
-					vscode.window.showErrorMessage(`Memory Core resume failed: HTTP ${res.status}`);
+					vscode.window.showErrorMessage(`Anytime Memory resume failed: HTTP ${res.status}`);
 					return;
 				}
-				vscode.window.showInformationMessage('Memory Core: ingest resumed on daemon');
+				vscode.window.showInformationMessage('Anytime Memory: ingest resumed on daemon');
 			} catch (err) {
 				TrailLogger.error('resumeIngest failed', err);
 				vscode.window.showErrorMessage(
-					`Memory Core resume failed: ${err instanceof Error ? err.message : String(err)}`,
+					`Anytime Memory resume failed: ${err instanceof Error ? err.message : String(err)}`,
 				);
 			}
 		}),
@@ -1080,30 +1080,30 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (memoryCoreService) {
 					const s = memoryCoreService.getStatus();
 					vscode.window.showInformationMessage(
-						`Memory Core (local): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
+						`Anytime Memory (local): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
 							`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
 					);
 					return;
 				}
 				const daemonUrl = TrailPanel.getDaemonUrl();
 				if (!daemonUrl) {
-					vscode.window.showWarningMessage('Memory Core: no local service and no daemon URL available');
+					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
 					return;
 				}
 				const res = await fetch(`${daemonUrl}/api/memory-core/status`);
 				if (!res.ok) {
-					vscode.window.showErrorMessage(`Memory Core status failed: HTTP ${res.status}`);
+					vscode.window.showErrorMessage(`Anytime Memory status failed: HTTP ${res.status}`);
 					return;
 				}
 				const s = await res.json() as { paused: boolean; ticksRun: number; ticksSkipped: number; lastRunAt: string | null; lastError: string | null };
 				vscode.window.showInformationMessage(
-					`Memory Core (daemon): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
+					`Anytime Memory (daemon): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
 						`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
 				);
 			} catch (err) {
 				TrailLogger.error('statusIngest failed', err);
 				vscode.window.showErrorMessage(
-					`Memory Core status failed: ${err instanceof Error ? err.message : String(err)}`,
+					`Anytime Memory status failed: ${err instanceof Error ? err.message : String(err)}`,
 				);
 			}
 		}),
