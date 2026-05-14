@@ -146,9 +146,11 @@ describe('loadConfig', () => {
     writeFileSync(p, JSON.stringify(loadFixture('config-v2.json')));
     const cfg = loadConfig(p);
     expect(cfg.schemaVersion).toBe(2);
-    expect(cfg.gitRoots).toEqual([]);
-    expect(cfg.memory.ollama.baseUrl).toBe('http://localhost:11434');
-    expect(cfg.memory.rag.finalLimit).toBe(12);
+    // override values that differ from DEFAULT_CONFIG
+    expect(cfg.gitRoots).toEqual(['/repo']);
+    expect(cfg.memory.ollama.baseUrl).toBe('http://host.docker.internal:11434');
+    expect(cfg.memory.rag.finalLimit).toBe(20);
+    // non-overridden fields fall back to defaults
     expect(cfg.memory.rag.bm25Limit).toBe(30);
     expect(cfg.memory.chat.model).toBe('qwen2.5-coder:14b');
     expect(cfg.memory.embedding.model).toBe('bge-m3');
