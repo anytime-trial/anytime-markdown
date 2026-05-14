@@ -2682,87 +2682,72 @@ export class TrailDataServer {
   }
 
   private handleWsMessage(data: unknown, ws?: WebSocket): void {
+    const parsed = this.parseWsClientMessage(data);
+    if (!parsed) return;
+
+    // provider 不要のメッセージは先に処理する。
+    // C4Panel 撤去後 setC4Provider を呼ぶ箇所が無く provider が常に undefined のため、
+    // ファイルを開くだけのコマンドを provider 必須ロジックに巻き込まれて drop させない。
+    switch (parsed.type) {
+      case 'chat.send':
+        if (this.chatBridge && ws) void this.chatBridge.handleSend(parsed.query, ws);
+        return;
+      case 'chat.abort':
+        this.chatBridge?.handleAbort();
+        return;
+      case 'provider.recheck':
+        void this.chatBridge?.recheck([...this.clients]);
+        return;
+      case 'generate-code-graph':
+        this.handleWsGenerateCodeGraph();
+        return;
+      case 'open-doc-link':
+        this.onOpenDocLink?.(parsed.path);
+        return;
+      case 'open-file':
+        this.onOpenFile?.(parsed.filePath);
+        return;
+      case 'perf-report':
+        // TRAIL_DEBUG_PERF=1 の時のみ OutputChannel に出力（既定で常時 silent）
+        this.logger.debug('[perf-report]', { metric: String(parsed.metric), ms: Number(parsed.ms) });
+        return;
+    }
+
+    // provider 必須メッセージ: provider が無ければ drop
+    const provider = this.getC4Provider?.();
+    if (!provider) return;
+    switch (parsed.type) {
+      case 'set-level':
+        provider.handleSetDsmLevel(parsed.level);
+        return;
+      case 'cluster':
+        provider.handleCluster(parsed.enabled);
+        return;
+      case 'refresh':
+        provider.handleRefresh();
+        return;
+      case 'reset-claude-activity':
+        provider.handleResetClaudeActivity();
+        return;
+    }
+  }
+
+  private parseWsClientMessage(data: unknown): ClientMessage | null {
     let parsed: unknown;
     try {
       parsed = JSON.parse(String(data));
     } catch {
-      return;
+      return null;
     }
-
-    if (!isClientMessage(parsed)) return;
-
-    if (parsed.type === 'chat.send') {
-      if (this.chatBridge && ws) void this.chatBridge.handleSend(parsed.query, ws);
-      return;
-    }
-    if (parsed.type === 'chat.abort') {
-      this.chatBridge?.handleAbort();
-      return;
-    }
-    if (parsed.type === 'provider.recheck') {
-      void this.chatBridge?.recheck([...this.clients]);
-      return;
-    }
-
-    if (parsed.type === 'generate-code-graph') {
-      if (this.codeGraphService) {
-        void this.codeGraphService
-          .generate((phase, percent) => this.notifyCodeGraphProgress(phase, percent))
-          .then(() => this.notifyCodeGraphUpdated())
-          .catch((err) => this.logger.error('Failed to generate code graph', err));
-      }
-      return;
-    }
-
-    // provider 不要のコマンドはここで処理する。
-    // C4Panel 撤去後 setC4Provider を呼ぶ箇所が無く provider が常に undefined のため、
-    // ファイルを開くだけのコマンドを provider 必須ロジックに巻き込まれて drop させない。
-    if (parsed.type === 'open-doc-link') {
-      this.onOpenDocLink?.(parsed.path);
-      return;
-    }
-    if (parsed.type === 'open-file') {
-      this.onOpenFile?.(parsed.filePath);
-      return;
-    }
-    if (parsed.type === 'perf-report') {
-      // TRAIL_DEBUG_PERF=1 の時のみ OutputChannel に出力（既定で常時 silent）
-      this.logger.debug('[perf-report]', { metric: String(parsed.metric), ms: Number(parsed.ms) });
-      return;
-    }
-
-    const provider = this.getC4Provider?.();
-    if (!provider) return;
-    this.dispatchClientMessage(parsed, provider);
+    return isClientMessage(parsed) ? parsed : null;
   }
 
-  private dispatchClientMessage(
-    message: ClientMessage,
-    provider: C4DataProvider,
-  ): void {
-    switch (message.type) {
-      case 'set-level':
-        provider.handleSetDsmLevel(message.level);
-        break;
-      case 'cluster':
-        provider.handleCluster(message.enabled);
-        break;
-      case 'refresh':
-        provider.handleRefresh();
-        break;
-      case 'open-doc-link':
-        this.onOpenDocLink?.(message.path);
-        break;
-      case 'open-file':
-        this.onOpenFile?.(message.filePath);
-        break;
-      case 'reset-claude-activity':
-        provider.handleResetClaudeActivity();
-        break;
-      case 'generate-code-graph':
-        // handled in handleWsMessage before requiring provider
-        break;
-    }
+  private handleWsGenerateCodeGraph(): void {
+    if (!this.codeGraphService) return;
+    void this.codeGraphService
+      .generate((phase, percent) => this.notifyCodeGraphProgress(phase, percent))
+      .then(() => this.notifyCodeGraphUpdated())
+      .catch((err) => this.logger.error('Failed to generate code graph', err));
   }
 
   notifyClaudeActivity(
