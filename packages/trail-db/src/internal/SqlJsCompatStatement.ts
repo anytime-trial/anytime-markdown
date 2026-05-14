@@ -6,10 +6,17 @@ import type { Statement } from 'better-sqlite3';
  * sql.js は `bind → step → get/getAsObject` という cursor 駆動の API を提供する。
  * better-sqlite3 は `prepare().all() / get() / iterate()` というイミディエイト
  * モデルなので、その上で cursor を仮想化する。
+ *
+ * 実装方針: `bind()` 時に全行を eager fetch する。better-sqlite3 の
+ * `iterate()` は statement / DB を "busy" 状態にロックし、検索結果を 1 行
+ * 読みながら別の write を実行するパターン (trail-db migration で頻出) で
+ * 「database is busy executing a query」エラーになる。eager fetch なら
+ * DB は常に idle なので衝突しない。trail-db / mcp-trail の use case は
+ * いずれも結果行数が境界付きでメモリ負荷の問題は出ない。
  */
 export class SqlJsCompatStatement {
-  private boundParams: unknown[] = [];
-  private iterator: ClosableIterator | null = null;
+  private rows: Record<string, unknown>[] = [];
+  private rowIndex = 0;
   private currentRow: Record<string, unknown> | null = null;
 
   constructor(
@@ -18,32 +25,34 @@ export class SqlJsCompatStatement {
   ) {}
 
   /**
-   * パラメータをバインドする。次回 step() 呼び出し時に新しい iterator が
-   * 作成され、これらのパラメータが使われる。
+   * パラメータをバインドして即座にクエリを実行し、全行をメモリ上にロードする。
    */
   bind(params: unknown[] = []): boolean {
-    this.releaseIterator();
-    this.boundParams = normalizeParams(params);
+    const normalized = normalizeParams(params);
+    if (this.inner.reader) {
+      this.rows = this.inner.all(...normalized) as Record<string, unknown>[];
+    } else {
+      // SELECT 以外を bind するケース (例: bind してから run を呼ぶ流れ) は、
+      // step が 0 回呼ばれるだけなので空配列で OK。
+      this.rows = [];
+    }
+    this.rowIndex = 0;
     this.currentRow = null;
     return true;
   }
 
   /**
-   * 次の行へ進む。最初の呼び出し時に lazy に iterator を作成する。
+   * 次の行へ進む。bind() で pre-fetch 済みの行を返す。
    * @returns 行が取得できた場合 true、終端なら false
    */
   step(): boolean {
-    if (!this.iterator) {
-      this.iterator = this.inner.iterate(...this.boundParams) as ClosableIterator;
+    if (this.rowIndex < this.rows.length) {
+      this.currentRow = this.rows[this.rowIndex];
+      this.rowIndex += 1;
+      return true;
     }
-    const next = this.iterator.next();
-    if (next.done) {
-      this.currentRow = null;
-      this.iterator = null;
-      return false;
-    }
-    this.currentRow = next.value as Record<string, unknown>;
-    return true;
+    this.currentRow = null;
+    return false;
   }
 
   /**
@@ -63,12 +72,11 @@ export class SqlJsCompatStatement {
   }
 
   /**
-   * cursor 状態をリセットする。次回 step() で iterator が再作成される。
-   * 既存のバインド済みパラメータは保持しない (sql.js 仕様に合わせる)。
+   * cursor 状態をリセットする。pre-fetch 済みの行も破棄する。
    */
   reset(): void {
-    this.releaseIterator();
-    this.boundParams = [];
+    this.rows = [];
+    this.rowIndex = 0;
     this.currentRow = null;
   }
 
@@ -88,21 +96,7 @@ export class SqlJsCompatStatement {
     const info = this.inner.run(...normalizeParams(params));
     this.onChanges(info.changes);
   }
-
-  /**
-   * 進行中の iterator を closing する。better-sqlite3 の Statement は
-   * iterator が exhausted されるか `.return()` が呼ばれるまで "busy" 扱いで、
-   * その間は同じ statement に対する別の `.iterate()` や DB.close() がエラーになる。
-   */
-  private releaseIterator(): void {
-    if (this.iterator && typeof this.iterator.return === 'function') {
-      this.iterator.return();
-    }
-    this.iterator = null;
-  }
 }
-
-type ClosableIterator = Iterator<unknown> & { return?: () => IteratorResult<unknown> };
 
 function normalizeParams(params: unknown[]): unknown[] {
   return params.map((p) => (p === undefined ? null : p));

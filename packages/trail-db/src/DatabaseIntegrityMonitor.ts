@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { SqlJsCompatDatabase as Database } from './internal/SqlJsCompatDatabase';
 
 /**
  * DatabaseIntegrityMonitor
