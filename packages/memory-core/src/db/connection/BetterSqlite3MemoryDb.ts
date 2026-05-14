@@ -23,6 +23,14 @@ export interface BetterSqlite3MemoryDbOptions {
 export class BetterSqlite3MemoryDb implements MemoryDbConnection {
   private readonly db: BetterSqlite3.Database;
   private lastRunChanges = 0;
+  /**
+   * `attach(..., readOnly=true)` で attach された schema alias の集合。
+   * better-sqlite3 は SQLITE_OPEN_URI を有効化していないため `?mode=ro` URI が
+   * 使えず、SQLite 層の readonly を活用できない。代替として exec/run/prepare で
+   * SQL を inspect し、これらの alias に対する INSERT/UPDATE/DELETE/REPLACE を
+   * アプリ層で拒否する (sql.js の installTrailReadonlyGuard と同等)。
+   */
+  private readonly readOnlyAliases = new Set<string>();
 
   constructor(opts: BetterSqlite3MemoryDbOptions) {
     const Ctor = loadBetterSqlite3();
@@ -33,11 +41,25 @@ export class BetterSqlite3MemoryDb implements MemoryDbConnection {
     });
   }
 
+  private checkReadOnlyAttach(sql: string): void {
+    if (this.readOnlyAliases.size === 0) return;
+    if (!/^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql)) return;
+    for (const alias of this.readOnlyAliases) {
+      const re = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.`, 'i');
+      if (re.test(sql)) {
+        throw new Error(
+          `[memory-core] write to read-only attached schema '${alias}' is forbidden. SQL: ${sql.slice(0, 100)}`,
+        );
+      }
+    }
+  }
+
   static openInMemory(): BetterSqlite3MemoryDb {
     return new BetterSqlite3MemoryDb({ filePath: ':memory:' });
   }
 
   exec(sql: string, params?: ReadonlyArray<SqlValue>): ExecResultColumn[] {
+    this.checkReadOnlyAttach(sql);
     const stmt = this.db.prepare(sql);
     if (!stmt.reader) {
       const result = stmt.run(...(toBindArgs(params) as unknown[]));
@@ -51,16 +73,19 @@ export class BetterSqlite3MemoryDb implements MemoryDbConnection {
   }
 
   run(sql: string, params?: ReadonlyArray<SqlValue>): void {
+    this.checkReadOnlyAttach(sql);
     const stmt = this.db.prepare(sql);
     const result = stmt.run(...(toBindArgs(params) as unknown[]));
     this.lastRunChanges = Number(result.changes);
   }
 
   execMany(sql: string): void {
+    this.checkReadOnlyAttach(sql);
     this.db.exec(sql);
   }
 
   prepare(sql: string): MemoryDbStatement {
+    this.checkReadOnlyAttach(sql);
     const stmt = this.db.prepare(sql);
     const trackChanges = (changes: number): void => {
       this.lastRunChanges = changes;
@@ -95,22 +120,15 @@ export class BetterSqlite3MemoryDb implements MemoryDbConnection {
     // ファイル名にシングルクォートが含まれるとエスケープが必要。SQLite の文字列リテラル仕様
     // (シングルクォート 2 個でエスケープ) に従う。
     const escaped = filePath.replace(/'/g, "''");
-    // 注意: better-sqlite3 はデフォルトで SQLITE_OPEN_URI を有効にしていないため
-    // `?mode=ro` のような URI 引数はファイル名の一部として扱われ、その名前で
-    // 空 DB が新規作成される。read-only を要求する場合は URI ではなく
-    // 接続全体を read-only で開くか、アプリ層でガードする (installTrailReadonlyGuard
-    // 相当の write 阻止) のいずれか。ここでは plain ATTACH に留めて
-    // readOnly フラグは「呼び出し側の意図表明」としてだけ受け取る。
     this.db.exec(`ATTACH DATABASE '${escaped}' AS ${alias}`);
     if (readOnly) {
-      // SQLite の query_only は接続単位なので main DB の write もブロックしてしまう。
-      // ここではあえて何もしない。書き込み禁止は呼び出し側の責務とする (将来的に
-      // installTrailReadonlyGuard 相当を better-sqlite3 にも実装する余地あり)。
+      this.readOnlyAliases.add(alias);
     }
   }
 
   detach(alias: string): void {
     this.db.exec(`DETACH DATABASE ${alias}`);
+    this.readOnlyAliases.delete(alias);
   }
 
   close(): void {
