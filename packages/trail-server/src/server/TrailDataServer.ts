@@ -51,6 +51,7 @@ import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/t
 import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
 import type { Logger, LogLevel } from '../runtime/Logger';
 import type { CodeGraphService } from '../analyze/CodeGraphService';
+import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/AnalyzePipeline';
 import type { MemoryCoreService } from '@anytime-markdown/memory-core';
 import { GraphQueryEngine } from '../analyze/GraphQueryEngine';
 import { MemoryApiHandler } from './MemoryApiHandler';
@@ -79,22 +80,11 @@ function clampInt(value: string | null, fallback: number, min: number, max: numb
   return Math.min(Math.max(n, min), max);
 }
 
-/** AnalyzePipeline.ts と同型。HTTP 応答のシリアライズ対象 */
-export interface AnalyzePipelineResult {
-  repoName: string;
-  tsconfigPath: string;
-  fileCount: number;
-  nodeCount: number;
-  edgeCount: number;
-  commitId: string;
-  durationMs: number;
-  warnings: string[];
-}
+/** @deprecated AnalyzeCurrentResult を直接使う */
+export type AnalyzePipelineResult = AnalyzeCurrentResult;
 
-export interface AnalyzeReleasePipelineResult {
-  releaseCount: number;
-  durationMs: number;
-}
+/** @deprecated AnalyzeReleaseResult を直接使う */
+export type AnalyzeReleasePipelineResult = AnalyzeReleaseResult;
 
 export interface AnalyzeAllPipelineResult {
   imported: number;
@@ -162,14 +152,23 @@ function collectFilePathsForElement(elementId: string, c4Model: C4Model): string
     result.add(target.id.slice(FILE_PREFIX.length));
     return Array.from(result);
   }
+  type C4ElementType = (typeof c4Model.elements)[number];
+  const childrenByBoundary = new Map<string, C4ElementType[]>();
+  for (const el of c4Model.elements) {
+    if (el.boundaryId == null) continue;
+    const arr = childrenByBoundary.get(el.boundaryId);
+    if (arr) arr.push(el);
+    else childrenByBoundary.set(el.boundaryId, [el]);
+  }
   const visited = new Set<string>();
   const stack: string[] = [elementId];
   while (stack.length > 0) {
     const cur = stack.pop();
     if (cur === undefined || visited.has(cur)) continue;
     visited.add(cur);
-    for (const el of c4Model.elements) {
-      if (el.boundaryId !== cur) continue;
+    const children = childrenByBoundary.get(cur);
+    if (!children) continue;
+    for (const el of children) {
       if (el.type === 'code' && el.id.startsWith(FILE_PREFIX)) {
         result.add(el.id.slice(FILE_PREFIX.length));
       }
@@ -233,6 +232,7 @@ export class TrailDataServer {
   /** /api/c4/call-hierarchy 用の隣接リストキャッシュ。current_graphs ロード後に lazy 構築し、graph 更新時に invalidate */
   private callHierarchyIndex: CallHierarchyIndex | null = null;
   private callHierarchyIndexRepo: string | undefined;
+  private cachedGraphEngine: GraphQueryEngine | null = null;
   onOpenDocLink: ((docPath: string) => void) | undefined;
   onOpenFile: ((filePath: string) => void) | undefined;
   onTokenBudgetExceeded: ((status: import('./types').TokenBudgetUpdatedMessage) => void) | undefined;
@@ -264,6 +264,8 @@ export class TrailDataServer {
   private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
   private logService: LogService | undefined;
   private logCleanupTimer: NodeJS.Timeout | null = null;
+  private dailyTokensCache: { value: number; expiresAt: number } | null = null;
+  private promptsCache: { value: PromptEntry[]; expiresAt: number } | null = null;
 
   constructor(
     private readonly distPath: string,
@@ -396,6 +398,7 @@ export class TrailDataServer {
       clearInterval(this.logCleanupTimer);
       this.logCleanupTimer = null;
     }
+    this.memoryApi.dispose();
     for (const ws of this.clients) {
       ws.close();
     }
@@ -474,7 +477,9 @@ export class TrailDataServer {
   setDocsPath(docsPath: string | undefined): void {
     this.docsPath = docsPath;
     if (docsPath) {
-      this.scanDocLinks().catch(() => { /* ignore */ });
+      this.scanDocLinks().catch((err) => {
+        this.logger.warn('[scanDocLinks] failed', err);
+      });
     } else {
       this.docLinks = [];
     }
@@ -761,7 +766,15 @@ export class TrailDataServer {
       const line = parsed.searchParams.get('line');
       const scope = parsed.searchParams.get('scope') ?? 'project';
       const excludeTests = parsed.searchParams.get('excludeTests') === 'true';
-      void this.handleCallHierarchyEndpoint(res, file, fn, direction, depth, line, scope, excludeTests);
+      void this.handleCallHierarchyEndpoint(res, {
+        file,
+        fn,
+        direction,
+        depthParam: depth,
+        lineParam: line,
+        scope,
+        excludeTests,
+      });
       return;
     }
 
@@ -1125,26 +1138,32 @@ export class TrailDataServer {
     res.end(JSON.stringify(graph));
   }
 
-  private handleCodeGraphQuery(res: http.ServerResponse, q: string): void {
+  private getOrBuildGraphEngine(): GraphQueryEngine | null {
+    if (this.cachedGraphEngine) return this.cachedGraphEngine;
     const graph = this.codeGraphService?.getGraph();
-    if (!graph) {
+    if (!graph) return null;
+    this.cachedGraphEngine = new GraphQueryEngine(graph);
+    return this.cachedGraphEngine;
+  }
+
+  private handleCodeGraphQuery(res: http.ServerResponse, q: string): void {
+    const engine = this.getOrBuildGraphEngine();
+    if (!engine) {
       res.writeHead(404, JSON_HEADERS);
       res.end('{}');
       return;
     }
-    const engine = new GraphQueryEngine(graph);
     res.writeHead(200, JSON_HEADERS);
     res.end(JSON.stringify(engine.query(q)));
   }
 
   private handleCodeGraphExplain(res: http.ServerResponse, id: string): void {
-    const graph = this.codeGraphService?.getGraph();
-    if (!graph) {
+    const engine = this.getOrBuildGraphEngine();
+    if (!engine) {
       res.writeHead(404, JSON_HEADERS);
       res.end('{}');
       return;
     }
-    const engine = new GraphQueryEngine(graph);
     const result = engine.explain(id);
     res.writeHead(result ? 200 : 404, JSON_HEADERS);
     res.end(JSON.stringify(result ?? {}));
@@ -1457,13 +1476,12 @@ export class TrailDataServer {
   }
 
   private handleCodeGraphPath(res: http.ServerResponse, from: string, to: string): void {
-    const graph = this.codeGraphService?.getGraph();
-    if (!graph) {
+    const engine = this.getOrBuildGraphEngine();
+    if (!engine) {
       res.writeHead(404, JSON_HEADERS);
       res.end('{}');
       return;
     }
-    const engine = new GraphQueryEngine(graph);
     res.writeHead(200, JSON_HEADERS);
     res.end(JSON.stringify(engine.path(from, to)));
   }
@@ -1471,6 +1489,7 @@ export class TrailDataServer {
   notifyCodeGraphUpdated(): void {
     this.callHierarchyIndex = null;
     this.callHierarchyIndexRepo = undefined;
+    this.cachedGraphEngine = null;
     if (this.clients.size === 0) return;
     const payload = JSON.stringify({ type: 'code-graph-updated' } satisfies ServerMessage);
     for (const ws of this.clients) ws.send(payload);
@@ -1546,17 +1565,20 @@ export class TrailDataServer {
       const commitStats = this.trailDb.getSessionCommitStats(sessionIds);
       const distinctAgentIdCounts = this.trailDb.getSessionDistinctAgentIdCounts(sessionIds);
       const delegatedTrackCounts = this.trailDb.getSessionDelegatedTrackCounts(sessionIds);
+      const nonCodexIds = rawSessions
+        .filter((s) => (s.source as string | undefined) !== 'codex')
+        .map((s) => s.id);
+      const linkedMapByParent = this.trailDb.fetchLinkedCodexSessionMapForCcSessions(nonCodexIds);
       const linkedCodexSessionIdsByParent = new Map<string, Set<string>>();
       const consumedCodexSessionIds = new Set<string>();
-      for (const s of rawSessions) {
-        if ((s.source as string | undefined) === 'codex') continue;
-        const linked = this.trailDb.getLinkedCodexSessionByAssistantUuid(s.id);
+      for (const parentId of nonCodexIds) {
+        const linked = linkedMapByParent.get(parentId) ?? new Map<string, string>();
         const ids = new Set<string>();
         for (const sid of linked.values()) {
           ids.add(sid);
           consumedCodexSessionIds.add(sid);
         }
-        linkedCodexSessionIdsByParent.set(s.id, ids);
+        linkedCodexSessionIdsByParent.set(parentId, ids);
       }
 
       const sessions = rawSessions
@@ -1622,7 +1644,8 @@ export class TrailDataServer {
         });
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ sessions }));
-    } catch {
+    } catch (err) {
+      this.logger.error('[/api/trail/sessions] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to read sessions' }));
     }
@@ -1723,7 +1746,8 @@ export class TrailDataServer {
       });
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ session, messages }));
-    } catch {
+    } catch (err) {
+      this.logger.error('[/api/trail/sessions/:id] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to read session' }));
     }
@@ -1749,7 +1773,8 @@ export class TrailDataServer {
       }));
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ commits: mapped }));
-    } catch {
+    } catch (err) {
+      this.logger.error('[/api/trail/sessions/:id/commits] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get commits' }));
     }
@@ -1767,7 +1792,8 @@ export class TrailDataServer {
       const metrics = this.trailDb.computeToolMetrics(sessionId);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(metrics));
-    } catch {
+    } catch (err) {
+      this.logger.error('[/api/trail/sessions/:id/tool-metrics] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get tool metrics' }));
     }
@@ -1790,7 +1816,8 @@ export class TrailDataServer {
       }
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(metrics));
-    } catch {
+    } catch (err) {
+      this.logger.error('[/api/trail/days/:date/tool-metrics] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get day tool metrics' }));
     }
@@ -1829,7 +1856,8 @@ export class TrailDataServer {
       const entries = await fetchC4ModelEntries(store);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(entries));
-    } catch {
+    } catch (err) {
+      this.logger.error('[/api/c4/releases] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get C4 releases' }));
     }
@@ -2208,7 +2236,8 @@ export class TrailDataServer {
       const results = this.trailDb.searchMessages(query);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ results }));
-    } catch {
+    } catch (err) {
+      this.logger.error('[/api/trail/search] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Search failed' }));
     }
@@ -2223,11 +2252,20 @@ export class TrailDataServer {
   // -------------------------------------------------------------------------
 
   private handleGetPrompts(res: http.ServerResponse): void {
+    const PROMPTS_TTL_MS = 30_000;
     try {
-      const prompts = scanPromptFiles();
+      const now = Date.now();
+      let prompts: PromptEntry[];
+      if (this.promptsCache && now < this.promptsCache.expiresAt) {
+        prompts = this.promptsCache.value;
+      } else {
+        prompts = scanPromptFiles();
+        this.promptsCache = { value: prompts, expiresAt: now + PROMPTS_TTL_MS };
+      }
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ prompts }));
-    } catch {
+    } catch (err) {
+      this.logger.error('[/api/trail/prompts] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to read prompts' }));
     }
@@ -2242,7 +2280,8 @@ export class TrailDataServer {
       const analytics: AnalyticsData = this.trailDb.getAnalytics();
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(analytics));
-    } catch {
+    } catch (err) {
+      this.logger.error('[/api/trail/analytics] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get analytics' }));
     }
@@ -2257,7 +2296,8 @@ export class TrailDataServer {
       const data: CostOptimizationData = this.trailDb.getCostOptimization();
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(data));
-    } catch {
+    } catch (err) {
+      this.logger.error('[/api/trail/cost-optimization] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get cost optimization data' }));
     }
@@ -2404,7 +2444,8 @@ export class TrailDataServer {
       }));
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(releases));
-    } catch {
+    } catch (err) {
+      this.logger.error('[/api/trail/releases] failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to get releases' }));
     }
@@ -2425,7 +2466,8 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(result));
       })
-      .catch(() => {
+      .catch((err: unknown) => {
+        this.logger.error('[/api/trail/refresh] importAll failed', err);
         res.writeHead(500, JSON_HEADERS);
         res.end(JSON.stringify({ error: 'Refresh failed' }));
       });
@@ -2472,23 +2514,43 @@ export class TrailDataServer {
     return { contextTokens: 0, turnCount: 0, messageCount: 0 };
   }
 
-  private static getDailyTokensFromJsonl(): number {
+  // 'sv-SE' ロケールは ISO 8601 互換の YYYY-MM-DD 形式を返す
+  private static readonly jstDateFormatter = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  private static formatJstDate(ms: number): string {
+    return TrailDataServer.jstDateFormatter.format(ms);
+  }
+
+  private getDailyTokensFromJsonl(): number {
+    const DAILY_TOKENS_TTL_MS = 30_000;
+    const now = Date.now();
+    if (this.dailyTokensCache && now < this.dailyTokensCache.expiresAt) {
+      return this.dailyTokensCache.value;
+    }
+
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
-    const nowJst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-    const todayJst = nowJst.toISOString().slice(0, 10);
+    const todayJst = TrailDataServer.formatJstDate(now);
     let total = 0;
     try {
       for (const dir of fs.readdirSync(projectsDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)) {
         const dirPath = path.join(projectsDir, dir);
         for (const file of fs.readdirSync(dirPath).filter(f => f.endsWith('.jsonl'))) {
           const filePath = path.join(dirPath, file);
-          const mtimeJst = new Date(fs.statSync(filePath).mtimeMs + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+          const mtimeJst = TrailDataServer.formatJstDate(fs.statSync(filePath).mtimeMs);
           if (mtimeJst === todayJst) {
             total += TrailDataServer.parseJsonlSession(filePath).contextTokens;
           }
         }
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      this.logger.warn(`[getDailyTokensFromJsonl] scan failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    this.dailyTokensCache = { value: total, expiresAt: now + DAILY_TOKENS_TTL_MS };
     return total;
   }
 
@@ -2511,7 +2573,7 @@ export class TrailDataServer {
 
         const { contextTokens, turnCount, messageCount } = TrailDataServer.getSessionStatsFromJsonl(sessionId);
         const dbDaily = this.trailDb.getDailyTokensToday();
-        const dailyTokens = dbDaily > 0 ? dbDaily : TrailDataServer.getDailyTokensFromJsonl();
+        const dailyTokens = dbDaily > 0 ? dbDaily : this.getDailyTokensFromJsonl();
         const { dailyLimitTokens, sessionLimitTokens, alertThresholdPct } = this.tokenBudgetConfig;
 
         const status: import('./types').TokenBudgetUpdatedMessage = {
@@ -2540,7 +2602,8 @@ export class TrailDataServer {
 
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ ok: true }));
-      } catch {
+      } catch (err) {
+        this.logger.warn(`[handleTokenBudget] non-critical error, returning ok anyway: ${err instanceof Error ? err.message : String(err)}`);
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ ok: true }));
       }
@@ -3102,14 +3165,17 @@ export class TrailDataServer {
 
   private handleCallHierarchyEndpoint(
     res: http.ServerResponse,
-    file: string,
-    fn: string,
-    direction: string,
-    depthParam: string | null,
-    lineParam: string | null,
-    scope: string,
-    excludeTests: boolean,
+    params: Readonly<{
+      file: string;
+      fn: string;
+      direction: string;
+      depthParam: string | null;
+      lineParam: string | null;
+      scope: string;
+      excludeTests: boolean;
+    }>,
   ): void {
+    const { file, fn, direction, depthParam, lineParam, scope, excludeTests } = params;
     try {
       if (!file || !fn) {
         res.writeHead(400, JSON_HEADERS);
@@ -3580,7 +3646,8 @@ export class TrailDataServer {
   }
 
   private handlePostLogsRoute(req: http.IncomingMessage, res: http.ServerResponse): void {
-    if (!this.logService) {
+    const logService = this.logService;
+    if (!logService) {
       res.writeHead(503, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'log service not registered' }));
       return;
@@ -3589,7 +3656,7 @@ export class TrailDataServer {
     req.on('data', (c) => chunks.push(c as Buffer));
     req.on('end', () => {
       const body = Buffer.concat(chunks).toString('utf-8');
-      const result = handlePostLogs(body, this.logService!);
+      const result = handlePostLogs(body, logService);
       const headers = result.headers ?? {};
       res.writeHead(result.status, headers);
       if (result.body) res.end(result.body);

@@ -147,6 +147,11 @@ function mapRow<T>(columns: ReadonlyArray<string>, values: ReadonlyArray<unknown
 export class MemoryApiHandler {
   private readonly dbPath: string;
   private readonly logger: Logger;
+  /**
+   * 読み取り専用接続は lazy 初期化して使い回す。BetterSqlite3 は WAL モードで
+   * 別接続からの書き込みを snapshot 経由で見られるため、cache の invalidate は不要。
+   */
+  private cachedReadOnlyDb: MemoryDbConnection | null = null;
 
   constructor(logger: Logger, dbPath?: string) {
     this.logger = logger;
@@ -159,12 +164,26 @@ export class MemoryApiHandler {
     return { exists: fs.existsSync(this.dbPath) };
   }
 
+  /** 共有 read-only 接続を解放する。daemon 停止時に呼ぶ。 */
+  dispose(): void {
+    if (this.cachedReadOnlyDb) {
+      try {
+        this.cachedReadOnlyDb.close();
+      } catch (err) {
+        this.logger.warn(`[MemoryApiHandler.dispose] close failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      this.cachedReadOnlyDb = null;
+    }
+  }
+
   // ---- open helpers ----
 
   private openReadOnly(): MemoryDbConnection | null {
+    if (this.cachedReadOnlyDb) return this.cachedReadOnlyDb;
     if (!fs.existsSync(this.dbPath)) return null;
     try {
-      return new BetterSqlite3MemoryDb({ filePath: this.dbPath, readOnly: true });
+      this.cachedReadOnlyDb = new BetterSqlite3MemoryDb({ filePath: this.dbPath, readOnly: true });
+      return this.cachedReadOnlyDb;
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.openReadOnly] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return null;
@@ -183,7 +202,12 @@ export class MemoryApiHandler {
     }
   }
 
+  /**
+   * read-only 共有接続は close しない (dispose 時に一括 close)。
+   * read-write 接続のみ close する。両者を区別してミスを防ぐためのヘルパー。
+   */
   private close(db: MemoryDbConnection): void {
+    if (db === this.cachedReadOnlyDb) return;
     db.close();
   }
 
@@ -258,7 +282,7 @@ export class MemoryApiHandler {
       this.logger.error(`[MemoryApiHandler.listDriftEvents] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
-      db.close();
+      this.close(db);
     }
   }
 
@@ -304,7 +328,7 @@ export class MemoryApiHandler {
       this.logger.error(`[MemoryApiHandler.getDriftEventDetail] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return null;
     } finally {
-      db.close();
+      this.close(db);
     }
   }
 
@@ -317,7 +341,7 @@ export class MemoryApiHandler {
       return { ok: result.resolved };
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.resolveDriftEvent] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
-      db.close();
+      this.close(db);
       return { ok: false };
     }
   }
@@ -370,7 +394,7 @@ export class MemoryApiHandler {
       this.logger.error(`[MemoryApiHandler.listRecurringBugs] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
-      db.close();
+      this.close(db);
     }
   }
 
@@ -425,7 +449,7 @@ export class MemoryApiHandler {
       this.logger.error(`[MemoryApiHandler.getBugHistory] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
-      db.close();
+      this.close(db);
     }
   }
 
@@ -483,7 +507,7 @@ export class MemoryApiHandler {
       this.logger.error(`[MemoryApiHandler.listUnaddressedReviewFindings] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
-      db.close();
+      this.close(db);
     }
   }
 
@@ -537,7 +561,7 @@ export class MemoryApiHandler {
       this.logger.error(`[MemoryApiHandler.getReviewHistory] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
-      db.close();
+      this.close(db);
     }
   }
 
@@ -596,7 +620,7 @@ export class MemoryApiHandler {
       this.logger.error(`[MemoryApiHandler.listPipelineRuns] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
-      db.close();
+      this.close(db);
     }
   }
 
@@ -641,7 +665,7 @@ export class MemoryApiHandler {
       this.logger.error(`[MemoryApiHandler.listFailedItems] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
-      db.close();
+      this.close(db);
     }
   }
 
@@ -687,7 +711,7 @@ export class MemoryApiHandler {
       this.logger.error(`[MemoryApiHandler.listTopEntities] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
-      db.close();
+      this.close(db);
     }
   }
 
@@ -733,7 +757,7 @@ export class MemoryApiHandler {
       this.logger.error(`[MemoryApiHandler.listInvalidations] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
-      db.close();
+      this.close(db);
     }
   }
 }

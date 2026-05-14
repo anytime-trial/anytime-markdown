@@ -15,11 +15,12 @@ import type {
   ChatChunkMessage,
   ProviderStatusMessage,
 } from '../server/types';
+import type { MemoryChatLogger } from './types';
 
-export interface ChatBridgeLogger {
-  info(msg: string, context?: Record<string, unknown>): void;
-  error(msg: string, err?: unknown): void;
-}
+/**
+ * @deprecated Use MemoryChatLogger directly. Retained for backwards compat with external callers.
+ */
+export type ChatBridgeLogger = MemoryChatLogger;
 
 export interface ChatBridgeConfig {
   readonly baseUrl: string;
@@ -35,7 +36,7 @@ export interface ChatBridgeDeps {
   readonly memoryDbPath: string;
   readonly memoryNativeBinding?: string;
   readonly getConfig: () => ChatBridgeConfig;
-  readonly logger: ChatBridgeLogger;
+  readonly logger: MemoryChatLogger;
 }
 
 const TS = () => new Date().toISOString();
