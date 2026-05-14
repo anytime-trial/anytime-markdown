@@ -23,9 +23,15 @@ import {
 	runAnalyzeCurrentCodePipeline,
 	runAnalyzeReleaseCodePipeline,
 	loadConfig,
+	LogService,
 } from '@anytime-markdown/trail-server';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
+import {
+	CREATE_EXTENSION_LOGS,
+	CREATE_EXTENSION_LOGS_INDEXES,
+} from '@anytime-markdown/trail-core/domain/schema';
+import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
 import { DatabaseProvider } from './trail/DatabaseProvider';
 import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
@@ -817,6 +823,26 @@ export async function activate(context: vscode.ExtensionContext) {
 			TrailLogger.info('[DaemonClient] Skipping local TrailDataServer.start — using external daemon');
 		} else {
 			try {
+				// LogService 配線: extension_logs テーブルへの永続化と WS broadcast を有効化する。
+				// cli.ts (外部 daemon) と同等の wiring をローカルサーバーモードでも実施。
+				// dbStorageDir 未確定時は logs タブが空のまま動作する (OutputChannel は健在)。
+				if (dbStorageDir) {
+					const extensionLogsDbPath = path.join(dbStorageDir, 'extension-logs.db');
+					const extensionLogsDb = new BetterSqlite3MemoryDb({
+						filePath: extensionLogsDbPath,
+						nativeBinding: memoryCoreNativeBinding,
+					});
+					extensionLogsDb.run(CREATE_EXTENSION_LOGS);
+					for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
+					extensionLogsDb.run('PRAGMA journal_mode=WAL');
+					const logService = new LogService(extensionLogsDb, trailDataServer!);
+					trailDataServer!.setLogService(logService);
+					context.subscriptions.push({ dispose: (): void => extensionLogsDb.close() });
+					TrailLogger.info(`[LogService] wired: ${extensionLogsDbPath}`);
+				} else {
+					TrailLogger.warn('[LogService] dbStorageDir not resolved; logs tab will remain empty');
+				}
+
 				TrailLogger.info(`Trail Data Server: starting on port ${trailPort}...`);
 				await trailDataServer!.start(trailPort);
 				const actualPort = trailDataServer!.port;
