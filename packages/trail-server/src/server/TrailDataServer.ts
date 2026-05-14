@@ -55,6 +55,7 @@ import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/Anal
 import type { MemoryCoreService } from '@anytime-markdown/memory-core';
 import { GraphQueryEngine } from '../analyze/GraphQueryEngine';
 import { MemoryApiHandler } from './MemoryApiHandler';
+import { PromptsApiHandler } from './PromptsApiHandler';
 import type { LogService, PersistedLogEntry } from '../services/LogService';
 import { LogSink, combineLoggers } from '../services/LogSink';
 import { handleGetLogs, handlePostLogs } from './logsApi';
@@ -265,7 +266,7 @@ export class TrailDataServer {
   private logService: LogService | undefined;
   private logCleanupTimer: NodeJS.Timeout | null = null;
   private dailyTokensCache: { value: number; expiresAt: number } | null = null;
-  private promptsCache: { value: PromptEntry[]; expiresAt: number } | null = null;
+  private readonly promptsApi: PromptsApiHandler;
 
   constructor(
     private readonly distPath: string,
@@ -274,6 +275,7 @@ export class TrailDataServer {
     private readonly gitRoot?: string,
   ) {
     this.memoryApi = new MemoryApiHandler(this.logger.child('MemoryApiHandler'));
+    this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));
   }
 
   setCodeGraphService(service: CodeGraphService): void {
@@ -598,7 +600,7 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/trail/prompts' && method === 'GET') {
-      this.handleGetPrompts(res);
+      this.promptsApi.handleGet(res);
       return;
     }
 
@@ -2251,25 +2253,6 @@ export class TrailDataServer {
   //  API: GET /api/trail/prompts
   // -------------------------------------------------------------------------
 
-  private handleGetPrompts(res: http.ServerResponse): void {
-    const PROMPTS_TTL_MS = 30_000;
-    try {
-      const now = Date.now();
-      let prompts: PromptEntry[];
-      if (this.promptsCache && now < this.promptsCache.expiresAt) {
-        prompts = this.promptsCache.value;
-      } else {
-        prompts = scanPromptFiles();
-        this.promptsCache = { value: prompts, expiresAt: now + PROMPTS_TTL_MS };
-      }
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ prompts }));
-    } catch (err) {
-      this.logger.error('[/api/trail/prompts] failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'Failed to read prompts' }));
-    }
-  }
 
   // -------------------------------------------------------------------------
   //  API: GET /api/trail/analytics
@@ -3791,140 +3774,6 @@ function parseLocalFrontmatter(raw: string): Omit<DocLink, 'path'> | null {
   };
 }
 
-// ---------------------------------------------------------------------------
-//  Prompt file scanner
-// ---------------------------------------------------------------------------
-
-interface PromptEntry {
-  id: string;
-  name: string;
-  content: string;
-  version: number;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-function scanPromptFiles(): PromptEntry[] {
-  const claudeDir = path.join(os.homedir(), '.claude');
-  const prompts: PromptEntry[] = [];
-  let version = 1;
-
-  // Helper to add a prompt entry
-  function addFile(filePath: string, tags: string[]): void {
-    try {
-      const stat = fs.statSync(filePath);
-      if (!stat.isFile()) return;
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const name = path.basename(filePath, '.md');
-      const relPath = path.relative(claudeDir, filePath);
-      const id = relPath.replaceAll(/[/\\. ]+/g, '-').toLowerCase();
-      prompts.push({
-        id,
-        name,
-        content,
-        version: version++,
-        tags,
-        createdAt: stat.birthtime.toISOString(),
-        updatedAt: stat.mtime.toISOString(),
-      });
-    } catch {
-      // skip
-    }
-  }
-
-  // 1. Global CLAUDE.md
-  addFile(path.join(claudeDir, 'CLAUDE.md'), ['main']);
-
-  // 2. Rules
-  const rulesDir = path.join(claudeDir, 'rules');
-  try {
-    for (const f of fs.readdirSync(rulesDir)) {
-      if (f.endsWith('.md')) {
-        addFile(path.join(rulesDir, f), ['rule']);
-      }
-    }
-  } catch {
-    // rules dir may not exist
-  }
-
-  // 3. Project CLAUDE.md files
-  const projectsDir = path.join(claudeDir, 'projects');
-  try {
-    for (const proj of fs.readdirSync(projectsDir)) {
-      const projClaudeMd = path.join(projectsDir, proj, 'CLAUDE.md');
-      if (fs.existsSync(projClaudeMd)) {
-        addFile(projClaudeMd, ['project', proj]);
-      }
-    }
-  } catch {
-    // projects dir may not exist
-  }
-
-  // 4. Memory
-  const memoryDir = path.join(claudeDir, 'projects');
-  try {
-    for (const proj of fs.readdirSync(memoryDir)) {
-      const memDir = path.join(memoryDir, proj, 'memory');
-      if (fs.existsSync(memDir) && fs.statSync(memDir).isDirectory()) {
-        for (const f of fs.readdirSync(memDir)) {
-          if (f.endsWith('.md')) {
-            addFile(path.join(memDir, f), ['memory', proj]);
-          }
-        }
-      }
-    }
-  } catch {
-    // skip
-  }
-
-  // 5. Skills (SKILL.md in each skill directory)
-  const skillsDir = path.join(claudeDir, 'skills');
-  try {
-    for (const skillName of fs.readdirSync(skillsDir)) {
-      const skillFile = path.join(skillsDir, skillName, 'SKILL.md');
-      if (fs.existsSync(skillFile)) {
-        addFile(skillFile, ['skill', skillName]);
-      }
-    }
-  } catch {
-    // skills dir may not exist
-  }
-
-  // 6. Scripts
-  const scriptsDir = path.join(claudeDir, 'scripts');
-  try {
-    for (const f of fs.readdirSync(scriptsDir)) {
-      const scriptFile = path.join(scriptsDir, f);
-      if (!fs.existsSync(scriptFile) || !fs.statSync(scriptFile).isFile()) continue;
-      addFile(scriptFile, ['script']);
-    }
-  } catch {
-    // scripts dir may not exist
-  }
-
-  // 7. settings.json
-  const settingsFile = path.join(claudeDir, 'settings.json');
-  try {
-    const stat = fs.statSync(settingsFile);
-    if (stat.isFile()) {
-      const content = fs.readFileSync(settingsFile, 'utf-8');
-      prompts.push({
-        id: 'settings-json',
-        name: 'settings.json',
-        content,
-        version: version++,
-        tags: ['config'],
-        createdAt: stat.birthtime.toISOString(),
-        updatedAt: stat.mtime.toISOString(),
-      });
-    }
-  } catch {
-    // skip
-  }
-
-  return prompts;
-}
 
 // ---------------------------------------------------------------------------
 //  Standalone HTML builder
