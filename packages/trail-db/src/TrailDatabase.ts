@@ -1499,6 +1499,11 @@ export class TrailDatabase {
     db.run(CREATE_RELEASE_CODE_GRAPHS);
     db.run(CREATE_CURRENT_CODE_GRAPH_COMMUNITIES);
     db.run(CREATE_RELEASE_CODE_GRAPH_COMMUNITIES);
+    // Legacy DBs lack stable_key on *_code_graph_communities; without this
+    // ALTER, idx_ccgc_stable_key / idx_rcgc_stable_key in CREATE_RELEASE_INDEXES
+    // fail with "no such column: stable_key" during init.
+    ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
+    ensureCommunityStableKeyColumn(db, 'release_code_graph_communities');
     this.migrateFileAnalysisSchema(db);
     db.run(CREATE_CURRENT_FILE_ANALYSIS);
     db.run(CREATE_RELEASE_FILE_ANALYSIS);
