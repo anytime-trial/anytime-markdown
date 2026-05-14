@@ -1,13 +1,13 @@
 import {
   ingestAgentReviewResult,
   type IngestAgentReviewResult,
+  type MemoryDbConnection,
   type OllamaClient,
   type MemoryLogger,
 } from '@anytime-markdown/memory-core';
-import type { Database } from 'sql.js';
 
 export async function submitToMemoryCore(input: {
-  db: Database;
+  db: MemoryDbConnection;
   input: unknown;
   ollama: OllamaClient;
   logger: MemoryLogger;
