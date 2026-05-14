@@ -25,6 +25,10 @@ export interface ChatBridgeConfig {
   readonly baseUrl: string;
   readonly chatModel: string;
   readonly embedModel: string;
+  readonly bm25Limit?: number;
+  readonly vecLimit?: number;
+  readonly finalLimit?: number;
+  readonly rrfK?: number;
 }
 
 export interface ChatBridgeDeps {
@@ -153,6 +157,11 @@ export class ChatBridge {
         ollama: this.ollama,
         chatProvider: this.chatProvider,
         embedModel: cfg.embedModel,
+        bm25Limit: cfg.bm25Limit,
+        vecLimit: cfg.vecLimit,
+        // ChatBridgeConfig.finalLimit aligns with VS Code/config.json naming; ChatService keeps existing retrieveLimit name to limit Task 5 scope
+        retrieveLimit: cfg.finalLimit,
+        rrfK: cfg.rrfK,
       });
       return this.chatService;
     } catch (error) {
