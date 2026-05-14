@@ -14,6 +14,11 @@ import type {
   HealthCheckResult,
 } from '../../src/providers/types';
 import type { ChatChunk } from '../../src/chat/types';
+import { hybridSearchMemory } from '../../src/rag/hybridSearchMemory';
+
+jest.mock('../../src/rag/hybridSearchMemory', () => ({
+  hybridSearchMemory: jest.fn().mockResolvedValue({ entities: [], edges: [], episodes: [] }),
+}));
 
 function makeTmpDb(): string {
   return path.join(
@@ -187,5 +192,69 @@ describe('ChatService.streamTurn', () => {
     const errorChunk = chunks.find((c) => c.type === 'error');
     expect(errorChunk?.payload.message).toContain('provider boom');
     expect(chunks.at(-1)?.type).toBe('done');
+  });
+});
+
+describe('ChatService rag limit options → hybridSearchMemory', () => {
+  const dbs: string[] = [];
+  let db: MemoryDbConnection;
+  let close: () => void;
+  const mockHybrid = hybridSearchMemory as jest.MockedFunction<typeof hybridSearchMemory>;
+
+  beforeEach(async () => {
+    const tmpDb = makeTmpDb();
+    dbs.push(tmpDb);
+    process.env.MEMORY_CORE_DB_PATH = tmpDb;
+    const opened = await openMemoryCoreDb();
+    db = opened.db;
+    close = opened.close;
+    mockHybrid.mockClear();
+  });
+
+  afterEach(() => close());
+  afterAll(() => {
+    for (const p of dbs) {
+      try {
+        fs.unlinkSync(p);
+      } catch (_) {}
+    }
+    delete process.env.MEMORY_CORE_DB_PATH;
+  });
+
+  test('bm25Limit/vecLimit/rrfK を省略すると hybridSearchMemory の input に含まれない', async () => {
+    const service = new ChatService({
+      db,
+      ollama: createMockOllamaClient({ fixedEmbedding: Float32Array.from([1, 0, 0]) }),
+      chatProvider: new ScriptedChatProvider(['ok']),
+    });
+
+    for await (const _ of service.streamTurn({ query: 'q', history: [] })) { /* drain */ }
+
+    expect(mockHybrid).toHaveBeenCalledTimes(1);
+    const input = mockHybrid.mock.calls[0]?.[0]?.input;
+    expect(input).toBeDefined();
+    expect(input).not.toHaveProperty('bm25_limit');
+    expect(input).not.toHaveProperty('vec_limit');
+    expect(input).not.toHaveProperty('rrf_k');
+  });
+
+  test('bm25Limit/vecLimit/rrfK を指定すると hybridSearchMemory の input に bm25_limit/vec_limit/rrf_k が渡る', async () => {
+    const service = new ChatService({
+      db,
+      ollama: createMockOllamaClient({ fixedEmbedding: Float32Array.from([1, 0, 0]) }),
+      chatProvider: new ScriptedChatProvider(['ok']),
+      bm25Limit: 50,
+      vecLimit: 40,
+      rrfK: 80,
+    });
+
+    for await (const _ of service.streamTurn({ query: 'q', history: [] })) { /* drain */ }
+
+    expect(mockHybrid).toHaveBeenCalledTimes(1);
+    const input = mockHybrid.mock.calls[0]?.[0]?.input;
+    expect(input).toBeDefined();
+    expect(input?.bm25_limit).toBe(50);
+    expect(input?.vec_limit).toBe(40);
+    expect(input?.rrf_k).toBe(80);
   });
 });
