@@ -1,15 +1,12 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
-import type { Database } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { searchMemory } from '../../src/retrieve/searchMemory';
 import { encodeEmbedding } from '../../src/embedding/codec';
 import type { OllamaClient } from '../../src/ollama/client';
 
 // Helper: create an in-memory db with migrations applied
-async function createTestDb(): Promise<SqlJsMemoryDb> {
-  const SQL = await initSqlJs();
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+async function createTestDb(): Promise<BetterSqlite3MemoryDb> {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -18,7 +15,7 @@ async function createTestDb(): Promise<SqlJsMemoryDb> {
 const now = new Date().toISOString();
 
 function insertEntity(
-  db: SqlJsMemoryDb,
+  db: BetterSqlite3MemoryDb,
   id: string,
   canonicalName: string,
   displayName: string,
@@ -34,7 +31,7 @@ function insertEntity(
 }
 
 describe('searchMemory', () => {
-  let db: SqlJsMemoryDb;
+  let db: BetterSqlite3MemoryDb;
   let mockOllama: OllamaClient;
 
   beforeEach(async () => {

@@ -98,10 +98,10 @@ const extensionConfig = {
       navigator: 'undefined',
     }),
     new CopyPlugin({
-      // sql-wasm.js は initSqlJs() の locateFile で sql-wasm.wasm を同階層から
-      // 読み込むため、両ファイルを dist/ に配置する。asm.js (16MB ヒープ固定)
-      // 比で WASM は最大 2GB ヒープを使えるため大規模リポジトリの code graph
-      // 保存時の OOM を回避できる。
+      // sql-wasm.js / sql-wasm.wasm は mcp-trail-server バンドル (mcpTrailServerConfig)
+      // が runtime に __non_webpack_require__ で dist/sql-wasm.js をロードするため
+      // 必須。memory-core は better-sqlite3 一本化済のため不要だが、mcp-trail は
+      // 独自に sql.js を使う設計のため残す。
       // memory-core の migrations/*.sql は runner が path.join(__dirname, file)
       // で読むため、webpack バンドル後の dist/ 直下にコピーする。
       // better-sqlite3 とその依存 (bindings / file-uri-to-path) は memory-core が

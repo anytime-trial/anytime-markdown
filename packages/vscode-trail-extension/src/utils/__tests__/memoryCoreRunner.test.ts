@@ -40,7 +40,6 @@ jest.mock('@anytime-markdown/memory-core', () => {
     runDriftDetection: jest.fn().mockResolvedValue(ok),
     runEmbeddingBackfill: jest.fn().mockResolvedValue(ok),
     runCodeReconciliation: jest.fn().mockReturnValue({ status: 'success', scanned: 0, soft_deleted: 0, duration_ms: 0 }),
-    setSqlJsLoader: jest.fn(),
     PipelineStatusWriter: jest.fn().mockImplementation(() => ({
       initialize: jest.fn(),
       start: jest.fn(),

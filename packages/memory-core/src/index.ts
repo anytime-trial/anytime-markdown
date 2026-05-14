@@ -1,11 +1,8 @@
 export { searchMemory, vectorTopK } from './retrieve/searchMemory';
 export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from './retrieve/searchMemory';
 export { openMemoryCoreDb } from './db/connection';
-export type { MemoryCoreDb, MemoryCoreDbDriver, OpenMemoryCoreDbOptions } from './db/connection';
+export type { MemoryCoreDb, OpenMemoryCoreDbOptions } from './db/connection';
 export { attachTrailDbReadOnly, attachTrailDbFromHandle } from './db/attach';
-export type { AttachHandle } from './db/attach';
-export { setSqlJsLoader, loadSqlJsModule } from './db/sqlJsLoader';
-export { SqlJsMemoryDb } from './db/connection/SqlJsMemoryDb';
 export { BetterSqlite3MemoryDb } from './db/connection/BetterSqlite3MemoryDb';
 export type { BetterSqlite3MemoryDbOptions } from './db/connection/BetterSqlite3MemoryDb';
 export type {

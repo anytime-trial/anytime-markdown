@@ -1,6 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
-import type { Database } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import { ingestAstFacts } from '../../../src/ingest/code/astFunctionLevel';
 import { entityId } from '../../../src/canonical/entityId';
@@ -41,25 +39,24 @@ const silentLogger: MemoryLogger = {
   error: () => {},
 };
 
-async function makeDb(): Promise<SqlJsMemoryDb> {
-  const SQL = await initSqlJs();
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+async function makeDb(): Promise<BetterSqlite3MemoryDb> {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function countFacts(db: SqlJsMemoryDb): number {
+function countFacts(db: BetterSqlite3MemoryDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM memory_code_facts`);
   return result[0]?.values[0][0] as number;
 }
 
-function countEdges(db: SqlJsMemoryDb): number {
+function countEdges(db: BetterSqlite3MemoryDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM memory_edges`);
   return result[0]?.values[0][0] as number;
 }
 
-function countEntities(db: SqlJsMemoryDb, type: string): number {
+function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
   const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_entities WHERE type = ?`);
   try {
     const row = stmt.get(type);

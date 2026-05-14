@@ -1,6 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
-import type { Database } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { fromTrailGraph } from '../../../src/ingest/code/fromTrailGraph';
@@ -17,18 +15,15 @@ const silentLogger: MemoryLogger = {
   error: () => {},
 };
 
-async function makeMemoryDb(): Promise<SqlJsMemoryDb> {
-  const SQL = await initSqlJs();
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(
-  SQL: Awaited<ReturnType<typeof initSqlJs>>
-): SqlJsMemoryDb {
-  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailDb(): BetterSqlite3MemoryDb {
+  const trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run(`
     CREATE TABLE current_code_graphs (
       repo_name    TEXT PRIMARY KEY,
@@ -54,7 +49,7 @@ interface MockNode {
 }
 
 function insertGraph(
-  trailDb: SqlJsMemoryDb,
+  trailDb: BetterSqlite3MemoryDb,
   repoName: string,
   nodes: MockNode[]
 ): void {
@@ -88,7 +83,7 @@ function insertGraph(
   );
 }
 
-function countEntities(db: SqlJsMemoryDb, type: string): number {
+function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
   // Use prepare/get because exec() with params is broken after
   // installTrailReadonlyGuard wraps db.exec (guard drops the params arg).
   const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_entities WHERE type = ?`);
@@ -100,7 +95,7 @@ function countEntities(db: SqlJsMemoryDb, type: string): number {
   }
 }
 
-function countEdges(db: SqlJsMemoryDb): number {
+function countEdges(db: BetterSqlite3MemoryDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM memory_edges`);
   return result[0]?.values[0][0] as number;
 }
@@ -108,16 +103,10 @@ function countEdges(db: SqlJsMemoryDb): number {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('fromTrailGraph', () => {
-  let SQL: Awaited<ReturnType<typeof initSqlJs>>;
-
-  beforeAll(async () => {
-    SQL = await initSqlJs();
-  });
-
   // ── FTG-1: basic happy path ──────────────────────────────────────────────
   test('FTG-1: 3 code nodes across 2 packages → 2 Package + 3 File + 3 edges', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
       { id: 'packages/web-app/src/index.ts', package: 'web-app', fileType: 'code' },
@@ -150,7 +139,7 @@ describe('fromTrailGraph', () => {
   // ── FTG-2: document nodes are excluded ───────────────────────────────────
   test('FTG-2: document nodes are excluded from Package/File entities', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
       { id: 'packages/web-app/src/index.ts', package: 'web-app', fileType: 'code' },
@@ -178,7 +167,7 @@ describe('fromTrailGraph', () => {
   // ── FTG-3: idempotency — same graph inserted twice ────────────────────────
   test('FTG-3: running twice with same graph_json → entity/edge counts unchanged', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
       { id: 'packages/web-app/src/index.ts', package: 'web-app', fileType: 'code' },
@@ -221,7 +210,7 @@ describe('fromTrailGraph', () => {
   // ── FTG-4: missing repo returns empty stats ───────────────────────────────
   test('FTG-4: repo_name not found → returns zero stats, no DB writes', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     // Insert graph for a different repo
     insertGraph(trailDb, 'other-repo', [
@@ -252,7 +241,7 @@ describe('fromTrailGraph', () => {
   // ── FTG-5: entity IDs are deterministic ──────────────────────────────────
   test('FTG-5: Package entity ID matches entityId("Package", canonicalize(name))', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
       { id: 'packages/web-app/src/index.ts', package: 'web-app', fileType: 'code' },
@@ -290,7 +279,7 @@ describe('fromTrailGraph', () => {
   // ── FTG-6: edge source_type = 'code' ─────────────────────────────────────
   test('FTG-6: edges have source_type = "code" and source_ref = "current_code_graphs#<repo>"', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
       { id: 'src/index.ts', package: 'my-pkg', fileType: 'code' },
@@ -321,7 +310,7 @@ describe('fromTrailGraph', () => {
   // ── FTG-9: attributes_json populated correctly ────────────────────────────
   test('FTG-9: Package attributes_json has repo; File attributes_json has repo/package/label', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
       {
@@ -369,7 +358,7 @@ describe('fromTrailGraph', () => {
   // ── FTG-10: valid_from uses graph.generatedAt ─────────────────────────────
   test('FTG-10: edges valid_from = graph.generatedAt when present and valid', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
     const GENERATED_AT = '2025-12-01T08:00:00.000Z';
 
     // Insert a graph where generatedAt differs from RECORDED_AT
@@ -419,7 +408,7 @@ describe('fromTrailGraph', () => {
   // ── FTG-7: all-document graph → zero entities ────────────────────────────
   test('FTG-7: graph with only document nodes → zero entities and edges', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'docs-repo', [
       { id: 'docs/guide.md', package: 'docs', fileType: 'document' },
@@ -449,7 +438,7 @@ describe('fromTrailGraph', () => {
   // ── FTG-8: multiple repos stored, only target repo is processed ───────────
   test('FTG-8: multiple repos in trail — only the requested repo is processed', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'repo-a', [
       { id: 'src/a.ts', package: 'pkg-a', fileType: 'code' },

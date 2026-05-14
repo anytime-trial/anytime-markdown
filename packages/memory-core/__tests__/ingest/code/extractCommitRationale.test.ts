@@ -1,7 +1,5 @@
 import { createHash } from 'crypto';
-import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
-import initSqlJs from 'sql.js';
-import type { Database, SqlJsStatic } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { extractCommitRationale } from '../../../src/ingest/code/extractCommitRationale';
@@ -20,21 +18,15 @@ const silentLogger: MemoryLogger = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-let SQL: SqlJsStatic;
-
-beforeAll(async () => {
-  SQL = await initSqlJs();
-});
-
-async function makeMemoryDb(): Promise<SqlJsMemoryDb> {
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): SqlJsMemoryDb {
-  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailDb(): BetterSqlite3MemoryDb {
+  const trailDb = BetterSqlite3MemoryDb.openInMemory();
   // Minimal schema matching trail.session_commits
   trailDb.run(`
     CREATE TABLE sessions (
@@ -55,7 +47,7 @@ function makeTrailDb(): SqlJsMemoryDb {
   return trailDb;
 }
 
-function insertSession(trailDb: SqlJsMemoryDb, sessionId: string): void {
+function insertSession(trailDb: BetterSqlite3MemoryDb, sessionId: string): void {
   trailDb.run(
     `INSERT INTO sessions (id, started_at) VALUES (?, ?)`,
     [sessionId, RECORDED_AT]
@@ -63,7 +55,7 @@ function insertSession(trailDb: SqlJsMemoryDb, sessionId: string): void {
 }
 
 function insertCommit(
-  trailDb: SqlJsMemoryDb,
+  trailDb: BetterSqlite3MemoryDb,
   opts: {
     sessionId: string;
     commitHash: string;
@@ -85,7 +77,7 @@ function insertCommit(
   );
 }
 
-function countEntities(db: SqlJsMemoryDb, type: string): number {
+function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
   const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_entities WHERE type = ?`);
   try {
     return ((stmt.get(type)?.['c'] as number) ?? 0);
@@ -94,7 +86,7 @@ function countEntities(db: SqlJsMemoryDb, type: string): number {
   }
 }
 
-function countEdges(db: SqlJsMemoryDb, predicate?: string): number {
+function countEdges(db: BetterSqlite3MemoryDb, predicate?: string): number {
   if (predicate) {
     const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_edges WHERE predicate = ?`);
     try {
@@ -551,7 +543,7 @@ describe('extractCommitRationale', () => {
 
     expect(() => {
       memDb.run(`UPDATE trail.session_commits SET commit_message = 'x' WHERE 1=0`);
-    }).toThrow(/Write to trail\.\* is forbidden/);
+    }).toThrow(/trail.*forbidden|forbidden.*trail/i);
 
     trailDb.close();
     memDb.close();

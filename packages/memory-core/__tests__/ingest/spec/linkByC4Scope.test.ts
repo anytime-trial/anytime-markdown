@@ -5,9 +5,7 @@
  * テストでは attachTrailDbFromHandle を使い、同じ WASM モジュール内の
  * インメモリ trail DB を ATTACH する。
  */
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
-import type { Database } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
 import { openMemoryCoreDb } from '../../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { linkByC4Scope } from '../../../src/ingest/spec/linkByC4Scope';
@@ -36,7 +34,7 @@ type TrailRow = { id: string; name: string };
 async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
   db: MemoryDbConnection;
   mainPath: string;
-  trailDb: SqlJsMemoryDb;
+  trailDb: BetterSqlite3MemoryDb;
   cleanup: () => void;
 }> {
   const mainPath = makeTmpPath('main');
@@ -44,8 +42,7 @@ async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
   const { db } = await openMemoryCoreDb();
 
   // trail DB をメモリで作成（同じ WASM モジュール内のインスタンス）
-  const SQL = await initSqlJs();
-  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  const trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run(`
     CREATE TABLE c4_manual_elements (
       id          TEXT PRIMARY KEY,
@@ -81,7 +78,7 @@ async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
  */
 function insertSpecDoc(db: MemoryDbConnection, specDocId: string): void {
   // installTrailReadonlyGuard 後は db.run のラッパー経由。trail.* でないため通過する。
-  const run = (db as unknown as { run: SqlJsMemoryDb['run'] }).run.bind(db);
+  const run = (db as unknown as { run: BetterSqlite3MemoryDb['run'] }).run.bind(db);
   run(
     `INSERT OR IGNORE INTO memory_spec_documents
        (id, rel_path, type, title, c4_scope_json, updated_at, source_hash, recorded_at)
@@ -94,7 +91,7 @@ function insertSpecDoc(db: MemoryDbConnection, specDocId: string): void {
  * memory_entities に specEntityId の Concept entity を挿入する（edges の FK 制約のために必要）。
  */
 function insertSpecEntity(db: MemoryDbConnection, specEntityId: string): void {
-  const run = (db as unknown as { run: SqlJsMemoryDb['run'] }).run.bind(db);
+  const run = (db as unknown as { run: BetterSqlite3MemoryDb['run'] }).run.bind(db);
   run(
     `INSERT OR IGNORE INTO memory_entities
        (id, type, canonical_name, display_name, attributes_json,

@@ -1,5 +1,5 @@
-import type { Database, SqlValue } from 'sql.js';
-import { SqlJsMemoryDb, loadSqlJsModule } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
+import type { MemoryDbConnection, MemoryDbSqlValue as SqlValue } from '@anytime-markdown/memory-core';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -161,24 +161,20 @@ export class MemoryApiHandler {
 
   // ---- open helpers ----
 
-  private async openReadOnly(): Promise<SqlJsMemoryDb | null> {
+  private openReadOnly(): MemoryDbConnection | null {
     if (!fs.existsSync(this.dbPath)) return null;
     try {
-      const SQL = await loadSqlJsModule();
-      const data = fs.readFileSync(this.dbPath);
-      return SqlJsMemoryDb.fromDatabase(new SQL.Database(data));
+      return new BetterSqlite3MemoryDb({ filePath: this.dbPath, readOnly: true });
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.openReadOnly] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return null;
     }
   }
 
-  private async openReadWrite(): Promise<SqlJsMemoryDb | null> {
+  private openReadWrite(): MemoryDbConnection | null {
     if (!fs.existsSync(this.dbPath)) return null;
     try {
-      const SQL = await loadSqlJsModule();
-      const data = fs.readFileSync(this.dbPath);
-      const db = SqlJsMemoryDb.fromDatabase(new SQL.Database(data));
+      const db = new BetterSqlite3MemoryDb({ filePath: this.dbPath, readOnly: false });
       db.run('PRAGMA foreign_keys = ON');
       return db;
     } catch (err) {
@@ -187,13 +183,8 @@ export class MemoryApiHandler {
     }
   }
 
-  private saveAndClose(db: SqlJsMemoryDb): void {
-    try {
-      const data = db.exportBytes();
-      fs.writeFileSync(this.dbPath, Buffer.from(data));
-    } finally {
-      db.close();
-    }
+  private close(db: MemoryDbConnection): void {
+    db.close();
   }
 
   // ---- drift events ----
@@ -205,7 +196,7 @@ export class MemoryApiHandler {
     since?: string;
     limit?: number;
   }): Promise<DriftEventRow[]> {
-    const db = await this.openReadOnly();
+    const db = this.openReadOnly();
     if (!db) return [];
     try {
       const limit = clampLimit(params.limit, 50);
@@ -272,7 +263,7 @@ export class MemoryApiHandler {
   }
 
   async getDriftEventDetail(eventId: string): Promise<DriftEventDetail | null> {
-    const db = await this.openReadOnly();
+    const db = this.openReadOnly();
     if (!db) return null;
     try {
       const result = db.exec(
@@ -318,11 +309,11 @@ export class MemoryApiHandler {
   }
 
   async resolveDriftEvent(eventId: string, resolutionNote: string): Promise<{ ok: boolean }> {
-    const db = await this.openReadWrite();
+    const db = this.openReadWrite();
     if (!db) return { ok: false };
     try {
       const result = resolveDrift({ db, event_id: eventId, resolution_note: resolutionNote, logger: this.logger });
-      this.saveAndClose(db);
+      this.close(db);
       return { ok: result.resolved };
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.resolveDriftEvent] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
@@ -338,7 +329,7 @@ export class MemoryApiHandler {
     windowDays?: number;
     limit?: number;
   }): Promise<RecurringBugRow[]> {
-    const db = await this.openReadOnly();
+    const db = this.openReadOnly();
     if (!db) return [];
     try {
       const limit = clampLimit(params.limit, 50);
@@ -391,7 +382,7 @@ export class MemoryApiHandler {
     category?: string;
     limit?: number;
   }): Promise<BugHistoryRow[]> {
-    const db = await this.openReadOnly();
+    const db = this.openReadOnly();
     if (!db) return [];
     try {
       const limit = clampLimit(params.limit, 50);
@@ -446,7 +437,7 @@ export class MemoryApiHandler {
     category?: string;
     limit?: number;
   }): Promise<UnaddressedReviewFindingRow[]> {
-    const db = await this.openReadOnly();
+    const db = this.openReadOnly();
     if (!db) return [];
     try {
       const limit = clampLimit(params.limit, 50);
@@ -502,7 +493,7 @@ export class MemoryApiHandler {
     includePrecedesBugs?: boolean;
     limit?: number;
   }): Promise<ReviewHistoryRow[]> {
-    const db = await this.openReadOnly();
+    const db = this.openReadOnly();
     if (!db) return [];
     try {
       const limit = clampLimit(params.limit, 50);
@@ -558,7 +549,7 @@ export class MemoryApiHandler {
     since?: string;
     limit?: number;
   }): Promise<PipelineRunRow[]> {
-    const db = await this.openReadOnly();
+    const db = this.openReadOnly();
     if (!db) return [];
     try {
       const limit = clampLimit(params.limit, 50);
@@ -615,7 +606,7 @@ export class MemoryApiHandler {
     scope?: string;
     limit?: number;
   }): Promise<FailedItemRow[]> {
-    const db = await this.openReadOnly();
+    const db = this.openReadOnly();
     if (!db) return [];
     try {
       const limit = clampLimit(params.limit, 50);
@@ -660,7 +651,7 @@ export class MemoryApiHandler {
     type?: string;
     limit?: number;
   }): Promise<TopEntityRow[]> {
-    const db = await this.openReadOnly();
+    const db = this.openReadOnly();
     if (!db) return [];
     try {
       const limit = clampLimit(params.limit, 20);
@@ -706,7 +697,7 @@ export class MemoryApiHandler {
     since?: string;
     limit?: number;
   }): Promise<InvalidationRow[]> {
-    const db = await this.openReadOnly();
+    const db = this.openReadOnly();
     if (!db) return [];
     try {
       const limit = clampLimit(params.limit, 50);

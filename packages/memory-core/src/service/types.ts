@@ -51,7 +51,6 @@ export interface PipelineRunnerContext {
   logger: PipelineLogger;
   trailDbPath: string;
   dbPath?: string;
-  distPath?: string;
   nativeBinding?: string;
   gitRoot?: string;
   /** 初回 backfill 期間 (日)。省略時は runner 側 default (5)。 */
@@ -70,8 +69,6 @@ export interface MemoryCoreServiceOptions {
   trailDbPath: string;
   /** memory-core.db 絶対パス (省略時はデフォルト: ~/.claude/memory-core/memory-core.db) */
   dbPath?: string;
-  /** sql.js dist ディレクトリ (拡張の webpack バンドル経路に必要) */
-  distPath?: string;
   /** better-sqlite3 native binding 絶対パス (拡張に必要) */
   nativeBinding?: string;
   /** Git working tree ルート (省略時は process.cwd()) */

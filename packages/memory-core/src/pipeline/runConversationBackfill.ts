@@ -33,8 +33,9 @@ export interface BackfillResult {
 }
 
 function runId(startedAt: string): string {
+  const nonce = process.hrtime.bigint().toString(36);
   return createHash('sha1')
-    .update(`${SCOPE}:${startedAt}`)
+    .update(`${SCOPE}:${startedAt}:${nonce}`)
     .digest('hex')
     .slice(0, 16);
 }

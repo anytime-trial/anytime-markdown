@@ -1,6 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
-import type { Database } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationFailedItemsRetry } from '../../src/pipeline/runConversationFailedItemsRetry';
@@ -8,18 +6,15 @@ import type { MemoryLogger } from '../../src/logger';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function makeMemoryDb(): Promise<SqlJsMemoryDb> {
-  const SQL = await initSqlJs();
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(
-  SQL: ReturnType<typeof initSqlJs> extends Promise<infer T> ? T : never,
-): SqlJsMemoryDb {
-  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailDb(): BetterSqlite3MemoryDb {
+  const trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE messages (
@@ -34,12 +29,12 @@ function makeTrailDb(
   return trailDb;
 }
 
-function insertSession(trailDb: SqlJsMemoryDb, id: string): void {
+function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
   trailDb.run(`INSERT INTO sessions VALUES (?)`, [id]);
 }
 
 function insertMessage(
-  trailDb: SqlJsMemoryDb,
+  trailDb: BetterSqlite3MemoryDb,
   uuid: string,
   sessionId: string,
   type: string,
@@ -55,7 +50,7 @@ function insertMessage(
 }
 
 function insertFailedItem(
-  memDb: SqlJsMemoryDb,
+  memDb: BetterSqlite3MemoryDb,
   scope: string,
   itemKey: string,
   attemptCount: number,
@@ -69,7 +64,7 @@ function insertFailedItem(
   );
 }
 
-function getFailedItem(memDb: SqlJsMemoryDb, scope: string, itemKey: string): { attempt_count: number; reason: string } | null {
+function getFailedItem(memDb: BetterSqlite3MemoryDb, scope: string, itemKey: string): { attempt_count: number; reason: string } | null {
   const rows = memDb.exec(
     `SELECT attempt_count, reason FROM memory_failed_items WHERE scope = ? AND item_key = ?`,
     [scope, itemKey]
@@ -106,12 +101,6 @@ function makeFailingOllama(response: string = 'not json') {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('runConversationFailedItemsRetry', () => {
-  let SQL: Awaited<ReturnType<typeof initSqlJs>>;
-
-  beforeAll(async () => {
-    SQL = await initSqlJs();
-  });
-
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -119,7 +108,7 @@ describe('runConversationFailedItemsRetry', () => {
   // ── F1: successful retry → persist + delete failed_items row ──────────────
   test('F1: successful retry persists facts and deletes the failed_items row', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     // trail.db: 1 session with 1 user message
     insertSession(trailDb, 'sess_f1');
@@ -155,7 +144,7 @@ describe('runConversationFailedItemsRetry', () => {
   // ── F2: extraction fails → attempt_count increments, row remains ──────────
   test('F2: extraction failure increments attempt_count and keeps the row', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_f2');
     insertMessage(trailDb, 'msg_f2', 'sess_f2', 'user', '2026-05-10T00:00:00.000Z', 'retry-fail');
@@ -187,7 +176,7 @@ describe('runConversationFailedItemsRetry', () => {
   // ── F3: items at or above maxAttempts are skipped entirely ─────────────────
   test('F3: items with attempt_count >= maxAttempts are not retried', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_f3');
     insertMessage(trailDb, 'msg_f3a', 'sess_f3', 'user', '2026-05-10T00:00:00.000Z', 'a');
@@ -223,7 +212,7 @@ describe('runConversationFailedItemsRetry', () => {
   // ── F4: episode missing from trail.db → recorded as episode_not_found ──────
   test('F4: missing trail.db episode is recorded as episode_not_found', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
     // No session/message inserted — reconstruction will fail
     attachTrailDbFromHandle(memDb, trailDb);
 
@@ -252,7 +241,7 @@ describe('runConversationFailedItemsRetry', () => {
   // ── F5: 3 consecutive failures triggers quarantine ────────────────────────
   test('F5: 3 consecutive extraction failures trigger quarantine', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     for (let i = 1; i <= 4; i++) {
       const sessId = `sess_q${i}`;
@@ -285,7 +274,7 @@ describe('runConversationFailedItemsRetry', () => {
   // ── F6: empty failed_items → success with zero counts ─────────────────────
   test('F6: empty failed_items returns success with zero counts', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
     attachTrailDbFromHandle(memDb, trailDb);
 
     const ollama = makeValidOllama();

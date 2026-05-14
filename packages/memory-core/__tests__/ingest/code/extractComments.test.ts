@@ -1,10 +1,8 @@
 import * as fs from 'fs';
-import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
+import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
 import * as os from 'os';
 import * as path from 'path';
 import * as ts from 'typescript';
-import initSqlJs from 'sql.js';
-import type { Database } from 'sql.js';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import { extractDecisionComments } from '../../../src/ingest/code/extractComments';
 import { entityId } from '../../../src/canonical/entityId';
@@ -23,9 +21,8 @@ const silentLogger: MemoryLogger = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function makeDb(): Promise<SqlJsMemoryDb> {
-  const SQL = await initSqlJs();
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+async function makeDb(): Promise<BetterSqlite3MemoryDb> {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -61,12 +58,12 @@ function cleanupTmp(tmpDir: string): void {
   }
 }
 
-function countDecisions(db: SqlJsMemoryDb): number {
+function countDecisions(db: BetterSqlite3MemoryDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM memory_entities WHERE type = 'Decision'`);
   return result[0]?.values[0][0] as number ?? 0;
 }
 
-function countEdges(db: SqlJsMemoryDb, predicate?: string): number {
+function countEdges(db: BetterSqlite3MemoryDb, predicate?: string): number {
   if (predicate) {
     const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_edges WHERE predicate = ?`);
     try {
@@ -428,7 +425,7 @@ export const val = 42;
 
     // Edge connects Decision → File
     const edgeRows = db.exec(`
-      SELECT me_subj.type, me_obj.type
+      SELECT me_subj.type AS subj_type, me_obj.type AS obj_type
       FROM memory_edges e
       JOIN memory_entities me_subj ON me_subj.id = e.subject_entity_id
       JOIN memory_entities me_obj ON me_obj.id = e.object_entity_id

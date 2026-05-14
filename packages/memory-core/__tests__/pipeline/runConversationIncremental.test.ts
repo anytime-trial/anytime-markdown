@@ -1,6 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
-import type { Database } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationIncremental } from '../../src/pipeline/runConversationIncremental';
@@ -9,16 +7,15 @@ import type { MemoryLogger } from '../../src/logger';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function makeMemoryDb(): Promise<SqlJsMemoryDb> {
-  const SQL = await initSqlJs();
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(SQL: ReturnType<typeof initSqlJs> extends Promise<infer T> ? T : never): SqlJsMemoryDb {
-  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailDb(): BetterSqlite3MemoryDb {
+  const trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE messages (
@@ -33,12 +30,12 @@ function makeTrailDb(SQL: ReturnType<typeof initSqlJs> extends Promise<infer T> 
   return trailDb;
 }
 
-function insertSession(trailDb: SqlJsMemoryDb, id: string): void {
+function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
   trailDb.run(`INSERT INTO sessions VALUES (?)`, [id]);
 }
 
 function insertMessage(
-  trailDb: SqlJsMemoryDb,
+  trailDb: BetterSqlite3MemoryDb,
   uuid: string,
   sessionId: string,
   type: string,
@@ -76,12 +73,6 @@ function makeValidOllama(responseObj?: object) {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('runConversationIncremental', () => {
-  let SQL: Awaited<ReturnType<typeof initSqlJs>>;
-
-  beforeAll(async () => {
-    SQL = await initSqlJs();
-  });
-
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -89,7 +80,7 @@ describe('runConversationIncremental', () => {
   // ── I1: basic happy path ─────────────────────────────────────────────────
   test('I1: 1 session, 2 messages → entities_inserted ≥ 1, pipeline_state updated', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess1');
     insertMessage(trailDb, 'msg1', 'sess1', 'user', '2026-01-01T00:00:00.000Z', 'hello world');
@@ -131,7 +122,7 @@ describe('runConversationIncremental', () => {
   // ── I2: idempotency — 2nd run inserts no new entities ───────────────────
   test('I2: running twice with same data → 2nd run entities_inserted = 0', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess1');
     insertMessage(trailDb, 'msg1', 'sess1', 'user', '2026-01-01T00:00:00.000Z', 'hello world');
@@ -166,7 +157,7 @@ describe('runConversationIncremental', () => {
   // ── I3: LLM returns invalid JSON → failed_items recorded, continues ──────
   test('I3: first episode LLM returns invalid JSON → failed item recorded, no crash', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     // Two sessions → two separate episodes (so second one can succeed)
     insertSession(trailDb, 'sess-fail');
@@ -215,7 +206,7 @@ describe('runConversationIncremental', () => {
   // ── I4: 3 consecutive failures → quarantine ──────────────────────────────
   test('I4: 3 consecutive LLM failures → pipeline_state.status = quarantine', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     // Three sessions, each with one user message → three separate episodes
     for (let i = 1; i <= 3; i++) {
@@ -264,7 +255,7 @@ describe('runConversationIncremental', () => {
   // causing the count to reset to 0 and the same episodes to be re-extracted.
   test('I5: checkpoint persists items_processed and last_processed_at before save() fires', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     // 60 user messages across 60 sessions → 60 episodes, > 1 checkpoint interval (50)
     const N = 60;
@@ -327,7 +318,7 @@ describe('runConversationIncremental', () => {
   // on the DB but wasted minutes of LLM time per episode).
   test('I6: pre-persisted episodes are skipped on resume, no Ollama call', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     // 3 user messages in trail + matching memory_episodes rows (as if a
     // prior run had already persisted them, then the cursor was lost).

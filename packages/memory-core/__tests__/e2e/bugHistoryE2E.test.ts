@@ -14,10 +14,10 @@
  */
 
 import * as fs from 'fs';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import * as os from 'os';
 import * as path from 'path';
-import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
+// sql.js removed
 import { attachTrailDbReadOnly } from '../../src/db/attach';
 import { runBugHistoryIncremental } from '../../src/pipeline/runBugHistoryIncremental';
 import type { MemoryCoreDb } from '../../src/db/connection';
@@ -129,8 +129,8 @@ const COMMITS: CommitSeed[] = [
  *   - session_commits table (queried by runBugHistoryIncremental)
  *   - commit_files table (queried by linkAffectedFiles)
  */
-function makeTrailDb(SQL: SqlJsStatic, repoName: string, commits: CommitSeed[]): SqlJsMemoryDb {
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailDb(repoName: string, commits: CommitSeed[]): BetterSqlite3MemoryDb {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
 
   db.run(`CREATE TABLE sessions (
@@ -201,8 +201,7 @@ function makeTrailDb(SQL: SqlJsStatic, repoName: string, commits: CommitSeed[]):
 
 /** Opens an in-memory memory-core DB with all migrations applied. */
 async function makeMemoryDb(): Promise<MemoryCoreDb> {
-  const SQL = await initSqlJs();
-  const rawDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  const rawDb = BetterSqlite3MemoryDb.openInMemory();
   rawDb.run('PRAGMA foreign_keys = ON');
 
   const { runMigrations } = await import('../../src/db/migrations/runner');
@@ -217,9 +216,9 @@ async function makeMemoryDb(): Promise<MemoryCoreDb> {
   };
 }
 
-/** Exports a sql.js Database to a temp file and returns the file path. */
-function exportToTempFile(db: SqlJsMemoryDb, tmpDir: string, filename: string): string {
-  const data = db.exportBytes();
+/** Exports a BetterSqlite3 Database to a temp file and returns the file path. */
+function exportToTempFile(db: BetterSqlite3MemoryDb, tmpDir: string, filename: string): string {
+  const data = db.serialize();
   const filePath = path.join(tmpDir, filename);
   fs.writeFileSync(filePath, data);
   return filePath;
@@ -228,11 +227,9 @@ function exportToTempFile(db: SqlJsMemoryDb, tmpDir: string, filename: string): 
 // ── Test Suite ────────────────────────────────────────────────────────────────
 
 describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
-  let SQL: SqlJsStatic;
   let tmpDir: string;
 
-  beforeAll(async () => {
-    SQL = await initSqlJs();
+  beforeAll(() => {
     tmpDir = fs.mkdtempSync(
       path.join(os.tmpdir(), `memory-bug-e2e-${process.pid}-`)
     );
@@ -266,12 +263,12 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
     async () => {
       const repoName = 'e2e-bug-repo';
 
-      const trailDb = makeTrailDb(SQL, repoName, COMMITS);
+      const trailDb = makeTrailDb(repoName, COMMITS);
       const trailDbPath = exportToTempFile(trailDb, tmpDir, 'bug-e2e-bp1.db');
       trailDb.close();
 
       const memDb = await makeMemoryDb();
-      const handle = await attachTrailDbReadOnly(memDb.db, trailDbPath);
+      await attachTrailDbReadOnly(memDb.db, trailDbPath);
 
       try {
         const result = await runBugHistoryIncremental({
@@ -332,7 +329,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
         expect(pipeStatus).toBe('idle');
         expect(lastAt >= '2026-03-06T10:00:00.000Z').toBe(true);
       } finally {
-        handle.trailHandle?.close();
+        // better-sqlite3: trailHandle 不要
         memDb.close();
       }
     },
@@ -352,12 +349,12 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
     async () => {
       const repoName = 'e2e-bug-idempotent';
 
-      const trailDb = makeTrailDb(SQL, repoName, COMMITS);
+      const trailDb = makeTrailDb(repoName, COMMITS);
       const trailDbPath = exportToTempFile(trailDb, tmpDir, 'bug-e2e-bp2.db');
       trailDb.close();
 
       const memDb = await makeMemoryDb();
-      const handle = await attachTrailDbReadOnly(memDb.db, trailDbPath);
+      await attachTrailDbReadOnly(memDb.db, trailDbPath);
 
       try {
         const r1 = await runBugHistoryIncremental({
@@ -390,7 +387,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
         );
         expect(fixesEdges[0]?.values[0][0] as number).toBe(6);
       } finally {
-        handle.trailHandle?.close();
+        // better-sqlite3: trailHandle 不要
         memDb.close();
       }
     },
@@ -412,12 +409,12 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
     async () => {
       const repoName = 'e2e-bug-accept';
 
-      const trailDb = makeTrailDb(SQL, repoName, COMMITS);
+      const trailDb = makeTrailDb(repoName, COMMITS);
       const trailDbPath = exportToTempFile(trailDb, tmpDir, 'bug-e2e-bp3.db');
       trailDb.close();
 
       const memDb = await makeMemoryDb();
-      const handle = await attachTrailDbReadOnly(memDb.db, trailDbPath);
+      await attachTrailDbReadOnly(memDb.db, trailDbPath);
 
       try {
         await runBugHistoryIncremental({
@@ -459,7 +456,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
         );
         expect(commitCount[0]?.values[0][0] as number).toBe(6);
       } finally {
-        handle.trailHandle?.close();
+        // better-sqlite3: trailHandle 不要
         memDb.close();
       }
     },

@@ -67,19 +67,11 @@ export async function runMemoryCorePipeline(ctx: PipelineRunnerContext): Promise
   });
   try {
     logger.info(`Attaching trail DB: ${ctx.trailDbPath}`);
-    const attachHandle = await attachTrailDbReadOnly(memDb.db, ctx.trailDbPath);
-    // sql.js の export() は sqlite3_close → sqlite3_open を内部実行するため
-    // save() のたびに ATTACH が外れる。save 後に再度 ATTACH する必要がある。
-    // (better-sqlite3 driver の場合 trailHandle は undefined のため filename は取れない
-    // が、save() が no-op なので reattach も不要。)
-    const trailFilename = attachHandle.trailHandle
-      ? (attachHandle.trailHandle as unknown as { filename: string }).filename
-      : null;
+    await attachTrailDbReadOnly(memDb.db, ctx.trailDbPath);
+    // better-sqlite3 は live commit のため save() は no-op、ATTACH も外れないので
+    // reattach は不要。save() は呼び出し履歴の互換のために残す (実体は no-op)。
     const saveAndReattach = (): void => {
       memDb.save();
-      if (trailFilename) {
-        memDb.db.run(`ATTACH DATABASE '${trailFilename}' AS trail`);
-      }
     };
     try {
       // Timeout stale agent runs before starting pipelines
@@ -363,9 +355,8 @@ export async function runMemoryCorePipeline(ctx: PipelineRunnerContext): Promise
       }
       { const t0 = Date.now(); saveAndReattach(); logger.info(`Saved (embedding_backfill): ${Date.now() - t0}ms`); }
     } finally {
-      // Release the WASM heap copy of trail DB (~800MB) after every run.
-      // (better-sqlite3 driver の場合 trailHandle は undefined)
-      attachHandle.trailHandle?.close();
+      // better-sqlite3 では ATTACH は同一接続のため close() 不要
+      // (sql.js では trailHandle が別の WASM Database で別途 close が必要だった)
     }
   } finally {
     memDb.save();

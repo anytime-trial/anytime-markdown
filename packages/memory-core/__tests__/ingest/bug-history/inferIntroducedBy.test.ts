@@ -1,11 +1,10 @@
 import * as childProcess from 'child_process';
-import { SqlJsMemoryDb } from '../../../src/db/connection/SqlJsMemoryDb';
+import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
 import { inferIntroducedBy } from '../../../src/ingest/bug-history/inferIntroducedBy';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { entityId } from '../../../src/canonical/entityId';
 import { noopLogger } from '../../../src/logger';
 import { openMemoryCoreDb } from '../../../src/db/connection';
-import initSqlJs from 'sql.js';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -32,14 +31,8 @@ function makeTmpPath() {
   return path.join(os.tmpdir(), `iib-test-${process.pid}-${Date.now()}.db`);
 }
 
-async function openTestDb() {
-  const tmpPath = makeTmpPath();
-  process.env.MEMORY_CORE_DB_PATH = tmpPath;
-  const { db, close: closeMain } = await openMemoryCoreDb();
-
-  // Create trail DB in memory with session_commits table
-  const SQL = await initSqlJs();
-  const trailHandle = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailHandle(extraRows?: Array<{ commit_hash: string; commit_message: string; repo_name: string }>) {
+  const trailHandle = BetterSqlite3MemoryDb.openInMemory();
   trailHandle.run('PRAGMA foreign_keys = ON');
   trailHandle.run(`CREATE TABLE session_commits (
     id INTEGER PRIMARY KEY,
@@ -50,8 +43,25 @@ async function openTestDb() {
     author TEXT NOT NULL DEFAULT 'test',
     session_id TEXT
   ) STRICT`);
+  if (extraRows) {
+    for (const r of extraRows) {
+      trailHandle.run(
+        `INSERT INTO session_commits (commit_hash, commit_message, repo_name) VALUES (?, ?, ?)`,
+        [r.commit_hash, r.commit_message, r.repo_name]
+      );
+    }
+  }
+  return trailHandle;
+}
 
-  attachTrailDbFromHandle(db, trailHandle);
+async function openTestDb(trailHandle?: BetterSqlite3MemoryDb) {
+  const tmpPath = makeTmpPath();
+  process.env.MEMORY_CORE_DB_PATH = tmpPath;
+  const { db, close: closeMain } = await openMemoryCoreDb();
+
+  const handle = trailHandle ?? makeTrailHandle();
+
+  attachTrailDbFromHandle(db, handle);
 
   // Insert a Bug entity
   const bugId = entityId('Bug', FIX_SHA);
@@ -66,10 +76,10 @@ async function openTestDb() {
 
   return {
     db,
-    trailHandle,
+    trailHandle: handle,
     bugId,
     close: () => {
-      trailHandle.close();
+      handle.close();
       closeMain();
       try { fs.unlinkSync(tmpPath); } catch (_) {}
       delete process.env.MEMORY_CORE_DB_PATH;
@@ -137,13 +147,12 @@ describe('inferIntroducedBy', () => {
   }, 30000);
 
   test('candidate is a fix commit → skipped → null', async () => {
-    const { db, bugId, trailHandle, close } = await openTestDb();
-
-    // Insert the intro commit as a fix commit in session_commits
-    trailHandle.run(
-      `INSERT INTO session_commits (commit_hash, commit_message, repo_name) VALUES (?, ?, ?)`,
-      [INTRO_SHA, 'fix(web-app): something broken', 'repo']
-    );
+    // Insert the intro commit as a fix commit BEFORE attaching, so it is visible
+    // in the serialized snapshot (attachTrailDbFromHandle captures data at call time).
+    const prePopulatedTrail = makeTrailHandle([
+      { commit_hash: INTRO_SHA, commit_message: 'fix(web-app): something broken', repo_name: 'repo' },
+    ]);
+    const { db, bugId, close } = await openTestDb(prePopulatedTrail);
 
     mockedExecFileSync
       .mockReturnValueOnce(DIFF_OUTPUT as any)

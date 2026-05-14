@@ -1,5 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runEmbeddingBackfill } from '../../src/pipeline/runEmbeddingBackfill';
 import type { OllamaClient } from '../../src/ollama/client';
 import { encodeEmbedding } from '../../src/embedding/codec';
@@ -24,8 +23,7 @@ function mockOllama(
 }
 
 async function makeDb() {
-  const SQL = await initSqlJs();
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run(`
     CREATE TABLE memory_entities (
       id             TEXT PRIMARY KEY,
@@ -72,7 +70,7 @@ async function makeDb() {
   return db;
 }
 
-function insertEntity(db: ReturnType<typeof initSqlJs.prototype.Database>, id: string, displayName: string, summary = '', embedding?: Float32Array) {
+function insertEntity(db: BetterSqlite3MemoryDb, id: string, displayName: string, summary = '', embedding?: Float32Array) {
   db.run(
     `INSERT INTO memory_entities (id, type, canonical_name, display_name, summary, embedding)
      VALUES (?, 'Concept', ?, ?, ?, ?)`,

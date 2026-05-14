@@ -107,7 +107,10 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
     const params: (string | null)[] =
       sinceCommittedAt !== null ? [repoName, sinceCommittedAt] : [repoName];
 
-    for (const row of stmt.iterate(...params)) {
+    // better-sqlite3 では iterate() の途中で別のクエリ (db.run) を実行できない
+    // ("This database connection is busy")。先に全行集約してからループする。
+    const rows = stmt.all(...params);
+    for (const row of rows) {
       const commitHash = row['commit_hash'] as string;
       const commitMessage = row['commit_message'] as string;
       const rawCommittedAt = row['committed_at'] as string | null;

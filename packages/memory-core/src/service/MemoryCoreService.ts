@@ -97,7 +97,6 @@ export class MemoryCoreService {
           logger: this.buildPipelineLogger(),
           trailDbPath: this.opts.trailDbPath,
           dbPath: this.opts.dbPath,
-          distPath: this.opts.distPath,
           nativeBinding: this.opts.nativeBinding,
           gitRoot: this.opts.gitRoot,
           backfillDays: this.opts.backfillDays,

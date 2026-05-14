@@ -1,6 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
-import type { Database } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationBackfill } from '../../src/pipeline/runConversationBackfill';
@@ -8,18 +6,15 @@ import type { MemoryLogger } from '../../src/logger';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function makeMemoryDb(): Promise<SqlJsMemoryDb> {
-  const SQL = await initSqlJs();
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(
-  SQL: ReturnType<typeof initSqlJs> extends Promise<infer T> ? T : never
-): SqlJsMemoryDb {
-  const trailDb = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+function makeTrailDb(): BetterSqlite3MemoryDb {
+  const trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE messages (
@@ -34,12 +29,12 @@ function makeTrailDb(
   return trailDb;
 }
 
-function insertSession(trailDb: SqlJsMemoryDb, id: string): void {
+function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
   trailDb.run(`INSERT INTO sessions VALUES (?)`, [id]);
 }
 
 function insertMessage(
-  trailDb: SqlJsMemoryDb,
+  trailDb: BetterSqlite3MemoryDb,
   uuid: string,
   sessionId: string,
   type: string,
@@ -78,16 +73,10 @@ function makeValidOllama(responseObj?: object) {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('runConversationBackfill', () => {
-  let SQL: Awaited<ReturnType<typeof initSqlJs>>;
-
   // Timestamps relative to "now"
   const ts8DaysAgo = new Date(Date.now() - 8 * 86_400_000).toISOString();
   const ts6DaysAgo = new Date(Date.now() - 6 * 86_400_000).toISOString();
   const ts1DayAgo = new Date(Date.now() - 1 * 86_400_000).toISOString();
-
-  beforeAll(async () => {
-    SQL = await initSqlJs();
-  });
 
   afterEach(() => {
     jest.clearAllMocks();
@@ -96,7 +85,7 @@ describe('runConversationBackfill', () => {
   // ── B1: 7-day window excludes old message ─────────────────────────────────
   test('B1: 7-day window excludes 8-day-old message, processes 6-day and 1-day → items_processed = 2', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     // 3 separate sessions, 1 user message each
     insertSession(trailDb, 'sess_old');
@@ -145,7 +134,7 @@ describe('runConversationBackfill', () => {
   // ── B2: idempotency — 2nd run inserts no new entities ─────────────────────
   test('B2: running backfill twice → 2nd run entities_inserted = 0 (idempotent upsert)', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_mid');
     insertMessage(trailDb, 'msg_mid', 'sess_mid', 'user', ts6DaysAgo, 'mid message');
@@ -184,7 +173,7 @@ describe('runConversationBackfill', () => {
   // ── B3: incremental cursor is advanced after backfill ─────────────────────
   test('B3: after backfill, pipeline_state scope=conversation_incremental last_processed_at is advanced', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_recent');
     insertMessage(trailDb, 'msg_recent', 'sess_recent', 'user', ts1DayAgo, 'recent message');
@@ -219,7 +208,7 @@ describe('runConversationBackfill', () => {
   // ── B4: progress log emitted every 10 episodes ────────────────────────────
   test('B4: progress log is emitted at 10-episode intervals', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     // Insert 100 sessions each with 1 user message to trigger progress log
     const baseTime = Date.now() - 3 * 86_400_000; // 3 days ago
@@ -263,7 +252,7 @@ describe('runConversationBackfill', () => {
   // ── B6: last_heartbeat_at is updated during backfill ──────────────────────
   test('B6: last_heartbeat_at on memory_pipeline_runs is non-null after backfill', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_recent');
     insertMessage(trailDb, 'msg_recent', 'sess_recent', 'user', ts1DayAgo, 'recent message');
@@ -297,7 +286,7 @@ describe('runConversationBackfill', () => {
   // ── B7: resumed run skips sessions older than last_processed_at ───────────
   test('B7: resumed backfill with last_processed_at uses it as sinceISO (skips older sessions)', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     // 6 days ago session — first run will process it
     insertSession(trailDb, 'sess_mid');
@@ -349,7 +338,7 @@ describe('runConversationBackfill', () => {
     process.env.MEMORY_CORE_EXTRACT_CONCURRENCY = '4';
     try {
       const memDb = await makeMemoryDb();
-      const trailDb = makeTrailDb(SQL);
+      const trailDb = makeTrailDb();
 
       // 1 session containing 8 user messages → splitEpisodes yields 8 episodes
       // within a single session. Parallel batching happens per-session.
@@ -407,7 +396,7 @@ describe('runConversationBackfill', () => {
   // ── B5: 3 consecutive failures → quarantine ───────────────────────────────
   test('B5: 3 consecutive LLM failures → pipeline_state.status = quarantine', async () => {
     const memDb = await makeMemoryDb();
-    const trailDb = makeTrailDb(SQL);
+    const trailDb = makeTrailDb();
 
     for (let i = 1; i <= 3; i++) {
       const sessId = `sess_q${i}`;

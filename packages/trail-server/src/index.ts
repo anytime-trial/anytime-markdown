@@ -23,7 +23,7 @@ export type { RebuildSchedulerLogger, RebuildSchedulerOptions } from './memory-c
 export { ChatBridge } from './memory-chat/chatBridge';
 export type { ChatBridgeLogger, ChatBridgeConfig, ChatBridgeDeps } from './memory-chat/chatBridge';
 
-export { installSqlJsLoaderOnce, createMemoryCoreRunner } from './runtime/memoryCoreRunner';
+export { createMemoryCoreRunner } from './runtime/memoryCoreRunner';
 export type { MemoryCoreRunner, MemoryCoreOutputChannel } from './runtime/memoryCoreRunner';
 
 export {

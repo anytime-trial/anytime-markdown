@@ -3,9 +3,14 @@
 const sqlAsmActual = require(require.resolve('sql.js/dist/sql-asm.js'));
 (global as Record<string, unknown>).__non_webpack_require__ = (_path: string) => sqlAsmActual;
 
-jest.mock('@anytime-markdown/memory-core', () => ({
-  resolveDrift: jest.fn(() => ({ resolved: true })),
-}));
+jest.mock('@anytime-markdown/memory-core', () => {
+  // Real BetterSqlite3MemoryDb は使う (better-sqlite3 への依存を mock しない)
+  const actual = jest.requireActual('@anytime-markdown/memory-core');
+  return {
+    ...actual,
+    resolveDrift: jest.fn(() => ({ resolved: true })),
+  };
+});
 
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import * as fs from 'node:fs';

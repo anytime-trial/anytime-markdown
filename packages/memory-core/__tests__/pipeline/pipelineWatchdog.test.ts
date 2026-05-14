@@ -1,6 +1,4 @@
-import initSqlJs from 'sql.js';
-import { SqlJsMemoryDb } from '../../src/db/connection/SqlJsMemoryDb';
-import type { Database } from 'sql.js';
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runPipelineWatchdog } from '../../src/pipeline/pipelineWatchdog';
 import type { MemoryLogger } from '../../src/logger';
@@ -10,15 +8,14 @@ const silentLogger: MemoryLogger = {
   error: () => {},
 };
 
-async function makeMemoryDb(): Promise<SqlJsMemoryDb> {
-  const SQL = await initSqlJs();
-  const db = SqlJsMemoryDb.fromDatabase(new SQL.Database());
+async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
+  const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function insertRunningRun(db: SqlJsMemoryDb, id: string, scope: string, startedAt: string): void {
+function insertRunningRun(db: BetterSqlite3MemoryDb, id: string, scope: string, startedAt: string): void {
   db.run(
     `INSERT INTO memory_pipeline_runs
        (id, scope, started_at, status,
@@ -30,14 +27,14 @@ function insertRunningRun(db: SqlJsMemoryDb, id: string, scope: string, startedA
   );
 }
 
-function setHeartbeat(db: SqlJsMemoryDb, id: string, heartbeatAt: string): void {
+function setHeartbeat(db: BetterSqlite3MemoryDb, id: string, heartbeatAt: string): void {
   db.run(
     `UPDATE memory_pipeline_runs SET last_heartbeat_at = ? WHERE id = ?`,
     [heartbeatAt, id],
   );
 }
 
-function insertRunningState(db: SqlJsMemoryDb, scope: string): void {
+function insertRunningState(db: BetterSqlite3MemoryDb, scope: string): void {
   db.run(
     `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
      VALUES (?, 'running', '', '')`,

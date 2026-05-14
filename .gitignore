@@ -37,3 +37,6 @@ skills-lock.json
 # Supabase CLI cache
 supabase/.temp/
 .superpowers/
+
+# sql.js 撤去後は不要だが、過去にテスト実行で残ったゴミの再混入を防止
+packages/memory-core/dbfile_*

@@ -1,121 +1,56 @@
-import type { Database, SqlJsStatic } from 'sql.js';
-import * as fs from 'fs';
-import { loadSqlJsModule } from './sqlJsLoader';
-import { SqlJsMemoryDb } from './connection/SqlJsMemoryDb';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { BetterSqlite3MemoryDb } from './connection/BetterSqlite3MemoryDb';
 import type { MemoryDbConnection } from './connection/types';
 
 /**
  * Attach trail.db to an existing memory-core db in read-only mode.
  *
- * Driver-aware implementation:
- *  - sql.js: WASM in-memory VFS — reads bytes into a second Database and ATTACH by
- *    internal filename; install a write guard on db.run / db.exec to block mutations
- *    to trail.*.
- *  - better-sqlite3: file-based ATTACH with `?mode=ro` URI. (write guard not yet
- *    implemented for better-sqlite3 — relies on SQLite enforcing readonly mode.)
- *
- * The returned `trailHandle` (sql.js path) must be closed alongside the main db.
+ * BetterSqlite3MemoryDb 内部の read-only alias 管理 (アプリ層 SQL ガード) で
+ * trail.* への INSERT/UPDATE/DELETE/REPLACE を阻止する。SQLite native の URI
+ * readonly は better-sqlite3 が SQLITE_OPEN_URI を有効化していないため使えない
+ * ため、本実装はアプリ層ガードに依存する。
  */
-export interface AttachHandle {
-  /** The sql.js Database holding the trail data (sql.js path only). */
-  trailHandle?: Database;
-}
-
 export async function attachTrailDbReadOnly(
   db: MemoryDbConnection,
   trailDbPath: string,
-): Promise<AttachHandle> {
-  if (db instanceof SqlJsMemoryDb) {
-    return attachSqlJs(db.getRawDb(), trailDbPath);
+): Promise<void> {
+  if (!(db instanceof BetterSqlite3MemoryDb)) {
+    throw new Error(
+      '[memory-core] attachTrailDbReadOnly: only BetterSqlite3MemoryDb is supported',
+    );
   }
-  if (db instanceof BetterSqlite3MemoryDb) {
-    db.attach(trailDbPath, 'trail', true);
-    return {};
-  }
-  throw new Error(
-    '[memory-core] attachTrailDbReadOnly: unsupported MemoryDbConnection implementation',
-  );
-}
-
-async function attachSqlJs(db: Database, trailDbPath: string): Promise<AttachHandle> {
-  const SQL: SqlJsStatic = await loadSqlJsModule();
-  const data = fs.readFileSync(trailDbPath);
-  const trailHandle = new SQL.Database(data);
-
-  // The internal VFS filename is stored on the Database instance
-  const trailFilename = (trailHandle as unknown as { filename: string }).filename;
-  db.run(`ATTACH DATABASE '${trailFilename}' AS trail`);
-
-  installTrailReadonlyGuard(db);
-
-  return { trailHandle };
+  db.attach(trailDbPath, 'trail', true);
 }
 
 /**
- * Attach an already-open sql.js Database as trail (useful in tests).
- * The caller is responsible for the lifecycle of trailHandle.
+ * Attach an already-open BetterSqlite3MemoryDb (in-memory or file) as `trail`.
  *
- * Accepts either a sql.js Database directly, or a MemoryDbConnection wrapping
- * a sql.js Database (SqlJsMemoryDb). better-sqlite3 path is not supported here
- * — use attachTrailDbReadOnly() with a file path.
+ * テスト便宜のため `:memory:` で構築した trail handle をそのまま attach できるよう
+ * `serialize()` で一時ファイルに書き出してから attachTrailDbReadOnly() を呼ぶ。
+ * 残された一時ファイルは OS の tmpdir 掃除に任せる (テスト時のみの利用想定)。
+ *
+ * @deprecated 新規コードは `attachTrailDbReadOnly(db, trailDbPath)` を直接使うこと。
  */
 export function attachTrailDbFromHandle(
-  db: Database | MemoryDbConnection,
-  trailHandle: Database | MemoryDbConnection,
+  db: MemoryDbConnection,
+  trailHandle: MemoryDbConnection,
 ): void {
-  const rawDb = db instanceof SqlJsMemoryDb ? db.getRawDb() : (db as Database);
-  const rawHandle =
-    trailHandle instanceof SqlJsMemoryDb ? trailHandle.getRawDb() : (trailHandle as Database);
-  const trailFilename = (rawHandle as unknown as { filename: string }).filename;
-  rawDb.run(`ATTACH DATABASE '${trailFilename}' AS trail`);
-  installTrailReadonlyGuard(rawDb);
-}
-
-export function installTrailReadonlyGuard(db: Database): void {
-  const originalRun = db.run.bind(db);
-  const originalExec = db.exec.bind(db);
-
-  type BindParams = Parameters<Database['run']>[1];
-
-  function checkSql(sql: string): void {
-    if (/^\s*(INSERT|UPDATE|DELETE)\s+/i.test(sql) && /\btrail\./i.test(sql)) {
-      // Record in memory_failed_items before throwing (best effort)
-      try {
-        originalRun(
-          `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
-           VALUES (?, ?, ?, ?, ?, 1)
-           ON CONFLICT(scope, item_key) DO UPDATE SET
-             attempt_count = attempt_count + 1,
-             failed_at = excluded.failed_at,
-             detail = excluded.detail`,
-          [
-            'trail_db_write_attempt',
-            sql.slice(0, 200),
-            new Date().toISOString(),
-            'write_to_trail_db_blocked',
-            sql.slice(0, 1000),
-          ]
-        );
-      } catch (_) {
-        // best effort — do not mask original error
-      }
-      throw new Error(
-        `[memory-core] Write to trail.* is forbidden (D24). SQL: ${sql.slice(0, 100)}`
-      );
-    }
+  if (!(db instanceof BetterSqlite3MemoryDb)) {
+    throw new Error(
+      '[memory-core] attachTrailDbFromHandle: only BetterSqlite3MemoryDb is supported for main db',
+    );
   }
-
-  (db as unknown as Record<string, unknown>).run = function (
-    sql: string,
-    params?: BindParams
-  ) {
-    checkSql(sql);
-    return originalRun(sql, params);
-  };
-
-  (db as unknown as Record<string, unknown>).exec = function (sql: string, params?: BindParams) {
-    checkSql(sql);
-    return (originalExec as (sql: string, params?: BindParams) => ReturnType<Database['exec']>)(sql, params);
-  };
+  if (!(trailHandle instanceof BetterSqlite3MemoryDb)) {
+    throw new Error(
+      '[memory-core] attachTrailDbFromHandle: only BetterSqlite3MemoryDb is supported for trailHandle',
+    );
+  }
+  const tempPath = path.join(
+    os.tmpdir(),
+    `memory-core-trail-attach-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}.db`,
+  );
+  fs.writeFileSync(tempPath, trailHandle.serialize());
+  db.attach(tempPath, 'trail', true);
 }
