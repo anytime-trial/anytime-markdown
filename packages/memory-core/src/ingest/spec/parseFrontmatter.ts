@@ -21,6 +21,13 @@ export interface ParsedSpec {
   source_hash: string;
 }
 
+export type ParseFrontmatterOutcome =
+  | { ok: true; data: ParsedSpec }
+  // No --- block present — legacy file, soft skip (not a data quality issue)
+  | { ok: false; reason: 'missing'; detail: string }
+  // Has --- block but zod validation failed — data quality issue, hard error
+  | { ok: false; reason: 'invalid'; detail: string };
+
 // ── Zod schema ────────────────────────────────────────────────────────────────
 
 /**
@@ -52,33 +59,58 @@ const FrontmatterSchema = z.object({
 
 /**
  * Parse YAML frontmatter from a Markdown file content and validate with zod.
- * Returns null on any failure (gray-matter parse error, zod validation failure).
+ *
+ * Returns a discriminated union:
+ *   { ok: true, data }   — valid frontmatter, ready to ingest
+ *   { ok: false, reason: 'missing' } — no --- block (legacy file, soft skip)
+ *   { ok: false, reason: 'invalid' } — has --- block but zod validation failed
+ *
  * source_hash is sha1 of the full file content (hex).
  */
 export function parseFrontmatter(input: {
   rel_path: string;
   content: string;
-}): ParsedSpec | null {
+}): ParseFrontmatterOutcome {
   const { rel_path, content } = input;
 
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(content);
-  } catch {
-    return null;
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    // gray-matter parse error: treat as invalid since we can't tell if a block was present
+    return { ok: false, reason: 'invalid', detail: `gray-matter parse error: ${detail}` };
+  }
+
+  // gray-matter.data is empty ({}) when no frontmatter block is present.
+  // We use data emptiness rather than parsed.matter === '' because gray-matter
+  // has a caching behavior where repeated calls with the same content return
+  // matter='undefined' (non-empty string) instead of '' — data is always reliable.
+  if (Object.keys(parsed.data).length === 0) {
+    return {
+      ok: false,
+      reason: 'missing',
+      detail: `no frontmatter block in ${rel_path}`,
+    };
   }
 
   const validated = FrontmatterSchema.safeParse(parsed.data);
   if (!validated.success) {
-    return null;
+    const detail = validated.error.issues
+      .map((i) => `${i.path.join('.')}: ${i.message}`)
+      .join('; ');
+    return { ok: false, reason: 'invalid', detail };
   }
 
   const source_hash = createHash('sha1').update(content).digest('hex');
 
   return {
-    rel_path,
-    frontmatter: validated.data,
-    body: parsed.content,
-    source_hash,
+    ok: true,
+    data: {
+      rel_path,
+      frontmatter: validated.data,
+      body: parsed.content,
+      source_hash,
+    },
   };
 }
