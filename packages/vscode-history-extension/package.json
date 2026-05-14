@@ -503,7 +503,7 @@
   "dependencies": {
     "@anytime-markdown/trail-db": "*",
     "@anytime-markdown/vscode-common": "*",
-    "sql.js": "1.12.0",
+    "better-sqlite3": "12.4.1",
     "typescript": "5.9.3"
   },
   "devDependencies": {

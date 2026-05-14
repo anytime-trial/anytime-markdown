@@ -14,10 +14,9 @@ const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
 
-const SQL_WASM_PATH = path.join(__dirname, '../node_modules/sql.js/dist/sql-wasm.js');
 const DB_PATH = path.join(os.homedir(), '.claude', 'trail', 'trail.db');
 
-async function main() {
+function main() {
   // git root 取得
   const gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
 
@@ -38,14 +37,18 @@ async function main() {
     process.exit(1);
   }
 
-  // sql.js 初期化
-  const initSqlJs = require(SQL_WASM_PATH);
-  const SQL = await initSqlJs({
-    locateFile: (file) => path.join(__dirname, '../node_modules/sql.js/dist', file),
-  });
-
-  const dbBuffer = fs.readFileSync(DB_PATH);
-  const db = new SQL.Database(dbBuffer);
+  // better-sqlite3 で trail.db を直接開く (旧 sql.js は撤去済)
+  const Database = require('better-sqlite3');
+  const db = new Database(DB_PATH);
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO release_coverage (
+      release_tag, package, file_path,
+      lines_total, lines_covered, lines_pct,
+      statements_total, statements_covered, statements_pct,
+      functions_total, functions_covered, functions_pct,
+      branches_total, branches_covered, branches_pct
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
 
   // 全パッケージの coverage-summary.json を読み込んで INSERT
   const packagesDir = path.join(gitRoot, 'packages');
@@ -70,35 +73,35 @@ async function main() {
 
       const filePath = key === 'total' ? '__total__' : key;
 
-      db.run(
-        `INSERT OR IGNORE INTO release_coverage (
-          release_tag, package, file_path,
-          lines_total, lines_covered, lines_pct,
-          statements_total, statements_covered, statements_pct,
-          functions_total, functions_covered, functions_pct,
-          branches_total, branches_covered, branches_pct
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          latestTag, pkgDir, filePath,
-          entry.lines.total, entry.lines.covered, toPct(entry.lines.pct),
-          entry.statements.total, entry.statements.covered, toPct(entry.statements.pct),
-          entry.functions.total, entry.functions.covered, toPct(entry.functions.pct),
-          entry.branches.total, entry.branches.covered, toPct(entry.branches.pct),
-        ],
+      insert.run(
+        latestTag,
+        pkgDir,
+        filePath,
+        entry.lines.total,
+        entry.lines.covered,
+        toPct(entry.lines.pct),
+        entry.statements.total,
+        entry.statements.covered,
+        toPct(entry.statements.pct),
+        entry.functions.total,
+        entry.functions.covered,
+        toPct(entry.functions.pct),
+        entry.branches.total,
+        entry.branches.covered,
+        toPct(entry.branches.pct),
       );
       count++;
     }
   }
 
-  // DB 保存
-  const data = db.export();
-  fs.writeFileSync(DB_PATH, Buffer.from(data));
   db.close();
 
   console.log(`[import-coverage] ${count} entries saved for tag: ${latestTag}`);
 }
 
-main().catch((err) => {
+try {
+  main();
+} catch (err) {
   console.error('[import-coverage] failed:', err);
   process.exit(1);
-});
+}

@@ -22,6 +22,10 @@ const extensionConfig = {
     vscode: 'commonjs vscode',
     bufferutil: 'commonjs bufferutil',
     'utf-8-validate': 'commonjs utf-8-validate',
+    // trail-db が require('better-sqlite3') する。webpack に取り込ませると
+    // native binary を解決できないため、runtime で require に解決させる。
+    'better-sqlite3': 'commonjs better-sqlite3',
+    bindings: 'commonjs bindings',
   },
   resolve: {
     extensions: ['.ts', '.js'],
@@ -48,15 +52,23 @@ const extensionConfig = {
       navigator: 'undefined',
     }),
     new CopyPlugin({
-      // sql-wasm.js + sql-wasm.wasm を dist/ に配置 (TrailDatabase が locateFile で同階層を探す)。
+      // better-sqlite3 とその native binary 依存を dist/node_modules/ にコピーする。
+      // trail-db が require('better-sqlite3') する際に、bundled JS と同階層の
+      // node_modules から native binary を解決できるようにする
+      // (vscode-trail-extension / vscode-database-extension と同じパターン)。
       patterns: [
         {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
-          to: 'sql-wasm.js',
+          from: path.resolve(__dirname, '../../node_modules/better-sqlite3'),
+          to: path.resolve(__dirname, 'dist/node_modules/better-sqlite3'),
+          globOptions: { ignore: ['**/src/**', '**/deps/**', '**/binding.gyp'] },
         },
         {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
-          to: 'sql-wasm.wasm',
+          from: path.resolve(__dirname, '../../node_modules/bindings'),
+          to: path.resolve(__dirname, 'dist/node_modules/bindings'),
+        },
+        {
+          from: path.resolve(__dirname, '../../node_modules/file-uri-to-path'),
+          to: path.resolve(__dirname, 'dist/node_modules/file-uri-to-path'),
         },
       ],
     }),

@@ -24,7 +24,7 @@ const BASE_OPTS: RouteOpts = {
 
 const mockClose = jest.fn();
 const mockSave = jest.fn();
-const mockDbInstance = {} as unknown as import('sql.js').Database;
+const mockDbInstance = {} as unknown as import('better-sqlite3').Database;
 const mockDb = mockDbInstance;
 const mockOpened = {
   db: mockDbInstance,

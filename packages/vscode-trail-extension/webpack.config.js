@@ -98,24 +98,13 @@ const extensionConfig = {
       navigator: 'undefined',
     }),
     new CopyPlugin({
-      // sql-wasm.js / sql-wasm.wasm は mcp-trail-server バンドル (mcpTrailServerConfig)
-      // が runtime に __non_webpack_require__ で dist/sql-wasm.js をロードするため
-      // 必須。memory-core は better-sqlite3 一本化済のため不要だが、mcp-trail は
-      // 独自に sql.js を使う設計のため残す。
+      // memory-core / trail-db / mcp-trail はいずれも better-sqlite3 一本化済 (sql.js 撤去後)。
       // memory-core の migrations/*.sql は runner が path.join(__dirname, file)
       // で読むため、webpack バンドル後の dist/ 直下にコピーする。
       // better-sqlite3 とその依存 (bindings / file-uri-to-path) は memory-core が
       // require('better-sqlite3') する際に native binary 付きで解決できるよう
       // dist/node_modules/ に丸ごとコピーする (vscode-database-extension と同じパターン)。
       patterns: [
-        {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
-          to: 'sql-wasm.js',
-        },
-        {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
-          to: 'sql-wasm.wasm',
-        },
         {
           from: path.resolve(__dirname, '../memory-core/src/db/migrations/*.sql'),
           to: '[name][ext]',
@@ -216,11 +205,11 @@ const mcpTrailServerConfig = {
     libraryTarget: 'commonjs2',
   },
   // mcp-trail サーバーは Node プロセスとして子プロセス起動するため
-  // vscode API を参照しない。sql.js は WASM で webpack に取り込むと
-  // モジュール解決が壊れるため、ランタイムで __non_webpack_require__ で
-  // dist/sql-wasm.js を動的ロードする。webpack で取り込まないように除外する。
+  // vscode API を参照しない。better-sqlite3 はネイティブモジュールなので
+  // webpack に取り込まず、runtime に `require('better-sqlite3')` で
+  // dist/node_modules/better-sqlite3 を解決する (CopyPlugin で配置済み)。
   externals: {
-    'sql.js': 'commonjs sql.js',
+    'better-sqlite3': 'commonjs better-sqlite3',
   },
   resolve: {
     extensions: ['.ts', '.js'],
@@ -247,7 +236,8 @@ const mcpTrailServerConfig = {
     ],
   },
   // __dirname / __filename を runtime 値のまま残す。
-  // sql.js の locate (sql-wasm.js / sql-wasm.wasm) を dist/ から探すために必要。
+  // better-sqlite3 の native binary 解決 (dist/node_modules/better-sqlite3) と
+  // memory-core の migrations/*.sql 読み込みのために必要。
   node: {
     __dirname: false,
     __filename: false,

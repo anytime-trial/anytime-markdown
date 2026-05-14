@@ -1,37 +1,21 @@
 // TrailDatabase のテスト用ファクトリ。
 //
-// TrailDatabase を直接 new すると以下の危険がある。
-//   - 第1引数 distPath はストレージパスではない（sql-asm.js の場所）
-//   - 第2引数 storageDir を省略すると ~/.claude/trail にフォールバックする
-//   - CRUD メソッドは内部で this.save() → fs.writeFileSync(this.dbPath, ...) を呼ぶ
-// → テスト中に本番 DB を上書きする事故につながる（2026-04-20 に発生）
+// InMemoryTrailStorage を注入することで、テスト中の本番 DB 上書き事故 (2026-04-20) を
+// 構造的に防いでいる。Phase 1 (sql.js 撤去) で内部ドライバが better-sqlite3 になっても
+// この方針は変わらない。
 //
-// Phase 2.1 でストレージ戦略パターンを導入したため、
-// 本ファクトリは InMemoryTrailStorage を注入するだけで安全になる。
-//   - readInitialBytes(): 常に null → 新規 SQL.Database を作成
-//   - save(): no-op → ディスク I/O は一切発生しない
-// 追加のフィールド差し替えは不要。
+//   - readInitialBytes(): 常に null
+//   - getFilePath(): null → better-sqlite3 は `:memory:` で開く
+//   - save(): no-op
+//
+// init() がそのまま使えるため、sql.js 時代のように内部 db を後付けで差し込む必要は
+// なくなった。
 
 import { TrailDatabase, InMemoryTrailStorage } from '../../TrailDatabase';
 import type { DbLogger } from '../../DbLogger';
 
-// ts-jest + CommonJS のため require で直接読み込む
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const sqlAsmActual = require(require.resolve('sql.js/dist/sql-asm.js'));
-
 export async function createTestTrailDatabase(logger?: DbLogger): Promise<TrailDatabase> {
-  const initSqlJs = sqlAsmActual as typeof import('sql.js').default;
-  const SQL = await initSqlJs();
-  const inMemoryDb = new SQL.Database();
-
-  // InMemoryTrailStorage を注入すれば save() は no-op、
-  // readInitialBytes() は null を返すため新規 DB として動作する。
   const db = new TrailDatabase('/tmp', new InMemoryTrailStorage(), undefined, logger);
-
-  // init() は sql-asm を __non_webpack_require__ で読むためテストでは使えない。
-  // 直接読み込んだ SQL.js DB を private フィールドに注入し、createTables を実行。
-  (db as unknown as Record<string, unknown>).db = inMemoryDb;
-  (db as unknown as Record<string, () => void>).createTables();
-
+  await db.init();
   return db;
 }

@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { Database } from 'better-sqlite3';
 import { all, run } from './sqlJsUtil';
 
 function genId(prefix: string): string {

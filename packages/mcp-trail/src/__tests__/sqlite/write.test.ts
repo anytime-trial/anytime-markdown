@@ -1,4 +1,4 @@
-import initSqlJs, { type SqlJsStatic, type Database } from 'sql.js';
+import BetterSqlite3, { type Database } from 'better-sqlite3';
 import { get, all } from '../../sqlite/sqlJsUtil';
 import {
   upsertCommunitySummariesDirect,
@@ -13,14 +13,8 @@ import {
   removeRelationshipDirect,
 } from '../../sqlite/write';
 
-let SQL: SqlJsStatic;
-
-beforeAll(async () => {
-  SQL = await initSqlJs();
-});
-
 function createTestDb(includeMappingsJson = false): Database {
-  const db = new SQL.Database();
+  const db = new BetterSqlite3(':memory:');
   const communitySchema = includeMappingsJson
     ? `CREATE TABLE current_code_graph_communities (
         repo_name TEXT NOT NULL,
@@ -44,7 +38,7 @@ function createTestDb(includeMappingsJson = false): Database {
         PRIMARY KEY (repo_name, community_id)
       );`;
 
-  db.run(`
+  db.exec(`
     ${communitySchema}
     CREATE TABLE c4_manual_elements (
       repo_name TEXT NOT NULL,

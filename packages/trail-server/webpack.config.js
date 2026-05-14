@@ -12,7 +12,6 @@ const baseNodeConfig = {
     'utf-8-validate': 'commonjs utf-8-validate',
     'better-sqlite3': 'commonjs better-sqlite3',
     bindings: 'commonjs bindings',
-    'sql.js': 'commonjs sql.js',
   },
   resolve: {
     extensions: ['.ts', '.js'],
@@ -52,14 +51,6 @@ const serverConfig = {
   plugins: [
     new CopyPlugin({
       patterns: [
-        {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
-          to: 'viewer-dist/sql-wasm.js',
-        },
-        {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
-          to: 'viewer-dist/sql-wasm.wasm',
-        },
         {
           from: path.resolve(__dirname, '../memory-core/src/db/migrations/*.sql'),
           to: '[name][ext]',

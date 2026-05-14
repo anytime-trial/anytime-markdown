@@ -1,5 +1,11 @@
-import type { Database, Statement as SqlJsStatement } from 'sql.js';
+import { SqlJsCompatDatabase } from './internal/SqlJsCompatDatabase';
+import { SqlJsCompatStatement } from './internal/SqlJsCompatStatement';
+import { loadBetterSqlite3 } from './internal/loadBetterSqlite3';
 import { execFileSync } from 'node:child_process';
+
+// Backward compatibility: 既存 call site 互換のため、shim 型を旧名で再 export する。
+type Database = SqlJsCompatDatabase;
+type SqlJsStatement = SqlJsCompatStatement;
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -1441,22 +1447,25 @@ export class TrailDatabase {
   }
 
   async init(): Promise<void> {
-    // Load sql-wasm.js from dist/ directory using __non_webpack_require__
-    // to bypass webpack bundling (bundling breaks sql.js module system).
-    // sql-wasm は asm.js (16MB ヒープ) より大きい WebAssembly ヒープ (最大 2GB)
-    // を使えるため、大規模リポジトリの code graph 保存時の OOM を回避できる。
-    // sql-wasm.wasm は sql-wasm.js と同じディレクトリに配置される必要があり、
-    // initSqlJs に locateFile callback で distPath を伝える。
-    const sqlWasmPath = path.join(this.distPath, 'sql-wasm.js');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, no-undef
-    const initSqlJs = __non_webpack_require__(sqlWasmPath) as typeof import('sql.js').default;
-    const SQL = await initSqlJs({
-      locateFile: (file: string) => path.join(this.distPath, file),
-    });
-    console.log('[TrailDatabase] sql.js initialized, storage =', this.storage.identifier);
-
-    const initial = this.storage.readInitialBytes();
-    this.db = initial ? new SQL.Database(initial) : new SQL.Database();
+    // better-sqlite3 は webpack bundle 環境では `'better-sqlite3': 'commonjs better-sqlite3'`
+    // で externals 化されており、ランタイムで `dist/node_modules/better-sqlite3/` の
+    // native binary を解決する。memory-core と同じパターン。
+    // 旧 sql.js + sql-wasm 16/2GB ヒープ制約は better-sqlite3 (ネイティブ) では発生しない。
+    const Ctor = loadBetterSqlite3();
+    const filePath = this.storage.getFilePath();
+    const inner = new Ctor(filePath ?? ':memory:');
+    // FK 制約は intentionally OFF。sql.js 時代は createTables() の
+    // PRAGMA foreign_keys = ON が WASM 側で no-op だったため事実上 FK 未強制で
+    // 動いており、既存テスト fixture / production 既存データはこれに依存している
+    // (orphan source_tool_assistant_uuid や delegation-only message 等)。
+    // better-sqlite3 はネイティブで強制するため、ここで OFF を明示し sql.js と
+    // 同じ "schema は FK 宣言を持つが runtime は強制しない" 状態を維持する。
+    // 将来 orphan データの cleanup + FK 強制を separate plan で進める想定。
+    inner.pragma('foreign_keys = OFF');
+    this.db = new SqlJsCompatDatabase(inner, filePath);
+    this.logger.info(
+      `[TrailDatabase] better-sqlite3 initialized, storage = ${this.storage.identifier}`,
+    );
 
     this.createTables();
   }
@@ -1470,7 +1479,10 @@ export class TrailDatabase {
 
   private createTables(): void {
     const db = this.ensureDb();
-    db.run('PRAGMA foreign_keys = ON');
+    // FK 強制は init() で OFF にしている。sql.js 時代の `db.run('PRAGMA
+    // foreign_keys = ON')` は WASM 側で no-op だったため、ここで ON にすると
+    // 既存挙動 (FK 未強制) と乖離してテスト fixture (orphan FK 値を含むもの)
+    // が失敗する。詳細は init() のコメント参照。
     db.run(CREATE_SESSIONS);
     db.run(CREATE_SESSION_COSTS);
     db.run(CREATE_DAILY_COUNTS);

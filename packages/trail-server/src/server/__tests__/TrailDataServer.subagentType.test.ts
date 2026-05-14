@@ -1,6 +1,4 @@
 // /api/temporal-coupling integration test for granularity=subagentType
-const sqlAsmActual = require(require.resolve('sql.js/dist/sql-asm.js')); // eslint-disable-line @typescript-eslint/no-require-imports
-(global as Record<string, unknown>).__non_webpack_require__ = (_path: string) => sqlAsmActual;
 
 jest.mock('ws', () => ({ WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })) }));
 jest.mock('@anytime-markdown/trail-core/c4', () => ({ fetchC4Model: jest.fn() }));

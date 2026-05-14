@@ -1,7 +1,7 @@
 // ClaudeCodeBehaviorAnalyzer.ts
 // messages テーブルを読んで message_tool_calls テーブルに書き込む。
 
-import type { Database } from 'sql.js';
+import type { SqlJsCompatDatabase as Database } from './internal/SqlJsCompatDatabase';
 import { classifyErrorType, extractFilePath, extractCommand } from './behaviorAnalysis';
 const _log = { info: (m: string) => console.info(m), warn: (m: string) => console.warn(m) };
 

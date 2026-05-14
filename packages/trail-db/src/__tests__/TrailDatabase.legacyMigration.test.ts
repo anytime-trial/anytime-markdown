@@ -1,6 +1,6 @@
 import { createTestTrailDatabase } from './support/createTestDb';
 import type { TrailDatabase } from '../TrailDatabase';
-import type { Database } from 'sql.js';
+import type { SqlJsCompatDatabase as Database } from '../internal/SqlJsCompatDatabase';
 
 describe('TrailDatabase: legacy DB migration on init', () => {
   it('createTables は stable_key 列が無い既存 *_code_graph_communities テーブルでも成功する', async () => {
