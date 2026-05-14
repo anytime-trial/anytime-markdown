@@ -124,11 +124,11 @@ export async function runMemoryCorePipeline(ctx: PipelineRunnerContext): Promise
       statusWriter.start('conversation_incremental', convTotalEstimate || undefined);
       try {
         if (isFirstRun) {
-          logger.info('First run detected — running backfill (5 days)');
+          logger.info(`First run detected — running backfill (${ctx.backfillDays ?? 5} days)`);
           const result = await runConversationBackfill({
             db: memDb.db,
             ollama,
-            sinceDays: 5,
+            sinceDays: ctx.backfillDays ?? 5,
             logger,
             save: () => saveAndReattach(),
           });

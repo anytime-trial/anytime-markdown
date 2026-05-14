@@ -100,6 +100,7 @@ export class MemoryCoreService {
           distPath: this.opts.distPath,
           nativeBinding: this.opts.nativeBinding,
           gitRoot: this.opts.gitRoot,
+          backfillDays: this.opts.backfillDays,
         };
         const runner = this.opts.pipelineRunner ?? defaultPipelineRunner;
         await runner(ctx);
