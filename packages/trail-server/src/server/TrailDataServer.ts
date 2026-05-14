@@ -35,7 +35,6 @@ import type {
 import type { FileCoverage, MessageInput } from '@anytime-markdown/trail-core/c4';
 import type {
   C4Model,
-  DocLink,
   DsmMatrix,
   FeatureMatrix,
 } from '@anytime-markdown/trail-core/c4';
@@ -57,6 +56,7 @@ import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
 import { C4ManualApiHandler } from './C4ManualApiHandler';
 import { CodeGraphApiHandler } from './CodeGraphApiHandler';
+import { DocsApiHandler } from './DocsApiHandler';
 import type { LogService, PersistedLogEntry } from '../services/LogService';
 import { LogSink, combineLoggers } from '../services/LogSink';
 import { handleGetLogs, handlePostLogs } from './logsApi';
@@ -226,8 +226,6 @@ export class TrailDataServer {
   private rateLimitReset = 0;
   private cachedHtml: string | undefined;
   private getC4Provider: (() => C4DataProvider | undefined) | undefined;
-  private docLinks: readonly DocLink[] = [];
-  private docsPath: string | undefined;
   private lastClaudeActivity: { activeElementIds: readonly string[]; touchedElementIds: readonly string[]; plannedElementIds: readonly string[] } | undefined;
   private lastMultiAgentActivity: { agents: readonly import('./types').AgentActivityEntry[]; conflicts: readonly import('./types').FileConflict[] } | undefined;
   private importanceComputing = false;
@@ -269,6 +267,7 @@ export class TrailDataServer {
   private readonly promptsApi: PromptsApiHandler;
   private readonly c4ManualApi: C4ManualApiHandler;
   private readonly codeGraphApi: CodeGraphApiHandler;
+  private readonly docsApi: DocsApiHandler;
 
   constructor(
     private readonly distPath: string,
@@ -288,6 +287,20 @@ export class TrailDataServer {
       this.logger.child('C4ManualApiHandler'),
     );
     this.codeGraphApi = new CodeGraphApiHandler(this.trailDb, this.logger.child('CodeGraphApiHandler'));
+    this.docsApi = new DocsApiHandler(
+      {
+        broadcastDocLinks: (docLinks) => {
+          if (this.clients.size === 0) return;
+          const payload = JSON.stringify({ type: 'doc-links-updated', docLinks });
+          for (const ws of this.clients) ws.send(payload);
+        },
+      },
+      {
+        getC4Store: () => this.trailDb.asC4ModelStore(),
+        getFeatureMatrix: () => this.getC4Provider?.()?.featureMatrix,
+      },
+      this.logger.child('DocsApiHandler'),
+    );
   }
 
   setCodeGraphService(service: CodeGraphService): void {
@@ -490,20 +503,11 @@ export class TrailDataServer {
   }
 
   setDocsPath(docsPath: string | undefined): void {
-    this.docsPath = docsPath;
-    if (docsPath) {
-      this.scanDocLinks().catch((err) => {
-        this.logger.warn('[scanDocLinks] failed', err);
-      });
-    } else {
-      this.docLinks = [];
-    }
+    this.docsApi.setDocsPath(docsPath);
   }
 
   async scanDocLinks(): Promise<void> {
-    if (!this.docsPath) return;
-    this.docLinks = await scanLocalDocs(this.docsPath);
-    this.notifyDocLinks();
+    await this.docsApi.scan();
   }
 
   // -------------------------------------------------------------------------
@@ -711,13 +715,12 @@ export class TrailDataServer {
       return;
     }
     if (pathname === '/api/c4/doc-links' && method === 'GET') {
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ docLinks: this.docLinks }));
+      this.docsApi.handleListDocLinks(res);
       return;
     }
     if (pathname === '/api/docs-index' && method === 'GET') {
       const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.handleDocsIndexEndpoint(res, repo);
+      void this.docsApi.handleDocsIndex(res, repo);
       return;
     }
     if (pathname === '/api/c4/coverage' && method === 'GET') {
@@ -1960,40 +1963,6 @@ export class TrailDataServer {
     }
   }
 
-  private async handleDocsIndexEndpoint(res: http.ServerResponse, repo?: string): Promise<void> {
-    try {
-      // repo 指定なしは workspace global（全件返却）。後方互換。
-      if (!repo) {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ docs: this.docLinks }));
-        return;
-      }
-      // C4 モデルから repo の要素 ID 集合を構築し、
-      // doc.c4Scope のいずれかが要素 ID と完全一致または親パス（pkg_a/x の親 pkg_a）として
-      // ヒットするドキュメントだけを返す。
-      const store = this.trailDb.asC4ModelStore();
-      const provider = this.getC4Provider?.();
-      const payload = await fetchC4Model(store, 'current', repo, provider?.featureMatrix);
-      const elementIds = new Set((payload?.model.elements ?? []).map((e) => e.id));
-      if (elementIds.size === 0) {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ docs: [] }));
-        return;
-      }
-      const filtered = this.docLinks.filter((d) =>
-        d.c4Scope.some((scope) =>
-          elementIds.has(scope) || [...elementIds].some((id) => id.startsWith(scope + '/'))
-        )
-      );
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ docs: filtered }));
-    } catch (e) {
-      this.logger.error('[/api/docs-index] failed', e);
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ docs: this.docLinks }));
-    }
-  }
-
   // -------------------------------------------------------------------------
   //  API: GET /api/c4/file-analysis?repo=<name>&tag=<current|release>
   // -------------------------------------------------------------------------
@@ -2578,8 +2547,9 @@ export class TrailDataServer {
       }
     }
 
-    if (this.docLinks.length > 0) {
-      const docMsg: ServerMessage = { type: 'doc-links-updated', docLinks: this.docLinks };
+    const currentDocLinks = this.docsApi.getCurrent();
+    if (currentDocLinks.length > 0) {
+      const docMsg: ServerMessage = { type: 'doc-links-updated', docLinks: currentDocLinks };
       ws.send(JSON.stringify(docMsg));
     }
 
@@ -2761,15 +2731,6 @@ export class TrailDataServer {
       agents,
       conflicts,
     };
-    const payload = JSON.stringify(message);
-    for (const ws of this.clients) {
-      ws.send(payload);
-    }
-  }
-
-  private notifyDocLinks(): void {
-    if (this.clients.size === 0) return;
-    const message: ServerMessage = { type: 'doc-links-updated', docLinks: this.docLinks };
     const payload = JSON.stringify(message);
     for (const ws of this.clients) {
       ws.send(payload);
@@ -3412,91 +3373,6 @@ export function isClientMessage(data: unknown): data is ClientMessage {
   ];
   return typeof msg.type === 'string' && validTypes.includes(msg.type);
 }
-
-// ---------------------------------------------------------------------------
-//  Helper: scan local docs directory for DocLink entries
-// ---------------------------------------------------------------------------
-
-async function scanLocalDocs(docsDir: string): Promise<DocLink[]> {
-  const docs: DocLink[] = [];
-
-  let entries: string[];
-  try {
-    entries = await collectMarkdownFiles(docsDir, '');
-  } catch {
-    return docs;
-  }
-
-  for (const relPath of entries) {
-    try {
-      const content = await fs.promises.readFile(path.join(docsDir, relPath), 'utf-8');
-      const meta = parseLocalFrontmatter(content);
-      if (meta) {
-        docs.push({ ...meta, path: relPath });
-      }
-    } catch {
-      // skip unreadable files
-    }
-  }
-  return docs;
-}
-
-async function collectMarkdownFiles(base: string, rel: string): Promise<string[]> {
-  const results: string[] = [];
-  const dir = rel ? path.join(base, rel) : base;
-  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) {
-      results.push(...await collectMarkdownFiles(base, entryRel));
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      results.push(entryRel);
-    }
-  }
-  return results;
-}
-
-function parseLocalFrontmatter(raw: string): Omit<DocLink, 'path'> | null {
-  const fmMatch = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
-  if (!fmMatch) return null;
-  const fm = fmMatch[1];
-
-  const scopeLines: string[] = [];
-  let inScope = false;
-  for (const line of fm.split(/\r?\n/)) {
-    if (/^c4Scope\s*:/.test(line)) {
-      inScope = true;
-      const inline = /\[([^\]]*)\]/.exec(line);
-      if (inline) {
-        scopeLines.push(
-          ...inline[1].split(',').map(s => s.trim().replaceAll(/^["']|["']$/g, '')).filter(Boolean),
-        );
-        inScope = false;
-      }
-      continue;
-    }
-    if (inScope) {
-      if (/^\s+-\s+/.test(line)) {
-        scopeLines.push(line.replace(/^\s+-\s+/, '').trim().replaceAll(/^["']|["']$/g, ''));
-      } else {
-        inScope = false;
-      }
-    }
-  }
-  if (scopeLines.length === 0) return null;
-
-  const titleMatch = /^title\s*:\s*"?(.+?)"?\s*$/m.exec(fm);
-  const typeMatch = /^type\s*:\s*"?(\w+)"?\s*$/m.exec(fm);
-  const dateMatch = /^date\s*:\s*"?(\d{4}-\d{2}-\d{2})"?\s*$/m.exec(fm);
-
-  return {
-    title: titleMatch?.[1] ?? 'Untitled',
-    type: typeMatch?.[1] ?? 'unknown',
-    c4Scope: scopeLines,
-    date: dateMatch?.[1] ?? '',
-  };
-}
-
 
 // ---------------------------------------------------------------------------
 //  Standalone HTML builder
