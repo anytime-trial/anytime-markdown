@@ -16,6 +16,9 @@ import type {
 import type { ChatChunk } from '../../src/chat/types';
 import { hybridSearchMemory } from '../../src/rag/hybridSearchMemory';
 
+// NOTE: This mock applies to ALL tests in this file.
+// Any test that needs real search semantics must call
+// mockHybrid.mockResolvedValueOnce(...) to override for that test.
 jest.mock('../../src/rag/hybridSearchMemory', () => ({
   hybridSearchMemory: jest.fn().mockResolvedValue({ entities: [], edges: [], episodes: [] }),
 }));
@@ -97,8 +100,13 @@ describe('ChatService.streamTurn', () => {
   });
 
   test('sources → token+citation → done を yield', async () => {
-    insertEntity(db, 'e1', 'searchMemory', 'BM25+vec', Float32Array.from([1, 0, 0]));
-    upsertEntityFts(db, 'e1');
+    // Provide e1 via the mock so the search→sources path is verified end-to-end.
+    const mockHybrid = hybridSearchMemory as jest.MockedFunction<typeof hybridSearchMemory>;
+    mockHybrid.mockResolvedValueOnce({
+      entities: [{ id: 'e1', type: 'Function', display_name: 'searchMemory', summary: 'BM25+vec', score: 1, sources: [] }],
+      edges: [],
+      episodes: [],
+    });
 
     const service = new ChatService({
       db,
@@ -120,6 +128,11 @@ describe('ChatService.streamTurn', () => {
     expect(types).toContain('citation');
     expect(types).toContain('token');
     expect(types.at(-1)).toBe('done');
+
+    // Verify the search→sources linkage: e1 must appear in the sources chunk.
+    const sourcesChunk = chunks.find((c) => c.type === 'sources');
+    expect(sourcesChunk?.payload).toHaveLength(1);
+    expect(sourcesChunk?.payload[0]?.id).toBe('e1');
 
     const tokenText = chunks
       .filter((c) => c.type === 'token')
