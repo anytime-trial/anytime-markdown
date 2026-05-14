@@ -5401,7 +5401,7 @@ export class TrailDatabase {
    * 複数 CC セッションについて `(parent_assistant_uuid → codex_session_id)` Map をバッチ解決する。
    * クエリ数は CC セッション数によらず最大 3。N+1 を避けるための共通実装。
    */
-  private fetchLinkedCodexSessionMapForCcSessions(
+  fetchLinkedCodexSessionMapForCcSessions(
     ccSessionIds: readonly string[],
   ): Map<string, Map<string, string>> {
     const out = new Map<string, Map<string, string>>();

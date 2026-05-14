@@ -4,16 +4,17 @@ import {
   runRagFtsRebuild,
   type MemoryCoreDb,
 } from '@anytime-markdown/memory-core';
+import type { MemoryChatLogger } from './types';
 
-export interface RebuildSchedulerLogger {
-  info(msg: string, context?: Record<string, unknown>): void;
-  error(msg: string, err?: unknown): void;
-}
+/**
+ * @deprecated Use MemoryChatLogger directly. Retained for backwards compat with external callers.
+ */
+export type RebuildSchedulerLogger = MemoryChatLogger;
 
 export interface RebuildSchedulerOptions {
   readonly memoryDbPath: string;
   readonly memoryNativeBinding?: string;
-  readonly logger: RebuildSchedulerLogger;
+  readonly logger: MemoryChatLogger;
 }
 
 type Trigger = 'startup' | 'cron' | 'manual';

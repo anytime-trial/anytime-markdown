@@ -104,6 +104,7 @@ export async function computeAndPersistFileAnalysis(
   const codeGraph = trailDb.getCurrentCodeGraph(repoName);
   const inDegree = computeInDegree(codeGraph);
   const communitySize = computeCommunitySize(codeGraph);
+  const nodeCommunityMap = buildNodeCommunityMap(codeGraph);
 
   // 4. node.id → 相対パス(拡張子なし) の逆引きマップを構築
   //    キー: 拡張子なし相対パス（例 "packages/core/src/foo"）
@@ -195,7 +196,7 @@ export async function computeAndPersistFileAnalysis(
     const coverageKnown = coveragePct !== undefined;
 
     // コミュニティサイズ
-    const communityId = hasNode ? findCommunityForNode(codeGraph, nodeId) : null;
+    const communityId = hasNode ? (nodeCommunityMap.get(nodeId) ?? null) : null;
     const commSize = communityId !== null ? (communitySize.get(communityId) ?? 0) : 0;
 
     const signals: DeadCodeSignals = {
@@ -333,12 +334,14 @@ function computeCommunitySize(graph: CodeGraph | null): Map<number, number> {
 }
 
 /**
- * node.id から community id を返す。
+ * node.id → community id の逆引きマップを構築する。
+ * 呼び出し側でループ前に 1 回だけ作成し、以後 O(1) で community を引く。
  */
-function findCommunityForNode(graph: CodeGraph | null, nodeId: string): number | null {
-  if (!graph) return null;
-  const n = graph.nodes.find((x) => x.id === nodeId);
-  return n != null ? n.community : null;
+function buildNodeCommunityMap(graph: CodeGraph | null): Map<string, number> {
+  const out = new Map<string, number>();
+  if (!graph) return out;
+  for (const n of graph.nodes) out.set(n.id, n.community);
+  return out;
 }
 
 /**
@@ -400,17 +403,17 @@ function collectAllRelFilePaths(
     noExtToWithExt.set(stripExt(key), key);
   }
 
+  // 重複追加判定用に fileAggregates のキーから拡張子を剥がした集合を 1 度だけ作る。
+  const aggregateKeysNoExt = new Set<string>();
+  for (const k of fileAggregates.keys()) aggregateKeysNoExt.add(stripExt(k));
+
   const prefix = `${repoName}:`;
   for (const n of graph.nodes) {
     if (n.fileType !== 'code') continue;
     if (!n.id.startsWith(prefix)) continue;
     const relPathNoExt = n.id.slice(prefix.length);
 
-    // 既に fileAggregates にあれば重複追加しない
-    const alreadyCovered = [...fileAggregates.keys()].some(
-      (k) => stripExt(k) === relPathNoExt,
-    );
-    if (alreadyCovered) continue;
+    if (aggregateKeysNoExt.has(relPathNoExt)) continue;
 
     // TS Compiler が拾った実ファイルのみ登録対象とする
     const withExt = noExtToWithExt.get(relPathNoExt);

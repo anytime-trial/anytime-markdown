@@ -39,22 +39,25 @@ export interface QueryResult {
 const HARD_LIMIT = 1_000_000;
 
 export class LogService {
+  private readonly insertStmt: MemoryDbStatement;
+
   constructor(
     private readonly db: MemoryDbConnection,
     private readonly broadcaster: LogBroadcaster,
-  ) {}
-
-  insertBatch(logs: LogEntry[], source: LogSource): void {
-    if (logs.length === 0) return;
-    const stmt = this.db.prepare(`
+  ) {
+    this.insertStmt = this.db.prepare(`
       INSERT INTO extension_logs (timestamp, level, source, component, message, metadata, stack)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
+  }
+
+  insertBatch(logs: LogEntry[], source: LogSource): void {
+    if (logs.length === 0) return;
     const inserted: PersistedLogEntry[] = [];
     this.db.run('BEGIN');
     try {
       for (const e of logs) {
-        const result = stmt.run(
+        const result = this.insertStmt.run(
           e.timestamp,
           e.level,
           source,
@@ -69,8 +72,6 @@ export class LogService {
     } catch (err) {
       this.db.run('ROLLBACK');
       throw err;
-    } finally {
-      stmt.free?.();
     }
     this.broadcaster.notifyLog(inserted);
   }
