@@ -10,11 +10,13 @@
   },
   "dependencies": {
     "@anytime-markdown/trail-core": "*",
+    "better-sqlite3": "12.4.1",
     "gray-matter": "4.0.3",
     "sql.js": "1.12.0",
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
     "@types/jest": "30.0.0",
     "@types/node": "22.15.21",
     "@types/sql.js": "1.4.9",
