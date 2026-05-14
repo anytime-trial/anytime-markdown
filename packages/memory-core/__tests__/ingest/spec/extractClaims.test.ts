@@ -6,6 +6,7 @@ import type { FilteredParagraph } from '../../../src/ingest/spec/preFilterClaims
 const mockLogger: MemoryLogger = {
   info: jest.fn(),
   error: jest.fn(),
+  warn: jest.fn(),
 };
 
 const sampleParagraphs: FilteredParagraph[] = [
@@ -163,6 +164,37 @@ describe('extractClaims', () => {
     // zod coerces missing fields — the claim may be included or the parse may fail
     // Either way, verify no crash and result is not undefined
     expect(result === null || result !== undefined).toBe(true);
+  });
+
+  test('returns ExtractResult with empty summary when LLM omits summary field', async () => {
+    // 実機ログ (2026-05-14): qwen2.5 系モデルが summary を返さないことがある。
+    // 本来 summary は optional の意味合いで使われるため、欠落しても claims を救えるよう要件化する。
+    const ollama = makeOllama({
+      // summary フィールドなし
+      claims: [
+        {
+          subject: { type: 'Package', name: 'pkg-a' },
+          predicate: 'depends_on',
+          object: { type: 'Library', name: 'sql.js' },
+          modality: 'mandatory',
+          line_hint: 1,
+          confidence: 0.9,
+        },
+      ],
+    });
+
+    const result = await extractClaims({
+      paragraphs: sampleParagraphs,
+      c4Scope,
+      ollama,
+      logger: mockLogger,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.summary).toBe('');
+    expect(result!.claims).toHaveLength(1);
+    // 欠落自体は warn として記録する (downstream の調査用)。error は出さない (claims は救えたため)。
+    expect(mockLogger.error).not.toHaveBeenCalled();
   });
 
   test('returns empty claims when all claims have confidence < 0.6', async () => {
