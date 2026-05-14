@@ -647,7 +647,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			analysisRoot,
 			tsconfigPath: resolvedTsconfig,
 			trailDb,
-			trailDataServer: trailDataServer!,
+			callbacks: trailDataServer!,
 			codeGraphService,
 		});
 	};
@@ -744,7 +744,7 @@ export async function activate(context: vscode.ExtensionContext) {
 							analysisRoot,
 							tsconfigPath,
 							trailDb: trailDb!,
-							trailDataServer: trailDataServer!,
+							callbacks: trailDataServer!,
 							codeGraphService,
 							onProgress: (phase) => progress.report({ message: phase }),
 						});

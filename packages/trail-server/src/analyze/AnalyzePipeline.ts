@@ -7,9 +7,27 @@ import type { TrailDatabase } from '@anytime-markdown/trail-db';
 import { loadAnalyzeExclude, seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
 
 import type { Logger } from '../runtime/Logger';
-import type { TrailDataServer } from '../server/TrailDataServer';
 import type { CodeGraphService } from './CodeGraphService';
 import { GraphDetector } from './GraphDetector';
+
+/**
+ * AnalyzePipeline が呼び出し元 (TrailDataServer) の特定メソッドに依存するための契約。
+ * 具象クラスへの逆方向依存を避けるため、必要な振る舞いだけを切り出している。
+ */
+export interface AnalyzePipelineCallbacks {
+  notifyProgress(phase: string, percent: number): void;
+  notifyCodeGraphProgress(phase: string, percent: number): void;
+  notifyCodeGraphUpdated(): void;
+  computeAndPersistImportance(
+    tsconfigPath: string,
+    exclude: import('ignore').Ignore | undefined,
+    program: import('typescript').Program,
+  ): Promise<{
+    scored: import('@anytime-markdown/trail-core/importance').ScoredFunction[];
+    fileAggregates: Map<string, import('@anytime-markdown/trail-core/deadCode').FileImportanceAggregate>;
+    lineCountByFile: ReadonlyMap<string, number>;
+  } | null>;
+}
 
 const ANALYZE_PHASES = [
   'Loading project...',
@@ -55,7 +73,7 @@ export interface AnalyzeCurrentOpts {
   analysisRoot: string;
   tsconfigPath: string;
   trailDb: TrailDatabase;
-  trailDataServer: TrailDataServer;
+  callbacks: AnalyzePipelineCallbacks;
   codeGraphService: CodeGraphService;
   /** Logger instance. Defaults to a no-op logger if not provided. */
   logger?: Logger;
@@ -86,13 +104,13 @@ export interface AnalyzeCurrentResult {
 export async function runAnalyzeCurrentCodePipeline(
   opts: AnalyzeCurrentOpts,
 ): Promise<AnalyzeCurrentResult> {
-  const { analysisRoot, tsconfigPath, trailDb, trailDataServer, codeGraphService, onProgress } = opts;
+  const { analysisRoot, tsconfigPath, trailDb, callbacks, codeGraphService, onProgress } = opts;
   const logger = opts.logger ?? NOOP_LOGGER;
   const startedAt = Date.now();
   const repoName = path.basename(analysisRoot);
   const warnings: string[] = [];
 
-  trailDataServer.notifyProgress('Loading project...', 0);
+  callbacks.notifyProgress('Loading project...', 0);
   onProgress?.('Loading project...', 0);
 
   try {
@@ -114,7 +132,7 @@ export async function runAnalyzeCurrentCodePipeline(
     onProgress: (phase) => {
       logger.info(`C4 analysis [${repoName}]: ${phase}`);
       const percent = phasePercent(phase);
-      trailDataServer.notifyProgress(phase, percent);
+      callbacks.notifyProgress(phase, percent);
       onProgress?.(phase, percent);
     },
   });
@@ -136,14 +154,14 @@ export async function runAnalyzeCurrentCodePipeline(
     `C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
   );
 
-  let importanceResult: Awaited<ReturnType<typeof trailDataServer.computeAndPersistImportance>> = null;
+  let importanceResult: Awaited<ReturnType<AnalyzePipelineCallbacks['computeAndPersistImportance']>> = null;
   try {
     onProgress?.('Computing importance scores...');
     // analyzeWithProgram で構築した Program を再利用する (Program 二重構築の回避)。
     // trail-core と vscode-trail-extension は別の typescript インスタンスを持つが、
     // ts.Program は構造的に互換 (バージョン 5.8.x / 5.9.x で API が安定) なので
     // unknown 経由でキャストする。
-    importanceResult = await trailDataServer.computeAndPersistImportance(
+    importanceResult = await callbacks.computeAndPersistImportance(
       tsconfigPath,
       exclude,
       program as unknown as import('typescript').Program,
@@ -158,7 +176,7 @@ export async function runAnalyzeCurrentCodePipeline(
   try {
     onProgress?.('Generating code graph...');
     await codeGraphService.generate((phase, percent) => {
-      trailDataServer.notifyCodeGraphProgress(phase, percent);
+      callbacks.notifyCodeGraphProgress(phase, percent);
       onProgress?.(`Code graph: ${phase}`, percent);
     });
     // generate() は fresh graph で in-memory cache を上書きするため、
@@ -169,7 +187,7 @@ export async function runAnalyzeCurrentCodePipeline(
     } catch (err) {
       logger.warn(`C4 analysis [${repoName}]: cache compose failed (loadFromDb): ${err instanceof Error ? err.message : String(err)}`);
     }
-    trailDataServer.notifyCodeGraphUpdated();
+    callbacks.notifyCodeGraphUpdated();
   } catch (err) {
     const msg = `code graph generation failed: ${err instanceof Error ? err.message : String(err)}`;
     logger.error(`C4 analysis [${repoName}]: ${msg}`, err);
@@ -233,7 +251,7 @@ export async function runAnalyzeCurrentCodePipeline(
     warnings.push(msg);
   }
 
-  trailDataServer.notifyProgress('', 100);
+  callbacks.notifyProgress('', 100);
   onProgress?.('', 100);
 
   return {
