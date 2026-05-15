@@ -5,7 +5,6 @@
   "view.specDocs": "リポジトリ",
   "view.changes": "変更",
   "view.graph": "グラフ",
-  "view.database": "データベース",
   "viewsWelcome.specDocs": "ファイルを管理するには、フォルダーを開くか、リポジトリをクローンしてください。\n[フォルダーを開く](command:anytime-history.specDocsOpenFolder)\n[リポジトリをクローンする](command:anytime-history.specDocsCloneRepo)",
   "viewsWelcome.changes": "変更はありません。",
   "command.specDocsOpenFolder": "フォルダーを開く",

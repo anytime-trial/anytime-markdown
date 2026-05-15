@@ -5,7 +5,6 @@
   "view.specDocs": "Repository",
   "view.changes": "Changes",
   "view.graph": "Graph",
-  "view.database": "Database",
   "viewsWelcome.specDocs": "To manage files, open a folder or clone a repository.\n[Open Folder](command:anytime-history.specDocsOpenFolder)\n[Clone Repository](command:anytime-history.specDocsCloneRepo)",
   "viewsWelcome.changes": "No changes detected.",
   "command.specDocsOpenFolder": "Open Folder",
