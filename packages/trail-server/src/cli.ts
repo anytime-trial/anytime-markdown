@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { homedir } from 'node:os';
 import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
@@ -23,7 +22,7 @@ import {
   runAnalyzeReleaseCodePipeline,
 } from './analyze/AnalyzePipeline';
 
-const TRAIL_HOME = process.env.TRAIL_HOME ?? join(homedir(), '.claude', 'trail');
+const TRAIL_HOME = process.env.TRAIL_HOME ?? join(process.cwd(), '.anytime', 'trail');
 const MEMORY_DB_PATH = getMemoryCoreDbPath(process.cwd());
 const VERSION = '0.18.0';
 
