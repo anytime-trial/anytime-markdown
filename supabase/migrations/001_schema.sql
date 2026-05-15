@@ -322,6 +322,11 @@ CREATE TABLE IF NOT EXISTS trail_current_file_analysis (
   signal_isolated_community  INTEGER          NOT NULL DEFAULT 0,
   is_ignored                 INTEGER          NOT NULL DEFAULT 0,
   ignore_reason              TEXT             NOT NULL DEFAULT '',
+  cross_pkg_in_count         INTEGER          NOT NULL DEFAULT 0,
+  external_consumer_pkgs     INTEGER          NOT NULL DEFAULT 0,
+  total_in_count             INTEGER          NOT NULL DEFAULT 0,
+  is_barrel                  INTEGER          NOT NULL DEFAULT 0,
+  centrality_score           DOUBLE PRECISION NOT NULL DEFAULT 0,
   category                   TEXT             NOT NULL DEFAULT 'logic'
                              CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT             NOT NULL,
@@ -331,6 +336,8 @@ CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_dead_code
   ON trail_current_file_analysis (repo_name, dead_code_score DESC);
 CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_importance
   ON trail_current_file_analysis (repo_name, importance_score DESC);
+CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_centrality
+  ON trail_current_file_analysis (repo_name, centrality_score DESC);
 
 -- 未使用コード検出 ファイル単位スコア リリース版（ローカル release_file_analysis と対応）
 CREATE TABLE IF NOT EXISTS trail_release_file_analysis (
@@ -351,6 +358,11 @@ CREATE TABLE IF NOT EXISTS trail_release_file_analysis (
   signal_isolated_community  INTEGER          NOT NULL DEFAULT 0,
   is_ignored                 INTEGER          NOT NULL DEFAULT 0,
   ignore_reason              TEXT             NOT NULL DEFAULT '',
+  cross_pkg_in_count         INTEGER          NOT NULL DEFAULT 0,
+  external_consumer_pkgs     INTEGER          NOT NULL DEFAULT 0,
+  total_in_count             INTEGER          NOT NULL DEFAULT 0,
+  is_barrel                  INTEGER          NOT NULL DEFAULT 0,
+  centrality_score           DOUBLE PRECISION NOT NULL DEFAULT 0,
   category                   TEXT             NOT NULL DEFAULT 'logic'
                              CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT             NOT NULL,

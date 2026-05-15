@@ -411,7 +411,9 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
     signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string; analyzed_at: string;
+    is_ignored: number; ignore_reason: string;
+    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
+    analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
     category: string;
   }[]): Promise<void> {
@@ -436,7 +438,9 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
     signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string; analyzed_at: string;
+    is_ignored: number; ignore_reason: string;
+    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
+    analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
     category: string;
   }[]): Promise<void> {

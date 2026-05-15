@@ -7895,8 +7895,9 @@ export class TrailDatabase {
     const result = db.exec(
       `SELECT repo_name, file_path, importance_score, fan_in_total, cognitive_complexity_max, function_count,
               dead_code_score, signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
-              signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason, analyzed_at,
-              line_count, cyclomatic_complexity_max, category
+              signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason,
+              cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+              analyzed_at, line_count, cyclomatic_complexity_max, category
        FROM current_file_analysis`,
     );
     const values = result[0]?.values ?? [];
@@ -7915,15 +7916,15 @@ export class TrailDatabase {
       signal_isolated_community: Number(r[11] ?? 0),
       is_ignored: Number(r[12] ?? 0),
       ignore_reason: String(r[13] ?? ''),
-      cross_pkg_in_count: 0,
-      external_consumer_pkgs: 0,
-      total_in_count: 0,
-      is_barrel: 0,
-      centrality_score: 0,
-      analyzed_at: String(r[14] ?? ''),
-      line_count: Number(r[15] ?? 0),
-      cyclomatic_complexity_max: Number(r[16] ?? 0),
-      category: parseCategory(r[17]),
+      cross_pkg_in_count: Number(r[14] ?? 0),
+      external_consumer_pkgs: Number(r[15] ?? 0),
+      total_in_count: Number(r[16] ?? 0),
+      is_barrel: Number(r[17] ?? 0),
+      centrality_score: Number(r[18] ?? 0),
+      analyzed_at: String(r[19] ?? ''),
+      line_count: Number(r[20] ?? 0),
+      cyclomatic_complexity_max: Number(r[21] ?? 0),
+      category: parseCategory(r[22]),
     }));
   }
 
@@ -7943,8 +7944,9 @@ export class TrailDatabase {
     const result = db.exec(
       `SELECT release_tag, repo_name, file_path, importance_score, fan_in_total, cognitive_complexity_max, function_count,
               dead_code_score, signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
-              signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason, analyzed_at,
-              line_count, cyclomatic_complexity_max, category
+              signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason,
+              cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+              analyzed_at, line_count, cyclomatic_complexity_max, category
        FROM release_file_analysis`,
     );
     const values = result[0]?.values ?? [];
@@ -7964,15 +7966,15 @@ export class TrailDatabase {
       signal_isolated_community: Number(r[12] ?? 0),
       is_ignored: Number(r[13] ?? 0),
       ignore_reason: String(r[14] ?? ''),
-      cross_pkg_in_count: 0,
-      external_consumer_pkgs: 0,
-      total_in_count: 0,
-      is_barrel: 0,
-      centrality_score: 0,
-      analyzed_at: String(r[15] ?? ''),
-      line_count: Number(r[16] ?? 0),
-      cyclomatic_complexity_max: Number(r[17] ?? 0),
-      category: parseCategory(r[18]),
+      cross_pkg_in_count: Number(r[15] ?? 0),
+      external_consumer_pkgs: Number(r[16] ?? 0),
+      total_in_count: Number(r[17] ?? 0),
+      is_barrel: Number(r[18] ?? 0),
+      centrality_score: Number(r[19] ?? 0),
+      analyzed_at: String(r[20] ?? ''),
+      line_count: Number(r[21] ?? 0),
+      cyclomatic_complexity_max: Number(r[22] ?? 0),
+      category: parseCategory(r[23]),
     }));
   }
 
