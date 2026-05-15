@@ -8,8 +8,10 @@ export function resolveDbPath(opts: { dbPath?: string; workspacePath?: string })
   const candidates: string[] = [
     opts.dbPath ?? '',
     process.env.TRAIL_DB_PATH ?? '',
-    path.join(workspace, '.anytime', 'trail.db'),
-    path.join(os.homedir(), '.claude', 'trail', 'trail.db'),
+    // 新既定（anytimeTrail.database.storagePath = .anytime/db、TRAIL_HOME/db と同義）
+    path.join(workspace, '.anytime', 'db', 'trail.db'),
+    path.join(workspace, '.anytime', 'trail', 'db', 'trail.db'),
+    // VS Code Marketplace 版拡張の globalStorage に置かれる DB（外部システム経路）
     path.join(
       os.homedir(),
       '.vscode-server',
