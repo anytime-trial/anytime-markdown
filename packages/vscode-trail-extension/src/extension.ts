@@ -31,7 +31,7 @@ import {
 	CREATE_EXTENSION_LOGS,
 	CREATE_EXTENSION_LOGS_INDEXES,
 } from '@anytime-markdown/trail-core/domain/schema';
-import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, getMemoryCoreDbPath } from '@anytime-markdown/memory-core';
 import { DatabaseProvider } from './trail/DatabaseProvider';
 import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
@@ -550,7 +550,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// activate のクリティカルパスを伸ばさないよう、初期化は全て setImmediate に
 	// 非同期で逃がす。何らかの理由 (native binding 失敗、memory-core.db 破損等) で
 	// 初期化が失敗しても拡張全体の起動が止まらないよう try/catch でガード。
-	const memoryDbPath = path.join(os.homedir(), '.claude', 'memory-core', 'memory-core.db');
+	const memoryDbPath = getMemoryCoreDbPath(wsRootForDb);
 	const memoryNativeBinding = memoryCoreNativeBinding;
 	const memoryLogger = {
 		info: (msg: string, ctx?: Record<string, unknown>): void =>
