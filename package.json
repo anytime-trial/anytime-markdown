@@ -71,6 +71,7 @@
   "dependencies": {
     "@auth/core": "0.41.1",
     "@xmldom/xmldom": "0.9.10",
+    "ignore": "7.0.5",
     "next": "16.2.6"
   }
 }
