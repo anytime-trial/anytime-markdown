@@ -1356,10 +1356,13 @@ export class TrailDataServer {
     }
   }
 
+  private resolveTraceDir(): string {
+    const trailHome = process.env['TRAIL_HOME'] ?? path.join(this.gitRoot ?? process.cwd(), '.anytime', 'trail');
+    return path.join(trailHome, 'trace');
+  }
+
   private handleTraceList(res: http.ServerResponse): void {
-    const traceDir = this.gitRoot
-      ? path.join(this.gitRoot, '.anytime', 'trace')
-      : path.join(process.cwd(), '.anytime', 'trace');
+    const traceDir = this.resolveTraceDir();
     try {
       const files = fs.readdirSync(traceDir)
         .filter(f => f.endsWith('.json'))
@@ -1393,9 +1396,7 @@ export class TrailDataServer {
       this.sendError(res, 400, 'Invalid file name');
       return;
     }
-    const traceDir = this.gitRoot
-      ? path.join(this.gitRoot, '.anytime', 'trace')
-      : path.join(process.cwd(), '.anytime', 'trace');
+    const traceDir = this.resolveTraceDir();
     const filePath = path.join(traceDir, name);
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
