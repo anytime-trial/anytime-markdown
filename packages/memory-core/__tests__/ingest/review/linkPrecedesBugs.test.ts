@@ -58,9 +58,8 @@ async function buildSetup(opts: SetupOpts = {}): Promise<SetupResult> {
   } = opts;
 
   const tmpPath = makeTmpPath();
-  process.env.MEMORY_CORE_DB_PATH = tmpPath;
 
-  const { db, close: closeMain } = await openMemoryCoreDb();
+  const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
 
   // ── 1. Bug entity ──────────────────────────────────────────────────────────
   const commitSha = 'abc123def456789a';
@@ -154,7 +153,6 @@ async function buildSetup(opts: SetupOpts = {}): Promise<SetupResult> {
     close: () => {
       closeMain();
       try { fs.unlinkSync(tmpPath); } catch (_) {}
-      delete process.env.MEMORY_CORE_DB_PATH;
     },
   };
 }

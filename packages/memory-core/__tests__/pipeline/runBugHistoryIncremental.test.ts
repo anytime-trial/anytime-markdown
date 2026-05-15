@@ -27,8 +27,7 @@ interface TrailFile {
 
 async function openTestDb(commits: TrailCommit[], files: TrailFile[]) {
   const tmpPath = makeTmpPath();
-  process.env.MEMORY_CORE_DB_PATH = tmpPath;
-  const { db, close } = await openMemoryCoreDb();
+  const { db, close } = await openMemoryCoreDb(tmpPath);
 
   const trailHandle = BetterSqlite3MemoryDb.openInMemory();
   trailHandle.run(`CREATE TABLE session_commits (
@@ -70,7 +69,6 @@ async function openTestDb(commits: TrailCommit[], files: TrailFile[]) {
       trailHandle.close();
       close();
       try { fs.unlinkSync(tmpPath); } catch (_) {}
-      delete process.env.MEMORY_CORE_DB_PATH;
     },
   };
 }

@@ -14,8 +14,7 @@ export const ListReviewRunsInputSchema = z.object({
 export type ListReviewRunsInput = z.infer<typeof ListReviewRunsInputSchema>;
 
 export async function handleListReviewRuns(input: ListReviewRunsInput): Promise<ReviewRunStatus[]> {
-  const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
-  const memHandle = await openMemoryCoreDb(memoryDbPath);
+  const memHandle = await openMemoryCoreDb();
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return listReviewRuns({ db: memHandle.db, ...input, logger });

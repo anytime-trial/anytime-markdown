@@ -58,8 +58,7 @@ describe('runRagFtsRebuild', () => {
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    const opened = await openMemoryCoreDb();
+    const opened = await openMemoryCoreDb(tmpDb);
     db = opened.db;
     close = opened.close;
   });
@@ -74,7 +73,6 @@ describe('runRagFtsRebuild', () => {
         // ignore
       }
     }
-    delete process.env.MEMORY_CORE_DB_PATH;
   });
 
   test('valid_until IS NULL の entities のみが FTS に投入される', async () => {

@@ -11,8 +11,7 @@ export const ResolveDriftInputSchema = z.object({
 export type ResolveDriftInput = z.infer<typeof ResolveDriftInputSchema>;
 
 export async function handleResolveDrift(input: ResolveDriftInput): Promise<ResolveDriftResult> {
-  const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
-  const memHandle = await openMemoryCoreDb(memoryDbPath);
+  const memHandle = await openMemoryCoreDb();
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return resolveDrift({ db: memHandle.db, ...input, logger });

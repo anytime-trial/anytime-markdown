@@ -34,14 +34,12 @@ const TS_BASE = '2026-01-01T00:00:00.000Z';
 
 async function openFresh(): Promise<{ db: MemoryDbConnection; close: () => void }> {
   const tmpPath = path.join(os.tmpdir(), `agent-e2e-${process.pid}-${Date.now()}.db`);
-  process.env.MEMORY_CORE_DB_PATH = tmpPath;
-  const { db, close } = await openMemoryCoreDb();
+  const { db, close } = await openMemoryCoreDb(tmpPath);
   return {
     db,
     close: () => {
       close();
       try { fs.unlinkSync(tmpPath); } catch (_) {}
-      delete process.env.MEMORY_CORE_DB_PATH;
     },
   };
 }

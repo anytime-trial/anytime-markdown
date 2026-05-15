@@ -43,8 +43,7 @@ describe('hybridSearchMemory', () => {
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    const opened = await openMemoryCoreDb();
+    const opened = await openMemoryCoreDb(tmpDb);
     db = opened.db;
     close = opened.close;
   });
@@ -57,7 +56,6 @@ describe('hybridSearchMemory', () => {
         fs.unlinkSync(p);
       } catch (_) {}
     }
-    delete process.env.MEMORY_CORE_DB_PATH;
   });
 
   test('BM25 と vec の両方で hit する entity がトップに来る', async () => {

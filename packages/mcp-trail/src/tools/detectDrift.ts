@@ -14,8 +14,7 @@ export const DetectDriftInputSchema = z.object({
 export type DetectDriftInput = z.infer<typeof DetectDriftInputSchema>;
 
 export async function handleDetectDrift(input: DetectDriftInput): Promise<DriftEventSummary[]> {
-  const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
-  const memHandle = await openMemoryCoreDb(memoryDbPath);
+  const memHandle = await openMemoryCoreDb();
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return detectDrift({ db: memHandle.db, ...input, logger });

@@ -38,8 +38,7 @@ async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
   cleanup: () => void;
 }> {
   const mainPath = makeTmpPath('main');
-  process.env.MEMORY_CORE_DB_PATH = mainPath;
-  const { db } = await openMemoryCoreDb();
+  const { db } = await openMemoryCoreDb(mainPath);
 
   // trail DB をメモリで作成（同じ WASM モジュール内のインスタンス）
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
@@ -68,7 +67,6 @@ async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
       try { db.close(); } catch (_) {}
       try { trailDb.close(); } catch (_) {}
       try { fs.unlinkSync(mainPath); } catch (_) {}
-      delete process.env.MEMORY_CORE_DB_PATH;
     },
   };
 }

@@ -12,7 +12,6 @@ jest.mock('@anytime-markdown/memory-core', () => ({
 describe('handleLinkReviewToCommit', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    delete process.env['MEMORY_CORE_DB_PATH'];
   });
 
   test('calls linkReviewToCommit with correct input (E5)', async () => {

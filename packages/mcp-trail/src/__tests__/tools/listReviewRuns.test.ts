@@ -32,7 +32,6 @@ jest.mock('@anytime-markdown/memory-core', () => ({
 describe('handleListReviewRuns', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    delete process.env['MEMORY_CORE_DB_PATH'];
   });
 
   test('filters by status (E8)', async () => {

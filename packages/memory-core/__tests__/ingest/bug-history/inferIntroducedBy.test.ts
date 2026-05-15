@@ -56,8 +56,7 @@ function makeTrailHandle(extraRows?: Array<{ commit_hash: string; commit_message
 
 async function openTestDb(trailHandle?: BetterSqlite3MemoryDb) {
   const tmpPath = makeTmpPath();
-  process.env.MEMORY_CORE_DB_PATH = tmpPath;
-  const { db, close: closeMain } = await openMemoryCoreDb();
+  const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
 
   const handle = trailHandle ?? makeTrailHandle();
 
@@ -82,7 +81,6 @@ async function openTestDb(trailHandle?: BetterSqlite3MemoryDb) {
       handle.close();
       closeMain();
       try { fs.unlinkSync(tmpPath); } catch (_) {}
-      delete process.env.MEMORY_CORE_DB_PATH;
     },
   };
 }

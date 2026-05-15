@@ -19,7 +19,6 @@ const SERVER_URL = 'http://localhost:19841';
 const BASE_OPTS: RouteOpts = {
   serverUrl: SERVER_URL,
   repoName: MOCK_REPO,
-  dbPath: MOCK_DB_PATH,
 };
 
 const mockClose = jest.fn();

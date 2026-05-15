@@ -16,7 +16,6 @@ jest.mock('@anytime-markdown/memory-core', () => ({
 describe('handleListReviewTargetHints', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    delete process.env['MEMORY_CORE_DB_PATH'];
   });
 
   test('returns hints in priority order', async () => {

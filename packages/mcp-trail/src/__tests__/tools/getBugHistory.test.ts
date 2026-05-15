@@ -24,7 +24,6 @@ jest.mock('@anytime-markdown/memory-core', () => ({
 describe('handleGetBugHistory', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    delete process.env['MEMORY_CORE_DB_PATH'];
   });
 
   test('calls getBugHistory with correct input', async () => {

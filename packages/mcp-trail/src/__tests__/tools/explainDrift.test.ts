@@ -23,7 +23,6 @@ jest.mock('@anytime-markdown/memory-core', () => ({
 describe('handleExplainDrift', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    delete process.env['MEMORY_CORE_DB_PATH'];
   });
 
   test('returns 5-source explanation for an event', async () => {

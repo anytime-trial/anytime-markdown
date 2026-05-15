@@ -12,7 +12,6 @@ jest.mock('@anytime-markdown/memory-core', () => ({
 describe('handleRunReviewAgent', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    delete process.env['MEMORY_CORE_DB_PATH'];
   });
 
   test('registers run and returns run_id immediately (E8)', async () => {

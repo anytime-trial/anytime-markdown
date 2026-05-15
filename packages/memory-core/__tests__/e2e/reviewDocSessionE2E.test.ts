@@ -159,14 +159,12 @@ function buildTrailDb(opts: {
 
 async function openFreshMemDb(tmpDir: string, suffix: string) {
   const dbPath = path.join(tmpDir, `mem-${suffix}.db`);
-  process.env.MEMORY_CORE_DB_PATH = dbPath;
-  const { db, close } = await openMemoryCoreDb();
+  const { db, close } = await openMemoryCoreDb(dbPath);
   return {
     db,
     close: () => {
       close();
       try { fs.unlinkSync(dbPath); } catch (_) {}
-      delete process.env.MEMORY_CORE_DB_PATH;
     },
   };
 }

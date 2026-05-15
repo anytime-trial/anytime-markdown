@@ -61,10 +61,9 @@ async function buildSetup(opts: {
   } = opts;
 
   const tmpPath = makeTmpPath();
-  process.env.MEMORY_CORE_DB_PATH = tmpPath;
 
   // 1. Open memory-core DB
-  const { db, close: closeMain } = await openMemoryCoreDb();
+  const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
 
   // 2. Build trail DB in-memory
   const trailHandle: BetterSqlite3MemoryDb = BetterSqlite3MemoryDb.openInMemory();
@@ -154,7 +153,6 @@ async function buildSetup(opts: {
       trailHandle.close();
       closeMain();
       try { fs.unlinkSync(tmpPath); } catch (_) {}
-      delete process.env.MEMORY_CORE_DB_PATH;
     },
   };
 }

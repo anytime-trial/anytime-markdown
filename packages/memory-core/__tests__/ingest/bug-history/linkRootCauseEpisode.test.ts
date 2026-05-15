@@ -12,14 +12,12 @@ function makeTmpDb(): string {
 
 async function openTestDb() {
   const tmpPath = makeTmpDb();
-  process.env.MEMORY_CORE_DB_PATH = tmpPath;
-  const { db, close } = await openMemoryCoreDb();
+  const { db, close } = await openMemoryCoreDb(tmpPath);
   return {
     db,
     close: () => {
       close();
       try { fs.unlinkSync(tmpPath); } catch (_) {}
-      delete process.env.MEMORY_CORE_DB_PATH;
     },
   };
 }

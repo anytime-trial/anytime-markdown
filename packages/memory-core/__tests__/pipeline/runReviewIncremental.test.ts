@@ -59,9 +59,8 @@ async function openTestDb(opts?: {
   }>;
 }) {
   const tmpPath = makeTmpPath('.db');
-  process.env.MEMORY_CORE_DB_PATH = tmpPath;
 
-  const { db, close } = await openMemoryCoreDb();
+  const { db, close } = await openMemoryCoreDb(tmpPath);
 
   const trailHandle = BetterSqlite3MemoryDb.openInMemory();
 
@@ -120,7 +119,6 @@ async function openTestDb(opts?: {
       try {
         fs.unlinkSync(tmpPath);
       } catch (_) {}
-      delete process.env.MEMORY_CORE_DB_PATH;
     },
   };
 }

@@ -14,10 +14,9 @@ function makeTmpPath(suffix = '') {
 
 async function buildTestDb(commitSha: string, filePaths: string[], repoName = 'anytime-markdown') {
   const tmpPath = makeTmpPath();
-  process.env.MEMORY_CORE_DB_PATH = tmpPath;
 
   // 1. Open memory-core DB
-  const { db, close: closeMain } = await openMemoryCoreDb();
+  const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
 
   // 2. Build trail DB in-memory using sql.js and attach via handle
   const trailHandle = BetterSqlite3MemoryDb.openInMemory();
@@ -57,7 +56,6 @@ async function buildTestDb(commitSha: string, filePaths: string[], repoName = 'a
       trailHandle.close();
       closeMain();
       try { fs.unlinkSync(tmpPath); } catch (_) {}
-      delete process.env.MEMORY_CORE_DB_PATH;
     },
   };
 }

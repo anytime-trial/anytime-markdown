@@ -39,9 +39,8 @@ function makeTmpPath(suffix = '') {
 
 async function openTestDb() {
   const tmpPath = makeTmpPath('.db');
-  process.env['MEMORY_CORE_DB_PATH'] = tmpPath;
 
-  const { db, close } = await openMemoryCoreDb();
+  const { db, close } = await openMemoryCoreDb(tmpPath);
 
   const trailHandle = BetterSqlite3MemoryDb.openInMemory();
 

@@ -24,7 +24,6 @@ jest.mock('@anytime-markdown/memory-core', () => ({
 describe('handleListUnaddressedReviewFindings', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    delete process.env['MEMORY_CORE_DB_PATH'];
   });
 
   test('calls listUnaddressedReviewFindings with correct filters (I21)', async () => {

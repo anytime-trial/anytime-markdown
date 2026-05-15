@@ -15,8 +15,7 @@ export type ListUnaddressedReviewFindingsInput = z.infer<typeof ListUnaddressedR
 export async function handleListUnaddressedReviewFindings(
   input: ListUnaddressedReviewFindingsInput,
 ): Promise<UnaddressedReviewFinding[]> {
-  const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
-  const memHandle = await openMemoryCoreDb(memoryDbPath);
+  const memHandle = await openMemoryCoreDb();
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return listUnaddressedReviewFindings({ db: memHandle.db, ...input, logger });

@@ -18,14 +18,12 @@ describe('Phase 2.5 migration', () => {
         // ignore
       }
     }
-    delete process.env.MEMORY_CORE_DB_PATH;
   });
 
   async function openFresh(): Promise<ReturnType<typeof openMemoryCoreDb>> {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    return openMemoryCoreDb();
+    return openMemoryCoreDb(tmpDb);
   }
 
   test('memory_bug_fixes table is created', async () => {
@@ -100,13 +98,12 @@ describe('Phase 2.5 migration', () => {
   test('migration is idempotent (open twice, no error)', async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
 
-    const { db: db1, save: save1, close: close1 } = await openMemoryCoreDb();
+    const { db: db1, save: save1, close: close1 } = await openMemoryCoreDb(tmpDb);
     save1();
     close1();
 
-    const { db: db2, close: close2 } = await openMemoryCoreDb();
+    const { db: db2, close: close2 } = await openMemoryCoreDb(tmpDb);
     const result = db2.exec('SELECT COUNT(*) FROM _migrations');
     const count = result[0]?.values[0][0] as number;
     expect([12, 13]).toContain(count); // 全 migration 完了。13 は FTS5 有効時のみ

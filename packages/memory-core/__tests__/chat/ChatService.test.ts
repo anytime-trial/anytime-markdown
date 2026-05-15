@@ -83,8 +83,7 @@ describe('ChatService.streamTurn', () => {
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    const opened = await openMemoryCoreDb();
+    const opened = await openMemoryCoreDb(tmpDb);
     db = opened.db;
     close = opened.close;
   });
@@ -96,7 +95,6 @@ describe('ChatService.streamTurn', () => {
         fs.unlinkSync(p);
       } catch (_) {}
     }
-    delete process.env.MEMORY_CORE_DB_PATH;
   });
 
   test('sources → token+citation → done を yield', async () => {
@@ -217,8 +215,7 @@ describe('ChatService rag limit options → hybridSearchMemory', () => {
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    const opened = await openMemoryCoreDb();
+    const opened = await openMemoryCoreDb(tmpDb);
     db = opened.db;
     close = opened.close;
     mockHybrid.mockClear();
@@ -231,7 +228,6 @@ describe('ChatService rag limit options → hybridSearchMemory', () => {
         fs.unlinkSync(p);
       } catch (_) {}
     }
-    delete process.env.MEMORY_CORE_DB_PATH;
   });
 
   test('bm25Limit/vecLimit/rrfK を省略すると hybridSearchMemory の input に含まれない', async () => {

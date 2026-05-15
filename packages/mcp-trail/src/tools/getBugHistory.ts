@@ -12,8 +12,7 @@ export const GetBugHistoryInputSchema = z.object({
 export type GetBugHistoryInput = z.infer<typeof GetBugHistoryInputSchema>;
 
 export async function handleGetBugHistory(input: GetBugHistoryInput): Promise<BugHistoryEntry[]> {
-  const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
-  const memHandle = await openMemoryCoreDb(memoryDbPath);
+  const memHandle = await openMemoryCoreDb();
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return getBugHistory({ db: memHandle.db, ...input, logger });

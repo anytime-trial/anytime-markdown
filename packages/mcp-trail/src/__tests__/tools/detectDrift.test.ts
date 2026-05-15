@@ -35,7 +35,6 @@ jest.mock('@anytime-markdown/memory-core', () => ({
 describe('handleDetectDrift', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    delete process.env['MEMORY_CORE_DB_PATH'];
   });
 
   test('calls detectDrift with unresolved_only=true by default', async () => {

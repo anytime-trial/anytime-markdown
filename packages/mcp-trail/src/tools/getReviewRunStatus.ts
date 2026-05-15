@@ -9,8 +9,7 @@ export const GetReviewRunStatusInputSchema = z.object({
 export type GetReviewRunStatusInput = z.infer<typeof GetReviewRunStatusInputSchema>;
 
 export async function handleGetReviewRunStatus(input: GetReviewRunStatusInput): Promise<ReviewRunStatus | null> {
-  const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
-  const memHandle = await openMemoryCoreDb(memoryDbPath);
+  const memHandle = await openMemoryCoreDb();
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return getReviewRunStatus({ db: memHandle.db, ...input, logger });

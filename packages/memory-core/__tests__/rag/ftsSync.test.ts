@@ -54,8 +54,7 @@ describe('upsertEntityFts / deleteEntityFts', () => {
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    const opened = await openMemoryCoreDb();
+    const opened = await openMemoryCoreDb(tmpDb);
     db = opened.db;
     close = opened.close;
     db.run(
@@ -80,7 +79,6 @@ describe('upsertEntityFts / deleteEntityFts', () => {
         // ignore
       }
     }
-    delete process.env.MEMORY_CORE_DB_PATH;
   });
 
   test('upsert で FTS に display_name / summary / aliases が投入される', () => {
@@ -130,8 +128,7 @@ describe('upsertEpisodeFts / deleteEpisodeFts', () => {
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    const opened = await openMemoryCoreDb();
+    const opened = await openMemoryCoreDb(tmpDb);
     db = opened.db;
     close = opened.close;
     db.run(
@@ -150,7 +147,6 @@ describe('upsertEpisodeFts / deleteEpisodeFts', () => {
         fs.unlinkSync(p);
       } catch (_) {}
     }
-    delete process.env.MEMORY_CORE_DB_PATH;
   });
 
   test('upsert で raw_excerpt が FTS に入る', () => {
@@ -177,8 +173,7 @@ describe('upsertDriftFts / deleteDriftFts', () => {
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    const opened = await openMemoryCoreDb();
+    const opened = await openMemoryCoreDb(tmpDb);
     db = opened.db;
     close = opened.close;
     db.run(
@@ -204,7 +199,6 @@ describe('upsertDriftFts / deleteDriftFts', () => {
         fs.unlinkSync(p);
       } catch (_) {}
     }
-    delete process.env.MEMORY_CORE_DB_PATH;
   });
 
   test('upsert で predicate / values / note が FTS に入る', () => {

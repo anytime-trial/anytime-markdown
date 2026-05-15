@@ -34,13 +34,11 @@ export function getTrailHome(workspaceRoot?: string): string {
 /**
  * memory-core.db の解決パスを返す。
  *
- * 優先順位:
- * 1. `MEMORY_CORE_DB_PATH` 環境変数
- * 2. `${TRAIL_HOME}/db/memory-core.db`（= `<workspaceRoot>/.anytime/trail/db/memory-core.db`）
+ * `${TRAIL_HOME}/db/memory-core.db`（= `<workspaceRoot>/.anytime/trail/db/memory-core.db`）を返す。
+ * テスト等で任意のパスを使いたい場合は `openMemoryCoreDb(dbPath)` に直接渡す。
  *
  * workspaceRoot 未指定でフォールバック先が保護領域だった場合は throw する。
  */
 export function getMemoryCoreDbPath(workspaceRoot?: string): string {
-  if (process.env.MEMORY_CORE_DB_PATH) return process.env.MEMORY_CORE_DB_PATH;
   return path.join(getTrailHome(workspaceRoot), 'db', 'memory-core.db');
 }

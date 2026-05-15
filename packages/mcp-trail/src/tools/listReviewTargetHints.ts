@@ -9,8 +9,7 @@ export const ListReviewTargetHintsInputSchema = z.object({
 export type ListReviewTargetHintsInput = z.infer<typeof ListReviewTargetHintsInputSchema>;
 
 export async function handleListReviewTargetHints(input: ListReviewTargetHintsInput): Promise<ReviewTargetHint[]> {
-  const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
-  const memHandle = await openMemoryCoreDb(memoryDbPath);
+  const memHandle = await openMemoryCoreDb();
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return listReviewTargetHints({ db: memHandle.db, ...input, logger });

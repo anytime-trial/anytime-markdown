@@ -47,14 +47,12 @@ function makeValidInput(overrides: Partial<Record<string, unknown>> = {}): unkno
 
 async function openFresh(): Promise<{ db: MemoryDbConnection; close: () => void }> {
   const tmpPath = path.join(os.tmpdir(), `ingest-agent-${process.pid}-${Date.now()}.db`);
-  process.env.MEMORY_CORE_DB_PATH = tmpPath;
-  const { db, close } = await openMemoryCoreDb();
+  const { db, close } = await openMemoryCoreDb(tmpPath);
   return {
     db,
     close: () => {
       close();
       try { fs.unlinkSync(tmpPath); } catch (_) {}
-      delete process.env.MEMORY_CORE_DB_PATH;
     },
   };
 }

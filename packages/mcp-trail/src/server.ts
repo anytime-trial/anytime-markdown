@@ -35,7 +35,6 @@ function buildRouteOpts(args: { repoName?: string; serverUrl?: string }, options
     serverUrl: args.serverUrl ?? options.serverUrl ?? 'http://localhost:19841',
     repoName: args.repoName ?? options.repoName,
     workspacePath: process.env['TRAIL_WORKSPACE_PATH'],
-    dbPath: process.env['TRAIL_DB_PATH'],
     forceDirect: process.env['MCP_TRAIL_FORCE_DIRECT'] === '1',
   };
 }

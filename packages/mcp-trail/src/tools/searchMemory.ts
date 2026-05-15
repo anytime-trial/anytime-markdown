@@ -2,7 +2,6 @@ import { z } from 'zod';
 import {
   searchMemory,
   openMemoryCoreDb,
-  attachTrailDbReadOnly,
   createOllamaClient,
 } from '@anytime-markdown/memory-core';
 import type { SearchResult } from '@anytime-markdown/memory-core';
@@ -19,30 +18,17 @@ export const SearchMemoryInputSchema = z.object({
 export type SearchMemoryInput = z.infer<typeof SearchMemoryInputSchema>;
 
 export async function handleSearchMemory(input: SearchMemoryInput): Promise<SearchResult> {
-  const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
-  const trailDbPath = process.env['TRAIL_DB_PATH'];
   const ollamaBaseUrl = process.env['OLLAMA_BASE_URL'];
 
-  const memHandle = await openMemoryCoreDb(memoryDbPath);
+  const memHandle = await openMemoryCoreDb();
 
   try {
-    if (trailDbPath) {
-      await attachTrailDbReadOnly(memHandle.db, trailDbPath);
-      // better-sqlite3 ATTACH は同一接続のため、close は memHandle.close() で完了
-      const ollama = createOllamaClient(ollamaBaseUrl ? { baseUrl: ollamaBaseUrl } : {});
-      return await searchMemory({
-        db: memHandle.db,
-        ollama,
-        input,
-      });
-    } else {
-      const ollama = createOllamaClient(ollamaBaseUrl ? { baseUrl: ollamaBaseUrl } : {});
-      return await searchMemory({
-        db: memHandle.db,
-        ollama,
-        input,
-      });
-    }
+    const ollama = createOllamaClient(ollamaBaseUrl ? { baseUrl: ollamaBaseUrl } : {});
+    return await searchMemory({
+      db: memHandle.db,
+      ollama,
+      input,
+    });
   } finally {
     memHandle.close();
   }

@@ -15,8 +15,7 @@ afterAll(() => {
 
 describe('migration 013 (rag_fts)', () => {
   test('clean DB に 013 を適用すると FTS5 仮想テーブル 3 個が作成される', async () => {
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    const { db, close } = await openMemoryCoreDb();
+    const { db, close } = await openMemoryCoreDb(tmpDb);
 
     const result = db.exec(
       "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_fts' ORDER BY name",
@@ -29,12 +28,10 @@ describe('migration 013 (rag_fts)', () => {
     ]);
 
     close();
-    delete process.env.MEMORY_CORE_DB_PATH;
   }, 30000);
 
   test('memory_pipeline_state.scope に rag_fts_rebuild を INSERT できる', async () => {
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    const { db, close } = await openMemoryCoreDb();
+    const { db, close } = await openMemoryCoreDb(tmpDb);
 
     expect(() => {
       db.run(`INSERT OR REPLACE INTO memory_pipeline_state(scope) VALUES ('rag_fts_rebuild')`);
@@ -46,28 +43,23 @@ describe('migration 013 (rag_fts)', () => {
     expect(result[0]?.values[0][0]).toBe('rag_fts_rebuild');
 
     close();
-    delete process.env.MEMORY_CORE_DB_PATH;
   }, 30000);
 
   test('PRAGMA integrity_check が ok を返す', async () => {
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    const { db, close } = await openMemoryCoreDb();
+    const { db, close } = await openMemoryCoreDb(tmpDb);
 
     const result = db.exec('PRAGMA integrity_check');
     expect(result[0]?.values[0][0]).toBe('ok');
 
     close();
-    delete process.env.MEMORY_CORE_DB_PATH;
   }, 30000);
 
   test('migration 013 が適用済みとして _migrations に記録される', async () => {
-    process.env.MEMORY_CORE_DB_PATH = tmpDb;
-    const { db, close } = await openMemoryCoreDb();
+    const { db, close } = await openMemoryCoreDb(tmpDb);
 
     const result = db.exec('SELECT version FROM _migrations WHERE version = 13');
     expect(result[0]?.values[0][0]).toBe(13);
 
     close();
-    delete process.env.MEMORY_CORE_DB_PATH;
   }, 30000);
 });
