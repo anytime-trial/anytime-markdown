@@ -8,7 +8,7 @@ export function resolveDbPath(opts: { dbPath?: string; workspacePath?: string })
   const candidates: string[] = [
     opts.dbPath ?? '',
     process.env.TRAIL_DB_PATH ?? '',
-    path.join(workspace, '.vscode', 'trail.db'),
+    path.join(workspace, '.anytime', 'trail.db'),
     path.join(os.homedir(), '.claude', 'trail', 'trail.db'),
     path.join(
       os.homedir(),
