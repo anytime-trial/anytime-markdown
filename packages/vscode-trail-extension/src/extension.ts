@@ -53,7 +53,7 @@ function getEffectiveWorkspacePath(): string | undefined {
 /**
  * commit 監視対象 repo を解決する。
  * - anytimeTrail.workspace.path（主リポジトリ）
- * - <workspaceFolder>/.trail/anytime-history.json の specDocsRoots（history 拡張が管理）
+ * - <workspaceFolder>/.anytime/anytime-history.json の specDocsRoots（history 拡張が管理）
  * の union を、git working tree 検証してから返す。
  */
 function getWatchedGitRoots(): string[] {

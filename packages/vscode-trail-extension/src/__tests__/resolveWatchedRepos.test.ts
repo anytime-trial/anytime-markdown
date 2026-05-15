@@ -14,9 +14,9 @@ const initGitRepo = (dir: string): void => {
 };
 
 const writeHistoryJson = (workspaceFolder: string, body: unknown): void => {
-  const trailDir = path.join(workspaceFolder, '.trail');
-  fs.mkdirSync(trailDir, { recursive: true });
-  fs.writeFileSync(path.join(trailDir, 'anytime-history.json'), JSON.stringify(body));
+  const anytimeDir = path.join(workspaceFolder, '.anytime');
+  fs.mkdirSync(anytimeDir, { recursive: true });
+  fs.writeFileSync(path.join(anytimeDir, 'anytime-history.json'), JSON.stringify(body));
 };
 
 describe('resolveWatchedRepos', () => {
@@ -120,8 +120,8 @@ describe('resolveWatchedRepos', () => {
   it('case 6: anytime-history.json が JSON 破損 → warn 出力し workspace.path のみで続行', () => {
     const ws = path.join(tmpRoot, 'ws-e');
     initGitRepo(ws);
-    fs.mkdirSync(path.join(ws, '.trail'), { recursive: true });
-    fs.writeFileSync(path.join(ws, '.trail', 'anytime-history.json'), '{ broken json');
+    fs.mkdirSync(path.join(ws, '.anytime'), { recursive: true });
+    fs.writeFileSync(path.join(ws, '.anytime', 'anytime-history.json'), '{ broken json');
 
     const result = resolveWatchedRepos({
       workspacePath: ws,
