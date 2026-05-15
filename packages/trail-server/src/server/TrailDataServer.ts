@@ -275,7 +275,22 @@ export class TrailDataServer {
     private logger: Logger,
     private readonly gitRoot?: string,
   ) {
-    this.memoryApi = new MemoryApiHandler(this.logger.child('MemoryApiHandler'));
+    // webpack-bundled VS Code 拡張では bindings package が call stack から
+    // `.node` を推測できず crash するため、distPath から絶対パスを組み立てて
+    // BetterSqlite3MemoryDb に渡す (memory-core / TrailDatabase と同パターン)。
+    const nativeBinding = path.join(
+      this.distPath,
+      'node_modules',
+      'better-sqlite3',
+      'build',
+      'Release',
+      'better_sqlite3.node',
+    );
+    this.memoryApi = new MemoryApiHandler(
+      this.logger.child('MemoryApiHandler'),
+      undefined,
+      nativeBinding,
+    );
     this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));
     this.c4ManualApi = new C4ManualApiHandler(
       this.trailDb,

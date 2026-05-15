@@ -153,9 +153,18 @@ export class MemoryApiHandler {
    */
   private cachedReadOnlyDb: MemoryDbConnection | null = null;
 
-  constructor(logger: Logger, dbPath?: string) {
+  /**
+   * better-sqlite3 の native binary 絶対パス。webpack-bundled VS Code 拡張で
+   * bindings package が call stack から `.node` を推測できず crash する問題の
+   * 回避策 (memory-core / TrailDatabase と同パターン)。
+   * 未指定なら bindings の通常解決 (= テスト・スタンドアロン用途) に任せる。
+   */
+  private readonly nativeBinding?: string;
+
+  constructor(logger: Logger, dbPath?: string, nativeBinding?: string) {
     this.logger = logger;
     this.dbPath = dbPath ?? path.join(os.homedir(), '.claude', 'memory-core', 'memory-core.db');
+    this.nativeBinding = nativeBinding;
   }
 
   // ---- status ----
@@ -182,7 +191,11 @@ export class MemoryApiHandler {
     if (this.cachedReadOnlyDb) return this.cachedReadOnlyDb;
     if (!fs.existsSync(this.dbPath)) return null;
     try {
-      this.cachedReadOnlyDb = new BetterSqlite3MemoryDb({ filePath: this.dbPath, readOnly: true });
+      this.cachedReadOnlyDb = new BetterSqlite3MemoryDb({
+        filePath: this.dbPath,
+        readOnly: true,
+        ...(this.nativeBinding ? { nativeBinding: this.nativeBinding } : {}),
+      });
       return this.cachedReadOnlyDb;
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.openReadOnly] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
@@ -193,7 +206,11 @@ export class MemoryApiHandler {
   private openReadWrite(): MemoryDbConnection | null {
     if (!fs.existsSync(this.dbPath)) return null;
     try {
-      const db = new BetterSqlite3MemoryDb({ filePath: this.dbPath, readOnly: false });
+      const db = new BetterSqlite3MemoryDb({
+        filePath: this.dbPath,
+        readOnly: false,
+        ...(this.nativeBinding ? { nativeBinding: this.nativeBinding } : {}),
+      });
       db.run('PRAGMA foreign_keys = ON');
       return db;
     } catch (err) {
