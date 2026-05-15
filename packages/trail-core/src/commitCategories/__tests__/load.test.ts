@@ -40,18 +40,37 @@ describe('loadCommitCategories', () => {
     expect(result.get('plan')).toBe(2);
   });
 
-  it('category が 0/1/2 以外のエントリを無視する', () => {
+  it('category が負数・非整数・非数値のエントリを無視する', () => {
     const dir = makeTempDir();
     writeJson(dir, {
       categories: {},
       entries: {
-        feat: { category: 0, description: '' },
-        bad:  { category: 9, description: '' },
+        feat:    { category: 0, description: '' },
+        bad_neg: { category: -1, description: '' },
+        bad_flt: { category: 1.5, description: '' },
+        bad_str: { category: 'x' as unknown as number, description: '' },
       },
     });
     const result = loadCommitCategories(dir);
-    expect(result.get('bad')).toBeUndefined();
+    expect(result.get('feat')).toBe(0);
+    expect(result.get('bad_neg')).toBeUndefined();
+    expect(result.get('bad_flt')).toBeUndefined();
+    expect(result.get('bad_str')).toBeUndefined();
     expect(result.size).toBe(1);
+  });
+
+  it('未知の大きな category 番号も保持する（カテゴリ数の動的拡張対応）', () => {
+    const dir = makeTempDir();
+    writeJson(dir, {
+      categories: { '0': 'A', '9': 'Future' },
+      entries: {
+        feat:   { category: 0, description: '' },
+        future: { category: 9, description: '' },
+      },
+    });
+    const result = loadCommitCategories(dir);
+    expect(result.get('feat')).toBe(0);
+    expect(result.get('future')).toBe(9);
   });
 
   it('entries が存在しない場合はデフォルトを返す', () => {

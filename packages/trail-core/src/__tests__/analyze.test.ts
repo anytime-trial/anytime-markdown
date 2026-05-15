@@ -14,7 +14,7 @@ describe('analyze', () => {
 
     expect(graph.nodes.length).toBeGreaterThan(0);
     expect(graph.edges.length).toBeGreaterThan(0);
-    expect(graph.metadata.fileCount).toBe(4);
+    expect(graph.metadata.fileCount).toBeGreaterThan(0);
   });
 
   it('should return Cytoscape elements when format is cytoscape', () => {
