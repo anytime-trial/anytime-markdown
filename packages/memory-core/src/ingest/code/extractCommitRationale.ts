@@ -151,7 +151,7 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
         );
       } catch (err) {
         logger.error(
-          `[memory-core] extractCommitRationale: failed to upsert Commit entity hash="${commitHash}"`,
+          `[anytime-memory] extractCommitRationale: failed to upsert Commit entity hash="${commitHash}"`,
           err
         );
         continue;
@@ -186,7 +186,7 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
         if (db.getRowsModified() > 0) stats.decisions_inserted += 1;
       } catch (err) {
         logger.error(
-          `[memory-core] extractCommitRationale: failed to insert Decision entity hash="${commitHash}"`,
+          `[anytime-memory] extractCommitRationale: failed to insert Decision entity hash="${commitHash}"`,
           err
         );
         continue;
@@ -212,7 +212,7 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
         if (db.getRowsModified() > 0) stats.edges_inserted += 1;
       } catch (err) {
         logger.error(
-          `[memory-core] extractCommitRationale: failed to insert edge hash="${commitHash}"`,
+          `[anytime-memory] extractCommitRationale: failed to insert edge hash="${commitHash}"`,
           err
         );
       }
@@ -222,7 +222,7 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
   }
 
   logger.info(
-    `[memory-core] extractCommitRationale: repo="${repoName}" ` +
+    `[anytime-memory] extractCommitRationale: repo="${repoName}" ` +
       `commits_processed=${stats.commits_processed} ` +
       `decisions=${stats.decisions_inserted} edges=${stats.edges_inserted}`
   );

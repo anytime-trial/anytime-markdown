@@ -287,7 +287,7 @@ export async function runConversationFailedItemsRetry(opts: {
 
   if (items.length === 0) {
     logger.info(
-      `[memory-core] failed-items retry: no items to retry (source=${sourceScope}, maxAttempts=${maxAttempts})`
+      `[anytime-memory] failed-items retry: no items to retry (source=${sourceScope}, maxAttempts=${maxAttempts})`
     );
     upsertPipelineState(db, { status: 'idle' });
     finalizePipelineRun(db, rId, startedAt, 'success', totals);
@@ -295,7 +295,7 @@ export async function runConversationFailedItemsRetry(opts: {
   }
 
   logger.info(
-    `[memory-core] failed-items retry: ${items.length} items to retry (source=${sourceScope})`
+    `[anytime-memory] failed-items retry: ${items.length} items to retry (source=${sourceScope})`
   );
 
   try {
@@ -321,7 +321,7 @@ export async function runConversationFailedItemsRetry(opts: {
             });
           } catch (err) {
             logger.error(
-              `[memory-core] failed-items retry: extractFactsFromEpisode error for ${item.item_key}`,
+              `[anytime-memory] failed-items retry: extractFactsFromEpisode error for ${item.item_key}`,
               err
             );
             return null;
@@ -338,7 +338,7 @@ export async function runConversationFailedItemsRetry(opts: {
 
         if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
           logger.info(
-            `[memory-core] failed-items retry progress: ${totals.items_processed}/${items.length}`
+            `[anytime-memory] failed-items retry progress: ${totals.items_processed}/${items.length}`
           );
           updateHeartbeatAndProgress(db, rId, totals);
           save?.();
@@ -357,7 +357,7 @@ export async function runConversationFailedItemsRetry(opts: {
           );
           if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
             logger.error(
-              `[memory-core] failed-items retry: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
+              `[anytime-memory] failed-items retry: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
             );
             upsertPipelineState(db, {
               status: 'quarantine',
@@ -387,7 +387,7 @@ export async function runConversationFailedItemsRetry(opts: {
           );
           if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
             logger.error(
-              `[memory-core] failed-items retry: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
+              `[anytime-memory] failed-items retry: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
             );
             upsertPipelineState(db, {
               status: 'quarantine',
@@ -423,7 +423,7 @@ export async function runConversationFailedItemsRetry(opts: {
           recoveredCount += 1;
         } catch (err) {
           logger.error(
-            `[memory-core] failed-items retry: persist failed for ${item.item_key}`,
+            `[anytime-memory] failed-items retry: persist failed for ${item.item_key}`,
             err
           );
           totals.items_failed += 1;
@@ -438,7 +438,7 @@ export async function runConversationFailedItemsRetry(opts: {
       }
     }
   } catch (err) {
-    logger.error(`[memory-core] failed-items retry: fatal error during iteration`, err);
+    logger.error(`[anytime-memory] failed-items retry: fatal error during iteration`, err);
     finalStatus = 'error';
     upsertPipelineState(db, {
       status: 'error',

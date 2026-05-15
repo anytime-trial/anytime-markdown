@@ -74,7 +74,7 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
       ], repoRoot);
     } catch (err) {
       logger.error(
-        `[memory-core] inferIntroducedBy: git diff failed for file=${filePath} commit=${fixCommitSha}`,
+        `[anytime-memory] inferIntroducedBy: git diff failed for file=${filePath} commit=${fixCommitSha}`,
         err
       );
       continue;
@@ -90,7 +90,7 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
         ], repoRoot);
       } catch (err) {
         logger.error(
-          `[memory-core] inferIntroducedBy: git blame failed for file=${filePath} line=${lineNum}`,
+          `[anytime-memory] inferIntroducedBy: git blame failed for file=${filePath} line=${lineNum}`,
           err
         );
         continue;
@@ -148,7 +148,7 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
     );
   } catch (err) {
     logger.error(
-      `[memory-core] inferIntroducedBy: failed to upsert Commit entity for sha=${candidate}`,
+      `[anytime-memory] inferIntroducedBy: failed to upsert Commit entity for sha=${candidate}`,
       err
     );
     return { introduced_commit_sha: candidate, edges_inserted: 0 };
@@ -168,7 +168,7 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
     );
   } catch (err) {
     logger.error(
-      `[memory-core] inferIntroducedBy: failed to insert introduced_by edge`,
+      `[anytime-memory] inferIntroducedBy: failed to insert introduced_by edge`,
       err
     );
     return { introduced_commit_sha: candidate, edges_inserted: 0 };

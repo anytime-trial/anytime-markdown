@@ -37,7 +37,7 @@ export async function discoverChangedSpecs(input: DiscoverInput): Promise<Change
     allEntries = readdirSync(specRoot, { recursive: true }) as string[];
   } catch (err) {
     logger.error(
-      `[memory-core] discoverChangedSpecs: failed to read specRoot ${specRoot}`,
+      `[anytime-memory] discoverChangedSpecs: failed to read specRoot ${specRoot}`,
       err,
     );
     throw err;
@@ -61,14 +61,14 @@ export async function discoverChangedSpecs(input: DiscoverInput): Promise<Change
         fileSize = stat.size;
       } catch (err) {
         logger.error(
-          `[memory-core] discoverChangedSpecs: failed to stat file ${abs_path}`,
+          `[anytime-memory] discoverChangedSpecs: failed to stat file ${abs_path}`,
           err,
         );
         continue;
       }
 
       if (fileSize > MAX_FILE_BYTES) {
-        const warnMsg = `[memory-core] discoverChangedSpecs: skipping large file (${fileSize} bytes) ${rel}`;
+        const warnMsg = `[anytime-memory] discoverChangedSpecs: skipping large file (${fileSize} bytes) ${rel}`;
         if (typeof logger.warn === 'function') {
           logger.warn(warnMsg);
         } else {
@@ -82,7 +82,7 @@ export async function discoverChangedSpecs(input: DiscoverInput): Promise<Change
         content = readFileSync(abs_path);
       } catch (err) {
         logger.error(
-          `[memory-core] discoverChangedSpecs: failed to read file ${abs_path}`,
+          `[anytime-memory] discoverChangedSpecs: failed to read file ${abs_path}`,
           err,
         );
         continue;

@@ -158,18 +158,18 @@ export async function runBugHistoryIncremental(opts: {
   let hasPartialFailure = false;
 
   // ── 4. Process each commit ────────────────────────────────────────────────
-  logger.info(`[memory-core] bug history incremental: ${rows.length} fix commits to process`);
+  logger.info(`[anytime-memory] bug history incremental: ${rows.length} fix commits to process`);
   let commitProcessed = 0;
   for (const row of rows) {
     commitProcessed += 1;
     if (commitProcessed % PROGRESS_LOG_INTERVAL === 0) {
       logger.info(
-        `[memory-core] bug history incremental progress: ${commitProcessed}/${rows.length} ` +
+        `[anytime-memory] bug history incremental progress: ${commitProcessed}/${rows.length} ` +
           `(bugs_inserted=${bugsInserted})`
       );
     }
     if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-      logger.info(`[memory-core] runBugHistoryIncremental: quarantine threshold reached`);
+      logger.info(`[anytime-memory] runBugHistoryIncremental: quarantine threshold reached`);
       hasPartialFailure = true;
       break;
     }
@@ -261,7 +261,7 @@ export async function runBugHistoryIncremental(opts: {
     } catch (err) {
       const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
       logger.error(
-        `[memory-core] runBugHistoryIncremental: failed to process commit=${commitSha}`, err
+        `[anytime-memory] runBugHistoryIncremental: failed to process commit=${commitSha}`, err
       );
       recordFailedItem(db, commitSha, 'process_failed', detail);
       consecutiveFailures += 1;

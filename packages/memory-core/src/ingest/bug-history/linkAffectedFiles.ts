@@ -35,7 +35,7 @@ export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFi
     rows = result[0];
   } catch (err) {
     logger.error(
-      `[memory-core] linkAffectedFiles: failed to query commit_files for commit=${commitSha}`,
+      `[anytime-memory] linkAffectedFiles: failed to query commit_files for commit=${commitSha}`,
       err
     );
     return { file_paths: [], edges_inserted: 0 };
@@ -68,7 +68,7 @@ export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFi
       );
     } catch (err) {
       logger.error(
-        `[memory-core] linkAffectedFiles: failed to upsert File entity for path=${filePath}`,
+        `[anytime-memory] linkAffectedFiles: failed to upsert File entity for path=${filePath}`,
         err
       );
       continue;
@@ -97,7 +97,7 @@ export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFi
       }
     } catch (err) {
       logger.error(
-        `[memory-core] linkAffectedFiles: failed to insert affects edge bug=${bugEntityId} file=${fileId}`,
+        `[anytime-memory] linkAffectedFiles: failed to insert affects edge bug=${bugEntityId} file=${fileId}`,
         err
       );
     }

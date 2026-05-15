@@ -173,7 +173,7 @@ describe('createMemoryCoreRunner.runAfterImport', () => {
     await expect(runner.runAfterImport()).resolves.toBeUndefined();
 
     expect(channel.appendLine).toHaveBeenCalledWith(
-      expect.stringContaining('[ERROR] [memory-core]'),
+      expect.stringContaining('[ERROR] [anytime-memory]'),
     );
     expect(channel.appendLine).toHaveBeenCalledWith(
       expect.stringContaining('DB explosion'),
@@ -193,7 +193,7 @@ describe('createMemoryCoreRunner.runAfterImport', () => {
 
     expect(openMemoryCoreDb).not.toHaveBeenCalled();
     expect(channel.appendLine).toHaveBeenCalledWith(
-      expect.stringContaining('[ERROR] [memory-core] Trail DB not found'),
+      expect.stringContaining('[ERROR] [anytime-memory] Trail DB not found'),
     );
   });
 });

@@ -389,7 +389,7 @@ export const en: TrailI18n = {
   'viewer.tab.memory': 'Memory',
   'memory.loading': 'Loading memory DB...',
   'memory.noDb': 'memory-core.db not found',
-  'memory.noDb.description': 'Data will appear automatically once Memory Core is running.',
+  'memory.noDb.description': 'Data will appear automatically once Anytime Memory is running.',
   'memory.drift.tab': 'Drift',
   'memory.bug.tab': 'Bugs',
   'memory.review.tab': 'Reviews',

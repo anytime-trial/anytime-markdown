@@ -62,14 +62,14 @@ export function runCodeReconciliation(opts: {
       softDeleted += 1;
     } catch (err) {
       logger.error(
-        `[memory-core] runCodeReconciliation: failed to soft-delete id=${id}`,
+        `[anytime-memory] runCodeReconciliation: failed to soft-delete id=${id}`,
         err
       );
     }
   }
 
   logger.info(
-    `[memory-core] code reconciliation: repo="${opts.repoName}" ` +
+    `[anytime-memory] code reconciliation: repo="${opts.repoName}" ` +
       `scanned=${scanned} soft_deleted=${softDeleted}`
   );
 

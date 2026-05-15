@@ -222,7 +222,7 @@ export class MemoryCoreService {
   }
 
   private log(msg: string): void {
-    this.opts.logSink.appendLine(`[${new Date().toISOString()}] [memory-core] ${msg}`);
+    this.opts.logSink.appendLine(`[${new Date().toISOString()}] [anytime-memory] ${msg}`);
   }
 }
 

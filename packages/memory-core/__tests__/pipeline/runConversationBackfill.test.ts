@@ -240,7 +240,7 @@ describe('runConversationBackfill', () => {
 
     // PROGRESS_LOG_INTERVAL = 10 → 10 progress logs at 10, 20, ..., 100
     const progressLogs = infoMessages.filter((m) =>
-      m.includes('[memory-core] backfill progress:')
+      m.includes('[anytime-memory] backfill progress:')
     );
     expect(progressLogs).toHaveLength(10);
     expect(progressLogs[progressLogs.length - 1]).toContain('100/100 episodes');

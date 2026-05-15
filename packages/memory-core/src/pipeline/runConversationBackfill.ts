@@ -264,7 +264,7 @@ export async function runConversationBackfill(opts: {
 
   const toProcess = totalEpisodes - existingIds.size;
   logger.info(
-    `[memory-core] backfill: ${totalSessions} sessions, ${totalEpisodes} episodes ` +
+    `[anytime-memory] backfill: ${totalSessions} sessions, ${totalEpisodes} episodes ` +
     `(${existingIds.size} already persisted, ${toProcess} to process, since ${sinceDays}d ago)`
   );
   updateHeartbeatAndProgress(db, rId, totals);
@@ -276,7 +276,7 @@ export async function runConversationBackfill(opts: {
       sessionIdx += 1;
       const episodes = splitEpisodes(messages);
       logger.info(
-        `[memory-core] backfill: session ${sessionIdx}/${totalSessions} — ${session_id.slice(0, 12)} (${episodes.length} episodes)`
+        `[anytime-memory] backfill: session ${sessionIdx}/${totalSessions} — ${session_id.slice(0, 12)} (${episodes.length} episodes)`
       );
       updateHeartbeatAndProgress(db, rId, totals);
       save?.();
@@ -320,7 +320,7 @@ export async function runConversationBackfill(opts: {
               });
             } catch (err) {
               logger.error(
-                `[memory-core] runConversationBackfill: unexpected error in extractFacts for episode ${ep.message_uuid_start}`,
+                `[anytime-memory] runConversationBackfill: unexpected error in extractFacts for episode ${ep.message_uuid_start}`,
                 err
               );
               return null;
@@ -342,7 +342,7 @@ export async function runConversationBackfill(opts: {
           // Progress log every PROGRESS_LOG_INTERVAL episodes
           if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
             logger.info(
-              `[memory-core] backfill progress: ${totals.items_processed}/${toProcess} episodes processed (${totals.items_skipped} skipped)`
+              `[anytime-memory] backfill progress: ${totals.items_processed}/${toProcess} episodes processed (${totals.items_skipped} skipped)`
             );
             updateHeartbeatAndProgress(db, rId, totals);
             save?.();
@@ -360,7 +360,7 @@ export async function runConversationBackfill(opts: {
 
             if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
               logger.error(
-                `[memory-core] runConversationBackfill: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
+                `[anytime-memory] runConversationBackfill: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
               );
               upsertPipelineState(db, {
                 status: 'quarantine',
@@ -393,7 +393,7 @@ export async function runConversationBackfill(opts: {
             totals.edges_invalidated += persisted.edges_invalidated;
           } catch (err) {
             logger.error(
-              `[memory-core] runConversationBackfill: persist failed for episode ${episode.message_uuid_start}`,
+              `[anytime-memory] runConversationBackfill: persist failed for episode ${episode.message_uuid_start}`,
               err
             );
             totals.items_failed += 1;
@@ -417,7 +417,7 @@ export async function runConversationBackfill(opts: {
     }
   } catch (err) {
     logger.error(
-      `[memory-core] runConversationBackfill: fatal error during session iteration`,
+      `[anytime-memory] runConversationBackfill: fatal error during session iteration`,
       err
     );
     finalStatus = 'error';

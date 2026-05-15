@@ -81,7 +81,7 @@ export function fromTrailGraph(opts: {
 
   if (graphJson === null) {
     logger.info(
-      `[memory-core] fromTrailGraph: no graph found for repo_name="${repoName}"`
+      `[anytime-memory] fromTrailGraph: no graph found for repo_name="${repoName}"`
     );
     return stats;
   }
@@ -91,7 +91,7 @@ export function fromTrailGraph(opts: {
     graph = JSON.parse(graphJson) as CodeGraph;
   } catch (err) {
     logger.error(
-      `[memory-core] fromTrailGraph: failed to parse graph_json for repo_name="${repoName}"`,
+      `[anytime-memory] fromTrailGraph: failed to parse graph_json for repo_name="${repoName}"`,
       err
     );
     return stats;
@@ -103,7 +103,7 @@ export function fromTrailGraph(opts: {
 
   if (codeNodes.length === 0) {
     logger.info(
-      `[memory-core] fromTrailGraph: no code nodes found for repo_name="${repoName}"`
+      `[anytime-memory] fromTrailGraph: no code nodes found for repo_name="${repoName}"`
     );
     return stats;
   }
@@ -151,7 +151,7 @@ export function fromTrailGraph(opts: {
       stats.packages_upserted += 1;
     } catch (err) {
       logger.error(
-        `[memory-core] fromTrailGraph: failed to upsert Package entity name="${pkgName}"`,
+        `[anytime-memory] fromTrailGraph: failed to upsert Package entity name="${pkgName}"`,
         err
       );
     }
@@ -183,7 +183,7 @@ export function fromTrailGraph(opts: {
       stats.files_upserted += 1;
     } catch (err) {
       logger.error(
-        `[memory-core] fromTrailGraph: failed to upsert File entity id="${node.id}"`,
+        `[anytime-memory] fromTrailGraph: failed to upsert File entity id="${node.id}"`,
         err
       );
       continue;
@@ -194,7 +194,7 @@ export function fromTrailGraph(opts: {
       const pkgEId = packageIdMap.get(node.package);
       if (pkgEId === undefined) {
         logger.error(
-          `[memory-core] fromTrailGraph: package entity not found for package="${node.package}" file="${node.id}"`
+          `[anytime-memory] fromTrailGraph: package entity not found for package="${node.package}" file="${node.id}"`
         );
         continue;
       }
@@ -214,7 +214,7 @@ export function fromTrailGraph(opts: {
         stats.edges_inserted += 1;
       } catch (err) {
         logger.error(
-          `[memory-core] fromTrailGraph: failed to insert edge pkg="${node.package}" → file="${node.id}"`,
+          `[anytime-memory] fromTrailGraph: failed to insert edge pkg="${node.package}" → file="${node.id}"`,
           err
         );
       }
@@ -222,7 +222,7 @@ export function fromTrailGraph(opts: {
   }
 
   logger.info(
-    `[memory-core] fromTrailGraph: repo="${repoName}" packages=${stats.packages_upserted} ` +
+    `[anytime-memory] fromTrailGraph: repo="${repoName}" packages=${stats.packages_upserted} ` +
       `files=${stats.files_upserted} edges=${stats.edges_inserted}`
   );
 

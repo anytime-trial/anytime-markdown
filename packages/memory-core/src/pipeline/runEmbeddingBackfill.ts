@@ -63,7 +63,7 @@ export async function runEmbeddingBackfill(opts: {
   const totalSkip = (totalSkipRows[0]?.values[0]?.[0] as number) ?? 0;
 
   logger.info(
-    `[memory-core] embedding backfill: ${totalNull} to process, ${totalSkip} already embedded`
+    `[anytime-memory] embedding backfill: ${totalNull} to process, ${totalSkip} already embedded`
   );
   if (onTotal) onTotal(totalNull);
 
@@ -99,13 +99,13 @@ export async function runEmbeddingBackfill(opts: {
       const detail = err instanceof Error ? err.message : String(err);
       recordFailedItem(db, entityId, 'embedding_failed', detail);
       counters.failed++;
-      logger.warn?.(`[memory-core] embedding backfill: failed entity ${entityId} — ${detail}`);
+      logger.warn?.(`[anytime-memory] embedding backfill: failed entity ${entityId} — ${detail}`);
     }
 
     const done = counters.processed + counters.failed;
     if (done % PROGRESS_LOG_INTERVAL === 0) {
       logger.info(
-        `[memory-core] embedding backfill progress: ${done}/${totalNull} (${counters.failed} failed)`
+        `[anytime-memory] embedding backfill progress: ${done}/${totalNull} (${counters.failed} failed)`
       );
       if (progress) progress(counters.processed, counters.failed);
     }
@@ -128,7 +128,7 @@ export async function runEmbeddingBackfill(opts: {
   );
 
   logger.info(
-    `[memory-core] embedding backfill complete: status=${status}, processed=${counters.processed}, failed=${counters.failed}, duration=${durationMs}ms`
+    `[anytime-memory] embedding backfill complete: status=${status}, processed=${counters.processed}, failed=${counters.failed}, duration=${durationMs}ms`
   );
 
   return {

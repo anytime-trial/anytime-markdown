@@ -18,7 +18,7 @@ export async function attachTrailDbReadOnly(
 ): Promise<void> {
   if (!(db instanceof BetterSqlite3MemoryDb)) {
     throw new Error(
-      '[memory-core] attachTrailDbReadOnly: only BetterSqlite3MemoryDb is supported',
+      '[anytime-memory] attachTrailDbReadOnly: only BetterSqlite3MemoryDb is supported',
     );
   }
   db.attach(trailDbPath, 'trail', true);
@@ -39,12 +39,12 @@ export function attachTrailDbFromHandle(
 ): void {
   if (!(db instanceof BetterSqlite3MemoryDb)) {
     throw new Error(
-      '[memory-core] attachTrailDbFromHandle: only BetterSqlite3MemoryDb is supported for main db',
+      '[anytime-memory] attachTrailDbFromHandle: only BetterSqlite3MemoryDb is supported for main db',
     );
   }
   if (!(trailHandle instanceof BetterSqlite3MemoryDb)) {
     throw new Error(
-      '[memory-core] attachTrailDbFromHandle: only BetterSqlite3MemoryDb is supported for trailHandle',
+      '[anytime-memory] attachTrailDbFromHandle: only BetterSqlite3MemoryDb is supported for trailHandle',
     );
   }
   const tempPath = path.join(

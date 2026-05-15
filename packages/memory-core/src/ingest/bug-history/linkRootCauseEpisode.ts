@@ -32,7 +32,7 @@ export function linkRootCauseEpisode(input: LinkRootCauseInput): LinkRootCauseRe
     episodeId = typeof val === 'string' ? val : null;
   } catch (err) {
     logger.error(
-      `[memory-core] linkRootCauseEpisode: failed to query episodes for session=${sessionId}`,
+      `[anytime-memory] linkRootCauseEpisode: failed to query episodes for session=${sessionId}`,
       err
     );
     return { root_cause_episode_id: null };
@@ -49,7 +49,7 @@ export function linkRootCauseEpisode(input: LinkRootCauseInput): LinkRootCauseRe
     );
   } catch (err) {
     logger.error(
-      `[memory-core] linkRootCauseEpisode: failed to update bug_fix id=${bugFixId}`,
+      `[anytime-memory] linkRootCauseEpisode: failed to update bug_fix id=${bugFixId}`,
       err
     );
   }

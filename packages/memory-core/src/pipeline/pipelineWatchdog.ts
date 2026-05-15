@@ -68,7 +68,7 @@ export function runPipelineWatchdog(input: {
 
   if (runIds.length > 0 || orphanScopes.length > 0) {
     logger.info(
-      `[memory-core] pipeline watchdog: ${runIds.length} stale run(s), ${orphanScopes.length} orphan state(s)`,
+      `[anytime-memory] pipeline watchdog: ${runIds.length} stale run(s), ${orphanScopes.length} orphan state(s)`,
     );
   }
 

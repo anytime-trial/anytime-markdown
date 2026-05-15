@@ -48,7 +48,7 @@ export class BetterSqlite3MemoryDb implements MemoryDbConnection {
       const re = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.`, 'i');
       if (re.test(sql)) {
         throw new Error(
-          `[memory-core] write to read-only attached schema '${alias}' is forbidden. SQL: ${sql.slice(0, 100)}`,
+          `[anytime-memory] write to read-only attached schema '${alias}' is forbidden. SQL: ${sql.slice(0, 100)}`,
         );
       }
     }

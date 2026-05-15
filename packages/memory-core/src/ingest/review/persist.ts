@@ -114,7 +114,7 @@ export function upsertReviewFinding(
     return { finding_entity_id: findingEntityId, inserted: findingInserted };
   } catch (err) {
     logger.error(
-      `[memory-core] upsertReviewFinding: failed for finding_index=${finding.finding_index} review=${reviewEntityId}`,
+      `[anytime-memory] upsertReviewFinding: failed for finding_index=${finding.finding_index} review=${reviewEntityId}`,
       err,
     );
     return { finding_entity_id: findingEntityId, inserted: false };
@@ -249,7 +249,7 @@ export function upsertReviewDoc(
     return { review_id: reviewEntityId, is_new: reviewInserted, findings_inserted: findingsInserted, edges_inserted: edgesInserted };
   } catch (err) {
     logger.error(
-      `[memory-core] upsertReviewDoc: failed for relPath=${relPath}`,
+      `[anytime-memory] upsertReviewDoc: failed for relPath=${relPath}`,
       err,
     );
     return { review_id: reviewEntityId, is_new: false, findings_inserted: 0, edges_inserted: 0 };
@@ -321,7 +321,7 @@ export function upsertReviewSession(
     return { review_id: reviewEntityId, is_new: reviewInserted, findings_inserted: findingsInserted, edges_inserted: edgesInserted };
   } catch (err) {
     logger.error(
-      `[memory-core] upsertReviewSession: failed for session_id=${session.session_id}`,
+      `[anytime-memory] upsertReviewSession: failed for session_id=${session.session_id}`,
       err,
     );
     return { review_id: reviewEntityId, is_new: false, findings_inserted: 0, edges_inserted: 0 };
