@@ -17,6 +17,11 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const VSCODE_NODE_TARGET = process.env.VSCODE_NODE_TARGET || '22.18.0';
+// matrix CI で他プラットフォーム/アーキ向け binary をダウンロードしたい場合に
+// TARGET_ARCH / TARGET_PLATFORM を指定する (例: ubuntu-x64 runner で linux-arm64
+// 用 binary を取得する)。未指定ならホスト値を使う (= 既存のローカル開発挙動)。
+const TARGET_ARCH = process.env.TARGET_ARCH || null;
+const TARGET_PLATFORM = process.env.TARGET_PLATFORM || null;
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const betterSqlite3Root = path.join(repoRoot, 'node_modules', 'better-sqlite3');
@@ -60,15 +65,16 @@ function downloadVscodeBinding() {
   // prebuilt-vscode/ に move する。直接 --path で別ディレクトリへ書くと
   // prebuild-install が package.json の場所を見失うため、source 位置のダウンロード
   // → mv のステップを踏む。
-  log(`downloading better-sqlite3 prebuilt for Node v${VSCODE_NODE_TARGET}...`);
-  const result = spawnSync(
-    'npx',
-    ['prebuild-install', '--runtime=node', `--target=${VSCODE_NODE_TARGET}`],
-    {
-      cwd: betterSqlite3Root,
-      stdio: 'inherit',
-    },
-  );
+  const archDesc = TARGET_ARCH ? ` arch=${TARGET_ARCH}` : '';
+  const platformDesc = TARGET_PLATFORM ? ` platform=${TARGET_PLATFORM}` : '';
+  log(`downloading better-sqlite3 prebuilt for Node v${VSCODE_NODE_TARGET}${platformDesc}${archDesc}...`);
+  const args = ['prebuild-install', '--runtime=node', `--target=${VSCODE_NODE_TARGET}`];
+  if (TARGET_ARCH) args.push(`--arch=${TARGET_ARCH}`);
+  if (TARGET_PLATFORM) args.push(`--platform=${TARGET_PLATFORM}`);
+  const result = spawnSync('npx', args, {
+    cwd: betterSqlite3Root,
+    stdio: 'inherit',
+  });
   if (result.status !== 0) {
     throw new Error('prebuild-install failed (exit ' + result.status + ')');
   }
@@ -81,8 +87,10 @@ function downloadVscodeBinding() {
 }
 
 function main() {
-  // 既存 prebuilt-vscode/ binding が VS Code Node 互換ならスキップ
-  if (fs.existsSync(prebuiltBinding)) {
+  // 既存 prebuilt-vscode/ binding が VS Code Node 互換ならスキップ。
+  // ただし TARGET_ARCH / TARGET_PLATFORM が指定された場合はクロスビルドの可能性が
+  // あり、キャッシュされた binary は別アーキの可能性があるため再ダウンロードする。
+  if (fs.existsSync(prebuiltBinding) && !TARGET_ARCH && !TARGET_PLATFORM) {
     log(`reusing existing ${prebuiltBinding}`);
     return;
   }
