@@ -58,7 +58,7 @@ export class MetricsThresholdsLoader {
   private readonly filePath: string;
 
   constructor(workspaceRoot: string) {
-    this.filePath = path.join(workspaceRoot, '.anytime-trail', 'metrics-thresholds.yaml');
+    this.filePath = path.join(workspaceRoot, '.anytime', 'metrics-thresholds.yaml');
   }
 
   load(): ThresholdsConfig {

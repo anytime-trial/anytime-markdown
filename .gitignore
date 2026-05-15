@@ -4,7 +4,6 @@ node_modules
 prebuilt-vscode
 .agents
 .anytime
-.anytime-trail
 .clone
 .claude
 .next
