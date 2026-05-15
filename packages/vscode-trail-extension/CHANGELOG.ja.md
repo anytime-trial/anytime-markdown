@@ -11,6 +11,7 @@
 - **Breaking:** ワークスペース設定フォルダを `.trail/` から `.anytime/` にリネーム。対象ファイルは `analyze-exclude` / `dead-code-ignore` / `commit-categories.json` / `tool-categories.json` / `skill-categories.json` / `anytime-history.json`。既存ワークスペースは手動で `.trail/` → `.anytime/` にリネームが必要
 - **Breaking:** Trail DB と Claude Code ステータスファイル、trace 出力のデフォルト保存先を `.vscode/` から `.anytime/` に変更。設定 `anytimeTrail.database.storagePath` の空既定値、`anytimeTrail.claudeStatus.directory` のデフォルト値 (`.vscode/trail/agent-status` → `.anytime/trail/agent-status`) と trace 出力 (`.vscode/trace` → `.anytime/trace`) が影響。既存環境では設定上書きまたは手動移動が必要
 - **Breaking:** memory-core.db のデフォルト保存先を `~/.claude/memory-core/memory-core.db` から `<workspaceRoot>/.anytime/db/memory-core.db` に変更。`MEMORY_CORE_DB_PATH` 環境変数は引き続き優先。既存 DB はユーザー側で手動コピー/移動が必要
+- **Breaking:** `TRAIL_HOME` のデフォルトを `~/.claude/trail` から `<workspaceRoot>/.anytime/trail` に変更。`config.json` / `daemon.json` / `daemon.lock` / `memory-core-runner.json` / `pipeline-status.json` / `logs/` / `db/` すべてが新ディレクトリに移動。`TRAIL_HOME` 環境変数は引き続き優先。`anytimeTrail.database.storagePath` の既定値 `.anytime/db` も既存と整合。既存 `config.json` はユーザー側で手動コピーが必要
 
 ## [0.18.0] - 2026-05-08
 

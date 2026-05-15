@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **Breaking:** Workspace config folder renamed from `.trail/` to `.anytime/`. Affected files: `analyze-exclude` / `dead-code-ignore` / `commit-categories.json` / `tool-categories.json` / `skill-categories.json` / `anytime-history.json`. Existing workspaces must manually rename `.trail/` to `.anytime/`
 - **Breaking:** Default storage location for `trail.db`, Claude Code status files, and trace output changed from `.vscode/` to `.anytime/`. Affects empty default of `anytimeTrail.database.storagePath`, the default value of `anytimeTrail.claudeStatus.directory` (`.vscode/trail/agent-status` → `.anytime/trail/agent-status`), and trace output (`.vscode/trace` → `.anytime/trace`). Existing setups must override settings or manually relocate
 - **Breaking:** Default `memory-core.db` location changed from `~/.claude/memory-core/memory-core.db` to `<workspaceRoot>/.anytime/db/memory-core.db`. The `MEMORY_CORE_DB_PATH` environment variable still takes precedence. Existing databases must be manually copied/moved
+- **Breaking:** Default `TRAIL_HOME` changed from `~/.claude/trail` to `<workspaceRoot>/.anytime/trail`. `config.json` / `daemon.json` / `daemon.lock` / `memory-core-runner.json` / `pipeline-status.json` / `logs/` / `db/` all move to the new directory. The `TRAIL_HOME` environment variable still takes precedence. Existing `config.json` must be manually copied
 
 ## [0.18.0] - 2026-05-08
 
