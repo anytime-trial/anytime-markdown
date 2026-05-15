@@ -453,6 +453,7 @@ CREATE TABLE IF NOT EXISTS trail_release_code_graph_communities (
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
   summary      TEXT    NOT NULL DEFAULT '',
+  stable_key   TEXT    NOT NULL DEFAULT '',
   generated_at TEXT,
   updated_at   TEXT,
   PRIMARY KEY (release_tag, community_id)
