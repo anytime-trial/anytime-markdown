@@ -746,12 +746,12 @@ jobs:
       - name: Build vscode-common
         run: npm run build
         working-directory: packages/vscode-common
+      - name: Rebuild better-sqlite3 for ARM64
+        if: matrix.target == 'linux-arm64' || matrix.target == 'win32-arm64'
+        run: npm rebuild --workspace=anytime-trail better-sqlite3 --target_arch=arm64
       - name: Build trail extension
         working-directory: packages/vscode-trail-extension
-        env:
-          TARGET_PLATFORM: ${{ matrix.platform }}
-          TARGET_ARCH: ${{ matrix.arch }}
-        run: npm run package
+        run: npx webpack --mode production --devtool hidden-source-map
       - name: Package trail VSIX
         run: npx vsce package --no-dependencies --target ${{ matrix.target }} --out anytime-trail-${{ matrix.target }}.vsix
         working-directory: packages/vscode-trail-extension
