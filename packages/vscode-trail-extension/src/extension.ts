@@ -524,7 +524,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// useExternalDaemon=true でも daemon 未検出時は fallback として拡張側で
 	// service を起動する (TrailPanel が local server URL を使うのと同じ paradigm)。
 	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
-	if (hostMemoryCoreLocally && dbStorageDir) {
+	if (hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
 		const intervalSec = trailConfig.memory.ingest.intervalSec;
 		const runOnStart = trailConfig.memory.ingest.runOnStart;
 		const startupDelaySec = trailConfig.memory.ingest.startupDelaySec;
@@ -532,8 +532,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		memoryCoreService = new MemoryCoreService({
 			logSink: memoryCoreOutputChannel,
 			trailDbPath,
+			dbPath: getMemoryCoreDbPath(wsRootForDb),
 			nativeBinding: memoryCoreNativeBinding,
-			gitRoot: wsRootForDb ?? process.cwd(),
+			gitRoot: wsRootForDb,
 			backfillDays: trailConfig.memory.conversation.backfillDays,
 		});
 		trailDataServer.setMemoryCoreService(memoryCoreService);
@@ -552,7 +553,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// activate のクリティカルパスを伸ばさないよう、初期化は全て setImmediate に
 	// 非同期で逃がす。何らかの理由 (native binding 失敗、memory-core.db 破損等) で
 	// 初期化が失敗しても拡張全体の起動が止まらないよう try/catch でガード。
-	const memoryDbPath = getMemoryCoreDbPath(wsRootForDb);
+	// wsRootForDb 未取得時 (workspace folder 未オープン) は memory-core DB 初期化をスキップ。
+	// process.cwd() フォールバックは VS Code Server バイナリパス等を返す可能性があり、
+	// EACCES エラーで初期化が失敗するため。
+	const memoryDbPath = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
 	const memoryNativeBinding = memoryCoreNativeBinding;
 	const memoryLogger = {
 		info: (msg: string, ctx?: Record<string, unknown>): void =>
@@ -563,6 +567,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		void (async () => {
 			if (!hostMemoryCoreLocally) {
 				TrailLogger.info('[memory-chat] hosted by external daemon, skipping local ChatBridge/RebuildScheduler');
+				return;
+			}
+			if (!memoryDbPath) {
+				TrailLogger.warn('[memory-chat] no workspace folder open, skipping ChatBridge/RebuildScheduler init');
 				return;
 			}
 			try {
