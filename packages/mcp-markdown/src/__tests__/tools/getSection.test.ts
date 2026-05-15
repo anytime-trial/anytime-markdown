@@ -55,6 +55,14 @@ describe('getSectionFromText', () => {
     const result = getSectionFromText(doc, '## Section');
     expect(result).toBeNull();
   });
+
+  it('should return null for invalid heading format (no # marks)', () => {
+    expect(getSectionFromText(doc, 'no hash heading')).toBeNull();
+  });
+
+  it('should return null when heading has too many # marks', () => {
+    expect(getSectionFromText(doc, '####### Section A')).toBeNull();
+  });
 });
 
 describe('getSection', () => {
