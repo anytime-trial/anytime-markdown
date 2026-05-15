@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import type { TrailDatabase, SupabaseTrailStore } from '@anytime-markdown/trail-db';
+import type { SupabaseTrailStore } from '@anytime-markdown/trail-db';
+import type { FileBackupManager } from '@anytime-markdown/database-core/FileBackupManager';
 import { formatLocalDateTime } from '@anytime-markdown/trail-core/formatDate';
 
 interface DbRootItem {
@@ -43,7 +44,6 @@ class BackupsRootTreeItem extends vscode.TreeItem {
   }
 }
 
-// クリックなし（参照のみ）
 class BackupTreeItem extends vscode.TreeItem {
   readonly kind = 'backup' as const;
   constructor(generation: number, mtime: Date, compressedBytes: number) {
@@ -54,6 +54,11 @@ class BackupTreeItem extends vscode.TreeItem {
     this.description = mtime.toLocaleString();
     const mb = (compressedBytes / 1024 / 1024).toFixed(2);
     this.tooltip = `${label}\n${mtime.toLocaleString()}\n${mb} MB (gzip)`;
+    this.command = {
+      command: 'anytimeDatabase.restoreBackup',
+      title: 'Restore from this backup',
+      arguments: [generation],
+    };
   }
 }
 
@@ -81,7 +86,7 @@ export class DatabaseProvider implements vscode.TreeDataProvider<AnyTreeItem> {
   private syncing = false;
 
   constructor(
-    private readonly trailDb: TrailDatabase,
+    private readonly backupManager: FileBackupManager | null,
     private remoteProvider: 'supabase' | 'postgres' | 'none',
     private readonly supabaseStore?: SupabaseTrailStore,
   ) {}
@@ -132,7 +137,7 @@ export class DatabaseProvider implements vscode.TreeDataProvider<AnyTreeItem> {
 
     if (element instanceof DbRootTreeItem) {
       if (element.contextValue === 'sqliteDb') {
-        const backups = this.trailDb.listBackups();
+        const backups = this.backupManager?.listBackups() ?? [];
         return [
           new DbDetailTreeItem(vscode.l10n.t('Status'), this.sqliteStatus),
           new DbDetailTreeItem(
@@ -158,7 +163,7 @@ export class DatabaseProvider implements vscode.TreeDataProvider<AnyTreeItem> {
     }
 
     if (element instanceof BackupsRootTreeItem) {
-      return this.trailDb.listBackups().map(
+      return (this.backupManager?.listBackups() ?? []).map(
         (b) => new BackupTreeItem(b.generation, b.mtime, b.compressedSize),
       );
     }

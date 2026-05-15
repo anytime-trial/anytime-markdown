@@ -8,5 +8,15 @@
   "1 generation": "1 generation",
   "{0} generations": "{0} generations",
   "Generation {0}": "Generation {0}",
-  "$(loading~spin) Syncing...": "$(loading~spin) Syncing..."
+  "$(loading~spin) Syncing...": "$(loading~spin) Syncing...",
+  "Trail DB is not initialized.": "Trail DB is not initialized.",
+  "No backups available yet. Backups are created on the first save of each VS Code session.": "No backups available yet. Backups are created on the first save of each VS Code session.",
+  "Restore Trail DB from backup": "Restore Trail DB from backup",
+  "Select a generation to restore (current DB will be saved as .restore-safety-*)": "Select a generation to restore (current DB will be saved as .restore-safety-*)",
+  "Backup generation {0} not found.": "Backup generation {0} not found.",
+  "Restore Trail DB from generation {0}? The current DB will be backed up to a .restore-safety-* file. You must reload the VS Code window after restore for changes to take effect.": "Restore Trail DB from generation {0}? The current DB will be backed up to a .restore-safety-* file. You must reload the VS Code window after restore for changes to take effect.",
+  "Restore": "Restore",
+  "Restored from generation {0}. Reload the window now?": "Restored from generation {0}. Reload the window now?",
+  "Reload Window": "Reload Window",
+  "Restore failed: {0}": "Restore failed: {0}"
 }

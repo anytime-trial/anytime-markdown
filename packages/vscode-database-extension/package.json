@@ -43,6 +43,12 @@
         "command": "anytime-database.reconnectSupabase",
         "title": "%command.reconnectSupabase%",
         "category": "Anytime Database"
+      },
+      {
+        "command": "anytimeDatabase.restoreBackup",
+        "title": "%command.restoreBackup%",
+        "category": "Anytime Database",
+        "icon": "$(discard)"
       }
     ],
     "menus": {
@@ -55,6 +61,11 @@
         {
           "command": "anytime-database.reconnectSupabase",
           "when": "view == anytimeDatabase.database && viewItem == supabaseDb",
+          "group": "inline"
+        },
+        {
+          "command": "anytimeDatabase.restoreBackup",
+          "when": "view == anytimeDatabase.database && viewItem == backupEntry",
           "group": "inline"
         }
       ]
@@ -93,6 +104,19 @@
           "minimum": 0,
           "default": 5000,
           "description": "%config.warnThresholdMs.description%"
+        },
+        "anytimeDatabase.backup.generations": {
+          "type": "number",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 10,
+          "markdownDescription": "%config.backup.generations%"
+        },
+        "anytimeDatabase.backup.intervalDays": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "markdownDescription": "%config.backup.intervalDays%"
         }
       }
     }

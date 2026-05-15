@@ -143,12 +143,6 @@
         "icon": "$(graph-line)"
       },
       {
-        "command": "anytime-trail.restoreBackup",
-        "title": "%command.restoreBackup%",
-        "category": "Anytime Trail",
-        "icon": "$(discard)"
-      },
-      {
         "command": "anytime-trail.analyzeAll",
         "title": "%command.analyzeAll%",
         "category": "Anytime Trail",
@@ -382,19 +376,6 @@
           "type": "string",
           "default": ".anytime/trail/db",
           "markdownDescription": "%config.database.storagePath%"
-        },
-        "anytimeTrail.database.backupGenerations": {
-          "type": "number",
-          "default": 1,
-          "minimum": 1,
-          "maximum": 10,
-          "markdownDescription": "%config.database.backupGenerations%"
-        },
-        "anytimeTrail.database.backupIntervalDays": {
-          "type": "number",
-          "default": 1,
-          "minimum": 0,
-          "markdownDescription": "%config.database.backupIntervalDays%"
         },
         "anytimeTrail.claudeStatus.directory": {
           "type": "string",

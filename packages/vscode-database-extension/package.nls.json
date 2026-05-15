@@ -5,11 +5,14 @@
   "view.database": "Database",
   "command.syncToSupabase": "Sync",
   "command.reconnectSupabase": "Reconnect",
+  "command.restoreBackup": "Restore Trail DB from Backup",
   "customEditor.displayName": "Anytime Database",
   "config.openMode.title": "Open Mode",
   "config.openMode.description": "How to open SQLite files. 'readwrite' allows write SQL and dirty/save UX. 'readonly' opens with OPEN_READONLY and rejects mutations.",
   "config.queryMaxRows.title": "Query Max Rows",
   "config.queryMaxRows.description": "Maximum number of rows displayed for SQL Run results. Larger results are truncated with a warning banner.",
   "config.warnThresholdMs.title": "Warn Threshold (ms)",
-  "config.warnThresholdMs.description": "Show a warning when a query takes longer than this number of milliseconds."
+  "config.warnThresholdMs.description": "Show a warning when a query takes longer than this number of milliseconds.",
+  "config.backup.generations": "Number of gzip-compressed backup generations to keep for `trail.db`. Each generation is stored as `.bak.N.gz` next to the database file. Range: 1–10.",
+  "config.backup.intervalDays": "Minimum interval in days between backups of `trail.db`. `0` = backup every session. `1` (default) = at most once per day. Higher values reduce backup frequency."
 }

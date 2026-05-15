@@ -463,9 +463,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
 		? dbStoragePathSetting
 		: wsRootForDb ? path.join(wsRootForDb, dbStoragePathSetting) : undefined;
-	const dbConfig = vscode.workspace.getConfiguration('anytimeTrail.database');
-	const backupGenerations = dbConfig.get<number>('backupGenerations', 1);
-	const backupIntervalDays = dbConfig.get<number>('backupIntervalDays', 1);
+	// バックアップ設定は anytime-database 拡張が所有する (anytimeDatabase.backup.*)。
+	// バックアップトリガは trail 拡張のみが担うため、ここで読んで TrailDatabase に渡す。
+	const backupConfig = vscode.workspace.getConfiguration('anytimeDatabase.backup');
+	const backupGenerations = backupConfig.get<number>('generations', 1);
+	const backupIntervalDays = backupConfig.get<number>('intervalDays', 1);
 	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir, backupGenerations, TrailLogger, backupIntervalDays);
 
 	// Anytime Memory output channel + native binding paths are needed by:
@@ -805,7 +807,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);
 
 	// Database panel
-	const databaseProvider = new DatabaseProvider(trailDb);
+	const databaseProvider = new DatabaseProvider();
 	const databaseTreeView = vscode.window.createTreeView('anytimeTrail.database', {
 		treeDataProvider: databaseProvider,
 	});
@@ -903,69 +905,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.openTrailViewer', () => {
 			TrailPanel.openViewer(true);
-		}),
-	);
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.restoreBackup', async (arg?: number) => {
-			if (!trailDb) {
-				vscode.window.showErrorMessage('Trail DB is not initialized.');
-				return;
-			}
-			const entries = trailDb.listBackups();
-			if (entries.length === 0) {
-				vscode.window.showInformationMessage(
-					'No backups available yet. Backups are created on the first save of each VS Code session.',
-				);
-				return;
-			}
-			let generation: number | undefined = typeof arg === 'number' ? arg : undefined;
-			if (generation === undefined) {
-				const items = entries.map((e) => ({
-					label: `$(history) Generation ${e.generation}`,
-					description: e.mtime.toLocaleString(),
-					detail: `${(e.compressedSize / 1024 / 1024).toFixed(2)} MB (gzip) · ${e.path}`,
-					generation: e.generation,
-				}));
-				const picked = await vscode.window.showQuickPick(items, {
-					title: 'Restore Trail DB from backup',
-					placeHolder: 'Select a generation to restore (current DB will be saved as .restore-safety-*)',
-					ignoreFocusOut: true,
-				});
-				if (!picked) return;
-				generation = picked.generation;
-			}
-			if (!entries.some((e) => e.generation === generation)) {
-				vscode.window.showErrorMessage(`Backup generation ${generation} not found.`);
-				return;
-			}
-			const confirm = await vscode.window.showWarningMessage(
-				`Restore Trail DB from generation ${generation}? ` +
-				'The current DB will be backed up to a .restore-safety-* file. ' +
-				'You must reload the VS Code window after restore for changes to take effect.',
-				{ modal: true },
-				'Restore',
-			);
-			if (confirm !== 'Restore') return;
-			try {
-				const result = trailDb.restoreFromBackup(generation);
-				TrailLogger.info(
-					`Trail DB restored from ${result.restoredFrom}; safety copy at ${result.safetyCopy ?? '(none)'}`,
-				);
-				databaseProvider.refresh();
-				const reload = await vscode.window.showInformationMessage(
-					`Restored from generation ${generation}. Reload the window now?`,
-					'Reload Window',
-				);
-				if (reload === 'Reload Window') {
-					await vscode.commands.executeCommand('workbench.action.reloadWindow');
-				}
-			} catch (err) {
-				TrailLogger.error('Trail DB restore failed', err);
-				vscode.window.showErrorMessage(
-					`Restore failed: ${err instanceof Error ? err.message : String(err)}`,
-				);
-			}
 		}),
 	);
 
