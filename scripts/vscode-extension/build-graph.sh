@@ -20,6 +20,6 @@ echo "Packaging vsix..."
 npx vsce package --no-dependencies -o "$DIST_DIR/anytime-graph.vsix"
 
 echo "Installing..."
-code --install-extension "$DIST_DIR/anytime-graph.vsix" --force
+bash "$(dirname "$0")/_install-vsix.sh" "$DIST_DIR/anytime-graph.vsix"
 
 echo "Done! Restart VS Code to activate."
