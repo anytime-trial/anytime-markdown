@@ -274,6 +274,7 @@ export class TrailDataServer {
     private readonly trailDb: TrailDatabase,
     private logger: Logger,
     private readonly gitRoot?: string,
+    memoryDbPath?: string,
   ) {
     // webpack-bundled VS Code 拡張では bindings package が call stack から
     // `.node` を推測できず crash するため、distPath から絶対パスを組み立てて
@@ -288,7 +289,7 @@ export class TrailDataServer {
     );
     this.memoryApi = new MemoryApiHandler(
       this.logger.child('MemoryApiHandler'),
-      undefined,
+      memoryDbPath,
       nativeBinding,
     );
     this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));

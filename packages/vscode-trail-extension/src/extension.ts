@@ -505,7 +505,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	// --- 外部デーモン検出ここまで ---
 
 	const gitRoot = wsRootForDb;
-	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot);
+	const memoryDbPathForServer = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
+	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot, memoryDbPathForServer);
 	TrailPanel.setDataServer(trailDataServer);
 	setupServerCallbacks(trailDataServer);
 

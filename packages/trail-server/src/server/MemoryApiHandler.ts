@@ -143,7 +143,7 @@ function mapRow<T>(columns: ReadonlyArray<string>, values: ReadonlyArray<unknown
 // ---------------------------------------------------------------------------
 
 export class MemoryApiHandler {
-  private readonly dbPath: string;
+  private readonly dbPath: string | undefined;
   private readonly logger: Logger;
   /**
    * 読み取り専用接続は lazy 初期化して使い回す。BetterSqlite3 は WAL モードで
@@ -161,14 +161,26 @@ export class MemoryApiHandler {
 
   constructor(logger: Logger, dbPath?: string, nativeBinding?: string) {
     this.logger = logger;
-    this.dbPath = dbPath ?? getMemoryCoreDbPath();
+    // dbPath が明示されなければ getMemoryCoreDbPath() を遅延 fallback として呼ぶ。
+    // VS Code 拡張のように保護領域 cwd では Error throw されるが、その場合は dbPath=undefined にして
+    // 全 API レスポンスを "not configured" (exists:false / null) として返す。
+    if (dbPath) {
+      this.dbPath = dbPath;
+    } else {
+      try {
+        this.dbPath = getMemoryCoreDbPath();
+      } catch (err) {
+        this.logger.warn(`[MemoryApiHandler] memory-core.db path not resolvable: ${err instanceof Error ? err.message : String(err)}`);
+        this.dbPath = undefined;
+      }
+    }
     this.nativeBinding = nativeBinding;
   }
 
   // ---- status ----
 
   async handleStatus(): Promise<{ exists: boolean }> {
-    return { exists: fs.existsSync(this.dbPath) };
+    return { exists: this.dbPath ? fs.existsSync(this.dbPath) : false };
   }
 
   /** 共有 read-only 接続を解放する。daemon 停止時に呼ぶ。 */
@@ -187,7 +199,7 @@ export class MemoryApiHandler {
 
   private openReadOnly(): MemoryDbConnection | null {
     if (this.cachedReadOnlyDb) return this.cachedReadOnlyDb;
-    if (!fs.existsSync(this.dbPath)) return null;
+    if (!this.dbPath || !fs.existsSync(this.dbPath)) return null;
     try {
       this.cachedReadOnlyDb = new BetterSqlite3MemoryDb({
         filePath: this.dbPath,
@@ -202,7 +214,7 @@ export class MemoryApiHandler {
   }
 
   private openReadWrite(): MemoryDbConnection | null {
-    if (!fs.existsSync(this.dbPath)) return null;
+    if (!this.dbPath || !fs.existsSync(this.dbPath)) return null;
     try {
       const db = new BetterSqlite3MemoryDb({
         filePath: this.dbPath,
