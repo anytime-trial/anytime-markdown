@@ -11,7 +11,6 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
-import { useMarkdownT } from "./i18n/context";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AnnotationOverlay } from "./components/AnnotationOverlay";
@@ -27,6 +26,7 @@ import { SMALL_CAPTION_FONT_SIZE, STATUSBAR_FONT_SIZE } from "./constants/dimens
 import { useBlockCapture } from "./hooks/useBlockCapture";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useBlockResize } from "./hooks/useBlockResize";
+import { useMarkdownT } from "./i18n/context";
 import { getEditorStorage } from "./types";
 import { type ImageAnnotation, parseAnnotations, serializeAnnotations } from "./types/imageAnnotation";
 

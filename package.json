@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.14.1",
+  "version": "0.15.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -50,7 +50,7 @@
     "diff": "8.0.3",
     "postcss": "8.5.10",
     "uuid": "^14.0.0",
-    "next": "16.2.4",
+    "next": "16.2.6",
     "@auth/core": "0.41.1",
     "next-auth": {
       "@auth/core": "0.41.1"
@@ -70,6 +70,6 @@
   "dependencies": {
     "@auth/core": "0.41.1",
     "@xmldom/xmldom": "0.9.10",
-    "next": "16.2.4"
+    "next": "16.2.6"
   }
 }

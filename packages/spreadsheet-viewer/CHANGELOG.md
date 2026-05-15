@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-05-15
+
+### Changed
+
+- Migrated to self-contained i18n; external consumers reference messages via the public package API only
+
 ## [0.4.2] - 2026-05-08
 
 ### Added

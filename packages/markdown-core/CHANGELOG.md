@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-05-15
+
+### Changed
+
+- Migrated `markdown-core` to self-contained i18n (no longer reuses `trail-viewer` or sibling i18n packages)
+- Exposed messages via a public subpath so client-only deps stay out of server bundles
+
+### Fixed
+
+- Avoided `navigator` access and broken dynamic import resolution in non-browser bundles
+- Wrapped `mcp-markdown` `server.tool()` calls to suppress MCP SDK TS2589 depth errors
+- Hardened `updateSection` edge-case coverage and integration sanitize tests
+
 ## [0.14.1] - 2026-05-06
 
 ### Fixed

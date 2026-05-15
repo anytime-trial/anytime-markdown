@@ -5,6 +5,11 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
+jest.mock("@anytime-markdown/graph-viewer/src/i18n/context", () => ({
+  GraphI18nProvider: ({ children }: { children: React.ReactNode }) => children,
+  useGraphT: () => (key: string) => key,
+}));
+
 import { ContextMenu } from "@anytime-markdown/graph-viewer/src/components/ContextMenu";
 
 describe("ContextMenu", () => {

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-05-07
+## [0.1.0] - 2026-05-15
 
 ### Added
 
@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `ResultGrid` — `spreadsheet-viewer` adapter integration with column-name headers and double-click to insert column name into SQL editor
 - `SqlEditorPanel` — collapsible SQL editor with run / clear, status bar for last query result, `forwardRef` API for cursor-position text insertion, read-only support
 - `ErdView` — ER diagram tab with FK inference (manual + introspected), hierarchical layout via `graph-core`, pan / zoom / minimap, obstacle-aware orthogonal edge routing, anchor diamond markers on referenced column rows, related-table highlight on selection
-- i18n keys (ja / en) for `Database` namespace
+- i18n keys (ja / en) for `Database` namespace — migrated to self-contained i18n with public package API
 - Per-platform compatibility (Node + WASM SQLite via `database-core`)
 
 ### Performance

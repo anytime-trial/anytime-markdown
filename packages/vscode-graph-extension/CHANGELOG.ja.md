@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-15
+
+### 変更
+
+- README から廃止された VS Marketplace バッジを削除
+- `graph-viewer` を自己完結 i18n に移行 (公開 API 経由でメッセージを参照)
+
+### Graph Core (graph-core)
+
+- 実カンバスを使わない culling / shape / drawHelpers のテストカバレッジを追加
+
 ## [0.3.0] - 2026-05-04
 
 ### Graph Core (graph-core)

@@ -5,10 +5,10 @@ import type { SxProps, Theme } from "@mui/material/styles";
 import { alpha, useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import { EditorContent } from "@tiptap/react";
-import { useMarkdownT } from "../i18n/context";
 import React, { useEffect, useRef } from "react";
 
 import { getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { useMarkdownT } from "../i18n/context";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { DiffLine } from "../utils/diffEngine";
 import { getMergeTiptapStyles } from "./mergeTiptapStyles";

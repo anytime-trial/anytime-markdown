@@ -6,7 +6,7 @@
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-05-07
+## [0.1.0] - 2026-05-15
 
 ### 追加
 
@@ -26,6 +26,16 @@
 - l10n バンドル (`l10n/bundle.l10n.json` + `l10n/bundle.l10n.ja.json`) を導入。ツリーアイテムラベルを多言語化
 - `DbLogger` (`Anytime Database` Output チャンネル) に timestamp と `Error.stack` を出力
 
+### 変更
+
+- 拡張機能バンドルから `sql.js` を撤去し、ネイティブ `better-sqlite3` のみに統一（Phase 4）
+- `database-viewer` の自己完結 i18n 移行に合わせて webview の shim を更新
+
+### 修正
+
+- webview バンドルでの `navigator` アクセスと動的 import 解決の不整合を解消
+
 ### Database Core (database-core / database-viewer)
 
 - SQLite アダプタ層 (`BetterSqlite3Adapter`, `SqlJsAdapter`, `PaginatedSqlSheetAdapter`) とデータベース UI (`DatabaseEditor`, `ErdView`, `TableTree`, `ResultGrid`, `SqlEditorPanel`) を初回リリース。詳細は `packages/database-core/CHANGELOG.ja.md` および `packages/database-viewer/CHANGELOG.ja.md` を参照
+- `database-viewer` を自己完結 i18n に移行（公開 API 経由でメッセージを参照）

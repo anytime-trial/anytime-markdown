@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-05-15
+
+### Spreadsheet Core (spreadsheet-core)
+
+- CRLF / CR と区切り行なし markdown テーブルのテストカバレッジを追加
+
+### Spreadsheet Viewer (spreadsheet-viewer)
+
+- 自己完結 i18n に移行。外部利用は公開 API 経由でのみメッセージを参照する形に統一
+
 ## [0.4.2] - 2026-05-08
 
 ### Spreadsheet Core (spreadsheet-core)

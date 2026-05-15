@@ -20,13 +20,13 @@ import {
   useTheme,
 } from "@mui/material";
 import type { Editor } from "@tiptap/react";
-import { useMarkdownLocale } from "../i18n/context";
 import React, { useMemo } from "react";
 
 import { getDivider } from "../constants/colors";
 import { MENU_ITEM_FONT_SIZE } from "../constants/dimensions";
 import { PLANTUML_SAMPLES } from "../constants/samples";
 import { getBuiltinTemplates, type MarkdownTemplate } from "../constants/templates";
+import { useMarkdownLocale } from "../i18n/context";
 import MermaidIcon from "../icons/MermaidIcon";
 import type { TranslationFn } from "../types";
 

@@ -13,7 +13,6 @@ import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, D
 import type { Fragment } from "@tiptap/pm/model";
 import type { Editor, NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
-import { useMarkdownT } from "./i18n/context";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
@@ -25,6 +24,7 @@ import { SMALL_CAPTION_FONT_SIZE } from "./constants/dimensions";
 import { Z_FULLSCREEN } from "./constants/zIndex";
 import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEditorsContext";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
+import { useMarkdownT } from "./i18n/context";
 import { createTiptapSheetAdapter } from "./spreadsheet/TiptapSheetAdapter";
 import { useEditorSettingsContext } from "./useEditorSettings";
 import { moveTableColumn,moveTableRow } from "./utils/tableHelpers";

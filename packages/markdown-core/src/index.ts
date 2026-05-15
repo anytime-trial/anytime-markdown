@@ -1,6 +1,6 @@
 // Main page component
-export { default as MarkdownEditorPage } from './MarkdownEditorPage';
 export { MarkdownCoreI18nProvider } from './i18n/context';
+export { default as MarkdownEditorPage } from './MarkdownEditorPage';
 
 // Hooks
 export { useEditorDialogs } from './hooks/useEditorDialogs';

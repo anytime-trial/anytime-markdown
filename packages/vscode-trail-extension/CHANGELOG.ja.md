@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-05-15
+
 ### 変更
 
 - **Breaking:** ワークスペース設定フォルダを `.trail/` から `.anytime/` にリネーム。対象ファイルは `analyze-exclude` / `dead-code-ignore` / `commit-categories.json` / `tool-categories.json` / `skill-categories.json` / `anytime-history.json`。既存ワークスペースは手動で `.trail/` → `.anytime/` にリネームが必要
@@ -13,6 +15,20 @@
 - **Breaking:** memory-core.db のデフォルト保存先を `~/.claude/memory-core/memory-core.db` から `<workspaceRoot>/.anytime/db/memory-core.db` に変更。`MEMORY_CORE_DB_PATH` 環境変数は引き続き優先。既存 DB はユーザー側で手動コピー/移動が必要
 - **Breaking:** `TRAIL_HOME` のデフォルトを `~/.claude/trail` から `<workspaceRoot>/.anytime/trail` に変更。`config.json` / `daemon.json` / `daemon.lock` / `memory-core-runner.json` / `pipeline-status.json` / `logs/` / `db/` すべてが新ディレクトリに移動。`TRAIL_HOME` 環境変数は引き続き優先。既存 `config.json` はユーザー側で手動コピーが必要
 - **Breaking:** runtime artifact を TRAIL_HOME 配下に集約。`anytimeTrail.database.storagePath` 既定値を `.anytime/db` から `.anytime/trail/db` (`${TRAIL_HOME}/db`) に変更。memory-core.db / pipeline-status.json / trace 出力 / hook state (session-guard / git-state) すべてが `${TRAIL_HOME}/` 配下に集約。`.anytime-trail/metrics-thresholds.yaml` は `.anytime/metrics-thresholds.yaml` に統一
+- `*_DB_PATH` 環境変数と未使用の `opts.dbPath` オーバーライドを撤去
+- `DaemonClient` に `workspaceRoot` を明示的に渡し、ステータスファイル読み取りを writer のパス解決と共有
+
+### 修正
+
+- `pipeline-status.json` の reader を writer と整合
+- VS Code 拡張から `sql.js` を撤去しネイティブ sqlite に統一（Phase 4）
+
+### Trail Core (trail-core)
+
+- `TRAIL_HOME` 集約 — 共有 `getTrailHome` で trail 関連ストレージを解決
+- `trail-db` 既定 DB ディレクトリを `<cwd>/.anytime/trail` に変更、`.anytime` を `SNAPSHOT_SKIP_DIRS` に追加
+- `mcp-trail` / `memory-core` / `trail-server` を `TRAIL_HOME` 既定に整列、memory-core のフォールバックを厳格化
+- `saveCurrentGraph` の OOM 回避のため sql.js を WASM に切替
 
 ## [0.18.0] - 2026-05-08
 

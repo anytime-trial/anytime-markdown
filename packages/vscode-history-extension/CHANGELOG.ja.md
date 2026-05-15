@@ -6,6 +6,25 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-15
+
+### 追加
+
+- git 呼び出しを Extension Host イベントループから切り離す非同期 `gitExec` ヘルパーを追加
+
+### 変更
+
+- **Breaking:** SpecDocs の保存先を `.vscode/history/` から `.trail/`（最終的に `.anytime/` 配下）へ移動
+- 設定フォルダの既定値を `.trail` から `.anytime` に変更
+- VS Code 拡張から `sql.js` を撤去しネイティブ sqlite に統一（Phase 4）
+- `GitOperations` / `GitStatusParser` / `ChangesProvider` / `GraphProvider` / `SpecDocsGitOps` / `changesCommands` / git ルートの自動オープン処理を async 化し、Extension Host の応答性を維持
+- `OutputChannel` 名を `Anytime History` に統一
+
+### 修正
+
+- spec のインポートパスと `DbLogger` インタフェースの不整合を解消
+- node バンドルでの `navigator` アクセスを回避
+
 ## [0.1.0] - 2026-05-04
 
 ### 追加

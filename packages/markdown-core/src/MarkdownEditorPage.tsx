@@ -19,7 +19,6 @@ if (typeof window !== "undefined") {
 import { Box, CircularProgress, useMediaQuery, useTheme } from "@mui/material";
 import { useEditor } from "@tiptap/react";
 import dynamic from "next/dynamic";
-import { MarkdownCoreI18nProvider, useMarkdownLocale, useMarkdownT } from "./i18n/context";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { EditorDialogsSection } from "./components/EditorDialogsSection";
@@ -36,6 +35,7 @@ import { EditorFeaturesContext } from "./contexts/EditorFeaturesContext";
 import { EditorModeContext, type EditorModeContextValue } from "./contexts/EditorModeContext";
 import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
+import { MarkdownCoreI18nProvider, useMarkdownLocale, useMarkdownT } from "./i18n/context";
 import { PrintStyles } from "./styles/printStyles";
 import { EditorSettingsContext,useEditorSettings } from "./useEditorSettings";
 import { useMarkdownEditor } from "./useMarkdownEditor";

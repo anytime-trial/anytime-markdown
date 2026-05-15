@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-05-15
+
 ### Changed
 
 - **Breaking:** Default empty value of `anytimeMarkdown.claudeStatus.directory` changed from `.vscode` to `.anytime`. Existing setups must override the setting or manually relocate
+- Default `.vscode` storage paths consolidated under `.anytime`
+- Timeline `OutputChannel` name unified to `Anytime Markdown`
+
+### Editor Core (markdown-core)
+
+- `markdown-core` を自己完結 i18n に移行 (公開 API 経由でメッセージを export)
+- 非ブラウザバンドルでの `navigator` アクセスと動的 import 解決の不整合を修正
+- `mcp-markdown` の `server.tool()` 呼び出しをラップして MCP SDK の TS2589 深さエラーを抑止
+- `updateSection` と `ssrfGuard` 周辺のテストカバレッジを強化
 
 ## [0.14.1] - 2026-05-06
 

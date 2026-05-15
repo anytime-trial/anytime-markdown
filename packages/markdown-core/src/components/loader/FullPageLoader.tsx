@@ -1,6 +1,7 @@
 "use client";
 
 import { Box, CircularProgress, Typography } from '@mui/material';
+
 import { useMarkdownT } from '../../i18n/context';
 
 type FullPageLoaderProps = {

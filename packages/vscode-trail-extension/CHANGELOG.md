@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-05-15
+
 ### Changed
 
 - **Breaking:** Workspace config folder renamed from `.trail/` to `.anytime/`. Affected files: `analyze-exclude` / `dead-code-ignore` / `commit-categories.json` / `tool-categories.json` / `skill-categories.json` / `anytime-history.json`. Existing workspaces must manually rename `.trail/` to `.anytime/`
@@ -13,6 +15,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **Breaking:** Default `memory-core.db` location changed from `~/.claude/memory-core/memory-core.db` to `<workspaceRoot>/.anytime/db/memory-core.db`. The `MEMORY_CORE_DB_PATH` environment variable still takes precedence. Existing databases must be manually copied/moved
 - **Breaking:** Default `TRAIL_HOME` changed from `~/.claude/trail` to `<workspaceRoot>/.anytime/trail`. `config.json` / `daemon.json` / `daemon.lock` / `memory-core-runner.json` / `pipeline-status.json` / `logs/` / `db/` all move to the new directory. The `TRAIL_HOME` environment variable still takes precedence. Existing `config.json` must be manually copied
 - **Breaking:** Consolidated all runtime artifacts under `${TRAIL_HOME}`. `anytimeTrail.database.storagePath` default changed from `.anytime/db` to `.anytime/trail/db` (`${TRAIL_HOME}/db`). memory-core.db, pipeline-status.json, trace output, and hook state (session-guard / git-state) all live under `${TRAIL_HOME}/`. `.anytime-trail/metrics-thresholds.yaml` unified to `.anytime/metrics-thresholds.yaml`
+- Removed `*_DB_PATH` env vars and dead `opts.dbPath` override
+- `DaemonClient` now receives `workspaceRoot` explicitly; status file reads share the writer's path resolution
+
+### Fixed
+
+- `pipeline-status.json` reader aligned with the writer
+- VS Code extensions removed `sql.js` and rely on native sqlite (Phase 4)
+
+### Trail Core (trail-core)
+
+- `TRAIL_HOME` 集約 — 共有 `getTrailHome` で trail 関連ストレージを解決
+- `trail-db` の既定 DB ディレクトリを `<cwd>/.anytime/trail` に変更、`.anytime` を `SNAPSHOT_SKIP_DIRS` に追加
+- `mcp-trail` / `memory-core` / `trail-server` を `TRAIL_HOME` 既定に整列、memory-core のフォールバック先を厳格化
+- `saveCurrentGraph` の OOM 回避のため sql.js を WASM に切替
 
 ## [0.18.0] - 2026-05-08
 

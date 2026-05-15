@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-05-15
+
+### Changed
+
+- Added test coverage for CRLF / CR and separator-less markdown table cases
+
 ## [0.4.2] - 2026-05-08
 
 ### Added

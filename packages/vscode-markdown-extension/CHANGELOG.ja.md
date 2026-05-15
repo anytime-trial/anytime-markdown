@@ -6,9 +6,20 @@
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-05-15
+
 ### 変更
 
 - **Breaking:** `anytimeMarkdown.claudeStatus.directory` の空既定値を `.vscode` から `.anytime` に変更。既存環境では設定上書きまたは手動移動が必要
+- 既定の `.vscode` ストレージパスを `.anytime` 配下に統一
+- Timeline `OutputChannel` 名を `Anytime Markdown` に統一
+
+### Editor Core (markdown-core)
+
+- `markdown-core` を自己完結 i18n に移行 (公開 API 経由でメッセージを export)
+- 非ブラウザバンドルでの `navigator` アクセスと動的 import 解決の不整合を修正
+- `mcp-markdown` の `server.tool()` 呼び出しをラップして MCP SDK の TS2589 深さエラーを抑止
+- `updateSection` と `ssrfGuard` 周辺のテストカバレッジを強化
 
 ## [0.14.1] - 2026-05-06
 

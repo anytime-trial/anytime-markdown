@@ -1,10 +1,10 @@
 import type { Editor } from "@tiptap/react";
-import { useMarkdownT } from "../i18n/context";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useRef } from "react";
 
 import useConfirm from "@/hooks/useConfirm";
 
+import { useMarkdownT } from "../i18n/context";
 import { type EncodingLabel,getMarkdownFromEditor } from "../types";
 import type { FileHandle } from "../types/fileSystem";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
