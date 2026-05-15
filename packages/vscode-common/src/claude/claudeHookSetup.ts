@@ -120,7 +120,7 @@ function writeScript(filename: string, content: string): void {
 }
 
 function buildStatusFilePath(workspaceRoot?: string, statusDir?: string): string {
-  const dir = statusDir ?? '.vscode';
+  const dir = statusDir ?? '.anytime';
   if (path.isAbsolute(dir)) {
     return path.join(dir, 'claude-code-status.json');
   }
@@ -160,7 +160,7 @@ function removeHooksByMarker(entries: HookEntry[], marker: string): HookEntry[] 
 
 /** セッション ID を含むステータスファイルパスのパターンを返す（glob 用） */
 export function getStatusFileGlob(workspaceRoot?: string, statusDir?: string): string {
-  const dir = statusDir ?? '.vscode';
+  const dir = statusDir ?? '.anytime';
   const base = workspaceRoot
     ? (path.isAbsolute(dir) ? dir : path.join(workspaceRoot, dir))
     : (path.isAbsolute(dir) ? dir : path.join(os.homedir(), dir));
