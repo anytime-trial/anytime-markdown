@@ -3,13 +3,12 @@ dist
 node_modules
 prebuilt-vscode
 .agents
-.anytime-trail
+.anytime
 .clone
 .claude
 .next
 .playwright-mcp
 .serena
-.trail
 .vscode
 .worktrees
 .v8-coverage

@@ -2,6 +2,7 @@ export { searchMemory, vectorTopK } from './retrieve/searchMemory';
 export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from './retrieve/searchMemory';
 export { openMemoryCoreDb } from './db/connection';
 export type { MemoryCoreDb, OpenMemoryCoreDbOptions } from './db/connection';
+export { getMemoryCoreDbPath, getTrailHome } from './db/paths';
 export { attachTrailDbReadOnly, attachTrailDbFromHandle } from './db/attach';
 export { BetterSqlite3MemoryDb } from './db/connection/BetterSqlite3MemoryDb';
 export type { BetterSqlite3MemoryDbOptions } from './db/connection/BetterSqlite3MemoryDb';

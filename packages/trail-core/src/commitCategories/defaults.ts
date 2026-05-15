@@ -1,5 +1,5 @@
 /**
- * `.trail/commit-categories.json` が存在しない場合のデフォルトマッピング。
+ * `.anytime/commit-categories.json` が存在しない場合のデフォルトマッピング。
  * キーは extractCommitPrefix が返す lowercase prefix。
  */
 export const DEFAULT_COMMIT_CATEGORY_LABELS: ReadonlyMap<number, string> = new Map<number, string>([

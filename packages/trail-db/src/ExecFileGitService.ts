@@ -13,6 +13,7 @@ import path from 'node:path';
 
 const SNAPSHOT_SKIP_DIRS = new Set([
   '.git',
+  '.anytime',
   '.claude',
   '.vscode',
   '.worktrees',

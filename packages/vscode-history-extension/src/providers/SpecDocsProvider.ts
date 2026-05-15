@@ -103,7 +103,7 @@ export class SpecDocsProvider implements vscode.TreeDataProvider<SpecDocsNode>, 
 	private getStorageFilePath(): string | null {
 		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 		if (!workspaceFolder) return null;
-		return path.join(workspaceFolder.uri.fsPath, '.trail', STORAGE_FILENAME);
+		return path.join(workspaceFolder.uri.fsPath, '.anytime', STORAGE_FILENAME);
 	}
 
 	private loadFromFile(): { roots: string[]; mdOnly: boolean } | null {

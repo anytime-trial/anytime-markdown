@@ -31,19 +31,19 @@ describe('resolveDbPath', () => {
     expect(resolveDbPath({})).toBe(dbFile);
   });
 
-  it('workspacePath/.vscode/trail.db が存在する場合それを返す', () => {
-    const vscodePath = path.join(tmpDir, '.vscode');
-    fs.mkdirSync(vscodePath);
-    const dbFile = path.join(vscodePath, 'trail.db');
+  it('workspacePath/.anytime/trail/db/trail.db が存在する場合それを返す', () => {
+    const dbDir = path.join(tmpDir, '.anytime', 'trail', 'db');
+    fs.mkdirSync(dbDir, { recursive: true });
+    const dbFile = path.join(dbDir, 'trail.db');
     fs.writeFileSync(dbFile, '');
     expect(resolveDbPath({ workspacePath: tmpDir })).toBe(dbFile);
   });
 
   it('opts.dbPath が存在しない場合は次の候補にフォールバックする', () => {
     const nonExistent = path.join(tmpDir, 'nope.db');
-    const vscodePath = path.join(tmpDir, '.vscode');
-    fs.mkdirSync(vscodePath);
-    const dbFile = path.join(vscodePath, 'trail.db');
+    const dbDir = path.join(tmpDir, '.anytime', 'trail', 'db');
+    fs.mkdirSync(dbDir, { recursive: true });
+    const dbFile = path.join(dbDir, 'trail.db');
     fs.writeFileSync(dbFile, '');
     expect(resolveDbPath({ dbPath: nonExistent, workspacePath: tmpDir })).toBe(dbFile);
   });
@@ -57,7 +57,7 @@ describe('resolveDbPath', () => {
     const notExistDbPath = path.join(tmpDir, 'ghost.db');
     const notExistEnvPath = path.join(tmpDir, 'ghost-env.db');
     process.env.TRAIL_DB_PATH = notExistEnvPath;
-    // workspacePath も存在しない → .vscode/trail.db も存在しない
+    // workspacePath も存在しない → .anytime/trail/db/trail.db も存在しない
     const notExistWs = path.join(tmpDir, 'ghost-ws');
     // homedir 候補は通常存在しない前提で、全て不在であれば throw する
     // 万が一 homedir 候補が存在する場合はフォールバックが成功するので

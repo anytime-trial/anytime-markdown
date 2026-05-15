@@ -31,7 +31,7 @@ import {
 	CREATE_EXTENSION_LOGS,
 	CREATE_EXTENSION_LOGS_INDEXES,
 } from '@anytime-markdown/trail-core/domain/schema';
-import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
 import { DatabaseProvider } from './trail/DatabaseProvider';
 import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
@@ -53,7 +53,7 @@ function getEffectiveWorkspacePath(): string | undefined {
 /**
  * commit 監視対象 repo を解決する。
  * - anytimeTrail.workspace.path（主リポジトリ）
- * - <workspaceFolder>/.trail/anytime-history.json の specDocsRoots（history 拡張が管理）
+ * - <workspaceFolder>/.anytime/anytime-history.json の specDocsRoots（history 拡張が管理）
  * の union を、git working tree 検証してから返す。
  */
 function getWatchedGitRoots(): string[] {
@@ -135,7 +135,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(trailOutputChannel);
 
 	// Claude Code hook を ~/.claude/settings.json に自動登録
-	const claudeStatusDirSetting = vscode.workspace.getConfiguration('anytimeTrail.claudeStatus').get<string>('directory', '.vscode/trail/agent-status') || '.vscode/trail/agent-status';
+	const claudeStatusDirSetting = vscode.workspace.getConfiguration('anytimeTrail.claudeStatus').get<string>('directory', '.anytime/trail/agent-status') || '.anytime/trail/agent-status';
 	const trailPortForHooks = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);
 	{
 		const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -458,7 +458,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Trail Database + Data Server (non-blocking initialization)
-	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '') || '.vscode';
+	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '.anytime/trail/db') || '.anytime/trail/db';
 	const wsRootForDb = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
 		? dbStoragePathSetting
@@ -493,7 +493,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const useExternalDaemon = vscode.workspace
 		.getConfiguration('anytimeTrail.daemon')
 		.get<boolean>('useExternalDaemon', false);
-	const daemonClient = new DaemonClient({ logger: TrailLogger.asLogger() });
+	const daemonClient = new DaemonClient({ logger: TrailLogger.asLogger(), workspaceRoot: wsRootForDb });
 	const externalDaemonInfo = useExternalDaemon ? daemonClient.detect() : undefined;
 	if (externalDaemonInfo) {
 		TrailLogger.info(`[DaemonClient] Using external daemon at ${externalDaemonInfo.url} (pid=${externalDaemonInfo.pid})`);
@@ -505,13 +505,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	// --- 外部デーモン検出ここまで ---
 
 	const gitRoot = wsRootForDb;
-	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot);
+	const memoryDbPathForServer = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
+	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot, memoryDbPathForServer);
 	TrailPanel.setDataServer(trailDataServer);
 	setupServerCallbacks(trailDataServer);
 
 	// trail config — daemon と extension で共通の設定ソース。
 	// 旧 anytimeTrail.memory.* (~v0.18) は config.json (memory.*) に統合された。
-	const trailConfigPath = path.join(os.homedir(), '.claude', 'trail', 'config.json');
+	const trailHomeForConfig = wsRootForDb ? getTrailHome(wsRootForDb) : getTrailHome();
+	const trailConfigPath = path.join(trailHomeForConfig, 'config.json');
 	const trailConfig = loadConfig(trailConfigPath, {
 		warn: (msg: string) => TrailLogger.warn(msg),
 	});
@@ -522,7 +524,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// useExternalDaemon=true でも daemon 未検出時は fallback として拡張側で
 	// service を起動する (TrailPanel が local server URL を使うのと同じ paradigm)。
 	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
-	if (hostMemoryCoreLocally && dbStorageDir) {
+	if (hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
 		const intervalSec = trailConfig.memory.ingest.intervalSec;
 		const runOnStart = trailConfig.memory.ingest.runOnStart;
 		const startupDelaySec = trailConfig.memory.ingest.startupDelaySec;
@@ -530,8 +532,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		memoryCoreService = new MemoryCoreService({
 			logSink: memoryCoreOutputChannel,
 			trailDbPath,
+			dbPath: getMemoryCoreDbPath(wsRootForDb),
 			nativeBinding: memoryCoreNativeBinding,
-			gitRoot: wsRootForDb ?? process.cwd(),
+			gitRoot: wsRootForDb,
 			backfillDays: trailConfig.memory.conversation.backfillDays,
 		});
 		trailDataServer.setMemoryCoreService(memoryCoreService);
@@ -550,7 +553,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// activate のクリティカルパスを伸ばさないよう、初期化は全て setImmediate に
 	// 非同期で逃がす。何らかの理由 (native binding 失敗、memory-core.db 破損等) で
 	// 初期化が失敗しても拡張全体の起動が止まらないよう try/catch でガード。
-	const memoryDbPath = path.join(os.homedir(), '.claude', 'memory-core', 'memory-core.db');
+	// wsRootForDb 未取得時 (workspace folder 未オープン) は memory-core DB 初期化をスキップ。
+	// process.cwd() フォールバックは VS Code Server バイナリパス等を返す可能性があり、
+	// EACCES エラーで初期化が失敗するため。
+	const memoryDbPath = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
 	const memoryNativeBinding = memoryCoreNativeBinding;
 	const memoryLogger = {
 		info: (msg: string, ctx?: Record<string, unknown>): void =>
@@ -561,6 +567,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		void (async () => {
 			if (!hostMemoryCoreLocally) {
 				TrailLogger.info('[memory-chat] hosted by external daemon, skipping local ChatBridge/RebuildScheduler');
+				return;
+			}
+			if (!memoryDbPath) {
+				TrailLogger.warn('[memory-chat] no workspace folder open, skipping ChatBridge/RebuildScheduler init');
 				return;
 			}
 			try {
@@ -1146,7 +1156,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// .vscode/trace/ watcher: notify when a new trace file is created
 	if (wsRootForDb) {
-		const traceDir = vscode.Uri.file(path.join(wsRootForDb, '.vscode', 'trace'));
+		const traceDir = vscode.Uri.file(path.join(trailHomeForConfig, 'trace'));
 		const traceWatcher = vscode.workspace.createFileSystemWatcher(
 			new vscode.RelativePattern(traceDir, '*.json'),
 		);
@@ -1225,7 +1235,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	registerMcpRegistrationCommand(context, extensionDistPath);
 
 	// Ollama ステータスパネル
-	const pipelineStatusPath = dbStorageDir ? path.join(dbStorageDir, 'pipeline-status.json') : undefined;
+	// pipeline-status.json は trailHome に置く (DB ではなく runtime state なので)
+	const pipelineStatusPath = wsRootForDb ? path.join(trailHomeForConfig, 'pipeline-status.json') : undefined;
 	const ollamaProvider = new OllamaProvider({ statusFilePath: pipelineStatusPath });
 	vscode.window.createTreeView('anytimeTrail.ollama', {
 		treeDataProvider: ollamaProvider,

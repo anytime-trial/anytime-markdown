@@ -1,12 +1,11 @@
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DaemonLifecycle } from '@anytime-markdown/trail-server';
 import type { DaemonInfo, Logger } from '@anytime-markdown/trail-server';
-
-const TRAIL_HOME = process.env['TRAIL_HOME'] ?? join(homedir(), '.claude', 'trail');
+import { getTrailHome } from '@anytime-markdown/memory-core';
 
 export interface DaemonClientOptions {
   logger: Logger;
+  workspaceRoot?: string;
 }
 
 /**
@@ -19,9 +18,10 @@ export class DaemonClient {
   private cached: DaemonInfo | undefined;
 
   constructor(opts: DaemonClientOptions) {
+    const trailHome = getTrailHome(opts.workspaceRoot);
     this.lifecycle = new DaemonLifecycle({
-      jsonPath: join(TRAIL_HOME, 'daemon.json'),
-      lockPath: join(TRAIL_HOME, 'daemon.lock'),
+      jsonPath: join(trailHome, 'daemon.json'),
+      lockPath: join(trailHome, 'daemon.lock'),
     });
     this.logger = opts.logger;
   }

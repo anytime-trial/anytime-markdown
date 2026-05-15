@@ -67,7 +67,7 @@ export interface MemoryCoreServiceOptions {
   logSink: MemoryCoreLogSink;
   /** trail.db 絶対パス */
   trailDbPath: string;
-  /** memory-core.db 絶対パス (省略時はデフォルト: ~/.claude/memory-core/memory-core.db) */
+  /** memory-core.db 絶対パス (省略時はデフォルト: <workspaceRoot>/.anytime/db/memory-core.db) */
   dbPath?: string;
   /** better-sqlite3 native binding 絶対パス (拡張に必要) */
   nativeBinding?: string;
@@ -75,7 +75,7 @@ export interface MemoryCoreServiceOptions {
   gitRoot?: string;
   /**
    * 状態ファイル絶対パス (省略時はデフォルト:
-   * $TRAIL_HOME/memory-core-runner.json or ~/.claude/trail/memory-core-runner.json)
+   * $TRAIL_HOME/memory-core-runner.json or <gitRoot>/.anytime/trail/memory-core-runner.json)
    */
   statePath?: string;
   /**

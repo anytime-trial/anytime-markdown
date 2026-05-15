@@ -116,7 +116,7 @@ export async function runAnalyzeCurrentCodePipeline(
   try {
     const seeded = seedAnalyzeExclude(analysisRoot);
     if (seeded) {
-      logger.info(`C4 analysis [${repoName}]: .trail/analyze-exclude created`);
+      logger.info(`C4 analysis [${repoName}]: .anytime/analyze-exclude created`);
     }
   } catch (err) {
     warnings.push(`seedAnalyzeExclude failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -203,13 +203,13 @@ export async function runAnalyzeCurrentCodePipeline(
     warnings.push(msg);
   }
 
-  // .trail/dead-code-ignore をシードする（初回のみ作成）
+  // .anytime/dead-code-ignore をシードする（初回のみ作成）
   try {
     onProgress?.('Seeding dead-code-ignore...');
     const { seedDeadCodeIgnore } = await import('@anytime-markdown/trail-core/deadCode');
     const seeded = seedDeadCodeIgnore(analysisRoot);
     if (seeded) {
-      logger.info(`C4 analysis [${repoName}]: .trail/dead-code-ignore created`);
+      logger.info(`C4 analysis [${repoName}]: .anytime/dead-code-ignore created`);
     }
   } catch (err) {
     warnings.push(`seedDeadCodeIgnore failed: ${err instanceof Error ? err.message : String(err)}`);

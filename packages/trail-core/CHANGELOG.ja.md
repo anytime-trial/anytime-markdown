@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 変更
+
+- **Breaking:** ワークスペース設定フォルダを `.trail/` から `.anytime/` にリネーム。対象ファイルは `analyze-exclude` / `dead-code-ignore` / `commit-categories.json` / `tool-categories.json` / `skill-categories.json`。既存ワークスペースは手動で `.trail/` → `.anytime/` にリネームが必要
+
 ## [0.18.0] - 2026-05-08
 
 ### 追加

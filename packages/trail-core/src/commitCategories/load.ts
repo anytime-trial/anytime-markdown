@@ -4,12 +4,12 @@ import type { CommitCategoriesFile } from './types';
 import { DEFAULT_COMMIT_CATEGORIES, DEFAULT_COMMIT_CATEGORY_LABELS } from './defaults';
 
 /**
- * `<workspaceRoot>/.trail/commit-categories.json` を読み込み、
+ * `<workspaceRoot>/.anytime/commit-categories.json` を読み込み、
  * コミット種別 → カテゴリ番号 (0/1/2) の Map を返す。
  * ファイル不在・不正 JSON・entries 欠落時はデフォルトを返す。
  */
 export function loadCommitCategories(workspaceRoot: string): ReadonlyMap<string, number> {
-  const file = path.join(workspaceRoot, '.trail', 'commit-categories.json');
+  const file = path.join(workspaceRoot, '.anytime', 'commit-categories.json');
   let raw: string;
   try {
     raw = fs.readFileSync(file, 'utf-8');
@@ -40,7 +40,7 @@ export function loadCommitCategories(workspaceRoot: string): ReadonlyMap<string,
 }
 
 export function loadCommitCategoryLabels(workspaceRoot: string): ReadonlyMap<number, string> {
-  const file = path.join(workspaceRoot, '.trail', 'commit-categories.json');
+  const file = path.join(workspaceRoot, '.anytime', 'commit-categories.json');
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as CommitCategoriesFile;

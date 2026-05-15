@@ -123,17 +123,17 @@ export interface TrailViewerCoreProps {
   readonly wsConnected?: boolean;
   /** TrailDataServer のベース URL（Memory パネルの /api/memory/* に使用）。 */
   readonly serverUrl?: string;
-  /** `.trail/commit-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
+  /** `.anytime/commit-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
   readonly commitCategories?: ReadonlyMap<string, number>;
-  /** `.trail/commit-categories.json` の categories フィールドから読み込んだラベルマップ。 */
+  /** `.anytime/commit-categories.json` の categories フィールドから読み込んだラベルマップ。 */
   readonly commitCategoryLabels?: ReadonlyMap<number, string>;
-  /** `.trail/tool-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
+  /** `.anytime/tool-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
   readonly toolCategories?: ReadonlyMap<string, number>;
-  /** `.trail/tool-categories.json` の categories フィールドから読み込んだラベルマップ。 */
+  /** `.anytime/tool-categories.json` の categories フィールドから読み込んだラベルマップ。 */
   readonly toolCategoryLabels?: ReadonlyMap<number, string>;
-  /** `.trail/skill-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
+  /** `.anytime/skill-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
   readonly skillCategories?: ReadonlyMap<string, number>;
-  /** `.trail/skill-categories.json` の categories フィールドから読み込んだラベルマップ。 */
+  /** `.anytime/skill-categories.json` の categories フィールドから読み込んだラベルマップ。 */
   readonly skillCategoryLabels?: ReadonlyMap<number, string>;
 }
 

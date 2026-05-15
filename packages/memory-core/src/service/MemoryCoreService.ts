@@ -1,6 +1,6 @@
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { getTrailHome } from '../db/paths';
 import { readState, writeState, defaultState } from './state';
 import type {
   MemoryCoreLogSink,
@@ -34,7 +34,7 @@ export class MemoryCoreService {
 
   constructor(opts: MemoryCoreServiceOptions) {
     this.opts = opts;
-    this.statePath = opts.statePath ?? defaultStatePath();
+    this.statePath = opts.statePath ?? defaultStatePath(opts.gitRoot);
     this.status = readState(this.statePath, {
       onWarning: (msg) => this.log(`[WARN] state file: ${msg}`),
     });
@@ -240,9 +240,8 @@ async function defaultPipelineRunner(ctx: PipelineRunnerContext): Promise<void> 
   await runMemoryCorePipeline(ctx);
 }
 
-export function defaultStatePath(): string {
-  const trailHome = process.env.TRAIL_HOME ?? join(homedir(), '.claude', 'trail');
-  return join(trailHome, 'memory-core-runner.json');
+export function defaultStatePath(workspaceRoot?: string): string {
+  return join(getTrailHome(workspaceRoot), 'memory-core-runner.json');
 }
 
 // re-export so callers don't have to dig into state.ts

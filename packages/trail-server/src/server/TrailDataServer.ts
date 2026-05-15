@@ -274,6 +274,7 @@ export class TrailDataServer {
     private readonly trailDb: TrailDatabase,
     private logger: Logger,
     private readonly gitRoot?: string,
+    memoryDbPath?: string,
   ) {
     // webpack-bundled VS Code 拡張では bindings package が call stack から
     // `.node` を推測できず crash するため、distPath から絶対パスを組み立てて
@@ -288,7 +289,7 @@ export class TrailDataServer {
     );
     this.memoryApi = new MemoryApiHandler(
       this.logger.child('MemoryApiHandler'),
-      undefined,
+      memoryDbPath,
       nativeBinding,
     );
     this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));
@@ -1355,10 +1356,13 @@ export class TrailDataServer {
     }
   }
 
+  private resolveTraceDir(): string {
+    const trailHome = process.env['TRAIL_HOME'] ?? path.join(this.gitRoot ?? process.cwd(), '.anytime', 'trail');
+    return path.join(trailHome, 'trace');
+  }
+
   private handleTraceList(res: http.ServerResponse): void {
-    const traceDir = this.gitRoot
-      ? path.join(this.gitRoot, '.vscode', 'trace')
-      : path.join(process.cwd(), '.vscode', 'trace');
+    const traceDir = this.resolveTraceDir();
     try {
       const files = fs.readdirSync(traceDir)
         .filter(f => f.endsWith('.json'))
@@ -1392,9 +1396,7 @@ export class TrailDataServer {
       this.sendError(res, 400, 'Invalid file name');
       return;
     }
-    const traceDir = this.gitRoot
-      ? path.join(this.gitRoot, '.vscode', 'trace')
-      : path.join(process.cwd(), '.vscode', 'trace');
+    const traceDir = this.resolveTraceDir();
     const filePath = path.join(traceDir, name);
     try {
       const content = fs.readFileSync(filePath, 'utf-8');

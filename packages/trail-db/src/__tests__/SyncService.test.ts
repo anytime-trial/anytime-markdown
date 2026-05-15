@@ -148,25 +148,30 @@ describe('SyncService.sync commits', () => {
   it('syncs session commits even when message sync fails for that session', async () => {
     const localDb = await createDb();
     const inner = (localDb as unknown as { ensureDb(): { run(sql: string, params?: unknown[]): void } }).ensureDb();
+    // messageCutoff = Date.now() - 7 日 のためメッセージは「直近 7 日以内」である必要がある。
+    // テスト実行時刻に依存しないよう Date.now() からの相対時刻を採用。
+    const now = new Date();
+    const recentIso = new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(); // 1 時間前
+    const sessionStartIso = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(); // 2 時間前
     inner.run(
       `INSERT OR IGNORE INTO sessions (
         id, slug, repo_name, version, entrypoint, model, start_time, end_time,
         message_count, file_path, file_size, imported_at
       ) VALUES (?, ?, ?, '0', '', '', ?, ?, 0, '', 0, ?)`,
-      ['s1', 's1', 'repo-a', '2026-05-01T00:00:00.000Z', '2026-05-01T00:10:00.000Z', '2026-05-01T00:00:00.000Z'],
+      ['s1', 's1', 'repo-a', sessionStartIso, recentIso, recentIso],
     );
     inner.run(
       `INSERT OR IGNORE INTO session_commits (
         session_id, repo_name, commit_hash, commit_message, author, committed_at,
         is_ai_assisted, files_changed, lines_added, lines_deleted
       ) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 12, 3)`,
-      ['s1', 'repo-a', 'abc123', 'fix: keep commits synced', 'Tester', '2026-05-01T00:05:00.000Z'],
+      ['s1', 'repo-a', 'abc123', 'fix: keep commits synced', 'Tester', recentIso],
     );
     inner.run(
       `INSERT OR IGNORE INTO messages (
         uuid, session_id, type, timestamp, text_content
       ) VALUES (?, ?, 'assistant', ?, ?)`,
-      ['m1', 's1', '2026-05-01T00:01:00.000Z', 'large message'],
+      ['m1', 's1', recentIso, 'large message'],
     );
     const remoteStore = new FakeRemoteStore();
     remoteStore.messageFailure = new Error('message row too large');

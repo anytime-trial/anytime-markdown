@@ -3,7 +3,7 @@ import path from 'node:path';
 import { DEFAULT_ANALYZE_EXCLUDE_CONTENT } from './defaultContent';
 
 export function seedAnalyzeExclude(workspaceRoot: string): boolean {
-  const dir = path.join(workspaceRoot, '.trail');
+  const dir = path.join(workspaceRoot, '.anytime');
   const file = path.join(dir, 'analyze-exclude');
   fs.mkdirSync(dir, { recursive: true });
   try {

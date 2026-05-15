@@ -4,12 +4,14 @@ import * as path from 'path';
 
 export function resolveDbPath(opts: { dbPath?: string; workspacePath?: string }): string {
   const workspace = opts.workspacePath ?? process.cwd();
+  const trailHome = process.env.TRAIL_HOME ?? path.join(workspace, '.anytime', 'trail');
 
   const candidates: string[] = [
     opts.dbPath ?? '',
     process.env.TRAIL_DB_PATH ?? '',
-    path.join(workspace, '.vscode', 'trail.db'),
-    path.join(os.homedir(), '.claude', 'trail', 'trail.db'),
+    // 新既定（anytimeTrail.database.storagePath = .anytime/trail/db = TRAIL_HOME/db）
+    path.join(trailHome, 'db', 'trail.db'),
+    // VS Code Marketplace 版拡張の globalStorage に置かれる DB（外部システム経路）
     path.join(
       os.homedir(),
       '.vscode-server',
