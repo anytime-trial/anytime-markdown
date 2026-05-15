@@ -18,6 +18,9 @@ export const GitLogger = {
     const detail = err instanceof Error ? `: ${err.message}` : '';
     getChannel().appendLine(`[ERROR] ${msg}${detail}`);
   },
+  debugSql(_meta: unknown): void {
+    // SQL デバッグログは Anytime Git チャンネルでは出力しない（ノイズ抑制）
+  },
   dispose(): void {
     channel?.dispose();
     channel = undefined;
