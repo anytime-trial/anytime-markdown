@@ -1,199 +1,101 @@
-import {
-  openMemoryCoreDb,
-  attachTrailDbReadOnly,
-  createOllamaClient,
-  runConversationIncremental,
-  runConversationBackfill,
-  runCodeIncremental,
-} from '@anytime-markdown/memory-core';
-import * as fsMod from 'fs';
-import { createMemoryCoreRunner } from '@anytime-markdown/trail-server';
+// trail-server の index.ts 経由で typescript compiler API が eager load されると
+// jest 環境で初期化エラーになるため、runtime/memoryCoreRunner を直接 import する。
+import { createMemoryCoreRunner } from '../../../../trail-server/src/runtime/memoryCoreRunner';
+
+// MemoryCoreService コンストラクタの呼び出しを観測するための spy。
+const runOnceMock = jest.fn();
+const constructorSpy = jest.fn();
 
 jest.mock('@anytime-markdown/memory-core', () => {
-  const ok = {
-    status: 'success',
-    items_processed: 0,
-    items_skipped: 0,
-    items_failed: 0,
-    entities_inserted: 0,
-    entities_updated: 0,
-    edges_inserted: 0,
-    edges_invalidated: 0,
-    events_inserted: 0,
-    events_updated: 0,
-    events_resolved: 0,
-    duration_ms: 0,
-  };
   return {
-    openMemoryCoreDb: jest.fn(),
-    attachTrailDbReadOnly: jest.fn(),
-    createOllamaClient: jest.fn(),
-    runConversationIncremental: jest.fn(),
-    runConversationBackfill: jest.fn(),
-    runConversationFailedItemsRetry: jest.fn().mockResolvedValue(ok),
-    runCodeIncremental: jest.fn().mockResolvedValue({ ...ok, current_entity_ids: new Set() }),
-    runBugHistoryIncremental: jest.fn().mockResolvedValue(ok),
-    runReviewIncremental: jest.fn().mockResolvedValue(ok),
-    runSpecIncremental: jest.fn().mockResolvedValue(ok),
-    runAgentRunWatchdog: jest.fn().mockResolvedValue(ok),
-    runPipelineWatchdog: jest.fn().mockResolvedValue(ok),
-    runDriftDetection: jest.fn().mockResolvedValue(ok),
-    runEmbeddingBackfill: jest.fn().mockResolvedValue(ok),
-    runCodeReconciliation: jest.fn().mockReturnValue({ status: 'success', scanned: 0, soft_deleted: 0, duration_ms: 0 }),
-    PipelineStatusWriter: jest.fn().mockImplementation(() => ({
-      initialize: jest.fn(),
-      start: jest.fn(),
-      update: jest.fn(),
-      finish: jest.fn(),
-    })),
+    MemoryCoreService: jest.fn().mockImplementation((opts: unknown) => {
+      constructorSpy(opts);
+      return {
+        runOnce: runOnceMock,
+      };
+    }),
   };
 });
 
-jest.mock('fs', () => ({
-  existsSync: jest.fn().mockReturnValue(true),
-}));
-
 const TRAIL_DB_PATH = '/fake/trail.db';
 
-function makeStmt(stepResult: boolean, rowData: Record<string, unknown> = {}) {
-  return {
-    bind: jest.fn(),
-    step: jest.fn().mockReturnValue(stepResult),
-    getAsObject: jest.fn().mockReturnValue(rowData),
-    free: jest.fn(),
-  };
-}
-
-function makeMemDb(stmt: ReturnType<typeof makeStmt>) {
-  const mockDb = {
-    prepare: jest.fn().mockReturnValue(stmt),
-    run: jest.fn(),
-  };
-  return {
-    db: mockDb,
-    save: jest.fn(),
-    close: jest.fn(),
-  };
-}
-
 function makeChannel() {
-  return { appendLine: jest.fn() };
+  return { append: jest.fn(), appendLine: jest.fn() };
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (fsMod.existsSync as jest.Mock).mockReturnValue(true);
-  (createOllamaClient as jest.Mock).mockReturnValue({});
-  (attachTrailDbReadOnly as jest.Mock).mockResolvedValue({
-    trailHandle: { close: jest.fn() },
-  });
-  (runConversationIncremental as jest.Mock).mockResolvedValue({
-    status: 'success',
-    items_processed: 0,
-    entities_inserted: 0,
-    entities_updated: 0,
-    edges_inserted: 0,
-    edges_invalidated: 0,
-    items_failed: 0,
-  });
-  (runConversationBackfill as jest.Mock).mockResolvedValue({
-    status: 'success',
-    items_processed: 0,
-    entities_inserted: 0,
-    entities_updated: 0,
-    edges_inserted: 0,
-    edges_invalidated: 0,
-    items_failed: 0,
-  });
+  runOnceMock.mockResolvedValue({ status: 'success' });
 });
 
 describe('createMemoryCoreRunner.runAfterImport', () => {
-  test('T1: first run (no pipeline_state row) calls runConversationBackfill', async () => {
-    const stmt = makeStmt(false); // step() returns false → no row
-    const memDb = makeMemDb(stmt);
-    (openMemoryCoreDb as jest.Mock).mockResolvedValue(memDb);
-
+  test('runAfterImport delegates to MemoryCoreService.runOnce("import")', async () => {
     const channel = makeChannel();
     const runner = createMemoryCoreRunner({
-      outputChannel: channel as any,
+      outputChannel: channel,
       trailDbPath: TRAIL_DB_PATH,
     });
 
     await runner.runAfterImport();
 
-    expect(openMemoryCoreDb).toHaveBeenCalledTimes(1);
-    expect(attachTrailDbReadOnly).toHaveBeenCalledWith(
-      memDb.db,
-      TRAIL_DB_PATH,
+    // MemoryCoreService が 1 度だけ生成される (lazy 構築)
+    expect(constructorSpy).toHaveBeenCalledTimes(1);
+    expect(constructorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        logSink: channel,
+        trailDbPath: TRAIL_DB_PATH,
+      }),
     );
-    expect(runConversationBackfill).toHaveBeenCalledTimes(1);
-    expect(runConversationIncremental).not.toHaveBeenCalled();
-    expect(runCodeIncremental).toHaveBeenCalledTimes(1);
-    // pipeline 完了ごとに save (8 pipelines) + outer finally で 1 回 = 9 回
-    // pipeline 完了ごとに save (9 pipelines: code_reconciliation 含む) + outer finally で 1 回 = 10 回
-    expect(memDb.save).toHaveBeenCalledTimes(10);
-    expect(memDb.close).toHaveBeenCalledTimes(1);
+
+    // runOnce が 'import' 契機で 1 度呼ばれる
+    expect(runOnceMock).toHaveBeenCalledTimes(1);
+    expect(runOnceMock).toHaveBeenCalledWith('import');
   });
 
-  test('T2: second run (pipeline_state has last_processed_at) calls runConversationIncremental', async () => {
-    const stmt = makeStmt(true, {
-      last_processed_at: '2026-05-01T00:00:00.000Z',
-    });
-    const memDb = makeMemDb(stmt);
-    (openMemoryCoreDb as jest.Mock).mockResolvedValue(memDb);
-
+  test('subsequent runAfterImport reuses the same MemoryCoreService instance', async () => {
     const channel = makeChannel();
     const runner = createMemoryCoreRunner({
-      outputChannel: channel as any,
+      outputChannel: channel,
       trailDbPath: TRAIL_DB_PATH,
     });
 
     await runner.runAfterImport();
+    await runner.runAfterImport();
 
-    expect(runConversationIncremental).toHaveBeenCalledTimes(1);
-    expect(runConversationBackfill).not.toHaveBeenCalled();
-    expect(runCodeIncremental).toHaveBeenCalledTimes(1);
-    // pipeline 完了ごとに save (8 pipelines) + outer finally で 1 回 = 9 回
-    // pipeline 完了ごとに save (9 pipelines: code_reconciliation 含む) + outer finally で 1 回 = 10 回
-    expect(memDb.save).toHaveBeenCalledTimes(10);
-    expect(memDb.close).toHaveBeenCalledTimes(1);
+    // コンストラクタは 1 度しか呼ばれない (instance を使い回す)
+    expect(constructorSpy).toHaveBeenCalledTimes(1);
+    // runOnce は呼び出しの度に走る
+    expect(runOnceMock).toHaveBeenCalledTimes(2);
   });
 
-  test('T3: error thrown inside is caught, appendLine called with ERROR, does not throw', async () => {
-    const error = new Error('DB explosion');
-    (openMemoryCoreDb as jest.Mock).mockRejectedValue(error);
-
+  test('passes nativeBinding and gitRoot through to MemoryCoreService', async () => {
     const channel = makeChannel();
     const runner = createMemoryCoreRunner({
-      outputChannel: channel as any,
+      outputChannel: channel,
       trailDbPath: TRAIL_DB_PATH,
-    });
-
-    // Must not throw
-    await expect(runner.runAfterImport()).resolves.toBeUndefined();
-
-    expect(channel.appendLine).toHaveBeenCalledWith(
-      expect.stringContaining('[ERROR] [anytime-memory]'),
-    );
-    expect(channel.appendLine).toHaveBeenCalledWith(
-      expect.stringContaining('DB explosion'),
-    );
-  });
-
-  test('T4: trail DB does not exist → logs error, does not call openMemoryCoreDb', async () => {
-    (fsMod.existsSync as jest.Mock).mockReturnValue(false);
-
-    const channel = makeChannel();
-    const runner = createMemoryCoreRunner({
-      outputChannel: channel as any,
-      trailDbPath: TRAIL_DB_PATH,
+      nativeBinding: '/abs/path/better_sqlite3.node',
+      gitRoot: '/repo/root',
     });
 
     await runner.runAfterImport();
 
-    expect(openMemoryCoreDb).not.toHaveBeenCalled();
-    expect(channel.appendLine).toHaveBeenCalledWith(
-      expect.stringContaining('[ERROR] [anytime-memory] Trail DB not found'),
+    expect(constructorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nativeBinding: '/abs/path/better_sqlite3.node',
+        gitRoot: '/repo/root',
+      }),
     );
+  });
+
+  test('errors thrown by runOnce propagate to the caller', async () => {
+    runOnceMock.mockRejectedValueOnce(new Error('runOnce failed'));
+
+    const channel = makeChannel();
+    const runner = createMemoryCoreRunner({
+      outputChannel: channel,
+      trailDbPath: TRAIL_DB_PATH,
+    });
+
+    await expect(runner.runAfterImport()).rejects.toThrow('runOnce failed');
   });
 });
