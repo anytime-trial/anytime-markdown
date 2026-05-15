@@ -22,7 +22,20 @@ export class SqlJsCompatStatement {
   constructor(
     private readonly inner: Statement,
     private readonly onChanges: (n: number) => void,
-  ) {}
+  ) {
+    // sql.js は prepare 直後 (bind なし) に step() を呼ぶと no-param クエリの
+    // 結果が返る挙動。better-sqlite3 では bind 相当が all() なので、SELECT
+    // のときは即座にパラメータなしで eager fetch しておく。bind(params) が
+    // 後から呼ばれた場合はその時点で上書き fetch される。
+    if (this.inner.reader) {
+      try {
+        this.rows = this.inner.all() as Record<string, unknown>[];
+      } catch {
+        // パラメータ必須のクエリは bind() で再 fetch されるためここでは空に。
+        this.rows = [];
+      }
+    }
+  }
 
   /**
    * パラメータをバインドして即座にクエリを実行し、全行をメモリ上にロードする。

@@ -417,30 +417,89 @@ describe('TrailDatabase.getDayToolMetrics', () => {
     const db = await createTestTrailDatabase();
     const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
 
-    const insert = (date: string, kind: string, key: string, count: number, tokens: number, durationMs: number) => {
-      inMemoryDb.run(
-        `INSERT INTO daily_counts (date, kind, key, count, tokens, duration_ms) VALUES (?, ?, ?, ?, ?, ?)`,
-        [date, kind, key, count, tokens, durationMs],
-      );
-    };
-    // Target date rows
-    insert('2026-04-25', 'tool', 'Bash', 10, 1000, 5000);
-    insert('2026-04-25', 'tool', 'Read', 3, 200, 100);
-    insert('2026-04-25', 'skill', 'design-md', 2, 0, 0);
-    insert('2026-04-25', 'error', 'Bash', 4, 0, 0);
-    insert('2026-04-25', 'model', 'claude-opus-4-7', 5, 50000, 0);
-    // Other-date row should be ignored
-    insert('2026-04-24', 'tool', 'Bash', 99, 9999, 9999);
+    // 仕様変更: 旧版は daily_counts (timestamp 基準) から集計していたが、
+    // 現実装は sessions.start_time (+540 分 = JST) で範囲を取り、
+    // message_tool_calls + messages から集計する。
+    // target date 2026-04-25 (JST) ⇔ UTC 2026-04-24T15:00:00Z .. 2026-04-25T14:59:59Z
+    // すべての session start_time を UTC 05:00 (JST 14:00) に揃える。
+    const SESSION_UTC = '2026-04-25T05:00:00Z';
+    const OTHER_UTC = '2026-04-24T05:00:00Z'; // JST 2026-04-24
+
+    // セッション作成
+    inMemoryDb.run(
+      `INSERT INTO sessions (id, start_time, source) VALUES
+         ('s-target', ?, 'claude_code'),
+         ('s-other',  ?, 'claude_code')`,
+      [SESSION_UTC, OTHER_UTC],
+    );
+
+    // assistant メッセージ（model + tokens を持つ）
+    inMemoryDb.run(
+      `INSERT INTO messages (uuid, session_id, type, model, timestamp, input_tokens, output_tokens)
+       VALUES
+         ('m-target-1', 's-target', 'assistant', 'claude-opus-4-7', ?, 30000, 20000),
+         ('m-target-2', 's-target', 'assistant', 'claude-opus-4-7', ?, 0, 0),
+         ('m-target-3', 's-target', 'assistant', 'claude-opus-4-7', ?, 0, 0),
+         ('m-target-4', 's-target', 'assistant', 'claude-opus-4-7', ?, 0, 0),
+         ('m-target-5', 's-target', 'assistant', 'claude-opus-4-7', ?, 0, 0),
+         ('m-other',    's-other',  'assistant', 'claude-opus-4-7', ?, 99999, 0)`,
+      [SESSION_UTC, SESSION_UTC, SESSION_UTC, SESSION_UTC, SESSION_UTC, OTHER_UTC],
+    );
+
+    // tool_calls: target 日に Bash×10, Read×3, さらに Bash の error×4。
+    // skill は今回のスコープでは aggregateByDayInternal が skill_name IS NOT NULL を要求するため
+    // 1 メッセージにつき 1 skill を紐付け。
+    const bulkCall: string[] = [];
+    const bulkParams: (string | number | null)[] = [];
+    for (let i = 0; i < 10; i++) {
+      bulkCall.push("(?, ?, 0, ?, 'Bash', ?, 0)");
+      bulkParams.push('s-target', 'm-target-1', i, SESSION_UTC);
+    }
+    for (let i = 0; i < 3; i++) {
+      bulkCall.push("(?, ?, 0, ?, 'Read', ?, 0)");
+      bulkParams.push('s-target', 'm-target-2', 10 + i, SESSION_UTC);
+    }
+    for (let i = 0; i < 4; i++) {
+      bulkCall.push("(?, ?, 0, ?, 'Bash', ?, 1)");
+      bulkParams.push('s-target', 'm-target-3', 20 + i, SESSION_UTC);
+    }
+    // 他日のレコード — 除外されるべき
+    bulkCall.push("(?, ?, 0, 0, 'Bash', ?, 0)");
+    bulkParams.push('s-other', 'm-other', OTHER_UTC);
+
+    inMemoryDb.run(
+      `INSERT INTO message_tool_calls
+         (session_id, message_uuid, turn_index, call_index, tool_name, timestamp, is_error)
+       VALUES ${bulkCall.join(',')}`,
+      bulkParams,
+    );
+
+    // skill: design-md に紐付く tool_call を 2 件
+    inMemoryDb.run(
+      `INSERT INTO message_tool_calls
+         (session_id, message_uuid, turn_index, call_index, tool_name, skill_name, timestamp)
+       VALUES
+         ('s-target', 'm-target-4', 0, 100, 'Skill', 'design-md', ?),
+         ('s-target', 'm-target-5', 0, 101, 'Skill', 'design-md', ?)`,
+      [SESSION_UTC, SESSION_UTC],
+    );
 
     const result = db.getDayToolMetrics('2026-04-25');
     expect(result).not.toBeNull();
-    expect(result!.toolUsage).toEqual([
-      { tool: 'Bash', count: 10, tokens: 1000, durationMs: 5000 },
-      { tool: 'Read', count: 3, tokens: 200, durationMs: 100 },
-    ]);
-    expect(result!.skillUsage).toEqual([{ skill: 'design-md', count: 2, tokens: 0, durationMs: 0 }]);
+    // tool 集計: Bash(error 含む 14), Read(3), Skill(2) のうち、count=DESC ソート
+    const toolMap = new Map(result!.toolUsage.map((t) => [t.tool, t.count]));
+    expect(toolMap.get('Bash')).toBe(14); // 10 + 4 errors も Bash として count される
+    expect(toolMap.get('Read')).toBe(3);
+
+    expect(result!.skillUsage[0].skill).toBe('design-md');
+    expect(result!.skillUsage[0].count).toBe(2);
+
     expect(result!.errorsByTool).toEqual([{ tool: 'Bash', count: 4 }]);
-    expect(result!.modelUsage).toEqual([{ model: 'claude-opus-4-7', count: 5, tokens: 50000, durationMs: 0 }]);
+
+    // model 名は resolvePricingModelName で正規化される（claude-opus-4-7 → 'opus'）。
+    expect(result!.modelUsage[0].model).toMatch(/opus/i);
+    expect(result!.modelUsage[0].count).toBe(5);
+    expect(result!.modelUsage[0].tokens).toBe(50000);
     db.close();
   });
 

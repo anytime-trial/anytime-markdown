@@ -8,13 +8,18 @@ type SqlJsDb = {
 
 const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb }).db;
 
+// 仕様: getCombinedData は sessions.start_time が空文字だと
+// DATE(s.start_time, tz) が NULL になり cutoff 比較で除外される。
+// テスト fixture も valid な ISO 8601 timestamp を使う必要がある。
+const SESSION_START = '2026-05-01T09:00:00.000Z';
+
 const insertSession = (db: TrailDatabase, sessionId: string, source: string): void => {
   inner(db).run(
     `INSERT OR IGNORE INTO sessions (
        id, slug, repo_name, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source
-     ) VALUES (?, ?, 'r', '0', '', '', '', '', 0, '', 0, '', ?)`,
-    [sessionId, sessionId, source],
+     ) VALUES (?, ?, 'r', '0', '', '', ?, ?, 0, '', 0, ?, ?)`,
+    [sessionId, sessionId, SESSION_START, SESSION_START, SESSION_START, source],
   );
 };
 
@@ -246,7 +251,7 @@ describe('TrailDatabase integration scenario - mixed Claude + Codex', () => {
     for (let s = 0; s < CC_SESSIONS; s++) {
       const sid = `s7-cc-${s}`;
       db2inner.run(
-        `INSERT OR IGNORE INTO sessions (id, slug, repo_name, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES (?, ?, 'r', '0', '', '', '', '', 0, '', 0, '', 'claude_code')`,
+        `INSERT OR IGNORE INTO sessions (id, slug, repo_name, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES (?, ?, 'r', '0', '', '', '2026-05-01T09:00:00.000Z', '2026-05-01T09:00:00.000Z', 0, '', 0, '2026-05-01T09:00:00.000Z', 'claude_code')`,
         [sid, sid],
       );
       for (let t = 0; t < CC_TURNS_PER; t++) {
@@ -261,7 +266,7 @@ describe('TrailDatabase integration scenario - mixed Claude + Codex', () => {
     for (let s = 0; s < CX_SESSIONS; s++) {
       const sid = `s7-cx-${s}`;
       db2inner.run(
-        `INSERT OR IGNORE INTO sessions (id, slug, repo_name, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES (?, ?, 'r', '0', '', '', '', '', 0, '', 0, '', 'codex')`,
+        `INSERT OR IGNORE INTO sessions (id, slug, repo_name, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES (?, ?, 'r', '0', '', '', '2026-05-01T09:00:00.000Z', '2026-05-01T09:00:00.000Z', 0, '', 0, '2026-05-01T09:00:00.000Z', 'codex')`,
         [sid, sid],
       );
       for (let t = 0; t < CX_OBSERVED; t++) {
