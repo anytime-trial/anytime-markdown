@@ -16,16 +16,16 @@ describe('seedDeadCodeIgnore', () => {
   it('ファイル不在ならデフォルト内容を書き出し true を返す', () => {
     const created = seedDeadCodeIgnore(tmpDir);
     expect(created).toBe(true);
-    const content = fs.readFileSync(path.join(tmpDir, '.trail/dead-code-ignore'), 'utf-8');
+    const content = fs.readFileSync(path.join(tmpDir, '.anytime/dead-code-ignore'), 'utf-8');
     expect(content).toBe(DEFAULT_IGNORE_FILE_CONTENT);
   });
 
   it('ファイル存在時は何もせず false を返す', () => {
-    fs.mkdirSync(path.join(tmpDir, '.trail'), { recursive: true });
-    fs.writeFileSync(path.join(tmpDir, '.trail/dead-code-ignore'), 'custom');
+    fs.mkdirSync(path.join(tmpDir, '.anytime'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.anytime/dead-code-ignore'), 'custom');
     const created = seedDeadCodeIgnore(tmpDir);
     expect(created).toBe(false);
-    const content = fs.readFileSync(path.join(tmpDir, '.trail/dead-code-ignore'), 'utf-8');
+    const content = fs.readFileSync(path.join(tmpDir, '.anytime/dead-code-ignore'), 'utf-8');
     expect(content).toBe('custom');
   });
 });

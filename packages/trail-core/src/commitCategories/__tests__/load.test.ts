@@ -9,9 +9,9 @@ function makeTempDir(): string {
 }
 
 function writeJson(dir: string, obj: unknown): void {
-  fs.mkdirSync(path.join(dir, '.trail'), { recursive: true });
+  fs.mkdirSync(path.join(dir, '.anytime'), { recursive: true });
   fs.writeFileSync(
-    path.join(dir, '.trail', 'commit-categories.json'),
+    path.join(dir, '.anytime', 'commit-categories.json'),
     JSON.stringify(obj),
     'utf-8',
   );
@@ -82,18 +82,18 @@ describe('loadCommitCategories', () => {
 
   it('不正な JSON の場合はデフォルトを返す', () => {
     const dir = makeTempDir();
-    fs.mkdirSync(path.join(dir, '.trail'), { recursive: true });
-    fs.writeFileSync(path.join(dir, '.trail', 'commit-categories.json'), 'INVALID{', 'utf-8');
+    fs.mkdirSync(path.join(dir, '.anytime'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.anytime', 'commit-categories.json'), 'INVALID{', 'utf-8');
     const result = loadCommitCategories(dir);
     expect(result).toBe(DEFAULT_COMMIT_CATEGORIES);
   });
 
   it('ENOENT 以外の I/O エラーは throw する', () => {
     // 存在するが読めないディレクトリ（パーミッション 000）の代用として、
-    // workspace 自体ではなく workspace/.trail/commit-categories.json をディレクトリにして
+    // workspace 自体ではなく workspace/.anytime/commit-categories.json をディレクトリにして
     // EISDIR を発生させる。
     const dir = makeTempDir();
-    fs.mkdirSync(path.join(dir, '.trail', 'commit-categories.json'), { recursive: true });
+    fs.mkdirSync(path.join(dir, '.anytime', 'commit-categories.json'), { recursive: true });
     expect(() => loadCommitCategories(dir)).toThrow();
   });
 });
@@ -117,8 +117,8 @@ describe('loadCommitCategoryLabels', () => {
 
   it('不正な JSON 時はデフォルトを返す', () => {
     const dir = makeTempDir();
-    fs.mkdirSync(path.join(dir, '.trail'), { recursive: true });
-    fs.writeFileSync(path.join(dir, '.trail', 'commit-categories.json'), 'INVALID', 'utf-8');
+    fs.mkdirSync(path.join(dir, '.anytime'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.anytime', 'commit-categories.json'), 'INVALID', 'utf-8');
     expect(loadCommitCategoryLabels(dir)).toBe(DEFAULT_COMMIT_CATEGORY_LABELS);
   });
 

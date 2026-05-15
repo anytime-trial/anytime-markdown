@@ -4,7 +4,7 @@ import { DEFAULT_SKILL_CATEGORIES, DEFAULT_SKILL_CATEGORY_LABELS } from './defau
 import type { SkillCategoriesFile } from './types';
 
 export function loadSkillCategories(workspaceRoot: string): ReadonlyMap<string, number> {
-  const file = path.join(workspaceRoot, '.trail', 'skill-categories.json');
+  const file = path.join(workspaceRoot, '.anytime', 'skill-categories.json');
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as SkillCategoriesFile;
@@ -20,7 +20,7 @@ export function loadSkillCategories(workspaceRoot: string): ReadonlyMap<string, 
 }
 
 export function loadSkillCategoryLabels(workspaceRoot: string): ReadonlyMap<number, string> {
-  const file = path.join(workspaceRoot, '.trail', 'skill-categories.json');
+  const file = path.join(workspaceRoot, '.anytime', 'skill-categories.json');
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as SkillCategoriesFile;

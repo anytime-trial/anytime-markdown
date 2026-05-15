@@ -4,7 +4,7 @@ import { DEFAULT_TOOL_CATEGORIES, DEFAULT_TOOL_CATEGORY_LABELS } from './default
 import type { ToolCategoriesFile } from './types';
 
 export function loadToolCategories(workspaceRoot: string): ReadonlyMap<string, number> {
-  const file = path.join(workspaceRoot, '.trail', 'tool-categories.json');
+  const file = path.join(workspaceRoot, '.anytime', 'tool-categories.json');
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as ToolCategoriesFile;
@@ -20,7 +20,7 @@ export function loadToolCategories(workspaceRoot: string): ReadonlyMap<string, n
 }
 
 export function loadToolCategoryLabels(workspaceRoot: string): ReadonlyMap<number, string> {
-  const file = path.join(workspaceRoot, '.trail', 'tool-categories.json');
+  const file = path.join(workspaceRoot, '.anytime', 'tool-categories.json');
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as ToolCategoriesFile;

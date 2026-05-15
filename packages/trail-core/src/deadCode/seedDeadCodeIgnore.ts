@@ -3,7 +3,7 @@ import path from 'node:path';
 import { DEFAULT_IGNORE_FILE_CONTENT } from './defaultIgnoreContent';
 
 export function seedDeadCodeIgnore(workspaceRoot: string): boolean {
-  const dir = path.join(workspaceRoot, '.trail');
+  const dir = path.join(workspaceRoot, '.anytime');
   const file = path.join(dir, 'dead-code-ignore');
   fs.mkdirSync(dir, { recursive: true });
   try {
