@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** Workspace config folder renamed from `.trail/` to `.anytime/`. Affected files: `analyze-exclude` / `dead-code-ignore` / `commit-categories.json` / `tool-categories.json` / `skill-categories.json` / `anytime-history.json`. Existing workspaces must manually rename `.trail/` to `.anytime/`
+
 ## [0.18.0] - 2026-05-08
 
 ### Fixed
