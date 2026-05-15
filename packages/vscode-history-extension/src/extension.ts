@@ -169,7 +169,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		? path.join(context.extensionPath, 'dist')
 		: '';
 	const dbConfig = vscode.workspace.getConfiguration('anytimeTrail.database');
-	const dbStoragePathSetting = dbConfig.get<string>('storagePath', '');
+	// vscode-trail-extension が書き込む既定パス (.anytime/trail/db) に合わせて読む。
+	// 以前は空文字フォールバックで wsRoot 直下の空 trail.db を見ていた。
+	const dbStoragePathSetting = dbConfig.get<string>('storagePath', '.anytime/trail/db') || '.anytime/trail/db';
 	const wsRootForDb = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
 		? dbStoragePathSetting
