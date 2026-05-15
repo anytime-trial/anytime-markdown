@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { getBugHistory, openMemoryCoreDb } from '@anytime-markdown/memory-core';
+import { getBugHistory, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
 import type { BugHistoryEntry } from '@anytime-markdown/memory-core';
 
 export const GetBugHistoryInputSchema = z.object({
@@ -14,7 +14,7 @@ export type GetBugHistoryInput = z.infer<typeof GetBugHistoryInputSchema>;
 export async function handleGetBugHistory(input: GetBugHistoryInput): Promise<BugHistoryEntry[]> {
   const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
   const memHandle = await openMemoryCoreDb(memoryDbPath);
-  const logger = { info: () => {}, error: console.error };
+  const logger = { info: noopLogger.info, error: console.error };
   try {
     return getBugHistory({ db: memHandle.db, ...input, logger });
   } finally {

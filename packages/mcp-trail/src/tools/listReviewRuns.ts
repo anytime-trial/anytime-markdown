@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { listReviewRuns, openMemoryCoreDb } from '@anytime-markdown/memory-core';
+import { listReviewRuns, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
 import type { ReviewRunStatus } from '@anytime-markdown/memory-core';
 
 export const ListReviewRunsInputSchema = z.object({
@@ -16,7 +16,7 @@ export type ListReviewRunsInput = z.infer<typeof ListReviewRunsInputSchema>;
 export async function handleListReviewRuns(input: ListReviewRunsInput): Promise<ReviewRunStatus[]> {
   const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
   const memHandle = await openMemoryCoreDb(memoryDbPath);
-  const logger = { info: () => {}, error: console.error };
+  const logger = { info: noopLogger.info, error: console.error };
   try {
     return listReviewRuns({ db: memHandle.db, ...input, logger });
   } finally {

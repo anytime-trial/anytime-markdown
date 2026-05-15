@@ -16,6 +16,7 @@ export type {
 export { createOllamaClient } from './ollama/client';
 export type { OllamaClient } from './ollama/client';
 export type { MemoryLogger } from './logger';
+export { noopLogger } from './logger';
 export { runConversationIncremental } from './pipeline/runConversationIncremental';
 export type { IncrementalResult } from './pipeline/runConversationIncremental';
 export { runConversationBackfill } from './pipeline/runConversationBackfill';

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { getReviewHistory, openMemoryCoreDb } from '@anytime-markdown/memory-core';
+import { getReviewHistory, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
 import type { ReviewHistoryEntry } from '@anytime-markdown/memory-core';
 
 export const GetReviewHistoryInputSchema = z.object({
@@ -15,7 +15,7 @@ export type GetReviewHistoryInput = z.infer<typeof GetReviewHistoryInputSchema>;
 export async function handleGetReviewHistory(input: GetReviewHistoryInput): Promise<ReviewHistoryEntry[]> {
   const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
   const memHandle = await openMemoryCoreDb(memoryDbPath);
-  const logger = { info: () => {}, error: console.error };
+  const logger = { info: noopLogger.info, error: console.error };
   try {
     return getReviewHistory({ db: memHandle.db, ...input, logger });
   } finally {

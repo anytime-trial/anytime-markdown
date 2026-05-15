@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { detectDrift, openMemoryCoreDb } from '@anytime-markdown/memory-core';
+import { detectDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
 import type { DriftEventSummary } from '@anytime-markdown/memory-core';
 
 export const DetectDriftInputSchema = z.object({
@@ -16,7 +16,7 @@ export type DetectDriftInput = z.infer<typeof DetectDriftInputSchema>;
 export async function handleDetectDrift(input: DetectDriftInput): Promise<DriftEventSummary[]> {
   const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
   const memHandle = await openMemoryCoreDb(memoryDbPath);
-  const logger = { info: () => {}, error: console.error };
+  const logger = { info: noopLogger.info, error: console.error };
   try {
     return detectDrift({ db: memHandle.db, ...input, logger });
   } finally {

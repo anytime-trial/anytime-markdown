@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { listUnaddressedReviewFindings, openMemoryCoreDb } from '@anytime-markdown/memory-core';
+import { listUnaddressedReviewFindings, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
 import type { UnaddressedReviewFinding } from '@anytime-markdown/memory-core';
 
 export const ListUnaddressedReviewFindingsInputSchema = z.object({
@@ -17,7 +17,7 @@ export async function handleListUnaddressedReviewFindings(
 ): Promise<UnaddressedReviewFinding[]> {
   const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
   const memHandle = await openMemoryCoreDb(memoryDbPath);
-  const logger = { info: () => {}, error: console.error };
+  const logger = { info: noopLogger.info, error: console.error };
   try {
     return listUnaddressedReviewFindings({ db: memHandle.db, ...input, logger });
   } finally {

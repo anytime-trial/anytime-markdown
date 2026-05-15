@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { linkReviewToCommit, openMemoryCoreDb } from '@anytime-markdown/memory-core';
+import { linkReviewToCommit, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
 import type { LinkReviewToCommitResult } from '@anytime-markdown/memory-core';
 
 export const LinkReviewToCommitInputSchema = z.object({
@@ -14,7 +14,7 @@ export type LinkReviewToCommitInput = z.infer<typeof LinkReviewToCommitInputSche
 export async function handleLinkReviewToCommit(input: LinkReviewToCommitInput): Promise<LinkReviewToCommitResult> {
   const memoryDbPath = process.env['MEMORY_CORE_DB_PATH'];
   const memHandle = await openMemoryCoreDb(memoryDbPath);
-  const logger = { info: () => {}, error: console.error };
+  const logger = { info: noopLogger.info, error: console.error };
   try {
     return linkReviewToCommit({ db: memHandle.db, ...input, logger });
   } finally {

@@ -1,6 +1,7 @@
 import { handleRunReviewAgent } from '../../tools/runReviewAgent';
 
 jest.mock('@anytime-markdown/memory-core', () => ({
+  noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
     close: jest.fn(),
