@@ -60,6 +60,6 @@ if [ "$vsce_exit" -ne 0 ]; then
 fi
 
 echo "Installing..."
-bash "$(dirname "$0")/_install-vsix.sh" "$DIST_DIR/anytime-database.vsix"
+bash "$REPO_ROOT/scripts/vscode-extension/_install-vsix.sh" "$DIST_DIR/anytime-database.vsix"
 
 echo "Done! Restart VS Code to activate."
