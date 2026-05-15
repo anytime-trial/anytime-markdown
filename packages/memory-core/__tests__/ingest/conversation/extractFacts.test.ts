@@ -90,15 +90,21 @@ describe('extractFactsFromEpisode', () => {
     expect(promptUsed).toContain('Question entity は抽出しません');
   });
 
-  test('returns null and logs on invalid enum type', async () => {
+  test('silently filters out entities with unknown type (resilient parse)', async () => {
+    // 仕様: schema が EntitySchema.catch(null).filter(non-null) で
+    // 不明な type のエントリは個別に drop され、エピソード全体は成功する。
     const ollama = makeOllama({
       summary: 'test',
-      entities: [{ type: 'InvalidType', name: 'foo', aliases: [], tags: [], attributes: {} }],
+      entities: [
+        { type: 'InvalidType', name: 'foo', aliases: [], tags: [], attributes: {} },
+        { type: 'Concept', name: 'valid-one', aliases: [], tags: [], attributes: {} },
+      ],
       relations: [],
     });
     const result = await extractFactsFromEpisode({ ollama, episode: episodeBase, logger: mockLogger });
-    expect(result).toBeNull();
-    expect(mockLogger.error).toHaveBeenCalled();
+    expect(result).not.toBeNull();
+    expect(result?.entities).toHaveLength(1);
+    expect(result?.entities[0].name).toBe('valid-one');
   });
 
   test('returns null and logs on JSON.parse failure', async () => {
