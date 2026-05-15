@@ -12,6 +12,7 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
+    "@anytime-markdown/database-core": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/graph-core": "*",
     "@supabase/supabase-js": "2.103.0",

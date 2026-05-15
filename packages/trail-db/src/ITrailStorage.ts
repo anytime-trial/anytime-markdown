@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import zlib from 'node:zlib';
+import { FileBackupManager, type BackupEntry } from '@anytime-markdown/database-core/FileBackupManager';
 import { assertNotProductionWriteDuringTests } from './TrailDatabase.guard';
+
+export type { BackupEntry };
 
 /**
  * TrailDatabase の永続化層を抽象化するストレージ戦略。
@@ -33,49 +35,41 @@ export interface ITrailStorage {
 }
 
 /**
- * 世代管理バックアップの 1 エントリ。UI に表示する際の情報源。
- */
-export interface BackupEntry {
-  /** 世代番号（1 が最新、3 が最古） */
-  readonly generation: number;
-  /** バックアップファイルの絶対パス（.bak.N.gz） */
-  readonly path: string;
-  /** バックアップ作成日時 */
-  readonly mtime: Date;
-  /** gzip 圧縮後のバイト数 */
-  readonly compressedSize: number;
-}
-
-/**
  * ファイルシステム上の SQLite DB に読み書きする本番用ストレージ。
  *
  * 破壊的副作用（writeFileSync）を持つ。コンストラクタは絶対パスを要求し、
  * `~/.claude` や `~/.vscode-server` 配下への書き込みはテスト環境で例外を投げる。
  *
- * セッション（このインスタンスの生存期間）内で最初の save() 呼び出し時に
- * 既存 DB を 3 世代まで gzip 圧縮してローテーションバックアップする
- * （.bak.1.gz → .bak.2.gz → .bak.3.gz）。SQLite ファイルは冗長性が高く、
- * level 1 でも 30〜50% 程度まで縮むためディスク使用量を大幅に抑えられる。
+ * 世代管理バックアップは `@anytime-markdown/database-core` の
+ * {@link FileBackupManager} に委譲する。Trail 固有の保護領域ガード
+ * ({@link assertNotProductionWriteDuringTests}) は preWriteGuard として注入し、
+ * バックアップ / 復元の write 直前にも作用させる。
  */
 export class FileTrailStorage implements ITrailStorage {
-  /** デフォルトのバックアップ世代数。VS Code 設定で上書き可能。 */
-  static readonly DEFAULT_BACKUP_GENERATIONS = 1;
+  /** @deprecated FileBackupManager.DEFAULT_BACKUP_GENERATIONS を使う */
+  static readonly DEFAULT_BACKUP_GENERATIONS = FileBackupManager.DEFAULT_BACKUP_GENERATIONS;
   /** @deprecated Use DEFAULT_BACKUP_GENERATIONS */
   static readonly BACKUP_GENERATIONS = FileTrailStorage.DEFAULT_BACKUP_GENERATIONS;
-  /** gzip 圧縮レベル。起動時のブロッキング時間を短縮するため level 1 を採用。 */
-  private static readonly GZIP_LEVEL = 1;
-  private backupDone = false;
+
+  private readonly backupManager: FileBackupManager;
 
   /**
-   * @param dbPath          DB ファイルの絶対パス
-   * @param backupGenerations  保持する世代数（0 は世代数 1 と同義に扱うが shouldBackup で制御）
-   * @param backupIntervalDays バックアップ間隔（日）。0 = セッション毎（従来動作）、1 以上 = 最新バックアップが N 日以上古い場合のみ作成
+   * @param dbPath             DB ファイルの絶対パス
+   * @param backupGenerations  保持する世代数（0 以下はバックアップ無効）
+   * @param backupIntervalDays バックアップ間隔（日）。0 = セッション毎、1 以上 = 最新バックアップが N 日以上古い場合のみ作成
    */
   constructor(
     private readonly dbPath: string,
-    private readonly backupGenerations: number = FileTrailStorage.DEFAULT_BACKUP_GENERATIONS,
-    private readonly backupIntervalDays: number = 1,
-  ) {}
+    backupGenerations: number = FileBackupManager.DEFAULT_BACKUP_GENERATIONS,
+    backupIntervalDays: number = 1,
+  ) {
+    this.backupManager = new FileBackupManager(
+      dbPath,
+      backupGenerations,
+      backupIntervalDays,
+      assertNotProductionWriteDuringTests,
+    );
+  }
 
   get identifier(): string {
     return this.dbPath;
@@ -96,75 +90,15 @@ export class FileTrailStorage implements ITrailStorage {
 
   save(bytes: Uint8Array): void {
     assertNotProductionWriteDuringTests(this.dbPath);
-    if (!this.backupDone) {
-      if (this.shouldBackup()) {
-        this.rotateBackups();
-      }
-      this.backupDone = true;
-    }
+    this.backupManager.maybeRotate();
     fs.writeFileSync(this.dbPath, Buffer.from(bytes));
-  }
-
-  /**
-   * バックアップを作成すべきか判定する。
-   * - backupIntervalDays === 0: セッション毎（従来動作）→ 常に true
-   * - backupIntervalDays >= 1: .bak.1.gz が存在しない、またはその mtime が N 日以上前の場合のみ true
-   */
-  private shouldBackup(): boolean {
-    if (this.backupGenerations <= 0) return false;
-    if (this.backupIntervalDays === 0) return true;
-    const bak1 = this.backupPath(1);
-    if (!fs.existsSync(bak1)) return true;
-    const { mtime } = fs.statSync(bak1);
-    const daysSince = (Date.now() - mtime.getTime()) / (1000 * 60 * 60 * 24);
-    return daysSince >= this.backupIntervalDays;
-  }
-
-  /**
-   * 既存 DB ファイルを .bak.1.gz へ、.bak.1.gz → .bak.2.gz → .bak.3.gz と
-   * シフトする。.bak.3.gz は上書きで破棄される。DB ファイルが存在しない
-   * ケース（新規）は通常動作として無視する。
-   */
-  private rotateBackups(): void {
-    if (!fs.existsSync(this.dbPath)) return;
-    const oldest = this.backupPath(this.backupGenerations);
-    if (fs.existsSync(oldest)) {
-      fs.unlinkSync(oldest);
-    }
-    for (let gen = this.backupGenerations - 1; gen >= 1; gen -= 1) {
-      const src = this.backupPath(gen);
-      const dst = this.backupPath(gen + 1);
-      if (fs.existsSync(src)) {
-        fs.renameSync(src, dst);
-      }
-    }
-    const dbBuffer = fs.readFileSync(this.dbPath);
-    const gz = zlib.gzipSync(dbBuffer, { level: FileTrailStorage.GZIP_LEVEL });
-    fs.writeFileSync(this.backupPath(1), gz);
-  }
-
-  /** 世代番号からバックアップファイルの絶対パスを導出。 */
-  private backupPath(generation: number): string {
-    return `${this.dbPath}.bak.${generation}.gz`;
   }
 
   /**
    * 現存する世代バックアップを新しい順で返す。UI 表示向け。
    */
   listBackups(): readonly BackupEntry[] {
-    const entries: BackupEntry[] = [];
-    for (let gen = 1; gen <= this.backupGenerations; gen += 1) {
-      const bakPath = this.backupPath(gen);
-      if (!fs.existsSync(bakPath)) continue;
-      const stat = fs.statSync(bakPath);
-      entries.push({
-        generation: gen,
-        path: bakPath,
-        mtime: stat.mtime,
-        compressedSize: stat.size,
-      });
-    }
-    return entries;
+    return this.backupManager.listBackups();
   }
 
   /**
@@ -176,32 +110,7 @@ export class FileTrailStorage implements ITrailStorage {
    * @throws 指定世代のバックアップが存在しない場合 Error を投げる
    */
   restoreFromBackup(generation: number): { restoredFrom: string; safetyCopy: string | null } {
-    assertNotProductionWriteDuringTests(this.dbPath);
-    const bakPath = this.backupPath(generation);
-    // TOCTOU 競合を避けるため existsSync を使わず、直接 read を試みて ENOENT で判定。
-    let compressed: Buffer;
-    try {
-      compressed = fs.readFileSync(bakPath);
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        throw new Error(`Backup not found: ${bakPath}`);
-      }
-      throw err;
-    }
-    let safetyCopy: string | null = null;
-    const safetyPath = `${this.dbPath}.restore-safety-${Date.now()}`;
-    try {
-      fs.copyFileSync(this.dbPath, safetyPath, fs.constants.COPYFILE_EXCL);
-      safetyCopy = safetyPath;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      // ENOENT: 既存 DB なしのため safetyCopy は作らない
-      // EEXIST: 同時呼び出しで衝突、こちらの copy は諦める
-      if (code !== 'ENOENT' && code !== 'EEXIST') throw err;
-    }
-    const decompressed = zlib.gunzipSync(compressed);
-    fs.writeFileSync(this.dbPath, decompressed);
-    return { restoredFrom: bakPath, safetyCopy };
+    return this.backupManager.restoreFromBackup(generation);
   }
 }
 
