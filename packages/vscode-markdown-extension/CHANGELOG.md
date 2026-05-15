@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** Default empty value of `anytimeMarkdown.claudeStatus.directory` changed from `.vscode` to `.anytime`. Existing setups must override the setting or manually relocate
+
 ## [0.14.1] - 2026-05-06
 
 ### Changed

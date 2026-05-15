@@ -9,6 +9,7 @@
 ### 変更
 
 - **Breaking:** ワークスペース設定フォルダを `.trail/` から `.anytime/` にリネーム。対象ファイルは `analyze-exclude` / `dead-code-ignore` / `commit-categories.json` / `tool-categories.json` / `skill-categories.json` / `anytime-history.json`。既存ワークスペースは手動で `.trail/` → `.anytime/` にリネームが必要
+- **Breaking:** Trail DB と Claude Code ステータスファイル、trace 出力のデフォルト保存先を `.vscode/` から `.anytime/` に変更。設定 `anytimeTrail.database.storagePath` の空既定値、`anytimeTrail.claudeStatus.directory` のデフォルト値 (`.vscode/trail/agent-status` → `.anytime/trail/agent-status`) と trace 出力 (`.vscode/trace` → `.anytime/trace`) が影響。既存環境では設定上書きまたは手動移動が必要
 
 ## [0.18.0] - 2026-05-08
 

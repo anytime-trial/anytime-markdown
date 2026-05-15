@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 変更
+
+- **Breaking:** `anytimeMarkdown.claudeStatus.directory` の空既定値を `.vscode` から `.anytime` に変更。既存環境では設定上書きまたは手動移動が必要
+
 ## [0.14.1] - 2026-05-06
 
 ### 変更
