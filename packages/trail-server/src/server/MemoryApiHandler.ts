@@ -1,8 +1,6 @@
-import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, getMemoryCoreDbPath } from '@anytime-markdown/memory-core';
 import type { MemoryDbConnection, MemoryDbSqlValue as SqlValue } from '@anytime-markdown/memory-core';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 
 import { resolveDrift } from '@anytime-markdown/memory-core';
 
@@ -163,7 +161,7 @@ export class MemoryApiHandler {
 
   constructor(logger: Logger, dbPath?: string, nativeBinding?: string) {
     this.logger = logger;
-    this.dbPath = dbPath ?? path.join(os.homedir(), '.claude', 'memory-core', 'memory-core.db');
+    this.dbPath = dbPath ?? getMemoryCoreDbPath();
     this.nativeBinding = nativeBinding;
   }
 

@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { MemoryCoreService, type MemoryCoreLogSink, BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
+import { MemoryCoreService, type MemoryCoreLogSink, BetterSqlite3MemoryDb, getMemoryCoreDbPath } from '@anytime-markdown/memory-core';
 import { ChatBridge } from './memory-chat/chatBridge';
 import { RebuildScheduler } from './memory-chat/rebuildScheduler';
 import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
@@ -24,7 +24,7 @@ import {
 } from './analyze/AnalyzePipeline';
 
 const TRAIL_HOME = process.env.TRAIL_HOME ?? join(homedir(), '.claude', 'trail');
-const MEMORY_DB_PATH = join(homedir(), '.claude', 'memory-core', 'memory-core.db');
+const MEMORY_DB_PATH = getMemoryCoreDbPath(process.cwd());
 const VERSION = '0.18.0';
 
 const program = new Command();
