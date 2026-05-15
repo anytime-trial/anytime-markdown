@@ -71,9 +71,12 @@ function downloadVscodeBinding() {
   const args = ['prebuild-install', '--runtime=node', `--target=${VSCODE_NODE_TARGET}`];
   if (TARGET_ARCH) args.push(`--arch=${TARGET_ARCH}`);
   if (TARGET_PLATFORM) args.push(`--platform=${TARGET_PLATFORM}`);
+  // Windows では `npx` ではなく `npx.cmd` を解決する必要があるため shell 経由で実行する。
+  // shell なしだと spawn が exit null で abrupt termination する (CI で再現)。
   const result = spawnSync('npx', args, {
     cwd: betterSqlite3Root,
     stdio: 'inherit',
+    shell: process.platform === 'win32',
   });
   if (result.status !== 0) {
     throw new Error('prebuild-install failed (exit ' + result.status + ')');
