@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseRow } from './TrailDatabase';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
-import type { ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
 import { type DbLogger, noopDbLogger } from './DbLogger';
 
 export class SupabaseTrailStore implements IRemoteTrailStore {
@@ -647,6 +647,42 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       .eq('repo_name', repoName)
       .eq('rel_id', relId);
     if (error) throw new Error(`Supabase deleteManualRelationship failed: ${error.message}`);
+  }
+
+  async listManualGroups(repoName: string): Promise<readonly ManualGroup[]> {
+    const { data, error } = await this.ensureClient()
+      .from('trail_c4_manual_groups')
+      .select('*')
+      .eq('repo_name', repoName);
+    if (error) throw new Error(`Supabase listManualGroups failed: ${error.message}`);
+    return (data ?? []).map(row => ({
+      id: String(row.group_id),
+      memberIds: typeof row.member_ids === 'string' ? JSON.parse(row.member_ids) : (row.member_ids ?? []),
+      label: row.label ?? undefined,
+      updatedAt: String(row.updated_at),
+    }));
+  }
+
+  async upsertManualGroup(repoName: string, g: ManualGroup): Promise<void> {
+    const { error } = await this.ensureClient()
+      .from('trail_c4_manual_groups')
+      .upsert({
+        repo_name: repoName,
+        group_id: g.id,
+        member_ids: JSON.stringify(g.memberIds),
+        label: g.label ?? null,
+        updated_at: g.updatedAt,
+      }, { onConflict: 'repo_name,group_id' });
+    if (error) throw new Error(`Supabase upsertManualGroup failed: ${error.message}`);
+  }
+
+  async deleteManualGroup(repoName: string, groupId: string): Promise<void> {
+    const { error } = await this.ensureClient()
+      .from('trail_c4_manual_groups')
+      .delete()
+      .eq('repo_name', repoName)
+      .eq('group_id', groupId);
+    if (error) throw new Error(`Supabase deleteManualGroup failed: ${error.message}`);
   }
 
   async refreshMaterializedViews(): Promise<void> {

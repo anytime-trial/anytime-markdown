@@ -1,5 +1,5 @@
 import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseRow } from './TrailDatabase';
-import type { ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
 
 export interface IRemoteTrailStore {
   connect(): Promise<void>;
@@ -59,6 +59,9 @@ export interface IRemoteTrailStore {
   listManualRelationships(repoName: string): Promise<readonly ManualRelationship[]>;
   upsertManualRelationship(repoName: string, rel: ManualRelationship): Promise<void>;
   deleteManualRelationship(repoName: string, relId: string): Promise<void>;
+  listManualGroups(repoName: string): Promise<readonly ManualGroup[]>;
+  upsertManualGroup(repoName: string, group: ManualGroup): Promise<void>;
+  deleteManualGroup(repoName: string, groupId: string): Promise<void>;
   /** [DESTRUCTIVE] message_tool_calls テーブルを全削除する（洗い替え同期用）。 */
   unsafeClearMessageToolCalls(): Promise<void>;
   upsertMessageToolCalls(rows: readonly {

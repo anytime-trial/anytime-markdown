@@ -3762,6 +3762,17 @@ export class TrailDatabase {
     this.save();
   }
 
+  insertManualGroupRaw(repoName: string, g: ManualGroup): void {
+    const db = this.ensureDb();
+    db.run(
+      `INSERT OR REPLACE INTO c4_manual_groups
+         (repo_name, group_id, member_ids, label, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [repoName, g.id, JSON.stringify(g.memberIds), g.label ?? null, g.updatedAt],
+    );
+    this.save();
+  }
+
   saveManualGroup(
     repoName: string,
     input: { memberIds: string[]; label?: string },

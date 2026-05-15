@@ -1,7 +1,7 @@
 
 import { SyncService } from '../SyncService';
 import type { IRemoteTrailStore } from '../IRemoteTrailStore';
-import type { ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
 import { createTestTrailDatabase } from './support/createTestDb';
 
 const createDb = createTestTrailDatabase;
@@ -9,6 +9,7 @@ const createDb = createTestTrailDatabase;
 class FakeRemoteStore implements IRemoteTrailStore {
   elements: ManualElement[] = [];
   relationships: ManualRelationship[] = [];
+  groups: ManualGroup[] = [];
   commitRows: unknown[] = [];
   messageFailure: Error | null = null;
 
@@ -98,6 +99,18 @@ class FakeRemoteStore implements IRemoteTrailStore {
   }
   async deleteManualRelationship(repoName: string, relId: string): Promise<void> {
     this.relationships = this.relationships.filter(r => !(r.id === relId && (r as ManualRelationship & { _repo: string })._repo === repoName));
+  }
+  async listManualGroups(repoName: string): Promise<readonly ManualGroup[]> {
+    return this.groups.filter(g => (g as ManualGroup & { _repo: string })._repo === repoName);
+  }
+  async upsertManualGroup(repoName: string, g: ManualGroup): Promise<void> {
+    const idx = this.groups.findIndex(x => x.id === g.id && (x as ManualGroup & { _repo: string })._repo === repoName);
+    const entry = { ...g, _repo: repoName } as ManualGroup & { _repo: string };
+    if (idx >= 0) this.groups[idx] = entry;
+    else this.groups.push(entry);
+  }
+  async deleteManualGroup(repoName: string, groupId: string): Promise<void> {
+    this.groups = this.groups.filter(g => !(g.id === groupId && (g as ManualGroup & { _repo: string })._repo === repoName));
   }
   async refreshMaterializedViews(): Promise<void> {
     // no-op (test fake)
