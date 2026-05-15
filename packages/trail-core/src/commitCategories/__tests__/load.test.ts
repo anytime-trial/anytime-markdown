@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { loadCommitCategories } from '../load';
-import { DEFAULT_COMMIT_CATEGORIES } from '../defaults';
+import { loadCommitCategories, loadCommitCategoryLabels } from '../load';
+import { DEFAULT_COMMIT_CATEGORIES, DEFAULT_COMMIT_CATEGORY_LABELS } from '../defaults';
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'trail-test-'));
@@ -86,5 +86,66 @@ describe('loadCommitCategories', () => {
     fs.writeFileSync(path.join(dir, '.trail', 'commit-categories.json'), 'INVALID{', 'utf-8');
     const result = loadCommitCategories(dir);
     expect(result).toBe(DEFAULT_COMMIT_CATEGORIES);
+  });
+
+  it('ENOENT 以外の I/O エラーは throw する', () => {
+    // 存在するが読めないディレクトリ（パーミッション 000）の代用として、
+    // workspace 自体ではなく workspace/.trail/commit-categories.json をディレクトリにして
+    // EISDIR を発生させる。
+    const dir = makeTempDir();
+    fs.mkdirSync(path.join(dir, '.trail', 'commit-categories.json'), { recursive: true });
+    expect(() => loadCommitCategories(dir)).toThrow();
+  });
+});
+
+describe('loadCommitCategoryLabels', () => {
+  it('categories からラベルマップを読み込む', () => {
+    const dir = makeTempDir();
+    writeJson(dir, {
+      categories: { '0': 'A', '1': 'B' },
+      entries: {},
+    });
+    const result = loadCommitCategoryLabels(dir);
+    expect(result.get(0)).toBe('A');
+    expect(result.get(1)).toBe('B');
+  });
+
+  it('ファイル不在時はデフォルトラベルを返す', () => {
+    const dir = makeTempDir();
+    expect(loadCommitCategoryLabels(dir)).toBe(DEFAULT_COMMIT_CATEGORY_LABELS);
+  });
+
+  it('不正な JSON 時はデフォルトを返す', () => {
+    const dir = makeTempDir();
+    fs.mkdirSync(path.join(dir, '.trail'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.trail', 'commit-categories.json'), 'INVALID', 'utf-8');
+    expect(loadCommitCategoryLabels(dir)).toBe(DEFAULT_COMMIT_CATEGORY_LABELS);
+  });
+
+  it('categories が空または非オブジェクトの場合はデフォルトを返す', () => {
+    const dir = makeTempDir();
+    writeJson(dir, { categories: null as unknown as Record<string, string>, entries: {} });
+    expect(loadCommitCategoryLabels(dir)).toBe(DEFAULT_COMMIT_CATEGORY_LABELS);
+  });
+
+  it('数値以外のキーや空文字列の値を無視する', () => {
+    const dir = makeTempDir();
+    writeJson(dir, {
+      categories: { '0': 'A', 'NaN': 'bad', '1': '' },
+      entries: {},
+    });
+    const result = loadCommitCategoryLabels(dir);
+    expect(result.get(0)).toBe('A');
+    expect(result.get(1)).toBeUndefined(); // 空文字は除外
+    expect(result.has(NaN as unknown as number)).toBe(false);
+  });
+
+  it('全て無効な場合はデフォルトを返す', () => {
+    const dir = makeTempDir();
+    writeJson(dir, {
+      categories: { 'NaN': '' },
+      entries: {},
+    });
+    expect(loadCommitCategoryLabels(dir)).toBe(DEFAULT_COMMIT_CATEGORY_LABELS);
   });
 });
