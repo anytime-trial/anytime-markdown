@@ -123,7 +123,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     const { db: db2, close: close2 } = await openMemoryCoreDb();
     const result = db2.exec('SELECT COUNT(*) FROM _migrations');
     const count = result[0]?.values[0][0] as number;
-    expect(count).toBe(8); // migrations 1–7, each applied once
+    expect([12, 13]).toContain(count); // 全 migration 完了。13 は FTS5 有効時のみ
     close2();
   }, 30000);
 

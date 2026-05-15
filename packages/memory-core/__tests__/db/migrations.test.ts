@@ -60,7 +60,9 @@ describe('migrations', () => {
       const { db: db2, close: close2 } = await openMemoryCoreDb();
       const result = db2.exec('SELECT COUNT(*) FROM _migrations');
       const count = result[0]?.values[0][0] as number;
-      expect(count).toBe(12); // migrations 1–12, each applied once
+      // migrations 1–12 は無条件、13 (rag_fts) は FTS5 が無いビルドで skip。
+      // sql.js 既定 WASM は FTS5 非対応 = 12、better-sqlite3 (FTS5 有効) = 13。
+      expect([12, 13]).toContain(count);
       close2();
     } finally {
       try {
