@@ -79,8 +79,8 @@ export async function computeAndPersistFileAnalysis(
   const analyzedAt = new Date().toISOString();
   const sinceIso = new Date(Date.now() - RECENT_CHURN_WINDOW_MS).toISOString();
 
-  // 1. .trail/dead-code-ignore ルール読み込み
-  const ignorePath = path.join(analysisRoot, '.trail', 'dead-code-ignore');
+  // 1. .anytime/dead-code-ignore ルール読み込み
+  const ignorePath = path.join(analysisRoot, '.anytime', 'dead-code-ignore');
   const ignoreContent = safeReadFile(ignorePath);
   const ignoreRules: IgnoreRules = ignoreContent
     ? parseDeadCodeIgnore(ignoreContent)
