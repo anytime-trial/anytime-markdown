@@ -38,6 +38,16 @@ describe("parseCsv", () => {
         expect(snap.cells).toEqual([[""]]);
         expect(snap.range).toEqual({ rows: 1, cols: 1 });
     });
+
+    it("treats CRLF as a single line terminator", () => {
+        const snap = parseCsv("a,b\r\n1,2\r\n3,4");
+        expect(snap.cells).toEqual([["a", "b"], ["1", "2"], ["3", "4"]]);
+    });
+
+    it("treats lone CR as a line terminator", () => {
+        const snap = parseCsv("a,b\r1,2");
+        expect(snap.cells).toEqual([["a", "b"], ["1", "2"]]);
+    });
 });
 
 describe("serializeCsv", () => {
