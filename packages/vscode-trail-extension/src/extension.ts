@@ -1235,8 +1235,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	registerMcpRegistrationCommand(context, extensionDistPath);
 
 	// Ollama ステータスパネル
-	// pipeline-status.json は trailHome に置く (DB ではなく runtime state なので)
-	const pipelineStatusPath = wsRootForDb ? path.join(trailHomeForConfig, 'pipeline-status.json') : undefined;
+	// pipeline-status.json は DB と同じディレクトリ (${TRAIL_HOME}/db/) に置く。
+	// 書き手 (memory-core/defaultMemoryCorePipelineRunner.ts) が trailDbPath と
+	// 同じ dirname に出力するので、reader 側もそれに合わせる。
+	const pipelineStatusPath = dbStorageDir ? path.join(dbStorageDir, 'pipeline-status.json') : undefined;
 	const ollamaProvider = new OllamaProvider({ statusFilePath: pipelineStatusPath });
 	vscode.window.createTreeView('anytimeTrail.ollama', {
 		treeDataProvider: ollamaProvider,
