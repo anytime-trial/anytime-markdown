@@ -31,7 +31,7 @@ import {
 	CREATE_EXTENSION_LOGS,
 	CREATE_EXTENSION_LOGS_INDEXES,
 } from '@anytime-markdown/trail-core/domain/schema';
-import { BetterSqlite3MemoryDb, getMemoryCoreDbPath } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
 import { DatabaseProvider } from './trail/DatabaseProvider';
 import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
@@ -458,7 +458,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Trail Database + Data Server (non-blocking initialization)
-	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '.anytime/db') || '.anytime/db';
+	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '.anytime/trail/db') || '.anytime/trail/db';
 	const wsRootForDb = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
 		? dbStoragePathSetting
@@ -512,8 +512,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// trail config — daemon と extension で共通の設定ソース。
 	// 旧 anytimeTrail.memory.* (~v0.18) は config.json (memory.*) に統合された。
-	// TRAIL_HOME 環境変数が設定されていればそちらを優先、なければ <workspaceRoot>/.anytime/trail を使う。
-	const trailHomeForConfig = process.env['TRAIL_HOME'] ?? path.join(wsRootForDb ?? process.cwd(), '.anytime', 'trail');
+	const trailHomeForConfig = wsRootForDb ? getTrailHome(wsRootForDb) : getTrailHome();
 	const trailConfigPath = path.join(trailHomeForConfig, 'config.json');
 	const trailConfig = loadConfig(trailConfigPath, {
 		warn: (msg: string) => TrailLogger.warn(msg),
@@ -1157,7 +1156,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// .vscode/trace/ watcher: notify when a new trace file is created
 	if (wsRootForDb) {
-		const traceDir = vscode.Uri.file(path.join(wsRootForDb, '.anytime', 'trace'));
+		const traceDir = vscode.Uri.file(path.join(trailHomeForConfig, 'trace'));
 		const traceWatcher = vscode.workspace.createFileSystemWatcher(
 			new vscode.RelativePattern(traceDir, '*.json'),
 		);
@@ -1236,7 +1235,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	registerMcpRegistrationCommand(context, extensionDistPath);
 
 	// Ollama ステータスパネル
-	const pipelineStatusPath = dbStorageDir ? path.join(dbStorageDir, 'pipeline-status.json') : undefined;
+	// pipeline-status.json は trailHome に置く (DB ではなく runtime state なので)
+	const pipelineStatusPath = wsRootForDb ? path.join(trailHomeForConfig, 'pipeline-status.json') : undefined;
 	const ollamaProvider = new OllamaProvider({ statusFilePath: pipelineStatusPath });
 	vscode.window.createTreeView('anytimeTrail.ollama', {
 		treeDataProvider: ollamaProvider,

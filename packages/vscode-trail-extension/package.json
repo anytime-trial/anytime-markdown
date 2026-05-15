@@ -380,7 +380,7 @@
         },
         "anytimeTrail.database.storagePath": {
           "type": "string",
-          "default": ".anytime/db",
+          "default": ".anytime/trail/db",
           "markdownDescription": "%config.database.storagePath%"
         },
         "anytimeTrail.database.backupGenerations": {
