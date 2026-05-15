@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { homedir } from 'node:os';
 import { join, basename } from 'node:path';
-import { statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { MemoryCoreService, type MemoryCoreLogSink, BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
 import { ChatBridge } from './memory-chat/chatBridge';
@@ -65,9 +65,25 @@ program
     const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0]);
 
     // extension_logs 専用 DB を better-sqlite3 で開き、LogService を wire する。
-    // trail.db (sql.js) とは別ファイルとし、WAL 競合と性能影響を避ける。
+    // trail.db とは別ファイルとし、WAL 競合と性能影響を避ける。
+    //
+    // nativeBinding: webpack-bundled 実行時は bindings package の getFileName が
+    // call stack を辿って .node のパスを推測できず crash する。__dirname
+    // (= dist/) から native binary の絶対パスを組み立てて回避する
+    // (vscode-trail-extension の memoryCoreNativeBinding と同等)。
+    const cliNativeBinding = join(
+      __dirname,
+      'node_modules',
+      'better-sqlite3',
+      'build',
+      'Release',
+      'better_sqlite3.node',
+    );
     const extensionLogsDbPath = join(dbStorageDir, 'extension-logs.db');
-    const extensionLogsDb = new BetterSqlite3MemoryDb({ filePath: extensionLogsDbPath });
+    const extensionLogsDb = new BetterSqlite3MemoryDb({
+      filePath: extensionLogsDbPath,
+      ...(existsSync(cliNativeBinding) ? { nativeBinding: cliNativeBinding } : {}),
+    });
     extensionLogsDb.run(CREATE_EXTENSION_LOGS);
     for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
     extensionLogsDb.run('PRAGMA journal_mode=WAL');
