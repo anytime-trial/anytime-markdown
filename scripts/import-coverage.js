@@ -30,16 +30,20 @@ function main() {
     process.exit(1);
   }
 
-  // DB 確認
-  if (!fs.existsSync(DB_PATH)) {
-    console.error(`[import-coverage] trail.db not found: ${DB_PATH}`);
-    console.error('Run Trail Import in VS Code first to initialize the DB.');
-    process.exit(1);
-  }
-
   // better-sqlite3 で trail.db を直接開く (旧 sql.js は撤去済)
+  // TOCTOU 競合を避けるため existsSync ではなく { fileMustExist: true } で ENOENT を判定。
   const Database = require('better-sqlite3');
-  const db = new Database(DB_PATH);
+  let db;
+  try {
+    db = new Database(DB_PATH, { fileMustExist: true });
+  } catch (err) {
+    if (err.code === 'SQLITE_CANTOPEN' || err.code === 'ENOENT') {
+      console.error(`[import-coverage] trail.db not found: ${DB_PATH}`);
+      console.error('Run Trail Import in VS Code first to initialize the DB.');
+      process.exit(1);
+    }
+    throw err;
+  }
   const insert = db.prepare(
     `INSERT OR IGNORE INTO release_coverage (
       release_tag, package, file_path,
@@ -56,12 +60,13 @@ function main() {
 
   for (const pkgDir of fs.readdirSync(packagesDir)) {
     const summaryPath = path.join(packagesDir, pkgDir, 'coverage', 'coverage-summary.json');
-    if (!fs.existsSync(summaryPath)) continue;
 
+    // TOCTOU 競合を避けるため existsSync を使わず readFileSync の ENOENT で判定。
     let summary;
     try {
       summary = JSON.parse(fs.readFileSync(summaryPath, 'utf-8'));
-    } catch {
+    } catch (err) {
+      if (err.code === 'ENOENT') continue;
       console.warn(`[import-coverage] Skipping unreadable file: ${summaryPath}`);
       continue;
     }
