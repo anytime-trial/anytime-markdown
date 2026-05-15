@@ -106,7 +106,9 @@ const extensionConfig = {
       // dist/node_modules/ に丸ごとコピーする (vscode-database-extension と同じパターン)。
       patterns: [
         {
-          from: path.resolve(__dirname, '../memory-core/src/db/migrations/*.sql'),
+          // win32 では path.resolve が backslash を返し CopyPlugin の glob が
+          // 解釈できないため、forward slash に正規化する。
+          from: path.resolve(__dirname, '../memory-core/src/db/migrations/*.sql').replace(/\\/g, '/'),
           to: '[name][ext]',
         },
         {
