@@ -10,7 +10,8 @@ import { Flusher } from './flusher';
 
 const startedAt = new Date().toISOString();
 const cwd = process.cwd();
-const outputDir = process.env['TRACE_OUTPUT_DIR'] ?? path.join(cwd, '.anytime', 'trace');
+const trailHome = process.env['TRAIL_HOME'] ?? path.join(cwd, '.anytime', 'trail');
+const outputDir = process.env['TRACE_OUTPUT_DIR'] ?? path.join(trailHome, 'trace');
 const runName = process.env['TRACE_RUN_NAME'] ?? path.basename(process.argv[1] ?? 'run');
 
 installRequireHook({ include: [cwd], exclude: [] });

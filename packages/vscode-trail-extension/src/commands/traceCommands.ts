@@ -2,7 +2,8 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 function getTraceOutputDir(wsRoot: string): string {
-	return path.join(wsRoot, '.anytime', 'trace');
+	const trailHome = process.env['TRAIL_HOME'] ?? path.join(wsRoot, '.anytime', 'trail');
+	return path.join(trailHome, 'trace');
 }
 
 function buildNodeOptions(): string {
