@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { getTrailHome } from '../db/paths';
 import { readState, writeState, defaultState } from './state';
 import type {
   MemoryCoreLogSink,
@@ -239,21 +240,8 @@ async function defaultPipelineRunner(ctx: PipelineRunnerContext): Promise<void> 
   await runMemoryCorePipeline(ctx);
 }
 
-const PROTECTED_FALLBACK_PATTERNS = [
-  /\/vscode-server\//,
-  /\/vscode\/vscode-server\b/,
-];
-
 export function defaultStatePath(workspaceRoot?: string): string {
-  if (process.env.TRAIL_HOME) return join(process.env.TRAIL_HOME, 'memory-core-runner.json');
-  const root = workspaceRoot ?? process.cwd();
-  if (!workspaceRoot && PROTECTED_FALLBACK_PATTERNS.some((p) => p.test(root))) {
-    throw new Error(
-      `[memory-core] defaultStatePath: refusing to fall back to protected path "${root}". ` +
-        `Caller must pass workspaceRoot explicitly or set TRAIL_HOME.`,
-    );
-  }
-  return join(root, '.anytime', 'trail', 'memory-core-runner.json');
+  return join(getTrailHome(workspaceRoot), 'memory-core-runner.json');
 }
 
 // re-export so callers don't have to dig into state.ts
