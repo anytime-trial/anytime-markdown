@@ -82,7 +82,7 @@ export type { ReleaseFileRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-ma
 
 declare const __non_webpack_require__: (id: string) => unknown;
 
-const DEFAULT_DB_DIR = path.join(os.homedir(), '.claude', 'trail');
+const DEFAULT_DB_DIR = path.join(process.cwd(), '.anytime', 'trail');
 
 export { assertNotProductionWriteDuringTests } from './TrailDatabase.guard';
 import { ITrailStorage, FileTrailStorage } from './ITrailStorage';
