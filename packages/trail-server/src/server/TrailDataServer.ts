@@ -1357,8 +1357,8 @@ export class TrailDataServer {
 
   private handleTraceList(res: http.ServerResponse): void {
     const traceDir = this.gitRoot
-      ? path.join(this.gitRoot, '.vscode', 'trace')
-      : path.join(process.cwd(), '.vscode', 'trace');
+      ? path.join(this.gitRoot, '.anytime', 'trace')
+      : path.join(process.cwd(), '.anytime', 'trace');
     try {
       const files = fs.readdirSync(traceDir)
         .filter(f => f.endsWith('.json'))
@@ -1393,8 +1393,8 @@ export class TrailDataServer {
       return;
     }
     const traceDir = this.gitRoot
-      ? path.join(this.gitRoot, '.vscode', 'trace')
-      : path.join(process.cwd(), '.vscode', 'trace');
+      ? path.join(this.gitRoot, '.anytime', 'trace')
+      : path.join(process.cwd(), '.anytime', 'trace');
     const filePath = path.join(traceDir, name);
     try {
       const content = fs.readFileSync(filePath, 'utf-8');

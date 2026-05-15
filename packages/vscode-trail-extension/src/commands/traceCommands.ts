@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 function getTraceOutputDir(wsRoot: string): string {
-	return path.join(wsRoot, '.vscode', 'trace');
+	return path.join(wsRoot, '.anytime', 'trace');
 }
 
 function buildNodeOptions(): string {
