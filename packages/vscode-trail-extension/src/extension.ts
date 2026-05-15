@@ -493,7 +493,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const useExternalDaemon = vscode.workspace
 		.getConfiguration('anytimeTrail.daemon')
 		.get<boolean>('useExternalDaemon', false);
-	const daemonClient = new DaemonClient({ logger: TrailLogger.asLogger() });
+	const daemonClient = new DaemonClient({ logger: TrailLogger.asLogger(), workspaceRoot: wsRootForDb });
 	const externalDaemonInfo = useExternalDaemon ? daemonClient.detect() : undefined;
 	if (externalDaemonInfo) {
 		TrailLogger.info(`[DaemonClient] Using external daemon at ${externalDaemonInfo.url} (pid=${externalDaemonInfo.pid})`);
