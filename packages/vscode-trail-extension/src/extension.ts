@@ -511,7 +511,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// trail config — daemon と extension で共通の設定ソース。
 	// 旧 anytimeTrail.memory.* (~v0.18) は config.json (memory.*) に統合された。
-	const trailConfigPath = path.join(os.homedir(), '.claude', 'trail', 'config.json');
+	// TRAIL_HOME 環境変数が設定されていればそちらを優先、なければ <workspaceRoot>/.anytime/trail を使う。
+	const trailHomeForConfig = process.env['TRAIL_HOME'] ?? path.join(wsRootForDb ?? process.cwd(), '.anytime', 'trail');
+	const trailConfigPath = path.join(trailHomeForConfig, 'config.json');
 	const trailConfig = loadConfig(trailConfigPath, {
 		warn: (msg: string) => TrailLogger.warn(msg),
 	});
