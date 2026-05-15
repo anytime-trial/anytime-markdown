@@ -178,15 +178,27 @@ export class FileTrailStorage implements ITrailStorage {
   restoreFromBackup(generation: number): { restoredFrom: string; safetyCopy: string | null } {
     assertNotProductionWriteDuringTests(this.dbPath);
     const bakPath = this.backupPath(generation);
-    if (!fs.existsSync(bakPath)) {
-      throw new Error(`Backup not found: ${bakPath}`);
+    // TOCTOU 競合を避けるため existsSync を使わず、直接 read を試みて ENOENT で判定。
+    let compressed: Buffer;
+    try {
+      compressed = fs.readFileSync(bakPath);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error(`Backup not found: ${bakPath}`);
+      }
+      throw err;
     }
     let safetyCopy: string | null = null;
-    if (fs.existsSync(this.dbPath)) {
-      safetyCopy = `${this.dbPath}.restore-safety-${Date.now()}`;
-      fs.copyFileSync(this.dbPath, safetyCopy);
+    const safetyPath = `${this.dbPath}.restore-safety-${Date.now()}`;
+    try {
+      fs.copyFileSync(this.dbPath, safetyPath, fs.constants.COPYFILE_EXCL);
+      safetyCopy = safetyPath;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      // ENOENT: 既存 DB なしのため safetyCopy は作らない
+      // EEXIST: 同時呼び出しで衝突、こちらの copy は諦める
+      if (code !== 'ENOENT' && code !== 'EEXIST') throw err;
     }
-    const compressed = fs.readFileSync(bakPath);
     const decompressed = zlib.gunzipSync(compressed);
     fs.writeFileSync(this.dbPath, decompressed);
     return { restoredFrom: bakPath, safetyCopy };
