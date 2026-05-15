@@ -31,10 +31,15 @@ export function scanPromptFiles(): PromptEntry[] {
   let version = 1;
 
   function addFile(filePath: string, tags: string[]): void {
+    let fd: number | null = null;
     try {
-      const stat = fs.statSync(filePath);
+      // TOCTOU 競合を避けるため、open 後の fstat で種別とサイズを参照する。
+      fd = fs.openSync(filePath, 'r');
+      const stat = fs.fstatSync(fd);
       if (!stat.isFile()) return;
-      const content = fs.readFileSync(filePath, 'utf-8');
+      const buffer = Buffer.alloc(stat.size);
+      fs.readSync(fd, buffer, 0, stat.size, 0);
+      const content = buffer.toString('utf-8');
       const name = path.basename(filePath, '.md');
       const relPath = path.relative(claudeDir, filePath);
       const id = relPath.replaceAll(/[/\\. ]+/g, '-').toLowerCase();
@@ -49,6 +54,10 @@ export function scanPromptFiles(): PromptEntry[] {
       });
     } catch {
       // skip unreadable file
+    } finally {
+      if (fd !== null) {
+        try { fs.closeSync(fd); } catch { /* fd may be invalid */ }
+      }
     }
   }
 
@@ -124,14 +133,18 @@ export function scanPromptFiles(): PromptEntry[] {
 
   // 7. settings.json
   const settingsFile = path.join(claudeDir, 'settings.json');
+  let settingsFd: number | null = null;
   try {
-    const stat = fs.statSync(settingsFile);
+    // TOCTOU 競合を避けるため、open 後の fstat で種別とサイズを参照する。
+    settingsFd = fs.openSync(settingsFile, 'r');
+    const stat = fs.fstatSync(settingsFd);
     if (stat.isFile()) {
-      const content = fs.readFileSync(settingsFile, 'utf-8');
+      const buffer = Buffer.alloc(stat.size);
+      fs.readSync(settingsFd, buffer, 0, stat.size, 0);
       prompts.push({
         id: 'settings-json',
         name: 'settings.json',
-        content,
+        content: buffer.toString('utf-8'),
         version: version++,
         tags: ['config'],
         createdAt: stat.birthtime.toISOString(),
@@ -140,6 +153,10 @@ export function scanPromptFiles(): PromptEntry[] {
     }
   } catch {
     // skip
+  } finally {
+    if (settingsFd !== null) {
+      try { fs.closeSync(settingsFd); } catch { /* fd may be invalid */ }
+    }
   }
 
   return prompts;
