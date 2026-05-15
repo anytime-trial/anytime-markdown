@@ -75,7 +75,7 @@ export interface MemoryCoreServiceOptions {
   gitRoot?: string;
   /**
    * 状態ファイル絶対パス (省略時はデフォルト:
-   * $TRAIL_HOME/memory-core-runner.json or ~/.claude/trail/memory-core-runner.json)
+   * $TRAIL_HOME/memory-core-runner.json or <gitRoot>/.anytime/trail/memory-core-runner.json)
    */
   statePath?: string;
   /**

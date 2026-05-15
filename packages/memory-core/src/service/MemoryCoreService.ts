@@ -1,4 +1,3 @@
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { readState, writeState, defaultState } from './state';
@@ -34,7 +33,7 @@ export class MemoryCoreService {
 
   constructor(opts: MemoryCoreServiceOptions) {
     this.opts = opts;
-    this.statePath = opts.statePath ?? defaultStatePath();
+    this.statePath = opts.statePath ?? defaultStatePath(opts.gitRoot);
     this.status = readState(this.statePath, {
       onWarning: (msg) => this.log(`[WARN] state file: ${msg}`),
     });
@@ -240,8 +239,8 @@ async function defaultPipelineRunner(ctx: PipelineRunnerContext): Promise<void> 
   await runMemoryCorePipeline(ctx);
 }
 
-export function defaultStatePath(): string {
-  const trailHome = process.env.TRAIL_HOME ?? join(homedir(), '.claude', 'trail');
+export function defaultStatePath(workspaceRoot?: string): string {
+  const trailHome = process.env.TRAIL_HOME ?? join(workspaceRoot ?? process.cwd(), '.anytime', 'trail');
   return join(trailHome, 'memory-core-runner.json');
 }
 
