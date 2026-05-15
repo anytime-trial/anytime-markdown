@@ -150,7 +150,7 @@ This section walks through the end-to-end procedure for analyzing the C4 archite
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `anytimeTrail.claudeStatus.directory` | `.vscode/trail/agent-status` | Directory where `claude-code-status.json` is stored. Absolute path or relative to workspace root. |
+| `anytimeTrail.claudeStatus.directory` | `.anytime/trail/agent-status` | Directory where `claude-code-status.json` is stored. Absolute path or relative to workspace root. |
 
 
 ### 7.5 Token Budget
