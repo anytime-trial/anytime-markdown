@@ -135,7 +135,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(trailOutputChannel);
 
 	// Claude Code hook を ~/.claude/settings.json に自動登録
-	const claudeStatusDirSetting = vscode.workspace.getConfiguration('anytimeTrail.claudeStatus').get<string>('directory', '.vscode/trail/agent-status') || '.vscode/trail/agent-status';
+	const claudeStatusDirSetting = vscode.workspace.getConfiguration('anytimeTrail.claudeStatus').get<string>('directory', '.anytime/trail/agent-status') || '.anytime/trail/agent-status';
 	const trailPortForHooks = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);
 	{
 		const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -458,7 +458,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Trail Database + Data Server (non-blocking initialization)
-	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '') || '.vscode';
+	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '') || '.anytime';
 	const wsRootForDb = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
 		? dbStoragePathSetting
@@ -1146,7 +1146,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// .vscode/trace/ watcher: notify when a new trace file is created
 	if (wsRootForDb) {
-		const traceDir = vscode.Uri.file(path.join(wsRootForDb, '.vscode', 'trace'));
+		const traceDir = vscode.Uri.file(path.join(wsRootForDb, '.anytime', 'trace'));
 		const traceWatcher = vscode.workspace.createFileSystemWatcher(
 			new vscode.RelativePattern(traceDir, '*.json'),
 		);
