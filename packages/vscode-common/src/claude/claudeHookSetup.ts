@@ -30,7 +30,8 @@ THRESHOLD_TURNS=50
 read -r -d '' STDIN_DATA || true
 CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||process.cwd())}catch{process.stdout.write(process.cwd())}})" 2>/dev/null)
 [ -z "\$CWD" ] && CWD="\$PWD"
-STATE_DIR="\${CWD}/.anytime/state"
+TRAIL_HOME="\${TRAIL_HOME:-\${CWD}/.anytime/trail}"
+STATE_DIR="\${TRAIL_HOME}/state"
 mkdir -p "\$STATE_DIR" 2>/dev/null || true
 STATE_FILE="\${STATE_DIR}/claude-session-guard.json"
 
@@ -93,7 +94,8 @@ SESSION_ID=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>
 CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||process.cwd())}catch{}})")
 TRANSCRIPT=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).transcript_path||'')}catch{}})")
 [ -z "\$SESSION_ID" ] && exit 0
-STATE_DIR="\${CWD}/.anytime/state/git-state"
+TRAIL_HOME="\${TRAIL_HOME:-\${CWD}/.anytime/trail}"
+STATE_DIR="\${TRAIL_HOME}/state/git-state"
 mkdir -p "\$STATE_DIR"
 
 STATE_FILE="\$STATE_DIR/claude-code-git-state-\${SESSION_ID}.json"
