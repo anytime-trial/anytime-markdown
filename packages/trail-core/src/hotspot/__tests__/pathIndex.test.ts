@@ -8,11 +8,11 @@ import {
 import type { C4Element, C4Model } from '../../c4/types';
 
 function codeEl(id: string): C4Element {
-  return { id, type: 'code', name: id, label: id, parentId: null };
+  return { id, type: 'code', name: id };
 }
 
 function nonCodeEl(id: string): C4Element {
-  return { id, type: 'container', name: id, label: id, parentId: null };
+  return { id, type: 'container', name: id };
 }
 
 describe('stripExt', () => {
@@ -38,7 +38,7 @@ describe('isCodeElement', () => {
   });
 
   test('returns false for code type without file:: prefix', () => {
-    const el: C4Element = { id: 'pkg_foo', type: 'code', name: 'x', label: 'x', parentId: null };
+    const el: C4Element = { id: 'pkg_foo', type: 'code', name: 'x' };
     expect(isCodeElement(el)).toBe(false);
   });
 });
