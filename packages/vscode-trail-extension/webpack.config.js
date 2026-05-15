@@ -242,6 +242,15 @@ const mcpTrailServerConfig = {
     __dirname: false,
     __filename: false,
   },
+  // memory-core が typescript を import しており、ts compiler の内部プラグイン
+  // ローダーが動的 require を使うため警告が出る (extensionConfig と同根)。
+  // bundle に含めて警告のみ抑制する。
+  ignoreWarnings: [
+    {
+      module: /node_modules[\\/]typescript[\\/]lib[\\/]typescript\.js$/,
+      message: /Critical dependency: the request of a dependency is an expression/,
+    },
+  ],
   plugins: [
     ...buildBundleAnalyzerPlugins('mcp-trail'),
   ],
