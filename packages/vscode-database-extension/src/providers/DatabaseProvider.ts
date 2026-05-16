@@ -117,7 +117,7 @@ export class BackupTreeItem extends vscode.TreeItem {
   ) {
     const label = vscode.l10n.t('Generation {0}', generation);
     super(label, vscode.TreeItemCollapsibleState.None);
-    this.contextValue = 'backupEntry';
+    this.contextValue = generation === 1 ? 'backupEntryLatest' : 'backupEntryOlder';
     this.iconPath = new vscode.ThemeIcon('history');
     this.description = mtime.toLocaleString();
     const mb = (compressedBytes / 1024 / 1024).toFixed(2);

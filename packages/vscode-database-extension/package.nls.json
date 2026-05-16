@@ -14,5 +14,11 @@
   "config.warnThresholdMs.title": "Warn Threshold (ms)",
   "config.warnThresholdMs.description": "Show a warning when a query takes longer than this number of milliseconds.",
   "config.backup.generations": "Number of gzip-compressed backup generations to keep for `trail.db`. Each generation is stored as `.bak.N.gz` next to the database file. Range: 1–10.",
-  "config.backup.intervalDays": "Minimum interval in days between backups of `trail.db`. `0` = backup every session. `1` (default) = at most once per day. Higher values reduce backup frequency."
+  "config.backup.intervalDays": "Minimum interval in days between backups of `trail.db`. `0` = backup every session. `1` (default) = at most once per day. Higher values reduce backup frequency.",
+  "command.uploadBackupToS3": "Upload Backup to S3",
+  "config.s3.bucket.description": "AWS S3 bucket name to upload backup generations to. Leave empty to disable S3 upload.",
+  "config.s3.region.description": "AWS region of the S3 bucket (e.g. ap-northeast-1).",
+  "config.s3.prefix.description": "Key prefix under the bucket. Final key is `<prefix>/<dbName>/<ISO timestamp>.bak.gz`.",
+  "config.s3.accessKeyId.description": "AWS IAM access key ID. **Recommend storing in User Settings**: committing this to a workspace `.vscode/settings.json` may leak credentials via git.",
+  "config.s3.secretAccessKey.description": "AWS IAM secret access key. **Recommend storing in User Settings**: committing this to a workspace `.vscode/settings.json` may leak credentials via git."
 }
