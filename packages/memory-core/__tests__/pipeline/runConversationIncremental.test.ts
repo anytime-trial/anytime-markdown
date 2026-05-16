@@ -362,4 +362,93 @@ describe('runConversationIncremental', () => {
     trailDb.close();
     memDb.close();
   }, 30000);
+
+  // ── I7: last_heartbeat_at must be populated so pipelineWatchdog can
+  // detect a truly stale incremental run. Backfill writes it on insert and on
+  // every progress checkpoint; incremental must do the same or the watchdog
+  // (which falls back to started_at) keeps the orphan 'running' row alive for
+  // the full 10-minute timeout window after a reload.
+  test('I7: insertPipelineRun seeds last_heartbeat_at and progress checkpoints refresh it', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    insertSession(trailDb, 'sess-hb');
+    insertMessage(trailDb, 'hb1', 'sess-hb', 'user', '2026-01-01T00:00:00.000Z', 'heartbeat probe');
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const result = await runConversationIncremental({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+    });
+
+    expect(result.status).toBe('success');
+
+    const rows = memDb.exec(
+      `SELECT started_at, last_heartbeat_at
+         FROM memory_pipeline_runs
+        WHERE scope = 'conversation_incremental'`
+    );
+    expect(rows[0]?.values).toHaveLength(1);
+    const startedAt = rows[0].values[0][0] as string;
+    const lastHeartbeatAt = rows[0].values[0][1] as string | null;
+    expect(lastHeartbeatAt).not.toBeNull();
+    expect(lastHeartbeatAt as string).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    // Must be >= started_at (heartbeat is refreshed during/after the run).
+    expect(lastHeartbeatAt as string >= startedAt).toBe(true);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── I8: progress() callback must fire for every episode (not just every
+  // PROGRESS_LOG_INTERVAL=50 episodes). Otherwise the UI shows "0/N" frozen
+  // for ~8 minutes on a 50-episode-per-checkpoint cadence, which users
+  // mistake for the pipeline being stuck and trigger a reload that loses
+  // partial work.
+  test('I8: progress callback fires per episode (not every 50)', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    // 5 sessions × 1 user message each = 5 episodes.
+    for (let i = 0; i < 5; i++) {
+      const sid = `sess-prog-${i}`;
+      insertSession(trailDb, sid);
+      insertMessage(
+        trailDb,
+        `prog-${i}`,
+        sid,
+        'user',
+        `2026-01-01T0${i}:00:00.000Z`,
+        `body ${i}`
+      );
+    }
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const progressCalls: Array<{ processed: number; failed: number }> = [];
+
+    const result = await runConversationIncremental({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+      progress: (processed, failed) => {
+        progressCalls.push({ processed, failed });
+      },
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.items_processed).toBe(5);
+
+    // Must have fired at least once per episode (5+), and the processed counter
+    // must be strictly monotonic across calls.
+    expect(progressCalls.length).toBeGreaterThanOrEqual(5);
+    expect(progressCalls.map((c) => c.processed)).toEqual([1, 2, 3, 4, 5]);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
 });
