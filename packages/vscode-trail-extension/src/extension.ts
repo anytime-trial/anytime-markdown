@@ -684,24 +684,22 @@ export async function activate(context: vscode.ExtensionContext) {
 	trailDataServer.onAnalyzeAll = async () => {
 		if (!trailDb) throw new Error('Trail DB not initialized');
 		const startedAt = Date.now();
-		ollamaProvider?.setImportAllRunning();
-		try {
-			const result = await trailDb.importAll(
-				(message) => TrailLogger.info(`Trail import (HTTP): ${message}`),
-				getWatchedGitRoots(),
-				undefined,
-				analyze,
-			);
-			ollamaProvider?.setImportAllSuccess(result.imported, result.skipped);
-			trailDataServer?.notifySessionsUpdated();
-			// service が null = useExternalDaemon に委譲中。daemon 側が periodic で回す
-			// ため拡張側ではここで no-op。
-			await memoryCoreService?.runOnce('import');
-			return { ...result, durationMs: Date.now() - startedAt };
-		} catch (err) {
-			ollamaProvider?.setImportAllError(err instanceof Error ? err.message : String(err));
-			throw err;
-		}
+		ollamaProvider?.resetImportAllPhases();
+		const result = await trailDb.importAll(
+			(message) => TrailLogger.info(`Trail import (HTTP): ${message}`),
+			getWatchedGitRoots(),
+			undefined,
+			analyze,
+			(event) => ollamaProvider?.setImportAllPhase(event.phase, event.action, {
+				count: event.count,
+				message: event.message,
+			}),
+		);
+		trailDataServer?.notifySessionsUpdated();
+		// service が null = useExternalDaemon に委譲中。daemon 側が periodic で回す
+		// ため拡張側ではここで no-op。
+		await memoryCoreService?.runOnce('import');
+		return { ...result, durationMs: Date.now() - startedAt };
 	};
 
 	// loadFromDb() は trailDb.init() 完了後に下の async IIFE 内で呼ぶ。
@@ -925,7 +923,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			TrailLogger.info(`Trail DB [${repoName}]: import started`);
 			databaseProvider.setImporting(true);
-			ollamaProvider?.setImportAllRunning();
+			ollamaProvider?.resetImportAllPhases();
 			try {
 				const result = await vscode.window.withProgress(
 					{
@@ -934,16 +932,24 @@ export async function activate(context: vscode.ExtensionContext) {
 						cancellable: false,
 					},
 					async (progress) => {
-						return trailDb!.importAll((message, increment) => {
-							progress.report({ message, increment });
-							TrailLogger.info(`Trail import [${repoName}]: ${message}`);
-						}, getWatchedGitRoots(), undefined, analyze);
+						return trailDb!.importAll(
+							(message, increment) => {
+								progress.report({ message, increment });
+								TrailLogger.info(`Trail import [${repoName}]: ${message}`);
+							},
+							getWatchedGitRoots(),
+							undefined,
+							analyze,
+							(event) => ollamaProvider?.setImportAllPhase(event.phase, event.action, {
+								count: event.count,
+								message: event.message,
+							}),
+						);
 					},
 				);
 				TrailLogger.info(`Trail DB [${repoName}]: import complete - imported=${result.imported}, skipped=${result.skipped}, commits=${result.commitsResolved}, releases=${result.releasesResolved}, analyzed=${result.releasesAnalyzed}`);
 				databaseProvider.updateSqliteStatus('Ready', trailDb.getLastImportedAt());
 				databaseProvider.setImporting(false);
-				ollamaProvider?.setImportAllSuccess(result.imported, result.skipped);
 
 				trailDataServer?.notifySessionsUpdated();
 				await memoryCoreService?.runOnce('import');
@@ -954,7 +960,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			} catch (err) {
 				databaseProvider.setImporting(false);
 				databaseProvider.updateSqliteStatus('Import failed');
-				ollamaProvider?.setImportAllError(err instanceof Error ? err.message : String(err));
 				TrailLogger.error(`Trail import [${repoName}] failed`, err);
 			}
 		}),
@@ -1066,52 +1071,6 @@ export async function activate(context: vscode.ExtensionContext) {
 					`Anytime Memory status failed: ${err instanceof Error ? err.message : String(err)}`,
 				);
 			}
-		}),
-		// メモリパイプライン (embedding_backfill / spec_incremental / drift_detection 等)
-		// の 1 サイクルを即時実行する。OLLAMA パネルのバーアイコンから起動。
-		// runOnce('manual') は pause を無視するため、ユーザー明示操作として扱われる。
-		// runOnce 自体は例外を吸収して lastError に記録するため throw しない。
-		vscode.commands.registerCommand('anytime-trail.memory.runOnce', async () => {
-			if (!memoryCoreService) {
-				const daemonUrl = TrailPanel.getDaemonUrl();
-				if (!daemonUrl) {
-					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
-					return;
-				}
-				try {
-					const res = await fetch(`${daemonUrl}/api/memory-core/run`, { method: 'POST' });
-					if (!res.ok) {
-						vscode.window.showErrorMessage(`Anytime Memory run failed: HTTP ${res.status}`);
-						return;
-					}
-					vscode.window.showInformationMessage('Anytime Memory: pipelines triggered on daemon');
-				} catch (err) {
-					TrailLogger.error('memory.runOnce (daemon) failed', err);
-					vscode.window.showErrorMessage(
-						`Anytime Memory run failed: ${err instanceof Error ? err.message : String(err)}`,
-					);
-				}
-				return;
-			}
-			await vscode.window.withProgress(
-				{
-					location: vscode.ProgressLocation.Notification,
-					title: 'Anytime Memory: running pipelines',
-					cancellable: false,
-				},
-				async () => {
-					const status = await memoryCoreService!.runOnce('manual');
-					if (status.lastError) {
-						vscode.window.showWarningMessage(
-							`Anytime Memory: pipelines completed with errors — ${status.lastError}`,
-						);
-					} else {
-						vscode.window.showInformationMessage(
-							`Anytime Memory: pipelines done (ticksRun=${status.ticksRun})`,
-						);
-					}
-				},
-			);
 		}),
 	);
 

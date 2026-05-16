@@ -3,6 +3,32 @@ import * as fs from 'node:fs';
 import * as vscode from 'vscode';
 import { TrailLogger } from '../utils/TrailLogger';
 import type { PipelineStatusFile, PipelineStatusEntry, PipelineState } from '@anytime-markdown/memory-core';
+import type { ImportAllPhase } from '@anytime-markdown/trail-db';
+
+/**
+ * importAll 内部の job (phase) 単位の表示順。OLLAMA panel ではこの順序で並ぶ。
+ */
+export const IMPORT_ALL_PHASE_ORDER: readonly ImportAllPhase[] = [
+  'import_sessions',
+  'resolve_releases',
+  'analyze_releases',
+  'import_coverage',
+  'rebuild_costs',
+  'analyze_behavior',
+  'rebuild_counts',
+  'backfill',
+];
+
+/**
+ * importAll 内 1 phase の追跡状態。OllamaProvider 内のメモリに保持される。
+ */
+interface ImportAllPhaseState {
+  state: PipelineState;
+  startedAt?: string;
+  finishedAt?: string;
+  count?: number;
+  message?: string;
+}
 
 const OLLAMA_PORT = 11434;
 const OLLAMA_PATH = '/api/tags';
@@ -188,6 +214,10 @@ interface BackupPipelineDisplay {
 /**
  * trailDb.importAll() の最新実行状態 (in-process)。
  * 外部デーモン経由の importAll は本拡張からは追跡できないため反映されない。
+ *
+ * 単一エントリ表示は廃止し、各 phase を個別エントリとして表示する設計に
+ * 移行した ({@link IMPORT_ALL_PHASE_ORDER}, {@link ImportAllPhaseState})。
+ * 本型は後方互換目的で残してあるが、現在は内部参照されない。
  */
 export interface ImportAllRunInfo {
   state: PipelineState;
@@ -199,54 +229,63 @@ export interface ImportAllRunInfo {
 }
 
 /**
- * importAll 実行情報から表示用エントリを組み立てる。
- * - null (未実行): state='pending', "未実行"
+ * importAll の単一 phase から表示用エントリを組み立てる。
+ * - 未追跡 (null): state='pending', "未実行"
  * - running: 経過時間
- * - success/partial: "imported=X skipped=Y in Zs"
+ * - success/partial: "{count} done in {duration}" (count なら "done in {duration}")
+ * - skip: "skipped: {message}"
  * - error: "error: {message}"
+ *
+ * scope はそのまま phase 名 (e.g. 'import_sessions') を返すため、UI 側で
+ * label に使える。
  */
-export function buildImportAllDisplay(
-  run: ImportAllRunInfo | null,
+export function buildImportAllPhaseDisplay(
+  phase: ImportAllPhase,
+  state: ImportAllPhaseState | null,
   now: number = Date.now(),
 ): BackupPipelineDisplay {
-  if (!run) {
-    return { scope: 'importAll', state: 'pending', description: '未実行' };
+  if (!state) {
+    return { scope: phase, state: 'pending', description: '未実行' };
   }
-  if (run.state === 'running') {
-    const startedMs = run.startedAt ? new Date(run.startedAt).getTime() : NaN;
+  if (state.state === 'running') {
+    const startedMs = state.startedAt ? new Date(state.startedAt).getTime() : NaN;
     const elapsed = Number.isFinite(startedMs)
       ? Math.max(0, (now - startedMs) / 1000)
       : null;
     return {
-      scope: 'importAll',
+      scope: phase,
       state: 'running',
       description: elapsed !== null ? `running (${formatDuration(elapsed)})` : 'running',
     };
   }
-  if (run.state === 'success' || run.state === 'partial') {
-    const startedMs = run.startedAt ? new Date(run.startedAt).getTime() : NaN;
-    const finishedMs = run.finishedAt ? new Date(run.finishedAt).getTime() : NaN;
+  if (state.state === 'success' || state.state === 'partial') {
+    const startedMs = state.startedAt ? new Date(state.startedAt).getTime() : NaN;
+    const finishedMs = state.finishedAt ? new Date(state.finishedAt).getTime() : NaN;
     const dur =
       Number.isFinite(startedMs) && Number.isFinite(finishedMs)
         ? Math.max(0, (finishedMs - startedMs) / 1000)
         : null;
     const durStr = dur !== null ? ` in ${formatDuration(dur)}` : '';
-    const imported = run.imported ?? 0;
-    const skipped = run.skipped ?? 0;
+    if (state.count !== undefined) {
+      return { scope: phase, state: state.state, description: `${state.count} done${durStr}` };
+    }
+    return { scope: phase, state: state.state, description: `done${durStr}` };
+  }
+  if (state.state === 'skipped') {
     return {
-      scope: 'importAll',
-      state: run.state,
-      description: `imported=${imported} skipped=${skipped}${durStr}`,
+      scope: phase,
+      state: 'skipped',
+      description: state.message ? `skipped: ${state.message.slice(0, 60)}` : 'skipped',
     };
   }
-  if (run.state === 'error') {
+  if (state.state === 'error') {
     return {
-      scope: 'importAll',
+      scope: phase,
       state: 'error',
-      description: run.message ? `error: ${run.message.slice(0, 60)}` : 'error',
+      description: state.message ? `error: ${state.message.slice(0, 60)}` : 'error',
     };
   }
-  return { scope: 'importAll', state: run.state, description: '' };
+  return { scope: phase, state: state.state, description: '' };
 }
 
 /**
@@ -290,7 +329,7 @@ export class OllamaProvider
   private _lastStatusFileMtime = 0;
   private readonly _statusFilePath: string | undefined;
   private readonly _dbFilePath: string | undefined;
-  private _importAllRun: ImportAllRunInfo | null = null;
+  private readonly _importAllPhases = new Map<ImportAllPhase, ImportAllPhaseState>();
 
   constructor(options: OllamaProviderOptions = {}) {
     this._statusFilePath = options.statusFilePath;
@@ -330,14 +369,16 @@ export class OllamaProvider
         }
       }
 
-      // 経過時間の表示を tick させるため、running pipeline (memory-core / importAll) が
+      // 経過時間の表示を tick させるため、running phase (memory-core / importAll) が
       // あれば mtime 変化なしでも refresh する。
       const status = readPipelineStatus(this._statusFilePath);
       const hasRunningPipeline =
         status?.pipelines.some((p) => p.state === 'running') ?? false;
-      const importAllRunning = this._importAllRun?.state === 'running';
+      const importAllPhaseRunning = Array.from(this._importAllPhases.values()).some(
+        (s) => s.state === 'running',
+      );
 
-      if (mtimeChanged || hasRunningPipeline || importAllRunning) {
+      if (mtimeChanged || hasRunningPipeline || importAllPhaseRunning) {
         this._onDidChangeTreeData.fire();
       }
     } catch {
@@ -372,14 +413,18 @@ export class OllamaProvider
       items.push(new OllamaItem('model', model));
     }
 
-    // Pipelines セクション: backup → importAll → memory-core pipelines の順で表示。
-    // backup / importAll は dbFilePath が指定されていれば常時 (pending 含む) 表示。
+    // Pipelines セクション: backup → importAll の 8 phases → memory-core pipelines の順。
+    // backup / importAll phases は dbFilePath が指定されていれば常時 (pending 含む) 表示。
     const backup = this._dbFilePath ? buildBackupDisplay(this._dbFilePath) : null;
-    const importAll = this._dbFilePath ? buildImportAllDisplay(this._importAllRun) : null;
+    const importAllPhases = this._dbFilePath
+      ? IMPORT_ALL_PHASE_ORDER.map((phase) =>
+          buildImportAllPhaseDisplay(phase, this._importAllPhases.get(phase) ?? null),
+        )
+      : [];
     const pipelineStatus = readPipelineStatus(this._statusFilePath);
     const memoryPipelines = pipelineStatus?.pipelines ?? [];
 
-    if (backup || importAll || memoryPipelines.length > 0) {
+    if (backup || importAllPhases.length > 0 || memoryPipelines.length > 0) {
       items.push(new OllamaItem('pipeline-separator', '── Pipelines ──'));
       if (backup) {
         items.push(
@@ -389,11 +434,11 @@ export class OllamaProvider
           }),
         );
       }
-      if (importAll) {
+      for (const ph of importAllPhases) {
         items.push(
-          new OllamaItem('pipeline', importAll.scope, {
-            state: importAll.state,
-            description: importAll.description,
+          new OllamaItem('pipeline', ph.scope, {
+            state: ph.state,
+            description: ph.description,
           }),
         );
       }
@@ -409,32 +454,58 @@ export class OllamaProvider
     return items;
   }
 
-  /** importAll 実行開始を通知。description が "running (Xs)" に切り替わる。 */
-  setImportAllRunning(): void {
-    this._importAllRun = { state: 'running', startedAt: new Date().toISOString() };
+  /**
+   * importAll の単一 phase 状態を更新する。
+   * action: 'start' | 'finish' | 'skip' | 'error' で state が決まる。
+   *
+   * 連続呼び出し:
+   * - 'start' → 'finish'/'skip'/'error' で startedAt → finishedAt を保持
+   * - 重複 'start' は startedAt を更新 (再実行の意味)
+   */
+  setImportAllPhase(
+    phase: ImportAllPhase,
+    action: 'start' | 'finish' | 'skip' | 'error',
+    info: { count?: number; message?: string } = {},
+  ): void {
+    const now = new Date().toISOString();
+    const previous = this._importAllPhases.get(phase);
+    if (action === 'start') {
+      this._importAllPhases.set(phase, {
+        state: 'running',
+        startedAt: now,
+      });
+    } else if (action === 'finish') {
+      this._importAllPhases.set(phase, {
+        state: 'success',
+        startedAt: previous?.startedAt,
+        finishedAt: now,
+        count: info.count,
+      });
+    } else if (action === 'skip') {
+      this._importAllPhases.set(phase, {
+        state: 'skipped',
+        startedAt: previous?.startedAt,
+        finishedAt: now,
+        message: info.message,
+      });
+    } else {
+      // error
+      this._importAllPhases.set(phase, {
+        state: 'error',
+        startedAt: previous?.startedAt,
+        finishedAt: now,
+        message: info.message,
+      });
+    }
     this._onDidChangeTreeData.fire();
   }
 
-  /** importAll 成功完了を通知。imported / skipped カウントを保持する。 */
-  setImportAllSuccess(imported: number, skipped: number): void {
-    this._importAllRun = {
-      state: 'success',
-      startedAt: this._importAllRun?.startedAt,
-      finishedAt: new Date().toISOString(),
-      imported,
-      skipped,
-    };
-    this._onDidChangeTreeData.fire();
-  }
-
-  /** importAll 失敗を通知。message は description に 60 文字までで表示される。 */
-  setImportAllError(message: string): void {
-    this._importAllRun = {
-      state: 'error',
-      startedAt: this._importAllRun?.startedAt,
-      finishedAt: new Date().toISOString(),
-      message,
-    };
+  /**
+   * importAll 全体を未実行状態に戻す (新しい実行サイクルの開始前に呼び、
+   * 前回 success/error の表示を消す)。
+   */
+  resetImportAllPhases(): void {
+    this._importAllPhases.clear();
     this._onDidChangeTreeData.fire();
   }
 

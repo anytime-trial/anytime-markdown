@@ -10,7 +10,6 @@
   "command.memory.pauseIngest": "Pause Memory Ingest",
   "command.memory.resumeIngest": "Resume Memory Ingest",
   "command.memory.statusIngest": "Show Memory Ingest Status",
-  "command.memory.runOnce": "Run Memory Pipelines Now",
   "command.analyzeCurrentCode": "Analyze Code",
   "command.analyzeReleaseCode": "Analyze Release Code",
   "command.analyzeAll": "Analyze All Data",

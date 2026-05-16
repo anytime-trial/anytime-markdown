@@ -225,12 +225,6 @@
         "icon": "$(play)"
       },
       {
-        "command": "anytime-trail.memory.runOnce",
-        "title": "%command.memory.runOnce%",
-        "category": "Anytime Trail",
-        "icon": "$(run-all)"
-      },
-      {
         "command": "anytime-trail.killExtensionHost",
         "title": "%command.killExtensionHost%",
         "category": "Anytime Trail",
@@ -312,7 +306,7 @@
           "icon": "$(filter-filled)"
         },
         {
-          "command": "anytime-trail.memory.runOnce",
+          "command": "anytime-trail.analyzeAll",
           "when": "view == anytimeTrail.ollama",
           "group": "navigation@1"
         },

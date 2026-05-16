@@ -67,6 +67,34 @@ import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 
 import { aggregateQualityRates, aggregateCommitPrefixStats } from './combinedDataAggregators';
 export type AnalyzeFunction = (options: AnalyzeOptions) => TrailGraph;
+
+/**
+ * importAll() を構成する論理 phase の識別子。
+ * UI (OLLAMA panel pipelines) では各 phase が独立した entry として表示される。
+ */
+export type ImportAllPhase =
+  | 'import_sessions'
+  | 'resolve_releases'
+  | 'analyze_releases'
+  | 'import_coverage'
+  | 'rebuild_costs'
+  | 'analyze_behavior'
+  | 'rebuild_counts'
+  | 'backfill';
+
+/**
+ * importAll() が phase 境界で発火するイベント。
+ * - 'start': phase 開始
+ * - 'finish': phase 正常終了 (count に取り扱い件数)
+ * - 'skip':   phase スキップ (該当データなし等)
+ * - 'error':  phase 失敗 (message にエラー詳細)
+ */
+export interface ImportAllPhaseEvent {
+  phase: ImportAllPhase;
+  action: 'start' | 'finish' | 'skip' | 'error';
+  count?: number;
+  message?: string;
+}
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import { splitCodeGraph, composeCodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import type { StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
@@ -3289,6 +3317,7 @@ export class TrailDatabase {
     gitRoots?: readonly string[],
     excludePatterns?: readonly string[],
     analyzeFn?: AnalyzeFunction,
+    onPhase?: (event: ImportAllPhaseEvent) => void,
   ): Promise<{ imported: number; skipped: number; commitsResolved: number; releasesResolved: number; releasesAnalyzed: number; coverageImported: number; currentCoverageImported: number; messageCommitsBackfilled: number }> {
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
     const codexSessionsDir = path.join(os.homedir(), '.codex', 'sessions');
@@ -3406,6 +3435,8 @@ export class TrailDatabase {
       `Claude Code ${processedBySource.claude_code}/${claudeFiles} skipped ${skippedBySource.claude_code}, ` +
       `Codex ${processedBySource.codex}/${codexFiles} skipped ${skippedBySource.codex}`;
 
+    onPhase?.({ phase: 'import_sessions', action: 'start', count: totalSessions });
+
     for (const dir of sessionDirs) {
       const sessionFileTotal = 1 + dir.subagentFiles.length;
       // Skip entire session (main + all subagents) if main file size unchanged
@@ -3481,91 +3512,141 @@ export class TrailDatabase {
       inTransaction = false;
       onProgress?.(formatProgress(), 0);
     }
+    onPhase?.({ phase: 'import_sessions', action: 'finish', count: imported });
 
     // Resolve releases from version tags
     let releasesResolved = 0;
     if (gitRoot) {
+      onPhase?.({ phase: 'resolve_releases', action: 'start' });
+      let resolveReleasesFailed = false;
       try {
         onProgress?.('Resolving releases from version tags...', 0);
         releasesResolved = this.resolveReleases(gitRoot);
         onProgress?.(`Releases resolved: ${releasesResolved}`, 0);
-      } catch {
-        // Skip release resolution errors
+      } catch (e) {
+        resolveReleasesFailed = true;
+        onPhase?.({ phase: 'resolve_releases', action: 'error', message: e instanceof Error ? e.message : String(e) });
       }
       try {
         onProgress?.('Resolving release times...', 0);
         const timesResolved = this.resolveReleaseTimes();
         onProgress?.(`Release times resolved: ${timesResolved}`, 0);
-      } catch {
-        // Skip release time resolution errors
+      } catch (e) {
+        if (!resolveReleasesFailed) {
+          onPhase?.({ phase: 'resolve_releases', action: 'error', message: e instanceof Error ? e.message : String(e) });
+          resolveReleasesFailed = true;
+        }
       }
+      if (!resolveReleasesFailed) {
+        onPhase?.({ phase: 'resolve_releases', action: 'finish', count: releasesResolved });
+      }
+    } else {
+      onPhase?.({ phase: 'resolve_releases', action: 'skip', message: 'no gitRoot' });
     }
 
     // Analyze source code for each release
     let releasesAnalyzed = 0;
     if (gitRoot && analyzeFn) {
+      onPhase?.({ phase: 'analyze_releases', action: 'start' });
       try {
         onProgress?.('Analyzing releases...', 0);
         releasesAnalyzed = this.analyzeReleases(gitRoot, analyzeFn, (msg) => onProgress?.(msg, 0), excludePatterns);
         onProgress?.(`Releases analyzed: ${releasesAnalyzed}`, 0);
-      } catch {
-        // Skip analysis errors
+        onPhase?.({ phase: 'analyze_releases', action: 'finish', count: releasesAnalyzed });
+      } catch (e) {
+        onPhase?.({ phase: 'analyze_releases', action: 'error', message: e instanceof Error ? e.message : String(e) });
       }
+    } else {
+      onPhase?.({ phase: 'analyze_releases', action: 'skip', message: gitRoot ? 'no analyzeFn' : 'no gitRoot' });
     }
 
     // Import coverage data from packages/*/coverage/coverage-summary.json
     let coverageImported = 0;
     let currentCoverageImported = 0;
     if (gitRoot) {
+      onPhase?.({ phase: 'import_coverage', action: 'start' });
+      let coverageFailed = false;
       try {
         onProgress?.('Importing coverage data...', 0);
         coverageImported = this.importCoverage(gitRoot);
         onProgress?.(`Coverage imported: ${coverageImported} entries`, 0);
-      } catch {
-        // Skip coverage import errors
+      } catch (e) {
+        coverageFailed = true;
+        onPhase?.({ phase: 'import_coverage', action: 'error', message: e instanceof Error ? e.message : String(e) });
       }
       try {
         onProgress?.('Importing current coverage snapshot...', 0);
         currentCoverageImported = this.importCurrentCoverage(gitRoot, path.basename(gitRoot));
         onProgress?.(`Current coverage imported: ${currentCoverageImported} entries`, 0);
-      } catch {
-        // Skip current coverage import errors
+      } catch (e) {
+        if (!coverageFailed) {
+          onPhase?.({ phase: 'import_coverage', action: 'error', message: e instanceof Error ? e.message : String(e) });
+          coverageFailed = true;
+        }
       }
+      if (!coverageFailed) {
+        onPhase?.({ phase: 'import_coverage', action: 'finish', count: coverageImported + currentCoverageImported });
+      }
+    } else {
+      onPhase?.({ phase: 'import_coverage', action: 'skip', message: 'no gitRoot' });
     }
 
-    // Rebuild session_costs and daily_counts from all messages / tool_calls
-    onProgress?.('Rebuilding session costs...', 0);
-    this.rebuildSessionCosts();
-    onProgress?.('Session costs rebuilt', 0);
+    // Rebuild session_costs from messages
+    onPhase?.({ phase: 'rebuild_costs', action: 'start' });
+    try {
+      onProgress?.('Rebuilding session costs...', 0);
+      this.rebuildSessionCosts();
+      onProgress?.('Session costs rebuilt', 0);
+      onPhase?.({ phase: 'rebuild_costs', action: 'finish' });
+    } catch (e) {
+      onPhase?.({ phase: 'rebuild_costs', action: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
 
     // Analyze Claude Code behavior only for sessions that were (re)imported in this run.
     // Sessions skipped above had no new messages, so message_tool_calls is already current.
     if (sessionsToAnalyze.size > 0) {
+      onPhase?.({ phase: 'analyze_behavior', action: 'start', count: sessionsToAnalyze.size });
       const db = this.ensureDb();
       const analyzer = new ClaudeCodeBehaviorAnalyzer();
       onProgress?.(`Analyzing Claude Code behavior (${sessionsToAnalyze.size} sessions)...`, 0);
+      let failedCount = 0;
       for (const sid of sessionsToAnalyze) {
         try {
           analyzer.analyze(sid, db);
         } catch (e) {
+          failedCount += 1;
           this.logger.error(`ClaudeCodeBehaviorAnalyzer failed for session ${sid}`, e);
         }
       }
+      onPhase?.({ phase: 'analyze_behavior', action: 'finish', count: sessionsToAnalyze.size - failedCount });
+    } else {
+      onPhase?.({ phase: 'analyze_behavior', action: 'skip', message: 'no new sessions' });
     }
 
-    // Rebuild daily_counts (6 kinds) after message_tool_calls is populated
-    onProgress?.('Rebuilding daily counts...', 0);
-    this.rebuildDailyCounts();
-    onProgress?.('Daily counts rebuilt', 0);
+    // Rebuild daily_counts (6 kinds) after message_tool_calls is populated, then session_stats
+    onPhase?.({ phase: 'rebuild_counts', action: 'start' });
+    try {
+      onProgress?.('Rebuilding daily counts...', 0);
+      this.rebuildDailyCounts();
+      onProgress?.('Daily counts rebuilt', 0);
+      onProgress?.('Rebuilding session stats...', 0);
+      this.rebuildSessionStats();
+      onProgress?.('Session stats rebuilt', 0);
+      onPhase?.({ phase: 'rebuild_counts', action: 'finish' });
+    } catch (e) {
+      onPhase?.({ phase: 'rebuild_counts', action: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
 
-    // Pre-aggregate per-session stats used by /api/trail/sessions
-    onProgress?.('Rebuilding session stats...', 0);
-    this.rebuildSessionStats();
-    onProgress?.('Session stats rebuilt', 0);
-
-    // Phase 2a: backfill commit_files (one-time migration for existing commits)
+    // backfill: commit_files / subagent_type / message_commits
+    onPhase?.({ phase: 'backfill', action: 'start' });
+    let backfillFailed = false;
     if (gitRoot) {
-      this.backfillCommitFiles(gitRoot, (msg) => onProgress?.(msg, 0));
+      try {
+        this.backfillCommitFiles(gitRoot, (msg) => onProgress?.(msg, 0));
+      } catch (e) {
+        backfillFailed = true;
+        onPhase?.({ phase: 'backfill', action: 'error', message: e instanceof Error ? e.message : String(e) });
+      }
     }
 
     // Phase D-2: backfill subagent_type from .meta.json + parent tool_calls (one-time)
@@ -3613,6 +3694,10 @@ export class TrailDatabase {
       }
     }
     onProgress?.(`Backfilled ${messageCommitsBackfilled} message_commits`, 0);
+
+    if (!backfillFailed) {
+      onPhase?.({ phase: 'backfill', action: 'finish', count: messageCommitsBackfilled });
+    }
 
     this.save();
     return {

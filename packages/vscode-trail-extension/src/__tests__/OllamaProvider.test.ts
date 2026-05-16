@@ -20,7 +20,7 @@ jest.mock('node:fs', () => ({
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof global.fetch;
 
-import { OllamaProvider, formatDuration, formatPipelineDescription, buildBackupDisplay, buildImportAllDisplay } from '../providers/OllamaProvider';
+import { OllamaProvider, formatDuration, formatPipelineDescription, buildBackupDisplay, buildImportAllPhaseDisplay, IMPORT_ALL_PHASE_ORDER } from '../providers/OllamaProvider';
 
 function makeRunningResponse(models: string[]) {
   return Promise.resolve({
@@ -263,7 +263,7 @@ describe('OllamaProvider.getChildren() — backup pipeline entry', () => {
     expect(backup?.description).toContain(fakeMtime.toLocaleString());
   });
 
-  it('backup エントリは Pipelines セクションの先頭に出る (importAll → memory pipelines の前)', async () => {
+  it('Pipelines セクションは backup → 8 importAll phases → memory pipelines の順に並ぶ', async () => {
     const statusPath = '/fake/pipeline-status.json';
     mockExistsSync.mockImplementation((p: string) => p === statusPath || p === bakPath);
     mockStatSync.mockReturnValue({ size: 1024, mtime: new Date() });
@@ -279,10 +279,11 @@ describe('OllamaProvider.getChildren() — backup pipeline entry', () => {
     const children = await provider.getChildren();
 
     const pipelineItems = children.filter((c) => c.kind === 'pipeline');
-    expect(pipelineItems).toHaveLength(3);
+    // 1 backup + 8 importAll phases + 1 memory pipeline = 10
+    expect(pipelineItems).toHaveLength(10);
     expect(pipelineItems[0].label).toBe('backup');
-    expect(pipelineItems[1].label).toBe('importAll');
-    expect(pipelineItems[2].label).toBe('embedding_backfill');
+    expect(pipelineItems.slice(1, 9).map((c) => c.label)).toEqual([...IMPORT_ALL_PHASE_ORDER]);
+    expect(pipelineItems[9].label).toBe('embedding_backfill');
   });
 
   it('statSync が throw: error state でメッセージを切り詰めて表示', async () => {
@@ -298,10 +299,9 @@ describe('OllamaProvider.getChildren() — backup pipeline entry', () => {
   });
 });
 
-describe('OllamaProvider — importAll pipeline entry', () => {
+describe('OllamaProvider — importAll phase entries', () => {
   let provider: OllamaProvider;
   const dbFilePath = '/fake/.anytime/trail/db/trail.db';
-  const bakPath = `${dbFilePath}.bak.1.gz`;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -312,83 +312,90 @@ describe('OllamaProvider — importAll pipeline entry', () => {
     provider?.dispose();
   });
 
-  it('dbFilePath なし: importAll エントリを表示しない', async () => {
+  it('dbFilePath なし: importAll phase エントリを表示しない', async () => {
     provider = new OllamaProvider();
     const children = await provider.getChildren();
-    expect(children.find((c) => c.label === 'importAll')).toBeUndefined();
+    for (const ph of IMPORT_ALL_PHASE_ORDER) {
+      expect(children.find((c) => c.label === ph)).toBeUndefined();
+    }
   });
 
-  it('未実行: pending state で "未実行" 表示', async () => {
+  it('未追跡: 全 8 phase が pending state + "未実行" で表示', async () => {
     mockExistsSync.mockReturnValue(false);
     provider = new OllamaProvider({ dbFilePath });
     const children = await provider.getChildren();
 
-    const importAll = children.find((c) => c.kind === 'pipeline' && c.label === 'importAll');
-    expect(importAll).toBeDefined();
-    expect(importAll?.description).toBe('未実行');
+    for (const ph of IMPORT_ALL_PHASE_ORDER) {
+      const item = children.find((c) => c.kind === 'pipeline' && c.label === ph);
+      expect(item).toBeDefined();
+      expect(item?.description).toBe('未実行');
+    }
   });
 
-  it('setImportAllRunning: running state + 経過時間', async () => {
+  it('setImportAllPhase("import_sessions", "start"): 当該 phase のみ running', async () => {
     mockExistsSync.mockReturnValue(false);
     provider = new OllamaProvider({ dbFilePath });
-    provider.setImportAllRunning();
+    provider.setImportAllPhase('import_sessions', 'start');
     const children = await provider.getChildren();
 
-    const importAll = children.find((c) => c.kind === 'pipeline' && c.label === 'importAll');
-    expect(importAll?.description).toMatch(/^running/);
+    const running = children.find((c) => c.kind === 'pipeline' && c.label === 'import_sessions');
+    expect(running?.description).toMatch(/^running/);
+    // 他の phase は pending のまま
+    const other = children.find((c) => c.kind === 'pipeline' && c.label === 'resolve_releases');
+    expect(other?.description).toBe('未実行');
   });
 
-  it('setImportAllSuccess: imported / skipped カウント表示', async () => {
+  it('setImportAllPhase("resolve_releases", "finish", { count: 5 }): success + "5 done in Xs"', async () => {
     mockExistsSync.mockReturnValue(false);
     provider = new OllamaProvider({ dbFilePath });
-    provider.setImportAllRunning();
-    provider.setImportAllSuccess(12, 348);
+    provider.setImportAllPhase('resolve_releases', 'start');
+    provider.setImportAllPhase('resolve_releases', 'finish', { count: 5 });
     const children = await provider.getChildren();
 
-    const importAll = children.find((c) => c.kind === 'pipeline' && c.label === 'importAll');
-    expect(importAll?.description).toContain('imported=12');
-    expect(importAll?.description).toContain('skipped=348');
-    expect(importAll?.description).toMatch(/ in \d+/);
+    const item = children.find((c) => c.kind === 'pipeline' && c.label === 'resolve_releases');
+    expect(item?.description).toMatch(/^5 done/);
   });
 
-  it('setImportAllError: error state + メッセージ', async () => {
+  it('setImportAllPhase("analyze_releases", "skip", { message: "no gitRoot" }): skipped state', async () => {
     mockExistsSync.mockReturnValue(false);
     provider = new OllamaProvider({ dbFilePath });
-    provider.setImportAllError('git not found');
+    provider.setImportAllPhase('analyze_releases', 'skip', { message: 'no gitRoot' });
     const children = await provider.getChildren();
 
-    const importAll = children.find((c) => c.kind === 'pipeline' && c.label === 'importAll');
-    expect(importAll?.description).toContain('error');
-    expect(importAll?.description).toContain('git not found');
+    const item = children.find((c) => c.kind === 'pipeline' && c.label === 'analyze_releases');
+    expect(item?.description).toBe('skipped: no gitRoot');
   });
 
-  it('表示順: backup → importAll → memory pipelines', async () => {
-    const statusPath = '/fake/pipeline-status.json';
-    mockExistsSync.mockImplementation((p: string) => p === statusPath || p === bakPath);
-    mockStatSync.mockReturnValue({ size: 1024, mtime: new Date() });
-    mockReadFileSync.mockReturnValue(JSON.stringify({
-      updated_at: '2026-05-11T22:00:00.000Z',
-      run_id: 'r1',
-      pipelines: [
-        { scope: 'embedding_backfill', state: 'success', started_at: '2026-05-11T22:00:00.000Z', finished_at: '2026-05-11T22:01:00.000Z', items_processed: 10, items_failed: 0 },
-      ],
-    }));
-
-    provider = new OllamaProvider({ statusFilePath: statusPath, dbFilePath });
+  it('setImportAllPhase("backfill", "error", { message: "..." }): error state + メッセージ', async () => {
+    mockExistsSync.mockReturnValue(false);
+    provider = new OllamaProvider({ dbFilePath });
+    provider.setImportAllPhase('backfill', 'error', { message: 'git not found' });
     const children = await provider.getChildren();
 
-    const pipelineItems = children.filter((c) => c.kind === 'pipeline');
-    expect(pipelineItems).toHaveLength(3);
-    expect(pipelineItems[0].label).toBe('backup');
-    expect(pipelineItems[1].label).toBe('importAll');
-    expect(pipelineItems[2].label).toBe('embedding_backfill');
+    const item = children.find((c) => c.kind === 'pipeline' && c.label === 'backfill');
+    expect(item?.description).toContain('error');
+    expect(item?.description).toContain('git not found');
+  });
+
+  it('resetImportAllPhases: 全 phase が pending に戻る', async () => {
+    mockExistsSync.mockReturnValue(false);
+    provider = new OllamaProvider({ dbFilePath });
+    provider.setImportAllPhase('import_sessions', 'finish', { count: 10 });
+    provider.setImportAllPhase('resolve_releases', 'finish', { count: 3 });
+    provider.resetImportAllPhases();
+    const children = await provider.getChildren();
+
+    for (const ph of IMPORT_ALL_PHASE_ORDER) {
+      const item = children.find((c) => c.kind === 'pipeline' && c.label === ph);
+      expect(item?.description).toBe('未実行');
+    }
   });
 });
 
-describe('buildImportAllDisplay()', () => {
+describe('buildImportAllPhaseDisplay()', () => {
   it('null → pending / 未実行', () => {
-    expect(buildImportAllDisplay(null)).toEqual({
-      scope: 'importAll',
+    expect(buildImportAllPhaseDisplay('import_sessions', null)).toEqual({
+      scope: 'import_sessions',
       state: 'pending',
       description: '未実行',
     });
@@ -396,7 +403,8 @@ describe('buildImportAllDisplay()', () => {
 
   it('running with startedAt → 経過時間付き', () => {
     const now = new Date('2026-05-16T10:05:00.000Z').getTime();
-    const result = buildImportAllDisplay(
+    const result = buildImportAllPhaseDisplay(
+      'analyze_releases',
       { state: 'running', startedAt: '2026-05-16T10:00:00.000Z' },
       now,
     );
@@ -405,25 +413,41 @@ describe('buildImportAllDisplay()', () => {
     expect(result.description).toContain('5m');
   });
 
-  it('success with imported/skipped/duration → 集約表示', () => {
-    const result = buildImportAllDisplay({
+  it('success with count + duration → "N done in Xs"', () => {
+    const result = buildImportAllPhaseDisplay('import_sessions', {
       state: 'success',
       startedAt: '2026-05-16T10:00:00.000Z',
       finishedAt: '2026-05-16T10:00:30.000Z',
-      imported: 7,
-      skipped: 100,
+      count: 7,
     });
     expect(result.state).toBe('success');
-    expect(result.description).toBe('imported=7 skipped=100 in 30s');
+    expect(result.description).toBe('7 done in 30s');
   });
 
-  it('error with message → error: msg (60 文字切り詰め)', () => {
-    const result = buildImportAllDisplay({
+  it('success without count → "done in Xs"', () => {
+    const result = buildImportAllPhaseDisplay('rebuild_costs', {
+      state: 'success',
+      startedAt: '2026-05-16T10:00:00.000Z',
+      finishedAt: '2026-05-16T10:00:30.000Z',
+    });
+    expect(result.description).toBe('done in 30s');
+  });
+
+  it('skipped with message → "skipped: msg"', () => {
+    const result = buildImportAllPhaseDisplay('analyze_releases', {
+      state: 'skipped',
+      message: 'no gitRoot',
+    });
+    expect(result.state).toBe('skipped');
+    expect(result.description).toBe('skipped: no gitRoot');
+  });
+
+  it('error with long message → "error: msg" (60 文字切り詰め)', () => {
+    const result = buildImportAllPhaseDisplay('backfill', {
       state: 'error',
       message: 'a'.repeat(120),
     });
     expect(result.state).toBe('error');
-    expect(result.description).toMatch(/^error: a+$/);
     expect(result.description.length).toBeLessThanOrEqual('error: '.length + 60);
   });
 });
