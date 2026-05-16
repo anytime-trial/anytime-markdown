@@ -29,6 +29,7 @@
     "packages/vscode-database-extension",
     "packages/vscode-sheet-extension",
     "packages/vscode-trail-extension",
+    "packages/vscode-anytime-agent-extension",
     "packages/vscode-history-extension",
     "packages/vscode-extension-pack",
     "packages/web-app",
