@@ -19,6 +19,7 @@ const READ_TOOLS = new Set([
   'list_relationships',
   'list_groups',
   'list_communities',
+  'list_community_nodes',
 ]);
 
 const WRITE_TOOLS = new Set([
@@ -94,6 +95,8 @@ async function invokeDirectRead(
         return readDirect.listGroupsDirect(opened.db, repoName);
       case 'list_communities':
         return readDirect.listCommunitiesDirect(opened.db, repoName);
+      case 'list_community_nodes':
+        return readDirect.listCommunityNodesDirect(opened.db, repoName);
       default:
         throw new Error(`Unhandled read tool: ${toolName}`);
     }

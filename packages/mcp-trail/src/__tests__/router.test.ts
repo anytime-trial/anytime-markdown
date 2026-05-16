@@ -63,6 +63,7 @@ describe('READ tools: SQLite direct (no probe)', () => {
     ['list_relationships', 'listRelationshipsDirect', []],
     ['list_groups', 'listGroupsDirect', []],
     ['list_communities', 'listCommunitiesDirect', { communities: [] }],
+    ['list_community_nodes', 'listCommunityNodesDirect', { communities: [] }],
   ] as const)('%s → direct read, probe NOT called', async (toolName, fnName, mockReturn) => {
     const probeSpy = jest.spyOn(probe, 'probeServerAlive');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

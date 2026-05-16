@@ -223,3 +223,47 @@ export function listCommunitiesDirect(db: Database, repoName: string): { communi
 
   return { communities };
 }
+
+export interface ProjectedCommunityNode {
+  id: string;
+  label: string;
+  package: string;
+}
+
+export interface CommunityNodes {
+  communityId: number;
+  nodes: ProjectedCommunityNode[];
+}
+
+export function listCommunityNodesDirect(
+  db: Database,
+  repoName: string,
+): { communities: CommunityNodes[] } {
+  const row = get<GraphRow>(
+    db,
+    'SELECT graph_json FROM current_code_graphs WHERE repo_name = ?',
+    [repoName],
+  );
+  if (!row) return { communities: [] };
+
+  const graph = JSON.parse(row.graph_json) as StoredCodeGraphJson;
+  const byCommunity = new Map<number, ProjectedCommunityNode[]>();
+  for (const n of graph.nodes ?? []) {
+    const arr = byCommunity.get(n.community) ?? [];
+    arr.push({
+      id: n.id,
+      label: n.label,
+      package: n.package ?? '',
+    });
+    byCommunity.set(n.community, arr);
+  }
+
+  const communities: CommunityNodes[] = [...byCommunity.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([communityId, nodes]) => ({
+      communityId,
+      nodes: nodes.sort((a, b) => a.id.localeCompare(b.id)),
+    }));
+
+  return { communities };
+}
