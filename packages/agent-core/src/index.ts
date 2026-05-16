@@ -34,5 +34,13 @@ export type {
   WorktreeEntry,
   WorktreeMapping,
 } from './mapping/types';
+export {
+  createOllamaChatRegistration,
+  createOllamaEmbeddingRegistration,
+} from './adapters/OllamaAdapter';
+export type {
+  OllamaChatRegistrationOptions,
+  OllamaEmbeddingRegistrationOptions,
+} from './adapters/OllamaAdapter';
 export { Emitter } from './util/Emitter';
 export type { Disposable, Listener } from './util/Emitter';

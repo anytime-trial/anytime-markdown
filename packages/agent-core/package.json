@@ -10,7 +10,8 @@
     "test": "jest --maxWorkers=1 --passWithNoTests"
   },
   "dependencies": {
-    "@anytime-markdown/llm-core": "*"
+    "@anytime-markdown/llm-core": "*",
+    "@anytime-markdown/ollama-core": "*"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",
