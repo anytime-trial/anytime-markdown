@@ -179,15 +179,19 @@
     "vscode:prepublish": "npm run package",
     "compile": "webpack",
     "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map"
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "test": "jest --maxWorkers=1"
   },
   "dependencies": {
     "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/vscode-common": "*"
   },
   "devDependencies": {
+    "@types/jest": "30.0.0",
     "@types/node": "22.15.21",
     "@types/vscode": "1.109.0",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.6",
     "ts-loader": "9.5.4",
     "typescript": "5.9.3",
     "webpack": "5.104.1",

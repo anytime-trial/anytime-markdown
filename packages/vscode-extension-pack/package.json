@@ -29,6 +29,7 @@
     "anytime-trial.anytime-sheet",
     "anytime-trial.anytime-database",
     "anytime-trial.anytime-history",
-    "anytime-trial.anytime-trail"
+    "anytime-trial.anytime-trail",
+    "anytime-trial.anytime-agent"
   ]
 }
