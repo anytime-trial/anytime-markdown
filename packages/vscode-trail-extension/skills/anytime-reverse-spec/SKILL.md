@@ -633,6 +633,12 @@ Container 責務の導出優先順:
 - **未命名**: `name` が空のコミュニティ。`label` と `mcp-trail` の `current_code_graphs.graph_json` から逆引きした主要パッケージのみ列挙。章 3 のリンクは張らない
 - 同一 `label` の重複コミュニティ（例: `extension-audio` が ID 26/117/118）は別行として全件列挙する。集約はしない（後続の `/anytime-reverse-codegraph` で個別に命名する必要があるため）
 
+> [!IMPORTANT]
+> 「概要」列の値は `summary` を 60〜80 字程度に圧縮した **プレーンな日本語の 1 文** として生成する。
+> 文字単位で `\|` を挟む（例: `\|ノ\|ー\|ド\|・\|エ\|ッ\|ジ`）のは **禁止**。パイプエスケープは
+> 元の summary に literal な `|` が含まれる時のみ適用する。`.split('').join('\\|')` 相当の
+> 中間処理で文字を分解してはいけない。詳細はテンプレ `02-feature-list.ja.md` のガイダンス参照。
+
 ### 4-3: 章 6 画面仕様
 
 出力: `02.basic-design/06-screen.ja.md`\
