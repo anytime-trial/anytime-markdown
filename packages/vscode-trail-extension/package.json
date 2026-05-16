@@ -155,11 +155,6 @@
         "category": "Anytime Trail"
       },
       {
-        "command": "anytime-trail.registerMcpToClaudeCode",
-        "title": "%command.registerMcpToClaudeCode%",
-        "category": "Anytime Trail"
-      },
-      {
         "command": "anytime-trail.killExtensionHost",
         "title": "%command.killExtensionHost%",
         "category": "Anytime Trail",

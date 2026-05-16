@@ -35,56 +35,10 @@ function buildMcpServerEntry(extensionDistPath: string): McpServerEntry {
     };
 }
 
-function buildClaudeMcpAddCommand(extensionDistPath: string): string {
-    const entry = buildMcpServerEntry(extensionDistPath);
-    const quotedNode = JSON.stringify(entry.command);
-    const quotedScript = JSON.stringify(entry.args[0]);
-    const trailUrl = entry.env?.TRAIL_SERVER_URL ?? '';
-    return `claude mcp add ${SERVER_NAME} ${quotedNode} ${quotedScript} -e TRAIL_SERVER_URL=${trailUrl}`;
-}
-
 export function registerMcpRegistrationCommand(
     context: vscode.ExtensionContext,
     extensionDistPath: string,
 ): void {
-    context.subscriptions.push(
-        vscode.commands.registerCommand(
-            'anytime-trail.registerMcpToClaudeCode',
-            async () => {
-                const command = buildClaudeMcpAddCommand(extensionDistPath);
-                try {
-                    await vscode.env.clipboard.writeText(command);
-                    TrailLogger.info(`[mcp-register] copied command to clipboard: ${command}`);
-                } catch (err) {
-                    const message = err instanceof Error ? err.message : String(err);
-                    TrailLogger.error('[mcp-register] failed to copy command to clipboard', err);
-                    vscode.window.showErrorMessage(`Failed to copy command: ${message}`);
-                    return;
-                }
-
-                const runInTerminal = 'ターミナルで実行';
-                const showOutput = 'コマンドを表示';
-                const choice = await vscode.window.showInformationMessage(
-                    'Claude Code に mcp-trail を登録するコマンドをクリップボードにコピーしました。',
-                    runInTerminal,
-                    showOutput,
-                );
-
-                if (choice === runInTerminal) {
-                    const terminal = vscode.window.createTerminal({ name: 'Anytime Trail: claude mcp add' });
-                    terminal.show();
-                    terminal.sendText(command, false);
-                } else if (choice === showOutput) {
-                    const doc = await vscode.workspace.openTextDocument({
-                        content: command,
-                        language: 'shellscript',
-                    });
-                    await vscode.window.showTextDocument(doc, { preview: true });
-                }
-            },
-        ),
-    );
-
     context.subscriptions.push(
         vscode.commands.registerCommand(
             'anytime-trail.registerMcpServer',
