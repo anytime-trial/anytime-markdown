@@ -15,14 +15,20 @@ VS Code 拡張機能 (Anytime Trail) で Trail DB に保存されたコードグ
 > 本スキルは **Step 1 で必ず `mcp__mcp-trail__analyze_current_code` を実行**して `current_code_graphs` / `current_code_graph_communities` を最新化してから後段の AI 後処理に進む。スキル単体でコードグラフを生成するわけではなく、VS Code 拡張内のパイプラインを MCP 経由で起動する点に注意。
 
 
-## 事前準備: ポート番号の確認
+## 事前準備: VS Code 設定の取得と接続確認
 
 mcp-trail は VS Code 拡張内の TrailDataServer に HTTP 接続する。\
-**VS Code 設定 `anytimeTrail.viewer.port`（既定 `19841`）** がポートを決め、MCP 登録時の `TRAIL_SERVER_URL` 環境変数と一致している必要がある。不一致だと `analyze_current_code` などすべての MCP ツールが接続エラーになる。
+**VS Code 設定 `anytimeTrail.viewer.port`（既定 `19841`）** がポートを決め、MCP 登録時の `TRAIL_SERVER_URL` 環境変数と一致している必要がある。不一致だと `analyze_current_code` などすべての MCP ツールが接続エラーになる。\
+あわせて `anytimeTrail.workspace.path` も読み取り、Step 1 で `workspacePath` 引数として MCP に明示的に渡す。
 
 以下 3 つを順に確認する。
 
-### 1. VS Code 設定のポート
+### 1. VS Code 設定の取得（viewer.port + workspace.path）
+
+VS Code の以下 2 設定を読み取り、後続 MCP 呼び出しの引数として保持する。
+
+- `anytimeTrail.viewer.port`（既定 `19841`）→ `serverUrl` の組み立てに使用
+- `anytimeTrail.workspace.path` → Step 1 の `workspacePath` 引数に**明示指定**する（MCP `analyze_current_code` は省略時に **mcp-trail サーバの cwd**（多くは VS Code 起動 cwd）を使うため、`anytimeTrail.workspace.path` の値は自動では反映されない）
 
 ```bash
 node -e "
@@ -38,9 +44,13 @@ for (const f of [
   if (!fs.existsSync(f)) continue;
   try { Object.assign(settings, JSON.parse(stripJsonc(fs.readFileSync(f, 'utf8')))); } catch {}
 }
-console.log('viewer.port:', settings['anytimeTrail.viewer.port'] ?? 19841);
+console.log('viewer.port:    ', settings['anytimeTrail.viewer.port'] ?? 19841);
+console.log('workspace.path: ', settings['anytimeTrail.workspace.path'] ?? '(not set)');
 "
 ```
+
+> [!NOTE]
+> `workspace.path` が未設定の場合は、ユーザーに解析対象ワークスペースの絶対パスを確認する（`tsconfig.json` を持つルート）。
 
 ### 2. 実際の稼働確認 (probe)
 
@@ -70,11 +80,23 @@ claude mcp get mcp-trail | grep TRAIL_SERVER_URL
 
 - ツール: `mcp__mcp-trail__analyze_current_code`
 - 引数:
-  - `workspacePath`（任意）: 解析対象の絶対パス。省略時は VS Code 拡張の現在ワークスペース
+  - `workspacePath`（**必須扱い**）: 解析対象の絶対パス。事前準備で取得した `anytimeTrail.workspace.path` の値を**毎回明示的に渡す**。省略すると mcp-trail サーバの cwd が使われ、意図と異なるディレクトリ（`tsconfig.json` が無い）で 500 エラーになる
   - `tsconfigPath`（任意）: 特定の tsconfig 指定。省略時は最上位（root）を自動採用 — v0.19+ の VS Code コマンドと同じ挙動
   - `includeProgress`（任意、既定 true）: WebSocket 進捗ログをレスポンスに含める
 - 戻り値: `{ repoName, fileCount, nodeCount, edgeCount, commitId, durationMs, warnings, progressLog }`
 - 動作: VS Code 拡張内の TrailDataServer に `POST /api/analyze/current` を送り、`Anytime Trail: コード解析` と同じパイプラインを起動する。並行実行中は 409 で拒否されるため、`mcp__mcp-trail__get_analyze_status` で事前確認しておく
+
+**呼び出し例**
+
+```text
+ツール: mcp__mcp-trail__analyze_current_code
+引数:
+{
+  "serverUrl": "http://localhost:19845",      // 事前準備の viewer.port
+  "workspacePath": "/Shared/tiptap",          // 事前準備の anytimeTrail.workspace.path
+  "includeProgress": true
+}
+```
 
 > [!NOTE]
 > `mcp-trail` 経由を使うには VS Code 拡張 (Anytime Trail) が稼働中である必要がある。\
