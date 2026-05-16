@@ -32,7 +32,6 @@ import {
 	CREATE_EXTENSION_LOGS_INDEXES,
 } from '@anytime-markdown/trail-core/domain/schema';
 import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
-import { DatabaseProvider } from './trail/DatabaseProvider';
 import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
@@ -812,18 +811,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);
 
-	// Database panel
-	const databaseProvider = new DatabaseProvider();
-	const databaseTreeView = vscode.window.createTreeView('anytimeTrail.database', {
-		treeDataProvider: databaseProvider,
-	});
-
 	// Initialize DB and start server in background — do not block activate
 	void (async () => {
 		try {
 			TrailLogger.info(`Trail DB: initializing with distPath=${extensionDistPath}`);
 			await trailDb!.init();
-			databaseProvider.updateSqliteStatus('Ready', trailDb!.getLastImportedAt());
 			TrailLogger.info('Trail DB: initialized');
 			// DB 初期化完了後に loadFromDb() を実行（初期化前に呼ぶと ensureDb が throw するため）
 			const dbGraph = await codeGraphService!.loadFromDb();
@@ -832,7 +824,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		} catch (err) {
 			TrailLogger.error('Failed to initialize trail database', err);
-			databaseProvider.updateSqliteStatus('Error');
 			return; // DB 初期化失敗時はサーバー起動もスキップ
 		}
 		// 外部デーモンが有効な場合はローカルサーバー起動をスキップ。
@@ -922,7 +913,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 			TrailLogger.info(`Trail DB [${repoName}]: import started`);
-			databaseProvider.setImporting(true);
 			ollamaProvider?.resetImportAllPhases();
 			try {
 				const result = await vscode.window.withProgress(
@@ -948,8 +938,6 @@ export async function activate(context: vscode.ExtensionContext) {
 					},
 				);
 				TrailLogger.info(`Trail DB [${repoName}]: import complete - imported=${result.imported}, skipped=${result.skipped}, commits=${result.commitsResolved}, releases=${result.releasesResolved}, analyzed=${result.releasesAnalyzed}`);
-				databaseProvider.updateSqliteStatus('Ready', trailDb.getLastImportedAt());
-				databaseProvider.setImporting(false);
 
 				trailDataServer?.notifySessionsUpdated();
 				await memoryCoreService?.runOnce('import');
@@ -958,8 +946,6 @@ export async function activate(context: vscode.ExtensionContext) {
 					`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits linked, ${result.releasesResolved} releases resolved, ${result.releasesAnalyzed} releases analyzed, ${result.coverageImported} coverage entries (${result.skipped} skipped)`,
 				);
 			} catch (err) {
-				databaseProvider.setImporting(false);
-				databaseProvider.updateSqliteStatus('Import failed');
 				TrailLogger.error(`Trail import [${repoName}] failed`, err);
 			}
 		}),
@@ -1089,10 +1075,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				});
 			}
 		}),
-	);
-
-	context.subscriptions.push(
-		databaseTreeView,
 	);
 
 	// Trace CodeLens providers

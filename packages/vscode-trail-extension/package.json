@@ -22,7 +22,7 @@
     "analysis"
   ],
   "activationEvents": [
-    "onView:anytimeTrail.database"
+    "onView:anytimeTrail.dashboard"
   ],
   "icon": "images/anytime-control-256.png",
   "main": "./dist/extension.js",
@@ -49,10 +49,6 @@
         {
           "id": "anytimeTrail.agentMapping",
           "name": "%view.agentMapping%"
-        },
-        {
-          "id": "anytimeTrail.database",
-          "name": "%view.database%"
         },
         {
           "id": "anytimeTrail.ollama",
@@ -272,11 +268,6 @@
           "command": "anytime-trail.copyAiNotePath",
           "when": "view == anytimeTrail.aiNote",
           "group": "navigation@3"
-        },
-        {
-          "command": "anytime-trail.analyzeAll",
-          "when": "view == anytimeTrail.database",
-          "group": "navigation@1"
         },
         {
           "command": "anytime-trail.analyzeCurrentCode",
