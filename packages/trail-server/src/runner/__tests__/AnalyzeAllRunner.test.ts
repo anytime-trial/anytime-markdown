@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -279,62 +279,6 @@ describe('AnalyzeAllRunner', () => {
     expect(importAll).toHaveBeenCalledTimes(1);
     expect(status.ticksRun).toBe(1);
     expect(status.lastError).toBeNull();
-  });
-
-  it('migrates legacy paused state from memory-core-runner.json on first construction', async () => {
-    // gitRoot を渡すと getTrailHome は <gitRoot>/.anytime/trail/ を返す。
-    // memory-core-runner.json を事前配置して paused=true を移送させる。
-    const trailHome = join(dir, '.anytime', 'trail');
-    require('node:fs').mkdirSync(trailHome, { recursive: true });
-    const legacyPath = join(trailHome, 'memory-core-runner.json');
-    writeFileSync(
-      legacyPath,
-      JSON.stringify({ schemaVersion: 1, paused: true, pausedBy: 'cli', pausedAt: '2026-05-15T00:00:00.000Z' }),
-    );
-    const newStatePath = join(trailHome, 'analyze-all-runner.json');
-    expect(existsSync(newStatePath)).toBe(false);
-
-    const memoryCore = makeMemoryCore(dir);
-    const logSink = makeLogSink();
-    const runner = new AnalyzeAllRunner({
-      logSink,
-      gitRoot: dir,
-      memoryCoreService: memoryCore,
-    });
-
-    expect(existsSync(newStatePath)).toBe(true);
-    const migrated = JSON.parse(readFileSync(newStatePath, 'utf-8'));
-    expect(migrated.paused).toBe(true);
-    expect(migrated.pausedBy).toBe('cli');
-    expect(runner.getStatus().paused).toBe(true);
-    expect(logSink.lines.some((l) => l.includes('Migrating paused state'))).toBe(true);
-    await runner.dispose();
-  });
-
-  it('does not migrate if analyze-all-runner.json already exists', async () => {
-    const trailHome = join(dir, '.anytime', 'trail');
-    require('node:fs').mkdirSync(trailHome, { recursive: true });
-    const legacyPath = join(trailHome, 'memory-core-runner.json');
-    writeFileSync(
-      legacyPath,
-      JSON.stringify({ schemaVersion: 1, paused: true, pausedBy: 'cli' }),
-    );
-    const newStatePath = join(trailHome, 'analyze-all-runner.json');
-    writeFileSync(
-      newStatePath,
-      JSON.stringify({ schemaVersion: 1, paused: false }),
-    );
-
-    const memoryCore = makeMemoryCore(dir);
-    const runner = new AnalyzeAllRunner({
-      logSink: makeLogSink(),
-      gitRoot: dir,
-      memoryCoreService: memoryCore,
-    });
-
-    // 既存ファイルの paused=false が保持され、legacy の true は無視される
-    expect(runner.getStatus().paused).toBe(false);
-    await runner.dispose();
   });
 
   it('memory-core internal pause is independent (not user-facing post-refactor)', async () => {

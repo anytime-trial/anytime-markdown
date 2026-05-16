@@ -8,13 +8,16 @@
 
 ### 変更
 
-- **Breaking:** memory-core 単位の pause/resume を AnalyzeAll パイプライン (importAll + memory-core runOnce) 単位に一本化。VS Code コマンド `anytime-trail.memory.{pause,resume,status}Ingest` を `anytime-trail.analyzeAll.{pause,resume,status}` にリネーム。HTTP API `/api/analyze-all/*` を新設し、旧 `/api/memory-core/*` は 1 バージョン deprecation 期間中、内部で analyzeAll runner に forward する
-- **Breaking:** trail-server CLI サブコマンド `anytime-trail-server ingest {pause,resume,status}` を `analyze-all {pause,resume,status}` にリネーム。旧名は 1 バージョン deprecation 期間中、forward しつつ stderr に警告を出す
-- AnalyzeAllRunner を新設。importAll → memory-core runOnce のオーケストレーション、pause/resume、ticks/lastRunAt/lastError の永続化を一元管理する (`<TRAIL_HOME>/analyze-all-runner.json`)。`memory-core-runner.json` の `paused=true` が立っているユーザーは初回起動時に自動で `analyze-all-runner.json` へ移送される
+- **Breaking:** memory-core 単位の pause/resume を AnalyzeAll パイプライン (importAll + memory-core runOnce) 単位に一本化
+- **Breaking:** VS Code コマンド `anytime-trail.memory.{pause,resume,status}Ingest` を `anytime-trail.analyzeAll.{pause,resume,status}` にリネーム (旧コマンド削除)
+- **Breaking:** HTTP API `/api/memory-core/{pause,resume,status}` を `/api/analyze-all/{pause,resume,status}` にリネーム (旧 endpoint 削除)
+- **Breaking:** trail-server CLI サブコマンド `ingest {pause,resume,status}` を `analyze-all {pause,resume,status}` にリネーム (旧サブコマンド削除)
+- AnalyzeAllRunner を新設。importAll → memory-core runOnce のオーケストレーション、pause/resume、ticks/lastRunAt/lastError の永続化を一元管理する (`<TRAIL_HOME>/analyze-all-runner.json`)。`memory-core-runner.json` は diagnostic 用に残るが pause は参照されない
 
 ### 削除
 
 - `createAnalyzeAllJob` / `createPeriodicImportJob` (AnalyzeAllRunner に置換)
+- `TrailDataServer.setMemoryCoreService` (AnalyzeAllRunner が hosting する)
 
 ## [0.19.0] - 2026-05-15
 

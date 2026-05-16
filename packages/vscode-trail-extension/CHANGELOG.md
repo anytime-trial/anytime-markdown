@@ -8,13 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-- **Breaking:** Consolidated memory-core pause/resume into AnalyzeAll-level (importAll + memory-core runOnce). Renamed VS Code commands `anytime-trail.memory.{pause,resume,status}Ingest` to `anytime-trail.analyzeAll.{pause,resume,status}`. New `/api/analyze-all/*` HTTP endpoints; legacy `/api/memory-core/*` forwards to analyzeAll runner with deprecation warning (1 version compat)
-- **Breaking:** Renamed trail-server CLI subcommands `anytime-trail-server ingest {pause,resume,status}` to `analyze-all {pause,resume,status}`. Legacy names forward with stderr deprecation warning (1 version compat)
-- Added AnalyzeAllRunner that centralizes importAll → memory-core orchestration, pause/resume, and persistent ticks/lastRunAt/lastError tracking (`<TRAIL_HOME>/analyze-all-runner.json`). Users with `paused=true` in legacy `memory-core-runner.json` are auto-migrated to `analyze-all-runner.json` on first run
+- **Breaking:** Consolidated memory-core pause/resume into AnalyzeAll-level (importAll + memory-core runOnce)
+- **Breaking:** Renamed VS Code commands `anytime-trail.memory.{pause,resume,status}Ingest` to `anytime-trail.analyzeAll.{pause,resume,status}` (old commands removed)
+- **Breaking:** Renamed HTTP endpoints `/api/memory-core/{pause,resume,status}` to `/api/analyze-all/{pause,resume,status}` (old endpoints removed)
+- **Breaking:** Renamed trail-server CLI subcommands `ingest {pause,resume,status}` to `analyze-all {pause,resume,status}` (old subcommand removed)
+- Added AnalyzeAllRunner that centralizes importAll → memory-core orchestration, pause/resume, and persistent ticks/lastRunAt/lastError tracking (`<TRAIL_HOME>/analyze-all-runner.json`). `memory-core-runner.json` remains for diagnostics but its paused field is no longer consulted
 
 ### Removed
 
 - `createAnalyzeAllJob` / `createPeriodicImportJob` (replaced by AnalyzeAllRunner)
+- `TrailDataServer.setMemoryCoreService` (AnalyzeAllRunner hosts the service)
 
 ## [0.19.0] - 2026-05-15
 

@@ -51,7 +51,6 @@ import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality
 import type { Logger, LogLevel } from '../runtime/Logger';
 import type { CodeGraphService } from '../analyze/CodeGraphService';
 import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/AnalyzePipeline';
-import type { MemoryCoreService } from '@anytime-markdown/memory-core';
 import type { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
@@ -259,7 +258,6 @@ export class TrailDataServer {
   };
 
   private codeGraphService: CodeGraphService | undefined;
-  private memoryCoreService: MemoryCoreService | undefined;
   private analyzeAllRunner: AnalyzeAllRunner | undefined;
   private readonly memoryApi: MemoryApiHandler;
   private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
@@ -328,16 +326,6 @@ export class TrailDataServer {
 
   setChatBridge(bridge: import('../memory-chat/chatBridge').ChatBridge): void {
     this.chatBridge = bridge;
-  }
-
-  /**
-   * memory-core ingest サービスを wire する。AnalyzeAllRunner リファクタ以降は
-   * MemoryCoreService の pause API は user-facing には公開されない (analyzeAll
-   * 単位で一本化済)。互換のため `/api/memory-core/*` endpoint は残るが内部で
-   * `analyzeAllRunner` に forward する。
-   */
-  setMemoryCoreService(service: MemoryCoreService): void {
-    this.memoryCoreService = service;
   }
 
   /**
@@ -621,23 +609,6 @@ export class TrailDataServer {
       return;
     }
     if (pathname === '/api/analyze-all/status' && method === 'GET') {
-      this.handleAnalyzeAllStatus(res);
-      return;
-    }
-    // 旧 /api/memory-core/* は deprecation 期間中、analyzeAllRunner に forward する。
-    // 1 バージョン後に削除予定。
-    if (pathname === '/api/memory-core/pause' && method === 'POST') {
-      this.logger.warn('/api/memory-core/pause is deprecated; use /api/analyze-all/pause');
-      this.handleAnalyzeAllPause(req, res);
-      return;
-    }
-    if (pathname === '/api/memory-core/resume' && method === 'POST') {
-      this.logger.warn('/api/memory-core/resume is deprecated; use /api/analyze-all/resume');
-      this.handleAnalyzeAllResume(res);
-      return;
-    }
-    if (pathname === '/api/memory-core/status' && method === 'GET') {
-      this.logger.warn('/api/memory-core/status is deprecated; use /api/analyze-all/status');
       this.handleAnalyzeAllStatus(res);
       return;
     }

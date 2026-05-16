@@ -530,7 +530,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			gitRoot: wsRootForDb,
 			backfillDays: trailConfig.memory.conversation.backfillDays,
 		});
-		trailDataServer.setMemoryCoreService(memoryCoreService);
 		TrailLogger.info('[MemoryCore] service constructed (orchestrated by AnalyzeAllRunner)');
 	} else if (useExternalDaemon && externalDaemonInfo) {
 		TrailLogger.info('[MemoryCore] hosted by external daemon, skipping local service');

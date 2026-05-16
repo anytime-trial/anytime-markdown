@@ -140,17 +140,5 @@ describe('/api/analyze-all endpoints', () => {
       expect(resume).toHaveBeenCalled();
     });
 
-    it('deprecated /api/memory-core/* still routes to analyzeAllRunner', async () => {
-      const res = await fetch(`http://127.0.0.1:${port}/api/memory-core/status`);
-      expect(res.status).toBe(200);
-      expect(getStatus).toHaveBeenCalled();
-      const pauseRes = await fetch(`http://127.0.0.1:${port}/api/memory-core/pause`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ by: 'legacy-client' }),
-      });
-      expect(pauseRes.status).toBe(200);
-      expect(pause).toHaveBeenCalledWith('legacy-client');
-    });
   });
 });

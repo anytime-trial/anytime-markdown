@@ -181,9 +181,7 @@ program
       statePath: join(TRAIL_HOME, 'memory-core-runner.json'),
       backfillDays: config.memory.conversation.backfillDays,
     });
-    server.setMemoryCoreService(memoryCoreService);
-    logger.info('memory-core service wired', {
-      paused: memoryCoreService.getStatus().paused,
+    logger.info('memory-core service constructed (orchestrated by AnalyzeAllRunner)', {
       gitRoot: memoryCorePrimaryGitRoot ?? null,
     });
 
@@ -343,37 +341,6 @@ analyzeAllCmd
   .command('status')
   .description('Show current analyzeAll pipeline status from the running daemon')
   .action(async () => {
-    await callDaemonAnalyzeAll('status');
-  });
-
-// 後方互換: 旧 `ingest` サブコマンドは deprecation warn 付きで analyze-all に forward。
-// 1 バージョン後に削除予定。
-const ingestCmd = program
-  .command('ingest')
-  .description('[DEPRECATED] Renamed to `analyze-all`. Will be removed in a future release.');
-
-ingestCmd
-  .command('pause')
-  .description('[DEPRECATED] Use `analyze-all pause` instead')
-  .option('-r, --reason <reason>', 'pausedBy label sent to the daemon', 'cli')
-  .action(async (opts: { reason: string }) => {
-    console.error('[DEPRECATION] `ingest pause` is deprecated; use `analyze-all pause` instead.');
-    await callDaemonAnalyzeAll('pause', { by: opts.reason });
-  });
-
-ingestCmd
-  .command('resume')
-  .description('[DEPRECATED] Use `analyze-all resume` instead')
-  .action(async () => {
-    console.error('[DEPRECATION] `ingest resume` is deprecated; use `analyze-all resume` instead.');
-    await callDaemonAnalyzeAll('resume');
-  });
-
-ingestCmd
-  .command('status')
-  .description('[DEPRECATED] Use `analyze-all status` instead')
-  .action(async () => {
-    console.error('[DEPRECATION] `ingest status` is deprecated; use `analyze-all status` instead.');
     await callDaemonAnalyzeAll('status');
   });
 

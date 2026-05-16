@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -81,14 +80,10 @@ export class AnalyzeAllRunner extends BaseRunner {
   private lastImportResult: ImportAllResult | null = null;
 
   constructor(opts: AnalyzeAllRunnerOptions) {
-    const resolvedStatePath = opts.statePath ?? defaultAnalyzeAllStatePath(opts.gitRoot);
-    // 旧 memory-core-runner.json の paused=true を analyze-all-runner.json 不在時にのみ移送する。
-    // 移送は constructor の super() 呼び出し前に副作用としてファイルへ書き込む。
-    migrateLegacyPausedFromMemoryCore(resolvedStatePath, opts.gitRoot, opts.logSink);
     super({
       logSink: opts.logSink,
       logTag: 'anytime-analyze-all',
-      statePath: resolvedStatePath,
+      statePath: opts.statePath ?? defaultAnalyzeAllStatePath(opts.gitRoot),
     });
     this.trailDb = opts.trailDb;
     this.memoryCoreService = opts.memoryCoreService;
@@ -175,67 +170,4 @@ export class AnalyzeAllRunner extends BaseRunner {
  */
 export function defaultAnalyzeAllStatePath(workspaceRoot?: string): string {
   return join(getTrailHome(workspaceRoot), 'analyze-all-runner.json');
-}
-
-/**
- * 旧 memory-core-runner.json の paused=true を analyze-all-runner.json 不在時に
- * 移送する。リファクタ以前から pause 状態で運用しているユーザーの設定が再起動で
- * 消えないよう、初回起動時のみ実行する。
- *
- * - analyze-all-runner.json が既存 → 何もしない (二重移送禁止)
- * - 旧ファイル無し or paused=false → 何もしない
- * - 移送実行時は WARN ログを出し、新 state ファイル (paused=true) を atomic write する
- *
- * memory-core-runner.json 側の paused フィールドは互換のため残るが、リファクタ以降
- * AnalyzeAllRunner は読まない (memory-core 内部の自動契機もユーザー操作経路から
- * 切り離されている)。
- */
-function migrateLegacyPausedFromMemoryCore(
-  analyzeAllStatePath: string,
-  workspaceRoot: string | undefined,
-  logSink: RunnerLogSink,
-): void {
-  if (existsSync(analyzeAllStatePath)) return;
-  const legacyPath = join(getTrailHome(workspaceRoot), 'memory-core-runner.json');
-  if (!existsSync(legacyPath)) return;
-  try {
-    const raw = readFileSync(legacyPath, 'utf-8');
-    const obj = JSON.parse(raw) as { paused?: boolean; pausedAt?: string; pausedBy?: string };
-    if (obj.paused !== true) return;
-    const ts = new Date().toISOString();
-    logSink.appendLine(
-      `[${ts}] [anytime-analyze-all] [WARN] Migrating paused state from ${legacyPath} → ${analyzeAllStatePath}. ` +
-        `memory-core-runner.json paused field is no longer consulted post-refactor.`,
-    );
-    // 直接書き込む (BaseRunner はまだ初期化前なので writeState は呼べない)。
-    // readState が schemaVersion 1 を期待するので最小限のフィールドで書く。
-    const migrated = {
-      schemaVersion: 1,
-      paused: true,
-      pausedAt: obj.pausedAt ?? ts,
-      pausedBy: obj.pausedBy ?? 'migrated-from-memory-core',
-      lastRunAt: null,
-      lastDurationMs: null,
-      lastReason: null,
-      lastError: null,
-      ticksRun: 0,
-      ticksSkipped: 0,
-      running: false,
-    };
-    // atomic write (tmp + rename) を簡易に再実装 (循環依存回避)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require('node:fs') as typeof import('node:fs');
-    const dir = join(analyzeAllStatePath, '..');
-    fs.mkdirSync(dir, { recursive: true });
-    const tmp = `${analyzeAllStatePath}.tmp.${process.pid}.${Date.now()}`;
-    fs.writeFileSync(tmp, JSON.stringify(migrated, null, 2), 'utf-8');
-    fs.renameSync(tmp, analyzeAllStatePath);
-  } catch (err) {
-    const ts = new Date().toISOString();
-    logSink.appendLine(
-      `[${ts}] [anytime-analyze-all] [WARN] Legacy paused migration failed: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-  }
 }
