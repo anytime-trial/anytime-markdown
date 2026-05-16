@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- New VS Code command `Anytime Trail: Analyze Code (Pick Tsconfig)` (`anytime-trail.analyzeCurrentCodePickTsconfig`). Exposes the legacy QuickPick tsconfig selection flow for monorepos where the default shallowest pick is not desired. Available from the command palette only (not bound to the dashboard icon)
 - New VS Code command `Anytime Trail: Register MCP Server (write .mcp.json)` (`anytime-trail.registerMcpServer`). Adds/updates the `mcpServers.mcp-trail` entry in the workspace root's `.mcp.json` (preserving other server entries), including a `TRAIL_SERVER_URL` env that reflects the current `anytimeTrail.viewer.port` setting. Unparseable JSON is backed up to `.bak.<timestamp>` before recreating (avoiding silent data loss). Provided alongside the existing clipboard-based `Register MCP Server to Claude Code`
 - Expanded `DEFAULT_ANALYZE_EXCLUDE_CONTENT` (used by `seedAnalyzeExclude` to create `.anytime/analyze-exclude` on first analyze). Added `.claude/` / `.changeset/` / `.github/` / `.config/` / `.playwright-mcp/` / `.serena/` / `.vscode/` / `__mocks__/` / `demos/` / `dist/` / `**/CHANGELOG.{ja,}.md` / `**/README.{ja,}.md` to match the patterns we keep in our own workspace
 - `loadConfig` now **auto-generates `config.json` on disk** when the file is missing (used by both the extension and daemon), giving users an editable starting point. Falls back to in-memory DEFAULT_CONFIG if the write fails
@@ -15,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- `Anytime Trail: Analyze Code` (dashboard icon / command palette) no longer prompts for tsconfig selection when multiple `tsconfig.json` files are found. It auto-selects the shallowest one (workspace root preferred) with an info notification, matching the HTTP / MCP behavior. Use the new `Anytime Trail: Analyze Code (Pick Tsconfig)` command from the command palette to choose a specific tsconfig
 - **Breaking:** Default `analyzeAll.runOnStart` flipped from `true` to `false`, and `startupDelaySec` raised from `5` to `30`. AnalyzeAll now requires explicit opt-in
 - **Breaking:** Simplified `TrailServerConfig`: removed `scheduler.*` (periodicImport / memoryCore) and `memory.ingest`, and reset `schemaVersion` to `1`. **No migration is performed** from prior schemas — unknown legacy fields are silently ignored and defaults are used. Users with existing configs must either rewrite to the new `analyzeAll.*` shape or delete the file to regenerate DEFAULT_CONFIG
 - **Breaking:** Consolidated memory-core pause/resume into AnalyzeAll-level (importAll + memory-core runOnce)
