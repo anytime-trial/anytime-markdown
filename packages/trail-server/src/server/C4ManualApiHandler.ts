@@ -11,7 +11,7 @@ export interface C4ManualApiNotifier {
   /** community upsert 後に code graph cache を invalidate するためのフック (任意) */
   notifyCodeGraphUpdated?(): void;
   /** community upsert 後に codeGraphService.loadFromDb() を呼ぶ (任意) */
-  refreshCodeGraphCache?(): Promise<void>;
+  refreshCodeGraphCache?(repoName?: string): Promise<void>;
 }
 
 export interface CommunitySummaryInput {
@@ -214,7 +214,7 @@ export class C4ManualApiHandler {
       // codeGraphService の in-memory cache を DB と同期してから client に通知。
       // これにより /api/code-graph が新しい communitySummaries を返し、
       // useCodeGraph 側で WS 経由 refetch が走る → Reload Window 不要。
-      await this.notifier.refreshCodeGraphCache?.();
+      await this.notifier.refreshCodeGraphCache?.(repoName);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(result));
       this.notifier.notifyModelUpdated();
@@ -244,7 +244,7 @@ export class C4ManualApiHandler {
         return;
       }
       const result = this.trailDb.upsertCurrentCodeGraphCommunityMappings(repoName, body.mappings);
-      await this.notifier.refreshCodeGraphCache?.();
+      await this.notifier.refreshCodeGraphCache?.(repoName);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(result));
       this.notifier.notifyModelUpdated();

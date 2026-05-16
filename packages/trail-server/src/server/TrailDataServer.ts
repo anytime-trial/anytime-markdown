@@ -298,7 +298,7 @@ export class TrailDataServer {
       {
         notifyModelUpdated: () => this.notify('model-updated'),
         notifyCodeGraphUpdated: () => this.notifyCodeGraphUpdated(),
-        refreshCodeGraphCache: () => this.refreshCodeGraphCache(),
+        refreshCodeGraphCache: (repoName?: string) => this.refreshCodeGraphCache(repoName),
       },
       this.logger.child('C4ManualApiHandler'),
     );
@@ -859,22 +859,26 @@ export class TrailDataServer {
     if (pathname === '/api/code-graph' && method === 'GET') {
       const releaseId = parsed.searchParams.get('release') ?? 'current';
       const repo = parsed.searchParams.get('repo') ?? undefined;
-      this.codeGraphApi.handleGet(res, releaseId, repo);
+      void this.codeGraphApi.handleGet(res, releaseId, repo);
       return;
     }
     if (pathname === '/api/code-graph/query' && method === 'GET') {
-      this.codeGraphApi.handleQuery(res, parsed.searchParams.get('q') ?? '');
+      const repo = parsed.searchParams.get('repo') ?? undefined;
+      void this.codeGraphApi.handleQuery(res, parsed.searchParams.get('q') ?? '', repo);
       return;
     }
     if (pathname === '/api/code-graph/explain' && method === 'GET') {
-      this.codeGraphApi.handleExplain(res, parsed.searchParams.get('id') ?? '');
+      const repo = parsed.searchParams.get('repo') ?? undefined;
+      void this.codeGraphApi.handleExplain(res, parsed.searchParams.get('id') ?? '', repo);
       return;
     }
     if (pathname === '/api/code-graph/path' && method === 'GET') {
-      this.codeGraphApi.handlePath(
+      const repo = parsed.searchParams.get('repo') ?? undefined;
+      void this.codeGraphApi.handlePath(
         res,
         parsed.searchParams.get('from') ?? '',
         parsed.searchParams.get('to') ?? '',
+        repo,
       );
       return;
     }
@@ -3148,12 +3152,12 @@ export class TrailDataServer {
    * 拡張プロセスの cached graph は変わらないため、明示的に load し直す必要がある。
    * 失敗してもレスポンスは成功扱い（cache 不整合でも DB は正しいため、Reload で復帰可能）。
    */
-  private async refreshCodeGraphCache(): Promise<void> {
+  private async refreshCodeGraphCache(repoName?: string): Promise<void> {
     if (!this.codeGraphService) return;
     try {
-      await this.codeGraphService.loadFromDb();
+      await this.codeGraphService.loadFromDb(repoName);
     } catch (err) {
-      this.logger.warn(`[community-upsert] cache compose failed (loadFromDb): ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.warn(`[community-upsert] cache compose failed (loadFromDb${repoName ? `(${repoName})` : ''}): ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
