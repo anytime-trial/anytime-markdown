@@ -42,6 +42,7 @@ import { MemoryCoreService } from '@anytime-markdown/trail-server';
 
 let trailDataServer: TrailDataServer | undefined;
 let trailDb: TrailDatabase | undefined;
+let ollamaProvider: OllamaProvider | undefined;
 let memoryCoreService: MemoryCoreService | null = null;
 let extensionDistPath = '';
 
@@ -683,17 +684,24 @@ export async function activate(context: vscode.ExtensionContext) {
 	trailDataServer.onAnalyzeAll = async () => {
 		if (!trailDb) throw new Error('Trail DB not initialized');
 		const startedAt = Date.now();
-		const result = await trailDb.importAll(
-			(message) => TrailLogger.info(`Trail import (HTTP): ${message}`),
-			getWatchedGitRoots(),
-			undefined,
-			analyze,
-		);
-		trailDataServer?.notifySessionsUpdated();
-		// service が null = useExternalDaemon に委譲中。daemon 側が periodic で回す
-		// ため拡張側ではここで no-op。
-		await memoryCoreService?.runOnce('import');
-		return { ...result, durationMs: Date.now() - startedAt };
+		ollamaProvider?.setImportAllRunning();
+		try {
+			const result = await trailDb.importAll(
+				(message) => TrailLogger.info(`Trail import (HTTP): ${message}`),
+				getWatchedGitRoots(),
+				undefined,
+				analyze,
+			);
+			ollamaProvider?.setImportAllSuccess(result.imported, result.skipped);
+			trailDataServer?.notifySessionsUpdated();
+			// service が null = useExternalDaemon に委譲中。daemon 側が periodic で回す
+			// ため拡張側ではここで no-op。
+			await memoryCoreService?.runOnce('import');
+			return { ...result, durationMs: Date.now() - startedAt };
+		} catch (err) {
+			ollamaProvider?.setImportAllError(err instanceof Error ? err.message : String(err));
+			throw err;
+		}
 	};
 
 	// loadFromDb() は trailDb.init() 完了後に下の async IIFE 内で呼ぶ。
@@ -917,6 +925,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			TrailLogger.info(`Trail DB [${repoName}]: import started`);
 			databaseProvider.setImporting(true);
+			ollamaProvider?.setImportAllRunning();
 			try {
 				const result = await vscode.window.withProgress(
 					{
@@ -934,6 +943,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				TrailLogger.info(`Trail DB [${repoName}]: import complete - imported=${result.imported}, skipped=${result.skipped}, commits=${result.commitsResolved}, releases=${result.releasesResolved}, analyzed=${result.releasesAnalyzed}`);
 				databaseProvider.updateSqliteStatus('Ready', trailDb.getLastImportedAt());
 				databaseProvider.setImporting(false);
+				ollamaProvider?.setImportAllSuccess(result.imported, result.skipped);
 
 				trailDataServer?.notifySessionsUpdated();
 				await memoryCoreService?.runOnce('import');
@@ -944,6 +954,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			} catch (err) {
 				databaseProvider.setImporting(false);
 				databaseProvider.updateSqliteStatus('Import failed');
+				ollamaProvider?.setImportAllError(err instanceof Error ? err.message : String(err));
 				TrailLogger.error(`Trail import [${repoName}] failed`, err);
 			}
 		}),
@@ -1179,7 +1190,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// 同じ dirname に出力するので、reader 側もそれに合わせる。
 	const pipelineStatusPath = dbStorageDir ? path.join(dbStorageDir, 'pipeline-status.json') : undefined;
 	const dbFilePath = dbStorageDir ? path.join(dbStorageDir, 'trail.db') : undefined;
-	const ollamaProvider = new OllamaProvider({ statusFilePath: pipelineStatusPath, dbFilePath });
+	ollamaProvider = new OllamaProvider({ statusFilePath: pipelineStatusPath, dbFilePath });
 	vscode.window.createTreeView('anytimeTrail.ollama', {
 		treeDataProvider: ollamaProvider,
 	});

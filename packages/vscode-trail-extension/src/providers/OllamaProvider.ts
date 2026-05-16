@@ -186,6 +186,70 @@ interface BackupPipelineDisplay {
 }
 
 /**
+ * trailDb.importAll() の最新実行状態 (in-process)。
+ * 外部デーモン経由の importAll は本拡張からは追跡できないため反映されない。
+ */
+export interface ImportAllRunInfo {
+  state: PipelineState;
+  startedAt?: string;
+  finishedAt?: string;
+  imported?: number;
+  skipped?: number;
+  message?: string;
+}
+
+/**
+ * importAll 実行情報から表示用エントリを組み立てる。
+ * - null (未実行): state='pending', "未実行"
+ * - running: 経過時間
+ * - success/partial: "imported=X skipped=Y in Zs"
+ * - error: "error: {message}"
+ */
+export function buildImportAllDisplay(
+  run: ImportAllRunInfo | null,
+  now: number = Date.now(),
+): BackupPipelineDisplay {
+  if (!run) {
+    return { scope: 'importAll', state: 'pending', description: '未実行' };
+  }
+  if (run.state === 'running') {
+    const startedMs = run.startedAt ? new Date(run.startedAt).getTime() : NaN;
+    const elapsed = Number.isFinite(startedMs)
+      ? Math.max(0, (now - startedMs) / 1000)
+      : null;
+    return {
+      scope: 'importAll',
+      state: 'running',
+      description: elapsed !== null ? `running (${formatDuration(elapsed)})` : 'running',
+    };
+  }
+  if (run.state === 'success' || run.state === 'partial') {
+    const startedMs = run.startedAt ? new Date(run.startedAt).getTime() : NaN;
+    const finishedMs = run.finishedAt ? new Date(run.finishedAt).getTime() : NaN;
+    const dur =
+      Number.isFinite(startedMs) && Number.isFinite(finishedMs)
+        ? Math.max(0, (finishedMs - startedMs) / 1000)
+        : null;
+    const durStr = dur !== null ? ` in ${formatDuration(dur)}` : '';
+    const imported = run.imported ?? 0;
+    const skipped = run.skipped ?? 0;
+    return {
+      scope: 'importAll',
+      state: run.state,
+      description: `imported=${imported} skipped=${skipped}${durStr}`,
+    };
+  }
+  if (run.state === 'error') {
+    return {
+      scope: 'importAll',
+      state: 'error',
+      description: run.message ? `error: ${run.message.slice(0, 60)}` : 'error',
+    };
+  }
+  return { scope: 'importAll', state: run.state, description: '' };
+}
+
+/**
  * バックアップ世代ファイル (.bak.1.gz) の存在から表示用エントリを組み立てる。
  * - 存在しない: state='pending', "未作成"
  * - 存在する: state='success', "${size}MB · ${mtime}"
@@ -226,6 +290,7 @@ export class OllamaProvider
   private _lastStatusFileMtime = 0;
   private readonly _statusFilePath: string | undefined;
   private readonly _dbFilePath: string | undefined;
+  private _importAllRun: ImportAllRunInfo | null = null;
 
   constructor(options: OllamaProviderOptions = {}) {
     this._statusFilePath = options.statusFilePath;
@@ -255,20 +320,24 @@ export class OllamaProvider
   private _checkStatusFile(): void {
     if (!this._statusFilePath) return;
     try {
-      if (!fs.existsSync(this._statusFilePath)) return;
-      const stat = fs.statSync(this._statusFilePath);
-      const mtime = stat.mtimeMs;
-      const mtimeChanged = mtime !== this._lastStatusFileMtime;
-
-      // 経過時間の表示を tick させるため、running pipeline があれば mtime 変化なしでも refresh する。
-      const status = readPipelineStatus(this._statusFilePath);
-      const hasRunning =
-        status?.pipelines.some((p) => p.state === 'running') ?? false;
-
-      if (mtimeChanged) {
-        this._lastStatusFileMtime = mtime;
+      let mtimeChanged = false;
+      if (fs.existsSync(this._statusFilePath)) {
+        const stat = fs.statSync(this._statusFilePath);
+        const mtime = stat.mtimeMs;
+        mtimeChanged = mtime !== this._lastStatusFileMtime;
+        if (mtimeChanged) {
+          this._lastStatusFileMtime = mtime;
+        }
       }
-      if (mtimeChanged || hasRunning) {
+
+      // 経過時間の表示を tick させるため、running pipeline (memory-core / importAll) が
+      // あれば mtime 変化なしでも refresh する。
+      const status = readPipelineStatus(this._statusFilePath);
+      const hasRunningPipeline =
+        status?.pipelines.some((p) => p.state === 'running') ?? false;
+      const importAllRunning = this._importAllRun?.state === 'running';
+
+      if (mtimeChanged || hasRunningPipeline || importAllRunning) {
         this._onDidChangeTreeData.fire();
       }
     } catch {
@@ -303,18 +372,28 @@ export class OllamaProvider
       items.push(new OllamaItem('model', model));
     }
 
-    // Pipelines セクション: backup (常時、dbFilePath が指定されていれば) + memory-core pipelines
+    // Pipelines セクション: backup → importAll → memory-core pipelines の順で表示。
+    // backup / importAll は dbFilePath が指定されていれば常時 (pending 含む) 表示。
     const backup = this._dbFilePath ? buildBackupDisplay(this._dbFilePath) : null;
+    const importAll = this._dbFilePath ? buildImportAllDisplay(this._importAllRun) : null;
     const pipelineStatus = readPipelineStatus(this._statusFilePath);
     const memoryPipelines = pipelineStatus?.pipelines ?? [];
 
-    if (backup || memoryPipelines.length > 0) {
+    if (backup || importAll || memoryPipelines.length > 0) {
       items.push(new OllamaItem('pipeline-separator', '── Pipelines ──'));
       if (backup) {
         items.push(
           new OllamaItem('pipeline', backup.scope, {
             state: backup.state,
             description: backup.description,
+          }),
+        );
+      }
+      if (importAll) {
+        items.push(
+          new OllamaItem('pipeline', importAll.scope, {
+            state: importAll.state,
+            description: importAll.description,
           }),
         );
       }
@@ -328,6 +407,35 @@ export class OllamaProvider
       }
     }
     return items;
+  }
+
+  /** importAll 実行開始を通知。description が "running (Xs)" に切り替わる。 */
+  setImportAllRunning(): void {
+    this._importAllRun = { state: 'running', startedAt: new Date().toISOString() };
+    this._onDidChangeTreeData.fire();
+  }
+
+  /** importAll 成功完了を通知。imported / skipped カウントを保持する。 */
+  setImportAllSuccess(imported: number, skipped: number): void {
+    this._importAllRun = {
+      state: 'success',
+      startedAt: this._importAllRun?.startedAt,
+      finishedAt: new Date().toISOString(),
+      imported,
+      skipped,
+    };
+    this._onDidChangeTreeData.fire();
+  }
+
+  /** importAll 失敗を通知。message は description に 60 文字までで表示される。 */
+  setImportAllError(message: string): void {
+    this._importAllRun = {
+      state: 'error',
+      startedAt: this._importAllRun?.startedAt,
+      finishedAt: new Date().toISOString(),
+      message,
+    };
+    this._onDidChangeTreeData.fire();
   }
 
   getTreeItem(element: OllamaItem): vscode.TreeItem {
