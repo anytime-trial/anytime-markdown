@@ -4,7 +4,6 @@ import * as path from 'node:path';
 
 const homeDir = os.homedir();
 
-import { setupClaudeHooks } from '@anytime-markdown/vscode-common';
 import * as vscode from 'vscode';
 
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
@@ -132,17 +131,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	const trailOutputChannel = vscode.window.createOutputChannel('Anytime Trail');
 	TrailLogger.init(trailOutputChannel);
 	context.subscriptions.push(trailOutputChannel);
-
-	// Claude Code hook を ~/.claude/settings.json に自動登録
-	const claudeStatusDirSetting = vscode.workspace.getConfiguration('anytimeTrail.claudeStatus').get<string>('directory', '.anytime/trail/agent-status') || '.anytime/trail/agent-status';
-	const trailPortForHooks = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);
-	{
-		const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-		if (wsRoot) {
-			const registered = setupClaudeHooks(wsRoot, claudeStatusDirSetting, trailPortForHooks);
-			TrailLogger.info(`Claude hooks setup: ${registered ? 'registered' : 'skipped (already registered or .claude not found)'}`);
-		}
-	}
 
 	// Agent Note ビュー
 	const noteStorageDir = context.globalStorageUri.fsPath;
@@ -866,7 +854,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				wireDaemonLogSink(`http://127.0.0.1:${actualPort}`, context);
 
 				// トークン予算設定を反映
-				const budgetConfig = vscode.workspace.getConfiguration('anytimeTrail.budget');
+				const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
 				trailDataServer!.setTokenBudgetConfig({
 					dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
 					sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),
@@ -1118,8 +1106,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (e.affectsConfiguration('anytimeTrail.workspace.docsPath')) {
 				applyDocsPathConfig();
 			}
-			if (e.affectsConfiguration('anytimeTrail.budget') && trailDataServer) {
-				const budgetConfig = vscode.workspace.getConfiguration('anytimeTrail.budget');
+			if (e.affectsConfiguration('anytimeAgent.budget') && trailDataServer) {
+				const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
 				trailDataServer.setTokenBudgetConfig({
 					dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
 					sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),

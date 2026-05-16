@@ -23,6 +23,7 @@
     "llm"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onView:anytimeAgent.mapping",
     "onView:anytimeAgent.ollama"
   ],
@@ -169,8 +170,31 @@
       "properties": {
         "anytimeAgent.claudeStatus.directory": {
           "type": "string",
-          "default": "",
+          "default": ".anytime/trail/agent-status",
           "markdownDescription": "%config.claudeStatus.directory%"
+        },
+        "anytimeAgent.budget.dailyLimitTokens": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null,
+          "markdownDescription": "日次トークン上限。`null` で無効。"
+        },
+        "anytimeAgent.budget.sessionLimitTokens": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null,
+          "markdownDescription": "セッションあたりのトークン上限。`null` で無効。"
+        },
+        "anytimeAgent.budget.alertThresholdPct": {
+          "type": "number",
+          "default": 80,
+          "minimum": 1,
+          "maximum": 100,
+          "markdownDescription": "上限に対する警告閾値（%）。"
         }
       }
     }
