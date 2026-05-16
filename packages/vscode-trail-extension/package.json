@@ -144,6 +144,11 @@
         "icon": "$(symbol-class)"
       },
       {
+        "command": "anytime-trail.analyzeCurrentCodePickTsconfig",
+        "title": "%command.analyzeCurrentCodePickTsconfig%",
+        "category": "Anytime Trail"
+      },
+      {
         "command": "anytime-trail.analyzeReleaseCode",
         "title": "%command.analyzeReleaseCode%",
         "category": "Anytime Trail"

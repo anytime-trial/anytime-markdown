@@ -11,6 +11,7 @@
   "command.analyzeAll.resume": "AnalyzeAll パイプラインを再開",
   "command.analyzeAll.status": "AnalyzeAll の状態を表示",
   "command.analyzeCurrentCode": "コード解析",
+  "command.analyzeCurrentCodePickTsconfig": "コード解析 (tsconfig を選択)",
   "command.analyzeReleaseCode": "リリース別コード解析",
   "command.analyzeAll": "全データ解析",
   "command.openTrailViewer": "Trail ビューアを開く",

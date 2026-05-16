@@ -11,6 +11,7 @@
   "command.analyzeAll.resume": "Resume AnalyzeAll Pipeline",
   "command.analyzeAll.status": "Show AnalyzeAll Status",
   "command.analyzeCurrentCode": "Analyze Code",
+  "command.analyzeCurrentCodePickTsconfig": "Analyze Code (Pick Tsconfig)",
   "command.analyzeReleaseCode": "Analyze Release Code",
   "command.analyzeAll": "Analyze All Data",
   "command.openTrailViewer": "Open Trail Viewer",

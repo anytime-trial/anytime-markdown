@@ -714,82 +714,93 @@ export async function activate(context: vscode.ExtensionContext) {
 	// loadFromDb() は trailDb.init() 完了後に下の async IIFE 内で呼ぶ。
 	// ここで呼ぶと DB 未初期化のまま ensureDb() が throw → null が返るため。
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCode', async () => {
-			const analysisRoot = getEffectiveWorkspacePath();
-			if (!analysisRoot) {
-				vscode.window.showErrorMessage('解析対象のワークスペースが指定されていません。anytimeTrail.workspace.path を設定するか、ワークスペースを開いてください。');
-				return;
-			}
-			let rootStat: fs.Stats;
-			try {
-				rootStat = fs.statSync(analysisRoot);
-			} catch {
-				vscode.window.showErrorMessage(`anytimeTrail.workspace.path のパスが存在しません: ${analysisRoot}`);
-				return;
-			}
-			if (!rootStat.isDirectory()) {
-				vscode.window.showErrorMessage(`anytimeTrail.workspace.path はディレクトリではありません: ${analysisRoot}`);
-				return;
-			}
-			const repoName = path.basename(analysisRoot);
-			TrailLogger.info(`C4 analysis [${repoName}]: searching tsconfig.json under ${analysisRoot}`);
-			const tsconfigFiles = findTsconfigCandidates(analysisRoot);
-			if (tsconfigFiles.length === 0) {
-				TrailLogger.warn(`C4 analysis [${repoName}]: no tsconfig.json found under ${analysisRoot}`);
-				vscode.window.showWarningMessage(`No tsconfig.json found under ${analysisRoot}`);
-				return;
-			}
+	// analyzeCurrentCode 系コマンドの本体。pickTsconfig=false (default) は HTTP/MCP 経路と
+	// 揃えて candidates[0] (浅さ順=root 優先) を自動採用する。true ならコマンドパレットから
+	// 明示的に切り替えたいケース向けに QuickPick を表示する。
+	const runAnalyzeCurrentCommand = async (opts: { pickTsconfig: boolean }): Promise<void> => {
+		const analysisRoot = getEffectiveWorkspacePath();
+		if (!analysisRoot) {
+			vscode.window.showErrorMessage('解析対象のワークスペースが指定されていません。anytimeTrail.workspace.path を設定するか、ワークスペースを開いてください。');
+			return;
+		}
+		let rootStat: fs.Stats;
+		try {
+			rootStat = fs.statSync(analysisRoot);
+		} catch {
+			vscode.window.showErrorMessage(`anytimeTrail.workspace.path のパスが存在しません: ${analysisRoot}`);
+			return;
+		}
+		if (!rootStat.isDirectory()) {
+			vscode.window.showErrorMessage(`anytimeTrail.workspace.path はディレクトリではありません: ${analysisRoot}`);
+			return;
+		}
+		const repoName = path.basename(analysisRoot);
+		TrailLogger.info(`C4 analysis [${repoName}]: searching tsconfig.json under ${analysisRoot}`);
+		const tsconfigFiles = findTsconfigCandidates(analysisRoot);
+		if (tsconfigFiles.length === 0) {
+			TrailLogger.warn(`C4 analysis [${repoName}]: no tsconfig.json found under ${analysisRoot}`);
+			vscode.window.showWarningMessage(`No tsconfig.json found under ${analysisRoot}`);
+			return;
+		}
 
-			let tsconfigPath: string;
-			if (tsconfigFiles.length === 1) {
-				tsconfigPath = tsconfigFiles[0].fsPath;
-			} else {
-				const items = tsconfigFiles.map(f => ({
-					label: f.rel,
-					description: f.rel === 'tsconfig.json' ? '(workspace root — analyzes all packages)' : undefined,
-					fsPath: f.fsPath,
-				}));
-				const picked = await vscode.window.showQuickPick(items, {
-					placeHolder: 'Select tsconfig.json to analyze',
-					matchOnDescription: true,
-				});
-				if (!picked) {
-					TrailLogger.info(`C4 analysis [${repoName}]: cancelled at tsconfig selection`);
-					return;
-				}
-				tsconfigPath = picked.fsPath;
-			}
-
-			TrailLogger.info(`C4 analysis [${repoName}]: starting for ${tsconfigPath}`);
-			TrailPanel.openViewer(true);
-
-			if (!trailDb || !trailDataServer) {
-				vscode.window.showErrorMessage('Trail DB or server is not initialized.');
-				return;
-			}
-
-			try {
-				await vscode.window.withProgress(
-					{ location: vscode.ProgressLocation.Notification, title: 'C4 Analysis', cancellable: false },
-					async (progress) => {
-						const result = await runAnalyzeCurrentCodePipeline({
-							analysisRoot,
-							tsconfigPath,
-							trailDb: trailDb!,
-							callbacks: trailDataServer!,
-							codeGraphService,
-							onProgress: (phase) => progress.report({ message: phase }),
-						});
-						TrailLogger.info(`C4 analysis [${repoName}]: completed in ${result.durationMs}ms`);
-					},
+		let tsconfigPath: string;
+		if (tsconfigFiles.length === 1 || !opts.pickTsconfig) {
+			tsconfigPath = tsconfigFiles[0].fsPath;
+			if (tsconfigFiles.length > 1 && !opts.pickTsconfig) {
+				vscode.window.showInformationMessage(
+					`Analyzing with ${tsconfigFiles[0].rel} (${tsconfigFiles.length} tsconfig.json found; auto-picked shallowest). Use "Anytime Trail: Analyze Code (Pick Tsconfig)" to choose another.`,
 				);
-				vscode.window.showInformationMessage('C4 analysis completed.');
-			} catch (err) {
-				TrailLogger.error(`C4 analysis [${repoName}] failed`, err);
-				vscode.window.showErrorMessage(`C4 analysis failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
-		}),
+		} else {
+			const items = tsconfigFiles.map(f => ({
+				label: f.rel,
+				description: f.rel === 'tsconfig.json' ? '(workspace root — analyzes all packages)' : undefined,
+				fsPath: f.fsPath,
+			}));
+			const picked = await vscode.window.showQuickPick(items, {
+				placeHolder: 'Select tsconfig.json to analyze',
+				matchOnDescription: true,
+			});
+			if (!picked) {
+				TrailLogger.info(`C4 analysis [${repoName}]: cancelled at tsconfig selection`);
+				return;
+			}
+			tsconfigPath = picked.fsPath;
+		}
+
+		TrailLogger.info(`C4 analysis [${repoName}]: starting for ${tsconfigPath}`);
+		TrailPanel.openViewer(true);
+
+		if (!trailDb || !trailDataServer) {
+			vscode.window.showErrorMessage('Trail DB or server is not initialized.');
+			return;
+		}
+
+		try {
+			await vscode.window.withProgress(
+				{ location: vscode.ProgressLocation.Notification, title: 'C4 Analysis', cancellable: false },
+				async (progress) => {
+					const result = await runAnalyzeCurrentCodePipeline({
+						analysisRoot,
+						tsconfigPath,
+						trailDb: trailDb!,
+						callbacks: trailDataServer!,
+						codeGraphService,
+						onProgress: (phase) => progress.report({ message: phase }),
+					});
+					TrailLogger.info(`C4 analysis [${repoName}]: completed in ${result.durationMs}ms`);
+				},
+			);
+			vscode.window.showInformationMessage('C4 analysis completed.');
+		} catch (err) {
+			TrailLogger.error(`C4 analysis [${repoName}] failed`, err);
+			vscode.window.showErrorMessage(`C4 analysis failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	};
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCode', () => runAnalyzeCurrentCommand({ pickTsconfig: false })),
+		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCodePickTsconfig', () => runAnalyzeCurrentCommand({ pickTsconfig: true })),
 		vscode.commands.registerCommand('anytime-trail.analyzeReleaseCode', async () => {
 			if (!trailDb) {
 				vscode.window.showErrorMessage('Trail DB is not initialized.');
