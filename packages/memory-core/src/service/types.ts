@@ -32,6 +32,14 @@ export interface PipelineRunnerContext {
   gitRoot?: string;
   /** 初回 backfill 期間 (日)。省略時は runner 側 default (5)。 */
   backfillDays?: number;
+  /**
+   * memory-core.db の世代バックアップ設定。
+   * - backupGenerations: 保持世代数 (0 以下で無効、既定 1)
+   * - backupIntervalDays: 作成間隔 日 (0 で毎回、既定 1)
+   * 既存 anytimeDatabase.backup.* 設定を再利用する想定。
+   */
+  backupGenerations?: number;
+  backupIntervalDays?: number;
 }
 
 export interface PipelineLogger {
@@ -66,4 +74,11 @@ export interface MemoryCoreServiceOptions {
    * trail.db から遡って読み込む日数。省略時は 5 日。
    */
   backfillDays?: number;
+  /**
+   * memory-core.db の世代バックアップ設定。anytimeDatabase.backup.* と
+   * 同じ値を渡す想定。省略時は generations=1, intervalDays=1 (database-core
+   * 既定値)。
+   */
+  backupGenerations?: number;
+  backupIntervalDays?: number;
 }
