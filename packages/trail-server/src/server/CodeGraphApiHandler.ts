@@ -16,7 +16,8 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
  * `current_graphs` 更新時 (TrailDataServer.notifyCodeGraphUpdated) に invalidate() を呼ぶこと。
  */
 export class CodeGraphApiHandler {
-  private cachedEngine: GraphQueryEngine | null = null;
+  /** key: repo 名 (省略呼び出しはデフォルト repo に解決されるため `__default__` を使用) */
+  private readonly cachedEngines = new Map<string, GraphQueryEngine>();
   private codeGraphService: CodeGraphService | undefined;
 
   constructor(
@@ -28,9 +29,16 @@ export class CodeGraphApiHandler {
     this.codeGraphService = service;
   }
 
-  /** notifyCodeGraphUpdated 時に呼ぶ。次回 query で再構築される。 */
-  invalidate(): void {
-    this.cachedEngine = null;
+  /**
+   * notifyCodeGraphUpdated 時に呼ぶ。次回 query で再構築される。
+   * repoName 省略時は全 cache クリア（互換動作）。
+   */
+  invalidate(repoName?: string): void {
+    if (repoName) {
+      this.cachedEngines.delete(repoName);
+    } else {
+      this.cachedEngines.clear();
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -77,8 +85,8 @@ export class CodeGraphApiHandler {
   //  GET /api/code-graph/query?q=...
   // -------------------------------------------------------------------------
 
-  handleQuery(res: http.ServerResponse, q: string): void {
-    const engine = this.getOrBuildEngine();
+  async handleQuery(res: http.ServerResponse, q: string, repo?: string): Promise<void> {
+    const engine = await this.getOrBuildEngine(repo);
     if (!engine) {
       res.writeHead(404, JSON_HEADERS);
       res.end('{}');
@@ -92,8 +100,8 @@ export class CodeGraphApiHandler {
   //  GET /api/code-graph/explain?id=...
   // -------------------------------------------------------------------------
 
-  handleExplain(res: http.ServerResponse, id: string): void {
-    const engine = this.getOrBuildEngine();
+  async handleExplain(res: http.ServerResponse, id: string, repo?: string): Promise<void> {
+    const engine = await this.getOrBuildEngine(repo);
     if (!engine) {
       res.writeHead(404, JSON_HEADERS);
       res.end('{}');
@@ -108,8 +116,8 @@ export class CodeGraphApiHandler {
   //  GET /api/code-graph/path?from=...&to=...
   // -------------------------------------------------------------------------
 
-  handlePath(res: http.ServerResponse, from: string, to: string): void {
-    const engine = this.getOrBuildEngine();
+  async handlePath(res: http.ServerResponse, from: string, to: string, repo?: string): Promise<void> {
+    const engine = await this.getOrBuildEngine(repo);
     if (!engine) {
       res.writeHead(404, JSON_HEADERS);
       res.end('{}');
@@ -123,13 +131,19 @@ export class CodeGraphApiHandler {
   //  Helpers
   // -------------------------------------------------------------------------
 
-  private getOrBuildEngine(): GraphQueryEngine | null {
-    if (this.cachedEngine) return this.cachedEngine;
-    const graph = this.codeGraphService?.getGraph();
+  private async getOrBuildEngine(repo?: string): Promise<GraphQueryEngine | null> {
+    const key = repo ?? '__default__';
+    const cached = this.cachedEngines.get(key);
+    if (cached) return cached;
+    let graph = this.codeGraphService?.getGraph(repo) ?? null;
+    if (!graph) {
+      graph = (await this.codeGraphService?.loadFromDb(repo)) ?? null;
+    }
     if (!graph) return null;
     try {
-      this.cachedEngine = new GraphQueryEngine(graph);
-      return this.cachedEngine;
+      const engine = new GraphQueryEngine(graph);
+      this.cachedEngines.set(key, engine);
+      return engine;
     } catch (err) {
       this.logger.error('[CodeGraphApiHandler] failed to build GraphQueryEngine', err);
       return null;

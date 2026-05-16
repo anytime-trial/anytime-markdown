@@ -104,3 +104,48 @@ describe('CodeGraphApiHandler.handleGet (current mode)', () => {
     expect(JSON.parse(res.body).repositories[0].label).toBe('default-repo');
   });
 });
+
+describe('CodeGraphApiHandler.handleQuery/Explain/Path (repo aware)', () => {
+  it('handleQuery は repo 指定時に該当 repo のグラフからエンジンを構築する', async () => {
+    const dexter = makeGraph('dexter-jp');
+    const svc = makeCodeGraphServiceStub({ 'dexter-jp': dexter });
+    const handler = new CodeGraphApiHandler({} as never, NOOP_LOGGER as never);
+    handler.setCodeGraphService(svc);
+
+    const res = makeRes();
+    await handler.handleQuery(res as never, 'noop', 'dexter-jp');
+    expect(res.status).toBe(200);
+  });
+
+  it('handleExplain も repo 指定時に該当 repo のエンジンを使う', async () => {
+    const dexter = makeGraph('dexter-jp');
+    const svc = makeCodeGraphServiceStub({ 'dexter-jp': dexter });
+    const handler = new CodeGraphApiHandler({} as never, NOOP_LOGGER as never);
+    handler.setCodeGraphService(svc);
+
+    const res = makeRes();
+    await handler.handleExplain(res as never, 'no-such-node', 'dexter-jp');
+    // engine 構築は成功するが、ノードが無いので 404
+    expect(res.status).toBe(404);
+  });
+
+  it('handlePath は repo 指定時に該当 repo のエンジンを使う', async () => {
+    const dexter = makeGraph('dexter-jp');
+    const svc = makeCodeGraphServiceStub({ 'dexter-jp': dexter });
+    const handler = new CodeGraphApiHandler({} as never, NOOP_LOGGER as never);
+    handler.setCodeGraphService(svc);
+
+    const res = makeRes();
+    await handler.handlePath(res as never, 'a', 'b', 'dexter-jp');
+    expect(res.status).toBe(200);
+  });
+
+  it('repo に該当 graph がなければ handleQuery は 404', async () => {
+    const svc = makeCodeGraphServiceStub({});
+    const handler = new CodeGraphApiHandler({} as never, NOOP_LOGGER as never);
+    handler.setCodeGraphService(svc);
+    const res = makeRes();
+    await handler.handleQuery(res as never, 'noop', 'missing-repo');
+    expect(res.status).toBe(404);
+  });
+});
