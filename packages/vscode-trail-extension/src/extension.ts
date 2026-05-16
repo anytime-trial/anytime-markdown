@@ -801,33 +801,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCode', () => runAnalyzeCurrentCommand({ pickTsconfig: false })),
 		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCodePickTsconfig', () => runAnalyzeCurrentCommand({ pickTsconfig: true })),
-		vscode.commands.registerCommand('anytime-trail.analyzeReleaseCode', async () => {
-			if (!trailDb) {
-				vscode.window.showErrorMessage('Trail DB is not initialized.');
-				return;
-			}
-			if (!gitRoot) {
-				vscode.window.showErrorMessage('No workspace folder found.');
-				return;
-			}
-			await vscode.window.withProgress(
-				{ location: vscode.ProgressLocation.Notification, title: 'Trail: Analyze Release Code', cancellable: false },
-				async (progress) => {
-					try {
-						const result = await runAnalyzeReleaseCodePipeline({
-							trailDb: trailDb!,
-							codeGraphService,
-							gitRoot: gitRoot!,
-							onProgress: (msg) => progress.report({ message: msg }),
-						});
-						vscode.window.showInformationMessage(`Release code analyzed (${result.releaseCount} releases).`);
-					} catch (err) {
-						TrailLogger.error('Failed to analyze release code', err);
-						vscode.window.showErrorMessage(`Analyze release code failed: ${err instanceof Error ? err.message : String(err)}`);
-					}
-				},
-			);
-		}),
 	);
 
 	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);
@@ -1019,66 +992,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		},
 	});
 
-	// AnalyzeAll > Pause/Resume/Status コマンド (旧 Memory Ingest コマンドを置換)。
-	// 拡張側で runner をホストしている場合は直接呼ぶ。daemon 委譲中は
-	// daemon の HTTP API (TrailPanel.getDaemonUrl) を叩く。
+	// AnalyzeAll > Status コマンド。拡張側で runner をホストしている場合は直接呼ぶ。
+	// daemon 委譲中は daemon の HTTP API (TrailPanel.getDaemonUrl) を叩く。
+	// pause/resume は HTTP API のみで提供（CLI/daemon 用途）、VS Code コマンドからは削除済み。
 	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.analyzeAll.pause', async () => {
-			try {
-				if (analyzeAllRunner) {
-					const status = await analyzeAllRunner.pause('vscode-command');
-					vscode.window.showInformationMessage(
-						`AnalyzeAll: paused (by=${status.pausedBy})`,
-					);
-					return;
-				}
-				const daemonUrl = TrailPanel.getDaemonUrl();
-				if (!daemonUrl) {
-					vscode.window.showWarningMessage('AnalyzeAll: no local runner and no daemon URL available');
-					return;
-				}
-				const res = await fetch(`${daemonUrl}/api/analyze-all/pause`, {
-					method: 'POST',
-					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({ by: 'vscode-command' }),
-				});
-				if (!res.ok) {
-					vscode.window.showErrorMessage(`AnalyzeAll pause failed: HTTP ${res.status}`);
-					return;
-				}
-				vscode.window.showInformationMessage('AnalyzeAll: paused on daemon');
-			} catch (err) {
-				TrailLogger.error('analyzeAll.pause failed', err);
-				vscode.window.showErrorMessage(
-					`AnalyzeAll pause failed: ${err instanceof Error ? err.message : String(err)}`,
-				);
-			}
-		}),
-		vscode.commands.registerCommand('anytime-trail.analyzeAll.resume', async () => {
-			try {
-				if (analyzeAllRunner) {
-					await analyzeAllRunner.resume();
-					vscode.window.showInformationMessage('AnalyzeAll: resumed');
-					return;
-				}
-				const daemonUrl = TrailPanel.getDaemonUrl();
-				if (!daemonUrl) {
-					vscode.window.showWarningMessage('AnalyzeAll: no local runner and no daemon URL available');
-					return;
-				}
-				const res = await fetch(`${daemonUrl}/api/analyze-all/resume`, { method: 'POST' });
-				if (!res.ok) {
-					vscode.window.showErrorMessage(`AnalyzeAll resume failed: HTTP ${res.status}`);
-					return;
-				}
-				vscode.window.showInformationMessage('AnalyzeAll: resumed on daemon');
-			} catch (err) {
-				TrailLogger.error('analyzeAll.resume failed', err);
-				vscode.window.showErrorMessage(
-					`AnalyzeAll resume failed: ${err instanceof Error ? err.message : String(err)}`,
-				);
-			}
-		}),
 		vscode.commands.registerCommand('anytime-trail.analyzeAll.status', async () => {
 			try {
 				if (analyzeAllRunner) {

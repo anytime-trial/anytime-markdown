@@ -27,6 +27,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Removed
 
+- **Breaking:** VS Code commands `Anytime Trail: Pause AnalyzeAll Pipeline` (`anytime-trail.analyzeAll.pause`) and `Anytime Trail: Resume AnalyzeAll Pipeline` (`anytime-trail.analyzeAll.resume`). Pause/resume remain available via HTTP API (`POST /api/analyze-all/{pause,resume}`) and `trail-server analyze-all {pause,resume}` CLI for daemon/automation use. `anytime-trail.analyzeAll.status` command stays
+- **Breaking:** VS Code command `Anytime Trail: Analyze Release Code` (`anytime-trail.analyzeReleaseCode`). The underlying `runAnalyzeReleaseCodePipeline` and HTTP endpoint (`onAnalyzeReleaseCode` / `mcp-trail`'s `analyze_release_code` tool) remain functional for MCP / automation use
 - `createAnalyzeAllJob` / `createPeriodicImportJob` (replaced by AnalyzeAllRunner)
 - `TrailDataServer.setMemoryCoreService` (AnalyzeAllRunner hosts the service)
 

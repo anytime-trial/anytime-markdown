@@ -70,16 +70,6 @@
         "category": "Anytime Trail"
       },
       {
-        "command": "anytime-trail.analyzeAll.pause",
-        "title": "%command.analyzeAll.pause%",
-        "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.analyzeAll.resume",
-        "title": "%command.analyzeAll.resume%",
-        "category": "Anytime Trail"
-      },
-      {
         "command": "anytime-trail.analyzeAll.status",
         "title": "%command.analyzeAll.status%",
         "category": "Anytime Trail"
@@ -146,11 +136,6 @@
       {
         "command": "anytime-trail.analyzeCurrentCodePickTsconfig",
         "title": "%command.analyzeCurrentCodePickTsconfig%",
-        "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.analyzeReleaseCode",
-        "title": "%command.analyzeReleaseCode%",
         "category": "Anytime Trail"
       },
       {
