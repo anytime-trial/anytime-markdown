@@ -8,6 +8,13 @@ import {
 import { FileBackupManager } from "@anytime-markdown/database-core/FileBackupManager";
 import { AnytimeDatabaseEditorProvider } from "./providers/AnytimeDatabaseEditorProvider";
 import { DatabaseProvider, BackupTreeItem, type DbFile } from "./providers/DatabaseProvider";
+import {
+  S3BackupUploader,
+  S3ConfigError,
+  BackupNotFoundError,
+  S3UploadError,
+  type S3Config,
+} from "./utils/S3BackupUploader";
 import { AnytimeDatabaseLogger } from "./logger";
 import { DbLogger } from "./utils/DbLogger";
 
@@ -273,6 +280,117 @@ export function activate(context: vscode.ExtensionContext): void {
           vscode.window.showErrorMessage(
             vscode.l10n.t("Restore failed: {0}", err instanceof Error ? err.message : String(err)),
           );
+        }
+      },
+    ),
+  );
+
+  // ===== S3 backup upload =====
+  function readS3Config(): S3Config {
+    const cfg = vscode.workspace.getConfiguration("anytimeDatabase.s3");
+    return {
+      bucket: cfg.get<string>("bucket", ""),
+      region: cfg.get<string>("region", "ap-northeast-1"),
+      prefix: cfg.get<string>("prefix", "anytime-database-backups"),
+      accessKeyId: cfg.get<string>("accessKeyId", ""),
+      secretAccessKey: cfg.get<string>("secretAccessKey", ""),
+    };
+  }
+
+  let s3Uploader: S3BackupUploader | null = null;
+  function getS3Uploader(): S3BackupUploader {
+    if (!s3Uploader) {
+      s3Uploader = new S3BackupUploader(readS3Config(), DbLogger);
+    }
+    return s3Uploader;
+  }
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("anytimeDatabase.s3")) {
+        s3Uploader = null;
+      }
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "anytime-database.uploadBackupToS3",
+      async (arg?: BackupTreeItem | DbFile) => {
+        // 対象 DB パスと表示名を解決
+        let targetDbPath: string | null = null;
+        let targetDisplayName = "trail.db";
+        if (arg instanceof BackupTreeItem) {
+          targetDbPath = arg.dbPath;
+          targetDisplayName = path.basename(arg.dbPath);
+        } else if (arg && typeof (arg as DbFile).fsPath === "string") {
+          const dbFile = arg as DbFile;
+          targetDbPath = dbFile.fsPath;
+          targetDisplayName = path.basename(targetDbPath);
+        } else if (trailDbPath) {
+          targetDbPath = trailDbPath;
+        }
+
+        if (!targetDbPath) {
+          vscode.window.showErrorMessage(vscode.l10n.t("Trail DB is not initialized."));
+          return;
+        }
+        const resolvedDbPath: string = targetDbPath;
+        const resolvedDisplayName: string = targetDisplayName;
+
+        let uploader: S3BackupUploader;
+        try {
+          uploader = getS3Uploader();
+        } catch (err) {
+          if (err instanceof S3ConfigError) {
+            vscode.window.showErrorMessage(
+              vscode.l10n.t("S3 not configured: missing {0}", err.missing.join(", ")),
+            );
+            DbLogger.error("S3 upload aborted: missing config", err);
+            return;
+          }
+          DbLogger.error("S3 upload aborted: unexpected error", err);
+          throw err;
+        }
+
+        try {
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: vscode.l10n.t("Uploading {0} to S3", resolvedDisplayName),
+              cancellable: false,
+            },
+            async () => {
+              const result = await uploader.uploadLatest(resolvedDbPath, resolvedDisplayName);
+              const sizeMb = (result.size / 1024 / 1024).toFixed(2);
+              vscode.window.showInformationMessage(
+                vscode.l10n.t(
+                  "Uploaded s3://{0}/{1} ({2} MB, {3} ms)",
+                  result.bucket,
+                  result.key,
+                  sizeMb,
+                  String(result.elapsedMs),
+                ),
+              );
+            },
+          );
+        } catch (err) {
+          if (err instanceof BackupNotFoundError) {
+            vscode.window.showWarningMessage(
+              vscode.l10n.t("Latest backup not yet created for {0}", resolvedDisplayName),
+            );
+            DbLogger.warn(`S3 upload skipped: backup not found at ${err.path}`);
+            return;
+          }
+          if (err instanceof S3UploadError) {
+            vscode.window.showErrorMessage(
+              vscode.l10n.t("S3 upload failed: {0}", err.message),
+            );
+            DbLogger.error("S3 upload failed (PutObject)", err);
+            return;
+          }
+          vscode.window.showErrorMessage(vscode.l10n.t("S3 upload failed"));
+          DbLogger.error("S3 upload unexpected error", err);
         }
       },
     ),
