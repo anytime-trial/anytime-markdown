@@ -17,6 +17,8 @@ export function App() {
 
   useEffect(() => {
     const listener = (event: MessageEvent) => {
+      // VS Code webview のメッセージは origin が空文字列または vscode-webview:// スキーム
+      if (event.origin && !event.origin.startsWith('vscode-webview://')) return;
       const msg = event.data;
       if (msg && msg.type === 'locale' && typeof msg.locale === 'string') {
         setLocale(msg.locale);
