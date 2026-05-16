@@ -9,6 +9,5 @@ module.exports = {
   moduleNameMapper: {
     '^@anytime-markdown/trail-core$': '<rootDir>/../trail-core/src/index.ts',
     '^@anytime-markdown/trail-core/(.*)$': '<rootDir>/../trail-core/src/$1',
-    '^@anytime-markdown/graph-core$': '<rootDir>/../graph-core/src/index.ts',
   },
 };

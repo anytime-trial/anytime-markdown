@@ -2,7 +2,7 @@ import type {
   CellAlign,
   SheetAdapter,
   SheetSnapshot,
-} from "@anytime-markdown/spreadsheet-core";
+} from "@anytime-markdown/spreadsheet-viewer";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 
