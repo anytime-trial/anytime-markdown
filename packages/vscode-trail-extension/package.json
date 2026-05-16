@@ -280,8 +280,8 @@
         },
         {
           "command": "anytime-trail.analyzeCurrentCode",
-          "when": "view == anytimeTrail.database",
-          "group": "navigation@2"
+          "when": "view == anytimeTrail.dashboard",
+          "group": "navigation@1"
         },
         {
           "command": "anytime-trail.agentMapping.refresh",
