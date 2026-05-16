@@ -5,6 +5,7 @@ import * as fs from 'node:fs';
 import type { ChangesFileItem } from './types';
 import { getChanges, getSyncInfo } from './GitStatusParser';
 import { gitExec } from '../../utils/gitExec';
+import { GitLogger } from '../../utils/GitLogger';
 
 export interface GitOperationsHost {
 	readonly primaryGitRoot: string | null;
@@ -65,9 +66,20 @@ export async function discardAll(host: GitOperationsHost, gitRoot?: string): Pro
 	);
 	if (answer !== 'Discard All') return;
 	try {
+		// clean -fd で物理削除される untracked ファイルのタブだけ事前収集
+		const untrackedAbsPaths: string[] = [];
+		try {
+			const r = await gitExec(['ls-files', '--others', '--exclude-standard', '-z'], { cwd: target });
+			for (const rel of r.stdout.split('\0')) {
+				if (rel) { untrackedAbsPaths.push(path.join(target, rel)); }
+			}
+		} catch (err) {
+			GitLogger.warn(`discardAll: failed to enumerate untracked files in ${target}: ${err instanceof Error ? err.message : String(err)}`);
+		}
 		await gitExec(['checkout', '--', '.'], { cwd: target });
 		// 未追跡ファイルも削除
 		await gitExec(['clean', '-fd'], { cwd: target });
+		for (const p of untrackedAbsPaths) { await closeTab(p); }
 		host.refresh();
 	} catch (e: unknown) {
 		const msg = e instanceof Error ? e.message : String(e);
@@ -154,10 +166,12 @@ export async function discardChanges(host: GitOperationsHost, item: ChangesFileI
 		}
 		if (isUntracked) {
 			fs.unlinkSync(item.absPath);
+			// untracked は物理削除されるためタブも閉じる
+			await closeTab(item.absPath);
 		} else {
+			// tracked は HEAD 内容に戻るだけ。タブは残し、エディタの再読込に任せる
 			await gitExec(['checkout', 'HEAD', '--', item.filePath], { cwd: item.gitRoot });
 		}
-		await closeTab(item.absPath);
 		host.refresh();
 	} catch (e: unknown) {
 		const msg = e instanceof Error ? e.message : String(e);
@@ -182,11 +196,3 @@ export async function closeTab(absPath: string): Promise<void> {
 	}
 }
 
-/** 変更一覧から消えたファイルのタブを閉じる */
-export async function closeRemovedTabs(currentPaths: Set<string>, previousPaths: Set<string>): Promise<void> {
-	for (const p of previousPaths) {
-		if (!currentPaths.has(p)) {
-			await closeTab(p);
-		}
-	}
-}

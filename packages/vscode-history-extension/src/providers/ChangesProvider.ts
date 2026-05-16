@@ -176,23 +176,6 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangesTreeItem>
 	async sync(gitRoot?: string): Promise<void> { return GitOps.sync(this, gitRoot); }
 	async discardChanges(item: ChangesFileItem): Promise<void> { return GitOps.discardChanges(this, item); }
 
-	/** 変更一覧から消えたファイルのタブを閉じる */
-	async closeRemovedTabs(previousPaths: Set<string>): Promise<void> {
-		const currentPaths = await this.getChangedPaths();
-		return GitOps.closeRemovedTabs(currentPaths, previousPaths);
-	}
-
-	/** 現在の変更ファイルパス一覧を返す（全リポジトリ） */
-	async getChangedPaths(): Promise<Set<string>> {
-		const paths = new Set<string>();
-		for (const entry of this.gitRootEntries) {
-			const { staged, unstaged } = await getChanges(entry.gitRoot);
-			for (const c of staged) { paths.add(c.absPath); }
-			for (const c of unstaged) { paths.add(c.absPath); }
-		}
-		return paths;
-	}
-
 	dispose(): void {
 		for (const w of this.watchers) { w.dispose(); }
 		if (this.refreshTimer) { clearTimeout(this.refreshTimer); }
