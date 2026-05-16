@@ -150,7 +150,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Agent Note ビュー
-	const noteStorageDir = context.globalStorageUri.fsPath;
+	// 格納先はワークスペース直下の .anytime/notes/。ワークスペース未開時のみ
+	// 旧 globalStorage パスにフォールバックする。
+	const workspaceRootForNotes = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	const noteStorageDir = workspaceRootForNotes
+		? path.join(workspaceRootForNotes, '.anytime', 'notes')
+		: context.globalStorageUri.fsPath;
 	const aiNoteProvider = new AiNoteProvider(noteStorageDir);
 	const aiNoteTreeView = vscode.window.createTreeView('anytimeTrail.aiNote', {
 		treeDataProvider: aiNoteProvider,
