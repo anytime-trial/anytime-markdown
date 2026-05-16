@@ -22,7 +22,6 @@
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/graph-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
-    "@anytime-markdown/spreadsheet-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/trace-core": "*",
     "@anytime-markdown/trace-viewer": "*",
