@@ -66,7 +66,7 @@ README / CLAUDE.md / docs/ を Grep して命名候補を集める。
 
 | リソース | パス |
 | --- | --- |
-| 生成スキル | `~/.claude/skills/anytime-basic-design/SKILL.md` |
+| 生成スキル | `~/.claude/skills/anytime-reverse-spec/SKILL.md` |
 | 入力 DB | `{{TrailDB path}}` |
 | {{Schema 定義}} | `{{path}}` |
 | {{関連スキル}} | `{{name}}` |

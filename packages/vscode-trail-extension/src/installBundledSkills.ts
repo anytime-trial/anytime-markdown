@@ -29,8 +29,12 @@ export interface InstallBundledSkillsResult {
   readonly removedOld: boolean;
 }
 
-const SKILL_NAME = 'anytime-reverse-engineer';
-const OLD_SKILL_NAMES: readonly string[] = ['build-code-graph', 'trail-design'];
+const SKILL_NAME = 'anytime-reverse-codegraph';
+const OLD_SKILL_NAMES: readonly string[] = [
+  'build-code-graph',
+  'trail-design',
+  'anytime-reverse-engineer',
+];
 const SKILL_FILE = 'SKILL.md';
 
 const NOOP_LOGGER: InstallSkillLogger = {
@@ -186,6 +190,8 @@ export interface InstallStaticSkillDirOptions {
   readonly extensionPath: string;
   /** スキル名。`skills/<skillName>/` 配下を再帰コピーする。 */
   readonly skillName: string;
+  /** activate 時に削除する旧スキル dir 名（リネーム前の名前）。 */
+  readonly oldSkillNames?: readonly string[];
   /** true 指定時は差分があっても全ファイル上書き。 */
   readonly force?: boolean;
   readonly logger?: InstallSkillLogger;
@@ -200,6 +206,8 @@ export interface InstallStaticSkillDirResult {
   readonly preserved: number;
   /** bundle / claudeDir が見つからず何もしなかった場合 true */
   readonly sourceMissing: boolean;
+  /** 削除した旧スキル dir 名（順序保持）。 */
+  readonly removedOld: readonly string[];
 }
 
 function walkRelativeFiles(rootDir: string): string[] {
@@ -226,13 +234,26 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
   const force = opts.force === true;
 
   if (!fs.existsSync(opts.claudeDir)) {
-    return { installed: 0, upToDate: 0, preserved: 0, sourceMissing: true };
+    return { installed: 0, upToDate: 0, preserved: 0, sourceMissing: true, removedOld: [] };
+  }
+
+  const removedOld: string[] = [];
+  for (const oldName of opts.oldSkillNames ?? []) {
+    const oldDir = path.join(opts.claudeDir, 'skills', oldName);
+    if (!fs.existsSync(oldDir)) continue;
+    try {
+      fs.rmSync(oldDir, { recursive: true, force: true });
+      logger.info(`[install-skills] removed old skill dir: ${oldDir}`);
+      removedOld.push(oldName);
+    } catch (err) {
+      logger.warn(`[install-skills] failed to remove ${oldDir}: ${String(err)}`);
+    }
   }
 
   const sourceDir = path.join(opts.extensionPath, 'skills', opts.skillName);
   if (!fs.existsSync(sourceDir)) {
     logger.warn(`[install-skills] bundled skill dir not found: ${sourceDir}`);
-    return { installed: 0, upToDate: 0, preserved: 0, sourceMissing: true };
+    return { installed: 0, upToDate: 0, preserved: 0, sourceMissing: true, removedOld };
   }
 
   const targetDir = path.join(opts.claudeDir, 'skills', opts.skillName);
@@ -274,5 +295,5 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
     );
   }
 
-  return { installed, upToDate, preserved, sourceMissing: false };
+  return { installed, upToDate, preserved, sourceMissing: false, removedOld };
 }

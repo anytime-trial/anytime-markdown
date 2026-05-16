@@ -30,7 +30,7 @@ excerpt: "コードグラフのコミュニティから抽出した {{N}} 機能
 
 > [!NOTE]
 > 命名済みカバレッジ: {{NamedN}} / {{TotalN}} ({{NamedPct}}%)。\
-> 未命名コミュニティを充足するには `/anytime-reverse-engineer` を実行する。
+> 未命名コミュニティを充足するには `/anytime-reverse-codegraph` を実行する。
 
 
 ## 2. 命名済み機能（コミュニティ）一覧
