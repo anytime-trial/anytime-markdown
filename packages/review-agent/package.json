@@ -9,7 +9,8 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
-    "@anytime-markdown/memory-core": "*"
+    "@anytime-markdown/memory-core": "*",
+    "@anytime-markdown/ollama-core": "*"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",
