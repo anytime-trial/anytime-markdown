@@ -183,7 +183,7 @@ export async function runAnalyzeCurrentCodePipeline(
     // saveCurrentCodeGraph で温存された AI 要約は cache に反映されない。
     // loadFromDb() で DB と join 済みの graph を取り直し、要約込みで cache を再構築する。
     try {
-      await codeGraphService.loadFromDb();
+      await codeGraphService.loadFromDb(repoName);
     } catch (err) {
       logger.warn(`C4 analysis [${repoName}]: cache compose failed (loadFromDb): ${err instanceof Error ? err.message : String(err)}`);
     }
