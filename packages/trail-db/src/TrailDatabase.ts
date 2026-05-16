@@ -1447,6 +1447,13 @@ export class TrailDatabase {
   }
 
   async init(): Promise<void> {
+    // バックアップ世代ローテーション: better-sqlite3 が DB ファイルを開いて
+    // 書き込み始める前に、現存する .db ファイルの状態を .bak.1.gz に圧縮退避する。
+    // FileTrailStorage 以外のストレージ (in-memory 等) では maybeRotateBackup は
+    // 未定義のため何もしない。同一インスタンス内で 1 回だけ作動する設計のため、
+    // 同 TrailDatabase の init を複数回呼んでも安全。
+    this.storage.maybeRotateBackup?.();
+
     // better-sqlite3 は webpack bundle 環境では `'better-sqlite3': 'commonjs better-sqlite3'`
     // で externals 化されており、ランタイムで `dist/node_modules/better-sqlite3/` の
     // native binary を解決する。memory-core と同じパターン。

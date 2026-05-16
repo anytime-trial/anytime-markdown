@@ -20,8 +20,21 @@ export interface ITrailStorage {
    * DB の現在状態を永続化する。better-sqlite3 を file-backed で使う場合は
    * すでにメイン DB ファイルが書き込み済みなので、本メソッドはバックアップ
    * ローテーション目的のみで使われる。in-memory ストレージでは no-op。
+   *
+   * **注意**: 本メソッドはバックアップトリガを発火しない。バックアップは
+   * {@link maybeRotateBackup} を明示的に呼んだ時のみ作成される。
    */
   save(bytes: Uint8Array): void;
+
+  /**
+   * バックアップトリガ。既存 DB ファイルを世代退避する判定 + 実行。
+   * 同一インスタンス内では 2 回目以降 no-op (per-instance backupDone フラグ)。
+   * 実装を持たないストレージ (in-memory) では undefined。
+   *
+   * TrailDatabase.init() から 1 回だけ呼ばれ、createTables() の書き込み前に
+   * 既存 DB の状態を `.bak.1.gz` に圧縮退避する。
+   */
+  maybeRotateBackup?(): void;
 
   /**
    * better-sqlite3 にそのまま渡すファイルパスを返す。
@@ -90,8 +103,19 @@ export class FileTrailStorage implements ITrailStorage {
 
   save(bytes: Uint8Array): void {
     assertNotProductionWriteDuringTests(this.dbPath);
-    this.backupManager.maybeRotate();
     fs.writeFileSync(this.dbPath, Buffer.from(bytes));
+  }
+
+  /**
+   * バックアップ世代ローテーションを実行するか判定する。
+   * 同一インスタンス内で 1 回だけ作動し、以降は no-op。
+   *
+   * TrailDatabase.init() の冒頭 (createTables の書き込み前) から呼ばれる
+   * ことを想定しており、save() の経路では発火しない。これにより
+   * 「セッション起動時 1 回」というタイミングが明示的になる。
+   */
+  maybeRotateBackup(): void {
+    this.backupManager.maybeRotate();
   }
 
   /**

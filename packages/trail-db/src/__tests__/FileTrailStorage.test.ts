@@ -5,8 +5,10 @@ import zlib from 'node:zlib';
 import { FileTrailStorage } from '../ITrailStorage';
 
 // バックアップ・復元の詳細振る舞いは database-core 側の FileBackupManager.test.ts でカバーする。
-// 本テストは FileTrailStorage が FileBackupManager に正しくデリゲートしていること、
-// および ITrailStorage 固有 (readInitialBytes / save / identifier) が動作することのみ検証する。
+// 本テストは FileTrailStorage が以下を満たすことのみ検証する:
+//   - save() は純粋な書き込みで、バックアップトリガを発火しない
+//   - maybeRotateBackup() を明示呼び出しした時のみバックアップが作成される
+//   - listBackups / restoreFromBackup は FileBackupManager にデリゲートされる
 describe('FileTrailStorage', () => {
   let dir: string;
   let dbPath: string;
@@ -40,38 +42,64 @@ describe('FileTrailStorage', () => {
     });
   });
 
-  describe('save() delegates rotation to FileBackupManager', () => {
-    it('first save() rotates existing DB to .bak.1.gz (gzip compressed)', () => {
+  describe('save() does NOT trigger backup', () => {
+    it('save() writes bytes without creating .bak.1.gz', () => {
       fs.writeFileSync(dbPath, Buffer.from('original'));
       new FileTrailStorage(dbPath).save(Buffer.from('new-content'));
 
       expect(fs.readFileSync(dbPath).toString()).toBe('new-content');
-      const restored = zlib.gunzipSync(fs.readFileSync(`${dbPath}.bak.1.gz`)).toString();
-      expect(restored).toBe('original');
+      expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(false);
     });
 
-    it('subsequent saves within same instance do NOT re-rotate', () => {
+    it('multiple save() calls without maybeRotateBackup never create backups', () => {
       fs.writeFileSync(dbPath, Buffer.from('gen-A'));
       const storage = new FileTrailStorage(dbPath);
       storage.save(Buffer.from('gen-B'));
       storage.save(Buffer.from('gen-C'));
 
       expect(fs.readFileSync(dbPath).toString()).toBe('gen-C');
+      expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(false);
+    });
+  });
+
+  describe('maybeRotateBackup() is the explicit trigger', () => {
+    it('first maybeRotateBackup() rotates existing DB to .bak.1.gz (gzip compressed)', () => {
+      fs.writeFileSync(dbPath, Buffer.from('original'));
+      const storage = new FileTrailStorage(dbPath);
+      storage.maybeRotateBackup();
+
       const restored = zlib.gunzipSync(fs.readFileSync(`${dbPath}.bak.1.gz`)).toString();
-      expect(restored).toBe('gen-A');
+      expect(restored).toBe('original');
     });
 
-    it('first save() on fresh path creates file without rotation', () => {
-      new FileTrailStorage(dbPath).save(Buffer.from('fresh'));
-      expect(fs.readFileSync(dbPath).toString()).toBe('fresh');
-      expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(false);
+    it('maybeRotateBackup() then save() preserves pre-rotation snapshot and overwrites DB', () => {
+      fs.writeFileSync(dbPath, Buffer.from('original'));
+      const storage = new FileTrailStorage(dbPath);
+      storage.maybeRotateBackup();
+      storage.save(Buffer.from('new-content'));
+
+      expect(fs.readFileSync(dbPath).toString()).toBe('new-content');
+      const restored = zlib.gunzipSync(fs.readFileSync(`${dbPath}.bak.1.gz`)).toString();
+      expect(restored).toBe('original');
+    });
+
+    it('second maybeRotateBackup() on same instance is no-op', () => {
+      fs.writeFileSync(dbPath, Buffer.from('A'));
+      const storage = new FileTrailStorage(dbPath, 3, 0);
+      storage.maybeRotateBackup();
+      fs.writeFileSync(dbPath, Buffer.from('B'));
+      storage.maybeRotateBackup();
+
+      expect(fs.existsSync(`${dbPath}.bak.2.gz`)).toBe(false);
+      const bak1 = zlib.gunzipSync(fs.readFileSync(`${dbPath}.bak.1.gz`)).toString();
+      expect(bak1).toBe('A');
     });
   });
 
   describe('listBackups / restoreFromBackup pass-through', () => {
     it('listBackups returns entries when backups exist', () => {
       fs.writeFileSync(dbPath, Buffer.from('A'));
-      new FileTrailStorage(dbPath, 1, 0).save(Buffer.from('B'));
+      new FileTrailStorage(dbPath, 1, 0).maybeRotateBackup();
 
       const entries = new FileTrailStorage(dbPath, 1, 0).listBackups();
       expect(entries).toHaveLength(1);
@@ -84,7 +112,9 @@ describe('FileTrailStorage', () => {
 
     it('restoreFromBackup writes back decompressed content', () => {
       fs.writeFileSync(dbPath, Buffer.from('original'));
-      new FileTrailStorage(dbPath).save(Buffer.from('corrupted'));
+      const storage = new FileTrailStorage(dbPath);
+      storage.maybeRotateBackup();
+      storage.save(Buffer.from('corrupted'));
 
       const result = new FileTrailStorage(dbPath).restoreFromBackup(1);
       expect(fs.readFileSync(dbPath).toString()).toBe('original');
