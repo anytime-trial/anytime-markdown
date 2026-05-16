@@ -1163,7 +1163,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(traceWatcher);
 	}
 
-	// AGENT マッピングパネルは vscode-anytime-agent-extension に移動済み (Phase 6/7)
+	// AGENT マッピングパネルは vscode-agent-extension に移動済み (Phase 6/7)
 
 	// MCP server registration: VS Code Copilot/Chat 向けに mcp-trail を提供
 	const mcpTrailProvider = new McpTrailServerProvider(extensionDistPath);
@@ -1175,7 +1175,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Claude Code (CLI) 向け登録ヘルパー
 	registerMcpRegistrationCommand(context, extensionDistPath);
 
-	// Ollama ステータスパネルは vscode-anytime-agent-extension に移動済み (Phase 6/7)
+	// Ollama ステータスパネルは vscode-agent-extension に移動済み (Phase 6/7)
 	// pipeline-status.json は DB と同じディレクトリ (${TRAIL_HOME}/db/) に置く。
 	// 書き手 (memory-core/defaultMemoryCorePipelineRunner.ts) が trailDbPath と
 	// 同じ dirname に出力するので、reader 側もそれに合わせる。
