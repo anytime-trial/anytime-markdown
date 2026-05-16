@@ -14,8 +14,6 @@ export type {
   RunResult,
   SqlValue as MemoryDbSqlValue,
 } from './db/connection/types';
-export { createOllamaClient } from './ollama/client';
-export type { OllamaClient } from './ollama/client';
 export type { MemoryLogger } from './logger';
 export { noopLogger } from './logger';
 export { runConversationIncremental } from './pipeline/runConversationIncremental';
@@ -123,18 +121,6 @@ export type { BuildPromptInput, PromptSource } from './chat/promptBuilder';
 export { CitationStreamParser } from './chat/citationParser';
 export { ChatService } from './chat/ChatService';
 export type { ChatServiceOptions } from './chat/ChatService';
-
-export type {
-  ChatProvider,
-  ChatProviderChatOptions,
-  ChatStreamChunk,
-  EmbeddingProvider,
-  HealthCheckResult,
-} from './providers/types';
-export { OllamaChatProvider } from './providers/ollama/OllamaChatProvider';
-export type { OllamaChatProviderOptions } from './providers/ollama/OllamaChatProvider';
-export { OllamaEmbeddingProvider } from './providers/ollama/OllamaEmbeddingProvider';
-export type { OllamaEmbeddingProviderOptions } from './providers/ollama/OllamaEmbeddingProvider';
 
 export { MemoryCoreService, defaultStatePath } from './service/MemoryCoreService';
 export { defaultState, readState, writeState, STATE_SCHEMA_VERSION } from './service/state';

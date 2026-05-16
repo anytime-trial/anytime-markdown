@@ -1,4 +1,4 @@
-import { OllamaEmbeddingProvider } from '../../src/providers/ollama/OllamaEmbeddingProvider';
+import { OllamaEmbeddingProvider } from '../src/OllamaEmbeddingProvider';
 
 describe('OllamaEmbeddingProvider.embed', () => {
   test('複数 prompt を逐次呼び出して Float32Array[] を返す', async () => {

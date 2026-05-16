@@ -1,8 +1,12 @@
-import type { ChatMessage } from '../chat/types';
-
 export interface HealthCheckResult {
   readonly ok: boolean;
   readonly detail?: string;
+}
+
+export interface ChatMessage {
+  readonly role: 'system' | 'user' | 'assistant';
+  readonly content: string;
+  readonly timestamp?: string;
 }
 
 export interface EmbeddingProvider {

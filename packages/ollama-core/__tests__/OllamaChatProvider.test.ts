@@ -1,4 +1,4 @@
-import { OllamaChatProvider } from '../../src/providers/ollama/OllamaChatProvider';
+import { OllamaChatProvider } from '../src/OllamaChatProvider';
 
 function makeStreamResponse(lines: string[]): Response {
   const stream = new ReadableStream<Uint8Array>({

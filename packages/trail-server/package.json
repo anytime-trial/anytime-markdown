@@ -17,7 +17,9 @@
   "dependencies": {
     "@anytime-markdown/cms-core": "*",
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/llm-core": "*",
     "@anytime-markdown/memory-core": "*",
+    "@anytime-markdown/ollama-core": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trail-db": "*",
     "@modelcontextprotocol/sdk": "1.27.1",

@@ -1,6 +1,6 @@
 import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runEmbeddingBackfill } from '../../src/pipeline/runEmbeddingBackfill';
-import type { OllamaClient } from '../../src/ollama/client';
+import type { OllamaClient } from '@anytime-markdown/ollama-core';
 import { encodeEmbedding } from '../../src/embedding/codec';
 
 function makeVec(seed: number): Float32Array {

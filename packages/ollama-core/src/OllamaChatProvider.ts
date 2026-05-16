@@ -3,7 +3,7 @@ import type {
   ChatProviderChatOptions,
   ChatStreamChunk,
   HealthCheckResult,
-} from '../types';
+} from '@anytime-markdown/llm-core';
 
 export interface OllamaChatProviderOptions {
   readonly baseUrl: string;

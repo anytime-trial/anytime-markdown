@@ -2,7 +2,7 @@ import type { MemoryDbConnection, SqlValue } from '../db/connection/types';
 import { toUint8ArrayOrNull } from '../db/connection/blobUtil';
 import { decodeEmbedding } from '../embedding/codec';
 import { cosineSimilarity } from '../embedding/cosine';
-import type { OllamaClient } from '../ollama/client';
+import type { OllamaClient } from '@anytime-markdown/ollama-core';
 
 export interface SearchInput {
   query: string;

@@ -1,4 +1,4 @@
-import type { EmbeddingProvider, HealthCheckResult } from '../types';
+import type { EmbeddingProvider, HealthCheckResult } from '@anytime-markdown/llm-core';
 
 export interface OllamaEmbeddingProviderOptions {
   readonly baseUrl: string;

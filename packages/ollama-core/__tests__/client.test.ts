@@ -1,4 +1,4 @@
-import { createOllamaClient } from '../../src/ollama/client';
+import { createOllamaClient } from '../src/client';
 
 const mockFetch = jest.fn();
 (globalThis as any).fetch = mockFetch;

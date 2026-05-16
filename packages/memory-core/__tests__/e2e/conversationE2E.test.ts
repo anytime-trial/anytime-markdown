@@ -14,7 +14,7 @@ import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3Memo
 import { startMockOllama, type MockOllamaServer } from './mockOllama';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationIncremental } from '../../src/pipeline/runConversationIncremental';
-import { createOllamaClient } from '../../src/ollama/client';
+import { createOllamaClient } from '@anytime-markdown/ollama-core';
 import type { MemoryCoreDb } from '../../src/db/connection';
 import type { MemoryLogger } from '../../src/logger';
 

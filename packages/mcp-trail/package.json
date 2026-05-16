@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@anytime-markdown/memory-core": "*",
+    "@anytime-markdown/ollama-core": "*",
     "@anytime-markdown/trail-core": "*",
     "@modelcontextprotocol/sdk": "1.27.1",
     "better-sqlite3": "12.4.1",

@@ -1,16 +1,16 @@
 {
-  "name": "@anytime-markdown/review-agent",
-  "version": "0.0.0",
+  "name": "@anytime-markdown/ollama-core",
+  "version": "0.1.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "sideEffects": false,
   "scripts": {
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
-    "@anytime-markdown/memory-core": "*",
-    "@anytime-markdown/ollama-core": "*"
+    "@anytime-markdown/llm-core": "*"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",

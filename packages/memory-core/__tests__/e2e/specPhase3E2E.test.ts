@@ -18,7 +18,7 @@ import { runMigrations } from '../../src/db/migrations/runner';
 import { runSpecIncremental } from '../../src/pipeline/runSpecIncremental';
 import { searchMemory } from '../../src/retrieve/searchMemory';
 import { noopLogger } from '../../src/logger';
-import type { OllamaClient } from '../../src/ollama/client';
+import type { OllamaClient } from '@anytime-markdown/ollama-core';
 
 // ── Test directory ────────────────────────────────────────────────────────────
 

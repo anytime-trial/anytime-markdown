@@ -9,7 +9,7 @@ import { extractClaims } from '../ingest/spec/extractClaims';
 import { linkByC4Scope } from '../ingest/spec/linkByC4Scope';
 import type { ExtractResult } from '../ingest/spec/extractClaims';
 import { upsertSpecDoc, upsertSpecClaims, updateSpecDocSummary } from '../ingest/spec/persist';
-import type { OllamaClient } from '../ollama/client';
+import type { OllamaClient } from '@anytime-markdown/ollama-core';
 import { noopLogger, type MemoryLogger } from '../logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────

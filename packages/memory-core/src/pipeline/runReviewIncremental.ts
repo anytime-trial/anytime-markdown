@@ -8,7 +8,7 @@ import { refineCategories } from '../ingest/review/extractFindings';
 import { upsertReviewDoc, upsertReviewSession } from '../ingest/review/persist';
 import { linkAddresses } from '../ingest/review/linkAddresses';
 import { linkPrecedesBugs } from '../ingest/review/linkPrecedesBugs';
-import type { OllamaClient } from '../ollama/client';
+import type { OllamaClient } from '@anytime-markdown/ollama-core';
 import { noopLogger, type MemoryLogger } from '../logger';
 
 const SCOPE_DOC = 'review_incremental';
