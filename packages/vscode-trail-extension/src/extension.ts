@@ -4,16 +4,14 @@ import * as path from 'node:path';
 
 const homeDir = os.homedir();
 
-import { setupClaudeHooks, ClaudeStatusWatcher } from '@anytime-markdown/vscode-common';
+import { setupClaudeHooks } from '@anytime-markdown/vscode-common';
 import * as vscode from 'vscode';
 
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { registerTraceCommands } from './commands/traceCommands';
 import { installBundledSkills } from './installBundledSkills';
 import { AiNoteItem,AiNoteProvider } from './providers/AiNoteProvider';
-import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
-import { OllamaProvider } from './providers/OllamaProvider';
 import { PipelineProvider } from './providers/PipelineProvider';
 import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
 import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
@@ -42,7 +40,6 @@ import { MemoryCoreService } from '@anytime-markdown/trail-server';
 
 let trailDataServer: TrailDataServer | undefined;
 let trailDb: TrailDatabase | undefined;
-let ollamaProvider: OllamaProvider | undefined;
 let pipelineProvider: PipelineProvider | undefined;
 let memoryCoreService: MemoryCoreService | null = null;
 let extensionDistPath = '';
@@ -1166,55 +1163,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(traceWatcher);
 	}
 
-	// Agent Mapping ビュー
-	const agentStatusRoot = getEffectiveWorkspacePath() ?? wsRootForDb;
-	const agentMappingProvider = new AgentMappingProvider(
-		new ClaudeStatusWatcher(agentStatusRoot, claudeStatusDirSetting),
-		agentStatusRoot ?? process.cwd(),
-	);
-	const agentMappingTreeView = vscode.window.createTreeView('anytimeTrail.agentMapping', {
-		treeDataProvider: agentMappingProvider,
-		showCollapseAll: true,
-	});
-	context.subscriptions.push(agentMappingProvider, agentMappingTreeView);
-	void vscode.commands.executeCommand('setContext', 'anytimeTrail.agentMapping.filterActive', false);
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.agentMapping.refresh', () => {
-			agentMappingProvider.refresh();
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.cleanupStale', () => {
-			agentMappingProvider.cleanupStale();
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.toggleStale', () => {
-			agentMappingProvider.toggleStale();
-			void vscode.commands.executeCommand(
-				'setContext',
-				'anytimeTrail.agentMapping.filterActive',
-				!agentMappingProvider.showStale,
-			);
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.openWorktree', (item: import('./providers/AgentMappingItem').WorktreeTreeItem) => {
-			void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(item.mapping.worktreePath), true);
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.copyWorktreePath', (item: import('./providers/AgentMappingItem').WorktreeTreeItem) => {
-			void vscode.env.clipboard.writeText(item.mapping.worktreePath);
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.showSessionEdits', (item: import('./providers/AgentMappingItem').SessionTreeItem) => {
-			const edits = item.session.sessionEdits.map(e => ({ label: e.file, description: e.timestamp }));
-			if (edits.length === 0) {
-				void vscode.window.showInformationMessage('No session edits recorded.');
-				return;
-			}
-			void vscode.window.showQuickPick(edits, { title: `Session Edits: ${item.session.sessionId.slice(0, 8)}` });
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.copySessionId', (item: import('./providers/AgentMappingItem').SessionTreeItem) => {
-			void vscode.env.clipboard.writeText(item.session.sessionId);
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.deleteStatusFile', (item: import('./providers/AgentMappingItem').SessionTreeItem) => {
-			agentMappingProvider.deleteSessionFile(item.session.sessionId);
-		}),
-	);
+	// AGENT マッピングパネルは vscode-anytime-agent-extension に移動済み (Phase 6/7)
 
 	// MCP server registration: VS Code Copilot/Chat 向けに mcp-trail を提供
 	const mcpTrailProvider = new McpTrailServerProvider(extensionDistPath);
@@ -1226,7 +1175,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Claude Code (CLI) 向け登録ヘルパー
 	registerMcpRegistrationCommand(context, extensionDistPath);
 
-	// Ollama ステータスパネル
+	// Ollama ステータスパネルは vscode-anytime-agent-extension に移動済み (Phase 6/7)
 	// pipeline-status.json は DB と同じディレクトリ (${TRAIL_HOME}/db/) に置く。
 	// 書き手 (memory-core/defaultMemoryCorePipelineRunner.ts) が trailDbPath と
 	// 同じ dirname に出力するので、reader 側もそれに合わせる。
@@ -1235,16 +1184,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	const importAllStatusFilePath = dbStorageDir
 		? path.join(dbStorageDir, 'importall-phase-status.json')
 		: undefined;
-	ollamaProvider = new OllamaProvider();
-	vscode.window.createTreeView('anytimeTrail.ollama', {
-		treeDataProvider: ollamaProvider,
-	});
-	context.subscriptions.push(
-		ollamaProvider,
-		vscode.commands.registerCommand('anytime-trail.startOllama', () =>
-			ollamaProvider!.startOllama(),
-		),
-	);
 
 	// Pipelines パネル (backup / importAll 8 phases / memory-core pipelines)
 	pipelineProvider = new PipelineProvider({

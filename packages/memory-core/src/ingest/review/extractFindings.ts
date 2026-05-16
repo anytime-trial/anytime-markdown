@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { OllamaClient } from '@anytime-markdown/ollama-core';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 import type { ParsedFinding } from './findingHelpers';
 import { buildReviewCategoryPrompt, CATEGORIES } from '../../ollama/prompts/reviewFindingCategory';
 

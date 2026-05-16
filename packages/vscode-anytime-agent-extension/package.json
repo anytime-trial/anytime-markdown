@@ -1,0 +1,200 @@
+{
+  "name": "anytime-agent",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.1.0",
+  "license": "MIT",
+  "publisher": "anytime-trial",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anytime-trial/anytime-markdown.git"
+  },
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "icon": "images/anytime-agent-128.png",
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "agent",
+    "claude",
+    "ollama",
+    "llm"
+  ],
+  "activationEvents": [
+    "onView:anytimeAgent.mapping",
+    "onView:anytimeAgent.ollama"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "anytimeAgent",
+          "title": "%viewsContainer.title%",
+          "icon": "images/agent-activitybar.svg"
+        }
+      ]
+    },
+    "views": {
+      "anytimeAgent": [
+        {
+          "id": "anytimeAgent.mapping",
+          "name": "%view.mapping%"
+        },
+        {
+          "id": "anytimeAgent.ollama",
+          "name": "%view.ollama%"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "anytimeAgent.mapping",
+        "contents": "%viewsWelcome.mapping%"
+      }
+    ],
+    "commands": [
+      {
+        "command": "anytime-agent.mapping.refresh",
+        "title": "%command.mapping.refresh%",
+        "icon": "$(refresh)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.mapping.cleanupStale",
+        "title": "%command.mapping.cleanupStale%",
+        "icon": "$(trash)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.mapping.toggleStale",
+        "title": "%command.mapping.toggleStale%",
+        "icon": "$(list-filter)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.mapping.openWorktree",
+        "title": "%command.mapping.openWorktree%",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.mapping.copyWorktreePath",
+        "title": "%command.mapping.copyWorktreePath%",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.mapping.showSessionEdits",
+        "title": "%command.mapping.showSessionEdits%",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.mapping.copySessionId",
+        "title": "%command.mapping.copySessionId%",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.mapping.deleteStatusFile",
+        "title": "%command.mapping.deleteStatusFile%",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.startOllama",
+        "title": "%command.startOllama%",
+        "category": "Anytime Agent",
+        "icon": "$(play)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "anytime-agent.mapping.refresh",
+          "when": "view == anytimeAgent.mapping",
+          "group": "navigation"
+        },
+        {
+          "command": "anytime-agent.mapping.cleanupStale",
+          "when": "view == anytimeAgent.mapping",
+          "group": "navigation"
+        },
+        {
+          "command": "anytime-agent.mapping.toggleStale",
+          "when": "view == anytimeAgent.mapping && !anytimeAgent.mapping.filterActive",
+          "group": "navigation",
+          "icon": "$(filter)"
+        },
+        {
+          "command": "anytime-agent.mapping.toggleStale",
+          "when": "view == anytimeAgent.mapping && anytimeAgent.mapping.filterActive",
+          "group": "navigation",
+          "icon": "$(filter-filled)"
+        },
+        {
+          "command": "anytime-agent.startOllama",
+          "when": "view == anytimeAgent.ollama && !anytime-agent.ollamaRunning",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "anytime-agent.mapping.openWorktree",
+          "when": "view == anytimeAgent.mapping && viewItem =~ /^worktree/",
+          "group": "1_open@1"
+        },
+        {
+          "command": "anytime-agent.mapping.copyWorktreePath",
+          "when": "view == anytimeAgent.mapping && viewItem =~ /^worktree/",
+          "group": "2_copy@1"
+        },
+        {
+          "command": "anytime-agent.mapping.showSessionEdits",
+          "when": "view == anytimeAgent.mapping && viewItem =~ /^session/",
+          "group": "1_open@1"
+        },
+        {
+          "command": "anytime-agent.mapping.copySessionId",
+          "when": "view == anytimeAgent.mapping && viewItem =~ /^session/",
+          "group": "2_copy@1"
+        },
+        {
+          "command": "anytime-agent.mapping.deleteStatusFile",
+          "when": "view == anytimeAgent.mapping && viewItem == session.stale",
+          "group": "3_modify@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Anytime Agent",
+      "properties": {
+        "anytimeAgent.claudeStatus.directory": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "%config.claudeStatus.directory%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "test": "jest --maxWorkers=1"
+  },
+  "dependencies": {
+    "@anytime-markdown/agent-core": "*",
+    "@anytime-markdown/vscode-common": "*"
+  },
+  "devDependencies": {
+    "@types/jest": "30.0.0",
+    "@types/node": "22.15.21",
+    "@types/vscode": "1.109.0",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.6",
+    "ts-loader": "9.5.4",
+    "typescript": "5.9.3",
+    "webpack": "5.104.1",
+    "webpack-cli": "6.0.1"
+  }
+}

@@ -6,7 +6,7 @@ import { openMemoryCoreDb } from '../../../src/db/connection';
 import { ingestAgentReviewResult } from '../../../src/ingest/review/ingestAgentReviewResult';
 import { entityId } from '../../../src/canonical/entityId';
 import { noopLogger } from '../../../src/logger';
-import type { OllamaClient } from '@anytime-markdown/ollama-core';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

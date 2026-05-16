@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-import type { WorktreeMapping, SessionMapping, MappingState } from '@anytime-markdown/trail-core';
+import type { WorktreeMapping, SessionMapping, MappingState } from '@anytime-markdown/agent-core';
 import type { TodayStats } from '@anytime-markdown/vscode-common';
 
-// アイコン: ThemeIcon + ThemeColor
 const STATE_ICONS: Record<MappingState, vscode.ThemeIcon> = {
   active: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.green')),
   recent: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.yellow')),

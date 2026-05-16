@@ -15,9 +15,9 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
+    "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/cms-core": "*",
     "@anytime-markdown/memory-core": "*",
-    "@anytime-markdown/ollama-core": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trail-db": "*",
     "@modelcontextprotocol/sdk": "1.27.1",

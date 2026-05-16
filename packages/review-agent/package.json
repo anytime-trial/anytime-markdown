@@ -9,10 +9,10 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
+    "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/memory-core": "*"
   },
   "devDependencies": {
-    "@anytime-markdown/ollama-core": "*",
     "@types/jest": "30.0.0",
     "@types/node": "22.15.21",
     "jest": "30.2.0",

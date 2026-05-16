@@ -1,7 +1,7 @@
 import * as cp from 'node:child_process';
 import * as fs from 'node:fs';
 import * as vscode from 'vscode';
-import { TrailLogger } from '../utils/TrailLogger';
+import { AgentLogger } from '../utils/AgentLogger';
 
 const OLLAMA_PORT = 11434;
 const OLLAMA_PATH = '/api/tags';
@@ -65,7 +65,6 @@ async function trySingleHost(host: string): Promise<OllamaStatus | null> {
 }
 
 async function fetchOllamaStatus(): Promise<OllamaStatus> {
-  // Dev Container 内では localhost がコンテナ自身を指すため host.docker.internal にもフォールバック
   const hosts = isInsideContainer()
     ? ['localhost', 'host.docker.internal']
     : ['localhost'];
@@ -77,12 +76,6 @@ async function fetchOllamaStatus(): Promise<OllamaStatus> {
   return { running: false, models: [] };
 }
 
-/**
- * OLLAMA ステータスパネル (anytimeTrail.ollama view) の TreeDataProvider。
- * Ollama サービスの起動状態とロード済みモデル一覧を表示する。
- * パイプライン関連の表示は PipelineProvider (anytimeTrail.pipelines view) に
- * 移管済み。
- */
 export class OllamaProvider
   implements vscode.TreeDataProvider<OllamaItem>, vscode.Disposable
 {
@@ -109,22 +102,24 @@ export class OllamaProvider
 
   private async _poll(): Promise<void> {
     const status = await fetchOllamaStatus();
-    const changed =
-      status.running !== this._status.running ||
+    const runningChanged = status.running !== this._status.running;
+    const treeChanged =
+      runningChanged ||
       JSON.stringify(status.models) !== JSON.stringify(this._status.models);
     this._status = status;
-    await vscode.commands.executeCommand(
-      'setContext',
-      'anytime-trail.ollamaRunning',
-      status.running,
-    );
-    if (changed) {
+    if (runningChanged) {
+      await vscode.commands.executeCommand(
+        'setContext',
+        'anytime-agent.ollamaRunning',
+        status.running,
+      );
+    }
+    if (treeChanged) {
       this._onDidChangeTreeData.fire();
     }
   }
 
   async getChildren(): Promise<OllamaItem[]> {
-    // _pollTimer (POLL_NORMAL_MS=10s) で更新される _status をキャッシュ参照する。
     const status = this._status;
     const headerLabel = status.running ? '起動中' : '停止中';
     const items: OllamaItem[] = [
@@ -147,7 +142,6 @@ export class OllamaProvider
       return;
     }
 
-    // spawn() は ENOENT を同期 throw せず 'error' イベントで通知する
     const child = cp.spawn('ollama', ['serve'], {
       detached: true,
       stdio: 'ignore',
@@ -160,13 +154,12 @@ export class OllamaProvider
           : 'ollama コマンドが見つかりません。インストールを確認してください。';
         vscode.window.showErrorMessage(msg);
       } else {
-        TrailLogger.error(`[OllamaProvider] spawn error: ${err.stack ?? String(err)}`);
+        AgentLogger.error(`[OllamaProvider] spawn error: ${err.stack ?? String(err)}`);
       }
     });
     child.unref();
-    TrailLogger.info('[OllamaProvider] ollama serve spawned');
+    AgentLogger.info('[OllamaProvider] ollama serve spawned');
 
-    // 起動後 30 秒間はショートポーリング
     this._startPolling(POLL_FAST_MS);
     if (this._fastPollTimer !== undefined) {
       clearTimeout(this._fastPollTimer);

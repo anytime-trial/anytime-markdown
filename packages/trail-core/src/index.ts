@@ -40,5 +40,3 @@ export {
   type ComputeDefectRiskOptions,
 } from './defectRisk';
 
-export * from './agent/types';
-export { classifySession, resolveWorktree, buildAgentMapping } from './agent/agentMapping';

@@ -1,5 +1,5 @@
-import { classifySession, resolveWorktree, buildAgentMapping } from '../agentMapping';
-import type { WorktreeEntry } from '../types';
+import { classifySession, resolveWorktree, buildAgentMapping } from '../../src/mapping/agentMapping';
+import type { WorktreeEntry } from '../../src/mapping/types';
 
 // ---------------------------------------------------------------------------
 // helpers

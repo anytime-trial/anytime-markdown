@@ -1,4 +1,4 @@
-import type { OllamaClient } from '@anytime-markdown/ollama-core';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 export interface MockOllamaClientOptions {
   /** デフォルトで返す埋め込みベクトル (size を揃える)。 */
