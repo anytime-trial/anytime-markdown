@@ -100,3 +100,81 @@ export function installBundledSkills(opts: InstallBundledSkillsOptions): Install
     return { installed: false, skipped: true, preserved: false, removedOld };
   }
 }
+
+const TEMPLATE_FILE = 'SKILL.md.template';
+
+export interface InstallTemplatedSkillOptions {
+  /** `~/.claude` 相当ディレクトリ。テストでは tmp dir を渡す。 */
+  readonly claudeDir: string;
+  /** 拡張機能のインストール先（context.extensionPath）。同梱 `skills/<skillName>/SKILL.md.template` の探索ベース。 */
+  readonly extensionPath: string;
+  /** スキル名。`skills/<skillName>/SKILL.md.template` を読み、`<claudeDir>/skills/<skillName>/SKILL.md` に展開する。 */
+  readonly skillName: string;
+  /** placeholder 置換マップ（例: `{ __NOTE_DIR__: '/path/notes' }`）。 */
+  readonly placeholders: Readonly<Record<string, string>>;
+  /** true 指定時は既存ファイルが rendered と異なっていても上書きする。 */
+  readonly force?: boolean;
+  readonly logger?: InstallSkillLogger;
+}
+
+export interface InstallTemplatedSkillResult {
+  /** SKILL.md を新規 / force で書き出したか */
+  readonly installed: boolean;
+  /** 既存と一致 or claudeDir / template 不在で何もしなかったか */
+  readonly skipped: boolean;
+  /** 既存ファイルがあり差分のため上書きを保留したか */
+  readonly preserved: boolean;
+}
+
+function renderTemplate(template: string, placeholders: Readonly<Record<string, string>>): string {
+  let rendered = template;
+  for (const [key, value] of Object.entries(placeholders)) {
+    rendered = rendered.replaceAll(key, value);
+  }
+  return rendered;
+}
+
+export function installTemplatedSkill(opts: InstallTemplatedSkillOptions): InstallTemplatedSkillResult {
+  const logger = opts.logger ?? NOOP_LOGGER;
+  const force = opts.force === true;
+
+  if (!fs.existsSync(opts.claudeDir)) {
+    return { installed: false, skipped: true, preserved: false };
+  }
+
+  const templatePath = path.join(opts.extensionPath, 'skills', opts.skillName, TEMPLATE_FILE);
+  if (!fs.existsSync(templatePath)) {
+    logger.warn(`[install-skills] bundled template not found: ${templatePath}`);
+    return { installed: false, skipped: true, preserved: false };
+  }
+
+  const template = fs.readFileSync(templatePath, 'utf-8');
+  const rendered = renderTemplate(template, opts.placeholders);
+
+  const targetDir = path.join(opts.claudeDir, 'skills', opts.skillName);
+  const targetPath = path.join(targetDir, SKILL_FILE);
+
+  if (fs.existsSync(targetPath) && !force) {
+    const current = fs.readFileSync(targetPath, 'utf-8');
+    if (current === rendered) {
+      logger.info(`[install-skills] ${opts.skillName} SKILL.md up-to-date`);
+      return { installed: false, skipped: true, preserved: false };
+    }
+    logger.info(
+      `[install-skills] ${opts.skillName} SKILL.md exists with local edits, preserving (pass force: true to overwrite)`,
+    );
+    return { installed: false, skipped: false, preserved: true };
+  }
+
+  try {
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(targetPath, rendered, { encoding: 'utf-8' });
+    logger.info(`[install-skills] installed ${opts.skillName} SKILL.md → ${targetPath}`);
+    return { installed: true, skipped: false, preserved: false };
+  } catch (err) {
+    logger.error(
+      `[install-skills] failed to install ${opts.skillName}: ${String(err)}\n${err instanceof Error ? err.stack ?? '' : ''}`,
+    );
+    return { installed: false, skipped: true, preserved: false };
+  }
+}
