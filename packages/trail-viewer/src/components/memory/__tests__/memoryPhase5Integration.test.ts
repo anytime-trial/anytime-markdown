@@ -5,8 +5,8 @@
 import { filterDriftRows } from '../driftFilter';
 import { buildBugGraph } from '../bugGraphBuilder';
 import { buildReviewFlowSteps } from '../reviewFlowSteps';
-import { buildPipelineChartBars, groupRunsByScope } from '../pipelineChartData';
-import type { MemoryDriftEventRow, MemoryBugHistoryRow, MemoryReviewHistoryRow, MemoryPipelineRunRow } from '../../../data/types';
+import { buildStackedChartData } from '../pipelineChartData';
+import type { MemoryDriftEventRow, MemoryBugHistoryRow, MemoryReviewHistoryRow, MemoryPipelineRunStatsByDayRow } from '../../../data/types';
 
 // ---- Synthetic dataset ----
 
@@ -41,15 +41,15 @@ const REVIEW_HISTORY: readonly MemoryReviewHistoryRow[] = Array.from({ length: 8
   addressedAt: i % 3 === 0 ? `2026-02-${String(i + 1).padStart(2, '0')}T00:00:00.000Z` : null,
 }));
 
-const PIPELINE_RUNS: readonly MemoryPipelineRunRow[] = ['drift', 'spec', 'code', 'bug_history', 'review'].flatMap((scope, si) =>
+// 4 days × 5 scopes pre-aggregated stats. Day 4 of each scope は error worst.
+const PIPELINE_STATS: readonly MemoryPipelineRunStatsByDayRow[] = ['drift', 'spec', 'code', 'bug_history', 'review'].flatMap((scope, si) =>
   Array.from({ length: 4 }, (_, i) => ({
-    id: `run-${scope}-${i}`,
+    day: `2026-01-${String(si * 4 + i + 1).padStart(2, '0')}`,
     scope,
-    startedAt: `2026-01-${String(si * 4 + i + 1).padStart(2, '0')}T10:00:00.000Z`,
-    completedAt: `2026-01-${String(si * 4 + i + 1).padStart(2, '0')}T10:00:${String(10 + i).padStart(2, '0')}.000Z`,
-    status: i === 3 ? 'error' : 'success',
+    runs: 1,
+    durationSec: 10 + i,
     itemsProcessed: 5 + i,
-    errorMessage: i === 3 ? 'timeout' : null,
+    worstStatus: i === 3 ? ('error' as const) : ('success' as const),
   }))
 );
 
@@ -159,30 +159,27 @@ describe('Phase 5 integration: Review tab', () => {
 // ---- Pipeline Runs tab ----
 
 describe('Phase 5 integration: Pipeline Runs tab', () => {
-  it('builds 20 chart bars from 20 runs', () => {
-    const bars = buildPipelineChartBars(PIPELINE_RUNS);
-    expect(bars).toHaveLength(20);
+  it('aggregates to 20 unique days (each scope occupies its own 4-day range)', () => {
+    const result = buildStackedChartData(PIPELINE_STATS);
+    expect(result.xLabels).toHaveLength(20);
   });
 
-  it('each bar has positive duration', () => {
-    const bars = buildPipelineChartBars(PIPELINE_RUNS);
-    expect(bars.every((b) => b.durationMs >= 0)).toBe(true);
+  it('produces one series per scope (5 series)', () => {
+    const result = buildStackedChartData(PIPELINE_STATS);
+    expect(result.series).toHaveLength(5);
+    expect(result.series.map((s) => s.scope).sort()).toEqual(['bug_history', 'code', 'drift', 'review', 'spec']);
   });
 
-  it('groups into 5 scopes', () => {
-    const grouped = groupRunsByScope(PIPELINE_RUNS);
-    expect(grouped.size).toBe(5);
-  });
-
-  it('each scope has 4 runs', () => {
-    const grouped = groupRunsByScope(PIPELINE_RUNS);
-    for (const [, runs] of grouped) {
-      expect(runs).toHaveLength(4);
+  it('each series data array aligns with xLabels (length=20)', () => {
+    const result = buildStackedChartData(PIPELINE_STATS);
+    for (const s of result.series) {
+      expect(s.data).toHaveLength(20);
     }
   });
 
-  it('error runs have status=error', () => {
-    const errBars = buildPipelineChartBars(PIPELINE_RUNS).filter((b) => b.status === 'error');
-    expect(errBars).toHaveLength(5);
+  it('marks 5 days as worst=error (1 per scope)', () => {
+    const result = buildStackedChartData(PIPELINE_STATS);
+    const errorDays = [...result.dayWorstStatus.entries()].filter(([, st]) => st === 'error');
+    expect(errorDays).toHaveLength(5);
   });
 });
