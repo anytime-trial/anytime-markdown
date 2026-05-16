@@ -18,5 +18,7 @@ export { HealthMonitor } from './health/HealthMonitor';
 export type { HealthSnapshot } from './health/types';
 export { UsageTracker } from './usage/UsageTracker';
 export type { UsageRecord, ThresholdEvent } from './usage/types';
+export { AgentChatSession } from './session/AgentChatSession';
+export type { AgentChatSessionOptions } from './session/AgentChatSession';
 export { Emitter } from './util/Emitter';
 export type { Disposable, Listener } from './util/Emitter';
