@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { registerTraceCommands } from './commands/traceCommands';
-import { installBundledSkills, installTemplatedSkill } from './installBundledSkills';
+import { installBundledSkills, installStaticSkillDir, installTemplatedSkill } from './installBundledSkills';
 import { AiNoteItem,AiNoteProvider } from './providers/AiNoteProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
 import { PipelineProvider } from './providers/PipelineProvider';
@@ -212,6 +212,24 @@ export async function activate(context: vscode.ExtensionContext) {
 			});
 		} catch (err) {
 			TrailLogger.warn(`[install-skills] unexpected failure: ${String(err)}`);
+		}
+	}
+
+	// anytime-basic-design は静的リファレンス。activate 時に同梱 dir を展開する。
+	if (hasClaudeDir && fs.existsSync(claudeDir)) {
+		try {
+			installStaticSkillDir({
+				claudeDir,
+				extensionPath: context.extensionUri.fsPath,
+				skillName: 'anytime-basic-design',
+				logger: {
+					info: (m) => TrailLogger.info(m),
+					warn: (m) => TrailLogger.warn(m),
+					error: (m) => TrailLogger.error(m),
+				},
+			});
+		} catch (err) {
+			TrailLogger.warn(`[install-skills] unexpected failure for anytime-basic-design: ${String(err)}`);
 		}
 	}
 
