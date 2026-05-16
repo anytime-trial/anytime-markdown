@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 
 - **Breaking:** Default `analyzeAll.runOnStart` flipped from `true` to `false`, and `startupDelaySec` raised from `5` to `30`. AnalyzeAll now requires explicit opt-in
-- **Breaking:** Removed `scheduler.*` (periodicImport / memoryCore) field from `TrailServerConfig`. v1-format inputs continue to be accepted and auto-migrated to analyzeAll
+- **Breaking:** Simplified `TrailServerConfig`: removed `scheduler.*` (periodicImport / memoryCore) and `memory.ingest`, and reset `schemaVersion` to `1`. **No migration is performed** from prior schemas — unknown legacy fields are silently ignored and defaults are used. Users with existing configs must either rewrite to the new `analyzeAll.*` shape or delete the file to regenerate DEFAULT_CONFIG
 - **Breaking:** Consolidated memory-core pause/resume into AnalyzeAll-level (importAll + memory-core runOnce)
 - **Breaking:** Renamed VS Code commands `anytime-trail.memory.{pause,resume,status}Ingest` to `anytime-trail.analyzeAll.{pause,resume,status}` (old commands removed)
 - **Breaking:** Renamed HTTP endpoints `/api/memory-core/{pause,resume,status}` to `/api/analyze-all/{pause,resume,status}` (old endpoints removed)

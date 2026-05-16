@@ -14,7 +14,7 @@
 ### 変更
 
 - **Breaking:** `analyzeAll.runOnStart` の DEFAULT を `true` → `false`、`startupDelaySec` を `5` → `30` に変更。AnalyzeAll は明示的な opt-in 操作が前提となる
-- **Breaking:** `TrailServerConfig` から `scheduler.*` (periodicImport / memoryCore) フィールドを削除。v1 形式の入力は引き続き受け付けて analyzeAll に自動マイグレートされる
+- **Breaking:** `TrailServerConfig` を簡素化。`scheduler.*` (periodicImport / memoryCore) と `memory.ingest` を削除し、`schemaVersion` を `1` にリセット。旧 schemaVersion / 旧フィールドからの**マイグレーションは持たない** (silently ignore して defaults を使う)。旧 config を持つユーザーは手動で `analyzeAll.*` 形式に書き直すか、ファイル削除で初期 DEFAULT_CONFIG を再生成する
 - **Breaking:** memory-core 単位の pause/resume を AnalyzeAll パイプライン (importAll + memory-core runOnce) 単位に一本化
 - **Breaking:** VS Code コマンド `anytime-trail.memory.{pause,resume,status}Ingest` を `anytime-trail.analyzeAll.{pause,resume,status}` にリネーム (旧コマンド削除)
 - **Breaking:** HTTP API `/api/memory-core/{pause,resume,status}` を `/api/analyze-all/{pause,resume,status}` にリネーム (旧 endpoint 削除)

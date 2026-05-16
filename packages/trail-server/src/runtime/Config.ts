@@ -53,7 +53,7 @@ export interface TrailServerConfig {
 }
 
 const DEFAULT_CONFIG: TrailServerConfig = {
-  schemaVersion: 3,
+  schemaVersion: 1,
   gitRoots: [],
   analyzeAll: { intervalSec: 1800, runOnStart: false, startupDelaySec: 30 },
   memory: {
@@ -66,29 +66,19 @@ const DEFAULT_CONFIG: TrailServerConfig = {
   },
 };
 
-type PartialMemoryConfig = {
-  ollama?: Partial<OllamaMemoryConfig>;
-  chat?: Partial<ChatMemoryConfig>;
-  embedding?: Partial<EmbeddingMemoryConfig>;
-  rag?: Partial<RagMemoryConfig>;
-  fts?: Partial<FtsMemoryConfig>;
-  ingest?: Partial<AnalyzeAllConfig>; // v2 legacy
-  conversation?: Partial<ConversationMemoryConfig>;
-};
-
-// 旧 scheduler.* (v1) は input parsing 専用。output schema (TrailServerConfig) には含めない。
-type LegacySchedulerInput = {
-  periodicImport?: { intervalSec?: number; runOnStart?: boolean; startupDelaySec?: number };
-  memoryCore?: { intervalSec?: number; runOnStart?: boolean; startupDelaySec?: number };
-};
-
 type ParsedConfig = {
   schemaVersion?: number;
   gitRoots?: string[];
   docsPath?: string;
-  scheduler?: LegacySchedulerInput;
   analyzeAll?: Partial<AnalyzeAllConfig>;
-  memory?: PartialMemoryConfig;
+  memory?: {
+    ollama?: Partial<OllamaMemoryConfig>;
+    chat?: Partial<ChatMemoryConfig>;
+    embedding?: Partial<EmbeddingMemoryConfig>;
+    rag?: Partial<RagMemoryConfig>;
+    fts?: Partial<FtsMemoryConfig>;
+    conversation?: Partial<ConversationMemoryConfig>;
+  };
 };
 
 /**
@@ -96,6 +86,7 @@ type ParsedConfig = {
  * 返す (副作用)。ユーザーが手で編集できる初期ファイルを提供するため。
  *
  * 書き込み失敗 (権限不足等) は WARN ログを出して in-memory DEFAULT_CONFIG にフォールバック。
+ * 不明 / 旧スキーマのフィールドは silently ignore (マイグレーションロジックは持たない)。
  */
 export function loadConfig(path: string, logger?: Pick<Logger, 'warn'>): TrailServerConfig {
   if (!existsSync(path)) {
@@ -115,7 +106,7 @@ export function loadConfig(path: string, logger?: Pick<Logger, 'warn'>): TrailSe
   try {
     const raw = readFileSync(path, 'utf8');
     const parsed = JSON.parse(raw) as ParsedConfig;
-    return mergeConfig(DEFAULT_CONFIG, parsed, path, logger);
+    return mergeConfig(DEFAULT_CONFIG, parsed);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const warn = logger ? logger.warn.bind(logger) : console.warn;
@@ -124,69 +115,15 @@ export function loadConfig(path: string, logger?: Pick<Logger, 'warn'>): TrailSe
   }
 }
 
-function mergeConfig(
-  defaults: TrailServerConfig,
-  overrides: ParsedConfig,
-  path: string,
-  logger?: Pick<Logger, 'warn'>,
-): TrailServerConfig {
-  const ts = new Date().toISOString();
-  const warn = (msg: string) => logger ? logger.warn(msg) : console.warn(msg);
-
-  if (overrides.schemaVersion === 1) {
-    warn(
-      `[${ts}] [WARN] Config: ${path} uses schemaVersion 1. Migrate to schemaVersion 3 by moving scheduler.memoryCore.* to top-level analyzeAll.*.`
-    );
-  } else if (overrides.schemaVersion === 2) {
-    warn(
-      `[${ts}] [WARN] Config: ${path} uses schemaVersion 2. Migrate to schemaVersion 3 by moving memory.ingest.* to top-level analyzeAll.*.`
-    );
-  }
-
-  // v1 backward compat: migrate scheduler.memoryCore -> analyzeAll
-  let migratedFromScheduler: Partial<AnalyzeAllConfig> | undefined;
-  if (overrides.scheduler?.memoryCore !== undefined) {
-    if (overrides.schemaVersion === 1) {
-      warn(
-        `[${ts}] [WARN] Config: scheduler.memoryCore is deprecated. Move these settings to top-level analyzeAll.* in ${path}.`
-      );
-    }
-    const legacy = overrides.scheduler.memoryCore;
-    migratedFromScheduler = {
-      intervalSec: legacy.intervalSec,
-      runOnStart: legacy.runOnStart,
-      startupDelaySec: legacy.startupDelaySec,
-    };
-  }
-
-  // v2 backward compat: migrate memory.ingest -> analyzeAll
-  let migratedFromMemoryIngest: Partial<AnalyzeAllConfig> | undefined;
-  if (overrides.memory?.ingest !== undefined) {
-    if (overrides.schemaVersion === 2) {
-      warn(
-        `[${ts}] [WARN] Config: memory.ingest is deprecated. Move these settings to top-level analyzeAll.* in ${path}.`
-      );
-    }
-    const legacy = overrides.memory.ingest;
-    migratedFromMemoryIngest = {
-      intervalSec: legacy.intervalSec,
-      runOnStart: legacy.runOnStart,
-      startupDelaySec: legacy.startupDelaySec,
-    };
-  }
-
-  // Priority: explicit analyzeAll > v2 memory.ingest > v1 scheduler.memoryCore > defaults
-  const userAnalyzeAll = overrides.analyzeAll;
-  const analyzeAllBase = migratedFromMemoryIngest ?? migratedFromScheduler ?? {};
-
+function mergeConfig(defaults: TrailServerConfig, overrides: ParsedConfig): TrailServerConfig {
   return {
     schemaVersion: overrides.schemaVersion ?? defaults.schemaVersion,
     gitRoots: overrides.gitRoots ?? defaults.gitRoots,
     docsPath: overrides.docsPath ?? defaults.docsPath,
     analyzeAll: {
-      intervalSec: userAnalyzeAll?.intervalSec ?? analyzeAllBase.intervalSec ?? defaults.analyzeAll.intervalSec,
-      runOnStart: userAnalyzeAll?.runOnStart ?? analyzeAllBase.runOnStart ?? defaults.analyzeAll.runOnStart,
-      startupDelaySec: userAnalyzeAll?.startupDelaySec ?? analyzeAllBase.startupDelaySec ?? defaults.analyzeAll.startupDelaySec,
+      intervalSec: overrides.analyzeAll?.intervalSec ?? defaults.analyzeAll.intervalSec,
+      runOnStart: overrides.analyzeAll?.runOnStart ?? defaults.analyzeAll.runOnStart,
+      startupDelaySec: overrides.analyzeAll?.startupDelaySec ?? defaults.analyzeAll.startupDelaySec,
     },
     memory: {
       ollama: {
