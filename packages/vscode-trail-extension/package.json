@@ -53,6 +53,10 @@
         {
           "id": "anytimeTrail.ollama",
           "name": "%view.ollama%"
+        },
+        {
+          "id": "anytimeTrail.pipelines",
+          "name": "%view.pipelines%"
         }
       ]
     },
@@ -298,7 +302,7 @@
         },
         {
           "command": "anytime-trail.analyzeAll",
-          "when": "view == anytimeTrail.ollama",
+          "when": "view == anytimeTrail.pipelines",
           "group": "navigation@1"
         },
         {

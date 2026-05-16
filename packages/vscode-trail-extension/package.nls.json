@@ -17,6 +17,7 @@
   "view.dashboard": "Dashboard",
   "viewsWelcome.dashboard": "[$(graph-line) Open Trail Viewer](command:anytime-trail.openTrailViewer)",
   "view.ollama": "Ollama",
+  "view.pipelines": "Pipelines",
   "command.startOllama": "Start Ollama",
   "ollama.running": "Running",
   "ollama.stopped": "Stopped",

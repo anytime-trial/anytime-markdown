@@ -17,6 +17,7 @@
   "view.dashboard": "ダッシュボード",
   "viewsWelcome.dashboard": "[$(graph-line) Trail Viewerを開く](command:anytime-trail.openTrailViewer)",
   "view.ollama": "Ollama",
+  "view.pipelines": "パイプライン",
   "command.startOllama": "Ollama を起動",
   "ollama.running": "起動中",
   "ollama.stopped": "停止中",

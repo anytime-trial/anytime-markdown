@@ -14,6 +14,7 @@ import { AiNoteItem,AiNoteProvider } from './providers/AiNoteProvider';
 import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
 import { OllamaProvider } from './providers/OllamaProvider';
+import { PipelineProvider } from './providers/PipelineProvider';
 import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
 import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
 import {
@@ -42,6 +43,7 @@ import { MemoryCoreService } from '@anytime-markdown/trail-server';
 let trailDataServer: TrailDataServer | undefined;
 let trailDb: TrailDatabase | undefined;
 let ollamaProvider: OllamaProvider | undefined;
+let pipelineProvider: PipelineProvider | undefined;
 let memoryCoreService: MemoryCoreService | null = null;
 let extensionDistPath = '';
 
@@ -683,13 +685,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	trailDataServer.onAnalyzeAll = async () => {
 		if (!trailDb) throw new Error('Trail DB not initialized');
 		const startedAt = Date.now();
-		ollamaProvider?.resetImportAllPhases();
+		pipelineProvider?.resetImportAllPhases();
 		const result = await trailDb.importAll(
 			(message) => TrailLogger.info(`Trail import (HTTP): ${message}`),
 			getWatchedGitRoots(),
 			undefined,
 			analyze,
-			(event) => ollamaProvider?.setImportAllPhase(event.phase, event.action, {
+			(event) => pipelineProvider?.setImportAllPhase(event.phase, event.action, {
 				count: event.count,
 				message: event.message,
 			}),
@@ -913,7 +915,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 			TrailLogger.info(`Trail DB [${repoName}]: import started`);
-			ollamaProvider?.resetImportAllPhases();
+			pipelineProvider?.resetImportAllPhases();
 			try {
 				const result = await vscode.window.withProgress(
 					{
@@ -930,7 +932,7 @@ export async function activate(context: vscode.ExtensionContext) {
 							getWatchedGitRoots(),
 							undefined,
 							analyze,
-							(event) => ollamaProvider?.setImportAllPhase(event.phase, event.action, {
+							(event) => pipelineProvider?.setImportAllPhase(event.phase, event.action, {
 								count: event.count,
 								message: event.message,
 							}),
@@ -1180,20 +1182,27 @@ export async function activate(context: vscode.ExtensionContext) {
 	const importAllStatusFilePath = dbStorageDir
 		? path.join(dbStorageDir, 'importall-phase-status.json')
 		: undefined;
-	ollamaProvider = new OllamaProvider({
-		statusFilePath: pipelineStatusPath,
-		dbFilePath,
-		importAllStatusFilePath,
-	});
+	ollamaProvider = new OllamaProvider();
 	vscode.window.createTreeView('anytimeTrail.ollama', {
 		treeDataProvider: ollamaProvider,
 	});
 	context.subscriptions.push(
 		ollamaProvider,
 		vscode.commands.registerCommand('anytime-trail.startOllama', () =>
-			ollamaProvider.startOllama(),
+			ollamaProvider!.startOllama(),
 		),
 	);
+
+	// Pipelines パネル (backup / importAll 8 phases / memory-core pipelines)
+	pipelineProvider = new PipelineProvider({
+		statusFilePath: pipelineStatusPath,
+		dbFilePath,
+		importAllStatusFilePath,
+	});
+	vscode.window.createTreeView('anytimeTrail.pipelines', {
+		treeDataProvider: pipelineProvider,
+	});
+	context.subscriptions.push(pipelineProvider);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.killExtensionHost', async () => {
