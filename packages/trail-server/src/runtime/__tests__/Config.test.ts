@@ -1,5 +1,5 @@
 import { loadConfig, type TrailServerConfig } from '../Config';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -21,13 +21,38 @@ describe('loadConfig', () => {
 
   // ---- defaults ----
 
-  it('returns defaults when file missing', () => {
-    const cfg = loadConfig(join(dir, 'config.json'));
+  it('returns defaults when file missing (and auto-generates the file)', () => {
+    const p = join(dir, 'config.json');
+    expect(existsSync(p)).toBe(false);
+    const cfg = loadConfig(p);
     expect(cfg.schemaVersion).toBe(3);
     expect(cfg.analyzeAll.intervalSec).toBe(1800);
-    expect(cfg.analyzeAll.runOnStart).toBe(true);
-    expect(cfg.analyzeAll.startupDelaySec).toBe(5);
+    expect(cfg.analyzeAll.runOnStart).toBe(false);
+    expect(cfg.analyzeAll.startupDelaySec).toBe(30);
     expect(cfg.gitRoots).toEqual([]);
+
+    // 副作用: ファイルが自動生成されている
+    expect(existsSync(p)).toBe(true);
+    const round = JSON.parse(readFileSync(p, 'utf-8')) as TrailServerConfig;
+    expect(round.schemaVersion).toBe(3);
+    expect(round.analyzeAll.runOnStart).toBe(false);
+    expect(round.analyzeAll.startupDelaySec).toBe(30);
+  });
+
+  it('creates parent directory when generating default', () => {
+    const p = join(dir, 'nested', 'deep', 'config.json');
+    expect(existsSync(p)).toBe(false);
+    loadConfig(p);
+    expect(existsSync(p)).toBe(true);
+  });
+
+  it('does not regenerate when file already exists', () => {
+    const p = join(dir, 'config.json');
+    writeFileSync(p, JSON.stringify({ schemaVersion: 3, analyzeAll: { intervalSec: 9999 } }));
+    const before = readFileSync(p, 'utf-8');
+    loadConfig(p);
+    const after = readFileSync(p, 'utf-8');
+    expect(after).toBe(before); // 上書きされない
   });
 
   it('returns defaults when JSON is malformed', () => {
@@ -52,21 +77,21 @@ describe('loadConfig', () => {
     expect(cfg.memory.fts.rebuildIntervalMinutes).toBe(60);
     expect(cfg.memory.conversation.backfillDays).toBe(5);
     expect(cfg.analyzeAll.intervalSec).toBe(1800);
-    expect(cfg.analyzeAll.runOnStart).toBe(true);
-    expect(cfg.analyzeAll.startupDelaySec).toBe(5);
+    expect(cfg.analyzeAll.runOnStart).toBe(false);
+    expect(cfg.analyzeAll.startupDelaySec).toBe(30);
   });
 
   it('merges file values over defaults', () => {
     const p = join(dir, 'config.json');
     writeFileSync(p, JSON.stringify({
       gitRoots: ['/a', '/b'],
-      analyzeAll: { intervalSec: 300 },
+      analyzeAll: { intervalSec: 300, runOnStart: true },
     }));
     const cfg = loadConfig(p);
     expect(cfg.gitRoots).toEqual(['/a', '/b']);
     expect(cfg.analyzeAll.intervalSec).toBe(300);
     expect(cfg.analyzeAll.runOnStart).toBe(true);
-    expect(cfg.analyzeAll.startupDelaySec).toBe(5);
+    expect(cfg.analyzeAll.startupDelaySec).toBe(30); // default 維持
   });
 
   it('partial memory.chat.model override preserves other defaults', () => {
@@ -105,7 +130,7 @@ describe('loadConfig', () => {
     expect(cfg.memory.fts.rebuildIntervalMinutes).toBe(30);
     expect(cfg.memory.conversation.backfillDays).toBe(14);
     expect(cfg.analyzeAll.intervalSec).toBe(3600);
-    expect(cfg.analyzeAll.runOnStart).toBe(true); // default preserved
+    expect(cfg.analyzeAll.runOnStart).toBe(false); // default preserved
   });
 
   // ---- v3 ----
@@ -133,7 +158,7 @@ describe('loadConfig', () => {
     expect(cfg.analyzeAll.intervalSec).toBe(1800);
     expect(cfg.analyzeAll.runOnStart).toBe(true);
     expect(cfg.analyzeAll.startupDelaySec).toBe(5);
-    // memory.ingest is no longer in TrailServerConfig
+    // memory.ingest は output schema に存在しない
     expect((cfg as TrailServerConfig & { memory: { ingest?: unknown } }).memory.ingest).toBeUndefined();
   });
 
@@ -161,9 +186,7 @@ describe('loadConfig', () => {
       analyzeAll: { intervalSec: 600 },
     }));
     const cfg = loadConfig(p);
-    // explicit analyzeAll.intervalSec wins
     expect(cfg.analyzeAll.intervalSec).toBe(600);
-    // other fields fall back to migrated memory.ingest values
     expect(cfg.analyzeAll.runOnStart).toBe(false);
     expect(cfg.analyzeAll.startupDelaySec).toBe(10);
   });
@@ -206,5 +229,12 @@ describe('loadConfig', () => {
     expect(cfg.analyzeAll.intervalSec).toBe(600);
     expect(cfg.analyzeAll.runOnStart).toBe(false);
     expect(cfg.analyzeAll.startupDelaySec).toBe(10);
+  });
+
+  it('schema does not expose scheduler field in output', () => {
+    const p = join(dir, 'config.json');
+    writeFileSync(p, '{}');
+    const cfg = loadConfig(p);
+    expect((cfg as TrailServerConfig & { scheduler?: unknown }).scheduler).toBeUndefined();
   });
 });

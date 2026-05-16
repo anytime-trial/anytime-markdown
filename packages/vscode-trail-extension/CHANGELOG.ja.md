@@ -8,10 +8,13 @@
 
 ### 追加
 
+- `loadConfig` の挙動変更: `config.json` 不在時に DEFAULT_CONFIG を**自動でディスクに書き出す** (拡張・daemon 共通)。ユーザーが手で編集できる初期ファイルを提供するため。書き込み失敗時は in-memory フォールバック
 - **Breaking:** VS Code 設定 `anytimeTrail.analyzeAll.enabled` (boolean、既定 `false`) を追加。OFF のとき Pipelines ツリービューは非表示になり、AnalyzeAllRunner は構築されず自動・手動・HTTP API すべての実行経路が無効化される。既存ユーザーで自動実行を継続したい場合は、設定を `true` にした上で拡張をリロードする必要がある
 
 ### 変更
 
+- **Breaking:** `analyzeAll.runOnStart` の DEFAULT を `true` → `false`、`startupDelaySec` を `5` → `30` に変更。AnalyzeAll は明示的な opt-in 操作が前提となる
+- **Breaking:** `TrailServerConfig` から `scheduler.*` (periodicImport / memoryCore) フィールドを削除。v1 形式の入力は引き続き受け付けて analyzeAll に自動マイグレートされる
 - **Breaking:** memory-core 単位の pause/resume を AnalyzeAll パイプライン (importAll + memory-core runOnce) 単位に一本化
 - **Breaking:** VS Code コマンド `anytime-trail.memory.{pause,resume,status}Ingest` を `anytime-trail.analyzeAll.{pause,resume,status}` にリネーム (旧コマンド削除)
 - **Breaking:** HTTP API `/api/memory-core/{pause,resume,status}` を `/api/analyze-all/{pause,resume,status}` にリネーム (旧 endpoint 削除)

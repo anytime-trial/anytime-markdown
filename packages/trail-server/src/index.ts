@@ -58,7 +58,7 @@ export type {
 export { LogSink, combineLoggers } from './services/LogSink';
 
 export { loadConfig } from './runtime/Config';
-export type { TrailServerConfig, SchedulerConfig, PeriodicImportConfig, MemoryCoreSchedulerConfig } from './runtime/Config';
+export type { TrailServerConfig, AnalyzeAllConfig } from './runtime/Config';
 
 export { DaemonScheduler } from './runtime/DaemonScheduler';
 export type { ScheduledJob, JobResult } from './runtime/DaemonScheduler';
