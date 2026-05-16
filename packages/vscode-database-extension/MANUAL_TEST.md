@@ -44,3 +44,47 @@
 - `Save As` は v1 では未対応（`AnytimeDatabaseEditorProvider.saveCustomDocumentAs` が throw）
 - `bindings` パッケージ経由で native binary をロードするため、`dist/native/better_sqlite3.node` の同梱が必須
 - Web アプリでは sql.js (WASM) を `globalThis.localStorage.anytime-database.queryMaxRows` で行数制限可能（ストレージ未設定時は 1000）
+
+
+## S3 バックアップアップロード
+
+`anytime-database.uploadBackupToS3` コマンドで、`FileBackupManager` が生成した最新世代 `.bak.1.gz` を AWS S3 に手動でアップロードする機能。
+
+
+### 準備
+
+1. AWS Console でテスト用バケット（例: `anytime-db-backup-test`）を作成
+2. PutObject 権限のみを持つ IAM ユーザーを作成し、Access Key を発行
+3. VS Code User Settings (`~/.config/Code/User/settings.json`) に以下を追加:
+
+```json
+{
+  "anytimeDatabase.s3.bucket": "anytime-db-backup-test",
+  "anytimeDatabase.s3.region": "ap-northeast-1",
+  "anytimeDatabase.s3.prefix": "anytime-database-backups",
+  "anytimeDatabase.s3.accessKeyId": "<your-key>",
+  "anytimeDatabase.s3.secretAccessKey": "<your-secret>"
+}
+```
+
+4. VS Code を再起動（拡張 reload）
+
+
+### ゴールデンパス
+
+1. ワークスペースを開き、`trail.db` を更新して `FileBackupManager` で `.bak.1.gz` を生成
+2. Activity Bar `Anytime Database` → `trail.db` → `Backups` → `Generation 1` の右にある `$(cloud-upload)` をクリック
+3. 通知に `Uploading trail.db to S3` → `Uploaded s3://anytime-db-backup-test/anytime-database-backups/trail.db/<ISO>.bak.gz (<size> MB, <ms> ms)` が表示される
+4. AWS Console S3 でオブジェクトが存在することを確認
+
+
+### エッジケース
+
+| # | 操作 | 期待結果 |
+| --- | --- | --- |
+| S1 | 設定の `bucket` を空にして実行 | `S3 not configured: missing bucket` の error 通知 |
+| S2 | 設定の `accessKeyId` を空にして実行 | `S3 not configured: missing accessKeyId` の error 通知 |
+| S3 | `.bak.1.gz` がない状態で Command Palette から起動 | `Latest backup not yet created for trail.db` の warning 通知 |
+| S4 | 認証情報を不正値に書き換えて実行 | 5 秒後にリトライ後、`S3 upload failed: ...` の error 通知 |
+| S5 | `Generation 2` を右クリック | upload icon が表示されない（`when: viewItem == backupEntryLatest` で除外） |
+| S6 | OutputChannel `Anytime Database` で `accessKeyId` / `secretAccessKey` の文字列検索 | 一致なし（認証情報がログに出力されないこと） |

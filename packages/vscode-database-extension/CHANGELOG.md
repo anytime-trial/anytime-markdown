@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- `anytime-database.uploadBackupToS3` command to upload the latest `.bak.1.gz` from the TreeView to AWS S3
+- Settings `anytimeDatabase.s3.bucket` / `s3.region` / `s3.prefix` / `s3.accessKeyId` / `s3.secretAccessKey`
+
 ## [0.1.0] - 2026-05-15
 
 ### Added

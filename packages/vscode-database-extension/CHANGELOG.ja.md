@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+### 追加
+
+- `anytime-database.uploadBackupToS3` コマンド: TreeView の最新世代 `.bak.1.gz` を AWS S3 へ手動アップロード
+- 設定 `anytimeDatabase.s3.bucket` / `s3.region` / `s3.prefix` / `s3.accessKeyId` / `s3.secretAccessKey` を追加
+
 ## [0.1.0] - 2026-05-15
 
 ### 追加
