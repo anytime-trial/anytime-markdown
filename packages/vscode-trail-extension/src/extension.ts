@@ -69,6 +69,12 @@ function applyDocsPathConfig(): void {
 	trailDataServer?.setDocsPath(docsPath || undefined);
 }
 
+function isAnalyzeAllEnabled(): boolean {
+	return vscode.workspace
+		.getConfiguration('anytimeTrail.analyzeAll')
+		.get<boolean>('enabled', false);
+}
+
 function wireDaemonLogSink(daemonUrl: string, context: vscode.ExtensionContext): void {
 	const cfg = vscode.workspace.getConfiguration('anytimeTrail.logs');
 	const minLevel = cfg.get<'debug' | 'info' | 'warn' | 'error'>('minLevel') ?? 'debug';
@@ -132,6 +138,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	const trailOutputChannel = vscode.window.createOutputChannel('Anytime Trail');
 	TrailLogger.init(trailOutputChannel);
 	context.subscriptions.push(trailOutputChannel);
+
+	// AnalyzeAll enable フラグ: Pipelines ツリービューの when 条件 + runner 構築の
+	// ゲートに使う。Pipelines view は package.json の when="anytimeTrail.analyzeAllEnabled"
+	// により context key で表示/非表示が切り替わる。
+	void vscode.commands.executeCommand(
+		'setContext',
+		'anytimeTrail.analyzeAllEnabled',
+		isAnalyzeAllEnabled(),
+	);
 
 	// Agent Note ビュー
 	const noteStorageDir = context.globalStorageUri.fsPath;
@@ -665,7 +680,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	};
 
 	trailDataServer.onAnalyzeAll = async () => {
-		if (!analyzeAllRunner) throw new Error('AnalyzeAllRunner not initialized');
+		if (!analyzeAllRunner) {
+			throw new Error('AnalyzeAll is disabled. Enable anytimeTrail.analyzeAll.enabled in settings and reload the window.');
+		}
 		const startedAt = Date.now();
 		pipelineProvider?.resetImportAllPhases();
 		await analyzeAllRunner.runOnce('import');
@@ -805,7 +822,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		// AnalyzeAllRunner — importAll → memory-core runOnce の唯一の orchestrator。
 		// trailDb.init() 完了後に構築する (init 前の getWatchedGitRoots は意味を持たない)。
 		// memoryCoreService が null (useExternalDaemon) でも runner は構築する (importAll のみ走る)。
-		if (trailDb && hostMemoryCoreLocally && dbStorageDir) {
+		// anytimeTrail.analyzeAll.enabled=false (既定) のときは構築自体をスキップし、
+		// 自動実行・手動実行・HTTP API すべて無効化する。
+		if (trailDb && hostMemoryCoreLocally && dbStorageDir && isAnalyzeAllEnabled()) {
 			analyzeAllRunner = new AnalyzeAllRunner({
 				logSink: memoryCoreOutputChannel,
 				gitRoot: wsRootForDb,
@@ -918,7 +937,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('anytime-trail.analyzeAll', async () => {
 			const repoName = vscode.workspace.workspaceFolders?.[0]?.name ?? '(no workspace)';
 			if (!analyzeAllRunner) {
-				TrailLogger.error(`Trail import [${repoName}] skipped: AnalyzeAllRunner not initialized`);
+				TrailLogger.warn(`Trail import [${repoName}] skipped: AnalyzeAll is disabled`);
+				void vscode.window.showWarningMessage(
+					'AnalyzeAll is disabled. Enable anytimeTrail.analyzeAll.enabled in settings and reload the window.',
+				);
 				return;
 			}
 			TrailLogger.info(`Trail DB [${repoName}]: import started`);
@@ -1075,6 +1097,23 @@ export async function activate(context: vscode.ExtensionContext) {
 					sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),
 					alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
 				});
+			}
+			if (e.affectsConfiguration('anytimeTrail.analyzeAll.enabled')) {
+				// view の when 条件は context key で即時切替。runner の構築/破棄は
+				// extension reload が必要 (toast で誘導)。
+				const enabled = isAnalyzeAllEnabled();
+				void vscode.commands.executeCommand(
+					'setContext',
+					'anytimeTrail.analyzeAllEnabled',
+					enabled,
+				);
+				const matchesRunner = enabled === (analyzeAllRunner !== null);
+				if (!matchesRunner) {
+					void vscode.window.showInformationMessage(
+						`AnalyzeAll setting changed to ${enabled ? 'enabled' : 'disabled'}. ` +
+							'Reload the window to apply (Command Palette → "Developer: Reload Window").',
+					);
+				}
 			}
 		}),
 	);

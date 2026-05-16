@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 追加
+
+- **Breaking:** VS Code 設定 `anytimeTrail.analyzeAll.enabled` (boolean、既定 `false`) を追加。OFF のとき Pipelines ツリービューは非表示になり、AnalyzeAllRunner は構築されず自動・手動・HTTP API すべての実行経路が無効化される。既存ユーザーで自動実行を継続したい場合は、設定を `true` にした上で拡張をリロードする必要がある
+
 ### 変更
 
 - **Breaking:** memory-core 単位の pause/resume を AnalyzeAll パイプライン (importAll + memory-core runOnce) 単位に一本化

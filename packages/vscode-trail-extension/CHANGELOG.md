@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **Breaking:** New VS Code setting `anytimeTrail.analyzeAll.enabled` (boolean, default `false`). When disabled, the Pipelines tree view is hidden and AnalyzeAllRunner is not constructed (automatic / manual command / HTTP API all become no-ops). Existing users who want to keep auto-runs must set this to `true` and reload the window
+
 ### Changed
 
 - **Breaking:** Consolidated memory-core pause/resume into AnalyzeAll-level (importAll + memory-core runOnce)
