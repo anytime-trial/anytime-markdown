@@ -16,5 +16,7 @@ export type {
 } from './registry/types';
 export { HealthMonitor } from './health/HealthMonitor';
 export type { HealthSnapshot } from './health/types';
+export { UsageTracker } from './usage/UsageTracker';
+export type { UsageRecord, ThresholdEvent } from './usage/types';
 export { Emitter } from './util/Emitter';
 export type { Disposable, Listener } from './util/Emitter';
