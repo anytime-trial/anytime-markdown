@@ -14,21 +14,21 @@ const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
 
-const DB_PATH = path.join(os.homedir(), '.claude', 'trail', 'trail.db');
+function resolveDbPath(gitRoot) {
+  // TRAIL_HOME 環境変数が最優先。次に新 default <gitRoot>/.anytime/trail/db/trail.db、
+  // 最後に旧 default ~/.claude/trail/trail.db (0.18.0 以前) にフォールバック。
+  if (process.env.TRAIL_HOME) {
+    return path.join(process.env.TRAIL_HOME, 'db', 'trail.db');
+  }
+  const newDefault = path.join(gitRoot, '.anytime', 'trail', 'db', 'trail.db');
+  if (fs.existsSync(newDefault)) return newDefault;
+  return path.join(os.homedir(), '.claude', 'trail', 'trail.db');
+}
 
 function main() {
   // git root 取得
   const gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
-
-  // 最新タグ取得
-  let latestTag;
-  try {
-    latestTag = execSync('git tag --sort=-creatordate | head -1', { encoding: 'utf-8', shell: true }).trim();
-    if (!latestTag) throw new Error('no tags');
-  } catch {
-    console.error('[import-coverage] No git tags found. Create a release tag first.');
-    process.exit(1);
-  }
+  const DB_PATH = resolveDbPath(gitRoot);
 
   // better-sqlite3 で trail.db を直接開く (旧 sql.js は撤去済)
   // TOCTOU 競合を避けるため existsSync ではなく { fileMustExist: true } で ENOENT を判定。
@@ -44,6 +44,20 @@ function main() {
     }
     throw err;
   }
+
+  // release_coverage は releases.tag への FK を持つため、git の最新タグではなく
+  // releases テーブルに登録済みの最新タグを採用する。Trail 拡張の import で
+  // 取り込まれたタグのみが対象になり、import 前のタグ (例: 直近 push 直後) は
+  // 自動でスキップされる。
+  const latestRow = db
+    .prepare('SELECT tag FROM releases ORDER BY released_at DESC LIMIT 1')
+    .get();
+  if (!latestRow?.tag) {
+    console.error('[import-coverage] No releases recorded in trail.db. Run Trail Import in VS Code first.');
+    db.close();
+    process.exit(1);
+  }
+  const latestTag = latestRow.tag;
   const insert = db.prepare(
     `INSERT OR IGNORE INTO release_coverage (
       release_tag, package, file_path,
