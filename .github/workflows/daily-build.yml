@@ -108,6 +108,14 @@ jobs:
         run: npx vsce package --no-dependencies
         working-directory: packages/vscode-trail-extension
 
+      - name: Build agent extension
+        run: npm run package
+        working-directory: packages/vscode-agent-extension
+
+      - name: Package agent VSIX
+        run: npx vsce package --no-dependencies
+        working-directory: packages/vscode-agent-extension
+
       - name: Package extension pack VSIX
         run: npx vsce package --no-dependencies
         working-directory: packages/vscode-extension-pack
