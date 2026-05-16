@@ -7,7 +7,7 @@ import {
 } from "@anytime-markdown/trail-db";
 import { FileBackupManager } from "@anytime-markdown/database-core/FileBackupManager";
 import { AnytimeDatabaseEditorProvider } from "./providers/AnytimeDatabaseEditorProvider";
-import { DatabaseProvider } from "./providers/DatabaseProvider";
+import { DatabaseProvider, BackupTreeItem, type DbFile } from "./providers/DatabaseProvider";
 import { AnytimeDatabaseLogger } from "./logger";
 import { DbLogger } from "./utils/DbLogger";
 
@@ -75,10 +75,55 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
-  const databaseProvider = new DatabaseProvider(backupManager, remoteProvider, supabaseStore);
+  const trailDbPath = dbStorageDir ? path.join(dbStorageDir, "trail.db") : null;
+  const databaseProvider = new DatabaseProvider(
+    backupManager,
+    trailDbPath,
+    dbStorageDir ?? null,
+    backupGenerations,
+    backupIntervalDays,
+    remoteProvider,
+    supabaseStore,
+  );
   const databaseTreeView = vscode.window.createTreeView("anytimeDatabase.database", {
     treeDataProvider: databaseProvider,
   });
+
+  // ワークスペース内の DB ファイルを列挙して TreeView に反映する。
+  // storagePath 配下は「特別」(展開可能 + Backups 子要素)、配下外はフラット。
+  const DB_GLOB = "**/*.{db,sqlite,sqlite3,db3}";
+  const DB_EXCLUDE = "**/{node_modules,.git,dist,out,build,.next}/**";
+
+  async function refreshDbFiles(): Promise<void> {
+    const uris = await vscode.workspace.findFiles(DB_GLOB, DB_EXCLUDE);
+    const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+    const storageDirNorm = dbStorageDir ? path.resolve(dbStorageDir) : null;
+    const trailDbPathNorm = trailDbPath ? path.resolve(trailDbPath) : null;
+    const files: DbFile[] = uris
+      .map((uri) => {
+        const fsPath = path.resolve(uri.fsPath);
+        const relPath = wsRoot ? path.relative(wsRoot, fsPath) : fsPath;
+        const isManaged = storageDirNorm ? isPathInside(fsPath, storageDirNorm) : false;
+        const isTrailDb = trailDbPathNorm !== null && fsPath === trailDbPathNorm;
+        return { fsPath, relPath, isManaged, isTrailDb };
+      })
+      .sort((a, b) => {
+        // managed → flat の順、その中はパスでソート
+        if (a.isManaged !== b.isManaged) return a.isManaged ? -1 : 1;
+        return a.relPath.localeCompare(b.relPath);
+      });
+    databaseProvider.setDbFiles(files);
+  }
+
+  const dbWatcher = vscode.workspace.createFileSystemWatcher(DB_GLOB);
+  context.subscriptions.push(
+    dbWatcher,
+    dbWatcher.onDidCreate(() => void refreshDbFiles()),
+    dbWatcher.onDidDelete(() => void refreshDbFiles()),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => void refreshDbFiles()),
+  );
+
+  void refreshDbFiles();
 
   void trailDb.init().then(() => {
     databaseProvider.updateSqliteStatus("Ready", trailDb.getLastImportedAt());
@@ -141,69 +186,96 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  // Trail DB バックアップ復元 (旧 anytime-trail.restoreBackup を移管)
+  // DB バックアップ復元: BackupTreeItem 経由（特定 DB の特定世代）またはコマンドパレット経由（trail.db フォールバック）
   context.subscriptions.push(
-    vscode.commands.registerCommand("anytimeDatabase.restoreBackup", async (arg?: number) => {
-      if (!backupManager) {
-        vscode.window.showErrorMessage(vscode.l10n.t("Trail DB is not initialized."));
-        return;
-      }
-      const entries = backupManager.listBackups();
-      if (entries.length === 0) {
-        vscode.window.showInformationMessage(
-          vscode.l10n.t("No backups available yet. Backups are created on the first save of each VS Code session."),
-        );
-        return;
-      }
-      let generation: number | undefined = typeof arg === "number" ? arg : undefined;
-      if (generation === undefined) {
-        const items = entries.map((e) => ({
-          label: `$(history) ${vscode.l10n.t("Generation {0}", e.generation)}`,
-          description: e.mtime.toLocaleString(),
-          detail: `${(e.compressedSize / 1024 / 1024).toFixed(2)} MB (gzip) · ${e.path}`,
-          generation: e.generation,
-        }));
-        const picked = await vscode.window.showQuickPick(items, {
-          title: vscode.l10n.t("Restore Trail DB from backup"),
-          placeHolder: vscode.l10n.t("Select a generation to restore (current DB will be saved as .restore-safety-*)"),
-          ignoreFocusOut: true,
-        });
-        if (!picked) return;
-        generation = picked.generation;
-      }
-      if (!entries.some((e) => e.generation === generation)) {
-        vscode.window.showErrorMessage(vscode.l10n.t("Backup generation {0} not found.", generation));
-        return;
-      }
-      const confirm = await vscode.window.showWarningMessage(
-        vscode.l10n.t(
-          "Restore Trail DB from generation {0}? The current DB will be backed up to a .restore-safety-* file. You must reload the VS Code window after restore for changes to take effect.",
-          generation,
-        ),
-        { modal: true },
-        vscode.l10n.t("Restore"),
-      );
-      if (confirm !== vscode.l10n.t("Restore")) return;
-      try {
-        const result = backupManager.restoreFromBackup(generation);
-        DbLogger.info(
-          `Trail DB restored from ${result.restoredFrom}; safety copy at ${result.safetyCopy ?? "(none)"}`,
-        );
-        databaseProvider.refresh();
-        const reload = await vscode.window.showInformationMessage(
-          vscode.l10n.t("Restored from generation {0}. Reload the window now?", generation),
-          vscode.l10n.t("Reload Window"),
-        );
-        if (reload === vscode.l10n.t("Reload Window")) {
-          await vscode.commands.executeCommand("workbench.action.reloadWindow");
+    vscode.commands.registerCommand(
+      "anytimeDatabase.restoreBackup",
+      async (arg?: BackupTreeItem | number) => {
+        // 対象 DB パスと世代を決定する
+        let targetDbPath: string | null = null;
+        let generation: number | undefined;
+        if (arg instanceof BackupTreeItem) {
+          targetDbPath = arg.dbPath;
+          generation = arg.generation;
+        } else if (typeof arg === "number") {
+          // 後方互換: 旧 API の generation のみ指定 = trail.db
+          targetDbPath = trailDbPath;
+          generation = arg;
+        } else {
+          // 引数なし: trail.db を QuickPick
+          targetDbPath = trailDbPath;
         }
-      } catch (err) {
-        DbLogger.error("Trail DB restore failed", err);
-        vscode.window.showErrorMessage(
-          vscode.l10n.t("Restore failed: {0}", err instanceof Error ? err.message : String(err)),
+
+        if (!targetDbPath) {
+          vscode.window.showErrorMessage(vscode.l10n.t("Trail DB is not initialized."));
+          return;
+        }
+
+        // BackupManager を取得（trail.db は既存インスタンス、それ以外は新規生成）
+        const isTrail = targetDbPath === trailDbPath;
+        const mgr = isTrail && backupManager
+          ? backupManager
+          : new FileBackupManager(targetDbPath, backupGenerations, backupIntervalDays);
+
+        const entries = mgr.listBackups();
+        if (entries.length === 0) {
+          vscode.window.showInformationMessage(
+            vscode.l10n.t("No backups available yet. Backups are created on the first save of each VS Code session."),
+          );
+          return;
+        }
+
+        if (generation === undefined) {
+          const items = entries.map((e) => ({
+            label: `$(history) ${vscode.l10n.t("Generation {0}", e.generation)}`,
+            description: e.mtime.toLocaleString(),
+            detail: `${(e.compressedSize / 1024 / 1024).toFixed(2)} MB (gzip) · ${e.path}`,
+            generation: e.generation,
+          }));
+          const picked = await vscode.window.showQuickPick(items, {
+            title: vscode.l10n.t("Restore Trail DB from backup"),
+            placeHolder: vscode.l10n.t("Select a generation to restore (current DB will be saved as .restore-safety-*)"),
+            ignoreFocusOut: true,
+          });
+          if (!picked) return;
+          generation = picked.generation;
+        }
+
+        if (!entries.some((e) => e.generation === generation)) {
+          vscode.window.showErrorMessage(vscode.l10n.t("Backup generation {0} not found.", generation));
+          return;
+        }
+
+        const confirm = await vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            "Restore Trail DB from generation {0}? The current DB will be backed up to a .restore-safety-* file. You must reload the VS Code window after restore for changes to take effect.",
+            generation,
+          ),
+          { modal: true },
+          vscode.l10n.t("Restore"),
         );
-      }
-    }),
+        if (confirm !== vscode.l10n.t("Restore")) return;
+        try {
+          const result = mgr.restoreFromBackup(generation);
+          DbLogger.info(
+            `DB restored from ${result.restoredFrom}; safety copy at ${result.safetyCopy ?? "(none)"}`,
+          );
+          databaseProvider.refresh();
+          const reload = await vscode.window.showInformationMessage(
+            vscode.l10n.t("Restored from generation {0}. Reload the window now?", generation),
+            vscode.l10n.t("Reload Window"),
+          );
+          if (reload === vscode.l10n.t("Reload Window")) {
+            await vscode.commands.executeCommand("workbench.action.reloadWindow");
+          }
+        } catch (err) {
+          DbLogger.error("DB restore failed", err);
+          vscode.window.showErrorMessage(
+            vscode.l10n.t("Restore failed: {0}", err instanceof Error ? err.message : String(err)),
+          );
+        }
+      },
+    ),
   );
 
   context.subscriptions.push(databaseTreeView);
@@ -211,4 +283,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
   DbLogger.dispose();
+}
+
+/**
+ * `target` が `parent` ディレクトリの配下にあるか判定する。両者は事前に `path.resolve` 済み前提。
+ */
+function isPathInside(target: string, parent: string): boolean {
+  const rel = path.relative(parent, target);
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
