@@ -2,7 +2,7 @@ import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3Memo
 import { runMigrations } from '../../src/db/migrations/runner';
 import { searchMemory } from '../../src/retrieve/searchMemory';
 import { encodeEmbedding } from '../../src/embedding/codec';
-import type { OllamaClient } from '@anytime-markdown/ollama-core';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 // Helper: create an in-memory db with migrations applied
 async function createTestDb(): Promise<BetterSqlite3MemoryDb> {

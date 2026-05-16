@@ -4,7 +4,7 @@ import {
   openMemoryCoreDb,
 } from '@anytime-markdown/memory-core';
 import type { SearchResult } from '@anytime-markdown/memory-core';
-import { createOllamaClient } from '@anytime-markdown/ollama-core';
+import { createOllamaClient } from '@anytime-markdown/agent-core';
 
 export const SearchMemoryInputSchema = z.object({
   query: z.string().describe('Search query'),

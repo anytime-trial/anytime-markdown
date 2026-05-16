@@ -2,7 +2,7 @@ import type { MemoryDbConnection, SqlValue } from '../../db/connection/types';
 import { toUint8ArrayOrNull } from '../../db/connection/blobUtil';
 import { AgentReviewInputSchema } from '../../types/AgentReviewInput';
 import { entityId } from '../../canonical/entityId';
-import type { OllamaClient } from '@anytime-markdown/ollama-core';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 import type { MemoryLogger } from '../../logger';
 
 const ALLOWED_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);

@@ -16,7 +16,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-import { createOllamaClient } from '@anytime-markdown/ollama-core';
+import { createOllamaClient } from '@anytime-markdown/agent-core';
 import {
   openMemoryCoreDb,
   attachTrailDbReadOnly,

@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import { openMemoryCoreDb } from '../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runSpecIncremental } from '../../src/pipeline/runSpecIncremental';
-import type { OllamaClient } from '@anytime-markdown/ollama-core';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 import { noopLogger } from '../../src/logger';
 
 // ── Mock OllamaClient ─────────────────────────────────────────────────────────

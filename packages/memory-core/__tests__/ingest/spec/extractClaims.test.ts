@@ -1,5 +1,5 @@
 import { extractClaims } from '../../../src/ingest/spec/extractClaims';
-import type { OllamaClient } from '@anytime-markdown/ollama-core';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 import type { MemoryLogger } from '../../../src/logger';
 import type { FilteredParagraph } from '../../../src/ingest/spec/preFilterClaims';
 

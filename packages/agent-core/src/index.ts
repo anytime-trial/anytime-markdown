@@ -42,5 +42,24 @@ export type {
   OllamaChatRegistrationOptions,
   OllamaEmbeddingRegistrationOptions,
 } from './adapters/OllamaAdapter';
+
+// Re-exports from ollama-core. agent-core is the only package that should
+// depend on ollama-core directly; consumers import these via agent-core so
+// that the Ollama backend can be swapped without touching call sites.
+export {
+  createOllamaClient,
+  OllamaChatProvider,
+  OllamaEmbeddingProvider,
+} from '@anytime-markdown/ollama-core';
+export type {
+  OllamaClient,
+  OllamaClientOptions,
+  GenerateOptions,
+  GenerateResult,
+  EmbeddingsOptions,
+  EmbeddingsResult,
+  OllamaChatProviderOptions,
+  OllamaEmbeddingProviderOptions,
+} from '@anytime-markdown/ollama-core';
 export { Emitter } from './util/Emitter';
 export type { Disposable, Listener } from './util/Emitter';

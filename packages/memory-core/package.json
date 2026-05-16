@@ -9,6 +9,7 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
+    "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/llm-core": "*",
     "@anytime-markdown/trail-core": "*",
     "better-sqlite3": "12.4.1",
@@ -16,7 +17,6 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@anytime-markdown/ollama-core": "*",
     "@types/better-sqlite3": "7.6.13",
     "@types/jest": "30.0.0",
     "@types/node": "22.15.21",

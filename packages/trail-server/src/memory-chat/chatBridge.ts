@@ -10,7 +10,7 @@ import {
   OllamaChatProvider,
   createOllamaClient,
   type OllamaClient,
-} from '@anytime-markdown/ollama-core';
+} from '@anytime-markdown/agent-core';
 import type { WebSocket } from 'ws';
 import type {
   ChatChunkMessage,
