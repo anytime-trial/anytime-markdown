@@ -9,7 +9,7 @@ import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 const SCOPE = 'conversation_backfill';
 const QUARANTINE_THRESHOLD = 3;
-const DEFAULT_SINCE_DAYS = 5;
+const DEFAULT_SINCE_DAYS = 30;
 const PROGRESS_LOG_INTERVAL = 10;
 const DEFAULT_EXTRACT_CONCURRENCY = 2;
 
