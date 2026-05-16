@@ -514,18 +514,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	// service を起動する (TrailPanel が local server URL を使うのと同じ paradigm)。
 	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
 	if (hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
-		const intervalSec = trailConfig.memory.ingest.intervalSec;
-		const configuredRunOnStart = trailConfig.memory.ingest.runOnStart;
-		const startupDelaySec = trailConfig.memory.ingest.startupDelaySec;
+		const intervalSec = trailConfig.analyzeAll.intervalSec;
+		const configuredRunOnStart = trailConfig.analyzeAll.runOnStart;
+		const startupDelaySec = trailConfig.analyzeAll.startupDelaySec;
 		const trailDbPath = path.join(dbStorageDir, 'trail.db');
-		// anytimeTrail.scheduler.runOnStartup=true の場合、runStartupImport が
+		// analyzeAll.runOnStart=true の場合、runStartupImport が
 		// importAll → runOnce('import') を順次オーケストレーションするため、
 		// memory-core 側の auto runOnce('startup') は二重発火・並行実行回避のため
-		// 抑止する。OFF の場合は従来通り memory-core が起動時に走る。
-		const schedulerRunOnStartup = vscode.workspace
-			.getConfiguration('anytimeTrail.scheduler')
-			.get<boolean>('runOnStartup', true);
-		const effectiveRunOnStart = schedulerRunOnStartup ? false : configuredRunOnStart;
+		// 抑止する。false の場合は何も起動時に走らない。
+		const effectiveRunOnStart = false;
 		memoryCoreService = new MemoryCoreService({
 			logSink: memoryCoreOutputChannel,
 			trailDbPath,
@@ -540,7 +537,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			startupDelayMs: startupDelaySec * 1000,
 		});
 		TrailLogger.info(
-			`[MemoryCore] service started: intervalSec=${intervalSec}, runOnStart=${effectiveRunOnStart} (configured=${configuredRunOnStart}, schedulerRunOnStartup=${schedulerRunOnStartup}), startupDelaySec=${startupDelaySec}`,
+			`[MemoryCore] service started: intervalSec=${intervalSec}, runOnStart=${effectiveRunOnStart} (configured=${configuredRunOnStart}, orchestrated by runStartupImport), startupDelaySec=${startupDelaySec}`,
 		);
 	} else if (useExternalDaemon && externalDaemonInfo) {
 		TrailLogger.info('[MemoryCore] hosted by external daemon, skipping local service');
@@ -894,10 +891,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		// 揃えるため in-process でも自動実行する。Pipelines パネルで per-phase 進捗
 		// を確認できるよう pipelineProvider への通知も行うが、UI 通知 (toast や
 		// withProgress) は出さない (Pipelines パネル側で見えるため)。
-		const schedulerConfig = vscode.workspace.getConfiguration('anytimeTrail.scheduler');
-		const runOnStartup = schedulerConfig.get<boolean>('runOnStartup', true);
-		if (runOnStartup) {
-			const startupDelaySec = schedulerConfig.get<number>('startupDelaySec', 5);
+		if (trailConfig.analyzeAll.runOnStart) {
+			const startupDelaySec = trailConfig.analyzeAll.startupDelaySec;
 			setTimeout(() => {
 				void runStartupImport();
 			}, Math.max(0, startupDelaySec) * 1000);

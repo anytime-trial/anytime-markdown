@@ -18,6 +18,12 @@ export interface SchedulerConfig {
   memoryCore: MemoryCoreSchedulerConfig;
 }
 
+export interface AnalyzeAllConfig {
+  intervalSec: number;
+  runOnStart: boolean;
+  startupDelaySec: number;
+}
+
 export interface OllamaMemoryConfig {
   baseUrl: string;
 }
@@ -41,12 +47,6 @@ export interface FtsMemoryConfig {
   rebuildIntervalMinutes: number;
 }
 
-export interface IngestMemoryConfig {
-  intervalSec: number;
-  runOnStart: boolean;
-  startupDelaySec: number;
-}
-
 export interface ConversationMemoryConfig {
   backfillDays: number;
 }
@@ -57,7 +57,6 @@ export interface MemoryConfig {
   embedding: EmbeddingMemoryConfig;
   rag: RagMemoryConfig;
   fts: FtsMemoryConfig;
-  ingest: IngestMemoryConfig;
   conversation: ConversationMemoryConfig;
 }
 
@@ -66,23 +65,24 @@ export interface TrailServerConfig {
   gitRoots: string[];
   docsPath?: string;
   scheduler: SchedulerConfig;
+  analyzeAll: AnalyzeAllConfig;
   memory: MemoryConfig;
 }
 
 const DEFAULT_CONFIG: TrailServerConfig = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   gitRoots: [],
   scheduler: {
     periodicImport: { intervalSec: 60, runOnStart: true, startupDelaySec: 5 },
     memoryCore: { intervalSec: 1800, runOnStart: true, startupDelaySec: 5 },
   },
+  analyzeAll: { intervalSec: 1800, runOnStart: true, startupDelaySec: 5 },
   memory: {
     ollama: { baseUrl: 'http://localhost:11434' },
     chat: { model: 'qwen2.5-coder:14b' },
     embedding: { model: 'bge-m3' },
     rag: { bm25Limit: 30, vecLimit: 30, finalLimit: 12, rrfK: 60 },
     fts: { rebuildIntervalMinutes: 60 },
-    ingest: { intervalSec: 1800, runOnStart: true, startupDelaySec: 5 },
     conversation: { backfillDays: 5 },
   },
 };
@@ -93,7 +93,7 @@ type PartialMemoryConfig = {
   embedding?: Partial<EmbeddingMemoryConfig>;
   rag?: Partial<RagMemoryConfig>;
   fts?: Partial<FtsMemoryConfig>;
-  ingest?: Partial<IngestMemoryConfig>;
+  ingest?: Partial<AnalyzeAllConfig>;
   conversation?: Partial<ConversationMemoryConfig>;
 };
 
@@ -105,6 +105,7 @@ type ParsedConfig = {
     periodicImport?: Partial<PeriodicImportConfig>;
     memoryCore?: Partial<MemoryCoreSchedulerConfig>;
   };
+  analyzeAll?: Partial<AnalyzeAllConfig>;
   memory?: PartialMemoryConfig;
 };
 
@@ -133,30 +134,49 @@ function mergeConfig(
 
   if (overrides.schemaVersion === 1) {
     warn(
-      `[${ts}] [WARN] Config: ${path} uses schemaVersion 1. Migrate to schemaVersion 2 by moving scheduler.memoryCore.* to memory.ingest.*.`
+      `[${ts}] [WARN] Config: ${path} uses schemaVersion 1. Migrate to schemaVersion 3 by moving scheduler.memoryCore.* to top-level analyzeAll.*.`
+    );
+  } else if (overrides.schemaVersion === 2) {
+    warn(
+      `[${ts}] [WARN] Config: ${path} uses schemaVersion 2. Migrate to schemaVersion 3 by moving memory.ingest.* to top-level analyzeAll.*.`
     );
   }
 
-  // v1 backward compat: migrate scheduler.memoryCore -> memory.ingest (only where not explicitly set)
-  // This migration block can be removed once all users have migrated to schemaVersion 2.
-  let migratedIngest: Partial<IngestMemoryConfig> | undefined;
+  // v1 backward compat: migrate scheduler.memoryCore -> analyzeAll
+  let migratedFromScheduler: Partial<AnalyzeAllConfig> | undefined;
   if (overrides.scheduler?.memoryCore !== undefined) {
     if (overrides.schemaVersion === 1) {
       warn(
-        `[${ts}] [WARN] Config: scheduler.memoryCore is deprecated. Move these settings to memory.ingest in ${path}.`
+        `[${ts}] [WARN] Config: scheduler.memoryCore is deprecated. Move these settings to top-level analyzeAll.* in ${path}.`
       );
     }
     const legacy = overrides.scheduler.memoryCore;
-    migratedIngest = {
+    migratedFromScheduler = {
       intervalSec: legacy.intervalSec,
       runOnStart: legacy.runOnStart,
       startupDelaySec: legacy.startupDelaySec,
     };
   }
 
-  // Explicit memory.ingest from user overrides take priority over migrated values
-  const userIngest = overrides.memory?.ingest;
-  const ingestBase = migratedIngest ?? {};
+  // v2 backward compat: migrate memory.ingest -> analyzeAll
+  let migratedFromMemoryIngest: Partial<AnalyzeAllConfig> | undefined;
+  if (overrides.memory?.ingest !== undefined) {
+    if (overrides.schemaVersion === 2) {
+      warn(
+        `[${ts}] [WARN] Config: memory.ingest is deprecated. Move these settings to top-level analyzeAll.* in ${path}.`
+      );
+    }
+    const legacy = overrides.memory.ingest;
+    migratedFromMemoryIngest = {
+      intervalSec: legacy.intervalSec,
+      runOnStart: legacy.runOnStart,
+      startupDelaySec: legacy.startupDelaySec,
+    };
+  }
+
+  // Priority: explicit analyzeAll > v2 memory.ingest > v1 scheduler.memoryCore > defaults
+  const userAnalyzeAll = overrides.analyzeAll;
+  const analyzeAllBase = migratedFromMemoryIngest ?? migratedFromScheduler ?? {};
 
   return {
     schemaVersion: overrides.schemaVersion ?? defaults.schemaVersion,
@@ -168,12 +188,16 @@ function mergeConfig(
         runOnStart: overrides.scheduler?.periodicImport?.runOnStart ?? defaults.scheduler.periodicImport.runOnStart,
         startupDelaySec: overrides.scheduler?.periodicImport?.startupDelaySec ?? defaults.scheduler.periodicImport.startupDelaySec,
       },
-      // Kept for backward compat during Task 4 migration; remove once cli.ts switches to memory.ingest.*
       memoryCore: {
         intervalSec: overrides.scheduler?.memoryCore?.intervalSec ?? defaults.scheduler.memoryCore.intervalSec,
         runOnStart: overrides.scheduler?.memoryCore?.runOnStart ?? defaults.scheduler.memoryCore.runOnStart,
         startupDelaySec: overrides.scheduler?.memoryCore?.startupDelaySec ?? defaults.scheduler.memoryCore.startupDelaySec,
       },
+    },
+    analyzeAll: {
+      intervalSec: userAnalyzeAll?.intervalSec ?? analyzeAllBase.intervalSec ?? defaults.analyzeAll.intervalSec,
+      runOnStart: userAnalyzeAll?.runOnStart ?? analyzeAllBase.runOnStart ?? defaults.analyzeAll.runOnStart,
+      startupDelaySec: userAnalyzeAll?.startupDelaySec ?? analyzeAllBase.startupDelaySec ?? defaults.analyzeAll.startupDelaySec,
     },
     memory: {
       ollama: {
@@ -193,11 +217,6 @@ function mergeConfig(
       },
       fts: {
         rebuildIntervalMinutes: overrides.memory?.fts?.rebuildIntervalMinutes ?? defaults.memory.fts.rebuildIntervalMinutes,
-      },
-      ingest: {
-        intervalSec: userIngest?.intervalSec ?? ingestBase.intervalSec ?? defaults.memory.ingest.intervalSec,
-        runOnStart: userIngest?.runOnStart ?? ingestBase.runOnStart ?? defaults.memory.ingest.runOnStart,
-        startupDelaySec: userIngest?.startupDelaySec ?? ingestBase.startupDelaySec ?? defaults.memory.ingest.startupDelaySec,
       },
       conversation: {
         backfillDays: overrides.memory?.conversation?.backfillDays ?? defaults.memory.conversation.backfillDays,

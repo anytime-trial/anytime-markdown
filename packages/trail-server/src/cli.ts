@@ -226,16 +226,16 @@ program
     // 以前は createPeriodicImportJob (importAll のみ) と createMemoryCorePipelineJob
     // (runOnce のみ) を別個に登録していたが、メモリ取込が import より先に走って
     // しまうレースを避けるため 1 ジョブに統合した。interval / runOnStart は
-    // memory.ingest 側の設定に従う (periodicImport の設定は廃止予定)。
+    // top-level analyzeAll 側の設定に従う (旧 scheduler.periodicImport / memory.ingest は廃止)。
     const scheduler = new DaemonScheduler(
       [
         createAnalyzeAllJob({
           service: memoryCoreService,
           trailDb,
           gitRoots: effectiveGitRoots,
-          intervalMs: config.memory.ingest.intervalSec * 1000,
-          runOnStart: config.memory.ingest.runOnStart,
-          startupDelayMs: config.memory.ingest.startupDelaySec * 1000,
+          intervalMs: config.analyzeAll.intervalSec * 1000,
+          runOnStart: config.analyzeAll.runOnStart,
+          startupDelayMs: config.analyzeAll.startupDelaySec * 1000,
           // VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新する
           importAllStatusFilePath: join(dbStorageDir, 'importall-phase-status.json'),
         }),

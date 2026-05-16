@@ -3,8 +3,6 @@
   "description": "Trail session tracking and dashboard for VS Code",
   "viewsContainer.title": "Anytime Trail",
   "config.daemon.useExternalDaemon": "Use an externally-running trail-server daemon instead of starting one inside the extension. Requires `npx anytime-trail-server start` to be running first.",
-  "config.scheduler.runOnStartup": "Automatically run `analyzeAll` (importAll + memory-core pipelines) after the extension activates. Disable to require a manual click on the Pipelines panel.",
-  "config.scheduler.startupDelaySec": "Seconds to wait after the extension activates before running the startup `analyzeAll`. Default 5.",
   "config.database.storagePath": "Directory where `trail.db` is stored. Absolute path or relative to workspace root. Defaults to `.anytime/trail/db` (under TRAIL_HOME).",
   "config.logs.minLevel": "Minimum log level to send to trail-server for persistence in extension_logs. Lower levels (debug) keep more detail but increase DB size.",
   "command.memory.rebuildIndex": "Rebuild Memory Index",

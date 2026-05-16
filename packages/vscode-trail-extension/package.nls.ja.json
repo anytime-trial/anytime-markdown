@@ -3,8 +3,6 @@
   "description": "VS Code 用 Trail セッション追跡、ダッシュボード",
   "viewsContainer.title": "Anytime Trail",
   "config.daemon.useExternalDaemon": "外部で起動済みの trail-server デーモンを利用する。先に `npx anytime-trail-server start` を起動しておく必要がある。",
-  "config.scheduler.runOnStartup": "拡張アクティベート完了後に `analyzeAll` (importAll + memory-core pipelines) を自動実行する。OFF にすると Pipelines パネルから手動クリックでのみ実行される。",
-  "config.scheduler.startupDelaySec": "アクティベート後、自動 `analyzeAll` 起動までの待機秒数。デフォルト 5 秒。",
   "config.database.storagePath": "`trail.db` の保存ディレクトリ。絶対パスまたはワークスペースルートからの相対パス。デフォルトは `.anytime/trail/db` (TRAIL_HOME 配下)。",
   "config.logs.minLevel": "trail-server に送信して `extension_logs` に永続化するログの最低レベル。`debug` で全件、`info` 以上で量を抑える。",
   "command.memory.rebuildIndex": "メモリインデックスを再構築",
