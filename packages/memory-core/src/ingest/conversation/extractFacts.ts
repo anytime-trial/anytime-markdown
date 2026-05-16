@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { OllamaClient } from '../../ollama/client';
+import type { OllamaClient } from '@anytime-markdown/ollama-core';
 import {
   buildConversationPrompt,
   buildConversationPromptNoQuestion,

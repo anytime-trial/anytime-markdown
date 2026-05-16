@@ -1,8 +1,6 @@
-export interface ChatMessage {
-  readonly role: 'system' | 'user' | 'assistant';
-  readonly content: string;
-  readonly timestamp?: string;
-}
+import type { ChatMessage } from '@anytime-markdown/llm-core';
+
+export type { ChatMessage };
 
 export interface ChatFilters {
   readonly repo_name?: string;
