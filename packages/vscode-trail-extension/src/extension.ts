@@ -530,9 +530,17 @@ export async function activate(context: vscode.ExtensionContext) {
 	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
 	if (hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
 		const intervalSec = trailConfig.memory.ingest.intervalSec;
-		const runOnStart = trailConfig.memory.ingest.runOnStart;
+		const configuredRunOnStart = trailConfig.memory.ingest.runOnStart;
 		const startupDelaySec = trailConfig.memory.ingest.startupDelaySec;
 		const trailDbPath = path.join(dbStorageDir, 'trail.db');
+		// anytimeTrail.scheduler.runOnStartup=true の場合、runStartupImport が
+		// importAll → runOnce('import') を順次オーケストレーションするため、
+		// memory-core 側の auto runOnce('startup') は二重発火・並行実行回避のため
+		// 抑止する。OFF の場合は従来通り memory-core が起動時に走る。
+		const schedulerRunOnStartup = vscode.workspace
+			.getConfiguration('anytimeTrail.scheduler')
+			.get<boolean>('runOnStartup', true);
+		const effectiveRunOnStart = schedulerRunOnStartup ? false : configuredRunOnStart;
 		memoryCoreService = new MemoryCoreService({
 			logSink: memoryCoreOutputChannel,
 			trailDbPath,
@@ -543,11 +551,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		});
 		trailDataServer.setMemoryCoreService(memoryCoreService);
 		memoryCoreService.start(intervalSec * 1000, {
-			runOnStart,
+			runOnStart: effectiveRunOnStart,
 			startupDelayMs: startupDelaySec * 1000,
 		});
 		TrailLogger.info(
-			`[MemoryCore] service started: intervalSec=${intervalSec}, runOnStart=${runOnStart}, startupDelaySec=${startupDelaySec}`,
+			`[MemoryCore] service started: intervalSec=${intervalSec}, runOnStart=${effectiveRunOnStart} (configured=${configuredRunOnStart}, schedulerRunOnStartup=${schedulerRunOnStartup}), startupDelaySec=${startupDelaySec}`,
 		);
 	} else if (useExternalDaemon && externalDaemonInfo) {
 		TrailLogger.info('[MemoryCore] hosted by external daemon, skipping local service');
