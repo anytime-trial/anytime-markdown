@@ -48,31 +48,47 @@ const NOOP_LOGGER: Logger = {
 };
 
 export class CodeGraphService {
-  private cached: CodeGraph | null = null;
+  private readonly cached = new Map<string, CodeGraph>();
   private readonly logger: Logger;
 
   constructor(private readonly config: CodeGraphServiceConfig) {
     this.logger = config.logger ?? NOOP_LOGGER;
   }
 
-  getGraph(): CodeGraph | null {
-    return this.cached;
+  private defaultRepoName(): string | undefined {
+    const r = this.config.repositories[0];
+    if (!r) return undefined;
+    return r.label || path.basename(r.path);
   }
 
-  async loadFromDb(): Promise<CodeGraph | null> {
-    const repoName = this.config.repositories[0]?.label ?? path.basename(this.config.repositories[0]?.path ?? '');
-    if (this.config.trailDb && repoName) {
-      try {
-        const graph = this.config.trailDb.getCurrentCodeGraph(repoName);
-        if (graph) {
-          this.cached = graph;
-          return graph;
-        }
-      } catch (err) {
-        this.logger.warn(`[CodeGraphService] DB not ready in loadFromDb: ${err instanceof Error ? err.message : String(err)}`);
+  getGraph(repoName?: string): CodeGraph | null {
+    const key = repoName ?? this.defaultRepoName();
+    if (!key) return null;
+    return this.cached.get(key) ?? null;
+  }
+
+  async loadFromDb(repoName?: string): Promise<CodeGraph | null> {
+    const key = repoName ?? this.defaultRepoName();
+    if (!this.config.trailDb || !key) return null;
+    try {
+      const graph = this.config.trailDb.getCurrentCodeGraph(key);
+      if (graph) {
+        this.cached.set(key, graph);
+        return graph;
       }
+      this.cached.delete(key);
+    } catch (err) {
+      this.logger.warn(`[CodeGraphService] DB not ready in loadFromDb(${key}): ${err instanceof Error ? err.message : String(err)}`);
     }
     return null;
+  }
+
+  invalidate(repoName?: string): void {
+    if (repoName) {
+      this.cached.delete(repoName);
+    } else {
+      this.cached.clear();
+    }
   }
 
   async generate(onProgress?: ProgressCallback): Promise<CodeGraph> {
@@ -175,7 +191,8 @@ export class CodeGraphService {
 
     onProgress?.('保存中', 97);
     this.save(codeGraph);
-    this.cached = codeGraph;
+    const repoKey = this.defaultRepoName();
+    if (repoKey) this.cached.set(repoKey, codeGraph);
     onProgress?.('', 100);
     return codeGraph;
   }
