@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@anytime-markdown/cms-core": "*",
-    "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/memory-core": "*",
     "@anytime-markdown/ollama-core": "*",
     "@anytime-markdown/trail-core": "*",
