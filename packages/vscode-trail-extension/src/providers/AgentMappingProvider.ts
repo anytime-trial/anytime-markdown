@@ -3,8 +3,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { ClaudeStatusWatcher, jstDateString } from '@anytime-markdown/vscode-common';
-import { buildAgentMapping } from '@anytime-markdown/trail-core';
-import type { WorktreeEntry, WorktreeMapping } from '@anytime-markdown/trail-core';
+import { buildAgentMapping } from '@anytime-markdown/agent-core';
+import type { WorktreeEntry, WorktreeMapping } from '@anytime-markdown/agent-core';
 import { WorktreeTreeItem, SessionTreeItem, TodaySummaryItem } from './AgentMappingItem';
 
 type AgentMappingItem = WorktreeTreeItem | SessionTreeItem | TodaySummaryItem;

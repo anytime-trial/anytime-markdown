@@ -23,5 +23,16 @@ export type { AgentChatSessionOptions } from './session/AgentChatSession';
 export { DefaultModelRoutingPolicy } from './routing/DefaultModelRoutingPolicy';
 export type { DefaultModelRoutingPolicyOptions } from './routing/DefaultModelRoutingPolicy';
 export type { TaskKind, TaskRoute, ModelRoutingPolicy } from './routing/types';
+export {
+  classifySession,
+  resolveWorktree,
+  buildAgentMapping,
+} from './mapping/agentMapping';
+export type {
+  MappingState,
+  SessionMapping,
+  WorktreeEntry,
+  WorktreeMapping,
+} from './mapping/types';
 export { Emitter } from './util/Emitter';
 export type { Disposable, Listener } from './util/Emitter';
