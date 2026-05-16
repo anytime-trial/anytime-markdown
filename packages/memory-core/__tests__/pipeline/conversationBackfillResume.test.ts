@@ -207,4 +207,120 @@ describe('runConversationBackfill resume', () => {
     trailDb.close();
     memDb.close();
   }, 30000);
+
+  // ── R4: reload-correctness — UUID order ≠ time order. Even when the
+  // session whose UUID sorts first has the LATEST timestamps, the run must
+  // process the older session and never drop it via WHERE timestamp >= cursor.
+  // This was the root cause of "30 days of backlog showing 0% coverage in
+  // older dates" — backfill iterated in UUID order, the first session jumped
+  // maxTimestamp to today, the cursor advanced to today, and older sessions
+  // were SQL-excluded on every subsequent run.
+  test('R4: alphabetically-first session with TODAY timestamps does not strand the older session', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    // Session aaa-* has UUIDs that sort FIRST but messages from today.
+    // Session zzz-* has UUIDs that sort LAST but older messages.
+    // Correct chronological ordering should process zzz-* first.
+    insertSession(trailDb, 'aaa-newest-uuid');
+    insertUserMessage(
+      trailDb,
+      'msg-aaa-1',
+      'aaa-newest-uuid',
+      ts1DayAgo,
+      'newer'
+    );
+
+    insertSession(trailDb, 'zzz-oldest-uuid');
+    insertUserMessage(
+      trailDb,
+      'msg-zzz-1',
+      'zzz-oldest-uuid',
+      ts3DaysAgo,
+      'older'
+    );
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const result = await runConversationBackfill({
+      db: memDb,
+      ollama,
+      sinceDays: 5,
+      logger: silentLogger,
+    });
+
+    expect(result.status).toBe('success');
+    // BOTH sessions must have been processed — the older one must not be
+    // skipped because of a max-timestamp cursor jump from the newer one.
+    expect(result.items_processed).toBe(2);
+
+    // Verify both episodes are now persisted in memory_episodes.
+    const epRows = memDb.exec(`SELECT session_id FROM memory_episodes`);
+    const persistedSessionIds = (epRows[0]?.values ?? []).map((r) => r[0] as string);
+    expect(persistedSessionIds.sort()).toEqual(
+      ['aaa-newest-uuid', 'zzz-oldest-uuid'].sort()
+    );
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── R5: quarantine advances cursor only to "last failing episode + 1ms"
+  // — NOT to maxTimestamp seen. This guarantees later-chronological sessions
+  // (those with MIN(timestamp) > the failing episode's valid_from) remain
+  // visible to listSessionIdsSince on the next run via WHERE timestamp >= cursor.
+  //
+  // 3 failing sessions in chronological order trigger quarantine, then a 4th
+  // healthy session positioned AFTER them must still be processable.
+  test('R5: quarantine cursor leaves later-chronological sessions visible', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    const ts5d = new Date(Date.now() - 5 * 86_400_000).toISOString();
+    const ts4d = new Date(Date.now() - 4 * 86_400_000).toISOString();
+    const ts3d = new Date(Date.now() - 3 * 86_400_000).toISOString();
+
+    // 3 failing episodes in chronological order
+    insertSession(trailDb, 'sess-fail-1');
+    insertUserMessage(trailDb, 'fail-1', 'sess-fail-1', ts5d, 'fail 1');
+    insertSession(trailDb, 'sess-fail-2');
+    insertUserMessage(trailDb, 'fail-2', 'sess-fail-2', ts4d, 'fail 2');
+    insertSession(trailDb, 'sess-fail-3');
+    insertUserMessage(trailDb, 'fail-3', 'sess-fail-3', ts3d, 'fail 3');
+
+    // 1 healthy session AFTER the failing area
+    insertSession(trailDb, 'sess-ok');
+    insertUserMessage(trailDb, 'ok-1', 'sess-ok', ts1DayAgo, 'ok');
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = {
+      generate: jest.fn().mockResolvedValue({ response: 'not json' }),
+      embeddings: jest.fn(),
+    };
+
+    const result = await runConversationBackfill({
+      db: memDb,
+      ollama,
+      sinceDays: 6,
+      logger: silentLogger,
+    });
+
+    expect(result.status).toBe('partial');
+
+    const backfillCursorRows = memDb.exec(
+      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_backfill'`
+    );
+    const backfillCursor = backfillCursorRows[0]?.values[0]?.[0] as string;
+
+    // Cursor advanced to ts3d + 1ms (last failing episode), NOT past ts1DayAgo.
+    // This means the healthy sess-ok at ts1DayAgo is still visible to the next
+    // run's WHERE timestamp >= cursor query.
+    expect(backfillCursor > ts3d).toBe(true);
+    expect(backfillCursor < ts1DayAgo).toBe(true);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
 });

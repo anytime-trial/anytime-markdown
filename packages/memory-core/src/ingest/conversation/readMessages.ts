@@ -2,9 +2,16 @@ import type { MemoryDbConnection } from '../../db/connection/types';
 import type { Message } from '../../canonical/splitEpisodes';
 
 /**
- * Lists session_ids (lexicographically) that have at least one qualifying
- * message with timestamp >= sinceISO. Lightweight — only ids are returned,
- * not the message bodies.
+ * Lists session_ids in **chronological order by their earliest qualifying
+ * message** (MIN(timestamp) within the >= sinceISO window). Lightweight —
+ * only ids are returned, not the message bodies.
+ *
+ * Chronological ordering matters because callers may rely on "max
+ * timestamp processed so far" being monotonically increasing across
+ * sessions. UUID order breaks this: a session whose UUID happens to sort
+ * first but contains today's messages would push max-seen to today, and
+ * any cursor advancement based on it would silently skip every older
+ * session via WHERE timestamp >= cursor on resume.
  *
  * Assumes trail.sessions and trail.messages are already ATTACHed via
  * attachTrailDbFromHandle / attachTrailDbReadOnly.
@@ -14,13 +21,14 @@ export function listSessionIdsSince(
   sinceISO: string
 ): string[] {
   const stmt = db.prepare(
-    `SELECT DISTINCT m.session_id
+    `SELECT m.session_id, MIN(m.timestamp) AS min_ts
      FROM trail.messages m
      JOIN trail.sessions s ON s.id = m.session_id
      WHERE m.timestamp IS NOT NULL
        AND m.timestamp >= ?
        AND m.type IN ('user', 'assistant', 'system')
-     ORDER BY m.session_id`
+     GROUP BY m.session_id
+     ORDER BY min_ts, m.session_id`
   );
   try {
     const rows = stmt.all(sinceISO);

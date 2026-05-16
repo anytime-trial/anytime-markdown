@@ -124,6 +124,64 @@ describe('readMessagesSince', () => {
     }
   });
 
+  test('orders sessions by MIN(timestamp) chronologically, not by session_id', () => {
+    // Sessions must be yielded oldest-first so that any cursor advancement
+    // based on "max timestamp seen so far" stays monotonic. UUID-ordered
+    // iteration breaks this: a session whose UUID sorts first but contains
+    // today's messages would jump maxTimestamp to today, causing backfill
+    // resume to skip every older session via WHERE timestamp >= cursor.
+    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'zzz-newest');
+    insertSession(trailDb, 'mmm-middle');
+    insertSession(trailDb, 'aaa-oldest');
+    insertMsg(trailDb, 'm-z1', 'zzz-newest', 'user', '2026-05-16T10:00:00.000Z', 'newest');
+    insertMsg(trailDb, 'm-m1', 'mmm-middle', 'user', '2026-04-25T10:00:00.000Z', 'middle');
+    insertMsg(trailDb, 'm-a1', 'aaa-oldest', 'user', '2026-04-16T10:00:00.000Z', 'oldest');
+    attachAsTrail(memDb, trailDb);
+
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    expect(sessions.map((s) => s.session_id)).toEqual([
+      'aaa-oldest',
+      'mmm-middle',
+      'zzz-newest',
+    ]);
+  });
+
+  test('chronological order survives even when older session has alphabetically-later UUID', () => {
+    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const trailDb = makeTrailDb();
+    // UUID 順と timestamp 順が真逆になるケース
+    insertSession(trailDb, 'aaa-newest-uuid');
+    insertSession(trailDb, 'zzz-oldest-uuid');
+    insertMsg(trailDb, 'm-a', 'aaa-newest-uuid', 'user', '2026-05-16T10:00:00.000Z', 'newest');
+    insertMsg(trailDb, 'm-z', 'zzz-oldest-uuid', 'user', '2026-04-16T10:00:00.000Z', 'oldest');
+    attachAsTrail(memDb, trailDb);
+
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    expect(sessions.map((s) => s.session_id)).toEqual([
+      'zzz-oldest-uuid',
+      'aaa-newest-uuid',
+    ]);
+  });
+
+  test('chronological order uses MIN timestamp per session (overlapping ranges)', () => {
+    // 長期セッション A (MIN=4/20 MAX=5/15) と短期セッション B (MIN=4/21 MAX=4/22)
+    // が混在しても、yield 順は MIN(timestamp) 昇順 → A, B。
+    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'sess-A');
+    insertSession(trailDb, 'sess-B');
+    insertMsg(trailDb, 'A1', 'sess-A', 'user', '2026-04-20T00:00:00.000Z', 'A start');
+    insertMsg(trailDb, 'A2', 'sess-A', 'user', '2026-05-15T00:00:00.000Z', 'A end');
+    insertMsg(trailDb, 'B1', 'sess-B', 'user', '2026-04-21T00:00:00.000Z', 'B start');
+    insertMsg(trailDb, 'B2', 'sess-B', 'user', '2026-04-22T00:00:00.000Z', 'B end');
+    attachAsTrail(memDb, trailDb);
+
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    expect(sessions.map((s) => s.session_id)).toEqual(['sess-A', 'sess-B']);
+  });
+
   test('excludes types other than user/assistant/system', () => {
     const memDb = BetterSqlite3MemoryDb.openInMemory();
     const trailDb = makeTrailDb();

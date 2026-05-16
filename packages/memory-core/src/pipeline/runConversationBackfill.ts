@@ -237,6 +237,9 @@ export async function runConversationBackfill(opts: {
   };
 
   let maxTimestamp = sinceISO;
+  // 最後に extraction 失敗した episode の valid_from (quarantine 用)。
+  // quarantine 時はこれ + 1ms をカーソルに、失敗 episode のみを skip する。
+  let lastFailedEpisodeTime: string | null = null;
   let consecutiveFailures = 0;
   let finalStatus: 'success' | 'partial' | 'error' = 'success';
 
@@ -351,6 +354,7 @@ export async function runConversationBackfill(opts: {
           if (ex === null) {
             totals.items_failed += 1;
             consecutiveFailures += 1;
+            lastFailedEpisodeTime = episode.valid_from;
             recordFailedItem(
               db,
               `${episode.session_id}:${episode.message_uuid_start}`,
@@ -362,9 +366,13 @@ export async function runConversationBackfill(opts: {
               logger.error(
                 `[anytime-memory] runConversationBackfill: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
               );
+              // 失敗 episode + 1ms をカーソルに。後続セッションは再走査可能。
+              const quarantineCursor = new Date(
+                new Date(lastFailedEpisodeTime).getTime() + 1
+              ).toISOString();
               upsertPipelineState(db, {
                 status: 'quarantine',
-                last_processed_at: maxTimestamp,
+                last_processed_at: quarantineCursor,
                 error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
               });
               finalizePipelineRun(db, rId, startedAt, 'partial', totals);
@@ -407,13 +415,13 @@ export async function runConversationBackfill(opts: {
         }
       }
 
-      // After each session, advance last_processed_at so a future resume
-      // (VS Code reload, OS shutdown) can skip already-processed sessions
-      // via computeSinceISO() instead of re-scanning from sinceDays ago.
-      upsertPipelineState(db, {
-        status: 'running',
-        last_processed_at: maxTimestamp,
-      });
+      // 意図的にここで last_processed_at を前進させない。
+      // 旧実装は max(timestamp seen) をセッション境界毎にカーソル化していたが、
+      // セッション iterate 順 (MIN(timestamp)) と各セッションの MAX timestamp は
+      // 別軸なので、長期セッション 1 つで cursor が一気に飛び、未処理の後続
+      // セッションが WHERE timestamp >= cursor で永久に除外されていた。
+      // 現設計: カーソル前進は「完了時 + quarantine 時のみ」。途中中断は
+      // existingIds preload で冪等に skip するので作業は失われない。
     }
   } catch (err) {
     logger.error(
@@ -421,9 +429,9 @@ export async function runConversationBackfill(opts: {
       err
     );
     finalStatus = 'error';
+    // エラー時もカーソルは触らない (上記と同じ理由)。
     upsertPipelineState(db, {
       status: 'error',
-      last_processed_at: maxTimestamp,
       error_detail: err instanceof Error ? (err.stack ?? err.message) : String(err),
     });
     finalizePipelineRun(db, rId, startedAt, 'error', totals);
