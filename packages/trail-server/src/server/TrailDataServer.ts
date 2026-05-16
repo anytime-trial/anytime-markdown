@@ -859,22 +859,26 @@ export class TrailDataServer {
     if (pathname === '/api/code-graph' && method === 'GET') {
       const releaseId = parsed.searchParams.get('release') ?? 'current';
       const repo = parsed.searchParams.get('repo') ?? undefined;
-      this.codeGraphApi.handleGet(res, releaseId, repo);
+      void this.codeGraphApi.handleGet(res, releaseId, repo);
       return;
     }
     if (pathname === '/api/code-graph/query' && method === 'GET') {
-      this.codeGraphApi.handleQuery(res, parsed.searchParams.get('q') ?? '');
+      const repo = parsed.searchParams.get('repo') ?? undefined;
+      void this.codeGraphApi.handleQuery(res, parsed.searchParams.get('q') ?? '', repo);
       return;
     }
     if (pathname === '/api/code-graph/explain' && method === 'GET') {
-      this.codeGraphApi.handleExplain(res, parsed.searchParams.get('id') ?? '');
+      const repo = parsed.searchParams.get('repo') ?? undefined;
+      void this.codeGraphApi.handleExplain(res, parsed.searchParams.get('id') ?? '', repo);
       return;
     }
     if (pathname === '/api/code-graph/path' && method === 'GET') {
-      this.codeGraphApi.handlePath(
+      const repo = parsed.searchParams.get('repo') ?? undefined;
+      void this.codeGraphApi.handlePath(
         res,
         parsed.searchParams.get('from') ?? '',
         parsed.searchParams.get('to') ?? '',
+        repo,
       );
       return;
     }
