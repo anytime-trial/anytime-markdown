@@ -896,10 +896,55 @@ export async function activate(context: vscode.ExtensionContext) {
 				void vscode.window.showErrorMessage(userMsg);
 			}
 		}
+
+		// 起動時の自動 importAll (analyzeAll 相当)。デーモンモードの runOnStart と
+		// 揃えるため in-process でも自動実行する。Pipelines パネルで per-phase 進捗
+		// を確認できるよう pipelineProvider への通知も行うが、UI 通知 (toast や
+		// withProgress) は出さない (Pipelines パネル側で見えるため)。
+		const schedulerConfig = vscode.workspace.getConfiguration('anytimeTrail.scheduler');
+		const runOnStartup = schedulerConfig.get<boolean>('runOnStartup', true);
+		if (runOnStartup) {
+			const startupDelaySec = schedulerConfig.get<number>('startupDelaySec', 5);
+			setTimeout(() => {
+				void runStartupImport();
+			}, Math.max(0, startupDelaySec) * 1000);
+		}
 	})().catch((err) => {
 		TrailLogger.error('Unexpected error during initialization', err);
 		void vscode.window.showErrorMessage(`Anytime Trail initialization failed: ${err instanceof Error ? err.message : String(err)}`);
 	});
+
+	/**
+	 * 起動時に静かに importAll → memory-core runOnce を実行する。
+	 * UI 通知は出さず、Pipelines パネル側で進捗を見せる設計。
+	 * 失敗してもユーザー通知せずログのみに残す (起動時に毎回 toast が出ると煩い)。
+	 */
+	async function runStartupImport(): Promise<void> {
+		if (!trailDb) {
+			TrailLogger.warn('[startup-import] skipped: trailDb is null');
+			return;
+		}
+		const repoName = vscode.workspace.workspaceFolders?.[0]?.name ?? '(no workspace)';
+		TrailLogger.info(`[startup-import] [${repoName}]: started`);
+		pipelineProvider?.resetImportAllPhases();
+		try {
+			const result = await trailDb.importAll(
+				(message) => TrailLogger.info(`[startup-import] [${repoName}]: ${message}`),
+				getWatchedGitRoots(),
+				undefined,
+				analyze,
+				(event) => pipelineProvider?.setImportAllPhase(event.phase, event.action, {
+					count: event.count,
+					message: event.message,
+				}),
+			);
+			TrailLogger.info(`[startup-import] [${repoName}]: complete — imported=${result.imported}, skipped=${result.skipped}, commits=${result.commitsResolved}, releases=${result.releasesResolved}, analyzed=${result.releasesAnalyzed}`);
+			trailDataServer?.notifySessionsUpdated();
+			await memoryCoreService?.runOnce('import');
+		} catch (err) {
+			TrailLogger.error(`[startup-import] [${repoName}] failed`, err);
+		}
+	}
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.openTrailViewer', () => {

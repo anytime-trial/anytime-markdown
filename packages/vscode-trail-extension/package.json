@@ -372,6 +372,17 @@
           "default": false,
           "markdownDescription": "%config.daemon.useExternalDaemon%"
         },
+        "anytimeTrail.scheduler.runOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.scheduler.runOnStartup%"
+        },
+        "anytimeTrail.scheduler.startupDelaySec": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "markdownDescription": "%config.scheduler.startupDelaySec%"
+        },
         "anytimeTrail.database.storagePath": {
           "type": "string",
           "default": ".anytime/trail/db",
