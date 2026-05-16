@@ -58,7 +58,7 @@ claude mcp get mcp-trail | grep TRAIL_SERVER_URL
 # → 1. で確認したポートと一致していることを確認
 ```
 
-不一致なら下記 IMPORTANT の `claude mcp add` で再登録する（`TRAIL_SERVER_URL` は登録時にそのときの設定ポートで焼き付けられるため、ポート変更後は再登録が必要）。
+不一致なら VS Code コマンド `Anytime Trail: MCP サーバーを登録 (.mcp.json を更新)` を再実行し、Claude Code を再起動 (`/clear`) する（`.mcp.json` の `TRAIL_SERVER_URL` は登録時の viewer.port が焼き付けられるため、ポート変更後は再登録が必要。Copilot Chat 側の経路は拡張側で自動追従するため対応不要）。
 
 
 ## 処理フロー
@@ -82,15 +82,19 @@ claude mcp get mcp-trail | grep TRAIL_SERVER_URL
 
 > [!IMPORTANT]
 > `mcp-trail` ツールが利用できない場合は、まず `claude mcp get mcp-trail` で登録状態を確認する。\
-> 未登録の場合は以下のコマンドで Claude Code に登録する:
+> 未登録の場合は VS Code コマンドパレットから以下を実行:
 >
-> ```bash
-> SERVER_PATH=$(ls -t /home/node/.vscode-server/extensions/anytime-trial.anytime-trail-*/dist/mcp-trail-server.js 2>/dev/null | head -1)
-> claude mcp add --scope project mcp-trail -- node "$SERVER_PATH"
+> ```text
+> Anytime Trail: MCP サーバーを登録 (.mcp.json を更新)
 > ```
 >
-> 登録後は `/clear` でセッションを再起動してから再実行する。\
-> `mcp-trail-server.js` が存在しない場合は Anytime Trail 拡張をインストールする必要がある。
+> ワークスペースルートに `.mcp.json` が生成・更新され、`mcpServers.mcp-trail` エントリに現在の `anytimeTrail.viewer.port` を反映した `TRAIL_SERVER_URL` が書き込まれる。\
+> 登録後は Claude Code を再起動 (`/clear`) してから再実行する。
+>
+> 注意:
+> - Anytime Trail 拡張がインストールされていない場合は、先に拡張をインストールする
+> - `.mcp.json` はマシン依存の絶対パス（Node バイナリ・拡張インストール先）を含むため、git commit せず `.gitignore` に追加する運用を推奨
+> - Copilot Chat 等 VS Code 内 AI 拡張からの利用は別経路（拡張が `vscode.lm.registerMcpServerDefinitionProvider` で自動登録）で済むため、本コマンドの実行は不要
 
 
 ### Step 2: コミュニティ要約（AI 命名）
