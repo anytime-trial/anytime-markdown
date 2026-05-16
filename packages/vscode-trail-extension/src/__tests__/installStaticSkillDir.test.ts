@@ -10,7 +10,7 @@ interface TestEnv {
   readonly cleanup: () => void;
 }
 
-const SKILL_NAME = 'anytime-basic-design';
+const SKILL_NAME = 'anytime-reverse-spec';
 const SKILL_MD = '# SKILL\nbody\n';
 const TEMPLATE_A = '# template A\n';
 const TEMPLATE_B = '# template B\n';
@@ -190,6 +190,44 @@ describe('installStaticSkillDir', () => {
       const targetDir = path.join(env.claudeDir, 'skills', SKILL_NAME);
       expect(fs.readFileSync(path.join(targetDir, 'SKILL.md'), 'utf-8')).toBe(SKILL_MD);
       expect(fs.readFileSync(path.join(targetDir, 'templates', 'a.md'), 'utf-8')).toBe(TEMPLATE_A);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('oldSkillNames で渡した旧 dir を削除する', () => {
+    const env = setupEnv();
+    try {
+      const oldDir = path.join(env.claudeDir, 'skills', 'anytime-basic-design');
+      fs.mkdirSync(oldDir, { recursive: true });
+      fs.writeFileSync(path.join(oldDir, 'SKILL.md'), '# old\n');
+
+      const result = installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+        oldSkillNames: ['anytime-basic-design'],
+      });
+
+      expect(result.removedOld).toEqual(['anytime-basic-design']);
+      expect(fs.existsSync(oldDir)).toBe(false);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('oldSkillNames に該当 dir が無くてもエラーにならない', () => {
+    const env = setupEnv();
+    try {
+      const result = installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+        oldSkillNames: ['nonexistent-skill'],
+      });
+
+      expect(result.removedOld).toEqual([]);
+      expect(result.installed).toBe(3);
     } finally {
       env.cleanup();
     }
