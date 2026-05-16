@@ -8,6 +8,7 @@
 
 ### 追加
 
+- `seedAnalyzeExclude` の DEFAULT_ANALYZE_EXCLUDE_CONTENT を拡充。`.claude/` / `.changeset/` / `.github/` / `.config/` / `.playwright-mcp/` / `.serena/` / `.vscode/` / `__mocks__/` / `demos/` / `dist/` / `**/CHANGELOG.{ja,}.md` / `**/README.{ja,}.md` を初期除外に追加 (実環境で揃えている値に合わせた)
 - `loadConfig` の挙動変更: `config.json` 不在時に DEFAULT_CONFIG を**自動でディスクに書き出す** (拡張・daemon 共通)。ユーザーが手で編集できる初期ファイルを提供するため。書き込み失敗時は in-memory フォールバック
 - **Breaking:** VS Code 設定 `anytimeTrail.analyzeAll.enabled` (boolean、既定 `false`) を追加。OFF のとき Pipelines ツリービューは非表示になり、AnalyzeAllRunner は構築されず自動・手動・HTTP API すべての実行経路が無効化される。既存ユーザーで自動実行を継続したい場合は、設定を `true` にした上で拡張をリロードする必要がある
 

@@ -9,6 +9,20 @@ export const DEFAULT_ANALYZE_EXCLUDE_CONTENT = `# コードグラフ解析から
 
 .worktrees/
 .vscode-test/
+.claude/
+.changeset/
+.github/
+.config/
+.playwright-mcp/
+.serena/
+.vscode/
 __tests__/
+__mocks__/
 fixtures/
+demos/
+dist/
+**/CHANGELOG.ja.md
+**/CHANGELOG.md
+**/README.ja.md
+**/README.md
 `;
