@@ -3435,7 +3435,17 @@ export class TrailDatabase {
       `Claude Code ${processedBySource.claude_code}/${claudeFiles} skipped ${skippedBySource.claude_code}, ` +
       `Codex ${processedBySource.codex}/${codexFiles} skipped ${skippedBySource.codex}`;
 
+    // UI (OllamaProvider tree) が phase 遷移を per-phase でレンダリングできるよう、
+    // onPhase emit 直後に event loop へ yield する。短い phase が同期連続すると
+    // _onDidChangeTreeData.fire() の処理が後回しになり中間状態が見えなくなるため。
+    const yieldForUi = async (): Promise<void> => {
+      if (onPhase) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+    };
+
     onPhase?.({ phase: 'import_sessions', action: 'start', count: totalSessions });
+    await yieldForUi();
 
     for (const dir of sessionDirs) {
       const sessionFileTotal = 1 + dir.subagentFiles.length;
@@ -3513,11 +3523,13 @@ export class TrailDatabase {
       onProgress?.(formatProgress(), 0);
     }
     onPhase?.({ phase: 'import_sessions', action: 'finish', count: imported });
+    await yieldForUi();
 
     // Resolve releases from version tags
     let releasesResolved = 0;
     if (gitRoot) {
       onPhase?.({ phase: 'resolve_releases', action: 'start' });
+      await yieldForUi();
       let resolveReleasesFailed = false;
       try {
         onProgress?.('Resolving releases from version tags...', 0);
@@ -3543,11 +3555,13 @@ export class TrailDatabase {
     } else {
       onPhase?.({ phase: 'resolve_releases', action: 'skip', message: 'no gitRoot' });
     }
+    await yieldForUi();
 
     // Analyze source code for each release
     let releasesAnalyzed = 0;
     if (gitRoot && analyzeFn) {
       onPhase?.({ phase: 'analyze_releases', action: 'start' });
+      await yieldForUi();
       try {
         onProgress?.('Analyzing releases...', 0);
         releasesAnalyzed = this.analyzeReleases(gitRoot, analyzeFn, (msg) => onProgress?.(msg, 0), excludePatterns);
@@ -3559,12 +3573,14 @@ export class TrailDatabase {
     } else {
       onPhase?.({ phase: 'analyze_releases', action: 'skip', message: gitRoot ? 'no analyzeFn' : 'no gitRoot' });
     }
+    await yieldForUi();
 
     // Import coverage data from packages/*/coverage/coverage-summary.json
     let coverageImported = 0;
     let currentCoverageImported = 0;
     if (gitRoot) {
       onPhase?.({ phase: 'import_coverage', action: 'start' });
+      await yieldForUi();
       let coverageFailed = false;
       try {
         onProgress?.('Importing coverage data...', 0);
@@ -3590,9 +3606,11 @@ export class TrailDatabase {
     } else {
       onPhase?.({ phase: 'import_coverage', action: 'skip', message: 'no gitRoot' });
     }
+    await yieldForUi();
 
     // Rebuild session_costs from messages
     onPhase?.({ phase: 'rebuild_costs', action: 'start' });
+    await yieldForUi();
     try {
       onProgress?.('Rebuilding session costs...', 0);
       this.rebuildSessionCosts();
@@ -3601,11 +3619,13 @@ export class TrailDatabase {
     } catch (e) {
       onPhase?.({ phase: 'rebuild_costs', action: 'error', message: e instanceof Error ? e.message : String(e) });
     }
+    await yieldForUi();
 
     // Analyze Claude Code behavior only for sessions that were (re)imported in this run.
     // Sessions skipped above had no new messages, so message_tool_calls is already current.
     if (sessionsToAnalyze.size > 0) {
       onPhase?.({ phase: 'analyze_behavior', action: 'start', count: sessionsToAnalyze.size });
+      await yieldForUi();
       const db = this.ensureDb();
       const analyzer = new ClaudeCodeBehaviorAnalyzer();
       onProgress?.(`Analyzing Claude Code behavior (${sessionsToAnalyze.size} sessions)...`, 0);
@@ -3622,9 +3642,11 @@ export class TrailDatabase {
     } else {
       onPhase?.({ phase: 'analyze_behavior', action: 'skip', message: 'no new sessions' });
     }
+    await yieldForUi();
 
     // Rebuild daily_counts (6 kinds) after message_tool_calls is populated, then session_stats
     onPhase?.({ phase: 'rebuild_counts', action: 'start' });
+    await yieldForUi();
     try {
       onProgress?.('Rebuilding daily counts...', 0);
       this.rebuildDailyCounts();
@@ -3636,9 +3658,11 @@ export class TrailDatabase {
     } catch (e) {
       onPhase?.({ phase: 'rebuild_counts', action: 'error', message: e instanceof Error ? e.message : String(e) });
     }
+    await yieldForUi();
 
     // backfill: commit_files / subagent_type / message_commits
     onPhase?.({ phase: 'backfill', action: 'start' });
+    await yieldForUi();
     let backfillFailed = false;
     if (gitRoot) {
       try {

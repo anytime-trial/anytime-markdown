@@ -47,8 +47,15 @@ describe('OllamaProvider.getChildren()', () => {
     provider.dispose();
   });
 
+  // getChildren は _status をキャッシュ参照する設計のため、テストでは mockFetch 設定後に
+  // _poll() を明示的に呼んで _status をリフレッシュしてから getChildren を呼ぶ。
+  const refreshStatus = async (): Promise<void> => {
+    await (provider as unknown as { _poll(): Promise<void> })._poll();
+  };
+
   it('Ollama 起動中: ヘッダー(running) + モデル 2 行を返す', async () => {
     mockFetch.mockReturnValue(makeRunningResponse(['bge-m3', 'qwen2.5:7b']));
+    await refreshStatus();
 
     const children = await provider.getChildren();
 
@@ -62,6 +69,7 @@ describe('OllamaProvider.getChildren()', () => {
 
   it('Ollama 停止中（fetch タイムアウト）: ヘッダー(stopped)のみ返す', async () => {
     mockFetch.mockImplementation(() => makeTimeoutError());
+    await refreshStatus();
 
     const children = await provider.getChildren();
 
@@ -72,6 +80,7 @@ describe('OllamaProvider.getChildren()', () => {
 
   it('モデル一覧取得失敗（ok:false）: ヘッダー(running)のみ返す', async () => {
     mockFetch.mockReturnValue(Promise.resolve({ ok: false }));
+    await refreshStatus();
 
     const children = await provider.getChildren();
 
@@ -88,6 +97,7 @@ describe('OllamaProvider.getChildren()', () => {
         ? makeRunningResponse(['bge-m3'])
         : makeTimeoutError(),
     );
+    await refreshStatus();
 
     const children = await provider.getChildren();
 

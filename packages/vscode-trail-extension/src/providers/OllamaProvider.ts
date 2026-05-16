@@ -403,8 +403,11 @@ export class OllamaProvider
   }
 
   async getChildren(): Promise<OllamaItem[]> {
-    const status = await fetchOllamaStatus();
-    this._status = status;
+    // Ollama 状態は _pollTimer (POLL_NORMAL_MS) が定期更新する _status を参照する。
+    // ここで fetchOllamaStatus() を呼ぶと FETCH_TIMEOUT_MS まで毎回ブロックして
+    // importAll の rapid な phase event firing 時に tree refresh が連鎖的に遅延する
+    // (重要: phase の per-phase 進捗が UI に反映されなくなる)。
+    const status = this._status;
     const headerLabel = status.running ? '起動中' : '停止中';
     const items: OllamaItem[] = [
       new OllamaItem('header', headerLabel, { running: status.running }),
