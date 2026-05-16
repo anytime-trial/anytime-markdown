@@ -83,14 +83,16 @@ function insertPipelineRun(
   id: string,
   startedAt: string
 ): void {
+  // last_heartbeat_at is seeded to started_at so pipelineWatchdog has a valid
+  // signal even before the first checkpoint. Mirrors runConversationBackfill.
   db.run(
     `INSERT INTO memory_pipeline_runs
        (id, scope, started_at, status,
         items_processed, entities_inserted, entities_updated,
         edges_inserted, edges_invalidated, drifts_detected,
-        items_failed, duration_ms)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0)`,
-    [id, SCOPE, startedAt]
+        items_failed, duration_ms, last_heartbeat_at)
+     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0, ?)`,
+    [id, SCOPE, startedAt, startedAt]
   );
 }
 
@@ -99,8 +101,13 @@ function updatePipelineRunProgress(
   id: string,
   totals: PersistStats & { items_processed: number; items_failed: number }
 ): void {
+  // Refresh last_heartbeat_at so pipelineWatchdog keeps long-running incremental
+  // runs alive across its 10-minute timeout window. Without this, the watchdog
+  // falls back to started_at and either times out a healthy run or, after a
+  // reload, fails to clean up an actually-dead one within the window.
   db.run(
     `UPDATE memory_pipeline_runs SET
+       last_heartbeat_at = ?,
        items_processed   = ?,
        entities_inserted = ?,
        entities_updated  = ?,
@@ -109,6 +116,7 @@ function updatePipelineRunProgress(
        items_failed      = ?
      WHERE id = ?`,
     [
+      new Date().toISOString(),
       totals.items_processed,
       totals.entities_inserted,
       totals.entities_updated,
@@ -259,6 +267,11 @@ export async function runConversationIncremental(opts: {
 
         totals.items_processed += 1;
 
+        // UI 通知は毎エピソード発火させる。これを 50 件毎にすると 30 日分の
+        // backlog (10k+ episodes) では 8〜25 分 "0/N" のまま見え、ユーザーが
+        // フリーズと誤認して reload → 部分作業の喪失ループに陥る。
+        if (progress) progress(totals.items_processed, totals.items_failed);
+
         if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
           logger.info(
             `[anytime-memory] conversation incremental progress: ${totals.items_processed} processed ` +
@@ -277,7 +290,6 @@ export async function runConversationIncremental(opts: {
             save();
             logger.info(`[anytime-memory] conversation incremental: checkpoint save ${Date.now() - t0}ms`);
           }
-          if (progress) progress(totals.items_processed, totals.items_failed);
         }
 
         const recordedAt = new Date().toISOString();
