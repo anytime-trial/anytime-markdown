@@ -28,6 +28,7 @@
   "command.copyAiNotePath": "AI ノートのパスをコピー",
   "command.runWithTrace": "トレース付きで実行",
   "command.reinstallSkills": "スキル再インストール",
+  "command.registerMcpServer": "MCP サーバーを登録 (.mcp.json を更新)",
   "command.registerMcpToClaudeCode": "Claude Code に MCP サーバーを登録 (mcp-trail)",
   "command.killExtensionHost": "Extension Host を Kill"
 }

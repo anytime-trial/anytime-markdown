@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- New VS Code command `Anytime Trail: Register MCP Server (write .mcp.json)` (`anytime-trail.registerMcpServer`). Adds/updates the `mcpServers.mcp-trail` entry in the workspace root's `.mcp.json` (preserving other server entries), including a `TRAIL_SERVER_URL` env that reflects the current `anytimeTrail.viewer.port` setting. Unparseable JSON is backed up to `.bak.<timestamp>` before recreating (avoiding silent data loss). Provided alongside the existing clipboard-based `Register MCP Server to Claude Code`
 - Expanded `DEFAULT_ANALYZE_EXCLUDE_CONTENT` (used by `seedAnalyzeExclude` to create `.anytime/analyze-exclude` on first analyze). Added `.claude/` / `.changeset/` / `.github/` / `.config/` / `.playwright-mcp/` / `.serena/` / `.vscode/` / `__mocks__/` / `demos/` / `dist/` / `**/CHANGELOG.{ja,}.md` / `**/README.{ja,}.md` to match the patterns we keep in our own workspace
 - `loadConfig` now **auto-generates `config.json` on disk** when the file is missing (used by both the extension and daemon), giving users an editable starting point. Falls back to in-memory DEFAULT_CONFIG if the write fails
 - **Breaking:** New VS Code setting `anytimeTrail.analyzeAll.enabled` (boolean, default `false`). When disabled, the Pipelines tree view is hidden and AnalyzeAllRunner is not constructed (automatic / manual command / HTTP API all become no-ops). Existing users who want to keep auto-runs must set this to `true` and reload the window

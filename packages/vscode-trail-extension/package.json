@@ -160,6 +160,11 @@
         "category": "Anytime Trail"
       },
       {
+        "command": "anytime-trail.registerMcpServer",
+        "title": "%command.registerMcpServer%",
+        "category": "Anytime Trail"
+      },
+      {
         "command": "anytime-trail.registerMcpToClaudeCode",
         "title": "%command.registerMcpToClaudeCode%",
         "category": "Anytime Trail"
