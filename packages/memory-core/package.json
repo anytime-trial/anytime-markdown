@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@anytime-markdown/agent-core": "*",
+    "@anytime-markdown/database-core": "*",
     "@anytime-markdown/llm-core": "*",
     "@anytime-markdown/trail-core": "*",
     "better-sqlite3": "12.4.1",

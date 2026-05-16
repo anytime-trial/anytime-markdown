@@ -20,6 +20,8 @@ import { createOllamaClient } from '@anytime-markdown/agent-core';
 import {
   openMemoryCoreDb,
   attachTrailDbReadOnly,
+  backupMemoryCoreDbFile,
+  getMemoryCoreDbPath,
   runConversationIncremental,
   runConversationBackfill,
   runConversationFailedItemsRetry,
@@ -60,6 +62,25 @@ export async function runMemoryCorePipeline(ctx: PipelineRunnerContext): Promise
   const statusPath = path.join(path.dirname(ctx.trailDbPath), 'pipeline-status.json');
   const statusWriter = new PipelineStatusWriter(statusPath, randomUUID(), PIPELINE_SCOPES);
   statusWriter.initialize();
+
+  // memory-core.db を開く前に世代バックアップをローテートする (trail-db と
+  // 同じ FileBackupManager パターン)。better-sqlite3 が DB を開いて書き込み
+  // 始める前のスナップショットを .bak.1.gz に圧縮退避する。interval 1 日で
+  // throttle されているため、毎パイプラインティックで I/O は起きない。
+  const memoryDbPath = ctx.dbPath ?? getMemoryCoreDbPath(ctx.gitRoot);
+  try {
+    const created = backupMemoryCoreDbFile(memoryDbPath, {
+      backupGenerations: ctx.backupGenerations,
+      backupIntervalDays: ctx.backupIntervalDays,
+    });
+    if (created) {
+      logger.info(`memory-core backup rotated: ${memoryDbPath}.bak.1.gz`);
+    }
+  } catch (err) {
+    // backup は best-effort: 失敗しても pipeline は走らせる (DB ファイルが
+    // ない初回起動も含むが、FileBackupManager 側で no-op になる)。
+    logger.error('memory-core backup failed (continuing pipeline)', err);
+  }
 
   logger.info('Opening memory-core DB');
   const memDb = await openMemoryCoreDb(ctx.dbPath, {

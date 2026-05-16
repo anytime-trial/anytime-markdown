@@ -41,6 +41,8 @@ export class MemoryCoreService extends BaseRunner {
       nativeBinding: this.serviceOpts.nativeBinding,
       gitRoot: this.serviceOpts.gitRoot,
       backfillDays: this.serviceOpts.backfillDays,
+      backupGenerations: this.serviceOpts.backupGenerations,
+      backupIntervalDays: this.serviceOpts.backupIntervalDays,
     };
     const runner = this.serviceOpts.pipelineRunner ?? defaultPipelineRunner;
     await runner(ctx);

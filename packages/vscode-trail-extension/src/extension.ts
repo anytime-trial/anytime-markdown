@@ -505,6 +505,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			nativeBinding: memoryCoreNativeBinding,
 			gitRoot: wsRootForDb,
 			backfillDays: trailConfig.memory.conversation.backfillDays,
+			// trail.db と同じ anytimeDatabase.backup 設定を memory-core.db
+			// にも適用する。pipeline runner が openMemoryCoreDb 直前に
+			// FileBackupManager 経由でローテートする。
+			backupGenerations,
+			backupIntervalDays,
 		});
 		TrailLogger.info('[MemoryCore] service constructed (orchestrated by AnalyzeAllRunner)');
 	} else if (useExternalDaemon && externalDaemonInfo) {
@@ -1064,9 +1069,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		: undefined;
 
 	// Pipelines パネル (backup / importAll 8 phases / memory-core pipelines)
+	const memoryDbFilePathForPanel = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
 	pipelineProvider = new PipelineProvider({
 		statusFilePath: pipelineStatusPath,
 		dbFilePath,
+		memoryDbFilePath: memoryDbFilePathForPanel,
 		importAllStatusFilePath,
 	});
 	vscode.window.createTreeView('anytimeTrail.pipelines', {

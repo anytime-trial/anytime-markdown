@@ -140,6 +140,65 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
     expect(children.slice(1, 9).map((c) => c.label)).toEqual([...IMPORT_ALL_PHASE_ORDER]);
     expect(children[9].label).toBe('embedding_backfill');
   });
+
+  it('memoryDbFilePath あり / .bak.1.gz 不在: memory backup を pending 表示', async () => {
+    const memDbPath = '/fake/.anytime/trail/db/memory-core.db';
+    mockExistsSync.mockReturnValue(false);
+
+    provider = new PipelineProvider({ memoryDbFilePath: memDbPath });
+    const children = await provider.getChildren();
+
+    const memBackup = children.find((c) => c.label === 'memory backup');
+    expect(memBackup).toBeDefined();
+    expect(memBackup?.description).toBe('未作成');
+  });
+
+  it('memoryDbFilePath あり / .bak.1.gz 存在: success state でサイズ + mtime 表示', async () => {
+    const memDbPath = '/fake/.anytime/trail/db/memory-core.db';
+    const memBakPath = `${memDbPath}.bak.1.gz`;
+    mockExistsSync.mockImplementation((p: string) => p === memBakPath);
+    const fakeMtime = new Date('2026-05-17T03:00:00.000Z');
+    mockStatSync.mockReturnValue({ size: 524_288, mtime: fakeMtime });
+
+    provider = new PipelineProvider({ memoryDbFilePath: memDbPath });
+    const children = await provider.getChildren();
+
+    const memBackup = children.find((c) => c.label === 'memory backup');
+    expect(memBackup).toBeDefined();
+    expect(memBackup?.description).toContain('0.5 MB');
+    expect(memBackup?.description).toContain(fakeMtime.toLocaleString());
+  });
+
+  it('表示順: backup → 8 importAll phases → memory backup → memory pipelines', async () => {
+    const statusPath = '/fake/pipeline-status.json';
+    const memDbPath = '/fake/.anytime/trail/db/memory-core.db';
+    const memBakPath = `${memDbPath}.bak.1.gz`;
+    mockExistsSync.mockImplementation(
+      (p: string) => p === statusPath || p === bakPath || p === memBakPath,
+    );
+    mockStatSync.mockReturnValue({ size: 1024, mtime: new Date() });
+    mockReadFileSync.mockReturnValue(JSON.stringify({
+      updated_at: '2026-05-11T22:00:00.000Z',
+      run_id: 'r1',
+      pipelines: [
+        { scope: 'embedding_backfill', state: 'success', started_at: '2026-05-11T22:00:00.000Z', finished_at: '2026-05-11T22:01:00.000Z', items_processed: 10, items_failed: 0 },
+      ],
+    }));
+
+    provider = new PipelineProvider({
+      statusFilePath: statusPath,
+      dbFilePath,
+      memoryDbFilePath: memDbPath,
+    });
+    const children = await provider.getChildren();
+
+    // 1 backup + 8 importAll phases + 1 memory backup + 1 memory pipeline = 11
+    expect(children).toHaveLength(11);
+    expect(children[0].label).toBe('backup');
+    expect(children.slice(1, 9).map((c) => c.label)).toEqual([...IMPORT_ALL_PHASE_ORDER]);
+    expect(children[9].label).toBe('memory backup');
+    expect(children[10].label).toBe('embedding_backfill');
+  });
 });
 
 describe('PipelineProvider — importAll phase entries (in-process)', () => {
