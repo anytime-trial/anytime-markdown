@@ -20,5 +20,8 @@ export { UsageTracker } from './usage/UsageTracker';
 export type { UsageRecord, ThresholdEvent } from './usage/types';
 export { AgentChatSession } from './session/AgentChatSession';
 export type { AgentChatSessionOptions } from './session/AgentChatSession';
+export { DefaultModelRoutingPolicy } from './routing/DefaultModelRoutingPolicy';
+export type { DefaultModelRoutingPolicyOptions } from './routing/DefaultModelRoutingPolicy';
+export type { TaskKind, TaskRoute, ModelRoutingPolicy } from './routing/types';
 export { Emitter } from './util/Emitter';
 export type { Disposable, Listener } from './util/Emitter';
