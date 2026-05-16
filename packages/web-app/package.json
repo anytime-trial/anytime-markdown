@@ -19,7 +19,6 @@
     "@anytime-markdown/cms-core": "*",
     "@anytime-markdown/database-core": "*",
     "@anytime-markdown/database-viewer": "*",
-    "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/graph-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
@@ -58,6 +57,7 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@anytime-markdown/graph-core": "*",
     "@next/bundle-analyzer": "15.3.3",
     "@playwright/test": "1.58.2",
     "@testing-library/react": "16.3.2",
