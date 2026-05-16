@@ -27,6 +27,5 @@
   "command.runWithTrace": "Run with Trace",
   "command.reinstallSkills": "Reinstall Skills",
   "command.registerMcpServer": "Register MCP Server (write .mcp.json)",
-  "command.registerMcpToClaudeCode": "Register MCP Server to Claude Code (mcp-trail)",
   "command.killExtensionHost": "Kill Extension Host"
 }
