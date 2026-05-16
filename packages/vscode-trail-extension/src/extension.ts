@@ -1067,6 +1067,52 @@ export async function activate(context: vscode.ExtensionContext) {
 				);
 			}
 		}),
+		// メモリパイプライン (embedding_backfill / spec_incremental / drift_detection 等)
+		// の 1 サイクルを即時実行する。OLLAMA パネルのバーアイコンから起動。
+		// runOnce('manual') は pause を無視するため、ユーザー明示操作として扱われる。
+		// runOnce 自体は例外を吸収して lastError に記録するため throw しない。
+		vscode.commands.registerCommand('anytime-trail.memory.runOnce', async () => {
+			if (!memoryCoreService) {
+				const daemonUrl = TrailPanel.getDaemonUrl();
+				if (!daemonUrl) {
+					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
+					return;
+				}
+				try {
+					const res = await fetch(`${daemonUrl}/api/memory-core/run`, { method: 'POST' });
+					if (!res.ok) {
+						vscode.window.showErrorMessage(`Anytime Memory run failed: HTTP ${res.status}`);
+						return;
+					}
+					vscode.window.showInformationMessage('Anytime Memory: pipelines triggered on daemon');
+				} catch (err) {
+					TrailLogger.error('memory.runOnce (daemon) failed', err);
+					vscode.window.showErrorMessage(
+						`Anytime Memory run failed: ${err instanceof Error ? err.message : String(err)}`,
+					);
+				}
+				return;
+			}
+			await vscode.window.withProgress(
+				{
+					location: vscode.ProgressLocation.Notification,
+					title: 'Anytime Memory: running pipelines',
+					cancellable: false,
+				},
+				async () => {
+					const status = await memoryCoreService!.runOnce('manual');
+					if (status.lastError) {
+						vscode.window.showWarningMessage(
+							`Anytime Memory: pipelines completed with errors — ${status.lastError}`,
+						);
+					} else {
+						vscode.window.showInformationMessage(
+							`Anytime Memory: pipelines done (ticksRun=${status.ticksRun})`,
+						);
+					}
+				},
+			);
+		}),
 	);
 
 	// Watch for configuration changes

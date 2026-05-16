@@ -10,6 +10,7 @@
   "command.memory.pauseIngest": "メモリ Ingest を一時停止",
   "command.memory.resumeIngest": "メモリ Ingest を再開",
   "command.memory.statusIngest": "メモリ Ingest の状態を表示",
+  "command.memory.runOnce": "メモリパイプラインを今すぐ実行",
   "command.analyzeCurrentCode": "コード解析",
   "command.analyzeReleaseCode": "リリース別コード解析",
   "command.analyzeAll": "全データ解析",

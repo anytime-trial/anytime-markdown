@@ -225,6 +225,12 @@
         "icon": "$(play)"
       },
       {
+        "command": "anytime-trail.memory.runOnce",
+        "title": "%command.memory.runOnce%",
+        "category": "Anytime Trail",
+        "icon": "$(run-all)"
+      },
+      {
         "command": "anytime-trail.killExtensionHost",
         "title": "%command.killExtensionHost%",
         "category": "Anytime Trail",
@@ -304,6 +310,11 @@
           "when": "view == anytimeTrail.agentMapping && anytimeTrail.agentMapping.filterActive",
           "group": "navigation",
           "icon": "$(filter-filled)"
+        },
+        {
+          "command": "anytime-trail.memory.runOnce",
+          "when": "view == anytimeTrail.ollama",
+          "group": "navigation@1"
         },
         {
           "command": "anytime-trail.startOllama",
