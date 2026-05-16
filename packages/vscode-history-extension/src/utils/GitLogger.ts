@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 let channel: vscode.OutputChannel | undefined;
 
 function getChannel(): vscode.OutputChannel {
-  channel ??= vscode.window.createOutputChannel('Anytime Git');
+  channel ??= vscode.window.createOutputChannel('Anytime History');
   return channel;
 }
 
@@ -17,6 +17,9 @@ export const GitLogger = {
   error(msg: string, err?: unknown): void {
     const detail = err instanceof Error ? `: ${err.message}` : '';
     getChannel().appendLine(`[ERROR] ${msg}${detail}`);
+  },
+  debugSql(_meta: unknown): void {
+    // SQL デバッグログは Anytime Git チャンネルでは出力しない（ノイズ抑制）
   },
   dispose(): void {
     channel?.dispose();

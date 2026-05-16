@@ -10,27 +10,39 @@ import * as vscode from 'vscode';
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { registerTraceCommands } from './commands/traceCommands';
 import { installBundledSkills } from './installBundledSkills';
-import { CodeGraphService } from './graph/CodeGraphService';
 import { AiNoteItem,AiNoteProvider } from './providers/AiNoteProvider';
 import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
+import { OllamaProvider } from './providers/OllamaProvider';
 import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
 import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
-import { TrailDataServer } from './server/TrailDataServer';
-import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { analyze } from '@anytime-markdown/trail-core/analyze';
 import {
+	TrailDataServer,
+	CodeGraphService,
 	findTsconfigCandidates,
 	runAnalyzeCurrentCodePipeline,
 	runAnalyzeReleaseCodePipeline,
-} from './graph/AnalyzePipeline';
+	loadConfig,
+	LogService,
+} from '@anytime-markdown/trail-server';
+import { TrailDatabase } from '@anytime-markdown/trail-db';
+import { analyze } from '@anytime-markdown/trail-core/analyze';
+import {
+	CREATE_EXTENSION_LOGS,
+	CREATE_EXTENSION_LOGS_INDEXES,
+} from '@anytime-markdown/trail-core/domain/schema';
+import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
 import { DatabaseProvider } from './trail/DatabaseProvider';
+import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
 import { TrailLogger } from './utils/TrailLogger';
+import { DaemonSinkLogger } from './utils/DaemonSinkLogger';
+import { MemoryCoreService } from '@anytime-markdown/trail-server';
 
 let trailDataServer: TrailDataServer | undefined;
 let trailDb: TrailDatabase | undefined;
+let memoryCoreService: MemoryCoreService | null = null;
 let extensionDistPath = '';
 
 function getEffectiveWorkspacePath(): string | undefined {
@@ -41,7 +53,7 @@ function getEffectiveWorkspacePath(): string | undefined {
 /**
  * commit 監視対象 repo を解決する。
  * - anytimeTrail.workspace.path（主リポジトリ）
- * - <workspaceFolder>/.trail/anytime-history.json の specDocsRoots（history 拡張が管理）
+ * - <workspaceFolder>/.anytime/anytime-history.json の specDocsRoots（history 拡張が管理）
  * の union を、git working tree 検証してから返す。
  */
 function getWatchedGitRoots(): string[] {
@@ -56,6 +68,20 @@ function getWatchedGitRoots(): string[] {
 function applyDocsPathConfig(): void {
 	const docsPath = vscode.workspace.getConfiguration('anytimeTrail.workspace').get<string>('docsPath', '');
 	trailDataServer?.setDocsPath(docsPath || undefined);
+}
+
+function wireDaemonLogSink(daemonUrl: string, context: vscode.ExtensionContext): void {
+	const cfg = vscode.workspace.getConfiguration('anytimeTrail.logs');
+	const minLevel = cfg.get<'debug' | 'info' | 'warn' | 'error'>('minLevel') ?? 'debug';
+	const sink = new DaemonSinkLogger({ baseUrl: daemonUrl, component: 'TrailLogger', minLevel });
+	TrailLogger.addSink(sink);
+	context.subscriptions.push({
+		dispose: (): void => {
+			TrailLogger.removeSink(sink);
+			void sink.dispose();
+		},
+	});
+	TrailLogger.info(`[DaemonSinkLogger] wired url=${daemonUrl} minLevel=${minLevel}`);
 }
 
 function setupServerCallbacks(server: TrailDataServer): void {
@@ -103,8 +129,13 @@ function setupServerCallbacks(server: TrailDataServer): void {
 export async function activate(context: vscode.ExtensionContext) {
 	extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
 
+	// OutputChannel を早期に確定し、TrailLogger.asLogger() で Logger IF を提供する。
+	const trailOutputChannel = vscode.window.createOutputChannel('Anytime Trail');
+	TrailLogger.init(trailOutputChannel);
+	context.subscriptions.push(trailOutputChannel);
+
 	// Claude Code hook を ~/.claude/settings.json に自動登録
-	const claudeStatusDirSetting = vscode.workspace.getConfiguration('anytimeTrail.claudeStatus').get<string>('directory', '.vscode/trail/agent-status') || '.vscode/trail/agent-status';
+	const claudeStatusDirSetting = vscode.workspace.getConfiguration('anytimeTrail.claudeStatus').get<string>('directory', '.anytime/trail/agent-status') || '.anytime/trail/agent-status';
 	const trailPortForHooks = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);
 	{
 		const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -427,7 +458,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Trail Database + Data Server (non-blocking initialization)
-	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '') || '.vscode';
+	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '.anytime/trail/db') || '.anytime/trail/db';
 	const wsRootForDb = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
 		? dbStoragePathSetting
@@ -436,6 +467,20 @@ export async function activate(context: vscode.ExtensionContext) {
 	const backupGenerations = dbConfig.get<number>('backupGenerations', 1);
 	const backupIntervalDays = dbConfig.get<number>('backupIntervalDays', 1);
 	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir, backupGenerations, TrailLogger, backupIntervalDays);
+
+	// Anytime Memory output channel + native binding paths are needed by:
+	//   - MemoryCoreService (ingest pipeline ホスト)
+	//   - memory chat (ChatBridge / RebuildScheduler)
+	// なので拡張側の責務として早期に解決しておく。
+	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Anytime Memory');
+	const memoryCoreNativeBinding = path.join(
+		extensionDistPath,
+		'node_modules',
+		'better-sqlite3',
+		'build',
+		'Release',
+		'better_sqlite3.node',
+	);
 	trailDb.setIntegrityAlertHandler((alerts) => {
 		for (const a of alerts) {
 			TrailLogger.warn(
@@ -444,10 +489,128 @@ export async function activate(context: vscode.ExtensionContext) {
 			);
 		}
 	});
+	// --- 外部デーモン検出 (Milestone C-2) ---
+	const useExternalDaemon = vscode.workspace
+		.getConfiguration('anytimeTrail.daemon')
+		.get<boolean>('useExternalDaemon', false);
+	const daemonClient = new DaemonClient({ logger: TrailLogger.asLogger(), workspaceRoot: wsRootForDb });
+	const externalDaemonInfo = useExternalDaemon ? daemonClient.detect() : undefined;
+	if (externalDaemonInfo) {
+		TrailLogger.info(`[DaemonClient] Using external daemon at ${externalDaemonInfo.url} (pid=${externalDaemonInfo.pid})`);
+		TrailPanel.setDaemonUrl(externalDaemonInfo.url);
+		wireDaemonLogSink(externalDaemonInfo.url, context);
+	} else if (useExternalDaemon) {
+		TrailLogger.warn('[DaemonClient] anytimeTrail.daemon.useExternalDaemon=true but no live daemon found; falling back to local server mode');
+	}
+	// --- 外部デーモン検出ここまで ---
+
 	const gitRoot = wsRootForDb;
-	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, gitRoot);
+	const memoryDbPathForServer = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
+	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot, memoryDbPathForServer);
 	TrailPanel.setDataServer(trailDataServer);
 	setupServerCallbacks(trailDataServer);
+
+	// trail config — daemon と extension で共通の設定ソース。
+	// 旧 anytimeTrail.memory.* (~v0.18) は config.json (memory.*) に統合された。
+	const trailHomeForConfig = wsRootForDb ? getTrailHome(wsRootForDb) : getTrailHome();
+	const trailConfigPath = path.join(trailHomeForConfig, 'config.json');
+	const trailConfig = loadConfig(trailConfigPath, {
+		warn: (msg: string) => TrailLogger.warn(msg),
+	});
+
+	// MemoryCoreService — ingest pipeline を周期実行する長寿命サービス。
+	// useExternalDaemon=true かつ daemon が見つかった場合は二重実行防止のため
+	// 拡張側では起動しない (daemon が hosting する)。
+	// useExternalDaemon=true でも daemon 未検出時は fallback として拡張側で
+	// service を起動する (TrailPanel が local server URL を使うのと同じ paradigm)。
+	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
+	if (hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
+		const intervalSec = trailConfig.memory.ingest.intervalSec;
+		const runOnStart = trailConfig.memory.ingest.runOnStart;
+		const startupDelaySec = trailConfig.memory.ingest.startupDelaySec;
+		const trailDbPath = path.join(dbStorageDir, 'trail.db');
+		memoryCoreService = new MemoryCoreService({
+			logSink: memoryCoreOutputChannel,
+			trailDbPath,
+			dbPath: getMemoryCoreDbPath(wsRootForDb),
+			nativeBinding: memoryCoreNativeBinding,
+			gitRoot: wsRootForDb,
+			backfillDays: trailConfig.memory.conversation.backfillDays,
+		});
+		trailDataServer.setMemoryCoreService(memoryCoreService);
+		memoryCoreService.start(intervalSec * 1000, {
+			runOnStart,
+			startupDelayMs: startupDelaySec * 1000,
+		});
+		TrailLogger.info(
+			`[MemoryCore] service started: intervalSec=${intervalSec}, runOnStart=${runOnStart}, startupDelaySec=${startupDelaySec}`,
+		);
+	} else if (useExternalDaemon && externalDaemonInfo) {
+		TrailLogger.info('[MemoryCore] hosted by external daemon, skipping local service');
+	}
+
+	// Memory chat (MEMORY > Chat タブ) — Ollama 経由の RAG チャット。
+	// activate のクリティカルパスを伸ばさないよう、初期化は全て setImmediate に
+	// 非同期で逃がす。何らかの理由 (native binding 失敗、memory-core.db 破損等) で
+	// 初期化が失敗しても拡張全体の起動が止まらないよう try/catch でガード。
+	// wsRootForDb 未取得時 (workspace folder 未オープン) は memory-core DB 初期化をスキップ。
+	// process.cwd() フォールバックは VS Code Server バイナリパス等を返す可能性があり、
+	// EACCES エラーで初期化が失敗するため。
+	const memoryDbPath = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
+	const memoryNativeBinding = memoryCoreNativeBinding;
+	const memoryLogger = {
+		info: (msg: string, ctx?: Record<string, unknown>): void =>
+			TrailLogger.info(ctx ? `${msg} ${JSON.stringify(ctx)}` : msg),
+		error: (msg: string, err?: unknown): void => TrailLogger.error(msg, err),
+	};
+	setImmediate(() => {
+		void (async () => {
+			if (!hostMemoryCoreLocally) {
+				TrailLogger.info('[memory-chat] hosted by external daemon, skipping local ChatBridge/RebuildScheduler');
+				return;
+			}
+			if (!memoryDbPath) {
+				TrailLogger.warn('[memory-chat] no workspace folder open, skipping ChatBridge/RebuildScheduler init');
+				return;
+			}
+			try {
+				const { ChatBridge } = await import('@anytime-markdown/trail-server');
+				const chatBridge = new ChatBridge({
+					memoryDbPath,
+					memoryNativeBinding,
+					getConfig: () => ({
+						baseUrl: trailConfig.memory.ollama.baseUrl,
+						chatModel: trailConfig.memory.chat.model,
+						embedModel: trailConfig.memory.embedding.model,
+						bm25Limit: trailConfig.memory.rag.bm25Limit,
+						vecLimit: trailConfig.memory.rag.vecLimit,
+						finalLimit: trailConfig.memory.rag.finalLimit,
+						rrfK: trailConfig.memory.rag.rrfK,
+					}),
+					logger: memoryLogger,
+				});
+				trailDataServer!.setChatBridge(chatBridge);
+				context.subscriptions.push({ dispose: () => void chatBridge.dispose() });
+
+				const { RebuildScheduler } = await import('@anytime-markdown/trail-server');
+				const rebuildIntervalMin = trailConfig.memory.fts.rebuildIntervalMinutes;
+				const rebuildScheduler = new RebuildScheduler({
+					memoryDbPath,
+					memoryNativeBinding,
+					logger: memoryLogger,
+				});
+				context.subscriptions.push(rebuildScheduler.start(rebuildIntervalMin * 60 * 1000));
+				context.subscriptions.push(
+					vscode.commands.registerCommand('anytime-trail.memory.rebuildIndex', () =>
+						rebuildScheduler.runManual(),
+					),
+				);
+				TrailLogger.info('[memory-chat] initialized');
+			} catch (error) {
+				TrailLogger.error('[memory-chat] init failed', error);
+			}
+		})();
+	});
 
 	// Code graph service
 	const codeGraphRepos: { id: string; label: string; path: string }[] = [];
@@ -500,7 +663,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			analysisRoot,
 			tsconfigPath: resolvedTsconfig,
 			trailDb,
-			trailDataServer: trailDataServer!,
+			callbacks: trailDataServer!,
 			codeGraphService,
 		});
 	};
@@ -525,6 +688,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			analyze,
 		);
 		trailDataServer?.notifySessionsUpdated();
+		// service が null = useExternalDaemon に委譲中。daemon 側が periodic で回す
+		// ため拡張側ではここで no-op。
+		await memoryCoreService?.runOnce('import');
 		return { ...result, durationMs: Date.now() - startedAt };
 	};
 
@@ -594,7 +760,7 @@ export async function activate(context: vscode.ExtensionContext) {
 							analysisRoot,
 							tsconfigPath,
 							trailDb: trailDb!,
-							trailDataServer: trailDataServer!,
+							callbacks: trailDataServer!,
 							codeGraphService,
 							onProgress: (phase) => progress.report({ message: phase }),
 						});
@@ -661,45 +827,73 @@ export async function activate(context: vscode.ExtensionContext) {
 			databaseProvider.updateSqliteStatus('Error');
 			return; // DB 初期化失敗時はサーバー起動もスキップ
 		}
-		try {
-			TrailLogger.info(`Trail Data Server: starting on port ${trailPort}...`);
-			await trailDataServer!.start(trailPort);
-			TrailLogger.info(`Trail Data Server started on port ${trailPort}`);
+		// 外部デーモンが有効な場合はローカルサーバー起動をスキップ。
+		// ブラウザは TrailPanel.daemonUrl 経由でデーモンに直接アクセスする。
+		if (externalDaemonInfo) {
+			TrailLogger.info('[DaemonClient] Skipping local TrailDataServer.start — using external daemon');
+		} else {
+			try {
+				// LogService 配線: extension_logs テーブルへの永続化と WS broadcast を有効化する。
+				// cli.ts (外部 daemon) と同等の wiring をローカルサーバーモードでも実施。
+				// dbStorageDir 未確定時は logs タブが空のまま動作する (OutputChannel は健在)。
+				if (dbStorageDir) {
+					const extensionLogsDbPath = path.join(dbStorageDir, 'extension-logs.db');
+					const extensionLogsDb = new BetterSqlite3MemoryDb({
+						filePath: extensionLogsDbPath,
+						nativeBinding: memoryCoreNativeBinding,
+					});
+					extensionLogsDb.run(CREATE_EXTENSION_LOGS);
+					for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
+					extensionLogsDb.run('PRAGMA journal_mode=WAL');
+					const logService = new LogService(extensionLogsDb, trailDataServer!);
+					trailDataServer!.setLogService(logService);
+					context.subscriptions.push({ dispose: (): void => extensionLogsDb.close() });
+					TrailLogger.info(`[LogService] wired: ${extensionLogsDbPath}`);
+				} else {
+					TrailLogger.warn('[LogService] dbStorageDir not resolved; logs tab will remain empty');
+				}
 
-			// トークン予算設定を反映
-			const budgetConfig = vscode.workspace.getConfiguration('anytimeTrail.budget');
-			trailDataServer!.setTokenBudgetConfig({
-				dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
-				sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),
-				alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
-			});
+				TrailLogger.info(`Trail Data Server: starting on port ${trailPort}...`);
+				await trailDataServer!.start(trailPort);
+				const actualPort = trailDataServer!.port;
+				TrailLogger.info(`Trail Data Server started on port ${actualPort}`);
+				wireDaemonLogSink(`http://127.0.0.1:${actualPort}`, context);
 
-			// 閾値超過時の VS Code 通知
-			trailDataServer!.onTokenBudgetExceeded = (status) => {
-				const sessionLabel = status.sessionId.slice(0, 8);
-				const messages: string[] = [];
-				if (status.dailyLimitTokens !== null && status.dailyTokens >= status.dailyLimitTokens * status.alertThresholdPct / 100) {
-					messages.push(`[${sessionLabel}] 本日のトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.dailyTokens.toLocaleString()} / ${status.dailyLimitTokens.toLocaleString()}）`);
-				}
-				if (status.sessionLimitTokens !== null && status.sessionTokens >= status.sessionLimitTokens * status.alertThresholdPct / 100) {
-					messages.push(`[${sessionLabel}] 現セッションのトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.sessionTokens.toLocaleString()} / ${status.sessionLimitTokens.toLocaleString()}）`);
-				}
-				for (const msg of messages) {
-					void vscode.window.showWarningMessage(msg);
-					TrailLogger.warn(msg);
-				}
-			};
-		} catch (err) {
-			TrailLogger.error('Trail Data Server failed to start', err);
-			const message = err instanceof Error ? err.message : String(err);
-			// EADDRINUSE は別 VS Code ウィンドウが同じポートを掴んでいるケースが圧倒的に多いので、
-			// OutputChannel のみだとユーザーが trail viewer 不通の原因に気付けない。
-			// 通知でポートと回復策を示す。
-			const isPortConflict = /EADDRINUSE|already in use/i.test(message);
-			const userMsg = isPortConflict
-				? `Trail Data Server failed to bind port ${trailPort} (already in use). 別の VS Code ウィンドウが同じポートを掴んでいる可能性が高いです。古いウィンドウを閉じるか anytimeTrail.viewer.port 設定で別ポートに変更してください。`
-				: `Trail Data Server failed to start: ${message}`;
-			void vscode.window.showErrorMessage(userMsg);
+				// トークン予算設定を反映
+				const budgetConfig = vscode.workspace.getConfiguration('anytimeTrail.budget');
+				trailDataServer!.setTokenBudgetConfig({
+					dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
+					sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),
+					alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
+				});
+
+				// 閾値超過時の VS Code 通知
+				trailDataServer!.onTokenBudgetExceeded = (status) => {
+					const sessionLabel = status.sessionId.slice(0, 8);
+					const messages: string[] = [];
+					if (status.dailyLimitTokens !== null && status.dailyTokens >= status.dailyLimitTokens * status.alertThresholdPct / 100) {
+						messages.push(`[${sessionLabel}] 本日のトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.dailyTokens.toLocaleString()} / ${status.dailyLimitTokens.toLocaleString()}）`);
+					}
+					if (status.sessionLimitTokens !== null && status.sessionTokens >= status.sessionLimitTokens * status.alertThresholdPct / 100) {
+						messages.push(`[${sessionLabel}] 現セッションのトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.sessionTokens.toLocaleString()} / ${status.sessionLimitTokens.toLocaleString()}）`);
+					}
+					for (const msg of messages) {
+						void vscode.window.showWarningMessage(msg);
+						TrailLogger.warn(msg);
+					}
+				};
+			} catch (err) {
+				TrailLogger.error('Trail Data Server failed to start', err);
+				const message = err instanceof Error ? err.message : String(err);
+				// EADDRINUSE は別 VS Code ウィンドウが同じポートを掴んでいるケースが圧倒的に多いので、
+				// OutputChannel のみだとユーザーが trail viewer 不通の原因に気付けない。
+				// 通知でポートと回復策を示す。
+				const isPortConflict = /EADDRINUSE|already in use/i.test(message);
+				const userMsg = isPortConflict
+					? `Trail Data Server failed to bind port ${trailPort} (already in use). 別の VS Code ウィンドウが同じポートを掴んでいる可能性が高いです。古いウィンドウを閉じるか anytimeTrail.viewer.port 設定で別ポートに変更してください。`
+					: `Trail Data Server failed to start: ${message}`;
+				void vscode.window.showErrorMessage(userMsg);
+			}
 		}
 	})().catch((err) => {
 		TrailLogger.error('Unexpected error during initialization', err);
@@ -803,6 +997,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				databaseProvider.setImporting(false);
 
 				trailDataServer?.notifySessionsUpdated();
+				await memoryCoreService?.runOnce('import');
 
 				vscode.window.showInformationMessage(
 					`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits linked, ${result.releasesResolved} releases resolved, ${result.releasesAnalyzed} releases analyzed, ${result.coverageImported} coverage entries (${result.skipped} skipped)`,
@@ -817,10 +1012,112 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push({
 		dispose: () => {
-			trailDataServer?.stop().catch(() => {});
+			// VS Code の Disposable は async dispose を await しないため fire-and-forget。
+			// 通常時は deactivate() 側で stop を await するので、ここはセーフティネット
+			// (stop() は idempotent)。エラーはログのみ確保する。
+			trailDataServer?.stop().catch((err) => {
+				TrailLogger.error('Failed to stop trail data server (dispose)', err);
+			});
+			memoryCoreService?.dispose().catch((err) => {
+				TrailLogger.error('Failed to dispose memory-core service', err);
+			});
 			trailDb?.close();
 		},
 	});
+
+	// Memory > Pause/Resume/Status Ingest コマンド。
+	// 拡張側で service をホストしている場合は直接呼ぶ。daemon 委譲中は
+	// daemon の HTTP API (TrailPanel.getDaemonUrl) を叩く。
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.memory.pauseIngest', async () => {
+			try {
+				if (memoryCoreService) {
+					const status = await memoryCoreService.pause('vscode-command');
+					vscode.window.showInformationMessage(
+						`Anytime Memory: ingest paused (by=${status.pausedBy})`,
+					);
+					return;
+				}
+				const daemonUrl = TrailPanel.getDaemonUrl();
+				if (!daemonUrl) {
+					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
+					return;
+				}
+				const res = await fetch(`${daemonUrl}/api/memory-core/pause`, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ by: 'vscode-command' }),
+				});
+				if (!res.ok) {
+					vscode.window.showErrorMessage(`Anytime Memory pause failed: HTTP ${res.status}`);
+					return;
+				}
+				vscode.window.showInformationMessage('Anytime Memory: ingest paused on daemon');
+			} catch (err) {
+				TrailLogger.error('pauseIngest failed', err);
+				vscode.window.showErrorMessage(
+					`Anytime Memory pause failed: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}),
+		vscode.commands.registerCommand('anytime-trail.memory.resumeIngest', async () => {
+			try {
+				if (memoryCoreService) {
+					await memoryCoreService.resume();
+					vscode.window.showInformationMessage('Anytime Memory: ingest resumed');
+					return;
+				}
+				const daemonUrl = TrailPanel.getDaemonUrl();
+				if (!daemonUrl) {
+					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
+					return;
+				}
+				const res = await fetch(`${daemonUrl}/api/memory-core/resume`, { method: 'POST' });
+				if (!res.ok) {
+					vscode.window.showErrorMessage(`Anytime Memory resume failed: HTTP ${res.status}`);
+					return;
+				}
+				vscode.window.showInformationMessage('Anytime Memory: ingest resumed on daemon');
+			} catch (err) {
+				TrailLogger.error('resumeIngest failed', err);
+				vscode.window.showErrorMessage(
+					`Anytime Memory resume failed: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}),
+		vscode.commands.registerCommand('anytime-trail.memory.statusIngest', async () => {
+			try {
+				if (memoryCoreService) {
+					const s = memoryCoreService.getStatus();
+					vscode.window.showInformationMessage(
+						`Anytime Memory (local): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
+							`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
+					);
+					return;
+				}
+				const daemonUrl = TrailPanel.getDaemonUrl();
+				if (!daemonUrl) {
+					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
+					return;
+				}
+				const res = await fetch(`${daemonUrl}/api/memory-core/status`);
+				if (!res.ok) {
+					vscode.window.showErrorMessage(`Anytime Memory status failed: HTTP ${res.status}`);
+					return;
+				}
+				const s = await res.json() as { paused: boolean; ticksRun: number; ticksSkipped: number; lastRunAt: string | null; lastError: string | null };
+				vscode.window.showInformationMessage(
+					`Anytime Memory (daemon): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
+						`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
+				);
+			} catch (err) {
+				TrailLogger.error('statusIngest failed', err);
+				vscode.window.showErrorMessage(
+					`Anytime Memory status failed: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}),
+	);
 
 	// Watch for configuration changes
 	context.subscriptions.push(
@@ -859,7 +1156,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// .vscode/trace/ watcher: notify when a new trace file is created
 	if (wsRootForDb) {
-		const traceDir = vscode.Uri.file(path.join(wsRootForDb, '.vscode', 'trace'));
+		const traceDir = vscode.Uri.file(path.join(trailHomeForConfig, 'trace'));
 		const traceWatcher = vscode.workspace.createFileSystemWatcher(
 			new vscode.RelativePattern(traceDir, '*.json'),
 		);
@@ -936,10 +1233,49 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Claude Code (CLI) 向け登録ヘルパー
 	registerMcpRegistrationCommand(context, extensionDistPath);
+
+	// Ollama ステータスパネル
+	// pipeline-status.json は DB と同じディレクトリ (${TRAIL_HOME}/db/) に置く。
+	// 書き手 (memory-core/defaultMemoryCorePipelineRunner.ts) が trailDbPath と
+	// 同じ dirname に出力するので、reader 側もそれに合わせる。
+	const pipelineStatusPath = dbStorageDir ? path.join(dbStorageDir, 'pipeline-status.json') : undefined;
+	const ollamaProvider = new OllamaProvider({ statusFilePath: pipelineStatusPath });
+	vscode.window.createTreeView('anytimeTrail.ollama', {
+		treeDataProvider: ollamaProvider,
+	});
+	context.subscriptions.push(
+		ollamaProvider,
+		vscode.commands.registerCommand('anytime-trail.startOllama', () =>
+			ollamaProvider.startOllama(),
+		),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.killExtensionHost', async () => {
+			const answer = await vscode.window.showWarningMessage(
+				'Extension Host を kill しますか? VS Code が自動的に再起動します。',
+				{ modal: true, detail: `現プロセス pid=${process.pid} を終了します。Trail Data Server (port 19841) が hang した場合の最終手段です。` },
+				'Kill',
+			);
+			if (answer !== 'Kill') return;
+			TrailLogger.warn(`Extension Host kill requested by user (pid=${process.pid}). Exiting in 100ms.`);
+			// OutputChannel フラッシュ猶予を確保してから exit
+			setTimeout(() => process.exit(0), 100);
+		}),
+	);
 }
 
-export function deactivate(): void {
-	trailDataServer?.stop().catch((err) => TrailLogger.error('Failed to stop trail data server', err));
+export async function deactivate(): Promise<void> {
+	try {
+		await trailDataServer?.stop();
+	} catch (err) {
+		TrailLogger.error('Failed to stop trail data server', err);
+	}
+	try {
+		await memoryCoreService?.dispose();
+	} catch (err) {
+		TrailLogger.error('Failed to dispose memory-core service', err);
+	}
 	trailDb?.close();
 	TrailLogger.dispose();
 }

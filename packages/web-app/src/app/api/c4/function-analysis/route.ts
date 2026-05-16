@@ -16,12 +16,24 @@ interface SupabaseFunctionAnalysisRow {
   language: string;
   fan_in: number;
   cognitive_complexity: number;
+  cyclomatic_complexity: number;
   data_mutation_score: number;
   side_effect_score: number;
   line_count: number;
   importance_score: number;
   signal_fan_in_zero: number;
+  fan_out: number;
+  distinct_callees: number;
+  function_role: string;
   analyzed_at: string;
+}
+
+type FunctionRole = 'hub' | 'leaf' | 'orchestrator' | 'peripheral';
+
+function normalizeFunctionRole(value: string): FunctionRole {
+  return value === 'hub' || value === 'leaf' || value === 'orchestrator' || value === 'peripheral'
+    ? value
+    : 'peripheral';
 }
 
 /**
@@ -73,12 +85,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       endLine: r.end_line,
       language: r.language,
       fanIn: r.fan_in,
+      fanOut: r.fan_out,
+      distinctCallees: r.distinct_callees,
       cognitiveComplexity: r.cognitive_complexity,
+      cyclomaticComplexity: r.cyclomatic_complexity,
       dataMutationScore: r.data_mutation_score,
       sideEffectScore: r.side_effect_score,
       lineCount: r.line_count,
       importanceScore: r.importance_score,
-      signalFanInZero: r.signal_fan_in_zero === 1,
+      functionRole: normalizeFunctionRole(r.function_role),
+      signals: { fanInZero: r.signal_fan_in_zero === 1 },
       analyzedAt: r.analyzed_at,
     }));
 

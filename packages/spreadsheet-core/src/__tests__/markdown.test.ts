@@ -35,6 +35,21 @@ describe('parseMarkdownTable', () => {
     expect(snap.cells).toEqual([['']]);
     expect(snap.range).toEqual({ rows: 1, cols: 1 });
   });
+
+  it('セパレータ行が無いテーブルもパースする（全行データとして扱う）', () => {
+    const md = '| A | B |\n| 1 | 2 |\n| 3 | 4 |';
+    const snap = parseMarkdownTable(md);
+    expect(snap.cells).toEqual([['A', 'B'], ['1', '2'], ['3', '4']]);
+    expect(snap.alignments[0]).toEqual([null, null]);
+  });
+
+  it('行ごとのセル数が異なる場合、最大列数で右詰めに空セルを追加する', () => {
+    const md = '| A | B | C |\n| --- | --- | --- |\n| 1 |\n| 1 | 2 |';
+    const snap = parseMarkdownTable(md);
+    expect(snap.range.cols).toBe(3);
+    expect(snap.cells[1]).toEqual(['1', '', '']);
+    expect(snap.cells[2]).toEqual(['1', '2', '']);
+  });
 });
 
 describe('serializeMarkdownTable', () => {

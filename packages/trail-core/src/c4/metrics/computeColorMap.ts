@@ -2,8 +2,10 @@ import { detectCycles } from '../dsm/detectCycles';
 import type { DsmMatrix } from '../dsm/types';
 import type { CoverageMatrix, ComplexityMatrix, MetricOverlay, ComplexityClass } from '../types';
 import type { ImportanceMatrix } from '../../importance/types';
+import type { CentralityMatrix, RoleMatrix } from '../../centrality/types';
 import type { HotspotMap } from '../../hotspot/types';
 import type { SizeMatrix } from './buildSizeMatrix';
+import type { ArchitectureMatrix } from './buildArchitectureMatrix';
 
 // ─── Color constants ──────────────────────────────────────────────────────────
 
@@ -86,6 +88,27 @@ function sizeFunctionsColor(value: number): string {
   return '#2e7d32';
 }
 
+// ─── Architecture (UI / Logic) ratio color ───
+// 0% (全 logic) = グレー / 100% (全 UI) = アクセントブルー の線形補間。
+// 実際の色トークンはビューワ側 (theme) から渡してもよいが、ここでは
+// design.md と整合するデフォルト色 (logic=#757575 / ui=#1976d2) を使う。
+const ARCHITECTURE_LOGIC_RGB = { r: 0x75, g: 0x75, b: 0x75 } as const;
+const ARCHITECTURE_UI_RGB = { r: 0x19, g: 0x76, b: 0xd2 } as const;
+
+function architectureUiColor(ratio: number): string {
+  const t = Math.max(0, Math.min(1, ratio));
+  const r = Math.round(ARCHITECTURE_LOGIC_RGB.r + (ARCHITECTURE_UI_RGB.r - ARCHITECTURE_LOGIC_RGB.r) * t);
+  const g = Math.round(ARCHITECTURE_LOGIC_RGB.g + (ARCHITECTURE_UI_RGB.g - ARCHITECTURE_LOGIC_RGB.g) * t);
+  const b = Math.round(ARCHITECTURE_LOGIC_RGB.b + (ARCHITECTURE_UI_RGB.b - ARCHITECTURE_LOGIC_RGB.b) * t);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+// ─── Function-roles categorical colors ───
+const COLOR_ROLE_HUB        = '#c62828';
+const COLOR_ROLE_LEAF       = '#2e7d32';
+const COLOR_ROLE_ORCH       = '#f9a825';
+const COLOR_ROLE_PERIPHERAL = '#9e9e9e';
+
 const HOTSPOT_FREQ_BASE = { r: 232, g: 160, b: 18 } as const; // amber #E8A012
 const HOTSPOT_RISK_BASE = { r: 232, g: 80, b: 28 } as const;  // red-orange #E8501C
 
@@ -119,6 +142,9 @@ export function computeColorMap(
   hotspotMap: HotspotMap | null = null,
   deadCodeMatrix: Record<string, number> | null = null,
   sizeMatrix: SizeMatrix | null = null,
+  centralityMatrix: CentralityMatrix | null = null,
+  architectureMatrix: ArchitectureMatrix | null = null,
+  roleMatrix: RoleMatrix | null = null,
 ): Map<string, string> {
   if (overlay === 'none') return new Map();
 
@@ -194,6 +220,31 @@ export function computeColorMap(
     return map;
   }
 
+  // ── Centrality ──
+  if (overlay === 'centrality') {
+    if (!centralityMatrix) return new Map();
+    const map = new Map<string, string>();
+    for (const [elementId, score] of Object.entries(centralityMatrix)) {
+      map.set(elementId, importanceHeatColor(score));
+    }
+    return map;
+  }
+
+  // ── Function Roles ──
+  if (overlay === 'function-roles') {
+    if (!roleMatrix) return new Map();
+    const map = new Map<string, string>();
+    for (const [elementId, entry] of Object.entries(roleMatrix)) {
+      const color =
+        entry.dominantRole === 'hub'         ? COLOR_ROLE_HUB
+        : entry.dominantRole === 'leaf'      ? COLOR_ROLE_LEAF
+        : entry.dominantRole === 'orchestrator' ? COLOR_ROLE_ORCH
+        : COLOR_ROLE_PERIPHERAL;
+      map.set(elementId, color);
+    }
+    return map;
+  }
+
   // ── Defect Risk ──
   if (overlay === 'defect-risk') {
     if (!defectRiskMap) return new Map();
@@ -236,6 +287,19 @@ export function computeColorMap(
     const map = new Map<string, string>();
     for (const [elementId, entry] of Object.entries(sizeMatrix)) {
       map.set(elementId, colorFn(entry[field]));
+    }
+    return map;
+  }
+
+  // ── Architecture: UI / Logic 比率 ──
+  // L4 (code) は二値 (ratio = 0 or 1)、L3/L2 はグラデーション。
+  // ratio が undefined (集計対象なし) の要素は出力に含めない。
+  if (overlay === 'architecture-ui') {
+    if (!architectureMatrix) return new Map();
+    const map = new Map<string, string>();
+    for (const [elementId, entry] of Object.entries(architectureMatrix)) {
+      if (entry.ratio === undefined) continue;
+      map.set(elementId, architectureUiColor(entry.ratio));
     }
     return map;
   }

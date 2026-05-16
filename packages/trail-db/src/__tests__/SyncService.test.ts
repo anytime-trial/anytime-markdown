@@ -1,9 +1,7 @@
-const sqlAsmActual = require(require.resolve('sql.js/dist/sql-asm.js')); // eslint-disable-line @typescript-eslint/no-require-imports
-(global as Record<string, unknown>).__non_webpack_require__ = (_path: string) => sqlAsmActual;
 
 import { SyncService } from '../SyncService';
 import type { IRemoteTrailStore } from '../IRemoteTrailStore';
-import type { ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
 import { createTestTrailDatabase } from './support/createTestDb';
 
 const createDb = createTestTrailDatabase;
@@ -11,6 +9,7 @@ const createDb = createTestTrailDatabase;
 class FakeRemoteStore implements IRemoteTrailStore {
   elements: ManualElement[] = [];
   relationships: ManualRelationship[] = [];
+  groups: ManualGroup[] = [];
   commitRows: unknown[] = [];
   messageFailure: Error | null = null;
 
@@ -42,9 +41,9 @@ class FakeRemoteStore implements IRemoteTrailStore {
   coverageRows: Array<{ repo_name: string; package: string; file_path: string; lines_total: number; lines_covered: number; lines_pct: number; statements_total: number; statements_covered: number; statements_pct: number; functions_total: number; functions_covered: number; functions_pct: number; branches_total: number; branches_covered: number; branches_pct: number; updated_at: string }> = [];
   releaseCoverageRows: Array<{ release_tag: string; package: string; file_path: string; lines_total: number; lines_covered: number; lines_pct: number; statements_total: number; statements_covered: number; statements_pct: number; functions_total: number; functions_covered: number; functions_pct: number; branches_total: number; branches_covered: number; branches_pct: number }> = [];
   codeGraphRows: Array<{ repo_name: string; graph_json: string; generated_at: string; updated_at: string }> = [];
-  codeGraphCommunityRows: Array<{ repo_name: string; community_id: number; label: string; name: string; summary: string; generated_at: string; updated_at: string }> = [];
+  codeGraphCommunityRows: Array<{ repo_name: string; community_id: number; label: string; name: string; summary: string; mappings_json: string | null; stable_key: string; generated_at: string; updated_at: string }> = [];
   releaseCodeGraphRows: Array<{ release_tag: string; graph_json: string; generated_at: string; updated_at: string }> = [];
-  releaseCodeGraphCommunityRows: Array<{ release_tag: string; community_id: number; label: string; name: string; summary: string; generated_at: string; updated_at: string }> = [];
+  releaseCodeGraphCommunityRows: Array<{ release_tag: string; community_id: number; label: string; name: string; summary: string; stable_key: string; generated_at: string; updated_at: string }> = [];
 
   async unsafeClearCurrentCoverage(): Promise<void> { this.coverageRows = []; }
   async upsertCurrentCoverage(rows: readonly { repo_name: string; package: string; file_path: string; lines_total: number; lines_covered: number; lines_pct: number; statements_total: number; statements_covered: number; statements_pct: number; functions_total: number; functions_covered: number; functions_pct: number; branches_total: number; branches_covered: number; branches_pct: number; updated_at: string }[]): Promise<void> {
@@ -66,14 +65,14 @@ class FakeRemoteStore implements IRemoteTrailStore {
   async upsertCurrentCodeGraphs(rows: readonly { repo_name: string; graph_json: string; generated_at: string; updated_at: string }[]): Promise<void> {
     this.codeGraphRows.push(...(rows as typeof this.codeGraphRows));
   }
-  async upsertCurrentCodeGraphCommunities(rows: readonly { repo_name: string; community_id: number; label: string; name: string; summary: string; generated_at: string; updated_at: string }[]): Promise<void> {
+  async upsertCurrentCodeGraphCommunities(rows: readonly { repo_name: string; community_id: number; label: string; name: string; summary: string; mappings_json: string | null; stable_key: string; generated_at: string; updated_at: string }[]): Promise<void> {
     this.codeGraphCommunityRows.push(...(rows as typeof this.codeGraphCommunityRows));
   }
   async unsafeClearReleaseCodeGraphs(): Promise<void> { this.releaseCodeGraphRows = []; this.releaseCodeGraphCommunityRows = []; }
   async upsertReleaseCodeGraphs(rows: readonly { release_tag: string; graph_json: string; generated_at: string; updated_at: string }[]): Promise<void> {
     this.releaseCodeGraphRows.push(...(rows as typeof this.releaseCodeGraphRows));
   }
-  async upsertReleaseCodeGraphCommunities(rows: readonly { release_tag: string; community_id: number; label: string; name: string; summary: string; generated_at: string; updated_at: string }[]): Promise<void> {
+  async upsertReleaseCodeGraphCommunities(rows: readonly { release_tag: string; community_id: number; label: string; name: string; summary: string; stable_key: string; generated_at: string; updated_at: string }[]): Promise<void> {
     this.releaseCodeGraphCommunityRows.push(...(rows as typeof this.releaseCodeGraphCommunityRows));
   }
 
@@ -100,6 +99,18 @@ class FakeRemoteStore implements IRemoteTrailStore {
   }
   async deleteManualRelationship(repoName: string, relId: string): Promise<void> {
     this.relationships = this.relationships.filter(r => !(r.id === relId && (r as ManualRelationship & { _repo: string })._repo === repoName));
+  }
+  async listManualGroups(repoName: string): Promise<readonly ManualGroup[]> {
+    return this.groups.filter(g => (g as ManualGroup & { _repo: string })._repo === repoName);
+  }
+  async upsertManualGroup(repoName: string, g: ManualGroup): Promise<void> {
+    const idx = this.groups.findIndex(x => x.id === g.id && (x as ManualGroup & { _repo: string })._repo === repoName);
+    const entry = { ...g, _repo: repoName } as ManualGroup & { _repo: string };
+    if (idx >= 0) this.groups[idx] = entry;
+    else this.groups.push(entry);
+  }
+  async deleteManualGroup(repoName: string, groupId: string): Promise<void> {
+    this.groups = this.groups.filter(g => !(g.id === groupId && (g as ManualGroup & { _repo: string })._repo === repoName));
   }
   async refreshMaterializedViews(): Promise<void> {
     // no-op (test fake)
@@ -150,25 +161,30 @@ describe('SyncService.sync commits', () => {
   it('syncs session commits even when message sync fails for that session', async () => {
     const localDb = await createDb();
     const inner = (localDb as unknown as { ensureDb(): { run(sql: string, params?: unknown[]): void } }).ensureDb();
+    // messageCutoff = Date.now() - 7 日 のためメッセージは「直近 7 日以内」である必要がある。
+    // テスト実行時刻に依存しないよう Date.now() からの相対時刻を採用。
+    const now = new Date();
+    const recentIso = new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(); // 1 時間前
+    const sessionStartIso = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(); // 2 時間前
     inner.run(
       `INSERT OR IGNORE INTO sessions (
         id, slug, repo_name, version, entrypoint, model, start_time, end_time,
         message_count, file_path, file_size, imported_at
       ) VALUES (?, ?, ?, '0', '', '', ?, ?, 0, '', 0, ?)`,
-      ['s1', 's1', 'repo-a', '2026-05-01T00:00:00.000Z', '2026-05-01T00:10:00.000Z', '2026-05-01T00:00:00.000Z'],
+      ['s1', 's1', 'repo-a', sessionStartIso, recentIso, recentIso],
     );
     inner.run(
       `INSERT OR IGNORE INTO session_commits (
         session_id, repo_name, commit_hash, commit_message, author, committed_at,
         is_ai_assisted, files_changed, lines_added, lines_deleted
       ) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 12, 3)`,
-      ['s1', 'repo-a', 'abc123', 'fix: keep commits synced', 'Tester', '2026-05-01T00:05:00.000Z'],
+      ['s1', 'repo-a', 'abc123', 'fix: keep commits synced', 'Tester', recentIso],
     );
     inner.run(
       `INSERT OR IGNORE INTO messages (
         uuid, session_id, type, timestamp, text_content
       ) VALUES (?, ?, 'assistant', ?, ?)`,
-      ['m1', 's1', '2026-05-01T00:01:00.000Z', 'large message'],
+      ['m1', 's1', recentIso, 'large message'],
     );
     const remoteStore = new FakeRemoteStore();
     remoteStore.messageFailure = new Error('message row too large');

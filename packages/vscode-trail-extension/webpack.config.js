@@ -48,6 +48,12 @@ const extensionConfig = {
     // pg のオプションネイティブバインディング (pg-native) は未インストール。
     // pg.native を参照しない限りロードされないため外部化で OK。
     'pg-native': 'commonjs pg-native',
+    // memory-core が require('better-sqlite3') を呼ぶ。webpack に取り込ませると
+    // 内部の bindings ロジックが壊れて native binary を解決できないため、
+    // ランタイムで Node の require に解決させる。dist/node_modules/ に native
+    // binary 付きで配置するため CopyPlugin で同梱する。
+    'better-sqlite3': 'commonjs better-sqlite3',
+    bindings: 'commonjs bindings',
   },
   resolve: {
     extensions: ['.ts', '.js'],
@@ -86,19 +92,48 @@ const extensionConfig = {
     ],
   },
   plugins: [
+    // VS Code extension host exposes a throwing navigator getter in Node.
+    // Supabase's environment detection must see navigator as absent.
+    new webpack.DefinePlugin({
+      navigator: 'undefined',
+    }),
     new CopyPlugin({
-      // sql-wasm.js は initSqlJs() の locateFile で sql-wasm.wasm を同階層から
-      // 読み込むため、両ファイルを dist/ に配置する。asm.js (16MB ヒープ固定)
-      // 比で WASM は最大 2GB ヒープを使えるため大規模リポジトリの code graph
-      // 保存時の OOM を回避できる。
+      // memory-core / trail-db / mcp-trail はいずれも better-sqlite3 一本化済 (sql.js 撤去後)。
+      // memory-core の migrations/*.sql は runner が path.join(__dirname, file)
+      // で読むため、webpack バンドル後の dist/ 直下にコピーする。
+      // better-sqlite3 とその依存 (bindings / file-uri-to-path) は memory-core が
+      // require('better-sqlite3') する際に native binary 付きで解決できるよう
+      // dist/node_modules/ に丸ごとコピーする (vscode-database-extension と同じパターン)。
       patterns: [
         {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
-          to: 'sql-wasm.js',
+          // win32 では path.resolve が backslash を返し CopyPlugin の glob が
+          // 解釈できないため、forward slash に正規化する。
+          from: path.resolve(__dirname, '../memory-core/src/db/migrations/*.sql').replace(/\\/g, '/'),
+          to: '[name][ext]',
         },
         {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
-          to: 'sql-wasm.wasm',
+          from: path.resolve(__dirname, '../../node_modules/better-sqlite3'),
+          to: path.resolve(__dirname, 'dist/node_modules/better-sqlite3'),
+          // build/Release/better_sqlite3.node はホスト Node 用にビルドされる
+          // ことが多く VS Code Node (v22) と不一致になる。
+          // .node は別途 prebuilt-vscode/ から上書きコピーするため filter で除外する。
+          // (globOptions.ignore は copy-webpack-plugin v14 で稀に効かないので
+          // filter() による明示判定にする。)
+          globOptions: { ignore: ['**/src/**', '**/deps/**', '**/binding.gyp'] },
+          filter: (resourcePath) => !resourcePath.endsWith('.node'),
+        },
+        {
+          from: path.resolve(__dirname, 'prebuilt-vscode/better_sqlite3.node'),
+          to: path.resolve(__dirname, 'dist/node_modules/better-sqlite3/build/Release/better_sqlite3.node'),
+          force: true,
+        },
+        {
+          from: path.resolve(__dirname, '../../node_modules/bindings'),
+          to: path.resolve(__dirname, 'dist/node_modules/bindings'),
+        },
+        {
+          from: path.resolve(__dirname, '../../node_modules/file-uri-to-path'),
+          to: path.resolve(__dirname, 'dist/node_modules/file-uri-to-path'),
         },
       ],
     }),
@@ -165,18 +200,18 @@ const trailStandaloneConfig = {
 const mcpTrailServerConfig = {
   target: 'node',
   mode: 'development',
-  entry: './src/server/mcp-trail-entry.ts',
+  entry: '../trail-server/src/server/mcp-trail-entry.ts',
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'mcp-trail-server.js',
     libraryTarget: 'commonjs2',
   },
   // mcp-trail サーバーは Node プロセスとして子プロセス起動するため
-  // vscode API を参照しない。sql.js は WASM で webpack に取り込むと
-  // モジュール解決が壊れるため、ランタイムで __non_webpack_require__ で
-  // dist/sql-wasm.js を動的ロードする。webpack で取り込まないように除外する。
+  // vscode API を参照しない。better-sqlite3 はネイティブモジュールなので
+  // webpack に取り込まず、runtime に `require('better-sqlite3')` で
+  // dist/node_modules/better-sqlite3 を解決する (CopyPlugin で配置済み)。
   externals: {
-    'sql.js': 'commonjs sql.js',
+    'better-sqlite3': 'commonjs better-sqlite3',
   },
   resolve: {
     extensions: ['.ts', '.js'],
@@ -203,11 +238,21 @@ const mcpTrailServerConfig = {
     ],
   },
   // __dirname / __filename を runtime 値のまま残す。
-  // sql.js の locate (sql-wasm.js / sql-wasm.wasm) を dist/ から探すために必要。
+  // better-sqlite3 の native binary 解決 (dist/node_modules/better-sqlite3) と
+  // memory-core の migrations/*.sql 読み込みのために必要。
   node: {
     __dirname: false,
     __filename: false,
   },
+  // memory-core が typescript を import しており、ts compiler の内部プラグイン
+  // ローダーが動的 require を使うため警告が出る (extensionConfig と同根)。
+  // bundle に含めて警告のみ抑制する。
+  ignoreWarnings: [
+    {
+      module: /node_modules[\\/]typescript[\\/]lib[\\/]typescript\.js$/,
+      message: /Critical dependency: the request of a dependency is an expression/,
+    },
+  ],
   plugins: [
     ...buildBundleAnalyzerPlugins('mcp-trail'),
   ],

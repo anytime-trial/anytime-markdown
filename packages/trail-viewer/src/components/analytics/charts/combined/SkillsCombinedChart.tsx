@@ -6,6 +6,7 @@ import { useTrailTheme } from '../../../TrailThemeContext';
 import { fmtNum } from '../../../../domain/analytics/formatters';
 import type { CombinedAxisInfo } from './axisInfo';
 import { hideZero, makeAxisClick } from './axisInfo';
+import { useSkillCategory } from '../../../SkillCategoryContext';
 
 export function SkillsCombinedChart({
   axisInfo,
@@ -16,26 +17,27 @@ export function SkillsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
-  const { skillRows, allPeriods, labels, skills, skillMap } = axisInfo;
+  const { cardSx } = useTrailTheme();
+  const { getSkillCategory, getSkillCategoryLabel, getSkillCategoryColorByIndex, skillCategoryKeys } = useSkillCategory();
+  const { skillRows, allPeriods, labels } = axisInfo;
 
   const dataset = useMemo(() => {
-    const countMap = new Map<string, number>();
+    const valMap = new Map<string, number>();
     for (const r of skillRows) {
-      const displayKey = skillMap.get(r.skill) ?? r.skill;
-      const key = `${r.period}::${displayKey}`;
-      countMap.set(key, (countMap.get(key) ?? 0) + r.count);
+      const cat = getSkillCategory(r.skill);
+      const key = `${r.period}::${cat}`;
+      valMap.set(key, (valMap.get(key) ?? 0) + r.count);
     }
     return allPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: labels[pi] };
-      for (let i = 0; i < skills.length; i++) {
-        entry[`s${i}`] = countMap.get(`${p}::${skills[i]}`) ?? 0;
+      for (const cat of skillCategoryKeys) {
+        entry[`s${cat}`] = valMap.get(`${p}::${cat}`) ?? 0;
       }
       return entry;
     });
-  }, [skillRows, allPeriods, labels, skills, skillMap]);
+  }, [skillRows, allPeriods, labels, getSkillCategory, skillCategoryKeys]);
 
-  if (skills.length === 0) {
+  if (skillRows.length === 0) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
   }
 
@@ -45,11 +47,11 @@ export function SkillsCombinedChart({
         dataset={dataset}
         xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
         yAxis={[{ valueFormatter: fmtNum }]}
-        series={skills.map((skill, i) => ({
-          dataKey: `s${i}`,
-          label: skill,
+        series={skillCategoryKeys.map((cat) => ({
+          dataKey: `s${cat}`,
+          label: getSkillCategoryLabel(cat),
           stack: 'total',
-          color: toolPalette[i % toolPalette.length],
+          color: getSkillCategoryColorByIndex(cat),
           valueFormatter: hideZero,
         }))}
         height={240}

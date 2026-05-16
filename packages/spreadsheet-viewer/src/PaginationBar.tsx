@@ -12,8 +12,9 @@ import {
     Stack,
     Typography,
 } from "@mui/material";
-import { useTranslations } from "next-intl";
 import React from "react";
+
+import { useSpreadsheetT } from "./i18n/context";
 
 export interface PaginationProps {
     readonly page: number;
@@ -32,7 +33,7 @@ export const PaginationBar: React.FC<Readonly<PaginationProps>> = ({
     onChange,
     disabled,
 }) => {
-    const t = useTranslations("Pager");
+    const t = useSpreadsheetT("Pager");
     const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
     const clampedPage = Math.min(Math.max(1, page), totalPages);
 

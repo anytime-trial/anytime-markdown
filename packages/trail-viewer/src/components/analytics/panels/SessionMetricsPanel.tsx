@@ -4,7 +4,6 @@ import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 import type { ToolMetrics, TrailSession } from '../../../domain/parser/types';
 import {
-  fmtDuration,
   fmtNum,
   fmtPercent,
   fmtTokens,
@@ -24,51 +23,30 @@ export function SessionMetricsPanel({ session, toolMetrics }: Readonly<{
   const [qualityIdx, setQualityIdx] = useState(0);
 
   const s = session;
-  const totalTokens = s.usage.inputTokens + s.usage.outputTokens;
+  const totalTokens = s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens;
   const cost = sessionCost(s);
-  const durationMs = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
-  const durationHours = durationMs / 3_600_000;
-  const cacheInput = s.usage.inputTokens + s.usage.cacheReadTokens;
-  const cacheHitRate = cacheInput > 0 ? s.usage.cacheReadTokens / cacheInput : 0;
-  const outputRatio = cacheInput > 0 ? s.usage.outputTokens / cacheInput : 0;
-  const contextGrowth = s.messageCount > 0
-    ? ((s.peakContextTokens ?? 0) - (s.initialContextTokens ?? 0)) / s.messageCount
-    : 0;
-  const linesAdded = s.commitStats?.linesAdded ?? 0;
-  const linesDeleted = s.commitStats?.linesDeleted ?? 0;
+  const turnCount = s.assistantMessageCount ?? s.messageCount;
+  const grossLines = (s.commitStats?.linesAdded ?? 0) + (s.commitStats?.linesDeleted ?? 0);
   const tm = toolMetrics;
 
   const cardStyle = { ...cardSx, p: 2, minWidth: 160, flex: '1 1 160px', textAlign: 'center' } as const;
 
   const usageCards = [
-    { label: t('analytics.totalTokens'), value: fmtTokens(totalTokens), tooltip: t('analytics.totalTokens.description') },
-    { label: t('analytics.estimatedCost'), value: fmtUsd(cost), tooltip: t('analytics.estimatedCost.description') },
-    { label: t('analytics.metricMessages'), value: fmtNum(s.messageCount), tooltip: t('analytics.metricMessages.description') },
-    { label: t('analytics.metricErrors'), value: (s.errorCount ?? 0) > 0 ? fmtNum(s.errorCount!) : '—', tooltip: t('analytics.metricErrors.description') },
-    { label: t('analytics.cacheHit'), value: cacheInput > 0 ? fmtPercent(cacheHitRate) : '—', tooltip: t('analytics.cacheHit.description') },
-    { label: t('analytics.outputRatio'), value: cacheInput > 0 ? fmtPercent(outputRatio) : '—', tooltip: t('analytics.outputRatio.description') },
-    { label: t('analytics.contextGrowth'), value: s.messageCount > 0 ? `${fmtTokens(Math.round(contextGrowth))}/step` : '—', tooltip: t('analytics.contextGrowth.description') },
-    { label: t('analytics.netLines'), value: linesAdded > 0 || linesDeleted > 0 ? `+${fmtNum(linesAdded)} / -${fmtNum(linesDeleted)}` : '—', tooltip: t('analytics.netLines.description') },
-    { label: t('analytics.metricFiles'), value: (s.commitStats?.filesChanged ?? 0) > 0 ? fmtNum(s.commitStats!.filesChanged) : '—', tooltip: t('analytics.metricFiles.description') },
-    { label: t('analytics.metricDuration'), value: durationMs > 0 ? fmtDuration(durationMs) : '—', tooltip: t('analytics.metricDuration.description') },
+    { label: t('analytics.netLines'), value: s.commitStats != null ? fmtNum(grossLines) : '—', tooltip: t('analytics.netLines.description') },
+    { label: t('analytics.tokens'), value: fmtTokens(totalTokens), tooltip: t('analytics.totalTokens.description') },
+    { label: t('analytics.cost'), value: fmtUsd(cost), tooltip: t('analytics.estimatedCost.description') },
   ];
 
   const productivityCards = [
-    { label: t('analytics.tokensPerStep'), value: s.messageCount > 0 ? fmtTokens(Math.round(totalTokens / s.messageCount)) : '—', tooltip: t('analytics.tokensPerStep.description') },
-    { label: t('analytics.costPerStep'), value: s.messageCount > 0 ? fmtUsd(cost / s.messageCount) : '—', tooltip: t('analytics.costPerStep.description') },
-    { label: t('analytics.linesPerHour'), value: durationHours > 0 && linesAdded > 0 ? fmtNum(Math.round(linesAdded / durationHours)) : '—', tooltip: t('analytics.linesPerHour.description') },
-    { label: t('analytics.costPerHour'), value: durationHours > 0 ? fmtUsd(cost / durationHours) : '—', tooltip: t('analytics.costPerHour.description') },
-    { label: t('analytics.costPerCommit'), value: (s.commitStats?.commits ?? 0) > 0 ? fmtUsd(cost / s.commitStats!.commits) : '—', tooltip: t('analytics.costPerCommit.description') },
-    { label: t('analytics.avgInterval'), value: s.messageCount > 1 ? fmtDuration(durationMs / (s.messageCount - 1)) : '—', tooltip: t('analytics.avgInterval.description') },
+    { label: t('analytics.tokensPerStep'), value: turnCount > 0 ? fmtTokens(Math.round(totalTokens / turnCount)) : '—', tooltip: t('analytics.tokensPerStep.description') },
+    { label: t('analytics.costPerStep'), value: turnCount > 0 ? fmtUsd(cost / turnCount) : '—', tooltip: t('analytics.costPerStep.description') },
+    { label: t('analytics.tokensPerLoc'), value: grossLines > 0 ? fmtNum(Math.round(totalTokens / grossLines)) : '—', tooltip: t('analytics.tokensPerLoc.description') },
   ];
 
   const qualityCards = [
     { label: t('analytics.retryRate'), value: tm && tm.totalEdits > 0 ? fmtPercent(tm.totalRetries / tm.totalEdits) : '—', tooltip: t('analytics.retryRate.description') },
     { label: t('analytics.buildFail'), value: tm && tm.totalBuildRuns > 0 ? fmtPercent(tm.totalBuildFails / tm.totalBuildRuns) : '—', tooltip: t('analytics.buildFail.description') },
     { label: t('analytics.testFail'), value: tm && tm.totalTestRuns > 0 ? fmtPercent(tm.totalTestFails / tm.totalTestRuns) : '—', tooltip: t('analytics.testFail.description') },
-    { label: t('analytics.metricInterrupted'), value: s.interruption?.interrupted
-        ? `${s.interruption.reason === 'max_tokens' ? 'max_tokens' : 'no response'} (${fmtTokens(s.interruption.contextTokens)})`
-        : '—', tooltip: t('analytics.metricInterrupted.description') },
   ];
 
   return (

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain';
 import { useTrailTheme } from '../../TrailThemeContext';
+import { useCommitCategory } from '../../CommitCategoryContext';
 import { useTrailI18n } from '../../../i18n';
 import type { TrailSessionCommit } from '../../../domain/parser/types';
 import { ChartTitle } from './shared/ChartTitle';
@@ -18,7 +18,8 @@ export function SessionCommitPrefixChart({
   sessionId: string;
   fetchSessionCommits: (id: string) => Promise<readonly TrailSessionCommit[]>;
 }>) {
-  const { colors, cardSx, toolPalette } = useTrailTheme();
+  const { colors, cardSx } = useTrailTheme();
+  const { getCategoryColor } = useCommitCategory();
   const { t } = useTrailI18n();
   const [commits, setCommits] = useState<readonly TrailSessionCommit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +64,7 @@ export function SessionCommitPrefixChart({
     id: i,
     value: count,
     label: `${prefix} (${count})`,
-    color: toolPalette[i % toolPalette.length],
+    color: getCategoryColor(prefix),
   }));
 
   return (
@@ -77,16 +78,6 @@ export function SessionCommitPrefixChart({
       >
         <PieCenterLabel value={commits.length} color={colors.textPrimary} />
       </PieChart>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 1.5, pb: 0.5 }}>
-        {sorted.map(([prefix, count], i) => (
-          <Chip
-            key={prefix}
-            size="small"
-            label={`${prefix} (${count})`}
-            sx={{ bgcolor: toolPalette[i % toolPalette.length], color: '#fff', fontSize: '0.65rem', height: 18 }}
-          />
-        ))}
-      </Box>
     </Paper>
   );
 }

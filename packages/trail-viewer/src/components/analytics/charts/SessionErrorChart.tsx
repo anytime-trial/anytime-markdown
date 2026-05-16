@@ -1,5 +1,4 @@
 import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { PieChart } from '@mui/x-charts/PieChart';
@@ -43,16 +42,6 @@ export function SessionErrorChart({ toolMetrics }: Readonly<{ toolMetrics: ToolM
       >
         <PieCenterLabel value={sorted.reduce((s, e) => s + e.count, 0)} color={colors.textPrimary} />
       </PieChart>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 1.5, pb: 0.5 }}>
-        {sorted.map((e, i) => (
-          <Chip
-            key={e.tool}
-            size="small"
-            label={`${e.tool} (${e.count})`}
-            sx={{ bgcolor: toolPalette[i % toolPalette.length], color: '#fff', fontSize: '0.65rem', height: 18 }}
-          />
-        ))}
-      </Box>
     </Paper>
   );
 }

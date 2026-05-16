@@ -11,6 +11,7 @@ import { ToolUsageChart } from './charts/ToolUsageChart';
 
 export function AnalyticsPanel({
   analytics,
+  releases,
   sessions = [],
   sessionsLoading,
   onSelectSession,
@@ -23,6 +24,9 @@ export function AnalyticsPanel({
   fetchCombinedData,
   fetchQualityMetrics,
   fetchReleaseQuality,
+  onOpenReleasesPopup,
+  onOpenPromptsPopup,
+  onOpenMessagesPopup,
 }: Readonly<AnalyticsPanelProps>) {
   const { t } = useTrailI18n();
   const { scrollbarSx } = useTrailTheme();
@@ -32,63 +36,47 @@ export function AnalyticsPanel({
   useEffect(() => {
     if (!fetchQualityMetrics) return;
     const to = new Date();
-    const from = new Date(to.getTime() - period * 86_400_000);
+    const from = new Date(0);
     void fetchQualityMetrics({ from: from.toISOString(), to: to.toISOString() }).then((result) => {
       if (result) setOverviewQualityMetrics(result);
     });
-  }, [fetchQualityMetrics, period]);
+  }, [fetchQualityMetrics]);
 
-  const { currentTotals, comparison } = useMemo(() => {
-    if (!analytics) return { currentTotals: null, comparison: undefined };
+  const comparison = useMemo(() => {
+    if (!analytics) return undefined;
+    const FIXED_DAYS = 30;
     const now = new Date();
-    const currentFrom = new Date(now.getTime() - period * 24 * 3600 * 1000);
-    const previousFrom = new Date(currentFrom.getTime() - period * 24 * 3600 * 1000);
-
+    const currentFrom = new Date(now.getTime() - FIXED_DAYS * 86_400_000);
+    const previousFrom = new Date(currentFrom.getTime() - FIXED_DAYS * 86_400_000);
     const current = { sessions: 0, tokens: 0, cost: 0, commits: 0, loc: 0 };
     const previous = { sessions: 0, tokens: 0, cost: 0, commits: 0, loc: 0 };
-
     for (const d of analytics.dailyActivity) {
       const date = new Date(d.date);
       if (date >= currentFrom) {
         current.sessions += d.sessions;
-        current.tokens += (d.inputTokens + d.outputTokens);
+        current.tokens += d.inputTokens + d.outputTokens;
         current.cost += d.estimatedCostUsd;
         current.commits += d.commits;
-        current.loc += d.linesAdded;
+        current.loc += d.linesAdded + (d.linesDeleted ?? 0);
       } else if (date >= previousFrom) {
         previous.sessions += d.sessions;
-        previous.tokens += (d.inputTokens + d.outputTokens);
+        previous.tokens += d.inputTokens + d.outputTokens;
         previous.cost += d.estimatedCostUsd;
         previous.commits += d.commits;
-        previous.loc += d.linesAdded;
+        previous.loc += d.linesAdded + (d.linesDeleted ?? 0);
       }
     }
-
-    const calcDelta = (cur: number, prev: number) => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
-
+    const delta = (cur: number, prev: number) => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
     return {
-      currentTotals: {
-        ...analytics.totals,
-        sessions: current.sessions,
-        inputTokens: 0,
-        outputTokens: current.tokens, // Using combined tokens for display
-        cacheReadTokens: 0,
-        cacheCreationTokens: 0,
-        estimatedCostUsd: current.cost,
-        totalCommits: current.commits,
-        totalLinesAdded: current.loc,
-      },
-      comparison: {
-        sessions: { deltaPct: calcDelta(current.sessions, previous.sessions) },
-        tokens: { deltaPct: calcDelta(current.tokens, previous.tokens) },
-        cost: { deltaPct: calcDelta(current.cost, previous.cost) },
-        commits: { deltaPct: calcDelta(current.commits, previous.commits) },
-        loc: { deltaPct: calcDelta(current.loc, previous.loc) },
-      },
+      sessions: { deltaPct: delta(current.sessions, previous.sessions) },
+      tokens: { deltaPct: delta(current.tokens, previous.tokens) },
+      cost: { deltaPct: delta(current.cost, previous.cost) },
+      commits: { deltaPct: delta(current.commits, previous.commits) },
+      loc: { deltaPct: delta(current.loc, previous.loc) },
     };
-  }, [analytics, period]);
+  }, [analytics]);
 
-  if (!analytics || !currentTotals) {
+  if (!analytics) {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
         <Typography variant="body2" color="text.secondary">
@@ -100,10 +88,11 @@ export function AnalyticsPanel({
 
   return (
     <Box sx={{ overflow: 'auto', flex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 3, ...scrollbarSx }}>
-      <OverviewCards totals={{ ...currentTotals, comparison }} sessions={sessions} qualityMetrics={overviewQualityMetrics} />
+      <OverviewCards totals={{ ...analytics.totals, comparison }} sessions={sessions} qualityMetrics={overviewQualityMetrics} releases={releases} />
       <ToolUsageChart items={analytics.toolUsage} />
       <CombinedChartsSection
         dailyActivity={analytics.dailyActivity}
+        releases={releases}
         sessions={sessions}
         sessionsLoading={sessionsLoading}
         period={period}
@@ -118,6 +107,9 @@ export function AnalyticsPanel({
         fetchCombinedData={fetchCombinedData}
         fetchQualityMetrics={fetchQualityMetrics}
         fetchReleaseQuality={fetchReleaseQuality}
+        onOpenReleasesPopup={onOpenReleasesPopup}
+        onOpenPromptsPopup={onOpenPromptsPopup}
+        onOpenMessagesPopup={onOpenMessagesPopup}
       />
     </Box>
   );

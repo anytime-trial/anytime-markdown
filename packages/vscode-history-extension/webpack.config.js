@@ -3,7 +3,6 @@
 'use strict';
 
 const path = require('path');
-const CopyPlugin = require('copy-webpack-plugin');
 
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
@@ -29,32 +28,16 @@ const extensionConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](?:trail-db|trail-core))/,
+        exclude: /node_modules/,
         use: [{
           loader: 'ts-loader',
           options: {
-            allowTsInNodeModules: true,
             transpileOnly: true,
           },
         }],
       },
     ],
   },
-  plugins: [
-    new CopyPlugin({
-      // sql-wasm.js + sql-wasm.wasm を dist/ に配置 (TrailDatabase が locateFile で同階層を探す)。
-      patterns: [
-        {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
-          to: 'sql-wasm.js',
-        },
-        {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
-          to: 'sql-wasm.wasm',
-        },
-      ],
-    }),
-  ],
   devtool: 'nosources-source-map',
 };
 

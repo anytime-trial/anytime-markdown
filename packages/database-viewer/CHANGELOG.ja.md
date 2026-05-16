@@ -6,7 +6,7 @@
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-05-07
+## [0.1.0] - 2026-05-15
 
 ### 追加
 
@@ -16,7 +16,7 @@
 - `ResultGrid`: `spreadsheet-viewer` 統合。カラム名ヘッダ、ダブルクリックで列名を SQL エディタに挿入
 - `SqlEditorPanel`: 折りたたみ式 SQL 入力欄、Run / Clear、最終クエリ結果ステータスバー、`forwardRef` でカーソル位置への文字列挿入 API、読み取り専用対応
 - `ErdView`: ER 図タブ。FK 推定（手動 + 自動）、`graph-core` の階層レイアウト、パン / ズーム / ミニマップ、障害物回避の直交エッジルーティング、参照先カラム行のアンカー菱形、選択時の関連テーブルハイライト
-- i18n キー（ja / en）を `Database` namespace に追加
+- i18n キー（ja / en）を `Database` namespace に追加 — 自己完結 i18n に移行し、公開 API 経由でメッセージを提供
 - per-platform 対応（`database-core` 経由で Node + WASM SQLite 双方をサポート）
 
 ### 性能

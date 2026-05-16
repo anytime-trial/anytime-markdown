@@ -1,5 +1,4 @@
 import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { PieChart } from '@mui/x-charts/PieChart';
@@ -8,9 +7,11 @@ import { useTrailI18n } from '../../../i18n';
 import type { ToolMetrics } from '../../../domain/parser/types';
 import { ChartTitle } from './shared/ChartTitle';
 import { PieCenterLabel } from './shared/PieCenterLabel';
+import { useSkillCategory } from '../../SkillCategoryContext';
 
 export function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics | null }>) {
-  const { colors, cardSx, toolPalette } = useTrailTheme();
+  const { colors, cardSx } = useTrailTheme();
+  const { getSkillCategoryColor } = useSkillCategory();
   const { t } = useTrailI18n();
   const usage = toolMetrics?.skillUsage;
   if (!usage || usage.length === 0) {
@@ -29,7 +30,7 @@ export function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: 
     id: i,
     value: e.count,
     label: `${e.skill} (${e.count})`,
-    color: toolPalette[i % toolPalette.length],
+    color: getSkillCategoryColor(e.skill),
   }));
 
   return (
@@ -43,16 +44,6 @@ export function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: 
       >
         <PieCenterLabel value={sorted.reduce((s, e) => s + e.count, 0)} color={colors.textPrimary} />
       </PieChart>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 1.5, pb: 0.5 }}>
-        {sorted.map((e, i) => (
-          <Chip
-            key={e.skill}
-            size="small"
-            label={`${e.skill} (${e.count})`}
-            sx={{ bgcolor: toolPalette[i % toolPalette.length], color: '#fff', fontSize: '0.65rem', height: 18 }}
-          />
-        ))}
-      </Box>
     </Paper>
   );
 }

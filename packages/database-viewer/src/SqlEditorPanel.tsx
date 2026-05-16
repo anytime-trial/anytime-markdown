@@ -12,7 +12,7 @@ import {
   TextareaAutosize,
   Typography,
 } from "@mui/material";
-import { useTranslations } from "next-intl";
+import { useDatabaseT } from "./i18n/context";
 import React, { forwardRef, useImperativeHandle, useRef, useState } from "react";
 
 export interface SqlRunResult {
@@ -46,7 +46,7 @@ export const SqlEditorPanel = forwardRef<SqlEditorPanelHandle, SqlEditorPanelPro
   disabled,
   readOnly,
 }, ref) {
-  const t = useTranslations("Database");
+  const t = useDatabaseT("Database");
   const [expanded, setExpanded] = useState(true);
   const [internalSql, setInternalSql] = useState(initialSql);
   const isControlled = value !== undefined;

@@ -44,6 +44,11 @@ const extensionConfig = {
     ],
   },
   plugins: [
+    // VS Code extension host exposes a throwing navigator getter in Node.
+    // Supabase's environment detection must see navigator as absent.
+    new webpack.DefinePlugin({
+      navigator: 'undefined',
+    }),
     // dist/node_modules/<pkg> に native binary を含む依存ツリーを丸ごと配置する。
     // Node の標準解決で require('better-sqlite3') が dist/node_modules/better-sqlite3 に
     // hit するため、NODE_PATH の手当ては不要。
@@ -61,16 +66,6 @@ const extensionConfig = {
         {
           from: path.resolve(__dirname, '../../node_modules/file-uri-to-path'),
           to: path.resolve(__dirname, 'dist/node_modules/file-uri-to-path'),
-        },
-        // trail-db (Trail Database panel) が sql.js を使うため、WASM 版 + .wasm を dist/ にコピー
-        // (asm.js は 16MB ヒープ固定で大規模リポジトリの code graph 保存時に OOM するため)。
-        {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.js'),
-          to: 'sql-wasm.js',
-        },
-        {
-          from: path.resolve(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm'),
-          to: 'sql-wasm.wasm',
         },
       ],
     }),

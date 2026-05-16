@@ -12,7 +12,7 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Timeline view: アクティブな markdown ファイルの git 履歴を表示
-	const timelineOutput = vscode.window.createOutputChannel('Anytime Markdown Timeline');
+	const timelineOutput = vscode.window.createOutputChannel('Anytime Markdown');
 	context.subscriptions.push(timelineOutput);
 	const timelineProvider = new TimelineProvider(
 		'anytime-markdown.compareWithCommit',
@@ -210,7 +210,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Claude Code 編集通知: ステータスファイル監視 + エディタロック
 	// フック登録は trail 拡張で一元管理する。markdown 拡張はステータスファイルの読み取りのみ。
-	const storagePathSetting = vscode.workspace.getConfiguration('anytimeMarkdown.claudeStatus').get<string>('directory', '') || '.vscode';
+	const storagePathSetting = vscode.workspace.getConfiguration('anytimeMarkdown.claudeStatus').get<string>('directory', '') || '.anytime';
 	const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	const statusDir = path.isAbsolute(storagePathSetting)
 		? storagePathSetting

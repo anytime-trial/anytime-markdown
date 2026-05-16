@@ -14,6 +14,8 @@ export const DEFAULT_WEIGHTS: ImportanceScorerWeights = {
 };
 
 // cyclomaticComplexity は重みに未追加（AST メトリクス保存フェーズでは除外、別途追加予定）
+// fanOut / distinctCallees は architectural centrality 用の関数単位指標で、現在の
+// importance スコア計算には未使用 (DEFAULT_WEIGHTS にも未追加)
 const ZERO_METRICS: FunctionMetrics = {
   fanIn: 0,
   cognitiveComplexity: 0,
@@ -21,6 +23,8 @@ const ZERO_METRICS: FunctionMetrics = {
   dataMutationScore: 0,
   sideEffectScore: 0,
   lineCount: 0,
+  fanOut: 0,
+  distinctCallees: 0,
 };
 
 export class ImportanceScorer {
@@ -58,6 +62,8 @@ export class ImportanceScorer {
       dataMutationScore:     Math.max(...metricsList.map(m => m.dataMutationScore)),
       sideEffectScore:       Math.max(...metricsList.map(m => m.sideEffectScore)),
       lineCount:             Math.max(...metricsList.map(m => m.lineCount)),
+      fanOut:                Math.max(...metricsList.map(m => m.fanOut)),
+      distinctCallees:       Math.max(...metricsList.map(m => m.distinctCallees)),
     };
   }
 

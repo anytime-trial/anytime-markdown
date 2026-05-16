@@ -10,7 +10,6 @@ export interface RouteOpts {
   serverUrl: string;
   repoName?: string;
   workspacePath?: string;
-  dbPath?: string;
   forceDirect?: boolean;
 }
 
@@ -77,7 +76,7 @@ async function invokeDirectRead(
   _args: Record<string, unknown>,
   opts: RouteOpts,
 ): Promise<unknown> {
-  const dbPath = resolveDbPath({ dbPath: opts.dbPath, workspacePath: opts.workspacePath });
+  const dbPath = resolveDbPath({ workspacePath: opts.workspacePath });
   const opened = await openTrailDb(dbPath, 'readonly');
   try {
     const repoName = resolveRepoName(
@@ -108,7 +107,7 @@ async function invokeDirectWrite(
   args: Record<string, unknown>,
   opts: RouteOpts,
 ): Promise<unknown> {
-  const dbPath = resolveDbPath({ dbPath: opts.dbPath, workspacePath: opts.workspacePath });
+  const dbPath = resolveDbPath({ workspacePath: opts.workspacePath });
   const opened = await openTrailDb(dbPath, 'readwrite');
   try {
     const repoName = resolveRepoName(

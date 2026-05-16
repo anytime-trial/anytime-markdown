@@ -26,10 +26,14 @@ export interface ResizablePopupProps {
   readonly onSizeChange: (size: ResizablePopupSize) => void;
   readonly maximized: boolean;
   readonly onMaximizedChange: (maximized: boolean) => void;
-  /** size === null のときに使う初期 left オフセット（px） */
+  /** size === null のときに使う初期 left オフセット（px）。`centered` 指定時は無視される。 */
   readonly defaultLeft?: number;
   /** size === null のときに使う maxWidth（px） */
   readonly defaultMaxWidth?: number;
+  /** size === null のときに親領域の中央に水平方向で寄せる。デフォルト false。 */
+  readonly centered?: boolean;
+  /** ポップアップ背後を覆う半透明 + ぼかしの backdrop を表示する。デフォルト false。 */
+  readonly withBackdrop?: boolean;
   readonly toolbarButtonSx: SxProps<Theme>;
   readonly i18nMaximize: string;
   readonly i18nRestore: string;
@@ -48,6 +52,8 @@ export function ResizablePopup({
   title, ariaLabel, onClose, isDark, colors,
   size, onSizeChange, maximized, onMaximizedChange,
   defaultLeft = 244, defaultMaxWidth = 960,
+  centered = false,
+  withBackdrop = false,
   toolbarButtonSx,
   i18nMaximize, i18nRestore, i18nClose, i18nResize,
   children,
@@ -93,19 +99,51 @@ export function ResizablePopup({
     bgcolor: isDark ? 'rgba(18,18,18,0.96)' : 'rgba(251,249,243,0.98)',
     color: colors.text,
     boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
-    backdropFilter: 'blur(10px)',
+    // backdropFilter をこの要素自体に置くと position:fixed の containing block になり
+    // MUI X Charts の Popper tooltip がポップアップ起点でずれる。
+    // ::before 擬似要素に移動することで視覚効果を維持しつつ containing block 問題を回避する。
     display: 'flex',
     flexDirection: 'column' as const,
     overflow: 'hidden' as const,
     zIndex: 11,
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      inset: 0,
+      backdropFilter: 'blur(10px)',
+      WebkitBackdropFilter: 'blur(10px)',
+      borderRadius: 'inherit',
+      zIndex: -1,
+      pointerEvents: 'none',
+    },
   };
   const sizeSx = maximized
     ? { top: MARGIN, left: MARGIN, right: MARGIN, bottom: MARGIN }
     : size
-      ? { top: MARGIN, left: defaultLeft, width: size.width, height: size.height }
-      : { top: MARGIN, left: defaultLeft, right: MARGIN, maxWidth: defaultMaxWidth, height: `calc(100% - ${MARGIN * 2}px)` };
+      ? centered
+        // 中央寄せモードでリサイズ済みの場合は left/right に同値を入れて margin auto で中央維持。
+        ? { top: MARGIN, left: MARGIN, right: MARGIN, marginLeft: 'auto', marginRight: 'auto', width: size.width, height: size.height }
+        : { top: MARGIN, left: defaultLeft, width: size.width, height: size.height }
+      : centered
+        // position: absolute でも left/right + margin auto で水平中央寄せが効く。
+        ? { top: MARGIN, left: MARGIN, right: MARGIN, marginLeft: 'auto', marginRight: 'auto', maxWidth: defaultMaxWidth, height: `calc(100% - ${MARGIN * 2}px)` }
+        : { top: MARGIN, left: defaultLeft, right: MARGIN, maxWidth: defaultMaxWidth, height: `calc(100% - ${MARGIN * 2}px)` };
 
   return (
+    <>
+      {withBackdrop && (
+        <Box
+          aria-hidden
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            bgcolor: isDark ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.15)',
+            zIndex: 10,
+          }}
+        />
+      )}
     <Box ref={rootRef} role="dialog" aria-label={ariaLabel} sx={{ ...baseSx, ...sizeSx }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1.5, py: 0.75, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
         <Typography variant="caption" sx={{ color: colors.text, fontSize: '0.8rem', fontWeight: 600 }}>
@@ -165,5 +203,6 @@ export function ResizablePopup({
         />
       )}
     </Box>
+    </>
   );
 }

@@ -5,6 +5,11 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
+jest.mock("@anytime-markdown/graph-viewer/src/i18n/context", () => ({
+  GraphI18nProvider: ({ children }: { children: React.ReactNode }) => children,
+  useGraphT: () => (key: string) => key,
+}));
+
 const mockSetThemeMode = jest.fn();
 const mockSetLocale = jest.fn();
 

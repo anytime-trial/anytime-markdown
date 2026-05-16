@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.14.1",
+  "version": "0.15.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -33,6 +33,7 @@
     "packages/vscode-extension-pack",
     "packages/web-app",
     "packages/mobile-app",
+    "packages/trail-server",
     "packages/trail-core",
     "packages/trail-db",
     "packages/trail-viewer",
@@ -40,21 +41,24 @@
     "packages/mcp-trail",
     "packages/trace-core",
     "packages/trace-agent-node",
-    "packages/trace-viewer"
+    "packages/trace-viewer",
+    "packages/memory-core",
+    "packages/review-agent"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",
     "diff": "8.0.3",
     "postcss": "8.5.10",
     "uuid": "^14.0.0",
-    "next": "16.2.4",
+    "next": "16.2.6",
     "@auth/core": "0.41.1",
     "next-auth": {
       "@auth/core": "0.41.1"
     },
     "handlebars": "4.7.9",
     "@xmldom/xmldom": "0.9.10",
-    "brace-expansion": "1.1.13"
+    "brace-expansion": "1.1.13",
+    "ignore": "7.0.5"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.1.6",
@@ -67,6 +71,7 @@
   "dependencies": {
     "@auth/core": "0.41.1",
     "@xmldom/xmldom": "0.9.10",
-    "next": "16.2.4"
+    "ignore": "7.0.5",
+    "next": "16.2.6"
   }
 }

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { SpecDocsProvider, SpecDocsItem, SpecDocsRootItem } from '../providers/SpecDocsProvider';
 import { ChangesProvider } from '../providers/ChangesProvider';
-import { TimelineProvider } from '../providers/TimelineProvider';
+import { TimelineProvider } from '@anytime-markdown/vscode-common';
 
 /** .md / .markdown ファイルかどうか判定する */
 export function isMarkdownFile(filePath: string): boolean {

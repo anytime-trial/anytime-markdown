@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-05-07
+## [0.1.0] - 2026-05-15
 
 ### Added
 
@@ -26,6 +26,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - l10n bundle (`l10n/bundle.l10n.json` + `l10n/bundle.l10n.ja.json`) for runtime tree-item labels
 - `DbLogger` (`Anytime Database` Output channel) with timestamps and `Error.stack` for error logs
 
+### Changed
+
+- Removed `sql.js` from the extension bundle and rely on native `better-sqlite3` only (Phase 4)
+- `database-viewer` migrated to self-contained i18n; webview shim updated accordingly
+
+### Fixed
+
+- Avoided `navigator` access and broken dynamic import resolution in the webview bundle
+
 ### Database Core (database-core / database-viewer)
 
 - Initial release of the SQLite adapter layer (`BetterSqlite3Adapter`, `SqlJsAdapter`, `PaginatedSqlSheetAdapter`) and database UI (`DatabaseEditor`, `ErdView`, `TableTree`, `ResultGrid`, `SqlEditorPanel`). See `packages/database-core/CHANGELOG.md` and `packages/database-viewer/CHANGELOG.md` for details
+- `database-viewer` migrated to self-contained i18n with public package API

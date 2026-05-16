@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseRow } from './TrailDatabase';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
-import type { ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
 import { type DbLogger, noopDbLogger } from './DbLogger';
 
 export class SupabaseTrailStore implements IRemoteTrailStore {
@@ -96,7 +96,10 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       initial_context_tokens: r.initial_context_tokens ?? null,
       interruption_reason: r.interruption_reason ?? null,
       interruption_context_tokens: r.interruption_context_tokens ?? null,
-      compact_count: r.compact_count ?? null,
+      compact_count:             r.compact_count             ?? null,
+      sub_agent_count:           r.sub_agent_count           ?? 0,
+      error_count:               r.error_count               ?? 0,
+      assistant_message_count:   r.assistant_message_count   ?? 0,
       source: r.source ?? 'claude_code',
       synced_at: new Date().toISOString(),
     }));
@@ -239,10 +242,12 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       tag: r.tag, released_at: r.released_at, prev_tag: r.prev_tag ?? null,
       repo_name: r.repo_name, package_tags: r.package_tags, commit_count: r.commit_count,
       files_changed: r.files_changed, lines_added: r.lines_added, lines_deleted: r.lines_deleted,
+      total_lines: r.total_lines,
       feat_count: r.feat_count, fix_count: r.fix_count, refactor_count: r.refactor_count,
       test_count: r.test_count, other_count: r.other_count,
       affected_packages: r.affected_packages, duration_days: r.duration_days,
       resolved_at: r.resolved_at ?? null,
+      release_time_min: r.release_time_min ?? null,
       synced_at: new Date().toISOString(),
     }));
     const { error } = await this.ensureClient()
@@ -406,8 +411,11 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
     signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string; analyzed_at: string;
+    is_ignored: number; ignore_reason: string;
+    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
+    analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const CHUNK = 500;
@@ -430,8 +438,11 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
     signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string; analyzed_at: string;
+    is_ignored: number; ignore_reason: string;
+    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
+    analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const CHUNK = 500;
@@ -455,6 +466,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     side_effect_score: number; line_count: number; importance_score: number;
     signal_fan_in_zero: number; analyzed_at: string;
     cyclomatic_complexity: number;
+    fan_out: number; distinct_callees: number; function_role: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const CHUNK = 500;
@@ -478,6 +490,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     side_effect_score: number; line_count: number; importance_score: number;
     signal_fan_in_zero: number; analyzed_at: string;
     cyclomatic_complexity: number;
+    fan_out: number; distinct_callees: number; function_role: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const CHUNK = 500;
@@ -508,6 +521,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   async upsertCurrentCodeGraphCommunities(rows: readonly {
     repo_name: string; community_id: number; label: string;
     name: string; summary: string; mappings_json: string | null;
+    stable_key: string;
     generated_at: string; updated_at: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
@@ -539,6 +553,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   async upsertReleaseCodeGraphCommunities(rows: readonly {
     release_tag: string; community_id: number; label: string;
     name: string; summary: string;
+    stable_key: string;
     generated_at: string; updated_at: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
@@ -632,6 +647,42 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       .eq('repo_name', repoName)
       .eq('rel_id', relId);
     if (error) throw new Error(`Supabase deleteManualRelationship failed: ${error.message}`);
+  }
+
+  async listManualGroups(repoName: string): Promise<readonly ManualGroup[]> {
+    const { data, error } = await this.ensureClient()
+      .from('trail_c4_manual_groups')
+      .select('*')
+      .eq('repo_name', repoName);
+    if (error) throw new Error(`Supabase listManualGroups failed: ${error.message}`);
+    return (data ?? []).map(row => ({
+      id: String(row.group_id),
+      memberIds: typeof row.member_ids === 'string' ? JSON.parse(row.member_ids) : (row.member_ids ?? []),
+      label: row.label ?? undefined,
+      updatedAt: String(row.updated_at),
+    }));
+  }
+
+  async upsertManualGroup(repoName: string, g: ManualGroup): Promise<void> {
+    const { error } = await this.ensureClient()
+      .from('trail_c4_manual_groups')
+      .upsert({
+        repo_name: repoName,
+        group_id: g.id,
+        member_ids: JSON.stringify(g.memberIds),
+        label: g.label ?? null,
+        updated_at: g.updatedAt,
+      }, { onConflict: 'repo_name,group_id' });
+    if (error) throw new Error(`Supabase upsertManualGroup failed: ${error.message}`);
+  }
+
+  async deleteManualGroup(repoName: string, groupId: string): Promise<void> {
+    const { error } = await this.ensureClient()
+      .from('trail_c4_manual_groups')
+      .delete()
+      .eq('repo_name', repoName)
+      .eq('group_id', groupId);
+    if (error) throw new Error(`Supabase deleteManualGroup failed: ${error.message}`);
   }
 
   async refreshMaterializedViews(): Promise<void> {

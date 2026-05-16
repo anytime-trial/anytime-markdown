@@ -2,11 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { FileAnalysisApiEntry } from './fetchFileAnalysisApi';
 import { fetchFileAnalysis } from './fetchFileAnalysisApi';
+import type { FunctionAnalysisApiEntry } from './fetchFunctionAnalysisApi';
+import { fetchFunctionAnalysis } from './fetchFunctionAnalysisApi';
 
 import type {
   BoundaryInfo,
   C4Model,
   C4ReleaseEntry,
+  CentralityMatrix,
   ComplexityMatrix,
   CoverageDiffMatrix,
   CoverageMatrix,
@@ -15,6 +18,7 @@ import type {
   FeatureMatrix,
   ImportanceMatrix,
   ManualGroup,
+  RoleMatrix,
 } from '@anytime-markdown/trail-core/c4';
 
 import {
@@ -57,7 +61,10 @@ interface C4DataSourceResult {
   complexityMatrix: ComplexityMatrix | null;
   importanceMatrix: ImportanceMatrix | null;
   deadCodeMatrix: Record<string, number> | null;
+  centralityMatrix: CentralityMatrix | null;
+  roleMatrix: RoleMatrix | null;
   fileAnalysisEntries: readonly FileAnalysisApiEntry[];
+  functionAnalysisEntries: readonly FunctionAnalysisApiEntry[];
   docLinks: readonly DocLink[];
   dsmMatrix: DsmMatrix | null;
   connected: boolean;
@@ -97,7 +104,10 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
   const [complexityMatrix, setComplexityMatrix] = useState<ComplexityMatrix | null>(null);
   const [importanceMatrix, setImportanceMatrix] = useState<ImportanceMatrix | null>(null);
   const [deadCodeMatrix, setDeadCodeMatrix] = useState<Record<string, number> | null>(null);
+  const [centralityMatrix, setCentralityMatrix] = useState<CentralityMatrix | null>(null);
+  const [roleMatrix, setRoleMatrix] = useState<RoleMatrix | null>(null);
   const [fileAnalysisEntries, setFileAnalysisEntries] = useState<readonly FileAnalysisApiEntry[]>([]);
+  const [functionAnalysisEntries, setFunctionAnalysisEntries] = useState<readonly FunctionAnalysisApiEntry[]>([]);
   const [analysisCompleteCounter, setAnalysisCompleteCounter] = useState(0);
   const [dsmMatrix, setDsmMatrix] = useState<DsmMatrix | null>(null);
   const [docLinks, setDocLinks] = useState<readonly DocLink[]>([]);
@@ -264,16 +274,39 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
         if (!r) {
           setImportanceMatrix(null);
           setDeadCodeMatrix(null);
+          setCentralityMatrix(null);
+          setRoleMatrix(null);
           setFileAnalysisEntries([]);
           return;
         }
         setImportanceMatrix(r.elementMatrix.importance);
         setDeadCodeMatrix(r.elementMatrix.deadCodeScore);
+        setCentralityMatrix(r.elementMatrix.centrality);
+        setRoleMatrix(r.elementMatrix.functionRoles);
         setFileAnalysisEntries(r.entries);
       } catch (err) {
         if ((err as { name?: string }).name === 'AbortError') return;
         // eslint-disable-next-line no-console
         console.error('[useC4DataSource] fetchFileAnalysis failed', err);
+      }
+    })();
+    return () => ctrl.abort();
+  }, [serverUrl, selectedRepo, selectedRelease, analysisCompleteCounter]);
+
+  // REST fetch: function-analysis (per-function fanIn / fanOut / role)
+  useEffect(() => {
+    if (!selectedRepo) return;
+    const ctrl = new AbortController();
+    void (async () => {
+      try {
+        const tag = selectedRelease || 'current';
+        const r = await fetchFunctionAnalysis(serverUrl, selectedRepo, tag, ctrl.signal);
+        setFunctionAnalysisEntries(r?.entries ?? []);
+      } catch (err) {
+        if ((err as { name?: string }).name === 'AbortError') return;
+        // eslint-disable-next-line no-console
+        console.error('[useC4DataSource] fetchFunctionAnalysis failed', err);
+        setFunctionAnalysisEntries([]);
       }
     })();
     return () => ctrl.abort();
@@ -304,7 +337,10 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
     complexityMatrix,
     importanceMatrix,
     deadCodeMatrix,
+    centralityMatrix,
+    roleMatrix,
     fileAnalysisEntries,
+    functionAnalysisEntries,
     docLinks,
     dsmMatrix,
     connected,

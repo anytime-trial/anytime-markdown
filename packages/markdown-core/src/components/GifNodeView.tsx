@@ -7,13 +7,13 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
-import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDivider, getErrorMain, getTextDisabled } from "../constants/colors";
 import { HANDLEBAR_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import { saveBlob,useBlockCapture } from "../hooks/useBlockCapture";
 import { useBlockNodeState } from "../hooks/useBlockNodeState";
+import { useMarkdownT } from "../i18n/context";
 import type { GifSettings } from "../utils/gifEncoder";
 import { BlockInlineToolbar } from "./codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./codeblock/DeleteBlockDialog";
@@ -179,7 +179,7 @@ function GifPlaybackImage({
 }
 
 export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
-  const t = useTranslations("MarkdownEditor");
+  const t = useMarkdownT("MarkdownEditor");
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const {

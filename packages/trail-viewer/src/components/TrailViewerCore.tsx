@@ -25,15 +25,22 @@ import { ReleasesPanel } from './ReleasesPanel';
 import { SessionList } from './SessionList';
 import { StatsBar } from './StatsBar';
 import { TrailThemeProvider } from './TrailThemeContext';
+import { CommitCategoryProvider } from './CommitCategoryContext';
+import { ToolCategoryProvider } from './ToolCategoryContext';
+import { SkillCategoryProvider } from './SkillCategoryContext';
 import { getTokens } from '../theme/designTokens';
+import { getC4Colors } from '../theme/c4Tokens';
 import { TrailLocaleProvider, useTrailI18n } from '../i18n';
 import type { TrailLocale } from '../i18n';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+import { getTrailViewerTabDefs, normalizeTrailInitialTab } from './trailTabs';
+import { MemoryPanel } from './MemoryPanel';
 import { AnalyticsPanelSkeleton } from './shared/AnalyticsPanelSkeleton';
 import { C4PanelSkeleton } from './shared/C4PanelSkeleton';
 import { TabSkeleton } from './shared/TabSkeleton';
 
 import type { C4ViewerCoreProps } from '../c4/components/C4ViewerCore';
+import { ResizablePopup, type ResizablePopupSize } from '../c4/components/widgets/ResizablePopup';
 import { useC4SequenceData } from '../c4/hooks/useC4SequenceData';
 
 const AnalyticsPanel = lazyWithPreload(() =>
@@ -42,11 +49,17 @@ const AnalyticsPanel = lazyWithPreload(() =>
 const C4ViewerCore = lazyWithPreload(() =>
   import('../c4/components/C4ViewerCore').then((m) => ({ default: m.C4ViewerCore })),
 );
+const CallHierarchyPanel = lazyWithPreload(() =>
+  import('../c4/components/panels/CallHierarchyPanel').then((m) => ({ default: m.CallHierarchyPanel })),
+);
 const MessageTimeline = lazyWithPreload(() =>
   import('./messages/MessageTimeline').then((m) => ({ default: m.MessageTimeline })),
 );
 const TraceTree = lazyWithPreload(() =>
   import('./messages/TraceTree').then((m) => ({ default: m.TraceTree })),
+);
+const LogsTab = lazyWithPreload(() =>
+  import('./logs/LogsTab').then((m) => ({ default: m.LogsTab })),
 );
 
 const tabPreloaders: Record<number, (() => Promise<unknown>) | undefined> = {
@@ -67,7 +80,7 @@ const preloadTab = (index: number) => {
 };
 
 /** C4-related props forwarded to the embedded C4ViewerCore. */
-type C4Props = Omit<C4ViewerCoreProps, 'isDark' | 'containerHeight' | 'onShowSequence'>;
+type C4Props = Omit<C4ViewerCoreProps, 'isDark' | 'containerHeight' | 'onShowSequence' | 'onOpenFunctionTree'>;
 
 export interface TrailViewerCoreProps {
   readonly isDark?: boolean;
@@ -99,7 +112,7 @@ export interface TrailViewerCoreProps {
   readonly traceFiles?: readonly TraceFileSource[];
   /** Called when user clicks a node to jump to source. */
   readonly onJumpToSource?: (loc: SourceLocation) => void;
-  /** 初期表示タブ番号（0=Analytics, 1=Traces, 2=Prompts, 3=Releases, 4=C4, 5=Trace）*/
+  /** 初期表示タブ番号（0=Analytics, 1=Messages, 2=Prompts, 4=C4, 5=Trace）*/
   readonly initialTab?: number;
   /**
    * WebSocket 経由でコマンドを送る関数。perf-report の送出に使う。
@@ -108,6 +121,20 @@ export interface TrailViewerCoreProps {
   readonly sendCommand?: (cmd: string, payload?: unknown) => void;
   /** WebSocket が接続済みか。usePerfReporter の queue flush 判定に使う。 */
   readonly wsConnected?: boolean;
+  /** TrailDataServer のベース URL（Memory パネルの /api/memory/* に使用）。 */
+  readonly serverUrl?: string;
+  /** `.anytime/commit-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
+  readonly commitCategories?: ReadonlyMap<string, number>;
+  /** `.anytime/commit-categories.json` の categories フィールドから読み込んだラベルマップ。 */
+  readonly commitCategoryLabels?: ReadonlyMap<number, string>;
+  /** `.anytime/tool-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
+  readonly toolCategories?: ReadonlyMap<string, number>;
+  /** `.anytime/tool-categories.json` の categories フィールドから読み込んだラベルマップ。 */
+  readonly toolCategoryLabels?: ReadonlyMap<number, string>;
+  /** `.anytime/skill-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
+  readonly skillCategories?: ReadonlyMap<string, number>;
+  /** `.anytime/skill-categories.json` の categories フィールドから読み込んだラベルマップ。 */
+  readonly skillCategoryLabels?: ReadonlyMap<number, string>;
 }
 
 const SESSION_LIST_WIDTH = 300;
@@ -116,7 +143,13 @@ export function TrailViewerCore(props: Readonly<TrailViewerCoreProps>) {
   return (
     <TrailLocaleProvider locale={props.locale}>
       <TrailThemeProvider isDark={props.isDark ?? true}>
-        <TrailViewerCoreInner {...props} />
+        <CommitCategoryProvider categories={props.commitCategories} categoryLabels={props.commitCategoryLabels}>
+          <ToolCategoryProvider categories={props.toolCategories} categoryLabels={props.toolCategoryLabels}>
+            <SkillCategoryProvider categories={props.skillCategories} categoryLabels={props.skillCategoryLabels}>
+              <TrailViewerCoreInner {...props} />
+            </SkillCategoryProvider>
+          </ToolCategoryProvider>
+        </CommitCategoryProvider>
       </TrailThemeProvider>
     </TrailLocaleProvider>
   );
@@ -151,13 +184,34 @@ function TrailViewerCoreInner({
   initialTab,
   sendCommand,
   wsConnected = false,
+  serverUrl = '',
 }: Readonly<TrailViewerCoreProps>) {
   const { t } = useTrailI18n();
   const tokens = useMemo(() => getTokens(isDark ?? true), [isDark]);
   const { colors, scrollbarSx } = tokens;
-  const [activeTab, setActiveTab] = useState(initialTab ?? 0);
+  const c4Colors = useMemo(() => getC4Colors(isDark ?? true), [isDark]);
+  const tabDefs = useMemo(
+    () => getTrailViewerTabDefs({ hasC4: !!c4, hasTrace: !!traceFiles }),
+    [c4, traceFiles],
+  );
+  const normalizedInitialTab = useMemo(
+    () => normalizeTrailInitialTab(initialTab, { hasC4: !!c4, hasTrace: !!traceFiles }),
+    [initialTab, c4, traceFiles],
+  );
+  const [activeTab, setActiveTab] = useState<number>(normalizedInitialTab);
+  const [releasesPopupOpen, setReleasesPopupOpen] = useState(false);
+  const [releasesPopupSize, setReleasesPopupSize] = useState<ResizablePopupSize | null>(null);
+  const [releasesPopupMaximized, setReleasesPopupMaximized] = useState(false);
+  const [promptsPopupOpen, setPromptsPopupOpen] = useState(false);
+  const [promptsPopupSize, setPromptsPopupSize] = useState<ResizablePopupSize | null>(null);
+  const [promptsPopupMaximized, setPromptsPopupMaximized] = useState(false);
+  // 旧 Messages タブ (value=1) のレガシー URL / embed (?tab=1 / initialTab={1})
+  // からの初回マウント時にメッセージポップアップを自動で開く。
+  const [messagesPopupOpen, setMessagesPopupOpen] = useState(() => initialTab === 1);
+  const [messagesPopupSize, setMessagesPopupSize] = useState<ResizablePopupSize | null>(null);
+  const [messagesPopupMaximized, setMessagesPopupMaximized] = useState(false);
   const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<number>>(
-    () => new Set([initialTab ?? 0]),
+    () => new Set([normalizedInitialTab]),
   );
   const visitTab = useCallback((tab: number) => {
     setActiveTab(tab);
@@ -170,6 +224,18 @@ function TrailViewerCoreInner({
   }, []);
   const [activeSequenceElementId, setActiveSequenceElementId] = useState<string | null>(null);
   const c4SequenceState = useC4SequenceData(c4?.serverUrl, activeSequenceElementId);
+  const [selectedFunctionForTree, setSelectedFunctionForTree] = useState<{
+    filePath: string;
+    fnName: string;
+    startLine?: number;
+  } | null>(null);
+  const handleOpenFunctionTree = useCallback(
+    (filePath: string, fnName: string, startLine?: number) => {
+      setSelectedFunctionForTree({ filePath, fnName, startLine });
+      visitTab(7);
+    },
+    [visitTab],
+  );
 
   // perf-report: 初回マウント時の描画開始〜React mount 完了の所要時間を計測。
   // sendCommand が undefined の場合は no-op send を渡し、計測値はキューにも積まない。
@@ -232,7 +298,7 @@ function TrailViewerCoreInner({
   const handleShowSequence = useCallback(
     (elementId: string) => {
       setActiveSequenceElementId(elementId);
-      visitTab(7);
+      visitTab(5);
     },
     [visitTab],
   );
@@ -266,14 +332,80 @@ function TrailViewerCoreInner({
       const query = session.slug || session.id;
       onFilterChange({ ...filter, workspace: session.workspace ?? filter.workspace, searchText: query });
       onSelectSession(session.id);
-      visitTab(1);
+      setMessagesPopupOpen(true);
     },
-    [filter, onFilterChange, onSelectSession, visitTab],
+    [filter, onFilterChange, onSelectSession],
   );
 
   const selectedSession =
     (allSessions ?? sessions).find((s) => s.id === selectedSessionId)
     ?? visibleSessions.find((s) => s.id === selectedSessionId);
+  const popupToolbarButtonSx = {
+    textTransform: 'none',
+    color: c4Colors.accent,
+    borderColor: c4Colors.border,
+    fontWeight: 600,
+    fontSize: '0.875rem',
+    borderRadius: '8px',
+    transition: '250ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&:hover': { bgcolor: c4Colors.hover },
+    '&:focus-visible': { outline: `2px solid ${c4Colors.accent}`, outlineOffset: '2px' },
+    '&:disabled': { color: c4Colors.textMuted },
+  } as const;
+
+  // メッセージタブとメッセージポップアップの両方で同じ JSX を使うため変数化。
+  // 親 state を共有するので filter / 選択セッション / メッセージは両者で同期する。
+  const messagesTabContent = (
+    <>
+      <FilterBar
+        filter={filter}
+        sessions={allSessions ?? sessions}
+        onChange={onFilterChange}
+      />
+
+      <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            width: SESSION_LIST_WIDTH,
+            minWidth: SESSION_LIST_WIDTH,
+            borderRight: 1,
+            borderColor: colors.border,
+            overflowY: 'auto',
+            ...scrollbarSx,
+          }}
+        >
+          <SessionList
+            sessions={visibleSessions}
+            selectedId={selectedSessionId}
+            onSelect={onSelectSession}
+          />
+        </Box>
+
+        <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <Suspense fallback={<TabSkeleton height="100%" />}>
+            <MessageTimeline
+              nodes={buildMessageTree(messages)}
+              session={selectedSession}
+              onSelectMessage={() => { /* scroll handled inside component */ }}
+            />
+            {selectedSessionId && messages.length > 0 ? (
+              <Box sx={{ flex: 1, overflow: 'auto', ...scrollbarSx }}>
+                <TraceTree nodes={buildMessageTree(messages)} />
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                <Typography variant="body2" sx={{ color: colors.textSecondary }}>
+                  {selectedSessionId ? t('viewer.loading') : t('viewer.selectSession')}
+                </Typography>
+              </Box>
+            )}
+          </Suspense>
+        </Box>
+      </Box>
+
+      <StatsBar session={selectedSession} messages={messages} />
+    </>
+  );
 
   return (
     <Box
@@ -321,34 +453,17 @@ function TrailViewerCoreInner({
             '& .MuiTabs-indicator': { backgroundColor: colors.iceBlue },
           }}
         >
-          <Tab
-            id="trail-tab-0"
-            aria-controls="trail-panel-0"
-            label={t('viewer.tab.analytics')}
-            onMouseEnter={() => preloadTab(0)}
-            onFocus={() => preloadTab(0)}
-          />
-          <Tab
-            id="trail-tab-1"
-            aria-controls="trail-panel-1"
-            label={t('viewer.tab.messages')}
-            onMouseEnter={() => preloadTab(1)}
-            onFocus={() => preloadTab(1)}
-          />
-          <Tab id="trail-tab-2" aria-controls="trail-panel-2" label={t('viewer.tab.prompts')} />
-          <Tab id="trail-tab-3" aria-controls="trail-panel-3" label={t('viewer.tab.releases')} />
-          {c4 && (
+          {tabDefs.map((tab) => (
             <Tab
-              id="trail-tab-4"
-              aria-controls="trail-panel-4"
-              label={t('viewer.tab.model')}
-              onMouseEnter={() => preloadTab(4)}
-              onFocus={() => preloadTab(4)}
+              key={tab.value}
+              value={tab.value}
+              id={tab.id}
+              aria-controls={tab.panelId}
+              label={t(tab.i18nKey)}
+              onMouseEnter={tab.preloadIndex === undefined ? undefined : () => preloadTab(tab.preloadIndex!)}
+              onFocus={tab.preloadIndex === undefined ? undefined : () => preloadTab(tab.preloadIndex!)}
             />
-          )}
-          {(traceFiles || c4) && (
-            <Tab id="trail-tab-5" aria-controls="trail-panel-5" label={t('viewer.tab.trace')} />
-          )}
+          ))}
         </Tabs>
 
       </Box>
@@ -363,6 +478,7 @@ function TrailViewerCoreInner({
           <Suspense fallback={<AnalyticsPanelSkeleton />}>
             <AnalyticsPanel
               analytics={analytics}
+              releases={releases}
               sessions={allSessions ?? sessions}
               sessionsLoading={sessionsLoading}
               onSelectSession={onSelectSession}
@@ -376,88 +492,13 @@ function TrailViewerCoreInner({
               fetchQualityMetrics={fetchQualityMetrics}
               fetchDeploymentFrequency={fetchDeploymentFrequency}
               fetchReleaseQuality={fetchReleaseQuality}
+              onOpenReleasesPopup={() => setReleasesPopupOpen(true)}
+              onOpenPromptsPopup={() => setPromptsPopupOpen(true)}
+              onOpenMessagesPopup={() => setMessagesPopupOpen(true)}
             />
           </Suspense>
         </Box>
       )}
-
-      {visitedTabs.has(1) && (
-        <Box
-          role="tabpanel"
-          id="trail-panel-1"
-          aria-labelledby="trail-tab-1"
-          sx={{ display: activeTab !== 1 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
-        >
-          {/* FilterBar */}
-          <FilterBar
-            filter={filter}
-            sessions={allSessions ?? sessions}
-            onChange={onFilterChange}
-          />
-
-          {/* SessionList + Content area */}
-          <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            <Box
-              sx={{
-                width: SESSION_LIST_WIDTH,
-                minWidth: SESSION_LIST_WIDTH,
-                borderRight: 1,
-                borderColor: colors.border,
-                overflowY: 'auto',
-                ...scrollbarSx,
-              }}
-            >
-              <SessionList
-                sessions={visibleSessions}
-                selectedId={selectedSessionId}
-                onSelect={onSelectSession}
-              />
-            </Box>
-
-            <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <Suspense fallback={<TabSkeleton height="100%" />}>
-                <MessageTimeline
-                  nodes={buildMessageTree(messages)}
-                  session={selectedSession}
-                  onSelectMessage={() => { /* scroll handled inside component */ }}
-                />
-                {selectedSessionId && messages.length > 0 ? (
-                  <Box sx={{ flex: 1, overflow: 'auto', ...scrollbarSx }}>
-                    <TraceTree nodes={buildMessageTree(messages)} />
-                  </Box>
-                ) : (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-                    <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-                      {selectedSessionId ? t('viewer.loading') : t('viewer.selectSession')}
-                    </Typography>
-                  </Box>
-                )}
-              </Suspense>
-            </Box>
-          </Box>
-
-          {/* StatsBar */}
-          <StatsBar session={selectedSession} messages={messages} />
-        </Box>
-      )}
-
-      <Box
-        role="tabpanel"
-        id="trail-panel-2"
-        aria-labelledby="trail-tab-2"
-        sx={{ display: activeTab !== 2 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
-      >
-        <PromptManager prompts={prompts} />
-      </Box>
-
-      <Box
-        role="tabpanel"
-        id="trail-panel-3"
-        aria-labelledby="trail-tab-3"
-        sx={{ display: activeTab !== 3 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'auto', ...scrollbarSx }}
-      >
-        <ReleasesPanel releases={releases ?? []} />
-      </Box>
 
       {c4 && visitedTabs.has(4) && (
         <Box
@@ -471,6 +512,7 @@ function TrailViewerCoreInner({
               isDark={isDark}
               containerHeight="100%"
               onShowSequence={handleShowSequence}
+              onOpenFunctionTree={handleOpenFunctionTree}
               {...c4}
             />
           </Suspense>
@@ -492,7 +534,136 @@ function TrailViewerCoreInner({
           />
         </Box>
       )}
+
+      {visitedTabs.has(6) && (
+        <Box
+          role="tabpanel"
+          id="trail-panel-6"
+          aria-labelledby="trail-tab-6"
+          sx={{ display: activeTab !== 6 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
+        >
+          <MemoryPanel serverUrl={serverUrl} />
+        </Box>
+      )}
+
+      {c4 && visitedTabs.has(7) && (
+        <Box
+          role="tabpanel"
+          id="trail-panel-7"
+          aria-labelledby="trail-tab-7"
+          sx={{ display: activeTab !== 7 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
+        >
+          <Suspense fallback={<TabSkeleton height="100%" />}>
+            <CallHierarchyPanel
+              rootFunction={selectedFunctionForTree}
+              apiBaseUrl={c4.serverUrl ?? ''}
+              t={t as (key: string) => string}
+              isDark={isDark}
+            />
+          </Suspense>
+        </Box>
+      )}
+
+      {visitedTabs.has(8) && serverUrl && (
+        <Box
+          role="tabpanel"
+          id="trail-panel-8"
+          aria-labelledby="trail-tab-8"
+          sx={{ display: activeTab !== 8 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
+        >
+          <Suspense fallback={<TabSkeleton height="100%" />}>
+            <LogsTab
+              baseUrl={serverUrl}
+              subscribe={(handler) => {
+                const wsUrl = serverUrl.replace(/^http/, 'ws');
+                const ws = new WebSocket(wsUrl);
+                ws.addEventListener('message', (ev) => {
+                  try {
+                    const data = typeof ev.data === 'string' ? ev.data : '';
+                    const msg = JSON.parse(data) as { type?: string };
+                    if (msg && msg.type === 'log-batch') {
+                      handler(msg as never);
+                    }
+                  } catch {
+                    /* noop */
+                  }
+                });
+                return () => ws.close();
+              }}
+            />
+          </Suspense>
+        </Box>
+      )}
+
+      {releasesPopupOpen && (
+        <ResizablePopup
+          title={t('viewer.tab.releases')}
+          ariaLabel={t('viewer.tab.releases')}
+          onClose={() => setReleasesPopupOpen(false)}
+          isDark={isDark ?? true}
+          colors={c4Colors}
+          size={releasesPopupSize}
+          onSizeChange={setReleasesPopupSize}
+          maximized={releasesPopupMaximized}
+          onMaximizedChange={setReleasesPopupMaximized}
+          defaultMaxWidth={1120}
+          centered
+          withBackdrop
+          toolbarButtonSx={popupToolbarButtonSx}
+          i18nMaximize={t('c4.popup.maximize')}
+          i18nRestore={t('c4.popup.restore')}
+          i18nClose={t('c4.popup.close')}
+          i18nResize={t('c4.popup.resize')}
+        >
+          <ReleasesPanel releases={releases ?? []} />
+        </ResizablePopup>
+      )}
+      {promptsPopupOpen && (
+        <ResizablePopup
+          title={t('viewer.tab.prompts')}
+          ariaLabel={t('viewer.tab.prompts')}
+          onClose={() => setPromptsPopupOpen(false)}
+          isDark={isDark ?? true}
+          colors={c4Colors}
+          size={promptsPopupSize}
+          onSizeChange={setPromptsPopupSize}
+          maximized={promptsPopupMaximized}
+          onMaximizedChange={setPromptsPopupMaximized}
+          defaultMaxWidth={1120}
+          centered
+          withBackdrop
+          toolbarButtonSx={popupToolbarButtonSx}
+          i18nMaximize={t('c4.popup.maximize')}
+          i18nRestore={t('c4.popup.restore')}
+          i18nClose={t('c4.popup.close')}
+          i18nResize={t('c4.popup.resize')}
+        >
+          <PromptManager prompts={prompts} />
+        </ResizablePopup>
+      )}
+      {messagesPopupOpen && (
+        <ResizablePopup
+          title={t('viewer.tab.messages')}
+          ariaLabel={t('viewer.tab.messages')}
+          onClose={() => setMessagesPopupOpen(false)}
+          isDark={isDark ?? true}
+          colors={c4Colors}
+          size={messagesPopupSize}
+          onSizeChange={setMessagesPopupSize}
+          maximized={messagesPopupMaximized}
+          onMaximizedChange={setMessagesPopupMaximized}
+          defaultMaxWidth={1280}
+          centered
+          withBackdrop
+          toolbarButtonSx={popupToolbarButtonSx}
+          i18nMaximize={t('c4.popup.maximize')}
+          i18nRestore={t('c4.popup.restore')}
+          i18nClose={t('c4.popup.close')}
+          i18nResize={t('c4.popup.resize')}
+        >
+          {messagesTabContent}
+        </ResizablePopup>
+      )}
     </Box>
   );
 }
-

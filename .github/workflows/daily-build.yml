@@ -124,7 +124,7 @@ jobs:
 
   notify-on-failure:
     if: failure()
-    needs: [build, codeql, sonarcloud, snyk]
+    needs: [build, codeql, sonarcloud]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -218,54 +218,3 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  snyk:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: '.node-version'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Snyk Open Source
-        continue-on-error: true
-        run: npx snyk test --all-projects --sarif-file-output=snyk-os.sarif
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-      - name: Snyk Code (SAST)
-        continue-on-error: true
-        run: npx snyk code test --sarif-file-output=snyk-code.sarif
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-      - name: Filter empty runs from snyk-os.sarif
-        run: |
-          if [ -f snyk-os.sarif ]; then
-            jq '.runs |= map(select(.results | length > 0))' snyk-os.sarif > snyk-os-filtered.sarif
-            echo "Runs after filter: $(jq '.runs | length' snyk-os-filtered.sarif)"
-          else
-            echo '{"version":"2.1.0","runs":[]}' > snyk-os-filtered.sarif
-          fi
-
-      - name: Upload Snyk Code results
-        uses: github/codeql-action/upload-sarif@v4
-        if: always()
-        with:
-          sarif_file: snyk-code.sarif
-          category: snyk-code
-
-      - name: Upload Snyk Open Source results
-        uses: github/codeql-action/upload-sarif@v4
-        if: always()
-        with:
-          sarif_file: snyk-os-filtered.sarif
-          category: snyk-os

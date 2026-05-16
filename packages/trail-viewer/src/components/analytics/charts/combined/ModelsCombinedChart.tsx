@@ -5,6 +5,7 @@ import { BarChart } from '@mui/x-charts/BarChart';
 import { useTrailTheme } from '../../../TrailThemeContext';
 import { useTrailI18n } from '../../../../i18n';
 import { fmtPercent, fmtTokens } from '../../../../domain/analytics/formatters';
+import { getModelBrandColor } from '../../../../theme/designTokens';
 import type { ChartMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';
 import { hideZero, makeAxisClick } from './axisInfo';
@@ -62,7 +63,7 @@ export function ModelsCombinedChart({
           dataKey: `m${i}`,
           label: modelSeriesLabel(model),
           stack: 'total',
-          color: toolPalette[i % toolPalette.length],
+          color: getModelBrandColor(model) ?? toolPalette[i % toolPalette.length],
           valueFormatter: hideZero,
         }))}
         height={240}

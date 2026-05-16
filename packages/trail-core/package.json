@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/trail-core",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -16,6 +16,7 @@
     "./formatDate": "./src/formatDate.ts",
     "./domain": "./src/domain/index.ts",
     "./domain/model": "./src/domain/model/index.ts",
+    "./domain/model/commitPrefix": "./src/domain/model/commitPrefix.ts",
     "./domain/port": "./src/domain/port/index.ts",
     "./domain/usecase": "./src/domain/usecase/index.ts",
     "./domain/engine": "./src/domain/engine/index.ts",
@@ -25,9 +26,24 @@
     "./c4": "./src/c4/index.ts",
     "./c4/services": "./src/c4/services/catalog.ts",
     "./c4/metrics/computeImportanceMatrix": "./src/c4/metrics/computeImportanceMatrix.ts",
+    "./c4/callHierarchy": "./src/c4/callHierarchy/index.ts",
     "./codeGraph": "./src/codeGraph.ts",
     "./deadCode": "./src/deadCode/index.ts",
-    "./analyzeExclude": "./src/analyzeExclude/index.ts"
+    "./analyzeExclude": "./src/analyzeExclude/index.ts",
+    "./commitCategories": {
+      "browser": "./src/commitCategories/browser.ts",
+      "default": "./src/commitCategories/index.ts"
+    },
+    "./toolCategories": {
+      "browser": "./src/toolCategories/browser.ts",
+      "default": "./src/toolCategories/index.ts"
+    },
+    "./skillCategories": {
+      "browser": "./src/skillCategories/browser.ts",
+      "default": "./src/skillCategories/index.ts"
+    },
+    "./centrality": "./src/centrality/index.ts",
+    "./classify": "./src/classify/index.ts"
   },
   "scripts": {
     "test": "jest --maxWorkers=1"
@@ -44,7 +60,7 @@
     "jest": "30.2.0",
     "ts-jest": "29.4.6",
     "ts-node": "10.9.2",
-    "typescript": "5.8.3"
+    "typescript": "5.9.3"
   },
   "dependencies": {
     "ignore": "7.0.5",

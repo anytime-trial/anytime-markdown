@@ -58,11 +58,20 @@ export type { MetricOverlay, ComplexityClass, ComplexityEntry, ComplexityMatrix 
 export { computeColorMap, interpolateDsmColor } from './metrics/computeColorMap';
 export { buildSizeMatrix } from './metrics/buildSizeMatrix';
 export type { SizeMatrix, SizeMetricsEntry } from './metrics/buildSizeMatrix';
+export { buildArchitectureMatrix } from './metrics/buildArchitectureMatrix';
+export type {
+  ArchitectureMatrix,
+  ArchitectureMetricsEntry,
+  ArchitectureFileEntry,
+  FileCategoryValue,
+} from './metrics/buildArchitectureMatrix';
 export { mapFilesToC4Elements, mapFileToC4Elements, buildC4ElementById } from '../domain/engine/c4Mapper';
 export type { C4MappingResult } from '../domain/engine/c4Mapper';
 export type { MessageInput } from './metrics/computeComplexityMatrix';
 export { computeComplexityMatrix } from './metrics/computeComplexityMatrix';
 export type { ImportanceMatrix } from '../importance/types';
+export type { CentralityMatrix } from '../centrality/types';
+export type { RoleMatrix, FunctionRole, ElementRoleEntry } from '../centrality/types';
 
 export { mergeManualIntoC4Model } from './mergeManual';
 

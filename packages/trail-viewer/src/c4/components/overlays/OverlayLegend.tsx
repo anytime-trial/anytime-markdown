@@ -1,4 +1,4 @@
-import { Box, Tooltip, Typography } from '@mui/material';
+import { Box, Stack, Tooltip, Typography } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import type { MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import { getC4Colors } from '../../../theme/c4Tokens';
@@ -30,6 +30,8 @@ function getOverlayHelpKeys(
       return { titleKey: 'c4.overlayHelp.editComplexity', descKey: 'c4.overlayHelp.editComplexity.description' };
     case 'importance':
       return { titleKey: 'c4.overlayHelp.importance', descKey: 'c4.overlayHelp.importance.description' };
+    case 'centrality':
+      return { titleKey: 'c4.overlayHelp.centrality', descKey: 'c4.overlayHelp.centrality.description' };
     case 'defect-risk':
       return { titleKey: 'c4.overlayHelp.defectRisk', descKey: 'c4.overlayHelp.defectRisk.description' };
     case 'hotspot-frequency':
@@ -41,6 +43,10 @@ function getOverlayHelpKeys(
     case 'size-files':
     case 'size-functions':
       return { titleKey: 'c4.overlayHelp.size', descKey: 'c4.overlayHelp.size.description' };
+    case 'architecture-ui':
+      return { titleKey: 'c4.overlayHelp.architectureUi', descKey: 'c4.overlayHelp.architectureUi.description' };
+    case 'function-roles':
+      return { titleKey: 'c4.overlayHelp.functionRoles', descKey: 'c4.overlayHelp.functionRoles.description' };
     case 'none':
     case 'fcmap':
       return null;
@@ -157,6 +163,8 @@ function GradientBar({
 const HOTSPOT_FREQ_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_FREQ_RGB}, 0.10), rgba(${HOTSPOT_FREQ_RGB}, 1.0))`;
 const HOTSPOT_RISK_GRADIENT = `linear-gradient(to right, rgba(${HOTSPOT_RISK_RGB}, 0.10), rgba(${HOTSPOT_RISK_RGB}, 1.0))`;
 const DSM_NEIGHBORS_GRADIENT = `linear-gradient(to right, ${METRIC_LEGEND_BLUE}, ${COVERAGE_LOW})`;
+// computeColorMap.ts の architectureUiColor() と同じ値を使う (Logic=#757575 / UI=#1976d2)
+const ARCHITECTURE_UI_GRADIENT = 'linear-gradient(to right, #757575, #1976d2)';
 
 interface SegmentBarItem {
   readonly color: string;
@@ -272,6 +280,7 @@ function getOverlayMetricItems(
   dsmMax: number | undefined,
   sizeMax: number | undefined,
   textColor: string,
+  t: (key: TrailI18nKey) => string,
 ): React.ReactNode {
   switch (overlay) {
     case 'coverage-lines':
@@ -309,6 +318,7 @@ function getOverlayMetricItems(
         </>
       );
     case 'importance':
+    case 'centrality':
       return (
         <SegmentBar
           segments={ASCENDING_BAD_SEGMENTS}
@@ -372,6 +382,24 @@ function getOverlayMetricItems(
           textColor={textColor}
         />
       );
+    case 'architecture-ui':
+      return (
+        <GradientBar
+          background={ARCHITECTURE_UI_GRADIENT}
+          lowLabel="Logic"
+          highLabel="UI"
+          textColor={textColor}
+        />
+      );
+    case 'function-roles':
+      return (
+        <Stack direction="row" spacing={1} flexWrap="wrap">
+          <Swatch color="#c62828" label={t('c4.functionRole.hub')} />
+          <Swatch color="#f9a825" label={t('c4.functionRole.orchestrator')} />
+          <Swatch color="#2e7d32" label={t('c4.functionRole.leaf')} />
+          <Swatch color="#9e9e9e" label={t('c4.functionRole.peripheral')} />
+        </Stack>
+      );
     case 'none':
     case 'fcmap':
       return null;
@@ -381,6 +409,7 @@ function getOverlayMetricItems(
 }
 
 export function OverlayLegend({ overlay, isDark, dsmMax, sizeMax, communityLegend, communityTitle, inline }: Readonly<OverlayLegendProps>) {
+  const { t } = useTrailI18n();
   const hasCommunity = !!communityLegend && communityLegend.length > 0;
   const hasMetric = overlay !== 'none';
   if (!hasCommunity && !hasMetric) return null;
@@ -390,7 +419,7 @@ export function OverlayLegend({ overlay, isDark, dsmMax, sizeMax, communityLegen
   const textColor = colors.overlayLegendText;
   const dividerColor = colors.border;
 
-  const metricItems = hasMetric ? getOverlayMetricItems(overlay, dsmMax, sizeMax, textColor) : null;
+  const metricItems = hasMetric ? getOverlayMetricItems(overlay, dsmMax, sizeMax, textColor, t) : null;
 
   const positionSx = inline
     ? {}

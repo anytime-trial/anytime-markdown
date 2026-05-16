@@ -1,8 +1,9 @@
 import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, MinimapCanvas, state as graphState } from '@anytime-markdown/graph-core';
 import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, CommunityOverlayEntry, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix, HotspotMap, ImportanceMatrix, ManualGroup, MetricOverlay } from '@anytime-markdown/trail-core/c4';
-import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, aggregateHotspotToC4, buildC4ElementById, buildCommunityTree, buildElementTree, buildLevelView, buildSizeMatrix, c4ToGraphDocument, collectDescendantIds, computeColorMap, computeCommunityOverlay, computeFileHotspot, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, mapFileToC4Elements, resolveSelectedElementCommunity, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
-import type { SizeMatrix } from '@anytime-markdown/trail-core/c4';
+import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, aggregateHotspotToC4, buildArchitectureMatrix, buildC4ElementById, buildCommunityTree, buildElementTree, buildLevelView, buildSizeMatrix, c4ToGraphDocument, collectDescendantIds, computeColorMap, computeCommunityOverlay, computeFileHotspot, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, mapFileToC4Elements, resolveSelectedElementCommunity, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
+import type { ArchitectureFileEntry, ArchitectureMatrix, RoleMatrix, SizeMatrix } from '@anytime-markdown/trail-core/c4';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
@@ -11,6 +12,7 @@ import HubIcon from '@mui/icons-material/Hub';
 import LayersIcon from '@mui/icons-material/Layers';
 import LinkIcon from '@mui/icons-material/Link';
 import TableChartIcon from '@mui/icons-material/TableChart';
+import ScatterPlotIcon from '@mui/icons-material/ScatterPlot';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import Box from '@mui/material/Box';
@@ -27,6 +29,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, us
 import { useTrailI18n } from '../../i18n';
 import { CONTEXT_MENU_SHADOW, DOC_TYPE_COLORS, DOC_TYPE_FALLBACK_COLOR, getC4Colors, LOADING_OVERLAY_BG, POPUP_SHADOW } from '../../theme/c4Tokens';
 import type { FileAnalysisApiEntry } from '../hooks/fetchFileAnalysisApi';
+import type { FunctionAnalysisApiEntry } from '../hooks/fetchFunctionAnalysisApi';
 import { useC4GhostEdges } from '../hooks/useC4GhostEdges';
 import { useDefectRisk } from '../hooks/useDefectRisk';
 import { useHotspot } from '../hooks/useHotspot';
@@ -34,6 +37,8 @@ import { useTemporalCoupling } from '../hooks/useTemporalCoupling';
 import { useElementFunctions } from '../hooks/useElementFunctions';
 import { DeadCodeDetailSection } from './panels/DeadCodeDetailSection';
 import { fileAnalysisEntriesForElement } from './fileAnalysisEntriesForElement';
+import { FunctionScatterPlot } from './panels/FunctionScatterPlot';
+import { functionAnalysisEntriesForElement } from './functionAnalysisEntriesForElement';
 import { ResizablePopup, type ResizablePopupSize } from './widgets/ResizablePopup';
 import GroupWorkIcon from '@mui/icons-material/GroupWork';
 
@@ -96,8 +101,11 @@ export function C4ViewerCore({
   coverageMatrix,
   complexityMatrix,
   importanceMatrix,
+  centralityMatrix,
+  roleMatrix,
   deadCodeMatrix,
   fileAnalysisEntries = [],
+  functionAnalysisEntries = [],
   docLinks,
   connected,
   analysisProgress,
@@ -109,6 +117,7 @@ export function C4ViewerCore({
   onDocLinkClick,
   onOpenFile,
   onShowSequence,
+  onOpenFunctionTree,
   containerHeight = '100vh',
   releases = [],
   selectedRelease = CURRENT_RELEASE_TAG,
@@ -204,11 +213,16 @@ export function C4ViewerCore({
   const showMatrixPopup = matrixPopup !== null;
   const [matrixPopupSize, setMatrixPopupSize] = useState<ResizablePopupSize | null>(null);
   const [matrixPopupMaximized, setMatrixPopupMaximized] = useState(false);
+  const [scatterPopup, setScatterPopup] = useState<{ filterElementId: string | null } | null>(null);
+  const showScatterPopup = scatterPopup !== null;
+  const [scatterPopupSize, setScatterPopupSize] = useState<ResizablePopupSize | null>(null);
+  const [scatterPopupMaximized, setScatterPopupMaximized] = useState(false);
   const [showGraphPopup, setShowGraphPopup] = useState(false);
   const [graphPopupSize, setGraphPopupSize] = useState<ResizablePopupSize | null>(null);
   const [graphPopupMaximized, setGraphPopupMaximized] = useState(false);
   const openMatrixForElement = useCallback((element: C4Element) => {
     setShowGraphPopup(false);
+    setScatterPopup(null);
     if (element.type === 'container' || element.type === 'containerDb') {
       setMatrixPopup({ initialLevel: 'component', filterElementId: element.id });
     } else if (element.type === 'component') {
@@ -675,6 +689,14 @@ export function C4ViewerCore({
     return Object.keys(importanceMatrix).some((id) => ids.has(id));
   }, [importanceMatrix, c4Model]);
 
+  const hasCentralityData = useMemo(() => {
+    if (!centralityMatrix || !c4Model) return false;
+    const ids = new Set(c4Model.elements.map((e) => e.id));
+    return Object.keys(centralityMatrix).some((id) => ids.has(id));
+  }, [centralityMatrix, c4Model]);
+
+  const hasStructureData = useMemo(() => hasCentralityData || (!!roleMatrix && Object.keys(roleMatrix).length > 0), [hasCentralityData, roleMatrix]);
+
   // sizeMatrix は isCategoryDataAvailable の依存配列で参照するため先に宣言する
   const sizeMatrix = useMemo<SizeMatrix | null>(() => {
     if (!fileAnalysisEntries || fileAnalysisEntries.length === 0 || !c4Model) return null;
@@ -695,13 +717,14 @@ export function C4ViewerCore({
     if (overlayCategory === 'dsm') return !!filteredDsmMatrix && filteredDsmMatrix.nodes.length > 0;
     if (overlayCategory === 'edit-complexity') return !!complexityMatrix && complexityMatrix.entries.length > 0;
     if (overlayCategory === 'importance') return hasImportanceData;
+    if (overlayCategory === 'structure') return hasStructureData;
     if (overlayCategory === 'hotspot') {
       if (!hotspotResponse) return true;
       return hotspotResponse.files.length > 0;
     }
     // size: dead-code と同様に常に true。個別 MenuItem の disabled={!sizeMatrix} で制御する
     return true;
-  }, [overlayCategory, coverageMatrix, filteredDsmMatrix, complexityMatrix, hasImportanceData, hotspotResponse]);
+  }, [overlayCategory, coverageMatrix, filteredDsmMatrix, complexityMatrix, hasImportanceData, hasCentralityData, hasStructureData, hotspotResponse]);
 
   useEffect(() => {
     // hotspot は空応答時に metricOverlay をリセットすると useHotspot が disable され
@@ -732,6 +755,25 @@ export function C4ViewerCore({
     }
     return filtered;
   }, [importanceMatrix, c4Model, elementTypeById, levelTargetType]);
+
+  const levelFilteredCentralityMatrix = useMemo(() => {
+    if (!centralityMatrix || !c4Model) return centralityMatrix ?? null;
+    const filtered: Record<string, number> = {};
+    for (const [id, score] of Object.entries(centralityMatrix)) {
+      if (elementTypeById.get(id) === levelTargetType) filtered[id] = score;
+    }
+    return filtered;
+  }, [centralityMatrix, c4Model, elementTypeById, levelTargetType]);
+
+  const levelFilteredRoleMatrix = useMemo(() => {
+    if (!roleMatrix || !c4Model) return roleMatrix ?? null;
+    const out: RoleMatrix = {};
+    for (const [id, entry] of Object.entries(roleMatrix)) {
+      const t = elementTypeById.get(id);
+      if (t === levelTargetType) out[id] = entry;
+    }
+    return out;
+  }, [roleMatrix, c4Model, elementTypeById, levelTargetType]);
 
   const levelFilteredComplexityMatrix = useMemo(() => {
     if (!complexityMatrix || !c4Model) return complexityMatrix ?? null;
@@ -807,9 +849,28 @@ export function C4ViewerCore({
     return filtered;
   }, [sizeMatrix, c4Model, elementTypeById, levelTargetType]);
 
+  // アーキテクチャ overlay (UI / Logic) — fileAnalysisEntries.category を集計する
+  const architectureMatrix = useMemo<ArchitectureMatrix | null>(() => {
+    if (!fileAnalysisEntries || fileAnalysisEntries.length === 0 || !c4Model) return null;
+    const archEntries: ArchitectureFileEntry[] = fileAnalysisEntries.map((r) => ({
+      elementId: `file::${r.filePath}`,
+      category: r.category ?? 'logic',
+    }));
+    return buildArchitectureMatrix(archEntries, c4Model.elements);
+  }, [fileAnalysisEntries, c4Model]);
+
+  const levelFilteredArchitectureMatrix = useMemo<ArchitectureMatrix | null>(() => {
+    if (!architectureMatrix || !c4Model) return architectureMatrix;
+    const filtered: ArchitectureMatrix = {};
+    for (const [id, entry] of Object.entries(architectureMatrix)) {
+      if (elementTypeById.get(id) === levelTargetType) filtered[id] = entry;
+    }
+    return filtered;
+  }, [architectureMatrix, c4Model, elementTypeById, levelTargetType]);
+
   const overlayMap = useMemo(
-    () => computeColorMap(metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix),
-    [metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix],
+    () => computeColorMap(metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix, levelFilteredCentralityMatrix, levelFilteredArchitectureMatrix, levelFilteredRoleMatrix),
+    [metricOverlay, levelFilteredCoverageMatrix, filteredDsmMatrix, levelFilteredComplexityMatrix, levelFilteredImportanceMatrix, levelFilteredDefectRiskMap, levelFilteredHotspotMap, levelFilteredDeadCodeMatrix, levelFilteredSizeMatrix, levelFilteredCentralityMatrix, levelFilteredArchitectureMatrix, levelFilteredRoleMatrix],
   );
 
   const effectiveOverlayMap = overlayMap;
@@ -1441,6 +1502,7 @@ export function C4ViewerCore({
                               setShowGraphPopup(prev => {
                                 const next = !prev;
                                 if (next) setMatrixPopup(null);
+                                if (next) setScatterPopup(null);
                                 return next;
                               });
                             }}
@@ -1462,6 +1524,7 @@ export function C4ViewerCore({
                               setMatrixPopup(prev => {
                                 if (prev) return null;
                                 setShowGraphPopup(false);
+                                setScatterPopup(null);
                                 return { initialLevel: 'component', filterElementId: null };
                               });
                             }}
@@ -1474,6 +1537,28 @@ export function C4ViewerCore({
                             }}
                           >
                             <TableChartIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title={t('viewer.tab.scatter')}>
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setScatterPopup(prev => {
+                                if (prev) return null;
+                                setShowGraphPopup(false);
+                                setMatrixPopup(null);
+                                return { filterElementId: null };
+                              });
+                            }}
+                            aria-pressed={showScatterPopup}
+                            aria-label={t('viewer.tab.scatter')}
+                            sx={{
+                              ...toolbarButtonSx,
+                              p: 0.25,
+                              ...(showScatterPopup && { bgcolor: toolbarButtonActiveBg }),
+                            }}
+                          >
+                            <ScatterPlotIcon sx={{ fontSize: 14 }} />
                           </IconButton>
                         </Tooltip>
                       </Box>
@@ -1491,9 +1576,11 @@ export function C4ViewerCore({
                       <MenuItem value="size" disabled={!sizeMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupSize')}</MenuItem>
                       <MenuItem value="coverage" disabled={!coverageMatrix || coverageMatrix.entries.length === 0} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupCoverage')}</MenuItem>
                       <MenuItem value="importance" disabled={!hasImportanceData} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupImportance')}</MenuItem>
+                      <MenuItem value="structure" disabled={!hasStructureData} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupStructure')}</MenuItem>
                       <MenuItem value="edit-complexity" disabled={!complexityMatrix || complexityMatrix.entries.length === 0} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupEditComplexity')}</MenuItem>
                       <MenuItem value="dead-code" disabled={!deadCodeMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupDeadCode')}</MenuItem>
                       <MenuItem value="hotspot" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupHotspot')}</MenuItem>
+                      <MenuItem value="architecture" disabled={!architectureMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.groupArchitecture')}</MenuItem>
                     </Select>
                   </Box>
                   {overlayCategory !== 'none' && (
@@ -1530,6 +1617,10 @@ export function C4ViewerCore({
                           <MenuItem key="importance" value="importance" disabled={!importanceMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.importance')}</MenuItem>,
                           <MenuItem key="defect-risk" value="defect-risk" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.defectRisk')}</MenuItem>,
                         ]}
+                        {overlayCategory === 'structure' && [
+                          <MenuItem key="centrality" value="centrality" disabled={!centralityMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.centrality')}</MenuItem>,
+                          <MenuItem key="function-roles" value="function-roles" disabled={!roleMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.functionRoles')}</MenuItem>,
+                        ]}
                         {overlayCategory === 'hotspot' && [
                           <MenuItem key="frequency" value="hotspot-frequency" sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.hotspotFrequency')}</MenuItem>,
                           <MenuItem key="risk" value="hotspot-risk" disabled={!complexityMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.hotspotRisk')}</MenuItem>,
@@ -1541,6 +1632,9 @@ export function C4ViewerCore({
                           <MenuItem key="size-loc" value="size-loc" disabled={!sizeMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.sizeLoc')}</MenuItem>,
                           <MenuItem key="size-files" value="size-files" disabled={!sizeMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.sizeFiles')}</MenuItem>,
                           <MenuItem key="size-functions" value="size-functions" disabled={!sizeMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.sizeFunctions')}</MenuItem>,
+                        ]}
+                        {overlayCategory === 'architecture' && [
+                          <MenuItem key="architecture-ui" value="architecture-ui" disabled={!architectureMatrix} sx={{ fontSize: '0.75rem' }}>{t('c4.overlay.architectureUi')}</MenuItem>,
                         ]}
                       </Select>
                     </Box>
@@ -1618,6 +1712,40 @@ export function C4ViewerCore({
                     isCommunityColor={showCommunity}
                     initialLevel={matrixPopup?.initialLevel ?? 'component'}
                     filterElementId={matrixPopup?.filterElementId ?? null}
+                  />
+                </ResizablePopup>
+              )}
+              {showScatterPopup && (
+                <ResizablePopup
+                  title={t('viewer.tab.scatter')}
+                  ariaLabel={t('viewer.tab.scatter')}
+                  onClose={() => setScatterPopup(null)}
+                  isDark={isDark}
+                  colors={colors}
+                  size={scatterPopupSize}
+                  onSizeChange={setScatterPopupSize}
+                  maximized={scatterPopupMaximized}
+                  onMaximizedChange={setScatterPopupMaximized}
+                  toolbarButtonSx={toolbarButtonSx}
+                  i18nMaximize={t('c4.popup.maximize')}
+                  i18nRestore={t('c4.popup.restore')}
+                  i18nClose={t('c4.popup.close')}
+                  i18nResize={t('c4.popup.resize')}
+                >
+                  <FunctionScatterPlot
+                    entries={
+                      scatterPopup?.filterElementId
+                        ? functionAnalysisEntriesForElement(
+                            functionAnalysisEntries,
+                            scatterPopup.filterElementId,
+                            c4Model?.elements ?? [],
+                          )
+                        : functionAnalysisEntries
+                    }
+                    filterElementId={scatterPopup?.filterElementId ?? null}
+                    t={t as (key: string) => string}
+                    colors={colors}
+                    onFunctionOpen={(filePath, _fnName, _startLine) => onOpenFile?.(filePath)}
                   />
                 </ResizablePopup>
               )}
@@ -2015,7 +2143,7 @@ export function C4ViewerCore({
                       ) : (
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                           {elementFunctions.symbols.map(sym => (
-                            <Box key={sym.id} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                            <Box key={sym.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                               <Typography
                                 component="span"
                                 sx={{
@@ -2047,6 +2175,20 @@ export function C4ViewerCore({
                               >
                                 :{sym.line + 1}
                               </Typography>
+                              {(sym.kind === 'function' || sym.kind === 'method') && onOpenFunctionTree && (
+                                <IconButton
+                                  size="small"
+                                  aria-label={t('c4.callHierarchy.showFunctionTree')}
+                                  title={t('c4.callHierarchy.showFunctionTree')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenFunctionTree(sym.filePath, sym.name, sym.line + 1);
+                                  }}
+                                  sx={{ p: 0.25, ml: 0.25, color: colors.textSecondary, '&:hover': { color: colors.codeLink } }}
+                                >
+                                  <AccountTreeIcon sx={{ fontSize: '0.85rem' }} />
+                                </IconButton>
+                              )}
                             </Box>
                           ))}
                         </Box>
@@ -2326,6 +2468,28 @@ export function C4ViewerCore({
                         {t('c4.copyPath')}
                       </button>
                     )}
+                    <button
+                      type="button"
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        padding: '6px 16px',
+                        textAlign: 'left',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        color: colors.contextMenuText,
+                      }}
+                      onClick={() => {
+                        setScatterPopup({ filterElementId: contextMenu.c4Id });
+                        setShowGraphPopup(false);
+                        setMatrixPopup(null);
+                        setContextMenu(null);
+                      }}
+                    >
+                      {t('c4.contextMenu.openScatter')}
+                    </button>
                     {canShowManualActions && (
                       <>
                         <button

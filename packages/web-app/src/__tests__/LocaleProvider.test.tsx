@@ -6,6 +6,22 @@ jest.mock("next-intl", () => ({
   NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+// 自己完結 i18n プロバイダを mock し、markdown-core の重い依存（ESM ライブラリ等）を巻き込まないようにする
+jest.mock("@anytime-markdown/markdown-core", () => ({
+  MarkdownCoreI18nProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+jest.mock("@anytime-markdown/markdown-core/src/i18n/en.json", () => ({}), { virtual: true });
+jest.mock("@anytime-markdown/markdown-core/src/i18n/ja.json", () => ({}), { virtual: true });
+jest.mock("@anytime-markdown/graph-viewer", () => ({
+  GraphI18nProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+jest.mock("@anytime-markdown/spreadsheet-viewer", () => ({
+  SpreadsheetI18nProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+jest.mock("@anytime-markdown/database-viewer", () => ({
+  DatabaseI18nProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 import { LocaleProvider, useLocaleSwitch } from "../app/LocaleProvider";
 
 describe("useLocaleSwitch (via LocaleProvider)", () => {

@@ -19,7 +19,6 @@ if (typeof window !== "undefined") {
 import { Box, CircularProgress, useMediaQuery, useTheme } from "@mui/material";
 import { useEditor } from "@tiptap/react";
 import dynamic from "next/dynamic";
-import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { EditorDialogsSection } from "./components/EditorDialogsSection";
@@ -36,6 +35,7 @@ import { EditorFeaturesContext } from "./contexts/EditorFeaturesContext";
 import { EditorModeContext, type EditorModeContextValue } from "./contexts/EditorModeContext";
 import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
+import { MarkdownCoreI18nProvider, useMarkdownLocale, useMarkdownT } from "./i18n/context";
 import { PrintStyles } from "./styles/printStyles";
 import { EditorSettingsContext,useEditorSettings } from "./useEditorSettings";
 import { useMarkdownEditor } from "./useMarkdownEditor";
@@ -110,6 +110,7 @@ function handleChangeGutterKeydown(e: KeyboardEvent, editor: Editor) {
 }
 
 interface MarkdownEditorPageProps {
+  locale?: string;
   hideFileOps?: boolean;
   hideUndoRedo?: boolean;
   hideSettings?: boolean;
@@ -308,9 +309,11 @@ function maskWhenRestricted<T>(isRestricted: boolean, value: T): T | undefined {
   return isRestricted ? undefined : value;
 }
 
-export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, onHomeClick }: MarkdownEditorPageProps = {}) {
-  const t = useTranslations("MarkdownEditor");
-  const locale = useLocale() as "en" | "ja";
+type InnerProps = Omit<MarkdownEditorPageProps, "locale">;
+
+function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, onHomeClick }: InnerProps = {}) {
+  const t = useMarkdownT("MarkdownEditor");
+  const locale = useMarkdownLocale();
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const isMd = useMediaQuery(muiTheme.breakpoints.up("md"));
@@ -705,5 +708,13 @@ export default function MarkdownEditorPage({ hideFileOps, hideUndoRedo, hideSett
     </EditorSettingsContext.Provider>
     </EditorModeContext.Provider>
     </EditorErrorBoundary>
+  );
+}
+
+export default function MarkdownEditorPage({ locale, ...rest }: Readonly<MarkdownEditorPageProps> = {}) {
+  return (
+    <MarkdownCoreI18nProvider locale={locale}>
+      <MarkdownEditorPageInner {...rest} />
+    </MarkdownCoreI18nProvider>
   );
 }

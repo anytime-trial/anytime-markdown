@@ -6,6 +6,7 @@ import type {
   CombinedChartKind,
   CommitMetric,
   PeriodDays,
+  ToolChartMetric,
 } from '../../types';
 import { computeCombinedAxisInfo } from './axisInfo';
 import { ToolsCombinedChart } from './ToolsCombinedChart';
@@ -32,7 +33,7 @@ export function CombinedChartsContent({
   data: CombinedData | null;
   periodDays: PeriodDays;
   activeChart: CombinedChartKind;
-  toolMetric: ChartMetric;
+  toolMetric: ToolChartMetric;
   modelMetric: ChartMetric;
   agentMetric: AgentMetric;
   commitMetric: CommitMetric;
@@ -53,10 +54,10 @@ export function CombinedChartsContent({
   const canDrill = periodDays < 90 && !!onDateClick;
 
   if (activeChart === 'tools') {
+    if (toolMetric === 'error') {
+      return <ErrorToolsCombinedChart axisInfo={axisInfo} canDrill={canDrill} onDateClick={onDateClick} />;
+    }
     return <ToolsCombinedChart axisInfo={axisInfo} toolMetric={toolMetric} canDrill={canDrill} onDateClick={onDateClick} />;
-  }
-  if (activeChart === 'errors') {
-    return <ErrorToolsCombinedChart axisInfo={axisInfo} canDrill={canDrill} onDateClick={onDateClick} />;
   }
   if (activeChart === 'repos') {
     return <ReposCombinedChart axisInfo={axisInfo} repoMetric={repoMetric} canDrill={canDrill} onDateClick={onDateClick} />;

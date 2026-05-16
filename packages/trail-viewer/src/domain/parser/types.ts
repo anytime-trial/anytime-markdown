@@ -1,49 +1,3 @@
-// --- Raw JSONL types (Claude Code output format) ---
-// These are trail-viewer specific (JSONL parsing) and remain here.
-
-export interface RawJsonlMessage {
-  readonly type: string;
-  readonly subtype?: string;
-  readonly uuid?: string;
-  readonly parentUuid?: string | null;
-  readonly isSidechain?: boolean;
-  readonly timestamp?: string;
-  readonly sessionId?: string;
-  readonly version?: string;
-  readonly gitBranch?: string;
-  readonly cwd?: string;
-  readonly slug?: string;
-  readonly message?: {
-    readonly role?: string;
-    readonly model?: string;
-    readonly content?: string | readonly RawContentBlock[];
-    readonly usage?: RawUsage;
-    readonly stop_reason?: string | null;
-  };
-  readonly userContent?: string;
-  readonly isMeta?: boolean;
-  /** Subagent (CC sidechain or codex 委任) のメッセージで、委任元の親 assistant メッセージ UUID。 */
-  readonly sourceToolAssistantUUID?: string;
-  readonly sourceToolUseID?: string;
-}
-
-export interface RawContentBlock {
-  readonly type: string;
-  readonly text?: string;
-  readonly id?: string;
-  readonly name?: string;
-  readonly input?: Record<string, unknown>;
-  readonly content?: string | readonly RawContentBlock[];
-  readonly is_error?: boolean;
-}
-
-export interface RawUsage {
-  readonly input_tokens?: number;
-  readonly output_tokens?: number;
-  readonly cache_read_input_tokens?: number;
-  readonly cache_creation_input_tokens?: number;
-}
-
 // --- Analytics types ---
 
 export interface AnalyticsData {
@@ -88,6 +42,7 @@ export interface AnalyticsData {
     readonly estimatedCostUsd: number;
     readonly commits: number;
     readonly linesAdded: number;
+    readonly linesDeleted: number;
   }[];
 }
 
@@ -147,6 +102,7 @@ export interface CombinedCommitPrefix {
   readonly prefix: string;
   readonly count: number;
   readonly linesAdded: number;
+  readonly linesDeleted: number;
 }
 
 export interface CombinedRepository {
@@ -162,6 +118,13 @@ export interface CombinedAiFirstTryRate {
   readonly sampleSize: number;
 }
 
+export interface CombinedQualityRate {
+  readonly period: string;
+  readonly retryRate: number | null;    // retries / edits × 100 (0-100 %)
+  readonly buildFailRate: number | null; // fails / runs × 100 (0-100 %)
+  readonly testFailRate: number | null;  // fails / runs × 100 (0-100 %)
+}
+
 export interface CombinedData {
   readonly toolCounts: readonly CombinedToolCount[];
   readonly errorRate: readonly CombinedError[];
@@ -171,6 +134,7 @@ export interface CombinedData {
   readonly commitPrefixStats: readonly CombinedCommitPrefix[];
   readonly aiFirstTryRate: readonly CombinedAiFirstTryRate[];
   readonly repoStats: readonly CombinedRepository[];
+  readonly qualityRates: readonly CombinedQualityRate[];
 }
 
 export type CombinedPeriodMode = 'day' | 'week';

@@ -314,9 +314,10 @@ export class ClaudeStatusWatcher implements Disposable {
 
   private _extractContextTokens(filePath: string): number {
     try {
-      const stats = fs.statSync(filePath);
-      const readSize = Math.min(stats.size, 16384);
+      // TOCTOU 競合を避けるため、open 後の fstat でサイズを取得する。
       const fd = fs.openSync(filePath, 'r');
+      const stats = fs.fstatSync(fd);
+      const readSize = Math.min(stats.size, 16384);
       const buffer = Buffer.alloc(readSize);
       fs.readSync(fd, buffer, 0, readSize, Math.max(0, stats.size - readSize));
       fs.closeSync(fd);
@@ -344,9 +345,10 @@ export class ClaudeStatusWatcher implements Disposable {
 
   private _extractLastAiTitle(filePath: string): string {
     try {
-      const stats = fs.statSync(filePath);
-      const readSize = Math.min(stats.size, 8192);
+      // TOCTOU 競合を避けるため、open 後の fstat でサイズを取得する。
       const fd = fs.openSync(filePath, 'r');
+      const stats = fs.fstatSync(fd);
+      const readSize = Math.min(stats.size, 8192);
       const buffer = Buffer.alloc(readSize);
       fs.readSync(fd, buffer, 0, readSize, Math.max(0, stats.size - readSize));
       fs.closeSync(fd);

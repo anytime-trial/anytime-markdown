@@ -18,7 +18,6 @@ import {
   Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import { useLocale } from "next-intl";
 import React from "react";
 
 import useConfirm from "@/hooks/useConfirm";
@@ -27,6 +26,7 @@ import { getTextSecondary } from "../constants/colors";
 import { PAPER_MARGIN_MAX, PAPER_MARGIN_MIN, PAPER_MARGIN_STEP, PAPER_SIZE_OPTIONS } from "../constants/dimensions";
 import type { ThemePresetName } from "../constants/themePresets";
 import { PRESET_NAMES, THEME_PRESETS } from "../constants/themePresets";
+import { useMarkdownLocale } from "../i18n/context";
 import type { TranslationFn } from "../types";
 import type { EditorSettings } from "../useEditorSettings";
 
@@ -59,7 +59,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
 }: EditorSettingsPanelProps) {
   const isDark = useTheme().palette.mode === "dark";
   const confirm = useConfirm();
-  const currentLocale = useLocale();
+  const currentLocale = useMarkdownLocale();
 
   const handleReset = async () => {
     try {

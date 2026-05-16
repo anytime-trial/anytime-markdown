@@ -7,6 +7,19 @@
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-05-15
+
+### 変更
+
+- `markdown-core` を自己完結 i18n に移行 (`trail-viewer` 等の i18n を参照しない)
+- パッケージ公開 API 経由でメッセージを公開し、サーバーバンドルから client-only 依存を排除
+
+### 修正
+
+- 非ブラウザバンドルでの `navigator` アクセスと動的 import 解決の不整合を修正
+- `mcp-markdown` の `server.tool()` 呼び出しをラップして MCP SDK の TS2589 深さエラーを抑止
+- `updateSection` のエッジケースと統合 sanitize のテストカバレッジを強化
+
 ## [0.14.1] - 2026-05-06
 
 ### 修正

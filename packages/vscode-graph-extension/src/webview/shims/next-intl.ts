@@ -1,14 +1,2 @@
-/* next-intl shim for VS Code webview (webpack) */
-import { createNextIntlShim } from '@anytime-markdown/vscode-common/webview';
-import messagesEn from '../../../../graph-viewer/src/i18n/en.json';
-import messagesJa from '../../../../graph-viewer/src/i18n/ja.json';
-
-type Messages = Record<string, Record<string, string>>;
-
-export const { setLocale, useTranslations, useLocale } = createNextIntlShim(
-  {
-    ja: messagesJa as unknown as Messages,
-    en: messagesEn as unknown as Messages,
-  },
-  'ja',
-);
+/* next-intl shim for VS Code webview (webpack) — graph-viewer は独自 i18n を持つため空 */
+export {};

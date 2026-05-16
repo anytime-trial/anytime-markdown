@@ -179,6 +179,8 @@ export type MetricOverlay =
   | 'edit-complexity-most'
   | 'edit-complexity-highest'
   | 'importance'
+  | 'centrality'
+  | 'function-roles'
   | 'defect-risk'
   | 'hotspot-frequency'
   | 'hotspot-risk'
@@ -186,7 +188,8 @@ export type MetricOverlay =
   | 'dead-code-score'
   | 'size-loc'
   | 'size-files'
-  | 'size-functions';
+  | 'size-functions'
+  | 'architecture-ui';
 
 /** 複雑度分類（classifyByFeatures の label に対応） */
 export type ComplexityClass =

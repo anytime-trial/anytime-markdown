@@ -16,7 +16,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { useTranslations } from "next-intl";
+import { useDatabaseT } from "./i18n/context";
 import React, { useMemo, useState } from "react";
 import type { SchemaInfo } from "@anytime-markdown/database-core";
 
@@ -39,7 +39,7 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
   onShowErd,
   databaseName,
 }) => {
-  const t = useTranslations("Database");
+  const t = useDatabaseT("Database");
   const [filter, setFilter] = useState("");
   const [dbExpanded, setDbExpanded] = useState(true);
   const [menu, setMenu] = useState<{

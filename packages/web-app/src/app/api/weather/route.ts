@@ -75,12 +75,15 @@ async function fetchCity(city: (typeof CITIES)[number]): Promise<WeatherCity> {
 }
 
 export async function GET() {
-    try {
-        const cities = await Promise.all(CITIES.map(fetchCity));
-        return NextResponse.json({ cities });
-    } catch (e) {
-        const message = extractErrorMessage(e);
-        console.error(`[/api/weather] ${message}`, e instanceof Error ? e.stack : e);
-        return NextResponse.json({ error: message }, { status: 500 });
+    const results = await Promise.allSettled(CITIES.map(fetchCity));
+    const cities: WeatherCity[] = [];
+    for (const [i, r] of results.entries()) {
+        if (r.status === 'fulfilled') {
+            cities.push(r.value);
+        } else {
+            const message = extractErrorMessage(r.reason);
+            console.error(`[/api/weather] ${CITIES[i].key} failed: ${message}`);
+        }
     }
+    return NextResponse.json({ cities });
 }

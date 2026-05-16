@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 変更
+
+- SQLite アクセスを `sql.js` (WASM) から `better-sqlite3` (ネイティブ) に置換。memory-core / trail-db / trail-server も同時に better-sqlite3 一本化済みであり、`vsce package --no-dependencies` 配布の制約も解消したため WASM 経由は不要になった。`openTrailDb` の `tmp + rename` による atomic 書き出しは、better-sqlite3 の close 時 WAL checkpoint に置き換わった。
+
 ## [0.10.1] - 2026-05-08
 
 ### 追加

@@ -21,6 +21,8 @@ const fn = (
     dataMutationScore: 0,
     sideEffectScore: 0,
     lineCount: 10,
+    fanOut: 0,
+    distinctCallees: 0,
   },
   importanceScore: score,
 });

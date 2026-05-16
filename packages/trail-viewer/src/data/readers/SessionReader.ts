@@ -37,12 +37,7 @@ export class SessionReader {
     const sessions = (data ?? []) as readonly SessionDbRow[];
     const sessionById = new Map(sessions.map((s) => [s.id, s] as const));
     const sessionIds = sessions.map((s) => s.id);
-    // 互いに依存しない 2 つの補助 fetch を並列化。Phase 0 計測で /api/trail/sessions が
-    // 581ms (目標 500ms) と +81ms 未達。1 ラウンドトリップぶん削減する。
-    const [subAgentCounts, linkedCodexByParent] = await Promise.all([
-      this.fetchSubAgentCountsForSessions(sessionIds),
-      this.fetchLinkedCodexSessionIdsByParent(sessions),
-    ]);
+    const linkedCodexByParent = await this.fetchLinkedCodexSessionIdsByParent(sessions);
     const consumedCodexIds = new Set<string>();
     for (const ids of linkedCodexByParent.values()) {
       for (const id of ids) consumedCodexIds.add(id);
@@ -69,7 +64,7 @@ export class SessionReader {
           linkedCost += c.estimated_cost_usd;
         }
       }
-      const base = toTrailSession(r, [], undefined, subAgentCounts.get(r.id));
+      const base = toTrailSession(r, []);
       return {
         ...base,
         messageCount: base.messageCount + linkedMessageCount,
@@ -125,75 +120,6 @@ export class SessionReader {
       uuid: r.uuid,
       snippet: (r.text_content ?? '').slice(0, 200),
     }));
-  }
-
-  private async fetchSubAgentCountsForSessions(sessionIds: readonly string[]): Promise<Map<string, number>> {
-    const out = new Map<string, number>();
-    if (sessionIds.length === 0) return out;
-    const claudeTrackBySession = new Map<string, Set<string>>();
-    const delegatedTrackBySession = new Map<string, Set<string>>();
-    const agentCallCountBySession = new Map<string, number>();
-    const BATCH = 200;
-    for (let i = 0; i < sessionIds.length; i += BATCH) {
-      const batchIds = sessionIds.slice(i, i + BATCH);
-      const { data, error } = await this.client
-        .from('trail_messages')
-        .select('session_id, agent_id, tool_calls')
-        .in('session_id', batchIds as string[])
-        .eq('type', 'assistant');
-      if (error) {
-        console.warn(
-          `[SupabaseTrailReader] fetchSubAgentCountsForSessions failed (sessionCount=${sessionIds.length}): ${error.message}`,
-        );
-        return out;
-      }
-      for (const row of (data ?? []) as Array<{ session_id: string; agent_id: string | null; tool_calls: string | null }>) {
-        const sid = row.session_id;
-        if (row.agent_id) {
-          let set = claudeTrackBySession.get(sid);
-          if (!set) {
-            set = new Set();
-            claudeTrackBySession.set(sid, set);
-          }
-          set.add(row.agent_id);
-        }
-        if (!row.tool_calls) continue;
-        let calls: Array<{ name?: string; input?: Record<string, unknown> }> = [];
-        try {
-          calls = JSON.parse(row.tool_calls) as Array<{ name?: string; input?: Record<string, unknown> }>;
-        } catch (parseError) {
-          console.warn('SessionReader.fetchSubAgentCountsForSessions: failed to parse tool_calls', {
-            context: { sessionId: sid, length: row.tool_calls?.length ?? 0 },
-            error: parseError instanceof Error
-              ? { message: parseError.message, stack: parseError.stack }
-              : { value: String(parseError) },
-          });
-          continue;
-        }
-        const agentCall = calls.find((c) => c.name === 'Agent');
-        if (!agentCall) continue;
-        agentCallCountBySession.set(sid, (agentCallCountBySession.get(sid) ?? 0) + 1);
-        if (!row.agent_id) {
-          const subagentType = typeof agentCall.input?.subagent_type === 'string'
-            ? agentCall.input.subagent_type
-            : 'unknown';
-          let set = delegatedTrackBySession.get(sid);
-          if (!set) {
-            set = new Set();
-            delegatedTrackBySession.set(sid, set);
-          }
-          set.add(`delegated:${subagentType}`);
-        }
-      }
-    }
-    for (const sid of sessionIds) {
-      const claudeTracks = claudeTrackBySession.get(sid)?.size ?? 0;
-      const delegatedTracks = delegatedTrackBySession.get(sid)?.size ?? 0;
-      const agentCalls = agentCallCountBySession.get(sid) ?? 0;
-      const count = Math.max(agentCalls, claudeTracks + delegatedTracks);
-      if (count > 0) out.set(sid, count);
-    }
-    return out;
   }
 
   private async fetchLinkedCodexSessionIdsByParent(

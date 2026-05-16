@@ -20,6 +20,6 @@ echo "Packaging vsix..."
 npx vsce package --no-dependencies -o "$DIST_DIR/anytime-markdown.vsix"
 
 echo "Installing..."
-code --install-extension "$DIST_DIR/anytime-markdown.vsix" --force
+bash "$REPO_ROOT/scripts/vscode-extension/_install-vsix.sh" "$DIST_DIR/anytime-markdown.vsix"
 
 echo "Done! Restart VS Code to activate."

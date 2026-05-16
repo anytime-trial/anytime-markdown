@@ -150,7 +150,7 @@
 
 | 設定キー | デフォルト | 説明 |
 | --- | --- | --- |
-| `anytimeTrail.claudeStatus.directory` | `.vscode/trail/agent-status` | `claude-code-status.json` の保存ディレクトリ。絶対パスまたはワークスペースルートからの相対パス。 |
+| `anytimeTrail.claudeStatus.directory` | `.anytime/trail/agent-status` | `claude-code-status.json` の保存ディレクトリ。絶対パスまたはワークスペースルートからの相対パス。 |
 
 
 ### 7.5 トークンバジェット

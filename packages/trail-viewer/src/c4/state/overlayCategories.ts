@@ -6,16 +6,20 @@ export type OverlayCategory =
   | 'dsm'
   | 'edit-complexity'
   | 'importance'
+  | 'structure'
   | 'hotspot'
   | 'dead-code'
-  | 'size';
+  | 'size'
+  | 'architecture';
 
 export const OVERLAY_CATEGORY_DEFAULTS: Record<Exclude<OverlayCategory, 'none'>, MetricOverlay> = {
   coverage: 'coverage-lines',
   dsm: 'dsm-cyclic',
   'edit-complexity': 'edit-complexity-most',
   importance: 'importance',
+  structure: 'centrality',
   hotspot: 'hotspot-frequency',
   'dead-code': 'dead-code-score',
   size: 'size-loc',
+  architecture: 'architecture-ui',
 };

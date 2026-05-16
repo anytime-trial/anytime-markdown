@@ -13,6 +13,25 @@ import {
   uploadReport,
 } from '@anytime-markdown/cms-core';
 
+type ToolArgs = Record<string, unknown>;
+type ToolResult = { content: Array<{ type: 'text'; text: string }> };
+type ToolCallback = (args: ToolArgs) => Promise<ToolResult>;
+
+/**
+ * server.tool() のラッパー。MCP SDK の Zod スキーマ型推論が TS2589 を引き起こすため、
+ * パラメータ型を Record<string, z.ZodType> にキャストして型推論の深さを制限する。
+ */
+function registerTool(
+  server: McpServer,
+  name: string,
+  description: string,
+  params: Record<string, z.ZodType>,
+  handler: ToolCallback,
+): void {
+  // @ts-expect-error TS2589: MCP SDK の Zod 型推論が深すぎる既知の制限
+  server.tool(name, description, params, handler);
+}
+
 export function createMcpServer(): McpServer {
   const config = createCmsConfig();
   const client = createS3Client(config);
@@ -22,11 +41,11 @@ export function createMcpServer(): McpServer {
     version: '0.0.1',
   });
 
-  server.tool(
-    'upload_report',
+  registerTool(server, 'upload_report',
     'Upload a local Markdown file to S3 reports prefix',
     { filePath: z.string().describe('Absolute path to the local .md file') },
-    async ({ filePath }) => {
+    async (args) => {
+      const filePath = args.filePath as string;
       const fileName = basename(filePath);
       const content = await readFile(filePath, 'utf-8');
       const result = await uploadReport({ fileName, content }, client, config);
@@ -34,8 +53,7 @@ export function createMcpServer(): McpServer {
     },
   );
 
-  server.tool(
-    'list_reports',
+  registerTool(server, 'list_reports',
     'List all report files in S3 reports prefix',
     {},
     async () => {
@@ -44,14 +62,15 @@ export function createMcpServer(): McpServer {
     },
   );
 
-  server.tool(
-    'upload_doc',
+  registerTool(server, 'upload_doc',
     'Upload a local file to S3 docs prefix',
     {
       filePath: z.string().describe('Absolute path to the local file (.md or image)'),
       folder: z.string().optional().describe('Optional subfolder name'),
     },
-    async ({ filePath, folder }) => {
+    async (args) => {
+      const filePath = args.filePath as string;
+      const folder = args.folder as string | undefined;
       const fileName = basename(filePath);
       const isText = fileName.endsWith('.md');
       const content = isText
@@ -62,8 +81,7 @@ export function createMcpServer(): McpServer {
     },
   );
 
-  server.tool(
-    'list_docs',
+  registerTool(server, 'list_docs',
     'List all document files in S3 docs prefix',
     {},
     async () => {
@@ -72,11 +90,11 @@ export function createMcpServer(): McpServer {
     },
   );
 
-  server.tool(
-    'delete_doc',
+  registerTool(server, 'delete_doc',
     'Delete a document from S3 docs prefix',
     { key: z.string().describe('S3 key of the document to delete (e.g. "docs/file.md")') },
-    async ({ key }) => {
+    async (args) => {
+      const key = args.key as string;
       await deleteDoc({ key }, client, config);
       return { content: [{ type: 'text' as const, text: JSON.stringify({ deleted: true, key }) }] };
     },

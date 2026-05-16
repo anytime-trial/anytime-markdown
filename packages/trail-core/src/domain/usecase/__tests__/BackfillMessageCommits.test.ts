@@ -32,6 +32,7 @@ describe('matchCommitsToMessages', () => {
         filesChanged: 1,
         linesAdded: 10,
         linesDeleted: 0,
+        repoName: '',
       },
     ];
     const result = matchCommitsToMessages(messages, commits);
@@ -74,6 +75,7 @@ describe('matchCommitsToMessages', () => {
         filesChanged: 1,
         linesAdded: 0,
         linesDeleted: 0,
+        repoName: '',
       },
     ];
     const result = matchCommitsToMessages(messages, commits);
@@ -113,6 +115,7 @@ describe('matchCommitsToMessages', () => {
         filesChanged: 1,
         linesAdded: 5,
         linesDeleted: 2,
+        repoName: '',
       },
     ];
     const result = matchCommitsToMessages(messages, commits);
@@ -152,6 +155,7 @@ describe('matchCommitsToMessages', () => {
         filesChanged: 1,
         linesAdded: 1,
         linesDeleted: 0,
+        repoName: '',
       },
     ];
     const result = matchCommitsToMessages(messages, commits);
@@ -185,6 +189,7 @@ describe('matchCommitsToMessages', () => {
         filesChanged: 1,
         linesAdded: 1,
         linesDeleted: 0,
+        repoName: '',
       },
     ];
     const result = matchCommitsToMessages(messages, commits);
@@ -238,6 +243,7 @@ describe('matchCommitsToMessages', () => {
         filesChanged: 1,
         linesAdded: 10,
         linesDeleted: 0,
+        repoName: '',
       },
       {
         commitHash: 'hash-b',
@@ -248,6 +254,7 @@ describe('matchCommitsToMessages', () => {
         filesChanged: 2,
         linesAdded: 20,
         linesDeleted: 5,
+        repoName: '',
       },
     ];
     const result = matchCommitsToMessages(messages, commits);
@@ -294,6 +301,7 @@ describe('matchCommitsToMessages', () => {
         filesChanged: 1,
         linesAdded: 1,
         linesDeleted: 0,
+        repoName: '',
       },
     ];
     const result = matchCommitsToMessages(messages, commits);
@@ -325,6 +333,7 @@ describe('matchCommitsToMessages', () => {
         filesChanged: 1,
         linesAdded: 1,
         linesDeleted: 0,
+        repoName: '',
       },
     ];
     const result = matchCommitsToMessages(messages, commits);
@@ -342,6 +351,7 @@ describe('matchCommitsToMessages', () => {
         filesChanged: 1,
         linesAdded: 1,
         linesDeleted: 0,
+        repoName: '',
       },
     ]);
     expect(result).toEqual([]);

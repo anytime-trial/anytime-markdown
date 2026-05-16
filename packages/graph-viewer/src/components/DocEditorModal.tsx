@@ -3,7 +3,7 @@
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { Box, IconButton, Typography } from '@mui/material';
-import { useTranslations } from 'next-intl';
+import { useGraphT } from '../i18n/context';
 import React, { useEffect,useState } from 'react';
 
 interface DocEditorModalProps {
@@ -16,7 +16,7 @@ interface DocEditorModalProps {
 }
 
 export function DocEditorModal({ open, title, content, onSave, onClose, themeMode = 'dark' }: Readonly<DocEditorModalProps>) {
-  const t = useTranslations('Graph');
+  const t = useGraphT('Graph');
   const isDark = themeMode === 'dark';
   const colors = getCanvasColors(isDark);
   const [editorContent, setEditorContent] = useState(content);

@@ -20,7 +20,7 @@
   "configuration.themePreset.description": "Theme style preset for the editor.",
   "configuration.themePreset.handwritten": "Handwritten — rounded, playful style",
   "configuration.themePreset.professional": "Professional — clean, formal style",
-  "configuration.claudeStatus.directory.description": "Directory where `claude-code-status.json` is stored. Absolute path or relative to workspace root. Defaults to `.vscode/` when empty.",
+  "configuration.claudeStatus.directory.description": "Directory where `claude-code-status.json` is stored. Absolute path or relative to workspace root. Defaults to `.anytime/` when empty.",
   "viewsContainer.title": "Anytime Markdown",
   "viewsWelcome.timeline": "Open a markdown file to see its history.",
   "command.compareWithCommit": "Compare with this commit"

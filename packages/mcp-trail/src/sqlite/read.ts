@@ -1,4 +1,4 @@
-import type { Database } from 'sql.js';
+import type { Database } from 'better-sqlite3';
 import type { C4Model, ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
 import { codeGraphToC4, mergeManualIntoC4Model } from '@anytime-markdown/trail-core';
 import { all, get } from './sqlJsUtil';
@@ -52,6 +52,12 @@ export interface CommunityRow {
   name: string;
   summary: string;
   mappingsJson: string | null;
+  /**
+   * コミュニティ内ノード ID 集合のコンテンツハッシュ。
+   * 古いスキーマ（stable_key 列未追加）の DB では空文字を返す。
+   * 詳細は `@anytime-markdown/trail-core/codeGraph` の computeStableKey 参照。
+   */
+  stableKey: string;
 }
 
 interface GraphRow {
@@ -89,6 +95,7 @@ interface CommunityRowRaw {
   name: string;
   summary: string;
   mappings_json?: string | null;
+  stable_key?: string | null;
 }
 
 export function getC4ModelDirect(db: Database, repoName: string): { model: C4Model } {
@@ -181,20 +188,28 @@ export function listRelationshipsDirect(db: Database, repoName: string): ListedR
 }
 
 export function listCommunitiesDirect(db: Database, repoName: string): { communities: CommunityRow[] } {
+  // 古いスキーマ（mappings_json / stable_key 列未追加）への後方互換のため、列存在を try で段階的にフォールバック
   let rows: CommunityRowRaw[];
   try {
     rows = all<CommunityRowRaw>(
       db,
-      'SELECT community_id, label, name, summary, mappings_json FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
+      'SELECT community_id, label, name, summary, mappings_json, stable_key FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
       [repoName],
     );
   } catch (_err) {
-    // mappings_json カラムが存在しない場合（ALTER TABLE 未実施の既存 DB）
-    rows = all<CommunityRowRaw>(
-      db,
-      'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
-      [repoName],
-    );
+    try {
+      rows = all<CommunityRowRaw>(
+        db,
+        'SELECT community_id, label, name, summary, mappings_json FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
+        [repoName],
+      );
+    } catch (_err2) {
+      rows = all<CommunityRowRaw>(
+        db,
+        'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
+        [repoName],
+      );
+    }
   }
 
   const communities: CommunityRow[] = rows.map((row) => ({
@@ -203,6 +218,7 @@ export function listCommunitiesDirect(db: Database, repoName: string): { communi
     name: row.name,
     summary: row.summary,
     mappingsJson: row.mappings_json ?? null,
+    stableKey: row.stable_key ?? '',
   }));
 
   return { communities };

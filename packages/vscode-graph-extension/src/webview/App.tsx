@@ -3,21 +3,23 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { GraphEditor } from '@anytime-markdown/graph-viewer';
 import { useThemeMode } from './shims/providers';
-import { setLocale as setShimLocale } from './shims/next-intl';
 import { createVSCodePersistenceAdapter } from './adapters/vscodePersistenceAdapter';
+
+function detectLocale(): string {
+  return typeof navigator !== 'undefined' && navigator.language.startsWith('ja') ? 'ja' : 'en';
+}
 
 export function App() {
   const { themeMode } = useThemeMode();
   const theme = useMemo(() => createTheme({ palette: { mode: themeMode } }), [themeMode]);
   const persistence = useMemo(() => createVSCodePersistenceAdapter(), []);
-  const [localeKey, setLocaleKey] = useState(0);
+  const [locale, setLocale] = useState<string>(detectLocale);
 
   useEffect(() => {
     const listener = (event: MessageEvent) => {
       const msg = event.data;
       if (msg && msg.type === 'locale' && typeof msg.locale === 'string') {
-        setShimLocale(msg.locale);
-        setLocaleKey((k) => k + 1);
+        setLocale(msg.locale);
       }
     };
     window.addEventListener('message', listener);
@@ -29,7 +31,7 @@ export function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <GraphEditor key={localeKey} themeMode={themeMode} persistence={persistence} />
+      <GraphEditor locale={locale} themeMode={themeMode} persistence={persistence} />
     </ThemeProvider>
   );
 }

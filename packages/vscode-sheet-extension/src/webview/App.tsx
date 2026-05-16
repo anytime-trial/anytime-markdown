@@ -4,18 +4,21 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { SpreadsheetEditor } from '@anytime-markdown/spreadsheet-viewer';
 import type { WorkbookSnapshot } from '@anytime-markdown/spreadsheet-viewer';
 import { useThemeMode } from './shims/providers';
-import { setLocale as setShimLocale } from './shims/next-intl';
 import { createVSCodeSheetAdapter } from './adapters/VSCodeSheetAdapter';
 import { createVSCodeWorkbookAdapter } from './adapters/VSCodeWorkbookAdapter';
 import { getVscodeApi } from './adapters/vscodeApi';
 
 type SheetFormat = 'sheet' | 'csv' | 'tsv';
 
+function detectLocale(): string {
+  return typeof navigator !== 'undefined' && navigator.language.startsWith('ja') ? 'ja' : 'en';
+}
+
 export function App() {
   const { themeMode } = useThemeMode();
   const theme = useMemo(() => createTheme({ palette: { mode: themeMode } }), [themeMode]);
   const [format, setFormat] = useState<SheetFormat>('sheet');
-  const [localeKey, setLocaleKey] = useState(0);
+  const [locale, setLocale] = useState<string>(detectLocale);
 
   const csvAdapter = useMemo(() => createVSCodeSheetAdapter('csv'), []);
   const tsvAdapter = useMemo(() => createVSCodeSheetAdapter('tsv'), []);
@@ -28,8 +31,7 @@ export function App() {
       switch (msg.type) {
         case 'locale':
           if (typeof msg.locale === 'string') {
-            setShimLocale(msg.locale);
-            setLocaleKey((k) => k + 1);
+            setLocale(msg.locale);
           }
           break;
         case 'init': {
@@ -60,13 +62,13 @@ export function App() {
       <CssBaseline />
       {format === 'sheet' ? (
         <SpreadsheetEditor
-          key={localeKey}
+          locale={locale}
           themeMode={themeMode}
           workbookAdapter={workbookAdapter}
         />
       ) : (
         <SpreadsheetEditor
-          key={localeKey}
+          locale={locale}
           themeMode={themeMode}
           adapter={csvSheetAdapter}
         />

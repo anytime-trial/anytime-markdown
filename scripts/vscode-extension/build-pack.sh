@@ -14,6 +14,6 @@ cd "$EXT_DIR"
 npx vsce package --no-dependencies -o "$DIST_DIR/anytime-extension-pack.vsix"
 
 echo "Installing..."
-code --install-extension "$DIST_DIR/anytime-extension-pack.vsix" --force
+bash "$REPO_ROOT/scripts/vscode-extension/_install-vsix.sh" "$DIST_DIR/anytime-extension-pack.vsix"
 
 echo "Done! Restart VS Code to activate."

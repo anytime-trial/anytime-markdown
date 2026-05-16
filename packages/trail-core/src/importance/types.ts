@@ -21,6 +21,10 @@ export interface FunctionMetrics {
   readonly sideEffectScore: number;
   /** 関数の行数 */
   readonly lineCount: number;
+  /** 関数 body 内の CallExpression / JSX タグの呼び出し総数 */
+  readonly fanOut: number;
+  /** 関数 body 内で呼ばれる関数の distinct 数 */
+  readonly distinctCallees: number;
 }
 
 export interface ScoredFunction extends FunctionInfo {

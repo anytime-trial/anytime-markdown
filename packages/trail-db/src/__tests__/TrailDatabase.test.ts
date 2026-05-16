@@ -1,6 +1,3 @@
-// __non_webpack_require__ はwebpackグローバル。テスト環境ではsql-asm.jsを直接ロードするよう差し替え
-const sqlAsmActual = require(require.resolve('sql.js/dist/sql-asm.js')); // eslint-disable-line @typescript-eslint/no-require-imports
-(global as Record<string, unknown>).__non_webpack_require__ = (_path: string) => sqlAsmActual;
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -249,6 +246,17 @@ describe('TrailDatabase.migrateDropSessionsProjectColumn', () => {
   });
 });
 
+describe('TrailDatabase releases schema', () => {
+  it('includes total_lines column', async () => {
+    const db = await createTestTrailDatabase();
+    const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
+    const result = inMemoryDb.exec('PRAGMA table_info(releases)');
+    const columns = (result[0]?.values ?? []).map((row) => String(row[1] ?? ''));
+    expect(columns).toContain('total_lines');
+    db.close();
+  });
+});
+
 describe('TrailDatabase.importSession - Codex token usage', () => {
   it('attaches token_count usage to the latest assistant message even after tool output', async () => {
     const db = await createTestTrailDatabase();
@@ -361,6 +369,47 @@ describe('TrailDatabase.rebuildDailyCounts', () => {
 
     db.close();
   });
+
+  it('skips sessions with empty start_time without violating daily_counts CHECK', async () => {
+    // Regression: JSONL に timestamp が一度も現れないセッションは start_time = '' で
+    // INSERT され、DATE('') が NULL → JS String(null) === 'null' → daily_counts.date
+    // の GLOB CHECK に違反していた (2026-05-10 v0.18.0 で報告)。
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: import('sql.js').Database }).db;
+    inner.run(
+      `INSERT INTO sessions (id, slug, repo_name, version, entrypoint, model,
+         start_time, end_time, message_count, file_path, file_size, imported_at, source)
+       VALUES
+         ('s-empty','','repo','','','','','',1,'/tmp/empty.jsonl',1,'','claude_code'),
+         ('s-valid','','repo','','','','2026-04-29T00:00:00Z','2026-04-29T00:01:00Z',1,'/tmp/valid.jsonl',1,'','claude_code')`,
+    );
+    inner.run(
+      `INSERT INTO messages
+         (uuid, session_id, type, model, timestamp, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens)
+       VALUES
+         ('m-empty','s-empty','assistant','claude-opus-4-7','2026-04-29T00:00:10Z',10,20,30,0),
+         ('m-valid','s-valid','assistant','claude-opus-4-7','2026-04-29T00:00:20Z',40,50,60,0)`,
+    );
+    inner.run(
+      `INSERT INTO message_tool_calls
+         (session_id, message_uuid, turn_index, call_index, tool_name, timestamp)
+       VALUES
+         ('s-empty','m-empty',0,0,'Bash','2026-04-29T00:00:11Z'),
+         ('s-valid','m-valid',0,0,'Bash','2026-04-29T00:00:21Z')`,
+    );
+
+    expect(() => {
+      (db as unknown as Record<string, () => void>).rebuildDailyCounts();
+    }).not.toThrow();
+
+    const dates = inner.exec(`SELECT DISTINCT date FROM daily_counts ORDER BY date`)[0]?.values ?? [];
+    for (const [d] of dates) {
+      expect(String(d)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+    expect(dates.map((r) => r[0])).toEqual(['2026-04-29']);
+
+    db.close();
+  });
 });
 
 describe('TrailDatabase.getDayToolMetrics', () => {
@@ -368,30 +417,89 @@ describe('TrailDatabase.getDayToolMetrics', () => {
     const db = await createTestTrailDatabase();
     const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
 
-    const insert = (date: string, kind: string, key: string, count: number, tokens: number, durationMs: number) => {
-      inMemoryDb.run(
-        `INSERT INTO daily_counts (date, kind, key, count, tokens, duration_ms) VALUES (?, ?, ?, ?, ?, ?)`,
-        [date, kind, key, count, tokens, durationMs],
-      );
-    };
-    // Target date rows
-    insert('2026-04-25', 'tool', 'Bash', 10, 1000, 5000);
-    insert('2026-04-25', 'tool', 'Read', 3, 200, 100);
-    insert('2026-04-25', 'skill', 'design-md', 2, 0, 0);
-    insert('2026-04-25', 'error', 'Bash', 4, 0, 0);
-    insert('2026-04-25', 'model', 'claude-opus-4-7', 5, 50000, 0);
-    // Other-date row should be ignored
-    insert('2026-04-24', 'tool', 'Bash', 99, 9999, 9999);
+    // 仕様変更: 旧版は daily_counts (timestamp 基準) から集計していたが、
+    // 現実装は sessions.start_time (+540 分 = JST) で範囲を取り、
+    // message_tool_calls + messages から集計する。
+    // target date 2026-04-25 (JST) ⇔ UTC 2026-04-24T15:00:00Z .. 2026-04-25T14:59:59Z
+    // すべての session start_time を UTC 05:00 (JST 14:00) に揃える。
+    const SESSION_UTC = '2026-04-25T05:00:00Z';
+    const OTHER_UTC = '2026-04-24T05:00:00Z'; // JST 2026-04-24
+
+    // セッション作成
+    inMemoryDb.run(
+      `INSERT INTO sessions (id, start_time, source) VALUES
+         ('s-target', ?, 'claude_code'),
+         ('s-other',  ?, 'claude_code')`,
+      [SESSION_UTC, OTHER_UTC],
+    );
+
+    // assistant メッセージ（model + tokens を持つ）
+    inMemoryDb.run(
+      `INSERT INTO messages (uuid, session_id, type, model, timestamp, input_tokens, output_tokens)
+       VALUES
+         ('m-target-1', 's-target', 'assistant', 'claude-opus-4-7', ?, 30000, 20000),
+         ('m-target-2', 's-target', 'assistant', 'claude-opus-4-7', ?, 0, 0),
+         ('m-target-3', 's-target', 'assistant', 'claude-opus-4-7', ?, 0, 0),
+         ('m-target-4', 's-target', 'assistant', 'claude-opus-4-7', ?, 0, 0),
+         ('m-target-5', 's-target', 'assistant', 'claude-opus-4-7', ?, 0, 0),
+         ('m-other',    's-other',  'assistant', 'claude-opus-4-7', ?, 99999, 0)`,
+      [SESSION_UTC, SESSION_UTC, SESSION_UTC, SESSION_UTC, SESSION_UTC, OTHER_UTC],
+    );
+
+    // tool_calls: target 日に Bash×10, Read×3, さらに Bash の error×4。
+    // skill は今回のスコープでは aggregateByDayInternal が skill_name IS NOT NULL を要求するため
+    // 1 メッセージにつき 1 skill を紐付け。
+    const bulkCall: string[] = [];
+    const bulkParams: (string | number | null)[] = [];
+    for (let i = 0; i < 10; i++) {
+      bulkCall.push("(?, ?, 0, ?, 'Bash', ?, 0)");
+      bulkParams.push('s-target', 'm-target-1', i, SESSION_UTC);
+    }
+    for (let i = 0; i < 3; i++) {
+      bulkCall.push("(?, ?, 0, ?, 'Read', ?, 0)");
+      bulkParams.push('s-target', 'm-target-2', 10 + i, SESSION_UTC);
+    }
+    for (let i = 0; i < 4; i++) {
+      bulkCall.push("(?, ?, 0, ?, 'Bash', ?, 1)");
+      bulkParams.push('s-target', 'm-target-3', 20 + i, SESSION_UTC);
+    }
+    // 他日のレコード — 除外されるべき
+    bulkCall.push("(?, ?, 0, 0, 'Bash', ?, 0)");
+    bulkParams.push('s-other', 'm-other', OTHER_UTC);
+
+    inMemoryDb.run(
+      `INSERT INTO message_tool_calls
+         (session_id, message_uuid, turn_index, call_index, tool_name, timestamp, is_error)
+       VALUES ${bulkCall.join(',')}`,
+      bulkParams,
+    );
+
+    // skill: design-md に紐付く tool_call を 2 件
+    inMemoryDb.run(
+      `INSERT INTO message_tool_calls
+         (session_id, message_uuid, turn_index, call_index, tool_name, skill_name, timestamp)
+       VALUES
+         ('s-target', 'm-target-4', 0, 100, 'Skill', 'design-md', ?),
+         ('s-target', 'm-target-5', 0, 101, 'Skill', 'design-md', ?)`,
+      [SESSION_UTC, SESSION_UTC],
+    );
 
     const result = db.getDayToolMetrics('2026-04-25');
     expect(result).not.toBeNull();
-    expect(result!.toolUsage).toEqual([
-      { tool: 'Bash', count: 10, tokens: 1000, durationMs: 5000 },
-      { tool: 'Read', count: 3, tokens: 200, durationMs: 100 },
-    ]);
-    expect(result!.skillUsage).toEqual([{ skill: 'design-md', count: 2, tokens: 0, durationMs: 0 }]);
+    // tool 集計: Bash(error 含む 14), Read(3), Skill(2) のうち、count=DESC ソート
+    const toolMap = new Map(result!.toolUsage.map((t) => [t.tool, t.count]));
+    expect(toolMap.get('Bash')).toBe(14); // 10 + 4 errors も Bash として count される
+    expect(toolMap.get('Read')).toBe(3);
+
+    expect(result!.skillUsage[0].skill).toBe('design-md');
+    expect(result!.skillUsage[0].count).toBe(2);
+
     expect(result!.errorsByTool).toEqual([{ tool: 'Bash', count: 4 }]);
-    expect(result!.modelUsage).toEqual([{ model: 'claude-opus-4-7', count: 5, tokens: 50000, durationMs: 0 }]);
+
+    // model 名は resolvePricingModelName で正規化される（claude-opus-4-7 → 'opus'）。
+    expect(result!.modelUsage[0].model).toMatch(/opus/i);
+    expect(result!.modelUsage[0].count).toBe(5);
+    expect(result!.modelUsage[0].tokens).toBe(50000);
     db.close();
   });
 

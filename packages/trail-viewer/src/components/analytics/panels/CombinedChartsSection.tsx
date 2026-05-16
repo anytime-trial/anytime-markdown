@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import ToggleButton from '@mui/material/ToggleButton';
@@ -20,6 +21,7 @@ import type {
   QualityMetrics,
   ReleaseQualityBucket,
 } from '@anytime-markdown/trail-core/domain/metrics';
+import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 import type {
@@ -29,14 +31,16 @@ import type {
   CommitMetric,
   DailyViewMode,
   PeriodDays,
+  ToolChartMetric,
 } from '../types';
 import { DailyActivityChart } from '../charts/DailyActivityChart';
-import { ReleasesBarChart } from '../charts/ReleasesBarChart';
+import { ReleasesLocChart } from '../charts/ReleasesLocChart';
 import { CombinedChartsContent } from '../charts/combined/CombinedChartsContent';
 import { DailySessionList } from './DailySessionList';
 
 export function CombinedChartsSection({
   dailyActivity,
+  releases,
   sessions,
   sessionsLoading,
   period,
@@ -51,8 +55,12 @@ export function CombinedChartsSection({
   fetchCombinedData,
   fetchQualityMetrics,
   fetchReleaseQuality,
+  onOpenReleasesPopup,
+  onOpenPromptsPopup,
+  onOpenMessagesPopup,
 }: Readonly<{
   dailyActivity: AnalyticsData['dailyActivity'];
+  releases?: readonly TrailRelease[];
   sessions: readonly TrailSession[];
   sessionsLoading?: boolean;
   period: PeriodDays;
@@ -67,12 +75,15 @@ export function CombinedChartsSection({
   fetchCombinedData?: (period: CombinedPeriodMode, rangeDays: CombinedRangeDays) => Promise<CombinedData>;
   fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics | null>;
   fetchReleaseQuality?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<ReleaseQualityBucket>>;
+  onOpenReleasesPopup?: () => void;
+  onOpenPromptsPopup?: () => void;
+  onOpenMessagesPopup?: () => void;
 }>) {
   const { colors } = useTrailTheme();
   const { t } = useTrailI18n();
   const [metric, setMetric] = useState<CombinedMetric>('tokens');
   const [tokenMode, setTokenMode] = useState<DailyViewMode>('tokens');
-  const [toolMetric, setToolMetric] = useState<ChartMetric>('count');
+  const [toolMetric, setToolMetric] = useState<ToolChartMetric>('count');
   const [modelMetric, setModelMetric] = useState<ChartMetric>('count');
   const [agentMetric, setAgentMetric] = useState<AgentMetric>('tokens');
   const [commitMetric, setCommitMetric] = useState<CommitMetric>('count');
@@ -80,8 +91,6 @@ export function CombinedChartsSection({
   const [combinedData, setCombinedData] = useState<CombinedData | null>(null);
   const [combinedLoading, setCombinedLoading] = useState(false);
   const [, setOverlayLoading] = useState(false);
-  const [releasesTimeSeries, setReleasesTimeSeries] = useState<ReadonlyArray<ReleaseQualityBucket>>([]);
-  const [releasesLoading, setReleasesLoading] = useState(false);
   const [overlay, setOverlay] = useState<{
     bucket: 'day' | 'week';
     tokens: ReadonlyArray<{ bucketStart: string; value: number }>;
@@ -147,24 +156,6 @@ export function CombinedChartsSection({
     return () => { mounted = false; };
   }, [fetchQualityMetrics, period, metric]);
 
-  useEffect(() => {
-    if (!fetchReleaseQuality) return;
-    const now = new Date();
-    const to = now.toISOString();
-    const from = new Date(now.getTime() - period * 86_400_000).toISOString();
-    const bucket: 'day' | 'week' = period >= 90 ? 'week' : 'day';
-    let mounted = true;
-    setReleasesLoading(true);
-    void (async () => {
-      const result = await fetchReleaseQuality({ from, to }, bucket);
-      if (mounted) {
-        setReleasesTimeSeries(result);
-        setReleasesLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [fetchReleaseQuality, period]);
-
   const toggleSx = {
     color: colors.textSecondary,
     borderColor: colors.border,
@@ -186,19 +177,86 @@ export function CombinedChartsSection({
               <ToggleButton value="tokens" sx={toggleSx}>{t('chart.tokenUsage')}</ToggleButton>
             </Tooltip>
             <Tooltip title={t('analytics.combined.agent.description')} arrow placement="top">
-              <ToggleButton value="agents" data-chart-kind="agents" sx={toggleSx}>{t('analytics.combined.agent')}</ToggleButton>
+              <ToggleButton value="agents" data-chart-kind="agents" sx={{ ...toggleSx, gap: 0.75, pr: 0.75 }}>
+                <Box component="span">{t('analytics.combined.agent')}</Box>
+                <Tooltip title={t('message.openPopup')} arrow placement="top">
+                  <Box
+                    component="span"
+                    role="button"
+                    tabIndex={onOpenMessagesPopup ? 0 : -1}
+                    aria-label={t('message.openPopup')}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenMessagesPopup?.();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenMessagesPopup?.();
+                    }}
+                    sx={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 20,
+                      height: 20,
+                      borderRadius: 1,
+                      color: colors.textSecondary,
+                      opacity: onOpenMessagesPopup ? 1 : 0.35,
+                      cursor: onOpenMessagesPopup ? 'pointer' : 'default',
+                      '&:hover': onOpenMessagesPopup ? { bgcolor: colors.hoverBg, color: colors.iceBlue } : undefined,
+                    }}
+                  >
+                    <OpenInNewIcon sx={{ fontSize: 14 }} />
+                  </Box>
+                </Tooltip>
+              </ToggleButton>
             </Tooltip>
             <Tooltip title={t('analytics.combined.model.description')} arrow placement="top">
               <ToggleButton value="models" data-chart-kind="models" sx={toggleSx}>{t('analytics.combined.model')}</ToggleButton>
             </Tooltip>
             <Tooltip title={t('analytics.combined.skill.description')} arrow placement="top">
-              <ToggleButton value="skills" data-chart-kind="skills" sx={toggleSx}>{t('analytics.combined.skill')}</ToggleButton>
+              <ToggleButton value="skills" data-chart-kind="skills" sx={{ ...toggleSx, gap: 0.75, pr: 0.75 }}>
+                <Box component="span">{t('analytics.combined.skill')}</Box>
+                <Tooltip title={t('prompt.openPopup')} arrow placement="top">
+                  <Box
+                    component="span"
+                    role="button"
+                    tabIndex={onOpenPromptsPopup ? 0 : -1}
+                    aria-label={t('prompt.openPopup')}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenPromptsPopup?.();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenPromptsPopup?.();
+                    }}
+                    sx={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 20,
+                      height: 20,
+                      borderRadius: 1,
+                      color: colors.textSecondary,
+                      opacity: onOpenPromptsPopup ? 1 : 0.35,
+                      cursor: onOpenPromptsPopup ? 'pointer' : 'default',
+                      '&:hover': onOpenPromptsPopup ? { bgcolor: colors.hoverBg, color: colors.iceBlue } : undefined,
+                    }}
+                  >
+                    <OpenInNewIcon sx={{ fontSize: 14 }} />
+                  </Box>
+                </Tooltip>
+              </ToggleButton>
             </Tooltip>
             <Tooltip title={t('analytics.combined.tool.description')} arrow placement="top">
               <ToggleButton value="tools" data-chart-kind="tools" sx={toggleSx}>{t('analytics.combined.tool')}</ToggleButton>
-            </Tooltip>
-            <Tooltip title={t('analytics.combined.error.description')} arrow placement="top">
-              <ToggleButton value="errors" data-chart-kind="errors" sx={toggleSx}>{t('analytics.combined.error')}</ToggleButton>
             </Tooltip>
             <Tooltip title={t('analytics.combined.repository.description')} arrow placement="top">
               <ToggleButton value="repos" data-chart-kind="repos" sx={toggleSx}>{t('analytics.combined.repository')}</ToggleButton>
@@ -207,19 +265,56 @@ export function CombinedChartsSection({
               <ToggleButton value="commits" data-chart-kind="commits" sx={toggleSx}>{t('analytics.combined.commitPrefix')}</ToggleButton>
             </Tooltip>
             <Tooltip title={t('analytics.combined.release.description')} arrow placement="top">
-              <ToggleButton value="releases" sx={toggleSx}>{t('analytics.combined.release')}</ToggleButton>
+              <ToggleButton value="releases" sx={{ ...toggleSx, gap: 0.75, pr: 0.75 }}>
+                <Box component="span">{t('analytics.combined.release')}</Box>
+                <Tooltip title={t('releases.openPopup')} arrow placement="top">
+                  <Box
+                    component="span"
+                    role="button"
+                    tabIndex={onOpenReleasesPopup ? 0 : -1}
+                    aria-label={t('releases.openPopup')}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenReleasesPopup?.();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onOpenReleasesPopup?.();
+                    }}
+                    sx={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 20,
+                      height: 20,
+                      borderRadius: 1,
+                      color: colors.textSecondary,
+                      opacity: onOpenReleasesPopup ? 1 : 0.35,
+                      cursor: onOpenReleasesPopup ? 'pointer' : 'default',
+                      '&:hover': onOpenReleasesPopup ? { bgcolor: colors.hoverBg, color: colors.iceBlue } : undefined,
+                    }}
+                  >
+                    <OpenInNewIcon sx={{ fontSize: 14 }} />
+                  </Box>
+                </Tooltip>
+              </ToggleButton>
             </Tooltip>
           </ToggleButtonGroup>
-          <ToggleButtonGroup
-            value={period}
-            exclusive
-            onChange={(_e, v: PeriodDays | null) => { if (v !== null) setPeriod(v); }}
-            size="small"
-          >
-            <ToggleButton value={7} sx={toggleSx}>{`7${t('releases.days')}`}</ToggleButton>
-            <ToggleButton value={30} sx={toggleSx}>{`30${t('releases.days')}`}</ToggleButton>
-            <ToggleButton value={90} sx={toggleSx}>{`90${t('releases.days')}`}</ToggleButton>
-          </ToggleButtonGroup>
+          {metric !== 'releases' && (
+            <ToggleButtonGroup
+              value={period}
+              exclusive
+              onChange={(_e, v: PeriodDays | null) => { if (v !== null) setPeriod(v); }}
+              size="small"
+            >
+              <ToggleButton value={7} sx={toggleSx}>{`7${t('releases.days')}`}</ToggleButton>
+              <ToggleButton value={30} sx={toggleSx}>{`30${t('releases.days')}`}</ToggleButton>
+              <ToggleButton value={90} sx={toggleSx}>{`90${t('releases.days')}`}</ToggleButton>
+            </ToggleButtonGroup>
+          )}
         </Box>
         {metric === 'tokens' && (
           <ToggleButtonGroup
@@ -240,7 +335,7 @@ export function CombinedChartsSection({
           <ToggleButtonGroup
             value={toolMetric}
             exclusive
-            onChange={(_e, v: ChartMetric | null) => { if (v) setToolMetric(v); }}
+            onChange={(_e, v: ToolChartMetric | null) => { if (v) setToolMetric(v); }}
             size="small"
           >
             <Tooltip title={t('analytics.combined.count.description')} arrow placement="top">
@@ -248,6 +343,9 @@ export function CombinedChartsSection({
             </Tooltip>
             <Tooltip title={t('analytics.combined.tokens.description')} arrow placement="top">
               <ToggleButton value="tokens" sx={toggleSx}>{t('analytics.combined.tokens')}</ToggleButton>
+            </Tooltip>
+            <Tooltip title={t('analytics.combined.error.description')} arrow placement="top">
+              <ToggleButton value="error" sx={toggleSx}>{t('analytics.combined.error')}</ToggleButton>
             </Tooltip>
           </ToggleButtonGroup>
         )}
@@ -328,13 +426,7 @@ export function CombinedChartsSection({
           overlay={overlay}
         />
       ) : metric === 'releases' ? (
-        releasesLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
-            <CircularProgress size={32} />
-          </Box>
-        ) : (
-          <ReleasesBarChart timeSeries={releasesTimeSeries} />
-        )
+        <ReleasesLocChart releases={releases ?? []} />
       ) : fetchCombinedData ? (
         combinedLoading && !combinedData ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>

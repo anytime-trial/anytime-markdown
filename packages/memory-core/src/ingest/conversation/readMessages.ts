@@ -1,0 +1,62 @@
+import type { MemoryDbConnection } from '../../db/connection/types';
+import type { Message } from '../../canonical/splitEpisodes';
+
+/**
+ * Reads messages from the ATTACHed trail DB (alias "trail") that have
+ * timestamp >= sinceISO, grouped by session_id.
+ *
+ * Assumes trail.sessions and trail.messages are already ATTACHed via
+ * attachTrailDbFromHandle / attachTrailDbReadOnly.
+ */
+export function* readMessagesSince(
+  db: MemoryDbConnection,
+  sinceISO: string
+): Generator<{ session_id: string; messages: Message[] }> {
+  // Collect all qualifying messages, ordered so we can group by session.
+  // trail.messages は assistant 行に text_content、user 行に user_content を
+  // 入れている (trail-db importSession の規約)。message_excerpt 列は存在しない
+  // ため COALESCE(text_content, user_content) で抽出する。
+  const stmt = db.prepare(
+    `SELECT
+       m.uuid,
+       m.session_id,
+       m.type,
+       m.timestamp,
+       COALESCE(SUBSTR(m.text_content, 1, 2048),
+                SUBSTR(m.user_content, 1, 2048),
+                '') AS text_excerpt
+     FROM trail.messages m
+     JOIN trail.sessions s ON s.id = m.session_id
+     WHERE m.timestamp IS NOT NULL
+       AND m.timestamp >= ?
+       AND m.type IN ('user', 'assistant', 'system')
+     ORDER BY m.session_id, m.timestamp`
+  );
+  const sessionMap = new Map<string, Message[]>();
+
+  for (const row of stmt.iterate(sinceISO)) {
+    const uuid = row['uuid'] as string;
+    const session_id = row['session_id'] as string;
+    const rawType = row['type'] as string;
+    const timestamp = row['timestamp'] as string;
+    const text_excerpt = (row['text_excerpt'] as string | null) ?? '';
+
+    // Narrow type to the union accepted by Message
+    if (rawType !== 'user' && rawType !== 'assistant' && rawType !== 'system') {
+      continue;
+    }
+    const type: 'user' | 'assistant' | 'system' = rawType;
+
+    let bucket = sessionMap.get(session_id);
+    if (bucket === undefined) {
+      bucket = [];
+      sessionMap.set(session_id, bucket);
+    }
+    bucket.push({ uuid, session_id, type, timestamp, text_excerpt });
+  }
+  stmt.free?.();
+
+  for (const [session_id, messages] of sessionMap) {
+    yield { session_id, messages };
+  }
+}

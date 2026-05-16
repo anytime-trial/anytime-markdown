@@ -8,6 +8,7 @@ module.exports = {
   testMatch: ['**/__tests__/**/*.test.ts', '**/*.meta.test.ts'],
   moduleNameMapper: {
     '^vscode$': '<rootDir>/src/__mocks__/vscode.ts',
+    '^@anytime-markdown/memory-core$': '<rootDir>/../memory-core/src/index.ts',
   },
   maxWorkers: 1,
   // 保護領域（~/.claude, ~/.vscode-server）への書き込みを全テストで禁止する

@@ -12,7 +12,6 @@ export type {
   ToolMetrics,
 } from './domain/parser/types';
 
-export { parseSession } from './domain/parser/parseSession';
 export { buildMessageTree } from './domain/parser/buildMessageTree';
 export { filterMessages } from './domain/parser/filterMessages';
 export { aggregateUsage } from './domain/parser/aggregateUsage';

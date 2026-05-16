@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-05-15
+
+### Changed
+
+- **Breaking:** Workspace config folder renamed from `.trail/` to `.anytime/`. Affected files: `analyze-exclude` / `dead-code-ignore` / `commit-categories.json` / `tool-categories.json` / `skill-categories.json`. Existing workspaces must manually rename `.trail/` to `.anytime/`
+- **Breaking:** `TRAIL_HOME` consolidation — all trail-related storage is resolved through the shared `getTrailHome` helper. Default location now `<workspaceRoot>/.anytime/trail/` (DB at `<workspaceRoot>/.anytime/db/trail.db`)
+- Removed `*_DB_PATH` env vars and dead `opts.dbPath` override (use `TRAIL_HOME` instead)
+- `trail-db` `DEFAULT_DB_DIR` now defaults to `<cwd>/.anytime/trail`; `.anytime` added to `SNAPSHOT_SKIP_DIRS`
+- Trace output relocated to `<TRAIL_HOME>/trace` and trail-server / vscode-trail-extension share `getTrailHome`
+
+### Fixed
+
+- `trail-db` `SqlJsCompatStatement` no-bind path and 3 stale tests repaired
+- `mcp-trail` aligns `dbPath` search with `.anytime/db/trail.db` default
+- VS Code extensions align `trailConfigPath` with `TRAIL_HOME` default
+- `trail-server` defers memory-core path resolution in `MemoryApiHandler`
+- `memory-core` refuses to fall back to the vscode-server bin path
+- `vscode-trail-extension`: `pipeline-status.json` reader / writer kept in sync
+- sql.js was switched from asm.js to WASM to avoid OOM during `saveCurrentGraph`
+
 ## [0.18.0] - 2026-05-08
 
 ### Added

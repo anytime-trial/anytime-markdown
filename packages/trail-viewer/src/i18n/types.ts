@@ -9,7 +9,10 @@ export interface TrailI18n {
   'viewer.tab.model': string;
   'viewer.tab.matrix': string;
   'viewer.tab.graph': string;
+  'viewer.tab.scatter': string;
   'viewer.tab.trace': string;
+  'viewer.tab.functionTree': string;
+  'viewer.tab.logs': string;
   'viewer.loading': string;
   'viewer.selectSession': string;
   'viewer.loaded': string;
@@ -31,7 +34,7 @@ export interface TrailI18n {
   'sessionList.tokensHeader': string;
   'sessionList.costHeader': string;
   'sessionList.messagesHeader': string;
-  'sessionList.commitsHeader': string;
+  'sessionList.locHeader': string;
   'sessionList.maxChip': string;
   'sessionList.nrChip': string;
   'sessionList.interruptedMaxTokens': string;
@@ -62,9 +65,12 @@ export interface TrailI18n {
   'message.type.user': string;
   'message.type.assistant': string;
   'message.type.system': string;
+  'message.openPopup': string;
   // analytics
   'analytics.totalSessions': string;
   'analytics.totalSessions.description': string;
+  'analytics.tokens': string;
+  'analytics.cost': string;
   'analytics.totalTokens': string;
   'analytics.totalTokens.description': string;
   'analytics.estimatedCost': string;
@@ -101,6 +107,8 @@ export interface TrailI18n {
   'analytics.tokensPerStep.description': string;
   'analytics.costPerStep': string;
   'analytics.costPerStep.description': string;
+  'analytics.tokensPerLoc': string;
+  'analytics.tokensPerLoc.description': string;
   'analytics.linesPerHour': string;
   'analytics.linesPerHour.description': string;
   'analytics.costPerHour': string;
@@ -111,8 +119,6 @@ export interface TrailI18n {
   'analytics.cacheHit.description': string;
   'analytics.outputRatio': string;
   'analytics.outputRatio.description': string;
-  'analytics.contextGrowth': string;
-  'analytics.contextGrowth.description': string;
   'analytics.netLines': string;
   'analytics.netLines.description': string;
   'analytics.metricMessages': string;
@@ -129,8 +135,6 @@ export interface TrailI18n {
   'analytics.buildFail.description': string;
   'analytics.testFail': string;
   'analytics.testFail.description': string;
-  'analytics.metricInterrupted': string;
-  'analytics.metricInterrupted.description': string;
   'analytics.loadingAnalytics': string;
   'analytics.chartInput': string;
   'analytics.chartOutput': string;
@@ -178,10 +182,12 @@ export interface TrailI18n {
   // prompt
   'prompt.noPrompts': string;
   'prompt.selectPrompt': string;
+  'prompt.openPopup': string;
   // releases
   'releases.version': string;
   'releases.date': string;
   'releases.interval': string;
+  'releases.totalSteps': string;
   'releases.steps': string;
   'releases.files': string;
   'releases.commits': string;
@@ -193,6 +199,11 @@ export interface TrailI18n {
   'releases.noReleases': string;
   'releases.repository': string;
   'releases.unknownRepo': string;
+  'releases.openPopup': string;
+  'releases.totalLoc': string;
+  'releases.releaseCount': string;
+  'releases.releaseTimeMin': string;
+  'releases.releaseTimeMin.description': string;
   'c4.releases': string;
   'c4.releaseRepository': string;
   'c4.unknownRepo': string;
@@ -215,6 +226,7 @@ export interface TrailI18n {
   'c4.overlay.editComplexityHighest': string;
   'c4.overlay.groupImportance': string;
   'c4.overlay.importance': string;
+  'c4.overlay.centrality': string;
   'c4.overlay.defectRisk': string;
   'c4.overlay.groupHotspot': string;
   'c4.overlay.hotspotFrequency': string;
@@ -225,6 +237,8 @@ export interface TrailI18n {
   'c4.overlay.sizeLoc': string;
   'c4.overlay.sizeFiles': string;
   'c4.overlay.sizeFunctions': string;
+  'c4.overlay.groupArchitecture': string;
+  'c4.overlay.architectureUi': string;
   'c4.overlayHelp.coverage': string;
   'c4.overlayHelp.coverage.description': string;
   'c4.overlayHelp.dsmNeighbors': string;
@@ -235,6 +249,8 @@ export interface TrailI18n {
   'c4.overlayHelp.editComplexity.description': string;
   'c4.overlayHelp.importance': string;
   'c4.overlayHelp.importance.description': string;
+  'c4.overlayHelp.centrality': string;
+  'c4.overlayHelp.centrality.description': string;
   'c4.overlayHelp.defectRisk': string;
   'c4.overlayHelp.defectRisk.description': string;
   'c4.overlayHelp.hotspot': string;
@@ -243,6 +259,16 @@ export interface TrailI18n {
   'c4.overlayHelp.deadCode.description': string;
   'c4.overlayHelp.size': string;
   'c4.overlayHelp.size.description': string;
+  'c4.overlayHelp.architectureUi': string;
+  'c4.overlayHelp.architectureUi.description': string;
+  'c4.overlay.groupStructure': string;
+  'c4.overlay.functionRoles': string;
+  'c4.overlayHelp.functionRoles': string;
+  'c4.overlayHelp.functionRoles.description': string;
+  'c4.functionRole.hub': string;
+  'c4.functionRole.orchestrator': string;
+  'c4.functionRole.leaf': string;
+  'c4.functionRole.peripheral': string;
   'c4.hotspot.controls.period': string;
   'c4.hotspot.controls.granularity': string;
   'c4.hotspot.controls.granularityCommit': string;
@@ -259,6 +285,14 @@ export interface TrailI18n {
   'c4.showOnlyThisFrame': string;
   'c4.clearFrameFilter': string;
   'c4.copyPath': string;
+  'c4.contextMenu.openScatter': string;
+  'c4.scatter.title': string;
+  'c4.scatter.empty': string;
+  'c4.scatter.tooltipFanIn': string;
+  'c4.scatter.tooltipFanOut': string;
+  'c4.scatter.tooltipRole': string;
+  'c4.scatter.tooltipCog': string;
+  'c4.scatter.entriesCount': string;
   'c4.frameFilter.reset': string;
   'c4.elementPanel.searchPlaceholder': string;
   'c4.elementPanel.searchClear': string;
@@ -341,6 +375,79 @@ export interface TrailI18n {
   'analytics.combined.agent.description': string;
   'analytics.combined.missingRate': string;
 
+  // memory tab
+  'viewer.tab.memory': string;
+  'memory.loading': string;
+  'memory.noDb': string;
+  'memory.noDb.description': string;
+  'memory.drift.tab': string;
+  'memory.bug.tab': string;
+  'memory.review.tab': string;
+  'memory.runs.tab': string;
+  // drift sub-tab
+  'memory.drift.empty': string;
+  'memory.drift.severity.info': string;
+  'memory.drift.severity.warn': string;
+  'memory.drift.severity.error': string;
+  'memory.drift.unresolvedOnly': string;
+  'memory.drift.filterSeverity': string;
+  'memory.drift.filterType': string;
+  'memory.drift.resolve': string;
+  'memory.drift.resolved': string;
+  'memory.drift.resolutionNote': string;
+  'memory.drift.detail': string;
+  // bug sub-tab
+  'memory.bug.empty': string;
+  'memory.bug.recurring': string;
+  'memory.bug.history': string;
+  'memory.bug.filterPackage': string;
+  'memory.bug.filterCategory': string;
+  'memory.bug.causedBy.title': string;
+  'memory.bug.causedBy.empty': string;
+  // review sub-tab
+  'memory.review.empty': string;
+  'memory.review.unaddressed': string;
+  'memory.review.history': string;
+  'memory.review.filterFile': string;
+  'memory.review.filterSeverity': string;
+  'memory.review.filterCategory': string;
+  'memory.review.flow.review': string;
+  'memory.review.flow.finding': string;
+  'memory.review.flow.addressed': string;
+  'memory.review.flow.notAddressed': string;
+  // pipeline sub-tab
+  'memory.runs.empty': string;
+  'memory.runs.filterScope': string;
+  'memory.runs.filterStatus': string;
+  'memory.runs.failedItems': string;
+  'memory.runs.topEntities': string;
+  'memory.runs.timeline': string;
+  'memory.runs.invalidations': string;
+  'memory.runs.status.running': string;
+  'memory.runs.status.success': string;
+  'memory.runs.status.partial': string;
+  'memory.runs.status.error': string;
+
+  // memory > chat
+  'memory.chat.tab': string;
+  'memory.chat.placeholder': string;
+  'memory.chat.send': string;
+  'memory.chat.abort': string;
+  'memory.chat.rebuild': string;
+  'memory.chat.sources.title': string;
+  'memory.chat.sources.empty': string;
+  'memory.chat.filters.title': string;
+  'memory.chat.filters.allRepos': string;
+  'memory.chat.filters.currentRepo': string;
+  'memory.chat.setup.title': string;
+  'memory.chat.setup.step1': string;
+  'memory.chat.setup.step2': string;
+  'memory.chat.setup.step3': string;
+  'memory.chat.setup.recheck': string;
+  'memory.chat.empty': string;
+  'memory.chat.error': string;
+  'memory.chat.interrupted': string;
+
   // metrics
   'metrics.deploymentFrequency.name': string;
   'metrics.deploymentFrequency.description': string;
@@ -353,5 +460,42 @@ export interface TrailI18n {
   'metrics.changeFailureRate.name': string;
   'metrics.changeFailureRate.description': string;
   'metrics.empty': string;
-
+  // c4 call hierarchy
+  'c4.callHierarchy.empty': string;
+  'c4.callHierarchy.tab.callers': string;
+  'c4.callHierarchy.tab.callees': string;
+  'c4.callHierarchy.loading': string;
+  'c4.callHierarchy.error': string;
+  'c4.callHierarchy.cycle': string;
+  'c4.callHierarchy.showFunctionTree': string;
+  'c4.callHierarchy.noChildren': string;
+  'c4.callHierarchy.scope': string;
+  'c4.callHierarchy.scope.project': string;
+  'c4.callHierarchy.scope.package': string;
+  'c4.callHierarchy.scope.file': string;
+  'c4.callHierarchy.excludeTests': string;
+  'c4.callHierarchy.revisited': string;
+  // logs (extension/daemon log streaming)
+  'logs.mode.live': string;
+  'logs.mode.history': string;
+  'logs.column.timestamp': string;
+  'logs.column.level': string;
+  'logs.column.source': string;
+  'logs.column.component': string;
+  'logs.column.message': string;
+  'logs.level.debug': string;
+  'logs.level.info': string;
+  'logs.level.warn': string;
+  'logs.level.error': string;
+  'logs.source.extension': string;
+  'logs.source.daemon': string;
+  'logs.action.pause': string;
+  'logs.action.resume': string;
+  'logs.action.clear': string;
+  'logs.action.autoScroll': string;
+  'logs.action.openOutputChannel': string;
+  'logs.action.loadMore': string;
+  'logs.filter.search': string;
+  'logs.empty': string;
+  'logs.paused': string;
 }

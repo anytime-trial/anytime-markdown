@@ -11,7 +11,7 @@ import {
   SelectAll as SelectAllIcon,
 } from '@mui/icons-material';
 import { Divider,ListItemIcon, ListItemText, Menu, MenuItem } from '@mui/material';
-import { useTranslations } from 'next-intl';
+import { useGraphT } from '../i18n/context';
 import React from 'react';
 
 export type ContextTarget = 'node' | 'edge' | 'canvas';
@@ -30,7 +30,7 @@ interface ContextMenuProps {
 }
 
 export function ContextMenu({ anchorPosition, targetType, onAction, onClose, hasClipboard }: Readonly<ContextMenuProps>) {
-  const t = useTranslations('Graph');
+  const t = useGraphT('Graph');
   if (!anchorPosition) return null;
 
   const handleAction = (action: ContextMenuAction) => {

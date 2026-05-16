@@ -2,25 +2,16 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import React from "react";
 
+import { DatabaseI18nProvider } from "../i18n/context";
 import { TableTree } from "../TableTree";
-
-jest.mock("next-intl", () => ({
-  useTranslations: (ns: string) => (key: string, vars?: Record<string, string | number>) => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const messages = require("../i18n/ja.json") as Record<string, Record<string, string>>;
-    let value = messages[ns]?.[key] ?? key;
-    if (vars) {
-      for (const [k, v] of Object.entries(vars)) {
-        value = value.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
-      }
-    }
-    return value;
-  },
-}));
 
 const theme = createTheme({ palette: { mode: "light" } });
 const wrap = (ui: React.ReactNode) =>
-  render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+  render(
+    <DatabaseI18nProvider locale="ja">
+      <ThemeProvider theme={theme}>{ui}</ThemeProvider>
+    </DatabaseI18nProvider>,
+  );
 
 describe("TableTree", () => {
   it("groups tables and views", () => {

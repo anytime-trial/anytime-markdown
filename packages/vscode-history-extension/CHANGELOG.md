@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-15
+
+### Added
+
+- Async `gitExec` helper to centralize git invocations off the Extension Host event loop
+
+### Changed
+
+- **Breaking:** SpecDocs storage path moved from `.vscode/history/` to `.trail/` (now consolidated under `.anytime/`)
+- Configuration folder default renamed from `.trail` to `.anytime`
+- VS Code extensions removed `sql.js` and now run on native sqlite (Phase 4)
+- `GitOperations`, `GitStatusParser`, `ChangesProvider`, `GraphProvider`, `SpecDocsGitOps`, `changesCommands`, and auto-open-on-git-roots converted to async to keep the Extension Host responsive
+- `OutputChannel` name unified to `Anytime History`
+
+### Fixed
+
+- Spec import paths and `DbLogger` interface alignment
+- Avoided `navigator` access in node bundles
+
 ## [0.1.0] - 2026-05-04
 
 ### Added

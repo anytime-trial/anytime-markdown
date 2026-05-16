@@ -41,6 +41,9 @@ export const CREATE_SESSIONS = `CREATE TABLE IF NOT EXISTS sessions (
   interruption_reason TEXT,
   interruption_context_tokens INTEGER,
   message_commits_resolved_at TEXT CHECK (message_commits_resolved_at IS NULL OR message_commits_resolved_at = '' OR message_commits_resolved_at GLOB ${TS_GLOB_MS} OR message_commits_resolved_at GLOB ${TS_GLOB_NO_MS}),
+  sub_agent_count         INTEGER NOT NULL DEFAULT 0,
+  error_count             INTEGER NOT NULL DEFAULT 0,
+  assistant_message_count INTEGER NOT NULL DEFAULT 0,
   source TEXT NOT NULL DEFAULT 'claude_code'
     CHECK (source IN ('claude_code', 'codex', 'gemini', 'cursor', 'other'))
 ) STRICT`;
@@ -192,6 +195,7 @@ export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
   files_changed INTEGER NOT NULL DEFAULT 0,
   lines_added INTEGER NOT NULL DEFAULT 0,
   lines_deleted INTEGER NOT NULL DEFAULT 0,
+  total_lines INTEGER NOT NULL DEFAULT 0,
   feat_count INTEGER NOT NULL DEFAULT 0,
   fix_count INTEGER NOT NULL DEFAULT 0,
   refactor_count INTEGER NOT NULL DEFAULT 0,
@@ -199,7 +203,8 @@ export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
   other_count INTEGER NOT NULL DEFAULT 0,
   affected_packages TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(affected_packages)),
   duration_days REAL NOT NULL DEFAULT 0,
-  resolved_at TEXT CHECK (resolved_at IS NULL OR resolved_at = '' OR resolved_at GLOB ${TS_GLOB_MS} OR resolved_at GLOB ${TS_GLOB_NO_MS})
+  resolved_at TEXT CHECK (resolved_at IS NULL OR resolved_at = '' OR resolved_at GLOB ${TS_GLOB_MS} OR resolved_at GLOB ${TS_GLOB_NO_MS}),
+  release_time_min REAL
 ) STRICT`;
 
 export const CREATE_RELEASE_FILES = `CREATE TABLE IF NOT EXISTS release_files (
@@ -330,6 +335,7 @@ export const CREATE_CURRENT_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
   summary      TEXT    NOT NULL DEFAULT '',
+  stable_key   TEXT    NOT NULL DEFAULT '',
   generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
   updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (repo_name, community_id)
@@ -341,6 +347,7 @@ export const CREATE_RELEASE_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
   summary      TEXT    NOT NULL DEFAULT '',
+  stable_key   TEXT    NOT NULL DEFAULT '',
   generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
   updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (release_tag, community_id)
@@ -367,6 +374,12 @@ export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_
   signal_isolated_community  INTEGER NOT NULL DEFAULT 0 CHECK (signal_isolated_community IN (0, 1)),
   is_ignored                 INTEGER NOT NULL DEFAULT 0 CHECK (is_ignored IN (0, 1)),
   ignore_reason              TEXT NOT NULL DEFAULT '',
+  cross_pkg_in_count     INTEGER NOT NULL DEFAULT 0,
+  external_consumer_pkgs INTEGER NOT NULL DEFAULT 0,
+  total_in_count         INTEGER NOT NULL DEFAULT 0,
+  is_barrel              INTEGER NOT NULL DEFAULT 0 CHECK (is_barrel IN (0, 1)),
+  centrality_score       REAL    NOT NULL DEFAULT 0,
+  category                   TEXT NOT NULL DEFAULT 'logic' CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (repo_name, file_path)
 ) STRICT`;
@@ -389,6 +402,12 @@ export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_
   signal_isolated_community  INTEGER NOT NULL DEFAULT 0 CHECK (signal_isolated_community IN (0, 1)),
   is_ignored                 INTEGER NOT NULL DEFAULT 0 CHECK (is_ignored IN (0, 1)),
   ignore_reason              TEXT NOT NULL DEFAULT '',
+  cross_pkg_in_count     INTEGER NOT NULL DEFAULT 0,
+  external_consumer_pkgs INTEGER NOT NULL DEFAULT 0,
+  total_in_count         INTEGER NOT NULL DEFAULT 0,
+  is_barrel              INTEGER NOT NULL DEFAULT 0 CHECK (is_barrel IN (0, 1)),
+  centrality_score       REAL    NOT NULL DEFAULT 0,
+  category                   TEXT NOT NULL DEFAULT 'logic' CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (release_tag, repo_name, file_path)
 ) STRICT`;
@@ -408,6 +427,9 @@ export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS curr
   line_count             INTEGER NOT NULL DEFAULT 0,
   importance_score       REAL    NOT NULL DEFAULT 0,
   signal_fan_in_zero     INTEGER NOT NULL DEFAULT 0 CHECK (signal_fan_in_zero IN (0, 1)),
+  fan_out          INTEGER NOT NULL DEFAULT 0,
+  distinct_callees INTEGER NOT NULL DEFAULT 0,
+  function_role    TEXT NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (repo_name, file_path, function_name, start_line)
 ) STRICT`;
@@ -428,6 +450,9 @@ export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS rele
   line_count             INTEGER NOT NULL DEFAULT 0,
   importance_score       REAL    NOT NULL DEFAULT 0,
   signal_fan_in_zero     INTEGER NOT NULL DEFAULT 0 CHECK (signal_fan_in_zero IN (0, 1)),
+  fan_out          INTEGER NOT NULL DEFAULT 0,
+  distinct_callees INTEGER NOT NULL DEFAULT 0,
+  function_role    TEXT NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (release_tag, repo_name, file_path, function_name, start_line)
 ) STRICT`;
@@ -441,4 +466,29 @@ export const CREATE_FILE_ANALYSIS_INDEXES = [
     ON current_function_analysis (repo_name, fan_in)`,
   `CREATE INDEX IF NOT EXISTS idx_current_function_analysis_importance
     ON current_function_analysis (repo_name, importance_score DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_current_file_analysis_centrality
+    ON current_file_analysis (repo_name, centrality_score DESC)`,
+];
+
+// Extension and daemon logs for live streaming and history search.
+// Persisted to trail.db, inserted by daemon via LogService, broadcast via WebSocket.
+export const CREATE_EXTENSION_LOGS = `CREATE TABLE IF NOT EXISTS extension_logs (
+  id INTEGER PRIMARY KEY,
+  timestamp TEXT NOT NULL
+    CHECK (timestamp GLOB ${TS_GLOB_MS} OR timestamp GLOB ${TS_GLOB_NO_MS}),
+  level TEXT NOT NULL
+    CHECK (level IN ('debug', 'info', 'warn', 'error')),
+  source TEXT NOT NULL
+    CHECK (source IN ('extension', 'daemon')),
+  component TEXT NOT NULL DEFAULT '',
+  message TEXT NOT NULL,
+  metadata TEXT
+    CHECK (metadata IS NULL OR json_valid(metadata)),
+  stack TEXT
+) STRICT`;
+
+export const CREATE_EXTENSION_LOGS_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_extension_logs_timestamp ON extension_logs(timestamp)`,
+  `CREATE INDEX IF NOT EXISTS idx_extension_logs_level_timestamp ON extension_logs(level, timestamp)`,
+  `CREATE INDEX IF NOT EXISTS idx_extension_logs_source ON extension_logs(source)`,
 ];

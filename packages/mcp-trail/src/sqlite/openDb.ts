@@ -1,70 +1,47 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
-import type { Database } from 'sql.js';
-
-declare const __non_webpack_require__: NodeJS.Require | undefined;
-
-type SqlJsModule = { Database: new (data?: Uint8Array | Buffer) => Database };
-let cachedSqlJs: SqlJsModule | undefined;
-
-async function loadSqlJs(): Promise<SqlJsModule> {
-  if (cachedSqlJs) return cachedSqlJs;
-
-  // 配布パッケージ (webpack バンドル) では同じ dist/ ディレクトリに sql-wasm.js
-  // と sql-wasm.wasm が配置される前提 (CopyWebpackPlugin) で
-  // __non_webpack_require__ で動的にロードする。
-  // sql.js を webpack に取り込むとモジュールシステムが壊れるため。
-  // sql-wasm 採用理由: asm.js (16MB ヒープ固定) では大規模リポジトリの
-  // code graph 保存時に OOM するため、最大 2GB ヒープの WASM を使う。
-  const sqlWasmPath = path.join(__dirname, 'sql-wasm.js');
-  if (typeof __non_webpack_require__ !== 'undefined' && fs.existsSync(sqlWasmPath)) {
-    type InitSqlJs = (config?: { locateFile?: (file: string) => string }) => Promise<SqlJsModule>;
-    const initSqlJs = (__non_webpack_require__ as NodeJS.Require)(sqlWasmPath) as InitSqlJs;
-    cachedSqlJs = await initSqlJs({
-      locateFile: (file: string) => path.join(__dirname, file),
-    });
-    return cachedSqlJs;
-  }
-
-  // 開発・テスト時のフォールバック (jest / ts-node 等)
-  const mod = await import('sql.js');
-  const initSqlJs = ((mod as { default?: () => Promise<SqlJsModule> }).default ?? (mod as unknown as () => Promise<SqlJsModule>));
-  cachedSqlJs = await (initSqlJs as () => Promise<SqlJsModule>)();
-  return cachedSqlJs;
-}
+import type { Database } from 'better-sqlite3';
+import { loadBetterSqlite3 } from '../internal/loadBetterSqlite3';
 
 export interface OpenedDb {
   readonly db: Database;
   readonly path: string;
   readonly mode: 'readonly' | 'readwrite';
-  /** 現在のメモリ DB をファイルに atomic 書き出し (tmp + rename)。readonly では throw */
+  /**
+   * 互換 API。better-sqlite3 はファイル直書きなので no-op。
+   * sql.js 時代は in-memory → tmp + rename で atomic 書き出しだった。
+   */
   save(): void;
-  /** メモリ上の Database を解放 */
+  /** Database を close する */
   close(): void;
 }
 
 /**
- * trail.db を sql.js (WASM) のメモリ DB にロードして返す。
+ * trail.db を better-sqlite3 で開く。
  *
- * - readonly: ロード後に書き込みは保存されない (save() で throw)
- * - readwrite: 呼び出し側で db を変更後 save() で atomic 書き出し
+ * - readonly: better-sqlite3 の `readonly: true` で開き、SQLite 層で書き込み拒否
+ * - readwrite: 通常 open。変更は WAL を経由してメインファイルへ反映される。
+ *
+ * sql.js (WASM in-memory) 時代と異なり、better-sqlite3 はファイル直書きなので
+ * `save()` は no-op。呼び出し側 (旧 atomic 書き出し前提のコード) を破壊しない
+ * ために API は残す。
  */
-export async function openTrailDb(dbPath: string, mode: 'readonly' | 'readwrite'): Promise<OpenedDb> {
+export async function openTrailDb(
+  dbPath: string,
+  mode: 'readonly' | 'readwrite',
+): Promise<OpenedDb> {
   if (!fs.existsSync(dbPath)) {
     throw new Error(`trail.db not found: ${dbPath}`);
   }
-  const SQL = await loadSqlJs();
-  const buf = fs.readFileSync(dbPath);
-  const db = new SQL.Database(buf);
+  const Ctor = loadBetterSqlite3();
+  const db = new Ctor(dbPath, { readonly: mode === 'readonly' });
 
   const save = (): void => {
     if (mode !== 'readwrite') {
       throw new Error('Cannot save: db opened in readonly mode');
     }
-    const data = db.export();
-    const tmpPath = `${dbPath}.tmp.${process.pid}.${Date.now()}`;
-    fs.writeFileSync(tmpPath, Buffer.from(data));
-    fs.renameSync(tmpPath, dbPath);
+    // better-sqlite3 はメインファイルに直書きするため明示的な flush 不要。
+    // WAL モードの場合 PRAGMA wal_checkpoint(TRUNCATE) を呼ぶこともできるが、
+    // close() 時に SQLite 側で checkpoint されるので通常は不要。
   };
 
   const close = (): void => {

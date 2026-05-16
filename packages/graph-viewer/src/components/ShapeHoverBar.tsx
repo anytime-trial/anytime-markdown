@@ -6,7 +6,7 @@ import {
   CropSquare as RectIcon,
 } from '@mui/icons-material';
 import { Box, IconButton, Tooltip } from '@mui/material';
-import { useTranslations } from 'next-intl';
+import { useGraphT } from '../i18n/context';
 import React from 'react';
 
 import { worldToScreen } from '@anytime-markdown/graph-core/engine';
@@ -35,7 +35,7 @@ interface ShapeHoverBarProps {
 const SHAPE_TYPES = new Set(SHAPES.map(s => s.type));
 
 export function ShapeHoverBar({ node, viewport, onChangeType, themeMode = 'dark' }: Readonly<ShapeHoverBarProps>) {
-  const t = useTranslations('Graph');
+  const t = useGraphT('Graph');
   const isDark = themeMode === 'dark';
   const colors = getCanvasColors(isDark);
 

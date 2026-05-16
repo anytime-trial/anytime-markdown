@@ -3,7 +3,6 @@
 import { useTheme } from "@mui/material";
 import type { NodeViewProps } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
-import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DiagramBlock } from "./components/codeblock/DiagramBlock";
@@ -16,10 +15,11 @@ import { useBlockCapture } from "./hooks/useBlockCapture";
 import { useDeleteBlock } from "./hooks/useDeleteBlock";
 import { useNodeSelected } from "./hooks/useNodeSelected";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
+import { useMarkdownT } from "./i18n/context";
 
 export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
   const theme = useTheme();
-  const t = useTranslations("MarkdownEditor");
+  const t = useMarkdownT("MarkdownEditor");
   const isDark = theme.palette.mode === "dark";
   const language = node.attrs.language;
   const isMath = language === "math";

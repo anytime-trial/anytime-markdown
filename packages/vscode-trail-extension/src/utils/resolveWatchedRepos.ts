@@ -22,7 +22,7 @@ export interface ResolveWatchedReposOpts {
   readonly logger?: { readonly warn: (msg: string) => void };
 }
 
-const HISTORY_FILE_REL = path.join('.trail', 'anytime-history.json');
+const HISTORY_FILE_REL = path.join('.anytime', 'anytime-history.json');
 
 const defaultIsGitWorkingTree = (cwd: string): boolean => {
   try {
@@ -43,7 +43,7 @@ const defaultIsGitWorkingTree = (cwd: string): boolean => {
  *
  * 入力:
  * - `workspacePath` (anytimeTrail.workspace.path)
- * - `<workspaceFolder>/.trail/anytime-history.json` の `specDocsRoots`
+ * - `<workspaceFolder>/.anytime/anytime-history.json` の `specDocsRoots`
  *
  * 重複は path.resolve で正規化したのち除外。git working tree でないパスは warn してスキップ。
  * `repoName` は `path.basename(gitRoot)`。

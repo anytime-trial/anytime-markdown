@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-15
+
+### Changed
+
+- Removed retired VS Marketplace badge from README
+- `graph-viewer` migrated to self-contained i18n via public package API
+
+### Graph Core (graph-core)
+
+- Test coverage added for culling / shape / drawHelpers paths without a real canvas
+
 ## [0.3.0] - 2026-05-04
 
 ### Graph Core (graph-core)

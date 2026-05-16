@@ -12,7 +12,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useTranslations } from "next-intl";
+import { DatabaseI18nProvider, useDatabaseT } from "./i18n/context";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   DatabaseAdapter,
@@ -35,6 +35,7 @@ export interface DatabaseEditorProps {
   readonly onMutationExecuted?: () => void;
   /** ツリー最上位に表示するスキーマ / DB 名 (例: "trail_test.db") */
   readonly databaseName?: string;
+  readonly locale?: string;
 }
 
 const PAGE_SIZES: ReadonlyArray<number> = [25, 50, 100];
@@ -60,7 +61,9 @@ interface TableTabState {
   readonly sheetAdapter: PaginatedSqlSheetAdapter;
 }
 
-export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
+type InnerProps = Omit<DatabaseEditorProps, "locale">;
+
+const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
   adapter,
   initialSchema,
   queryMaxRows,
@@ -68,7 +71,7 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
   onMutationExecuted,
   databaseName,
 }) => {
-  const t = useTranslations("Database");
+  const t = useDatabaseT("Database");
   const [schema, setSchema] = useState<SchemaInfo | null>(initialSchema ?? null);
   const [tabs, setTabs] = useState<ReadonlyArray<TableTabState>>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -514,3 +517,9 @@ export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({
     </Stack>
   );
 };
+
+export const DatabaseEditor: React.FC<Readonly<DatabaseEditorProps>> = ({ locale, ...rest }) => (
+  <DatabaseI18nProvider locale={locale}>
+    <DatabaseEditorInner {...rest} />
+  </DatabaseI18nProvider>
+);

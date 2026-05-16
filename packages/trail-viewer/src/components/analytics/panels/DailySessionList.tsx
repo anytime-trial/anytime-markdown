@@ -11,11 +11,11 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
+import { agentBrandColors } from '../../../theme/designTokens';
 import type { ToolMetrics, TrailMessage, TrailSession, TrailSessionCommit } from '../../../domain/parser/types';
 import { fmtNum, fmtTokens, fmtUsd } from '../../../domain/analytics/formatters';
 import { sessionCost } from '../../../domain/analytics/calculators';
@@ -25,6 +25,7 @@ import { SessionErrorChart } from '../charts/SessionErrorChart';
 import { SessionSkillUsageChart } from '../charts/SessionSkillUsageChart';
 import { SessionToolUsageChart } from '../charts/SessionToolUsageChart';
 import { SessionCommitPrefixChart } from '../charts/SessionCommitPrefixChart';
+import { DayCommitPrefixChart } from '../charts/DayCommitPrefixChart';
 import { SessionMetricsPanel } from './SessionMetricsPanel';
 
 export function DailySessionList({
@@ -55,18 +56,6 @@ export function DailySessionList({
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [sessionToolMetrics, setSessionToolMetrics] = useState<ToolMetrics | null>(null);
   const [dayAggToolMetrics, setDayAggToolMetrics] = useState<ToolMetrics | null>(null);
-  const [copiedSessionId, setCopiedSessionId] = useState(false);
-
-  const handleCopySessionId = useCallback(
-    (id: string) => (e: React.MouseEvent) => {
-      e.stopPropagation();
-      void navigator.clipboard.writeText(id).then(() => {
-        setCopiedSessionId(true);
-        setTimeout(() => setCopiedSessionId(false), 2000);
-      });
-    },
-    [],
-  );
   const daySessions = sessions.filter((s) => toLocalDateKey(s.startTime) === date);
   const sessionCountLabel = daySessions.length !== 1
     ? t('sessionList.sessions')
@@ -133,14 +122,15 @@ export function DailySessionList({
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow sx={{ '& .MuiTableCell-head': { color: colors.textSecondary, borderColor: colors.border, bgcolor: colors.midnightNavy } }}>
-                  <TableCell>Agent</TableCell>
+                  <TableCell>Session</TableCell>
                   <TableCell>{t('sessionList.timeHeader')}</TableCell>
+                  <TableCell>Agent</TableCell>
+                  <TableCell align="right">{t('sessionList.locHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.tokensHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.costHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.messagesHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.errorsHeader')}</TableCell>
                   <TableCell align="right">{t('sessionList.subAgents')}</TableCell>
-                  <TableCell align="right">{t('sessionList.commitsHeader')}</TableCell>
                   <TableCell align="right" sx={{ width: 36 }} />
                 </TableRow>
               </TableHead>
@@ -153,8 +143,19 @@ export function DailySessionList({
                     sx={{ cursor: 'pointer', '& .MuiTableCell-root': { borderColor: colors.border } }}
                     onClick={() => handleSessionClick(s.id)}
                   >
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                      {s.source ?? 'claude_code'}
+                    <TableCell sx={{ maxWidth: 200, minWidth: 120 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600, color: colors.iceBlue, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      >
+                        {s.slug ?? s.id.slice(0, 8)}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: colors.textSecondary, fontFamily: 'monospace', display: 'block' }}
+                      >
+                        {s.id.slice(0, 8)}
+                      </Typography>
                     </TableCell>
                     <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {formatLocalTime(s.startTime)}–{formatLocalTime(s.endTime)}
@@ -174,6 +175,27 @@ export function DailySessionList({
                           />
                         </Tooltip>
                       )}
+                    </TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {(() => {
+                        const src = s.source ?? 'claude_code';
+                        const brandColor = agentBrandColors[src];
+                        return (
+                          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                            {brandColor && (
+                              <Box sx={{ width: 8, height: 8, borderRadius: '2px', bgcolor: brandColor, flexShrink: 0 }} />
+                            )}
+                            <Typography component="span" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', color: brandColor ?? 'text.secondary' }}>
+                              {src}
+                            </Typography>
+                          </Box>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                      {s.commitStats
+                        ? `${fmtNum(s.commitStats.linesAdded + s.commitStats.linesDeleted)} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
+                        : '—'}
                     </TableCell>
                     <TableCell align="right">
                       {fmtTokens(s.usage.inputTokens + s.usage.outputTokens + s.usage.cacheReadTokens + s.usage.cacheCreationTokens)}
@@ -200,17 +222,19 @@ export function DailySessionList({
                     <TableCell align="right">
                       {fmtUsd(sessionCost(s))}
                     </TableCell>
-                    <TableCell align="right">{fmtNum(s.messageCount)}</TableCell>
+                    <TableCell align="right">
+                      {fmtNum(s.messageCount)}
+                      {s.assistantMessageCount != null && s.assistantMessageCount > 0 && (
+                        <Typography component="span" variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7em' }}>
+                          ({fmtNum(s.assistantMessageCount)} {t('analytics.turns')})
+                        </Typography>
+                      )}
+                    </TableCell>
                     <TableCell align="right">
                       {s.errorCount != null && s.errorCount > 0 ? fmtNum(s.errorCount) : '—'}
                     </TableCell>
                     <TableCell align="right">
                       {s.subAgentCount != null && s.subAgentCount > 0 ? fmtNum(s.subAgentCount) : '—'}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                      {s.commitStats
-                        ? `${s.commitStats.commits} (+${fmtNum(s.commitStats.linesAdded)}/-${fmtNum(s.commitStats.linesDeleted)})`
-                        : '—'}
                     </TableCell>
                     <TableCell align="right" sx={{ p: 0.5 }}>
                       {onJumpToTrace && (
@@ -242,41 +266,19 @@ export function DailySessionList({
           if (selectedSession) {
             return (
               <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 1, width: { lg: 600 } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 0.5 }}>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {selectedSession.slug ?? selectedSession.id.slice(0, 8)}
-                    </Typography>
-                    {selectedSession.slug && (
-                      <Typography variant="caption" sx={{ color: colors.textSecondary, fontFamily: 'monospace', display: 'block' }}>
-                        {selectedSession.id}
-                      </Typography>
-                    )}
-                  </Box>
-                  <Tooltip title={copiedSessionId ? t('sessionList.copied') : t('sessionList.copyId')}>
-                    <IconButton
-                      size="small"
-                      onClick={handleCopySessionId(selectedSession.id)}
-                      sx={{ p: 0.5, color: colors.textSecondary, '&:hover': { color: colors.iceBlue } }}
-                      aria-label={t('sessionList.copyId')}
-                    >
-                      <ContentCopyIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
                 <SessionMetricsPanel session={selectedSession} toolMetrics={sessionToolMetrics} />
                 <Box sx={{ display: 'flex', gap: 1 }}>
+                  <SessionToolUsageChart toolMetrics={sessionToolMetrics} />
                   <SessionErrorChart toolMetrics={sessionToolMetrics} />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <SessionSkillUsageChart toolMetrics={sessionToolMetrics} />
                   {fetchSessionCommits && (
                     <SessionCommitPrefixChart
                       sessionId={timelineSessionId!}
                       fetchSessionCommits={fetchSessionCommits}
                     />
                   )}
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <SessionSkillUsageChart toolMetrics={sessionToolMetrics} />
-                  <SessionToolUsageChart toolMetrics={sessionToolMetrics} />
                 </Box>
               </Box>
             );
@@ -285,10 +287,18 @@ export function DailySessionList({
             <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 1, width: { lg: 600 } }}>
               <SessionMetricsPanel session={buildDaySession(date, daySessions)} toolMetrics={dayAggToolMetrics} />
               <Box sx={{ display: 'flex', gap: 1 }}>
-                <SessionSkillUsageChart toolMetrics={dayAggToolMetrics} />
                 <SessionToolUsageChart toolMetrics={dayAggToolMetrics} />
+                <SessionErrorChart toolMetrics={dayAggToolMetrics} />
               </Box>
-              <SessionErrorChart toolMetrics={dayAggToolMetrics} />
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <SessionSkillUsageChart toolMetrics={dayAggToolMetrics} />
+                {fetchSessionCommits && (
+                  <DayCommitPrefixChart
+                    sessionIds={daySessions.map((s) => s.id)}
+                    fetchSessionCommits={fetchSessionCommits}
+                  />
+                )}
+              </Box>
             </Box>
           );
         })()}

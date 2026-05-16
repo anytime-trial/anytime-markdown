@@ -1,4 +1,4 @@
-import type { ImportanceMatrix } from '@anytime-markdown/trail-core/c4';
+import type { CentralityMatrix, ImportanceMatrix, RoleMatrix } from '@anytime-markdown/trail-core/c4';
 
 export interface DeadCodeSignalsApi {
   readonly orphan: boolean;
@@ -19,6 +19,13 @@ export interface FileAnalysisApiEntry {
   readonly signals: DeadCodeSignalsApi;
   readonly isIgnored: boolean;
   readonly ignoreReason: string;
+  readonly centralityScore: number;
+  readonly crossPkgInCount: number;
+  readonly externalConsumerPkgs: number;
+  readonly isBarrel: boolean;
+  /** UI / Logic 分類。サーバー旧版が返さない場合に備え、消費側で 'logic' へ
+   *  フォールバックすること */
+  readonly category?: 'ui' | 'logic' | 'excluded';
 }
 
 export interface FileAnalysisApiResponse {
@@ -26,6 +33,8 @@ export interface FileAnalysisApiResponse {
   readonly elementMatrix: {
     readonly importance: ImportanceMatrix;
     readonly deadCodeScore: Record<string, number>;
+    readonly centrality: CentralityMatrix;
+    readonly functionRoles: RoleMatrix;
   };
 }
 

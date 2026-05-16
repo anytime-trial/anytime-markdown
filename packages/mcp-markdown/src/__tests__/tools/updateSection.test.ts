@@ -28,6 +28,27 @@ describe('updateSectionInText', () => {
     const result = updateSectionInText(doc, '## Section A', '## Section A\n\nReplaced.\n\n');
     expect(result).toBe('# Title\n\nIntro.\n\n## Section A\n\nReplaced.\n\n## Section B\n\nKeep this.\n');
   });
+
+  it('should throw for invalid heading format (no # prefix)', () => {
+    expect(() => updateSectionInText(doc, 'Not a heading', 'new')).toThrow('Invalid heading format');
+  });
+
+  it('should throw for invalid heading format (too many # marks)', () => {
+    expect(() => updateSectionInText(doc, '####### Heading', 'new')).toThrow('Invalid heading format');
+  });
+
+  it('should replace from-start section (no before, with after)', () => {
+    // ## A は同レベル `## B` の前まで、その時 before は空文字 (target が先頭)
+    const fromStart = '## A\n\nOld.\n\n## B\n\nKept.\n';
+    const result = updateSectionInText(fromStart, '## A', '## A\n\nReplaced.\n');
+    expect(result).toBe('## A\n\nReplaced.\n## B\n\nKept.\n');
+  });
+
+  it('should handle single section doc (no before, no after)', () => {
+    const single = '# Only\n';
+    const result = updateSectionInText(single, '# Only', '# Only\n\nNew.');
+    expect(result).toBe('# Only\n\nNew.');
+  });
 });
 
 describe('updateSection', () => {

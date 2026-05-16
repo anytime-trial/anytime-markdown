@@ -16,7 +16,7 @@ import {
   Box, Divider, FormControlLabel,
 IconButton, Slider,   Switch, TextField, ToggleButton, ToggleButtonGroup,
 Typography, } from '@mui/material';
-import { useTranslations } from 'next-intl';
+import { useGraphT } from '../i18n/context';
 import React from 'react';
 
 import { EndpointShape,GraphEdge, GraphNode } from '../types';
@@ -103,7 +103,7 @@ interface PropertyPanelProps {
 }
 
 export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpdateEdge, onLayerAction, onClose, themeMode = 'dark' }: Readonly<PropertyPanelProps>) {
-  const t = useTranslations('Graph');
+  const t = useGraphT('Graph');
   const isDark = themeMode === 'dark';
   const colors = getCanvasColors(isDark);
   if (!selectedNode && !selectedEdge) return null;

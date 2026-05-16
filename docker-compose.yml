@@ -5,6 +5,17 @@ services:
       target: local # Dockerfile の local ステージを使用
     ports:
       - "${APP_PORT:-3000}:3000" # ホスト:3001 → コンテナ:3000（Next.js dev server）
+    environment:
+      # memory-core が LLM 抽出に使う Ollama エンドポイント。
+      # コンテナ内 localhost は自身を指すため、ホスト OS で起動している
+      # Ollama に到達するには host.docker.internal を経由する。
+      # ホスト側で OLLAMA_BASE_URL を設定していればそちらを採用する。
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      # Docker Desktop は自動で解決するが、素の Linux Docker Engine では
+      # 未定義のため host-gateway 指示でブリッジ GW (例: 172.17.0.1) を
+      # host.docker.internal にマッピングする。
+      - "host.docker.internal:host-gateway"
     volumes:
       - .:/anytime-markdown                                    # プロジェクトソースコードを共有
       - node_modules:/anytime-markdown/node_modules            # node_modules を名前付きボリュームで永続化（ホストと分離）

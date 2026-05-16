@@ -8,7 +8,6 @@ import type { ThemePresetName } from '@anytime-markdown/markdown-core/src/consta
 import { getPreset } from '@anytime-markdown/markdown-core/src/constants/themePresets';
 import { EmbedProvidersProvider } from '@anytime-markdown/markdown-core/src/contexts/EmbedProvidersContext';
 import MarkdownEditorPage from '@anytime-markdown/markdown-core/src/MarkdownEditorPage';
-import { setLocale as setShimLocale } from './shims/next-intl';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
 
 const vscode = getVsCodeApi();
@@ -155,11 +154,16 @@ function handleLoadHistoryContent(
   dispatchCustomEvent('vscode-set-content', message.content);
 }
 
+function detectLocale(): string {
+  return typeof navigator !== 'undefined' && navigator.language.startsWith('ja') ? 'ja' : 'en';
+}
+
 export function App() {
   const [ready, setReady] = useState(false);
   const [landing, setLanding] = useState(false);
   const [themeMode, setThemeMode] = useState<PaletteMode>('dark');
   const [presetName, setPresetName] = useState<ThemePresetName>('handwritten');
+  const [locale, setLocale] = useState<string>(detectLocale);
   const [editorKey, setEditorKey] = useState(0);
   const [compareContent, setCompareContent] = useState<string | null>(null);
   const preset = useMemo(() => getPreset(presetName), [presetName]);
@@ -304,10 +308,8 @@ export function App() {
               msgState.setPresetName(s.themePreset);
             }
             if (s.language === 'en' || s.language === 'ja') {
-              setShimLocale(s.language);
               document.documentElement.lang = s.language;
-              // locale 変更時にエディタを再マウントして翻訳を反映
-              msgState.setEditorKey((k: number) => k + 1);
+              setLocale(s.language);
             }
           }
           return;
@@ -487,7 +489,7 @@ export function App() {
       <ConfirmProvider>
         <EmbedProvidersProvider value={embedProviders}>
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-          <MarkdownEditorPage key={editorKey} hideToolbar sideToolbar hideSettings hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} showFrontmatter />
+          <MarkdownEditorPage key={editorKey} locale={locale} hideToolbar sideToolbar hideSettings hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} showFrontmatter />
           {claudeEditing && (
             <div style={{
               position: 'absolute',

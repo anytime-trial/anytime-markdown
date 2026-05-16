@@ -10,6 +10,7 @@ export interface TrailRelease {
   readonly filesChanged: number;
   readonly linesAdded: number;
   readonly linesDeleted: number;
+  readonly totalLines: number;
   readonly featCount: number;
   readonly fixCount: number;
   readonly refactorCount: number;
@@ -17,6 +18,7 @@ export interface TrailRelease {
   readonly otherCount: number;
   readonly affectedPackages: readonly string[];
   readonly durationDays: number;
+  readonly releaseTimeMin: number | null;
 }
 
 export interface ReleaseRow {
@@ -29,6 +31,7 @@ export interface ReleaseRow {
   readonly files_changed: number;
   readonly lines_added: number;
   readonly lines_deleted: number;
+  readonly total_lines: number;
   readonly feat_count: number;
   readonly fix_count: number;
   readonly refactor_count: number;
@@ -37,4 +40,5 @@ export interface ReleaseRow {
   readonly affected_packages: string;
   readonly duration_days: number;
   readonly resolved_at: string | null;
+  readonly release_time_min: number | null;
 }

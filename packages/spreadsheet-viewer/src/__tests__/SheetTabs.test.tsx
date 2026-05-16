@@ -2,20 +2,17 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
+import { SpreadsheetI18nProvider } from "../i18n/context";
 import { SheetTabs } from "../SheetTabs";
-
-jest.mock("next-intl", () => ({
-  useTranslations: (ns: string) => (key: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const messages = require("../i18n/ja.json") as Record<string, Record<string, string>>;
-    return messages[ns]?.[key] ?? key;
-  },
-}));
 
 const theme = createTheme({ palette: { mode: "light" } });
 
 function wrap(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+  return render(
+    <SpreadsheetI18nProvider locale="ja">
+      <ThemeProvider theme={theme}>{ui}</ThemeProvider>
+    </SpreadsheetI18nProvider>,
+  );
 }
 
 describe("SheetTabs", () => {

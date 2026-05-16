@@ -29,7 +29,15 @@ export class SymbolExtractor {
       this.visitNode(sourceFile, fileId, relativePath, nodes);
     }
 
-    return nodes;
+    return this.dedupeOverloads(nodes);
+  }
+
+  private dedupeOverloads(nodes: TrailNode[]): TrailNode[] {
+    const lastIndex = new Map<string, number>();
+    for (let i = 0; i < nodes.length; i++) {
+      lastIndex.set(nodes[i].id, i);
+    }
+    return nodes.filter((node, i) => lastIndex.get(node.id) === i);
   }
 
   private visitNode(
@@ -145,10 +153,22 @@ export class SymbolExtractor {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
       const statement = node.parent?.parent;
       if (statement && ts.isVariableStatement(statement)) {
-        const hasExport = statement.modifiers?.some(
-          m => m.kind === ts.SyntaxKind.ExportKeyword,
-        );
-        if (hasExport) {
+        const hasExport =
+          statement.modifiers?.some(
+            m => m.kind === ts.SyntaxKind.ExportKeyword,
+          ) ?? false;
+
+        const init = node.initializer;
+        const isContainerLike =
+          !!init &&
+          (ts.isObjectLiteralExpression(init) ||
+            ts.isCallExpression(init) ||
+            ts.isArrowFunction(init) ||
+            ts.isFunctionExpression(init) ||
+            ts.isClassExpression(init) ||
+            ts.isNewExpression(init));
+
+        if (hasExport || isContainerLike) {
           const name = node.name.text;
           return {
             id: `${parentId}::${name}`,
@@ -157,6 +177,7 @@ export class SymbolExtractor {
             filePath: relativePath,
             line,
             parent: parentId,
+            exported: hasExport,
           };
         }
       }

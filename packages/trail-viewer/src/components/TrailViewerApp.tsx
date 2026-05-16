@@ -9,6 +9,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { DocLink } from '@anytime-markdown/trail-core/c4';
+import { DEFAULT_COMMIT_CATEGORIES, DEFAULT_COMMIT_CATEGORY_LABELS } from '@anytime-markdown/trail-core/commitCategories';
+import { DEFAULT_TOOL_CATEGORIES, DEFAULT_TOOL_CATEGORY_LABELS } from '@anytime-markdown/trail-core/toolCategories';
+import { DEFAULT_SKILL_CATEGORIES, DEFAULT_SKILL_CATEGORY_LABELS } from '@anytime-markdown/trail-core/skillCategories';
 
 import { TrailViewerCore } from './TrailViewerCore';
 import { useTrailDataSource } from '../hooks/useTrailDataSource';
@@ -37,7 +40,7 @@ export interface TrailViewerAppProps {
    * 拡張機能では VS Code に通知、web アプリでは新規タブで開く等の挙動を上書きできる。
    */
   readonly onDocLinkClick?: (doc: DocLink) => void;
-  /** 初期表示タブ番号（0=Analytics, 1=Traces, 2=Prompts, 3=Releases, 4=C4, 5=Matrix, 6=Graph, 7=Trace）*/
+  /** 初期表示タブ番号（0=Analytics, 1=Messages, 2=Prompts, 4=C4, 5=Trace）*/
   readonly initialTab?: number;
   /** C4 ビューアの初期表示レベル（1=L1 Context, 2=L2 Container, 3=L3 Component, 4=L4 Code）*/
   readonly initialC4Level?: number;
@@ -63,6 +66,64 @@ export function TrailViewerApp({
   const dataSource = useTrailDataSource(serverUrl);
   const c4 = useC4DataSource(serverUrl, disableWebSocket);
   const sendCommand = c4.sendCommand;
+
+  const [commitCategories, setCommitCategories] = useState<ReadonlyMap<string, number>>(DEFAULT_COMMIT_CATEGORIES);
+  const [commitCategoryLabels, setCommitCategoryLabels] = useState<ReadonlyMap<number, string>>(DEFAULT_COMMIT_CATEGORY_LABELS);
+  const [toolCategories, setToolCategories] = useState<ReadonlyMap<string, number>>(DEFAULT_TOOL_CATEGORIES);
+  const [toolCategoryLabels, setToolCategoryLabels] = useState<ReadonlyMap<number, string>>(DEFAULT_TOOL_CATEGORY_LABELS);
+  const [skillCategories, setSkillCategories] = useState<ReadonlyMap<string, number>>(DEFAULT_SKILL_CATEGORIES);
+  const [skillCategoryLabels, setSkillCategoryLabels] = useState<ReadonlyMap<number, string>>(DEFAULT_SKILL_CATEGORY_LABELS);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${serverUrl}/api/config/commit-categories`);
+        if (!res.ok) return;
+        const json = await res.json() as { entries?: Record<string, number>; categories?: Record<string, string> };
+        if (cancelled || typeof json !== 'object' || json === null) return;
+        if (json.entries) setCommitCategories(new Map(Object.entries(json.entries) as [string, number][]));
+        if (json.categories) setCommitCategoryLabels(new Map(Object.entries(json.categories).map(([k, v]) => [Number(k), v])));
+      } catch {
+        // サーバーが未対応の場合はデフォルトのままにする
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [serverUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${serverUrl}/api/config/tool-categories`);
+        if (!res.ok) return;
+        const json = await res.json() as { entries?: Record<string, number>; categories?: Record<string, string> };
+        if (cancelled || typeof json !== 'object' || json === null) return;
+        if (json.entries) setToolCategories(new Map(Object.entries(json.entries) as [string, number][]));
+        if (json.categories) setToolCategoryLabels(new Map(Object.entries(json.categories).map(([k, v]) => [Number(k), v])));
+      } catch {
+        // サーバーが未対応の場合はデフォルトのままにする
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [serverUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${serverUrl}/api/config/skill-categories`);
+        if (!res.ok) return;
+        const json = await res.json() as { entries?: Record<string, number>; categories?: Record<string, string> };
+        if (cancelled || typeof json !== 'object' || json === null) return;
+        if (json.entries) setSkillCategories(new Map(Object.entries(json.entries) as [string, number][]));
+        if (json.categories) setSkillCategoryLabels(new Map(Object.entries(json.categories).map(([k, v]) => [Number(k), v])));
+      } catch {
+        // サーバーが未対応の場合はデフォルトのままにする
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [serverUrl]);
 
   const fetchTraceList = useCallback(async () => {
     const res = await fetch(`${serverUrl}/api/trace/list`);
@@ -164,7 +225,10 @@ export function TrailViewerApp({
     complexityMatrix: c4.complexityMatrix,
     importanceMatrix: c4.importanceMatrix,
     deadCodeMatrix: c4.deadCodeMatrix,
+    centralityMatrix: c4.centralityMatrix,
+    roleMatrix: c4.roleMatrix,
     fileAnalysisEntries: c4.fileAnalysisEntries,
+    functionAnalysisEntries: c4.functionAnalysisEntries,
     docLinks: c4.docLinks,
     connected: c4.connected,
     analysisProgress: c4.analysisProgress,
@@ -217,6 +281,13 @@ export function TrailViewerApp({
       initialTab={initialTab}
       sendCommand={sendCommand}
       wsConnected={c4.connected}
+      serverUrl={serverUrl}
+      commitCategories={commitCategories}
+      commitCategoryLabels={commitCategoryLabels}
+      toolCategories={toolCategories}
+      toolCategoryLabels={toolCategoryLabels}
+      skillCategories={skillCategories}
+      skillCategoryLabels={skillCategoryLabels}
     />
   );
 }

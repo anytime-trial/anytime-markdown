@@ -90,5 +90,6 @@ function toStoredCommunity(r: Record<string, unknown>): StoredCommunity {
     label: (r.label as string) ?? '',
     name: (r.name as string) ?? '',
     summary: (r.summary as string) ?? '',
+    stableKey: (r.stable_key as string) ?? '',
   };
 }

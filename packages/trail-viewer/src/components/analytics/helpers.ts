@@ -39,6 +39,7 @@ export function buildDaySession(date: string, daySessions: readonly TrailSession
     peakContextTokens: peakContextTokens > 0 ? peakContextTokens : undefined,
     usage,
     commitStats,
+    errorCount: daySessions.reduce((acc, s) => acc + (s.errorCount ?? 0), 0) || undefined,
     estimatedCostUsd: daySessions.reduce((acc, s) => acc + (s.estimatedCostUsd ?? 0), 0),
   };
 }

@@ -352,5 +352,24 @@ export class SyncService {
         else this.trailDb.insertManualRelationshipRaw(repoName, r);
       }
     }
+
+    const [localGroups, remoteGroups] = await Promise.all([
+      Promise.resolve(this.trailDb.getManualGroups(repoName)),
+      this.store.listManualGroups(repoName),
+    ]);
+    const localGroupMap = new Map(localGroups.map(g => [g.id, g]));
+    const remoteGroupMap = new Map(remoteGroups.map(g => [g.id, g]));
+    const allGroupIds = new Set([...localGroupMap.keys(), ...remoteGroupMap.keys()]);
+
+    for (const id of allGroupIds) {
+      const l = localGroupMap.get(id);
+      const r = remoteGroupMap.get(id);
+      if (l && !r) await this.store.upsertManualGroup(repoName, l);
+      else if (!l && r) this.trailDb.insertManualGroupRaw(repoName, r);
+      else if (l && r && l.updatedAt !== r.updatedAt) {
+        if (l.updatedAt > r.updatedAt) await this.store.upsertManualGroup(repoName, l);
+        else this.trailDb.insertManualGroupRaw(repoName, r);
+      }
+    }
   }
 }

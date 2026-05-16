@@ -1,10 +1,10 @@
 import type { Editor } from "@tiptap/react";
-import { useTranslations } from "next-intl";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useRef } from "react";
 
 import useConfirm from "@/hooks/useConfirm";
 
+import { useMarkdownT } from "../i18n/context";
 import { type EncodingLabel,getMarkdownFromEditor } from "../types";
 import type { FileHandle } from "../types/fileSystem";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
@@ -58,7 +58,7 @@ export function useEditorFileOps({
   const { notification, setNotification, showNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm();
-  const t = useTranslations("MarkdownEditor");
+  const t = useMarkdownT("MarkdownEditor");
 
   /** エディタからフロントマター付き Markdown を取得する */
   const getFullMarkdown = useCallback(() => {

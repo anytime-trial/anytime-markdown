@@ -170,22 +170,32 @@ export class CombinedDataReader {
   }
 
   async getDayToolMetrics(date: string): Promise<ToolMetrics | null> {
-    const { data, error } = await this.client
-      .from('trail_daily_counts')
-      .select('kind,key,count,tokens,duration_ms')
-      .eq('date', date)
-      .in('kind', ['tool', 'skill', 'error', 'model']);
-    if (error || !data) return null;
+    // Convert JST date to UTC range for trail_sessions.start_time (UTC ISO 8601)
+    const jstDayStartUtc = new Date(`${date}T00:00:00+09:00`).toISOString();
+    const jstDayEndUtc = new Date(`${date}T23:59:59.999+09:00`).toISOString();
+
+    const [dailyResult, sessionResult] = await Promise.all([
+      this.client
+        .from('trail_daily_counts')
+        .select('kind,key,count,tokens,duration_ms')
+        .eq('date', date)
+        .in('kind', ['tool', 'skill', 'model']),
+      this.client
+        .from('trail_sessions')
+        .select('id')
+        .gte('start_time', jstDayStartUtc)
+        .lte('start_time', jstDayEndUtc),
+    ]);
+
+    if (dailyResult.error || !dailyResult.data) return null;
 
     type Row = { kind: string; key: string; count: number; tokens: number; duration_ms: number };
-    const rows = data as Row[];
-
     const toolMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
     const skillMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
     const errMap = new Map<string, number>();
     const modelMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
 
-    for (const r of rows) {
+    for (const r of dailyResult.data as Row[]) {
       if (r.kind === 'tool') {
         const e = toolMap.get(r.key) ?? { count: 0, tokens: 0, durationMs: 0 };
         e.count += r.count; e.tokens += r.tokens; e.durationMs += r.duration_ms;
@@ -194,8 +204,6 @@ export class CombinedDataReader {
         const e = skillMap.get(r.key) ?? { count: 0, tokens: 0, durationMs: 0 };
         e.count += r.count; e.tokens += r.tokens; e.durationMs += r.duration_ms;
         skillMap.set(r.key, e);
-      } else if (r.kind === 'error') {
-        errMap.set(r.key, (errMap.get(r.key) ?? 0) + r.count);
       } else if (r.kind === 'model') {
         const e = modelMap.get(r.key) ?? { count: 0, tokens: 0, durationMs: 0 };
         e.count += r.count; e.tokens += r.tokens; e.durationMs += r.duration_ms;
@@ -203,9 +211,69 @@ export class CombinedDataReader {
       }
     }
 
+    // Compute retry/build/test metrics from message_tool_calls for the day's sessions
+    let totalEdits = 0;
+    let totalRetries = 0;
+    let totalBuildRuns = 0;
+    let totalBuildFails = 0;
+    let totalTestRuns = 0;
+    let totalTestFails = 0;
+
+    const normalizeTool = (name: string): string => {
+      if (!name.startsWith('mcp__')) return name;
+      const parts = name.split('__');
+      return parts.length >= 3 ? `${parts[0]}__${parts[1]}` : name;
+    };
+
+    const sessionIds = (sessionResult.data ?? []).map((s: { id: string }) => s.id);
+    if (sessionIds.length > 0) {
+      type TcRow = { session_id: string; tool_name: string; file_path: string | null; command: string | null; is_error: number };
+      const BUILD_RE = /npm run build|npx tsc|\btsc\b|webpack|vite build|esbuild|rollup/;
+      const TEST_RE = /jest|vitest|npm run test|npm test/;
+      const editFileMap = new Map<string, number>();
+
+      const BATCH = 200;
+      for (let i = 0; i < sessionIds.length; i += BATCH) {
+        const batch = sessionIds.slice(i, i + BATCH);
+        for (let offset = 0; ; offset += 1000) {
+          const { data: td } = await this.client
+            .from('trail_message_tool_calls')
+            .select('session_id,tool_name,file_path,command,is_error')
+            .in('session_id', batch)
+            .range(offset, offset + 999);
+          if (!td || td.length === 0) break;
+          for (const r of td as TcRow[]) {
+            if (r.is_error) {
+              const tool = normalizeTool(r.tool_name);
+              errMap.set(tool, (errMap.get(tool) ?? 0) + 1);
+            }
+            if (r.tool_name === 'Edit' || r.tool_name === 'Write') {
+              totalEdits++;
+              if (r.file_path) {
+                const key = `${r.session_id}:${r.file_path}`;
+                editFileMap.set(key, (editFileMap.get(key) ?? 0) + 1);
+              }
+            } else if (r.tool_name === 'Bash' && r.command) {
+              if (BUILD_RE.test(r.command)) {
+                totalBuildRuns++;
+                if (r.is_error) totalBuildFails++;
+              } else if (TEST_RE.test(r.command)) {
+                totalTestRuns++;
+                if (r.is_error) totalTestFails++;
+              }
+            }
+          }
+          if (td.length < 1000) break;
+        }
+      }
+      for (const count of editFileMap.values()) {
+        if (count > 1) totalRetries += count - 1;
+      }
+    }
+
     return {
-      totalRetries: 0, totalEdits: 0, totalBuildRuns: 0, totalBuildFails: 0,
-      totalTestRuns: 0, totalTestFails: 0,
+      totalRetries, totalEdits, totalBuildRuns, totalBuildFails,
+      totalTestRuns, totalTestFails,
       toolUsage: [...toolMap.entries()].map(([tool, e]) => ({ tool, ...e })).sort((a, b) => b.count - a.count),
       skillUsage: [...skillMap.entries()].map(([skill, e]) => ({ skill, ...e })).sort((a, b) => b.count - a.count),
       errorsByTool: [...errMap.entries()].map(([tool, count]) => ({ tool, count })).sort((a, b) => b.count - a.count),
@@ -241,6 +309,7 @@ export class CombinedDataReader {
         subject?: string | null;
         committed_at: string;
         lines_added: number | null;
+        lines_deleted: number | null;
       };
 
       const fetchDailyCounts = async (): Promise<DcRow[]> => {
@@ -249,7 +318,7 @@ export class CombinedDataReader {
           const { data, error } = await this.client
             .from('trail_daily_counts')
             .select('date,kind,key,count,tokens,duration_ms')
-            .in('kind', ['skill', 'error', 'tool', 'model'])
+            .in('kind', ['skill', 'tool', 'model'])
             .gte('date', cutoffDate)
             .range(offset, offset + 999);
           if (error || !data || data.length === 0) break;
@@ -293,7 +362,7 @@ export class CombinedDataReader {
         for (let offset = 0; ; offset += 1000) {
           let { data, error } = await this.client
             .from('trail_session_commits')
-            .select(`session_id,repo_name,commit_hash,${column},committed_at,lines_added`)
+            .select(`session_id,repo_name,commit_hash,${column},committed_at,lines_added,lines_deleted`)
             .gte('committed_at', cutoffIso)
             .order('committed_at', { ascending: true })
             .range(offset, offset + 999);
@@ -301,7 +370,7 @@ export class CombinedDataReader {
             column = 'subject';
             const fallback = await this.client
               .from('trail_session_commits')
-              .select('session_id,repo_name,commit_hash,subject,committed_at,lines_added')
+              .select('session_id,repo_name,commit_hash,subject,committed_at,lines_added,lines_deleted')
               .gte('committed_at', cutoffIso)
               .order('committed_at', { ascending: true })
               .range(offset, offset + 999);
@@ -339,7 +408,6 @@ export class CombinedDataReader {
         return parts.length >= 3 ? `${parts[0]}__${parts[1]}` : name;
       };
 
-      const errMap = new Map<string, { err: number; total: number; byTool: Record<string, number> }>();
       const skillMap = new Map<string, number>();
       // tool: key = `${periodKey}|${toolName}`, value = { count, tokens, durationMs }
       const toolDcMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
@@ -348,12 +416,7 @@ export class CombinedDataReader {
 
       for (const r of allDcRows) {
         const p = periodKey(r.date);
-        if (r.kind === 'error') {
-          const ef = errMap.get(p) ?? { err: 0, total: 0, byTool: {} };
-          ef.err += r.count;
-          ef.byTool[r.key] = (ef.byTool[r.key] ?? 0) + r.count;
-          errMap.set(p, ef);
-        } else if (r.kind === 'skill') {
+        if (r.kind === 'skill') {
           const k = `${p}::${r.key}`;
           skillMap.set(k, (skillMap.get(k) ?? 0) + r.count);
         } else if (r.kind === 'tool') {
@@ -372,23 +435,10 @@ export class CombinedDataReader {
         }
       }
 
-      // Populate errMap.total from tool daily_counts
-      for (const [k, e] of toolDcMap.entries()) {
-        const p = k.slice(0, k.indexOf('|'));
-        const ef = errMap.get(p) ?? { err: 0, total: 0, byTool: {} };
-        ef.total += e.count;
-        errMap.set(p, ef);
-      }
-
       const splitKey = (k: string): [string, string] => {
         const sep = k.indexOf('::');
         return [k.slice(0, sep), k.slice(sep + 2)];
       };
-
-      const errorRate = [...errMap.entries()]
-        .filter(([, e]) => e.total > 0)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([p, e]) => ({ period: p, rate: e.err / e.total, byTool: e.byTool }));
 
       const skillStats = [...skillMap.entries()]
         .map(([k, count]) => { const [p, skill] = splitKey(k); return { period: p, skill, count, costUsd: 0 }; })
@@ -404,8 +454,42 @@ export class CombinedDataReader {
         if (s.repo_name) repoNameById.set(s.id, s.repo_name);
       }
 
-      // === Phase B: session_costs と session_commits を並列取得 ===
-      const [allCostRows, allCommitRows] = await Promise.all([fetchSessionCosts(), fetchSessionCommits()]);
+      // エラー集計: session start_time 基準（daily_counts の timestamp 基準と異なる）
+      const fetchSessionErrors = async (): Promise<Map<string, Record<string, number>>> => {
+        const result = new Map<string, Record<string, number>>();
+        const sids = [...sessionStartById.keys()];
+        const BATCH = 200;
+        for (let i = 0; i < sids.length; i += BATCH) {
+          const batch = sids.slice(i, i + BATCH);
+          for (let offset = 0; ; offset += 1000) {
+            const { data } = await this.client
+              .from('trail_message_tool_calls')
+              .select('session_id,tool_name')
+              .in('session_id', batch)
+              .eq('is_error', 1)
+              .range(offset, offset + 999);
+            if (!data || data.length === 0) break;
+            for (const r of data as { session_id: string; tool_name: string }[]) {
+              const start = sessionStartById.get(r.session_id);
+              if (!start) continue;
+              const p = periodKey(toJSTDate(start));
+              const tool = normalizeTool(r.tool_name);
+              const byTool = result.get(p) ?? {};
+              byTool[tool] = (byTool[tool] ?? 0) + 1;
+              result.set(p, byTool);
+            }
+            if (data.length < 1000) break;
+          }
+        }
+        return result;
+      };
+
+      // === Phase B: session_costs / session_commits / session errors を並列取得 ===
+      const [allCostRows, allCommitRows, errByPeriodTool] = await Promise.all([fetchSessionCosts(), fetchSessionCommits(), fetchSessionErrors()]);
+
+      const errorRate = [...errByPeriodTool.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([p, byTool]) => ({ period: p, rate: 0, byTool }));
 
       const repoTokenMap = new Map<string, number>();
       const agentMap = new Map<string, { tokens: number; costUsd: number; loc: number }>();
@@ -481,7 +565,7 @@ export class CombinedDataReader {
         return m ? m[1].toLowerCase() : 'other';
       };
       const seenHashes = new Set<string>();
-      const prefixMap = new Map<string, { count: number; linesAdded: number }>();
+      const prefixMap = new Map<string, { count: number; linesAdded: number; linesDeleted: number }>();
       const repoCommitCountMap = new Map<string, number>();
       // 旧実装は session_commits を 2 度フェッチしていた (Loop 4: agent.loc, Loop 5: prefix/repo)。
       // 同じ条件・同じテーブルなので allCommitRows 1 回の取得から両者を導出する。
@@ -503,14 +587,15 @@ export class CombinedDataReader {
         const prefix = extractPrefix(subject);
         const p = periodKey(toJSTDate(c.committed_at));
         const commitKey = `${p}::${prefix}`;
-        const e = prefixMap.get(commitKey) ?? { count: 0, linesAdded: 0 };
+        const e = prefixMap.get(commitKey) ?? { count: 0, linesAdded: 0, linesDeleted: 0 };
         e.count++;
         e.linesAdded += c.lines_added ?? 0;
+        e.linesDeleted += c.lines_deleted ?? 0;
         prefixMap.set(commitKey, e);
       }
 
       const commitPrefixStats = [...prefixMap.entries()]
-        .map(([k, e]) => { const [p, prefix] = splitKey(k); return { period: p, prefix, count: e.count, linesAdded: e.linesAdded }; })
+        .map(([k, e]) => { const [p, prefix] = splitKey(k); return { period: p, prefix, count: e.count, linesAdded: e.linesAdded, linesDeleted: e.linesDeleted }; })
         .sort((a, b) => a.period.localeCompare(b.period));
 
       const repoKeys = new Set([...repoCommitCountMap.keys(), ...repoTokenMap.keys()]);
@@ -519,7 +604,7 @@ export class CombinedDataReader {
         return { period: p, repoName, count: repoCommitCountMap.get(k) ?? 0, tokens: repoTokenMap.get(k) ?? 0 };
       }).sort((a, b) => a.period.localeCompare(b.period));
 
-      return { toolCounts, errorRate, skillStats, modelStats, agentStats, commitPrefixStats, aiFirstTryRate: [], repoStats };
+      return { toolCounts, errorRate, skillStats, modelStats, agentStats, commitPrefixStats, aiFirstTryRate: [], repoStats, qualityRates: [] };
     } catch (e) {
       console.error('[CombinedDataReader.getCombinedData] failed', e);
       return null;

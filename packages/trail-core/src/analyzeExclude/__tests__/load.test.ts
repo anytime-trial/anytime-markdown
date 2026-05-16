@@ -8,7 +8,7 @@ function makeTempDir(): string {
 }
 
 describe('loadAnalyzeExclude', () => {
-  it('returns an Ignore that matches nothing when .trail/analyze-exclude is missing', () => {
+  it('returns an Ignore that matches nothing when .anytime/analyze-exclude is missing', () => {
     const root = makeTempDir();
     try {
       const ig = loadAnalyzeExclude(root);
@@ -22,9 +22,9 @@ describe('loadAnalyzeExclude', () => {
   it('parses .gitignore-style content (directory, file glob, negation)', () => {
     const root = makeTempDir();
     try {
-      fs.mkdirSync(path.join(root, '.trail'));
+      fs.mkdirSync(path.join(root, '.anytime'));
       fs.writeFileSync(
-        path.join(root, '.trail', 'analyze-exclude'),
+        path.join(root, '.anytime', 'analyze-exclude'),
         '# comment\n__tests__/\n*.spec.ts\n!packages/keep/special.spec.ts\n',
       );
       const ig = loadAnalyzeExclude(root);
@@ -40,8 +40,8 @@ describe('loadAnalyzeExclude', () => {
   it('handles root-anchored patterns (/dist)', () => {
     const root = makeTempDir();
     try {
-      fs.mkdirSync(path.join(root, '.trail'));
-      fs.writeFileSync(path.join(root, '.trail', 'analyze-exclude'), '/dist\n');
+      fs.mkdirSync(path.join(root, '.anytime'));
+      fs.writeFileSync(path.join(root, '.anytime', 'analyze-exclude'), '/dist\n');
       const ig = loadAnalyzeExclude(root);
       expect(ig.ignores('dist/main.ts')).toBe(true);
       expect(ig.ignores('packages/foo/dist/main.ts')).toBe(false);
@@ -53,8 +53,8 @@ describe('loadAnalyzeExclude', () => {
   it('returns empty Ignore when file is empty', () => {
     const root = makeTempDir();
     try {
-      fs.mkdirSync(path.join(root, '.trail'));
-      fs.writeFileSync(path.join(root, '.trail', 'analyze-exclude'), '');
+      fs.mkdirSync(path.join(root, '.anytime'));
+      fs.writeFileSync(path.join(root, '.anytime', 'analyze-exclude'), '');
       const ig = loadAnalyzeExclude(root);
       expect(ig.ignores('any/file.ts')).toBe(false);
     } finally {

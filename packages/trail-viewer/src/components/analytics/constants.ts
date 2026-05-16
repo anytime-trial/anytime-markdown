@@ -1,4 +1,4 @@
-import { toolActionColors, modelColors, analyticsPalette } from '../../theme/designTokens';
+import { toolActionColors, modelColors, analyticsPalette, getModelBrandColor } from '../../theme/designTokens';
 import type { LaneTool } from '../../domain/analytics/calculators';
 
 export const LANE_TOOL_COLORS: Record<LaneTool, string> = {
@@ -15,10 +15,7 @@ export const LANE_TOOL_LABELS: Record<LaneTool, string> = {
 };
 
 export function laneModelColor(model: string): string {
-  if (model.includes('opus')) return modelColors.opus;
-  if (model.includes('sonnet')) return modelColors.sonnet;
-  if (model.includes('haiku')) return modelColors.haiku;
-  return modelColors.unknown;
+  return getModelBrandColor(model) ?? modelColors.unknown;
 }
 
 export function laneSkillColor(skill: string): string {

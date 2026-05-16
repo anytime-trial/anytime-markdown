@@ -1,6 +1,6 @@
 "use client";
 
-import { SpreadsheetGrid } from "@anytime-markdown/spreadsheet-viewer";
+import { SpreadsheetGrid, SpreadsheetI18nProvider } from "@anytime-markdown/spreadsheet-viewer";
 import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
 import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
 import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
@@ -13,7 +13,6 @@ import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, D
 import type { Fragment } from "@tiptap/pm/model";
 import type { Editor, NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
-import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
@@ -25,6 +24,7 @@ import { SMALL_CAPTION_FONT_SIZE } from "./constants/dimensions";
 import { Z_FULLSCREEN } from "./constants/zIndex";
 import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEditorsContext";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
+import { useMarkdownT } from "./i18n/context";
 import { createTiptapSheetAdapter } from "./spreadsheet/TiptapSheetAdapter";
 import { useEditorSettingsContext } from "./useEditorSettings";
 import { moveTableColumn,moveTableRow } from "./utils/tableHelpers";
@@ -295,7 +295,6 @@ function SpreadsheetEditContent({ editor, getPos, isDark, onDirtyChange, onClose
   onDirtyChange: (dirty: boolean) => void;
   onClose: () => void;
 }>) {
-  const tSheet = useTranslations("Spreadsheet");
   const { gridRows, gridCols } = getTableGridOptions(editor);
   const adapter = useMemo(
     () =>
@@ -316,11 +315,10 @@ function SpreadsheetEditContent({ editor, getPos, isDark, onDirtyChange, onClose
   const handleUndo = useCallback(() => { editor.chain().undo().run(); }, [editor]);
   const handleRedo = useCallback(() => { editor.chain().redo().run(); }, [editor]);
   return (
-    <>
+    <SpreadsheetI18nProvider>
       <SpreadsheetGrid
         adapter={adapter}
         isDark={isDark}
-        t={tSheet}
         gridRows={gridRows}
         gridCols={gridCols}
         showApply
@@ -335,7 +333,7 @@ function SpreadsheetEditContent({ editor, getPos, isDark, onDirtyChange, onClose
       <Box sx={{ display: "none" }}>
         <NodeViewContent<"table"> as="table" />
       </Box>
-    </>
+    </SpreadsheetI18nProvider>
   );
 }
 
@@ -442,7 +440,7 @@ function buildDialogPaperProps(
 }
 
 export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>) {
-  const t = useTranslations("MarkdownEditor");
+  const t = useMarkdownT("MarkdownEditor");
   const isDark = useTheme().palette.mode === "dark";
   const settings = useEditorSettingsContext();
   const {

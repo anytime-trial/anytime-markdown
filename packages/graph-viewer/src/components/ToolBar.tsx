@@ -46,7 +46,7 @@ Divider,   IconButton,   ListItemIcon, ListItemText, Menu, MenuItem,
 Popover, ToggleButton, ToggleButtonGroup,
 Toolbar, Tooltip, Typography,
 } from '@mui/material';
-import { useTranslations } from 'next-intl';
+import { useGraphT } from '../i18n/context';
 import React, { useCallback,useRef, useState } from 'react';
 
 import { SaveStatus } from '../hooks/useAutoSave';
@@ -108,7 +108,7 @@ export function GraphToolBar({
   showFilter: _showFilter, onToggleFilter, filterActive,
   themeMode = 'dark',
 }: Readonly<ToolBarProps>) {
-  const t = useTranslations('Graph');
+  const t = useGraphT('Graph');
   const isDark = themeMode === 'dark';
   const colors = getCanvasColors(isDark);
   const [alignAnchor, setAlignAnchor] = React.useState<null | HTMLElement>(null);

@@ -234,6 +234,12 @@ export interface TrailThemeTokens {
   readonly commitColors: Readonly<{
     feat: string; fix: string; refactor: string; test: string; other: string;
   }>;
+  /** カテゴリ色パレット（先頭3色が定義済み。それ以外は Context で動的生成）*/
+  readonly commitCategoryColors: readonly string[];
+  /** ツールカテゴリ色パレット（先頭5色が定義済み。それ以外は Context で動的生成）*/
+  readonly toolCategoryColors: readonly string[];
+  /** スキルカテゴリ色パレット（先頭5色が定義済み。それ以外は Context で動的生成）*/
+  readonly skillCategoryColors: readonly string[];
   readonly toolActionColors: ThemeToolActionColors;
   readonly modelColors: ThemeModelColors;
   readonly modelCostColors: ThemeModelCostColors;
@@ -303,15 +309,15 @@ const releaseColors = {
 } as const;
 
 const darkToolPalette = [
-  '#90CAF9', '#8b5cf6', '#00897b', '#e65100', '#c62828',
-  '#7b1fa2', '#0288d1', '#f57f17', '#2e7d32', '#ad1457',
-  '#4527a0', '#00838f', '#558b2f', '#6d4c41', '#546e7a',
+  '#66BB6A', '#90CAF9', '#FFD54F', '#CE93D8', '#FF8A65',
+  '#4DD0E1', '#F48FB1', '#80DEEA', '#EF9A9A', '#A5D6A7',
+  '#B39DDB', '#FFE082', '#80CBC4', '#FFAB40', '#81D4FA',
 ] as const;
 
 const lightToolPalette = [
-  '#1565C0', '#6d28d9', '#00695c', '#bf360c', '#b71c1c',
-  '#6a1b9a', '#01579b', '#e65100', '#1b5e20', '#880e4f',
-  '#311b92', '#006064', '#33691e', '#4e342e', '#37474f',
+  '#388E3C', '#1565C0', '#F9A825', '#7B1FA2', '#E64A19',
+  '#00838F', '#AD1457', '#00695C', '#C62828', '#2E7D32',
+  '#4527A0', '#F57F17', '#006064', '#880E4F', '#0277BD',
 ] as const;
 
 const darkCommitColors = {
@@ -345,6 +351,15 @@ export function getTokens(isDark: boolean): TrailThemeTokens {
     },
     toolPalette: isDark ? darkToolPalette : lightToolPalette,
     commitColors: isDark ? darkCommitColors : lightCommitColors,
+    commitCategoryColors: isDark
+      ? ['#66BB6A', '#EF5350', '#FFA726']  // 緑・赤・黄 (dark)
+      : ['#388E3C', '#D32F2F', '#F57C00'], // 緑・赤・黄 (light)
+    toolCategoryColors: isDark
+      ? ['#66BB6A', '#90CAF9', '#FFD54F', '#FF8A65', 'rgba(255,255,255,0.35)']
+      : ['#388E3C', '#1565C0', '#F9A825',  '#E64A19', 'rgba(0,0,0,0.30)'],
+    skillCategoryColors: isDark
+      ? ['#66BB6A', '#4DD0E1', '#CE93D8', '#FFB74D', 'rgba(255,255,255,0.35)']
+      : ['#2E7D32', '#00838F', '#7B1FA2',  '#E65100', 'rgba(0,0,0,0.30)'],
     toolActionColors,
     modelColors,
     modelCostColors,
@@ -401,3 +416,42 @@ export const agentPalette = [
 
 /** Specific chart series color for Lead Time / LOC overlay line (AnalyticsPanel). */
 export const LEAD_TIME_LOC_COLOR = '#F06292';
+
+/** Brand colors keyed by agent source value (sessions.source in trail.db). */
+export const agentBrandColors: Readonly<Record<string, string>> = {
+  claude_code: '#CC785C',  // Anthropic / Claude – copper terracotta
+  codex:       '#10A37F',  // OpenAI – signature green
+  gemini:      '#4285F4',  // Google / Gemini – Google Blue
+  cursor:      '#2563EB',  // Cursor – blue
+} as const;
+
+/** Per-tier copper shades for Claude models (dark → light = opus → haiku). */
+const claudeModelColors = {
+  opus:   '#8D4E32',  // dark copper
+  sonnet: '#CC785C',  // base copper (= agentBrandColors.claude_code)
+  haiku:  '#E8A87C',  // light copper
+} as const;
+
+/**
+ * Returns a brand-based color for a model name, or undefined when the brand
+ * is unknown (caller should fall back to a generic palette).
+ */
+export function getModelBrandColor(model: string): string | undefined {
+  const m = model.toLowerCase();
+  if (m.startsWith('claude')) {
+    if (m.includes('opus'))   return claudeModelColors.opus;
+    if (m.includes('sonnet')) return claudeModelColors.sonnet;
+    if (m.includes('haiku'))  return claudeModelColors.haiku;
+    return agentBrandColors.claude_code;
+  }
+  if (m.startsWith('gpt') || m.startsWith('o1') || m.startsWith('o3') || m.startsWith('chatgpt')) {
+    return agentBrandColors.codex;
+  }
+  if (m.startsWith('gemini')) {
+    return agentBrandColors.gemini;
+  }
+  if (m.startsWith('cursor')) {
+    return agentBrandColors.cursor;
+  }
+  return undefined;
+}

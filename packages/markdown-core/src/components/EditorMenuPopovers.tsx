@@ -20,13 +20,13 @@ import {
   useTheme,
 } from "@mui/material";
 import type { Editor } from "@tiptap/react";
-import { useLocale } from "next-intl";
 import React, { useMemo } from "react";
 
 import { getDivider } from "../constants/colors";
 import { MENU_ITEM_FONT_SIZE } from "../constants/dimensions";
 import { PLANTUML_SAMPLES } from "../constants/samples";
 import { getBuiltinTemplates, type MarkdownTemplate } from "../constants/templates";
+import { useMarkdownLocale } from "../i18n/context";
 import MermaidIcon from "../icons/MermaidIcon";
 import type { TranslationFn } from "../types";
 
@@ -106,7 +106,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
   onOpenSettings,
   t,
 }: EditorMenuPopoversProps) {
-  const locale = useLocale();
+  const locale = useMarkdownLocale();
   const isDark = useTheme().palette.mode === "dark";
   const builtinTemplates = useMemo(() => getBuiltinTemplates(locale), [locale]);
 

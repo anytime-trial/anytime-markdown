@@ -21,6 +21,12 @@ export function applyFilter(
     if (!config.includeTests && TEST_PATTERN.test(node.filePath)) {
       return false;
     }
+    // Paths starting with '../' are resolved via symlinks (e.g. workspace package symlinks in
+    // a git worktree) and point outside the project root. ignore() throws RangeError for such
+    // paths; exclude these nodes so they don't pollute the release graph.
+    if (node.filePath.startsWith('../')) {
+      return false;
+    }
     if (node.filePath !== '' && config.exclude.ignores(node.filePath)) {
       return false;
     }

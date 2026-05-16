@@ -14,8 +14,19 @@ export interface ITrailStorage {
   /** 初期化時に既存 DB バイト列を返す。新規作成の場合は null。 */
   readInitialBytes(): Uint8Array | null;
 
-  /** sql.js の export() 結果を永続化する。 */
+  /**
+   * DB の現在状態を永続化する。better-sqlite3 を file-backed で使う場合は
+   * すでにメイン DB ファイルが書き込み済みなので、本メソッドはバックアップ
+   * ローテーション目的のみで使われる。in-memory ストレージでは no-op。
+   */
   save(bytes: Uint8Array): void;
+
+  /**
+   * better-sqlite3 にそのまま渡すファイルパスを返す。
+   * - FileTrailStorage: 絶対パス
+   * - InMemoryTrailStorage: null (呼び出し側は `:memory:` で開く)
+   */
+  getFilePath(): string | null;
 
   /** デバッグ・ログ用の識別子（本番はパス、テストは 'in-memory' 等）。 */
   readonly identifier: string;
@@ -67,6 +78,10 @@ export class FileTrailStorage implements ITrailStorage {
   ) {}
 
   get identifier(): string {
+    return this.dbPath;
+  }
+
+  getFilePath(): string {
     return this.dbPath;
   }
 
@@ -163,15 +178,27 @@ export class FileTrailStorage implements ITrailStorage {
   restoreFromBackup(generation: number): { restoredFrom: string; safetyCopy: string | null } {
     assertNotProductionWriteDuringTests(this.dbPath);
     const bakPath = this.backupPath(generation);
-    if (!fs.existsSync(bakPath)) {
-      throw new Error(`Backup not found: ${bakPath}`);
+    // TOCTOU 競合を避けるため existsSync を使わず、直接 read を試みて ENOENT で判定。
+    let compressed: Buffer;
+    try {
+      compressed = fs.readFileSync(bakPath);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error(`Backup not found: ${bakPath}`);
+      }
+      throw err;
     }
     let safetyCopy: string | null = null;
-    if (fs.existsSync(this.dbPath)) {
-      safetyCopy = `${this.dbPath}.restore-safety-${Date.now()}`;
-      fs.copyFileSync(this.dbPath, safetyCopy);
+    const safetyPath = `${this.dbPath}.restore-safety-${Date.now()}`;
+    try {
+      fs.copyFileSync(this.dbPath, safetyPath, fs.constants.COPYFILE_EXCL);
+      safetyCopy = safetyPath;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      // ENOENT: 既存 DB なしのため safetyCopy は作らない
+      // EEXIST: 同時呼び出しで衝突、こちらの copy は諦める
+      if (code !== 'ENOENT' && code !== 'EEXIST') throw err;
     }
-    const compressed = fs.readFileSync(bakPath);
     const decompressed = zlib.gunzipSync(compressed);
     fs.writeFileSync(this.dbPath, decompressed);
     return { restoredFrom: bakPath, safetyCopy };
@@ -185,6 +212,9 @@ export class FileTrailStorage implements ITrailStorage {
 export class InMemoryTrailStorage implements ITrailStorage {
   readonly identifier = 'in-memory';
   readInitialBytes(): Uint8Array | null {
+    return null;
+  }
+  getFilePath(): null {
     return null;
   }
   save(_bytes: Uint8Array): void {

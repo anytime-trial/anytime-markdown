@@ -9,6 +9,8 @@ const config = {
   testMatch: ["<rootDir>/src/__tests__/**/*.test.{ts,tsx}"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {
+    "\\.md$": "<rootDir>/src/__mocks__/md-raw.js",
+    "^@/(.*)$": "<rootDir>/../markdown-core/src/$1",
     "^@anytime-markdown/markdown-core/src/(.*)$": "<rootDir>/../markdown-core/src/$1",
     "^@anytime-markdown/markdown-core$": "<rootDir>/../markdown-core/src/index.ts",
     "^@anytime-markdown/graph-viewer/src/(.*)$": "<rootDir>/../graph-viewer/src/$1",

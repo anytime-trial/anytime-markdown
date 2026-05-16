@@ -13,6 +13,7 @@ import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
 import { ChartsLegend } from '@mui/x-charts/ChartsLegend';
 import { ChartsAxisHighlight } from '@mui/x-charts/ChartsAxisHighlight';
 import { useTrailTheme } from '../../../TrailThemeContext';
+import { useCommitCategory } from '../../../CommitCategoryContext';
 import { fmtTokens } from '../../../../domain/analytics/formatters';
 import { LEAD_TIME_LOC_COLOR } from '../../../../theme/designTokens';
 import type { CommitMetric } from '../../types';
@@ -30,25 +31,26 @@ export function CommitsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
-  const { commitRows, commitPeriods, commitLabels, commitPrefixes, commitMap, aiRateRows } = axisInfo;
+  const { cardSx } = useTrailTheme();
+  const { getCategory, getCategoryLabel, getCategoryColorByIndex, categoryKeys } = useCommitCategory();
+  const { commitRows, commitPeriods, commitLabels, commitPrefixes, aiRateRows } = axisInfo;
 
   const commitDataset = useMemo(() => {
     const valMap = new Map<string, number>();
     for (const r of commitRows) {
-      const displayKey = commitMap.get(r.prefix) ?? r.prefix;
-      const key = `${r.period}::${displayKey}`;
-      const value = commitMetric === 'loc' ? (r.linesAdded ?? 0) : r.count;
+      const cat = getCategory(r.prefix);
+      const key = `${r.period}::${cat}`;
+      const value = commitMetric === 'loc' ? (r.linesAdded ?? 0) + (r.linesDeleted ?? 0) : r.count;
       valMap.set(key, (valMap.get(key) ?? 0) + value);
     }
     return commitPeriods.map((p, pi) => {
       const entry: Record<string, string | number> = { period: commitLabels[pi] };
-      for (let i = 0; i < commitPrefixes.length; i++) {
-        entry[`c${i}`] = valMap.get(`${p}::${commitPrefixes[i]}`) ?? 0;
+      for (const cat of categoryKeys) {
+        entry[`c${cat}`] = valMap.get(`${p}::${cat}`) ?? 0;
       }
       return entry;
     });
-  }, [commitRows, commitPeriods, commitLabels, commitPrefixes, commitMap, commitMetric]);
+  }, [commitRows, commitPeriods, commitLabels, commitMetric, getCategory, categoryKeys]);
 
   if (commitPrefixes.length === 0) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
@@ -66,12 +68,12 @@ export function CommitsCombinedChart({
     rate: showRate ? (rateByPeriod.get(commitPeriods[i]) ?? null) : null,
   }));
 
-  const barSeries = commitPrefixes.map((prefix, i) => ({
+  const barSeries = categoryKeys.map((cat) => ({
     type: 'bar' as const,
-    dataKey: `c${i}`,
-    label: prefix,
+    dataKey: `c${cat}`,
+    label: getCategoryLabel(cat),
     stack: 'total',
-    color: toolPalette[i % toolPalette.length],
+    color: getCategoryColorByIndex(cat),
     yAxisId: 'countAxis',
   }));
   const lineSeries = showRate ? [{

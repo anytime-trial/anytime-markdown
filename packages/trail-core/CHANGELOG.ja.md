@@ -6,6 +6,26 @@
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-05-15
+
+### 変更
+
+- **Breaking:** ワークスペース設定フォルダを `.trail/` から `.anytime/` にリネーム。対象ファイルは `analyze-exclude` / `dead-code-ignore` / `commit-categories.json` / `tool-categories.json` / `skill-categories.json`。既存ワークスペースは手動で `.trail/` → `.anytime/` にリネームが必要
+- **Breaking:** `TRAIL_HOME` 集約 — trail 関連ストレージは共有 `getTrailHome` ヘルパー経由で解決。既定パスは `<workspaceRoot>/.anytime/trail/`（DB は `<workspaceRoot>/.anytime/db/trail.db`）
+- `*_DB_PATH` 環境変数と未使用の `opts.dbPath` オーバーライドを撤去（`TRAIL_HOME` に統一）
+- `trail-db` の `DEFAULT_DB_DIR` を `<cwd>/.anytime/trail` に既定変更、`SNAPSHOT_SKIP_DIRS` に `.anytime` を追加
+- トレース出力先を `<TRAIL_HOME>/trace` に移動、trail-server / vscode-trail-extension が `getTrailHome` を共有
+
+### 修正
+
+- `trail-db` の `SqlJsCompatStatement` no-bind 経路と古い 3 件のテストを修復
+- `mcp-trail` の `dbPath` 検索が `.anytime/db/trail.db` 既定と一致するように修正
+- VS Code 拡張の `trailConfigPath` を `TRAIL_HOME` 既定に揃える
+- `trail-server` の `MemoryApiHandler` で memory-core パス解決を遅延化
+- `memory-core` が vscode-server bin パスへのフォールバックを拒否するように修正
+- `vscode-trail-extension`: `pipeline-status.json` の reader / writer 不整合を解消
+- `saveCurrentGraph` の OOM 回避のため sql.js を asm.js → WASM に切替
+
 ## [0.18.0] - 2026-05-08
 
 ### 追加

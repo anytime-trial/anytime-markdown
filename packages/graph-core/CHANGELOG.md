@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-15
+
+### Changed
+
+- Test coverage added for culling / shape / drawHelpers paths without a real canvas
+
 ## [0.3.0] - 2026-05-04
 
 ### Added

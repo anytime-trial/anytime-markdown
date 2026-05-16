@@ -1,5 +1,5 @@
 import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseRow } from './TrailDatabase';
-import type { ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
 
 export interface IRemoteTrailStore {
   connect(): Promise<void>;
@@ -59,6 +59,9 @@ export interface IRemoteTrailStore {
   listManualRelationships(repoName: string): Promise<readonly ManualRelationship[]>;
   upsertManualRelationship(repoName: string, rel: ManualRelationship): Promise<void>;
   deleteManualRelationship(repoName: string, relId: string): Promise<void>;
+  listManualGroups(repoName: string): Promise<readonly ManualGroup[]>;
+  upsertManualGroup(repoName: string, group: ManualGroup): Promise<void>;
+  deleteManualGroup(repoName: string, groupId: string): Promise<void>;
   /** [DESTRUCTIVE] message_tool_calls テーブルを全削除する（洗い替え同期用）。 */
   unsafeClearMessageToolCalls(): Promise<void>;
   upsertMessageToolCalls(rows: readonly {
@@ -126,8 +129,11 @@ export interface IRemoteTrailStore {
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
     signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string; analyzed_at: string;
+    is_ignored: number; ignore_reason: string;
+    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
+    analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }[]): Promise<void>;
   /** [DESTRUCTIVE] trail_release_file_analysis を全削除する（洗い替え同期用）。 */
   unsafeClearReleaseFileAnalysis(): Promise<void>;
@@ -137,8 +143,11 @@ export interface IRemoteTrailStore {
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
     signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string; analyzed_at: string;
+    is_ignored: number; ignore_reason: string;
+    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
+    analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }[]): Promise<void>;
   /** [DESTRUCTIVE] trail_current_function_analysis を全削除する（洗い替え同期用）。 */
   unsafeClearCurrentFunctionAnalysis(): Promise<void>;
@@ -147,7 +156,9 @@ export interface IRemoteTrailStore {
     end_line: number; language: string;
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
-    signal_fan_in_zero: number; analyzed_at: string;
+    signal_fan_in_zero: number;
+    fan_out: number; distinct_callees: number; function_role: string;
+    analyzed_at: string;
     cyclomatic_complexity: number;
   }[]): Promise<void>;
   /** [DESTRUCTIVE] trail_release_function_analysis を全削除する（洗い替え同期用）。 */
@@ -157,7 +168,9 @@ export interface IRemoteTrailStore {
     end_line: number; language: string;
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
-    signal_fan_in_zero: number; analyzed_at: string;
+    signal_fan_in_zero: number;
+    fan_out: number; distinct_callees: number; function_role: string;
+    analyzed_at: string;
     cyclomatic_complexity: number;
   }[]): Promise<void>;
   /** [DESTRUCTIVE] trail_current_code_graphs と trail_current_code_graph_communities を全削除する（洗い替え同期用）。 */
@@ -175,6 +188,7 @@ export interface IRemoteTrailStore {
     name: string;
     summary: string;
     mappings_json: string | null;
+    stable_key: string;
     generated_at: string;
     updated_at: string;
   }[]): Promise<void>;
@@ -192,6 +206,7 @@ export interface IRemoteTrailStore {
     label: string;
     name: string;
     summary: string;
+    stable_key: string;
     generated_at: string;
     updated_at: string;
   }[]): Promise<void>;

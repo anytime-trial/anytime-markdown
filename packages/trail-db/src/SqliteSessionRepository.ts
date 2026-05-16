@@ -1,6 +1,6 @@
-// SqliteSessionRepository.ts — ISessionRepository implementation using sql.js
+// SqliteSessionRepository.ts — ISessionRepository implementation backed by better-sqlite3 (via shim)
 
-import type { Database } from 'sql.js';
+import type { SqlJsCompatDatabase as Database } from './internal/SqlJsCompatDatabase';
 import type {
   ISessionRepository,
   SessionStats,

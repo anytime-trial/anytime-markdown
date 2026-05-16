@@ -23,9 +23,11 @@ export class ReleasesReader {
       repo_name: string | null;
       package_tags: string; commit_count: number;
       files_changed: number; lines_added: number; lines_deleted: number;
+      total_lines?: number | null;
       feat_count: number; fix_count: number; refactor_count: number;
       test_count: number; other_count: number;
       affected_packages: string; duration_days: number;
+      release_time_min?: number | null;
     }[]).map((r) => ({
       tag: r.tag,
       releasedAt: r.released_at,
@@ -36,6 +38,7 @@ export class ReleasesReader {
       filesChanged: r.files_changed,
       linesAdded: r.lines_added,
       linesDeleted: r.lines_deleted,
+      totalLines: r.total_lines ?? 0,
       featCount: r.feat_count,
       fixCount: r.fix_count,
       refactorCount: r.refactor_count,
@@ -43,6 +46,7 @@ export class ReleasesReader {
       otherCount: r.other_count,
       affectedPackages: JSON.parse(r.affected_packages) as string[],
       durationDays: r.duration_days,
+      releaseTimeMin: r.release_time_min ?? null,
     }));
   }
 

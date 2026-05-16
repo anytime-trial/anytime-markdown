@@ -7,6 +7,7 @@ export { useSpreadsheetState } from "./hooks/useSpreadsheetState";
 export { getDivider } from "./styles";
 export { enMessages as spreadsheetViewerEnMessages, jaMessages as spreadsheetViewerJaMessages } from "./i18n";
 export type { SpreadsheetViewerMessages } from "./i18n";
+export { SpreadsheetI18nProvider } from "./i18n/context";
 
 export { SheetTabs } from "./SheetTabs";
 

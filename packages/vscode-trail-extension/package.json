@@ -2,7 +2,7 @@
   "name": "anytime-trail",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -53,6 +53,10 @@
         {
           "id": "anytimeTrail.database",
           "name": "%view.database%"
+        },
+        {
+          "id": "anytimeTrail.ollama",
+          "name": "%view.ollama%"
         }
       ]
     },
@@ -71,6 +75,26 @@
       }
     ],
     "commands": [
+      {
+        "command": "anytime-trail.memory.rebuildIndex",
+        "title": "%command.memory.rebuildIndex%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.memory.pauseIngest",
+        "title": "%command.memory.pauseIngest%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.memory.resumeIngest",
+        "title": "%command.memory.resumeIngest%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.memory.statusIngest",
+        "title": "%command.memory.statusIngest%",
+        "category": "Anytime Trail"
+      },
       {
         "command": "anytime-trail.openAiNote",
         "title": "%command.openAiNote%",
@@ -199,6 +223,18 @@
         "command": "anytime-trail.registerMcpToClaudeCode",
         "title": "%command.registerMcpToClaudeCode%",
         "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.startOllama",
+        "title": "%command.startOllama%",
+        "category": "Anytime Trail",
+        "icon": "$(play)"
+      },
+      {
+        "command": "anytime-trail.killExtensionHost",
+        "title": "%command.killExtensionHost%",
+        "category": "Anytime Trail",
+        "icon": "$(debug-stop)"
       }
     ],
     "mcpServerDefinitionProviders": [
@@ -274,6 +310,16 @@
           "when": "view == anytimeTrail.agentMapping && anytimeTrail.agentMapping.filterActive",
           "group": "navigation",
           "icon": "$(filter-filled)"
+        },
+        {
+          "command": "anytime-trail.startOllama",
+          "when": "view == anytimeTrail.ollama && !anytime-trail.ollamaRunning",
+          "group": "navigation"
+        },
+        {
+          "command": "anytime-trail.killExtensionHost",
+          "when": "view == anytimeTrail.dashboard",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -327,9 +373,14 @@
           "default": 19841,
           "description": "Port number for the Trail Viewer server"
         },
+        "anytimeTrail.daemon.useExternalDaemon": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.daemon.useExternalDaemon%"
+        },
         "anytimeTrail.database.storagePath": {
           "type": "string",
-          "default": "",
+          "default": ".anytime/trail/db",
           "markdownDescription": "%config.database.storagePath%"
         },
         "anytimeTrail.database.backupGenerations": {
@@ -347,7 +398,7 @@
         },
         "anytimeTrail.claudeStatus.directory": {
           "type": "string",
-          "default": ".vscode/trail/agent-status",
+          "default": ".anytime/trail/agent-status",
           "markdownDescription": "%config.claudeStatus.directory%"
         },
         "anytimeTrail.budget.dailyLimitTokens": {
@@ -372,6 +423,12 @@
           "minimum": 1,
           "maximum": 100,
           "markdownDescription": "上限に対する警告閾値（%）。"
+        },
+        "anytimeTrail.logs.minLevel": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"],
+          "default": "debug",
+          "markdownDescription": "%config.logs.minLevel%"
         }
       }
     }
@@ -384,17 +441,20 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run package",
-    "compile": "webpack",
+    "vscode:prepublish": "npm run prepare-native && npm run package",
+    "prepare-native": "node scripts/prepare-native-binding.cjs",
+    "compile": "npm run prepare-native && webpack",
     "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map",
+    "package": "npm run prepare-native && webpack --mode production --devtool hidden-source-map",
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/memory-core": "*",
     "@anytime-markdown/mcp-trail": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trail-db": "*",
+    "@anytime-markdown/trail-server": "*",
     "@anytime-markdown/vscode-common": "*",
     "@modelcontextprotocol/sdk": "1.27.1",
     "graphology": "0.26.0",
@@ -404,7 +464,6 @@
     "graphology-shortest-path": "2.1.0",
     "ignore": "7.0.5",
     "pg": "8.20.0",
-    "sql.js": "1.12.0",
     "typescript": "5.9.3",
     "ws": "8.18.2",
     "zod": "3.25.76"
@@ -419,7 +478,6 @@
     "@types/pg": "8.20.0",
     "@types/react": "19.1.6",
     "@types/react-dom": "19.1.6",
-    "@types/sql.js": "1.4.9",
     "@types/vscode": "1.109.0",
     "@types/ws": "8.18.1",
     "copy-webpack-plugin": "14.0.0",

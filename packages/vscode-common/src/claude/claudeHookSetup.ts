@@ -26,7 +26,14 @@ const SESSION_GUARD_SCRIPT = `#!/bin/bash
 # session-guard.sh — Check session duration and turn count, warn if thresholds exceeded
 THRESHOLD_MINUTES=60
 THRESHOLD_TURNS=50
-STATE_FILE="/tmp/claude-session-guard.json"
+
+read -r -d '' STDIN_DATA || true
+CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||process.cwd())}catch{process.stdout.write(process.cwd())}})" 2>/dev/null)
+[ -z "\$CWD" ] && CWD="\$PWD"
+TRAIL_HOME="\${TRAIL_HOME:-\${CWD}/.anytime/trail}"
+STATE_DIR="\${TRAIL_HOME}/state"
+mkdir -p "\$STATE_DIR" 2>/dev/null || true
+STATE_FILE="\${STATE_DIR}/claude-session-guard.json"
 
 JSONL=$(find "$HOME/.claude/projects" -maxdepth 2 -name "*.jsonl" -not -path "*/subagents/*" -printf '%T@ %p\\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
 
@@ -81,14 +88,15 @@ function commitTrackerScriptContent(port: number): string {
   return `#!/usr/bin/env bash
 # commit-tracker.sh — detect git commits after Bash tool use and notify Trail
 set -eu
-STATE_DIR="\${HOME}/.vscode-server/data/User/globalStorage/anytime-trial.anytime-trail/git-state"
-mkdir -p "\$STATE_DIR"
 
 read -r -d '' STDIN_DATA || true
 SESSION_ID=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).session_id||'')}catch{}})")
 CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||process.cwd())}catch{}})")
 TRANSCRIPT=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).transcript_path||'')}catch{}})")
 [ -z "\$SESSION_ID" ] && exit 0
+TRAIL_HOME="\${TRAIL_HOME:-\${CWD}/.anytime/trail}"
+STATE_DIR="\${TRAIL_HOME}/state/git-state"
+mkdir -p "\$STATE_DIR"
 
 STATE_FILE="\$STATE_DIR/claude-code-git-state-\${SESSION_ID}.json"
 CURRENT=$(cd "\$CWD" && git rev-parse HEAD 2>/dev/null || true)
@@ -120,7 +128,7 @@ function writeScript(filename: string, content: string): void {
 }
 
 function buildStatusFilePath(workspaceRoot?: string, statusDir?: string): string {
-  const dir = statusDir ?? '.vscode';
+  const dir = statusDir ?? '.anytime';
   if (path.isAbsolute(dir)) {
     return path.join(dir, 'claude-code-status.json');
   }
@@ -160,7 +168,7 @@ function removeHooksByMarker(entries: HookEntry[], marker: string): HookEntry[] 
 
 /** セッション ID を含むステータスファイルパスのパターンを返す（glob 用） */
 export function getStatusFileGlob(workspaceRoot?: string, statusDir?: string): string {
-  const dir = statusDir ?? '.vscode';
+  const dir = statusDir ?? '.anytime';
   const base = workspaceRoot
     ? (path.isAbsolute(dir) ? dir : path.join(workspaceRoot, dir))
     : (path.isAbsolute(dir) ? dir : path.join(os.homedir(), dir));

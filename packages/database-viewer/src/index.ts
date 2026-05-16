@@ -1,4 +1,5 @@
 export { DatabaseEditor } from "./DatabaseEditor";
+export { DatabaseI18nProvider } from "./i18n/context";
 export type { DatabaseEditorProps } from "./DatabaseEditor";
 export { TableTree } from "./TableTree";
 export type { TableTreeProps } from "./TableTree";

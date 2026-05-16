@@ -2,7 +2,7 @@
   "name": "anytime-history",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -27,8 +27,7 @@
     "onView:anytimeHistory.specDocs",
     "onView:anytimeHistory.changes",
     "onView:anytimeHistory.graph",
-    "onView:anytimeHistory.timeline",
-    "onView:anytimeHistory.database"
+    "onView:anytimeHistory.timeline"
   ],
   "icon": "images/anytime-history-128.png",
   "main": "./dist/extension.js",
@@ -59,10 +58,6 @@
         {
           "id": "anytimeHistory.timeline",
           "name": "Timeline"
-        },
-        {
-          "id": "anytimeHistory.database",
-          "name": "%view.database%"
         }
       ]
     },
@@ -229,22 +224,6 @@
       {
         "command": "anytime-history.compareWithCommit",
         "title": "%command.compareWithCommit%"
-      },
-      {
-        "command": "anytime-history.syncToRemote",
-        "title": "Sync to Remote DB",
-        "category": "Anytime History",
-        "icon": "$(cloud-upload)"
-      },
-      {
-        "command": "anytime-history.syncToSupabase",
-        "title": "同期",
-        "category": "Anytime History"
-      },
-      {
-        "command": "anytime-history.reconnectSupabase",
-        "title": "再接続",
-        "category": "Anytime History"
       }
     ],
     "submenus": [
@@ -422,16 +401,6 @@
           "command": "anytime-history.unstageFile",
           "when": "view == anytimeHistory.changes && viewItem == changesFileStaged",
           "group": "inline@1"
-        },
-        {
-          "command": "anytime-history.syncToSupabase",
-          "when": "view == anytimeHistory.database && viewItem == supabaseDb",
-          "group": "inline"
-        },
-        {
-          "command": "anytime-history.reconnectSupabase",
-          "when": "view == anytimeHistory.database && viewItem == supabaseDb",
-          "group": "inline"
         }
       ]
     },
@@ -457,33 +426,7 @@
     ],
     "configuration": {
       "title": "Anytime History",
-      "properties": {
-        "anytimeTrail.remote.provider": {
-          "type": "string",
-          "enum": [
-            "none",
-            "supabase",
-            "postgres"
-          ],
-          "default": "none",
-          "markdownDescription": "Remote database provider for Trail data sync. `none` disables sync."
-        },
-        "anytimeTrail.remote.supabaseUrl": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "Supabase project URL (e.g. `https://xxx.supabase.co`)"
-        },
-        "anytimeTrail.remote.supabaseAnonKey": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "Supabase anon key for Trail data sync"
-        },
-        "anytimeTrail.remote.postgresUrl": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "PostgreSQL connection string (e.g. `postgres://user:pass@host:5432/db`)"
-        }
-      }
+      "properties": {}
     }
   },
   "capabilities": {
@@ -501,9 +444,7 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
-    "@anytime-markdown/trail-db": "*",
     "@anytime-markdown/vscode-common": "*",
-    "sql.js": "1.12.0",
     "typescript": "5.9.3"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { gitExec } from '../utils/gitExec';
 import { GitLogger } from '../utils/GitLogger';
 
 const GIT_LOG_LIMIT = 100;
@@ -64,14 +64,14 @@ export class GraphItem extends vscode.TreeItem {
 }
 
 /** ローカルのみのコミットハッシュを取得する */
-function collectLocalOnlyHashes(gitRoot: string): Set<string> {
+async function collectLocalOnlyHashes(gitRoot: string): Promise<Set<string>> {
 	const hashes = new Set<string>();
 	try {
-		const output = execFileSync(
-			'git', ['log', '--format=%h', '--branches', '--not', '--remotes'],
-			{ cwd: gitRoot, encoding: 'utf-8' },
+		const r = await gitExec(
+			['log', '--format=%h', '--branches', '--not', '--remotes'],
+			{ cwd: gitRoot },
 		);
-		for (const h of output.split('\n')) {
+		for (const h of r.stdout.split('\n')) {
 			const trimmed = h.trim();
 			if (trimmed) { hashes.add(trimmed); }
 		}
@@ -133,11 +133,12 @@ export class GraphProvider implements vscode.TreeDataProvider<GraphItem> {
 		return this.gitRoot;
 	}
 
-	setTargetRoot(rootPath: string | null): void {
+	async setTargetRoot(rootPath: string | null): Promise<void> {
 		this.gitRoot = null;
 		if (rootPath) {
 			try {
-				this.gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: rootPath, encoding: 'utf-8' }).trim();
+				const r = await gitExec(['rev-parse', '--show-toplevel'], { cwd: rootPath });
+				this.gitRoot = r.stdout.trim();
 			} catch (err) { GitLogger.warn(`Not a git repo: ${rootPath}`); }
 		}
 		this.items = [];
@@ -158,12 +159,13 @@ export class GraphProvider implements vscode.TreeDataProvider<GraphItem> {
 		if (this.items.length > 0) { return this.items; }
 
 		try {
-			const localOnlyHashes = collectLocalOnlyHashes(this.gitRoot);
-			const output = execFileSync(
-				'git', ['log', '--graph', '--all', '--oneline', '--decorate', `--format=%h%x00%s%x00%d%x00%ar%x00%an`, `-${GIT_LOG_LIMIT}`],
-				{ cwd: this.gitRoot, encoding: 'utf-8', maxBuffer: GIT_LOG_MAX_BUFFER },
+			const localOnlyHashes = await collectLocalOnlyHashes(this.gitRoot);
+			const r = await gitExec(
+				['log', '--graph', '--all', '--oneline', '--decorate',
+				 '--format=%h%x00%s%x00%d%x00%ar%x00%an', `-${GIT_LOG_LIMIT}`],
+				{ cwd: this.gitRoot, maxBuffer: GIT_LOG_MAX_BUFFER },
 			);
-			this.items = parseGitLogOutput(output, localOnlyHashes);
+			this.items = parseGitLogOutput(r.stdout, localOnlyHashes);
 			return this.items;
 		} catch {
 			return [];

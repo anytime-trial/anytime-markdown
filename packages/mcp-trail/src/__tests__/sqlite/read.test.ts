@@ -1,4 +1,4 @@
-import initSqlJs, { type SqlJsStatic, type Database } from 'sql.js';
+import BetterSqlite3, { type Database } from 'better-sqlite3';
 import {
   getC4ModelDirect,
   listElementsDirect,
@@ -7,15 +7,15 @@ import {
   listCommunitiesDirect,
 } from '../../sqlite/read';
 
-let SQL: SqlJsStatic;
-
-beforeAll(async () => {
-  SQL = await initSqlJs();
-});
+function execInsert(db: Database, sql: string, params: readonly unknown[] = []): void {
+  // sql.js 互換のため `db.run(sql, params)` 形式で書かれていたコードを
+  // better-sqlite3 ネイティブ API に翻訳する薄い helper。
+  db.prepare(sql).run(...(params as unknown[]));
+}
 
 function createTestDb(): Database {
-  const db = new SQL.Database();
-  db.run(`
+  const db = new BetterSqlite3(':memory:');
+  db.exec(`
     CREATE TABLE current_code_graphs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       repo_name TEXT NOT NULL,
@@ -66,8 +66,8 @@ function createTestDb(): Database {
 }
 
 function createTestDbWithoutMappingsJson(): Database {
-  const db = new SQL.Database();
-  db.run(`
+  const db = new BetterSqlite3(':memory:');
+  db.exec(`
     CREATE TABLE current_code_graph_communities (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       repo_name TEXT NOT NULL,
@@ -115,11 +115,11 @@ describe('getC4ModelDirect', () => {
       edges: [],
       godNodes: [],
     };
-    db.run('INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)', [
-      REPO,
-      JSON.stringify(graph),
-      NOW,
-    ]);
+    execInsert(
+      db,
+      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO, JSON.stringify(graph), NOW],
+    );
     const { model } = getC4ModelDirect(db, REPO);
     expect(model.elements.find((e) => e.id === 'sys_r1')).toMatchObject({ type: 'system', name: 'TestRepo' });
     expect(model.elements.find((e) => e.id === 'pkg_core')).toMatchObject({ type: 'container' });
@@ -130,11 +130,13 @@ describe('getC4ModelDirect', () => {
 
   it('manual elements が mergeManualIntoC4Model 経由でマージされる', () => {
     const db = createTestDb();
-    db.run(
+    execInsert(
+      db,
       'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, description, external, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [REPO, 'elem-1', 'system', 'MySystem', 'A system', 0, NOW],
     );
-    db.run(
+    execInsert(
+      db,
       'INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [REPO, 'rel-1', 'elem-1', 'elem-2', 'uses', 'HTTP', NOW],
     );
@@ -149,7 +151,8 @@ describe('getC4ModelDirect', () => {
 
   it('external フィールドが INTEGER 0/1 → boolean に変換される', () => {
     const db = createTestDb();
-    db.run(
+    execInsert(
+      db,
       'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
       [REPO, 'ext-elem', 'system', 'ExternalSystem', 1, NOW],
     );
@@ -164,7 +167,8 @@ describe('getC4ModelDirect', () => {
 describe('listElementsDirect', () => {
   it('要素の id / type / name を配列で返す', () => {
     const db = createTestDb();
-    db.run(
+    execInsert(
+      db,
       'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
       [REPO, 'e1', 'container', 'ServiceA', 0, NOW],
     );
@@ -181,7 +185,8 @@ describe('listElementsDirect', () => {
 describe('listGroupsDirect', () => {
   it('グループを返す', () => {
     const db = createTestDb();
-    db.run(
+    execInsert(
+      db,
       'INSERT INTO c4_manual_groups (repo_name, group_id, member_ids, label, updated_at) VALUES (?, ?, ?, ?, ?)',
       [REPO, 'grp-1', JSON.stringify(['e1', 'e2']), 'Group A', NOW],
     );
@@ -196,7 +201,8 @@ describe('listGroupsDirect', () => {
 
   it('label が null のときは省略される', () => {
     const db = createTestDb();
-    db.run(
+    execInsert(
+      db,
       'INSERT INTO c4_manual_groups (repo_name, group_id, member_ids, label, updated_at) VALUES (?, ?, ?, ?, ?)',
       [REPO, 'grp-2', JSON.stringify(['e3']), null, NOW],
     );
@@ -210,7 +216,8 @@ describe('listGroupsDirect', () => {
 describe('listRelationshipsDirect', () => {
   it('リレーションシップを返す', () => {
     const db = createTestDb();
-    db.run(
+    execInsert(
+      db,
       'INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [REPO, 'rel-1', 'a', 'b', 'calls', 'gRPC', NOW],
     );
@@ -227,7 +234,8 @@ describe('listRelationshipsDirect', () => {
 
   it('label / technology が null のときは省略される', () => {
     const db = createTestDb();
-    db.run(
+    execInsert(
+      db,
       'INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [REPO, 'rel-2', 'c', 'd', null, null, NOW],
     );
@@ -242,7 +250,8 @@ describe('listRelationshipsDirect', () => {
 describe('listCommunitiesDirect', () => {
   it('mappings_json カラムありの場合にコミュニティを返す', () => {
     const db = createTestDb();
-    db.run(
+    execInsert(
+      db,
       'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [REPO, 1, 'auth', 'Auth Module', 'Handles authentication', '{"elements":[]}', NOW],
     );
@@ -259,7 +268,8 @@ describe('listCommunitiesDirect', () => {
 
   it('mappings_json が null の行は mappingsJson: null を返す', () => {
     const db = createTestDb();
-    db.run(
+    execInsert(
+      db,
       'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [REPO, 2, 'core', 'Core Module', 'Core logic', null, NOW],
     );
@@ -271,7 +281,8 @@ describe('listCommunitiesDirect', () => {
 
   it('mappings_json カラムなしの場合は mappingsJson: null でフォールバックする', () => {
     const db = createTestDbWithoutMappingsJson();
-    db.run(
+    execInsert(
+      db,
       'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
       [REPO, 1, 'infra', 'Infrastructure', 'Infra services', NOW],
     );

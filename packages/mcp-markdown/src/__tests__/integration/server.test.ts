@@ -86,4 +86,14 @@ describe('mcp-markdown integration', () => {
     const result = await client.callTool({ name: 'read_markdown', arguments: { path: '../evil.md' } });
     expect(result.isError).toBe(true);
   });
+
+  it('should sanitize markdown content', async () => {
+    const result = await client.callTool({
+      name: 'sanitize_markdown',
+      arguments: { content: '# Heading\n\n<script>alert(1)</script>\n' },
+    });
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(typeof text).toBe('string');
+    expect(text).not.toContain('<script>');
+  });
 });

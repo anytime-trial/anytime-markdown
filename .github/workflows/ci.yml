@@ -215,23 +215,8 @@ jobs:
           path: packages/vscode-history-extension/*.vsix
           retention-days: 3
 
-      - name: Build trail extension
-        if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
-        run: npm run package
-        working-directory: packages/vscode-trail-extension
-
-      - name: Package trail VSIX
-        if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
-        run: npx vsce package --no-dependencies
-        working-directory: packages/vscode-trail-extension
-
-      - name: Upload trail VSIX artifact
-        if: github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v4
-        with:
-          name: vsix-trail-ci
-          path: packages/vscode-trail-extension/*.vsix
-          retention-days: 3
+      # trail は better-sqlite3 (native binding) を同梱するため
+      # OS/アーキ別の matrix ビルドが必要 (build-trail job 参照)。
 
       - name: Build sheet extension
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
@@ -537,9 +522,9 @@ jobs:
 
   publish-trail:
     if: github.ref == 'refs/heads/master'
-    needs: ci
+    needs: [ci, build-trail]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
@@ -564,21 +549,29 @@ jobs:
         if: steps.tag_check.outputs.exists == 'true'
         run: echo "Tag ${{ steps.version.outputs.version }} already exists. Skipping trail release."
 
-      - name: Download VSIX from CI
+      - name: Download all platform VSIX artifacts
         if: steps.tag_check.outputs.exists == 'false'
         uses: actions/download-artifact@v4
         with:
-          name: vsix-trail-ci
+          pattern: vsix-trail-ci-*
           path: packages/vscode-trail-extension
+          merge-multiple: true
 
       - uses: actions/setup-node@v6
         if: steps.tag_check.outputs.exists == 'false'
         with:
           node-version-file: '.node-version'
 
-      - name: Publish to Marketplace
+      - name: Publish all platform VSIX to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
-        run: npx vsce publish --packagePath *.vsix --pat "$VSCE_PAT"
+        run: |
+          npx vsce publish \
+            --packagePath \
+              anytime-trail-linux-x64.vsix \
+              anytime-trail-linux-arm64.vsix \
+              anytime-trail-win32-x64.vsix \
+              anytime-trail-win32-arm64.vsix \
+            --pat "$VSCE_PAT"
         working-directory: packages/vscode-trail-extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -595,7 +588,7 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Anytime Trail ${{ steps.version.outputs.version }}
-          files: packages/vscode-trail-extension/*.vsix
+          files: packages/vscode-trail-extension/anytime-trail-*.vsix
           generate_release_notes: true
 
   publish-sheet:
@@ -722,4 +715,158 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           name: Anytime Extension Pack ${{ steps.version.outputs.version }}
           files: packages/vscode-extension-pack/*.vsix
+          generate_release_notes: true
+
+  # anytime-trail は memory-core / trail-db 経由で better-sqlite3 (native binding)
+  # を同梱するため OS/アーキ別のマトリクスビルドが必要。
+  # prepare-native-binding.cjs が VS Code 用 Node v22 binary を取得するので
+  # TARGET_ARCH / TARGET_PLATFORM を env で指定して target 別 binary を取得する。
+  build-trail:
+    if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64,    os: ubuntu-22.04, platform: linux,  arch: x64 }
+          - { target: linux-arm64,  os: ubuntu-22.04, platform: linux,  arch: arm64 }
+          - { target: win32-x64,    os: windows-2022, platform: win32,  arch: x64 }
+          - { target: win32-arm64,  os: windows-2022, platform: win32,  arch: arm64 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build vscode-common
+        run: npm run build
+        working-directory: packages/vscode-common
+      - name: Build trail extension
+        working-directory: packages/vscode-trail-extension
+        env:
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: npm run package
+      - name: Package trail VSIX
+        run: npx vsce package --no-dependencies --target ${{ matrix.target }} --out anytime-trail-${{ matrix.target }}.vsix
+        working-directory: packages/vscode-trail-extension
+      - name: Upload trail VSIX artifact
+        if: github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-trail-ci-${{ matrix.target }}
+          path: packages/vscode-trail-extension/anytime-trail-*.vsix
+          retention-days: 3
+
+  # anytime-database は better-sqlite3 (native binding) のため OS/アーキ別の
+  # マトリクスビルドが必要。他拡張のように ci job 内では完結できないので独立 job にする。
+  build-database:
+    if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux-x64, linux-arm64, win32-x64, win32-arm64]
+    runs-on: ${{ startsWith(matrix.target, 'linux') && 'ubuntu-22.04' || 'windows-2022' }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Rebuild better-sqlite3 for ARM64
+        if: matrix.target == 'linux-arm64' || matrix.target == 'win32-arm64'
+        run: npm rebuild --workspace=anytime-database better-sqlite3 --target_arch=arm64
+      - name: Build database extension
+        run: npm run package
+        working-directory: packages/vscode-database-extension
+      - name: Package database VSIX
+        run: npx vsce package --no-dependencies --target ${{ matrix.target }} --out anytime-database-${{ matrix.target }}.vsix
+        working-directory: packages/vscode-database-extension
+      - name: Upload database VSIX artifact
+        if: github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-database-ci-${{ matrix.target }}
+          path: packages/vscode-database-extension/anytime-database-*.vsix
+          retention-days: 3
+
+  publish-database:
+    if: github.ref == 'refs/heads/master'
+    needs: [ci, build-database]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get version from package.json
+        id: version
+        run: echo "version=database-v$(node -p "require('./packages/vscode-database-extension/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: tag_check
+        run: |
+          if git rev-parse "${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip if already released
+        if: steps.tag_check.outputs.exists == 'true'
+        run: echo "Tag ${{ steps.version.outputs.version }} already exists. Skipping database release."
+
+      - name: Download all platform VSIX artifacts
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-database-ci-*
+          path: packages/vscode-database-extension
+          merge-multiple: true
+
+      - uses: actions/setup-node@v6
+        if: steps.tag_check.outputs.exists == 'false'
+        with:
+          node-version-file: '.node-version'
+
+      - name: Publish all platform VSIX to Marketplace
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          npx vsce publish \
+            --packagePath \
+              anytime-database-linux-x64.vsix \
+              anytime-database-linux-arm64.vsix \
+              anytime-database-win32-x64.vsix \
+              anytime-database-win32-arm64.vsix \
+            --pat "$VSCE_PAT"
+        working-directory: packages/vscode-database-extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Create git tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
+
+      - name: Create GitHub Release
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Anytime Database ${{ steps.version.outputs.version }}
+          files: packages/vscode-database-extension/anytime-database-*.vsix
           generate_release_notes: true

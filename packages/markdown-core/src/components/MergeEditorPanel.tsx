@@ -5,10 +5,10 @@ import type { SxProps, Theme } from "@mui/material/styles";
 import { alpha, useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import { EditorContent } from "@tiptap/react";
-import { useTranslations } from "next-intl";
 import React, { useEffect, useRef } from "react";
 
 import { getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { useMarkdownT } from "../i18n/context";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { DiffLine } from "../utils/diffEngine";
 import { getMergeTiptapStyles } from "./mergeTiptapStyles";
@@ -105,7 +105,7 @@ function MergeGutter({
   lineHeight: number;
   mergeGutterRef: React.RefObject<HTMLDivElement | null>;
   onMerge: (blockId: number, direction: "left-to-right" | "right-to-left") => void;
-  t: ReturnType<typeof useTranslations<"MarkdownEditor">>;
+  t: (key: string, vars?: Record<string, string | number>) => string;
 }>) {
   return (
     <Box ref={mergeGutterRef} sx={{ width: 24, minWidth: 24, py: 2, m: 0, overflow: "hidden", flexShrink: 0 }}>
@@ -127,7 +127,7 @@ function MergeGutterCell({
   fontSize: number;
   lineHeight: number;
   onMerge: (blockId: number, direction: "left-to-right" | "right-to-left") => void;
-  t: ReturnType<typeof useTranslations<"MarkdownEditor">>;
+  t: (key: string, vars?: Record<string, string | number>) => string;
 }>) {
   const label = panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft");
   const direction = panelSide === "left" ? "left-to-right" as const : "right-to-left" as const;
@@ -207,7 +207,7 @@ function SourceModePanel({
   mergeGutterRef: React.RefObject<HTMLDivElement | null>;
   mirrorRef: React.RefObject<HTMLDivElement | null>;
   textContainerRef: React.RefObject<HTMLDivElement | null>;
-  t: ReturnType<typeof useTranslations<"MarkdownEditor">>;
+  t: (key: string, vars?: Record<string, string | number>) => string;
 }>) {
   const {
     digits, displayText, paddingIndices, alignedCount, lineNumbersArray,
@@ -332,7 +332,7 @@ export function MergeEditorPanel({
 }: Readonly<MergeEditorPanelProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const t = useTranslations("MarkdownEditor");
+  const t = useMarkdownT("MarkdownEditor");
   const editorSettings = useEditorSettingsContext();
   const fallbackTextareaRef = useRef<HTMLTextAreaElement>(null);
   const resolvedTextareaRef = textareaRef || fallbackTextareaRef;

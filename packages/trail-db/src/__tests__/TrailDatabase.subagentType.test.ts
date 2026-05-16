@@ -1,6 +1,3 @@
-// __non_webpack_require__ はwebpackグローバル。テスト環境ではsql-asm.jsを直接ロードするよう差し替え
-const sqlAsmActual = require(require.resolve('sql.js/dist/sql-asm.js')); // eslint-disable-line @typescript-eslint/no-require-imports
-(global as Record<string, unknown>).__non_webpack_require__ = (_path: string) => sqlAsmActual;
 
 import * as fs from 'node:fs';
 import * as os from 'node:os';

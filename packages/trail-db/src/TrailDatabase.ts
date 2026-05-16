@@ -1,5 +1,11 @@
-import type { Database, Statement as SqlJsStatement } from 'sql.js';
+import { SqlJsCompatDatabase } from './internal/SqlJsCompatDatabase';
+import { SqlJsCompatStatement } from './internal/SqlJsCompatStatement';
+import { loadBetterSqlite3 } from './internal/loadBetterSqlite3';
 import { execFileSync } from 'node:child_process';
+
+// Backward compatibility: 既存 call site 互換のため、shim 型を旧名で再 export する。
+type Database = SqlJsCompatDatabase;
+type SqlJsStatement = SqlJsCompatStatement;
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -43,7 +49,6 @@ import {
   extractSkillName,
   buildReleaseFromGitData,
   trailToC4,
-  extractCommitPrefix,
   isCodeFile,
   isAiFirstTryFailureCommit,
   AI_FIRST_TRY_FIX_WINDOW_MS,
@@ -60,6 +65,7 @@ import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult, TrailMessa
 import { matchCommitsToMessages, computeDefectRisk, type CommitRiskRow, type DefectRiskEntry } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 
+import { aggregateQualityRates, aggregateCommitPrefixStats } from './combinedDataAggregators';
 export type AnalyzeFunction = (options: AnalyzeOptions) => TrailGraph;
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import { splitCodeGraph, composeCodeGraph } from '@anytime-markdown/trail-core/codeGraph';
@@ -76,16 +82,66 @@ export type { ReleaseFileRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-ma
 
 declare const __non_webpack_require__: (id: string) => unknown;
 
-const DEFAULT_DB_DIR = path.join(os.homedir(), '.claude', 'trail');
+const DEFAULT_DB_DIR = path.join(process.cwd(), '.anytime', 'trail');
 
 export { assertNotProductionWriteDuringTests } from './TrailDatabase.guard';
 import { ITrailStorage, FileTrailStorage } from './ITrailStorage';
+import { resolveCarryOver, type OldCommunity, type NewCommunity } from './communityCarryOver';
 import { DatabaseIntegrityMonitor, type IntegrityAlert } from './DatabaseIntegrityMonitor';
 export type { ITrailStorage } from './ITrailStorage';
 export { FileTrailStorage, InMemoryTrailStorage } from './ITrailStorage';
 export type { BackupEntry } from './ITrailStorage';
 export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
 export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
+
+/**
+ * 指定 community_id に属するノード ID の集合を CodeGraph.nodes から取り出す。
+ * ジャッカード引き継ぎロジックの「新コミュニティ members」入力に使う。
+ */
+function collectMembersForCommunity(
+  nodes: ReadonlyArray<{ id: string; community: number }>,
+  communityId: number,
+): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const n of nodes) {
+    if (n.community === communityId) out.add(n.id);
+  }
+  return out;
+}
+
+/**
+ * テーブルに指定列が存在するか判定する。古いスキーマの DB（migration 未実行）への
+ * 後方互換性を保つために使う。
+ */
+function columnExists(db: Database, table: string, column: string): boolean {
+  const cols = db.exec(`PRAGMA table_info(${table})`)[0]?.values ?? [];
+  return cols.some((c) => String(c[1]) === column);
+}
+
+/**
+ * `*_code_graph_communities` テーブルに `stable_key` 列が無ければ ALTER で追加する。
+ * 起動時マイグレーションのため、`saveCurrentCodeGraph` / `saveReleaseCodeGraph` / `upsert*` の
+ * 各書き込みパスの冒頭で 1 度だけ実行する想定。`IF NOT EXISTS` セマンティクスを columnExists で代用。
+ */
+function ensureCommunityStableKeyColumn(
+  db: Database,
+  table: 'current_code_graph_communities' | 'release_code_graph_communities',
+): void {
+  if (!columnExists(db, table, 'stable_key')) {
+    db.run(`ALTER TABLE ${table} ADD COLUMN stable_key TEXT NOT NULL DEFAULT ''`);
+  }
+}
+
+/**
+ * `current_code_graph_communities` に `mappings_json` 列が無ければ ALTER で追加する。
+ * 当初のスキーマには無く、AI 後処理スキル（anytime-reverse-engineer）の導入時に動的追加した経緯あり。
+ * saveCurrentCodeGraph 等の書き込みパスで INSERT 文に mappings_json を含める前に呼ぶ。
+ */
+function ensureCommunityMappingsJsonColumn(db: Database, table: 'current_code_graph_communities'): void {
+  if (!columnExists(db, table, 'mappings_json')) {
+    db.run(`ALTER TABLE ${table} ADD COLUMN mappings_json TEXT`);
+  }
+}
 
 const SKIP_TYPES = new Set([
   'file-history-snapshot',
@@ -123,6 +179,16 @@ export function defaultTemporalCouplingPathFilter(filePath: string): boolean {
  */
 export function stripWorktreePrefix(relPath: string): string {
   return relPath.replace(/^\.claude\/worktrees\/[^/]+\//, '');
+}
+
+/**
+ * SQL から読み出した category 値を FileAnalysisRow.category 型へ正規化する。
+ * 想定外の値は 'logic' にフォールバックする。
+ */
+function parseCategory(v: unknown): 'ui' | 'logic' | 'excluded' {
+  const s = String(v ?? 'logic');
+  if (s === 'ui' || s === 'logic' || s === 'excluded') return s;
+  return 'logic';
 }
 
 export type TemporalCouplingGranularity = 'commit' | 'session' | 'subagentType';
@@ -199,6 +265,9 @@ export interface SessionRow {
   readonly interruption_reason?: string | null;
   readonly interruption_context_tokens?: number;
   readonly compact_count?: number;
+  readonly sub_agent_count?: number | null;
+  readonly error_count?: number | null;
+  readonly assistant_message_count?: number | null;
   readonly source?: string;
 }
 
@@ -334,9 +403,10 @@ interface CombinedData {
     period: string; agent: string; tokens: number; costUsd: number; loc: number;
     tokenMissingRate: number; tokenTotalTurns: number; tokenMissingTurns: number;
   }[];
-  readonly commitPrefixStats: readonly { period: string; prefix: string; count: number; linesAdded: number }[];
+  readonly commitPrefixStats: readonly { period: string; prefix: string; count: number; linesAdded: number; linesDeleted: number }[];
   readonly aiFirstTryRate: readonly { period: string; rate: number; sampleSize: number }[];
   readonly repoStats: readonly { period: string; repoName: string; count: number; tokens: number }[];
+  readonly qualityRates: readonly { period: string; retryRate: number | null; buildFailRate: number | null; testFailRate: number | null }[];
 }
 
 interface RawLine {
@@ -774,10 +844,14 @@ export class TrailDatabase {
    * `getSqliteTzOffset()` の出力形式（"+540 minutes" / "-300 minutes"）を期待する。
    * ISO 8601 timestamp を UTC ms に変換 → オフセット分加算 → YYYY-MM-DD を抽出。
    */
-  private computeDateInSqliteTz(isoTimestamp: string, tzOffset: string): string {
+  private computeDateInSqliteTz(isoTimestamp: string | null | undefined, tzOffset: string): string {
+    if (!isoTimestamp) return '';
     const m = /^([+-])(\d+) minutes$/.exec(tzOffset);
     const ms = Date.parse(isoTimestamp);
-    if (!m || Number.isNaN(ms)) return isoTimestamp.slice(0, 10);
+    if (!m || Number.isNaN(ms)) {
+      const head = isoTimestamp.slice(0, 10);
+      return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : '';
+    }
     const sign = m[1] === '+' ? 1 : -1;
     const offsetMin = sign * Number(m[2]);
     const shifted = new Date(ms + offsetMin * 60000);
@@ -858,13 +932,30 @@ export class TrailDatabase {
         const tcRows = tcResult[0]?.values ?? [];
         if (tcRows.length === 0) return [];
 
+        // Phase 1.5: session start_time を取得し、日付キーを session 基準で算出するための Map 構築
+        const sessionIds1 = [...new Set(tcRows.map((r) => r[0] as string))];
+        const SQLITE_VAR_LIMIT = 999;
+        const sessionDateMap = new Map<string, string>();
+        this.fetchInBatches(sessionIds1, SQLITE_VAR_LIMIT, (batch) => {
+          const placeholders = batch.map(() => '?').join(',');
+          const sResult = db.exec(
+            `SELECT id, start_time FROM sessions WHERE id IN (${placeholders})`,
+            batch as string[],
+          );
+          for (const r of sResult[0]?.values ?? []) {
+            const sid = r[0] as string;
+            const st = r[1] as string;
+            if (st) sessionDateMap.set(sid, this.computeDateInSqliteTz(st, tzOffset));
+          }
+          return [];
+        });
+
         // Phase 2: 出現する message_uuid 集合
         const messageUuids = new Set<string>();
         for (const row of tcRows) messageUuids.add(row[1] as string);
 
         // Phase 3: messages を uuid IN (?) でバッチ取得し msg_tokens Map 構築
         // LEFT JOIN semantics 保持: 該当行が無い uuid は Map に入らず後段で 0 扱い
-        const SQLITE_VAR_LIMIT = 999;
         const msgTokensByUuid = new Map<string, number>();
         const uuidList = [...messageUuids];
         this.fetchInBatches(uuidList, SQLITE_VAR_LIMIT, (batch) => {
@@ -904,7 +995,8 @@ export class TrailDatabase {
           const turnExecMs = Number(row[5] ?? 0);
 
           const tool = this.applyToolMcpAlias(toolName);
-          const date = this.computeDateInSqliteTz(timestamp, tzOffset);
+          // session start_time 基準の日付（未取得の場合は tool call timestamp にフォールバック）
+          const date = sessionDateMap.get(sessionId) ?? this.computeDateInSqliteTz(timestamp, tzOffset);
 
           const msgTokens = msgTokensByUuid.get(messageUuid) ?? 0;
           const tInMsg = toolsInMsg.get(messageUuid) ?? 1;
@@ -1036,6 +1128,89 @@ export class TrailDatabase {
   }
 
   /**
+   * 指定日 (JST) のセッション start_time 基準で tool/skill 別利用集計。
+   * getDayToolMetrics 用: daily_counts (timestamp 基準) の代替。
+   * aggregateBySessionInternal と同実装だが WHERE が session start_time date。
+   */
+  private aggregateByDayInternal(
+    date: string,
+    groupKeyColumn: 'tool_name' | 'skill_name',
+    skipNullKey: boolean,
+  ): readonly { key: string; count: number; tokens: number; durationMs: number }[] {
+    const db = this.ensureDb();
+    const nullFilter = skipNullKey ? ` AND mtc.${groupKeyColumn} IS NOT NULL` : '';
+    const tcResult = db.exec(
+      `SELECT mtc.message_uuid, mtc.turn_index, mtc.session_id,
+              mtc.${groupKeyColumn} AS key_col,
+              COALESCE(mtc.turn_exec_ms, 0) AS turn_exec_ms
+       FROM message_tool_calls mtc
+       JOIN sessions s ON s.id = mtc.session_id
+       WHERE DATE(s.start_time, '+540 minutes') = ?${nullFilter}`,
+      [date],
+    );
+    const tcRows = tcResult[0]?.values ?? [];
+    if (tcRows.length === 0) return [];
+
+    const messageUuids = new Set<string>();
+    for (const row of tcRows) messageUuids.add(row[0] as string);
+
+    const SQLITE_VAR_LIMIT = 999;
+    const msgTokensByUuid = new Map<string, number>();
+    this.fetchInBatches([...messageUuids], SQLITE_VAR_LIMIT, (batch) => {
+      const placeholders = batch.map(() => '?').join(',');
+      const msgResult = db.exec(
+        `SELECT uuid, COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) AS msg_tokens
+         FROM messages WHERE uuid IN (${placeholders})`,
+        batch as string[],
+      );
+      for (const r of msgResult[0]?.values ?? []) {
+        msgTokensByUuid.set(r[0] as string, r[1] as number);
+      }
+      return [];
+    });
+
+    const TURN_KEY_SEP = '\x1f';
+    const toolsInMsg = new Map<string, number>();
+    const toolsInTurn = new Map<string, number>();
+    for (const row of tcRows) {
+      const messageUuid = row[0] as string;
+      const turnKey = `${row[2]}${TURN_KEY_SEP}${row[1]}`;
+      toolsInMsg.set(messageUuid, (toolsInMsg.get(messageUuid) ?? 0) + 1);
+      toolsInTurn.set(turnKey, (toolsInTurn.get(turnKey) ?? 0) + 1);
+    }
+
+    type Agg = { count: number; tokens: number; duration: number };
+    const aggMap = new Map<string, Agg>();
+    for (const row of tcRows) {
+      const messageUuid = row[0] as string;
+      const turnIndex = row[1];
+      const sessionId = row[2] as string;
+      const rawKey = row[3] as string | null;
+      const turnExecMs = Number(row[4] ?? 0);
+      if (rawKey === null) continue;
+      const key = groupKeyColumn === 'tool_name' ? this.applyToolMcpAlias(rawKey) : rawKey;
+
+      const msgTokens = msgTokensByUuid.get(messageUuid) ?? 0;
+      const tInMsg = toolsInMsg.get(messageUuid) ?? 1;
+      const tokensContrib = Math.round(msgTokens / tInMsg);
+
+      const turnKey = `${sessionId}${TURN_KEY_SEP}${turnIndex}`;
+      const tInTurn = toolsInTurn.get(turnKey) ?? 1;
+      const durationContrib = Math.round(turnExecMs / tInTurn);
+
+      const cur = aggMap.get(key) ?? { count: 0, tokens: 0, duration: 0 };
+      cur.count += 1;
+      cur.tokens += tokensContrib;
+      cur.duration += durationContrib;
+      aggMap.set(key, cur);
+    }
+
+    return [...aggMap.entries()]
+      .map(([key, agg]) => ({ key, count: agg.count, tokens: agg.tokens, durationMs: agg.duration }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  /**
    * 系統 2 (tool): セッション内の tool 別利用集計。
    * computeToolMetrics の toolUsage 用 (L4948 起源)。
    */
@@ -1159,14 +1334,17 @@ export class TrailDatabase {
         // Step 5: messages から派生した session_id 集合に対する sessions を id IN バッチ取得
         const sessionIds = [...new Set([...msgInfoMap.values()].map((m) => m.sessionId))];
         const sessionSourceMap = new Map<string, string>();
+        const sessionStartTsMap = new Map<string, string>(); // session_id → start_time (UTC ISO)
         this.fetchInBatches(sessionIds, SQLITE_VAR_LIMIT, (batch) => {
           const placeholders = batch.map(() => '?').join(',');
           const sessResult = db.exec(
-            `SELECT id, source FROM sessions WHERE id IN (${placeholders})`,
+            `SELECT id, source, start_time FROM sessions WHERE id IN (${placeholders})`,
             batch as string[],
           );
           for (const r of sessResult[0]?.values ?? []) {
             sessionSourceMap.set(r[0] as string, r[1] as string);
+            const st = r[2] as string | null;
+            if (st) sessionStartTsMap.set(r[0] as string, st);
           }
           return [];
         });
@@ -1192,13 +1370,14 @@ export class TrailDatabase {
           const source = sessionSourceMap.get(m.sessionId);
           if (source === undefined) continue; // INNER JOIN sessions
 
-          // WHERE DATE(m.timestamp, tzOffset) >= cutoffDate （文字列比較）
-          const messageDate = this.computeDateInSqliteTz(m.timestamp, tzOffset);
-          if (messageDate < cutoffDate) continue;
+          // session start_time 基準でフィルタ・期間キー算出（フォールバック: message timestamp）
+          const sessionTs = sessionStartTsMap.get(m.sessionId) ?? m.timestamp;
+          const sessionDate = this.computeDateInSqliteTz(sessionTs, tzOffset);
+          if (sessionDate < cutoffDate) continue;
 
           const periodKey = period === 'day'
-            ? messageDate
-            : this.computeWeekInSqliteTz(m.timestamp, tzOffset);
+            ? sessionDate
+            : this.computeWeekInSqliteTz(sessionTs, tzOffset);
           const tool = this.applyToolMcpAlias(toolName);
 
           const tInMsg = toolsInMsg.get(messageUuid) ?? 1;
@@ -1268,22 +1447,42 @@ export class TrailDatabase {
   }
 
   async init(): Promise<void> {
-    // Load sql-wasm.js from dist/ directory using __non_webpack_require__
-    // to bypass webpack bundling (bundling breaks sql.js module system).
-    // sql-wasm は asm.js (16MB ヒープ) より大きい WebAssembly ヒープ (最大 2GB)
-    // を使えるため、大規模リポジトリの code graph 保存時の OOM を回避できる。
-    // sql-wasm.wasm は sql-wasm.js と同じディレクトリに配置される必要があり、
-    // initSqlJs に locateFile callback で distPath を伝える。
-    const sqlWasmPath = path.join(this.distPath, 'sql-wasm.js');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, no-undef
-    const initSqlJs = __non_webpack_require__(sqlWasmPath) as typeof import('sql.js').default;
-    const SQL = await initSqlJs({
-      locateFile: (file: string) => path.join(this.distPath, file),
-    });
-    console.log('[TrailDatabase] sql.js initialized, storage =', this.storage.identifier);
-
-    const initial = this.storage.readInitialBytes();
-    this.db = initial ? new SQL.Database(initial) : new SQL.Database();
+    // better-sqlite3 は webpack bundle 環境では `'better-sqlite3': 'commonjs better-sqlite3'`
+    // で externals 化されており、ランタイムで `dist/node_modules/better-sqlite3/` の
+    // native binary を解決する。memory-core と同じパターン。
+    // 旧 sql.js + sql-wasm 16/2GB ヒープ制約は better-sqlite3 (ネイティブ) では発生しない。
+    //
+    // nativeBinding: webpack-bundled VS Code 拡張では bindings package の getFileName が
+    // call stack を辿って .node のパスを推測する処理が壊れる (一つのバンドル JS から
+    // 呼び出されるため module path が判別できず "Cannot read properties of undefined
+    // (reading 'indexOf')" で fail)。bindings 推測を回避するため .node の絶対パスを
+    // 直接渡す。dist/node_modules/better-sqlite3/build/Release/better_sqlite3.node を
+    // CopyWebpackPlugin で配置済みの場合だけ採用し、それ以外 (テスト等) は bindings の
+    // 通常解決に任せる。
+    const Ctor = loadBetterSqlite3();
+    const filePath = this.storage.getFilePath();
+    const nativeBinding = path.join(
+      this.distPath,
+      'node_modules',
+      'better-sqlite3',
+      'build',
+      'Release',
+      'better_sqlite3.node',
+    );
+    const options = fs.existsSync(nativeBinding) ? { nativeBinding } : {};
+    const inner = new Ctor(filePath ?? ':memory:', options);
+    // FK 制約は intentionally OFF。sql.js 時代は createTables() の
+    // PRAGMA foreign_keys = ON が WASM 側で no-op だったため事実上 FK 未強制で
+    // 動いており、既存テスト fixture / production 既存データはこれに依存している
+    // (orphan source_tool_assistant_uuid や delegation-only message 等)。
+    // better-sqlite3 はネイティブで強制するため、ここで OFF を明示し sql.js と
+    // 同じ "schema は FK 宣言を持つが runtime は強制しない" 状態を維持する。
+    // 将来 orphan データの cleanup + FK 強制を separate plan で進める想定。
+    inner.pragma('foreign_keys = OFF');
+    this.db = new SqlJsCompatDatabase(inner, filePath);
+    this.logger.info(
+      `[TrailDatabase] better-sqlite3 initialized, storage = ${this.storage.identifier}`,
+    );
 
     this.createTables();
   }
@@ -1297,7 +1496,10 @@ export class TrailDatabase {
 
   private createTables(): void {
     const db = this.ensureDb();
-    db.run('PRAGMA foreign_keys = ON');
+    // FK 強制は init() で OFF にしている。sql.js 時代の `db.run('PRAGMA
+    // foreign_keys = ON')` は WASM 側で no-op だったため、ここで ON にすると
+    // 既存挙動 (FK 未強制) と乖離してテスト fixture (orphan FK 値を含むもの)
+    // が失敗する。詳細は init() のコメント参照。
     db.run(CREATE_SESSIONS);
     db.run(CREATE_SESSION_COSTS);
     db.run(CREATE_DAILY_COUNTS);
@@ -1326,11 +1528,44 @@ export class TrailDatabase {
     db.run(CREATE_RELEASE_CODE_GRAPHS);
     db.run(CREATE_CURRENT_CODE_GRAPH_COMMUNITIES);
     db.run(CREATE_RELEASE_CODE_GRAPH_COMMUNITIES);
+    // Legacy DBs lack stable_key on *_code_graph_communities; without this
+    // ALTER, idx_ccgc_stable_key / idx_rcgc_stable_key in CREATE_RELEASE_INDEXES
+    // fail with "no such column: stable_key" during init.
+    ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
+    ensureCommunityStableKeyColumn(db, 'release_code_graph_communities');
     this.migrateFileAnalysisSchema(db);
     db.run(CREATE_CURRENT_FILE_ANALYSIS);
     db.run(CREATE_RELEASE_FILE_ANALYSIS);
     db.run(CREATE_CURRENT_FUNCTION_ANALYSIS);
     db.run(CREATE_RELEASE_FUNCTION_ANALYSIS);
+    // architectural centrality 関連カラムの追加。既存 DB に対して
+    // CREATE TABLE IF NOT EXISTS は no-op になるため ALTER TABLE で補う。
+    // CHECK 制約は ALTER ADD COLUMN では付かないが、insert 経路は trail-core の型で守る。
+    for (const sql of [
+      'ALTER TABLE current_file_analysis ADD COLUMN cross_pkg_in_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE current_file_analysis ADD COLUMN external_consumer_pkgs INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE current_file_analysis ADD COLUMN total_in_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE current_file_analysis ADD COLUMN is_barrel INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE current_file_analysis ADD COLUMN centrality_score REAL NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN cross_pkg_in_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN external_consumer_pkgs INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN total_in_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN is_barrel INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN centrality_score REAL NOT NULL DEFAULT 0',
+      'ALTER TABLE current_function_analysis ADD COLUMN fan_out INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE current_function_analysis ADD COLUMN distinct_callees INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_function_analysis ADD COLUMN fan_out INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_function_analysis ADD COLUMN distinct_callees INTEGER NOT NULL DEFAULT 0',
+      "ALTER TABLE current_function_analysis ADD COLUMN function_role TEXT NOT NULL DEFAULT 'peripheral'",
+      "ALTER TABLE release_function_analysis ADD COLUMN function_role TEXT NOT NULL DEFAULT 'peripheral'",
+      // C4 architecture overlay (UI / Logic 分類) の category 列。
+      // CHECK 制約は新規 DB の CREATE TABLE で付与し、既存 DB への ALTER では
+      // 型安全を trail-core の TS 型で担保する (centrality 列と同方針)。
+      "ALTER TABLE current_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
+      "ALTER TABLE release_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
+    ]) {
+      try { db.run(sql); } catch { /* Column already exists */ }
+    }
     for (const idx of CREATE_FILE_ANALYSIS_INDEXES) {
       db.run(idx);
     }
@@ -1381,10 +1616,15 @@ export class TrailDatabase {
       'ALTER TABLE sessions ADD COLUMN compact_count INTEGER',
       'ALTER TABLE sessions ADD COLUMN message_commits_resolved_at TEXT',
       "ALTER TABLE sessions ADD COLUMN source TEXT NOT NULL DEFAULT 'claude_code'",
+      'ALTER TABLE sessions ADD COLUMN sub_agent_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE sessions ADD COLUMN error_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE sessions ADD COLUMN assistant_message_count INTEGER NOT NULL DEFAULT 0',
     ];
     for (const sql of sessionAlters) {
       try { db.run(sql); } catch { /* Column already exists */ }
     }
+    try { db.run('ALTER TABLE releases ADD COLUMN total_lines INTEGER NOT NULL DEFAULT 0'); } catch { /* Column already exists */ }
+    try { db.run('ALTER TABLE releases ADD COLUMN release_time_min REAL'); } catch { /* Column already exists */ }
     this.migrateDropSessionsProjectColumn(db);
     const messageAlters = [
       'ALTER TABLE messages ADD COLUMN rule_recommended_model TEXT',
@@ -1454,6 +1694,11 @@ export class TrailDatabase {
     } catch (e) {
       this.logger.warn(`backfillRepoName_v1 (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
     }
+    try {
+      this.backfillDerivedCounts_v1();
+    } catch (e) {
+      this.logger.warn(`backfillDerivedCounts_v1 (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
+    }
     // ALTER TABLE / backfill 等のスキーマ変更をディスクに永続化する。
     // save() を呼ばないと _migrations フラグが保存されず、次回起動で再実行される。
     this.save();
@@ -1508,6 +1753,32 @@ export class TrailDatabase {
       `[Migration] repo_name_backfill_v1: session_commits non-empty=${String(updatedCommits)}, commit_files non-empty=${String(updatedFiles)}`,
     );
     db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('repo_name_backfill_v1')");
+  }
+
+  private backfillDerivedCounts_v1(): void {
+    const db = this.ensureDb();
+    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
+    const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'derived_counts_backfill_v1'");
+    if (done[0]?.values?.length) return;
+
+    const startedAt = Date.now();
+    db.run(
+      `UPDATE sessions SET
+         sub_agent_count = COALESCE((
+           SELECT COUNT(*) FROM message_tool_calls
+           WHERE session_id = sessions.id AND tool_name = 'Agent'
+         ), 0),
+         error_count = COALESCE((
+           SELECT COUNT(*) FROM message_tool_calls
+           WHERE session_id = sessions.id AND is_error = 1
+         ), 0),
+         assistant_message_count = COALESCE((
+           SELECT COUNT(*) FROM messages
+           WHERE session_id = sessions.id AND type = 'assistant' AND is_meta = 0
+         ), 0)`,
+    );
+    db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('derived_counts_backfill_v1')");
+    this.logger.info(`[Migration] derived_counts_backfill_v1: done (${Date.now() - startedAt}ms)`);
   }
 
   private backfillSourceToolLinkFields(): void {
@@ -2264,6 +2535,22 @@ export class TrailDatabase {
          ) WHERE prev_cr >= 50000 AND cache_read_tokens <= prev_cr * 0.3
        ), 0)`,
     );
+
+    db.run(
+      `UPDATE sessions SET
+         sub_agent_count = COALESCE((
+           SELECT COUNT(*) FROM message_tool_calls
+           WHERE session_id = sessions.id AND tool_name = 'Agent'
+         ), 0),
+         error_count = COALESCE((
+           SELECT COUNT(*) FROM message_tool_calls
+           WHERE session_id = sessions.id AND is_error = 1
+         ), 0),
+         assistant_message_count = COALESCE((
+           SELECT COUNT(*) FROM messages
+           WHERE session_id = sessions.id AND type = 'assistant' AND is_meta = 0
+         ), 0)`,
+    );
   }
 
   /**
@@ -2291,22 +2578,38 @@ export class TrailDatabase {
         estimated_cost_usd = daily_counts.estimated_cost_usd + excluded.estimated_cost_usd`;
     const stmt = db.prepare(INSERT_DC);
 
-    // ── kind='cost_actual' : assistant メッセージ日次トークン・コスト ──
+    // start_time が空文字 / NULL のセッションは DATE() が NULL を返し、
+    // sql.js → JS で String(null) === 'null' となって daily_counts.date GLOB CHECK を
+    // 違反させる。日次集計から除外する。
+    const SESSION_DATE_FILTER = "s.start_time IS NOT NULL AND s.start_time != ''";
+
+    // YYYY-MM-DD 以外の date を弾く defense-in-depth ガード。
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    let droppedDates = 0;
+    const runWithDateGuard = (date: string, params: readonly (string | number)[]): void => {
+      if (!DATE_RE.test(date)) {
+        droppedDates++;
+        return;
+      }
+      stmt.run([date, ...params]);
+    };
+
+    // ── kind='cost_actual' : assistant メッセージ日次トークン・コスト（session start_time 基準）──
     const actual = db.exec(
-      `SELECT DATE(m.timestamp, '${tzOffset}'), COALESCE(m.model,''), s.source,
+      `SELECT DATE(s.start_time, '${tzOffset}'), COALESCE(m.model,''), s.source,
         SUM(input_tokens), SUM(output_tokens),
         SUM(cache_read_tokens), SUM(cache_creation_tokens)
        FROM messages m
        INNER JOIN sessions s ON s.id = m.session_id
-       WHERE m.type = 'assistant'
-       GROUP BY DATE(m.timestamp, '${tzOffset}'), m.model, s.source`,
+       WHERE m.type = 'assistant' AND ${SESSION_DATE_FILTER}
+       GROUP BY DATE(s.start_time, '${tzOffset}'), m.model, s.source`,
     );
     for (const row of actual[0]?.values ?? []) {
-      const d = String(row[0]); const m = String(row[1]); const source = String(row[2]) as PricingSource;
+      const d = String(row[0] ?? ''); const m = String(row[1]); const source = String(row[2]) as PricingSource;
       const inp = Number(row[3]); const outp = Number(row[4]);
       const cr = Number(row[5]); const cc = Number(row[6]);
       const billingModel = resolvePricingModelName(m, source);
-      stmt.run([d, 'cost_actual', billingModel, 0, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc, source)]);
+      runWithDateGuard(d, ['cost_actual', billingModel, 0, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc, source)]);
     }
 
     // Auto-register new skills that are not yet in skill_models
@@ -2318,79 +2621,87 @@ export class TrailDatabase {
          AND m.skill NOT IN (SELECT skill FROM skill_models)`,
     );
 
-    // ── kind='cost_skill' : スキル推奨モデルでの仮想コスト ──
+    // ── kind='cost_skill' : スキル推奨モデルでの仮想コスト（session start_time 基準）──
     const skill = db.exec(
-      `SELECT DATE(a.timestamp, '${tzOffset}'),
+      `SELECT DATE(s.start_time, '${tzOffset}'),
         COALESCE(sm.recommended_model, 'sonnet'),
         COUNT(*) AS msg_count,
         SUM(a.input_tokens), SUM(a.output_tokens),
         SUM(a.cache_read_tokens), SUM(a.cache_creation_tokens)
        FROM messages a
+       JOIN sessions s ON s.id = a.session_id
        LEFT JOIN skill_models_resolved sm ON a.skill = sm.skill
-       WHERE a.type = 'assistant'
-       GROUP BY DATE(a.timestamp, '${tzOffset}'),
+       WHERE a.type = 'assistant' AND ${SESSION_DATE_FILTER}
+       GROUP BY DATE(s.start_time, '${tzOffset}'),
          COALESCE(sm.recommended_model, 'sonnet')`,
     );
     for (const row of skill[0]?.values ?? []) {
-      const d = String(row[0]); const m = String(row[1]);
+      const d = String(row[0] ?? ''); const m = String(row[1]);
       const cnt = Number(row[2]);
       const inp = Number(row[3]); const outp = Number(row[4]);
       const cr = Number(row[5]); const cc = Number(row[6]);
-      stmt.run([d, 'cost_skill', m, cnt, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc)]);
+      runWithDateGuard(d, ['cost_skill', m, cnt, 0, inp, outp, cr, cc, 0, estimateCost(m, inp, outp, cr, cc)]);
     }
 
     // ── kind='tool' : メッセージトークン/ターン時間按分のツール別日次集計 ──
     for (const row of this.aggregateToolUsageByDateRange(tzOffset)) {
-      stmt.run([row.date, 'tool', row.tool, row.count, row.tokens, 0, 0, 0, 0, row.durationMs, 0]);
+      runWithDateGuard(row.date, ['tool', row.tool, row.count, row.tokens, 0, 0, 0, 0, row.durationMs, 0]);
     }
 
-    // ── kind='skill' : スキル別日次集計 ──
+    // ── kind='skill' : スキル別日次集計（session start_time 基準）──
     const skillCounts = db.exec(
-      `SELECT DATE(timestamp, '${tzOffset}') AS d, skill_name, COUNT(*) AS count
-       FROM message_tool_calls
-       WHERE skill_name IS NOT NULL
-       GROUP BY d, skill_name`,
+      `SELECT DATE(s.start_time, '${tzOffset}') AS d, mtc.skill_name, COUNT(*) AS count
+       FROM message_tool_calls mtc
+       JOIN sessions s ON s.id = mtc.session_id
+       WHERE mtc.skill_name IS NOT NULL AND ${SESSION_DATE_FILTER}
+       GROUP BY d, mtc.skill_name`,
     );
     for (const row of skillCounts[0]?.values ?? []) {
-      stmt.run([String(row[0]), 'skill', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
+      runWithDateGuard(String(row[0] ?? ''), ['skill', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
     }
 
-    // ── kind='error' : ツール別エラー日次集計 ──
+    // ── kind='error' : ツール別エラー日次集計（session start_time 基準）──
     const errors = db.exec(
-      `SELECT DATE(timestamp, '${tzOffset}') AS d,
+      `SELECT DATE(s.start_time, '${tzOffset}') AS d,
               CASE
-                WHEN tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
-                THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
-                ELSE tool_name
+                WHEN mtc.tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                THEN SUBSTR(mtc.tool_name, 1, INSTR(SUBSTR(mtc.tool_name, 6), '__') + 4)
+                ELSE mtc.tool_name
               END AS tool,
-              SUM(is_error) AS err_count
-       FROM message_tool_calls
+              SUM(mtc.is_error) AS err_count
+       FROM message_tool_calls mtc
+       JOIN sessions s ON s.id = mtc.session_id
+       WHERE ${SESSION_DATE_FILTER}
        GROUP BY d, tool
        HAVING err_count > 0`,
     );
     for (const row of errors[0]?.values ?? []) {
-      stmt.run([String(row[0]), 'error', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
+      runWithDateGuard(String(row[0] ?? ''), ['error', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
     }
 
-    // ── kind='model' : assistant メッセージ数のモデル別日次集計 ──
+    // ── kind='model' : assistant メッセージ数のモデル別日次集計（session start_time 基準）──
     const modelCounts = db.exec(
-      `SELECT DATE(m.timestamp, '${tzOffset}') AS d,
+      `SELECT DATE(s.start_time, '${tzOffset}') AS d,
               s.source,
               COALESCE(m.model, '') AS model,
               COUNT(*) AS count,
               CAST(SUM(COALESCE(m.input_tokens, 0) + COALESCE(m.output_tokens, 0)) AS INTEGER) AS tokens
        FROM messages m
        INNER JOIN sessions s ON s.id = m.session_id
-       WHERE m.type = 'assistant'
+       WHERE m.type = 'assistant' AND ${SESSION_DATE_FILTER}
        GROUP BY d, s.source, COALESCE(m.model, '')`,
     );
     for (const row of modelCounts[0]?.values ?? []) {
       const source = String(row[1]) as PricingSource;
       const model = resolvePricingModelName(String(row[2] ?? ''), source);
-      stmt.run([String(row[0]), 'model', model, Number(row[3] ?? 0), Number(row[4] ?? 0), 0, 0, 0, 0, 0, 0]);
+      runWithDateGuard(String(row[0] ?? ''), ['model', model, Number(row[3] ?? 0), Number(row[4] ?? 0), 0, 0, 0, 0, 0, 0]);
     }
 
     stmt.free();
+
+    if (droppedDates > 0) {
+      this.logger.warn(`rebuildDailyCounts: dropped ${droppedDates} rows with non-YYYY-MM-DD date (likely sessions without start_time)`);
+    }
   }
 
   /** 当日（JST）の input + output トークン合計を返す。 */
@@ -2854,9 +3165,17 @@ export class TrailDatabase {
     try {
       // Insert/update session metadata only for main session files
       if (!isSubagent) {
+        // start_time / end_time が空のままだと daily_counts 集計で
+        // DATE('') が NULL を返し JS String(null) === 'null' で CHECK 違反になる。
+        // 空はそもそも意味のあるタイムスタンプではないため NULL に正規化する。
+        const startTimeOrNull: string | null = startTime || null;
+        const endTimeOrNull: string | null = endTime || null;
+        if (!startTime) {
+          this.logger.warn(`importSession: ${filePath} has no parseable timestamp; storing start_time as NULL`);
+        }
         db.run(INSERT_SESSION, [
           sessionId, slug, repoName, version,
-          entrypoint, model, startTime, endTime, messageCount,
+          entrypoint, model, startTimeOrNull, endTimeOrNull, messageCount,
           filePath, fileSize, importedAt, source,
         ]);
       }
@@ -3166,6 +3485,13 @@ export class TrailDatabase {
       } catch {
         // Skip release resolution errors
       }
+      try {
+        onProgress?.('Resolving release times...', 0);
+        const timesResolved = this.resolveReleaseTimes();
+        onProgress?.(`Release times resolved: ${timesResolved}`, 0);
+      } catch {
+        // Skip release time resolution errors
+      }
     }
 
     // Analyze source code for each release
@@ -3436,6 +3762,17 @@ export class TrailDatabase {
     this.save();
   }
 
+  insertManualGroupRaw(repoName: string, g: ManualGroup): void {
+    const db = this.ensureDb();
+    db.run(
+      `INSERT OR REPLACE INTO c4_manual_groups
+         (repo_name, group_id, member_ids, label, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [repoName, g.id, JSON.stringify(g.memberIds), g.label ?? null, g.updatedAt],
+    );
+    this.save();
+  }
+
   saveManualGroup(
     repoName: string,
     input: { memberIds: string[]; label?: string },
@@ -3598,14 +3935,27 @@ export class TrailDatabase {
 
   saveCurrentCodeGraph(repoName: string, graph: CodeGraph): void {
     const db = this.ensureDb();
+    ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
+    ensureCommunityMappingsJsonColumn(db, 'current_code_graph_communities');
     const { stored, communities } = splitCodeGraph(graph);
+
+    // ジャッカード引き継ぎ: DELETE/INSERT で community_id が再採番される前に、
+    // 旧スナップショット（members 集合 + name / summary / mappings_json）を読み出して引き継ぎ表を構築する。
+    const oldCommunities = this.readCommunitiesForCarryOver(db, repoName);
+    const newCommunities: NewCommunity[] = communities.map((c) => ({
+      id: c.id,
+      stableKey: c.stableKey,
+      members: collectMembersForCommunity(graph.nodes, c.id),
+    }));
+    const carryOver = resolveCarryOver(oldCommunities, newCommunities);
+
     db.run(
       `INSERT OR REPLACE INTO current_code_graphs
          (repo_name, graph_json, generated_at, updated_at)
        VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
       [repoName, JSON.stringify(stored), stored.generatedAt],
     );
-    // 新しいグラフに存在しない古いコミュニティのみ削除（AI 要約を保持するため全削除はしない）
+    // 新しいグラフに存在しない古いコミュニティを削除。mappings_json などは Step 1/2 で carryOver に退避済み。
     if (communities.length === 0) {
       db.run('DELETE FROM current_code_graph_communities WHERE repo_name = ?', [repoName]);
     } else {
@@ -3615,22 +3965,90 @@ export class TrailDatabase {
         [repoName, ...communities.map((c) => c.id)],
       );
     }
-    // label は常に更新。name/summary は新しい値が空の場合は既存の AI 要約を保持する
+    // label / stable_key は常に最新を採用。
+    // name/summary は (1) 引き継ぎ表 (2) 既存値 (3) 新規空文字 の順で解決する。
+    // mappings_json も引き継ぎ表から復元する（既存 ON CONFLICT 句は mappings_json を触らない設計のため、
+    // INSERT 時の VALUES に直接埋めて NULL 上書きを防ぐ）。
     const stmt = db.prepare(
       `INSERT INTO current_code_graph_communities
-         (repo_name, community_id, label, name, summary, generated_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+         (repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
        ON CONFLICT(repo_name, community_id) DO UPDATE SET
          label      = excluded.label,
          name       = CASE WHEN excluded.name    != '' THEN excluded.name    ELSE name    END,
          summary    = CASE WHEN excluded.summary != '' THEN excluded.summary ELSE summary END,
+         stable_key = excluded.stable_key,
+         mappings_json = COALESCE(excluded.mappings_json, mappings_json),
          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
     );
     for (const c of communities) {
-      stmt.run([repoName, c.id, c.label, c.name, c.summary]);
+      const co = carryOver.get(c.id);
+      const effectiveName = c.name !== '' ? c.name : (co?.name ?? '');
+      const effectiveSummary = c.summary !== '' ? c.summary : (co?.summary ?? '');
+      const effectiveMappingsJson = co?.mappingsJson ?? null;
+      stmt.run([repoName, c.id, c.label, effectiveName, effectiveSummary, c.stableKey, effectiveMappingsJson]);
     }
     stmt.free();
     this.save();
+  }
+
+  /**
+   * 旧コミュニティの引き継ぎに必要な情報（members 集合 + name / summary / mappings_json + stableKey）を
+   * `current_code_graphs.graph_json` と `current_code_graph_communities` から再構築する。
+   * graph_json から community_id ごとの members を集計し、別テーブル列と join する。
+   */
+  private readCommunitiesForCarryOver(db: Database, repoName: string): readonly OldCommunity[] {
+    // graph_json から members 集合を取得
+    const graphResult = db.exec(
+      'SELECT graph_json FROM current_code_graphs WHERE repo_name = ?',
+      [repoName],
+    );
+    const json = graphResult[0]?.values?.[0]?.[0];
+    const membersByCommunity = new Map<number, Set<string>>();
+    if (typeof json === 'string') {
+      try {
+        const stored = JSON.parse(json) as { nodes?: ReadonlyArray<{ id: string; community: number }> };
+        for (const n of stored.nodes ?? []) {
+          const set = membersByCommunity.get(n.community) ?? new Set<string>();
+          set.add(n.id);
+          membersByCommunity.set(n.community, set);
+        }
+      } catch {
+        // 破損 JSON は引き継ぎ無しで進む（DELETE 後に mappings 喪失するが、新規生成と同等の挙動）
+      }
+    }
+
+    // メタ列を読み出し
+    const hasStableKey = columnExists(db, 'current_code_graph_communities', 'stable_key');
+    const hasMappings = columnExists(db, 'current_code_graph_communities', 'mappings_json');
+    const cols = [
+      'community_id',
+      'name',
+      'summary',
+      ...(hasStableKey ? ['stable_key'] : []),
+      ...(hasMappings ? ['mappings_json'] : []),
+    ];
+    const result = db.exec(
+      `SELECT ${cols.join(', ')} FROM current_code_graph_communities WHERE repo_name = ?`,
+      [repoName],
+    );
+    const idx = (col: string) => cols.indexOf(col);
+
+    const olds: OldCommunity[] = [];
+    for (const row of result[0]?.values ?? []) {
+      const communityId = Number(row[idx('community_id')] ?? 0);
+      const sIdx = idx('stable_key');
+      const mIdx = idx('mappings_json');
+      olds.push({
+        communityId,
+        stableKey: sIdx >= 0 ? String(row[sIdx] ?? '') : '',
+        members: membersByCommunity.get(communityId) ?? new Set<string>(),
+        name: String(row[idx('name')] ?? ''),
+        summary: String(row[idx('summary')] ?? ''),
+        mappingsJson: mIdx >= 0 ? (row[mIdx] == null ? null : String(row[mIdx])) : null,
+      });
+    }
+    return olds;
   }
 
   getCurrentCodeGraph(repoName: string): CodeGraph | null {
@@ -3642,15 +4060,17 @@ export class TrailDatabase {
     const json = graphResult[0]?.values?.[0]?.[0];
     if (typeof json !== 'string') return null;
     const stored = JSON.parse(json) as import('@anytime-markdown/trail-core/codeGraph').StoredCodeGraph;
-    const commResult = db.exec(
-      'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_name = ?',
-      [repoName],
-    );
+    const hasStableKey = columnExists(db, 'current_code_graph_communities', 'stable_key');
+    const select = hasStableKey
+      ? 'SELECT community_id, label, name, summary, stable_key FROM current_code_graph_communities WHERE repo_name = ?'
+      : 'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_name = ?';
+    const commResult = db.exec(select, [repoName]);
     const communities: StoredCommunity[] = (commResult[0]?.values ?? []).map((row) => ({
       id: row[0] as number,
       label: row[1] as string,
       name: row[2] as string,
       summary: row[3] as string,
+      stableKey: hasStableKey ? String(row[4] ?? '') : '',
     }));
     return composeCodeGraph(stored, communities);
   }
@@ -3667,26 +4087,41 @@ export class TrailDatabase {
     }));
   }
 
-  getAllCurrentCodeGraphCommunityRaws(): Array<{ repo_name: string; community_id: number; label: string; name: string; summary: string; mappings_json: string | null; generated_at: string; updated_at: string }> {
+  getAllCurrentCodeGraphCommunityRaws(): Array<{ repo_name: string; community_id: number; label: string; name: string; summary: string; mappings_json: string | null; stable_key: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
     const cols = db.exec('PRAGMA table_info(current_code_graph_communities)');
     const colNames = (cols[0]?.values ?? []).map((r) => String(r[1]));
     const hasMappings = colNames.includes('mappings_json');
-    const select = hasMappings
-      ? 'SELECT repo_name, community_id, label, name, summary, mappings_json, generated_at, updated_at FROM current_code_graph_communities'
-      : 'SELECT repo_name, community_id, label, name, summary, generated_at, updated_at FROM current_code_graph_communities';
-    const result = db.exec(select);
+    const hasStableKey = colNames.includes('stable_key');
+    const selectCols = [
+      'repo_name',
+      'community_id',
+      'label',
+      'name',
+      'summary',
+      ...(hasMappings ? ['mappings_json'] : []),
+      ...(hasStableKey ? ['stable_key'] : []),
+      'generated_at',
+      'updated_at',
+    ];
+    const result = db.exec(`SELECT ${selectCols.join(', ')} FROM current_code_graph_communities`);
     const values = result[0]?.values ?? [];
-    return values.map((r) => ({
-      repo_name: String(r[0] ?? ''),
-      community_id: Number(r[1] ?? 0),
-      label: String(r[2] ?? ''),
-      name: String(r[3] ?? ''),
-      summary: String(r[4] ?? ''),
-      mappings_json: hasMappings ? (r[5] == null ? null : String(r[5])) : null,
-      generated_at: String(r[hasMappings ? 6 : 5] ?? ''),
-      updated_at: String(r[hasMappings ? 7 : 6] ?? ''),
-    }));
+    return values.map((r) => {
+      const idx = (col: string) => selectCols.indexOf(col);
+      const mIdx = idx('mappings_json');
+      const sIdx = idx('stable_key');
+      return {
+        repo_name: String(r[idx('repo_name')] ?? ''),
+        community_id: Number(r[idx('community_id')] ?? 0),
+        label: String(r[idx('label')] ?? ''),
+        name: String(r[idx('name')] ?? ''),
+        summary: String(r[idx('summary')] ?? ''),
+        mappings_json: mIdx >= 0 ? (r[mIdx] == null ? null : String(r[mIdx])) : null,
+        stable_key: sIdx >= 0 ? String(r[sIdx] ?? '') : '',
+        generated_at: String(r[idx('generated_at')] ?? ''),
+        updated_at: String(r[idx('updated_at')] ?? ''),
+      };
+    });
   }
 
   getAllReleaseCodeGraphRaws(): Array<{ release_tag: string; graph_json: string; generated_at: string; updated_at: string }> {
@@ -3701,11 +4136,13 @@ export class TrailDatabase {
     }));
   }
 
-  getAllReleaseCodeGraphCommunityRaws(): Array<{ release_tag: string; community_id: number; label: string; name: string; summary: string; generated_at: string; updated_at: string }> {
+  getAllReleaseCodeGraphCommunityRaws(): Array<{ release_tag: string; community_id: number; label: string; name: string; summary: string; stable_key: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
-    const result = db.exec(
-      'SELECT release_tag, community_id, label, name, summary, generated_at, updated_at FROM release_code_graph_communities',
-    );
+    const hasStableKey = columnExists(db, 'release_code_graph_communities', 'stable_key');
+    const sql = hasStableKey
+      ? 'SELECT release_tag, community_id, label, name, summary, stable_key, generated_at, updated_at FROM release_code_graph_communities'
+      : 'SELECT release_tag, community_id, label, name, summary, generated_at, updated_at FROM release_code_graph_communities';
+    const result = db.exec(sql);
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
       release_tag: String(r[0] ?? ''),
@@ -3713,27 +4150,43 @@ export class TrailDatabase {
       label: String(r[2] ?? ''),
       name: String(r[3] ?? ''),
       summary: String(r[4] ?? ''),
-      generated_at: String(r[5] ?? ''),
-      updated_at: String(r[6] ?? ''),
+      stable_key: hasStableKey ? String(r[5] ?? '') : '',
+      generated_at: String(r[hasStableKey ? 6 : 5] ?? ''),
+      updated_at: String(r[hasStableKey ? 7 : 6] ?? ''),
     }));
   }
 
   upsertCurrentCodeGraphCommunities(
     repoName: string,
-    communities: ReadonlyArray<{ community_id: number; label?: string; name: string; summary: string }>,
+    communities: ReadonlyArray<{ community_id: number; label?: string; name: string; summary: string; stable_key?: string }>,
   ): void {
     const db = this.ensureDb();
+    ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
+    ensureCommunityMappingsJsonColumn(db, 'current_code_graph_communities');
     for (const c of communities) {
+      // 既存行から失われたくない列（label / stable_key / mappings_json）を退避してから INSERT OR REPLACE する。
+      // INSERT OR REPLACE は SQLite で「DELETE → INSERT」になり、VALUES に含めない列は NULL / DEFAULT に上書きされてしまうため。
       const existing = db.exec(
-        'SELECT label FROM current_code_graph_communities WHERE repo_name = ? AND community_id = ?',
+        'SELECT label, stable_key, mappings_json FROM current_code_graph_communities WHERE repo_name = ? AND community_id = ?',
         [repoName, c.community_id],
       );
-      const existingLabel = existing[0]?.values?.[0]?.[0] as string | undefined;
+      const row = existing[0]?.values?.[0];
+      const existingLabel = row?.[0] as string | undefined;
+      const existingStableKey = row?.[1] as string | undefined;
+      const existingMappingsJson = row?.[2] as string | undefined;
       db.run(
         `INSERT OR REPLACE INTO current_code_graph_communities
-           (repo_name, community_id, label, name, summary, generated_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
-        [repoName, c.community_id, c.label ?? existingLabel ?? '', c.name, c.summary],
+           (repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+        [
+          repoName,
+          c.community_id,
+          c.label ?? existingLabel ?? '',
+          c.name,
+          c.summary,
+          c.stable_key ?? existingStableKey ?? '',
+          existingMappingsJson ?? null,
+        ],
       );
     }
     this.save();
@@ -3778,11 +4231,13 @@ export class TrailDatabase {
   ): { updated: number; inserted: number } {
     const db = this.ensureDb();
 
-    // mappings_json カラム保証（初回マイグレーション）
+    // mappings_json / stable_key カラム保証（初回マイグレーション）
     const cols = db.exec('PRAGMA table_info(current_code_graph_communities)')[0]?.values ?? [];
-    if (!cols.some((c) => String((c as unknown[])[1]) === 'mappings_json')) {
+    const colNames = cols.map((c) => String((c as unknown[])[1]));
+    if (!colNames.includes('mappings_json')) {
       db.run('ALTER TABLE current_code_graph_communities ADD COLUMN mappings_json TEXT');
     }
+    ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
 
     let updated = 0;
     let inserted = 0;
@@ -3820,25 +4275,41 @@ export class TrailDatabase {
     readonly name: string;
     readonly summary: string;
     readonly mappingsJson: string | null;
+    readonly stableKey: string;
   }> {
     const db = this.ensureDb();
     const cols = db.exec('PRAGMA table_info(current_code_graph_communities)')[0]?.values ?? [];
-    const hasMappings = cols.some((c) => String((c as unknown[])[1]) === 'mappings_json');
-    const sql = hasMappings
-      ? 'SELECT community_id, label, name, summary, mappings_json FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id'
-      : 'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id';
+    const colNames = cols.map((c) => String((c as unknown[])[1]));
+    const hasMappings = colNames.includes('mappings_json');
+    const hasStableKey = colNames.includes('stable_key');
+    const selectCols = [
+      'community_id',
+      'label',
+      'name',
+      'summary',
+      ...(hasMappings ? ['mappings_json'] : []),
+      ...(hasStableKey ? ['stable_key'] : []),
+    ];
+    const sql = `SELECT ${selectCols.join(', ')} FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id`;
     const result = db.exec(sql, [repoName]);
-    return (result[0]?.values ?? []).map((row) => ({
-      communityId: Number(row[0]),
-      label: String(row[1] ?? ''),
-      name: String(row[2] ?? ''),
-      summary: String(row[3] ?? ''),
-      mappingsJson: hasMappings ? (row[4] == null ? null : String(row[4])) : null,
-    }));
+    return (result[0]?.values ?? []).map((row) => {
+      const idx = (col: string) => selectCols.indexOf(col);
+      const mIdx = idx('mappings_json');
+      const sIdx = idx('stable_key');
+      return {
+        communityId: Number(row[idx('community_id')]),
+        label: String(row[idx('label')] ?? ''),
+        name: String(row[idx('name')] ?? ''),
+        summary: String(row[idx('summary')] ?? ''),
+        mappingsJson: mIdx >= 0 ? (row[mIdx] == null ? null : String(row[mIdx])) : null,
+        stableKey: sIdx >= 0 ? String(row[sIdx] ?? '') : '',
+      };
+    });
   }
 
   saveReleaseCodeGraph(tag: string, graph: CodeGraph): void {
     const db = this.ensureDb();
+    ensureCommunityStableKeyColumn(db, 'release_code_graph_communities');
     const { stored, communities } = splitCodeGraph(graph);
     db.run(
       `INSERT OR REPLACE INTO release_code_graphs
@@ -3849,11 +4320,11 @@ export class TrailDatabase {
     db.run('DELETE FROM release_code_graph_communities WHERE release_tag = ?', [tag]);
     const stmt = db.prepare(
       `INSERT INTO release_code_graph_communities
-         (release_tag, community_id, label, name, summary, generated_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+         (release_tag, community_id, label, name, summary, stable_key, generated_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
     );
     for (const c of communities) {
-      stmt.run([tag, c.id, c.label, c.name, c.summary]);
+      stmt.run([tag, c.id, c.label, c.name, c.summary, c.stableKey]);
     }
     stmt.free();
     this.save();
@@ -3868,15 +4339,17 @@ export class TrailDatabase {
     const json = graphResult[0]?.values?.[0]?.[0];
     if (typeof json !== 'string') return null;
     const stored = JSON.parse(json) as import('@anytime-markdown/trail-core/codeGraph').StoredCodeGraph;
-    const commResult = db.exec(
-      'SELECT community_id, label, name, summary FROM release_code_graph_communities WHERE release_tag = ?',
-      [tag],
-    );
+    const hasStableKey = columnExists(db, 'release_code_graph_communities', 'stable_key');
+    const sql = hasStableKey
+      ? 'SELECT community_id, label, name, summary, stable_key FROM release_code_graph_communities WHERE release_tag = ?'
+      : 'SELECT community_id, label, name, summary FROM release_code_graph_communities WHERE release_tag = ?';
+    const commResult = db.exec(sql, [tag]);
     const communities: StoredCommunity[] = (commResult[0]?.values ?? []).map((row) => ({
       id: row[0] as number,
       label: row[1] as string,
       name: row[2] as string,
       summary: row[3] as string,
+      stableKey: hasStableKey ? String(row[4] ?? '') : '',
     }));
     return composeCodeGraph(stored, communities);
   }
@@ -4968,7 +5441,7 @@ export class TrailDatabase {
    * 複数 CC セッションについて `(parent_assistant_uuid → codex_session_id)` Map をバッチ解決する。
    * クエリ数は CC セッション数によらず最大 3。N+1 を避けるための共通実装。
    */
-  private fetchLinkedCodexSessionMapForCcSessions(
+  fetchLinkedCodexSessionMapForCcSessions(
     ccSessionIds: readonly string[],
   ): Map<string, Map<string, string>> {
     const out = new Map<string, Map<string, string>>();
@@ -5357,7 +5830,7 @@ export class TrailDatabase {
 
       const BUILD_RE = /\b(npm run build|npx tsc|tsc\b|webpack|vite build|esbuild|rollup)\b/;
       const TEST_RE = /\b(jest|vitest|npm run test|npm test|npx jest)\b/;
-      const FAIL_RE = /error|FAIL|ERR!|exit code [1-9]|non-zero exit|Command failed/i;
+      const FAIL_RE = /ERR!|exit code [1-9]|non-zero exit|Command failed/i;
 
       let totalEdits = 0;
       let totalRetries = 0;
@@ -5538,51 +6011,116 @@ export class TrailDatabase {
   } | null {
     try {
       const db = this.ensureDb();
-      const result = db.exec(
-        `SELECT kind, key, count, tokens, duration_ms
-         FROM daily_counts
-         WHERE date = ? AND kind IN ('tool', 'skill', 'error', 'model')`,
+
+      const editRes = db.exec(
+        `SELECT COUNT(*) FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE DATE(s.start_time, '+540 minutes') = ? AND mtc.tool_name IN ('Edit', 'Write')`,
         [date],
       );
-      if (!result[0]) {
-        return {
-          totalRetries: 0, totalEdits: 0, totalBuildRuns: 0, totalBuildFails: 0,
-          totalTestRuns: 0, totalTestFails: 0,
-          toolUsage: [], skillUsage: [], errorsByTool: [], modelUsage: [],
-        };
-      }
+      const totalEdits = Number(editRes[0]?.values[0]?.[0] ?? 0);
 
-      const toolMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
-      const skillMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
-      const errMap = new Map<string, number>();
+      const retryRes = db.exec(
+        `SELECT COALESCE(SUM(edit_count - 1), 0)
+         FROM (
+           SELECT COUNT(*) AS edit_count
+           FROM message_tool_calls mtc
+           JOIN sessions s ON s.id = mtc.session_id
+           WHERE DATE(s.start_time, '+540 minutes') = ?
+             AND mtc.tool_name IN ('Edit', 'Write') AND mtc.file_path IS NOT NULL AND mtc.file_path != ''
+           GROUP BY mtc.session_id, mtc.file_path HAVING COUNT(*) > 1
+         )`,
+        [date],
+      );
+      const totalRetries = Number(retryRes[0]?.values[0]?.[0] ?? 0);
+
+      const buildRes = db.exec(
+        `SELECT COUNT(*), COALESCE(SUM(mtc.is_error), 0)
+         FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE DATE(s.start_time, '+540 minutes') = ? AND mtc.tool_name = 'Bash' AND (
+           mtc.command LIKE '%npm run build%' OR mtc.command LIKE '%npx tsc%' OR
+           mtc.command LIKE '% tsc %' OR mtc.command LIKE '% tsc' OR mtc.command LIKE 'tsc %' OR
+           mtc.command LIKE '%webpack%' OR mtc.command LIKE '%vite build%' OR
+           mtc.command LIKE '%esbuild%' OR mtc.command LIKE '%rollup%'
+         )`,
+        [date],
+      );
+      const totalBuildRuns = Number(buildRes[0]?.values[0]?.[0] ?? 0);
+      const totalBuildFails = Number(buildRes[0]?.values[0]?.[1] ?? 0);
+
+      const testRes = db.exec(
+        `SELECT COUNT(*), COALESCE(SUM(mtc.is_error), 0)
+         FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE DATE(s.start_time, '+540 minutes') = ? AND mtc.tool_name = 'Bash' AND (
+           mtc.command LIKE '%jest%' OR mtc.command LIKE '%vitest%' OR
+           mtc.command LIKE '%npm run test%' OR mtc.command LIKE '%npm test%'
+         )`,
+        [date],
+      );
+      const totalTestRuns = Number(testRes[0]?.values[0]?.[0] ?? 0);
+      const totalTestFails = Number(testRes[0]?.values[0]?.[1] ?? 0);
+
+      // tool/skill: session start_time 基準（errorsByTool と同スコープ）
+      const toolRows = this.aggregateByDayInternal(date, 'tool_name', false);
+      const toolMap = new Map<string, { count: number; tokens: number; durationMs: number }>(
+        toolRows.map((r) => [r.key, { count: r.count, tokens: r.tokens, durationMs: r.durationMs }]),
+      );
+
+      const skillRows = this.aggregateByDayInternal(date, 'skill_name', true);
+      const skillMap = new Map<string, { count: number; tokens: number; durationMs: number }>(
+        skillRows.map((r) => [r.key, { count: r.count, tokens: r.tokens, durationMs: r.durationMs }]),
+      );
+
+      // model: session start_time 基準
+      const modelResult = db.exec(
+        `SELECT COALESCE(m.model, '') AS model, s.source,
+                COUNT(*) AS count,
+                CAST(SUM(COALESCE(m.input_tokens, 0) + COALESCE(m.output_tokens, 0)) AS INTEGER) AS tokens
+         FROM messages m
+         JOIN sessions s ON s.id = m.session_id
+         WHERE DATE(s.start_time, '+540 minutes') = ? AND m.type = 'assistant'
+         GROUP BY COALESCE(m.model, ''), s.source`,
+        [date],
+      );
       const modelMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
-
-      for (const row of result[0].values) {
-        const kind = String(row[0] ?? '');
-        const key = String(row[1] ?? '');
+      for (const row of modelResult[0]?.values ?? []) {
+        const source = String(row[1] ?? '') as PricingSource;
+        const model = resolvePricingModelName(String(row[0] ?? ''), source);
         const count = Number(row[2] ?? 0);
         const tokens = Number(row[3] ?? 0);
-        const durationMs = Number(row[4] ?? 0);
-        if (kind === 'tool') {
-          const e = toolMap.get(key) ?? { count: 0, tokens: 0, durationMs: 0 };
-          e.count += count; e.tokens += tokens; e.durationMs += durationMs;
-          toolMap.set(key, e);
-        } else if (kind === 'skill') {
-          const e = skillMap.get(key) ?? { count: 0, tokens: 0, durationMs: 0 };
-          e.count += count; e.tokens += tokens; e.durationMs += durationMs;
-          skillMap.set(key, e);
-        } else if (kind === 'error') {
-          errMap.set(key, (errMap.get(key) ?? 0) + count);
-        } else if (kind === 'model') {
-          const e = modelMap.get(key) ?? { count: 0, tokens: 0, durationMs: 0 };
-          e.count += count; e.tokens += tokens; e.durationMs += durationMs;
-          modelMap.set(key, e);
-        }
+        const e = modelMap.get(model) ?? { count: 0, tokens: 0, durationMs: 0 };
+        e.count += count;
+        e.tokens += tokens;
+        modelMap.set(model, e);
+      }
+
+      // errorsByTool: session start_time 基準で集計（セッション一覧の errorCount と同じスコープ）
+      const errResult = db.exec(
+        `SELECT CASE
+                  WHEN mtc.tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                  THEN SUBSTR(mtc.tool_name, 1, INSTR(SUBSTR(mtc.tool_name, 6), '__') + 4)
+                  ELSE mtc.tool_name
+                END AS tool,
+                COUNT(*) AS count
+         FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE DATE(s.start_time, '+540 minutes') = ? AND mtc.is_error = 1
+         GROUP BY tool
+         ORDER BY count DESC`,
+        [date],
+      );
+      const errMap = new Map<string, number>();
+      for (const row of errResult[0]?.values ?? []) {
+        const tool = String(row[0] ?? '');
+        const count = Number(row[1] ?? 0);
+        errMap.set(tool, (errMap.get(tool) ?? 0) + count);
       }
 
       return {
-        totalRetries: 0, totalEdits: 0, totalBuildRuns: 0, totalBuildFails: 0,
-        totalTestRuns: 0, totalTestFails: 0,
+        totalRetries, totalEdits, totalBuildRuns, totalBuildFails,
+        totalTestRuns, totalTestFails,
         toolUsage: [...toolMap.entries()].map(([tool, e]) => ({ tool, ...e })).sort((a, b) => b.count - a.count),
         skillUsage: [...skillMap.entries()].map(([skill, e]) => ({ skill, ...e })).sort((a, b) => b.count - a.count),
         errorsByTool: [...errMap.entries()].map(([tool, count]) => ({ tool, count })).sort((a, b) => b.count - a.count),
@@ -5672,9 +6210,9 @@ export class TrailDatabase {
       // json functions may not be available
     }
 
-    // Daily activity from messages with source-aware factor (last 90 days)
+    // Daily activity from messages — grouped by session start_time date (same basis as session list)
     const dailyMsgResult = db.exec(
-      `SELECT DATE(m.timestamp, '${tzOffset}') AS date,
+      `SELECT DATE(s.start_time, '${tzOffset}') AS date,
         s.source,
         SUM(COALESCE(m.input_tokens,0)) AS raw_input,
         SUM(COALESCE(m.output_tokens,0)) AS raw_output,
@@ -5687,7 +6225,7 @@ export class TrailDatabase {
        FROM messages m
        JOIN sessions s ON s.id = m.session_id
        WHERE m.type = 'assistant'
-         AND DATE(m.timestamp, '${tzOffset}') >= DATE('now', '${tzOffset}', '-180 days')
+         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-180 days')
        GROUP BY date, s.source
        ORDER BY date`,
     );
@@ -5699,7 +6237,7 @@ export class TrailDatabase {
        WHERE DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-180 days')
        GROUP BY date, s.source`,
     );
-    type DailyEntry = { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; estimatedCostUsd: number; commits: number; linesAdded: number };
+    type DailyEntry = { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; estimatedCostUsd: number; commits: number; linesAdded: number; linesDeleted: number };
     const dailyMap = new Map<string, DailyEntry>();
     for (const row of dailyMsgResult[0]?.values ?? []) {
       const date = String(row[0]);
@@ -5712,7 +6250,7 @@ export class TrailDatabase {
       const missingTurns = Number(row[7]);
       const observed = totalTurns - missingTurns;
       const factor = observed > 0 ? totalTurns / observed : 1;
-      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0 };
+      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
       entry.inputTokens += Math.round(rawInput * factor);
       entry.outputTokens += Math.round(rawOutput * factor);
       entry.cacheReadTokens += Math.round(rawCacheRead * factor);
@@ -5724,7 +6262,7 @@ export class TrailDatabase {
       const source = String(row[1] ?? '');
       const rawCost = Number(row[2]);
       const factor = factorBySource.get(source) ?? 1;
-      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0 };
+      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
       entry.estimatedCostUsd += rawCost * factor;
       dailyMap.set(date, entry);
     }
@@ -5734,23 +6272,35 @@ export class TrailDatabase {
       `SELECT date,
               SUM(sessions) AS sessions,
               SUM(commits) AS commits,
-              SUM(loc) AS loc
+              SUM(loc_added) AS loc_added,
+              SUM(loc_deleted) AS loc_deleted
        FROM (
-         SELECT DATE(start_time, '${tzOffset}') AS date, COUNT(*) AS sessions, 0 AS commits, 0 AS loc
+         SELECT DATE(start_time, '${tzOffset}') AS date, COUNT(*) AS sessions, 0 AS commits, 0 AS loc_added, 0 AS loc_deleted
          FROM sessions WHERE start_time != '' GROUP BY date
          UNION ALL
-         SELECT DATE(committed_at, '${tzOffset}') AS date, 0 AS sessions, COUNT(*) AS commits, SUM(lines_added) AS loc
-         FROM session_commits WHERE committed_at != '' GROUP BY date
+         SELECT date, 0 AS sessions, SUM(commit_count) AS commits, SUM(lines_added) AS loc_added, SUM(lines_deleted) AS loc_deleted
+         FROM (
+           SELECT DATE(s.start_time, '${tzOffset}') AS date,
+                  COUNT(*) AS commit_count,
+                  SUM(COALESCE(sc.lines_added, 0)) AS lines_added,
+                  SUM(COALESCE(sc.lines_deleted, 0)) AS lines_deleted
+           FROM session_commits sc
+           JOIN sessions s ON sc.session_id = s.id
+           WHERE sc.committed_at != '' AND s.start_time != ''
+           GROUP BY s.id
+         )
+         GROUP BY date
        )
        WHERE date >= DATE('now', '${tzOffset}', '-180 days')
        GROUP BY date`,
     );
     for (const row of dailyStatsResult[0]?.values ?? []) {
       const date = String(row[0]);
-      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0 };
+      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
       entry.sessions += Number(row[1]);
       entry.commits += Number(row[2]);
       entry.linesAdded += Number(row[3]);
+      entry.linesDeleted += Number(row[4]);
       dailyMap.set(date, entry);
     }
 
@@ -5763,7 +6313,10 @@ export class TrailDatabase {
       `SELECT COUNT(*) AS total_commits,
         COALESCE(SUM(lines_added), 0) AS total_lines_added,
         COALESCE(SUM(lines_deleted), 0) AS total_lines_deleted
-      FROM session_commits`,
+      FROM (
+        SELECT repo_name, commit_hash, MAX(COALESCE(lines_added, 0)) AS lines_added, MAX(COALESCE(lines_deleted, 0)) AS lines_deleted
+        FROM session_commits GROUP BY repo_name, commit_hash
+      )`,
     );
     const cr = commitTotals[0]?.values[0] ?? [0, 0, 0];
     const totalCommits = Number(cr[0]);
@@ -5792,8 +6345,10 @@ export class TrailDatabase {
       durationResult[0]?.values[0]?.[0] ?? 0,
     );
 
-    // Current total LOC from current_coverage
-    const locResult = db.exec(`SELECT COALESCE(SUM(lines_total), 0) FROM current_coverage`);
+    // Current total LOC from latest release snapshot
+    const locResult = db.exec(
+      `SELECT COALESCE(total_lines, 0) FROM releases WHERE total_lines > 0 AND released_at IS NOT NULL AND released_at != '' ORDER BY released_at DESC LIMIT 1`,
+    );
     const totalLoc = Number(locResult[0]?.values[0]?.[0] ?? 0);
 
     // Tool-call-based metrics (Retry Rate, Build/Test Fail Rate)
@@ -5881,11 +6436,20 @@ export class TrailDatabase {
       };
     });
 
+    // エラー集計: session start_time 基準（daily_counts の timestamp 基準と一致させる）
     const errResult = db.exec(
-      `SELECT ${periodExpr} AS period, key AS tool, SUM(count) AS err_count
-       FROM daily_counts
-       WHERE kind = 'error' AND date >= ${cutoff}
-       GROUP BY period, key`,
+      `SELECT ${sessionStartPeriodExpr} AS period,
+              CASE
+                WHEN mtc.tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                THEN SUBSTR(mtc.tool_name, 1, INSTR(SUBSTR(mtc.tool_name, 6), '__') + 4)
+                ELSE mtc.tool_name
+              END AS tool,
+              COUNT(*) AS err_count
+       FROM message_tool_calls mtc
+       JOIN sessions s ON s.id = mtc.session_id
+       WHERE mtc.is_error = 1
+         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+       GROUP BY period, tool`,
     );
     const errByPeriod = new Map<string, { byTool: Record<string, number> }>();
     for (const r of toRows(errResult)) {
@@ -5915,7 +6479,7 @@ export class TrailDatabase {
     }));
 
     const modelResult = db.exec(
-      `SELECT ${messagePeriodExpr} AS period,
+      `SELECT ${sessionStartPeriodExpr} AS period,
               COALESCE(m.model, '') AS model,
               s.source,
               COUNT(*) AS count,
@@ -5925,7 +6489,7 @@ export class TrailDatabase {
                        THEN 1 ELSE 0 END) AS token_missing_turns
        FROM messages m
        INNER JOIN sessions s ON s.id = m.session_id
-       WHERE m.type = 'assistant' AND DATE(m.timestamp, '${tzOffset}') >= ${cutoff}
+       WHERE m.type = 'assistant' AND DATE(s.start_time, '${tzOffset}') >= ${cutoff}
        GROUP BY period, COALESCE(m.model, ''), s.source`,
     );
     const modelAggMap = new Map<string, { count: number; tokens: number; totalTurns: number; missingTurns: number }>();
@@ -5960,7 +6524,7 @@ export class TrailDatabase {
     });
 
     const agentTokenResult = db.exec(
-      `SELECT ${messagePeriodExpr} AS period,
+      `SELECT ${sessionStartPeriodExpr} AS period,
               CASE WHEN s.source = 'codex' THEN 'Codex' ELSE 'Claude Code' END AS agent,
               SUM(COALESCE(m.input_tokens,0) + COALESCE(m.output_tokens,0) + COALESCE(m.cache_read_tokens,0) + COALESCE(m.cache_creation_tokens,0)) AS tokens,
               SUM(CASE WHEN m.type = 'assistant' THEN 1 ELSE 0 END) AS token_total_turns,
@@ -5971,7 +6535,7 @@ export class TrailDatabase {
                   END) AS token_missing_turns
        FROM messages m
        JOIN sessions s ON s.id = m.session_id
-       WHERE DATE(m.timestamp, '${tzOffset}') >= ${cutoff}
+       WHERE DATE(s.start_time, '${tzOffset}') >= ${cutoff}
        GROUP BY period, agent`,
     );
     const agentCostResult = db.exec(
@@ -6037,13 +6601,21 @@ export class TrailDatabase {
     // 期間末尾から 168h 先のコミットも取得する。手動コミットが複数セッションに重複登録される
     // ため repo_name + commit_hash で排除する。
     const commitWindowSec = Math.round(AI_FIRST_TRY_FIX_WINDOW_MS / 1000);
+    const sessionDateExpr = period === 'week'
+      ? `strftime('%Y-W%W', s.start_time, '${tzOffset}')`
+      : `DATE(s.start_time, '${tzOffset}')`;
     const commitResult = db.exec(
-      `SELECT ${commitPeriodExpr} AS period, repo_name, commit_hash, commit_message,
-              committed_at, is_ai_assisted, COALESCE(lines_added, 0) AS lines_added
-       FROM session_commits
-       WHERE committed_at >= DATETIME('now', '-${rangeDays} days')
-         AND committed_at <= DATETIME('now', '+${commitWindowSec} seconds')
-       GROUP BY repo_name, commit_hash`,
+      `SELECT ${sessionDateExpr} AS period, sc.repo_name, sc.commit_hash,
+              MAX(sc.commit_message) AS commit_message,
+              MIN(sc.committed_at) AS committed_at,
+              MAX(sc.is_ai_assisted) AS is_ai_assisted,
+              MAX(COALESCE(sc.lines_added, 0)) AS lines_added,
+              MAX(COALESCE(sc.lines_deleted, 0)) AS lines_deleted
+       FROM session_commits sc
+       JOIN sessions s ON sc.session_id = s.id
+       WHERE sc.committed_at >= DATETIME('now', '-${rangeDays} days')
+         AND sc.committed_at <= DATETIME('now', '+${commitWindowSec} seconds')
+       GROUP BY sc.session_id, sc.repo_name, sc.commit_hash`,
     );
     type CommitRow = {
       period: string;
@@ -6053,6 +6625,7 @@ export class TrailDatabase {
       committed_at: string;
       is_ai_assisted: boolean;
       linesAdded: number;
+      linesDeleted: number;
       files: string[];
     };
     const commitRows: CommitRow[] = toRows(commitResult).map(r => ({
@@ -6063,6 +6636,7 @@ export class TrailDatabase {
       committed_at: String(r['committed_at'] ?? ''),
       is_ai_assisted: Number(r['is_ai_assisted'] ?? 0) === 1,
       linesAdded: Number(r['lines_added'] ?? 0),
+      linesDeleted: Number(r['lines_deleted'] ?? 0),
       files: [],
     }));
 
@@ -6088,23 +6662,10 @@ export class TrailDatabase {
       }
     }
 
-    // Commit prefix stats: 期間内 (未来拡張分は除外) のコミットだけを集計対象とする
-    const cutoffPeriodRes = db.exec(`SELECT ${commitPeriodExpr.replace('committed_at', `DATE('now')`)} AS period`);
+    // Commit prefix stats: 期間内のコミットだけを集計 (period はセッション開始日基準)
+    const cutoffPeriodRes = db.exec(`SELECT ${sessionDateExpr.replace('s.start_time', `DATE('now')`)} AS period`);
     const todayPeriod = String(cutoffPeriodRes[0]?.values?.[0]?.[0] ?? '');
-    const prefixMap = new Map<string, { count: number; linesAdded: number }>();
-    for (const c of commitRows) {
-      if (c.period > todayPeriod) continue;  // skip future-window rows
-      const prefix = extractCommitPrefix(c.subject);
-      const k = `${c.period}::${prefix}`;
-      const cur = prefixMap.get(k) ?? { count: 0, linesAdded: 0 };
-      cur.count += 1;
-      cur.linesAdded += c.linesAdded;
-      prefixMap.set(k, cur);
-    }
-    const commitPrefixStats = [...prefixMap.entries()].map(([k, v]) => {
-      const sep = k.indexOf('::');
-      return { period: k.slice(0, sep), prefix: k.slice(sep + 2), count: v.count, linesAdded: v.linesAdded };
-    });
+    const commitPrefixStats = aggregateCommitPrefixStats(commitRows, todayPeriod);
 
     // Repository stats: COUNT は commitRows を再利用（既に repo_name+commit_hash で重複排除済み）
     const repoCountMap = new Map<string, number>();
@@ -6115,16 +6676,16 @@ export class TrailDatabase {
       repoCountMap.set(k, (repoCountMap.get(k) ?? 0) + 1);
     }
 
-    // Repository stats: TOKEN は messages JOIN sessions で集計
+    // Repository stats: TOKEN は messages JOIN sessions で集計（session start_time 基準）
     const repoTokenResult = db.exec(
-      `SELECT ${messagePeriodExpr} AS period,
+      `SELECT ${sessionStartPeriodExpr} AS period,
               s.repo_name,
               SUM(COALESCE(m.input_tokens,0) + COALESCE(m.output_tokens,0)
                   + COALESCE(m.cache_read_tokens,0) + COALESCE(m.cache_creation_tokens,0)) AS tokens
        FROM messages m
        JOIN sessions s ON s.id = m.session_id
        WHERE m.type = 'assistant'
-         AND DATE(m.timestamp, '${tzOffset}') >= ${cutoff}
+         AND DATE(s.start_time, '${tzOffset}') >= ${cutoff}
          AND s.repo_name != ''
        GROUP BY period, s.repo_name`,
     );
@@ -6181,6 +6742,63 @@ export class TrailDatabase {
       }))
       .sort((a, b) => a.period.localeCompare(b.period));
 
+    // Build / Test fail rate per period
+    const buildTestResult = db.exec(
+      `SELECT period,
+              SUM(CASE WHEN cmd_type = 'build' THEN 1 ELSE 0 END) AS build_runs,
+              SUM(CASE WHEN cmd_type = 'build' AND is_error = 1 THEN 1 ELSE 0 END) AS build_fails,
+              SUM(CASE WHEN cmd_type = 'test' THEN 1 ELSE 0 END) AS test_runs,
+              SUM(CASE WHEN cmd_type = 'test' AND is_error = 1 THEN 1 ELSE 0 END) AS test_fails
+       FROM (
+         SELECT ${sessionStartPeriodExpr} AS period,
+                mtc.is_error,
+                CASE
+                  WHEN mtc.command LIKE '%npm run build%' OR mtc.command LIKE '%npx tsc%'
+                    OR mtc.command LIKE '% tsc %' OR mtc.command LIKE '% tsc'
+                    OR mtc.command LIKE 'tsc %'
+                    OR mtc.command LIKE '%webpack%' OR mtc.command LIKE '%vite build%'
+                    OR mtc.command LIKE '%esbuild%' OR mtc.command LIKE '%rollup%'
+                    THEN 'build'
+                  WHEN mtc.command LIKE '%jest%' OR mtc.command LIKE '%vitest%'
+                    OR mtc.command LIKE '%npm run test%' OR mtc.command LIKE '%npm test%'
+                    THEN 'test'
+                  ELSE NULL
+                END AS cmd_type
+         FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE mtc.tool_name = 'Bash'
+           AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+       )
+       WHERE cmd_type IS NOT NULL
+       GROUP BY period`,
+    );
+
+    // Retry rate per period: retries = (edit_count - 1) per (session, file) groups with count > 1
+    const editCountResult = db.exec(
+      `SELECT ${sessionStartPeriodExpr} AS period, COUNT(*) AS total_edits
+       FROM message_tool_calls mtc
+       JOIN sessions s ON s.id = mtc.session_id
+       WHERE mtc.tool_name IN ('Edit', 'Write')
+         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+       GROUP BY period`,
+    );
+    const retryResult = db.exec(
+      `SELECT period, SUM(cnt - 1) AS total_retries
+       FROM (
+         SELECT ${sessionStartPeriodExpr} AS period, COUNT(*) AS cnt
+         FROM message_tool_calls mtc
+         JOIN sessions s ON s.id = mtc.session_id
+         WHERE mtc.tool_name IN ('Edit', 'Write')
+           AND mtc.file_path IS NOT NULL AND mtc.file_path != ''
+           AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+         GROUP BY ${sessionStartPeriodExpr}, mtc.session_id, mtc.file_path
+         HAVING COUNT(*) > 1
+       )
+       GROUP BY period`,
+    );
+
+    const qualityRates = aggregateQualityRates(toRows(buildTestResult), toRows(editCountResult), toRows(retryResult));
+
     return {
       toolCounts,
       errorRate,
@@ -6190,6 +6808,7 @@ export class TrailDatabase {
       commitPrefixStats,
       aiFirstTryRate,
       repoStats,
+      qualityRates,
     };
   }
 
@@ -6464,8 +7083,11 @@ export class TrailDatabase {
           dead_code_score,
           signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
           signal_zero_coverage, signal_isolated_community,
-          is_ignored, ignore_reason, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          is_ignored, ignore_reason,
+          cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+          category,
+          analyzed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           r.repoName, r.filePath,
           r.importanceScore, r.fanInTotal, r.cognitiveComplexityMax, r.lineCount, r.cyclomaticComplexityMax, r.functionCount,
@@ -6475,7 +7097,10 @@ export class TrailDatabase {
           r.signals.noRecentChurn ? 1 : 0,
           r.signals.zeroCoverage ? 1 : 0,
           r.signals.isolatedCommunity ? 1 : 0,
-          r.isIgnored ? 1 : 0, r.ignoreReason, r.analyzedAt,
+          r.isIgnored ? 1 : 0, r.ignoreReason,
+          r.crossPkgInCount, r.externalConsumerPkgs, r.totalInCount, r.isBarrel ? 1 : 0, r.centralityScore,
+          r.category,
+          r.analyzedAt,
         ],
       );
     }
@@ -6490,7 +7115,10 @@ export class TrailDatabase {
               dead_code_score,
               signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
               signal_zero_coverage, signal_isolated_community,
-              is_ignored, ignore_reason, analyzed_at
+              is_ignored, ignore_reason,
+              cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+              category,
+              analyzed_at
        FROM current_file_analysis WHERE repo_name = ?`,
       [repoName],
     );
@@ -6514,7 +7142,13 @@ export class TrailDatabase {
       },
       isIgnored: Number(r[14] ?? 0) === 1,
       ignoreReason: String(r[15] ?? ''),
-      analyzedAt: String(r[16] ?? ''),
+      crossPkgInCount: Number(r[16] ?? 0),
+      externalConsumerPkgs: Number(r[17] ?? 0),
+      totalInCount: Number(r[18] ?? 0),
+      isBarrel: Number(r[19] ?? 0) === 1,
+      centralityScore: Number(r[20] ?? 0),
+      category: parseCategory(r[21]),
+      analyzedAt: String(r[22] ?? ''),
     }));
   }
 
@@ -6535,8 +7169,11 @@ export class TrailDatabase {
           dead_code_score,
           signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
           signal_zero_coverage, signal_isolated_community,
-          is_ignored, ignore_reason, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          is_ignored, ignore_reason,
+          cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+          category,
+          analyzed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           releaseTag, r.repoName, r.filePath,
           r.importanceScore, r.fanInTotal, r.cognitiveComplexityMax, r.lineCount, r.cyclomaticComplexityMax, r.functionCount,
@@ -6546,7 +7183,10 @@ export class TrailDatabase {
           r.signals.noRecentChurn ? 1 : 0,
           r.signals.zeroCoverage ? 1 : 0,
           r.signals.isolatedCommunity ? 1 : 0,
-          r.isIgnored ? 1 : 0, r.ignoreReason, r.analyzedAt,
+          r.isIgnored ? 1 : 0, r.ignoreReason,
+          r.crossPkgInCount, r.externalConsumerPkgs, r.totalInCount, r.isBarrel ? 1 : 0, r.centralityScore,
+          r.category,
+          r.analyzedAt,
         ],
       );
     }
@@ -6560,7 +7200,10 @@ export class TrailDatabase {
               dead_code_score,
               signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
               signal_zero_coverage, signal_isolated_community,
-              is_ignored, ignore_reason, analyzed_at
+              is_ignored, ignore_reason,
+              cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+              category,
+              analyzed_at
        FROM release_file_analysis WHERE release_tag = ? AND repo_name = ?`,
       [releaseTag, repoName],
     );
@@ -6584,7 +7227,13 @@ export class TrailDatabase {
       },
       isIgnored: Number(r[14] ?? 0) === 1,
       ignoreReason: String(r[15] ?? ''),
-      analyzedAt: String(r[16] ?? ''),
+      crossPkgInCount: Number(r[16] ?? 0),
+      externalConsumerPkgs: Number(r[17] ?? 0),
+      totalInCount: Number(r[18] ?? 0),
+      isBarrel: Number(r[19] ?? 0) === 1,
+      centralityScore: Number(r[20] ?? 0),
+      category: parseCategory(r[21]),
+      analyzedAt: String(r[22] ?? ''),
     }));
   }
 
@@ -6607,13 +7256,17 @@ export class TrailDatabase {
           repo_name, file_path, function_name, start_line,
           end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
           data_mutation_score, side_effect_score, line_count,
-          importance_score, signal_fan_in_zero, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          importance_score, signal_fan_in_zero,
+          fan_out, distinct_callees, function_role,
+          analyzed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           r.repoName, r.filePath, r.functionName, r.startLine,
           r.endLine, r.language, r.fanIn, r.cognitiveComplexity, r.cyclomaticComplexity,
           r.dataMutationScore, r.sideEffectScore, r.lineCount,
-          r.importanceScore, r.signalFanInZero ? 1 : 0, r.analyzedAt,
+          r.importanceScore, r.signalFanInZero ? 1 : 0,
+          r.fanOut, r.distinctCallees, r.functionRole,
+          r.analyzedAt,
         ],
       );
     }
@@ -6626,7 +7279,9 @@ export class TrailDatabase {
       `SELECT repo_name, file_path, function_name, start_line,
               end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
               data_mutation_score, side_effect_score, line_count,
-              importance_score, signal_fan_in_zero, analyzed_at
+              importance_score, signal_fan_in_zero,
+              fan_out, distinct_callees, function_role,
+              analyzed_at
        FROM current_function_analysis WHERE repo_name = ?`,
       [repoName],
     );
@@ -6646,7 +7301,10 @@ export class TrailDatabase {
       lineCount: Number(r[11] ?? 0),
       importanceScore: Number(r[12] ?? 0),
       signalFanInZero: Number(r[13] ?? 0) === 1,
-      analyzedAt: String(r[14] ?? ''),
+      fanOut: Number(r[14] ?? 0),
+      distinctCallees: Number(r[15] ?? 0),
+      functionRole: (['hub', 'leaf', 'orchestrator', 'peripheral'].includes(String(r[16] ?? '')) ? String(r[16]) : 'peripheral') as 'hub' | 'leaf' | 'orchestrator' | 'peripheral',
+      analyzedAt: String(r[17] ?? ''),
     }));
   }
 
@@ -6665,13 +7323,17 @@ export class TrailDatabase {
           release_tag, repo_name, file_path, function_name, start_line,
           end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
           data_mutation_score, side_effect_score, line_count,
-          importance_score, signal_fan_in_zero, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          importance_score, signal_fan_in_zero,
+          fan_out, distinct_callees, function_role,
+          analyzed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           releaseTag, r.repoName, r.filePath, r.functionName, r.startLine,
           r.endLine, r.language, r.fanIn, r.cognitiveComplexity, r.cyclomaticComplexity,
           r.dataMutationScore, r.sideEffectScore, r.lineCount,
-          r.importanceScore, r.signalFanInZero ? 1 : 0, r.analyzedAt,
+          r.importanceScore, r.signalFanInZero ? 1 : 0,
+          r.fanOut, r.distinctCallees, r.functionRole,
+          r.analyzedAt,
         ],
       );
     }
@@ -6684,7 +7346,9 @@ export class TrailDatabase {
       `SELECT repo_name, file_path, function_name, start_line,
               end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
               data_mutation_score, side_effect_score, line_count,
-              importance_score, signal_fan_in_zero, analyzed_at
+              importance_score, signal_fan_in_zero,
+              fan_out, distinct_callees, function_role,
+              analyzed_at
        FROM release_function_analysis WHERE release_tag = ? AND repo_name = ?`,
       [releaseTag, repoName],
     );
@@ -6704,7 +7368,10 @@ export class TrailDatabase {
       lineCount: Number(r[11] ?? 0),
       importanceScore: Number(r[12] ?? 0),
       signalFanInZero: Number(r[13] ?? 0) === 1,
-      analyzedAt: String(r[14] ?? ''),
+      fanOut: Number(r[14] ?? 0),
+      distinctCallees: Number(r[15] ?? 0),
+      functionRole: (['hub', 'leaf', 'orchestrator', 'peripheral'].includes(String(r[16] ?? '')) ? String(r[16]) : 'peripheral') as 'hub' | 'leaf' | 'orchestrator' | 'peripheral',
+      analyzedAt: String(r[17] ?? ''),
     }));
   }
 
@@ -6730,6 +7397,22 @@ export class TrailDatabase {
       if (existing[0]?.values?.length) {
         // Release exists — backfill release_files if missing
         const prevTag = i + 1 < tags.length ? tags[i + 1] : null;
+        const totalLinesResult = db.exec(`SELECT total_lines FROM releases WHERE tag = '${tag.replaceAll("'", "''")}'`);
+        const existingTotalLines = Number(totalLinesResult[0]?.values?.[0]?.[0] ?? 0);
+        if (existingTotalLines === 0) {
+          const snapshotLines = git.getSnapshotLineCount(tag);
+          if (snapshotLines > 0) {
+            try {
+              db.run(
+                `UPDATE releases SET total_lines = ? WHERE tag = ?`,
+                [snapshotLines, tag],
+              );
+              count++;
+            } catch {
+              // ignore backfill failures
+            }
+          }
+        }
         if (prevTag) {
           const filesExist = db.exec(
             `SELECT COUNT(*) FROM release_files WHERE release_tag = '${tag.replaceAll("'", "''")}'`,
@@ -6763,6 +7446,7 @@ export class TrailDatabase {
         ? git.getDiffStats(prevTag, tag)
         : { filesChanged: 0, linesAdded: 0, linesDeleted: 0 };
       const packages = prevTag ? git.getChangedPackages(prevTag, tag) : [];
+      const totalLines = git.getSnapshotLineCount(tag);
 
       const release = buildReleaseFromGitData({
         tag,
@@ -6775,6 +7459,7 @@ export class TrailDatabase {
         filesChanged: stats.filesChanged,
         linesAdded: stats.linesAdded,
         linesDeleted: stats.linesDeleted,
+        totalLines,
         affectedPackages: packages,
       });
 
@@ -6782,9 +7467,10 @@ export class TrailDatabase {
         `INSERT OR REPLACE INTO releases (
           tag, released_at, prev_tag, repo_name, package_tags,
           commit_count, files_changed, lines_added, lines_deleted,
+          total_lines,
           feat_count, fix_count, refactor_count, test_count, other_count,
           affected_packages, duration_days
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           release.tag,
           release.releasedAt,
@@ -6795,6 +7481,7 @@ export class TrailDatabase {
           release.filesChanged,
           release.linesAdded,
           release.linesDeleted,
+          release.totalLines,
           release.featCount,
           release.fixCount,
           release.refactorCount,
@@ -6825,6 +7512,74 @@ export class TrailDatabase {
 
     if (count > 0) this.save();
     return count;
+  }
+
+  /**
+   * production-release スキルの開始時刻と releases.released_at の差分（分）を算出し
+   * release_time_min が未設定のリリースを一括更新する。
+   * マッチング条件: セッション開始から 6 時間（0.25 日）以内に released_at が入る最小経過時間。
+   */
+  resolveReleaseTimes(): number {
+    const db = this.ensureDb();
+
+    // production-release スキルのセッションごとの開始時刻を取得
+    const sessResult = db.exec(`
+      SELECT session_id, MIN(timestamp) AS skill_start
+      FROM messages
+      WHERE skill = 'production-release' AND type = 'assistant'
+      GROUP BY session_id
+    `);
+    if (!sessResult[0]?.values?.length) return 0;
+
+    type SessionStart = { session_id: string; skill_start: string };
+    const cols = sessResult[0].columns;
+    const sessions: SessionStart[] = sessResult[0].values.map((row) => {
+      const obj: Record<string, unknown> = {};
+      for (let i = 0; i < cols.length; i++) obj[cols[i]] = row[i];
+      return obj as unknown as SessionStart;
+    });
+
+    // release_time_min が NULL のリリースを対象
+    const relResult = db.exec(`
+      SELECT tag, released_at FROM releases
+      WHERE released_at IS NOT NULL AND released_at != '' AND release_time_min IS NULL
+    `);
+    if (!relResult[0]?.values?.length) return 0;
+
+    const relCols = relResult[0].columns;
+    const releases = relResult[0].values.map((row) => {
+      const obj: Record<string, unknown> = {};
+      for (let i = 0; i < relCols.length; i++) obj[relCols[i]] = row[i];
+      return obj as { tag: string; released_at: string };
+    });
+
+    let updated = 0;
+    for (const rel of releases) {
+      const relMs = new Date(rel.released_at).getTime();
+      let minElapsed: number | null = null;
+
+      for (const sess of sessions) {
+        const startMs = new Date(sess.skill_start).getTime();
+        if (relMs < startMs) continue;
+        const elapsedMs = relMs - startMs;
+        const elapsedMin = elapsedMs / 60_000;
+        if (elapsedMin > 720) continue; // 12 時間超はスキップ
+        if (minElapsed === null || elapsedMin < minElapsed) {
+          minElapsed = elapsedMin;
+        }
+      }
+
+      if (minElapsed !== null) {
+        try {
+          db.run('UPDATE releases SET release_time_min = ? WHERE tag = ?', [
+            Math.round(minElapsed * 10) / 10,
+            rel.tag,
+          ]);
+          updated++;
+        } catch { /* ignore */ }
+      }
+    }
+    return updated;
   }
 
   /**
@@ -7141,15 +7896,19 @@ export class TrailDatabase {
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
     signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string; analyzed_at: string;
+    is_ignored: number; ignore_reason: string;
+    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
+    analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }> {
     const db = this.ensureDb();
     const result = db.exec(
       `SELECT repo_name, file_path, importance_score, fan_in_total, cognitive_complexity_max, function_count,
               dead_code_score, signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
-              signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason, analyzed_at,
-              line_count, cyclomatic_complexity_max
+              signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason,
+              cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+              analyzed_at, line_count, cyclomatic_complexity_max, category
        FROM current_file_analysis`,
     );
     const values = result[0]?.values ?? [];
@@ -7168,9 +7927,15 @@ export class TrailDatabase {
       signal_isolated_community: Number(r[11] ?? 0),
       is_ignored: Number(r[12] ?? 0),
       ignore_reason: String(r[13] ?? ''),
-      analyzed_at: String(r[14] ?? ''),
-      line_count: Number(r[15] ?? 0),
-      cyclomatic_complexity_max: Number(r[16] ?? 0),
+      cross_pkg_in_count: Number(r[14] ?? 0),
+      external_consumer_pkgs: Number(r[15] ?? 0),
+      total_in_count: Number(r[16] ?? 0),
+      is_barrel: Number(r[17] ?? 0),
+      centrality_score: Number(r[18] ?? 0),
+      analyzed_at: String(r[19] ?? ''),
+      line_count: Number(r[20] ?? 0),
+      cyclomatic_complexity_max: Number(r[21] ?? 0),
+      category: parseCategory(r[22]),
     }));
   }
 
@@ -7180,15 +7945,19 @@ export class TrailDatabase {
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
     signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string; analyzed_at: string;
+    is_ignored: number; ignore_reason: string;
+    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
+    analyzed_at: string;
     line_count: number; cyclomatic_complexity_max: number;
+    category: string;
   }> {
     const db = this.ensureDb();
     const result = db.exec(
       `SELECT release_tag, repo_name, file_path, importance_score, fan_in_total, cognitive_complexity_max, function_count,
               dead_code_score, signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
-              signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason, analyzed_at,
-              line_count, cyclomatic_complexity_max
+              signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason,
+              cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
+              analyzed_at, line_count, cyclomatic_complexity_max, category
        FROM release_file_analysis`,
     );
     const values = result[0]?.values ?? [];
@@ -7208,9 +7977,15 @@ export class TrailDatabase {
       signal_isolated_community: Number(r[12] ?? 0),
       is_ignored: Number(r[13] ?? 0),
       ignore_reason: String(r[14] ?? ''),
-      analyzed_at: String(r[15] ?? ''),
-      line_count: Number(r[16] ?? 0),
-      cyclomatic_complexity_max: Number(r[17] ?? 0),
+      cross_pkg_in_count: Number(r[15] ?? 0),
+      external_consumer_pkgs: Number(r[16] ?? 0),
+      total_in_count: Number(r[17] ?? 0),
+      is_barrel: Number(r[18] ?? 0),
+      centrality_score: Number(r[19] ?? 0),
+      analyzed_at: String(r[20] ?? ''),
+      line_count: Number(r[21] ?? 0),
+      cyclomatic_complexity_max: Number(r[22] ?? 0),
+      category: parseCategory(r[23]),
     }));
   }
 
@@ -7219,7 +7994,9 @@ export class TrailDatabase {
     end_line: number; language: string;
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
-    signal_fan_in_zero: number; analyzed_at: string;
+    signal_fan_in_zero: number;
+    fan_out: number; distinct_callees: number; function_role: string;
+    analyzed_at: string;
     cyclomatic_complexity: number;
   }> {
     const db = this.ensureDb();
@@ -7227,7 +8004,9 @@ export class TrailDatabase {
       `SELECT repo_name, file_path, function_name, start_line,
               end_line, language, fan_in, cognitive_complexity,
               data_mutation_score, side_effect_score, line_count,
-              importance_score, signal_fan_in_zero, analyzed_at,
+              importance_score, signal_fan_in_zero,
+              fan_out, distinct_callees, function_role,
+              analyzed_at,
               cyclomatic_complexity
        FROM current_function_analysis`,
     );
@@ -7246,8 +8025,11 @@ export class TrailDatabase {
       line_count: Number(r[10] ?? 0),
       importance_score: Number(r[11] ?? 0),
       signal_fan_in_zero: Number(r[12] ?? 0),
-      analyzed_at: String(r[13] ?? ''),
-      cyclomatic_complexity: Number(r[14] ?? 0),
+      fan_out: Number(r[13] ?? 0),
+      distinct_callees: Number(r[14] ?? 0),
+      function_role: String(r[15] ?? 'peripheral'),
+      analyzed_at: String(r[16] ?? ''),
+      cyclomatic_complexity: Number(r[17] ?? 0),
     }));
   }
 
@@ -7256,7 +8038,9 @@ export class TrailDatabase {
     end_line: number; language: string;
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
-    signal_fan_in_zero: number; analyzed_at: string;
+    signal_fan_in_zero: number;
+    fan_out: number; distinct_callees: number; function_role: string;
+    analyzed_at: string;
     cyclomatic_complexity: number;
   }> {
     const db = this.ensureDb();
@@ -7264,7 +8048,9 @@ export class TrailDatabase {
       `SELECT release_tag, repo_name, file_path, function_name, start_line,
               end_line, language, fan_in, cognitive_complexity,
               data_mutation_score, side_effect_score, line_count,
-              importance_score, signal_fan_in_zero, analyzed_at,
+              importance_score, signal_fan_in_zero,
+              fan_out, distinct_callees, function_role,
+              analyzed_at,
               cyclomatic_complexity
        FROM release_function_analysis`,
     );
@@ -7284,8 +8070,11 @@ export class TrailDatabase {
       line_count: Number(r[11] ?? 0),
       importance_score: Number(r[12] ?? 0),
       signal_fan_in_zero: Number(r[13] ?? 0),
-      analyzed_at: String(r[14] ?? ''),
-      cyclomatic_complexity: Number(r[15] ?? 0),
+      fan_out: Number(r[14] ?? 0),
+      distinct_callees: Number(r[15] ?? 0),
+      function_role: String(r[16] ?? 'peripheral'),
+      analyzed_at: String(r[17] ?? ''),
+      cyclomatic_complexity: Number(r[18] ?? 0),
     }));
   }
 

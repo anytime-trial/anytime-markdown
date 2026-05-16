@@ -19,8 +19,10 @@ import type {
   DateRange,
   ReleaseQualityBucket,
 } from '@anytime-markdown/trail-core/domain/metrics';
+import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 
 export interface AnalyticsPanelProps {
+  readonly releases?: readonly TrailRelease[];
   readonly analytics: AnalyticsData | null;
   readonly sessions?: readonly TrailSession[];
   readonly onSelectSession?: (id: string) => void;
@@ -34,6 +36,9 @@ export interface AnalyticsPanelProps {
   readonly fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics | null>;
   readonly fetchDeploymentFrequency?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<{ bucketStart: string; value: number }>>;
   readonly fetchReleaseQuality?: (range: DateRange, bucket: 'day' | 'week') => Promise<ReadonlyArray<ReleaseQualityBucket>>;
+  readonly onOpenReleasesPopup?: () => void;
+  readonly onOpenPromptsPopup?: () => void;
+  readonly onOpenMessagesPopup?: () => void;
   readonly sessionsLoading?: boolean;
 }
 
@@ -62,7 +67,8 @@ export type DailyViewMode = 'tokens' | 'cost';
 export type PeriodDays = 7 | 30 | 90;
 export type SessionToolMetric = 'count' | 'tokens' | 'duration';
 export type ChartMetric = 'count' | 'tokens';
-export type CombinedChartKind = 'tools' | 'errors' | 'repos' | 'skills' | 'models' | 'agents' | 'commits' | 'releases';
+export type ToolChartMetric = 'count' | 'tokens' | 'error';
+export type CombinedChartKind = 'tools' | 'repos' | 'skills' | 'models' | 'agents' | 'commits' | 'releases';
 export type AgentMetric = 'tokens' | 'cost' | 'loc';
 export type CommitMetric = 'count' | 'loc' | 'leadTime';
-export type CombinedMetric = 'tokens' | 'tools' | 'errors' | 'repos' | 'skills' | 'models' | 'agents' | 'commits' | 'releases';
+export type CombinedMetric = 'tokens' | 'tools' | 'repos' | 'skills' | 'models' | 'agents' | 'commits' | 'releases';

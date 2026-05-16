@@ -1,10 +1,5 @@
 import type { DateRange } from './types';
 
-function startOfDayUTC(ms: number): number {
-  const d = new Date(ms);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-}
-
 function startOfWeekUTC(ms: number): number {
   const d = new Date(ms);
   const day = d.getUTCDay(); // 0=Sun
@@ -19,13 +14,16 @@ export function buildTimeSeries(
 ): Array<{ bucketStart: string; value: number }> {
   const fromMs = new Date(range.from).getTime();
   const toMs = new Date(range.to).getTime();
-  const bucketFn = bucket === 'day' ? startOfDayUTC : startOfWeekUTC;
 
   // Build bucket map
   const buckets = new Map<number, number[]>();
 
-  // Pre-fill buckets from range start to end
-  let cursor = bucketFn(fromMs);
+  // Pre-fill buckets from range start to end.
+  // For 'day': anchor to fromMs (which is local midnight in UTC form) so that
+  //   cross-midnight events are attributed to the correct local day.
+  // For 'week': use Sunday-UTC anchor (existing behavior).
+  const weekCursorStart = startOfWeekUTC(fromMs);
+  let cursor = bucket === 'day' ? fromMs : weekCursorStart;
   while (cursor <= toMs) {
     buckets.set(cursor, []);
     cursor += bucket === 'day' ? 86_400_000 : 7 * 86_400_000;
@@ -34,7 +32,9 @@ export function buildTimeSeries(
   for (const ev of events) {
     const evMs = new Date(ev.date).getTime();
     if (evMs < fromMs || evMs > toMs) continue;
-    const key = bucketFn(evMs);
+    const key = bucket === 'day'
+      ? fromMs + Math.floor((evMs - fromMs) / 86_400_000) * 86_400_000
+      : startOfWeekUTC(evMs);
     const existing = buckets.get(key);
     if (existing) {
       existing.push(ev.value);
@@ -72,12 +72,13 @@ export function buildRatioTimeSeries(
 ): Array<{ bucketStart: string; value: number }> {
   const fromMs = new Date(range.from).getTime();
   const toMs = new Date(range.to).getTime();
-  const bucketFn = bucket === 'day' ? startOfDayUTC : startOfWeekUTC;
 
   type Acc = { num: number; den: number };
   const buckets = new Map<number, Acc>();
 
-  let cursor = bucketFn(fromMs);
+  // Same day-anchor logic as buildTimeSeries: use fromMs as the base for day buckets.
+  const weekCursorStart = startOfWeekUTC(fromMs);
+  let cursor = bucket === 'day' ? fromMs : weekCursorStart;
   while (cursor <= toMs) {
     buckets.set(cursor, { num: 0, den: 0 });
     cursor += bucket === 'day' ? 86_400_000 : 7 * 86_400_000;
@@ -86,7 +87,9 @@ export function buildRatioTimeSeries(
   for (const s of samples) {
     const evMs = new Date(s.date).getTime();
     if (evMs < fromMs || evMs > toMs) continue;
-    const key = bucketFn(evMs);
+    const key = bucket === 'day'
+      ? fromMs + Math.floor((evMs - fromMs) / 86_400_000) * 86_400_000
+      : startOfWeekUTC(evMs);
     const acc = buckets.get(key);
     if (acc) {
       acc.num += s.numerator;

@@ -54,6 +54,9 @@ CREATE TABLE IF NOT EXISTS trail_sessions (
     interruption_reason TEXT,
     interruption_context_tokens INTEGER,
     compact_count INTEGER,
+    sub_agent_count         INTEGER NOT NULL DEFAULT 0,
+    error_count             INTEGER NOT NULL DEFAULT 0,
+    assistant_message_count INTEGER NOT NULL DEFAULT 0,
     source TEXT NOT NULL DEFAULT 'claude_code',
     synced_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -172,6 +175,7 @@ CREATE TABLE IF NOT EXISTS trail_releases (
     files_changed INTEGER NOT NULL DEFAULT 0,
     lines_added INTEGER NOT NULL DEFAULT 0,
     lines_deleted INTEGER NOT NULL DEFAULT 0,
+    total_lines INTEGER NOT NULL DEFAULT 0,
     feat_count INTEGER NOT NULL DEFAULT 0,
     fix_count INTEGER NOT NULL DEFAULT 0,
     refactor_count INTEGER NOT NULL DEFAULT 0,
@@ -180,6 +184,7 @@ CREATE TABLE IF NOT EXISTS trail_releases (
     affected_packages TEXT NOT NULL DEFAULT '[]',
     duration_days REAL NOT NULL DEFAULT 0,
     resolved_at TEXT,
+    release_time_min REAL,
     synced_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -317,6 +322,13 @@ CREATE TABLE IF NOT EXISTS trail_current_file_analysis (
   signal_isolated_community  INTEGER          NOT NULL DEFAULT 0,
   is_ignored                 INTEGER          NOT NULL DEFAULT 0,
   ignore_reason              TEXT             NOT NULL DEFAULT '',
+  cross_pkg_in_count         INTEGER          NOT NULL DEFAULT 0,
+  external_consumer_pkgs     INTEGER          NOT NULL DEFAULT 0,
+  total_in_count             INTEGER          NOT NULL DEFAULT 0,
+  is_barrel                  INTEGER          NOT NULL DEFAULT 0,
+  centrality_score           DOUBLE PRECISION NOT NULL DEFAULT 0,
+  category                   TEXT             NOT NULL DEFAULT 'logic'
+                             CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT             NOT NULL,
   PRIMARY KEY (repo_name, file_path)
 );
@@ -324,6 +336,8 @@ CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_dead_code
   ON trail_current_file_analysis (repo_name, dead_code_score DESC);
 CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_importance
   ON trail_current_file_analysis (repo_name, importance_score DESC);
+CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_centrality
+  ON trail_current_file_analysis (repo_name, centrality_score DESC);
 
 -- 未使用コード検出 ファイル単位スコア リリース版（ローカル release_file_analysis と対応）
 CREATE TABLE IF NOT EXISTS trail_release_file_analysis (
@@ -344,6 +358,13 @@ CREATE TABLE IF NOT EXISTS trail_release_file_analysis (
   signal_isolated_community  INTEGER          NOT NULL DEFAULT 0,
   is_ignored                 INTEGER          NOT NULL DEFAULT 0,
   ignore_reason              TEXT             NOT NULL DEFAULT '',
+  cross_pkg_in_count         INTEGER          NOT NULL DEFAULT 0,
+  external_consumer_pkgs     INTEGER          NOT NULL DEFAULT 0,
+  total_in_count             INTEGER          NOT NULL DEFAULT 0,
+  is_barrel                  INTEGER          NOT NULL DEFAULT 0,
+  centrality_score           DOUBLE PRECISION NOT NULL DEFAULT 0,
+  category                   TEXT             NOT NULL DEFAULT 'logic'
+                             CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT             NOT NULL,
   PRIMARY KEY (release_tag, repo_name, file_path)
 );
@@ -364,6 +385,9 @@ CREATE TABLE IF NOT EXISTS trail_current_function_analysis (
   line_count             INTEGER          NOT NULL DEFAULT 0,
   importance_score       DOUBLE PRECISION NOT NULL DEFAULT 0,
   signal_fan_in_zero     INTEGER          NOT NULL DEFAULT 0,
+  fan_out                INTEGER          NOT NULL DEFAULT 0,
+  distinct_callees       INTEGER          NOT NULL DEFAULT 0,
+  function_role          TEXT             NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT             NOT NULL,
   PRIMARY KEY (repo_name, file_path, function_name, start_line)
 );
@@ -385,6 +409,9 @@ CREATE TABLE IF NOT EXISTS trail_release_function_analysis (
   line_count             INTEGER          NOT NULL DEFAULT 0,
   importance_score       DOUBLE PRECISION NOT NULL DEFAULT 0,
   signal_fan_in_zero     INTEGER          NOT NULL DEFAULT 0,
+  fan_out                INTEGER          NOT NULL DEFAULT 0,
+  distinct_callees       INTEGER          NOT NULL DEFAULT 0,
+  function_role          TEXT             NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT             NOT NULL,
   PRIMARY KEY (release_tag, repo_name, file_path, function_name, start_line)
 );
@@ -404,6 +431,7 @@ CREATE TABLE IF NOT EXISTS trail_current_code_graph_communities (
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
   summary      TEXT    NOT NULL DEFAULT '',
+  stable_key   TEXT    NOT NULL DEFAULT '',
   mappings_json TEXT NULL,
   generated_at TEXT,
   updated_at   TEXT,
@@ -425,6 +453,7 @@ CREATE TABLE IF NOT EXISTS trail_release_code_graph_communities (
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
   summary      TEXT    NOT NULL DEFAULT '',
+  stable_key   TEXT    NOT NULL DEFAULT '',
   generated_at TEXT,
   updated_at   TEXT,
   PRIMARY KEY (release_tag, community_id)
@@ -453,6 +482,9 @@ CREATE INDEX IF NOT EXISTS idx_trail_release_features_tag ON trail_release_featu
 CREATE INDEX IF NOT EXISTS idx_trail_release_coverage_tag ON trail_release_coverage(release_tag);
 CREATE INDEX IF NOT EXISTS idx_trail_release_code_graphs_tag ON trail_release_code_graphs(release_tag);
 CREATE INDEX IF NOT EXISTS idx_trail_release_code_graph_communities_tag ON trail_release_code_graph_communities(release_tag);
+-- stable_key（ノード集合コンテンツハッシュ）による「同じノード集合のコミュニティ」高速検索
+CREATE INDEX IF NOT EXISTS idx_trail_ccgc_stable_key ON trail_current_code_graph_communities(repo_name, stable_key) WHERE stable_key != '';
+CREATE INDEX IF NOT EXISTS idx_trail_rcgc_stable_key ON trail_release_code_graph_communities(release_tag, stable_key) WHERE stable_key != '';
 CREATE INDEX IF NOT EXISTS idx_trail_mtc_session ON trail_message_tool_calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_trail_mtc_timestamp ON trail_message_tool_calls(timestamp);
 

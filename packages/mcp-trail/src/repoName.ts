@@ -1,5 +1,5 @@
 import * as path from 'path';
-import type { Database } from 'sql.js';
+import type { Database } from 'better-sqlite3';
 import { all } from './sqlite/sqlJsUtil';
 
 export function resolveRepoName(
@@ -30,7 +30,7 @@ export function resolveRepoName(
     }
     // 0 件 → 次の候補へ
   } catch (e) {
-    // sql.js Error (テーブル不在) は無視して次の候補へ
+    // SQLite エラー (テーブル不在) は無視して次の候補へ
     // 独自 Error（Multiple repos）はそのまま再 throw
     if (e instanceof Error && e.message.startsWith('Multiple repos found')) {
       throw e;

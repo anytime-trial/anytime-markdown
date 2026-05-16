@@ -1,14 +1,14 @@
 out
 dist
 node_modules
+prebuilt-vscode
 .agents
-.anytime-trail
+.anytime
 .clone
 .claude
 .next
 .playwright-mcp
 .serena
-.trail
 .vscode
 .worktrees
 .v8-coverage
@@ -32,3 +32,10 @@ test-results/
 packages/web-app/public/sw.js
 
 skills-lock.json
+
+# Supabase CLI cache
+supabase/.temp/
+.superpowers/
+
+# sql.js 撤去後は不要だが、過去にテスト実行で残ったゴミの再混入を防止
+packages/memory-core/dbfile_*

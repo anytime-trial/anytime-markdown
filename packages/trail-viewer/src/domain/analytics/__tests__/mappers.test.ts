@@ -1,105 +1,66 @@
 import { extractWorkspace, toTrailMessage, toTrailSession } from '../mappers';
 
 describe('toTrailSession', () => {
-  it('maps session source into TrailSession', () => {
-    const session = toTrailSession(
-      {
-        id: 's1',
-        slug: 'slug-1',
-        repo_name: 'repo',
-        model: 'gpt-5',
-        version: '0.1.0',
-        start_time: '2026-04-30T00:00:00.000Z',
-        end_time: '2026-04-30T00:10:00.000Z',
-        message_count: 2,
-        peak_context_tokens: null,
-        initial_context_tokens: null,
-        interruption_reason: null,
-        interruption_context_tokens: null,
-        compact_count: null,
-        source: 'codex',
-        trail_session_costs: [],
-      },
-      [],
-      undefined,
-      undefined,
-    );
+  const baseRow = {
+    id: 's1',
+    slug: 'slug-1',
+    repo_name: 'repo',
+    model: 'opus',
+    version: '0.1.0',
+    start_time: '2026-04-30T00:00:00.000Z',
+    end_time: '2026-04-30T00:10:00.000Z',
+    message_count: 2,
+    peak_context_tokens: null,
+    initial_context_tokens: null,
+    interruption_reason: null,
+    interruption_context_tokens: null,
+    compact_count: null,
+    sub_agent_count: null,
+    error_count: null,
+    assistant_message_count: null,
+    source: 'claude_code' as const,
+    trail_session_costs: [],
+  };
 
+  it('maps session source into TrailSession', () => {
+    const session = toTrailSession({ ...baseRow, source: 'codex' }, []);
     expect(session.source).toBe('codex');
   });
 
-  it('propagates subAgentCount through toTrailSession', () => {
-    const session = toTrailSession(
-      {
-        id: 's1',
-        slug: 'slug-1',
-        repo_name: 'repo',
-        model: 'opus',
-        version: '0.1.0',
-        start_time: '2026-04-30T00:00:00.000Z',
-        end_time: '2026-04-30T00:10:00.000Z',
-        message_count: 2,
-        peak_context_tokens: null,
-        initial_context_tokens: null,
-        interruption_reason: null,
-        interruption_context_tokens: null,
-        compact_count: null,
-        source: 'claude_code',
-        trail_session_costs: [],
-      },
-      [],
-      undefined,
-      3,
-    );
-
+  it('propagates subAgentCount from row.sub_agent_count', () => {
+    const session = toTrailSession({ ...baseRow, sub_agent_count: 3 }, []);
     expect(session.subAgentCount).toBe(3);
   });
 
-  it('omits subAgentCount when 0 or undefined', () => {
-    const baseRow = {
-      id: 's1',
-      slug: 'slug-1',
-      repo_name: 'repo',
-      model: 'opus',
-      version: '0.1.0',
-      start_time: '2026-04-30T00:00:00.000Z',
-      end_time: '2026-04-30T00:10:00.000Z',
-      message_count: 2,
-      peak_context_tokens: null,
-      initial_context_tokens: null,
-      interruption_reason: null,
-      interruption_context_tokens: null,
-      compact_count: null,
-      source: 'claude_code' as const,
-      trail_session_costs: [],
-    };
-    expect(toTrailSession(baseRow, [], undefined, undefined).subAgentCount).toBeUndefined();
-    expect(toTrailSession(baseRow, [], undefined, 0).subAgentCount).toBeUndefined();
+  it('omits subAgentCount when 0 or null', () => {
+    expect(toTrailSession({ ...baseRow, sub_agent_count: null }, []).subAgentCount).toBeUndefined();
+    expect(toTrailSession({ ...baseRow, sub_agent_count: 0 }, []).subAgentCount).toBeUndefined();
+  });
+
+  it('propagates errorCount from row.error_count', () => {
+    const session = toTrailSession({ ...baseRow, error_count: 2 }, []);
+    expect(session.errorCount).toBe(2);
+  });
+
+  it('propagates assistantMessageCount from row.assistant_message_count', () => {
+    const session = toTrailSession({ ...baseRow, assistant_message_count: 10 }, []);
+    expect(session.assistantMessageCount).toBe(10);
   });
 
   it('file_path からワークスペースを導出して TrailSession にマッピングする', () => {
     const session = toTrailSession(
       {
+        ...baseRow,
         id: 's1',
-        slug: 'slug-1',
         repo_name: 'anytime-markdown',
         model: 'claude-sonnet-4-6',
         version: '2.1.0',
         start_time: '2026-05-05T00:00:00.000Z',
         end_time: '2026-05-05T01:00:00.000Z',
         message_count: 5,
-        peak_context_tokens: null,
-        initial_context_tokens: null,
-        interruption_reason: null,
-        interruption_context_tokens: null,
-        compact_count: null,
-        source: 'claude_code',
         file_path: '/home/node/.claude/projects/-anytime-lab/session.jsonl',
-        trail_session_costs: [],
       },
       [],
-      undefined,
-      undefined,
     );
     expect(session.workspace).toBe('/anytime-lab');
   });
@@ -107,6 +68,7 @@ describe('toTrailSession', () => {
   it('worktree セッションは親ワークスペースにマッピングされる', () => {
     const session = toTrailSession(
       {
+        ...baseRow,
         id: 's2',
         slug: 'slug-2',
         repo_name: 'anytime-markdown',
@@ -115,18 +77,9 @@ describe('toTrailSession', () => {
         start_time: '2026-05-05T00:00:00.000Z',
         end_time: '2026-05-05T01:00:00.000Z',
         message_count: 3,
-        peak_context_tokens: null,
-        initial_context_tokens: null,
-        interruption_reason: null,
-        interruption_context_tokens: null,
-        compact_count: null,
-        source: 'claude_code',
         file_path: '/home/node/.claude/projects/-anytime-markdown--worktrees-feature-xyz/s2.jsonl',
-        trail_session_costs: [],
       },
       [],
-      undefined,
-      undefined,
     );
     expect(session.workspace).toBe('/anytime-markdown');
   });
