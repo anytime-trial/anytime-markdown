@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-05-16
+
+### Added
+
+- Expanded `DEFAULT_ANALYZE_EXCLUDE_CONTENT` used by `seedAnalyzeExclude` (added `.claude/`, `.changeset/`, `.github/`, `.config/`, `.playwright-mcp/`, `.serena/`, `.vscode/`, `__mocks__/`, `demos/`, `dist/`, `**/CHANGELOG.{ja,}.md`, `**/README.{ja,}.md`)
+
+### Changed
+
+- **Breaking:** Moved agent mapping out of `trail-core` into the new `agent-core` package. Consumers must import agent mapping from `@anytime-markdown/agent-core`
+
+### Security
+
+- Hardened regex literals against polynomial backtracking (ReDoS)
+
 ## [0.19.0] - 2026-05-15
 
 ### Changed

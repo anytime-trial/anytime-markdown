@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-16
+
+### Added
+
+- Added `anytime-trial.anytime-agent` to the extension pack
+
+### Changed
+
+- Updated bundled extension versions: anytime-markdown 0.15.1, anytime-trail 0.20.0, anytime-database 0.2.0, anytime-history 0.2.1, anytime-agent 0.1.0
+
 ## [0.4.0] - 2026-05-08
 
 ### Changed

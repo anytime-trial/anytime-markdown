@@ -9,6 +9,7 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
+    "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/memory-core": "*"
   },
   "devDependencies": {

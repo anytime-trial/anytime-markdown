@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { encodeEmbedding } from '../embedding/codec';
 import { noopLogger, type MemoryLogger } from '../logger';
-import type { OllamaClient } from '../ollama/client';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 const SCOPE = 'embedding_backfill';
 const DEFAULT_EMBED_MODEL = 'bge-m3';

@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/web-app",
-  "version": "0.26.1",
+  "version": "0.26.2",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -19,10 +19,8 @@
     "@anytime-markdown/cms-core": "*",
     "@anytime-markdown/database-core": "*",
     "@anytime-markdown/database-viewer": "*",
-    "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/graph-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
-    "@anytime-markdown/spreadsheet-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/trace-core": "*",
     "@anytime-markdown/trace-viewer": "*",
@@ -59,6 +57,7 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@anytime-markdown/graph-core": "*",
     "@next/bundle-analyzer": "15.3.3",
     "@playwright/test": "1.58.2",
     "@testing-library/react": "16.3.2",

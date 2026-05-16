@@ -8,5 +8,16 @@
   "1 generation": "1 世代",
   "{0} generations": "{0} 世代",
   "Generation {0}": "世代 {0}",
-  "$(loading~spin) Syncing...": "$(loading~spin) 同期中..."
+  "$(loading~spin) Syncing...": "$(loading~spin) 同期中...",
+  "Trail DB is not initialized.": "Trail DB が初期化されていません。",
+  "No backups available yet. Backups are created on the first save of each VS Code session.": "利用可能なバックアップがありません。バックアップは VS Code セッション初回保存時に作成されます。",
+  "Restore Trail DB from backup": "Trail DB をバックアップから復元",
+  "Select a generation to restore (current DB will be saved as .restore-safety-*)": "復元する世代を選択 (現在の DB は .restore-safety-* として保存されます)",
+  "Backup generation {0} not found.": "バックアップ世代 {0} が見つかりません。",
+  "Restore Trail DB from generation {0}? The current DB will be backed up to a .restore-safety-* file. You must reload the VS Code window after restore for changes to take effect.": "世代 {0} から Trail DB を復元しますか? 現在の DB は .restore-safety-* ファイルにバックアップされます。復元後、変更を反映するには VS Code ウィンドウのリロードが必要です。",
+  "Restore": "復元",
+  "Restored from generation {0}. Reload the window now?": "世代 {0} から復元しました。今すぐウィンドウをリロードしますか?",
+  "Reload Window": "ウィンドウをリロード",
+  "Restore failed: {0}": "復元に失敗しました: {0}",
+  "No database files found": "データベースファイルが見つかりません"
 }

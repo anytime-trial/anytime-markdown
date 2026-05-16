@@ -31,8 +31,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			treeDataProvider: changesProvider,
 		});
 
-		// 変更ファイル数をサイドバーバッジに表示 + 消えたファイルのタブを閉じる
-		let previousChangedPaths = new Set<string>();
+		// 変更ファイル数をサイドバーバッジに表示
 		const cp = changesProvider;
 		const ctv = changesTreeView;
 		const updateChangesBadge = async () => {
@@ -40,8 +39,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			ctv.badge = count > 0
 				? { value: count, tooltip: `${count} changes` }
 				: undefined;
-			await cp.closeRemovedTabs(previousChangedPaths);
-			previousChangedPaths = await cp.getChangedPaths();
 		};
 		cp.onDidChangeTreeData(() => { void updateChangesBadge(); });
 		setTimeout(() => {

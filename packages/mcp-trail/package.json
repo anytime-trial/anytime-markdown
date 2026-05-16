@@ -16,6 +16,7 @@
     "test:coverage": "jest --coverage --maxWorkers=1"
   },
   "dependencies": {
+    "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/memory-core": "*",
     "@anytime-markdown/trail-core": "*",
     "@modelcontextprotocol/sdk": "1.27.1",

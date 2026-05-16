@@ -1,0 +1,18 @@
+{
+  "displayName": "Anytime Agent",
+  "description": "Status panels for Claude Code sessions and Ollama backends.",
+  "viewsContainer.title": "Anytime Agent",
+  "view.mapping": "Agent Mapping",
+  "view.ollama": "Ollama",
+  "viewsWelcome.mapping": "No Claude Code sessions detected.\n\nThe status file is written by the anytime-trail Claude Code hook.\nMake sure the hook is installed.",
+  "command.mapping.refresh": "Refresh Agent Mapping",
+  "command.mapping.cleanupStale": "Cleanup Stale Sessions",
+  "command.mapping.toggleStale": "Toggle Stale Sessions",
+  "command.mapping.openWorktree": "Open Worktree in New Window",
+  "command.mapping.copyWorktreePath": "Copy Worktree Path",
+  "command.mapping.showSessionEdits": "Show Session Edits",
+  "command.mapping.copySessionId": "Copy Session ID",
+  "command.mapping.deleteStatusFile": "Delete Status File",
+  "command.startOllama": "Start Ollama",
+  "config.claudeStatus.directory": "Directory where `claude-code-status.json` is stored. Absolute path or relative to workspace root. Defaults to `.anytime/trail/agent-status`."
+}

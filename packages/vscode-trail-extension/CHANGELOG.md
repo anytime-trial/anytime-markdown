@@ -6,6 +6,77 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-05-16
+
+### Added
+
+- New VS Code command `Anytime Trail: Analyze Code (Pick Tsconfig)` (`anytime-trail.analyzeCurrentCodePickTsconfig`). Exposes the legacy QuickPick tsconfig selection flow for monorepos where the default shallowest pick is not desired. Available from the command palette only (not bound to the dashboard icon)
+- New VS Code command `Anytime Trail: Register MCP Server (write .mcp.json)` (`anytime-trail.registerMcpServer`). Adds/updates the `mcpServers.mcp-trail` entry in the workspace root's `.mcp.json` (preserving other server entries), including a `TRAIL_SERVER_URL` env that reflects the current `anytimeTrail.viewer.port` setting. Unparseable JSON is backed up to `.bak.<timestamp>` before recreating (avoiding silent data loss)
+- Expanded `DEFAULT_ANALYZE_EXCLUDE_CONTENT` (used by `seedAnalyzeExclude` to create `.anytime/analyze-exclude` on first analyze). Added `.claude/` / `.changeset/` / `.github/` / `.config/` / `.playwright-mcp/` / `.serena/` / `.vscode/` / `__mocks__/` / `demos/` / `dist/` / `**/CHANGELOG.{ja,}.md` / `**/README.{ja,}.md` to match the patterns we keep in our own workspace
+- `loadConfig` now **auto-generates `config.json` on disk** when the file is missing (used by both the extension and daemon), giving users an editable starting point. Falls back to in-memory DEFAULT_CONFIG if the write fails
+- **Breaking:** New VS Code setting `anytimeTrail.analyzeAll.enabled` (boolean, default `false`). When disabled, the Pipelines tree view is hidden and AnalyzeAllRunner is not constructed (automatic / manual command / HTTP API all become no-ops). Existing users who want to keep auto-runs must set this to `true` and reload the window
+- Bundled `anytime-basic-design` skill: installed automatically on activate via the new `installStaticSkillDir` helper
+- Bundled `anytime-note` skill as a template: installed via the new `installTemplatedSkill` helper, with agent notes stored under `<workspace>/.anytime/notes`
+- Renamed the bundled `anytime-reverse-*` skill family (dirs + content + install helpers wired to the new names)
+- Multi-repo `code-graph` support: `trail-server` honors the `repo`/`repoName` parameter across `/api/code-graph` current mode, query/explain/path routes, and pipeline/refresh paths; `CodeGraphService` cache is now per-repo
+- `mcp-trail` `list_community_nodes` read tool
+
+### Changed
+
+- `Anytime Trail: Analyze Code` (dashboard icon / command palette) no longer prompts for tsconfig selection when multiple `tsconfig.json` files are found. It auto-selects the shallowest one (workspace root preferred) with an info notification, matching the HTTP / MCP behavior. Use the new `Anytime Trail: Analyze Code (Pick Tsconfig)` command from the command palette to choose a specific tsconfig
+- **Breaking:** Default `analyzeAll.runOnStart` flipped from `true` to `false`, and `startupDelaySec` raised from `5` to `30`. AnalyzeAll now requires explicit opt-in
+- **Breaking:** Simplified `TrailServerConfig`: removed `scheduler.*` (periodicImport / memoryCore) and `memory.ingest`, and reset `schemaVersion` to `1`. **No migration is performed** from prior schemas — unknown legacy fields are silently ignored and defaults are used. Users with existing configs must either rewrite to the new `analyzeAll.*` shape or delete the file to regenerate DEFAULT_CONFIG
+- **Breaking:** Consolidated memory-core pause/resume into AnalyzeAll-level (importAll + memory-core runOnce)
+- **Breaking:** Renamed VS Code commands `anytime-trail.memory.{pause,resume,status}Ingest` to `anytime-trail.analyzeAll.{pause,resume,status}` (old commands removed)
+- **Breaking:** Renamed HTTP endpoints `/api/memory-core/{pause,resume,status}` to `/api/analyze-all/{pause,resume,status}` (old endpoints removed)
+- **Breaking:** Renamed trail-server CLI subcommands `ingest {pause,resume,status}` to `analyze-all {pause,resume,status}` (old subcommand removed)
+- Added AnalyzeAllRunner that centralizes importAll → memory-core orchestration, pause/resume, and persistent ticks/lastRunAt/lastError tracking (`<TRAIL_HOME>/analyze-all-runner.json`). `memory-core-runner.json` remains for diagnostics but its paused field is no longer consulted
+
+### Fixed
+
+- Per-character pipe escape in feature-list summary is now forbidden (`anytime-reverse-spec`)
+- `anytime-note` skill is installed at activate so users see it on first launch
+- `pipeline-status.json` reader / writer kept in sync
+
+### Removed
+
+- **Breaking:** VS Code commands `Anytime Trail: Pause AnalyzeAll Pipeline` (`anytime-trail.analyzeAll.pause`) and `Anytime Trail: Resume AnalyzeAll Pipeline` (`anytime-trail.analyzeAll.resume`). Pause/resume remain available via HTTP API (`POST /api/analyze-all/{pause,resume}`) and `trail-server analyze-all {pause,resume}` CLI for daemon/automation use. `anytime-trail.analyzeAll.status` command stays
+- **Breaking:** VS Code command `Anytime Trail: Analyze Release Code` (`anytime-trail.analyzeReleaseCode`). The underlying `runAnalyzeReleaseCodePipeline` and HTTP endpoint (`onAnalyzeReleaseCode` / `mcp-trail`'s `analyze_release_code` tool) remain functional for MCP / automation use
+- **Breaking:** VS Code command `Anytime Trail: Register MCP Server to Claude Code (mcp-trail)` (`anytime-trail.registerMcpToClaudeCode`) and its helper `buildClaudeMcpAddCommand`. The clipboard-based `claude mcp add` flow is superseded by the new `Anytime Trail: Register MCP Server (write .mcp.json)` (`anytime-trail.registerMcpServer`) which writes the workspace-level `.mcp.json` directly. Users who registered via the old command can re-run the new one (and optionally `claude mcp remove mcp-trail` to drop the user-scope registration)
+- `createAnalyzeAllJob` / `createPeriodicImportJob` (replaced by AnalyzeAllRunner)
+- `TrailDataServer.setMemoryCoreService` (AnalyzeAllRunner hosts the service)
+- Backward-compatibility shims in trail-server and vscode-trail-extension
+
+### Security
+
+- Hardened regex literals against polynomial backtracking (ReDoS)
+- Webview message listeners verify message origin before handling events
+
+### Trail Core (trail-core)
+
+- Expanded `DEFAULT_ANALYZE_EXCLUDE_CONTENT`
+- **Breaking:** Agent mapping moved from `trail-core` to the new `agent-core` package
+- Hardened regex literals against ReDoS
+
+### Changed
+
+- `Anytime Trail: Analyze Code` (dashboard icon / command palette) no longer prompts for tsconfig selection when multiple `tsconfig.json` files are found. It auto-selects the shallowest one (workspace root preferred) with an info notification, matching the HTTP / MCP behavior. Use the new `Anytime Trail: Analyze Code (Pick Tsconfig)` command from the command palette to choose a specific tsconfig
+- **Breaking:** Default `analyzeAll.runOnStart` flipped from `true` to `false`, and `startupDelaySec` raised from `5` to `30`. AnalyzeAll now requires explicit opt-in
+- **Breaking:** Simplified `TrailServerConfig`: removed `scheduler.*` (periodicImport / memoryCore) and `memory.ingest`, and reset `schemaVersion` to `1`. **No migration is performed** from prior schemas — unknown legacy fields are silently ignored and defaults are used. Users with existing configs must either rewrite to the new `analyzeAll.*` shape or delete the file to regenerate DEFAULT_CONFIG
+- **Breaking:** Consolidated memory-core pause/resume into AnalyzeAll-level (importAll + memory-core runOnce)
+- **Breaking:** Renamed VS Code commands `anytime-trail.memory.{pause,resume,status}Ingest` to `anytime-trail.analyzeAll.{pause,resume,status}` (old commands removed)
+- **Breaking:** Renamed HTTP endpoints `/api/memory-core/{pause,resume,status}` to `/api/analyze-all/{pause,resume,status}` (old endpoints removed)
+- **Breaking:** Renamed trail-server CLI subcommands `ingest {pause,resume,status}` to `analyze-all {pause,resume,status}` (old subcommand removed)
+- Added AnalyzeAllRunner that centralizes importAll → memory-core orchestration, pause/resume, and persistent ticks/lastRunAt/lastError tracking (`<TRAIL_HOME>/analyze-all-runner.json`). `memory-core-runner.json` remains for diagnostics but its paused field is no longer consulted
+
+### Removed
+
+- **Breaking:** VS Code commands `Anytime Trail: Pause AnalyzeAll Pipeline` (`anytime-trail.analyzeAll.pause`) and `Anytime Trail: Resume AnalyzeAll Pipeline` (`anytime-trail.analyzeAll.resume`). Pause/resume remain available via HTTP API (`POST /api/analyze-all/{pause,resume}`) and `trail-server analyze-all {pause,resume}` CLI for daemon/automation use. `anytime-trail.analyzeAll.status` command stays
+- **Breaking:** VS Code command `Anytime Trail: Analyze Release Code` (`anytime-trail.analyzeReleaseCode`). The underlying `runAnalyzeReleaseCodePipeline` and HTTP endpoint (`onAnalyzeReleaseCode` / `mcp-trail`'s `analyze_release_code` tool) remain functional for MCP / automation use
+- **Breaking:** VS Code command `Anytime Trail: Register MCP Server to Claude Code (mcp-trail)` (`anytime-trail.registerMcpToClaudeCode`) and its helper `buildClaudeMcpAddCommand`. The clipboard-based `claude mcp add` flow is superseded by the new `Anytime Trail: Register MCP Server (write .mcp.json)` (`anytime-trail.registerMcpServer`) which writes the workspace-level `.mcp.json` directly. Users who registered via the old command can re-run the new one (and optionally `claude mcp remove mcp-trail` to drop the user-scope registration)
+- `createAnalyzeAllJob` / `createPeriodicImportJob` (replaced by AnalyzeAllRunner)
+- `TrailDataServer.setMemoryCoreService` (AnalyzeAllRunner hosts the service)
+
 ## [0.19.0] - 2026-05-15
 
 ### Changed

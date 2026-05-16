@@ -11,6 +11,8 @@ export interface MdSerializerState {
   ensureNewLine(): void;
   closeBlock(node: PMNode): void;
   inTable?: boolean;
+  /** prosemirror-markdown の出力バッファ。renderInline 後のテキストを後処理する用途で利用する */
+  out: string;
 }
 
 /** tiptap-markdown storage type */

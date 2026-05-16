@@ -5,7 +5,7 @@ import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { readMessagesSince } from '../ingest/conversation/readMessages';
 import { episodeId, persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
 import { noopLogger, type MemoryLogger } from '../logger';
-import type { OllamaClient } from '../ollama/client';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 const SCOPE = 'conversation_backfill';
 const QUARANTINE_THRESHOLD = 3;

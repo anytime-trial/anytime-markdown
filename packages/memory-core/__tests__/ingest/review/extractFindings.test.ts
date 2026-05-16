@@ -1,5 +1,5 @@
 import { refineCategories } from '../../../src/ingest/review/extractFindings';
-import type { OllamaClient } from '../../../src/ollama/client';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 import type { ParsedFinding } from '../../../src/ingest/review/findingHelpers';
 
 // ── helpers ───────────────────────────────────────────────────────────────────

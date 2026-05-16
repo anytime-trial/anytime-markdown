@@ -2,7 +2,7 @@
   "name": "anytime-database",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": { "type": "git", "url": "https://github.com/anytime-trial/anytime-markdown.git" },
@@ -43,6 +43,18 @@
         "command": "anytime-database.reconnectSupabase",
         "title": "%command.reconnectSupabase%",
         "category": "Anytime Database"
+      },
+      {
+        "command": "anytimeDatabase.restoreBackup",
+        "title": "%command.restoreBackup%",
+        "category": "Anytime Database",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "anytime-database.uploadBackupToS3",
+        "title": "%command.uploadBackupToS3%",
+        "category": "Anytime Database",
+        "icon": "$(cloud-upload)"
       }
     ],
     "menus": {
@@ -55,6 +67,16 @@
         {
           "command": "anytime-database.reconnectSupabase",
           "when": "view == anytimeDatabase.database && viewItem == supabaseDb",
+          "group": "inline"
+        },
+        {
+          "command": "anytimeDatabase.restoreBackup",
+          "when": "view == anytimeDatabase.database && viewItem == backupEntry",
+          "group": "inline"
+        },
+        {
+          "command": "anytime-database.uploadBackupToS3",
+          "when": "view == anytimeDatabase.database && viewItem == backupEntryLatest",
           "group": "inline"
         }
       ]
@@ -93,6 +115,44 @@
           "minimum": 0,
           "default": 5000,
           "description": "%config.warnThresholdMs.description%"
+        },
+        "anytimeDatabase.backup.generations": {
+          "type": "number",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 10,
+          "markdownDescription": "%config.backup.generations%"
+        },
+        "anytimeDatabase.backup.intervalDays": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "markdownDescription": "%config.backup.intervalDays%"
+        },
+        "anytimeDatabase.s3.bucket": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "%config.s3.bucket.description%"
+        },
+        "anytimeDatabase.s3.region": {
+          "type": "string",
+          "default": "ap-northeast-1",
+          "markdownDescription": "%config.s3.region.description%"
+        },
+        "anytimeDatabase.s3.prefix": {
+          "type": "string",
+          "default": "anytime-database-backups",
+          "markdownDescription": "%config.s3.prefix.description%"
+        },
+        "anytimeDatabase.s3.accessKeyId": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "%config.s3.accessKeyId.description%"
+        },
+        "anytimeDatabase.s3.secretAccessKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "%config.s3.secretAccessKey.description%"
         }
       }
     }
@@ -101,7 +161,8 @@
     "vscode:prepublish": "npm run package",
     "compile": "webpack",
     "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map"
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "test": "jest --maxWorkers=1"
   },
   "devDependencies": {
     "@anytime-markdown/database-core": "*",
@@ -110,11 +171,15 @@
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/vscode-common": "*",
     "@types/better-sqlite3": "7.6.13",
+    "@types/jest": "30.0.0",
     "@types/node": "22.x",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@types/vscode": "1.109.0",
+    "aws-sdk-client-mock": "4.1.0",
     "copy-webpack-plugin": "14.0.0",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.6",
     "ts-loader": "9.5.4",
     "typescript": "5.9.3",
     "webpack": "5.104.1",
@@ -123,6 +188,7 @@
   "dependencies": {
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trail-db": "*",
+    "@aws-sdk/client-s3": "3.1004.0",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",
     "@mui/icons-material": "7.3.7",

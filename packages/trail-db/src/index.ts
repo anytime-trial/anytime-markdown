@@ -18,6 +18,8 @@ export type {
   ActivityTrendGranularity,
   FetchTemporalCouplingOptions,
   FetchDefectRiskOptions,
+  ImportAllPhase,
+  ImportAllPhaseEvent,
 } from './TrailDatabase';
 export { SyncService } from './SyncService';
 export { SupabaseTrailStore } from './SupabaseTrailStore';

@@ -12,7 +12,7 @@ import type {
   ChatProviderChatOptions,
   ChatStreamChunk,
   HealthCheckResult,
-} from '../../src/providers/types';
+} from '@anytime-markdown/llm-core';
 import type { ChatChunk } from '../../src/chat/types';
 import { hybridSearchMemory } from '../../src/rag/hybridSearchMemory';
 

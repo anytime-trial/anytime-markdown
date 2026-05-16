@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-16
+
+### 追加
+
+- `anytime-trial.anytime-agent` をパックに追加
+
+### 変更
+
+- バンドルされている拡張機能のバージョンを更新: anytime-markdown 0.15.1、anytime-trail 0.20.0、anytime-database 0.2.0、anytime-history 0.2.1、anytime-agent 0.1.0
+
 ## [0.4.0] - 2026-05-08
 
 ### 変更

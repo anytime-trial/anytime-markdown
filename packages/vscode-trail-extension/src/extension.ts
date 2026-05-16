@@ -4,16 +4,14 @@ import * as path from 'node:path';
 
 const homeDir = os.homedir();
 
-import { setupClaudeHooks, ClaudeStatusWatcher } from '@anytime-markdown/vscode-common';
 import * as vscode from 'vscode';
 
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { registerTraceCommands } from './commands/traceCommands';
-import { installBundledSkills } from './installBundledSkills';
+import { installBundledSkills, installStaticSkillDir, installTemplatedSkill } from './installBundledSkills';
 import { AiNoteItem,AiNoteProvider } from './providers/AiNoteProvider';
-import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
-import { OllamaProvider } from './providers/OllamaProvider';
+import { PipelineProvider } from './providers/PipelineProvider';
 import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
 import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
 import {
@@ -27,22 +25,24 @@ import {
 } from '@anytime-markdown/trail-server';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
+import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
 import {
 	CREATE_EXTENSION_LOGS,
 	CREATE_EXTENSION_LOGS_INDEXES,
 } from '@anytime-markdown/trail-core/domain/schema';
 import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
-import { DatabaseProvider } from './trail/DatabaseProvider';
 import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
 import { TrailLogger } from './utils/TrailLogger';
 import { DaemonSinkLogger } from './utils/DaemonSinkLogger';
-import { MemoryCoreService } from '@anytime-markdown/trail-server';
+import { AnalyzeAllRunner, MemoryCoreService } from '@anytime-markdown/trail-server';
 
 let trailDataServer: TrailDataServer | undefined;
 let trailDb: TrailDatabase | undefined;
+let pipelineProvider: PipelineProvider | undefined;
 let memoryCoreService: MemoryCoreService | null = null;
+let analyzeAllRunner: AnalyzeAllRunner | null = null;
 let extensionDistPath = '';
 
 function getEffectiveWorkspacePath(): string | undefined {
@@ -68,6 +68,12 @@ function getWatchedGitRoots(): string[] {
 function applyDocsPathConfig(): void {
 	const docsPath = vscode.workspace.getConfiguration('anytimeTrail.workspace').get<string>('docsPath', '');
 	trailDataServer?.setDocsPath(docsPath || undefined);
+}
+
+function isAnalyzeAllEnabled(): boolean {
+	return vscode.workspace
+		.getConfiguration('anytimeTrail.analyzeAll')
+		.get<boolean>('enabled', false);
 }
 
 function wireDaemonLogSink(daemonUrl: string, context: vscode.ExtensionContext): void {
@@ -134,19 +140,22 @@ export async function activate(context: vscode.ExtensionContext) {
 	TrailLogger.init(trailOutputChannel);
 	context.subscriptions.push(trailOutputChannel);
 
-	// Claude Code hook を ~/.claude/settings.json に自動登録
-	const claudeStatusDirSetting = vscode.workspace.getConfiguration('anytimeTrail.claudeStatus').get<string>('directory', '.anytime/trail/agent-status') || '.anytime/trail/agent-status';
-	const trailPortForHooks = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);
-	{
-		const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-		if (wsRoot) {
-			const registered = setupClaudeHooks(wsRoot, claudeStatusDirSetting, trailPortForHooks);
-			TrailLogger.info(`Claude hooks setup: ${registered ? 'registered' : 'skipped (already registered or .claude not found)'}`);
-		}
-	}
+	// AnalyzeAll enable フラグ: Pipelines ツリービューの when 条件 + runner 構築の
+	// ゲートに使う。Pipelines view は package.json の when="anytimeTrail.analyzeAllEnabled"
+	// により context key で表示/非表示が切り替わる。
+	void vscode.commands.executeCommand(
+		'setContext',
+		'anytimeTrail.analyzeAllEnabled',
+		isAnalyzeAllEnabled(),
+	);
 
 	// Agent Note ビュー
-	const noteStorageDir = context.globalStorageUri.fsPath;
+	// 格納先はワークスペース直下の .anytime/notes/。ワークスペース未開時のみ
+	// 旧 globalStorage パスにフォールバックする。
+	const workspaceRootForNotes = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	const noteStorageDir = workspaceRootForNotes
+		? path.join(workspaceRootForNotes, '.anytime', 'notes')
+		: context.globalStorageUri.fsPath;
 	const aiNoteProvider = new AiNoteProvider(noteStorageDir);
 	const aiNoteTreeView = vscode.window.createTreeView('anytimeTrail.aiNote', {
 		treeDataProvider: aiNoteProvider,
@@ -206,6 +215,49 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
+	// anytime-reverse-spec は静的リファレンス。activate 時に同梱 dir を展開する。
+	if (hasClaudeDir && fs.existsSync(claudeDir)) {
+		try {
+			installStaticSkillDir({
+				claudeDir,
+				extensionPath: context.extensionUri.fsPath,
+				skillName: 'anytime-reverse-spec',
+				oldSkillNames: ['anytime-basic-design'],
+				logger: {
+					info: (m) => TrailLogger.info(m),
+					warn: (m) => TrailLogger.warn(m),
+					error: (m) => TrailLogger.error(m),
+				},
+			});
+		} catch (err) {
+			TrailLogger.warn(`[install-skills] unexpected failure for anytime-reverse-spec: ${String(err)}`);
+		}
+	}
+
+	// anytime-note はテンプレート + ランタイム placeholder 置換。activate 時に
+	// ノート格納パスを placeholder へ展開して書き出す。
+	if (hasClaudeDir && fs.existsSync(claudeDir)) {
+		try {
+			const noteImagesDir = path.join(noteStorageDir, 'images');
+			installTemplatedSkill({
+				claudeDir,
+				extensionPath: context.extensionUri.fsPath,
+				skillName: 'anytime-note',
+				placeholders: {
+					__NOTE_DIR__: noteStorageDir,
+					__IMAGES_DIR__: noteImagesDir,
+				},
+				logger: {
+					info: (m) => TrailLogger.info(m),
+					warn: (m) => TrailLogger.warn(m),
+					error: (m) => TrailLogger.error(m),
+				},
+			});
+		} catch (err) {
+			TrailLogger.warn(`[install-skills] unexpected failure for anytime-note: ${String(err)}`);
+		}
+	}
+
 	const openAiNote = vscode.commands.registerCommand(
 		'anytime-trail.openAiNote',
 		async () => {
@@ -220,111 +272,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				// EEXIST: ファイル既存は正常
 			}
 			aiNoteProvider.refresh();
-
-			if (hasClaudeDir) {
-				const skillDir = path.join(claudeDir, 'skills', 'anytime-note');
-				const skillPath = path.join(skillDir, 'SKILL.md');
-				try {
-					fs.mkdirSync(skillDir, { recursive: true });
-					const imagesDir = path.join(dir, 'images');
-					const skillContent = [
-						'---',
-						'name: anytime-note',
-						'description: Agent Note（anytime-note-N.md）を読んで指示を実行する。「/anytime-note [ページ番号] 対応内容」の形式で使用。ノートに書かれたコンテキスト（画像・テキスト・メモ）を参照し、指示された作業を行う。',
-						'user_invocable: true',
-						'argument: task',
-						'---',
-						'',
-						'# Agent Note 連携',
-						'',
-						'## 引継ぎモード',
-						'',
-						'引数が「引継ぎ」の場合、以下の手順で実行する。',
-						'',
-						'1. 最新の要約ページを特定する',
-						'',
-						`   - ノートフォルダ: \`${dir}\``,
-						'   - フォルダ内の `anytime-note-*.md` を Glob で検索し、最大番号のファイルを読み込む',
-						'   - ファイルが見つからない場合は「要約ページがありません」と表示して終了する',
-						'',
-						'2. 要約ページの内容を読み込む',
-						'',
-						'   - Read ツールでファイルを読み込む',
-						`   - 画像フォルダ: \`${imagesDir}\``,
-						'   - 画像が参照されている場合は画像も読み込む',
-						'',
-						'3. 内容をユーザーに報告する（変更点と次にやることを簡潔に伝える）',
-						'',
-						'4. 「次にやること」セクションの最初の未完了タスクから作業を開始する（ユーザーに確認してから進める）',
-						'',
-						'## 要約モード',
-						'',
-						'引数が「要約」の場合、以下の手順で実行する。**このモードのみノートの新規作成・書き込みを許可する。**',
-						'',
-						'1. 現在の変更点を収集する',
-						'',
-						'   - `git log --oneline -20` で直近のコミットを確認する',
-						'   - `git diff --stat` で未コミットの変更を確認する',
-						'   - 会話の中で実施した作業内容を振り返る',
-						'',
-						'2. 次にやるべきことを整理する（未完了のタスク、保留事項、既知の問題）',
-						'',
-						'3. 新規ノートページを作成する',
-						'',
-						`   - ノートフォルダ: \`${dir}\``,
-						'   - フォルダ内の `anytime-note-*.md` を Glob で検索し、最大番号 + 1 のファイル名で作成する',
-						'',
-						'4. 要約内容を書き出す（フロントマター + # 要約 (YYYY-MM-DD) / ## 変更点 / ## 次にやること の形式）',
-						'',
-						'   フロントマター:',
-						'   ```',
-						'   ---',
-						'   title: "要約 (YYYY-MM-DD)"',
-						'   date: "YYYY-MM-DD"',
-						'   type: "summary"',
-						'   ---',
-						'   ```',
-						'',
-						'5. ユーザーに作成したページ番号と要約内容を報告する',
-						'',
-						'## 通常モード',
-						'',
-						'引数が「要約」「引継ぎ」以外の場合、以下の手順で実行する。',
-						'',
-						'1. 引数からページ番号を判定する',
-						'',
-						'   - 引数の先頭が数字の場合、その数字をページ番号として使用し、残りを作業内容とする',
-						'   - 引数の先頭が数字でない場合、ページ番号は指定なし（最小番号を使用）',
-						'   - 引数が空の場合もページ番号は指定なし',
-						'',
-						'2. Agent Note ファイルを読み込む',
-						'',
-						`   - ノートフォルダ: \`${dir}\``,
-						`   - 画像フォルダ: \`${imagesDir}\``,
-						'   - ページ番号が指定された場合: `anytime-note-{N}.md` を読み込む',
-						'   - ページ番号が指定されない場合: フォルダ内の `anytime-note-*.md` を Glob で検索し、最小番号のファイルを読み込む',
-						'   - 画像が参照されている場合は Read ツールで画像も読み込む',
-						'',
-						'3. ノート内容を確認し、ユーザーに概要を報告する',
-						'',
-						'4. 引数で指定された作業を、ノートの内容をコンテキストとして実行する',
-						'',
-						'   - 引数が空の場合はノート内容を要約し、何をすべきか提案する',
-						'   - 引数がある場合はノートを踏まえて作業を実行する',
-						'',
-						'## 注意事項',
-						'',
-						'- 既存のノートを変更・削除しない（読み取り専用）',
-						'- 「要約」モードの場合のみ、新規ページの作成と書き込みを許可する',
-						'- 作業結果はノートではなく、通常のコードベースやドキュメントに出力する',
-						'',
-					].join('\n');
-					fs.writeFileSync(skillPath, skillContent, { encoding: 'utf-8', flag: 'wx' });
-				} catch {
-					// EEXIST: ファイル既存は正常
-				}
-			}
-
 			await openNoteFile(filePath);
 		}
 	);
@@ -460,12 +407,31 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Trail Database + Data Server (non-blocking initialization)
 	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '.anytime/trail/db') || '.anytime/trail/db';
 	const wsRootForDb = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+	// `.anytime/analyze-exclude` を activate 時に seed する。analyze pipeline
+	// (analyzeCurrentCode / analyzeReleaseCode) でも seed されるが、AnalyzeAll が
+	// OFF のままだとそちらが走らないため、ここで初期生成を保証する。flag:'wx' で
+	// 既存ファイルは上書きされない (EEXIST → false 返却で no-op)。
+	if (wsRootForDb) {
+		try {
+			if (seedAnalyzeExclude(wsRootForDb)) {
+				TrailLogger.info(`[analyzeExclude] seeded .anytime/analyze-exclude at ${wsRootForDb}`);
+			}
+		} catch (err) {
+			TrailLogger.warn(
+				`[analyzeExclude] failed to seed at ${wsRootForDb}: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+	}
+
 	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
 		? dbStoragePathSetting
 		: wsRootForDb ? path.join(wsRootForDb, dbStoragePathSetting) : undefined;
-	const dbConfig = vscode.workspace.getConfiguration('anytimeTrail.database');
-	const backupGenerations = dbConfig.get<number>('backupGenerations', 1);
-	const backupIntervalDays = dbConfig.get<number>('backupIntervalDays', 1);
+	// バックアップ設定は anytime-database 拡張が所有する (anytimeDatabase.backup.*)。
+	// バックアップトリガは trail 拡張のみが担うため、ここで読んで TrailDatabase に渡す。
+	const backupConfig = vscode.workspace.getConfiguration('anytimeDatabase.backup');
+	const backupGenerations = backupConfig.get<number>('generations', 1);
+	const backupIntervalDays = backupConfig.get<number>('intervalDays', 1);
 	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir, backupGenerations, TrailLogger, backupIntervalDays);
 
 	// Anytime Memory output channel + native binding paths are needed by:
@@ -525,10 +491,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	// service を起動する (TrailPanel が local server URL を使うのと同じ paradigm)。
 	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
 	if (hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
-		const intervalSec = trailConfig.memory.ingest.intervalSec;
-		const runOnStart = trailConfig.memory.ingest.runOnStart;
-		const startupDelaySec = trailConfig.memory.ingest.startupDelaySec;
+		const intervalSec = trailConfig.analyzeAll.intervalSec;
+		const runOnStart = trailConfig.analyzeAll.runOnStart;
+		const startupDelaySec = trailConfig.analyzeAll.startupDelaySec;
 		const trailDbPath = path.join(dbStorageDir, 'trail.db');
+		// MemoryCoreService は AnalyzeAllRunner の内部実行ユニット。
+		// 自前 scheduler は持たず、AnalyzeAllRunner.runOnce 経由でのみ起動される
+		// (二重発火回避のため start() は呼ばない)。
 		memoryCoreService = new MemoryCoreService({
 			logSink: memoryCoreOutputChannel,
 			trailDbPath,
@@ -537,14 +506,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			gitRoot: wsRootForDb,
 			backfillDays: trailConfig.memory.conversation.backfillDays,
 		});
-		trailDataServer.setMemoryCoreService(memoryCoreService);
-		memoryCoreService.start(intervalSec * 1000, {
-			runOnStart,
-			startupDelayMs: startupDelaySec * 1000,
-		});
-		TrailLogger.info(
-			`[MemoryCore] service started: intervalSec=${intervalSec}, runOnStart=${runOnStart}, startupDelaySec=${startupDelaySec}`,
-		);
+		TrailLogger.info('[MemoryCore] service constructed (orchestrated by AnalyzeAllRunner)');
 	} else if (useExternalDaemon && externalDaemonInfo) {
 		TrailLogger.info('[MemoryCore] hosted by external daemon, skipping local service');
 	}
@@ -679,143 +641,118 @@ export async function activate(context: vscode.ExtensionContext) {
 	};
 
 	trailDataServer.onAnalyzeAll = async () => {
-		if (!trailDb) throw new Error('Trail DB not initialized');
+		if (!analyzeAllRunner) {
+			throw new Error('AnalyzeAll is disabled. Enable anytimeTrail.analyzeAll.enabled in settings and reload the window.');
+		}
 		const startedAt = Date.now();
-		const result = await trailDb.importAll(
-			(message) => TrailLogger.info(`Trail import (HTTP): ${message}`),
-			getWatchedGitRoots(),
-			undefined,
-			analyze,
-		);
-		trailDataServer?.notifySessionsUpdated();
-		// service が null = useExternalDaemon に委譲中。daemon 側が periodic で回す
-		// ため拡張側ではここで no-op。
-		await memoryCoreService?.runOnce('import');
+		pipelineProvider?.resetImportAllPhases();
+		await analyzeAllRunner.runOnce('import');
+		const result = analyzeAllRunner.getLastImportResult();
+		if (!result) {
+			throw new Error('importAll did not produce a result');
+		}
 		return { ...result, durationMs: Date.now() - startedAt };
 	};
 
 	// loadFromDb() は trailDb.init() 完了後に下の async IIFE 内で呼ぶ。
 	// ここで呼ぶと DB 未初期化のまま ensureDb() が throw → null が返るため。
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCode', async () => {
-			const analysisRoot = getEffectiveWorkspacePath();
-			if (!analysisRoot) {
-				vscode.window.showErrorMessage('解析対象のワークスペースが指定されていません。anytimeTrail.workspace.path を設定するか、ワークスペースを開いてください。');
-				return;
-			}
-			let rootStat: fs.Stats;
-			try {
-				rootStat = fs.statSync(analysisRoot);
-			} catch {
-				vscode.window.showErrorMessage(`anytimeTrail.workspace.path のパスが存在しません: ${analysisRoot}`);
-				return;
-			}
-			if (!rootStat.isDirectory()) {
-				vscode.window.showErrorMessage(`anytimeTrail.workspace.path はディレクトリではありません: ${analysisRoot}`);
-				return;
-			}
-			const repoName = path.basename(analysisRoot);
-			TrailLogger.info(`C4 analysis [${repoName}]: searching tsconfig.json under ${analysisRoot}`);
-			const tsconfigFiles = findTsconfigCandidates(analysisRoot);
-			if (tsconfigFiles.length === 0) {
-				TrailLogger.warn(`C4 analysis [${repoName}]: no tsconfig.json found under ${analysisRoot}`);
-				vscode.window.showWarningMessage(`No tsconfig.json found under ${analysisRoot}`);
-				return;
-			}
+	// analyzeCurrentCode 系コマンドの本体。pickTsconfig=false (default) は HTTP/MCP 経路と
+	// 揃えて candidates[0] (浅さ順=root 優先) を自動採用する。true ならコマンドパレットから
+	// 明示的に切り替えたいケース向けに QuickPick を表示する。
+	const runAnalyzeCurrentCommand = async (opts: { pickTsconfig: boolean }): Promise<void> => {
+		const analysisRoot = getEffectiveWorkspacePath();
+		if (!analysisRoot) {
+			vscode.window.showErrorMessage('解析対象のワークスペースが指定されていません。anytimeTrail.workspace.path を設定するか、ワークスペースを開いてください。');
+			return;
+		}
+		let rootStat: fs.Stats;
+		try {
+			rootStat = fs.statSync(analysisRoot);
+		} catch {
+			vscode.window.showErrorMessage(`anytimeTrail.workspace.path のパスが存在しません: ${analysisRoot}`);
+			return;
+		}
+		if (!rootStat.isDirectory()) {
+			vscode.window.showErrorMessage(`anytimeTrail.workspace.path はディレクトリではありません: ${analysisRoot}`);
+			return;
+		}
+		const repoName = path.basename(analysisRoot);
+		TrailLogger.info(`C4 analysis [${repoName}]: searching tsconfig.json under ${analysisRoot}`);
+		const tsconfigFiles = findTsconfigCandidates(analysisRoot);
+		if (tsconfigFiles.length === 0) {
+			TrailLogger.warn(`C4 analysis [${repoName}]: no tsconfig.json found under ${analysisRoot}`);
+			vscode.window.showWarningMessage(`No tsconfig.json found under ${analysisRoot}`);
+			return;
+		}
 
-			let tsconfigPath: string;
-			if (tsconfigFiles.length === 1) {
-				tsconfigPath = tsconfigFiles[0].fsPath;
-			} else {
-				const items = tsconfigFiles.map(f => ({
-					label: f.rel,
-					description: f.rel === 'tsconfig.json' ? '(workspace root — analyzes all packages)' : undefined,
-					fsPath: f.fsPath,
-				}));
-				const picked = await vscode.window.showQuickPick(items, {
-					placeHolder: 'Select tsconfig.json to analyze',
-					matchOnDescription: true,
-				});
-				if (!picked) {
-					TrailLogger.info(`C4 analysis [${repoName}]: cancelled at tsconfig selection`);
-					return;
-				}
-				tsconfigPath = picked.fsPath;
-			}
-
-			TrailLogger.info(`C4 analysis [${repoName}]: starting for ${tsconfigPath}`);
-			TrailPanel.openViewer(true);
-
-			if (!trailDb || !trailDataServer) {
-				vscode.window.showErrorMessage('Trail DB or server is not initialized.');
-				return;
-			}
-
-			try {
-				await vscode.window.withProgress(
-					{ location: vscode.ProgressLocation.Notification, title: 'C4 Analysis', cancellable: false },
-					async (progress) => {
-						const result = await runAnalyzeCurrentCodePipeline({
-							analysisRoot,
-							tsconfigPath,
-							trailDb: trailDb!,
-							callbacks: trailDataServer!,
-							codeGraphService,
-							onProgress: (phase) => progress.report({ message: phase }),
-						});
-						TrailLogger.info(`C4 analysis [${repoName}]: completed in ${result.durationMs}ms`);
-					},
+		let tsconfigPath: string;
+		if (tsconfigFiles.length === 1 || !opts.pickTsconfig) {
+			tsconfigPath = tsconfigFiles[0].fsPath;
+			if (tsconfigFiles.length > 1 && !opts.pickTsconfig) {
+				vscode.window.showInformationMessage(
+					`Analyzing with ${tsconfigFiles[0].rel} (${tsconfigFiles.length} tsconfig.json found; auto-picked shallowest). Use "Anytime Trail: Analyze Code (Pick Tsconfig)" to choose another.`,
 				);
-				vscode.window.showInformationMessage('C4 analysis completed.');
-			} catch (err) {
-				TrailLogger.error(`C4 analysis [${repoName}] failed`, err);
-				vscode.window.showErrorMessage(`C4 analysis failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
-		}),
-		vscode.commands.registerCommand('anytime-trail.analyzeReleaseCode', async () => {
-			if (!trailDb) {
-				vscode.window.showErrorMessage('Trail DB is not initialized.');
+		} else {
+			const items = tsconfigFiles.map(f => ({
+				label: f.rel,
+				description: f.rel === 'tsconfig.json' ? '(workspace root — analyzes all packages)' : undefined,
+				fsPath: f.fsPath,
+			}));
+			const picked = await vscode.window.showQuickPick(items, {
+				placeHolder: 'Select tsconfig.json to analyze',
+				matchOnDescription: true,
+			});
+			if (!picked) {
+				TrailLogger.info(`C4 analysis [${repoName}]: cancelled at tsconfig selection`);
 				return;
 			}
-			if (!gitRoot) {
-				vscode.window.showErrorMessage('No workspace folder found.');
-				return;
-			}
+			tsconfigPath = picked.fsPath;
+		}
+
+		TrailLogger.info(`C4 analysis [${repoName}]: starting for ${tsconfigPath}`);
+		TrailPanel.openViewer(true);
+
+		if (!trailDb || !trailDataServer) {
+			vscode.window.showErrorMessage('Trail DB or server is not initialized.');
+			return;
+		}
+
+		try {
 			await vscode.window.withProgress(
-				{ location: vscode.ProgressLocation.Notification, title: 'Trail: Analyze Release Code', cancellable: false },
+				{ location: vscode.ProgressLocation.Notification, title: 'C4 Analysis', cancellable: false },
 				async (progress) => {
-					try {
-						const result = await runAnalyzeReleaseCodePipeline({
-							trailDb: trailDb!,
-							codeGraphService,
-							gitRoot: gitRoot!,
-							onProgress: (msg) => progress.report({ message: msg }),
-						});
-						vscode.window.showInformationMessage(`Release code analyzed (${result.releaseCount} releases).`);
-					} catch (err) {
-						TrailLogger.error('Failed to analyze release code', err);
-						vscode.window.showErrorMessage(`Analyze release code failed: ${err instanceof Error ? err.message : String(err)}`);
-					}
+					const result = await runAnalyzeCurrentCodePipeline({
+						analysisRoot,
+						tsconfigPath,
+						trailDb: trailDb!,
+						callbacks: trailDataServer!,
+						codeGraphService,
+						onProgress: (phase) => progress.report({ message: phase }),
+					});
+					TrailLogger.info(`C4 analysis [${repoName}]: completed in ${result.durationMs}ms`);
 				},
 			);
-		}),
+			vscode.window.showInformationMessage('C4 analysis completed.');
+		} catch (err) {
+			TrailLogger.error(`C4 analysis [${repoName}] failed`, err);
+			vscode.window.showErrorMessage(`C4 analysis failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	};
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCode', () => runAnalyzeCurrentCommand({ pickTsconfig: false })),
+		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCodePickTsconfig', () => runAnalyzeCurrentCommand({ pickTsconfig: true })),
 	);
 
 	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);
-
-	// Database panel
-	const databaseProvider = new DatabaseProvider(trailDb);
-	const databaseTreeView = vscode.window.createTreeView('anytimeTrail.database', {
-		treeDataProvider: databaseProvider,
-	});
 
 	// Initialize DB and start server in background — do not block activate
 	void (async () => {
 		try {
 			TrailLogger.info(`Trail DB: initializing with distPath=${extensionDistPath}`);
 			await trailDb!.init();
-			databaseProvider.updateSqliteStatus('Ready', trailDb!.getLastImportedAt());
 			TrailLogger.info('Trail DB: initialized');
 			// DB 初期化完了後に loadFromDb() を実行（初期化前に呼ぶと ensureDb が throw するため）
 			const dbGraph = await codeGraphService!.loadFromDb();
@@ -824,8 +761,33 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		} catch (err) {
 			TrailLogger.error('Failed to initialize trail database', err);
-			databaseProvider.updateSqliteStatus('Error');
 			return; // DB 初期化失敗時はサーバー起動もスキップ
+		}
+
+		// AnalyzeAllRunner — importAll → memory-core runOnce の唯一の orchestrator。
+		// trailDb.init() 完了後に構築する (init 前の getWatchedGitRoots は意味を持たない)。
+		// memoryCoreService が null (useExternalDaemon) でも runner は構築する (importAll のみ走る)。
+		// anytimeTrail.analyzeAll.enabled=false (既定) のときは構築自体をスキップし、
+		// 自動実行・手動実行・HTTP API すべて無効化する。
+		if (trailDb && hostMemoryCoreLocally && dbStorageDir && isAnalyzeAllEnabled()) {
+			analyzeAllRunner = new AnalyzeAllRunner({
+				logSink: memoryCoreOutputChannel,
+				gitRoot: wsRootForDb,
+				trailDb,
+				gitRoots: getWatchedGitRoots(),
+				memoryCoreService: memoryCoreService ?? undefined,
+				importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
+				onImportProgress: (message) => TrailLogger.info(`[analyzeAll] ${message}`),
+				analyzeReleaseFn: analyze,
+				onImportPhase: (event) =>
+					pipelineProvider?.setImportAllPhase(event.phase, event.action, {
+						count: event.count,
+						message: event.message,
+					}),
+				onAfterRun: () => trailDataServer?.notifySessionsUpdated(),
+			});
+			trailDataServer?.setAnalyzeAllRunner(analyzeAllRunner);
+			TrailLogger.info('[AnalyzeAllRunner] wired');
 		}
 		// 外部デーモンが有効な場合はローカルサーバー起動をスキップ。
 		// ブラウザは TrailPanel.daemonUrl 経由でデーモンに直接アクセスする。
@@ -860,7 +822,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				wireDaemonLogSink(`http://127.0.0.1:${actualPort}`, context);
 
 				// トークン予算設定を反映
-				const budgetConfig = vscode.workspace.getConfiguration('anytimeTrail.budget');
+				const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
 				trailDataServer!.setTokenBudgetConfig({
 					dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
 					sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),
@@ -895,6 +857,16 @@ export async function activate(context: vscode.ExtensionContext) {
 				void vscode.window.showErrorMessage(userMsg);
 			}
 		}
+
+		// 起動時自動実行 + 周期実行は AnalyzeAllRunner が一元管理する。
+		// pipelineProvider の per-phase 進捗は onImportPhase コールバック経由で発火。
+		if (analyzeAllRunner) {
+			pipelineProvider?.resetImportAllPhases();
+			analyzeAllRunner.start(trailConfig.analyzeAll.intervalSec * 1000, {
+				runOnStart: trailConfig.analyzeAll.runOnStart,
+				startupDelayMs: trailConfig.analyzeAll.startupDelaySec * 1000,
+			});
+		}
 	})().catch((err) => {
 		TrailLogger.error('Unexpected error during initialization', err);
 		void vscode.window.showErrorMessage(`Anytime Trail initialization failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -907,104 +879,42 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.restoreBackup', async (arg?: number) => {
-			if (!trailDb) {
-				vscode.window.showErrorMessage('Trail DB is not initialized.');
-				return;
-			}
-			const entries = trailDb.listBackups();
-			if (entries.length === 0) {
-				vscode.window.showInformationMessage(
-					'No backups available yet. Backups are created on the first save of each VS Code session.',
-				);
-				return;
-			}
-			let generation: number | undefined = typeof arg === 'number' ? arg : undefined;
-			if (generation === undefined) {
-				const items = entries.map((e) => ({
-					label: `$(history) Generation ${e.generation}`,
-					description: e.mtime.toLocaleString(),
-					detail: `${(e.compressedSize / 1024 / 1024).toFixed(2)} MB (gzip) · ${e.path}`,
-					generation: e.generation,
-				}));
-				const picked = await vscode.window.showQuickPick(items, {
-					title: 'Restore Trail DB from backup',
-					placeHolder: 'Select a generation to restore (current DB will be saved as .restore-safety-*)',
-					ignoreFocusOut: true,
-				});
-				if (!picked) return;
-				generation = picked.generation;
-			}
-			if (!entries.some((e) => e.generation === generation)) {
-				vscode.window.showErrorMessage(`Backup generation ${generation} not found.`);
-				return;
-			}
-			const confirm = await vscode.window.showWarningMessage(
-				`Restore Trail DB from generation ${generation}? ` +
-				'The current DB will be backed up to a .restore-safety-* file. ' +
-				'You must reload the VS Code window after restore for changes to take effect.',
-				{ modal: true },
-				'Restore',
-			);
-			if (confirm !== 'Restore') return;
-			try {
-				const result = trailDb.restoreFromBackup(generation);
-				TrailLogger.info(
-					`Trail DB restored from ${result.restoredFrom}; safety copy at ${result.safetyCopy ?? '(none)'}`,
-				);
-				databaseProvider.refresh();
-				const reload = await vscode.window.showInformationMessage(
-					`Restored from generation ${generation}. Reload the window now?`,
-					'Reload Window',
-				);
-				if (reload === 'Reload Window') {
-					await vscode.commands.executeCommand('workbench.action.reloadWindow');
-				}
-			} catch (err) {
-				TrailLogger.error('Trail DB restore failed', err);
-				vscode.window.showErrorMessage(
-					`Restore failed: ${err instanceof Error ? err.message : String(err)}`,
-				);
-			}
-		}),
-	);
-
-	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.analyzeAll', async () => {
 			const repoName = vscode.workspace.workspaceFolders?.[0]?.name ?? '(no workspace)';
-			if (!trailDb) {
-				TrailLogger.error(`Trail import [${repoName}] skipped: trailDb is null (not initialized)`);
+			if (!analyzeAllRunner) {
+				TrailLogger.warn(`Trail import [${repoName}] skipped: AnalyzeAll is disabled`);
+				void vscode.window.showWarningMessage(
+					'AnalyzeAll is disabled. Enable anytimeTrail.analyzeAll.enabled in settings and reload the window.',
+				);
 				return;
 			}
 			TrailLogger.info(`Trail DB [${repoName}]: import started`);
-			databaseProvider.setImporting(true);
+			pipelineProvider?.resetImportAllPhases();
 			try {
-				const result = await vscode.window.withProgress(
+				await vscode.window.withProgress(
 					{
 						location: vscode.ProgressLocation.Notification,
 						title: 'Trail: Refreshing Trail Data',
 						cancellable: false,
 					},
-					async (progress) => {
-						return trailDb!.importAll((message, increment) => {
-							progress.report({ message, increment });
-							TrailLogger.info(`Trail import [${repoName}]: ${message}`);
-						}, getWatchedGitRoots(), undefined, analyze);
+					async () => {
+						await analyzeAllRunner!.runOnce('manual');
 					},
 				);
-				TrailLogger.info(`Trail DB [${repoName}]: import complete - imported=${result.imported}, skipped=${result.skipped}, commits=${result.commitsResolved}, releases=${result.releasesResolved}, analyzed=${result.releasesAnalyzed}`);
-				databaseProvider.updateSqliteStatus('Ready', trailDb.getLastImportedAt());
-				databaseProvider.setImporting(false);
-
-				trailDataServer?.notifySessionsUpdated();
-				await memoryCoreService?.runOnce('import');
-
-				vscode.window.showInformationMessage(
-					`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits linked, ${result.releasesResolved} releases resolved, ${result.releasesAnalyzed} releases analyzed, ${result.coverageImported} coverage entries (${result.skipped} skipped)`,
-				);
+				const status = analyzeAllRunner.getStatus();
+				const result = analyzeAllRunner.getLastImportResult();
+				if (status.lastError) {
+					TrailLogger.error(`Trail DB [${repoName}]: import failed - ${status.lastError}`);
+					vscode.window.showWarningMessage(`Trail: refresh failed - ${status.lastError}`);
+				} else if (result) {
+					TrailLogger.info(`Trail DB [${repoName}]: import complete - imported=${result.imported}, skipped=${result.skipped}, commits=${result.commitsResolved}, releases=${result.releasesResolved}, analyzed=${result.releasesAnalyzed}`);
+					vscode.window.showInformationMessage(
+						`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits linked, ${result.releasesResolved} releases resolved, ${result.releasesAnalyzed} releases analyzed, ${result.coverageImported} coverage entries (${result.skipped} skipped)`,
+					);
+				} else {
+					TrailLogger.info(`Trail DB [${repoName}]: import complete (no result)`);
+				}
 			} catch (err) {
-				databaseProvider.setImporting(false);
-				databaseProvider.updateSqliteStatus('Import failed');
 				TrailLogger.error(`Trail import [${repoName}] failed`, err);
 			}
 		}),
@@ -1025,95 +935,39 @@ export async function activate(context: vscode.ExtensionContext) {
 		},
 	});
 
-	// Memory > Pause/Resume/Status Ingest コマンド。
-	// 拡張側で service をホストしている場合は直接呼ぶ。daemon 委譲中は
-	// daemon の HTTP API (TrailPanel.getDaemonUrl) を叩く。
+	// AnalyzeAll > Status コマンド。拡張側で runner をホストしている場合は直接呼ぶ。
+	// daemon 委譲中は daemon の HTTP API (TrailPanel.getDaemonUrl) を叩く。
+	// pause/resume は HTTP API のみで提供（CLI/daemon 用途）、VS Code コマンドからは削除済み。
 	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.memory.pauseIngest', async () => {
+		vscode.commands.registerCommand('anytime-trail.analyzeAll.status', async () => {
 			try {
-				if (memoryCoreService) {
-					const status = await memoryCoreService.pause('vscode-command');
+				if (analyzeAllRunner) {
+					const s = analyzeAllRunner.getStatus();
 					vscode.window.showInformationMessage(
-						`Anytime Memory: ingest paused (by=${status.pausedBy})`,
-					);
-					return;
-				}
-				const daemonUrl = TrailPanel.getDaemonUrl();
-				if (!daemonUrl) {
-					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
-					return;
-				}
-				const res = await fetch(`${daemonUrl}/api/memory-core/pause`, {
-					method: 'POST',
-					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({ by: 'vscode-command' }),
-				});
-				if (!res.ok) {
-					vscode.window.showErrorMessage(`Anytime Memory pause failed: HTTP ${res.status}`);
-					return;
-				}
-				vscode.window.showInformationMessage('Anytime Memory: ingest paused on daemon');
-			} catch (err) {
-				TrailLogger.error('pauseIngest failed', err);
-				vscode.window.showErrorMessage(
-					`Anytime Memory pause failed: ${err instanceof Error ? err.message : String(err)}`,
-				);
-			}
-		}),
-		vscode.commands.registerCommand('anytime-trail.memory.resumeIngest', async () => {
-			try {
-				if (memoryCoreService) {
-					await memoryCoreService.resume();
-					vscode.window.showInformationMessage('Anytime Memory: ingest resumed');
-					return;
-				}
-				const daemonUrl = TrailPanel.getDaemonUrl();
-				if (!daemonUrl) {
-					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
-					return;
-				}
-				const res = await fetch(`${daemonUrl}/api/memory-core/resume`, { method: 'POST' });
-				if (!res.ok) {
-					vscode.window.showErrorMessage(`Anytime Memory resume failed: HTTP ${res.status}`);
-					return;
-				}
-				vscode.window.showInformationMessage('Anytime Memory: ingest resumed on daemon');
-			} catch (err) {
-				TrailLogger.error('resumeIngest failed', err);
-				vscode.window.showErrorMessage(
-					`Anytime Memory resume failed: ${err instanceof Error ? err.message : String(err)}`,
-				);
-			}
-		}),
-		vscode.commands.registerCommand('anytime-trail.memory.statusIngest', async () => {
-			try {
-				if (memoryCoreService) {
-					const s = memoryCoreService.getStatus();
-					vscode.window.showInformationMessage(
-						`Anytime Memory (local): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
+						`AnalyzeAll (local): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
 							`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
 					);
 					return;
 				}
 				const daemonUrl = TrailPanel.getDaemonUrl();
 				if (!daemonUrl) {
-					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
+					vscode.window.showWarningMessage('AnalyzeAll: no local runner and no daemon URL available');
 					return;
 				}
-				const res = await fetch(`${daemonUrl}/api/memory-core/status`);
+				const res = await fetch(`${daemonUrl}/api/analyze-all/status`);
 				if (!res.ok) {
-					vscode.window.showErrorMessage(`Anytime Memory status failed: HTTP ${res.status}`);
+					vscode.window.showErrorMessage(`AnalyzeAll status failed: HTTP ${res.status}`);
 					return;
 				}
 				const s = await res.json() as { paused: boolean; ticksRun: number; ticksSkipped: number; lastRunAt: string | null; lastError: string | null };
 				vscode.window.showInformationMessage(
-					`Anytime Memory (daemon): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
+					`AnalyzeAll (daemon): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
 						`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
 				);
 			} catch (err) {
-				TrailLogger.error('statusIngest failed', err);
+				TrailLogger.error('analyzeAll.status failed', err);
 				vscode.window.showErrorMessage(
-					`Anytime Memory status failed: ${err instanceof Error ? err.message : String(err)}`,
+					`AnalyzeAll status failed: ${err instanceof Error ? err.message : String(err)}`,
 				);
 			}
 		}),
@@ -1125,19 +979,32 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (e.affectsConfiguration('anytimeTrail.workspace.docsPath')) {
 				applyDocsPathConfig();
 			}
-			if (e.affectsConfiguration('anytimeTrail.budget') && trailDataServer) {
-				const budgetConfig = vscode.workspace.getConfiguration('anytimeTrail.budget');
+			if (e.affectsConfiguration('anytimeAgent.budget') && trailDataServer) {
+				const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
 				trailDataServer.setTokenBudgetConfig({
 					dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
 					sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),
 					alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
 				});
 			}
+			if (e.affectsConfiguration('anytimeTrail.analyzeAll.enabled')) {
+				// view の when 条件は context key で即時切替。runner の構築/破棄は
+				// extension reload が必要 (toast で誘導)。
+				const enabled = isAnalyzeAllEnabled();
+				void vscode.commands.executeCommand(
+					'setContext',
+					'anytimeTrail.analyzeAllEnabled',
+					enabled,
+				);
+				const matchesRunner = enabled === (analyzeAllRunner !== null);
+				if (!matchesRunner) {
+					void vscode.window.showInformationMessage(
+						`AnalyzeAll setting changed to ${enabled ? 'enabled' : 'disabled'}. ` +
+							'Reload the window to apply (Command Palette → "Developer: Reload Window").',
+					);
+				}
+			}
 		}),
-	);
-
-	context.subscriptions.push(
-		databaseTreeView,
 	);
 
 	// Trace CodeLens providers
@@ -1174,55 +1041,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(traceWatcher);
 	}
 
-	// Agent Mapping ビュー
-	const agentStatusRoot = getEffectiveWorkspacePath() ?? wsRootForDb;
-	const agentMappingProvider = new AgentMappingProvider(
-		new ClaudeStatusWatcher(agentStatusRoot, claudeStatusDirSetting),
-		agentStatusRoot ?? process.cwd(),
-	);
-	const agentMappingTreeView = vscode.window.createTreeView('anytimeTrail.agentMapping', {
-		treeDataProvider: agentMappingProvider,
-		showCollapseAll: true,
-	});
-	context.subscriptions.push(agentMappingProvider, agentMappingTreeView);
-	void vscode.commands.executeCommand('setContext', 'anytimeTrail.agentMapping.filterActive', false);
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.agentMapping.refresh', () => {
-			agentMappingProvider.refresh();
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.cleanupStale', () => {
-			agentMappingProvider.cleanupStale();
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.toggleStale', () => {
-			agentMappingProvider.toggleStale();
-			void vscode.commands.executeCommand(
-				'setContext',
-				'anytimeTrail.agentMapping.filterActive',
-				!agentMappingProvider.showStale,
-			);
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.openWorktree', (item: import('./providers/AgentMappingItem').WorktreeTreeItem) => {
-			void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(item.mapping.worktreePath), true);
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.copyWorktreePath', (item: import('./providers/AgentMappingItem').WorktreeTreeItem) => {
-			void vscode.env.clipboard.writeText(item.mapping.worktreePath);
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.showSessionEdits', (item: import('./providers/AgentMappingItem').SessionTreeItem) => {
-			const edits = item.session.sessionEdits.map(e => ({ label: e.file, description: e.timestamp }));
-			if (edits.length === 0) {
-				void vscode.window.showInformationMessage('No session edits recorded.');
-				return;
-			}
-			void vscode.window.showQuickPick(edits, { title: `Session Edits: ${item.session.sessionId.slice(0, 8)}` });
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.copySessionId', (item: import('./providers/AgentMappingItem').SessionTreeItem) => {
-			void vscode.env.clipboard.writeText(item.session.sessionId);
-		}),
-		vscode.commands.registerCommand('anytime-trail.agentMapping.deleteStatusFile', (item: import('./providers/AgentMappingItem').SessionTreeItem) => {
-			agentMappingProvider.deleteSessionFile(item.session.sessionId);
-		}),
-	);
+	// AGENT マッピングパネルは vscode-agent-extension に移動済み (Phase 6/7)
 
 	// MCP server registration: VS Code Copilot/Chat 向けに mcp-trail を提供
 	const mcpTrailProvider = new McpTrailServerProvider(extensionDistPath);
@@ -1234,21 +1053,26 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Claude Code (CLI) 向け登録ヘルパー
 	registerMcpRegistrationCommand(context, extensionDistPath);
 
-	// Ollama ステータスパネル
+	// Ollama ステータスパネルは vscode-agent-extension に移動済み (Phase 6/7)
 	// pipeline-status.json は DB と同じディレクトリ (${TRAIL_HOME}/db/) に置く。
 	// 書き手 (memory-core/defaultMemoryCorePipelineRunner.ts) が trailDbPath と
 	// 同じ dirname に出力するので、reader 側もそれに合わせる。
 	const pipelineStatusPath = dbStorageDir ? path.join(dbStorageDir, 'pipeline-status.json') : undefined;
-	const ollamaProvider = new OllamaProvider({ statusFilePath: pipelineStatusPath });
-	vscode.window.createTreeView('anytimeTrail.ollama', {
-		treeDataProvider: ollamaProvider,
+	const dbFilePath = dbStorageDir ? path.join(dbStorageDir, 'trail.db') : undefined;
+	const importAllStatusFilePath = dbStorageDir
+		? path.join(dbStorageDir, 'importall-phase-status.json')
+		: undefined;
+
+	// Pipelines パネル (backup / importAll 8 phases / memory-core pipelines)
+	pipelineProvider = new PipelineProvider({
+		statusFilePath: pipelineStatusPath,
+		dbFilePath,
+		importAllStatusFilePath,
 	});
-	context.subscriptions.push(
-		ollamaProvider,
-		vscode.commands.registerCommand('anytime-trail.startOllama', () =>
-			ollamaProvider.startOllama(),
-		),
-	);
+	vscode.window.createTreeView('anytimeTrail.pipelines', {
+		treeDataProvider: pipelineProvider,
+	});
+	context.subscriptions.push(pipelineProvider);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.killExtensionHost', async () => {
@@ -1270,6 +1094,11 @@ export async function deactivate(): Promise<void> {
 		await trailDataServer?.stop();
 	} catch (err) {
 		TrailLogger.error('Failed to stop trail data server', err);
+	}
+	try {
+		await analyzeAllRunner?.dispose();
+	} catch (err) {
+		TrailLogger.error('Failed to dispose analyze-all runner', err);
 	}
 	try {
 		await memoryCoreService?.dispose();

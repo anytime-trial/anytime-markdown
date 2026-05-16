@@ -2,7 +2,7 @@
   "name": "anytime-trail",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -22,7 +22,7 @@
     "analysis"
   ],
   "activationEvents": [
-    "onView:anytimeTrail.database"
+    "onView:anytimeTrail.dashboard"
   ],
   "icon": "images/anytime-control-256.png",
   "main": "./dist/extension.js",
@@ -47,16 +47,9 @@
           "name": "%view.dashboard%"
         },
         {
-          "id": "anytimeTrail.agentMapping",
-          "name": "%view.agentMapping%"
-        },
-        {
-          "id": "anytimeTrail.database",
-          "name": "%view.database%"
-        },
-        {
-          "id": "anytimeTrail.ollama",
-          "name": "%view.ollama%"
+          "id": "anytimeTrail.pipelines",
+          "name": "%view.pipelines%",
+          "when": "anytimeTrail.analyzeAllEnabled"
         }
       ]
     },
@@ -68,10 +61,6 @@
       {
         "view": "anytimeTrail.dashboard",
         "contents": "%viewsWelcome.dashboard%"
-      },
-      {
-        "view": "anytimeTrail.agentMapping",
-        "contents": "%viewsWelcome.agentMapping%"
       }
     ],
     "commands": [
@@ -81,18 +70,8 @@
         "category": "Anytime Trail"
       },
       {
-        "command": "anytime-trail.memory.pauseIngest",
-        "title": "%command.memory.pauseIngest%",
-        "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.memory.resumeIngest",
-        "title": "%command.memory.resumeIngest%",
-        "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.memory.statusIngest",
-        "title": "%command.memory.statusIngest%",
+        "command": "anytime-trail.analyzeAll.status",
+        "title": "%command.analyzeAll.status%",
         "category": "Anytime Trail"
       },
       {
@@ -143,12 +122,6 @@
         "icon": "$(graph-line)"
       },
       {
-        "command": "anytime-trail.restoreBackup",
-        "title": "%command.restoreBackup%",
-        "category": "Anytime Trail",
-        "icon": "$(discard)"
-      },
-      {
         "command": "anytime-trail.analyzeAll",
         "title": "%command.analyzeAll%",
         "category": "Anytime Trail",
@@ -161,8 +134,8 @@
         "icon": "$(symbol-class)"
       },
       {
-        "command": "anytime-trail.analyzeReleaseCode",
-        "title": "%command.analyzeReleaseCode%",
+        "command": "anytime-trail.analyzeCurrentCodePickTsconfig",
+        "title": "%command.analyzeCurrentCodePickTsconfig%",
         "category": "Anytime Trail"
       },
       {
@@ -172,63 +145,14 @@
         "icon": "$(beaker)"
       },
       {
-        "command": "anytime-trail.agentMapping.refresh",
-        "title": "%command.agentMapping.refresh%",
-        "icon": "$(refresh)",
-        "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.agentMapping.cleanupStale",
-        "title": "%command.agentMapping.cleanupStale%",
-        "icon": "$(trash)",
-        "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.agentMapping.toggleStale",
-        "title": "%command.agentMapping.toggleStale%",
-        "icon": "$(list-filter)",
-        "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.agentMapping.openWorktree",
-        "title": "%command.agentMapping.openWorktree%",
-        "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.agentMapping.copyWorktreePath",
-        "title": "%command.agentMapping.copyWorktreePath%",
-        "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.agentMapping.showSessionEdits",
-        "title": "%command.agentMapping.showSessionEdits%",
-        "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.agentMapping.copySessionId",
-        "title": "%command.agentMapping.copySessionId%",
-        "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.agentMapping.deleteStatusFile",
-        "title": "%command.agentMapping.deleteStatusFile%",
-        "category": "Anytime Trail"
-      },
-      {
         "command": "anytime-trail.reinstallSkills",
         "title": "%command.reinstallSkills%",
         "category": "Anytime Trail"
       },
       {
-        "command": "anytime-trail.registerMcpToClaudeCode",
-        "title": "%command.registerMcpToClaudeCode%",
+        "command": "anytime-trail.registerMcpServer",
+        "title": "%command.registerMcpServer%",
         "category": "Anytime Trail"
-      },
-      {
-        "command": "anytime-trail.startOllama",
-        "title": "%command.startOllama%",
-        "category": "Anytime Trail",
-        "icon": "$(play)"
       },
       {
         "command": "anytime-trail.killExtensionHost",
@@ -280,41 +204,14 @@
           "group": "navigation@3"
         },
         {
-          "command": "anytime-trail.analyzeAll",
-          "when": "view == anytimeTrail.database",
+          "command": "anytime-trail.analyzeCurrentCode",
+          "when": "view == anytimeTrail.dashboard",
           "group": "navigation@1"
         },
         {
-          "command": "anytime-trail.analyzeCurrentCode",
-          "when": "view == anytimeTrail.database",
-          "group": "navigation@2"
-        },
-        {
-          "command": "anytime-trail.agentMapping.refresh",
-          "when": "view == anytimeTrail.agentMapping",
-          "group": "navigation"
-        },
-        {
-          "command": "anytime-trail.agentMapping.cleanupStale",
-          "when": "view == anytimeTrail.agentMapping",
-          "group": "navigation"
-        },
-        {
-          "command": "anytime-trail.agentMapping.toggleStale",
-          "when": "view == anytimeTrail.agentMapping && !anytimeTrail.agentMapping.filterActive",
-          "group": "navigation",
-          "icon": "$(filter)"
-        },
-        {
-          "command": "anytime-trail.agentMapping.toggleStale",
-          "when": "view == anytimeTrail.agentMapping && anytimeTrail.agentMapping.filterActive",
-          "group": "navigation",
-          "icon": "$(filter-filled)"
-        },
-        {
-          "command": "anytime-trail.startOllama",
-          "when": "view == anytimeTrail.ollama && !anytime-trail.ollamaRunning",
-          "group": "navigation"
+          "command": "anytime-trail.analyzeAll",
+          "when": "view == anytimeTrail.pipelines",
+          "group": "navigation@1"
         },
         {
           "command": "anytime-trail.killExtensionHost",
@@ -327,31 +224,6 @@
           "command": "anytime-trail.deleteAiNotePage",
           "when": "view == anytimeTrail.aiNote && viewItem == noteItem",
           "group": "inline"
-        },
-        {
-          "command": "anytime-trail.agentMapping.openWorktree",
-          "when": "view == anytimeTrail.agentMapping && viewItem =~ /^worktree/",
-          "group": "1_open@1"
-        },
-        {
-          "command": "anytime-trail.agentMapping.copyWorktreePath",
-          "when": "view == anytimeTrail.agentMapping && viewItem =~ /^worktree/",
-          "group": "2_copy@1"
-        },
-        {
-          "command": "anytime-trail.agentMapping.showSessionEdits",
-          "when": "view == anytimeTrail.agentMapping && viewItem =~ /^session/",
-          "group": "1_open@1"
-        },
-        {
-          "command": "anytime-trail.agentMapping.copySessionId",
-          "when": "view == anytimeTrail.agentMapping && viewItem =~ /^session/",
-          "group": "2_copy@1"
-        },
-        {
-          "command": "anytime-trail.agentMapping.deleteStatusFile",
-          "when": "view == anytimeTrail.agentMapping && viewItem == session.stale",
-          "group": "3_modify@1"
         }
       ]
     },
@@ -383,46 +255,10 @@
           "default": ".anytime/trail/db",
           "markdownDescription": "%config.database.storagePath%"
         },
-        "anytimeTrail.database.backupGenerations": {
-          "type": "number",
-          "default": 1,
-          "minimum": 1,
-          "maximum": 10,
-          "markdownDescription": "%config.database.backupGenerations%"
-        },
-        "anytimeTrail.database.backupIntervalDays": {
-          "type": "number",
-          "default": 1,
-          "minimum": 0,
-          "markdownDescription": "%config.database.backupIntervalDays%"
-        },
-        "anytimeTrail.claudeStatus.directory": {
-          "type": "string",
-          "default": ".anytime/trail/agent-status",
-          "markdownDescription": "%config.claudeStatus.directory%"
-        },
-        "anytimeTrail.budget.dailyLimitTokens": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "default": null,
-          "markdownDescription": "日次トークン上限。`null` で無効。"
-        },
-        "anytimeTrail.budget.sessionLimitTokens": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "default": null,
-          "markdownDescription": "セッションあたりのトークン上限。`null` で無効。"
-        },
-        "anytimeTrail.budget.alertThresholdPct": {
-          "type": "number",
-          "default": 80,
-          "minimum": 1,
-          "maximum": 100,
-          "markdownDescription": "上限に対する警告閾値（%）。"
+        "anytimeTrail.analyzeAll.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.analyzeAll.enabled%"
         },
         "anytimeTrail.logs.minLevel": {
           "type": "string",
@@ -449,6 +285,7 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
+    "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/memory-core": "*",
     "@anytime-markdown/mcp-trail": "*",

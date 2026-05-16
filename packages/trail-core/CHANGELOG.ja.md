@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-05-16
+
+### 追加
+
+- `seedAnalyzeExclude` の `DEFAULT_ANALYZE_EXCLUDE_CONTENT` を拡充（`.claude/` / `.changeset/` / `.github/` / `.config/` / `.playwright-mcp/` / `.serena/` / `.vscode/` / `__mocks__/` / `demos/` / `dist/` / `**/CHANGELOG.{ja,}.md` / `**/README.{ja,}.md` を初期除外に追加）
+
+### 変更
+
+- **Breaking:** agent マッピングを `trail-core` から新パッケージ `agent-core` に移動。利用側は `@anytime-markdown/agent-core` から import する必要あり
+
+### セキュリティ
+
+- 多項式バックトラッキング（ReDoS）対策として正規表現リテラルを強化
+
 ## [0.19.0] - 2026-05-15
 
 ### 変更

@@ -111,6 +111,17 @@ export function SourceModeEditor({
   const gutterRef = useRef<HTMLDivElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
   const textContainerRef = useRef<HTMLDivElement>(null);
+  const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
+  // ref を内部参照と外部参照の両方に流すコールバック ref
+  const setTextareaRef = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      internalTextareaRef.current = node;
+      if (textareaRef) {
+        textareaRef.current = node;
+      }
+    },
+    [textareaRef],
+  );
 
   const hasMatches = searchMatches && searchMatches.length > 0;
 
@@ -129,7 +140,7 @@ export function SourceModeEditor({
 
   // Sync textarea scroll to highlight layer and gutter
   const handleScroll = useCallback(() => {
-    const ta = textareaRef?.current;
+    const ta = internalTextareaRef.current;
     const hl = highlightRef.current;
     const b64 = base64OverlayRef.current;
     const gutter = gutterRef.current;
@@ -146,7 +157,7 @@ export function SourceModeEditor({
         gutter.scrollTop = ta.scrollTop;
       }
     }
-  }, [textareaRef]);
+  }, []);
 
   // Also sync when the parent Paper scrolls (vertical overflow)
   useEffect(() => {
@@ -166,7 +177,9 @@ export function SourceModeEditor({
     return () => container.removeEventListener("scroll", syncScroll);
   }, [hasMatches, hasBase64Tokens]);
 
-  // ミラー要素で各行の描画高さを計測し、行番号ガターの高さに反映
+  // ミラー要素で各行の描画高さを計測し、行番号ガターと textarea 本体の高さに反映。
+  // textarea は rows 属性だけだと折り返し分を含めないため overflow:hidden で末尾が切れる。
+  // ミラーの実測総高さを textarea.style.height に同期して欠けを防ぐ。
   useEffect(() => {
     const applyHeights = () => {
       const mirror = mirrorRef.current;
@@ -176,6 +189,13 @@ export function SourceModeEditor({
         const h = (mirror.children[i] as HTMLElement).getBoundingClientRect().height;
         if (i < gutter.children.length) {
           (gutter.children[i] as HTMLElement).style.height = `${h}px`;
+        }
+      }
+      const ta = internalTextareaRef.current;
+      if (ta) {
+        const mirrorHeight = mirror.getBoundingClientRect().height;
+        if (mirrorHeight > 0) {
+          ta.style.height = `${mirrorHeight}px`;
         }
       }
     };
@@ -306,7 +326,7 @@ export function SourceModeEditor({
           )}
           <Box
             component="textarea"
-            ref={textareaRef}
+            ref={setTextareaRef}
             aria-label={ariaLabel}
             value={displayText}
             rows={Math.max(lineCount, Math.ceil((editorHeight - 36) / (settings.fontSize * settings.lineHeight)))}

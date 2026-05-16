@@ -4,7 +4,7 @@ import { splitEpisodes, type Message } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
 import { noopLogger, type MemoryLogger } from '../logger';
-import type { OllamaClient } from '../ollama/client';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 const RETRY_SCOPE = 'conversation_failed_items_retry';
 const DEFAULT_SOURCE_SCOPE = 'conversation_backfill';

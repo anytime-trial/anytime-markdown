@@ -56,35 +56,30 @@ function getStorage(ext: any): any {
 
 /** Markdown シリアライズ用のモック state を作成する */
 function createMockSerializerState() {
-  const lines: string[] = [];
-  let currentLine = "";
-  return {
-    lines,
+  const state = {
+    out: "" as string,
     get output() {
-      return lines.join("\n") + currentLine;
+      return state.out;
     },
     write(text: string) {
-      currentLine += text;
+      state.out += text;
     },
     text(text: string, _escape?: boolean) {
-      currentLine += text;
+      state.out += text;
     },
     ensureNewLine() {
-      lines.push(currentLine);
-      currentLine = "";
+      if (!state.out.endsWith("\n")) state.out += "\n";
     },
     closeBlock(_node: any) {
-      if (currentLine) {
-        lines.push(currentLine);
-        currentLine = "";
-      }
-      lines.push("");
+      if (state.out && !state.out.endsWith("\n")) state.out += "\n";
+      state.out += "\n";
     },
     renderInline(node: any) {
-      currentLine += node.textContent || "";
+      state.out += node.textContent || "";
     },
     inTable: false,
   };
+  return state;
 }
 
 // ===========================================================================
@@ -247,6 +242,46 @@ describe("CustomTable (tableExtension)", () => {
     it("parse is empty object", () => {
       const storage = getStorage(CustomTable);
       expect(storage.markdown.parse).toEqual({});
+    });
+
+    it("escapes `|` inside cell text to avoid GFM cell-delimiter conflict", () => {
+      // Regression: tiptap-markdown の table serializer は state.renderInline に渡された
+      // セル本文の `|` をエスケープしないため、round-trip でセル区切りとして再解釈され
+      // 表構造が破壊される。本拡張は renderInline 書込範囲のみを `\|` にエスケープする。
+      const storage = getStorage(CustomTable);
+      const state = createMockSerializerState();
+
+      const cellWithPipes = {
+        firstChild: { textContent: "|ノ|ー|ド|" },
+        textContent: "|ノ|ー|ド|",
+        attrs: { textAlign: null },
+      };
+      const row = { forEach: (cb: Function) => cb(cellWithPipes, 0, 0) };
+      const node = { forEach: (cb: Function) => cb(row, 0, 0) };
+
+      storage.markdown.serialize(state, node);
+      // セル境界 `| ` `|` は素のまま、本文中の `|` だけ `\|` にエスケープされる
+      expect(state.out).toContain(String.raw`\|ノ\|ー\|ド\|`);
+      // 既にエスケープ済みの `\|` は二重エスケープしない
+      expect(state.out).not.toContain(String.raw`\\|`);
+    });
+
+    it("does not double-escape `|` that is already preceded by a backslash", () => {
+      const storage = getStorage(CustomTable);
+      const state = createMockSerializerState();
+
+      const cell = {
+        firstChild: { textContent: String.raw`a\|b` },
+        textContent: String.raw`a\|b`,
+        attrs: { textAlign: null },
+      };
+      const row = { forEach: (cb: Function) => cb(cell, 0, 0) };
+      const node = { forEach: (cb: Function) => cb(row, 0, 0) };
+
+      storage.markdown.serialize(state, node);
+      // `\|` は既に escape 済み扱いとして保持する
+      expect(state.out).toContain(String.raw`a\|b`);
+      expect(state.out).not.toContain(String.raw`a\\|b`);
     });
   });
 });

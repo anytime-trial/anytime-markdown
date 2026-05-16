@@ -92,7 +92,10 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
   }, [onModeChange]);
 
   const handleSwitchToSource = useCallback(() => {
-    if (!editor) return;
+    if (!editor) {
+      console.warn("[useSourceMode] handleSwitchToSource: editor is null; mode switch skipped");
+      return;
+    }
     if (reviewMode) {
       reviewModeStorage(editor).enabled = false;
       delete editor.view.dom.dataset.reviewMode;
@@ -126,13 +129,18 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
       if (sourceMode) {
         syncSourceToEditor(editor, sourceText);
       }
+    } else {
+      console.warn("[useSourceMode] handleSwitchToWysiwyg: editor is null; mode state set without sync");
     }
     setEditorMode("wysiwyg");
     setLiveMessage(t("switchedToWysiwyg"));
   }, [editor, sourceMode, readonlyMode, reviewMode, sourceText, syncSourceToEditor, t, setEditorMode]);
 
   const handleSwitchToReview = useCallback(() => {
-    if (!editor) return;
+    if (!editor) {
+      console.warn("[useSourceMode] handleSwitchToReview: editor is null; mode switch skipped");
+      return;
+    }
     // Source モードから切り替える場合、まず WYSIWYG に同期
     if (sourceMode) {
       syncSourceToEditor(editor, sourceText);
@@ -149,7 +157,10 @@ export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultS
   }, [editor, sourceMode, readonlyMode, sourceText, syncSourceToEditor, t, setEditorMode]);
 
   const handleSwitchToReadonly = useCallback(() => {
-    if (!editor) return;
+    if (!editor) {
+      console.warn("[useSourceMode] handleSwitchToReadonly: editor is null; mode switch skipped");
+      return;
+    }
     // Source モードから切り替える場合、まず WYSIWYG に同期
     if (sourceMode) {
       syncSourceToEditor(editor, sourceText);

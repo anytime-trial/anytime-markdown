@@ -14,8 +14,6 @@ export type {
   RunResult,
   SqlValue as MemoryDbSqlValue,
 } from './db/connection/types';
-export { createOllamaClient } from './ollama/client';
-export type { OllamaClient } from './ollama/client';
 export type { MemoryLogger } from './logger';
 export { noopLogger } from './logger';
 export { runConversationIncremental } from './pipeline/runConversationIncremental';
@@ -124,18 +122,6 @@ export { CitationStreamParser } from './chat/citationParser';
 export { ChatService } from './chat/ChatService';
 export type { ChatServiceOptions } from './chat/ChatService';
 
-export type {
-  ChatProvider,
-  ChatProviderChatOptions,
-  ChatStreamChunk,
-  EmbeddingProvider,
-  HealthCheckResult,
-} from './providers/types';
-export { OllamaChatProvider } from './providers/ollama/OllamaChatProvider';
-export type { OllamaChatProviderOptions } from './providers/ollama/OllamaChatProvider';
-export { OllamaEmbeddingProvider } from './providers/ollama/OllamaEmbeddingProvider';
-export type { OllamaEmbeddingProviderOptions } from './providers/ollama/OllamaEmbeddingProvider';
-
 export { MemoryCoreService, defaultStatePath } from './service/MemoryCoreService';
 export { defaultState, readState, writeState, STATE_SCHEMA_VERSION } from './service/state';
 export type { ReadStateOptions } from './service/state';
@@ -149,3 +135,12 @@ export type {
   PipelineRunnerContext,
   RunReason,
 } from './service/types';
+
+// 共通 Runner 抽象 (AnalyzeAllRunner などの subclass 実装用)
+export { BaseRunner } from './runner/BaseRunner';
+export type {
+  BaseRunnerOptions,
+  RunnerLogSink,
+  RunnerStartOptions,
+  RunnerStatus,
+} from './runner/types';

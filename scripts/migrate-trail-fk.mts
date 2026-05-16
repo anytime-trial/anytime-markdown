@@ -221,8 +221,10 @@ const tx = db.transaction(() => {
         const renamedTo = INDEX_RENAMES[obj.name];
         if (renamedTo) {
           // 旧名 → 新名にリネームして再作成
+          // 正規表現に obj.name を埋め込むため特殊文字をエスケープ (reDOS 対策)
+          const escapedName = obj.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const newSql = obj.sql.replace(
-            new RegExp(`(\\bINDEX\\s+)(?:IF\\s+NOT\\s+EXISTS\\s+)?(?:"${obj.name}"|${obj.name})\\b`, 'i'),
+            new RegExp(`(\\bINDEX\\s+)(?:IF\\s+NOT\\s+EXISTS\\s+)?(?:"${escapedName}"|${escapedName})\\b`, 'i'),
             `$1IF NOT EXISTS "${renamedTo}"`,
           );
           db.exec(`DROP INDEX IF EXISTS "${renamedTo}"`);

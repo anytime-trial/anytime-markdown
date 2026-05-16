@@ -79,7 +79,7 @@ export const ImageRow = Node.create({
           node.forEach((child) => {
             if (child.type.name !== "image") return;
             const alt = String(child.attrs.alt ?? "");
-            const src = String(child.attrs.src ?? "").replaceAll(/[()]/g, "\\$&");
+            const src = String(child.attrs.src ?? "").replaceAll(/[\\()]/g, "\\$&");
             const title = child.attrs.title
               ? ` "${String(child.attrs.title).replaceAll('"', '\\"')}"`
               : "";

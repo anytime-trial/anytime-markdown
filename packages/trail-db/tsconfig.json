@@ -8,9 +8,7 @@
     "types": ["node", "jest"],
     "paths": {
       "@anytime-markdown/trail-core": ["../trail-core/src/index.ts"],
-      "@anytime-markdown/trail-core/*": ["../trail-core/src/*"],
-      "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
-      "@anytime-markdown/graph-core/*": ["../graph-core/src/*"]
+      "@anytime-markdown/trail-core/*": ["../trail-core/src/*"]
     }
   },
   "include": ["src/**/*"]

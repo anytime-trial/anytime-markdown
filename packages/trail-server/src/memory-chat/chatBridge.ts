@@ -1,15 +1,16 @@
 import {
   ChatService,
-  OllamaChatProvider,
-  createOllamaClient,
   openMemoryCoreDb,
   type ChatChunk,
   type ChatTurnInput,
-  type ChatProvider,
-  type HealthCheckResult,
   type MemoryCoreDb,
-  type OllamaClient,
 } from '@anytime-markdown/memory-core';
+import type { ChatProvider, HealthCheckResult } from '@anytime-markdown/llm-core';
+import {
+  OllamaChatProvider,
+  createOllamaClient,
+  type OllamaClient,
+} from '@anytime-markdown/agent-core';
 import type { WebSocket } from 'ws';
 import type {
   ChatChunkMessage,

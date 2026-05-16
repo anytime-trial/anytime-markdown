@@ -1,11 +1,7 @@
 import { loadConfig, type TrailServerConfig } from '../Config';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-function loadFixture(name: string): unknown {
-  return JSON.parse(readFileSync(join(__dirname, '__fixtures__', name), 'utf8'));
-}
 
 describe('loadConfig', () => {
   let dir: string;
@@ -19,57 +15,51 @@ describe('loadConfig', () => {
     warnSpy.mockRestore();
   });
 
-  // ---- existing tests (updated for schemaVersion 2) ----
-
-  it('returns defaults when file missing', () => {
-    const cfg = loadConfig(join(dir, 'config.json'));
-    expect(cfg.schemaVersion).toBe(2);
-    expect(cfg.scheduler.periodicImport.intervalSec).toBe(60);
-    expect(cfg.scheduler.periodicImport.runOnStart).toBe(true);
-    expect(cfg.scheduler.memoryCore.intervalSec).toBe(1800);
-    expect(cfg.scheduler.memoryCore.runOnStart).toBe(true);
-    expect(cfg.scheduler.memoryCore.startupDelaySec).toBe(5);
+  it('returns defaults when file missing (and auto-generates the file)', () => {
+    const p = join(dir, 'config.json');
+    expect(existsSync(p)).toBe(false);
+    const cfg = loadConfig(p);
+    expect(cfg.schemaVersion).toBe(1);
+    expect(cfg.analyzeAll.intervalSec).toBe(1800);
+    expect(cfg.analyzeAll.runOnStart).toBe(false);
+    expect(cfg.analyzeAll.startupDelaySec).toBe(30);
     expect(cfg.gitRoots).toEqual([]);
+
+    // 副作用: ファイルが自動生成されている
+    expect(existsSync(p)).toBe(true);
+    const round = JSON.parse(readFileSync(p, 'utf-8')) as TrailServerConfig;
+    expect(round.schemaVersion).toBe(1);
+    expect(round.analyzeAll.runOnStart).toBe(false);
+    expect(round.analyzeAll.startupDelaySec).toBe(30);
   });
 
-  it('merges scheduler.memoryCore overrides (legacy field kept)', () => {
-    const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify({
-      scheduler: { memoryCore: { intervalSec: 600, runOnStart: false } },
-    }));
-    const cfg = loadConfig(p);
-    expect(cfg.scheduler.memoryCore.intervalSec).toBe(600);
-    expect(cfg.scheduler.memoryCore.runOnStart).toBe(false);
-    // unspecified field falls back to defaults
-    expect(cfg.scheduler.memoryCore.startupDelaySec).toBe(5);
+  it('creates parent directory when generating default', () => {
+    const p = join(dir, 'nested', 'deep', 'config.json');
+    loadConfig(p);
+    expect(existsSync(p)).toBe(true);
   });
 
-  it('merges file values over defaults', () => {
+  it('does not regenerate when file already exists', () => {
     const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify({
-      gitRoots: ['/a', '/b'],
-      scheduler: { periodicImport: { intervalSec: 300 } },
-    }));
-    const cfg = loadConfig(p);
-    expect(cfg.gitRoots).toEqual(['/a', '/b']);
-    expect(cfg.scheduler.periodicImport.intervalSec).toBe(300);
-    expect(cfg.scheduler.periodicImport.runOnStart).toBe(true);
+    writeFileSync(p, JSON.stringify({ schemaVersion: 1, analyzeAll: { intervalSec: 9999 } }));
+    const before = readFileSync(p, 'utf-8');
+    loadConfig(p);
+    expect(readFileSync(p, 'utf-8')).toBe(before);
   });
 
   it('returns defaults when JSON is malformed', () => {
     const p = join(dir, 'config.json');
     writeFileSync(p, '{ this is not json');
     const cfg = loadConfig(p);
-    expect(cfg.scheduler.periodicImport.intervalSec).toBe(60);
+    expect(cfg.analyzeAll.intervalSec).toBe(1800);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('failed to parse'));
   });
 
-  // ---- new tests for schemaVersion 2 and memory.* ----
-
-  it('fills all memory defaults when file is empty object', () => {
+  it('fills all defaults when file is empty object', () => {
     const p = join(dir, 'config.json');
     writeFileSync(p, '{}');
     const cfg = loadConfig(p);
+    expect(cfg.schemaVersion).toBe(1);
     expect(cfg.memory.ollama.baseUrl).toBe('http://localhost:11434');
     expect(cfg.memory.chat.model).toBe('qwen2.5-coder:14b');
     expect(cfg.memory.embedding.model).toBe('bge-m3');
@@ -78,10 +68,23 @@ describe('loadConfig', () => {
     expect(cfg.memory.rag.finalLimit).toBe(12);
     expect(cfg.memory.rag.rrfK).toBe(60);
     expect(cfg.memory.fts.rebuildIntervalMinutes).toBe(60);
-    expect(cfg.memory.ingest.intervalSec).toBe(1800);
-    expect(cfg.memory.ingest.runOnStart).toBe(true);
-    expect(cfg.memory.ingest.startupDelaySec).toBe(5);
     expect(cfg.memory.conversation.backfillDays).toBe(5);
+    expect(cfg.analyzeAll.intervalSec).toBe(1800);
+    expect(cfg.analyzeAll.runOnStart).toBe(false);
+    expect(cfg.analyzeAll.startupDelaySec).toBe(30);
+  });
+
+  it('merges file values over defaults', () => {
+    const p = join(dir, 'config.json');
+    writeFileSync(p, JSON.stringify({
+      gitRoots: ['/a', '/b'],
+      analyzeAll: { intervalSec: 300, runOnStart: true },
+    }));
+    const cfg = loadConfig(p);
+    expect(cfg.gitRoots).toEqual(['/a', '/b']);
+    expect(cfg.analyzeAll.intervalSec).toBe(300);
+    expect(cfg.analyzeAll.runOnStart).toBe(true);
+    expect(cfg.analyzeAll.startupDelaySec).toBe(30); // default 維持
   });
 
   it('partial memory.chat.model override preserves other defaults', () => {
@@ -95,80 +98,19 @@ describe('loadConfig', () => {
     expect(cfg.memory.embedding.model).toBe('bge-m3');
     expect(cfg.memory.rag.bm25Limit).toBe(30);
     expect(cfg.memory.fts.rebuildIntervalMinutes).toBe(60);
-    expect(cfg.memory.ingest.intervalSec).toBe(1800);
     expect(cfg.memory.conversation.backfillDays).toBe(5);
-  });
-
-  it('v1 config: migrates scheduler.memoryCore to memory.ingest', () => {
-    const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify(loadFixture('config-v1.json')));
-    const cfg = loadConfig(p);
-    expect(cfg.memory.ingest.intervalSec).toBe(900);
-    expect(cfg.memory.ingest.runOnStart).toBe(false);
-    expect(cfg.memory.ingest.startupDelaySec).toBe(10);
-  });
-
-  it('v1 config emits deprecation warnings', () => {
-    const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify({
-      schemaVersion: 1,
-      scheduler: {
-        memoryCore: { intervalSec: 900, runOnStart: true, startupDelaySec: 5 },
-      },
-    }));
-    loadConfig(p);
-    expect(warnSpy).toHaveBeenCalledTimes(2);
-    expect(warnSpy.mock.calls[0][0]).toContain('schemaVersion 1');
-    expect(warnSpy.mock.calls[1][0]).toContain('scheduler.memoryCore is deprecated');
-  });
-
-  it('v1 config with both scheduler.memoryCore AND memory.ingest: user memory.ingest wins', () => {
-    const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify({
-      schemaVersion: 1,
-      scheduler: {
-        memoryCore: { intervalSec: 900, runOnStart: false, startupDelaySec: 10 },
-      },
-      memory: {
-        ingest: { intervalSec: 600 },
-      },
-    }));
-    const cfg = loadConfig(p);
-    // explicit memory.ingest.intervalSec wins
-    expect(cfg.memory.ingest.intervalSec).toBe(600);
-    // memory.ingest fields not in memory.ingest override get from scheduler.memoryCore migration
-    expect(cfg.memory.ingest.runOnStart).toBe(false);
-    expect(cfg.memory.ingest.startupDelaySec).toBe(10);
-  });
-
-  it('v2 config without legacy fields works with defaults and overrides', () => {
-    const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify(loadFixture('config-v2.json')));
-    const cfg = loadConfig(p);
-    expect(cfg.schemaVersion).toBe(2);
-    // override values that differ from DEFAULT_CONFIG
-    expect(cfg.gitRoots).toEqual(['/repo']);
-    expect(cfg.memory.ollama.baseUrl).toBe('http://host.docker.internal:11434');
-    expect(cfg.memory.rag.finalLimit).toBe(20);
-    // non-overridden fields fall back to defaults
-    expect(cfg.memory.rag.bm25Limit).toBe(30);
-    expect(cfg.memory.chat.model).toBe('qwen2.5-coder:14b');
-    expect(cfg.memory.embedding.model).toBe('bge-m3');
-    expect(cfg.memory.fts.rebuildIntervalMinutes).toBe(60);
-    expect(cfg.memory.ingest.intervalSec).toBe(1800);
-    expect(cfg.memory.conversation.backfillDays).toBe(5);
-    expect(warnSpy).not.toHaveBeenCalled();
+    expect(cfg.analyzeAll.intervalSec).toBe(1800);
   });
 
   it('all memory subsections support partial override independently', () => {
     const p = join(dir, 'config.json');
     writeFileSync(p, JSON.stringify({
+      analyzeAll: { intervalSec: 3600 },
       memory: {
         ollama: { baseUrl: 'http://custom:11434' },
         embedding: { model: 'nomic-embed-text' },
         rag: { rrfK: 100 },
         fts: { rebuildIntervalMinutes: 30 },
-        ingest: { intervalSec: 3600 },
         conversation: { backfillDays: 14 },
       },
     }));
@@ -179,8 +121,29 @@ describe('loadConfig', () => {
     expect(cfg.memory.rag.rrfK).toBe(100);
     expect(cfg.memory.rag.bm25Limit).toBe(30); // default preserved
     expect(cfg.memory.fts.rebuildIntervalMinutes).toBe(30);
-    expect(cfg.memory.ingest.intervalSec).toBe(3600);
-    expect(cfg.memory.ingest.runOnStart).toBe(true); // default preserved
     expect(cfg.memory.conversation.backfillDays).toBe(14);
+    expect(cfg.analyzeAll.intervalSec).toBe(3600);
+    expect(cfg.analyzeAll.runOnStart).toBe(false); // default preserved
+  });
+
+  it('schema does not expose scheduler field in output', () => {
+    const p = join(dir, 'config.json');
+    writeFileSync(p, '{}');
+    const cfg = loadConfig(p);
+    expect((cfg as TrailServerConfig & { scheduler?: unknown }).scheduler).toBeUndefined();
+  });
+
+  it('silently ignores unknown legacy fields (no migration)', () => {
+    const p = join(dir, 'config.json');
+    writeFileSync(p, JSON.stringify({
+      schemaVersion: 99,
+      scheduler: { memoryCore: { intervalSec: 900 } }, // 旧 v1 形式 — 無視される
+      memory: { ingest: { intervalSec: 600 } },         // 旧 v2 形式 — 無視される
+      analyzeAll: { intervalSec: 1234 },
+    }));
+    const cfg = loadConfig(p);
+    expect(cfg.analyzeAll.intervalSec).toBe(1234);
+    expect(cfg.analyzeAll.runOnStart).toBe(false); // default
+    expect(warnSpy).not.toHaveBeenCalled(); // マイグレーション WARN なし
   });
 });

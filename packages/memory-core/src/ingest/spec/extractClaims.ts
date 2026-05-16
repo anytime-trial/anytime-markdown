@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { OllamaClient } from '../../ollama/client';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 import { buildSpecPrompt } from '../../ollama/prompts/spec';
 import type { MemoryLogger } from '../../logger';
 import type { FilteredParagraph } from './preFilterClaims';

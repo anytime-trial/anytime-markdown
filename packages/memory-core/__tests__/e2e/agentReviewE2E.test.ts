@@ -17,7 +17,7 @@ import { ingestAgentReviewResult } from '../../src/ingest/review/ingestAgentRevi
 import { runAgentRunWatchdog } from '../../src/ingest/review/agentRunWatchdog';
 import { entityId } from '../../src/canonical/entityId';
 import { noopLogger } from '../../src/logger';
-import type { OllamaClient } from '../../src/ollama/client';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 // ── Valid RFC 4122 UUIDs ───────────────────────────────────────────────────────
 

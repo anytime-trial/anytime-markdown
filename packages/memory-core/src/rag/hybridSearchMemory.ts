@@ -1,5 +1,5 @@
 import type { MemoryDbConnection } from '../db/connection/types';
-import type { OllamaClient } from '../ollama/client';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 import {
   searchMemory,
   vectorTopK,

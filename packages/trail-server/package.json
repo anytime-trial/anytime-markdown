@@ -15,8 +15,8 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
+    "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/cms-core": "*",
-    "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/memory-core": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trail-db": "*",
@@ -33,6 +33,7 @@
     "ws": "8.18.2"
   },
   "devDependencies": {
+    "@anytime-markdown/llm-core": "*",
     "@types/jest": "29.5.14",
     "@types/node": "22.x",
     "@types/seedrandom": "3.0.8",

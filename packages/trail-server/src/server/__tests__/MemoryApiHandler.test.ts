@@ -108,10 +108,10 @@ function buildTestDb(dbPath: string): void {
     id TEXT PRIMARY KEY,
     scope TEXT NOT NULL,
     started_at TEXT NOT NULL,
-    completed_at TEXT,
+    finished_at TEXT,
     status TEXT NOT NULL,
     items_processed INTEGER NOT NULL DEFAULT 0,
-    error_message TEXT
+    error_detail TEXT NOT NULL DEFAULT ''
   ) STRICT`);
 
   run(`CREATE TABLE memory_failed_items (
@@ -200,7 +200,7 @@ function buildTestDb(dbPath: string): void {
 
   // Seed: pipeline runs
   run(
-    `INSERT INTO memory_pipeline_runs (id, scope, started_at, completed_at, status, items_processed)
+    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed)
      VALUES (?, ?, ?, ?, ?, ?)`,
     ['run-1', 'drift', TS, TS2, 'success', 5],
   );

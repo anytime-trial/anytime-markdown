@@ -13,6 +13,7 @@
     "./src/*": "./src/*"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "jest --maxWorkers=1"
   }
 }

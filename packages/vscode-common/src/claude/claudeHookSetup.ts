@@ -219,7 +219,21 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, tra
 
   const statusFile = buildStatusFilePath(workspaceRoot, statusDir);
   const statusFileBase = statusFile.replace(/\.json$/, '');
-  const workspaceRootForHook = path.dirname(path.dirname(statusFile)) + '/';
+  // hook の inline node コマンド内では mkdir を行わないため、setup 時に親ディレクトリを作る。
+  // statusDir が .anytime/trail/agent-status のような多段パスでも書き込みが ENOENT で
+  // silent catch に握り潰されないようにする。
+  try {
+    fs.mkdirSync(path.dirname(statusFile), { recursive: true });
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('[trail] Failed to create status directory:', err);
+    }
+  }
+  // workspaceRootForHook は (a) git branch --show-current の cwd、
+  // (b) plan-file hook で plannedEdits パスに前置する prefix の 2 用途で使う。
+  // 旧実装の path.dirname(path.dirname(statusFile)) は statusDir が単一階層 (.anytime) 前提で、
+  // .anytime/trail/agent-status のような多段パスでは workspace root より深い場所を指してしまう。
+  const workspaceRootForHook = (workspaceRoot ?? os.homedir()).replace(/\/+$/, '') + '/';
 
   // stdin の JSON を読み取り、セッション履歴を保持しながらステータスファイルを更新する。
   // session_id がある場合は claude-code-status-{sessionId}.json に書き込む（マルチエージェント対応）。

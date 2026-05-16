@@ -310,6 +310,17 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   server.tool(
+    'list_community_nodes',
+    'List code graph nodes grouped by community for a repo, projected to { id, label, package }. Used by anytime-reverse-engineer skill to aggregate nodes for AI naming (Step 2) and role determination (Step 3) without opening the SQLite DB directly. Returns empty array when no graph is stored. Communities are sorted by communityId ascending; nodes within each community are sorted by id ascending.',
+    { ...commonParams },
+    async ({ repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const result = await route('list_community_nodes', { repoName }, opts);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
     'upsert_community_summaries',
     'Upsert community name + summary pairs to current_code_graph_communities. Used by anytime-reverse-engineer skill after AI generation. mappings_json is preserved.',
     {

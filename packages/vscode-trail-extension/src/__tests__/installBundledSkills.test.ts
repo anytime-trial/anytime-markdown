@@ -12,11 +12,11 @@ interface TestEnv {
 }
 
 const BUNDLED_CONTENT = `---
-name: anytime-reverse-engineer
-trigger: /anytime-reverse-engineer
+name: anytime-reverse-codegraph
+trigger: /anytime-reverse-codegraph
 ---
 
-# /anytime-reverse-engineer
+# /anytime-reverse-codegraph
 
 bundled-version-content
 `;
@@ -27,7 +27,7 @@ function setupEnv(initial?: { existingSkill?: string; existingOldDirs?: readonly
   const claudeDir = path.join(tmpRoot, 'fake-home', '.claude');
 
   // bundled skill
-  const bundledSkillDir = path.join(extensionPath, 'skills', 'anytime-reverse-engineer');
+  const bundledSkillDir = path.join(extensionPath, 'skills', 'anytime-reverse-codegraph');
   fs.mkdirSync(bundledSkillDir, { recursive: true });
   const bundledSkillPath = path.join(bundledSkillDir, 'SKILL.md');
   fs.writeFileSync(bundledSkillPath, BUNDLED_CONTENT);
@@ -37,7 +37,7 @@ function setupEnv(initial?: { existingSkill?: string; existingOldDirs?: readonly
   fs.mkdirSync(path.join(claudeDir, 'skills'), { recursive: true });
 
   if (initial?.existingSkill !== undefined) {
-    const targetDir = path.join(claudeDir, 'skills', 'anytime-reverse-engineer');
+    const targetDir = path.join(claudeDir, 'skills', 'anytime-reverse-codegraph');
     fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(path.join(targetDir, 'SKILL.md'), initial.existingSkill);
   }
@@ -61,7 +61,7 @@ describe('installBundledSkills', () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'install-skills-'));
     try {
       const extensionPath = path.join(tmpRoot, 'ext');
-      const bundledSkillDir = path.join(extensionPath, 'skills', 'anytime-reverse-engineer');
+      const bundledSkillDir = path.join(extensionPath, 'skills', 'anytime-reverse-codegraph');
       fs.mkdirSync(bundledSkillDir, { recursive: true });
       fs.writeFileSync(path.join(bundledSkillDir, 'SKILL.md'), BUNDLED_CONTENT);
 
@@ -89,7 +89,7 @@ describe('installBundledSkills', () => {
 
       expect(result.installed).toBe(true);
       expect(result.skipped).toBe(false);
-      const target = path.join(env.claudeDir, 'skills', 'anytime-reverse-engineer', 'SKILL.md');
+      const target = path.join(env.claudeDir, 'skills', 'anytime-reverse-codegraph', 'SKILL.md');
       expect(fs.existsSync(target)).toBe(true);
       expect(fs.readFileSync(target, 'utf-8')).toBe(BUNDLED_CONTENT);
     } finally {
@@ -114,7 +114,7 @@ describe('installBundledSkills', () => {
   });
 
   it('既存 SKILL.md が bundle と異なる場合は上書きせず preserved を返す', () => {
-    const localContent = '---\nname: anytime-reverse-engineer\n---\n\n# /anytime-reverse-engineer\n\nlocal-edits\n';
+    const localContent = '---\nname: anytime-reverse-codegraph\n---\n\n# /anytime-reverse-codegraph\n\nlocal-edits\n';
     const env = setupEnv({ existingSkill: localContent });
     try {
       const result = installBundledSkills({
@@ -125,7 +125,7 @@ describe('installBundledSkills', () => {
       expect(result.installed).toBe(false);
       expect(result.preserved).toBe(true);
       expect(result.skipped).toBe(false);
-      const target = path.join(env.claudeDir, 'skills', 'anytime-reverse-engineer', 'SKILL.md');
+      const target = path.join(env.claudeDir, 'skills', 'anytime-reverse-codegraph', 'SKILL.md');
       expect(fs.readFileSync(target, 'utf-8')).toBe(localContent);
     } finally {
       env.cleanup();
@@ -144,7 +144,7 @@ describe('installBundledSkills', () => {
 
       expect(result.installed).toBe(true);
       expect(result.preserved).toBe(false);
-      const target = path.join(env.claudeDir, 'skills', 'anytime-reverse-engineer', 'SKILL.md');
+      const target = path.join(env.claudeDir, 'skills', 'anytime-reverse-codegraph', 'SKILL.md');
       expect(fs.readFileSync(target, 'utf-8')).toBe(BUNDLED_CONTENT);
     } finally {
       env.cleanup();

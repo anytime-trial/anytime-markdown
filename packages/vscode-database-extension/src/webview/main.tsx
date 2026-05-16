@@ -23,9 +23,11 @@ const theme = createTheme({ palette: { mode: isDark ? "dark" : "light" } });
 
 function makeTransport(): MessageTransport {
   const listeners = new Set<(m: ExtToWvMessage | WvToExtMessage) => void>();
-  globalThis.addEventListener("message", (e: MessageEvent) =>
-    listeners.forEach((l) => l(e.data as ExtToWvMessage)),
-  );
+  globalThis.addEventListener("message", (e: MessageEvent) => {
+    // VS Code webview のメッセージは origin が空文字列または vscode-webview:// スキーム
+    if (e.origin && !e.origin.startsWith("vscode-webview://")) return;
+    listeners.forEach((l) => l(e.data as ExtToWvMessage));
+  });
   return {
     postMessage: (m) => vscode.postMessage(m as WvToExtMessage),
     onMessage: (l) => {

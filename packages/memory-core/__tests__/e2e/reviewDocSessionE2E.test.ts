@@ -14,7 +14,7 @@ import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runReviewIncremental } from '../../src/pipeline/runReviewIncremental';
 import { entityId } from '../../src/canonical/entityId';
 import { noopLogger } from '../../src/logger';
-import type { OllamaClient } from '../../src/ollama/client';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 // ── Mock OllamaClient ─────────────────────────────────────────────────────────
 

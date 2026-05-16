@@ -7,7 +7,22 @@
 
 ## [Unreleased]
 
-## [0.15.0] - 2026-05-15
+## [0.15.1] - 2026-05-16
+
+### 修正
+
+- テーブルセル本文の `|` を `\|` にエスケープ（カラム区切り破壊を防止）
+- `SourceModeEditor` の textarea 高さを mirror と同期させ、エディタ全体を埋めるよう修正
+- 画像 URL シリアライズ時のバックスラッシュをエスケープし、生 markdown のラウンドトリップを保証
+- silent な mode 切替失敗を握り潰さずログ出力
+
+### 変更
+
+- `markdown-core` から不要な `spreadsheet-core` 依存を削除
+
+### セキュリティ
+
+- 4 件の webview message listener でイベント処理前に message origin を検証
 
 ### 変更
 

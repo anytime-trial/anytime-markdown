@@ -6,6 +6,58 @@
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-05-16
+
+### 追加
+
+- VS Code コマンド `Anytime Trail: Analyze Code (Pick Tsconfig)` (`anytime-trail.analyzeCurrentCodePickTsconfig`) を追加。複数 `tsconfig.json` 環境で従来の QuickPick 選択フローを使いたい場合に呼び出す（コマンドパレットからのみ提供、ダッシュボードアイコンには未バインド）
+- VS Code コマンド `Anytime Trail: Register MCP Server (.mcp.json を更新)` (`anytime-trail.registerMcpServer`) を追加。ワークスペースルートの `.mcp.json` に `mcpServers.mcp-trail` エントリを追加・更新（他 server 設定は保持）。`anytimeTrail.viewer.port` を反映した `TRAIL_SERVER_URL` env を含む。パース不能な JSON は `.bak.<timestamp>` に退避してから新規作成
+- `seedAnalyzeExclude` の `DEFAULT_ANALYZE_EXCLUDE_CONTENT` を拡充。`.claude/` / `.changeset/` / `.github/` / `.config/` / `.playwright-mcp/` / `.serena/` / `.vscode/` / `__mocks__/` / `demos/` / `dist/` / `**/CHANGELOG.{ja,}.md` / `**/README.{ja,}.md` を初期除外に追加
+- `loadConfig` の挙動変更: `config.json` 不在時に DEFAULT_CONFIG を**自動でディスクに書き出す**（拡張・daemon 共通）。書き込み失敗時は in-memory フォールバック
+- **Breaking:** VS Code 設定 `anytimeTrail.analyzeAll.enabled` (boolean、既定 `false`) を追加。OFF のとき Pipelines ツリービューは非表示になり、AnalyzeAllRunner も構築されない（自動・手動・HTTP API いずれも no-op）。自動実行を継続したい場合は `true` に設定後リロードが必要
+- `anytime-basic-design` skill のバンドル: 新ヘルパー `installStaticSkillDir` 経由で activate 時に自動インストール
+- `anytime-note` skill をテンプレートとしてバンドル: 新ヘルパー `installTemplatedSkill` 経由でインストールし、agent notes は `<workspace>/.anytime/notes` に保存
+- バンドルされた `anytime-reverse-*` skill ファミリーのリネーム（ディレクトリ・内容・インストールヘルパーを新名に整列）
+- マルチリポジトリ対応の `code-graph`: `trail-server` の `/api/code-graph` 現在モード・query/explain/path ルート・pipeline/refresh パスで `repo`/`repoName` パラメータを尊重するように変更し、`CodeGraphService` のキャッシュをリポジトリ単位化
+- `mcp-trail` に `list_community_nodes` read tool を追加
+
+### 変更
+
+- `Anytime Trail: Analyze Code` (ダッシュボードアイコン / コマンドパレット) で複数 `tsconfig.json` が見つかった場合の QuickPick を廃止し、ワークスペースルート優先で最浅 tsconfig を自動選択するように変更（HTTP / MCP と挙動を統一）。明示的に選びたい場合は新コマンド `Anytime Trail: Analyze Code (Pick Tsconfig)` を使用
+- **Breaking:** `analyzeAll.runOnStart` の DEFAULT を `true` → `false`、`startupDelaySec` を `5` → `30` に変更。AnalyzeAll は明示的な opt-in 操作が前提
+- **Breaking:** `TrailServerConfig` を簡素化。`scheduler.*` (periodicImport / memoryCore) と `memory.ingest` を削除し、`schemaVersion` を `1` にリセット。旧フィールドからの**マイグレーションは持たない**
+- **Breaking:** memory-core 単位の pause/resume を AnalyzeAll パイプライン (importAll + memory-core runOnce) 単位に一本化
+- **Breaking:** VS Code コマンド `anytime-trail.memory.{pause,resume,status}Ingest` を `anytime-trail.analyzeAll.{pause,resume,status}` にリネーム
+- **Breaking:** HTTP API `/api/memory-core/{pause,resume,status}` を `/api/analyze-all/{pause,resume,status}` にリネーム
+- **Breaking:** trail-server CLI サブコマンド `ingest {pause,resume,status}` を `analyze-all {pause,resume,status}` にリネーム
+- AnalyzeAllRunner を新設。importAll → memory-core runOnce のオーケストレーション、pause/resume、ticks/lastRunAt/lastError の永続化を一元管理 (`<TRAIL_HOME>/analyze-all-runner.json`)
+
+### 修正
+
+- `anytime-reverse-spec` のフィーチャー一覧 summary でセル単位パイプエスケープが入らないよう修正
+- activate 時に `anytime-note` skill が確実にインストールされるよう修正
+- `pipeline-status.json` の reader / writer 整合を維持
+
+### 削除
+
+- **Breaking:** VS Code コマンド `Anytime Trail: Pause/Resume AnalyzeAll Pipeline` を削除（HTTP API / CLI で代替可能、`status` コマンドは残置）
+- **Breaking:** VS Code コマンド `Anytime Trail: Analyze Release Code` を削除（MCP / HTTP では継続利用可能）
+- **Breaking:** VS Code コマンド `Anytime Trail: Register MCP Server to Claude Code (mcp-trail)` と `buildClaudeMcpAddCommand` を削除（新コマンド `Register MCP Server` に統合）
+- `createAnalyzeAllJob` / `createPeriodicImportJob` (AnalyzeAllRunner に置換)
+- `TrailDataServer.setMemoryCoreService` (AnalyzeAllRunner が hosting する)
+- trail-server / vscode-trail-extension の後方互換 shim を撤去
+
+### セキュリティ
+
+- 多項式バックトラッキング（ReDoS）対策として正規表現リテラルを強化
+- webview message listener で origin 検証を追加
+
+### Trail Core (trail-core)
+
+- `DEFAULT_ANALYZE_EXCLUDE_CONTENT` を拡充
+- **Breaking:** agent マッピングを `trail-core` から新パッケージ `agent-core` に移動
+- 正規表現リテラルの ReDoS 対策を強化
+
 ## [0.19.0] - 2026-05-15
 
 ### 変更

@@ -93,7 +93,8 @@ export function parseMermaidC4(input: string): C4Model {
 
     // Boundary open: System_Boundary(id, "name") { or Boundary(id, "name") {
     // Also: Container_Boundary, Enterprise_Boundary
-    const boundaryMatch = /^(\w+_?Boundary)\s*\(([^)]*)\)\s*\{?\s*$/.exec(line);
+    // `[A-Za-z][A-Za-z0-9_]*Boundary` で `\w+_?Boundary` の曖昧なバックトラックを除去
+    const boundaryMatch = /^([A-Za-z][A-Za-z0-9_]*Boundary)\s*\(([^)]*)\)\s*\{?\s*$/.exec(line);
     if (boundaryMatch) {
       const args = parseArgs(boundaryMatch[2]);
       boundaryStack.push(args[0]);

@@ -1,0 +1,18 @@
+{
+  "displayName": "Anytime Agent",
+  "description": "Claude Code セッションと Ollama バックエンドのステータスパネルを提供する VS Code 拡張。",
+  "viewsContainer.title": "Anytime Agent",
+  "view.mapping": "Agent マッピング",
+  "view.ollama": "Ollama",
+  "viewsWelcome.mapping": "Claude Code セッションが検出されませんでした。\n\nステータスファイルは anytime-trail Claude Code フックによって書き込まれます。\nフックがインストールされているか確認してください。",
+  "command.mapping.refresh": "Agent マッピングを更新",
+  "command.mapping.cleanupStale": "古いセッションをクリーンアップ",
+  "command.mapping.toggleStale": "古いセッションの表示切替",
+  "command.mapping.openWorktree": "新しいウィンドウで Worktree を開く",
+  "command.mapping.copyWorktreePath": "Worktree パスをコピー",
+  "command.mapping.showSessionEdits": "セッション編集履歴を表示",
+  "command.mapping.copySessionId": "セッション ID をコピー",
+  "command.mapping.deleteStatusFile": "ステータスファイルを削除",
+  "command.startOllama": "Ollama を起動",
+  "config.claudeStatus.directory": "`claude-code-status.json` の保存ディレクトリ。絶対パスまたはワークスペースルートからの相対パス。デフォルトは `.anytime/trail/agent-status`。"
+}
