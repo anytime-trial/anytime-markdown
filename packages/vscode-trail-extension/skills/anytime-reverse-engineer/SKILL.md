@@ -58,7 +58,7 @@ VS Code 設定から以下 2 値を取得する。
 
 | 値 | 取得元設定キー | 既定値（未設定時） |
 | --- | --- | --- |
-| `trailDbPath` | `anytimeTrail.database.storagePath` | `${workspaceFolder}/.vscode/trail.db` |
+| `trailDbPath` | `anytimeTrail.database.storagePath` | `${workspaceFolder}/.anytime/trail/db/trail.db`（v0.19.0 で `.vscode/` から移行） |
 | `repoName` | `anytimeTrail.workspace.path` の basename | ワークスペースフォルダ名 |
 
 ```bash
@@ -81,7 +81,7 @@ for (const f of candidates) {
   } catch {}
 }
 
-const dbDir = settings['anytimeTrail.database.storagePath'] || '.vscode';
+const dbDir = settings['anytimeTrail.database.storagePath'] || '.anytime/trail/db';
 const trailDbPath = path.isAbsolute(dbDir)
   ? path.join(dbDir, 'trail.db')
   : path.join(ws, dbDir, 'trail.db');
@@ -89,7 +89,7 @@ const trailDbPath = path.isAbsolute(dbDir)
 const wsPath = settings['anytimeTrail.workspace.path'] || ws;
 const repoName = path.basename(wsPath);
 
-const cacheDir = path.join(ws, '.vscode');
+const cacheDir = path.join(ws, '.anytime');
 const cachePath = path.join(cacheDir, '.community_summary_cache.json');
 
 console.log(JSON.stringify({ trailDbPath, repoName, cachePath }, null, 2));
@@ -265,4 +265,4 @@ role 判定基準:
 | --- | --- |
 | `trail.db` の `current_code_graph_communities.name` / `summary` | コミュニティ名と要約（Step 2） |
 | `trail.db` の `current_code_graph_communities.mappings_json` | C4 要素 role マッピング（Step 3） |
-| `${workspaceFolder}/.vscode/.community_summary_cache.json` | コミュニティ要約のキャッシュ（再実行時の高速化用） |
+| `${workspaceFolder}/.anytime/.community_summary_cache.json` | コミュニティ要約のキャッシュ（再実行時の高速化用、v0.19.0 で `.vscode/` から移行） |
