@@ -15,6 +15,52 @@ VS Code 拡張機能 (Anytime Trail) で Trail DB に保存されたコードグ
 > 本スキルは **Step 1 で必ず `mcp__mcp-trail__analyze_current_code` を実行**して `current_code_graphs` / `current_code_graph_communities` を最新化してから後段の AI 後処理に進む。スキル単体でコードグラフを生成するわけではなく、VS Code 拡張内のパイプラインを MCP 経由で起動する点に注意。
 
 
+## 事前準備: ポート番号の確認
+
+mcp-trail は VS Code 拡張内の TrailDataServer に HTTP 接続する。\
+**VS Code 設定 `anytimeTrail.viewer.port`（既定 `19841`）** がポートを決め、MCP 登録時の `TRAIL_SERVER_URL` 環境変数と一致している必要がある。不一致だと `analyze_current_code` などすべての MCP ツールが接続エラーになる。
+
+以下 3 つを順に確認する。
+
+### 1. VS Code 設定のポート
+
+```bash
+node -e "
+const fs = require('fs');
+const path = require('path');
+const stripJsonc = (s) => s.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:])\/\/[^\n]*/g,'\$1');
+const settings = {};
+for (const f of [
+  path.join(process.cwd(), '.vscode/settings.json'),
+  path.join(process.env.HOME || '', '.vscode-server/data/User/settings.json'),
+  path.join(process.env.HOME || '', '.config/Code/User/settings.json'),
+]) {
+  if (!fs.existsSync(f)) continue;
+  try { Object.assign(settings, JSON.parse(stripJsonc(fs.readFileSync(f, 'utf8')))); } catch {}
+}
+console.log('viewer.port:', settings['anytimeTrail.viewer.port'] ?? 19841);
+"
+```
+
+### 2. 実際の稼働確認 (probe)
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' http://localhost:19841/api/analyze/status
+# 200 → 拡張稼働中
+# Connection refused → 拡張未起動 or ポート不一致 (VS Code を起動して Anytime Trail サイドバーを開く)
+```
+
+### 3. MCP 登録の env と一致確認
+
+```bash
+claude mcp get mcp-trail | grep TRAIL_SERVER_URL
+# 出力例: TRAIL_SERVER_URL=http://localhost:19841
+# → 1. で確認したポートと一致していることを確認
+```
+
+不一致なら下記 IMPORTANT の `claude mcp add` で再登録する（`TRAIL_SERVER_URL` は登録時にそのときの設定ポートで焼き付けられるため、ポート変更後は再登録が必要）。
+
+
 ## 処理フロー
 
 
