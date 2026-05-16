@@ -215,13 +215,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	// anytime-basic-design は静的リファレンス。activate 時に同梱 dir を展開する。
+	// anytime-reverse-spec は静的リファレンス。activate 時に同梱 dir を展開する。
 	if (hasClaudeDir && fs.existsSync(claudeDir)) {
 		try {
 			installStaticSkillDir({
 				claudeDir,
 				extensionPath: context.extensionUri.fsPath,
-				skillName: 'anytime-basic-design',
+				skillName: 'anytime-reverse-spec',
+				oldSkillNames: ['anytime-basic-design'],
 				logger: {
 					info: (m) => TrailLogger.info(m),
 					warn: (m) => TrailLogger.warn(m),
@@ -229,7 +230,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				},
 			});
 		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure for anytime-basic-design: ${String(err)}`);
+			TrailLogger.warn(`[install-skills] unexpected failure for anytime-reverse-spec: ${String(err)}`);
 		}
 	}
 
