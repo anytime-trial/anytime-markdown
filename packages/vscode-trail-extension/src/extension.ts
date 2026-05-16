@@ -25,6 +25,7 @@ import {
 } from '@anytime-markdown/trail-server';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
+import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
 import {
 	CREATE_EXTENSION_LOGS,
 	CREATE_EXTENSION_LOGS_INDEXES,
@@ -463,6 +464,23 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Trail Database + Data Server (non-blocking initialization)
 	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '.anytime/trail/db') || '.anytime/trail/db';
 	const wsRootForDb = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+	// `.anytime/analyze-exclude` を activate 時に seed する。analyze pipeline
+	// (analyzeCurrentCode / analyzeReleaseCode) でも seed されるが、AnalyzeAll が
+	// OFF のままだとそちらが走らないため、ここで初期生成を保証する。flag:'wx' で
+	// 既存ファイルは上書きされない (EEXIST → false 返却で no-op)。
+	if (wsRootForDb) {
+		try {
+			if (seedAnalyzeExclude(wsRootForDb)) {
+				TrailLogger.info(`[analyzeExclude] seeded .anytime/analyze-exclude at ${wsRootForDb}`);
+			}
+		} catch (err) {
+			TrailLogger.warn(
+				`[analyzeExclude] failed to seed at ${wsRootForDb}: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+	}
+
 	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
 		? dbStoragePathSetting
 		: wsRootForDb ? path.join(wsRootForDb, dbStoragePathSetting) : undefined;
