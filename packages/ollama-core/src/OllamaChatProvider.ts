@@ -4,6 +4,7 @@ import type {
   ChatStreamChunk,
   HealthCheckResult,
 } from '@anytime-markdown/llm-core';
+import { checkOllamaModelAvailable } from './healthCheck';
 
 export interface OllamaChatProviderOptions {
   readonly baseUrl: string;
@@ -14,10 +15,6 @@ export interface OllamaChatProviderOptions {
 interface OllamaChatLine {
   message?: { content?: string };
   done?: boolean;
-}
-
-interface OllamaTagsResponse {
-  models: ReadonlyArray<{ name: string }>;
 }
 
 export class OllamaChatProvider implements ChatProvider {
@@ -71,24 +68,6 @@ export class OllamaChatProvider implements ChatProvider {
   }
 
   async healthCheck(): Promise<HealthCheckResult> {
-    try {
-      const res = await this.fetchImpl(`${this.baseUrl}/api/tags`);
-      if (!res.ok) return { ok: false, detail: `HTTP ${res.status}` };
-      const data = (await res.json()) as OllamaTagsResponse;
-      const hasModel = data.models.some(
-        (m) => m.name === this.model || m.name.startsWith(`${this.model}:`),
-      );
-      return hasModel
-        ? { ok: true }
-        : {
-            ok: false,
-            detail: `Model ${this.model} not pulled. Run: ollama pull ${this.model}`,
-          };
-    } catch (error) {
-      return {
-        ok: false,
-        detail: error instanceof Error ? error.message : String(error),
-      };
-    }
+    return checkOllamaModelAvailable(this.baseUrl, this.model, this.fetchImpl);
   }
 }

@@ -10,13 +10,13 @@
   },
   "dependencies": {
     "@anytime-markdown/llm-core": "*",
-    "@anytime-markdown/ollama-core": "*",
     "@anytime-markdown/trail-core": "*",
     "better-sqlite3": "12.4.1",
     "gray-matter": "4.0.3",
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@anytime-markdown/ollama-core": "*",
     "@types/better-sqlite3": "7.6.13",
     "@types/jest": "30.0.0",
     "@types/node": "22.15.21",

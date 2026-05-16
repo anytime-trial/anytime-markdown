@@ -1,4 +1,5 @@
 import type { EmbeddingProvider, HealthCheckResult } from '@anytime-markdown/llm-core';
+import { checkOllamaModelAvailable } from './healthCheck';
 
 export interface OllamaEmbeddingProviderOptions {
   readonly baseUrl: string;
@@ -10,10 +11,6 @@ export interface OllamaEmbeddingProviderOptions {
 
 interface OllamaEmbeddingsResponse {
   embedding?: ReadonlyArray<number>;
-}
-
-interface OllamaTagsResponse {
-  models: ReadonlyArray<{ name: string }>;
 }
 
 export class OllamaEmbeddingProvider implements EmbeddingProvider {
@@ -51,24 +48,6 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
   }
 
   async healthCheck(): Promise<HealthCheckResult> {
-    try {
-      const res = await this.fetchImpl(`${this.baseUrl}/api/tags`);
-      if (!res.ok) return { ok: false, detail: `HTTP ${res.status}` };
-      const data = (await res.json()) as OllamaTagsResponse;
-      const hasModel = data.models.some(
-        (m) => m.name === this.model || m.name.startsWith(`${this.model}:`),
-      );
-      return hasModel
-        ? { ok: true }
-        : {
-            ok: false,
-            detail: `Model ${this.model} not pulled. Run: ollama pull ${this.model}`,
-          };
-    } catch (error) {
-      return {
-        ok: false,
-        detail: error instanceof Error ? error.message : String(error),
-      };
-    }
+    return checkOllamaModelAvailable(this.baseUrl, this.model, this.fetchImpl);
   }
 }
