@@ -53,7 +53,16 @@ export const CustomTable = Table.extend<CustomTableOptions>({
               if (j) state.write(" | ");
               const cellContent = col.firstChild;
               if (cellContent?.textContent.trim()) {
+                // GFM のセル区切り `|` と衝突するため、renderInline がセル本文として
+                // 書き込んだ範囲だけを後から `\|` にエスケープする。state.write で書く
+                // セル境界 `| ` / ` | ` / ` |` は範囲外なので影響しない。
+                const before = state.out.length;
                 state.renderInline(cellContent);
+                const written = state.out.slice(before);
+                const escaped = written.replaceAll(/(?<!\\)\|/g, String.raw`\|`);
+                if (escaped !== written) {
+                  state.out = state.out.slice(0, before) + escaped;
+                }
               }
             });
             state.write(" |");
