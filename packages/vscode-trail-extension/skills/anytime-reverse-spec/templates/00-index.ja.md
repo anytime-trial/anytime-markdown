@@ -62,8 +62,8 @@ flowchart TB
     end
 
     subgraph Skills["スキル"]
-        rev["anytime-reverse-engineer<br/>(name / summary / mappings_json 付与)"]
-        bd["anytime-basic-design<br/>(本スキル)"]
+        rev["anytime-reverse-codegraph<br/>(name / summary / mappings_json 付与)"]
+        bd["anytime-reverse-spec<br/>(本スキル)"]
     end
 
     subgraph Output["02.basic-design 出力"]
@@ -96,10 +96,10 @@ flowchart TB
 
 ## 4. 自動生成と手動更新の運用
 
-- 生成スキル: `anytime-basic-design`（`~/.claude/skills/anytime-basic-design/SKILL.md`）
+- 生成スキル: `anytime-reverse-spec`（`~/.claude/skills/anytime-reverse-spec/SKILL.md`）
 - 入力: Trail DB（`current_code_graphs` / `current_code_graph_communities`）+ リポジトリの schema / I/F / 画面ファイル
 - AI 呼び出し: Sonnet（章 3 機能詳細・章 4 ER 図補足・章 5 用途文・章 6 画面要約・章 8 用語集）+ Haiku（章 6 画面 1 文要約・抽出パイプライン）
-- 再生成: `/anytime-basic-design chapter=all mode=wash-away` で全章再生成、`mode=additive` で既存ファイル保護
+- 再生成: `/anytime-reverse-spec chapter=all mode=wash-away` で全章再生成、`mode=additive` で既存ファイル保護
 
 
 ## 5. 既知の制約
