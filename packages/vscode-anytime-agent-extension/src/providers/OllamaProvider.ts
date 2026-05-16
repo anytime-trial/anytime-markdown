@@ -102,16 +102,19 @@ export class OllamaProvider
 
   private async _poll(): Promise<void> {
     const status = await fetchOllamaStatus();
-    const changed =
-      status.running !== this._status.running ||
+    const runningChanged = status.running !== this._status.running;
+    const treeChanged =
+      runningChanged ||
       JSON.stringify(status.models) !== JSON.stringify(this._status.models);
     this._status = status;
-    await vscode.commands.executeCommand(
-      'setContext',
-      'anytime-agent.ollamaRunning',
-      status.running,
-    );
-    if (changed) {
+    if (runningChanged) {
+      await vscode.commands.executeCommand(
+        'setContext',
+        'anytime-agent.ollamaRunning',
+        status.running,
+      );
+    }
+    if (treeChanged) {
       this._onDidChangeTreeData.fire();
     }
   }

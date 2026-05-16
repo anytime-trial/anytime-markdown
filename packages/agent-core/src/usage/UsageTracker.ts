@@ -84,8 +84,7 @@ export class UsageTracker {
       this.firedThresholds.clear();
       return;
     }
-    for (const key of [...this.records.keys()]) {
-      const r = this.records.get(key)!;
+    for (const [key, r] of this.records) {
       if (r.providerId === providerId) this.records.delete(key);
     }
     this.firedThresholds.delete(providerId);

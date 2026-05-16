@@ -1,10 +1,3 @@
-// agent-core: multi-LLM agent state management
-// - ProviderRegistry: backend registration and active provider selection
-// - HealthMonitor: per-backend availability state (Phase 2-2)
-// - UsageTracker: call count and token usage aggregation (Phase 2-3)
-// - AgentChatSession: conversation history and model preference (Phase 2-4)
-// - ModelRoutingPolicy: per-task default model selection (Phase 2-5)
-// - mapping: agent session x worktree classification (Phase 3, relocated from trail-core)
 export { ProviderRegistry } from './registry/ProviderRegistry';
 export type {
   ProviderKind,
@@ -28,6 +21,7 @@ export {
   resolveWorktree,
   buildAgentMapping,
 } from './mapping/agentMapping';
+export { parseWorktreeList } from './mapping/parseWorktreeList';
 export type {
   MappingState,
   SessionMapping,
@@ -43,9 +37,8 @@ export type {
   OllamaEmbeddingRegistrationOptions,
 } from './adapters/OllamaAdapter';
 
-// Re-exports from ollama-core. agent-core is the only package that should
-// depend on ollama-core directly; consumers import these via agent-core so
-// that the Ollama backend can be swapped without touching call sites.
+// agent-core is the sole direct dependent of ollama-core; consumers import
+// these via agent-core so the backend can be swapped without touching call sites.
 export {
   createOllamaClient,
   OllamaChatProvider,

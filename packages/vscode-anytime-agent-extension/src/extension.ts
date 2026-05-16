@@ -70,17 +70,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Ollama view
   ollamaProvider = new OllamaProvider();
-  vscode.window.createTreeView('anytimeAgent.ollama', {
+  const ollamaTreeView = vscode.window.createTreeView('anytimeAgent.ollama', {
     treeDataProvider: ollamaProvider,
   });
   context.subscriptions.push(
     ollamaProvider,
+    ollamaTreeView,
     vscode.commands.registerCommand('anytime-agent.startOllama', () =>
       ollamaProvider!.startOllama(),
     ),
   );
 
-  // touch path import to avoid unused warning under transpile-only ts-loader
   void path.resolve;
 }
 

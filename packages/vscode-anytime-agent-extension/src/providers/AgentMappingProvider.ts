@@ -3,9 +3,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { ClaudeStatusWatcher, jstDateString } from '@anytime-markdown/vscode-common';
-import { buildAgentMapping } from '@anytime-markdown/agent-core';
+import { buildAgentMapping, parseWorktreeList } from '@anytime-markdown/agent-core';
 import type { WorktreeEntry, WorktreeMapping } from '@anytime-markdown/agent-core';
 import { WorktreeTreeItem, SessionTreeItem, TodaySummaryItem } from './AgentMappingItem';
+import { AgentLogger } from '../utils/AgentLogger';
 
 type AgentMappingItem = WorktreeTreeItem | SessionTreeItem | TodaySummaryItem;
 
@@ -111,7 +112,8 @@ export class AgentMappingProvider
         { cwd: this.gitRoot, encoding: 'utf-8', timeout: 5000 },
       );
       return output.trim().split('\n').filter(Boolean).length;
-    } catch {
+    } catch (err) {
+      AgentLogger.warn(`[AgentMapping] git log failed at ${this.gitRoot}: ${err instanceof Error ? err.message : String(err)}`);
       return 0;
     }
   }
@@ -134,43 +136,9 @@ export class AgentMappingProvider
         timeout: 5000,
       });
       return parseWorktreeList(output);
-    } catch {
+    } catch (err) {
+      AgentLogger.warn(`[AgentMapping] git worktree list failed at ${this.gitRoot}: ${err instanceof Error ? err.message : String(err)}`);
       return [];
     }
   }
-}
-
-interface MutableWorktreeEntry {
-  path?: string;
-  branch?: string;
-  isMain?: boolean;
-}
-
-function parseWorktreeList(output: string): WorktreeEntry[] {
-  const entries: WorktreeEntry[] = [];
-  let current: MutableWorktreeEntry = {};
-  let isFirst = true;
-  for (const line of output.split('\n')) {
-    if (line.startsWith('worktree ')) {
-      if (current.path) {
-        entries.push({
-          path: current.path,
-          branch: current.branch ?? '(detached)',
-          isMain: current.isMain ?? false,
-        });
-      }
-      current = { path: line.slice('worktree '.length).trim(), isMain: isFirst };
-      isFirst = false;
-    } else if (line.startsWith('branch refs/heads/')) {
-      current.branch = line.slice('branch refs/heads/'.length);
-    }
-  }
-  if (current.path) {
-    entries.push({
-      path: current.path,
-      branch: current.branch ?? '(detached)',
-      isMain: current.isMain ?? false,
-    });
-  }
-  return entries;
 }
