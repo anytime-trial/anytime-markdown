@@ -100,3 +100,101 @@ export function installBundledSkills(opts: InstallBundledSkillsOptions): Install
     return { installed: false, skipped: true, preserved: false, removedOld };
   }
 }
+
+export interface InstallStaticSkillDirOptions {
+  /** `~/.claude` 相当ディレクトリ。 */
+  readonly claudeDir: string;
+  /** 拡張機能のインストール先（context.extensionPath）。 */
+  readonly extensionPath: string;
+  /** スキル名。`skills/<skillName>/` 配下を再帰コピーする。 */
+  readonly skillName: string;
+  /** true 指定時は差分があっても全ファイル上書き。 */
+  readonly force?: boolean;
+  readonly logger?: InstallSkillLogger;
+}
+
+export interface InstallStaticSkillDirResult {
+  /** 新規 / force で書き出したファイル数 */
+  readonly installed: number;
+  /** 既存と一致したファイル数 */
+  readonly upToDate: number;
+  /** 既存と差分があり保持したファイル数 */
+  readonly preserved: number;
+  /** bundle / claudeDir が見つからず何もしなかった場合 true */
+  readonly sourceMissing: boolean;
+}
+
+function walkRelativeFiles(rootDir: string): string[] {
+  const out: string[] = [];
+  const stack: string[] = [''];
+  while (stack.length > 0) {
+    const rel = stack.pop()!;
+    const abs = rel === '' ? rootDir : path.join(rootDir, rel);
+    const entries = fs.readdirSync(abs, { withFileTypes: true });
+    for (const e of entries) {
+      const childRel = rel === '' ? e.name : path.join(rel, e.name);
+      if (e.isDirectory()) {
+        stack.push(childRel);
+      } else if (e.isFile()) {
+        out.push(childRel);
+      }
+    }
+  }
+  return out.sort();
+}
+
+export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): InstallStaticSkillDirResult {
+  const logger = opts.logger ?? NOOP_LOGGER;
+  const force = opts.force === true;
+
+  if (!fs.existsSync(opts.claudeDir)) {
+    return { installed: 0, upToDate: 0, preserved: 0, sourceMissing: true };
+  }
+
+  const sourceDir = path.join(opts.extensionPath, 'skills', opts.skillName);
+  if (!fs.existsSync(sourceDir)) {
+    logger.warn(`[install-skills] bundled skill dir not found: ${sourceDir}`);
+    return { installed: 0, upToDate: 0, preserved: 0, sourceMissing: true };
+  }
+
+  const targetDir = path.join(opts.claudeDir, 'skills', opts.skillName);
+  const files = walkRelativeFiles(sourceDir);
+
+  let installed = 0;
+  let upToDate = 0;
+  let preserved = 0;
+
+  for (const rel of files) {
+    const src = path.join(sourceDir, rel);
+    const dst = path.join(targetDir, rel);
+    const srcContent = fs.readFileSync(src, 'utf-8');
+
+    if (fs.existsSync(dst) && !force) {
+      const dstContent = fs.readFileSync(dst, 'utf-8');
+      if (dstContent === srcContent) {
+        upToDate++;
+        continue;
+      }
+      preserved++;
+      continue;
+    }
+
+    try {
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      fs.writeFileSync(dst, srcContent, { encoding: 'utf-8' });
+      installed++;
+    } catch (err) {
+      logger.error(
+        `[install-skills] failed to install ${opts.skillName}/${rel}: ${String(err)}\n${err instanceof Error ? err.stack ?? '' : ''}`,
+      );
+    }
+  }
+
+  if (installed > 0 || preserved > 0) {
+    logger.info(
+      `[install-skills] ${opts.skillName}: installed=${installed} preserved=${preserved} upToDate=${upToDate}`,
+    );
+  }
+
+  return { installed, upToDate, preserved, sourceMissing: false };
+}
