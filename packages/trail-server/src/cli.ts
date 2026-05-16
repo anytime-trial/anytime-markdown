@@ -12,8 +12,7 @@ import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
 import { loadConfig } from './runtime/Config';
-import { DaemonScheduler } from './runtime/DaemonScheduler';
-import { createAnalyzeAllJob } from './jobs/AnalyzeAllJob';
+import { AnalyzeAllRunner } from './runner/AnalyzeAllRunner';
 import { CodeGraphService } from './analyze/CodeGraphService';
 import {
   findTsconfigCandidates,
@@ -221,27 +220,24 @@ program
       intervalMin: config.memory.fts.rebuildIntervalMinutes,
     });
 
-    // createAnalyzeAllJob は importAll → runOnce('periodic') を順次実行する
+    // AnalyzeAllRunner は importAll → memory-core runOnce('periodic') を順次実行する
     // (= VS Code 拡張の anytime-trail.analyzeAll コマンドと同じデータフロー)。
-    // 以前は createPeriodicImportJob (importAll のみ) と createMemoryCorePipelineJob
-    // (runOnce のみ) を別個に登録していたが、メモリ取込が import より先に走って
-    // しまうレースを避けるため 1 ジョブに統合した。interval / runOnStart は
-    // top-level analyzeAll 側の設定に従う (旧 scheduler.periodicImport / memory.ingest は廃止)。
-    const scheduler = new DaemonScheduler(
-      [
-        createAnalyzeAllJob({
-          service: memoryCoreService,
-          trailDb,
-          gitRoots: effectiveGitRoots,
-          intervalMs: config.analyzeAll.intervalSec * 1000,
-          runOnStart: config.analyzeAll.runOnStart,
-          startupDelayMs: config.analyzeAll.startupDelaySec * 1000,
-          // VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新する
-          importAllStatusFilePath: join(dbStorageDir, 'importall-phase-status.json'),
-        }),
-      ],
-      logger,
-    );
+    // メモリ取込が import より先に走ってしまうレースを避けるため 1 runner に統合済。
+    // pause/resume は AnalyzeAllRunner が一元管理する (旧 memory-core 側の pause は使われない)。
+    const analyzeAllRunner = new AnalyzeAllRunner({
+      logSink: { appendLine: (msg: string) => logger.info(msg) },
+      statePath: join(TRAIL_HOME, 'analyze-all-runner.json'),
+      gitRoot: memoryCorePrimaryGitRoot,
+      trailDb,
+      gitRoots: effectiveGitRoots,
+      memoryCoreService,
+      // VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新する
+      importAllStatusFilePath: join(dbStorageDir, 'importall-phase-status.json'),
+    });
+    server.setAnalyzeAllRunner(analyzeAllRunner);
+    logger.info('analyze-all runner wired', {
+      paused: analyzeAllRunner.getStatus().paused,
+    });
 
     const schedulerDisabledByEnv = process.env.TRAIL_DISABLE_SCHEDULER === '1';
     const schedulerEnabled = opts.scheduler && !schedulerDisabledByEnv;
@@ -250,7 +246,10 @@ program
         reason: schedulerDisabledByEnv ? 'TRAIL_DISABLE_SCHEDULER=1' : '--no-scheduler',
       });
     } else {
-      scheduler.start();
+      analyzeAllRunner.start(config.analyzeAll.intervalSec * 1000, {
+        runOnStart: config.analyzeAll.runOnStart,
+        startupDelayMs: config.analyzeAll.startupDelaySec * 1000,
+      });
     }
 
     lc.writeDaemonJson({
@@ -270,7 +269,7 @@ program
 
     const shutdown = async (signal: string) => {
       logger.info('shutdown requested', { signal });
-      try { await scheduler.stop(); } catch (err) { logger.error('scheduler stop failed', err); }
+      try { await analyzeAllRunner.dispose(); } catch (err) { logger.error('analyze-all runner dispose failed', err); }
       try { await memoryCoreService.dispose(); } catch (err) { logger.error('memory-core dispose failed', err); }
       try { rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }
       // ChatBridge holds WebSocket connections; dispose after scheduler/ingest stop but before server closes.
@@ -321,35 +320,66 @@ program
     }
   });
 
+const analyzeAllCmd = program
+  .command('analyze-all')
+  .description('Control analyzeAll pipeline (importAll + memory-core) on the running daemon');
+
+analyzeAllCmd
+  .command('pause')
+  .description('Pause periodic analyzeAll pipeline on the running daemon')
+  .option('-r, --reason <reason>', 'pausedBy label sent to the daemon', 'cli')
+  .action(async (opts: { reason: string }) => {
+    await callDaemonAnalyzeAll('pause', { by: opts.reason });
+  });
+
+analyzeAllCmd
+  .command('resume')
+  .description('Resume periodic analyzeAll pipeline on the running daemon')
+  .action(async () => {
+    await callDaemonAnalyzeAll('resume');
+  });
+
+analyzeAllCmd
+  .command('status')
+  .description('Show current analyzeAll pipeline status from the running daemon')
+  .action(async () => {
+    await callDaemonAnalyzeAll('status');
+  });
+
+// 後方互換: 旧 `ingest` サブコマンドは deprecation warn 付きで analyze-all に forward。
+// 1 バージョン後に削除予定。
 const ingestCmd = program
   .command('ingest')
-  .description('Control memory-core ingest pipeline on the running daemon');
+  .description('[DEPRECATED] Renamed to `analyze-all`. Will be removed in a future release.');
 
 ingestCmd
   .command('pause')
-  .description('Pause periodic memory-core ingest on the running daemon')
+  .description('[DEPRECATED] Use `analyze-all pause` instead')
   .option('-r, --reason <reason>', 'pausedBy label sent to the daemon', 'cli')
   .action(async (opts: { reason: string }) => {
-    await callDaemonMemoryCore('pause', { by: opts.reason });
+    console.error('[DEPRECATION] `ingest pause` is deprecated; use `analyze-all pause` instead.');
+    await callDaemonAnalyzeAll('pause', { by: opts.reason });
   });
 
 ingestCmd
   .command('resume')
-  .description('Resume periodic memory-core ingest on the running daemon')
+  .description('[DEPRECATED] Use `analyze-all resume` instead')
   .action(async () => {
-    await callDaemonMemoryCore('resume');
+    console.error('[DEPRECATION] `ingest resume` is deprecated; use `analyze-all resume` instead.');
+    await callDaemonAnalyzeAll('resume');
   });
 
 ingestCmd
   .command('status')
-  .description('Show current memory-core ingest status from the running daemon')
+  .description('[DEPRECATED] Use `analyze-all status` instead')
   .action(async () => {
-    await callDaemonMemoryCore('status');
+    console.error('[DEPRECATION] `ingest status` is deprecated; use `analyze-all status` instead.');
+    await callDaemonAnalyzeAll('status');
   });
 
 program.parse();
 
-async function callDaemonMemoryCore(
+async function callDaemonAnalyzeAll(
   action: 'pause' | 'resume' | 'status',
   body?: Record<string, unknown>,
 ): Promise<void> {
@@ -362,7 +392,7 @@ async function callDaemonMemoryCore(
     console.error('No running daemon — start it with `anytime-trail-server start`');
     process.exit(1);
   }
-  const url = `${info.url}/api/memory-core/${action}`;
+  const url = `${info.url}/api/analyze-all/${action}`;
   const method = action === 'status' ? 'GET' : 'POST';
   try {
     const res = await fetch(url, {

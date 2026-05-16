@@ -66,11 +66,8 @@ export type { ScheduledJob, JobResult } from './runtime/DaemonScheduler';
 export { DaemonLifecycle } from './runtime/DaemonLifecycle';
 export type { DaemonInfo, DaemonLifecycleOptions } from './runtime/DaemonLifecycle';
 
-export { createPeriodicImportJob } from './jobs/PeriodicImportJob';
-export type { PeriodicImportJobOptions } from './jobs/PeriodicImportJob';
-
-export { createAnalyzeAllJob } from './jobs/AnalyzeAllJob';
-export type { AnalyzeAllJobOptions } from './jobs/AnalyzeAllJob';
+export { AnalyzeAllRunner, defaultAnalyzeAllStatePath } from './runner/AnalyzeAllRunner';
+export type { AnalyzeAllRunnerOptions } from './runner/AnalyzeAllRunner';
 
 export {
   ImportAllPhaseStatusWriter,

@@ -69,18 +69,18 @@
         "category": "Anytime Trail"
       },
       {
-        "command": "anytime-trail.memory.pauseIngest",
-        "title": "%command.memory.pauseIngest%",
+        "command": "anytime-trail.analyzeAll.pause",
+        "title": "%command.analyzeAll.pause%",
         "category": "Anytime Trail"
       },
       {
-        "command": "anytime-trail.memory.resumeIngest",
-        "title": "%command.memory.resumeIngest%",
+        "command": "anytime-trail.analyzeAll.resume",
+        "title": "%command.analyzeAll.resume%",
         "category": "Anytime Trail"
       },
       {
-        "command": "anytime-trail.memory.statusIngest",
-        "title": "%command.memory.statusIngest%",
+        "command": "anytime-trail.analyzeAll.status",
+        "title": "%command.analyzeAll.status%",
         "category": "Anytime Trail"
       },
       {

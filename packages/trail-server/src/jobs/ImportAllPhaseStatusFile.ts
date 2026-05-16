@@ -7,7 +7,7 @@ import type { ImportAllPhase, ImportAllPhaseEvent } from '@anytime-markdown/trai
  * 伝えるための JSON ファイル形式。memory-core の pipeline-status.json と
  * 同じ位置 (dbStorageDir) に並べて配置する想定。
  *
- * - 単一プロセスのみが書き手 (AnalyzeAllJob 内の writer)
+ * - 単一プロセスのみが書き手 (AnalyzeAllRunner 内の writer)
  * - 読み手は複数可 (OllamaProvider の polling)
  * - 書き込みは atomic (tmp file + rename)
  */

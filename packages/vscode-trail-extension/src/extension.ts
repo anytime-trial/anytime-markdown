@@ -35,12 +35,13 @@ import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
 import { TrailLogger } from './utils/TrailLogger';
 import { DaemonSinkLogger } from './utils/DaemonSinkLogger';
-import { MemoryCoreService } from '@anytime-markdown/trail-server';
+import { AnalyzeAllRunner, MemoryCoreService } from '@anytime-markdown/trail-server';
 
 let trailDataServer: TrailDataServer | undefined;
 let trailDb: TrailDatabase | undefined;
 let pipelineProvider: PipelineProvider | undefined;
 let memoryCoreService: MemoryCoreService | null = null;
+let analyzeAllRunner: AnalyzeAllRunner | null = null;
 let extensionDistPath = '';
 
 function getEffectiveWorkspacePath(): string | undefined {
@@ -515,14 +516,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
 	if (hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
 		const intervalSec = trailConfig.analyzeAll.intervalSec;
-		const configuredRunOnStart = trailConfig.analyzeAll.runOnStart;
+		const runOnStart = trailConfig.analyzeAll.runOnStart;
 		const startupDelaySec = trailConfig.analyzeAll.startupDelaySec;
 		const trailDbPath = path.join(dbStorageDir, 'trail.db');
-		// analyzeAll.runOnStart=true の場合、runStartupImport が
-		// importAll → runOnce('import') を順次オーケストレーションするため、
-		// memory-core 側の auto runOnce('startup') は二重発火・並行実行回避のため
-		// 抑止する。false の場合は何も起動時に走らない。
-		const effectiveRunOnStart = false;
+		// MemoryCoreService は AnalyzeAllRunner の内部実行ユニット。
+		// 自前 scheduler は持たず、AnalyzeAllRunner.runOnce 経由でのみ起動される
+		// (二重発火回避のため start() は呼ばない)。
 		memoryCoreService = new MemoryCoreService({
 			logSink: memoryCoreOutputChannel,
 			trailDbPath,
@@ -532,13 +531,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			backfillDays: trailConfig.memory.conversation.backfillDays,
 		});
 		trailDataServer.setMemoryCoreService(memoryCoreService);
-		memoryCoreService.start(intervalSec * 1000, {
-			runOnStart: effectiveRunOnStart,
-			startupDelayMs: startupDelaySec * 1000,
-		});
-		TrailLogger.info(
-			`[MemoryCore] service started: intervalSec=${intervalSec}, runOnStart=${effectiveRunOnStart} (configured=${configuredRunOnStart}, orchestrated by runStartupImport), startupDelaySec=${startupDelaySec}`,
-		);
+		TrailLogger.info('[MemoryCore] service constructed (orchestrated by AnalyzeAllRunner)');
 	} else if (useExternalDaemon && externalDaemonInfo) {
 		TrailLogger.info('[MemoryCore] hosted by external daemon, skipping local service');
 	}
@@ -673,23 +666,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	};
 
 	trailDataServer.onAnalyzeAll = async () => {
-		if (!trailDb) throw new Error('Trail DB not initialized');
+		if (!analyzeAllRunner) throw new Error('AnalyzeAllRunner not initialized');
 		const startedAt = Date.now();
 		pipelineProvider?.resetImportAllPhases();
-		const result = await trailDb.importAll(
-			(message) => TrailLogger.info(`Trail import (HTTP): ${message}`),
-			getWatchedGitRoots(),
-			undefined,
-			analyze,
-			(event) => pipelineProvider?.setImportAllPhase(event.phase, event.action, {
-				count: event.count,
-				message: event.message,
-			}),
-		);
-		trailDataServer?.notifySessionsUpdated();
-		// service が null = useExternalDaemon に委譲中。daemon 側が periodic で回す
-		// ため拡張側ではここで no-op。
-		await memoryCoreService?.runOnce('import');
+		await analyzeAllRunner.runOnce('import');
+		const result = analyzeAllRunner.getLastImportResult();
+		if (!result) {
+			throw new Error('importAll did not produce a result');
+		}
 		return { ...result, durationMs: Date.now() - startedAt };
 	};
 
@@ -818,6 +802,30 @@ export async function activate(context: vscode.ExtensionContext) {
 			TrailLogger.error('Failed to initialize trail database', err);
 			return; // DB 初期化失敗時はサーバー起動もスキップ
 		}
+
+		// AnalyzeAllRunner — importAll → memory-core runOnce の唯一の orchestrator。
+		// trailDb.init() 完了後に構築する (init 前の getWatchedGitRoots は意味を持たない)。
+		// memoryCoreService が null (useExternalDaemon) でも runner は構築する (importAll のみ走る)。
+		if (trailDb && hostMemoryCoreLocally && dbStorageDir) {
+			analyzeAllRunner = new AnalyzeAllRunner({
+				logSink: memoryCoreOutputChannel,
+				gitRoot: wsRootForDb,
+				trailDb,
+				gitRoots: getWatchedGitRoots(),
+				memoryCoreService: memoryCoreService ?? undefined,
+				importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
+				onImportProgress: (message) => TrailLogger.info(`[analyzeAll] ${message}`),
+				analyzeReleaseFn: analyze,
+				onImportPhase: (event) =>
+					pipelineProvider?.setImportAllPhase(event.phase, event.action, {
+						count: event.count,
+						message: event.message,
+					}),
+				onAfterRun: () => trailDataServer?.notifySessionsUpdated(),
+			});
+			trailDataServer?.setAnalyzeAllRunner(analyzeAllRunner);
+			TrailLogger.info('[AnalyzeAllRunner] wired');
+		}
 		// 外部デーモンが有効な場合はローカルサーバー起動をスキップ。
 		// ブラウザは TrailPanel.daemonUrl 経由でデーモンに直接アクセスする。
 		if (externalDaemonInfo) {
@@ -887,52 +895,19 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		}
 
-		// 起動時の自動 importAll (analyzeAll 相当)。デーモンモードの runOnStart と
-		// 揃えるため in-process でも自動実行する。Pipelines パネルで per-phase 進捗
-		// を確認できるよう pipelineProvider への通知も行うが、UI 通知 (toast や
-		// withProgress) は出さない (Pipelines パネル側で見えるため)。
-		if (trailConfig.analyzeAll.runOnStart) {
-			const startupDelaySec = trailConfig.analyzeAll.startupDelaySec;
-			setTimeout(() => {
-				void runStartupImport();
-			}, Math.max(0, startupDelaySec) * 1000);
+		// 起動時自動実行 + 周期実行は AnalyzeAllRunner が一元管理する。
+		// pipelineProvider の per-phase 進捗は onImportPhase コールバック経由で発火。
+		if (analyzeAllRunner) {
+			pipelineProvider?.resetImportAllPhases();
+			analyzeAllRunner.start(trailConfig.analyzeAll.intervalSec * 1000, {
+				runOnStart: trailConfig.analyzeAll.runOnStart,
+				startupDelayMs: trailConfig.analyzeAll.startupDelaySec * 1000,
+			});
 		}
 	})().catch((err) => {
 		TrailLogger.error('Unexpected error during initialization', err);
 		void vscode.window.showErrorMessage(`Anytime Trail initialization failed: ${err instanceof Error ? err.message : String(err)}`);
 	});
-
-	/**
-	 * 起動時に静かに importAll → memory-core runOnce を実行する。
-	 * UI 通知は出さず、Pipelines パネル側で進捗を見せる設計。
-	 * 失敗してもユーザー通知せずログのみに残す (起動時に毎回 toast が出ると煩い)。
-	 */
-	async function runStartupImport(): Promise<void> {
-		if (!trailDb) {
-			TrailLogger.warn('[startup-import] skipped: trailDb is null');
-			return;
-		}
-		const repoName = vscode.workspace.workspaceFolders?.[0]?.name ?? '(no workspace)';
-		TrailLogger.info(`[startup-import] [${repoName}]: started`);
-		pipelineProvider?.resetImportAllPhases();
-		try {
-			const result = await trailDb.importAll(
-				(message) => TrailLogger.info(`[startup-import] [${repoName}]: ${message}`),
-				getWatchedGitRoots(),
-				undefined,
-				analyze,
-				(event) => pipelineProvider?.setImportAllPhase(event.phase, event.action, {
-					count: event.count,
-					message: event.message,
-				}),
-			);
-			TrailLogger.info(`[startup-import] [${repoName}]: complete — imported=${result.imported}, skipped=${result.skipped}, commits=${result.commitsResolved}, releases=${result.releasesResolved}, analyzed=${result.releasesAnalyzed}`);
-			trailDataServer?.notifySessionsUpdated();
-			await memoryCoreService?.runOnce('import');
-		} catch (err) {
-			TrailLogger.error(`[startup-import] [${repoName}] failed`, err);
-		}
-	}
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.openTrailViewer', () => {
@@ -943,43 +918,36 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.analyzeAll', async () => {
 			const repoName = vscode.workspace.workspaceFolders?.[0]?.name ?? '(no workspace)';
-			if (!trailDb) {
-				TrailLogger.error(`Trail import [${repoName}] skipped: trailDb is null (not initialized)`);
+			if (!analyzeAllRunner) {
+				TrailLogger.error(`Trail import [${repoName}] skipped: AnalyzeAllRunner not initialized`);
 				return;
 			}
 			TrailLogger.info(`Trail DB [${repoName}]: import started`);
 			pipelineProvider?.resetImportAllPhases();
 			try {
-				const result = await vscode.window.withProgress(
+				await vscode.window.withProgress(
 					{
 						location: vscode.ProgressLocation.Notification,
 						title: 'Trail: Refreshing Trail Data',
 						cancellable: false,
 					},
-					async (progress) => {
-						return trailDb!.importAll(
-							(message, increment) => {
-								progress.report({ message, increment });
-								TrailLogger.info(`Trail import [${repoName}]: ${message}`);
-							},
-							getWatchedGitRoots(),
-							undefined,
-							analyze,
-							(event) => pipelineProvider?.setImportAllPhase(event.phase, event.action, {
-								count: event.count,
-								message: event.message,
-							}),
-						);
+					async () => {
+						await analyzeAllRunner!.runOnce('manual');
 					},
 				);
-				TrailLogger.info(`Trail DB [${repoName}]: import complete - imported=${result.imported}, skipped=${result.skipped}, commits=${result.commitsResolved}, releases=${result.releasesResolved}, analyzed=${result.releasesAnalyzed}`);
-
-				trailDataServer?.notifySessionsUpdated();
-				await memoryCoreService?.runOnce('import');
-
-				vscode.window.showInformationMessage(
-					`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits linked, ${result.releasesResolved} releases resolved, ${result.releasesAnalyzed} releases analyzed, ${result.coverageImported} coverage entries (${result.skipped} skipped)`,
-				);
+				const status = analyzeAllRunner.getStatus();
+				const result = analyzeAllRunner.getLastImportResult();
+				if (status.lastError) {
+					TrailLogger.error(`Trail DB [${repoName}]: import failed - ${status.lastError}`);
+					vscode.window.showWarningMessage(`Trail: refresh failed - ${status.lastError}`);
+				} else if (result) {
+					TrailLogger.info(`Trail DB [${repoName}]: import complete - imported=${result.imported}, skipped=${result.skipped}, commits=${result.commitsResolved}, releases=${result.releasesResolved}, analyzed=${result.releasesAnalyzed}`);
+					vscode.window.showInformationMessage(
+						`Trail: imported ${result.imported} sessions, ${result.commitsResolved} commits linked, ${result.releasesResolved} releases resolved, ${result.releasesAnalyzed} releases analyzed, ${result.coverageImported} coverage entries (${result.skipped} skipped)`,
+					);
+				} else {
+					TrailLogger.info(`Trail DB [${repoName}]: import complete (no result)`);
+				}
 			} catch (err) {
 				TrailLogger.error(`Trail import [${repoName}] failed`, err);
 			}
@@ -1001,95 +969,95 @@ export async function activate(context: vscode.ExtensionContext) {
 		},
 	});
 
-	// Memory > Pause/Resume/Status Ingest コマンド。
-	// 拡張側で service をホストしている場合は直接呼ぶ。daemon 委譲中は
+	// AnalyzeAll > Pause/Resume/Status コマンド (旧 Memory Ingest コマンドを置換)。
+	// 拡張側で runner をホストしている場合は直接呼ぶ。daemon 委譲中は
 	// daemon の HTTP API (TrailPanel.getDaemonUrl) を叩く。
 	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-trail.memory.pauseIngest', async () => {
+		vscode.commands.registerCommand('anytime-trail.analyzeAll.pause', async () => {
 			try {
-				if (memoryCoreService) {
-					const status = await memoryCoreService.pause('vscode-command');
+				if (analyzeAllRunner) {
+					const status = await analyzeAllRunner.pause('vscode-command');
 					vscode.window.showInformationMessage(
-						`Anytime Memory: ingest paused (by=${status.pausedBy})`,
+						`AnalyzeAll: paused (by=${status.pausedBy})`,
 					);
 					return;
 				}
 				const daemonUrl = TrailPanel.getDaemonUrl();
 				if (!daemonUrl) {
-					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
+					vscode.window.showWarningMessage('AnalyzeAll: no local runner and no daemon URL available');
 					return;
 				}
-				const res = await fetch(`${daemonUrl}/api/memory-core/pause`, {
+				const res = await fetch(`${daemonUrl}/api/analyze-all/pause`, {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ by: 'vscode-command' }),
 				});
 				if (!res.ok) {
-					vscode.window.showErrorMessage(`Anytime Memory pause failed: HTTP ${res.status}`);
+					vscode.window.showErrorMessage(`AnalyzeAll pause failed: HTTP ${res.status}`);
 					return;
 				}
-				vscode.window.showInformationMessage('Anytime Memory: ingest paused on daemon');
+				vscode.window.showInformationMessage('AnalyzeAll: paused on daemon');
 			} catch (err) {
-				TrailLogger.error('pauseIngest failed', err);
+				TrailLogger.error('analyzeAll.pause failed', err);
 				vscode.window.showErrorMessage(
-					`Anytime Memory pause failed: ${err instanceof Error ? err.message : String(err)}`,
+					`AnalyzeAll pause failed: ${err instanceof Error ? err.message : String(err)}`,
 				);
 			}
 		}),
-		vscode.commands.registerCommand('anytime-trail.memory.resumeIngest', async () => {
+		vscode.commands.registerCommand('anytime-trail.analyzeAll.resume', async () => {
 			try {
-				if (memoryCoreService) {
-					await memoryCoreService.resume();
-					vscode.window.showInformationMessage('Anytime Memory: ingest resumed');
+				if (analyzeAllRunner) {
+					await analyzeAllRunner.resume();
+					vscode.window.showInformationMessage('AnalyzeAll: resumed');
 					return;
 				}
 				const daemonUrl = TrailPanel.getDaemonUrl();
 				if (!daemonUrl) {
-					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
+					vscode.window.showWarningMessage('AnalyzeAll: no local runner and no daemon URL available');
 					return;
 				}
-				const res = await fetch(`${daemonUrl}/api/memory-core/resume`, { method: 'POST' });
+				const res = await fetch(`${daemonUrl}/api/analyze-all/resume`, { method: 'POST' });
 				if (!res.ok) {
-					vscode.window.showErrorMessage(`Anytime Memory resume failed: HTTP ${res.status}`);
+					vscode.window.showErrorMessage(`AnalyzeAll resume failed: HTTP ${res.status}`);
 					return;
 				}
-				vscode.window.showInformationMessage('Anytime Memory: ingest resumed on daemon');
+				vscode.window.showInformationMessage('AnalyzeAll: resumed on daemon');
 			} catch (err) {
-				TrailLogger.error('resumeIngest failed', err);
+				TrailLogger.error('analyzeAll.resume failed', err);
 				vscode.window.showErrorMessage(
-					`Anytime Memory resume failed: ${err instanceof Error ? err.message : String(err)}`,
+					`AnalyzeAll resume failed: ${err instanceof Error ? err.message : String(err)}`,
 				);
 			}
 		}),
-		vscode.commands.registerCommand('anytime-trail.memory.statusIngest', async () => {
+		vscode.commands.registerCommand('anytime-trail.analyzeAll.status', async () => {
 			try {
-				if (memoryCoreService) {
-					const s = memoryCoreService.getStatus();
+				if (analyzeAllRunner) {
+					const s = analyzeAllRunner.getStatus();
 					vscode.window.showInformationMessage(
-						`Anytime Memory (local): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
+						`AnalyzeAll (local): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
 							`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
 					);
 					return;
 				}
 				const daemonUrl = TrailPanel.getDaemonUrl();
 				if (!daemonUrl) {
-					vscode.window.showWarningMessage('Anytime Memory: no local service and no daemon URL available');
+					vscode.window.showWarningMessage('AnalyzeAll: no local runner and no daemon URL available');
 					return;
 				}
-				const res = await fetch(`${daemonUrl}/api/memory-core/status`);
+				const res = await fetch(`${daemonUrl}/api/analyze-all/status`);
 				if (!res.ok) {
-					vscode.window.showErrorMessage(`Anytime Memory status failed: HTTP ${res.status}`);
+					vscode.window.showErrorMessage(`AnalyzeAll status failed: HTTP ${res.status}`);
 					return;
 				}
 				const s = await res.json() as { paused: boolean; ticksRun: number; ticksSkipped: number; lastRunAt: string | null; lastError: string | null };
 				vscode.window.showInformationMessage(
-					`Anytime Memory (daemon): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
+					`AnalyzeAll (daemon): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
 						`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
 				);
 			} catch (err) {
-				TrailLogger.error('statusIngest failed', err);
+				TrailLogger.error('analyzeAll.status failed', err);
 				vscode.window.showErrorMessage(
-					`Anytime Memory status failed: ${err instanceof Error ? err.message : String(err)}`,
+					`AnalyzeAll status failed: ${err instanceof Error ? err.message : String(err)}`,
 				);
 			}
 		}),
@@ -1199,6 +1167,11 @@ export async function deactivate(): Promise<void> {
 		await trailDataServer?.stop();
 	} catch (err) {
 		TrailLogger.error('Failed to stop trail data server', err);
+	}
+	try {
+		await analyzeAllRunner?.dispose();
+	} catch (err) {
+		TrailLogger.error('Failed to dispose analyze-all runner', err);
 	}
 	try {
 		await memoryCoreService?.dispose();

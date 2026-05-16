@@ -1,208 +1,49 @@
 import { join } from 'node:path';
 
 import { getTrailHome } from '../db/paths';
-import { readState, writeState, defaultState } from './state';
+import { BaseRunner } from '../runner/BaseRunner';
+import type { RunReason } from '../runner/types';
 import type {
   MemoryCoreLogSink,
   MemoryCoreServiceOptions,
-  MemoryCoreServiceStartOptions,
   MemoryCoreServiceStatus,
   PipelineLogger,
   PipelineRunnerContext,
-  RunReason,
 } from './types';
 
 /**
  * memory-core ingest パイプラインをホストする長寿命サービス。
  *
- * - 起動時 1 回 + 周期実行 (`start(intervalMs)`)
- * - pause/resume を 3 制御面 (VS Code コマンド / CLI / HTTP API) から受ける
- * - mutex で `runOnce` 同時実行を防止
- * - 状態は JSON ファイルに永続化されプロセス再起動・拡張 reload 後も保持される
+ * BaseRunner を継承し、共通の pause/resume/state/ticks/lastRunAt ロジックは
+ * 基底から受け継ぐ。memory-core 固有の処理 (チャンク化・埋め込み・FTS index
+ * 再構築 等) を `runImpl(reason)` で実装する。
  *
  * 既存の `createMemoryCoreRunner().runAfterImport()` 本体は `pipelineRunner`
  * オプションに注入される。省略時はパッケージ内デフォルトを使用する。
  */
-export class MemoryCoreService {
-  private readonly opts: MemoryCoreServiceOptions;
-  private readonly statePath: string;
-  private status: MemoryCoreServiceStatus;
-  private mutex: Promise<void> = Promise.resolve();
-  private intervalTimer: NodeJS.Timeout | null = null;
-  private startupTimer: NodeJS.Timeout | null = null;
-  private stopRequested = false;
+export class MemoryCoreService extends BaseRunner {
+  private readonly serviceOpts: MemoryCoreServiceOptions;
 
   constructor(opts: MemoryCoreServiceOptions) {
-    this.opts = opts;
-    this.statePath = opts.statePath ?? defaultStatePath(opts.gitRoot);
-    this.status = readState(this.statePath, {
-      onWarning: (msg) => this.log(`[WARN] state file: ${msg}`),
+    super({
+      logSink: opts.logSink,
+      logTag: 'anytime-memory',
+      statePath: opts.statePath ?? defaultStatePath(opts.gitRoot),
     });
+    this.serviceOpts = opts;
   }
 
-  getStatus(): MemoryCoreServiceStatus {
-    return { ...this.status };
-  }
-
-  async pause(by: string): Promise<MemoryCoreServiceStatus> {
-    this.status.paused = true;
-    this.status.pausedAt = new Date().toISOString();
-    this.status.pausedBy = by;
-    this.persistState();
-    this.log(`[INFO] pause by=${by}`);
-    return this.getStatus();
-  }
-
-  async resume(): Promise<MemoryCoreServiceStatus> {
-    this.status.paused = false;
-    this.status.pausedAt = null;
-    this.status.pausedBy = null;
-    this.persistState();
-    this.log('[INFO] resume');
-    return this.getStatus();
-  }
-
-  /**
-   * 1 周期分のパイプラインを実行する。pause 中 + 自動契機 (startup/periodic)
-   * は skip して ticksSkipped を増やす。manual / import は pause を無視する
-   * (ユーザーが明示的に起動した操作のため)。
-   *
-   * 例外はすべて吸収し lastError に記録する。caller には決して throw しない。
-   */
-  async runOnce(reason: RunReason): Promise<MemoryCoreServiceStatus> {
-    const previous = this.mutex;
-    let release!: () => void;
-    this.mutex = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await previous;
-
-    try {
-      if (this.status.paused && !this.isUserInitiated(reason)) {
-        this.status.ticksSkipped += 1;
-        this.persistState();
-        this.log(`[INFO] skip (paused) reason=${reason}`);
-        return this.getStatus();
-      }
-
-      this.status.running = true;
-      this.status.lastReason = reason;
-      this.persistState();
-      const startedAt = Date.now();
-      this.log(`[INFO] run start reason=${reason}`);
-
-      let succeeded = false;
-      try {
-        const ctx: PipelineRunnerContext = {
-          logger: this.buildPipelineLogger(),
-          trailDbPath: this.opts.trailDbPath,
-          dbPath: this.opts.dbPath,
-          nativeBinding: this.opts.nativeBinding,
-          gitRoot: this.opts.gitRoot,
-          backfillDays: this.opts.backfillDays,
-        };
-        const runner = this.opts.pipelineRunner ?? defaultPipelineRunner;
-        await runner(ctx);
-        succeeded = true;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        this.status.lastError = msg;
-        this.log(
-          `[ERROR] run failed: ${msg}${err instanceof Error && err.stack ? '\n' + err.stack : ''}`,
-        );
-      }
-
-      if (succeeded) {
-        this.status.ticksRun += 1;
-        this.status.lastError = null;
-      }
-      this.status.lastDurationMs = Date.now() - startedAt;
-      this.status.lastRunAt = new Date().toISOString();
-      this.status.running = false;
-      this.persistState();
-      this.log(
-        `[INFO] run end reason=${reason} durationMs=${this.status.lastDurationMs} ` +
-          `ok=${succeeded} ticksRun=${this.status.ticksRun} ticksSkipped=${this.status.ticksSkipped}`,
-      );
-      return this.getStatus();
-    } finally {
-      release();
-    }
-  }
-
-  /**
-   * 起動時 tick + 周期 setInterval を仕掛ける。多重呼び出し時は既存タイマーを
-   * クリアして上書きする (idempotent)。
-   */
-  start(intervalMs: number, options: MemoryCoreServiceStartOptions = {}): void {
-    const runOnStart = options.runOnStart ?? true;
-    const startupDelayMs = options.startupDelayMs ?? 5000;
-    this.stopRequested = false;
-
-    if (this.intervalTimer) clearInterval(this.intervalTimer);
-    if (this.startupTimer) clearTimeout(this.startupTimer);
-
-    if (runOnStart) {
-      this.startupTimer = setTimeout(() => {
-        if (this.stopRequested) return;
-        void this.runOnce('startup');
-      }, startupDelayMs);
-    }
-
-    if (intervalMs > 0) {
-      this.intervalTimer = setInterval(() => {
-        if (this.stopRequested) return;
-        void this.runOnce('periodic');
-      }, intervalMs);
-    }
-
-    this.log(
-      `[INFO] start intervalMs=${intervalMs} runOnStart=${runOnStart} startupDelayMs=${startupDelayMs}`,
-    );
-  }
-
-  /**
-   * タイマーを停止する。実行中の runOnce は完走するため、確実な完了待ちは
-   * `dispose()` を使う。idempotent。
-   */
-  stop(): void {
-    this.stopRequested = true;
-    if (this.intervalTimer) {
-      clearInterval(this.intervalTimer);
-      this.intervalTimer = null;
-    }
-    if (this.startupTimer) {
-      clearTimeout(this.startupTimer);
-      this.startupTimer = null;
-    }
-    this.log('[INFO] stop');
-  }
-
-  /**
-   * stop + in-flight runOnce 完了待ち + 状態ファイル fsync。
-   */
-  async dispose(): Promise<void> {
-    this.stop();
-    await this.mutex;
-    this.persistState();
-  }
-
-  // ---------------------------------------------------------------------------
-
-  private isUserInitiated(reason: RunReason): boolean {
-    return reason === 'manual' || reason === 'import';
-  }
-
-  private persistState(): void {
-    try {
-      writeState(this.statePath, this.status);
-    } catch (err) {
-      this.log(
-        `[ERROR] failed to persist state to ${this.statePath}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
+  protected override async runImpl(_reason: RunReason): Promise<void> {
+    const ctx: PipelineRunnerContext = {
+      logger: this.buildPipelineLogger(),
+      trailDbPath: this.serviceOpts.trailDbPath,
+      dbPath: this.serviceOpts.dbPath,
+      nativeBinding: this.serviceOpts.nativeBinding,
+      gitRoot: this.serviceOpts.gitRoot,
+      backfillDays: this.serviceOpts.backfillDays,
+    };
+    const runner = this.serviceOpts.pipelineRunner ?? defaultPipelineRunner;
+    await runner(ctx);
   }
 
   private buildPipelineLogger(): PipelineLogger {
@@ -219,10 +60,6 @@ export class MemoryCoreService {
           }`,
         ),
     };
-  }
-
-  private log(msg: string): void {
-    this.opts.logSink.appendLine(`[${new Date().toISOString()}] [anytime-memory] ${msg}`);
   }
 }
 
@@ -244,6 +81,6 @@ export function defaultStatePath(workspaceRoot?: string): string {
   return join(getTrailHome(workspaceRoot), 'memory-core-runner.json');
 }
 
-// re-export so callers don't have to dig into state.ts
-export { defaultState };
+// re-export so callers don't have to dig into state.ts / types.ts
+export { defaultState } from './state';
 export type { MemoryCoreLogSink, MemoryCoreServiceOptions, MemoryCoreServiceStatus };
