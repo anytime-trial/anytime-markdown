@@ -13,8 +13,7 @@ import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
 import { loadConfig } from './runtime/Config';
 import { DaemonScheduler } from './runtime/DaemonScheduler';
-import { createPeriodicImportJob } from './jobs/PeriodicImportJob';
-import { createMemoryCorePipelineJob } from './jobs/MemoryCorePipelineJob';
+import { createAnalyzeAllJob } from './jobs/AnalyzeAllJob';
 import { CodeGraphService } from './analyze/CodeGraphService';
 import {
   findTsconfigCandidates,
@@ -222,17 +221,18 @@ program
       intervalMin: config.memory.fts.rebuildIntervalMinutes,
     });
 
+    // createAnalyzeAllJob は importAll → runOnce('periodic') を順次実行する
+    // (= VS Code 拡張の anytime-trail.analyzeAll コマンドと同じデータフロー)。
+    // 以前は createPeriodicImportJob (importAll のみ) と createMemoryCorePipelineJob
+    // (runOnce のみ) を別個に登録していたが、メモリ取込が import より先に走って
+    // しまうレースを避けるため 1 ジョブに統合した。interval / runOnStart は
+    // memory.ingest 側の設定に従う (periodicImport の設定は廃止予定)。
     const scheduler = new DaemonScheduler(
       [
-        createPeriodicImportJob({
+        createAnalyzeAllJob({
+          service: memoryCoreService,
           trailDb,
           gitRoots: effectiveGitRoots,
-          intervalMs: config.scheduler.periodicImport.intervalSec * 1000,
-          runOnStart: config.scheduler.periodicImport.runOnStart,
-          startupDelayMs: config.scheduler.periodicImport.startupDelaySec * 1000,
-        }),
-        createMemoryCorePipelineJob({
-          service: memoryCoreService,
           intervalMs: config.memory.ingest.intervalSec * 1000,
           runOnStart: config.memory.ingest.runOnStart,
           startupDelayMs: config.memory.ingest.startupDelaySec * 1000,

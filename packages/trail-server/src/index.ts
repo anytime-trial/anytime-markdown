@@ -69,5 +69,5 @@ export type { DaemonInfo, DaemonLifecycleOptions } from './runtime/DaemonLifecyc
 export { createPeriodicImportJob } from './jobs/PeriodicImportJob';
 export type { PeriodicImportJobOptions } from './jobs/PeriodicImportJob';
 
-export { createMemoryCorePipelineJob } from './jobs/MemoryCorePipelineJob';
-export type { MemoryCorePipelineJobOptions } from './jobs/MemoryCorePipelineJob';
+export { createAnalyzeAllJob } from './jobs/AnalyzeAllJob';
+export type { AnalyzeAllJobOptions } from './jobs/AnalyzeAllJob';
