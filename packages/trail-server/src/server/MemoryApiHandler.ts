@@ -71,14 +71,15 @@ export interface ReviewHistoryRow {
   addressedAt: string | null;
 }
 
-export interface PipelineRunRow {
-  id: string;
+export type PipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
+
+export interface PipelineRunStatsByDayRow {
+  day: string;
   scope: string;
-  startedAt: string;
-  completedAt: string | null;
-  status: string;
+  runs: number;
+  durationSec: number;
   itemsProcessed: number;
-  errorMessage: string | null;
+  worstStatus: PipelineRunStatus;
 }
 
 export interface FailedItemRow {
@@ -594,57 +595,62 @@ export class MemoryApiHandler {
 
   // ---- pipeline runs ----
 
-  async listPipelineRuns(params: {
+  async listPipelineRunStatsByDay(params: {
     scope?: string;
-    status?: string;
     since?: string;
-    limit?: number;
-  }): Promise<PipelineRunRow[]> {
+  }): Promise<PipelineRunStatsByDayRow[]> {
     const db = this.openReadOnly();
     if (!db) return [];
     try {
-      const limit = clampLimit(params.limit, 50);
       const conditions: string[] = [];
       const bindValues: unknown[] = [];
       if (params.scope) {
         conditions.push('scope = ?');
         bindValues.push(params.scope);
       }
-      if (params.status) {
-        conditions.push('status = ?');
-        bindValues.push(params.status);
-      }
       if (params.since) {
         conditions.push('started_at >= ?');
         bindValues.push(params.since);
       }
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-      bindValues.push(limit);
+      // status を順序付き数値にマップして MAX で worst を抽出。
+      // 結果が高々 (日数 × scope 数) で頭打ちのため LIMIT 不要。
       const result = db.exec(
-        `SELECT id, scope, started_at, finished_at, status,
-                COALESCE(items_processed, 0) AS items_processed, error_detail
+        `SELECT substr(started_at, 1, 10) AS day,
+                scope,
+                COUNT(*) AS runs,
+                COALESCE(SUM(duration_ms), 0) / 1000 AS duration_sec,
+                COALESCE(SUM(items_processed), 0) AS items_processed,
+                MAX(CASE status
+                      WHEN 'error'   THEN 3
+                      WHEN 'partial' THEN 2
+                      WHEN 'success' THEN 1
+                      WHEN 'running' THEN 0
+                      ELSE 0
+                    END) AS worst_rank
          FROM memory_pipeline_runs
          ${where}
-         ORDER BY started_at DESC
-         LIMIT ?`,
+         GROUP BY day, scope
+         ORDER BY day DESC, scope ASC`,
         toBindParams(bindValues),
       );
       if (!result[0]) return [];
       const { columns, values } = result[0];
+      const rankToStatus = (n: number): PipelineRunStatus =>
+        n === 3 ? 'error' : n === 2 ? 'partial' : n === 1 ? 'success' : 'running';
       return values.map((row) => {
         const r = mapRow<Record<string, unknown>>(columns, row);
         return {
-          id: toStr(r['id']),
+          day: toStr(r['day']),
           scope: toStr(r['scope']),
-          startedAt: toStr(r['started_at']),
-          completedAt: toNullStr(r['finished_at']),
-          status: toStr(r['status']),
+          runs: toNum(r['runs']),
+          durationSec: toNum(r['duration_sec']),
           itemsProcessed: toNum(r['items_processed']),
-          errorMessage: toNullStr(r['error_detail']),
+          worstStatus: rankToStatus(toNum(r['worst_rank'])),
         };
       });
     } catch (err) {
-      this.logger.error(`[MemoryApiHandler.listPipelineRuns] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.listPipelineRunStatsByDay] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       this.close(db);

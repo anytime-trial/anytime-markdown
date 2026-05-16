@@ -12,7 +12,7 @@ import { useTrailTheme } from '../TrailThemeContext';
 import { PipelineRunsTimeline } from './PipelineRunsTimeline';
 import { TopEntitiesTable } from './TopEntitiesTable';
 import type { MemoryReader } from '../../data/readers/MemoryReader';
-import type { MemoryFailedItemRow, MemoryInvalidationRow, MemoryPipelineRunRow, MemoryTopEntityRow } from '../../data/types';
+import type { MemoryFailedItemRow, MemoryInvalidationRow, MemoryPipelineRunStatsByDayRow, MemoryTopEntityRow } from '../../data/types';
 
 const STATUS_COLORS: Record<string, 'default' | 'info' | 'success' | 'warning' | 'error'> = {
   running: 'info',
@@ -28,7 +28,7 @@ export interface PipelineRunsPanelProps {
 export function PipelineRunsPanel({ reader }: Readonly<PipelineRunsPanelProps>) {
   const { t } = useTrailI18n();
   const { colors, scrollbarSx } = useTrailTheme();
-  const [runs, setRuns] = useState<readonly MemoryPipelineRunRow[]>([]);
+  const [runStats, setRunStats] = useState<readonly MemoryPipelineRunStatsByDayRow[]>([]);
   const [entities, setEntities] = useState<readonly MemoryTopEntityRow[]>([]);
   const [invalidations, setInvalidations] = useState<readonly MemoryInvalidationRow[]>([]);
   const [failedItems, setFailedItems] = useState<readonly MemoryFailedItemRow[]>([]);
@@ -36,7 +36,7 @@ export function PipelineRunsPanel({ reader }: Readonly<PipelineRunsPanelProps>) 
   useEffect(() => {
     if (!reader) return;
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    void reader.listPipelineRuns({ since, limit: 200 }).then(setRuns);
+    void reader.listPipelineRunStatsByDay({ since }).then(setRunStats);
     void reader.listTopEntities({ limit: 20 }).then(setEntities);
     void reader.listInvalidations({ limit: 50 }).then(setInvalidations);
     void reader.listFailedItems({ limit: 50 }).then(setFailedItems);
@@ -57,7 +57,7 @@ export function PipelineRunsPanel({ reader }: Readonly<PipelineRunsPanelProps>) 
         <Typography variant="caption" sx={{ color: colors.textSecondary, fontWeight: 600 }}>
           {t('memory.runs.timeline')}
         </Typography>
-        <PipelineRunsTimeline runs={runs} />
+        <PipelineRunsTimeline rows={runStats} />
       </Box>
 
       {/* Section 2: Top entities */}

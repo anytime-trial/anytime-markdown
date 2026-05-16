@@ -1074,18 +1074,16 @@ export class TrailDataServer {
       return;
     }
 
-    if (pathname === '/api/memory/pipeline/runs' && method === 'GET') {
+    if (pathname === '/api/memory/pipeline/runs/by-day' && method === 'GET') {
       const p = parsed.searchParams;
-      void this.memoryApi.listPipelineRuns({
+      void this.memoryApi.listPipelineRunStatsByDay({
         scope: p.get('scope') ?? undefined,
-        status: p.get('status') ?? undefined,
         since: p.get('since') ?? undefined,
-        limit: clampInt(p.get('limit'), 50, 1, 200),
       }).then((data) => {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/pipeline/runs] ${String(err)}`);
+        this.logger.error(`[/api/memory/pipeline/runs/by-day] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;

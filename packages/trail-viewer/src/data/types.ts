@@ -133,14 +133,15 @@ export interface MemoryReviewHistoryRow {
   readonly addressedAt: string | null;
 }
 
-export interface MemoryPipelineRunRow {
-  readonly id: string;
+export type MemoryPipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
+
+export interface MemoryPipelineRunStatsByDayRow {
+  readonly day: string;
   readonly scope: string;
-  readonly startedAt: string;
-  readonly completedAt: string | null;
-  readonly status: string;
+  readonly runs: number;
+  readonly durationSec: number;
   readonly itemsProcessed: number;
-  readonly errorMessage: string | null;
+  readonly worstStatus: MemoryPipelineRunStatus;
 }
 
 export interface MemoryFailedItemRow {
