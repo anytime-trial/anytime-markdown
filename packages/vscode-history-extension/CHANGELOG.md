@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-16
+
+### Fixed
+
+- Editing tabs are no longer force-closed on commit / save
+
 ## [0.2.0] - 2026-05-15
 
 ### Added

@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.26.2] - 2026-05-16
+
+### 変更
+
+- `@anytime-markdown/graph-core` を `devDependencies` に移動（ビルド時のみ利用）
+- 未使用の `@anytime-markdown/spreadsheet-core` 依存を削除
+
 ## [0.26.1] - 2026-05-08
 
 ### 修正

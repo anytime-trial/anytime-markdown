@@ -6,10 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-16
+
 ### Added
 
 - `anytime-database.uploadBackupToS3` command to upload the latest `.bak.1.gz` from the TreeView to AWS S3
 - Settings `anytimeDatabase.s3.bucket` / `s3.region` / `s3.prefix` / `s3.accessKeyId` / `s3.secretAccessKey`
+- All workspace DB files are now listed under the SQLite tree node
+
+### Changed
+
+- Backup UI moved from `vscode-trail-extension` to `vscode-database-extension`
+- Split `BackupTreeItem` `contextValue` to enable command targeting per backup type
+
+### Security
+
+- Hardened regex literals against polynomial backtracking (ReDoS)
+- 4 webview message listeners now verify message origin before handling events
+
+### Database Core (database-core)
+
+- `FileBackupManager` extracted from `trail-db` into `database-core` for shared rolling backup handling
 
 ## [0.1.0] - 2026-05-15
 

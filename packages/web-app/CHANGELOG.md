@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.26.2] - 2026-05-16
+
+### Changed
+
+- Moved `@anytime-markdown/graph-core` to `devDependencies` (only used at build time)
+- Dropped unused `@anytime-markdown/spreadsheet-core` dependency
+
 ## [0.26.1] - 2026-05-08
 
 ### Fixed

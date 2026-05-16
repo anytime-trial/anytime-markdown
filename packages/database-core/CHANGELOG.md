@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-16
+
+### Added
+
+- `FileBackupManager` extracted from `trail-db` into `database-core` for shared rolling backup handling
+
+### Security
+
+- Hardened regex literals against polynomial backtracking (ReDoS)
+
 ## [0.1.0] - 2026-05-07
 
 ### Added

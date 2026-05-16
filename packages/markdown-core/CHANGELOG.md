@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-05-16
+
+### Fixed
+
+- Table cell text now escapes `|` to `\|` so column pipes survive round-trips
+- `SourceModeEditor` syncs textarea height to mirror so the textarea fills the editor
+- Image URL serialization escapes backslashes to keep raw markdown round-trip safe
+- Logged silent mode-switch failures instead of swallowing them
+
+### Changed
+
+- Dropped redundant `spreadsheet-core` dependency from `markdown-core`
+
+### Security
+
+- 4 webview message listeners now verify the message origin before handling events
+
 ## [0.15.0] - 2026-05-15
 
 ### Changed

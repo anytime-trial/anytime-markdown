@@ -6,10 +6,27 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-16
+
 ### 追加
 
 - `anytime-database.uploadBackupToS3` コマンド: TreeView の最新世代 `.bak.1.gz` を AWS S3 へ手動アップロード
 - 設定 `anytimeDatabase.s3.bucket` / `s3.region` / `s3.prefix` / `s3.accessKeyId` / `s3.secretAccessKey` を追加
+- ワークスペース内の全 DB ファイルを SQLite ツリーノードに一覧表示
+
+### 変更
+
+- バックアップ UI を `vscode-trail-extension` から `vscode-database-extension` に移管
+- `BackupTreeItem` の `contextValue` を分割し、バックアップ種別単位でコマンドを差し向け可能に
+
+### セキュリティ
+
+- 多項式バックトラッキング（ReDoS）対策として正規表現リテラルを強化
+- 4 件の webview message listener で origin 検証を追加
+
+### Database Core (database-core)
+
+- `trail-db` から `FileBackupManager` を `database-core` に分離し、ローリングバックアップ処理を共通化
 
 ## [0.1.0] - 2026-05-15
 

@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-05-16
+
+### Editor Core (markdown-core)
+
+- テーブルセル本文の `|` を `\|` にエスケープ（カラム区切り破壊を防止）
+- `SourceModeEditor` の textarea 高さを mirror と同期させ、エディタ全体を埋めるよう修正
+- 画像 URL シリアライズ時のバックスラッシュをエスケープし、ラウンドトリップを保証
+- 不要な `spreadsheet-core` 依存を削除
+- セキュリティ: 4 件の webview message listener で origin 検証を追加
+
 ## [0.15.0] - 2026-05-15
 
 ### 変更
