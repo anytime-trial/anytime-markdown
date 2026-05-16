@@ -82,4 +82,31 @@ describe("SourceModeEditor", () => {
     const numbers = Array.from(gutter!.children).map(el => el.textContent);
     expect(numbers).toEqual(["1", "2", "3"]);
   });
+
+  test("textareaの高さがミラー要素の実測高さに同期される（折り返し時の末尾欠け対策）", () => {
+    // 折り返しを含む場合、rows 属性だけでは textarea が短くなり overflow:hidden で末尾が切れる。
+    // ミラー要素の実測高さを textarea.style.height に反映する必要がある。
+    const MIRROR_HEIGHT = 1500;
+    const spy = jest
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue({
+        height: MIRROR_HEIGHT,
+        width: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect);
+    try {
+      const props = createDefaultProps({ sourceText: "a\nb\nc", editorHeight: 200 });
+      renderWithTheme(<SourceModeEditor {...props} />);
+      const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+      expect(textarea.style.height).toBe(`${MIRROR_HEIGHT}px`);
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
