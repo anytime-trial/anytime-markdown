@@ -239,6 +239,10 @@ export async function runConversationIncremental(opts: {
   };
 
   let maxTimestamp = sinceISO;
+  // 最後に extraction 失敗した episode の valid_from (quarantine 用)。
+  // quarantine 時はこれ + 1ms をカーソルにして「失敗した episode を
+  // skip しつつ、未処理の後続 session を再走査可能にする」。
+  let lastFailedEpisodeTime: string | null = null;
   let consecutiveFailures = 0;
   let finalStatus: 'success' | 'partial' | 'error' = 'success';
 
@@ -248,9 +252,8 @@ export async function runConversationIncremental(opts: {
       const episodes = splitEpisodes(messages);
 
       for (const episode of episodes) {
-        // Track latest timestamp seen (used for cursor advancement at session
-        // boundary). Counted for every episode, even when skipped, so the
-        // cursor still moves forward on resume.
+        // Track latest timestamp seen — used ONLY for the completion-time
+        // cursor advancement at end of run, not for mid-session bookkeeping.
         if (episode.valid_from > maxTimestamp) {
           maxTimestamp = episode.valid_from;
         }
@@ -319,6 +322,7 @@ export async function runConversationIncremental(opts: {
         if (extracted === null) {
           totals.items_failed += 1;
           consecutiveFailures += 1;
+          lastFailedEpisodeTime = episode.valid_from;
           recordFailedItem(
             db,
             `${episode.session_id}:${episode.message_uuid_start}`,
@@ -330,9 +334,17 @@ export async function runConversationIncremental(opts: {
             logger.error(
               `[anytime-memory] runConversationIncremental: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
             );
+            // 失敗 episode の valid_from + 1ms をカーソルに。これにより
+            // 次回 run は失敗 episode を WHERE timestamp >= cursor で
+            // 除外しつつ、後続セッションの未処理 episode は再走査される。
+            // 失敗 episode 自体は memory_failed_items に記録済みで
+            // runConversationFailedItemsRetry が後で拾い直す。
+            const quarantineCursor = new Date(
+              new Date(lastFailedEpisodeTime).getTime() + 1
+            ).toISOString();
             upsertPipelineState(db, {
               status: 'quarantine',
-              last_processed_at: maxTimestamp,
+              last_processed_at: quarantineCursor,
               error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
             });
             finalizePipelineRun(db, rId, startedAt, 'partial', totals);
@@ -374,13 +386,16 @@ export async function runConversationIncremental(opts: {
         }
       }
 
-      // After each session, advance last_processed_at so a future resume
-      // (VS Code reload, OS shutdown) can skip already-processed sessions
-      // and convTotalEstimate decreases to reflect completed work.
-      upsertPipelineState(db, {
-        status: 'running',
-        last_processed_at: maxTimestamp,
-      });
+      // 意図的にここで last_processed_at を前進させない。
+      // 旧実装は max(timestamp seen so far) でカーソルを毎セッション境界で
+      // 前進させていたが、これは reload 時のデータスキップを引き起こした:
+      // セッション iterate 順 (UUID / MIN(timestamp)) と各セッションの MAX
+      // timestamp は無関係なので、ある 1 セッションが今日のメッセージを含む
+      // だけで cursor が今日に飛び、未処理セッションが
+      // WHERE timestamp >= cursor で永久に除外されていた。
+      // 現設計: カーソル前進は「完了時 (loop 抜けた後) のみ」。途中で
+      // reload されても次回 run が existingIds preload で永続化済み
+      // エピソードを冪等にスキップする (権威ある skip 機構)。
     }
   } catch (err) {
     logger.error(
@@ -388,9 +403,9 @@ export async function runConversationIncremental(opts: {
       err
     );
     finalStatus = 'error';
+    // エラー時もカーソルは触らない (上記と同じ理由)。
     upsertPipelineState(db, {
       status: 'error',
-      last_processed_at: maxTimestamp,
       error_detail: err instanceof Error ? (err.stack ?? err.message) : String(err),
     });
     finalizePipelineRun(db, rId, startedAt, 'error', totals);
