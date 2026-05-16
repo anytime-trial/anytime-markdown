@@ -89,7 +89,10 @@ describe('createAnalyzeAllJob', () => {
     const result = await job.run();
 
     expect(callOrder).toEqual(['importAll', 'runOnce']);
-    expect(importAll).toHaveBeenCalledWith(undefined, gitRoots);
+    // importAll(onProgress, gitRoots, excludePatterns, analyzeFn, onPhase) 全 5 引数で呼ばれる
+    const callArgs = importAll.mock.calls[0] as unknown[];
+    expect(callArgs[0]).toBeUndefined();
+    expect(callArgs[1]).toEqual(gitRoots);
     expect(runOnce).toHaveBeenCalledWith('periodic');
     expect(result.status).toBe('ok');
     expect(result.metrics?.imported).toBe(12);

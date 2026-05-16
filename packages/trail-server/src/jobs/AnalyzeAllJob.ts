@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import type { MemoryCoreService } from '@anytime-markdown/memory-core';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 import type { JobResult, ScheduledJob } from '../runtime/DaemonScheduler';
+import { ImportAllPhaseStatusWriter } from './ImportAllPhaseStatusFile';
 
 export interface AnalyzeAllJobOptions {
   service: MemoryCoreService;
@@ -18,6 +20,12 @@ export interface AnalyzeAllJobOptions {
   trailDb?: TrailDatabase;
   /** trailDb と組で必須。importAll の gitRoots 引数に渡す。 */
   gitRoots?: readonly string[];
+  /**
+   * 指定時、importAll の per-phase 進捗を JSON ファイルに書き出す
+   * (VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新するため)。
+   * trailDb と組で機能する。
+   */
+  importAllStatusFilePath?: string;
 }
 
 /**
@@ -49,8 +57,19 @@ export function createAnalyzeAllJob(opts: AnalyzeAllJobOptions): ScheduledJob {
       let skipped: number | undefined;
       let importError: string | undefined;
       if (opts.trailDb) {
+        // importAll-phase-status.json への書き出し writer (UI 連携用)
+        const phaseWriter = opts.importAllStatusFilePath
+          ? new ImportAllPhaseStatusWriter(opts.importAllStatusFilePath, randomUUID())
+          : null;
+        phaseWriter?.initialize();
         try {
-          const result = await opts.trailDb.importAll(undefined, opts.gitRoots ?? []);
+          const result = await opts.trailDb.importAll(
+            undefined,
+            opts.gitRoots ?? [],
+            undefined,
+            undefined,
+            phaseWriter ? (event) => phaseWriter.applyEvent(event) : undefined,
+          );
           imported = result.imported;
           skipped = result.skipped;
         } catch (err) {

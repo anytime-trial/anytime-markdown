@@ -236,6 +236,8 @@ program
           intervalMs: config.memory.ingest.intervalSec * 1000,
           runOnStart: config.memory.ingest.runOnStart,
           startupDelayMs: config.memory.ingest.startupDelaySec * 1000,
+          // VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新する
+          importAllStatusFilePath: join(dbStorageDir, 'importall-phase-status.json'),
         }),
       ],
       logger,

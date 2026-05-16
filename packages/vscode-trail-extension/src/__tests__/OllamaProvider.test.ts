@@ -402,6 +402,80 @@ describe('OllamaProvider — importAll phase entries', () => {
   });
 });
 
+describe('OllamaProvider — importAll status file polling', () => {
+  let provider: OllamaProvider;
+  const dbFilePath = '/fake/.anytime/trail/db/trail.db';
+  const importAllStatusFilePath = '/fake/.anytime/trail/db/importall-phase-status.json';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFetch.mockImplementation(() => makeTimeoutError());
+  });
+
+  afterEach(() => {
+    provider?.dispose();
+  });
+
+  it('importAllStatusFile を読み込んで _importAllPhases に反映する', async () => {
+    let mtimeCounter = 1000;
+    mockExistsSync.mockImplementation((p: string) => p === importAllStatusFilePath);
+    mockStatSync.mockImplementation(() => ({ mtimeMs: mtimeCounter++, mtime: new Date() }));
+    mockReadFileSync.mockReturnValue(JSON.stringify({
+      updated_at: '2026-05-16T10:00:00.000Z',
+      run_id: 'daemon-run-1',
+      phases: {
+        import_sessions: { state: 'success', startedAt: '2026-05-16T10:00:00.000Z', finishedAt: '2026-05-16T10:00:10.000Z', count: 42 },
+        resolve_releases: { state: 'running', startedAt: '2026-05-16T10:00:10.000Z' },
+      },
+    }));
+
+    provider = new OllamaProvider({ dbFilePath, importAllStatusFilePath });
+    // 内部 _checkStatusFile を明示呼び出してファイル読込を発火
+    (provider as unknown as { _checkStatusFile(): void })._checkStatusFile();
+    const children = await provider.getChildren();
+
+    const importSessions = children.find((c) => c.label === 'import_sessions');
+    expect(importSessions?.description).toMatch(/^42 done/);
+    const resolveReleases = children.find((c) => c.label === 'resolve_releases');
+    expect(resolveReleases?.description).toMatch(/^running/);
+  });
+
+  it('run_id が変わると前回 phase 状態をクリアする', async () => {
+    let mtimeCounter = 1000;
+    mockExistsSync.mockImplementation((p: string) => p === importAllStatusFilePath);
+    mockStatSync.mockImplementation(() => ({ mtimeMs: mtimeCounter++, mtime: new Date() }));
+
+    provider = new OllamaProvider({ dbFilePath, importAllStatusFilePath });
+
+    // 1 回目: run_id=A、import_sessions success
+    mockReadFileSync.mockReturnValueOnce(JSON.stringify({
+      updated_at: '2026-05-16T10:00:00.000Z',
+      run_id: 'A',
+      phases: {
+        import_sessions: { state: 'success', count: 10 },
+        resolve_releases: { state: 'success', count: 3 },
+      },
+    }));
+    (provider as unknown as { _checkStatusFile(): void })._checkStatusFile();
+    let children = await provider.getChildren();
+    expect(children.find((c) => c.label === 'import_sessions')?.description).toMatch(/^10 done/);
+
+    // 2 回目: run_id=B、import_sessions のみ running (resolve_releases は file に無い)
+    mockReadFileSync.mockReturnValueOnce(JSON.stringify({
+      updated_at: '2026-05-16T10:30:00.000Z',
+      run_id: 'B',
+      phases: {
+        import_sessions: { state: 'running' },
+      },
+    }));
+    (provider as unknown as { _checkStatusFile(): void })._checkStatusFile();
+    children = await provider.getChildren();
+    expect(children.find((c) => c.label === 'import_sessions')?.description).toMatch(/^running/);
+    // run_id 切替により resolve_releases は phase Map から clear され pending へ
+    expect(children.find((c) => c.label === 'resolve_releases')?.description).toBe('未実行');
+  });
+});
+
 describe('buildImportAllPhaseDisplay()', () => {
   it('null → pending / 未実行', () => {
     expect(buildImportAllPhaseDisplay('import_sessions', null)).toEqual({

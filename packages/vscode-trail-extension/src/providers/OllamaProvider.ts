@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { TrailLogger } from '../utils/TrailLogger';
 import type { PipelineStatusFile, PipelineStatusEntry, PipelineState } from '@anytime-markdown/memory-core';
 import type { ImportAllPhase } from '@anytime-markdown/trail-db';
+import { readImportAllPhaseStatus } from '@anytime-markdown/trail-server';
 
 /**
  * importAll 内部の job (phase) 単位の表示順。OLLAMA panel ではこの順序で並ぶ。
@@ -203,6 +204,13 @@ export interface OllamaProviderOptions {
    * `${dbFilePath}.bak.1.gz` の存在/mtime/サイズから状態を導出する。
    */
   dbFilePath?: string;
+  /**
+   * importall-phase-status.json の絶対パス。指定時、デーモンが書き込む
+   * importAll 各 phase の状態をポーリングして _importAllPhases に反映する。
+   * in-process 経路 (setImportAllPhase) と併用可: ファイルに新しい状態があれば
+   * それで上書きする (run_id が変わった時のみ全 phase をリセット)。
+   */
+  importAllStatusFilePath?: string;
 }
 
 interface BackupPipelineDisplay {
@@ -327,16 +335,20 @@ export class OllamaProvider
   private _fastPollTimer: ReturnType<typeof setTimeout> | undefined;
   private _statusFileTimer: ReturnType<typeof setInterval> | undefined;
   private _lastStatusFileMtime = 0;
+  private _lastImportAllStatusFileMtime = 0;
+  private _lastImportAllRunId: string | null = null;
   private readonly _statusFilePath: string | undefined;
   private readonly _dbFilePath: string | undefined;
+  private readonly _importAllStatusFilePath: string | undefined;
   private readonly _importAllPhases = new Map<ImportAllPhase, ImportAllPhaseState>();
 
   constructor(options: OllamaProviderOptions = {}) {
     this._statusFilePath = options.statusFilePath;
     this._dbFilePath = options.dbFilePath;
+    this._importAllStatusFilePath = options.importAllStatusFilePath;
     this._startPolling(POLL_NORMAL_MS);
     void this._poll();
-    if (this._statusFilePath) {
+    if (this._statusFilePath || this._importAllStatusFilePath) {
       this._startStatusFilePolling();
     }
   }
@@ -357,15 +369,25 @@ export class OllamaProvider
   }
 
   private _checkStatusFile(): void {
-    if (!this._statusFilePath) return;
     try {
       let mtimeChanged = false;
-      if (fs.existsSync(this._statusFilePath)) {
+      if (this._statusFilePath && fs.existsSync(this._statusFilePath)) {
         const stat = fs.statSync(this._statusFilePath);
         const mtime = stat.mtimeMs;
-        mtimeChanged = mtime !== this._lastStatusFileMtime;
-        if (mtimeChanged) {
+        if (mtime !== this._lastStatusFileMtime) {
           this._lastStatusFileMtime = mtime;
+          mtimeChanged = true;
+        }
+      }
+
+      // importAll phase status file (デーモンが書き込む) を polling して反映する。
+      let importAllChanged = false;
+      if (this._importAllStatusFilePath && fs.existsSync(this._importAllStatusFilePath)) {
+        const stat = fs.statSync(this._importAllStatusFilePath);
+        const mtime = stat.mtimeMs;
+        if (mtime !== this._lastImportAllStatusFileMtime) {
+          this._lastImportAllStatusFileMtime = mtime;
+          importAllChanged = this._loadImportAllPhasesFromFile();
         }
       }
 
@@ -378,12 +400,38 @@ export class OllamaProvider
         (s) => s.state === 'running',
       );
 
-      if (mtimeChanged || hasRunningPipeline || importAllPhaseRunning) {
+      if (mtimeChanged || importAllChanged || hasRunningPipeline || importAllPhaseRunning) {
         this._onDidChangeTreeData.fire();
       }
     } catch {
       // ignore
     }
+  }
+
+  /**
+   * importall-phase-status.json を読み込み _importAllPhases にマージする。
+   * run_id が前回と異なる場合は phase Map を一度クリアして上書きする
+   * (新しいジョブ実行の開始)。
+   */
+  private _loadImportAllPhasesFromFile(): boolean {
+    if (!this._importAllStatusFilePath) return false;
+    const file = readImportAllPhaseStatus(this._importAllStatusFilePath);
+    if (!file) return false;
+    if (file.run_id !== this._lastImportAllRunId) {
+      this._importAllPhases.clear();
+      this._lastImportAllRunId = file.run_id;
+    }
+    for (const [phase, entry] of Object.entries(file.phases)) {
+      if (!entry) continue;
+      this._importAllPhases.set(phase as ImportAllPhase, {
+        state: entry.state,
+        startedAt: entry.startedAt,
+        finishedAt: entry.finishedAt,
+        count: entry.count,
+        message: entry.message,
+      });
+    }
+    return true;
   }
 
   private async _poll(): Promise<void> {
