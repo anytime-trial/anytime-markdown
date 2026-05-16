@@ -45,6 +45,7 @@
     "packages/memory-core",
     "packages/llm-core",
     "packages/ollama-core",
+    "packages/agent-core",
     "packages/review-agent"
   ],
   "overrides": {
