@@ -1,11 +1,7 @@
 import { loadConfig, type TrailServerConfig } from '../Config';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-function loadFixture(name: string): unknown {
-  return JSON.parse(readFileSync(join(__dirname, '__fixtures__', name), 'utf8'));
-}
 
 describe('loadConfig', () => {
   let dir: string;
@@ -19,15 +15,36 @@ describe('loadConfig', () => {
     warnSpy.mockRestore();
   });
 
-  // ---- defaults ----
-
-  it('returns defaults when file missing', () => {
-    const cfg = loadConfig(join(dir, 'config.json'));
-    expect(cfg.schemaVersion).toBe(3);
+  it('returns defaults when file missing (and auto-generates the file)', () => {
+    const p = join(dir, 'config.json');
+    expect(existsSync(p)).toBe(false);
+    const cfg = loadConfig(p);
+    expect(cfg.schemaVersion).toBe(1);
     expect(cfg.analyzeAll.intervalSec).toBe(1800);
-    expect(cfg.analyzeAll.runOnStart).toBe(true);
-    expect(cfg.analyzeAll.startupDelaySec).toBe(5);
+    expect(cfg.analyzeAll.runOnStart).toBe(false);
+    expect(cfg.analyzeAll.startupDelaySec).toBe(30);
     expect(cfg.gitRoots).toEqual([]);
+
+    // 副作用: ファイルが自動生成されている
+    expect(existsSync(p)).toBe(true);
+    const round = JSON.parse(readFileSync(p, 'utf-8')) as TrailServerConfig;
+    expect(round.schemaVersion).toBe(1);
+    expect(round.analyzeAll.runOnStart).toBe(false);
+    expect(round.analyzeAll.startupDelaySec).toBe(30);
+  });
+
+  it('creates parent directory when generating default', () => {
+    const p = join(dir, 'nested', 'deep', 'config.json');
+    loadConfig(p);
+    expect(existsSync(p)).toBe(true);
+  });
+
+  it('does not regenerate when file already exists', () => {
+    const p = join(dir, 'config.json');
+    writeFileSync(p, JSON.stringify({ schemaVersion: 1, analyzeAll: { intervalSec: 9999 } }));
+    const before = readFileSync(p, 'utf-8');
+    loadConfig(p);
+    expect(readFileSync(p, 'utf-8')).toBe(before);
   });
 
   it('returns defaults when JSON is malformed', () => {
@@ -38,10 +55,11 @@ describe('loadConfig', () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('failed to parse'));
   });
 
-  it('fills all memory defaults when file is empty object', () => {
+  it('fills all defaults when file is empty object', () => {
     const p = join(dir, 'config.json');
     writeFileSync(p, '{}');
     const cfg = loadConfig(p);
+    expect(cfg.schemaVersion).toBe(1);
     expect(cfg.memory.ollama.baseUrl).toBe('http://localhost:11434');
     expect(cfg.memory.chat.model).toBe('qwen2.5-coder:14b');
     expect(cfg.memory.embedding.model).toBe('bge-m3');
@@ -52,21 +70,21 @@ describe('loadConfig', () => {
     expect(cfg.memory.fts.rebuildIntervalMinutes).toBe(60);
     expect(cfg.memory.conversation.backfillDays).toBe(5);
     expect(cfg.analyzeAll.intervalSec).toBe(1800);
-    expect(cfg.analyzeAll.runOnStart).toBe(true);
-    expect(cfg.analyzeAll.startupDelaySec).toBe(5);
+    expect(cfg.analyzeAll.runOnStart).toBe(false);
+    expect(cfg.analyzeAll.startupDelaySec).toBe(30);
   });
 
   it('merges file values over defaults', () => {
     const p = join(dir, 'config.json');
     writeFileSync(p, JSON.stringify({
       gitRoots: ['/a', '/b'],
-      analyzeAll: { intervalSec: 300 },
+      analyzeAll: { intervalSec: 300, runOnStart: true },
     }));
     const cfg = loadConfig(p);
     expect(cfg.gitRoots).toEqual(['/a', '/b']);
     expect(cfg.analyzeAll.intervalSec).toBe(300);
     expect(cfg.analyzeAll.runOnStart).toBe(true);
-    expect(cfg.analyzeAll.startupDelaySec).toBe(5);
+    expect(cfg.analyzeAll.startupDelaySec).toBe(30); // default 維持
   });
 
   it('partial memory.chat.model override preserves other defaults', () => {
@@ -105,106 +123,27 @@ describe('loadConfig', () => {
     expect(cfg.memory.fts.rebuildIntervalMinutes).toBe(30);
     expect(cfg.memory.conversation.backfillDays).toBe(14);
     expect(cfg.analyzeAll.intervalSec).toBe(3600);
-    expect(cfg.analyzeAll.runOnStart).toBe(true); // default preserved
+    expect(cfg.analyzeAll.runOnStart).toBe(false); // default preserved
   });
 
-  // ---- v3 ----
-
-  it('v3 config without legacy fields works with defaults and overrides', () => {
+  it('schema does not expose scheduler field in output', () => {
     const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify(loadFixture('config-v3.json')));
+    writeFileSync(p, '{}');
     const cfg = loadConfig(p);
-    expect(cfg.schemaVersion).toBe(3);
-    expect(cfg.gitRoots).toEqual(['/repo']);
-    expect(cfg.analyzeAll.intervalSec).toBe(1800);
-    expect(cfg.memory.ollama.baseUrl).toBe('http://host.docker.internal:11434');
-    expect(cfg.memory.rag.finalLimit).toBe(20);
-    expect(cfg.memory.rag.bm25Limit).toBe(30); // default preserved
-    expect(cfg.memory.chat.model).toBe('qwen2.5-coder:14b');
-    expect(warnSpy).not.toHaveBeenCalled();
+    expect((cfg as TrailServerConfig & { scheduler?: unknown }).scheduler).toBeUndefined();
   });
 
-  // ---- v2 migration: memory.ingest -> analyzeAll ----
-
-  it('v2 config: migrates memory.ingest to analyzeAll', () => {
-    const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify(loadFixture('config-v2.json')));
-    const cfg = loadConfig(p);
-    expect(cfg.analyzeAll.intervalSec).toBe(1800);
-    expect(cfg.analyzeAll.runOnStart).toBe(true);
-    expect(cfg.analyzeAll.startupDelaySec).toBe(5);
-    // memory.ingest is no longer in TrailServerConfig
-    expect((cfg as TrailServerConfig & { memory: { ingest?: unknown } }).memory.ingest).toBeUndefined();
-  });
-
-  it('v2 config emits deprecation warnings', () => {
+  it('silently ignores unknown legacy fields (no migration)', () => {
     const p = join(dir, 'config.json');
     writeFileSync(p, JSON.stringify({
-      schemaVersion: 2,
-      memory: {
-        ingest: { intervalSec: 900, runOnStart: false, startupDelaySec: 10 },
-      },
-    }));
-    loadConfig(p);
-    expect(warnSpy).toHaveBeenCalledTimes(2);
-    expect(warnSpy.mock.calls[0][0]).toContain('schemaVersion 2');
-    expect(warnSpy.mock.calls[1][0]).toContain('memory.ingest is deprecated');
-  });
-
-  it('v2 config with both memory.ingest AND analyzeAll: explicit analyzeAll wins', () => {
-    const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify({
-      schemaVersion: 2,
-      memory: {
-        ingest: { intervalSec: 900, runOnStart: false, startupDelaySec: 10 },
-      },
-      analyzeAll: { intervalSec: 600 },
+      schemaVersion: 99,
+      scheduler: { memoryCore: { intervalSec: 900 } }, // 旧 v1 形式 — 無視される
+      memory: { ingest: { intervalSec: 600 } },         // 旧 v2 形式 — 無視される
+      analyzeAll: { intervalSec: 1234 },
     }));
     const cfg = loadConfig(p);
-    // explicit analyzeAll.intervalSec wins
-    expect(cfg.analyzeAll.intervalSec).toBe(600);
-    // other fields fall back to migrated memory.ingest values
-    expect(cfg.analyzeAll.runOnStart).toBe(false);
-    expect(cfg.analyzeAll.startupDelaySec).toBe(10);
-  });
-
-  // ---- v1 migration: scheduler.memoryCore -> analyzeAll ----
-
-  it('v1 config: migrates scheduler.memoryCore to analyzeAll', () => {
-    const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify(loadFixture('config-v1.json')));
-    const cfg = loadConfig(p);
-    expect(cfg.analyzeAll.intervalSec).toBe(900);
-    expect(cfg.analyzeAll.runOnStart).toBe(false);
-    expect(cfg.analyzeAll.startupDelaySec).toBe(10);
-  });
-
-  it('v1 config emits deprecation warnings', () => {
-    const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify({
-      schemaVersion: 1,
-      scheduler: {
-        memoryCore: { intervalSec: 900, runOnStart: true, startupDelaySec: 5 },
-      },
-    }));
-    loadConfig(p);
-    expect(warnSpy).toHaveBeenCalledTimes(2);
-    expect(warnSpy.mock.calls[0][0]).toContain('schemaVersion 1');
-    expect(warnSpy.mock.calls[1][0]).toContain('scheduler.memoryCore is deprecated');
-  });
-
-  it('v1 config with both scheduler.memoryCore AND analyzeAll: explicit analyzeAll wins', () => {
-    const p = join(dir, 'config.json');
-    writeFileSync(p, JSON.stringify({
-      schemaVersion: 1,
-      scheduler: {
-        memoryCore: { intervalSec: 900, runOnStart: false, startupDelaySec: 10 },
-      },
-      analyzeAll: { intervalSec: 600 },
-    }));
-    const cfg = loadConfig(p);
-    expect(cfg.analyzeAll.intervalSec).toBe(600);
-    expect(cfg.analyzeAll.runOnStart).toBe(false);
-    expect(cfg.analyzeAll.startupDelaySec).toBe(10);
+    expect(cfg.analyzeAll.intervalSec).toBe(1234);
+    expect(cfg.analyzeAll.runOnStart).toBe(false); // default
+    expect(warnSpy).not.toHaveBeenCalled(); // マイグレーション WARN なし
   });
 });

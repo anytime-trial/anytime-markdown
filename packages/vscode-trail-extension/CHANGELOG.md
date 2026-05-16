@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- `loadConfig` now **auto-generates `config.json` on disk** when the file is missing (used by both the extension and daemon), giving users an editable starting point. Falls back to in-memory DEFAULT_CONFIG if the write fails
+- **Breaking:** New VS Code setting `anytimeTrail.analyzeAll.enabled` (boolean, default `false`). When disabled, the Pipelines tree view is hidden and AnalyzeAllRunner is not constructed (automatic / manual command / HTTP API all become no-ops). Existing users who want to keep auto-runs must set this to `true` and reload the window
+
+### Changed
+
+- **Breaking:** Default `analyzeAll.runOnStart` flipped from `true` to `false`, and `startupDelaySec` raised from `5` to `30`. AnalyzeAll now requires explicit opt-in
+- **Breaking:** Simplified `TrailServerConfig`: removed `scheduler.*` (periodicImport / memoryCore) and `memory.ingest`, and reset `schemaVersion` to `1`. **No migration is performed** from prior schemas — unknown legacy fields are silently ignored and defaults are used. Users with existing configs must either rewrite to the new `analyzeAll.*` shape or delete the file to regenerate DEFAULT_CONFIG
+- **Breaking:** Consolidated memory-core pause/resume into AnalyzeAll-level (importAll + memory-core runOnce)
+- **Breaking:** Renamed VS Code commands `anytime-trail.memory.{pause,resume,status}Ingest` to `anytime-trail.analyzeAll.{pause,resume,status}` (old commands removed)
+- **Breaking:** Renamed HTTP endpoints `/api/memory-core/{pause,resume,status}` to `/api/analyze-all/{pause,resume,status}` (old endpoints removed)
+- **Breaking:** Renamed trail-server CLI subcommands `ingest {pause,resume,status}` to `analyze-all {pause,resume,status}` (old subcommand removed)
+- Added AnalyzeAllRunner that centralizes importAll → memory-core orchestration, pause/resume, and persistent ticks/lastRunAt/lastError tracking (`<TRAIL_HOME>/analyze-all-runner.json`). `memory-core-runner.json` remains for diagnostics but its paused field is no longer consulted
+
+### Removed
+
+- `createAnalyzeAllJob` / `createPeriodicImportJob` (replaced by AnalyzeAllRunner)
+- `TrailDataServer.setMemoryCoreService` (AnalyzeAllRunner hosts the service)
+
 ## [0.19.0] - 2026-05-15
 
 ### Changed

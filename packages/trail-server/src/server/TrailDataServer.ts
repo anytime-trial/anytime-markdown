@@ -51,7 +51,7 @@ import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality
 import type { Logger, LogLevel } from '../runtime/Logger';
 import type { CodeGraphService } from '../analyze/CodeGraphService';
 import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/AnalyzePipeline';
-import type { MemoryCoreService } from '@anytime-markdown/memory-core';
+import type { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
 import { C4ManualApiHandler } from './C4ManualApiHandler';
@@ -258,7 +258,7 @@ export class TrailDataServer {
   };
 
   private codeGraphService: CodeGraphService | undefined;
-  private memoryCoreService: MemoryCoreService | undefined;
+  private analyzeAllRunner: AnalyzeAllRunner | undefined;
   private readonly memoryApi: MemoryApiHandler;
   private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
   private logService: LogService | undefined;
@@ -329,12 +329,12 @@ export class TrailDataServer {
   }
 
   /**
-   * memory-core ingest サービスを wire する。設定後は
-   * `/api/memory-core/{pause,resume,status}` HTTP API が有効化される。
-   * service が未 set のうちは各 endpoint は 503 を返す。
+   * analyzeAll runner を wire する。設定後は
+   * `/api/analyze-all/{pause,resume,status}` HTTP API が有効化される。
+   * runner が未 set のうちは各 endpoint は 503 を返す。
    */
-  setMemoryCoreService(service: MemoryCoreService): void {
-    this.memoryCoreService = service;
+  setAnalyzeAllRunner(runner: AnalyzeAllRunner): void {
+    this.analyzeAllRunner = runner;
   }
 
   /**
@@ -600,16 +600,16 @@ export class TrailDataServer {
       return;
     }
 
-    if (pathname === '/api/memory-core/pause' && method === 'POST') {
-      this.handleMemoryCorePause(req, res);
+    if (pathname === '/api/analyze-all/pause' && method === 'POST') {
+      this.handleAnalyzeAllPause(req, res);
       return;
     }
-    if (pathname === '/api/memory-core/resume' && method === 'POST') {
-      this.handleMemoryCoreResume(res);
+    if (pathname === '/api/analyze-all/resume' && method === 'POST') {
+      this.handleAnalyzeAllResume(res);
       return;
     }
-    if (pathname === '/api/memory-core/status' && method === 'GET') {
-      this.handleMemoryCoreStatus(res);
+    if (pathname === '/api/analyze-all/status' && method === 'GET') {
+      this.handleAnalyzeAllStatus(res);
       return;
     }
 
@@ -3259,13 +3259,13 @@ export class TrailDataServer {
     res.end(JSON.stringify({ inProgress: this.analysisInProgress }));
   }
 
-  private async handleMemoryCorePause(
+  private async handleAnalyzeAllPause(
     req: http.IncomingMessage,
     res: http.ServerResponse,
   ): Promise<void> {
-    if (!this.memoryCoreService) {
+    if (!this.analyzeAllRunner) {
       res.writeHead(503, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'memory-core service not registered' }));
+      res.end(JSON.stringify({ error: 'analyze-all runner not registered' }));
       return;
     }
     let by = 'http-api';
@@ -3276,40 +3276,40 @@ export class TrailDataServer {
       // 空 body 許容
     }
     try {
-      const status = await this.memoryCoreService.pause(by);
+      const status = await this.analyzeAllRunner.pause(by);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(status));
     } catch (err) {
-      this.logger.error('handleMemoryCorePause failed', err);
+      this.logger.error('handleAnalyzeAllPause failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     }
   }
 
-  private async handleMemoryCoreResume(res: http.ServerResponse): Promise<void> {
-    if (!this.memoryCoreService) {
+  private async handleAnalyzeAllResume(res: http.ServerResponse): Promise<void> {
+    if (!this.analyzeAllRunner) {
       res.writeHead(503, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'memory-core service not registered' }));
+      res.end(JSON.stringify({ error: 'analyze-all runner not registered' }));
       return;
     }
     try {
-      const status = await this.memoryCoreService.resume();
+      const status = await this.analyzeAllRunner.resume();
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(status));
     } catch (err) {
-      this.logger.error('handleMemoryCoreResume failed', err);
+      this.logger.error('handleAnalyzeAllResume failed', err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     }
   }
 
-  private handleMemoryCoreStatus(res: http.ServerResponse): void {
-    if (!this.memoryCoreService) {
+  private handleAnalyzeAllStatus(res: http.ServerResponse): void {
+    if (!this.analyzeAllRunner) {
       res.writeHead(503, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'memory-core service not registered' }));
+      res.end(JSON.stringify({ error: 'analyze-all runner not registered' }));
       return;
     }
-    const status = this.memoryCoreService.getStatus();
+    const status = this.analyzeAllRunner.getStatus();
     res.writeHead(200, JSON_HEADERS);
     res.end(JSON.stringify(status));
   }

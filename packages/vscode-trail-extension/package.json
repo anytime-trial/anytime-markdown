@@ -48,7 +48,8 @@
         },
         {
           "id": "anytimeTrail.pipelines",
-          "name": "%view.pipelines%"
+          "name": "%view.pipelines%",
+          "when": "anytimeTrail.analyzeAllEnabled"
         }
       ]
     },
@@ -69,18 +70,18 @@
         "category": "Anytime Trail"
       },
       {
-        "command": "anytime-trail.memory.pauseIngest",
-        "title": "%command.memory.pauseIngest%",
+        "command": "anytime-trail.analyzeAll.pause",
+        "title": "%command.analyzeAll.pause%",
         "category": "Anytime Trail"
       },
       {
-        "command": "anytime-trail.memory.resumeIngest",
-        "title": "%command.memory.resumeIngest%",
+        "command": "anytime-trail.analyzeAll.resume",
+        "title": "%command.analyzeAll.resume%",
         "category": "Anytime Trail"
       },
       {
-        "command": "anytime-trail.memory.statusIngest",
-        "title": "%command.memory.statusIngest%",
+        "command": "anytime-trail.analyzeAll.status",
+        "title": "%command.analyzeAll.status%",
         "category": "Anytime Trail"
       },
       {
@@ -263,6 +264,11 @@
           "type": "string",
           "default": ".anytime/trail/db",
           "markdownDescription": "%config.database.storagePath%"
+        },
+        "anytimeTrail.analyzeAll.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.analyzeAll.enabled%"
         },
         "anytimeTrail.logs.minLevel": {
           "type": "string",

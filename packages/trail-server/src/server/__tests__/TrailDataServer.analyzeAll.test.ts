@@ -7,12 +7,10 @@ import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import type {
-  MemoryCoreService,
-  MemoryCoreServiceStatus,
-} from '@anytime-markdown/memory-core';
+import type { RunnerStatus } from '@anytime-markdown/memory-core';
+import type { AnalyzeAllRunner } from '../../runner/AnalyzeAllRunner';
 
-function makeStatus(overrides: Partial<MemoryCoreServiceStatus> = {}): MemoryCoreServiceStatus {
+function makeStatus(overrides: Partial<RunnerStatus> = {}): RunnerStatus {
   return {
     schemaVersion: 1,
     paused: false,
@@ -29,7 +27,7 @@ function makeStatus(overrides: Partial<MemoryCoreServiceStatus> = {}): MemoryCor
   };
 }
 
-describe('/api/memory-core endpoints', () => {
+describe('/api/analyze-all endpoints', () => {
   let server: TrailDataServer;
   let db: TrailDatabase;
   let port: number;
@@ -46,16 +44,16 @@ describe('/api/memory-core endpoints', () => {
     db.close();
   });
 
-  describe('when no service is registered', () => {
-    it('GET /api/memory-core/status → 503', async () => {
-      const res = await fetch(`http://127.0.0.1:${port}/api/memory-core/status`);
+  describe('when no runner is registered', () => {
+    it('GET /api/analyze-all/status → 503', async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/api/analyze-all/status`);
       expect(res.status).toBe(503);
       const body = await res.json();
       expect(body.error).toMatch(/not registered/);
     });
 
-    it('POST /api/memory-core/pause → 503', async () => {
-      const res = await fetch(`http://127.0.0.1:${port}/api/memory-core/pause`, {
+    it('POST /api/analyze-all/pause → 503', async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/api/analyze-all/pause`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({}),
@@ -63,19 +61,19 @@ describe('/api/memory-core endpoints', () => {
       expect(res.status).toBe(503);
     });
 
-    it('POST /api/memory-core/resume → 503', async () => {
-      const res = await fetch(`http://127.0.0.1:${port}/api/memory-core/resume`, {
+    it('POST /api/analyze-all/resume → 503', async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/api/analyze-all/resume`, {
         method: 'POST',
       });
       expect(res.status).toBe(503);
     });
   });
 
-  describe('when service is registered', () => {
+  describe('when runner is registered', () => {
     let pause: jest.Mock;
     let resume: jest.Mock;
     let getStatus: jest.Mock;
-    let currentStatus: MemoryCoreServiceStatus;
+    let currentStatus: RunnerStatus;
 
     beforeEach(() => {
       currentStatus = makeStatus();
@@ -83,7 +81,7 @@ describe('/api/memory-core endpoints', () => {
         currentStatus = makeStatus({
           paused: true,
           pausedBy: by,
-          pausedAt: '2026-05-13T12:00:00.000Z',
+          pausedAt: '2026-05-16T12:00:00.000Z',
         });
         return currentStatus;
       });
@@ -92,12 +90,12 @@ describe('/api/memory-core endpoints', () => {
         return currentStatus;
       });
       getStatus = jest.fn(() => currentStatus);
-      const svc = { pause, resume, getStatus } as unknown as MemoryCoreService;
-      server.setMemoryCoreService(svc);
+      const runner = { pause, resume, getStatus } as unknown as AnalyzeAllRunner;
+      server.setAnalyzeAllRunner(runner);
     });
 
-    it('GET /api/memory-core/status → 200 + current status', async () => {
-      const res = await fetch(`http://127.0.0.1:${port}/api/memory-core/status`);
+    it('GET /api/analyze-all/status → 200 + current status', async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/api/analyze-all/status`);
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.paused).toBe(false);
@@ -105,8 +103,8 @@ describe('/api/memory-core endpoints', () => {
       expect(getStatus).toHaveBeenCalled();
     });
 
-    it('POST /api/memory-core/pause with body {by:"http-test"} → 200 and propagates by', async () => {
-      const res = await fetch(`http://127.0.0.1:${port}/api/memory-core/pause`, {
+    it('POST /api/analyze-all/pause with body {by:"http-test"} → 200 and propagates by', async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/api/analyze-all/pause`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ by: 'http-test' }),
@@ -118,8 +116,8 @@ describe('/api/memory-core endpoints', () => {
       expect(pause).toHaveBeenCalledWith('http-test');
     });
 
-    it('POST /api/memory-core/pause with empty body → defaults to "http-api"', async () => {
-      const res = await fetch(`http://127.0.0.1:${port}/api/memory-core/pause`, {
+    it('POST /api/analyze-all/pause with empty body → defaults to "http-api"', async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/api/analyze-all/pause`, {
         method: 'POST',
       });
       expect(res.status).toBe(200);
@@ -127,13 +125,13 @@ describe('/api/memory-core endpoints', () => {
       expect(body.pausedBy).toBe('http-api');
     });
 
-    it('POST /api/memory-core/resume → 200 and paused=false', async () => {
-      await fetch(`http://127.0.0.1:${port}/api/memory-core/pause`, {
+    it('POST /api/analyze-all/resume → 200 and paused=false', async () => {
+      await fetch(`http://127.0.0.1:${port}/api/analyze-all/pause`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ by: 'cli' }),
       });
-      const res = await fetch(`http://127.0.0.1:${port}/api/memory-core/resume`, {
+      const res = await fetch(`http://127.0.0.1:${port}/api/analyze-all/resume`, {
         method: 'POST',
       });
       expect(res.status).toBe(200);
@@ -141,5 +139,6 @@ describe('/api/memory-core endpoints', () => {
       expect(body.paused).toBe(false);
       expect(resume).toHaveBeenCalled();
     });
+
   });
 });

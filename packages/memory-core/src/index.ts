@@ -135,3 +135,12 @@ export type {
   PipelineRunnerContext,
   RunReason,
 } from './service/types';
+
+// 共通 Runner 抽象 (AnalyzeAllRunner などの subclass 実装用)
+export { BaseRunner } from './runner/BaseRunner';
+export type {
+  BaseRunnerOptions,
+  RunnerLogSink,
+  RunnerStartOptions,
+  RunnerStatus,
+} from './runner/types';
