@@ -234,6 +234,30 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
+	// anytime-note はテンプレート + ランタイム placeholder 置換。activate 時に
+	// ノート格納パスを placeholder へ展開して書き出す。
+	if (hasClaudeDir && fs.existsSync(claudeDir)) {
+		try {
+			const noteImagesDir = path.join(noteStorageDir, 'images');
+			installTemplatedSkill({
+				claudeDir,
+				extensionPath: context.extensionUri.fsPath,
+				skillName: 'anytime-note',
+				placeholders: {
+					__NOTE_DIR__: noteStorageDir,
+					__IMAGES_DIR__: noteImagesDir,
+				},
+				logger: {
+					info: (m) => TrailLogger.info(m),
+					warn: (m) => TrailLogger.warn(m),
+					error: (m) => TrailLogger.error(m),
+				},
+			});
+		} catch (err) {
+			TrailLogger.warn(`[install-skills] unexpected failure for anytime-note: ${String(err)}`);
+		}
+	}
+
 	const openAiNote = vscode.commands.registerCommand(
 		'anytime-trail.openAiNote',
 		async () => {
@@ -248,25 +272,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				// EEXIST: ファイル既存は正常
 			}
 			aiNoteProvider.refresh();
-
-			if (hasClaudeDir) {
-				const imagesDir = path.join(dir, 'images');
-				installTemplatedSkill({
-					claudeDir,
-					extensionPath: context.extensionUri.fsPath,
-					skillName: 'anytime-note',
-					placeholders: {
-						__NOTE_DIR__: dir,
-						__IMAGES_DIR__: imagesDir,
-					},
-					logger: {
-						info: (m) => TrailLogger.info(m),
-						warn: (m) => TrailLogger.warn(m),
-						error: (m) => TrailLogger.error(m),
-					},
-				});
-			}
-
 			await openNoteFile(filePath);
 		}
 	);
