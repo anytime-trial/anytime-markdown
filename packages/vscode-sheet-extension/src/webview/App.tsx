@@ -26,6 +26,8 @@ export function App() {
 
   useEffect(() => {
     const listener = (event: MessageEvent) => {
+      // VS Code webview のメッセージは origin が空文字列または vscode-webview:// スキーム
+      if (event.origin && !event.origin.startsWith('vscode-webview://')) return;
       const msg = event.data as Record<string, unknown>;
       if (!msg) return;
       switch (msg.type) {

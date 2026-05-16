@@ -12,7 +12,7 @@ export interface MarkdownSerializerLike {
  */
 export function serializeImage(state: MarkdownSerializerLike, node: ProseMirrorNode): void {
   const alt = String(node.attrs.alt ?? "").replaceAll(/([\\[\]])/g, "\\$1");
-  const src = String(node.attrs.src ?? "").replaceAll(/[()]/g, "\\$&");
+  const src = String(node.attrs.src ?? "").replaceAll(/[\\()]/g, "\\$&");
   const title = node.attrs.title
     ? ` "${String(node.attrs.title).replaceAll('"', '\\"')}"`
     : "";

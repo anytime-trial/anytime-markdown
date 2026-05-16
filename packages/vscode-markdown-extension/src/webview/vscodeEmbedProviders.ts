@@ -31,6 +31,8 @@ function ensureInstalled(): void {
   if (installed) return;
   installed = true;
   window.addEventListener('message', (event: MessageEvent) => {
+    // VS Code webview のメッセージは origin が空文字列または vscode-webview:// スキーム
+    if (event.origin && !event.origin.startsWith('vscode-webview://')) return;
     const raw = event.data as { type?: string; requestId?: string; data?: unknown; error?: string };
     if (!raw || typeof raw !== 'object') return;
     if (typeof raw.requestId !== 'string') return;
