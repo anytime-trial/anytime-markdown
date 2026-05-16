@@ -172,6 +172,45 @@ export function formatPipelineDescription(
 
 export interface OllamaProviderOptions {
   statusFilePath?: string;
+  /**
+   * trail.db の絶対パス。指定時、Pipelines セクションの先頭に backup ジョブを表示し、
+   * `${dbFilePath}.bak.1.gz` の存在/mtime/サイズから状態を導出する。
+   */
+  dbFilePath?: string;
+}
+
+interface BackupPipelineDisplay {
+  scope: string;
+  state: PipelineState;
+  description: string;
+}
+
+/**
+ * バックアップ世代ファイル (.bak.1.gz) の存在から表示用エントリを組み立てる。
+ * - 存在しない: state='pending', "未作成"
+ * - 存在する: state='success', "${size}MB · ${mtime}"
+ * - I/O エラー: state='error'
+ */
+export function buildBackupDisplay(dbFilePath: string): BackupPipelineDisplay {
+  const bakPath = `${dbFilePath}.bak.1.gz`;
+  try {
+    if (!fs.existsSync(bakPath)) {
+      return { scope: 'backup', state: 'pending', description: '未作成' };
+    }
+    const stat = fs.statSync(bakPath);
+    const mb = (stat.size / 1024 / 1024).toFixed(1);
+    return {
+      scope: 'backup',
+      state: 'success',
+      description: `${mb} MB · ${stat.mtime.toLocaleString()}`,
+    };
+  } catch (err) {
+    return {
+      scope: 'backup',
+      state: 'error',
+      description: err instanceof Error ? err.message.slice(0, 60) : 'fs error',
+    };
+  }
 }
 
 export class OllamaProvider
@@ -186,9 +225,11 @@ export class OllamaProvider
   private _statusFileTimer: ReturnType<typeof setInterval> | undefined;
   private _lastStatusFileMtime = 0;
   private readonly _statusFilePath: string | undefined;
+  private readonly _dbFilePath: string | undefined;
 
   constructor(options: OllamaProviderOptions = {}) {
     this._statusFilePath = options.statusFilePath;
+    this._dbFilePath = options.dbFilePath;
     this._startPolling(POLL_NORMAL_MS);
     void this._poll();
     if (this._statusFilePath) {
@@ -262,10 +303,22 @@ export class OllamaProvider
       items.push(new OllamaItem('model', model));
     }
 
+    // Pipelines セクション: backup (常時、dbFilePath が指定されていれば) + memory-core pipelines
+    const backup = this._dbFilePath ? buildBackupDisplay(this._dbFilePath) : null;
     const pipelineStatus = readPipelineStatus(this._statusFilePath);
-    if (pipelineStatus && pipelineStatus.pipelines.length > 0) {
+    const memoryPipelines = pipelineStatus?.pipelines ?? [];
+
+    if (backup || memoryPipelines.length > 0) {
       items.push(new OllamaItem('pipeline-separator', '── Pipelines ──'));
-      for (const p of pipelineStatus.pipelines) {
+      if (backup) {
+        items.push(
+          new OllamaItem('pipeline', backup.scope, {
+            state: backup.state,
+            description: backup.description,
+          }),
+        );
+      }
+      for (const p of memoryPipelines) {
         items.push(
           new OllamaItem('pipeline', p.scope, {
             state: p.state,

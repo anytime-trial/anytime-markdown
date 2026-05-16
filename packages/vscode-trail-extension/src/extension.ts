@@ -1178,7 +1178,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	// 書き手 (memory-core/defaultMemoryCorePipelineRunner.ts) が trailDbPath と
 	// 同じ dirname に出力するので、reader 側もそれに合わせる。
 	const pipelineStatusPath = dbStorageDir ? path.join(dbStorageDir, 'pipeline-status.json') : undefined;
-	const ollamaProvider = new OllamaProvider({ statusFilePath: pipelineStatusPath });
+	const dbFilePath = dbStorageDir ? path.join(dbStorageDir, 'trail.db') : undefined;
+	const ollamaProvider = new OllamaProvider({ statusFilePath: pipelineStatusPath, dbFilePath });
 	vscode.window.createTreeView('anytimeTrail.ollama', {
 		treeDataProvider: ollamaProvider,
 	});

@@ -20,7 +20,7 @@ jest.mock('node:fs', () => ({
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof global.fetch;
 
-import { OllamaProvider, formatDuration, formatPipelineDescription } from '../providers/OllamaProvider';
+import { OllamaProvider, formatDuration, formatPipelineDescription, buildBackupDisplay } from '../providers/OllamaProvider';
 
 function makeRunningResponse(models: string[]) {
   return Promise.resolve({
@@ -213,6 +213,119 @@ describe('OllamaProvider.getChildren() — pipelines', () => {
     const p = children.find((c) => c.kind === 'pipeline');
     expect(p?.description).toContain('error');
     expect(p?.description).toContain('tsconfig not found');
+  });
+});
+
+describe('OllamaProvider.getChildren() — backup pipeline entry', () => {
+  let provider: OllamaProvider;
+  const dbFilePath = '/fake/.anytime/trail/db/trail.db';
+  const bakPath = `${dbFilePath}.bak.1.gz`;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFetch.mockImplementation(() => makeTimeoutError());
+  });
+
+  afterEach(() => {
+    provider?.dispose();
+  });
+
+  it('dbFilePath なし: backup エントリを表示しない', async () => {
+    provider = new OllamaProvider();
+    const children = await provider.getChildren();
+    expect(children.find((c) => c.label === 'backup')).toBeUndefined();
+  });
+
+  it('dbFilePath あり / .bak.1.gz 不在: pending state で "未作成" 表示', async () => {
+    mockExistsSync.mockReturnValue(false);
+
+    provider = new OllamaProvider({ dbFilePath });
+    const children = await provider.getChildren();
+
+    const sep = children.find((c) => c.kind === 'pipeline-separator');
+    expect(sep).toBeDefined();
+    const backup = children.find((c) => c.kind === 'pipeline' && c.label === 'backup');
+    expect(backup).toBeDefined();
+    expect(backup?.description).toBe('未作成');
+  });
+
+  it('dbFilePath あり / .bak.1.gz 存在: success state でサイズ + mtime 表示', async () => {
+    mockExistsSync.mockImplementation((p: string) => p === bakPath);
+    const fakeMtime = new Date('2026-05-16T10:23:45.000Z');
+    mockStatSync.mockReturnValue({ size: 12_897_280, mtime: fakeMtime });
+
+    provider = new OllamaProvider({ dbFilePath });
+    const children = await provider.getChildren();
+
+    const backup = children.find((c) => c.kind === 'pipeline' && c.label === 'backup');
+    expect(backup).toBeDefined();
+    expect(backup?.description).toContain('12.3 MB');
+    expect(backup?.description).toContain(fakeMtime.toLocaleString());
+  });
+
+  it('backup エントリは Pipelines セクションの先頭に出る (memory-core pipelines より前)', async () => {
+    const statusPath = '/fake/pipeline-status.json';
+    mockExistsSync.mockImplementation((p: string) => p === statusPath || p === bakPath);
+    mockStatSync.mockReturnValue({ size: 1024, mtime: new Date() });
+    mockReadFileSync.mockReturnValue(JSON.stringify({
+      updated_at: '2026-05-11T22:00:00.000Z',
+      run_id: 'r1',
+      pipelines: [
+        { scope: 'embedding_backfill', state: 'success', started_at: '2026-05-11T22:00:00.000Z', finished_at: '2026-05-11T22:01:00.000Z', items_processed: 10, items_failed: 0 },
+      ],
+    }));
+
+    provider = new OllamaProvider({ statusFilePath: statusPath, dbFilePath });
+    const children = await provider.getChildren();
+
+    const pipelineItems = children.filter((c) => c.kind === 'pipeline');
+    expect(pipelineItems).toHaveLength(2);
+    expect(pipelineItems[0].label).toBe('backup');
+    expect(pipelineItems[1].label).toBe('embedding_backfill');
+  });
+
+  it('statSync が throw: error state でメッセージを切り詰めて表示', async () => {
+    mockExistsSync.mockImplementation((p: string) => p === bakPath);
+    mockStatSync.mockImplementation(() => { throw new Error('EACCES: permission denied'); });
+
+    provider = new OllamaProvider({ dbFilePath });
+    const children = await provider.getChildren();
+
+    const backup = children.find((c) => c.kind === 'pipeline' && c.label === 'backup');
+    expect(backup).toBeDefined();
+    expect(backup?.description).toContain('EACCES');
+  });
+});
+
+describe('buildBackupDisplay()', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('不在 → pending / 未作成', () => {
+    mockExistsSync.mockReturnValue(false);
+    expect(buildBackupDisplay('/tmp/trail.db')).toEqual({
+      scope: 'backup',
+      state: 'pending',
+      description: '未作成',
+    });
+  });
+
+  it('存在 → success / size + mtime', () => {
+    mockExistsSync.mockReturnValue(true);
+    const mtime = new Date('2026-05-16T10:00:00.000Z');
+    mockStatSync.mockReturnValue({ size: 5 * 1024 * 1024, mtime });
+    const result = buildBackupDisplay('/tmp/trail.db');
+    expect(result.scope).toBe('backup');
+    expect(result.state).toBe('success');
+    expect(result.description).toContain('5.0 MB');
+  });
+
+  it('I/O エラー → error / メッセージ切り詰め', () => {
+    mockExistsSync.mockImplementation(() => { throw new Error('ENOMEM something'); });
+    const result = buildBackupDisplay('/tmp/trail.db');
+    expect(result.state).toBe('error');
+    expect(result.description).toContain('ENOMEM');
   });
 });
 
