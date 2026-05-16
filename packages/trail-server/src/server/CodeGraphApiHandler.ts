@@ -37,7 +37,7 @@ export class CodeGraphApiHandler {
   //  GET /api/code-graph?release=<id|current>&repo=<name>
   // -------------------------------------------------------------------------
 
-  handleGet(res: http.ServerResponse, releaseId: string, repo?: string): void {
+  async handleGet(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
     if (releaseId !== 'current') {
       // 特定リリース: release_code_graphs から取得（repo 指定時は releases.repo_name で帰属確認）
       const releaseTagBelongsToRepo = this.trailDb.getReleases()
@@ -58,8 +58,12 @@ export class CodeGraphApiHandler {
       return;
     }
 
-    // current: codeGraphService キャッシュを使用（既存挙動）
-    const graph = this.codeGraphService?.getGraph();
+    // current: cache hit → 返す。miss → DB lazy load。repo 指定があれば
+    // 該当 repo のグラフのみ対象（マルチリポジトリ対応）。
+    let graph = this.codeGraphService?.getGraph(repo) ?? null;
+    if (!graph) {
+      graph = (await this.codeGraphService?.loadFromDb(repo)) ?? null;
+    }
     if (!graph) {
       res.writeHead(404, JSON_HEADERS);
       res.end('{}');
