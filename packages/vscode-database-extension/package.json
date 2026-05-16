@@ -125,7 +125,8 @@
     "vscode:prepublish": "npm run package",
     "compile": "webpack",
     "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map"
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "test": "jest --maxWorkers=1"
   },
   "devDependencies": {
     "@anytime-markdown/database-core": "*",
@@ -134,11 +135,15 @@
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/vscode-common": "*",
     "@types/better-sqlite3": "7.6.13",
+    "@types/jest": "30.0.0",
     "@types/node": "22.x",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@types/vscode": "1.109.0",
+    "aws-sdk-client-mock": "4.1.0",
     "copy-webpack-plugin": "14.0.0",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.6",
     "ts-loader": "9.5.4",
     "typescript": "5.9.3",
     "webpack": "5.104.1",
@@ -147,6 +152,7 @@
   "dependencies": {
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trail-db": "*",
+    "@aws-sdk/client-s3": "3.1004.0",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",
     "@mui/icons-material": "7.3.7",
