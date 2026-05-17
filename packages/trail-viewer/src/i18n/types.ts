@@ -361,6 +361,8 @@ export interface TrailI18n {
   'analytics.combined.releaseFailed': string;
   'analytics.combined.commitCount': string;
   'analytics.combined.commitCount.description': string;
+  'analytics.combined.cumulative': string;
+  'analytics.combined.cumulative.description': string;
   'analytics.combined.loc': string;
   'analytics.combined.loc.description': string;
   'analytics.combined.leadTime': string;

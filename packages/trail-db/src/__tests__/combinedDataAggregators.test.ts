@@ -1,4 +1,8 @@
-import { aggregateQualityRates, aggregateCommitPrefixStats } from '../combinedDataAggregators';
+import {
+  aggregateQualityRates,
+  aggregateCommitPrefixStats,
+  aggregateCommitPrefixBaseline,
+} from '../combinedDataAggregators';
 
 // ---------------------------------------------------------------------------
 // aggregateQualityRates
@@ -233,5 +237,60 @@ describe('aggregateCommitPrefixStats', () => {
     const result = aggregateCommitPrefixStats(rows, '2026-05-09');
 
     expect(result[0]!.prefix).toBe('refactor');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// aggregateCommitPrefixBaseline
+// ---------------------------------------------------------------------------
+
+describe('aggregateCommitPrefixBaseline', () => {
+  it('returns empty summary for empty input', () => {
+    const result = aggregateCommitPrefixBaseline([]);
+    expect(result.perPrefix).toEqual([]);
+    expect(result.totalCount).toBe(0);
+    expect(result.regressionCount).toBe(0);
+  });
+
+  it('groups by prefix and accumulates count / LOC', () => {
+    const result = aggregateCommitPrefixBaseline([
+      { subject: 'feat: a', linesAdded: 10, linesDeleted: 1 },
+      { subject: 'feat(api): b', linesAdded: 20, linesDeleted: 2 },
+      { subject: 'fix: c', linesAdded: 5, linesDeleted: 3 },
+    ]);
+    const byPrefix = new Map(result.perPrefix.map((e) => [e.prefix, e]));
+    expect(byPrefix.get('feat')).toEqual({ prefix: 'feat', count: 2, linesAdded: 30, linesDeleted: 3 });
+    expect(byPrefix.get('fix')).toEqual({ prefix: 'fix', count: 1, linesAdded: 5, linesDeleted: 3 });
+    expect(result.totalCount).toBe(3);
+    expect(result.regressionCount).toBe(0);
+  });
+
+  it('counts fix(*regression*) subjects as regression', () => {
+    const result = aggregateCommitPrefixBaseline([
+      { subject: 'fix(memory-core/regression): wrap purge', linesAdded: 4, linesDeleted: 1 },
+      { subject: 'fix(regression): undo bad logic', linesAdded: 2, linesDeleted: 8 },
+      { subject: 'fix: unrelated', linesAdded: 1, linesDeleted: 0 },
+      { subject: 'feat: x', linesAdded: 10, linesDeleted: 0 },
+    ]);
+    expect(result.regressionCount).toBe(2);
+    expect(result.totalCount).toBe(4);
+  });
+
+  it('does not count feat()/refactor() with regression scope as regression', () => {
+    const result = aggregateCommitPrefixBaseline([
+      { subject: 'feat(regression-tests): add suite', linesAdded: 100, linesDeleted: 0 },
+      { subject: 'refactor(regression): tidy', linesAdded: 10, linesDeleted: 5 },
+    ]);
+    expect(result.regressionCount).toBe(0);
+    expect(result.totalCount).toBe(2);
+  });
+
+  it('classifies non-conventional subjects as other prefix', () => {
+    const result = aggregateCommitPrefixBaseline([
+      { subject: 'Merge pull request #1', linesAdded: 0, linesDeleted: 0 },
+    ]);
+    expect(result.perPrefix).toHaveLength(1);
+    expect(result.perPrefix[0]!.prefix).toBe('other');
+    expect(result.totalCount).toBe(1);
   });
 });

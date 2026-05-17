@@ -91,6 +91,56 @@ export interface CommitPrefixStat {
  * @param commitRows  - period / subject / linesAdded / linesDeleted を持つ行
  * @param todayPeriod - 今日の期間キー（例: '2026-05-09' or '2026-W19'）
  */
+// ---------------------------------------------------------------------------
+// Commit Prefix Baseline (累積モード用: 表示期間外の全 commit を集計)
+// ---------------------------------------------------------------------------
+
+export interface CommitBaselineInput {
+  readonly subject: string;
+  readonly linesAdded: number;
+  readonly linesDeleted: number;
+}
+
+export interface CommitPrefixBaseline {
+  readonly prefix: string;
+  readonly count: number;
+  readonly linesAdded: number;
+  readonly linesDeleted: number;
+}
+
+export interface CommitBaselineSummary {
+  readonly perPrefix: readonly CommitPrefixBaseline[];
+  readonly totalCount: number;
+  readonly regressionCount: number;
+}
+
+const REGRESSION_FIX_RE = /^fix\([^)]*regression[^)]*\)/i;
+
+export function aggregateCommitPrefixBaseline(
+  rows: readonly CommitBaselineInput[],
+): CommitBaselineSummary {
+  const prefixMap = new Map<string, { count: number; linesAdded: number; linesDeleted: number }>();
+  let totalCount = 0;
+  let regressionCount = 0;
+  for (const r of rows) {
+    const prefix = extractCommitPrefix(r.subject);
+    const cur = prefixMap.get(prefix) ?? { count: 0, linesAdded: 0, linesDeleted: 0 };
+    cur.count += 1;
+    cur.linesAdded += r.linesAdded;
+    cur.linesDeleted += r.linesDeleted;
+    prefixMap.set(prefix, cur);
+    totalCount += 1;
+    if (REGRESSION_FIX_RE.test(r.subject)) regressionCount += 1;
+  }
+  const perPrefix: CommitPrefixBaseline[] = [...prefixMap.entries()].map(([prefix, v]) => ({
+    prefix,
+    count: v.count,
+    linesAdded: v.linesAdded,
+    linesDeleted: v.linesDeleted,
+  }));
+  return { perPrefix, totalCount, regressionCount };
+}
+
 export function aggregateCommitPrefixStats(
   commitRows: readonly CommitPrefixInput[],
   todayPeriod: string,

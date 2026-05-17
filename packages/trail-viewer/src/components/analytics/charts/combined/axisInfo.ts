@@ -107,6 +107,8 @@ export function computeCombinedAxisInfo(data: CombinedData | null, periodDays: P
     toolMissingByDisplay,
     commitPrefixes: commitCap.displayKeys,
     commitMap: commitCap.keyMap,
+    commitBaseline: data.commitBaseline,
+    commitRegressionByPeriod: (data.commitRegressionByPeriod ?? []).filter(r => r.period >= cutoffStr),
     repoRows,
     repoPeriods,
     repoLabels,
