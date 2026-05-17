@@ -1,4 +1,3 @@
-import { useMemo, useState } from 'react';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import Box from '@mui/material/Box';
@@ -7,29 +6,49 @@ import Collapse from '@mui/material/Collapse';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
-import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { TrailPromptEntry } from '../domain/parser/types';
 import { useTrailI18n } from '../i18n';
-import { useTrailTheme } from './TrailThemeContext';
 import { buildPromptTree } from './messages/promptTree';
+import { LazyPromptMarkdownPreview } from './shared/LazyPromptMarkdownPreview';
+import { useTrailTheme } from './TrailThemeContext';
 
 export interface PromptManagerProps {
   readonly prompts: readonly TrailPromptEntry[];
+  readonly isDark: boolean;
+  readonly locale?: string;
 }
 
 const PROMPT_LIST_WIDTH = 320;
 
 export function PromptManager({
   prompts,
+  isDark,
+  locale,
 }: Readonly<PromptManagerProps>) {
-  const { colors, codeSx, scrollbarSx } = useTrailTheme();
+  const { colors, scrollbarSx } = useTrailTheme();
   const { t } = useTrailI18n();
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const promptTree = useMemo(() => buildPromptTree(prompts), [prompts]);
   const [collapsedCategories, setCollapsedCategories] = useState<ReadonlySet<string>>(new Set());
   const selected = prompts.find((p) => p.id === selectedId);
+
+  const previewContainerRef = useRef<HTMLDivElement | null>(null);
+  const [previewHeight, setPreviewHeight] = useState<number>(0);
+
+  useEffect(() => {
+    const el = previewContainerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      setPreviewHeight(Math.floor(entry.contentRect.height));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const toggleCategory = (category: string): void => {
     setCollapsedCategories((current) => {
@@ -124,21 +143,17 @@ export function PromptManager({
         )}
       </Box>
 
-      <Box sx={{ flex: 1, overflow: 'auto', p: 2, ...scrollbarSx }}>
+      <Box ref={previewContainerRef} sx={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
         {selected ? (
-          <Paper
-            elevation={0}
-            sx={{
-              ...codeSx,
-              p: 2,
-              fontSize: '0.85rem',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              minHeight: '100%',
-            }}
-          >
-            {selected.content}
-          </Paper>
+          previewHeight > 0 ? (
+            <LazyPromptMarkdownPreview
+              content={selected.content}
+              isDark={isDark}
+              locale={locale}
+              height={previewHeight}
+              contentKey={selected.id}
+            />
+          ) : null
         ) : (
           <Box
             sx={{

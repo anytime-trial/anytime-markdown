@@ -157,6 +157,7 @@ export function TrailViewerCore(props: Readonly<TrailViewerCoreProps>) {
 
 function TrailViewerCoreInner({
   isDark,
+  locale,
   sessions,
   allSessions,
   selectedSessionId,
@@ -653,7 +654,7 @@ function TrailViewerCoreInner({
           i18nClose={t('c4.popup.close')}
           i18nResize={t('c4.popup.resize')}
         >
-          <PromptManager prompts={prompts} />
+          <PromptManager prompts={prompts} isDark={isDark ?? true} locale={locale} />
         </ResizablePopup>
       )}
       {messagesPopupOpen && (

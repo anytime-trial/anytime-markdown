@@ -162,12 +162,17 @@ const trailStandaloneConfig = {
     extensionAlias: {
       '.js': ['.ts', '.tsx', '.js', '.jsx'],
     },
+    alias: {
+      // markdown-core 内部で `@/...` 形式 import (例: `@/hooks/useConfirm`) を
+      // ts-loader が解決できるよう markdown-core/src へ alias する。
+      '@': path.resolve(__dirname, '../markdown-core/src'),
+    },
   },
   module: {
     rules: [
       {
         test: /\.tsx?$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](?:graph-core|trail-core|trail-viewer))/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](?:graph-core|trail-core|trail-viewer|markdown-core|spreadsheet-viewer|spreadsheet-core))/,
         use: [{
           loader: 'ts-loader',
           options: {
@@ -176,6 +181,16 @@ const trailStandaloneConfig = {
             transpileOnly: true,
           },
         }],
+      },
+      {
+        // markdown-core が katex.min.css 等を直接 import するため css-loader を導入。
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader'],
+      },
+      {
+        // markdown-core のテンプレート md (defaultContent.ts 等) を raw text として読み込む。
+        test: /\.md$/,
+        type: 'asset/source',
       },
     ],
   },
@@ -188,6 +203,10 @@ const trailStandaloneConfig = {
       maxChunks: 1,
     }),
     new webpack.NormalModuleReplacementPlugin(/^node:path$/, require.resolve('./src/shims/empty.js')),
+    // Trail Viewer では markdown-core のグラフ機能 (jsxgraph / plotly) を使わない。
+    // 重量級ライブラリを empty module で置換してバンドルサイズを抑える。
+    new webpack.NormalModuleReplacementPlugin(/^jsxgraph$/, require.resolve('./src/shims/empty.js')),
+    new webpack.NormalModuleReplacementPlugin(/^plotly\.js-gl3d-dist-min$/, require.resolve('./src/shims/empty.js')),
     ...buildBundleAnalyzerPlugins('trailstandalone'),
   ],
   // 単発で配信する Trail Viewer バンドル。code splitting の対象ではないため

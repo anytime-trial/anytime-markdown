@@ -1,8 +1,8 @@
-import { Box } from "@mui/material";
+import { Box, CircularProgress } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@tiptap/react";
 import type React from "react";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 
 import { FILE_DROP_OVERLAY_COLOR, getEditorBg } from "../constants/colors";
 import { getMergeEditors, setMergeEditors } from "../contexts/MergeEditorsContext";
@@ -100,6 +100,7 @@ export function EditorMergeContent({
   const settings = useEditorSettingsContext();
 
   return (
+    <Suspense fallback={<CircularProgress size={32} sx={{ m: "auto" }} />}>
     <InlineMergeView
       rightEditor={editor}
       editorContent={sourceMode ? sourceText : editorMarkdown}
@@ -142,5 +143,6 @@ export function EditorMergeContent({
       </Box>
       )}
     </InlineMergeView>
+    </Suspense>
   );
 }
