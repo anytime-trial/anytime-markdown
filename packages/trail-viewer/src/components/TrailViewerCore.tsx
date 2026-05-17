@@ -338,6 +338,21 @@ function TrailViewerCoreInner({
     [filter, onFilterChange, onSelectSession],
   );
 
+  const handleOpenSessionMessages = useCallback(
+    (sessionId: string) => {
+      const session = (allSessions ?? sessions).find((s) => s.id === sessionId);
+      const query = session?.slug || sessionId;
+      onFilterChange({
+        ...filter,
+        ...(session?.workspace ? { workspace: session.workspace } : {}),
+        searchText: query,
+      });
+      onSelectSession(sessionId);
+      setMessagesPopupOpen(true);
+    },
+    [allSessions, sessions, filter, onFilterChange, onSelectSession],
+  );
+
   const selectedSession =
     (allSessions ?? sessions).find((s) => s.id === selectedSessionId)
     ?? visibleSessions.find((s) => s.id === selectedSessionId);
@@ -543,7 +558,7 @@ function TrailViewerCoreInner({
           aria-labelledby="trail-tab-6"
           sx={{ display: activeTab !== 6 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
         >
-          <MemoryPanel serverUrl={serverUrl} />
+          <MemoryPanel serverUrl={serverUrl} onOpenSessionMessages={handleOpenSessionMessages} />
         </Box>
       )}
 

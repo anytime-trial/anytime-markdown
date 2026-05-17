@@ -21,6 +21,9 @@ export interface ChangedSpec {
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
+// memory ingestion 対象外のサブツリー (frontmatter type enum に無いカテゴリ)
+const EXCLUDED_DIR_PREFIXES = ['90.skill/'];
+
 // ── Implementation ────────────────────────────────────────────────────────────
 
 /**
@@ -43,9 +46,11 @@ export async function discoverChangedSpecs(input: DiscoverInput): Promise<Change
     throw err;
   }
 
-  const mdFiles = allEntries.filter(
-    (entry) => typeof entry === 'string' && extname(entry) === '.md',
-  );
+  const mdFiles = allEntries.filter((entry) => {
+    if (typeof entry !== 'string' || extname(entry) !== '.md') return false;
+    const normalized = entry.replace(/\\/g, '/');
+    return !EXCLUDED_DIR_PREFIXES.some((p) => normalized.startsWith(p));
+  });
 
   const results: ChangedSpec[] = [];
   const stmt = db.prepare('SELECT source_hash FROM memory_spec_documents WHERE rel_path = ?');

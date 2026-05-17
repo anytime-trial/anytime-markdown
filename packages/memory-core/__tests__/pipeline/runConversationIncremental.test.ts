@@ -247,22 +247,28 @@ describe('runConversationIncremental', () => {
     memDb.close();
   }, 30000);
 
-  // ── I5: checkpoint persists items_processed and last_processed_at mid-run ──
-  // Regression: previously the every-50-episode checkpoint only called save()
-  // (disk flush) but did NOT update memory_pipeline_runs.items_processed nor
-  // memory_pipeline_state.last_processed_at. After a VS Code reload mid-run,
-  // the disk snapshot still had items_processed=0 and the original cursor,
-  // causing the count to reset to 0 and the same episodes to be re-extracted.
-  test('I5: checkpoint persists items_processed and last_processed_at before save() fires', async () => {
+  // ── I5: checkpoint persists items_processed mid-run BUT does NOT advance
+  // the cursor. Cursor advancement is reserved for completion / quarantine to
+  // guarantee that an interrupted run can never silently skip unprocessed
+  // sessions (existingIds preload is the authoritative skip on resume).
+  test('I5: checkpoint persists items_processed before save() fires; cursor stays put', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
+
+    // Seed an existing cursor so we can assert it doesn't move mid-run.
+    const initialCursor = '2026-01-01T00:00:00.000Z';
+    memDb.run(
+      `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
+       VALUES ('conversation_incremental', 'idle', ?, '')`,
+      [initialCursor]
+    );
 
     // 60 user messages across 60 sessions → 60 episodes, > 1 checkpoint interval (50)
     const N = 60;
     for (let i = 0; i < N; i++) {
       const sessId = `sess_chk_${i.toString().padStart(3, '0')}`;
       insertSession(trailDb, sessId);
-      const ts = new Date(Date.UTC(2026, 0, 1, 0, i, 0)).toISOString();
+      const ts = new Date(Date.UTC(2026, 0, 2, 0, i, 0)).toISOString();
       insertMessage(trailDb, `msg_chk_${i}`, sessId, 'user', ts, `chk message ${i}`);
     }
 
@@ -300,13 +306,70 @@ describe('runConversationIncremental', () => {
     expect(snapshots.length).toBeGreaterThanOrEqual(1);
     const first = snapshots[0];
 
-    // At the first checkpoint, both fields must already be persisted —
-    // otherwise a reload at this exact moment would lose all 50 episodes
-    // of progress.
+    // items_processed MUST be persisted — otherwise UI shows 0 forever.
     expect(first.items_processed).toBe(50);
-    expect(first.last_processed_at).not.toBe('');
-    expect(first.last_processed_at).not.toBe('1970-01-01T00:00:00.000Z');
-    expect(first.last_processed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // last_processed_at MUST NOT have moved mid-run. Otherwise a reload at
+    // this moment would skip the remaining 10 unprocessed episodes whose
+    // timestamps lie before the artificial mid-run cursor advance.
+    expect(first.last_processed_at).toBe(initialCursor);
+
+    trailDb.close();
+    memDb.close();
+  }, 60000);
+
+  // ── I9: reload-correctness — cursor must NOT advance past unprocessed
+  // sessions mid-run. We construct 51 sessions ordered so the FIRST few
+  // sessions chronologically have the LATEST timestamps (the buggy pattern:
+  // UUID order ≠ time order). At the 50-episode checkpoint, the old code
+  // would have already persisted cursor = max(timestamps seen so far) which
+  // jumps past sessions yet to be iterated.
+  test('I9: cursor stays at initial during mid-run checkpoint (51 episodes)', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    const initialCursor = '2026-01-01T00:00:00.000Z';
+    memDb.run(
+      `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
+       VALUES ('conversation_incremental', 'idle', ?, '')`,
+      [initialCursor]
+    );
+
+    // 51 user messages → 51 episodes. PROGRESS_LOG_INTERVAL=50 fires once
+    // mid-run at episode 50. The save() callback observes cursor THEN.
+    const N = 51;
+    for (let i = 0; i < N; i++) {
+      const sessId = `sess_i9_${i.toString().padStart(3, '0')}`;
+      insertSession(trailDb, sessId);
+      const ts = new Date(Date.UTC(2026, 0, 2, 0, i, 0)).toISOString();
+      insertMessage(trailDb, `msg_i9_${i}`, sessId, 'user', ts, `i9 msg ${i}`);
+    }
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const cursorSnapshots: string[] = [];
+    const save = (): void => {
+      const rows = memDb.exec(
+        `SELECT last_processed_at FROM memory_pipeline_state
+         WHERE scope = 'conversation_incremental'`
+      );
+      cursorSnapshots.push((rows[0]?.values[0]?.[0] as string) ?? '');
+    };
+
+    await runConversationIncremental({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+      save,
+    });
+
+    // At least one mid-run snapshot must have been taken.
+    expect(cursorSnapshots.length).toBeGreaterThanOrEqual(1);
+    // Every mid-run observation must show the initial cursor — proving the
+    // run cannot leak an over-advanced cursor on reload.
+    for (const c of cursorSnapshots) {
+      expect(c).toBe(initialCursor);
+    }
 
     trailDb.close();
     memDb.close();
@@ -358,6 +421,95 @@ describe('runConversationIncremental', () => {
     );
     const lastProcessedAt = stateRows[0]?.values[0]?.[0] as string;
     expect(lastProcessedAt > '2026-02-01T02:00:00.000Z').toBe(true);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── I7: last_heartbeat_at must be populated so pipelineWatchdog can
+  // detect a truly stale incremental run. Backfill writes it on insert and on
+  // every progress checkpoint; incremental must do the same or the watchdog
+  // (which falls back to started_at) keeps the orphan 'running' row alive for
+  // the full 10-minute timeout window after a reload.
+  test('I7: insertPipelineRun seeds last_heartbeat_at and progress checkpoints refresh it', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    insertSession(trailDb, 'sess-hb');
+    insertMessage(trailDb, 'hb1', 'sess-hb', 'user', '2026-01-01T00:00:00.000Z', 'heartbeat probe');
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const result = await runConversationIncremental({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+    });
+
+    expect(result.status).toBe('success');
+
+    const rows = memDb.exec(
+      `SELECT started_at, last_heartbeat_at
+         FROM memory_pipeline_runs
+        WHERE scope = 'conversation_incremental'`
+    );
+    expect(rows[0]?.values).toHaveLength(1);
+    const startedAt = rows[0].values[0][0] as string;
+    const lastHeartbeatAt = rows[0].values[0][1] as string | null;
+    expect(lastHeartbeatAt).not.toBeNull();
+    expect(lastHeartbeatAt as string).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    // Must be >= started_at (heartbeat is refreshed during/after the run).
+    expect(lastHeartbeatAt as string >= startedAt).toBe(true);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── I8: progress() callback must fire for every episode (not just every
+  // PROGRESS_LOG_INTERVAL=50 episodes). Otherwise the UI shows "0/N" frozen
+  // for ~8 minutes on a 50-episode-per-checkpoint cadence, which users
+  // mistake for the pipeline being stuck and trigger a reload that loses
+  // partial work.
+  test('I8: progress callback fires per episode (not every 50)', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    // 5 sessions × 1 user message each = 5 episodes.
+    for (let i = 0; i < 5; i++) {
+      const sid = `sess-prog-${i}`;
+      insertSession(trailDb, sid);
+      insertMessage(
+        trailDb,
+        `prog-${i}`,
+        sid,
+        'user',
+        `2026-01-01T0${i}:00:00.000Z`,
+        `body ${i}`
+      );
+    }
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const progressCalls: Array<{ processed: number; failed: number }> = [];
+
+    const result = await runConversationIncremental({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+      progress: (processed, failed) => {
+        progressCalls.push({ processed, failed });
+      },
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.items_processed).toBe(5);
+
+    // Must have fired at least once per episode (5+), and the processed counter
+    // must be strictly monotonic across calls.
+    expect(progressCalls.length).toBeGreaterThanOrEqual(5);
+    expect(progressCalls.map((c) => c.processed)).toEqual([1, 2, 3, 4, 5]);
 
     trailDb.close();
     memDb.close();

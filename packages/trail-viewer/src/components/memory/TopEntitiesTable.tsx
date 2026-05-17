@@ -27,13 +27,13 @@ export function TopEntitiesTable({ entities }: Readonly<TopEntitiesTableProps>) 
   }
 
   return (
-    <Box sx={{ overflow: 'auto', ...scrollbarSx }}>
+    <Box sx={{ maxHeight: 280, overflow: 'auto', ...scrollbarSx }}>
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
-            <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>Type</TableCell>
-            <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>Name</TableCell>
-            <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>Updated</TableCell>
+            <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Type</TableCell>
+            <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Name</TableCell>
+            <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Updated</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>

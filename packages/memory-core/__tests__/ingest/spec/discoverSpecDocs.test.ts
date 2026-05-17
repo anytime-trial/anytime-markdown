@@ -141,6 +141,19 @@ describe('discoverChangedSpecs', () => {
     expect(results[0].rel_path).toBe('doc.md');
   });
 
+  test('skips files under 90.skill/', async () => {
+    mkdirSync(join(specRoot, '90.skill'), { recursive: true });
+    writeFileSync(join(specRoot, '90.skill', 'resolve-issues.ja.md'), '# skill doc\n');
+    writeFileSync(join(specRoot, 'kept.md'), '# kept doc\n');
+
+    const db = makeDb(null) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+    const logger = makeLogger();
+
+    const results = await discoverChangedSpecs({ specRoot, db, logger });
+
+    expect(results.map((r) => r.rel_path)).toEqual(['kept.md']);
+  });
+
   test('handles nested .md files in subdirectories', async () => {
     mkdirSync(join(specRoot, 'sub'), { recursive: true });
     writeFileSync(join(specRoot, 'sub', 'nested.md'), '# Nested\n');

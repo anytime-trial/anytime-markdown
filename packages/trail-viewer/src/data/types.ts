@@ -107,7 +107,27 @@ export interface MemoryBugHistoryRow {
   readonly package: string;
   readonly category: string;
   readonly subjectSummary: string;
+  readonly sessionId: string | null;
   readonly committedAt: string;
+  readonly precededByFindingIds: readonly string[];
+}
+
+export interface MemoryBugCausalInfo {
+  readonly bugEntityId: string;
+  readonly subject: string;
+  readonly category: string;
+  readonly commitSha: string;
+  readonly committedAt: string;
+  readonly affectedFilePaths: readonly string[];
+  readonly rootCauses: readonly { readonly entityId: string; readonly displayName: string }[];
+  readonly siblingBugEntityIds: readonly string[];
+  readonly precedingFindings: readonly {
+    readonly findingEntityId: string;
+    readonly targetFilePath: string | null;
+    readonly severity: string;
+  }[];
+  readonly introducedByCommitSha: string | null;
+  readonly introducedByCommitSubject: string | null;
 }
 
 export interface MemoryUnaddressedReviewFindingRow {
@@ -123,7 +143,12 @@ export interface MemoryUnaddressedReviewFindingRow {
 export interface MemoryReviewHistoryRow {
   readonly id: string;
   readonly reviewId: string;
+  readonly findingEntityId: string;
   readonly title: string;
+  readonly reviewer: string;
+  readonly sourceKind: string;
+  readonly model: string | null;
+  readonly sessionId: string | null;
   readonly reviewedAt: string;
   readonly targetFilePath: string | null;
   readonly category: string;
@@ -131,16 +156,18 @@ export interface MemoryReviewHistoryRow {
   readonly findingText: string;
   readonly addressedCommitSha: string | null;
   readonly addressedAt: string | null;
+  readonly precedesBugEntityIds: readonly string[];
 }
 
-export interface MemoryPipelineRunRow {
-  readonly id: string;
+export type MemoryPipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
+
+export interface MemoryPipelineRunStatsByDayRow {
+  readonly day: string;
   readonly scope: string;
-  readonly startedAt: string;
-  readonly completedAt: string | null;
-  readonly status: string;
+  readonly runs: number;
+  readonly durationSec: number;
   readonly itemsProcessed: number;
-  readonly errorMessage: string | null;
+  readonly worstStatus: MemoryPipelineRunStatus;
 }
 
 export interface MemoryFailedItemRow {

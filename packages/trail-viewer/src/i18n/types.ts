@@ -396,6 +396,21 @@ export interface TrailI18n {
   'memory.drift.resolved': string;
   'memory.drift.resolutionNote': string;
   'memory.drift.detail': string;
+  'memory.drift.typeDescription.spec_vs_code': string;
+  'memory.drift.typeDescription.conv_vs_code': string;
+  'memory.drift.typeDescription.conv_vs_spec': string;
+  'memory.drift.typeDescription.three_way': string;
+  'memory.drift.typeDescription.regression_cluster': string;
+  'memory.drift.typeDescription.spec_violation_cluster': string;
+  'memory.drift.typeDescription.recurring_root_cause': string;
+  'memory.drift.typeDescription.review_unfixed': string;
+  'memory.drift.typeDescription.review_vs_code': string;
+  'memory.drift.typeDescription.recurring_review_finding': string;
+  'memory.drift.typeDescription.spec_clarification_recurring': string;
+  'memory.drift.fixTarget': string;
+  'memory.drift.fixTarget.code': string;
+  'memory.drift.fixTarget.spec': string;
+  'memory.drift.fixTarget.conv': string;
   // bug sub-tab
   'memory.bug.empty': string;
   'memory.bug.recurring': string;
@@ -404,6 +419,19 @@ export interface TrailI18n {
   'memory.bug.filterCategory': string;
   'memory.bug.causedBy.title': string;
   'memory.bug.causedBy.empty': string;
+  'memory.bug.openInMessages': string;
+  'memory.bug.precededByCount': string;
+  'memory.bug.causal.thisBug': string;
+  'memory.bug.causal.sibling': string;
+  'memory.bug.causal.sibling.tooltip': string;
+  'memory.bug.causal.preceding': string;
+  'memory.bug.causal.introducedBy': string;
+  'memory.bug.causal.affectedFiles': string;
+  'memory.bug.causal.rootCauses': string;
+  'memory.bug.causal.noCauses': string;
+  'memory.bug.causal.bugsUnit': string;
+  'memory.bug.causal.findingsUnit': string;
+  'memory.review.precedesBugCount': string;
   // review sub-tab
   'memory.review.empty': string;
   'memory.review.unaddressed': string;
@@ -411,8 +439,8 @@ export interface TrailI18n {
   'memory.review.filterFile': string;
   'memory.review.filterSeverity': string;
   'memory.review.filterCategory': string;
-  'memory.review.flow.review': string;
-  'memory.review.flow.finding': string;
+  'memory.review.filterStatus': string;
+  'memory.review.openInMessages': string;
   'memory.review.flow.addressed': string;
   'memory.review.flow.notAddressed': string;
   // pipeline sub-tab

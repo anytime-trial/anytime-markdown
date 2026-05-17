@@ -1,64 +1,63 @@
-import { buildPipelineChartBars, groupRunsByScope } from '../pipelineChartData';
-import type { MemoryPipelineRunRow } from '../../../data/types';
+import { buildStackedChartData } from '../pipelineChartData';
+import type { MemoryPipelineRunStatsByDayRow } from '../../../data/types';
 
-function makeRun(overrides: Partial<MemoryPipelineRunRow>): MemoryPipelineRunRow {
+function row(overrides: Partial<MemoryPipelineRunStatsByDayRow>): MemoryPipelineRunStatsByDayRow {
   return {
-    id: 'r1',
+    day: '2026-05-16',
     scope: 'drift',
-    startedAt: '2026-01-01T00:00:00.000Z',
-    completedAt: '2026-01-01T00:00:10.000Z',
-    status: 'success',
-    itemsProcessed: 5,
-    errorMessage: null,
+    runs: 1,
+    durationSec: 10,
+    itemsProcessed: 1,
+    worstStatus: 'success',
     ...overrides,
   };
 }
 
-describe('buildPipelineChartBars', () => {
-  it('returns empty array for empty input', () => {
-    expect(buildPipelineChartBars([])).toHaveLength(0);
+describe('buildStackedChartData', () => {
+  it('returns empty xLabels and series for empty input', () => {
+    const result = buildStackedChartData([]);
+    expect(result.xLabels).toEqual([]);
+    expect(result.series).toEqual([]);
+    expect(result.dayWorstStatus.size).toBe(0);
   });
 
-  it('computes duration from startedAt and completedAt', () => {
-    const bars = buildPipelineChartBars([makeRun({})]);
-    expect(bars[0].durationMs).toBe(10000);
+  it('xLabels are unique days sorted ascending (older → newer, chart reads left→right)', () => {
+    const result = buildStackedChartData([
+      row({ day: '2026-05-16', scope: 'drift' }),
+      row({ day: '2026-05-14', scope: 'drift' }),
+      row({ day: '2026-05-15', scope: 'drift' }),
+    ]);
+    expect(result.xLabels).toEqual(['2026-05-14', '2026-05-15', '2026-05-16']);
   });
 
-  it('uses 0 for duration when completedAt is null', () => {
-    const bars = buildPipelineChartBars([makeRun({ completedAt: null })]);
-    expect(bars[0].durationMs).toBe(0);
+  it('produces one series per scope, sorted by scope', () => {
+    const result = buildStackedChartData([
+      row({ day: '2026-05-16', scope: 'review' }),
+      row({ day: '2026-05-16', scope: 'drift' }),
+    ]);
+    expect(result.series.map((s) => s.scope)).toEqual(['drift', 'review']);
   });
 
-  it('preserves scope and status', () => {
-    const bars = buildPipelineChartBars([makeRun({ scope: 'review', status: 'error' })]);
-    expect(bars[0].scope).toBe('review');
-    expect(bars[0].status).toBe('error');
+  it('aligns series data with xLabels and fills missing days with 0', () => {
+    const result = buildStackedChartData([
+      row({ day: '2026-05-15', scope: 'drift', durationSec: 100 }),
+      row({ day: '2026-05-16', scope: 'review', durationSec: 50 }),
+    ]);
+    expect(result.xLabels).toEqual(['2026-05-15', '2026-05-16']);
+    const drift = result.series.find((s) => s.scope === 'drift');
+    const review = result.series.find((s) => s.scope === 'review');
+    expect(drift?.data).toEqual([100, 0]);
+    expect(review?.data).toEqual([0, 50]);
   });
 
-  it('processes multiple runs', () => {
-    const runs = [
-      makeRun({ id: 'r1', scope: 'drift' }),
-      makeRun({ id: 'r2', scope: 'spec' }),
-    ];
-    expect(buildPipelineChartBars(runs)).toHaveLength(2);
-  });
-});
-
-describe('groupRunsByScope', () => {
-  it('returns empty map for empty input', () => {
-    const map = groupRunsByScope([]);
-    expect(map.size).toBe(0);
-  });
-
-  it('groups runs by scope', () => {
-    const runs = [
-      makeRun({ id: 'r1', scope: 'drift' }),
-      makeRun({ id: 'r2', scope: 'drift' }),
-      makeRun({ id: 'r3', scope: 'spec' }),
-    ];
-    const map = groupRunsByScope(runs);
-    expect(map.size).toBe(2);
-    expect(map.get('drift')).toHaveLength(2);
-    expect(map.get('spec')).toHaveLength(1);
+  it('dayWorstStatus picks worst across all scopes (error > partial > success > running)', () => {
+    const result = buildStackedChartData([
+      row({ day: '2026-05-16', scope: 'drift', worstStatus: 'success' }),
+      row({ day: '2026-05-16', scope: 'review', worstStatus: 'partial' }),
+      row({ day: '2026-05-15', scope: 'drift', worstStatus: 'error' }),
+      row({ day: '2026-05-15', scope: 'review', worstStatus: 'success' }),
+    ]);
+    expect(result.dayWorstStatus.get('2026-05-16')).toBe('partial');
+    expect(result.dayWorstStatus.get('2026-05-15')).toBe('error');
   });
 });

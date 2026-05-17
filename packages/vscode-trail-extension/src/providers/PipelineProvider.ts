@@ -232,6 +232,12 @@ export interface PipelineProviderOptions {
    */
   dbFilePath?: string;
   /**
+   * memory-core.db の絶対パス。指定時、importAll phases と memory-core
+   * pipelines の間に「memory backup」ジョブを表示し、
+   * `${memoryDbFilePath}.bak.1.gz` の存在/mtime/サイズから状態を導出する。
+   */
+  memoryDbFilePath?: string;
+  /**
    * importall-phase-status.json の絶対パス。指定時、デーモンが書き込む
    * importAll 各 phase の状態をポーリングして反映する。
    */
@@ -256,12 +262,14 @@ export class PipelineProvider
   private _lastImportAllRunId: string | null = null;
   private readonly _statusFilePath: string | undefined;
   private readonly _dbFilePath: string | undefined;
+  private readonly _memoryDbFilePath: string | undefined;
   private readonly _importAllStatusFilePath: string | undefined;
   private readonly _importAllPhases = new Map<ImportAllPhase, ImportAllPhaseState>();
 
   constructor(options: PipelineProviderOptions = {}) {
     this._statusFilePath = options.statusFilePath;
     this._dbFilePath = options.dbFilePath;
+    this._memoryDbFilePath = options.memoryDbFilePath;
     this._importAllStatusFilePath = options.importAllStatusFilePath;
     if (this._statusFilePath || this._importAllStatusFilePath) {
       this._startStatusFilePolling();
@@ -373,6 +381,20 @@ export class PipelineProvider
           }),
         );
       }
+    }
+
+    // memory-core backup (memoryDbFilePath が指定されていれば常時表示)。
+    // importAll で trail.db が更新された直後 + memory-core pipelines で
+    // memory-core.db が書き換わる直前のタイミングで配置することで、論理的に
+    // 各 DB の世代バックアップが対応する書き込みの直前に並ぶ。
+    if (this._memoryDbFilePath) {
+      const memBackup = buildBackupDisplay(this._memoryDbFilePath);
+      items.push(
+        new PipelineItem('pipeline', 'memory backup', {
+          state: memBackup.state,
+          description: memBackup.description,
+        }),
+      );
     }
 
     // memory-core pipelines

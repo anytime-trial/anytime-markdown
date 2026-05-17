@@ -82,6 +82,18 @@ function clampInt(value: string | null, fallback: number, min: number, max: numb
   return Math.min(Math.max(n, min), max);
 }
 
+/**
+ * URL.pathname does not percent-decode, so any `:id` carved out of the path
+ * must be decoded before reaching the DB layer — IDs like
+ * `drift:entity:pkg:foo:spec_vs_code` always contain `:` (encoded as `%3A`)
+ * and may contain `/` (`%2F`), which otherwise won't match the stored value.
+ */
+export function decodePathParam(pathname: string, prefix: string, suffix = ''): string {
+  let raw = pathname.slice(prefix.length);
+  if (suffix && raw.endsWith(suffix)) raw = raw.slice(0, -suffix.length);
+  return decodeURIComponent(raw);
+}
+
 /** @deprecated AnalyzeCurrentResult を直接使う */
 export type AnalyzePipelineResult = AnalyzeCurrentResult;
 
@@ -980,7 +992,7 @@ export class TrailDataServer {
     }
 
     if (pathname.startsWith('/api/memory/drift/events/') && method === 'GET') {
-      const eventId = pathname.slice('/api/memory/drift/events/'.length);
+      const eventId = decodePathParam(pathname, '/api/memory/drift/events/');
       void this.memoryApi.getDriftEventDetail(eventId).then((data) => {
         if (!data) { res.writeHead(404); res.end(); return; }
         res.writeHead(200, JSON_HEADERS);
@@ -993,7 +1005,7 @@ export class TrailDataServer {
     }
 
     if (pathname.startsWith('/api/memory/drift/events/') && method === 'POST') {
-      const eventId = pathname.slice('/api/memory/drift/events/'.length).replace(/\/resolve$/, '');
+      const eventId = decodePathParam(pathname, '/api/memory/drift/events/', '/resolve');
       void this.readJsonBody(req).then(async (body) => {
         const note = typeof (body as Record<string, unknown>)['resolutionNote'] === 'string'
           ? (body as Record<string, string>)['resolutionNote']
@@ -1041,6 +1053,23 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/memory/bugs/causal' && method === 'GET') {
+      const bugEntityId = parsed.searchParams.get('bugEntityId');
+      if (!bugEntityId) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'bugEntityId required' }));
+        return;
+      }
+      void this.memoryApi.getBugCausalInfo(bugEntityId).then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        this.logger.error(`[/api/memory/bugs/causal] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
     if (pathname === '/api/memory/reviews/unaddressed' && method === 'GET') {
       const p = parsed.searchParams;
       void this.memoryApi.listUnaddressedReviewFindings({
@@ -1074,18 +1103,16 @@ export class TrailDataServer {
       return;
     }
 
-    if (pathname === '/api/memory/pipeline/runs' && method === 'GET') {
+    if (pathname === '/api/memory/pipeline/runs/by-day' && method === 'GET') {
       const p = parsed.searchParams;
-      void this.memoryApi.listPipelineRuns({
+      void this.memoryApi.listPipelineRunStatsByDay({
         scope: p.get('scope') ?? undefined,
-        status: p.get('status') ?? undefined,
         since: p.get('since') ?? undefined,
-        limit: clampInt(p.get('limit'), 50, 1, 200),
       }).then((data) => {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/pipeline/runs] ${String(err)}`);
+        this.logger.error(`[/api/memory/pipeline/runs/by-day] ${String(err)}`);
         res.writeHead(500); res.end();
       });
       return;

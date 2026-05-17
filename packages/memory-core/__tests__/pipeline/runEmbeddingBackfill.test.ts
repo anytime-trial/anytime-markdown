@@ -147,6 +147,26 @@ describe('runEmbeddingBackfill', () => {
     expect(result.items_skipped).toBe(0);
   });
 
+  it('成功時に同 entity の過去 failed_items 記録を削除する', async () => {
+    const db = await makeDb();
+    insertEntity(db, 'e1', 'TypeScript');
+    insertEntity(db, 'e2', 'React');
+    db.run(
+      `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+       VALUES ('embedding_backfill', 'e1', '2026-05-12T00:00:00.000Z', 'embedding_failed', 'ollama_unreachable', 1),
+              ('embedding_backfill', 'e2', '2026-05-12T00:00:00.000Z', 'embedding_failed', 'ollama_unreachable', 1),
+              ('conversation_incremental', 'e1', '2026-05-12T00:00:00.000Z', 'extraction_failed', '', 1)`,
+      []
+    );
+
+    await runEmbeddingBackfill({ db, ollama: mockOllama(() => makeVec(1)) });
+
+    const remaining = db.exec(
+      "SELECT scope, item_key FROM memory_failed_items ORDER BY scope, item_key"
+    );
+    expect(remaining[0].values).toEqual([['conversation_incremental', 'e1']]);
+  });
+
   it('embed テキストは type + display_name + summary で構成される', async () => {
     const db = await makeDb();
     insertEntity(db, 'e1', 'TrailDatabase', 'VS Code 拡張の DB クラス');
