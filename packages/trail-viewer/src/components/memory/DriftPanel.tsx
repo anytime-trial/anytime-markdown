@@ -15,8 +15,10 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import { useTrailI18n } from '../../i18n';
+import type { TrailI18n } from '../../i18n';
 import { useTrailTheme } from '../TrailThemeContext';
 import { DriftDetailDialog } from './DriftDetailDialog';
 import { filterDriftRows } from './driftFilter';
@@ -27,6 +29,20 @@ const SEVERITY_COLORS: Record<string, 'default' | 'warning' | 'error'> = {
   warn: 'warning',
   error: 'error',
 };
+
+const DRIFT_TYPE_HELP_ROWS: ReadonlyArray<readonly [string, keyof TrailI18n]> = [
+  ['spec_vs_code', 'memory.drift.typeDescription.spec_vs_code'],
+  ['conv_vs_code', 'memory.drift.typeDescription.conv_vs_code'],
+  ['conv_vs_spec', 'memory.drift.typeDescription.conv_vs_spec'],
+  ['three_way', 'memory.drift.typeDescription.three_way'],
+  ['regression_cluster', 'memory.drift.typeDescription.regression_cluster'],
+  ['spec_violation_cluster', 'memory.drift.typeDescription.spec_violation_cluster'],
+  ['recurring_root_cause', 'memory.drift.typeDescription.recurring_root_cause'],
+  ['review_unfixed', 'memory.drift.typeDescription.review_unfixed'],
+  ['review_vs_code', 'memory.drift.typeDescription.review_vs_code'],
+  ['recurring_review_finding', 'memory.drift.typeDescription.recurring_review_finding'],
+  ['spec_clarification_recurring', 'memory.drift.typeDescription.spec_clarification_recurring'],
+];
 
 export interface DriftPanelProps {
   readonly rows: readonly MemoryDriftEventRow[];
@@ -48,6 +64,22 @@ export function DriftPanel({ rows, onResolve, onLoadDetail }: Readonly<DriftPane
 
   const handleSeverityChange = useCallback((e: SelectChangeEvent) => setSeverityFilter(e.target.value), []);
   const handleTypeChange = useCallback((e: SelectChangeEvent) => setTypeFilter(e.target.value), []);
+
+  const typeHelpContent = (
+    <Box sx={{ py: 0.5 }}>
+      {DRIFT_TYPE_HELP_ROWS.map(([code, key]) => (
+        <Box key={code} sx={{ display: 'flex', gap: 1, mb: 0.25, alignItems: 'baseline' }}>
+          <Box
+            component="code"
+            sx={{ minWidth: 170, fontSize: '0.65rem', fontFamily: 'monospace', flexShrink: 0 }}
+          >
+            {code}
+          </Box>
+          <Box sx={{ fontSize: '0.7rem' }}>{t(key)}</Box>
+        </Box>
+      ))}
+    </Box>
+  );
 
   if (rows.length === 0) {
     return (
@@ -94,7 +126,21 @@ export function DriftPanel({ rows, onResolve, onLoadDetail }: Readonly<DriftPane
           <TableHead>
             <TableRow>
               <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Subject</TableCell>
-              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Type</TableCell>
+              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>
+                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                  <span>Type</span>
+                  <Tooltip
+                    title={typeHelpContent}
+                    arrow
+                    placement="top"
+                    slotProps={{ tooltip: { sx: { maxWidth: 'none' } } }}
+                  >
+                    <HelpOutlineIcon
+                      sx={{ fontSize: 12, color: 'text.disabled', cursor: 'help', flexShrink: 0 }}
+                    />
+                  </Tooltip>
+                </Box>
+              </TableCell>
               <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>{t('memory.drift.filterSeverity')}</TableCell>
               <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Detected</TableCell>
               <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }} />

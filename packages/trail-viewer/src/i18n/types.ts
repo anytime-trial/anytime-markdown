@@ -396,6 +396,17 @@ export interface TrailI18n {
   'memory.drift.resolved': string;
   'memory.drift.resolutionNote': string;
   'memory.drift.detail': string;
+  'memory.drift.typeDescription.spec_vs_code': string;
+  'memory.drift.typeDescription.conv_vs_code': string;
+  'memory.drift.typeDescription.conv_vs_spec': string;
+  'memory.drift.typeDescription.three_way': string;
+  'memory.drift.typeDescription.regression_cluster': string;
+  'memory.drift.typeDescription.spec_violation_cluster': string;
+  'memory.drift.typeDescription.recurring_root_cause': string;
+  'memory.drift.typeDescription.review_unfixed': string;
+  'memory.drift.typeDescription.review_vs_code': string;
+  'memory.drift.typeDescription.recurring_review_finding': string;
+  'memory.drift.typeDescription.spec_clarification_recurring': string;
   // bug sub-tab
   'memory.bug.empty': string;
   'memory.bug.recurring': string;
