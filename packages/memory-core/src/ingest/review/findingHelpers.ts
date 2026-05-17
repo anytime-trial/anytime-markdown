@@ -50,13 +50,36 @@ export function inferCategory(
 
 /**
  * Severity inference from chapter body text.
+ *
+ * 優先順位 (上位を満たした時点で確定):
+ * 1. admonition `> [!CAUTION]` / `> [!WARNING]` → error
+ * 2. body キーワード (セキュリティ侵害 / XSS / Critical 等) → error
+ * 3. admonition `> [!IMPORTANT]` / `**注意:**` → warn
+ * 4. body キーワード (NULL ref / 非推奨 / 競合状態 等) → warn
+ * 5. body キーワード (命名 / 可読性 等) → info (明示)
+ * 6. default → info
  */
+const ERROR_KEYWORDS_RE =
+  /Critical|致命的|セキュリティ侵害|データ漏洩|XSS|SQL injection|RCE|認証バイパス|権限昇格/i;
+const WARN_KEYWORDS_RE =
+  /NULL ref|null 参照|競合状態|race condition|off-by-one|非推奨|deprecated|メモリリーク|memory leak|未定義動作/i;
+const INFO_KEYWORDS_RE = /命名|可読性|リファクタリング|refactor|スタイル/i;
+
 export function inferSeverity(chapterBody: string): ParsedFinding['severity'] {
   if (/^>\s*\[!CAUTION\]|^>\s*\[!WARNING\]/m.test(chapterBody)) {
     return 'error';
   }
+  if (ERROR_KEYWORDS_RE.test(chapterBody)) {
+    return 'error';
+  }
   if (/^>\s*\[!IMPORTANT\]|\*\*注意:\*\*/m.test(chapterBody)) {
     return 'warn';
+  }
+  if (WARN_KEYWORDS_RE.test(chapterBody)) {
+    return 'warn';
+  }
+  if (INFO_KEYWORDS_RE.test(chapterBody)) {
+    return 'info';
   }
   return 'info';
 }
@@ -280,4 +303,61 @@ export function inferSeverityFromHeading(heading: string): ParsedFinding['severi
   if (/Important|重要|Warning|警告/i.test(heading)) return 'warn';
   if (/Suggestion|推奨|Info|軽微|情報/i.test(heading)) return 'info';
   return 'info';
+}
+
+// ── Target file path extraction from finding body ────────────────────────────
+
+/**
+ * finding 本文・タイトル・suggestion 等のテキスト塊から最も「これがターゲットファイル」
+ * と判断できる相対パスを抽出する。
+ *
+ * 優先順位:
+ * 1. `packages/<pkg>/...` (backtick 内/外問わず)
+ * 2. `src/...` / `tests?/...` / `spec/...` (backtick 内/外問わず)
+ * 3. backtick 内のその他相対パス（拡張子で判定）
+ *
+ * 行末や本文中の `:<line>` `:<line>-<line>` サフィックスは除去してパスのみ返す。
+ * 一致なしは null。
+ */
+const FILE_EXT_RE = String.raw`(?:tsx?|jsx?|mts|cts|mjs|cjs|md|sql|json|yml|yaml|css|scss|html?)`;
+const PATH_TOKEN_RE = new RegExp(
+  String.raw`(?:packages\/[\w@.\-]+\/)?(?:src|tests?|spec|scripts|\.github\/workflows|docs|public|migrations)\/[\w./\-]+\.${FILE_EXT_RE}(?::\d+(?:-\d+)?)?`,
+  'g',
+);
+
+function stripLineSuffix(p: string): string {
+  return p.replace(/:\d+(?:-\d+)?$/, '');
+}
+
+export function extractTargetFromFinding(text: string): string | null {
+  if (!text) return null;
+
+  const candidates: string[] = [];
+
+  // 1. backtick で囲まれたパス全部
+  const btRe = /`([^`]+)`/g;
+  let m: RegExpExecArray | null;
+  while ((m = btRe.exec(text)) !== null) {
+    const inner = m[1].trim();
+    if (PATH_TOKEN_RE.test(inner)) {
+      PATH_TOKEN_RE.lastIndex = 0;
+      candidates.push(stripLineSuffix(inner));
+    }
+  }
+
+  // 2. 本文中のパス（backtick 外）
+  PATH_TOKEN_RE.lastIndex = 0;
+  let n: RegExpExecArray | null;
+  while ((n = PATH_TOKEN_RE.exec(text)) !== null) {
+    candidates.push(stripLineSuffix(n[0]));
+  }
+
+  if (candidates.length === 0) return null;
+
+  // 優先順位: packages/ > src/ > tests/ / spec/ > その他
+  const packagesCand = candidates.find((c) => c.startsWith('packages/'));
+  if (packagesCand) return packagesCand;
+  const srcCand = candidates.find((c) => c.startsWith('src/'));
+  if (srcCand) return srcCand;
+  return candidates[0];
 }

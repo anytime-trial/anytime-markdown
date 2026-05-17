@@ -8,6 +8,7 @@ import {
   splitIntoChapters,
   extractProblemSuggestionPairs,
   extractNumberedFindings,
+  extractTargetFromFinding,
 } from './findingHelpers';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -119,9 +120,11 @@ function extractFindings(bodyText: string): ParsedFinding[] {
     const pairs = extractProblemSuggestionPairs(chapter.lines);
     if (pairs.length > 0) {
       for (const [findingText, suggestionText] of pairs) {
+        const target =
+          extractTargetFromFinding(chapter.heading + '\n' + findingText + '\n' + suggestionText);
         findings.push({
           finding_index: findingIndex++,
-          target_file_path: null,
+          target_file_path: target,
           target_symbol: null,
           target_line_start: null,
           target_line_end: null,
@@ -140,15 +143,17 @@ function extractFindings(bodyText: string): ParsedFinding[] {
     const numbered = extractNumberedFindings(chapter.lines);
     if (numbered.length > 0) {
       for (const nf of numbered) {
+        const findingText = nf.title + (nf.finding ? `\n\n${nf.finding}` : '');
+        const target = extractTargetFromFinding(findingText + '\n' + nf.suggestion);
         findings.push({
           finding_index: findingIndex++,
-          target_file_path: null,
+          target_file_path: target,
           target_symbol: null,
           target_line_start: null,
           target_line_end: null,
           category,
           severity,
-          finding_text: nf.title + (nf.finding ? `\n\n${nf.finding}` : ''),
+          finding_text: findingText,
           suggestion_text: nf.suggestion,
           chapter_path: chapter.heading,
           is_category_inferred,

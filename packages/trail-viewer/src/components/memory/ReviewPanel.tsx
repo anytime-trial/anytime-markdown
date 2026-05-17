@@ -42,9 +42,16 @@ function formatReviewer(row: MemoryReviewHistoryRow): string {
 export interface ReviewPanelProps {
   readonly reader: MemoryReader | null;
   readonly onOpenSessionMessages?: (sessionId: string) => void;
+  readonly onOpenPrecedingBugs?: (bugEntityIds: readonly string[]) => void;
+  readonly pendingReviewFilter?: { findingEntityIds: readonly string[] } | null;
 }
 
-export function ReviewPanel({ reader, onOpenSessionMessages }: Readonly<ReviewPanelProps>) {
+export function ReviewPanel({
+  reader,
+  onOpenSessionMessages,
+  onOpenPrecedingBugs,
+  pendingReviewFilter,
+}: Readonly<ReviewPanelProps>) {
   const { t } = useTrailI18n();
   const { colors, scrollbarSx } = useTrailTheme();
   const [unaddressed, setUnaddressed] = useState<readonly MemoryUnaddressedReviewFindingRow[]>([]);
@@ -65,7 +72,9 @@ export function ReviewPanel({ reader, onOpenSessionMessages }: Readonly<ReviewPa
 
   const categories = [...new Set(history.map((r) => r.category))].sort();
 
+  const pendingFindingIds = pendingReviewFilter?.findingEntityIds ?? null;
   const filteredHistory = history.filter((r) => {
+    if (pendingFindingIds && !pendingFindingIds.includes(r.findingEntityId)) return false;
     if (severityFilter && r.severity !== severityFilter) return false;
     if (categoryFilter && r.category !== categoryFilter) return false;
     if (statusFilter === 'addressed' && !r.addressedCommitSha) return false;
@@ -157,6 +166,7 @@ export function ReviewPanel({ reader, onOpenSessionMessages }: Readonly<ReviewPa
                 <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Reviewed</TableCell>
                 <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Reviewer</TableCell>
                 <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal, p: 0.5 }} />
+                <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal, p: 0.5 }} />
               </TableRow>
             </TableHead>
             <TableBody>
@@ -226,6 +236,22 @@ export function ReviewPanel({ reader, onOpenSessionMessages }: Readonly<ReviewPa
                         >
                           <OpenInNewIcon fontSize="small" />
                         </IconButton>
+                      </Tooltip>
+                    )}
+                  </TableCell>
+                  <TableCell align="right" sx={{ p: 0.5, whiteSpace: 'nowrap' }}>
+                    {row.precedesBugEntityIds.length > 0 && (
+                      <Tooltip title={`${t('memory.review.precedesBugCount')}: ${row.precedesBugEntityIds.length}`}>
+                        <Chip
+                          label={`⚠ ${row.precedesBugEntityIds.length}`}
+                          size="small"
+                          color="warning"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenPrecedingBugs?.(row.precedesBugEntityIds);
+                          }}
+                          sx={{ fontSize: '0.65rem', height: 18, cursor: onOpenPrecedingBugs ? 'pointer' : 'default' }}
+                        />
                       </Tooltip>
                     )}
                   </TableCell>

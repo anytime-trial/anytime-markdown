@@ -33,9 +33,19 @@ export interface BugHistoryPanelProps {
   readonly reader: MemoryReader | null;
   readonly isDark?: boolean;
   readonly onOpenSessionMessages?: (sessionId: string) => void;
+  readonly onOpenPrecedingReviews?: (findingIds: readonly string[]) => void;
+  readonly pendingBugFilter?: { bugEntityIds: readonly string[] } | null;
+  readonly onConsumePendingBugFilter?: () => void;
 }
 
-export function BugHistoryPanel({ reader, isDark = true, onOpenSessionMessages }: Readonly<BugHistoryPanelProps>) {
+export function BugHistoryPanel({
+  reader,
+  isDark = true,
+  onOpenSessionMessages,
+  onOpenPrecedingReviews,
+  pendingBugFilter,
+  onConsumePendingBugFilter,
+}: Readonly<BugHistoryPanelProps>) {
   const { t } = useTrailI18n();
   const { colors, scrollbarSx } = useTrailTheme();
   const [recurring, setRecurring] = useState<readonly MemoryRecurringBugRow[]>([]);
@@ -56,7 +66,9 @@ export function BugHistoryPanel({ reader, isDark = true, onOpenSessionMessages }
   const packages = [...new Set(history.map((r) => r.package))].sort();
   const categories = [...new Set(history.map((r) => r.category))].sort();
 
+  const pendingIds = pendingBugFilter?.bugEntityIds ?? null;
   const filteredHistory = history.filter((r) => {
+    if (pendingIds && !pendingIds.includes(r.bugEntityId)) return false;
     if (pkgFilter && r.package !== pkgFilter) return false;
     if (categoryFilter && r.category !== categoryFilter) return false;
     return true;
@@ -136,6 +148,7 @@ export function BugHistoryPanel({ reader, isDark = true, onOpenSessionMessages }
                   <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Summary</TableCell>
                   <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Date</TableCell>
                   <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal, p: 0.5 }} />
+                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal, p: 0.5 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -180,6 +193,22 @@ export function BugHistoryPanel({ reader, isDark = true, onOpenSessionMessages }
                           >
                             <OpenInNewIcon fontSize="small" />
                           </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                    <TableCell align="right" sx={{ p: 0.5, whiteSpace: 'nowrap' }}>
+                      {row.precededByFindingIds.length > 0 && (
+                        <Tooltip title={`${t('memory.bug.precededByCount')}: ${row.precededByFindingIds.length}`}>
+                          <Chip
+                            label={`↩ ${row.precededByFindingIds.length}`}
+                            size="small"
+                            color="info"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenPrecedingReviews?.(row.precededByFindingIds);
+                            }}
+                            sx={{ fontSize: '0.65rem', height: 18, cursor: onOpenPrecedingReviews ? 'pointer' : 'default' }}
+                          />
                         </Tooltip>
                       )}
                     </TableCell>

@@ -109,6 +109,7 @@ export interface MemoryBugHistoryRow {
   readonly subjectSummary: string;
   readonly sessionId: string | null;
   readonly committedAt: string;
+  readonly precededByFindingIds: readonly string[];
 }
 
 export interface MemoryUnaddressedReviewFindingRow {
@@ -124,6 +125,7 @@ export interface MemoryUnaddressedReviewFindingRow {
 export interface MemoryReviewHistoryRow {
   readonly id: string;
   readonly reviewId: string;
+  readonly findingEntityId: string;
   readonly title: string;
   readonly reviewer: string;
   readonly sourceKind: string;
@@ -136,6 +138,7 @@ export interface MemoryReviewHistoryRow {
   readonly findingText: string;
   readonly addressedCommitSha: string | null;
   readonly addressedAt: string | null;
+  readonly precedesBugEntityIds: readonly string[];
 }
 
 export type MemoryPipelineRunStatus = 'error' | 'partial' | 'success' | 'running';

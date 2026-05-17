@@ -2,6 +2,8 @@ import {
   extractProblemSuggestionPairs,
   extractNumberedFindings,
   inferSeverityFromHeading,
+  inferSeverity,
+  extractTargetFromFinding,
 } from '../../../src/ingest/review/findingHelpers';
 
 describe('extractProblemSuggestionPairs', () => {
@@ -223,5 +225,127 @@ describe('inferSeverityFromHeading', () => {
   test('unrecognized heading → info (default)', () => {
     expect(inferSeverityFromHeading('1.1 セクション')).toBe('info');
     expect(inferSeverityFromHeading('指摘事項')).toBe('info');
+  });
+});
+
+describe('extractTargetFromFinding', () => {
+  // ── Backtick paths ────────────────────────────────────────────────────────
+
+  test('extracts backtick-wrapped packages/ path', () => {
+    const text = 'NULL ref in `packages/trail-viewer/src/components/Foo.tsx`';
+    expect(extractTargetFromFinding(text)).toBe('packages/trail-viewer/src/components/Foo.tsx');
+  });
+
+  test('extracts backtick path with :line suffix', () => {
+    const text = 'See `packages/foo/src/bar.ts:42` for context';
+    expect(extractTargetFromFinding(text)).toBe('packages/foo/src/bar.ts');
+  });
+
+  // ── Plain paths in body ───────────────────────────────────────────────────
+
+  test('extracts plain packages/ path from body without backticks', () => {
+    const text = 'The file packages/foo/src/baz.ts has the issue';
+    expect(extractTargetFromFinding(text)).toBe('packages/foo/src/baz.ts');
+  });
+
+  test('extracts file:line plain pattern', () => {
+    const text = 'Off-by-one in packages/foo/src/quux.ts:10';
+    expect(extractTargetFromFinding(text)).toBe('packages/foo/src/quux.ts');
+  });
+
+  // ── Priority: packages/ > src/ > backtick first ───────────────────────────
+
+  test('prefers packages/... over src/... over arbitrary backtick paths', () => {
+    const text = 'See `something.md` and `src/util.ts` and `packages/x/src/y.ts`';
+    expect(extractTargetFromFinding(text)).toBe('packages/x/src/y.ts');
+  });
+
+  test('falls back to src/ path when no packages/ found', () => {
+    const text = 'In `src/util.ts:5` we have the bug';
+    expect(extractTargetFromFinding(text)).toBe('src/util.ts');
+  });
+
+  // ── Sample 1 field list ───────────────────────────────────────────────────
+
+  test('Sample 1: extracts from - **場所**: `path` line', () => {
+    const text = [
+      '- **場所**: `packages/foo/src/bar.ts:6`',
+      '- **内容**: 何か問題',
+    ].join('\n');
+    expect(extractTargetFromFinding(text)).toBe('packages/foo/src/bar.ts');
+  });
+
+  // ── No match ──────────────────────────────────────────────────────────────
+
+  test('returns null when no file path found', () => {
+    expect(extractTargetFromFinding('a generic description without paths')).toBeNull();
+  });
+
+  test('returns null on empty text', () => {
+    expect(extractTargetFromFinding('')).toBeNull();
+  });
+});
+
+describe('inferSeverity (keyword expansion)', () => {
+  // ── error keywords ────────────────────────────────────────────────────────
+
+  test('セキュリティ侵害 → error', () => {
+    expect(inferSeverity('この変更でセキュリティ侵害のリスクがある。')).toBe('error');
+  });
+
+  test('XSS / SQL injection / データ漏洩 → error', () => {
+    expect(inferSeverity('XSS 脆弱性がある。')).toBe('error');
+    expect(inferSeverity('SQL injection 可能。')).toBe('error');
+    expect(inferSeverity('データ漏洩のリスク。')).toBe('error');
+  });
+
+  test('Critical / 致命的 → error', () => {
+    expect(inferSeverity('Critical issue here.')).toBe('error');
+    expect(inferSeverity('致命的なバグ。')).toBe('error');
+  });
+
+  // ── warn keywords ─────────────────────────────────────────────────────────
+
+  test('NULL ref / 競合状態 / off-by-one → warn', () => {
+    expect(inferSeverity('NULL ref が発生する。')).toBe('warn');
+    expect(inferSeverity('競合状態の可能性。')).toBe('warn');
+    expect(inferSeverity('off-by-one エラー。')).toBe('warn');
+  });
+
+  test('非推奨 / deprecated → warn', () => {
+    expect(inferSeverity('非推奨 API を使っている。')).toBe('warn');
+    expect(inferSeverity('Uses deprecated API.')).toBe('warn');
+  });
+
+  // ── info keywords ─────────────────────────────────────────────────────────
+
+  test('命名 / 可読性 / リファクタリング → info', () => {
+    expect(inferSeverity('命名規則を改善すべき。')).toBe('info');
+    expect(inferSeverity('可読性を高める提案。')).toBe('info');
+    expect(inferSeverity('リファクタリングの余地あり。')).toBe('info');
+  });
+
+  // ── Existing admonition behavior (must keep passing) ──────────────────────
+
+  test('admonition takes priority: > [!CAUTION] → error', () => {
+    expect(inferSeverity('> [!CAUTION]\n> 危険\n命名規則の話')).toBe('error');
+  });
+
+  test('admonition > [!IMPORTANT] → warn', () => {
+    expect(inferSeverity('> [!IMPORTANT]\n> 重要\n通常の文')).toBe('warn');
+  });
+
+  // ── Priority: error keyword > warn keyword > info ─────────────────────────
+
+  test('error keyword takes priority over warn keyword in same body', () => {
+    expect(inferSeverity('NULL ref のような問題があるが、本質はセキュリティ侵害。')).toBe('error');
+  });
+
+  test('warn keyword takes priority over info keyword', () => {
+    expect(inferSeverity('命名規則の問題で deprecated API を使っている。')).toBe('warn');
+  });
+
+  test('no keyword → info (default)', () => {
+    expect(inferSeverity('通常の説明文。何の特別な単語もない。')).toBe('info');
   });
 });
