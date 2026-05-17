@@ -8,6 +8,7 @@ import {
   splitIntoChapters,
   extractProblemSuggestionPairs,
   extractNumberedFindings,
+  extractTargetFromFinding,
 } from './findingHelpers';
 
 export type { ParsedFinding };
@@ -93,9 +94,11 @@ export function parseReviewDoc(input: {
     const pairs = extractProblemSuggestionPairs(chapter.lines);
     if (pairs.length > 0) {
       for (const [findingText, suggestionText] of pairs) {
+        const localTarget =
+          extractTargetFromFinding(chapter.heading + '\n' + findingText + '\n' + suggestionText);
         findings.push({
           finding_index: findingIndex++,
-          target_file_path: allTargetRefs[0] ?? null,
+          target_file_path: localTarget ?? allTargetRefs[0] ?? null,
           target_symbol: null,
           target_line_start: null,
           target_line_end: null,
@@ -114,15 +117,17 @@ export function parseReviewDoc(input: {
     const numbered = extractNumberedFindings(chapter.lines);
     if (numbered.length > 0) {
       for (const nf of numbered) {
+        const findingText = nf.title + (nf.finding ? `\n\n${nf.finding}` : '');
+        const localTarget = extractTargetFromFinding(findingText + '\n' + nf.suggestion);
         findings.push({
           finding_index: findingIndex++,
-          target_file_path: allTargetRefs[0] ?? null,
+          target_file_path: localTarget ?? allTargetRefs[0] ?? null,
           target_symbol: null,
           target_line_start: null,
           target_line_end: null,
           category,
           severity,
-          finding_text: nf.title + (nf.finding ? `\n\n${nf.finding}` : ''),
+          finding_text: findingText,
           suggestion_text: nf.suggestion,
           chapter_path: chapter.heading,
           is_category_inferred,

@@ -413,6 +413,8 @@ export const ja: TrailI18n = {
   'memory.bug.causedBy.title': '原因エンティティ',
   'memory.bug.causedBy.empty': '原因エンティティなし',
   'memory.bug.openInMessages': 'メッセージを開く',
+  'memory.bug.precededByCount': '事前指摘あり',
+  'memory.review.precedesBugCount': '関連バグあり',
   'memory.review.empty': 'レビュー記録はありません',
   'memory.review.unaddressed': '未対応フィンディング',
   'memory.review.history': 'レビュー履歴',

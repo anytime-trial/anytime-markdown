@@ -405,6 +405,8 @@ export interface TrailI18n {
   'memory.bug.causedBy.title': string;
   'memory.bug.causedBy.empty': string;
   'memory.bug.openInMessages': string;
+  'memory.bug.precededByCount': string;
+  'memory.review.precedesBugCount': string;
   // review sub-tab
   'memory.review.empty': string;
   'memory.review.unaddressed': string;

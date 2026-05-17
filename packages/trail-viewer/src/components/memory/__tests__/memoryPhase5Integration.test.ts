@@ -26,11 +26,13 @@ const BUG_HISTORY: readonly MemoryBugHistoryRow[] = Array.from({ length: 10 }, (
   subjectSummary: `Bug fix #${i}: something broke`,
   sessionId: `sess-${i}`,
   committedAt: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`,
+  precededByFindingIds: [],
 }));
 
 const REVIEW_HISTORY: readonly MemoryReviewHistoryRow[] = Array.from({ length: 8 }, (_, i) => ({
   id: `r${i}`,
   reviewId: `rev-${Math.floor(i / 2)}`,
+  findingEntityId: `ent-r${i}`,
   title: `Review ${Math.floor(i / 2)}`,
   reviewer: 'code-reviewer',
   sourceKind: 'session',
@@ -43,6 +45,7 @@ const REVIEW_HISTORY: readonly MemoryReviewHistoryRow[] = Array.from({ length: 8
   findingText: `Finding text for item ${i}`,
   addressedCommitSha: i % 3 === 0 ? `addr${i}sha` : null,
   addressedAt: i % 3 === 0 ? `2026-02-${String(i + 1).padStart(2, '0')}T00:00:00.000Z` : null,
+  precedesBugEntityIds: [],
 }));
 
 // 4 days × 5 scopes pre-aggregated stats. Day 4 of each scope は error worst.

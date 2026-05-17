@@ -47,6 +47,7 @@ export interface BugHistoryRow {
   category: string;
   subjectSummary: string;
   sessionId: string | null;
+  precededByFindingIds: string[];
   committedAt: string;
 }
 
@@ -63,6 +64,7 @@ export interface UnaddressedReviewFindingRow {
 export interface ReviewHistoryRow {
   id: string;
   reviewId: string;
+  findingEntityId: string;
   title: string;
   reviewer: string;
   sourceKind: string;
@@ -75,6 +77,7 @@ export interface ReviewHistoryRow {
   findingText: string;
   addressedCommitSha: string | null;
   addressedAt: string | null;
+  precedesBugEntityIds: string[];
 }
 
 export type PipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
@@ -470,7 +473,11 @@ export class MemoryApiHandler {
       bindValues.push(limit);
       const result = db.exec(
         `SELECT bf.id, bf.commit_sha, bf.bug_entity_id, bf.package, bf.category,
-                bf.subject_summary, bf.related_session_id, bf.committed_at
+                bf.subject_summary, bf.related_session_id, bf.committed_at,
+                (SELECT GROUP_CONCAT(e.subject_entity_id)
+                 FROM memory_edges e
+                 WHERE e.predicate='precedes' AND e.valid_to IS NULL
+                   AND e.object_entity_id = bf.bug_entity_id) AS preceded_by
          FROM memory_bug_fixes bf
          ${where}
          ORDER BY bf.committed_at DESC
@@ -481,6 +488,7 @@ export class MemoryApiHandler {
       const { columns, values } = result[0];
       return values.map((row) => {
         const r = mapRow<Record<string, unknown>>(columns, row);
+        const precededByRaw = toNullStr(r['preceded_by']);
         return {
           id: toStr(r['id']),
           commitSha: toStr(r['commit_sha']),
@@ -489,6 +497,7 @@ export class MemoryApiHandler {
           category: toStr(r['category']),
           subjectSummary: toStr(r['subject_summary']),
           sessionId: toNullStr(r['related_session_id']),
+          precededByFindingIds: precededByRaw ? precededByRaw.split(',').filter(Boolean) : [],
           committedAt: toStr(r['committed_at']),
         };
       });
@@ -587,7 +596,7 @@ export class MemoryApiHandler {
            )`
         : '';
       const result = db.exec(
-        `SELECT rf.id, rf.review_id, r.title, r.reviewer, r.source_kind,
+        `SELECT rf.id, rf.review_id, rf.finding_entity_id, r.title, r.reviewer, r.source_kind,
                 CASE
                   WHEN r.source_kind = 'agent' THEN rr.model
                   ${sessionModelExpr}
@@ -600,7 +609,11 @@ export class MemoryApiHandler {
                 END AS session_id,
                 r.reviewed_at,
                 rf.target_file_path, rf.category, rf.severity, rf.finding_text,
-                rf.addressed_commit_sha, rf.addressed_at
+                rf.addressed_commit_sha, rf.addressed_at,
+                (SELECT GROUP_CONCAT(e.object_entity_id)
+                 FROM memory_edges e
+                 WHERE e.predicate='precedes' AND e.valid_to IS NULL
+                   AND e.subject_entity_id = rf.finding_entity_id) AS precedes_bugs
          FROM memory_review_findings rf
          JOIN memory_reviews r ON r.id = rf.review_id
          LEFT JOIN memory_review_runs rr ON r.source_kind = 'agent' AND rr.id = r.source_ref
@@ -613,9 +626,11 @@ export class MemoryApiHandler {
       const { columns, values } = result[0];
       return values.map((row) => {
         const r = mapRow<Record<string, unknown>>(columns, row);
+        const precedesRaw = toNullStr(r['precedes_bugs']);
         return {
           id: toStr(r['id']),
           reviewId: toStr(r['review_id']),
+          findingEntityId: toStr(r['finding_entity_id']),
           title: toStr(r['title']),
           reviewer: toStr(r['reviewer']),
           sourceKind: toStr(r['source_kind']),
@@ -628,6 +643,7 @@ export class MemoryApiHandler {
           findingText: toStr(r['finding_text']),
           addressedCommitSha: toNullStr(r['addressed_commit_sha']),
           addressedAt: toNullStr(r['addressed_at']),
+          precedesBugEntityIds: precedesRaw ? precedesRaw.split(',').filter(Boolean) : [],
         };
       });
     } catch (err) {

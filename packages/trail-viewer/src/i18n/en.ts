@@ -413,6 +413,8 @@ export const en: TrailI18n = {
   'memory.bug.causedBy.title': 'Causal entities',
   'memory.bug.causedBy.empty': 'No causal entities',
   'memory.bug.openInMessages': 'Open messages',
+  'memory.bug.precededByCount': 'Preceded by findings',
+  'memory.review.precedesBugCount': 'Related bugs',
   'memory.review.empty': 'No review records',
   'memory.review.unaddressed': 'Unaddressed findings',
   'memory.review.history': 'Review history',
