@@ -82,6 +82,18 @@ function clampInt(value: string | null, fallback: number, min: number, max: numb
   return Math.min(Math.max(n, min), max);
 }
 
+/**
+ * URL.pathname does not percent-decode, so any `:id` carved out of the path
+ * must be decoded before reaching the DB layer — IDs like
+ * `drift:entity:pkg:foo:spec_vs_code` always contain `:` (encoded as `%3A`)
+ * and may contain `/` (`%2F`), which otherwise won't match the stored value.
+ */
+export function decodePathParam(pathname: string, prefix: string, suffix = ''): string {
+  let raw = pathname.slice(prefix.length);
+  if (suffix && raw.endsWith(suffix)) raw = raw.slice(0, -suffix.length);
+  return decodeURIComponent(raw);
+}
+
 /** @deprecated AnalyzeCurrentResult を直接使う */
 export type AnalyzePipelineResult = AnalyzeCurrentResult;
 
@@ -980,7 +992,7 @@ export class TrailDataServer {
     }
 
     if (pathname.startsWith('/api/memory/drift/events/') && method === 'GET') {
-      const eventId = pathname.slice('/api/memory/drift/events/'.length);
+      const eventId = decodePathParam(pathname, '/api/memory/drift/events/');
       void this.memoryApi.getDriftEventDetail(eventId).then((data) => {
         if (!data) { res.writeHead(404); res.end(); return; }
         res.writeHead(200, JSON_HEADERS);
@@ -993,7 +1005,7 @@ export class TrailDataServer {
     }
 
     if (pathname.startsWith('/api/memory/drift/events/') && method === 'POST') {
-      const eventId = pathname.slice('/api/memory/drift/events/'.length).replace(/\/resolve$/, '');
+      const eventId = decodePathParam(pathname, '/api/memory/drift/events/', '/resolve');
       void this.readJsonBody(req).then(async (body) => {
         const note = typeof (body as Record<string, unknown>)['resolutionNote'] === 'string'
           ? (body as Record<string, string>)['resolutionNote']
