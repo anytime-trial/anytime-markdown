@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-17
+
 ### Added
 
 - AI Note panel migrated from Anytime Trail. The `anytimeAgent.aiNote`
@@ -14,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   workspace `.anytime/notes/` and a templated `anytime-note` Claude Code
   skill is installed at `.claude/skills/anytime-note/SKILL.md` (paths
   unchanged from trail extension to preserve existing notes).
+- Bundled MIT `LICENSE` file in the VSIX. `package.json` already declared `"license": "MIT"`, but the file itself was missing from the published extension
+
+### Changed
+
+- Documentation references to AI Note now point to this extension
 
 ## [0.1.0] - 2026-05-16
 

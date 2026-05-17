@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-05-17
+
+### 変更
+
+- クライアント専用コンポーネントを `next/dynamic` から `React.lazy` へ置き換え、`markdown-core` を非 Next ホスト (VS Code webview、VS Code 拡張バンドル) で利用しても Next.js ランタイム依存が混入しないように変更
+- AI ノートに関するドキュメントリンクを新規 Anytime Agent 拡張に向け直し
+
 ## [0.15.1] - 2026-05-16
 
 ### 修正

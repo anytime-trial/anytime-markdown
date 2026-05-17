@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-05-17
+
+### Changed
+
+- Version bump synchronized with `anytime-trail` 0.21.0 (no source changes in `trail-core`)
+
 ## [0.20.0] - 2026-05-16
 
 ### Added

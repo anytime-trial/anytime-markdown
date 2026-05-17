@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-05-17
+
+### 変更
+
+- 同梱拡張機能のバージョン追従: Anytime Markdown 0.15.2 / Anytime Graph 0.3.2 / Anytime History 0.2.2 / Anytime Trail 0.21.0 / Anytime Sheet 0.4.4 / Anytime Database 0.2.1 / Anytime Agent 0.2.0
+
 ## [0.5.0] - 2026-05-16
 
 ### 追加

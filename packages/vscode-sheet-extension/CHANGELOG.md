@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-05-17
+
+### Changed
+
+- Version bump only (no functional changes since 0.4.3)
+
+### Spreadsheet Core (spreadsheet-core)
+
+- バージョン同期のみ (機能変更なし)
+
+### Spreadsheet Viewer (spreadsheet-viewer)
+
+- バージョン同期のみ (機能変更なし)
+
 ## [0.4.3] - 2026-05-15
 
 ### Spreadsheet Core (spreadsheet-core)

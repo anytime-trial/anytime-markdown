@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-05-17
+
+### Added
+
+- `anytime-reverse-spec` skill expanded to chapters 9-11 and now supports `evaluate=true` with Phase E1-E4 to generate evaluation reports for produced spec docs; backed by the new `mcp-trail` tool `evaluate_reverse_spec`
+- Prompt popup renders Markdown via the `markdown-core` read-only viewer
+- Trail Memory tab: structured bug causal info panel (replaces the prior graph), bug-fix session link with "open in messages" action, Drift sub-tab `Fix Target` column + filter, Drift Type help tooltip listing 11 definitions, Reviews sub-tab UX improvements with session reviewer surfacing
+- Trail Commits: cumulative stacked area mode with regression rate
+- Memory pipeline panel surfaces "memory backup" runs (memory-core.db backup rotation)
+- `trail-server` propagates the `repo` parameter through code-graph and pipeline/refresh routes
+
+### Changed
+
+- Conversation backfill default window extended to 30 days; widening `config.json` `backfillDays` now auto-triggers a re-backfill; `readMessagesSince` streams per session with an incremental heartbeat
+- Right axis of the cumulative commits chart swapped from regression rate to fix ratio; pre-window commits folded into the cumulative baseline
+- Memory pipeline aggregates runs per (day, scope) for the stacked chart
+- `anytime-reverse-spec` template structure stabilized for 02 / 04 / 07 chapters and 05 interface MCP sub-categorization for evaluation use
+- `memory-core` review finding parser recognizes Sample 1/2/3 session formats; backfill progress and total are forwarded to `PipelineStatusWriter`
+
+### Fixed
+
+- `memory-core` clears `failed_items` on embedding success
+- `memory-core` purge script wrapped in a transaction with a valid reason
+- `memory-core` conversation pipeline is reload-safe (mid-run cursor advance removed)
+- `memory-core/spec` excludes `90.skill/` from spec ingestion and constrains `caused_by` root causes to concrete entities
+- `trail-server` decodes percent-encoded drift event ids in path params
+- `trail-viewer` `CombinedDataReader` test mock aligned with current schema
+
 ### BREAKING
 
 - Removed the AI Note panel and `anytime-trail.openAiNote*` commands.
@@ -20,6 +48,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `installStaticSkillDir` and their tests from `vscode-trail-extension`
   to `@anytime-markdown/vscode-common` so the agent extension can
   share the same skill-installer.
+
+### Trail Core (trail-core)
+
+- バージョン同期のみ (ソース変更なし)
 
 ## [0.20.0] - 2026-05-16
 
