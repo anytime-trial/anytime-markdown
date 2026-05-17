@@ -411,8 +411,8 @@ export interface TrailI18n {
   'memory.review.filterFile': string;
   'memory.review.filterSeverity': string;
   'memory.review.filterCategory': string;
-  'memory.review.flow.review': string;
-  'memory.review.flow.finding': string;
+  'memory.review.filterStatus': string;
+  'memory.review.openInMessages': string;
   'memory.review.flow.addressed': string;
   'memory.review.flow.notAddressed': string;
   // pipeline sub-tab
