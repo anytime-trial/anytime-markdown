@@ -297,7 +297,7 @@ export const ja: TrailI18n = {
   'analytics.combined.commitCount': 'コミット',
   'analytics.combined.commitCount.description': '選択期間内のコミット数',
   'analytics.combined.cumulative': '累積',
-  'analytics.combined.cumulative.description': 'コミット数の累積推移（表示期間以前を baseline として加算）。右軸は退行率（fix(*regression*) / 全コミット）。',
+  'analytics.combined.cumulative.description': 'コミット数の累積推移（表示期間以前を baseline として加算）。右軸は fix 比率（fix 累積 / 全コミット累積）。',
   'analytics.combined.loc': 'LOC',
   'analytics.combined.loc.description': '変更行数（追加行数 + 削除行数）',
   'analytics.combined.leadTime': 'Lead Time',

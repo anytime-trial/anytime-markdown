@@ -297,7 +297,7 @@ export const en: TrailI18n = {
   'analytics.combined.commitCount': 'Commits',
   'analytics.combined.commitCount.description': 'Number of commits in the selected period',
   'analytics.combined.cumulative': 'Cumulative',
-  'analytics.combined.cumulative.description': 'Cumulative commit count over time (pre-window history added as baseline). Right axis shows regression rate (fix(*regression*) / total).',
+  'analytics.combined.cumulative.description': 'Cumulative commit count over time (pre-window history added as baseline). Right axis shows fix ratio (cumulative fix / cumulative total).',
   'analytics.combined.loc': 'LOC',
   'analytics.combined.loc.description': 'Lines changed (added + deleted)',
   'analytics.combined.leadTime': 'Lead Time',
