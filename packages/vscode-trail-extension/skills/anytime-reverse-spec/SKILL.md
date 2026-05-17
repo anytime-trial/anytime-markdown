@@ -72,9 +72,11 @@ trigger: /anytime-reverse-spec
 | `schemaGlobs` | glob 配列（`repoRoot` 起点） | `["**/migrations/**/*.sql", "prisma/schema.prisma", "**/schema.prisma", "**/schema/**/*.{ts,js,sql}", "**/entities/**/*.{ts,js}", "**/models/**/*.{ts,js,py,rb}", "db/structure.sql"]` | データ永続化定義の検索範囲。SQL DDL（PostgreSQL / MySQL / Supabase 等）、SQLite テーブル定義、Prisma / Drizzle / TypeORM / Sequelize / SQLAlchemy / ActiveRecord などの ORM スキーマを横断的に拾う。サブエージェントが内容から DB 種別を判定する。該当ファイル 0 件なら章 4 を「データ永続化未検出」プレースホルダで縮退生成 |
 | `interfaceGlobs` | glob 配列（`repoRoot` 起点） | `["packages/*/src/**/*.{ts,js}", "src/**/*.{ts,js,py,go,rb}", "app/**/route.{ts,js}", "pages/api/**/*.{ts,js}", "**/handlers/**/*.{ts,js,py,go}"]` | プログラム外部 I/F 定義の検索範囲。REST（Express / Hono / Fastify / Koa / Next.js Route Handlers）、GraphQL リゾルバ、gRPC サービス、tRPC、MCP ツール、CLI コマンド、Webhook ハンドラなどを統合的に拾う。サブエージェントが種別（HTTP / GraphQL / MCP / CLI 等)を判定して章 5 のセクション分けに反映する |
 | `screenGlobs` | glob 配列（`repoRoot` 起点） | `["app/**/page.{tsx,jsx,vue,svelte}", "pages/**/*.{tsx,jsx,vue,svelte}", "src/pages/**/*.{tsx,jsx,vue,svelte}", "src/views/**/*.{tsx,jsx,vue,svelte}", "src/screens/**/*.{tsx,jsx}", "**/router*.{ts,js,tsx}", "**/routes.{ts,js,tsx}", "packages/*-extension*/src/**/*Webview*.{ts,tsx}"]` | 画面（ユーザー視点の View / Page）と画面遷移定義の検索範囲。Next.js App/Pages Router、React Router、Vue Router、Svelte routes、VS Code 拡張の WebView を横断的に拾う。サブエージェントがファイルから「画面 ID（パス or コンポーネント名）」「画面名」「主操作と遷移先」を抽出し、章 6 の画面一覧と遷移図に使う。0 件なら章 6 を「画面未検出（バックエンド/ライブラリ）」プレースホルダで縮退生成 |
+| `evaluate` | `true` / `false` | `false` | `true` の場合、章生成 (Phase 0〜4) はスキップし、評価モード (Phase E1〜E4) のみ実行する。`outputDir` 直下の markdown を git HEAD と比較して 3 軸 (Intent / Design / Completeness) で採点 |
+| `candidateDir` | 絶対パス | 未指定時は `outputDir` を使用 | 評価モードで採点対象とするディレクトリ。通常は `outputDir` と同一でよいが、テスト時など別ディレクトリと比較したい場合に明示 |
 
 > [!IMPORTANT]
-> `mode=wash-away` 指定時のみユーザー確認を必須とする（章 3 ファイル削除を伴う）。
+> `mode=wash-away` 指定時のみユーザー確認を必須とする（章 3 ファイル削除を伴う）。`_eval/` 配下 (評価レポート出力先) は wash-away の削除対象外。
 
 
 ## 前提条件 / ガード
@@ -912,6 +914,129 @@ flowchart TD
 3. 両方が一致
 
 不一致（手動作成・名称衝突）の場合、警告を出してユーザーに対応指示。スキルは中断する（自動マージ・自動上書きは禁止）。
+
+## 評価モード (evaluate=true)
+
+`evaluate=true` で起動すると、章生成 (Phase 0〜5) はスキップし、評価専用の Phase E1〜E4 を実行する。\
+`{outputDir}` (または明示された `candidateDir`) 配下の markdown 全ファイルを git HEAD と比較し、3 軸 (Intent / Design / Completeness) で採点する。
+
+### 前提
+
+- `outputDir` (もしくは `candidateDir`) が解決済みで、git 管理下にあること。`git -C {dir} rev-parse --show-toplevel` でドキュメントリポジトリのルートを取得できること
+- `mcp__mcp-trail__evaluate_reverse_spec` ツールが使えること (mcp-trail サーバ稼働、もしくは direct invocation 可能)
+
+### Phase E1: golden 取得 (git HEAD で凍結)
+
+`{outputDir}` 配下を `git ls-tree -r HEAD --name-only` で再帰列挙し、対象パターン (`**/*.ja.md`、`_eval/**` 除外) にマッチするファイルだけを抽出。各ファイルの内容を `git show HEAD:{relativePath}` で取得し、`goldenFiles[]` 配列を構築する。
+
+```bash
+# 擬似コード
+DOCS_ROOT=$(git -C "{outputDir}" rev-parse --show-toplevel)
+REL_BASE=$(realpath --relative-to="$DOCS_ROOT" "{outputDir}")
+git -C "$DOCS_ROOT" ls-tree -r HEAD --name-only -- "$REL_BASE" \
+  | grep -E '\.ja\.md$' \
+  | grep -v '/_eval/' \
+  | while read p; do
+      content=$(git -C "$DOCS_ROOT" show "HEAD:$p")
+      # candidate からの相対パスに変換して goldenFiles に積む
+    done
+```
+
+未トラックファイル (新規追加で未コミット) は golden 側に存在しないため、Phase E2 の `unmatched.candidate` に積まれる。
+
+### Phase E2: MCP `evaluate_reverse_spec` 呼び出し
+
+`mcp__mcp-trail__evaluate_reverse_spec` を呼び、ペアリング + heuristic スコア + excerpt を一括取得。
+
+入力:
+
+```json
+{
+  "goldenFiles": [
+    {"relativePath": "01-system-overview.ja.md", "content": "..."},
+    {"relativePath": "03.feature-detail/feature-coverage.ja.md", "content": "..."}
+  ],
+  "candidateDir": "{outputDir}",
+  "documentGlob": "**/*.ja.md",
+  "excludeGlobs": ["_eval/**"],
+  "maxExcerptChars": 15000
+}
+```
+
+出力 (要点):
+
+```json
+{
+  "pairs": [
+    {
+      "file": "01-system-overview.ja.md",
+      "heuristic": {"intent": 0.78, "design": 0.82, "completeness": 0.75},
+      "golden_excerpt": "...",
+      "candidate_excerpt": "...",
+      "truncated": {"golden": false, "candidate": false}
+    }
+  ],
+  "unmatched": {"reference": [], "candidate": ["12-extra.ja.md"]},
+  "meta": {"golden_count": 43, "candidate_count": 44, ...}
+}
+```
+
+### Phase E3: LLM 採点 (スキル実行 Agent が直接実施)
+
+各 `pair` について `templates/_eval/prompt.ja.md` のプロンプト雛形に従い、3 軸 (Intent / Design / Completeness) で 0.0〜1.0 のスコアと簡潔な notes を判定する。**1 ペアずつ逐次採点する** (43 ファイル並列はコンテキスト膨張のため避ける)。
+
+採点結果は次の構造で保持:
+
+```typescript
+type LlmScore = {
+  file: string;
+  intent: number;     // 0..1
+  design: number;     // 0..1
+  completeness: number; // 0..1
+  notes: string;
+};
+```
+
+heuristic と LLM の両スコアから章ごとの overall を計算:
+
+```text
+overall_heuristic = 0.4 × intent_h + 0.4 × design_h + 0.2 × completeness_h
+overall_llm       = 0.4 × intent_l + 0.4 × design_l + 0.2 × completeness_l
+overall_chapter   = (overall_heuristic + overall_llm) / 2
+```
+
+全章の overall_chapter 単純平均を `overall_score` とする。
+
+### Phase E4: 統合レポート markdown 出力
+
+出力先: `{outputDir}/_eval/{YYYYMMDD-HHmmss}-eval.ja.md` (`_eval/` は wash-away 対象外)
+
+`templates/_eval/report.ja.md` の skeleton に従い、以下を埋める:
+
+1. **サマリ**: Golden commit short hash / Candidate dir / Overall score / threshold (0.75) PASS or FAIL / 対象ファイル数 / unmatched 件数
+2. **トップレベル章スコア** (12 ファイル): 表で heuristic / LLM / overall を表示
+3. **機能詳細スコア** (31 ファイル、`<details>` で折りたたみ): 同表形式
+4. **⚠ Regression Findings** (overall < 0.75 のみ): 軸別下落分析 + 主因推測 (識別子表記変更 / セクション構成変更 / golden 見出し脱落 / 同義語言い換え) + LLM notes 引用 + 推奨アクション (`chapter=N` での再生成)
+5. **Unmatched**: candidate-only / reference-only ファイル一覧
+6. **詳細スコア** (`<details>` 折りたたみ): 章ごとの軸別内訳
+
+最後にチャットに以下を表示:
+
+- Overall score と PASS/FAIL 判定
+- regression が出た章のリスト + 推奨アクション
+- レポートファイルの絶対パス (ユーザーがすぐ開けるように)
+
+**自動是正は行わない**。判断は人間。
+
+### Phase E のスキップ条件 / エラー処理
+
+| 条件 | 動作 |
+| --- | --- |
+| `outputDir` が git 管理外 | 中断。「ドキュメントリポジトリ内で実行してください」 |
+| `git ls-tree HEAD` が空 (初回 commit 前) | 中断。「golden が存在しないため評価不可。先に一度コミットしてください」 |
+| `mcp__mcp-trail__evaluate_reverse_spec` 失敗 | 中断。エラー詳細をログ + mcp-trail サーバ状態確認を促す |
+| candidate ファイル 0 件 | 中断。「`{candidateDir}` に markdown が見つかりません」 |
+| ペア 0 件 (golden / candidate どちらも 0 か、相対パス全く合わず) | 中断。「ペアリング不能。`outputDir` と `candidateDir` の関係を確認してください」 |
 
 ## エラー処理
 
