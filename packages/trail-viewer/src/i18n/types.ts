@@ -407,6 +407,10 @@ export interface TrailI18n {
   'memory.drift.typeDescription.review_vs_code': string;
   'memory.drift.typeDescription.recurring_review_finding': string;
   'memory.drift.typeDescription.spec_clarification_recurring': string;
+  'memory.drift.fixTarget': string;
+  'memory.drift.fixTarget.code': string;
+  'memory.drift.fixTarget.spec': string;
+  'memory.drift.fixTarget.conv': string;
   // bug sub-tab
   'memory.bug.empty': string;
   'memory.bug.recurring': string;

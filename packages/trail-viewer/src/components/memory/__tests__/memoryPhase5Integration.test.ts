@@ -63,30 +63,30 @@ const PIPELINE_STATS: readonly MemoryPipelineRunStatsByDayRow[] = ['drift', 'spe
 
 describe('Phase 5 integration: Drift tab', () => {
   it('shows all 5 drift events without filters', () => {
-    const result = filterDriftRows(DRIFT_EVENTS, { unresolvedOnly: false, severityFilter: '', typeFilter: '' });
+    const result = filterDriftRows(DRIFT_EVENTS, { unresolvedOnly: false, severityFilter: '', typeFilter: '', fixTargetFilter: '' });
     expect(result).toHaveLength(5);
   });
 
   it('unresolvedOnly=true excludes resolved event d3', () => {
-    const result = filterDriftRows(DRIFT_EVENTS, { unresolvedOnly: true, severityFilter: '', typeFilter: '' });
+    const result = filterDriftRows(DRIFT_EVENTS, { unresolvedOnly: true, severityFilter: '', typeFilter: '', fixTargetFilter: '' });
     expect(result).toHaveLength(4);
     expect(result.some((r) => r.id === 'd3')).toBe(false);
   });
 
   it('severity=error filter shows 2 events', () => {
-    const result = filterDriftRows(DRIFT_EVENTS, { unresolvedOnly: false, severityFilter: 'error', typeFilter: '' });
+    const result = filterDriftRows(DRIFT_EVENTS, { unresolvedOnly: false, severityFilter: 'error', typeFilter: '', fixTargetFilter: '' });
     expect(result).toHaveLength(2);
     expect(result.every((r) => r.severity === 'error')).toBe(true);
   });
 
   it('type=test_missing filter shows 2 events', () => {
-    const result = filterDriftRows(DRIFT_EVENTS, { unresolvedOnly: false, severityFilter: '', typeFilter: 'test_missing' });
+    const result = filterDriftRows(DRIFT_EVENTS, { unresolvedOnly: false, severityFilter: '', typeFilter: 'test_missing', fixTargetFilter: '' });
     expect(result).toHaveLength(2);
     expect(result.every((r) => r.driftType === 'test_missing')).toBe(true);
   });
 
   it('unresolvedOnly + error severity shows d1 and d5 only', () => {
-    const result = filterDriftRows(DRIFT_EVENTS, { unresolvedOnly: true, severityFilter: 'error', typeFilter: '' });
+    const result = filterDriftRows(DRIFT_EVENTS, { unresolvedOnly: true, severityFilter: 'error', typeFilter: '', fixTargetFilter: '' });
     expect(result).toHaveLength(2);
     const ids = result.map((r) => r.id).sort();
     expect(ids).toEqual(['d1', 'd5']);
