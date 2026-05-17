@@ -92,6 +92,63 @@ describe('buildCumulativeCommitDataset', () => {
     });
   });
 
+  it('matches end-of-window total across 7d / 30d views when callers correctly include pre-window rows in baseline', () => {
+    // 全 commit (30日分): 4/17-5/10 が 20 件、5/10-5/17 が 10 件、合計 30 件 (fix 比率 30%)
+    const allRows30d = [
+      { period: '2026-04-20', prefix: 'feat', count: 10 },
+      { period: '2026-04-20', prefix: 'fix', count: 5 },
+      { period: '2026-05-05', prefix: 'feat', count: 3 },
+      { period: '2026-05-05', prefix: 'fix', count: 2 },
+      { period: '2026-05-15', prefix: 'feat', count: 7 },
+      { period: '2026-05-15', prefix: 'fix', count: 2 },
+      { period: '2026-05-17', prefix: 'fix', count: 1 },
+    ];
+    const periods30d = [...new Set(allRows30d.map(r => r.period))].sort();
+    const labels30d = periods30d.map(p => p.slice(5));
+
+    // 7d view 用 split: 5/10 以降を window 内、それ以前を pre-window として baseline に加算
+    const cutoff7 = '2026-05-10';
+    const window7d = allRows30d.filter(r => r.period >= cutoff7);
+    const preWindow7d = allRows30d.filter(r => r.period < cutoff7);
+    const periods7d = [...new Set(window7d.map(r => r.period))].sort();
+    const labels7d = periods7d.map(p => p.slice(5));
+    const baselineForCat7 = new Map([[0, 0], [1, 0], [2, 0]]);
+    let baselineFix7 = 0;
+    let baselineTotal7 = 0;
+    for (const r of preWindow7d) {
+      const cat = baseArgs.getCategory(r.prefix);
+      baselineForCat7.set(cat, (baselineForCat7.get(cat) ?? 0) + r.count);
+      baselineTotal7 += r.count;
+      if (r.prefix === 'fix') baselineFix7 += r.count;
+    }
+
+    const dataset30d = buildCumulativeCommitDataset({
+      ...baseArgs,
+      commitPeriods: periods30d,
+      commitLabels: labels30d,
+      commitRows: allRows30d,
+      baselinePerCategory: new Map([[0, 0], [1, 0], [2, 0]]),
+      baselineFix: 0,
+      baselineTotal: 0,
+    });
+    const dataset7d = buildCumulativeCommitDataset({
+      ...baseArgs,
+      commitPeriods: periods7d,
+      commitLabels: labels7d,
+      commitRows: window7d,
+      baselinePerCategory: baselineForCat7,
+      baselineFix: baselineFix7,
+      baselineTotal: baselineTotal7,
+    });
+
+    const last30 = dataset30d.at(-1)!;
+    const last7 = dataset7d.at(-1)!;
+    expect(last30.c0).toBe(last7.c0); // feat 累計
+    expect(last30.c1).toBe(last7.c1); // fix 累計
+    expect(last30.c2).toBe(last7.c2); // other 累計
+    expect(last30.fixRate).toBeCloseTo(last7.fixRate as number, 5);
+  });
+
   it('only accumulates - never decreases per category', () => {
     const dataset = buildCumulativeCommitDataset({
       ...baseArgs,
