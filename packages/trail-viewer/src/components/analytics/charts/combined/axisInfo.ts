@@ -13,6 +13,10 @@ export function computeCombinedAxisInfo(data: CombinedData | null, periodDays: P
   const modelRows = (data.modelStats ?? []).filter(r => r.period >= cutoffStr);
   const agentRows = (data.agentStats ?? []).filter(r => r.period >= cutoffStr);
   const commitRows = (data.commitPrefixStats ?? []).filter(r => r.period >= cutoffStr);
+  // データ取得は常に 30 日（90日表示時は 90 日）分だが、表示期間が 7 日のときは 30〜7日前の
+  // commit が baseline にも commitRows にも含まれず累積値が欠落する。fetched window 内・
+  // 表示 cutoff より前の行を抜き出し、cumulative モードで baseline に加算する。
+  const commitRowsPreWindow = (data.commitPrefixStats ?? []).filter(r => r.period < cutoffStr);
   const repoRows = (data.repoStats ?? []).filter(r => r.period >= cutoffStr);
   const aiRateRows = (data.aiFirstTryRate ?? []).filter(r => r.period >= cutoffStr);
   const allPeriods = [...new Set(toolRows.map(r => r.period))].sort();
@@ -108,6 +112,7 @@ export function computeCombinedAxisInfo(data: CombinedData | null, periodDays: P
     commitPrefixes: commitCap.displayKeys,
     commitMap: commitCap.keyMap,
     commitBaseline: data.commitBaseline,
+    commitRowsPreWindow,
     commitRegressionByPeriod: (data.commitRegressionByPeriod ?? []).filter(r => r.period >= cutoffStr),
     repoRows,
     repoPeriods,

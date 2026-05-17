@@ -72,24 +72,38 @@ export function CommitsCombinedChart({
 }>) {
   const { cardSx } = useTrailTheme();
   const { getCategory, getCategoryLabel, getCategoryColorByIndex, categoryKeys } = useCommitCategory();
-  const { commitRows, commitPeriods, commitLabels, commitPrefixes, aiRateRows, commitBaseline } = axisInfo;
+  const { commitRows, commitRowsPreWindow, commitPeriods, commitLabels, commitPrefixes, aiRateRows, commitBaseline } = axisInfo;
   const isCumulative = commitMetric === 'cumulative';
 
+  // baseline = backend baseline (< 30日前 固定) + fetched window 内の表示 cutoff 以前 (commitRowsPreWindow)
+  // これにより 7d 表示でも 30〜7日前の commit が累積に含まれる
   const baselinePerCategory = useMemo(() => {
     const map = new Map<number, number>();
-    if (!commitBaseline) return map;
     for (const cat of categoryKeys) map.set(cat, 0);
-    for (const e of commitBaseline.perPrefix) {
-      const cat = getCategory(e.prefix);
-      map.set(cat, (map.get(cat) ?? 0) + e.count);
+    if (commitBaseline) {
+      for (const e of commitBaseline.perPrefix) {
+        const cat = getCategory(e.prefix);
+        map.set(cat, (map.get(cat) ?? 0) + e.count);
+      }
+    }
+    for (const r of commitRowsPreWindow) {
+      const cat = getCategory(r.prefix);
+      map.set(cat, (map.get(cat) ?? 0) + r.count);
     }
     return map;
-  }, [commitBaseline, categoryKeys, getCategory]);
+  }, [commitBaseline, commitRowsPreWindow, categoryKeys, getCategory]);
 
-  const baselineFix = useMemo(
-    () => commitBaseline?.perPrefix.find((e) => e.prefix === 'fix')?.count ?? 0,
-    [commitBaseline],
-  );
+  const baselineFix = useMemo(() => {
+    const fromBackend = commitBaseline?.perPrefix.find((e) => e.prefix === 'fix')?.count ?? 0;
+    const fromPreWindow = commitRowsPreWindow.reduce((acc, r) => acc + (r.prefix === 'fix' ? r.count : 0), 0);
+    return fromBackend + fromPreWindow;
+  }, [commitBaseline, commitRowsPreWindow]);
+
+  const baselineTotal = useMemo(() => {
+    const fromBackend = commitBaseline?.totalCount ?? 0;
+    const fromPreWindow = commitRowsPreWindow.reduce((acc, r) => acc + r.count, 0);
+    return fromBackend + fromPreWindow;
+  }, [commitBaseline, commitRowsPreWindow]);
 
   const cumulativeDataset = useMemo(() => {
     if (!isCumulative) return null;
@@ -99,11 +113,11 @@ export function CommitsCombinedChart({
       commitRows,
       baselinePerCategory,
       baselineFix,
-      baselineTotal: commitBaseline?.totalCount ?? 0,
+      baselineTotal,
       categoryKeys,
       getCategory,
     });
-  }, [isCumulative, commitPeriods, commitLabels, commitRows, baselinePerCategory, baselineFix, commitBaseline, categoryKeys, getCategory]);
+  }, [isCumulative, commitPeriods, commitLabels, commitRows, baselinePerCategory, baselineFix, baselineTotal, categoryKeys, getCategory]);
 
   const commitDataset = useMemo(() => {
     if (isCumulative) return [];
