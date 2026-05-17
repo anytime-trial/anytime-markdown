@@ -3,9 +3,11 @@ import type { ParsedFinding } from './findingHelpers';
 import {
   inferCategory,
   inferSeverity,
+  inferSeverityFromHeading,
   extractBacktickPaths,
   splitIntoChapters,
   extractProblemSuggestionPairs,
+  extractNumberedFindings,
 } from './findingHelpers';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -108,27 +110,50 @@ function extractFindings(bodyText: string): ParsedFinding[] {
     if (!chapter.heading) continue;
 
     const chapterBody = chapter.lines.join('\n');
-    const pairs = extractProblemSuggestionPairs(chapter.lines);
-
-    if (pairs.length === 0) continue;
-
     const { category, is_category_inferred } = inferCategory(chapter.heading);
-    const severity = inferSeverity(chapterBody);
+    const bodyBasedSeverity = inferSeverity(chapterBody);
+    const headingSeverity = inferSeverityFromHeading(chapter.heading);
+    const severity = bodyBasedSeverity !== 'info' ? bodyBasedSeverity : headingSeverity;
 
-    for (const [findingText, suggestionText] of pairs) {
-      findings.push({
-        finding_index: findingIndex++,
-        target_file_path: null,
-        target_symbol: null,
-        target_line_start: null,
-        target_line_end: null,
-        category,
-        severity,
-        finding_text: findingText,
-        suggestion_text: suggestionText,
-        chapter_path: chapter.heading,
-        is_category_inferred,
-      });
+    // Strategy 1: 既存ペア抽出（拡張 marker + bullet 接頭辞対応済み）
+    const pairs = extractProblemSuggestionPairs(chapter.lines);
+    if (pairs.length > 0) {
+      for (const [findingText, suggestionText] of pairs) {
+        findings.push({
+          finding_index: findingIndex++,
+          target_file_path: null,
+          target_symbol: null,
+          target_line_start: null,
+          target_line_end: null,
+          category,
+          severity,
+          finding_text: findingText,
+          suggestion_text: suggestionText,
+          chapter_path: chapter.heading,
+          is_category_inferred,
+        });
+      }
+      continue;
+    }
+
+    // Strategy 2: 番号付き finding（Sample 2/3）
+    const numbered = extractNumberedFindings(chapter.lines);
+    if (numbered.length > 0) {
+      for (const nf of numbered) {
+        findings.push({
+          finding_index: findingIndex++,
+          target_file_path: null,
+          target_symbol: null,
+          target_line_start: null,
+          target_line_end: null,
+          category,
+          severity,
+          finding_text: nf.title + (nf.finding ? `\n\n${nf.finding}` : ''),
+          suggestion_text: nf.suggestion,
+          chapter_path: chapter.heading,
+          is_category_inferred,
+        });
+      }
     }
   }
 
