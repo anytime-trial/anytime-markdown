@@ -2,6 +2,7 @@
   "name": "@anytime-markdown/vscode-common",
   "version": "0.1.2",
   "private": true,
+  "license": "MIT",
   "main": "out/index.js",
   "types": "out/index.d.ts",
   "exports": {
