@@ -430,4 +430,81 @@ describe('runConversationBackfill', () => {
     trailDb.close();
     memDb.close();
   }, 30000);
+
+  // ── B9: progress() コールバックを毎エピソード発火
+  // Regression: backfill が UI 通知 callback を持っていなかったため、
+  // PipelineStatusWriter 経由の UI 表示は 0/N のまま動かなかった
+  // (背景で items_processed は memory_pipeline_runs に書き込まれていた)。
+  test('B9: progress callback fires per episode during backfill', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    // 5 session × 1 user msg → 5 episode
+    const recent = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    for (let i = 0; i < 5; i++) {
+      const sid = `sess-prog-${i}`;
+      insertSession(trailDb, sid);
+      const ts = new Date(new Date(recent).getTime() + i * 1000).toISOString();
+      insertMessage(trailDb, `mp-${i}`, sid, 'user', ts, `body ${i}`);
+    }
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const progressCalls: Array<{ processed: number; failed: number }> = [];
+
+    const result = await runConversationBackfill({
+      db: memDb,
+      ollama,
+      sinceDays: 5,
+      logger: silentLogger,
+      progress: (processed, failed) => {
+        progressCalls.push({ processed, failed });
+      },
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.items_processed).toBe(5);
+
+    // 各エピソードごとに 1 回以上、最後の processed が 5 に到達
+    expect(progressCalls.length).toBeGreaterThanOrEqual(5);
+    expect(progressCalls.map((c) => c.processed)).toEqual([1, 2, 3, 4, 5]);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── B10: onTotal callback fires with "to-process" count after pre-count
+  // (existingIds 控除後の数字)、UI が正しい分母を表示できるようにする。
+  test('B10: onTotal callback fires once with toProcess count', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    const recent = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    for (let i = 0; i < 3; i++) {
+      const sid = `sess-tot-${i}`;
+      insertSession(trailDb, sid);
+      const ts = new Date(new Date(recent).getTime() + i * 1000).toISOString();
+      insertMessage(trailDb, `mt-${i}`, sid, 'user', ts, `body ${i}`);
+    }
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const totalCalls: number[] = [];
+
+    await runConversationBackfill({
+      db: memDb,
+      ollama,
+      sinceDays: 5,
+      logger: silentLogger,
+      onTotal: (total) => {
+        totalCalls.push(total);
+      },
+    });
+
+    // onTotal は 1 回だけ、toProcess (= 3) で呼ばれる
+    expect(totalCalls).toEqual([3]);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
 });
