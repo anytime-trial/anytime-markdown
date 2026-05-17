@@ -221,7 +221,6 @@ jobs:
         working-directory: packages/web-app
 
       - name: SonarCloud Scan
-        continue-on-error: true
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
