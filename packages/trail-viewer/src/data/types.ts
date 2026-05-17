@@ -124,6 +124,10 @@ export interface MemoryReviewHistoryRow {
   readonly id: string;
   readonly reviewId: string;
   readonly title: string;
+  readonly reviewer: string;
+  readonly sourceKind: string;
+  readonly model: string | null;
+  readonly sessionId: string | null;
   readonly reviewedAt: string;
   readonly targetFilePath: string | null;
   readonly category: string;

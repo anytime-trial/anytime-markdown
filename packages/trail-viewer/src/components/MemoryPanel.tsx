@@ -23,9 +23,10 @@ function parseHashSubTab(hash: string): MemoryTabValue | null {
 
 export interface MemoryPanelProps {
   readonly serverUrl: string;
+  readonly onOpenSessionMessages?: (sessionId: string) => void;
 }
 
-export function MemoryPanel({ serverUrl }: Readonly<MemoryPanelProps>) {
+export function MemoryPanel({ serverUrl, onOpenSessionMessages }: Readonly<MemoryPanelProps>) {
   const { t } = useTrailI18n();
   const { colors, isDark } = useTrailTheme();
 
@@ -127,7 +128,7 @@ export function MemoryPanel({ serverUrl }: Readonly<MemoryPanelProps>) {
               <BugHistoryPanel reader={reader} isDark={isDark} />
             )}
             {def.value === 'review' && (
-              <ReviewPanel reader={reader} />
+              <ReviewPanel reader={reader} onOpenSessionMessages={onOpenSessionMessages} />
             )}
             {def.value === 'runs' && (
               <PipelineRunsPanel reader={reader} />

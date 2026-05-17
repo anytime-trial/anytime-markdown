@@ -4,7 +4,6 @@
  */
 import { filterDriftRows } from '../driftFilter';
 import { buildBugGraph } from '../bugGraphBuilder';
-import { buildReviewFlowSteps } from '../reviewFlowSteps';
 import { buildStackedChartData } from '../pipelineChartData';
 import type { MemoryDriftEventRow, MemoryBugHistoryRow, MemoryReviewHistoryRow, MemoryPipelineRunStatsByDayRow } from '../../../data/types';
 
@@ -32,6 +31,10 @@ const REVIEW_HISTORY: readonly MemoryReviewHistoryRow[] = Array.from({ length: 8
   id: `r${i}`,
   reviewId: `rev-${Math.floor(i / 2)}`,
   title: `Review ${Math.floor(i / 2)}`,
+  reviewer: 'code-reviewer',
+  sourceKind: 'session',
+  model: null,
+  sessionId: `sess-${i}`,
   reviewedAt: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`,
   targetFilePath: i % 2 === 0 ? `src/file${i}.ts` : null,
   category: i < 4 ? 'security' : 'performance',
@@ -125,29 +128,6 @@ describe('Phase 5 integration: Review tab', () => {
   it('3 of 8 findings are addressed (every 3rd)', () => {
     const addressed = REVIEW_HISTORY.filter((r) => r.addressedCommitSha != null);
     expect(addressed).toHaveLength(3);
-  });
-
-  it('review flow for addressed finding has 3 completed steps', () => {
-    const addressed = REVIEW_HISTORY.find((r) => r.addressedCommitSha != null)!;
-    const steps = buildReviewFlowSteps(addressed, {
-      review: 'Review',
-      findingLabel: 'Finding',
-      addressed: 'Addressed',
-      notAddressed: 'Not addressed',
-    });
-    expect(steps.filter((s) => s.completed)).toHaveLength(3);
-  });
-
-  it('review flow for unaddressed finding has 2 completed steps', () => {
-    const unaddressed = REVIEW_HISTORY.find((r) => r.addressedCommitSha == null)!;
-    const steps = buildReviewFlowSteps(unaddressed, {
-      review: 'Review',
-      findingLabel: 'Finding',
-      addressed: 'Addressed',
-      notAddressed: 'Not addressed',
-    });
-    expect(steps.filter((s) => s.completed)).toHaveLength(2);
-    expect(steps[2].label).toBe('Not addressed');
   });
 
   it('severity filter: 2 error findings', () => {

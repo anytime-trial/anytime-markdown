@@ -1,6 +1,7 @@
-import { BetterSqlite3MemoryDb, getMemoryCoreDbPath } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, attachTrailDbReadOnly, getMemoryCoreDbPath } from '@anytime-markdown/memory-core';
 import type { MemoryDbConnection, MemoryDbSqlValue as SqlValue } from '@anytime-markdown/memory-core';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 import { resolveDrift } from '@anytime-markdown/memory-core';
 
@@ -62,6 +63,10 @@ export interface ReviewHistoryRow {
   id: string;
   reviewId: string;
   title: string;
+  reviewer: string;
+  sourceKind: string;
+  model: string | null;
+  sessionId: string | null;
   reviewedAt: string;
   targetFilePath: string | null;
   category: string;
@@ -152,6 +157,9 @@ export class MemoryApiHandler {
    */
   private cachedReadOnlyDb: MemoryDbConnection | null = null;
 
+  /** trail.db が cachedReadOnlyDb に ATTACH 済みか（session レビューの model 取得用） */
+  private trailDbAttached = false;
+
   /**
    * better-sqlite3 の native binary 絶対パス。webpack-bundled VS Code 拡張で
    * bindings package が call stack から `.node` を推測できず crash する問題の
@@ -207,6 +215,15 @@ export class MemoryApiHandler {
         readOnly: true,
         ...(this.nativeBinding ? { nativeBinding: this.nativeBinding } : {}),
       });
+      const trailDbPath = path.join(path.dirname(this.dbPath), 'trail.db');
+      if (fs.existsSync(trailDbPath)) {
+        try {
+          void attachTrailDbReadOnly(this.cachedReadOnlyDb, trailDbPath);
+          this.trailDbAttached = true;
+        } catch (err) {
+          this.logger.warn(`[MemoryApiHandler.openReadOnly] trail.db attach failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
       return this.cachedReadOnlyDb;
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.openReadOnly] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
@@ -557,12 +574,34 @@ export class MemoryApiHandler {
       }
       const where = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
+      const sessionModelExpr = this.trailDbAttached
+        ? `WHEN r.source_kind = 'session' THEN (
+             SELECT msg.model FROM trail.messages msg
+             WHERE msg.session_id = substr(r.source_ref, 1, instr(r.source_ref, '#') - 1)
+               AND msg.type = 'assistant' AND msg.model IS NOT NULL AND msg.model != ''
+             GROUP BY msg.model
+             ORDER BY COUNT(*) DESC
+             LIMIT 1
+           )`
+        : '';
       const result = db.exec(
-        `SELECT rf.id, rf.review_id, r.title, r.reviewed_at,
+        `SELECT rf.id, rf.review_id, r.title, r.reviewer, r.source_kind,
+                CASE
+                  WHEN r.source_kind = 'agent' THEN rr.model
+                  ${sessionModelExpr}
+                  ELSE NULL
+                END AS model,
+                CASE
+                  WHEN r.source_kind = 'session' AND instr(r.source_ref, '#') > 1
+                    THEN substr(r.source_ref, 1, instr(r.source_ref, '#') - 1)
+                  ELSE NULL
+                END AS session_id,
+                r.reviewed_at,
                 rf.target_file_path, rf.category, rf.severity, rf.finding_text,
                 rf.addressed_commit_sha, rf.addressed_at
          FROM memory_review_findings rf
          JOIN memory_reviews r ON r.id = rf.review_id
+         LEFT JOIN memory_review_runs rr ON r.source_kind = 'agent' AND rr.id = r.source_ref
          WHERE 1=1 ${where}
          ORDER BY r.reviewed_at DESC
          LIMIT ?`,
@@ -576,6 +615,10 @@ export class MemoryApiHandler {
           id: toStr(r['id']),
           reviewId: toStr(r['review_id']),
           title: toStr(r['title']),
+          reviewer: toStr(r['reviewer']),
+          sourceKind: toStr(r['source_kind']),
+          model: toNullStr(r['model']),
+          sessionId: toNullStr(r['session_id']),
           reviewedAt: toStr(r['reviewed_at']),
           targetFilePath: toNullStr(r['target_file_path']),
           category: toStr(r['category']),

@@ -86,6 +86,7 @@ function buildTestDb(dbPath: string): void {
     target_kind TEXT NOT NULL,
     target_refs_json TEXT NOT NULL DEFAULT '[]',
     title TEXT NOT NULL,
+    reviewer TEXT NOT NULL DEFAULT '',
     reviewed_at TEXT NOT NULL,
     recorded_at TEXT NOT NULL
   ) STRICT`);
@@ -102,6 +103,11 @@ function buildTestDb(dbPath: string): void {
     addressed_commit_sha TEXT,
     addressed_at TEXT,
     recorded_at TEXT NOT NULL
+  ) STRICT`);
+
+  run(`CREATE TABLE memory_review_runs (
+    id TEXT PRIMARY KEY,
+    model TEXT NOT NULL DEFAULT ''
   ) STRICT`);
 
   run(`CREATE TABLE memory_pipeline_runs (
