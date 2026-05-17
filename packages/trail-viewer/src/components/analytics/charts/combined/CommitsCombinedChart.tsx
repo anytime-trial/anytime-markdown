@@ -25,34 +25,36 @@ export function buildCumulativeCommitDataset(args: Readonly<{
   commitLabels: readonly string[];
   commitRows: ReadonlyArray<{ period: string; prefix: string; count: number }>;
   baselinePerCategory: ReadonlyMap<number, number>;
-  baselineRegression: number;
+  baselineFix: number;
   baselineTotal: number;
-  regressionByPeriod: ReadonlyArray<{ period: string; count: number }>;
   categoryKeys: readonly number[];
   getCategory: (prefix: string) => number;
 }>) {
-  const { commitPeriods, commitLabels, commitRows, baselinePerCategory, baselineRegression, baselineTotal, regressionByPeriod, categoryKeys, getCategory } = args;
+  const { commitPeriods, commitLabels, commitRows, baselinePerCategory, baselineFix, baselineTotal, categoryKeys, getCategory } = args;
   const incByPeriodCat = new Map<string, number>();
   const totalByPeriod = new Map<string, number>();
+  const fixByPeriod = new Map<string, number>();
   for (const r of commitRows) {
     const cat = getCategory(r.prefix);
     incByPeriodCat.set(`${r.period}::${cat}`, (incByPeriodCat.get(`${r.period}::${cat}`) ?? 0) + r.count);
     totalByPeriod.set(r.period, (totalByPeriod.get(r.period) ?? 0) + r.count);
+    if (r.prefix === 'fix') {
+      fixByPeriod.set(r.period, (fixByPeriod.get(r.period) ?? 0) + r.count);
+    }
   }
-  const regByPeriod = new Map(regressionByPeriod.map((r) => [r.period, r.count] as const));
   const runningPerCat = new Map<number, number>();
   for (const cat of categoryKeys) runningPerCat.set(cat, baselinePerCategory.get(cat) ?? 0);
-  let runningRegression = baselineRegression;
+  let runningFix = baselineFix;
   let runningTotal = baselineTotal;
   return commitPeriods.map((p, pi) => {
     for (const cat of categoryKeys) {
       runningPerCat.set(cat, (runningPerCat.get(cat) ?? 0) + (incByPeriodCat.get(`${p}::${cat}`) ?? 0));
     }
-    runningRegression += regByPeriod.get(p) ?? 0;
+    runningFix += fixByPeriod.get(p) ?? 0;
     runningTotal += totalByPeriod.get(p) ?? 0;
     const row: Record<string, string | number | null> = { period: commitLabels[pi] };
     for (const cat of categoryKeys) row[`c${cat}`] = runningPerCat.get(cat) ?? 0;
-    row.regressionRate = runningTotal > 0 ? (runningRegression / runningTotal) * 100 : null;
+    row.fixRate = runningTotal > 0 ? (runningFix / runningTotal) * 100 : null;
     return row;
   });
 }
@@ -70,7 +72,7 @@ export function CommitsCombinedChart({
 }>) {
   const { cardSx } = useTrailTheme();
   const { getCategory, getCategoryLabel, getCategoryColorByIndex, categoryKeys } = useCommitCategory();
-  const { commitRows, commitPeriods, commitLabels, commitPrefixes, aiRateRows, commitBaseline, commitRegressionByPeriod } = axisInfo;
+  const { commitRows, commitPeriods, commitLabels, commitPrefixes, aiRateRows, commitBaseline } = axisInfo;
   const isCumulative = commitMetric === 'cumulative';
 
   const baselinePerCategory = useMemo(() => {
@@ -84,6 +86,11 @@ export function CommitsCombinedChart({
     return map;
   }, [commitBaseline, categoryKeys, getCategory]);
 
+  const baselineFix = useMemo(
+    () => commitBaseline?.perPrefix.find((e) => e.prefix === 'fix')?.count ?? 0,
+    [commitBaseline],
+  );
+
   const cumulativeDataset = useMemo(() => {
     if (!isCumulative) return null;
     return buildCumulativeCommitDataset({
@@ -91,13 +98,12 @@ export function CommitsCombinedChart({
       commitLabels,
       commitRows,
       baselinePerCategory,
-      baselineRegression: commitBaseline?.regressionCount ?? 0,
+      baselineFix,
       baselineTotal: commitBaseline?.totalCount ?? 0,
-      regressionByPeriod: commitRegressionByPeriod ?? [],
       categoryKeys,
       getCategory,
     });
-  }, [isCumulative, commitPeriods, commitLabels, commitRows, baselinePerCategory, commitBaseline, commitRegressionByPeriod, categoryKeys, getCategory]);
+  }, [isCumulative, commitPeriods, commitLabels, commitRows, baselinePerCategory, baselineFix, commitBaseline, categoryKeys, getCategory]);
 
   const commitDataset = useMemo(() => {
     if (isCumulative) return [];
@@ -133,10 +139,10 @@ export function CommitsCombinedChart({
       color: getCategoryColorByIndex(cat),
       yAxisId: 'countAxis',
     }));
-    const regressionSeries = {
+    const fixRateSeries = {
       type: 'line' as const,
-      dataKey: 'regressionRate',
-      label: '退行率 (%)',
+      dataKey: 'fixRate',
+      label: 'fix 比率 (%)',
       color: LEAD_TIME_LOC_COLOR,
       yAxisId: 'rateAxis',
       showMark: true,
@@ -148,7 +154,7 @@ export function CommitsCombinedChart({
         <ChartsDataProvider
           dataset={dataset}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          series={[...areaSeries, regressionSeries] as any}
+          series={[...areaSeries, fixRateSeries] as any}
           xAxis={[{ id: 'period', scaleType: 'point', dataKey: 'period' }]}
           yAxis={[
             { id: 'countAxis', valueFormatter: fmtTokens },

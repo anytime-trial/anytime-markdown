@@ -22,53 +22,55 @@ describe('buildCumulativeCommitDataset', () => {
         { period: '2026-05-12', prefix: 'refactor', count: 1 },
       ],
       baselinePerCategory: new Map([[0, 10], [1, 5], [2, 0]]),
-      baselineRegression: 0,
+      baselineFix: 5,
       baselineTotal: 15,
-      regressionByPeriod: [],
     });
-    expect(dataset).toEqual([
-      { period: '05-10', c0: 12, c1: 6, c2: 0, regressionRate: 0 },
-      { period: '05-11', c0: 15, c1: 6, c2: 0, regressionRate: 0 },
-      { period: '05-12', c0: 15, c1: 6, c2: 1, regressionRate: 0 },
-    ]);
+    // baseline fix=5 / total=15 = 33.33%
+    // Period 1: fix=5+1=6, total=15+3=18 -> 33.33%
+    // Period 2: fix=6+0=6, total=18+3=21 -> 28.57%
+    // Period 3: fix=6+0=6, total=21+1=22 -> 27.27%
+    expect(dataset[0]!.c0).toBe(12);
+    expect(dataset[0]!.c1).toBe(6);
+    expect(dataset[0]!.c2).toBe(0);
+    expect(dataset[0]!.fixRate as number).toBeCloseTo(33.333, 2);
+    expect(dataset[2]!.c0).toBe(15);
+    expect(dataset[2]!.c1).toBe(6);
+    expect(dataset[2]!.c2).toBe(1);
+    expect(dataset[2]!.fixRate as number).toBeCloseTo(27.272, 2);
   });
 
-  it('computes cumulative regression rate including baseline', () => {
+  it('computes cumulative fix ratio including baseline', () => {
     const dataset = buildCumulativeCommitDataset({
       ...baseArgs,
       commitRows: [
         { period: '2026-05-10', prefix: 'fix', count: 4 },
-        { period: '2026-05-11', prefix: 'fix', count: 4 },
+        { period: '2026-05-11', prefix: 'feat', count: 4 },
         { period: '2026-05-12', prefix: 'fix', count: 2 },
       ],
       baselinePerCategory: new Map([[0, 0], [1, 100], [2, 0]]),
-      baselineRegression: 10,
+      baselineFix: 100,
       baselineTotal: 100,
-      regressionByPeriod: [
-        { period: '2026-05-10', count: 2 },
-        { period: '2026-05-12', count: 1 },
-      ],
     });
-    // Period 1: regression=10+2=12, total=100+4=104 -> 12/104 = 11.538%
-    // Period 2: regression=12+0=12, total=104+4=108 -> 12/108 = 11.111%
-    // Period 3: regression=12+1=13, total=108+2=110 -> 13/110 = 11.818%
-    expect(dataset[0]!.regressionRate as number).toBeCloseTo(11.538, 2);
-    expect(dataset[1]!.regressionRate as number).toBeCloseTo(11.111, 2);
-    expect(dataset[2]!.regressionRate as number).toBeCloseTo(11.818, 2);
+    // baseline fix=100 / total=100 = 100%
+    // Period 1: fix=100+4=104, total=100+4=104 -> 100%
+    // Period 2: fix=104+0=104, total=104+4=108 -> 96.296%
+    // Period 3: fix=104+2=106, total=108+2=110 -> 96.363%
+    expect(dataset[0]!.fixRate as number).toBeCloseTo(100, 2);
+    expect(dataset[1]!.fixRate as number).toBeCloseTo(96.296, 2);
+    expect(dataset[2]!.fixRate as number).toBeCloseTo(96.363, 2);
   });
 
-  it('returns null regression rate when total is zero', () => {
+  it('returns null fix ratio when total is zero', () => {
     const dataset = buildCumulativeCommitDataset({
       ...baseArgs,
       commitPeriods: ['2026-05-10'],
       commitLabels: ['05-10'],
       commitRows: [],
       baselinePerCategory: new Map([[0, 0], [1, 0], [2, 0]]),
-      baselineRegression: 0,
+      baselineFix: 0,
       baselineTotal: 0,
-      regressionByPeriod: [],
     });
-    expect(dataset[0]!.regressionRate).toBeNull();
+    expect(dataset[0]!.fixRate).toBeNull();
   });
 
   it('handles empty commitRows by emitting baseline-only values', () => {
@@ -78,16 +80,15 @@ describe('buildCumulativeCommitDataset', () => {
       commitLabels: ['05-10'],
       commitRows: [],
       baselinePerCategory: new Map([[0, 7], [1, 3], [2, 1]]),
-      baselineRegression: 1,
+      baselineFix: 3,
       baselineTotal: 11,
-      regressionByPeriod: [],
     });
     expect(dataset[0]).toEqual({
       period: '05-10',
       c0: 7,
       c1: 3,
       c2: 1,
-      regressionRate: (1 / 11) * 100,
+      fixRate: (3 / 11) * 100,
     });
   });
 
@@ -100,9 +101,8 @@ describe('buildCumulativeCommitDataset', () => {
         { period: '2026-05-12', prefix: 'feat', count: 2 },
       ],
       baselinePerCategory: new Map([[0, 0], [1, 0], [2, 0]]),
-      baselineRegression: 0,
+      baselineFix: 0,
       baselineTotal: 0,
-      regressionByPeriod: [],
     });
     expect(dataset.map((r) => r.c0)).toEqual([5, 5, 7]);
   });
