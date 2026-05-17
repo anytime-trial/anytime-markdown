@@ -125,7 +125,7 @@ export function MemoryPanel({ serverUrl, onOpenSessionMessages }: Readonly<Memor
               <DriftPanel rows={driftRows} onResolve={handleResolve} onLoadDetail={handleLoadDetail} />
             )}
             {def.value === 'bug' && (
-              <BugHistoryPanel reader={reader} isDark={isDark} />
+              <BugHistoryPanel reader={reader} isDark={isDark} onOpenSessionMessages={onOpenSessionMessages} />
             )}
             {def.value === 'review' && (
               <ReviewPanel reader={reader} onOpenSessionMessages={onOpenSessionMessages} />

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import FormControl from '@mui/material/FormControl';
+import IconButton from '@mui/material/IconButton';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
@@ -10,7 +11,9 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import { useTrailI18n } from '../../i18n';
 import { useTrailTheme } from '../TrailThemeContext';
@@ -29,9 +32,10 @@ const CATEGORY_COLORS: Record<string, 'default' | 'error' | 'warning' | 'info' |
 export interface BugHistoryPanelProps {
   readonly reader: MemoryReader | null;
   readonly isDark?: boolean;
+  readonly onOpenSessionMessages?: (sessionId: string) => void;
 }
 
-export function BugHistoryPanel({ reader, isDark = true }: Readonly<BugHistoryPanelProps>) {
+export function BugHistoryPanel({ reader, isDark = true, onOpenSessionMessages }: Readonly<BugHistoryPanelProps>) {
   const { t } = useTrailI18n();
   const { colors, scrollbarSx } = useTrailTheme();
   const [recurring, setRecurring] = useState<readonly MemoryRecurringBugRow[]>([]);
@@ -131,6 +135,7 @@ export function BugHistoryPanel({ reader, isDark = true }: Readonly<BugHistoryPa
                   <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Commit</TableCell>
                   <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Summary</TableCell>
                   <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Date</TableCell>
+                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal, p: 0.5 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -160,6 +165,23 @@ export function BugHistoryPanel({ reader, isDark = true }: Readonly<BugHistoryPa
                     </TableCell>
                     <TableCell sx={{ fontSize: '0.7rem', color: colors.textSecondary, whiteSpace: 'nowrap' }}>
                       {row.committedAt.slice(0, 10)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ p: 0.5 }}>
+                      {onOpenSessionMessages && row.sessionId && (
+                        <Tooltip title={t('memory.bug.openInMessages')}>
+                          <IconButton
+                            size="small"
+                            aria-label={t('memory.bug.openInMessages')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenSessionMessages(row.sessionId!);
+                            }}
+                            sx={{ color: colors.textSecondary, '&:hover': { color: colors.iceBlue } }}
+                          >
+                            <OpenInNewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

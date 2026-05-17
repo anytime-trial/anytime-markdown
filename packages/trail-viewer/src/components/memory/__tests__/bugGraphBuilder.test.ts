@@ -9,6 +9,7 @@ function makeRow(overrides: Partial<MemoryBugHistoryRow>): MemoryBugHistoryRow {
     package: 'trail-viewer',
     category: 'regression',
     subjectSummary: 'Something broke',
+    sessionId: null,
     committedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };
