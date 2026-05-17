@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### BREAKING
+
+- Removed the AI Note panel and `anytime-trail.openAiNote*` commands.
+  This functionality moved to the new Anytime Agent extension
+  (`anytime-trial.anytime-agent`) as `anytime-agent.openAiNote*`.
+  Existing notes under `.anytime/notes/` and the `anytime-note` skill
+  are reused without any data migration.
+
+### Refactor
+
+- Moved `installBundledSkills` / `installTemplatedSkill` /
+  `installStaticSkillDir` and their tests from `vscode-trail-extension`
+  to `@anytime-markdown/vscode-common` so the agent extension can
+  share the same skill-installer.
+
 ## [0.20.0] - 2026-05-16
 
 ### Added
