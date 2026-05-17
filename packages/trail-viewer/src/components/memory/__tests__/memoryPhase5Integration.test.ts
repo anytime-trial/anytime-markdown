@@ -3,7 +3,6 @@
  * No DOM rendering — tests the pure logic pipeline: fetch params → filter → display data.
  */
 import { filterDriftRows } from '../driftFilter';
-import { buildBugGraph } from '../bugGraphBuilder';
 import { buildStackedChartData } from '../pipelineChartData';
 import type { MemoryDriftEventRow, MemoryBugHistoryRow, MemoryReviewHistoryRow, MemoryPipelineRunStatsByDayRow } from '../../../data/types';
 
@@ -97,24 +96,6 @@ describe('Phase 5 integration: Drift tab', () => {
 // ---- Bug History tab ----
 
 describe('Phase 5 integration: Bug History tab', () => {
-  it('builds graph from 10 bug records', () => {
-    const g = buildBugGraph(BUG_HISTORY, true);
-    expect(g.order).toBeGreaterThan(0);
-    expect(g.size).toBeGreaterThan(0);
-  });
-
-  it('entity-regression entity appears in graph', () => {
-    const g = buildBugGraph(BUG_HISTORY, true);
-    expect(g.hasNode('entity-regression')).toBe(true);
-  });
-
-  it('regression entity has larger size than single-commit entities', () => {
-    const g = buildBugGraph(BUG_HISTORY, true);
-    const regressionSize = g.getNodeAttribute('entity-regression', 'size') as number;
-    const singleSize = g.getNodeAttribute('entity-other-5', 'size') as number;
-    expect(regressionSize).toBeGreaterThan(singleSize);
-  });
-
   it('trail-viewer package has 5 bugs', () => {
     const tvBugs = BUG_HISTORY.filter((b) => b.package === 'trail-viewer');
     expect(tvBugs).toHaveLength(5);

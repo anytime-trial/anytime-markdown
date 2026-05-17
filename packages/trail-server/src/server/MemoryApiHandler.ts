@@ -51,6 +51,20 @@ export interface BugHistoryRow {
   committedAt: string;
 }
 
+export interface BugCausalInfo {
+  bugEntityId: string;
+  subject: string;
+  category: string;
+  commitSha: string;
+  committedAt: string;
+  affectedFilePaths: string[];
+  rootCauses: { entityId: string; displayName: string }[];
+  siblingBugEntityIds: string[];
+  precedingFindings: { findingEntityId: string; targetFilePath: string | null; severity: string }[];
+  introducedByCommitSha: string | null;
+  introducedByCommitSubject: string | null;
+}
+
 export interface UnaddressedReviewFindingRow {
   id: string;
   reviewId: string;
@@ -504,6 +518,123 @@ export class MemoryApiHandler {
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.getBugHistory] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  async getBugCausalInfo(bugEntityId: string): Promise<BugCausalInfo | null> {
+    const db = this.openReadOnly();
+    if (!db) return null;
+    try {
+      // 1. メインの bug_fix 行
+      const bugResult = db.exec(
+        `SELECT bf.commit_sha, bf.subject_summary, bf.category, bf.committed_at,
+                bf.affected_file_paths_json, bf.introduced_commit_sha
+         FROM memory_bug_fixes bf
+         WHERE bf.bug_entity_id = ?
+         ORDER BY bf.committed_at DESC
+         LIMIT 1`,
+        toBindParams([bugEntityId]),
+      );
+      const bugRow = bugResult[0]?.values?.[0];
+      if (!bugRow) return null;
+      const bugCols = bugResult[0]!.columns;
+      const bug = mapRow<Record<string, unknown>>(bugCols, bugRow);
+      const affectedFilePaths: string[] = (() => {
+        try {
+          const parsed: unknown = JSON.parse(toStr(bug['affected_file_paths_json']) || '[]');
+          return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+        } catch {
+          return [];
+        }
+      })();
+
+      // 2. root causes (caused_by edges → entity display_name)
+      const causedByResult = db.exec(
+        `SELECT e.id, COALESCE(e.display_name, e.canonical_name, '') AS name
+         FROM memory_edges edge
+         JOIN memory_entities e ON e.id = edge.object_entity_id
+         WHERE edge.predicate='caused_by' AND edge.valid_to IS NULL
+           AND edge.subject_entity_id = ?`,
+        toBindParams([bugEntityId]),
+      );
+      const rootCauses = (causedByResult[0]?.values ?? []).map((r) => ({
+        entityId: toStr(r[0]),
+        displayName: toStr(r[1]),
+      }));
+
+      // 3. sibling bugs (同じ root cause を共有する他 bug entity)
+      const siblingResult = rootCauses.length === 0
+        ? null
+        : db.exec(
+            `SELECT DISTINCT edge.subject_entity_id
+             FROM memory_edges edge
+             WHERE edge.predicate='caused_by' AND edge.valid_to IS NULL
+               AND edge.object_entity_id IN (${rootCauses.map(() => '?').join(',')})
+               AND edge.subject_entity_id != ?`,
+            toBindParams([...rootCauses.map((rc) => rc.entityId), bugEntityId]),
+          );
+      const siblingBugEntityIds = (siblingResult?.[0]?.values ?? []).map((r) => toStr(r[0]));
+
+      // 4. preceding findings (precedes edges 逆方向)
+      const precedesResult = db.exec(
+        `SELECT edge.subject_entity_id, rf.target_file_path, rf.severity
+         FROM memory_edges edge
+         LEFT JOIN memory_review_findings rf ON rf.finding_entity_id = edge.subject_entity_id
+         WHERE edge.predicate='precedes' AND edge.valid_to IS NULL
+           AND edge.object_entity_id = ?`,
+        toBindParams([bugEntityId]),
+      );
+      const precedingFindings = (precedesResult[0]?.values ?? []).map((r) => ({
+        findingEntityId: toStr(r[0]),
+        targetFilePath: toNullStr(r[1]),
+        severity: toStr(r[2]) || 'info',
+      }));
+
+      // 5. introduced_by (column or edge - prefer column if non-null)
+      const introducedCommitSha = toNullStr(bug['introduced_commit_sha']);
+      let introducedByCommitSubject: string | null = null;
+      if (introducedCommitSha) {
+        const subResult = db.exec(
+          `SELECT subject_summary FROM memory_bug_fixes WHERE commit_sha=? LIMIT 1`,
+          toBindParams([introducedCommitSha]),
+        );
+        const subRow = subResult[0]?.values?.[0];
+        introducedByCommitSubject = subRow ? toStr(subRow[0]) : null;
+      } else {
+        // fallback to introduced_by edge
+        const edgeResult = db.exec(
+          `SELECT e.canonical_name
+           FROM memory_edges edge
+           JOIN memory_entities e ON e.id = edge.object_entity_id
+           WHERE edge.predicate='introduced_by' AND edge.valid_to IS NULL
+             AND edge.subject_entity_id = ?
+           LIMIT 1`,
+          toBindParams([bugEntityId]),
+        );
+        const introRow = edgeResult[0]?.values?.[0];
+        if (introRow) {
+          // memory_entities.canonical_name for Commit type = commit_sha
+        }
+      }
+
+      return {
+        bugEntityId,
+        subject: toStr(bug['subject_summary']),
+        category: toStr(bug['category']),
+        commitSha: toStr(bug['commit_sha']),
+        committedAt: toStr(bug['committed_at']),
+        affectedFilePaths,
+        rootCauses,
+        siblingBugEntityIds,
+        precedingFindings,
+        introducedByCommitSha: introducedCommitSha,
+        introducedByCommitSubject,
+      };
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.getBugCausalInfo] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return null;
     } finally {
       this.close(db);
     }

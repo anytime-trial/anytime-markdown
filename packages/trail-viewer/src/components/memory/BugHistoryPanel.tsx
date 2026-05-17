@@ -17,7 +17,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import { useTrailI18n } from '../../i18n';
 import { useTrailTheme } from '../TrailThemeContext';
-import { BugCausedByGraph } from './BugCausedByGraph';
+import { BugCausalPanel } from './BugCausalPanel';
 import type { MemoryReader } from '../../data/readers/MemoryReader';
 import type { MemoryBugHistoryRow, MemoryRecurringBugRow } from '../../data/types';
 
@@ -34,6 +34,7 @@ export interface BugHistoryPanelProps {
   readonly isDark?: boolean;
   readonly onOpenSessionMessages?: (sessionId: string) => void;
   readonly onOpenPrecedingReviews?: (findingIds: readonly string[]) => void;
+  readonly onOpenSiblingBugs?: (bugEntityIds: readonly string[]) => void;
   readonly pendingBugFilter?: { bugEntityIds: readonly string[] } | null;
   readonly onConsumePendingBugFilter?: () => void;
 }
@@ -43,6 +44,7 @@ export function BugHistoryPanel({
   isDark = true,
   onOpenSessionMessages,
   onOpenPrecedingReviews,
+  onOpenSiblingBugs,
   pendingBugFilter,
   onConsumePendingBugFilter,
 }: Readonly<BugHistoryPanelProps>) {
@@ -52,7 +54,7 @@ export function BugHistoryPanel({
   const [history, setHistory] = useState<readonly MemoryBugHistoryRow[]>([]);
   const [pkgFilter, setPkgFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [selectedBugs, setSelectedBugs] = useState<readonly MemoryBugHistoryRow[]>([]);
+  const [selectedBugEntityId, setSelectedBugEntityId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!reader) return;
@@ -75,9 +77,8 @@ export function BugHistoryPanel({
   });
 
   const handleRowClick = useCallback((row: MemoryBugHistoryRow) => {
-    const bugs = history.filter((r) => r.bugEntityId === row.bugEntityId);
-    setSelectedBugs(bugs);
-  }, [history]);
+    setSelectedBugEntityId((prev) => (prev === row.bugEntityId ? null : row.bugEntityId));
+  }, []);
 
   if (!reader) {
     return (
@@ -225,7 +226,12 @@ export function BugHistoryPanel({
             {t('memory.bug.causedBy.title')}
           </Typography>
           <Box sx={{ flex: 1 }}>
-            <BugCausedByGraph bugs={selectedBugs} isDark={isDark} />
+            <BugCausalPanel
+              reader={reader}
+              bugEntityId={selectedBugEntityId}
+              onOpenPrecedingReviews={onOpenPrecedingReviews}
+              onOpenSiblingBugs={onOpenSiblingBugs}
+            />
           </Box>
         </Box>
       </Box>

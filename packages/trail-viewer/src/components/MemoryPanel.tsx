@@ -151,6 +151,7 @@ export function MemoryPanel({ serverUrl, onOpenSessionMessages }: Readonly<Memor
                 isDark={isDark}
                 onOpenSessionMessages={onOpenSessionMessages}
                 onOpenPrecedingReviews={handleOpenPrecedingReviews}
+                onOpenSiblingBugs={handleOpenPrecedingBugs}
                 pendingBugFilter={pendingBugFilter}
               />
             )}

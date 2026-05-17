@@ -112,6 +112,24 @@ export interface MemoryBugHistoryRow {
   readonly precededByFindingIds: readonly string[];
 }
 
+export interface MemoryBugCausalInfo {
+  readonly bugEntityId: string;
+  readonly subject: string;
+  readonly category: string;
+  readonly commitSha: string;
+  readonly committedAt: string;
+  readonly affectedFilePaths: readonly string[];
+  readonly rootCauses: readonly { readonly entityId: string; readonly displayName: string }[];
+  readonly siblingBugEntityIds: readonly string[];
+  readonly precedingFindings: readonly {
+    readonly findingEntityId: string;
+    readonly targetFilePath: string | null;
+    readonly severity: string;
+  }[];
+  readonly introducedByCommitSha: string | null;
+  readonly introducedByCommitSubject: string | null;
+}
+
 export interface MemoryUnaddressedReviewFindingRow {
   readonly id: string;
   readonly reviewId: string;

@@ -1,4 +1,5 @@
 import type {
+  MemoryBugCausalInfo,
   MemoryBugHistoryRow,
   MemoryDriftEventDetail,
   MemoryDriftEventRow,
@@ -93,6 +94,15 @@ export class MemoryReader {
     if (params.category) q.set('category', params.category);
     if (params.limit !== undefined) q.set('limit', String(params.limit));
     return this.fetchJson<MemoryBugHistoryRow[]>(`/api/memory/bugs/history?${q}`);
+  }
+
+  async getBugCausalInfo(bugEntityId: string): Promise<MemoryBugCausalInfo | null> {
+    const q = new URLSearchParams({ bugEntityId });
+    try {
+      return await this.fetchJson<MemoryBugCausalInfo | null>(`/api/memory/bugs/causal?${q}`);
+    } catch {
+      return null;
+    }
   }
 
   async listUnaddressedReviewFindings(params: {
