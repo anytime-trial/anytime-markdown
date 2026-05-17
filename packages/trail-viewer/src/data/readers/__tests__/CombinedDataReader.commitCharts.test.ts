@@ -8,7 +8,7 @@ type QueryResult = {
 function chain(resolveResult: (selectArg: string) => QueryResult) {
   let selectArg = '';
   const obj: Record<string, unknown> = {};
-  for (const method of ['eq', 'gte', 'in', 'lte', 'not', 'order', 'range', 'select']) {
+  for (const method of ['eq', 'gte', 'gt', 'in', 'lt', 'lte', 'not', 'order', 'range', 'select']) {
     obj[method] = (...args: unknown[]) => {
       if (method === 'select') selectArg = String(args[0] ?? '');
       return obj;
@@ -93,6 +93,7 @@ describe('CombinedDataReader.getCombinedData commit chart stats', () => {
       prefix: 'fix',
       count: 1,
       linesAdded: 12,
+      linesDeleted: 0,
     }]);
     expect(data?.repoStats).toEqual([{
       period: '2026-05-01',
