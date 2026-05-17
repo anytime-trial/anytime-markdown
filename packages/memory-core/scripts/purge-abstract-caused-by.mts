@@ -21,7 +21,11 @@ import * as fs from 'node:fs';
 import { openMemoryCoreDb } from '../src/db/connection';
 
 const ABSTRACT_OBJECT_TYPES = ['Concept', 'Decision', 'Rule', 'Person', 'Project', 'Question', 'Task', 'Skill'];
-const REASON = 'abstract_root_cause_purge';
+// memory_edge_invalidations.reason は CHECK 制約で
+// ('rule_exclusive','llm_contradiction','spec_updated','code_changed','manual') に限定。
+// この一回限り migration は手動運用なので 'manual'。具体的な理由は detail に記録する。
+const REASON = 'manual';
+const DETAIL = 'abstract_root_cause_purge: caused_by object type in (Concept/Decision/Rule/Person/Project/Question/Task/Skill) — see fix/abstract-root-cause-extraction';
 
 const trailHome = process.argv[2];
 if (!trailHome) {
@@ -67,23 +71,31 @@ if (targetIds.length === 0) {
 
 const recordedAt = new Date().toISOString();
 
+// 一括 BEGIN/COMMIT で UPDATE + INSERT のペアが必ず両方成功するか両方失敗するかを保証する。
+// (旧版は UPDATE 成功後に INSERT が CHECK 違反で fail し、edge は無効化したのに
+//  invalidation 記録が無い不整合状態を作っていた。)
+db.run('BEGIN');
 let invalidated = 0;
-for (const edgeId of targetIds) {
-  try {
+try {
+  for (const edgeId of targetIds) {
     db.run(`UPDATE memory_edges SET valid_to = ? WHERE id = ?`, [recordedAt, edgeId]);
     const invalidationId = createHash('sha1')
-      .update(`${edgeId}:${recordedAt}:${REASON}`)
+      .update(`${edgeId}:${recordedAt}:${DETAIL}`)
       .digest('hex')
       .slice(0, 16);
     db.run(
       `INSERT INTO memory_edge_invalidations (id, edge_id, invalidated_at, reason, superseding_edge_id, detail)
-       VALUES (?, ?, ?, ?, NULL, '')`,
-      [invalidationId, edgeId, recordedAt, REASON],
+       VALUES (?, ?, ?, ?, NULL, ?)`,
+      [invalidationId, edgeId, recordedAt, REASON, DETAIL],
     );
     invalidated++;
-  } catch (err) {
-    console.error(`[purge] failed for edge_id=${edgeId}: ${String(err)}`);
   }
+  db.run('COMMIT');
+} catch (err) {
+  db.run('ROLLBACK');
+  console.error(`[purge] aborted, rolled back. error: ${String(err)}`);
+  close();
+  process.exit(1);
 }
 
 const afterRows = db.exec(
