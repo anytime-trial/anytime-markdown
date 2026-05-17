@@ -125,6 +125,24 @@ export interface CombinedQualityRate {
   readonly testFailRate: number | null;  // fails / runs × 100 (0-100 %)
 }
 
+export interface CommitPrefixBaseline {
+  readonly prefix: string;
+  readonly count: number;
+  readonly linesAdded: number;
+  readonly linesDeleted: number;
+}
+
+export interface CommitBaselineSummary {
+  readonly perPrefix: readonly CommitPrefixBaseline[];
+  readonly totalCount: number;
+  readonly regressionCount: number;
+}
+
+export interface CombinedCommitRegression {
+  readonly period: string;
+  readonly count: number;
+}
+
 export interface CombinedData {
   readonly toolCounts: readonly CombinedToolCount[];
   readonly errorRate: readonly CombinedError[];
@@ -135,6 +153,8 @@ export interface CombinedData {
   readonly aiFirstTryRate: readonly CombinedAiFirstTryRate[];
   readonly repoStats: readonly CombinedRepository[];
   readonly qualityRates: readonly CombinedQualityRate[];
+  readonly commitBaseline?: CommitBaselineSummary;
+  readonly commitRegressionByPeriod?: readonly CombinedCommitRegression[];
 }
 
 export type CombinedPeriodMode = 'day' | 'week';

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { BarPlot } from '@mui/x-charts/BarChart';
-import { LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
+import { AreaPlot, LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
 import { ChartsDataProvider } from '@mui/x-charts/ChartsDataProvider';
 import { ChartsSurface } from '@mui/x-charts/ChartsSurface';
 import { ChartsWrapper } from '@mui/x-charts/ChartsWrapper';
@@ -20,6 +20,45 @@ import type { CommitMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';
 import { makeAxisClick } from './axisInfo';
 
+export function buildCumulativeCommitDataset(args: Readonly<{
+  commitPeriods: readonly string[];
+  commitLabels: readonly string[];
+  commitRows: ReadonlyArray<{ period: string; prefix: string; count: number }>;
+  baselinePerCategory: ReadonlyMap<number, number>;
+  baselineFix: number;
+  baselineTotal: number;
+  categoryKeys: readonly number[];
+  getCategory: (prefix: string) => number;
+}>) {
+  const { commitPeriods, commitLabels, commitRows, baselinePerCategory, baselineFix, baselineTotal, categoryKeys, getCategory } = args;
+  const incByPeriodCat = new Map<string, number>();
+  const totalByPeriod = new Map<string, number>();
+  const fixByPeriod = new Map<string, number>();
+  for (const r of commitRows) {
+    const cat = getCategory(r.prefix);
+    incByPeriodCat.set(`${r.period}::${cat}`, (incByPeriodCat.get(`${r.period}::${cat}`) ?? 0) + r.count);
+    totalByPeriod.set(r.period, (totalByPeriod.get(r.period) ?? 0) + r.count);
+    if (r.prefix === 'fix') {
+      fixByPeriod.set(r.period, (fixByPeriod.get(r.period) ?? 0) + r.count);
+    }
+  }
+  const runningPerCat = new Map<number, number>();
+  for (const cat of categoryKeys) runningPerCat.set(cat, baselinePerCategory.get(cat) ?? 0);
+  let runningFix = baselineFix;
+  let runningTotal = baselineTotal;
+  return commitPeriods.map((p, pi) => {
+    for (const cat of categoryKeys) {
+      runningPerCat.set(cat, (runningPerCat.get(cat) ?? 0) + (incByPeriodCat.get(`${p}::${cat}`) ?? 0));
+    }
+    runningFix += fixByPeriod.get(p) ?? 0;
+    runningTotal += totalByPeriod.get(p) ?? 0;
+    const row: Record<string, string | number | null> = { period: commitLabels[pi] };
+    for (const cat of categoryKeys) row[`c${cat}`] = runningPerCat.get(cat) ?? 0;
+    row.fixRate = runningTotal > 0 ? (runningFix / runningTotal) * 100 : null;
+    return row;
+  });
+}
+
 export function CommitsCombinedChart({
   axisInfo,
   commitMetric,
@@ -33,9 +72,55 @@ export function CommitsCombinedChart({
 }>) {
   const { cardSx } = useTrailTheme();
   const { getCategory, getCategoryLabel, getCategoryColorByIndex, categoryKeys } = useCommitCategory();
-  const { commitRows, commitPeriods, commitLabels, commitPrefixes, aiRateRows } = axisInfo;
+  const { commitRows, commitRowsPreWindow, commitPeriods, commitLabels, commitPrefixes, aiRateRows, commitBaseline } = axisInfo;
+  const isCumulative = commitMetric === 'cumulative';
+
+  // baseline = backend baseline (< 30日前 固定) + fetched window 内の表示 cutoff 以前 (commitRowsPreWindow)
+  // これにより 7d 表示でも 30〜7日前の commit が累積に含まれる
+  const baselinePerCategory = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const cat of categoryKeys) map.set(cat, 0);
+    if (commitBaseline) {
+      for (const e of commitBaseline.perPrefix) {
+        const cat = getCategory(e.prefix);
+        map.set(cat, (map.get(cat) ?? 0) + e.count);
+      }
+    }
+    for (const r of commitRowsPreWindow) {
+      const cat = getCategory(r.prefix);
+      map.set(cat, (map.get(cat) ?? 0) + r.count);
+    }
+    return map;
+  }, [commitBaseline, commitRowsPreWindow, categoryKeys, getCategory]);
+
+  const baselineFix = useMemo(() => {
+    const fromBackend = commitBaseline?.perPrefix.find((e) => e.prefix === 'fix')?.count ?? 0;
+    const fromPreWindow = commitRowsPreWindow.reduce((acc, r) => acc + (r.prefix === 'fix' ? r.count : 0), 0);
+    return fromBackend + fromPreWindow;
+  }, [commitBaseline, commitRowsPreWindow]);
+
+  const baselineTotal = useMemo(() => {
+    const fromBackend = commitBaseline?.totalCount ?? 0;
+    const fromPreWindow = commitRowsPreWindow.reduce((acc, r) => acc + r.count, 0);
+    return fromBackend + fromPreWindow;
+  }, [commitBaseline, commitRowsPreWindow]);
+
+  const cumulativeDataset = useMemo(() => {
+    if (!isCumulative) return null;
+    return buildCumulativeCommitDataset({
+      commitPeriods,
+      commitLabels,
+      commitRows,
+      baselinePerCategory,
+      baselineFix,
+      baselineTotal,
+      categoryKeys,
+      getCategory,
+    });
+  }, [isCumulative, commitPeriods, commitLabels, commitRows, baselinePerCategory, baselineFix, baselineTotal, categoryKeys, getCategory]);
 
   const commitDataset = useMemo(() => {
+    if (isCumulative) return [];
     const valMap = new Map<string, number>();
     for (const r of commitRows) {
       const cat = getCategory(r.prefix);
@@ -50,10 +135,66 @@ export function CommitsCombinedChart({
       }
       return entry;
     });
-  }, [commitRows, commitPeriods, commitLabels, commitMetric, getCategory, categoryKeys]);
+  }, [isCumulative, commitRows, commitPeriods, commitLabels, commitMetric, getCategory, categoryKeys]);
 
-  if (commitPrefixes.length === 0) {
+  if (commitPrefixes.length === 0 && (!isCumulative || (commitBaseline?.totalCount ?? 0) === 0)) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
+  }
+
+  if (isCumulative) {
+    const dataset = cumulativeDataset ?? [];
+    const areaSeries = categoryKeys.map((cat) => ({
+      type: 'line' as const,
+      dataKey: `c${cat}`,
+      label: getCategoryLabel(cat),
+      stack: 'cumulative',
+      area: true,
+      showMark: false,
+      color: getCategoryColorByIndex(cat),
+      yAxisId: 'countAxis',
+    }));
+    const fixRateSeries = {
+      type: 'line' as const,
+      dataKey: 'fixRate',
+      label: 'fix 比率 (%)',
+      color: LEAD_TIME_LOC_COLOR,
+      yAxisId: 'rateAxis',
+      showMark: true,
+      connectNulls: true,
+      valueFormatter: (v: number | null) => v == null ? '-' : `${v.toFixed(2)}%`,
+    };
+    return (
+      <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
+        <ChartsDataProvider
+          dataset={dataset}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          series={[...areaSeries, fixRateSeries] as any}
+          xAxis={[{ id: 'period', scaleType: 'point', dataKey: 'period' }]}
+          yAxis={[
+            { id: 'countAxis', valueFormatter: fmtTokens },
+            { id: 'rateAxis', min: 0, max: 100, position: 'right' as const, valueFormatter: (v: number) => `${v}%` },
+          ]}
+          height={260}
+          margin={{ left: 16, right: 48, top: 8, bottom: 40 }}
+          onAxisClick={makeAxisClick(commitPeriods, canDrill, onDateClick)}
+        >
+          <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
+            <ChartsLegend />
+            <ChartsSurface>
+              <ChartsGrid horizontal />
+              <AreaPlot />
+              <LinePlot />
+              <MarkPlot />
+              <ChartsAxisHighlight x="line" />
+              <ChartsXAxis axisId="period" />
+              <ChartsYAxis axisId="countAxis" />
+              <ChartsYAxis axisId="rateAxis" />
+            </ChartsSurface>
+            <ChartsTooltip />
+          </ChartsWrapper>
+        </ChartsDataProvider>
+      </Paper>
+    );
   }
 
   const showRate = commitMetric === 'count';

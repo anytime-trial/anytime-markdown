@@ -59,17 +59,13 @@ This document introduces the **currently available features** by functional area
 **How to use:** Set the path to `coverage-final.json` in `anytimeTrail.coverage.path`.
 
 
-## 4. Visual Communication (Note Panel)
+## 4. Visual Communication (moved to the Anytime Agent extension)
 
-**Vision:** Establish a two-way channel between AI and human, exchanging visual context, handoff materials, and instructions that text alone cannot convey.
-
-**What you can do today:**
-
-- Manage multi-page notes and hand UI screenshots, design mocks, and diagrams directly to Claude Code
-- Use as handoff material across sessions
-- Have the AI read images and execute the task via the `/anytime-note` skill
-
-**How to use:** Click `+` in the **Note** sidebar → open the note in Anytime Markdown and paste an image → instruct Claude Code with `/anytime-note ...`.
+The Note panel and the `/anytime-note` integration moved to the
+**Anytime Agent** VS Code extension (`anytime-trial.anytime-agent`).
+Install it from the marketplace to keep using note-based workflows.
+Existing notes under `.anytime/notes/` and the `.claude/skills/anytime-note/`
+skill are reused as-is.
 
 
 ## 5. Claude Code Integration (Skills & Hooks)
@@ -85,12 +81,6 @@ Without any manual setup, session info, edit state, commit history, and token co
 | `PostToolUse` | `commit-tracker.sh` | Detects git commits after Bash tool execution and records them in the Trail DB |
 | `Stop` | `trail-token-budget.sh` | Aggregates token consumption at session end for budget monitoring |
 | `UserPromptSubmit` | `session-guard.sh` | Warns when session duration or turn count exceeds the threshold |
-
-**Auto-generated skills (`~/.claude/skills/`):**
-
-| Skill | Purpose |
-| --- | --- |
-| `/anytime-note` | Reads notes from the Note panel (`anytime-note-N.md`) and executes the requested task. Auto-generated on first note creation |
 
 > Hook scripts are placed in `~/.claude/scripts/`.\
 > Registration is skipped when Claude Code is not installed (i.e., `~/.claude/` is absent).

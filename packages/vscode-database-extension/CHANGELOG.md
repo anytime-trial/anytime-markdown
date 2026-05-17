@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-17
+
+### Added
+
+- Bundled MIT `LICENSE` file in the VSIX. `package.json` already declared `"license": "MIT"`, but the file itself was missing from the published extension
+
+### Database Core (database-core / database-viewer)
+
+- Version bump only (no source changes)
+
 ## [0.2.0] - 2026-05-16
 
 ### Added

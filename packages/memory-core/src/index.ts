@@ -4,6 +4,8 @@ export { openMemoryCoreDb } from './db/connection';
 export type { MemoryCoreDb, OpenMemoryCoreDbOptions } from './db/connection';
 export { getMemoryCoreDbPath, getTrailHome } from './db/paths';
 export { attachTrailDbReadOnly, attachTrailDbFromHandle } from './db/attach';
+export { backupMemoryCoreDbFile } from './db/backup';
+export type { BackupMemoryCoreDbOptions } from './db/backup';
 export { BetterSqlite3MemoryDb } from './db/connection/BetterSqlite3MemoryDb';
 export type { BetterSqlite3MemoryDbOptions } from './db/connection/BetterSqlite3MemoryDb';
 export type {
@@ -18,8 +20,16 @@ export type { MemoryLogger } from './logger';
 export { noopLogger } from './logger';
 export { runConversationIncremental } from './pipeline/runConversationIncremental';
 export type { IncrementalResult } from './pipeline/runConversationIncremental';
-export { runConversationBackfill } from './pipeline/runConversationBackfill';
+export {
+  runConversationBackfill,
+  DEFAULT_CONVERSATION_BACKFILL_DAYS,
+} from './pipeline/runConversationBackfill';
 export type { BackfillResult } from './pipeline/runConversationBackfill';
+export { detectBackfillWindowExpansion } from './pipeline/detectBackfillWindowExpansion';
+export type {
+  DetectBackfillWindowExpansionInput,
+  DetectBackfillWindowExpansionResult,
+} from './pipeline/detectBackfillWindowExpansion';
 export { runConversationFailedItemsRetry } from './pipeline/runConversationFailedItemsRetry';
 export type { FailedItemsRetryResult } from './pipeline/runConversationFailedItemsRetry';
 export { runPipelineWatchdog } from './pipeline/pipelineWatchdog';

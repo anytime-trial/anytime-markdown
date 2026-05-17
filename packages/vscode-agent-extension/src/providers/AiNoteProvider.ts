@@ -27,7 +27,7 @@ export class AiNoteItem extends vscode.TreeItem {
 		this.iconPath = new vscode.ThemeIcon('note');
 		this.contextValue = 'noteItem';
 		this.command = {
-			command: 'anytime-trail.openAiNotePage',
+			command: 'anytime-agent.openAiNotePage',
 			title: 'Open Note',
 			arguments: [filePath],
 		};

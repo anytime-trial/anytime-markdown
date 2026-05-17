@@ -18,8 +18,7 @@ if (typeof window !== "undefined") {
 
 import { Box, CircularProgress, useMediaQuery, useTheme } from "@mui/material";
 import { useEditor } from "@tiptap/react";
-import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { EditorDialogsSection } from "./components/EditorDialogsSection";
 import { EditorErrorBoundary } from "./components/EditorErrorBoundary";
@@ -40,9 +39,8 @@ import { PrintStyles } from "./styles/printStyles";
 import { EditorSettingsContext,useEditorSettings } from "./useEditorSettings";
 import { useMarkdownEditor } from "./useMarkdownEditor";
 
-const InlineMergeView = dynamic(
-  () => import("./components/InlineMergeView").then((m) => m.InlineMergeView),
-  { loading: () => <CircularProgress size={32} sx={{ m: "auto" }} /> },
+const InlineMergeView = lazy(() =>
+  import("./components/InlineMergeView").then((m) => ({ default: m.InlineMergeView })),
 );
 
 import type { Editor } from "@tiptap/react";

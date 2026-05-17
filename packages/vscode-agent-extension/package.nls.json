@@ -14,5 +14,14 @@
   "command.mapping.copySessionId": "Copy Session ID",
   "command.mapping.deleteStatusFile": "Delete Status File",
   "command.startOllama": "Start Ollama",
-  "config.claudeStatus.directory": "Directory where `claude-code-status.json` is stored. Absolute path or relative to workspace root. Defaults to `.anytime/trail/agent-status`."
+  "config.claudeStatus.directory": "Directory where `claude-code-status.json` is stored. Absolute path or relative to workspace root. Defaults to `.anytime/trail/agent-status`.",
+  "view.aiNote": "AI Note",
+  "viewsWelcome.aiNote": "[$(edit) Create AI Note](command:anytime-agent.openAiNote)\nShare visual information (images, tables) with AI tools.",
+  "command.openAiNote": "Open AI Note",
+  "command.openAiNoteSkill": "Open AI Note Skill",
+  "command.addAiNotePage": "Add AI Note Page",
+  "command.deleteAiNotePage": "Delete AI Note Page",
+  "command.openAiNotePage": "Open AI Note Page",
+  "command.clearAiNote": "Clear AI Note",
+  "command.copyAiNotePath": "Copy AI Note Path"
 }

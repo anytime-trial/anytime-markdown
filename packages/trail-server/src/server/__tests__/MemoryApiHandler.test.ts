@@ -74,6 +74,8 @@ function buildTestDb(dbPath: string): void {
     subject_summary TEXT NOT NULL,
     body_excerpt TEXT NOT NULL DEFAULT '',
     affected_file_paths_json TEXT NOT NULL DEFAULT '[]',
+    related_session_id TEXT,
+    introduced_commit_sha TEXT,
     committed_at TEXT NOT NULL,
     recorded_at TEXT NOT NULL
   ) STRICT`);
@@ -86,6 +88,7 @@ function buildTestDb(dbPath: string): void {
     target_kind TEXT NOT NULL,
     target_refs_json TEXT NOT NULL DEFAULT '[]',
     title TEXT NOT NULL,
+    reviewer TEXT NOT NULL DEFAULT '',
     reviewed_at TEXT NOT NULL,
     recorded_at TEXT NOT NULL
   ) STRICT`);
@@ -104,6 +107,11 @@ function buildTestDb(dbPath: string): void {
     recorded_at TEXT NOT NULL
   ) STRICT`);
 
+  run(`CREATE TABLE memory_review_runs (
+    id TEXT PRIMARY KEY,
+    model TEXT NOT NULL DEFAULT ''
+  ) STRICT`);
+
   run(`CREATE TABLE memory_pipeline_runs (
     id TEXT PRIMARY KEY,
     scope TEXT NOT NULL,
@@ -111,6 +119,7 @@ function buildTestDb(dbPath: string): void {
     finished_at TEXT,
     status TEXT NOT NULL,
     items_processed INTEGER NOT NULL DEFAULT 0,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
     error_detail TEXT NOT NULL DEFAULT ''
   ) STRICT`);
 
@@ -198,11 +207,29 @@ function buildTestDb(dbPath: string): void {
     ['rf-2', 'rev-1', 'ent-1', 1, 'src/bar.ts', 'perf', 'info', 'Slow loop', TS, TS],
   );
 
-  // Seed: pipeline runs
+  // Seed: pipeline runs (multi-day, multi-scope for stats aggregation)
   run(
-    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    ['run-1', 'drift', TS, TS2, 'success', 5],
+    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ['run-1', 'drift', TS, TS2, 'success', 5, 3_600_000],
+  );
+  // Same day, same scope, different status (partial) — worst_status should remain 'partial' (>success)
+  run(
+    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ['run-2', 'drift', '2026-05-09T12:00:00.000Z', '2026-05-09T12:30:00.000Z', 'partial', 3, 1_800_000],
+  );
+  // Same day, different scope (review) — separate aggregation row
+  run(
+    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ['run-3', 'review', '2026-05-09T13:00:00.000Z', '2026-05-09T13:15:00.000Z', 'success', 10, 900_000],
+  );
+  // Different day, drift scope with error — worst status for that day
+  run(
+    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ['run-4', 'drift', '2026-05-10T09:00:00.000Z', '2026-05-10T09:45:00.000Z', 'error', 0, 2_700_000],
   );
 
   // Seed: failed items
@@ -339,13 +366,42 @@ describe('MemoryApiHandler', () => {
     });
   });
 
-  describe('listPipelineRuns', () => {
-    it('returns pipeline runs', async () => {
-      const rows = await handler.listPipelineRuns({});
-      expect(rows.length).toBe(1);
-      expect(rows[0]?.id).toBe('run-1');
-      expect(rows[0]?.status).toBe('success');
-      expect(rows[0]?.itemsProcessed).toBe(5);
+  describe('listPipelineRunStatsByDay', () => {
+    it('groups runs by (day, scope) and sums duration', async () => {
+      const rows = await handler.listPipelineRunStatsByDay({});
+      const byKey = new Map(rows.map((r) => [`${r.day}|${r.scope}`, r]));
+
+      // 2026-05-09 / drift: run-1 (3,600,000ms success) + run-2 (1,800,000ms partial)
+      const drift0509 = byKey.get('2026-05-09|drift');
+      expect(drift0509).toBeDefined();
+      expect(drift0509?.runs).toBe(2);
+      expect(drift0509?.durationSec).toBe(5400);
+      expect(drift0509?.itemsProcessed).toBe(8);
+      expect(drift0509?.worstStatus).toBe('partial');
+
+      // 2026-05-09 / review: run-3 only
+      const review0509 = byKey.get('2026-05-09|review');
+      expect(review0509?.runs).toBe(1);
+      expect(review0509?.worstStatus).toBe('success');
+
+      // 2026-05-10 / drift: run-4 error
+      const drift0510 = byKey.get('2026-05-10|drift');
+      expect(drift0510?.runs).toBe(1);
+      expect(drift0510?.worstStatus).toBe('error');
+    });
+
+    it('filters by since (started_at >= since)', async () => {
+      const rows = await handler.listPipelineRunStatsByDay({ since: '2026-05-10T00:00:00.000Z' });
+      expect(rows.map((r) => r.day)).toEqual(['2026-05-10']);
+    });
+
+    it('returns rows ordered by day desc, scope asc', async () => {
+      const rows = await handler.listPipelineRunStatsByDay({});
+      expect(rows.map((r) => `${r.day}|${r.scope}`)).toEqual([
+        '2026-05-10|drift',
+        '2026-05-09|drift',
+        '2026-05-09|review',
+      ]);
     });
   });
 

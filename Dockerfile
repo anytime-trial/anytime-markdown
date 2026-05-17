@@ -20,7 +20,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git openssh-client sudo tmux sqlite3 && \
-    echo "node ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    groupmod -n user node && \
+    usermod -l user -d /home/user -m node && \
+    echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
     rm -rf /var/lib/apt/lists/* && \
     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg && \
@@ -42,23 +44,23 @@ RUN npm install -g @google/gemini-cli
 # Playwright のシステム依存パッケージのインストール（root で実行）
 RUN npx playwright install-deps
 
-ENV PATH="/home/node/.local/bin:${PATH}"
+ENV PATH="/home/user/.local/bin:${PATH}"
 
-# nodeユーザーのホームディレクトリを準備
-RUN mkdir -p /home/node/.ssh /home/node/.claude && \
-    chown -R node:node /home/node
+# user ユーザーのホームディレクトリを準備
+RUN mkdir -p /home/user/.ssh /home/user/.claude && \
+    chown -R user:user /home/user
 
-# 作業ディレクトリの権限をnodeユーザーに変更
-RUN chown -R node:node /anytime-markdown
-RUN chown -R node:node /anytime-markdown-docs
-RUN chown -R node:node /prompt
+# 作業ディレクトリの権限を user ユーザーに変更
+RUN chown -R user:user /anytime-markdown
+RUN chown -R user:user /anytime-markdown-docs
+RUN chown -R user:user /prompt
 
-USER node
+USER user
 
-# Playwright ブラウザのインストール（node ユーザーで実行）
+# Playwright ブラウザのインストール（user ユーザーで実行）
 RUN npx playwright install
 
-COPY --chown=node:node . .
+COPY --chown=user:user . .
 
 ENTRYPOINT ["sleep", "infinity"]
 

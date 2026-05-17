@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import FormControl from '@mui/material/FormControl';
+import IconButton from '@mui/material/IconButton';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
@@ -10,11 +11,13 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import { useTrailI18n } from '../../i18n';
 import { useTrailTheme } from '../TrailThemeContext';
-import { BugCausedByGraph } from './BugCausedByGraph';
+import { BugCausalPanel } from './BugCausalPanel';
 import type { MemoryReader } from '../../data/readers/MemoryReader';
 import type { MemoryBugHistoryRow, MemoryRecurringBugRow } from '../../data/types';
 
@@ -29,16 +32,29 @@ const CATEGORY_COLORS: Record<string, 'default' | 'error' | 'warning' | 'info' |
 export interface BugHistoryPanelProps {
   readonly reader: MemoryReader | null;
   readonly isDark?: boolean;
+  readonly onOpenSessionMessages?: (sessionId: string) => void;
+  readonly onOpenPrecedingReviews?: (findingIds: readonly string[]) => void;
+  readonly onOpenSiblingBugs?: (bugEntityIds: readonly string[]) => void;
+  readonly pendingBugFilter?: { bugEntityIds: readonly string[] } | null;
+  readonly onConsumePendingBugFilter?: () => void;
 }
 
-export function BugHistoryPanel({ reader, isDark = true }: Readonly<BugHistoryPanelProps>) {
+export function BugHistoryPanel({
+  reader,
+  isDark = true,
+  onOpenSessionMessages,
+  onOpenPrecedingReviews,
+  onOpenSiblingBugs,
+  pendingBugFilter,
+  onConsumePendingBugFilter,
+}: Readonly<BugHistoryPanelProps>) {
   const { t } = useTrailI18n();
   const { colors, scrollbarSx } = useTrailTheme();
   const [recurring, setRecurring] = useState<readonly MemoryRecurringBugRow[]>([]);
   const [history, setHistory] = useState<readonly MemoryBugHistoryRow[]>([]);
   const [pkgFilter, setPkgFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [selectedBugs, setSelectedBugs] = useState<readonly MemoryBugHistoryRow[]>([]);
+  const [selectedBugEntityId, setSelectedBugEntityId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!reader) return;
@@ -52,16 +68,17 @@ export function BugHistoryPanel({ reader, isDark = true }: Readonly<BugHistoryPa
   const packages = [...new Set(history.map((r) => r.package))].sort();
   const categories = [...new Set(history.map((r) => r.category))].sort();
 
+  const pendingIds = pendingBugFilter?.bugEntityIds ?? null;
   const filteredHistory = history.filter((r) => {
+    if (pendingIds && !pendingIds.includes(r.bugEntityId)) return false;
     if (pkgFilter && r.package !== pkgFilter) return false;
     if (categoryFilter && r.category !== categoryFilter) return false;
     return true;
   });
 
   const handleRowClick = useCallback((row: MemoryBugHistoryRow) => {
-    const bugs = history.filter((r) => r.bugEntityId === row.bugEntityId);
-    setSelectedBugs(bugs);
-  }, [history]);
+    setSelectedBugEntityId((prev) => (prev === row.bugEntityId ? null : row.bugEntityId));
+  }, []);
 
   if (!reader) {
     return (
@@ -126,11 +143,13 @@ export function BugHistoryPanel({ reader, isDark = true }: Readonly<BugHistoryPa
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>Package</TableCell>
-                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>Category</TableCell>
-                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>Commit</TableCell>
-                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>Summary</TableCell>
-                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>Date</TableCell>
+                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Package</TableCell>
+                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Category</TableCell>
+                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Commit</TableCell>
+                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Summary</TableCell>
+                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Date</TableCell>
+                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal, p: 0.5 }} />
+                  <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal, p: 0.5 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -161,6 +180,39 @@ export function BugHistoryPanel({ reader, isDark = true }: Readonly<BugHistoryPa
                     <TableCell sx={{ fontSize: '0.7rem', color: colors.textSecondary, whiteSpace: 'nowrap' }}>
                       {row.committedAt.slice(0, 10)}
                     </TableCell>
+                    <TableCell align="right" sx={{ p: 0.5 }}>
+                      {onOpenSessionMessages && row.sessionId && (
+                        <Tooltip title={t('memory.bug.openInMessages')}>
+                          <IconButton
+                            size="small"
+                            aria-label={t('memory.bug.openInMessages')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenSessionMessages(row.sessionId!);
+                            }}
+                            sx={{ color: colors.textSecondary, '&:hover': { color: colors.iceBlue } }}
+                          >
+                            <OpenInNewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                    <TableCell align="right" sx={{ p: 0.5, whiteSpace: 'nowrap' }}>
+                      {row.precededByFindingIds.length > 0 && (
+                        <Tooltip title={`${t('memory.bug.precededByCount')}: ${row.precededByFindingIds.length}`}>
+                          <Chip
+                            label={`↩ ${row.precededByFindingIds.length}`}
+                            size="small"
+                            color="info"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenPrecedingReviews?.(row.precededByFindingIds);
+                            }}
+                            sx={{ fontSize: '0.65rem', height: 18, cursor: onOpenPrecedingReviews ? 'pointer' : 'default' }}
+                          />
+                        </Tooltip>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -174,7 +226,12 @@ export function BugHistoryPanel({ reader, isDark = true }: Readonly<BugHistoryPa
             {t('memory.bug.causedBy.title')}
           </Typography>
           <Box sx={{ flex: 1 }}>
-            <BugCausedByGraph bugs={selectedBugs} isDark={isDark} />
+            <BugCausalPanel
+              reader={reader}
+              bugEntityId={selectedBugEntityId}
+              onOpenPrecedingReviews={onOpenPrecedingReviews}
+              onOpenSiblingBugs={onOpenSiblingBugs}
+            />
           </Box>
         </Box>
       </Box>

@@ -94,6 +94,7 @@ export async function runEmbeddingBackfill(opts: {
       const { embedding } = await ollama.embeddings({ model: embedModel, prompt: text });
       const blob = encodeEmbedding(embedding);
       db.run('UPDATE memory_entities SET embedding = ? WHERE id = ?', [blob, entityId]);
+      db.run('DELETE FROM memory_failed_items WHERE scope = ? AND item_key = ?', [SCOPE, entityId]);
       counters.processed++;
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);

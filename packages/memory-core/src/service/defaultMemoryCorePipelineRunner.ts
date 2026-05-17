@@ -20,8 +20,12 @@ import { createOllamaClient } from '@anytime-markdown/agent-core';
 import {
   openMemoryCoreDb,
   attachTrailDbReadOnly,
+  backupMemoryCoreDbFile,
+  getMemoryCoreDbPath,
   runConversationIncremental,
   runConversationBackfill,
+  DEFAULT_CONVERSATION_BACKFILL_DAYS,
+  detectBackfillWindowExpansion,
   runConversationFailedItemsRetry,
   runCodeIncremental,
   runBugHistoryIncremental,
@@ -61,6 +65,25 @@ export async function runMemoryCorePipeline(ctx: PipelineRunnerContext): Promise
   const statusWriter = new PipelineStatusWriter(statusPath, randomUUID(), PIPELINE_SCOPES);
   statusWriter.initialize();
 
+  // memory-core.db を開く前に世代バックアップをローテートする (trail-db と
+  // 同じ FileBackupManager パターン)。better-sqlite3 が DB を開いて書き込み
+  // 始める前のスナップショットを .bak.1.gz に圧縮退避する。interval 1 日で
+  // throttle されているため、毎パイプラインティックで I/O は起きない。
+  const memoryDbPath = ctx.dbPath ?? getMemoryCoreDbPath(ctx.gitRoot);
+  try {
+    const created = backupMemoryCoreDbFile(memoryDbPath, {
+      backupGenerations: ctx.backupGenerations,
+      backupIntervalDays: ctx.backupIntervalDays,
+    });
+    if (created) {
+      logger.info(`memory-core backup rotated: ${memoryDbPath}.bak.1.gz`);
+    }
+  } catch (err) {
+    // backup は best-effort: 失敗しても pipeline は走らせる (DB ファイルが
+    // ない初回起動も含むが、FileBackupManager 側で no-op になる)。
+    logger.error('memory-core backup failed (continuing pipeline)', err);
+  }
+
   logger.info('Opening memory-core DB');
   const memDb = await openMemoryCoreDb(ctx.dbPath, {
     nativeBinding: ctx.nativeBinding,
@@ -91,6 +114,26 @@ export async function runMemoryCorePipeline(ctx: PipelineRunnerContext): Promise
 
       const ollama = createOllamaClient();
 
+      // ── Backfill window 拡張検知 ────────────────────────────────────────
+      // config.json の backfillDays が広がっていた場合 (例 30→60)、既存
+      // カーソルでは過去データを取り込めないので、cursor を空にして isFirstRun
+      // 経路 (backfill 起動) に倒す。trail.db に拡張区間の user メッセージが
+      // ある時だけ動作するので、install 後日数が浅いだけのケースでは誤発火
+      // しない (detector 側で no_unprocessed と判定される)。
+      const expansion = detectBackfillWindowExpansion({
+        db: memDb.db,
+        sinceDays: ctx.backfillDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS,
+      });
+      if (expansion.shouldExpand) {
+        logger.info(`Backfill window expanded — ${expansion.reason}`);
+        logger.info('Resetting conversation_backfill + conversation_incremental cursors to trigger re-backfill');
+        memDb.db.run(
+          `UPDATE memory_pipeline_state
+              SET last_processed_at = ''
+            WHERE scope IN ('conversation_backfill', 'conversation_incremental')`,
+        );
+      }
+
       // Check pipeline state to decide incremental vs backfill
       const stmt = memDb.db.prepare(
         `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`,
@@ -116,13 +159,20 @@ export async function runMemoryCorePipeline(ctx: PipelineRunnerContext): Promise
       statusWriter.start('conversation_incremental', convTotalEstimate || undefined);
       try {
         if (isFirstRun) {
-          logger.info(`First run detected — running backfill (${ctx.backfillDays ?? 5} days)`);
+          logger.info(`First run detected — running backfill (${ctx.backfillDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS} days)`);
           const result = await runConversationBackfill({
             db: memDb.db,
             ollama,
-            sinceDays: ctx.backfillDays ?? 5,
+            sinceDays: ctx.backfillDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS,
             logger,
             save: () => saveAndReattach(),
+            // UI 通知配線: backfill は内部実行されても scope 名は
+            // 'conversation_incremental' のままで UI 表示される。
+            // onTotal で existingIds 控除後の正確な分母に上書き、
+            // progress で毎エピソード分子を更新する。
+            onTotal: (total) => statusWriter.start('conversation_incremental', total),
+            progress: (processed, failed) =>
+              statusWriter.update('conversation_incremental', processed, failed),
           });
           logger.info(
             `Backfill complete: status=${result.status}, items_processed=${result.items_processed}, ` +

@@ -23,9 +23,10 @@ function parseHashSubTab(hash: string): MemoryTabValue | null {
 
 export interface MemoryPanelProps {
   readonly serverUrl: string;
+  readonly onOpenSessionMessages?: (sessionId: string) => void;
 }
 
-export function MemoryPanel({ serverUrl }: Readonly<MemoryPanelProps>) {
+export function MemoryPanel({ serverUrl, onOpenSessionMessages }: Readonly<MemoryPanelProps>) {
   const { t } = useTrailI18n();
   const { colors, isDark } = useTrailTheme();
 
@@ -33,6 +34,8 @@ export function MemoryPanel({ serverUrl }: Readonly<MemoryPanelProps>) {
   const [activeTab, setActiveTab] = useState<MemoryTabValue>(initialTab);
   const [dbExists, setDbExists] = useState<boolean | null>(null);
   const [driftRows, setDriftRows] = useState<readonly MemoryDriftEventRow[]>([]);
+  const [pendingBugFilter, setPendingBugFilter] = useState<{ bugEntityIds: readonly string[] } | null>(null);
+  const [pendingReviewFilter, setPendingReviewFilter] = useState<{ findingEntityIds: readonly string[] } | null>(null);
 
   const reader = useMemo(() => new MemoryReader(serverUrl), [serverUrl]);
   const probedRef = useRef(false);
@@ -64,6 +67,25 @@ export function MemoryPanel({ serverUrl }: Readonly<MemoryPanelProps>) {
     setActiveTab(v);
     if (typeof globalThis.history !== 'undefined') {
       globalThis.history.replaceState(null, '', `#memory/${v}`);
+    }
+    // Tab 切替時は cross-tab filter をクリア（ユーザーの明示切替を尊重）
+    setPendingBugFilter(null);
+    setPendingReviewFilter(null);
+  }, []);
+
+  const handleOpenPrecedingBugs = useCallback((bugEntityIds: readonly string[]) => {
+    setPendingBugFilter({ bugEntityIds });
+    setActiveTab('bug');
+    if (typeof globalThis.history !== 'undefined') {
+      globalThis.history.replaceState(null, '', `#memory/bug`);
+    }
+  }, []);
+
+  const handleOpenPrecedingReviews = useCallback((findingEntityIds: readonly string[]) => {
+    setPendingReviewFilter({ findingEntityIds });
+    setActiveTab('review');
+    if (typeof globalThis.history !== 'undefined') {
+      globalThis.history.replaceState(null, '', `#memory/review`);
     }
   }, []);
 
@@ -124,10 +146,22 @@ export function MemoryPanel({ serverUrl }: Readonly<MemoryPanelProps>) {
               <DriftPanel rows={driftRows} onResolve={handleResolve} onLoadDetail={handleLoadDetail} />
             )}
             {def.value === 'bug' && (
-              <BugHistoryPanel reader={reader} isDark={isDark} />
+              <BugHistoryPanel
+                reader={reader}
+                isDark={isDark}
+                onOpenSessionMessages={onOpenSessionMessages}
+                onOpenPrecedingReviews={handleOpenPrecedingReviews}
+                onOpenSiblingBugs={handleOpenPrecedingBugs}
+                pendingBugFilter={pendingBugFilter}
+              />
             )}
             {def.value === 'review' && (
-              <ReviewPanel reader={reader} />
+              <ReviewPanel
+                reader={reader}
+                onOpenSessionMessages={onOpenSessionMessages}
+                onOpenPrecedingBugs={handleOpenPrecedingBugs}
+                pendingReviewFilter={pendingReviewFilter}
+              />
             )}
             {def.value === 'runs' && (
               <PipelineRunsPanel reader={reader} />

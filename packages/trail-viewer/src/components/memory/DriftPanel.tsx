@@ -15,11 +15,13 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import { useTrailI18n } from '../../i18n';
+import type { TrailI18n } from '../../i18n';
 import { useTrailTheme } from '../TrailThemeContext';
 import { DriftDetailDialog } from './DriftDetailDialog';
-import { filterDriftRows } from './driftFilter';
+import { computeFixTarget, filterDriftRows, type FixTarget } from './driftFilter';
 import type { MemoryDriftEventRow } from '../../data/types';
 
 const SEVERITY_COLORS: Record<string, 'default' | 'warning' | 'error'> = {
@@ -27,6 +29,32 @@ const SEVERITY_COLORS: Record<string, 'default' | 'warning' | 'error'> = {
   warn: 'warning',
   error: 'error',
 };
+
+const FIX_TARGET_COLORS: Record<FixTarget, 'error' | 'warning' | 'default'> = {
+  code: 'error',
+  spec: 'warning',
+  conv: 'default',
+};
+
+const FIX_TARGET_I18N_KEYS: Record<FixTarget, keyof TrailI18n> = {
+  code: 'memory.drift.fixTarget.code',
+  spec: 'memory.drift.fixTarget.spec',
+  conv: 'memory.drift.fixTarget.conv',
+};
+
+const DRIFT_TYPE_HELP_ROWS: ReadonlyArray<readonly [string, keyof TrailI18n]> = [
+  ['spec_vs_code', 'memory.drift.typeDescription.spec_vs_code'],
+  ['conv_vs_code', 'memory.drift.typeDescription.conv_vs_code'],
+  ['conv_vs_spec', 'memory.drift.typeDescription.conv_vs_spec'],
+  ['three_way', 'memory.drift.typeDescription.three_way'],
+  ['regression_cluster', 'memory.drift.typeDescription.regression_cluster'],
+  ['spec_violation_cluster', 'memory.drift.typeDescription.spec_violation_cluster'],
+  ['recurring_root_cause', 'memory.drift.typeDescription.recurring_root_cause'],
+  ['review_unfixed', 'memory.drift.typeDescription.review_unfixed'],
+  ['review_vs_code', 'memory.drift.typeDescription.review_vs_code'],
+  ['recurring_review_finding', 'memory.drift.typeDescription.recurring_review_finding'],
+  ['spec_clarification_recurring', 'memory.drift.typeDescription.spec_clarification_recurring'],
+];
 
 export interface DriftPanelProps {
   readonly rows: readonly MemoryDriftEventRow[];
@@ -40,14 +68,32 @@ export function DriftPanel({ rows, onResolve, onLoadDetail }: Readonly<DriftPane
   const [unresolvedOnly, setUnresolvedOnly] = useState(true);
   const [severityFilter, setSeverityFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [fixTargetFilter, setFixTargetFilter] = useState('');
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  const filtered = filterDriftRows(rows, { unresolvedOnly, severityFilter, typeFilter });
+  const filtered = filterDriftRows(rows, { unresolvedOnly, severityFilter, typeFilter, fixTargetFilter });
 
   const driftTypes = [...new Set(rows.map((r) => r.driftType))].sort();
 
   const handleSeverityChange = useCallback((e: SelectChangeEvent) => setSeverityFilter(e.target.value), []);
   const handleTypeChange = useCallback((e: SelectChangeEvent) => setTypeFilter(e.target.value), []);
+  const handleFixTargetChange = useCallback((e: SelectChangeEvent) => setFixTargetFilter(e.target.value), []);
+
+  const typeHelpContent = (
+    <Box sx={{ py: 0.5 }}>
+      {DRIFT_TYPE_HELP_ROWS.map(([code, key]) => (
+        <Box key={code} sx={{ display: 'flex', gap: 1, mb: 0.25, alignItems: 'baseline' }}>
+          <Box
+            component="code"
+            sx={{ minWidth: 170, fontSize: '0.65rem', fontFamily: 'monospace', flexShrink: 0 }}
+          >
+            {code}
+          </Box>
+          <Box sx={{ fontSize: '0.7rem' }}>{t(key)}</Box>
+        </Box>
+      ))}
+    </Box>
+  );
 
   if (rows.length === 0) {
     return (
@@ -87,17 +133,41 @@ export function DriftPanel({ rows, onResolve, onLoadDetail }: Readonly<DriftPane
             {driftTypes.map((dt) => <MenuItem key={dt} value={dt}>{dt}</MenuItem>)}
           </Select>
         </FormControl>
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel sx={{ fontSize: '0.75rem' }}>{t('memory.drift.fixTarget')}</InputLabel>
+          <Select value={fixTargetFilter} label={t('memory.drift.fixTarget')} onChange={handleFixTargetChange} sx={{ fontSize: '0.75rem' }}>
+            <MenuItem value=""><em>All</em></MenuItem>
+            <MenuItem value="code">{t('memory.drift.fixTarget.code')}</MenuItem>
+            <MenuItem value="spec">{t('memory.drift.fixTarget.spec')}</MenuItem>
+            <MenuItem value="conv">{t('memory.drift.fixTarget.conv')}</MenuItem>
+          </Select>
+        </FormControl>
       </Box>
 
       <Box sx={{ flex: 1, overflow: 'auto', ...scrollbarSx }}>
         <Table size="small" stickyHeader>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>Subject</TableCell>
-              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>Type</TableCell>
-              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>{t('memory.drift.filterSeverity')}</TableCell>
-              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }}>Detected</TableCell>
-              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: 'transparent' }} />
+              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Subject</TableCell>
+              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>
+                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                  <span>Type</span>
+                  <Tooltip
+                    title={typeHelpContent}
+                    arrow
+                    placement="top"
+                    slotProps={{ tooltip: { sx: { maxWidth: 'none' } } }}
+                  >
+                    <HelpOutlineIcon
+                      sx={{ fontSize: 12, color: 'text.disabled', cursor: 'help', flexShrink: 0 }}
+                    />
+                  </Tooltip>
+                </Box>
+              </TableCell>
+              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>{t('memory.drift.fixTarget')}</TableCell>
+              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>{t('memory.drift.filterSeverity')}</TableCell>
+              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>Detected</TableCell>
+              <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }} />
             </TableRow>
           </TableHead>
           <TableBody>
@@ -111,6 +181,20 @@ export function DriftPanel({ rows, onResolve, onLoadDetail }: Readonly<DriftPane
                   </Tooltip>
                 </TableCell>
                 <TableCell sx={{ fontSize: '0.7rem', color: colors.textSecondary }}>{row.driftType}</TableCell>
+                <TableCell>
+                  {(() => {
+                    const target = computeFixTarget(row.driftType);
+                    return (
+                      <Chip
+                        label={t(FIX_TARGET_I18N_KEYS[target])}
+                        color={FIX_TARGET_COLORS[target]}
+                        variant="outlined"
+                        size="small"
+                        sx={{ fontSize: '0.65rem', height: 18 }}
+                      />
+                    );
+                  })()}
+                </TableCell>
                 <TableCell>
                   <Chip
                     label={row.severity}

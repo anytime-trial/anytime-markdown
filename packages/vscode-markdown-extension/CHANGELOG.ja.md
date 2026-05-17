@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-05-17
+
+### 変更
+
+- AI ノートに関するドキュメントリンクを新規 Anytime Agent 拡張に向け直し
+
+### Editor Core (markdown-core)
+
+- `markdown-core` が `next/dynamic` から `React.lazy` へ移行し、Next.js ランタイム依存を排除
+
 ## [0.15.1] - 2026-05-16
 
 ### Editor Core (markdown-core)

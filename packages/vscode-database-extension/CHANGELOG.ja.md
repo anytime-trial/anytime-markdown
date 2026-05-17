@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-17
+
+### 追加
+
+- VSIX に MIT `LICENSE` ファイルを同梱。`package.json` では `"license": "MIT"` を宣言済みだったが、公開拡張機能本体にライセンス全文が含まれていなかったため追加
+
+### Database Core (database-core / database-viewer)
+
+- バージョン同期のみ (ソース変更なし)
+
 ## [0.2.0] - 2026-05-16
 
 ### 追加

@@ -62,6 +62,29 @@ const RelationSchema = z.object({
   confidence: z.number().min(0).max(1).optional().default(0.8),
 });
 
+/**
+ * Defense in depth for the prompt change: even when the LLM ignores the
+ * "concrete root cause only" instruction, drop caused_by relations whose
+ * object is an abstract bucket (Concept / Decision / Rule and other
+ * non-technical types). These produced 956 recurring_root_cause drifts
+ * from a single source dataset because every "不適切な条件分岐" style
+ * tag aggregated 50–100+ unrelated bugs under one entity.
+ */
+const ABSTRACT_CAUSED_BY_OBJECT_TYPES: ReadonlySet<string> = new Set([
+  'Concept',
+  'Decision',
+  'Rule',
+  'Person',
+  'Project',
+  'Question',
+  'Task',
+  'Skill',
+]);
+
+export function isAbstractRootCause(predicate: string, objectType: string): boolean {
+  return predicate === 'caused_by' && ABSTRACT_CAUSED_BY_OBJECT_TYPES.has(objectType);
+}
+
 const QuestionSchema = z.object({
   text: z.string(),
   target_spec_path: z.string().nullable().optional(),
@@ -79,11 +102,18 @@ const ExtractionResultSchema = z.object({
     .transform(arr => arr.filter((x): x is z.infer<typeof EntitySchema> => x !== null)),
   relations: z.array(RelationSchema.catch(null as unknown as z.infer<typeof RelationSchema>))
     .optional().default([])
-    .transform(arr => arr.filter((x): x is z.infer<typeof RelationSchema> => x !== null)),
+    .transform(arr => arr
+      .filter((x): x is z.infer<typeof RelationSchema> => x !== null)
+      .filter((r) => !isAbstractRootCause(r.predicate, r.object.type))),
   questions: z.array(QuestionSchema).optional().default([]),
 });
 
 export type ExtractionResult = z.infer<typeof ExtractionResultSchema>;
+
+export function parseExtractionResult(input: unknown): ExtractionResult | null {
+  const validation = ExtractionResultSchema.safeParse(input);
+  return validation.success ? validation.data : null;
+}
 
 function hasQuestionMark(text: string): boolean {
   return /[?？]/.test(text);

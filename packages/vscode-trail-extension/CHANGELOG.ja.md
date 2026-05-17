@@ -6,6 +6,53 @@
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-05-17
+
+### 追加
+
+- `anytime-reverse-spec` スキルに chapters 9-11 を追加し、`evaluate=true` + Phase E1-E4 による生成済み spec の評価レポート出力に対応 (`mcp-trail` の新ツール `evaluate_reverse_spec` を活用)
+- プロンプトポップアップを `markdown-core` の read-only viewer で Markdown 描画
+- Trail Memory タブ: bug 因果情報を構造化パネル化 (旧グラフを置換)、bug-fix セッションへの遷移と "open in messages" アクション、Drift サブタブに `Fix Target` 列とフィルタ、Drift Type ヘルプツールチップ (11 定義一覧)、Reviews サブタブの UX 改善と session reviewer 表示
+- Trail Commits 累積エリアチャート (回帰率モード) を追加
+- Memory pipeline パネルに "memory backup" 実行を表示 (memory-core.db バックアップローテーション)
+- `trail-server` が `repo` パラメータを code-graph および pipeline/refresh ルートまで伝播
+
+### 変更
+
+- 会話履歴 backfill のデフォルトウィンドウを 30 日に拡張。`config.json` の `backfillDays` を広げると自動で再 backfill を発火。`readMessagesSince` を session 単位でストリーミングし、長時間バックフィル中も heartbeat を発行
+- Commits 累積チャートの右軸を回帰率 → 修正率 (Fix Ratio) に変更、ウィンドウ前のコミットを cumulative baseline に折り込み
+- Memory pipeline 実行を (day, scope) で集約しスタックドチャート化
+- `anytime-reverse-spec` テンプレートの 02 / 04 / 07 章構造、05 章 MCP サブカテゴリと節番号を評価用途向けに安定化
+- `memory-core` の review finding parser が Sample 1/2/3 セッション形式を認識。backfill 進捗と total を `PipelineStatusWriter` へ転送
+
+### 修正
+
+- `memory-core` の `failed_items` を embedding 成功時にクリア
+- `memory-core` の purge スクリプトを transaction で包み、有効な reason を使用
+- `memory-core` の会話パイプラインを reload-safe 化 (途中での cursor advance を削除)
+- `memory-core/spec` が `90.skill/` を spec 取り込みから除外、`caused_by` の root cause を具体的なエンティティに限定
+- `trail-server` でドリフトイベント ID の percent-encoded path param をデコード
+- `trail-viewer` の `CombinedDataReader` テストモックを現スキーマに整合
+
+### 破壊的変更
+
+- AI ノートパネルおよび `anytime-trail.openAiNote*` コマンドを削除しました。
+  この機能は新規拡張 Anytime Agent (`anytime-trial.anytime-agent`) に
+  `anytime-agent.openAiNote*` として移行しました。\
+  既存ノート（`.anytime/notes/`）と `anytime-note` スキルはそのまま
+  引き続き利用できます（データ移行は不要）。
+
+### リファクタ
+
+- `installBundledSkills` / `installTemplatedSkill` /
+  `installStaticSkillDir` と関連テストを `vscode-trail-extension` から
+  `@anytime-markdown/vscode-common` に抽出しました。Agent 拡張側で
+  同じ skill-installer を再利用するためです。
+
+### Trail Core (trail-core)
+
+- バージョン同期のみ (ソース変更なし)
+
 ## [0.20.0] - 2026-05-16
 
 ### 追加

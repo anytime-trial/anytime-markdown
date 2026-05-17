@@ -18,6 +18,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
@@ -284,6 +286,12 @@ jobs:
         working-directory: packages/web-app
         env:
           AUTH_SECRET: test-secret-for-ci
+
+      - name: SonarCloud Scan
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   check-netlify:
     if: github.event_name == 'pull_request' && github.base_ref == 'master'

@@ -59,17 +59,13 @@
 **使い方:** `anytimeTrail.coverage.path` に `coverage-final.json` のパスを設定します。
 
 
-## 4. 視覚情報での意思疎通（Note Panel）
+## 4. 視覚情報での意思疎通（Anytime Agent 拡張へ移行しました）
 
-**最終ビジョン:** AI と人間の双方向通信路として、テキストでは伝わらない視覚情報・引き継ぎ資料・指示書をやり取りする。
-
-**現在できること:**
-
-- 複数ページのノートを管理し、UI スクリーンショット・デザインモック・図表を Claude Code に直接渡す
-- セッションをまたぐ作業引き継ぎ資料として活用
-- `/anytime-note` スキル経由で AI が画像を読み取って作業を実行
-
-**使い方:** サイドバー **Note** で `+` ボタン → Anytime Markdown でノートを開いて画像を貼り付け → Claude Code で `/anytime-note 〜` のように指示。
+Note パネルと `/anytime-note` 連携は **Anytime Agent** VS Code 拡張
+（`anytime-trial.anytime-agent`）に移行しました。\
+Marketplace から導入すれば従来通り利用できます。\
+既存ノート（`.anytime/notes/`）と `.claude/skills/anytime-note/` の
+スキルはそのまま引き継がれます。
 
 
 ## 5. Claude Code との連携（スキル・フック）
@@ -85,12 +81,6 @@
 | `PostToolUse` | `commit-tracker.sh` | Bash ツール実行後の git commit を検知し Trail DB に記録 |
 | `Stop` | `trail-token-budget.sh` | セッション終了時のトークン消費を集計しバジェット監視に反映 |
 | `UserPromptSubmit` | `session-guard.sh` | セッション時間・ターン数が閾値を超えた場合に警告 |
-
-**自動生成されるスキル（**`~/.claude/skills/`**）:**
-
-| スキル | 用途 |
-| --- | --- |
-| `/anytime-note` | Note パネルのノート（`anytime-note-N.md`）を読み込んで指示された作業を実行。最初のノート作成時に自動生成 |
 
 > フックスクリプトは `~/.claude/scripts/` に配置されます。\
 > Claude Code がインストールされていない場合（`~/.claude/` 不在時）は登録をスキップします。

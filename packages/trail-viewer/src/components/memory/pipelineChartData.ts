@@ -1,32 +1,61 @@
-import type { MemoryPipelineRunRow } from '../../data/types';
+import type { MemoryPipelineRunStatsByDayRow, MemoryPipelineRunStatus } from '../../data/types';
 
-export interface PipelineChartBar {
+export interface StackedSeries {
   readonly scope: string;
-  readonly startedAt: string;
-  readonly durationMs: number;
-  readonly status: string;
-  readonly itemsProcessed: number;
+  readonly data: readonly number[];
 }
 
-export function buildPipelineChartBars(runs: readonly MemoryPipelineRunRow[]): readonly PipelineChartBar[] {
-  return runs.map((r) => {
-    const start = new Date(r.startedAt).getTime();
-    const end = r.completedAt ? new Date(r.completedAt).getTime() : start;
-    return {
-      scope: r.scope,
-      startedAt: r.startedAt,
-      durationMs: Math.max(0, end - start),
-      status: r.status,
-      itemsProcessed: r.itemsProcessed,
-    };
-  });
+export interface StackedChartData {
+  readonly xLabels: readonly string[];
+  readonly series: readonly StackedSeries[];
+  readonly dayWorstStatus: ReadonlyMap<string, MemoryPipelineRunStatus>;
 }
 
-export function groupRunsByScope(runs: readonly MemoryPipelineRunRow[]): ReadonlyMap<string, readonly MemoryPipelineRunRow[]> {
-  const map = new Map<string, MemoryPipelineRunRow[]>();
-  for (const r of runs) {
-    if (!map.has(r.scope)) map.set(r.scope, []);
-    map.get(r.scope)!.push(r);
+const STATUS_RANK: Record<MemoryPipelineRunStatus, number> = {
+  error: 3,
+  partial: 2,
+  success: 1,
+  running: 0,
+};
+
+function rankToStatus(rank: number): MemoryPipelineRunStatus {
+  if (rank >= 3) return 'error';
+  if (rank === 2) return 'partial';
+  if (rank === 1) return 'success';
+  return 'running';
+}
+
+export function buildStackedChartData(
+  rows: readonly MemoryPipelineRunStatsByDayRow[],
+): StackedChartData {
+  if (rows.length === 0) {
+    return { xLabels: [], series: [], dayWorstStatus: new Map() };
   }
-  return map;
+
+  const xLabels = [...new Set(rows.map((r) => r.day))].sort();
+  const scopes = [...new Set(rows.map((r) => r.scope))].sort();
+
+  // (day, scope) -> durationSec lookup for O(1) data alignment
+  const lookup = new Map<string, number>();
+  for (const r of rows) {
+    lookup.set(`${r.day}|${r.scope}`, r.durationSec);
+  }
+
+  const series = scopes.map((scope) => ({
+    scope,
+    data: xLabels.map((day) => lookup.get(`${day}|${scope}`) ?? 0),
+  }));
+
+  const dayWorstRank = new Map<string, number>();
+  for (const r of rows) {
+    const cur = dayWorstRank.get(r.day) ?? 0;
+    const next = STATUS_RANK[r.worstStatus];
+    if (next > cur) dayWorstRank.set(r.day, next);
+  }
+  const dayWorstStatus = new Map<string, MemoryPipelineRunStatus>();
+  for (const [day, rank] of dayWorstRank) {
+    dayWorstStatus.set(day, rankToStatus(rank));
+  }
+
+  return { xLabels, series, dayWorstStatus };
 }

@@ -65,7 +65,7 @@ import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult, TrailMessa
 import { matchCommitsToMessages, computeDefectRisk, type CommitRiskRow, type DefectRiskEntry } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 
-import { aggregateQualityRates, aggregateCommitPrefixStats } from './combinedDataAggregators';
+import { aggregateQualityRates, aggregateCommitPrefixStats, aggregateCommitPrefixBaseline, type CommitBaselineSummary } from './combinedDataAggregators';
 export type AnalyzeFunction = (options: AnalyzeOptions) => TrailGraph;
 
 /**
@@ -435,7 +435,11 @@ interface CombinedData {
   readonly aiFirstTryRate: readonly { period: string; rate: number; sampleSize: number }[];
   readonly repoStats: readonly { period: string; repoName: string; count: number; tokens: number }[];
   readonly qualityRates: readonly { period: string; retryRate: number | null; buildFailRate: number | null; testFailRate: number | null }[];
+  readonly commitBaseline?: CommitBaselineSummary;
+  readonly commitRegressionByPeriod?: readonly { period: string; count: number }[];
 }
+
+const COMMIT_REGRESSION_FIX_RE = /^fix\([^)]*regression[^)]*\)/i;
 
 interface RawLine {
   uuid?: string;
@@ -6783,6 +6787,36 @@ export class TrailDatabase {
     const todayPeriod = String(cutoffPeriodRes[0]?.values?.[0]?.[0] ?? '');
     const commitPrefixStats = aggregateCommitPrefixStats(commitRows, todayPeriod);
 
+    // Per-period regression count: 累積モードの右軸退行率計算に使う。
+    const regressionMap = new Map<string, number>();
+    for (const c of commitRows) {
+      if (c.period > todayPeriod) continue;
+      if (!COMMIT_REGRESSION_FIX_RE.test(c.subject)) continue;
+      regressionMap.set(c.period, (regressionMap.get(c.period) ?? 0) + 1);
+    }
+    const commitRegressionByPeriod = [...regressionMap.entries()]
+      .map(([period, count]) => ({ period, count }))
+      .sort((a, b) => a.period.localeCompare(b.period));
+
+    // Commit baseline: 表示期間 cutoff より前の全 commit を category 別に集計 (累積モード用)。
+    // commit_hash で DISTINCT し、同一 commit が複数 session に紐づく重複を排除する。
+    const baselineResult = db.exec(
+      `SELECT commit_message, lines_added, lines_deleted FROM (
+         SELECT MAX(commit_message) AS commit_message,
+                MAX(COALESCE(lines_added, 0)) AS lines_added,
+                MAX(COALESCE(lines_deleted, 0)) AS lines_deleted
+         FROM session_commits
+         WHERE committed_at < DATETIME('now', '-${rangeDays} days')
+         GROUP BY repo_name, commit_hash
+       )`,
+    );
+    const baselineRows = toRows(baselineResult).map(r => ({
+      subject: String(r['commit_message'] ?? '').split('\n')[0],
+      linesAdded: Number(r['lines_added'] ?? 0),
+      linesDeleted: Number(r['lines_deleted'] ?? 0),
+    }));
+    const commitBaseline = aggregateCommitPrefixBaseline(baselineRows);
+
     // Repository stats: COUNT は commitRows を再利用（既に repo_name+commit_hash で重複排除済み）
     const repoCountMap = new Map<string, number>();
     for (const c of commitRows) {
@@ -6925,6 +6959,8 @@ export class TrailDatabase {
       aiFirstTryRate,
       repoStats,
       qualityRates,
+      commitBaseline,
+      commitRegressionByPeriod,
     };
   }
 

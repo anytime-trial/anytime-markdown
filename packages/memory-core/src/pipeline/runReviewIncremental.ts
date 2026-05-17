@@ -127,12 +127,23 @@ export async function runReviewIncremental(input: {
   ollama: OllamaClient;
   model?: string;
   logger?: MemoryLogger;
+  /**
+   * true の場合、Route A の source_hash skip を bypass し全 review .md を再パースする。
+   * 既存 finding は review_id ごとに DELETE してから再投入する。
+   * env `MEMORY_CORE_REVIEW_FORCE=1` でも true 扱い。
+   * Route B (session) も last_processed_at を無視して期間全体を再走査する。
+   */
+  force?: boolean;
 }): Promise<ReviewIncrementalResult> {
   const { db, repoName, ollama } = input;
   const logger = input.logger ?? noopLogger;
   const model = input.model ?? 'qwen2.5:7b';
   const reviewDir =
     input.reviewDir ?? process.env['MEMORY_CORE_REVIEW_DIR'] ?? DEFAULT_REVIEW_DIR;
+  const force = input.force === true || process.env['MEMORY_CORE_REVIEW_FORCE'] === '1';
+  if (force) {
+    logger.info('[anytime-memory] runReviewIncremental: force re-ingest enabled (skip source_hash, reset session state)');
+  }
 
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
@@ -195,10 +206,26 @@ export async function runReviewIncremental(input: {
             ? String(existingRows[0].values[0][0])
             : null;
 
-        if (existingHash !== null && existingHash === sha1) {
+        if (!force && existingHash !== null && existingHash === sha1) {
           // Already processed, hash unchanged — skip
           logger.info(`[anytime-memory] runReviewIncremental: skip unchanged file=${relPath}`);
           continue;
+        }
+
+        // force 時: 既存 review_doc の findings を削除し、source_hash もクリア
+        // (upsertReviewDoc は hash 一致時に early-return するため hash も無効化する)
+        if (force && existingHash !== null) {
+          db.run(
+            `DELETE FROM memory_review_findings WHERE review_id IN (
+               SELECT id FROM memory_reviews WHERE source_kind='review_doc' AND source_ref=?
+             )`,
+            [relPath],
+          );
+          db.run(
+            `UPDATE memory_reviews SET source_hash='' WHERE source_kind='review_doc' AND source_ref=?`,
+            [relPath],
+          );
+          logger.info(`[anytime-memory] runReviewIncremental: force re-parse, cleared findings file=${relPath}`);
         }
 
         const doc = parseReviewDoc({ rel_path: relPath, content });
@@ -245,7 +272,18 @@ export async function runReviewIncremental(input: {
   // ── Route B: sessions ─────────────────────────────────────────────────────
 
   try {
-    const lastProcessedAt = readPipelineState(db, SCOPE_SESSION);
+    // force 時: last_processed_at をリセットして全期間再走査、既存 session findings を削除
+    const lastProcessedAt = force
+      ? '1970-01-01T00:00:00.000Z'
+      : readPipelineState(db, SCOPE_SESSION);
+    if (force) {
+      db.run(
+        `DELETE FROM memory_review_findings WHERE review_id IN (
+           SELECT id FROM memory_reviews WHERE source_kind='session'
+         )`,
+      );
+      logger.info('[anytime-memory] runReviewIncremental: force re-parse, cleared all session findings');
+    }
 
     const sessions = parseReviewSessions({
       db,

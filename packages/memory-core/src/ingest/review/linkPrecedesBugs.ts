@@ -27,15 +27,19 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
     finding_entity_id: string;
     target_file_path: string | null;
     target_symbol: string | null;
-    recorded_at: string;
+    reviewed_at: string;
   }>;
 
   try {
+    // 「いつレビューが行われたか」は memory_reviews.reviewed_at を使う。
+    // memory_review_findings.recorded_at は ingest 時刻なので、re-ingest 後に
+    // 全 finding が「今日」付けとなり、過去の bug が future として検索されないため誤り。
     const result = db.exec(`
-      SELECT id, finding_entity_id, target_file_path, target_symbol, recorded_at
-      FROM memory_review_findings
-      WHERE severity IN ('warn', 'error')
-        AND (target_file_path IS NOT NULL OR target_symbol IS NOT NULL)
+      SELECT rf.id, rf.finding_entity_id, rf.target_file_path, rf.target_symbol, r.reviewed_at
+      FROM memory_review_findings rf
+      JOIN memory_reviews r ON r.id = rf.review_id
+      WHERE rf.severity IN ('warn', 'error')
+        AND (rf.target_file_path IS NOT NULL OR rf.target_symbol IS NOT NULL)
     `);
 
     const rows = result[0];
@@ -48,7 +52,7 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
       finding_entity_id: String(r[1]),
       target_file_path: r[2] != null ? String(r[2]) : null,
       target_symbol: r[3] != null ? String(r[3]) : null,
-      recorded_at: String(r[4]),
+      reviewed_at: String(r[4]),
     }));
   } catch (err) {
     logger.warn(
@@ -61,13 +65,13 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
 
   for (const finding of findings) {
     try {
-      // Query candidate bugs within the window
+      // Query candidate bugs within the window (reviewed_at 後 windowDays 日以内に commit された bug)
       const bugResult = db.exec(
         `SELECT bf.id, bf.bug_entity_id, bf.committed_at, bf.affected_file_paths_json, bf.subject_summary
          FROM memory_bug_fixes bf
          WHERE bf.committed_at > ?
            AND bf.committed_at <= datetime(?, '+' || ? || ' days')`,
-        [finding.recorded_at, finding.recorded_at, effectiveWindowDays]
+        [finding.reviewed_at, finding.reviewed_at, effectiveWindowDays]
       );
 
       const bugRows = bugResult[0];

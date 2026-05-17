@@ -50,13 +50,36 @@ export function inferCategory(
 
 /**
  * Severity inference from chapter body text.
+ *
+ * 優先順位 (上位を満たした時点で確定):
+ * 1. admonition `> [!CAUTION]` / `> [!WARNING]` → error
+ * 2. body キーワード (セキュリティ侵害 / XSS / Critical 等) → error
+ * 3. admonition `> [!IMPORTANT]` / `**注意:**` → warn
+ * 4. body キーワード (NULL ref / 非推奨 / 競合状態 等) → warn
+ * 5. body キーワード (命名 / 可読性 等) → info (明示)
+ * 6. default → info
  */
+const ERROR_KEYWORDS_RE =
+  /Critical|致命的|セキュリティ侵害|データ漏洩|XSS|SQL injection|RCE|認証バイパス|権限昇格/i;
+const WARN_KEYWORDS_RE =
+  /NULL ref|null 参照|競合状態|race condition|off-by-one|非推奨|deprecated|メモリリーク|memory leak|未定義動作/i;
+const INFO_KEYWORDS_RE = /命名|可読性|リファクタリング|refactor|スタイル/i;
+
 export function inferSeverity(chapterBody: string): ParsedFinding['severity'] {
   if (/^>\s*\[!CAUTION\]|^>\s*\[!WARNING\]/m.test(chapterBody)) {
     return 'error';
   }
+  if (ERROR_KEYWORDS_RE.test(chapterBody)) {
+    return 'error';
+  }
   if (/^>\s*\[!IMPORTANT\]|\*\*注意:\*\*/m.test(chapterBody)) {
     return 'warn';
+  }
+  if (WARN_KEYWORDS_RE.test(chapterBody)) {
+    return 'warn';
+  }
+  if (INFO_KEYWORDS_RE.test(chapterBody)) {
+    return 'info';
   }
   return 'info';
 }
@@ -100,25 +123,73 @@ export function splitIntoChapters(bodyLines: string[]): ChapterBlock[] {
   return chapters;
 }
 
+// ── Finding extraction (Sample 0: paired markers) ────────────────────────────
+
+/**
+ * 問題マーカーとして認識する語。`**<marker>:**` または `**<marker>**:` の形で
+ * 行頭（bullet 接頭辞 `- `/`* `/`+ ` 許容）に現れた場合に finding 開始とみなす。
+ */
+const PROBLEM_MARKERS = [
+  '問題', '問題点', '指摘', '指摘事項', '内容',
+  'Issue', 'Problem', 'Finding',
+] as const;
+
+/**
+ * 提案マーカーとして認識する語。`**<marker>:**` または `**<marker>**:` の形で
+ * 行頭（bullet 接頭辞許容）に現れた場合に suggestion 開始とみなす。
+ */
+const SUGGESTION_MARKERS = [
+  '提案', '改善方法', '改善案', '推奨', '推奨修正', '対処案', '修正',
+  'Recommendation', 'Suggestion', 'Fix',
+] as const;
+
+/** bullet 接頭辞 `- ` / `* ` / `+ ` を吸収する prefix 正規表現片 */
+const BULLET_PREFIX = '(?:[-*+]\\s+)?';
+
+/** `**marker:**` または `**marker**:` 形式の判定正規表現を marker 配列から生成する。 */
+function buildMarkerRegex(markers: readonly string[]): RegExp {
+  const escaped = markers.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  // ^[bullet]? **(marker)[：:]** または **(marker)**[：:]
+  return new RegExp(
+    `^${BULLET_PREFIX}\\*\\*(?:${escaped})[：:]\\*\\*|^${BULLET_PREFIX}\\*\\*(?:${escaped})\\*\\*[：:]`,
+    'i',
+  );
+}
+
+const PROBLEM_LINE_RE = buildMarkerRegex(PROBLEM_MARKERS);
+const SUGGESTION_LINE_RE = buildMarkerRegex(SUGGESTION_MARKERS);
+
+/** 行頭マーカー（bullet + `**marker:**` or `**marker**:`）を除去して残りを返す */
+function stripMarker(line: string, markers: readonly string[]): string {
+  const escaped = markers.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const re = new RegExp(
+    `^${BULLET_PREFIX}\\*\\*(?:${escaped})[：:]\\*\\*|^${BULLET_PREFIX}\\*\\*(?:${escaped})\\*\\*[：:]`,
+    'i',
+  );
+  return line.replace(re, '').trim();
+}
+
 /**
  * Given the lines of a chapter, extract all (problem, suggestion) pairs.
  * Returns an array of [findingText, suggestionText] tuples.
+ *
+ * 認識する書式（行頭 bullet 接頭辞 `- ` 等を許容）:
+ * - `**問題:** ... **提案:** ...` （既存）
+ * - `**問題点:** / **内容:** / **指摘:** ...` 等の問題マーカー
+ * - `**改善方法:** / **推奨修正:** / **対処案:** / **修正:** ...` 等の提案マーカー
+ * - `- **内容**:` のように bullet 接頭辞付き（Sample 1 形式）
  */
 export function extractProblemSuggestionPairs(lines: string[]): Array<[string, string]> {
   const pairs: Array<[string, string]> = [];
-
-  // Regex for **問題:** / **問題**: variants (with optional whitespace)
-  const isProblemLine = (l: string) => /^\*\*問題[：:]\*\*|\*\*問題\*\*[：:]/i.test(l.trim());
-  const isSuggestionLine = (l: string) => /^\*\*提案[：:]\*\*|\*\*提案\*\*[：:]/i.test(l.trim());
+  const isProblemLine = (l: string) => PROBLEM_LINE_RE.test(l);
+  const isSuggestionLine = (l: string) => SUGGESTION_LINE_RE.test(l);
 
   let i = 0;
   while (i < lines.length) {
     if (isProblemLine(lines[i])) {
-      // Collect finding_text: lines after problem marker until suggestion or next problem
       const findingLines: string[] = [];
-      // The problem marker line itself may have trailing text
-      const problemMarkerRest = lines[i].replace(/^\*\*問題[：:]\*\*|\*\*問題\*\*[：:]/, '').trim();
-      if (problemMarkerRest) findingLines.push(problemMarkerRest);
+      const problemRest = stripMarker(lines[i], PROBLEM_MARKERS);
+      if (problemRest) findingLines.push(problemRest);
       i++;
 
       while (i < lines.length && !isSuggestionLine(lines[i]) && !isProblemLine(lines[i])) {
@@ -128,10 +199,8 @@ export function extractProblemSuggestionPairs(lines: string[]): Array<[string, s
 
       const suggestionLines: string[] = [];
       if (i < lines.length && isSuggestionLine(lines[i])) {
-        const suggestionMarkerRest = lines[i]
-          .replace(/^\*\*提案[：:]\*\*|\*\*提案\*\*[：:]/, '')
-          .trim();
-        if (suggestionMarkerRest) suggestionLines.push(suggestionMarkerRest);
+        const suggestionRest = stripMarker(lines[i], SUGGESTION_MARKERS);
+        if (suggestionRest) suggestionLines.push(suggestionRest);
         i++;
 
         while (i < lines.length && !isProblemLine(lines[i]) && !isSuggestionLine(lines[i])) {
@@ -140,13 +209,155 @@ export function extractProblemSuggestionPairs(lines: string[]): Array<[string, s
         }
       }
 
-      const findingText = findingLines.join('\n').trim();
-      const suggestionText = suggestionLines.join('\n').trim();
-      pairs.push([findingText, suggestionText]);
+      pairs.push([findingLines.join('\n').trim(), suggestionLines.join('\n').trim()]);
     } else {
       i++;
     }
   }
 
   return pairs;
+}
+
+// ── Finding extraction (Sample 2/3: numbered findings) ───────────────────────
+
+/** Sample 2/3 の境界判定: `🟡 **N. title**` または `**N. title**` */
+const NUMBERED_BOUNDARY_RE =
+  /^(?:[\p{Emoji_Presentation}⚠️\u{1F534}\u{1F7E1}\u{1F7E2}\u{1F535}\u{26AB}\u{26AA}]\s*)?\*\*(\d+)\.\s+(.+?)\*\*\s*$/u;
+
+/**
+ * Sample 2/3 の suggestion インラインマーカー（bold なし、コロン必須）。
+ * 例: `修正: ...` `対処案: ...` `提案: ...` `推奨: ...` `改善方法: ...`
+ */
+const INLINE_SUGGESTION_RE = /^(?:修正|対処案|提案|推奨|改善方法|改善案|推奨修正|Fix|Suggestion|Recommendation)[：:]\s*/i;
+
+export type NumberedFinding = {
+  title: string;
+  finding: string;
+  suggestion: string;
+};
+
+/**
+ * chapter 本文から番号付き finding（Sample 2: emoji + `**N. title**` / Sample 3: `**N. title**`）を抽出する。
+ *
+ * - 境界線（`🟡 **N. title**` 等）で finding を区切る
+ * - 各 finding 内で `修正:` / `対処案:` 等のインライン suggestion 行を suggestion として切り出す
+ * - suggestion マーカー以降 (chapter 終端 or 次境界まで) を suggestion 本文
+ */
+export function extractNumberedFindings(lines: string[]): NumberedFinding[] {
+  const results: NumberedFinding[] = [];
+  let current: NumberedFinding | null = null;
+  let inSuggestion = false;
+  const findingLines: string[] = [];
+  const suggestionLines: string[] = [];
+
+  const flush = () => {
+    if (current == null) return;
+    current.finding = findingLines.join('\n').trim();
+    current.suggestion = suggestionLines.join('\n').trim();
+    results.push(current);
+    current = null;
+    inSuggestion = false;
+    findingLines.length = 0;
+    suggestionLines.length = 0;
+  };
+
+  for (const line of lines) {
+    const boundaryMatch = NUMBERED_BOUNDARY_RE.exec(line.trim());
+    if (boundaryMatch) {
+      flush();
+      current = { title: boundaryMatch[2].trim(), finding: '', suggestion: '' };
+      continue;
+    }
+    if (current == null) continue; // skip lines before first boundary
+
+    const inlineSuggestionMatch = INLINE_SUGGESTION_RE.exec(line);
+    if (inlineSuggestionMatch && !inSuggestion) {
+      inSuggestion = true;
+      const rest = line.replace(INLINE_SUGGESTION_RE, '').trim();
+      if (rest) suggestionLines.push(rest);
+      continue;
+    }
+
+    if (inSuggestion) {
+      suggestionLines.push(line);
+    } else {
+      findingLines.push(line);
+    }
+  }
+  flush();
+
+  return results;
+}
+
+// ── Severity inference from heading (Sample 3 chapter name → severity) ───────
+
+/**
+ * chapter 見出しの severity 表現から severity を推論する。
+ * - Critical / 重大 / Error → 'error'
+ * - Important / 重要 / Warning → 'warn'
+ * - Suggestion / 推奨 / Info / 軽微 → 'info'
+ * - その他 → 'info' (default)
+ */
+export function inferSeverityFromHeading(heading: string): ParsedFinding['severity'] {
+  if (/Critical|重大|Error|エラー/i.test(heading)) return 'error';
+  if (/Important|重要|Warning|警告/i.test(heading)) return 'warn';
+  if (/Suggestion|推奨|Info|軽微|情報/i.test(heading)) return 'info';
+  return 'info';
+}
+
+// ── Target file path extraction from finding body ────────────────────────────
+
+/**
+ * finding 本文・タイトル・suggestion 等のテキスト塊から最も「これがターゲットファイル」
+ * と判断できる相対パスを抽出する。
+ *
+ * 優先順位:
+ * 1. `packages/<pkg>/...` (backtick 内/外問わず)
+ * 2. `src/...` / `tests?/...` / `spec/...` (backtick 内/外問わず)
+ * 3. backtick 内のその他相対パス（拡張子で判定）
+ *
+ * 行末や本文中の `:<line>` `:<line>-<line>` サフィックスは除去してパスのみ返す。
+ * 一致なしは null。
+ */
+const FILE_EXT_RE = String.raw`(?:tsx?|jsx?|mts|cts|mjs|cjs|md|sql|json|yml|yaml|css|scss|html?)`;
+const PATH_TOKEN_RE = new RegExp(
+  String.raw`(?:packages\/[\w@.\-]+\/)?(?:src|tests?|spec|scripts|\.github\/workflows|docs|public|migrations)\/[\w./\-]+\.${FILE_EXT_RE}(?::\d+(?:-\d+)?)?`,
+  'g',
+);
+
+function stripLineSuffix(p: string): string {
+  return p.replace(/:\d+(?:-\d+)?$/, '');
+}
+
+export function extractTargetFromFinding(text: string): string | null {
+  if (!text) return null;
+
+  const candidates: string[] = [];
+
+  // 1. backtick で囲まれたパス全部
+  const btRe = /`([^`]+)`/g;
+  let m: RegExpExecArray | null;
+  while ((m = btRe.exec(text)) !== null) {
+    const inner = m[1].trim();
+    if (PATH_TOKEN_RE.test(inner)) {
+      PATH_TOKEN_RE.lastIndex = 0;
+      candidates.push(stripLineSuffix(inner));
+    }
+  }
+
+  // 2. 本文中のパス（backtick 外）
+  PATH_TOKEN_RE.lastIndex = 0;
+  let n: RegExpExecArray | null;
+  while ((n = PATH_TOKEN_RE.exec(text)) !== null) {
+    candidates.push(stripLineSuffix(n[0]));
+  }
+
+  if (candidates.length === 0) return null;
+
+  // 優先順位: packages/ > src/ > tests/ / spec/ > その他
+  const packagesCand = candidates.find((c) => c.startsWith('packages/'));
+  if (packagesCand) return packagesCand;
+  const srcCand = candidates.find((c) => c.startsWith('src/'));
+  if (srcCand) return srcCand;
+  return candidates[0];
 }

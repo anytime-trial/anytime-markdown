@@ -1,10 +1,11 @@
 import type {
+  MemoryBugCausalInfo,
   MemoryBugHistoryRow,
   MemoryDriftEventDetail,
   MemoryDriftEventRow,
   MemoryFailedItemRow,
   MemoryInvalidationRow,
-  MemoryPipelineRunRow,
+  MemoryPipelineRunStatsByDayRow,
   MemoryRecurringBugRow,
   MemoryReviewHistoryRow,
   MemoryTopEntityRow,
@@ -95,6 +96,15 @@ export class MemoryReader {
     return this.fetchJson<MemoryBugHistoryRow[]>(`/api/memory/bugs/history?${q}`);
   }
 
+  async getBugCausalInfo(bugEntityId: string): Promise<MemoryBugCausalInfo | null> {
+    const q = new URLSearchParams({ bugEntityId });
+    try {
+      return await this.fetchJson<MemoryBugCausalInfo | null>(`/api/memory/bugs/causal?${q}`);
+    } catch {
+      return null;
+    }
+  }
+
   async listUnaddressedReviewFindings(params: {
     category?: string;
     severity?: string;
@@ -121,18 +131,14 @@ export class MemoryReader {
     return this.fetchJson<MemoryReviewHistoryRow[]>(`/api/memory/reviews/history?${q}`);
   }
 
-  async listPipelineRuns(params: {
+  async listPipelineRunStatsByDay(params: {
     scope?: string;
-    status?: string;
     since?: string;
-    limit?: number;
-  } = {}): Promise<readonly MemoryPipelineRunRow[]> {
+  } = {}): Promise<readonly MemoryPipelineRunStatsByDayRow[]> {
     const q = new URLSearchParams();
     if (params.scope) q.set('scope', params.scope);
-    if (params.status) q.set('status', params.status);
     if (params.since) q.set('since', params.since);
-    if (params.limit !== undefined) q.set('limit', String(params.limit));
-    return this.fetchJson<MemoryPipelineRunRow[]>(`/api/memory/pipeline/runs?${q}`);
+    return this.fetchJson<MemoryPipelineRunStatsByDayRow[]>(`/api/memory/pipeline/runs/by-day?${q}`);
   }
 
   async listFailedItems(params: {

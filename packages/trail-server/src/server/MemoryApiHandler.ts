@@ -1,6 +1,7 @@
-import { BetterSqlite3MemoryDb, getMemoryCoreDbPath } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, attachTrailDbReadOnly, getMemoryCoreDbPath } from '@anytime-markdown/memory-core';
 import type { MemoryDbConnection, MemoryDbSqlValue as SqlValue } from '@anytime-markdown/memory-core';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 import { resolveDrift } from '@anytime-markdown/memory-core';
 
@@ -45,7 +46,23 @@ export interface BugHistoryRow {
   package: string;
   category: string;
   subjectSummary: string;
+  sessionId: string | null;
+  precededByFindingIds: string[];
   committedAt: string;
+}
+
+export interface BugCausalInfo {
+  bugEntityId: string;
+  subject: string;
+  category: string;
+  commitSha: string;
+  committedAt: string;
+  affectedFilePaths: string[];
+  rootCauses: { entityId: string; displayName: string }[];
+  siblingBugEntityIds: string[];
+  precedingFindings: { findingEntityId: string; targetFilePath: string | null; severity: string }[];
+  introducedByCommitSha: string | null;
+  introducedByCommitSubject: string | null;
 }
 
 export interface UnaddressedReviewFindingRow {
@@ -61,7 +78,12 @@ export interface UnaddressedReviewFindingRow {
 export interface ReviewHistoryRow {
   id: string;
   reviewId: string;
+  findingEntityId: string;
   title: string;
+  reviewer: string;
+  sourceKind: string;
+  model: string | null;
+  sessionId: string | null;
   reviewedAt: string;
   targetFilePath: string | null;
   category: string;
@@ -69,16 +91,18 @@ export interface ReviewHistoryRow {
   findingText: string;
   addressedCommitSha: string | null;
   addressedAt: string | null;
+  precedesBugEntityIds: string[];
 }
 
-export interface PipelineRunRow {
-  id: string;
+export type PipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
+
+export interface PipelineRunStatsByDayRow {
+  day: string;
   scope: string;
-  startedAt: string;
-  completedAt: string | null;
-  status: string;
+  runs: number;
+  durationSec: number;
   itemsProcessed: number;
-  errorMessage: string | null;
+  worstStatus: PipelineRunStatus;
 }
 
 export interface FailedItemRow {
@@ -151,6 +175,9 @@ export class MemoryApiHandler {
    */
   private cachedReadOnlyDb: MemoryDbConnection | null = null;
 
+  /** trail.db が cachedReadOnlyDb に ATTACH 済みか（session レビューの model 取得用） */
+  private trailDbAttached = false;
+
   /**
    * better-sqlite3 の native binary 絶対パス。webpack-bundled VS Code 拡張で
    * bindings package が call stack から `.node` を推測できず crash する問題の
@@ -206,6 +233,15 @@ export class MemoryApiHandler {
         readOnly: true,
         ...(this.nativeBinding ? { nativeBinding: this.nativeBinding } : {}),
       });
+      const trailDbPath = path.join(path.dirname(this.dbPath), 'trail.db');
+      if (fs.existsSync(trailDbPath)) {
+        try {
+          void attachTrailDbReadOnly(this.cachedReadOnlyDb, trailDbPath);
+          this.trailDbAttached = true;
+        } catch (err) {
+          this.logger.warn(`[MemoryApiHandler.openReadOnly] trail.db attach failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
       return this.cachedReadOnlyDb;
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.openReadOnly] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
@@ -451,7 +487,11 @@ export class MemoryApiHandler {
       bindValues.push(limit);
       const result = db.exec(
         `SELECT bf.id, bf.commit_sha, bf.bug_entity_id, bf.package, bf.category,
-                bf.subject_summary, bf.committed_at
+                bf.subject_summary, bf.related_session_id, bf.committed_at,
+                (SELECT GROUP_CONCAT(e.subject_entity_id)
+                 FROM memory_edges e
+                 WHERE e.predicate='precedes' AND e.valid_to IS NULL
+                   AND e.object_entity_id = bf.bug_entity_id) AS preceded_by
          FROM memory_bug_fixes bf
          ${where}
          ORDER BY bf.committed_at DESC
@@ -462,6 +502,7 @@ export class MemoryApiHandler {
       const { columns, values } = result[0];
       return values.map((row) => {
         const r = mapRow<Record<string, unknown>>(columns, row);
+        const precededByRaw = toNullStr(r['preceded_by']);
         return {
           id: toStr(r['id']),
           commitSha: toStr(r['commit_sha']),
@@ -469,12 +510,131 @@ export class MemoryApiHandler {
           package: toStr(r['package']),
           category: toStr(r['category']),
           subjectSummary: toStr(r['subject_summary']),
+          sessionId: toNullStr(r['related_session_id']),
+          precededByFindingIds: precededByRaw ? precededByRaw.split(',').filter(Boolean) : [],
           committedAt: toStr(r['committed_at']),
         };
       });
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.getBugHistory] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  async getBugCausalInfo(bugEntityId: string): Promise<BugCausalInfo | null> {
+    const db = this.openReadOnly();
+    if (!db) return null;
+    try {
+      // 1. メインの bug_fix 行
+      const bugResult = db.exec(
+        `SELECT bf.commit_sha, bf.subject_summary, bf.category, bf.committed_at,
+                bf.affected_file_paths_json, bf.introduced_commit_sha
+         FROM memory_bug_fixes bf
+         WHERE bf.bug_entity_id = ?
+         ORDER BY bf.committed_at DESC
+         LIMIT 1`,
+        toBindParams([bugEntityId]),
+      );
+      const bugRow = bugResult[0]?.values?.[0];
+      if (!bugRow) return null;
+      const bugCols = bugResult[0]!.columns;
+      const bug = mapRow<Record<string, unknown>>(bugCols, bugRow);
+      const affectedFilePaths: string[] = (() => {
+        try {
+          const parsed: unknown = JSON.parse(toStr(bug['affected_file_paths_json']) || '[]');
+          return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+        } catch {
+          return [];
+        }
+      })();
+
+      // 2. root causes (caused_by edges → entity display_name)
+      const causedByResult = db.exec(
+        `SELECT e.id, COALESCE(e.display_name, e.canonical_name, '') AS name
+         FROM memory_edges edge
+         JOIN memory_entities e ON e.id = edge.object_entity_id
+         WHERE edge.predicate='caused_by' AND edge.valid_to IS NULL
+           AND edge.subject_entity_id = ?`,
+        toBindParams([bugEntityId]),
+      );
+      const rootCauses = (causedByResult[0]?.values ?? []).map((r) => ({
+        entityId: toStr(r[0]),
+        displayName: toStr(r[1]),
+      }));
+
+      // 3. sibling bugs (同じ root cause を共有する他 bug entity)
+      const siblingResult = rootCauses.length === 0
+        ? null
+        : db.exec(
+            `SELECT DISTINCT edge.subject_entity_id
+             FROM memory_edges edge
+             WHERE edge.predicate='caused_by' AND edge.valid_to IS NULL
+               AND edge.object_entity_id IN (${rootCauses.map(() => '?').join(',')})
+               AND edge.subject_entity_id != ?`,
+            toBindParams([...rootCauses.map((rc) => rc.entityId), bugEntityId]),
+          );
+      const siblingBugEntityIds = (siblingResult?.[0]?.values ?? []).map((r) => toStr(r[0]));
+
+      // 4. preceding findings (precedes edges 逆方向)
+      const precedesResult = db.exec(
+        `SELECT edge.subject_entity_id, rf.target_file_path, rf.severity
+         FROM memory_edges edge
+         LEFT JOIN memory_review_findings rf ON rf.finding_entity_id = edge.subject_entity_id
+         WHERE edge.predicate='precedes' AND edge.valid_to IS NULL
+           AND edge.object_entity_id = ?`,
+        toBindParams([bugEntityId]),
+      );
+      const precedingFindings = (precedesResult[0]?.values ?? []).map((r) => ({
+        findingEntityId: toStr(r[0]),
+        targetFilePath: toNullStr(r[1]),
+        severity: toStr(r[2]) || 'info',
+      }));
+
+      // 5. introduced_by (column or edge - prefer column if non-null)
+      const introducedCommitSha = toNullStr(bug['introduced_commit_sha']);
+      let introducedByCommitSubject: string | null = null;
+      if (introducedCommitSha) {
+        const subResult = db.exec(
+          `SELECT subject_summary FROM memory_bug_fixes WHERE commit_sha=? LIMIT 1`,
+          toBindParams([introducedCommitSha]),
+        );
+        const subRow = subResult[0]?.values?.[0];
+        introducedByCommitSubject = subRow ? toStr(subRow[0]) : null;
+      } else {
+        // fallback to introduced_by edge
+        const edgeResult = db.exec(
+          `SELECT e.canonical_name
+           FROM memory_edges edge
+           JOIN memory_entities e ON e.id = edge.object_entity_id
+           WHERE edge.predicate='introduced_by' AND edge.valid_to IS NULL
+             AND edge.subject_entity_id = ?
+           LIMIT 1`,
+          toBindParams([bugEntityId]),
+        );
+        const introRow = edgeResult[0]?.values?.[0];
+        if (introRow) {
+          // memory_entities.canonical_name for Commit type = commit_sha
+        }
+      }
+
+      return {
+        bugEntityId,
+        subject: toStr(bug['subject_summary']),
+        category: toStr(bug['category']),
+        commitSha: toStr(bug['commit_sha']),
+        committedAt: toStr(bug['committed_at']),
+        affectedFilePaths,
+        rootCauses,
+        siblingBugEntityIds,
+        precedingFindings,
+        introducedByCommitSha: introducedCommitSha,
+        introducedByCommitSubject,
+      };
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.getBugCausalInfo] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return null;
     } finally {
       this.close(db);
     }
@@ -556,12 +716,38 @@ export class MemoryApiHandler {
       }
       const where = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
+      const sessionModelExpr = this.trailDbAttached
+        ? `WHEN r.source_kind = 'session' THEN (
+             SELECT msg.model FROM trail.messages msg
+             WHERE msg.session_id = substr(r.source_ref, 1, instr(r.source_ref, '#') - 1)
+               AND msg.type = 'assistant' AND msg.model IS NOT NULL AND msg.model != ''
+             GROUP BY msg.model
+             ORDER BY COUNT(*) DESC
+             LIMIT 1
+           )`
+        : '';
       const result = db.exec(
-        `SELECT rf.id, rf.review_id, r.title, r.reviewed_at,
+        `SELECT rf.id, rf.review_id, rf.finding_entity_id, r.title, r.reviewer, r.source_kind,
+                CASE
+                  WHEN r.source_kind = 'agent' THEN rr.model
+                  ${sessionModelExpr}
+                  ELSE NULL
+                END AS model,
+                CASE
+                  WHEN r.source_kind = 'session' AND instr(r.source_ref, '#') > 1
+                    THEN substr(r.source_ref, 1, instr(r.source_ref, '#') - 1)
+                  ELSE NULL
+                END AS session_id,
+                r.reviewed_at,
                 rf.target_file_path, rf.category, rf.severity, rf.finding_text,
-                rf.addressed_commit_sha, rf.addressed_at
+                rf.addressed_commit_sha, rf.addressed_at,
+                (SELECT GROUP_CONCAT(e.object_entity_id)
+                 FROM memory_edges e
+                 WHERE e.predicate='precedes' AND e.valid_to IS NULL
+                   AND e.subject_entity_id = rf.finding_entity_id) AS precedes_bugs
          FROM memory_review_findings rf
          JOIN memory_reviews r ON r.id = rf.review_id
+         LEFT JOIN memory_review_runs rr ON r.source_kind = 'agent' AND rr.id = r.source_ref
          WHERE 1=1 ${where}
          ORDER BY r.reviewed_at DESC
          LIMIT ?`,
@@ -571,10 +757,16 @@ export class MemoryApiHandler {
       const { columns, values } = result[0];
       return values.map((row) => {
         const r = mapRow<Record<string, unknown>>(columns, row);
+        const precedesRaw = toNullStr(r['precedes_bugs']);
         return {
           id: toStr(r['id']),
           reviewId: toStr(r['review_id']),
+          findingEntityId: toStr(r['finding_entity_id']),
           title: toStr(r['title']),
+          reviewer: toStr(r['reviewer']),
+          sourceKind: toStr(r['source_kind']),
+          model: toNullStr(r['model']),
+          sessionId: toNullStr(r['session_id']),
           reviewedAt: toStr(r['reviewed_at']),
           targetFilePath: toNullStr(r['target_file_path']),
           category: toStr(r['category']),
@@ -582,6 +774,7 @@ export class MemoryApiHandler {
           findingText: toStr(r['finding_text']),
           addressedCommitSha: toNullStr(r['addressed_commit_sha']),
           addressedAt: toNullStr(r['addressed_at']),
+          precedesBugEntityIds: precedesRaw ? precedesRaw.split(',').filter(Boolean) : [],
         };
       });
     } catch (err) {
@@ -594,57 +787,62 @@ export class MemoryApiHandler {
 
   // ---- pipeline runs ----
 
-  async listPipelineRuns(params: {
+  async listPipelineRunStatsByDay(params: {
     scope?: string;
-    status?: string;
     since?: string;
-    limit?: number;
-  }): Promise<PipelineRunRow[]> {
+  }): Promise<PipelineRunStatsByDayRow[]> {
     const db = this.openReadOnly();
     if (!db) return [];
     try {
-      const limit = clampLimit(params.limit, 50);
       const conditions: string[] = [];
       const bindValues: unknown[] = [];
       if (params.scope) {
         conditions.push('scope = ?');
         bindValues.push(params.scope);
       }
-      if (params.status) {
-        conditions.push('status = ?');
-        bindValues.push(params.status);
-      }
       if (params.since) {
         conditions.push('started_at >= ?');
         bindValues.push(params.since);
       }
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-      bindValues.push(limit);
+      // status を順序付き数値にマップして MAX で worst を抽出。
+      // 結果が高々 (日数 × scope 数) で頭打ちのため LIMIT 不要。
       const result = db.exec(
-        `SELECT id, scope, started_at, finished_at, status,
-                COALESCE(items_processed, 0) AS items_processed, error_detail
+        `SELECT substr(started_at, 1, 10) AS day,
+                scope,
+                COUNT(*) AS runs,
+                COALESCE(SUM(duration_ms), 0) / 1000 AS duration_sec,
+                COALESCE(SUM(items_processed), 0) AS items_processed,
+                MAX(CASE status
+                      WHEN 'error'   THEN 3
+                      WHEN 'partial' THEN 2
+                      WHEN 'success' THEN 1
+                      WHEN 'running' THEN 0
+                      ELSE 0
+                    END) AS worst_rank
          FROM memory_pipeline_runs
          ${where}
-         ORDER BY started_at DESC
-         LIMIT ?`,
+         GROUP BY day, scope
+         ORDER BY day DESC, scope ASC`,
         toBindParams(bindValues),
       );
       if (!result[0]) return [];
       const { columns, values } = result[0];
+      const rankToStatus = (n: number): PipelineRunStatus =>
+        n === 3 ? 'error' : n === 2 ? 'partial' : n === 1 ? 'success' : 'running';
       return values.map((row) => {
         const r = mapRow<Record<string, unknown>>(columns, row);
         return {
-          id: toStr(r['id']),
+          day: toStr(r['day']),
           scope: toStr(r['scope']),
-          startedAt: toStr(r['started_at']),
-          completedAt: toNullStr(r['finished_at']),
-          status: toStr(r['status']),
+          runs: toNum(r['runs']),
+          durationSec: toNum(r['duration_sec']),
           itemsProcessed: toNum(r['items_processed']),
-          errorMessage: toNullStr(r['error_detail']),
+          worstStatus: rankToStatus(toNum(r['worst_rank'])),
         };
       });
     } catch (err) {
-      this.logger.error(`[MemoryApiHandler.listPipelineRuns] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      this.logger.error(`[MemoryApiHandler.listPipelineRunStatsByDay] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       this.close(db);

@@ -157,6 +157,7 @@ export function TrailViewerCore(props: Readonly<TrailViewerCoreProps>) {
 
 function TrailViewerCoreInner({
   isDark,
+  locale,
   sessions,
   allSessions,
   selectedSessionId,
@@ -335,6 +336,21 @@ function TrailViewerCoreInner({
       setMessagesPopupOpen(true);
     },
     [filter, onFilterChange, onSelectSession],
+  );
+
+  const handleOpenSessionMessages = useCallback(
+    (sessionId: string) => {
+      const session = (allSessions ?? sessions).find((s) => s.id === sessionId);
+      const query = session?.slug || sessionId;
+      onFilterChange({
+        ...filter,
+        ...(session?.workspace ? { workspace: session.workspace } : {}),
+        searchText: query,
+      });
+      onSelectSession(sessionId);
+      setMessagesPopupOpen(true);
+    },
+    [allSessions, sessions, filter, onFilterChange, onSelectSession],
   );
 
   const selectedSession =
@@ -542,7 +558,7 @@ function TrailViewerCoreInner({
           aria-labelledby="trail-tab-6"
           sx={{ display: activeTab !== 6 ? 'none' : 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
         >
-          <MemoryPanel serverUrl={serverUrl} />
+          <MemoryPanel serverUrl={serverUrl} onOpenSessionMessages={handleOpenSessionMessages} />
         </Box>
       )}
 
@@ -638,7 +654,7 @@ function TrailViewerCoreInner({
           i18nClose={t('c4.popup.close')}
           i18nResize={t('c4.popup.resize')}
         >
-          <PromptManager prompts={prompts} />
+          <PromptManager prompts={prompts} isDark={isDark ?? true} locale={locale} />
         </ResizablePopup>
       )}
       {messagesPopupOpen && (

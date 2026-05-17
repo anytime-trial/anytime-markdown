@@ -232,18 +232,18 @@ describe('extractFactsFromEpisode', () => {
     expect(result!.entities[0].type).toBe('Bug');
   });
 
-  test('caused_by predicate is accepted by zod schema', async () => {
+  test('caused_by predicate is accepted by zod schema when object is a concrete entity', async () => {
     const ollama = makeOllama({
-      summary: 'Bug caused by bad assumption',
+      summary: 'Bug caused by bad assumption in auth.ts',
       entities: [
         { type: 'Bug', name: 'Auth token bug', aliases: [], tags: [], attributes: {} },
-        { type: 'Concept', name: 'JWT expiry assumption', aliases: [], tags: [], attributes: {} },
+        { type: 'File', name: 'src/auth.ts', aliases: [], tags: [], attributes: {} },
       ],
       relations: [
         {
           subject: { type: 'Bug', name: 'Auth token bug' },
           predicate: 'caused_by',
-          object: { type: 'Concept', name: 'JWT expiry assumption' },
+          object: { type: 'File', name: 'src/auth.ts' },
           valid_from: null,
           confidence: 0.75,
         },
@@ -256,13 +256,35 @@ describe('extractFactsFromEpisode', () => {
     expect(result!.relations[0].confidence).toBe(0.75);
   });
 
-  test('Bug + caused_by instructions present in system prompt', async () => {
+  test('caused_by relation with abstract object (Concept) is dropped by the defense filter', async () => {
+    const ollama = makeOllama({
+      summary: 'Bug from abstract concept',
+      entities: [
+        { type: 'Bug', name: 'Some bug', aliases: [], tags: [], attributes: {} },
+        { type: 'Concept', name: '不適切な条件分岐', aliases: [], tags: [], attributes: {} },
+      ],
+      relations: [
+        {
+          subject: { type: 'Bug', name: 'Some bug' },
+          predicate: 'caused_by',
+          object: { type: 'Concept', name: '不適切な条件分岐' },
+          confidence: 0.8,
+        },
+      ],
+    });
+    const result = await extractFactsFromEpisode({ ollama, episode: episodeBase, logger: mockLogger });
+    expect(result).not.toBeNull();
+    expect(result!.relations).toHaveLength(0);
+  });
+
+  test('Bug + caused_by instructions present in system prompt with concrete-object constraint', async () => {
     const ollama = makeOllama({ summary: 'test', entities: [], relations: [] });
     await extractFactsFromEpisode({ ollama, episode: episodeBase, logger: mockLogger });
     const promptUsed: string = (ollama.generate as jest.Mock).mock.calls[0][0].prompt;
     expect(promptUsed).toContain('Bug');
     expect(promptUsed).toContain('caused_by');
-    expect(promptUsed).toContain('why-why-why');
+    expect(promptUsed).toContain('File / Package / Library / Tool / Commit / Bug');
+    expect(promptUsed).toContain('抽象概念');
   });
 
   test('Bug entity processed twice → schema validates identically (deterministic)', async () => {

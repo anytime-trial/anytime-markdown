@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-05-17
+
+### Changed
+
+- Replaced `next/dynamic` with `React.lazy` for client-only components so `markdown-core` no longer carries a Next.js runtime dependency when consumed by non-Next hosts (VS Code webviews, VS Code extension bundles)
+- Documentation references to AI Note now point to the new Anytime Agent extension
+
 ## [0.15.1] - 2026-05-16
 
 ### Fixed

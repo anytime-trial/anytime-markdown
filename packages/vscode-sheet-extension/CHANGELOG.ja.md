@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-05-17
+
+### 変更
+
+- バージョンアップのみ (0.4.3 から機能変更なし)
+
+### Spreadsheet Core (spreadsheet-core)
+
+- バージョン同期のみ (機能変更なし)
+
+### Spreadsheet Viewer (spreadsheet-viewer)
+
+- バージョン同期のみ (機能変更なし)
+
 ## [0.4.3] - 2026-05-15
 
 ### Spreadsheet Core (spreadsheet-core)

@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -47,7 +47,8 @@
     "packages/llm-core",
     "packages/ollama-core",
     "packages/agent-core",
-    "packages/review-agent"
+    "packages/review-agent",
+    "packages/markdown-eval-core"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",

@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-17
+
+### 追加
+
+- Anytime Trail 拡張から AI ノートパネルを移行しました。
+  `anytimeAgent.aiNote` view が Agent アクティビティバー先頭に表示され、
+  7 個の `anytime-agent.openAiNote*` コマンドを提供します。\
+  ノートはワークスペース直下 `.anytime/notes/` に保存され、テンプレ
+  ート展開された `anytime-note` Claude Code スキルが
+  `.claude/skills/anytime-note/SKILL.md` に配置されます（保存先パスは
+  trail 拡張と同一で、既存ノートをそのまま引き継げます）。
+- VSIX に MIT `LICENSE` ファイルを同梱。`package.json` では `"license": "MIT"` を宣言済みだったが、公開拡張機能本体にライセンス全文が含まれていなかったため追加
+
+### 変更
+
+- AI ノートに関するドキュメントリンクを本拡張に向け直し
+
 ## [0.1.0] - 2026-05-16
 
 ### 追加

@@ -124,11 +124,13 @@ describe('MemoryReader.getReviewHistory', () => {
   });
 });
 
-describe('MemoryReader.listPipelineRuns', () => {
-  it('returns pipeline run array', async () => {
-    const data = [{ id: 'r1', scope: 'drift', status: 'success' }];
-    mockFetch(200, data);
-    expect(await new MemoryReader(BASE).listPipelineRuns({})).toEqual(data);
+describe('MemoryReader.listPipelineRunStatsByDay', () => {
+  it('returns aggregated stats array and targets /by-day endpoint', async () => {
+    const data = [{ day: '2026-05-16', scope: 'drift', runs: 3, durationSec: 120, itemsProcessed: 10, worstStatus: 'success' }];
+    const mock = mockFetch(200, data);
+    expect(await new MemoryReader(BASE).listPipelineRunStatsByDay({ since: '2026-04-16T00:00:00.000Z' })).toEqual(data);
+    expect((mock.mock.calls[0] as [string])[0]).toContain('/api/memory/pipeline/runs/by-day');
+    expect((mock.mock.calls[0] as [string])[0]).toContain('since=');
   });
 });
 

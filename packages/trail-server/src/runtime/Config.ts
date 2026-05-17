@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { DEFAULT_CONVERSATION_BACKFILL_DAYS } from '@anytime-markdown/memory-core';
 import type { Logger } from './Logger';
 
 export interface AnalyzeAllConfig {
@@ -62,7 +63,7 @@ const DEFAULT_CONFIG: TrailServerConfig = {
     embedding: { model: 'bge-m3' },
     rag: { bm25Limit: 30, vecLimit: 30, finalLimit: 12, rrfK: 60 },
     fts: { rebuildIntervalMinutes: 60 },
-    conversation: { backfillDays: 5 },
+    conversation: { backfillDays: DEFAULT_CONVERSATION_BACKFILL_DAYS },
   },
 };
 

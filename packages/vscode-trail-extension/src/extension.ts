@@ -1,15 +1,14 @@
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
-
-const homeDir = os.homedir();
 
 import * as vscode from 'vscode';
 
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { registerTraceCommands } from './commands/traceCommands';
-import { installBundledSkills, installStaticSkillDir, installTemplatedSkill } from './installBundledSkills';
-import { AiNoteItem,AiNoteProvider } from './providers/AiNoteProvider';
+import {
+	installBundledSkills,
+	installStaticSkillDir,
+} from '@anytime-markdown/vscode-common';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
 import { PipelineProvider } from './providers/PipelineProvider';
 import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
@@ -149,42 +148,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		isAnalyzeAllEnabled(),
 	);
 
-	// Agent Note ビュー
-	// 格納先はワークスペース直下の .anytime/notes/。ワークスペース未開時のみ
-	// 旧 globalStorage パスにフォールバックする。
-	const workspaceRootForNotes = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-	const noteStorageDir = workspaceRootForNotes
-		? path.join(workspaceRootForNotes, '.anytime', 'notes')
-		: context.globalStorageUri.fsPath;
-	const aiNoteProvider = new AiNoteProvider(noteStorageDir);
-	const aiNoteTreeView = vscode.window.createTreeView('anytimeTrail.aiNote', {
-		treeDataProvider: aiNoteProvider,
-	});
-
-	const noteWatcher = vscode.workspace.createFileSystemWatcher(
-		new vscode.RelativePattern(vscode.Uri.file(noteStorageDir), 'anytime-note-*.md')
-	);
-	noteWatcher.onDidCreate(() => aiNoteProvider.refresh());
-	noteWatcher.onDidDelete(() => aiNoteProvider.refresh());
-
-	/** ノートファイルをカスタムエディタで開く */
-	async function openNoteFile(filePath: string): Promise<void> {
-		const uri = vscode.Uri.file(filePath);
-		for (const group of vscode.window.tabGroups.all) {
-			for (const tab of group.tabs) {
-				const input = tab.input as { uri?: vscode.Uri } | undefined;
-				if (input?.uri?.fsPath === uri.fsPath) {
-					await vscode.window.tabGroups.close(tab, true);
-				}
-			}
-		}
-		try {
-			await vscode.commands.executeCommand('vscode.openWith', uri, 'anytimeMarkdown');
-		} catch {
-			vscode.window.showErrorMessage(`ノートファイルを開けませんでした: ${filePath}`);
-		}
-	}
-
 	// スキル展開先はワークスペース直下の .claude/。ワークスペース未開時は何もしない。
 	// .claude ディレクトリが無い場合は新規作成して展開する（リポジトリ毎にスキルを同梱可能にする）。
 	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -234,138 +197,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	// anytime-note はテンプレート + ランタイム placeholder 置換。activate 時に
-	// ノート格納パスを placeholder へ展開して書き出す。
-	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			const noteImagesDir = path.join(noteStorageDir, 'images');
-			installTemplatedSkill({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				skillName: 'anytime-note',
-				placeholders: {
-					__NOTE_DIR__: noteStorageDir,
-					__IMAGES_DIR__: noteImagesDir,
-				},
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure for anytime-note: ${String(err)}`);
-		}
-	}
-
-	const openAiNote = vscode.commands.registerCommand(
-		'anytime-trail.openAiNote',
-		async () => {
-			const dir = noteStorageDir;
-			const filePath = path.join(dir, 'anytime-note-1.md');
-			if (!fs.existsSync(dir)) {
-				fs.mkdirSync(dir, { recursive: true });
-			}
-			try {
-				fs.writeFileSync(filePath, '', { encoding: 'utf-8', flag: 'wx' });
-			} catch {
-				// EEXIST: ファイル既存は正常
-			}
-			aiNoteProvider.refresh();
-			await openNoteFile(filePath);
-		}
-	);
-
-	const openAiNoteSkill = vscode.commands.registerCommand(
-		'anytime-trail.openAiNoteSkill',
-		async () => {
-			const skillPath = path.join(homeDir, '.claude', 'skills', 'anytime-note', 'SKILL.md');
-			if (!fs.existsSync(skillPath)) {
-				vscode.window.showWarningMessage('スキルファイルが見つかりません。先にノートを作成してください。');
-				return;
-			}
-			await openNoteFile(skillPath);
-		}
-	);
-
-	const copyAiNotePath = vscode.commands.registerCommand(
-		'anytime-trail.copyAiNotePath',
-		async () => {
-			const filePath = path.join(noteStorageDir, 'anytime-context.md');
-			await vscode.env.clipboard.writeText(filePath);
-			vscode.window.showInformationMessage(`Copied: ${filePath}`);
-		}
-	);
-
-	const clearAiNote = vscode.commands.registerCommand(
-		'anytime-trail.clearAiNote',
-		async () => {
-			const answer = await vscode.window.showWarningMessage(
-				'すべてのノートページと画像を削除しますか？',
-				{ modal: true },
-				'Delete'
-			);
-			if (answer !== 'Delete') { return; }
-			if (fs.existsSync(noteStorageDir)) {
-				for (const f of fs.readdirSync(noteStorageDir)) {
-					if (f.startsWith('anytime-note') && f.endsWith('.md')) {
-						fs.rmSync(path.join(noteStorageDir, f));
-					}
-				}
-				const imagesDir = path.join(noteStorageDir, 'images');
-				if (fs.existsSync(imagesDir)) {
-					fs.rmSync(imagesDir, { recursive: true, force: true });
-				}
-			}
-			aiNoteProvider.refresh();
-			vscode.window.showInformationMessage('ノートをクリアしました。');
-		}
-	);
-
-	const addAiNotePage = vscode.commands.registerCommand(
-		'anytime-trail.addAiNotePage',
-		async () => {
-			const dir = noteStorageDir;
-			if (!fs.existsSync(dir)) {
-				fs.mkdirSync(dir, { recursive: true });
-			}
-			const existing = fs.existsSync(dir)
-				? fs.readdirSync(dir)
-					.filter(f => /^anytime-note-\d+\.md$/.test(f))
-					.map(f => Number.parseInt(f.replace('anytime-note-', '').replace('.md', ''), 10))
-				: [];
-			const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
-			const fileName = `anytime-note-${nextNum}.md`;
-			const filePath = path.join(dir, fileName);
-			fs.writeFileSync(filePath, '', { encoding: 'utf-8' });
-			aiNoteProvider.refresh();
-			await openNoteFile(filePath);
-		}
-	);
-
-	const deleteAiNotePage = vscode.commands.registerCommand(
-		'anytime-trail.deleteAiNotePage',
-		async (item: AiNoteItem) => {
-			const answer = await vscode.window.showWarningMessage(
-				`"${item.label as string}" を削除しますか？`,
-				{ modal: true },
-				'Delete'
-			);
-			if (answer !== 'Delete') { return; }
-			if (fs.existsSync(item.filePath)) {
-				fs.rmSync(item.filePath);
-			}
-			aiNoteProvider.refresh();
-		}
-	);
-
-	const openAiNotePage = vscode.commands.registerCommand(
-		'anytime-trail.openAiNotePage',
-		async (filePath: string) => {
-			await openNoteFile(filePath);
-		}
-	);
-
 	const reinstallSkills = vscode.commands.registerCommand(
 		'anytime-trail.reinstallSkills',
 		async () => {
@@ -392,15 +223,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		aiNoteTreeView,
-		noteWatcher,
-		openAiNote,
-		openAiNoteSkill,
-		copyAiNotePath,
-		clearAiNote,
-		addAiNotePage,
-		deleteAiNotePage,
-		openAiNotePage,
 		reinstallSkills,
 	);
 
@@ -505,6 +327,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			nativeBinding: memoryCoreNativeBinding,
 			gitRoot: wsRootForDb,
 			backfillDays: trailConfig.memory.conversation.backfillDays,
+			// trail.db と同じ anytimeDatabase.backup 設定を memory-core.db
+			// にも適用する。pipeline runner が openMemoryCoreDb 直前に
+			// FileBackupManager 経由でローテートする。
+			backupGenerations,
+			backupIntervalDays,
 		});
 		TrailLogger.info('[MemoryCore] service constructed (orchestrated by AnalyzeAllRunner)');
 	} else if (useExternalDaemon && externalDaemonInfo) {
@@ -1064,9 +891,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		: undefined;
 
 	// Pipelines パネル (backup / importAll 8 phases / memory-core pipelines)
+	const memoryDbFilePathForPanel = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
 	pipelineProvider = new PipelineProvider({
 		statusFilePath: pipelineStatusPath,
 		dbFilePath,
+		memoryDbFilePath: memoryDbFilePathForPanel,
 		importAllStatusFilePath,
 	});
 	vscode.window.createTreeView('anytimeTrail.pipelines', {
