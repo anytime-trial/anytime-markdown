@@ -406,6 +406,16 @@ export interface TrailI18n {
   'memory.bug.causedBy.empty': string;
   'memory.bug.openInMessages': string;
   'memory.bug.precededByCount': string;
+  'memory.bug.causal.thisBug': string;
+  'memory.bug.causal.sibling': string;
+  'memory.bug.causal.sibling.tooltip': string;
+  'memory.bug.causal.preceding': string;
+  'memory.bug.causal.introducedBy': string;
+  'memory.bug.causal.affectedFiles': string;
+  'memory.bug.causal.rootCauses': string;
+  'memory.bug.causal.noCauses': string;
+  'memory.bug.causal.bugsUnit': string;
+  'memory.bug.causal.findingsUnit': string;
   'memory.review.precedesBugCount': string;
   // review sub-tab
   'memory.review.empty': string;

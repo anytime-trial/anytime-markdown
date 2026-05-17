@@ -1041,6 +1041,23 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/memory/bugs/causal' && method === 'GET') {
+      const bugEntityId = parsed.searchParams.get('bugEntityId');
+      if (!bugEntityId) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'bugEntityId required' }));
+        return;
+      }
+      void this.memoryApi.getBugCausalInfo(bugEntityId).then((data) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        this.logger.error(`[/api/memory/bugs/causal] ${String(err)}`);
+        res.writeHead(500); res.end();
+      });
+      return;
+    }
+
     if (pathname === '/api/memory/reviews/unaddressed' && method === 'GET') {
       const p = parsed.searchParams;
       void this.memoryApi.listUnaddressedReviewFindings({
