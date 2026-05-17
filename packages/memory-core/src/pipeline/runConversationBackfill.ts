@@ -9,7 +9,15 @@ import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 const SCOPE = 'conversation_backfill';
 const QUARANTINE_THRESHOLD = 3;
-const DEFAULT_SINCE_DAYS = 30;
+/**
+ * 会話 backfill の既定期間 (日)。
+ *
+ * Single source of truth: trail-server/Config.ts と
+ * memory-core/defaultMemoryCorePipelineRunner.ts はこの定数を import して
+ * 使うこと。各所で別々に数値リテラルを書くと drift する (2026-05 に実際
+ * 5 と 30 が混在した事故あり)。値を変えたいときはここだけ書き換える。
+ */
+export const DEFAULT_CONVERSATION_BACKFILL_DAYS = 30;
 const PROGRESS_LOG_INTERVAL = 10;
 const DEFAULT_EXTRACT_CONCURRENCY = 2;
 
@@ -206,7 +214,7 @@ export async function runConversationBackfill(opts: {
   const { db, ollama, model } = opts;
   const logger = opts.logger ?? noopLogger;
   const save = opts.save;
-  const sinceDays = opts.sinceDays ?? DEFAULT_SINCE_DAYS;
+  const sinceDays = opts.sinceDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS;
   const extractConcurrency = resolveExtractConcurrency();
 
   const startedAt = new Date().toISOString();

@@ -20,8 +20,16 @@ export type { MemoryLogger } from './logger';
 export { noopLogger } from './logger';
 export { runConversationIncremental } from './pipeline/runConversationIncremental';
 export type { IncrementalResult } from './pipeline/runConversationIncremental';
-export { runConversationBackfill } from './pipeline/runConversationBackfill';
+export {
+  runConversationBackfill,
+  DEFAULT_CONVERSATION_BACKFILL_DAYS,
+} from './pipeline/runConversationBackfill';
 export type { BackfillResult } from './pipeline/runConversationBackfill';
+export { detectBackfillWindowExpansion } from './pipeline/detectBackfillWindowExpansion';
+export type {
+  DetectBackfillWindowExpansionInput,
+  DetectBackfillWindowExpansionResult,
+} from './pipeline/detectBackfillWindowExpansion';
 export { runConversationFailedItemsRetry } from './pipeline/runConversationFailedItemsRetry';
 export type { FailedItemsRetryResult } from './pipeline/runConversationFailedItemsRetry';
 export { runPipelineWatchdog } from './pipeline/pipelineWatchdog';
