@@ -24,6 +24,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
+    "onView:anytimeAgent.aiNote",
     "onView:anytimeAgent.mapping",
     "onView:anytimeAgent.ollama"
   ],
@@ -41,6 +42,10 @@
     "views": {
       "anytimeAgent": [
         {
+          "id": "anytimeAgent.aiNote",
+          "name": "%view.aiNote%"
+        },
+        {
           "id": "anytimeAgent.mapping",
           "name": "%view.mapping%"
         },
@@ -54,6 +59,10 @@
       {
         "view": "anytimeAgent.mapping",
         "contents": "%viewsWelcome.mapping%"
+      },
+      {
+        "view": "anytimeAgent.aiNote",
+        "contents": "%viewsWelcome.aiNote%"
       }
     ],
     "commands": [
@@ -105,6 +114,47 @@
         "title": "%command.startOllama%",
         "category": "Anytime Agent",
         "icon": "$(play)"
+      },
+      {
+        "command": "anytime-agent.openAiNote",
+        "title": "%command.openAiNote%",
+        "category": "Anytime Agent",
+        "icon": "$(note)"
+      },
+      {
+        "command": "anytime-agent.openAiNoteSkill",
+        "title": "%command.openAiNoteSkill%",
+        "category": "Anytime Agent",
+        "icon": "$(book)"
+      },
+      {
+        "command": "anytime-agent.addAiNotePage",
+        "title": "%command.addAiNotePage%",
+        "category": "Anytime Agent",
+        "icon": "$(add)"
+      },
+      {
+        "command": "anytime-agent.deleteAiNotePage",
+        "title": "%command.deleteAiNotePage%",
+        "category": "Anytime Agent",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "anytime-agent.openAiNotePage",
+        "title": "%command.openAiNotePage%",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.clearAiNote",
+        "title": "%command.clearAiNote%",
+        "category": "Anytime Agent",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "anytime-agent.copyAiNotePath",
+        "title": "%command.copyAiNotePath%",
+        "category": "Anytime Agent",
+        "icon": "$(clippy)"
       }
     ],
     "menus": {
@@ -135,6 +185,26 @@
           "command": "anytime-agent.startOllama",
           "when": "view == anytimeAgent.ollama && !anytime-agent.ollamaRunning",
           "group": "navigation"
+        },
+        {
+          "command": "anytime-agent.openAiNoteSkill",
+          "when": "view == anytimeAgent.aiNote",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-agent.addAiNotePage",
+          "when": "view == anytimeAgent.aiNote",
+          "group": "navigation@2"
+        },
+        {
+          "command": "anytime-agent.clearAiNote",
+          "when": "view == anytimeAgent.aiNote",
+          "group": "navigation@3"
+        },
+        {
+          "command": "anytime-agent.copyAiNotePath",
+          "when": "view == anytimeAgent.aiNote",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -162,6 +232,11 @@
           "command": "anytime-agent.mapping.deleteStatusFile",
           "when": "view == anytimeAgent.mapping && viewItem == session.stale",
           "group": "3_modify@1"
+        },
+        {
+          "command": "anytime-agent.deleteAiNotePage",
+          "when": "view == anytimeAgent.aiNote && viewItem == noteItem",
+          "group": "inline"
         }
       ]
     },
