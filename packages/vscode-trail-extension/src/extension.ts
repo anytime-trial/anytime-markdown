@@ -8,7 +8,11 @@ import * as vscode from 'vscode';
 
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { registerTraceCommands } from './commands/traceCommands';
-import { installBundledSkills, installStaticSkillDir, installTemplatedSkill } from './installBundledSkills';
+import {
+	installBundledSkills,
+	installStaticSkillDir,
+	installTemplatedSkill,
+} from '@anytime-markdown/vscode-common';
 import { AiNoteItem,AiNoteProvider } from './providers/AiNoteProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
 import { PipelineProvider } from './providers/PipelineProvider';
