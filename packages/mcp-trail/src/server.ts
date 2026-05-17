@@ -17,6 +17,10 @@ import { ListReviewTargetHintsInputSchema, handleListReviewTargetHints } from '.
 import { DetectDriftInputSchema, handleDetectDrift } from './tools/detectDrift.js';
 import { ExplainDriftInputSchema, handleExplainDrift } from './tools/explainDrift.js';
 import { ResolveDriftInputSchema, handleResolveDrift } from './tools/resolveDrift.js';
+import {
+  EvaluateReverseSpecInputSchema,
+  handleEvaluateReverseSpec,
+} from './tools/evaluateReverseSpec.js';
 
 export interface McpTrailOptions {
   serverUrl?: string;
@@ -555,6 +559,26 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     },
     async (args) => {
       const result = await handleLinkReviewToCommit(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Reverse spec evaluation (markdown-eval-core)
+  // -------------------------------------------------------------------------
+
+  server.tool(
+    'evaluate_reverse_spec',
+    'Pair golden and candidate markdown design documents, compute heuristic scores (intent / design / completeness) and excerpts for downstream LLM scoring. Used by /anytime-reverse-spec evaluate=true. LLM 推論はこのツールでは行わず、呼び出し側 (スキル実行 Agent) が excerpt を読んで採点する。',
+    {
+      goldenFiles: EvaluateReverseSpecInputSchema.shape.goldenFiles,
+      candidateDir: EvaluateReverseSpecInputSchema.shape.candidateDir,
+      documentGlob: EvaluateReverseSpecInputSchema.shape.documentGlob,
+      excludeGlobs: EvaluateReverseSpecInputSchema.shape.excludeGlobs,
+      maxExcerptChars: EvaluateReverseSpecInputSchema.shape.maxExcerptChars,
+    },
+    async (args) => {
+      const result = await handleEvaluateReverseSpec(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
