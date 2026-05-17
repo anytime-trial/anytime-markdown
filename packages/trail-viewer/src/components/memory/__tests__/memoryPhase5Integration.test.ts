@@ -24,6 +24,7 @@ const BUG_HISTORY: readonly MemoryBugHistoryRow[] = Array.from({ length: 10 }, (
   package: i < 5 ? 'trail-viewer' : 'vscode-trail-extension',
   category: i < 3 ? 'regression' : i < 5 ? 'spec' : 'logic',
   subjectSummary: `Bug fix #${i}: something broke`,
+  sessionId: `sess-${i}`,
   committedAt: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`,
 }));
 

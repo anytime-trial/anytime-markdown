@@ -74,6 +74,8 @@ function buildTestDb(dbPath: string): void {
     subject_summary TEXT NOT NULL,
     body_excerpt TEXT NOT NULL DEFAULT '',
     affected_file_paths_json TEXT NOT NULL DEFAULT '[]',
+    related_session_id TEXT,
+    introduced_commit_sha TEXT,
     committed_at TEXT NOT NULL,
     recorded_at TEXT NOT NULL
   ) STRICT`);

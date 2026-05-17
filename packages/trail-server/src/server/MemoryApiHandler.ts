@@ -46,6 +46,7 @@ export interface BugHistoryRow {
   package: string;
   category: string;
   subjectSummary: string;
+  sessionId: string | null;
   committedAt: string;
 }
 
@@ -469,7 +470,7 @@ export class MemoryApiHandler {
       bindValues.push(limit);
       const result = db.exec(
         `SELECT bf.id, bf.commit_sha, bf.bug_entity_id, bf.package, bf.category,
-                bf.subject_summary, bf.committed_at
+                bf.subject_summary, bf.related_session_id, bf.committed_at
          FROM memory_bug_fixes bf
          ${where}
          ORDER BY bf.committed_at DESC
@@ -487,6 +488,7 @@ export class MemoryApiHandler {
           package: toStr(r['package']),
           category: toStr(r['category']),
           subjectSummary: toStr(r['subject_summary']),
+          sessionId: toNullStr(r['related_session_id']),
           committedAt: toStr(r['committed_at']),
         };
       });

@@ -107,6 +107,7 @@ export interface MemoryBugHistoryRow {
   readonly package: string;
   readonly category: string;
   readonly subjectSummary: string;
+  readonly sessionId: string | null;
   readonly committedAt: string;
 }
 
