@@ -210,10 +210,24 @@ export async function runConversationBackfill(opts: {
    * reload mid-backfill loses at most PROGRESS_LOG_INTERVAL episodes of work.
    */
   save?: () => void;
+  /**
+   * 進捗通知 callback。UI (PipelineStatusWriter) へリアルタイム反映する。
+   * 毎エピソード発火 (incremental と同じ。50 件毎の checkpoint で UI が
+   * 凍って見える問題を避ける)。
+   */
+  progress?: (processed: number, failed: number) => void;
+  /**
+   * 「実際に処理すべきエピソード数」を 1 度だけ通知する callback。
+   * existingIds 控除後の数字なので、UI 分母として正確。事前カウント直後に
+   * 1 回呼ばれる。runEmbeddingBackfill と同じパターン。
+   */
+  onTotal?: (total: number) => void;
 }): Promise<BackfillResult> {
   const { db, ollama, model } = opts;
   const logger = opts.logger ?? noopLogger;
   const save = opts.save;
+  const progress = opts.progress;
+  const onTotal = opts.onTotal;
   const sinceDays = opts.sinceDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS;
   const extractConcurrency = resolveExtractConcurrency();
 
@@ -278,6 +292,10 @@ export async function runConversationBackfill(opts: {
     `[anytime-memory] backfill: ${totalSessions} sessions, ${totalEpisodes} episodes ` +
     `(${existingIds.size} already persisted, ${toProcess} to process, since ${sinceDays}d ago)`
   );
+  // UI に「正確な分母」を通知 (existingIds 控除後)。orchestrator 側の
+  // convTotalEstimate は user メッセージ全件カウントで膨張するため、UI 表示は
+  // この値で上書きする想定。
+  onTotal?.(toProcess);
   updateHeartbeatAndProgress(db, rId, totals);
   save?.();
 
@@ -349,6 +367,11 @@ export async function runConversationBackfill(opts: {
           if (episode.valid_from > maxTimestamp) {
             maxTimestamp = episode.valid_from;
           }
+
+          // UI 通知は毎エピソード発火 (incremental と同じ理由)。
+          // 50 件 checkpoint 間で UI が 0/N のまま動かないように見える
+          // 問題を避ける。DB checkpoint と保存は引き続き 10 件毎。
+          progress?.(totals.items_processed, totals.items_failed);
 
           // Progress log every PROGRESS_LOG_INTERVAL episodes
           if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {

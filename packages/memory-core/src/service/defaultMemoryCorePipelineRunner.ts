@@ -166,6 +166,13 @@ export async function runMemoryCorePipeline(ctx: PipelineRunnerContext): Promise
             sinceDays: ctx.backfillDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS,
             logger,
             save: () => saveAndReattach(),
+            // UI 通知配線: backfill は内部実行されても scope 名は
+            // 'conversation_incremental' のままで UI 表示される。
+            // onTotal で existingIds 控除後の正確な分母に上書き、
+            // progress で毎エピソード分子を更新する。
+            onTotal: (total) => statusWriter.start('conversation_incremental', total),
+            progress: (processed, failed) =>
+              statusWriter.update('conversation_incremental', processed, failed),
           });
           logger.info(
             `Backfill complete: status=${result.status}, items_processed=${result.items_processed}, ` +
