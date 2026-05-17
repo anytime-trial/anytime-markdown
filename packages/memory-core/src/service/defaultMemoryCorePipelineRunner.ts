@@ -24,6 +24,8 @@ import {
   getMemoryCoreDbPath,
   runConversationIncremental,
   runConversationBackfill,
+  DEFAULT_CONVERSATION_BACKFILL_DAYS,
+  detectBackfillWindowExpansion,
   runConversationFailedItemsRetry,
   runCodeIncremental,
   runBugHistoryIncremental,
@@ -112,6 +114,26 @@ export async function runMemoryCorePipeline(ctx: PipelineRunnerContext): Promise
 
       const ollama = createOllamaClient();
 
+      // ── Backfill window 拡張検知 ────────────────────────────────────────
+      // config.json の backfillDays が広がっていた場合 (例 30→60)、既存
+      // カーソルでは過去データを取り込めないので、cursor を空にして isFirstRun
+      // 経路 (backfill 起動) に倒す。trail.db に拡張区間の user メッセージが
+      // ある時だけ動作するので、install 後日数が浅いだけのケースでは誤発火
+      // しない (detector 側で no_unprocessed と判定される)。
+      const expansion = detectBackfillWindowExpansion({
+        db: memDb.db,
+        sinceDays: ctx.backfillDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS,
+      });
+      if (expansion.shouldExpand) {
+        logger.info(`Backfill window expanded — ${expansion.reason}`);
+        logger.info('Resetting conversation_backfill + conversation_incremental cursors to trigger re-backfill');
+        memDb.db.run(
+          `UPDATE memory_pipeline_state
+              SET last_processed_at = ''
+            WHERE scope IN ('conversation_backfill', 'conversation_incremental')`,
+        );
+      }
+
       // Check pipeline state to decide incremental vs backfill
       const stmt = memDb.db.prepare(
         `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`,
@@ -137,11 +159,11 @@ export async function runMemoryCorePipeline(ctx: PipelineRunnerContext): Promise
       statusWriter.start('conversation_incremental', convTotalEstimate || undefined);
       try {
         if (isFirstRun) {
-          logger.info(`First run detected — running backfill (${ctx.backfillDays ?? 5} days)`);
+          logger.info(`First run detected — running backfill (${ctx.backfillDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS} days)`);
           const result = await runConversationBackfill({
             db: memDb.db,
             ollama,
-            sinceDays: ctx.backfillDays ?? 5,
+            sinceDays: ctx.backfillDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS,
             logger,
             save: () => saveAndReattach(),
           });

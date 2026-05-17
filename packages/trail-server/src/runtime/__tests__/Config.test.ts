@@ -1,4 +1,5 @@
 import { loadConfig, type TrailServerConfig } from '../Config';
+import { DEFAULT_CONVERSATION_BACKFILL_DAYS } from '@anytime-markdown/memory-core';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -68,7 +69,7 @@ describe('loadConfig', () => {
     expect(cfg.memory.rag.finalLimit).toBe(12);
     expect(cfg.memory.rag.rrfK).toBe(60);
     expect(cfg.memory.fts.rebuildIntervalMinutes).toBe(60);
-    expect(cfg.memory.conversation.backfillDays).toBe(5);
+    expect(cfg.memory.conversation.backfillDays).toBe(DEFAULT_CONVERSATION_BACKFILL_DAYS);
     expect(cfg.analyzeAll.intervalSec).toBe(1800);
     expect(cfg.analyzeAll.runOnStart).toBe(false);
     expect(cfg.analyzeAll.startupDelaySec).toBe(30);
@@ -98,7 +99,7 @@ describe('loadConfig', () => {
     expect(cfg.memory.embedding.model).toBe('bge-m3');
     expect(cfg.memory.rag.bm25Limit).toBe(30);
     expect(cfg.memory.fts.rebuildIntervalMinutes).toBe(60);
-    expect(cfg.memory.conversation.backfillDays).toBe(5);
+    expect(cfg.memory.conversation.backfillDays).toBe(DEFAULT_CONVERSATION_BACKFILL_DAYS);
     expect(cfg.analyzeAll.intervalSec).toBe(1800);
   });
 
