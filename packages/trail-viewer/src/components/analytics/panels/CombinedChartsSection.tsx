@@ -407,6 +407,9 @@ export function CombinedChartsSection({
             <Tooltip title={t('analytics.combined.commitCount.description')} arrow placement="top">
               <ToggleButton value="count" sx={toggleSx}>{t('analytics.combined.commitCount')}</ToggleButton>
             </Tooltip>
+            <Tooltip title={t('analytics.combined.cumulative.description')} arrow placement="top">
+              <ToggleButton value="cumulative" data-chart-kind="cumulative" sx={toggleSx}>{t('analytics.combined.cumulative')}</ToggleButton>
+            </Tooltip>
             <Tooltip title={t('analytics.combined.loc.description')} arrow placement="top">
               <ToggleButton value="loc" sx={toggleSx}>{t('analytics.combined.loc')}</ToggleButton>
             </Tooltip>

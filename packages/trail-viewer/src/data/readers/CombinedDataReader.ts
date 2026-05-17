@@ -5,6 +5,32 @@ import type {
   CombinedRangeDays,
   ToolMetrics,
 } from '../../domain/parser/types';
+import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain/model/commitPrefix';
+import type { CommitBaselineSummary, CommitPrefixBaseline } from '../../domain/parser/types';
+
+const REGRESSION_FIX_RE = /^fix\([^)]*regression[^)]*\)/i;
+
+function aggregateCommitBaseline(
+  rows: ReadonlyArray<{ subject: string; linesAdded: number; linesDeleted: number }>,
+): CommitBaselineSummary {
+  const prefixMap = new Map<string, { count: number; linesAdded: number; linesDeleted: number }>();
+  let totalCount = 0;
+  let regressionCount = 0;
+  for (const r of rows) {
+    const prefix = extractCommitPrefix(r.subject);
+    const cur = prefixMap.get(prefix) ?? { count: 0, linesAdded: 0, linesDeleted: 0 };
+    cur.count += 1;
+    cur.linesAdded += r.linesAdded;
+    cur.linesDeleted += r.linesDeleted;
+    prefixMap.set(prefix, cur);
+    totalCount += 1;
+    if (REGRESSION_FIX_RE.test(r.subject)) regressionCount += 1;
+  }
+  const perPrefix: CommitPrefixBaseline[] = [...prefixMap.entries()].map(([prefix, v]) => ({
+    prefix, count: v.count, linesAdded: v.linesAdded, linesDeleted: v.linesDeleted,
+  }));
+  return { perPrefix, totalCount, regressionCount };
+}
 
 export class CombinedDataReader {
   constructor(private readonly client: SupabaseClient) {}
@@ -354,6 +380,44 @@ export class CombinedDataReader {
         }
         return rows;
       };
+      // cutoff より前の commit を category 別に集計するための baseline fetcher (累積モード用)。
+      // commit_message + lines_added + lines_deleted のみ取得し、JS 側で commit_hash の DISTINCT と
+      // prefix 集計を行う。
+      const fetchBaselineCommits = async (): Promise<ReadonlyArray<{ subject: string; linesAdded: number; linesDeleted: number; commitHash: string; repoName: string }>> => {
+        const rows: { subject: string; linesAdded: number; linesDeleted: number; commitHash: string; repoName: string }[] = [];
+        let column: 'commit_message' | 'subject' = 'commit_message';
+        for (let offset = 0; ; offset += 1000) {
+          let { data, error } = await this.client
+            .from('trail_session_commits')
+            .select(`repo_name,commit_hash,${column},lines_added,lines_deleted`)
+            .lt('committed_at', cutoffIso)
+            .range(offset, offset + 999);
+          if (error && column === 'commit_message') {
+            column = 'subject';
+            const fb = await this.client
+              .from('trail_session_commits')
+              .select('repo_name,commit_hash,subject,lines_added,lines_deleted')
+              .lt('committed_at', cutoffIso)
+              .range(offset, offset + 999);
+            data = fb.data;
+            error = fb.error;
+          }
+          if (error || !data || data.length === 0) break;
+          for (const r of data as Array<{ repo_name: string | null; commit_hash: string; commit_message?: string | null; subject?: string | null; lines_added: number | null; lines_deleted: number | null }>) {
+            const subject = String((r.commit_message ?? r.subject ?? '')).split('\n')[0];
+            rows.push({
+              subject,
+              linesAdded: r.lines_added ?? 0,
+              linesDeleted: r.lines_deleted ?? 0,
+              commitHash: r.commit_hash,
+              repoName: r.repo_name ?? '',
+            });
+          }
+          if (data.length < 1000) break;
+        }
+        return rows;
+      };
+
       // session_commits は agent.loc 集計と prefix/repo 集計の両方で使う列を 1 回で取得し、
       // 元実装の 2 重 fetch (Loop 4 + Loop 5) を 1 回に統合する。
       const fetchSessionCommits = async (): Promise<CommitChartRow[]> => {
@@ -484,8 +548,24 @@ export class CombinedDataReader {
         return result;
       };
 
-      // === Phase B: session_costs / session_commits / session errors を並列取得 ===
-      const [allCostRows, allCommitRows, errByPeriodTool] = await Promise.all([fetchSessionCosts(), fetchSessionCommits(), fetchSessionErrors()]);
+      // === Phase B: session_costs / session_commits / session errors / commit baseline を並列取得 ===
+      const [allCostRows, allCommitRows, errByPeriodTool, baselineRowsRaw] = await Promise.all([
+        fetchSessionCosts(),
+        fetchSessionCommits(),
+        fetchSessionErrors(),
+        fetchBaselineCommits(),
+      ]);
+
+      // baseline: 同一 commit_hash の重複を排除してから集計
+      const baselineSeen = new Set<string>();
+      const baselineRows: { subject: string; linesAdded: number; linesDeleted: number }[] = [];
+      for (const r of baselineRowsRaw) {
+        const id = `${r.repoName}:${r.commitHash}`;
+        if (baselineSeen.has(id)) continue;
+        baselineSeen.add(id);
+        baselineRows.push({ subject: r.subject, linesAdded: r.linesAdded, linesDeleted: r.linesDeleted });
+      }
+      const commitBaseline = aggregateCommitBaseline(baselineRows);
 
       const errorRate = [...errByPeriodTool.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
@@ -567,6 +647,7 @@ export class CombinedDataReader {
       const seenHashes = new Set<string>();
       const prefixMap = new Map<string, { count: number; linesAdded: number; linesDeleted: number }>();
       const repoCommitCountMap = new Map<string, number>();
+      const regressionByPeriodMap = new Map<string, number>();
       // 旧実装は session_commits を 2 度フェッチしていた (Loop 4: agent.loc, Loop 5: prefix/repo)。
       // 同じ条件・同じテーブルなので allCommitRows 1 回の取得から両者を導出する。
       for (const c of allCommitRows) {
@@ -592,7 +673,13 @@ export class CombinedDataReader {
         e.linesAdded += c.lines_added ?? 0;
         e.linesDeleted += c.lines_deleted ?? 0;
         prefixMap.set(commitKey, e);
+        if (REGRESSION_FIX_RE.test(subject)) {
+          regressionByPeriodMap.set(p, (regressionByPeriodMap.get(p) ?? 0) + 1);
+        }
       }
+      const commitRegressionByPeriod = [...regressionByPeriodMap.entries()]
+        .map(([period, count]) => ({ period, count }))
+        .sort((a, b) => a.period.localeCompare(b.period));
 
       const commitPrefixStats = [...prefixMap.entries()]
         .map(([k, e]) => { const [p, prefix] = splitKey(k); return { period: p, prefix, count: e.count, linesAdded: e.linesAdded, linesDeleted: e.linesDeleted }; })
@@ -604,7 +691,7 @@ export class CombinedDataReader {
         return { period: p, repoName, count: repoCommitCountMap.get(k) ?? 0, tokens: repoTokenMap.get(k) ?? 0 };
       }).sort((a, b) => a.period.localeCompare(b.period));
 
-      return { toolCounts, errorRate, skillStats, modelStats, agentStats, commitPrefixStats, aiFirstTryRate: [], repoStats, qualityRates: [] };
+      return { toolCounts, errorRate, skillStats, modelStats, agentStats, commitPrefixStats, aiFirstTryRate: [], repoStats, qualityRates: [], commitBaseline, commitRegressionByPeriod };
     } catch (e) {
       console.error('[CombinedDataReader.getCombinedData] failed', e);
       return null;

@@ -70,5 +70,5 @@ export type ChartMetric = 'count' | 'tokens';
 export type ToolChartMetric = 'count' | 'tokens' | 'error';
 export type CombinedChartKind = 'tools' | 'repos' | 'skills' | 'models' | 'agents' | 'commits' | 'releases';
 export type AgentMetric = 'tokens' | 'cost' | 'loc';
-export type CommitMetric = 'count' | 'loc' | 'leadTime';
+export type CommitMetric = 'count' | 'cumulative' | 'loc' | 'leadTime';
 export type CombinedMetric = 'tokens' | 'tools' | 'repos' | 'skills' | 'models' | 'agents' | 'commits' | 'releases';
