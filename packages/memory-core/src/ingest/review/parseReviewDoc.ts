@@ -3,9 +3,11 @@ import {
   type ParsedFinding,
   inferCategory,
   inferSeverity,
+  inferSeverityFromHeading,
   extractBacktickPaths,
   splitIntoChapters,
   extractProblemSuggestionPairs,
+  extractNumberedFindings,
 } from './findingHelpers';
 
 export type { ParsedFinding };
@@ -81,27 +83,51 @@ export function parseReviewDoc(input: {
     if (!chapter.heading) continue; // skip preamble (before first ## heading)
 
     const chapterBody = chapter.lines.join('\n');
-    const pairs = extractProblemSuggestionPairs(chapter.lines);
-
-    if (pairs.length === 0) continue;
-
     const { category, is_category_inferred } = inferCategory(chapter.heading);
-    const severity = inferSeverity(chapterBody);
+    const bodyBasedSeverity = inferSeverity(chapterBody);
+    const headingSeverity = inferSeverityFromHeading(chapter.heading);
+    // chapter heading severity (Important/Critical 等) を優先、body admonition で上書き許容
+    const severity = bodyBasedSeverity !== 'info' ? bodyBasedSeverity : headingSeverity;
 
-    for (const [findingText, suggestionText] of pairs) {
-      findings.push({
-        finding_index: findingIndex++,
-        target_file_path: allTargetRefs[0] ?? null,
-        target_symbol: null,
-        target_line_start: null,
-        target_line_end: null,
-        category,
-        severity,
-        finding_text: findingText,
-        suggestion_text: suggestionText,
-        chapter_path: chapter.heading,
-        is_category_inferred,
-      });
+    // Strategy 1: 既存ペア抽出（拡張 marker + bullet 接頭辞対応済み）
+    const pairs = extractProblemSuggestionPairs(chapter.lines);
+    if (pairs.length > 0) {
+      for (const [findingText, suggestionText] of pairs) {
+        findings.push({
+          finding_index: findingIndex++,
+          target_file_path: allTargetRefs[0] ?? null,
+          target_symbol: null,
+          target_line_start: null,
+          target_line_end: null,
+          category,
+          severity,
+          finding_text: findingText,
+          suggestion_text: suggestionText,
+          chapter_path: chapter.heading,
+          is_category_inferred,
+        });
+      }
+      continue;
+    }
+
+    // Strategy 2: 番号付き finding（Sample 2/3: 🟡 **N. title** / **N. title**）
+    const numbered = extractNumberedFindings(chapter.lines);
+    if (numbered.length > 0) {
+      for (const nf of numbered) {
+        findings.push({
+          finding_index: findingIndex++,
+          target_file_path: allTargetRefs[0] ?? null,
+          target_symbol: null,
+          target_line_start: null,
+          target_line_end: null,
+          category,
+          severity,
+          finding_text: nf.title + (nf.finding ? `\n\n${nf.finding}` : ''),
+          suggestion_text: nf.suggestion,
+          chapter_path: chapter.heading,
+          is_category_inferred,
+        });
+      }
     }
   }
 
