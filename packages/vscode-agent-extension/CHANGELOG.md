@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- AI Note panel migrated from Anytime Trail. The `anytimeAgent.aiNote`
+  view appears at the top of the Agent activity bar and exposes 7
+  `anytime-agent.openAiNote*` commands. Notes are stored under the
+  workspace `.anytime/notes/` and a templated `anytime-note` Claude Code
+  skill is installed at `.claude/skills/anytime-note/SKILL.md` (paths
+  unchanged from trail extension to preserve existing notes).
+
 ## [0.1.0] - 2026-05-16
 
 ### Added

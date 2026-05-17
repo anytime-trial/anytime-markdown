@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+### 破壊的変更
+
+- AI ノートパネルおよび `anytime-trail.openAiNote*` コマンドを削除しました。
+  この機能は新規拡張 Anytime Agent (`anytime-trial.anytime-agent`) に
+  `anytime-agent.openAiNote*` として移行しました。\
+  既存ノート（`.anytime/notes/`）と `anytime-note` スキルはそのまま
+  引き続き利用できます（データ移行は不要）。
+
+### リファクタ
+
+- `installBundledSkills` / `installTemplatedSkill` /
+  `installStaticSkillDir` と関連テストを `vscode-trail-extension` から
+  `@anytime-markdown/vscode-common` に抽出しました。Agent 拡張側で
+  同じ skill-installer を再利用するためです。
+
 ## [0.20.0] - 2026-05-16
 
 ### 追加

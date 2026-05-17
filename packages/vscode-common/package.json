@@ -10,6 +10,10 @@
       "default": "./out/index.js"
     },
     "./webview": "./src/webview/index.ts",
+    "./skill-installer": {
+      "types": "./out/skill-installer/index.d.ts",
+      "default": "./out/skill-installer/index.js"
+    },
     "./src/*": "./src/*"
   },
   "scripts": {
