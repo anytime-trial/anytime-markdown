@@ -116,6 +116,7 @@ export { assertNotProductionWriteDuringTests } from './TrailDatabase.guard';
 import { ITrailStorage, FileTrailStorage } from './ITrailStorage';
 import { resolveCarryOver, type OldCommunity, type NewCommunity } from './communityCarryOver';
 import { DatabaseIntegrityMonitor, type IntegrityAlert } from './DatabaseIntegrityMonitor';
+import { extractRepoNameFromJsonl } from './sessionMeta';
 export type { ITrailStorage } from './ITrailStorage';
 export { FileTrailStorage, InMemoryTrailStorage } from './ITrailStorage';
 export type { BackupEntry } from './ITrailStorage';
@@ -1738,6 +1739,11 @@ export class TrailDatabase {
     } catch (e) {
       this.logger.warn(`backfillDerivedCounts_v1 (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
     }
+    try {
+      this.backfillSessionsRepoNameFromCwd_v1();
+    } catch (e) {
+      this.logger.warn(`backfillSessionsRepoNameFromCwd_v1 (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
+    }
     // ALTER TABLE / backfill 等のスキーマ変更をディスクに永続化する。
     // save() を呼ばないと _migrations フラグが保存されず、次回起動で再実行される。
     this.save();
@@ -1792,6 +1798,55 @@ export class TrailDatabase {
       `[Migration] repo_name_backfill_v1: session_commits non-empty=${String(updatedCommits)}, commit_files non-empty=${String(updatedFiles)}`,
     );
     db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('repo_name_backfill_v1')");
+  }
+
+  /**
+   * sessions.repo_name を JSONL の `cwd` 由来に再計算する。
+   *
+   * 旧 importer (line 3386) は repoName を起動 ws の gitRoot basename で stamp していたため、
+   * 他プロジェクトのセッションも `anytime-markdown` 等に誤分類されていた。本 migration で
+   * 1 回限り JSONL の cwd を読み直し、worktree 検出 + basename 抽出で正しい repo_name に
+   * 書き換える。詳細: plan/20260518-sessions-repo-name-from-cwd.ja.md
+   *
+   * フォールバック (案 A): JSONL cwd が取れない場合は file_path の `.claude/projects/<dir>/`
+   * の `<dir>` から先頭ハイフンを除いた値を採用する。起動 ws の basename はフォールバック
+   * に使わない (旧バグの再生産防止)。
+   */
+  private backfillSessionsRepoNameFromCwd_v1(): void {
+    const db = this.ensureDb();
+    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
+    const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'sessions_repo_name_from_cwd_v1'");
+    if (done[0]?.values?.length) return;
+
+    const startedAt = Date.now();
+    const rows = db.exec("SELECT id, file_path, repo_name FROM sessions WHERE file_path != ''")[0]?.values ?? [];
+    let updated = 0;
+    let unchanged = 0;
+    let missing = 0;
+    const stmt = db.prepare('UPDATE sessions SET repo_name = ? WHERE id = ?');
+    try {
+      for (const row of rows) {
+        const idStr = String(row[0]);
+        const filePathStr = String(row[1] ?? '');
+        const oldRepoName = String(row[2] ?? '');
+        let derived = extractRepoNameFromJsonl(filePathStr);
+        if (derived === null) {
+          const m = /\/projects\/([^/]+)\//.exec(filePathStr);
+          if (m && m[1]) derived = m[1].replace(/^-+/, '') || null;
+        }
+        if (!derived) { missing++; continue; }
+        if (derived === oldRepoName) { unchanged++; continue; }
+        stmt.run([derived, idStr]);
+        updated++;
+      }
+    } finally {
+      stmt.free();
+    }
+
+    this.logger.info(
+      `[Migration] sessions_repo_name_from_cwd_v1: updated=${updated}, unchanged=${unchanged}, missing=${missing} (${Date.now() - startedAt}ms)`,
+    );
+    db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('sessions_repo_name_from_cwd_v1')");
   }
 
   private backfillDerivedCounts_v1(): void {
@@ -3383,7 +3438,11 @@ export class TrailDatabase {
           }
         } catch { /* no subagents dir */ }
 
-        sessionDirs.push({ sid, mainFile, subagentFiles, repoName: repoName || projectName, source: 'claude_code' });
+        // repo_name は JSONL の cwd から派生させる (起動 ws の basename にフォールバックしない)。
+        // cwd が取れなかった場合は project dir 名の先頭ハイフンを除いて使う。
+        // 詳細: plan/20260518-sessions-repo-name-from-cwd.ja.md
+        const derivedRepoName = extractRepoNameFromJsonl(mainFile) ?? projectName.replace(/^-+/, '');
+        sessionDirs.push({ sid, mainFile, subagentFiles, repoName: derivedRepoName, source: 'claude_code' });
       }
     }
 
