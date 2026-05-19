@@ -170,4 +170,140 @@ describe('LepOrchestrator', () => {
     const result = await orch.runOnce({ runId: 'r1', reason: 'manual' });
     expect(result.errors.size).toBe(0);
   });
+
+  describe('Wave 1 (Ingester) flow', () => {
+    it('runs tier=1 onRunStart before tier=2 onRunEnd', async () => {
+      const bus = new EventBus();
+      const order: string[] = [];
+      const ingester: Analyzer = {
+        id: 'I',
+        tier: 1,
+        subscribes: [],
+        onRunStart: async () => {
+          order.push('I.start');
+        },
+      };
+      const primary: Analyzer = {
+        id: 'P',
+        tier: 2,
+        subscribes: [],
+        onRunEnd: async () => {
+          order.push('P.end');
+        },
+      };
+
+      const orch = new LepOrchestrator(bus, [ingester, primary]);
+      await orch.runOnce({ runId: 'r1', reason: 'manual' });
+
+      expect(order).toEqual(['I.start', 'P.end']);
+    });
+
+    it('delivers events emitted from tier=1 onRunStart to tier=2 onEvent subscribers', async () => {
+      const bus = new EventBus();
+      const received: string[] = [];
+
+      const ingester: Analyzer = {
+        id: 'I',
+        tier: 1,
+        subscribes: [],
+        emits: ['jsonl_session_discovered'],
+        onRunStart: async (ctx) => {
+          await ctx.bus.publish({
+            kind: 'jsonl_session_discovered',
+            sessionId: 'sid-1',
+            mainFile: '/tmp/a.jsonl',
+            subagentFiles: [],
+            repoName: 'r',
+            source: 'claude_code',
+            fileSize: 10,
+            hasMessages: false,
+            hasUsableCostData: false,
+          });
+        },
+      };
+      const subscriber: Analyzer = {
+        id: 'S',
+        tier: 2,
+        subscribes: ['jsonl_session_discovered'],
+        onEvent: async (e) => {
+          if (e.kind === 'jsonl_session_discovered') received.push(e.sessionId);
+        },
+      };
+      bus.subscribe(subscriber);
+
+      const orch = new LepOrchestrator(bus, [ingester, subscriber]);
+      await orch.runOnce({ runId: 'r1', reason: 'manual' });
+
+      expect(received).toEqual(['sid-1']);
+    });
+
+    it('drains chained event handlers (subscriber A emits event subscribed by subscriber B)', async () => {
+      const bus = new EventBus();
+      const seen: string[] = [];
+
+      // Ingester emits git_commit
+      const ingester: Analyzer = {
+        id: 'I',
+        tier: 1,
+        subscribes: [],
+        onRunStart: async (ctx) => {
+          await ctx.bus.publish({
+            kind: 'git_commit',
+            repo: 'r',
+            hash: 'h1',
+            committedAt: '2026-05-19T00:00:00.000Z',
+            author: 'a',
+            message: 'm',
+          });
+        },
+      };
+      // Layer 2: git_commit を受けたら release_resolved を 1 件 emit する連鎖
+      const chained: Analyzer = {
+        id: 'C',
+        tier: 2,
+        subscribes: ['git_commit'],
+        onEvent: async (_e, ctx) => {
+          seen.push('C');
+          await ctx.bus.publish({
+            kind: 'release_resolved',
+            tag: 'v1',
+            releasedAt: '2026-05-19T00:00:00.000Z',
+          });
+        },
+      };
+      const downstream: Analyzer = {
+        id: 'D',
+        tier: 2,
+        subscribes: ['release_resolved'],
+        onEvent: async (_e) => {
+          seen.push('D');
+        },
+      };
+      bus.subscribe(chained);
+      bus.subscribe(downstream);
+
+      const orch = new LepOrchestrator(bus, [ingester, chained, downstream]);
+      await orch.runOnce({ runId: 'r1', reason: 'manual' });
+
+      expect(seen).toEqual(['C', 'D']);
+    });
+
+    it('publishes wave_complete:sources after Wave 1 finishes', async () => {
+      const bus = new EventBus();
+      const waveEvents: string[] = [];
+      bus.subscribe({
+        id: 'L',
+        tier: 4,
+        subscribes: ['wave_complete'],
+        onEvent: async (e) => {
+          if (e.kind === 'wave_complete') waveEvents.push(e.wave);
+        },
+      });
+
+      const orch = new LepOrchestrator(bus, []);
+      await orch.runOnce({ runId: 'r1', reason: 'manual' });
+
+      expect(waveEvents[0]).toBe('sources');
+    });
+  });
 });

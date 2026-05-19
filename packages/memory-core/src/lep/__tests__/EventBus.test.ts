@@ -125,4 +125,101 @@ describe('EventBus', () => {
     expect(bus.subscriberCount('wave_complete')).toBe(2);
     expect(bus.subscriberCount('wave_skipped')).toBe(1);
   });
+
+  describe('drain', () => {
+    it('returns immediately when no publish is in-flight', async () => {
+      const bus = new EventBus();
+      bus.beginRun(noopCtx(bus));
+      await bus.drain();
+      bus.endRun();
+      // 例外が起きなければ OK
+    });
+
+    it('waits for an in-flight publish to finish', async () => {
+      const bus = new EventBus();
+      let subscriberDone = false;
+      bus.subscribe(
+        makeAnalyzer('Slow', ['wave_complete'], async () => {
+          await new Promise((r) => setTimeout(r, 20));
+          subscriberDone = true;
+        }),
+      );
+
+      bus.beginRun(noopCtx(bus));
+      // publish を await せずに非同期に走らせて drain で待つ
+      const pending = bus.publish({ kind: 'wave_complete', wave: 'primary' });
+      await bus.drain();
+      await pending;
+      bus.endRun();
+
+      expect(subscriberDone).toBe(true);
+    });
+
+    it('waits for chained publishes (event triggered from another event)', async () => {
+      const bus = new EventBus();
+      const order: string[] = [];
+
+      // A: wave_complete を受けたら wave_skipped を publish して連鎖を作る
+      bus.subscribe({
+        id: 'A',
+        tier: 2,
+        subscribes: ['wave_complete'],
+        onEvent: async (_e, ctx) => {
+          order.push('A:start');
+          await ctx.bus.publish({ kind: 'wave_skipped', wave: 'memory', reason: 'chained' });
+          order.push('A:end');
+        },
+      });
+      bus.subscribe(
+        makeAnalyzer('B', ['wave_skipped'], async () => {
+          await new Promise((r) => setTimeout(r, 5));
+          order.push('B');
+        }),
+      );
+
+      bus.beginRun(noopCtx(bus));
+      const p = bus.publish({ kind: 'wave_complete', wave: 'sources' });
+      await bus.drain();
+      await p;
+      bus.endRun();
+
+      expect(order).toEqual(['A:start', 'B', 'A:end']);
+    });
+
+    it('waits for multiple parallel publishes to finish', async () => {
+      const bus = new EventBus();
+      const seen: string[] = [];
+      bus.subscribe(
+        makeAnalyzer('A', ['wave_complete'], async () => {
+          await new Promise((r) => setTimeout(r, 10));
+          seen.push('A');
+        }),
+      );
+      bus.subscribe(
+        makeAnalyzer('B', ['wave_skipped'], async () => {
+          await new Promise((r) => setTimeout(r, 15));
+          seen.push('B');
+        }),
+      );
+
+      bus.beginRun(noopCtx(bus));
+      const p1 = bus.publish({ kind: 'wave_complete', wave: 'primary' });
+      const p2 = bus.publish({ kind: 'wave_skipped', wave: 'memory', reason: 'test' });
+      await bus.drain();
+      await Promise.all([p1, p2]);
+      bus.endRun();
+
+      expect(seen.sort()).toEqual(['A', 'B']);
+    });
+
+    it('resets in-flight counter on beginRun/endRun', async () => {
+      const bus = new EventBus();
+      bus.beginRun(noopCtx(bus));
+      bus.endRun();
+      bus.beginRun(noopCtx(bus));
+      // 2 回目 beginRun 後に drain しても固まらない
+      await bus.drain();
+      bus.endRun();
+    });
+  });
 });

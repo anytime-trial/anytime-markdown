@@ -15,6 +15,10 @@ import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail
 
 import { ImportAllLegacyAnalyzer } from '../lep/ImportAllLegacyAnalyzer';
 import { MemoryCoreLegacyAnalyzer } from '../lep/MemoryCoreLegacyAnalyzer';
+import { CoverageIngester } from '../lep/ingesters/CoverageIngester';
+import { GitIngester } from '../lep/ingesters/GitIngester';
+import { JsonlIngester } from '../lep/ingesters/JsonlIngester';
+import { MetaJsonIngester } from '../lep/ingesters/MetaJsonIngester';
 
 // TrailDatabase.importAll の 4 番目の引数 (AnalyzeFunction) を再利用する。
 // trail-db で named export されていないため、メソッドシグネチャから抽出する。
@@ -52,6 +56,14 @@ export interface AnalyzeAllRunnerOptions {
   onImportPhase?: (event: ImportAllPhaseEvent) => void;
   /** 1 run 終了時 (成功・失敗を問わず) に呼ばれるフック (UI 更新通知用) */
   onAfterRun?: () => void;
+
+  /**
+   * Step 2a で追加された Layer 1 Ingester (Jsonl/Git/Coverage/MetaJson) を登録するか。
+   * デフォルト `true`。Ingester は event を emit するのみで Step 2a 時点では consumer
+   * が存在しないため動作不変だが、ファイル IO のオーバーヘッドを避けたいテストで
+   * `false` を指定できる。
+   */
+  enableIngesters?: boolean;
 }
 
 /**
@@ -62,7 +74,8 @@ export interface AnalyzeAllRunnerOptions {
  * このリファクタ以降 user-facing には公開されない (CLI / HTTP / VS Code コマンド
  * は全て AnalyzeAllRunner を介する)。
  *
- * 内部実装 (Step 1 以降): LepOrchestrator に委譲する薄い層。
+ * 内部実装 (Step 2 以降): LepOrchestrator に委譲する薄い層。
+ * - Layer 1 (sources): 4 種 Ingester (`Jsonl/Git/Coverage/MetaJson`) が `onRunStart` で event 発火
  * - Layer 2 (primary): `ImportAllLegacyAnalyzer` が importAll を実行
  * - Layer 3 (memory):  `MemoryCoreLegacyAnalyzer` が wave_complete:primary に応答して memory-core を実行
  *
@@ -87,6 +100,11 @@ export class AnalyzeAllRunner extends BaseRunner {
 
     const bus = new EventBus();
     const analyzers: Analyzer[] = [];
+
+    // Layer 1 (sources): Step 2a で追加された 4 種 Ingester。
+    // emit のみで Step 2a 時点では consumer 不在 (Step 2b で SessionImporter 等が購読する予定)。
+    const ingesters = opts.enableIngesters === false ? [] : buildIngesters(opts);
+    analyzers.push(...ingesters);
 
     this.importAnalyzer = opts.trailDb
       ? new ImportAllLegacyAnalyzer({
@@ -154,6 +172,38 @@ export class AnalyzeAllRunner extends BaseRunner {
   getLastImportResult(): ImportAllResult | null {
     return this.importAnalyzer?.getLastResult() ?? null;
   }
+}
+
+/**
+ * 4 種 Ingester (Jsonl / Git / Coverage / MetaJson) を build する。
+ *
+ * gitRoots が空の場合でも JsonlIngester / MetaJsonIngester は ~/.claude を見るため
+ * 動作する。GitIngester / CoverageIngester は gitRoots 配下を読むため、空の場合は
+ * onRunStart 内で no-op となる。
+ */
+function buildIngesters(opts: AnalyzeAllRunnerOptions): readonly Analyzer[] {
+  const gitRoots = opts.gitRoots ?? [];
+  const primaryRepoName = opts.gitRoot
+    ? extractBasename(opts.gitRoot)
+    : gitRoots[0]
+      ? extractBasename(gitRoots[0])
+      : undefined;
+
+  return [
+    new JsonlIngester({
+      gitRoot: opts.gitRoot ?? gitRoots[0],
+      repoName: primaryRepoName,
+    }),
+    new GitIngester({ gitRoots }),
+    new CoverageIngester({ gitRoots }),
+    new MetaJsonIngester(),
+  ];
+}
+
+function extractBasename(p: string): string {
+  const trimmed = p.replace(/[/\\]+$/, '');
+  const i = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  return i >= 0 ? trimmed.slice(i + 1) : trimmed;
 }
 
 /**
