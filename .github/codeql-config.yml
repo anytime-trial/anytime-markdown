@@ -11,3 +11,11 @@ paths-ignore:
   # テストフィクスチャ・スナップショット
   - "**/__fixtures__/**"
   - "**/__snapshots__/**"
+
+# maintainability 系 note アラートはノイズが大きいため抑制する。
+# セキュリティ系 query は引き続き全コードに適用される。
+query-filters:
+  - exclude:
+      id: js/unused-local-variable
+  - exclude:
+      id: js/automatic-semicolon-insertion
