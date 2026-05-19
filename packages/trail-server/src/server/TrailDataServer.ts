@@ -60,6 +60,7 @@ import { DocsApiHandler } from './DocsApiHandler';
 import type { LogService, PersistedLogEntry } from '../services/LogService';
 import { LogSink, combineLoggers } from '../services/LogSink';
 import { handleGetLogs, handlePostLogs } from './logsApi';
+import { sendServerError } from './errorResponse';
 
 const LOG_CLEANUP_INTERVAL_MS = 24 * 3600 * 1000;
 
@@ -2086,8 +2087,7 @@ export class TrailDataServer {
       }));
     } catch (err) {
       this.logger.error('[/api/c4/file-analysis] failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      sendServerError(res, 'file-analysis failed');
     }
   }
 
@@ -2128,8 +2128,7 @@ export class TrailDataServer {
       res.end(JSON.stringify({ entries }));
     } catch (err) {
       this.logger.error('[/api/c4/function-analysis] failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      sendServerError(res, 'function-analysis failed');
     }
   }
 
@@ -2291,9 +2290,7 @@ export class TrailDataServer {
       res.end(JSON.stringify(metrics));
     } catch (e) {
       this.logger.error('handleGetQualityMetrics failed', e);
-      const msg = e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'Failed to get quality metrics', detail: msg }));
+      sendServerError(res, 'Failed to get quality metrics');
     }
   }
 
@@ -2575,8 +2572,8 @@ export class TrailDataServer {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ ok: true }));
       } catch (e) {
-        res.writeHead(500, JSON_HEADERS);
-        res.end(JSON.stringify({ error: String(e) }));
+        this.logger.error('upsertMessageCommit failed', e);
+        sendServerError(res, 'upsertMessageCommit failed');
       }
     });
   }
@@ -3167,8 +3164,7 @@ export class TrailDataServer {
       res.end(JSON.stringify(tree));
     } catch (e) {
       this.logger.error('[/api/c4/call-hierarchy] failed', e);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
+      sendServerError(res, 'call-hierarchy failed');
     }
   }
 
@@ -3222,8 +3218,7 @@ export class TrailDataServer {
       res.end(JSON.stringify(result));
     } catch (err) {
       this.logger.error('handleAnalyzeCurrent failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      sendServerError(res, 'analyze current failed');
     } finally {
       this.analysisInProgress = null;
     }
@@ -3250,8 +3245,7 @@ export class TrailDataServer {
       res.end(JSON.stringify(result));
     } catch (err) {
       this.logger.error('handleAnalyzeRelease failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      sendServerError(res, 'analyze release failed');
     } finally {
       this.analysisInProgress = null;
     }
@@ -3278,8 +3272,7 @@ export class TrailDataServer {
       res.end(JSON.stringify(result));
     } catch (err) {
       this.logger.error('handleAnalyzeAll failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      sendServerError(res, 'analyze all failed');
     } finally {
       this.analysisInProgress = null;
     }
@@ -3312,8 +3305,7 @@ export class TrailDataServer {
       res.end(JSON.stringify(status));
     } catch (err) {
       this.logger.error('handleAnalyzeAllPause failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      sendServerError(res, 'analyze-all pause failed');
     }
   }
 
@@ -3329,8 +3321,7 @@ export class TrailDataServer {
       res.end(JSON.stringify(status));
     } catch (err) {
       this.logger.error('handleAnalyzeAllResume failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      sendServerError(res, 'analyze-all resume failed');
     }
   }
 
