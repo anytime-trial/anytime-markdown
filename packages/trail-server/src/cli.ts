@@ -359,7 +359,19 @@ async function callDaemonAnalyzeAll(
     console.error('No running daemon — start it with `anytime-trail-server start`');
     process.exit(1);
   }
-  const url = `${info.url}/api/analyze-all/${action}`;
+  // daemon.json から得た URL を検証 (CodeQL `js/file-access-to-http`): localhost のみ許可。
+  let parsedInfoUrl: URL;
+  try {
+    parsedInfoUrl = new URL(info.url);
+  } catch {
+    console.error(`Invalid daemon URL in daemon.json: ${info.url}`);
+    process.exit(1);
+  }
+  if (parsedInfoUrl.hostname !== '127.0.0.1' && parsedInfoUrl.hostname !== 'localhost') {
+    console.error(`Refusing to call non-localhost daemon URL: ${parsedInfoUrl.hostname}`);
+    process.exit(1);
+  }
+  const url = `${parsedInfoUrl.origin}/api/analyze-all/${action}`;
   const method = action === 'status' ? 'GET' : 'POST';
   try {
     const res = await fetch(url, {

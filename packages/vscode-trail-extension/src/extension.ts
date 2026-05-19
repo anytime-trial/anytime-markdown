@@ -781,7 +781,19 @@ export async function activate(context: vscode.ExtensionContext) {
 					vscode.window.showWarningMessage('AnalyzeAll: no local runner and no daemon URL available');
 					return;
 				}
-				const res = await fetch(`${daemonUrl}/api/analyze-all/status`);
+				// daemon.json 由来の URL を localhost に限定 (CodeQL `js/file-access-to-http`)
+				let parsedDaemonUrl: URL;
+				try {
+					parsedDaemonUrl = new URL(daemonUrl);
+				} catch {
+					vscode.window.showErrorMessage(`Invalid daemon URL: ${daemonUrl}`);
+					return;
+				}
+				if (parsedDaemonUrl.hostname !== '127.0.0.1' && parsedDaemonUrl.hostname !== 'localhost') {
+					vscode.window.showErrorMessage(`Refusing to call non-localhost daemon URL: ${parsedDaemonUrl.hostname}`);
+					return;
+				}
+				const res = await fetch(`${parsedDaemonUrl.origin}/api/analyze-all/status`);
 				if (!res.ok) {
 					vscode.window.showErrorMessage(`AnalyzeAll status failed: HTTP ${res.status}`);
 					return;
