@@ -18,11 +18,12 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 }
 
 function attachAsTrail(memDb: BetterSqlite3MemoryDb, trailDb: BetterSqlite3MemoryDb): void {
-  const tempPath = require('node:path').join(
-    require('node:os').tmpdir(),
-    `readMessages-test-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.db`,
+  // mkdtempSync で OS-secure な乱数ディレクトリを作成 (CodeQL `js/insecure-temporary-file`)
+  const tempDir = require('node:fs').mkdtempSync(
+    require('node:path').join(require('node:os').tmpdir(), 'readMessages-test-'),
   );
-  require('node:fs').writeFileSync(tempPath, trailDb.serialize());
+  const tempPath = require('node:path').join(tempDir, 'trail.db');
+  require('node:fs').writeFileSync(tempPath, trailDb.serialize(), { mode: 0o600 });
   memDb.attach(tempPath, 'trail', true);
 }
 
