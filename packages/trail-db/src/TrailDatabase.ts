@@ -2567,6 +2567,36 @@ export class TrailDatabase {
     return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]]))) as unknown as ReturnType<TrailDatabase['getAllMessageToolCalls']>;
   }
 
+  /**
+   * LEP `CostRebuilder` (Step 2c) 用 public wrapper。Wave 末端で 1 回呼ぶ想定。
+   */
+  rebuildSessionCostsPublic(): void {
+    this.rebuildSessionCosts();
+  }
+
+  /**
+   * LEP `CountsRebuilder` (Step 2c) 用 public wrapper (daily counts + session stats)。
+   * Wave 末端で 1 回呼ぶ想定。
+   */
+  rebuildDailyCountsPublic(): void {
+    this.rebuildDailyCounts();
+  }
+
+  /** LEP `CountsRebuilder` (Step 2c) 用 public wrapper。Wave 末端で 1 回呼ぶ想定。 */
+  rebuildSessionStatsPublic(): void {
+    this.rebuildSessionStats();
+  }
+
+  /**
+   * LEP `BehaviorAnalyzer` (Step 2c) 用 public wrapper。
+   * 指定 session に対して `ClaudeCodeBehaviorAnalyzer.analyze` を実行する。
+   */
+  runBehaviorAnalysis(sessionId: string): void {
+    const db = this.ensureDb();
+    const analyzer = new ClaudeCodeBehaviorAnalyzer();
+    analyzer.analyze(sessionId, db);
+  }
+
   /** Delete and rebuild session_costs from all messages. */
   private rebuildSessionCosts(): void {
     const db = this.ensureDb();
@@ -3740,25 +3770,30 @@ export class TrailDatabase {
     }
     await yieldForUi();
 
-    // Rebuild session_costs from messages
-    onPhase?.({ phase: 'rebuild_costs', action: 'start' });
-    await yieldForUi();
-    try {
-      onProgress?.('Rebuilding session costs...', 0);
-      this.rebuildSessionCosts();
-      onProgress?.('Session costs rebuilt', 0);
-      onPhase?.({ phase: 'rebuild_costs', action: 'finish' });
-    } catch (e) {
-      onPhase?.({ phase: 'rebuild_costs', action: 'error', message: e instanceof Error ? e.message : String(e) });
+    // Rebuild session_costs from messages (LEP Step 2c 以降は CostRebuilder に移管)
+    if (!phasesToSkip.has('rebuild_costs')) {
+      onPhase?.({ phase: 'rebuild_costs', action: 'start' });
+      await yieldForUi();
+      try {
+        onProgress?.('Rebuilding session costs...', 0);
+        this.rebuildSessionCosts();
+        onProgress?.('Session costs rebuilt', 0);
+        onPhase?.({ phase: 'rebuild_costs', action: 'finish' });
+      } catch (e) {
+        onPhase?.({ phase: 'rebuild_costs', action: 'error', message: e instanceof Error ? e.message : String(e) });
+      }
+      await yieldForUi();
     }
-    await yieldForUi();
 
     // Analyze Claude Code behavior only for sessions that were (re)imported in this run.
     // Sessions skipped above had no new messages, so message_tool_calls is already current.
     // LEP Step 2b: Phase 1 が外部 (SessionImporter) に移管された場合、対象 session 集合は
     // `externalSessionsToAnalyze` 経由で受け取る。
+    // LEP Step 2c: 本 phase 自体が BehaviorAnalyzer に移管された場合は skip。
     const effectiveSessionsToAnalyze = lepOpts?.externalSessionsToAnalyze ?? sessionsToAnalyze;
-    if (effectiveSessionsToAnalyze.size > 0) {
+    if (phasesToSkip.has('analyze_behavior')) {
+      // skip entirely
+    } else if (effectiveSessionsToAnalyze.size > 0) {
       onPhase?.({ phase: 'analyze_behavior', action: 'start', count: effectiveSessionsToAnalyze.size });
       await yieldForUi();
       const db = this.ensureDb();
@@ -3780,20 +3815,23 @@ export class TrailDatabase {
     await yieldForUi();
 
     // Rebuild daily_counts (6 kinds) after message_tool_calls is populated, then session_stats
-    onPhase?.({ phase: 'rebuild_counts', action: 'start' });
-    await yieldForUi();
-    try {
-      onProgress?.('Rebuilding daily counts...', 0);
-      this.rebuildDailyCounts();
-      onProgress?.('Daily counts rebuilt', 0);
-      onProgress?.('Rebuilding session stats...', 0);
-      this.rebuildSessionStats();
-      onProgress?.('Session stats rebuilt', 0);
-      onPhase?.({ phase: 'rebuild_counts', action: 'finish' });
-    } catch (e) {
-      onPhase?.({ phase: 'rebuild_counts', action: 'error', message: e instanceof Error ? e.message : String(e) });
+    // LEP Step 2c 以降は CountsRebuilder に移管
+    if (!phasesToSkip.has('rebuild_counts')) {
+      onPhase?.({ phase: 'rebuild_counts', action: 'start' });
+      await yieldForUi();
+      try {
+        onProgress?.('Rebuilding daily counts...', 0);
+        this.rebuildDailyCounts();
+        onProgress?.('Daily counts rebuilt', 0);
+        onProgress?.('Rebuilding session stats...', 0);
+        this.rebuildSessionStats();
+        onProgress?.('Session stats rebuilt', 0);
+        onPhase?.({ phase: 'rebuild_counts', action: 'finish' });
+      } catch (e) {
+        onPhase?.({ phase: 'rebuild_counts', action: 'error', message: e instanceof Error ? e.message : String(e) });
+      }
+      await yieldForUi();
     }
-    await yieldForUi();
 
     // backfill: commit_files / subagent_type / message_commits
     onPhase?.({ phase: 'backfill', action: 'start' });

@@ -27,8 +27,8 @@ function makeMemoryCore(dir: string, pipelineRunner: jest.Mock = jest.fn(async (
 }
 
 function makeFakeTrailDb(importAll: jest.Mock): TrailDatabase {
-  // Step 2b: LEP analyzer (SessionImporter / CommitResolver) が呼ぶ helper を mock として
-  // 提供する。空マップ + isCommitResolutionDone=true で skip させて副作用ゼロにする。
+  // Step 2b/2c: LEP analyzer が呼ぶ helper を mock として提供する。
+  // 空マップ + isCommitResolutionDone=true で skip させて副作用ゼロにする。
   return {
     importAll,
     getImportedFileMap: () => new Map(),
@@ -36,6 +36,10 @@ function makeFakeTrailDb(importAll: jest.Mock): TrailDatabase {
     beginExternalTransaction: () => undefined,
     commitExternalTransaction: () => undefined,
     rollbackExternalTransaction: () => undefined,
+    rebuildSessionCostsPublic: () => undefined,
+    rebuildDailyCountsPublic: () => undefined,
+    rebuildSessionStatsPublic: () => undefined,
+    runBehaviorAnalysis: () => undefined,
   } as unknown as TrailDatabase;
 }
 
@@ -271,7 +275,9 @@ describe('AnalyzeAllRunner', () => {
     });
 
     await runner.runOnce('manual');
-    expect(progressMsgs).toEqual(['msg1']);
+    // Step 2c 以降は CostRebuilder / CountsRebuilder も onImportProgress を呼ぶため
+    // mock の 'msg1' と並んで progress メッセージが含まれる。
+    expect(progressMsgs).toContain('msg1');
     // Step 2b 以降は SessionImporter / ReleaseResolver / CoverageImporter も onImportPhase 経由で
     // phase event を発火するため、'session-import' (importAll mock 由来) と共に格納される。
     expect(phaseEvents).toContain('session-import');
