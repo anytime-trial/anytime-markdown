@@ -177,4 +177,52 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     await runner.runOnce('manual');
     expect(pipelineRunner).toHaveBeenCalledTimes(1);
   });
+
+  it('Step 2a: Layer 1 Ingester (Jsonl/Git/Coverage/MetaJson) logs when enabled', async () => {
+    const importAll = jest.fn(async () => ({}) as never);
+    const memoryCore = makeMemoryCore(dir);
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(importAll),
+      memoryCoreService: memoryCore,
+      gitRoots: [],
+      enableIngesters: true,
+    });
+
+    await runner.runOnce('manual');
+
+    const allLines = logSink.lines.join('\n');
+    expect(allLines).toContain('[JsonlIngester]');
+    expect(allLines).toContain('[GitIngester]');
+    expect(allLines).toContain('[CoverageIngester]');
+    expect(allLines).toContain('[MetaJsonIngester]');
+    // 既存挙動: ImportAllLegacy / MemoryCoreLegacy も実行されている (Ingester は emit のみ、不変)
+    expect(allLines).toContain('[ImportAllLegacy] start');
+    expect(allLines).toContain('[ImportAllLegacy] done');
+  });
+
+  it('Step 2a: Layer 1 Ingester is opt-out via enableIngesters=false', async () => {
+    const importAll = jest.fn(async () => ({}) as never);
+    const memoryCore = makeMemoryCore(dir);
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(importAll),
+      memoryCoreService: memoryCore,
+      enableIngesters: false,
+    });
+
+    await runner.runOnce('manual');
+
+    const allLines = logSink.lines.join('\n');
+    expect(allLines).not.toContain('[JsonlIngester]');
+    expect(allLines).not.toContain('[GitIngester]');
+    expect(allLines).not.toContain('[CoverageIngester]');
+    expect(allLines).not.toContain('[MetaJsonIngester]');
+    // 既存 Legacy パスは動く
+    expect(allLines).toContain('[ImportAllLegacy] start');
+  });
 });

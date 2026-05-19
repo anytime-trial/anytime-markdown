@@ -29,6 +29,7 @@ export type { ITrailStorage } from './ITrailStorage';
 export { SqliteSessionRepository } from './SqliteSessionRepository';
 export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
 export { ExecFileGitService } from './ExecFileGitService';
+export { extractRepoNameFromJsonl } from './sessionMeta';
 export { MetricsThresholdsLoader } from './MetricsThresholdsLoader';
 export type { DbLogger } from './DbLogger';
 export { noopDbLogger } from './DbLogger';
