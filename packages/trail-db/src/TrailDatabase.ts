@@ -3718,9 +3718,12 @@ export class TrailDatabase {
     }
     await yieldForUi();
 
-    // Analyze source code for each release
+    // Analyze source code for each release (LEP Step 2c-cg 以降は CodeGraphBuilder に移管)
     let releasesAnalyzed = 0;
-    if (gitRoot && analyzeFn) {
+    const skipAnalyzeReleases = phasesToSkip.has('analyze_releases');
+    if (skipAnalyzeReleases) {
+      // CodeGraphBuilder が担当
+    } else if (gitRoot && analyzeFn) {
       onPhase?.({ phase: 'analyze_releases', action: 'start' });
       await yieldForUi();
       try {
