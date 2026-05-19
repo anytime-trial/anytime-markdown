@@ -20,7 +20,7 @@ jest.mock('../../lib/supabase-env', () => ({
 jest.mock('@anytime-markdown/trail-viewer/supabase', () => ({
   SupabaseTrailReader: MockSupabaseTrailReader,
   SupabaseC4ModelStore: MockSupabaseC4ModelStore,
-}), { virtual: true });
+}));
 
 jest.mock('next/server', () => ({
   NextResponse: {
