@@ -95,6 +95,32 @@ export interface ImportAllPhaseEvent {
   count?: number;
   message?: string;
 }
+
+/**
+ * LEP (Layered Event Pipeline) の Step 2b で追加された、importAll() へ LEP analyzer 側の
+ * 結果を受け渡すための options bag。
+ *
+ * `phasesToSkip` に列挙された phase は importAll() 内では実行されず、対応する処理は
+ * LEP analyzer (SessionImporter / ReleaseResolver / CoverageImporter 等) 側で実施する。
+ * `externalCounters` は LEP analyzer が集計した件数を importAll() の戻り値にマージするための
+ * バックチャネル。`externalSessionsToAnalyze` は SessionImporter が import に成功した session
+ * 集合を Phase 6 (analyze_behavior) で再利用するためのもの。
+ */
+export interface ImportAllLepOptions {
+  /** LEP 側で処理する phase 集合。importAll() 本体ではスキップする */
+  phasesToSkip?: ReadonlySet<ImportAllPhase>;
+  /** LEP 側で集計したセッション集合を Phase 6 で再利用 */
+  externalSessionsToAnalyze?: ReadonlySet<string>;
+  /** LEP 側で集計した import 件数 (戻り値マージ用) */
+  externalCounters?: {
+    imported?: number;
+    skipped?: number;
+    commitsResolved?: number;
+    releasesResolved?: number;
+    coverageImported?: number;
+    currentCoverageImported?: number;
+  };
+}
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import { splitCodeGraph, composeCodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import type { StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
@@ -2874,7 +2900,13 @@ export class TrailDatabase {
   /** Load imported sessions keyed by file_path for accurate skip detection.
    *  `hasMessages` is false when `sessions` row exists but no `messages` rows are present
    *  (happens after a silent message-insert failure). Callers should re-import such sessions. */
-  private getImportedFileMap(): Map<string, { sessionId: string; fileSize: number; commitsResolved: boolean; hasMessages: boolean; hasUsableCostData: boolean }> {
+  /**
+   * 既存 import 済セッションの (file_path → 状態) マップ。
+   *
+   * - LEP `SessionImporter` (Step 2b) が file-size skip 判定で使用する。
+   * - LEP 移行前は `importAll()` 内の Phase 1 が同じく内部利用していた。
+   */
+  getImportedFileMap(): Map<string, { sessionId: string; fileSize: number; commitsResolved: boolean; hasMessages: boolean; hasUsableCostData: boolean }> {
     const db = this.ensureDb();
     const result = db.exec(
       `SELECT s.id, s.file_path, s.file_size, s.commits_resolved_at,
@@ -3190,6 +3222,27 @@ export class TrailDatabase {
     return count;
   }
 
+  /**
+   * 外部トランザクション制御用。`importSession(..., externalTransaction=true)` を呼ぶ caller が
+   * 自前で BEGIN / COMMIT / ROLLBACK を発行できるよう、SQL 実行口を提供する。
+   *
+   * LEP `SessionImporter` (Step 2b) が batch transaction 管理 (BATCH_MESSAGE_LIMIT=20_000 /
+   * BATCH_FILE_LIMIT=100) のために利用する。
+   */
+  beginExternalTransaction(): void {
+    this.ensureDb().run('BEGIN TRANSACTION');
+  }
+
+  /** @see beginExternalTransaction */
+  commitExternalTransaction(): void {
+    this.ensureDb().run('COMMIT');
+  }
+
+  /** @see beginExternalTransaction */
+  rollbackExternalTransaction(): void {
+    this.ensureDb().run('ROLLBACK');
+  }
+
   /** @returns number of messages imported */
   importSession(filePath: string, repoName: string, isSubagent = false, externalTransaction = false): number {
     const db = this.ensureDb();
@@ -3377,6 +3430,7 @@ export class TrailDatabase {
     excludePatterns?: readonly string[],
     analyzeFn?: AnalyzeFunction,
     onPhase?: (event: ImportAllPhaseEvent) => void,
+    lepOpts?: ImportAllLepOptions,
   ): Promise<{ imported: number; skipped: number; commitsResolved: number; releasesResolved: number; releasesAnalyzed: number; coverageImported: number; currentCoverageImported: number; messageCommitsBackfilled: number }> {
     const projectsDir = path.join(os.homedir(), '.claude', 'projects');
     const codexSessionsDir = path.join(os.homedir(), '.codex', 'sessions');
@@ -3384,16 +3438,25 @@ export class TrailDatabase {
     const gitRoot = gitRoots?.[0];
     const repoName = gitRoot ? path.basename(gitRoot) : '';
     const watched = (gitRoots ?? []).map((r) => ({ gitRoot: r, repoName: path.basename(r) }));
-    let imported = 0;
-    let skipped = 0;
-    let commitsResolved = 0;
+    const phasesToSkip = lepOpts?.phasesToSkip ?? new Set<ImportAllPhase>();
+    let imported = lepOpts?.externalCounters?.imported ?? 0;
+    let skipped = lepOpts?.externalCounters?.skipped ?? 0;
+    let commitsResolved = lepOpts?.externalCounters?.commitsResolved ?? 0;
 
+
+    // LEP Step 2b: Phase 1 (import_sessions) は SessionImporter / CommitResolver に移管。
+    // ここでは projects dir のスキャンを丸ごとスキップする (ingester / analyzer 側で実施済み)。
+    const skipImportSessions = phasesToSkip.has('import_sessions');
 
     let projectDirs: string[];
-    try {
-      projectDirs = fs.readdirSync(projectsDir);
-    } catch {
-      return { imported, skipped, commitsResolved, releasesResolved: 0, releasesAnalyzed: 0, coverageImported: 0, currentCoverageImported: 0, messageCommitsBackfilled: 0 };
+    if (skipImportSessions) {
+      projectDirs = [];
+    } else {
+      try {
+        projectDirs = fs.readdirSync(projectsDir);
+      } catch {
+        return { imported, skipped, commitsResolved, releasesResolved: 0, releasesAnalyzed: 0, coverageImported: 0, currentCoverageImported: 0, messageCommitsBackfilled: 0 };
+      }
     }
 
     // Pre-load imported file paths + sizes for fast skip
@@ -3446,8 +3509,8 @@ export class TrailDatabase {
       }
     }
 
-    // Codex sessions (~/.codex/sessions/**/rollout-*.jsonl)
-    try {
+    // Codex sessions (~/.codex/sessions/**/rollout-*.jsonl) — LEP 移行時はスキップ
+    if (!skipImportSessions) try {
       const codexFiles = collectJsonlFilesRecursive(codexSessionsDir).filter((f: string) =>
         path.basename(f).startsWith('rollout-'),
       );
@@ -3473,12 +3536,6 @@ export class TrailDatabase {
     const codexSessions = sessionDirs.filter(d => d.source === 'codex');
     const claudeFiles = claudeSessions.reduce((s, d) => s + 1 + d.subagentFiles.length, 0);
     const codexFiles = codexSessions.reduce((s, d) => s + 1 + d.subagentFiles.length, 0);
-    onProgress?.(
-      `Found ${totalSessions} sessions (${totalFiles} files): ` +
-        `Claude Code ${claudeSessions.length} sessions (${claudeFiles} files), ` +
-        `Codex ${codexSessions.length} sessions (${codexFiles} files)`,
-      0,
-    );
 
     const BATCH_MESSAGE_LIMIT = 20_000;
     const BATCH_FILE_LIMIT = 100;
@@ -3507,8 +3564,16 @@ export class TrailDatabase {
       }
     };
 
-    onPhase?.({ phase: 'import_sessions', action: 'start', count: totalSessions });
-    await yieldForUi();
+    if (!skipImportSessions) {
+      onProgress?.(
+        `Found ${totalSessions} sessions (${totalFiles} files): ` +
+          `Claude Code ${claudeSessions.length} sessions (${claudeFiles} files), ` +
+          `Codex ${codexSessions.length} sessions (${codexFiles} files)`,
+        0,
+      );
+      onPhase?.({ phase: 'import_sessions', action: 'start', count: totalSessions });
+      await yieldForUi();
+    }
 
     for (const dir of sessionDirs) {
       const sessionFileTotal = 1 + dir.subagentFiles.length;
@@ -3585,12 +3650,15 @@ export class TrailDatabase {
       inTransaction = false;
       onProgress?.(formatProgress(), 0);
     }
-    onPhase?.({ phase: 'import_sessions', action: 'finish', count: imported });
-    await yieldForUi();
+    if (!skipImportSessions) {
+      onPhase?.({ phase: 'import_sessions', action: 'finish', count: imported });
+      await yieldForUi();
+    }
 
-    // Resolve releases from version tags
-    let releasesResolved = 0;
-    if (gitRoot) {
+    // Resolve releases from version tags (LEP Step 2b 以降は ReleaseResolver に移管)
+    let releasesResolved = lepOpts?.externalCounters?.releasesResolved ?? 0;
+    const skipResolveReleases = phasesToSkip.has('resolve_releases');
+    if (!skipResolveReleases && gitRoot) {
       onPhase?.({ phase: 'resolve_releases', action: 'start' });
       await yieldForUi();
       let resolveReleasesFailed = false;
@@ -3615,7 +3683,7 @@ export class TrailDatabase {
       if (!resolveReleasesFailed) {
         onPhase?.({ phase: 'resolve_releases', action: 'finish', count: releasesResolved });
       }
-    } else {
+    } else if (!skipResolveReleases) {
       onPhase?.({ phase: 'resolve_releases', action: 'skip', message: 'no gitRoot' });
     }
     await yieldForUi();
@@ -3638,10 +3706,11 @@ export class TrailDatabase {
     }
     await yieldForUi();
 
-    // Import coverage data from packages/*/coverage/coverage-summary.json
-    let coverageImported = 0;
-    let currentCoverageImported = 0;
-    if (gitRoot) {
+    // Import coverage data from packages/*/coverage/coverage-summary.json (LEP Step 2b 以降は CoverageImporter に移管)
+    let coverageImported = lepOpts?.externalCounters?.coverageImported ?? 0;
+    let currentCoverageImported = lepOpts?.externalCounters?.currentCoverageImported ?? 0;
+    const skipImportCoverage = phasesToSkip.has('import_coverage');
+    if (!skipImportCoverage && gitRoot) {
       onPhase?.({ phase: 'import_coverage', action: 'start' });
       await yieldForUi();
       let coverageFailed = false;
@@ -3666,7 +3735,7 @@ export class TrailDatabase {
       if (!coverageFailed) {
         onPhase?.({ phase: 'import_coverage', action: 'finish', count: coverageImported + currentCoverageImported });
       }
-    } else {
+    } else if (!skipImportCoverage) {
       onPhase?.({ phase: 'import_coverage', action: 'skip', message: 'no gitRoot' });
     }
     await yieldForUi();
@@ -3686,14 +3755,17 @@ export class TrailDatabase {
 
     // Analyze Claude Code behavior only for sessions that were (re)imported in this run.
     // Sessions skipped above had no new messages, so message_tool_calls is already current.
-    if (sessionsToAnalyze.size > 0) {
-      onPhase?.({ phase: 'analyze_behavior', action: 'start', count: sessionsToAnalyze.size });
+    // LEP Step 2b: Phase 1 が外部 (SessionImporter) に移管された場合、対象 session 集合は
+    // `externalSessionsToAnalyze` 経由で受け取る。
+    const effectiveSessionsToAnalyze = lepOpts?.externalSessionsToAnalyze ?? sessionsToAnalyze;
+    if (effectiveSessionsToAnalyze.size > 0) {
+      onPhase?.({ phase: 'analyze_behavior', action: 'start', count: effectiveSessionsToAnalyze.size });
       await yieldForUi();
       const db = this.ensureDb();
       const analyzer = new ClaudeCodeBehaviorAnalyzer();
-      onProgress?.(`Analyzing Claude Code behavior (${sessionsToAnalyze.size} sessions)...`, 0);
+      onProgress?.(`Analyzing Claude Code behavior (${effectiveSessionsToAnalyze.size} sessions)...`, 0);
       let failedCount = 0;
-      for (const sid of sessionsToAnalyze) {
+      for (const sid of effectiveSessionsToAnalyze) {
         try {
           analyzer.analyze(sid, db);
         } catch (e) {
@@ -3701,7 +3773,7 @@ export class TrailDatabase {
           this.logger.error(`ClaudeCodeBehaviorAnalyzer failed for session ${sid}`, e);
         }
       }
-      onPhase?.({ phase: 'analyze_behavior', action: 'finish', count: sessionsToAnalyze.size - failedCount });
+      onPhase?.({ phase: 'analyze_behavior', action: 'finish', count: effectiveSessionsToAnalyze.size - failedCount });
     } else {
       onPhase?.({ phase: 'analyze_behavior', action: 'skip', message: 'no new sessions' });
     }

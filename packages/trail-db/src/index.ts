@@ -20,6 +20,7 @@ export type {
   FetchDefectRiskOptions,
   ImportAllPhase,
   ImportAllPhaseEvent,
+  ImportAllLepOptions,
 } from './TrailDatabase';
 export { SyncService } from './SyncService';
 export { SupabaseTrailStore } from './SupabaseTrailStore';

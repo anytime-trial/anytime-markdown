@@ -27,7 +27,16 @@ function makeMemoryCore(dir: string, pipelineRunner: jest.Mock = jest.fn(async (
 }
 
 function makeFakeTrailDb(importAll: jest.Mock): TrailDatabase {
-  return { importAll } as unknown as TrailDatabase;
+  // Step 2b: LEP analyzer (SessionImporter / CommitResolver) が呼ぶ helper を mock として
+  // 提供する。空マップ + isCommitResolutionDone=true で skip させて副作用ゼロにする。
+  return {
+    importAll,
+    getImportedFileMap: () => new Map(),
+    isCommitResolutionDone: () => true,
+    beginExternalTransaction: () => undefined,
+    commitExternalTransaction: () => undefined,
+    rollbackExternalTransaction: () => undefined,
+  } as unknown as TrailDatabase;
 }
 
 describe('AnalyzeAllRunner', () => {
@@ -263,7 +272,12 @@ describe('AnalyzeAllRunner', () => {
 
     await runner.runOnce('manual');
     expect(progressMsgs).toEqual(['msg1']);
-    expect(phaseEvents).toEqual(['session-import']);
+    // Step 2b 以降は SessionImporter / ReleaseResolver / CoverageImporter も onImportPhase 経由で
+    // phase event を発火するため、'session-import' (importAll mock 由来) と共に格納される。
+    expect(phaseEvents).toContain('session-import');
+    expect(phaseEvents).toContain('import_sessions');
+    expect(phaseEvents).toContain('resolve_releases');
+    expect(phaseEvents).toContain('import_coverage');
     expect(afterRunCalled).toBe(1);
   });
 

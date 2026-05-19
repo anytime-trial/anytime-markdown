@@ -30,8 +30,16 @@ function makeMemoryCore(dir: string, pipelineRunner: jest.Mock = jest.fn(async (
   });
 }
 
-function makeFakeTrailDb(importAll: jest.Mock): TrailDatabase {
-  return { importAll } as unknown as TrailDatabase;
+function makeFakeTrailDb(importAll: jest.Mock, overrides: Partial<TrailDatabase> = {}): TrailDatabase {
+  return {
+    importAll,
+    getImportedFileMap: () => new Map(),
+    isCommitResolutionDone: () => true,
+    beginExternalTransaction: () => undefined,
+    commitExternalTransaction: () => undefined,
+    rollbackExternalTransaction: () => undefined,
+    ...overrides,
+  } as unknown as TrailDatabase;
 }
 
 describe('AnalyzeAllRunner (LEP integration)', () => {
@@ -224,5 +232,95 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(allLines).not.toContain('[MetaJsonIngester]');
     // 既存 Legacy パスは動く
     expect(allLines).toContain('[ImportAllLegacy] start');
+  });
+
+  it('Step 2b: 4 primary analyzers fire when enableIngesters=true (default)', async () => {
+    const importAllCalls: unknown[] = [];
+    const importAll = jest.fn(async (
+      _onProgress: unknown,
+      _gitRoots: unknown,
+      _excl: unknown,
+      _analyzeFn: unknown,
+      _onPhase: unknown,
+      lepOpts: unknown,
+    ) => {
+      importAllCalls.push(lepOpts);
+      return {} as never;
+    });
+    const memoryCore = makeMemoryCore(dir);
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(importAll),
+      memoryCoreService: memoryCore,
+      gitRoots: [],
+    });
+
+    await runner.runOnce('manual');
+
+    const allLines = logSink.lines.join('\n');
+    expect(allLines).toContain('[SessionImporter] start');
+    expect(allLines).toContain('[SessionImporter] done');
+    expect(allLines).toContain('[CommitResolver] done');
+    expect(allLines).toContain('[ReleaseResolver] done');
+    expect(allLines).toContain('[CoverageImporter] done');
+
+    // ImportAllLegacy 経由で importAll に phasesToSkip が渡されている
+    expect(importAllCalls).toHaveLength(1);
+    const lepOpts = importAllCalls[0] as {
+      phasesToSkip?: Set<string>;
+      externalSessionsToAnalyze?: Set<string>;
+      externalCounters?: Record<string, number>;
+    };
+    expect(lepOpts.phasesToSkip).toBeDefined();
+    expect([...(lepOpts.phasesToSkip ?? [])].sort()).toEqual([
+      'import_coverage',
+      'import_sessions',
+      'resolve_releases',
+    ]);
+    expect(lepOpts.externalSessionsToAnalyze).toBeDefined();
+    expect(lepOpts.externalCounters).toMatchObject({
+      imported: 0,
+      skipped: 0,
+      commitsResolved: 0,
+      releasesResolved: 0,
+      coverageImported: 0,
+      currentCoverageImported: 0,
+    });
+  });
+
+  it('Step 2b: enableIngesters=false → no primary LEP analyzer, importAll runs full pipeline', async () => {
+    const importAllCalls: unknown[] = [];
+    const importAll = jest.fn(async (
+      _onProgress: unknown,
+      _gitRoots: unknown,
+      _excl: unknown,
+      _analyzeFn: unknown,
+      _onPhase: unknown,
+      lepOpts: unknown,
+    ) => {
+      importAllCalls.push(lepOpts);
+      return {} as never;
+    });
+    const memoryCore = makeMemoryCore(dir);
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(importAll),
+      memoryCoreService: memoryCore,
+      enableIngesters: false,
+    });
+
+    await runner.runOnce('manual');
+
+    const allLines = logSink.lines.join('\n');
+    expect(allLines).not.toContain('[SessionImporter]');
+    expect(allLines).not.toContain('[CommitResolver]');
+    // ImportAllLegacy は LEP analyzer なしで呼ばれるため phasesToSkip は empty Set
+    const lepOpts = importAllCalls[0] as { phasesToSkip?: Set<string> };
+    expect(lepOpts.phasesToSkip).toBeDefined();
+    expect([...(lepOpts.phasesToSkip ?? [])]).toEqual([]);
   });
 });
