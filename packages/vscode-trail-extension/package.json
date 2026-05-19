@@ -185,6 +185,17 @@
           "default": false,
           "markdownDescription": "%config.analyzeAll.enabled%"
         },
+        "anytimeTrail.lep.stageOverride": {
+          "type": "string",
+          "enum": ["", "disabled", "sources", "primary", "memory", "primary+memory", "all"],
+          "default": "",
+          "markdownDescription": "%config.lep.stageOverride%"
+        },
+        "anytimeTrail.lep.configPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "%config.lep.configPath%"
+        },
         "anytimeTrail.logs.minLevel": {
           "type": "string",
           "enum": ["debug", "info", "warn", "error"],

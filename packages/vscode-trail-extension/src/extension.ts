@@ -22,6 +22,7 @@ import {
 	loadConfig,
 	loadLepConfig,
 	ensureLepConfigFile,
+	checkLlmAvailability,
 	LogService,
 } from '@anytime-markdown/trail-server';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
@@ -31,7 +32,7 @@ import {
 	CREATE_EXTENSION_LOGS,
 	CREATE_EXTENSION_LOGS_INDEXES,
 } from '@anytime-markdown/trail-core/domain/schema';
-import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome, LEP_STAGES, type LepStage } from '@anytime-markdown/memory-core';
 import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
@@ -309,8 +310,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 
 	// LEP 設定 (lep.json) — stage / analyzer 有効化を集約する (設計書 13 章)。
-	// Step 3a: 読込経路 + 旧 VS Code 設定からの migration のみ実装する。
-	// stage を Wave 実行制御へ連携するのは Step 3d (本 stage 値はまだ未使用)。
+	// 旧 VS Code 設定 (anytimeTrail.lep.stageOverride / anytimeTrail.analyzeAll.enabled) からの
+	// migration + 解決済み stage を AnalyzeAllRunner に渡す (Step 3d)。
+	let lepStage: LepStage = isAnalyzeAllEnabled() ? 'primary+memory' : 'disabled';
 	if (wsRootForDb) {
 		try {
 			ensureLepConfigFile({
@@ -333,14 +335,25 @@ export async function activate(context: vscode.ExtensionContext) {
 				configPathOverride: lepConfigPathOverride || undefined,
 				logger: { warn: (m) => TrailLogger.warn(m), info: (m) => TrailLogger.info(m) },
 			});
+			lepStage = lep.config.stage;
+			// VS Code 設定 anytimeTrail.lep.stageOverride で一時的に stage を上書き可能 (設計書 13.4)。
+			const stageOverride = vscode.workspace
+				.getConfiguration('anytimeTrail.lep')
+				.get<string>('stageOverride', '')
+				.trim();
+			if (stageOverride && LEP_STAGES.includes(stageOverride as LepStage)) {
+				lepStage = stageOverride as LepStage;
+				TrailLogger.info(`[LepConfig] stage overridden by anytimeTrail.lep.stageOverride=${lepStage}`);
+			}
 			TrailLogger.info(
-				`[LepConfig] resolved stage=${lep.config.stage} (loaded ${lep.loadedPaths.length} file(s))`,
+				`[LepConfig] resolved stage=${lepStage} (loaded ${lep.loadedPaths.length} file(s))`,
 			);
 		} catch (err) {
-			// version / stage 不正 (LepConfigError) は 3a 時点では起動を止めず warn に留める
-			// (stage 未連携のため)。stage 連携を行う 3d で fatal 化の要否を再検討する。
+			// version / stage 不正 (LepConfigError) は起動を止めず warn に留め、旧 boolean 由来の
+			// fallback stage で続行する (extension の activate を壊さないため)。
 			TrailLogger.warn(
-				`[LepConfig] failed to load lep.json: ${err instanceof Error ? err.message : String(err)}`,
+				`[LepConfig] failed to load lep.json: ${err instanceof Error ? err.message : String(err)}. ` +
+					`fallback stage=${lepStage}`,
 			);
 		}
 	}
@@ -630,18 +643,27 @@ export async function activate(context: vscode.ExtensionContext) {
 			return; // DB 初期化失敗時はサーバー起動もスキップ
 		}
 
-		// AnalyzeAllRunner — importAll → memory-core runOnce の唯一の orchestrator。
+		// AnalyzeAllRunner — Wave 1+2 (importAll 相当) + Wave 3 (memory) の唯一の orchestrator。
 		// trailDb.init() 完了後に構築する (init 前の getWatchedGitRoots は意味を持たない)。
-		// memoryCoreService が null (useExternalDaemon) でも runner は構築する (importAll のみ走る)。
-		// anytimeTrail.analyzeAll.enabled=false (既定) のときは構築自体をスキップし、
-		// 自動実行・手動実行・HTTP API すべて無効化する。
-		if (trailDb && hostMemoryCoreLocally && dbStorageDir && isAnalyzeAllEnabled()) {
+		// memoryCoreService が null (useExternalDaemon) でも runner は構築する (Wave 1/2 のみ走る)。
+		// lep.json stage が disabled のときは構築自体をスキップし、自動・手動・HTTP API を無効化する。
+		if (trailDb && hostMemoryCoreLocally && dbStorageDir && lepStage !== 'disabled') {
 			analyzeAllRunner = new AnalyzeAllRunner({
 				logSink: memoryCoreOutputChannel,
 				gitRoot: wsRootForDb,
 				trailDb,
 				gitRoots: getWatchedGitRoots(),
 				memoryCoreService: memoryCoreService ?? undefined,
+				stage: lepStage,
+				// Wave 3 前 LLM Pre-flight。Ollama 不在時は LLM 依存 analyzer のみ skip し、
+				// Code / BugHistory / Drift (LLM 非依存) は実行する。
+				checkLlmAvailability: () =>
+					checkLlmAvailability({
+						baseUrl: trailConfig.memory.ollama.baseUrl,
+						chatModel: trailConfig.memory.chat.model,
+						embedModel: trailConfig.memory.embedding.model,
+					}),
+				ollamaBaseUrl: trailConfig.memory.ollama.baseUrl,
 				importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
 				onImportProgress: (message) => TrailLogger.info(`[analyzeAll] ${message}`),
 				analyzeReleaseFn: analyze,
@@ -653,7 +675,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				onAfterRun: () => trailDataServer?.notifySessionsUpdated(),
 			});
 			trailDataServer?.setAnalyzeAllRunner(analyzeAllRunner);
-			TrailLogger.info('[AnalyzeAllRunner] wired');
+			TrailLogger.info(`[AnalyzeAllRunner] wired (stage=${lepStage})`);
 		}
 		// 外部デーモンが有効な場合はローカルサーバー起動をスキップ。
 		// ブラウザは TrailPanel.daemonUrl 経由でデーモンに直接アクセスする。

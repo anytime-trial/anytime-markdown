@@ -16,13 +16,15 @@ import type { MemoryWaveSessionProvider } from './MemoryWaveSessionProvider';
  * {@link MemoryWaveSessionProvider} からセッションを取得して scope メソッドを呼ぶ。
  * cursor 管理 (`memory_pipeline_state`) は memory-core 側 (run*Incremental) に閉じている。
  *
- * Step 3b では `wave_complete:primary` を購読する (importAll 完了 = Wave 2 barrier 後に発火)。
- * Step 3d で `wave_start:memory` 購読に切り替え、stage=memory 単独実行に対応する。
+ * `wave_start:memory` を購読する (Wave 3 開始時に発火)。stage=memory の単独実行
+ * (Wave 1/2 skip で `wave_complete:primary` が出ない) でも発火するため、stage に依存しない。
+ * Wave 2 末尾の `PersistAnalyzer` save → Wave 3 開始 (`wave_start:memory`) の順序は
+ * `LepOrchestrator` の Wave 境界 drain により保証される。
  */
 export abstract class MemoryAnalyzerBase implements Analyzer {
   abstract readonly id: string;
   readonly tier = 3 as const;
-  readonly subscribes: readonly AnalyzerEvent['kind'][] = ['wave_complete'];
+  readonly subscribes: readonly AnalyzerEvent['kind'][] = ['wave_start'];
   readonly emits: readonly AnalyzerEvent['kind'][] = [];
   readonly inputMode = 'event' as const;
   readonly dependsOn: readonly string[] = [];
@@ -34,7 +36,7 @@ export abstract class MemoryAnalyzerBase implements Analyzer {
   protected abstract runScope(session: MemoryDbSession): Promise<ScopeResult>;
 
   async onEvent(e: AnalyzerEvent, ctx: AnalyzerContext): Promise<void> {
-    if (e.kind !== 'wave_complete' || e.wave !== 'primary') return;
+    if (e.kind !== 'wave_start' || e.wave !== 'memory') return;
 
     // Pre-flight: LLM を要する analyzer は availability を満たさなければ skip する。
     // run*Incremental を呼ばないため cursor (memory_pipeline_state) は前進せず、

@@ -3,7 +3,7 @@ import { Command } from 'commander';
 import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { MemoryCoreService, type MemoryCoreLogSink, BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
+import { MemoryCoreService, type MemoryCoreLogSink, type LepStage, BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
 import { ChatBridge } from './memory-chat/chatBridge';
 import { RebuildScheduler } from './memory-chat/rebuildScheduler';
 import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
@@ -13,6 +13,7 @@ import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
 import { loadConfig } from './runtime/Config';
 import { ensureLepConfigFile, loadLepConfig } from './runtime/LepConfig';
+import { checkLlmAvailability } from './lep/LlmAvailability';
 import { AnalyzeAllRunner } from './runner/AnalyzeAllRunner';
 import { CodeGraphService } from './analyze/CodeGraphService';
 import {
@@ -93,9 +94,10 @@ program
     const config = loadConfig(configPath, logger);
     const effectiveGitRoots = gitRoots.length > 0 ? gitRoots : config.gitRoots;
 
-    // LEP 設定 (lep.json) 読込経路 (Step 3a)。daemon は primary gitRoot を workspace とする。
-    // stage の Wave 制御連携は Step 3d (本 stage 値はまだ未使用)。
+    // LEP 設定 (lep.json) 読込 + stage 解決 (Step 3d)。daemon は primary gitRoot を workspace とする。
+    // 解決した stage を AnalyzeAllRunner に渡して Wave 実行範囲を制御する。
     const lepWorkspaceRoot = effectiveGitRoots[0];
+    let lepStage: LepStage = opts.scheduler ? 'primary+memory' : 'disabled';
     if (lepWorkspaceRoot) {
       try {
         ensureLepConfigFile({
@@ -110,9 +112,10 @@ program
           logger,
         });
         const lep = loadLepConfig({ workspaceRoot: lepWorkspaceRoot, logger });
-        logger.info('lep.json loaded', { stage: lep.config.stage, files: lep.loadedPaths.length });
+        lepStage = lep.config.stage;
+        logger.info('lep.json loaded', { stage: lepStage, files: lep.loadedPaths.length });
       } catch (err) {
-        logger.warn(`lep.json load failed: ${err instanceof Error ? err.message : String(err)}`);
+        logger.warn(`lep.json load failed: ${err instanceof Error ? err.message : String(err)}; fallback stage=${lepStage}`);
       }
     }
 
@@ -253,6 +256,14 @@ program
       trailDb,
       gitRoots: effectiveGitRoots,
       memoryCoreService,
+      stage: lepStage,
+      checkLlmAvailability: () =>
+        checkLlmAvailability({
+          baseUrl: config.memory.ollama.baseUrl,
+          chatModel: config.memory.chat.model,
+          embedModel: config.memory.embedding.model,
+        }),
+      ollamaBaseUrl: config.memory.ollama.baseUrl,
       // VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新する
       importAllStatusFilePath: join(dbStorageDir, 'importall-phase-status.json'),
     });

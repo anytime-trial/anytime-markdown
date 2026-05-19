@@ -68,7 +68,6 @@ describe('AnalyzeAllRunner — useMemoryAnalyzers (LEP Step 3b)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'runner.json'),
       memoryCoreService: makeMemoryCore(dir, fake),
-      useMemoryAnalyzers: true,
     });
 
     const status = await runner.runOnce('manual');
@@ -100,7 +99,6 @@ describe('AnalyzeAllRunner — useMemoryAnalyzers (LEP Step 3b)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'runner.json'),
       memoryCoreService: makeMemoryCore(dir, fake),
-      useMemoryAnalyzers: true,
     });
 
     const status = await runner.runOnce('manual');
@@ -109,20 +107,5 @@ describe('AnalyzeAllRunner — useMemoryAnalyzers (LEP Step 3b)', () => {
     expect(fake.closed).toBe(1);
     // 他 analyzer は独立なので review 失敗後も走る (LEP モデル)
     expect(fake.calls).toContain('drift');
-  });
-
-  it('legacy path (useMemoryAnalyzers=false) does not open a scope session', async () => {
-    const fake = makeFakeSession();
-    const runner = new AnalyzeAllRunner({
-      logSink: makeLogSink(),
-      statePath: join(dir, 'runner.json'),
-      memoryCoreService: makeMemoryCore(dir, fake),
-      // useMemoryAnalyzers 省略 = legacy
-    });
-
-    const status = await runner.runOnce('manual');
-    expect(status.lastError).toBeNull();
-    expect(fake.calls).toEqual([]); // legacy は runOnce(pipelineRunner) を使う
-    expect(fake.closed).toBe(0);
   });
 });

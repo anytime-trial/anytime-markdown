@@ -50,7 +50,7 @@ function makeCtx(): AnalyzerContext {
   };
 }
 
-const primaryEvent: AnalyzerEvent = { kind: 'wave_complete', wave: 'primary' };
+const primaryEvent: AnalyzerEvent = { kind: 'wave_start', wave: 'memory' };
 
 describe('memory analyzers', () => {
   it('each analyzer calls its own scope method on wave_complete:primary', async () => {
@@ -69,14 +69,15 @@ describe('memory analyzers', () => {
     expect(calls).toEqual(['conversation', 'code', 'bugHistory', 'review', 'spec', 'drift', 'embedding']);
   });
 
-  it('ignores non-primary wave_complete and other events', async () => {
+  it('only acts on wave_start:memory (ignores other waves/events)', async () => {
     const { session, calls } = makeFakeSession();
     const provider = new MemoryWaveSessionProvider(async () => session);
     const ctx = makeCtx();
     const a = new ConversationMemoryAnalyzer(provider);
 
-    await a.onEvent({ kind: 'wave_complete', wave: 'sources' }, ctx);
-    await a.onEvent({ kind: 'wave_complete', wave: 'memory' }, ctx);
+    await a.onEvent({ kind: 'wave_start', wave: 'sources' }, ctx);
+    await a.onEvent({ kind: 'wave_start', wave: 'primary' }, ctx);
+    await a.onEvent({ kind: 'wave_complete', wave: 'primary' }, ctx);
     await a.onEvent({ kind: 'session_imported', sessionId: 's', messageCount: 1, repoName: 'r' }, ctx);
     expect(calls).toEqual([]);
   });
@@ -190,11 +191,11 @@ describe('memory analyzers', () => {
     expect(calls).toEqual(['conversation', 'embedding']);
   });
 
-  it('tier and subscribes are correct (tier 3, wave_complete)', () => {
+  it('tier and subscribes are correct (tier 3, wave_start)', () => {
     const provider = new MemoryWaveSessionProvider(async () => null);
     const a = new ConversationMemoryAnalyzer(provider);
     expect(a.tier).toBe(3);
-    expect(a.subscribes).toEqual(['wave_complete']);
+    expect(a.subscribes).toEqual(['wave_start']);
   });
 
   it('dependsOn ordering: Drift after content, EmbeddingBackfill last', () => {

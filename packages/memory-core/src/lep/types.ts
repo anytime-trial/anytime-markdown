@@ -67,6 +67,7 @@ export type SourceEvent =
  * - `release_resolved`:        ReleaseResolver が release tag を 1 件解決
  * - `code_graph_built`:        release tag に対する code graph 構築完了
  * - `current_code_graph_built`: HEAD ベースの current code graph 構築完了
+ * - `wave_start`:              Wave の開始 (tier analyzer 実行前に emit。Layer 3 の発火契機)
  * - `wave_complete`:           Wave の全 analyzer 実行完了 (barrier)
  * - `wave_skipped`:            Wave がスキップされた (例: memory-core が disabled)
  */
@@ -92,6 +93,7 @@ export type DerivedEvent =
       nodes: number;
       edges: number;
     }
+  | { kind: 'wave_start'; wave: 'sources' | 'primary' | 'memory' | 'derived' }
   | { kind: 'wave_complete'; wave: 'sources' | 'primary' | 'memory' | 'derived' }
   | {
       kind: 'wave_skipped';
