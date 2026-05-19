@@ -154,3 +154,19 @@ export type {
   RunnerStartOptions,
   RunnerStatus,
 } from './runner/types';
+
+// Layered Event Pipeline (LEP) Step 1 — 型・EventBus・Orchestrator・BaseAnalyzer
+export {
+  EventBus,
+  LepOrchestrator,
+  BaseAnalyzer,
+} from './lep';
+export type {
+  AnalyzerEvent,
+  Analyzer,
+  AnalyzerContext,
+  EventBusPublisher,
+  LepOrchestratorLogger,
+  LepRunOnceOptions,
+  LepRunOnceResult,
+} from './lep';
