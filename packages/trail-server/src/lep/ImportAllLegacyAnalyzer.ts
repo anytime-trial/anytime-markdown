@@ -1,9 +1,18 @@
 import { randomUUID } from 'node:crypto';
 
 import type { Analyzer, AnalyzerContext, AnalyzerEvent } from '@anytime-markdown/memory-core';
-import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail-db';
+import type {
+  ImportAllLepOptions,
+  ImportAllPhase,
+  ImportAllPhaseEvent,
+  TrailDatabase,
+} from '@anytime-markdown/trail-db';
 
 import { ImportAllPhaseStatusWriter } from '../jobs/ImportAllPhaseStatusFile';
+import type { CommitResolver } from './analyzers/primary/CommitResolver';
+import type { CoverageImporter } from './analyzers/primary/CoverageImporter';
+import type { ReleaseResolver } from './analyzers/primary/ReleaseResolver';
+import type { SessionImporter } from './analyzers/primary/SessionImporter';
 
 type ImportAllAnalyzeFn = NonNullable<Parameters<TrailDatabase['importAll']>[3]>;
 type ImportAllResult = Awaited<ReturnType<TrailDatabase['importAll']>>;
@@ -15,10 +24,26 @@ export interface ImportAllLegacyAnalyzerOptions {
   analyzeReleaseFn?: ImportAllAnalyzeFn;
   onImportPhase?: (event: ImportAllPhaseEvent) => void;
   importAllStatusFilePath?: string;
+
+  /**
+   * LEP Step 2b: Phase 1 (import_sessions) を担う SessionImporter。`getSessionsToAnalyze()` から
+   * Phase 6 (analyze_behavior) で使う session 集合を取得する。指定時は Phase 1 を skip する。
+   */
+  sessionImporter?: Pick<SessionImporter, 'getSessionsToAnalyze' | 'getCounters'>;
+  /** LEP Step 2b: Phase 1 内 resolveCommits を担う CommitResolver。指定時は counters 集計用 */
+  commitResolver?: Pick<CommitResolver, 'getCommitsResolved'>;
+  /** LEP Step 2b: Phase 2 (resolve_releases) を担う。指定時は Phase 2 を skip する */
+  releaseResolver?: Pick<ReleaseResolver, 'getReleasesResolved'>;
+  /** LEP Step 2b: Phase 4 (import_coverage) を担う。指定時は Phase 4 を skip する */
+  coverageImporter?: Pick<CoverageImporter, 'getCounters'>;
 }
 
 /**
  * 既存 `TrailDatabase.importAll()` を 1 個の Layer 2 analyzer として LEP に載せる。
+ *
+ * LEP Step 2b 以降は、Phase 1/2/4 が個別 analyzer (`SessionImporter` / `ReleaseResolver` /
+ * `CoverageImporter`) に分離されたため、本 analyzer は **Phase 3 / 5 / 6 / 7 / 8** のみを担当する。
+ * Phase 1/2/4 を skip すること、外部 analyzer の集計値を `lepOpts` で連携することで動作不変を維持する。
  *
  * - importAllStatusFilePath が指定されれば `ImportAllPhaseStatusWriter` を初期化し
  *   `ImportAllPhaseEvent` を JSON ファイルに書き出す。
@@ -38,8 +63,18 @@ export class ImportAllLegacyAnalyzer implements Analyzer {
   constructor(private readonly opts: ImportAllLegacyAnalyzerOptions) {}
 
   async onRunEnd(ctx: AnalyzerContext): Promise<void> {
-    const { trailDb, gitRoots, onImportProgress, analyzeReleaseFn, onImportPhase, importAllStatusFilePath } =
-      this.opts;
+    const {
+      trailDb,
+      gitRoots,
+      onImportProgress,
+      analyzeReleaseFn,
+      onImportPhase,
+      importAllStatusFilePath,
+      sessionImporter,
+      commitResolver,
+      releaseResolver,
+      coverageImporter,
+    } = this.opts;
 
     ctx.logger.info(`[ImportAllLegacy] start (gitRoots=${gitRoots.length})`);
 
@@ -53,12 +88,32 @@ export class ImportAllLegacyAnalyzer implements Analyzer {
       onImportPhase?.(event);
     };
 
+    // LEP analyzer が処理した phase を importAll 本体ではスキップさせる
+    const phasesToSkip = new Set<ImportAllPhase>();
+    if (sessionImporter) phasesToSkip.add('import_sessions');
+    if (releaseResolver) phasesToSkip.add('resolve_releases');
+    if (coverageImporter) phasesToSkip.add('import_coverage');
+
+    const lepOpts: ImportAllLepOptions = {
+      phasesToSkip,
+      externalSessionsToAnalyze: sessionImporter?.getSessionsToAnalyze(),
+      externalCounters: {
+        imported: sessionImporter?.getCounters().imported ?? 0,
+        skipped: sessionImporter?.getCounters().skipped ?? 0,
+        commitsResolved: commitResolver?.getCommitsResolved() ?? 0,
+        releasesResolved: releaseResolver?.getReleasesResolved() ?? 0,
+        coverageImported: coverageImporter?.getCounters().coverageImported ?? 0,
+        currentCoverageImported: coverageImporter?.getCounters().currentCoverageImported ?? 0,
+      },
+    };
+
     this.lastResult = await trailDb.importAll(
       onImportProgress,
       gitRoots,
       undefined,
       analyzeReleaseFn,
       importAllStatusFilePath || onImportPhase ? phaseHandler : undefined,
+      lepOpts,
     );
 
     ctx.logger.info('[ImportAllLegacy] done');

@@ -15,6 +15,10 @@ import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail
 
 import { ImportAllLegacyAnalyzer } from '../lep/ImportAllLegacyAnalyzer';
 import { MemoryCoreLegacyAnalyzer } from '../lep/MemoryCoreLegacyAnalyzer';
+import { CommitResolver } from '../lep/analyzers/primary/CommitResolver';
+import { CoverageImporter } from '../lep/analyzers/primary/CoverageImporter';
+import { ReleaseResolver } from '../lep/analyzers/primary/ReleaseResolver';
+import { SessionImporter } from '../lep/analyzers/primary/SessionImporter';
 import { CoverageIngester } from '../lep/ingesters/CoverageIngester';
 import { GitIngester } from '../lep/ingesters/GitIngester';
 import { JsonlIngester } from '../lep/ingesters/JsonlIngester';
@@ -59,9 +63,8 @@ export interface AnalyzeAllRunnerOptions {
 
   /**
    * Step 2a で追加された Layer 1 Ingester (Jsonl/Git/Coverage/MetaJson) を登録するか。
-   * デフォルト `true`。Ingester は event を emit するのみで Step 2a 時点では consumer
-   * が存在しないため動作不変だが、ファイル IO のオーバーヘッドを避けたいテストで
-   * `false` を指定できる。
+   * Step 2b 以降は Layer 2 の SessionImporter / CommitResolver / ReleaseResolver / CoverageImporter
+   * とも紐付くため、有効化すると 4 analyzer が連動する。デフォルト `true`。
    */
   enableIngesters?: boolean;
 }
@@ -74,9 +77,14 @@ export interface AnalyzeAllRunnerOptions {
  * このリファクタ以降 user-facing には公開されない (CLI / HTTP / VS Code コマンド
  * は全て AnalyzeAllRunner を介する)。
  *
- * 内部実装 (Step 2 以降): LepOrchestrator に委譲する薄い層。
+ * 内部実装 (Step 2b 以降): LepOrchestrator に委譲する薄い層。
  * - Layer 1 (sources): 4 種 Ingester (`Jsonl/Git/Coverage/MetaJson`) が `onRunStart` で event 発火
- * - Layer 2 (primary): `ImportAllLegacyAnalyzer` が importAll を実行
+ * - Layer 2 (primary):
+ *   - `SessionImporter`     ← jsonl_session_discovered (Phase 1)
+ *   - `CommitResolver`      ← session_imported / session_skipped (Phase 1 内 resolveCommits)
+ *   - `ReleaseResolver`     ← git_tag (Phase 2)
+ *   - `CoverageImporter`    ← coverage_report (Phase 4)
+ *   - `ImportAllLegacyAnalyzer` (Phase 3/5/6/7/8 を担当、Phase 1/2/4 は skip)
  * - Layer 3 (memory):  `MemoryCoreLegacyAnalyzer` が wave_complete:primary に応答して memory-core を実行
  *
  * エラーハンドリングは LepOrchestrator が analyzer.id 別に errors を収集し、
@@ -100,11 +108,47 @@ export class AnalyzeAllRunner extends BaseRunner {
 
     const bus = new EventBus();
     const analyzers: Analyzer[] = [];
+    const ingestersEnabled = opts.enableIngesters !== false;
 
-    // Layer 1 (sources): Step 2a で追加された 4 種 Ingester。
-    // emit のみで Step 2a 時点では consumer 不在 (Step 2b で SessionImporter 等が購読する予定)。
-    const ingesters = opts.enableIngesters === false ? [] : buildIngesters(opts);
-    analyzers.push(...ingesters);
+    // Layer 1 (sources)
+    if (ingestersEnabled) {
+      const ingesters = buildIngesters(opts);
+      analyzers.push(...ingesters);
+    }
+
+    // Layer 2 (primary) — Step 2b の 4 analyzer は trailDb が必須
+    let sessionImporter: SessionImporter | null = null;
+    let commitResolver: CommitResolver | null = null;
+    let releaseResolver: ReleaseResolver | null = null;
+    let coverageImporter: CoverageImporter | null = null;
+    if (opts.trailDb && ingestersEnabled) {
+      sessionImporter = new SessionImporter({
+        trailDb: opts.trailDb,
+        onProgress: opts.onImportProgress,
+        onPhase: opts.onImportPhase,
+      });
+      commitResolver = new CommitResolver({
+        trailDb: opts.trailDb,
+        gitRoots: opts.gitRoots ?? [],
+      });
+      releaseResolver = new ReleaseResolver({
+        trailDb: opts.trailDb,
+        gitRoots: opts.gitRoots ?? [],
+        onPhase: opts.onImportPhase,
+        onProgress: opts.onImportProgress,
+      });
+      coverageImporter = new CoverageImporter({
+        trailDb: opts.trailDb,
+        gitRoots: opts.gitRoots ?? [],
+        onPhase: opts.onImportPhase,
+        onProgress: opts.onImportProgress,
+      });
+      bus.subscribe(sessionImporter);
+      bus.subscribe(commitResolver);
+      bus.subscribe(releaseResolver);
+      bus.subscribe(coverageImporter);
+      analyzers.push(sessionImporter, commitResolver, releaseResolver, coverageImporter);
+    }
 
     this.importAnalyzer = opts.trailDb
       ? new ImportAllLegacyAnalyzer({
@@ -114,6 +158,10 @@ export class AnalyzeAllRunner extends BaseRunner {
           analyzeReleaseFn: opts.analyzeReleaseFn,
           onImportPhase: opts.onImportPhase,
           importAllStatusFilePath: opts.importAllStatusFilePath,
+          sessionImporter: sessionImporter ?? undefined,
+          commitResolver: commitResolver ?? undefined,
+          releaseResolver: releaseResolver ?? undefined,
+          coverageImporter: coverageImporter ?? undefined,
         })
       : null;
     if (this.importAnalyzer) analyzers.push(this.importAnalyzer);
