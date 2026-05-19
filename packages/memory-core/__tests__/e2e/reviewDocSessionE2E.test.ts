@@ -88,9 +88,13 @@ date: "2026-01-15"
 const REPO = 'test-repo';
 const TARGET_FILE = 'packages/web-app/src/foo.ts';
 const FIX_COMMIT_HASH = 'fix001e2eaaaaaaaaa';
-// Bug must be committed AFTER the finding is recorded (recorded_at ≈ Date.now()).
-// Use 30 days in the future so it falls within the 60-day precedes window.
-const FIX_COMMITTED_AT = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+// linkPrecedesBugs queries `bf.committed_at > reviewed_at AND bf.committed_at <= reviewed_at + windowDays`.
+// reviewed_at comes from the review-doc frontmatter date (2026-01-15), NOT Date.now().
+// Place FIX_COMMITTED_AT 30 days after that frontmatter date so it falls inside the 60-day window.
+const REVIEWED_AT = '2026-01-15T00:00:00.000Z';
+const FIX_COMMITTED_AT = new Date(
+  new Date(REVIEWED_AT).getTime() + 30 * 24 * 60 * 60 * 1000,
+).toISOString();
 const SESSION_ID = 'sess-e2e-bug-001';
 
 function buildTrailDb(opts: {

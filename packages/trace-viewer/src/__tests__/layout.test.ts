@@ -75,4 +75,76 @@ describe('buildSequenceLayout', () => {
         expect(layout.width).toBeGreaterThan(0);
         expect(layout.height).toBeGreaterThan(0);
     });
+
+    it('draws io edges when maxIoEvents > 0 and from/to lifelines exist', () => {
+        const base = loadFixture('simple.json');
+        const file: TraceFile = {
+            ...base,
+            events: [
+                ...base.events,
+                // io event between known lifelines (L0 → L1)
+                {
+                    id: 100,
+                    type: 'io',
+                    ts: 0.025,
+                    from: 'L0',
+                    to: 'L1',
+                    method: 'GET',
+                } as any,
+            ],
+        };
+        const tree = buildCallTree(file);
+        const layout = buildSequenceLayout(file, tree);
+        const ioEdges = layout.edges.filter(e => e.metadata?.['role'] === 'io');
+        expect(ioEdges.length).toBeGreaterThanOrEqual(1);
+        expect(ioEdges[0]?.label).toBe('GET');
+    });
+
+    it('skips io events whose target lifeline is not in the active set', () => {
+        const base = loadFixture('simple.json');
+        const file: TraceFile = {
+            ...base,
+            events: [
+                ...base.events,
+                { id: 101, type: 'io', ts: 0.026, from: 'L0', to: 'L_UNKNOWN', method: 'POST' } as any,
+            ],
+        };
+        const tree = buildCallTree(file);
+        const layout = buildSequenceLayout(file, tree);
+        const ioEdges = layout.edges.filter(e => e.metadata?.['role'] === 'io');
+        expect(ioEdges).toHaveLength(0);
+    });
+
+    it('respects maxIoEvents option (cap at 1)', () => {
+        const base = loadFixture('simple.json');
+        const file: TraceFile = {
+            ...base,
+            events: [
+                ...base.events,
+                { id: 102, type: 'io', ts: 0.027, from: 'L0', to: 'L1', method: 'GET' } as any,
+                { id: 103, type: 'io', ts: 0.028, from: 'L0', to: 'L1', method: 'POST' } as any,
+                { id: 104, type: 'io', ts: 0.029, from: 'L0', to: 'L1', method: 'DELETE' } as any,
+            ],
+        };
+        const tree = buildCallTree(file);
+        const opts: LayoutOptions = { maxIoEvents: 1 };
+        const layout = buildSequenceLayout(file, tree, opts);
+        const ioEdges = layout.edges.filter(e => e.metadata?.['role'] === 'io');
+        expect(ioEdges).toHaveLength(1);
+    });
+
+    it('skips io rendering entirely when maxIoEvents is 0', () => {
+        const base = loadFixture('simple.json');
+        const file: TraceFile = {
+            ...base,
+            events: [
+                ...base.events,
+                { id: 105, type: 'io', ts: 0.030, from: 'L0', to: 'L1', method: 'GET' } as any,
+            ],
+        };
+        const tree = buildCallTree(file);
+        const layout = buildSequenceLayout(file, tree, { maxIoEvents: 0 });
+        const ioEdges = layout.edges.filter(e => e.metadata?.['role'] === 'io');
+        expect(ioEdges).toHaveLength(0);
+    });
 });
