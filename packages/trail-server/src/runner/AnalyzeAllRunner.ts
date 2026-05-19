@@ -16,6 +16,7 @@ import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail
 import { ImportAllLegacyAnalyzer } from '../lep/ImportAllLegacyAnalyzer';
 import { MemoryCoreLegacyAnalyzer } from '../lep/MemoryCoreLegacyAnalyzer';
 import { BehaviorAnalyzer } from '../lep/analyzers/primary/BehaviorAnalyzer';
+import { CodeGraphBuilder } from '../lep/analyzers/primary/CodeGraphBuilder';
 import { CommitResolver } from '../lep/analyzers/primary/CommitResolver';
 import { CostRebuilder } from '../lep/analyzers/primary/CostRebuilder';
 import { CountsRebuilder } from '../lep/analyzers/primary/CountsRebuilder';
@@ -127,6 +128,7 @@ export class AnalyzeAllRunner extends BaseRunner {
     let costRebuilder: CostRebuilder | null = null;
     let behaviorAnalyzer: BehaviorAnalyzer | null = null;
     let countsRebuilder: CountsRebuilder | null = null;
+    let codeGraphBuilder: CodeGraphBuilder | null = null;
     if (opts.trailDb && ingestersEnabled) {
       sessionImporter = new SessionImporter({
         trailDb: opts.trailDb,
@@ -164,12 +166,20 @@ export class AnalyzeAllRunner extends BaseRunner {
         onPhase: opts.onImportPhase,
         onProgress: opts.onImportProgress,
       });
+      codeGraphBuilder = new CodeGraphBuilder({
+        trailDb: opts.trailDb,
+        gitRoots: opts.gitRoots ?? [],
+        analyzeFn: opts.analyzeReleaseFn,
+        onPhase: opts.onImportPhase,
+        onProgress: opts.onImportProgress,
+      });
       bus.subscribe(sessionImporter);
       bus.subscribe(commitResolver);
       bus.subscribe(releaseResolver);
       bus.subscribe(coverageImporter);
       bus.subscribe(costRebuilder);
       bus.subscribe(behaviorAnalyzer);
+      bus.subscribe(codeGraphBuilder);
       // CountsRebuilder は subscribe 不要 (onRunEnd のみ)
       analyzers.push(
         sessionImporter,
@@ -179,6 +189,7 @@ export class AnalyzeAllRunner extends BaseRunner {
         costRebuilder,
         behaviorAnalyzer,
         countsRebuilder,
+        codeGraphBuilder,
       );
     }
 
@@ -197,6 +208,7 @@ export class AnalyzeAllRunner extends BaseRunner {
           costRebuilder: costRebuilder ?? undefined,
           behaviorAnalyzer: behaviorAnalyzer ?? undefined,
           countsRebuilder: countsRebuilder ?? undefined,
+          codeGraphBuilder: codeGraphBuilder ?? undefined,
         })
       : null;
     if (this.importAnalyzer) analyzers.push(this.importAnalyzer);

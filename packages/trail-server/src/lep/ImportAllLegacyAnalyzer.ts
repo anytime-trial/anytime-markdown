@@ -10,6 +10,7 @@ import type {
 
 import { ImportAllPhaseStatusWriter } from '../jobs/ImportAllPhaseStatusFile';
 import type { BehaviorAnalyzer } from './analyzers/primary/BehaviorAnalyzer';
+import type { CodeGraphBuilder } from './analyzers/primary/CodeGraphBuilder';
 import type { CommitResolver } from './analyzers/primary/CommitResolver';
 import type { CostRebuilder } from './analyzers/primary/CostRebuilder';
 import type { CountsRebuilder } from './analyzers/primary/CountsRebuilder';
@@ -45,6 +46,8 @@ export interface ImportAllLegacyAnalyzerOptions {
   behaviorAnalyzer?: Pick<BehaviorAnalyzer, 'id'>;
   /** LEP Step 2c: Phase 7 (rebuild_counts) を担う。指定時は Phase 7 を skip */
   countsRebuilder?: Pick<CountsRebuilder, 'id'>;
+  /** LEP Step 2c-cg: Phase 3 (analyze_releases) を担う。指定時は Phase 3 を skip */
+  codeGraphBuilder?: Pick<CodeGraphBuilder, 'id'>;
 }
 
 /**
@@ -86,6 +89,7 @@ export class ImportAllLegacyAnalyzer implements Analyzer {
       costRebuilder,
       behaviorAnalyzer,
       countsRebuilder,
+      codeGraphBuilder,
     } = this.opts;
 
     ctx.logger.info(`[ImportAllLegacy] start (gitRoots=${gitRoots.length})`);
@@ -108,6 +112,7 @@ export class ImportAllLegacyAnalyzer implements Analyzer {
     if (costRebuilder) phasesToSkip.add('rebuild_costs');
     if (behaviorAnalyzer) phasesToSkip.add('analyze_behavior');
     if (countsRebuilder) phasesToSkip.add('rebuild_counts');
+    if (codeGraphBuilder) phasesToSkip.add('analyze_releases');
 
     const lepOpts: ImportAllLepOptions = {
       phasesToSkip,

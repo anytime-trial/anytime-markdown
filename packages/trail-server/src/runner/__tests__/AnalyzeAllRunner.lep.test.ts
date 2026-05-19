@@ -280,6 +280,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(lepOpts.phasesToSkip).toBeDefined();
     expect([...(lepOpts.phasesToSkip ?? [])].sort()).toEqual([
       'analyze_behavior',
+      'analyze_releases',
       'import_coverage',
       'import_sessions',
       'rebuild_costs',
@@ -315,6 +316,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(allLines).toContain('[CostRebuilder] done');
     expect(allLines).toContain('[BehaviorAnalyzer] done');
     expect(allLines).toContain('[CountsRebuilder] done');
+    expect(allLines).toContain('[CodeGraphBuilder] done');
   });
 
   it('Step 2b: enableIngesters=false → no primary LEP analyzer, importAll runs full pipeline', async () => {
