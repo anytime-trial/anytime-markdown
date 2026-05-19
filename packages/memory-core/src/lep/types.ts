@@ -188,6 +188,14 @@ export interface Analyzer {
    */
   readonly inputMode?: 'event' | 'self-read';
 
+  /**
+   * 同一 Wave (tier) 内で、この analyzer より**前に**完了している必要がある
+   * analyzer の id。Wave 3 (memory) の実行順制御に使う (例: Drift は全 content
+   * analyzer の後、EmbeddingBackfill は全 analyzer の後)。`topoSortByDependsOn`
+   * がこの宣言からトポロジカル順序を導く。
+   */
+  readonly dependsOn?: readonly string[];
+
   onRunStart?(ctx: AnalyzerContext): Promise<void>;
   onRunEnd?(ctx: AnalyzerContext): Promise<void>;
   onEvent?(e: AnalyzerEvent, ctx: AnalyzerContext): Promise<void>;

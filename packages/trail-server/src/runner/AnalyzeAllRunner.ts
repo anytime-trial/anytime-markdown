@@ -5,6 +5,7 @@ import {
   BaseRunner,
   EventBus,
   LepOrchestrator,
+  topoSortByDependsOn,
   type MemoryCoreService,
   type RunReason,
   type RunnerLogSink,
@@ -14,6 +15,10 @@ import {
 import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { MemoryCoreLegacyAnalyzer } from '../lep/MemoryCoreLegacyAnalyzer';
+import {
+  createMemoryAnalyzers,
+  type MemoryWaveSessionProvider,
+} from '../lep/analyzers/memory';
 import { BehaviorAnalyzer } from '../lep/analyzers/primary/BehaviorAnalyzer';
 import { CodeGraphBuilder } from '../lep/analyzers/primary/CodeGraphBuilder';
 import { CommitFilesBackfiller } from '../lep/analyzers/primary/CommitFilesBackfiller';
@@ -49,6 +54,12 @@ export interface AnalyzeAllRunnerOptions {
   gitRoots?: readonly string[];
   /** memory-core ingest pipeline を実行する service (省略時は memory-core ステップをスキップ) */
   memoryCoreService?: MemoryCoreService;
+  /**
+   * Layer 3 (memory) を `MemoryCoreLegacyAnalyzer` (1 個) ではなく、7 個に分解した
+   * memory analyzer 群で実行する (Step 3b の排他切替フラグ)。
+   * デフォルト `false` (legacy)。3d で legacy 削除後は常に新 analyzer を使う。
+   */
+  useMemoryAnalyzers?: boolean;
   /**
    * 指定時、import の per-phase 進捗を JSON ファイルに書き出す
    * (VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新するため)。
@@ -107,6 +118,11 @@ export class AnalyzeAllRunner extends BaseRunner {
   private readonly onAfterRun: (() => void) | undefined;
   private readonly trailDb: TrailDatabase | undefined;
   private readonly importPipelineEnabled: boolean;
+
+  // Layer 3 (memory) analyzer の error 集約に使う。legacy は ['MemoryCoreLegacy']、
+  // 新 analyzer は 7 個の id。Wave 3 完了後に provider.closeIfOpen() を呼ぶ。
+  private readonly memoryAnalyzerIds: readonly string[];
+  private readonly memorySessionProvider: MemoryWaveSessionProvider | null;
 
   // counter 集計用の analyzer 参照 (getLastImportResult で読む)
   private readonly sessionImporter: SessionImporter | null;
@@ -206,13 +222,32 @@ export class AnalyzeAllRunner extends BaseRunner {
     this.coverageImporter = coverageImporter;
     this.messageCommitMatcher = messageCommitMatcher;
 
-    const memoryAnalyzer = opts.memoryCoreService
-      ? new MemoryCoreLegacyAnalyzer(opts.memoryCoreService)
-      : null;
-    if (memoryAnalyzer) {
-      bus.subscribe(memoryAnalyzer);
-      analyzers.push(memoryAnalyzer);
+    // Layer 3 (memory): 排他切替。
+    // - useMemoryAnalyzers=true: 7 個の memory analyzer (dependsOn topo 順で subscribe)
+    // - それ以外: 従来の MemoryCoreLegacyAnalyzer (1 個)
+    let memoryAnalyzerIds: readonly string[] = [];
+    let memorySessionProvider: MemoryWaveSessionProvider | null = null;
+    if (opts.memoryCoreService) {
+      if (opts.useMemoryAnalyzers) {
+        const { analyzers: memAnalyzers, provider } = createMemoryAnalyzers(opts.memoryCoreService);
+        // dependsOn を満たす順に subscribe する (EventBus は subscribe 順に配信するため、
+        // Drift は content の後・Embedding は最後になる)。
+        const ordered = topoSortByDependsOn(memAnalyzers);
+        for (const a of ordered) {
+          bus.subscribe(a);
+          analyzers.push(a);
+        }
+        memoryAnalyzerIds = ordered.map((a) => a.id);
+        memorySessionProvider = provider;
+      } else {
+        const legacy = new MemoryCoreLegacyAnalyzer(opts.memoryCoreService);
+        bus.subscribe(legacy);
+        analyzers.push(legacy);
+        memoryAnalyzerIds = [legacy.id];
+      }
     }
+    this.memoryAnalyzerIds = memoryAnalyzerIds;
+    this.memorySessionProvider = memorySessionProvider;
 
     this.orchestrator = new LepOrchestrator(bus, analyzers, {
       info: (msg) => this.log(msg),
@@ -242,15 +277,25 @@ export class AnalyzeAllRunner extends BaseRunner {
         runError = new Error(`importAll: ${importError.message}`);
       }
 
-      const memError = result.errors.get('MemoryCoreLegacy') ?? null;
-      if (memError) {
+      // Layer 3 (memory) error 集約: legacy は 'MemoryCoreLegacy'、新方式は 7 analyzer の id。
+      const memErrors = this.memoryAnalyzerIds
+        .map((id) => result.errors.get(id))
+        .filter((e): e is Error => e != null);
+      if (memErrors.length > 0) {
+        const memMsg = memErrors.map((e) => e.message).join('; ');
         if (runError) {
-          runError = new Error(`${runError.message}; memory-core: ${memError.message}`);
+          runError = new Error(`${runError.message}; memory-core: ${memMsg}`);
         } else {
-          runError = new Error(`memory-core: ${memError.message}`);
+          runError = new Error(`memory-core: ${memMsg}`);
         }
       }
     } finally {
+      // Wave 3 で開いた memory-core セッションを必ず閉じる (共有 DB の close)。
+      try {
+        this.memorySessionProvider?.closeIfOpen();
+      } catch (err) {
+        this.log(`[WARN] memory session close failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
       // 成功・失敗を問わず通知 (UI 更新)。例外吸収して runImpl の throw を妨げない。
       try {
         this.onAfterRun?.();
