@@ -47,10 +47,10 @@ export function attachTrailDbFromHandle(
       '[anytime-memory] attachTrailDbFromHandle: only BetterSqlite3MemoryDb is supported for trailHandle',
     );
   }
-  const tempPath = path.join(
-    os.tmpdir(),
-    `memory-core-trail-attach-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}.db`,
-  );
-  fs.writeFileSync(tempPath, trailHandle.serialize());
+  // mkdtempSync で OS-secure な乱数ディレクトリを作成し、その配下に固定ファイル名で書く。
+  // CodeQL `js/insecure-temporary-file` の対象 (Math.random / Date.now / pid 組合せ) を回避する。
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-core-trail-attach-'));
+  const tempPath = path.join(tempDir, 'trail.db');
+  fs.writeFileSync(tempPath, trailHandle.serialize(), { mode: 0o600 });
   db.attach(tempPath, 'trail', true);
 }
