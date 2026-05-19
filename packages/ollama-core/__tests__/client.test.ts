@@ -175,4 +175,40 @@ describe('createOllamaClient', () => {
       }
     });
   });
+
+  describe('post() error paths', () => {
+    it('throws ollama_timeout when fetch is aborted', async () => {
+      const client = createOllamaClient({ baseUrl: 'http://localhost:11434' });
+      mockFetch.mockImplementationOnce(() =>
+        Promise.reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+      );
+      await expect(client.generate({ model: 'm', prompt: 'p' })).rejects.toMatchObject({
+        code: 'ollama_timeout',
+      });
+    });
+
+    it('throws ollama_unreachable on TypeError (network refused)', async () => {
+      const client = createOllamaClient({ baseUrl: 'http://localhost:11434' });
+      mockFetch.mockImplementationOnce(() =>
+        Promise.reject(new TypeError('Failed to fetch')),
+      );
+      await expect(client.generate({ model: 'm', prompt: 'p' })).rejects.toMatchObject({
+        code: 'ollama_unreachable',
+      });
+    });
+
+    it('rethrows unrelated errors as-is', async () => {
+      const client = createOllamaClient({ baseUrl: 'http://localhost:11434' });
+      mockFetch.mockImplementationOnce(() => Promise.reject(new Error('weird')));
+      await expect(client.generate({ model: 'm', prompt: 'p' })).rejects.toThrow('weird');
+    });
+
+    it('throws ollama_http_error for non-404 non-2xx responses', async () => {
+      const client = createOllamaClient({ baseUrl: 'http://localhost:11434' });
+      mockFetch.mockResolvedValueOnce(makeResponse({ error: 'oops' }, 500));
+      await expect(client.generate({ model: 'm', prompt: 'p' })).rejects.toThrow(
+        /ollama_http_error: 500/,
+      );
+    });
+  });
 });
