@@ -18,17 +18,14 @@ export interface ImportAllLegacyAnalyzerOptions {
 }
 
 /**
- * Step 1 暫定 wrapper: 既存 `TrailDatabase.importAll()` を **1 個の Layer 2 analyzer**
- * として LEP に載せる。挙動は AnalyzeAllRunner.runImpl() の Phase 1 と完全に同じ:
+ * 既存 `TrailDatabase.importAll()` を 1 個の Layer 2 analyzer として LEP に載せる。
  *
- * - importAllStatusFilePath が指定されれば `ImportAllPhaseStatusWriter` を初期化し、
- *   ImportAllPhaseEvent を JSON ファイルに書き出す。
+ * - importAllStatusFilePath が指定されれば `ImportAllPhaseStatusWriter` を初期化し
+ *   `ImportAllPhaseEvent` を JSON ファイルに書き出す。
  * - `onImportPhase` callback も併存して呼び出す (両方設定時は両方発火)。
- * - 例外は `onRunEnd()` から throw する。LepOrchestrator が catch して
- *   `result.errors.set('ImportAllLegacy', e)` に保存する。
  *
- * Step 2 で `SessionImporter` / `CommitResolver` / `ReleaseAnalyzer` 等の
- * 11 個の analyzer に分解される予定。
+ * 後続の memory-core 実行が `wave_complete:primary` を契機に走るため、
+ * importAll の完了が先行している必要があり、`onRunStart` ではなく `onRunEnd` に置く。
  */
 export class ImportAllLegacyAnalyzer implements Analyzer {
   readonly id = 'ImportAllLegacy';

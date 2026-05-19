@@ -1,10 +1,8 @@
+import type { MemoryLogger } from '../logger';
 import type { RunReason } from '../runner/types';
 
 /**
  * Layered Event Pipeline (LEP) のイベント型ユニオン。
- *
- * Step 1 では最小サブセットとして Wave barrier event のみを定義する。
- * Step 2 以降で `session_imported` / `git_commit_resolved` 等の実 event 種別を追加予定。
  *
  * - `wave_complete`: Wave (sources/primary/memory/derived) の全 analyzer 実行が完了した
  * - `wave_skipped`:  Wave がスキップされた (例: memory-core が disabled)
@@ -16,8 +14,8 @@ export type AnalyzerEvent =
 /**
  * EventBus 発行口。Analyzer は `ctx.bus.publish()` でイベントを発火する。
  *
- * Step 1 では Promise<void> を返す async 契約とし、subscriber の onEvent
- * (importAll 失敗時の memory-core 後続実行など) を完走させるための await を可能にする。
+ * `Promise<void>` を返す async 契約とし、subscriber の onEvent を await
+ * できるようにする (publisher 側でエラーや完走を待ち合わせ可能)。
  */
 export interface EventBusPublisher {
   publish(e: AnalyzerEvent): Promise<void>;
@@ -32,10 +30,7 @@ export interface AnalyzerContext {
   /** runOnce を起動した契機 (RunReason: manual / startup / periodic / import) */
   readonly reason: RunReason;
   /** ログ出力口 (analyzer ID プレフィックスは呼び出し側で付与) */
-  readonly logger: {
-    info: (msg: string) => void;
-    error: (msg: string, err?: unknown) => void;
-  };
+  readonly logger: MemoryLogger;
   /** イベント発行口。新規 event を pub する場合に使用 */
   readonly bus: EventBusPublisher;
 }
@@ -46,7 +41,7 @@ export interface AnalyzerContext {
  * - `tier=1` (sources): JSONL / git log 等の生データ ingest
  * - `tier=2` (primary): codegraph / commit resolver 等の primary 派生
  * - `tier=3` (memory):  memory-core ingest pipeline
- * - `tier=4` (derived): 集計・サマリ等 (Step 4 以降)
+ * - `tier=4` (derived): 集計・サマリ等
  *
  * - `subscribes`: 受信する event 種別
  * - `emits`:      発火する event 種別 (任意, ドキュメント用途)

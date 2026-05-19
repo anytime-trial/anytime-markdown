@@ -3,15 +3,12 @@ import type { Analyzer, AnalyzerContext, AnalyzerEvent, EventBusPublisher } from
 /**
  * Layered Event Pipeline 用 in-memory pub/sub バス。
  *
- * Step 1 では DB 永続化なし。subscribe / publish のみ提供する。
  * publish は subscribe 順に subscriber の onEvent を **await して** 順次呼び出す。
- *
  * subscriber が throw した場合、`errorCollector` が設定されていれば
- * `analyzer.id` をキーに収集する (orchestrator がまとめて扱う)。
- * 設定されていなければ throw を再 throw する。
+ * `analyzer.id` をキーに収集する。設定されていなければ throw を再 throw する。
  *
  * AnalyzerContext は run 単位で変わるため、`beginRun(ctx, errorCollector)` で
- * 1 run 分のコンテキストをセットし、`endRun()` でクリアする運用にする。
+ * 1 run 分のコンテキストをセットし、`endRun()` でクリアする。
  */
 export class EventBus implements EventBusPublisher {
   private readonly subscribers = new Map<AnalyzerEvent['kind'], Set<Analyzer>>();

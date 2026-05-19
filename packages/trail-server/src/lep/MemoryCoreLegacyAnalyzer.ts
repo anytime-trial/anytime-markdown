@@ -6,17 +6,12 @@ import type {
 } from '@anytime-markdown/memory-core';
 
 /**
- * Step 1 暫定 wrapper: 既存 `MemoryCoreService.runOnce()` を **1 個の Layer 3 analyzer**
- * として LEP に載せる。
+ * 既存 `MemoryCoreService.runOnce()` を 1 個の Layer 3 analyzer として LEP に載せる。
  *
- * - `wave_complete` event を購読し、`wave === 'primary'` 受信時に runOnce を呼ぶ。
- * - 既存 AnalyzeAllRunner と同様、memBefore/memAfter の lastRunAt 差分で「この run で
- *   memory-core が実際に走ったか」を判定し、走った上で lastError が非 null の場合のみ
- *   onEvent から throw する (LepOrchestrator 側で `MemoryCoreLegacy` キーに収集される)。
- * - reason は `AnalyzerContext.reason` をそのまま渡す (manual / startup / periodic / import)。
- *
- * Step 3 で memory-core の 5 個の analyzer (conversation / code / bug-history / review /
- * watchdog) に分解される予定。
+ * `wave_complete:primary` を購読し、importAll の完了後に runOnce を呼ぶ。
+ * `MemoryCoreService.runOnce` は例外を吸収するため、`getStatus()` の lastRunAt
+ * 差分で「この run で実際に走ったか」を判定し、走った上で lastError が非 null の
+ * 場合のみ onEvent から throw する (LepOrchestrator が errors map に収集する)。
  */
 export class MemoryCoreLegacyAnalyzer implements Analyzer {
   readonly id = 'MemoryCoreLegacy';
