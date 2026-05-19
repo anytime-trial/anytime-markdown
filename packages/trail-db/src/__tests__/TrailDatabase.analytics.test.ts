@@ -251,6 +251,30 @@ describe('TrailDatabase.getSessions', () => {
     const sessions = db.getSessions();
     expect(sessions).toHaveLength(2);
   });
+
+  it('filters sessions by model', () => {
+    insertSession(db, 's1', { model: 'claude-opus-4' });
+    insertSession(db, 's2', { model: 'claude-sonnet-4' });
+    const sessions = db.getSessions({ model: 'claude-opus-4' });
+    expect(sessions).toHaveLength(1);
+  });
+
+  it('filters sessions by repository', () => {
+    insertSession(db, 's1', { repoName: 'repo-a' });
+    insertSession(db, 's2', { repoName: 'repo-b' });
+    const sessions = db.getSessions({ repository: 'repo-a' });
+    expect(sessions).toHaveLength(1);
+  });
+
+  it('filters sessions by from/to time range', () => {
+    insertSession(db, 's1', { startTime: '2026-01-01T00:00:00.000Z', endTime: '2026-01-01T01:00:00.000Z' });
+    insertSession(db, 's2', { startTime: '2026-06-01T00:00:00.000Z', endTime: '2026-06-01T01:00:00.000Z' });
+    const sessions = db.getSessions({
+      from: '2026-05-01T00:00:00.000Z',
+      to: '2026-12-31T23:59:59.999Z',
+    });
+    expect(sessions).toHaveLength(1);
+  });
 });
 
 describe('TrailDatabase.getAnalytics', () => {
