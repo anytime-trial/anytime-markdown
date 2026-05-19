@@ -61,6 +61,10 @@ export function tokenize(text: string): string[] {
 /**
  * 技術識別子の抽出。CamelCase / snake_case / kebab-case / path-like を拾う。
  * 大文字小文字は揃えるため最終的に lowercase で集合化。
+ *
+ * パスは `[\w./-]+` という単一 char class でスキャンしてから `/` 包含で
+ * フィルタする。`[\w-]+(?:\/[\w-]+)+(?:\.[\w-]+)?` の重複可能な量指定子を
+ * 含む形は CodeQL `js/polynomial-redos` の対象になるため使わない。
  */
 export function extractIdentifiers(text: string): Set<string> {
   const result = new Set<string>();
@@ -70,8 +74,9 @@ export function extractIdentifiers(text: string): Set<string> {
   const snake = text.match(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g) ?? [];
   // kebab-case: 小文字英数字 + ハイフン区切り
   const kebab = text.match(/\b[a-z][a-z0-9]*(?:-[a-z0-9]+)+\b/g) ?? [];
-  // path-like: ハイフン許容の単語 + スラッシュ区切り、末尾に拡張子可
-  const paths = text.match(/[\w-]+(?:\/[\w-]+)+(?:\.[\w-]+)?/g) ?? [];
+  // path-like: 単一 char class でスキャン → `/` を含むものだけ採用
+  const pathLike = text.match(/[\w./-]+/g) ?? [];
+  const paths = pathLike.filter((s) => s.includes('/'));
 
   for (const s of [...camel, ...snake, ...kebab, ...paths]) {
     result.add(s.toLowerCase());
@@ -81,13 +86,40 @@ export function extractIdentifiers(text: string): Set<string> {
 
 /**
  * Markdown 見出しの抽出。前後空白除去 + 末尾コロン (半角/全角) 除去 + 小文字化。
+ *
+ * `/^#+\s+(.+)$/gm` の代わりに行単位の手動スキャンを使う。
+ * `\s+` と `(.+)` の組合せが CodeQL `js/polynomial-redos` の対象になるため。
  */
 export function extractHeadings(text: string): Set<string> {
   const result = new Set<string>();
-  const re = /^#+\s+(.+)$/gm;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    const h = m[1].trim().replace(/[:：]\s*$/, '').toLowerCase();
+  for (const rawLine of text.split('\n')) {
+    let i = 0;
+    while (i < rawLine.length && rawLine.charCodeAt(i) === 0x23 /* '#' */) i++;
+    if (i === 0) continue;
+    let j = i;
+    while (
+      j < rawLine.length &&
+      (rawLine.charCodeAt(j) === 0x20 /* space */ ||
+        rawLine.charCodeAt(j) === 0x09 /* tab */)
+    ) {
+      j++;
+    }
+    if (j === i) continue; // '#' の直後に空白がない (例: '#abc') は見出しではない
+    let h = rawLine.slice(j).trim();
+    // 末尾の半角/全角コロン + 空白を除去
+    while (h.length > 0) {
+      const last = h.charCodeAt(h.length - 1);
+      if (last === 0x20 || last === 0x09) {
+        h = h.slice(0, -1);
+        continue;
+      }
+      if (last === 0x3a /* ':' */ || last === 0xff1a /* '：' */) {
+        h = h.slice(0, -1);
+        continue;
+      }
+      break;
+    }
+    h = h.toLowerCase();
     if (h.length > 0) result.add(h);
   }
   return result;

@@ -93,8 +93,10 @@ export function parseMermaidC4(input: string): C4Model {
 
     // Boundary open: System_Boundary(id, "name") { or Boundary(id, "name") {
     // Also: Container_Boundary, Enterprise_Boundary
-    // `[A-Za-z][A-Za-z0-9_]*Boundary` で `\w+_?Boundary` の曖昧なバックトラックを除去
-    const boundaryMatch = /^([A-Za-z][A-Za-z0-9_]*Boundary)\s*\(([^)]*)\)\s*\{?\s*$/.exec(line);
+    // `[A-Za-z][A-Za-z0-9_]*Boundary` で `\w+_?Boundary` の曖昧なバックトラックを除去。
+    // 入力は line.trim() 済みのため、末尾の `\s*` を取り除き、`)` 後の空白は
+    // 限定数 (0-2 個) に縛って CodeQL `js/polynomial-redos` の対象から外す。
+    const boundaryMatch = /^([A-Za-z][A-Za-z0-9_]*Boundary)[ \t]{0,2}\(([^)]*)\)(?:[ \t]{1,2}\{)?$/.exec(line);
     if (boundaryMatch) {
       const args = parseArgs(boundaryMatch[2]);
       boundaryStack.push(args[0]);

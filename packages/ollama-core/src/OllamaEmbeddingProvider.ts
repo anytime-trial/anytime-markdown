@@ -1,5 +1,6 @@
 import type { EmbeddingProvider, HealthCheckResult } from '@anytime-markdown/llm-core';
 import { checkOllamaModelAvailable } from './healthCheck';
+import { stripTrailingSlashes } from './stringUtils';
 
 export interface OllamaEmbeddingProviderOptions {
   readonly baseUrl: string;
@@ -21,7 +22,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: OllamaEmbeddingProviderOptions) {
-    this.baseUrl = opts.baseUrl.replace(/\/+$/, '');
+    this.baseUrl = stripTrailingSlashes(opts.baseUrl);
     this.model = opts.model;
     this.dimensions = opts.dimensions;
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch;

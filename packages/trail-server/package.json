@@ -30,7 +30,7 @@
     "graphology-shortest-path": "2.1.0",
     "minimatch": "9.0.9",
     "seedrandom": "3.0.5",
-    "ws": "8.18.2"
+    "ws": "8.20.1"
   },
   "devDependencies": {
     "@anytime-markdown/llm-core": "*",

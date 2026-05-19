@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DEFAULT_CONVERSATION_BACKFILL_DAYS } from '@anytime-markdown/memory-core';
 import type { Logger } from './Logger';
@@ -90,27 +90,40 @@ type ParsedConfig = {
  * 不明 / 旧スキーマのフィールドは silently ignore (マイグレーションロジックは持たない)。
  */
 export function loadConfig(path: string, logger?: Pick<Logger, 'warn'>): TrailServerConfig {
-  if (!existsSync(path)) {
-    const warn = logger ? logger.warn.bind(logger) : console.warn;
-    try {
-      mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, JSON.stringify(DEFAULT_CONFIG, null, 2) + '\n', 'utf-8');
-    } catch (err) {
+  const warn = (msg: string): void => {
+    if (logger) logger.warn(msg);
+    else console.warn(msg);
+  };
+
+  // ファイル不在時は DEFAULT_CONFIG を書き出す。existsSync → writeFileSync の TOCTOU
+  // (CodeQL `js/file-system-race`) を `flag: 'wx'` (排他作成) で回避する。
+  // EEXIST は他のプロセスが先に書いた状態なので、続けて読み込みへフォールスルー。
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify(DEFAULT_CONFIG, null, 2) + '\n', {
+      encoding: 'utf-8',
+      flag: 'wx',
+    });
+    return DEFAULT_CONFIG;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== 'EEXIST') {
       warn(
         `[Config] failed to generate default ${path}: ${
           err instanceof Error ? err.message : String(err)
         }. Using in-memory DEFAULT_CONFIG.`,
       );
+      return DEFAULT_CONFIG;
     }
-    return DEFAULT_CONFIG;
+    // EEXIST → 既存ファイルを読み込みへ
   }
+
   try {
     const raw = readFileSync(path, 'utf8');
     const parsed = JSON.parse(raw) as ParsedConfig;
     return mergeConfig(DEFAULT_CONFIG, parsed);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const warn = logger ? logger.warn.bind(logger) : console.warn;
     warn(`[Config] failed to parse ${path}: ${message}. Using DEFAULT_CONFIG.`);
     return DEFAULT_CONFIG;
   }

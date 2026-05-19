@@ -3,6 +3,7 @@ import * as http from 'node:http';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import type { Logger } from '../runtime/Logger';
+import { sendServerError } from './errorResponse';
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
@@ -188,8 +189,7 @@ export class C4ManualApiHandler {
       res.end(JSON.stringify({ communities }));
     } catch (err) {
       this.logger.error('listCommunities failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      sendServerError(res, 'listCommunities failed');
     }
   }
 
@@ -221,8 +221,7 @@ export class C4ManualApiHandler {
       this.notifier.notifyCodeGraphUpdated?.();
     } catch (err) {
       this.logger.error('upsertCommunitySummaries failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      sendServerError(res, 'upsertCommunitySummaries failed');
     }
   }
 
@@ -251,8 +250,7 @@ export class C4ManualApiHandler {
       this.notifier.notifyCodeGraphUpdated?.();
     } catch (err) {
       this.logger.error('upsertCommunityMappings failed', err);
-      res.writeHead(500, JSON_HEADERS);
-      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      sendServerError(res, 'upsertCommunityMappings failed');
     }
   }
 
