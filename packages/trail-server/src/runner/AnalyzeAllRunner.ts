@@ -19,6 +19,7 @@ import {
   createMemoryAnalyzers,
   type MemoryWaveSessionProvider,
 } from '../lep/analyzers/memory';
+import type { LlmProviderAvailability } from '../lep/LlmAvailability';
 import { BehaviorAnalyzer } from '../lep/analyzers/primary/BehaviorAnalyzer';
 import { CodeGraphBuilder } from '../lep/analyzers/primary/CodeGraphBuilder';
 import { CommitFilesBackfiller } from '../lep/analyzers/primary/CommitFilesBackfiller';
@@ -60,14 +61,16 @@ export interface AnalyzeAllRunnerOptions {
    */
   stage?: LepStage;
   /**
-   * Wave 3 開始前の LLM Pre-flight チェッカ (Step 3c)。`useMemoryAnalyzers=true` の時のみ有効。
+   * Wave 3 開始前の LLM Pre-flight チェッカ。`memoryCoreService` 指定時のみ有効。
    * 省略時は LLM gating なし (全 memory analyzer を実行)。Ollama 不在時に LLM 依存 analyzer
    * (Conversation / Review / Spec / EmbeddingBackfill) を skip し、LLM 非依存 (Code /
    * BugHistory / Drift) は実行する。
    */
-  checkLlmAvailability?: () => Promise<import('../lep/LlmAvailability').LlmProviderAvailability>;
-  /** スキップ時ヒント用の Ollama baseUrl (Step 3c)。 */
+  checkLlmAvailability?: () => Promise<LlmProviderAvailability>;
+  /** スキップ時ヒント用の Ollama baseUrl。 */
   ollamaBaseUrl?: string;
+  /** lep.json で `enabled:false` の memory analyzer id。Wave 3 で登録・実行しない。 */
+  disabledMemoryAnalyzers?: readonly string[];
   /**
    * 指定時、import の per-phase 進捗を JSON ファイルに書き出す
    * (VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新するため)。
@@ -240,6 +243,7 @@ export class AnalyzeAllRunner extends BaseRunner {
       const { analyzers: memAnalyzers, provider } = createMemoryAnalyzers(opts.memoryCoreService, {
         checkLlmAvailability: opts.checkLlmAvailability,
         ollamaBaseUrl: opts.ollamaBaseUrl,
+        disabledAnalyzerIds: opts.disabledMemoryAnalyzers,
       });
       const ordered = topoSortByDependsOn(memAnalyzers);
       for (const a of ordered) {

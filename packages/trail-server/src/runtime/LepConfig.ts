@@ -62,6 +62,13 @@ export interface LepConfig {
   logs: { minLevel: LepLogLevel };
 }
 
+/** `lep.json` の `analyzers.<id>.enabled === false` な memory analyzer id 一覧を返す。 */
+export function disabledMemoryAnalyzerIds(config: LepConfig): string[] {
+  return Object.entries(config.analyzers)
+    .filter(([, toggle]) => toggle.enabled === false)
+    .map(([id]) => id);
+}
+
 /** 部分指定 (ファイル中の override や migration の出力) を表す deep partial。 */
 export interface PartialLepConfig {
   version?: number;

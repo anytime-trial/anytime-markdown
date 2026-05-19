@@ -12,7 +12,7 @@ import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
 import { loadConfig } from './runtime/Config';
-import { ensureLepConfigFile, loadLepConfig } from './runtime/LepConfig';
+import { ensureLepConfigFile, loadLepConfig, disabledMemoryAnalyzerIds } from './runtime/LepConfig';
 import { checkLlmAvailability } from './lep/LlmAvailability';
 import { AnalyzeAllRunner } from './runner/AnalyzeAllRunner';
 import { CodeGraphService } from './analyze/CodeGraphService';
@@ -98,6 +98,7 @@ program
     // 解決した stage を AnalyzeAllRunner に渡して Wave 実行範囲を制御する。
     const lepWorkspaceRoot = effectiveGitRoots[0];
     let lepStage: LepStage = opts.scheduler ? 'primary+memory' : 'disabled';
+    let lepDisabledAnalyzers: readonly string[] = [];
     if (lepWorkspaceRoot) {
       try {
         ensureLepConfigFile({
@@ -113,6 +114,7 @@ program
         });
         const lep = loadLepConfig({ workspaceRoot: lepWorkspaceRoot, logger });
         lepStage = lep.config.stage;
+        lepDisabledAnalyzers = disabledMemoryAnalyzerIds(lep.config);
         logger.info('lep.json loaded', { stage: lepStage, files: lep.loadedPaths.length });
       } catch (err) {
         logger.warn(`lep.json load failed: ${err instanceof Error ? err.message : String(err)}; fallback stage=${lepStage}`);
@@ -264,6 +266,7 @@ program
           embedModel: config.memory.embedding.model,
         }),
       ollamaBaseUrl: config.memory.ollama.baseUrl,
+      disabledMemoryAnalyzers: lepDisabledAnalyzers,
       // VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新する
       importAllStatusFilePath: join(dbStorageDir, 'importall-phase-status.json'),
     });

@@ -65,6 +65,7 @@ export {
   LEP_CONFIG_VERSION,
   LepConfigError,
   MEMORY_ANALYZER_IDS,
+  disabledMemoryAnalyzerIds,
   ensureLepConfigFile,
   loadLepConfig,
   lepConfigSearchPaths,

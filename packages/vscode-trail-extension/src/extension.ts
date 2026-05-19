@@ -22,6 +22,7 @@ import {
 	loadConfig,
 	loadLepConfig,
 	ensureLepConfigFile,
+	disabledMemoryAnalyzerIds,
 	checkLlmAvailability,
 	LogService,
 } from '@anytime-markdown/trail-server';
@@ -313,6 +314,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// 旧 VS Code 設定 (anytimeTrail.lep.stageOverride / anytimeTrail.analyzeAll.enabled) からの
 	// migration + 解決済み stage を AnalyzeAllRunner に渡す (Step 3d)。
 	let lepStage: LepStage = isAnalyzeAllEnabled() ? 'primary+memory' : 'disabled';
+	let lepDisabledAnalyzers: readonly string[] = [];
 	if (wsRootForDb) {
 		try {
 			ensureLepConfigFile({
@@ -336,6 +338,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				logger: { warn: (m) => TrailLogger.warn(m), info: (m) => TrailLogger.info(m) },
 			});
 			lepStage = lep.config.stage;
+			lepDisabledAnalyzers = disabledMemoryAnalyzerIds(lep.config);
 			// VS Code 設定 anytimeTrail.lep.stageOverride で一時的に stage を上書き可能 (設計書 13.4)。
 			const stageOverride = vscode.workspace
 				.getConfiguration('anytimeTrail.lep')
@@ -664,6 +667,7 @@ export async function activate(context: vscode.ExtensionContext) {
 						embedModel: trailConfig.memory.embedding.model,
 					}),
 				ollamaBaseUrl: trailConfig.memory.ollama.baseUrl,
+				disabledMemoryAnalyzers: lepDisabledAnalyzers,
 				importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
 				onImportProgress: (message) => TrailLogger.info(`[analyzeAll] ${message}`),
 				analyzeReleaseFn: analyze,

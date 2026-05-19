@@ -30,6 +30,8 @@ export interface CreateMemoryAnalyzersOptions {
   checkLlmAvailability?: LlmAvailabilityChecker;
   /** スキップ時ヒント用の Ollama baseUrl。 */
   ollamaBaseUrl?: string;
+  /** `lep.json` の `analyzers.<id>.enabled === false` な analyzer id。登録せず Wave 3 で実行しない。 */
+  disabledAnalyzerIds?: readonly string[];
 }
 
 /**
@@ -38,6 +40,7 @@ export interface CreateMemoryAnalyzersOptions {
  * `closeIfOpen()` 用に `AnalyzeAllRunner` へ渡す。
  *
  * 並び順は dependsOn を満たす (Drift は content の後、Embedding は最後)。
+ * `disabledAnalyzerIds` に含まれる analyzer は登録しない (lep.json の `analyzers.<id>.enabled:false`)。
  */
 export function createMemoryAnalyzers(
   memoryCoreService: MemoryCoreService,
@@ -48,6 +51,7 @@ export function createMemoryAnalyzers(
     opts.checkLlmAvailability,
     opts.ollamaBaseUrl,
   );
+  const disabled = new Set(opts.disabledAnalyzerIds ?? []);
   const analyzers: Analyzer[] = [
     new ConversationMemoryAnalyzer(provider),
     new CodeMemoryAnalyzer(provider),
@@ -56,6 +60,6 @@ export function createMemoryAnalyzers(
     new SpecMemoryAnalyzer(provider),
     new DriftMemoryAnalyzer(provider),
     new EmbeddingBackfillAnalyzer(provider),
-  ];
+  ].filter((a) => !disabled.has(a.id));
   return { analyzers, provider };
 }

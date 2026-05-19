@@ -72,6 +72,9 @@ export class LepOrchestrator {
 
         // Wave 開始イベント (Layer 3 memory analyzer の発火契機)。stage=memory の
         // 単独実行でも wave_start:memory は emit されるため Layer 3 が走る。
+        // 注意: ここで drain するため、wave_start を購読する analyzer の onEvent は
+        // この Wave の onRunStart / onRunEnd ループ**より前**に完走する。現状の memory
+        // analyzer は全て event 駆動 (onRunStart/onRunEnd を持たない) ためこの順序で正しい。
         await this.bus.publish({ kind: 'wave_start', wave });
         await this.bus.drain();
 

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   DEFAULT_LEP_CONFIG,
   LepConfigError,
+  disabledMemoryAnalyzerIds,
   ensureLepConfigFile,
   loadLepConfig,
   mergeLepConfig,
@@ -72,6 +73,25 @@ describe('validateLepConfigInput', () => {
   it('ignores $schema without warning', () => {
     const { warnings } = validateLepConfigInput({ $schema: 'https://x', version: 1 }, 'test');
     expect(warnings).toEqual([]);
+  });
+});
+
+describe('disabledMemoryAnalyzerIds', () => {
+  it('returns empty when all analyzers enabled (default)', () => {
+    expect(disabledMemoryAnalyzerIds(DEFAULT_LEP_CONFIG)).toEqual([]);
+  });
+
+  it('returns ids with enabled:false', () => {
+    const cfg = mergeLepConfig(DEFAULT_LEP_CONFIG, {
+      analyzers: {
+        ConversationMemoryAnalyzer: { enabled: false },
+        EmbeddingBackfillAnalyzer: { enabled: false },
+      },
+    });
+    expect(disabledMemoryAnalyzerIds(cfg).sort()).toEqual([
+      'ConversationMemoryAnalyzer',
+      'EmbeddingBackfillAnalyzer',
+    ]);
   });
 });
 

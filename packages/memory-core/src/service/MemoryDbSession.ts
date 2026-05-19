@@ -84,11 +84,6 @@ export interface MemoryDbSessionDeps {
 export class MemoryDbSession implements MemoryCoreScopeRunner {
   constructor(private readonly deps: MemoryDbSessionDeps) {}
 
-  /** 共有 memory-core DB ハンドル。 */
-  get db(): MemoryCoreDb {
-    return this.deps.memDb;
-  }
-
   private get logger(): PipelineLogger {
     return this.deps.logger;
   }
