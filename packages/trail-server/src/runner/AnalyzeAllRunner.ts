@@ -13,16 +13,19 @@ import {
 } from '@anytime-markdown/memory-core';
 import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail-db';
 
-import { ImportAllLegacyAnalyzer } from '../lep/ImportAllLegacyAnalyzer';
 import { MemoryCoreLegacyAnalyzer } from '../lep/MemoryCoreLegacyAnalyzer';
 import { BehaviorAnalyzer } from '../lep/analyzers/primary/BehaviorAnalyzer';
 import { CodeGraphBuilder } from '../lep/analyzers/primary/CodeGraphBuilder';
+import { CommitFilesBackfiller } from '../lep/analyzers/primary/CommitFilesBackfiller';
 import { CommitResolver } from '../lep/analyzers/primary/CommitResolver';
 import { CostRebuilder } from '../lep/analyzers/primary/CostRebuilder';
 import { CountsRebuilder } from '../lep/analyzers/primary/CountsRebuilder';
 import { CoverageImporter } from '../lep/analyzers/primary/CoverageImporter';
+import { MessageCommitMatcher } from '../lep/analyzers/primary/MessageCommitMatcher';
+import { PersistAnalyzer } from '../lep/analyzers/primary/PersistAnalyzer';
 import { ReleaseResolver } from '../lep/analyzers/primary/ReleaseResolver';
 import { SessionImporter } from '../lep/analyzers/primary/SessionImporter';
+import { SubagentTypeBackfiller } from '../lep/analyzers/primary/SubagentTypeBackfiller';
 import { CoverageIngester } from '../lep/ingesters/CoverageIngester';
 import { GitIngester } from '../lep/ingesters/GitIngester';
 import { JsonlIngester } from '../lep/ingesters/JsonlIngester';
@@ -40,25 +43,25 @@ export interface AnalyzeAllRunnerOptions {
   statePath?: string;
   /** Git working tree ルート (defaultStatePath のフォールバックで使用) */
   gitRoot?: string;
-  /** importAll を実行する trail.db ハンドル (省略時は importAll をスキップ) */
+  /** trail.db ハンドル (省略時は trail.db import パイプラインをスキップ) */
   trailDb?: TrailDatabase;
-  /** importAll の gitRoots 引数に渡す監視対象ルート集合 */
+  /** 監視対象 gitRoot 集合 (commit / release / coverage / codegraph 解析対象) */
   gitRoots?: readonly string[];
   /** memory-core ingest pipeline を実行する service (省略時は memory-core ステップをスキップ) */
   memoryCoreService?: MemoryCoreService;
   /**
-   * 指定時、importAll の per-phase 進捗を JSON ファイルに書き出す
+   * 指定時、import の per-phase 進捗を JSON ファイルに書き出す
    * (VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新するため)。
    */
   importAllStatusFilePath?: string;
 
   // -- Optional callback hooks (拡張モードでの UI 統合用) --
-  /** importAll の onProgress に渡される。ログ・進捗バー更新等。 */
+  /** import の onProgress に渡される。ログ・進捗バー更新等。 */
   onImportProgress?: (message: string, increment?: number) => void;
-  /** importAll の analyzeFn (release coverage 等)。省略時は trail-db デフォルト挙動。 */
+  /** release コード解析関数 (release codegraph 用)。省略時は release codegraph をスキップ。 */
   analyzeReleaseFn?: ImportAllAnalyzeFn;
   /**
-   * importAll の各 phase イベントに対するカスタムハンドラ (UI 進捗等)。
+   * import の各 phase イベントに対するカスタムハンドラ (UI 進捗等)。
    * importAllStatusFilePath と独立に呼ばれる (両方設定時は両方発火)。
    */
   onImportPhase?: (event: ImportAllPhaseEvent) => void;
@@ -66,42 +69,54 @@ export interface AnalyzeAllRunnerOptions {
   onAfterRun?: () => void;
 
   /**
-   * Step 2a で追加された Layer 1 Ingester (Jsonl/Git/Coverage/MetaJson) を登録するか。
-   * Step 2b 以降は Layer 2 の SessionImporter / CommitResolver / ReleaseResolver / CoverageImporter
-   * とも紐付くため、有効化すると 4 analyzer が連動する。デフォルト `true`。
+   * trail.db import パイプライン (Layer 1 Ingester + Layer 2 primary analyzer) を有効化するか。
+   * デフォルト `true`。`false` の場合、trail.db への取込・解析を一切行わず memory-core ステップのみ実行する
+   * (ファイル IO を避けたいテスト等)。
    */
   enableIngesters?: boolean;
 }
 
 /**
- * analyzeAll パイプライン (importAll → memory-core runOnce) の唯一の orchestrator。
+ * analyzeAll パイプライン (trail.db import → memory-core runOnce) の唯一の orchestrator。
  *
  * BaseRunner を継承し、pause/resume/state/ticks/lastRunAt を一元管理する。
- * MemoryCoreService は内部実行ユニットとしてのみ利用され、その pause API は
- * このリファクタ以降 user-facing には公開されない (CLI / HTTP / VS Code コマンド
- * は全て AnalyzeAllRunner を介する)。
  *
- * 内部実装 (Step 2b 以降): LepOrchestrator に委譲する薄い層。
+ * 内部実装 (Step 2d 以降): LepOrchestrator に委譲する。`ImportAllLegacyAnalyzer` は廃止され、
+ * trail.db への取込・解析は全て個別の LEP analyzer が担う。
+ *
  * - Layer 1 (sources): 4 種 Ingester (`Jsonl/Git/Coverage/MetaJson`) が `onRunStart` で event 発火
  * - Layer 2 (primary):
- *   - `SessionImporter`     ← jsonl_session_discovered (Phase 1)
- *   - `CommitResolver`      ← session_imported / session_skipped (Phase 1 内 resolveCommits)
- *   - `ReleaseResolver`     ← git_tag (Phase 2)
- *   - `CoverageImporter`    ← coverage_report (Phase 4)
- *   - `ImportAllLegacyAnalyzer` (Phase 3/5/6/7/8 を担当、Phase 1/2/4 は skip)
+ *   - `SessionImporter`         ← jsonl_session_discovered (旧 Phase 1)
+ *   - `CommitResolver`          ← session_imported / session_skipped (旧 Phase 1 内 resolveCommits)
+ *   - `ReleaseResolver`         ← git_tag (旧 Phase 2)
+ *   - `CodeGraphBuilder`        ← release_resolved / self-read (旧 Phase 3)
+ *   - `CoverageImporter`        ← coverage_report (旧 Phase 4)
+ *   - `CostRebuilder`           ← session_imported / Wave 末端 1 回 (旧 Phase 5)
+ *   - `BehaviorAnalyzer`        ← session_imported (旧 Phase 6)
+ *   - `CountsRebuilder`         ← Wave 末端 1 回 (旧 Phase 7)
+ *   - `CommitFilesBackfiller`   ← commit_resolved (旧 Phase 8-A)
+ *   - `SubagentTypeBackfiller`  ← meta_json / self-read (旧 Phase 8-B)
+ *   - `MessageCommitMatcher`    ← commit_resolved (旧 Phase 8-C)
  * - Layer 3 (memory):  `MemoryCoreLegacyAnalyzer` が wave_complete:primary に応答して memory-core を実行
  *
- * エラーハンドリングは LepOrchestrator が analyzer.id 別に errors を収集し、
- * AnalyzeAllRunner 側で importError / memError を従来同様の合算メッセージに組み立てる。
- *
- * - 拡張モードでは onImportProgress / analyzeReleaseFn / onImportPhase / onAfterRun
- *   を渡すことで UI 統合 (pipelineProvider 通知・notifySessionsUpdated 等) を実現する。
+ * Wave 2 完了後に `trailDb.save()` を呼んで sql.js の in-memory DB をディスクへ永続化する
+ * (旧 importAll() 末尾の save() の役割を引き継ぐ)。
  */
 export class AnalyzeAllRunner extends BaseRunner {
-  private readonly importAnalyzer: ImportAllLegacyAnalyzer | null;
-  private readonly memoryAnalyzer: MemoryCoreLegacyAnalyzer | null;
   private readonly orchestrator: LepOrchestrator;
   private readonly onAfterRun: (() => void) | undefined;
+  private readonly trailDb: TrailDatabase | undefined;
+  private readonly importPipelineEnabled: boolean;
+
+  // counter 集計用の analyzer 参照 (getLastImportResult で読む)
+  private readonly sessionImporter: SessionImporter | null;
+  private readonly commitResolver: CommitResolver | null;
+  private readonly releaseResolver: ReleaseResolver | null;
+  private readonly codeGraphBuilder: CodeGraphBuilder | null;
+  private readonly coverageImporter: CoverageImporter | null;
+  private readonly messageCommitMatcher: MessageCommitMatcher | null;
+
+  private lastImportResult: ImportAllResult | null = null;
 
   constructor(opts: AnalyzeAllRunnerOptions) {
     super({
@@ -113,112 +128,90 @@ export class AnalyzeAllRunner extends BaseRunner {
     const bus = new EventBus();
     const analyzers: Analyzer[] = [];
     const ingestersEnabled = opts.enableIngesters !== false;
+    this.trailDb = opts.trailDb;
+    this.importPipelineEnabled = Boolean(opts.trailDb) && ingestersEnabled;
 
-    // Layer 1 (sources)
-    if (ingestersEnabled) {
-      const ingesters = buildIngesters(opts);
-      analyzers.push(...ingesters);
-    }
-
-    // Layer 2 (primary) — Step 2b/2c の primary analyzer は trailDb が必須
     let sessionImporter: SessionImporter | null = null;
     let commitResolver: CommitResolver | null = null;
     let releaseResolver: ReleaseResolver | null = null;
-    let coverageImporter: CoverageImporter | null = null;
-    let costRebuilder: CostRebuilder | null = null;
-    let behaviorAnalyzer: BehaviorAnalyzer | null = null;
-    let countsRebuilder: CountsRebuilder | null = null;
     let codeGraphBuilder: CodeGraphBuilder | null = null;
-    if (opts.trailDb && ingestersEnabled) {
-      sessionImporter = new SessionImporter({
-        trailDb: opts.trailDb,
-        onProgress: opts.onImportProgress,
-        onPhase: opts.onImportPhase,
-      });
-      commitResolver = new CommitResolver({
-        trailDb: opts.trailDb,
-        gitRoots: opts.gitRoots ?? [],
-      });
-      releaseResolver = new ReleaseResolver({
-        trailDb: opts.trailDb,
-        gitRoots: opts.gitRoots ?? [],
-        onPhase: opts.onImportPhase,
-        onProgress: opts.onImportProgress,
-      });
-      coverageImporter = new CoverageImporter({
-        trailDb: opts.trailDb,
-        gitRoots: opts.gitRoots ?? [],
-        onPhase: opts.onImportPhase,
-        onProgress: opts.onImportProgress,
-      });
-      costRebuilder = new CostRebuilder({
-        trailDb: opts.trailDb,
-        onPhase: opts.onImportPhase,
-        onProgress: opts.onImportProgress,
-      });
-      behaviorAnalyzer = new BehaviorAnalyzer({
-        trailDb: opts.trailDb,
-        onPhase: opts.onImportPhase,
-        onProgress: opts.onImportProgress,
-      });
-      countsRebuilder = new CountsRebuilder({
-        trailDb: opts.trailDb,
-        onPhase: opts.onImportPhase,
-        onProgress: opts.onImportProgress,
-      });
+    let coverageImporter: CoverageImporter | null = null;
+    let messageCommitMatcher: MessageCommitMatcher | null = null;
+
+    if (this.importPipelineEnabled && opts.trailDb) {
+      const trailDb = opts.trailDb;
+      const gitRoots = opts.gitRoots ?? [];
+      const onPhase = opts.onImportPhase;
+      const onProgress = opts.onImportProgress;
+      const primaryRepoName = opts.gitRoot
+        ? extractBasename(opts.gitRoot)
+        : gitRoots[0]
+          ? extractBasename(gitRoots[0])
+          : undefined;
+
+      // Layer 1 (sources)
+      const ingesters: Analyzer[] = [
+        new JsonlIngester({ gitRoot: opts.gitRoot ?? gitRoots[0], repoName: primaryRepoName }),
+        new GitIngester({ gitRoots }),
+        new CoverageIngester({ gitRoots }),
+        new MetaJsonIngester(),
+      ];
+      analyzers.push(...ingesters);
+
+      // Layer 2 (primary)
+      sessionImporter = new SessionImporter({ trailDb, onProgress, onPhase });
+      commitResolver = new CommitResolver({ trailDb, gitRoots });
+      releaseResolver = new ReleaseResolver({ trailDb, gitRoots, onPhase, onProgress });
       codeGraphBuilder = new CodeGraphBuilder({
-        trailDb: opts.trailDb,
-        gitRoots: opts.gitRoots ?? [],
+        trailDb,
+        gitRoots,
         analyzeFn: opts.analyzeReleaseFn,
-        onPhase: opts.onImportPhase,
-        onProgress: opts.onImportProgress,
+        onPhase,
+        onProgress,
       });
-      bus.subscribe(sessionImporter);
-      bus.subscribe(commitResolver);
-      bus.subscribe(releaseResolver);
-      bus.subscribe(coverageImporter);
-      bus.subscribe(costRebuilder);
-      bus.subscribe(behaviorAnalyzer);
-      bus.subscribe(codeGraphBuilder);
-      // CountsRebuilder は subscribe 不要 (onRunEnd のみ)
-      analyzers.push(
+      coverageImporter = new CoverageImporter({ trailDb, gitRoots, onPhase, onProgress });
+      const costRebuilder = new CostRebuilder({ trailDb, onPhase, onProgress });
+      const behaviorAnalyzer = new BehaviorAnalyzer({ trailDb, onPhase, onProgress });
+      const countsRebuilder = new CountsRebuilder({ trailDb, onPhase, onProgress });
+      const commitFilesBackfiller = new CommitFilesBackfiller({ trailDb, gitRoots, onProgress });
+      const subagentTypeBackfiller = new SubagentTypeBackfiller({ trailDb, onProgress });
+      messageCommitMatcher = new MessageCommitMatcher({ trailDb, onProgress });
+      // PersistAnalyzer は tier=2 の最後に置く (他全 analyzer の DB 書込後に save)
+      const persistAnalyzer = new PersistAnalyzer({ trailDb });
+
+      const primaryAnalyzers: Analyzer[] = [
         sessionImporter,
         commitResolver,
         releaseResolver,
+        codeGraphBuilder,
         coverageImporter,
         costRebuilder,
         behaviorAnalyzer,
         countsRebuilder,
-        codeGraphBuilder,
-      );
+        commitFilesBackfiller,
+        subagentTypeBackfiller,
+        messageCommitMatcher,
+        persistAnalyzer,
+      ];
+      // subscribes=[] の analyzer (CountsRebuilder / PersistAnalyzer) は EventBus.subscribe が
+      // no-op になる。一律 subscribe しても害はない。
+      for (const a of primaryAnalyzers) bus.subscribe(a);
+      analyzers.push(...primaryAnalyzers);
     }
 
-    this.importAnalyzer = opts.trailDb
-      ? new ImportAllLegacyAnalyzer({
-          trailDb: opts.trailDb,
-          gitRoots: opts.gitRoots ?? [],
-          onImportProgress: opts.onImportProgress,
-          analyzeReleaseFn: opts.analyzeReleaseFn,
-          onImportPhase: opts.onImportPhase,
-          importAllStatusFilePath: opts.importAllStatusFilePath,
-          sessionImporter: sessionImporter ?? undefined,
-          commitResolver: commitResolver ?? undefined,
-          releaseResolver: releaseResolver ?? undefined,
-          coverageImporter: coverageImporter ?? undefined,
-          costRebuilder: costRebuilder ?? undefined,
-          behaviorAnalyzer: behaviorAnalyzer ?? undefined,
-          countsRebuilder: countsRebuilder ?? undefined,
-          codeGraphBuilder: codeGraphBuilder ?? undefined,
-        })
-      : null;
-    if (this.importAnalyzer) analyzers.push(this.importAnalyzer);
+    this.sessionImporter = sessionImporter;
+    this.commitResolver = commitResolver;
+    this.releaseResolver = releaseResolver;
+    this.codeGraphBuilder = codeGraphBuilder;
+    this.coverageImporter = coverageImporter;
+    this.messageCommitMatcher = messageCommitMatcher;
 
-    this.memoryAnalyzer = opts.memoryCoreService
+    const memoryAnalyzer = opts.memoryCoreService
       ? new MemoryCoreLegacyAnalyzer(opts.memoryCoreService)
       : null;
-    if (this.memoryAnalyzer) {
-      bus.subscribe(this.memoryAnalyzer);
-      analyzers.push(this.memoryAnalyzer);
+    if (memoryAnalyzer) {
+      bus.subscribe(memoryAnalyzer);
+      analyzers.push(memoryAnalyzer);
     }
 
     this.orchestrator = new LepOrchestrator(bus, analyzers, {
@@ -234,19 +227,28 @@ export class AnalyzeAllRunner extends BaseRunner {
 
     try {
       const result = await this.orchestrator.runOnce({ runId: randomUUID(), reason });
-      const importError = result.errors.get('ImportAllLegacy') ?? null;
-      const memError = result.errors.get('MemoryCoreLegacy') ?? null;
 
-      if (importError) {
-        this.log(`[ERROR] importAll failed: ${importError.message}`);
+      // trail.db への永続化 (save) は PersistAnalyzer が Wave 2 末端で実施済み
+      // (memory-core が trail.db をディスクから attach するため Wave 3 より前である必要がある)。
+      // ここでは counter を analyzer から集計するのみ。
+      if (this.importPipelineEnabled) {
+        this.lastImportResult = this.aggregateImportResult();
       }
 
-      if (importError && memError) {
-        runError = new Error(`importAll: ${importError.message}; memory-core: ${memError.message}`);
-      } else if (importError) {
-        runError = importError;
-      } else if (memError) {
-        runError = new Error(`memory-core: ${memError.message}`);
+      // save() 失敗は PersistAnalyzer の throw として errors に収集される
+      const importError = result.errors.get('Persist') ?? null;
+      if (importError) {
+        this.log(`[ERROR] trail.db save failed: ${importError.message}`);
+        runError = new Error(`importAll: ${importError.message}`);
+      }
+
+      const memError = result.errors.get('MemoryCoreLegacy') ?? null;
+      if (memError) {
+        if (runError) {
+          runError = new Error(`${runError.message}; memory-core: ${memError.message}`);
+        } else {
+          runError = new Error(`memory-core: ${memError.message}`);
+        }
       }
     } finally {
       // 成功・失敗を問わず通知 (UI 更新)。例外吸収して runImpl の throw を妨げない。
@@ -261,38 +263,30 @@ export class AnalyzeAllRunner extends BaseRunner {
   }
 
   /**
-   * 直近 `runImpl` で実行した importAll の結果。失敗時 (例外発生) は更新されず、
-   * 前回成功時の値が残る。trailDb 未設定時は常に null。
+   * 直近 `runImpl` で実行した import 結果。trail.db パイプライン無効時は常に null。
+   * 失敗時 (save() 例外) は更新されず前回成功時の値が残る。
    */
   getLastImportResult(): ImportAllResult | null {
-    return this.importAnalyzer?.getLastResult() ?? null;
+    return this.lastImportResult;
   }
-}
 
-/**
- * 4 種 Ingester (Jsonl / Git / Coverage / MetaJson) を build する。
- *
- * gitRoots が空の場合でも JsonlIngester / MetaJsonIngester は ~/.claude を見るため
- * 動作する。GitIngester / CoverageIngester は gitRoots 配下を読むため、空の場合は
- * onRunStart 内で no-op となる。
- */
-function buildIngesters(opts: AnalyzeAllRunnerOptions): readonly Analyzer[] {
-  const gitRoots = opts.gitRoots ?? [];
-  const primaryRepoName = opts.gitRoot
-    ? extractBasename(opts.gitRoot)
-    : gitRoots[0]
-      ? extractBasename(gitRoots[0])
-      : undefined;
-
-  return [
-    new JsonlIngester({
-      gitRoot: opts.gitRoot ?? gitRoots[0],
-      repoName: primaryRepoName,
-    }),
-    new GitIngester({ gitRoots }),
-    new CoverageIngester({ gitRoots }),
-    new MetaJsonIngester(),
-  ];
+  private aggregateImportResult(): ImportAllResult {
+    const sessionCounters = this.sessionImporter?.getCounters() ?? { imported: 0, skipped: 0 };
+    const coverageCounters = this.coverageImporter?.getCounters() ?? {
+      coverageImported: 0,
+      currentCoverageImported: 0,
+    };
+    return {
+      imported: sessionCounters.imported,
+      skipped: sessionCounters.skipped,
+      commitsResolved: this.commitResolver?.getCommitsResolved() ?? 0,
+      releasesResolved: this.releaseResolver?.getReleasesResolved() ?? 0,
+      releasesAnalyzed: this.codeGraphBuilder?.getReleasesAnalyzed() ?? 0,
+      coverageImported: coverageCounters.coverageImported,
+      currentCoverageImported: coverageCounters.currentCoverageImported,
+      messageCommitsBackfilled: this.messageCommitMatcher?.getMessageCommitsBackfilled() ?? 0,
+    };
+  }
 }
 
 function extractBasename(p: string): string {
