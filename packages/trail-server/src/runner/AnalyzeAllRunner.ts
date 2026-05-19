@@ -5,6 +5,8 @@ import {
   BaseRunner,
   EventBus,
   LepOrchestrator,
+  topoSortByDependsOn,
+  type LepStage,
   type MemoryCoreService,
   type RunReason,
   type RunnerLogSink,
@@ -13,7 +15,10 @@ import {
 } from '@anytime-markdown/memory-core';
 import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail-db';
 
-import { MemoryCoreLegacyAnalyzer } from '../lep/MemoryCoreLegacyAnalyzer';
+import {
+  createMemoryAnalyzers,
+  type MemoryWaveSessionProvider,
+} from '../lep/analyzers/memory';
 import { BehaviorAnalyzer } from '../lep/analyzers/primary/BehaviorAnalyzer';
 import { CodeGraphBuilder } from '../lep/analyzers/primary/CodeGraphBuilder';
 import { CommitFilesBackfiller } from '../lep/analyzers/primary/CommitFilesBackfiller';
@@ -49,6 +54,20 @@ export interface AnalyzeAllRunnerOptions {
   gitRoots?: readonly string[];
   /** memory-core ingest pipeline を実行する service (省略時は memory-core ステップをスキップ) */
   memoryCoreService?: MemoryCoreService;
+  /**
+   * 実行する Wave 範囲を決める stage (設計書 9 章)。省略時 `'primary+memory'`
+   * (旧 analyzeAll enabled=true 相当)。`disabled` なら何も実行しない。
+   */
+  stage?: LepStage;
+  /**
+   * Wave 3 開始前の LLM Pre-flight チェッカ (Step 3c)。`useMemoryAnalyzers=true` の時のみ有効。
+   * 省略時は LLM gating なし (全 memory analyzer を実行)。Ollama 不在時に LLM 依存 analyzer
+   * (Conversation / Review / Spec / EmbeddingBackfill) を skip し、LLM 非依存 (Code /
+   * BugHistory / Drift) は実行する。
+   */
+  checkLlmAvailability?: () => Promise<import('../lep/LlmAvailability').LlmProviderAvailability>;
+  /** スキップ時ヒント用の Ollama baseUrl (Step 3c)。 */
+  ollamaBaseUrl?: string;
   /**
    * 指定時、import の per-phase 進捗を JSON ファイルに書き出す
    * (VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新するため)。
@@ -97,7 +116,8 @@ export interface AnalyzeAllRunnerOptions {
  *   - `CommitFilesBackfiller`   ← commit_resolved (旧 Phase 8-A)
  *   - `SubagentTypeBackfiller`  ← meta_json / self-read (旧 Phase 8-B)
  *   - `MessageCommitMatcher`    ← commit_resolved (旧 Phase 8-C)
- * - Layer 3 (memory):  `MemoryCoreLegacyAnalyzer` が wave_complete:primary に応答して memory-core を実行
+ * - Layer 3 (memory):  7 個の memory analyzer が `wave_start:memory` に応答して memory-core の
+ *   各 scope を実行 (Conversation / Code / BugHistory / Review / Spec / Drift / EmbeddingBackfill)
  *
  * Wave 2 完了後に `trailDb.save()` を呼んで sql.js の in-memory DB をディスクへ永続化する
  * (旧 importAll() 末尾の save() の役割を引き継ぐ)。
@@ -107,6 +127,12 @@ export class AnalyzeAllRunner extends BaseRunner {
   private readonly onAfterRun: (() => void) | undefined;
   private readonly trailDb: TrailDatabase | undefined;
   private readonly importPipelineEnabled: boolean;
+
+  // Layer 3 (memory) analyzer (7 個) の error 集約に使う id 一覧。
+  // Wave 3 完了後に provider.closeIfOpen() を呼ぶ。
+  private readonly memoryAnalyzerIds: readonly string[];
+  private readonly memorySessionProvider: MemoryWaveSessionProvider | null;
+  private readonly stage: LepStage;
 
   // counter 集計用の analyzer 参照 (getLastImportResult で読む)
   private readonly sessionImporter: SessionImporter | null;
@@ -206,13 +232,26 @@ export class AnalyzeAllRunner extends BaseRunner {
     this.coverageImporter = coverageImporter;
     this.messageCommitMatcher = messageCommitMatcher;
 
-    const memoryAnalyzer = opts.memoryCoreService
-      ? new MemoryCoreLegacyAnalyzer(opts.memoryCoreService)
-      : null;
-    if (memoryAnalyzer) {
-      bus.subscribe(memoryAnalyzer);
-      analyzers.push(memoryAnalyzer);
+    // Layer 3 (memory): 7 個の memory analyzer を dependsOn topo 順で subscribe
+    // (EventBus は subscribe 順に配信するため Drift は content の後・Embedding は最後)。
+    let memoryAnalyzerIds: readonly string[] = [];
+    let memorySessionProvider: MemoryWaveSessionProvider | null = null;
+    if (opts.memoryCoreService) {
+      const { analyzers: memAnalyzers, provider } = createMemoryAnalyzers(opts.memoryCoreService, {
+        checkLlmAvailability: opts.checkLlmAvailability,
+        ollamaBaseUrl: opts.ollamaBaseUrl,
+      });
+      const ordered = topoSortByDependsOn(memAnalyzers);
+      for (const a of ordered) {
+        bus.subscribe(a);
+        analyzers.push(a);
+      }
+      memoryAnalyzerIds = ordered.map((a) => a.id);
+      memorySessionProvider = provider;
     }
+    this.memoryAnalyzerIds = memoryAnalyzerIds;
+    this.memorySessionProvider = memorySessionProvider;
+    this.stage = opts.stage ?? 'primary+memory';
 
     this.orchestrator = new LepOrchestrator(bus, analyzers, {
       info: (msg) => this.log(msg),
@@ -226,7 +265,7 @@ export class AnalyzeAllRunner extends BaseRunner {
     let runError: Error | null = null;
 
     try {
-      const result = await this.orchestrator.runOnce({ runId: randomUUID(), reason });
+      const result = await this.orchestrator.runOnce({ runId: randomUUID(), reason, stage: this.stage });
 
       // trail.db への永続化 (save) は PersistAnalyzer が Wave 2 末端で実施済み
       // (memory-core が trail.db をディスクから attach するため Wave 3 より前である必要がある)。
@@ -242,15 +281,25 @@ export class AnalyzeAllRunner extends BaseRunner {
         runError = new Error(`importAll: ${importError.message}`);
       }
 
-      const memError = result.errors.get('MemoryCoreLegacy') ?? null;
-      if (memError) {
+      // Layer 3 (memory) error 集約: 7 個の memory analyzer の id から errors を拾う。
+      const memErrors = this.memoryAnalyzerIds
+        .map((id) => result.errors.get(id))
+        .filter((e): e is Error => e != null);
+      if (memErrors.length > 0) {
+        const memMsg = memErrors.map((e) => e.message).join('; ');
         if (runError) {
-          runError = new Error(`${runError.message}; memory-core: ${memError.message}`);
+          runError = new Error(`${runError.message}; memory-core: ${memMsg}`);
         } else {
-          runError = new Error(`memory-core: ${memError.message}`);
+          runError = new Error(`memory-core: ${memMsg}`);
         }
       }
     } finally {
+      // Wave 3 で開いた memory-core セッションを必ず閉じる (共有 DB の close)。
+      try {
+        this.memorySessionProvider?.closeIfOpen();
+      } catch (err) {
+        this.log(`[WARN] memory session close failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
       // 成功・失敗を問わず通知 (UI 更新)。例外吸収して runImpl の throw を妨げない。
       try {
         this.onAfterRun?.();

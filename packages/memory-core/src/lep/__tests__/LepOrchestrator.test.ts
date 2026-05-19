@@ -307,3 +307,111 @@ describe('LepOrchestrator', () => {
     });
   });
 });
+
+describe('LepOrchestrator stage control (Step 3d)', () => {
+  /** publish された wave_start / wave_complete を記録する観測 analyzer。 */
+  function makeWaveObserver(events: string[]): Analyzer {
+    return {
+      id: 'observer',
+      tier: 4,
+      subscribes: ['wave_start', 'wave_complete'],
+      onEvent: async (e: AnalyzerEvent) => {
+        if (e.kind === 'wave_start') events.push(`start:${e.wave}`);
+        if (e.kind === 'wave_complete') events.push(`complete:${e.wave}`);
+      },
+    };
+  }
+
+  it('default (no stage) runs all 4 waves with wave_start before wave_complete', async () => {
+    const events: string[] = [];
+    const bus = new EventBus();
+    const obs = makeWaveObserver(events);
+    bus.subscribe(obs);
+    await new LepOrchestrator(bus, [obs]).runOnce({ runId: 'r', reason: 'manual' });
+    expect(events).toEqual([
+      'start:sources', 'complete:sources',
+      'start:primary', 'complete:primary',
+      'start:memory', 'complete:memory',
+      'start:derived', 'complete:derived',
+    ]);
+  });
+
+  it('stage=primary runs only sources + primary waves', async () => {
+    const events: string[] = [];
+    const bus = new EventBus();
+    const obs = makeWaveObserver(events);
+    bus.subscribe(obs);
+    await new LepOrchestrator(bus, [obs]).runOnce({ runId: 'r', reason: 'manual', stage: 'primary' });
+    expect(events).toEqual(['start:sources', 'complete:sources', 'start:primary', 'complete:primary']);
+  });
+
+  it('stage=memory runs only the memory wave', async () => {
+    const events: string[] = [];
+    const bus = new EventBus();
+    const obs = makeWaveObserver(events);
+    bus.subscribe(obs);
+    await new LepOrchestrator(bus, [obs]).runOnce({ runId: 'r', reason: 'manual', stage: 'memory' });
+    expect(events).toEqual(['start:memory', 'complete:memory']);
+  });
+
+  it('stage=disabled runs no waves', async () => {
+    const events: string[] = [];
+    const bus = new EventBus();
+    const obs = makeWaveObserver(events);
+    bus.subscribe(obs);
+    await new LepOrchestrator(bus, [obs]).runOnce({ runId: 'r', reason: 'manual', stage: 'disabled' });
+    expect(events).toEqual([]);
+  });
+
+  it('stage=sources runs only the sources wave', async () => {
+    const events: string[] = [];
+    const bus = new EventBus();
+    const obs = makeWaveObserver(events);
+    bus.subscribe(obs);
+    await new LepOrchestrator(bus, [obs]).runOnce({ runId: 'r', reason: 'manual', stage: 'sources' });
+    expect(events).toEqual(['start:sources', 'complete:sources']);
+  });
+
+  it('wave_start:memory fires a tier-3 subscriber even when stage=memory (Wave 1/2 skipped)', async () => {
+    const fired: string[] = [];
+    const memAnalyzer: Analyzer = {
+      id: 'mem',
+      tier: 3,
+      subscribes: ['wave_start'],
+      onEvent: async (e: AnalyzerEvent) => {
+        if (e.kind === 'wave_start' && e.wave === 'memory') fired.push('mem-ran');
+      },
+    };
+    const bus = new EventBus();
+    bus.subscribe(memAnalyzer);
+    await new LepOrchestrator(bus, [memAnalyzer]).runOnce({ runId: 'r', reason: 'manual', stage: 'memory' });
+    expect(fired).toEqual(['mem-ran']);
+  });
+
+  it('PersistAnalyzer-style tier-2 onRunEnd completes before wave_start:memory (barrier)', async () => {
+    const order: string[] = [];
+    const persist: Analyzer = {
+      id: 'persist',
+      tier: 2,
+      subscribes: [],
+      onRunEnd: async () => { order.push('save'); },
+    };
+    const mem: Analyzer = {
+      id: 'mem',
+      tier: 3,
+      subscribes: ['wave_start'],
+      onEvent: async (e: AnalyzerEvent) => {
+        if (e.kind === 'wave_start' && e.wave === 'memory') order.push('memory-attach');
+      },
+    };
+    const bus = new EventBus();
+    bus.subscribe(persist);
+    bus.subscribe(mem);
+    await new LepOrchestrator(bus, [persist, mem]).runOnce({
+      runId: 'r',
+      reason: 'manual',
+      stage: 'primary+memory',
+    });
+    expect(order).toEqual(['save', 'memory-attach']);
+  });
+});

@@ -2,32 +2,22 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { MemoryCoreService } from '@anytime-markdown/memory-core';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { AnalyzeAllRunner } from '../AnalyzeAllRunner';
+import { makeFakeScopeSession, makeMemoryCoreWithSession } from './fakeMemoryScopeSession';
 
 /**
  * LEP 経由で AnalyzeAllRunner.runImpl() が委譲動作することを確認する統合テスト。
  *
- * Step 2d 以降は ImportAllLegacyAnalyzer は廃止され、Layer 1 Ingester + Layer 2 primary
- * analyzer + PersistAnalyzer(save) が trail.db 取込を担う。本 test は LEP wave モデル特有の
- * 不変条件 (save → memory-core 順序、wave_complete:primary barrier 等) を直接確認する。
+ * Step 3d 以降: Layer 3 は 7 個の memory analyzer が `wave_start:memory` に応答して
+ * `MemoryCoreService.openScopeSession()` の scope メソッドを呼ぶ。本 test は LEP wave モデルの
+ * 不変条件 (save → memory 順序、Wave 2→3 barrier 等) を fake scope session で直接確認する。
  */
 
 function makeLogSink(): { lines: string[]; appendLine: (m: string) => void } {
   const lines: string[] = [];
   return { lines, appendLine: (m: string) => lines.push(m) };
-}
-
-function makeMemoryCore(dir: string, pipelineRunner: jest.Mock = jest.fn(async () => undefined)) {
-  return new MemoryCoreService({
-    logSink: makeLogSink(),
-    trailDbPath: join(dir, 'trail.db'),
-    dbPath: join(dir, 'memory-core.db'),
-    statePath: join(dir, 'memory-core-runner.json'),
-    pipelineRunner,
-  });
 }
 
 function makeFakeTrailDb(save: jest.Mock = jest.fn()): TrailDatabase {
@@ -59,53 +49,49 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('emits Persist/MemoryCoreLegacy log markers via LepOrchestrator', async () => {
-    const memoryCore = makeMemoryCore(dir);
+  it('emits Persist + memory analyzer log markers via LepOrchestrator', async () => {
+    const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: memoryCore,
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     await runner.runOnce('manual');
 
     const allLines = logSink.lines.join('\n');
     expect(allLines).toContain('[Persist] trail.db saved');
-    expect(allLines).toContain('[MemoryCoreLegacy] start');
-    expect(allLines).toContain('[MemoryCoreLegacy] done');
+    expect(allLines).toContain('[ConversationMemoryAnalyzer] start');
+    expect(allLines).toContain('[EmbeddingBackfillAnalyzer] done');
+    expect(allLines).not.toContain('[MemoryCoreLegacy]');
   });
 
-  it('memory-core fires only after trail.db save completes (wave_complete:primary barrier)', async () => {
+  it('memory fires only after trail.db save completes (Wave 2 → Wave 3 barrier)', async () => {
     const order: string[] = [];
     const save = jest.fn(() => { order.push('save'); });
-    const pipelineRunner = jest.fn(async () => {
-      order.push('memory-core.start');
-    });
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const fake = makeFakeScopeSession({ order, orderLabel: 'memory' });
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: memoryCore,
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     await runner.runOnce('manual');
-    expect(order).toEqual(['save', 'memory-core.start']);
+    expect(order).toEqual(['save', 'memory']);
+    expect(fake.closed).toBe(1);
   });
 
-  it('preserves error combination when both save and memory-core throw', async () => {
+  it('preserves error combination when both save and a memory scope throw', async () => {
     const save = jest.fn(() => { throw new Error('save boom'); });
-    const pipelineRunner = jest.fn(async () => {
-      throw new Error('mem boom');
-    });
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const fake = makeFakeScopeSession({ errorOnScope: 'runConversation', errorMessage: 'mem boom' });
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: memoryCore,
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
@@ -114,28 +100,27 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(status.ticksRun).toBe(0);
   });
 
-  it('memory-core still runs when save throws (wave_complete:primary fires regardless)', async () => {
+  it('memory still runs when save throws (Wave 3 independent of Wave 2 error)', async () => {
     const save = jest.fn(() => { throw new Error('save boom'); });
-    const pipelineRunner = jest.fn(async () => undefined);
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const fake = makeFakeScopeSession();
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: memoryCore,
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     await runner.runOnce('manual');
-    expect(pipelineRunner).toHaveBeenCalledTimes(1);
+    expect(fake.calls.length).toBe(7); // 7 scope すべて実行
   });
 
   it('getLastImportResult aggregates analyzer counters (empty mock → all zero)', async () => {
-    const memoryCore = makeMemoryCore(dir);
+    const fake = makeFakeScopeSession();
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: memoryCore,
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
       gitRoots: [],
     });
 
@@ -153,53 +138,48 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     });
   });
 
-  it('reason is forwarded through LEP context to memory-core.runOnce', async () => {
-    const pipelineRunner = jest.fn(async () => undefined);
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
-    const runOnceSpy = jest.spyOn(memoryCore, 'runOnce');
+  it('without trailDb (daemon mode): memory still runs via wave_start:memory', async () => {
+    const fake = makeFakeScopeSession();
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      memoryCoreService: memoryCore,
-    });
-
-    await runner.runOnce('import');
-    expect(runOnceSpy).toHaveBeenCalledWith('import');
-  });
-
-  it('without trailDb (daemon mode): memory-core still fires via wave_complete:primary', async () => {
-    const pipelineRunner = jest.fn(async () => undefined);
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
-    const runner = new AnalyzeAllRunner({
-      logSink: makeLogSink(),
-      statePath: join(dir, 'analyze-all-runner.json'),
-      memoryCoreService: memoryCore,
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     await runner.runOnce('manual');
-    expect(pipelineRunner).toHaveBeenCalledTimes(1);
+    expect(fake.calls.length).toBe(7);
+  });
+
+  it('trail.db missing → session unavailable → memory scopes skipped (no crash)', async () => {
+    // openScopeSession が null を返す (実 trail.db 不在) ケース。
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      memoryCoreService: makeMemoryCoreWithSession(dir, null),
+    });
+    const status = await runner.runOnce('manual');
+    expect(status.lastError).toBeNull();
+    expect(status.ticksRun).toBe(1);
   });
 
   it('Step 2d: full Layer 1 Ingester + Layer 2 primary analyzer pipeline runs', async () => {
-    const memoryCore = makeMemoryCore(dir);
+    const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: memoryCore,
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
       gitRoots: [],
     });
 
     await runner.runOnce('manual');
 
     const allLines = logSink.lines.join('\n');
-    // Layer 1 Ingester
     expect(allLines).toContain('[JsonlIngester]');
     expect(allLines).toContain('[GitIngester]');
     expect(allLines).toContain('[CoverageIngester]');
     expect(allLines).toContain('[MetaJsonIngester]');
-    // Layer 2 primary analyzer (旧 Phase 1〜8 全て)
     expect(allLines).toContain('[SessionImporter] start');
     expect(allLines).toContain('[SessionImporter] done');
     expect(allLines).toContain('[CommitResolver] done');
@@ -212,19 +192,18 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(allLines).toContain('[SubagentTypeBackfiller] done');
     expect(allLines).toContain('[MessageCommitMatcher] done');
     expect(allLines).toContain('[Persist] trail.db saved');
-    // ImportAllLegacy は廃止済み
     expect(allLines).not.toContain('[ImportAllLegacy]');
   });
 
-  it('Step 2d: enableIngesters=false → no trail.db import pipeline (memory-core only)', async () => {
+  it('Step 2d: enableIngesters=false → no trail.db import pipeline (memory only)', async () => {
     const save = jest.fn();
-    const memoryCore = makeMemoryCore(dir);
+    const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: memoryCore,
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
       enableIngesters: false,
     });
 
@@ -234,10 +213,52 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(allLines).not.toContain('[JsonlIngester]');
     expect(allLines).not.toContain('[SessionImporter]');
     expect(allLines).not.toContain('[Persist]');
-    // import パイプライン無効時は save も呼ばれない (getLastImportResult は null)
     expect(save).not.toHaveBeenCalled();
     expect(runner.getLastImportResult()).toBeNull();
-    // memory-core は走る
-    expect(allLines).toContain('[MemoryCoreLegacy] start');
+    // memory は走る
+    expect(fake.calls.length).toBe(7);
+  });
+
+  it('stage=primary skips Wave 3 (memory not run)', async () => {
+    const fake = makeFakeScopeSession();
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      stage: 'primary',
+    });
+    await runner.runOnce('manual');
+    expect(fake.calls).toEqual([]); // Wave 3 が走らない
+  });
+
+  it('stage=memory runs only Wave 3 (memory runs, no import save)', async () => {
+    const save = jest.fn();
+    const fake = makeFakeScopeSession();
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(save),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      stage: 'memory',
+    });
+    await runner.runOnce('manual');
+    expect(fake.calls.length).toBe(7); // memory は走る
+    expect(save).not.toHaveBeenCalled(); // Wave 2 (PersistAnalyzer) は走らない
+  });
+
+  it('stage=disabled runs nothing', async () => {
+    const save = jest.fn();
+    const fake = makeFakeScopeSession();
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(save),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      stage: 'disabled',
+    });
+    await runner.runOnce('manual');
+    expect(fake.calls).toEqual([]);
+    expect(save).not.toHaveBeenCalled();
   });
 });

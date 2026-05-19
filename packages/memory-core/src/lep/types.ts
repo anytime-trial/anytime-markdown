@@ -67,6 +67,7 @@ export type SourceEvent =
  * - `release_resolved`:        ReleaseResolver が release tag を 1 件解決
  * - `code_graph_built`:        release tag に対する code graph 構築完了
  * - `current_code_graph_built`: HEAD ベースの current code graph 構築完了
+ * - `wave_start`:              Wave の開始 (tier analyzer 実行前に emit。Layer 3 の発火契機)
  * - `wave_complete`:           Wave の全 analyzer 実行完了 (barrier)
  * - `wave_skipped`:            Wave がスキップされた (例: memory-core が disabled)
  */
@@ -92,6 +93,7 @@ export type DerivedEvent =
       nodes: number;
       edges: number;
     }
+  | { kind: 'wave_start'; wave: 'sources' | 'primary' | 'memory' | 'derived' }
   | { kind: 'wave_complete'; wave: 'sources' | 'primary' | 'memory' | 'derived' }
   | {
       kind: 'wave_skipped';
@@ -105,6 +107,34 @@ export type DerivedEvent =
  * memory analyzer 専用 event (review_finding_extracted 等) は Step 3 で追加する。
  */
 export type AnalyzerEvent = SourceEvent | DerivedEvent;
+
+/**
+ * LEP 全体の実行 stage。「どの Wave まで実行するか」を表す (設計書 9 章)。
+ *
+ * - `disabled`:        何も実行しない (デフォルト)
+ * - `sources`:         Wave 1 のみ (取込確認・デバッグ)
+ * - `primary`:         Wave 1+2 (旧 importAll 相当)
+ * - `memory`:          Wave 3 のみ (要 primary 済データ。memory-core 単体再解析)
+ * - `primary+memory`:  Wave 1+2+3 (旧 analyzeAll enabled=true 相当)
+ * - `all`:             Wave 1+2+3+4 (aggregator 含む。本 Step では Wave 4 は空)
+ */
+export type LepStage =
+  | 'disabled'
+  | 'sources'
+  | 'primary'
+  | 'memory'
+  | 'primary+memory'
+  | 'all';
+
+/** {@link LepStage} の全列挙値。バリデーション (lep.json の `stage` 検証) で使う。 */
+export const LEP_STAGES: readonly LepStage[] = [
+  'disabled',
+  'sources',
+  'primary',
+  'memory',
+  'primary+memory',
+  'all',
+] as const;
 
 /**
  * EventBus 発行口。Analyzer は `ctx.bus.publish()` でイベントを発火する。
@@ -159,6 +189,24 @@ export interface Analyzer {
    * `'self-read'` を宣言して event 駆動と分離する。
    */
   readonly inputMode?: 'event' | 'self-read';
+
+  /**
+   * 同一 Wave (tier) 内で、この analyzer より**前に**完了している必要がある
+   * analyzer の id。Wave 3 (memory) の実行順制御に使う (例: Drift は全 content
+   * analyzer の後、EmbeddingBackfill は全 analyzer の後)。`topoSortByDependsOn`
+   * がこの宣言からトポロジカル順序を導く。
+   */
+  readonly dependsOn?: readonly string[];
+
+  /**
+   * この analyzer が必要とする LLM 機能の宣言 (設計書 12.3)。未宣言 = LLM 不要
+   * (Ollama 不在でも実行可能。例: Code / BugHistory / Drift)。Wave 3 開始前の
+   * Pre-flight ヘルスチェックでこの宣言を満たさない analyzer のみ skip する。
+   */
+  readonly requiresLlm?: {
+    chat?: { provider: 'ollama' | 'anthropic'; model: string };
+    embedding?: { provider: 'ollama'; model: string };
+  };
 
   onRunStart?(ctx: AnalyzerContext): Promise<void>;
   onRunEnd?(ctx: AnalyzerContext): Promise<void>;

@@ -60,8 +60,48 @@ export { LogSink, combineLoggers } from './services/LogSink';
 export { loadConfig } from './runtime/Config';
 export type { TrailServerConfig, AnalyzeAllConfig } from './runtime/Config';
 
+export {
+  DEFAULT_LEP_CONFIG,
+  LEP_CONFIG_VERSION,
+  LepConfigError,
+  MEMORY_ANALYZER_IDS,
+  ensureLepConfigFile,
+  loadLepConfig,
+  lepConfigSearchPaths,
+  mergeLepConfig,
+  migrateLegacyToLepConfig,
+  validateLepConfigInput,
+  workspaceLepConfigPath,
+} from './runtime/LepConfig';
+export type {
+  LepConfig,
+  LepConfigLoadResult,
+  LepAnalyzersConfig,
+  LepAnalyzerToggle,
+  LepLlmConfig,
+  LepLogLevel,
+  LepOllamaProviderConfig,
+  LepScheduleConfig,
+  LegacyLepConfigInput,
+  LoadLepConfigOptions,
+  MemoryAnalyzerId,
+  PartialLepConfig,
+} from './runtime/LepConfig';
+
 export { DaemonScheduler } from './runtime/DaemonScheduler';
 export type { ScheduledJob, JobResult } from './runtime/DaemonScheduler';
+
+export {
+  checkLlmAvailability,
+  checkOllamaModelAvailable,
+  evaluateLlmRequirement,
+  ollamaUnavailableHint,
+} from './lep/LlmAvailability';
+export type {
+  LlmCapabilityStatus,
+  LlmProviderAvailability,
+  CheckLlmAvailabilityOptions,
+} from './lep/LlmAvailability';
 
 export { DaemonLifecycle } from './runtime/DaemonLifecycle';
 export type { DaemonInfo, DaemonLifecycleOptions } from './runtime/DaemonLifecycle';

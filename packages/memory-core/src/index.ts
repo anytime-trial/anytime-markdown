@@ -133,6 +133,12 @@ export { ChatService } from './chat/ChatService';
 export type { ChatServiceOptions } from './chat/ChatService';
 
 export { MemoryCoreService, defaultStatePath } from './service/MemoryCoreService';
+export { MemoryDbSession } from './service/MemoryDbSession';
+export type {
+  ScopeResult,
+  MemoryCoreScopeRunner,
+  MemoryDbSessionDeps,
+} from './service/MemoryDbSession';
 export { defaultState, readState, writeState, STATE_SCHEMA_VERSION } from './service/state';
 export type { ReadStateOptions } from './service/state';
 export { runMemoryCorePipeline } from './service/defaultMemoryCorePipelineRunner';
@@ -160,6 +166,8 @@ export {
   EventBus,
   LepOrchestrator,
   BaseAnalyzer,
+  LEP_STAGES,
+  topoSortByDependsOn,
 } from './lep';
 export type {
   AnalyzerEvent,
@@ -168,4 +176,5 @@ export type {
   EventBusPublisher,
   LepRunOnceOptions,
   LepRunOnceResult,
+  LepStage,
 } from './lep';
