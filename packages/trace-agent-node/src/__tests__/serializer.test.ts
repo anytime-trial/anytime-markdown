@@ -31,4 +31,46 @@ describe('safeSerialize', () => {
         const result = safeSerialize(arr) as unknown[];
         expect(result.length).toBeLessThanOrEqual(21);
     });
+
+    it('serializes functions with their name (line 14)', () => {
+        function myFunc() { return 1; }
+        const result = safeSerialize(myFunc) as { $fn: string };
+        expect(result.$fn).toBe('myFunc');
+    });
+
+    it('serializes anonymous functions as "anonymous" (line 14)', () => {
+        const result = safeSerialize(function () { return 1; }) as { $fn: string };
+        expect(result.$fn).toBe('anonymous');
+    });
+
+    it('converts non-object non-string types to string (line 15 — symbol)', () => {
+        const sym = Symbol('test');
+        const result = safeSerialize(sym) as string;
+        expect(typeof result).toBe('string');
+        expect(result).toContain('test');
+    });
+
+    it('returns truncated marker when depth exceeds MAX_DEPTH (line 16)', () => {
+        // Build a deeply nested object to hit depth >= 5
+        const deep: Record<string, unknown> = {};
+        let current = deep;
+        for (let i = 0; i < 7; i++) {
+            current['child'] = {};
+            current = current['child'] as Record<string, unknown>;
+        }
+        const result = safeSerialize(deep) as Record<string, unknown>;
+        // At depth 5 the value should have $truncated
+        function findTruncated(val: unknown): boolean {
+            if (val && typeof val === 'object') {
+                if ((val as Record<string, unknown>)['$truncated']) return true;
+                return Object.values(val).some(findTruncated);
+            }
+            return false;
+        }
+        expect(findTruncated(result)).toBe(true);
+    });
+
+    it('undefined is treated as null', () => {
+        expect(safeSerialize(undefined)).toBeNull();
+    });
 });
