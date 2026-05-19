@@ -118,4 +118,54 @@ describe('setupClaudeHooks', () => {
     ).length;
     expect(editPreCount).toBe(1);
   });
+
+  test('returns false when ~/.claude directory does not exist', () => {
+    fs.rmSync(path.join(tmpHome, '.claude'), { recursive: true, force: true });
+    const { setupClaudeHooks } = loadModule();
+    const result = setupClaudeHooks(tmpWorkspace, '.anytime');
+    expect(result).toBe(false);
+  });
+
+  test('returns false when settings.json contains invalid JSON', () => {
+    fs.writeFileSync(
+      path.join(tmpHome, '.claude', 'settings.json'),
+      'not valid json {',
+      'utf-8',
+    );
+    const { setupClaudeHooks } = loadModule();
+    const result = setupClaudeHooks(tmpWorkspace, '.anytime');
+    expect(result).toBe(false);
+  });
+
+  test('getStatusFilePath returns absolute statusDir as-is', () => {
+    const { getStatusFilePath } = loadModule();
+    const abs = path.join(tmpWorkspace, 'custom-abs');
+    const result = getStatusFilePath(tmpWorkspace, abs);
+    expect(result).toBe(path.join(abs, 'claude-code-status.json'));
+  });
+
+  test('getStatusFilePath falls back to homedir when workspaceRoot is undefined', () => {
+    const { getStatusFilePath } = loadModule();
+    const result = getStatusFilePath(undefined, '.anytime');
+    expect(result.startsWith(tmpHome)).toBe(true);
+    expect(result.endsWith('claude-code-status.json')).toBe(true);
+  });
+
+  test('getStatusFileGlob includes wildcard for session-aware files', () => {
+    const { getStatusFileGlob } = loadModule();
+    expect(getStatusFileGlob(tmpWorkspace, '.anytime')).toBe(
+      path.join(tmpWorkspace, '.anytime', 'claude-code-status*.json'),
+    );
+    expect(getStatusFileGlob(undefined, '.anytime')).toBe(
+      path.join(tmpHome, '.anytime', 'claude-code-status*.json'),
+    );
+    // absolute statusDir path
+    const abs = path.join(tmpWorkspace, 'abs-status');
+    expect(getStatusFileGlob(tmpWorkspace, abs)).toBe(
+      path.join(abs, 'claude-code-status*.json'),
+    );
+    expect(getStatusFileGlob(undefined, abs)).toBe(
+      path.join(abs, 'claude-code-status*.json'),
+    );
+  });
 });
