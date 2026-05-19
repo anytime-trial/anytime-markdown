@@ -12,6 +12,7 @@ import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
 import { loadConfig } from './runtime/Config';
+import { ensureLepConfigFile, loadLepConfig } from './runtime/LepConfig';
 import { AnalyzeAllRunner } from './runner/AnalyzeAllRunner';
 import { CodeGraphService } from './analyze/CodeGraphService';
 import {
@@ -91,6 +92,29 @@ program
     const configPath = join(TRAIL_HOME, 'config.json');
     const config = loadConfig(configPath, logger);
     const effectiveGitRoots = gitRoots.length > 0 ? gitRoots : config.gitRoots;
+
+    // LEP 設定 (lep.json) 読込経路 (Step 3a)。daemon は primary gitRoot を workspace とする。
+    // stage の Wave 制御連携は Step 3d (本 stage 値はまだ未使用)。
+    const lepWorkspaceRoot = effectiveGitRoots[0];
+    if (lepWorkspaceRoot) {
+      try {
+        ensureLepConfigFile({
+          workspaceRoot: lepWorkspaceRoot,
+          legacy: {
+            analyzeAllEnabled: opts.scheduler,
+            analyzeAll: config.analyzeAll,
+            ollamaBaseUrl: config.memory.ollama.baseUrl,
+            chatModel: config.memory.chat.model,
+            embeddingModel: config.memory.embedding.model,
+          },
+          logger,
+        });
+        const lep = loadLepConfig({ workspaceRoot: lepWorkspaceRoot, logger });
+        logger.info('lep.json loaded', { stage: lep.config.stage, files: lep.loadedPaths.length });
+      } catch (err) {
+        logger.warn(`lep.json load failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
 
     // Wire analyze pipeline if gitRoots are available
     if (effectiveGitRoots.length > 0) {

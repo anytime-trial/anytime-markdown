@@ -160,6 +160,7 @@ export {
   EventBus,
   LepOrchestrator,
   BaseAnalyzer,
+  LEP_STAGES,
 } from './lep';
 export type {
   AnalyzerEvent,
@@ -168,4 +169,5 @@ export type {
   EventBusPublisher,
   LepRunOnceOptions,
   LepRunOnceResult,
+  LepStage,
 } from './lep';

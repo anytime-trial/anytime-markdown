@@ -20,6 +20,8 @@ import {
 	runAnalyzeCurrentCodePipeline,
 	runAnalyzeReleaseCodePipeline,
 	loadConfig,
+	loadLepConfig,
+	ensureLepConfigFile,
 	LogService,
 } from '@anytime-markdown/trail-server';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
@@ -305,6 +307,43 @@ export async function activate(context: vscode.ExtensionContext) {
 	const trailConfig = loadConfig(trailConfigPath, {
 		warn: (msg: string) => TrailLogger.warn(msg),
 	});
+
+	// LEP 設定 (lep.json) — stage / analyzer 有効化を集約する (設計書 13 章)。
+	// Step 3a: 読込経路 + 旧 VS Code 設定からの migration のみ実装する。
+	// stage を Wave 実行制御へ連携するのは Step 3d (本 stage 値はまだ未使用)。
+	if (wsRootForDb) {
+		try {
+			ensureLepConfigFile({
+				workspaceRoot: wsRootForDb,
+				legacy: {
+					analyzeAllEnabled: isAnalyzeAllEnabled(),
+					analyzeAll: trailConfig.analyzeAll,
+					ollamaBaseUrl: trailConfig.memory.ollama.baseUrl,
+					chatModel: trailConfig.memory.chat.model,
+					embeddingModel: trailConfig.memory.embedding.model,
+				},
+				logger: { warn: (m) => TrailLogger.warn(m), info: (m) => TrailLogger.info(m) },
+			});
+			const lepConfigPathOverride = vscode.workspace
+				.getConfiguration('anytimeTrail.lep')
+				.get<string>('configPath', '')
+				.trim();
+			const lep = loadLepConfig({
+				workspaceRoot: wsRootForDb,
+				configPathOverride: lepConfigPathOverride || undefined,
+				logger: { warn: (m) => TrailLogger.warn(m), info: (m) => TrailLogger.info(m) },
+			});
+			TrailLogger.info(
+				`[LepConfig] resolved stage=${lep.config.stage} (loaded ${lep.loadedPaths.length} file(s))`,
+			);
+		} catch (err) {
+			// version / stage 不正 (LepConfigError) は 3a 時点では起動を止めず warn に留める
+			// (stage 未連携のため)。stage 連携を行う 3d で fatal 化の要否を再検討する。
+			TrailLogger.warn(
+				`[LepConfig] failed to load lep.json: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+	}
 
 	// MemoryCoreService — ingest pipeline を周期実行する長寿命サービス。
 	// useExternalDaemon=true かつ daemon が見つかった場合は二重実行防止のため

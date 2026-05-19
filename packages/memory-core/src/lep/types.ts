@@ -107,6 +107,34 @@ export type DerivedEvent =
 export type AnalyzerEvent = SourceEvent | DerivedEvent;
 
 /**
+ * LEP 全体の実行 stage。「どの Wave まで実行するか」を表す (設計書 9 章)。
+ *
+ * - `disabled`:        何も実行しない (デフォルト)
+ * - `sources`:         Wave 1 のみ (取込確認・デバッグ)
+ * - `primary`:         Wave 1+2 (旧 importAll 相当)
+ * - `memory`:          Wave 3 のみ (要 primary 済データ。memory-core 単体再解析)
+ * - `primary+memory`:  Wave 1+2+3 (旧 analyzeAll enabled=true 相当)
+ * - `all`:             Wave 1+2+3+4 (aggregator 含む。本 Step では Wave 4 は空)
+ */
+export type LepStage =
+  | 'disabled'
+  | 'sources'
+  | 'primary'
+  | 'memory'
+  | 'primary+memory'
+  | 'all';
+
+/** {@link LepStage} の全列挙値。バリデーション (lep.json の `stage` 検証) で使う。 */
+export const LEP_STAGES: readonly LepStage[] = [
+  'disabled',
+  'sources',
+  'primary',
+  'memory',
+  'primary+memory',
+  'all',
+] as const;
+
+/**
  * EventBus 発行口。Analyzer は `ctx.bus.publish()` でイベントを発火する。
  *
  * `Promise<void>` を返す async 契約とし、subscriber の onEvent を await
