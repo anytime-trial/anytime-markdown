@@ -1,0 +1,180 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { MemoryCoreService } from '@anytime-markdown/memory-core';
+import type { TrailDatabase } from '@anytime-markdown/trail-db';
+
+import { AnalyzeAllRunner } from '../AnalyzeAllRunner';
+
+/**
+ * LEP 経由で AnalyzeAllRunner.runImpl() が委譲動作することを確認する統合テスト。
+ *
+ * 既存 AnalyzeAllRunner.test.ts と挙動が一致することは AnalyzeAllRunner.test.ts 自体が
+ * 保証している。本 test は LEP wave モデル特有の不変条件 (importAll → wave_complete:primary →
+ * memory-core 順序の解離が起きないこと等) を直接確認する。
+ */
+
+function makeLogSink(): { lines: string[]; appendLine: (m: string) => void } {
+  const lines: string[] = [];
+  return { lines, appendLine: (m: string) => lines.push(m) };
+}
+
+function makeMemoryCore(dir: string, pipelineRunner: jest.Mock = jest.fn(async () => undefined)) {
+  return new MemoryCoreService({
+    logSink: makeLogSink(),
+    trailDbPath: join(dir, 'trail.db'),
+    dbPath: join(dir, 'memory-core.db'),
+    statePath: join(dir, 'memory-core-runner.json'),
+    pipelineRunner,
+  });
+}
+
+function makeFakeTrailDb(importAll: jest.Mock): TrailDatabase {
+  return { importAll } as unknown as TrailDatabase;
+}
+
+describe('AnalyzeAllRunner (LEP integration)', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'analyze-all-lep-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('emits ImportAllLegacy/MemoryCoreLegacy log markers via LepOrchestrator', async () => {
+    const importAll = jest.fn(async () => ({}) as never);
+    const pipelineRunner = jest.fn(async () => undefined);
+    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(importAll),
+      memoryCoreService: memoryCore,
+    });
+
+    await runner.runOnce('manual');
+
+    const allLines = logSink.lines.join('\n');
+    expect(allLines).toContain('[ImportAllLegacy] start');
+    expect(allLines).toContain('[ImportAllLegacy] done');
+    expect(allLines).toContain('[MemoryCoreLegacy] start');
+    expect(allLines).toContain('[MemoryCoreLegacy] done');
+  });
+
+  it('memory-core fires only after importAll completes (wave_complete:primary barrier)', async () => {
+    const order: string[] = [];
+    const importAll = jest.fn(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      order.push('importAll.done');
+      return {} as never;
+    });
+    const pipelineRunner = jest.fn(async () => {
+      order.push('memory-core.start');
+    });
+    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(importAll),
+      memoryCoreService: memoryCore,
+    });
+
+    await runner.runOnce('manual');
+    expect(order).toEqual(['importAll.done', 'memory-core.start']);
+  });
+
+  it('preserves error combination when both importAll and memory-core throw', async () => {
+    const importAll = jest.fn(async () => {
+      throw new Error('import boom');
+    });
+    const pipelineRunner = jest.fn(async () => {
+      throw new Error('mem boom');
+    });
+    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(importAll),
+      memoryCoreService: memoryCore,
+    });
+
+    const status = await runner.runOnce('manual');
+    // 合算メッセージは "importAll: ...; memory-core: ..." 形式
+    expect(status.lastError).toContain('importAll: import boom');
+    expect(status.lastError).toContain('memory-core: mem boom');
+    expect(status.ticksRun).toBe(0);
+  });
+
+  it('memory-core still runs when importAll throws (wave_complete:primary fires regardless)', async () => {
+    const importAll = jest.fn(async () => {
+      throw new Error('import boom');
+    });
+    const pipelineRunner = jest.fn(async () => undefined);
+    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(importAll),
+      memoryCoreService: memoryCore,
+    });
+
+    await runner.runOnce('manual');
+    expect(pipelineRunner).toHaveBeenCalledTimes(1);
+  });
+
+  it('getLastImportResult returns ImportAllLegacyAnalyzer.lastResult', async () => {
+    const result = {
+      imported: 5,
+      skipped: 2,
+      commitsResolved: 0,
+      releasesResolved: 0,
+      releasesAnalyzed: 0,
+      coverageImported: 0,
+      currentCoverageImported: 0,
+      messageCommitsBackfilled: 0,
+    };
+    const importAll = jest.fn(async () => result);
+    const memoryCore = makeMemoryCore(dir);
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(importAll),
+      memoryCoreService: memoryCore,
+    });
+
+    expect(runner.getLastImportResult()).toBeNull();
+    await runner.runOnce('manual');
+    expect(runner.getLastImportResult()).toEqual(result);
+  });
+
+  it('reason is forwarded through LEP context to memory-core.runOnce', async () => {
+    const pipelineRunner = jest.fn(async () => undefined);
+    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const runOnceSpy = jest.spyOn(memoryCore, 'runOnce');
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      memoryCoreService: memoryCore,
+    });
+
+    await runner.runOnce('import');
+    expect(runOnceSpy).toHaveBeenCalledWith('import');
+  });
+
+  it('without trailDb (daemon mode): memory-core still fires via wave_complete:primary', async () => {
+    const pipelineRunner = jest.fn(async () => undefined);
+    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      memoryCoreService: memoryCore,
+    });
+
+    await runner.runOnce('manual');
+    expect(pipelineRunner).toHaveBeenCalledTimes(1);
+  });
+});

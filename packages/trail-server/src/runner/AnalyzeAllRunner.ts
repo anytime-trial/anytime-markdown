@@ -3,14 +3,18 @@ import { join } from 'node:path';
 
 import {
   BaseRunner,
+  EventBus,
+  LepOrchestrator,
   type MemoryCoreService,
   type RunReason,
   type RunnerLogSink,
+  type Analyzer,
   getTrailHome,
 } from '@anytime-markdown/memory-core';
 import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail-db';
 
-import { ImportAllPhaseStatusWriter } from '../jobs/ImportAllPhaseStatusFile';
+import { ImportAllLegacyAnalyzer } from '../lep/ImportAllLegacyAnalyzer';
+import { MemoryCoreLegacyAnalyzer } from '../lep/MemoryCoreLegacyAnalyzer';
 
 // TrailDatabase.importAll の 4 番目の引数 (AnalyzeFunction) を再利用する。
 // trail-db で named export されていないため、メソッドシグネチャから抽出する。
@@ -58,26 +62,21 @@ export interface AnalyzeAllRunnerOptions {
  * このリファクタ以降 user-facing には公開されない (CLI / HTTP / VS Code コマンド
  * は全て AnalyzeAllRunner を介する)。
  *
- * 設計:
- * - importAll の例外は catch して `importError` に保持し、その後 memory-core も
- *   実行する (どちらも独立して走らせ、失敗は最後にまとめて throw する)。
- * - memory-core 側は runOnce が例外を吸収する設計のため、`getStatus()` の
- *   lastError / lastRunAt 差分から「この run で失敗したか」を検出する。
- * - 両ステップの失敗はまとめて 1 つの Error として throw → BaseRunner が catch
- *   して AnalyzeAllRunner の `status.lastError` に記録する。
+ * 内部実装 (Step 1 以降): LepOrchestrator に委譲する薄い層。
+ * - Layer 2 (primary): `ImportAllLegacyAnalyzer` が importAll を実行
+ * - Layer 3 (memory):  `MemoryCoreLegacyAnalyzer` が wave_complete:primary に応答して memory-core を実行
+ *
+ * エラーハンドリングは LepOrchestrator が analyzer.id 別に errors を収集し、
+ * AnalyzeAllRunner 側で importError / memError を従来同様の合算メッセージに組み立てる。
+ *
  * - 拡張モードでは onImportProgress / analyzeReleaseFn / onImportPhase / onAfterRun
  *   を渡すことで UI 統合 (pipelineProvider 通知・notifySessionsUpdated 等) を実現する。
  */
 export class AnalyzeAllRunner extends BaseRunner {
-  private readonly trailDb: TrailDatabase | undefined;
-  private readonly memoryCoreService: MemoryCoreService | undefined;
-  private readonly gitRoots: readonly string[];
-  private readonly importAllStatusFilePath: string | undefined;
-  private readonly onImportProgress: ((message: string, increment?: number) => void) | undefined;
-  private readonly analyzeReleaseFn: ImportAllAnalyzeFn | undefined;
-  private readonly onImportPhase: ((event: ImportAllPhaseEvent) => void) | undefined;
+  private readonly importAnalyzer: ImportAllLegacyAnalyzer | null;
+  private readonly memoryAnalyzer: MemoryCoreLegacyAnalyzer | null;
+  private readonly orchestrator: LepOrchestrator;
   private readonly onAfterRun: (() => void) | undefined;
-  private lastImportResult: ImportAllResult | null = null;
 
   constructor(opts: AnalyzeAllRunnerOptions) {
     super({
@@ -85,61 +84,56 @@ export class AnalyzeAllRunner extends BaseRunner {
       logTag: 'anytime-analyze-all',
       statePath: opts.statePath ?? defaultAnalyzeAllStatePath(opts.gitRoot),
     });
-    this.trailDb = opts.trailDb;
-    this.memoryCoreService = opts.memoryCoreService;
-    this.gitRoots = opts.gitRoots ?? [];
-    this.importAllStatusFilePath = opts.importAllStatusFilePath;
-    this.onImportProgress = opts.onImportProgress;
-    this.analyzeReleaseFn = opts.analyzeReleaseFn;
-    this.onImportPhase = opts.onImportPhase;
+
+    const bus = new EventBus();
+    const analyzers: Analyzer[] = [];
+
+    this.importAnalyzer = opts.trailDb
+      ? new ImportAllLegacyAnalyzer({
+          trailDb: opts.trailDb,
+          gitRoots: opts.gitRoots ?? [],
+          onImportProgress: opts.onImportProgress,
+          analyzeReleaseFn: opts.analyzeReleaseFn,
+          onImportPhase: opts.onImportPhase,
+          importAllStatusFilePath: opts.importAllStatusFilePath,
+        })
+      : null;
+    if (this.importAnalyzer) analyzers.push(this.importAnalyzer);
+
+    this.memoryAnalyzer = opts.memoryCoreService
+      ? new MemoryCoreLegacyAnalyzer(opts.memoryCoreService)
+      : null;
+    if (this.memoryAnalyzer) {
+      bus.subscribe(this.memoryAnalyzer);
+      analyzers.push(this.memoryAnalyzer);
+    }
+
+    this.orchestrator = new LepOrchestrator(bus, analyzers, {
+      info: (msg) => this.log(msg),
+      error: (msg) => this.log(`[ERROR] ${msg}`),
+    });
+
     this.onAfterRun = opts.onAfterRun;
   }
 
   protected override async runImpl(reason: RunReason): Promise<void> {
-    let importError: Error | null = null;
     let runError: Error | null = null;
 
     try {
-      // Phase 1: importAll (trailDb 指定時のみ)
-      if (this.trailDb) {
-        const phaseWriter = this.importAllStatusFilePath
-          ? new ImportAllPhaseStatusWriter(this.importAllStatusFilePath, randomUUID())
-          : null;
-        phaseWriter?.initialize();
-        const phaseHandler = (event: ImportAllPhaseEvent): void => {
-          phaseWriter?.applyEvent(event);
-          this.onImportPhase?.(event);
-        };
-        try {
-          this.lastImportResult = await this.trailDb.importAll(
-            this.onImportProgress,
-            this.gitRoots,
-            undefined,
-            this.analyzeReleaseFn,
-            this.importAllStatusFilePath || this.onImportPhase ? phaseHandler : undefined,
-          );
-        } catch (err) {
-          importError = err instanceof Error ? err : new Error(String(err));
-          this.log(`[ERROR] importAll failed: ${importError.message}`);
-        }
+      const result = await this.orchestrator.runOnce({ runId: randomUUID(), reason });
+      const importError = result.errors.get('ImportAllLegacy') ?? null;
+      const memError = result.errors.get('MemoryCoreLegacy') ?? null;
+
+      if (importError) {
+        this.log(`[ERROR] importAll failed: ${importError.message}`);
       }
 
-      // Phase 2: memory-core runOnce (memoryCoreService 指定時のみ)
-      if (this.memoryCoreService) {
-        const memBefore = this.memoryCoreService.getStatus();
-        const memAfter = await this.memoryCoreService.runOnce(reason);
-        const memRan = memAfter.lastRunAt !== memBefore.lastRunAt;
-        const memError = memRan && memAfter.lastError !== null ? memAfter.lastError : null;
-
-        if (importError && memError) {
-          runError = new Error(`importAll: ${importError.message}; memory-core: ${memError}`);
-        } else if (importError) {
-          runError = importError;
-        } else if (memError) {
-          runError = new Error(`memory-core: ${memError}`);
-        }
+      if (importError && memError) {
+        runError = new Error(`importAll: ${importError.message}; memory-core: ${memError.message}`);
       } else if (importError) {
         runError = importError;
+      } else if (memError) {
+        runError = new Error(`memory-core: ${memError.message}`);
       }
     } finally {
       // 成功・失敗を問わず通知 (UI 更新)。例外吸収して runImpl の throw を妨げない。
@@ -158,7 +152,7 @@ export class AnalyzeAllRunner extends BaseRunner {
    * 前回成功時の値が残る。trailDb 未設定時は常に null。
    */
   getLastImportResult(): ImportAllResult | null {
-    return this.lastImportResult;
+    return this.importAnalyzer?.getLastResult() ?? null;
   }
 }
 
