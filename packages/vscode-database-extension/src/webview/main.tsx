@@ -26,7 +26,11 @@ function makeTransport(): MessageTransport {
   globalThis.addEventListener("message", (e: MessageEvent) => {
     // VS Code webview のメッセージは origin が空文字列または vscode-webview:// スキーム
     if (e.origin && !e.origin.startsWith("vscode-webview://")) return;
-    listeners.forEach((l) => l(e.data as ExtToWvMessage));
+    // SnykCode `javascript/InsufficientPostmessageValidation` 対策: data 構造を検証
+    const data = e.data as unknown;
+    if (typeof data !== "object" || data === null) return;
+    if (typeof (data as { type?: unknown }).type !== "string") return;
+    listeners.forEach((l) => l(data as ExtToWvMessage));
   });
   return {
     postMessage: (m) => vscode.postMessage(m as WvToExtMessage),

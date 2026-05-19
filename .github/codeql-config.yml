@@ -1,0 +1,21 @@
+name: CodeQL Config
+
+paths-ignore:
+  # 内部デモ生成スクリプト。本番コードではないため CodeQL の対象外にする。
+  - scripts/demo-gif/**
+  # ビルド成果物・型定義の自動生成物
+  - "**/dist/**"
+  - "**/out/**"
+  - "**/.next/**"
+  - "**/build/**"
+  # テストフィクスチャ・スナップショット
+  - "**/__fixtures__/**"
+  - "**/__snapshots__/**"
+
+# maintainability 系 note アラートはノイズが大きいため抑制する。
+# セキュリティ系 query は引き続き全コードに適用される。
+query-filters:
+  - exclude:
+      id: js/unused-local-variable
+  - exclude:
+      id: js/automatic-semicolon-insertion
