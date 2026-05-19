@@ -5,6 +5,7 @@ import type {
   HealthCheckResult,
 } from '@anytime-markdown/llm-core';
 import { checkOllamaModelAvailable } from './healthCheck';
+import { stripTrailingSlashes } from './stringUtils';
 
 export interface OllamaChatProviderOptions {
   readonly baseUrl: string;
@@ -24,7 +25,7 @@ export class OllamaChatProvider implements ChatProvider {
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: OllamaChatProviderOptions) {
-    this.baseUrl = opts.baseUrl.replace(/\/+$/, '');
+    this.baseUrl = stripTrailingSlashes(opts.baseUrl);
     this.model = opts.model;
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch;
   }
