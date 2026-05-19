@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import {
   BaseRunner,
@@ -144,9 +144,9 @@ export class AnalyzeAllRunner extends BaseRunner {
       const onPhase = opts.onImportPhase;
       const onProgress = opts.onImportProgress;
       const primaryRepoName = opts.gitRoot
-        ? extractBasename(opts.gitRoot)
+        ? basename(opts.gitRoot)
         : gitRoots[0]
-          ? extractBasename(gitRoots[0])
+          ? basename(gitRoots[0])
           : undefined;
 
       // Layer 1 (sources)
@@ -287,12 +287,6 @@ export class AnalyzeAllRunner extends BaseRunner {
       messageCommitsBackfilled: this.messageCommitMatcher?.getMessageCommitsBackfilled() ?? 0,
     };
   }
-}
-
-function extractBasename(p: string): string {
-  const trimmed = p.replace(/[/\\]+$/, '');
-  const i = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
-  return i >= 0 ? trimmed.slice(i + 1) : trimmed;
 }
 
 /**

@@ -31,6 +31,7 @@ export { SqliteSessionRepository } from './SqliteSessionRepository';
 export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
 export { ExecFileGitService } from './ExecFileGitService';
 export { extractRepoNameFromJsonl } from './sessionMeta';
+export { toUTC } from './dateUtils';
 export { MetricsThresholdsLoader } from './MetricsThresholdsLoader';
 export type { DbLogger } from './DbLogger';
 export { noopDbLogger } from './DbLogger';
