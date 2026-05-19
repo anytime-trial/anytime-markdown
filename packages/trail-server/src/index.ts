@@ -91,6 +91,18 @@ export type {
 export { DaemonScheduler } from './runtime/DaemonScheduler';
 export type { ScheduledJob, JobResult } from './runtime/DaemonScheduler';
 
+export {
+  checkLlmAvailability,
+  checkOllamaModelAvailable,
+  evaluateLlmRequirement,
+  ollamaUnavailableHint,
+} from './lep/LlmAvailability';
+export type {
+  LlmCapabilityStatus,
+  LlmProviderAvailability,
+  CheckLlmAvailabilityOptions,
+} from './lep/LlmAvailability';
+
 export { DaemonLifecycle } from './runtime/DaemonLifecycle';
 export type { DaemonInfo, DaemonLifecycleOptions } from './runtime/DaemonLifecycle';
 

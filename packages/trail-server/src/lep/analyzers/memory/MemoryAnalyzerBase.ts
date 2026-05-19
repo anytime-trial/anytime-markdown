@@ -6,6 +6,7 @@ import type {
   ScopeResult,
 } from '@anytime-markdown/memory-core';
 
+import { evaluateLlmRequirement, ollamaUnavailableHint } from '../../LlmAvailability';
 import type { MemoryWaveSessionProvider } from './MemoryWaveSessionProvider';
 
 /**
@@ -25,6 +26,7 @@ export abstract class MemoryAnalyzerBase implements Analyzer {
   readonly emits: readonly AnalyzerEvent['kind'][] = [];
   readonly inputMode = 'event' as const;
   readonly dependsOn: readonly string[] = [];
+  readonly requiresLlm: Analyzer['requiresLlm'] = undefined;
 
   constructor(protected readonly provider: MemoryWaveSessionProvider) {}
 
@@ -33,6 +35,28 @@ export abstract class MemoryAnalyzerBase implements Analyzer {
 
   async onEvent(e: AnalyzerEvent, ctx: AnalyzerContext): Promise<void> {
     if (e.kind !== 'wave_complete' || e.wave !== 'primary') return;
+
+    // Pre-flight: LLM を要する analyzer は availability を満たさなければ skip する。
+    // run*Incremental を呼ばないため cursor (memory_pipeline_state) は前進せず、
+    // Ollama 復旧後の次 run で取りこぼしを回収する (high water mark 保護)。
+    if (this.requiresLlm) {
+      const availability = await this.provider.getAvailability();
+      if (availability) {
+        const { satisfied, missing, detail } = evaluateLlmRequirement(this.requiresLlm, availability);
+        if (!satisfied) {
+          ctx.logger.info(
+            `[${this.id}] skip: LLM unavailable (missing: ${missing.join('+')}; ${detail}). ` +
+              `cursor unchanged. ${ollamaUnavailableHint(this.provider.ollamaBaseUrl)}`,
+          );
+          await ctx.bus.publish({
+            kind: 'wave_skipped',
+            wave: 'memory',
+            reason: `llm_unavailable: ${this.id} needs ${missing.join('+')}`,
+          });
+          return;
+        }
+      }
+    }
 
     const session = await this.provider.ensure();
     if (!session) {

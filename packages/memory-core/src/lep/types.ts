@@ -196,6 +196,16 @@ export interface Analyzer {
    */
   readonly dependsOn?: readonly string[];
 
+  /**
+   * この analyzer が必要とする LLM 機能の宣言 (設計書 12.3)。未宣言 = LLM 不要
+   * (Ollama 不在でも実行可能。例: Code / BugHistory / Drift)。Wave 3 開始前の
+   * Pre-flight ヘルスチェックでこの宣言を満たさない analyzer のみ skip する。
+   */
+  readonly requiresLlm?: {
+    chat?: { provider: 'ollama' | 'anthropic'; model: string };
+    embedding?: { provider: 'ollama'; model: string };
+  };
+
   onRunStart?(ctx: AnalyzerContext): Promise<void>;
   onRunEnd?(ctx: AnalyzerContext): Promise<void>;
   onEvent?(e: AnalyzerEvent, ctx: AnalyzerContext): Promise<void>;

@@ -7,6 +7,10 @@ import { MemoryAnalyzerBase } from './MemoryAnalyzerBase';
  */
 export class ReviewFindingMemoryAnalyzer extends MemoryAnalyzerBase {
   readonly id = 'ReviewFindingMemoryAnalyzer';
+  override readonly requiresLlm = {
+    chat: { provider: 'ollama', model: 'qwen2.5:7b' },
+    embedding: { provider: 'ollama', model: 'bge-m3' },
+  } as const;
 
   protected runScope(session: MemoryDbSession): Promise<ScopeResult> {
     return session.runReview();

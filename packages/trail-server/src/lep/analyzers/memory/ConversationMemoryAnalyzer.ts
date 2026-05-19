@@ -8,6 +8,10 @@ import { MemoryAnalyzerBase } from './MemoryAnalyzerBase';
  */
 export class ConversationMemoryAnalyzer extends MemoryAnalyzerBase {
   readonly id = 'ConversationMemoryAnalyzer';
+  override readonly requiresLlm = {
+    chat: { provider: 'ollama', model: 'qwen2.5-coder:14b' },
+    embedding: { provider: 'ollama', model: 'bge-m3' },
+  } as const;
 
   protected runScope(session: MemoryDbSession): Promise<ScopeResult> {
     return session.runConversation();

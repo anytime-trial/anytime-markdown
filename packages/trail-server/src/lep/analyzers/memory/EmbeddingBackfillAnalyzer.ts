@@ -10,6 +10,9 @@ import { MemoryAnalyzerBase } from './MemoryAnalyzerBase';
  */
 export class EmbeddingBackfillAnalyzer extends MemoryAnalyzerBase {
   readonly id = 'EmbeddingBackfillAnalyzer';
+  override readonly requiresLlm = {
+    embedding: { provider: 'ollama', model: 'bge-m3' },
+  } as const;
   override readonly dependsOn: readonly string[] = [
     'ConversationMemoryAnalyzer',
     'CodeMemoryAnalyzer',
