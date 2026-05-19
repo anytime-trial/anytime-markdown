@@ -9,7 +9,10 @@ import type {
 } from '@anytime-markdown/trail-db';
 
 import { ImportAllPhaseStatusWriter } from '../jobs/ImportAllPhaseStatusFile';
+import type { BehaviorAnalyzer } from './analyzers/primary/BehaviorAnalyzer';
 import type { CommitResolver } from './analyzers/primary/CommitResolver';
+import type { CostRebuilder } from './analyzers/primary/CostRebuilder';
+import type { CountsRebuilder } from './analyzers/primary/CountsRebuilder';
 import type { CoverageImporter } from './analyzers/primary/CoverageImporter';
 import type { ReleaseResolver } from './analyzers/primary/ReleaseResolver';
 import type { SessionImporter } from './analyzers/primary/SessionImporter';
@@ -36,6 +39,12 @@ export interface ImportAllLegacyAnalyzerOptions {
   releaseResolver?: Pick<ReleaseResolver, 'getReleasesResolved'>;
   /** LEP Step 2b: Phase 4 (import_coverage) を担う。指定時は Phase 4 を skip する */
   coverageImporter?: Pick<CoverageImporter, 'getCounters'>;
+  /** LEP Step 2c: Phase 5 (rebuild_costs) を担う。指定時は Phase 5 を skip */
+  costRebuilder?: Pick<CostRebuilder, 'id'>;
+  /** LEP Step 2c: Phase 6 (analyze_behavior) を担う。指定時は Phase 6 を skip */
+  behaviorAnalyzer?: Pick<BehaviorAnalyzer, 'id'>;
+  /** LEP Step 2c: Phase 7 (rebuild_counts) を担う。指定時は Phase 7 を skip */
+  countsRebuilder?: Pick<CountsRebuilder, 'id'>;
 }
 
 /**
@@ -74,6 +83,9 @@ export class ImportAllLegacyAnalyzer implements Analyzer {
       commitResolver,
       releaseResolver,
       coverageImporter,
+      costRebuilder,
+      behaviorAnalyzer,
+      countsRebuilder,
     } = this.opts;
 
     ctx.logger.info(`[ImportAllLegacy] start (gitRoots=${gitRoots.length})`);
@@ -93,6 +105,9 @@ export class ImportAllLegacyAnalyzer implements Analyzer {
     if (sessionImporter) phasesToSkip.add('import_sessions');
     if (releaseResolver) phasesToSkip.add('resolve_releases');
     if (coverageImporter) phasesToSkip.add('import_coverage');
+    if (costRebuilder) phasesToSkip.add('rebuild_costs');
+    if (behaviorAnalyzer) phasesToSkip.add('analyze_behavior');
+    if (countsRebuilder) phasesToSkip.add('rebuild_counts');
 
     const lepOpts: ImportAllLepOptions = {
       phasesToSkip,

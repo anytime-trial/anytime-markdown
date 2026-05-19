@@ -15,7 +15,10 @@ import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail
 
 import { ImportAllLegacyAnalyzer } from '../lep/ImportAllLegacyAnalyzer';
 import { MemoryCoreLegacyAnalyzer } from '../lep/MemoryCoreLegacyAnalyzer';
+import { BehaviorAnalyzer } from '../lep/analyzers/primary/BehaviorAnalyzer';
 import { CommitResolver } from '../lep/analyzers/primary/CommitResolver';
+import { CostRebuilder } from '../lep/analyzers/primary/CostRebuilder';
+import { CountsRebuilder } from '../lep/analyzers/primary/CountsRebuilder';
 import { CoverageImporter } from '../lep/analyzers/primary/CoverageImporter';
 import { ReleaseResolver } from '../lep/analyzers/primary/ReleaseResolver';
 import { SessionImporter } from '../lep/analyzers/primary/SessionImporter';
@@ -116,11 +119,14 @@ export class AnalyzeAllRunner extends BaseRunner {
       analyzers.push(...ingesters);
     }
 
-    // Layer 2 (primary) — Step 2b の 4 analyzer は trailDb が必須
+    // Layer 2 (primary) — Step 2b/2c の primary analyzer は trailDb が必須
     let sessionImporter: SessionImporter | null = null;
     let commitResolver: CommitResolver | null = null;
     let releaseResolver: ReleaseResolver | null = null;
     let coverageImporter: CoverageImporter | null = null;
+    let costRebuilder: CostRebuilder | null = null;
+    let behaviorAnalyzer: BehaviorAnalyzer | null = null;
+    let countsRebuilder: CountsRebuilder | null = null;
     if (opts.trailDb && ingestersEnabled) {
       sessionImporter = new SessionImporter({
         trailDb: opts.trailDb,
@@ -143,11 +149,37 @@ export class AnalyzeAllRunner extends BaseRunner {
         onPhase: opts.onImportPhase,
         onProgress: opts.onImportProgress,
       });
+      costRebuilder = new CostRebuilder({
+        trailDb: opts.trailDb,
+        onPhase: opts.onImportPhase,
+        onProgress: opts.onImportProgress,
+      });
+      behaviorAnalyzer = new BehaviorAnalyzer({
+        trailDb: opts.trailDb,
+        onPhase: opts.onImportPhase,
+        onProgress: opts.onImportProgress,
+      });
+      countsRebuilder = new CountsRebuilder({
+        trailDb: opts.trailDb,
+        onPhase: opts.onImportPhase,
+        onProgress: opts.onImportProgress,
+      });
       bus.subscribe(sessionImporter);
       bus.subscribe(commitResolver);
       bus.subscribe(releaseResolver);
       bus.subscribe(coverageImporter);
-      analyzers.push(sessionImporter, commitResolver, releaseResolver, coverageImporter);
+      bus.subscribe(costRebuilder);
+      bus.subscribe(behaviorAnalyzer);
+      // CountsRebuilder は subscribe 不要 (onRunEnd のみ)
+      analyzers.push(
+        sessionImporter,
+        commitResolver,
+        releaseResolver,
+        coverageImporter,
+        costRebuilder,
+        behaviorAnalyzer,
+        countsRebuilder,
+      );
     }
 
     this.importAnalyzer = opts.trailDb
@@ -162,6 +194,9 @@ export class AnalyzeAllRunner extends BaseRunner {
           commitResolver: commitResolver ?? undefined,
           releaseResolver: releaseResolver ?? undefined,
           coverageImporter: coverageImporter ?? undefined,
+          costRebuilder: costRebuilder ?? undefined,
+          behaviorAnalyzer: behaviorAnalyzer ?? undefined,
+          countsRebuilder: countsRebuilder ?? undefined,
         })
       : null;
     if (this.importAnalyzer) analyzers.push(this.importAnalyzer);

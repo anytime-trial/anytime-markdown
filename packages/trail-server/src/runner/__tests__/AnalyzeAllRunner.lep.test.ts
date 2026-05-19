@@ -38,6 +38,10 @@ function makeFakeTrailDb(importAll: jest.Mock, overrides: Partial<TrailDatabase>
     beginExternalTransaction: () => undefined,
     commitExternalTransaction: () => undefined,
     rollbackExternalTransaction: () => undefined,
+    rebuildSessionCostsPublic: () => undefined,
+    rebuildDailyCountsPublic: () => undefined,
+    rebuildSessionStatsPublic: () => undefined,
+    runBehaviorAnalysis: () => undefined,
     ...overrides,
   } as unknown as TrailDatabase;
 }
@@ -275,8 +279,11 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     };
     expect(lepOpts.phasesToSkip).toBeDefined();
     expect([...(lepOpts.phasesToSkip ?? [])].sort()).toEqual([
+      'analyze_behavior',
       'import_coverage',
       'import_sessions',
+      'rebuild_costs',
+      'rebuild_counts',
       'resolve_releases',
     ]);
     expect(lepOpts.externalSessionsToAnalyze).toBeDefined();
@@ -288,6 +295,26 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       coverageImported: 0,
       currentCoverageImported: 0,
     });
+  });
+
+  it('Step 2c: CostRebuilder / BehaviorAnalyzer / CountsRebuilder fire when enableIngesters=true', async () => {
+    const importAll = jest.fn(async () => ({}) as never);
+    const memoryCore = makeMemoryCore(dir);
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(importAll),
+      memoryCoreService: memoryCore,
+      gitRoots: [],
+    });
+
+    await runner.runOnce('manual');
+
+    const allLines = logSink.lines.join('\n');
+    expect(allLines).toContain('[CostRebuilder] done');
+    expect(allLines).toContain('[BehaviorAnalyzer] done');
+    expect(allLines).toContain('[CountsRebuilder] done');
   });
 
   it('Step 2b: enableIngesters=false → no primary LEP analyzer, importAll runs full pipeline', async () => {
