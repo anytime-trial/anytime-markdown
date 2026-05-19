@@ -2597,6 +2597,69 @@ export class TrailDatabase {
     analyzer.analyze(sessionId, db);
   }
 
+  /**
+   * LEP `CommitFilesBackfiller` (Step 2d) 用 public wrapper。
+   * `_migrations.commit_files_backfill_v2` フラグで一度きり実行を維持する。
+   */
+  backfillCommitFilesPublic(gitRoot: string, onProgress?: (msg: string) => void): void {
+    this.backfillCommitFiles(gitRoot, onProgress);
+  }
+
+  /**
+   * LEP `SubagentTypeBackfiller` (Step 2d) 用 public wrapper。
+   * `_migrations.subagent_type_backfill_v1` フラグで一度きり実行を維持する。
+   */
+  backfillSubagentTypePublic(projectsDir?: string): void {
+    this.backfillSubagentType(projectsDir);
+  }
+
+  /**
+   * LEP `MessageCommitMatcher` (Step 2d) 用 public メソッド。
+   * 既存 importAll Phase 8 の message_commits backfill ロジックを切り出したもの。
+   * `message_commits_resolved_at` が NULL のセッションについて、JSONL を読み直して
+   * commit ↔ message のマッチを再構築する。
+   *
+   * @returns backfill した message_commits 件数
+   */
+  backfillMessageCommits(onProgress?: (msg: string) => void): number {
+    const unresolvedSessions = this.getUnresolvedMessageCommitSessions();
+    let messageCommitsBackfilled = 0;
+    for (const { sessionId, filePath } of unresolvedSessions) {
+      try {
+        const messages = JsonlSessionReader.loadFromFile(filePath);
+        const rawCommits = this.getSessionCommits(sessionId);
+        const commits = rawCommits.map((c) => ({
+          commitHash: c.commit_hash,
+          commitMessage: c.commit_message,
+          author: c.author,
+          committedAt: c.committed_at,
+          isAiAssisted: c.is_ai_assisted === 1,
+          filesChanged: c.files_changed,
+          linesAdded: c.lines_added,
+          linesDeleted: c.lines_deleted,
+          repoName: c.repo_name ?? '',
+        }));
+        const matches = matchCommitsToMessages(messages, commits);
+        const now = new Date().toISOString();
+        for (const m of matches) {
+          this.insertMessageCommit({
+            messageUuid: m.messageUuid,
+            sessionId,
+            commitHash: m.commitHash,
+            detectedAt: now,
+            matchConfidence: m.matchConfidence,
+          });
+        }
+        this.markMessageCommitsResolved(sessionId, now);
+        messageCommitsBackfilled += matches.length;
+      } catch (e) {
+        this.logger.error(`Backfill failed for session ${sessionId}`, e);
+      }
+    }
+    onProgress?.(`Backfilled ${messageCommitsBackfilled} message_commits`);
+    return messageCommitsBackfilled;
+  }
+
   /** Delete and rebuild session_costs from all messages. */
   private rebuildSessionCosts(): void {
     const db = this.ensureDb();
@@ -3837,66 +3900,36 @@ export class TrailDatabase {
     }
 
     // backfill: commit_files / subagent_type / message_commits
-    onPhase?.({ phase: 'backfill', action: 'start' });
-    await yieldForUi();
-    let backfillFailed = false;
-    if (gitRoot) {
-      try {
-        this.backfillCommitFiles(gitRoot, (msg) => onProgress?.(msg, 0));
-      } catch (e) {
-        backfillFailed = true;
-        onPhase?.({ phase: 'backfill', action: 'error', message: e instanceof Error ? e.message : String(e) });
-      }
-    }
-
-    // Phase D-2: backfill subagent_type from .meta.json + parent tool_calls (one-time)
-    onProgress?.('Backfilling subagent_type...', 0);
-    try {
-      this.backfillSubagentType();
-    } catch (e) {
-      this.logger.warn(`backfillSubagentType failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
-    }
-
-    // Phase 2: backfill message_commits
-    onProgress?.('Backfilling message_commits...', 0);
-    const unresolvedSessions = this.getUnresolvedMessageCommitSessions();
+    // LEP Step 2d 以降は CommitFilesBackfiller / SubagentTypeBackfiller / MessageCommitMatcher に移管
     let messageCommitsBackfilled = 0;
-    for (const { sessionId, filePath } of unresolvedSessions) {
-      try {
-        const messages = JsonlSessionReader.loadFromFile(filePath);
-        const rawCommits = this.getSessionCommits(sessionId);
-        const commits = rawCommits.map((c) => ({
-          commitHash: c.commit_hash,
-          commitMessage: c.commit_message,
-          author: c.author,
-          committedAt: c.committed_at,
-          isAiAssisted: c.is_ai_assisted === 1,
-          filesChanged: c.files_changed,
-          linesAdded: c.lines_added,
-          linesDeleted: c.lines_deleted,
-          repoName: c.repo_name ?? '',
-        }));
-        const matches = matchCommitsToMessages(messages, commits);
-        const now = new Date().toISOString();
-        for (const m of matches) {
-          this.insertMessageCommit({
-            messageUuid: m.messageUuid,
-            sessionId,
-            commitHash: m.commitHash,
-            detectedAt: now,
-            matchConfidence: m.matchConfidence,
-          });
+    if (!phasesToSkip.has('backfill')) {
+      onPhase?.({ phase: 'backfill', action: 'start' });
+      await yieldForUi();
+      let backfillFailed = false;
+      if (gitRoot) {
+        try {
+          this.backfillCommitFiles(gitRoot, (msg) => onProgress?.(msg, 0));
+        } catch (e) {
+          backfillFailed = true;
+          onPhase?.({ phase: 'backfill', action: 'error', message: e instanceof Error ? e.message : String(e) });
         }
-        this.markMessageCommitsResolved(sessionId, now);
-        messageCommitsBackfilled += matches.length;
-      } catch (e) {
-        this.logger.error(`Backfill failed for session ${sessionId}`, e);
       }
-    }
-    onProgress?.(`Backfilled ${messageCommitsBackfilled} message_commits`, 0);
 
-    if (!backfillFailed) {
-      onPhase?.({ phase: 'backfill', action: 'finish', count: messageCommitsBackfilled });
+      // Phase D-2: backfill subagent_type from .meta.json + parent tool_calls (one-time)
+      onProgress?.('Backfilling subagent_type...', 0);
+      try {
+        this.backfillSubagentType();
+      } catch (e) {
+        this.logger.warn(`backfillSubagentType failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
+      }
+
+      // Phase 2: backfill message_commits
+      onProgress?.('Backfilling message_commits...', 0);
+      messageCommitsBackfilled = this.backfillMessageCommits((msg) => onProgress?.(msg, 0));
+
+      if (!backfillFailed) {
+        onPhase?.({ phase: 'backfill', action: 'finish', count: messageCommitsBackfilled });
+      }
     }
 
     this.save();
