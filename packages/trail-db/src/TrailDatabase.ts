@@ -3537,8 +3537,7 @@ export class TrailDatabase {
     let commitsResolved = lepOpts?.externalCounters?.commitsResolved ?? 0;
 
 
-    // LEP Step 2b: Phase 1 (import_sessions) は SessionImporter / CommitResolver に移管。
-    // ここでは projects dir のスキャンを丸ごとスキップする (ingester / analyzer 側で実施済み)。
+    // phasesToSkip に import_sessions が含まれる場合、projects dir のスキャン自体を丸ごとスキップする。
     const skipImportSessions = phasesToSkip.has('import_sessions');
 
     let projectDirs: string[];
@@ -3748,7 +3747,7 @@ export class TrailDatabase {
       await yieldForUi();
     }
 
-    // Resolve releases from version tags (LEP Step 2b 以降は ReleaseResolver に移管)
+    // Resolve releases from version tags
     let releasesResolved = lepOpts?.externalCounters?.releasesResolved ?? 0;
     const skipResolveReleases = phasesToSkip.has('resolve_releases');
     if (!skipResolveReleases && gitRoot) {
@@ -3781,7 +3780,7 @@ export class TrailDatabase {
     }
     await yieldForUi();
 
-    // Analyze source code for each release (LEP Step 2c-cg 以降は CodeGraphBuilder に移管)
+    // Analyze source code for each release
     let releasesAnalyzed = 0;
     const skipAnalyzeReleases = phasesToSkip.has('analyze_releases');
     if (skipAnalyzeReleases) {
@@ -3802,7 +3801,7 @@ export class TrailDatabase {
     }
     await yieldForUi();
 
-    // Import coverage data from packages/*/coverage/coverage-summary.json (LEP Step 2b 以降は CoverageImporter に移管)
+    // Import coverage data from packages/*/coverage/coverage-summary.json
     let coverageImported = lepOpts?.externalCounters?.coverageImported ?? 0;
     let currentCoverageImported = lepOpts?.externalCounters?.currentCoverageImported ?? 0;
     const skipImportCoverage = phasesToSkip.has('import_coverage');
@@ -3836,7 +3835,7 @@ export class TrailDatabase {
     }
     await yieldForUi();
 
-    // Rebuild session_costs from messages (LEP Step 2c 以降は CostRebuilder に移管)
+    // Rebuild session_costs from messages
     if (!phasesToSkip.has('rebuild_costs')) {
       onPhase?.({ phase: 'rebuild_costs', action: 'start' });
       await yieldForUi();
@@ -3853,9 +3852,7 @@ export class TrailDatabase {
 
     // Analyze Claude Code behavior only for sessions that were (re)imported in this run.
     // Sessions skipped above had no new messages, so message_tool_calls is already current.
-    // LEP Step 2b: Phase 1 が外部 (SessionImporter) に移管された場合、対象 session 集合は
-    // `externalSessionsToAnalyze` 経由で受け取る。
-    // LEP Step 2c: 本 phase 自体が BehaviorAnalyzer に移管された場合は skip。
+    // Phase 1 が外部に移管されている場合、対象 session 集合は externalSessionsToAnalyze から受け取る。
     const effectiveSessionsToAnalyze = lepOpts?.externalSessionsToAnalyze ?? sessionsToAnalyze;
     if (phasesToSkip.has('analyze_behavior')) {
       // skip entirely
@@ -3881,7 +3878,6 @@ export class TrailDatabase {
     await yieldForUi();
 
     // Rebuild daily_counts (6 kinds) after message_tool_calls is populated, then session_stats
-    // LEP Step 2c 以降は CountsRebuilder に移管
     if (!phasesToSkip.has('rebuild_counts')) {
       onPhase?.({ phase: 'rebuild_counts', action: 'start' });
       await yieldForUi();
@@ -3900,7 +3896,6 @@ export class TrailDatabase {
     }
 
     // backfill: commit_files / subagent_type / message_commits
-    // LEP Step 2d 以降は CommitFilesBackfiller / SubagentTypeBackfiller / MessageCommitMatcher に移管
     let messageCommitsBackfilled = 0;
     if (!phasesToSkip.has('backfill')) {
       onPhase?.({ phase: 'backfill', action: 'start' });

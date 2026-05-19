@@ -6,7 +6,7 @@ import type {
   AnalyzerContext,
   AnalyzerEvent,
 } from '@anytime-markdown/memory-core';
-import { ExecFileGitService } from '@anytime-markdown/trail-db';
+import { ExecFileGitService, toUTC } from '@anytime-markdown/trail-db';
 
 /**
  * `git log` を 1 行ずつパースするためのレコード。
@@ -187,11 +187,3 @@ export const defaultGitReader: GitReader = {
     return svc.getTagCommitHash(tag);
   },
 };
-
-function toUTC(iso: string): string {
-  try {
-    return new Date(iso).toISOString();
-  } catch {
-    return iso;
-  }
-}
