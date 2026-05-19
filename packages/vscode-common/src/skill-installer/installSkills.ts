@@ -158,16 +158,27 @@ export function installTemplatedSkill(opts: InstallTemplatedSkillOptions): Insta
   const targetDir = path.join(opts.claudeDir, 'skills', opts.skillName);
   const targetPath = path.join(targetDir, SKILL_FILE);
 
-  if (fs.existsSync(targetPath) && !force) {
-    const current = fs.readFileSync(targetPath, 'utf-8');
-    if (current === rendered) {
-      logger.info(`[install-skills] ${opts.skillName} SKILL.md up-to-date`);
-      return { installed: false, skipped: true, preserved: false };
+  // existsSync → readFileSync の TOCTOU を避けるため readFileSync を直接呼び ENOENT で
+  // 不在を判定する。CodeQL `js/file-system-race` の対象 (`installSkills.ts:175`) を解消する。
+  if (!force) {
+    let current: string | null = null;
+    try {
+      current = fs.readFileSync(targetPath, 'utf-8');
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw err;
+      }
     }
-    logger.info(
-      `[install-skills] ${opts.skillName} SKILL.md exists with local edits, preserving (pass force: true to overwrite)`,
-    );
-    return { installed: false, skipped: false, preserved: true };
+    if (current !== null) {
+      if (current === rendered) {
+        logger.info(`[install-skills] ${opts.skillName} SKILL.md up-to-date`);
+        return { installed: false, skipped: true, preserved: false };
+      }
+      logger.info(
+        `[install-skills] ${opts.skillName} SKILL.md exists with local edits, preserving (pass force: true to overwrite)`,
+      );
+      return { installed: false, skipped: false, preserved: true };
+    }
   }
 
   try {
@@ -268,14 +279,24 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
     const dst = path.join(targetDir, rel);
     const srcContent = fs.readFileSync(src, 'utf-8');
 
-    if (fs.existsSync(dst) && !force) {
-      const dstContent = fs.readFileSync(dst, 'utf-8');
-      if (dstContent === srcContent) {
-        upToDate++;
+    // existsSync → readFileSync の TOCTOU 回避 (CodeQL `js/file-system-race`).
+    if (!force) {
+      let dstContent: string | null = null;
+      try {
+        dstContent = fs.readFileSync(dst, 'utf-8');
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw err;
+        }
+      }
+      if (dstContent !== null) {
+        if (dstContent === srcContent) {
+          upToDate++;
+        } else {
+          preserved++;
+        }
         continue;
       }
-      preserved++;
-      continue;
     }
 
     try {

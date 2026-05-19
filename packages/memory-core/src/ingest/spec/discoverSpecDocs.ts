@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { closeSync, fstatSync, openSync, readdirSync, readSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../../db/connection/types';
@@ -59,39 +59,62 @@ export async function discoverChangedSpecs(input: DiscoverInput): Promise<Change
     for (const rel of mdFiles) {
       const abs_path = join(specRoot, rel);
 
-      // Check file size before reading
-      let fileSize: number;
+      // openSync → fstatSync(fd) → readSync で同一 fd を使い、stat→read 間の
+      // TOCTOU (CodeQL `js/file-system-race`) を回避する。
+      let fd: number | null = null;
+      let content: Buffer | null = null;
       try {
-        const stat = statSync(abs_path);
-        fileSize = stat.size;
-      } catch (err) {
-        logger.error(
-          `[anytime-memory] discoverChangedSpecs: failed to stat file ${abs_path}`,
-          err,
-        );
-        continue;
-      }
-
-      if (fileSize > MAX_FILE_BYTES) {
-        const warnMsg = `[anytime-memory] discoverChangedSpecs: skipping large file (${fileSize} bytes) ${rel}`;
-        if (typeof logger.warn === 'function') {
-          logger.warn(warnMsg);
-        } else {
-          logger.info(`[WARN] ${warnMsg}`);
+        try {
+          fd = openSync(abs_path, 'r');
+        } catch (err) {
+          logger.error(
+            `[anytime-memory] discoverChangedSpecs: failed to open file ${abs_path}`,
+            err,
+          );
+          continue;
         }
-        continue;
-      }
 
-      let content: Buffer;
-      try {
-        content = readFileSync(abs_path);
-      } catch (err) {
-        logger.error(
-          `[anytime-memory] discoverChangedSpecs: failed to read file ${abs_path}`,
-          err,
-        );
-        continue;
+        const fileSize = fstatSync(fd).size;
+        if (fileSize > MAX_FILE_BYTES) {
+          const warnMsg = `[anytime-memory] discoverChangedSpecs: skipping large file (${fileSize} bytes) ${rel}`;
+          if (typeof logger.warn === 'function') {
+            logger.warn(warnMsg);
+          } else {
+            logger.info(`[WARN] ${warnMsg}`);
+          }
+          continue;
+        }
+
+        try {
+          const buf = Buffer.alloc(fileSize);
+          let read = 0;
+          while (read < fileSize) {
+            const n = readSync(fd, buf, read, fileSize - read, null);
+            if (n === 0) break;
+            read += n;
+          }
+          content = read === fileSize ? buf : buf.subarray(0, read);
+        } catch (err) {
+          logger.error(
+            `[anytime-memory] discoverChangedSpecs: failed to read file ${abs_path}`,
+            err,
+          );
+          continue;
+        }
+      } finally {
+        if (fd !== null) {
+          try {
+            closeSync(fd);
+          } catch (err) {
+            logger.warn?.(
+              `[anytime-memory] discoverChangedSpecs: failed to close fd for ${abs_path}: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            );
+          }
+        }
       }
+      if (content === null) continue;
 
       const source_hash = createHash('sha1').update(content).digest('hex');
       const rel_path = rel.replace(/\\/g, '/'); // normalize path separators on Windows
