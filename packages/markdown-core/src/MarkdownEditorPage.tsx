@@ -307,6 +307,24 @@ function maskWhenRestricted<T>(isRestricted: boolean, value: T): T | undefined {
   return isRestricted ? undefined : value;
 }
 
+function applyInitialFontSizeOnce(
+  appliedRef: React.MutableRefObject<boolean>,
+  initialFontSize: number | undefined,
+  currentFontSize: number,
+  updateSettings: (s: { fontSize: number }) => void,
+): void {
+  if (!initialFontSize || appliedRef.current) return;
+  appliedRef.current = true;
+  if (currentFontSize !== initialFontSize) updateSettings({ fontSize: initialFontSize });
+}
+
+function buildEditorPortalTarget(): HTMLDivElement | null {
+  if (typeof document === "undefined") return null;
+  const el = document.createElement("div");
+  el.style.display = "contents";
+  return el;
+}
+
 type InnerProps = Omit<MarkdownEditorPageProps, "locale">;
 
 function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, onHomeClick }: InnerProps = {}) {
@@ -333,12 +351,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
 
   const { settings: rawSettings, updateSettings, resetSettings } = useEditorSettings();
   const initialFontSizeApplied = useRef(false);
-  if (initialFontSize && !initialFontSizeApplied.current) {
-    initialFontSizeApplied.current = true;
-    if (rawSettings.fontSize !== initialFontSize) {
-      updateSettings({ fontSize: initialFontSize });
-    }
-  }
+  applyInitialFontSizeOnce(initialFontSizeApplied, initialFontSize, rawSettings.fontSize, updateSettings);
   const settings = useMemo(() => ({ ...rawSettings, ...(defaultFontSize && { fontSize: defaultFontSize }), ...(defaultBlockAlign && { blockAlign: defaultBlockAlign }) }), [rawSettings, defaultFontSize, defaultBlockAlign]);
   const {
     settingsOpen, setSettingsOpen, sampleAnchorEl, setSampleAnchorEl,
@@ -348,12 +361,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
   const editorWrapperRef = useRef<HTMLDivElement>(null);
   const sourceTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const [editorPortalTarget] = useState(() => {
-    if (typeof document === "undefined") return null;
-    const el = document.createElement("div");
-    el.style.display = "contents";
-    return el;
-  });
+  const [editorPortalTarget] = useState(buildEditorPortalTarget);
   const editorMountCallback = useCallback((node: HTMLDivElement | null) => {
     if (node && editorPortalTarget && editorPortalTarget.parentElement !== node) {
       node.appendChild(editorPortalTarget);
