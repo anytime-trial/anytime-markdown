@@ -60,7 +60,10 @@ export class JsonlIngester implements Analyzer {
 
   constructor(private readonly opts: JsonlIngesterOptions = {}) {}
 
-  async onRunStart(ctx: AnalyzerContext): Promise<void> {
+  // Ingester は Wave 実行フェーズ (onRunEnd) で source event を emit する。
+  // 消費側 (tier-2 SessionImporter 等) は onRunStart (orchestrator Pass 1) で初期化済みのため、
+  // ここで emit する jsonl_session_discovered を正しく処理できる。
+  async onRunEnd(ctx: AnalyzerContext): Promise<void> {
     const sessions = this.discoverSessions();
     let emitted = 0;
     for (const desc of sessions) {

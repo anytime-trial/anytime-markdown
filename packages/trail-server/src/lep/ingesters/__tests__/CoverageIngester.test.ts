@@ -36,7 +36,7 @@ describe('CoverageIngester', () => {
 
     const ingester = new CoverageIngester({ gitRoots: [gitRoot] });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
 
     const reports = events.filter((e) => e.kind === 'coverage_report');
     expect(reports).toHaveLength(2);
@@ -58,7 +58,7 @@ describe('CoverageIngester', () => {
 
     const ingester = new CoverageIngester({ gitRoots: [gitRoot] });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
 
     const reports = events.filter((e) => e.kind === 'coverage_report');
     expect(reports).toHaveLength(1);
@@ -70,7 +70,7 @@ describe('CoverageIngester', () => {
     // no packages/ at all
     const ingester = new CoverageIngester({ gitRoots: [gitRoot, '/nonexistent/path'] });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
     expect(events).toEqual([]);
   });
 
@@ -84,7 +84,7 @@ describe('CoverageIngester', () => {
 
     const ingester = new CoverageIngester({ gitRoots: [repoA, repoB] });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
 
     const reports = events.filter((e) => e.kind === 'coverage_report');
     expect(reports).toHaveLength(2);

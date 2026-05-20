@@ -414,4 +414,58 @@ describe('LepOrchestrator stage control (Step 3d)', () => {
     });
     expect(order).toEqual(['save', 'memory-attach']);
   });
+
+  it('initializes a tier-2 consumer (onRunStart) before a tier-1 ingester emits events it consumes', async () => {
+    // Regression: JsonlIngester (tier 1) が Wave 1 で jsonl_session_discovered を emit し、
+    // SessionImporter (tier 2) が消費する。SessionImporter は onRunStart で importedFiles を
+    // 初期化し、未初期化なら onEvent を早期 return する (`if (!this.importedFiles) return;`)。
+    // 旧 orchestrator は tier 順に Wave を回し各 tier 内で onRunStart→onRunEnd するため、
+    // tier-2 consumer の onRunStart が tier-1 producer の emit より後になり、import が 0 件になる。
+    const bus = new EventBus();
+    const recorded: string[] = [];
+
+    const ingester: Analyzer = {
+      id: 'FakeIngester',
+      tier: 1,
+      subscribes: [],
+      emits: ['jsonl_session_discovered'],
+      onRunEnd: async (ctx) => {
+        await ctx.bus.publish({
+          kind: 'jsonl_session_discovered',
+          sessionId: 's1',
+          mainFile: '/x/s1.jsonl',
+          subagentFiles: [],
+          repoName: 'r',
+          source: 'claude_code',
+          fileSize: 1,
+          hasMessages: false,
+          hasUsableCostData: false,
+        });
+      },
+    };
+
+    let initialized = false;
+    const consumer: Analyzer = {
+      id: 'FakeConsumer',
+      tier: 2,
+      subscribes: ['jsonl_session_discovered'],
+      onRunStart: async () => {
+        initialized = true;
+      },
+      onEvent: async (e) => {
+        if (e.kind !== 'jsonl_session_discovered') return;
+        if (!initialized) return; // SessionImporter の importedFiles ガードを模倣
+        recorded.push(e.sessionId);
+      },
+    };
+
+    bus.subscribe(consumer);
+    await new LepOrchestrator(bus, [ingester, consumer]).runOnce({
+      runId: 'r',
+      reason: 'manual',
+      stage: 'primary',
+    });
+
+    expect(recorded).toEqual(['s1']);
+  });
 });

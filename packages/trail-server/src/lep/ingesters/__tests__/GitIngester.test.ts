@@ -39,7 +39,7 @@ describe('GitIngester', () => {
 
     const ingester = new GitIngester({ gitRoots: ['/repo/a'], gitReader: reader });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
 
     const commits = events.filter((e) => e.kind === 'git_commit');
     const tags = events.filter((e) => e.kind === 'git_tag');
@@ -74,7 +74,7 @@ describe('GitIngester', () => {
     });
     const ingester = new GitIngester({ gitRoots: ['/repo/a', '/repo/b'], gitReader: reader });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
 
     const commits = events.filter((e) => e.kind === 'git_commit');
     const tags = events.filter((e) => e.kind === 'git_tag');
@@ -95,7 +95,7 @@ describe('GitIngester', () => {
     };
     const ingester = new GitIngester({ gitRoots: ['/repo/bad', '/repo/good'], gitReader: reader });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
 
     const commits = events.filter((e) => e.kind === 'git_commit');
     expect(commits).toHaveLength(1);
@@ -110,7 +110,7 @@ describe('GitIngester', () => {
     };
     const ingester = new GitIngester({ gitRoots: ['/repo/a'], gitReader: reader });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
 
     const tags = events.filter((e) => e.kind === 'git_tag');
     expect(tags).toHaveLength(1);
@@ -123,7 +123,7 @@ describe('GitIngester', () => {
   it('handles empty gitRoots without emitting', async () => {
     const ingester = new GitIngester({ gitRoots: [], gitReader: { listCommits: () => [], listTags: () => [], getTagCommit: () => '' } });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
     expect(events).toEqual([]);
   });
 

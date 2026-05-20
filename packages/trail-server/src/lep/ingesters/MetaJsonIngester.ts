@@ -33,7 +33,8 @@ export class MetaJsonIngester implements Analyzer {
 
   constructor(private readonly opts: MetaJsonIngesterOptions = {}) {}
 
-  async onRunStart(ctx: AnalyzerContext): Promise<void> {
+  // Ingester は Wave 実行フェーズ (onRunEnd) で emit する (消費側は orchestrator Pass 1 で初期化済み)。
+  async onRunEnd(ctx: AnalyzerContext): Promise<void> {
     const baseDir =
       this.opts.claudeProjectsDir ?? path.join(os.homedir(), '.claude', 'projects');
 

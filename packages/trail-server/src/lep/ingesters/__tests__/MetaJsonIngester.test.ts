@@ -40,7 +40,7 @@ describe('MetaJsonIngester', () => {
 
     const ingester = new MetaJsonIngester({ claudeProjectsDir: base });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
 
     const metas = events.filter((e) => e.kind === 'meta_json');
     expect(metas).toHaveLength(2);
@@ -67,7 +67,7 @@ describe('MetaJsonIngester', () => {
 
     const ingester = new MetaJsonIngester({ claudeProjectsDir: base });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
 
     const metas = events.filter((e) => e.kind === 'meta_json');
     expect(metas).toHaveLength(1);
@@ -83,14 +83,14 @@ describe('MetaJsonIngester', () => {
 
     const ingester = new MetaJsonIngester({ claudeProjectsDir: base });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
     expect(events).toEqual([]);
   });
 
   it('handles missing projects dir', async () => {
     const ingester = new MetaJsonIngester({ claudeProjectsDir: '/nonexistent/path' });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
     expect(events).toEqual([]);
   });
 

@@ -65,7 +65,8 @@ export class GitIngester implements Analyzer {
     this.reader = opts.gitReader ?? defaultGitReader;
   }
 
-  async onRunStart(ctx: AnalyzerContext): Promise<void> {
+  // Ingester は Wave 実行フェーズ (onRunEnd) で emit する (消費側は orchestrator Pass 1 で初期化済み)。
+  async onRunEnd(ctx: AnalyzerContext): Promise<void> {
     const limit = this.opts.maxCommitsPerRoot ?? 5000;
     let totalCommits = 0;
     let totalTags = 0;
