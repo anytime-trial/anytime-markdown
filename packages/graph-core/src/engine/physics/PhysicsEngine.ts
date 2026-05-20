@@ -204,7 +204,7 @@ export class PhysicsEngine {
   private integrateFR(bodies: PhysicsBody[]): void {
     for (const body of bodies) {
       if (body.fixed) continue;
-      const disp = Math.sqrt(body.fx * body.fx + body.fy * body.fy) || 1;
+      const disp = Math.hypot(body.fx, body.fy) || 1;
       const clamp = Math.min(disp, this.temperature) / disp;
       body.vx = body.fx * clamp;
       body.vy = body.fy * clamp;
@@ -232,7 +232,7 @@ export class PhysicsEngine {
     }
     for (const body of this.bodies.values()) {
       if (body.fixed) continue;
-      const speed = Math.sqrt(body.vx * body.vx + body.vy * body.vy);
+      const speed = Math.hypot(body.vx, body.vy);
       if (speed > this.config.velocityThreshold) return false;
     }
     return true;
@@ -310,7 +310,7 @@ export class PhysicsEngine {
     const cy_b = b.y + b.height / 2;
     const dx = cx_b - cx_a;
     const dy = cy_b - cy_a;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const dist = Math.hypot(dx, dy) || 1;
 
     const { halfSpanA, halfSpanB } = this.computeHalfSpans(a, b, dx, dy);
     const requiredDist = halfSpanA + halfSpanB + minGap;

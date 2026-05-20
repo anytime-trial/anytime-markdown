@@ -120,19 +120,19 @@ export function graphReducer(state: GraphState, action: Action): GraphState {
 
     case 'DELETE_SELECTED': {
       const { nodeIds, edgeIds } = state.selection;
-      const deletableNodeIds = nodeIds.filter(id => {
+      const deletableNodeIds = new Set(nodeIds.filter(id => {
         const node = state.document.nodes.find(n => n.id === id);
         return node && !node.locked;
-      });
+      }));
       const after = {
         ...state,
         document: {
           ...state.document,
-          nodes: state.document.nodes.filter(n => !deletableNodeIds.includes(n.id)),
+          nodes: state.document.nodes.filter(n => !deletableNodeIds.has(n.id)),
           edges: state.document.edges.filter(e =>
             !edgeIds.includes(e.id) &&
-            !deletableNodeIds.includes(e.from.nodeId ?? '') &&
-            !deletableNodeIds.includes(e.to.nodeId ?? ''),
+            !deletableNodeIds.has(e.from.nodeId ?? '') &&
+            !deletableNodeIds.has(e.to.nodeId ?? ''),
           ),
         },
         selection: { nodeIds: [], edgeIds: [] },

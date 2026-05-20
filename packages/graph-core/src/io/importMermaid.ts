@@ -246,7 +246,7 @@ export function layoutWithSubgroups(
   const frameOrder = topologicalSortFrames(frameMap, childrenOf);
 
   const childOrigins = layoutFrameChildren(frameOrder, childrenOf, intraEdgesOf, direction, levelGap, nodeSpacing);
-  layoutRootNodes(doc, frameMap, orphanNodes, interEdges, nodeToDeepestFrame, direction, levelGap, nodeSpacing);
+  layoutRootNodes({ doc, frameMap, orphanNodes, interEdges, nodeToDeepestFrame, direction, levelGap, nodeSpacing });
   translateChildrenToAbsolute(frameOrder, childrenOf, childOrigins);
   packGroupMembers(doc, nodeSpacing);
   updateEdgeEndpoints(doc);
@@ -282,7 +282,8 @@ function splitManualTopBottom(
       const fromId = e.from.nodeId;
       const toId = e.to.nodeId;
       if (!fromId || !toId) continue;
-      const neighborId = fromId === manualId ? toId : toId === manualId ? fromId : null;
+      const neighborIfTo = toId === manualId ? fromId : null;
+      const neighborId = fromId === manualId ? toId : neighborIfTo;
       if (!neighborId) continue;
       const n = autoMap.get(neighborId);
       if (!n) continue;
@@ -476,16 +477,25 @@ function layoutFrameChildren(
 }
 
 /** ルートレベル（トップレベルフレーム + 孤立ノード）のレイアウト */
-function layoutRootNodes(
-  doc: GraphDocument,
-  frameMap: Map<string, GraphNode>,
-  orphanNodes: GraphNode[],
-  interEdges: GraphEdge[],
-  nodeToDeepestFrame: Map<string, string>,
-  direction: 'TB' | 'LR',
-  levelGap: number,
-  nodeSpacing: number,
-): void {
+function layoutRootNodes({
+  doc,
+  frameMap,
+  orphanNodes,
+  interEdges,
+  nodeToDeepestFrame,
+  direction,
+  levelGap,
+  nodeSpacing,
+}: {
+  doc: GraphDocument;
+  frameMap: Map<string, GraphNode>;
+  orphanNodes: GraphNode[];
+  interEdges: GraphEdge[];
+  nodeToDeepestFrame: Map<string, string>;
+  direction: 'TB' | 'LR';
+  levelGap: number;
+  nodeSpacing: number;
+}): void {
   const rootFrames = [...frameMap.values()].filter(
     f => !f.groupId || !frameMap.has(f.groupId),
   );

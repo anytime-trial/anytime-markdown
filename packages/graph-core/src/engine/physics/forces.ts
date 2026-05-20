@@ -8,7 +8,7 @@ export function applySpring(
 ): void {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+  const dist = Math.hypot(dx, dy) || 1;
   const force = (dist - length) * strength;
   const fx = (dx / dist) * force;
   const fy = (dy / dist) * force;
@@ -71,7 +71,7 @@ export function applyFRAttraction(
 ): void {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+  const dist = Math.hypot(dx, dy) || 1;
   const force = (dist * dist) / k;
   const fx = (dx / dist) * force;
   const fy = (dy / dist) * force;
