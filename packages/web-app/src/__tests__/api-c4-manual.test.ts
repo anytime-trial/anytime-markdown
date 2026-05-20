@@ -3,10 +3,12 @@
  */
 
 const mockResolveSupabaseEnv = jest.fn();
+const mockResolveSupabaseServiceEnv = jest.fn();
 const mockCreateClient = jest.fn();
 
 jest.mock('../lib/supabase-env', () => ({
   resolveSupabaseEnv: mockResolveSupabaseEnv,
+  resolveSupabaseServiceEnv: mockResolveSupabaseServiceEnv,
 }));
 
 jest.mock('@supabase/supabase-js', () => ({
@@ -139,14 +141,14 @@ describe('POST /api/c4/manual-elements', () => {
   });
 
   it('returns 503 when supabase env is not configured', async () => {
-    mockResolveSupabaseEnv.mockReturnValue(null);
+    mockResolveSupabaseServiceEnv.mockReturnValue(null);
     const req = makeRequest({ repoName: 'my-repo' }, { type: 'system', name: 'MySystem' });
     const result = (await elementsPost(req)) as unknown as MockResp;
     expect(result._status).toBe(503);
   });
 
   it('creates element with incremented ID', async () => {
-    mockResolveSupabaseEnv.mockReturnValue({ url: 'u', anonKey: 'k' });
+    mockResolveSupabaseServiceEnv.mockReturnValue({ url: 'u', serviceRoleKey: 'k' });
     const supabase = makeElementsSupabase([{ element_id: 'sys_manual_1' }, { element_id: 'sys_manual_3' }]);
     mockCreateClient.mockReturnValue(supabase);
 
@@ -161,7 +163,7 @@ describe('POST /api/c4/manual-elements', () => {
   });
 
   it('uses person_ prefix for person type', async () => {
-    mockResolveSupabaseEnv.mockReturnValue({ url: 'u', anonKey: 'k' });
+    mockResolveSupabaseServiceEnv.mockReturnValue({ url: 'u', serviceRoleKey: 'k' });
     const supabase = makeElementsSupabase([]);
     mockCreateClient.mockReturnValue(supabase);
 
@@ -173,7 +175,7 @@ describe('POST /api/c4/manual-elements', () => {
   });
 
   it('uses pkg_manual_ prefix for container type', async () => {
-    mockResolveSupabaseEnv.mockReturnValue({ url: 'u', anonKey: 'k' });
+    mockResolveSupabaseServiceEnv.mockReturnValue({ url: 'u', serviceRoleKey: 'k' });
     const supabase = makeElementsSupabase([]);
     mockCreateClient.mockReturnValue(supabase);
 
@@ -184,7 +186,7 @@ describe('POST /api/c4/manual-elements', () => {
   });
 
   it('returns 500 when insert fails', async () => {
-    mockResolveSupabaseEnv.mockReturnValue({ url: 'u', anonKey: 'k' });
+    mockResolveSupabaseServiceEnv.mockReturnValue({ url: 'u', serviceRoleKey: 'k' });
     const supabase = makeElementsSupabase([], { message: 'db error' });
     mockCreateClient.mockReturnValue(supabase);
 
@@ -285,14 +287,14 @@ describe('POST /api/c4/manual-groups', () => {
   });
 
   it('returns 503 when supabase env is not configured', async () => {
-    mockResolveSupabaseEnv.mockReturnValue(null);
+    mockResolveSupabaseServiceEnv.mockReturnValue(null);
     const req = makeRequest({ repoName: 'my-repo' }, { memberIds: ['n1', 'n2'] });
     const result = (await groupsPost(req)) as unknown as MockResp;
     expect(result._status).toBe(503);
   });
 
   it('creates group with incremented ID', async () => {
-    mockResolveSupabaseEnv.mockReturnValue({ url: 'u', anonKey: 'k' });
+    mockResolveSupabaseServiceEnv.mockReturnValue({ url: 'u', serviceRoleKey: 'k' });
     const supabase = {
       from: jest.fn().mockReturnValue({
         select: jest.fn().mockReturnValue({
@@ -316,7 +318,7 @@ describe('POST /api/c4/manual-groups', () => {
   });
 
   it('returns 500 when insert fails', async () => {
-    mockResolveSupabaseEnv.mockReturnValue({ url: 'u', anonKey: 'k' });
+    mockResolveSupabaseServiceEnv.mockReturnValue({ url: 'u', serviceRoleKey: 'k' });
     const supabase = {
       from: jest.fn().mockReturnValue({
         select: jest.fn().mockReturnValue({
