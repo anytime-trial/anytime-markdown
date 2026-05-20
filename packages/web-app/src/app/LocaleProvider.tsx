@@ -40,7 +40,7 @@ function toLocale(value: string | null | undefined): Locale | null {
 // ブラウザに拒否されるため条件分岐する。CodeQL `WebCookieSecureDisabledByDefault` 対策。
 function localeCookieString(value: Locale): string {
   const base = `NEXT_LOCALE=${value};path=/;max-age=31536000;SameSite=Lax`;
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+  if (typeof window !== 'undefined' && globalThis.window.location.protocol === 'https:') {
     return `${base};Secure`;
   }
   return base;

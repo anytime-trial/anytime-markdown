@@ -54,7 +54,8 @@ export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string 
   // GitHub パス指定の場合はロケール解決をスキップ
   const isGitHub = !!ghPath;
   const { resolved, fallback, localeMap } = key ? resolveDocKeys(key, locale) : { resolved: ghPath ?? '', fallback: undefined, localeMap: undefined };
-  const displayName = docTitle ?? (key ? deriveDisplayName(key) : ghPath ? deriveDisplayName(ghPath) : '');
+  const derivedName = key ? deriveDisplayName(key) : (ghPath ? deriveDisplayName(ghPath) : '');
+  const displayName = docTitle ?? derivedName;
 
   if (!key && !ghPath) {
     return (

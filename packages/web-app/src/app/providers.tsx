@@ -82,7 +82,7 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
   }, []);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', themeMode);
+    document.documentElement.dataset.theme = themeMode;
     updateStatusBar(themeMode);
   }, [themeMode]);
 

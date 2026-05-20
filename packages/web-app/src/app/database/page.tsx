@@ -33,7 +33,7 @@ export default function DatabasePage(): React.ReactElement {
   };
 
   const onDownload = (): void => {
-    if (!adapter || !adapter.exportBytes) return;
+    if (!adapter?.exportBytes) return;
     const bytes = adapter.exportBytes();
     const blob = new Blob([new Uint8Array(bytes)], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
@@ -46,9 +46,7 @@ export default function DatabasePage(): React.ReactElement {
 
   return (
     <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      {!adapter ? (
-        <DatabaseFilePicker onPick={onPick} />
-      ) : (
+      {adapter ? (
         <>
           <Stack direction="row" spacing={1} sx={{ p: 1 }}>
             <Button size="small" onClick={() => setAdapter(null)}>
@@ -68,6 +66,8 @@ export default function DatabasePage(): React.ReactElement {
             />
           </Suspense>
         </>
+      ) : (
+        <DatabaseFilePicker onPick={onPick} />
       )}
     </Box>
   );

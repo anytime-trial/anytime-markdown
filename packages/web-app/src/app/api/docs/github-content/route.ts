@@ -43,7 +43,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const filePath = request.nextUrl.searchParams.get("key");
-  if (!filePath || !filePath.endsWith(".md")) {
+  if (!filePath?.endsWith(".md")) {
     return NextResponse.json(
       { error: "key parameter is required and must be a .md file" },
       { status: 400 },
