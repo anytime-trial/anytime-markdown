@@ -125,8 +125,8 @@ export function applyDropAction(
 
   if (target.parentIsImageRow) {
     insertIntoImageRow(tr, source, target, insertLeft);
-  } else {
-    if (!wrapInNewImageRow(view, tr, source, target, insertLeft)) return false;
+  } else if (!wrapInNewImageRow(view, tr, source, target, insertLeft)) {
+    return false;
   }
 
   tr.setMeta("imageRowDrop", true);
@@ -175,9 +175,9 @@ export const imageRowDropPlugin = new Plugin({
       if (decision.action === "default") return false;
       // ドラッグ中のノード情報を取得（ProseMirror 内部のドラッグ）
       const slice = view.dragging?.slice;
-      if (!slice || slice.content.childCount !== 1) return false;
+      if (slice?.content.childCount !== 1) return false;
       const sourceNode = slice.content.firstChild;
-      if (!sourceNode || sourceNode.type.name !== "image") return false;
+      if (sourceNode?.type.name !== "image") return false;
       // ソース位置を dragging から取る必要があるが、標準 EditorView.dragging は位置を持たない。
       // そのため、schema.nodes.image を検索して元の位置を推定する必要があるが、
       // ここでは view.someProp("handleDOMEvents") で先に dragstart を捕捉して位置を保存する必要がある。

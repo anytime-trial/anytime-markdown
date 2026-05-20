@@ -6,7 +6,7 @@ export type EmbedKind =
     | { kind: "drawio"; url: string }
     | { kind: "ogp"; url: string };
 
-const SPOTIFY_TYPES = ["track", "album", "playlist", "episode", "show", "artist"];
+const SPOTIFY_TYPES = new Set(["track", "album", "playlist", "episode", "show", "artist"]);
 const FIGMA_PREFIXES = ["/file/", "/design/", "/proto/", "/board/"];
 const YT_ID_RE = /^[A-Za-z0-9_-]{6,32}$/;
 const SP_ID_RE = /^[A-Za-z0-9]{6,40}$/;
@@ -45,7 +45,7 @@ function classifySpotify(u: URL, host: string): EmbedKind | null {
     if (host !== "open.spotify.com") return null;
     const parts = u.pathname.split("/").filter(Boolean);
     if (parts.length < 2) return null;
-    if (!SPOTIFY_TYPES.includes(parts[0])) return null;
+    if (!SPOTIFY_TYPES.has(parts[0])) return null;
     if (!SP_ID_RE.test(parts[1])) return null;
     return { kind: "spotify", type: parts[0], id: parts[1] };
 }

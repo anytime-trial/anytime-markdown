@@ -192,7 +192,7 @@ export const AdmonitionBlockquote = Blockquote.extend({
           // 重複出力防止のため prefix を剥がしたコピーを描画ノードとして使う。
           if (!admonitionType) {
             const first = node.firstChild;
-            if (first && first.type.name === "paragraph") {
+            if (first?.type.name === "paragraph") {
               const match = ADMONITION_RE.exec(first.textContent);
               if (match) {
                 admonitionType = match[1].toLowerCase();
