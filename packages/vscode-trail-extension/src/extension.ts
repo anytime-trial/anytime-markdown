@@ -19,9 +19,17 @@ import {
 	findTsconfigCandidates,
 	runAnalyzeCurrentCodePipeline,
 	runAnalyzeReleaseCodePipeline,
-	loadConfig,
+	loadLepConfig,
+	migrateConfigJsonIntoLepJson,
+	DEFAULT_LEP_CONFIG,
+	disabledAnalyzerIds,
+	resolveGitHubSource,
+	createFetchGitHubReviewClient,
+	checkLlmAvailability,
 	LogService,
 } from '@anytime-markdown/trail-server';
+import type { AnalyzeAllRunnerOptions, LepConfig } from '@anytime-markdown/trail-server';
+import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
 import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
@@ -29,7 +37,7 @@ import {
 	CREATE_EXTENSION_LOGS,
 	CREATE_EXTENSION_LOGS_INDEXES,
 } from '@anytime-markdown/trail-core/domain/schema';
-import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome, LEP_STAGES, type LepStage } from '@anytime-markdown/memory-core';
 import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
@@ -298,13 +306,84 @@ export async function activate(context: vscode.ExtensionContext) {
 	TrailPanel.setDataServer(trailDataServer);
 	setupServerCallbacks(trailDataServer);
 
-	// trail config — daemon と extension で共通の設定ソース。
-	// 旧 anytimeTrail.memory.* (~v0.18) は config.json (memory.*) に統合された。
+	// TRAIL_HOME (trace dir 等の解決に使用)。
 	const trailHomeForConfig = wsRootForDb ? getTrailHome(wsRootForDb) : getTrailHome();
-	const trailConfigPath = path.join(trailHomeForConfig, 'config.json');
-	const trailConfig = loadConfig(trailConfigPath, {
-		warn: (msg: string) => TrailLogger.warn(msg),
-	});
+
+	// LEP 設定 (lep.json) — 唯一の設定ソース (設計書 13 章)。旧 config.json は
+	// migrateConfigJsonIntoLepJson で一度きり lep.json へ移行し、以後読まない。
+	// stage / analyzer 有効化 / schedule / llm / memory / gitRoots を集約する。
+	const lepLogger = { warn: (m: string) => TrailLogger.warn(m), info: (m: string) => TrailLogger.info(m) };
+	let lepConfig: LepConfig = DEFAULT_LEP_CONFIG;
+	let lepStage: LepStage = isAnalyzeAllEnabled() ? 'primary+memory' : 'disabled';
+	let lepDisabledAnalyzers: readonly string[] = [];
+	let githubPrReview: AnalyzeAllRunnerOptions['githubPrReview'] | undefined;
+	if (wsRootForDb) {
+		try {
+			// 旧 config.json → lep.json 一度きり移行 (欠落セクションのみ gap-fill、完了後 rename)。
+			migrateConfigJsonIntoLepJson({
+				workspaceRoot: wsRootForDb,
+				analyzeAllEnabled: isAnalyzeAllEnabled(),
+				logger: lepLogger,
+			});
+			const lepConfigPathOverride = vscode.workspace
+				.getConfiguration('anytimeTrail.lep')
+				.get<string>('configPath', '')
+				.trim();
+			const lep = loadLepConfig({
+				workspaceRoot: wsRootForDb,
+				configPathOverride: lepConfigPathOverride || undefined,
+				logger: lepLogger,
+			});
+			lepConfig = lep.config;
+			lepStage = lep.config.stage;
+			lepDisabledAnalyzers = disabledAnalyzerIds(lep.config);
+			// VS Code 設定 anytimeTrail.lep.stageOverride で一時的に stage を上書き可能 (設計書 13.4)。
+			const stageOverride = vscode.workspace
+				.getConfiguration('anytimeTrail.lep')
+				.get<string>('stageOverride', '')
+				.trim();
+			if (stageOverride && LEP_STAGES.includes(stageOverride as LepStage)) {
+				lepStage = stageOverride as LepStage;
+				TrailLogger.info(`[LepConfig] stage overridden by anytimeTrail.lep.stageOverride=${lepStage}`);
+			}
+			TrailLogger.info(
+				`[LepConfig] resolved stage=${lepStage} (loaded ${lep.loadedPaths.length} file(s))`,
+			);
+
+			// 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (sources.github.enabled)。
+			const ghSource = resolveGitHubSource(lep.config);
+			if (ghSource.enabled) {
+				githubPrReview = {
+					client: ghSource.token
+						? createFetchGitHubReviewClient({
+								token: ghSource.token,
+								logger: { info: (m) => TrailLogger.info(m), warn: (m) => TrailLogger.warn(m) },
+							})
+						: null,
+					since: ghSource.since,
+					maxPrs: ghSource.maxPrs,
+				};
+				TrailLogger.info(
+					`[LepConfig] GitHub PR review source enabled (hasToken=${Boolean(ghSource.token)})`,
+				);
+			}
+		} catch (err) {
+			// version / stage 不正 (LepConfigError) は起動を止めず warn に留め、旧 boolean 由来の
+			// fallback stage で続行する (extension の activate を壊さないため)。
+			TrailLogger.warn(
+				`[LepConfig] failed to load lep.json: ${err instanceof Error ? err.message : String(err)}. ` +
+					`fallback stage=${lepStage}`,
+			);
+		}
+	}
+
+	// lep.json から ingest / chat / health で共有する LLM 値を解決する。
+	// baseUrl は resolveOllamaBaseUrl で env / Dev Container 検出を畳み込み、
+	// health-check と実取込で同一値を使う (split-brain 防止)。
+	const lepOllama = lepConfig.llm.providers.ollama;
+	const resolvedOllamaBaseUrl = resolveOllamaBaseUrl(lepOllama.baseUrl);
+	// ingest 生成モデルは env MEMORY_CORE_GEN_MODEL を最優先 (エスケープハッチ維持)。
+	const ingestGenModel = process.env['MEMORY_CORE_GEN_MODEL'] || lepOllama.models.chat;
 
 	// MemoryCoreService — ingest pipeline を周期実行する長寿命サービス。
 	// useExternalDaemon=true かつ daemon が見つかった場合は二重実行防止のため
@@ -313,9 +392,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	// service を起動する (TrailPanel が local server URL を使うのと同じ paradigm)。
 	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
 	if (hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
-		const intervalSec = trailConfig.analyzeAll.intervalSec;
-		const runOnStart = trailConfig.analyzeAll.runOnStart;
-		const startupDelaySec = trailConfig.analyzeAll.startupDelaySec;
 		const trailDbPath = path.join(dbStorageDir, 'trail.db');
 		// MemoryCoreService は AnalyzeAllRunner の内部実行ユニット。
 		// 自前 scheduler は持たず、AnalyzeAllRunner.runOnce 経由でのみ起動される
@@ -326,7 +402,14 @@ export async function activate(context: vscode.ExtensionContext) {
 			dbPath: getMemoryCoreDbPath(wsRootForDb),
 			nativeBinding: memoryCoreNativeBinding,
 			gitRoot: wsRootForDb,
-			backfillDays: trailConfig.memory.conversation.backfillDays,
+			backfillDays: lepConfig.memory.conversation.backfillDays,
+			// lep.json の llm を ingest パイプラインへ通す (baseUrl は openMemoryDbSession
+			// が resolveOllamaBaseUrl で再解決するため raw 値を渡す)。
+			llm: {
+				baseUrl: lepOllama.baseUrl,
+				chatModel: ingestGenModel,
+				embedModel: lepOllama.models.embedding,
+			},
 			// trail.db と同じ anytimeDatabase.backup 設定を memory-core.db
 			// にも適用する。pipeline runner が openMemoryCoreDb 直前に
 			// FileBackupManager 経由でローテートする。
@@ -368,13 +451,13 @@ export async function activate(context: vscode.ExtensionContext) {
 					memoryDbPath,
 					memoryNativeBinding,
 					getConfig: () => ({
-						baseUrl: trailConfig.memory.ollama.baseUrl,
-						chatModel: trailConfig.memory.chat.model,
-						embedModel: trailConfig.memory.embedding.model,
-						bm25Limit: trailConfig.memory.rag.bm25Limit,
-						vecLimit: trailConfig.memory.rag.vecLimit,
-						finalLimit: trailConfig.memory.rag.finalLimit,
-						rrfK: trailConfig.memory.rag.rrfK,
+						baseUrl: resolvedOllamaBaseUrl,
+						chatModel: lepConfig.llm.providers.ollama.models.chat,
+						embedModel: lepConfig.llm.providers.ollama.models.embedding,
+						bm25Limit: lepConfig.memory.rag.bm25Limit,
+						vecLimit: lepConfig.memory.rag.vecLimit,
+						finalLimit: lepConfig.memory.rag.finalLimit,
+						rrfK: lepConfig.memory.rag.rrfK,
 					}),
 					logger: memoryLogger,
 				});
@@ -382,7 +465,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				context.subscriptions.push({ dispose: () => void chatBridge.dispose() });
 
 				const { RebuildScheduler } = await import('@anytime-markdown/trail-server');
-				const rebuildIntervalMin = trailConfig.memory.fts.rebuildIntervalMinutes;
+				const rebuildIntervalMin = lepConfig.memory.fts.rebuildIntervalMinutes;
 				const rebuildScheduler = new RebuildScheduler({
 					memoryDbPath,
 					memoryNativeBinding,
@@ -591,19 +674,33 @@ export async function activate(context: vscode.ExtensionContext) {
 			return; // DB 初期化失敗時はサーバー起動もスキップ
 		}
 
-		// AnalyzeAllRunner — importAll → memory-core runOnce の唯一の orchestrator。
+		// AnalyzeAllRunner — Wave 1+2 (importAll 相当) + Wave 3 (memory) の唯一の orchestrator。
 		// trailDb.init() 完了後に構築する (init 前の getWatchedGitRoots は意味を持たない)。
-		// memoryCoreService が null (useExternalDaemon) でも runner は構築する (importAll のみ走る)。
-		// anytimeTrail.analyzeAll.enabled=false (既定) のときは構築自体をスキップし、
-		// 自動実行・手動実行・HTTP API すべて無効化する。
-		if (trailDb && hostMemoryCoreLocally && dbStorageDir && isAnalyzeAllEnabled()) {
+		// memoryCoreService が null (useExternalDaemon) でも runner は構築する (Wave 1/2 のみ走る)。
+		// lep.json stage が disabled のときは構築自体をスキップし、自動・手動・HTTP API を無効化する。
+		if (trailDb && hostMemoryCoreLocally && dbStorageDir && lepStage !== 'disabled') {
 			analyzeAllRunner = new AnalyzeAllRunner({
 				logSink: memoryCoreOutputChannel,
 				gitRoot: wsRootForDb,
 				trailDb,
 				gitRoots: getWatchedGitRoots(),
 				memoryCoreService: memoryCoreService ?? undefined,
+				stage: lepStage,
+				// Wave 3 前 LLM Pre-flight。Ollama 不在時は LLM 依存 analyzer のみ skip し、
+				// Code / BugHistory / Drift (LLM 非依存) は実行する。
+				checkLlmAvailability: () =>
+					checkLlmAvailability({
+						baseUrl: resolvedOllamaBaseUrl,
+						chatModel: ingestGenModel,
+						embedModel: lepOllama.models.embedding,
+					}),
+				ollamaBaseUrl: resolvedOllamaBaseUrl,
+				disabledMemoryAnalyzers: lepDisabledAnalyzers,
+				disabledAggregators: lepDisabledAnalyzers,
+				githubPrReview,
 				importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
+				// stage が memory を含まない run 後に memory scope を skipped 記録する宛先。
+				pipelineStatusFilePath: path.join(dbStorageDir, 'pipeline-status.json'),
 				onImportProgress: (message) => TrailLogger.info(`[analyzeAll] ${message}`),
 				analyzeReleaseFn: analyze,
 				onImportPhase: (event) =>
@@ -614,7 +711,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				onAfterRun: () => trailDataServer?.notifySessionsUpdated(),
 			});
 			trailDataServer?.setAnalyzeAllRunner(analyzeAllRunner);
-			TrailLogger.info('[AnalyzeAllRunner] wired');
+			TrailLogger.info(`[AnalyzeAllRunner] wired (stage=${lepStage})`);
 		}
 		// 外部デーモンが有効な場合はローカルサーバー起動をスキップ。
 		// ブラウザは TrailPanel.daemonUrl 経由でデーモンに直接アクセスする。
@@ -689,9 +786,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		// pipelineProvider の per-phase 進捗は onImportPhase コールバック経由で発火。
 		if (analyzeAllRunner) {
 			pipelineProvider?.resetImportAllPhases();
-			analyzeAllRunner.start(trailConfig.analyzeAll.intervalSec * 1000, {
-				runOnStart: trailConfig.analyzeAll.runOnStart,
-				startupDelayMs: trailConfig.analyzeAll.startupDelaySec * 1000,
+			analyzeAllRunner.start(lepConfig.schedule.intervalSec * 1000, {
+				runOnStart: lepConfig.schedule.runOnStart,
+				startupDelayMs: lepConfig.schedule.startupDelaySec * 1000,
 			});
 		}
 	})().catch((err) => {
@@ -781,7 +878,19 @@ export async function activate(context: vscode.ExtensionContext) {
 					vscode.window.showWarningMessage('AnalyzeAll: no local runner and no daemon URL available');
 					return;
 				}
-				const res = await fetch(`${daemonUrl}/api/analyze-all/status`);
+				// daemon.json 由来の URL を localhost に限定 (CodeQL `js/file-access-to-http`)
+				let parsedDaemonUrl: URL;
+				try {
+					parsedDaemonUrl = new URL(daemonUrl);
+				} catch {
+					vscode.window.showErrorMessage(`Invalid daemon URL: ${daemonUrl}`);
+					return;
+				}
+				if (parsedDaemonUrl.hostname !== '127.0.0.1' && parsedDaemonUrl.hostname !== 'localhost') {
+					vscode.window.showErrorMessage(`Refusing to call non-localhost daemon URL: ${parsedDaemonUrl.hostname}`);
+					return;
+				}
+				const res = await fetch(`${parsedDaemonUrl.origin}/api/analyze-all/status`);
 				if (!res.ok) {
 					vscode.window.showErrorMessage(`AnalyzeAll status failed: HTTP ${res.status}`);
 					return;

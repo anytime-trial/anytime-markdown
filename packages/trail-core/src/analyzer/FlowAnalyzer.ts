@@ -7,6 +7,108 @@ function nextId(prefix: string): string {
   return `${prefix}_${++nodeCounter}`;
 }
 
+function linkPrev(edges: FlowEdge[], prevIds: string[], toId: string): void {
+  for (const p of prevIds) edges.push({ from: p, to: toId });
+}
+
+function visitIfStatement(
+  stmt: ts.IfStatement,
+  sf: ts.SourceFile,
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  prevIds: string[],
+  endId: string,
+  line: number,
+): string[] {
+  const condText = stmt.expression.getText(sf).slice(0, 40);
+  const nodeId = nextId('decision');
+  nodes.push({ id: nodeId, label: condText, kind: 'decision', line });
+  linkPrev(edges, prevIds, nodeId);
+
+  const trueNodeId = nextId('process');
+  nodes.push({ id: trueNodeId, label: 'then', kind: 'process' });
+  edges.push({ from: nodeId, to: trueNodeId, label: 'true' });
+  const thenOut = FlowAnalyzer.visitStatement(stmt.thenStatement, sf, nodes, edges, [trueNodeId], endId);
+
+  if (!stmt.elseStatement) return [...thenOut, nodeId];
+
+  const falseNodeId = nextId('process');
+  nodes.push({ id: falseNodeId, label: 'else', kind: 'process' });
+  edges.push({ from: nodeId, to: falseNodeId, label: 'false' });
+  const elseOut = FlowAnalyzer.visitStatement(stmt.elseStatement, sf, nodes, edges, [falseNodeId], endId);
+  return [...thenOut, ...elseOut];
+}
+
+function visitLoopStatement(
+  stmt: ts.ForStatement | ts.WhileStatement | ts.DoStatement,
+  sf: ts.SourceFile,
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  prevIds: string[],
+  line: number,
+): string[] {
+  const nodeId = nextId('loop');
+  nodes.push({ id: nodeId, label: stmt.getText(sf).slice(0, 30) + '…', kind: 'loop', line });
+  linkPrev(edges, prevIds, nodeId);
+  return [nodeId];
+}
+
+function visitTryStatement(
+  stmt: ts.TryStatement,
+  sf: ts.SourceFile,
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  prevIds: string[],
+  endId: string,
+  line: number,
+): string[] {
+  const tryId = nextId('process');
+  nodes.push({ id: tryId, label: 'try', kind: 'process', line });
+  linkPrev(edges, prevIds, tryId);
+
+  const tryOut = FlowAnalyzer.visitBlock(stmt.tryBlock, sf, nodes, edges, [tryId], endId);
+  if (!stmt.catchClause) return tryOut;
+
+  const catchId = nextId('error');
+  nodes.push({ id: catchId, label: 'catch', kind: 'error', line });
+  edges.push({ from: tryId, to: catchId, label: 'error' });
+  const catchOut = FlowAnalyzer.visitBlock(stmt.catchClause.block, sf, nodes, edges, [catchId], endId);
+  return [...tryOut, ...catchOut];
+}
+
+function visitReturnStatement(
+  stmt: ts.ReturnStatement,
+  sf: ts.SourceFile,
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  prevIds: string[],
+  endId: string,
+  line: number,
+): string[] {
+  const nodeId = nextId('return');
+  const label = stmt.expression ? `return ${stmt.expression.getText(sf).slice(0, 30)}` : 'return';
+  nodes.push({ id: nodeId, label, kind: 'return', line });
+  linkPrev(edges, prevIds, nodeId);
+  edges.push({ from: nodeId, to: endId });
+  return [];
+}
+
+function visitThrowStatement(
+  stmt: ts.ThrowStatement,
+  sf: ts.SourceFile,
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  prevIds: string[],
+  endId: string,
+  line: number,
+): string[] {
+  const nodeId = nextId('error');
+  nodes.push({ id: nodeId, label: `throw ${stmt.expression.getText(sf).slice(0, 30)}`, kind: 'error', line });
+  linkPrev(edges, prevIds, nodeId);
+  edges.push({ from: nodeId, to: endId });
+  return [];
+}
+
 export class FlowAnalyzer {
   /**
    * 関数宣言の制御フローグラフを生成する。
@@ -41,7 +143,8 @@ export class FlowAnalyzer {
     return { nodes, edges };
   }
 
-  private static visitBlock(
+  /** @internal Used by module-level flow helpers */
+  static visitBlock(
     block: ts.Block,
     sf: ts.SourceFile,
     nodes: FlowNode[],
@@ -56,7 +159,8 @@ export class FlowAnalyzer {
     return current;
   }
 
-  private static visitStatement(
+  /** @internal Used by module-level flow helpers */
+  static visitStatement(
     stmt: ts.Statement,
     sf: ts.SourceFile,
     nodes: FlowNode[],
@@ -67,81 +171,30 @@ export class FlowAnalyzer {
     const line = sf.getLineAndCharacterOfPosition(stmt.getStart()).line + 1;
 
     if (ts.isIfStatement(stmt)) {
-      const condText = stmt.expression.getText(sf).slice(0, 40);
-      const nodeId = nextId('decision');
-      nodes.push({ id: nodeId, label: condText, kind: 'decision', line });
-      for (const p of prevIds) edges.push({ from: p, to: nodeId });
-
-      // true ブランチ
-      const trueNodeId = nextId('process');
-      nodes.push({ id: trueNodeId, label: 'then', kind: 'process' });
-      edges.push({ from: nodeId, to: trueNodeId, label: 'true' });
-      const thenOut = FlowAnalyzer.visitStatement(stmt.thenStatement, sf, nodes, edges, [trueNodeId], endId);
-
-      if (stmt.elseStatement) {
-        const falseNodeId = nextId('process');
-        nodes.push({ id: falseNodeId, label: 'else', kind: 'process' });
-        edges.push({ from: nodeId, to: falseNodeId, label: 'false' });
-        const elseOut = FlowAnalyzer.visitStatement(stmt.elseStatement, sf, nodes, edges, [falseNodeId], endId);
-        return [...thenOut, ...elseOut];
-      }
-      return [...thenOut, nodeId];
+      return visitIfStatement(stmt, sf, nodes, edges, prevIds, endId, line);
     }
-
     if (ts.isForStatement(stmt) || ts.isWhileStatement(stmt) || ts.isDoStatement(stmt)) {
-      const nodeId = nextId('loop');
-      nodes.push({ id: nodeId, label: stmt.getText(sf).slice(0, 30) + '…', kind: 'loop', line });
-      for (const p of prevIds) edges.push({ from: p, to: nodeId });
-      return [nodeId];
+      return visitLoopStatement(stmt, sf, nodes, edges, prevIds, line);
     }
-
     if (ts.isTryStatement(stmt)) {
-      const tryId = nextId('process');
-      nodes.push({ id: tryId, label: 'try', kind: 'process', line });
-      for (const p of prevIds) edges.push({ from: p, to: tryId });
-
-      const tryOut = FlowAnalyzer.visitBlock(stmt.tryBlock, sf, nodes, edges, [tryId], endId);
-      if (stmt.catchClause) {
-        const catchId = nextId('error');
-        nodes.push({ id: catchId, label: 'catch', kind: 'error', line });
-        edges.push({ from: tryId, to: catchId, label: 'error' });
-        const catchOut = FlowAnalyzer.visitBlock(stmt.catchClause.block, sf, nodes, edges, [catchId], endId);
-        return [...tryOut, ...catchOut];
-      }
-      return tryOut;
+      return visitTryStatement(stmt, sf, nodes, edges, prevIds, endId, line);
     }
-
     if (ts.isReturnStatement(stmt)) {
-      const nodeId = nextId('return');
-      const label = stmt.expression ? `return ${stmt.expression.getText(sf).slice(0, 30)}` : 'return';
-      nodes.push({ id: nodeId, label, kind: 'return', line });
-      for (const p of prevIds) edges.push({ from: p, to: nodeId });
-      edges.push({ from: nodeId, to: endId });
-      return [];
+      return visitReturnStatement(stmt, sf, nodes, edges, prevIds, endId, line);
     }
-
     if (ts.isThrowStatement(stmt)) {
-      const nodeId = nextId('error');
-      nodes.push({ id: nodeId, label: `throw ${stmt.expression.getText(sf).slice(0, 30)}`, kind: 'error', line });
-      for (const p of prevIds) edges.push({ from: p, to: nodeId });
-      edges.push({ from: nodeId, to: endId });
-      return [];
+      return visitThrowStatement(stmt, sf, nodes, edges, prevIds, endId, line);
     }
-
     if (ts.isBlock(stmt)) {
       return FlowAnalyzer.visitBlock(stmt, sf, nodes, edges, prevIds, endId);
     }
 
-    if (ts.isExpressionStatement(stmt)) {
-      const nodeId = nextId('process');
-      nodes.push({ id: nodeId, label: stmt.expression.getText(sf).slice(0, 40), kind: 'process', line });
-      for (const p of prevIds) edges.push({ from: p, to: nodeId });
-      return [nodeId];
-    }
-
-    // その他の文（宣言など）は process として扱う
+    // ExpressionStatement またはその他の文（宣言など）は process として扱う
+    const label = ts.isExpressionStatement(stmt)
+      ? stmt.expression.getText(sf).slice(0, 40)
+      : stmt.getText(sf).slice(0, 40);
     const nodeId = nextId('process');
-    nodes.push({ id: nodeId, label: stmt.getText(sf).slice(0, 40), kind: 'process', line });
+    nodes.push({ id: nodeId, label, kind: 'process', line });
     for (const p of prevIds) edges.push({ from: p, to: nodeId });
     return [nodeId];
   }

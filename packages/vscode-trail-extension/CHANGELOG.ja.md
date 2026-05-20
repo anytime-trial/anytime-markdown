@@ -6,6 +6,44 @@
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-05-20
+
+### 追加
+
+- **LEP (Layered Event Pipeline) — GitHub PR review 取り込み**: `GitHubPrReviewIngester` が GitHub PR レビューの finding を新たな `github_pr_review` ソースイベントとして取り込む。`FindingAnalyzer` が finding を解析して DB に書き込む
+- **LEP — DORA メトリクス集計**: Layer 4 `DoraMetricsAggregator` が統合イベントストリームからデプロイ頻度・リードタイム・変更失敗率・MTTR を算出
+- **LEP — クロスソース相関**: `CrossSourceCorrelator` がコミット・セッション・PR レビューを横断的に紐付け、`cross_source_correlations` を DB に書き込む。Trail viewer での関連シグナル表示を可能にする
+- **`lep.json` 設定一本化**: `LepConfig` スキーマを全パイプライン設定をカバーするよう拡張。起動時に `config.json` を自動移行・リネーム。スケジュール / LLM / メモリ / `gitRoots` は `lep.json` に一本化
+
+### 変更
+
+- **LEP — ステージ enum と `memory` スコープスキップ**: パイプラインステージにメモリ処理が含まれない場合、memory スコープを失敗でなく `skipped` 表示するよう変更
+- **LEP — LLM プリフライトヘルスチェック**: メモリ解析ステージ前に LLM 到達性チェックを実施。到達不能な analyzer は部分スキップとして報告し、残りを継続実行
+- **`memory-core` 7 analyzer 分解**: モノリシックなメモリパイプラインを `lep.json` 配線で動作する 7 つの focused analyzer に分割
+
+### 修正
+
+- `LEP ingester → consumer` 初期化順序バグ: `LepOrchestrator` 起動順を修正し、`import_sessions` イベントが 0 件になる問題を解消
+- `ollama-core` / `memory-core` split-brain: `resolveOllamaBaseUrl` が `lep.json` から単一の権威ある `baseUrl` を解決し、daemon と拡張間の設定分岐を排除
+
+### セキュリティ
+
+- `trail-server` の 13 件の HTTP 500 ハンドラでスタックトレース露出をサニタイズ
+- `trail-server` / `vscode-trail-extension` で `fetch` 前にデーモン URL を検証
+- `memory-core` のトレール添付一時ファイルに `mkdtempSync` を使用し TOCTOU 競合を排除
+- spec/install/loader の 4 パスで TOCTOU ファイルシステム競合を解消
+- `hono` / `mermaid` / `next-intl` / `ws` を更新し中程度 CVE 4 件をパッチ
+
+### Trail Core (trail-core / trail-server / memory-core / trail-db)
+
+- `trail-server`: `Config.ts`（`config.json` ローダー）を削除。デーモンと拡張を完全に `lep.json` に配線
+- `trail-db`: 16 メソッドの認知的複雑度を 15 以下に削減（`SyncService.doSync/syncManualElements`・`ClaudeCodeBehaviorAnalyzer.analyze`・`communityCarryOver` resolve ヘルパー・`ExecFileGitService` numstat/namestatus ヘルパー）（S3776）
+- `trail-db`: ステートメントカバレッジを 56% → 70% に向上。analytics・search・stats・セッション割り込みの特性テストを追加
+- `trail-core`: 30+ 関数の認知的複雑度を 15 以下に削減（S3776）
+- `trail-core`: 境界正規表現の範囲を厳密化し多項式 ReDoS を回避
+- `trail-db`: `sessions.repo_name` を JSONL の `cwd` フィールドから導出するよう修正
+- `memory-core`: E5 テストで `FIX_COMMITTED_AT` をフロントマター日付に固定
+
 ## [0.21.0] - 2026-05-17
 
 ### 追加

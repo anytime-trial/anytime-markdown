@@ -24,6 +24,20 @@ export type MemoryCoreServiceStartOptions = BaseRunnerStartOptions;
  * デフォルトの pipelineRunner は memory-core の全パイプラインを順次実行する。
  * テストでは pipelineRunner オプションを差し替えて副作用を排除する。
  */
+/**
+ * LLM (Ollama) 解決済み設定。lep.json から解決した値を ingest パイプラインへ通し、
+ * health-check と同一の baseUrl / model を使う (split-brain 防止)。
+ * 全フィールド省略可: 省略時は env / 内蔵既定にフォールバックする。
+ */
+export interface MemoryLlmConfig {
+  /** Ollama baseUrl (resolveOllamaBaseUrl の入力に使う lep.json 値)。 */
+  baseUrl?: string;
+  /** 生成モデル (env MEMORY_CORE_GEN_MODEL を畳み込んだ解決済み値)。 */
+  chatModel?: string;
+  /** 埋め込みモデル。 */
+  embedModel?: string;
+}
+
 export interface PipelineRunnerContext {
   logger: PipelineLogger;
   trailDbPath: string;
@@ -32,6 +46,8 @@ export interface PipelineRunnerContext {
   gitRoot?: string;
   /** 初回 backfill 期間 (日)。省略時は runner 側 default (5)。 */
   backfillDays?: number;
+  /** LLM 接続先・モデル (省略時は env / 内蔵既定)。 */
+  llm?: MemoryLlmConfig;
   /**
    * memory-core.db の世代バックアップ設定。
    * - backupGenerations: 保持世代数 (0 以下で無効、既定 1)
@@ -74,6 +90,8 @@ export interface MemoryCoreServiceOptions {
    * trail.db から遡って読み込む日数。省略時は 5 日。
    */
   backfillDays?: number;
+  /** LLM 接続先・モデル (lep.json から解決した値)。省略時は env / 内蔵既定。 */
+  llm?: MemoryLlmConfig;
   /**
    * memory-core.db の世代バックアップ設定。anytimeDatabase.backup.* と
    * 同じ値を渡す想定。省略時は generations=1, intervalDays=1 (database-core

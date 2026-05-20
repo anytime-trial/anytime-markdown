@@ -87,43 +87,36 @@ function isTypeOnlyModule(sourceFile: ts.SourceFile): boolean {
 
   for (const stmt of sourceFile.statements) {
     hasAnyStatement = true;
-
-    // import 文は value export とは無関係 (副作用 import も除外側に倒す)
-    if (ts.isImportDeclaration(stmt)) continue;
-
-    // 型のみの宣言
-    if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) continue;
-
-    // export type { X } / export { type X } はスキップ
-    if (ts.isExportDeclaration(stmt)) {
-      if (stmt.isTypeOnly) continue;
-      // export { foo } / export * from 'x' は値の再エクスポートとして扱う
+    if (isValueStatement(stmt)) {
       hasValueExport = true;
-      continue;
     }
-
-    // 値レベル宣言の export 修飾子チェック
-    if (
-      ts.isVariableStatement(stmt) ||
-      ts.isFunctionDeclaration(stmt) ||
-      ts.isClassDeclaration(stmt) ||
-      ts.isEnumDeclaration(stmt)
-    ) {
-      const hasExport = stmt.modifiers?.some(
-        (m) => m.kind === ts.SyntaxKind.ExportKeyword,
-      );
-      if (hasExport) {
-        hasValueExport = true;
-        continue;
-      }
-      // export なしのトップレベル値宣言 (副作用) は型のみとは見なさない
-      hasValueExport = true;
-      continue;
-    }
-
-    // その他のトップレベル statement (ExpressionStatement 等) は副作用扱い
-    hasValueExport = true;
   }
 
   return hasAnyStatement && !hasValueExport;
+}
+
+/** Returns true if the statement contributes a runtime value (not type-only). */
+function isValueStatement(stmt: ts.Statement): boolean {
+  // import 文は value export とは無関係 (副作用 import も除外側に倒す)
+  if (ts.isImportDeclaration(stmt)) return false;
+
+  // 型のみの宣言
+  if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) return false;
+
+  // export type { X } / export { type X } はスキップ
+  // export { foo } / export * from 'x' は値の再エクスポートとして扱う
+  if (ts.isExportDeclaration(stmt)) return !stmt.isTypeOnly;
+
+  // 値レベル宣言: export 修飾子の有無に関わらず副作用 (export なしも値とみなす)
+  if (
+    ts.isVariableStatement(stmt) ||
+    ts.isFunctionDeclaration(stmt) ||
+    ts.isClassDeclaration(stmt) ||
+    ts.isEnumDeclaration(stmt)
+  ) {
+    return true;
+  }
+
+  // その他のトップレベル statement (ExpressionStatement 等) は副作用扱い
+  return true;
 }

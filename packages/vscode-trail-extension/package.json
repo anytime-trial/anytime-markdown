@@ -2,7 +2,7 @@
   "name": "anytime-trail",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -185,6 +185,17 @@
           "default": false,
           "markdownDescription": "%config.analyzeAll.enabled%"
         },
+        "anytimeTrail.lep.stageOverride": {
+          "type": "string",
+          "enum": ["", "disabled", "sources", "primary", "memory", "primary+memory", "all"],
+          "default": "",
+          "markdownDescription": "%config.lep.stageOverride%"
+        },
+        "anytimeTrail.lep.configPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "%config.lep.configPath%"
+        },
         "anytimeTrail.logs.minLevel": {
           "type": "string",
           "enum": ["debug", "info", "warn", "error"],
@@ -227,7 +238,7 @@
     "ignore": "7.0.5",
     "pg": "8.20.0",
     "typescript": "5.9.3",
-    "ws": "8.18.2",
+    "ws": "8.20.1",
     "zod": "3.25.76"
   },
   "devDependencies": {

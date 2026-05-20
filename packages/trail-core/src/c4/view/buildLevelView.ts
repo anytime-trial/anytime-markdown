@@ -63,10 +63,7 @@ export function buildLevelView(
   const showAncestorEdges = options.showAncestorEdges ?? true;
 
   if (level >= 4) {
-    const cloned = cloneDoc(doc);
-    if (showAncestorEdges) return cloned;
-    const nodeById = new Map(cloned.nodes.map(n => [n.id, n]));
-    return { ...cloned, edges: filterAncestorEdges(cloned.edges, nodeById, node => node.type === 'frame') };
+    return buildLevel4View(doc, showAncestorEdges);
   }
 
   // system フレーム（depth=1）がある場合、表示可能な深さを +1 する
@@ -76,57 +73,18 @@ export function buildLevelView(
   const maxFrameDepth = hasSystemFrame ? level : level - 1;
 
   // 子要素を持つフレーム ID の集合（子なしフレームは rect に変換する）
-  const framesWithChildren = new Set<string>();
-  for (const n of doc.nodes) {
-    if (n.groupId) framesWithChildren.add(n.groupId);
-  }
+  const framesWithChildren = buildFramesWithChildren(doc.nodes);
 
   const visibleNodes: GraphNode[] = [];
   const visibleNodeIds = new Set<string>();
 
   for (const node of doc.nodes) {
-    if (node.type === 'frame') {
-      const depth = getFrameDepth(node, doc.nodes);
-      if (depth > maxFrameDepth) continue;
-      // depth == maxFrameDepth、または子要素なしの中間フレーム（手動登録等）は rect に変換
-      const isLeaf = depth === maxFrameDepth || !framesWithChildren.has(node.id);
-      if (isLeaf) {
-        const c4NodeFill = node.metadata?.c4NodeFill as string | undefined;
-        const c4NodeStroke = node.metadata?.c4NodeStroke as string | undefined;
-        visibleNodes.push({
-          ...node,
-          style: {
-            ...node.style,
-            ...(c4NodeFill ? { fill: c4NodeFill } : {}),
-            ...(c4NodeStroke ? { stroke: c4NodeStroke } : {}),
-          },
-          type: 'rect',
-          width: 160,
-          height: 60,
-        });
-      } else {
-        visibleNodes.push({ ...node, style: { ...node.style } });
-      }
-      visibleNodeIds.add(node.id);
-    } else {
-      // 非フレームノード: c4Type がレベルの表示対象なら含める（person, 外部 system 等）
-      const c4Type = node.metadata?.c4Type as C4ElementType | undefined;
-      const visibleTypes = VISIBLE_C4_TYPES[level];
-      if (c4Type && visibleTypes?.has(c4Type)) {
-        visibleNodes.push({ ...node, style: { ...node.style } });
-        visibleNodeIds.add(node.id);
-      }
-    }
+    const added = addVisibleNode(node, doc.nodes, level, maxFrameDepth, framesWithChildren, visibleNodes);
+    if (added) visibleNodeIds.add(node.id);
   }
   const visibleNodeById = new Map(visibleNodes.map(n => [n.id, n]));
 
-  const visibleEdges: GraphEdge[] = doc.edges
-    .filter(e => {
-      const fromId = e.from.nodeId;
-      const toId = e.to.nodeId;
-      return fromId && toId && visibleNodeIds.has(fromId) && visibleNodeIds.has(toId);
-    })
-    .map(e => ({ ...e, from: { ...e.from }, to: { ...e.to } }));
+  const visibleEdges = filterEdgesByVisibleNodes(doc.edges, visibleNodeIds);
   const filteredEdges = showAncestorEdges
     ? visibleEdges
     : filterAncestorEdges(
@@ -136,4 +94,93 @@ export function buildLevelView(
     );
 
   return { ...doc, nodes: visibleNodes, edges: filteredEdges };
+}
+
+function buildLevel4View(doc: GraphDocument, showAncestorEdges: boolean): GraphDocument {
+  const cloned = cloneDoc(doc);
+  if (showAncestorEdges) return cloned;
+  const nodeById = new Map(cloned.nodes.map(n => [n.id, n]));
+  return { ...cloned, edges: filterAncestorEdges(cloned.edges, nodeById, node => node.type === 'frame') };
+}
+
+function buildFramesWithChildren(nodes: readonly GraphNode[]): Set<string> {
+  const framesWithChildren = new Set<string>();
+  for (const n of nodes) {
+    if (n.groupId) framesWithChildren.add(n.groupId);
+  }
+  return framesWithChildren;
+}
+
+function filterEdgesByVisibleNodes(
+  edges: readonly GraphEdge[],
+  visibleNodeIds: ReadonlySet<string>,
+): GraphEdge[] {
+  return edges
+    .filter(e => {
+      const fromId = e.from.nodeId;
+      const toId = e.to.nodeId;
+      return fromId && toId && visibleNodeIds.has(fromId) && visibleNodeIds.has(toId);
+    })
+    .map(e => ({ ...e, from: { ...e.from }, to: { ...e.to } }));
+}
+
+/** ノードを visible リストに追加する。追加した場合 true を返す。 */
+function addVisibleNode(
+  node: GraphNode,
+  allNodes: readonly GraphNode[],
+  level: number,
+  maxFrameDepth: number,
+  framesWithChildren: ReadonlySet<string>,
+  visibleNodes: GraphNode[],
+): boolean {
+  if (node.type === 'frame') {
+    return addVisibleFrameNode(node, allNodes, maxFrameDepth, framesWithChildren, visibleNodes);
+  }
+  return addVisibleNonFrameNode(node, level, visibleNodes);
+}
+
+function addVisibleFrameNode(
+  node: GraphNode,
+  allNodes: readonly GraphNode[],
+  maxFrameDepth: number,
+  framesWithChildren: ReadonlySet<string>,
+  visibleNodes: GraphNode[],
+): boolean {
+  const depth = getFrameDepth(node, allNodes);
+  if (depth > maxFrameDepth) return false;
+  // depth == maxFrameDepth、または子要素なしの中間フレーム（手動登録等）は rect に変換
+  const isLeaf = depth === maxFrameDepth || !framesWithChildren.has(node.id);
+  if (isLeaf) {
+    const c4NodeFill = node.metadata?.c4NodeFill as string | undefined;
+    const c4NodeStroke = node.metadata?.c4NodeStroke as string | undefined;
+    visibleNodes.push({
+      ...node,
+      style: {
+        ...node.style,
+        ...(c4NodeFill ? { fill: c4NodeFill } : {}),
+        ...(c4NodeStroke ? { stroke: c4NodeStroke } : {}),
+      },
+      type: 'rect',
+      width: 160,
+      height: 60,
+    });
+  } else {
+    visibleNodes.push({ ...node, style: { ...node.style } });
+  }
+  return true;
+}
+
+function addVisibleNonFrameNode(
+  node: GraphNode,
+  level: number,
+  visibleNodes: GraphNode[],
+): boolean {
+  // 非フレームノード: c4Type がレベルの表示対象なら含める（person, 外部 system 等）
+  const c4Type = node.metadata?.c4Type as C4ElementType | undefined;
+  const visibleTypes = VISIBLE_C4_TYPES[level];
+  if (c4Type && visibleTypes?.has(c4Type)) {
+    visibleNodes.push({ ...node, style: { ...node.style } });
+    return true;
+  }
+  return false;
 }

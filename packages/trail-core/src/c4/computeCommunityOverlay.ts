@@ -67,6 +67,96 @@ function pickByRepo(
   return candidates[0];
 }
 
+/** file:: 要素 ID から拡張子なし相対パスを返す。 */
+function cleanedPath(elementId: string): string {
+  return stripExt(elementId.slice(FILE_PREFIX.length));
+}
+
+/** nodesByPath + selectedRepo から一致 CodeGraphNode を返す。 */
+function resolveNode(
+  elementId: string,
+  nodesByPath: ReadonlyMap<string, readonly CodeGraphNode[]>,
+  selectedRepo: string | null,
+): CodeGraphNode | undefined {
+  const cleaned = cleanedPath(elementId);
+  const candidates = nodesByPath.get(cleaned);
+  return candidates ? pickByRepo(candidates, selectedRepo) : undefined;
+}
+
+/** L4 オーバーレイエントリを生成する。 */
+function buildL4Entry(
+  el: C4Model['elements'][number],
+  nodesByPath: ReadonlyMap<string, readonly CodeGraphNode[]>,
+  selectedRepo: string | null,
+  godNodeSet: ReadonlySet<string>,
+  summaries: CodeGraph['communitySummaries'],
+): CommunityOverlayEntry | null {
+  if (el.type !== 'code') return null;
+  if (!el.id.startsWith(FILE_PREFIX)) return null;
+  const node = resolveNode(el.id, nodesByPath, selectedRepo);
+  if (!node) return null;
+  return {
+    elementId: el.id,
+    dominantCommunity: node.community,
+    dominantRatio: 1,
+    breakdown: [{ community: node.community, count: 1 }],
+    isGodNode: godNodeSet.has(node.id),
+    communitySummary: summaries?.[node.community],
+  };
+}
+
+/** コミュニティカウント Map からブレークダウン配列を生成する。 */
+function buildBreakdown(
+  counts: Map<number, number>,
+): Array<{ community: number; count: number }> {
+  return Array.from(counts, ([community, count]) => ({ community, count }))
+    .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.community - b.community));
+}
+
+/** L3 component 要素の descendant id から community カウントを集計する。 */
+function aggregateCommunityCountsForComponent(
+  elementId: string,
+  c4Model: C4Model,
+  nodesByPath: ReadonlyMap<string, readonly CodeGraphNode[]>,
+  selectedRepo: string | null,
+): Map<number, number> {
+  const descendantIds = collectDescendantIds(c4Model.elements, elementId);
+  const counts = new Map<number, number>();
+  for (const id of descendantIds) {
+    if (!id.startsWith(FILE_PREFIX)) continue;
+    const node = resolveNode(id, nodesByPath, selectedRepo);
+    if (!node) continue;
+    counts.set(node.community, (counts.get(node.community) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** L3 オーバーレイエントリを生成する。 */
+function buildL3Entry(
+  el: C4Model['elements'][number],
+  c4Model: C4Model,
+  nodesByPath: ReadonlyMap<string, readonly CodeGraphNode[]>,
+  selectedRepo: string | null,
+  summaries: CodeGraph['communitySummaries'],
+): CommunityOverlayEntry | null {
+  if (el.type !== 'component') return null;
+  const counts = aggregateCommunityCountsForComponent(el.id, c4Model, nodesByPath, selectedRepo);
+  if (counts.size === 0) return null;
+
+  const breakdown = buildBreakdown(counts);
+  const total = breakdown.reduce((sum, e) => sum + e.count, 0);
+  const dominant = breakdown[0];
+
+  return {
+    elementId: el.id,
+    dominantCommunity: dominant.community,
+    dominantRatio: dominant.count / total,
+    breakdown,
+    isGodNode: false,
+    communitySummary: summaries?.[dominant.community],
+  };
+}
+
 /**
  * C4 要素 ID と CodeGraph コミュニティを対応付けるオーバーレイマップを生成する。
  *
@@ -99,54 +189,16 @@ export function computeCommunityOverlay(
 
   if (level === 4) {
     for (const el of c4Model.elements) {
-      if (el.type !== 'code') continue;
-      if (!el.id.startsWith(FILE_PREFIX)) continue;
-      const cleaned = stripExt(el.id.slice(FILE_PREFIX.length));
-      const candidates = nodesByPath.get(cleaned);
-      const node = candidates ? pickByRepo(candidates, selectedRepo) : undefined;
-      if (!node) continue;
-
-      result.set(el.id, {
-        elementId: el.id,
-        dominantCommunity: node.community,
-        dominantRatio: 1,
-        breakdown: [{ community: node.community, count: 1 }],
-        isGodNode: godNodeSet.has(node.id),
-        communitySummary: summaries?.[node.community],
-      });
+      const entry = buildL4Entry(el, nodesByPath, selectedRepo, godNodeSet, summaries);
+      if (entry) result.set(el.id, entry);
     }
     return result;
   }
 
   // level === 3
   for (const el of c4Model.elements) {
-    if (el.type !== 'component') continue;
-    const descendantIds = collectDescendantIds(c4Model.elements, el.id);
-    const counts = new Map<number, number>();
-    for (const id of descendantIds) {
-      if (!id.startsWith(FILE_PREFIX)) continue;
-      const cleaned = stripExt(id.slice(FILE_PREFIX.length));
-      const candidates = nodesByPath.get(cleaned);
-      const node = candidates ? pickByRepo(candidates, selectedRepo) : undefined;
-      if (!node) continue;
-      counts.set(node.community, (counts.get(node.community) ?? 0) + 1);
-    }
-    if (counts.size === 0) continue;
-
-    // 降順 count、同数時は community 番号昇順
-    const breakdown = Array.from(counts, ([community, count]) => ({ community, count }))
-      .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.community - b.community));
-    const total = breakdown.reduce((sum, e) => sum + e.count, 0);
-    const dominant = breakdown[0];
-
-    result.set(el.id, {
-      elementId: el.id,
-      dominantCommunity: dominant.community,
-      dominantRatio: dominant.count / total,
-      breakdown,
-      isGodNode: false,
-      communitySummary: summaries?.[dominant.community],
-    });
+    const entry = buildL3Entry(el, c4Model, nodesByPath, selectedRepo, summaries);
+    if (entry) result.set(el.id, entry);
   }
   return result;
 }

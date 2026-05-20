@@ -492,3 +492,87 @@ export const CREATE_EXTENSION_LOGS_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_extension_logs_level_timestamp ON extension_logs(level, timestamp)`,
   `CREATE INDEX IF NOT EXISTS idx_extension_logs_source ON extension_logs(source)`,
 ];
+
+// LEP Layer 4 (Aggregator): DORA 指標の月次集計。`DoraMetricsAggregator` が
+// 既存 trail.db データ (releases / session_commits) のみから算出して書き込む。
+// 本 Step で算出するのは deployment frequency (期間内 release 件数) と
+// lead time for changes (commit → 含有 release の中央値) の 2 指標のみ。
+// change_failure_rate / mttr は bug→release attribution リンクが実データに無いため
+// 列を設けず deferred とする (列追加は将来の additive migration で対応)。
+export const CREATE_DORA_METRICS = `CREATE TABLE IF NOT EXISTS dora_metrics (
+  repo_name TEXT NOT NULL,
+  period TEXT NOT NULL CHECK (period GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]'),
+  deployment_frequency REAL NOT NULL DEFAULT 0,
+  lead_time_hours REAL,
+  computed_at TEXT NOT NULL CHECK (computed_at GLOB ${TS_GLOB_MS} OR computed_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_name, period)
+) STRICT`;
+
+// LEP 新ソース参照実装 (Step 4b): GitHub PR review の生データ。
+// review_id は GitHub REST の review id (グローバル一意) を文字列で保持し PRIMARY KEY とする。
+// repo_name / pr_number を参照する FK (pr_review_comments) を妥当にするため、合成 PK ではなく
+// review_id 単独 PK とし、repo × PR の検索はインデックスで賄う。
+export const CREATE_PR_REVIEWS = `CREATE TABLE IF NOT EXISTS pr_reviews (
+  review_id TEXT PRIMARY KEY,
+  repo_name TEXT NOT NULL,
+  pr_number INTEGER NOT NULL,
+  author TEXT NOT NULL DEFAULT '',
+  state TEXT NOT NULL CHECK (state IN ('APPROVED', 'CHANGES_REQUESTED', 'COMMENTED')),
+  submitted_at TEXT NOT NULL CHECK (submitted_at GLOB ${TS_GLOB_MS} OR submitted_at GLOB ${TS_GLOB_NO_MS}),
+  body TEXT NOT NULL DEFAULT '',
+  body_hash TEXT NOT NULL DEFAULT ''
+) STRICT`;
+
+// PR review に紐づく行コメント。review_id に対する複合 PK + ON DELETE CASCADE。
+export const CREATE_PR_REVIEW_COMMENTS = `CREATE TABLE IF NOT EXISTS pr_review_comments (
+  review_id TEXT NOT NULL REFERENCES pr_reviews(review_id) ON DELETE CASCADE,
+  comment_index INTEGER NOT NULL,
+  file_path TEXT NOT NULL DEFAULT '',
+  line_number INTEGER,
+  body TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (review_id, comment_index)
+) STRICT`;
+
+export const CREATE_PR_REVIEW_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_pr_reviews_repo_pr ON pr_reviews(repo_name, pr_number)`,
+  `CREATE INDEX IF NOT EXISTS idx_pr_reviews_submitted_at ON pr_reviews(submitted_at)`,
+];
+
+// PR review から抽出した finding (Step 4c)。memory-core の memory_review_findings とは
+// 完全に分離した独立テーブル。memory-core の source_type enum (CHECK 制約) を変更せず、
+// drift/compare クエリへ影響を与えないため独立させる (lep-step4 プラン §6.3.2)。
+// severity は LLM 分類時のみ設定し、LLM 不在時は NULL (raw コメントのみ保存)。
+export const CREATE_PR_REVIEW_FINDINGS = `CREATE TABLE IF NOT EXISTS pr_review_findings (
+  finding_id TEXT PRIMARY KEY,
+  review_id TEXT NOT NULL REFERENCES pr_reviews(review_id) ON DELETE CASCADE,
+  file_path TEXT NOT NULL DEFAULT '',
+  line_number INTEGER,
+  severity TEXT CHECK (severity IS NULL OR severity IN ('error', 'warn', 'info')),
+  category TEXT,
+  body TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_PR_REVIEW_FINDINGS_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_pr_review_findings_review_id ON pr_review_findings(review_id)`,
+];
+
+// LEP Layer 4 (Aggregator): 複数ソース横断の相関 (Step 4d)。
+// CrossSourceCorrelator が既存 trail.db データ (pr_reviews / pr_review_findings /
+// session_commits / releases / commit_files) のみを突合して書き込む。新規テーブルのみ。
+export const CREATE_CROSS_SOURCE_CORRELATIONS = `CREATE TABLE IF NOT EXISTS cross_source_correlations (
+  correlation_type TEXT NOT NULL
+    CHECK (correlation_type IN ('pr_review_session', 'pr_review_release', 'pr_finding_commit')),
+  repo_name TEXT NOT NULL DEFAULT '',
+  source_a_kind TEXT NOT NULL CHECK (source_a_kind IN ('pr_review', 'pr_finding')),
+  source_a_id TEXT NOT NULL,
+  source_b_kind TEXT NOT NULL CHECK (source_b_kind IN ('session', 'release', 'commit')),
+  source_b_id TEXT NOT NULL,
+  confidence TEXT NOT NULL DEFAULT 'low' CHECK (confidence IN ('high', 'medium', 'low')),
+  computed_at TEXT NOT NULL CHECK (computed_at GLOB ${TS_GLOB_MS} OR computed_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (correlation_type, source_a_id, source_b_id)
+) STRICT`;
+
+export const CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_cross_source_correlations_repo ON cross_source_correlations(repo_name)`,
+];

@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-05-20
+
+### セキュリティ
+
+- `claudeHookSetup` の末尾スラッシュ正規表現 `/\/+$/` を O(n) の `charCodeAt` スキャンに置き換え、多項式 ReDoS を修正（CodeQL #818、`vscode-common`）
+- Gantt DoS および CSS/HTML インジェクション CVE に対応するため `mermaid` を 11.15.0 へアップグレード
+
+### Editor Core (markdown-core)
+
+- `MarkdownEditorPage` のエディタ初期化 effect から `applyInitialFontSizeOnce` / `buildEditorPortalTarget` ヘルパーを抽出し、認知的複雑度を削減（S3776）
+- セキュリティ: `mermaid` 依存をアップグレード（上記参照）
+
 ## [0.15.2] - 2026-05-17
 
 ### 変更

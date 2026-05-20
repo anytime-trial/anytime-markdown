@@ -98,6 +98,7 @@ export type {
   PipelineStatusEntry,
   PipelineState,
 } from './status/PipelineStatusWriter';
+export { PIPELINE_SCOPES } from './service/pipelineScopes';
 
 export { runRagFtsRebuild } from './pipeline/runRagFtsRebuild';
 export type {
@@ -133,6 +134,12 @@ export { ChatService } from './chat/ChatService';
 export type { ChatServiceOptions } from './chat/ChatService';
 
 export { MemoryCoreService, defaultStatePath } from './service/MemoryCoreService';
+export { MemoryDbSession } from './service/MemoryDbSession';
+export type {
+  ScopeResult,
+  MemoryCoreScopeRunner,
+  MemoryDbSessionDeps,
+} from './service/MemoryDbSession';
 export { defaultState, readState, writeState, STATE_SCHEMA_VERSION } from './service/state';
 export type { ReadStateOptions } from './service/state';
 export { runMemoryCorePipeline } from './service/defaultMemoryCorePipelineRunner';
@@ -154,3 +161,22 @@ export type {
   RunnerStartOptions,
   RunnerStatus,
 } from './runner/types';
+
+// Layered Event Pipeline (LEP) — 型・EventBus・Orchestrator・BaseAnalyzer
+export {
+  EventBus,
+  LepOrchestrator,
+  BaseAnalyzer,
+  LEP_STAGES,
+  stageIncludesMemory,
+  topoSortByDependsOn,
+} from './lep';
+export type {
+  AnalyzerEvent,
+  Analyzer,
+  AnalyzerContext,
+  EventBusPublisher,
+  LepRunOnceOptions,
+  LepRunOnceResult,
+  LepStage,
+} from './lep';

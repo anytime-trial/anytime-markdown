@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-20
+
+### セキュリティ
+
+- `makeTransport` の `postMessage` データ形状を検証してからリスナーへ通知するよう修正: `typeof === 'object'` および `typeof type === 'string'` ガードを追加し `InsufficientPostmessageValidation`（SnykCode）を解消
+
+### Database Core (database-core / database-viewer)
+
+- バージョン同期のみ (ソース変更なし)
+
 ## [0.2.1] - 2026-05-17
 
 ### 追加

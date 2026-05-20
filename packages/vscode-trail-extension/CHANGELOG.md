@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-05-20
+
+### Added
+
+- **LEP (Layered Event Pipeline) — GitHub PR review ingestion**: `GitHubPrReviewIngester` ingests GitHub PR review findings as a new `github_pr_review` source event type; `FindingAnalyzer` parses and stores review findings into the DB
+- **LEP — DORA metrics aggregation**: Layer 4 `DoraMetricsAggregator` computes deployment frequency, lead time, change-failure rate, and MTTR from the unified event stream
+- **LEP — cross-source correlation**: `CrossSourceCorrelator` links events across sources (commits, sessions, PR reviews) and writes `cross_source_correlations` to the DB; enables surfacing related signals in the Trail viewer
+- **`lep.json` config unification**: `LepConfig` schema extended to cover all pipeline settings; `config.json` is automatically migrated and renamed on first startup. All schedule / LLM / memory / gitRoots settings now live exclusively in `lep.json`
+
+### Changed
+
+- **LEP — stage enum and `memory` scope skip**: when the pipeline stage does not include memory processing, the memory scope is now displayed as `skipped` instead of failing silently
+- **LEP — LLM pre-flight health check**: the pipeline performs an LLM reachability check before memory analysis stages; unreachable analyzers are skipped gracefully with partial-skip reporting
+- **`memory-core` 7-analyzer decomposition**: the monolithic memory pipeline is now split into 7 focused analyzers wired through LEP `lep.json`
+
+### Fixed
+
+- `LEP ingester → consumer` initialization-order bug: `import_sessions` events were ingested as 0 items due to incorrect startup ordering; fixed by reordering `LepOrchestrator` initialization
+- `ollama-core` / `memory-core` split-brain: `resolveOllamaBaseUrl` now resolves a single authoritative `baseUrl` from `lep.json`, eliminating divergent configurations between the daemon and the extension
+
+### Security
+
+- Sanitized stack-trace exposure in 13 HTTP 500 error handlers in `trail-server`
+- Validated daemon URL before `fetch` in `trail-server` and `vscode-trail-extension`
+- Used `mkdtempSync` for trail-attach temporary files in `memory-core` to eliminate TOCTOU race
+- Closed TOCTOU file-system-race in 4 spec/install/loader paths
+- Bumped `hono` / `mermaid` / `next-intl` / `ws` to patch 4 moderate CVEs
+
+### Trail Core (trail-core / trail-server / memory-core / trail-db)
+
+- `trail-server`: `Config.ts` (`config.json` loader) removed; daemon and extension wired entirely to `lep.json`
+- `trail-db`: cognitive complexity reduced to ≤15 in 16 methods (`SyncService.doSync/syncManualElements`, `ClaudeCodeBehaviorAnalyzer.analyze`, `communityCarryOver` resolve helpers, `ExecFileGitService` numstat/namestatus helpers) (S3776)
+- `trail-db`: statement coverage raised from 56% to 70%; new characterization tests for analytics, search, stats, and session interruption
+- `trail-core`: cognitive complexity reduced to ≤15 in 30+ functions (S3776)
+- `trail-core`: boundary-regex bounds tightened to prevent polynomial ReDoS
+- `trail-db`: `sessions.repo_name` now derived from JSONL `cwd` field
+- `memory-core`: `FIX_COMMITTED_AT` anchored to frontmatter date in E5 test
+
 ## [0.21.0] - 2026-05-17
 
 ### Added

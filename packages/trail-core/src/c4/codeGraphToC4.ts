@@ -21,25 +21,21 @@ import type { C4Model, C4Element, C4Relationship } from './types';
  * - Component 単位はディレクトリ名ではなくコミュニティ ID
  * - `pkg_<package>` 命名規則は維持（`c4_manual_*` の参照との互換性確保）
  */
-export function codeGraphToC4(graph: StoredCodeGraph): C4Model {
-  const elements: C4Element[] = [];
-  const relationships: C4Relationship[] = [];
 
-  // 異常入力（リポジトリ 0 件）でも例外を投げず空モデルを返す
-  if (graph.repositories.length === 0 && graph.nodes.length === 0) {
-    return { title: 'Project Analysis', level: 'code', elements, relationships };
-  }
+/** Phase 1: repositories → System 要素 */
+function buildSystemElements(graph: StoredCodeGraph): C4Element[] {
+  return graph.repositories.map((repo) => ({
+    id: `sys_${repo.id}`,
+    type: 'system' as const,
+    name: repo.label,
+  }));
+}
 
-  // --- Phase 1: System 要素 ---
-  for (const repo of graph.repositories) {
-    elements.push({
-      id: `sys_${repo.id}`,
-      type: 'system',
-      name: repo.label,
-    });
-  }
-
-  // --- Phase 2: package → repo マップ + Container 要素 ---
+/** Phase 2: package → repo マップと Container 要素を構築する。 */
+function buildContainerElements(graph: StoredCodeGraph): {
+  packageToRepo: Map<string, string>;
+  elements: C4Element[];
+} {
   const packageToRepo = new Map<string, string>();
   const packageOrder: string[] = [];
   for (const node of graph.nodes) {
@@ -49,21 +45,28 @@ export function codeGraphToC4(graph: StoredCodeGraph): C4Model {
       packageOrder.push(node.package);
     }
   }
-  for (const pkg of packageOrder) {
+  const elements: C4Element[] = packageOrder.map((pkg) => {
     const repo = packageToRepo.get(pkg) ?? '';
-    elements.push({
+    return {
       id: `pkg_${pkg}`,
-      type: 'container',
+      type: 'container' as const,
       name: pkg,
       ...(repo ? { boundaryId: `sys_${repo}` } : {}),
-    });
-  }
+    };
+  });
+  return { packageToRepo, elements };
+}
 
-  // --- Phase 3: community → 最頻 package + Component 要素 ---
-  type CommunityState = {
-    label: string;
-    pkgCount: Map<string, number>;
-  };
+type CommunityState = {
+  label: string;
+  pkgCount: Map<string, number>;
+};
+
+/** community ごとの state（ラベル + package 出現回数）を集計する。 */
+function buildCommunityState(graph: StoredCodeGraph): {
+  communityState: Map<number, CommunityState>;
+  communityOrder: number[];
+} {
   const communityState = new Map<number, CommunityState>();
   const communityOrder: number[] = [];
   for (const node of graph.nodes) {
@@ -76,22 +79,35 @@ export function codeGraphToC4(graph: StoredCodeGraph): C4Model {
     if (node.package) {
       st.pkgCount.set(node.package, (st.pkgCount.get(node.package) ?? 0) + 1);
     }
-    // 既存 communityLabel が空なら新しいもので埋める
     if (!st.label && node.communityLabel) st.label = node.communityLabel;
   }
+  return { communityState, communityOrder };
+}
 
+/** community → 最頻 package を解決する。 */
+function resolveMostFrequentPackage(pkgCount: Map<string, number>): string {
+  let mostFreq = '';
+  let maxCount = 0;
+  for (const [pkg, count] of pkgCount) {
+    if (count > maxCount) {
+      maxCount = count;
+      mostFreq = pkg;
+    }
+  }
+  return mostFreq;
+}
+
+/** Phase 3: community → Component 要素 + community→pkg マップを構築する。 */
+function buildComponentElements(
+  communityState: Map<number, CommunityState>,
+  communityOrder: number[],
+): { communityToPkg: Map<number, string>; elements: C4Element[] } {
   const communityToPkg = new Map<number, string>();
+  const elements: C4Element[] = [];
   for (const community of communityOrder) {
     const st = communityState.get(community);
     if (!st) continue;
-    let mostFreq = '';
-    let maxCount = 0;
-    for (const [pkg, count] of st.pkgCount) {
-      if (count > maxCount) {
-        maxCount = count;
-        mostFreq = pkg;
-      }
-    }
+    const mostFreq = resolveMostFrequentPackage(st.pkgCount);
     communityToPkg.set(community, mostFreq);
     elements.push({
       id: `community_${community}`,
@@ -100,21 +116,25 @@ export function codeGraphToC4(graph: StoredCodeGraph): C4Model {
       ...(mostFreq ? { boundaryId: `pkg_${mostFreq}` } : {}),
     });
   }
+  return { communityToPkg, elements };
+}
 
-  // --- Phase 4: Code 要素 ---
-  for (const node of graph.nodes) {
-    elements.push({
-      id: node.id,
-      type: 'code',
-      name: node.label,
-      boundaryId: `community_${node.community}`,
-    });
-  }
+/** Phase 4: nodes → Code 要素 */
+function buildCodeElements(graph: StoredCodeGraph): C4Element[] {
+  return graph.nodes.map((node) => ({
+    id: node.id,
+    type: 'code' as const,
+    name: node.label,
+    boundaryId: `community_${node.community}`,
+  }));
+}
 
-  // --- Phase 5: Relationships を 3 階層に集約 ---
+/** Phase 5: edges → 3 階層 Relationships（重複排除済み） */
+function buildRelationships(graph: StoredCodeGraph): C4Relationship[] {
   const nodeById = new Map<string, CodeGraphNode>();
   for (const node of graph.nodes) nodeById.set(node.id, node);
 
+  const relationships: C4Relationship[] = [];
   const fileSeen = new Set<string>();
   const componentSeen = new Set<string>();
   const containerSeen = new Set<string>();
@@ -157,6 +177,28 @@ export function codeGraphToC4(graph: StoredCodeGraph): C4Model {
       }
     }
   }
+  return relationships;
+}
+
+export function codeGraphToC4(graph: StoredCodeGraph): C4Model {
+  // 異常入力（リポジトリ 0 件）でも例外を投げず空モデルを返す
+  if (graph.repositories.length === 0 && graph.nodes.length === 0) {
+    return { title: 'Project Analysis', level: 'code', elements: [], relationships: [] };
+  }
+
+  const systemElements = buildSystemElements(graph);
+  const { elements: containerElements } = buildContainerElements(graph);
+  const { communityState, communityOrder } = buildCommunityState(graph);
+  const { elements: componentElements } = buildComponentElements(communityState, communityOrder);
+  const codeElements = buildCodeElements(graph);
+  const relationships = buildRelationships(graph);
+
+  const elements: C4Element[] = [
+    ...systemElements,
+    ...containerElements,
+    ...componentElements,
+    ...codeElements,
+  ];
 
   return {
     title: 'Project Analysis',

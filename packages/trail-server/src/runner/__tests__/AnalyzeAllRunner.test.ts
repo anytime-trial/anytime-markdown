@@ -2,32 +2,38 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { MemoryCoreService } from '@anytime-markdown/memory-core';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { AnalyzeAllRunner } from '../AnalyzeAllRunner';
-
-function nextTick(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
-}
+import { makeFakeScopeSession, makeMemoryCoreWithSession } from './fakeMemoryScopeSession';
 
 function makeLogSink(): { lines: string[]; appendLine: (m: string) => void } {
   const lines: string[] = [];
   return { lines, appendLine: (m: string) => lines.push(m) };
 }
 
-function makeMemoryCore(dir: string, pipelineRunner: jest.Mock = jest.fn(async () => undefined)) {
-  return new MemoryCoreService({
-    logSink: makeLogSink(),
-    trailDbPath: join(dir, 'trail.db'),
-    dbPath: join(dir, 'memory-core.db'),
-    statePath: join(dir, 'memory-core-runner.json'),
-    pipelineRunner,
-  });
-}
-
-function makeFakeTrailDb(importAll: jest.Mock): TrailDatabase {
-  return { importAll } as unknown as TrailDatabase;
+/**
+ * Step 3d: Layer 3 は 7 個の memory analyzer が openScopeSession() の scope メソッドを呼ぶ。
+ * 実 DB を開かずに fake scope session を注入して検証する。trail.db 取込 (Wave 1/2) は
+ * LEP primary analyzer + PersistAnalyzer(save) が担う。
+ */
+function makeFakeTrailDb(save: jest.Mock = jest.fn()): TrailDatabase {
+  return {
+    save,
+    getImportedFileMap: () => new Map(),
+    isCommitResolutionDone: () => true,
+    beginExternalTransaction: () => undefined,
+    commitExternalTransaction: () => undefined,
+    rollbackExternalTransaction: () => undefined,
+    rebuildSessionCostsPublic: () => undefined,
+    rebuildDailyCountsPublic: () => undefined,
+    rebuildSessionStatsPublic: () => undefined,
+    runBehaviorAnalysis: () => undefined,
+    analyzeReleases: () => 0,
+    backfillCommitFilesPublic: () => undefined,
+    backfillSubagentTypePublic: () => undefined,
+    backfillMessageCommits: () => 0,
+  } as unknown as TrailDatabase;
 }
 
 describe('AnalyzeAllRunner', () => {
@@ -40,175 +46,141 @@ describe('AnalyzeAllRunner', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('runOnce calls importAll then memory-core pipeline in order', async () => {
+  it('runOnce persists trail.db (save) before memory scopes', async () => {
     const order: string[] = [];
-    const importAll = jest.fn(async () => {
-      order.push('importAll');
-      return {
-        imported: 0,
-        skipped: 0,
-        commitsResolved: 0,
-        releasesResolved: 0,
-        releasesAnalyzed: 0,
-        coverageImported: 0,
-        currentCoverageImported: 0,
-        messageCommitsBackfilled: 0,
-      };
-    });
-    const pipelineRunner = jest.fn(async () => {
-      order.push('memory-core');
-    });
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const save = jest.fn(() => { order.push('save'); });
+    const fake = makeFakeScopeSession({ order, orderLabel: 'memory' });
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      trailDb: makeFakeTrailDb(importAll),
-      memoryCoreService: memoryCore,
+      trailDb: makeFakeTrailDb(save),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
-    expect(order).toEqual(['importAll', 'memory-core']);
-    expect(importAll).toHaveBeenCalledTimes(1);
-    expect(pipelineRunner).toHaveBeenCalledTimes(1);
+    // save() は Wave 2 末 (PersistAnalyzer)、memory は Wave 3。save が先。
+    expect(order).toEqual(['save', 'memory']);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(fake.calls.length).toBe(7);
+    expect(fake.closed).toBe(1);
     expect(status.ticksRun).toBe(1);
     expect(status.lastError).toBeNull();
     expect(status.lastReason).toBe('manual');
   });
 
-  it('runOnce without trailDb runs only memory-core', async () => {
-    const pipelineRunner = jest.fn(async () => undefined);
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+  it('runOnce without trailDb runs only memory', async () => {
+    const fake = makeFakeScopeSession();
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      memoryCoreService: memoryCore,
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
-    expect(pipelineRunner).toHaveBeenCalledTimes(1);
+    expect(fake.calls.length).toBe(7);
     expect(status.ticksRun).toBe(1);
   });
 
   it('pause skips automatic reasons (startup/periodic) and increments ticksSkipped', async () => {
-    const importAll = jest.fn(async () => ({}) as never);
-    const pipelineRunner = jest.fn(async () => undefined);
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const save = jest.fn();
+    const fake = makeFakeScopeSession();
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      trailDb: makeFakeTrailDb(importAll),
-      memoryCoreService: memoryCore,
+      trailDb: makeFakeTrailDb(save),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     await runner.pause('cli');
     const s1 = await runner.runOnce('startup');
     expect(s1.ticksSkipped).toBe(1);
-    expect(importAll).not.toHaveBeenCalled();
-    expect(pipelineRunner).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+    expect(fake.calls).toEqual([]);
 
     await runner.runOnce('periodic');
     expect(runner.getStatus().ticksSkipped).toBe(2);
-    expect(importAll).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
   });
 
   it('pause does NOT skip user-initiated reasons (manual/import)', async () => {
-    const importAll = jest.fn(async () => ({}) as never);
-    const pipelineRunner = jest.fn(async () => undefined);
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const save = jest.fn();
+    const fake = makeFakeScopeSession();
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      trailDb: makeFakeTrailDb(importAll),
-      memoryCoreService: memoryCore,
+      trailDb: makeFakeTrailDb(save),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     await runner.pause('cli');
     await runner.runOnce('manual');
-    expect(importAll).toHaveBeenCalledTimes(1);
-    expect(pipelineRunner).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(fake.calls.length).toBe(7);
 
     await runner.runOnce('import');
-    expect(importAll).toHaveBeenCalledTimes(2);
-    expect(pipelineRunner).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(fake.calls.length).toBe(14);
     expect(runner.getStatus().ticksRun).toBe(2);
   });
 
-  it('records lastError when importAll throws (memory-core still runs)', async () => {
-    const importAll = jest.fn(async () => {
-      throw new Error('import boom');
-    });
-    const pipelineRunner = jest.fn(async () => undefined);
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+  it('records lastError when trail.db save throws (memory still runs)', async () => {
+    const save = jest.fn(() => { throw new Error('save boom'); });
+    const fake = makeFakeScopeSession();
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      trailDb: makeFakeTrailDb(importAll),
-      memoryCoreService: memoryCore,
+      trailDb: makeFakeTrailDb(save),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
-    expect(pipelineRunner).toHaveBeenCalledTimes(1); // memory-core も走る
-    expect(status.lastError).toContain('import boom');
-    expect(status.ticksRun).toBe(0); // 失敗時はカウントしない
+    expect(fake.calls.length).toBe(7); // memory も走る (Wave 3 は save 失敗と独立)
+    expect(status.lastError).toContain('save boom');
+    expect(status.ticksRun).toBe(0);
   });
 
-  it('records lastError when memory-core throws (importAll still ran)', async () => {
-    const importAll = jest.fn(async () => ({}) as never);
-    const pipelineRunner = jest.fn(async () => {
-      throw new Error('mem boom');
-    });
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+  it('records lastError when a memory scope throws (save still ran)', async () => {
+    const save = jest.fn();
+    const fake = makeFakeScopeSession({ errorOnScope: 'runConversation', errorMessage: 'mem boom' });
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      trailDb: makeFakeTrailDb(importAll),
-      memoryCoreService: memoryCore,
+      trailDb: makeFakeTrailDb(save),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
-    expect(importAll).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(1);
     expect(status.lastError).toContain('memory-core: mem boom');
     expect(status.ticksRun).toBe(0);
   });
 
-  it('records combined lastError when both fail', async () => {
-    const importAll = jest.fn(async () => {
-      throw new Error('import boom');
-    });
-    const pipelineRunner = jest.fn(async () => {
-      throw new Error('mem boom');
-    });
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+  it('records combined lastError when both save and a memory scope fail', async () => {
+    const save = jest.fn(() => { throw new Error('save boom'); });
+    const fake = makeFakeScopeSession({ errorOnScope: 'runDrift', errorMessage: 'mem boom' });
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      trailDb: makeFakeTrailDb(importAll),
-      memoryCoreService: memoryCore,
+      trailDb: makeFakeTrailDb(save),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
-    expect(status.lastError).toContain('importAll: import boom');
+    expect(status.lastError).toContain('importAll: save boom');
     expect(status.lastError).toContain('memory-core: mem boom');
     expect(status.ticksRun).toBe(0);
   });
 
   it('persists state across instantiation', async () => {
     const statePath = join(dir, 'analyze-all-runner.json');
-    const memoryCore = makeMemoryCore(dir);
-    const r1 = new AnalyzeAllRunner({
-      logSink: makeLogSink(),
-      statePath,
-      memoryCoreService: memoryCore,
-    });
+    const fake = makeFakeScopeSession();
+    const memoryCore = makeMemoryCoreWithSession(dir, fake.session);
+    const r1 = new AnalyzeAllRunner({ logSink: makeLogSink(), statePath, memoryCoreService: memoryCore });
     await r1.pause('cli');
     await r1.runOnce('manual');
     await r1.dispose();
 
-    const r2 = new AnalyzeAllRunner({
-      logSink: makeLogSink(),
-      statePath,
-      memoryCoreService: memoryCore,
-    });
+    const r2 = new AnalyzeAllRunner({ logSink: makeLogSink(), statePath, memoryCoreService: memoryCore });
     const s = r2.getStatus();
     expect(s.paused).toBe(true);
     expect(s.pausedBy).toBe('cli');
@@ -217,17 +189,16 @@ describe('AnalyzeAllRunner', () => {
   });
 
   it('start schedules startup tick with runOnStart=true', async () => {
-    const pipelineRunner = jest.fn(async () => undefined);
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
+    const fake = makeFakeScopeSession();
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      memoryCoreService: memoryCore,
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
     });
 
     runner.start(60_000, { runOnStart: true, startupDelayMs: 10 });
-    await new Promise<void>((resolve) => setTimeout(resolve, 30));
-    expect(pipelineRunner).toHaveBeenCalledTimes(1);
+    await new Promise<void>((resolve) => setTimeout(resolve, 40));
+    expect(fake.calls.length).toBe(7);
     await runner.dispose();
   });
 
@@ -235,25 +206,12 @@ describe('AnalyzeAllRunner', () => {
     const progressMsgs: string[] = [];
     const phaseEvents: string[] = [];
     let afterRunCalled = 0;
-    const importAll = jest.fn(
-      async (
-        onProgress: ((m: string) => void) | undefined,
-        _gitRoots: readonly string[] | undefined,
-        _excl: readonly string[] | undefined,
-        _analyzeFn: unknown,
-        onPhase: ((e: unknown) => void) | undefined,
-      ) => {
-        onProgress?.('msg1');
-        onPhase?.({ phase: 'session-import', action: 'start' } as never);
-        return {} as never;
-      },
-    );
-    const memoryCore = makeMemoryCore(dir);
+    const fake = makeFakeScopeSession();
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      trailDb: makeFakeTrailDb(importAll),
-      memoryCoreService: memoryCore,
+      trailDb: makeFakeTrailDb(),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
       onImportProgress: (m) => progressMsgs.push(m),
       onImportPhase: (e) => phaseEvents.push(e.phase),
       onAfterRun: () => {
@@ -262,44 +220,43 @@ describe('AnalyzeAllRunner', () => {
     });
 
     await runner.runOnce('manual');
-    expect(progressMsgs).toEqual(['msg1']);
-    expect(phaseEvents).toEqual(['session-import']);
+    expect(phaseEvents).toContain('import_sessions');
+    expect(phaseEvents).toContain('resolve_releases');
+    expect(phaseEvents).toContain('import_coverage');
+    expect(phaseEvents).toContain('rebuild_costs');
+    expect(phaseEvents).toContain('rebuild_counts');
     expect(afterRunCalled).toBe(1);
   });
 
   it('runs without memoryCoreService (useExternalDaemon mode)', async () => {
-    const importAll = jest.fn(async () => ({}) as never);
+    const save = jest.fn();
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      trailDb: makeFakeTrailDb(importAll),
+      trailDb: makeFakeTrailDb(save),
       // memoryCoreService omitted
     });
     const status = await runner.runOnce('manual');
-    expect(importAll).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(1);
     expect(status.ticksRun).toBe(1);
     expect(status.lastError).toBeNull();
   });
 
-  it('memory-core internal pause is independent (not user-facing post-refactor)', async () => {
-    // Defensive test: AnalyzeAllRunner does not query memory-core.paused.
-    // If memory-core were paused, AnalyzeAllRunner would still call runOnce
-    // which would internally skip on memory-core side. This documents the
-    // behavioral isolation.
-    const pipelineRunner = jest.fn(async () => undefined);
-    const memoryCore = makeMemoryCore(dir, pipelineRunner);
-    await memoryCore.pause('internal-test');
+  it('AnalyzeAllRunner pause is the only gate (memory-core internal pause is irrelevant)', async () => {
+    // Step 3d: memory analyzer は openScopeSession を直接呼ぶため memory-core の
+    // 内部 pause を参照しない。AnalyzeAllRunner 自身の pause のみが実行を制御する。
+    const fake = makeFakeScopeSession();
+    const memoryCore = makeMemoryCoreWithSession(dir, fake.session);
+    await memoryCore.pause('internal-test'); // 影響しないことを確認
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       memoryCoreService: memoryCore,
     });
-    // AnalyzeAllRunner is NOT paused (it has its own state file)
     expect(runner.getStatus().paused).toBe(false);
-    // runOnce executes; memory-core skips internally because reason='periodic' is automatic
     const status = await runner.runOnce('periodic');
-    expect(pipelineRunner).not.toHaveBeenCalled(); // memory-core skipped
-    expect(status.ticksRun).toBe(1); // analyze-all itself succeeded (no error)
+    expect(fake.calls.length).toBe(7); // memory-core pause に関係なく走る
+    expect(status.ticksRun).toBe(1);
     expect(status.lastError).toBeNull();
   });
 });

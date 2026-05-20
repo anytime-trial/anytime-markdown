@@ -106,4 +106,28 @@ describe('PipelineStatusWriter', () => {
     expect(data.pipelines[0].scope).toBe('known');
     expect(data.pipelines[0].state).toBe('pending');
   });
+
+  it('markAllSkipped: 全 scope を skipped + finished_at + message', () => {
+    const writer = new PipelineStatusWriter(statusPath, 'r', ['a', 'b', 'c']);
+    writer.markAllSkipped('stage=primary excludes memory wave');
+
+    const data = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+    expect(data.pipelines.map((p: { state: string }) => p.state)).toEqual([
+      'skipped',
+      'skipped',
+      'skipped',
+    ]);
+    expect(data.pipelines.every((p: { finished_at?: string }) => Boolean(p.finished_at))).toBe(true);
+    expect(data.pipelines[0].message).toContain('excludes memory');
+  });
+
+  it('markAllSkipped: 進行中 (running) の scope も skipped で上書きする', () => {
+    const writer = new PipelineStatusWriter(statusPath, 'r', ['conversation_incremental']);
+    writer.start('conversation_incremental', 100);
+    writer.update('conversation_incremental', 50, 0);
+    writer.markAllSkipped();
+
+    const data = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+    expect(data.pipelines[0].state).toBe('skipped');
+  });
 });

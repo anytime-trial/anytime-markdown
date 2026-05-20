@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-05-20
+
+### Graph Core (graph-core)
+
+- Extracted `deleteGroupsContainingSelection` helper from `useCanvasBase` to reduce cognitive complexity (S3776)
+
 ## [0.3.2] - 2026-05-17
 
 ### Changed

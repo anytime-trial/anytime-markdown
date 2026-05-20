@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.15.2",
+  "version": "0.15.3",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -63,7 +63,8 @@
     "handlebars": "4.7.9",
     "@xmldom/xmldom": "0.9.10",
     "brace-expansion": "1.1.13",
-    "ignore": "7.0.5"
+    "ignore": "7.0.5",
+    "ws": "8.20.1"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.1.6",

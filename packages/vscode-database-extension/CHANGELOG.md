@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-20
+
+### Security
+
+- Validate `postMessage` data shape in `makeTransport` before dispatching to listeners: added `typeof === 'object'` and `typeof type === 'string'` guards to fix `InsufficientPostmessageValidation` (SnykCode)
+
+### Database Core (database-core / database-viewer)
+
+- Version bump only (no source changes)
+
 ## [0.2.1] - 2026-05-17
 
 ### Added

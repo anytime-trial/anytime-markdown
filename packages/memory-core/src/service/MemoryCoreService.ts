@@ -34,7 +34,14 @@ export class MemoryCoreService extends BaseRunner {
   }
 
   protected override async runImpl(_reason: RunReason): Promise<void> {
-    const ctx: PipelineRunnerContext = {
+    const ctx = this.buildPipelineContext();
+    const runner = this.serviceOpts.pipelineRunner ?? defaultPipelineRunner;
+    await runner(ctx);
+  }
+
+  /** serviceOpts から 1 run 分の {@link PipelineRunnerContext} を組み立てる。 */
+  buildPipelineContext(): PipelineRunnerContext {
+    return {
       logger: this.buildPipelineLogger(),
       trailDbPath: this.serviceOpts.trailDbPath,
       dbPath: this.serviceOpts.dbPath,
@@ -43,9 +50,22 @@ export class MemoryCoreService extends BaseRunner {
       backfillDays: this.serviceOpts.backfillDays,
       backupGenerations: this.serviceOpts.backupGenerations,
       backupIntervalDays: this.serviceOpts.backupIntervalDays,
+      llm: this.serviceOpts.llm,
     };
-    const runner = this.serviceOpts.pipelineRunner ?? defaultPipelineRunner;
-    await runner(ctx);
+  }
+
+  /**
+   * LEP Wave 3 用に、scope 単位で実行できる {@link MemoryDbSession} を open する。
+   *
+   * 7 個の memory analyzer がこの 1 セッションを共有して各 scope メソッドを呼ぶ。
+   * trail.db 不在時は `null` を返す。終了時は呼び出し側で `session.close()` する。
+   * 重い依存 (agent-core / better-sqlite3) を eager load しないため遅延 require する。
+   */
+  async openScopeSession(): Promise<import('./MemoryDbSession').MemoryDbSession | null> {
+    const ctx = this.buildPipelineContext();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('./openMemoryDbSession') as typeof import('./openMemoryDbSession');
+    return mod.openMemoryDbSession(ctx);
   }
 
   private buildPipelineLogger(): PipelineLogger {

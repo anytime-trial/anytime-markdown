@@ -22,52 +22,49 @@ export const DEFAULT_THRESHOLDS: ThresholdsConfig = {
   aiFirstTrySuccessRate: { elite: 80, high: 60, medium: 40 },
 };
 
+/** Classify value where higher is better (value >= threshold). */
+function classifyHigherIsBetter(value: number, t: ThresholdLevels): DoraLevel {
+  if (value >= t.elite) return 'elite';
+  if (value >= t.high) return 'high';
+  if (value >= t.medium) return 'medium';
+  return 'low';
+}
+
+/** Classify value where lower is better (value < threshold, strict). */
+function classifyLowerIsBetterStrict(value: number, t: ThresholdLevels): DoraLevel {
+  if (value < t.elite) return 'elite';
+  if (value < t.high) return 'high';
+  if (value < t.medium) return 'medium';
+  return 'low';
+}
+
+/** Classify value where lower is better (value <= threshold, inclusive). */
+function classifyLowerIsBetterInclusive(value: number, t: ThresholdLevels): DoraLevel {
+  if (value <= t.elite) return 'elite';
+  if (value <= t.high) return 'high';
+  if (value <= t.medium) return 'medium';
+  return 'low';
+}
+
 export function classifyDoraLevel(
   metricId: MetricId,
   value: number,
   thresholds: ThresholdsConfig = DEFAULT_THRESHOLDS,
 ): DoraLevel | undefined {
-  if (metricId === 'deploymentFrequency') {
-    const t = thresholds.deploymentFrequency;
-    if (value >= t.elite) return 'elite';
-    if (value >= t.high) return 'high';
-    if (value >= t.medium) return 'medium';
-    return 'low';
+  switch (metricId) {
+    case 'deploymentFrequency':
+      return classifyHigherIsBetter(value, thresholds.deploymentFrequency);
+    case 'leadTimePerLoc':
+      return classifyLowerIsBetterStrict(value, thresholds.leadTimePerLoc);
+    case 'tokensPerLoc':
+      return classifyLowerIsBetterStrict(value, thresholds.tokensPerLoc);
+    case 'changeFailureRate':
+      return classifyLowerIsBetterInclusive(value, thresholds.changeFailureRate);
+    case 'aiFirstTrySuccessRate':
+      return classifyHigherIsBetter(value, thresholds.aiFirstTrySuccessRate);
+    default:
+      return undefined;
   }
-
-  if (metricId === 'leadTimePerLoc') {
-    const t = thresholds.leadTimePerLoc;
-    if (value < t.elite) return 'elite';
-    if (value < t.high) return 'high';
-    if (value < t.medium) return 'medium';
-    return 'low';
-  }
-
-  if (metricId === 'tokensPerLoc') {
-    const t = thresholds.tokensPerLoc;
-    if (value < t.elite) return 'elite';
-    if (value < t.high) return 'high';
-    if (value < t.medium) return 'medium';
-    return 'low';
-  }
-
-  if (metricId === 'changeFailureRate') {
-    const t = thresholds.changeFailureRate;
-    if (value <= t.elite) return 'elite';
-    if (value <= t.high) return 'high';
-    if (value <= t.medium) return 'medium';
-    return 'low';
-  }
-
-  if (metricId === 'aiFirstTrySuccessRate') {
-    const t = thresholds.aiFirstTrySuccessRate;
-    if (value >= t.elite) return 'elite';
-    if (value >= t.high) return 'high';
-    if (value >= t.medium) return 'medium';
-    return 'low';
-  }
-
-  return undefined;
 }
 
 function isValidPositive(v: number): boolean {

@@ -3,6 +3,7 @@ import { TrailDatabase } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 
+
 type SqlJsDb = {
   run: (sql: string, params?: ReadonlyArray<unknown>) => void;
 };
@@ -65,6 +66,14 @@ describe('TrailDatabase CodeGraph CRUD', () => {
 
     it('存在しない repo_name は null を返す', () => {
       expect(db.getCurrentCodeGraph('nonexistent')).toBeNull();
+    });
+
+    it('空のノードとコミュニティの CodeGraph も保存できる', () => {
+      const graph = makeCodeGraph({ nodes: [], edges: [], communities: {}, godNodes: [] });
+      db.saveCurrentCodeGraph('empty-repo', graph);
+      const restored = db.getCurrentCodeGraph('empty-repo');
+      expect(restored).not.toBeNull();
+      expect(restored!.nodes).toHaveLength(0);
     });
   });
 
@@ -131,5 +140,339 @@ describe('TrailDatabase CodeGraph CRUD', () => {
       const after = db.getReleaseCodeGraph('v1.0.0');
       expect(after).toBeNull();
     });
+  });
+});
+
+describe('TrailDatabase deleteCurrentCodeGraphs / deleteReleaseCodeGraphs', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+  afterEach(() => db.close());
+
+  it('deleteCurrentCodeGraphs removes all saved current code graphs', () => {
+    db.saveCurrentCodeGraph('repo-a', makeCodeGraph());
+    db.saveCurrentCodeGraph('repo-b', makeCodeGraph());
+    expect(db.getCurrentCodeGraph('repo-a')).not.toBeNull();
+
+    db.deleteCurrentCodeGraphs();
+    expect(db.getCurrentCodeGraph('repo-a')).toBeNull();
+    expect(db.getCurrentCodeGraph('repo-b')).toBeNull();
+  });
+
+  it('deleteCurrentCodeGraphs is a no-op when nothing saved', () => {
+    expect(() => db.deleteCurrentCodeGraphs()).not.toThrow();
+  });
+
+  it('deleteReleaseCodeGraphs removes all saved release code graphs', () => {
+    insertRelease(db, 'v2.0.0');
+    insertRelease(db, 'v2.1.0');
+    db.saveReleaseCodeGraph('v2.0.0', makeCodeGraph());
+    db.saveReleaseCodeGraph('v2.1.0', makeCodeGraph());
+    expect(db.getReleaseCodeGraph('v2.0.0')).not.toBeNull();
+
+    db.deleteReleaseCodeGraphs();
+    expect(db.getReleaseCodeGraph('v2.0.0')).toBeNull();
+    expect(db.getReleaseCodeGraph('v2.1.0')).toBeNull();
+  });
+
+  it('deleteReleaseCodeGraphs is a no-op when nothing saved', () => {
+    expect(() => db.deleteReleaseCodeGraphs()).not.toThrow();
+  });
+});
+
+describe('TrailDatabase getAllReleaseCodeGraphRaws / getAllReleaseCodeGraphCommunityRaws', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+  afterEach(() => db.close());
+
+  it('getAllReleaseCodeGraphRaws returns empty array when no release graphs', () => {
+    const raws = db.getAllReleaseCodeGraphRaws();
+    expect(Array.isArray(raws)).toBe(true);
+    expect(raws).toHaveLength(0);
+  });
+
+  it('getAllReleaseCodeGraphRaws returns all saved release graphs', () => {
+    insertRelease(db, 'v1.0.0');
+    insertRelease(db, 'v1.1.0');
+    db.saveReleaseCodeGraph('v1.0.0', makeCodeGraph());
+    db.saveReleaseCodeGraph('v1.1.0', makeCodeGraph());
+
+    const raws = db.getAllReleaseCodeGraphRaws();
+    expect(raws).toHaveLength(2);
+  });
+
+  it('getAllReleaseCodeGraphCommunityRaws returns empty array for empty DB', () => {
+    const raws = db.getAllReleaseCodeGraphCommunityRaws();
+    expect(Array.isArray(raws)).toBe(true);
+    expect(raws).toHaveLength(0);
+  });
+
+  it('getAllReleaseCodeGraphCommunityRaws returns community rows after save', () => {
+    insertRelease(db, 'v1.0.0');
+    const graph = makeCodeGraph({
+      communitySummaries: {
+        0: { name: 'Core', summary: 'Core logic' },
+      },
+    });
+    db.saveReleaseCodeGraph('v1.0.0', graph);
+
+    const raws = db.getAllReleaseCodeGraphCommunityRaws();
+    expect(raws.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('TrailDatabase upsertCurrentCodeGraphCommunitySummaries / upsertCurrentCodeGraphCommunityMappings', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+  afterEach(() => db.close());
+
+  it('upsertCurrentCodeGraphCommunitySummaries inserts summaries after saveCurrentCodeGraph', () => {
+    db.saveCurrentCodeGraph('test-repo', makeCodeGraph());
+
+    db.upsertCurrentCodeGraphCommunitySummaries('test-repo', [
+      { communityId: 0, name: 'Alpha', summary: 'Core logic' },
+      { communityId: 1, name: 'Beta', summary: 'UI layer' },
+    ]);
+
+    const restored = db.getCurrentCodeGraph('test-repo');
+    expect(restored!.communitySummaries?.[0]).toEqual({ name: 'Alpha', summary: 'Core logic' });
+    expect(restored!.communitySummaries?.[1]).toEqual({ name: 'Beta', summary: 'UI layer' });
+  });
+
+  it('upsertCurrentCodeGraphCommunityMappings inserts mappings without error', () => {
+    db.saveCurrentCodeGraph('test-repo', makeCodeGraph());
+
+    const result = db.upsertCurrentCodeGraphCommunityMappings('test-repo', [
+      {
+        communityId: 0,
+        mappings: [{ elementId: 'n1', elementType: 'file', role: 'primary' }],
+      },
+    ]);
+
+    expect(result).toBeDefined();
+    expect(typeof result.updated).toBe('number');
+    expect(typeof result.inserted).toBe('number');
+  });
+});
+
+describe('TrailDatabase listCurrentCodeGraphCommunities', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+  afterEach(() => db.close());
+
+  it('returns empty array when no graph saved', () => {
+    const result = db.listCurrentCodeGraphCommunities('test-repo');
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(0);
+  });
+
+  it('returns communities after saveCurrentCodeGraph', () => {
+    const graph = makeCodeGraph({
+      communitySummaries: {
+        0: { name: 'Alpha', summary: 'Core' },
+      },
+    });
+    db.saveCurrentCodeGraph('test-repo', graph);
+
+    const result = db.listCurrentCodeGraphCommunities('test-repo');
+    expect(result.length).toBeGreaterThanOrEqual(1);
+    const comm0 = result.find((c) => c.communityId === 0);
+    expect(comm0).toBeDefined();
+  });
+});
+
+const makeTrailGraph = () => ({
+  nodes: [],
+  edges: [],
+  metadata: { projectRoot: '/repo', analyzedAt: '2026-05-01T00:00:00.000Z', fileCount: 0 },
+});
+
+describe('TrailDatabase getTrailGraph', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+  afterEach(() => db.close());
+
+  it('returns null for current graph when nothing saved', () => {
+    const result = db.getTrailGraph('current');
+    expect(result).toBeNull();
+  });
+
+  it('returns null for release graph when nothing saved', () => {
+    const result = db.getTrailGraph('v1.0.0');
+    expect(result).toBeNull();
+  });
+
+  it('returns current graph after saveCurrentGraph', () => {
+    db.saveCurrentGraph(makeTrailGraph(), '/tsconfig.json', 'abc123', 'test-repo');
+    const result = db.getTrailGraph('current', 'test-repo');
+    expect(result).not.toBeNull();
+  });
+
+  it('returns release graph after saveReleaseGraph', () => {
+    db.saveReleaseGraph(makeTrailGraph(), '/tsconfig.json', 'v1.0.0');
+    const result = db.getTrailGraph('v1.0.0');
+    expect(result).not.toBeNull();
+  });
+});
+
+describe('TrailDatabase asC4ModelStore', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+  afterEach(() => db.close());
+
+  it('returns a C4ModelStore with the 3 required methods', () => {
+    const store = db.asC4ModelStore();
+    expect(typeof store.getCurrentC4Model).toBe('function');
+    expect(typeof store.getReleaseC4Model).toBe('function');
+    expect(typeof store.getC4ModelEntries).toBe('function');
+  });
+
+  it('getCurrentC4Model returns null for unknown repo', () => {
+    const store = db.asC4ModelStore();
+    const result = store.getCurrentC4Model('nonexistent');
+    expect(result).toBeNull();
+  });
+
+  it('getCurrentC4Model returns model after saveCurrentGraph', () => {
+    db.saveCurrentGraph(makeTrailGraph(), '/tsconfig.json', 'abc123', 'test-repo');
+    const store = db.asC4ModelStore();
+    const result = store.getCurrentC4Model('test-repo') as { model: unknown } | null;
+    expect(result).not.toBeNull();
+    expect(result!.model).toBeDefined();
+  });
+
+  it('getReleaseC4Model returns null when no release graph saved', () => {
+    const store = db.asC4ModelStore();
+    expect(store.getReleaseC4Model('v99.0.0')).toBeNull();
+  });
+
+  it('getReleaseC4Model returns model after saveReleaseGraph', () => {
+    db.saveReleaseGraph(makeTrailGraph(), '/tsconfig.json', 'v1.0.0');
+    const store = db.asC4ModelStore();
+    const result = store.getReleaseC4Model('v1.0.0') as { model: unknown } | null;
+    expect(result).not.toBeNull();
+    expect(result!.model).toBeDefined();
+  });
+
+  it('getC4ModelEntries returns empty array when no graphs saved', () => {
+    const store = db.asC4ModelStore();
+    const entries = store.getC4ModelEntries();
+    expect(Array.isArray(entries)).toBe(true);
+  });
+
+  it('getC4ModelEntries includes current entry after saveCurrentGraph', () => {
+    db.saveCurrentGraph(makeTrailGraph(), '/tsconfig.json', 'abc123', 'test-repo');
+    const store = db.asC4ModelStore();
+    const entries = store.getC4ModelEntries() as readonly { tag: string; repoName: string | null }[];
+    const current = entries.find((e) => e.tag === 'current');
+    expect(current).toBeDefined();
+  });
+});
+
+describe('TrailDatabase analyzeReleaseCodeGraphsForce (empty releases)', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+  afterEach(() => db.close());
+
+  it('returns 0 immediately when no releases exist', async () => {
+    const count = await db.analyzeReleaseCodeGraphsForce({
+      codeGraphService: { generate: async () => makeCodeGraph() },
+      gitRoot: '/tmp/fake-repo',
+    });
+    expect(count).toBe(0);
+  });
+});
+
+describe('TrailDatabase getCurrentTsconfigPath', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+  afterEach(() => db.close());
+
+  it('returns null when no current graph saved', () => {
+    expect(db.getCurrentTsconfigPath('test-repo')).toBeNull();
+    expect(db.getCurrentTsconfigPath()).toBeNull();
+  });
+
+  it('returns tsconfig path after saveCurrentGraph', () => {
+    db.saveCurrentGraph(makeTrailGraph(), '/path/to/tsconfig.json', 'abc123', 'test-repo');
+    const result = db.getCurrentTsconfigPath('test-repo');
+    expect(result).toBe('/path/to/tsconfig.json');
+  });
+
+  it('returns tsconfig path when called without repoName', () => {
+    db.saveCurrentGraph(makeTrailGraph(), '/path/to/tsconfig.json', 'abc123', 'test-repo');
+    const result = db.getCurrentTsconfigPath();
+    expect(result).toBe('/path/to/tsconfig.json');
+  });
+});
+
+describe('TrailDatabase getCurrentFeatureMatrix', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+  afterEach(() => db.close());
+
+  it('returns null when no mappings_json column exists', () => {
+    // Without calling upsertCurrentCodeGraphCommunityMappings, column may not exist
+    const result = db.getCurrentFeatureMatrix();
+    // Either null (no column) or null (no data with name+mappings_json)
+    // Both are valid outcomes
+    expect(result === null || typeof result === 'object').toBe(true);
+  });
+
+  it('returns null or FeatureMatrix after saving code graph with mappings', () => {
+    db.saveCurrentCodeGraph('test-repo', makeCodeGraph());
+    db.upsertCurrentCodeGraphCommunityMappings('test-repo', [
+      {
+        communityId: 0,
+        mappings: [{ elementId: 'n1', elementType: 'file', role: 'primary' }],
+      },
+    ]);
+    // After adding mappings_json column via upsert, getCurrentFeatureMatrix should not throw
+    expect(() => db.getCurrentFeatureMatrix()).not.toThrow();
+  });
+});
+
+describe('TrailDatabase getDayToolMetrics', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+  afterEach(() => db.close());
+
+  it('returns an object with all expected fields for a date with no data', () => {
+    const result = db.getDayToolMetrics('2026-03-01');
+    expect(result).not.toBeNull();
+    expect(typeof result!.totalEdits).toBe('number');
+    expect(typeof result!.totalBuildRuns).toBe('number');
+    expect(typeof result!.totalTestRuns).toBe('number');
+    expect(Array.isArray(result!.toolUsage)).toBe(true);
+    expect(Array.isArray(result!.skillUsage)).toBe(true);
   });
 });

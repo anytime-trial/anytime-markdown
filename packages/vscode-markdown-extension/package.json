@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.15.2",
+  "version": "0.15.3",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -320,7 +320,7 @@
     "jsxgraph": "1.12.2",
     "marked": "17.0.3",
     "mathjs": "15.2.0",
-    "mermaid": "11.12.3",
+    "mermaid": "11.15.0",
     "plantuml-encoder": "1.4.0",
     "plotly.js-gl3d-dist-min": "3.4.0",
     "react": "19.2.4",

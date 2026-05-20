@@ -47,40 +47,41 @@ type AssistantMatch = {
   readonly confidence: MessageCommitMatchConfidence;
 };
 
+/**
+ * Search assistant messages in reverse-chronological order within the given
+ * time window. Returns the first message that satisfies `predicate`, or null.
+ */
+function findLatestInWindow(
+  commitMs: number,
+  thresholdMs: number,
+  assistantMessages: readonly TrailMessage[],
+  predicate: (m: TrailMessage) => boolean,
+): TrailMessage | null {
+  for (let i = assistantMessages.length - 1; i >= 0; i--) {
+    const m = assistantMessages[i];
+    const msgMs = Date.parse(m.timestamp);
+    if (Number.isNaN(msgMs) || msgMs > commitMs) continue;
+    if (commitMs - msgMs > thresholdMs) break;
+    if (predicate(m)) return m;
+  }
+  return null;
+}
+
 function findAssistantMatch(
   commitMs: number,
   assistantMessages: readonly TrailMessage[],
 ): AssistantMatch | null {
   // 優先度1: git commit を含む Bash
-  for (let i = assistantMessages.length - 1; i >= 0; i--) {
-    const m = assistantMessages[i];
-    const msgMs = Date.parse(m.timestamp);
-    if (Number.isNaN(msgMs) || msgMs > commitMs) continue;
-    if (commitMs - msgMs > HIGH_THRESHOLD_MS) break;
-    if (hasGitCommitInBash(m)) {
-      return { assistantUuid: m.uuid, confidence: 'high' };
-    }
-  }
+  const highMatch = findLatestInWindow(commitMs, HIGH_THRESHOLD_MS, assistantMessages, hasGitCommitInBash);
+  if (highMatch) return { assistantUuid: highMatch.uuid, confidence: 'high' };
 
   // 優先度2: Bash を含む
-  for (let i = assistantMessages.length - 1; i >= 0; i--) {
-    const m = assistantMessages[i];
-    const msgMs = Date.parse(m.timestamp);
-    if (Number.isNaN(msgMs) || msgMs > commitMs) continue;
-    if (commitMs - msgMs > MEDIUM_THRESHOLD_MS) break;
-    if (hasBashTool(m)) {
-      return { assistantUuid: m.uuid, confidence: 'medium' };
-    }
-  }
+  const medMatch = findLatestInWindow(commitMs, MEDIUM_THRESHOLD_MS, assistantMessages, hasBashTool);
+  if (medMatch) return { assistantUuid: medMatch.uuid, confidence: 'medium' };
 
   // 優先度3: 任意の assistant メッセージ
-  for (let i = assistantMessages.length - 1; i >= 0; i--) {
-    const m = assistantMessages[i];
-    const msgMs = Date.parse(m.timestamp);
-    if (Number.isNaN(msgMs) || msgMs > commitMs) continue;
-    if (commitMs - msgMs > LOW_THRESHOLD_MS) break;
-    return { assistantUuid: m.uuid, confidence: 'low' };
-  }
+  const lowMatch = findLatestInWindow(commitMs, LOW_THRESHOLD_MS, assistantMessages, () => true);
+  if (lowMatch) return { assistantUuid: lowMatch.uuid, confidence: 'low' };
 
   return null;
 }

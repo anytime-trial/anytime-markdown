@@ -3,7 +3,7 @@ import { Command } from 'commander';
 import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { MemoryCoreService, type MemoryCoreLogSink, BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
+import { MemoryCoreService, type MemoryCoreLogSink, type LepStage, BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
 import { ChatBridge } from './memory-chat/chatBridge';
 import { RebuildScheduler } from './memory-chat/rebuildScheduler';
 import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
@@ -11,8 +11,18 @@ import { TrailDataServer } from './server/TrailDataServer';
 import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
-import { loadConfig } from './runtime/Config';
-import { AnalyzeAllRunner } from './runner/AnalyzeAllRunner';
+import {
+  migrateConfigJsonIntoLepJson,
+  loadLepConfig,
+  disabledAnalyzerIds,
+  resolveGitHubSource,
+  DEFAULT_LEP_CONFIG,
+  type LepConfig,
+} from './runtime/LepConfig';
+import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
+import { checkLlmAvailability } from './lep/LlmAvailability';
+import { AnalyzeAllRunner, type AnalyzeAllRunnerOptions } from './runner/AnalyzeAllRunner';
+import { createFetchGitHubReviewClient } from './lep/ingesters/github/GitHubReviewClient';
 import { CodeGraphService } from './analyze/CodeGraphService';
 import {
   findTsconfigCandidates,
@@ -88,9 +98,59 @@ program
     server.setLogService(logService);
     logger.info('log streaming service wired', { dbPath: extensionLogsDbPath });
 
-    const configPath = join(TRAIL_HOME, 'config.json');
-    const config = loadConfig(configPath, logger);
-    const effectiveGitRoots = gitRoots.length > 0 ? gitRoots : config.gitRoots;
+    // gitRoots の bootstrap (鶏卵回避): CLI --git-roots → home-tier ~/.anytime/trail/lep.json
+    // の gitRoots → 空。workspace lep.json は gitRoots 解決後でないと読めないため home-tier を使う。
+    const bootstrapGitRoots =
+      gitRoots.length > 0 ? gitRoots : loadLepConfig({ logger }).config.gitRoots;
+    const effectiveGitRoots = bootstrapGitRoots;
+
+    // LEP 設定 (lep.json) — 唯一の設定ソース。旧 config.json は一度きり lep.json へ移行し以後読まない。
+    // daemon は primary gitRoot を workspace とし、stage / schedule / llm / memory を集約する。
+    const lepWorkspaceRoot = effectiveGitRoots[0];
+    let lepConfig: LepConfig = DEFAULT_LEP_CONFIG;
+    let lepStage: LepStage = opts.scheduler ? 'primary+memory' : 'disabled';
+    let lepDisabledAnalyzers: readonly string[] = [];
+    let githubPrReview: AnalyzeAllRunnerOptions['githubPrReview'] | undefined;
+    if (lepWorkspaceRoot) {
+      try {
+        // config.json → lep.json 一度きり移行 (欠落セクションのみ gap-fill、完了後 rename)。
+        migrateConfigJsonIntoLepJson({
+          workspaceRoot: lepWorkspaceRoot,
+          analyzeAllEnabled: opts.scheduler,
+          logger,
+        });
+        const lep = loadLepConfig({ workspaceRoot: lepWorkspaceRoot, logger });
+        lepConfig = lep.config;
+        lepStage = lep.config.stage;
+        lepDisabledAnalyzers = disabledAnalyzerIds(lep.config);
+        logger.info('lep.json loaded', { stage: lepStage, files: lep.loadedPaths.length });
+
+        // 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (sources.github.enabled)。
+        const ghSource = resolveGitHubSource(lep.config);
+        if (ghSource.enabled) {
+          githubPrReview = {
+            client: ghSource.token
+              ? createFetchGitHubReviewClient({
+                  token: ghSource.token,
+                  logger: { info: (m) => logger.info(m), warn: (m) => logger.warn(m) },
+                })
+              : null,
+            since: ghSource.since,
+            maxPrs: ghSource.maxPrs,
+          };
+          logger.info('GitHub PR review source enabled', { hasToken: Boolean(ghSource.token) });
+        }
+      } catch (err) {
+        logger.warn(`lep.json load failed: ${err instanceof Error ? err.message : String(err)}; fallback stage=${lepStage}`);
+      }
+    }
+
+    // ingest / chat / health で共有する LLM 値を lep.json から解決する。
+    // baseUrl は resolveOllamaBaseUrl で env / Dev Container 検出を畳み込み、
+    // health-check と実取込で同一値を使う (split-brain 防止)。
+    const lepOllama = lepConfig.llm.providers.ollama;
+    const resolvedOllamaBaseUrl = resolveOllamaBaseUrl(lepOllama.baseUrl);
+    const ingestGenModel = process.env['MEMORY_CORE_GEN_MODEL'] || lepOllama.models.chat;
 
     // Wire analyze pipeline if gitRoots are available
     if (effectiveGitRoots.length > 0) {
@@ -179,7 +239,14 @@ program
       trailDbPath: join(dbStorageDir, 'trail.db'),
       ...(memoryCorePrimaryGitRoot ? { gitRoot: memoryCorePrimaryGitRoot } : {}),
       statePath: join(TRAIL_HOME, 'memory-core-runner.json'),
-      backfillDays: config.memory.conversation.backfillDays,
+      backfillDays: lepConfig.memory.conversation.backfillDays,
+      // lep.json の llm を ingest パイプラインへ通す (baseUrl は openMemoryDbSession
+      // が resolveOllamaBaseUrl で再解決するため raw 値を渡す)。
+      llm: {
+        baseUrl: lepOllama.baseUrl,
+        chatModel: ingestGenModel,
+        embedModel: lepOllama.models.embedding,
+      },
     });
     logger.info('memory-core service constructed (orchestrated by AnalyzeAllRunner)', {
       gitRoot: memoryCorePrimaryGitRoot ?? null,
@@ -194,13 +261,13 @@ program
     const chatBridge = new ChatBridge({
       memoryDbPath: MEMORY_DB_PATH,
       getConfig: () => ({
-        baseUrl: config.memory.ollama.baseUrl,
-        chatModel: config.memory.chat.model,
-        embedModel: config.memory.embedding.model,
-        bm25Limit: config.memory.rag.bm25Limit,
-        vecLimit: config.memory.rag.vecLimit,
-        finalLimit: config.memory.rag.finalLimit,
-        rrfK: config.memory.rag.rrfK,
+        baseUrl: resolvedOllamaBaseUrl,
+        chatModel: lepOllama.models.chat,
+        embedModel: lepOllama.models.embedding,
+        bm25Limit: lepConfig.memory.rag.bm25Limit,
+        vecLimit: lepConfig.memory.rag.vecLimit,
+        finalLimit: lepConfig.memory.rag.finalLimit,
+        rrfK: lepConfig.memory.rag.rrfK,
       }),
       logger: memoryLogger,
     });
@@ -212,10 +279,10 @@ program
       logger: memoryLogger,
     });
     const rebuildSchedulerDisposable = rebuildScheduler.start(
-      config.memory.fts.rebuildIntervalMinutes * 60 * 1000,
+      lepConfig.memory.fts.rebuildIntervalMinutes * 60 * 1000,
     );
     logger.info('rebuild scheduler started', {
-      intervalMin: config.memory.fts.rebuildIntervalMinutes,
+      intervalMin: lepConfig.memory.fts.rebuildIntervalMinutes,
     });
 
     // AnalyzeAllRunner は importAll → memory-core runOnce('periodic') を順次実行する
@@ -229,8 +296,21 @@ program
       trailDb,
       gitRoots: effectiveGitRoots,
       memoryCoreService,
+      stage: lepStage,
+      checkLlmAvailability: () =>
+        checkLlmAvailability({
+          baseUrl: resolvedOllamaBaseUrl,
+          chatModel: ingestGenModel,
+          embedModel: lepOllama.models.embedding,
+        }),
+      ollamaBaseUrl: resolvedOllamaBaseUrl,
+      disabledMemoryAnalyzers: lepDisabledAnalyzers,
+      disabledAggregators: lepDisabledAnalyzers,
+      githubPrReview,
       // VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新する
       importAllStatusFilePath: join(dbStorageDir, 'importall-phase-status.json'),
+      // stage が memory を含まない run 後に memory scope を skipped 記録する宛先。
+      pipelineStatusFilePath: join(dbStorageDir, 'pipeline-status.json'),
     });
     server.setAnalyzeAllRunner(analyzeAllRunner);
     logger.info('analyze-all runner wired', {
@@ -244,9 +324,9 @@ program
         reason: schedulerDisabledByEnv ? 'TRAIL_DISABLE_SCHEDULER=1' : '--no-scheduler',
       });
     } else {
-      analyzeAllRunner.start(config.analyzeAll.intervalSec * 1000, {
-        runOnStart: config.analyzeAll.runOnStart,
-        startupDelayMs: config.analyzeAll.startupDelaySec * 1000,
+      analyzeAllRunner.start(lepConfig.schedule.intervalSec * 1000, {
+        runOnStart: lepConfig.schedule.runOnStart,
+        startupDelayMs: lepConfig.schedule.startupDelaySec * 1000,
       });
     }
 
@@ -359,7 +439,19 @@ async function callDaemonAnalyzeAll(
     console.error('No running daemon — start it with `anytime-trail-server start`');
     process.exit(1);
   }
-  const url = `${info.url}/api/analyze-all/${action}`;
+  // daemon.json から得た URL を検証 (CodeQL `js/file-access-to-http`): localhost のみ許可。
+  let parsedInfoUrl: URL;
+  try {
+    parsedInfoUrl = new URL(info.url);
+  } catch {
+    console.error(`Invalid daemon URL in daemon.json: ${info.url}`);
+    process.exit(1);
+  }
+  if (parsedInfoUrl.hostname !== '127.0.0.1' && parsedInfoUrl.hostname !== 'localhost') {
+    console.error(`Refusing to call non-localhost daemon URL: ${parsedInfoUrl.hostname}`);
+    process.exit(1);
+  }
+  const url = `${parsedInfoUrl.origin}/api/analyze-all/${action}`;
   const method = action === 'status' ? 'GET' : 'POST';
   try {
     const res = await fetch(url, {

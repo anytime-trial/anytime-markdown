@@ -490,110 +490,136 @@ CREATE INDEX IF NOT EXISTS idx_trail_mtc_timestamp ON trail_message_tool_calls(t
 
 -- Row Level Security ポリシー
 --
--- 個人利用の trail データであり、publishable anon key は web app バンドル内で既に公開されている。
--- Supabase ダッシュボードの警告を避けるため RLS は有効化した上で、anon/authenticated ロールに
--- 全操作を許可する permissive ポリシーを付与する。
--- 拡張機能の SyncService は anon key で upsert/delete を行うため、この許可がないと RLS 違反になる。
+-- 権限分離: anon ロールは SELECT のみ許可する (公開ダッシュボードの読み取り用)。
+-- 書き込み (拡張 SyncService の upsert/delete・web-app の C4 編集 API) は service_role キーで行う。
+-- service_role は Postgres の BYPASSRLS 属性を持つため、書き込み用ポリシーは不要。
+-- これにより、web app バンドルで公開済みの anon key では read のみ可能となり、第三者による
+-- edit/delete を防止する。service_role キーはサーバ env とローカル設定にのみ保持しブラウザに露出しない。
 
 ALTER TABLE trail_sessions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_sessions_all" ON trail_sessions;
-CREATE POLICY "trail_sessions_all" ON trail_sessions FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_sessions_select" ON trail_sessions;
+CREATE POLICY "trail_sessions_select" ON trail_sessions FOR SELECT USING (true);
 
 ALTER TABLE trail_messages ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_messages_all" ON trail_messages;
-CREATE POLICY "trail_messages_all" ON trail_messages FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_messages_select" ON trail_messages;
+CREATE POLICY "trail_messages_select" ON trail_messages FOR SELECT USING (true);
 
 ALTER TABLE trail_session_commits ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_session_commits_all" ON trail_session_commits;
-CREATE POLICY "trail_session_commits_all" ON trail_session_commits FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_session_commits_select" ON trail_session_commits;
+CREATE POLICY "trail_session_commits_select" ON trail_session_commits FOR SELECT USING (true);
 
 ALTER TABLE trail_commit_files ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_commit_files_all" ON trail_commit_files;
-CREATE POLICY "trail_commit_files_all" ON trail_commit_files FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_commit_files_select" ON trail_commit_files;
+CREATE POLICY "trail_commit_files_select" ON trail_commit_files FOR SELECT USING (true);
 
 ALTER TABLE trail_session_costs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_session_costs_all" ON trail_session_costs;
-CREATE POLICY "trail_session_costs_all" ON trail_session_costs FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_session_costs_select" ON trail_session_costs;
+CREATE POLICY "trail_session_costs_select" ON trail_session_costs FOR SELECT USING (true);
 
 ALTER TABLE trail_daily_counts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_daily_counts_all" ON trail_daily_counts;
-CREATE POLICY "trail_daily_counts_all" ON trail_daily_counts FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_daily_counts_select" ON trail_daily_counts;
+CREATE POLICY "trail_daily_counts_select" ON trail_daily_counts FOR SELECT USING (true);
 
 ALTER TABLE trail_release_graphs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_release_graphs_all" ON trail_release_graphs;
-CREATE POLICY "trail_release_graphs_all" ON trail_release_graphs FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_release_graphs_select" ON trail_release_graphs;
+CREATE POLICY "trail_release_graphs_select" ON trail_release_graphs FOR SELECT USING (true);
 
 ALTER TABLE trail_current_graphs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_current_graphs_all" ON trail_current_graphs;
-CREATE POLICY "trail_current_graphs_all" ON trail_current_graphs FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_current_graphs_select" ON trail_current_graphs;
+CREATE POLICY "trail_current_graphs_select" ON trail_current_graphs FOR SELECT USING (true);
 
 ALTER TABLE trail_releases ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_releases_all" ON trail_releases;
-CREATE POLICY "trail_releases_all" ON trail_releases FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_releases_select" ON trail_releases;
+CREATE POLICY "trail_releases_select" ON trail_releases FOR SELECT USING (true);
 
 ALTER TABLE trail_release_files ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_release_files_all" ON trail_release_files;
-CREATE POLICY "trail_release_files_all" ON trail_release_files FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_release_files_select" ON trail_release_files;
+CREATE POLICY "trail_release_files_select" ON trail_release_files FOR SELECT USING (true);
 
 ALTER TABLE trail_release_features ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_release_features_all" ON trail_release_features;
-CREATE POLICY "trail_release_features_all" ON trail_release_features FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_release_features_select" ON trail_release_features;
+CREATE POLICY "trail_release_features_select" ON trail_release_features FOR SELECT USING (true);
 
 ALTER TABLE trail_message_tool_calls ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_message_tool_calls_all" ON trail_message_tool_calls;
-CREATE POLICY "trail_message_tool_calls_all" ON trail_message_tool_calls FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_message_tool_calls_select" ON trail_message_tool_calls;
+CREATE POLICY "trail_message_tool_calls_select" ON trail_message_tool_calls FOR SELECT USING (true);
 
 ALTER TABLE trail_c4_manual_elements ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_c4_manual_elements_all" ON trail_c4_manual_elements;
-CREATE POLICY "trail_c4_manual_elements_all" ON trail_c4_manual_elements FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_c4_manual_elements_select" ON trail_c4_manual_elements;
+CREATE POLICY "trail_c4_manual_elements_select" ON trail_c4_manual_elements FOR SELECT USING (true);
 
 ALTER TABLE trail_c4_manual_relationships ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_c4_manual_relationships_all" ON trail_c4_manual_relationships;
-CREATE POLICY "trail_c4_manual_relationships_all" ON trail_c4_manual_relationships FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_c4_manual_relationships_select" ON trail_c4_manual_relationships;
+CREATE POLICY "trail_c4_manual_relationships_select" ON trail_c4_manual_relationships FOR SELECT USING (true);
 
 ALTER TABLE trail_c4_manual_groups ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_c4_manual_groups_all" ON trail_c4_manual_groups;
-CREATE POLICY "trail_c4_manual_groups_all" ON trail_c4_manual_groups FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_c4_manual_groups_select" ON trail_c4_manual_groups;
+CREATE POLICY "trail_c4_manual_groups_select" ON trail_c4_manual_groups FOR SELECT USING (true);
 
 ALTER TABLE trail_current_coverage ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_current_coverage_all" ON trail_current_coverage;
-CREATE POLICY "trail_current_coverage_all" ON trail_current_coverage FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_current_coverage_select" ON trail_current_coverage;
+CREATE POLICY "trail_current_coverage_select" ON trail_current_coverage FOR SELECT USING (true);
 
 ALTER TABLE trail_release_coverage ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_release_coverage_all" ON trail_release_coverage;
-CREATE POLICY "trail_release_coverage_all" ON trail_release_coverage FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_release_coverage_select" ON trail_release_coverage;
+CREATE POLICY "trail_release_coverage_select" ON trail_release_coverage FOR SELECT USING (true);
 
 ALTER TABLE trail_current_file_analysis ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_current_file_analysis_all" ON trail_current_file_analysis;
-CREATE POLICY "trail_current_file_analysis_all" ON trail_current_file_analysis FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_current_file_analysis_select" ON trail_current_file_analysis;
+CREATE POLICY "trail_current_file_analysis_select" ON trail_current_file_analysis FOR SELECT USING (true);
 
 ALTER TABLE trail_release_file_analysis ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_release_file_analysis_all" ON trail_release_file_analysis;
-CREATE POLICY "trail_release_file_analysis_all" ON trail_release_file_analysis FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_release_file_analysis_select" ON trail_release_file_analysis;
+CREATE POLICY "trail_release_file_analysis_select" ON trail_release_file_analysis FOR SELECT USING (true);
 
 ALTER TABLE trail_current_function_analysis ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_current_function_analysis_all" ON trail_current_function_analysis;
-CREATE POLICY "trail_current_function_analysis_all" ON trail_current_function_analysis FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_current_function_analysis_select" ON trail_current_function_analysis;
+CREATE POLICY "trail_current_function_analysis_select" ON trail_current_function_analysis FOR SELECT USING (true);
 
 ALTER TABLE trail_release_function_analysis ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_release_function_analysis_all" ON trail_release_function_analysis;
-CREATE POLICY "trail_release_function_analysis_all" ON trail_release_function_analysis FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_release_function_analysis_select" ON trail_release_function_analysis;
+CREATE POLICY "trail_release_function_analysis_select" ON trail_release_function_analysis FOR SELECT USING (true);
 
 ALTER TABLE trail_current_code_graphs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_current_code_graphs_all" ON trail_current_code_graphs;
-CREATE POLICY "trail_current_code_graphs_all" ON trail_current_code_graphs FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_current_code_graphs_select" ON trail_current_code_graphs;
+CREATE POLICY "trail_current_code_graphs_select" ON trail_current_code_graphs FOR SELECT USING (true);
 
 ALTER TABLE trail_current_code_graph_communities ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_current_code_graph_communities_all" ON trail_current_code_graph_communities;
-CREATE POLICY "trail_current_code_graph_communities_all" ON trail_current_code_graph_communities FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_current_code_graph_communities_select" ON trail_current_code_graph_communities;
+CREATE POLICY "trail_current_code_graph_communities_select" ON trail_current_code_graph_communities FOR SELECT USING (true);
 
 ALTER TABLE trail_release_code_graphs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_release_code_graphs_all" ON trail_release_code_graphs;
-CREATE POLICY "trail_release_code_graphs_all" ON trail_release_code_graphs FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_release_code_graphs_select" ON trail_release_code_graphs;
+CREATE POLICY "trail_release_code_graphs_select" ON trail_release_code_graphs FOR SELECT USING (true);
 
 ALTER TABLE trail_release_code_graph_communities ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_release_code_graph_communities_all" ON trail_release_code_graph_communities;
-CREATE POLICY "trail_release_code_graph_communities_all" ON trail_release_code_graph_communities FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "trail_release_code_graph_communities_select" ON trail_release_code_graph_communities;
+CREATE POLICY "trail_release_code_graph_communities_select" ON trail_release_code_graph_communities FOR SELECT USING (true);
 
 
 -- =====================================================================

@@ -233,7 +233,11 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, tra
   // (b) plan-file hook で plannedEdits パスに前置する prefix の 2 用途で使う。
   // 旧実装の path.dirname(path.dirname(statusFile)) は statusDir が単一階層 (.anytime) 前提で、
   // .anytime/trail/agent-status のような多段パスでは workspace root より深い場所を指してしまう。
-  const workspaceRootForHook = (workspaceRoot ?? os.homedir()).replace(/\/+$/, '') + '/';
+  // 末尾の `/` を全削除して `/` 1 つを付け直す。正規表現を使わず CodeQL `js/polynomial-redos` の対象を回避。
+  const rawRoot = workspaceRoot ?? os.homedir();
+  let rootEnd = rawRoot.length;
+  while (rootEnd > 0 && rawRoot.charCodeAt(rootEnd - 1) === 0x2f) rootEnd--;
+  const workspaceRootForHook = rawRoot.slice(0, rootEnd) + '/';
 
   // stdin の JSON を読み取り、セッション履歴を保持しながらステータスファイルを更新する。
   // session_id がある場合は claude-code-status-{sessionId}.json に書き込む（マルチエージェント対応）。

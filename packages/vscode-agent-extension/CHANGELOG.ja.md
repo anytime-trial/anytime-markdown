@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-20
+
+### セキュリティ
+
+- `claudeHookSetup` の末尾スラッシュ正規表現を O(n) の `charCodeAt` スキャンに置き換え (CodeQL #818, `vscode-common`)
+
+### Agent Core (agent-core / ollama-core)
+
+- Ollama split-brain を解消: ヘルスチェックと実取込で共通の `resolveOllamaBaseUrl` ヘルパーを使用するよう統一 (優先順位: `OLLAMA_BASE_URL` env > 明示設定 > Dev Container 自動検出 > localhost)。`agent-core` から re-export 済み
+- `OllamaChatProvider` / `OllamaEmbeddingProvider` の末尾スラッシュ処理で polynomial-redos を修正 — `/\/+$/` 正規表現を `stringUtils.stripTrailingSlashes` による O(n) の `charCodeAt` スキャンに置き換え (CodeQL #815/#816)
+
 ## [0.2.0] - 2026-05-17
 
 ### 追加

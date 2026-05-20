@@ -36,6 +36,16 @@ function toLocale(value: string | null | undefined): Locale | null {
   return value === 'ja' || value === 'en' ? value : null;
 }
 
+// HTTPS 配信時のみ `Secure` 属性を付ける。localhost (http) では Secure cookie は
+// ブラウザに拒否されるため条件分岐する。CodeQL `WebCookieSecureDisabledByDefault` 対策。
+function localeCookieString(value: Locale): string {
+  const base = `NEXT_LOCALE=${value};path=/;max-age=31536000;SameSite=Lax`;
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return `${base};Secure`;
+  }
+  return base;
+}
+
 interface LocaleProviderProps {
   serverLocale: string;
   children: React.ReactNode;
@@ -55,7 +65,7 @@ export function LocaleProvider({ serverLocale, children }: Readonly<LocaleProvid
     const browserLang = toLocale(navigator.language.split('-')[0]);
     if (browserLang && browserLang !== locale) {
       setLocaleState(browserLang);
-      document.cookie = `NEXT_LOCALE=${browserLang};path=/;max-age=31536000;SameSite=Lax`;
+      document.cookie = localeCookieString(browserLang);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -63,7 +73,7 @@ export function LocaleProvider({ serverLocale, children }: Readonly<LocaleProvid
     if (newLocale !== 'ja' && newLocale !== 'en') return;
     setLocaleState(newLocale);
     localStorage.setItem('NEXT_LOCALE', newLocale);
-    document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=31536000;SameSite=Lax`;
+    document.cookie = localeCookieString(newLocale);
   }, []);
 
   const ctx = useMemo(() => ({ locale, setLocale }), [locale, setLocale]);

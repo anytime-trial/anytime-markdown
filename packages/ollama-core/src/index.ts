@@ -1,4 +1,4 @@
-export { createOllamaClient } from './client';
+export { createOllamaClient, resolveOllamaBaseUrl, DEFAULT_OLLAMA_BASE_URL } from './client';
 export type {
   OllamaClient,
   OllamaClientOptions,

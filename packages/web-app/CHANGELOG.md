@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.26.4] - 2026-05-20
+
+### Changed
+
+- Refactored `/api/c4/hotspot` route: extracted commit/tool-call aggregation helpers to reduce cognitive complexity (S3776)
+- Refactored `/api/c4/call-hierarchy` route: extracted `validateParams`/`findTargetNode` helpers (S3776)
+- Expanded unit-test coverage across API routes (`trail`, `weather`, `spotify`, `c4`, `news/wsj`, `github-trending`, `press-*`, `oembed`, `ogp`) and lib utilities (`reportUtils`, `supabase-env`, `api-helpers`, `reportClient`)
+
+### Fixed
+
+- `NEXT_LOCALE` cookie now sets the `Secure` attribute when served over HTTPS
+
+### Security
+
+- Supabase RLS permission separation: `anon` role restricted to `SELECT`; all writes now routed through `service_role`
+- Bumped `hono`, `mermaid`, `next-intl`, and `ws` to patch 4 moderate CVEs
+
 ## [0.26.3] - 2026-05-17
 
 ### Changed

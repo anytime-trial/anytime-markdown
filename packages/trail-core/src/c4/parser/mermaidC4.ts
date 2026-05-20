@@ -61,6 +61,88 @@ export function extractBoundaries(input: string): BoundaryInfo[] {
   return boundaries;
 }
 
+/** ダイアグラムヘッダー行かどうか判定する */
+function isDiagramHeader(line: string): boolean {
+  return line in DIAGRAM_LEVEL ||
+    Object.keys(DIAGRAM_LEVEL).some(k => line.startsWith(k) && line.length === k.length);
+}
+
+/** Rel/BiRel 行をパースして C4Relationship を返す */
+function parseRelationship(funcName: string, args: string[]): C4Relationship {
+  return {
+    from: args[0],
+    to: args[1],
+    label: args[2] || undefined,
+    technology: args[3] || undefined,
+    ...(funcName === 'BiRel' ? { bidirectional: true } : {}),
+  };
+}
+
+/** Element 行をパースして C4Element を返す（undefined フィールド除去済み） */
+function parseElement(funcName: string, args: string[], boundaryStack: string[]): C4Element | null {
+  const def = ELEMENT_DEFS[funcName];
+  if (!def) return null;
+  const elem: C4Element = {
+    id: args[0],
+    type: def.type,
+    name: args[1],
+    ...(def.hasTech && args[2] ? { technology: args[2] } : {}),
+    ...(def.hasTech ? { description: args[3] || undefined } : { description: args[2] || undefined }),
+    ...(def.external ? { external: true } : {}),
+    ...(boundaryStack.length > 0 ? { boundaryId: boundaryStack.at(-1) } : {}),
+  };
+  return Object.fromEntries(
+    Object.entries(elem).filter(([, v]) => v !== undefined),
+  ) as C4Element;
+}
+
+interface ParseState {
+  title: string | undefined;
+  elements: C4Element[];
+  relationships: C4Relationship[];
+  boundaryStack: string[];
+}
+
+/** 1行をパースして state を更新する */
+function parseLine(line: string, state: ParseState): void {
+  if (!line || line.startsWith('%%')) return;
+  if (isDiagramHeader(line)) return;
+
+  const titleMatch = /^title\s+(\S(?:.*\S)?)$/.exec(line);
+  if (titleMatch) {
+    state.title = titleMatch[1].trim();
+    return;
+  }
+
+  // `[A-Za-z][A-Za-z0-9_]*Boundary` で `\w+_?Boundary` の曖昧なバックトラックを除去。
+  // 入力は line.trim() 済みのため、末尾の `\s*` を取り除き、`)` 後の空白は
+  // 限定数 (0-2 個) に縛って CodeQL `js/polynomial-redos` の対象から外す。
+  const boundaryMatch = /^([A-Za-z][A-Za-z0-9_]*Boundary)[ \t]{0,2}\(([^)]*)\)(?:[ \t]{1,2}\{)?$/.exec(line);
+  if (boundaryMatch) {
+    state.boundaryStack.push(parseArgs(boundaryMatch[2])[0]);
+    return;
+  }
+
+  if (line === '}') {
+    state.boundaryStack.pop();
+    return;
+  }
+
+  const elemMatch = /^(\w+)\s*\(([^)]*)\)\s*$/.exec(line);
+  if (!elemMatch) return;
+
+  const funcName = elemMatch[1];
+  const args = parseArgs(elemMatch[2]);
+
+  if (funcName.startsWith('Rel') || funcName === 'BiRel') {
+    state.relationships.push(parseRelationship(funcName, args));
+    return;
+  }
+
+  const el = parseElement(funcName, args, state.boundaryStack);
+  if (el) state.elements.push(el);
+}
+
 /** Mermaid C4記法を解析して C4Model を返す */
 export function parseMermaidC4(input: string): C4Model {
   const trimmed = input.trim();
@@ -75,78 +157,16 @@ export function parseMermaidC4(input: string): C4Model {
   const diagramType = Object.keys(DIAGRAM_LEVEL).find(k => headerLine.startsWith(k))!;
   const level = DIAGRAM_LEVEL[diagramType];
 
-  let title: string | undefined;
-  const elements: C4Element[] = [];
-  const relationships: C4Relationship[] = [];
-  const boundaryStack: string[] = [];
+  const state: ParseState = {
+    title: undefined,
+    elements: [],
+    relationships: [],
+    boundaryStack: [],
+  };
 
   for (const line of lines) {
-    if (!line || line.startsWith('%%')) continue;
-    if (line in DIAGRAM_LEVEL || Object.keys(DIAGRAM_LEVEL).some(k => line.startsWith(k) && line.length === k.length)) continue;
-
-    // title
-    const titleMatch = /^title\s+(\S(?:.*\S)?)$/.exec(line);
-    if (titleMatch) {
-      title = titleMatch[1].trim();
-      continue;
-    }
-
-    // Boundary open: System_Boundary(id, "name") { or Boundary(id, "name") {
-    // Also: Container_Boundary, Enterprise_Boundary
-    // `[A-Za-z][A-Za-z0-9_]*Boundary` で `\w+_?Boundary` の曖昧なバックトラックを除去
-    const boundaryMatch = /^([A-Za-z][A-Za-z0-9_]*Boundary)\s*\(([^)]*)\)\s*\{?\s*$/.exec(line);
-    if (boundaryMatch) {
-      const args = parseArgs(boundaryMatch[2]);
-      boundaryStack.push(args[0]);
-      continue;
-    }
-
-    // Boundary close
-    if (line === '}') {
-      boundaryStack.pop();
-      continue;
-    }
-
-    // Element: FunctionName(id, "name", ...)
-    const elemMatch = /^(\w+)\s*\(([^)]*)\)\s*$/.exec(line);
-    if (elemMatch) {
-      const funcName = elemMatch[1];
-      const args = parseArgs(elemMatch[2]);
-
-      // Relationship: Rel(from, to, "label", "tech") or Rel_D, BiRel, etc.
-      if (funcName.startsWith('Rel') || funcName === 'BiRel') {
-        const rel: C4Relationship = {
-          from: args[0],
-          to: args[1],
-          label: args[2] || undefined,
-          technology: args[3] || undefined,
-          ...(funcName === 'BiRel' ? { bidirectional: true } : {}),
-        };
-        relationships.push(rel);
-        continue;
-      }
-
-      // Element
-      const def = ELEMENT_DEFS[funcName];
-      if (def) {
-        const elem: C4Element = {
-          id: args[0],
-          type: def.type,
-          name: args[1],
-          ...(def.hasTech && args[2] ? { technology: args[2] } : {}),
-          ...(def.hasTech ? { description: args[3] || undefined } : { description: args[2] || undefined }),
-          ...(def.external ? { external: true } : {}),
-          ...(boundaryStack.length > 0 ? { boundaryId: boundaryStack.at(-1) } : {}),
-        };
-        // Remove undefined fields
-        const clean = Object.fromEntries(
-          Object.entries(elem).filter(([, v]) => v !== undefined),
-        ) as C4Element;
-        elements.push(clean);
-        continue;
-      }
-    }
+    parseLine(line, state);
   }
 
-  return { title, level, elements, relationships };
+  return { title: state.title, level, elements: state.elements, relationships: state.relationships };
 }
