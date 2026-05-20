@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+import fs from 'node:fs/promises';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 import { extractHeadingsFromText } from './getOutline';
 
@@ -15,7 +15,7 @@ export interface GetSectionInput {
  * of the same or higher level, or end of document.
  */
 export function getSectionFromText(markdown: string, heading: string): string | null {
-  const headingMatch = heading.match(/^(#{1,6})\s+(.+)$/);
+  const headingMatch = /^(#{1,6})\s+(.+)$/.exec(heading);
   if (!headingMatch) return null;
 
   const targetLevel = headingMatch[1].length;

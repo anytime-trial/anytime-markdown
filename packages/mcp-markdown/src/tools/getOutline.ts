@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+import fs from 'node:fs/promises';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 
 const ALLOWED_EXTENSIONS = ['.md', '.markdown'];
@@ -26,7 +26,7 @@ export function extractHeadingsFromText(markdown: string): HeadingNode[] {
     }
     if (inCodeBlock) continue;
 
-    const match = line.match(/^(#{1,6})\s+(.+)$/);
+    const match = /^(#{1,6})\s+(.+)$/.exec(line);
     if (match) {
       headings.push({
         level: match[1].length,
