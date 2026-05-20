@@ -65,6 +65,13 @@ export interface MemoryDbSessionDeps {
   gitRoot: string;
   /** 初回 backfill 期間 (日)。 */
   backfillDays?: number;
+  /**
+   * 生成モデル (lep.json + env MEMORY_CORE_GEN_MODEL を解決した値)。
+   * 省略時は各 run\* の env / 内蔵既定 (`qwen2.5:7b`) にフォールバック。
+   */
+  chatModel?: string;
+  /** 埋め込みモデル。省略時は `bge-m3` (DEFAULT_EMBED_MODEL)。 */
+  embedModel?: string;
 }
 
 /**
@@ -108,7 +115,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
 
   // ── conversation (backfill/incremental + failed-items retry) ────────────────
   async runConversation(): Promise<ScopeResult> {
-    const { memDb, ollama, backfillDays } = this.deps;
+    const { memDb, ollama, backfillDays, chatModel } = this.deps;
     const logger = this.logger;
     const sinceDays = backfillDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS;
 
@@ -155,6 +162,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
         const result = await runConversationBackfill({
           db: memDb.db,
           ollama,
+          model: chatModel,
           sinceDays,
           logger,
           save: () => this.save(),
@@ -174,6 +182,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
         const result = await runConversationIncremental({
           db: memDb.db,
           ollama,
+          model: chatModel,
           logger,
           save: () => this.save(),
           progress: (processed, failed) =>
@@ -200,6 +209,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
       const retryResult = await runConversationFailedItemsRetry({
         db: memDb.db,
         ollama,
+        model: chatModel,
         logger,
         save: () => this.save(),
       });
@@ -290,7 +300,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
     const { memDb, ollama } = this.deps;
     const logger = this.logger;
     const reviewDir = process.env['MEMORY_CORE_REVIEW_DIR'] ?? '/Shared/anytime-markdown-docs/review';
-    const model = process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b';
+    const model = this.deps.chatModel ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b';
     this.status?.start('review_incremental');
     try {
       const reviewResult = await runReviewIncremental({
@@ -316,7 +326,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
     const { memDb, ollama } = this.deps;
     const logger = this.logger;
     const specRoot = process.env['MEMORY_CORE_SPEC_DIR'] ?? '/Shared/anytime-markdown-docs/spec';
-    const model = process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b';
+    const model = this.deps.chatModel ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b';
     this.status?.start('spec_incremental');
     try {
       const specResult = await runSpecIncremental({ db: memDb.db, specRoot, ollama, model, logger });
@@ -361,6 +371,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
       const embedResult = await runEmbeddingBackfill({
         db: memDb.db,
         ollama,
+        embedModel: this.deps.embedModel,
         logger,
         onTotal: (total) => this.status?.start('embedding_backfill', total),
         progress: (processed, failed) => this.status?.update('embedding_backfill', processed, failed),

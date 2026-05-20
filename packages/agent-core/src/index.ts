@@ -41,6 +41,8 @@ export type {
 // these via agent-core so the backend can be swapped without touching call sites.
 export {
   createOllamaClient,
+  resolveOllamaBaseUrl,
+  DEFAULT_OLLAMA_BASE_URL,
   OllamaChatProvider,
   OllamaEmbeddingProvider,
 } from '@anytime-markdown/ollama-core';

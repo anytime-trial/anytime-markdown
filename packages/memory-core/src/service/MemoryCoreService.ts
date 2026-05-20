@@ -50,6 +50,7 @@ export class MemoryCoreService extends BaseRunner {
       backfillDays: this.serviceOpts.backfillDays,
       backupGenerations: this.serviceOpts.backupGenerations,
       backupIntervalDays: this.serviceOpts.backupIntervalDays,
+      llm: this.serviceOpts.llm,
     };
   }
 
