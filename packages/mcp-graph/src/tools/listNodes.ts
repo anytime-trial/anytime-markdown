@@ -1,5 +1,5 @@
-import fs from 'fs/promises';
-import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core/types';
+import fs from 'node:fs/promises';
+import type { GraphDocument } from '@anytime-markdown/graph-core/types';
 import { resolveSecurePath, validateGraphExtension } from '../utils/securePath';
 
 export interface ListNodesInput {

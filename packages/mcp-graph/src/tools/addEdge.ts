@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+import fs from 'node:fs/promises';
 import { createEdge, type GraphDocument, type GraphEdge, type EdgeType, type EdgeEndpoint } from '@anytime-markdown/graph-core/types';
 import { resolveSecurePath, validateGraphExtension } from '../utils/securePath';
 
@@ -17,10 +17,10 @@ export async function addEdge(input: AddEdgeInput, rootDir: string): Promise<Gra
   const doc: GraphDocument = JSON.parse(await fs.readFile(filePath, 'utf-8'));
 
   // Validate referenced nodes exist
-  if (input.from.nodeId && !doc.nodes.find((n) => n.id === input.from.nodeId)) {
+  if (input.from.nodeId && !doc.nodes.some((n) => n.id === input.from.nodeId)) {
     throw new Error(`Source node not found: ${input.from.nodeId}`);
   }
-  if (input.to.nodeId && !doc.nodes.find((n) => n.id === input.to.nodeId)) {
+  if (input.to.nodeId && !doc.nodes.some((n) => n.id === input.to.nodeId)) {
     throw new Error(`Target node not found: ${input.to.nodeId}`);
   }
 
