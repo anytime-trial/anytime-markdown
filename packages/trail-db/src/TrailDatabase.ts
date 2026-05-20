@@ -49,6 +49,8 @@ import {
   CREATE_PR_REVIEWS,
   CREATE_PR_REVIEW_COMMENTS,
   CREATE_PR_REVIEW_INDEXES,
+  CREATE_PR_REVIEW_FINDINGS,
+  CREATE_PR_REVIEW_FINDINGS_INDEXES,
   DEFAULT_SKILL_MODELS,
   extractSkillName,
   buildReleaseFromGitData,
@@ -858,6 +860,63 @@ export interface DoraMetricRow {
   readonly leadTimeHours: number | null;
   /** 算出日時 (ISO 8601 + Z) */
   readonly computedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+//  GitHub PR review (LEP 新ソース / Step 4b-4c)
+// ---------------------------------------------------------------------------
+
+/** PR review の行コメント (取込入力)。 */
+export interface PrReviewCommentInput {
+  readonly path: string;
+  readonly line: number | null;
+  readonly body: string;
+}
+
+/** {@link TrailDatabase.upsertPrReview} に渡す PR review 1 件。 */
+export interface PrReviewUpsert {
+  readonly reviewId: string;
+  readonly repoName: string;
+  readonly prNumber: number;
+  readonly author: string;
+  readonly state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED';
+  readonly submittedAt: string;
+  readonly body: string;
+  readonly bodyHash: string;
+  readonly comments: readonly PrReviewCommentInput[];
+}
+
+/** {@link TrailDatabase.getPrReviews} の戻り値 (CrossSourceCorrelator 入力)。 */
+export interface PrReviewRow {
+  readonly reviewId: string;
+  readonly repoName: string;
+  readonly prNumber: number;
+  readonly author: string;
+  readonly state: string;
+  readonly submittedAt: string;
+  readonly bodyHash: string;
+}
+
+/** {@link TrailDatabase.getPrReviewDetail} の戻り値 (finding 抽出入力)。 */
+export interface PrReviewDetail {
+  readonly reviewId: string;
+  readonly repoName: string;
+  readonly prNumber: number;
+  readonly state: string;
+  readonly body: string;
+  readonly comments: readonly PrReviewCommentInput[];
+}
+
+/** pr_review_findings の 1 行 ({@link TrailDatabase.replacePrReviewFindings} / getter 共通)。 */
+export interface PrReviewFindingRow {
+  readonly findingId: string;
+  readonly reviewId: string;
+  readonly filePath: string;
+  readonly lineNumber: number | null;
+  readonly severity: 'error' | 'warn' | 'info' | null;
+  readonly category: string | null;
+  readonly body: string;
+  readonly createdAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -1709,6 +1768,11 @@ export class TrailDatabase {
     db.run(CREATE_PR_REVIEWS);
     db.run(CREATE_PR_REVIEW_COMMENTS);
     for (const idx of CREATE_PR_REVIEW_INDEXES) {
+      db.run(idx);
+    }
+    // PR review finding (Step 4c)。memory_review_findings とは独立 (新規テーブルのみ)。
+    db.run(CREATE_PR_REVIEW_FINDINGS);
+    for (const idx of CREATE_PR_REVIEW_FINDINGS_INDEXES) {
       db.run(idx);
     }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
@@ -2709,6 +2773,172 @@ export class TrailDatabase {
       db.run('ROLLBACK');
       throw err;
     }
+  }
+
+  /**
+   * LEP `PrReviewImporter` (Step 4c) 用: 既存 PR review の body_hash を返す (なければ null)。
+   * Ingester が再 emit した review が未変更かを判定し、冪等に skip するために使う。
+   */
+  getPrReviewBodyHash(reviewId: string): string | null {
+    const db = this.ensureDb();
+    const result = db.exec('SELECT body_hash FROM pr_reviews WHERE review_id = ?', [reviewId]);
+    const row = result[0]?.values[0];
+    return row ? String(row[0] ?? '') : null;
+  }
+
+  /**
+   * LEP `PrReviewImporter` (Step 4c) 用: PR review 1 件を upsert する (冪等)。
+   * pr_reviews を INSERT OR REPLACE し、pr_review_comments を洗い替えする。
+   */
+  upsertPrReview(review: PrReviewUpsert): void {
+    const db = this.ensureDb();
+    db.run('BEGIN');
+    try {
+      db.run(
+        `INSERT OR REPLACE INTO pr_reviews
+           (review_id, repo_name, pr_number, author, state, submitted_at, body, body_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          review.reviewId,
+          review.repoName,
+          review.prNumber,
+          review.author,
+          review.state,
+          review.submittedAt,
+          review.body,
+          review.bodyHash,
+        ],
+      );
+      db.run('DELETE FROM pr_review_comments WHERE review_id = ?', [review.reviewId]);
+      const stmt = db.prepare(
+        `INSERT INTO pr_review_comments (review_id, comment_index, file_path, line_number, body)
+         VALUES (?, ?, ?, ?, ?)`,
+      );
+      try {
+        review.comments.forEach((c, i) => {
+          stmt.run([review.reviewId, i, c.path, c.line, c.body]);
+        });
+      } finally {
+        stmt.free();
+      }
+      db.run('COMMIT');
+    } catch (err) {
+      db.run('ROLLBACK');
+      throw err;
+    }
+  }
+
+  /**
+   * LEP `PrReviewFindingAnalyzer` (Step 4c) 用: review 1 件の body + comments を返す
+   * (finding 抽出入力)。存在しなければ null。
+   */
+  getPrReviewDetail(reviewId: string): PrReviewDetail | null {
+    const db = this.ensureDb();
+    const head = db.exec(
+      'SELECT repo_name, pr_number, state, body FROM pr_reviews WHERE review_id = ?',
+      [reviewId],
+    );
+    const row = head[0]?.values[0];
+    if (!row) return null;
+    const cres = db.exec(
+      'SELECT file_path, line_number, body FROM pr_review_comments WHERE review_id = ? ORDER BY comment_index',
+      [reviewId],
+    );
+    const comments: PrReviewCommentInput[] = (cres[0]?.values ?? []).map((c) => ({
+      path: String(c[0] ?? ''),
+      line: c[1] == null ? null : Number(c[1]),
+      body: String(c[2] ?? ''),
+    }));
+    return {
+      reviewId,
+      repoName: String(row[0] ?? ''),
+      prNumber: Number(row[1] ?? 0),
+      state: String(row[2] ?? ''),
+      body: String(row[3] ?? ''),
+      comments,
+    };
+  }
+
+  /** CrossSourceCorrelator (Step 4d) 用: 全 PR review を返す。 */
+  getPrReviews(): PrReviewRow[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT review_id, repo_name, pr_number, author, state, submitted_at, body_hash
+       FROM pr_reviews ORDER BY submitted_at`,
+    );
+    if (!result[0]) return [];
+    return result[0].values.map((row) => ({
+      reviewId: String(row[0] ?? ''),
+      repoName: String(row[1] ?? ''),
+      prNumber: Number(row[2] ?? 0),
+      author: String(row[3] ?? ''),
+      state: String(row[4] ?? ''),
+      submittedAt: String(row[5] ?? ''),
+      bodyHash: String(row[6] ?? ''),
+    }));
+  }
+
+  /**
+   * LEP `PrReviewFindingAnalyzer` (Step 4c) 用: 指定 review の finding を洗い替えする。
+   * memory_review_findings とは独立した pr_review_findings に書き込む (source_type enum 不変)。
+   */
+  replacePrReviewFindings(reviewId: string, findings: readonly PrReviewFindingRow[]): void {
+    const db = this.ensureDb();
+    db.run('BEGIN');
+    try {
+      db.run('DELETE FROM pr_review_findings WHERE review_id = ?', [reviewId]);
+      const stmt = db.prepare(
+        `INSERT INTO pr_review_findings
+           (finding_id, review_id, file_path, line_number, severity, category, body, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      try {
+        for (const f of findings) {
+          stmt.run([
+            f.findingId,
+            f.reviewId,
+            f.filePath,
+            f.lineNumber,
+            f.severity,
+            f.category,
+            f.body,
+            f.createdAt,
+          ]);
+        }
+      } finally {
+        stmt.free();
+      }
+      db.run('COMMIT');
+    } catch (err) {
+      db.run('ROLLBACK');
+      throw err;
+    }
+  }
+
+  /** CrossSourceCorrelator (Step 4d) / テスト用: pr_review_findings を返す (review 指定で絞込)。 */
+  getPrReviewFindings(reviewId?: string): PrReviewFindingRow[] {
+    const db = this.ensureDb();
+    const result = reviewId
+      ? db.exec(
+          `SELECT finding_id, review_id, file_path, line_number, severity, category, body, created_at
+           FROM pr_review_findings WHERE review_id = ? ORDER BY finding_id`,
+          [reviewId],
+        )
+      : db.exec(
+          `SELECT finding_id, review_id, file_path, line_number, severity, category, body, created_at
+           FROM pr_review_findings ORDER BY finding_id`,
+        );
+    if (!result[0]) return [];
+    return result[0].values.map((row) => ({
+      findingId: String(row[0] ?? ''),
+      reviewId: String(row[1] ?? ''),
+      filePath: String(row[2] ?? ''),
+      lineNumber: row[3] == null ? null : Number(row[3]),
+      severity: row[4] == null ? null : (String(row[4]) as 'error' | 'warn' | 'info'),
+      category: row[5] == null ? null : String(row[5]),
+      body: String(row[6] ?? ''),
+      createdAt: String(row[7] ?? ''),
+    }));
   }
 
   /**
