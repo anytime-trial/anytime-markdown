@@ -10,14 +10,16 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
 
   constructor(
     private readonly url: string,
-    private readonly anonKey: string,
+    // 書き込み (upsert/delete/clear) を行うため service_role キーを受け取る。
+    // anon キーは RLS により読み取り専用なので、このストアでは使えない。
+    private readonly serviceRoleKey: string,
     logger?: DbLogger,
   ) {
     this.logger = logger ?? noopDbLogger;
   }
 
   async connect(): Promise<void> {
-    this.client = createClient(this.url, this.anonKey);
+    this.client = createClient(this.url, this.serviceRoleKey);
   }
 
   async close(): Promise<void> {
