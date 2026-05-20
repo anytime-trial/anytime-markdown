@@ -699,6 +699,8 @@ export async function activate(context: vscode.ExtensionContext) {
 				disabledAggregators: lepDisabledAnalyzers,
 				githubPrReview,
 				importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
+				// stage が memory を含まない run 後に memory scope を skipped 記録する宛先。
+				pipelineStatusFilePath: path.join(dbStorageDir, 'pipeline-status.json'),
 				onImportProgress: (message) => TrailLogger.info(`[analyzeAll] ${message}`),
 				analyzeReleaseFn: analyze,
 				onImportPhase: (event) =>

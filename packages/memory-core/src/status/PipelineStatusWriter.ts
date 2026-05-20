@@ -50,6 +50,20 @@ export class PipelineStatusWriter {
     this.flush();
   }
 
+  /**
+   * 全 scope を `skipped` にして flush する。stage が memory wave を含まず Wave 3 が
+   * 走らないとき、UI が古い `running`/`pending` を表示し続けないよう runner が呼ぶ。
+   */
+  markAllSkipped(message?: string): void {
+    const finishedAt = new Date().toISOString();
+    for (const entry of this.state.pipelines) {
+      entry.state = 'skipped';
+      entry.finished_at = finishedAt;
+      if (message !== undefined) entry.message = message;
+    }
+    this.flush();
+  }
+
   start(scope: string, total?: number): void {
     const entry = this.find(scope);
     if (!entry) return;

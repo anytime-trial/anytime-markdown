@@ -309,6 +309,8 @@ program
       githubPrReview,
       // VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新する
       importAllStatusFilePath: join(dbStorageDir, 'importall-phase-status.json'),
+      // stage が memory を含まない run 後に memory scope を skipped 記録する宛先。
+      pipelineStatusFilePath: join(dbStorageDir, 'pipeline-status.json'),
     });
     server.setAnalyzeAllRunner(analyzeAllRunner);
     logger.info('analyze-all runner wired', {

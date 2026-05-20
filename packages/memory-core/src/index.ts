@@ -98,6 +98,7 @@ export type {
   PipelineStatusEntry,
   PipelineState,
 } from './status/PipelineStatusWriter';
+export { PIPELINE_SCOPES } from './service/pipelineScopes';
 
 export { runRagFtsRebuild } from './pipeline/runRagFtsRebuild';
 export type {
@@ -167,6 +168,7 @@ export {
   LepOrchestrator,
   BaseAnalyzer,
   LEP_STAGES,
+  stageIncludesMemory,
   topoSortByDependsOn,
 } from './lep';
 export type {

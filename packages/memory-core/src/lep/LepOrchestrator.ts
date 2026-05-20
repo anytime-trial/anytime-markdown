@@ -137,6 +137,14 @@ const STAGE_TIERS: Record<LepStage, ReadonlySet<Tier>> = {
   all: new Set([1, 2, 3, 4]),
 };
 
+/**
+ * stage が Layer 3 (memory / Wave 3 / tier 3) を実行するか。
+ * memory analyzer は ollama を使うため、false の stage では memory scope は走らない。
+ */
+export function stageIncludesMemory(stage: LepStage): boolean {
+  return STAGE_TIERS[stage].has(3);
+}
+
 function toError(err: unknown): Error {
   return err instanceof Error ? err : new Error(String(err));
 }

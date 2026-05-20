@@ -5,6 +5,9 @@ import {
   BaseRunner,
   EventBus,
   LepOrchestrator,
+  PipelineStatusWriter,
+  PIPELINE_SCOPES,
+  stageIncludesMemory,
   topoSortByDependsOn,
   type LepStage,
   type MemoryCoreService,
@@ -103,6 +106,13 @@ export interface AnalyzeAllRunnerOptions {
    * (VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新するため)。
    */
   importAllStatusFilePath?: string;
+  /**
+   * 指定時、stage が memory wave を含まない (Wave 3 を実行しない) run の終了時に
+   * この pipeline-status.json の全 memory scope を `skipped` で記録する。
+   * Wave 3 が走らないと status writer が初期化されず、UI が古い `running`/`pending` を
+   * 表示し続けるのを防ぐ。memory wave を含む stage では Wave 3 側 writer に委ねるため書かない。
+   */
+  pipelineStatusFilePath?: string;
 
   // -- Optional callback hooks (拡張モードでの UI 統合用) --
   /** import の onProgress に渡される。ログ・進捗バー更新等。 */
@@ -157,6 +167,7 @@ export class AnalyzeAllRunner extends BaseRunner {
   private readonly onAfterRun: (() => void) | undefined;
   private readonly trailDb: TrailDatabase | undefined;
   private readonly importPipelineEnabled: boolean;
+  private readonly pipelineStatusFilePath: string | undefined;
 
   // Layer 3 (memory) analyzer (7 個) の error 集約に使う id 一覧。
   // Wave 3 完了後に provider.closeIfOpen() を呼ぶ。
@@ -319,6 +330,7 @@ export class AnalyzeAllRunner extends BaseRunner {
     }
 
     this.stage = opts.stage ?? 'primary+memory';
+    this.pipelineStatusFilePath = opts.pipelineStatusFilePath;
 
     this.orchestrator = new LepOrchestrator(bus, analyzers, {
       info: (msg) => this.log(msg),
@@ -367,6 +379,10 @@ export class AnalyzeAllRunner extends BaseRunner {
       } catch (err) {
         this.log(`[WARN] memory session close failed: ${err instanceof Error ? err.message : String(err)}`);
       }
+      // stage が memory wave を含まない場合、Wave 3 が走らず status writer が初期化されない。
+      // pipeline-status.json の memory scope を skipped で上書きし、UI が古い running/pending を
+      // 表示し続けないようにする (memory を含む stage では Wave 3 側 writer に委ねるため書かない)。
+      this.markMemoryScopesSkippedIfExcluded();
       // 成功・失敗を問わず通知 (UI 更新)。例外吸収して runImpl の throw を妨げない。
       try {
         this.onAfterRun?.();
@@ -376,6 +392,28 @@ export class AnalyzeAllRunner extends BaseRunner {
     }
 
     if (runError) throw runError;
+  }
+
+  /**
+   * stage が memory wave (tier 3) を含まないとき、`pipeline-status.json` の全 memory scope を
+   * `skipped` で記録する。Wave 3 が走らないと PipelineStatusWriter が初期化されず、UI が前回 run の
+   * `running`/`pending` を表示し続けるのを防ぐ。例外は握り潰して run を妨げない。
+   */
+  private markMemoryScopesSkippedIfExcluded(): void {
+    if (!this.pipelineStatusFilePath) return;
+    if (stageIncludesMemory(this.stage)) return;
+    try {
+      const writer = new PipelineStatusWriter(
+        this.pipelineStatusFilePath,
+        randomUUID(),
+        [...PIPELINE_SCOPES],
+      );
+      writer.markAllSkipped(`stage=${this.stage} excludes memory wave`);
+    } catch (err) {
+      this.log(
+        `[WARN] failed to mark memory scopes skipped: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   /**

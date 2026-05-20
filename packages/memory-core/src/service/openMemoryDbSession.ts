@@ -22,20 +22,10 @@ import { runAgentRunWatchdog } from '../ingest/review/agentRunWatchdog';
 import { runPipelineWatchdog } from '../pipeline/pipelineWatchdog';
 import { PipelineStatusWriter } from '../status/PipelineStatusWriter';
 import { MemoryDbSession } from './MemoryDbSession';
+import { PIPELINE_SCOPES } from './pipelineScopes';
 import type { PipelineRunnerContext } from './types';
 
-/** `pipeline-status.json` に書き出す 9 scope。analyzer→scope は 1:N (conversation→2 等)。 */
-export const PIPELINE_SCOPES = [
-  'conversation_incremental',
-  'conversation_failed_items_retry',
-  'code_incremental',
-  'code_reconciliation',
-  'bug_history_incremental',
-  'review_incremental',
-  'spec_incremental',
-  'drift_detection',
-  'embedding_backfill',
-] as const;
+export { PIPELINE_SCOPES };
 
 export interface OpenMemoryDbSessionOptions {
   /** Ollama クライアント生成口 (テストで mock 注入)。省略時 `createOllamaClient()`。 */
