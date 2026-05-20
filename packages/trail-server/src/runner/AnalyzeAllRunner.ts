@@ -19,7 +19,7 @@ import {
   createMemoryAnalyzers,
   type MemoryWaveSessionProvider,
 } from '../lep/analyzers/memory';
-import { DoraMetricsAggregator } from '../lep/analyzers/aggregator';
+import { DoraMetricsAggregator, CrossSourceCorrelator } from '../lep/analyzers/aggregator';
 import {
   PrReviewImporter,
   PrReviewFindingAnalyzer,
@@ -310,6 +310,11 @@ export class AnalyzeAllRunner extends BaseRunner {
         const doraAggregator = new DoraMetricsAggregator({ trailDb: opts.trailDb });
         bus.subscribe(doraAggregator);
         analyzers.push(doraAggregator);
+      }
+      if (!disabledAggregators.includes('CrossSourceCorrelator')) {
+        const correlator = new CrossSourceCorrelator({ trailDb: opts.trailDb });
+        bus.subscribe(correlator);
+        analyzers.push(correlator);
       }
     }
 

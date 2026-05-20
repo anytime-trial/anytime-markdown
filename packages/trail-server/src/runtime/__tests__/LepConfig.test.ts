@@ -71,13 +71,16 @@ describe('validateLepConfigInput', () => {
     expect(value.analyzers).toEqual({ CodeMemoryAnalyzer: { enabled: false } });
   });
 
-  it('recognizes the DoraMetricsAggregator (Layer 4) toggle without warning', () => {
+  it('recognizes Layer 4 aggregator toggles without warning', () => {
     const { value, warnings } = validateLepConfigInput(
-      { analyzers: { DoraMetricsAggregator: { enabled: false } } },
+      { analyzers: { DoraMetricsAggregator: { enabled: false }, CrossSourceCorrelator: { enabled: false } } },
       'test',
     );
     expect(warnings).toEqual([]);
-    expect(value.analyzers).toEqual({ DoraMetricsAggregator: { enabled: false } });
+    expect(value.analyzers).toEqual({
+      DoraMetricsAggregator: { enabled: false },
+      CrossSourceCorrelator: { enabled: false },
+    });
   });
 
   it('ignores $schema without warning', () => {

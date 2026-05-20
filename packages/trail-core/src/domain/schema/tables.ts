@@ -556,3 +556,23 @@ export const CREATE_PR_REVIEW_FINDINGS = `CREATE TABLE IF NOT EXISTS pr_review_f
 export const CREATE_PR_REVIEW_FINDINGS_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_pr_review_findings_review_id ON pr_review_findings(review_id)`,
 ];
+
+// LEP Layer 4 (Aggregator): 複数ソース横断の相関 (Step 4d)。
+// CrossSourceCorrelator が既存 trail.db データ (pr_reviews / pr_review_findings /
+// session_commits / releases / commit_files) のみを突合して書き込む。新規テーブルのみ。
+export const CREATE_CROSS_SOURCE_CORRELATIONS = `CREATE TABLE IF NOT EXISTS cross_source_correlations (
+  correlation_type TEXT NOT NULL
+    CHECK (correlation_type IN ('pr_review_session', 'pr_review_release', 'pr_finding_commit')),
+  repo_name TEXT NOT NULL DEFAULT '',
+  source_a_kind TEXT NOT NULL,
+  source_a_id TEXT NOT NULL,
+  source_b_kind TEXT NOT NULL,
+  source_b_id TEXT NOT NULL,
+  confidence TEXT NOT NULL DEFAULT 'low' CHECK (confidence IN ('high', 'medium', 'low')),
+  computed_at TEXT NOT NULL CHECK (computed_at GLOB ${TS_GLOB_MS} OR computed_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (correlation_type, source_a_id, source_b_id)
+) STRICT`;
+
+export const CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_cross_source_correlations_repo ON cross_source_correlations(repo_name)`,
+];
