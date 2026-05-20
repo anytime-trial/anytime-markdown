@@ -44,5 +44,5 @@ export type EvaluateReverseSpecToolInput = z.infer<typeof EvaluateReverseSpecInp
 export async function handleEvaluateReverseSpec(
   input: EvaluateReverseSpecToolInput,
 ): Promise<EvaluateReverseSpecOutput> {
-  return evaluateReverseSpec(input as EvaluateReverseSpecInput);
+  return evaluateReverseSpec(input);
 }

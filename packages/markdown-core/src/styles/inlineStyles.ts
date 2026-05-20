@@ -47,7 +47,7 @@ export function getInlineStyles(theme: Theme): SxProps<Theme> {
     },
     // テキストハイライト（マーカー）
     "& mark": {
-      backgroundColor: alpha(ACCENT_COLOR, isDark ? 0.45 : 0.40),
+      backgroundColor: alpha(ACCENT_COLOR, isDark ? 0.45 : 0.4),
       borderRadius: "2px",
       color: "inherit",
       px: "2px",

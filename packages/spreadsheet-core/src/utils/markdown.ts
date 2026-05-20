@@ -66,7 +66,7 @@ export function parseMarkdownTable(text: string): SheetSnapshot {
 
 /** セル値内の `|` をエスケープする */
 function escapeCell(s: string): string {
-    return s.replaceAll('|', '\\|');
+    return s.replaceAll('|', String.raw`\|`);
 }
 
 /** アライメントをセパレータセル文字列に変換する */

@@ -6,11 +6,11 @@ import type {
 } from './types';
 
 export const DEFAULT_WEIGHTS: ImportanceScorerWeights = {
-  fanIn:               0.30,
+  fanIn:               0.3,
   cognitiveComplexity: 0.25,
   dataMutationScore:   0.25,
-  sideEffectScore:     0.10,
-  lineCount:           0.10,
+  sideEffectScore:     0.1,
+  lineCount:           0.1,
 };
 
 // cyclomaticComplexity は重みに未追加（AST メトリクス保存フェーズでは除外、別途追加予定）

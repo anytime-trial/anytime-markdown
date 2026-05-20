@@ -105,7 +105,7 @@ function buildPackageLevel(
     packageSet.add(dir);
   }
 
-  const sortedPackages = [...packageSet].sort();
+  const sortedPackages = [...packageSet].sort((a, b) => a.localeCompare(b));
   const nodes: DsmNode[] = sortedPackages.map(p => ({
     id: p,
     name: p,

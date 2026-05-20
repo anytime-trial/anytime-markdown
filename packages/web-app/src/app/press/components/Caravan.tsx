@@ -102,10 +102,12 @@ export function Caravan() {
             />
           </span>
         ))}
-        {OASES.map(([left, bottom]) => (
+        {OASES.map(([left, bottom]) => {
+          const oasisClass = oasisVisible ? ` ${styles.caravanOasisVisible}` : '';
+          return (
           <span
             key={left}
-            className={`${styles.caravanOasisItem}${oasisVisible ? ` ${styles.caravanOasisVisible}` : ''}`}
+            className={`${styles.caravanOasisItem}${oasisClass}`}
             style={{ left, bottom }}
           >
             <svg viewBox="0 0 36 58" width="36" height="58" fill="none">
@@ -116,7 +118,8 @@ export function Caravan() {
               ))}
             </svg>
           </span>
-        ))}
+          );
+        })}
       </div>
       <span className={styles.caravanSun1} aria-hidden="true" />
       <span className={styles.caravanSun2} aria-hidden="true" />

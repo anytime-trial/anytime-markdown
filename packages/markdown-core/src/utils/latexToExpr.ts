@@ -72,9 +72,9 @@ export function latexToMathjs(latex: string): string {
   let expr = latex;
 
   // \left, \right, \, を除去
-  expr = expr.replaceAll("\\left", "");
-  expr = expr.replaceAll("\\right", "");
-  expr = expr.replaceAll("\\,", " ");
+  expr = expr.replaceAll(String.raw`\left`, "");
+  expr = expr.replaceAll(String.raw`\right`, "");
+  expr = expr.replaceAll(String.raw`\,`, " ");
 
   // \frac{a}{b} → ((a)/(b))
   // ネストに対応するため繰り返し適用
@@ -91,26 +91,26 @@ export function latexToMathjs(latex: string): string {
   expr = expr.replaceAll(/\\sqrt\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, "sqrt($1)");
 
   // 三角関数・対数関数
-  expr = expr.replaceAll("\\sin", "sin");
-  expr = expr.replaceAll("\\cos", "cos");
-  expr = expr.replaceAll("\\tan", "tan");
-  expr = expr.replaceAll("\\asin", "asin");
-  expr = expr.replaceAll("\\acos", "acos");
-  expr = expr.replaceAll("\\atan", "atan");
-  expr = expr.replaceAll("\\sinh", "sinh");
-  expr = expr.replaceAll("\\cosh", "cosh");
-  expr = expr.replaceAll("\\tanh", "tanh");
-  expr = expr.replaceAll("\\ln", "log");
-  expr = expr.replaceAll("\\log", "log10");
-  expr = expr.replaceAll("\\exp", "exp");
+  expr = expr.replaceAll(String.raw`\sin`, "sin");
+  expr = expr.replaceAll(String.raw`\cos`, "cos");
+  expr = expr.replaceAll(String.raw`\tan`, "tan");
+  expr = expr.replaceAll(String.raw`\asin`, "asin");
+  expr = expr.replaceAll(String.raw`\acos`, "acos");
+  expr = expr.replaceAll(String.raw`\atan`, "atan");
+  expr = expr.replaceAll(String.raw`\sinh`, "sinh");
+  expr = expr.replaceAll(String.raw`\cosh`, "cosh");
+  expr = expr.replaceAll(String.raw`\tanh`, "tanh");
+  expr = expr.replaceAll(String.raw`\ln`, "log");
+  expr = expr.replaceAll(String.raw`\log`, "log10");
+  expr = expr.replaceAll(String.raw`\exp`, "exp");
 
   // 定数
-  expr = expr.replaceAll("\\pi", "pi");
-  expr = expr.replaceAll("\\theta", "theta");
+  expr = expr.replaceAll(String.raw`\pi`, "pi");
+  expr = expr.replaceAll(String.raw`\theta`, "theta");
 
   // 演算子
-  expr = expr.replaceAll("\\cdot", "*");
-  expr = expr.replaceAll("\\times", "*");
+  expr = expr.replaceAll(String.raw`\cdot`, "*");
+  expr = expr.replaceAll(String.raw`\times`, "*");
 
   // {} → ()
   expr = expr.replaceAll("{", "(");

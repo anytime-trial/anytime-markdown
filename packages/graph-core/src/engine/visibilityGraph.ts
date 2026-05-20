@@ -182,16 +182,25 @@ function reconstructPath(
 }
 
 /** Process neighbors of a node in the Dijkstra search, updating dist/prev/heap */
-function processNeighbors(
-  nodeId: number,
-  dir: Direction,
-  cost: number,
-  neighbors: Array<{ to: number; distance: number; horizontal: boolean }>,
-  bendPenalty: number,
-  dist: Map<string, number>,
-  prev: Map<string, { nodeId: number; dir: Direction } | null>,
-  heap: MinHeap,
-): void {
+function processNeighbors({
+  nodeId,
+  dir,
+  cost,
+  neighbors,
+  bendPenalty,
+  dist,
+  prev,
+  heap,
+}: {
+  nodeId: number;
+  dir: Direction;
+  cost: number;
+  neighbors: Array<{ to: number; distance: number; horizontal: boolean }>;
+  bendPenalty: number;
+  dist: Map<string, number>;
+  prev: Map<string, { nodeId: number; dir: Direction } | null>;
+  heap: MinHeap;
+}): void {
   for (const neighbor of neighbors) {
     const edgeDir: Direction = neighbor.horizontal ? 'h' : 'v';
     const bend = dir !== 'init' && dir !== edgeDir ? bendPenalty : 0;
@@ -238,7 +247,7 @@ export function dijkstraWithBendPenalty(
     const neighbors = adj.get(nodeId);
     if (!neighbors) continue;
 
-    processNeighbors(nodeId, dir, cost, neighbors, bendPenalty, dist, prev, heap);
+    processNeighbors({ nodeId, dir, cost, neighbors, bendPenalty, dist, prev, heap });
   }
 
   return null;

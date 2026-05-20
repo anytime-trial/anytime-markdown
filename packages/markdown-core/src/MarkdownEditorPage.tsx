@@ -308,7 +308,7 @@ function maskWhenRestricted<T>(isRestricted: boolean, value: T): T | undefined {
 }
 
 function applyInitialFontSizeOnce(
-  appliedRef: React.MutableRefObject<boolean>,
+  appliedRef: React.RefObject<boolean>,
   initialFontSize: number | undefined,
   currentFontSize: number,
   updateSettings: (s: { fontSize: number }) => void,

@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+import fs from 'node:fs/promises';
 import { createNode, type GraphDocument, type GraphNode, type NodeType } from '@anytime-markdown/graph-core/types';
 import { snapToGrid } from '@anytime-markdown/graph-core/src/engine/gridSnap';
 import { resolveSecurePath, validateGraphExtension } from '../utils/securePath';

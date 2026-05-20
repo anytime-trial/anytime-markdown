@@ -62,7 +62,7 @@ export class FileTrailStorage implements ITrailStorage {
   /** @deprecated FileBackupManager.DEFAULT_BACKUP_GENERATIONS を使う */
   static readonly DEFAULT_BACKUP_GENERATIONS = FileBackupManager.DEFAULT_BACKUP_GENERATIONS;
   /** @deprecated Use DEFAULT_BACKUP_GENERATIONS */
-  static readonly BACKUP_GENERATIONS = FileTrailStorage.DEFAULT_BACKUP_GENERATIONS;
+  static readonly BACKUP_GENERATIONS = FileBackupManager.DEFAULT_BACKUP_GENERATIONS;
 
   private readonly backupManager: FileBackupManager;
 

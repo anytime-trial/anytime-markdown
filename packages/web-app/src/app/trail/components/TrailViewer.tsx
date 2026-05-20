@@ -64,13 +64,15 @@ export function TrailViewer({
           onClose={handleCloseDocPopup}
           maxWidth="lg"
           fullWidth
-          PaperProps={{
-            sx: {
-              height: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-              bgcolor: isDark ? 'rgba(18,18,18,0.96)' : 'rgba(251,249,243,0.98)',
-              backgroundImage: 'none',
+          slotProps={{
+            paper: {
+              sx: {
+                height: '80vh',
+                display: 'flex',
+                flexDirection: 'column',
+                bgcolor: isDark ? 'rgba(18,18,18,0.96)' : 'rgba(251,249,243,0.98)',
+                backgroundImage: 'none',
+              },
             },
           }}
         >

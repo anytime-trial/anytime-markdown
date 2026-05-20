@@ -2,11 +2,16 @@ import { useTranslations } from 'next-intl';
 
 import styles from '../press.module.css';
 
+function Vermilion({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <span className={styles.textVermilion}>{children}</span>;
+}
+
+function vermilion(chunks: React.ReactNode) {
+  return <Vermilion>{chunks}</Vermilion>;
+}
+
 export function Dispatch() {
   const tDispatch = useTranslations('press.dispatch');
-  const vermilion = (chunks: React.ReactNode) => (
-    <span className={styles.textVermilion}>{chunks}</span>
-  );
   return (
     <section className={styles.dispatch} id="dispatch">
       <header className={styles.dispatchHeader}>

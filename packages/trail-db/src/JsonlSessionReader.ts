@@ -59,7 +59,7 @@ export class JsonlSessionReader {
       messages.push({
         uuid: raw.uuid,
         parentUuid: raw.parentUuid ?? null,
-        type: raw.type as 'user' | 'assistant' | 'system',
+        type: raw.type,
         timestamp: raw.timestamp ?? '',
         isSidechain: raw.isSidechain ?? false,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
@@ -79,17 +79,14 @@ export class JsonlSessionReader {
     for (const record of records) {
       const timestamp = typeof record.timestamp === 'string' ? record.timestamp : '';
       if (record.type === 'response_item' && record.payload && typeof record.payload === 'object') {
-        const payload = record.payload as Record<string, unknown>;
+        const payload = record.payload;
         const payloadType = typeof payload.type === 'string' ? payload.type : '';
         if (payloadType === 'message') {
           const role = typeof payload.role === 'string' ? payload.role : '';
           if (role === 'user' || role === 'assistant' || role === 'developer' || role === 'system') {
             const text = JsonlSessionReader.extractCodexText(payload.content);
-            const normalizedType = role === 'user'
-              ? 'user'
-              : role === 'assistant'
-                ? 'assistant'
-                : 'system';
+            const normalizedTypeInner = role === 'assistant' ? 'assistant' : 'system';
+            const normalizedType = role === 'user' ? 'user' : normalizedTypeInner;
             normalized.push({
               uuid: `codex-${seq++}`,
               type: normalizedType,

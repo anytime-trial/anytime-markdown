@@ -43,7 +43,7 @@ export const DEFAULT_PHYSICS_CONFIG: PhysicsConfig = {
   repulsionStrength: 5000,
   centerGravity: 0.01,
   damping: 0.9,
-  frAreaMultiplier: 1.0,
+  frAreaMultiplier: 1,
   frCooling: 0.95,
   hierarchicalDirection: 'TB',
   hierarchicalLevelGap: 180,

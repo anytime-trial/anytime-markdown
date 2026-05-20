@@ -101,19 +101,18 @@ export class TypeScriptAdapter implements ILanguageAdapter {
     checker: ts.TypeChecker,
     result: Map<string, { fanOut: number; distinctCallees: number }>,
   ): void {
-    const self = this;
-    function visitTopLevel(node: ts.Node): void {
+    const visitTopLevel = (node: ts.Node): void => {
       if (
         ts.isFunctionDeclaration(node) ||
         ts.isMethodDeclaration(node) ||
         ts.isArrowFunction(node) ||
         ts.isFunctionExpression(node)
       ) {
-        const info = self.toFunctionInfoFromNode(node as FunctionLikeNode, sourceFile);
+        const info = this.toFunctionInfoFromNode(node, sourceFile);
         if (info) {
           const counter = { fanOut: 0, distinctCallees: 0 };
           const calleesSet = new Set<string>();
-          self.countFanOutInBody(node as FunctionLikeNode, checker, counter, calleesSet);
+          this.countFanOutInBody(node, checker, counter, calleesSet);
           counter.distinctCallees = calleesSet.size;
           result.set(info.id, counter);
         }
@@ -122,7 +121,7 @@ export class TypeScriptAdapter implements ILanguageAdapter {
       } else {
         ts.forEachChild(node, visitTopLevel);
       }
-    }
+    };
     ts.forEachChild(sourceFile, visitTopLevel);
   }
 
@@ -137,8 +136,7 @@ export class TypeScriptAdapter implements ILanguageAdapter {
     counter: { fanOut: number; distinctCallees: number },
     calleesSet: Set<string>,
   ): void {
-    const self = this;
-    function walk(node: ts.Node): void {
+    const walk = (node: ts.Node): void => {
       // ネスト関数定義の内部には踏み込まない（自分自身が FunctionLike ならスキップ）
       if (
         ts.isFunctionDeclaration(node) ||
@@ -150,10 +148,10 @@ export class TypeScriptAdapter implements ILanguageAdapter {
       }
       if (ts.isCallExpression(node)) {
         counter.fanOut++;
-        self.collectCalleeId(node.expression, checker, calleesSet);
+        this.collectCalleeId(node.expression, checker, calleesSet);
       } else if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
         counter.fanOut++;
-        self.collectCalleeId(node.tagName, checker, calleesSet);
+        this.collectCalleeId(node.tagName, checker, calleesSet);
       }
       ts.forEachChild(node, (child) => {
         // ネスト関数定義の内部には踏み込まない
@@ -167,7 +165,7 @@ export class TypeScriptAdapter implements ILanguageAdapter {
         }
         walk(child);
       });
-    }
+    };
     if (fnNode.body) {
       ts.forEachChild(fnNode.body, walk);
     }

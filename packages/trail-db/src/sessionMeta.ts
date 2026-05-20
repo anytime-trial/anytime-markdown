@@ -16,7 +16,7 @@ function deriveRepoNameFromCwd(cwd: string): string | null {
     }
   }
 
-  return segments[segments.length - 1] ?? null;
+  return segments.at(-1) ?? null;
 }
 
 /**

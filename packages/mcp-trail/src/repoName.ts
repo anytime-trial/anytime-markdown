@@ -1,4 +1,4 @@
-import * as path from 'path';
+import * as path from 'node:path';
 import type { Database } from 'better-sqlite3';
 import { all } from './sqlite/sqlJsUtil';
 

@@ -86,7 +86,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     let deadCodeScore: Record<string, number> = {};
     const store = createC4ModelStore();
     if (store) {
-      const payload = await fetchC4Model(store, tag, repo, undefined);
+      const payload = await fetchC4Model(store, tag, repo);
       const elements = payload?.model?.elements ?? [];
       const importanceMap: Record<string, number> = {};
       const deadCodeMap: Record<string, number> = {};

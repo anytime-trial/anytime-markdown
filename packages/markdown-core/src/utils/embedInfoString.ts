@@ -33,7 +33,8 @@ function parseWidthToken(token: string | undefined): string | null {
 type TokenUpdate = Partial<EmbedInfoString>;
 
 function parseRssToken(value: string): TokenUpdate {
-    const rssFeedUrl = value === "none" ? null : RSS_URL_RE.test(value) ? value : null;
+    const validUrl = RSS_URL_RE.test(value) ? value : null;
+    const rssFeedUrl = value === "none" ? null : validUrl;
     return { rssChecked: true, rssFeedUrl };
 }
 

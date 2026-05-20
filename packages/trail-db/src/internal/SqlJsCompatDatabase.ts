@@ -75,13 +75,13 @@ export class SqlJsCompatDatabase {
     }
 
     const stmt = this.inner.prepare(sql);
-    if (!stmt.reader) {
-      const info = stmt.run(...normalized);
-      this.lastChanges = info.changes;
-    } else {
+    if (stmt.reader) {
       // SELECT を run() に渡す呼び出し: better-sqlite3 では prepared SELECT を
       // .run() できないので、結果を捨てて all() を回す。
       stmt.all(...normalized);
+    } else {
+      const info = stmt.run(...normalized);
+      this.lastChanges = info.changes;
     }
   }
 

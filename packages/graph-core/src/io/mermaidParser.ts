@@ -178,8 +178,7 @@ export function tokenizeLine(line: string): string[] {
   const brackets: Record<string, string> = { '[': ']', '(': ')', '{': '}' };
   const closers = new Set(Object.values(brackets));
 
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+  for (const ch of line) {
 
     if (depth === 0 && !inPipe && (ch === ' ' || ch === '\t')) {
       if (current) {

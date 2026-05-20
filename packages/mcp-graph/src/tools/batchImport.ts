@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+import fs from 'node:fs/promises';
 import { batchCreateGraph } from '@anytime-markdown/graph-core/engine';
 import type { BatchNodeInput, BatchEdgeInput } from '@anytime-markdown/graph-core/engine';
 import type { GraphDocument } from '@anytime-markdown/graph-core/types';

@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+import fs from 'node:fs/promises';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 import { extractHeadingsFromText } from './getOutline';
 
@@ -14,7 +14,7 @@ export interface UpdateSectionInput {
  * Replace a section in markdown text identified by its heading.
  */
 export function updateSectionInText(markdown: string, heading: string, newContent: string): string {
-  const headingMatch = heading.match(/^(#{1,6})\s+(.+)$/);
+  const headingMatch = /^(#{1,6})\s+(.+)$/.exec(heading);
   if (!headingMatch) {
     throw new Error(`Invalid heading format: ${heading}`);
   }

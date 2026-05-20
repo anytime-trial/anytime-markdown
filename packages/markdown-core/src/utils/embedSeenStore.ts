@@ -36,7 +36,7 @@ function persist(map: SeenMap): void {
         const keys = Object.keys(map);
         if (keys.length > MAX_ENTRIES) {
             for (let i = 0; i < keys.length - MAX_ENTRIES; i++) {
-            if (Object.prototype.hasOwnProperty.call(map, keys[i])) {
+            if (Object.hasOwn(map, keys[i])) {
                 delete map[keys[i]];
             }
         }

@@ -26,7 +26,7 @@ export interface EmbedCacheOptions {
 function djb2Hash(s: string): string {
     let h = 5381;
     for (let i = 0; i < s.length; i++) {
-        h = (h * 33) ^ s.charCodeAt(i);
+        h = (h * 33) ^ (s.codePointAt(i) ?? 0);
     }
     return (h >>> 0).toString(16);
 }
@@ -116,7 +116,7 @@ export class EmbedCache {
         const keys: { key: string; savedAt: number }[] = [];
         for (let i = 0; i < globalThis.localStorage.length; i++) {
             const key = globalThis.localStorage.key(i);
-            if (!key || !key.startsWith(KEY_PREFIX)) continue;
+            if (!key?.startsWith(KEY_PREFIX)) continue;
             try {
                 const raw = globalThis.localStorage.getItem(key);
                 if (!raw) continue;

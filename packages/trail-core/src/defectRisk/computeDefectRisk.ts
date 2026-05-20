@@ -18,7 +18,7 @@ export function computeDefectRisk(
   for (const row of rows) {
     const daysSince = Math.max(0, (refMs - new Date(row.committedAt).getTime()) / 86400000);
     const decay = Math.exp(-λ * daysSince);
-    const isFix = /^fix[\(:)]/.test(row.commitMessage);
+    const isFix = /^fix[(:)]/.test(row.commitMessage);
 
     let entry = fileMap.get(row.filePath);
     if (!entry) {

@@ -7,11 +7,10 @@ import {
   filterCodeFiles,
   hasFileOverlap,
   isFailureCommit,
-  isCodeFile as _isCodeFile,
 } from './failureCommit';
 
-export const AI_FIRST_TRY_FIX_WINDOW_MS = FIX_WINDOW_MS;
-export { _isCodeFile as isCodeFile };
+export { FIX_WINDOW_MS as AI_FIRST_TRY_FIX_WINDOW_MS } from './failureCommit';
+export { isCodeFile } from './failureCommit';
 
 export function isAiFirstTryFailureCommit(subject: string): boolean {
   return isFailureCommit(subject);

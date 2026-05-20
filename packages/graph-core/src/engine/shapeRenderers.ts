@@ -354,7 +354,7 @@ const renderFragment: SpecialShapeRenderer = (ctx, node, selected, _isDragging, 
   ctx.restore();
 };
 
-const PERSON_HEAD_RATIO = 0.30;    // head center at 30% from top
+const PERSON_HEAD_RATIO = 0.3;    // head center at 30% from top
 const PERSON_HEAD_RADIUS = 0.22;   // head radius relative to width
 const PERSON_BODY_TOP = 0.45;      // body starts at 45% from top
 const PERSON_BODY_RADIUS = 12;     // body corner radius

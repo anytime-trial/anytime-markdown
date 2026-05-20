@@ -28,12 +28,12 @@ export async function fetchC4Model(
   featureMatrix?: FeatureMatrix,
   manualProvider?: IManualElementProvider,
 ): Promise<C4ModelPayload | null> {
-  const result =
-    releaseId === 'current'
-      ? repoName
-        ? await Promise.resolve(store.getCurrentC4Model(repoName))
-        : null
-      : await Promise.resolve(store.getReleaseC4Model(releaseId));
+  const currentResult = releaseId === 'current'
+    ? (repoName ? await Promise.resolve(store.getCurrentC4Model(repoName)) : null)
+    : null;
+  const result = releaseId === 'current'
+    ? currentResult
+    : await Promise.resolve(store.getReleaseC4Model(releaseId));
 
   if (!result) return null;
 
@@ -62,5 +62,5 @@ export async function fetchC4Model(
 export async function fetchC4ModelEntries(
   store: IC4ModelStore,
 ): Promise<readonly C4ModelEntry[]> {
-  return Promise.resolve(store.getC4ModelEntries());
+  return store.getC4ModelEntries();
 }

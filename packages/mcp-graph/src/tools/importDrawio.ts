@@ -1,11 +1,11 @@
-import fs from 'fs/promises';
-import path from 'path';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import type { GraphDocument } from '@anytime-markdown/graph-core/types';
 import { resolveSecurePath, validateGraphExtension } from '../utils/securePath';
 
 // Set up DOMParser for Node.js before importing graph-core's importFromDrawio
 function setupDomParser(): void {
-  if (typeof globalThis.DOMParser === 'undefined') {
+  if (globalThis.DOMParser === undefined) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { DOMParser } = require('@xmldom/xmldom');
     (globalThis as Record<string, unknown>).DOMParser = DOMParser;
