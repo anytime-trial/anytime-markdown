@@ -2,8 +2,16 @@ import * as fs from 'node:fs';
 
 const WORKTREE_SEGMENTS = new Set(['.worktrees', '.claude-worktrees']);
 
+// 末尾スラッシュ除去。`/\/+$/` 正規表現は末尾アンカー + 量指定子で polynomial-ReDoS
+// (CodeQL js/polynomial-redos / Sonar S5852) になるため、線形スキャンで除去する。
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47 /* '/' */) end--;
+  return value.slice(0, end);
+}
+
 function deriveRepoNameFromCwd(cwd: string): string | null {
-  const trimmed = cwd.replace(/\/+$/, '');
+  const trimmed = stripTrailingSlashes(cwd);
   if (trimmed === '' || trimmed === '/') return null;
 
   const segments = trimmed.split('/').filter((s) => s !== '');
