@@ -1,6 +1,10 @@
 import type { WorkbookAdapter } from "./WorkbookAdapter";
 import type { SheetSnapshot, WorkbookSnapshot } from "./types";
 
+function updateCellInRow(row: readonly string[], col: number, value: string): string[] {
+  return row.map((c, ci) => (ci === col ? value : c));
+}
+
 const EMPTY_SHEET: SheetSnapshot = {
   cells: [[""]],
   alignments: [[null]],
@@ -36,7 +40,7 @@ export function createInMemoryWorkbookAdapter(
       const sheets = snapshot.sheets.map((sheet, si) => {
         if (si !== sheetIndex) return sheet;
         const cells = sheet.cells.map((r, ri) =>
-          ri === row ? r.map((c, ci) => (ci === col ? value : c)) : r,
+          ri === row ? updateCellInRow(r, col, value) : r,
         );
         return { ...sheet, cells };
       });
