@@ -537,3 +537,22 @@ export const CREATE_PR_REVIEW_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_pr_reviews_repo_pr ON pr_reviews(repo_name, pr_number)`,
   `CREATE INDEX IF NOT EXISTS idx_pr_reviews_submitted_at ON pr_reviews(submitted_at)`,
 ];
+
+// PR review から抽出した finding (Step 4c)。memory-core の memory_review_findings とは
+// 完全に分離した独立テーブル。memory-core の source_type enum (CHECK 制約) を変更せず、
+// drift/compare クエリへ影響を与えないため独立させる (lep-step4 プラン §6.3.2)。
+// severity は LLM 分類時のみ設定し、LLM 不在時は NULL (raw コメントのみ保存)。
+export const CREATE_PR_REVIEW_FINDINGS = `CREATE TABLE IF NOT EXISTS pr_review_findings (
+  finding_id TEXT PRIMARY KEY,
+  review_id TEXT NOT NULL REFERENCES pr_reviews(review_id) ON DELETE CASCADE,
+  file_path TEXT NOT NULL DEFAULT '',
+  line_number INTEGER,
+  severity TEXT CHECK (severity IS NULL OR severity IN ('error', 'warn', 'info')),
+  category TEXT,
+  body TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_PR_REVIEW_FINDINGS_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_pr_review_findings_review_id ON pr_review_findings(review_id)`,
+];

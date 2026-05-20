@@ -24,6 +24,11 @@ export type {
   DoraReleaseInput,
   DoraCommitInput,
   DoraMetricRow,
+  PrReviewCommentInput,
+  PrReviewUpsert,
+  PrReviewRow,
+  PrReviewDetail,
+  PrReviewFindingRow,
 } from './TrailDatabase';
 export { SyncService } from './SyncService';
 export { SupabaseTrailStore } from './SupabaseTrailStore';

@@ -92,6 +92,7 @@ export type SourceEvent =
  * - `release_resolved`:        ReleaseResolver が release tag を 1 件解決
  * - `code_graph_built`:        release tag に対する code graph 構築完了
  * - `current_code_graph_built`: HEAD ベースの current code graph 構築完了
+ * - `pr_review_imported`:      PrReviewImporter が GitHub PR review 1 件を trail.db へ取込完了 (Step 4c)
  * - `wave_start`:              Wave の開始 (tier analyzer 実行前に emit。Layer 3 の発火契機)
  * - `wave_complete`:           Wave の全 analyzer 実行完了 (barrier)
  * - `wave_skipped`:            Wave がスキップされた (例: memory-core が disabled)
@@ -117,6 +118,15 @@ export type DerivedEvent =
       communities: number;
       nodes: number;
       edges: number;
+    }
+  | {
+      // PrReviewImporter (Step 4c) が GitHub PR review 1 件を trail.db に取込完了。
+      // PrReviewFindingAnalyzer の発火契機。
+      kind: 'pr_review_imported';
+      repo: string;
+      prNumber: number;
+      reviewId: string;
+      commentCount: number;
     }
   | { kind: 'wave_start'; wave: 'sources' | 'primary' | 'memory' | 'derived' }
   | { kind: 'wave_complete'; wave: 'sources' | 'primary' | 'memory' | 'derived' }

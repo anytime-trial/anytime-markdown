@@ -21,6 +21,10 @@ import {
 } from '../lep/analyzers/memory';
 import { DoraMetricsAggregator } from '../lep/analyzers/aggregator';
 import {
+  PrReviewImporter,
+  PrReviewFindingAnalyzer,
+} from '../lep/analyzers/prreview';
+import {
   GitHubPrReviewIngester,
   type GitRemoteReader,
 } from '../lep/ingesters/GitHubPrReviewIngester';
@@ -240,6 +244,10 @@ export class AnalyzeAllRunner extends BaseRunner {
       const commitFilesBackfiller = new CommitFilesBackfiller({ trailDb, gitRoots, onProgress });
       const subagentTypeBackfiller = new SubagentTypeBackfiller({ trailDb, onProgress });
       messageCommitMatcher = new MessageCommitMatcher({ trailDb, onProgress });
+      // 新ソース取込 (Step 4c): github_pr_review → pr_reviews / pr_review_findings。
+      // GitHub source 未設定時は対応 event が来ないため no-op。PersistAnalyzer の save 前に書込む。
+      const prReviewImporter = new PrReviewImporter({ trailDb });
+      const prReviewFindingAnalyzer = new PrReviewFindingAnalyzer({ trailDb });
       // PersistAnalyzer は tier=2 の最後に置く (他全 analyzer の DB 書込後に save)
       const persistAnalyzer = new PersistAnalyzer({ trailDb });
 
@@ -255,6 +263,8 @@ export class AnalyzeAllRunner extends BaseRunner {
         commitFilesBackfiller,
         subagentTypeBackfiller,
         messageCommitMatcher,
+        prReviewImporter,
+        prReviewFindingAnalyzer,
         persistAnalyzer,
       ];
       // subscribes=[] の analyzer (CountsRebuilder / PersistAnalyzer) は EventBus.subscribe が

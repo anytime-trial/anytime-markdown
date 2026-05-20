@@ -40,8 +40,26 @@ function makeFakeTrailDb(save: jest.Mock = jest.fn(), extra: Partial<Record<stri
     getDoraReleases: () => [],
     getDoraCommits: () => [],
     replaceDoraMetrics: () => undefined,
+    // Step 4c PR review のデフォルト fake: no-op
+    getPrReviewBodyHash: () => null,
+    upsertPrReview: () => undefined,
+    getPrReviewDetail: () => null,
+    replacePrReviewFindings: () => undefined,
     ...extra,
   } as unknown as TrailDatabase;
+}
+
+/** github_pr_review を 1 件返す fake GitHub client。 */
+function makeFakeGitHubClient(): unknown {
+  return {
+    listPullNumbers: async () => [{ number: 7, updatedAt: '2026-01-10T00:00:00Z' }],
+    listReviews: async () => [
+      { id: 100, author: 'alice', state: 'CHANGES_REQUESTED', submittedAt: '2026-01-10T00:00:00Z', body: 'fix' },
+    ],
+    listReviewComments: async () => [
+      { reviewId: 100, path: 'a.ts', line: 12, body: 'null check' },
+    ],
+  };
 }
 
 describe('AnalyzeAllRunner (LEP integration)', () => {
@@ -320,6 +338,68 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
 
     expect(logSink.lines.join('\n')).not.toContain('[DoraMetricsAggregator]');
     expect(written).toEqual([]);
+  });
+
+  it('Step 4c: github_pr_review → PrReviewImporter → PrReviewFindingAnalyzer pipeline', async () => {
+    const reviewStore = new Map<string, { state: string; body: string; comments: { path: string; line: number | null; body: string }[]; repoName: string; prNumber: number }>();
+    const findingWrites: { reviewId: string; count: number }[] = [];
+    const fake = makeFakeScopeSession();
+    const logSink = makeLogSink();
+
+    const trailDb = makeFakeTrailDb(jest.fn(), {
+      getPrReviewBodyHash: () => null,
+      upsertPrReview: (r: { reviewId: string; state: string; body: string; comments: { path: string; line: number | null; body: string }[]; repoName: string; prNumber: number }) => {
+        reviewStore.set(r.reviewId, { state: r.state, body: r.body, comments: r.comments, repoName: r.repoName, prNumber: r.prNumber });
+      },
+      getPrReviewDetail: (reviewId: string) => {
+        const r = reviewStore.get(reviewId);
+        return r ? { reviewId, repoName: r.repoName, prNumber: r.prNumber, state: r.state, body: r.body, comments: r.comments } : null;
+      },
+      replacePrReviewFindings: (reviewId: string, findings: unknown[]) => { findingWrites.push({ reviewId, count: findings.length }); },
+    });
+
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb,
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      gitRoots: ['/repo'],
+      githubPrReview: {
+        client: makeFakeGitHubClient() as never,
+        gitRemoteReader: { getRemoteUrl: () => 'https://github.com/acme/widget.git' },
+      },
+    });
+
+    await runner.runOnce('manual');
+
+    const allLines = logSink.lines.join('\n');
+    expect(allLines).toContain('[GitHubPrReviewIngester] emitted 1 reviews');
+    expect(allLines).toContain('[PrReviewImporter] done (imported=1');
+    expect(allLines).toContain('[PrReviewFindingAnalyzer] done (reviews=1, findings=1)');
+    expect(reviewStore.has('100')).toBe(true);
+    expect(findingWrites).toEqual([{ reviewId: '100', count: 1 }]);
+  });
+
+  it('Step 4c: PR review pipeline is a no-op when GitHub source is unconfigured', async () => {
+    const findingWrites: unknown[] = [];
+    const fake = makeFakeScopeSession();
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(jest.fn(), {
+        upsertPrReview: () => findingWrites.push('upsert'),
+        replacePrReviewFindings: () => findingWrites.push('finding'),
+      }),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      gitRoots: ['/repo'],
+      // githubPrReview 未指定 → ingester 登録なし
+    });
+
+    await runner.runOnce('manual');
+
+    expect(logSink.lines.join('\n')).not.toContain('[GitHubPrReviewIngester]');
+    expect(findingWrites).toEqual([]);
   });
 
   it('stage=disabled runs nothing', async () => {
