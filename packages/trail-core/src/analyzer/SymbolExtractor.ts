@@ -151,38 +151,56 @@ export class SymbolExtractor {
     }
 
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
-      const statement = node.parent?.parent;
-      if (statement && ts.isVariableStatement(statement)) {
-        const hasExport =
-          statement.modifiers?.some(
-            m => m.kind === ts.SyntaxKind.ExportKeyword,
-          ) ?? false;
-
-        const init = node.initializer;
-        const isContainerLike =
-          !!init &&
-          (ts.isObjectLiteralExpression(init) ||
-            ts.isCallExpression(init) ||
-            ts.isArrowFunction(init) ||
-            ts.isFunctionExpression(init) ||
-            ts.isClassExpression(init) ||
-            ts.isNewExpression(init));
-
-        if (hasExport || isContainerLike) {
-          const name = node.name.text;
-          return {
-            id: `${parentId}::${name}`,
-            label: name,
-            type: 'variable',
-            filePath: relativePath,
-            line,
-            parent: parentId,
-            exported: hasExport,
-          };
-        }
-      }
+      return extractVariableSymbol(
+        node as ts.VariableDeclaration & { name: ts.Identifier },
+        parentId,
+        relativePath,
+        line,
+      );
     }
 
     return null;
   }
+}
+
+function isContainerLikeInit(init: ts.Expression): boolean {
+  return (
+    ts.isObjectLiteralExpression(init) ||
+    ts.isCallExpression(init) ||
+    ts.isArrowFunction(init) ||
+    ts.isFunctionExpression(init) ||
+    ts.isClassExpression(init) ||
+    ts.isNewExpression(init)
+  );
+}
+
+function extractVariableSymbol(
+  node: ts.VariableDeclaration & { name: ts.Identifier },
+  parentId: string,
+  relativePath: string,
+  line: number,
+): import('../model/types').TrailNode | null {
+  const statement = node.parent?.parent;
+  if (!statement || !ts.isVariableStatement(statement)) return null;
+
+  const hasExport =
+    statement.modifiers?.some(
+      m => m.kind === ts.SyntaxKind.ExportKeyword,
+    ) ?? false;
+
+  const init = node.initializer;
+  const isContainerLike = !!init && isContainerLikeInit(init);
+
+  if (!hasExport && !isContainerLike) return null;
+
+  const name = node.name.text;
+  return {
+    id: `${parentId}::${name}`,
+    label: name,
+    type: 'variable',
+    filePath: relativePath,
+    line,
+    parent: parentId,
+    exported: hasExport,
+  };
 }

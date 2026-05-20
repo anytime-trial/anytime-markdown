@@ -18,6 +18,42 @@ export interface SizeMetricsEntry {
 
 export type SizeMatrix = Record<string, SizeMetricsEntry>;
 
+// code 要素単体のサイズ指標。空ファイル (lineCount 0) は対象外で null を返す。
+function buildCodeSize(entry: SizeFileEntry | undefined): SizeMetricsEntry | null {
+  if (!entry || entry.lineCount === 0) return null;
+  return {
+    loc: entry.lineCount,
+    locMax: entry.lineCount,
+    files: 1,
+    functions: entry.functionCount,
+  };
+}
+
+// boundary 要素配下の code ファイルを合算する。データが無ければ null。
+function aggregateBoundarySize(
+  elements: readonly C4Element[],
+  boundaryId: string,
+  entryById: ReadonlyMap<string, SizeFileEntry>,
+): SizeMetricsEntry | null {
+  const descendants = collectDescendantIds(elements, boundaryId);
+  const codeIds = new Set<string>(
+    elements.filter((e) => e.type === 'code').map((e) => e.id),
+  );
+  let loc = 0, locMax = 0, files = 0, functions = 0;
+  let hasData = false;
+  for (const id of descendants) {
+    if (!codeIds.has(id)) continue;
+    const entry = entryById.get(id);
+    if (!entry || entry.lineCount === 0) continue;
+    loc += entry.lineCount;
+    if (entry.lineCount > locMax) locMax = entry.lineCount;
+    files += 1;
+    functions += entry.functionCount;
+    hasData = true;
+  }
+  return hasData ? { loc, locMax, files, functions } : null;
+}
+
 export function buildSizeMatrix(
   fileEntries: readonly SizeFileEntry[],
   elements: readonly C4Element[],
@@ -29,33 +65,11 @@ export function buildSizeMatrix(
 
   const out: Record<string, SizeMetricsEntry> = {};
   for (const el of elements) {
-    if (el.type === 'code') {
-      const entry = entryById.get(el.id);
-      if (!entry || entry.lineCount === 0) continue;
-      out[el.id] = {
-        loc: entry.lineCount,
-        locMax: entry.lineCount,
-        files: 1,
-        functions: entry.functionCount,
-      };
-      continue;
-    }
-    // boundary 要素
-    const descendants = collectDescendantIds(elements, el.id);
-    let loc = 0, locMax = 0, files = 0, functions = 0;
-    let hasData = false;
-    for (const id of descendants) {
-      const desc = elements.find((e) => e.id === id);
-      if (desc?.type !== 'code') continue;
-      const entry = entryById.get(id);
-      if (!entry || entry.lineCount === 0) continue;
-      loc += entry.lineCount;
-      if (entry.lineCount > locMax) locMax = entry.lineCount;
-      files += 1;
-      functions += entry.functionCount;
-      hasData = true;
-    }
-    if (hasData) out[el.id] = { loc, locMax, files, functions };
+    const metrics =
+      el.type === 'code'
+        ? buildCodeSize(entryById.get(el.id))
+        : aggregateBoundarySize(elements, el.id, entryById);
+    if (metrics) out[el.id] = metrics;
   }
   return out;
 }

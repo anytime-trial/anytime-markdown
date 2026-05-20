@@ -34,80 +34,114 @@ function totalTokens(m: Inputs['messages'][number]): number {
   return (m.input_tokens ?? 0) + (m.output_tokens ?? 0) + (m.cache_read_tokens ?? 0) + (m.cache_creation_tokens ?? 0);
 }
 
+type UserEntry = { ts: string; tokens: number; cost: number };
+type SessionCommit = { hash: string; committedAt: string; churn: number };
+
+function buildUserMsgsBySession(messages: Inputs['messages']): Map<string, UserEntry[]> {
+  const map = new Map<string, UserEntry[]>();
+  for (const m of messages) {
+    if (!m.session_id || !isUserMessage(m)) continue;
+    const entry: UserEntry = { ts: m.created_at, tokens: totalTokens(m), cost: m.cost_usd ?? 0 };
+    const arr = map.get(m.session_id);
+    if (arr) arr.push(entry);
+    else map.set(m.session_id, [entry]);
+  }
+  for (const arr of map.values()) arr.sort((a, b) => a.ts.localeCompare(b.ts));
+  return map;
+}
+
+function buildCommitsBySession(commits: Inputs['commits']): Map<string, SessionCommit[]> {
+  const map = new Map<string, SessionCommit[]>();
+  for (const c of commits) {
+    if (!c.session_id) continue;
+    const churn = (c.lines_added ?? 0) + (c.lines_deleted ?? 0);
+    const entry: SessionCommit = { hash: c.hash, committedAt: c.committed_at, churn };
+    const arr = map.get(c.session_id);
+    if (arr) arr.push(entry);
+    else map.set(c.session_id, [entry]);
+  }
+  for (const arr of map.values()) arr.sort((a, b) => a.committedAt.localeCompare(b.committedAt));
+  return map;
+}
+
+/** Sum tokens/cost of user messages attributed to a commit window, advancing userIdx in place. */
+function attributeMessagesToCommit(
+  userMsgs: readonly UserEntry[],
+  userIdxRef: { v: number },
+  prevCommitTs: string | null,
+  commitTs: string,
+): { tokens: number; cost: number; attributed: number } {
+  let tokens = 0;
+  let cost = 0;
+  let attributed = 0;
+  for (; userIdxRef.v < userMsgs.length; userIdxRef.v++) {
+    const u = userMsgs[userIdxRef.v];
+    if (prevCommitTs !== null && u.ts <= prevCommitTs) continue;
+    if (u.ts > commitTs) break;
+    tokens += u.tokens;
+    cost += u.cost;
+    attributed += 1;
+  }
+  return { tokens, cost, attributed };
+}
+
+function updateBestByCommit(
+  bestByCommit: Map<string, CommitSample>,
+  hash: string,
+  sample: CommitSample,
+): void {
+  const existing = bestByCommit.get(hash);
+  // Keep the smallest tokens-per-LOC ratio (most accurate attribution).
+  if (!existing || sample.tokens / sample.churn < existing.tokens / existing.churn) {
+    bestByCommit.set(hash, sample);
+  }
+}
+
+function processSessionCommits(
+  commits: readonly SessionCommit[],
+  userMsgs: readonly UserEntry[],
+  fromMs: number,
+  toMs: number,
+  bestByCommit: Map<string, CommitSample>,
+): void {
+  let prevCommitTs: string | null = null;
+  const userIdxRef = { v: 0 };
+
+  for (const c of commits) {
+    const commitMs = new Date(c.committedAt).getTime();
+    const outOfRange = commitMs < fromMs || commitMs > toMs;
+
+    if (c.churn <= 0 || outOfRange) {
+      prevCommitTs = c.committedAt;
+      continue;
+    }
+
+    const { tokens, cost, attributed } = attributeMessagesToCommit(
+      userMsgs, userIdxRef, prevCommitTs, c.committedAt,
+    );
+
+    if (attributed > 0) {
+      updateBestByCommit(bestByCommit, c.hash, {
+        date: c.committedAt, tokens, cost, churn: c.churn,
+      });
+    }
+
+    prevCommitTs = c.committedAt;
+  }
+}
+
 function computeCommitSamples(inputs: Inputs, range: DateRange): CommitSample[] {
   const fromMs = new Date(range.from).getTime();
   const toMs = new Date(range.to).getTime();
 
-  type UserEntry = { ts: string; tokens: number; cost: number };
-  const userMsgsBySession = new Map<string, UserEntry[]>();
-  for (const m of inputs.messages) {
-    if (!m.session_id) continue;
-    if (!isUserMessage(m)) continue;
-    const arr = userMsgsBySession.get(m.session_id);
-    const entry: UserEntry = { ts: m.created_at, tokens: totalTokens(m), cost: m.cost_usd ?? 0 };
-    if (arr) arr.push(entry);
-    else userMsgsBySession.set(m.session_id, [entry]);
-  }
-  for (const arr of userMsgsBySession.values()) {
-    arr.sort((a, b) => a.ts.localeCompare(b.ts));
-  }
-
-  type SessionCommit = { hash: string; committedAt: string; churn: number };
-  const commitsBySession = new Map<string, SessionCommit[]>();
-  for (const c of inputs.commits) {
-    if (!c.session_id) continue;
-    const churn = (c.lines_added ?? 0) + (c.lines_deleted ?? 0);
-    const entry: SessionCommit = { hash: c.hash, committedAt: c.committed_at, churn };
-    const arr = commitsBySession.get(c.session_id);
-    if (arr) arr.push(entry);
-    else commitsBySession.set(c.session_id, [entry]);
-  }
-  for (const arr of commitsBySession.values()) {
-    arr.sort((a, b) => a.committedAt.localeCompare(b.committedAt));
-  }
+  const userMsgsBySession = buildUserMsgsBySession(inputs.messages);
+  const commitsBySession = buildCommitsBySession(inputs.commits);
 
   const bestByCommit = new Map<string, CommitSample>();
 
   for (const [sessionId, commits] of commitsBySession) {
     const userMsgs = userMsgsBySession.get(sessionId) ?? [];
-    let prevCommitTs: string | null = null;
-    let userIdx = 0;
-
-    for (const c of commits) {
-      if (c.churn <= 0) {
-        prevCommitTs = c.committedAt;
-        continue;
-      }
-      const commitMs = new Date(c.committedAt).getTime();
-      if (commitMs < fromMs || commitMs > toMs) {
-        prevCommitTs = c.committedAt;
-        continue;
-      }
-
-      // Sum tokens and cost of user messages in (prevCommitTs, c.committedAt].
-      let tokens = 0;
-      let cost = 0;
-      let attributed = 0;
-      for (; userIdx < userMsgs.length; userIdx++) {
-        const u = userMsgs[userIdx];
-        if (prevCommitTs !== null && u.ts <= prevCommitTs) continue;
-        if (u.ts > c.committedAt) break;
-        tokens += u.tokens;
-        cost += u.cost;
-        attributed += 1;
-      }
-
-      if (attributed > 0) {
-        const sample: CommitSample = { date: c.committedAt, tokens, cost, churn: c.churn };
-        const existing = bestByCommit.get(c.hash);
-        // Keep the smallest tokens-per-LOC ratio (most accurate attribution).
-        if (!existing || sample.tokens / sample.churn < existing.tokens / existing.churn) {
-          bestByCommit.set(c.hash, sample);
-        }
-      }
-
-      prevCommitTs = c.committedAt;
-    }
+    processSessionCommits(commits, userMsgs, fromMs, toMs, bestByCommit);
   }
 
   return Array.from(bestByCommit.values());

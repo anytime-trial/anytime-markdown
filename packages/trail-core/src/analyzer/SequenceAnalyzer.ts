@@ -158,22 +158,10 @@ function processChain(chain: ChainPair, ctx: BuildContext): SequenceStep[] {
   const callerNodes = filterFunctionsInElement(ctx.graph.nodes, chain.source.id, ctx);
   if (callerNodes.length === 0) return [];
 
-  const targetFnIds = new Set<string>();
-  for (const n of ctx.graph.nodes) {
-    if (n.type === 'function' && getComponentForNode(n, ctx) === chain.target.id) {
-      targetFnIds.add(n.id);
-    }
-  }
+  const targetFnIds = buildTargetFnIds(chain.target.id, ctx);
   if (targetFnIds.size === 0) return [];
 
-  const callerToCalls = new Map<string, TrailEdge[]>();
-  for (const e of ctx.graph.edges) {
-    if (e.type !== 'call') continue;
-    if (!targetFnIds.has(e.target)) continue;
-    const list = callerToCalls.get(e.source);
-    if (list) list.push(e);
-    else callerToCalls.set(e.source, [e]);
-  }
+  const callerToCalls = buildCallerToCallsMap(ctx.graph.edges, targetFnIds);
 
   const steps: SequenceStep[] = [];
   const fromParticipantId = `elem_${chain.source.id}`;
@@ -184,52 +172,102 @@ function processChain(chain: ChainPair, ctx: BuildContext): SequenceStep[] {
     const calls = callerToCalls.get(caller.id);
     if (!calls || calls.length === 0) continue;
 
-    const sf = ctx.sourceFiles.get(caller.filePath);
-    if (!sf) continue;
-
-    const callerFnName = caller.label;
-    const funcNode = findFunctionNode(sf, callerFnName);
-    if (!funcNode || !funcNode.body) {
-      // Fall back: emit one call step per edge with no fragment context.
-      for (const e of calls) {
-        if (ctx.totalSteps >= MAX_STEPS) break;
-        const calleeNode = ctx.nodesById.get(e.target);
-        steps.push({
-          kind: 'call',
-          from: fromParticipantId,
-          to: toParticipantId,
-          fnName: calleeNode?.label ?? 'unknown',
-          callerFnName,
-          chainId: chain.chainId,
-        });
-        ctx.totalSteps += 1;
-      }
-      continue;
-    }
-
-    const calleeNamesById = new Map<string, string>();
-    for (const e of calls) {
-      const calleeNode = ctx.nodesById.get(e.target);
-      if (calleeNode) calleeNamesById.set(calleeNode.id, calleeNode.label);
-    }
-    const calleeNames = new Set(calleeNamesById.values());
-
-    const collected: SequenceStep[] = [];
-    walkBody(funcNode.body, sf, {
-      calleeNames,
-      from: fromParticipantId,
-      to: toParticipantId,
-      callerFnName,
-      chainId: chain.chainId,
-      out: collected,
-      ctx,
-    });
-
-    if (collected.length > 0) {
-      steps.push(...collected);
-    }
+    const callerSteps = processCallerNode(
+      caller, calls, fromParticipantId, toParticipantId, chain.chainId, ctx,
+    );
+    steps.push(...callerSteps);
   }
   return steps;
+}
+
+function buildTargetFnIds(targetElementId: string, ctx: BuildContext): Set<string> {
+  const targetFnIds = new Set<string>();
+  for (const n of ctx.graph.nodes) {
+    if (n.type === 'function' && getComponentForNode(n, ctx) === targetElementId) {
+      targetFnIds.add(n.id);
+    }
+  }
+  return targetFnIds;
+}
+
+function buildCallerToCallsMap(
+  edges: readonly TrailEdge[],
+  targetFnIds: ReadonlySet<string>,
+): Map<string, TrailEdge[]> {
+  const callerToCalls = new Map<string, TrailEdge[]>();
+  for (const e of edges) {
+    if (e.type !== 'call') continue;
+    if (!targetFnIds.has(e.target)) continue;
+    const list = callerToCalls.get(e.source);
+    if (list) list.push(e);
+    else callerToCalls.set(e.source, [e]);
+  }
+  return callerToCalls;
+}
+
+function processCallerNode(
+  caller: TrailNode,
+  calls: readonly TrailEdge[],
+  fromParticipantId: string,
+  toParticipantId: string,
+  chainId: string,
+  ctx: BuildContext,
+): SequenceStep[] {
+  const sf = ctx.sourceFiles.get(caller.filePath);
+  if (!sf) return [];
+
+  const callerFnName = caller.label;
+  const funcNode = findFunctionNode(sf, callerFnName);
+  if (!funcNode || !funcNode.body) {
+    return buildFallbackSteps(calls, fromParticipantId, toParticipantId, callerFnName, chainId, ctx);
+  }
+
+  const calleeNames = buildCalleeNames(calls, ctx);
+  const collected: SequenceStep[] = [];
+  walkBody(funcNode.body, sf, {
+    calleeNames,
+    from: fromParticipantId,
+    to: toParticipantId,
+    callerFnName,
+    chainId,
+    out: collected,
+    ctx,
+  });
+  return collected;
+}
+
+function buildFallbackSteps(
+  calls: readonly TrailEdge[],
+  fromParticipantId: string,
+  toParticipantId: string,
+  callerFnName: string,
+  chainId: string,
+  ctx: BuildContext,
+): SequenceStep[] {
+  const steps: SequenceStep[] = [];
+  for (const e of calls) {
+    if (ctx.totalSteps >= MAX_STEPS) break;
+    const calleeNode = ctx.nodesById.get(e.target);
+    steps.push({
+      kind: 'call',
+      from: fromParticipantId,
+      to: toParticipantId,
+      fnName: calleeNode?.label ?? 'unknown',
+      callerFnName,
+      chainId,
+    });
+    ctx.totalSteps += 1;
+  }
+  return steps;
+}
+
+function buildCalleeNames(calls: readonly TrailEdge[], ctx: BuildContext): Set<string> {
+  const calleeNamesById = new Map<string, string>();
+  for (const e of calls) {
+    const calleeNode = ctx.nodesById.get(e.target);
+    if (calleeNode) calleeNamesById.set(calleeNode.id, calleeNode.label);
+  }
+  return new Set(calleeNamesById.values());
 }
 
 function filterFunctionsInElement(nodes: readonly TrailNode[], elementId: string, ctx: BuildContext): TrailNode[] {
@@ -263,60 +301,64 @@ interface WalkState {
  * if/loop/opt の制御文脈に応じてフラグメント階層に記録する。
  */
 function walkBody(body: ts.Node, sf: ts.SourceFile, state: WalkState): void {
-  if (ts.isBlock(body)) {
-    for (const stmt of body.statements) {
-      visitStmt(stmt, sf, state, state.out);
-    }
-    return;
-  }
-  // ArrowFunction with expression body
-  visitExpression(body, sf, state, state.out);
+  visitFunctionBody(body, sf, state, state.out);
 }
 
 function visitStmt(stmt: ts.Statement, sf: ts.SourceFile, state: WalkState, out: SequenceStep[]): void {
   if (state.ctx.totalSteps >= MAX_STEPS) return;
 
-  if (ts.isIfStatement(stmt)) {
-    visitIfStatement(stmt, sf, state, out);
-    return;
-  }
-  if (ts.isForStatement(stmt) || ts.isForInStatement(stmt) || ts.isForOfStatement(stmt) || ts.isWhileStatement(stmt) || ts.isDoStatement(stmt)) {
-    visitLoopStatement(stmt, sf, state, out);
-    return;
-  }
-  if (ts.isBlock(stmt)) {
-    for (const child of stmt.statements) visitStmt(child, sf, state, out);
-    return;
-  }
-  if (ts.isExpressionStatement(stmt)) {
-    visitExpression(stmt.expression, sf, state, out);
-    return;
-  }
-  if (ts.isVariableStatement(stmt)) {
-    for (const decl of stmt.declarationList.declarations) {
-      if (decl.initializer) visitExpression(decl.initializer, sf, state, out);
-    }
-    return;
-  }
-  if (ts.isReturnStatement(stmt)) {
-    if (stmt.expression) visitExpression(stmt.expression, sf, state, out);
-    return;
-  }
-  if (ts.isTryStatement(stmt)) {
-    for (const child of stmt.tryBlock.statements) visitStmt(child, sf, state, out);
-    if (stmt.catchClause) {
-      for (const child of stmt.catchClause.block.statements) visitStmt(child, sf, state, out);
-    }
-    if (stmt.finallyBlock) {
-      for (const child of stmt.finallyBlock.statements) visitStmt(child, sf, state, out);
-    }
-    return;
-  }
+  if (ts.isIfStatement(stmt)) { visitIfStatement(stmt, sf, state, out); return; }
+  if (isLoopStatement(stmt)) { visitLoopStatement(stmt, sf, state, out); return; }
+  if (ts.isBlock(stmt)) { visitBlockStmts(stmt.statements, sf, state, out); return; }
+  if (ts.isExpressionStatement(stmt)) { visitExpression(stmt.expression, sf, state, out); return; }
+  if (ts.isVariableStatement(stmt)) { visitVariableStatement(stmt, sf, state, out); return; }
+  if (ts.isReturnStatement(stmt)) { if (stmt.expression) visitExpression(stmt.expression, sf, state, out); return; }
+  if (ts.isTryStatement(stmt)) { visitTryStatement(stmt, sf, state, out); return; }
+
   // Generic statement: visit nested expressions / blocks shallowly
   ts.forEachChild(stmt, (child) => {
     if (ts.isStatement(child)) visitStmt(child, sf, state, out);
     else visitExpression(child, sf, state, out);
   });
+}
+
+function isLoopStatement(stmt: ts.Statement): stmt is ts.ForStatement | ts.ForInStatement | ts.ForOfStatement | ts.WhileStatement | ts.DoStatement {
+  return ts.isForStatement(stmt) || ts.isForInStatement(stmt) || ts.isForOfStatement(stmt) || ts.isWhileStatement(stmt) || ts.isDoStatement(stmt);
+}
+
+function visitBlockStmts(
+  statements: ts.NodeArray<ts.Statement>,
+  sf: ts.SourceFile,
+  state: WalkState,
+  out: SequenceStep[],
+): void {
+  for (const child of statements) visitStmt(child, sf, state, out);
+}
+
+function visitVariableStatement(
+  stmt: ts.VariableStatement,
+  sf: ts.SourceFile,
+  state: WalkState,
+  out: SequenceStep[],
+): void {
+  for (const decl of stmt.declarationList.declarations) {
+    if (decl.initializer) visitExpression(decl.initializer, sf, state, out);
+  }
+}
+
+function visitTryStatement(
+  stmt: ts.TryStatement,
+  sf: ts.SourceFile,
+  state: WalkState,
+  out: SequenceStep[],
+): void {
+  visitBlockStmts(stmt.tryBlock.statements, sf, state, out);
+  if (stmt.catchClause) {
+    visitBlockStmts(stmt.catchClause.block.statements, sf, state, out);
+  }
+  if (stmt.finallyBlock) {
+    visitBlockStmts(stmt.finallyBlock.statements, sf, state, out);
+  }
 }
 
 function visitIfStatement(stmt: ts.IfStatement, sf: ts.SourceFile, state: WalkState, out: SequenceStep[]): void {
@@ -412,62 +454,92 @@ function visitExpression(expr: ts.Node, sf: ts.SourceFile, state: WalkState, out
   if (state.ctx.totalSteps >= MAX_STEPS) return;
 
   if (ts.isCallExpression(expr)) {
-    // .forEach((...) => { ... }) などの iterator 系を loop として扱う
-    if (ts.isPropertyAccessExpression(expr.expression) && ITERATOR_METHODS.has(expr.expression.name.text)) {
-      const cb = expr.arguments[0];
-      if (cb && (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb))) {
-        const condition = truncate(`${expr.expression.name.text} ${expr.expression.expression.getText(sf)}`, MAX_CONDITION_LEN);
-        const bodySteps: SequenceStep[] = [];
-        if (cb.body) {
-          if (ts.isBlock(cb.body)) {
-            for (const child of cb.body.statements) visitStmt(child, sf, state, bodySteps);
-          } else {
-            visitExpression(cb.body, sf, state, bodySteps);
-          }
-        }
-        if (bodySteps.length > 0) {
-          out.push({ kind: 'fragment', fragment: { kind: 'loop', condition, steps: bodySteps } });
-          return;
-        }
-      }
-    }
-
-    // 通常呼び出し: callee 名を抽出
-    const calleeName = getCallExpressionName(expr);
-    if (calleeName && state.calleeNames.has(calleeName)) {
-      const line = sf.getLineAndCharacterOfPosition(expr.getStart()).line + 1;
-      out.push({
-        kind: 'call',
-        from: state.from,
-        to: state.to,
-        fnName: calleeName,
-        callerFnName: state.callerFnName,
-        line,
-        chainId: state.chainId,
-      });
-      state.ctx.totalSteps += 1;
-    }
-
-    // 引数も再帰（コールバック内の呼び出し等）
-    for (const arg of expr.arguments) {
-      visitExpression(arg, sf, state, out);
-    }
+    visitCallExpression(expr, sf, state, out);
     return;
   }
 
   if (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr)) {
-    if (expr.body) {
-      if (ts.isBlock(expr.body)) {
-        for (const child of expr.body.statements) visitStmt(child, sf, state, out);
-      } else {
-        visitExpression(expr.body, sf, state, out);
-      }
-    }
+    visitFunctionBody(expr.body, sf, state, out);
     return;
   }
 
   // 一般式: 子要素を再帰
   ts.forEachChild(expr, (child) => visitExpression(child, sf, state, out));
+}
+
+function visitCallExpression(
+  expr: ts.CallExpression,
+  sf: ts.SourceFile,
+  state: WalkState,
+  out: SequenceStep[],
+): void {
+  // .forEach((...) => { ... }) などの iterator 系を loop として扱う
+  if (tryVisitIteratorCall(expr, sf, state, out)) return;
+
+  // 通常呼び出し: callee 名を抽出
+  const calleeName = getCallExpressionName(expr);
+  if (calleeName && state.calleeNames.has(calleeName)) {
+    const line = sf.getLineAndCharacterOfPosition(expr.getStart()).line + 1;
+    out.push({
+      kind: 'call',
+      from: state.from,
+      to: state.to,
+      fnName: calleeName,
+      callerFnName: state.callerFnName,
+      line,
+      chainId: state.chainId,
+    });
+    state.ctx.totalSteps += 1;
+  }
+
+  // 引数も再帰（コールバック内の呼び出し等）
+  for (const arg of expr.arguments) {
+    visitExpression(arg, sf, state, out);
+  }
+}
+
+/**
+ * iterator メソッド呼び出し（forEach/map 等）を loop フラグメントとして記録する。
+ * loop として出力した場合は true を返す（caller は以降の処理をスキップする）。
+ */
+function tryVisitIteratorCall(
+  expr: ts.CallExpression,
+  sf: ts.SourceFile,
+  state: WalkState,
+  out: SequenceStep[],
+): boolean {
+  if (!ts.isPropertyAccessExpression(expr.expression)) return false;
+  if (!ITERATOR_METHODS.has(expr.expression.name.text)) return false;
+
+  const cb = expr.arguments[0];
+  if (!cb || (!ts.isArrowFunction(cb) && !ts.isFunctionExpression(cb))) return false;
+
+  const condition = truncate(
+    `${expr.expression.name.text} ${expr.expression.expression.getText(sf)}`,
+    MAX_CONDITION_LEN,
+  );
+  const bodySteps: SequenceStep[] = [];
+  visitFunctionBody(cb.body, sf, state, bodySteps);
+
+  if (bodySteps.length > 0) {
+    out.push({ kind: 'fragment', fragment: { kind: 'loop', condition, steps: bodySteps } });
+    return true;
+  }
+  return false;
+}
+
+function visitFunctionBody(
+  body: ts.Node | undefined,
+  sf: ts.SourceFile,
+  state: WalkState,
+  out: SequenceStep[],
+): void {
+  if (!body) return;
+  if (ts.isBlock(body)) {
+    visitBlockStmts(body.statements, sf, state, out);
+  } else {
+    visitExpression(body, sf, state, out);
+  }
 }
 
 function getCallExpressionName(expr: ts.CallExpression): string | null {

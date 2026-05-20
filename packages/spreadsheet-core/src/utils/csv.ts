@@ -4,6 +4,27 @@ interface CsvOptions {
     readonly delimiter?: "," | "\t";
 }
 
+// Reads a double-quoted field body starting just after the opening quote.
+// `""` is an escaped quote; a lone `"` (or end of input) closes the field.
+function readQuotedField(text: string, start: number): { value: string; next: number } {
+    let value = "";
+    let i = start;
+    while (i < text.length) {
+        const ch = text[i];
+        if (ch === '"') {
+            if (text[i + 1] === '"') {
+                value += '"';
+                i += 2;
+                continue;
+            }
+            return { value, next: i + 1 };
+        }
+        value += ch;
+        i += 1;
+    }
+    return { value, next: i };
+}
+
 export function parseCsv(text: string, options: CsvOptions = {}): SheetSnapshot {
     const delimiter = options.delimiter ?? ",";
     if (text.length === 0) {
@@ -13,29 +34,14 @@ export function parseCsv(text: string, options: CsvOptions = {}): SheetSnapshot 
     const rows: string[][] = [];
     let field = "";
     let row: string[] = [];
-    let inQuotes = false;
     let i = 0;
 
     while (i < text.length) {
         const ch = text[i];
-        if (inQuotes) {
-            if (ch === '"') {
-                if (text[i + 1] === '"') {
-                    field += '"';
-                    i += 2;
-                    continue;
-                }
-                inQuotes = false;
-                i += 1;
-                continue;
-            }
-            field += ch;
-            i += 1;
-            continue;
-        }
         if (ch === '"') {
-            inQuotes = true;
-            i += 1;
+            const quoted = readQuotedField(text, i + 1);
+            field += quoted.value;
+            i = quoted.next;
             continue;
         }
         if (ch === delimiter) {
@@ -49,8 +55,7 @@ export function parseCsv(text: string, options: CsvOptions = {}): SheetSnapshot 
             rows.push(row);
             field = "";
             row = [];
-            if (ch === "\r" && text[i + 1] === "\n") i += 2;
-            else i += 1;
+            i += ch === "\r" && text[i + 1] === "\n" ? 2 : 1;
             continue;
         }
         field += ch;

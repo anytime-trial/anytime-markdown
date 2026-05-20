@@ -1437,6 +1437,59 @@ export class TrailDatabase {
     );
   }
 
+  /** Inner loop for aggregateToolUsageByMessageDateCutoff — processes tc rows into aggMap. */
+  private aggregateToolUsageTcRows(
+    tcRows: readonly unknown[][],
+    period: 'day' | 'week',
+    tzOffset: string,
+    cutoffDate: string,
+    toolsInMsg: Map<string, number>,
+    toolsInTurn: Map<string, number>,
+    msgInfoMap: Map<string, {
+      type: string; timestamp: string; sessionId: string;
+      inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number;
+    }>,
+    sessionSourceMap: Map<string, string>,
+    sessionStartTsMap: Map<string, string>,
+    sep: string,
+    aggMap: Map<string, { count: number; tokens: number; duration: number; tokenTotalTurns: number; tokenMissingTurns: number }>,
+  ): void {
+    for (const row of tcRows) {
+      const sessionIdTc = row[0] as string;
+      const messageUuid = row[1] as string;
+      const turnIndex = row[2];
+      const toolName = row[3] as string;
+      const turnExecMs = Number(row[4] ?? 0);
+
+      const m = msgInfoMap.get(messageUuid);
+      if (!m) continue;
+      const source = sessionSourceMap.get(m.sessionId);
+      if (source === undefined) continue;
+
+      const sessionTs = sessionStartTsMap.get(m.sessionId) ?? m.timestamp;
+      const sessionDate = this.computeDateInSqliteTz(sessionTs, tzOffset);
+      if (sessionDate < cutoffDate) continue;
+
+      const periodKey = period === 'day' ? sessionDate : this.computeWeekInSqliteTz(sessionTs, tzOffset);
+      const tool = this.applyToolMcpAlias(toolName);
+      const tInMsg = toolsInMsg.get(messageUuid) ?? 1;
+      const tInTurn = toolsInTurn.get(`${sessionIdTc}${sep}${turnIndex}`) ?? 1;
+      const tokensContrib = Math.round((m.inputTokens + m.outputTokens) / tInMsg);
+      const durationContrib = Math.round(turnExecMs / tInTurn);
+      const isAssistant = m.type === 'assistant';
+      const allZero = m.inputTokens + m.outputTokens + m.cacheReadTokens + m.cacheCreationTokens === 0;
+
+      const aggKey = `${periodKey}${sep}${tool}${sep}${source}`;
+      const cur = aggMap.get(aggKey) ?? { count: 0, tokens: 0, duration: 0, tokenTotalTurns: 0, tokenMissingTurns: 0 };
+      cur.count += 1;
+      cur.tokens += tokensContrib;
+      cur.duration += durationContrib;
+      cur.tokenTotalTurns += isAssistant ? 1 : 0;
+      cur.tokenMissingTurns += isAssistant && allZero ? 1 : 0;
+      aggMap.set(aggKey, cur);
+    }
+  }
+
   /**
    * 系統 3: messages.timestamp の cutoff + sessions JOIN + period 別の tool 集計。
    * getCombinedData の toolRawResult 用 (L5430 起源)。
@@ -1555,53 +1608,11 @@ export class TrailDatabase {
           tokenMissingTurns: number;
         };
         const aggMap = new Map<string, Agg>();
-        for (const row of tcRows) {
-          const sessionIdTc = row[0] as string;
-          const messageUuid = row[1] as string;
-          const turnIndex = row[2];
-          const toolName = row[3] as string;
-          const turnExecMs = Number(row[4] ?? 0);
-
-          const m = msgInfoMap.get(messageUuid);
-          if (!m) continue; // INNER JOIN messages
-          const source = sessionSourceMap.get(m.sessionId);
-          if (source === undefined) continue; // INNER JOIN sessions
-
-          // session start_time 基準でフィルタ・期間キー算出（フォールバック: message timestamp）
-          const sessionTs = sessionStartTsMap.get(m.sessionId) ?? m.timestamp;
-          const sessionDate = this.computeDateInSqliteTz(sessionTs, tzOffset);
-          if (sessionDate < cutoffDate) continue;
-
-          const periodKey = period === 'day'
-            ? sessionDate
-            : this.computeWeekInSqliteTz(sessionTs, tzOffset);
-          const tool = this.applyToolMcpAlias(toolName);
-
-          const tInMsg = toolsInMsg.get(messageUuid) ?? 1;
-          const turnKey = `${sessionIdTc}${TURN_KEY_SEP}${turnIndex}`;
-          const tInTurn = toolsInTurn.get(turnKey) ?? 1;
-
-          const msgTokensTotal = m.inputTokens + m.outputTokens;
-          const tokensContrib = Math.round(msgTokensTotal / tInMsg);
-          const durationContrib = Math.round(turnExecMs / tInTurn);
-
-          const isAssistant = m.type === 'assistant';
-          const allZero = m.inputTokens + m.outputTokens
-            + m.cacheReadTokens + m.cacheCreationTokens === 0;
-          const totalTurnContrib = isAssistant ? 1 : 0;
-          const missingTurnContrib = isAssistant && allZero ? 1 : 0;
-
-          const aggKey = `${periodKey}${TURN_KEY_SEP}${tool}${TURN_KEY_SEP}${source}`;
-          const cur = aggMap.get(aggKey) ?? {
-            count: 0, tokens: 0, duration: 0, tokenTotalTurns: 0, tokenMissingTurns: 0,
-          };
-          cur.count += 1;
-          cur.tokens += tokensContrib;
-          cur.duration += durationContrib;
-          cur.tokenTotalTurns += totalTurnContrib;
-          cur.tokenMissingTurns += missingTurnContrib;
-          aggMap.set(aggKey, cur);
-        }
+        this.aggregateToolUsageTcRows(
+          tcRows, period, tzOffset, cutoffDate,
+          toolsInMsg, toolsInTurn, msgInfoMap, sessionSourceMap, sessionStartTsMap,
+          TURN_KEY_SEP, aggMap,
+        );
 
         // Step 7: caller 互換のため Record<string, unknown>[] として返却
         return [...aggMap.entries()].map(([key, agg]) => {
@@ -2074,6 +2085,39 @@ export class TrailDatabase {
     this.logger.info(`[Migration] derived_counts_backfill_v1: done (${Date.now() - startedAt}ms)`);
   }
 
+  /** Parse one JSONL file for source_tool_link fields and run updates. Returns count of updated rows. */
+  private backfillSourceToolLinksForSession(
+    sid: string,
+    filePath: string,
+    updateStmt: SqlJsCompatStatement,
+  ): number {
+    if (!fs.existsSync(filePath)) return 0;
+    let content = '';
+    try {
+      content = fs.readFileSync(filePath, 'utf-8');
+    } catch {
+      return 0;
+    }
+    let updated = 0;
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let raw: RawLine;
+      try {
+        raw = JSON.parse(trimmed) as RawLine;
+      } catch {
+        continue;
+      }
+      if (!raw.uuid) continue;
+      const srcAssistant = raw.sourceToolAssistantUUID ?? null;
+      const srcToolUseId = raw.sourceToolUseID ?? null;
+      if (!srcAssistant && !srcToolUseId) continue;
+      updateStmt.run([srcAssistant, srcToolUseId, sid, raw.uuid]);
+      updated++;
+    }
+    return updated;
+  }
+
   private backfillSourceToolLinkFields(): void {
     const db = this.ensureDb();
     db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
@@ -2099,29 +2143,7 @@ export class TrailDatabase {
       const sid = String(row[0] ?? '');
       const filePath = String(row[1] ?? '');
       if (!sid || !filePath) continue;
-      if (!fs.existsSync(filePath)) continue;
-      let content = '';
-      try {
-        content = fs.readFileSync(filePath, 'utf-8');
-      } catch {
-        continue;
-      }
-      for (const line of content.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        let raw: RawLine;
-        try {
-          raw = JSON.parse(trimmed) as RawLine;
-        } catch {
-          continue;
-        }
-        if (!raw.uuid) continue;
-        const srcAssistant = raw.sourceToolAssistantUUID ?? null;
-        const srcToolUseId = raw.sourceToolUseID ?? null;
-        if (!srcAssistant && !srcToolUseId) continue;
-        updateStmt.run([srcAssistant, srcToolUseId, sid, raw.uuid]);
-        updated++;
-      }
+      updated += this.backfillSourceToolLinksForSession(sid, filePath, updateStmt);
     }
     updateStmt.free();
     this.logger.info(`[Migration] source_tool_link_backfill_v1: updated=${updated}`);
@@ -3718,6 +3740,50 @@ export class TrailDatabase {
     return Boolean(r[0]?.values?.length);
   }
 
+  /** Parse git numstat output into file stats. */
+  private parseNumstat(
+    hash: string,
+    execOpts: { encoding: 'utf-8'; timeout: number },
+    gitRoot: string,
+  ): { filesChanged: number; linesAdded: number; linesDeleted: number; filePaths: string[] } {
+    let filesChanged = 0;
+    let linesAdded = 0;
+    let linesDeleted = 0;
+    const filePaths: string[] = [];
+    try {
+      const numstat = execFileSync('git', [
+        'diff', '--numstat', `${hash}^..${hash}`,
+      ], { ...execOpts, cwd: gitRoot });
+      for (const line of numstat.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const parts = trimmed.split('\t');
+        filesChanged++;
+        if (parts[0] !== '-') linesAdded += Number.parseInt(parts[0], 10) || 0;
+        if (parts[1] !== '-') linesDeleted += Number.parseInt(parts[1], 10) || 0;
+        if (parts[2]) filePaths.push(parts[2]);
+      }
+    } catch {
+      // Initial commit or other error — skip numstat
+    }
+    return { filesChanged, linesAdded, linesDeleted, filePaths };
+  }
+
+  /** Insert commit_files rows for a single commit hash. */
+  private insertCommitFiles(hash: string, filePaths: string[], repoName: string): void {
+    if (filePaths.length === 0) return;
+    const filesStmt = this.ensureDb().prepare(
+      'INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_name) VALUES (?, ?, ?)',
+    );
+    try {
+      for (const fp of filePaths) {
+        filesStmt.run([hash, fp, repoName]);
+      }
+    } finally {
+      filesStmt.free();
+    }
+  }
+
   /** Parse git log output and insert commits into session_commits table.
    *  @param filterBySessionId If true, skip commits whose Session-Id trailer belongs to another session */
   private processCommitEntries(
@@ -3752,50 +3818,15 @@ export class TrailDatabase {
       }
 
       const isAiAssisted = /Co-Authored-By:.*Claude/i.test(body) ? 1 : 0;
-
-      let filesChanged = 0;
-      let linesAdded = 0;
-      let linesDeleted = 0;
-      const filePaths: string[] = [];
-      try {
-        const numstat = execFileSync('git', [
-          'diff', '--numstat', `${hash}^..${hash}`,
-        ], { ...execOpts, cwd: gitRoot });
-
-        for (const line of numstat.split('\n')) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          const parts = trimmed.split('\t');
-          const added = parts[0];
-          const deleted = parts[1];
-          const filePath = parts[2];
-          filesChanged++;
-          if (added !== '-') linesAdded += Number.parseInt(added, 10) || 0;
-          if (deleted !== '-') linesDeleted += Number.parseInt(deleted, 10) || 0;
-          if (filePath) filePaths.push(filePath);
-        }
-      } catch {
-        // Initial commit or other error — skip numstat
-      }
+      const { filesChanged, linesAdded, linesDeleted, filePaths } =
+        this.parseNumstat(hash, execOpts, gitRoot);
 
       insertStmt.run([
         sessionId, hash, subject, author, committedAt,
         isAiAssisted, filesChanged, linesAdded, linesDeleted, repoName,
       ]);
 
-      if (filePaths.length > 0) {
-        const filesStmt = this.ensureDb().prepare(
-          'INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_name) VALUES (?, ?, ?)',
-        );
-        try {
-          for (const fp of filePaths) {
-            filesStmt.run([hash, fp, repoName]);
-          }
-        } finally {
-          filesStmt.free();
-        }
-      }
-
+      this.insertCommitFiles(hash, filePaths, repoName);
       count++;
     }
 
@@ -5780,6 +5811,24 @@ export class TrailDatabase {
     return result;
   }
 
+  /** Build last-message and last-assistant maps from ordered query rows (rows ordered by session_id, timestamp DESC). */
+  private buildSessionLastMsgMaps(rows: readonly unknown[][]): {
+    lastMsg: Map<string, { type: string; stopReason: string | null; ctx: number }>;
+    lastAssistant: Map<string, { stopReason: string | null; ctx: number }>;
+  } {
+    const lastMsg = new Map<string, { type: string; stopReason: string | null; ctx: number }>();
+    const lastAssistant = new Map<string, { stopReason: string | null; ctx: number }>();
+    for (const row of rows) {
+      const sid = String(row[0]);
+      const type = String(row[1]);
+      const stopReason = row[2] === null ? null : String(row[2]);
+      const ctx = Number(row[3]);
+      if (!lastMsg.has(sid)) lastMsg.set(sid, { type, stopReason, ctx });
+      if (type === 'assistant' && !lastAssistant.has(sid)) lastAssistant.set(sid, { stopReason, ctx });
+    }
+    return { lastMsg, lastAssistant };
+  }
+
   getSessionInterruptions(
     sessionIds: readonly string[],
   ): Map<string, { interrupted: boolean; reason: 'max_tokens' | 'no_response' | null; contextTokens: number }> {
@@ -5789,7 +5838,6 @@ export class TrailDatabase {
     const placeholders = sessionIds.map(() => '?').join(',');
 
     try {
-      // Get the last message per session (by timestamp desc) and the last assistant message
       const lastMsgResult = db.exec(
         `SELECT session_id, type, stop_reason,
           COALESCE(input_tokens,0) + COALESCE(cache_read_tokens,0) + COALESCE(cache_creation_tokens,0) AS ctx
@@ -5800,35 +5848,17 @@ export class TrailDatabase {
         sessionIds as string[],
       );
 
-      // Group by session_id — first row per session is the last message
-      const sessionLastMsg = new Map<string, { type: string; stopReason: string | null; ctx: number }>();
-      const sessionLastAssistant = new Map<string, { stopReason: string | null; ctx: number }>();
-      for (const row of lastMsgResult[0]?.values ?? []) {
-        const sid = String(row[0]);
-        const type = String(row[1]);
-        const stopReason = row[2] === null ? null : String(row[2]);
-        const ctx = Number(row[3]);
-        if (!sessionLastMsg.has(sid)) {
-          sessionLastMsg.set(sid, { type, stopReason, ctx });
-        }
-        if (type === 'assistant' && !sessionLastAssistant.has(sid)) {
-          sessionLastAssistant.set(sid, { stopReason, ctx });
-        }
-      }
+      const { lastMsg: sessionLastMsg, lastAssistant: sessionLastAssistant } =
+        this.buildSessionLastMsgMaps(lastMsgResult[0]?.values ?? []);
 
       for (const sid of sessionIds) {
         const lastMsg = sessionLastMsg.get(sid);
-        const lastAssistant = sessionLastAssistant.get(sid);
+        const lastAsst = sessionLastAssistant.get(sid);
         if (!lastMsg) continue;
-
-        if (lastAssistant?.stopReason === 'max_tokens') {
-          result.set(sid, { interrupted: true, reason: 'max_tokens', contextTokens: lastAssistant.ctx });
+        if (lastAsst?.stopReason === 'max_tokens') {
+          result.set(sid, { interrupted: true, reason: 'max_tokens', contextTokens: lastAsst.ctx });
         } else if (lastMsg.type === 'user') {
-          result.set(sid, {
-            interrupted: true,
-            reason: 'no_response',
-            contextTokens: lastAssistant?.ctx ?? 0,
-          });
+          result.set(sid, { interrupted: true, reason: 'no_response', contextTokens: lastAsst?.ctx ?? 0 });
         }
       }
     } catch {
@@ -5943,6 +5973,27 @@ export class TrailDatabase {
     return result;
   }
 
+  /** Parse one tool_calls JSON row and add the delegated subagent track to the set. */
+  private parseDelegatedTrackFromRow(
+    sid: string,
+    toolCallsJson: string,
+    tracksBySession: Map<string, Set<string>>,
+  ): void {
+    let calls: Array<{ name?: string; input?: Record<string, unknown> }> = [];
+    try {
+      calls = JSON.parse(toolCallsJson) as Array<{ name?: string; input?: Record<string, unknown> }>;
+    } catch {
+      return;
+    }
+    const agentCall = calls.find((c) => c.name === 'Agent');
+    if (!agentCall) return;
+    const subagentType = typeof agentCall.input?.subagent_type === 'string'
+      ? agentCall.input.subagent_type : 'unknown';
+    const existing = tracksBySession.get(sid) ?? new Set<string>();
+    existing.add(`delegated:${subagentType}`);
+    tracksBySession.set(sid, existing);
+  }
+
   getSessionDelegatedTrackCounts(sessionIds: readonly string[]): Map<string, number> {
     if (sessionIds.length === 0) return new Map();
     const db = this.ensureDb();
@@ -5963,23 +6014,7 @@ export class TrailDatabase {
         const sid = String(row[0] ?? '');
         const toolCallsJson = typeof row[1] === 'string' ? row[1] : '';
         if (!sid || !toolCallsJson) continue;
-        let calls: Array<{ name?: string; input?: Record<string, unknown> }> = [];
-        try {
-          calls = JSON.parse(toolCallsJson) as Array<{ name?: string; input?: Record<string, unknown> }>;
-        } catch {
-          continue;
-        }
-        const agentCall = calls.find((c) => c.name === 'Agent');
-        if (!agentCall) continue;
-        const subagentType = typeof agentCall.input?.subagent_type === 'string'
-          ? agentCall.input.subagent_type
-          : 'unknown';
-        let set = tracksBySession.get(sid);
-        if (!set) {
-          set = new Set<string>();
-          tracksBySession.set(sid, set);
-        }
-        set.add(`delegated:${subagentType}`);
+        this.parseDelegatedTrackFromRow(sid, toolCallsJson, tracksBySession);
       }
       for (const [sid, set] of tracksBySession.entries()) {
         result.set(sid, set.size);
@@ -6102,44 +6137,72 @@ export class TrailDatabase {
     return uuids;
   }
 
+  /** Populate skill map from message_tool_calls.skill_name rows (primary path). */
+  private fillSkillMapFromTcRows(rows: readonly unknown[][], map: Map<string, string>): void {
+    for (const row of rows) {
+      const uuid = row[0];
+      const skill = row[1];
+      if (typeof uuid === 'string' && typeof skill === 'string') map.set(uuid, skill);
+    }
+  }
+
+  /** Populate skill map from messages.tool_calls JSON (fallback path, skips already-set uuids). */
+  private fillSkillMapFromMsgRows(rows: readonly unknown[][], map: Map<string, string>): void {
+    for (const row of rows) {
+      const uuid = row[0];
+      const toolCallsJson = row[1];
+      if (typeof uuid !== 'string' || typeof toolCallsJson !== 'string' || map.has(uuid)) continue;
+      const skill = extractSkillName(toolCallsJson);
+      if (skill) map.set(uuid, skill);
+    }
+  }
+
   getSkillsBySession(sessionId: string): Map<string, string> {
     const db = this.ensureDb();
     const map = new Map<string, string>();
 
-    // Primary: message_tool_calls.skill_name (populated for sessions imported after skill column was added)
     const tcResult = db.exec(
       'SELECT message_uuid, skill_name FROM message_tool_calls WHERE session_id = ? AND skill_name IS NOT NULL GROUP BY message_uuid',
       [sessionId],
     );
-    if (tcResult[0]) {
-      for (const row of tcResult[0].values) {
-        const uuid = row[0];
-        const skill = row[1];
-        if (typeof uuid === 'string' && typeof skill === 'string') {
-          map.set(uuid, skill);
-        }
-      }
-    }
+    if (tcResult[0]) this.fillSkillMapFromTcRows(tcResult[0].values, map);
 
-    // Fallback: parse messages.tool_calls directly for sessions where skill_name was not backfilled
     const msgResult = db.exec(
       "SELECT uuid, tool_calls FROM messages WHERE session_id = ? AND type = 'assistant' AND tool_calls IS NOT NULL",
       [sessionId],
     );
-    if (msgResult[0]) {
-      for (const row of msgResult[0].values) {
-        const uuid = row[0];
-        const toolCallsJson = row[1];
-        if (typeof uuid === 'string' && typeof toolCallsJson === 'string' && !map.has(uuid)) {
-          const skill = extractSkillName(toolCallsJson);
-          if (skill) {
-            map.set(uuid, skill);
-          }
-        }
-      }
-    }
+    if (msgResult[0]) this.fillSkillMapFromMsgRows(msgResult[0].values, map);
 
     return map;
+  }
+
+  /** Fallback: compute turn exec ms from message timestamps (for sessions without message_tool_calls data). */
+  private fillTurnExecMsFromMessages(rows: readonly unknown[][], map: Map<string, number>): void {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const uuid = row[0];
+      const type = row[1];
+      const timestamp = row[2];
+      const toolCalls = row[3];
+      if (typeof uuid !== 'string' || map.has(uuid)) continue;
+      if (type !== 'assistant' || typeof timestamp !== 'string' || typeof toolCalls !== 'string') continue;
+      const startMs = new Date(timestamp).getTime();
+      if (!Number.isFinite(startMs)) continue;
+      this.findNextUserTurnMs(rows, i + 1, startMs, uuid, map);
+    }
+  }
+
+  /** Find the next user message after index `from` and set elapsed ms in map if valid. */
+  private findNextUserTurnMs(
+    rows: readonly unknown[][], from: number, startMs: number, uuid: string, map: Map<string, number>,
+  ): void {
+    for (let j = from; j < rows.length; j++) {
+      const next = rows[j];
+      if (next[1] !== 'user' || typeof next[2] !== 'string' || typeof next[4] !== 'string') continue;
+      const endMs = new Date(next[2]).getTime();
+      if (Number.isFinite(endMs) && endMs > startMs) map.set(uuid, endMs - startMs);
+      break;
+    }
   }
 
   getTurnExecMsBySession(sessionId: string): Map<string, number> {
@@ -6153,9 +6216,7 @@ export class TrailDatabase {
       for (const row of result[0].values) {
         const uuid = row[0];
         const ms = row[1];
-        if (typeof uuid === 'string' && typeof ms === 'number' && ms > 0) {
-          map.set(uuid, ms);
-        }
+        if (typeof uuid === 'string' && typeof ms === 'number' && ms > 0) map.set(uuid, ms);
       }
     }
     const fallback = db.exec(
@@ -6165,27 +6226,7 @@ export class TrailDatabase {
        ORDER BY timestamp ASC, uuid ASC`,
       [sessionId],
     );
-    const rows = fallback[0]?.values ?? [];
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const uuid = row[0];
-      const type = row[1];
-      const timestamp = row[2];
-      const toolCalls = row[3];
-      if (typeof uuid !== 'string' || map.has(uuid)) continue;
-      if (type !== 'assistant' || typeof timestamp !== 'string' || typeof toolCalls !== 'string') continue;
-      const startMs = new Date(timestamp).getTime();
-      if (!Number.isFinite(startMs)) continue;
-      for (let j = i + 1; j < rows.length; j++) {
-        const next = rows[j];
-        if (next[1] !== 'user' || typeof next[2] !== 'string' || typeof next[4] !== 'string') continue;
-        const endMs = new Date(next[2]).getTime();
-        if (Number.isFinite(endMs) && endMs > startMs) {
-          map.set(uuid, endMs - startMs);
-        }
-        break;
-      }
-    }
+    this.fillTurnExecMsFromMessages(fallback[0]?.values ?? [], map);
     return map;
   }
 
@@ -6248,6 +6289,37 @@ export class TrailDatabase {
    * 複数 CC セッションについて `(parent_assistant_uuid → codex_session_id)` Map をバッチ解決する。
    * クエリ数は CC セッション数によらず最大 3。N+1 を避けるための共通実装。
    */
+  /** Query codex sessions grouped by repo_name. Filters by repoFilter if non-empty. */
+  private fetchCodexSessionsByRepo(
+    db: Database,
+    repoFilter: string[],
+  ): Map<string, Array<{ id: string; repoName: string; startMs: number; endMs: number }>> {
+    const codexRes = repoFilter.length > 0
+      ? db.exec(
+          `SELECT id, repo_name, start_time, end_time
+           FROM sessions
+           WHERE source = 'codex' AND repo_name IN (${repoFilter.map(() => '?').join(',')})
+           ORDER BY start_time ASC`,
+          repoFilter,
+        )
+      : db.exec(
+          `SELECT id, repo_name, start_time, end_time
+           FROM sessions WHERE source = 'codex' ORDER BY start_time ASC`,
+        );
+    const byRepo = new Map<string, Array<{ id: string; repoName: string; startMs: number; endMs: number }>>();
+    for (const r of codexRes[0]?.values ?? []) {
+      const id = String(r[0] ?? '');
+      const repo = String(r[1] ?? '');
+      const startMs = Date.parse(String(r[2] ?? ''));
+      const endMs = Date.parse(String(r[3] ?? ''));
+      if (!id || !Number.isFinite(startMs) || !Number.isFinite(endMs)) continue;
+      const list = byRepo.get(repo) ?? [];
+      list.push({ id, repoName: repo, startMs, endMs });
+      byRepo.set(repo, list);
+    }
+    return byRepo;
+  }
+
   fetchLinkedCodexSessionMapForCcSessions(
     ccSessionIds: readonly string[],
   ): Map<string, Map<string, string>> {
@@ -6257,7 +6329,6 @@ export class TrailDatabase {
     const idPlaceholders = ccSessionIds.map(() => '?').join(',');
 
     type Delegation = { ccSessionId: string; parentUuid: string; ms: number };
-    type CodexSess = { id: string; repoName: string; startMs: number; endMs: number };
 
     const ccRepoRes = db.exec(
       `SELECT id, repo_name FROM sessions WHERE id IN (${idPlaceholders})`,
@@ -6282,8 +6353,7 @@ export class TrailDatabase {
     for (const r of delegRes[0]?.values ?? []) {
       const ccId = String(r[0] ?? '');
       const parent = String(r[1] ?? '');
-      const ts = String(r[2] ?? '');
-      const ms = Date.parse(ts);
+      const ms = Date.parse(String(r[2] ?? ''));
       if (!ccId || !parent || !Number.isFinite(ms)) continue;
       const list = delegationsByCc.get(ccId) ?? [];
       list.push({ ccSessionId: ccId, parentUuid: parent, ms });
@@ -6293,29 +6363,7 @@ export class TrailDatabase {
     if (delegationsByCc.size === 0) return out;
 
     const repoFilter = Array.from(repoNamesNeeded).filter((r) => r.length > 0);
-    const codexRes = repoFilter.length > 0
-      ? db.exec(
-          `SELECT id, repo_name, start_time, end_time
-           FROM sessions
-           WHERE source = 'codex' AND repo_name IN (${repoFilter.map(() => '?').join(',')})
-           ORDER BY start_time ASC`,
-          repoFilter,
-        )
-      : db.exec(
-          `SELECT id, repo_name, start_time, end_time
-           FROM sessions WHERE source = 'codex' ORDER BY start_time ASC`,
-        );
-    const codexByRepo = new Map<string, CodexSess[]>();
-    for (const r of codexRes[0]?.values ?? []) {
-      const id = String(r[0] ?? '');
-      const repo = String(r[1] ?? '');
-      const startMs = Date.parse(String(r[2] ?? ''));
-      const endMs = Date.parse(String(r[3] ?? ''));
-      if (!id || !Number.isFinite(startMs) || !Number.isFinite(endMs)) continue;
-      const list = codexByRepo.get(repo) ?? [];
-      list.push({ id, repoName: repo, startMs, endMs });
-      codexByRepo.set(repo, list);
-    }
+    const codexByRepo = this.fetchCodexSessionsByRepo(db, repoFilter);
 
     for (const [ccId, delegations] of delegationsByCc) {
       const repo = repoByCcId.get(ccId) ?? '';
@@ -6329,6 +6377,87 @@ export class TrailDatabase {
       if (m.size > 0) out.set(ccId, m);
     }
     return out;
+  }
+
+  /** fetchSubagentActivityRows 経路 A: CC ネイティブ subagent の行を rows に追記する。 */
+  private fetchSubagentPathA(
+    db: Database,
+    from: string, to: string,
+    repoArg: string[], toolNames: readonly string[], toolPlaceholders: string,
+    rangeJoin: string, rangeWhere: string, repoFilter: string,
+    rows: Array<{ committedAt: string; filePath: string; subagentType: string; sessionId: string; messageUuid: string }>,
+  ): void {
+    try {
+      const resA = db.exec(
+        `SELECT m.timestamp, mtc.file_path, m.subagent_type, m.session_id, m.uuid
+         FROM message_tool_calls mtc
+         INNER JOIN messages m ON m.uuid = mtc.message_uuid
+         ${rangeJoin}
+         WHERE ${rangeWhere}
+           ${repoFilter}
+           AND mtc.tool_name IN (${toolPlaceholders})
+           AND mtc.file_path IS NOT NULL
+           AND mtc.file_path != ''
+           AND m.subagent_type IS NOT NULL`,
+        [from, to, ...repoArg, ...toolNames],
+      );
+      for (const row of resA[0]?.values ?? []) {
+        const subagentType = String(row[2] ?? '');
+        if (!subagentType) continue;
+        rows.push({
+          committedAt: String(row[0] ?? ''),
+          filePath: String(row[1] ?? ''),
+          subagentType,
+          sessionId: String(row[3] ?? ''),
+          messageUuid: String(row[4] ?? ''),
+        });
+      }
+    } catch (e) {
+      this.logger.warn(
+        `fetchSubagentActivityRows path A (cc subagent) failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  /** fetchSubagentActivityRows 経路 B: codex 委任セッションの行を rows に追記する。 */
+  private fetchSubagentPathB(
+    db: Database,
+    from: string, to: string,
+    repoArg: string[], toolNames: readonly string[], toolPlaceholders: string,
+    rangeJoin: string, rangeWhere: string, repoFilter: string,
+    codexSessionIds: Set<string>,
+    rows: Array<{ committedAt: string; filePath: string; subagentType: string; sessionId: string; messageUuid: string }>,
+  ): void {
+    try {
+      const idList = Array.from(codexSessionIds);
+      const idPlaceholders = idList.map(() => '?').join(',');
+      const resB = db.exec(
+        `SELECT m.timestamp, mtc.file_path, m.session_id, m.uuid
+         FROM message_tool_calls mtc
+         INNER JOIN messages m ON m.uuid = mtc.message_uuid
+         ${rangeJoin}
+         WHERE ${rangeWhere}
+           ${repoFilter}
+           AND mtc.tool_name IN (${toolPlaceholders})
+           AND mtc.file_path IS NOT NULL
+           AND mtc.file_path != ''
+           AND m.session_id IN (${idPlaceholders})`,
+        [from, to, ...repoArg, ...toolNames, ...idList],
+      );
+      for (const row of resB[0]?.values ?? []) {
+        rows.push({
+          committedAt: String(row[0] ?? ''),
+          filePath: String(row[1] ?? ''),
+          subagentType: CODEX_SUBAGENT_TYPE,
+          sessionId: String(row[2] ?? ''),
+          messageUuid: String(row[3] ?? ''),
+        });
+      }
+    } catch (e) {
+      this.logger.warn(
+        `fetchSubagentActivityRows path B (codex linked) failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   /**
@@ -6381,70 +6510,12 @@ export class TrailDatabase {
     const repoArg = repo ? [repo] : [];
 
     // 経路 A: CC ネイティブ subagent
-    try {
-      const resA = db.exec(
-        `SELECT m.timestamp, mtc.file_path, m.subagent_type, m.session_id, m.uuid
-         FROM message_tool_calls mtc
-         INNER JOIN messages m ON m.uuid = mtc.message_uuid
-         ${rangeJoin}
-         WHERE ${rangeWhere}
-           ${repoFilter}
-           AND mtc.tool_name IN (${toolPlaceholders})
-           AND mtc.file_path IS NOT NULL
-           AND mtc.file_path != ''
-           AND m.subagent_type IS NOT NULL`,
-        [from, to, ...repoArg, ...toolNames],
-      );
-      for (const row of resA[0]?.values ?? []) {
-        const subagentType = String(row[2] ?? '');
-        if (!subagentType) continue;
-        rows.push({
-          committedAt: String(row[0] ?? ''),
-          filePath: String(row[1] ?? ''),
-          subagentType,
-          sessionId: String(row[3] ?? ''),
-          messageUuid: String(row[4] ?? ''),
-        });
-      }
-    } catch (e) {
-      this.logger.warn(
-        `fetchSubagentActivityRows path A (cc subagent) failed: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
+    this.fetchSubagentPathA(db, from, to, repoArg, toolNames, toolPlaceholders, rangeJoin, rangeWhere, repoFilter, rows);
 
     // 経路 B: codex 委任セッション（同一 repo + 時刻近傍でリンク済）
     const codexSessionIds = this.fetchLinkedCodexSessionIdsInRange(from, to);
     if (codexSessionIds.size > 0) {
-      try {
-        const idList = Array.from(codexSessionIds);
-        const idPlaceholders = idList.map(() => '?').join(',');
-        const resB = db.exec(
-          `SELECT m.timestamp, mtc.file_path, m.session_id, m.uuid
-           FROM message_tool_calls mtc
-           INNER JOIN messages m ON m.uuid = mtc.message_uuid
-           ${rangeJoin}
-           WHERE ${rangeWhere}
-             ${repoFilter}
-             AND mtc.tool_name IN (${toolPlaceholders})
-             AND mtc.file_path IS NOT NULL
-             AND mtc.file_path != ''
-             AND m.session_id IN (${idPlaceholders})`,
-          [from, to, ...repoArg, ...toolNames, ...idList],
-        );
-        for (const row of resB[0]?.values ?? []) {
-          rows.push({
-            committedAt: String(row[0] ?? ''),
-            filePath: String(row[1] ?? ''),
-            subagentType: CODEX_SUBAGENT_TYPE,
-            sessionId: String(row[2] ?? ''),
-            messageUuid: String(row[3] ?? ''),
-          });
-        }
-      } catch (e) {
-        this.logger.warn(
-          `fetchSubagentActivityRows path B (codex linked) failed: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      }
+      this.fetchSubagentPathB(db, from, to, repoArg, toolNames, toolPlaceholders, rangeJoin, rangeWhere, repoFilter, codexSessionIds, rows);
     }
 
     rows.sort((a, b) => (a.committedAt < b.committedAt ? -1 : a.committedAt > b.committedAt ? 1 : 0));
@@ -7739,10 +7810,46 @@ export class TrailDatabase {
     };
   }
 
+  /** Insert one package's coverage-summary.json into release_coverage. Returns count of inserted rows. */
+  private importReleaseCoverageForPackage(
+    db: Database, latestTag: string, pkgDir: string, summaryPath: string,
+  ): number {
+    let summary: Record<string, CoverageSummaryEntry>;
+    try {
+      summary = JSON.parse(fs.readFileSync(summaryPath, 'utf-8')) as Record<string, CoverageSummaryEntry>;
+    } catch {
+      return 0;
+    }
+    let count = 0;
+    for (const [key, entry] of Object.entries(summary)) {
+      if (!entry?.lines || !entry?.statements || !entry?.functions || !entry?.branches) continue;
+      const filePath = key === 'total' ? '__total__' : key;
+      try {
+        db.run(
+          `INSERT OR IGNORE INTO release_coverage (
+            release_tag, package, file_path,
+            lines_total, lines_covered, lines_pct,
+            statements_total, statements_covered, statements_pct,
+            functions_total, functions_covered, functions_pct,
+            branches_total, branches_covered, branches_pct
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            latestTag, pkgDir, filePath,
+            entry.lines.total, entry.lines.covered, entry.lines.pct,
+            entry.statements.total, entry.statements.covered, entry.statements.pct,
+            entry.functions.total, entry.functions.covered, entry.functions.pct,
+            entry.branches.total, entry.branches.covered, entry.branches.pct,
+          ],
+        );
+        count++;
+      } catch { /* ignore */ }
+    }
+    return count;
+  }
+
   importCoverage(gitRoot: string): number {
     const db = this.ensureDb();
 
-    // 最新リリースタグを取得
     const latestResult = db.exec(
       "SELECT tag FROM releases ORDER BY released_at DESC LIMIT 1",
     );
@@ -7750,8 +7857,6 @@ export class TrailDatabase {
     if (!latestTag) return 0;
 
     const packagesDir = path.join(gitRoot, 'packages');
-    let count = 0;
-
     let packageDirs: string[];
     try {
       packageDirs = fs.readdirSync(packagesDir);
@@ -7759,42 +7864,11 @@ export class TrailDatabase {
       return 0;
     }
 
+    let count = 0;
     for (const pkgDir of packageDirs) {
       const summaryPath = path.join(packagesDir, pkgDir, 'coverage', 'coverage-summary.json');
-      let summary: Record<string, CoverageSummaryEntry>;
-      try {
-        summary = JSON.parse(fs.readFileSync(summaryPath, 'utf-8')) as Record<string, CoverageSummaryEntry>;
-      } catch {
-        continue;
-      }
-
-      for (const [key, entry] of Object.entries(summary)) {
-        if (!entry?.lines || !entry?.statements || !entry?.functions || !entry?.branches) {
-          continue;
-        }
-        const filePath = key === 'total' ? '__total__' : key;
-        try {
-          db.run(
-            `INSERT OR IGNORE INTO release_coverage (
-              release_tag, package, file_path,
-              lines_total, lines_covered, lines_pct,
-              statements_total, statements_covered, statements_pct,
-              functions_total, functions_covered, functions_pct,
-              branches_total, branches_covered, branches_pct
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              latestTag, pkgDir, filePath,
-              entry.lines.total, entry.lines.covered, entry.lines.pct,
-              entry.statements.total, entry.statements.covered, entry.statements.pct,
-              entry.functions.total, entry.functions.covered, entry.functions.pct,
-              entry.branches.total, entry.branches.covered, entry.branches.pct,
-            ],
-          );
-          count++;
-        } catch { /* ignore */ }
-      }
+      count += this.importReleaseCoverageForPackage(db, latestTag, pkgDir, summaryPath);
     }
-
     return count;
   }
 
@@ -7911,6 +7985,23 @@ export class TrailDatabase {
   //  File Analysis (Dead Code Detection)
   // ---------------------------------------------------------------------------
 
+  /** Convert FileAnalysisRow signals/booleans to the shared SQL parameter array (without leading tag). */
+  private fileAnalysisRowParams(r: FileAnalysisRow): unknown[] {
+    return [
+      r.repoName, r.filePath,
+      r.importanceScore, r.fanInTotal, r.cognitiveComplexityMax, r.lineCount, r.cyclomaticComplexityMax, r.functionCount,
+      r.deadCodeScore,
+      r.signals.orphan ? 1 : 0,
+      r.signals.fanInZero ? 1 : 0,
+      r.signals.noRecentChurn ? 1 : 0,
+      r.signals.zeroCoverage ? 1 : 0,
+      r.signals.isolatedCommunity ? 1 : 0,
+      r.isIgnored ? 1 : 0, r.ignoreReason,
+      r.crossPkgInCount, r.externalConsumerPkgs, r.totalInCount, r.isBarrel ? 1 : 0, r.centralityScore,
+      r.category, r.analyzedAt,
+    ];
+  }
+
   upsertCurrentFileAnalysis(rows: readonly FileAnalysisRow[]): void {
     if (rows.length === 0) return;
     const db = this.ensureDb();
@@ -7927,20 +8018,7 @@ export class TrailDatabase {
           category,
           analyzed_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          r.repoName, r.filePath,
-          r.importanceScore, r.fanInTotal, r.cognitiveComplexityMax, r.lineCount, r.cyclomaticComplexityMax, r.functionCount,
-          r.deadCodeScore,
-          r.signals.orphan ? 1 : 0,
-          r.signals.fanInZero ? 1 : 0,
-          r.signals.noRecentChurn ? 1 : 0,
-          r.signals.zeroCoverage ? 1 : 0,
-          r.signals.isolatedCommunity ? 1 : 0,
-          r.isIgnored ? 1 : 0, r.ignoreReason,
-          r.crossPkgInCount, r.externalConsumerPkgs, r.totalInCount, r.isBarrel ? 1 : 0, r.centralityScore,
-          r.category,
-          r.analyzedAt,
-        ],
+        this.fileAnalysisRowParams(r),
       );
     }
     this.save();
@@ -8013,20 +8091,7 @@ export class TrailDatabase {
           category,
           analyzed_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          releaseTag, r.repoName, r.filePath,
-          r.importanceScore, r.fanInTotal, r.cognitiveComplexityMax, r.lineCount, r.cyclomaticComplexityMax, r.functionCount,
-          r.deadCodeScore,
-          r.signals.orphan ? 1 : 0,
-          r.signals.fanInZero ? 1 : 0,
-          r.signals.noRecentChurn ? 1 : 0,
-          r.signals.zeroCoverage ? 1 : 0,
-          r.signals.isolatedCommunity ? 1 : 0,
-          r.isIgnored ? 1 : 0, r.ignoreReason,
-          r.crossPkgInCount, r.externalConsumerPkgs, r.totalInCount, r.isBarrel ? 1 : 0, r.centralityScore,
-          r.category,
-          r.analyzedAt,
-        ],
+        [releaseTag, ...this.fileAnalysisRowParams(r)],
       );
     }
   }
@@ -8353,6 +8418,22 @@ export class TrailDatabase {
     return count;
   }
 
+  /** Find the minimum elapsed minutes from any session start to a release timestamp (max 720 min). */
+  private findMinElapsedMinutes(
+    relMs: number,
+    sessions: ReadonlyArray<{ skill_start: string }>,
+  ): number | null {
+    let minElapsed: number | null = null;
+    for (const sess of sessions) {
+      const startMs = new Date(sess.skill_start).getTime();
+      if (relMs < startMs) continue;
+      const elapsedMin = (relMs - startMs) / 60_000;
+      if (elapsedMin > 720) continue;
+      if (minElapsed === null || elapsedMin < minElapsed) minElapsed = elapsedMin;
+    }
+    return minElapsed;
+  }
+
   /**
    * production-release スキルの開始時刻と releases.released_at の差分（分）を算出し
    * release_time_min が未設定のリリースを一括更新する。
@@ -8361,7 +8442,6 @@ export class TrailDatabase {
   resolveReleaseTimes(): number {
     const db = this.ensureDb();
 
-    // production-release スキルのセッションごとの開始時刻を取得
     const sessResult = db.exec(`
       SELECT session_id, MIN(timestamp) AS skill_start
       FROM messages
@@ -8370,15 +8450,13 @@ export class TrailDatabase {
     `);
     if (!sessResult[0]?.values?.length) return 0;
 
-    type SessionStart = { session_id: string; skill_start: string };
     const cols = sessResult[0].columns;
-    const sessions: SessionStart[] = sessResult[0].values.map((row) => {
+    const sessions = sessResult[0].values.map((row) => {
       const obj: Record<string, unknown> = {};
       for (let i = 0; i < cols.length; i++) obj[cols[i]] = row[i];
-      return obj as unknown as SessionStart;
+      return obj as { session_id: string; skill_start: string };
     });
 
-    // release_time_min が NULL のリリースを対象
     const relResult = db.exec(`
       SELECT tag, released_at FROM releases
       WHERE released_at IS NOT NULL AND released_at != '' AND release_time_min IS NULL
@@ -8395,19 +8473,7 @@ export class TrailDatabase {
     let updated = 0;
     for (const rel of releases) {
       const relMs = new Date(rel.released_at).getTime();
-      let minElapsed: number | null = null;
-
-      for (const sess of sessions) {
-        const startMs = new Date(sess.skill_start).getTime();
-        if (relMs < startMs) continue;
-        const elapsedMs = relMs - startMs;
-        const elapsedMin = elapsedMs / 60_000;
-        if (elapsedMin > 720) continue; // 12 時間超はスキップ
-        if (minElapsed === null || elapsedMin < minElapsed) {
-          minElapsed = elapsedMin;
-        }
-      }
-
+      const minElapsed = this.findMinElapsedMinutes(relMs, sessions);
       if (minElapsed !== null) {
         try {
           db.run('UPDATE releases SET release_time_min = ? WHERE tag = ?', [
@@ -8426,6 +8492,56 @@ export class TrailDatabase {
    * release_graphs テーブルにタグ ID で保存する。
    * 既に release_graphs に同タグが存在する場合はスキップ。
    */
+  /** Remove a git worktree directory, falling back to fs.rmSync on error. */
+  private removeWorktreeDir(tmpDir: string, gitRoot: string): void {
+    try {
+      execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], { cwd: gitRoot, stdio: 'pipe' });
+    } catch {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  }
+
+  /**
+   * Analyze one release tag in a temporary worktree. Returns true if the graph was saved.
+   * Throws on unrecoverable errors; caller is responsible for worktree cleanup in finally.
+   */
+  private analyzeOneRelease(
+    tag: string,
+    gitRoot: string,
+    tmpDir: string,
+    tsconfigPath: string,
+    git: ExecFileGitService,
+    analyzeFn: AnalyzeFunction,
+    excludePatterns: readonly string[],
+    onProgress?: (message: string) => void,
+  ): boolean {
+    onProgress?.(`Analyzing release ${tag}...`);
+
+    if (fs.existsSync(tmpDir)) this.removeWorktreeDir(tmpDir, gitRoot);
+
+    const commitHash = git.getTagCommitHash(tag);
+    execFileSync('git', ['worktree', 'add', '--detach', tmpDir, commitHash], { cwd: gitRoot, stdio: 'pipe' });
+
+    const worktreeTsconfig = path.join(tmpDir, 'tsconfig.json');
+    if (!fs.existsSync(worktreeTsconfig)) {
+      onProgress?.(`Skipping ${tag}: tsconfig.json not found`);
+      return false;
+    }
+
+    const worktreeNodeModules = path.join(tmpDir, 'node_modules');
+    if (!fs.existsSync(worktreeNodeModules)) {
+      fs.symlinkSync(path.join(gitRoot, 'node_modules'), worktreeNodeModules, 'dir');
+    }
+
+    const exclude = ignore();
+    if (excludePatterns.length > 0) exclude.add([...excludePatterns]);
+    const graph = analyzeFn({ tsconfigPath: worktreeTsconfig, exclude });
+
+    this.saveReleaseGraph(graph, tsconfigPath, tag);
+    onProgress?.(`Release ${tag} analyzed: ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
+    return true;
+  }
+
   analyzeReleases(
     gitRoot: string,
     analyzeFn: AnalyzeFunction,
@@ -8436,7 +8552,6 @@ export class TrailDatabase {
     const releases = this.getReleases();
     if (releases.length === 0) return 0;
 
-    // 解析済みタグを取得
     const existingResult = db.exec('SELECT tag FROM release_graphs');
     const existingIds = new Set<string>(
       existingResult[0]?.values?.map((r) => r[0] as string) ?? [],
@@ -8449,76 +8564,17 @@ export class TrailDatabase {
     for (const release of releases) {
       const tag = release.tag;
       if (existingIds.has(tag)) continue;
-
       const tmpDir = path.join(os.tmpdir(), `trail-release-${tag.replaceAll('/', '-')}`);
       try {
-        onProgress?.(`Analyzing release ${tag}...`);
-
-        // 残存 worktree を事前クリーンアップ
-        if (fs.existsSync(tmpDir)) {
-          try {
-            execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], {
-              cwd: gitRoot,
-              stdio: 'pipe',
-            });
-          } catch {
-            try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
-          }
+        const saved = this.analyzeOneRelease(tag, gitRoot, tmpDir, tsconfigPath, git, analyzeFn, excludePatterns, onProgress);
+        if (saved) {
+          existingIds.add(tag);
+          count++;
         }
-
-        // 一時 worktree を作成
-        const commitHash = git.getTagCommitHash(tag);
-        execFileSync('git', ['worktree', 'add', '--detach', tmpDir, commitHash], {
-          cwd: gitRoot,
-          stdio: 'pipe',
-        });
-
-        // worktree 内に tsconfig.json がなければスキップ
-        const worktreeTsconfig = path.join(tmpDir, 'tsconfig.json');
-        if (!fs.existsSync(worktreeTsconfig)) {
-          onProgress?.(`Skipping ${tag}: tsconfig.json not found`);
-          continue;
-        }
-
-        // node_modules をシンボリックリンク（型解決のため）
-        const worktreeNodeModules = path.join(tmpDir, 'node_modules');
-        if (!fs.existsSync(worktreeNodeModules)) {
-          fs.symlinkSync(
-            path.join(gitRoot, 'node_modules'),
-            worktreeNodeModules,
-            'dir',
-          );
-        }
-
-        // 解析実行（excludePatterns は legacy のディレクトリ名配列。.gitignore 互換に変換）
-        const exclude = ignore();
-        if (excludePatterns.length > 0) {
-          exclude.add([...excludePatterns]);
-        }
-        const graph = analyzeFn({
-          tsconfigPath: worktreeTsconfig,
-          exclude,
-        });
-
-        // 保存（tsconfigPath は canonical パスを記録）
-        this.saveReleaseGraph(graph, tsconfigPath, tag);
-        // TODO(plan/2026-05-02-code-graph-tables): importAll 単体動作を別セッションで確認後にコメントアウト解除
-        // this.analyzeReleaseCodeGraphsForce({ tag, worktreeTsconfig, codeGraphService, gitRoot });
-        existingIds.add(tag);
-        count++;
-        onProgress?.(`Release ${tag} analyzed: ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
       } catch (e) {
         onProgress?.(`Skipping ${tag}: ${e instanceof Error ? e.message : String(e)}`);
       } finally {
-        // worktree を必ず削除
-        try {
-          execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], {
-            cwd: gitRoot,
-            stdio: 'pipe',
-          });
-        } catch {
-          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
-        }
+        this.removeWorktreeDir(tmpDir, gitRoot);
       }
     }
 
@@ -8934,6 +8990,102 @@ export class TrailDatabase {
   //  Quality Metrics
   // ---------------------------------------------------------------------------
 
+  /** Two-scan user↔assistant token attribution for getQualityMetricsInputs. */
+  private queryMessagesForQuality(
+    db: Database,
+    f: string,
+    t: string,
+  ): Array<{ uuid: string; created_at: string; role: string; type: string; session_id: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number; cost_usd: number }> {
+    const userRes = db.exec(
+      `SELECT uuid, session_id, timestamp, type
+       FROM messages
+       WHERE type = 'user' AND timestamp >= ? AND timestamp <= ?`,
+      [f, t],
+    );
+    if (!userRes[0]) return [];
+
+    type UserRow = { uuid: string; session_id: string; timestamp: string; type: string };
+    const userMessages: UserRow[] = userRes[0].values.map((row) => ({
+      uuid: row[0] as string,
+      session_id: row[1] as string,
+      timestamp: row[2] as string,
+      type: row[3] as string,
+    }));
+
+    const usersBySession = new Map<string, UserRow[]>();
+    for (const u of userMessages) {
+      const arr = usersBySession.get(u.session_id);
+      if (arr) arr.push(u);
+      else usersBySession.set(u.session_id, [u]);
+    }
+    for (const arr of usersBySession.values()) {
+      arr.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    }
+
+    type Tokens = { input: number; output: number; cr: number; cc: number; cost: number };
+    const tokensByUserUuid = new Map<string, Tokens>();
+    for (const u of userMessages) tokensByUserUuid.set(u.uuid, { input: 0, output: 0, cr: 0, cc: 0, cost: 0 });
+
+    const asstRes = db.exec(
+      `SELECT m.session_id, s.source, m.timestamp, m.input_tokens, m.output_tokens, m.cache_read_tokens, m.cache_creation_tokens, m.model
+       FROM messages m
+       INNER JOIN sessions s ON s.id = m.session_id
+       WHERE m.type = 'assistant' AND m.timestamp >= ? AND m.timestamp <= ?`,
+      [f, t],
+    );
+    if (asstRes[0]) this.attributeAssistantTokens(asstRes[0].values, usersBySession, tokensByUserUuid);
+
+    return userMessages.map((u) => {
+      const tokens = tokensByUserUuid.get(u.uuid) ?? { input: 0, output: 0, cr: 0, cc: 0, cost: 0 };
+      return {
+        uuid: u.uuid, created_at: u.timestamp, role: u.type, type: 'text', session_id: u.session_id,
+        input_tokens: tokens.input, output_tokens: tokens.output,
+        cache_read_tokens: tokens.cr, cache_creation_tokens: tokens.cc, cost_usd: tokens.cost,
+      };
+    });
+  }
+
+  /** Attribute assistant message tokens to the preceding user message via binary search. */
+  private attributeAssistantTokens(
+    asstRows: readonly unknown[][],
+    usersBySession: Map<string, Array<{ uuid: string; timestamp: string }>>,
+    tokensByUserUuid: Map<string, { input: number; output: number; cr: number; cc: number; cost: number }>,
+  ): void {
+    for (const row of asstRows) {
+      const sessionId = row[0] as string;
+      const source = row[1] as string;
+      const asstTs = row[2] as string;
+      const sessionUsers = usersBySession.get(sessionId);
+      if (!sessionUsers) continue;
+
+      let lo = 0;
+      let hi = sessionUsers.length - 1;
+      let idx = -1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >>> 1;
+        if (sessionUsers[mid].timestamp <= asstTs) { idx = mid; lo = mid + 1; }
+        else hi = mid - 1;
+      }
+      if (idx === -1) continue;
+
+      const tokens = tokensByUserUuid.get(sessionUsers[idx].uuid);
+      if (!tokens) continue;
+      const inputToks = (row[3] as number) ?? 0;
+      const outputToks = (row[4] as number) ?? 0;
+      const crToks = (row[5] as number) ?? 0;
+      const ccToks = (row[6] as number) ?? 0;
+      const model = (row[7] as string | null) ?? '';
+      tokens.input += inputToks;
+      tokens.output += outputToks;
+      tokens.cr += crToks;
+      tokens.cc += ccToks;
+      tokens.cost += calculateCost(model, {
+        inputTokens: inputToks, outputTokens: outputToks,
+        cacheReadTokens: crToks, cacheCreationTokens: ccToks,
+      }, source as PricingSource);
+    }
+  }
+
   getQualityMetricsInputs(from: string, to: string, prevFrom: string, prevTo: string): {
     releases: Array<{ id: string; tag_date: string; commit_hashes: string[]; fix_count: number }>;
     messages: Array<{ uuid: string; created_at: string; role: string; type: string; session_id: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number; cost_usd: number }>;
@@ -8960,108 +9112,7 @@ export class TrailDatabase {
       }));
     };
 
-    const queryMessages = (f: string, t: string) => {
-      // Two simple range scans + in-memory turn aggregation.
-      // The previous CTE+LEAD+LEFT JOIN+GROUP BY took >1min on sql.js (WASM SQLite).
-      const userRes = db.exec(
-        `SELECT uuid, session_id, timestamp, type
-         FROM messages
-         WHERE type = 'user' AND timestamp >= ? AND timestamp <= ?`,
-        [f, t],
-      );
-      if (!userRes[0]) return [];
-
-      type UserRow = { uuid: string; session_id: string; timestamp: string; type: string };
-      const userMessages: UserRow[] = userRes[0].values.map((row) => ({
-        uuid: row[0] as string,
-        session_id: row[1] as string,
-        timestamp: row[2] as string,
-        type: row[3] as string,
-      }));
-
-      const usersBySession = new Map<string, UserRow[]>();
-      for (const u of userMessages) {
-        const arr = usersBySession.get(u.session_id);
-        if (arr) arr.push(u);
-        else usersBySession.set(u.session_id, [u]);
-      }
-      for (const arr of usersBySession.values()) {
-        arr.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-      }
-
-      type Tokens = { input: number; output: number; cr: number; cc: number; cost: number };
-      const tokensByUserUuid = new Map<string, Tokens>();
-      for (const u of userMessages) {
-        tokensByUserUuid.set(u.uuid, { input: 0, output: 0, cr: 0, cc: 0, cost: 0 });
-      }
-
-      const asstRes = db.exec(
-        `SELECT m.session_id, s.source, m.timestamp, m.input_tokens, m.output_tokens, m.cache_read_tokens, m.cache_creation_tokens, m.model
-         FROM messages m
-         INNER JOIN sessions s ON s.id = m.session_id
-         WHERE m.type = 'assistant' AND m.timestamp >= ? AND m.timestamp <= ?`,
-        [f, t],
-      );
-
-      if (asstRes[0]) {
-        for (const row of asstRes[0].values) {
-          const sessionId = row[0] as string;
-          const source = row[1] as string;
-          const asstTs = row[2] as string;
-          const sessionUsers = usersBySession.get(sessionId);
-          if (!sessionUsers) continue;
-
-          // Binary search: find the latest user message with timestamp <= asstTs.
-          let lo = 0;
-          let hi = sessionUsers.length - 1;
-          let idx = -1;
-          while (lo <= hi) {
-            const mid = (lo + hi) >>> 1;
-            if (sessionUsers[mid].timestamp <= asstTs) {
-              idx = mid;
-              lo = mid + 1;
-            } else {
-              hi = mid - 1;
-            }
-          }
-          if (idx === -1) continue;
-
-          const tokens = tokensByUserUuid.get(sessionUsers[idx].uuid);
-          if (!tokens) continue;
-          const inputToks = (row[3] as number) ?? 0;
-          const outputToks = (row[4] as number) ?? 0;
-          const crToks = (row[5] as number) ?? 0;
-          const ccToks = (row[6] as number) ?? 0;
-          const model = (row[7] as string | null) ?? '';
-          tokens.input += inputToks;
-          tokens.output += outputToks;
-          tokens.cr += crToks;
-          tokens.cc += ccToks;
-          tokens.cost += calculateCost(model, {
-            inputTokens: inputToks,
-            outputTokens: outputToks,
-            cacheReadTokens: crToks,
-            cacheCreationTokens: ccToks,
-          }, source as PricingSource);
-        }
-      }
-
-      return userMessages.map((u) => {
-        const tokens = tokensByUserUuid.get(u.uuid) ?? { input: 0, output: 0, cr: 0, cc: 0, cost: 0 };
-        return {
-          uuid: u.uuid,
-          created_at: u.timestamp,
-          role: u.type,
-          type: 'text',
-          session_id: u.session_id,
-          input_tokens: tokens.input,
-          output_tokens: tokens.output,
-          cache_read_tokens: tokens.cr,
-          cache_creation_tokens: tokens.cc,
-          cost_usd: tokens.cost,
-        };
-      });
-    };
+    const queryMessages = (f: string, t: string) => this.queryMessagesForQuality(db, f, t);
 
     const queryMessageCommits = (f: string, t: string) => {
       const res = db.exec(
@@ -9255,6 +9306,21 @@ export class TrailDatabase {
     return limitToTopRowKeys(rowsAll, rowLimit);
   }
 
+  /** Build a file-path normalizer from project root candidates (strips absolute prefix and worktree prefix). */
+  private buildFilePathNormalizer(projectRoots: string[]): (raw: string) => string | null {
+    const sorted = [...projectRoots].sort((a, b) => a.length - b.length);
+    return (raw: string): string | null => {
+      if (!raw) return null;
+      if (!raw.startsWith('/')) return stripWorktreePrefix(raw);
+      for (const root of sorted) {
+        if (raw === root) continue;
+        const prefix = root.endsWith('/') ? root : `${root}/`;
+        if (raw.startsWith(prefix)) return stripWorktreePrefix(raw.slice(prefix.length));
+      }
+      return null;
+    };
+  }
+
   fetchActivityTrendRows(params: {
     from: string;
     to: string;
@@ -9289,17 +9355,9 @@ export class TrailDatabase {
     if (granularity === 'subagent') {
       if (useTempTable) db.run('DROP TABLE IF EXISTS _hotspot_paths');
       const allowed = new Set(filePathsIn);
-      return this.fetchSubagentActivityRows({
-        from,
-        to,
-        toolNames: SESSION_COUPLING_EDIT_TOOLS,
-      })
+      return this.fetchSubagentActivityRows({ from, to, toolNames: SESSION_COUPLING_EDIT_TOOLS })
         .filter((r) => allowed.has(r.filePath))
-        .map((r) => ({
-          committedAt: r.committedAt,
-          filePath: r.filePath,
-          subagentType: r.subagentType,
-        }));
+        .map((r) => ({ committedAt: r.committedAt, filePath: r.filePath, subagentType: r.subagentType }));
     }
 
     if (granularity === 'defect') {
@@ -9319,14 +9377,11 @@ export class TrailDatabase {
       const res = db.exec(sql, bindings);
       if (useTempTable) db.run('DROP TABLE IF EXISTS _hotspot_paths');
       if (!res.length) return [];
-      return res[0].values.map((row) => {
-        const subagentType = row[2];
-        return {
-          committedAt: String(row[0]),
-          filePath: String(row[1]),
-          subagentType: subagentType == null ? null : String(subagentType),
-        };
-      });
+      return res[0].values.map((row) => ({
+        committedAt: String(row[0]),
+        filePath: String(row[1]),
+        subagentType: row[2] == null ? null : String(row[2]),
+      }));
     }
 
     let sql: string;
@@ -9342,26 +9397,15 @@ export class TrailDatabase {
       `;
       bindings = useTempTable ? [from, to] : [from, to, ...filePathsIn];
     } else {
-      const toolNames = sessionMode === 'read'
-        ? ACTIVITY_TREND_READ_TOOLS
-        : SESSION_COUPLING_EDIT_TOOLS;
+      const toolNames = sessionMode === 'read' ? ACTIVITY_TREND_READ_TOOLS : SESSION_COUPLING_EDIT_TOOLS;
       const projectRootCandidates = Array.from(
         new Set(
           this.listCurrentGraphs()
             .map((g) => g.graph?.metadata?.projectRoot)
             .filter((p): p is string => typeof p === 'string' && p.length > 0),
         ),
-      ).sort((a, b) => a.length - b.length);
-      const normalize = (raw: string): string | null => {
-        if (!raw) return null;
-        if (!raw.startsWith('/')) return stripWorktreePrefix(raw);
-        for (const root of projectRootCandidates) {
-          if (raw === root) continue;
-          const prefix = root.endsWith('/') ? root : `${root}/`;
-          if (raw.startsWith(prefix)) return stripWorktreePrefix(raw.slice(prefix.length));
-        }
-        return null;
-      };
+      );
+      const normalize = this.buildFilePathNormalizer(projectRootCandidates);
       const allowed = new Set(filePathsIn);
       const toolPlaceholders = toolNames.map(() => '?').join(', ');
       sql = `
@@ -9383,12 +9427,7 @@ export class TrailDatabase {
       return res[0].values.flatMap((row) => {
         const normalized = normalize(String(row[1]));
         if (!normalized || !allowed.has(normalized)) return [];
-        const subagentType = row[2];
-        return [{
-          committedAt: String(row[0]),
-          filePath: normalized,
-          subagentType: subagentType == null ? null : String(subagentType),
-        }];
+        return [{ committedAt: String(row[0]), filePath: normalized, subagentType: row[2] == null ? null : String(row[2]) }];
       });
     }
     const res = db.exec(sql, bindings);

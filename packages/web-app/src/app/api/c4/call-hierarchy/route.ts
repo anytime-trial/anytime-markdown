@@ -37,16 +37,12 @@ function clampDepth(value: string | null): number {
   return Math.min(Math.max(n, 0), 10);
 }
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  const file = request.nextUrl.searchParams.get('file') ?? '';
-  const fn = request.nextUrl.searchParams.get('fn') ?? '';
-  const direction = request.nextUrl.searchParams.get('direction') ?? 'callees';
-  const depth = clampDepth(request.nextUrl.searchParams.get('depth'));
-  const lineParam = request.nextUrl.searchParams.get('line');
-  const repoParam = request.nextUrl.searchParams.get('repo') ?? undefined;
-  const scope = request.nextUrl.searchParams.get('scope') ?? 'project';
-  const excludeTests = request.nextUrl.searchParams.get('excludeTests') === 'true';
-
+function validateParams(
+  file: string,
+  fn: string,
+  direction: string,
+  scope: string,
+): NextResponse | null {
   if (!file || !fn) {
     return NextResponse.json(
       { error: 'file and fn query params are required' },
@@ -65,6 +61,45 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { status: 400, headers: NO_STORE_HEADERS },
     );
   }
+  return null;
+}
+
+function findTargetNode(
+  nodes: Map<string, TrailNode>,
+  file: string,
+  fn: string,
+  requestedLine: number | undefined,
+): TrailNode | undefined {
+  let target: TrailNode | undefined;
+  let fallback: TrailNode | undefined;
+  const hasLine = typeof requestedLine === 'number' && Number.isFinite(requestedLine);
+  for (const node of nodes.values()) {
+    if (node.type !== 'function') continue;
+    if (node.filePath !== file) continue;
+    if (node.label !== fn) continue;
+    if (hasLine) {
+      if (node.line === requestedLine) { target = node; break; }
+      fallback ??= node;
+    } else {
+      target = node;
+      break;
+    }
+  }
+  return target ?? fallback;
+}
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const file = request.nextUrl.searchParams.get('file') ?? '';
+  const fn = request.nextUrl.searchParams.get('fn') ?? '';
+  const direction = request.nextUrl.searchParams.get('direction') ?? 'callees';
+  const depth = clampDepth(request.nextUrl.searchParams.get('depth'));
+  const lineParam = request.nextUrl.searchParams.get('line');
+  const repoParam = request.nextUrl.searchParams.get('repo') ?? undefined;
+  const scope = request.nextUrl.searchParams.get('scope') ?? 'project';
+  const excludeTests = request.nextUrl.searchParams.get('excludeTests') === 'true';
+
+  const validationError = validateParams(file, fn, direction, scope);
+  if (validationError) return validationError;
 
   const env = resolveSupabaseEnv();
   if (!env) {
@@ -93,24 +128,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const index = buildCallHierarchyIndex({ nodes: graph.nodes, edges: graph.edges });
 
     const requestedLine = lineParam !== null && lineParam !== '' ? Number.parseInt(lineParam, 10) : undefined;
-    let target: TrailNode | undefined;
-    let fallback: TrailNode | undefined;
-    for (const node of index.nodes.values()) {
-      if (node.type !== 'function') continue;
-      if (node.filePath !== file) continue;
-      if (node.label !== fn) continue;
-      if (typeof requestedLine === 'number' && Number.isFinite(requestedLine)) {
-        if (node.line === requestedLine) {
-          target = node;
-          break;
-        }
-        fallback ??= node;
-      } else {
-        target = node;
-        break;
-      }
-    }
-    target ??= fallback;
+    const target = findTargetNode(index.nodes, file, fn, requestedLine);
 
     if (!target) {
       return NextResponse.json(
