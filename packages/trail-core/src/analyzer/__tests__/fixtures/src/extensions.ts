@@ -14,5 +14,5 @@ const BarExt = createExtension({
   },
 });
 
-void FooExt;
-void BarExt;
+FooExt;
+BarExt;

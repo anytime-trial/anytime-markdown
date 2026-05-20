@@ -15,7 +15,7 @@ const LOW_THRESHOLD_MS = 30_000;
 function hasGitCommitInBash(msg: TrailMessage): boolean {
   return (msg.toolCalls ?? []).some(
     (tc) => tc.name === 'Bash' && typeof tc.input?.command === 'string'
-      && (tc.input.command as string).includes('git commit'),
+      && tc.input.command.includes('git commit'),
   );
 }
 

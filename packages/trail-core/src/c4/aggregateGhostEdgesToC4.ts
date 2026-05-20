@@ -153,7 +153,7 @@ function aggregateL3(
   }
 
   return Array.from(aggMap.values()).sort((x, y) =>
-    x.source !== y.source ? x.source.localeCompare(y.source) : x.target.localeCompare(y.target),
+    x.source === y.source ? x.target.localeCompare(y.target) : x.source.localeCompare(y.source),
   );
 }
 
@@ -163,7 +163,7 @@ export function aggregateGhostEdgesToC4(
   level: C4LevelNum,
   selectedRepo: string | null,
 ): C4GhostEdge[] {
-  void selectedRepo;
+  selectedRepo;
   if (level !== 3 && level !== 4) return [];
   if (edges.length === 0) return [];
 

@@ -10,7 +10,6 @@ import type { C4Element, C4Model } from '../c4/types';
 import type { TrailEdge, TrailGraph, TrailNode } from '../model/types';
 import type {
   SequenceAltBranch,
-  SequenceFragment,
   SequenceModel,
   SequenceParticipant,
   SequenceStep,
@@ -218,7 +217,7 @@ function processCallerNode(
 
   const callerFnName = caller.label;
   const funcNode = findFunctionNode(sf, callerFnName);
-  if (!funcNode || !funcNode.body) {
+  if (!funcNode?.body) {
     return buildFallbackSteps(calls, fromParticipantId, toParticipantId, callerFnName, chainId, ctx);
   }
 
@@ -312,7 +311,7 @@ function visitStmt(stmt: ts.Statement, sf: ts.SourceFile, state: WalkState, out:
   if (ts.isBlock(stmt)) { visitBlockStmts(stmt.statements, sf, state, out); return; }
   if (ts.isExpressionStatement(stmt)) { visitExpression(stmt.expression, sf, state, out); return; }
   if (ts.isVariableStatement(stmt)) { visitVariableStatement(stmt, sf, state, out); return; }
-  if (ts.isReturnStatement(stmt)) { if (stmt.expression) visitExpression(stmt.expression, sf, state, out); return; }
+  if (ts.isReturnStatement(stmt)) { if (stmt.expression) { visitExpression(stmt.expression, sf, state, out); } return; }
   if (ts.isTryStatement(stmt)) { visitTryStatement(stmt, sf, state, out); return; }
 
   // Generic statement: visit nested expressions / blocks shallowly

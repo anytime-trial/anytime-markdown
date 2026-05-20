@@ -7,7 +7,6 @@ const TEST_FILE_RE = /\.(test|spec)\.tsx?$/;
 const STORIES_FILE_RE = /\.stories\.tsx?$/;
 const REACTISH_EXT_RE = /\.(tsx|jsx)$/;
 const CUSTOM_HOOK_RE = /^use[A-Z][a-zA-Z0-9]*\.tsx?$/;
-const PANEL_FILE_RE = /Panel\.ts$/;
 
 const UI_IMPORT_PATTERNS: readonly RegExp[] = [
   /^react(\/.*)?$/,
@@ -56,7 +55,7 @@ export function classifyFile(filePath: string, sourceFile?: ts.SourceFile): File
       return 'ui';
     }
     // VS Code Webview Panel: *Panel.ts かつ vscode import
-    if (PANEL_FILE_RE.test(basename) && imports.some((s) => VSCODE_IMPORT_RE.test(s))) {
+    if (basename.endsWith('Panel.ts') && imports.some((s) => VSCODE_IMPORT_RE.test(s))) {
       return 'ui';
     }
   }

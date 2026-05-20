@@ -24,7 +24,7 @@ export function aggregateDsmToPackageLevel(matrix: DsmMatrix): DsmMatrix {
     packageSet.add(pkg);
   }
 
-  const sortedPackages = [...packageSet].sort();
+  const sortedPackages = [...packageSet].sort((a, b) => a.localeCompare(b));
   const nodes: DsmNode[] = sortedPackages.map(p => ({
     id: p,
     name: p,

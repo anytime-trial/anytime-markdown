@@ -27,7 +27,7 @@ export function getTimezoneOffsetMinutes(timeZone: string, at: Date = new Date()
 export function toLocalDateString(utcIso: string, timeZone: string = DEFAULT_TIMEZONE): string {
   const date = new Date(utcIso);
   if (Number.isNaN(date.getTime())) {
-    throw new Error(`invalid utc iso: ${utcIso}`);
+    throw new TypeError(`invalid utc iso: ${utcIso}`);
   }
   const offsetMin = getTimezoneOffsetMinutes(timeZone, date);
   const shifted = new Date(date.getTime() + offsetMin * MS_PER_MINUTE);
@@ -38,7 +38,7 @@ export function toLocalDateString(utcIso: string, timeZone: string = DEFAULT_TIM
 }
 
 function parseDateString(date: string): Date {
-  const [y, m, d] = date.split('-').map((s) => Number(s));
+  const [y, m, d] = date.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d));
 }
 
@@ -80,7 +80,7 @@ export function enumerateBuckets(
   const end = parseDateString(floorToBucketStart(toLocal, bucketSize));
   const out: string[] = [];
   let cur = start;
-  while (cur.getTime() <= end.getTime()) {
+  while (cur <= end) {
     out.push(formatDateUtc(cur));
     cur = advance(cur, bucketSize);
   }

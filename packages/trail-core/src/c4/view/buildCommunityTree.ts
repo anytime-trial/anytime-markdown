@@ -2,12 +2,14 @@ import type { C4Model, C4Element, C4TreeNode } from '../types';
 import type { CommunitySummary } from '../../codeGraph';
 import type { CommunityOverlayEntry } from '../computeCommunityOverlay';
 
+export type C4MaxDepth = 'container' | 'component' | 'code';
+
 export interface CommunityTreeInput {
   readonly c4Model: C4Model;
   readonly communityOverlay: ReadonlyMap<string, CommunityOverlayEntry>;
   readonly communities: Record<number, string>;
   readonly communitySummaries?: Record<number, CommunitySummary>;
-  readonly maxDepth?: 'container' | 'component' | 'code';
+  readonly maxDepth?: C4MaxDepth;
 }
 
 /** オーバーレイエントリをコミュニティ番号でグループ化する */
@@ -35,7 +37,7 @@ function buildCodeChildNodes(
     .map(el => ({
       id: el.id,
       name: el.name,
-      type: el.type as C4TreeNode['type'],
+      type: el.type,
       children: [] as C4TreeNode[],
     }));
 }
@@ -44,7 +46,7 @@ function buildCodeChildNodes(
 function buildComponentNode(
   compEl: C4Element,
   elements: C4Model['elements'],
-  maxDepth: 'container' | 'component' | 'code',
+  maxDepth: C4MaxDepth,
 ): C4TreeNode {
   const codeChildren = maxDepth === 'code' ? buildCodeChildNodes(compEl.id, elements) : [];
   return {
@@ -77,7 +79,7 @@ function buildContainerNode(
   compIds: string[],
   elementById: Map<string, C4Element>,
   elements: C4Model['elements'],
-  maxDepth: 'container' | 'component' | 'code',
+  maxDepth: C4MaxDepth,
 ): C4TreeNode[] {
   const componentNodes: C4TreeNode[] =
     maxDepth === 'container'

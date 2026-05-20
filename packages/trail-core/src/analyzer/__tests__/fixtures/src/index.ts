@@ -9,7 +9,7 @@ export class BaseApp {
 }
 
 export class App extends BaseApp implements Runnable {
-  private config: AppConfig | undefined;
+  private readonly config: AppConfig | undefined;
 
   override log(level: LogLevel): void {
     greet(String(level));

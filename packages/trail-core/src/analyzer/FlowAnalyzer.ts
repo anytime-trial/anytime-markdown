@@ -123,12 +123,12 @@ export class FlowAnalyzer {
 
     const startId = nextId('start');
     const endId = nextId('end');
-    nodes.push({ id: startId, label: 'start', kind: 'start' });
-    nodes.push({ id: endId, label: 'end', kind: 'end' });
+    nodes.push({ id: startId, label: 'start', kind: 'start' }, { id: endId, label: 'end', kind: 'end' });
 
-    const body = ts.isFunctionDeclaration(funcNode) || ts.isMethodDeclaration(funcNode) || ts.isFunctionExpression(funcNode)
+    const hasDeclaredBody = ts.isFunctionDeclaration(funcNode) || ts.isMethodDeclaration(funcNode) || ts.isFunctionExpression(funcNode);
+    const body = hasDeclaredBody
       ? funcNode.body
-      : ts.isBlock(funcNode.body) ? funcNode.body : undefined;
+      : (ts.isBlock(funcNode.body) ? funcNode.body : undefined);
 
     if (!body) {
       edges.push({ from: startId, to: endId });

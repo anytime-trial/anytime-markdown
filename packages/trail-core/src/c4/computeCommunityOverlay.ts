@@ -110,7 +110,7 @@ function buildBreakdown(
   counts: Map<number, number>,
 ): Array<{ community: number; count: number }> {
   return Array.from(counts, ([community, count]) => ({ community, count }))
-    .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.community - b.community));
+    .sort((a, b) => (b.count === a.count ? a.community - b.community : b.count - a.count));
 }
 
 /** L3 component 要素の descendant id から community カウントを集計する。 */

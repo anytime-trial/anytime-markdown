@@ -117,7 +117,7 @@ export const STABLE_KEY_VERSION = 'v1';
  */
 export function computeStableKey(memberNodeIds: readonly string[]): string {
   const normalized = memberNodeIds.map(normalizeNodeId);
-  const sorted = [...new Set(normalized)].sort();
+  const sorted = [...new Set(normalized)].sort((a, b) => a.localeCompare(b));
   const payload = `${STABLE_KEY_VERSION}\n${sorted.join('\n')}`;
   return createHash('sha256').update(payload, 'utf8').digest('hex').slice(0, 16);
 }
@@ -125,7 +125,7 @@ export function computeStableKey(memberNodeIds: readonly string[]): string {
 function normalizeNodeId(nodeId: string): string {
   const colon = nodeId.indexOf(':');
   const relPath = colon >= 0 ? nodeId.slice(colon + 1) : nodeId;
-  return relPath.replace(/\\/g, '/').trim().normalize('NFC');
+  return relPath.replaceAll('\\', '/').trim().normalize('NFC');
 }
 
 /**
