@@ -27,7 +27,7 @@ function handleCallEvent(ev: CallEvent, stack: CallNode[], byEventId: Map<number
         args: ev.args, depth: ev.depth, startTs: ev.ts, endTs: null, durationMs: null,
         ok: true, children: [], loc: ev.loc,
     };
-    stack[stack.length - 1].children.push(node);
+    stack.at(-1)!.children.push(node);
     stack.push(node);
     byEventId.set(ev.id, node);
 }
@@ -44,7 +44,7 @@ function handleReturnOrThrow(ev: ReturnEvent | ThrowEvent, stack: CallNode[], by
         target.ok = false;
         target.error = ev.error;
     }
-    while (stack.length > 1 && stack[stack.length - 1].eventId !== ev.of) stack.pop();
+    while (stack.length > 1 && stack.at(-1)!.eventId !== ev.of) stack.pop();
     if (stack.length > 1) stack.pop();
 }
 

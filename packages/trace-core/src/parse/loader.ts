@@ -1,4 +1,4 @@
-import * as fs from 'fs/promises';
+import * as fs from 'node:fs/promises';
 import type { TraceFile } from '../types';
 
 const REQUIRED_METADATA_FIELDS = ['startedAt', 'endedAt', 'command', 'cwd', 'nodeVersion', 'depthLimit'] as const;
@@ -18,10 +18,10 @@ export async function loadTraceFile(filePath: string): Promise<TraceFile> {
         }
     }
     if (!Array.isArray(data.lifelines)) {
-        throw new Error('lifelines must be array');
+        throw new TypeError('lifelines must be array');
     }
     if (!Array.isArray(data.events)) {
-        throw new Error('events must be array');
+        throw new TypeError('events must be array');
     }
     return data as TraceFile;
 }
