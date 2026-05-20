@@ -1,5 +1,5 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { mergeThresholds, DEFAULT_THRESHOLDS } from '@anytime-markdown/trail-core/domain/metrics';
 import type { ThresholdsConfig } from '@anytime-markdown/trail-core/domain/metrics';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,20 +18,19 @@ function parseSimpleYaml(content: string): Record<string, Record<string, number>
     const line = raw.replace(/#.*$/, ''); // strip comments
     if (!line.trim()) continue;
 
-    const topMatch = /^([a-zA-Z_][a-zA-Z0-9_]*):\s*$/.exec(line);
+    const topMatch = /^([a-zA-Z_]\w*):\s*$/.exec(line);
     if (topMatch) {
       currentKey = topMatch[1];
       result[currentKey] = {};
       continue;
     }
 
-    const leafMatch = /^\s{2,}([a-zA-Z_][a-zA-Z0-9_]*):\s*([\d.eE+\-/]+)\s*$/.exec(line);
+    const leafMatch = /^\s{2,}([a-zA-Z_]\w*):\s*([\d.eE+\-/]+)\s*$/.exec(line);
     if (leafMatch && currentKey) {
       const val = Number(leafMatch[2]);
       if (!Number.isNaN(val)) {
         result[currentKey][leafMatch[1]] = val;
       }
-      continue;
     }
   }
   return result;

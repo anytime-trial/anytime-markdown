@@ -102,9 +102,8 @@ export class ClaudeCodeBehaviorAnalyzer {
     const errorEntry = errorMap.get(tool.id);
     const isError = errorEntry?.is_error ? 1 : 0;
     const errorContent = errorEntry?.content ?? '';
-    const errorType = isError
-      ? classifyErrorType(typeof errorContent === 'string' ? errorContent : JSON.stringify(errorContent))
-      : null;
+    const errorContentStr = typeof errorContent === 'string' ? errorContent : JSON.stringify(errorContent);
+    const errorType = isError ? classifyErrorType(errorContentStr) : null;
 
     insertStmt.run([
       sessionId,
