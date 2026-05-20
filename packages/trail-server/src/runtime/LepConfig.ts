@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { LEP_STAGES, type LepStage } from '@anytime-markdown/memory-core';
+import { DEFAULT_CONVERSATION_BACKFILL_DAYS, LEP_STAGES, type LepStage } from '@anytime-markdown/memory-core';
 
 import type { Logger } from './Logger';
 
@@ -61,6 +61,31 @@ export interface LepLlmConfig {
   providers: { ollama: LepOllamaProviderConfig };
 }
 
+/** ハイブリッド検索 (BM25 + ベクトル + RRF) のリミット。memory-chat / RAG が消費する。 */
+export interface LepRagConfig {
+  bm25Limit: number;
+  vecLimit: number;
+  finalLimit: number;
+  rrfK: number;
+}
+
+/** FTS5 インデックス再構築スケジュール。 */
+export interface LepFtsConfig {
+  rebuildIntervalMinutes: number;
+}
+
+/** 会話取込の初回 backfill 期間。 */
+export interface LepConversationConfig {
+  backfillDays: number;
+}
+
+/** memory-core 取込・検索のパラメータ群 (旧 config.json `memory.*` から統合)。 */
+export interface LepMemoryConfig {
+  rag: LepRagConfig;
+  fts: LepFtsConfig;
+  conversation: LepConversationConfig;
+}
+
 export interface LepAnalyzerToggle {
   enabled: boolean;
 }
@@ -88,8 +113,14 @@ export interface LepSourcesConfig {
 export interface LepConfig {
   version: number;
   stage: LepStage;
+  /**
+   * 解析対象 git リポジトリのルート (daemon の bootstrap 用)。
+   * daemon は CLI 引数 → home-tier lep.json の順で解決する。拡張は VS Code workspace を使うため未参照。
+   */
+  gitRoots: string[];
   schedule: LepScheduleConfig;
   llm: LepLlmConfig;
+  memory: LepMemoryConfig;
   analyzers: LepAnalyzersConfig;
   sources: LepSourcesConfig;
   logs: { minLevel: LepLogLevel };
@@ -141,6 +172,7 @@ export const disabledMemoryAnalyzerIds = disabledAnalyzerIds;
 export interface PartialLepConfig {
   version?: number;
   stage?: LepStage;
+  gitRoots?: string[];
   schedule?: Partial<LepScheduleConfig>;
   llm?: {
     providers?: {
@@ -149,6 +181,11 @@ export interface PartialLepConfig {
         models?: Partial<LepOllamaProviderConfig['models']>;
       };
     };
+  };
+  memory?: {
+    rag?: Partial<LepRagConfig>;
+    fts?: Partial<LepFtsConfig>;
+    conversation?: Partial<LepConversationConfig>;
   };
   analyzers?: LepAnalyzersConfig;
   sources?: { github?: Partial<LepGitHubSourceConfig> };
@@ -159,6 +196,7 @@ export interface PartialLepConfig {
 export const DEFAULT_LEP_CONFIG: LepConfig = {
   version: LEP_CONFIG_VERSION,
   stage: 'disabled',
+  gitRoots: [],
   schedule: { intervalSec: 1800, runOnStart: false, startupDelaySec: 30 },
   llm: {
     providers: {
@@ -167,6 +205,11 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
         models: { chat: 'qwen2.5-coder:14b', embedding: 'bge-m3' },
       },
     },
+  },
+  memory: {
+    rag: { bm25Limit: 30, vecLimit: 30, finalLimit: 12, rrfK: 60 },
+    fts: { rebuildIntervalMinutes: 60 },
+    conversation: { backfillDays: DEFAULT_CONVERSATION_BACKFILL_DAYS },
   },
   analyzers: Object.fromEntries(
     KNOWN_ANALYZER_IDS.map((id) => [id, { enabled: true }]),
@@ -188,8 +231,10 @@ export class LepConfigError extends Error {
 const KNOWN_TOP_LEVEL_KEYS = new Set([
   'version',
   'stage',
+  'gitRoots',
   'schedule',
   'llm',
+  'memory',
   'analyzers',
   'sources',
   'logs',
@@ -244,6 +289,14 @@ export function validateLepConfigInput(
     value.stage = raw['stage'] as LepStage;
   }
 
+  if (raw['gitRoots'] !== undefined) {
+    if (Array.isArray(raw['gitRoots']) && raw['gitRoots'].every((r) => typeof r === 'string')) {
+      value.gitRoots = raw['gitRoots'] as string[];
+    } else {
+      warnings.push(`${sourceLabel}: gitRoots は文字列配列である必要があります (無視)`);
+    }
+  }
+
   if (raw['schedule'] !== undefined) {
     if (!isPlainObject(raw['schedule'])) {
       warnings.push(`${sourceLabel}: schedule はオブジェクトである必要があります (無視)`);
@@ -272,6 +325,31 @@ export function validateLepConfigInput(
         ollama.models = models;
       }
       value.llm = { providers: { ollama } };
+    }
+  }
+
+  if (raw['memory'] !== undefined) {
+    if (!isPlainObject(raw['memory'])) {
+      warnings.push(`${sourceLabel}: memory はオブジェクトである必要があります (無視)`);
+    } else {
+      const mem = raw['memory'];
+      const memory: NonNullable<PartialLepConfig['memory']> = {};
+      if (isPlainObject(mem['rag'])) {
+        const r = mem['rag'];
+        const rag: Partial<LepRagConfig> = {};
+        if (typeof r['bm25Limit'] === 'number') rag.bm25Limit = r['bm25Limit'];
+        if (typeof r['vecLimit'] === 'number') rag.vecLimit = r['vecLimit'];
+        if (typeof r['finalLimit'] === 'number') rag.finalLimit = r['finalLimit'];
+        if (typeof r['rrfK'] === 'number') rag.rrfK = r['rrfK'];
+        memory.rag = rag;
+      }
+      if (isPlainObject(mem['fts']) && typeof mem['fts']['rebuildIntervalMinutes'] === 'number') {
+        memory.fts = { rebuildIntervalMinutes: mem['fts']['rebuildIntervalMinutes'] };
+      }
+      if (isPlainObject(mem['conversation']) && typeof mem['conversation']['backfillDays'] === 'number') {
+        memory.conversation = { backfillDays: mem['conversation']['backfillDays'] };
+      }
+      value.memory = memory;
     }
   }
 
@@ -330,6 +408,7 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
   return {
     version: override.version ?? base.version,
     stage: override.stage ?? base.stage,
+    gitRoots: override.gitRoots ?? base.gitRoots,
     schedule: {
       intervalSec: override.schedule?.intervalSec ?? base.schedule.intervalSec,
       runOnStart: override.schedule?.runOnStart ?? base.schedule.runOnStart,
@@ -348,6 +427,21 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
         },
       },
     },
+    memory: {
+      rag: {
+        bm25Limit: override.memory?.rag?.bm25Limit ?? base.memory.rag.bm25Limit,
+        vecLimit: override.memory?.rag?.vecLimit ?? base.memory.rag.vecLimit,
+        finalLimit: override.memory?.rag?.finalLimit ?? base.memory.rag.finalLimit,
+        rrfK: override.memory?.rag?.rrfK ?? base.memory.rag.rrfK,
+      },
+      fts: {
+        rebuildIntervalMinutes:
+          override.memory?.fts?.rebuildIntervalMinutes ?? base.memory.fts.rebuildIntervalMinutes,
+      },
+      conversation: {
+        backfillDays: override.memory?.conversation?.backfillDays ?? base.memory.conversation.backfillDays,
+      },
+    },
     // analyzers は id 単位で上書き (未指定 id は base を維持)
     analyzers: { ...base.analyzers, ...(override.analyzers ?? {}) },
     sources: {
@@ -362,7 +456,7 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
   };
 }
 
-/** 旧 VS Code 設定 / TrailServerConfig から lep.json への migration 入力。 */
+/** 旧 VS Code 設定 / config.json (TrailServerConfig) から lep.json への migration 入力。 */
 export interface LegacyLepConfigInput {
   /** `anytimeTrail.analyzeAll.enabled` (boolean)。true→primary+memory / false→disabled */
   analyzeAllEnabled?: boolean;
@@ -374,6 +468,14 @@ export interface LegacyLepConfigInput {
   chatModel?: string;
   /** `TrailServerConfig.memory.embedding.model` */
   embeddingModel?: string;
+  /** `TrailServerConfig.gitRoots` */
+  gitRoots?: string[];
+  /** `TrailServerConfig.memory.rag` */
+  rag?: Partial<LepRagConfig>;
+  /** `TrailServerConfig.memory.fts` */
+  fts?: Partial<LepFtsConfig>;
+  /** `TrailServerConfig.memory.conversation.backfillDays` */
+  backfillDays?: number;
 }
 
 /**
@@ -406,6 +508,67 @@ export function migrateLegacyToLepConfig(legacy: LegacyLepConfigInput): PartialL
   if (legacy.embeddingModel) models.embedding = legacy.embeddingModel;
   if (Object.keys(models).length > 0) ollama.models = models;
   if (Object.keys(ollama).length > 0) out.llm = { providers: { ollama } };
+
+  if (legacy.gitRoots && legacy.gitRoots.length > 0) out.gitRoots = legacy.gitRoots;
+
+  const memory: NonNullable<PartialLepConfig['memory']> = {};
+  if (legacy.rag && Object.keys(legacy.rag).length > 0) memory.rag = legacy.rag;
+  if (legacy.fts && typeof legacy.fts.rebuildIntervalMinutes === 'number') memory.fts = legacy.fts;
+  if (typeof legacy.backfillDays === 'number') memory.conversation = { backfillDays: legacy.backfillDays };
+  if (Object.keys(memory).length > 0) out.memory = memory;
+
+  return out;
+}
+
+/**
+ * 旧 `config.json` (TrailServerConfig 形状) の生 JSON を {@link LegacyLepConfigInput} に写像する純粋関数。
+ * 型が合わない項目は黙って無視する (移行は best-effort)。`analyzeAllEnabled` は config.json に
+ * 存在しないため呼び出し側が補う。
+ */
+export function legacyFromConfigJson(raw: unknown): LegacyLepConfigInput {
+  const out: LegacyLepConfigInput = {};
+  if (!isPlainObject(raw)) return out;
+
+  if (isPlainObject(raw['analyzeAll'])) {
+    const a = raw['analyzeAll'];
+    const schedule: Partial<LepScheduleConfig> = {};
+    if (typeof a['intervalSec'] === 'number') schedule.intervalSec = a['intervalSec'];
+    if (typeof a['runOnStart'] === 'boolean') schedule.runOnStart = a['runOnStart'];
+    if (typeof a['startupDelaySec'] === 'number') schedule.startupDelaySec = a['startupDelaySec'];
+    if (Object.keys(schedule).length > 0) out.analyzeAll = schedule;
+  }
+
+  if (Array.isArray(raw['gitRoots']) && raw['gitRoots'].every((r) => typeof r === 'string')) {
+    out.gitRoots = raw['gitRoots'] as string[];
+  }
+
+  const mem = isPlainObject(raw['memory']) ? raw['memory'] : undefined;
+  if (mem) {
+    if (isPlainObject(mem['ollama']) && typeof mem['ollama']['baseUrl'] === 'string') {
+      out.ollamaBaseUrl = mem['ollama']['baseUrl'];
+    }
+    if (isPlainObject(mem['chat']) && typeof mem['chat']['model'] === 'string') {
+      out.chatModel = mem['chat']['model'];
+    }
+    if (isPlainObject(mem['embedding']) && typeof mem['embedding']['model'] === 'string') {
+      out.embeddingModel = mem['embedding']['model'];
+    }
+    if (isPlainObject(mem['rag'])) {
+      const r = mem['rag'];
+      const rag: Partial<LepRagConfig> = {};
+      if (typeof r['bm25Limit'] === 'number') rag.bm25Limit = r['bm25Limit'];
+      if (typeof r['vecLimit'] === 'number') rag.vecLimit = r['vecLimit'];
+      if (typeof r['finalLimit'] === 'number') rag.finalLimit = r['finalLimit'];
+      if (typeof r['rrfK'] === 'number') rag.rrfK = r['rrfK'];
+      if (Object.keys(rag).length > 0) out.rag = rag;
+    }
+    if (isPlainObject(mem['fts']) && typeof mem['fts']['rebuildIntervalMinutes'] === 'number') {
+      out.fts = { rebuildIntervalMinutes: mem['fts']['rebuildIntervalMinutes'] };
+    }
+    if (isPlainObject(mem['conversation']) && typeof mem['conversation']['backfillDays'] === 'number') {
+      out.backfillDays = mem['conversation']['backfillDays'];
+    }
+  }
 
   return out;
 }
@@ -531,4 +694,114 @@ export function ensureLepConfigFile(opts: EnsureLepConfigOptions): EnsureLepConf
     }
     return { created: false, path };
   }
+}
+
+/** workspace の旧 config.json パス。 */
+export function workspaceConfigJsonPath(workspaceRoot: string): string {
+  return join(workspaceRoot, '.anytime', 'trail', 'config.json');
+}
+
+export interface MigrateConfigJsonOptions {
+  workspaceRoot: string;
+  /** lep.json 不在時に stage を決める (config.json には存在しないため呼び出し側が補う)。 */
+  analyzeAllEnabled?: boolean;
+  logger?: Pick<Logger, 'warn' | 'info'>;
+}
+
+export interface MigrateConfigJsonResult {
+  /** 実際に移行 (config.json → lep.json 反映 + rename) を行ったか。 */
+  migrated: boolean;
+  lepPath: string;
+  /** rename 後の config.json パス (移行した場合のみ)。 */
+  configRenamedTo?: string;
+}
+
+/**
+ * 旧 `config.json` を `lep.json` へ**一度きり**移行する (ハード切替)。
+ *
+ * - config.json 不在 → no-op (`migrated:false`)。
+ * - lep.json 不在 → config.json + `analyzeAllEnabled` から生成。
+ * - lep.json 既存 → **欠落 top-level セクションのみ** config.json 由来値で gap-fill
+ *   (既存の明示値は維持)。
+ * - 完了後 config.json を `config.json.migrated-YYYYMMDD` に rename して保全 (削除しない)。
+ *   rename 済みなら次回以降は config.json 不在となり冪等。
+ *
+ * lep.json のパース失敗時は rename せず warn に留め、ユーザーが修正できるようにする。
+ */
+export function migrateConfigJsonIntoLepJson(opts: MigrateConfigJsonOptions): MigrateConfigJsonResult {
+  const lepPath = workspaceLepConfigPath(opts.workspaceRoot);
+  const configPath = workspaceConfigJsonPath(opts.workspaceRoot);
+
+  if (!existsSync(configPath)) return { migrated: false, lepPath };
+
+  let configRaw: unknown;
+  try {
+    configRaw = JSON.parse(readFileSync(configPath, 'utf8'));
+  } catch (err) {
+    opts.logger?.warn(
+      `[LepConfig] config.json のパースに失敗したため移行をスキップ: ${configPath}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return { migrated: false, lepPath };
+  }
+
+  const legacy: LegacyLepConfigInput = { ...legacyFromConfigJson(configRaw) };
+  if (opts.analyzeAllEnabled !== undefined) legacy.analyzeAllEnabled = opts.analyzeAllEnabled;
+  const migrated = migrateLegacyToLepConfig(legacy);
+
+  if (!existsSync(lepPath)) {
+    const full = mergeLepConfig(DEFAULT_LEP_CONFIG, migrated);
+    mkdirSync(dirname(lepPath), { recursive: true });
+    writeFileSync(lepPath, JSON.stringify(full, null, 2) + '\n', { encoding: 'utf-8' });
+  } else {
+    let lepRaw: unknown;
+    try {
+      lepRaw = JSON.parse(readFileSync(lepPath, 'utf8'));
+    } catch (err) {
+      opts.logger?.warn(
+        `[LepConfig] 既存 lep.json のパースに失敗したため config.json を残します: ${lepPath}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return { migrated: false, lepPath };
+    }
+    if (!isPlainObject(lepRaw)) {
+      opts.logger?.warn(`[LepConfig] 既存 lep.json がオブジェクトでないため config.json を残します: ${lepPath}`);
+      return { migrated: false, lepPath };
+    }
+    // 欠落 top-level セクションのみ移行値を注入する (既存の明示値は触らない)。
+    const lepObj = lepRaw as Record<string, unknown>;
+    const migratedRecord = migrated as unknown as Record<string, unknown>;
+    let injected = false;
+    for (const key of ['stage', 'gitRoots', 'schedule', 'llm', 'memory'] as const) {
+      if (!(key in lepObj) && migratedRecord[key] !== undefined) {
+        lepObj[key] = migratedRecord[key];
+        injected = true;
+      }
+    }
+    if (injected) {
+      writeFileSync(lepPath, JSON.stringify(lepObj, null, 2) + '\n', { encoding: 'utf-8' });
+    }
+  }
+
+  // config.json を保全リネーム (削除しない)。
+  const stamp = new Date().toISOString().slice(0, 10).replaceAll('-', '');
+  let renamedTo = `${configPath}.migrated-${stamp}`;
+  if (existsSync(renamedTo)) renamedTo = `${configPath}.migrated-${stamp}-${Date.now()}`;
+  try {
+    renameSync(configPath, renamedTo);
+  } catch (err) {
+    opts.logger?.warn(
+      `[LepConfig] config.json の rename に失敗 (移行値は lep.json に反映済み): ${configPath}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return { migrated: true, lepPath };
+  }
+
+  opts.logger?.info(
+    `[LepConfig] config.json を lep.json へ移行しました。config.json は ${renamedTo} に退避しました`,
+  );
+  return { migrated: true, lepPath, configRenamedTo: renamedTo };
 }

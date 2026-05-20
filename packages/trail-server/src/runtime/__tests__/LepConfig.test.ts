@@ -7,11 +7,14 @@ import {
   LepConfigError,
   disabledMemoryAnalyzerIds,
   ensureLepConfigFile,
+  legacyFromConfigJson,
   loadLepConfig,
   mergeLepConfig,
+  migrateConfigJsonIntoLepJson,
   migrateLegacyToLepConfig,
   resolveGitHubSource,
   validateLepConfigInput,
+  workspaceConfigJsonPath,
   workspaceLepConfigPath,
   type LepConfig,
 } from '../LepConfig';
@@ -101,6 +104,40 @@ describe('validateLepConfigInput', () => {
       since: '2026-01-01T00:00:00Z',
     });
   });
+
+  it('parses gitRoots string array', () => {
+    const { value, warnings } = validateLepConfigInput({ gitRoots: ['/a', '/b'] }, 'test');
+    expect(warnings).toEqual([]);
+    expect(value.gitRoots).toEqual(['/a', '/b']);
+  });
+
+  it('warns and ignores non-string-array gitRoots', () => {
+    const { value, warnings } = validateLepConfigInput({ gitRoots: [1, '/b'] }, 'test');
+    expect(warnings.some((w) => w.includes('gitRoots'))).toBe(true);
+    expect(value.gitRoots).toBeUndefined();
+  });
+
+  it('parses memory.rag / fts / conversation', () => {
+    const { value, warnings } = validateLepConfigInput(
+      {
+        memory: {
+          rag: { bm25Limit: 10, vecLimit: 20, finalLimit: 5, rrfK: 40 },
+          fts: { rebuildIntervalMinutes: 120 },
+          conversation: { backfillDays: 14 },
+        },
+      },
+      'test',
+    );
+    expect(warnings).toEqual([]);
+    expect(value.memory?.rag).toEqual({ bm25Limit: 10, vecLimit: 20, finalLimit: 5, rrfK: 40 });
+    expect(value.memory?.fts).toEqual({ rebuildIntervalMinutes: 120 });
+    expect(value.memory?.conversation).toEqual({ backfillDays: 14 });
+  });
+
+  it('does not warn on memory as a known top-level key', () => {
+    const { warnings } = validateLepConfigInput({ memory: { rag: { bm25Limit: 1 } } }, 'test');
+    expect(warnings).toEqual([]);
+  });
 });
 
 describe('disabledMemoryAnalyzerIds', () => {
@@ -181,6 +218,18 @@ describe('mergeLepConfig', () => {
     expect(merged.analyzers['ConversationMemoryAnalyzer']).toEqual({ enabled: false });
     expect(merged.analyzers['CodeMemoryAnalyzer']).toEqual({ enabled: true });
   });
+
+  it('overrides gitRoots and memory leaves, preserving the rest', () => {
+    const merged = mergeLepConfig(DEFAULT_LEP_CONFIG, {
+      gitRoots: ['/repo'],
+      memory: { rag: { bm25Limit: 99 }, conversation: { backfillDays: 21 } },
+    });
+    expect(merged.gitRoots).toEqual(['/repo']);
+    expect(merged.memory.rag.bm25Limit).toBe(99);
+    expect(merged.memory.rag.vecLimit).toBe(30); // default preserved
+    expect(merged.memory.conversation.backfillDays).toBe(21);
+    expect(merged.memory.fts.rebuildIntervalMinutes).toBe(60); // default preserved
+  });
 });
 
 describe('migrateLegacyToLepConfig', () => {
@@ -211,6 +260,25 @@ describe('migrateLegacyToLepConfig', () => {
     });
     expect(out.llm?.providers?.ollama?.baseUrl).toBe('http://host.docker.internal:11434');
     expect(out.llm?.providers?.ollama?.models).toEqual({ chat: 'qwen2.5-coder:14b', embedding: 'bge-m3' });
+  });
+
+  it('maps gitRoots / rag / fts / backfillDays', () => {
+    const out = migrateLegacyToLepConfig({
+      gitRoots: ['/x'],
+      rag: { bm25Limit: 11, vecLimit: 22, finalLimit: 6, rrfK: 50 },
+      fts: { rebuildIntervalMinutes: 90 },
+      backfillDays: 7,
+    });
+    expect(out.gitRoots).toEqual(['/x']);
+    expect(out.memory?.rag).toEqual({ bm25Limit: 11, vecLimit: 22, finalLimit: 6, rrfK: 50 });
+    expect(out.memory?.fts).toEqual({ rebuildIntervalMinutes: 90 });
+    expect(out.memory?.conversation).toEqual({ backfillDays: 7 });
+  });
+
+  it('omits gitRoots / memory when not provided', () => {
+    const out = migrateLegacyToLepConfig({ analyzeAllEnabled: true });
+    expect(out.gitRoots).toBeUndefined();
+    expect(out.memory).toBeUndefined();
   });
 
   it('preserves behaviour: enabled=true legacy user migrates to primary+memory schedule', () => {
@@ -338,5 +406,132 @@ describe('ensureLepConfigFile', () => {
     const { config } = loadLepConfig({ workspaceRoot: ws, homeDir: join(ws, 'nonexistent-home') });
     expect(config.stage).toBe('disabled');
     expect(existsSync(workspaceLepConfigPath(ws))).toBe(true);
+  });
+});
+
+describe('legacyFromConfigJson', () => {
+  it('maps a full config.json shape', () => {
+    const out = legacyFromConfigJson({
+      schemaVersion: 1,
+      gitRoots: ['/repo'],
+      analyzeAll: { intervalSec: 1800, runOnStart: true, startupDelaySec: 30 },
+      memory: {
+        ollama: { baseUrl: 'http://host.docker.internal:11434' },
+        chat: { model: 'qwen2.5:7b' },
+        embedding: { model: 'bge-m3:latest' },
+        rag: { bm25Limit: 30, vecLimit: 30, finalLimit: 12, rrfK: 60 },
+        fts: { rebuildIntervalMinutes: 60 },
+        conversation: { backfillDays: 10 },
+      },
+    });
+    expect(out.analyzeAll).toEqual({ intervalSec: 1800, runOnStart: true, startupDelaySec: 30 });
+    expect(out.gitRoots).toEqual(['/repo']);
+    expect(out.ollamaBaseUrl).toBe('http://host.docker.internal:11434');
+    expect(out.chatModel).toBe('qwen2.5:7b');
+    expect(out.embeddingModel).toBe('bge-m3:latest');
+    expect(out.rag).toEqual({ bm25Limit: 30, vecLimit: 30, finalLimit: 12, rrfK: 60 });
+    expect(out.fts).toEqual({ rebuildIntervalMinutes: 60 });
+    expect(out.backfillDays).toBe(10);
+  });
+
+  it('returns empty object for non-object input', () => {
+    expect(legacyFromConfigJson(null)).toEqual({});
+    expect(legacyFromConfigJson(42)).toEqual({});
+  });
+});
+
+describe('migrateConfigJsonIntoLepJson', () => {
+  let ws: string;
+  beforeEach(() => {
+    ws = mkdtempSync(join(tmpdir(), 'lepmigrate-'));
+  });
+  afterEach(() => rmSync(ws, { recursive: true, force: true }));
+
+  function writeConfigJson(obj: unknown): void {
+    writeJson(join(ws, '.anytime', 'trail'), 'config.json', obj);
+  }
+
+  it('no-op when config.json absent', () => {
+    const res = migrateConfigJsonIntoLepJson({ workspaceRoot: ws });
+    expect(res.migrated).toBe(false);
+    expect(existsSync(workspaceLepConfigPath(ws))).toBe(false);
+  });
+
+  it('creates lep.json from config.json when lep.json absent, then renames config.json', () => {
+    writeConfigJson({
+      gitRoots: ['/repo'],
+      analyzeAll: { intervalSec: 600, runOnStart: true, startupDelaySec: 5 },
+      memory: {
+        ollama: { baseUrl: 'http://host.docker.internal:11434' },
+        chat: { model: 'qwen2.5:7b' },
+        embedding: { model: 'bge-m3:latest' },
+        rag: { bm25Limit: 15, vecLimit: 25, finalLimit: 8, rrfK: 50 },
+        fts: { rebuildIntervalMinutes: 120 },
+        conversation: { backfillDays: 14 },
+      },
+    });
+    const res = migrateConfigJsonIntoLepJson({ workspaceRoot: ws, analyzeAllEnabled: true });
+    expect(res.migrated).toBe(true);
+    expect(existsSync(workspaceConfigJsonPath(ws))).toBe(false); // renamed away
+    expect(res.configRenamedTo && existsSync(res.configRenamedTo)).toBe(true);
+
+    const { config } = loadLepConfig({ workspaceRoot: ws, homeDir: join(ws, 'nohome') });
+    expect(config.stage).toBe('primary+memory');
+    expect(config.gitRoots).toEqual(['/repo']);
+    expect(config.schedule).toEqual({ intervalSec: 600, runOnStart: true, startupDelaySec: 5 });
+    expect(config.llm.providers.ollama.baseUrl).toBe('http://host.docker.internal:11434');
+    expect(config.memory.rag.bm25Limit).toBe(15);
+    expect(config.memory.fts.rebuildIntervalMinutes).toBe(120);
+    expect(config.memory.conversation.backfillDays).toBe(14);
+  });
+
+  it('gap-fills only missing sections of an existing lep.json (existing values win)', () => {
+    // lep.json already has schedule + llm + stage; lacks memory + gitRoots.
+    writeJson(join(ws, '.anytime', 'trail'), 'lep.json', {
+      version: 1,
+      stage: 'primary+memory',
+      schedule: { intervalSec: 1800, runOnStart: true, startupDelaySec: 30 },
+      llm: { providers: { ollama: { baseUrl: 'http://host.docker.internal:11434', models: { chat: 'qwen2.5:7b', embedding: 'bge-m3:latest' } } } },
+    });
+    writeConfigJson({
+      gitRoots: ['/repo'],
+      analyzeAll: { intervalSec: 99, runOnStart: false, startupDelaySec: 99 }, // must NOT override existing schedule
+      memory: {
+        ollama: { baseUrl: 'http://other:1' }, // must NOT override existing llm
+        rag: { bm25Limit: 15, vecLimit: 25, finalLimit: 8, rrfK: 50 },
+        fts: { rebuildIntervalMinutes: 120 },
+        conversation: { backfillDays: 14 },
+      },
+    });
+    const res = migrateConfigJsonIntoLepJson({ workspaceRoot: ws });
+    expect(res.migrated).toBe(true);
+
+    const { config } = loadLepConfig({ workspaceRoot: ws, homeDir: join(ws, 'nohome') });
+    // existing sections preserved
+    expect(config.schedule).toEqual({ intervalSec: 1800, runOnStart: true, startupDelaySec: 30 });
+    expect(config.llm.providers.ollama.baseUrl).toBe('http://host.docker.internal:11434');
+    // missing sections gap-filled from config.json
+    expect(config.gitRoots).toEqual(['/repo']);
+    expect(config.memory.rag.bm25Limit).toBe(15);
+    expect(config.memory.fts.rebuildIntervalMinutes).toBe(120);
+    expect(config.memory.conversation.backfillDays).toBe(14);
+  });
+
+  it('is idempotent: second call is a no-op (config.json already renamed)', () => {
+    writeConfigJson({ memory: { conversation: { backfillDays: 14 } } });
+    const first = migrateConfigJsonIntoLepJson({ workspaceRoot: ws });
+    expect(first.migrated).toBe(true);
+    const second = migrateConfigJsonIntoLepJson({ workspaceRoot: ws });
+    expect(second.migrated).toBe(false);
+  });
+
+  it('does not rename config.json when existing lep.json is malformed', () => {
+    const dir = join(ws, '.anytime', 'trail');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'lep.json'), '{ not json', 'utf-8');
+    writeConfigJson({ memory: { conversation: { backfillDays: 14 } } });
+    const res = migrateConfigJsonIntoLepJson({ workspaceRoot: ws });
+    expect(res.migrated).toBe(false);
+    expect(existsSync(workspaceConfigJsonPath(ws))).toBe(true); // preserved for user to fix
   });
 });
