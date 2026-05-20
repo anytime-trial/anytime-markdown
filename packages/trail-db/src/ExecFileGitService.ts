@@ -37,6 +37,28 @@ function shouldSkipSnapshotPath(relativePath: string): boolean {
   return parts.some((part) => SNAPSHOT_SKIP_DIRS.has(part));
 }
 
+function processSnapshotEntry(
+  entry: fs.Dirent,
+  dir: string,
+  rootDir: string,
+  stack: string[],
+): number {
+  const fullPath = path.join(dir, entry.name);
+  const relativePath = path.relative(rootDir, fullPath);
+  if (shouldSkipSnapshotPath(relativePath)) return 0;
+  if (entry.isDirectory()) {
+    stack.push(fullPath);
+    return 0;
+  }
+  if (!entry.isFile() || !isCodeFile(relativePath.replaceAll(path.sep, '/'))) return 0;
+  try {
+    const content = fs.readFileSync(fullPath, 'utf-8');
+    return countTextLines(content);
+  } catch {
+    return 0;
+  }
+}
+
 function countSnapshotLines(rootDir: string): number {
   let total = 0;
   const stack = [rootDir];
@@ -53,21 +75,7 @@ function countSnapshotLines(rootDir: string): number {
     }
 
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      const relativePath = path.relative(rootDir, fullPath);
-      if (shouldSkipSnapshotPath(relativePath)) continue;
-      if (entry.isDirectory()) {
-        stack.push(fullPath);
-        continue;
-      }
-      if (!entry.isFile() || !isCodeFile(relativePath.replaceAll(path.sep, '/'))) continue;
-
-      try {
-        const content = fs.readFileSync(fullPath, 'utf-8');
-        total += countTextLines(content);
-      } catch {
-        // unreadable/binary-like files are skipped
-      }
+      total += processSnapshotEntry(entry, dir, rootDir, stack);
     }
   }
 
@@ -80,6 +88,60 @@ function toUTC(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+type FileStatMap = Map<string, { added: number; deleted: number; changeType: string }>;
+
+function applyNumstatToMap(numstat: string, fileMap: FileStatMap): void {
+  for (const line of numstat.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const [added, deleted, filePath] = trimmed.split('\t');
+    if (!filePath) continue;
+    const existing = fileMap.get(filePath) ?? { added: 0, deleted: 0, changeType: 'modified' };
+    if (added !== '-') existing.added += Number.parseInt(added, 10) || 0;
+    if (deleted !== '-') existing.deleted += Number.parseInt(deleted, 10) || 0;
+    fileMap.set(filePath, existing);
+  }
+}
+
+const STATUS_TYPE_MAP: Record<string, string> = {
+  A: 'added', M: 'modified', D: 'deleted', R: 'renamed',
+};
+
+function applyNameStatusToMap(
+  nameStatus: string,
+  fileMap: FileStatMap,
+  requireExisting: boolean,
+): void {
+  for (const line of nameStatus.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split('\t');
+    if (parts.length < 2) continue;
+    const status = parts[0].charAt(0);
+    const filePath = status === 'R' && parts[2] ? parts[2] : parts[1];
+    if (!filePath) continue;
+    const changeType = STATUS_TYPE_MAP[status] ?? 'modified';
+    if (requireExisting) {
+      const existing = fileMap.get(filePath);
+      if (!existing) continue;
+      existing.changeType = changeType;
+    } else {
+      const existing = fileMap.get(filePath) ?? { added: 0, deleted: 0, changeType };
+      existing.changeType = changeType;
+      fileMap.set(filePath, existing);
+    }
+  }
+}
+
+function fileMapToEntries(fileMap: FileStatMap): readonly FileStatEntry[] {
+  return [...fileMap.entries()].map(([filePath, s]) => ({
+    filePath,
+    linesAdded: s.added,
+    linesDeleted: s.deleted,
+    changeType: s.changeType,
+  }));
 }
 
 export class ExecFileGitService implements IGitService {
@@ -218,17 +280,7 @@ export class ExecFileGitService implements IGitService {
       const numstat = execFileSync('git', [
         'diff', '--numstat', fromTag, toTag,
       ], { ...execOpts, cwd: this.gitRoot });
-
-      for (const line of numstat.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        const [added, deleted, filePath] = trimmed.split('\t');
-        if (!filePath) continue;
-        const existing = fileMap.get(filePath) ?? { added: 0, deleted: 0, changeType: 'modified' };
-        if (added !== '-') existing.added += Number.parseInt(added, 10) || 0;
-        if (deleted !== '-') existing.deleted += Number.parseInt(deleted, 10) || 0;
-        fileMap.set(filePath, existing);
-      }
+      applyNumstatToMap(numstat, fileMap);
     } catch {
       return [];
     }
@@ -238,33 +290,12 @@ export class ExecFileGitService implements IGitService {
       const nameStatus = execFileSync('git', [
         'diff', '--name-status', fromTag, toTag,
       ], { ...execOpts, cwd: this.gitRoot });
-
-      for (const line of nameStatus.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        const parts = trimmed.split('\t');
-        if (parts.length < 2) continue;
-        const status = parts[0].charAt(0);
-        const filePath = status === 'R' && parts[2] ? parts[2] : parts[1];
-        if (!filePath) continue;
-        const changeType =
-          status === 'A' ? 'added' :
-          status === 'D' ? 'deleted' :
-          status === 'R' ? 'renamed' : 'modified';
-        const existing = fileMap.get(filePath) ?? { added: 0, deleted: 0, changeType };
-        existing.changeType = changeType;
-        fileMap.set(filePath, existing);
-      }
+      applyNameStatusToMap(nameStatus, fileMap, false);
     } catch {
       // use defaults
     }
 
-    return [...fileMap.entries()].map(([filePath, s]) => ({
-      filePath,
-      linesAdded: s.added,
-      linesDeleted: s.deleted,
-      changeType: s.changeType,
-    }));
+    return fileMapToEntries(fileMap);
   }
 
   getSnapshotLineCount(tag: string): number {
@@ -332,59 +363,25 @@ export class ExecFileGitService implements IGitService {
     const fileMap = new Map<string, { added: number; deleted: number; changeType: string }>();
 
     for (const hash of commitHashes) {
-      // Get line stats
       try {
         const numstat = execFileSync('git', [
           'diff', '--numstat', `${hash}^..${hash}`,
         ], { ...execOpts, cwd: this.gitRoot });
-
-        for (const line of numstat.split('\n')) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          const [added, deleted, filePath] = trimmed.split('\t');
-          if (!filePath) continue;
-
-          const existing = fileMap.get(filePath) ?? { added: 0, deleted: 0, changeType: 'modified' };
-          if (added !== '-') existing.added += Number.parseInt(added, 10) || 0;
-          if (deleted !== '-') existing.deleted += Number.parseInt(deleted, 10) || 0;
-          fileMap.set(filePath, existing);
-        }
+        applyNumstatToMap(numstat, fileMap);
       } catch {
         // Initial commit or other error — skip
       }
 
-      // Get change types (A/M/D/R)
       try {
         const nameStatus = execFileSync('git', [
           'diff', '--name-status', `${hash}^..${hash}`,
         ], { ...execOpts, cwd: this.gitRoot });
-
-        for (const line of nameStatus.split('\n')) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          const parts = trimmed.split('\t');
-          if (parts.length < 2) continue;
-
-          const status = parts[0].charAt(0);
-          const filePath = status === 'R' && parts[2] ? parts[2] : parts[1];
-          const existing = fileMap.get(filePath);
-          if (!existing) continue;
-
-          const typeMap: Record<string, string> = {
-            A: 'added', M: 'modified', D: 'deleted', R: 'renamed',
-          };
-          existing.changeType = typeMap[status] ?? 'modified';
-        }
+        applyNameStatusToMap(nameStatus, fileMap, true);
       } catch {
         // Skip — change types remain as default 'modified'
       }
     }
 
-    return [...fileMap.entries()].map(([filePath, stats]) => ({
-      filePath,
-      linesAdded: stats.added,
-      linesDeleted: stats.deleted,
-      changeType: stats.changeType,
-    }));
+    return fileMapToEntries(fileMap);
   }
 }
