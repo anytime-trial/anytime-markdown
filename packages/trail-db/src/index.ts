@@ -21,6 +21,9 @@ export type {
   ImportAllPhase,
   ImportAllPhaseEvent,
   ImportAllLepOptions,
+  DoraReleaseInput,
+  DoraCommitInput,
+  DoraMetricRow,
 } from './TrailDatabase';
 export { SyncService } from './SyncService';
 export { SupabaseTrailStore } from './SupabaseTrailStore';

@@ -19,6 +19,7 @@ import {
   createMemoryAnalyzers,
   type MemoryWaveSessionProvider,
 } from '../lep/analyzers/memory';
+import { DoraMetricsAggregator } from '../lep/analyzers/aggregator';
 import type { LlmProviderAvailability } from '../lep/LlmAvailability';
 import { BehaviorAnalyzer } from '../lep/analyzers/primary/BehaviorAnalyzer';
 import { CodeGraphBuilder } from '../lep/analyzers/primary/CodeGraphBuilder';
@@ -71,6 +72,12 @@ export interface AnalyzeAllRunnerOptions {
   ollamaBaseUrl?: string;
   /** lep.json で `enabled:false` の memory analyzer id。Wave 3 で登録・実行しない。 */
   disabledMemoryAnalyzers?: readonly string[];
+  /**
+   * lep.json で `enabled:false` の aggregator (Layer 4) analyzer id。Wave 4 で登録・実行しない。
+   * 通常 `disabledMemoryAnalyzers` と同じ「全 disabled id」リストを渡してよい (id が一致した
+   * aggregator のみ skip される)。tier 4 は stage=all 選択時のみ実行される (opt-in)。
+   */
+  disabledAggregators?: readonly string[];
   /**
    * 指定時、import の per-phase 進捗を JSON ファイルに書き出す
    * (VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新するため)。
@@ -255,6 +262,19 @@ export class AnalyzeAllRunner extends BaseRunner {
     }
     this.memoryAnalyzerIds = memoryAnalyzerIds;
     this.memorySessionProvider = memorySessionProvider;
+
+    // Layer 4 (aggregator): trail.db を読んで横断指標を算出する tier=4 analyzer。
+    // tier 4 は stage='all' でのみ実行される (LepOrchestrator の STAGE_TIERS)。
+    // trailDb が無い場合 (daemon の memory-only 等) は DORA を算出できないため登録しない。
+    if (opts.trailDb) {
+      const disabledAggregators = opts.disabledAggregators ?? [];
+      if (!disabledAggregators.includes('DoraMetricsAggregator')) {
+        const doraAggregator = new DoraMetricsAggregator({ trailDb: opts.trailDb });
+        bus.subscribe(doraAggregator);
+        analyzers.push(doraAggregator);
+      }
+    }
+
     this.stage = opts.stage ?? 'primary+memory';
 
     this.orchestrator = new LepOrchestrator(bus, analyzers, {

@@ -70,6 +70,15 @@ describe('validateLepConfigInput', () => {
     expect(value.analyzers).toEqual({ CodeMemoryAnalyzer: { enabled: false } });
   });
 
+  it('recognizes the DoraMetricsAggregator (Layer 4) toggle without warning', () => {
+    const { value, warnings } = validateLepConfigInput(
+      { analyzers: { DoraMetricsAggregator: { enabled: false } } },
+      'test',
+    );
+    expect(warnings).toEqual([]);
+    expect(value.analyzers).toEqual({ DoraMetricsAggregator: { enabled: false } });
+  });
+
   it('ignores $schema without warning', () => {
     const { warnings } = validateLepConfigInput({ $schema: 'https://x', version: 1 }, 'test');
     expect(warnings).toEqual([]);

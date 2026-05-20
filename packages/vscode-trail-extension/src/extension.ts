@@ -668,6 +668,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					}),
 				ollamaBaseUrl: trailConfig.memory.ollama.baseUrl,
 				disabledMemoryAnalyzers: lepDisabledAnalyzers,
+				disabledAggregators: lepDisabledAnalyzers,
 				importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
 				onImportProgress: (message) => TrailLogger.info(`[analyzeAll] ${message}`),
 				analyzeReleaseFn: analyze,
