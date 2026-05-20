@@ -354,3 +354,53 @@ describe('DB close called on error in direct read', () => {
     expect(mockClose).toHaveBeenCalledTimes(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// DB close called on error in direct write
+// ---------------------------------------------------------------------------
+
+describe('DB close called on error in direct write', () => {
+  beforeEach(() => {
+    jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(false);
+  });
+
+  test('db.close() is called even when write function throws', async () => {
+    jest.spyOn(writeDirect, 'addElementDirect').mockImplementation(() => { throw new Error('write error'); });
+    const args = { type: 'Service', name: 'X', external: false, parentId: null };
+    await expect(route('add_element', args, BASE_OPTS)).rejects.toThrow('write error');
+    expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// invokeDirectRead: Unhandled read tool throws (line 101 coverage)
+// invokeDirectWrite: Unhandled write tool throws (line 191 coverage)
+// ---------------------------------------------------------------------------
+
+describe('router internal: unhandled tool throws in direct paths', () => {
+  // READ_TOOLS に存在しない toolName を直接 invokeDirectRead に渡す方法がないため、
+  // READ_TOOLS にダミー名を一時追加する代わりに、
+  // resolveRepoName + openDb のモックを設定した状態で READ_TOOLS の default ケースを踏む
+  // → route() 経由では READ_TOOLS / WRITE_TOOLS の switch default に到達できないため、
+  //    これらの内部 throw は構造的に未到達（dead code に近い）。
+  // カバレッジ目標の範囲外として許容する。
+
+  test('route() 経由で unknown read tool path は router の "Unknown tool" で止まる', async () => {
+    // READ_TOOLS.has() がなければ Unknown tool → throw。内部 default には到達しない。
+    await expect(route('unknown_read_like', {}, BASE_OPTS)).rejects.toThrow('Unknown tool: unknown_read_like');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// save() is called after successful direct write
+// ---------------------------------------------------------------------------
+
+describe('WRITE tools: save() is called after successful direct write', () => {
+  test('save() and close() both called on success', async () => {
+    jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(false);
+    jest.spyOn(writeDirect, 'removeRelationshipDirect').mockReturnValue(undefined);
+    await route('remove_relationship', { id: 'r-x' }, BASE_OPTS);
+    expect(mockSave).toHaveBeenCalledTimes(1);
+    expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+});
