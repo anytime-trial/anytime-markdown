@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.26.4] - 2026-05-20
+
+### 変更
+
+- `/api/c4/hotspot` ルートをリファクタリング: コミット・ツール呼び出し集計処理をヘルパー関数に抽出し認知的複雑度を削減 (S3776)
+- `/api/c4/call-hierarchy` ルートをリファクタリング: `validateParams`/`findTargetNode` ヘルパーを抽出 (S3776)
+- API ルート（`trail`、`weather`、`spotify`、`c4`、`news/wsj`、`github-trending`、`press-*`、`oembed`、`ogp`）および lib ユーティリティ（`reportUtils`、`supabase-env`、`api-helpers`、`reportClient`）のユニットテストカバレッジを拡充
+
+### 修正
+
+- HTTPS 環境で `NEXT_LOCALE` Cookie に `Secure` 属性を付与するよう修正
+
+### セキュリティ
+
+- Supabase RLS 権限分離: `anon` ロールを `SELECT` 専用に制限し、書き込みをすべて `service_role` 経由に変更
+- `hono`、`mermaid`、`next-intl`、`ws` をバンプし moderate CVE 4 件を修正
+
 ## [0.26.3] - 2026-05-17
 
 ### 変更

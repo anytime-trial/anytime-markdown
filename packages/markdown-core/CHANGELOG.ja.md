@@ -7,6 +7,16 @@
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-05-20
+
+### 変更
+
+- `MarkdownEditorPage` のエディタ初期化 effect から `applyInitialFontSizeOnce` / `buildEditorPortalTarget` ヘルパーを抽出し、認知的複雑度を削減（S3776）
+
+### セキュリティ
+
+- Gantt DoS（GHSA-6m6c-36f7-fhxh）および CSS/HTML インジェクション CVE（GHSA-xcj9-5m2h-648r、GHSA-87f9-hvmw-gh4p、GHSA-ghcm-xqfw-q4vr）に対応するため `mermaid` を 11.15.0 へアップグレード
+
 ## [0.15.2] - 2026-05-17
 
 ### 変更

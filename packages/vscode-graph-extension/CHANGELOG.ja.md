@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-05-20
+
+### Graph Core (graph-core)
+
+- `useCanvasBase` から `deleteGroupsContainingSelection` ヘルパーを抽出し、認知的複雑度を削減（S3776）
+
 ## [0.3.2] - 2026-05-17
 
 ### 変更

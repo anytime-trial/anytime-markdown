@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-05-20
+
+### セキュリティ
+
+- `claudeHookSetup` の末尾スラッシュ正規表現を O(n) の `charCodeAt` スキャンに置き換え (CodeQL #818, `vscode-common`)
+
+### Spreadsheet Core (spreadsheet-core)
+
+- `parseCsv` の認知的複雑度 (S3776) 低減のため `readQuotedField` ヘルパーを抽出
+
+### Spreadsheet Viewer (spreadsheet-viewer)
+
+- anytime-sheet 0.4.5 に合わせたバージョン同期
+
 ## [0.4.4] - 2026-05-17
 
 ### 変更

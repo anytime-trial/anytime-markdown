@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-05-20
+
+### Changed
+
+- Extracted `deleteGroupsContainingSelection` helper from `useCanvasBase` to reduce cognitive complexity (S3776)
+
 ## [0.3.2] - 2026-05-17
 
 ### Changed

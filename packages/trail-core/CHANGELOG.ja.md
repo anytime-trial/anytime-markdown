@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-05-20
+
+### 変更
+
+- `trail-core` 内 30+ 関数の認知的複雑度を 15 以下に削減: `aggregateDsmByC4Ancestors` / `buildCommunityTree` / `leadTimePerLoc` / `parseMermaidC4` / `toC4` / `customTrail` / `aggregatePairs` / `BackfillMessageCommits` / `tokensPerLoc` / `thresholds` / `releaseQuality` / `classifyFile` / `buildLevelView` / `buildElementTree` / `buildArchitectureMatrix` / `cluster` / `computeCommunityOverlay` / `codeGraphToC4` / `aggregateGhostEdgesToC4` / `SymbolExtractor` / `SequenceAnalyzer` / `ProjectAnalyzer` / `FlowAnalyzer` / `ExportExtractor` / `EdgeExtractor` / `buildSizeMatrix` / `aggregateEdges` / `aggregateHeatmapColumnsToC4`（SonarCloud S3776）
+
+### セキュリティ
+
+- `trail-core` の境界正規表現の範囲を厳密化し、多項式バックトラッキング（ReDoS）を回避
+
 ## [0.21.0] - 2026-05-17
 
 ### 変更

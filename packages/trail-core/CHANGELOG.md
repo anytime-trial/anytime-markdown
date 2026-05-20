@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-05-20
+
+### Changed
+
+- Reduced cognitive complexity to ≤15 in 30+ functions across `trail-core`: `aggregateDsmByC4Ancestors`, `buildCommunityTree`, `leadTimePerLoc`, `parseMermaidC4`, `toC4`, `customTrail`, `aggregatePairs`, `BackfillMessageCommits`, `tokensPerLoc`, `thresholds`, `releaseQuality`, `classifyFile`, `buildLevelView`, `buildElementTree`, `buildArchitectureMatrix`, `cluster`, `computeCommunityOverlay`, `codeGraphToC4`, `aggregateGhostEdgesToC4`, `SymbolExtractor`, `SequenceAnalyzer`, `ProjectAnalyzer`, `FlowAnalyzer`, `ExportExtractor`, `EdgeExtractor`, `buildSizeMatrix`, `aggregateEdges`, `aggregateHeatmapColumnsToC4` (SonarCloud S3776)
+
+### Security
+
+- Tightened boundary-regex bounds in `trail-core` to prevent polynomial ReDoS
+
 ## [0.21.0] - 2026-05-17
 
 ### Changed

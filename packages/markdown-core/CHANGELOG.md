@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-05-20
+
+### Changed
+
+- Refactored `MarkdownEditorPage` editor-init effect by extracting `applyInitialFontSizeOnce` and `buildEditorPortalTarget` helpers to reduce cognitive complexity (S3776)
+
+### Security
+
+- Bumped `mermaid` to 11.15.0 to patch Gantt DoS (GHSA-6m6c-36f7-fhxh) and CSS/HTML injection CVEs (GHSA-xcj9-5m2h-648r, GHSA-87f9-hvmw-gh4p, GHSA-ghcm-xqfw-q4vr)
+
 ## [0.15.2] - 2026-05-17
 
 ### Changed

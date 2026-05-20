@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-05-20
+
+### 変更
+
+- anytime-sheet 0.4.5 に合わせたバージョン同期
+
+### セキュリティ
+
+- `claudeHookSetup` の末尾スラッシュ正規表現を O(n) の `charCodeAt` スキャンに置き換え (CodeQL #818, `vscode-common`)
+
 ## [0.4.4] - 2026-05-17
 
 ### 変更

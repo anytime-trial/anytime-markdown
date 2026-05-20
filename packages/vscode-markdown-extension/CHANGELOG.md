@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-05-20
+
+### Security
+
+- Fixed polynomial ReDoS in `claudeHookSetup` trailing-slash regex by replacing `/\/+$/` with an O(n) `charCodeAt` scan (CodeQL #818, `vscode-common`)
+- Bumped `mermaid` to 11.15.0 to patch Gantt DoS and CSS/HTML injection CVEs
+
+### Editor Core (markdown-core)
+
+- Refactored `MarkdownEditorPage` editor-init effect — extracted `applyInitialFontSizeOnce` and `buildEditorPortalTarget` helpers (S3776)
+- Security: bumped `mermaid` dependency (see above)
+
 ## [0.15.2] - 2026-05-17
 
 ### Changed

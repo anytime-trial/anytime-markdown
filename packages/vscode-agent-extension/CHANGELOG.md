@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-20
+
+### Security
+
+- Replaced polynomial-redos trailing-slash regex in `claudeHookSetup` with an O(n) `charCodeAt` scan (CodeQL #818, `vscode-common`)
+
+### Agent Core (agent-core / ollama-core)
+
+- Fixed Ollama split-brain: health-check and ingest now resolve `baseUrl` via a unified `resolveOllamaBaseUrl` helper (priority: `OLLAMA_BASE_URL` env > explicit config > Dev Container auto-detect > localhost). Re-exported from `agent-core` for downstream consumers
+- Fixed polynomial-redos in `OllamaChatProvider` / `OllamaEmbeddingProvider` trailing-slash handling — replaced `/\/+$/` regex with O(n) `charCodeAt` scan via `stringUtils.stripTrailingSlashes` (CodeQL #815/#816)
+
 ## [0.2.0] - 2026-05-17
 
 ### Added

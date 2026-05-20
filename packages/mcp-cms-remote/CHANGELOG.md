@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-05-20
+
+### Changed
+
+- Expanded `server.ts` tool handler unit-test coverage
+
+### Security
+
+- Bumped `hono` and `ws` to patch moderate CVEs
+
 ## [0.0.5] - 2026-05-02
 
 ### Changed

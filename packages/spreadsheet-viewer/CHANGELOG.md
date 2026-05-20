@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-05-20
+
+### Changed
+
+- Version bump synchronized with anytime-sheet 0.4.5
+
+### Security
+
+- Replaced polynomial-redos trailing-slash regex in `claudeHookSetup` with an O(n) `charCodeAt` scan (CodeQL #818, `vscode-common`)
+
 ## [0.4.4] - 2026-05-17
 
 ### Changed
