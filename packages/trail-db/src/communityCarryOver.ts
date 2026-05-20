@@ -69,7 +69,26 @@ export function resolveCarryOver(
   const result = new Map<number, CarryOverEntry>();
 
   // Step 1: stable_key 完全一致（O(N + M)）
-  // 旧 stableKey → 旧コミュニティ の Map を作っておき、新コミュニティを走査して即引き
+  const matchedOldIds = resolveByExactKey(oldCommunities, newCommunities, result);
+
+  // Step 2: 残った旧コミュニティをジャッカード類似度で fallback マッチング
+  const unmatchedOld = oldCommunities.filter((o) => !matchedOldIds.has(o.communityId));
+  const unmatchedNew = newCommunities.filter((n) => !result.has(n.id));
+  resolveByJaccard(unmatchedOld, unmatchedNew, threshold, result);
+
+  return result;
+}
+
+/**
+ * Step 1: stable_key 完全一致マッチング。
+ * 旧 stableKey → 旧コミュニティ の Map を作っておき、新コミュニティを走査して即引き継ぎ。
+ * @returns マッチ済み旧 communityId の集合
+ */
+function resolveByExactKey(
+  oldCommunities: readonly OldCommunity[],
+  newCommunities: readonly NewCommunity[],
+  result: Map<number, CarryOverEntry>,
+): Set<number> {
   const oldByKey = new Map<string, OldCommunity>();
   for (const o of oldCommunities) {
     if (o.stableKey !== '' && !oldByKey.has(o.stableKey)) {
@@ -82,31 +101,29 @@ export function resolveCarryOver(
     const o = oldByKey.get(n.stableKey);
     if (!o) continue;
     if (matchedOldIds.has(o.communityId)) continue; // 1 つの旧が 2 つの新にマッチした場合は最初の 1 つだけ
-    result.set(n.id, {
-      name: o.name,
-      summary: o.summary,
-      mappingsJson: o.mappingsJson,
-      source: 'exact',
-      similarity: 1,
-    });
+    result.set(n.id, { name: o.name, summary: o.summary, mappingsJson: o.mappingsJson, source: 'exact', similarity: 1 });
     matchedOldIds.add(o.communityId);
   }
+  return matchedOldIds;
+}
 
-  // Step 2: 残った旧コミュニティをジャッカード類似度で fallback マッチング
-  const unmatchedOld = oldCommunities.filter((o) => !matchedOldIds.has(o.communityId));
-  const unmatchedNew = newCommunities.filter((n) => !result.has(n.id));
-  if (unmatchedOld.length === 0 || unmatchedNew.length === 0) return result;
-
-  // 旧側から見て「最も類似度の高い新」を探す貪欲法。
-  // 旧 → 新 の片側貪欲なので、1 つの新が複数の旧の候補になる可能性がある。
-  // その場合は「最も類似度の高い旧」が勝つよう、決定済みのエントリは類似度比較で上書き可能にする。
+/**
+ * Step 2: ジャッカード類似度 fallback マッチング。
+ * 旧側から見て最も類似度の高い新コミュニティに引き継ぐ貪欲法。
+ * 1 つの新が複数の旧の候補になる場合は最も類似度の高い旧が勝つ。
+ */
+function resolveByJaccard(
+  unmatchedOld: readonly OldCommunity[],
+  unmatchedNew: readonly NewCommunity[],
+  threshold: number,
+  result: Map<number, CarryOverEntry>,
+): void {
+  if (unmatchedOld.length === 0 || unmatchedNew.length === 0) return;
   for (const o of unmatchedOld) {
     let best: { newId: number; jaccard: number } | undefined;
     for (const n of unmatchedNew) {
       const j = jaccardSimilarity(o.members, n.members);
-      if (!best || j > best.jaccard) {
-        best = { newId: n.id, jaccard: j };
-      }
+      if (!best || j > best.jaccard) best = { newId: n.id, jaccard: j };
     }
     if (!best || best.jaccard < threshold) continue;
     const existing = result.get(best.newId);
@@ -119,8 +136,6 @@ export function resolveCarryOver(
       similarity: best.jaccard,
     });
   }
-
-  return result;
 }
 
 /**
