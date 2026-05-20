@@ -67,13 +67,60 @@ export interface LepAnalyzerToggle {
 
 export type LepAnalyzersConfig = Record<string, LepAnalyzerToggle>;
 
+/**
+ * GitHub PR review source 設定 (Step 4b)。opt-in (デフォルト無効)。
+ * token は `tokenEnv` で指定した環境変数から読む (lep.json への直書き禁止)。
+ */
+export interface LepGitHubSourceConfig {
+  enabled: boolean;
+  /** token を読む環境変数名。 */
+  tokenEnv: string;
+  /** 1 repo あたり走査する PR 数上限。 */
+  maxPrs: number;
+  /** 取込下限の submitted_at (ISO 8601 + Z)。空文字 = 制限なし。 */
+  since: string;
+}
+
+export interface LepSourcesConfig {
+  github: LepGitHubSourceConfig;
+}
+
 export interface LepConfig {
   version: number;
   stage: LepStage;
   schedule: LepScheduleConfig;
   llm: LepLlmConfig;
   analyzers: LepAnalyzersConfig;
+  sources: LepSourcesConfig;
   logs: { minLevel: LepLogLevel };
+}
+
+/** 解決済み GitHub source。token は env から解決後の実値 (無ければ null)。 */
+export interface ResolvedGitHubSource {
+  enabled: boolean;
+  /** env から解決した token。enabled でも env 未設定なら null (Ingester は skip)。 */
+  token: string | null;
+  maxPrs: number;
+  /** 空文字は undefined に正規化 (since 制限なし)。 */
+  since?: string;
+}
+
+/**
+ * `lep.json` の `sources.github` と環境変数から実行時の GitHub source 設定を解決する。
+ * `enabled:false` または token 未設定なら `token:null` を返し、Ingester は skip する。
+ */
+export function resolveGitHubSource(
+  config: LepConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): ResolvedGitHubSource {
+  const gh = config.sources.github;
+  const token = gh.enabled ? (env[gh.tokenEnv]?.trim() || null) : null;
+  return {
+    enabled: gh.enabled,
+    token,
+    maxPrs: gh.maxPrs,
+    since: gh.since ? gh.since : undefined,
+  };
 }
 
 /** `lep.json` の `analyzers.<id>.enabled === false` な memory analyzer id 一覧を返す。 */
@@ -97,6 +144,7 @@ export interface PartialLepConfig {
     };
   };
   analyzers?: LepAnalyzersConfig;
+  sources?: { github?: Partial<LepGitHubSourceConfig> };
   logs?: { minLevel?: LepLogLevel };
 }
 
@@ -116,6 +164,9 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
   analyzers: Object.fromEntries(
     KNOWN_ANALYZER_IDS.map((id) => [id, { enabled: true }]),
   ) as LepAnalyzersConfig,
+  sources: {
+    github: { enabled: false, tokenEnv: 'GITHUB_TOKEN', maxPrs: 30, since: '' },
+  },
   logs: { minLevel: 'info' },
 };
 
@@ -133,6 +184,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   'schedule',
   'llm',
   'analyzers',
+  'sources',
   'logs',
   '$schema',
 ]);
@@ -236,6 +288,24 @@ export function validateLepConfigInput(
     }
   }
 
+  if (raw['sources'] !== undefined) {
+    if (!isPlainObject(raw['sources'])) {
+      warnings.push(`${sourceLabel}: sources はオブジェクトである必要があります (無視)`);
+    } else if (isPlainObject(raw['sources']['github'])) {
+      const g = raw['sources']['github'];
+      const github: Partial<LepGitHubSourceConfig> = {};
+      if (typeof g['enabled'] === 'boolean') github.enabled = g['enabled'];
+      if (typeof g['tokenEnv'] === 'string') github.tokenEnv = g['tokenEnv'];
+      if (typeof g['maxPrs'] === 'number' && Number.isFinite(g['maxPrs'])) {
+        github.maxPrs = g['maxPrs'];
+      }
+      if (typeof g['since'] === 'string') github.since = g['since'];
+      value.sources = { github };
+    } else {
+      warnings.push(`${sourceLabel}: sources.github はオブジェクトである必要があります (無視)`);
+    }
+  }
+
   if (raw['logs'] !== undefined && isPlainObject(raw['logs'])) {
     const level = raw['logs']['minLevel'];
     if (typeof level === 'string' && VALID_LOG_LEVELS.has(level as LepLogLevel)) {
@@ -273,6 +343,14 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
     },
     // analyzers は id 単位で上書き (未指定 id は base を維持)
     analyzers: { ...base.analyzers, ...(override.analyzers ?? {}) },
+    sources: {
+      github: {
+        enabled: override.sources?.github?.enabled ?? base.sources.github.enabled,
+        tokenEnv: override.sources?.github?.tokenEnv ?? base.sources.github.tokenEnv,
+        maxPrs: override.sources?.github?.maxPrs ?? base.sources.github.maxPrs,
+        since: override.sources?.github?.since ?? base.sources.github.since,
+      },
+    },
     logs: { minLevel: override.logs?.minLevel ?? base.logs.minLevel },
   };
 }

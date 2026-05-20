@@ -75,6 +75,7 @@ export {
   migrateLegacyToLepConfig,
   validateLepConfigInput,
   workspaceLepConfigPath,
+  resolveGitHubSource,
 } from './runtime/LepConfig';
 export type {
   LepConfig,
@@ -85,9 +86,13 @@ export type {
   LepLogLevel,
   LepOllamaProviderConfig,
   LepScheduleConfig,
+  LepGitHubSourceConfig,
+  LepSourcesConfig,
+  ResolvedGitHubSource,
   LegacyLepConfigInput,
   LoadLepConfigOptions,
   MemoryAnalyzerId,
+  AggregatorAnalyzerId,
   PartialLepConfig,
 } from './runtime/LepConfig';
 
@@ -111,6 +116,26 @@ export type { DaemonInfo, DaemonLifecycleOptions } from './runtime/DaemonLifecyc
 
 export { AnalyzeAllRunner, defaultAnalyzeAllStatePath } from './runner/AnalyzeAllRunner';
 export type { AnalyzeAllRunnerOptions } from './runner/AnalyzeAllRunner';
+
+// LEP 新ソース参照実装 (Step 4b): GitHub PR review Ingester + REST クライアント
+export {
+  GitHubPrReviewIngester,
+  defaultGitRemoteReader,
+} from './lep/ingesters/GitHubPrReviewIngester';
+export type {
+  GitHubPrReviewIngesterOptions,
+  GitRemoteReader,
+} from './lep/ingesters/GitHubPrReviewIngester';
+export { createFetchGitHubReviewClient } from './lep/ingesters/github/GitHubReviewClient';
+export type {
+  GitHubReviewClient,
+  GitHubPullSummary,
+  GitHubReviewDto,
+  GitHubReviewCommentDto,
+  FetchGitHubReviewClientOptions,
+} from './lep/ingesters/github/GitHubReviewClient';
+export { parseGitHubRemote } from './lep/ingesters/github/parseGitHubRemote';
+export type { GitHubRepoRef } from './lep/ingesters/github/parseGitHubRemote';
 
 export {
   ImportAllPhaseStatusWriter,

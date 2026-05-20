@@ -46,6 +46,9 @@ import {
   CREATE_C4_MANUAL_RELATIONSHIPS,
   CREATE_C4_MANUAL_GROUPS,
   CREATE_DORA_METRICS,
+  CREATE_PR_REVIEWS,
+  CREATE_PR_REVIEW_COMMENTS,
+  CREATE_PR_REVIEW_INDEXES,
   DEFAULT_SKILL_MODELS,
   extractSkillName,
   buildReleaseFromGitData,
@@ -1702,6 +1705,12 @@ export class TrailDatabase {
     db.run(CREATE_C4_MANUAL_GROUPS);
     // LEP Layer 4 (Aggregator) の DORA 指標出力先。新規テーブル追加のみ (既存 DDL 不変)。
     db.run(CREATE_DORA_METRICS);
+    // LEP 新ソース参照実装 (Step 4b): GitHub PR review の生データ。新規テーブル追加のみ。
+    db.run(CREATE_PR_REVIEWS);
+    db.run(CREATE_PR_REVIEW_COMMENTS);
+    for (const idx of CREATE_PR_REVIEW_INDEXES) {
+      db.run(idx);
+    }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
     try {
       db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)');
