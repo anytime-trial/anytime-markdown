@@ -52,11 +52,66 @@ describe('CountsRebuilder', () => {
     expect(phaseEvents).toEqual(['rebuild_counts:start', 'rebuild_counts:finish']);
   });
 
+  it('uses String(err) in error phase message when non-Error is thrown', async () => {
+    const phaseMessages: string[] = [];
+    const trailDb = {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      rebuildDailyCountsPublic: () => { throw 'raw string error'; },
+      rebuildSessionStatsPublic: () => undefined,
+    } as unknown as TrailDatabase;
+    const rebuilder = new CountsRebuilder({
+      trailDb,
+      onPhase: (e) => { if (e.action === 'error' && 'message' in e) phaseMessages.push(e.message ?? ''); },
+    });
+    const { bus } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await rebuilder.onRunEnd(ctx);
+
+    expect(phaseMessages).toEqual(['raw string error']);
+  });
+
   it('emits error phase when daily counts throws', async () => {
     const phaseEvents: string[] = [];
     const trailDb = {
       rebuildDailyCountsPublic: () => { throw new Error('SQL error'); },
       rebuildSessionStatsPublic: () => undefined,
+    } as unknown as TrailDatabase;
+    const rebuilder = new CountsRebuilder({ trailDb, onPhase: (e) => phaseEvents.push(`${e.phase}:${e.action}`) });
+    const { bus } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await rebuilder.onRunEnd(ctx);
+
+    expect(phaseEvents).toEqual(['rebuild_counts:start', 'rebuild_counts:error']);
+  });
+
+  it('invokes onProgress callbacks with correct messages during success', async () => {
+    const progressMessages: string[] = [];
+    const trailDb = {
+      rebuildDailyCountsPublic: () => undefined,
+      rebuildSessionStatsPublic: () => undefined,
+    } as unknown as TrailDatabase;
+    const rebuilder = new CountsRebuilder({
+      trailDb,
+      onProgress: (msg) => progressMessages.push(msg),
+    });
+    const { bus } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await rebuilder.onRunEnd(ctx);
+
+    expect(progressMessages).toContain('Rebuilding daily counts...');
+    expect(progressMessages).toContain('Daily counts rebuilt');
+    expect(progressMessages).toContain('Rebuilding session stats...');
+    expect(progressMessages).toContain('Session stats rebuilt');
+  });
+
+  it('emits error phase when session stats throws (not daily counts)', async () => {
+    const phaseEvents: string[] = [];
+    const trailDb = {
+      rebuildDailyCountsPublic: () => undefined,
+      rebuildSessionStatsPublic: () => { throw new Error('stats error'); },
     } as unknown as TrailDatabase;
     const rebuilder = new CountsRebuilder({ trailDb, onPhase: (e) => phaseEvents.push(`${e.phase}:${e.action}`) });
     const { bus } = makeBus();

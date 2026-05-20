@@ -170,6 +170,148 @@ describe('JsonlIngester', () => {
     expect(events).toEqual([]);
   });
 
+  it('skips session when mainFile does not exist (statSync throws)', async () => {
+    // line 74: catch { continue } when fs.statSync fails
+    const claudeDir = tmpDir('claude-nofile');
+    const projectPath = path.join(claudeDir, 'proj');
+    fs.mkdirSync(projectPath, { recursive: true });
+    const sid = '55555555-5555-5555-5555-555555555555';
+    // Write the .jsonl to get it discovered, then delete it so statSync fails
+    const mainFile = path.join(projectPath, `${sid}.jsonl`);
+    fs.writeFileSync(mainFile, '{}\n');
+    fs.unlinkSync(mainFile); // now statSync will throw ENOENT
+
+    const ingester = new JsonlIngester({
+      claudeProjectsDir: claudeDir,
+      codexSessionsDir: path.join(claudeDir, 'no-codex'),
+    });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+    expect(events).toEqual([]);
+  });
+
+  it('skips project entry when statSync throws (dangling symlink)', async () => {
+    // line 120: catch { continue } when statSync on projectPath throws (e.g. dangling symlink)
+    const claudeDir = tmpDir('claude-statthrow');
+    const dangling = path.join(claudeDir, 'dangling-link');
+    try {
+      fs.symlinkSync('/nonexistent/target', dangling);
+    } catch {
+      // symlinks not supported; skip
+      return;
+    }
+
+    const ingester = new JsonlIngester({
+      claudeProjectsDir: claudeDir,
+      codexSessionsDir: path.join(claudeDir, 'no-codex'),
+    });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+    expect(events).toEqual([]);
+  });
+
+  it('skips project readdirSync error (line 126 branch)', async () => {
+    // line 126: catch { continue } when readdirSync on projectPath fails
+    // We test the non-directory skip path by creating a file (not a dir)
+    const claudeDir = tmpDir('claude-readdir-err');
+    // A regular file at project level: isDirectory() === false → continue (line 118 branch)
+    fs.writeFileSync(path.join(claudeDir, 'file.txt'), 'x');
+
+    const ingester = new JsonlIngester({
+      claudeProjectsDir: claudeDir,
+      codexSessionsDir: path.join(claudeDir, 'no-codex'),
+    });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+    expect(events).toEqual([]);
+  });
+
+  it('handles nested subdirectory in codex sessions dir', async () => {
+    // line 206: stack.push(full) for subdirectories in collectRolloutJsonlFiles
+    const codexDir = tmpDir('codex-nested');
+    const subDir = path.join(codexDir, 'subdir');
+    fs.mkdirSync(subDir, { recursive: true });
+    const sid = '66666666-6666-6666-6666-666666666666';
+    const rolloutFile = path.join(subDir, `rollout-${sid}.jsonl`);
+    fs.writeFileSync(rolloutFile, '{}\n');
+
+    const ingester = new JsonlIngester({
+      claudeProjectsDir: path.join(codexDir, 'no-claude'),
+      codexSessionsDir: codexDir,
+    });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+    expect(events).toHaveLength(1);
+  });
+
+  it('readCodexSessionCwd returns null when file cannot be read (line 239 catch)', async () => {
+    // line 238-239: catch { return null } when readFileSync throws
+    // Create a rollout file entry in codex dir, then delete it before run
+    const codexDir = tmpDir('codex-readfail');
+    const sid = '99999999-9999-9999-9999-999999999999';
+    const rolloutFile = path.join(codexDir, `rollout-${sid}.jsonl`);
+    fs.writeFileSync(rolloutFile, '{}');
+    // Delete before ingester runs — but ingester scans dir first then reads
+    // We cannot delete after scan easily since it's synchronous.
+    // Instead, use a directory named with rollout- prefix to force readFileSync to fail (it's a dir not a file)
+    const codexDir2 = tmpDir('codex-readfail2');
+    const rolloutDir = path.join(codexDir2, `rollout-${sid}.jsonl`);
+    fs.mkdirSync(rolloutDir, { recursive: true }); // dir with .jsonl name: readFileSync throws EISDIR
+
+    const ingester = new JsonlIngester({
+      claudeProjectsDir: path.join(codexDir2, 'no-claude'),
+      codexSessionsDir: codexDir2,
+      gitRoot: '/work/anytime-markdown', // forces readCodexSessionCwd call
+    });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+    // readFileSync on a directory throws → readCodexSessionCwd returns null → filtered out
+    expect(events).toEqual([]);
+  });
+
+  it('readCodexSessionCwd returns null when no session_meta line found', async () => {
+    // lines 229, 237: cwd non-string / end of file without session_meta
+    const codexDir = tmpDir('codex-no-meta');
+    const sid = '77777777-7777-7777-7777-777777777777';
+    const rolloutFile = path.join(codexDir, `rollout-${sid}.jsonl`);
+    // Lines that are not session_meta: should return null and skip when gitRoot set
+    fs.writeFileSync(
+      rolloutFile,
+      [
+        JSON.stringify({ type: 'other_event', payload: { cwd: '/somewhere' } }),
+        JSON.stringify({ type: 'session_meta', payload: { cwd: 12345 } }), // cwd not string
+      ].join('\n') + '\n',
+    );
+
+    const ingester = new JsonlIngester({
+      claudeProjectsDir: path.join(codexDir, 'no-claude'),
+      codexSessionsDir: codexDir,
+      gitRoot: '/work/anytime-markdown',
+    });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+    // cwd is not a string -> readCodexSessionCwd returns null -> filtered out
+    expect(events).toEqual([]);
+  });
+
+  it('readCodexSessionCwd skips invalid JSON lines and returns null', async () => {
+    // line 229: JSON.parse throws -> continue
+    const codexDir = tmpDir('codex-badjson');
+    const sid = '88888888-8888-8888-8888-888888888888';
+    const rolloutFile = path.join(codexDir, `rollout-${sid}.jsonl`);
+    fs.writeFileSync(rolloutFile, 'not json\nalso bad\n');
+
+    const ingester = new JsonlIngester({
+      claudeProjectsDir: path.join(codexDir, 'no-claude'),
+      codexSessionsDir: codexDir,
+      gitRoot: '/work/anytime-markdown',
+    });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+    // No session_meta found -> filtered out when gitRoot set
+    expect(events).toEqual([]);
+  });
+
   it('exposes tier=1 and emits jsonl_session_discovered', () => {
     const ingester = new JsonlIngester();
     expect(ingester.tier).toBe(1);

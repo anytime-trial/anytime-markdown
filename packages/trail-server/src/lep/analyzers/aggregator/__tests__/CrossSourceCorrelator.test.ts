@@ -115,4 +115,66 @@ describe('CrossSourceCorrelator', () => {
     await expect(c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx)).resolves.toBeUndefined();
     expect(errors.join('\n')).toContain('[CrossSourceCorrelator] failed: db gone');
   });
+
+  it('falls back to undefined sinceCommittedAt when all reviews have invalid submittedAt', async () => {
+    let queriedSince: string | undefined = 'SENTINEL';
+    const { ds, written } = makeDs({
+      getPrReviews: () => [
+        { reviewId: 'r1', repoName: 'w', prNumber: 1, author: 'a', state: 'APPROVED', submittedAt: 'NOT_A_DATE', bodyHash: 'h' },
+      ],
+      getCorrelationSessionCommits: (since) => { queriedSince = since; return []; },
+    });
+    const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW });
+    const { ctx } = makeCtx();
+
+    await c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx);
+
+    // earliestSince は全 review の submittedAt が NaN → undefined を返す
+    expect(queriedSince).toBeUndefined();
+    expect(written).toHaveLength(1);
+  });
+
+  it('handles non-Error thrown value (string)', async () => {
+    const { ds } = makeDs({
+      getPrReviews: () => { throw 'network-error'; },
+    });
+    const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW });
+    const { ctx, errors } = makeCtx();
+    await expect(c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx)).resolves.toBeUndefined();
+    expect(errors.join('\n')).toContain('[CrossSourceCorrelator] failed: network-error');
+  });
+
+  it('calls getCorrelationCommitFiles with empty array when all findings have empty filePath', async () => {
+    const queriedPaths: string[][] = [];
+    const { ds, written } = makeDs({
+      getPrReviews: () => [
+        { reviewId: 'r1', repoName: 'w', prNumber: 1, author: 'a', state: 'APPROVED', submittedAt: '2026-01-15T00:00:00.000Z', bodyHash: 'h' },
+      ],
+      getPrReviewFindings: () => [
+        { findingId: 'f1', reviewId: 'r1', filePath: '', lineNumber: 0, severity: null, category: null, body: 'b', createdAt: '2026-01-15T00:00:00.000Z' },
+      ],
+      getCorrelationCommitFiles: (paths) => { queriedPaths.push([...paths]); return []; },
+    });
+    const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW });
+    const { ctx } = makeCtx();
+    await c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx);
+    // 空 filePath は distinct でフィルタされるため [] が渡る
+    expect(queriedPaths[0]).toEqual([]);
+    expect(written).toHaveLength(1);
+  });
+
+  it('uses custom windowDays to compute since', async () => {
+    let queriedSince: string | undefined;
+    const { ds } = makeDs({
+      getPrReviews: () => [
+        { reviewId: 'r1', repoName: 'w', prNumber: 1, author: 'a', state: 'APPROVED', submittedAt: '2026-01-15T00:00:00.000Z', bodyHash: 'h' },
+      ],
+      getCorrelationSessionCommits: (since) => { queriedSince = since; return []; },
+    });
+    const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW, windowDays: 7 });
+    const { ctx } = makeCtx();
+    await c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx);
+    // 2026-01-15 - 7 days = 2026-01-08
+    expect(queriedSince).toBe('2026-01-08T00:00:00.000Z');
+  });
 });

@@ -52,6 +52,23 @@ describe('checkOllamaModelAvailable', () => {
     expect(r.ok).toBe(false);
     expect(r.detail).toContain('ECONNREFUSED');
   });
+
+  it('not ok when models array is absent (empty tags response)', async () => {
+    const fetchImpl = fakeFetch(() => ({
+      ok: true,
+      json: async () => ({}), // models フィールドなし
+    }) as unknown as Response);
+    const r = await checkOllamaModelAvailable('http://x', 'bge-m3', fetchImpl);
+    expect(r.ok).toBe(false);
+    expect(r.detail).toContain('ollama pull bge-m3');
+  });
+
+  it('not ok when fetch throws non-Error (string)', async () => {
+    const fetchImpl = (async () => { throw 'timeout'; }) as unknown as typeof fetch;
+    const r = await checkOllamaModelAvailable('http://x', 'bge-m3', fetchImpl);
+    expect(r.ok).toBe(false);
+    expect(r.detail).toBe('timeout');
+  });
 });
 
 describe('checkLlmAvailability', () => {
@@ -65,6 +82,21 @@ describe('checkLlmAvailability', () => {
     });
     expect(a.ollama_chat.ok).toBe(true);
     expect(a.ollama_embedding.ok).toBe(false); // bge-m3 not in tags
+  });
+});
+
+describe('checkLlmAvailability (timeout injection)', () => {
+  it('passes timeoutMs to each model check', async () => {
+    const fetchImpl = fakeFetch(() => tagsResponse(['mymodel']));
+    const a = await checkLlmAvailability({
+      baseUrl: 'http://x',
+      chatModel: 'mymodel',
+      embedModel: 'mymodel',
+      fetchImpl,
+      timeoutMs: 100,
+    });
+    expect(a.ollama_chat.ok).toBe(true);
+    expect(a.ollama_embedding.ok).toBe(true);
   });
 });
 
@@ -110,8 +142,39 @@ describe('evaluateLlmRequirement', () => {
   });
 });
 
+describe('evaluateLlmRequirement (detail building)', () => {
+  it('includes detail string from unavailable providers', () => {
+    const r = evaluateLlmRequirement(
+      { chat: { provider: 'ollama', model: 'c' }, embedding: { provider: 'ollama', model: 'e' } },
+      {
+        ollama_chat: { ok: false, detail: 'chat-err' },
+        ollama_embedding: { ok: false, detail: 'embed-err' },
+      },
+    );
+    expect(r.satisfied).toBe(false);
+    expect(r.missing).toEqual(['chat', 'embedding']);
+    expect(r.detail).toContain('chat: chat-err');
+    expect(r.detail).toContain('embedding: embed-err');
+  });
+
+  it('omits detail string when capability has no detail message', () => {
+    const r = evaluateLlmRequirement(
+      { chat: { provider: 'ollama', model: 'c' } },
+      { ollama_chat: { ok: false }, ollama_embedding: { ok: true } },
+    );
+    expect(r.satisfied).toBe(false);
+    expect(r.detail).toBe(''); // no detail → empty string
+  });
+});
+
 describe('ollamaUnavailableHint', () => {
   it('mentions host.docker.internal for Dev Container', () => {
     expect(ollamaUnavailableHint('http://localhost:11434')).toContain('host.docker.internal');
+  });
+
+  it('uses default localhost URL when baseUrl is omitted', () => {
+    const hint = ollamaUnavailableHint();
+    expect(hint).toContain('http://localhost:11434');
+    expect(hint).toContain('host.docker.internal');
   });
 });

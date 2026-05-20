@@ -66,6 +66,71 @@ describe('MessageCommitMatcher', () => {
     expect(matcher.getMessageCommitsBackfilled()).toBe(0);
   });
 
+  it('invokes onProgress with Backfilling message and passes progress callback to backfill', async () => {
+    const progressMessages: string[] = [];
+    const backfillProgressMessages: string[] = [];
+    const trailDb = {
+      backfillMessageCommits: (cb: (msg: string) => void) => {
+        cb('session s1 matched');
+        cb('session s2 matched');
+        return 2;
+      },
+    } as unknown as TrailDatabase;
+    const matcher = new MessageCommitMatcher({
+      trailDb,
+      onProgress: (msg) => progressMessages.push(msg),
+    });
+    const { bus } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await matcher.onRunStart(ctx);
+    await matcher.onRunEnd(ctx);
+
+    expect(progressMessages).toContain('Backfilling message_commits...');
+    // The callback passed to backfillMessageCommits also routes through onProgress
+    expect(progressMessages).toContain('session s1 matched');
+    expect(progressMessages).toContain('session s2 matched');
+    expect(matcher.getMessageCommitsBackfilled()).toBe(2);
+  });
+
+  it('uses String(err) in error log when non-Error is thrown', async () => {
+    const errors: string[] = [];
+    const trailDb = {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      backfillMessageCommits: () => { throw 'plain string error'; },
+    } as unknown as TrailDatabase;
+    const matcher = new MessageCommitMatcher({ trailDb });
+    const { bus } = makeBus();
+    const ctx: AnalyzerContext = {
+      runId: 'r1',
+      reason: 'manual',
+      logger: { info: () => undefined, error: (msg) => errors.push(msg) },
+      bus,
+    };
+
+    await matcher.onRunStart(ctx);
+    await expect(matcher.onRunEnd(ctx)).resolves.toBeUndefined();
+
+    expect(errors.some((e) => e.includes('plain string error'))).toBe(true);
+  });
+
+  it('ignores non-commit_resolved events in onEvent', async () => {
+    let calls = 0;
+    const trailDb = {
+      backfillMessageCommits: () => { calls += 1; return 0; },
+    } as unknown as TrailDatabase;
+    const matcher = new MessageCommitMatcher({ trailDb });
+    const { bus } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await matcher.onRunStart(ctx);
+    // non-commit_resolved event should be silently ignored
+    await matcher.onEvent({ kind: 'session_imported', sessionId: 's1', messageCount: 1, repoName: 'r' }, ctx);
+    await matcher.onRunEnd(ctx);
+
+    expect(calls).toBe(1);
+  });
+
   it('exposes tier=2 with correct subscribes/emits', () => {
     const matcher = new MessageCommitMatcher({ trailDb: {} as unknown as TrailDatabase });
     expect(matcher.tier).toBe(2);

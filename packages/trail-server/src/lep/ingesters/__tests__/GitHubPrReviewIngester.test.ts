@@ -186,6 +186,60 @@ describe('GitHubPrReviewIngester', () => {
     expect(calls).toEqual(['pulls:acme/widget']); // 1 回だけ
   });
 
+  it('skips gitRoot when getRemoteUrl throws', async () => {
+    const logs: string[] = [];
+    const client = fakeClient({
+      'acme/good': {
+        pulls: [{ number: 1, updatedAt: '2026-01-10T00:00:00Z' }],
+        reviews: { 1: [PR_REVIEW(200, 'APPROVED', '2026-01-10T00:00:00Z')] },
+        comments: {},
+      },
+    });
+    const ing = new GitHubPrReviewIngester({
+      client,
+      gitRoots: ['/bad', '/good'],
+      gitRemoteReader: {
+        getRemoteUrl: (gitRoot) => {
+          if (gitRoot === '/bad') throw new Error('git remote failed');
+          return 'https://github.com/acme/good';
+        },
+      },
+    });
+    const ctx: AnalyzerContext = {
+      runId: 'r1',
+      reason: 'manual',
+      logger: {
+        info: () => undefined,
+        error: (m) => logs.push(m),
+        warn: (m) => logs.push(`WARN ${m}`),
+      },
+      bus: { publish: async () => undefined },
+    };
+    const events: AnalyzerEvent[] = [];
+    const bus = { publish: async (e: AnalyzerEvent) => { events.push(e); } };
+    await ing.onRunEnd({ ...ctx, bus });
+
+    expect(events).toHaveLength(1);
+    expect(logs.some((l) => l.includes('remote read failed') && l.includes('git remote failed'))).toBe(true);
+  });
+
+  it('logs when no GitHub remotes resolved', async () => {
+    const logs: string[] = [];
+    const ing = new GitHubPrReviewIngester({
+      client: fakeClient({}),
+      gitRoots: ['/repo'],
+      gitRemoteReader: { getRemoteUrl: () => null },
+    });
+    const ctx: AnalyzerContext = {
+      runId: 'r1',
+      reason: 'manual',
+      logger: { info: (m) => logs.push(m), error: () => undefined, warn: () => undefined },
+      bus: { publish: async () => undefined },
+    };
+    await ing.onRunEnd(ctx);
+    expect(logs.some((l) => l.includes('no GitHub remotes resolved'))).toBe(true);
+  });
+
   it('continues to other repos when one repo API call fails', async () => {
     const base = fakeClient({
       'acme/good': {

@@ -121,4 +121,79 @@ describe('computeCrossSourceCorrelations', () => {
       'pr_review_session',
     ]);
   });
+
+  it('skips review with invalid submittedAt (NaN)', () => {
+    const rows = run({
+      reviews: [review({ submittedAt: 'not-a-date' })],
+      sessionCommits: [sc({})],
+      releases: [rel({})],
+    });
+    expect(rows).toEqual([]);
+  });
+
+  it('skips session commit with invalid committedAt (NaN)', () => {
+    const rows = run({
+      reviews: [review()],
+      sessionCommits: [sc({ committedAt: 'bad-date' })],
+    });
+    expect(rows).toEqual([]);
+  });
+
+  it('skips release with invalid releasedAt (NaN)', () => {
+    const rows = run({
+      reviews: [review()],
+      releases: [rel({ releasedAt: 'bad-date' })],
+    });
+    expect(rows).toEqual([]);
+  });
+
+  it('skips finding with empty filePath', () => {
+    const rows = run({
+      reviews: [review()],
+      findings: [finding({ filePath: '' })],
+      commitFiles: [cf({})],
+    });
+    expect(rows.filter((r) => r.correlationType === 'pr_finding_commit')).toEqual([]);
+  });
+
+  it('uses empty repoName when finding reviewId has no matching review', () => {
+    // finding.reviewId が reviewsById にない場合 → repoName = ''
+    const rows = run({
+      reviews: [review({ reviewId: 'other' })],
+      findings: [finding({ reviewId: 'ghost' })],
+      commitFiles: [cf({ repoName: '' })], // repoName 空でフィルタ通過
+    });
+    // repoName='' の finding でも cf.repoName='' なら skip しない (条件が両方 falsy)
+    expect(rows.filter((r) => r.correlationType === 'pr_finding_commit')).toHaveLength(1);
+  });
+
+  it('deduplicates review↔session when multiple commits from same session', () => {
+    const rows = run({
+      reviews: [review()],
+      sessionCommits: [
+        sc({ sessionId: 's1', commitHash: 'h1', committedAt: '2026-01-10T00:00:00.000Z' }),
+        sc({ sessionId: 's1', commitHash: 'h2', committedAt: '2026-01-12T00:00:00.000Z' }),
+      ],
+    });
+    // same correlationType|sourceAId|sourceBId → dedup to 1
+    expect(rows.filter((r) => r.correlationType === 'pr_review_session')).toHaveLength(1);
+  });
+
+  it('excludes session commit after review submission', () => {
+    const rows = run({
+      reviews: [review({ submittedAt: '2026-01-15T00:00:00.000Z' })],
+      sessionCommits: [
+        sc({ committedAt: '2026-01-16T00:00:00.000Z' }), // after review → not correlated
+      ],
+    });
+    expect(rows.filter((r) => r.correlationType === 'pr_review_session')).toHaveLength(0);
+  });
+
+  it('excludes release before review submission', () => {
+    const rows = run({
+      reviews: [review({ submittedAt: '2026-01-15T00:00:00.000Z' })],
+      releases: [rel({ releasedAt: '2026-01-14T00:00:00.000Z' })], // before review → not correlated
+    });
+    expect(rows.filter((r) => r.correlationType === 'pr_review_release')).toHaveLength(0);
+  });
 });
