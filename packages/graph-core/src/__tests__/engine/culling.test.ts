@@ -100,4 +100,16 @@ describe('isEdgeVisible', () => {
     const e = edge({ x: -300, y: -300 }, { x: -100, y: -100 }, [{ x: 100, y: 100 }]);
     expect(isEdgeVisible(e, bounds)).toBe(true);
   });
+
+  test('edge touching bounds exactly at minX is not visible (strict inequality)', () => {
+    // maxX of edge = 0 = bounds.minX → maxX > minX is false
+    const e = edge({ x: -100, y: 100 }, { x: 0, y: 100 });
+    expect(isEdgeVisible(e, bounds)).toBe(false);
+  });
+
+  test('edge touching bounds exactly at maxY is not visible (strict inequality)', () => {
+    // minY of edge = 200 = bounds.maxY → minY < maxY is false
+    const e = edge({ x: 100, y: 200 }, { x: 150, y: 200 });
+    expect(isEdgeVisible(e, bounds)).toBe(false);
+  });
 });

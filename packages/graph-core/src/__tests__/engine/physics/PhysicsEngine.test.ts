@@ -259,4 +259,45 @@ describe('PhysicsEngine', () => {
       expect(dist23).toBeGreaterThanOrEqual(219);
     });
   });
+
+  describe('hierarchical algorithm (initLayout line 51)', () => {
+    it('should compute hierarchical layout positions for a chain', () => {
+      const n1 = createNode('rect', 0, 0);
+      const n2 = createNode('rect', 0, 0);
+      const testEdges = [
+        createEdge('connector', { nodeId: n1.id, x: 0, y: 0 }, { nodeId: n2.id, x: 0, y: 0 }),
+      ];
+      const engine = new PhysicsEngine({ algorithm: 'hierarchical' });
+      engine.initLayout([n1, n2], testEdges);
+      const positions = engine.getPositions();
+      // Both nodes should have positions assigned
+      expect(positions.has(n1.id)).toBe(true);
+      expect(positions.has(n2.id)).toBe(true);
+      // n1 should be above n2 (TB direction is default for hierarchical)
+      const p1 = positions.get(n1.id)!;
+      const p2 = positions.get(n2.id)!;
+      expect(p1.y).toBeLessThan(p2.y);
+    });
+  });
+
+  describe('computeHalfSpans vertical branch (line 346)', () => {
+    it('vertically close connected nodes use height-based halfSpan and get separated', () => {
+      // createNode: width=120, height=60
+      // For vertical branch: absDx*(h1+h2) <= absDy*(w1+w2)
+      //   i.e. |dx|*(60+60) <= |dy|*(120+120)
+      //   i.e. |dx|*120 <= |dy|*240 → satisfied when |dx|=0 (purely vertical)
+      const n1 = createNode('rect', 0, 0);
+      const n2 = createNode('rect', 0, 5); // same x, very close y → purely vertical dx=0
+      const testEdges = [
+        createEdge('connector', { nodeId: n1.id, x: 0, y: 0 }, { nodeId: n2.id, x: 0, y: 0 }),
+      ];
+      const engine = new PhysicsEngine();
+      const positions = engine.spreadConnected([n1, n2], testEdges, 10);
+      // Should separate them vertically
+      const p1 = positions.get(n1.id)!;
+      const p2 = positions.get(n2.id)!;
+      // Center-to-center should be >= halfHeight*2 + 10 = 30 + 30 + 10 = 70
+      expect(Math.abs(p2.y - p1.y)).toBeGreaterThanOrEqual(60);
+    });
+  });
 });

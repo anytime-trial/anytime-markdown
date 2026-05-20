@@ -176,4 +176,60 @@ describe('computeHierarchicalLayout', () => {
       expect(Number.isFinite(bodies.get('A')!.y)).toBe(true);
     });
   });
+
+  describe('empty bodies map', () => {
+    it('returns immediately without throwing when bodies is empty', () => {
+      const bodies = new Map<string, PhysicsBody>();
+      expect(() => computeHierarchicalLayout(bodies, [], 'TB', 180, 60)).not.toThrow();
+    });
+  });
+
+  describe('self-loop edges', () => {
+    it('skips self-loop edges (fromId === toId)', () => {
+      const bodies = new Map([['A', makeBody('A')]]);
+      // Self-loop: from A to A — should be ignored
+      const selfLoop = {
+        id: 'A-A',
+        type: 'connector' as const,
+        from: { nodeId: 'A', x: 0, y: 0 },
+        to: { nodeId: 'A', x: 0, y: 0 },
+        style: { stroke: '#000', strokeWidth: 2, startShape: 'none' as const, endShape: 'arrow' as const },
+      };
+      expect(() => computeHierarchicalLayout(bodies, [selfLoop], 'TB', 180, 60)).not.toThrow();
+      expect(Number.isFinite(bodies.get('A')!.x)).toBe(true);
+    });
+  });
+
+  describe('edges with missing nodeIds', () => {
+    it('skips edges where from/to nodeId is missing', () => {
+      const bodies = new Map([['A', makeBody('A')], ['B', makeBody('B')]]);
+      const edgeNoFrom = {
+        id: 'e1',
+        type: 'connector' as const,
+        from: { x: 0, y: 0 },
+        to: { nodeId: 'B', x: 0, y: 0 },
+        style: { stroke: '#000', strokeWidth: 2, startShape: 'none' as const, endShape: 'arrow' as const },
+      };
+      expect(() => computeHierarchicalLayout(bodies, [edgeNoFrom as never], 'TB', 180, 60)).not.toThrow();
+    });
+  });
+
+  describe('barycenter with isolated node in multi-layer graph', () => {
+    it('uses positionOf fallback when node has no cross-layer neighbors', () => {
+      // A->B->C; D is isolated (same layer as A by default).
+      // In minimizeCrossings, when computing barycenters for layer-0 during bottom-up pass,
+      // A has successor B (in positionOf), but D has no successors → nbrs.length===0 branch
+      const bodies = new Map([
+        ['A', makeBody('A')],
+        ['B', makeBody('B')],
+        ['C', makeBody('C')],
+        ['D', makeBody('D')],
+      ]);
+      const edges = [makeEdge('A', 'B'), makeEdge('B', 'C')];
+      // D is isolated → layer 0 with A. In barycenter pass, D has no neighbors → hits nbrs.length===0
+      expect(() => computeHierarchicalLayout(bodies, edges, 'TB', 180, 60)).not.toThrow();
+      // D and A should be in the same layer (same y for TB)
+      expect(bodies.get('D')!.y).toBe(bodies.get('A')!.y);
+    });
+  });
 });

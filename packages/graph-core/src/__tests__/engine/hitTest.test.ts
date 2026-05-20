@@ -295,6 +295,64 @@ describe('hitTestEdgeSegment', () => {
   });
 });
 
+describe('hitTestNode - person', () => {
+  const personNode: GraphNode = {
+    id: 'pe1', type: 'person', x: 0, y: 0, width: 100, height: 160,
+    text: '', style: DEFAULT_NODE_STYLE,
+  };
+
+  it('should detect point in head ellipse of person', () => {
+    // headCx = 50, headCy = y + height*0.3 = 48, headR = width*0.22 = 22
+    expect(hitTestNode(personNode, 50, 48)).toBe(true);
+  });
+
+  it('should detect point in body rectangle of person', () => {
+    // bodyY = height*0.45 = 72; body spans from y=72 to y=160
+    expect(hitTestNode(personNode, 50, 120)).toBe(true);
+  });
+
+  it('should miss point outside person entirely', () => {
+    expect(hitTestNode(personNode, 0, 0)).toBe(false);
+  });
+});
+
+describe('hitTest - frame-collapse icon', () => {
+  const frameNode: GraphNode = {
+    id: 'fc1', type: 'frame', x: 0, y: 0, width: 300, height: 200,
+    text: 'Frame', style: DEFAULT_NODE_STYLE,
+  };
+
+  it('detects collapse icon in hitTest', () => {
+    // FRAME_ICON_RIGHT_MARGIN=12, FRAME_COLLAPSE_HIT_SIZE=16
+    // iconX = 0 + 300 - 12 - 16 = 272, FRAME_TITLE_HEIGHT=28, iconY = (28-16)/2 = 6
+    const result = hitTest({
+      nodes: [frameNode], edges: [],
+      wx: 280, wy: 14, scale: 1,
+      selectedNodeIds: [],
+    });
+    expect(result.type).toBe('frame-collapse');
+    expect(result.id).toBe('fc1');
+  });
+});
+
+describe('hitTest - waypoint handle', () => {
+  it('detects manual waypoint handle for selected edge', () => {
+    const edgeWithWp: GraphEdge = {
+      id: 'wp1', type: 'connector',
+      from: { x: 0, y: 0 }, to: { x: 200, y: 0 },
+      style: DEFAULT_EDGE_STYLE,
+      manualWaypoints: [{ x: 100, y: 0 }],
+    };
+    const result = hitTest({
+      nodes: [], edges: [edgeWithWp],
+      wx: 100, wy: 0, scale: 1,
+      selectedNodeIds: [], selectedEdgeIds: ['wp1'],
+    });
+    expect(result.type).toBe('waypoint-handle');
+    expect(result.waypointIndex).toBe(0);
+  });
+});
+
 describe('hitTestFrameBody', () => {
   const frameNode: GraphNode = {
     id: 'f1', type: 'frame', x: 10, y: 10, width: 200, height: 150,

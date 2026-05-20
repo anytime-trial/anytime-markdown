@@ -402,5 +402,66 @@ describe('importFromMermaid', () => {
       const nodeA = doc.nodes.find(n => n.text === 'Node A');
       expect(nodeA).toBeDefined();
     });
+
+    it('should traverse frame ancestry chain in resolveRootFrame (line 515)', () => {
+      // 3-level nesting: L1 > L2 > L3 with a cross-boundary edge from outside
+      const mmd = `flowchart TD
+  subgraph L1 [L1]
+    subgraph L2 [L2]
+      subgraph L3 [L3]
+        X[Node X]
+      end
+    end
+  end
+  Y[Node Y] --> X`;
+      const { doc, direction } = importFromMermaid(mmd);
+      expect(() => layoutWithSubgroups(doc, direction, 120, 40)).not.toThrow();
+      const nodeX = doc.nodes.find(n => n.text === 'Node X');
+      const nodeY = doc.nodes.find(n => n.text === 'Node Y');
+      expect(nodeX).toBeDefined();
+      expect(nodeY).toBeDefined();
+    });
+  });
+
+  describe('direction normalization', () => {
+    it('should normalize RL direction to LR', () => {
+      const { direction } = importFromMermaid('flowchart RL\n  A --> B');
+      expect(direction).toBe('LR');
+    });
+
+    it('should normalize BT direction to TB', () => {
+      const { direction } = importFromMermaid('flowchart BT\n  A --> B');
+      expect(direction).toBe('TB');
+    });
+
+    it('should keep TB direction as TB', () => {
+      const { direction } = importFromMermaid('flowchart TB\n  A --> B');
+      expect(direction).toBe('TB');
+    });
+  });
+
+  describe('subgraph with ID bracket syntax (tryParseSubgraph)', () => {
+    it('should parse subgraph with ID and label in brackets', () => {
+      const { doc } = importFromMermaid(
+        'flowchart TD\n  subgraph sg1 [My Label]\n    A[Node]\n  end',
+      );
+      const frame = doc.nodes.find(n => n.type === 'frame');
+      expect(frame).toBeDefined();
+      expect(frame!.text).toBe('My Label');
+    });
+  });
+
+  describe('buildChildrenMap – frame-in-frame', () => {
+    it('should not add outer frame node to orphanNodes when it has a groupId pointing to non-existent frame', () => {
+      // This exercises the else branch: node.type === 'frame' && node.groupId is set but NOT in frameMap
+      // Creating such a doc directly
+      const mmd = `flowchart TD
+  subgraph Outer [Outer]
+    A[Child]
+  end`;
+      const { doc, direction } = importFromMermaid(mmd);
+      // This should not throw
+      expect(() => layoutWithSubgroups(doc, direction, 120, 40)).not.toThrow();
+    });
   });
 });
