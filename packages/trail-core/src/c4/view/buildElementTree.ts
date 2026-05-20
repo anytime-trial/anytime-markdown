@@ -44,43 +44,6 @@ export function buildElementTree(
     boundaryInfoMap.set(b.id, b);
   }
 
-  function sortByName<T extends { name: string }>(list: T[]): T[] {
-    return list.slice().sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  function buildNode(el: C4Element): C4TreeNode {
-    const kids = childrenByParent.get(el.id);
-    const children = kids ? sortByName(kids).map(buildNode) : [];
-    return {
-      id: el.id,
-      name: el.name,
-      type: el.type,
-      ...(el.external ? { external: true } : {}),
-      ...(el.technology ? { technology: el.technology } : {}),
-      ...(el.description ? { description: el.description } : {}),
-      ...(el.deleted ? { deleted: true } : {}),
-      ...(el.serviceType ? { serviceType: el.serviceType } : {}),
-      children,
-    };
-  }
-
-  function buildBoundaryNode(id: string): C4TreeNode {
-    const info = boundaryInfoMap.get(id);
-    const kids = childrenByParent.get(id);
-    const children: C4TreeNode[] = [];
-    if (kids) {
-      for (const el of sortByName(kids)) {
-        children.push(buildNode(el));
-      }
-    }
-    return {
-      id,
-      name: info?.name ?? id,
-      type: 'boundary',
-      children,
-    };
-  }
-
   // ルート要素: boundaryIdがない要素 + boundary-onlyノード
   const roots: C4TreeNode[] = [];
 
@@ -88,7 +51,7 @@ export function buildElementTree(
   const rootElements = childrenByParent.get(undefined) ?? [];
   for (const el of sortByName(rootElements)) {
     if (boundaryOnlyIds.has(el.id)) continue; // boundary-onlyとして別途処理
-    roots.push(buildNode(el));
+    roots.push(buildNode(el, childrenByParent));
   }
 
   // boundary-only仮想ノード（ルートレベルのもの）
@@ -97,7 +60,7 @@ export function buildElementTree(
     // このboundary自体がどこかの子でないか確認
     const hasParent = elements.some(el => el.id === id && el.boundaryId);
     if (!hasParent) {
-      boundaryOnlyRoots.push(buildBoundaryNode(id));
+      boundaryOnlyRoots.push(buildBoundaryNode(id, childrenByParent, boundaryInfoMap));
     }
   }
   for (const node of sortByName(boundaryOnlyRoots)) {
@@ -105,6 +68,47 @@ export function buildElementTree(
   }
 
   return sortByName(roots);
+}
+
+function sortByName<T extends { name: string }>(list: T[]): T[] {
+  return list.slice().sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function buildNode(
+  el: C4Element,
+  childrenByParent: ReadonlyMap<string | undefined, C4Element[]>,
+): C4TreeNode {
+  const kids = childrenByParent.get(el.id);
+  const children = kids ? sortByName(kids).map(k => buildNode(k, childrenByParent)) : [];
+  return {
+    id: el.id,
+    name: el.name,
+    type: el.type,
+    ...(el.external ? { external: true } : {}),
+    ...(el.technology ? { technology: el.technology } : {}),
+    ...(el.description ? { description: el.description } : {}),
+    ...(el.deleted ? { deleted: true } : {}),
+    ...(el.serviceType ? { serviceType: el.serviceType } : {}),
+    children,
+  };
+}
+
+function buildBoundaryNode(
+  id: string,
+  childrenByParent: ReadonlyMap<string | undefined, C4Element[]>,
+  boundaryInfoMap: ReadonlyMap<string, BoundaryInfo>,
+): C4TreeNode {
+  const info = boundaryInfoMap.get(id);
+  const kids = childrenByParent.get(id);
+  const children: C4TreeNode[] = kids
+    ? sortByName(kids).map(el => buildNode(el, childrenByParent))
+    : [];
+  return {
+    id,
+    name: info?.name ?? id,
+    type: 'boundary',
+    children,
+  };
 }
 
 /**
