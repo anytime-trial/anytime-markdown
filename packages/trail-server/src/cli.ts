@@ -267,6 +267,7 @@ program
         }),
       ollamaBaseUrl: config.memory.ollama.baseUrl,
       disabledMemoryAnalyzers: lepDisabledAnalyzers,
+      disabledAggregators: lepDisabledAnalyzers,
       // VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新する
       importAllStatusFilePath: join(dbStorageDir, 'importall-phase-status.json'),
     });

@@ -30,6 +30,20 @@ export const MEMORY_ANALYZER_IDS = [
 
 export type MemoryAnalyzerId = (typeof MEMORY_ANALYZER_IDS)[number];
 
+/**
+ * Step 4 で扱う Layer 4 (aggregator) analyzer の ID。
+ * tier=4 は `stage='all'` でのみ実行される (opt-in)。`CrossSourceCorrelator` は Step 4d で追加。
+ */
+export const AGGREGATOR_ANALYZER_IDS = ['DoraMetricsAggregator'] as const;
+
+export type AggregatorAnalyzerId = (typeof AGGREGATOR_ANALYZER_IDS)[number];
+
+/** lep.json `analyzers` で toggle 可能な全 analyzer ID (memory + aggregator)。バリデーションに使う。 */
+export const KNOWN_ANALYZER_IDS: readonly string[] = [
+  ...MEMORY_ANALYZER_IDS,
+  ...AGGREGATOR_ANALYZER_IDS,
+];
+
 export type LepLogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LepScheduleConfig {
@@ -100,7 +114,7 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
     },
   },
   analyzers: Object.fromEntries(
-    MEMORY_ANALYZER_IDS.map((id) => [id, { enabled: true }]),
+    KNOWN_ANALYZER_IDS.map((id) => [id, { enabled: true }]),
   ) as LepAnalyzersConfig,
   logs: { minLevel: 'info' },
 };
@@ -208,7 +222,7 @@ export function validateLepConfigInput(
     } else {
       const analyzers: LepAnalyzersConfig = {};
       for (const [id, toggle] of Object.entries(raw['analyzers'])) {
-        if (!(MEMORY_ANALYZER_IDS as readonly string[]).includes(id)) {
+        if (!KNOWN_ANALYZER_IDS.includes(id)) {
           warnings.push(`${sourceLabel}: 未知の analyzer "${id}" は無視されます`);
           continue;
         }

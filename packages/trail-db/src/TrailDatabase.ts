@@ -45,6 +45,7 @@ import {
   CREATE_C4_MANUAL_ELEMENTS,
   CREATE_C4_MANUAL_RELATIONSHIPS,
   CREATE_C4_MANUAL_GROUPS,
+  CREATE_DORA_METRICS,
   DEFAULT_SKILL_MODELS,
   extractSkillName,
   buildReleaseFromGitData,
@@ -818,6 +819,43 @@ function estimateTokenCount(text: string | null): number | null {
 // ---------------------------------------------------------------------------
 //  Cost classification helpers
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+//  DORA metrics (LEP Layer 4 / Step 4a)
+// ---------------------------------------------------------------------------
+
+/** {@link TrailDatabase.getDoraReleases} の戻り値。DORA 集計の入力 release 行。 */
+export interface DoraReleaseInput {
+  /** release tag */
+  readonly tag: string;
+  /** リリース日時 (ISO 8601 + Z)。NULL / 空文字の release は除外済み */
+  readonly releasedAt: string;
+  /** リポジトリ名 */
+  readonly repoName: string;
+}
+
+/** {@link TrailDatabase.getDoraCommits} の戻り値。lead time 算出の入力 commit 行。 */
+export interface DoraCommitInput {
+  /** commit hash */
+  readonly commitHash: string;
+  /** コミット日時 (ISO 8601 + Z)。NULL / 空文字の commit は除外済み */
+  readonly committedAt: string;
+  /** リポジトリ名 */
+  readonly repoName: string;
+}
+
+/** {@link TrailDatabase.replaceDoraMetrics} に渡す dora_metrics 1 行。 */
+export interface DoraMetricRow {
+  readonly repoName: string;
+  /** 集計期間 'YYYY-MM' */
+  readonly period: string;
+  /** 期間内の deployment 件数 (release 数) */
+  readonly deploymentFrequency: number;
+  /** commit → 含有 release の中央値 (時間)。算出不能なら null */
+  readonly leadTimeHours: number | null;
+  /** 算出日時 (ISO 8601 + Z) */
+  readonly computedAt: string;
+}
 
 // ---------------------------------------------------------------------------
 //  TrailDatabase
@@ -1662,6 +1700,8 @@ export class TrailDatabase {
     db.run(CREATE_C4_MANUAL_ELEMENTS);
     db.run(CREATE_C4_MANUAL_RELATIONSHIPS);
     db.run(CREATE_C4_MANUAL_GROUPS);
+    // LEP Layer 4 (Aggregator) の DORA 指標出力先。新規テーブル追加のみ (既存 DDL 不変)。
+    db.run(CREATE_DORA_METRICS);
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
     try {
       db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)');
@@ -2585,6 +2625,81 @@ export class TrailDatabase {
   /** LEP `CountsRebuilder` (Step 2c) 用 public wrapper。Wave 末端で 1 回呼ぶ想定。 */
   rebuildSessionStatsPublic(): void {
     this.rebuildSessionStats();
+  }
+
+  /**
+   * LEP `DoraMetricsAggregator` (Step 4a) 用: DORA 集計の入力 release を返す。
+   *
+   * `released_at` が NULL / 空文字の release は除外する (集計対象外)。
+   * 単純な範囲スキャン (code-quality.md §16) で、月次集計・lead time の中央値は
+   * 呼び出し側 (aggregator) で TS で算出する。
+   */
+  getDoraReleases(): DoraReleaseInput[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT tag, released_at, repo_name FROM releases
+       WHERE released_at IS NOT NULL AND released_at <> ''
+       ORDER BY released_at`,
+    );
+    if (!result[0]) return [];
+    return result[0].values.map((row) => ({
+      tag: String(row[0] ?? ''),
+      releasedAt: String(row[1] ?? ''),
+      repoName: String(row[2] ?? ''),
+    }));
+  }
+
+  /**
+   * LEP `DoraMetricsAggregator` (Step 4a) 用: lead time 算出の入力 commit を返す。
+   *
+   * `session_commits` を commit_hash × repo_name で重複排除し、`committed_at` が
+   * NULL / 空文字のものは除外する。複数 session が同一 commit を参照しても 1 件にする。
+   */
+  getDoraCommits(): DoraCommitInput[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT commit_hash, MIN(committed_at) AS committed_at, repo_name
+       FROM session_commits
+       WHERE committed_at IS NOT NULL AND committed_at <> ''
+       GROUP BY repo_name, commit_hash
+       ORDER BY committed_at`,
+    );
+    if (!result[0]) return [];
+    return result[0].values.map((row) => ({
+      commitHash: String(row[0] ?? ''),
+      committedAt: String(row[1] ?? ''),
+      repoName: String(row[2] ?? ''),
+    }));
+  }
+
+  /**
+   * LEP `DoraMetricsAggregator` (Step 4a) 用: dora_metrics を洗い替えで更新する。
+   *
+   * DORA 指標は毎 run 全データから再算出するため、差分でなく全 DELETE → INSERT の
+   * wash-away 方式 (code-quality.md §21.2 と同方針)。トランザクションで原子的に置換する。
+   */
+  replaceDoraMetrics(rows: readonly DoraMetricRow[]): void {
+    const db = this.ensureDb();
+    db.run('BEGIN');
+    try {
+      db.run('DELETE FROM dora_metrics');
+      const stmt = db.prepare(
+        `INSERT INTO dora_metrics
+           (repo_name, period, deployment_frequency, lead_time_hours, computed_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      );
+      try {
+        for (const r of rows) {
+          stmt.run([r.repoName, r.period, r.deploymentFrequency, r.leadTimeHours, r.computedAt]);
+        }
+      } finally {
+        stmt.free();
+      }
+      db.run('COMMIT');
+    } catch (err) {
+      db.run('ROLLBACK');
+      throw err;
+    }
   }
 
   /**

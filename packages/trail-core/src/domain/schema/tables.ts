@@ -492,3 +492,18 @@ export const CREATE_EXTENSION_LOGS_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_extension_logs_level_timestamp ON extension_logs(level, timestamp)`,
   `CREATE INDEX IF NOT EXISTS idx_extension_logs_source ON extension_logs(source)`,
 ];
+
+// LEP Layer 4 (Aggregator): DORA 指標の月次集計。`DoraMetricsAggregator` が
+// 既存 trail.db データ (releases / session_commits) のみから算出して書き込む。
+// 本 Step で算出するのは deployment frequency (期間内 release 件数) と
+// lead time for changes (commit → 含有 release の中央値) の 2 指標のみ。
+// change_failure_rate / mttr は bug→release attribution リンクが実データに無いため
+// 列を設けず deferred とする (列追加は将来の additive migration で対応)。
+export const CREATE_DORA_METRICS = `CREATE TABLE IF NOT EXISTS dora_metrics (
+  repo_name TEXT NOT NULL,
+  period TEXT NOT NULL CHECK (period GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]'),
+  deployment_frequency REAL NOT NULL DEFAULT 0,
+  lead_time_hours REAL,
+  computed_at TEXT NOT NULL CHECK (computed_at GLOB ${TS_GLOB_MS} OR computed_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_name, period)
+) STRICT`;

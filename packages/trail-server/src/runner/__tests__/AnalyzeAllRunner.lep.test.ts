@@ -20,7 +20,7 @@ function makeLogSink(): { lines: string[]; appendLine: (m: string) => void } {
   return { lines, appendLine: (m: string) => lines.push(m) };
 }
 
-function makeFakeTrailDb(save: jest.Mock = jest.fn()): TrailDatabase {
+function makeFakeTrailDb(save: jest.Mock = jest.fn(), extra: Partial<Record<string, unknown>> = {}): TrailDatabase {
   return {
     save,
     getImportedFileMap: () => new Map(),
@@ -36,6 +36,11 @@ function makeFakeTrailDb(save: jest.Mock = jest.fn()): TrailDatabase {
     backfillCommitFilesPublic: () => undefined,
     backfillSubagentTypePublic: () => undefined,
     backfillMessageCommits: () => 0,
+    // Layer 4 (DORA) のデフォルト fake: 空データ
+    getDoraReleases: () => [],
+    getDoraCommits: () => [],
+    replaceDoraMetrics: () => undefined,
+    ...extra,
   } as unknown as TrailDatabase;
 }
 
@@ -245,6 +250,76 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     await runner.runOnce('manual');
     expect(fake.calls.length).toBe(7); // memory は走る
     expect(save).not.toHaveBeenCalled(); // Wave 2 (PersistAnalyzer) は走らない
+  });
+
+  it('stage=all runs Wave 4: DoraMetricsAggregator computes dora_metrics', async () => {
+    const written: unknown[][] = [];
+    const fake = makeFakeScopeSession();
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(jest.fn(), {
+        getDoraReleases: () => [
+          { tag: 'v1', releasedAt: '2026-01-10T00:00:00.000Z', repoName: 'repoA' },
+        ],
+        getDoraCommits: () => [
+          { commitHash: 'c1', committedAt: '2026-01-09T00:00:00.000Z', repoName: 'repoA' },
+        ],
+        replaceDoraMetrics: (rows: unknown[]) => { written.push([...rows]); },
+      }),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      stage: 'all',
+    });
+
+    await runner.runOnce('manual');
+
+    expect(logSink.lines.join('\n')).toContain('[DoraMetricsAggregator] done');
+    expect(written).toHaveLength(1);
+    expect(written[0]).toHaveLength(1); // repoA / 2026-01
+  });
+
+  it('stage=primary+memory does NOT run Wave 4 (DoraMetricsAggregator skipped)', async () => {
+    const written: unknown[][] = [];
+    const fake = makeFakeScopeSession();
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(jest.fn(), {
+        getDoraReleases: () => [{ tag: 'v1', releasedAt: '2026-01-10T00:00:00.000Z', repoName: 'repoA' }],
+        replaceDoraMetrics: (rows: unknown[]) => { written.push([...rows]); },
+      }),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      stage: 'primary+memory',
+    });
+
+    await runner.runOnce('manual');
+
+    expect(logSink.lines.join('\n')).not.toContain('[DoraMetricsAggregator]');
+    expect(written).toEqual([]);
+  });
+
+  it('stage=all with disabledAggregators skips DoraMetricsAggregator', async () => {
+    const written: unknown[][] = [];
+    const fake = makeFakeScopeSession();
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(jest.fn(), {
+        getDoraReleases: () => [{ tag: 'v1', releasedAt: '2026-01-10T00:00:00.000Z', repoName: 'repoA' }],
+        replaceDoraMetrics: (rows: unknown[]) => { written.push([...rows]); },
+      }),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      stage: 'all',
+      disabledAggregators: ['DoraMetricsAggregator'],
+    });
+
+    await runner.runOnce('manual');
+
+    expect(logSink.lines.join('\n')).not.toContain('[DoraMetricsAggregator]');
+    expect(written).toEqual([]);
   });
 
   it('stage=disabled runs nothing', async () => {
