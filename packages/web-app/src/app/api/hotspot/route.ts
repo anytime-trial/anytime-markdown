@@ -57,15 +57,8 @@ async function fetchSessionIdsForRepo(supabase: any, repo: string): Promise<Set<
   return result;
 }
 
-async function fetchCommitGranularityRows(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
-  from: string,
-  to: string,
-  repo: string | undefined,
-): Promise<FileHotspotRow[]> {
-  const repoSessionIds = repo ? await fetchSessionIdsForRepo(supabase, repo) : null;
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchKnownCommitHashes(supabase: any, from: string, to: string, repoSessionIds: Set<string> | null): Promise<Set<string>> {
   const knownCommitHashes = new Set<string>();
   for (let offset = 0; ; offset += 1000) {
     const { data, error } = await supabase
@@ -82,9 +75,11 @@ async function fetchCommitGranularityRows(
     }
     if (data.length < 1000) break;
   }
-  if (knownCommitHashes.size === 0) return [];
+  return knownCommitHashes;
+}
 
-  // file_path × distinct commit_hash でカウント
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buildFileToCommitsMap(supabase: any, knownCommitHashes: Set<string>): Promise<Map<string, Set<string>>> {
   const fileToCommits = new Map<string, Set<string>>();
   for (let offset = 0; ; offset += 1000) {
     const { data, error } = await supabase
@@ -96,23 +91,15 @@ async function fetchCommitGranularityRows(
     for (const r of data as Array<{ commit_hash: string; file_path: string }>) {
       if (!r.file_path || !knownCommitHashes.has(r.commit_hash)) continue;
       let set = fileToCommits.get(r.file_path);
-      if (!set) {
-        set = new Set();
-        fileToCommits.set(r.file_path, set);
-      }
+      if (!set) { set = new Set(); fileToCommits.set(r.file_path, set); }
       set.add(r.commit_hash);
     }
     if (data.length < 1000) break;
   }
-
-  const rows: FileHotspotRow[] = [];
-  for (const [filePath, hashes] of fileToCommits) {
-    rows.push({ filePath, churn: hashes.size });
-  }
-  return rows;
+  return fileToCommits;
 }
 
-async function fetchToolCallGranularityRows(
+async function fetchCommitGranularityRows(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   from: string,
@@ -120,7 +107,20 @@ async function fetchToolCallGranularityRows(
   repo: string | undefined,
 ): Promise<FileHotspotRow[]> {
   const repoSessionIds = repo ? await fetchSessionIdsForRepo(supabase, repo) : null;
+  const knownCommitHashes = await fetchKnownCommitHashes(supabase, from, to, repoSessionIds);
+  if (knownCommitHashes.size === 0) return [];
 
+  // file_path × distinct commit_hash でカウント
+  const fileToCommits = await buildFileToCommitsMap(supabase, knownCommitHashes);
+  const rows: FileHotspotRow[] = [];
+  for (const [filePath, hashes] of fileToCommits) {
+    rows.push({ filePath, churn: hashes.size });
+  }
+  return rows;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function accumulateToolCallChurn(supabase: any, from: string, to: string, repoSessionIds: Set<string> | null): Promise<Map<string, number>> {
   const fileChurn = new Map<string, number>();
   for (let offset = 0; ; offset += 1000) {
     const { data, error } = await supabase
@@ -139,7 +139,18 @@ async function fetchToolCallGranularityRows(
     }
     if (data.length < 1000) break;
   }
+  return fileChurn;
+}
 
+async function fetchToolCallGranularityRows(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  from: string,
+  to: string,
+  repo: string | undefined,
+): Promise<FileHotspotRow[]> {
+  const repoSessionIds = repo ? await fetchSessionIdsForRepo(supabase, repo) : null;
+  const fileChurn = await accumulateToolCallChurn(supabase, from, to, repoSessionIds);
   const rows: FileHotspotRow[] = [];
   for (const [filePath, churn] of fileChurn) rows.push({ filePath, churn });
   return rows;
