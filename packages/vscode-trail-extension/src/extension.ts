@@ -22,7 +22,7 @@ import {
 	loadConfig,
 	loadLepConfig,
 	ensureLepConfigFile,
-	disabledMemoryAnalyzerIds,
+	disabledAnalyzerIds,
 	resolveGitHubSource,
 	createFetchGitHubReviewClient,
 	checkLlmAvailability,
@@ -342,7 +342,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				logger: { warn: (m) => TrailLogger.warn(m), info: (m) => TrailLogger.info(m) },
 			});
 			lepStage = lep.config.stage;
-			lepDisabledAnalyzers = disabledMemoryAnalyzerIds(lep.config);
+			lepDisabledAnalyzers = disabledAnalyzerIds(lep.config);
 			// VS Code 設定 anytimeTrail.lep.stageOverride で一時的に stage を上書き可能 (設計書 13.4)。
 			const stageOverride = vscode.workspace
 				.getConfiguration('anytimeTrail.lep')

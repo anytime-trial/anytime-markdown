@@ -4,6 +4,8 @@ import type {
   DoraReleaseInput,
 } from '@anytime-markdown/trail-db';
 
+import { compareStr, groupBy, median } from './utils';
+
 /**
  * DORA 指標 (deployment frequency / lead time for changes) を月次で算出する純粋関数。
  *
@@ -72,17 +74,6 @@ export function computeDoraMetrics(
   return rows;
 }
 
-function groupBy<T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> {
-  const map = new Map<string, T[]>();
-  for (const item of items) {
-    const k = key(item);
-    const arr = map.get(k);
-    if (arr) arr.push(item);
-    else map.set(k, [item]);
-  }
-  return map;
-}
-
 /** ISO 8601 文字列の先頭 7 文字 (YYYY-MM) を期間キーとして返す。 */
 function periodOf(isoTimestamp: string): string {
   return isoTimestamp.slice(0, 7);
@@ -103,18 +94,6 @@ function firstReleaseAtOrAfter(times: readonly number[], targetMs: number): numb
   return lo;
 }
 
-function median(values: readonly number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
-}
-
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
-}
-
-function compareStr(a: string, b: string): number {
-  if (a < b) return -1;
-  if (a > b) return 1;
-  return 0;
 }

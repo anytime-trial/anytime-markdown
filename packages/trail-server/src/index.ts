@@ -67,6 +67,7 @@ export {
   MEMORY_ANALYZER_IDS,
   AGGREGATOR_ANALYZER_IDS,
   KNOWN_ANALYZER_IDS,
+  disabledAnalyzerIds,
   disabledMemoryAnalyzerIds,
   ensureLepConfigFile,
   loadLepConfig,

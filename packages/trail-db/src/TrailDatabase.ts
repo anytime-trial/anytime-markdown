@@ -940,13 +940,18 @@ export interface CorrelationCommitFile {
   readonly repoName: string;
 }
 
+/** cross-source 相関の左辺ソース種別 (pr_reviews / pr_review_findings 由来)。 */
+export type CrossSourceAKind = 'pr_review' | 'pr_finding';
+/** cross-source 相関の右辺ソース種別 (session / release / commit)。 */
+export type CrossSourceBKind = 'session' | 'release' | 'commit';
+
 /** {@link TrailDatabase.replaceCrossSourceCorrelations} に渡す 1 行。 */
 export interface CrossSourceCorrelationRow {
   readonly correlationType: 'pr_review_session' | 'pr_review_release' | 'pr_finding_commit';
   readonly repoName: string;
-  readonly sourceAKind: string;
+  readonly sourceAKind: CrossSourceAKind;
   readonly sourceAId: string;
-  readonly sourceBKind: string;
+  readonly sourceBKind: CrossSourceBKind;
   readonly sourceBId: string;
   readonly confidence: 'high' | 'medium' | 'low';
   readonly computedAt: string;
@@ -1691,6 +1696,23 @@ export class TrailDatabase {
       throw new Error('TrailDatabase not initialized. Call init() first.');
     }
     return this.db;
+  }
+
+  /**
+   * `BEGIN` → `fn` → `COMMIT` を実行し、例外時は `ROLLBACK` して再 throw する。
+   * 洗い替え・upsert 系メソッド (DELETE+INSERT) のトランザクション境界を集約する。
+   */
+  private withTransaction<T>(fn: (db: Database) => T): T {
+    const db = this.ensureDb();
+    db.run('BEGIN');
+    try {
+      const result = fn(db);
+      db.run('COMMIT');
+      return result;
+    } catch (err) {
+      db.run('ROLLBACK');
+      throw err;
+    }
   }
 
   private createTables(): void {
@@ -2790,9 +2812,7 @@ export class TrailDatabase {
    * wash-away 方式 (code-quality.md §21.2 と同方針)。トランザクションで原子的に置換する。
    */
   replaceDoraMetrics(rows: readonly DoraMetricRow[]): void {
-    const db = this.ensureDb();
-    db.run('BEGIN');
-    try {
+    this.withTransaction((db) => {
       db.run('DELETE FROM dora_metrics');
       const stmt = db.prepare(
         `INSERT INTO dora_metrics
@@ -2806,11 +2826,7 @@ export class TrailDatabase {
       } finally {
         stmt.free();
       }
-      db.run('COMMIT');
-    } catch (err) {
-      db.run('ROLLBACK');
-      throw err;
-    }
+    });
   }
 
   /**
@@ -2829,9 +2845,7 @@ export class TrailDatabase {
    * pr_reviews を INSERT OR REPLACE し、pr_review_comments を洗い替えする。
    */
   upsertPrReview(review: PrReviewUpsert): void {
-    const db = this.ensureDb();
-    db.run('BEGIN');
-    try {
+    this.withTransaction((db) => {
       db.run(
         `INSERT OR REPLACE INTO pr_reviews
            (review_id, repo_name, pr_number, author, state, submitted_at, body, body_hash)
@@ -2859,11 +2873,7 @@ export class TrailDatabase {
       } finally {
         stmt.free();
       }
-      db.run('COMMIT');
-    } catch (err) {
-      db.run('ROLLBACK');
-      throw err;
-    }
+    });
   }
 
   /**
@@ -2921,9 +2931,7 @@ export class TrailDatabase {
    * memory_review_findings とは独立した pr_review_findings に書き込む (source_type enum 不変)。
    */
   replacePrReviewFindings(reviewId: string, findings: readonly PrReviewFindingRow[]): void {
-    const db = this.ensureDb();
-    db.run('BEGIN');
-    try {
+    this.withTransaction((db) => {
       db.run('DELETE FROM pr_review_findings WHERE review_id = ?', [reviewId]);
       const stmt = db.prepare(
         `INSERT INTO pr_review_findings
@@ -2946,11 +2954,7 @@ export class TrailDatabase {
       } finally {
         stmt.free();
       }
-      db.run('COMMIT');
-    } catch (err) {
-      db.run('ROLLBACK');
-      throw err;
-    }
+    });
   }
 
   /** CrossSourceCorrelator (Step 4d) / テスト用: pr_review_findings を返す (review 指定で絞込)。 */
@@ -2979,13 +2983,18 @@ export class TrailDatabase {
     }));
   }
 
-  /** CrossSourceCorrelator (Step 4d) 用: committed_at が有効な session_commits を返す。 */
-  getCorrelationSessionCommits(): CorrelationSessionCommit[] {
+  /**
+   * CrossSourceCorrelator (Step 4d) 用: committed_at が有効な session_commits を返す。
+   * `sinceCommittedAt` 指定時は `committed_at >= ?` で範囲を絞り (idx_session_commits_committed_at で
+   * 範囲スキャン)、相関の時間窓外の古い commit を全件ロードしないようにする。
+   */
+  getCorrelationSessionCommits(sinceCommittedAt?: string): CorrelationSessionCommit[] {
     const db = this.ensureDb();
-    const result = db.exec(
-      `SELECT session_id, commit_hash, committed_at, repo_name FROM session_commits
-       WHERE committed_at IS NOT NULL AND committed_at <> ''`,
-    );
+    const base = `SELECT session_id, commit_hash, committed_at, repo_name FROM session_commits
+       WHERE committed_at IS NOT NULL AND committed_at <> ''`;
+    const result = sinceCommittedAt
+      ? db.exec(`${base} AND committed_at >= ?`, [sinceCommittedAt])
+      : db.exec(base);
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
       sessionId: String(row[0] ?? ''),
@@ -3018,9 +3027,7 @@ export class TrailDatabase {
 
   /** CrossSourceCorrelator (Step 4d) 用: cross_source_correlations を洗い替えで更新する。 */
   replaceCrossSourceCorrelations(rows: readonly CrossSourceCorrelationRow[]): void {
-    const db = this.ensureDb();
-    db.run('BEGIN');
-    try {
+    this.withTransaction((db) => {
       db.run('DELETE FROM cross_source_correlations');
       const stmt = db.prepare(
         `INSERT INTO cross_source_correlations
@@ -3043,11 +3050,7 @@ export class TrailDatabase {
       } finally {
         stmt.free();
       }
-      db.run('COMMIT');
-    } catch (err) {
-      db.run('ROLLBACK');
-      throw err;
-    }
+    });
   }
 
   /** テスト / 診断用: cross_source_correlations を返す。 */
@@ -3062,9 +3065,9 @@ export class TrailDatabase {
     return result[0].values.map((row) => ({
       correlationType: String(row[0] ?? '') as CrossSourceCorrelationRow['correlationType'],
       repoName: String(row[1] ?? ''),
-      sourceAKind: String(row[2] ?? ''),
+      sourceAKind: String(row[2] ?? '') as CrossSourceAKind,
       sourceAId: String(row[3] ?? ''),
-      sourceBKind: String(row[4] ?? ''),
+      sourceBKind: String(row[4] ?? '') as CrossSourceBKind,
       sourceBId: String(row[5] ?? ''),
       confidence: String(row[6] ?? 'low') as 'high' | 'medium' | 'low',
       computedAt: String(row[7] ?? ''),

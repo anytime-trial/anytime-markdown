@@ -123,12 +123,19 @@ export function resolveGitHubSource(
   };
 }
 
-/** `lep.json` の `analyzers.<id>.enabled === false` な memory analyzer id 一覧を返す。 */
-export function disabledMemoryAnalyzerIds(config: LepConfig): string[] {
+/**
+ * `lep.json` の `analyzers.<id>.enabled === false` な analyzer id 一覧を返す
+ * (memory / aggregator を区別せず全 disabled id)。AnalyzeAllRunner の
+ * `disabledMemoryAnalyzers` / `disabledAggregators` 両方にそのまま渡してよい。
+ */
+export function disabledAnalyzerIds(config: LepConfig): string[] {
   return Object.entries(config.analyzers)
     .filter(([, toggle]) => toggle.enabled === false)
     .map(([id]) => id);
 }
+
+/** @deprecated {@link disabledAnalyzerIds} を使う (memory に限らず全 disabled id を返す)。 */
+export const disabledMemoryAnalyzerIds = disabledAnalyzerIds;
 
 /** 部分指定 (ファイル中の override や migration の出力) を表す deep partial。 */
 export interface PartialLepConfig {

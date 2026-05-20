@@ -1,11 +1,15 @@
 import type {
   CorrelationCommitFile,
   CorrelationSessionCommit,
+  CrossSourceAKind,
+  CrossSourceBKind,
   CrossSourceCorrelationRow,
   DoraReleaseInput,
   PrReviewFindingRow,
   PrReviewRow,
 } from '@anytime-markdown/trail-db';
+
+import { compareStr, groupBy } from './utils';
 
 export interface CrossSourceInput {
   readonly reviews: readonly PrReviewRow[];
@@ -15,7 +19,8 @@ export interface CrossSourceInput {
   readonly commitFiles: readonly CorrelationCommitFile[];
 }
 
-const DEFAULT_WINDOW_DAYS = 14;
+/** 相関の時間窓 (日)。CrossSourceCorrelator の session_commits 範囲フィルタとも共有する。 */
+export const DEFAULT_WINDOW_DAYS = 14;
 const MS_PER_DAY = 86_400_000;
 
 /**
@@ -46,9 +51,9 @@ export function computeCrossSourceCorrelations(
   const push = (
     correlationType: CrossSourceCorrelationRow['correlationType'],
     repoName: string,
-    sourceAKind: string,
+    sourceAKind: CrossSourceAKind,
     sourceAId: string,
-    sourceBKind: string,
+    sourceBKind: CrossSourceBKind,
     sourceBId: string,
     confidence: CrossSourceCorrelationRow['confidence'],
   ): void => {
@@ -116,21 +121,4 @@ export function computeCrossSourceCorrelations(
       compareStr(a.sourceBId, b.sourceBId),
   );
   return rows;
-}
-
-function groupBy<T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> {
-  const map = new Map<string, T[]>();
-  for (const item of items) {
-    const k = key(item);
-    const arr = map.get(k);
-    if (arr) arr.push(item);
-    else map.set(k, [item]);
-  }
-  return map;
-}
-
-function compareStr(a: string, b: string): number {
-  if (a < b) return -1;
-  if (a > b) return 1;
-  return 0;
 }

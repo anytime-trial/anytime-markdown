@@ -12,13 +12,18 @@ import type {
   PrReviewRow,
 } from '@anytime-markdown/trail-db';
 
-import { computeCrossSourceCorrelations } from './computeCrossSourceCorrelations';
+import {
+  computeCrossSourceCorrelations,
+  DEFAULT_WINDOW_DAYS,
+} from './computeCrossSourceCorrelations';
+
+const MS_PER_DAY = 86_400_000;
 
 /** CrossSourceCorrelator が trail.db に必要とする最小データソース (テストで fake 注入)。 */
 export interface CrossSourceDataSource {
   getPrReviews(): PrReviewRow[];
   getPrReviewFindings(reviewId?: string): PrReviewFindingRow[];
-  getCorrelationSessionCommits(): CorrelationSessionCommit[];
+  getCorrelationSessionCommits(sinceCommittedAt?: string): CorrelationSessionCommit[];
   getDoraReleases(): DoraReleaseInput[];
   getCorrelationCommitFiles(filePaths: readonly string[]): CorrelationCommitFile[];
   replaceCrossSourceCorrelations(rows: readonly CrossSourceCorrelationRow[]): void;
@@ -70,7 +75,10 @@ export class CrossSourceCorrelator implements Analyzer {
       }
 
       const findings = this.opts.trailDb.getPrReviewFindings();
-      const sessionCommits = this.opts.trailDb.getCorrelationSessionCommits();
+      // review 提出の最古 - windowDays を下限に、時間窓外の古い session commit ロードを避ける
+      const windowDays = this.opts.windowDays ?? DEFAULT_WINDOW_DAYS;
+      const since = earliestSince(reviews, windowDays);
+      const sessionCommits = this.opts.trailDb.getCorrelationSessionCommits(since);
       const releases = this.opts.trailDb.getDoraReleases();
       const findingPaths = distinct(findings.map((f) => f.filePath).filter((p) => p.length > 0));
       const commitFiles = this.opts.trailDb.getCorrelationCommitFiles(findingPaths);
@@ -95,4 +103,21 @@ export class CrossSourceCorrelator implements Analyzer {
 
 function distinct(items: readonly string[]): string[] {
   return [...new Set(items)];
+}
+
+/**
+ * review 群のうち最古の submittedAt から windowDays 遡った時刻を ISO 8601 で返す。
+ * 解析不能な submittedAt しか無い場合は undefined (= 全件取得にフォールバック)。
+ */
+function earliestSince(
+  reviews: readonly PrReviewRow[],
+  windowDays: number,
+): string | undefined {
+  let minMs = Number.POSITIVE_INFINITY;
+  for (const r of reviews) {
+    const ms = Date.parse(r.submittedAt);
+    if (!Number.isNaN(ms) && ms < minMs) minMs = ms;
+  }
+  if (!Number.isFinite(minMs)) return undefined;
+  return new Date(minMs - windowDays * MS_PER_DAY).toISOString();
 }
