@@ -564,9 +564,9 @@ export const CREATE_CROSS_SOURCE_CORRELATIONS = `CREATE TABLE IF NOT EXISTS cros
   correlation_type TEXT NOT NULL
     CHECK (correlation_type IN ('pr_review_session', 'pr_review_release', 'pr_finding_commit')),
   repo_name TEXT NOT NULL DEFAULT '',
-  source_a_kind TEXT NOT NULL,
+  source_a_kind TEXT NOT NULL CHECK (source_a_kind IN ('pr_review', 'pr_finding')),
   source_a_id TEXT NOT NULL,
-  source_b_kind TEXT NOT NULL,
+  source_b_kind TEXT NOT NULL CHECK (source_b_kind IN ('session', 'release', 'commit')),
   source_b_id TEXT NOT NULL,
   confidence TEXT NOT NULL DEFAULT 'low' CHECK (confidence IN ('high', 'medium', 'low')),
   computed_at TEXT NOT NULL CHECK (computed_at GLOB ${TS_GLOB_MS} OR computed_at GLOB ${TS_GLOB_NO_MS}),

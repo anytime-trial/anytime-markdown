@@ -12,7 +12,7 @@ import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
 import { loadConfig } from './runtime/Config';
-import { ensureLepConfigFile, loadLepConfig, disabledMemoryAnalyzerIds, resolveGitHubSource } from './runtime/LepConfig';
+import { ensureLepConfigFile, loadLepConfig, disabledAnalyzerIds, resolveGitHubSource } from './runtime/LepConfig';
 import { checkLlmAvailability } from './lep/LlmAvailability';
 import { AnalyzeAllRunner, type AnalyzeAllRunnerOptions } from './runner/AnalyzeAllRunner';
 import { createFetchGitHubReviewClient } from './lep/ingesters/github/GitHubReviewClient';
@@ -116,7 +116,7 @@ program
         });
         const lep = loadLepConfig({ workspaceRoot: lepWorkspaceRoot, logger });
         lepStage = lep.config.stage;
-        lepDisabledAnalyzers = disabledMemoryAnalyzerIds(lep.config);
+        lepDisabledAnalyzers = disabledAnalyzerIds(lep.config);
         logger.info('lep.json loaded', { stage: lepStage, files: lep.loadedPaths.length });
 
         // 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (sources.github.enabled)。

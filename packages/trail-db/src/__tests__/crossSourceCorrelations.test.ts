@@ -42,8 +42,10 @@ describe('TrailDatabase cross-source correlations (Step 4d)', () => {
     expect(db.getCrossSourceCorrelations()).toEqual([]);
   });
 
-  it('enforces correlation_type and confidence CHECK constraints', () => {
+  it('enforces correlation_type / confidence / source kind CHECK constraints', () => {
     expect(() => db.replaceCrossSourceCorrelations([{ ...ROW, correlationType: 'bogus' as never }])).toThrow();
     expect(() => db.replaceCrossSourceCorrelations([{ ...ROW, confidence: 'certain' as never }])).toThrow();
+    expect(() => db.replaceCrossSourceCorrelations([{ ...ROW, sourceAKind: 'mystery' as never }])).toThrow();
+    expect(() => db.replaceCrossSourceCorrelations([{ ...ROW, sourceBKind: 'mystery' as never }])).toThrow();
   });
 });

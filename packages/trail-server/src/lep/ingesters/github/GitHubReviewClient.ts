@@ -68,6 +68,8 @@ export interface FetchGitHubReviewClientOptions {
 }
 
 const DEFAULT_BASE_URL = 'https://api.github.com';
+/** GitHub REST の per_page 上限。これを超える分はページネーション未実装のため取得されない。 */
+const PER_PAGE = 100;
 
 /**
  * `fetch` ベースの {@link GitHubReviewClient} 実装。
@@ -150,8 +152,9 @@ export function createFetchGitHubReviewClient(
 
     async listReviews(owner, repo, prNumber) {
       const raw = await request<RawReview[]>(
-        `/repos/${enc(owner)}/${enc(repo)}/pulls/${prNumber}/reviews?per_page=100`,
+        `/repos/${enc(owner)}/${enc(repo)}/pulls/${prNumber}/reviews?per_page=${PER_PAGE}`,
       );
+      warnIfTruncated(opts.logger, raw.length, `reviews of ${owner}/${repo}#${prNumber}`);
       return raw.map((r) => ({
         id: Number(r.id),
         author: String(r.user?.login ?? ''),
@@ -163,8 +166,9 @@ export function createFetchGitHubReviewClient(
 
     async listReviewComments(owner, repo, prNumber) {
       const raw = await request<RawReviewComment[]>(
-        `/repos/${enc(owner)}/${enc(repo)}/pulls/${prNumber}/comments?per_page=100`,
+        `/repos/${enc(owner)}/${enc(repo)}/pulls/${prNumber}/comments?per_page=${PER_PAGE}`,
       );
+      warnIfTruncated(opts.logger, raw.length, `review comments of ${owner}/${repo}#${prNumber}`);
       return raw.map((c) => ({
         reviewId: c.pull_request_review_id == null ? null : Number(c.pull_request_review_id),
         path: String(c.path ?? ''),
@@ -196,6 +200,19 @@ interface RawReviewComment {
 
 function enc(segment: string): string {
   return encodeURIComponent(segment);
+}
+
+/** 取得件数が per_page 上限に達した = ページネーション未取得分がある可能性を warn する。 */
+function warnIfTruncated(
+  logger: FetchGitHubReviewClientOptions['logger'],
+  count: number,
+  what: string,
+): void {
+  if (count >= PER_PAGE) {
+    logger?.warn?.(
+      `[GitHubReviewClient] ${what}: fetched ${count} (per_page=${PER_PAGE}); 追加ページは未取得です`,
+    );
+  }
 }
 
 /** rate limit レスポンスから待機 ms を導出する。Retry-After (秒) 優先、無ければ X-RateLimit-Reset。 */

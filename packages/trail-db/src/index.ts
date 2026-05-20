@@ -32,6 +32,8 @@ export type {
   CorrelationSessionCommit,
   CorrelationCommitFile,
   CrossSourceCorrelationRow,
+  CrossSourceAKind,
+  CrossSourceBKind,
 } from './TrailDatabase';
 export { SyncService } from './SyncService';
 export { SupabaseTrailStore } from './SupabaseTrailStore';
