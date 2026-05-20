@@ -67,28 +67,37 @@ export class LepOrchestrator {
     this.bus.beginRun(ctx, errors);
 
     try {
-      for (const [tier, wave] of WAVES) {
-        if (!tiersToRun.has(tier)) continue; // stage 範囲外の Wave は完全 skip
-
-        // Wave 開始イベント (Layer 3 memory analyzer の発火契機)。stage=memory の
-        // 単独実行でも wave_start:memory は emit されるため Layer 3 が走る。
-        // 注意: ここで drain するため、wave_start を購読する analyzer の onEvent は
-        // この Wave の onRunStart / onRunEnd ループ**より前**に完走する。現状の memory
-        // analyzer は全て event 駆動 (onRunStart/onRunEnd を持たない) ためこの順序で正しい。
-        await this.bus.publish({ kind: 'wave_start', wave });
-        await this.bus.drain();
-
-        const tierAnalyzers = this.analyzers.filter((a) => a.tier === tier);
-        for (const a of tierAnalyzers) {
-          if (!a.onRunStart) continue;
+      // Pass 1: 初期化 — 実行対象の全 tier の analyzer の `onRunStart` を Wave ループ
+      // **より前**に一括実行する。これにより tier-1 ingester が Wave で event を emit する前に
+      // tier-2 以降の consumer (SessionImporter 等、onRunStart で内部状態を初期化する) の
+      // 初期化が完了する。`onRunStart` (初期化) と `onRunEnd` (Wave 実行 = ingester の emit /
+      // consumer の commit) を分離することで、tier またぎの event 配信で consumer が
+      // 未初期化のまま onEvent を受けて取りこぼす事故を防ぐ。
+      for (const [tier] of WAVES) {
+        if (!tiersToRun.has(tier)) continue;
+        for (const a of this.analyzers) {
+          if (a.tier !== tier || !a.onRunStart) continue;
           try {
             await a.onRunStart(ctx);
           } catch (err) {
             errors.set(a.id, toError(err));
           }
         }
-        for (const a of tierAnalyzers) {
-          if (!a.onRunEnd) continue;
+      }
+
+      // Pass 2: Wave 実行ループ。各 Wave で `wave_start` → 当該 tier の `onRunEnd` → `wave_complete`。
+      // ingester は `onRunEnd` で source event を emit し、その消費 (tier-2 以降の onEvent) は
+      // Pass 1 で初期化済みのため正しく処理される。
+      for (const [tier, wave] of WAVES) {
+        if (!tiersToRun.has(tier)) continue; // stage 範囲外の Wave は完全 skip
+
+        // Wave 開始イベント (Layer 3 memory analyzer の発火契機)。stage=memory の
+        // 単独実行でも wave_start:memory は emit されるため Layer 3 が走る。
+        await this.bus.publish({ kind: 'wave_start', wave });
+        await this.bus.drain();
+
+        for (const a of this.analyzers) {
+          if (a.tier !== tier || !a.onRunEnd) continue;
           try {
             await a.onRunEnd(ctx);
           } catch (err) {
@@ -127,6 +136,14 @@ const STAGE_TIERS: Record<LepStage, ReadonlySet<Tier>> = {
   'primary+memory': new Set([1, 2, 3]),
   all: new Set([1, 2, 3, 4]),
 };
+
+/**
+ * stage が Layer 3 (memory / Wave 3 / tier 3) を実行するか。
+ * memory analyzer は ollama を使うため、false の stage では memory scope は走らない。
+ */
+export function stageIncludesMemory(stage: LepStage): boolean {
+  return STAGE_TIERS[stage].has(3);
+}
 
 function toError(err: unknown): Error {
   return err instanceof Error ? err : new Error(String(err));

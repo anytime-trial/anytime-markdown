@@ -16,6 +16,27 @@ function isInsideContainer(): boolean {
   }
 }
 
+/** 明示指定が無いときの既定 baseUrl (ホスト上 ollama)。 */
+export const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434';
+/** Dev Container 内で WSL/ホスト上の ollama に到達するための baseUrl。 */
+const CONTAINER_OLLAMA_BASE_URL = 'http://host.docker.internal:11434';
+
+/**
+ * Ollama baseUrl を単一の優先順位で解決する。health-check と実取込で同一値を使い、
+ * split-brain (health は config / 実取込は env) を防ぐための共通解決口。
+ *
+ * 優先順位 (高→低):
+ * 1. `OLLAMA_BASE_URL` 環境変数 (エスケープハッチ)
+ * 2. `configBaseUrl` (lep.json の値)。ただし plain default (`DEFAULT_OLLAMA_BASE_URL`) は
+ *    「未指定」扱いとし 3 にフォールバック (Dev Container 自動検出を温存するため)
+ * 3. Dev Container 検出時 `host.docker.internal`、それ以外 `localhost`
+ */
+export function resolveOllamaBaseUrl(configBaseUrl?: string): string {
+  if (process.env.OLLAMA_BASE_URL) return process.env.OLLAMA_BASE_URL;
+  if (configBaseUrl && configBaseUrl !== DEFAULT_OLLAMA_BASE_URL) return configBaseUrl;
+  return isInsideContainer() ? CONTAINER_OLLAMA_BASE_URL : DEFAULT_OLLAMA_BASE_URL;
+}
+
 /** Qwen3 等の thinking モデルが出力する <think>...</think> ブロックを除去して本文だけ返す。 */
 function stripThinkingBlocks(text: string): string {
   return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
@@ -58,13 +79,9 @@ export interface OllamaClient {
 }
 
 export function createOllamaClient(options: OllamaClientOptions = {}): OllamaClient {
-  // Dev Container 内では localhost がコンテナ自身を指すため、明示指定がなければ
-  // host.docker.internal にフォールバック (WSL ホスト上の ollama に到達するため)。
-  const defaultUrl =
-    isInsideContainer() && !process.env.OLLAMA_BASE_URL
-      ? 'http://host.docker.internal:11434'
-      : 'http://localhost:11434';
-  const resolvedUrl = options.baseUrl ?? process.env.OLLAMA_BASE_URL ?? defaultUrl;
+  // 明示 baseUrl が無ければ env / Dev Container 検出を含む共通解決を使う
+  // (resolveOllamaBaseUrl と同一ロジックなので health-check と整合する)。
+  const resolvedUrl = options.baseUrl ?? resolveOllamaBaseUrl();
 
   const parsed = new URL(resolvedUrl);
   // URL.hostname strips brackets from IPv6 addresses (e.g. '[::1]' → '::1')

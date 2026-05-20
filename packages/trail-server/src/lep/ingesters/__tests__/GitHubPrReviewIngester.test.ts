@@ -77,7 +77,7 @@ describe('GitHubPrReviewIngester', () => {
   it('skips entirely when no client (no token)', async () => {
     const ing = new GitHubPrReviewIngester({ client: null, gitRoots: ['/repo'] });
     const { ctx, events, logs } = makeCtx();
-    await ing.onRunStart(ctx);
+    await ing.onRunEnd(ctx);
     expect(events).toEqual([]);
     expect(logs.join('\n')).toContain('no GitHub token configured');
   });
@@ -89,7 +89,7 @@ describe('GitHubPrReviewIngester', () => {
       gitRemoteReader: remoteReader({ '/repo': 'git@gitlab.com:acme/widget.git' }),
     });
     const { ctx, events } = makeCtx();
-    await ing.onRunStart(ctx);
+    await ing.onRunEnd(ctx);
     expect(events).toEqual([]);
   });
 
@@ -119,7 +119,7 @@ describe('GitHubPrReviewIngester', () => {
       gitRemoteReader: remoteReader({ '/repo': 'https://github.com/acme/widget.git' }),
     });
     const { ctx, events } = makeCtx();
-    await ing.onRunStart(ctx);
+    await ing.onRunEnd(ctx);
 
     expect(events).toHaveLength(2);
     const approved = events.find((e) => e.kind === 'github_pr_review' && e.reviewId === '100');
@@ -163,7 +163,7 @@ describe('GitHubPrReviewIngester', () => {
       gitRemoteReader: remoteReader({ '/repo': 'https://github.com/acme/widget' }),
     });
     const { ctx, events } = makeCtx();
-    await ing.onRunStart(ctx);
+    await ing.onRunEnd(ctx);
     expect(events.map((e) => e.kind === 'github_pr_review' && e.reviewId)).toEqual(['101']);
   });
 
@@ -182,7 +182,7 @@ describe('GitHubPrReviewIngester', () => {
       }),
     });
     const { ctx } = makeCtx();
-    await ing.onRunStart(ctx);
+    await ing.onRunEnd(ctx);
     expect(calls).toEqual(['pulls:acme/widget']); // 1 回だけ
   });
 
@@ -210,7 +210,7 @@ describe('GitHubPrReviewIngester', () => {
       }),
     });
     const { ctx, events, logs } = makeCtx();
-    await ing.onRunStart(ctx);
+    await ing.onRunEnd(ctx);
 
     expect(events).toHaveLength(1);
     expect(logs.join('\n')).toContain('acme/bad failed: boom');

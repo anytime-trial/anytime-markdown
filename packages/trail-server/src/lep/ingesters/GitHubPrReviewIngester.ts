@@ -64,7 +64,8 @@ export class GitHubPrReviewIngester implements Analyzer {
     this.remoteReader = opts.gitRemoteReader ?? defaultGitRemoteReader;
   }
 
-  async onRunStart(ctx: AnalyzerContext): Promise<void> {
+  // Ingester は Wave 実行フェーズ (onRunEnd) で source event を emit する (消費側は orchestrator Pass 1 で初期化済み)。
+  async onRunEnd(ctx: AnalyzerContext): Promise<void> {
     if (!this.opts.client) {
       ctx.logger.info('[GitHubPrReviewIngester] no GitHub token configured, skipping (opt-in source)');
       return;

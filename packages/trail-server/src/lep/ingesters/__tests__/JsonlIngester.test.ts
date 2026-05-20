@@ -55,7 +55,7 @@ describe('JsonlIngester', () => {
       codexSessionsDir: path.join(claudeDir, 'no-codex'),
     });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
 
     expect(events).toHaveLength(1);
     const e = events[0];
@@ -83,7 +83,7 @@ describe('JsonlIngester', () => {
       codexSessionsDir: path.join(claudeDir, 'no-codex'),
     });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
     expect(events).toEqual([]);
   });
 
@@ -106,7 +106,7 @@ describe('JsonlIngester', () => {
       repoName: 'anytime-markdown',
     });
     const matched = makeBus();
-    await ingesterMatched.onRunStart(makeCtx(matched.bus));
+    await ingesterMatched.onRunEnd(makeCtx(matched.bus));
     expect(matched.events).toHaveLength(1);
     if (matched.events[0].kind === 'jsonl_session_discovered') {
       expect(matched.events[0].source).toBe('codex');
@@ -119,7 +119,7 @@ describe('JsonlIngester', () => {
       gitRoot: '/work/other-repo',
     });
     const mismatched = makeBus();
-    await ingesterMismatched.onRunStart(makeCtx(mismatched.bus));
+    await ingesterMismatched.onRunEnd(makeCtx(mismatched.bus));
     expect(mismatched.events).toEqual([]);
   });
 
@@ -134,7 +134,7 @@ describe('JsonlIngester', () => {
       codexSessionsDir: codexDir,
     });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
     expect(events).toHaveLength(1);
   });
 
@@ -153,7 +153,7 @@ describe('JsonlIngester', () => {
         f === mainFile ? { fileSize: 999, hasMessages: true, hasUsableCostData: true } : undefined,
     });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
     if (events[0]?.kind === 'jsonl_session_discovered') {
       expect(events[0].hasMessages).toBe(true);
       expect(events[0].hasUsableCostData).toBe(true);
@@ -166,7 +166,7 @@ describe('JsonlIngester', () => {
       codexSessionsDir: '/nonexistent/codex',
     });
     const { bus, events } = makeBus();
-    await ingester.onRunStart(makeCtx(bus));
+    await ingester.onRunEnd(makeCtx(bus));
     expect(events).toEqual([]);
   });
 

@@ -11,7 +11,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-import { createOllamaClient } from '@anytime-markdown/agent-core';
+import { createOllamaClient, resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 import { openMemoryCoreDb } from '../db/connection';
@@ -22,20 +22,10 @@ import { runAgentRunWatchdog } from '../ingest/review/agentRunWatchdog';
 import { runPipelineWatchdog } from '../pipeline/pipelineWatchdog';
 import { PipelineStatusWriter } from '../status/PipelineStatusWriter';
 import { MemoryDbSession } from './MemoryDbSession';
+import { PIPELINE_SCOPES } from './pipelineScopes';
 import type { PipelineRunnerContext } from './types';
 
-/** `pipeline-status.json` に書き出す 9 scope。analyzer→scope は 1:N (conversation→2 等)。 */
-export const PIPELINE_SCOPES = [
-  'conversation_incremental',
-  'conversation_failed_items_retry',
-  'code_incremental',
-  'code_reconciliation',
-  'bug_history_incremental',
-  'review_incremental',
-  'spec_incremental',
-  'drift_detection',
-  'embedding_backfill',
-] as const;
+export { PIPELINE_SCOPES };
 
 export interface OpenMemoryDbSessionOptions {
   /** Ollama クライアント生成口 (テストで mock 注入)。省略時 `createOllamaClient()`。 */
@@ -98,7 +88,11 @@ export async function openMemoryDbSession(
     throw err;
   }
 
-  const ollama = (opts.ollamaFactory ?? createOllamaClient)();
+  // ingest の ollama 接続先を health-check と同一に解決する (split-brain 防止)。
+  // env OLLAMA_BASE_URL > lep.json baseUrl > Dev Container 自動検出 / localhost。
+  const ollama = opts.ollamaFactory
+    ? opts.ollamaFactory()
+    : createOllamaClient({ baseUrl: resolveOllamaBaseUrl(ctx.llm?.baseUrl) });
 
   let statusWriter: PipelineStatusWriter | undefined;
   if (opts.writeStatus !== false) {
@@ -114,5 +108,7 @@ export async function openMemoryDbSession(
     statusWriter,
     gitRoot: ctx.gitRoot ?? process.cwd(),
     backfillDays: ctx.backfillDays,
+    chatModel: ctx.llm?.chatModel,
+    embedModel: ctx.llm?.embedModel,
   });
 }

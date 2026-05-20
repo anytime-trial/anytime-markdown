@@ -1,7 +1,8 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { PipelineStatusFile } from '@anytime-markdown/memory-core';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { AnalyzeAllRunner } from '../AnalyzeAllRunner';
@@ -259,6 +260,66 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     });
     await runner.runOnce('manual');
     expect(fake.calls).toEqual([]); // Wave 3 が走らない
+  });
+
+  it('stage=primary writes pipeline-status.json with all memory scopes skipped', async () => {
+    const fake = makeFakeScopeSession();
+    const statusPath = join(dir, 'pipeline-status.json');
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      stage: 'primary',
+      pipelineStatusFilePath: statusPath,
+    });
+
+    await runner.runOnce('manual');
+
+    expect(existsSync(statusPath)).toBe(true);
+    const file = JSON.parse(readFileSync(statusPath, 'utf-8')) as PipelineStatusFile;
+    expect(file.pipelines.length).toBeGreaterThan(0);
+    expect(file.pipelines.every((p) => p.state === 'skipped')).toBe(true);
+    expect(file.pipelines.map((p) => p.scope)).toContain('conversation_incremental');
+    expect(file.pipelines.map((p) => p.scope)).toContain('embedding_backfill');
+  });
+
+  it('stage=primary+memory does NOT write skipped status (Wave 3 writer owns it)', async () => {
+    const fake = makeFakeScopeSession();
+    const statusPath = join(dir, 'pipeline-status.json');
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      stage: 'primary+memory',
+      pipelineStatusFilePath: statusPath,
+    });
+
+    await runner.runOnce('manual');
+
+    // memory wave を含む stage では runner は skipped を書かない (Wave 3 側 writer に委ねる)。
+    // fake session は status を書かないため、ファイルは作られない。
+    expect(existsSync(statusPath)).toBe(false);
+    expect(fake.calls.length).toBe(7); // memory は走る
+  });
+
+  it('stage=disabled also marks memory scopes skipped when status path given', async () => {
+    const fake = makeFakeScopeSession();
+    const statusPath = join(dir, 'pipeline-status.json');
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      stage: 'disabled',
+      pipelineStatusFilePath: statusPath,
+    });
+
+    await runner.runOnce('manual');
+
+    const file = JSON.parse(readFileSync(statusPath, 'utf-8')) as PipelineStatusFile;
+    expect(file.pipelines.every((p) => p.state === 'skipped')).toBe(true);
   });
 
   it('stage=memory runs only Wave 3 (memory runs, no import save)', async () => {

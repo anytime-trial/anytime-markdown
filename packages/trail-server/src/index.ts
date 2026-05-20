@@ -57,9 +57,6 @@ export type {
 } from './services/LogService';
 export { LogSink, combineLoggers } from './services/LogSink';
 
-export { loadConfig } from './runtime/Config';
-export type { TrailServerConfig, AnalyzeAllConfig } from './runtime/Config';
-
 export {
   DEFAULT_LEP_CONFIG,
   LEP_CONFIG_VERSION,
@@ -74,8 +71,11 @@ export {
   lepConfigSearchPaths,
   mergeLepConfig,
   migrateLegacyToLepConfig,
+  legacyFromConfigJson,
+  migrateConfigJsonIntoLepJson,
   validateLepConfigInput,
   workspaceLepConfigPath,
+  workspaceConfigJsonPath,
   resolveGitHubSource,
 } from './runtime/LepConfig';
 export type {
@@ -87,11 +87,17 @@ export type {
   LepLogLevel,
   LepOllamaProviderConfig,
   LepScheduleConfig,
+  LepRagConfig,
+  LepFtsConfig,
+  LepConversationConfig,
+  LepMemoryConfig,
   LepGitHubSourceConfig,
   LepSourcesConfig,
   ResolvedGitHubSource,
   LegacyLepConfigInput,
   LoadLepConfigOptions,
+  MigrateConfigJsonOptions,
+  MigrateConfigJsonResult,
   MemoryAnalyzerId,
   AggregatorAnalyzerId,
   PartialLepConfig,
