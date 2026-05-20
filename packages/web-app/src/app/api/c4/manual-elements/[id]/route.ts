@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-import { resolveSupabaseEnv } from '../../../../../lib/supabase-env';
+import { resolveSupabaseServiceEnv } from '../../../../../lib/supabase-env';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,9 +23,9 @@ export async function PATCH(
   if (body.description !== undefined) updates.description = body.description;
   if (body.external !== undefined) updates.external = body.external;
 
-  const env = resolveSupabaseEnv();
+  const env = resolveSupabaseServiceEnv();
   if (!env) return new NextResponse('Supabase not configured', { status: 503 });
-  const supabase = createClient(env.url, env.anonKey);
+  const supabase = createClient(env.url, env.serviceRoleKey);
 
   const { data, error } = await supabase
     .from('trail_c4_manual_elements')
@@ -56,9 +56,9 @@ export async function DELETE(
   const repoName = request.nextUrl.searchParams.get('repoName');
   if (!repoName) return new NextResponse('repoName required', { status: 400 });
 
-  const env = resolveSupabaseEnv();
+  const env = resolveSupabaseServiceEnv();
   if (!env) return new NextResponse('Supabase not configured', { status: 503 });
-  const supabase = createClient(env.url, env.anonKey);
+  const supabase = createClient(env.url, env.serviceRoleKey);
 
   await supabase
     .from('trail_c4_manual_relationships')

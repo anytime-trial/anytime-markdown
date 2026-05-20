@@ -153,6 +153,27 @@
           "type": "string",
           "default": "",
           "markdownDescription": "%config.s3.secretAccessKey.description%"
+        },
+        "anytimeTrail.remote.provider": {
+          "type": "string",
+          "enum": ["none", "supabase", "postgres"],
+          "default": "none",
+          "markdownDescription": "Remote sync provider for the trail database. `supabase` syncs the local `trail.db` to a Supabase project."
+        },
+        "anytimeTrail.remote.supabaseUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Supabase project URL used when `#anytimeTrail.remote.provider#` is `supabase`."
+        },
+        "anytimeTrail.remote.supabaseServiceRoleKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Supabase **service_role** key used for sync writes (upsert/delete). This key bypasses Row-Level Security, so keep it secret: store it only in local/machine settings and never expose it in a browser bundle. RLS restricts the public anon key to read-only, so writes require this key."
+        },
+        "anytimeTrail.remote.supabaseAnonKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Deprecated. Previously used for sync writes; writes now require `#anytimeTrail.remote.supabaseServiceRoleKey#`. Retained for backward compatibility only."
         }
       }
     }

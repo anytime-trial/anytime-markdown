@@ -76,9 +76,15 @@ export function activate(context: vscode.ExtensionContext): void {
   let supabaseStore: SupabaseTrailStore | undefined;
   if (remoteProvider === "supabase") {
     const url = remoteConfig.get<string>("supabaseUrl", "");
-    const key = remoteConfig.get<string>("supabaseAnonKey", "");
-    if (url && key) {
-      supabaseStore = new SupabaseTrailStore(url, key, DbLogger);
+    // 書き込み (upsert/delete) には service_role キーを使う。RLS により anon キーは読み取り専用のため。
+    const serviceRoleKey = remoteConfig.get<string>("supabaseServiceRoleKey", "");
+    if (url && serviceRoleKey) {
+      supabaseStore = new SupabaseTrailStore(url, serviceRoleKey, DbLogger);
+    } else if (url) {
+      DbLogger.warn(
+        "Supabase remote enabled but anytimeTrail.remote.supabaseServiceRoleKey is not set. " +
+          "Sync writes require the service_role key (the anon key is read-only under RLS).",
+      );
     }
   }
 
@@ -182,12 +188,14 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("anytime-database.reconnectSupabase", async () => {
       const cfg = vscode.workspace.getConfiguration("anytimeTrail.remote");
       const url = cfg.get<string>("supabaseUrl", "");
-      const key = cfg.get<string>("supabaseAnonKey", "");
-      if (!url || !key) {
-        vscode.window.showWarningMessage("Supabase URL and anon key are required.");
+      const serviceRoleKey = cfg.get<string>("supabaseServiceRoleKey", "");
+      if (!url || !serviceRoleKey) {
+        vscode.window.showWarningMessage(
+          "Supabase URL and service_role key are required (the anon key is read-only under RLS).",
+        );
         return;
       }
-      supabaseStore = new SupabaseTrailStore(url, key, DbLogger);
+      supabaseStore = new SupabaseTrailStore(url, serviceRoleKey, DbLogger);
       databaseProvider.updateRemoteStatus("Reconnected");
       vscode.window.showInformationMessage("Supabase reconnected.");
     }),
