@@ -207,6 +207,48 @@ describe('updateElementDirect', () => {
     const row = get<{ name: string }>(db, 'SELECT name FROM c4_manual_elements WHERE element_id=?', [id]);
     expect(row!.name).toBe('Same');
   });
+
+  test('description を更新できる', () => {
+    const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'E', external: false, parentId: null, description: 'old desc' });
+    updateElementDirect(db, REPO, id, { description: 'new desc' });
+    const row = get<{ description: string }>(db, 'SELECT description FROM c4_manual_elements WHERE element_id=?', [id]);
+    expect(row!.description).toBe('new desc');
+  });
+
+  test('external を true → false に更新できる', () => {
+    const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'E', external: true, parentId: null });
+    updateElementDirect(db, REPO, id, { external: false });
+    const row = get<{ external: number }>(db, 'SELECT external FROM c4_manual_elements WHERE element_id=?', [id]);
+    expect(row!.external).toBe(0);
+  });
+
+  test('external を false → true に更新できる', () => {
+    const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'E', external: false, parentId: null });
+    updateElementDirect(db, REPO, id, { external: true });
+    const row = get<{ external: number }>(db, 'SELECT external FROM c4_manual_elements WHERE element_id=?', [id]);
+    expect(row!.external).toBe(1);
+  });
+
+  test('serviceType を更新できる', () => {
+    const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'E', external: false, parentId: null, serviceType: 'web' });
+    updateElementDirect(db, REPO, id, { serviceType: 'grpc' });
+    const row = get<{ service_type: string }>(db, 'SELECT service_type FROM c4_manual_elements WHERE element_id=?', [id]);
+    expect(row!.service_type).toBe('grpc');
+  });
+
+  test('複数フィールドを同時に更新できる', () => {
+    const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'E', external: false, parentId: null, description: 'old', serviceType: 'http' });
+    updateElementDirect(db, REPO, id, { name: 'Updated', description: 'new desc', external: true, serviceType: 'grpc' });
+    const row = get<{ name: string; description: string; external: number; service_type: string }>(
+      db,
+      'SELECT name, description, external, service_type FROM c4_manual_elements WHERE element_id=?',
+      [id],
+    );
+    expect(row!.name).toBe('Updated');
+    expect(row!.description).toBe('new desc');
+    expect(row!.external).toBe(1);
+    expect(row!.service_type).toBe('grpc');
+  });
 });
 
 describe('removeElementDirect', () => {
@@ -263,6 +305,14 @@ describe('updateGroupDirect', () => {
     updateGroupDirect(db, REPO, id, { label: null });
     const row = get<{ label: string | null }>(db, 'SELECT label FROM c4_manual_groups WHERE group_id=?', [id]);
     expect(row!.label).toBeNull();
+  });
+
+  test('body が空オブジェクト（label キーなし・memberIds なし）は no-op', () => {
+    const { id } = addGroupDirect(db, REPO, { memberIds: ['e1'], label: 'OriginalLabel' });
+    updateGroupDirect(db, REPO, id, {});
+    const row = get<{ member_ids: string; label: string }>(db, 'SELECT member_ids, label FROM c4_manual_groups WHERE group_id=?', [id]);
+    expect(JSON.parse(row!.member_ids)).toEqual(['e1']);
+    expect(row!.label).toBe('OriginalLabel');
   });
 });
 

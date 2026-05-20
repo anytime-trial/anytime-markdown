@@ -52,4 +52,31 @@ describe('findShortestPath', () => {
     const result = findShortestPath(edges, 'A', 'C');
     expect(result).toEqual({ nodeIds: ['A', 'C'], edgeIds: ['e3'] });
   });
+
+  it('should return null when path is unreachable despite nodes existing in adj', () => {
+    // A-B are connected, C-D are connected, but A/B and C/D are in different components
+    const edges = [makeEdge('e1', 'A', 'B'), makeEdge('e2', 'C', 'D')];
+    // A exists in adj, D exists in adj, but no path A→D
+    expect(findShortestPath(edges, 'A', 'D')).toBeNull();
+  });
+
+  it('should handle weight=0 edges (treated as cost=1)', () => {
+    // weight=0 falls back to cost=1
+    const edges = [{ ...makeEdge('e1', 'A', 'B'), weight: 0 }];
+    const result = findShortestPath(edges, 'A', 'B');
+    expect(result).toEqual({ nodeIds: ['A', 'B'], edgeIds: ['e1'] });
+  });
+
+  it('should skip edges without nodeId in adjacency build', () => {
+    // Edge without nodeId should not contribute to adjacency list
+    const edgeWithoutNode: GraphEdge = {
+      id: 'nonode', type: 'line',
+      from: { x: 0, y: 0 },
+      to: { x: 100, y: 0 },
+      style: { stroke: '#000', strokeWidth: 1 },
+    };
+    const normalEdge = makeEdge('e1', 'A', 'B');
+    const result = findShortestPath([edgeWithoutNode, normalEdge], 'A', 'B');
+    expect(result).toEqual({ nodeIds: ['A', 'B'], edgeIds: ['e1'] });
+  });
 });

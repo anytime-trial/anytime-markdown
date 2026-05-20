@@ -163,6 +163,14 @@ describe('client.ts', () => {
       expect(fetchMock.mock.calls[0][1].method).toBe('POST');
     });
 
+    test('analyzeCurrentCode without body uses default empty object', async () => {
+      const fetchMock = mockFetch([{ ok: true, status: 200, body: { status: 'started' } }]);
+      await analyzeCurrentCode(URL);
+      expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+      // デフォルト body = {} が送られる
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({});
+    });
+
     test('analyzeReleaseCode POST without body', async () => {
       const fetchMock = mockFetch([{ ok: true, status: 200, body: { status: 'started' } }]);
       await analyzeReleaseCode(URL);
@@ -223,6 +231,13 @@ describe('client.ts', () => {
       expect(res.status).toBe('started');
     });
 
+    test('analyzeCurrentCodeWithProgress without body uses default empty object', async () => {
+      (globalThis as { WebSocket?: unknown }).WebSocket = undefined;
+      mockFetch([{ ok: true, status: 200, body: { status: 'started' } }]);
+      const res = await analyzeCurrentCodeWithProgress(URL);
+      expect(res.progressLog).toEqual([]);
+    });
+
     test('collects progress events from WebSocket and closes socket on finally', async () => {
       (globalThis as { WebSocket?: unknown }).WebSocket = StubWebSocket as unknown as typeof WebSocket;
       mockFetch([{ ok: true, status: 200, body: { status: 'started' } }]);
@@ -235,6 +250,8 @@ describe('client.ts', () => {
       ws?.emit('message', { data: JSON.stringify({ type: 'analysis-progress', phase: 'parse', percent: 30 }) });
       ws?.emit('message', { data: 'INVALID' }); // 不正 JSON は無視
       ws?.emit('message', { data: JSON.stringify({ type: 'analysis-progress', phase: 'done' }) }); // percent 欠落 → -1
+      // event.data が string 以外の場合は String() で変換される（行 236 の else 分岐）
+      ws?.emit('message', { data: 42 }); // 数値 → String(42) → JSON.parse エラー → 無視
 
       const res = await promise;
       expect(res.progressLog).toEqual([
@@ -252,6 +269,145 @@ describe('client.ts', () => {
       mockFetch([{ ok: true, status: 200, body: { status: 'started' } }]);
       const res = await analyzeCurrentCodeWithProgress(URL, {});
       expect(res.progressLog).toEqual([]);
+    });
+
+    test('WebSocket error イベント時は ws を undefined にして analyze を続行する', async () => {
+      class ErrorOnOpenWS {
+        static last: ErrorOnOpenWS | null = null;
+        listeners = new Map<string, Array<(ev?: unknown) => void>>();
+        closed = false;
+        constructor(public url: string) {
+          ErrorOnOpenWS.last = this;
+          // error を次の tick で発火
+          setImmediate(() => {
+            for (const l of this.listeners.get('error') ?? []) l();
+          });
+        }
+        addEventListener(type: string, fn: (ev?: unknown) => void): void {
+          const list = this.listeners.get(type) ?? [];
+          list.push(fn);
+          this.listeners.set(type, list);
+        }
+        removeEventListener(type: string, fn: (ev?: unknown) => void): void {
+          const list = this.listeners.get(type) ?? [];
+          this.listeners.set(type, list.filter((x) => x !== fn));
+        }
+        close(): void { this.closed = true; }
+      }
+
+      (globalThis as { WebSocket?: unknown }).WebSocket = ErrorOnOpenWS as unknown as typeof WebSocket;
+      mockFetch([{ ok: true, status: 200, body: { status: 'started' } }]);
+
+      const res = await analyzeCurrentCodeWithProgress(URL, {});
+      // error 後は ws が undefined になって以降の処理が続行される
+      expect(res.progressLog).toEqual([]);
+      expect(res.status).toBe('started');
+    });
+
+    test('analyzeCurrentCode が throw しても ws.close() が呼ばれる', async () => {
+      class CloseTrackingWS {
+        static last: CloseTrackingWS | null = null;
+        listeners = new Map<string, Array<() => void>>();
+        closed = false;
+        constructor() {
+          CloseTrackingWS.last = this;
+          setImmediate(() => {
+            for (const l of this.listeners.get('open') ?? []) l();
+          });
+        }
+        addEventListener(type: string, fn: () => void): void {
+          const list = this.listeners.get(type) ?? [];
+          list.push(fn);
+          this.listeners.set(type, list);
+        }
+        removeEventListener(type: string, fn: () => void): void {
+          const list = this.listeners.get(type) ?? [];
+          this.listeners.set(type, list.filter((x) => x !== fn));
+        }
+        close(): void { this.closed = true; }
+      }
+
+      (globalThis as { WebSocket?: unknown }).WebSocket = CloseTrackingWS as unknown as typeof WebSocket;
+      mockFetch([{ ok: false, status: 500, text: 'server error' }]);
+
+      await expect(analyzeCurrentCodeWithProgress(URL, {})).rejects.toThrow(/500/);
+      // finally で ws.close() が呼ばれること
+      expect(CloseTrackingWS.last?.closed).toBe(true);
+    });
+
+    test('ws.close() が例外を投げても analyze 結果は正常に返る（catch で無視される）', async () => {
+      class ThrowingCloseWS {
+        listeners = new Map<string, Array<() => void>>();
+        constructor() {
+          setImmediate(() => {
+            for (const l of this.listeners.get('open') ?? []) l();
+          });
+        }
+        addEventListener(type: string, fn: () => void): void {
+          const list = this.listeners.get(type) ?? [];
+          list.push(fn);
+          this.listeners.set(type, list);
+        }
+        removeEventListener(type: string, fn: () => void): void {
+          const list = this.listeners.get(type) ?? [];
+          this.listeners.set(type, list.filter((x) => x !== fn));
+        }
+        close(): void { throw new Error('ws close failed'); }
+      }
+
+      (globalThis as { WebSocket?: unknown }).WebSocket = ThrowingCloseWS as unknown as typeof WebSocket;
+      mockFetch([{ ok: true, status: 200, body: { status: 'started' } }]);
+
+      // ws.close() の例外は catch {} で無視されるため正常に返る
+      const res = await analyzeCurrentCodeWithProgress(URL, {});
+      expect(res.progressLog).toEqual([]);
+      expect(res.status).toBe('started');
+    });
+
+    test('非 analysis-progress type の message は progressLog に追加しない', async () => {
+      type Listener = (ev?: { data?: unknown }) => void;
+      class MixedMessageWS {
+        static last: MixedMessageWS | null = null;
+        listeners = new Map<string, Listener[]>();
+        closed = false;
+        constructor() {
+          MixedMessageWS.last = this;
+          setImmediate(() => {
+            for (const l of this.listeners.get('open') ?? []) l();
+          });
+        }
+        addEventListener(type: string, fn: Listener): void {
+          const list = this.listeners.get(type) ?? [];
+          list.push(fn);
+          this.listeners.set(type, list);
+        }
+        removeEventListener(type: string, fn: Listener): void {
+          const list = this.listeners.get(type) ?? [];
+          this.listeners.set(type, list.filter((x) => x !== fn));
+        }
+        close(): void { this.closed = true; }
+        emit(type: string, ev?: { data?: unknown }): void {
+          for (const l of this.listeners.get(type) ?? []) l(ev);
+        }
+      }
+
+      (globalThis as { WebSocket?: unknown }).WebSocket = MixedMessageWS as unknown as typeof WebSocket;
+      mockFetch([{ ok: true, status: 200, body: { status: 'started' } }]);
+
+      const promise = analyzeCurrentCodeWithProgress(URL, {});
+      await new Promise((r) => setImmediate(r));
+      const ws = MixedMessageWS.last;
+      // analysis-progress 以外の type は無視される
+      ws?.emit('message', { data: JSON.stringify({ type: 'heartbeat', phase: 'ignored' }) });
+      // analysis-progress は追加される
+      ws?.emit('message', { data: JSON.stringify({ type: 'analysis-progress', phase: 'build', percent: 50 }) });
+      // phase が string でない場合は無視される
+      ws?.emit('message', { data: JSON.stringify({ type: 'analysis-progress', phase: 42 }) });
+
+      const res = await promise;
+      expect(res.progressLog).toHaveLength(1);
+      expect(res.progressLog[0].phase).toBe('build');
+      expect(res.progressLog[0].percent).toBe(50);
     });
   });
 

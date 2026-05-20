@@ -216,4 +216,83 @@ describe('installBundledSkills', () => {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
+
+  it('ターゲットディレクトリが書き込み不可の場合は error ログ + skipped', () => {
+    const env = setupEnv();
+    try {
+      // skills ディレクトリを読み取り専用にして copyFileSync を失敗させる
+      const skillsDir = path.join(env.claudeDir, 'skills');
+      fs.chmodSync(skillsDir, 0o555);
+      try {
+        const errors: string[] = [];
+        const infos: string[] = [];
+        const result = installBundledSkills({
+          claudeDir: env.claudeDir,
+          extensionPath: env.extensionPath,
+          logger: {
+            info: (m) => infos.push(m),
+            warn: () => undefined,
+            error: (m) => errors.push(m),
+          },
+        });
+
+        expect(result.installed).toBe(false);
+        expect(result.skipped).toBe(true);
+        // error ログが出力されているか確認
+        expect(errors.some((m) => m.includes('failed to install'))).toBe(true);
+      } finally {
+        fs.chmodSync(skillsDir, 0o755);
+      }
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('logger を省略するとデフォルト NOOP_LOGGER が使われ例外なし', () => {
+    const env = setupEnv();
+    try {
+      // logger なしで呼んでもエラーにならないこと
+      expect(() => installBundledSkills({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+      })).not.toThrow();
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('旧 dir の削除成功時に info ログが出力される（NOOP_LOGGER 経由）', () => {
+    // logger を省略（NOOP_LOGGER が内部で使われる）した上で、
+    // 旧ディレクトリを削除するパスを通してNOOP_LOGGERのinfoが呼ばれることを確認する
+    const env = setupEnv({ existingOldDirs: ['build-code-graph'] });
+    try {
+      // logger なしで旧ディレクトリ削除を実施 → NOOP_LOGGER.info() が呼ばれる
+      const result = installBundledSkills({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        // logger を意図的に省略して NOOP_LOGGER の info パスを通す
+      });
+      expect(result.removedOld).toBe(true);
+      expect(result.installed).toBe(true);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('bundled SKILL.md なしで logger 省略のとき NOOP_LOGGER.warn が呼ばれる（例外なし）', () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'install-skills-'));
+    try {
+      const claudeDir = path.join(tmpRoot, '.claude');
+      fs.mkdirSync(claudeDir, { recursive: true });
+      const extensionPath = path.join(tmpRoot, 'ext-no-skill');
+      fs.mkdirSync(extensionPath, { recursive: true });
+
+      // logger なし → NOOP_LOGGER が使われ、warn が呼ばれるが例外にならない
+      const result = installBundledSkills({ claudeDir, extensionPath });
+      expect(result.skipped).toBe(true);
+      expect(result.installed).toBe(false);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
 });

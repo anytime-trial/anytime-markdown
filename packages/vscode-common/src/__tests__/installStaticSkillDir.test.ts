@@ -232,4 +232,128 @@ describe('installStaticSkillDir', () => {
       env.cleanup();
     }
   });
+
+  it('ターゲットへの書き込みが失敗した場合は error ログで続行する', () => {
+    const env = setupEnv();
+    try {
+      const targetDir = path.join(env.claudeDir, 'skills', SKILL_NAME);
+      fs.mkdirSync(targetDir, { recursive: true });
+      // ターゲットディレクトリを読み取り専用にして書き込みを失敗させる
+      fs.chmodSync(targetDir, 0o555);
+      try {
+        const errors: string[] = [];
+        const result = installStaticSkillDir({
+          claudeDir: env.claudeDir,
+          extensionPath: env.extensionPath,
+          skillName: SKILL_NAME,
+          logger: {
+            info: () => undefined,
+            warn: () => undefined,
+            error: (m) => errors.push(m),
+          },
+        });
+        // 書き込み失敗でも戻り値は返る（installed=0）
+        expect(result.installed).toBe(0);
+        expect(result.sourceMissing).toBe(false);
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.some((m) => m.includes('failed to install'))).toBe(true);
+      } finally {
+        fs.chmodSync(targetDir, 0o755);
+      }
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('readFileSync が ENOENT 以外のエラーをスローする場合は再スローする', () => {
+    const env = setupEnv();
+    try {
+      const targetDir = path.join(env.claudeDir, 'skills', SKILL_NAME);
+      fs.mkdirSync(targetDir, { recursive: true });
+      // SKILL.md をディレクトリにして EISDIR を発生させる
+      const targetSkillMd = path.join(targetDir, 'SKILL.md');
+      fs.mkdirSync(targetSkillMd, { recursive: true });
+      try {
+        expect(() => installStaticSkillDir({
+          claudeDir: env.claudeDir,
+          extensionPath: env.extensionPath,
+          skillName: SKILL_NAME,
+        })).toThrow();
+      } finally {
+        fs.rmdirSync(targetSkillMd);
+      }
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('oldSkillNames の削除成功時に info ログが出力される（NOOP_LOGGER 経由）', () => {
+    // logger を省略（NOOP_LOGGER が内部で使われる）した上で旧ディレクトリ削除パスを通す
+    const env = setupEnv();
+    try {
+      const oldDir = path.join(env.claudeDir, 'skills', 'anytime-old-skill');
+      fs.mkdirSync(oldDir, { recursive: true });
+      fs.writeFileSync(path.join(oldDir, 'SKILL.md'), '# old\n');
+
+      // logger なしで実行 → NOOP_LOGGER.info() が呼ばれるパスを通す
+      const result = installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+        oldSkillNames: ['anytime-old-skill'],
+      });
+      expect(result.removedOld).toEqual(['anytime-old-skill']);
+      expect(fs.existsSync(oldDir)).toBe(false);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('ターゲット書き込み失敗で logger 省略のとき NOOP_LOGGER.error が呼ばれる（例外なし）', () => {
+    const env = setupEnv();
+    try {
+      const targetDir = path.join(env.claudeDir, 'skills', SKILL_NAME);
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.chmodSync(targetDir, 0o555);
+      try {
+        // logger なし → NOOP_LOGGER が使われ、error が呼ばれるが例外にならない
+        const result = installStaticSkillDir({
+          claudeDir: env.claudeDir,
+          extensionPath: env.extensionPath,
+          skillName: SKILL_NAME,
+        });
+        expect(result.installed).toBe(0);
+        expect(result.sourceMissing).toBe(false);
+      } finally {
+        fs.chmodSync(targetDir, 0o755);
+      }
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('installed または preserved が正の場合は info ログが出力される', () => {
+    const env = setupEnv({
+      existingFiles: {
+        'SKILL.md': '# locally edited\n',
+      },
+    });
+    try {
+      const infos: string[] = [];
+      installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+        logger: {
+          info: (m) => infos.push(m),
+          warn: () => undefined,
+          error: () => undefined,
+        },
+      });
+      // preserved > 0 なので info ログが出るはず（installed=2, preserved=1）
+      expect(infos.some((m) => m.includes(SKILL_NAME))).toBe(true);
+    } finally {
+      env.cleanup();
+    }
+  });
 });
