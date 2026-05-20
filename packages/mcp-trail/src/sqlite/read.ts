@@ -196,14 +196,16 @@ export function listCommunitiesDirect(db: Database, repoName: string): { communi
       'SELECT community_id, label, name, summary, mappings_json, stable_key FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
       [repoName],
     );
-  } catch (_err) {
+  } catch (err) {
+    console.error('[mcp-trail] listCommunitiesDirect: stable_key column not found, falling back', err);
     try {
       rows = all<CommunityRowRaw>(
         db,
         'SELECT community_id, label, name, summary, mappings_json FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
         [repoName],
       );
-    } catch (_err2) {
+    } catch (err2) {
+      console.error('[mcp-trail] listCommunitiesDirect: mappings_json column not found, falling back', err2);
       rows = all<CommunityRowRaw>(
         db,
         'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
@@ -262,7 +264,7 @@ export function listCommunityNodesDirect(
     .sort(([a], [b]) => a - b)
     .map(([communityId, nodes]) => ({
       communityId,
-      nodes: nodes.sort((a, b) => a.id.localeCompare(b.id)),
+      nodes: nodes.toSorted((a, b) => a.id.localeCompare(b.id)),
     }));
 
   return { communities };

@@ -139,8 +139,8 @@ async function invokeDirectWrite(
           name: args.name as string,
           external: (args.external as boolean) ?? false,
           parentId: (args.parentId as string | null) ?? null,
-          ...(args.description !== undefined ? { description: args.description as string } : {}),
-          ...(args.serviceType !== undefined ? { serviceType: args.serviceType as string } : {}),
+          ...(args.description === undefined ? {} : { description: args.description as string }),
+          ...(args.serviceType === undefined ? {} : { serviceType: args.serviceType as string }),
         });
         break;
       case 'update_element':
@@ -148,7 +148,7 @@ async function invokeDirectWrite(
           opened.db,
           repoName,
           args.id as string,
-          args as Parameters<typeof writeDirect.updateElementDirect>[3],
+          args,
         );
         result = { id: args.id };
         break;
@@ -159,7 +159,7 @@ async function invokeDirectWrite(
       case 'add_group':
         result = writeDirect.addGroupDirect(opened.db, repoName, {
           memberIds: args.memberIds as string[],
-          ...(args.label !== undefined ? { label: args.label as string } : {}),
+          ...(args.label === undefined ? {} : { label: args.label as string }),
         });
         break;
       case 'update_group':
@@ -167,7 +167,7 @@ async function invokeDirectWrite(
           opened.db,
           repoName,
           args.id as string,
-          args as Parameters<typeof writeDirect.updateGroupDirect>[3],
+          args,
         );
         result = { id: args.id };
         break;
@@ -179,8 +179,8 @@ async function invokeDirectWrite(
         result = writeDirect.addRelationshipDirect(opened.db, repoName, {
           fromId: args.fromId as string,
           toId: args.toId as string,
-          ...(args.label !== undefined ? { label: args.label as string } : {}),
-          ...(args.technology !== undefined ? { technology: args.technology as string } : {}),
+          ...(args.label === undefined ? {} : { label: args.label as string }),
+          ...(args.technology === undefined ? {} : { technology: args.technology as string }),
         });
         break;
       case 'remove_relationship':
@@ -279,7 +279,7 @@ async function invokeHttp(
     case 'analyze_current_code':
       return httpClient.analyzeCurrentCode(
         serverUrl,
-        args as Parameters<typeof httpClient.analyzeCurrentCode>[1],
+        args,
       );
     case 'analyze_release_code':
       return httpClient.analyzeReleaseCode(serverUrl);
