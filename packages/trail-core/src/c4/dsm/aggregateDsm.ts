@@ -55,6 +55,79 @@ export function aggregateDsmToPackageLevel(matrix: DsmMatrix): DsmMatrix {
   return { nodes, edges: [], adjacency };
 }
 
+/** C4 要素階層を辿り targetTypes のいずれかに該当する祖先 ID を返す */
+function findC4Ancestor(
+  startId: string,
+  elementById: Map<string, C4Element>,
+  targetTypes: ReadonlySet<C4ElementType>,
+): string | null {
+  let current = elementById.get(startId);
+  while (current) {
+    if (targetTypes.has(current.type)) return current.id;
+    if (!current.boundaryId) return null;
+    current = elementById.get(current.boundaryId);
+  }
+  return null;
+}
+
+interface GroupMaps {
+  nodeToGroup: Map<string, string>;
+  sortedGroups: string[];
+  groupNameById: Map<string, string>;
+}
+
+/** DSM ノードを C4 祖先でグループ化したマップ群を構築する */
+function buildGroupMaps(
+  matrix: DsmMatrix,
+  elementById: Map<string, C4Element>,
+  targetTypes: ReadonlySet<C4ElementType>,
+): GroupMaps {
+  const nodeToGroup = new Map<string, string>();
+  const groupSet = new Set<string>();
+  const groupNameById = new Map<string, string>();
+
+  for (const node of matrix.nodes) {
+    const ancestor = findC4Ancestor(node.id, elementById, targetTypes);
+    if (!ancestor) continue;
+    nodeToGroup.set(node.id, ancestor);
+    groupSet.add(ancestor);
+    const el = elementById.get(ancestor);
+    if (el) groupNameById.set(ancestor, el.name);
+  }
+
+  const sortedGroups = [...groupSet].sort((a, b) =>
+    (groupNameById.get(a) ?? a).localeCompare(groupNameById.get(b) ?? b),
+  );
+
+  return { nodeToGroup, sortedGroups, groupNameById };
+}
+
+/** グループノード列から隣接行列を構築する */
+function buildGroupAdjacency(
+  matrix: DsmMatrix,
+  nodeToGroup: Map<string, string>,
+  idxMap: Map<string, number>,
+  n: number,
+): number[][] {
+  const adjacency: number[][] = Array.from({ length: n }, () =>
+    Array.from({ length: n }, () => 0),
+  );
+  const srcLen = matrix.nodes.length;
+  for (let i = 0; i < srcLen; i++) {
+    for (let j = 0; j < srcLen; j++) {
+      if (matrix.adjacency[i][j] !== 1) continue;
+      const fromGroup = nodeToGroup.get(matrix.nodes[i].id);
+      const toGroup = nodeToGroup.get(matrix.nodes[j].id);
+      if (!fromGroup || !toGroup || fromGroup === toGroup) continue;
+      const fi = idxMap.get(fromGroup);
+      const ti = idxMap.get(toGroup);
+      if (fi === undefined || ti === undefined) continue;
+      adjacency[fi][ti] = 1;
+    }
+  }
+  return adjacency;
+}
+
 /**
  * DSM ノード（ファイル）を C4 要素階層で辿り、targetTypes のいずれかに
  * 該当する祖先要素でグループ化して集約する汎用関数。
@@ -72,34 +145,7 @@ function aggregateDsmByC4Ancestors(
     elementById.set(el.id, el);
   }
 
-  function findAncestor(id: string): string | null {
-    let current = elementById.get(id);
-    while (current) {
-      if (targetTypes.has(current.type)) return current.id;
-      if (!current.boundaryId) return null;
-      current = elementById.get(current.boundaryId);
-    }
-    return null;
-  }
-
-  const nodeToGroup = new Map<string, string>();
-  const groupSet = new Set<string>();
-  const groupNameById = new Map<string, string>();
-
-  for (const node of matrix.nodes) {
-    const ancestor = findAncestor(node.id);
-    if (ancestor) {
-      nodeToGroup.set(node.id, ancestor);
-      groupSet.add(ancestor);
-      const el = elementById.get(ancestor);
-      if (el) groupNameById.set(ancestor, el.name);
-    }
-    // C4 階層に祖先が見つからないノードは集約対象外（L4 のみで表示）
-  }
-
-  const sortedGroups = [...groupSet].sort((a, b) =>
-    (groupNameById.get(a) ?? a).localeCompare(groupNameById.get(b) ?? b),
-  );
+  const { nodeToGroup, sortedGroups, groupNameById } = buildGroupMaps(matrix, elementById, targetTypes);
 
   const nodes: DsmNode[] = sortedGroups.map(id => ({
     id,
@@ -109,24 +155,7 @@ function aggregateDsmByC4Ancestors(
   }));
 
   const idxMap = new Map(nodes.map((node, i) => [node.id, i]));
-  const n = nodes.length;
-  const adjacency: number[][] = Array.from({ length: n }, () =>
-    Array.from({ length: n }, () => 0),
-  );
-
-  const srcLen = matrix.nodes.length;
-  for (let i = 0; i < srcLen; i++) {
-    for (let j = 0; j < srcLen; j++) {
-      if (matrix.adjacency[i][j] !== 1) continue;
-      const fromGroup = nodeToGroup.get(matrix.nodes[i].id);
-      const toGroup = nodeToGroup.get(matrix.nodes[j].id);
-      if (!fromGroup || !toGroup || fromGroup === toGroup) continue;
-      const fi = idxMap.get(fromGroup);
-      const ti = idxMap.get(toGroup);
-      if (fi === undefined || ti === undefined) continue;
-      adjacency[fi][ti] = 1;
-    }
-  }
+  const adjacency = buildGroupAdjacency(matrix, nodeToGroup, idxMap, nodes.length);
 
   return { nodes, edges: [], adjacency };
 }
