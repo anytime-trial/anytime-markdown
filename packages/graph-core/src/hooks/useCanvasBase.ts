@@ -89,6 +89,18 @@ const PAN_STEP = 20;
 
 const EMPTY_SELECTION: SelectionState = { nodeIds: [], edgeIds: [] };
 
+export function deleteGroupsContainingSelection(
+  selectedIds: Set<string>,
+  groups: readonly GraphGroup[],
+  dispatch: ((action: { type: string; [key: string]: unknown }) => void) | undefined,
+): void {
+  for (const g of groups) {
+    if (g.memberIds.some(id => selectedIds.has(id))) {
+      dispatch?.({ type: 'DELETE_GROUP', id: g.id });
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 //  Hook
 // ---------------------------------------------------------------------------
@@ -390,14 +402,8 @@ export function useCanvasBase(options: UseCanvasBaseOptions): UseCanvasBaseRetur
     if (e.key === 'G' && e.shiftKey) {
       e.preventDefault();
       const sel = getSelection?.();
-      const groups = getGroups?.() ?? [];
       if (sel) {
-        const selectedIds = new Set(sel.nodeIds);
-        for (const g of groups) {
-          if (g.memberIds.some(id => selectedIds.has(id))) {
-            editorDispatch?.({ type: 'DELETE_GROUP', id: g.id });
-          }
-        }
+        deleteGroupsContainingSelection(new Set(sel.nodeIds), getGroups?.() ?? [], editorDispatch);
       }
       return true;
     }
