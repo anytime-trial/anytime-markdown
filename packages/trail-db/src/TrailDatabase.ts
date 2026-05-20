@@ -51,6 +51,8 @@ import {
   CREATE_PR_REVIEW_INDEXES,
   CREATE_PR_REVIEW_FINDINGS,
   CREATE_PR_REVIEW_FINDINGS_INDEXES,
+  CREATE_CROSS_SOURCE_CORRELATIONS,
+  CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES,
   DEFAULT_SKILL_MODELS,
   extractSkillName,
   buildReleaseFromGitData,
@@ -920,6 +922,37 @@ export interface PrReviewFindingRow {
 }
 
 // ---------------------------------------------------------------------------
+//  Cross-source correlation (LEP Layer 4 / Step 4d)
+// ---------------------------------------------------------------------------
+
+/** {@link TrailDatabase.getCorrelationSessionCommits} の戻り値。 */
+export interface CorrelationSessionCommit {
+  readonly sessionId: string;
+  readonly commitHash: string;
+  readonly committedAt: string;
+  readonly repoName: string;
+}
+
+/** {@link TrailDatabase.getCorrelationCommitFiles} の戻り値。 */
+export interface CorrelationCommitFile {
+  readonly commitHash: string;
+  readonly filePath: string;
+  readonly repoName: string;
+}
+
+/** {@link TrailDatabase.replaceCrossSourceCorrelations} に渡す 1 行。 */
+export interface CrossSourceCorrelationRow {
+  readonly correlationType: 'pr_review_session' | 'pr_review_release' | 'pr_finding_commit';
+  readonly repoName: string;
+  readonly sourceAKind: string;
+  readonly sourceAId: string;
+  readonly sourceBKind: string;
+  readonly sourceBId: string;
+  readonly confidence: 'high' | 'medium' | 'low';
+  readonly computedAt: string;
+}
+
+// ---------------------------------------------------------------------------
 //  TrailDatabase
 // ---------------------------------------------------------------------------
 
@@ -1773,6 +1806,11 @@ export class TrailDatabase {
     // PR review finding (Step 4c)。memory_review_findings とは独立 (新規テーブルのみ)。
     db.run(CREATE_PR_REVIEW_FINDINGS);
     for (const idx of CREATE_PR_REVIEW_FINDINGS_INDEXES) {
+      db.run(idx);
+    }
+    // cross-source 相関 (Step 4d)。新規テーブルのみ。
+    db.run(CREATE_CROSS_SOURCE_CORRELATIONS);
+    for (const idx of CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES) {
       db.run(idx);
     }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
@@ -2938,6 +2976,98 @@ export class TrailDatabase {
       category: row[5] == null ? null : String(row[5]),
       body: String(row[6] ?? ''),
       createdAt: String(row[7] ?? ''),
+    }));
+  }
+
+  /** CrossSourceCorrelator (Step 4d) 用: committed_at が有効な session_commits を返す。 */
+  getCorrelationSessionCommits(): CorrelationSessionCommit[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT session_id, commit_hash, committed_at, repo_name FROM session_commits
+       WHERE committed_at IS NOT NULL AND committed_at <> ''`,
+    );
+    if (!result[0]) return [];
+    return result[0].values.map((row) => ({
+      sessionId: String(row[0] ?? ''),
+      commitHash: String(row[1] ?? ''),
+      committedAt: String(row[2] ?? ''),
+      repoName: String(row[3] ?? ''),
+    }));
+  }
+
+  /**
+   * CrossSourceCorrelator (Step 4d) 用: 指定 file_path に触れた commit_files を返す。
+   * file_path で絞ることで全件スキャンを避ける (correlation 対象は finding のファイルのみ)。
+   * `filePaths` が空なら何も返さない。
+   */
+  getCorrelationCommitFiles(filePaths: readonly string[]): CorrelationCommitFile[] {
+    if (filePaths.length === 0) return [];
+    const db = this.ensureDb();
+    const placeholders = filePaths.map(() => '?').join(', ');
+    const result = db.exec(
+      `SELECT commit_hash, file_path, repo_name FROM commit_files WHERE file_path IN (${placeholders})`,
+      filePaths as unknown[],
+    );
+    if (!result[0]) return [];
+    return result[0].values.map((row) => ({
+      commitHash: String(row[0] ?? ''),
+      filePath: String(row[1] ?? ''),
+      repoName: String(row[2] ?? ''),
+    }));
+  }
+
+  /** CrossSourceCorrelator (Step 4d) 用: cross_source_correlations を洗い替えで更新する。 */
+  replaceCrossSourceCorrelations(rows: readonly CrossSourceCorrelationRow[]): void {
+    const db = this.ensureDb();
+    db.run('BEGIN');
+    try {
+      db.run('DELETE FROM cross_source_correlations');
+      const stmt = db.prepare(
+        `INSERT INTO cross_source_correlations
+           (correlation_type, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      try {
+        for (const r of rows) {
+          stmt.run([
+            r.correlationType,
+            r.repoName,
+            r.sourceAKind,
+            r.sourceAId,
+            r.sourceBKind,
+            r.sourceBId,
+            r.confidence,
+            r.computedAt,
+          ]);
+        }
+      } finally {
+        stmt.free();
+      }
+      db.run('COMMIT');
+    } catch (err) {
+      db.run('ROLLBACK');
+      throw err;
+    }
+  }
+
+  /** テスト / 診断用: cross_source_correlations を返す。 */
+  getCrossSourceCorrelations(): CrossSourceCorrelationRow[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT correlation_type, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at
+       FROM cross_source_correlations
+       ORDER BY correlation_type, source_a_id, source_b_id`,
+    );
+    if (!result[0]) return [];
+    return result[0].values.map((row) => ({
+      correlationType: String(row[0] ?? '') as CrossSourceCorrelationRow['correlationType'],
+      repoName: String(row[1] ?? ''),
+      sourceAKind: String(row[2] ?? ''),
+      sourceAId: String(row[3] ?? ''),
+      sourceBKind: String(row[4] ?? ''),
+      sourceBId: String(row[5] ?? ''),
+      confidence: String(row[6] ?? 'low') as 'high' | 'medium' | 'low',
+      computedAt: String(row[7] ?? ''),
     }));
   }
 

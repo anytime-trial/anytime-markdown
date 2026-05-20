@@ -45,6 +45,12 @@ function makeFakeTrailDb(save: jest.Mock = jest.fn(), extra: Partial<Record<stri
     upsertPrReview: () => undefined,
     getPrReviewDetail: () => null,
     replacePrReviewFindings: () => undefined,
+    // Step 4d cross-source 相関のデフォルト fake: 空データ
+    getPrReviews: () => [],
+    getPrReviewFindings: () => [],
+    getCorrelationSessionCommits: () => [],
+    getCorrelationCommitFiles: () => [],
+    replaceCrossSourceCorrelations: () => undefined,
     ...extra,
   } as unknown as TrailDatabase;
 }
@@ -295,6 +301,36 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(logSink.lines.join('\n')).toContain('[DoraMetricsAggregator] done');
     expect(written).toHaveLength(1);
     expect(written[0]).toHaveLength(1); // repoA / 2026-01
+  });
+
+  it('stage=all runs Wave 4: CrossSourceCorrelator computes correlations', async () => {
+    const correlationWrites: unknown[][] = [];
+    const fake = makeFakeScopeSession();
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(jest.fn(), {
+        getPrReviews: () => [
+          { reviewId: 'r1', repoName: 'widget', prNumber: 7, author: 'a', state: 'CHANGES_REQUESTED', submittedAt: '2026-01-15T00:00:00.000Z', bodyHash: 'h' },
+        ],
+        getPrReviewFindings: () => [],
+        getCorrelationSessionCommits: () => [
+          { sessionId: 's1', commitHash: 'h1', committedAt: '2026-01-10T00:00:00.000Z', repoName: 'widget' },
+        ],
+        getDoraReleases: () => [],
+        getCorrelationCommitFiles: () => [],
+        replaceCrossSourceCorrelations: (rows: unknown[]) => { correlationWrites.push([...rows]); },
+      }),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      stage: 'all',
+    });
+
+    await runner.runOnce('manual');
+
+    expect(logSink.lines.join('\n')).toContain('[CrossSourceCorrelator] done');
+    expect(correlationWrites).toHaveLength(1);
+    expect(correlationWrites[0]).toHaveLength(1); // r1 ↔ s1 (pr_review_session)
   });
 
   it('stage=primary+memory does NOT run Wave 4 (DoraMetricsAggregator skipped)', async () => {

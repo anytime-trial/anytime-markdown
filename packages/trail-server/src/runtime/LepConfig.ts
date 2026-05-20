@@ -34,7 +34,7 @@ export type MemoryAnalyzerId = (typeof MEMORY_ANALYZER_IDS)[number];
  * Step 4 で扱う Layer 4 (aggregator) analyzer の ID。
  * tier=4 は `stage='all'` でのみ実行される (opt-in)。`CrossSourceCorrelator` は Step 4d で追加。
  */
-export const AGGREGATOR_ANALYZER_IDS = ['DoraMetricsAggregator'] as const;
+export const AGGREGATOR_ANALYZER_IDS = ['DoraMetricsAggregator', 'CrossSourceCorrelator'] as const;
 
 export type AggregatorAnalyzerId = (typeof AGGREGATOR_ANALYZER_IDS)[number];
 

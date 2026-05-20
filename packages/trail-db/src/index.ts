@@ -29,6 +29,9 @@ export type {
   PrReviewRow,
   PrReviewDetail,
   PrReviewFindingRow,
+  CorrelationSessionCommit,
+  CorrelationCommitFile,
+  CrossSourceCorrelationRow,
 } from './TrailDatabase';
 export { SyncService } from './SyncService';
 export { SupabaseTrailStore } from './SupabaseTrailStore';
