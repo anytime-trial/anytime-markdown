@@ -34,58 +34,22 @@ export class ProjectAnalyzer {
     if (visited.has(normalized)) return;
     visited.add(normalized);
 
-    const configFile = ts.readConfigFile(normalized, ts.sys.readFile);
-    if (configFile.error) {
-      throw new Error(
-        `Failed to read tsconfig: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`,
-      );
-    }
-
+    const rawConfig = this.readRawConfig(normalized);
     const configDir = path.dirname(normalized);
-    const rawConfig = configFile.config;
 
     // references がある場合、各参照先を再帰的に処理
-    const refs: { path: string }[] | undefined = rawConfig.references;
-    if (refs && refs.length > 0) {
-      for (const ref of refs) {
-        const refDir = path.resolve(configDir, ref.path);
-        // ref.path がディレクトリの場合は tsconfig.json を追加
-        let refTsconfig = refDir;
-        if (fs.existsSync(refDir) && fs.statSync(refDir).isDirectory()) {
-          refTsconfig = path.join(refDir, 'tsconfig.json');
-        }
-        if (fs.existsSync(refTsconfig)) {
-          this.collectFiles(refTsconfig, outFileNames, outOptions, visited);
-        }
-      }
-    }
+    this.collectReferencedFiles(rawConfig, configDir, outFileNames, outOptions, visited);
 
     // このtsconfig自体のファイルを解析
     // include パターンに *.ts のみ指定されている場合、.tsx/.mts も自動追加する
     this.normalizeIncludePatterns(rawConfig);
-    const parsed = ts.parseJsonConfigFileContent(
-      rawConfig,
-      ts.sys,
-      configDir,
-    );
+    const parsed = ts.parseJsonConfigFileContent(rawConfig, ts.sys, configDir);
 
     if (parsed.fileNames.length > 0) {
       outFileNames.push(...parsed.fileNames);
     }
 
-    // 最初に読み込んだ tsconfig の options を採用し、以降は paths のみマージする
-    // paths はパッケージごとに異なるエイリアスを持つため、全 tsconfig から収集する必要がある
-    // paths の値は baseUrl からの相対パスのため、マージ前に絶対パスへ変換する
-    if (visited.size === 1 || Object.keys(outOptions).length === 0) {
-      Object.assign(outOptions, parsed.options);
-      if (parsed.options.paths && parsed.options.baseUrl) {
-        outOptions.paths = this.resolvePathsToAbsolute(parsed.options.paths, parsed.options.baseUrl);
-        outOptions.baseUrl = '/';
-      }
-    } else if (parsed.options.paths && parsed.options.baseUrl) {
-      const resolved = this.resolvePathsToAbsolute(parsed.options.paths, parsed.options.baseUrl);
-      outOptions.paths = { ...outOptions.paths, ...resolved };
-    }
+    this.mergeCompilerOptions(outOptions, parsed.options, visited.size);
 
     // tsconfig.json と同階層の tsconfig.*.json を自動検出して追加処理する
     // （webview・node など複数コンパイル単位を持つパッケージに対応）
@@ -93,6 +57,60 @@ export class ProjectAnalyzer {
       for (const sibling of this.findSiblingTsconfigs(configDir)) {
         this.collectFiles(sibling, outFileNames, outOptions, visited);
       }
+    }
+  }
+
+  private readRawConfig(normalized: string): Record<string, unknown> {
+    const configFile = ts.readConfigFile(normalized, ts.sys.readFile);
+    if (configFile.error) {
+      throw new Error(
+        `Failed to read tsconfig: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`,
+      );
+    }
+    return configFile.config;
+  }
+
+  private collectReferencedFiles(
+    rawConfig: Record<string, unknown>,
+    configDir: string,
+    outFileNames: string[],
+    outOptions: ts.CompilerOptions,
+    visited: Set<string>,
+  ): void {
+    const refs: { path: string }[] | undefined = rawConfig.references as { path: string }[] | undefined;
+    if (!refs || refs.length === 0) return;
+
+    for (const ref of refs) {
+      const refDir = path.resolve(configDir, ref.path);
+      // ref.path がディレクトリの場合は tsconfig.json を追加
+      const refTsconfig =
+        fs.existsSync(refDir) && fs.statSync(refDir).isDirectory()
+          ? path.join(refDir, 'tsconfig.json')
+          : refDir;
+      if (fs.existsSync(refTsconfig)) {
+        this.collectFiles(refTsconfig, outFileNames, outOptions, visited);
+      }
+    }
+  }
+
+  private mergeCompilerOptions(
+    outOptions: ts.CompilerOptions,
+    parsedOptions: ts.CompilerOptions,
+    visitedSize: number,
+  ): void {
+    // 最初に読み込んだ tsconfig の options を採用し、以降は paths のみマージする
+    // paths はパッケージごとに異なるエイリアスを持つため、全 tsconfig から収集する必要がある
+    // paths の値は baseUrl からの相対パスのため、マージ前に絶対パスへ変換する
+    const isFirst = visitedSize === 1 || Object.keys(outOptions).length === 0;
+    if (isFirst) {
+      Object.assign(outOptions, parsedOptions);
+      if (parsedOptions.paths && parsedOptions.baseUrl) {
+        outOptions.paths = this.resolvePathsToAbsolute(parsedOptions.paths, parsedOptions.baseUrl);
+        outOptions.baseUrl = '/';
+      }
+    } else if (parsedOptions.paths && parsedOptions.baseUrl) {
+      const resolved = this.resolvePathsToAbsolute(parsedOptions.paths, parsedOptions.baseUrl);
+      outOptions.paths = { ...outOptions.paths, ...resolved };
     }
   }
 
