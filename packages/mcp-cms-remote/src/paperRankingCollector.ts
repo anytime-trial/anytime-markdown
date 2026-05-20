@@ -176,7 +176,7 @@ export async function fetchRankingFromOpenAlex(
   if (!response.ok) {
     throw new Error(`OpenAlex API error: ${response.status} ${response.statusText}`);
   }
-  const data = await response.json() as { results: OpenAlexWork[] };
+  const data = await response.json() as unknown as { results: OpenAlexWork[] };
   return parseOpenAlexResponse(data.results).slice(0, fetchCount);
 }
 
