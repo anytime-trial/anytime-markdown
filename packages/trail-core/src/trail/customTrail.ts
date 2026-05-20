@@ -54,6 +54,38 @@ function bfsReachable(
   return visited;
 }
 
+function bfsExpandFrontier(
+  frontier: string[],
+  adj: AdjacencyList,
+  visited: Set<string>,
+  parent: Map<string, string>,
+  targetId: string,
+): { next: string[]; found: boolean } {
+  const next: string[] = [];
+  let found = false;
+  for (const nodeId of frontier) {
+    for (const edge of adj.get(nodeId) ?? []) {
+      const neighbor = edge.target;
+      if (visited.has(neighbor)) continue;
+      visited.add(neighbor);
+      parent.set(neighbor, nodeId);
+      if (neighbor === targetId) found = true;
+      next.push(neighbor);
+    }
+  }
+  return { next, found };
+}
+
+function reconstructPath(parent: Map<string, string>, targetId: string): ReadonlySet<string> {
+  const pathNodes = new Set<string>();
+  let current: string | undefined = targetId;
+  while (current !== undefined) {
+    pathNodes.add(current);
+    current = parent.get(current);
+  }
+  return pathNodes;
+}
+
 function bfsPathToTarget(
   adj: AdjacencyList,
   startId: string,
@@ -63,41 +95,14 @@ function bfsPathToTarget(
   const parent = new Map<string, string>();
   const visited = new Set<string>([startId]);
   let frontier = [startId];
-  let found = false;
 
   for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
-    const next: string[] = [];
-    for (const nodeId of frontier) {
-      const neighbors = adj.get(nodeId) ?? [];
-      for (const edge of neighbors) {
-        const neighbor = edge.target;
-        if (!visited.has(neighbor)) {
-          visited.add(neighbor);
-          parent.set(neighbor, nodeId);
-          if (neighbor === targetId) {
-            found = true;
-          }
-          next.push(neighbor);
-        }
-      }
-    }
-    if (found) {
-      break;
-    }
+    const { next, found } = bfsExpandFrontier(frontier, adj, visited, parent, targetId);
+    if (found) return reconstructPath(parent, targetId);
     frontier = next;
   }
 
-  if (!found) {
-    return new Set([startId]);
-  }
-
-  const pathNodes = new Set<string>();
-  let current: string | undefined = targetId;
-  while (current !== undefined) {
-    pathNodes.add(current);
-    current = parent.get(current);
-  }
-  return pathNodes;
+  return new Set([startId]);
 }
 
 function extractSubgraph(
