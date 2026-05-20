@@ -12,9 +12,10 @@ import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
 import { loadConfig } from './runtime/Config';
-import { ensureLepConfigFile, loadLepConfig, disabledMemoryAnalyzerIds } from './runtime/LepConfig';
+import { ensureLepConfigFile, loadLepConfig, disabledMemoryAnalyzerIds, resolveGitHubSource } from './runtime/LepConfig';
 import { checkLlmAvailability } from './lep/LlmAvailability';
-import { AnalyzeAllRunner } from './runner/AnalyzeAllRunner';
+import { AnalyzeAllRunner, type AnalyzeAllRunnerOptions } from './runner/AnalyzeAllRunner';
+import { createFetchGitHubReviewClient } from './lep/ingesters/github/GitHubReviewClient';
 import { CodeGraphService } from './analyze/CodeGraphService';
 import {
   findTsconfigCandidates,
@@ -99,6 +100,7 @@ program
     const lepWorkspaceRoot = effectiveGitRoots[0];
     let lepStage: LepStage = opts.scheduler ? 'primary+memory' : 'disabled';
     let lepDisabledAnalyzers: readonly string[] = [];
+    let githubPrReview: AnalyzeAllRunnerOptions['githubPrReview'] | undefined;
     if (lepWorkspaceRoot) {
       try {
         ensureLepConfigFile({
@@ -116,6 +118,22 @@ program
         lepStage = lep.config.stage;
         lepDisabledAnalyzers = disabledMemoryAnalyzerIds(lep.config);
         logger.info('lep.json loaded', { stage: lepStage, files: lep.loadedPaths.length });
+
+        // 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (sources.github.enabled)。
+        const ghSource = resolveGitHubSource(lep.config);
+        if (ghSource.enabled) {
+          githubPrReview = {
+            client: ghSource.token
+              ? createFetchGitHubReviewClient({
+                  token: ghSource.token,
+                  logger: { info: (m) => logger.info(m), warn: (m) => logger.warn(m) },
+                })
+              : null,
+            since: ghSource.since,
+            maxPrs: ghSource.maxPrs,
+          };
+          logger.info('GitHub PR review source enabled', { hasToken: Boolean(ghSource.token) });
+        }
       } catch (err) {
         logger.warn(`lep.json load failed: ${err instanceof Error ? err.message : String(err)}; fallback stage=${lepStage}`);
       }
@@ -268,6 +286,7 @@ program
       ollamaBaseUrl: config.memory.ollama.baseUrl,
       disabledMemoryAnalyzers: lepDisabledAnalyzers,
       disabledAggregators: lepDisabledAnalyzers,
+      githubPrReview,
       // VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新する
       importAllStatusFilePath: join(dbStorageDir, 'importall-phase-status.json'),
     });

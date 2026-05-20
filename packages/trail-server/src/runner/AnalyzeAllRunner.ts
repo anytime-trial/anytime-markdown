@@ -20,6 +20,11 @@ import {
   type MemoryWaveSessionProvider,
 } from '../lep/analyzers/memory';
 import { DoraMetricsAggregator } from '../lep/analyzers/aggregator';
+import {
+  GitHubPrReviewIngester,
+  type GitRemoteReader,
+} from '../lep/ingesters/GitHubPrReviewIngester';
+import type { GitHubReviewClient } from '../lep/ingesters/github/GitHubReviewClient';
 import type { LlmProviderAvailability } from '../lep/LlmAvailability';
 import { BehaviorAnalyzer } from '../lep/analyzers/primary/BehaviorAnalyzer';
 import { CodeGraphBuilder } from '../lep/analyzers/primary/CodeGraphBuilder';
@@ -78,6 +83,17 @@ export interface AnalyzeAllRunnerOptions {
    * aggregator のみ skip される)。tier 4 は stage=all 選択時のみ実行される (opt-in)。
    */
   disabledAggregators?: readonly string[];
+  /**
+   * GitHub PR review source (Step 4b)。opt-in。指定時のみ `GitHubPrReviewIngester` を
+   * Layer 1 に登録する。`client=null` (token なし) でも登録され、Ingester が skip ログを出す。
+   * 未指定なら GitHub source は完全に無効で既存挙動は変わらない。
+   */
+  githubPrReview?: {
+    client: GitHubReviewClient | null;
+    gitRemoteReader?: GitRemoteReader;
+    since?: string;
+    maxPrs?: number;
+  };
   /**
    * 指定時、import の per-phase 進捗を JSON ファイルに書き出す
    * (VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新するため)。
@@ -192,6 +208,18 @@ export class AnalyzeAllRunner extends BaseRunner {
         new CoverageIngester({ gitRoots }),
         new MetaJsonIngester(),
       ];
+      // 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (githubPrReview 指定時のみ)。
+      if (opts.githubPrReview) {
+        ingesters.push(
+          new GitHubPrReviewIngester({
+            client: opts.githubPrReview.client,
+            gitRoots,
+            since: opts.githubPrReview.since,
+            maxPrs: opts.githubPrReview.maxPrs,
+            gitRemoteReader: opts.githubPrReview.gitRemoteReader,
+          }),
+        );
+      }
       analyzers.push(...ingesters);
 
       // Layer 2 (primary)

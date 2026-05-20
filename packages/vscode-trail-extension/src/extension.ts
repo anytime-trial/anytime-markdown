@@ -23,9 +23,12 @@ import {
 	loadLepConfig,
 	ensureLepConfigFile,
 	disabledMemoryAnalyzerIds,
+	resolveGitHubSource,
+	createFetchGitHubReviewClient,
 	checkLlmAvailability,
 	LogService,
 } from '@anytime-markdown/trail-server';
+import type { AnalyzeAllRunnerOptions } from '@anytime-markdown/trail-server';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
 import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
@@ -315,6 +318,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// migration + 解決済み stage を AnalyzeAllRunner に渡す (Step 3d)。
 	let lepStage: LepStage = isAnalyzeAllEnabled() ? 'primary+memory' : 'disabled';
 	let lepDisabledAnalyzers: readonly string[] = [];
+	let githubPrReview: AnalyzeAllRunnerOptions['githubPrReview'] | undefined;
 	if (wsRootForDb) {
 		try {
 			ensureLepConfigFile({
@@ -351,6 +355,24 @@ export async function activate(context: vscode.ExtensionContext) {
 			TrailLogger.info(
 				`[LepConfig] resolved stage=${lepStage} (loaded ${lep.loadedPaths.length} file(s))`,
 			);
+
+			// 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (sources.github.enabled)。
+			const ghSource = resolveGitHubSource(lep.config);
+			if (ghSource.enabled) {
+				githubPrReview = {
+					client: ghSource.token
+						? createFetchGitHubReviewClient({
+								token: ghSource.token,
+								logger: { info: (m) => TrailLogger.info(m), warn: (m) => TrailLogger.warn(m) },
+							})
+						: null,
+					since: ghSource.since,
+					maxPrs: ghSource.maxPrs,
+				};
+				TrailLogger.info(
+					`[LepConfig] GitHub PR review source enabled (hasToken=${Boolean(ghSource.token)})`,
+				);
+			}
 		} catch (err) {
 			// version / stage 不正 (LepConfigError) は起動を止めず warn に留め、旧 boolean 由来の
 			// fallback stage で続行する (extension の activate を壊さないため)。
@@ -669,6 +691,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				ollamaBaseUrl: trailConfig.memory.ollama.baseUrl,
 				disabledMemoryAnalyzers: lepDisabledAnalyzers,
 				disabledAggregators: lepDisabledAnalyzers,
+				githubPrReview,
 				importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
 				onImportProgress: (message) => TrailLogger.info(`[analyzeAll] ${message}`),
 				analyzeReleaseFn: analyze,

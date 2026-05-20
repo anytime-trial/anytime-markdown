@@ -507,3 +507,33 @@ export const CREATE_DORA_METRICS = `CREATE TABLE IF NOT EXISTS dora_metrics (
   computed_at TEXT NOT NULL CHECK (computed_at GLOB ${TS_GLOB_MS} OR computed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (repo_name, period)
 ) STRICT`;
+
+// LEP 新ソース参照実装 (Step 4b): GitHub PR review の生データ。
+// review_id は GitHub REST の review id (グローバル一意) を文字列で保持し PRIMARY KEY とする。
+// repo_name / pr_number を参照する FK (pr_review_comments) を妥当にするため、合成 PK ではなく
+// review_id 単独 PK とし、repo × PR の検索はインデックスで賄う。
+export const CREATE_PR_REVIEWS = `CREATE TABLE IF NOT EXISTS pr_reviews (
+  review_id TEXT PRIMARY KEY,
+  repo_name TEXT NOT NULL,
+  pr_number INTEGER NOT NULL,
+  author TEXT NOT NULL DEFAULT '',
+  state TEXT NOT NULL CHECK (state IN ('APPROVED', 'CHANGES_REQUESTED', 'COMMENTED')),
+  submitted_at TEXT NOT NULL CHECK (submitted_at GLOB ${TS_GLOB_MS} OR submitted_at GLOB ${TS_GLOB_NO_MS}),
+  body TEXT NOT NULL DEFAULT '',
+  body_hash TEXT NOT NULL DEFAULT ''
+) STRICT`;
+
+// PR review に紐づく行コメント。review_id に対する複合 PK + ON DELETE CASCADE。
+export const CREATE_PR_REVIEW_COMMENTS = `CREATE TABLE IF NOT EXISTS pr_review_comments (
+  review_id TEXT NOT NULL REFERENCES pr_reviews(review_id) ON DELETE CASCADE,
+  comment_index INTEGER NOT NULL,
+  file_path TEXT NOT NULL DEFAULT '',
+  line_number INTEGER,
+  body TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (review_id, comment_index)
+) STRICT`;
+
+export const CREATE_PR_REVIEW_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_pr_reviews_repo_pr ON pr_reviews(repo_name, pr_number)`,
+  `CREATE INDEX IF NOT EXISTS idx_pr_reviews_submitted_at ON pr_reviews(submitted_at)`,
+];

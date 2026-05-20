@@ -10,6 +10,7 @@ import type { RunReason } from '../runner/types';
  * - `git_tag`: gitRoot 内の 1 タグ
  * - `coverage_report`: 1 package の coverage-summary.json
  * - `meta_json`: subagent meta.json 1 件
+ * - `github_pr_review`: GitHub PR review 1 件 (Step 4b の新ソース参照実装)
  */
 export type SourceEvent =
   | {
@@ -56,6 +57,30 @@ export type SourceEvent =
       agentId: string;
       agentType: string;
       filePath: string;
+    }
+  | {
+      // GitHub PR review 1 件 (Step 4b)。新ソース追加が既存 analyzer / DDL 無変更で
+      // 行えることを実証する参照実装。トークンなし環境では Ingester が emit しない。
+      kind: 'github_pr_review';
+      /** 'owner/name' 形式 */
+      repo: string;
+      prNumber: number;
+      /** GitHub REST の review id (グローバル一意)。文字列で保持 */
+      reviewId: string;
+      author: string;
+      state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED';
+      /** review 提出日時 (ISO 8601 + Z) */
+      submittedAt: string;
+      /** review 本文 (空文字可) */
+      body: string;
+      /** 冪等判定用の body + comments ハッシュ */
+      bodyHash: string;
+      /** review に紐づく行コメント */
+      comments: readonly {
+        readonly path: string;
+        readonly line: number | null;
+        readonly body: string;
+      }[];
     };
 
 /**

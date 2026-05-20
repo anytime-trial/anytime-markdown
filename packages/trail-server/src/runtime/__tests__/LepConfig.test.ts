@@ -10,6 +10,7 @@ import {
   loadLepConfig,
   mergeLepConfig,
   migrateLegacyToLepConfig,
+  resolveGitHubSource,
   validateLepConfigInput,
   workspaceLepConfigPath,
   type LepConfig,
@@ -83,6 +84,20 @@ describe('validateLepConfigInput', () => {
     const { warnings } = validateLepConfigInput({ $schema: 'https://x', version: 1 }, 'test');
     expect(warnings).toEqual([]);
   });
+
+  it('parses sources.github (Step 4b)', () => {
+    const { value, warnings } = validateLepConfigInput(
+      { sources: { github: { enabled: true, tokenEnv: 'GH_PAT', maxPrs: 50, since: '2026-01-01T00:00:00Z' } } },
+      'test',
+    );
+    expect(warnings).toEqual([]);
+    expect(value.sources?.github).toEqual({
+      enabled: true,
+      tokenEnv: 'GH_PAT',
+      maxPrs: 50,
+      since: '2026-01-01T00:00:00Z',
+    });
+  });
 });
 
 describe('disabledMemoryAnalyzerIds', () => {
@@ -101,6 +116,39 @@ describe('disabledMemoryAnalyzerIds', () => {
       'ConversationMemoryAnalyzer',
       'EmbeddingBackfillAnalyzer',
     ]);
+  });
+});
+
+describe('resolveGitHubSource', () => {
+  it('returns disabled + null token by default', () => {
+    expect(DEFAULT_LEP_CONFIG.sources.github.enabled).toBe(false);
+    const r = resolveGitHubSource(DEFAULT_LEP_CONFIG, {});
+    expect(r).toEqual({ enabled: false, token: null, maxPrs: 30, since: undefined });
+  });
+
+  it('resolves token from the configured env var when enabled', () => {
+    const cfg = mergeLepConfig(DEFAULT_LEP_CONFIG, {
+      sources: { github: { enabled: true, tokenEnv: 'MY_GH', since: '2026-01-01T00:00:00Z' } },
+    });
+    const r = resolveGitHubSource(cfg, { MY_GH: 'secret-token' });
+    expect(r).toEqual({ enabled: true, token: 'secret-token', maxPrs: 30, since: '2026-01-01T00:00:00Z' });
+  });
+
+  it('returns null token when enabled but env var is unset', () => {
+    const cfg = mergeLepConfig(DEFAULT_LEP_CONFIG, {
+      sources: { github: { enabled: true, tokenEnv: 'MISSING' } },
+    });
+    const r = resolveGitHubSource(cfg, {});
+    expect(r.token).toBeNull();
+    expect(r.enabled).toBe(true);
+  });
+
+  it('normalizes empty since to undefined', () => {
+    const cfg = mergeLepConfig(DEFAULT_LEP_CONFIG, {
+      sources: { github: { enabled: true, since: '' } },
+    });
+    const r = resolveGitHubSource(cfg, { GITHUB_TOKEN: 't' });
+    expect(r.since).toBeUndefined();
   });
 });
 
