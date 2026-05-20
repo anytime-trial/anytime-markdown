@@ -57,9 +57,6 @@ export type {
 } from './services/LogService';
 export { LogSink, combineLoggers } from './services/LogSink';
 
-export { loadConfig } from './runtime/Config';
-export type { TrailServerConfig, AnalyzeAllConfig } from './runtime/Config';
-
 export {
   DEFAULT_LEP_CONFIG,
   LEP_CONFIG_VERSION,
