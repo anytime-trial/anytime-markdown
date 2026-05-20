@@ -11,8 +11,15 @@ import { TrailDataServer } from './server/TrailDataServer';
 import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
-import { loadConfig } from './runtime/Config';
-import { ensureLepConfigFile, loadLepConfig, disabledAnalyzerIds, resolveGitHubSource } from './runtime/LepConfig';
+import {
+  migrateConfigJsonIntoLepJson,
+  loadLepConfig,
+  disabledAnalyzerIds,
+  resolveGitHubSource,
+  DEFAULT_LEP_CONFIG,
+  type LepConfig,
+} from './runtime/LepConfig';
+import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
 import { checkLlmAvailability } from './lep/LlmAvailability';
 import { AnalyzeAllRunner, type AnalyzeAllRunnerOptions } from './runner/AnalyzeAllRunner';
 import { createFetchGitHubReviewClient } from './lep/ingesters/github/GitHubReviewClient';
@@ -91,30 +98,29 @@ program
     server.setLogService(logService);
     logger.info('log streaming service wired', { dbPath: extensionLogsDbPath });
 
-    const configPath = join(TRAIL_HOME, 'config.json');
-    const config = loadConfig(configPath, logger);
-    const effectiveGitRoots = gitRoots.length > 0 ? gitRoots : config.gitRoots;
+    // gitRoots の bootstrap (鶏卵回避): CLI --git-roots → home-tier ~/.anytime/trail/lep.json
+    // の gitRoots → 空。workspace lep.json は gitRoots 解決後でないと読めないため home-tier を使う。
+    const bootstrapGitRoots =
+      gitRoots.length > 0 ? gitRoots : loadLepConfig({ logger }).config.gitRoots;
+    const effectiveGitRoots = bootstrapGitRoots;
 
-    // LEP 設定 (lep.json) 読込 + stage 解決 (Step 3d)。daemon は primary gitRoot を workspace とする。
-    // 解決した stage を AnalyzeAllRunner に渡して Wave 実行範囲を制御する。
+    // LEP 設定 (lep.json) — 唯一の設定ソース。旧 config.json は一度きり lep.json へ移行し以後読まない。
+    // daemon は primary gitRoot を workspace とし、stage / schedule / llm / memory を集約する。
     const lepWorkspaceRoot = effectiveGitRoots[0];
+    let lepConfig: LepConfig = DEFAULT_LEP_CONFIG;
     let lepStage: LepStage = opts.scheduler ? 'primary+memory' : 'disabled';
     let lepDisabledAnalyzers: readonly string[] = [];
     let githubPrReview: AnalyzeAllRunnerOptions['githubPrReview'] | undefined;
     if (lepWorkspaceRoot) {
       try {
-        ensureLepConfigFile({
+        // config.json → lep.json 一度きり移行 (欠落セクションのみ gap-fill、完了後 rename)。
+        migrateConfigJsonIntoLepJson({
           workspaceRoot: lepWorkspaceRoot,
-          legacy: {
-            analyzeAllEnabled: opts.scheduler,
-            analyzeAll: config.analyzeAll,
-            ollamaBaseUrl: config.memory.ollama.baseUrl,
-            chatModel: config.memory.chat.model,
-            embeddingModel: config.memory.embedding.model,
-          },
+          analyzeAllEnabled: opts.scheduler,
           logger,
         });
         const lep = loadLepConfig({ workspaceRoot: lepWorkspaceRoot, logger });
+        lepConfig = lep.config;
         lepStage = lep.config.stage;
         lepDisabledAnalyzers = disabledAnalyzerIds(lep.config);
         logger.info('lep.json loaded', { stage: lepStage, files: lep.loadedPaths.length });
@@ -138,6 +144,13 @@ program
         logger.warn(`lep.json load failed: ${err instanceof Error ? err.message : String(err)}; fallback stage=${lepStage}`);
       }
     }
+
+    // ingest / chat / health で共有する LLM 値を lep.json から解決する。
+    // baseUrl は resolveOllamaBaseUrl で env / Dev Container 検出を畳み込み、
+    // health-check と実取込で同一値を使う (split-brain 防止)。
+    const lepOllama = lepConfig.llm.providers.ollama;
+    const resolvedOllamaBaseUrl = resolveOllamaBaseUrl(lepOllama.baseUrl);
+    const ingestGenModel = process.env['MEMORY_CORE_GEN_MODEL'] || lepOllama.models.chat;
 
     // Wire analyze pipeline if gitRoots are available
     if (effectiveGitRoots.length > 0) {
@@ -226,7 +239,14 @@ program
       trailDbPath: join(dbStorageDir, 'trail.db'),
       ...(memoryCorePrimaryGitRoot ? { gitRoot: memoryCorePrimaryGitRoot } : {}),
       statePath: join(TRAIL_HOME, 'memory-core-runner.json'),
-      backfillDays: config.memory.conversation.backfillDays,
+      backfillDays: lepConfig.memory.conversation.backfillDays,
+      // lep.json の llm を ingest パイプラインへ通す (baseUrl は openMemoryDbSession
+      // が resolveOllamaBaseUrl で再解決するため raw 値を渡す)。
+      llm: {
+        baseUrl: lepOllama.baseUrl,
+        chatModel: ingestGenModel,
+        embedModel: lepOllama.models.embedding,
+      },
     });
     logger.info('memory-core service constructed (orchestrated by AnalyzeAllRunner)', {
       gitRoot: memoryCorePrimaryGitRoot ?? null,
@@ -241,13 +261,13 @@ program
     const chatBridge = new ChatBridge({
       memoryDbPath: MEMORY_DB_PATH,
       getConfig: () => ({
-        baseUrl: config.memory.ollama.baseUrl,
-        chatModel: config.memory.chat.model,
-        embedModel: config.memory.embedding.model,
-        bm25Limit: config.memory.rag.bm25Limit,
-        vecLimit: config.memory.rag.vecLimit,
-        finalLimit: config.memory.rag.finalLimit,
-        rrfK: config.memory.rag.rrfK,
+        baseUrl: resolvedOllamaBaseUrl,
+        chatModel: lepOllama.models.chat,
+        embedModel: lepOllama.models.embedding,
+        bm25Limit: lepConfig.memory.rag.bm25Limit,
+        vecLimit: lepConfig.memory.rag.vecLimit,
+        finalLimit: lepConfig.memory.rag.finalLimit,
+        rrfK: lepConfig.memory.rag.rrfK,
       }),
       logger: memoryLogger,
     });
@@ -259,10 +279,10 @@ program
       logger: memoryLogger,
     });
     const rebuildSchedulerDisposable = rebuildScheduler.start(
-      config.memory.fts.rebuildIntervalMinutes * 60 * 1000,
+      lepConfig.memory.fts.rebuildIntervalMinutes * 60 * 1000,
     );
     logger.info('rebuild scheduler started', {
-      intervalMin: config.memory.fts.rebuildIntervalMinutes,
+      intervalMin: lepConfig.memory.fts.rebuildIntervalMinutes,
     });
 
     // AnalyzeAllRunner は importAll → memory-core runOnce('periodic') を順次実行する
@@ -279,11 +299,11 @@ program
       stage: lepStage,
       checkLlmAvailability: () =>
         checkLlmAvailability({
-          baseUrl: config.memory.ollama.baseUrl,
-          chatModel: config.memory.chat.model,
-          embedModel: config.memory.embedding.model,
+          baseUrl: resolvedOllamaBaseUrl,
+          chatModel: ingestGenModel,
+          embedModel: lepOllama.models.embedding,
         }),
-      ollamaBaseUrl: config.memory.ollama.baseUrl,
+      ollamaBaseUrl: resolvedOllamaBaseUrl,
       disabledMemoryAnalyzers: lepDisabledAnalyzers,
       disabledAggregators: lepDisabledAnalyzers,
       githubPrReview,
@@ -302,9 +322,9 @@ program
         reason: schedulerDisabledByEnv ? 'TRAIL_DISABLE_SCHEDULER=1' : '--no-scheduler',
       });
     } else {
-      analyzeAllRunner.start(config.analyzeAll.intervalSec * 1000, {
-        runOnStart: config.analyzeAll.runOnStart,
-        startupDelayMs: config.analyzeAll.startupDelaySec * 1000,
+      analyzeAllRunner.start(lepConfig.schedule.intervalSec * 1000, {
+        runOnStart: lepConfig.schedule.runOnStart,
+        startupDelayMs: lepConfig.schedule.startupDelaySec * 1000,
       });
     }
 
