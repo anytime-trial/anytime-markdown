@@ -51,52 +51,19 @@ export class ClaudeCodeBehaviorAnalyzer {
 
     try {
       for (const msg of assistants) {
-        if (!msg.tool_calls) { turnIndex++; continue; }
+        const toolBlocks = this.parseToolBlocks(msg);
+        if (!toolBlocks) { turnIndex++; continue; }
 
-        let toolBlocks: ToolCallBlock[] = [];
-        try { toolBlocks = JSON.parse(msg.tool_calls) as ToolCallBlock[]; } catch (e) { _log.warn(`[ClaudeCodeBehaviorAnalyzer] Failed to parse tool_calls for message ${msg.uuid}: ${String(e)}`); turnIndex++; continue; }
-        if (toolBlocks.length === 0) { turnIndex++; continue; }
-
-        // thinking ブロックは messages テーブルに情報がないため常に 0 とする。
-        const hasThinking = 0;
-
-        // 次のユーザーメッセージ（ツール結果を含む）を探す
         const userMsg = userByParent.get(msg.uuid);
         const turnExecMs = userMsg
           ? Math.max(0, new Date(userMsg.timestamp).getTime() - new Date(msg.timestamp).getTime())
           : null;
-
-        // tool_result の is_error を tool_use_id でマッピング
         const errorMap = this.buildErrorMap(userMsg?.tool_use_result ?? null);
 
         for (let callIndex = 0; callIndex < toolBlocks.length; callIndex++) {
           const tool = toolBlocks[callIndex];
           if (!tool?.name) continue;
-
-          const errorEntry = errorMap.get(tool.id);
-          const isError = errorEntry?.is_error ? 1 : 0;
-          const errorContent = errorEntry?.content ?? '';
-          const errorType = isError
-            ? classifyErrorType(typeof errorContent === 'string' ? errorContent : JSON.stringify(errorContent))
-            : null;
-
-          insertStmt.run([
-            sessionId,
-            msg.uuid,
-            turnIndex,
-            callIndex,
-            tool.name,
-            extractFilePath(tool.name, tool.input),
-            extractCommand(tool.name, tool.input),
-            msg.skill,
-            msg.model,
-            msg.is_sidechain,
-            turnExecMs,
-            hasThinking,
-            isError,
-            errorType,
-            msg.timestamp,
-          ]);
+          this.insertToolCallRow(insertStmt, sessionId, msg, turnIndex, callIndex, tool, turnExecMs, errorMap);
         }
 
         turnIndex++;
@@ -106,6 +73,56 @@ export class ClaudeCodeBehaviorAnalyzer {
     }
 
     _log.info(`[ClaudeCodeBehaviorAnalyzer] session=${sessionId} analyzed ${assistants.length} assistant turns`);
+  }
+
+  /** Parse tool_calls JSON; returns null if absent, empty, or invalid. */
+  private parseToolBlocks(msg: RawMessage): ToolCallBlock[] | null {
+    if (!msg.tool_calls) return null;
+    let toolBlocks: ToolCallBlock[];
+    try {
+      toolBlocks = JSON.parse(msg.tool_calls) as ToolCallBlock[];
+    } catch (e) {
+      _log.warn(`[ClaudeCodeBehaviorAnalyzer] Failed to parse tool_calls for message ${msg.uuid}: ${String(e)}`);
+      return null;
+    }
+    return toolBlocks.length > 0 ? toolBlocks : null;
+  }
+
+  /** Insert one row for a single tool call. */
+  private insertToolCallRow(
+    insertStmt: ReturnType<Database['prepare']>,
+    sessionId: string,
+    msg: RawMessage,
+    turnIndex: number,
+    callIndex: number,
+    tool: ToolCallBlock,
+    turnExecMs: number | null,
+    errorMap: Map<string, { is_error: boolean; content: string }>,
+  ): void {
+    const errorEntry = errorMap.get(tool.id);
+    const isError = errorEntry?.is_error ? 1 : 0;
+    const errorContent = errorEntry?.content ?? '';
+    const errorType = isError
+      ? classifyErrorType(typeof errorContent === 'string' ? errorContent : JSON.stringify(errorContent))
+      : null;
+
+    insertStmt.run([
+      sessionId,
+      msg.uuid,
+      turnIndex,
+      callIndex,
+      tool.name,
+      extractFilePath(tool.name, tool.input),
+      extractCommand(tool.name, tool.input),
+      msg.skill,
+      msg.model,
+      msg.is_sidechain,
+      turnExecMs,
+      0, // hasThinking: messages テーブルに情報がないため常に 0
+      isError,
+      errorType,
+      msg.timestamp,
+    ]);
   }
 
   private loadMessages(
