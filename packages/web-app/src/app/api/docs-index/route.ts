@@ -25,7 +25,7 @@ function trimQuotes(value: string): string {
   const trimmed = value.trim();
   if (trimmed.length < 2) return trimmed;
   const first = trimmed[0];
-  const last = trimmed[trimmed.length - 1];
+  const last = trimmed.at(-1);
   if ((first === `"` && last === `"`) || (first === "'" && last === "'")) {
     return trimmed.slice(1, -1);
   }
@@ -90,7 +90,7 @@ function parseScalars(
   for (const k of keys) result[k] = null;
   for (const line of fmLines) {
     for (const k of keys) {
-      if (result[k] === null) result[k] = parseScalar(line, k);
+      result[k] ??= parseScalar(line, k);
     }
     if (keys.every((k) => result[k] !== null)) break;
   }

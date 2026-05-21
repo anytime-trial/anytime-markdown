@@ -137,4 +137,77 @@ describe('PrReviewFindingAnalyzer', () => {
     await a.onEvent({ kind: 'session_imported', sessionId: 's', messageCount: 1, repoName: 'r' }, ctx);
     expect(writes).toEqual([]);
   });
+
+  it('logs error and does not throw when replacePrReviewFindings throws', async () => {
+    const { ds } = makeDs({
+      reviewId: 'rev1',
+      repoName: 'widget',
+      prNumber: 7,
+      state: 'CHANGES_REQUESTED',
+      body: '',
+      comments: [{ path: 'a.ts', line: 3, body: 'fix it' }],
+    });
+    const failDs: PrReviewFindingDataSource = {
+      getPrReviewDetail: ds.getPrReviewDetail,
+      replacePrReviewFindings: () => { throw new Error('disk full'); },
+    };
+    const a = new PrReviewFindingAnalyzer({ trailDb: failDs, now: NOW });
+    const { ctx, logs } = makeCtx();
+    await expect(a.onEvent(IMPORTED(), ctx)).resolves.toBeUndefined();
+    expect(logs.join('\n')).toContain('[PrReviewFindingAnalyzer] failed for review rev1: disk full');
+  });
+
+  it('handles non-Error thrown value (string) in catch', async () => {
+    const { ds } = makeDs({
+      reviewId: 'rev1',
+      repoName: 'widget',
+      prNumber: 7,
+      state: 'CHANGES_REQUESTED',
+      body: '',
+      comments: [],
+    });
+    const failDs: PrReviewFindingDataSource = {
+      getPrReviewDetail: ds.getPrReviewDetail,
+      replacePrReviewFindings: () => { throw 'quota-exceeded'; },
+    };
+    const a = new PrReviewFindingAnalyzer({ trailDb: failDs, now: NOW });
+    const { ctx, logs } = makeCtx();
+    await expect(a.onEvent(IMPORTED(), ctx)).resolves.toBeUndefined();
+    expect(logs.join('\n')).toContain('[PrReviewFindingAnalyzer] failed for review rev1: quota-exceeded');
+  });
+
+  it('uses wall-clock when now is omitted', async () => {
+    const { ds, writes } = makeDs({
+      reviewId: 'rev1',
+      repoName: 'widget',
+      prNumber: 7,
+      state: 'APPROVED',
+      body: '',
+      comments: [],
+    });
+    // now を省略 → new Date() を使う
+    const a = new PrReviewFindingAnalyzer({ trailDb: ds });
+    const { ctx } = makeCtx();
+    await a.onEvent(IMPORTED(), ctx);
+    expect(writes).toHaveLength(1);
+  });
+
+  it('onRunEnd logs summary and resets counters', async () => {
+    const { ds } = makeDs({
+      reviewId: 'rev1',
+      repoName: 'widget',
+      prNumber: 7,
+      state: 'CHANGES_REQUESTED',
+      body: '',
+      comments: [{ path: 'a.ts', line: 3, body: 'fix it' }],
+    });
+    const a = new PrReviewFindingAnalyzer({ trailDb: ds, now: NOW });
+    const { ctx, logs } = makeCtx();
+    await a.onEvent(IMPORTED(), ctx);
+    expect(a.getCounters()).toEqual({ reviewsProcessed: 1, findingsWritten: 1 });
+    await a.onRunEnd(ctx);
+    expect(logs.join('\n')).toContain('[PrReviewFindingAnalyzer] done (reviews=1, findings=1)');
+    // counters reset after onRunEnd
+    expect(a.getCounters()).toEqual({ reviewsProcessed: 0, findingsWritten: 0 });
+  });
 });

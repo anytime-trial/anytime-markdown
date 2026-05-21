@@ -7,6 +7,8 @@ import type {
 } from './types';
 import { ImportanceScorer } from './ImportanceScorer';
 
+const DEFAULT_REPORT_THRESHOLDS = { high: 70, medium: 40 };
+
 export class ImportanceAnalyzer {
   private readonly adapter: ILanguageAdapter;
   private readonly scorer: ImportanceScorer;
@@ -52,7 +54,7 @@ export class ImportanceAnalyzer {
 
   static toReport(
     scored: ScoredFunction[],
-    thresholds = { high: 70, medium: 40 },
+    thresholds = DEFAULT_REPORT_THRESHOLDS,
   ): ImportanceReport {
     const sorted = [...scored].sort((a, b) => b.importanceScore - a.importanceScore);
     return {

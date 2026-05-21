@@ -11,7 +11,7 @@ export function clusterByY(members: readonly GraphNode[], rowThreshold?: number)
   const sorted = [...members].sort((a, b) => a.y - b.y);
   const clusters: GraphNode[][] = [];
   for (const m of sorted) {
-    const last = clusters[clusters.length - 1];
+    const last = clusters.at(-1);
     if (last && Math.abs(m.y - last[0].y) < threshold) last.push(m);
     else clusters.push([m]);
   }

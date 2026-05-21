@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.4] - 2026-05-21
+
+### Changed
+
+- Version bump synchronized with `markdown-core` 0.15.4 (no extension-specific source changes)
+
+### Editor Core (markdown-core)
+
+- Resolved SonarCloud findings (S7780/S6582/S6653/S7776/S3358 and others)
+- `mcp-markdown`: resolved SonarCloud findings (S7772/S6594); added tests covering uncovered `sanitizeMarkdown` branches (branch 88→100%)
+
 ## [0.15.3] - 2026-05-20
 
 ### Security

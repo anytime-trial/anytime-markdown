@@ -96,4 +96,40 @@ describe('computeDoraMetrics', () => {
       'repoB/2026-03',
     ]);
   });
+
+  it('skips commits with invalid (NaN) committedAt', () => {
+    const releases = [rel('v1', '2026-01-10T00:00:00.000Z')];
+    const commits = [
+      commit('c1', 'not-a-date'), // NaN → skip
+      commit('c2', '2026-01-09T00:00:00.000Z'), // valid → 24h
+    ];
+    const rows = computeDoraMetrics(releases, commits, NOW);
+    expect(rows[0].leadTimeHours).toBe(24); // only c2 counted
+  });
+
+  it('skips commits that produce negative lead time (commit after release)', () => {
+    // firstReleaseAtOrAfter が release より前の commit を対象とする。
+    // ただし「同一 release 時刻以上」で二分探索するため、committedAt > releasedAt の場合
+    // idx = releases.length → 除外 (未 deploy コミット扱い)。
+    // 負の lead time が発生するパスは実装上到達不可だが、
+    // 既存 if (leadHours < 0) guard は commit = release より後のケースをガードするため
+    // ここでは「release の後で committed」= 除外される ことを確認する。
+    const releases = [rel('v1', '2026-01-10T00:00:00.000Z')];
+    const commits = [commit('c1', '2026-01-11T00:00:00.000Z')]; // after release → excluded
+    const rows = computeDoraMetrics(releases, commits, NOW);
+    // c1 は最終 release より後 → idx >= sorted.length → skip → leadTimeHours = null
+    expect(rows[0].leadTimeHours).toBeNull();
+  });
+
+  it('leadTimeHours is null when a period has no commits at all', () => {
+    const releases = [
+      rel('v1', '2026-01-10T00:00:00.000Z'),
+      rel('v2', '2026-02-10T00:00:00.000Z'),
+    ];
+    // commit は 2026-01 の v1 のみ
+    const commits = [commit('c1', '2026-01-09T00:00:00.000Z')];
+    const rows = computeDoraMetrics(releases, commits, NOW);
+    const feb = rows.find((r) => r.period === '2026-02');
+    expect(feb?.leadTimeHours).toBeNull();
+  });
 });

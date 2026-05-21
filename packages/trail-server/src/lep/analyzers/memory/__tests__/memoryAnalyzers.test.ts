@@ -1,6 +1,7 @@
 import type {
   AnalyzerContext,
   AnalyzerEvent,
+  MemoryCoreService,
   MemoryDbSession,
   ScopeResult,
 } from '@anytime-markdown/memory-core';
@@ -16,6 +17,7 @@ import { MemoryWaveSessionProvider } from '../MemoryWaveSessionProvider';
 import { ReviewFindingMemoryAnalyzer } from '../ReviewFindingMemoryAnalyzer';
 import { SpecMemoryAnalyzer } from '../SpecMemoryAnalyzer';
 import { MemoryAnalyzerBase } from '../MemoryAnalyzerBase';
+import { createMemoryAnalyzers } from '../index';
 
 function ok(scope: string): ScopeResult {
   return { scope, status: 'ok', itemsProcessed: 0, itemsFailed: 0 };
@@ -88,6 +90,15 @@ describe('memory analyzers', () => {
     });
     const provider = new MemoryWaveSessionProvider(async () => session);
     await expect(new DriftMemoryAnalyzer(provider).onEvent(primaryEvent, makeCtx())).rejects.toThrow('boom');
+  });
+
+  it('throws with generic message when scope status is error but error field is absent', async () => {
+    const { session } = makeFakeSession({
+      runCode: async () => ({ scope: 'code_incremental', status: 'error', itemsProcessed: 0, itemsFailed: 0 }),
+    });
+    const provider = new MemoryWaveSessionProvider(async () => session);
+    // error フィールドが undefined → `${id} failed` にフォールバック
+    await expect(new CodeMemoryAnalyzer(provider).onEvent(primaryEvent, makeCtx())).rejects.toThrow('CodeMemoryAnalyzer failed');
   });
 
   it('skips silently when session factory returns null (trail.db missing)', async () => {
@@ -223,5 +234,51 @@ describe('memory analyzers', () => {
     }
     expect(driftIdx).toBeLessThan(embedIdx);
     expect(embedIdx).toBe(ordered.length - 1);
+  });
+});
+
+describe('createMemoryAnalyzers', () => {
+  function makeMemoryCoreService(): MemoryCoreService {
+    return {
+      openScopeSession: async () => null,
+    } as unknown as MemoryCoreService;
+  }
+
+  it('returns 7 analyzers and a provider by default', () => {
+    const svc = makeMemoryCoreService();
+    const { analyzers, provider } = createMemoryAnalyzers(svc);
+    expect(analyzers).toHaveLength(7);
+    expect(provider).toBeInstanceOf(MemoryWaveSessionProvider);
+  });
+
+  it('filters out disabled analyzer ids', () => {
+    const svc = makeMemoryCoreService();
+    const { analyzers } = createMemoryAnalyzers(svc, {
+      disabledAnalyzerIds: ['ConversationMemoryAnalyzer', 'EmbeddingBackfillAnalyzer'],
+    });
+    expect(analyzers).toHaveLength(5);
+    const ids = analyzers.map((a) => a.id);
+    expect(ids).not.toContain('ConversationMemoryAnalyzer');
+    expect(ids).not.toContain('EmbeddingBackfillAnalyzer');
+  });
+
+  it('passes ollamaBaseUrl and checkLlmAvailability to provider', () => {
+    const svc = makeMemoryCoreService();
+    const checker = async () => ({ ollama_chat: { ok: true }, ollama_embedding: { ok: true } });
+    const { provider } = createMemoryAnalyzers(svc, {
+      checkLlmAvailability: checker,
+      ollamaBaseUrl: 'http://host.docker.internal:11434',
+    });
+    expect(provider.ollamaBaseUrl).toBe('http://host.docker.internal:11434');
+  });
+
+  it('provider.ensure() delegates to memoryCoreService.openScopeSession()', async () => {
+    let called = false;
+    const svc = {
+      openScopeSession: async () => { called = true; return null; },
+    } as unknown as MemoryCoreService;
+    const { provider } = createMemoryAnalyzers(svc);
+    await provider.ensure();
+    expect(called).toBe(true);
   });
 });

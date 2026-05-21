@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.4] - 2026-05-21
+
+### Changed
+
+- Resolved SonarCloud findings across `markdown-core` (S7780 `String.raw`, S6582 optional chaining, S6653, S7776, S3358 nested ternary, and others)
+
 ## [0.15.3] - 2026-05-20
 
 ### Changed

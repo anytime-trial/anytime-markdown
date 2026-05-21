@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-05-21
+
+### 変更
+
+- `spreadsheet-core` / `spreadsheet-viewer` 0.4.6 に合わせたバージョン更新（拡張固有のソース変更なし）
+
+### Sheet Core (spreadsheet-core / spreadsheet-viewer)
+
+- `spreadsheet-core`: SonarCloud 指摘を解消（S2004/S7758/S7780）。`InMemoryWorkbookAdapter` のカバレッジを 100% に向上（74→100%）
+
 ## [0.4.5] - 2026-05-20
 
 ### セキュリティ

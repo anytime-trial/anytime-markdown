@@ -9,7 +9,7 @@ import type { TrailRelease } from '../model/release';
  * マッチしない場合は "other" を返す。
  */
 export function classifyCommitType(subject: string): string {
-  const match = /^(\w+)(?:\([^)]*\))?[!]?:\s/.exec(subject);
+  const match = /^(\w+)(?:\([^)]*\))?!?:\s/.exec(subject);
   if (!match) return 'other';
   const type = match[1].toLowerCase();
   if (['feat', 'fix', 'refactor', 'test'].includes(type)) return type;

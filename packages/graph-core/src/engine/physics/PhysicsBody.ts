@@ -13,7 +13,7 @@ export function createBody(node: GraphNode): PhysicsBody {
     width: node.width,
     height: node.height,
     fixed: node.locked === true,
-    mass: 1.0,
+    mass: 1,
   };
 }
 

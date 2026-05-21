@@ -181,4 +181,165 @@ describe('ReleaseResolver', () => {
     expect(resolver.subscribes).toEqual(['git_tag']);
     expect(resolver.emits).toEqual(['release_resolved']);
   });
+
+  it('fires error phase when resolveReleaseTimes throws (but resolveReleases succeeded)', async () => {
+    const state: FakeDbState = {
+      resolveReleasesCalls: [],
+      resolveReleasesImpl: () => 1,
+      resolveReleaseTimesCalls: 0,
+      resolveReleaseTimesImpl: () => { throw new Error('times error'); },
+    };
+    const phaseEvents: string[] = [];
+    const resolver = new ReleaseResolver({
+      trailDb: makeFakeTrailDb(state),
+      gitRoots: ['/work/anytime-markdown'],
+      onPhase: (e) => phaseEvents.push(`${e.phase}:${e.action}`),
+    });
+    const { bus } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await resolver.onRunStart(ctx);
+    await resolver.onEvent(
+      { kind: 'git_tag', repo: 'anytime-markdown', tag: 'v1', commitHash: 'h' },
+      ctx,
+    );
+    await resolver.onRunEnd(ctx);
+
+    expect(state.resolveReleasesCalls).toEqual(['/work/anytime-markdown']);
+    expect(state.resolveReleaseTimesCalls).toBe(1);
+    // resolveReleases が成功し resolveReleaseTimes が失敗 → error フェーズが発火する
+    expect(phaseEvents).toEqual(['resolve_releases:start', 'resolve_releases:error']);
+  });
+
+  it('skips when gitRoot is present but no git_tag events were received', async () => {
+    const state: FakeDbState = {
+      resolveReleasesCalls: [],
+      resolveReleasesImpl: () => 0,
+      resolveReleaseTimesCalls: 0,
+      resolveReleaseTimesImpl: () => 0,
+    };
+    const phaseEvents: string[] = [];
+    const resolver = new ReleaseResolver({
+      trailDb: makeFakeTrailDb(state),
+      gitRoots: ['/work/anytime-markdown'],
+      onPhase: (e) => phaseEvents.push(`${e.phase}:${e.action}`),
+    });
+    const { bus, events } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await resolver.onRunStart(ctx);
+    // no git_tag events
+    await resolver.onRunEnd(ctx);
+
+    // tagsByRoot is empty → skip with 'no tags' message
+    expect(state.resolveReleasesCalls).toEqual([]);
+    expect(events.filter((e) => e.kind === 'release_resolved')).toEqual([]);
+    expect(phaseEvents).toEqual(['resolve_releases:skip']);
+  });
+
+  it('ignores non-git_tag events in onEvent', async () => {
+    const state: FakeDbState = {
+      resolveReleasesCalls: [],
+      resolveReleasesImpl: () => 0,
+      resolveReleaseTimesCalls: 0,
+      resolveReleaseTimesImpl: () => 0,
+    };
+    const resolver = new ReleaseResolver({
+      trailDb: makeFakeTrailDb(state),
+      gitRoots: ['/work/anytime-markdown'],
+    });
+    const { bus, events } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await resolver.onRunStart(ctx);
+    // session_imported は git_tag ではないので無視される
+    await resolver.onEvent({ kind: 'session_imported', sessionId: 's1', messageCount: 1, repoName: 'r' } as unknown as import('@anytime-markdown/memory-core').AnalyzerEvent, ctx);
+    await resolver.onRunEnd(ctx);
+
+    expect(state.resolveReleasesCalls).toEqual([]);
+    expect(events.filter((e) => e.kind === 'release_resolved')).toEqual([]);
+  });
+
+  it('handles non-Error thrown by resolveReleases via String(err) fallback', async () => {
+    const state: FakeDbState = {
+      resolveReleasesCalls: [],
+      resolveReleasesImpl: () => { throw 'non-error-resolve'; },
+      resolveReleaseTimesCalls: 0,
+      resolveReleaseTimesImpl: () => 0,
+    };
+    const phaseEvents: Array<{ action: string; message?: string }> = [];
+    const resolver = new ReleaseResolver({
+      trailDb: makeFakeTrailDb(state),
+      gitRoots: ['/work/anytime-markdown'],
+      onPhase: (e) => phaseEvents.push({ action: e.action, message: 'message' in e ? e.message : undefined }),
+    });
+    const { bus } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await resolver.onRunStart(ctx);
+    await resolver.onEvent(
+      { kind: 'git_tag', repo: 'anytime-markdown', tag: 'v1', commitHash: 'h' },
+      ctx,
+    );
+    await resolver.onRunEnd(ctx);
+
+    const errorPhase = phaseEvents.find((e) => e.action === 'error');
+    expect(errorPhase).toBeDefined();
+  });
+
+  it('handles non-Error thrown by resolveReleaseTimes via String(err) fallback', async () => {
+    const state: FakeDbState = {
+      resolveReleasesCalls: [],
+      resolveReleasesImpl: () => 1,
+      resolveReleaseTimesCalls: 0,
+      resolveReleaseTimesImpl: () => { throw 'non-error-times'; },
+    };
+    const phaseEvents: Array<{ action: string; message?: string }> = [];
+    const resolver = new ReleaseResolver({
+      trailDb: makeFakeTrailDb(state),
+      gitRoots: ['/work/anytime-markdown'],
+      onPhase: (e) => phaseEvents.push({ action: e.action, message: 'message' in e ? e.message : undefined }),
+    });
+    const { bus } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await resolver.onRunStart(ctx);
+    await resolver.onEvent(
+      { kind: 'git_tag', repo: 'anytime-markdown', tag: 'v1', commitHash: 'h' },
+      ctx,
+    );
+    await resolver.onRunEnd(ctx);
+
+    const errorPhase = phaseEvents.find((e) => e.action === 'error');
+    expect(errorPhase).toBeDefined();
+  });
+
+  it('passes onProgress messages during resolve', async () => {
+    const state: FakeDbState = {
+      resolveReleasesCalls: [],
+      resolveReleasesImpl: () => 2,
+      resolveReleaseTimesCalls: 0,
+      resolveReleaseTimesImpl: () => 1,
+    };
+    const progressMessages: string[] = [];
+    const resolver = new ReleaseResolver({
+      trailDb: makeFakeTrailDb(state),
+      gitRoots: ['/work/anytime-markdown'],
+      onProgress: (msg) => progressMessages.push(msg),
+    });
+    const { bus } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await resolver.onRunStart(ctx);
+    await resolver.onEvent(
+      { kind: 'git_tag', repo: 'anytime-markdown', tag: 'v1', commitHash: 'h' },
+      ctx,
+    );
+    await resolver.onRunEnd(ctx);
+
+    expect(progressMessages).toContain('Resolving releases from version tags...');
+    expect(progressMessages).toContain('Releases resolved: 2');
+    expect(progressMessages).toContain('Resolving release times...');
+    expect(progressMessages).toContain('Release times resolved: 1');
+  });
 });

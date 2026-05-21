@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-05-21
+
+### Changed
+
+- Version bump synchronized with `database-core` / `database-viewer` 0.2.3 (no extension-specific source changes)
+
+### Database Core (database-core / database-viewer)
+
+- `database-core`: improved unit-test coverage to 99% (each adapter to 90%+)
+
 ## [0.2.2] - 2026-05-20
 
 ### Security

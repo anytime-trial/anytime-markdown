@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-05-21
+
+### Changed
+
+- Version bump synchronized with `graph-core` 0.3.4 (no extension-specific source changes)
+
+### Graph Core (graph-core)
+
+- Resolved SonarCloud findings (S7769/S7735/S7748/S107 and others)
+- Improved pure-logic unit-test coverage (`reducer`, `groupClustering`, and others)
+- `mcp-graph`: resolved SonarCloud findings (S7772/S7754/S7741/S1128)
+
 ## [0.3.3] - 2026-05-20
 
 ### Graph Core (graph-core)

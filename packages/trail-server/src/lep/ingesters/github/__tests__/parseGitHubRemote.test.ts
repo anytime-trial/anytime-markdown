@@ -33,4 +33,12 @@ describe('parseGitHubRemote', () => {
     expect(parseGitHubRemote(null)).toBeNull();
     expect(parseGitHubRemote(undefined)).toBeNull();
   });
+
+  it('returns null when name contains a slash (nested path)', () => {
+    // line 31: name.includes('/') check
+    // Crafted URL where the regex captures a name containing a slash
+    // The regex is: github.com[/:]([^/]+)/(.+?)(?:\.git)?\/?$
+    // To get name with '/', we need a URL like github.com/owner/a/b without .git suffix
+    expect(parseGitHubRemote('https://github.com/acme/sub/nested')).toBeNull();
+  });
 });

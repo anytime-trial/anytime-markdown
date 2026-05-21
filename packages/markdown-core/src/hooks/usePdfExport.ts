@@ -99,7 +99,7 @@ async function replacePlantUmlLight(): Promise<Array<() => void>> {
     const code = img.closest("[data-node-view-wrapper]")?.querySelector("code")?.textContent?.trim();
     if (!code) continue;
     try {
-      const startMatch = code.match(/@start(uml|mindmap|wbs|json|yaml)/);
+      const startMatch = /@start(uml|mindmap|wbs|json|yaml)/.exec(code);
       const src = startMatch ? code : `@startuml\n${code}\n@enduml`;
       const encoded = plantumlEncoder.encode(src);
       const newUrl = buildPlantUmlUrl(encoded);

@@ -20,7 +20,7 @@ export function proxy(request: NextRequest) {
     // Markdown エディタでユーザーが任意の HTTPS 画像を埋め込めるよう広めに許可する
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    `connect-src 'self' https://www.plantuml.com https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://platform.twitter.com${process.env.NEXT_PUBLIC_SUPABASE_URL ? ` ${process.env.NEXT_PUBLIC_SUPABASE_URL}` : ""}`,
+    `connect-src 'self' https://www.plantuml.com https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://platform.twitter.com${process.env.NEXT_PUBLIC_SUPABASE_URL ? " " + process.env.NEXT_PUBLIC_SUPABASE_URL : ""}`,
     "worker-src 'self' blob:",
     "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://youtube.com https://www.figma.com https://embed.figma.com https://open.spotify.com https://platform.twitter.com https://viewer.diagrams.net https://app.diagrams.net",
     "object-src 'none'",

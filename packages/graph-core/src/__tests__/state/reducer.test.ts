@@ -316,4 +316,306 @@ describe('graphReducer', () => {
     s = graphReducer(s, { type: 'REDO' });
     expect(s.selection.nodeIds).toEqual(['r2']);
   });
+
+  it('REDO at end of history does nothing', () => {
+    const state = createInitialState();
+    const node = createNode('rect', 50, 50, { id: 'r1' });
+    const s = graphReducer(state, { type: 'ADD_NODE', node });
+    // At end of history — REDO should be a no-op
+    const next = graphReducer(s, { type: 'REDO' });
+    expect(next).toBe(s);
+  });
+
+  it('history is capped at MAX_HISTORY (50) and oldest entry is dropped', () => {
+    let state = createInitialState();
+    // Push 51 mutations so the history wraps
+    for (let i = 0; i < 51; i++) {
+      const node = createNode('rect', i * 10, 0, { id: `n${i}` });
+      state = graphReducer(state, { type: 'ADD_NODE', node });
+    }
+    // History length must be capped
+    expect(state.history.length).toBeLessThanOrEqual(50);
+    // historyIndex must equal history.length - 1
+    expect(state.historyIndex).toBe(state.history.length - 1);
+  });
+
+  it('UNDO/REDO entries without groups field fall back to empty array', () => {
+    // Create a state whose history entry has no groups field (simulating old data)
+    const state = createInitialState();
+    const node = createNode('rect', 0, 0, { id: 'n1' });
+    let s = graphReducer(state, { type: 'ADD_NODE', node });
+    // Manually strip groups from the history entry to simulate missing field
+    (s.history[0] as Record<string, unknown>)['groups'] = undefined;
+    // UNDO should not throw and groups should default to []
+    const undone = graphReducer(s, { type: 'UNDO' });
+    expect(undone.document.groups).toEqual([]);
+  });
+
+  it('UNDO/REDO entries without selection field fall back to empty selection', () => {
+    const state = createInitialState();
+    const node = createNode('rect', 0, 0, { id: 'n1' });
+    let s = graphReducer(state, { type: 'ADD_NODE', node });
+    // Strip selection from history entry
+    (s.history[0] as Record<string, unknown>)['selection'] = undefined;
+    const undone = graphReducer(s, { type: 'UNDO' });
+    expect(undone.selection.nodeIds).toEqual([]);
+    expect(undone.selection.edgeIds).toEqual([]);
+  });
+
+  it('GROUP_SELECTED with fewer than 2 selected nodes returns same state', () => {
+    const state = makeState();
+    const s = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1'], edgeIds: [] } });
+    const next = graphReducer(s, { type: 'GROUP_SELECTED' });
+    expect(next).toBe(s);
+  });
+
+  it('GROUP_SELECTED with 2+ nodes creates group', () => {
+    let state = makeState();
+    state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1', 'n2'], edgeIds: [] } });
+    const next = graphReducer(state, { type: 'GROUP_SELECTED', groupId: 'g1' });
+    expect(next.document.groups).toHaveLength(1);
+    expect(next.document.groups![0].id).toBe('g1');
+    expect(next.document.groups![0].memberIds).toEqual(['n1', 'n2']);
+  });
+
+  it('CREATE_GROUP with fewer than 2 memberIds returns same state', () => {
+    const state = makeState();
+    const next = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1'] });
+    expect(next).toBe(state);
+  });
+
+  it('CREATE_GROUP with label sets group label', () => {
+    const state = makeState();
+    const next = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'], label: 'MyGroup' });
+    expect(next.document.groups![0].label).toBe('MyGroup');
+  });
+
+  it('ADD_TO_GROUP skips node if already a member', () => {
+    let state = makeState();
+    state = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'] });
+    const groupId = state.document.groups![0].id;
+    // n1 is already in the group — ADD_TO_GROUP should not duplicate it
+    const next = graphReducer(state, { type: 'ADD_TO_GROUP', groupId, nodeId: 'n1' });
+    expect(next.document.groups![0].memberIds).toEqual(['n1', 'n2']);
+  });
+
+  it('REMOVE_FROM_GROUP removes group when fewer than 2 members remain', () => {
+    let state = makeState();
+    state = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'] });
+    const groupId = state.document.groups![0].id;
+    // Removing n1 leaves only n2 — group should be dissolved
+    const next = graphReducer(state, { type: 'REMOVE_FROM_GROUP', groupId, nodeId: 'n1' });
+    expect(next.document.groups).toHaveLength(0);
+  });
+
+  it('REMOVE_FROM_GROUP for non-matching groupId keeps group intact', () => {
+    let state = makeState();
+    state = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'] });
+    const next = graphReducer(state, { type: 'REMOVE_FROM_GROUP', groupId: 'nonexistent', nodeId: 'n1' });
+    // Group should still be intact
+    expect(next.document.groups).toHaveLength(1);
+    expect(next.document.groups![0].memberIds).toEqual(['n1', 'n2']);
+  });
+
+  it('UNGROUP_SELECTED removes groups that contain any selected node', () => {
+    let state = makeState();
+    state = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'] });
+    state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1'], edgeIds: [] } });
+    const next = graphReducer(state, { type: 'UNGROUP_SELECTED' });
+    expect(next.document.groups).toHaveLength(0);
+  });
+
+  it('UPDATE_GROUP_LABEL updates the label of the specified group', () => {
+    let state = makeState();
+    state = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'] });
+    const groupId = state.document.groups![0].id;
+    const next = graphReducer(state, { type: 'UPDATE_GROUP_LABEL', id: groupId, label: 'Updated Label' });
+    expect(next.document.groups![0].label).toBe('Updated Label');
+  });
+
+  it('DELETE_SELECTED also removes selected edges by edgeId', () => {
+    let state = makeState();
+    const edge = createEdge('connector', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
+    state = graphReducer(state, { type: 'ADD_EDGE', edge });
+    // Select only the edge (not the nodes)
+    state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: ['e1'] } });
+    const next = graphReducer(state, { type: 'DELETE_SELECTED' });
+    expect(next.document.edges).toHaveLength(0);
+    // Nodes should survive
+    expect(next.document.nodes).toHaveLength(2);
+  });
+
+  it('SET_DOCUMENT with doc missing groups — makeInitialEntry falls back to [] for history (line 70)', () => {
+    // Create doc without groups field — exercises makeInitialEntry's groups ?? [] branch
+    // The document itself retains undefined, but the history entry normalizes to []
+    const doc = createDocument('NoGroups');
+    (doc as Record<string, unknown>)['groups'] = undefined;
+    const state = createInitialState();
+    const next = graphReducer(state, { type: 'SET_DOCUMENT', doc: doc as never });
+    // history[0].groups should be [] (via makeInitialEntry's ?? [] fallback)
+    expect(next.history[0].groups).toEqual([]);
+  });
+
+  it('withHistory when document.groups is undefined falls back to [] (line 57)', () => {
+    // SNAPSHOT calls withHistory(state, state), so if state.document.groups is undefined,
+    // withHistory sees after.document.groups === undefined → groups ?? [] branch fires
+    let state = makeState();
+    (state.document as Record<string, unknown>)['groups'] = undefined;
+    const next = graphReducer(state, { type: 'SNAPSHOT' });
+    // History entry should have groups = [] (via ?? [] fallback in withHistory)
+    expect(next.history[next.historyIndex].groups).toEqual([]);
+  });
+
+  it('DELETE_SELECTED with edge having undefined nodeId covers ?? empty string (lines 134-135)', () => {
+    // Edge with no nodeId in from/to — exercises e.from.nodeId ?? '' branch
+    const state = makeState();
+    // Add a floating edge (no nodeId)
+    const floatEdge = createEdge('line', { x: 0, y: 0 }, { x: 100, y: 100 }, { id: 'float1' });
+    let s = graphReducer(state, { type: 'ADD_EDGE', edge: floatEdge });
+    // Select n1 for deletion — the floating edge should not crash
+    s = graphReducer(s, { type: 'SET_SELECTION', selection: { nodeIds: ['n1'], edgeIds: [] } });
+    const next = graphReducer(s, { type: 'DELETE_SELECTED' });
+    // n1 removed, floating edge preserved (nodeId undefined, ?? '' is '')
+    expect(next.document.nodes).toHaveLength(1);
+    expect(next.document.edges.some(e => e.id === 'float1')).toBe(true);
+  });
+
+  it('SET_NODE_POSITIONS false branch: node without update is returned unchanged (line 201)', () => {
+    // SET_NODE_POSITIONS with only n1 in updates — n2 should hit the `: n` false branch
+    const state = makeState();
+    const next = graphReducer(state, {
+      type: 'SET_NODE_POSITIONS',
+      updates: [{ id: 'n1', x: 999, y: 888 }],
+    });
+    // n1 moved, n2 unchanged (false branch of `u ? ... : n`)
+    expect(next.document.nodes.find(n => n.id === 'n1')!.x).toBe(999);
+    expect(next.document.nodes.find(n => n.id === 'n2')!.x).toBe(200);
+  });
+
+  it('ALIGN_NODES with undefined x/y covers ternary empty-object branches (line 326)', () => {
+    // update with no x or y — covers `u.x === undefined ? {} : { x: u.x }` true branches
+    const state = makeState();
+    const next = graphReducer(state, {
+      type: 'ALIGN_NODES',
+      updates: [
+        { id: 'n1', y: 500 }, // x undefined → {} for x, { y: 500 } for y
+        { id: 'n2', x: 300 }, // y undefined → { x: 300 } for x, {} for y
+      ],
+    });
+    expect(next.document.nodes.find(n => n.id === 'n1')!.y).toBe(500);
+    expect(next.document.nodes.find(n => n.id === 'n1')!.x).toBe(10); // unchanged
+    expect(next.document.nodes.find(n => n.id === 'n2')!.x).toBe(300);
+    expect(next.document.nodes.find(n => n.id === 'n2')!.y).toBe(100); // unchanged
+  });
+
+  it('ALIGN_NODES with node not in updates returns node unchanged (line 325)', () => {
+    // Only update n1; n2 is not in updates → `if (!u) return n` fires for n2
+    const state = makeState();
+    const next = graphReducer(state, {
+      type: 'ALIGN_NODES',
+      updates: [{ id: 'n1', x: 999, y: 888 }],
+    });
+    expect(next.document.nodes.find(n => n.id === 'n1')!.x).toBe(999);
+    // n2 unchanged — !u branch fires
+    expect(next.document.nodes.find(n => n.id === 'n2')!.x).toBe(200);
+  });
+
+  it('REDO with entry missing groups/selection covers fallback branches (lines 397-399)', () => {
+    const state = makeState();
+    const node = createNode('rect', 0, 0, { id: 'rx1' });
+    let s = graphReducer(state, { type: 'ADD_NODE', node });
+    // UNDO so historyIndex goes back, then modify entry[1] to strip groups/selection
+    s = graphReducer(s, { type: 'UNDO' });
+    // Strip groups and selection from history entry index 1
+    (s.history[1] as Record<string, unknown>)['groups'] = undefined;
+    (s.history[1] as Record<string, unknown>)['selection'] = undefined;
+    const redone = graphReducer(s, { type: 'REDO' });
+    // Should not throw; groups and selection default
+    expect(redone.document.groups).toEqual([]);
+    expect(redone.selection.nodeIds).toEqual([]);
+  });
+
+  it('UPDATE_EDGE false branch: non-matching edge is returned unchanged (line 157)', () => {
+    // Add two edges, update only e1; e2 should hit the `: e` false branch
+    let state = makeState();
+    const e1 = createEdge('connector', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e1' });
+    const e2 = createEdge('connector', { nodeId: 'n1', x: 0, y: 0 }, { nodeId: 'n2', x: 0, y: 0 }, { id: 'e2' });
+    state = graphReducer(state, { type: 'ADD_EDGE', edge: e1 });
+    state = graphReducer(state, { type: 'ADD_EDGE', edge: e2 });
+    const next = graphReducer(state, { type: 'UPDATE_EDGE', id: 'e1', changes: { label: 'Updated' } });
+    // e2 is unchanged (false branch)
+    expect(next.document.edges.find(e => e.id === 'e2')!.label).toBeUndefined();
+    expect(next.document.edges.find(e => e.id === 'e1')!.label).toBe('Updated');
+  });
+
+  it('GROUP_SELECTED with undefined document.groups falls back to [] (line 218)', () => {
+    let state = makeState();
+    (state.document as Record<string, unknown>)['groups'] = undefined;
+    state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1', 'n2'], edgeIds: [] } });
+    (state.document as Record<string, unknown>)['groups'] = undefined;
+    const next = graphReducer(state, { type: 'GROUP_SELECTED', groupId: 'gx1' });
+    expect(next.document.groups).toHaveLength(1);
+    expect(next.document.groups![0].id).toBe('gx1');
+  });
+
+  it('UPDATE_GROUP_LABEL with undefined document.groups falls back to [] (line 271)', () => {
+    let state = makeState();
+    (state.document as Record<string, unknown>)['groups'] = undefined;
+    const next = graphReducer(state, { type: 'UPDATE_GROUP_LABEL', id: 'nonexistent', label: 'X' });
+    expect(next.document.groups).toHaveLength(0);
+  });
+
+  it('UPDATE_GROUP_LABEL false branch: non-matching group returned unchanged (line 272)', () => {
+    // Two groups; update label for g1 only; g2 hits the `: g` false branch
+    const state = makeState();
+    // Need 4 nodes for 2 groups of 2. Add n3 and n4.
+    const n3 = createNode('rect', 300, 0, { id: 'n3' });
+    const n4 = createNode('rect', 400, 0, { id: 'n4' });
+    let s = graphReducer(state, { type: 'ADD_NODE', node: n3 });
+    s = graphReducer(s, { type: 'ADD_NODE', node: n4 });
+    s = graphReducer(s, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'], label: 'GroupA' });
+    s = graphReducer(s, { type: 'CREATE_GROUP', memberIds: ['n3', 'n4'], label: 'GroupB' });
+    const g1id = s.document.groups![0].id;
+    const next = graphReducer(s, { type: 'UPDATE_GROUP_LABEL', id: g1id, label: 'Renamed' });
+    // g1 was renamed, g2 unchanged (: g branch)
+    expect(next.document.groups![0].label).toBe('Renamed');
+    expect(next.document.groups![1].label).toBe('GroupB');
+  });
+
+  it('group operations with undefined groups falls back to [] (lines 230,249-284,295)', () => {
+    // Strip groups from state before each group action to trigger the ?? [] fallback
+    let state = makeState();
+    (state.document as Record<string, unknown>)['groups'] = undefined;
+
+    // UNGROUP_SELECTED with undefined groups (line 230)
+    state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1'], edgeIds: [] } });
+    (state.document as Record<string, unknown>)['groups'] = undefined;
+    const ungrouped = graphReducer(state, { type: 'UNGROUP_SELECTED' });
+    expect(ungrouped.document.groups).toHaveLength(0);
+
+    // CREATE_GROUP with undefined groups (line 249)
+    (state.document as Record<string, unknown>)['groups'] = undefined;
+    const created = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'] });
+    expect(created.document.groups).toHaveLength(1);
+
+    // DELETE_GROUP with undefined groups (line 260)
+    (state.document as Record<string, unknown>)['groups'] = undefined;
+    const deleted = graphReducer(state, { type: 'DELETE_GROUP', id: 'nonexistent' });
+    expect(deleted.document.groups).toHaveLength(0);
+
+    // UPDATE_GROUP_LABEL with undefined groups (line 271)
+    (state.document as Record<string, unknown>)['groups'] = undefined;
+    const labeled = graphReducer(state, { type: 'UPDATE_GROUP_LABEL', id: 'nonexistent', label: 'X' });
+    expect(labeled.document.groups).toHaveLength(0);
+
+    // ADD_TO_GROUP with undefined groups (line 284)
+    (state.document as Record<string, unknown>)['groups'] = undefined;
+    const added = graphReducer(state, { type: 'ADD_TO_GROUP', groupId: 'nonexistent', nodeId: 'n1' });
+    expect(added.document.groups).toHaveLength(0);
+
+    // REMOVE_FROM_GROUP with undefined groups (line 295)
+    (state.document as Record<string, unknown>)['groups'] = undefined;
+    const removed = graphReducer(state, { type: 'REMOVE_FROM_GROUP', groupId: 'nonexistent', nodeId: 'n1' });
+    expect(removed.document.groups).toHaveLength(0);
+  });
 });

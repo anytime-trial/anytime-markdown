@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+import fs from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 

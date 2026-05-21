@@ -134,4 +134,188 @@ describe('GitIngester', () => {
     expect(ingester.subscribes).toEqual([]);
     expect(ingester.emits).toEqual(['git_commit', 'git_tag']);
   });
+
+  it('continues to next gitRoot when listTags throws', async () => {
+    const logs: string[] = [];
+    const reader: GitReader = {
+      listCommits: () => [],
+      listTags: (gitRoot) => {
+        if (gitRoot === '/repo/bad') throw new Error('tag-list-boom');
+        return ['v1.0.0'];
+      },
+      getTagCommit: () => 'abc123',
+    };
+    const ingester = new GitIngester({ gitRoots: ['/repo/bad', '/repo/good'], gitReader: reader });
+    const { bus, events } = makeBus();
+    const ctx: AnalyzerContext = {
+      runId: 'r1',
+      reason: 'manual',
+      logger: { info: () => undefined, error: (m) => logs.push(m) },
+      bus,
+    };
+    await ingester.onRunEnd(ctx);
+
+    const tags = events.filter((e) => e.kind === 'git_tag');
+    expect(tags).toHaveLength(1); // only from /repo/good
+    expect(logs.some((l) => l.includes('listTags failed') && l.includes('tag-list-boom'))).toBe(true);
+  });
+
+  it('respects maxCommitsPerRoot option', async () => {
+    const reader: GitReader = {
+      listCommits: (_, limit) => {
+        const count = limit ?? 5000;
+        return Array.from({ length: count }, (__, i) => ({
+          hash: `h${i}`,
+          committedAt: '2026-05-19T00:00:00.000Z',
+          author: 'u',
+          message: 'm',
+        }));
+      },
+      listTags: () => [],
+      getTagCommit: () => '',
+    };
+    const ingester = new GitIngester({ gitRoots: ['/repo/a'], maxCommitsPerRoot: 3, gitReader: reader });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+
+    const commits = events.filter((e) => e.kind === 'git_commit');
+    expect(commits).toHaveLength(3);
+  });
+
+  it('defaultGitReader.listCommits parses commits correctly with real git repo', async () => {
+    // Covers the main parse path in defaultGitReader.listCommits (lines 165-178)
+    // including the parts.length < 4 skip and the normal parse path
+    const os = await import('node:os');
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { execFileSync } = await import('node:child_process');
+    const { defaultGitReader } = await import('../GitIngester');
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-ingester-parse-'));
+    try {
+      execFileSync('git', ['init'], { cwd: dir });
+      execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir });
+      execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: dir });
+      fs.writeFileSync(path.join(dir, 'b.txt'), 'world');
+      execFileSync('git', ['add', 'b.txt'], { cwd: dir });
+      execFileSync('git', ['commit', '-m', 'feat: hello world'], { cwd: dir });
+
+      const commits = defaultGitReader.listCommits(dir, 5);
+      // Should parse exactly 1 commit with correct fields
+      expect(commits).toHaveLength(1);
+      expect(commits[0].message).toBe('feat: hello world');
+      expect(commits[0].author).toBe('Test User');
+      expect(commits[0].hash).toMatch(/^[0-9a-f]{40}$/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('uses defaultGitReader with a real git repo', async () => {
+    // defaultGitReader の実コード行(149-188)をカバーするため
+    // 実際の git リポジトリを一時ディレクトリに作成する
+    const os = await import('node:os');
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { execFileSync } = await import('node:child_process');
+    const { defaultGitReader } = await import('../GitIngester');
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-ingester-real-'));
+    try {
+      execFileSync('git', ['init'], { cwd: dir });
+      execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir });
+      execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir });
+      fs.writeFileSync(path.join(dir, 'a.txt'), 'hello');
+      execFileSync('git', ['add', 'a.txt'], { cwd: dir });
+      execFileSync('git', ['commit', '-m', 'init commit'], { cwd: dir });
+      execFileSync('git', ['tag', 'v1.0.0'], { cwd: dir });
+
+      const commits = defaultGitReader.listCommits(dir, 100);
+      expect(commits).toHaveLength(1);
+      expect(commits[0].message).toBe('init commit');
+      expect(commits[0].author).toBe('Test');
+
+      const tags = defaultGitReader.listTags(dir);
+      expect(tags).toContain('v1.0.0');
+
+      const commitHash = defaultGitReader.getTagCommit(dir, 'v1.0.0');
+      expect(commitHash).toBe(commits[0].hash);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('logs non-Error throws as String(err) when listCommits throws non-Error', async () => {
+    // Covers the `String(err)` branch in listCommits error handler (line 83)
+    const logs: string[] = [];
+    const reader: GitReader = {
+      listCommits: () => { throw 'string-error'; }, // non-Error throw
+      listTags: () => [],
+      getTagCommit: () => '',
+    };
+    const ingester = new GitIngester({ gitRoots: ['/repo/a'], gitReader: reader });
+    const { bus } = makeBus();
+    const ctx: AnalyzerContext = {
+      runId: 'r1',
+      reason: 'manual',
+      logger: { info: () => undefined, error: (m) => logs.push(m) },
+      bus,
+    };
+    await ingester.onRunEnd(ctx);
+    expect(logs.some((l) => l.includes('listCommits failed') && l.includes('string-error'))).toBe(true);
+  });
+
+  it('logs non-Error throws as String(err) when listTags or getTagCommit throw non-Error', async () => {
+    // Covers String(err) branches in listTags/getTagCommit error handlers (lines 106, 118)
+    const logs: string[] = [];
+    const reader: GitReader = {
+      listCommits: () => [],
+      listTags: () => { throw 42; }, // non-Error throw
+      getTagCommit: () => '',
+    };
+    const ingester = new GitIngester({ gitRoots: ['/repo/a'], gitReader: reader });
+    const { bus } = makeBus();
+    const ctx: AnalyzerContext = {
+      runId: 'r1',
+      reason: 'manual',
+      logger: { info: () => undefined, error: (m) => logs.push(m) },
+      bus,
+    };
+    await ingester.onRunEnd(ctx);
+    expect(logs.some((l) => l.includes('listTags failed') && l.includes('42'))).toBe(true);
+  });
+
+  it('logs non-Error throws when getTagCommit throws non-Error', async () => {
+    const logs: string[] = [];
+    const reader: GitReader = {
+      listCommits: () => [],
+      listTags: () => ['v1.0.0'],
+      getTagCommit: () => { throw { code: 'ENOENT' }; }, // non-Error object
+    };
+    const ingester = new GitIngester({ gitRoots: ['/repo/a'], gitReader: reader });
+    const { bus } = makeBus();
+    const ctx: AnalyzerContext = {
+      runId: 'r1',
+      reason: 'manual',
+      logger: { info: () => undefined, error: (m) => logs.push(m) },
+      bus,
+    };
+    await ingester.onRunEnd(ctx);
+    expect(logs.some((l) => l.includes('getTagCommit failed'))).toBe(true);
+  });
+
+  it('defaultGitReader.listCommits returns [] for non-git directory', async () => {
+    const os = await import('node:os');
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { defaultGitReader } = await import('../GitIngester');
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-ingester-empty-'));
+    try {
+      const commits = defaultGitReader.listCommits(dir, 100);
+      expect(commits).toEqual([]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

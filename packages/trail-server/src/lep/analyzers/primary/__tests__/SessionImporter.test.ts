@@ -250,4 +250,183 @@ describe('SessionImporter', () => {
     expect(importer.getCounters().imported).toBe(0);
     expect(importer.getSessionsToAnalyze().size).toBe(0);
   });
+
+  it('skips when statSync succeeds but file size is unchanged (not grown)', async () => {
+    const state = makeFakeState();
+    // ファイルが存在し、既存サイズと同じ（縮小・同一）→ skip
+    const existingSize = 500;
+    state.importedMap.set('/tmp/same-size.jsonl', {
+      sessionId: 'ss1',
+      fileSize: existingSize,
+      commitsResolved: false,
+      hasMessages: true,
+      hasUsableCostData: true,
+    });
+    const trailDb = makeFakeTrailDb(state);
+    const importer = new SessionImporter({ trailDb });
+    const { bus, events } = makeBus();
+    const ctx = makeCtx(bus);
+
+    // statSync が実際のファイルを読もうとするため、実在するファイルを使う
+    // /proc/version は Linux で必ず存在する小さなファイル
+    const realFile = '/proc/version';
+    const realSize = require('node:fs').statSync(realFile).size;
+    // fileSize を実ファイルサイズより大きくすることで「縮小」状態を作る
+    state.importedMap.set(realFile, {
+      sessionId: 'ss1',
+      fileSize: realSize + 100_000,
+      commitsResolved: false,
+      hasMessages: true,
+      hasUsableCostData: true,
+    });
+
+    await importer.onRunStart(ctx);
+    await importer.onEvent(
+      discoveredEvent({ sessionId: 'ss1', mainFile: realFile, hasMessages: true, hasUsableCostData: true }),
+      ctx,
+    );
+    await importer.onRunEnd(ctx);
+
+    expect(state.importSessionCalls).toHaveLength(0);
+    const skipped = events.filter((e) => e.kind === 'session_skipped');
+    expect(skipped).toHaveLength(1);
+    if (skipped[0].kind === 'session_skipped') {
+      expect(skipped[0].reason).toBe('file_unchanged');
+    }
+    expect(importer.getCounters().skipped).toBeGreaterThan(0);
+  });
+
+  it('commits mid-batch when BATCH_MESSAGE_LIMIT is exceeded (20000 messages)', async () => {
+    const state = makeFakeState();
+    // importSession が 20_001 messages を返すと、次の onEvent でバッチ上限に達する
+    state.importSessionImpl = () => 20_001;
+    const trailDb = makeFakeTrailDb(state);
+    const importer = new SessionImporter({ trailDb });
+    const { bus } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await importer.onRunStart(ctx);
+    await importer.onEvent(discoveredEvent({ sessionId: 'big' }), ctx);
+    // mid-batch COMMIT が発生した後、onRunEnd で再度 COMMIT しようとするが
+    // inTransaction=false なので onRunEnd の commit は呼ばれない
+    await importer.onRunEnd(ctx);
+
+    // BEGIN が 1 回、mid-batch COMMIT が 1 回（onRunEnd は inTransaction=false なのでスキップ）
+    expect(state.transactionLog).toEqual(['BEGIN', 'COMMIT']);
+  });
+
+  it('ignores non-jsonl_session_discovered events silently', async () => {
+    const state = makeFakeState();
+    const trailDb = makeFakeTrailDb(state);
+    const importer = new SessionImporter({ trailDb });
+    const { bus, events } = makeBus();
+    const ctx = makeCtx(bus);
+
+    await importer.onRunStart(ctx);
+    // session_imported はこの analyzer の subscribes 外なので無視される
+    await importer.onEvent(
+      { kind: 'session_imported', sessionId: 'x', messageCount: 1, repoName: 'r' } as unknown as import('@anytime-markdown/memory-core').AnalyzerEvent,
+      ctx,
+    );
+    await importer.onRunEnd(ctx);
+
+    expect(state.importSessionCalls).toHaveLength(0);
+    expect(events).toHaveLength(0);
+  });
+
+  it('handles non-Error thrown by importSession via String(err) fallback', async () => {
+    const state = makeFakeState();
+    state.importSessionImpl = () => { throw 'non-error-string'; };
+    const trailDb = makeFakeTrailDb(state);
+    const importer = new SessionImporter({ trailDb });
+    const errors: string[] = [];
+    const ctx: AnalyzerContext = {
+      runId: 'r1',
+      reason: 'manual',
+      logger: { info: () => undefined, error: (msg: string) => { errors.push(msg); } },
+      bus: { publish: async () => undefined },
+    };
+
+    await importer.onRunStart(ctx);
+    await importer.onEvent(discoveredEvent({ sessionId: 's1' }), ctx);
+    await importer.onRunEnd(ctx);
+
+    expect(errors.some((e) => e.includes('non-error-string'))).toBe(true);
+  });
+
+  it('rollbacks when COMMIT throws, and logs if ROLLBACK also throws', async () => {
+    const state = makeFakeState();
+    const trailDb: TrailDatabase = {
+      getImportedFileMap: () => state.importedMap,
+      importSession: () => 1,
+      beginExternalTransaction: () => { state.transactionLog.push('BEGIN'); },
+      commitExternalTransaction: () => {
+        state.transactionLog.push('COMMIT_FAIL');
+        throw new Error('disk full');
+      },
+      rollbackExternalTransaction: () => {
+        state.transactionLog.push('ROLLBACK_FAIL');
+        throw new Error('rollback also failed');
+      },
+    } as unknown as TrailDatabase;
+
+    const importer = new SessionImporter({ trailDb });
+    const errors: string[] = [];
+    const ctx: AnalyzerContext = {
+      runId: 'r1',
+      reason: 'manual',
+      logger: {
+        info: () => undefined,
+        error: (msg: string) => { errors.push(msg); },
+      },
+      bus: { publish: async () => undefined },
+    };
+
+    await importer.onRunStart(ctx);
+    await importer.onEvent(discoveredEvent({ sessionId: 'x' }), ctx);
+    await importer.onRunEnd(ctx);
+
+    expect(state.transactionLog).toContain('BEGIN');
+    expect(state.transactionLog).toContain('COMMIT_FAIL');
+    expect(state.transactionLog).toContain('ROLLBACK_FAIL');
+    // COMMIT と ROLLBACK 両方の失敗がログに出る
+    expect(errors.some((e) => e.includes('COMMIT failed'))).toBe(true);
+    expect(errors.some((e) => e.includes('ROLLBACK also failed'))).toBe(true);
+  });
+
+  it('handles non-Error objects thrown by COMMIT and ROLLBACK via String() fallback', async () => {
+    const state = makeFakeState();
+    const trailDb: TrailDatabase = {
+      getImportedFileMap: () => state.importedMap,
+      importSession: () => 1,
+      beginExternalTransaction: () => { state.transactionLog.push('BEGIN'); },
+      commitExternalTransaction: () => {
+        state.transactionLog.push('COMMIT_FAIL');
+        throw 'non-error-commit';
+      },
+      rollbackExternalTransaction: () => {
+        state.transactionLog.push('ROLLBACK_FAIL');
+        throw 'non-error-rollback';
+      },
+    } as unknown as TrailDatabase;
+
+    const importer = new SessionImporter({ trailDb });
+    const errors: string[] = [];
+    const ctx: AnalyzerContext = {
+      runId: 'r1',
+      reason: 'manual',
+      logger: {
+        info: () => undefined,
+        error: (msg: string) => { errors.push(msg); },
+      },
+      bus: { publish: async () => undefined },
+    };
+
+    await importer.onRunStart(ctx);
+    await importer.onEvent(discoveredEvent({ sessionId: 'y' }), ctx);
+    await importer.onRunEnd(ctx);
+
+    expect(errors.some((e) => e.includes('non-error-commit'))).toBe(true);
+    expect(errors.some((e) => e.includes('non-error-rollback'))).toBe(true);
+  });
 });

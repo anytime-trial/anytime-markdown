@@ -1,34 +1,43 @@
 import { handleSearchMemory } from '../../tools/searchMemory';
 
+const mockClose = jest.fn();
+const mockSearchMemoryFn = jest.fn();
+const mockOpenMemoryCoreDb = jest.fn();
+const mockCreateOllamaClient = jest.fn().mockReturnValue({});
+
 jest.mock('@anytime-markdown/memory-core', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
-  openMemoryCoreDb: jest.fn().mockResolvedValue({
-    db: {},
-    save: jest.fn(),
-    close: jest.fn(),
-  }),
-  createOllamaClient: jest.fn().mockReturnValue({}),
-  searchMemory: jest.fn().mockResolvedValue({
-    entities: [{ id: 'e1', type: 'Tool', display_name: 'Jest', summary: 'A test runner', score: 0.9 }],
-    edges: [],
-    episodes: [],
-  }),
+  openMemoryCoreDb: (...args: unknown[]) => mockOpenMemoryCoreDb(...args),
+  searchMemory: (...args: unknown[]) => mockSearchMemoryFn(...args),
+}));
+
+jest.mock('@anytime-markdown/agent-core', () => ({
+  createOllamaClient: (...args: unknown[]) => mockCreateOllamaClient(...args),
 }));
 
 describe('handleSearchMemory', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete process.env['OLLAMA_BASE_URL'];
+
+    mockOpenMemoryCoreDb.mockResolvedValue({
+      db: {},
+      save: jest.fn(),
+      close: mockClose,
+    });
+
+    mockSearchMemoryFn.mockResolvedValue({
+      entities: [{ id: 'e1', type: 'Tool', display_name: 'Jest', summary: 'A test runner', score: 0.9 }],
+      edges: [],
+      episodes: [],
+    });
   });
 
   test('calls searchMemory with correct input and returns result', async () => {
-    const { searchMemory: mockSearchMemory, openMemoryCoreDb } =
-      jest.requireMock('@anytime-markdown/memory-core');
-
     const result = await handleSearchMemory({ query: 'test runner' });
 
-    expect(openMemoryCoreDb).toHaveBeenCalledTimes(1);
-    expect(mockSearchMemory).toHaveBeenCalledWith(
+    expect(mockOpenMemoryCoreDb).toHaveBeenCalledTimes(1);
+    expect(mockSearchMemoryFn).toHaveBeenCalledWith(
       expect.objectContaining({
         input: { query: 'test runner' },
       })
@@ -40,9 +49,6 @@ describe('handleSearchMemory', () => {
   });
 
   test('passes all optional input fields through', async () => {
-    const { searchMemory: mockSearchMemory } =
-      jest.requireMock('@anytime-markdown/memory-core');
-
     await handleSearchMemory({
       query: 'dependency',
       entity_types: ['Package'],
@@ -50,7 +56,7 @@ describe('handleSearchMemory', () => {
       hops: 0,
     });
 
-    expect(mockSearchMemory).toHaveBeenCalledWith(
+    expect(mockSearchMemoryFn).toHaveBeenCalledWith(
       expect.objectContaining({
         input: {
           query: 'dependency',
@@ -62,4 +68,31 @@ describe('handleSearchMemory', () => {
     );
   });
 
+  test('OLLAMA_BASE_URL が設定されている場合は baseUrl を渡して createOllamaClient を呼ぶ', async () => {
+    process.env['OLLAMA_BASE_URL'] = 'http://custom-ollama:11434';
+
+    await handleSearchMemory({ query: 'test' });
+
+    expect(mockCreateOllamaClient).toHaveBeenCalledWith({ baseUrl: 'http://custom-ollama:11434' });
+  });
+
+  test('OLLAMA_BASE_URL が未設定の場合は空オブジェクトで createOllamaClient を呼ぶ', async () => {
+    await handleSearchMemory({ query: 'test' });
+
+    expect(mockCreateOllamaClient).toHaveBeenCalledWith({});
+  });
+
+  test('close() は searchMemory 成功時に必ず呼ばれる', async () => {
+    await handleSearchMemory({ query: 'test' });
+
+    expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+
+  test('searchMemory が throw しても close() が呼ばれる', async () => {
+    mockSearchMemoryFn.mockRejectedValue(new Error('search failed'));
+
+    await expect(handleSearchMemory({ query: 'error-case' })).rejects.toThrow('search failed');
+
+    expect(mockClose).toHaveBeenCalledTimes(1);
+  });
 });

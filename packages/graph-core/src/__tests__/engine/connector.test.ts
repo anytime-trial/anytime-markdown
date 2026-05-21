@@ -194,6 +194,19 @@ describe('hitTestConnectionPoint', () => {
     const result = hitTestConnectionPoint(node, 150, 150, 1);
     expect(result).toBeNull();
   });
+
+  it('should return border point when within border zone but not near defined connection points', () => {
+    // Node at (100,100) width=200, height=100
+    // Right-side connection point is at (300, 150)
+    // Point at (300, 130): dist to right-connection = 20 > CONNECTION_HIT_RADIUS(10)
+    //   but dist to border (300, 130) = 0 <= BORDER_HIT_RADIUS(20)
+    const node = makeNode('n1', 100, 100, 200, 100);
+    const result = hitTestConnectionPoint(node, 300, 130, 1);
+    expect(result).not.toBeNull();
+    expect(result!.side).toBe('right');
+    expect(result!.x).toBe(300);
+    expect(result!.y).toBe(130);
+  });
 });
 
 describe('bestSides', () => {
@@ -354,6 +367,42 @@ describe('computeOrthogonalPath - non-opposite sides', () => {
     // Let me re-read: if dx>dy: right/left. Always opposite.
     // So lines 282-288 may be dead code or unreachable via public API.
     // Skip - focus on other uncovered branches.
+  });
+});
+
+describe('getConnectionPoints - determineSide right branch', () => {
+  it('should assign right side when extraConnectionPoint is near the right edge', () => {
+    // nx=0.9 → 1-nx=0.1, ny=0.5 → ny=0.5, 1-ny=0.5, nx=0.9
+    // min dist: 1-nx=0.1 → right
+    const node: GraphNode = {
+      ...makeNode('n1', 0, 0, 200, 100),
+      extraConnectionPoints: [{ x: 0.9, y: 0.5 }],
+    };
+    const points = getConnectionPoints(node);
+    const extra = points[4]; // 5th point is the extra one
+    expect(extra.side).toBe('right');
+  });
+
+  it('should assign bottom side when extraConnectionPoint is near the bottom edge', () => {
+    // ny=0.9 → 1-ny=0.1 → bottom
+    const node: GraphNode = {
+      ...makeNode('n1', 0, 0, 200, 100),
+      extraConnectionPoints: [{ x: 0.5, y: 0.9 }],
+    };
+    const points = getConnectionPoints(node);
+    const extra = points[4];
+    expect(extra.side).toBe('bottom');
+  });
+
+  it('should assign left side when extraConnectionPoint is near the left edge', () => {
+    // nx=0.05 → 1-nx=0.95, nx=0.05 is smallest → left
+    const node: GraphNode = {
+      ...makeNode('n1', 0, 0, 200, 100),
+      extraConnectionPoints: [{ x: 0.05, y: 0.5 }],
+    };
+    const points = getConnectionPoints(node);
+    const extra = points[4];
+    expect(extra.side).toBe('left');
   });
 });
 

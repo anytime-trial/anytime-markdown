@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+import fs from 'node:fs/promises';
 import type { GraphDocument } from '@anytime-markdown/graph-core/types';
 import { exportToSvg } from '@anytime-markdown/graph-core/src/io/exportSvg';
 import { resolveSecurePath, validateGraphExtension } from '../utils/securePath';

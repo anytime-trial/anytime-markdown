@@ -26,7 +26,7 @@ const BOUNDARY_FUNC: Readonly<Partial<Record<C4ElementType, string>>> = {
 };
 
 function escapeQuotes(s: string): string {
-  return s.replaceAll('"', '\\"');
+  return s.replaceAll('"', String.raw`\"`);
 }
 
 function serializeElement(elem: C4Element): string {
@@ -71,8 +71,10 @@ export function c4ToMermaid(model: C4Model): string {
     const boundaryFunc = BOUNDARY_FUNC[elem.type];
     if (boundaryFunc && children) {
       // Boundary 型で子を持つ場合: Element 定義 + Boundary ブロック
-      lines.push(`${indent}${serializeElement(elem)}`);
-      lines.push(`${indent}${boundaryFunc}(${elem.id}, "${escapeQuotes(elem.name)}") {`);
+      lines.push(
+        `${indent}${serializeElement(elem)}`,
+        `${indent}${boundaryFunc}(${elem.id}, "${escapeQuotes(elem.name)}") {`,
+      );
       for (const child of children) {
         writeElement(child, indent + '  ');
       }

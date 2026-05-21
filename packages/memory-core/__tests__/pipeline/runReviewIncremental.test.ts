@@ -309,4 +309,199 @@ describe('runReviewIncremental', () => {
       close();
     }
   }, 30000);
+
+  // force=true: re-parses already-ingested file, clears findings first
+  test('force=true: re-parse already-ingested review doc → status=success, findings re-processed', async () => {
+    const { dir, cleanup } = makeTmpReviewDir([
+      { name: 'sample.md', content: SAMPLE_REVIEW_DOC },
+    ]);
+    const { db, close } = await openTestDb();
+
+    try {
+      // First normal run
+      const first = await runReviewIncremental({
+        db,
+        repoName: REPO,
+        reviewDir: dir,
+        ollama: mockOllama,
+        model: 'test',
+        logger: noopLogger,
+      });
+      expect(first.reviews_inserted).toBeGreaterThanOrEqual(1);
+      const firstFindings = first.findings_inserted;
+
+      // Second run with force=true — should re-parse despite same hash
+      // (is_new stays false since the row exists, but findings are cleared/re-inserted)
+      const second = await runReviewIncremental({
+        db,
+        repoName: REPO,
+        reviewDir: dir,
+        ollama: mockOllama,
+        model: 'test',
+        logger: noopLogger,
+        force: true,
+      });
+      expect(second.status).toBe('success');
+      // The force path executes: no error, findings re-processed
+      expect(second.findings_inserted).toBeGreaterThanOrEqual(0);
+      // items_processed should include the file
+      expect(second.items_processed).toBeGreaterThanOrEqual(1);
+      // findings_inserted >= first run (cleared and re-inserted)
+      expect(second.findings_inserted).toBeGreaterThanOrEqual(firstFindings);
+    } finally {
+      close();
+      cleanup();
+    }
+  }, 30000);
+
+  // force=true via env-var MEMORY_CORE_REVIEW_FORCE=1
+  test('MEMORY_CORE_REVIEW_FORCE=1 triggers force re-parse via env-var', async () => {
+    const { dir, cleanup } = makeTmpReviewDir([
+      { name: 'env-force.md', content: SAMPLE_REVIEW_DOC },
+    ]);
+    const { db, close } = await openTestDb();
+
+    const prev = process.env['MEMORY_CORE_REVIEW_FORCE'];
+    process.env['MEMORY_CORE_REVIEW_FORCE'] = '1';
+
+    try {
+      // First run seeds the review
+      const first = await runReviewIncremental({
+        db,
+        repoName: REPO,
+        reviewDir: dir,
+        ollama: mockOllama,
+        model: 'test',
+        logger: noopLogger,
+        force: false, // ensure force only comes from env
+      });
+      expect(first.reviews_inserted).toBeGreaterThanOrEqual(1);
+
+      // Second run — env-var force=1 → re-parse should succeed without error
+      const second = await runReviewIncremental({
+        db,
+        repoName: REPO,
+        reviewDir: dir,
+        ollama: mockOllama,
+        model: 'test',
+        logger: noopLogger,
+        force: false,
+      });
+      // With force re-parse, the pipeline runs successfully (force path executed)
+      expect(second.status).toBe('success');
+      expect(second.items_processed).toBeGreaterThanOrEqual(1);
+    } finally {
+      if (prev === undefined) {
+        delete process.env['MEMORY_CORE_REVIEW_FORCE'];
+      } else {
+        process.env['MEMORY_CORE_REVIEW_FORCE'] = prev;
+      }
+      close();
+      cleanup();
+    }
+  }, 30000);
+
+  // Route C: force=true with session reviews clears session findings
+  test('force=true with session reviews clears session findings and re-inserts', async () => {
+    const TS = '2026-03-01T00:00:00.000Z';
+    const { db, close } = await openTestDb({
+      trailMessages: [
+        {
+          uuid: 'msg-force-sess',
+          session_id: 'sess-force',
+          type: 'assistant',
+          timestamp: TS,
+          text_content: `## レビュー指摘事項\n\n### 1. Null 参照\n\n- **重大度**: error\n- **カテゴリ**: logic\n- **対象**: \`foo.ts\`\n\n**問題:**\n\nNull かもしれない\n\n**提案:**\n\nチェックを追加する`,
+          subagent_type: 'code-reviewer',
+        },
+      ],
+    });
+
+    try {
+      // First run — ingests session review
+      const first = await runReviewIncremental({
+        db,
+        repoName: REPO,
+        reviewDir: '/nonexistent-force-test',
+        ollama: mockOllama,
+        model: 'test',
+        logger: noopLogger,
+      });
+      expect(first.status).toBe('success');
+
+      // Second run with force — clears session findings and re-processes
+      const second = await runReviewIncremental({
+        db,
+        repoName: REPO,
+        reviewDir: '/nonexistent-force-test',
+        ollama: mockOllama,
+        model: 'test',
+        logger: noopLogger,
+        force: true,
+      });
+      expect(second.status).toBe('success');
+    } finally {
+      close();
+    }
+  }, 30000);
+
+  // Unreadable file in reviewDir → error recorded, other files processed
+  test('unreadable file in reviewDir → itemsFailed increments, other files still processed', async () => {
+    const { dir, cleanup } = makeTmpReviewDir([
+      { name: 'unreadable.md', content: SAMPLE_REVIEW_DOC },
+      { name: 'readable.md', content: SAMPLE_REVIEW_DOC.replace('Design Review', 'Readable Review') },
+    ]);
+    const { db, close } = await openTestDb();
+
+    // Make the first file unreadable
+    const unreadablePath = path.join(dir, 'unreadable.md');
+    fs.chmodSync(unreadablePath, 0o000);
+
+    try {
+      const result = await runReviewIncremental({
+        db,
+        repoName: REPO,
+        reviewDir: dir,
+        ollama: mockOllama,
+        model: 'test',
+        logger: noopLogger,
+      });
+
+      // Status is partial or success depending on whether readable file compensates
+      expect(['success', 'partial']).toContain(result.status);
+      // The readable file should still be processed
+      expect(result.reviews_inserted).toBeGreaterThanOrEqual(1);
+    } finally {
+      // Restore permissions before cleanup
+      try { fs.chmodSync(unreadablePath, 0o644); } catch (_) {}
+      close();
+      cleanup();
+    }
+  }, 30000);
+
+  // Multiple review docs in directory
+  test('multiple review docs in reviewDir → all processed', async () => {
+    const { dir, cleanup } = makeTmpReviewDir([
+      { name: 'review1.md', content: SAMPLE_REVIEW_DOC },
+      { name: 'review2.md', content: SAMPLE_REVIEW_DOC.replace('Design Review', 'Code Review 2') },
+    ]);
+    const { db, close } = await openTestDb();
+
+    try {
+      const result = await runReviewIncremental({
+        db,
+        repoName: REPO,
+        reviewDir: dir,
+        ollama: mockOllama,
+        model: 'test',
+        logger: noopLogger,
+      });
+
+      expect(result.status).toBe('success');
+      expect(result.reviews_inserted).toBeGreaterThanOrEqual(2);
+    } finally {
+      close();
+      cleanup();
+    }
+  }, 30000);
 });

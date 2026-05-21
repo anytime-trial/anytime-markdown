@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-05-21
+
+### Changed
+
+- Version bump synchronized with `spreadsheet-core` / `spreadsheet-viewer` 0.4.6 (no extension-specific source changes)
+
+### Sheet Core (spreadsheet-core / spreadsheet-viewer)
+
+- `spreadsheet-core`: resolved SonarCloud findings (S2004/S7758/S7780); raised `InMemoryWorkbookAdapter` coverage to 100% (74→100%)
+
 ## [0.4.5] - 2026-05-20
 
 ### Security

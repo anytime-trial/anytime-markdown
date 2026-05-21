@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-05-21
+
+### 変更
+
+- `graph-core` 0.3.4 に合わせたバージョン更新（拡張固有のソース変更なし）
+
+### Graph Core (graph-core)
+
+- SonarCloud 指摘を解消（S7769/S7735/S7748/S107 ほか）
+- 純ロジックのユニットテストカバレッジを改善（`reducer`・`groupClustering` ほか）
+- `mcp-graph`: SonarCloud 指摘を解消（S7772/S7754/S7741/S1128）
+
 ## [0.3.3] - 2026-05-20
 
 ### Graph Core (graph-core)

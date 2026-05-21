@@ -305,7 +305,7 @@ function SpreadsheetEditContent({ editor, getPos, isDark, onDirtyChange, onClose
           const pos = getPos();
           if (typeof pos !== "number") return null;
           const node = editor.state.doc.nodeAt(pos);
-          if (!node || node.type.name !== "table") return null;
+          if (node?.type.name !== "table") return null;
           return { node, pos };
         },
         { readOnly: !editor.isEditable },

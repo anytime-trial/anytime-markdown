@@ -234,7 +234,7 @@ export function computeLeadTimeMinByPrefixTimeSeries(
   const { samples } = computeCommitSamples(inputs, range);
   const prefixSet = new Set<string>();
   for (const s of samples) prefixSet.add(s.prefix);
-  const prefixes = [...prefixSet].sort();
+  const prefixes = [...prefixSet].sort((a, b) => a.localeCompare(b));
 
   const seriesByPrefix = new Map<string, Array<{ bucketStart: string; value: number }>>();
   for (const p of prefixes) {

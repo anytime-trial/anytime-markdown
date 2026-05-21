@@ -115,7 +115,7 @@ const HOTSPOT_RISK_BASE = { r: 232, g: 80, b: 28 } as const;  // red-orange #E85
 function hotspotColor(t: number, base: { r: number; g: number; b: number }): string {
   const clamped = Math.max(0, Math.min(1, t));
   // alpha ≈ 0.10 (cold) → 1.0 (hot)
-  const alpha = 0.10 + clamped * 0.90;
+  const alpha = 0.1 + clamped * 0.9;
   return `rgba(${base.r}, ${base.g}, ${base.b}, ${alpha.toFixed(3)})`;
 }
 
@@ -152,9 +152,9 @@ export function computeColorMap(
   if (overlay === 'coverage-lines' || overlay === 'coverage-branches' || overlay === 'coverage-functions') {
     if (!coverageMatrix) return new Map();
     const map = new Map<string, string>();
-    const field = overlay === 'coverage-lines' ? 'lines'
-      : overlay === 'coverage-branches' ? 'branches'
-      : 'functions';
+    const field = overlay === 'coverage-lines'
+      ? 'lines'
+      : (overlay === 'coverage-branches' ? 'branches' : 'functions');
     for (const entry of coverageMatrix.entries) {
       const metric = entry[field];
       map.set(entry.elementId, metric.total > 0 ? coverageHeatColor(metric.pct) : COLOR_NO_DATA);
@@ -235,11 +235,9 @@ export function computeColorMap(
     if (!roleMatrix) return new Map();
     const map = new Map<string, string>();
     for (const [elementId, entry] of Object.entries(roleMatrix)) {
-      const color =
-        entry.dominantRole === 'hub'         ? COLOR_ROLE_HUB
-        : entry.dominantRole === 'leaf'      ? COLOR_ROLE_LEAF
-        : entry.dominantRole === 'orchestrator' ? COLOR_ROLE_ORCH
-        : COLOR_ROLE_PERIPHERAL;
+      const innerColor = entry.dominantRole === 'leaf' ? COLOR_ROLE_LEAF
+        : (entry.dominantRole === 'orchestrator' ? COLOR_ROLE_ORCH : COLOR_ROLE_PERIPHERAL);
+      const color = entry.dominantRole === 'hub' ? COLOR_ROLE_HUB : innerColor;
       map.set(elementId, color);
     }
     return map;
@@ -278,12 +276,12 @@ export function computeColorMap(
   // 「巨大ファイルが含まれているか」を可視化する Max ベースに統一する。
   if (overlay === 'size-loc' || overlay === 'size-files' || overlay === 'size-functions') {
     if (!sizeMatrix) return new Map();
-    const colorFn = overlay === 'size-loc' ? sizeLocColor
-      : overlay === 'size-files' ? sizeFilesColor
-      : sizeFunctionsColor;
-    const field: keyof SizeMatrix[string] = overlay === 'size-loc' ? 'locMax'
-      : overlay === 'size-files' ? 'files'
-      : 'functions';
+    const colorFn = overlay === 'size-loc'
+      ? sizeLocColor
+      : (overlay === 'size-files' ? sizeFilesColor : sizeFunctionsColor);
+    const field: keyof SizeMatrix[string] = overlay === 'size-loc'
+      ? 'locMax'
+      : (overlay === 'size-files' ? 'files' : 'functions');
     const map = new Map<string, string>();
     for (const [elementId, entry] of Object.entries(sizeMatrix)) {
       map.set(elementId, colorFn(entry[field]));

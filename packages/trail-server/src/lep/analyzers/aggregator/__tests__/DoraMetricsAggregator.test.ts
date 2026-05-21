@@ -130,4 +130,34 @@ describe('DoraMetricsAggregator', () => {
     ).resolves.toBeUndefined();
     expect(errors.join('\n')).toContain('[DoraMetricsAggregator] failed: disk full');
   });
+
+  it('handles non-Error thrown value (string)', async () => {
+    const { ds } = makeDataSource({
+      replaceDoraMetrics: () => { throw 'string-error'; },
+    });
+    const agg = new DoraMetricsAggregator({ trailDb: ds, now: NOW });
+    const { ctx, errors } = makeCtx();
+
+    await expect(agg.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx)).resolves.toBeUndefined();
+    expect(errors.join('\n')).toContain('[DoraMetricsAggregator] failed: string-error');
+  });
+
+  it('uses wall-clock when now option is omitted', async () => {
+    const { ds, written } = makeDataSource({
+      getDoraReleases: () => [
+        { tag: 'v1', releasedAt: '2026-01-10T00:00:00.000Z', repoName: 'repoA' },
+      ],
+      getDoraCommits: () => [],
+    });
+    // now を省略 → new Date() を使う
+    const agg = new DoraMetricsAggregator({ trailDb: ds });
+    const { ctx } = makeCtx();
+
+    await agg.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx);
+
+    expect(written).toHaveLength(1);
+    expect(written[0]).toHaveLength(1);
+    // computedAt が現在時刻形式 (ISO 8601 Z) であることだけを確認
+    expect(written[0][0].computedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+  });
 });

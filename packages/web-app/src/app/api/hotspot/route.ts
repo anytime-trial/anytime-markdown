@@ -9,27 +9,28 @@ import { resolveSupabaseEnv } from '../../../lib/supabase-env';
 
 export const dynamic = 'force-dynamic';
 
-const PERIODS: readonly TrendPeriod[] = ['7d', '30d', '90d', 'all'];
-const GRANULARITIES: readonly HotspotGranularity[] = ['commit', 'session'];
+const PERIODS = new Set<TrendPeriod>(['7d', '30d', '90d', 'all']);
+const GRANULARITIES = new Set<HotspotGranularity>(['commit', 'session']);
 const ALL_PERIOD_FROM = '1970-01-01T00:00:00.000Z';
 const MS_PER_DAY = 86_400_000;
 const EDIT_TOOLS = ['Edit', 'Write', 'NotebookEdit'] as const;
 
 function parsePeriod(raw: string | null): TrendPeriod | null {
   if (raw === null) return '30d';
-  return PERIODS.includes(raw as TrendPeriod) ? (raw as TrendPeriod) : null;
+  return PERIODS.has(raw as TrendPeriod) ? (raw as TrendPeriod) : null;
 }
 
 function parseGranularity(raw: string | null): HotspotGranularity | null {
   if (raw === null) return 'commit';
-  return GRANULARITIES.includes(raw as HotspotGranularity) ? (raw as HotspotGranularity) : null;
+  return GRANULARITIES.has(raw as HotspotGranularity) ? (raw as HotspotGranularity) : null;
 }
 
 function computePeriodRange(period: TrendPeriod): { from: string; to: string } {
   const now = new Date();
   const to = now.toISOString();
   if (period === 'all') return { from: ALL_PERIOD_FROM, to };
-  const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
+  const daysFor30d = period === '30d' ? 30 : 90;
+  const days = period === '7d' ? 7 : daysFor30d;
   const from = new Date(now.getTime() - days * MS_PER_DAY).toISOString();
   return { from, to };
 }

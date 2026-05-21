@@ -74,7 +74,7 @@ function buildCoChangeMap(
   const coChange = new Map<string, number>();
   for (const files of groupToFiles.values()) {
     if (files.size > maxFilesPerGroup) continue;
-    const sorted = [...files].filter((f) => eligibleFiles.has(f)).sort();
+    const sorted = [...files].filter((f) => eligibleFiles.has(f)).sort((a, b) => a.localeCompare(b));
     for (let i = 0; i < sorted.length; i++) {
       for (let j = i + 1; j < sorted.length; j++) {
         const key = pairKey(sorted[i], sorted[j]);

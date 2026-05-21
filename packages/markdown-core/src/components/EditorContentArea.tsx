@@ -138,11 +138,11 @@ export function EditorContentArea({
           <Paper
             id="md-editor-content"
             variant="outlined"
-            sx={Object.assign(
-              {},
-              getEditorPaperSx(theme, settings, adjustedEditorHeight, { readonlyMode, noScroll }),
-              { flex: 1, minWidth: 0 },
-            )}
+            sx={{
+              ...getEditorPaperSx(theme, settings, adjustedEditorHeight, { readonlyMode, noScroll }),
+              flex: 1,
+              minWidth: 0,
+            }}
           >
             <div ref={editorMountCallback} style={{ display: "contents" }} />
           </Paper>

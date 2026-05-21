@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-05-21
+
+### 変更
+
+- `database-core` / `database-viewer` 0.2.3 に合わせたバージョン更新（拡張固有のソース変更なし）
+
+### Database Core (database-core / database-viewer)
+
+- `database-core`: ユニットテストカバレッジを 99% に改善（各 Adapter を 90%+ に）
+
 ## [0.2.2] - 2026-05-20
 
 ### セキュリティ

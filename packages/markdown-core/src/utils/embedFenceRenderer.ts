@@ -6,15 +6,13 @@ interface MarkdownItTokenLike {
     content: string;
 }
 
-interface MarkdownItRendererRuleLike {
-    (
-        tokens: MarkdownItTokenLike[],
-        idx: number,
-        options: unknown,
-        env: unknown,
-        slf: unknown,
-    ): string;
-}
+type MarkdownItRendererRuleLike = (
+    tokens: MarkdownItTokenLike[],
+    idx: number,
+    options: unknown,
+    env: unknown,
+    slf: unknown,
+) => string;
 
 export interface MarkdownItLike {
     renderer: { rules: Record<string, MarkdownItRendererRuleLike | undefined> };

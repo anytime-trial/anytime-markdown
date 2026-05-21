@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+import fs from 'node:fs/promises';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 // Import directly to avoid React/Next.js barrel export dependencies
 import { computeDiff as coreComputeDiff } from '@anytime-markdown/markdown-core/src/utils/diffEngine';

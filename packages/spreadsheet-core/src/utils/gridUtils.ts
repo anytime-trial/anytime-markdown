@@ -6,7 +6,7 @@ export const DEFAULT_GRID_COLS = 15;
 
 /** 列インデックスをアルファベットラベルに変換（0=A, 1=B, ...） */
 export function columnLabel(index: number): string {
-  return String.fromCharCode(65 + index);
+  return String.fromCodePoint(65 + index);
 }
 
 /** 空のグリッドを生成 */

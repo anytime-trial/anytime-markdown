@@ -26,9 +26,9 @@ interface OpenMeteoResponse {
 
 const CITIES = [
     { key: 'tokyo',    nameEn: 'Tokyo',    nameJa: '東京',     lat: 35.6762,  lon: 139.6503, tz: 'Asia/Tokyo' },
-    { key: 'newyork',  nameEn: 'New York', nameJa: 'N.York',   lat: 40.7128,  lon: -74.0060, tz: 'America/New_York' },
+    { key: 'newyork',  nameEn: 'New York', nameJa: 'N.York',   lat: 40.7128,  lon: -74.006, tz: 'America/New_York' },
     { key: 'london',   nameEn: 'London',   nameJa: 'London',   lat: 51.5074,  lon: -0.1278,  tz: 'Europe/London' },
-    { key: 'mumbai',   nameEn: 'Mumbai',   nameJa: 'Mumbai', lat: 19.0760,  lon: 72.8777,  tz: 'Asia/Kolkata' },
+    { key: 'mumbai',   nameEn: 'Mumbai',   nameJa: 'Mumbai', lat: 19.076,   lon: 72.8777,  tz: 'Asia/Kolkata' },
     { key: 'nairobi',  nameEn: 'Nairobi',  nameJa: 'Nairobi',  lat: -1.2921,  lon: 36.8219,  tz: 'Africa/Nairobi' },
     { key: 'sydney',   nameEn: 'Sydney',   nameJa: 'Sydney',   lat: -33.8688, lon: 151.2093, tz: 'Australia/Sydney' },
 ] as const;

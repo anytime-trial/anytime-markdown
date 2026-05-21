@@ -82,6 +82,43 @@ function createTestDbWithoutMappingsJson(): Database {
   return db;
 }
 
+/** stable_key も mappings_json もない最古スキーマ（フォールバック2段目のテスト用） */
+function createTestDbWithoutStableKey(): Database {
+  const db = new BetterSqlite3(':memory:');
+  db.exec(`
+    CREATE TABLE current_code_graph_communities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      repo_name TEXT NOT NULL,
+      community_id INTEGER NOT NULL,
+      label TEXT NOT NULL,
+      name TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      mappings_json TEXT,
+      updated_at TEXT NOT NULL
+    );
+  `);
+  return db;
+}
+
+/** stable_key および mappings_json カラムがある最新スキーマ */
+function createTestDbWithStableKey(): Database {
+  const db = new BetterSqlite3(':memory:');
+  db.exec(`
+    CREATE TABLE current_code_graph_communities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      repo_name TEXT NOT NULL,
+      community_id INTEGER NOT NULL,
+      label TEXT NOT NULL,
+      name TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      mappings_json TEXT,
+      stable_key TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
+  `);
+  return db;
+}
+
 const REPO = 'test-repo';
 const NOW = '2026-01-01T00:00:00.000Z';
 
@@ -163,6 +200,95 @@ describe('getC4ModelDirect', () => {
     expect(elem?.external).toBe(true);
     db.close();
   });
+
+  it('description が null の manual element は description を持たない', () => {
+    const db = createTestDb();
+    execInsert(
+      db,
+      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, description, external, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO, 'no-desc-elem', 'system', 'NoDesc', null, 0, NOW],
+    );
+
+    const { model } = getC4ModelDirect(db, REPO);
+    const elem = model.elements.find((e) => e.id === 'no-desc-elem');
+    expect(elem).toBeDefined();
+    expect((elem as Record<string, unknown>).description).toBeUndefined();
+    db.close();
+  });
+
+  it('service_type がある manual element は serviceType を持つ', () => {
+    const db = createTestDb();
+    execInsert(
+      db,
+      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, description, service_type, external, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [REPO, 'svc-elem', 'container', 'MyService', null, 'grpc', 0, NOW],
+    );
+
+    const { model } = getC4ModelDirect(db, REPO);
+    const elem = model.elements.find((e) => e.id === 'svc-elem');
+    expect(elem).toBeDefined();
+    expect((elem as Record<string, unknown>).serviceType).toBe('grpc');
+    db.close();
+  });
+
+  it('relationship の label/technology が null の場合は model.relationships に含まれるが label/technology は設定されない', () => {
+    const db = createTestDb();
+    execInsert(
+      db,
+      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO, 'src-elem', 'system', 'Src', 0, NOW],
+    );
+    execInsert(
+      db,
+      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO, 'dst-elem', 'system', 'Dst', 0, NOW],
+    );
+    execInsert(
+      db,
+      'INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO, 'r-no-label', 'src-elem', 'dst-elem', null, null, NOW],
+    );
+
+    const { model } = getC4ModelDirect(db, REPO);
+    expect(model.relationships.length).toBeGreaterThan(0);
+    const rel = model.relationships.find(
+      (r) => (r as unknown as { from: string }).from === 'src-elem',
+    );
+    expect(rel).toBeDefined();
+    expect((rel as unknown as { label?: string }).label).toBeUndefined();
+    expect((rel as unknown as { technology?: string }).technology).toBeUndefined();
+    db.close();
+  });
+
+  it('relationship の label/technology がある場合は model.relationships に含まれ label/technology が設定される', () => {
+    const db = createTestDb();
+    execInsert(
+      db,
+      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO, 'from-elem', 'system', 'From', 0, NOW],
+    );
+    execInsert(
+      db,
+      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO, 'to-elem', 'system', 'To', 0, NOW],
+    );
+    execInsert(
+      db,
+      'INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO, 'r-with-label', 'from-elem', 'to-elem', 'calls', 'HTTP/2', NOW],
+    );
+
+    const { model } = getC4ModelDirect(db, REPO);
+    // mergeManualIntoC4Model の結果は relationships 配列に from/to フィールドを持つ（C4Relationship 型）
+    expect(model.relationships.length).toBeGreaterThan(0);
+    const rel = model.relationships.find(
+      (r) => (r as unknown as { from: string }).from === 'from-elem',
+    );
+    expect(rel).toBeDefined();
+    expect((rel as unknown as { label: string }).label).toBe('calls');
+    expect((rel as unknown as { technology: string }).technology).toBe('HTTP/2');
+    db.close();
+  });
 });
 
 describe('listElementsDirect', () => {
@@ -179,6 +305,75 @@ describe('listElementsDirect', () => {
     const e = elements.find((el) => el.id === 'e1');
     expect(e?.type).toBe('container');
     expect(e?.name).toBe('ServiceA');
+    db.close();
+  });
+
+  it('external = true の要素は external フィールドを持つ', () => {
+    const db = createTestDb();
+    execInsert(
+      db,
+      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO, 'ext-1', 'system', 'ExternalSys', 1, NOW],
+    );
+
+    const elements = listElementsDirect(db, REPO);
+    const e = elements.find((el) => el.id === 'ext-1');
+    expect(e?.external).toBe(true);
+    db.close();
+  });
+
+  it('external = false の要素は external フィールドを持たない', () => {
+    const db = createTestDb();
+    execInsert(
+      db,
+      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO, 'int-1', 'container', 'Internal', 0, NOW],
+    );
+
+    const elements = listElementsDirect(db, REPO);
+    const e = elements.find((el) => el.id === 'int-1');
+    expect(e?.external).toBeUndefined();
+    db.close();
+  });
+
+  it('manual フラグが付いた要素は manual: true を持つ（graph 由来の manual 要素）', () => {
+    const db = createTestDb();
+    const graph = {
+      generatedAt: NOW,
+      repositories: [{ id: 'r1', label: 'TestRepo', path: '/tmp/r1' }],
+      nodes: [
+        {
+          id: 'r1:packages/core/index.ts',
+          label: 'index.ts',
+          repo: 'r1',
+          package: 'core',
+          fileType: 'code',
+          community: 1,
+          communityLabel: 'core-lib',
+          x: 0,
+          y: 0,
+          size: 1,
+        },
+      ],
+      edges: [],
+      godNodes: [],
+    };
+    execInsert(
+      db,
+      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO, JSON.stringify(graph), NOW],
+    );
+    // manual 要素を追加（mergeManualIntoC4Model が manual:true を付ける）
+    execInsert(
+      db,
+      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO, 'man-elem', 'system', 'ManualSystem', 0, NOW],
+    );
+
+    const elements = listElementsDirect(db, REPO);
+    const manElem = elements.find((el) => el.id === 'man-elem');
+    // manual 要素は mergeManualIntoC4Model によって manual: true が設定される
+    expect(manElem?.manual).toBe(true);
     db.close();
   });
 });
@@ -301,6 +496,37 @@ describe('listCommunitiesDirect', () => {
     expect(communities).toEqual([]);
     db.close();
   });
+
+  it('stable_key カラムがある場合は stableKey に値が入る', () => {
+    const db = createTestDbWithStableKey();
+    execInsert(
+      db,
+      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, stable_key, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [REPO, 1, 'auth', 'Auth Module', 'Auth logic', '{}', 'sk_abc123', NOW],
+    );
+
+    const { communities } = listCommunitiesDirect(db, REPO);
+    expect(communities).toHaveLength(1);
+    expect(communities[0].stableKey).toBe('sk_abc123');
+    expect(communities[0].mappingsJson).toBe('{}');
+    db.close();
+  });
+
+  it('stable_key カラムなし・mappings_json あり の場合は stableKey が空文字でフォールバックする', () => {
+    const db = createTestDbWithoutStableKey();
+    execInsert(
+      db,
+      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO, 1, 'core', 'Core Module', 'Core logic', '{"elements":[]}', NOW],
+    );
+
+    const { communities } = listCommunitiesDirect(db, REPO);
+    expect(communities).toHaveLength(1);
+    expect(communities[0].communityId).toBe(1);
+    expect(communities[0].mappingsJson).toBe('{"elements":[]}');
+    expect(communities[0].stableKey).toBe('');
+    db.close();
+  });
 });
 
 describe('listCommunityNodesDirect', () => {
@@ -384,6 +610,62 @@ describe('listCommunityNodesDirect', () => {
     ]);
 
     const { communities } = listCommunityNodesDirect(db, REPO);
+    expect(communities[0].nodes[0].package).toBe('');
+    db.close();
+  });
+
+  it('graph_json に nodes フィールドがない場合は空コミュニティ配列を返す', () => {
+    const db = createTestDb();
+    // nodes フィールドを省いたグラフ JSON（graph.nodes = undefined → nodes ?? [] → []）
+    const graphWithoutNodes = JSON.stringify({
+      generatedAt: NOW,
+      repositories: [{ id: 'r1', label: 'Repo', path: '/tmp' }],
+      // nodes: は省略
+      edges: [],
+      godNodes: [],
+    });
+    execInsert(
+      db,
+      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO, graphWithoutNodes, NOW],
+    );
+
+    const { communities } = listCommunityNodesDirect(db, REPO);
+    expect(communities).toEqual([]);
+    db.close();
+  });
+
+  it('ノードに package フィールドがない場合は空文字でフォールバックする（直接 JSON で検証）', () => {
+    const db = createTestDb();
+    // package フィールドを省いたノードを含むグラフ JSON（n.package = undefined → n.package ?? '' → ''）
+    const graphWithoutPackage = JSON.stringify({
+      generatedAt: NOW,
+      repositories: [{ id: 'r1', label: 'Repo', path: '/tmp' }],
+      nodes: [
+        {
+          id: 'no-pkg-node',
+          label: 'noPkg',
+          repo: 'r1',
+          // package: は省略
+          fileType: 'code',
+          community: 2,
+          communityLabel: '',
+          x: 0,
+          y: 0,
+          size: 1,
+        },
+      ],
+      edges: [],
+      godNodes: [],
+    });
+    execInsert(
+      db,
+      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO, graphWithoutPackage, NOW],
+    );
+
+    const { communities } = listCommunityNodesDirect(db, REPO);
+    expect(communities).toHaveLength(1);
     expect(communities[0].nodes[0].package).toBe('');
     db.close();
   });

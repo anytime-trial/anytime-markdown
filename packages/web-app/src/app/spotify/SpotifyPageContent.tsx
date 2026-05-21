@@ -103,6 +103,24 @@ export function SpotifyPageContent() {
     }
   };
 
+  const trackListContent = tracks.length === 0 ? (
+    <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+      曲が見つかりませんでした
+    </Typography>
+  ) : (
+    <Grid container spacing={2}>
+      {tracks.map((track) => (
+        <Grid key={track.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
+          <TrackCard
+            track={track}
+            selected={selected.has(track.uri)}
+            onToggle={handleToggle}
+          />
+        </Grid>
+      ))}
+    </Grid>
+  );
+
   return (
     <Box sx={{ pb: 10 }}>
       <CategoryTabs value={category} onChange={setCategory} />
@@ -111,23 +129,7 @@ export function SpotifyPageContent() {
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
           <CircularProgress />
         </Box>
-      ) : tracks.length === 0 ? (
-        <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-          曲が見つかりませんでした
-        </Typography>
-      ) : (
-        <Grid container spacing={2}>
-          {tracks.map((track) => (
-            <Grid key={track.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
-              <TrackCard
-                track={track}
-                selected={selected.has(track.uri)}
-                onToggle={handleToggle}
-              />
-            </Grid>
-          ))}
-        </Grid>
-      )}
+      ) : trackListContent}
 
       <PlaylistFooter
         selectedCount={selected.size}

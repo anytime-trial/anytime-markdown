@@ -181,4 +181,57 @@ describe('installTemplatedSkill', () => {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
+
+  it('ターゲットディレクトリが書き込み不可の場合は error ログ + skipped', () => {
+    const env = setupEnv();
+    try {
+      const skillsDir = path.join(env.claudeDir, 'skills');
+      fs.chmodSync(skillsDir, 0o555);
+      try {
+        const errors: string[] = [];
+        const result = installTemplatedSkill({
+          claudeDir: env.claudeDir,
+          extensionPath: env.extensionPath,
+          skillName: 'anytime-note',
+          placeholders: PLACEHOLDERS,
+          logger: {
+            info: () => undefined,
+            warn: () => undefined,
+            error: (m) => errors.push(m),
+          },
+        });
+
+        expect(result.installed).toBe(false);
+        expect(result.skipped).toBe(true);
+        expect(errors.some((m) => m.includes('failed to install'))).toBe(true);
+      } finally {
+        fs.chmodSync(skillsDir, 0o755);
+      }
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('readFileSync が ENOENT 以外のエラーをスローする場合は再スローする', () => {
+    const env = setupEnv({ existingSkill: RENDERED });
+    try {
+      const targetDir = path.join(env.claudeDir, 'skills', 'anytime-note');
+      const targetPath = path.join(targetDir, 'SKILL.md');
+      // SKILL.md をディレクトリにして EISDIR を発生させる（ENOENT ではない）
+      fs.rmSync(targetPath);
+      fs.mkdirSync(targetPath, { recursive: true });
+      try {
+        expect(() => installTemplatedSkill({
+          claudeDir: env.claudeDir,
+          extensionPath: env.extensionPath,
+          skillName: 'anytime-note',
+          placeholders: PLACEHOLDERS,
+        })).toThrow();
+      } finally {
+        fs.rmdirSync(targetPath);
+      }
+    } finally {
+      env.cleanup();
+    }
+  });
 });

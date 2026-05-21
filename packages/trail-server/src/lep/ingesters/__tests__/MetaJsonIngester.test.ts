@@ -94,6 +94,41 @@ describe('MetaJsonIngester', () => {
     expect(events).toEqual([]);
   });
 
+  it('skips non-directory entries in projects dir', async () => {
+    // MetaJsonIngester.ts line 54: isDirectory() returns false → continue
+    const base = tmpDir('stat-err');
+    // Create a regular file entry at the projects level — isDirectory() returns false → continue
+    fs.writeFileSync(path.join(base, 'not-a-dir.txt'), 'hello');
+    // Also create a valid project dir with no subagents
+    const projDir = path.join(base, 'proj');
+    fs.mkdirSync(projDir, { recursive: true });
+
+    const ingester = new MetaJsonIngester({ claudeProjectsDir: base });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+    // not-a-dir.txt is skipped, proj dir has no sessions => 0 events
+    expect(events).toEqual([]);
+  });
+
+  it('skips entries when statSync throws (dangling symlink)', async () => {
+    // MetaJsonIngester.ts line 57: catch block when statSync throws (e.g. dangling symlink)
+    const base = tmpDir('stat-throw');
+    const dangling = path.join(base, 'dangling-link');
+    // Create a symlink to a non-existent target — statSync throws ENOENT
+    try {
+      fs.symlinkSync('/nonexistent/target', dangling);
+    } catch {
+      // Some environments may not support symlinks; skip gracefully
+      return;
+    }
+
+    const ingester = new MetaJsonIngester({ claudeProjectsDir: base });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+    // Dangling symlink entry is skipped gracefully
+    expect(events).toEqual([]);
+  });
+
   it('exposes tier=1 and proper emits', () => {
     const ingester = new MetaJsonIngester();
     expect(ingester.tier).toBe(1);

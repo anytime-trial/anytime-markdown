@@ -1,5 +1,5 @@
-import fs from 'fs/promises';
-import path from 'path';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 
 const ALLOWED_EXTENSIONS = ['.md', '.markdown'];

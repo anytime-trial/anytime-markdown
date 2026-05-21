@@ -183,6 +183,44 @@ describe('FileBackupManager', () => {
       expect(() => mgr.restoreFromBackup(1)).toThrow(/Backup not found/);
     });
 
+    it('re-throws non-ENOENT error from readFileSync (e.g. EACCES)', () => {
+      // バックアップファイルを作成しておき、readFileSync でパーミッションエラーをシミュレート
+      fs.writeFileSync(dbPath, Buffer.from('original'));
+      new FileBackupManager(dbPath).maybeRotate();
+
+      const permErr = Object.assign(new Error('EACCES'), { code: 'EACCES' });
+      const origReadFileSync = fs.readFileSync;
+      jest.spyOn(fs, 'readFileSync').mockImplementationOnce(() => {
+        throw permErr;
+      });
+      try {
+        expect(() => new FileBackupManager(dbPath).restoreFromBackup(1)).toThrow('EACCES');
+      } finally {
+        (fs.readFileSync as jest.MockedFunction<typeof fs.readFileSync>).mockRestore?.();
+        jest.restoreAllMocks();
+      }
+    });
+
+    it('continues restore when safety copy fails with EEXIST (concurrent call simulation)', () => {
+      fs.writeFileSync(dbPath, Buffer.from('original'));
+      new FileBackupManager(dbPath).maybeRotate();
+      fs.writeFileSync(dbPath, Buffer.from('corrupted'));
+
+      // EEXIST: 安全コピーのパスがすでに存在する場合 → safetyCopy = null のまま、復元は続行
+      const eexistErr = Object.assign(new Error('EEXIST'), { code: 'EEXIST' });
+      const origCopyFileSync = fs.copyFileSync;
+      jest.spyOn(fs, 'copyFileSync').mockImplementationOnce(() => {
+        throw eexistErr;
+      });
+      try {
+        const result = new FileBackupManager(dbPath).restoreFromBackup(1);
+        expect(result.safetyCopy).toBeNull();
+        expect(fs.readFileSync(dbPath).toString()).toBe('original');
+      } finally {
+        jest.restoreAllMocks();
+      }
+    });
+
     it('overwrites current DB with decompressed backup content', () => {
       fs.writeFileSync(dbPath, Buffer.from('original'));
       new FileBackupManager(dbPath).maybeRotate();
@@ -214,6 +252,23 @@ describe('FileBackupManager', () => {
       const result = new FileBackupManager(dbPath).restoreFromBackup(1);
       expect(fs.readFileSync(dbPath).toString()).toBe('v1');
       expect(result.safetyCopy).toBeNull();
+    });
+
+    it('re-throws non-ENOENT/non-EEXIST error from copyFileSync during safety copy', () => {
+      fs.writeFileSync(dbPath, Buffer.from('original'));
+      new FileBackupManager(dbPath).maybeRotate();
+      fs.writeFileSync(dbPath, Buffer.from('corrupted'));
+
+      // EACCES など ENOENT/EEXIST 以外のエラーは再スローされる (L162)
+      const permErr = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+      jest.spyOn(fs, 'copyFileSync').mockImplementationOnce(() => {
+        throw permErr;
+      });
+      try {
+        expect(() => new FileBackupManager(dbPath).restoreFromBackup(1)).toThrow('EACCES');
+      } finally {
+        jest.restoreAllMocks();
+      }
     });
 
     it('invokes preWriteGuard with dbPath before writing', () => {

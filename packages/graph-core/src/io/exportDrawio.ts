@@ -48,11 +48,11 @@ const OPTIONAL_STYLE_ENTRIES: readonly OptionalStyleEntry[] = [
     s.opacity !== undefined && s.opacity !== 100 ? `opacity=${s.opacity}` : null,
   (s) => (s.dashed ? 'dashed=1' : null),
   (s, type) => (s.borderRadius && type !== 'ellipse' ? 'rounded=1' : null),
-  (s) => (s.spacing !== undefined ? `spacing=${s.spacing}` : null),
-  (s) => (s.spacingTop !== undefined ? `spacingTop=${s.spacingTop}` : null),
-  (s) => (s.spacingRight !== undefined ? `spacingRight=${s.spacingRight}` : null),
-  (s) => (s.spacingBottom !== undefined ? `spacingBottom=${s.spacingBottom}` : null),
-  (s) => (s.spacingLeft !== undefined ? `spacingLeft=${s.spacingLeft}` : null),
+  (s) => (s.spacing === undefined ? null : `spacing=${s.spacing}`),
+  (s) => (s.spacingTop === undefined ? null : `spacingTop=${s.spacingTop}`),
+  (s) => (s.spacingRight === undefined ? null : `spacingRight=${s.spacingRight}`),
+  (s) => (s.spacingBottom === undefined ? null : `spacingBottom=${s.spacingBottom}`),
+  (s) => (s.spacingLeft === undefined ? null : `spacingLeft=${s.spacingLeft}`),
 ];
 
 function buildOptionalStyleParts(node: GraphNode): string[] {
@@ -106,8 +106,7 @@ function edgeStyle(edge: GraphEdge): string {
   const endShape = edge.style.endShape ?? (edge.type === 'connector' ? 'arrow' : 'none');
   const startShape = edge.style.startShape ?? 'none';
 
-  parts.push(END_ARROW_MAP[endShape] ?? 'endArrow=classic;endFill=1');
-  parts.push(START_ARROW_MAP[startShape] ?? '');
+  parts.push(END_ARROW_MAP[endShape] ?? 'endArrow=classic;endFill=1', START_ARROW_MAP[startShape] ?? '');
 
   if (edge.style.opacity !== undefined && edge.style.opacity !== 100) parts.push(`opacity=${edge.style.opacity}`);
   if (edge.style.dashed) parts.push('dashed=1');

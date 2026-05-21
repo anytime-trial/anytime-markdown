@@ -69,8 +69,7 @@ import {
   computeSubagentTypeConfidenceCoupling,
   resolvePricingModelName,
 } from '@anytime-markdown/trail-core';
-import type { TrailGraph, IC4ModelStore, C4ModelEntry, C4ModelResult, TrailMessageCommit, MessageCommitInput, ManualElement, ManualRelationship, ManualGroup, CommitFileRow, SessionFileRow, SubagentTypeFileRow, TemporalCouplingEdge, ConfidenceCouplingEdge, PricingSource } from '@anytime-markdown/trail-core';
-import { matchCommitsToMessages, computeDefectRisk, type CommitRiskRow, type DefectRiskEntry } from '@anytime-markdown/trail-core';
+import { matchCommitsToMessages, computeDefectRisk, type CommitRiskRow, type DefectRiskEntry, type TrailGraph, type IC4ModelStore, type C4ModelEntry, type C4ModelResult, type TrailMessageCommit, type MessageCommitInput, type ManualElement, type ManualRelationship, type ManualGroup, type CommitFileRow, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type ConfidenceCouplingEdge, type PricingSource } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 
 import { aggregateQualityRates, aggregateCommitPrefixStats, aggregateCommitPrefixBaseline, type CommitBaselineSummary } from './combinedDataAggregators';
@@ -129,9 +128,7 @@ export interface ImportAllLepOptions {
     currentCoverageImported?: number;
   };
 }
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
-import { splitCodeGraph, composeCodeGraph } from '@anytime-markdown/trail-core/codeGraph';
-import type { StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
+import { splitCodeGraph, composeCodeGraph, type CodeGraph, type StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
 import type { FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import { buildFeatureMatrixFromCommunities } from '@anytime-markdown/trail-core/c4';
 import type { FileAnalysisRow, FunctionAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
@@ -139,7 +136,7 @@ import { JsonlSessionReader } from './JsonlSessionReader';
 import { ExecFileGitService } from './ExecFileGitService';
 import { type DbLogger, noopDbLogger } from './DbLogger';
 import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
-import type { ReleaseFileRow, ReleaseCoverageRow, ReleaseRow, CurrentCoverageRow } from '@anytime-markdown/trail-core';
+import type { CurrentCoverageRow, ReleaseFileRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
 export type { ReleaseFileRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
 
 declare const __non_webpack_require__: (id: string) => unknown;
@@ -672,7 +669,7 @@ function normalizeCodexRecords(records: readonly RawLine[], fallbackSessionId: s
             const candidate = normalized[i];
             if (candidate.type !== 'assistant') continue;
             candidate.message = {
-              ...(candidate.message ?? {}),
+              ...(candidate.message),
               usage: normalizeCodexTokenUsage(last),
             };
             break;
@@ -698,11 +695,8 @@ function normalizeCodexRecords(records: readonly RawLine[], fallbackSessionId: s
       const role = typeof payload.role === 'string' ? payload.role : '';
       if (role !== 'user' && role !== 'assistant' && role !== 'developer' && role !== 'system') continue;
       const text = extractCodexText(payload.content);
-      const normalizedType: 'user' | 'assistant' | 'system' = role === 'user'
-        ? 'user'
-        : role === 'assistant'
-          ? 'assistant'
-          : 'system';
+      const normalizedTypeInner: 'assistant' | 'system' = role === 'assistant' ? 'assistant' : 'system';
+      const normalizedType: 'user' | 'assistant' | 'system' = role === 'user' ? 'user' : normalizedTypeInner;
       normalized.push({
         uuid: `codex-${seq++}`,
         sessionId,
@@ -763,13 +757,12 @@ function normalizeCodexRecords(records: readonly RawLine[], fallbackSessionId: s
           const candidate = normalized[i];
           if (candidate.type !== 'assistant') continue;
           candidate.message = {
-            ...(candidate.message ?? {}),
+            ...(candidate.message),
             usage: normalizeCodexTokenUsage(last),
           };
           break;
         }
       }
-      continue;
     }
   }
   return { normalized, sessionId, version, source: 'codex' };
@@ -1137,7 +1130,7 @@ export class TrailDatabase {
           const placeholders = batch.map(() => '?').join(',');
           const sResult = db.exec(
             `SELECT id, start_time FROM sessions WHERE id IN (${placeholders})`,
-            batch as string[],
+            batch,
           );
           for (const r of sResult[0]?.values ?? []) {
             const sid = r[0] as string;
@@ -1160,7 +1153,7 @@ export class TrailDatabase {
           const msgResult = db.exec(
             `SELECT uuid, COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) AS msg_tokens
              FROM messages WHERE uuid IN (${placeholders})`,
-            batch as string[],
+            batch,
           );
           for (const r of msgResult[0]?.values ?? []) {
             msgTokensByUuid.set(r[0] as string, r[1] as number);
@@ -1268,7 +1261,7 @@ export class TrailDatabase {
       const msgResult = db.exec(
         `SELECT uuid, COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) AS msg_tokens
          FROM messages WHERE uuid IN (${placeholders})`,
-        batch as string[],
+        batch,
       );
       for (const r of msgResult[0]?.values ?? []) {
         msgTokensByUuid.set(r[0] as string, r[1] as number);
@@ -1358,7 +1351,7 @@ export class TrailDatabase {
       const msgResult = db.exec(
         `SELECT uuid, COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) AS msg_tokens
          FROM messages WHERE uuid IN (${placeholders})`,
-        batch as string[],
+        batch,
       );
       for (const r of msgResult[0]?.values ?? []) {
         msgTokensByUuid.set(r[0] as string, r[1] as number);
@@ -1565,7 +1558,7 @@ export class TrailDatabase {
                     COALESCE(input_tokens, 0), COALESCE(output_tokens, 0),
                     COALESCE(cache_read_tokens, 0), COALESCE(cache_creation_tokens, 0)
              FROM messages WHERE uuid IN (${placeholders})`,
-            batch as string[],
+            batch,
           );
           for (const r of msgResult[0]?.values ?? []) {
             msgInfoMap.set(r[0] as string, {
@@ -1589,7 +1582,7 @@ export class TrailDatabase {
           const placeholders = batch.map(() => '?').join(',');
           const sessResult = db.exec(
             `SELECT id, source, start_time FROM sessions WHERE id IN (${placeholders})`,
-            batch as string[],
+            batch,
           );
           for (const r of sessResult[0]?.values ?? []) {
             sessionSourceMap.set(r[0] as string, r[1] as string);
@@ -1648,7 +1641,7 @@ export class TrailDatabase {
    */
   restoreFromBackup(generation: number): { restoredFrom: string; safetyCopy: string | null } {
     if (!(this.storage instanceof FileTrailStorage)) {
-      throw new Error('restoreFromBackup is only supported with FileTrailStorage');
+      throw new TypeError('restoreFromBackup is only supported with FileTrailStorage');
     }
     this.close();
     return this.storage.restoreFromBackup(generation);
@@ -2042,7 +2035,7 @@ export class TrailDatabase {
         let derived = extractRepoNameFromJsonl(filePathStr);
         if (derived === null) {
           const m = /\/projects\/([^/]+)\//.exec(filePathStr);
-          if (m && m[1]) derived = m[1].replace(/^-+/, '') || null;
+          if (m?.[1]) derived = m[1].replace(/^-+/, '') || null;
         }
         if (!derived) { missing++; continue; }
         if (derived === oldRepoName) { unchanged++; continue; }
@@ -2204,7 +2197,7 @@ export class TrailDatabase {
     } catch (e) {
       try { db.run('ROLLBACK'); } catch { /* ignore */ }
       if (foreignKeysWereEnabled) {
-        try { db.run('PRAGMA foreign_keys = ON'); } catch (re) { this.logger.error('restore foreign_keys failed', re); }
+        try { db.run('PRAGMA foreign_keys = ON'); } catch (error_) { this.logger.error('restore foreign_keys failed', error_); }
       }
       this.logger.error('migrateDropSessionsProjectColumn failed', e);
     }
@@ -2373,7 +2366,7 @@ export class TrailDatabase {
       }
       db.run('COMMIT');
     } catch (e) {
-      try { db.run('ROLLBACK'); } catch (re) { this.logger.error('[Migration] subagent_type_backfill_v1: ROLLBACK failed', re); }
+      try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('[Migration] subagent_type_backfill_v1: ROLLBACK failed', error_); }
       throw e;
     }
     this.logger.info(`[Migration] subagent_type_backfill_v1: meta UPDATE done meta=${metaUpdated} (${Date.now() - phase2Start}ms)`);
@@ -2422,7 +2415,7 @@ export class TrailDatabase {
         }
         db.run('COMMIT');
       } catch (e) {
-        try { db.run('ROLLBACK'); } catch (re) { this.logger.error('[Migration] subagent_type_backfill_v1: ROLLBACK failed', re); }
+        try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('[Migration] subagent_type_backfill_v1: ROLLBACK failed', error_); }
         throw e;
       }
     }
@@ -3037,7 +3030,7 @@ export class TrailDatabase {
     const placeholders = filePaths.map(() => '?').join(', ');
     const result = db.exec(
       `SELECT commit_hash, file_path, repo_name FROM commit_files WHERE file_path IN (${placeholders})`,
-      filePaths as unknown[],
+      filePaths,
     );
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
@@ -3980,9 +3973,8 @@ export class TrailDatabase {
         const agentId = raw.agentId ?? null;
         const sourceToolAssistantUUID = raw.sourceToolAssistantUUID ?? null;
         const sourceToolUseID = raw.sourceToolUseID ?? null;
-        const systemCommand = raw.subtype === 'compact_boundary' ? '/compact'
-          : raw.subtype === 'local_command' ? '/clear'
-          : null;
+        const systemCommandInner = raw.subtype === 'local_command' ? '/clear' : null;
+        const systemCommand = raw.subtype === 'compact_boundary' ? '/compact' : systemCommandInner;
 
         // 主セッションでは Agent tool_use を持つ親メッセージのみ subagent_type を持つ（呼び出し意図記録）。
         // サブエージェント JSONL では全メッセージが meta.json 由来の subagent_type を持つ。
@@ -4125,7 +4117,7 @@ export class TrailDatabase {
         path.basename(f).startsWith('rollout-'),
       );
       for (const filePath of codexFiles) {
-        const sidMatch = filePath.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i);
+        const sidMatch = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(filePath);
         const sid = sidMatch?.[1] ?? path.basename(filePath, '.jsonl');
         if (gitRoot) {
           const meta = this.readCodexSessionMeta(filePath);
@@ -4245,7 +4237,7 @@ export class TrailDatabase {
       // Commit at session boundary when limits exceeded
       if (batchMessageCount >= BATCH_MESSAGE_LIMIT || batchFileCount >= BATCH_FILE_LIMIT) {
         if (inTransaction) {
-          try { db.run('COMMIT'); } catch (e) { this.logger.error('COMMIT failed, rolling back', e); try { db.run('ROLLBACK'); } catch (re) { this.logger.error('ROLLBACK also failed', re); } }
+          try { db.run('COMMIT'); } catch (e) { this.logger.error('COMMIT failed, rolling back', e); try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('ROLLBACK also failed', error_); } }
           inTransaction = false;
         }
         onProgress?.(formatProgress(), 0);
@@ -4256,8 +4248,7 @@ export class TrailDatabase {
     // Commit remaining batch
     if (inTransaction) {
       const db = this.ensureDb();
-      try { db.run('COMMIT'); } catch (e) { this.logger.error('COMMIT failed, rolling back', e); try { db.run('ROLLBACK'); } catch (re) { this.logger.error('ROLLBACK also failed', re); } }
-      inTransaction = false;
+      try { db.run('COMMIT'); } catch (e) { this.logger.error('COMMIT failed, rolling back', e); try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('ROLLBACK also failed', error_); } }
       onProgress?.(formatProgress(), 0);
     }
     if (!skipImportSessions) {
@@ -4877,13 +4868,14 @@ export class TrailDatabase {
       const communityId = Number(row[idx('community_id')] ?? 0);
       const sIdx = idx('stable_key');
       const mIdx = idx('mappings_json');
+      const rawMappings = mIdx >= 0 ? row[mIdx] : null;
       olds.push({
         communityId,
         stableKey: sIdx >= 0 ? String(row[sIdx] ?? '') : '',
         members: membersByCommunity.get(communityId) ?? new Set<string>(),
         name: String(row[idx('name')] ?? ''),
         summary: String(row[idx('summary')] ?? ''),
-        mappingsJson: mIdx >= 0 ? (row[mIdx] == null ? null : String(row[mIdx])) : null,
+        mappingsJson: rawMappings != null ? String(rawMappings) : null,
       });
     }
     return olds;
@@ -4928,9 +4920,9 @@ export class TrailDatabase {
   getAllCurrentCodeGraphCommunityRaws(): Array<{ repo_name: string; community_id: number; label: string; name: string; summary: string; mappings_json: string | null; stable_key: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
     const cols = db.exec('PRAGMA table_info(current_code_graph_communities)');
-    const colNames = (cols[0]?.values ?? []).map((r) => String(r[1]));
-    const hasMappings = colNames.includes('mappings_json');
-    const hasStableKey = colNames.includes('stable_key');
+    const colNames = new Set((cols[0]?.values ?? []).map((r) => String(r[1])));
+    const hasMappings = colNames.has('mappings_json');
+    const hasStableKey = colNames.has('stable_key');
     const selectCols = [
       'repo_name',
       'community_id',
@@ -4948,13 +4940,14 @@ export class TrailDatabase {
       const idx = (col: string) => selectCols.indexOf(col);
       const mIdx = idx('mappings_json');
       const sIdx = idx('stable_key');
+      const rawMappings = mIdx >= 0 ? r[mIdx] : null;
       return {
         repo_name: String(r[idx('repo_name')] ?? ''),
         community_id: Number(r[idx('community_id')] ?? 0),
         label: String(r[idx('label')] ?? ''),
         name: String(r[idx('name')] ?? ''),
         summary: String(r[idx('summary')] ?? ''),
-        mappings_json: mIdx >= 0 ? (r[mIdx] == null ? null : String(r[mIdx])) : null,
+        mappings_json: rawMappings != null ? String(rawMappings) : null,
         stable_key: sIdx >= 0 ? String(r[sIdx] ?? '') : '',
         generated_at: String(r[idx('generated_at')] ?? ''),
         updated_at: String(r[idx('updated_at')] ?? ''),
@@ -5071,8 +5064,8 @@ export class TrailDatabase {
 
     // mappings_json / stable_key カラム保証（初回マイグレーション）
     const cols = db.exec('PRAGMA table_info(current_code_graph_communities)')[0]?.values ?? [];
-    const colNames = cols.map((c) => String((c as unknown[])[1]));
-    if (!colNames.includes('mappings_json')) {
+    const colNames = new Set(cols.map((c) => String(c[1])));
+    if (!colNames.has('mappings_json')) {
       db.run('ALTER TABLE current_code_graph_communities ADD COLUMN mappings_json TEXT');
     }
     ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
@@ -5117,9 +5110,9 @@ export class TrailDatabase {
   }> {
     const db = this.ensureDb();
     const cols = db.exec('PRAGMA table_info(current_code_graph_communities)')[0]?.values ?? [];
-    const colNames = cols.map((c) => String((c as unknown[])[1]));
-    const hasMappings = colNames.includes('mappings_json');
-    const hasStableKey = colNames.includes('stable_key');
+    const colNames = new Set(cols.map((c) => String(c[1])));
+    const hasMappings = colNames.has('mappings_json');
+    const hasStableKey = colNames.has('stable_key');
     const selectCols = [
       'community_id',
       'label',
@@ -5134,12 +5127,13 @@ export class TrailDatabase {
       const idx = (col: string) => selectCols.indexOf(col);
       const mIdx = idx('mappings_json');
       const sIdx = idx('stable_key');
+      const rawMappings = mIdx >= 0 ? row[mIdx] : null;
       return {
         communityId: Number(row[idx('community_id')]),
         label: String(row[idx('label')] ?? ''),
         name: String(row[idx('name')] ?? ''),
         summary: String(row[idx('summary')] ?? ''),
-        mappingsJson: mIdx >= 0 ? (row[mIdx] == null ? null : String(row[mIdx])) : null,
+        mappingsJson: rawMappings != null ? String(rawMappings) : null,
         stableKey: sIdx >= 0 ? String(row[sIdx] ?? '') : '',
       };
     });
@@ -5211,7 +5205,6 @@ export class TrailDatabase {
     gitRoot: string;
     onProgress?: (msg: string) => void;
   }): Promise<number> {
-    const db = this.ensureDb();
     const releases = this.getReleases();
     if (releases.length === 0) return Promise.resolve(0);
 
@@ -5253,7 +5246,6 @@ export class TrailDatabase {
       }
       return runNext(i + 1);
     };
-    void db; // db is used via this.ensureDb() in called methods
     return runNext(0);
   }
 
@@ -5342,10 +5334,12 @@ export class TrailDatabase {
     // 役割別に専門領域が分かれる典型ケースで eligibleFiles.size<2 短絡 → 0 件となる。
     // そのため minChangeCount=1（すべてのファイルを eligible 化）にし、
     // 各 subagent_type の内部で co-edit ペアを描画する。
-    const minChangeCount = options.minChangeCount
-      ?? (isSubagentType ? 1 : isSession ? 3 : 5);
-    const jaccardThreshold = options.jaccardThreshold
-      ?? (isSubagentType ? 0.5 : isSession ? 0.4 : 0.5);
+    const defaultMinChangeCountForNonSubagent = isSession ? 3 : 5;
+    const defaultMinChangeCount = isSubagentType ? 1 : defaultMinChangeCountForNonSubagent;
+    const minChangeCount = options.minChangeCount ?? defaultMinChangeCount;
+    const defaultJaccardForNonSubagent = isSession ? 0.4 : 0.5;
+    const defaultJaccardThreshold = isSubagentType ? 0.5 : defaultJaccardForNonSubagent;
+    const jaccardThreshold = options.jaccardThreshold ?? defaultJaccardThreshold;
     const topK = options.topK ?? 50;
     // subagentType は 1 型あたり数百〜数千ファイルになる（general-purpose は半年で 500+）。
     // maxFilesPerGroup を絞ると「巨大な役割」が丸ごとスキップされ実質 0 件になる典型ケースを生む。
@@ -5390,16 +5384,7 @@ export class TrailDatabase {
         ),
       ).sort((a, b) => a.length - b.length);
 
-      const normalize = (raw: string): string | null => {
-        if (!raw) return null;
-        if (!raw.startsWith('/')) return stripWorktreePrefix(raw);
-        for (const root of projectRootCandidates) {
-          if (raw === root) continue;
-          const prefix = root.endsWith('/') ? root : `${root}/`;
-          if (raw.startsWith(prefix)) return stripWorktreePrefix(raw.slice(prefix.length));
-        }
-        return null; // どの projectRoot にも一致しない → リポ外と判断
-      };
+      const normalize = this.buildFilePathNormalizer(projectRootCandidates);
 
       const sessionRows: SessionFileRow[] = [];
       for (const r of values) {
@@ -5452,16 +5437,7 @@ export class TrailDatabase {
             .filter((p): p is string => typeof p === 'string' && p.length > 0),
         ),
       ).sort((a, b) => a.length - b.length);
-      const normalize = (raw: string): string | null => {
-        if (!raw) return null;
-        if (!raw.startsWith('/')) return stripWorktreePrefix(raw);
-        for (const root of projectRootCandidates) {
-          if (raw === root) continue;
-          const prefix = root.endsWith('/') ? root : `${root}/`;
-          if (raw.startsWith(prefix)) return stripWorktreePrefix(raw.slice(prefix.length));
-        }
-        return null;
-      };
+      const normalize = this.buildFilePathNormalizer(projectRootCandidates);
 
       const subagentRows: SubagentTypeFileRow[] = [];
       let normalizationDropped = 0;
@@ -5759,7 +5735,7 @@ export class TrailDatabase {
        WHERE session_id IN (${placeholders}) AND git_branch IS NOT NULL AND git_branch != ''
        GROUP BY session_id
        ORDER BY MIN(rowid)`,
-      sessionIds as string[],
+      sessionIds,
     );
     for (const row of rows[0]?.values ?? []) {
       result.set(String(row[0]), String(row[1]));
@@ -5781,7 +5757,7 @@ export class TrailDatabase {
           MAX(COALESCE(input_tokens,0) + COALESCE(cache_read_tokens,0) + COALESCE(cache_creation_tokens,0)) AS peak
         FROM messages WHERE session_id IN (${placeholders})
         GROUP BY session_id`,
-        sessionIds as string[],
+        sessionIds,
       );
       for (const row of peakResult[0]?.values ?? []) {
         result.set(String(row[0]), { peak: Number(row[1]), initial: 0 });
@@ -5793,7 +5769,7 @@ export class TrailDatabase {
         FROM messages WHERE session_id IN (${placeholders}) AND type = 'assistant'
         GROUP BY session_id
         HAVING timestamp = MIN(timestamp)`,
-        sessionIds as string[],
+        sessionIds,
       );
       for (const row of initResult[0]?.values ?? []) {
         const id = String(row[0]);
@@ -5845,7 +5821,7 @@ export class TrailDatabase {
         WHERE session_id IN (${placeholders}) AND is_meta = 0
         AND type IN ('user','assistant')
         ORDER BY session_id, timestamp DESC`,
-        sessionIds as string[],
+        sessionIds,
       );
 
       const { lastMsg: sessionLastMsg, lastAssistant: sessionLastAssistant } =
@@ -5888,7 +5864,7 @@ export class TrailDatabase {
         FROM session_commits
         WHERE session_id IN (${placeholders})
         GROUP BY session_id`,
-        sessionIds as string[],
+        sessionIds,
       );
       for (const row of rows[0]?.values ?? []) {
         result.set(String(row[0]), {
@@ -5916,7 +5892,7 @@ export class TrailDatabase {
          FROM message_tool_calls
          WHERE is_error = 1 AND session_id IN (${placeholders})
          GROUP BY session_id`,
-        sessionIds as string[],
+        sessionIds,
       );
       for (const row of rows[0]?.values ?? []) {
         result.set(String(row[0]), Number(row[1]));
@@ -5938,7 +5914,7 @@ export class TrailDatabase {
          FROM message_tool_calls
          WHERE tool_name = 'Agent' AND session_id IN (${placeholders})
          GROUP BY session_id`,
-        sessionIds as string[],
+        sessionIds,
       );
       for (const row of rows[0]?.values ?? []) {
         result.set(String(row[0]), Number(row[1]));
@@ -5962,7 +5938,7 @@ export class TrailDatabase {
            AND agent_id IS NOT NULL
            AND agent_id != ''
          GROUP BY session_id`,
-        sessionIds as string[],
+        sessionIds,
       );
       for (const row of rows[0]?.values ?? []) {
         result.set(String(row[0]), Number(row[1]));
@@ -6007,7 +5983,7 @@ export class TrailDatabase {
            AND type = 'assistant'
            AND (agent_id IS NULL OR agent_id = '')
            AND tool_calls IS NOT NULL`,
-        sessionIds as string[],
+        sessionIds,
       );
       const tracksBySession = new Map<string, Set<string>>();
       for (const row of rows[0]?.values ?? []) {
@@ -6078,7 +6054,7 @@ export class TrailDatabase {
     stmt.bind([sessionId]);
     const rows: TrailMessageCommit[] = [];
     while (stmt.step()) {
-      const r = stmt.getAsObject() as Record<string, unknown>;
+      const r = stmt.getAsObject();
       rows.push({
         messageUuid: r['message_uuid'] as string,
         sessionId: r['session_id'] as string,
@@ -6332,7 +6308,7 @@ export class TrailDatabase {
 
     const ccRepoRes = db.exec(
       `SELECT id, repo_name FROM sessions WHERE id IN (${idPlaceholders})`,
-      ccSessionIds as string[],
+      ccSessionIds,
     );
     const repoByCcId = new Map<string, string>();
     for (const r of ccRepoRes[0]?.values ?? []) {
@@ -6346,7 +6322,7 @@ export class TrailDatabase {
          AND source_tool_assistant_uuid IS NOT NULL
          AND source_tool_assistant_uuid != ''
        GROUP BY session_id, source_tool_assistant_uuid`,
-      ccSessionIds as string[],
+      ccSessionIds,
     );
     const delegationsByCc = new Map<string, Delegation[]>();
     const repoNamesNeeded = new Set<string>();
@@ -6518,7 +6494,10 @@ export class TrailDatabase {
       this.fetchSubagentPathB(db, from, to, repoArg, toolNames, toolPlaceholders, rangeJoin, rangeWhere, repoFilter, codexSessionIds, rows);
     }
 
-    rows.sort((a, b) => (a.committedAt < b.committedAt ? -1 : a.committedAt > b.committedAt ? 1 : 0));
+    rows.sort((a, b) => {
+      if (a.committedAt < b.committedAt) return -1;
+      return a.committedAt > b.committedAt ? 1 : 0;
+    });
     return rows;
   }
 
@@ -7119,7 +7098,6 @@ export class TrailDatabase {
     const dailyMap = new Map<string, DailyEntry>();
     for (const row of dailyMsgResult[0]?.values ?? []) {
       const date = String(row[0]);
-      const source = String(row[1] ?? '');
       const rawInput = Number(row[2]);
       const rawOutput = Number(row[3]);
       const rawCacheRead = Number(row[4]);
@@ -7261,9 +7239,6 @@ export class TrailDatabase {
     const periodExpr = period === 'week' ? `strftime('%Y-W%W', date)` : 'date';
     const cutoff = `DATE('now', '-${rangeDays} days')`;
     const tzOffset = this.getLocalTzOffset();
-    const messagePeriodExpr = period === 'week'
-      ? `strftime('%Y-W%W', m.timestamp, '${tzOffset}')`
-      : `DATE(m.timestamp, '${tzOffset}')`;
     const sessionStartPeriodExpr = period === 'week'
       ? `strftime('%Y-W%W', s.start_time, '${tzOffset}')`
       : `DATE(s.start_time, '${tzOffset}')`;
@@ -7541,7 +7516,8 @@ export class TrailDatabase {
     }
 
     // Commit prefix stats: 期間内のコミットだけを集計 (period はセッション開始日基準)
-    const cutoffPeriodRes = db.exec(`SELECT ${sessionDateExpr.replace('s.start_time', `DATE('now')`)} AS period`);
+    const cutoffDateExpr = sessionDateExpr.replace('s.start_time', "DATE('now')");
+    const cutoffPeriodRes = db.exec(`SELECT ${cutoffDateExpr} AS period`);
     const todayPeriod = String(cutoffPeriodRes[0]?.values?.[0]?.[0] ?? '');
     const commitPrefixStats = aggregateCommitPrefixStats(commitRows, todayPeriod);
 
@@ -7635,7 +7611,7 @@ export class TrailDatabase {
       const failed = fixes.some(f =>
         f.ms > commitMs &&
         f.ms - commitMs <= AI_FIRST_TRY_FIX_WINDOW_MS &&
-        (aiSet.size > 0 && f.codeFiles.length > 0 && f.codeFiles.some(fp => aiSet.has(fp))),
+        (aiSet.size > 0 && f.codeFiles.some(fp => aiSet.has(fp))),
       );
       const e = rateAgg.get(c.period) ?? { total: 0, success: 0 };
       e.total += 1;
@@ -8321,7 +8297,7 @@ export class TrailDatabase {
           const filesExist = db.exec(
             `SELECT COUNT(*) FROM release_files WHERE release_tag = '${tag.replaceAll("'", "''")}'`,
           );
-          if (!((filesExist[0]?.values?.[0]?.[0] as number) > 0)) {
+          if ((filesExist[0]?.values?.[0]?.[0] as number) <= 0) {
             const fileStats = git.getFileStatsByRange(prevTag, tag);
             for (const f of fileStats) {
               try {
@@ -9197,8 +9173,8 @@ export class TrailDatabase {
   getCurrentFeatureMatrix(): FeatureMatrix | null {
     const db = this.ensureDb();
     const cols = db.exec('PRAGMA table_info(current_code_graph_communities)');
-    const colNames = (cols[0]?.values ?? []).map((r) => String(r[1]));
-    if (!colNames.includes('mappings_json')) return null;
+    const colNames = new Set((cols[0]?.values ?? []).map((r) => String(r[1])));
+    if (!colNames.has('mappings_json')) return null;
 
     const result = db.exec(
       "SELECT community_id, name, label, mappings_json FROM current_code_graph_communities WHERE name IS NOT NULL AND name != '' AND mappings_json IS NOT NULL ORDER BY community_id",

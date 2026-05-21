@@ -295,4 +295,172 @@ describe('runConversationFailedItemsRetry', () => {
     trailDb.close();
     memDb.close();
   }, 30000);
+
+  // ── F7: MEMORY_CORE_FAILED_RETRY_MAX env-var path ─────────────────────────
+  test('F7: MEMORY_CORE_FAILED_RETRY_MAX env-var sets maxAttempts', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    insertSession(trailDb, 'sess_env');
+    insertMessage(trailDb, 'msg_env', 'sess_env', 'user', '2026-05-10T00:00:00.000Z', 'env test');
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    // item at attempt 2 — would be skipped with default maxAttempts=3 if we set max=2
+    insertFailedItem(memDb, 'conversation_backfill', 'sess_env:msg_env', 2);
+
+    const ollama = makeValidOllama();
+    const prevMax = process.env['MEMORY_CORE_FAILED_RETRY_MAX'];
+    process.env['MEMORY_CORE_FAILED_RETRY_MAX'] = '2';
+    try {
+      // env-var maxAttempts=2, item is at attempt_count=2 → at cap → skipped
+      const result = await runConversationFailedItemsRetry({
+        db: memDb,
+        ollama,
+        logger: silentLogger,
+        // do NOT pass maxAttempts explicitly so env-var is used
+      });
+      // item capped → not retried → items_retried=0
+      expect(result.items_retried).toBe(0);
+    } finally {
+      if (prevMax === undefined) {
+        delete process.env['MEMORY_CORE_FAILED_RETRY_MAX'];
+      } else {
+        process.env['MEMORY_CORE_FAILED_RETRY_MAX'] = prevMax;
+      }
+    }
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── F8: MEMORY_CORE_FAILED_RETRY_MAX invalid value falls back to default ──
+  test('F8: invalid MEMORY_CORE_FAILED_RETRY_MAX falls back to DEFAULT_MAX_ATTEMPTS=3', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    insertSession(trailDb, 'sess_inv');
+    insertMessage(trailDb, 'msg_inv', 'sess_inv', 'user', '2026-05-10T00:00:00.000Z', 'inv test');
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    // item at attempt 1 — should be retried with default=3
+    insertFailedItem(memDb, 'conversation_backfill', 'sess_inv:msg_inv', 1);
+
+    const ollama = makeValidOllama();
+    const prevMax = process.env['MEMORY_CORE_FAILED_RETRY_MAX'];
+    process.env['MEMORY_CORE_FAILED_RETRY_MAX'] = 'not-a-number';
+    try {
+      const result = await runConversationFailedItemsRetry({
+        db: memDb,
+        ollama,
+        logger: silentLogger,
+      });
+      // Default maxAttempts=3, item at attempt 1 < 3 → retried
+      expect(result.items_retried).toBe(1);
+      expect(result.items_recovered).toBe(1);
+    } finally {
+      if (prevMax === undefined) {
+        delete process.env['MEMORY_CORE_FAILED_RETRY_MAX'];
+      } else {
+        process.env['MEMORY_CORE_FAILED_RETRY_MAX'] = prevMax;
+      }
+    }
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── F9: MEMORY_CORE_EXTRACT_CONCURRENCY env-var ────────────────────────────
+  test('F9: MEMORY_CORE_EXTRACT_CONCURRENCY env-var is parsed (valid number)', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    // 4 items — with concurrency=4 all processed in 1 batch
+    for (let i = 0; i < 4; i++) {
+      insertSession(trailDb, `sess_conc_${i}`);
+      insertMessage(trailDb, `msg_conc_${i}`, `sess_conc_${i}`, 'user', `2026-05-10T00:00:0${i}.000Z`, `conc ${i}`);
+      insertFailedItem(memDb, 'conversation_backfill', `sess_conc_${i}:msg_conc_${i}`, 1);
+    }
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const prevConc = process.env['MEMORY_CORE_EXTRACT_CONCURRENCY'];
+    process.env['MEMORY_CORE_EXTRACT_CONCURRENCY'] = '4';
+    try {
+      const result = await runConversationFailedItemsRetry({
+        db: memDb,
+        ollama,
+        logger: silentLogger,
+      });
+      expect(result.items_retried).toBe(4);
+      expect(result.items_recovered).toBe(4);
+    } finally {
+      if (prevConc === undefined) {
+        delete process.env['MEMORY_CORE_EXTRACT_CONCURRENCY'];
+      } else {
+        process.env['MEMORY_CORE_EXTRACT_CONCURRENCY'] = prevConc;
+      }
+    }
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── F10: save() callback fires at progress checkpoint ─────────────────────
+  test('F10: save() callback fires every PROGRESS_LOG_INTERVAL (5) items', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    // 6 items → PROGRESS_LOG_INTERVAL=5 fires once mid-run
+    for (let i = 0; i < 6; i++) {
+      insertSession(trailDb, `sess_save_${i}`);
+      insertMessage(trailDb, `msg_save_${i}`, `sess_save_${i}`, 'user', `2026-05-10T00:0${i}:00.000Z`, `save ${i}`);
+      insertFailedItem(memDb, 'conversation_backfill', `sess_save_${i}:msg_save_${i}`, 1);
+    }
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    let saveCallCount = 0;
+    const result = await runConversationFailedItemsRetry({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+      save: () => { saveCallCount++; },
+    });
+
+    expect(result.items_retried).toBe(6);
+    // save() fires at position 5 (the 5th item)
+    expect(saveCallCount).toBeGreaterThanOrEqual(1);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── F11: malformed item_key (no colon) → episode_not_found ────────────────
+  test('F11: malformed item_key with no colon → treated as episode_not_found', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    // Insert a failed item with malformed key (no colon separator)
+    memDb.run(
+      `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+       VALUES ('conversation_backfill', 'malformed-no-colon-key', ?, 'extraction_failed', '', 1)`,
+      [new Date().toISOString()],
+    );
+
+    const ollama = makeValidOllama();
+    const result = await runConversationFailedItemsRetry({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+    });
+
+    // Malformed key → no episode reconstructed → items_failed=1
+    expect(result.items_retried).toBe(1);
+    expect(result.items_recovered).toBe(0);
+    expect(result.items_failed).toBe(1);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
 });

@@ -46,7 +46,7 @@ export function resolveSelectedElementCommunity(
   if (counts.size === 0) return null;
 
   const breakdown = Array.from(counts, ([community, count]) => ({ community, count }))
-    .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.community - b.community));
+    .sort((a, b) => (b.count === a.count ? a.community - b.community : b.count - a.count));
   const total = breakdown.reduce((sum, e) => sum + e.count, 0);
   const dominant = breakdown[0];
 

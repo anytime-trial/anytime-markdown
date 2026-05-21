@@ -8,7 +8,7 @@ export function pureAdd(a: number, b: number): number {
 /** 配列ミューテーション複数（高スコア期待） */
 export function mutateManyWays(arr: number[]): void {
   arr.push(99);           // mutation method
-  arr.sort();             // mutation method
+  arr.sort((a, b) => a - b); // mutation method
   arr[0] = 0;             // indexed assignment
   delete arr[1];          // delete operator
   arr.splice(0, 1);       // mutation method

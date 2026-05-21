@@ -7,10 +7,10 @@ import { resolveSupabaseServiceEnv } from '../../../../lib/supabase-env';
 export const dynamic = 'force-dynamic';
 
 function getTypePrefix(type: string): string {
-  return type === 'person' ? 'person_'
-    : type === 'system' ? 'sys_manual_'
-    : type === 'container' ? 'pkg_manual_'
-    : 'cmp_manual_';
+  if (type === 'person') return 'person_';
+  if (type === 'system') return 'sys_manual_';
+  if (type === 'container') return 'pkg_manual_';
+  return 'cmp_manual_';
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

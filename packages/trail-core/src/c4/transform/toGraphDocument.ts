@@ -3,7 +3,7 @@ import type { ManualGroup } from '../manualTypes';
 import { findService } from '../services/catalog';
 import type {
   NodeType, NodeStyle, EdgeStyle,
-  GraphNode, GraphEdge, GraphDocument, GraphGroup,
+  GraphNode, GraphDocument, GraphGroup,
 } from '@anytime-markdown/graph-core';
 
 // --- Node mapping ---
@@ -128,13 +128,9 @@ export function c4ToGraphDocument(
           c4Type: elem.type,
           c4NodeFill: nodeColors.fill,
           c4NodeStroke: nodeColors.stroke,
-          ...(serviceEntry?.iconBody ? {
-            serviceIconBody: serviceEntry.iconBody,
-            serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24',
-          } : serviceEntry?.iconPath ? {
-            serviceIconPath: serviceEntry.iconPath,
-            serviceColor: serviceEntry.brandColor,
-          } : {}),
+          ...(serviceEntry?.iconBody
+            ? { serviceIconBody: serviceEntry.iconBody, serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24' }
+            : (serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {})),
         };
         frame.style = { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke };
         frame.text = buildNodeText(elem);
@@ -165,13 +161,9 @@ export function c4ToGraphDocument(
         c4NodeFill: nodeColors.fill,
         c4NodeStroke: nodeColors.stroke,
         ...(elem.manual ? { manual: 1 } : {}),
-        ...(serviceEntry?.iconBody ? {
-          serviceIconBody: serviceEntry.iconBody,
-          serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24',
-        } : serviceEntry?.iconPath ? {
-          serviceIconPath: serviceEntry.iconPath,
-          serviceColor: serviceEntry.brandColor,
-        } : {}),
+        ...(serviceEntry?.iconBody
+          ? { serviceIconBody: serviceEntry.iconBody, serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24' }
+          : (serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {})),
       },
     };
     doc.nodes.push(node);
@@ -218,13 +210,9 @@ export function c4ToGraphDocument(
         c4Id: elem.id,
         c4Type: elem.type,
         ...(elem.manual ? { manual: 1 } : {}),
-        ...(serviceEntry?.iconBody ? {
-          serviceIconBody: serviceEntry.iconBody,
-          serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24',
-        } : serviceEntry?.iconPath ? {
-          serviceIconPath: serviceEntry.iconPath,
-          serviceColor: serviceEntry.brandColor,
-        } : {}),
+        ...(serviceEntry?.iconBody
+          ? { serviceIconBody: serviceEntry.iconBody, serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24' }
+          : (serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {})),
       },
       ...(elem.boundaryId && boundaryIdMap.has(elem.boundaryId)
         ? { groupId: boundaryIdMap.get(elem.boundaryId) }

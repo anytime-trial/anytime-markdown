@@ -28,9 +28,9 @@ export function filterCodeFiles(files: readonly string[]): string[] {
 
 export function isFailureCommit(subject: string): boolean {
   const lower = subject.toLowerCase();
-  if (/^fix(\([^)]*\))?[!]?:\s/.test(lower)) return true;
-  if (/^revert(\([^)]*\))?[!]?:\s/.test(lower)) return true;
-  if (/^hotfix(\([^)]*\))?[!]?:\s/.test(lower)) return true;
+  if (/^fix(\([^)]*\))?!?:\s/.test(lower)) return true;
+  if (/^revert(\([^)]*\))?!?:\s/.test(lower)) return true;
+  if (/^hotfix(\([^)]*\))?!?:\s/.test(lower)) return true;
   return false;
 }
 

@@ -15,6 +15,6 @@ async function loadUtils() {
 type GreetFn = typeof import('./utils').greet;
 
 // Use type to avoid unused warning
-const level: LogLevel = 1 as LogLevel;
+const level: LogLevel = 1;
 export { loadUtils, level };
 export type { GreetFn };

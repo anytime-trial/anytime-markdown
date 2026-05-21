@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.26.5] - 2026-05-21
+
+### 変更
+
+- `web-app` 全体の SonarCloud 指摘を解消（S6478 コンポーネント定義・S3358 ネスト三項演算子・S4624・S7776 ほか）
+- `trace-core`: `parse/callTree`・`parse/loader` の SonarCloud 指摘を解消（S7772/S7786/S7755）
+
 ## [0.26.4] - 2026-05-20
 
 ### 変更

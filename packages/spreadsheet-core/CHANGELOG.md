@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-05-21
+
+### Changed
+
+- Resolved SonarCloud findings across `spreadsheet-core` (S2004, S7758, S7780)
+- Raised `InMemoryWorkbookAdapter` coverage to 100% (74→100%)
+
 ## [0.4.5] - 2026-05-20
 
 ### Changed

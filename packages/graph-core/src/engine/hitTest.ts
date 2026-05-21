@@ -1,12 +1,12 @@
 import { GraphNode, GraphEdge, GraphGroup } from '../types';
 import { computeGroupBounds } from './renderer';
 import {
-  HANDLE_SIZE, EDGE_TOLERANCE, CONNECTION_POINT_RADIUS, ENDPOINT_HANDLE_RADIUS,
+  HANDLE_SIZE, EDGE_TOLERANCE, ENDPOINT_HANDLE_RADIUS,
   FRAME_TITLE_HEIGHT, FRAME_ICON_RIGHT_MARGIN, FRAME_BORDER_WIDTH,
   PARALLELOGRAM_OFFSET_RATIO,
   CYLINDER_ELLIPSE_HEIGHT_RATIO, CYLINDER_ELLIPSE_MAX_HEIGHT,
 } from './constants';
-import { getConnectionPoints, hitTestConnectionPoint as hitTestConnectionPointFull } from './connector';
+import { hitTestConnectionPoint as hitTestConnectionPointFull } from './connector';
 
 export type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w';
 
@@ -125,7 +125,7 @@ export function hitTestNode(node: GraphNode, wx: number, wy: number): boolean {
     const { x, y, width, height } = node;
     const headR = width * 0.22;
     const headCx = x + width / 2;
-    const headCy = y + height * 0.30;
+    const headCy = y + height * 0.3;
     if (pointInEllipse(wx, wy, headCx, headCy, headR, headR)) return true;
     const bodyY = y + height * 0.45;
     const bodyH = height - height * 0.45;

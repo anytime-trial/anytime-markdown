@@ -119,7 +119,7 @@ describe('setupClaudeHooks', () => {
     expect(editPreCount).toBe(1);
   });
 
-  test('returns false when ~/.claude directory does not exist', () => {
+  test('returns false when the .claude directory does not exist', () => {
     fs.rmSync(path.join(tmpHome, '.claude'), { recursive: true, force: true });
     const { setupClaudeHooks } = loadModule();
     const result = setupClaudeHooks(tmpWorkspace, '.anytime');
@@ -167,5 +167,41 @@ describe('setupClaudeHooks', () => {
     expect(getStatusFileGlob(undefined, abs)).toBe(
       path.join(abs, 'claude-code-status*.json'),
     );
+  });
+
+  test('settings.json が存在しない（ENOENT）場合は空の設定で続行する', () => {
+    // ENOENT は「設定ファイル未作成」として許容 → hooks を初期化して true を返す
+    const { setupClaudeHooks } = loadModule();
+    const result = setupClaudeHooks(tmpWorkspace, '.anytime');
+    expect(result).toBe(true);
+    const settingsPath = path.join(tmpHome, '.claude', 'settings.json');
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+    expect(settings.hooks).toBeDefined();
+    expect(Array.isArray(settings.hooks.PreToolUse)).toBe(true);
+  });
+
+  test('workspaceRoot に末尾スラッシュが複数あっても正規化される', () => {
+    const { setupClaudeHooks } = loadModule();
+    const rootWithSlashes = tmpWorkspace.replace(/\/*$/, '//');
+    const result = setupClaudeHooks(rootWithSlashes, '.anytime');
+    expect(result).toBe(true);
+
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const editPre = settings.hooks.PreToolUse.find(
+      (e: { matcher?: string }) => e.matcher === 'Edit|Write',
+    );
+    const cmd: string = editPre.hooks[0].command;
+    // 末尾スラッシュが1つに正規化されている
+    expect(cmd).toContain(`cwd:'${tmpWorkspace}/'`);
+    expect(cmd).not.toContain(`//`);
+  });
+
+  test('statusDir が絶対パスのとき getStatusFileGlob はそのまま使う', () => {
+    const { getStatusFileGlob } = loadModule();
+    const absDir = path.join(tmpWorkspace, 'abs-dir');
+    const result = getStatusFileGlob(undefined, absDir);
+    expect(result).toBe(path.join(absDir, 'claude-code-status*.json'));
   });
 });

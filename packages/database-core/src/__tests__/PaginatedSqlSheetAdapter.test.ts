@@ -70,4 +70,77 @@ describe('PaginatedSqlSheetAdapter', () => {
     sa.setCell(0, 0, 'X');
     expect(sa.getSnapshot()).toBe(before);
   });
+
+  it('applySnapshot updates snapshot and notifies listeners', () => {
+    const m = makeMockAdapter();
+    const sa = new PaginatedSqlSheetAdapter({
+      databaseAdapter: m.adapter,
+      tableName: 'users',
+    });
+    let count = 0;
+    sa.subscribe(() => (count += 1));
+    const next = { cells: [['x']], alignments: [[null]], range: { rows: 1, cols: 1 } };
+    sa.applySnapshot(next);
+    expect(sa.getSnapshot()).toBe(next);
+    expect(count).toBe(1);
+  });
+
+  it('applyQueryResult updates snapshot and columnHeaders', () => {
+    const m = makeMockAdapter();
+    const sa = new PaginatedSqlSheetAdapter({
+      databaseAdapter: m.adapter,
+      tableName: 'users',
+    });
+    let count = 0;
+    sa.subscribe(() => (count += 1));
+    const result: import('../types').QueryResult = {
+      columns: ['col1', 'col2'],
+      rows: [['v1', 'v2'], ['v3', 'v4']],
+      executionTimeMs: 1,
+      isMutation: false,
+    };
+    sa.applyQueryResult(result);
+    expect(sa.getColumnHeaders()).toEqual(['col1', 'col2']);
+    expect(sa.getSnapshot().cells).toEqual([['v1', 'v2'], ['v3', 'v4']]);
+    expect(count).toBe(1);
+  });
+
+  it('subscribe returns unsubscribe function that stops notifications', async () => {
+    const m = makeMockAdapter();
+    m.setRows([['1', 'a']]);
+    const sa = new PaginatedSqlSheetAdapter({
+      databaseAdapter: m.adapter,
+      tableName: 'users',
+    });
+    let count = 0;
+    const unsub = sa.subscribe(() => (count += 1));
+    await sa.loadPage(1, 10);
+    expect(count).toBe(1);
+    unsub();
+    await sa.loadPage(1, 10);
+    expect(count).toBe(1); // no additional notification after unsub
+  });
+
+  it('replaceAll is no-op and does not change snapshot', () => {
+    const m = makeMockAdapter();
+    const sa = new PaginatedSqlSheetAdapter({
+      databaseAdapter: m.adapter,
+      tableName: 'users',
+    });
+    const before = sa.getSnapshot();
+    sa.replaceAll({ cells: [['X']], alignments: [[null]], range: { rows: 1, cols: 1 } });
+    expect(sa.getSnapshot()).toBe(before);
+  });
+
+  it('applyText is no-op', () => {
+    const m = makeMockAdapter();
+    const sa = new PaginatedSqlSheetAdapter({
+      databaseAdapter: m.adapter,
+      tableName: 'users',
+    });
+    const before = sa.getSnapshot();
+    // applyText should not throw and not change state
+    expect(() => sa.applyText()).not.toThrow();
+    expect(sa.getSnapshot()).toBe(before);
+  });
 });

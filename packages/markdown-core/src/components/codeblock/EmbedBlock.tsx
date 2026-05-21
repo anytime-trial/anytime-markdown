@@ -77,11 +77,10 @@ export function EmbedBlock(props: EmbedBlockProps) {
     // language に embed info string として書き戻す。
     const updateAttributesForResize = useCallback(
         (attrs: Record<string, unknown>) => {
-            if (Object.prototype.hasOwnProperty.call(attrs, "width")) {
+            if (Object.hasOwn(attrs, "width")) {
                 const nextWidth = attrs.width as string | null;
                 const nextLanguage = buildEmbedInfoString(variant, nextWidth, baseline);
                 const { width: _ignored, ...rest } = attrs;
-                void _ignored;
                 updateAttributes({ ...rest, language: nextLanguage, width: nextWidth });
                 return;
             }
