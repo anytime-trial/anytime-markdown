@@ -167,4 +167,46 @@ describe('discoverChangedSpecs', () => {
     expect(results[0].rel_path).toBe('sub/nested.md');
     expect(results[0].is_new).toBe(true);
   });
+
+  test('non-existent specRoot → throws and calls logger.error', async () => {
+    const nonexistent = join(specRoot, 'does-not-exist');
+    const db = makeDb(null) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+    const logger = makeLogger();
+
+    await expect(discoverChangedSpecs({ specRoot: nonexistent, db, logger })).rejects.toThrow();
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    const errorCall = (logger.error as jest.Mock).mock.calls[0][0] as string;
+    expect(errorCall).toContain('does-not-exist');
+  });
+
+  test('logger without warn function → uses logger.info as fallback for large file', async () => {
+    // 11MB ファイル作成
+    const largePath = join(specRoot, 'large2.md');
+    const chunk = Buffer.alloc(1024 * 1024, 'B');
+    const fd = require('node:fs').openSync(largePath, 'w');
+    for (let i = 0; i < 11; i++) {
+      require('node:fs').writeSync(fd, chunk);
+    }
+    require('node:fs').closeSync(fd);
+
+    const db = makeDb(null) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+
+    // logger without warn
+    const infos: string[] = [];
+    const loggerNoWarn = {
+      info: jest.fn((msg: string) => { infos.push(msg); }),
+      error: jest.fn(),
+      // warn is absent
+    } as unknown as Parameters<typeof discoverChangedSpecs>[0]['logger'];
+
+    const results = await discoverChangedSpecs({ specRoot, db, logger: loggerNoWarn });
+
+    expect(results).toHaveLength(0);
+    // fallback: info は呼ばれていること
+    expect(loggerNoWarn.info).toHaveBeenCalled();
+    const infoCall = (loggerNoWarn.info as jest.Mock).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('large2.md')
+    );
+    expect(infoCall).toBeTruthy();
+  });
 });

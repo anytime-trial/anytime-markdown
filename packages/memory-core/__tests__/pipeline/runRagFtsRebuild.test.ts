@@ -144,6 +144,61 @@ describe('runRagFtsRebuild', () => {
     expect(result.processed).toBe(3);
   });
 
+  test('AbortSignal により aborted になると status=failed が返る', async () => {
+    insertEntity(db, 'e1', 'fn', 'Fn', '', null);
+
+    const controller = new AbortController();
+    // Pre-abort the signal
+    controller.abort();
+
+    const result = await runRagFtsRebuild({ db, trigger: 'manual', signal: controller.signal });
+    expect(result.status).toBe('failed');
+    expect(result.error).toContain('aborted');
+
+    // pipeline_state should be 'error'
+    const state = db.exec(
+      `SELECT status FROM memory_pipeline_state WHERE scope = 'rag_fts_rebuild'`,
+    );
+    expect(state[0]?.values[0][0]).toBe('error');
+
+    // pipeline_runs row should be 'error'
+    const runs = db.exec(
+      `SELECT status FROM memory_pipeline_runs WHERE scope = 'rag_fts_rebuild'`,
+    );
+    expect(runs[0]?.values[0][0]).toBe('error');
+  });
+
+  test('onProgress callback receives progress notifications for entities and episodes phases', async () => {
+    // Insert entities + episode. onProgress fires at i%PROGRESS_EVERY(100)===0,
+    // i.e. at i=0 of each phase that has items.
+    insertEntity(db, 'e1', 'fn1', 'Fn1', '', null);
+    insertEntity(db, 'e2', 'fn2', 'Fn2', '', null);
+    insertEpisode(db, 'ep1', 'episode text');
+
+    const progressCalls: Array<{ processed: number; phase: string }> = [];
+    const result = await runRagFtsRebuild({
+      db,
+      trigger: 'cron',
+      onProgress: ({ processed, phase }) => { progressCalls.push({ processed, phase }); },
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.processed).toBe(3); // 2 entities + 1 episode
+    // onProgress fires at i=0 for entities (2 entities) and i=0 for episodes (1 episode)
+    // So at minimum 2 notifications: entities phase + episodes phase
+    expect(progressCalls.length).toBeGreaterThanOrEqual(2);
+    const phases = progressCalls.map((c) => c.phase);
+    expect(phases).toContain('entities');
+    expect(phases).toContain('episodes');
+  });
+
+  test('startup trigger variant → same behaviour as manual', async () => {
+    insertEntity(db, 'e1', 'fn', 'Fn', '', null);
+    const result = await runRagFtsRebuild({ db, trigger: 'startup' });
+    expect(result.status).toBe('success');
+    expect(result.processed).toBe(1);
+  });
+
   test('既存 FTS データが置き換わる (冪等)', async () => {
     insertEntity(db, 'e1', 'fn', 'Fn1', 'one', null);
     await runRagFtsRebuild({ db, trigger: 'manual' });

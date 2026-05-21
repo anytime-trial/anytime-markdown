@@ -375,4 +375,178 @@ describe('runSpecIncremental', () => {
       cleanup();
     }
   });
+
+  // LLM returns null (extractClaims failure) → items_failed recorded
+  test('extractClaims returning null → items_failed=1, items_processed=0', async () => {
+    const { db, cleanup } = await openTestDb();
+    const { dir, cleanup: dirCleanup } = makeTmpSpecDir([
+      { name: 'llm-fail.md', content: VALID_SPEC_CONTENT },
+    ]);
+
+    // Ollama generate returns invalid JSON → extractClaims returns null
+    const failOllama: OllamaClient = {
+      generate: jest.fn().mockResolvedValue({ response: 'not valid json at all' }),
+      embeddings: jest.fn().mockResolvedValue({ embedding: new Float32Array(0) }),
+    };
+
+    try {
+      const result = await runSpecIncremental({
+        db,
+        specRoot: dir,
+        ollama: failOllama,
+        model: 'test-model',
+        logger: noopLogger,
+      });
+
+      expect(['success', 'partial']).toContain(result.status);
+      expect(result.items_failed).toBe(1);
+      expect(result.items_processed).toBe(0);
+
+      const failedRows = db.exec(
+        `SELECT reason FROM memory_failed_items WHERE scope='spec' AND item_key='llm-fail.md'`,
+      );
+      expect(failedRows[0]?.values?.length ?? 0).toBe(1);
+      expect(failedRows[0].values[0][0]).toBe('llm_error');
+    } finally {
+      dirCleanup();
+      cleanup();
+    }
+  });
+
+  // 5 LLM failures → quarantine (partial), consecutive failures path
+  test('5 LLM extraction failures → status=partial (quarantine)', async () => {
+    const { db, cleanup } = await openTestDb();
+    const { dir, cleanup: dirCleanup } = makeTmpSpecDir([
+      { name: 'f1.md', content: VALID_SPEC_CONTENT },
+      { name: 'f2.md', content: VALID_SPEC_CONTENT },
+      { name: 'f3.md', content: VALID_SPEC_CONTENT },
+      { name: 'f4.md', content: VALID_SPEC_CONTENT },
+      { name: 'f5.md', content: VALID_SPEC_CONTENT },
+    ]);
+
+    const failOllama: OllamaClient = {
+      generate: jest.fn().mockResolvedValue({ response: '{}' }), // returns {} which has no claims — still processed
+      embeddings: jest.fn().mockResolvedValue({ embedding: new Float32Array(0) }),
+    };
+
+    // Force all 5 to fail by making generate throw on 'llm_error' path
+    // We get null from extractClaims when JSON is unparseable
+    const badOllama: OllamaClient = {
+      generate: jest.fn().mockResolvedValue({ response: 'not-json-____' }),
+      embeddings: jest.fn().mockResolvedValue({ embedding: new Float32Array(0) }),
+    };
+
+    try {
+      const result = await runSpecIncremental({
+        db,
+        specRoot: dir,
+        ollama: badOllama,
+        model: 'test-model',
+        logger: noopLogger,
+      });
+
+      expect(result.status).toBe('partial');
+      expect(result.items_failed).toBe(5);
+    } finally {
+      dirCleanup();
+      cleanup();
+    }
+  });
+
+  // LLM returns null for all specs (llm_error path) — all 4 fail, 5th triggers quarantine
+  test('LLM always returns null → after 5 consecutive failures, status=partial (llm_error quarantine)', async () => {
+    const { db, cleanup } = await openTestDb();
+    const { dir, cleanup: dirCleanup } = makeTmpSpecDir([
+      { name: 'q1.md', content: VALID_SPEC_CONTENT },
+      { name: 'q2.md', content: VALID_SPEC_CONTENT },
+      { name: 'q3.md', content: VALID_SPEC_CONTENT },
+      { name: 'q4.md', content: VALID_SPEC_CONTENT },
+      { name: 'q5.md', content: VALID_SPEC_CONTENT },
+    ]);
+
+    const alwaysNullOllama: OllamaClient = {
+      // Returns something JSON-invalid so extractClaims returns null
+      generate: jest.fn().mockResolvedValue({ response: 'null-is-not-claims' }),
+      embeddings: jest.fn().mockResolvedValue({ embedding: new Float32Array(0) }),
+    };
+
+    try {
+      const result = await runSpecIncremental({
+        db,
+        specRoot: dir,
+        ollama: alwaysNullOllama,
+        model: 'test-model',
+        logger: noopLogger,
+      });
+
+      expect(result.status).toBe('partial');
+      expect(result.items_failed).toBe(5);
+
+      const failedRows = db.exec(`SELECT reason FROM memory_failed_items WHERE scope='spec'`);
+      expect(failedRows[0]?.values?.length ?? 0).toBe(5);
+      // All failed as llm_error
+      for (const row of failedRows[0].values) {
+        expect(row[0]).toBe('llm_error');
+      }
+    } finally {
+      dirCleanup();
+      cleanup();
+    }
+  });
+
+  // 50+ files triggers the progress log at PROGRESS_LOG_INTERVAL=50
+  test('51 valid spec files → progress log fires at item 50 (no quarantine)', async () => {
+    const { db, cleanup } = await openTestDb();
+    const files = Array.from({ length: 51 }, (_, i) => ({
+      name: `s${i.toString().padStart(3, '0')}.md`,
+      // Each must be unique so hash changes; use same valid content (same hash won't matter for this test)
+      content: VALID_SPEC_CONTENT,
+    }));
+    // Make each unique by adding an index comment
+    const uniqueFiles = files.map((f, i) => ({
+      ...f,
+      content: VALID_SPEC_CONTENT + `\n<!-- unique: ${i} -->`,
+    }));
+    const { dir, cleanup: dirCleanup } = makeTmpSpecDir(uniqueFiles);
+    const mockOllama = makeMockOllama();
+
+    try {
+      const result = await runSpecIncremental({
+        db,
+        specRoot: dir,
+        ollama: mockOllama,
+        model: 'test-model',
+        logger: noopLogger,
+      });
+
+      // All 51 files should be processed
+      expect(result.status).toBe('success');
+      expect(result.items_processed).toBe(51);
+    } finally {
+      dirCleanup();
+      cleanup();
+    }
+  }, 60000);
+
+  // specRoot does not exist → discoverChangedSpecs throws → fatal error path
+  test('non-existent specRoot → fatal error, status=error', async () => {
+    const { db, cleanup } = await openTestDb();
+    const mockOllama = makeMockOllama();
+
+    try {
+      const result = await runSpecIncremental({
+        db,
+        specRoot: '/nonexistent-spec-root-xyz987',
+        ollama: mockOllama,
+        model: 'test-model',
+        logger: noopLogger,
+      });
+
+      // discoverChangedSpecs throws ENOENT → caught by outer try/catch → 'error'
+      expect(result.status).toBe('error');
+      expect(result.items_processed).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
 });

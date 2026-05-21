@@ -272,4 +272,127 @@ describe('linkByC4Scope', () => {
       cleanup();
     }
   });
+
+  // ── pkg_ + / → Component = Concept ────────────────────────────────────────
+
+  test('pkg_pkg/component プレフィックスの c4Scope が Concept type として解決されること', async () => {
+    const { db, cleanup } = await openFreshWithTrailRows([
+      { id: 'pkg_memory-core/engine', name: 'engine' },
+    ]);
+    try {
+      const specDocId = 'spec-doc-005';
+      const specEntityId = entityId('Concept', 'test-spec-5');
+      insertSpecDoc(db, specDocId);
+      insertSpecEntity(db, specEntityId);
+
+      const { logger } = makeLogger();
+      const result = linkByC4Scope({
+        db,
+        specDocId,
+        specEntityId,
+        c4Scope: ['pkg_memory-core/engine'],
+        recordedAt: TS,
+        logger,
+      });
+
+      expect(result.resolved_count).toBe(1);
+      expect(result.skipped_count).toBe(0);
+      expect(result.edges_inserted).toBe(2);
+
+      const entRows = db.exec(
+        `SELECT type FROM memory_entities WHERE canonical_name = 'pkg_memory-core/engine'`,
+      );
+      expect(entRows[0].values[0][0]).toBe('Concept');
+    } finally {
+      cleanup();
+    }
+  });
+
+  // ── 未知プレフィックス → skip & warn ──────────────────────────────────────
+
+  test('未知プレフィックスは skipped_count=1 かつ logger.warn が呼ばれること', async () => {
+    const { db, cleanup } = await openFreshWithTrailRows([]);
+    try {
+      const specDocId = 'spec-doc-006';
+      const specEntityId = entityId('Concept', 'test-spec-6');
+      insertSpecDoc(db, specDocId);
+      insertSpecEntity(db, specEntityId);
+
+      const { logger, warns } = makeLogger();
+      const result = linkByC4Scope({
+        db,
+        specDocId,
+        specEntityId,
+        c4Scope: ['com_invalid-prefix'],
+        recordedAt: TS,
+        logger,
+      });
+
+      expect(result.resolved_count).toBe(0);
+      expect(result.skipped_count).toBe(1);
+      expect(result.edges_inserted).toBe(0);
+      expect(warns.length).toBeGreaterThan(0);
+      expect(warns[0]).toContain('com_invalid-prefix');
+    } finally {
+      cleanup();
+    }
+  });
+
+  // ── 混合: 解決済み + 未知 ──────────────────────────────────────────────────
+
+  test('複数 c4Scope: 1 件解決 + 1 件未知 → resolved=1, skipped=1', async () => {
+    const { db, cleanup } = await openFreshWithTrailRows([
+      { id: 'pkg_memory-core', name: 'memory-core' },
+    ]);
+    try {
+      const specDocId = 'spec-doc-007';
+      const specEntityId = entityId('Concept', 'test-spec-7');
+      insertSpecDoc(db, specDocId);
+      insertSpecEntity(db, specEntityId);
+
+      const { logger } = makeLogger();
+      const result = linkByC4Scope({
+        db,
+        specDocId,
+        specEntityId,
+        c4Scope: ['pkg_memory-core', 'com_unknown'],
+        recordedAt: TS,
+        logger,
+      });
+
+      expect(result.resolved_count).toBe(1);
+      expect(result.skipped_count).toBe(1);
+      expect(result.edges_inserted).toBe(2);
+    } finally {
+      cleanup();
+    }
+  });
+
+  // ── 空 c4Scope → すべてゼロ ───────────────────────────────────────────────
+
+  test('空の c4Scope → resolved=0, skipped=0, edges=0', async () => {
+    const { db, cleanup } = await openFreshWithTrailRows([]);
+    try {
+      const specDocId = 'spec-doc-008';
+      const specEntityId = entityId('Concept', 'test-spec-8');
+      insertSpecDoc(db, specDocId);
+      insertSpecEntity(db, specEntityId);
+
+      const { logger } = makeLogger();
+      const result = linkByC4Scope({
+        db,
+        specDocId,
+        specEntityId,
+        c4Scope: [],
+        recordedAt: TS,
+        logger,
+      });
+
+      expect(result.resolved_count).toBe(0);
+      expect(result.skipped_count).toBe(0);
+      expect(result.edges_inserted).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
 });

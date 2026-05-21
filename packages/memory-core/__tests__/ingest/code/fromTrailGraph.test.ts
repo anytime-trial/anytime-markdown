@@ -471,4 +471,88 @@ describe('fromTrailGraph', () => {
     trailDb.close();
     memDb.close();
   }, 30000);
+
+  // ── FTG-11: invalid graph_json → logger.error, returns zero stats ────────
+  test('FTG-11: invalid JSON in graph_json → logger.error called, returns zero stats', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    trailDb.run(
+      `INSERT INTO current_code_graphs (repo_name, graph_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      ['bad-json-repo', 'NOT VALID JSON {{{{', RECORDED_AT, RECORDED_AT]
+    );
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const errors: unknown[] = [];
+    const errLogger: MemoryLogger = {
+      info: () => {},
+      error: (_msg: string, err?: unknown) => { errors.push(err); },
+    };
+
+    const stats = fromTrailGraph({
+      db: memDb,
+      repoName: 'bad-json-repo',
+      recordedAt: RECORDED_AT,
+      logger: errLogger,
+    });
+
+    expect(stats.packages_upserted).toBe(0);
+    expect(stats.files_upserted).toBe(0);
+    expect(stats.edges_inserted).toBe(0);
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-12: invalid generatedAt → fallback to recordedAt ─────────────────
+  test('FTG-12: invalid generatedAt string → valid_from falls back to recordedAt', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    const graphJson = JSON.stringify({
+      generatedAt: 'not-a-date',
+      nodes: [
+        {
+          id: 'src/index.ts',
+          label: 'index.ts',
+          repo: 'my-repo',
+          package: 'my-pkg',
+          fileType: 'code',
+          community: 0,
+          communityLabel: '',
+          x: 0,
+          y: 0,
+          size: 1,
+        },
+      ],
+      edges: [],
+      communities: {},
+      godNodes: [],
+    });
+    trailDb.run(
+      `INSERT INTO current_code_graphs (repo_name, graph_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      ['fallback-repo', graphJson, RECORDED_AT, RECORDED_AT]
+    );
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    fromTrailGraph({
+      db: memDb,
+      repoName: 'fallback-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const edgeRows = memDb.exec(`SELECT valid_from FROM memory_edges`);
+    expect(edgeRows[0]?.values).toHaveLength(1);
+    // Should use recordedAt as fallback when generatedAt is invalid
+    expect(edgeRows[0].values[0][0]).toBe(RECORDED_AT);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
 });
