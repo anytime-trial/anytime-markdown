@@ -118,4 +118,37 @@ describe('PrReviewImporter', () => {
     expect(events).toEqual([]);
     expect(logs.join('\n')).toContain('[PrReviewImporter] failed for review 100: locked');
   });
+
+  it('handles non-Error thrown value (string) in catch', async () => {
+    const ds: PrReviewImporterDataSource = {
+      getPrReviewBodyHash: () => null,
+      upsertPrReview: () => { throw 'db-gone'; },
+    };
+    const imp = new PrReviewImporter({ trailDb: ds });
+    const { ctx, logs } = makeCtx();
+    await imp.onEvent(REVIEW_EVENT(), ctx);
+    expect(logs.join('\n')).toContain('[PrReviewImporter] failed for review 100: db-gone');
+  });
+
+  it('onRunEnd logs summary and resets counters', async () => {
+    const { ds } = makeDs();
+    const imp = new PrReviewImporter({ trailDb: ds });
+    const { ctx, logs } = makeCtx();
+
+    await imp.onEvent(REVIEW_EVENT(), ctx);
+    expect(imp.getCounters()).toEqual({ imported: 1, skipped: 0 });
+
+    await imp.onRunEnd(ctx);
+    expect(logs.join('\n')).toContain('[PrReviewImporter] done (imported=1, skipped=0)');
+    // counters reset after onRunEnd
+    expect(imp.getCounters()).toEqual({ imported: 0, skipped: 0 });
+  });
+
+  it('handles repo without slash (no-op split)', async () => {
+    const { ds, upserts } = makeDs();
+    const imp = new PrReviewImporter({ trailDb: ds });
+    const { ctx } = makeCtx();
+    await imp.onEvent(REVIEW_EVENT({ repo: 'widget' }), ctx);
+    expect(upserts[0].repoName).toBe('widget');
+  });
 });
