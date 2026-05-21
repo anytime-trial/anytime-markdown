@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-05-21
+
+### Changed
+
+- Resolved SonarCloud findings across `graph-core` (S7769, S7735, S7748, S107, and others)
+- Improved pure-logic unit-test coverage (`reducer`, `groupClustering`, and others to 100%)
+
 ## [0.3.3] - 2026-05-20
 
 ### Changed

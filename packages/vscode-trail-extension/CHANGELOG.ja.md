@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-05-21
+
+### セキュリティ
+
+- `trail-db` のセッションメタデータ解析（`sessionMeta`）の多項式 ReDoS を修正（S5852 / js/polynomial-redos）
+- `trail-db` `GitStateService.getCommitsSince` の OS コマンドインジェクションを修正
+
+### Trail Core (trail-core / trail-db / mcp-trail / memory-core / trail-server)
+
+- `trail-core`: SonarCloud 指摘を解消（S3358/S2871/S4325/S7748/S6397/S3735 ほか）
+- `trail-db`: SonarCloud 指摘を解消（S4325/S3358/S7718/S7776/S3863/S1854 ほか）
+- `mcp-trail`: SonarCloud 指摘を解消（S1874/S7735/S4325/S7772/S2486/S4043）。sqlite/tools のカバレッジを改善（`searchMemory`/`read`/`write`/`client`/`dbPath`/`sqlJsUtil` を 100% に）
+- `memory-core`: カバレッジを改善（ステートメント 85.6→92.1%・ブランチ 69.9→77.7%）
+- `trail-server`: `TrailDataServer` WebSocket 統合テストを追加（ステートメント 52→57%）。LEP パイプライン（analyzers/ingesters）と server/analyze/runtime のカバレッジを改善
+- `vscode-common`: `claudeHookSetup`/`installSkills` のカバレッジを改善（69→94% / 75→99%）
+
 ## [0.22.0] - 2026-05-20
 
 ### 追加

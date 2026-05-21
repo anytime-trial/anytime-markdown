@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.15.4] - 2026-05-21
+
+### 変更
+
+- `markdown-core` 0.15.4 に合わせたバージョン更新（拡張固有のソース変更なし）
+
+### Editor Core (markdown-core)
+
+- SonarCloud 指摘を解消（S7780/S6582/S6653/S7776/S3358 ほか）
+- `mcp-markdown`: SonarCloud 指摘を解消（S7772/S6594）。`sanitizeMarkdown` の未カバー分岐を検証するテストを追加（branch 88→100%）
+
 ## [0.15.3] - 2026-05-20
 
 ### セキュリティ

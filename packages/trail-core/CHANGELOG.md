@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-05-21
+
+### Changed
+
+- Resolved SonarCloud findings across `trail-core` (S3358 nested ternary, S2871, S4325, S7748, S6397, S3735, and others)
+
 ## [0.22.0] - 2026-05-20
 
 ### Changed

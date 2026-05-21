@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-05-21
+
+### Security
+
+- Fixed polynomial ReDoS in `trail-db` session-metadata parsing (`sessionMeta`, S5852 / js/polynomial-redos)
+- Fixed OS command injection in `trail-db` `GitStateService.getCommitsSince`
+
+### Trail Core (trail-core / trail-db / mcp-trail / memory-core / trail-server)
+
+- `trail-core`: resolved SonarCloud findings (S3358/S2871/S4325/S7748/S6397/S3735 and others)
+- `trail-db`: resolved SonarCloud findings (S4325/S3358/S7718/S7776/S3863/S1854 and others)
+- `mcp-trail`: resolved SonarCloud findings (S1874/S7735/S4325/S7772/S2486/S4043); raised sqlite/tools coverage (`searchMemory`/`read`/`write`/`client`/`dbPath`/`sqlJsUtil` to 100%)
+- `memory-core`: raised coverage (statements 85.6→92.1%, branches 69.9→77.7%)
+- `trail-server`: added `TrailDataServer` WebSocket integration tests (statements 52→57%); improved LEP pipeline (analyzers/ingesters) and server/analyze/runtime coverage
+- `vscode-common`: improved `claudeHookSetup`/`installSkills` coverage (69→94% / 75→99%)
+
 ## [0.22.0] - 2026-05-20
 
 ### Added

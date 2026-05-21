@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.26.5] - 2026-05-21
+
+### Changed
+
+- Resolved SonarCloud findings across `web-app` (S6478 component definition, S3358 nested ternary, S4624, S7776, and others)
+- `trace-core`: resolved SonarCloud findings (S7772/S7786/S7755) in `parse/callTree` and `parse/loader`
+
 ## [0.26.4] - 2026-05-20
 
 ### Changed
