@@ -10,6 +10,7 @@
     "./engine": "./src/engine/index.ts",
     "./state": "./src/state/index.ts",
     "./types": "./src/types.ts",
+    "./viewer": "./src/viewer/index.ts",
     "./src/*": "./src/*"
   },
   "peerDependencies": {
