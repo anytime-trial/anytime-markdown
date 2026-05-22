@@ -20,7 +20,7 @@ export function normalizeGraphInput(input: GraphInput, options?: { theme?: 'dark
   const doc = createDocument(input.name ?? 'graph');
 
   for (const n of input.nodes) {
-    if (n.id === '') throw new Error('[normalizeGraphInput] empty node id is not allowed');
+    if (n.id.trim() === '') throw new Error('[normalizeGraphInput] empty or blank node id is not allowed');
     if (seen.has(n.id)) throw new Error(`[normalizeGraphInput] duplicate node id: ${n.id}`);
     seen.add(n.id);
     const node: GraphNode = createNode(n.type ?? 'rect', 0, 0, {

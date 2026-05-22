@@ -14,7 +14,9 @@ export class AnytimeGraphElement extends HTMLElement {
   private readonly nodeLabels = new Map<string, NodeClickDetail>();
 
   connectedCallback(): void {
-    const root = this.attachShadow({ mode: 'open' });
+    // 再挿入時は shadow root を再利用し中身を作り直す（attachShadow の二重呼び出しを避ける）
+    const root = this.shadowRoot ?? this.attachShadow({ mode: 'open' });
+    root.replaceChildren();
     const style = document.createElement('style');
     style.textContent = ':host{display:block;width:100%;height:100%}canvas{display:block;width:100%;height:100%}';
     const canvas = document.createElement('canvas');
@@ -27,27 +29,29 @@ export class AnytimeGraphElement extends HTMLElement {
     this.resizeObserver = new ResizeObserver(() => this.syncCanvasSize());
     this.resizeObserver.observe(this);
     this.syncCanvasSize();
-    if (this.input) this.applyInput(this.input);
+    if (this.input) this.applyInput(this.input, { fit: true });
   }
 
   disconnectedCallback(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.view?.destroy();
     this.view = null;
+    this.canvas = null;
   }
 
   attributeChangedCallback(name: string, _old: string | null, value: string | null): void {
     if (name !== 'theme') return;
     const theme = value === 'light' ? 'light' : 'dark';
     this.view?.setTheme(theme);
-    // 既定スタイル（fill 等）はテーマ依存のため、入力があれば再正規化して再描画する
-    if (this.input) this.applyInput(this.input);
+    // 既定スタイル（fill 等）はテーマ依存のため再正規化して再描画する。viewport は保持（fit しない）
+    if (this.input) this.applyInput(this.input, { fit: false });
   }
 
   /** GraphInput を property で受け取る（属性ではなく element.data = ... ） */
   set data(value: GraphInput) {
     this.input = value;
-    if (this.view) this.applyInput(value);
+    if (this.view) this.applyInput(value, { fit: true });
   }
 
   get data(): GraphInput | null {
@@ -67,13 +71,13 @@ export class AnytimeGraphElement extends HTMLElement {
     return this.getAttribute('theme') === 'light' ? 'light' : 'dark';
   }
 
-  private applyInput(input: GraphInput): void {
+  private applyInput(input: GraphInput, opts: { fit: boolean }): void {
     this.nodeLabels.clear();
     for (const n of input.nodes) this.nodeLabels.set(n.id, { id: n.id, label: n.label, metadata: n.metadata });
     try {
       const doc = normalizeGraphInput(input, { theme: this.currentTheme() });
       this.view?.setDocument(doc);
-      this.view?.fitToContent();
+      if (opts.fit) this.view?.fitToContent();
     } catch (err) {
       console.error('[anytime-graph] failed to apply data', err);
     }
@@ -90,6 +94,6 @@ export class AnytimeGraphElement extends HTMLElement {
     const dpr = globalThis.devicePixelRatio || 1;
     this.canvas.width = Math.max(1, Math.floor(rect.width * dpr));
     this.canvas.height = Math.max(1, Math.floor(rect.height * dpr));
-    this.view?.fitToContent();
+    this.view?.resize();
   }
 }
