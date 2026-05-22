@@ -54,6 +54,7 @@ export default function GraphEmbedDebugPage() {
   const [clicked, setClicked] = useState('—');
   const [layout, setLayout] = useState<LayoutMode>('radial');
   const [movable, setMovable] = useState(true);
+  const [collapsible, setCollapsible] = useState(true);
   const [ready, setReady] = useState(false);
 
   // Custom Element を登録して生成（client 限定。HTMLElement 継承のため SSR では評価しない）
@@ -67,6 +68,7 @@ export default function GraphEmbedDebugPage() {
       el = document.createElement('anytime-graph') as AnytimeGraphEl;
       el.setAttribute('theme', themeMode);
       if (movable) el.setAttribute('movable-nodes', '');
+      if (collapsible) el.setAttribute('collapsible', '');
       el.style.width = '100%';
       el.style.height = '100%';
       el.addEventListener('node-click', onNodeClick);
@@ -99,6 +101,13 @@ export default function GraphEmbedDebugPage() {
     if (movable) el.setAttribute('movable-nodes', '');
     else el.removeAttribute('movable-nodes');
   }, [movable]);
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    if (collapsible) el.setAttribute('collapsible', '');
+    else el.removeAttribute('collapsible');
+  }, [collapsible]);
 
   const handleFit = useCallback(() => elRef.current?.fitToContent?.(), []);
 
@@ -142,6 +151,9 @@ export default function GraphEmbedDebugPage() {
           </Button>
           <Button variant={movable ? 'contained' : 'outlined'} size="small" onClick={() => setMovable((v) => !v)} disabled={!ready}>
             ノード移動: {movable ? 'ON' : 'OFF'}
+          </Button>
+          <Button variant={collapsible ? 'contained' : 'outlined'} size="small" onClick={() => setCollapsible((v) => !v)} disabled={!ready}>
+            折りたたみ: {collapsible ? 'ON' : 'OFF'}
           </Button>
           <Typography variant="body2" color="text.secondary">
             node-click: <code>{clicked}</code>
