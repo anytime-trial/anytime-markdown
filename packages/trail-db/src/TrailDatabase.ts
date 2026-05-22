@@ -242,11 +242,33 @@ export function stripWorktreePrefix(relPath: string): string {
 }
 
 /**
+ * SQL 行から読み出した値 (sql.js の `unknown` / `SqlValue` 相当) を安全に文字列化する。
+ *
+ * `String(v ?? '')` は `v` が `Uint8Array` (BLOB) や object のとき
+ * `[object Object]` 等の既定文字列化になりうる (SonarCloud S6551)。本ヘルパーは
+ * 型を絞り込んでから変換するため S6551 を発火させず、TEXT 列の想定外 BLOB も
+ * `TextDecoder` で実テキストに復元する。
+ *
+ * - `null` / `undefined` → `''`
+ * - `string` → そのまま
+ * - `number` / `bigint` / `boolean` → `String(v)` (object でないため S6551 対象外)
+ * - `Uint8Array` (BLOB) → UTF-8 デコード
+ * - その他 object → JSON 文字列 (最終フォールバック)
+ */
+function asText(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'bigint' || typeof v === 'boolean') return String(v);
+  if (v instanceof Uint8Array) return new TextDecoder().decode(v);
+  return JSON.stringify(v);
+}
+
+/**
  * SQL から読み出した category 値を FileAnalysisRow.category 型へ正規化する。
  * 想定外の値は 'logic' にフォールバックする。
  */
 function parseCategory(v: unknown): 'ui' | 'logic' | 'excluded' {
-  const s = String(v ?? 'logic');
+  const s = asText(v ?? 'logic');
   if (s === 'ui' || s === 'logic' || s === 'excluded') return s;
   return 'logic';
 }
@@ -1517,7 +1539,7 @@ export class TrailDatabase {
         // 既存 SQL の `WHERE DATE(m.timestamp, tzOffset) >= DATE('now', '-Nd')` は
         // 「JST 日付 >= UTC 日付」の文字列比較で評価されるため、cutoffDate は UTC 日付
         const cutoffResult = db.exec(`SELECT DATE('now', '-${rangeDays} days') AS d`);
-        const cutoffDate = String(cutoffResult[0]?.values[0]?.[0] ?? '');
+        const cutoffDate = asText(cutoffResult[0]?.values[0]?.[0] ?? '');
 
         // Step 2: message_tool_calls 全件範囲スキャン
         const tcResult = db.exec(
@@ -1998,7 +2020,7 @@ export class TrailDatabase {
     )[0]?.values[0]?.[0] ?? 0;
 
     this.logger.info(
-      `[Migration] repo_name_backfill_v1: session_commits non-empty=${String(updatedCommits)}, commit_files non-empty=${String(updatedFiles)}`,
+      `[Migration] repo_name_backfill_v1: session_commits non-empty=${asText(updatedCommits)}, commit_files non-empty=${asText(updatedFiles)}`,
     );
     db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('repo_name_backfill_v1')");
   }
@@ -2030,8 +2052,8 @@ export class TrailDatabase {
     try {
       for (const row of rows) {
         const idStr = String(row[0]);
-        const filePathStr = String(row[1] ?? '');
-        const oldRepoName = String(row[2] ?? '');
+        const filePathStr = asText(row[1] ?? '');
+        const oldRepoName = asText(row[2] ?? '');
         let derived = extractRepoNameFromJsonl(filePathStr);
         if (derived === null) {
           const m = /\/projects\/([^/]+)\//.exec(filePathStr);
@@ -2133,8 +2155,8 @@ export class TrailDatabase {
     );
     let updated = 0;
     for (const row of rows) {
-      const sid = String(row[0] ?? '');
-      const filePath = String(row[1] ?? '');
+      const sid = asText(row[0] ?? '');
+      const filePath = asText(row[1] ?? '');
       if (!sid || !filePath) continue;
       updated += this.backfillSourceToolLinksForSession(sid, filePath, updateStmt);
     }
@@ -2377,7 +2399,7 @@ export class TrailDatabase {
     const uuidRes = db.exec(
       "SELECT uuid FROM messages WHERE subagent_type IS NULL AND tool_calls LIKE '%\"name\":\"Agent\"%'",
     );
-    const candidateUuids = (uuidRes[0]?.values ?? []).map((r) => String(r[0] ?? '')).filter(Boolean);
+    const candidateUuids = (uuidRes[0]?.values ?? []).map((r) => asText(r[0] ?? '')).filter(Boolean);
     this.logger.info(`[Migration] subagent_type_backfill_v1: ${candidateUuids.length} parent message candidates (${Date.now() - phase3Start}ms)`);
 
     let parentUpdated = 0;
@@ -2466,10 +2488,10 @@ export class TrailDatabase {
         );
         for (const row of sessions[0].values) {
           stmt.run([
-            toUTC(String(row[1] ?? '')),
-            toUTC(String(row[2] ?? '')),
-            toUTC(String(row[3] ?? '')),
-            row[4] ? toUTC(String(row[4])) : null,
+            toUTC(asText(row[1] ?? '')),
+            toUTC(asText(row[2] ?? '')),
+            toUTC(asText(row[3] ?? '')),
+            row[4] ? toUTC(asText(row[4])) : null,
             String(row[0]),
           ]);
         }
@@ -2483,7 +2505,7 @@ export class TrailDatabase {
           'UPDATE messages SET timestamp = ? WHERE uuid = ?',
         );
         for (const row of messages[0].values) {
-          stmt.run([toUTC(String(row[1] ?? '')), String(row[0])]);
+          stmt.run([toUTC(asText(row[1] ?? '')), asText(row[0])]);
         }
         stmt.free();
       }
@@ -2498,7 +2520,7 @@ export class TrailDatabase {
         );
         for (const row of commits[0].values) {
           stmt.run([
-            toUTC(String(row[2] ?? '')),
+            toUTC(asText(row[2] ?? '')),
             String(row[0]),
             String(row[1]),
           ]);
@@ -2555,11 +2577,11 @@ export class TrailDatabase {
            VALUES (?, ?, ?, ?, ?, ?)`,
           [
             tag,
-            String(row[1] ?? ''),
-            String(row[2] ?? ''),
-            String(row[3] ?? ''),
-            String(row[4] ?? ''),
-            String(row[5] ?? ''),
+            asText(row[1] ?? ''),
+            asText(row[2] ?? ''),
+            asText(row[3] ?? ''),
+            asText(row[4] ?? ''),
+            asText(row[5] ?? ''),
           ],
         );
       }
@@ -2646,7 +2668,7 @@ export class TrailDatabase {
       );
       if (!result[0]) return [];
       return result[0].values.map(row => ({
-        tool_calls: row[0] != null ? String(row[0]) : null,
+        tool_calls: row[0] != null ? asText(row[0]) : null,
         output_tokens: Number(row[1]),
       }));
     } catch (err) {
@@ -2791,9 +2813,9 @@ export class TrailDatabase {
     );
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
-      tag: String(row[0] ?? ''),
-      releasedAt: String(row[1] ?? ''),
-      repoName: String(row[2] ?? ''),
+      tag: asText(row[0] ?? ''),
+      releasedAt: asText(row[1] ?? ''),
+      repoName: asText(row[2] ?? ''),
     }));
   }
 
@@ -2814,9 +2836,9 @@ export class TrailDatabase {
     );
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
-      commitHash: String(row[0] ?? ''),
-      committedAt: String(row[1] ?? ''),
-      repoName: String(row[2] ?? ''),
+      commitHash: asText(row[0] ?? ''),
+      committedAt: asText(row[1] ?? ''),
+      repoName: asText(row[2] ?? ''),
     }));
   }
 
@@ -2852,7 +2874,7 @@ export class TrailDatabase {
     const db = this.ensureDb();
     const result = db.exec('SELECT body_hash FROM pr_reviews WHERE review_id = ?', [reviewId]);
     const row = result[0]?.values[0];
-    return row ? String(row[0] ?? '') : null;
+    return row ? asText(row[0] ?? '') : null;
   }
 
   /**
@@ -2908,16 +2930,16 @@ export class TrailDatabase {
       [reviewId],
     );
     const comments: PrReviewCommentInput[] = (cres[0]?.values ?? []).map((c) => ({
-      path: String(c[0] ?? ''),
+      path: asText(c[0] ?? ''),
       line: c[1] == null ? null : Number(c[1]),
-      body: String(c[2] ?? ''),
+      body: asText(c[2] ?? ''),
     }));
     return {
       reviewId,
-      repoName: String(row[0] ?? ''),
+      repoName: asText(row[0] ?? ''),
       prNumber: Number(row[1] ?? 0),
-      state: String(row[2] ?? ''),
-      body: String(row[3] ?? ''),
+      state: asText(row[2] ?? ''),
+      body: asText(row[3] ?? ''),
       comments,
     };
   }
@@ -2931,13 +2953,13 @@ export class TrailDatabase {
     );
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
-      reviewId: String(row[0] ?? ''),
-      repoName: String(row[1] ?? ''),
+      reviewId: asText(row[0] ?? ''),
+      repoName: asText(row[1] ?? ''),
       prNumber: Number(row[2] ?? 0),
-      author: String(row[3] ?? ''),
-      state: String(row[4] ?? ''),
-      submittedAt: String(row[5] ?? ''),
-      bodyHash: String(row[6] ?? ''),
+      author: asText(row[3] ?? ''),
+      state: asText(row[4] ?? ''),
+      submittedAt: asText(row[5] ?? ''),
+      bodyHash: asText(row[6] ?? ''),
     }));
   }
 
@@ -2987,14 +3009,14 @@ export class TrailDatabase {
         );
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
-      findingId: String(row[0] ?? ''),
-      reviewId: String(row[1] ?? ''),
-      filePath: String(row[2] ?? ''),
+      findingId: asText(row[0] ?? ''),
+      reviewId: asText(row[1] ?? ''),
+      filePath: asText(row[2] ?? ''),
       lineNumber: row[3] == null ? null : Number(row[3]),
-      severity: row[4] == null ? null : (String(row[4]) as 'error' | 'warn' | 'info'),
-      category: row[5] == null ? null : String(row[5]),
-      body: String(row[6] ?? ''),
-      createdAt: String(row[7] ?? ''),
+      severity: row[4] == null ? null : (asText(row[4]) as 'error' | 'warn' | 'info'),
+      category: row[5] == null ? null : asText(row[5]),
+      body: asText(row[6] ?? ''),
+      createdAt: asText(row[7] ?? ''),
     }));
   }
 
@@ -3012,10 +3034,10 @@ export class TrailDatabase {
       : db.exec(base);
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
-      sessionId: String(row[0] ?? ''),
-      commitHash: String(row[1] ?? ''),
-      committedAt: String(row[2] ?? ''),
-      repoName: String(row[3] ?? ''),
+      sessionId: asText(row[0] ?? ''),
+      commitHash: asText(row[1] ?? ''),
+      committedAt: asText(row[2] ?? ''),
+      repoName: asText(row[3] ?? ''),
     }));
   }
 
@@ -3034,9 +3056,9 @@ export class TrailDatabase {
     );
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
-      commitHash: String(row[0] ?? ''),
-      filePath: String(row[1] ?? ''),
-      repoName: String(row[2] ?? ''),
+      commitHash: asText(row[0] ?? ''),
+      filePath: asText(row[1] ?? ''),
+      repoName: asText(row[2] ?? ''),
     }));
   }
 
@@ -3078,14 +3100,14 @@ export class TrailDatabase {
     );
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
-      correlationType: String(row[0] ?? '') as CrossSourceCorrelationRow['correlationType'],
-      repoName: String(row[1] ?? ''),
-      sourceAKind: String(row[2] ?? '') as CrossSourceAKind,
-      sourceAId: String(row[3] ?? ''),
-      sourceBKind: String(row[4] ?? '') as CrossSourceBKind,
-      sourceBId: String(row[5] ?? ''),
-      confidence: String(row[6] ?? 'low') as 'high' | 'medium' | 'low',
-      computedAt: String(row[7] ?? ''),
+      correlationType: asText(row[0] ?? '') as CrossSourceCorrelationRow['correlationType'],
+      repoName: asText(row[1] ?? ''),
+      sourceAKind: asText(row[2] ?? '') as CrossSourceAKind,
+      sourceAId: asText(row[3] ?? ''),
+      sourceBKind: asText(row[4] ?? '') as CrossSourceBKind,
+      sourceBId: asText(row[5] ?? ''),
+      confidence: asText(row[6] ?? 'low') as 'high' | 'medium' | 'low',
+      computedAt: asText(row[7] ?? ''),
     }));
   }
 
@@ -3320,7 +3342,7 @@ export class TrailDatabase {
        GROUP BY DATE(s.start_time, '${tzOffset}'), m.model, s.source`,
     );
     for (const row of actual[0]?.values ?? []) {
-      const d = String(row[0] ?? ''); const m = String(row[1]); const source = String(row[2]) as PricingSource;
+      const d = asText(row[0] ?? ''); const m = asText(row[1]); const source = asText(row[2]) as PricingSource;
       const inp = Number(row[3]); const outp = Number(row[4]);
       const cr = Number(row[5]); const cc = Number(row[6]);
       const billingModel = resolvePricingModelName(m, source);
@@ -3351,7 +3373,7 @@ export class TrailDatabase {
          COALESCE(sm.recommended_model, 'sonnet')`,
     );
     for (const row of skill[0]?.values ?? []) {
-      const d = String(row[0] ?? ''); const m = String(row[1]);
+      const d = asText(row[0] ?? ''); const m = asText(row[1]);
       const cnt = Number(row[2]);
       const inp = Number(row[3]); const outp = Number(row[4]);
       const cr = Number(row[5]); const cc = Number(row[6]);
@@ -3372,7 +3394,7 @@ export class TrailDatabase {
        GROUP BY d, mtc.skill_name`,
     );
     for (const row of skillCounts[0]?.values ?? []) {
-      runWithDateGuard(String(row[0] ?? ''), ['skill', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
+      runWithDateGuard(asText(row[0] ?? ''), ['skill', asText(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
     }
 
     // ── kind='error' : ツール別エラー日次集計（session start_time 基準）──
@@ -3391,7 +3413,7 @@ export class TrailDatabase {
        HAVING err_count > 0`,
     );
     for (const row of errors[0]?.values ?? []) {
-      runWithDateGuard(String(row[0] ?? ''), ['error', String(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
+      runWithDateGuard(asText(row[0] ?? ''), ['error', asText(row[1] ?? ''), Number(row[2] ?? 0), 0, 0, 0, 0, 0, 0, 0]);
     }
 
     // ── kind='model' : assistant メッセージ数のモデル別日次集計（session start_time 基準）──
@@ -3408,8 +3430,8 @@ export class TrailDatabase {
     );
     for (const row of modelCounts[0]?.values ?? []) {
       const source = String(row[1]) as PricingSource;
-      const model = resolvePricingModelName(String(row[2] ?? ''), source);
-      runWithDateGuard(String(row[0] ?? ''), ['model', model, Number(row[3] ?? 0), Number(row[4] ?? 0), 0, 0, 0, 0, 0, 0]);
+      const model = resolvePricingModelName(asText(row[2] ?? ''), source);
+      runWithDateGuard(asText(row[0] ?? ''), ['model', model, Number(row[3] ?? 0), Number(row[4] ?? 0), 0, 0, 0, 0, 0, 0]);
     }
 
     stmt.free();
@@ -3593,7 +3615,7 @@ export class TrailDatabase {
          LIMIT 1`,
         [sessionId],
       );
-      gitBranch = String(branchResult[0]?.values[0]?.[0] ?? '');
+      gitBranch = asText(branchResult[0]?.values[0]?.[0] ?? '');
     } catch { /* no branch info available */ }
 
     return {
@@ -4516,10 +4538,10 @@ export class TrailDatabase {
       id: String(row[0]),
       type: String(row[1]) as ManualElement['type'],
       name: String(row[2]),
-      description: row[3] == null ? undefined : String(row[3]),
+      description: row[3] == null ? undefined : asText(row[3]),
       external: Boolean(row[4]),
-      parentId: row[5] == null ? null : String(row[5]),
-      serviceType: row[6] == null ? undefined : String(row[6]),
+      parentId: row[5] == null ? null : asText(row[5]),
+      serviceType: row[6] == null ? undefined : asText(row[6]),
       updatedAt: String(row[7]),
     }));
   }
@@ -4563,8 +4585,8 @@ export class TrailDatabase {
       id: String(row[0]),
       fromId: String(row[1]),
       toId: String(row[2]),
-      label: row[3] == null ? undefined : String(row[3]),
-      technology: row[4] == null ? undefined : String(row[4]),
+      label: row[3] == null ? undefined : asText(row[3]),
+      technology: row[4] == null ? undefined : asText(row[4]),
       updatedAt: String(row[5]),
     }));
   }
@@ -4656,7 +4678,7 @@ export class TrailDatabase {
     return (result[0]?.values ?? []).map((row) => ({
       id: String(row[0]),
       memberIds: JSON.parse(String(row[1])) as string[],
-      label: row[2] == null ? undefined : String(row[2]),
+      label: row[2] == null ? undefined : asText(row[2]),
       updatedAt: String(row[3]),
     }));
   }
@@ -4871,11 +4893,11 @@ export class TrailDatabase {
       const rawMappings = mIdx >= 0 ? row[mIdx] : null;
       olds.push({
         communityId,
-        stableKey: sIdx >= 0 ? String(row[sIdx] ?? '') : '',
+        stableKey: sIdx >= 0 ? asText(row[sIdx] ?? '') : '',
         members: membersByCommunity.get(communityId) ?? new Set<string>(),
-        name: String(row[idx('name')] ?? ''),
-        summary: String(row[idx('summary')] ?? ''),
-        mappingsJson: rawMappings != null ? String(rawMappings) : null,
+        name: asText(row[idx('name')] ?? ''),
+        summary: asText(row[idx('summary')] ?? ''),
+        mappingsJson: rawMappings != null ? asText(rawMappings) : null,
       });
     }
     return olds;
@@ -4900,7 +4922,7 @@ export class TrailDatabase {
       label: row[1] as string,
       name: row[2] as string,
       summary: row[3] as string,
-      stableKey: hasStableKey ? String(row[4] ?? '') : '',
+      stableKey: hasStableKey ? asText(row[4] ?? '') : '',
     }));
     return composeCodeGraph(stored, communities);
   }
@@ -4910,10 +4932,10 @@ export class TrailDatabase {
     const result = db.exec('SELECT repo_name, graph_json, generated_at, updated_at FROM current_code_graphs');
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      repo_name: String(r[0] ?? ''),
-      graph_json: String(r[1] ?? ''),
-      generated_at: String(r[2] ?? ''),
-      updated_at: String(r[3] ?? ''),
+      repo_name: asText(r[0] ?? ''),
+      graph_json: asText(r[1] ?? ''),
+      generated_at: asText(r[2] ?? ''),
+      updated_at: asText(r[3] ?? ''),
     }));
   }
 
@@ -4942,15 +4964,15 @@ export class TrailDatabase {
       const sIdx = idx('stable_key');
       const rawMappings = mIdx >= 0 ? r[mIdx] : null;
       return {
-        repo_name: String(r[idx('repo_name')] ?? ''),
+        repo_name: asText(r[idx('repo_name')] ?? ''),
         community_id: Number(r[idx('community_id')] ?? 0),
-        label: String(r[idx('label')] ?? ''),
-        name: String(r[idx('name')] ?? ''),
-        summary: String(r[idx('summary')] ?? ''),
-        mappings_json: rawMappings != null ? String(rawMappings) : null,
-        stable_key: sIdx >= 0 ? String(r[sIdx] ?? '') : '',
-        generated_at: String(r[idx('generated_at')] ?? ''),
-        updated_at: String(r[idx('updated_at')] ?? ''),
+        label: asText(r[idx('label')] ?? ''),
+        name: asText(r[idx('name')] ?? ''),
+        summary: asText(r[idx('summary')] ?? ''),
+        mappings_json: rawMappings != null ? asText(rawMappings) : null,
+        stable_key: sIdx >= 0 ? asText(r[sIdx] ?? '') : '',
+        generated_at: asText(r[idx('generated_at')] ?? ''),
+        updated_at: asText(r[idx('updated_at')] ?? ''),
       };
     });
   }
@@ -4960,10 +4982,10 @@ export class TrailDatabase {
     const result = db.exec('SELECT release_tag, graph_json, generated_at, updated_at FROM release_code_graphs');
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      release_tag: String(r[0] ?? ''),
-      graph_json: String(r[1] ?? ''),
-      generated_at: String(r[2] ?? ''),
-      updated_at: String(r[3] ?? ''),
+      release_tag: asText(r[0] ?? ''),
+      graph_json: asText(r[1] ?? ''),
+      generated_at: asText(r[2] ?? ''),
+      updated_at: asText(r[3] ?? ''),
     }));
   }
 
@@ -4976,14 +4998,14 @@ export class TrailDatabase {
     const result = db.exec(sql);
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      release_tag: String(r[0] ?? ''),
+      release_tag: asText(r[0] ?? ''),
       community_id: Number(r[1] ?? 0),
-      label: String(r[2] ?? ''),
-      name: String(r[3] ?? ''),
-      summary: String(r[4] ?? ''),
-      stable_key: hasStableKey ? String(r[5] ?? '') : '',
-      generated_at: String(r[hasStableKey ? 6 : 5] ?? ''),
-      updated_at: String(r[hasStableKey ? 7 : 6] ?? ''),
+      label: asText(r[2] ?? ''),
+      name: asText(r[3] ?? ''),
+      summary: asText(r[4] ?? ''),
+      stable_key: hasStableKey ? asText(r[5] ?? '') : '',
+      generated_at: asText(r[hasStableKey ? 6 : 5] ?? ''),
+      updated_at: asText(r[hasStableKey ? 7 : 6] ?? ''),
     }));
   }
 
@@ -5130,11 +5152,11 @@ export class TrailDatabase {
       const rawMappings = mIdx >= 0 ? row[mIdx] : null;
       return {
         communityId: Number(row[idx('community_id')]),
-        label: String(row[idx('label')] ?? ''),
-        name: String(row[idx('name')] ?? ''),
-        summary: String(row[idx('summary')] ?? ''),
-        mappingsJson: rawMappings != null ? String(rawMappings) : null,
-        stableKey: sIdx >= 0 ? String(row[sIdx] ?? '') : '',
+        label: asText(row[idx('label')] ?? ''),
+        name: asText(row[idx('name')] ?? ''),
+        summary: asText(row[idx('summary')] ?? ''),
+        mappingsJson: rawMappings != null ? asText(rawMappings) : null,
+        stableKey: sIdx >= 0 ? asText(row[sIdx] ?? '') : '',
       };
     });
   }
@@ -5181,7 +5203,7 @@ export class TrailDatabase {
       label: row[1] as string,
       name: row[2] as string,
       summary: row[3] as string,
-      stableKey: hasStableKey ? String(row[4] ?? '') : '',
+      stableKey: hasStableKey ? asText(row[4] ?? '') : '',
     }));
     return composeCodeGraph(stored, communities);
   }
@@ -5293,8 +5315,8 @@ export class TrailDatabase {
     const rows = result[0]?.values ?? [];
     const out: Array<{ repoName: string; commitId: string; graph: TrailGraph }> = [];
     for (const row of rows) {
-      const repoName = String(row[0] ?? '');
-      const commitId = String(row[1] ?? '');
+      const repoName = asText(row[0] ?? '');
+      const commitId = asText(row[1] ?? '');
       const json = row[2];
       if (typeof json !== 'string') continue;
       try {
@@ -5388,8 +5410,8 @@ export class TrailDatabase {
 
       const sessionRows: SessionFileRow[] = [];
       for (const r of values) {
-        const sessionId = String(r[0] ?? '');
-        const normalized = normalize(String(r[1] ?? ''));
+        const sessionId = asText(r[0] ?? '');
+        const normalized = normalize(asText(r[1] ?? ''));
         if (sessionId && normalized) {
           sessionRows.push({ sessionId, filePath: normalized });
         }
@@ -5442,8 +5464,8 @@ export class TrailDatabase {
       const subagentRows: SubagentTypeFileRow[] = [];
       let normalizationDropped = 0;
       for (const r of values) {
-        const subagentType = String(r[0] ?? '');
-        const rawPath = String(r[1] ?? '');
+        const subagentType = asText(r[0] ?? '');
+        const rawPath = asText(r[1] ?? '');
         const normalized = normalize(rawPath);
         if (subagentType && normalized) {
           subagentRows.push({ subagentType, filePath: normalized });
@@ -5527,8 +5549,8 @@ export class TrailDatabase {
     );
     const values = result[0]?.values ?? [];
     const rows: CommitFileRow[] = values.map((r) => ({
-      commitHash: String(r[0] ?? ''),
-      filePath: String(r[1] ?? ''),
+      commitHash: asText(r[0] ?? ''),
+      filePath: asText(r[1] ?? ''),
     }));
 
     if (directional) {
@@ -5578,10 +5600,10 @@ export class TrailDatabase {
 
     const values = result[0]?.values ?? [];
     const rows: CommitRiskRow[] = values.map((r) => ({
-      commitHash: String(r[0] ?? ''),
-      commitMessage: String(r[1] ?? ''),
-      committedAt: String(r[2] ?? ''),
-      filePath: String(r[3] ?? ''),
+      commitHash: asText(r[0] ?? ''),
+      commitMessage: asText(r[1] ?? ''),
+      committedAt: asText(r[2] ?? ''),
+      filePath: asText(r[3] ?? ''),
     })).filter((r) => r.filePath && r.commitHash);
 
     return computeDefectRisk(rows, { halfLifeDays });
@@ -5797,7 +5819,7 @@ export class TrailDatabase {
     for (const row of rows) {
       const sid = String(row[0]);
       const type = String(row[1]);
-      const stopReason = row[2] === null ? null : String(row[2]);
+      const stopReason = row[2] === null ? null : asText(row[2]);
       const ctx = Number(row[3]);
       if (!lastMsg.has(sid)) lastMsg.set(sid, { type, stopReason, ctx });
       if (type === 'assistant' && !lastAssistant.has(sid)) lastAssistant.set(sid, { stopReason, ctx });
@@ -5987,7 +6009,7 @@ export class TrailDatabase {
       );
       const tracksBySession = new Map<string, Set<string>>();
       for (const row of rows[0]?.values ?? []) {
-        const sid = String(row[0] ?? '');
+        const sid = asText(row[0] ?? '');
         const toolCallsJson = typeof row[1] === 'string' ? row[1] : '';
         if (!sid || !toolCallsJson) continue;
         this.parseDelegatedTrackFromRow(sid, toolCallsJson, tracksBySession);
@@ -6247,7 +6269,7 @@ export class TrailDatabase {
         [from, to],
       );
       const ccIds = (ccRes[0]?.values ?? [])
-        .map((r) => String(r[0] ?? ''))
+        .map((r) => asText(r[0] ?? ''))
         .filter((s) => s.length > 0);
       const linkMap = this.fetchLinkedCodexSessionMapForCcSessions(ccIds);
       for (const m of linkMap.values()) {
@@ -6284,10 +6306,10 @@ export class TrailDatabase {
         );
     const byRepo = new Map<string, Array<{ id: string; repoName: string; startMs: number; endMs: number }>>();
     for (const r of codexRes[0]?.values ?? []) {
-      const id = String(r[0] ?? '');
-      const repo = String(r[1] ?? '');
-      const startMs = Date.parse(String(r[2] ?? ''));
-      const endMs = Date.parse(String(r[3] ?? ''));
+      const id = asText(r[0] ?? '');
+      const repo = asText(r[1] ?? '');
+      const startMs = Date.parse(asText(r[2] ?? ''));
+      const endMs = Date.parse(asText(r[3] ?? ''));
       if (!id || !Number.isFinite(startMs) || !Number.isFinite(endMs)) continue;
       const list = byRepo.get(repo) ?? [];
       list.push({ id, repoName: repo, startMs, endMs });
@@ -6312,7 +6334,7 @@ export class TrailDatabase {
     );
     const repoByCcId = new Map<string, string>();
     for (const r of ccRepoRes[0]?.values ?? []) {
-      repoByCcId.set(String(r[0] ?? ''), String(r[1] ?? ''));
+      repoByCcId.set(asText(r[0] ?? ''), asText(r[1] ?? ''));
     }
 
     const delegRes = db.exec(
@@ -6327,9 +6349,9 @@ export class TrailDatabase {
     const delegationsByCc = new Map<string, Delegation[]>();
     const repoNamesNeeded = new Set<string>();
     for (const r of delegRes[0]?.values ?? []) {
-      const ccId = String(r[0] ?? '');
-      const parent = String(r[1] ?? '');
-      const ms = Date.parse(String(r[2] ?? ''));
+      const ccId = asText(r[0] ?? '');
+      const parent = asText(r[1] ?? '');
+      const ms = Date.parse(asText(r[2] ?? ''));
       if (!ccId || !parent || !Number.isFinite(ms)) continue;
       const list = delegationsByCc.get(ccId) ?? [];
       list.push({ ccSessionId: ccId, parentUuid: parent, ms });
@@ -6378,14 +6400,14 @@ export class TrailDatabase {
         [from, to, ...repoArg, ...toolNames],
       );
       for (const row of resA[0]?.values ?? []) {
-        const subagentType = String(row[2] ?? '');
+        const subagentType = asText(row[2] ?? '');
         if (!subagentType) continue;
         rows.push({
-          committedAt: String(row[0] ?? ''),
-          filePath: String(row[1] ?? ''),
+          committedAt: asText(row[0] ?? ''),
+          filePath: asText(row[1] ?? ''),
           subagentType,
-          sessionId: String(row[3] ?? ''),
-          messageUuid: String(row[4] ?? ''),
+          sessionId: asText(row[3] ?? ''),
+          messageUuid: asText(row[4] ?? ''),
         });
       }
     } catch (e) {
@@ -6422,11 +6444,11 @@ export class TrailDatabase {
       );
       for (const row of resB[0]?.values ?? []) {
         rows.push({
-          committedAt: String(row[0] ?? ''),
-          filePath: String(row[1] ?? ''),
+          committedAt: asText(row[0] ?? ''),
+          filePath: asText(row[1] ?? ''),
           subagentType: CODEX_SUBAGENT_TYPE,
-          sessionId: String(row[2] ?? ''),
-          messageUuid: String(row[3] ?? ''),
+          sessionId: asText(row[2] ?? ''),
+          messageUuid: asText(row[3] ?? ''),
         });
       }
     } catch (e) {
@@ -6535,7 +6557,7 @@ export class TrailDatabase {
       return null;
     }
     const value = result[0].values[0][0];
-    return value ? String(value) : null;
+    return value ? asText(value) : null;
   }
 
   getStats(): DbStats {
@@ -6702,7 +6724,7 @@ export class TrailDatabase {
       for (const row of result[0].values) {
         const sessId = String(row[0]);
         const toolCallsJson = String(row[1]);
-        const toolResultStr = row[2] != null ? String(row[2]) : null;
+        const toolResultStr = row[2] != null ? asText(row[2]) : null;
 
         let calls: { name: string; input: Record<string, unknown> }[];
         try {
@@ -6793,14 +6815,14 @@ export class TrailDatabase {
           const cols = durResult[0].columns;
           for (const row of durResult[0].values) {
             const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
-            durMap.set(String(r['model'] ?? ''), Number(r['duration_ms'] ?? 0));
+            durMap.set(asText(r['model'] ?? ''), Number(r['duration_ms'] ?? 0));
           }
         }
         if (mdResult[0]) {
           const cols = mdResult[0].columns;
           modelUsage = mdResult[0].values.map(row => {
             const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
-            const model = String(r['model'] ?? '');
+            const model = asText(r['model'] ?? '');
             return {
               model,
               count: Number(r['count'] ?? 0),
@@ -6831,7 +6853,7 @@ export class TrailDatabase {
           const cols = erResult[0].columns;
           errorsByTool = erResult[0].values.map(row => {
             const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
-            return { tool: String(r['tool'] ?? ''), count: Number(r['count'] ?? 0) };
+            return { tool: asText(r['tool'] ?? ''), count: Number(r['count'] ?? 0) };
           });
         }
       }
@@ -6943,8 +6965,8 @@ export class TrailDatabase {
       );
       const modelMap = new Map<string, { count: number; tokens: number; durationMs: number }>();
       for (const row of modelResult[0]?.values ?? []) {
-        const source = String(row[1] ?? '') as PricingSource;
-        const model = resolvePricingModelName(String(row[0] ?? ''), source);
+        const source = asText(row[1] ?? '') as PricingSource;
+        const model = resolvePricingModelName(asText(row[0] ?? ''), source);
         const count = Number(row[2] ?? 0);
         const tokens = Number(row[3] ?? 0);
         const e = modelMap.get(model) ?? { count: 0, tokens: 0, durationMs: 0 };
@@ -6970,7 +6992,7 @@ export class TrailDatabase {
       );
       const errMap = new Map<string, number>();
       for (const row of errResult[0]?.values ?? []) {
-        const tool = String(row[0] ?? '');
+        const tool = asText(row[0] ?? '');
         const count = Number(row[1] ?? 0);
         errMap.set(tool, (errMap.get(tool) ?? 0) + count);
       }
@@ -7012,7 +7034,7 @@ export class TrailDatabase {
     const factorBySource = new Map<string, number>();
     let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreation = 0;
     for (const row of tokensBySourceResult[0]?.values ?? []) {
-      const source = String(row[0] ?? '');
+      const source = asText(row[0] ?? '');
       const rawInput = Number(row[1]);
       const rawOutput = Number(row[2]);
       const rawCacheRead = Number(row[3]);
@@ -7036,7 +7058,7 @@ export class TrailDatabase {
     );
     let totalEstimatedCost = 0;
     for (const row of costBySourceResult[0]?.values ?? []) {
-      const source = String(row[0] ?? '');
+      const source = asText(row[0] ?? '');
       const rawCost = Number(row[1]);
       const factor = factorBySource.get(source) ?? 1;
       totalEstimatedCost += rawCost * factor;
@@ -7115,7 +7137,7 @@ export class TrailDatabase {
     }
     for (const row of dailyCostResult[0]?.values ?? []) {
       const date = String(row[0]);
-      const source = String(row[1] ?? '');
+      const source = asText(row[1] ?? '');
       const rawCost = Number(row[2]);
       const factor = factorBySource.get(source) ?? 1;
       const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
@@ -7257,8 +7279,8 @@ export class TrailDatabase {
     type ToolAggEntry = { count: number; durationMs: number; adjustedTokens: number; totalTurns: number; missingTurns: number };
     const toolAggMap = new Map<string, ToolAggEntry>();
     for (const r of toolRawRows) {
-      const p = String(r['period'] ?? '');
-      const tool = String(r['tool'] ?? '');
+      const p = asText(r['period'] ?? '');
+      const tool = asText(r['tool'] ?? '');
       const totalTurns = Number(r['token_total_turns'] ?? 0);
       const missingTurns = Number(r['token_missing_turns'] ?? 0);
       const observedTurns = totalTurns - missingTurns;
@@ -7306,8 +7328,8 @@ export class TrailDatabase {
     );
     const errByPeriod = new Map<string, { byTool: Record<string, number> }>();
     for (const r of toRows(errResult)) {
-      const p = String(r['period'] ?? '');
-      const tool = String(r['tool'] ?? '');
+      const p = asText(r['period'] ?? '');
+      const tool = asText(r['tool'] ?? '');
       const errCount = Number(r['err_count'] ?? 0);
       if (errCount === 0) continue;
       const e = errByPeriod.get(p) ?? { byTool: {} };
@@ -7325,8 +7347,8 @@ export class TrailDatabase {
        GROUP BY period, key`,
     );
     const skillStats = toRows(skillResult).map(r => ({
-      period: String(r['period'] ?? ''),
-      skill: String(r['skill'] ?? ''),
+      period: asText(r['period'] ?? ''),
+      skill: asText(r['skill'] ?? ''),
       count: Number(r['count'] ?? 0),
       costUsd: 0,
     }));
@@ -7347,9 +7369,9 @@ export class TrailDatabase {
     );
     const modelAggMap = new Map<string, { count: number; tokens: number; totalTurns: number; missingTurns: number }>();
     for (const r of toRows(modelResult)) {
-      const period = String(r['period'] ?? '');
-      const source = String(r['source'] ?? '') as PricingSource;
-      const model = resolvePricingModelName(String(r['model'] ?? ''), source);
+      const period = asText(r['period'] ?? '');
+      const source = asText(r['source'] ?? '') as PricingSource;
+      const model = resolvePricingModelName(asText(r['model'] ?? ''), source);
       const count = Number(r['count'] ?? 0);
       const rawTokens = Number(r['tokens'] ?? 0);
       const missingTurns = Number(r['token_missing_turns'] ?? 0);
@@ -7421,17 +7443,17 @@ export class TrailDatabase {
       agentMap.set(key, cur);
     };
     for (const r of toRows(agentTokenResult)) {
-      addAgentMetric(String(r['period'] ?? ''), String(r['agent'] ?? ''), {
+      addAgentMetric(asText(r['period'] ?? ''), asText(r['agent'] ?? ''), {
         tokens: Number(r['tokens'] ?? 0),
         tokenTotalTurns: Number(r['token_total_turns'] ?? 0),
         tokenMissingTurns: Number(r['token_missing_turns'] ?? 0),
       });
     }
     for (const r of toRows(agentCostResult)) {
-      addAgentMetric(String(r['period'] ?? ''), String(r['agent'] ?? ''), { costUsd: Number(r['cost_usd'] ?? 0) });
+      addAgentMetric(asText(r['period'] ?? ''), asText(r['agent'] ?? ''), { costUsd: Number(r['cost_usd'] ?? 0) });
     }
     for (const r of toRows(agentLocResult)) {
-      addAgentMetric(String(r['period'] ?? ''), String(r['agent'] ?? ''), { loc: Number(r['loc'] ?? 0) });
+      addAgentMetric(asText(r['period'] ?? ''), asText(r['agent'] ?? ''), { loc: Number(r['loc'] ?? 0) });
     }
     const agentStats = [...agentMap.entries()].map(([k, v]) => {
       const sep = k.indexOf('::');
@@ -7482,11 +7504,11 @@ export class TrailDatabase {
       files: string[];
     };
     const commitRows: CommitRow[] = toRows(commitResult).map(r => ({
-      period: String(r['period'] ?? ''),
-      repoName: String(r['repo_name'] ?? ''),
-      hash: String(r['commit_hash'] ?? ''),
-      subject: String(r['commit_message'] ?? '').split('\n')[0],
-      committed_at: String(r['committed_at'] ?? ''),
+      period: asText(r['period'] ?? ''),
+      repoName: asText(r['repo_name'] ?? ''),
+      hash: asText(r['commit_hash'] ?? ''),
+      subject: asText(r['commit_message'] ?? '').split('\n')[0],
+      committed_at: asText(r['committed_at'] ?? ''),
       is_ai_assisted: Number(r['is_ai_assisted'] ?? 0) === 1,
       linesAdded: Number(r['lines_added'] ?? 0),
       linesDeleted: Number(r['lines_deleted'] ?? 0),
@@ -7503,8 +7525,8 @@ export class TrailDatabase {
       if (filesResult[0]) {
         const byHash = new Map<string, string[]>();
         for (const row of filesResult[0].values) {
-          const h = `${String(row[0] ?? '')}:${String(row[1] ?? '')}`;
-          const p = String(row[2] ?? '');
+          const h = `${asText(row[0] ?? '')}:${asText(row[1] ?? '')}`;
+          const p = asText(row[2] ?? '');
           const list = byHash.get(h);
           if (list) list.push(p);
           else byHash.set(h, [p]);
@@ -7518,7 +7540,7 @@ export class TrailDatabase {
     // Commit prefix stats: 期間内のコミットだけを集計 (period はセッション開始日基準)
     const cutoffDateExpr = sessionDateExpr.replace('s.start_time', "DATE('now')");
     const cutoffPeriodRes = db.exec(`SELECT ${cutoffDateExpr} AS period`);
-    const todayPeriod = String(cutoffPeriodRes[0]?.values?.[0]?.[0] ?? '');
+    const todayPeriod = asText(cutoffPeriodRes[0]?.values?.[0]?.[0] ?? '');
     const commitPrefixStats = aggregateCommitPrefixStats(commitRows, todayPeriod);
 
     // Per-period regression count: 累積モードの右軸退行率計算に使う。
@@ -7545,7 +7567,7 @@ export class TrailDatabase {
        )`,
     );
     const baselineRows = toRows(baselineResult).map(r => ({
-      subject: String(r['commit_message'] ?? '').split('\n')[0],
+      subject: asText(r['commit_message'] ?? '').split('\n')[0],
       linesAdded: Number(r['lines_added'] ?? 0),
       linesDeleted: Number(r['lines_deleted'] ?? 0),
     }));
@@ -7575,8 +7597,8 @@ export class TrailDatabase {
     );
     const repoTokenMap = new Map<string, number>();
     for (const r of toRows(repoTokenResult)) {
-      const period = String(r['period'] ?? '');
-      const repoName = String(r['repo_name'] ?? '');
+      const period = asText(r['period'] ?? '');
+      const repoName = asText(r['repo_name'] ?? '');
       const k = `${period}::${repoName}`;
       repoTokenMap.set(k, Number(r['tokens'] ?? 0));
     }
@@ -7909,9 +7931,9 @@ export class TrailDatabase {
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      repo_name: String(r[0] ?? ''),
-      package: String(r[1] ?? ''),
-      file_path: String(r[2] ?? ''),
+      repo_name: asText(r[0] ?? ''),
+      package: asText(r[1] ?? ''),
+      file_path: asText(r[2] ?? ''),
       lines_total: Number(r[3] ?? 0),
       lines_covered: Number(r[4] ?? 0),
       lines_pct: Number(r[5] ?? 0),
@@ -7924,7 +7946,7 @@ export class TrailDatabase {
       branches_total: Number(r[12] ?? 0),
       branches_covered: Number(r[13] ?? 0),
       branches_pct: Number(r[14] ?? 0),
-      updated_at: String(r[15] ?? ''),
+      updated_at: asText(r[15] ?? ''),
     }));
   }
 
@@ -7938,9 +7960,9 @@ export class TrailDatabase {
     // Number("Unknown") = NaN, which JSON.stringify serializes as null → Supabase NOT NULL violation
     const toNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0; };
     return values.map((r) => ({
-      repo_name: String(r[0] ?? ''),
-      package: String(r[1] ?? ''),
-      file_path: String(r[2] ?? ''),
+      repo_name: asText(r[0] ?? ''),
+      package: asText(r[1] ?? ''),
+      file_path: asText(r[2] ?? ''),
       lines_total: toNum(r[3]),
       lines_covered: toNum(r[4]),
       lines_pct: toNum(r[5]),
@@ -7953,7 +7975,7 @@ export class TrailDatabase {
       branches_total: toNum(r[12]),
       branches_covered: toNum(r[13]),
       branches_pct: toNum(r[14]),
-      updated_at: String(r[15] ?? ''),
+      updated_at: asText(r[15] ?? ''),
     }));
   }
 
@@ -8017,8 +8039,8 @@ export class TrailDatabase {
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      repoName: String(r[0] ?? ''),
-      filePath: String(r[1] ?? ''),
+      repoName: asText(r[0] ?? ''),
+      filePath: asText(r[1] ?? ''),
       importanceScore: Number(r[2] ?? 0),
       fanInTotal: Number(r[3] ?? 0),
       cognitiveComplexityMax: Number(r[4] ?? 0),
@@ -8034,14 +8056,14 @@ export class TrailDatabase {
         isolatedCommunity: Number(r[13] ?? 0) === 1,
       },
       isIgnored: Number(r[14] ?? 0) === 1,
-      ignoreReason: String(r[15] ?? ''),
+      ignoreReason: asText(r[15] ?? ''),
       crossPkgInCount: Number(r[16] ?? 0),
       externalConsumerPkgs: Number(r[17] ?? 0),
       totalInCount: Number(r[18] ?? 0),
       isBarrel: Number(r[19] ?? 0) === 1,
       centralityScore: Number(r[20] ?? 0),
       category: parseCategory(r[21]),
-      analyzedAt: String(r[22] ?? ''),
+      analyzedAt: asText(r[22] ?? ''),
     }));
   }
 
@@ -8089,8 +8111,8 @@ export class TrailDatabase {
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      repoName: String(r[0] ?? ''),
-      filePath: String(r[1] ?? ''),
+      repoName: asText(r[0] ?? ''),
+      filePath: asText(r[1] ?? ''),
       importanceScore: Number(r[2] ?? 0),
       fanInTotal: Number(r[3] ?? 0),
       cognitiveComplexityMax: Number(r[4] ?? 0),
@@ -8106,14 +8128,14 @@ export class TrailDatabase {
         isolatedCommunity: Number(r[13] ?? 0) === 1,
       },
       isIgnored: Number(r[14] ?? 0) === 1,
-      ignoreReason: String(r[15] ?? ''),
+      ignoreReason: asText(r[15] ?? ''),
       crossPkgInCount: Number(r[16] ?? 0),
       externalConsumerPkgs: Number(r[17] ?? 0),
       totalInCount: Number(r[18] ?? 0),
       isBarrel: Number(r[19] ?? 0) === 1,
       centralityScore: Number(r[20] ?? 0),
       category: parseCategory(r[21]),
-      analyzedAt: String(r[22] ?? ''),
+      analyzedAt: asText(r[22] ?? ''),
     }));
   }
 
@@ -8167,12 +8189,12 @@ export class TrailDatabase {
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      repoName: String(r[0] ?? ''),
-      filePath: String(r[1] ?? ''),
-      functionName: String(r[2] ?? ''),
+      repoName: asText(r[0] ?? ''),
+      filePath: asText(r[1] ?? ''),
+      functionName: asText(r[2] ?? ''),
       startLine: Number(r[3] ?? 0),
       endLine: Number(r[4] ?? 0),
-      language: String(r[5] ?? ''),
+      language: asText(r[5] ?? ''),
       fanIn: Number(r[6] ?? 0),
       cognitiveComplexity: Number(r[7] ?? 0),
       cyclomaticComplexity: Number(r[8] ?? 0),
@@ -8183,8 +8205,8 @@ export class TrailDatabase {
       signalFanInZero: Number(r[13] ?? 0) === 1,
       fanOut: Number(r[14] ?? 0),
       distinctCallees: Number(r[15] ?? 0),
-      functionRole: (['hub', 'leaf', 'orchestrator', 'peripheral'].includes(String(r[16] ?? '')) ? String(r[16]) : 'peripheral') as 'hub' | 'leaf' | 'orchestrator' | 'peripheral',
-      analyzedAt: String(r[17] ?? ''),
+      functionRole: (['hub', 'leaf', 'orchestrator', 'peripheral'].includes(asText(r[16] ?? '')) ? asText(r[16]) : 'peripheral') as 'hub' | 'leaf' | 'orchestrator' | 'peripheral',
+      analyzedAt: asText(r[17] ?? ''),
     }));
   }
 
@@ -8234,12 +8256,12 @@ export class TrailDatabase {
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      repoName: String(r[0] ?? ''),
-      filePath: String(r[1] ?? ''),
-      functionName: String(r[2] ?? ''),
+      repoName: asText(r[0] ?? ''),
+      filePath: asText(r[1] ?? ''),
+      functionName: asText(r[2] ?? ''),
       startLine: Number(r[3] ?? 0),
       endLine: Number(r[4] ?? 0),
-      language: String(r[5] ?? ''),
+      language: asText(r[5] ?? ''),
       fanIn: Number(r[6] ?? 0),
       cognitiveComplexity: Number(r[7] ?? 0),
       cyclomaticComplexity: Number(r[8] ?? 0),
@@ -8250,8 +8272,8 @@ export class TrailDatabase {
       signalFanInZero: Number(r[13] ?? 0) === 1,
       fanOut: Number(r[14] ?? 0),
       distinctCallees: Number(r[15] ?? 0),
-      functionRole: (['hub', 'leaf', 'orchestrator', 'peripheral'].includes(String(r[16] ?? '')) ? String(r[16]) : 'peripheral') as 'hub' | 'leaf' | 'orchestrator' | 'peripheral',
-      analyzedAt: String(r[17] ?? ''),
+      functionRole: (['hub', 'leaf', 'orchestrator', 'peripheral'].includes(asText(r[16] ?? '')) ? asText(r[16]) : 'peripheral') as 'hub' | 'leaf' | 'orchestrator' | 'peripheral',
+      analyzedAt: asText(r[17] ?? ''),
     }));
   }
 
@@ -8593,7 +8615,7 @@ export class TrailDatabase {
     const out = new Map<string, number>();
     const values = result[0]?.values ?? [];
     for (const r of values) {
-      out.set(String(r[0] ?? ''), Number(r[1] ?? 0));
+      out.set(asText(r[0] ?? ''), Number(r[1] ?? 0));
     }
     return out;
   }
@@ -8615,7 +8637,7 @@ export class TrailDatabase {
     );
     const out = new Set<string>();
     const values = result[0]?.values ?? [];
-    for (const r of values) out.add(String(r[0] ?? ''));
+    for (const r of values) out.add(asText(r[0] ?? ''));
     return out;
   }
 
@@ -8739,9 +8761,9 @@ export class TrailDatabase {
     const values = result[0]?.values ?? [];
     const toNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0; };
     return values.map((r) => ({
-      release_tag: String(r[0] ?? ''),
-      package: String(r[1] ?? ''),
-      file_path: String(r[2] ?? ''),
+      release_tag: asText(r[0] ?? ''),
+      package: asText(r[1] ?? ''),
+      file_path: asText(r[2] ?? ''),
       lines_total: toNum(r[3]),
       lines_covered: toNum(r[4]),
       lines_pct: toNum(r[5]),
@@ -8784,8 +8806,8 @@ export class TrailDatabase {
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      repo_name: String(r[0] ?? ''),
-      file_path: String(r[1] ?? ''),
+      repo_name: asText(r[0] ?? ''),
+      file_path: asText(r[1] ?? ''),
       importance_score: Number(r[2] ?? 0),
       fan_in_total: Number(r[3] ?? 0),
       cognitive_complexity_max: Number(r[4] ?? 0),
@@ -8797,13 +8819,13 @@ export class TrailDatabase {
       signal_zero_coverage: Number(r[10] ?? 0),
       signal_isolated_community: Number(r[11] ?? 0),
       is_ignored: Number(r[12] ?? 0),
-      ignore_reason: String(r[13] ?? ''),
+      ignore_reason: asText(r[13] ?? ''),
       cross_pkg_in_count: Number(r[14] ?? 0),
       external_consumer_pkgs: Number(r[15] ?? 0),
       total_in_count: Number(r[16] ?? 0),
       is_barrel: Number(r[17] ?? 0),
       centrality_score: Number(r[18] ?? 0),
-      analyzed_at: String(r[19] ?? ''),
+      analyzed_at: asText(r[19] ?? ''),
       line_count: Number(r[20] ?? 0),
       cyclomatic_complexity_max: Number(r[21] ?? 0),
       category: parseCategory(r[22]),
@@ -8833,9 +8855,9 @@ export class TrailDatabase {
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      release_tag: String(r[0] ?? ''),
-      repo_name: String(r[1] ?? ''),
-      file_path: String(r[2] ?? ''),
+      release_tag: asText(r[0] ?? ''),
+      repo_name: asText(r[1] ?? ''),
+      file_path: asText(r[2] ?? ''),
       importance_score: Number(r[3] ?? 0),
       fan_in_total: Number(r[4] ?? 0),
       cognitive_complexity_max: Number(r[5] ?? 0),
@@ -8847,13 +8869,13 @@ export class TrailDatabase {
       signal_zero_coverage: Number(r[11] ?? 0),
       signal_isolated_community: Number(r[12] ?? 0),
       is_ignored: Number(r[13] ?? 0),
-      ignore_reason: String(r[14] ?? ''),
+      ignore_reason: asText(r[14] ?? ''),
       cross_pkg_in_count: Number(r[15] ?? 0),
       external_consumer_pkgs: Number(r[16] ?? 0),
       total_in_count: Number(r[17] ?? 0),
       is_barrel: Number(r[18] ?? 0),
       centrality_score: Number(r[19] ?? 0),
-      analyzed_at: String(r[20] ?? ''),
+      analyzed_at: asText(r[20] ?? ''),
       line_count: Number(r[21] ?? 0),
       cyclomatic_complexity_max: Number(r[22] ?? 0),
       category: parseCategory(r[23]),
@@ -8883,12 +8905,12 @@ export class TrailDatabase {
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      repo_name: String(r[0] ?? ''),
-      file_path: String(r[1] ?? ''),
-      function_name: String(r[2] ?? ''),
+      repo_name: asText(r[0] ?? ''),
+      file_path: asText(r[1] ?? ''),
+      function_name: asText(r[2] ?? ''),
       start_line: Number(r[3] ?? 0),
       end_line: Number(r[4] ?? 0),
-      language: String(r[5] ?? ''),
+      language: asText(r[5] ?? ''),
       fan_in: Number(r[6] ?? 0),
       cognitive_complexity: Number(r[7] ?? 0),
       data_mutation_score: Number(r[8] ?? 0),
@@ -8898,8 +8920,8 @@ export class TrailDatabase {
       signal_fan_in_zero: Number(r[12] ?? 0),
       fan_out: Number(r[13] ?? 0),
       distinct_callees: Number(r[14] ?? 0),
-      function_role: String(r[15] ?? 'peripheral'),
-      analyzed_at: String(r[16] ?? ''),
+      function_role: asText(r[15] ?? 'peripheral'),
+      analyzed_at: asText(r[16] ?? ''),
       cyclomatic_complexity: Number(r[17] ?? 0),
     }));
   }
@@ -8927,13 +8949,13 @@ export class TrailDatabase {
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      release_tag: String(r[0] ?? ''),
-      repo_name: String(r[1] ?? ''),
-      file_path: String(r[2] ?? ''),
-      function_name: String(r[3] ?? ''),
+      release_tag: asText(r[0] ?? ''),
+      repo_name: asText(r[1] ?? ''),
+      file_path: asText(r[2] ?? ''),
+      function_name: asText(r[3] ?? ''),
       start_line: Number(r[4] ?? 0),
       end_line: Number(r[5] ?? 0),
-      language: String(r[6] ?? ''),
+      language: asText(r[6] ?? ''),
       fan_in: Number(r[7] ?? 0),
       cognitive_complexity: Number(r[8] ?? 0),
       data_mutation_score: Number(r[9] ?? 0),
@@ -8943,8 +8965,8 @@ export class TrailDatabase {
       signal_fan_in_zero: Number(r[13] ?? 0),
       fan_out: Number(r[14] ?? 0),
       distinct_callees: Number(r[15] ?? 0),
-      function_role: String(r[16] ?? 'peripheral'),
-      analyzed_at: String(r[17] ?? ''),
+      function_role: asText(r[16] ?? 'peripheral'),
+      analyzed_at: asText(r[17] ?? ''),
       cyclomatic_complexity: Number(r[18] ?? 0),
     }));
   }
@@ -9183,7 +9205,7 @@ export class TrailDatabase {
       community_id: Number(row[0]),
       name: String(row[1]),
       label: String(row[2]),
-      mappings_json: row[3] == null ? null : String(row[3]),
+      mappings_json: row[3] == null ? null : asText(row[3]),
     }));
 
     return buildFeatureMatrixFromCommunities(rows);
@@ -9247,8 +9269,8 @@ export class TrailDatabase {
       if (!res.length) return [];
       const rowsAll = res[0].values.map((row) => {
         const sessionId = String(row[0]);
-        const slug = String(row[1] ?? sessionId);
-        const date = String(row[2] ?? '');
+        const slug = asText(row[1] ?? sessionId);
+        const date = asText(row[2] ?? '');
         const shortHash = sessionId.length > 8 ? sessionId.slice(0, 8) : sessionId;
         const label = date ? `${slug || shortHash} (${date})` : (slug || shortHash);
         return {
@@ -9356,7 +9378,7 @@ export class TrailDatabase {
       return res[0].values.map((row) => ({
         committedAt: String(row[0]),
         filePath: String(row[1]),
-        subagentType: row[2] == null ? null : String(row[2]),
+        subagentType: row[2] == null ? null : asText(row[2]),
       }));
     }
 
@@ -9403,7 +9425,7 @@ export class TrailDatabase {
       return res[0].values.flatMap((row) => {
         const normalized = normalize(String(row[1]));
         if (!normalized || !allowed.has(normalized)) return [];
-        return [{ committedAt: String(row[0]), filePath: normalized, subagentType: row[2] == null ? null : String(row[2]) }];
+        return [{ committedAt: asText(row[0]), filePath: normalized, subagentType: row[2] == null ? null : asText(row[2]) }];
       });
     }
     const res = db.exec(sql, bindings);
@@ -9414,7 +9436,7 @@ export class TrailDatabase {
       return {
         committedAt: String(row[0]),
         filePath: String(row[1]),
-        subagentType: subagentType == null ? null : String(subagentType),
+        subagentType: subagentType == null ? null : asText(subagentType),
       };
     });
   }
