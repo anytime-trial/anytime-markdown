@@ -3,6 +3,8 @@ import { fitToContent as computeFit, hitTest, pan, render, resolveEdgesForRender
 
 export interface GraphViewOptions {
   theme?: 'dark' | 'light';
+  /** ノードの選択 + ドラッグ移動を許可する（既定 false = 純読み取り） */
+  movableNodes?: boolean;
 }
 
 type NodeClickHandler = (nodeId: string) => void;
@@ -24,9 +26,14 @@ export class GraphView {
   private rafId = 0;
   private dirty = false;
   private userInteracted = false;
+  private movableNodes: boolean;
+  private edges: readonly GraphEdge[] = [];
+  private selectedNodeId: string | null = null;
+  private pressNodeId: string | null = null;
+  private dragMode: 'none' | 'pan' | 'node' = 'none';
   private readonly onPointerDown = (e: PointerEvent) => this.handlePointerDown(e);
   private readonly onPointerMove = (e: PointerEvent) => this.handlePointerMove(e);
-  private readonly onPointerUp = (e: PointerEvent) => this.handlePointerUp(e);
+  private readonly onPointerUp = () => this.handlePointerUp();
   private readonly onWheel = (e: WheelEvent) => this.handleWheel(e);
 
   constructor(canvas: HTMLCanvasElement, opts: GraphViewOptions = {}) {
@@ -35,6 +42,7 @@ export class GraphView {
     this.canvas = canvas;
     this.ctx = ctx;
     this.isDark = (opts.theme ?? 'dark') === 'dark';
+    this.movableNodes = opts.movableNodes ?? false;
     this.canvas.addEventListener('pointerdown', this.onPointerDown);
     this.canvas.addEventListener('pointermove', this.onPointerMove);
     this.canvas.addEventListener('pointerup', this.onPointerUp);
@@ -43,6 +51,8 @@ export class GraphView {
 
   setDocument(doc: GraphDocument): void {
     this.nodes = doc.nodes;
+    this.edges = doc.edges;
+    this.selectedNodeId = null;
     try {
       this.resolvedEdges = resolveEdgesForRender(doc.nodes, doc.edges);
     } catch (err) {
@@ -55,6 +65,15 @@ export class GraphView {
   setTheme(theme: 'dark' | 'light'): void {
     this.isDark = theme === 'dark';
     this.requestRender();
+  }
+
+  /** ノード選択 + 移動の許可を切り替える。無効化時は選択を解除する。 */
+  setMovableNodes(movable: boolean): void {
+    this.movableNodes = movable;
+    if (!movable && this.selectedNodeId !== null) {
+      this.selectedNodeId = null;
+      this.requestRender();
+    }
   }
 
   fitToContent(): void {
@@ -112,28 +131,8 @@ export class GraphView {
     return { minX, minY, maxX, maxY };
   }
 
-  private handlePointerDown(e: PointerEvent): void {
-    this.dragging = true;
-    this.moved = 0;
-    this.lastX = e.clientX;
-    this.lastY = e.clientY;
-  }
-
-  private handlePointerMove(e: PointerEvent): void {
-    if (!this.dragging) return;
-    const dx = e.clientX - this.lastX;
-    const dy = e.clientY - this.lastY;
-    this.moved += Math.abs(dx) + Math.abs(dy);
-    this.viewport = pan(this.viewport, dx, dy);
-    this.userInteracted = true;
-    this.lastX = e.clientX;
-    this.lastY = e.clientY;
-    this.requestRender();
-  }
-
-  private handlePointerUp(e: PointerEvent): void {
-    this.dragging = false;
-    if (this.moved > CLICK_MOVE_THRESHOLD) return;
+  /** スクリーン座標のポインタ位置にあるノード id を返す（無ければ null）。 */
+  private hitNodeAt(e: PointerEvent): string | null {
     const rect = this.canvas.getBoundingClientRect();
     const world = screenToWorld(this.viewport, e.clientX - rect.left, e.clientY - rect.top);
     const result = hitTest({
@@ -142,12 +141,68 @@ export class GraphView {
       wx: world.x,
       wy: world.y,
       scale: this.viewport.scale,
-      selectedNodeIds: [],
+      selectedNodeIds: this.selectedNodeId ? [this.selectedNodeId] : [],
       selectedEdgeIds: [],
     });
-    if (result.type === 'node' && result.id) {
-      for (const cb of this.nodeClickHandlers) cb(result.id);
+    return result.type === 'node' && result.id ? result.id : null;
+  }
+
+  /** ノードをワールド座標で移動し、接続エッジを再解決する。 */
+  private moveNode(id: string, dwx: number, dwy: number): void {
+    const node = this.nodes.find((n) => n.id === id);
+    if (!node) return;
+    node.x += dwx;
+    node.y += dwy;
+    try {
+      this.resolvedEdges = resolveEdgesForRender(this.nodes, this.edges);
+    } catch (err) {
+      console.error('[GraphView] edge resolution failed during move', err);
     }
+  }
+
+  private handlePointerDown(e: PointerEvent): void {
+    this.dragging = true;
+    this.moved = 0;
+    this.lastX = e.clientX;
+    this.lastY = e.clientY;
+    this.pressNodeId = this.hitNodeAt(e);
+    this.dragMode = this.pressNodeId && this.movableNodes ? 'node' : 'pan';
+  }
+
+  private handlePointerMove(e: PointerEvent): void {
+    if (!this.dragging) return;
+    const dx = e.clientX - this.lastX;
+    const dy = e.clientY - this.lastY;
+    this.moved += Math.abs(dx) + Math.abs(dy);
+    this.lastX = e.clientX;
+    this.lastY = e.clientY;
+    if (this.dragMode === 'node' && this.pressNodeId) {
+      this.moveNode(this.pressNodeId, dx / this.viewport.scale, dy / this.viewport.scale);
+      this.selectedNodeId = this.pressNodeId;
+    } else {
+      this.viewport = pan(this.viewport, dx, dy);
+      this.userInteracted = true;
+    }
+    this.requestRender();
+  }
+
+  private handlePointerUp(): void {
+    this.dragging = false;
+    const wasClick = this.moved <= CLICK_MOVE_THRESHOLD;
+    this.dragMode = 'none';
+    if (!wasClick) {
+      this.pressNodeId = null;
+      return;
+    }
+    // クリック: movableNodes 時のみ選択ハイライトを更新。node-click は常に通知。
+    if (this.movableNodes) {
+      this.selectedNodeId = this.pressNodeId;
+      this.requestRender();
+    }
+    if (this.pressNodeId) {
+      for (const cb of this.nodeClickHandlers) cb(this.pressNodeId);
+    }
+    this.pressNodeId = null;
   }
 
   private handleWheel(e: WheelEvent): void {
@@ -177,7 +232,7 @@ export class GraphView {
       nodes: this.nodes,
       edges: this.resolvedEdges,
       viewport: this.viewport,
-      selection: { nodeIds: [], edgeIds: [] },
+      selection: { nodeIds: this.selectedNodeId ? [this.selectedNodeId] : [], edgeIds: [] },
       showGrid: false,
       isDark: this.isDark,
     });

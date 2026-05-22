@@ -4,7 +4,7 @@ import type { GraphInput, NodeClickDetail } from './types';
 
 export class AnytimeGraphElement extends HTMLElement {
   static get observedAttributes(): string[] {
-    return ['theme'];
+    return ['theme', 'movable-nodes'];
   }
 
   private view: GraphView | null = null;
@@ -23,7 +23,7 @@ export class AnytimeGraphElement extends HTMLElement {
     root.append(style, canvas);
     this.canvas = canvas;
 
-    this.view = new GraphView(canvas, { theme: this.currentTheme() });
+    this.view = new GraphView(canvas, { theme: this.currentTheme(), movableNodes: this.hasAttribute('movable-nodes') });
     this.view.on('nodeClick', (id) => this.emitNodeClick(id));
 
     this.resizeObserver = new ResizeObserver(() => this.syncCanvasSize());
@@ -41,11 +41,14 @@ export class AnytimeGraphElement extends HTMLElement {
   }
 
   attributeChangedCallback(name: string, _old: string | null, value: string | null): void {
-    if (name !== 'theme') return;
-    const theme = value === 'light' ? 'light' : 'dark';
-    this.view?.setTheme(theme);
-    // 既定スタイル（fill 等）はテーマ依存のため再正規化して再描画する。viewport は保持（fit しない）
-    if (this.input) this.applyInput(this.input, { fit: false });
+    if (name === 'theme') {
+      const theme = value === 'light' ? 'light' : 'dark';
+      this.view?.setTheme(theme);
+      // 既定スタイル（fill 等）はテーマ依存のため再正規化して再描画する。viewport は保持（fit しない）
+      if (this.input) this.applyInput(this.input, { fit: false });
+    } else if (name === 'movable-nodes') {
+      this.view?.setMovableNodes(this.hasAttribute('movable-nodes'));
+    }
   }
 
   /** GraphInput を property で受け取る（属性ではなく element.data = ... ） */
