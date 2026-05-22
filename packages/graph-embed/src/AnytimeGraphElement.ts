@@ -4,7 +4,7 @@ import type { GraphInput, NodeClickDetail } from './types';
 
 export class AnytimeGraphElement extends HTMLElement {
   static get observedAttributes(): string[] {
-    return ['theme', 'movable-nodes'];
+    return ['theme', 'movable-nodes', 'collapsible'];
   }
 
   private view: GraphView | null = null;
@@ -23,7 +23,11 @@ export class AnytimeGraphElement extends HTMLElement {
     root.append(style, canvas);
     this.canvas = canvas;
 
-    this.view = new GraphView(canvas, { theme: this.currentTheme(), movableNodes: this.hasAttribute('movable-nodes') });
+    this.view = new GraphView(canvas, {
+      theme: this.currentTheme(),
+      movableNodes: this.hasAttribute('movable-nodes'),
+      collapsible: this.hasAttribute('collapsible'),
+    });
     this.view.on('nodeClick', (id) => this.emitNodeClick(id));
 
     this.resizeObserver = new ResizeObserver(() => this.syncCanvasSize());
@@ -48,6 +52,8 @@ export class AnytimeGraphElement extends HTMLElement {
       if (this.input) this.applyInput(this.input, { fit: false });
     } else if (name === 'movable-nodes') {
       this.view?.setMovableNodes(this.hasAttribute('movable-nodes'));
+    } else if (name === 'collapsible') {
+      this.view?.setCollapsible(this.hasAttribute('collapsible'));
     }
   }
 

@@ -5,6 +5,8 @@ export interface GraphViewOptions {
   theme?: 'dark' | 'light';
   /** ノードの選択 + ドラッグ移動を許可する（既定 false = 純読み取り） */
   movableNodes?: boolean;
+  /** 子を持つノードのクリックで枝を折りたたむ（マインドマップ風・既定 false） */
+  collapsible?: boolean;
 }
 
 type NodeClickHandler = (nodeId: string) => void;
@@ -27,10 +29,14 @@ export class GraphView {
   private dirty = false;
   private userInteracted = false;
   private movableNodes: boolean;
+  private collapsible: boolean;
   private edges: readonly GraphEdge[] = [];
   private selectedNodeId: string | null = null;
   private pressNodeId: string | null = null;
   private dragMode: 'none' | 'pan' | 'node' = 'none';
+  private readonly collapsed = new Set<string>();
+  private readonly childrenMap = new Map<string, string[]>();
+  private hidden = new Set<string>();
   private readonly onPointerDown = (e: PointerEvent) => this.handlePointerDown(e);
   private readonly onPointerMove = (e: PointerEvent) => this.handlePointerMove(e);
   private readonly onPointerUp = () => this.handlePointerUp();
@@ -43,6 +49,7 @@ export class GraphView {
     this.ctx = ctx;
     this.isDark = (opts.theme ?? 'dark') === 'dark';
     this.movableNodes = opts.movableNodes ?? false;
+    this.collapsible = opts.collapsible ?? false;
     this.canvas.addEventListener('pointerdown', this.onPointerDown);
     this.canvas.addEventListener('pointermove', this.onPointerMove);
     this.canvas.addEventListener('pointerup', this.onPointerUp);
@@ -53,6 +60,18 @@ export class GraphView {
     this.nodes = doc.nodes;
     this.edges = doc.edges;
     this.selectedNodeId = null;
+    // 折りたたみ用に有向（from→子 to）の隣接を構築し、折りたたみ状態をリセット
+    this.childrenMap.clear();
+    for (const e of doc.edges) {
+      const f = e.from.nodeId;
+      const t = e.to.nodeId;
+      if (!f || !t) continue;
+      const arr = this.childrenMap.get(f);
+      if (arr) arr.push(t);
+      else this.childrenMap.set(f, [t]);
+    }
+    this.collapsed.clear();
+    this.recomputeHidden();
     try {
       this.resolvedEdges = resolveEdgesForRender(doc.nodes, doc.edges);
     } catch (err) {
@@ -72,6 +91,16 @@ export class GraphView {
     this.movableNodes = movable;
     if (!movable && this.selectedNodeId !== null) {
       this.selectedNodeId = null;
+      this.requestRender();
+    }
+  }
+
+  /** クリックでの枝折りたたみの許可を切り替える。無効化時は全展開する。 */
+  setCollapsible(collapsible: boolean): void {
+    this.collapsible = collapsible;
+    if (!collapsible && this.collapsed.size > 0) {
+      this.collapsed.clear();
+      this.recomputeHidden();
       this.requestRender();
     }
   }
@@ -120,9 +149,10 @@ export class GraphView {
   }
 
   private contentBounds(): { minX: number; minY: number; maxX: number; maxY: number } | null {
-    if (this.nodes.length === 0) return null;
+    const nodes = this.visibleNodeArray();
+    if (nodes.length === 0) return null;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const n of this.nodes) {
+    for (const n of nodes) {
       minX = Math.min(minX, n.x);
       minY = Math.min(minY, n.y);
       maxX = Math.max(maxX, n.x + n.width);
@@ -147,7 +177,7 @@ export class GraphView {
     const p = this.toCanvasPoint(e.clientX, e.clientY);
     const world = screenToWorld(this.viewport, p.x, p.y);
     const result = hitTest({
-      nodes: [...this.nodes],
+      nodes: this.visibleNodeArray(),
       edges: this.resolvedEdges,
       wx: world.x,
       wy: world.y,
@@ -156,6 +186,39 @@ export class GraphView {
       selectedEdgeIds: [],
     });
     return result.type === 'node' && result.id ? result.id : null;
+  }
+
+  /** 折りたたまれたノードの子孫集合（有向 from→to 到達）を hidden に再計算する。 */
+  private recomputeHidden(): void {
+    this.hidden = new Set<string>();
+    for (const root of this.collapsed) {
+      const stack = [...(this.childrenMap.get(root) ?? [])];
+      while (stack.length > 0) {
+        const id = stack.pop()!;
+        if (this.hidden.has(id)) continue; // 循環/合流ガード
+        this.hidden.add(id);
+        for (const child of this.childrenMap.get(id) ?? []) stack.push(child);
+      }
+    }
+  }
+
+  /** 子を持つノードの折りたたみ状態をトグルする（端点=子なしは無視）。 */
+  private toggleCollapse(id: string): void {
+    if (!this.childrenMap.get(id)?.length) return;
+    if (this.collapsed.has(id)) this.collapsed.delete(id);
+    else this.collapsed.add(id);
+    this.recomputeHidden();
+    this.requestRender();
+  }
+
+  /** どちらかの端点が hidden なエッジか。 */
+  private isEdgeHidden(e: GraphEdge): boolean {
+    return (!!e.from.nodeId && this.hidden.has(e.from.nodeId)) || (!!e.to.nodeId && this.hidden.has(e.to.nodeId));
+  }
+
+  /** 折りたたみで隠れていないノード配列。 */
+  private visibleNodeArray(): GraphNode[] {
+    return this.nodes.filter((n) => !this.hidden.has(n.id));
   }
 
   /** ノードをワールド座標で移動し、接続エッジを再解決する。 */
@@ -212,6 +275,7 @@ export class GraphView {
       this.selectedNodeId = this.pressNodeId;
       this.requestRender();
     }
+    if (this.pressNodeId && this.collapsible) this.toggleCollapse(this.pressNodeId);
     if (this.pressNodeId) {
       for (const cb of this.nodeClickHandlers) cb(this.pressNodeId);
     }
@@ -242,8 +306,8 @@ export class GraphView {
       ctx: this.ctx,
       width: this.canvas.width,
       height: this.canvas.height,
-      nodes: this.nodes,
-      edges: this.resolvedEdges,
+      nodes: this.hidden.size ? this.visibleNodeArray() : this.nodes,
+      edges: this.hidden.size ? this.resolvedEdges.filter((e) => !this.isEdgeHidden(e)) : this.resolvedEdges,
       viewport: this.viewport,
       selection: { nodeIds: this.selectedNodeId ? [this.selectedNodeId] : [], edgeIds: [] },
       showGrid: false,
