@@ -6,5 +6,6 @@ export { detectCollision, resolveCollision, resolveAllCollisions } from './colli
 export { applyVpsc } from './vpsc';
 export { computeHierarchicalLayout } from './hierarchical';
 export { computeRadialLayout } from './radial';
+export { computeRootedTreeLayout } from './rootedTree';
 export { DEFAULT_PHYSICS_CONFIG } from './types';
 export type { PhysicsBody, PhysicsConfig, LayoutAlgorithm } from './types';

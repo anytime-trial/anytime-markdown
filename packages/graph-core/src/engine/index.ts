@@ -47,3 +47,4 @@ export { batchCreateGraph } from './batchImport';
 export type { BatchNodeInput, BatchEdgeInput, BatchImportInput } from './batchImport';
 export { resolveEdgesForRender } from './edgeResolution';
 export { computeRadialLayout } from './physics/radial';
+export { computeRootedTreeLayout } from './physics/rootedTree';
