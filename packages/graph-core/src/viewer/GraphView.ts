@@ -23,6 +23,7 @@ export class GraphView {
   private lastY = 0;
   private rafId = 0;
   private dirty = false;
+  private userInteracted = false;
   private readonly onPointerDown = (e: PointerEvent) => this.handlePointerDown(e);
   private readonly onPointerMove = (e: PointerEvent) => this.handlePointerMove(e);
   private readonly onPointerUp = (e: PointerEvent) => this.handlePointerUp(e);
@@ -82,7 +83,13 @@ export class GraphView {
   }
 
   on(event: 'nodeClick', cb: NodeClickHandler): void {
-    if (event === 'nodeClick') this.nodeClickHandlers.push(cb);
+    this.nodeClickHandlers.push(cb);
+  }
+
+  /** コンテナサイズ変更時に呼ぶ。ユーザー操作前は再 fit、操作後は viewport を保持して再描画。 */
+  resize(): void {
+    if (this.userInteracted) this.requestRender();
+    else this.fitToContent();
   }
 
   destroy(): void {
@@ -118,6 +125,7 @@ export class GraphView {
     const dy = e.clientY - this.lastY;
     this.moved += Math.abs(dx) + Math.abs(dy);
     this.viewport = pan(this.viewport, dx, dy);
+    this.userInteracted = true;
     this.lastX = e.clientX;
     this.lastY = e.clientY;
     this.requestRender();
@@ -145,8 +153,9 @@ export class GraphView {
   private handleWheel(e: WheelEvent): void {
     e.preventDefault();
     const rect = this.canvas.getBoundingClientRect();
-    const delta = -e.deltaY * 0.001;
-    this.viewport = zoom(this.viewport, e.clientX - rect.left, e.clientY - rect.top, delta);
+    // zoom() は内部で sensitivity と符号反転を行うため生の deltaY を渡す
+    this.viewport = zoom(this.viewport, e.clientX - rect.left, e.clientY - rect.top, e.deltaY);
+    this.userInteracted = true;
     this.requestRender();
   }
 
