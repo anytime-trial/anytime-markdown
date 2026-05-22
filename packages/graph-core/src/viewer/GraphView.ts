@@ -12,6 +12,7 @@ export interface GraphViewOptions {
 type NodeClickHandler = (nodeId: string) => void;
 
 const CLICK_MOVE_THRESHOLD = 4;
+const ENDPOINT_HIT_RADIUS = 16;
 
 export class GraphView {
   private readonly canvas: HTMLCanvasElement;
@@ -33,6 +34,7 @@ export class GraphView {
   private edges: readonly GraphEdge[] = [];
   private selectedNodeId: string | null = null;
   private pressNodeId: string | null = null;
+  private pressEndpointNodeId: string | null = null;
   private dragMode: 'none' | 'pan' | 'node' = 'none';
   private readonly collapsed = new Set<string>();
   private readonly childrenMap = new Map<string, string[]>();
@@ -172,10 +174,8 @@ export class GraphView {
     return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
   }
 
-  /** ポインタ位置にあるノード id を返す（無ければ null）。 */
-  private hitNodeAt(e: PointerEvent): string | null {
-    const p = this.toCanvasPoint(e.clientX, e.clientY);
-    const world = screenToWorld(this.viewport, p.x, p.y);
+  /** ワールド座標位置にあるノード id を返す（無ければ null）。 */
+  private hitNodeAtWorld(world: { x: number; y: number }): string | null {
     const result = hitTest({
       nodes: this.visibleNodeArray(),
       edges: this.resolvedEdges,
@@ -186,6 +186,19 @@ export class GraphView {
       selectedEdgeIds: [],
     });
     return result.type === 'node' && result.id ? result.id : null;
+  }
+
+  /** コネクタ端点付近をクリックしたとき、その端点が属する「子を持つノード」id を返す。 */
+  private hitConnectorEndpoint(world: { x: number; y: number }): string | null {
+    const r = ENDPOINT_HIT_RADIUS / this.viewport.scale;
+    for (const e of this.resolvedEdges) {
+      if (e.type !== 'connector' || this.isEdgeHidden(e)) continue;
+      const f = e.from.nodeId;
+      const t = e.to.nodeId;
+      if (f && this.childrenMap.get(f)?.length && Math.hypot(world.x - e.from.x, world.y - e.from.y) <= r) return f;
+      if (t && this.childrenMap.get(t)?.length && Math.hypot(world.x - e.to.x, world.y - e.to.y) <= r) return t;
+    }
+    return null;
   }
 
   /** 折りたたまれたノードの子孫集合（有向 from→to 到達）を hidden に再計算する。 */
@@ -240,7 +253,10 @@ export class GraphView {
     const p = this.toCanvasPoint(e.clientX, e.clientY);
     this.lastX = p.x;
     this.lastY = p.y;
-    this.pressNodeId = this.hitNodeAt(e);
+    const world = screenToWorld(this.viewport, p.x, p.y);
+    // コネクタ端点を優先判定（矩形本体より先）。端点なら折りたたみ対象とし、ノード選択はしない。
+    this.pressEndpointNodeId = this.collapsible ? this.hitConnectorEndpoint(world) : null;
+    this.pressNodeId = this.pressEndpointNodeId ? null : this.hitNodeAtWorld(world);
     this.dragMode = this.pressNodeId && this.movableNodes ? 'node' : 'pan';
   }
 
@@ -266,20 +282,23 @@ export class GraphView {
     this.dragging = false;
     const wasClick = this.moved <= CLICK_MOVE_THRESHOLD;
     this.dragMode = 'none';
-    if (!wasClick) {
-      this.pressNodeId = null;
-      return;
-    }
-    // クリック: movableNodes 時のみ選択ハイライトを更新。node-click は常に通知。
-    if (this.movableNodes) {
-      this.selectedNodeId = this.pressNodeId;
-      this.requestRender();
-    }
-    if (this.pressNodeId && this.collapsible) this.toggleCollapse(this.pressNodeId);
-    if (this.pressNodeId) {
-      for (const cb of this.nodeClickHandlers) cb(this.pressNodeId);
+    if (wasClick) {
+      if (this.pressEndpointNodeId) {
+        // コネクタ端点クリック: 枝を折りたたむ/展開する（node-click は出さない）
+        this.toggleCollapse(this.pressEndpointNodeId);
+      } else {
+        // 矩形（ノード本体）クリック: movableNodes 時のみ選択ハイライト。node-click は常に通知。
+        if (this.movableNodes) {
+          this.selectedNodeId = this.pressNodeId;
+          this.requestRender();
+        }
+        if (this.pressNodeId) {
+          for (const cb of this.nodeClickHandlers) cb(this.pressNodeId);
+        }
+      }
     }
     this.pressNodeId = null;
+    this.pressEndpointNodeId = null;
   }
 
   private handleWheel(e: WheelEvent): void {

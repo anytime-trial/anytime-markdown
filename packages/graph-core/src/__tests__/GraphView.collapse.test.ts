@@ -1,5 +1,7 @@
 import { GraphView } from '../viewer/GraphView';
+import { bestSides, getConnectionPoints } from '../engine/index';
 import { createDocument, createNode, createEdge } from '../types';
+import type { GraphNode } from '../types';
 
 function makeCanvas() {
   const handlers: Record<string, ((e: unknown) => void)[]> = {};
@@ -24,30 +26,32 @@ function makeCanvas() {
   return { canvas, click };
 }
 
-describe('GraphView collapse (mindmap fold)', () => {
-  it('collapsible 時、子を持つノードのクリックで子孫を隠し、再クリックで戻す', () => {
+describe('GraphView collapse (connector endpoint, mindmap fold)', () => {
+  it('矩形本体クリックでは折りたたまず、コネクタ端点クリックで枝を折りたたむ', () => {
     const { canvas, click } = makeCanvas();
     const view = new GraphView(canvas, { collapsible: true });
     const doc = createDocument('t');
-    // viewport 既定 {0,0,1}・dpr1 → world == クリック座標
-    doc.nodes.push({ ...createNode('rect', 100, 100), id: 'P', width: 150, height: 100 });
-    doc.nodes.push({ ...createNode('rect', 400, 400), id: 'C', width: 150, height: 100 });
+    // viewport 既定 {0,0,1}・dpr1 → world == クリック座標。C は P の右。
+    const P: GraphNode = { ...createNode('rect', 100, 100), id: 'P', width: 100, height: 100 };
+    const C: GraphNode = { ...createNode('rect', 400, 100), id: 'C', width: 100, height: 100 };
+    doc.nodes.push(P, C);
     doc.edges.push(createEdge('connector', { nodeId: 'P', x: 0, y: 0 }, { nodeId: 'C', x: 0, y: 0 }));
     view.setDocument(doc);
+
+    // ビューアと同じ計算で P→C の from 端点（P 側）を求める
+    const sides = bestSides(P, C);
+    const fromPts = getConnectionPoints(P);
+    const fromPt = fromPts.find((p) => p.side === sides.fromSide) ?? fromPts[0];
 
     const clicks: string[] = [];
     view.on('nodeClick', (id) => clicks.push(id));
 
-    click(475, 450); // C 中心 → 表示中なので nodeClick(C)
-    click(175, 150); // P 中心 → 子 C を折りたたむ + nodeClick(P)
-    click(475, 450); // C は隠れたので hit しない
+    click(150, 150); // P 本体中心 → 折りたたまず node-click(P)
+    click(450, 150); // C 本体中心 → C は見えている（P 本体クリックで畳まれていない）→ node-click(C)
+    click(fromPt.x, fromPt.y); // P の端点 → 枝を折りたたむ（node-click なし）
+    click(450, 150); // C は隠れたので何も起きない
 
-    expect(clicks).toEqual(['C', 'P']);
-
-    click(175, 150); // P 再クリック → 展開 + nodeClick(P)
-    click(475, 450); // C 再表示 → nodeClick(C)
-    expect(clicks).toEqual(['C', 'P', 'P', 'C']);
-
+    expect(clicks).toEqual(['P', 'C']);
     view.destroy();
   });
 });
