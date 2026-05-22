@@ -5,5 +5,7 @@ export { applySpring, applyRepulsion, applyCenterGravity, applyFRAttraction, app
 export { detectCollision, resolveCollision, resolveAllCollisions } from './collision';
 export { applyVpsc } from './vpsc';
 export { computeHierarchicalLayout } from './hierarchical';
+export { computeRadialLayout } from './radial';
+export { computeRootedTreeLayout } from './rootedTree';
 export { DEFAULT_PHYSICS_CONFIG } from './types';
 export type { PhysicsBody, PhysicsConfig, LayoutAlgorithm } from './types';
