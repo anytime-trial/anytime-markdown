@@ -6,6 +6,8 @@ describe('hasTopLevelLimit', () => {
     'SELECT * FROM t LIMIT 10 OFFSET 20',
     'select * from t limit 5;',
     'SELECT a FROM t  LIMIT  100  ',
+    'SELECT * FROM t LIMIT 10 ;',
+    'SELECT * FROM t LIMIT 10 OFFSET 20 ;',
   ])('returns true: %s', (sql) => {
     expect(hasTopLevelLimit(sql)).toBe(true);
   });
