@@ -19,6 +19,8 @@
           "label": { "type": "string" },
           "type": { "enum": ["rect", "ellipse", "sticky", "text", "diamond", "parallelogram", "cylinder", "doc"] },
           "fill": { "type": "string" },
+          "stroke": { "type": "string" },
+          "strokeWidth": { "type": "number" },
           "fontColor": { "type": "string" },
           "doc": { "type": "string" },
           "metadata": { "type": "object" }

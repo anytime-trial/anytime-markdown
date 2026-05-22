@@ -30,6 +30,8 @@ export function normalizeGraphInput(input: GraphInput, options?: { theme?: 'dark
       ...(n.doc !== undefined ? { docContent: n.doc } : {}),
     }, isDark);
     if (n.fill) node.style = { ...node.style, fill: n.fill };
+    if (n.stroke) node.style = { ...node.style, stroke: n.stroke };
+    if (n.strokeWidth !== undefined) node.style = { ...node.style, strokeWidth: n.strokeWidth };
     if (n.fontColor) node.style = { ...node.style, fontColor: n.fontColor };
     doc.nodes.push(node);
   }

@@ -9,6 +9,10 @@ export interface GraphInputNode {
   label: string;
   type?: GraphInputNodeType;
   fill?: string;
+  /** 枠線色（R9 セマンティックスタイル） */
+  stroke?: string;
+  /** 枠線の太さ */
+  strokeWidth?: number;
   fontColor?: string;
   doc?: string;
   metadata?: Record<string, string | number>;
