@@ -1,5 +1,6 @@
 import type { GraphDocument, GraphEdge, GraphNode, Viewport } from '../types';
-import { fitToContent as computeFit, hitTest, pan, render, resolveEdgesForRender, screenToWorld, zoom } from '../engine/index';
+import { fitToContent as computeFit, hitTest, pan, render, resolveEdgesForRender, screenToWorld, worldToScreen, zoom } from '../engine/index';
+import { getCanvasColors } from '../theme';
 
 export interface GraphViewOptions {
   theme?: 'dark' | 'light';
@@ -12,7 +13,7 @@ export interface GraphViewOptions {
 type NodeClickHandler = (nodeId: string) => void;
 
 const CLICK_MOVE_THRESHOLD = 4;
-const ENDPOINT_HIT_RADIUS = 16;
+const TOGGLE_RADIUS_CSS = 10;
 
 export class GraphView {
   private readonly canvas: HTMLCanvasElement;
@@ -188,15 +189,30 @@ export class GraphView {
     return result.type === 'node' && result.id ? result.id : null;
   }
 
-  /** コネクタ端点付近をクリックしたとき、その端点が属する「子を持つノード」id を返す。 */
-  private hitConnectorEndpoint(world: { x: number; y: number }): string | null {
-    const r = ENDPOINT_HIT_RADIUS / this.viewport.scale;
+  /** ノード N の折りたたみトグルボタン位置（ワールド）= N の最初の子コネクタの起点。 */
+  private toggleWorldPos(nodeId: string): { x: number; y: number } | null {
     for (const e of this.resolvedEdges) {
-      if (e.type !== 'connector' || this.isEdgeHidden(e)) continue;
-      const f = e.from.nodeId;
-      const t = e.to.nodeId;
-      if (f && this.childrenMap.get(f)?.length && Math.hypot(world.x - e.from.x, world.y - e.from.y) <= r) return f;
-      if (t && this.childrenMap.get(t)?.length && Math.hypot(world.x - e.to.x, world.y - e.to.y) <= r) return t;
+      if (e.type === 'connector' && e.from.nodeId === nodeId) return { x: e.from.x, y: e.from.y };
+    }
+    return null;
+  }
+
+  /** CSS px → backing(device) px の倍率。 */
+  private deviceScale(): number {
+    const rect = this.canvas.getBoundingClientRect();
+    return rect.width ? this.canvas.width / rect.width : 1;
+  }
+
+  /** backing px のポインタが折りたたみトグルボタン上なら、その（子を持つ）ノード id を返す。 */
+  private hitCollapseToggle(p: { x: number; y: number }): string | null {
+    if (!this.collapsible) return null;
+    const r = TOGGLE_RADIUS_CSS * this.deviceScale();
+    for (const n of this.nodes) {
+      if (this.hidden.has(n.id) || !this.childrenMap.get(n.id)?.length) continue;
+      const w = this.toggleWorldPos(n.id);
+      if (!w) continue;
+      const s = worldToScreen(this.viewport, w.x, w.y);
+      if (Math.hypot(p.x - s.x, p.y - s.y) <= r) return n.id;
     }
     return null;
   }
@@ -254,8 +270,8 @@ export class GraphView {
     this.lastX = p.x;
     this.lastY = p.y;
     const world = screenToWorld(this.viewport, p.x, p.y);
-    // コネクタ端点を優先判定（矩形本体より先）。端点なら折りたたみ対象とし、ノード選択はしない。
-    this.pressEndpointNodeId = this.collapsible ? this.hitConnectorEndpoint(world) : null;
+    // 折りたたみトグルボタンを優先判定（矩形本体より先）。ボタンなら折りたたみ対象とし、ノード選択はしない。
+    this.pressEndpointNodeId = this.hitCollapseToggle(p);
     this.pressNodeId = this.pressEndpointNodeId ? null : this.hitNodeAtWorld(world);
     this.dragMode = this.pressNodeId && this.movableNodes ? 'node' : 'pan';
   }
@@ -332,5 +348,37 @@ export class GraphView {
       showGrid: false,
       isDark: this.isDark,
     });
+    this.drawCollapseToggles();
+  }
+
+  /** 折りたたみトグル（−=展開中/＋=折りたたみ中）をコネクタ起点に描画する。screen(backing) px。 */
+  private drawCollapseToggles(): void {
+    if (!this.collapsible) return;
+    const colors = getCanvasColors(this.isDark);
+    const r = TOGGLE_RADIUS_CSS * this.deviceScale();
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.lineWidth = Math.max(1, r * 0.16);
+    for (const n of this.nodes) {
+      if (this.hidden.has(n.id) || !this.childrenMap.get(n.id)?.length) continue;
+      const w = this.toggleWorldPos(n.id);
+      if (!w) continue;
+      const s = worldToScreen(this.viewport, w.x, w.y);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = colors.canvasBg;
+      ctx.fill();
+      ctx.strokeStyle = colors.accentColor;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s.x - r * 0.5, s.y);
+      ctx.lineTo(s.x + r * 0.5, s.y);
+      if (this.collapsed.has(n.id)) {
+        ctx.moveTo(s.x, s.y - r * 0.5);
+        ctx.lineTo(s.x, s.y + r * 0.5);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
