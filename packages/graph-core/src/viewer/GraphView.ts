@@ -36,6 +36,7 @@ export class GraphView {
   private selectedNodeId: string | null = null;
   private pressNodeId: string | null = null;
   private pressEndpointNodeId: string | null = null;
+  private hoverToggleNodeId: string | null = null;
   private dragMode: 'none' | 'pan' | 'node' = 'none';
   private readonly collapsed = new Set<string>();
   private readonly childrenMap = new Map<string, string[]>();
@@ -43,6 +44,7 @@ export class GraphView {
   private readonly onPointerDown = (e: PointerEvent) => this.handlePointerDown(e);
   private readonly onPointerMove = (e: PointerEvent) => this.handlePointerMove(e);
   private readonly onPointerUp = () => this.handlePointerUp();
+  private readonly onPointerLeave = () => this.handlePointerLeave();
   private readonly onWheel = (e: WheelEvent) => this.handleWheel(e);
 
   constructor(canvas: HTMLCanvasElement, opts: GraphViewOptions = {}) {
@@ -56,6 +58,7 @@ export class GraphView {
     this.canvas.addEventListener('pointerdown', this.onPointerDown);
     this.canvas.addEventListener('pointermove', this.onPointerMove);
     this.canvas.addEventListener('pointerup', this.onPointerUp);
+    this.canvas.addEventListener('pointerleave', this.onPointerLeave);
     this.canvas.addEventListener('wheel', this.onWheel, { passive: false });
   }
 
@@ -63,6 +66,7 @@ export class GraphView {
     this.nodes = doc.nodes;
     this.edges = doc.edges;
     this.selectedNodeId = null;
+    this.hoverToggleNodeId = null;
     // 折りたたみ用に有向（from→子 to）の隣接を構築し、折りたたみ状態をリセット
     this.childrenMap.clear();
     for (const e of doc.edges) {
@@ -147,6 +151,7 @@ export class GraphView {
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.canvas.removeEventListener('pointerup', this.onPointerUp);
+    this.canvas.removeEventListener('pointerleave', this.onPointerLeave);
     this.canvas.removeEventListener('wheel', this.onWheel);
     if (this.rafId) cancelAnimationFrame(this.rafId);
   }
@@ -277,7 +282,10 @@ export class GraphView {
   }
 
   private handlePointerMove(e: PointerEvent): void {
-    if (!this.dragging) return;
+    if (!this.dragging) {
+      this.updateHover(e);
+      return;
+    }
     const p = this.toCanvasPoint(e.clientX, e.clientY);
     const dx = p.x - this.lastX;
     const dy = p.y - this.lastY;
@@ -292,6 +300,31 @@ export class GraphView {
       this.userInteracted = true;
     }
     this.requestRender();
+  }
+
+  /** ホバー中の「子を持つノード」（トグルボタン上 or ノード本体上）を更新し、変化時に再描画する。 */
+  private updateHover(e: PointerEvent): void {
+    let id: string | null = null;
+    if (this.collapsible) {
+      const p = this.toCanvasPoint(e.clientX, e.clientY);
+      id = this.hitCollapseToggle(p);
+      if (!id) {
+        const world = screenToWorld(this.viewport, p.x, p.y);
+        const n = this.hitNodeAtWorld(world);
+        if (n && this.childrenMap.get(n)?.length) id = n;
+      }
+    }
+    if (id !== this.hoverToggleNodeId) {
+      this.hoverToggleNodeId = id;
+      this.requestRender();
+    }
+  }
+
+  private handlePointerLeave(): void {
+    if (this.hoverToggleNodeId !== null) {
+      this.hoverToggleNodeId = null;
+      this.requestRender();
+    }
   }
 
   private handlePointerUp(): void {
@@ -351,34 +384,33 @@ export class GraphView {
     this.drawCollapseToggles();
   }
 
-  /** 折りたたみトグル（−=展開中/＋=折りたたみ中）をコネクタ起点に描画する。screen(backing) px。 */
+  /** ホバー中ノードの折りたたみトグル（−=展開中/＋=折りたたみ中）をコネクタ起点に描画する。screen(backing) px。 */
   private drawCollapseToggles(): void {
-    if (!this.collapsible) return;
+    if (!this.collapsible || this.hoverToggleNodeId === null) return;
+    const id = this.hoverToggleNodeId;
+    if (this.hidden.has(id) || !this.childrenMap.get(id)?.length) return;
+    const w = this.toggleWorldPos(id);
+    if (!w) return;
     const colors = getCanvasColors(this.isDark);
     const r = TOGGLE_RADIUS_CSS * this.deviceScale();
+    const s = worldToScreen(this.viewport, w.x, w.y);
     const ctx = this.ctx;
     ctx.save();
     ctx.lineWidth = Math.max(1, r * 0.16);
-    for (const n of this.nodes) {
-      if (this.hidden.has(n.id) || !this.childrenMap.get(n.id)?.length) continue;
-      const w = this.toggleWorldPos(n.id);
-      if (!w) continue;
-      const s = worldToScreen(this.viewport, w.x, w.y);
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = colors.canvasBg;
-      ctx.fill();
-      ctx.strokeStyle = colors.accentColor;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(s.x - r * 0.5, s.y);
-      ctx.lineTo(s.x + r * 0.5, s.y);
-      if (this.collapsed.has(n.id)) {
-        ctx.moveTo(s.x, s.y - r * 0.5);
-        ctx.lineTo(s.x, s.y + r * 0.5);
-      }
-      ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = colors.canvasBg;
+    ctx.fill();
+    ctx.strokeStyle = colors.accentColor;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(s.x - r * 0.5, s.y);
+    ctx.lineTo(s.x + r * 0.5, s.y);
+    if (this.collapsed.has(id)) {
+      ctx.moveTo(s.x, s.y - r * 0.5);
+      ctx.lineTo(s.x, s.y + r * 0.5);
     }
+    ctx.stroke();
     ctx.restore();
   }
 }
