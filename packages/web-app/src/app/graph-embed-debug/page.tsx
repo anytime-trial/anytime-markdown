@@ -8,21 +8,24 @@ import type { GraphInput } from '@anytime-markdown/graph-embed';
 import LandingHeader from '../components/LandingHeader';
 import { useThemeMode } from '../providers';
 
-/** 提案 proposal/20260522 の株価要因マインドマップをサンプルに使う（R9 符号別配色付き）。 */
+// 添付画像（コードグラフ風）の矩形配色: 濃紺の塗り + 明るい青の枠線 + 白文字。
+const NODE_STYLE = { fill: '#101A2E', stroke: '#5B9BD5', strokeWidth: 1.5, fontColor: '#FFFFFF' } as const;
+
+/** 提案 proposal/20260522 の株価要因マインドマップをサンプルに使う。 */
 const SAMPLE: GraphInput = {
   schemaVersion: '1.0',
   rootId: 'root',
   layout: 'radial',
   nodes: [
-    { id: 'root', label: '7832 週次リターン -0.13%', fill: '#6B2A20' },
-    { id: 'market', label: '市場要因 +0.22pp', fill: '#4B5A3E' },
-    { id: 'sector', label: '業種要因 +0.76pp', fill: '#4B5A3E' },
-    { id: 'idio', label: '個別要因 -1.11pp', fill: '#6B2A20' },
-    { id: 'd0519', label: '急変日 5/19 ret +7.4% / ε +5.8%', fill: '#4B5A3E' },
-    { id: 'd0521', label: '急変日 5/21 ret -2.9% / ε -2.7%', fill: '#6B2A20' },
-    { id: 'ev1', type: 'doc', label: '決算後再評価 (5/12 過去最高益)' },
-    { id: 'ev2', type: 'doc', label: 'ゲーム株テーマ買い' },
-    { id: 'ev3', type: 'doc', label: '利確 / FY2027 減益見通し' },
+    { id: 'root', label: '7832 週次リターン -0.13%', ...NODE_STYLE },
+    { id: 'market', label: '市場要因 +0.22pp', ...NODE_STYLE },
+    { id: 'sector', label: '業種要因 +0.76pp', ...NODE_STYLE },
+    { id: 'idio', label: '個別要因 -1.11pp', ...NODE_STYLE },
+    { id: 'd0519', label: '急変日 5/19 ret +7.4% / ε +5.8%', ...NODE_STYLE },
+    { id: 'd0521', label: '急変日 5/21 ret -2.9% / ε -2.7%', ...NODE_STYLE },
+    { id: 'ev1', label: '決算後再評価 (5/12 過去最高益)', ...NODE_STYLE },
+    { id: 'ev2', label: 'ゲーム株テーマ買い', ...NODE_STYLE },
+    { id: 'ev3', label: '利確 / FY2027 減益見通し', ...NODE_STYLE },
   ],
   edges: [
     { from: 'root', to: 'market' },
