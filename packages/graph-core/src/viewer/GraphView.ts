@@ -131,10 +131,21 @@ export class GraphView {
     return { minX, minY, maxX, maxY };
   }
 
-  /** スクリーン座標のポインタ位置にあるノード id を返す（無ければ null）。 */
-  private hitNodeAt(e: PointerEvent): string | null {
+  /**
+   * CSS(クライアント)座標を canvas backing(デバイス)座標へ変換する。
+   * backing store は CSS 表示サイズの devicePixelRatio 倍のため、viewport/描画と座標系を揃える。
+   */
+  private toCanvasPoint(clientX: number, clientY: number): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
-    const world = screenToWorld(this.viewport, e.clientX - rect.left, e.clientY - rect.top);
+    const sx = rect.width ? this.canvas.width / rect.width : 1;
+    const sy = rect.height ? this.canvas.height / rect.height : 1;
+    return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+  }
+
+  /** ポインタ位置にあるノード id を返す（無ければ null）。 */
+  private hitNodeAt(e: PointerEvent): string | null {
+    const p = this.toCanvasPoint(e.clientX, e.clientY);
+    const world = screenToWorld(this.viewport, p.x, p.y);
     const result = hitTest({
       nodes: [...this.nodes],
       edges: this.resolvedEdges,
@@ -163,19 +174,21 @@ export class GraphView {
   private handlePointerDown(e: PointerEvent): void {
     this.dragging = true;
     this.moved = 0;
-    this.lastX = e.clientX;
-    this.lastY = e.clientY;
+    const p = this.toCanvasPoint(e.clientX, e.clientY);
+    this.lastX = p.x;
+    this.lastY = p.y;
     this.pressNodeId = this.hitNodeAt(e);
     this.dragMode = this.pressNodeId && this.movableNodes ? 'node' : 'pan';
   }
 
   private handlePointerMove(e: PointerEvent): void {
     if (!this.dragging) return;
-    const dx = e.clientX - this.lastX;
-    const dy = e.clientY - this.lastY;
+    const p = this.toCanvasPoint(e.clientX, e.clientY);
+    const dx = p.x - this.lastX;
+    const dy = p.y - this.lastY;
     this.moved += Math.abs(dx) + Math.abs(dy);
-    this.lastX = e.clientX;
-    this.lastY = e.clientY;
+    this.lastX = p.x;
+    this.lastY = p.y;
     if (this.dragMode === 'node' && this.pressNodeId) {
       this.moveNode(this.pressNodeId, dx / this.viewport.scale, dy / this.viewport.scale);
       this.selectedNodeId = this.pressNodeId;
@@ -207,9 +220,9 @@ export class GraphView {
 
   private handleWheel(e: WheelEvent): void {
     e.preventDefault();
-    const rect = this.canvas.getBoundingClientRect();
+    const p = this.toCanvasPoint(e.clientX, e.clientY);
     // zoom() は内部で sensitivity と符号反転を行うため生の deltaY を渡す
-    this.viewport = zoom(this.viewport, e.clientX - rect.left, e.clientY - rect.top, e.deltaY);
+    this.viewport = zoom(this.viewport, p.x, p.y, e.deltaY);
     this.userInteracted = true;
     this.requestRender();
   }
