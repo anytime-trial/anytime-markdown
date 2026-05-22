@@ -750,14 +750,31 @@ export function migrateConfigJsonIntoLepJson(opts: MigrateConfigJsonOptions): Mi
   if (opts.analyzeAllEnabled !== undefined) legacy.analyzeAllEnabled = opts.analyzeAllEnabled;
   const migrated = migrateLegacyToLepConfig(legacy);
 
-  if (!existsSync(lepPath)) {
+  // existsSync(lepPath) → write/read の check-then-use は js/file-system-race (TOCTOU) を
+  // 生むため、readFileSync を直接試行し ENOENT を「不在」とみなす (チェックと読みを 1 操作に統合)。
+  let lepContent: string | null = null;
+  try {
+    lepContent = readFileSync(lepPath, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      opts.logger?.warn(
+        `[LepConfig] 既存 lep.json の読み取りに失敗したため config.json を残します: ${lepPath}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return { migrated: false, lepPath };
+    }
+    // ENOENT → lep.json は不在。生成パスへ進む。
+  }
+
+  if (lepContent === null) {
     const full = mergeLepConfig(DEFAULT_LEP_CONFIG, migrated);
     mkdirSync(dirname(lepPath), { recursive: true });
     writeFileSync(lepPath, JSON.stringify(full, null, 2) + '\n', { encoding: 'utf-8' });
   } else {
     let lepRaw: unknown;
     try {
-      lepRaw = JSON.parse(readFileSync(lepPath, 'utf8'));
+      lepRaw = JSON.parse(lepContent);
     } catch (err) {
       opts.logger?.warn(
         `[LepConfig] 既存 lep.json のパースに失敗したため config.json を残します: ${lepPath}: ${
