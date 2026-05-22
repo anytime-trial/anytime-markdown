@@ -1,4 +1,5 @@
 import type { GraphEdge } from '../../types';
+import { buildAdjacency } from './graphUtils';
 import type { PhysicsBody } from './types';
 
 /** ルート中心の放射状レイアウト（非反復）。body 座標（左上）を破壊的に更新する。 */
@@ -11,16 +12,7 @@ export function computeRadialLayout(
   if (bodies.size === 0) return;
   const ids = Array.from(bodies.keys());
 
-  const undirected = new Map<string, Set<string>>();
-  const indeg = new Map<string, number>();
-  for (const id of ids) { undirected.set(id, new Set()); indeg.set(id, 0); }
-  for (const e of edges) {
-    const f = e.from.nodeId, t = e.to.nodeId;
-    if (!f || !t || !bodies.has(f) || !bodies.has(t) || f === t) continue;
-    undirected.get(f)!.add(t);
-    undirected.get(t)!.add(f);
-    indeg.set(t, (indeg.get(t) ?? 0) + 1);
-  }
+  const { undirected, indeg } = buildAdjacency(ids, edges, bodies);
 
   const pickRoot = (comp: string[]): string => {
     if (rootId && comp.includes(rootId)) return rootId;

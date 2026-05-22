@@ -15,11 +15,16 @@ function offsetAlongSide(pt: { side: Side; x: number; y: number }, side: Side, o
   return { ...pt, x: pt.x + offset };
 }
 
+/** 無向ペアキー（順序非依存） */
+function makePairKey(a: string, b: string): string {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
 /** フォースレイアウト中の高速パス: 中心間直線として変換 */
-function resolveLayoutRunningEdge(e: GraphEdge, nodes: readonly GraphNode[]): GraphEdge {
+function resolveLayoutRunningEdge(e: GraphEdge, nodeMap: Map<string, GraphNode>): GraphEdge {
   if (e.type === 'connector' && e.from.nodeId && e.to.nodeId) {
-    const fromNode = nodes.find((n) => n.id === e.from.nodeId);
-    const toNode = nodes.find((n) => n.id === e.to.nodeId);
+    const fromNode = nodeMap.get(e.from.nodeId);
+    const toNode = nodeMap.get(e.to.nodeId);
     if (fromNode && toNode) {
       return {
         ...e,
@@ -79,14 +84,16 @@ export function resolveEdgesForRender(
   edges: readonly GraphEdge[],
   options?: { layoutRunning?: boolean },
 ): GraphEdge[] {
+  const nodeMap = new Map<string, GraphNode>(nodes.map((n) => [n.id, n]));
+
   if (options?.layoutRunning) {
-    return edges.map((e) => resolveLayoutRunningEdge(e, nodes));
+    return edges.map((e) => resolveLayoutRunningEdge(e, nodeMap));
   }
 
   const pairTotalMap = new Map<string, number>();
   for (const e of edges) {
     if (e.type !== 'connector' || !e.from.nodeId || !e.to.nodeId) continue;
-    const k = [e.from.nodeId, e.to.nodeId].sort((a, b) => (a ?? '').localeCompare(b ?? '')).join(':');
+    const k = makePairKey(e.from.nodeId, e.to.nodeId);
     pairTotalMap.set(k, (pairTotalMap.get(k) ?? 0) + 1);
   }
   const pairCount = new Map<string, number>();
@@ -97,13 +104,13 @@ export function resolveEdgesForRender(
       const pts = resolveConnectorEndpoints(e, nodes);
       return { ...e, from: { ...e.from, ...pts.from }, to: { ...e.to, ...pts.to } };
     }
-    const fromNode = nodes.find((n) => n.id === e.from.nodeId);
-    const toNode = nodes.find((n) => n.id === e.to.nodeId);
+    const fromNode = nodeMap.get(e.from.nodeId);
+    const toNode = nodeMap.get(e.to.nodeId);
     if (!fromNode || !toNode) {
       const pts = resolveConnectorEndpoints(e, nodes);
       return { ...e, from: { ...e.from, ...pts.from }, to: { ...e.to, ...pts.to } };
     }
-    const pairKey = [e.from.nodeId, e.to.nodeId].sort((a, b) => (a ?? '').localeCompare(b ?? '')).join(':');
+    const pairKey = makePairKey(e.from.nodeId, e.to.nodeId);
     const parallelIndex = pairCount.get(pairKey) ?? 0;
     pairCount.set(pairKey, parallelIndex + 1);
     const pairTotal = pairTotalMap.get(pairKey) ?? 0;

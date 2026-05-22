@@ -1,4 +1,5 @@
 import type { GraphEdge } from '../../types';
+import { buildAdjacency } from './graphUtils';
 import type { PhysicsBody } from './types';
 import { computeHierarchicalLayout } from './hierarchical';
 
@@ -28,14 +29,7 @@ export function computeRootedTreeLayout(
   if (bodies.size === 0) return;
   const ids = Array.from(bodies.keys());
 
-  const undirected = new Map<string, Set<string>>();
-  for (const id of ids) undirected.set(id, new Set());
-  for (const e of edges) {
-    const f = e.from.nodeId, t = e.to.nodeId;
-    if (!f || !t || !bodies.has(f) || !bodies.has(t) || f === t) continue;
-    undirected.get(f)!.add(t);
-    undirected.get(t)!.add(f);
-  }
+  const { undirected } = buildAdjacency(ids, edges, bodies);
 
   const treeEdges: GraphEdge[] = [];
   const visited = new Set<string>();
