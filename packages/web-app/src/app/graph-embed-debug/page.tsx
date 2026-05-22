@@ -55,6 +55,7 @@ export default function GraphEmbedDebugPage() {
   const [layout, setLayout] = useState<LayoutMode>('radial');
   const [movable, setMovable] = useState(true);
   const [collapsible, setCollapsible] = useState(true);
+  const [minimap, setMinimap] = useState(true);
   const [ready, setReady] = useState(false);
 
   // Custom Element を登録して生成（client 限定。HTMLElement 継承のため SSR では評価しない）
@@ -69,6 +70,7 @@ export default function GraphEmbedDebugPage() {
       el.setAttribute('theme', themeMode);
       if (movable) el.setAttribute('movable-nodes', '');
       if (collapsible) el.setAttribute('collapsible', '');
+      if (minimap) el.setAttribute('minimap', '');
       el.style.width = '100%';
       el.style.height = '100%';
       el.addEventListener('node-click', onNodeClick);
@@ -108,6 +110,13 @@ export default function GraphEmbedDebugPage() {
     if (collapsible) el.setAttribute('collapsible', '');
     else el.removeAttribute('collapsible');
   }, [collapsible]);
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    if (minimap) el.setAttribute('minimap', '');
+    else el.removeAttribute('minimap');
+  }, [minimap]);
 
   const handleFit = useCallback(() => elRef.current?.fitToContent?.(), []);
 
@@ -154,6 +163,9 @@ export default function GraphEmbedDebugPage() {
           </Button>
           <Button variant={collapsible ? 'contained' : 'outlined'} size="small" onClick={() => setCollapsible((v) => !v)} disabled={!ready}>
             折りたたみ: {collapsible ? 'ON' : 'OFF'}
+          </Button>
+          <Button variant={minimap ? 'contained' : 'outlined'} size="small" onClick={() => setMinimap((v) => !v)} disabled={!ready}>
+            ミニマップ: {minimap ? 'ON' : 'OFF'}
           </Button>
           <Typography variant="body2" color="text.secondary">
             node-click: <code>{clicked}</code>
