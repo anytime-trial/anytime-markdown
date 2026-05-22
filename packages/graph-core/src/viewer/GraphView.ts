@@ -1,5 +1,5 @@
 import type { GraphDocument, GraphEdge, GraphNode, Viewport } from '../types';
-import { fitToContent as computeFit, hitTest, pan, render, resolveEdgesForRender, screenToWorld, worldToScreen, zoom } from '../engine/index';
+import { fitToContent as computeFit, getVisibleBounds, hitTest, pan, render, resolveEdgesForRender, screenToWorld, worldToScreen, zoom } from '../engine/index';
 import { getCanvasColors } from '../theme';
 
 export interface GraphViewOptions {
@@ -8,12 +8,18 @@ export interface GraphViewOptions {
   movableNodes?: boolean;
   /** 子を持つノードのクリックで枝を折りたたむ（マインドマップ風・既定 false） */
   collapsible?: boolean;
+  /** 全体俯瞰のミニマップを隅に表示する（既定 false） */
+  minimap?: boolean;
 }
 
 type NodeClickHandler = (nodeId: string) => void;
 
 const CLICK_MOVE_THRESHOLD = 4;
 const TOGGLE_RADIUS_CSS = 10;
+const MINIMAP_W_CSS = 180;
+const MINIMAP_H_CSS = 130;
+const MINIMAP_MARGIN_CSS = 12;
+const MINIMAP_PAD_CSS = 8;
 
 export class GraphView {
   private readonly canvas: HTMLCanvasElement;
@@ -32,12 +38,13 @@ export class GraphView {
   private userInteracted = false;
   private movableNodes: boolean;
   private collapsible: boolean;
+  private minimap: boolean;
   private edges: readonly GraphEdge[] = [];
   private selectedNodeId: string | null = null;
   private pressNodeId: string | null = null;
   private pressEndpointNodeId: string | null = null;
   private hoverToggleNodeId: string | null = null;
-  private dragMode: 'none' | 'pan' | 'node' = 'none';
+  private dragMode: 'none' | 'pan' | 'node' | 'minimap' = 'none';
   private readonly collapsed = new Set<string>();
   private readonly childrenMap = new Map<string, string[]>();
   private hidden = new Set<string>();
@@ -55,6 +62,7 @@ export class GraphView {
     this.isDark = (opts.theme ?? 'dark') === 'dark';
     this.movableNodes = opts.movableNodes ?? false;
     this.collapsible = opts.collapsible ?? false;
+    this.minimap = opts.minimap ?? false;
     this.canvas.addEventListener('pointerdown', this.onPointerDown);
     this.canvas.addEventListener('pointermove', this.onPointerMove);
     this.canvas.addEventListener('pointerup', this.onPointerUp);
@@ -110,6 +118,13 @@ export class GraphView {
       this.recomputeHidden();
       this.requestRender();
     }
+  }
+
+  /** ミニマップ表示を切り替える。 */
+  setMinimap(minimap: boolean): void {
+    if (minimap === this.minimap) return;
+    this.minimap = minimap;
+    this.requestRender();
   }
 
   fitToContent(): void {
@@ -274,6 +289,14 @@ export class GraphView {
     const p = this.toCanvasPoint(e.clientX, e.clientY);
     this.lastX = p.x;
     this.lastY = p.y;
+    if (this.pointInMinimap(p)) {
+      // ミニマップ上: クリック位置を主ビューの中心へパン（ノード操作はしない）
+      this.dragMode = 'minimap';
+      this.pressNodeId = null;
+      this.pressEndpointNodeId = null;
+      this.recenterFromMinimap(p);
+      return;
+    }
     const world = screenToWorld(this.viewport, p.x, p.y);
     // 折りたたみトグルボタンを優先判定（矩形本体より先）。ボタンなら折りたたみ対象とし、ノード選択はしない。
     this.pressEndpointNodeId = this.hitCollapseToggle(p);
@@ -292,6 +315,10 @@ export class GraphView {
     this.moved += Math.abs(dx) + Math.abs(dy);
     this.lastX = p.x;
     this.lastY = p.y;
+    if (this.dragMode === 'minimap') {
+      this.recenterFromMinimap(p);
+      return;
+    }
     if (this.dragMode === 'node' && this.pressNodeId) {
       this.moveNode(this.pressNodeId, dx / this.viewport.scale, dy / this.viewport.scale);
       this.selectedNodeId = this.pressNodeId;
@@ -307,11 +334,13 @@ export class GraphView {
     let id: string | null = null;
     if (this.collapsible) {
       const p = this.toCanvasPoint(e.clientX, e.clientY);
-      id = this.hitCollapseToggle(p);
-      if (!id) {
-        const world = screenToWorld(this.viewport, p.x, p.y);
-        const n = this.hitNodeAtWorld(world);
-        if (n && this.childrenMap.get(n)?.length) id = n;
+      if (!this.pointInMinimap(p)) {
+        id = this.hitCollapseToggle(p);
+        if (!id) {
+          const world = screenToWorld(this.viewport, p.x, p.y);
+          const n = this.hitNodeAtWorld(world);
+          if (n && this.childrenMap.get(n)?.length) id = n;
+        }
       }
     }
     if (id !== this.hoverToggleNodeId) {
@@ -330,8 +359,9 @@ export class GraphView {
   private handlePointerUp(): void {
     this.dragging = false;
     const wasClick = this.moved <= CLICK_MOVE_THRESHOLD;
+    const wasMinimap = this.dragMode === 'minimap';
     this.dragMode = 'none';
-    if (wasClick) {
+    if (!wasMinimap && wasClick) {
       if (this.pressEndpointNodeId) {
         // コネクタ端点クリック: 枝を折りたたむ/展開する（node-click は出さない）
         this.toggleCollapse(this.pressEndpointNodeId);
@@ -382,6 +412,86 @@ export class GraphView {
       isDark: this.isDark,
     });
     this.drawCollapseToggles();
+    this.drawMinimap();
+  }
+
+  /** ミニマップの矩形（backing px・右下）。 */
+  private minimapRect(): { x: number; y: number; w: number; h: number } {
+    const d = this.deviceScale();
+    const w = MINIMAP_W_CSS * d;
+    const h = MINIMAP_H_CSS * d;
+    const m = MINIMAP_MARGIN_CSS * d;
+    return { x: this.canvas.width - w - m, y: this.canvas.height - h - m, w, h };
+  }
+
+  /** 可視ノードのコンテンツ境界 → ミニマップ矩形への変換（s 倍 + ox/oy 平行移動）。 */
+  private minimapTransform(box: { x: number; y: number; w: number; h: number }): { s: number; ox: number; oy: number } | null {
+    const b = this.contentBounds();
+    if (!b) return null;
+    const pad = MINIMAP_PAD_CSS * this.deviceScale();
+    const cw = (b.maxX - b.minX) || 1;
+    const ch = (b.maxY - b.minY) || 1;
+    const innerW = Math.max(1, box.w - pad * 2);
+    const innerH = Math.max(1, box.h - pad * 2);
+    const s = Math.min(innerW / cw, innerH / ch);
+    const ox = box.x + (box.w - cw * s) / 2 - b.minX * s;
+    const oy = box.y + (box.h - ch * s) / 2 - b.minY * s;
+    return { s, ox, oy };
+  }
+
+  private pointInMinimap(p: { x: number; y: number }): boolean {
+    if (!this.minimap) return false;
+    const b = this.minimapRect();
+    return p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
+  }
+
+  /** ミニマップ上の点（backing px）を主ビューの中心に合わせるようパンする。 */
+  private recenterFromMinimap(p: { x: number; y: number }): void {
+    const box = this.minimapRect();
+    const t = this.minimapTransform(box);
+    if (!t) return;
+    const wx = (p.x - t.ox) / t.s;
+    const wy = (p.y - t.oy) / t.s;
+    this.viewport = {
+      ...this.viewport,
+      offsetX: this.canvas.width / 2 - wx * this.viewport.scale,
+      offsetY: this.canvas.height / 2 - wy * this.viewport.scale,
+    };
+    this.userInteracted = true;
+    this.requestRender();
+  }
+
+  /** 全体俯瞰のミニマップを右下に描画する。screen(backing) px。 */
+  private drawMinimap(): void {
+    if (!this.minimap) return;
+    const box = this.minimapRect();
+    const t = this.minimapTransform(box);
+    if (!t) return;
+    const colors = getCanvasColors(this.isDark);
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = colors.panelBg;
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = colors.panelBorder;
+    ctx.strokeRect(box.x, box.y, box.w, box.h);
+    ctx.beginPath();
+    ctx.rect(box.x, box.y, box.w, box.h);
+    ctx.clip();
+    // ノード
+    ctx.fillStyle = colors.accentColor;
+    for (const n of this.nodes) {
+      if (this.hidden.has(n.id)) continue;
+      ctx.fillRect(n.x * t.s + t.ox, n.y * t.s + t.oy, Math.max(1, n.width * t.s), Math.max(1, n.height * t.s));
+    }
+    // 現在の表示範囲
+    const vb = getVisibleBounds(this.viewport, this.canvas.width, this.canvas.height, 0);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = colors.canvasSelection;
+    ctx.strokeRect(vb.minX * t.s + t.ox, vb.minY * t.s + t.oy, (vb.maxX - vb.minX) * t.s, (vb.maxY - vb.minY) * t.s);
+    ctx.restore();
   }
 
   /** ホバー中ノードの折りたたみトグル（−=展開中/＋=折りたたみ中）をコネクタ起点に描画する。screen(backing) px。 */

@@ -4,7 +4,7 @@ import type { GraphInput, NodeClickDetail } from './types';
 
 export class AnytimeGraphElement extends HTMLElement {
   static get observedAttributes(): string[] {
-    return ['theme', 'movable-nodes', 'collapsible'];
+    return ['theme', 'movable-nodes', 'collapsible', 'minimap'];
   }
 
   private view: GraphView | null = null;
@@ -27,6 +27,7 @@ export class AnytimeGraphElement extends HTMLElement {
       theme: this.currentTheme(),
       movableNodes: this.hasAttribute('movable-nodes'),
       collapsible: this.hasAttribute('collapsible'),
+      minimap: this.hasAttribute('minimap'),
     });
     this.view.on('nodeClick', (id) => this.emitNodeClick(id));
 
@@ -54,6 +55,8 @@ export class AnytimeGraphElement extends HTMLElement {
       this.view?.setMovableNodes(this.hasAttribute('movable-nodes'));
     } else if (name === 'collapsible') {
       this.view?.setCollapsible(this.hasAttribute('collapsible'));
+    } else if (name === 'minimap') {
+      this.view?.setMinimap(this.hasAttribute('minimap'));
     }
   }
 
