@@ -160,11 +160,6 @@
           "default": "",
           "markdownDescription": "解析対象ワークスペースの絶対パス。Code Graph と C4 Model 両方の解析で使用される。空欄の場合は現在 VS Code で開いているワークスペースを使用する。"
         },
-        "anytimeTrail.workspace.docsPath": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "Absolute path to the documentation directory for C4 document links. When set, Markdown files with `c4Scope` frontmatter are indexed and shown in the C4 viewer."
-        },
         "anytimeTrail.viewer.port": {
           "type": "number",
           "default": 19841,
@@ -174,11 +169,6 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "%config.daemon.useExternalDaemon%"
-        },
-        "anytimeTrail.database.storagePath": {
-          "type": "string",
-          "default": ".anytime/trail/db",
-          "markdownDescription": "%config.database.storagePath%"
         },
         "anytimeTrail.analyzeAll.enabled": {
           "type": "boolean",

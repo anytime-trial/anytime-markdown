@@ -97,6 +97,11 @@
     "configuration": {
       "title": "%displayName%",
       "properties": {
+        "anytimeDatabase.storagePath": {
+          "type": "string",
+          "default": ".anytime/trail/db",
+          "markdownDescription": "%config.storagePath%"
+        },
         "anytimeDatabase.openMode": {
           "type": "string",
           "enum": ["readwrite", "readonly"],

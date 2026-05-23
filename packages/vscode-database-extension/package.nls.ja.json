@@ -7,6 +7,7 @@
   "command.reconnectSupabase": "再接続",
   "command.restoreBackup": "Trail DB をバックアップから復元",
   "customEditor.displayName": "Anytime Database",
+  "config.storagePath": "`trail.db` の保存ディレクトリ。絶対パスまたはワークスペースルートからの相対パス。デフォルトは `.anytime/trail/db`。trail 側 (`lep.json` の `database.storagePath`) と揃えてください。",
   "config.openMode.title": "オープンモード",
   "config.openMode.description": "SQLite ファイルを開くモード。readwrite は書き込み SQL と dirty/save UX を許可、readonly は OPEN_READONLY で開き書込を拒否する。",
   "config.queryMaxRows.title": "クエリ最大行数",

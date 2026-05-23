@@ -7,6 +7,7 @@
   "command.reconnectSupabase": "Reconnect",
   "command.restoreBackup": "Restore Trail DB from Backup",
   "customEditor.displayName": "Anytime Database",
+  "config.storagePath": "Directory where `trail.db` is stored. Absolute path or relative to workspace root. Defaults to `.anytime/trail/db`. Keep this aligned with the trail side (`database.storagePath` in `lep.json`).",
   "config.openMode.title": "Open Mode",
   "config.openMode.description": "How to open SQLite files. 'readwrite' allows write SQL and dirty/save UX. 'readonly' opens with OPEN_READONLY and rejects mutations.",
   "config.queryMaxRows.title": "Query Max Rows",
