@@ -8,21 +8,21 @@ export interface ResolvedRepo {
 }
 
 export interface ResolveWatchedReposOpts {
-  /** anytimeTrail.workspace.path 設定値（未設定時 undefined） */
-  readonly workspacePath: string | undefined;
-  /** vscode.workspace.workspaceFolders[0].uri.fsPath（未開時 undefined） */
-  readonly workspaceFolder: string | undefined;
-  /** ファイルアクセスを差し替え可能にする（テスト用） */
+  /** lep.json の gitRoots（拡張・デーモン共通の監視対象リポジトリ群）。 */
+  readonly gitRoots: readonly string[];
+  /**
+   * anytimeTrail.workspace.path（拡張のみ追加する主リポジトリ。未設定時 undefined）。
+   * デーモンは gitRoots のみで解決するため undefined を渡す。
+   */
+  readonly workspacePath?: string;
+  /** 存在確認を差し替え可能にする（テスト用）。 */
   readonly fsLike?: {
     readonly existsSync: (p: string) => boolean;
-    readonly readFileSync: (p: string, encoding: 'utf-8') => string;
   };
-  /** git working tree 判定を差し替え可能にする（テスト用） */
+  /** git working tree 判定を差し替え可能にする（テスト用）。 */
   readonly isGitWorkingTree?: (cwd: string) => boolean;
   readonly logger?: { readonly warn: (msg: string) => void };
 }
-
-const HISTORY_FILE_REL = path.join('.anytime', 'anytime-history.json');
 
 const defaultIsGitWorkingTree = (cwd: string): boolean => {
   try {
@@ -42,48 +42,30 @@ const defaultIsGitWorkingTree = (cwd: string): boolean => {
  * 監視対象 repo を解決する。
  *
  * 入力:
- * - `workspacePath` (anytimeTrail.workspace.path)
- * - `<workspaceFolder>/.anytime/anytime-history.json` の `specDocsRoots`
+ * - `gitRoots`: lep.json の `gitRoots`（拡張・デーモン共通）
+ * - `workspacePath`: anytimeTrail.workspace.path（拡張のみ追加する主リポジトリ）
  *
- * 重複は path.resolve で正規化したのち除外。git working tree でないパスは warn してスキップ。
+ * `gitRoots` を先頭に積んだ上で `workspacePath` を追加する。空文字は除外し、
+ * path.resolve で正規化したのち重複を排除する（先勝ち。`workspacePath` が
+ * `gitRoots` 内の値と重複しても `gitRoots` 側の順序を維持する）。
+ * 存在しない / git working tree でないパスは warn してスキップする。
  * `repoName` は `path.basename(gitRoot)`。
  */
 export function resolveWatchedRepos(opts: ResolveWatchedReposOpts): ResolvedRepo[] {
-  const fsLike = opts.fsLike ?? { existsSync: fs.existsSync, readFileSync: fs.readFileSync as (p: string, e: 'utf-8') => string };
+  const fsLike = opts.fsLike ?? { existsSync: fs.existsSync };
   const isGit = opts.isGitWorkingTree ?? defaultIsGitWorkingTree;
   const logger = opts.logger ?? { warn: () => { /* noop */ } };
 
-  const candidates: string[] = [];
-
-  if (opts.workspacePath && opts.workspacePath.trim() !== '') {
+  const candidates: string[] = [...opts.gitRoots];
+  if (opts.workspacePath) {
     candidates.push(opts.workspacePath);
   }
 
-  if (opts.workspaceFolder) {
-    const historyFile = path.join(opts.workspaceFolder, HISTORY_FILE_REL);
-    if (fsLike.existsSync(historyFile)) {
-      try {
-        const raw = fsLike.readFileSync(historyFile, 'utf-8');
-        const parsed = JSON.parse(raw) as { specDocsRoots?: unknown };
-        if (Array.isArray(parsed.specDocsRoots)) {
-          for (const entry of parsed.specDocsRoots) {
-            if (typeof entry === 'string' && entry.trim() !== '') {
-              candidates.push(entry);
-            }
-          }
-        }
-      } catch (e) {
-        logger.warn(
-          `[resolveWatchedRepos] failed to parse ${historyFile}: ${e instanceof Error ? e.message : String(e)}. Falling back to workspace.path only.`,
-        );
-      }
-    }
-  }
-
-  // 正規化と重複排除
+  // 正規化と重複排除（空文字は除外）
   const seen = new Set<string>();
   const unique: string[] = [];
   for (const c of candidates) {
+    if (typeof c !== 'string' || c.trim() === '') continue;
     const normalized = path.resolve(c);
     if (seen.has(normalized)) continue;
     seen.add(normalized);

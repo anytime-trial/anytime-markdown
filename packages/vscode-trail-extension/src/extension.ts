@@ -59,14 +59,14 @@ function getEffectiveWorkspacePath(): string | undefined {
 
 /**
  * commit 監視対象 repo を解決する。
- * - anytimeTrail.workspace.path（主リポジトリ）
- * - <workspaceFolder>/.anytime/anytime-history.json の specDocsRoots（history 拡張が管理）
+ * - lep.json の gitRoots（拡張・デーモン共通の監視対象）
+ * - anytimeTrail.workspace.path（拡張のみ追加する主リポジトリ）
  * の union を、git working tree 検証してから返す。
  */
-function getWatchedGitRoots(): string[] {
+function getWatchedGitRoots(lepGitRoots: readonly string[]): string[] {
 	const resolved = resolveWatchedRepos({
+		gitRoots: lepGitRoots,
 		workspacePath: getEffectiveWorkspacePath(),
-		workspaceFolder: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
 		logger: { warn: (msg) => TrailLogger.warn(msg) },
 	});
 	return resolved.map((r) => r.gitRoot);
@@ -683,7 +683,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				logSink: memoryCoreOutputChannel,
 				gitRoot: wsRootForDb,
 				trailDb,
-				gitRoots: getWatchedGitRoots(),
+				gitRoots: getWatchedGitRoots(lepConfig.gitRoots),
 				memoryCoreService: memoryCoreService ?? undefined,
 				stage: lepStage,
 				// Wave 3 前 LLM Pre-flight。Ollama 不在時は LLM 依存 analyzer のみ skip し、
