@@ -170,9 +170,9 @@ export const CREATE_CURRENT_GRAPHS = `CREATE TABLE IF NOT EXISTS current_graphs 
   updated_at    TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;
 
+// Phase B-2b-iii flip: release_id を FK / PK にする。tag 列は廃止し releases.release_id を直接参照する。
 export const CREATE_RELEASE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_graphs (
-  tag           TEXT PRIMARY KEY REFERENCES releases(tag) ON DELETE CASCADE,
-  release_id    INTEGER,
+  release_id    INTEGER PRIMARY KEY REFERENCES releases(release_id) ON DELETE CASCADE,
   graph_json    TEXT NOT NULL CHECK (json_valid(graph_json)),
   tsconfig_path TEXT NOT NULL,
   project_root  TEXT NOT NULL,
@@ -195,13 +195,16 @@ SELECT
   ) AS recommended_model
 FROM skill_models s`;
 
+// Phase B-2b-iii flip: PK を tag → release_id 代理キーへ。tag は repo 内で一意な
+// 表示キーとして残し UNIQUE (repo_id, tag) で保証する。prev_tag は prev_release_id へ。
+// repo_name 列は移行互換のため残す (撤去は将来 Phase H)。
 export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
-  tag TEXT PRIMARY KEY,
+  release_id INTEGER PRIMARY KEY,
+  tag TEXT NOT NULL,
   released_at TEXT CHECK (released_at IS NULL OR released_at = '' OR released_at GLOB ${TS_GLOB_MS} OR released_at GLOB ${TS_GLOB_NO_MS}),
-  prev_tag TEXT REFERENCES releases(tag) ON DELETE SET NULL,
+  prev_release_id INTEGER REFERENCES releases(release_id) ON DELETE SET NULL,
   repo_name TEXT NOT NULL DEFAULT '',
   repo_id INTEGER REFERENCES repos(repo_id) ON DELETE SET NULL,
-  release_id INTEGER,
   package_tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(package_tags)),
   commit_count INTEGER NOT NULL DEFAULT 0,
   files_changed INTEGER NOT NULL DEFAULT 0,
@@ -216,23 +219,22 @@ export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
   affected_packages TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(affected_packages)),
   duration_days REAL NOT NULL DEFAULT 0,
   resolved_at TEXT CHECK (resolved_at IS NULL OR resolved_at = '' OR resolved_at GLOB ${TS_GLOB_MS} OR resolved_at GLOB ${TS_GLOB_NO_MS}),
-  release_time_min REAL
+  release_time_min REAL,
+  UNIQUE (repo_id, tag)
 ) STRICT`;
 
 export const CREATE_RELEASE_FILES = `CREATE TABLE IF NOT EXISTS release_files (
-  release_tag TEXT NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
-  release_id INTEGER,
+  release_id INTEGER NOT NULL REFERENCES releases(release_id) ON DELETE CASCADE,
   file_path TEXT NOT NULL,
   lines_added INTEGER NOT NULL DEFAULT 0,
   lines_deleted INTEGER NOT NULL DEFAULT 0,
   change_type TEXT NOT NULL DEFAULT 'modified'
     CHECK (change_type IN ('added', 'modified', 'deleted', 'renamed', 'copied')),
-  PRIMARY KEY (release_tag, file_path)
+  PRIMARY KEY (release_id, file_path)
 ) STRICT`;
 
 export const CREATE_RELEASE_COVERAGE = `CREATE TABLE IF NOT EXISTS release_coverage (
-  release_tag        TEXT    NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
-  release_id         INTEGER,
+  release_id         INTEGER NOT NULL REFERENCES releases(release_id) ON DELETE CASCADE,
   package            TEXT    NOT NULL,
   file_path          TEXT    NOT NULL,
   lines_total        INTEGER NOT NULL DEFAULT 0,
@@ -247,7 +249,7 @@ export const CREATE_RELEASE_COVERAGE = `CREATE TABLE IF NOT EXISTS release_cover
   branches_total     INTEGER NOT NULL DEFAULT 0,
   branches_covered   INTEGER NOT NULL DEFAULT 0,
   branches_pct       REAL    NOT NULL DEFAULT 0,
-  PRIMARY KEY (release_tag, package, file_path)
+  PRIMARY KEY (release_id, package, file_path)
 ) STRICT`;
 
 export const CREATE_CURRENT_COVERAGE = `CREATE TABLE IF NOT EXISTS current_coverage (
@@ -337,8 +339,7 @@ export const CREATE_CURRENT_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS current_co
 ) STRICT`;
 
 export const CREATE_RELEASE_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_code_graphs (
-  release_tag  TEXT PRIMARY KEY REFERENCES releases(tag) ON DELETE CASCADE,
-  release_id   INTEGER,
+  release_id   INTEGER PRIMARY KEY REFERENCES releases(release_id) ON DELETE CASCADE,
   graph_json   TEXT NOT NULL CHECK (json_valid(graph_json)),
   generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
   updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
@@ -357,8 +358,7 @@ export const CREATE_CURRENT_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS
 ) STRICT`;
 
 export const CREATE_RELEASE_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS release_code_graph_communities (
-  release_tag  TEXT    NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
-  release_id   INTEGER,
+  release_id   INTEGER NOT NULL REFERENCES releases(release_id) ON DELETE CASCADE,
   community_id INTEGER NOT NULL,
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
@@ -366,7 +366,7 @@ export const CREATE_RELEASE_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS
   stable_key   TEXT    NOT NULL DEFAULT '',
   generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
   updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (release_tag, community_id)
+  PRIMARY KEY (release_id, community_id)
 ) STRICT`;
 
 // ---------------------------------------------------------------------------
@@ -401,8 +401,7 @@ export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_
 ) STRICT`;
 
 export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_file_analysis (
-  release_tag                TEXT NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
-  release_id                 INTEGER,
+  release_id                 INTEGER NOT NULL REFERENCES releases(release_id) ON DELETE CASCADE,
   repo_name                  TEXT NOT NULL,
   file_path                  TEXT NOT NULL,
   importance_score           REAL    NOT NULL DEFAULT 0,
@@ -426,7 +425,7 @@ export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_
   centrality_score       REAL    NOT NULL DEFAULT 0,
   category                   TEXT NOT NULL DEFAULT 'logic' CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (release_tag, repo_name, file_path)
+  PRIMARY KEY (release_id, repo_name, file_path)
 ) STRICT`;
 
 export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_function_analysis (
@@ -452,8 +451,7 @@ export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS curr
 ) STRICT`;
 
 export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_function_analysis (
-  release_tag            TEXT NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
-  release_id             INTEGER,
+  release_id             INTEGER NOT NULL REFERENCES releases(release_id) ON DELETE CASCADE,
   repo_name              TEXT NOT NULL,
   file_path              TEXT NOT NULL,
   function_name          TEXT NOT NULL,
@@ -472,7 +470,7 @@ export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS rele
   distinct_callees INTEGER NOT NULL DEFAULT 0,
   function_role    TEXT NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (release_tag, repo_name, file_path, function_name, start_line)
+  PRIMARY KEY (release_id, repo_name, file_path, function_name, start_line)
 ) STRICT`;
 
 export const CREATE_FILE_ANALYSIS_INDEXES = [

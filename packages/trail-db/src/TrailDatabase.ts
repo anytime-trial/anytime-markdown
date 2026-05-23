@@ -179,6 +179,18 @@ function columnExists(db: Database, table: string, column: string): boolean {
   return cols.some((c) => String(c[1]) === column);
 }
 
+// Phase B-2b-iii flip: release 子テーブル名 → 新スキーマ DDL の対応表。
+// migrateReleasesFlip の 12-step 再構築で `<table>__new` を作る際に使う。
+const RELEASE_CHILD_DDL: Readonly<Record<string, string>> = {
+  release_graphs: CREATE_RELEASE_GRAPHS,
+  release_files: CREATE_RELEASE_FILES,
+  release_coverage: CREATE_RELEASE_COVERAGE,
+  release_code_graphs: CREATE_RELEASE_CODE_GRAPHS,
+  release_code_graph_communities: CREATE_RELEASE_CODE_GRAPH_COMMUNITIES,
+  release_file_analysis: CREATE_RELEASE_FILE_ANALYSIS,
+  release_function_analysis: CREATE_RELEASE_FUNCTION_ANALYSIS,
+};
+
 /**
  * `*_code_graph_communities` テーブルに `stable_key` 列が無ければ ALTER で追加する。
  * 起動時マイグレーションのため、`saveCurrentCodeGraph` / `saveReleaseCodeGraph` / `upsert*` の
@@ -1803,6 +1815,204 @@ export class TrailDatabase {
   }
 
   /**
+   * tag から releases.release_id を引く (代理キー解決・Phase B-2b-iii flip 後の write/filter 用)。
+   * 未知 tag は null。flip 後は子テーブルの FK は release_id なので、tag を受ける外部 API は
+   * 必ずこのヘルパで release_id へ変換してから子テーブルへ書き込む / フィルタする。
+   */
+  private releaseIdForTag(db: Database, tag: string): number | null {
+    const res = db.exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
+    const id = res[0]?.values?.[0]?.[0];
+    return id == null ? null : Number(id);
+  }
+
+  // Phase B-2b-iii flip 対象の release 子テーブルと、旧スキーマでの FK 列名。
+  // release_graphs / release_code_graphs は旧 PK が tag / release_tag だった。
+  private static readonly RELEASE_CHILD_FLIP: ReadonlyArray<{ table: string; oldTagCol: string }> = [
+    { table: 'release_graphs', oldTagCol: 'tag' },
+    { table: 'release_files', oldTagCol: 'release_tag' },
+    { table: 'release_coverage', oldTagCol: 'release_tag' },
+    { table: 'release_code_graphs', oldTagCol: 'release_tag' },
+    { table: 'release_code_graph_communities', oldTagCol: 'release_tag' },
+    { table: 'release_file_analysis', oldTagCol: 'release_tag' },
+    { table: 'release_function_analysis', oldTagCol: 'release_tag' },
+  ];
+
+  /**
+   * Phase B-2b-iii flip: 既存 DB の releases を代理キー (release_id PRIMARY KEY) 化し、
+   * 子 7 テーブルの FK を tag/release_tag → release_id へ張替える破壊的マイグレーション。
+   *
+   * `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
+   * - CREATE_RELEASES 実行前に呼ぶ (CREATE TABLE IF NOT EXISTS は既存テーブルへ無効なため)。
+   * - 新規 DB (releases 不在) は no-op。CREATE_* が新スキーマを直接作る。
+   * - 既に flip 済 (releases に prev_tag 無し かつ 全子に release_tag/tag 無し) なら no-op (冪等)。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * backfill 済の release_id / repo_id を使うが、念のため migration 内でも release_id を rowid から、
+   * 子の release_id を旧 tag 列経由で補完してから新テーブルへ INSERT...SELECT する。
+   * prev_release_id は旧 prev_tag → releases.release_id で解決する。
+   */
+  private migrateReleasesFlip(db: Database): void {
+    // releases が無ければ新規 DB。CREATE_* が新スキーマを作るので何もしない。
+    const releasesExists =
+      db.exec("SELECT 1 FROM sqlite_master WHERE type='table' AND name='releases'")[0]?.values
+        ?.length;
+    if (!releasesExists) return;
+
+    const releasesNeedsFlip = columnExists(db, 'releases', 'prev_tag');
+    const childNeedsFlip = TrailDatabase.RELEASE_CHILD_FLIP.some(
+      ({ table, oldTagCol }) =>
+        db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+          ?.length && columnExists(db, table, oldTagCol),
+    );
+    if (!releasesNeedsFlip && !childNeedsFlip) return; // 既に flip 済 (冪等)
+
+    try {
+      // ── pre: backfill を保証 (init の additive backfill が未走でも flip 可能にする) ──
+      if (releasesNeedsFlip) {
+        if (!columnExists(db, 'releases', 'repo_id')) {
+          db.run('ALTER TABLE releases ADD COLUMN repo_id INTEGER');
+        }
+        if (!columnExists(db, 'releases', 'release_id')) {
+          db.run('ALTER TABLE releases ADD COLUMN release_id INTEGER');
+        }
+        db.run('UPDATE releases SET release_id = rowid WHERE release_id IS NULL');
+        db.run(
+          `UPDATE releases
+             SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = releases.repo_name)
+           WHERE repo_id IS NULL`,
+        );
+      }
+      for (const { table, oldTagCol } of TrailDatabase.RELEASE_CHILD_FLIP) {
+        const tExists =
+          db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+            ?.length;
+        if (!tExists) continue;
+        if (!columnExists(db, table, oldTagCol)) continue; // 旧列が無い (= 既に flip 済) なら skip
+        if (!columnExists(db, table, 'release_id')) {
+          db.run(`ALTER TABLE "${table}" ADD COLUMN release_id INTEGER`);
+        }
+        // 旧 tag 列 → releases.release_id で release_id を補完。
+        // releases 側が旧スキーマ (release_id 列追加直後) でも上で backfill 済。
+        db.run(
+          `UPDATE "${table}"
+             SET release_id = (SELECT r.release_id FROM releases r WHERE r.tag = "${table}"."${oldTagCol}")
+           WHERE release_id IS NULL`,
+        );
+      }
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        // 親 (releases) を先に再構築する。子は FK OFF なので順序依存は無いが、
+        // prev_release_id 解決のため新 releases を先に作る。
+        if (releasesNeedsFlip) {
+          this.rebuildReleasesTableForFlip(db);
+        }
+        for (const { table, oldTagCol } of TrailDatabase.RELEASE_CHILD_FLIP) {
+          const tExists =
+            db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+              ?.length;
+          if (!tExists) continue;
+          if (!columnExists(db, table, oldTagCol)) continue;
+          this.rebuildReleaseChildForFlip(db, table);
+        }
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error('migrateReleasesFlip failed', e instanceof Error ? e : new Error(String(e)));
+      throw e;
+    }
+  }
+
+  /** flip: releases を新スキーマ (release_id PK) へ 12-step 再構築する。 */
+  private rebuildReleasesTableForFlip(db: Database): void {
+    db.run('DROP TABLE IF EXISTS releases__new');
+    db.run(CREATE_RELEASES.replace('CREATE TABLE IF NOT EXISTS releases', 'CREATE TABLE releases__new'));
+    // 新スキーマの列のうち、旧テーブルにも存在する列を共有列としてコピーする。
+    const newCols = (db.exec('PRAGMA table_info(releases__new)')[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec('PRAGMA table_info(releases)')[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    // prev_release_id は旧 prev_tag → releases.release_id で解決する派生列。
+    const sharedCols = newCols.filter((c) => c !== 'prev_release_id' && oldCols.has(c));
+    const selectExprs = sharedCols.slice();
+    let insertCols = sharedCols.slice();
+    if (oldCols.has('prev_tag')) {
+      insertCols = [...sharedCols, 'prev_release_id'];
+      selectExprs.push(
+        '(SELECT p.release_id FROM releases p WHERE p.tag = releases.prev_tag) AS prev_release_id',
+      );
+    }
+    db.run(
+      `INSERT INTO releases__new (${insertCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${selectExprs.map((e) => (e.includes(' AS ') ? e : `"${e}"`)).join(',')} FROM releases`,
+    );
+    db.run('DROP TABLE releases');
+    db.run('ALTER TABLE releases__new RENAME TO releases');
+  }
+
+  /** flip: release 子テーブルを新スキーマ (release_id FK) へ 12-step 再構築する。 */
+  private rebuildReleaseChildForFlip(db: Database, table: string): void {
+    const ddl = RELEASE_CHILD_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[flip] no DDL registered for child table ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    const sharedCols = newCols.filter((c) => oldCols.has(c));
+    // release_id が共有列に含まれない場合は旧 tag 列で解決できなかった (= 不整合) ので abort。
+    if (!sharedCols.includes('release_id')) {
+      this.logger.warn(`[flip] ${table}: release_id missing after backfill, dropping table to rebuild empty`);
+    }
+    // release_id IS NULL の行 (旧 tag が releases に無い orphan) は新テーブルの NOT NULL を満たさないため除外。
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE release_id IS NOT NULL`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
+  /**
    * 既存 DB の releases に repo_id 列が無ければ追加する (Phase B step1・非破壊)。
    * 新規 DB は CREATE_RELEASES に repo_id を含むため no-op。FK は init で off のため
    * ALTER では REFERENCES を付けず plain INTEGER とする (既存挙動と整合)。
@@ -1847,11 +2057,16 @@ export class TrailDatabase {
 
   /**
    * release 子テーブルへ release_id 列を追加し、tag 列経由で releases.release_id を
-   * backfill する (Phase B-2b-i・additive/非破壊・冪等)。FK 張替・PK flip は後続。
+   * backfill する (Phase B-2b-i・additive/非破壊・冪等)。
+   *
+   * Phase B-2b-iii flip 後は子テーブルに旧 tag 列 (tag / release_tag) が存在しないため、
+   * 該当テーブルは backfill 対象外として skip する (release_id は FK で既に充足済み)。
    */
   private migrateReleaseChildrenReleaseId(db: Database): void {
     for (const { table, tagCol } of TrailDatabase.RELEASE_CHILD_TABLES) {
       try {
+        // flip 済テーブルは旧 tag 列が無い → backfill 不要 (release_id が FK)。
+        if (!columnExists(db, table, tagCol)) continue;
         if (!columnExists(db, table, 'release_id')) {
           db.run(`ALTER TABLE "${table}" ADD COLUMN release_id INTEGER`);
         }
@@ -1924,6 +2139,11 @@ export class TrailDatabase {
     db.run(CREATE_DAILY_COUNTS);
     db.run(CREATE_MESSAGES);
     db.run(CREATE_SESSION_COMMITS);
+    // Phase B-2b-iii flip: 既存 DB の releases + 子 7 を代理キー (release_id) スキーマへ再構築する。
+    // CREATE TABLE IF NOT EXISTS は既存テーブルに無効なため、CREATE_RELEASES 実行前に呼ぶ。
+    // 新規 DB / flip 済 DB では no-op。子テーブル (release_code_graph_communities 等) も
+    // ここで rebuild するため、それらの CREATE 文より前に実行する。
+    this.migrateReleasesFlip(db);
     db.run(CREATE_RELEASES);
     db.run(CREATE_RELEASE_FILES);
     db.run(CREATE_RELEASE_COVERAGE);
@@ -2743,12 +2963,18 @@ export class TrailDatabase {
           orphans.push(tag);
           continue;
         }
+        // flip 後 release_graphs は release_id PK。tag を release_id へ解決して保存する。
+        const releaseId = this.releaseIdForTag(db, tag);
+        if (releaseId == null) {
+          orphans.push(tag);
+          continue;
+        }
         db.run(
           `INSERT OR REPLACE INTO release_graphs
-             (tag, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+             (release_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?)`,
           [
-            tag,
+            releaseId,
             asText(row[1] ?? ''),
             asText(row[2] ?? ''),
             asText(row[3] ?? ''),
@@ -4926,12 +5152,18 @@ export class TrailDatabase {
 
   saveReleaseGraph(graph: TrailGraph, tsconfigPath: string, tag: string): void {
     const db = this.ensureDb();
+    // flip 後 release_graphs は release_id PK。tag を解決してから保存する。
+    const releaseId = this.releaseIdForTag(db, tag);
+    if (releaseId == null) {
+      this.logger.warn(`[saveReleaseGraph] no release for tag=${tag}, skip`);
+      return;
+    }
     db.run(
       `INSERT OR REPLACE INTO release_graphs
-         (tag, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+         (release_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
        VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
       [
-        tag,
+        releaseId,
         JSON.stringify(graph),
         tsconfigPath,
         graph.metadata.projectRoot,
@@ -4944,7 +5176,9 @@ export class TrailDatabase {
   getReleaseGraph(tag: string): TrailGraph | null {
     const db = this.ensureDb();
     const result = db.exec(
-      'SELECT graph_json FROM release_graphs WHERE tag = ?',
+      `SELECT rg.graph_json FROM release_graphs rg
+        JOIN releases r ON r.release_id = rg.release_id
+       WHERE r.tag = ?`,
       [tag],
     );
     const json = result[0]?.values?.[0]?.[0];
@@ -5151,7 +5385,12 @@ export class TrailDatabase {
 
   getAllReleaseCodeGraphRaws(): Array<{ release_tag: string; graph_json: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
-    const result = db.exec('SELECT release_tag, graph_json, generated_at, updated_at FROM release_code_graphs');
+    // flip 後は release_id FK。Supabase 同期は tag キーのため releases へ JOIN して tag を供給する。
+    const result = db.exec(
+      `SELECT r.tag, rcg.graph_json, rcg.generated_at, rcg.updated_at
+         FROM release_code_graphs rcg
+         JOIN releases r ON r.release_id = rcg.release_id`,
+    );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
       release_tag: asText(r[0] ?? ''),
@@ -5164,9 +5403,12 @@ export class TrailDatabase {
   getAllReleaseCodeGraphCommunityRaws(): Array<{ release_tag: string; community_id: number; label: string; name: string; summary: string; stable_key: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
     const hasStableKey = columnExists(db, 'release_code_graph_communities', 'stable_key');
+    // flip 後は release_id FK。Supabase 同期は tag キーのため releases へ JOIN して tag を供給する。
     const sql = hasStableKey
-      ? 'SELECT release_tag, community_id, label, name, summary, stable_key, generated_at, updated_at FROM release_code_graph_communities'
-      : 'SELECT release_tag, community_id, label, name, summary, generated_at, updated_at FROM release_code_graph_communities';
+      ? `SELECT r.tag, rcgc.community_id, rcgc.label, rcgc.name, rcgc.summary, rcgc.stable_key, rcgc.generated_at, rcgc.updated_at
+           FROM release_code_graph_communities rcgc JOIN releases r ON r.release_id = rcgc.release_id`
+      : `SELECT r.tag, rcgc.community_id, rcgc.label, rcgc.name, rcgc.summary, rcgc.generated_at, rcgc.updated_at
+           FROM release_code_graph_communities rcgc JOIN releases r ON r.release_id = rcgc.release_id`;
     const result = db.exec(sql);
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
@@ -5336,21 +5578,27 @@ export class TrailDatabase {
   saveReleaseCodeGraph(tag: string, graph: CodeGraph): void {
     const db = this.ensureDb();
     ensureCommunityStableKeyColumn(db, 'release_code_graph_communities');
+    // flip 後は release_id FK。tag を解決してから保存する。
+    const releaseId = this.releaseIdForTag(db, tag);
+    if (releaseId == null) {
+      this.logger.warn(`[saveReleaseCodeGraph] no release for tag=${tag}, skip`);
+      return;
+    }
     const { stored, communities } = splitCodeGraph(graph);
     db.run(
       `INSERT OR REPLACE INTO release_code_graphs
-         (release_tag, graph_json, generated_at, updated_at)
+         (release_id, graph_json, generated_at, updated_at)
        VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
-      [tag, JSON.stringify(stored), stored.generatedAt],
+      [releaseId, JSON.stringify(stored), stored.generatedAt],
     );
-    db.run('DELETE FROM release_code_graph_communities WHERE release_tag = ?', [tag]);
+    db.run('DELETE FROM release_code_graph_communities WHERE release_id = ?', [releaseId]);
     const stmt = db.prepare(
       `INSERT INTO release_code_graph_communities
-         (release_tag, community_id, label, name, summary, stable_key, generated_at, updated_at)
+         (release_id, community_id, label, name, summary, stable_key, generated_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
     );
     for (const c of communities) {
-      stmt.run([tag, c.id, c.label, c.name, c.summary, c.stableKey]);
+      stmt.run([releaseId, c.id, c.label, c.name, c.summary, c.stableKey]);
     }
     stmt.free();
     this.save();
@@ -5358,18 +5606,20 @@ export class TrailDatabase {
 
   getReleaseCodeGraph(tag: string): CodeGraph | null {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, tag);
+    if (releaseId == null) return null;
     const graphResult = db.exec(
-      'SELECT graph_json FROM release_code_graphs WHERE release_tag = ?',
-      [tag],
+      'SELECT graph_json FROM release_code_graphs WHERE release_id = ?',
+      [releaseId],
     );
     const json = graphResult[0]?.values?.[0]?.[0];
     if (typeof json !== 'string') return null;
     const stored = JSON.parse(json) as import('@anytime-markdown/trail-core/codeGraph').StoredCodeGraph;
     const hasStableKey = columnExists(db, 'release_code_graph_communities', 'stable_key');
     const sql = hasStableKey
-      ? 'SELECT community_id, label, name, summary, stable_key FROM release_code_graph_communities WHERE release_tag = ?'
-      : 'SELECT community_id, label, name, summary FROM release_code_graph_communities WHERE release_tag = ?';
-    const commResult = db.exec(sql, [tag]);
+      ? 'SELECT community_id, label, name, summary, stable_key FROM release_code_graph_communities WHERE release_id = ?'
+      : 'SELECT community_id, label, name, summary FROM release_code_graph_communities WHERE release_id = ?';
+    const commResult = db.exec(sql, [releaseId]);
     const communities: StoredCommunity[] = (commResult[0]?.values ?? []).map((row) => ({
       id: row[0] as number,
       label: row[1] as string,
@@ -5830,9 +6080,9 @@ export class TrailDatabase {
         SELECT 'current' AS id, 0 AS sort_order, '' AS released_at
           FROM current_graphs
         UNION ALL
-        SELECT rg.tag AS id, 1 AS sort_order, COALESCE(r.released_at, '') AS released_at
+        SELECT r.tag AS id, 1 AS sort_order, COALESCE(r.released_at, '') AS released_at
           FROM release_graphs rg
-          LEFT JOIN releases r ON rg.tag = r.tag
+          JOIN releases r ON rg.release_id = r.release_id
       )
       ORDER BY sort_order, released_at DESC
     `);
@@ -5851,9 +6101,9 @@ export class TrailDatabase {
         SELECT 'current' AS tag, repo_name AS repo_name, 0 AS sort_order, '' AS released_at
           FROM current_graphs
         UNION ALL
-        SELECT rg.tag AS tag, r.repo_name AS repo_name, 1 AS sort_order, COALESCE(r.released_at, '') AS released_at
+        SELECT r.tag AS tag, r.repo_name AS repo_name, 1 AS sort_order, COALESCE(r.released_at, '') AS released_at
           FROM release_graphs rg
-          LEFT JOIN releases r ON rg.tag = r.tag
+          JOIN releases r ON rg.release_id = r.release_id
       )
       ORDER BY sort_order, released_at DESC
     `);
@@ -7982,7 +8232,7 @@ export class TrailDatabase {
 
   /** Insert one package's coverage-summary.json into release_coverage. Returns count of inserted rows. */
   private importReleaseCoverageForPackage(
-    db: Database, latestTag: string, pkgDir: string, summaryPath: string,
+    db: Database, latestReleaseId: number, pkgDir: string, summaryPath: string,
   ): number {
     let summary: Record<string, CoverageSummaryEntry>;
     try {
@@ -7997,14 +8247,14 @@ export class TrailDatabase {
       try {
         db.run(
           `INSERT OR IGNORE INTO release_coverage (
-            release_tag, package, file_path,
+            release_id, package, file_path,
             lines_total, lines_covered, lines_pct,
             statements_total, statements_covered, statements_pct,
             functions_total, functions_covered, functions_pct,
             branches_total, branches_covered, branches_pct
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            latestTag, pkgDir, filePath,
+            latestReleaseId, pkgDir, filePath,
             entry.lines.total, entry.lines.covered, entry.lines.pct,
             entry.statements.total, entry.statements.covered, entry.statements.pct,
             entry.functions.total, entry.functions.covered, entry.functions.pct,
@@ -8020,11 +8270,12 @@ export class TrailDatabase {
   importCoverage(gitRoot: string): number {
     const db = this.ensureDb();
 
+    // flip 後 release_coverage は release_id FK。最新リリースの release_id を取得する。
     const latestResult = db.exec(
-      "SELECT tag FROM releases ORDER BY released_at DESC LIMIT 1",
+      "SELECT release_id FROM releases ORDER BY released_at DESC LIMIT 1",
     );
-    const latestTag = latestResult[0]?.values?.[0]?.[0] as string | undefined;
-    if (!latestTag) return 0;
+    const latestReleaseId = latestResult[0]?.values?.[0]?.[0];
+    if (latestReleaseId == null) return 0;
 
     const packagesDir = path.join(gitRoot, 'packages');
     let packageDirs: string[];
@@ -8037,7 +8288,7 @@ export class TrailDatabase {
     let count = 0;
     for (const pkgDir of packageDirs) {
       const summaryPath = path.join(packagesDir, pkgDir, 'coverage', 'coverage-summary.json');
-      count += this.importReleaseCoverageForPackage(db, latestTag, pkgDir, summaryPath);
+      count += this.importReleaseCoverageForPackage(db, Number(latestReleaseId), pkgDir, summaryPath);
     }
     return count;
   }
@@ -8248,10 +8499,16 @@ export class TrailDatabase {
   upsertReleaseFileAnalysis(releaseTag: string, rows: readonly FileAnalysisRow[]): void {
     if (rows.length === 0) return;
     const db = this.ensureDb();
+    // flip 後 release_file_analysis は release_id FK。tag を解決する。
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) {
+      this.logger.warn(`[upsertReleaseFileAnalysis] no release for tag=${releaseTag}, skip`);
+      return;
+    }
     for (const r of rows) {
       db.run(
         `INSERT OR REPLACE INTO release_file_analysis (
-          release_tag, repo_name, file_path,
+          release_id, repo_name, file_path,
           importance_score, fan_in_total, cognitive_complexity_max, line_count, cyclomatic_complexity_max, function_count,
           dead_code_score,
           signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
@@ -8261,13 +8518,15 @@ export class TrailDatabase {
           category,
           analyzed_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [releaseTag, ...this.fileAnalysisRowParams(r)],
+        [releaseId, ...this.fileAnalysisRowParams(r)],
       );
     }
   }
 
   getReleaseFileAnalysis(releaseTag: string, repoName: string): FileAnalysisRow[] {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return [];
     const result = db.exec(
       `SELECT repo_name, file_path,
               importance_score, fan_in_total, cognitive_complexity_max, line_count, cyclomatic_complexity_max, function_count,
@@ -8278,8 +8537,8 @@ export class TrailDatabase {
               cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
               category,
               analyzed_at
-       FROM release_file_analysis WHERE release_tag = ? AND repo_name = ?`,
-      [releaseTag, repoName],
+       FROM release_file_analysis WHERE release_id = ? AND repo_name = ?`,
+      [releaseId, repoName],
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
@@ -8313,7 +8572,9 @@ export class TrailDatabase {
 
   clearReleaseFileAnalysis(releaseTag: string, repoName: string): void {
     const db = this.ensureDb();
-    db.run('DELETE FROM release_file_analysis WHERE release_tag = ? AND repo_name = ?', [releaseTag, repoName]);
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return;
+    db.run('DELETE FROM release_file_analysis WHERE release_id = ? AND repo_name = ?', [releaseId, repoName]);
     this.save();
   }
 
@@ -8391,10 +8652,16 @@ export class TrailDatabase {
   upsertReleaseFunctionAnalysis(releaseTag: string, rows: readonly FunctionAnalysisRow[]): void {
     if (rows.length === 0) return;
     const db = this.ensureDb();
+    // flip 後 release_function_analysis は release_id FK。tag を解決する。
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) {
+      this.logger.warn(`[upsertReleaseFunctionAnalysis] no release for tag=${releaseTag}, skip`);
+      return;
+    }
     for (const r of rows) {
       db.run(
         `INSERT OR REPLACE INTO release_function_analysis (
-          release_tag, repo_name, file_path, function_name, start_line,
+          release_id, repo_name, file_path, function_name, start_line,
           end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
           data_mutation_score, side_effect_score, line_count,
           importance_score, signal_fan_in_zero,
@@ -8402,7 +8669,7 @@ export class TrailDatabase {
           analyzed_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          releaseTag, r.repoName, r.filePath, r.functionName, r.startLine,
+          releaseId, r.repoName, r.filePath, r.functionName, r.startLine,
           r.endLine, r.language, r.fanIn, r.cognitiveComplexity, r.cyclomaticComplexity,
           r.dataMutationScore, r.sideEffectScore, r.lineCount,
           r.importanceScore, r.signalFanInZero ? 1 : 0,
@@ -8416,6 +8683,8 @@ export class TrailDatabase {
 
   getReleaseFunctionAnalysis(releaseTag: string, repoName: string): FunctionAnalysisRow[] {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return [];
     const result = db.exec(
       `SELECT repo_name, file_path, function_name, start_line,
               end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
@@ -8423,8 +8692,8 @@ export class TrailDatabase {
               importance_score, signal_fan_in_zero,
               fan_out, distinct_callees, function_role,
               analyzed_at
-       FROM release_function_analysis WHERE release_tag = ? AND repo_name = ?`,
-      [releaseTag, repoName],
+       FROM release_function_analysis WHERE release_id = ? AND repo_name = ?`,
+      [releaseId, repoName],
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
@@ -8451,7 +8720,9 @@ export class TrailDatabase {
 
   clearReleaseFunctionAnalysis(releaseTag: string, repoName: string): void {
     const db = this.ensureDb();
-    db.run('DELETE FROM release_function_analysis WHERE release_tag = ? AND repo_name = ?', [releaseTag, repoName]);
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return;
+    db.run('DELETE FROM release_function_analysis WHERE release_id = ? AND repo_name = ?', [releaseId, repoName]);
     this.save();
   }
 
@@ -8465,21 +8736,28 @@ export class TrailDatabase {
     const tags = git.getVersionTags();
     let count = 0;
 
+    // flip 後 releases は repo 内で UNIQUE (repo_id, tag)。repo_id を一度だけ解決する
+    // (repoIdForName は upsert で repos に登録する)。
+    const repoName = path.basename(gitRoot);
+    const repoId = this.repoIdForName(repoName);
+
     for (let i = 0; i < tags.length; i++) {
       const tag = tags[i];
-      const existing = db.exec(`SELECT tag FROM releases WHERE tag = '${tag.replaceAll("'", "''")}'`);
-      if (existing[0]?.values?.length) {
+      const existingRes = db.exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
+      const existingReleaseId = existingRes[0]?.values?.[0]?.[0];
+      if (existingReleaseId != null) {
         // Release exists — backfill release_files if missing
+        const relId = Number(existingReleaseId);
         const prevTag = i + 1 < tags.length ? tags[i + 1] : null;
-        const totalLinesResult = db.exec(`SELECT total_lines FROM releases WHERE tag = '${tag.replaceAll("'", "''")}'`);
+        const totalLinesResult = db.exec('SELECT total_lines FROM releases WHERE release_id = ?', [relId]);
         const existingTotalLines = Number(totalLinesResult[0]?.values?.[0]?.[0] ?? 0);
         if (existingTotalLines === 0) {
           const snapshotLines = git.getSnapshotLineCount(tag);
           if (snapshotLines > 0) {
             try {
               db.run(
-                `UPDATE releases SET total_lines = ? WHERE tag = ?`,
-                [snapshotLines, tag],
+                `UPDATE releases SET total_lines = ? WHERE release_id = ?`,
+                [snapshotLines, relId],
               );
               count++;
             } catch {
@@ -8489,16 +8767,17 @@ export class TrailDatabase {
         }
         if (prevTag) {
           const filesExist = db.exec(
-            `SELECT COUNT(*) FROM release_files WHERE release_tag = '${tag.replaceAll("'", "''")}'`,
+            'SELECT COUNT(*) FROM release_files WHERE release_id = ?',
+            [relId],
           );
           if ((filesExist[0]?.values?.[0]?.[0] as number) <= 0) {
             const fileStats = git.getFileStatsByRange(prevTag, tag);
             for (const f of fileStats) {
               try {
                 db.run(
-                  `INSERT OR IGNORE INTO release_files (release_tag, file_path, lines_added, lines_deleted, change_type)
+                  `INSERT OR IGNORE INTO release_files (release_id, file_path, lines_added, lines_deleted, change_type)
                    VALUES (?, ?, ?, ?, ?)`,
-                  [tag, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
+                  [relId, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
                 );
               } catch { /* ignore */ }
             }
@@ -8527,7 +8806,7 @@ export class TrailDatabase {
         prevTag,
         releasedAt,
         prevReleasedAt,
-        repoName: path.basename(gitRoot),
+        repoName,
         packageTags,
         commitSubjects,
         filesChanged: stats.filesChanged,
@@ -8537,19 +8816,23 @@ export class TrailDatabase {
         affectedPackages: packages,
       });
 
+      // flip: prev_tag → prev_release_id を解決 (同 repo 内の tag を引く)。
+      const prevReleaseId = release.prevTag ? this.releaseIdForTag(db, release.prevTag) : null;
+
       db.run(
-        `INSERT OR REPLACE INTO releases (
-          tag, released_at, prev_tag, repo_name, package_tags,
+        `INSERT INTO releases (
+          tag, released_at, prev_release_id, repo_name, repo_id, package_tags,
           commit_count, files_changed, lines_added, lines_deleted,
           total_lines,
           feat_count, fix_count, refactor_count, test_count, other_count,
           affected_packages, duration_days
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           release.tag,
           release.releasedAt,
-          release.prevTag,
-          path.basename(gitRoot),
+          prevReleaseId,
+          repoName,
+          repoId,
           JSON.stringify(release.packageTags),
           release.commitCount,
           release.filesChanged,
@@ -8566,15 +8849,18 @@ export class TrailDatabase {
         ],
       );
 
+      // 新規挿入した release の release_id を取得 (auto-assigned ROWID)。
+      const newRelId = this.releaseIdForTag(db, release.tag);
+
       // Save release files
-      if (prevTag) {
+      if (prevTag && newRelId != null) {
         const fileStats = git.getFileStatsByRange(prevTag, tag);
         for (const f of fileStats) {
           try {
             db.run(
-              `INSERT OR IGNORE INTO release_files (release_tag, file_path, lines_added, lines_deleted, change_type)
+              `INSERT OR IGNORE INTO release_files (release_id, file_path, lines_added, lines_deleted, change_type)
                VALUES (?, ?, ?, ?, ?)`,
-              [tag, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
+              [newRelId, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
             );
           } catch { /* ignore */ }
         }
@@ -8582,6 +8868,22 @@ export class TrailDatabase {
       }
 
       count++;
+    }
+
+    // flip: prev_release_id の解決 2nd pass。tags は新しい順なので 1st pass 時点では
+    // prev (古い) release が未挿入で prev_release_id が null になる。全 release 挿入後に
+    // tag ペア (tags[i] → tags[i+1]) で prev_release_id を埋める (同 repo_id 内)。
+    for (let i = 0; i + 1 < tags.length; i++) {
+      const tag = tags[i];
+      const prevTag = tags[i + 1];
+      const prevReleaseId = this.releaseIdForTag(db, prevTag);
+      if (prevReleaseId == null) continue;
+      try {
+        db.run(
+          'UPDATE releases SET prev_release_id = ? WHERE tag = ? AND repo_id IS ? AND prev_release_id IS NULL',
+          [prevReleaseId, tag, repoId],
+        );
+      } catch { /* ignore */ }
     }
 
     if (count > 0) this.save();
@@ -8722,7 +9024,10 @@ export class TrailDatabase {
     const releases = this.getReleases();
     if (releases.length === 0) return 0;
 
-    const existingResult = db.exec('SELECT tag FROM release_graphs');
+    // flip 後 release_graphs は release_id FK。dedup は tag ベースのため releases へ JOIN する。
+    const existingResult = db.exec(
+      `SELECT r.tag FROM release_graphs rg JOIN releases r ON r.release_id = rg.release_id`,
+    );
     const existingIds = new Set<string>(
       existingResult[0]?.values?.map((r) => r[0] as string) ?? [],
     );
@@ -8753,7 +9058,14 @@ export class TrailDatabase {
 
   getReleases(): ReleaseRow[] {
     const db = this.ensureDb();
-    const result = db.exec('SELECT * FROM releases ORDER BY released_at DESC');
+    // flip 後 releases は prev_release_id を持つ。外部 I/F (Supabase 同期) は従来通り
+    // prev_tag を期待するため、自己 JOIN で prev_release_id → prev.tag を解決して供給する。
+    const result = db.exec(
+      `SELECT r.*, p.tag AS prev_tag
+         FROM releases r
+         LEFT JOIN releases p ON p.release_id = r.prev_release_id
+        ORDER BY r.released_at DESC`,
+    );
     if (!result[0]) return [];
     const cols = result[0].columns;
     return result[0].values.map((row) => {
@@ -8896,39 +9208,69 @@ export class TrailDatabase {
 
   getReleaseFiles(releaseTag: string): ReleaseFileRow[] {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return [];
+    // flip 後 release_files は release_id FK。外部 I/F は release_tag を期待するため
+    // パラメータ tag をそのまま row に詰め直す (data 列のみ DB から取得)。
     const result = db.exec(
-      `SELECT * FROM release_files WHERE release_tag = '${releaseTag.replaceAll("'", "''")}'`,
+      `SELECT file_path, lines_added, lines_deleted, change_type
+         FROM release_files WHERE release_id = ?`,
+      [releaseId],
     );
     if (!result[0]?.values) return [];
-    const cols = result[0].columns;
-    return result[0].values.map((row) => {
-      const obj: Record<string, unknown> = {};
-      cols.forEach((col, i) => { obj[col] = row[i]; });
-      return obj as unknown as ReleaseFileRow;
-    });
+    return result[0].values.map((row) => ({
+      release_tag: releaseTag,
+      file_path: asText(row[0] ?? ''),
+      lines_added: Number(row[1] ?? 0),
+      lines_deleted: Number(row[2] ?? 0),
+      change_type: asText(row[3] ?? 'modified'),
+    }));
   }
 
   getCoverageByTag(releaseTag: string): ReleaseCoverageRow[] {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return [];
     const result = db.exec(
-      `SELECT * FROM release_coverage WHERE release_tag = '${releaseTag.replaceAll("'", "''")}'`,
-    );
-    if (!result[0]?.values) return [];
-    const cols = result[0].columns;
-    return result[0].values.map((row) =>
-      Object.fromEntries(cols.map((col, i) => [col, row[i]])) as unknown as ReleaseCoverageRow,
-    );
-  }
-
-  getAllReleaseCoverage(): ReleaseCoverageRow[] {
-    const db = this.ensureDb();
-    const result = db.exec(
-      `SELECT release_tag, package, file_path,
+      `SELECT package, file_path,
               lines_total, lines_covered, lines_pct,
               statements_total, statements_covered, statements_pct,
               functions_total, functions_covered, functions_pct,
               branches_total, branches_covered, branches_pct
-       FROM release_coverage`,
+         FROM release_coverage WHERE release_id = ?`,
+      [releaseId],
+    );
+    if (!result[0]?.values) return [];
+    const toNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0; };
+    return result[0].values.map((r) => ({
+      release_tag: releaseTag,
+      package: asText(r[0] ?? ''),
+      file_path: asText(r[1] ?? ''),
+      lines_total: toNum(r[2]),
+      lines_covered: toNum(r[3]),
+      lines_pct: toNum(r[4]),
+      statements_total: toNum(r[5]),
+      statements_covered: toNum(r[6]),
+      statements_pct: toNum(r[7]),
+      functions_total: toNum(r[8]),
+      functions_covered: toNum(r[9]),
+      functions_pct: toNum(r[10]),
+      branches_total: toNum(r[11]),
+      branches_covered: toNum(r[12]),
+      branches_pct: toNum(r[13]),
+    }));
+  }
+
+  getAllReleaseCoverage(): ReleaseCoverageRow[] {
+    const db = this.ensureDb();
+    // flip 後は release_id FK。Supabase 同期は release_tag キーのため releases へ JOIN する。
+    const result = db.exec(
+      `SELECT r.tag, rc.package, rc.file_path,
+              rc.lines_total, rc.lines_covered, rc.lines_pct,
+              rc.statements_total, rc.statements_covered, rc.statements_pct,
+              rc.functions_total, rc.functions_covered, rc.functions_pct,
+              rc.branches_total, rc.branches_covered, rc.branches_pct
+       FROM release_coverage rc JOIN releases r ON r.release_id = rc.release_id`,
     );
     const values = result[0]?.values ?? [];
     const toNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0; };
@@ -9018,12 +9360,13 @@ export class TrailDatabase {
   }> {
     const db = this.ensureDb();
     const result = db.exec(
-      `SELECT release_tag, repo_name, file_path, importance_score, fan_in_total, cognitive_complexity_max, function_count,
-              dead_code_score, signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
-              signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason,
-              cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
-              analyzed_at, line_count, cyclomatic_complexity_max, category
-       FROM release_file_analysis`,
+      // flip 後は release_id FK。Supabase 同期は release_tag キーのため releases へ JOIN する。
+      `SELECT r.tag, rfa.repo_name, rfa.file_path, rfa.importance_score, rfa.fan_in_total, rfa.cognitive_complexity_max, rfa.function_count,
+              rfa.dead_code_score, rfa.signal_orphan, rfa.signal_fan_in_zero, rfa.signal_no_recent_churn,
+              rfa.signal_zero_coverage, rfa.signal_isolated_community, rfa.is_ignored, rfa.ignore_reason,
+              rfa.cross_pkg_in_count, rfa.external_consumer_pkgs, rfa.total_in_count, rfa.is_barrel, rfa.centrality_score,
+              rfa.analyzed_at, rfa.line_count, rfa.cyclomatic_complexity_max, rfa.category
+       FROM release_file_analysis rfa JOIN releases r ON r.release_id = rfa.release_id`,
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
@@ -9110,14 +9453,15 @@ export class TrailDatabase {
   }> {
     const db = this.ensureDb();
     const result = db.exec(
-      `SELECT release_tag, repo_name, file_path, function_name, start_line,
-              end_line, language, fan_in, cognitive_complexity,
-              data_mutation_score, side_effect_score, line_count,
-              importance_score, signal_fan_in_zero,
-              fan_out, distinct_callees, function_role,
-              analyzed_at,
-              cyclomatic_complexity
-       FROM release_function_analysis`,
+      // flip 後は release_id FK。Supabase 同期は release_tag キーのため releases へ JOIN する。
+      `SELECT r.tag, rfa.repo_name, rfa.file_path, rfa.function_name, rfa.start_line,
+              rfa.end_line, rfa.language, rfa.fan_in, rfa.cognitive_complexity,
+              rfa.data_mutation_score, rfa.side_effect_score, rfa.line_count,
+              rfa.importance_score, rfa.signal_fan_in_zero,
+              rfa.fan_out, rfa.distinct_callees, rfa.function_role,
+              rfa.analyzed_at,
+              rfa.cyclomatic_complexity
+       FROM release_function_analysis rfa JOIN releases r ON r.release_id = rfa.release_id`,
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
@@ -9145,15 +9489,36 @@ export class TrailDatabase {
 
   getCoverageSummary(releaseTag: string): ReleaseCoverageRow[] {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return [];
     const result = db.exec(
-      `SELECT * FROM release_coverage WHERE release_tag = '${releaseTag.replaceAll("'", "''")}'
-       AND file_path = '__total__'`,
+      `SELECT package, file_path,
+              lines_total, lines_covered, lines_pct,
+              statements_total, statements_covered, statements_pct,
+              functions_total, functions_covered, functions_pct,
+              branches_total, branches_covered, branches_pct
+         FROM release_coverage WHERE release_id = ? AND file_path = '__total__'`,
+      [releaseId],
     );
     if (!result[0]?.values) return [];
-    const cols = result[0].columns;
-    return result[0].values.map((row) =>
-      Object.fromEntries(cols.map((col, i) => [col, row[i]])) as unknown as ReleaseCoverageRow,
-    );
+    const toNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0; };
+    return result[0].values.map((r) => ({
+      release_tag: releaseTag,
+      package: asText(r[0] ?? ''),
+      file_path: asText(r[1] ?? ''),
+      lines_total: toNum(r[2]),
+      lines_covered: toNum(r[3]),
+      lines_pct: toNum(r[4]),
+      statements_total: toNum(r[5]),
+      statements_covered: toNum(r[6]),
+      statements_pct: toNum(r[7]),
+      functions_total: toNum(r[8]),
+      functions_covered: toNum(r[9]),
+      functions_pct: toNum(r[10]),
+      branches_total: toNum(r[11]),
+      branches_covered: toNum(r[12]),
+      branches_pct: toNum(r[13]),
+    }));
   }
 
   // ---------------------------------------------------------------------------

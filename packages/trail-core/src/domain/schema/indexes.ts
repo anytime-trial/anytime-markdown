@@ -25,13 +25,14 @@ export const CREATE_INDEXES = [
 
 export const CREATE_RELEASE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_releases_released_at ON releases(released_at)',
-  'CREATE INDEX IF NOT EXISTS idx_release_files_tag ON release_files(release_tag)',
-  'CREATE INDEX IF NOT EXISTS idx_release_coverage_tag ON release_coverage(release_tag)',
-  'CREATE INDEX IF NOT EXISTS idx_release_code_graphs_tag ON release_code_graphs(release_tag)',
-  'CREATE INDEX IF NOT EXISTS idx_release_code_graph_communities_tag ON release_code_graph_communities(release_tag)',
+  // Phase B-2b-iii flip: 子テーブルの FK 列は release_id へ移行。命名は新 FK 列に合わせる。
+  'CREATE INDEX IF NOT EXISTS idx_release_files_release_id ON release_files(release_id)',
+  'CREATE INDEX IF NOT EXISTS idx_release_coverage_release_id ON release_coverage(release_id)',
+  'CREATE INDEX IF NOT EXISTS idx_release_code_graphs_release_id ON release_code_graphs(release_id)',
+  'CREATE INDEX IF NOT EXISTS idx_release_code_graph_communities_release_id ON release_code_graph_communities(release_id)',
   // stable_key による「同じノード集合のコミュニティ」高速検索（mappings_json 引き継ぎ用）
   "CREATE INDEX IF NOT EXISTS idx_ccgc_stable_key ON current_code_graph_communities(repo_name, stable_key) WHERE stable_key != ''",
-  "CREATE INDEX IF NOT EXISTS idx_rcgc_stable_key ON release_code_graph_communities(release_tag, stable_key) WHERE stable_key != ''",
+  "CREATE INDEX IF NOT EXISTS idx_rcgc_stable_key ON release_code_graph_communities(release_id, stable_key) WHERE stable_key != ''",
 ];
 
 export const CREATE_CURRENT_COVERAGE_INDEXES = [
