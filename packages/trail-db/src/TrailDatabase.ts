@@ -1716,8 +1716,12 @@ export class TrailDatabase {
     );
 
     this.createTables();
+    const initDb = this.ensureDb();
     // repos を既存テーブルの repo_name から seed (Phase A・冪等)。
-    this.seedReposFromLegacyRepoNames(this.ensureDb());
+    this.seedReposFromLegacyRepoNames(initDb);
+    // releases.repo_id を追加・backfill (Phase B step1・非破壊。FK は off のまま)。
+    this.migrateReleasesRepoIdColumn(initDb);
+    this.backfillReleaseRepoIds(initDb);
   }
 
   private ensureDb(): Database {
@@ -1789,8 +1793,41 @@ export class TrailDatabase {
   syncReposFromLegacyRepoNames(): number {
     const db = this.ensureDb();
     this.seedReposFromLegacyRepoNames(db);
+    this.backfillReleaseRepoIds(db);
     const res = db.exec('SELECT COUNT(*) FROM repos');
     return Number(res[0]?.values?.[0]?.[0] ?? 0);
+  }
+
+  /**
+   * 既存 DB の releases に repo_id 列が無ければ追加する (Phase B step1・非破壊)。
+   * 新規 DB は CREATE_RELEASES に repo_id を含むため no-op。FK は init で off のため
+   * ALTER では REFERENCES を付けず plain INTEGER とする (既存挙動と整合)。
+   */
+  private migrateReleasesRepoIdColumn(db: Database): void {
+    try {
+      if (!columnExists(db, 'releases', 'repo_id')) {
+        db.run('ALTER TABLE releases ADD COLUMN repo_id INTEGER');
+      }
+    } catch (e) {
+      this.logger.warn(
+        `[releases repo_id migrate] ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  /** releases.repo_id を repo_name → repos で backfill する (repo_id IS NULL のみ・冪等)。 */
+  private backfillReleaseRepoIds(db: Database): void {
+    try {
+      db.run(
+        `UPDATE releases
+           SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = releases.repo_name)
+         WHERE repo_id IS NULL`,
+      );
+    } catch (e) {
+      this.logger.warn(
+        `[releases repo_id backfill] ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   /** repo_name 列を持つ既存テーブルから distinct repo_name を repos へ INSERT OR IGNORE する。 */

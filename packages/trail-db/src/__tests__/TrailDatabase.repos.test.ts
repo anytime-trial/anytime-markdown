@@ -1,8 +1,10 @@
 import { TrailDatabase } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';
 
+type SqlJsResult = Array<{ columns: string[]; values: unknown[][] }>;
 type SqlJsDb = {
   run: (sql: string, params?: ReadonlyArray<unknown>) => void;
+  exec: (sql: string, params?: ReadonlyArray<unknown>) => SqlJsResult;
 };
 const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb }).db;
 
@@ -86,6 +88,24 @@ describe('TrailDatabase repos (Phase A: repo 正規化基盤)', () => {
       const seeded = db.listRepos().find((r) => r.repoName === 'repo-z');
       expect(seeded).toBeDefined();
       expect(db.repoIdForName('repo-z')).toBe(seeded!.repoId);
+    });
+  });
+
+  describe('releases.repo_id backfill (Phase B step1・非破壊)', () => {
+    it('sync で releases.repo_id が repos.repo_id に backfill される', () => {
+      seedRelease(db, 'v9', 'repo-rel');
+      db.syncReposFromLegacyRepoNames();
+      const expectedId = db.repoIdForName('repo-rel');
+      const res = inner(db).exec('SELECT repo_id FROM releases WHERE tag = ?', ['v9']);
+      expect(Number(res[0]?.values?.[0]?.[0])).toBe(expectedId);
+    });
+
+    it('repo_name="" の release も sentinel repo_id に backfill される', () => {
+      seedRelease(db, 'v8', '');
+      db.syncReposFromLegacyRepoNames();
+      const sentinelId = db.repoIdForName('');
+      const res = inner(db).exec('SELECT repo_id FROM releases WHERE tag = ?', ['v8']);
+      expect(Number(res[0]?.values?.[0]?.[0])).toBe(sentinelId);
     });
   });
 });

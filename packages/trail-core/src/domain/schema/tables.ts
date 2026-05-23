@@ -199,6 +199,7 @@ export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
   released_at TEXT CHECK (released_at IS NULL OR released_at = '' OR released_at GLOB ${TS_GLOB_MS} OR released_at GLOB ${TS_GLOB_NO_MS}),
   prev_tag TEXT REFERENCES releases(tag) ON DELETE SET NULL,
   repo_name TEXT NOT NULL DEFAULT '',
+  repo_id INTEGER REFERENCES repos(repo_id) ON DELETE SET NULL,
   package_tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(package_tags)),
   commit_count INTEGER NOT NULL DEFAULT 0,
   files_changed INTEGER NOT NULL DEFAULT 0,
