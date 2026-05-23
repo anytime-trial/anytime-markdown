@@ -345,6 +345,170 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(String(s[0]?.values?.[0]?.[1])).toBe('proj-sessrepo');
   });
 
+  it('Phase E flip: 旧 PK / 複合 FK の legacy c4_manual_* を repo_id PK へ再構築し、データ・複合 FK・backfill を保持する', async () => {
+    // legacy 状態 (旧 PK (repo_name, <id>)・自己参照/複合 FK・repo_id 列なし) を再現し、各テーブルに
+    // 親子・複合 FK を含む data を入れてから createTables を再実行する。flip 後は repo_id 列 + 新 PK
+    // (repo_id, <id>) + repo_id ベースの複合 FK になり、旧データの repo_id が repos.repo_name 経由で
+    // backfill されることを確認する。
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+
+    inner.run('DROP TABLE IF EXISTS c4_manual_relationships');
+    inner.run('DROP TABLE IF EXISTS c4_manual_groups');
+    inner.run('DROP TABLE IF EXISTS c4_manual_elements');
+    // 旧スキーマ (repo_id 列なし・旧 PK・複合 FK) を再現。
+    inner.run(`
+      CREATE TABLE c4_manual_elements (
+        repo_name    TEXT NOT NULL,
+        element_id   TEXT NOT NULL,
+        type         TEXT NOT NULL,
+        name         TEXT NOT NULL,
+        description  TEXT,
+        external     INTEGER NOT NULL DEFAULT 0,
+        parent_id    TEXT,
+        service_type TEXT,
+        updated_at   TEXT NOT NULL,
+        PRIMARY KEY (repo_name, element_id),
+        FOREIGN KEY (repo_name, parent_id) REFERENCES c4_manual_elements(repo_name, element_id)
+      ) STRICT
+    `);
+    inner.run(`
+      CREATE TABLE c4_manual_relationships (
+        repo_name   TEXT NOT NULL,
+        rel_id      TEXT NOT NULL,
+        from_id     TEXT NOT NULL,
+        to_id       TEXT NOT NULL,
+        label       TEXT,
+        technology  TEXT,
+        updated_at  TEXT NOT NULL,
+        PRIMARY KEY (repo_name, rel_id),
+        FOREIGN KEY (repo_name, from_id) REFERENCES c4_manual_elements(repo_name, element_id),
+        FOREIGN KEY (repo_name, to_id)   REFERENCES c4_manual_elements(repo_name, element_id)
+      ) STRICT
+    `);
+    inner.run(`
+      CREATE TABLE c4_manual_groups (
+        repo_name  TEXT NOT NULL,
+        group_id   TEXT NOT NULL,
+        member_ids TEXT NOT NULL,
+        label      TEXT,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (repo_name, group_id)
+      ) STRICT
+    `);
+    // 親要素 → 子要素 (parent_id 自己参照) + relationship (複合 FK) + group。
+    inner.run(
+      "INSERT INTO c4_manual_elements (repo_name, element_id, type, name, parent_id, updated_at) VALUES ('legacy-c4', 'sys_manual_1', 'system', 'Parent Sys', NULL, '2026-05-23T00:00:00.000Z')",
+    );
+    inner.run(
+      "INSERT INTO c4_manual_elements (repo_name, element_id, type, name, parent_id, updated_at) VALUES ('legacy-c4', 'pkg_manual_1', 'container', 'Child Pkg', 'sys_manual_1', '2026-05-23T00:00:00.000Z')",
+    );
+    inner.run(
+      "INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, updated_at) VALUES ('legacy-c4', 'rel_manual_1', 'pkg_manual_1', 'sys_manual_1', 'uses', '2026-05-23T00:00:00.000Z')",
+    );
+    inner.run(
+      "INSERT INTO c4_manual_groups (repo_name, group_id, member_ids, label, updated_at) VALUES ('legacy-c4', 'grp_manual_1', '[\"sys_manual_1\",\"pkg_manual_1\"]', 'Group A', '2026-05-23T00:00:00.000Z')",
+    );
+
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+
+    const pkOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
+    };
+    const colsOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.map((c) => String(c[1]));
+    };
+
+    // flip 後: repo_id 列が追加され、PK が (repo_id, <id>) になっている。repo_name は移行互換で残置。
+    for (const table of ['c4_manual_elements', 'c4_manual_relationships', 'c4_manual_groups']) {
+      expect(colsOf(table)).toContain('repo_id');
+      expect(colsOf(table)).toContain('repo_name');
+    }
+    // PK は ソートで [element_id, repo_id] / [rel_id, repo_id] / [group_id, repo_id]。
+    expect(pkOf('c4_manual_elements')).toEqual(['element_id', 'repo_id']);
+    expect(pkOf('c4_manual_relationships')).toEqual(['rel_id', 'repo_id']);
+    expect(pkOf('c4_manual_groups')).toEqual(['group_id', 'repo_id']);
+
+    // 複合 FK が repo_id ベースへ張替わっている (foreign_key_list の to/from 列を確認)。
+    const elemFks = inner.exec('PRAGMA foreign_key_list(c4_manual_elements)');
+    const elemFkRows = (elemFks[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+    // 自己参照複合 FK: from 列に repo_id と parent_id、to 列に repo_id と element_id を含む。
+    const elemFromCols = elemFkRows.map((r) => String(r[3]));
+    const elemToCols = elemFkRows.map((r) => String(r[4]));
+    expect(elemFromCols).toContain('repo_id');
+    expect(elemFromCols).toContain('parent_id');
+    expect(elemToCols).toContain('element_id');
+
+    const relFks = inner.exec('PRAGMA foreign_key_list(c4_manual_relationships)');
+    const relFkRows = (relFks[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+    const relFromCols = relFkRows.map((r) => String(r[3]));
+    expect(relFromCols).toContain('repo_id');
+    expect(relFromCols).toContain('from_id');
+    expect(relFromCols).toContain('to_id');
+
+    // 旧データが repo_id backfill 済で全件残っている (除外 0 件・データ保全)。
+    const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-c4');
+    const elems = inner.exec("SELECT repo_id, repo_name, element_id, parent_id FROM c4_manual_elements WHERE repo_name = 'legacy-c4' ORDER BY element_id");
+    const elemVals = (elems[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+    expect(elemVals).toHaveLength(2);
+    for (const row of elemVals) {
+      expect(Number(row[0])).toBe(repoIdViaName); // repo_id backfill
+      expect(String(row[1])).toBe('legacy-c4');
+    }
+    // 子要素の parent_id 自己参照が保持されている。
+    const child = elemVals.find((r) => String(r[2]) === 'pkg_manual_1');
+    expect(String(child?.[3])).toBe('sys_manual_1');
+
+    const rels = inner.exec("SELECT repo_id, from_id, to_id, label FROM c4_manual_relationships WHERE repo_name = 'legacy-c4'");
+    const relVals = (rels[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+    expect(relVals).toHaveLength(1);
+    expect(Number(relVals[0]?.[0])).toBe(repoIdViaName);
+    expect(String(relVals[0]?.[1])).toBe('pkg_manual_1');
+    expect(String(relVals[0]?.[2])).toBe('sys_manual_1');
+    expect(String(relVals[0]?.[3])).toBe('uses');
+
+    const groups = inner.exec("SELECT repo_id, member_ids, label FROM c4_manual_groups WHERE repo_name = 'legacy-c4'");
+    const groupVals = (groups[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+    expect(groupVals).toHaveLength(1);
+    expect(Number(groupVals[0]?.[0])).toBe(repoIdViaName);
+    expect(JSON.parse(String(groupVals[0]?.[1]))).toEqual(['sys_manual_1', 'pkg_manual_1']);
+
+    // flip 後の高レベル API が新 PK 上で機能する (consumer 追従の検証)。
+    const apiElems = db.getManualElements('legacy-c4');
+    expect(apiElems).toHaveLength(2);
+    const newId = db.saveManualElement('legacy-c4', { type: 'person', name: 'New User', external: false, parentId: null });
+    expect(newId).toBe('person_1');
+    expect(db.getManualElements('legacy-c4')).toHaveLength(3);
+
+    db.close();
+  });
+
+  it('Phase E flip: 新規 DB の c4_manual_* は repo_id 列 + (repo_id, <id>) PK を持つ', async () => {
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+    const pkOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
+    };
+    const colsOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.map((c) => String(c[1]));
+    };
+    expect(colsOf('c4_manual_elements')).toContain('repo_id');
+    expect(pkOf('c4_manual_elements')).toEqual(['element_id', 'repo_id']);
+    expect(pkOf('c4_manual_relationships')).toEqual(['rel_id', 'repo_id']);
+    expect(pkOf('c4_manual_groups')).toEqual(['group_id', 'repo_id']);
+    db.close();
+  });
+
   it('createTables は新規 DB でも従来通り動作する (既存 *_code_graph_communities テーブル無し)', async () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;

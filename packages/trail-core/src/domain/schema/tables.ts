@@ -319,8 +319,12 @@ export const CREATE_MESSAGE_TOOL_CALLS = `CREATE TABLE IF NOT EXISTS message_too
   UNIQUE (message_uuid, call_index)
 ) STRICT`;
 
+// Phase E flip: PK の repo_name → repo_id 代理キーへ。複合 FK も repo_id ベースへ張替える。
+// repo_name 列は移行互換のため残す (撤去は将来 Phase H)。repo_id は PK 構成列のため NOT NULL。
+// 自己参照複合 FK は (repo_id, parent_id) → c4_manual_elements(repo_id, element_id)。
 export const CREATE_C4_MANUAL_ELEMENTS = `CREATE TABLE IF NOT EXISTS c4_manual_elements (
-  repo_name    TEXT NOT NULL,
+  repo_id      INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  repo_name    TEXT NOT NULL DEFAULT '',
   element_id   TEXT NOT NULL,
   type         TEXT NOT NULL
     CHECK (type IN ('person', 'system', 'container', 'component', 'code', 'enterprise')),
@@ -330,30 +334,34 @@ export const CREATE_C4_MANUAL_ELEMENTS = `CREATE TABLE IF NOT EXISTS c4_manual_e
   parent_id    TEXT,
   service_type TEXT,
   updated_at   TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (repo_name, element_id),
-  FOREIGN KEY (repo_name, parent_id) REFERENCES c4_manual_elements(repo_name, element_id)
+  PRIMARY KEY (repo_id, element_id),
+  FOREIGN KEY (repo_id, parent_id) REFERENCES c4_manual_elements(repo_id, element_id)
 ) STRICT`;
 
+// Phase E flip: PK / 複合 FK を repo_id ベースへ。repo_name 列は移行互換で残す。
 export const CREATE_C4_MANUAL_RELATIONSHIPS = `CREATE TABLE IF NOT EXISTS c4_manual_relationships (
-  repo_name   TEXT NOT NULL,
+  repo_id     INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  repo_name   TEXT NOT NULL DEFAULT '',
   rel_id      TEXT NOT NULL,
   from_id     TEXT NOT NULL,
   to_id       TEXT NOT NULL,
   label       TEXT,
   technology  TEXT,
   updated_at  TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (repo_name, rel_id),
-  FOREIGN KEY (repo_name, from_id) REFERENCES c4_manual_elements(repo_name, element_id),
-  FOREIGN KEY (repo_name, to_id)   REFERENCES c4_manual_elements(repo_name, element_id)
+  PRIMARY KEY (repo_id, rel_id),
+  FOREIGN KEY (repo_id, from_id) REFERENCES c4_manual_elements(repo_id, element_id),
+  FOREIGN KEY (repo_id, to_id)   REFERENCES c4_manual_elements(repo_id, element_id)
 ) STRICT`;
 
+// Phase E flip: PK を repo_id ベースへ。repo_name 列は移行互換で残す。
 export const CREATE_C4_MANUAL_GROUPS = `CREATE TABLE IF NOT EXISTS c4_manual_groups (
-  repo_name  TEXT NOT NULL,
+  repo_id    INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  repo_name  TEXT NOT NULL DEFAULT '',
   group_id   TEXT NOT NULL,
   member_ids TEXT NOT NULL CHECK (json_valid(member_ids)),
   label      TEXT,
   updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (repo_name, group_id)
+  PRIMARY KEY (repo_id, group_id)
 ) STRICT`;
 
 // Phase C-2 flip: PK の repo_name → repo_id へ置換。repo_name 列は移行互換で残す。

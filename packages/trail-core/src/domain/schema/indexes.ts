@@ -43,6 +43,15 @@ export const CREATE_CURRENT_COVERAGE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_current_coverage_repo ON current_coverage(repo_id)',
 ];
 
+// Phase E flip: c4_manual_* の PK が (repo_id, <id>) 化されたため repo_id を索引する。
+// 旧 PK auto-index (repo_name, <id>) が担っていた repo フィルタを repo_id 先頭の索引へ移す。
+// 命名は idx_<table>_<cols>。新規 DB / flip 済 DB の双方で IF NOT EXISTS により冪等。
+export const CREATE_C4_MANUAL_INDEXES = [
+  'CREATE INDEX IF NOT EXISTS idx_c4_manual_elements_repo_id ON c4_manual_elements(repo_id)',
+  'CREATE INDEX IF NOT EXISTS idx_c4_manual_relationships_repo_id ON c4_manual_relationships(repo_id)',
+  'CREATE INDEX IF NOT EXISTS idx_c4_manual_groups_repo_id ON c4_manual_groups(repo_id)',
+];
+
 export const CREATE_MESSAGE_TOOL_CALLS_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_message_tool_calls_session_id ON message_tool_calls(session_id)',
   'CREATE INDEX IF NOT EXISTS idx_message_tool_calls_tool_name ON message_tool_calls(tool_name)',

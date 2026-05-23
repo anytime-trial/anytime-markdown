@@ -46,6 +46,7 @@ import {
   CREATE_C4_MANUAL_ELEMENTS,
   CREATE_C4_MANUAL_RELATIONSHIPS,
   CREATE_C4_MANUAL_GROUPS,
+  CREATE_C4_MANUAL_INDEXES,
   CREATE_DORA_METRICS,
   CREATE_PR_REVIEWS,
   CREATE_PR_REVIEW_COMMENTS,
@@ -210,6 +211,16 @@ const SESSION_COMMIT_REPO_ID_DDL: Readonly<Record<string, string>> = {
   session_commits: CREATE_SESSION_COMMITS,
   commit_files: CREATE_COMMIT_FILES,
   session_commit_resolutions: CREATE_SESSION_COMMIT_RESOLUTIONS,
+};
+
+// Phase E flip: c4_manual_* テーブル名 → 新スキーマ (repo_id PK + 複合 FK) DDL の対応表。
+// migrateC4ManualTablesRepoId の 12-step 再構築で `<table>__new` を作る際に使う。
+// 親 (c4_manual_elements) を先に再構築する必要があるため、配列順序が重要 (DDL map は順不同だが
+// rebuild は C4_MANUAL_REPO_ID_TABLES の順で回す)。
+const C4_MANUAL_REPO_ID_DDL: Readonly<Record<string, string>> = {
+  c4_manual_elements: CREATE_C4_MANUAL_ELEMENTS,
+  c4_manual_relationships: CREATE_C4_MANUAL_RELATIONSHIPS,
+  c4_manual_groups: CREATE_C4_MANUAL_GROUPS,
 };
 
 /**
@@ -2326,6 +2337,144 @@ export class TrailDatabase {
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
   }
 
+  // Phase E flip 対象の c4_manual 系テーブル。PK / 複合 FK を repo_id ベースへ再設計する 3 つ。
+  // 親 (c4_manual_elements) を先頭に置く: 12-step 再構築は親→子の順で回す (複合 FK 解決のため。
+  // FK は init で OFF のため runtime 強制はされないが、意図を明示する)。
+  private static readonly C4_MANUAL_REPO_ID_TABLES: readonly string[] = [
+    'c4_manual_elements',
+    'c4_manual_relationships',
+    'c4_manual_groups',
+  ];
+
+  /**
+   * Phase E flip: 既存 DB の c4_manual 系 3 テーブルを repo_id 代理キー PK + 複合 FK へ
+   * 再設計する破壊的マイグレーション。
+   *
+   * - `c4_manual_elements`: PK `(repo_name, element_id)` → `(repo_id, element_id)`、自己参照複合 FK
+   *   `(repo_name, parent_id)` → `(repo_id, parent_id) → c4_manual_elements(repo_id, element_id)`。
+   * - `c4_manual_relationships`: PK `(repo_name, rel_id)` → `(repo_id, rel_id)`、複合 FK
+   *   `(repo_id, from_id)` / `(repo_id, to_id) → c4_manual_elements(repo_id, element_id)`。
+   * - `c4_manual_groups`: PK `(repo_name, group_id)` → `(repo_id, group_id)`。
+   *
+   * `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
+   * - CREATE_C4_MANUAL_* の実行前に呼ぶ (CREATE TABLE IF NOT EXISTS は既存テーブルへ無効なため)。
+   * - 新規 DB (テーブル不在) は no-op。CREATE_* が新スキーマを直接作る。
+   * - 既に flip 済 (repo_id 列あり) なら no-op (冪等)。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * chicken-egg 回避: 各テーブルの distinct repo_name を `INSERT OR IGNORE INTO repos` で self-seed
+   * してから repo_id 列を追加し、`repo_id = (SELECT repo_id FROM repos WHERE repo_name = <table>.repo_name)`
+   * で backfill する (repo_name='' も sentinel repo へ解決される)。repo_id IS NULL の orphan 行は新
+   * NOT NULL を満たさないため 12-step 再構築の INSERT...SELECT で除外する。親 (elements) を先に再構築する。
+   */
+  private migrateC4ManualTablesRepoId(db: Database): void {
+    // PK / FK 再設計が必要なテーブル (存在し、かつ repo_id 列が無い) を洗い出す。
+    const tablesToFlip = TrailDatabase.C4_MANUAL_REPO_ID_TABLES.filter((table) => {
+      const exists =
+        db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+          ?.length;
+      if (!exists) return false; // 新規 DB → CREATE_* が新スキーマを作る
+      if (columnExists(db, table, 'repo_id')) return false; // 既に flip 済 (冪等)
+      // 旧スキーマには必ず repo_name 列がある (旧 PK 構成列)。退化 DB の防御は backfill の
+      // columnExists ガードで吸収する。
+      return true;
+    });
+    if (tablesToFlip.length === 0) return;
+
+    try {
+      // ── pre: repos を self-seed し、repo_id 列を追加して backfill する ──
+      for (const table of tablesToFlip) {
+        if (columnExists(db, table, 'repo_name')) {
+          db.run(
+            `INSERT OR IGNORE INTO repos (repo_name, created_at)
+             SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+             FROM "${table}" WHERE repo_name IS NOT NULL`,
+          );
+        }
+        db.run(`ALTER TABLE "${table}" ADD COLUMN repo_id INTEGER`);
+        if (columnExists(db, table, 'repo_name')) {
+          db.run(
+            `UPDATE "${table}"
+               SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name)`,
+          );
+        }
+      }
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        // 親 (c4_manual_elements) → 子 (relationships / groups) の順で再構築する
+        // (複合 FK 解決のため。C4_MANUAL_REPO_ID_TABLES の宣言順がこの順序)。
+        for (const table of TrailDatabase.C4_MANUAL_REPO_ID_TABLES) {
+          if (!tablesToFlip.includes(table)) continue;
+          this.rebuildC4ManualTableForRepoIdFlip(db, table);
+        }
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[c4-manual flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[c4-manual flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error('migrateC4ManualTablesRepoId failed', e instanceof Error ? e : new Error(String(e)));
+      throw e;
+    }
+  }
+
+  /** flip: c4_manual 系テーブルを新スキーマ (repo_id PK + 複合 FK) へ 12-step 再構築する。 */
+  private rebuildC4ManualTableForRepoIdFlip(db: Database, table: string): void {
+    const ddl = C4_MANUAL_REPO_ID_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[c4-manual flip] no DDL registered for ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    // 新スキーマの列のうち旧テーブルにも存在する列を共有列としてコピーする (repo_id を含む)。
+    const sharedCols = newCols.filter((c) => oldCols.has(c));
+    // repo_id IS NULL の行 (= repos に無い repo_name の orphan) は新スキーマの NOT NULL を
+    // 満たさないため除外する。旧 PK (repo_name, <id>) は新 PK (repo_id, <id>) と 1:1 対応のため
+    // 残った行は新 PK で衝突しない。
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE repo_id IS NOT NULL`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
   /**
    * 既存 DB の releases に repo_id 列が無ければ追加する (Phase B step1・非破壊)。
    * 新規 DB は CREATE_RELEASES に repo_id を含むため no-op。FK は init で off のため
@@ -2560,9 +2709,16 @@ export class TrailDatabase {
     // Hotspot / activity map 集計用 (trail-time-axis-requirements 3.2)
     db.run('CREATE INDEX IF NOT EXISTS idx_messages_subagent_type ON messages(subagent_type)');
     db.run('CREATE INDEX IF NOT EXISTS idx_message_tool_calls_tool_name_file_path ON message_tool_calls(tool_name, file_path)');
+    // Phase E flip: 既存 DB の c4_manual 系 3 テーブルを repo_id PK + 複合 FK スキーマへ再構築する。
+    // CREATE TABLE IF NOT EXISTS は既存テーブルに無効なため、CREATE_C4_MANUAL_* の実行前に呼ぶ。
+    // 新規 DB / flip 済 DB では no-op。repos を self-seed してから backfill する。
+    this.migrateC4ManualTablesRepoId(db);
     db.run(CREATE_C4_MANUAL_ELEMENTS);
     db.run(CREATE_C4_MANUAL_RELATIONSHIPS);
     db.run(CREATE_C4_MANUAL_GROUPS);
+    for (const idx of CREATE_C4_MANUAL_INDEXES) {
+      db.run(idx);
+    }
     // LEP Layer 4 (Aggregator) の DORA 指標出力先。新規テーブル追加のみ (既存 DDL 不変)。
     db.run(CREATE_DORA_METRICS);
     // LEP 新ソース参照実装 (Step 4b): GitHub PR review の生データ。新規テーブル追加のみ。
@@ -5231,11 +5387,13 @@ export class TrailDatabase {
     const nextN = this.getNextManualSequence(repoName, prefix) + 1;
     const id = `${prefix}${nextN}`;
     const now = new Date().toISOString();
+    // Phase E flip: c4_manual_elements は repo_id PK。repo_name は移行互換のため併記する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT INTO c4_manual_elements
-         (repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [repoName, id, input.type, input.name, input.description ?? null, input.external ? 1 : 0, input.parentId, input.serviceType ?? null, now],
+         (repo_id, repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, id, input.type, input.name, input.description ?? null, input.external ? 1 : 0, input.parentId, input.serviceType ?? null, now],
     );
     this.save();
     return id;
@@ -5305,11 +5463,13 @@ export class TrailDatabase {
     const nextN = this.getNextManualSequence(repoName, 'rel_manual_') + 1;
     const id = `rel_manual_${nextN}`;
     const now = new Date().toISOString();
+    // Phase E flip: c4_manual_relationships は repo_id PK。repo_name は移行互換のため併記する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT INTO c4_manual_relationships
-         (repo_name, rel_id, from_id, to_id, label, technology, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [repoName, id, input.fromId, input.toId, input.label ?? null, input.technology ?? null, now],
+         (repo_id, repo_name, rel_id, from_id, to_id, label, technology, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, id, input.fromId, input.toId, input.label ?? null, input.technology ?? null, now],
     );
     this.save();
     return id;
@@ -5344,33 +5504,39 @@ export class TrailDatabase {
 
   insertManualElementRaw(repoName: string, e: ManualElement): void {
     const db = this.ensureDb();
+    // Phase E flip: repo_id PK。INSERT OR REPLACE は新 PK (repo_id, element_id) で衝突解決する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT OR REPLACE INTO c4_manual_elements
-         (repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [repoName, e.id, e.type, e.name, e.description ?? null, e.external ? 1 : 0, e.parentId, e.serviceType ?? null, e.updatedAt],
+         (repo_id, repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, e.id, e.type, e.name, e.description ?? null, e.external ? 1 : 0, e.parentId, e.serviceType ?? null, e.updatedAt],
     );
     this.save();
   }
 
   insertManualRelationshipRaw(repoName: string, r: ManualRelationship): void {
     const db = this.ensureDb();
+    // Phase E flip: repo_id PK。INSERT OR REPLACE は新 PK (repo_id, rel_id) で衝突解決する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT OR REPLACE INTO c4_manual_relationships
-         (repo_name, rel_id, from_id, to_id, label, technology, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [repoName, r.id, r.fromId, r.toId, r.label ?? null, r.technology ?? null, r.updatedAt],
+         (repo_id, repo_name, rel_id, from_id, to_id, label, technology, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, r.id, r.fromId, r.toId, r.label ?? null, r.technology ?? null, r.updatedAt],
     );
     this.save();
   }
 
   insertManualGroupRaw(repoName: string, g: ManualGroup): void {
     const db = this.ensureDb();
+    // Phase E flip: repo_id PK。INSERT OR REPLACE は新 PK (repo_id, group_id) で衝突解決する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT OR REPLACE INTO c4_manual_groups
-         (repo_name, group_id, member_ids, label, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [repoName, g.id, JSON.stringify(g.memberIds), g.label ?? null, g.updatedAt],
+         (repo_id, repo_name, group_id, member_ids, label, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, g.id, JSON.stringify(g.memberIds), g.label ?? null, g.updatedAt],
     );
     this.save();
   }
@@ -5390,10 +5556,12 @@ export class TrailDatabase {
     }, 0);
     const id = `grp_manual_${maxN + 1}`;
     const now = new Date().toISOString();
+    // Phase E flip: c4_manual_groups は repo_id PK。repo_name は移行互換のため併記する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
-      `INSERT INTO c4_manual_groups (repo_name, group_id, member_ids, label, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [repoName, id, JSON.stringify(input.memberIds), input.label ?? null, now],
+      `INSERT INTO c4_manual_groups (repo_id, repo_name, group_id, member_ids, label, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, id, JSON.stringify(input.memberIds), input.label ?? null, now],
     );
     this.save();
     return id;
