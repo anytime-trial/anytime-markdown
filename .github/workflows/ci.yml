@@ -968,7 +968,10 @@ jobs:
   # npm パッケージ（@anytime-markdown/graph-embed）を npm レジストリへ publish。
   # packages/graph-embed/package.json の version を上げて master にマージすると、
   # 未発行(graph-embed-v<ver> タグ無し)のときだけ publish + タグ + Release を作る。
-  # 要 repository secret: NPM_TOKEN（npm の Automation token）。
+  # 認証は Trusted Publishing(OIDC)・トークン不要。事前に npmjs.com の当該パッケージ
+  # Settings → Trusted Publisher に GitHub Actions / このリポジトリ / Workflow filename=ci.yml /
+  # Allowed action=npm publish を登録しておくこと（設定にはパッケージが存在している必要があるため、
+  # 初回 publish のみ手動 npm publish か granular token で 1 回だけ行い、以降を OIDC に委ねる）。
   publish-graph-embed:
     if: github.ref == 'refs/heads/master'
     needs: ci
@@ -976,6 +979,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      id-token: write   # Trusted Publishing(OIDC) に必須
     steps:
       - uses: actions/checkout@v5
         with:
@@ -1002,7 +1006,10 @@ jobs:
         if: steps.tag_check.outputs.exists == 'false'
         with:
           node-version-file: '.node-version'
-          registry-url: 'https://registry.npmjs.org'
+
+      - name: Ensure npm supports trusted publishing (OIDC)
+        if: steps.tag_check.outputs.exists == 'false'
+        run: npm install -g npm@latest   # OIDC publish は npm >= 11.5.1 が必要
 
       - name: Install dependencies
         if: steps.tag_check.outputs.exists == 'false'
@@ -1016,11 +1023,10 @@ jobs:
         if: steps.tag_check.outputs.exists == 'false'
         run: npm test --workspace=@anytime-markdown/graph-embed
 
-      - name: Publish to npm
+      - name: Publish to npm (OIDC trusted publishing)
         if: steps.tag_check.outputs.exists == 'false'
-        run: npm publish --workspace=@anytime-markdown/graph-embed --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+        working-directory: packages/graph-embed
 
       - name: Create git tag
         if: steps.tag_check.outputs.exists == 'false'
