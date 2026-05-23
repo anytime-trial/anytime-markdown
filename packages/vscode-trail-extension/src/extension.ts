@@ -28,7 +28,7 @@ import {
 	checkLlmAvailability,
 	LogService,
 } from '@anytime-markdown/trail-server';
-import type { AnalyzeAllRunnerOptions, LepConfig } from '@anytime-markdown/trail-server';
+import type { AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
 import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
@@ -51,6 +51,9 @@ let pipelineProvider: PipelineProvider | undefined;
 let memoryCoreService: MemoryCoreService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
 let extensionDistPath = '';
+// C4 ドキュメントリンク用ドキュメントディレクトリ (lep.json workspace.docsPath)。
+// 旧 VS Code 設定 anytimeTrail.workspace.docsPath は廃止。activate で lepConfig から解決する。
+let lepWorkspaceDocsPath = '';
 
 function getEffectiveWorkspacePath(): string | undefined {
 	const configured = vscode.workspace.getConfiguration('anytimeTrail.workspace').get<string>('path', '').trim();
@@ -73,8 +76,7 @@ function getWatchedGitRoots(lepGitRoots: readonly string[]): string[] {
 }
 
 function applyDocsPathConfig(): void {
-	const docsPath = vscode.workspace.getConfiguration('anytimeTrail.workspace').get<string>('docsPath', '');
-	trailDataServer?.setDocsPath(docsPath || undefined);
+	trailDataServer?.setDocsPath(lepWorkspaceDocsPath || undefined);
 }
 
 function isAnalyzeAllEnabled(): boolean {
@@ -83,9 +85,11 @@ function isAnalyzeAllEnabled(): boolean {
 		.get<boolean>('enabled', false);
 }
 
-function wireDaemonLogSink(daemonUrl: string, context: vscode.ExtensionContext): void {
-	const cfg = vscode.workspace.getConfiguration('anytimeTrail.logs');
-	const minLevel = cfg.get<'debug' | 'info' | 'warn' | 'error'>('minLevel') ?? 'debug';
+function wireDaemonLogSink(
+	daemonUrl: string,
+	context: vscode.ExtensionContext,
+	minLevel: LepLogLevel,
+): void {
 	const sink = new DaemonSinkLogger({ baseUrl: daemonUrl, component: 'TrailLogger', minLevel });
 	TrailLogger.addSink(sink);
 	context.subscriptions.push({
@@ -100,10 +104,10 @@ function wireDaemonLogSink(daemonUrl: string, context: vscode.ExtensionContext):
 function setupServerCallbacks(server: TrailDataServer): void {
 	applyDocsPathConfig();
 	server.onOpenDocLink = (docPath) => {
-		const docsDir = vscode.workspace.getConfiguration('anytimeTrail.workspace').get<string>('docsPath', '');
+		const docsDir = lepWorkspaceDocsPath;
 		if (!docsDir) {
-			TrailLogger.warn(`[open-doc-link] docsPath is not configured (anytimeTrail.workspace.docsPath). Cannot open: ${docPath}`);
-			vscode.window.showWarningMessage('Set anytimeTrail.workspace.docsPath to open document links.');
+			TrailLogger.warn(`[open-doc-link] docsPath is not configured (lep.json workspace.docsPath). Cannot open: ${docPath}`);
+			vscode.window.showWarningMessage('Set workspace.docsPath in lep.json to open document links.');
 			return;
 		}
 		const fsPath = path.join(docsDir, docPath);
@@ -235,83 +239,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Trail Database + Data Server (non-blocking initialization)
-	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '.anytime/trail/db') || '.anytime/trail/db';
 	const wsRootForDb = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
-	// `.anytime/analyze-exclude` を activate 時に seed する。analyze pipeline
-	// (analyzeCurrentCode / analyzeReleaseCode) でも seed されるが、AnalyzeAll が
-	// OFF のままだとそちらが走らないため、ここで初期生成を保証する。flag:'wx' で
-	// 既存ファイルは上書きされない (EEXIST → false 返却で no-op)。
-	if (wsRootForDb) {
-		try {
-			if (seedAnalyzeExclude(wsRootForDb)) {
-				TrailLogger.info(`[analyzeExclude] seeded .anytime/analyze-exclude at ${wsRootForDb}`);
-			}
-		} catch (err) {
-			TrailLogger.warn(
-				`[analyzeExclude] failed to seed at ${wsRootForDb}: ${err instanceof Error ? err.message : String(err)}`,
-			);
-		}
-	}
-
-	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
-		? dbStoragePathSetting
-		: wsRootForDb ? path.join(wsRootForDb, dbStoragePathSetting) : undefined;
-	// バックアップ設定は anytime-database 拡張が所有する (anytimeDatabase.backup.*)。
-	// バックアップトリガは trail 拡張のみが担うため、ここで読んで TrailDatabase に渡す。
-	const backupConfig = vscode.workspace.getConfiguration('anytimeDatabase.backup');
-	const backupGenerations = backupConfig.get<number>('generations', 1);
-	const backupIntervalDays = backupConfig.get<number>('intervalDays', 1);
-	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir, backupGenerations, TrailLogger, backupIntervalDays);
-
-	// Anytime Memory output channel + native binding paths are needed by:
-	//   - MemoryCoreService (ingest pipeline ホスト)
-	//   - memory chat (ChatBridge / RebuildScheduler)
-	// なので拡張側の責務として早期に解決しておく。
-	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Anytime Memory');
-	const memoryCoreNativeBinding = path.join(
-		extensionDistPath,
-		'node_modules',
-		'better-sqlite3',
-		'build',
-		'Release',
-		'better_sqlite3.node',
-	);
-	trailDb.setIntegrityAlertHandler((alerts) => {
-		for (const a of alerts) {
-			TrailLogger.warn(
-				`[DatabaseIntegrity] Suspicious data loss in "${a.table}": ${a.previous} → ${a.current} rows ` +
-					`(loss rate ${(a.lossRate * 100).toFixed(1)}%). Inspect write history immediately.`,
-			);
-		}
-	});
-	// --- 外部デーモン検出 (Milestone C-2) ---
-	const useExternalDaemon = vscode.workspace
-		.getConfiguration('anytimeTrail.daemon')
-		.get<boolean>('useExternalDaemon', false);
-	const daemonClient = new DaemonClient({ logger: TrailLogger.asLogger(), workspaceRoot: wsRootForDb });
-	const externalDaemonInfo = useExternalDaemon ? daemonClient.detect() : undefined;
-	if (externalDaemonInfo) {
-		TrailLogger.info(`[DaemonClient] Using external daemon at ${externalDaemonInfo.url} (pid=${externalDaemonInfo.pid})`);
-		TrailPanel.setDaemonUrl(externalDaemonInfo.url);
-		wireDaemonLogSink(externalDaemonInfo.url, context);
-	} else if (useExternalDaemon) {
-		TrailLogger.warn('[DaemonClient] anytimeTrail.daemon.useExternalDaemon=true but no live daemon found; falling back to local server mode');
-	}
-	// --- 外部デーモン検出ここまで ---
-
-	const gitRoot = wsRootForDb;
-	const memoryDbPathForServer = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
-	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot, memoryDbPathForServer);
-	TrailPanel.setDataServer(trailDataServer);
-	setupServerCallbacks(trailDataServer);
-
-	// TRAIL_HOME (trace dir 等の解決に使用)。
-	const trailHomeForConfig = wsRootForDb ? getTrailHome(wsRootForDb) : getTrailHome();
-
-	// LEP 設定 (lep.json) — 唯一の設定ソース (設計書 13 章)。旧 config.json は
-	// migrateConfigJsonIntoLepJson で一度きり lep.json へ移行し、以後読まない。
-	// stage / analyzer 有効化 / schedule / llm / memory / gitRoots を集約する。
+	// LEP 設定 (lep.json) — 唯一の設定ソース (設計書 13 章)。storagePath / docsPath /
+	// logs.minLevel も lep.json に集約したため、TrailDatabase 構築・docsPath 適用・
+	// DaemonSinkLogger より前にロードする。旧 config.json は migrateConfigJsonIntoLepJson
+	// で一度きり lep.json へ移行し、以後読まない。
 	const lepLogger = { warn: (m: string) => TrailLogger.warn(m), info: (m: string) => TrailLogger.info(m) };
 	let lepConfig: LepConfig = DEFAULT_LEP_CONFIG;
 	let lepStage: LepStage = isAnalyzeAllEnabled() ? 'primary+memory' : 'disabled';
@@ -376,6 +309,82 @@ export async function activate(context: vscode.ExtensionContext) {
 			);
 		}
 	}
+	// docsPath は lep.json workspace.docsPath で一元管理する (旧 anytimeTrail.workspace.docsPath は廃止)。
+	lepWorkspaceDocsPath = lepConfig.workspace.docsPath;
+	// trail.db 保存先は lep.json database.storagePath (旧 anytimeTrail.database.storagePath は廃止)。
+	const dbStoragePathSetting = lepConfig.database.storagePath || '.anytime/trail/db';
+
+	// `.anytime/analyze-exclude` を activate 時に seed する。analyze pipeline
+	// (analyzeCurrentCode / analyzeReleaseCode) でも seed されるが、AnalyzeAll が
+	// OFF のままだとそちらが走らないため、ここで初期生成を保証する。flag:'wx' で
+	// 既存ファイルは上書きされない (EEXIST → false 返却で no-op)。
+	if (wsRootForDb) {
+		try {
+			if (seedAnalyzeExclude(wsRootForDb)) {
+				TrailLogger.info(`[analyzeExclude] seeded .anytime/analyze-exclude at ${wsRootForDb}`);
+			}
+		} catch (err) {
+			TrailLogger.warn(
+				`[analyzeExclude] failed to seed at ${wsRootForDb}: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+	}
+
+	const dbStorageDir = path.isAbsolute(dbStoragePathSetting)
+		? dbStoragePathSetting
+		: wsRootForDb ? path.join(wsRootForDb, dbStoragePathSetting) : undefined;
+	// バックアップ設定は anytime-database 拡張が所有する (anytimeDatabase.backup.*)。
+	// バックアップトリガは trail 拡張のみが担うため、ここで読んで TrailDatabase に渡す。
+	const backupConfig = vscode.workspace.getConfiguration('anytimeDatabase.backup');
+	const backupGenerations = backupConfig.get<number>('generations', 1);
+	const backupIntervalDays = backupConfig.get<number>('intervalDays', 1);
+	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir, backupGenerations, TrailLogger, backupIntervalDays);
+
+	// Anytime Memory output channel + native binding paths are needed by:
+	//   - MemoryCoreService (ingest pipeline ホスト)
+	//   - memory chat (ChatBridge / RebuildScheduler)
+	// なので拡張側の責務として早期に解決しておく。
+	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Anytime Memory');
+	const memoryCoreNativeBinding = path.join(
+		extensionDistPath,
+		'node_modules',
+		'better-sqlite3',
+		'build',
+		'Release',
+		'better_sqlite3.node',
+	);
+	trailDb.setIntegrityAlertHandler((alerts) => {
+		for (const a of alerts) {
+			TrailLogger.warn(
+				`[DatabaseIntegrity] Suspicious data loss in "${a.table}": ${a.previous} → ${a.current} rows ` +
+					`(loss rate ${(a.lossRate * 100).toFixed(1)}%). Inspect write history immediately.`,
+			);
+		}
+	});
+
+	// --- 外部デーモン検出 (Milestone C-2) ---
+	const useExternalDaemon = vscode.workspace
+		.getConfiguration('anytimeTrail.daemon')
+		.get<boolean>('useExternalDaemon', false);
+	const daemonClient = new DaemonClient({ logger: TrailLogger.asLogger(), workspaceRoot: wsRootForDb });
+	const externalDaemonInfo = useExternalDaemon ? daemonClient.detect() : undefined;
+	if (externalDaemonInfo) {
+		TrailLogger.info(`[DaemonClient] Using external daemon at ${externalDaemonInfo.url} (pid=${externalDaemonInfo.pid})`);
+		TrailPanel.setDaemonUrl(externalDaemonInfo.url);
+		wireDaemonLogSink(externalDaemonInfo.url, context, lepConfig.logs.minLevel);
+	} else if (useExternalDaemon) {
+		TrailLogger.warn('[DaemonClient] anytimeTrail.daemon.useExternalDaemon=true but no live daemon found; falling back to local server mode');
+	}
+	// --- 外部デーモン検出ここまで ---
+
+	const gitRoot = wsRootForDb;
+	const memoryDbPathForServer = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
+	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot, memoryDbPathForServer);
+	TrailPanel.setDataServer(trailDataServer);
+	setupServerCallbacks(trailDataServer);
+
+	// TRAIL_HOME (trace dir 等の解決に使用)。
+	const trailHomeForConfig = wsRootForDb ? getTrailHome(wsRootForDb) : getTrailHome();
 
 	// lep.json から ingest / chat / health で共有する LLM 値を解決する。
 	// baseUrl は resolveOllamaBaseUrl で env / Dev Container 検出を畳み込み、
@@ -492,7 +501,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		codeGraphRepos.push({ id: workspaceLabel, label: workspaceLabel, path: analysisWorkspacePath });
 	}
 
-	const docsPathForCodeGraph = vscode.workspace.getConfiguration('anytimeTrail.workspace').get<string>('docsPath', '').trim();
+	const docsPathForCodeGraph = lepWorkspaceDocsPath.trim();
 	if (docsPathForCodeGraph && !codeGraphRepos.some((r) => r.path === docsPathForCodeGraph)) {
 		const docsLabel = path.basename(docsPathForCodeGraph) || 'Docs';
 		const uniqueDocsLabel = codeGraphRepos.some((r) => r.id === docsLabel) ? `${docsLabel}-docs` : docsLabel;
@@ -745,7 +754,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				await trailDataServer!.start(trailPort);
 				const actualPort = trailDataServer!.port;
 				TrailLogger.info(`Trail Data Server started on port ${actualPort}`);
-				wireDaemonLogSink(`http://127.0.0.1:${actualPort}`, context);
+				wireDaemonLogSink(`http://127.0.0.1:${actualPort}`, context, lepConfig.logs.minLevel);
 
 				// トークン予算設定を反映
 				const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
@@ -914,9 +923,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Watch for configuration changes
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('anytimeTrail.workspace.docsPath')) {
-				applyDocsPathConfig();
-			}
+			// docsPath は lep.json (workspace.docsPath) へ移行。lep.json 変更は Reload Window で反映する。
 			if (e.affectsConfiguration('anytimeAgent.budget') && trailDataServer) {
 				const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
 				trailDataServer.setTokenBudgetConfig({

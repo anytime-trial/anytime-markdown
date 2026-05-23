@@ -6,8 +6,6 @@
   "config.analyzeAll.enabled": "Enable the AnalyzeAll pipeline (importAll + memory-core runOnce). When disabled (default), the Pipelines tree view is hidden and no automatic or manual runs are performed.",
   "config.lep.stageOverride": "Temporarily override the LEP stage from `lep.json` (`<workspace>/.anytime/trail/lep.json`). One of `disabled` / `sources` / `primary` / `memory` / `primary+memory` / `all`. Leave empty to use `lep.json`. Controls which Waves run (1=sources, 2=primary import, 3=memory). Reload Window to apply.",
   "config.lep.configPath": "Alternate path to `lep.json`. When set, only this file is read (the standard `.anytime/trail/lep.json` search is skipped). Reload Window to apply.",
-  "config.database.storagePath": "Directory where `trail.db` is stored. Absolute path or relative to workspace root. Defaults to `.anytime/trail/db` (under TRAIL_HOME).",
-  "config.logs.minLevel": "Minimum log level to send to trail-server for persistence in extension_logs. Lower levels (debug) keep more detail but increase DB size.",
   "command.memory.rebuildIndex": "Rebuild Memory Index",
   "command.analyzeAll.status": "Show AnalyzeAll Status",
   "command.analyzeCurrentCode": "Analyze Code",

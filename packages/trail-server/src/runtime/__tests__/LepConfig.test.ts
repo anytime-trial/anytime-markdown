@@ -168,6 +168,24 @@ describe('validateLepConfigInput', () => {
     expect(warnings.some((w) => w.includes('gitRoots'))).toBe(true);
   });
 
+  it('parses database.storagePath', () => {
+    const { value, warnings } = validateLepConfigInput({ database: { storagePath: '/db/dir' } }, 'test');
+    expect(warnings).toEqual([]);
+    expect(value.database).toEqual({ storagePath: '/db/dir' });
+  });
+
+  it('parses workspace.docsPath', () => {
+    const { value, warnings } = validateLepConfigInput({ workspace: { docsPath: '/docs' } }, 'test');
+    expect(warnings).toEqual([]);
+    expect(value.workspace).toEqual({ docsPath: '/docs' });
+  });
+
+  it('warns when database / workspace are not plain objects', () => {
+    const { warnings } = validateLepConfigInput({ database: 'bad', workspace: 5 }, 'test');
+    expect(warnings.some((w) => w.includes('database'))).toBe(true);
+    expect(warnings.some((w) => w.includes('workspace'))).toBe(true);
+  });
+
   it('parses memory.rag / fts / conversation', () => {
     const { value, warnings } = validateLepConfigInput(
       {
@@ -257,6 +275,22 @@ describe('sources.claude / sources.codex defaults & merge', () => {
     expect(cfg.sources.codex.sessionsDir).toBe('/s');
     // github は base 既定を維持
     expect(cfg.sources.github.enabled).toBe(false);
+  });
+});
+
+describe('database / workspace defaults & merge', () => {
+  it('defaults database.storagePath to .anytime/trail/db and workspace.docsPath to empty', () => {
+    expect(DEFAULT_LEP_CONFIG.database.storagePath).toBe('.anytime/trail/db');
+    expect(DEFAULT_LEP_CONFIG.workspace.docsPath).toBe('');
+  });
+
+  it('merges database.storagePath / workspace.docsPath overrides', () => {
+    const cfg = mergeLepConfig(DEFAULT_LEP_CONFIG, {
+      database: { storagePath: '/custom/db' },
+      workspace: { docsPath: '/custom/docs' },
+    });
+    expect(cfg.database.storagePath).toBe('/custom/db');
+    expect(cfg.workspace.docsPath).toBe('/custom/docs');
   });
 });
 

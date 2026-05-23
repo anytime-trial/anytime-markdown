@@ -43,8 +43,9 @@ export function activate(context: vscode.ExtensionContext): void {
   const extensionDistPath = context.extensionPath
     ? path.join(context.extensionPath, "dist")
     : "";
-  // storagePath は trail 拡張が書き込む既定パス (.anytime/trail/db) 設定を共有する。
-  const dbStorageConfig = vscode.workspace.getConfiguration("anytimeTrail.database");
+  // storagePath は本拡張が所有する設定 (anytimeDatabase.storagePath)。trail 側は lep.json の
+  // database.storagePath を参照するため、両者の既定 (.anytime/trail/db) を揃える運用とする。
+  const dbStorageConfig = vscode.workspace.getConfiguration("anytimeDatabase");
   const dbStoragePathSetting = dbStorageConfig.get<string>("storagePath", ".anytime/trail/db") || ".anytime/trail/db";
   const wsRootForDb = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   const dbStorageDir = path.isAbsolute(dbStoragePathSetting)

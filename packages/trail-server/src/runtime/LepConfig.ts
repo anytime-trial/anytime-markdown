@@ -135,6 +135,22 @@ export interface LepSourcesConfig {
   gitRoots: string[];
 }
 
+/**
+ * trail.db の保存先 (旧 VS Code 設定 `anytimeTrail.database.storagePath` の移行先)。
+ * 絶対パスまたは workspace ルートからの相対パス。既定 `.anytime/trail/db`。
+ */
+export interface LepDatabaseConfig {
+  storagePath: string;
+}
+
+/**
+ * ワークスペース関連パス。`docsPath` は C4 ドキュメントリンク用ドキュメントディレクトリ
+ * (旧 VS Code 設定 `anytimeTrail.workspace.docsPath` の移行先)。空文字 = 未設定。
+ */
+export interface LepWorkspaceConfig {
+  docsPath: string;
+}
+
 export interface LepConfig {
   version: number;
   stage: LepStage;
@@ -143,6 +159,8 @@ export interface LepConfig {
   memory: LepMemoryConfig;
   analyzers: LepAnalyzersConfig;
   sources: LepSourcesConfig;
+  database: LepDatabaseConfig;
+  workspace: LepWorkspaceConfig;
   logs: { minLevel: LepLogLevel };
 }
 
@@ -213,6 +231,8 @@ export interface PartialLepConfig {
     codex?: Partial<LepCodexSourceConfig>;
     gitRoots?: string[];
   };
+  database?: Partial<LepDatabaseConfig>;
+  workspace?: Partial<LepWorkspaceConfig>;
   logs?: { minLevel?: LepLogLevel };
 }
 
@@ -243,6 +263,8 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
     codex: { sessionsDir: '' },
     gitRoots: [],
   },
+  database: { storagePath: '.anytime/trail/db' },
+  workspace: { docsPath: '' },
   logs: { minLevel: 'info' },
 };
 
@@ -262,6 +284,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   'memory',
   'analyzers',
   'sources',
+  'database',
+  'workspace',
   'logs',
   '$schema',
 ]);
@@ -450,6 +474,28 @@ export function validateLepConfigInput(
     }
   }
 
+  if (raw['database'] !== undefined) {
+    if (isPlainObject(raw['database'])) {
+      const d = raw['database'];
+      const database: Partial<LepDatabaseConfig> = {};
+      if (typeof d['storagePath'] === 'string') database.storagePath = d['storagePath'];
+      value.database = database;
+    } else {
+      warnings.push(`${sourceLabel}: database はオブジェクトである必要があります (無視)`);
+    }
+  }
+
+  if (raw['workspace'] !== undefined) {
+    if (isPlainObject(raw['workspace'])) {
+      const w = raw['workspace'];
+      const workspace: Partial<LepWorkspaceConfig> = {};
+      if (typeof w['docsPath'] === 'string') workspace.docsPath = w['docsPath'];
+      value.workspace = workspace;
+    } else {
+      warnings.push(`${sourceLabel}: workspace はオブジェクトである必要があります (無視)`);
+    }
+  }
+
   if (raw['logs'] !== undefined && isPlainObject(raw['logs'])) {
     const level = raw['logs']['minLevel'];
     if (typeof level === 'string' && VALID_LOG_LEVELS.has(level as LepLogLevel)) {
@@ -516,6 +562,12 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
         sessionsDir: override.sources?.codex?.sessionsDir ?? base.sources.codex.sessionsDir,
       },
       gitRoots: override.sources?.gitRoots ?? base.sources.gitRoots,
+    },
+    database: {
+      storagePath: override.database?.storagePath ?? base.database.storagePath,
+    },
+    workspace: {
+      docsPath: override.workspace?.docsPath ?? base.workspace.docsPath,
     },
     logs: { minLevel: override.logs?.minLevel ?? base.logs.minLevel },
   };
