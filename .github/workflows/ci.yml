@@ -965,7 +965,7 @@ jobs:
           files: packages/vscode-database-extension/anytime-database-*.vsix
           generate_release_notes: true
 
-  # npm パッケージ（@anytime-markdown/graph-embed）を npm レジストリへ publish。
+  # npm パッケージ（@anytime-trial/graph-embed）を npm レジストリへ publish。
   # packages/graph-embed/package.json の version を上げて master にマージすると、
   # 未発行(graph-embed-v<ver> タグ無し)のときだけ publish + タグ + Release を作る。
   # 認証は Trusted Publishing(OIDC)・トークン不要。事前に npmjs.com の当該パッケージ
@@ -1017,11 +1017,11 @@ jobs:
 
       - name: Build graph-embed
         if: steps.tag_check.outputs.exists == 'false'
-        run: npm run build --workspace=@anytime-markdown/graph-embed
+        run: npm run build --workspace=@anytime-trial/graph-embed
 
       - name: Test graph-embed
         if: steps.tag_check.outputs.exists == 'false'
-        run: npm test --workspace=@anytime-markdown/graph-embed
+        run: npm test --workspace=@anytime-trial/graph-embed
 
       - name: Publish to npm (OIDC trusted publishing)
         if: steps.tag_check.outputs.exists == 'false'
