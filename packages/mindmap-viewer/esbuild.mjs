@@ -5,7 +5,7 @@ await build({
   bundle: true,
   format: 'esm',
   target: 'es2023',
-  outfile: 'dist/anytime-graph.js',
+  outfile: 'dist/mindmap-viewer.js',
   sourcemap: false,
   // graph-core を内包（external にしない）。React は元々含まれない。
 });
@@ -15,6 +15,6 @@ await build({
   bundle: true,
   format: 'iife',
   target: 'es2023',
-  outfile: 'dist/anytime-graph.iife.js',
+  outfile: 'dist/mindmap-viewer.iife.js',
   sourcemap: false,
 });

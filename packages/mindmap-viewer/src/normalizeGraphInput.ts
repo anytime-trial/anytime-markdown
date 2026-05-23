@@ -6,7 +6,7 @@ import type { GraphInput } from './types';
 const SUPPORTED_VERSIONS = new Set(['1.0']);
 
 /**
- * graph-embed 内部 API（公開しない）。GraphInput を内部 GraphDocument に変換し
+ * mindmap-viewer 内部 API（公開しない）。GraphInput を内部 GraphDocument に変換し
  * レイアウトを適用して返す。Custom Element が data 設定時・テーマ変更時に呼ぶ。
  * theme は既定ノードスタイル（fill 等）の選択に使う（明示 fill は theme 非依存）。
  */

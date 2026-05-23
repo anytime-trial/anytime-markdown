@@ -39,7 +39,7 @@
     "packages/trail-db",
     "packages/trail-viewer",
     "packages/graph-viewer",
-    "packages/graph-embed",
+    "packages/mindmap-viewer",
     "packages/mcp-trail",
     "packages/trace-core",
     "packages/trace-agent-node",

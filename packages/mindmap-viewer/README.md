@@ -1,6 +1,6 @@
-# @anytime-markdown/graph
+# @anytime-markdown/mindmap-viewer
 
-`<anytime-graph>` は、マインドマップ／グラフを**読み取り専用**で描画する vanilla な Web Component（Custom Element）です。
+`<mindmap-viewer>` は、マインドマップ／グラフを**読み取り専用**で描画する vanilla な Web Component（Custom Element）です。
 React 非依存で、任意の Web アプリ・VS Code 拡張（Webview）・素の HTML に組み込めます。
 
 
@@ -19,42 +19,42 @@ React 非依存で、任意の Web アプリ・VS Code 拡張（Webview）・素
 ### npm（バンドラ利用のアプリ）
 
 ```bash
-npm install @anytime-markdown/graph
+npm install @anytime-markdown/mindmap-viewer
 ```
 
 ```js
-import '@anytime-markdown/graph'; // import するだけで <anytime-graph> が登録される
+import '@anytime-markdown/mindmap-viewer'; // import するだけで <mindmap-viewer> が登録される
 ```
 
 ### CDN（jsDelivr・素の HTML）
 
 ```html
 <script type="module"
-  src="https://cdn.jsdelivr.net/npm/@anytime-markdown/graph/dist/anytime-graph.js"></script>
+  src="https://cdn.jsdelivr.net/npm/@anytime-markdown/mindmap-viewer/dist/mindmap-viewer.js"></script>
 ```
 
-> モジュールを使わない環境では IIFE 版 `dist/anytime-graph.iife.js` を `<script>` で読み込む（読み込み時に要素が登録される）。
+> モジュールを使わない環境では IIFE 版 `dist/mindmap-viewer.iife.js` を `<script>` で読み込む（読み込み時に要素が登録される）。
 
 ### バンドル同梱（publish 不要）
 
-`npm run build --workspace=@anytime-markdown/graph` で生成した `dist/anytime-graph.js`（ESM）または `dist/anytime-graph.iife.js` を相手アプリにコピーして読み込む。
+`npm run build --workspace=@anytime-markdown/mindmap-viewer` で生成した `dist/mindmap-viewer.js`（ESM）または `dist/mindmap-viewer.iife.js` を相手アプリにコピーして読み込む。
 
 ### VS Code 拡張（Webview）
 
-`anytime-graph.js` を拡張に同梱し、`webview.asWebviewUri()` で参照する。
+`mindmap-viewer.js` を拡張に同梱し、`webview.asWebviewUri()` で参照する。
 CSP は nonce 方式（`script-src 'nonce-...'`）に準拠する。
 
 
 ## 使い方
 
 ```html
-<anytime-graph theme="dark" minimap collapsible movable-nodes
-  style="display:block; width:100%; height:600px"></anytime-graph>
+<mindmap-viewer theme="dark" minimap collapsible movable-nodes
+  style="display:block; width:100%; height:600px"></mindmap-viewer>
 
 <script type="module">
-  import '@anytime-markdown/graph';
+  import '@anytime-markdown/mindmap-viewer';
 
-  const el = document.querySelector('anytime-graph');
+  const el = document.querySelector('mindmap-viewer');
 
   el.data = {
     schemaVersion: '1.0',
@@ -150,8 +150,8 @@ interface NodeClickDetail {
 }
 ```
 
-バリデーション用の JSON Schema（Draft 2020-12）をサブパス `@anytime-markdown/graph/schema`（= `graph-input.schema.json`）で公開している。
-CDN なら `https://cdn.jsdelivr.net/npm/@anytime-markdown/graph/graph-input.schema.json` から取得できる。
+バリデーション用の JSON Schema（Draft 2020-12）をサブパス `@anytime-markdown/mindmap-viewer/schema`（= `graph-input.schema.json`）で公開している。
+CDN なら `https://cdn.jsdelivr.net/npm/@anytime-markdown/mindmap-viewer/graph-input.schema.json` から取得できる。
 
 > `id` は一意かつ非空であること。重複・空文字・未知の `schemaVersion` は `data` 代入時に例外になる。
 
@@ -165,9 +165,9 @@ CDN なら `https://cdn.jsdelivr.net/npm/@anytime-markdown/graph/graph-input.sch
 ## 開発（このリポジトリ内）
 
 ```bash
-npm run build --workspace=@anytime-markdown/graph   # dist 生成（ESM + IIFE + .d.ts）
-npm run typecheck --workspace=@anytime-markdown/graph
-npm test --workspace=@anytime-markdown/graph
+npm run build --workspace=@anytime-markdown/mindmap-viewer   # dist 生成（ESM + IIFE + .d.ts）
+npm run typecheck --workspace=@anytime-markdown/mindmap-viewer
+npm test --workspace=@anytime-markdown/mindmap-viewer
 ```
 
 

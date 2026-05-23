@@ -2,7 +2,7 @@ import { GraphView } from '@anytime-markdown/graph-core/viewer';
 import { normalizeGraphInput } from './normalizeGraphInput';
 import type { GraphInput, NodeClickDetail } from './types';
 
-export class AnytimeGraphElement extends HTMLElement {
+export class MindmapViewerElement extends HTMLElement {
   static get observedAttributes(): string[] {
     return ['theme', 'movable-nodes', 'collapsible', 'minimap'];
   }
@@ -75,7 +75,7 @@ export class AnytimeGraphElement extends HTMLElement {
   }
 
   toPng(scale = 1): Promise<Blob> {
-    if (!this.view) return Promise.reject(new Error('[anytime-graph] not connected'));
+    if (!this.view) return Promise.reject(new Error('[mindmap-viewer] not connected'));
     return this.view.toPng(scale);
   }
 
@@ -91,7 +91,7 @@ export class AnytimeGraphElement extends HTMLElement {
       this.view?.setDocument(doc);
       if (opts.fit) this.view?.fitToContent();
     } catch (err) {
-      console.error('[anytime-graph] failed to apply data', err);
+      console.error('[mindmap-viewer] failed to apply data', err);
     }
   }
 

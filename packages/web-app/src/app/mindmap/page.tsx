@@ -3,7 +3,7 @@
 import { Box, Button, ButtonGroup, Paper, Stack, Typography } from '@mui/material';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { GraphInput } from '@anytime-markdown/graph';
+import type { GraphInput } from '@anytime-markdown/mindmap-viewer';
 
 import LandingHeader from '../components/LandingHeader';
 import { useThemeMode } from '../providers';
@@ -41,16 +41,16 @@ const SAMPLE: GraphInput = {
 
 type LayoutMode = NonNullable<GraphInput['layout']>;
 
-interface AnytimeGraphEl extends HTMLElement {
+interface MindmapViewerEl extends HTMLElement {
   data?: GraphInput;
   fitToContent?: () => void;
   toPng?: (scale?: number) => Promise<Blob>;
 }
 
-export default function GraphEmbedDebugPage() {
+export default function MindmapDebugPage() {
   const { themeMode } = useThemeMode();
   const hostRef = useRef<HTMLDivElement>(null);
-  const elRef = useRef<AnytimeGraphEl | null>(null);
+  const elRef = useRef<MindmapViewerEl | null>(null);
   const [clicked, setClicked] = useState('—');
   const [layout, setLayout] = useState<LayoutMode>('radial');
   const [movable, setMovable] = useState(true);
@@ -61,12 +61,12 @@ export default function GraphEmbedDebugPage() {
   // Custom Element を登録して生成（client 限定。HTMLElement 継承のため SSR では評価しない）
   useEffect(() => {
     let cancelled = false;
-    let el: AnytimeGraphEl | null = null;
+    let el: MindmapViewerEl | null = null;
     const onNodeClick = (e: Event) => setClicked(JSON.stringify((e as CustomEvent).detail));
     void (async () => {
-      await import('@anytime-markdown/graph');
+      await import('@anytime-markdown/mindmap-viewer');
       if (cancelled || !hostRef.current) return;
-      el = document.createElement('anytime-graph') as AnytimeGraphEl;
+      el = document.createElement('mindmap-viewer') as MindmapViewerEl;
       el.setAttribute('theme', themeMode);
       if (movable) el.setAttribute('movable-nodes', '');
       if (collapsible) el.setAttribute('collapsible', '');
@@ -126,7 +126,7 @@ export default function GraphEmbedDebugPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'anytime-graph.png';
+    a.download = 'mindmap.png';
     a.click();
     URL.revokeObjectURL(url);
   }, []);
@@ -138,7 +138,7 @@ export default function GraphEmbedDebugPage() {
       <LandingHeader />
       <Box sx={{ p: { xs: 2, sm: 3 } }}>
         <Typography variant="h5" gutterBottom>
-          graph-embed デバッグ（{'<anytime-graph>'} Web Component）
+          mindmap-viewer デバッグ（{'<mindmap-viewer>'} Web Component）
         </Typography>
         <Typography variant="body2" color="text.secondary" gutterBottom>
           実際の Custom Element をライブソースで描画する確認用ページ。テーマはアプリの切替に追従。
