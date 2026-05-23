@@ -103,9 +103,16 @@ export class AnytimeGraphElement extends HTMLElement {
   private syncCanvasSize(): void {
     if (!this.canvas) return;
     const rect = this.getBoundingClientRect();
+    // 文字を鮮明に保つ: backing を整数 device px に丸め、表示 CSS を backing/dpr に固定する。
+    // これで「表示の device px（= cssW×dpr）== backing」が厳密一致し、分数 dpr（Windows の
+    // 125%/150% 表示スケール等）でもブラウザの拡大縮小補間によるぼけが出ない。
     const dpr = globalThis.devicePixelRatio || 1;
-    this.canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-    this.canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    const backingW = Math.max(1, Math.round(rect.width * dpr));
+    const backingH = Math.max(1, Math.round(rect.height * dpr));
+    this.canvas.width = backingW;
+    this.canvas.height = backingH;
+    this.canvas.style.width = `${backingW / dpr}px`;
+    this.canvas.style.height = `${backingH / dpr}px`;
     this.view?.resize();
   }
 }
