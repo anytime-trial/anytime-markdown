@@ -114,8 +114,10 @@ export interface LepConfig {
   version: number;
   stage: LepStage;
   /**
-   * 解析対象 git リポジトリのルート (daemon の bootstrap 用)。
-   * daemon は CLI 引数 → home-tier lep.json の順で解決する。拡張は VS Code workspace を使うため未参照。
+   * 解析対象 git リポジトリのルート群 (拡張・daemon 共通の監視対象)。
+   * daemon は CLI 引数 → home-tier lep.json の順で bootstrap する (workspace lep.json は
+   * gitRoots 解決後でないと読めないため非参照)。
+   * 拡張は本 gitRoots に加えて anytimeTrail.workspace.path を監視対象へ追加する。
    */
   gitRoots: string[];
   schedule: LepScheduleConfig;
