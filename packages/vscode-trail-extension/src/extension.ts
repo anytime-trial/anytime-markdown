@@ -37,7 +37,7 @@ import {
 	CREATE_EXTENSION_LOGS,
 	CREATE_EXTENSION_LOGS_INDEXES,
 } from '@anytime-markdown/trail-core/domain/schema';
-import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome, LEP_STAGES, type LepStage } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome, type LepStage } from '@anytime-markdown/memory-core';
 import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
@@ -270,15 +270,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			lepConfig = lep.config;
 			lepStage = lep.config.stage;
 			lepDisabledAnalyzers = disabledAnalyzerIds(lep.config);
-			// VS Code 設定 anytimeTrail.lep.stageOverride で一時的に stage を上書き可能 (設計書 13.4)。
-			const stageOverride = vscode.workspace
-				.getConfiguration('anytimeTrail.lep')
-				.get<string>('stageOverride', '')
-				.trim();
-			if (stageOverride && LEP_STAGES.includes(stageOverride as LepStage)) {
-				lepStage = stageOverride as LepStage;
-				TrailLogger.info(`[LepConfig] stage overridden by anytimeTrail.lep.stageOverride=${lepStage}`);
-			}
 			TrailLogger.info(
 				`[LepConfig] resolved stage=${lepStage} (loaded ${lep.loadedPaths.length} file(s))`,
 			);
