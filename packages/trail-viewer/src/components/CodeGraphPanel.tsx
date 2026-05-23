@@ -2,11 +2,10 @@ import { useCallback, useMemo, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
+import type { CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import { CodeGraphCanvas, type CodeGraphGhostEdge } from './CodeGraphCanvas';
 import { useCodeGraph } from '../hooks/useCodeGraph';
 import { useTemporalCoupling } from '../c4/hooks/useTemporalCoupling';
@@ -33,21 +32,30 @@ interface CodeGraphPanelProps {
   readonly isDark?: boolean;
   /** Ghost Edges 設定。C4 ビューと連動させるため外部から制御する。省略時は無効。 */
   readonly tcValue?: TemporalCouplingControlsValue;
+  /**
+   * 表示対象リポジトリ名。コードグラフは repo 単位で個別生成・保存されるため、
+   * C4 ビューの選択リポジトリ（repo_name）を受け取り、その 1 リポジトリのグラフを fetch する。
+   * 未指定（空文字）のときは fetch せず、選択を促す空状態を表示する。
+   */
+  readonly repoName?: string;
 }
 
-export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp }: Readonly<CodeGraphPanelProps>) {
-  const { graph, loading, error, refetch } = useCodeGraph(serverUrl);
+export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoName }: Readonly<CodeGraphPanelProps>) {
+  const { graph, loading, error, refetch } = useCodeGraph(serverUrl, {
+    repo: repoName,
+    enabled: !!repoName,
+  });
   const [query, setQuery] = useState('');
   const [highlightedNodes, setHighlightedNodes] = useState<ReadonlySet<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<CodeGraphNode | null>(null);
-  const [repoFilter, setRepoFilter] = useState<string>('all');
   const tcValue = tcValueProp ?? DEFAULT_TC_VALUE;
 
+  // per-repo グラフは repositories が当該リポジトリ 1 件のみ。
+  // ノード ID プレフィックスと整合させるため repositories[0].id を使う。
   const tcRepoId = useMemo<string | null>(() => {
     if (!graph || graph.repositories.length === 0) return null;
-    if (repoFilter !== 'all') return repoFilter;
     return graph.repositories[0]?.id ?? null;
-  }, [graph, repoFilter]);
+  }, [graph]);
 
   const {
     edges: rawGhostEdges,
@@ -152,6 +160,14 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp }: Read
     );
   }
 
+  if (!repoName) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography color="text.secondary">リポジトリを選択してください。</Typography>
+      </Box>
+    );
+  }
+
   if (!graph) {
     return (
       <Box sx={{ p: 3 }}>
@@ -162,20 +178,6 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp }: Read
       </Box>
     );
   }
-
-  const repos = [{ id: 'all', label: 'All', path: '' }, ...graph.repositories];
-  const filteredGraph: CodeGraph =
-    repoFilter === 'all'
-      ? graph
-      : {
-          ...graph,
-          nodes: graph.nodes.filter((n) => n.repo === repoFilter),
-          edges: graph.edges.filter((e) => {
-            const sn = graph.nodes.find((n) => n.id === e.source);
-            const tn = graph.nodes.find((n) => n.id === e.target);
-            return sn?.repo === repoFilter && tn?.repo === repoFilter;
-          }),
-        };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -212,17 +214,6 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp }: Read
         >
           検索
         </Button>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          {repos.map((r) => (
-            <Chip
-              key={r.id}
-              label={r.label}
-              size="small"
-              variant={repoFilter === r.id ? 'filled' : 'outlined'}
-              onClick={() => setRepoFilter(r.id)}
-            />
-          ))}
-        </Box>
       </Box>
 
       {showSubagentDirectionalHint && (
@@ -237,7 +228,7 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp }: Read
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Box sx={{ flex: 1 }}>
           <CodeGraphCanvas
-            graph={filteredGraph}
+            graph={graph}
             highlightedNodes={highlightedNodes}
             onNodeClick={(n) => void handleNodeClick(n)}
             isDark={isDark}

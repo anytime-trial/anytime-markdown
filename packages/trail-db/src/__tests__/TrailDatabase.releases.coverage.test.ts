@@ -11,6 +11,14 @@ function inner(db: TrailDatabase): SqlJsDb {
   return (db as unknown as { db: SqlJsDb }).db;
 }
 
+// flip 後 release 子テーブルは release_id FK。tag から release_id を引くヘルパ。
+type SqlJsExecLite = { exec: (sql: string, params?: ReadonlyArray<unknown>) => Array<{ values: unknown[][] }> };
+function releaseIdForTag(db: TrailDatabase, tag: string): number {
+  const res = (db as unknown as { db: SqlJsExecLite }).db
+    .exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
+  return Number(res[0]?.values?.[0]?.[0]);
+}
+
 function insertSession(db: TrailDatabase, id: string): void {
   inner(db).run(
     `INSERT OR IGNORE INTO sessions (id, slug, repo_name, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at)
@@ -39,9 +47,9 @@ function insertReleaseFile(
   db: TrailDatabase, tag: string, filePath: string, added: number, deleted: number, changeType: string,
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO release_files (release_tag, file_path, lines_added, lines_deleted, change_type)
+    `INSERT OR IGNORE INTO release_files (release_id, file_path, lines_added, lines_deleted, change_type)
      VALUES (?, ?, ?, ?, ?)`,
-    [tag, filePath, added, deleted, changeType],
+    [releaseIdForTag(db, tag), filePath, added, deleted, changeType],
   );
 }
 
@@ -49,9 +57,9 @@ function insertReleaseCoverage(
   db: TrailDatabase, tag: string, pkg: string, filePath: string, linesPct: number,
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO release_coverage (release_tag, package, file_path, lines_total, lines_covered, lines_pct)
+    `INSERT OR IGNORE INTO release_coverage (release_id, package, file_path, lines_total, lines_covered, lines_pct)
      VALUES (?, ?, ?, 100, ?, ?)`,
-    [tag, pkg, filePath, Math.round(linesPct), linesPct],
+    [releaseIdForTag(db, tag), pkg, filePath, Math.round(linesPct), linesPct],
   );
 }
 

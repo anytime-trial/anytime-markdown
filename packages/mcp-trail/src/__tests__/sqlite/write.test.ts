@@ -40,8 +40,14 @@ function createTestDb(includeMappingsJson = false): Database {
 
   db.exec(`
     ${communitySchema}
+    CREATE TABLE repos (
+      repo_id INTEGER PRIMARY KEY,
+      repo_name TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL
+    );
     CREATE TABLE c4_manual_elements (
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
+      repo_name TEXT NOT NULL DEFAULT '',
       element_id TEXT NOT NULL,
       type TEXT NOT NULL,
       name TEXT NOT NULL,
@@ -50,25 +56,27 @@ function createTestDb(includeMappingsJson = false): Database {
       parent_id TEXT,
       service_type TEXT,
       updated_at TEXT,
-      PRIMARY KEY (repo_name, element_id)
+      PRIMARY KEY (repo_id, element_id)
     );
     CREATE TABLE c4_manual_relationships (
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
+      repo_name TEXT NOT NULL DEFAULT '',
       rel_id TEXT NOT NULL,
       from_id TEXT NOT NULL,
       to_id TEXT NOT NULL,
       label TEXT,
       technology TEXT,
       updated_at TEXT,
-      PRIMARY KEY (repo_name, rel_id)
+      PRIMARY KEY (repo_id, rel_id)
     );
     CREATE TABLE c4_manual_groups (
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
+      repo_name TEXT NOT NULL DEFAULT '',
       group_id TEXT NOT NULL,
       member_ids TEXT NOT NULL DEFAULT '[]',
       label TEXT,
       updated_at TEXT,
-      PRIMARY KEY (repo_name, group_id)
+      PRIMARY KEY (repo_id, group_id)
     );
   `);
   return db;

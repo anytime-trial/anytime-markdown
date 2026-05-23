@@ -69,13 +69,16 @@ describe('CodeGraphService.generate()', () => {
     fs.rmSync(tmpDir, { recursive: true });
   });
 
-  it('空リポジトリでも CodeGraph 形式の値を返す', async () => {
+  it('単一リポジトリで per-repo の CodeGraph 配列（1 件）を返す', async () => {
     const db = makeTrailDbStub();
     const svc = new CodeGraphService({
       repositories: [makeRepo({ path: tmpDir })],
       trailDb: db as never,
     });
-    const graph = await svc.generate();
+    // generate() は per-repo の CodeGraph 配列を返す。リポ 1 件 → 配列長 1。
+    const graphs = await svc.generate();
+    expect(graphs).toHaveLength(1);
+    const graph = graphs[0];
 
     expect(graph).toMatchObject({
       repositories: expect.any(Array),
@@ -84,8 +87,21 @@ describe('CodeGraphService.generate()', () => {
       communities: expect.any(Object),
       godNodes: expect.any(Array),
     });
+    // per-repo グラフなので repositories は当該リポジトリ 1 件のみ。
+    expect(graph.repositories).toHaveLength(1);
     // generatedAt が ISO 形式であること
     expect(graph.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('空 repositories のときは空配列を返し save しない', async () => {
+    const db = makeTrailDbStub();
+    const svc = new CodeGraphService({
+      repositories: [],
+      trailDb: db as never,
+    });
+    const graphs = await svc.generate();
+    expect(graphs).toEqual([]);
+    expect(db.saveCurrentCodeGraph).not.toHaveBeenCalled();
   });
 
   it('onProgress コールバックが phase=100 で完了通知される', async () => {
@@ -110,7 +126,8 @@ describe('CodeGraphService.generate()', () => {
     });
     const generated = await svc.generate();
     const cached = svc.getGraph('test-repo');
-    expect(cached).toBe(generated);
+    // generate() は配列を返すようになったため、cache は配列要素と同一参照になる。
+    expect(cached).toBe(generated[0]);
   });
 
   it('trailDb が設定されているとき saveCurrentCodeGraph が呼ばれる', async () => {
@@ -151,7 +168,7 @@ describe('CodeGraphService.generate()', () => {
     await expect(svc.generate()).resolves.toBeDefined();
   });
 
-  it('複数リポジトリを処理してノードを結合する', async () => {
+  it('複数リポジトリをリポジトリ単位で分離して個別保存する', async () => {
     // trailGraphProvider で 2 つのリポジトリのグラフを供給する
     const trailGraphA: TrailGraph = {
       nodes: [
@@ -179,11 +196,30 @@ describe('CodeGraphService.generate()', () => {
         trailGraphProvider: () => ({ 'repo-a': trailGraphA, 'repo-b': trailGraphB }),
         trailDb: db as never,
       });
-      const graph = await svc.generate();
-      // 両リポジトリのノードが含まれる
-      const ids = graph.nodes.map((n) => n.id);
-      expect(ids).toContain('repo-a:packages/a/src/foo');
-      expect(ids).toContain('repo-b:packages/b/src/bar');
+      // per-repo 生成: リポ 2 件 → 配列長 2、各要素は単一リポのグラフ。
+      const graphs = await svc.generate();
+      expect(graphs).toHaveLength(2);
+
+      // 各グラフは「自リポのノードのみ」を含み、他リポのノードは含まない（分離保存）。
+      const idsA = graphs[0].nodes.map((n) => n.id);
+      const idsB = graphs[1].nodes.map((n) => n.id);
+      expect(idsA).toContain('repo-a:packages/a/src/foo');
+      expect(idsA).not.toContain('repo-b:packages/b/src/bar');
+      expect(idsB).toContain('repo-b:packages/b/src/bar');
+      expect(idsB).not.toContain('repo-a:packages/a/src/foo');
+
+      // 各グラフの repositories は自リポ 1 件のみ。
+      expect(graphs[0].repositories.map((r) => r.id)).toEqual(['repo-a']);
+      expect(graphs[1].repositories.map((r) => r.id)).toEqual(['repo-b']);
+
+      // save はリポごとに 1 回ずつ（計 2 回）、それぞれ自リポ名で呼ばれる。
+      expect(db.saveCurrentCodeGraph).toHaveBeenCalledTimes(2);
+      const savedRepoNames = db.saveCurrentCodeGraph.mock.calls.map((c: unknown[]) => c[0]);
+      expect(savedRepoNames).toEqual(['repo-a', 'repo-b']);
+
+      // getGraph はリポごとに個別キャッシュを返す。
+      expect(svc.getGraph('repo-a')).toBe(graphs[0]);
+      expect(svc.getGraph('repo-b')).toBe(graphs[1]);
     } finally {
       fs.rmSync(tmpDirB, { recursive: true });
     }
@@ -225,7 +261,7 @@ describe('CodeGraphService.generate()', () => {
       ],
       trailDb: db as never,
     });
-    const graph = await svc.generate();
+    const graph = (await svc.generate())[0];
     // community ラベルがある（空でない）
     expect(Object.values(graph.communities).length).toBeGreaterThan(0);
   });
@@ -246,7 +282,7 @@ describe('CodeGraphService.generate()', () => {
       trailGraphProvider: () => ({ 'dup-repo': trailGraph }),
       trailDb: db as never,
     });
-    const graph = await svc.generate();
+    const graph = (await svc.generate())[0];
     const dupNodes = graph.nodes.filter((n) => n.id === 'dup-repo:packages/a/src/dup');
     expect(dupNodes).toHaveLength(1);
   });
@@ -277,7 +313,7 @@ describe('CodeGraphService.generate()', () => {
       trailGraphProvider: () => ({ 'large-repo': trailGraph }),
       trailDb: db as never,
     });
-    const graph = await svc.generate();
+    const graph = (await svc.generate())[0];
     expect(graph.godNodes.length).toBeLessThanOrEqual(10);
     // godNodes の先頭は最も size が大きいノードのはず
     if (graph.godNodes.length > 1) {
@@ -309,7 +345,7 @@ describe('CodeGraphService.generate()', () => {
       trailGraphProvider: () => ({ 'dedup-repo': trailGraph }),
       trailDb: db as never,
     });
-    const graph = await svc.generate();
+    const graph = (await svc.generate())[0];
     const key = (e: { source: string; target: string }) => `${e.source} ${e.target}`;
     const keys = graph.edges.map(key);
     const uniqueKeys = new Set(keys);
@@ -339,7 +375,7 @@ describe('CodeGraphService.generate() — runAnalyze() スキップ分岐', () =
           child: jest.fn(),
         },
       });
-      const graph = await svc.generate();
+      const graph = (await svc.generate())[0];
       expect(graph.nodes).toHaveLength(0);
       expect(infoMessages.some((m) => m.includes('tsconfig not found'))).toBe(true);
     } finally {
@@ -368,7 +404,7 @@ describe('CodeGraphService.generate() — runAnalyze() スキップ分岐', () =
           child: jest.fn(),
         },
       });
-      const graph = await svc.generate();
+      const graph = (await svc.generate())[0];
       expect(graph.nodes).toHaveLength(0);
       expect(errorMessages.some((m) => m.includes('analyze() failed'))).toBe(true);
     } finally {

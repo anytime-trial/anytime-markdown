@@ -1,8 +1,25 @@
 import type { Database } from 'better-sqlite3';
-import { all, run } from './sqlJsUtil';
+import { all, get, run } from './sqlJsUtil';
 
 function genId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Phase E flip: c4_manual_* は repo_id NOT NULL PK へ移行した。repo_name から repo_id を
+ * 解決する (未登録なら repos へ upsert してから返す・冪等)。trail-db の repoIdForName と同等の
+ * 小ヘルパを mcp-trail 側に持つ (mcp-trail は TrailDatabase を経由せず直接 SQL を書くため)。
+ */
+function resolveRepoId(db: Database, repoName: string): number {
+  run(
+    db,
+    `INSERT INTO repos (repo_name, created_at)
+       VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+     ON CONFLICT(repo_name) DO NOTHING`,
+    [repoName],
+  );
+  const row = get<{ repo_id: number }>(db, 'SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  return Number(row?.repo_id ?? 0);
 }
 
 export function upsertCommunitySummariesDirect(
@@ -81,10 +98,12 @@ export function addElementDirect(
   },
 ): { id: string } {
   const elementId = genId('man');
+  const repoId = resolveRepoId(db, repoName);
   run(
     db,
-    `INSERT INTO c4_manual_elements (repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    `INSERT INTO c4_manual_elements (repo_id, repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     [
+      repoId,
       repoName,
       elementId,
       body.type,
@@ -146,10 +165,11 @@ export function addGroupDirect(
   body: { memberIds: ReadonlyArray<string>; label?: string },
 ): { id: string } {
   const groupId = genId('grp');
+  const repoId = resolveRepoId(db, repoName);
   run(
     db,
-    `INSERT INTO c4_manual_groups (repo_name, group_id, member_ids, label, updated_at) VALUES (?, ?, ?, ?, datetime('now'))`,
-    [repoName, groupId, JSON.stringify(body.memberIds), body.label ?? ''],
+    `INSERT INTO c4_manual_groups (repo_id, repo_name, group_id, member_ids, label, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+    [repoId, repoName, groupId, JSON.stringify(body.memberIds), body.label ?? ''],
   );
   return { id: groupId };
 }
@@ -189,10 +209,11 @@ export function addRelationshipDirect(
   body: { fromId: string; toId: string; label?: string; technology?: string },
 ): { id: string } {
   const relId = genId('rel');
+  const repoId = resolveRepoId(db, repoName);
   run(
     db,
-    `INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-    [repoName, relId, body.fromId, body.toId, body.label ?? null, body.technology ?? null],
+    `INSERT INTO c4_manual_relationships (repo_id, repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    [repoId, repoName, relId, body.fromId, body.toId, body.label ?? null, body.technology ?? null],
   );
   return { id: relId };
 }

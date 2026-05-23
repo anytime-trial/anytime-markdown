@@ -1767,7 +1767,7 @@ export function C4ViewerCore({
                   i18nResize={t('c4.popup.resize')}
                 >
                   <Suspense fallback={<CodeGraphPanelSkeleton />}>
-                    <CodeGraphPanel serverUrl={serverUrl} isDark={isDark} tcValue={tcValue} />
+                    <CodeGraphPanel serverUrl={serverUrl} isDark={isDark} tcValue={tcValue} repoName={selectedRepo} />
                   </Suspense>
                 </ResizablePopup>
               )}

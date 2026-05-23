@@ -22,6 +22,10 @@ export interface TrailRelease {
 }
 
 export interface ReleaseRow {
+  // release_id 代理キー (Phase B-2b-iii flip)。新スキーマでは PK。
+  // getReleases() は prev_release_id → tag を解決して prev_tag に詰め直すため、
+  // 外部 I/F (Supabase 同期) は従来通り tag / prev_tag を使える。
+  readonly release_id?: number;
   readonly tag: string;
   readonly released_at: string;
   readonly prev_tag: string | null;

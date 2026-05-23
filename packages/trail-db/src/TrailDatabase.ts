@@ -46,6 +46,7 @@ import {
   CREATE_C4_MANUAL_ELEMENTS,
   CREATE_C4_MANUAL_RELATIONSHIPS,
   CREATE_C4_MANUAL_GROUPS,
+  CREATE_C4_MANUAL_INDEXES,
   CREATE_DORA_METRICS,
   CREATE_PR_REVIEWS,
   CREATE_PR_REVIEW_COMMENTS,
@@ -178,6 +179,56 @@ function columnExists(db: Database, table: string, column: string): boolean {
   const cols = db.exec(`PRAGMA table_info(${table})`)[0]?.values ?? [];
   return cols.some((c) => String(c[1]) === column);
 }
+
+// Phase B-2b-iii flip: release 子テーブル名 → 新スキーマ DDL の対応表。
+// migrateReleasesFlip の 12-step 再構築で `<table>__new` を作る際に使う。
+const RELEASE_CHILD_DDL: Readonly<Record<string, string>> = {
+  release_graphs: CREATE_RELEASE_GRAPHS,
+  release_files: CREATE_RELEASE_FILES,
+  release_coverage: CREATE_RELEASE_COVERAGE,
+  release_code_graphs: CREATE_RELEASE_CODE_GRAPHS,
+  release_code_graph_communities: CREATE_RELEASE_CODE_GRAPH_COMMUNITIES,
+  release_file_analysis: CREATE_RELEASE_FILE_ANALYSIS,
+  release_function_analysis: CREATE_RELEASE_FUNCTION_ANALYSIS,
+};
+
+// Phase C-2 flip: current_* テーブル名 → 新スキーマ (repo_id PK) DDL の対応表。
+// migrateCurrentTablesRepoId の 12-step 再構築で `<table>__new` を作る際に使う。
+const CURRENT_REPO_ID_DDL: Readonly<Record<string, string>> = {
+  current_graphs: CREATE_CURRENT_GRAPHS,
+  current_code_graphs: CREATE_CURRENT_CODE_GRAPHS,
+  current_code_graph_communities: CREATE_CURRENT_CODE_GRAPH_COMMUNITIES,
+  current_coverage: CREATE_CURRENT_COVERAGE,
+  current_file_analysis: CREATE_CURRENT_FILE_ANALYSIS,
+  current_function_analysis: CREATE_CURRENT_FUNCTION_ANALYSIS,
+};
+
+// Phase D flip: session/commit 系テーブル名 → 新スキーマ (repo_id 化) DDL の対応表。
+// migrateSessionCommitTablesRepoId の 12-step 再構築で `<table>__new` を作る際に使う。
+// session_commits / commit_files / session_commit_resolutions は PK が repo_id を含むよう
+// 再設計される (PK widening)。sessions は PK 不変 (additive) のためここには含めない。
+const SESSION_COMMIT_REPO_ID_DDL: Readonly<Record<string, string>> = {
+  session_commits: CREATE_SESSION_COMMITS,
+  commit_files: CREATE_COMMIT_FILES,
+  session_commit_resolutions: CREATE_SESSION_COMMIT_RESOLUTIONS,
+};
+
+// Phase E flip: c4_manual_* テーブル名 → 新スキーマ (repo_id PK + 複合 FK) DDL の対応表。
+// migrateC4ManualTablesRepoId の 12-step 再構築で `<table>__new` を作る際に使う。
+// 親 (c4_manual_elements) を先に再構築する必要があるため、配列順序が重要 (DDL map は順不同だが
+// rebuild は C4_MANUAL_REPO_ID_TABLES の順で回す)。
+const C4_MANUAL_REPO_ID_DDL: Readonly<Record<string, string>> = {
+  c4_manual_elements: CREATE_C4_MANUAL_ELEMENTS,
+  c4_manual_relationships: CREATE_C4_MANUAL_RELATIONSHIPS,
+  c4_manual_groups: CREATE_C4_MANUAL_GROUPS,
+};
+
+// Phase F flip: derived テーブル名 → 新スキーマ (repo_id 化) DDL の対応表。
+// migrateDerivedTablesRepoId で使う。dora_metrics は PK 変更 (12-step 再構築) のため DDL を引く。
+// pr_reviews / cross_source_correlations は PK 不変 (additive) のためここには含めない。
+const DERIVED_REPO_ID_DDL: Readonly<Record<string, string>> = {
+  dora_metrics: CREATE_DORA_METRICS,
+};
 
 /**
  * `*_code_graph_communities` テーブルに `stable_key` 列が無ければ ALTER で追加する。
@@ -564,10 +615,10 @@ interface RawContentBlock {
 // CREATE_INDEXES imported from trail-core (see import at top of file)
 
 const INSERT_SESSION = `INSERT OR REPLACE INTO sessions
-  (id, slug, repo_name, version, entrypoint, model,
+  (id, slug, repo_name, repo_id, version, entrypoint, model,
    start_time, end_time, message_count,
    file_path, file_size, imported_at, source)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
 const INSERT_SESSION_COST = `INSERT OR REPLACE INTO session_costs
   (session_id, model, input_tokens, output_tokens,
@@ -1803,6 +1854,811 @@ export class TrailDatabase {
   }
 
   /**
+   * tag から releases.release_id を引く (代理キー解決・Phase B-2b-iii flip 後の write/filter 用)。
+   * 未知 tag は null。flip 後は子テーブルの FK は release_id なので、tag を受ける外部 API は
+   * 必ずこのヘルパで release_id へ変換してから子テーブルへ書き込む / フィルタする。
+   */
+  private releaseIdForTag(db: Database, tag: string): number | null {
+    const res = db.exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
+    const id = res[0]?.values?.[0]?.[0];
+    return id == null ? null : Number(id);
+  }
+
+  // Phase B-2b-iii flip 対象の release 子テーブルと、旧スキーマでの FK 列名。
+  // release_graphs / release_code_graphs は旧 PK が tag / release_tag だった。
+  private static readonly RELEASE_CHILD_FLIP: ReadonlyArray<{ table: string; oldTagCol: string }> = [
+    { table: 'release_graphs', oldTagCol: 'tag' },
+    { table: 'release_files', oldTagCol: 'release_tag' },
+    { table: 'release_coverage', oldTagCol: 'release_tag' },
+    { table: 'release_code_graphs', oldTagCol: 'release_tag' },
+    { table: 'release_code_graph_communities', oldTagCol: 'release_tag' },
+    { table: 'release_file_analysis', oldTagCol: 'release_tag' },
+    { table: 'release_function_analysis', oldTagCol: 'release_tag' },
+  ];
+
+  /**
+   * Phase B-2b-iii flip: 既存 DB の releases を代理キー (release_id PRIMARY KEY) 化し、
+   * 子 7 テーブルの FK を tag/release_tag → release_id へ張替える破壊的マイグレーション。
+   *
+   * `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
+   * - CREATE_RELEASES 実行前に呼ぶ (CREATE TABLE IF NOT EXISTS は既存テーブルへ無効なため)。
+   * - 新規 DB (releases 不在) は no-op。CREATE_* が新スキーマを直接作る。
+   * - 既に flip 済 (releases に prev_tag 無し かつ 全子に release_tag/tag 無し) なら no-op (冪等)。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * backfill 済の release_id / repo_id を使うが、念のため migration 内でも release_id を rowid から、
+   * 子の release_id を旧 tag 列経由で補完してから新テーブルへ INSERT...SELECT する。
+   * prev_release_id は旧 prev_tag → releases.release_id で解決する。
+   */
+  private migrateReleasesFlip(db: Database): void {
+    // releases が無ければ新規 DB。CREATE_* が新スキーマを作るので何もしない。
+    const releasesExists =
+      db.exec("SELECT 1 FROM sqlite_master WHERE type='table' AND name='releases'")[0]?.values
+        ?.length;
+    if (!releasesExists) return;
+
+    const releasesNeedsFlip = columnExists(db, 'releases', 'prev_tag');
+    const childNeedsFlip = TrailDatabase.RELEASE_CHILD_FLIP.some(
+      ({ table, oldTagCol }) =>
+        db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+          ?.length && columnExists(db, table, oldTagCol),
+    );
+    if (!releasesNeedsFlip && !childNeedsFlip) return; // 既に flip 済 (冪等)
+
+    try {
+      // ── pre: backfill を保証 (init の additive backfill が未走でも flip 可能にする) ──
+      if (releasesNeedsFlip) {
+        if (!columnExists(db, 'releases', 'repo_id')) {
+          db.run('ALTER TABLE releases ADD COLUMN repo_id INTEGER');
+        }
+        if (!columnExists(db, 'releases', 'release_id')) {
+          db.run('ALTER TABLE releases ADD COLUMN release_id INTEGER');
+        }
+        db.run('UPDATE releases SET release_id = rowid WHERE release_id IS NULL');
+        db.run(
+          `UPDATE releases
+             SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = releases.repo_name)
+           WHERE repo_id IS NULL`,
+        );
+      }
+      for (const { table, oldTagCol } of TrailDatabase.RELEASE_CHILD_FLIP) {
+        const tExists =
+          db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+            ?.length;
+        if (!tExists) continue;
+        if (!columnExists(db, table, oldTagCol)) continue; // 旧列が無い (= 既に flip 済) なら skip
+        if (!columnExists(db, table, 'release_id')) {
+          db.run(`ALTER TABLE "${table}" ADD COLUMN release_id INTEGER`);
+        }
+        // 旧 tag 列 → releases.release_id で release_id を補完。
+        // releases 側が旧スキーマ (release_id 列追加直後) でも上で backfill 済。
+        db.run(
+          `UPDATE "${table}"
+             SET release_id = (SELECT r.release_id FROM releases r WHERE r.tag = "${table}"."${oldTagCol}")
+           WHERE release_id IS NULL`,
+        );
+      }
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        // 親 (releases) を先に再構築する。子は FK OFF なので順序依存は無いが、
+        // prev_release_id 解決のため新 releases を先に作る。
+        if (releasesNeedsFlip) {
+          this.rebuildReleasesTableForFlip(db);
+        }
+        for (const { table, oldTagCol } of TrailDatabase.RELEASE_CHILD_FLIP) {
+          const tExists =
+            db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+              ?.length;
+          if (!tExists) continue;
+          if (!columnExists(db, table, oldTagCol)) continue;
+          this.rebuildReleaseChildForFlip(db, table);
+        }
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error('migrateReleasesFlip failed', e instanceof Error ? e : new Error(String(e)));
+      throw e;
+    }
+  }
+
+  /** flip: releases を新スキーマ (release_id PK) へ 12-step 再構築する。 */
+  private rebuildReleasesTableForFlip(db: Database): void {
+    db.run('DROP TABLE IF EXISTS releases__new');
+    db.run(CREATE_RELEASES.replace('CREATE TABLE IF NOT EXISTS releases', 'CREATE TABLE releases__new'));
+    // 新スキーマの列のうち、旧テーブルにも存在する列を共有列としてコピーする。
+    const newCols = (db.exec('PRAGMA table_info(releases__new)')[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec('PRAGMA table_info(releases)')[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    // prev_release_id は旧 prev_tag → releases.release_id で解決する派生列。
+    const sharedCols = newCols.filter((c) => c !== 'prev_release_id' && oldCols.has(c));
+    const selectExprs = sharedCols.slice();
+    let insertCols = sharedCols.slice();
+    if (oldCols.has('prev_tag')) {
+      insertCols = [...sharedCols, 'prev_release_id'];
+      selectExprs.push(
+        '(SELECT p.release_id FROM releases p WHERE p.tag = releases.prev_tag) AS prev_release_id',
+      );
+    }
+    db.run(
+      `INSERT INTO releases__new (${insertCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${selectExprs.map((e) => (e.includes(' AS ') ? e : `"${e}"`)).join(',')} FROM releases`,
+    );
+    db.run('DROP TABLE releases');
+    db.run('ALTER TABLE releases__new RENAME TO releases');
+  }
+
+  /** flip: release 子テーブルを新スキーマ (release_id FK) へ 12-step 再構築する。 */
+  private rebuildReleaseChildForFlip(db: Database, table: string): void {
+    const ddl = RELEASE_CHILD_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[flip] no DDL registered for child table ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    const sharedCols = newCols.filter((c) => oldCols.has(c));
+    // release_id が共有列に含まれない場合は旧 tag 列で解決できなかった (= 不整合) ので abort。
+    if (!sharedCols.includes('release_id')) {
+      this.logger.warn(`[flip] ${table}: release_id missing after backfill, dropping table to rebuild empty`);
+    }
+    // release_id IS NULL の行 (旧 tag が releases に無い orphan) は新テーブルの NOT NULL を満たさないため除外。
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE release_id IS NOT NULL`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
+  // Phase C-2 flip 対象の current_* テーブル。repo_name を PK に含む 6 つ。
+  private static readonly CURRENT_REPO_ID_TABLES: readonly string[] = [
+    'current_graphs',
+    'current_code_graphs',
+    'current_code_graph_communities',
+    'current_coverage',
+    'current_file_analysis',
+    'current_function_analysis',
+  ];
+
+  /**
+   * Phase C-2 flip: 既存 DB の current_* 6 テーブルを repo_id 代理キー PK へ再構築する破壊的
+   * マイグレーション。各テーブルに `repo_id INTEGER NOT NULL` を追加し、PK の repo_name を
+   * repo_id へ置換する。repo_name 列は移行互換のため残す (撤去は将来 Phase H)。
+   *
+   * `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
+   * - CREATE_CURRENT_* 実行前に呼ぶ (CREATE TABLE IF NOT EXISTS は既存テーブルへ無効なため)。
+   * - 新規 DB (テーブル不在) は no-op。CREATE_* が新スキーマを直接作る。
+   * - 既に flip 済 (repo_id 列あり) なら no-op (冪等)。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * repo_id は `(SELECT repo_id FROM repos WHERE repos.repo_name = <table>.repo_name)` で
+   * backfill する。init() の seedReposFromLegacyRepoNames より前 (createTables 内) に走るため、
+   * backfill 前に各テーブルの repo_name を repos へ self-seed しておき、解決可能にする。
+   * repo_id が解決できなかった行 (= repos に無い repo_name) は新スキーマの NOT NULL を
+   * 満たさないため除外される。
+   */
+  private migrateCurrentTablesRepoId(db: Database): void {
+    // flip が必要なテーブル (存在し、かつ repo_id 列が無い) を洗い出す。
+    const tablesToFlip = TrailDatabase.CURRENT_REPO_ID_TABLES.filter((table) => {
+      const exists =
+        db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+          ?.length;
+      if (!exists) return false; // 新規 DB → CREATE_* が新スキーマを作る
+      if (columnExists(db, table, 'repo_id')) return false; // 既に flip 済 (冪等)
+      // 旧スキーマでも repo_name 列が無い退化 DB (file_analysis 系) は別マイグレーション
+      // (migrateFileAnalysisSchema / migrateCurrentGraphsSchema) が DROP して再作成するため対象外。
+      return columnExists(db, table, 'repo_name');
+    });
+    if (tablesToFlip.length === 0) return;
+
+    try {
+      // ── pre: repos を self-seed し、repo_id 列を追加して backfill する ──
+      for (const table of tablesToFlip) {
+        db.run(
+          `INSERT OR IGNORE INTO repos (repo_name, created_at)
+           SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           FROM "${table}" WHERE repo_name IS NOT NULL`,
+        );
+        db.run(`ALTER TABLE "${table}" ADD COLUMN repo_id INTEGER`);
+        db.run(
+          `UPDATE "${table}"
+             SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name)`,
+        );
+      }
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        for (const table of tablesToFlip) {
+          this.rebuildCurrentTableForRepoIdFlip(db, table);
+        }
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[current flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[current flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error('migrateCurrentTablesRepoId failed', e instanceof Error ? e : new Error(String(e)));
+      throw e;
+    }
+  }
+
+  /** flip: current_* テーブルを新スキーマ (repo_id PK) へ 12-step 再構築する。 */
+  private rebuildCurrentTableForRepoIdFlip(db: Database, table: string): void {
+    const ddl = CURRENT_REPO_ID_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[current flip] no DDL registered for ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    // 新スキーマの列のうち旧テーブルにも存在する列を共有列としてコピーする (repo_id を含む)。
+    const sharedCols = newCols.filter((c) => oldCols.has(c));
+    // repo_id IS NULL の行 (= repos に無い repo_name の orphan) は新スキーマの NOT NULL を
+    // 満たさないため除外する。
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE repo_id IS NOT NULL`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
+  // Phase D flip 対象の session/commit 系テーブル。PK が repo_id を含むよう再設計する 3 つ。
+  private static readonly SESSION_COMMIT_REPO_ID_TABLES: readonly string[] = [
+    'session_commits',
+    'commit_files',
+    'session_commit_resolutions',
+  ];
+
+  /**
+   * Phase D flip: 既存 DB の session/commit 系テーブルを repo_id 化する破壊的マイグレーション。
+   *
+   * - `sessions`: PK は `id` のまま不変。repo_id を additive 追加し backfill するのみ (12-step 不要)。
+   * - `session_commits` / `commit_files` / `session_commit_resolutions`: PK を repo_id を含むよう
+   *   再設計する (widening)。`~/.claude/rules/sqlite-table-definition.md` の 12-step 再構築に従う。
+   *
+   * - CREATE_SESSIONS / CREATE_SESSION_COMMITS 等の実行前に呼ぶ (CREATE TABLE IF NOT EXISTS は
+   *   既存テーブルへ無効なため)。新規 DB (テーブル不在) は no-op。CREATE_* が新スキーマを直接作る。
+   * - 既に flip 済 (repo_id 列あり) なら no-op (冪等)。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * 各テーブルの distinct repo_name を repos へ self-seed (chicken-egg 回避) してから repo_id 列を
+   * 追加し、`repo_id = (SELECT repo_id FROM repos WHERE repo_name = <table>.repo_name)` で backfill
+   * する (repo_name='' も sentinel repo へ解決される)。旧 PK は新 PK の部分集合または等価なので
+   * 既存行は新 PK で衝突しない (widening)。repo_id IS NULL の orphan 行は新 NOT NULL を満たさない
+   * ため 12-step 再構築の INSERT...SELECT で除外する。
+   */
+  private migrateSessionCommitTablesRepoId(db: Database): void {
+    // PK 再設計が必要なテーブル (存在し、かつ repo_id 列が無い) を洗い出す。
+    const tablesToFlip = TrailDatabase.SESSION_COMMIT_REPO_ID_TABLES.filter((table) => {
+      const exists =
+        db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+          ?.length;
+      if (!exists) return false; // 新規 DB → CREATE_* が新スキーマを作る
+      if (columnExists(db, table, 'repo_id')) return false; // 既に flip 済 (冪等)
+      // 旧スキーマに repo_name 列が無い退化 DB は backfill 不能だが、self-seed/backfill を
+      // repo_name 不在でも安全に行うため対象に含める (repo_id は DEFAULT 0 で埋まる)。
+      return true;
+    });
+
+    // sessions は PK 不変・additive。repo_id 列が無ければ追加して backfill する (独立処理)。
+    this.migrateSessionsRepoIdColumn(db);
+
+    if (tablesToFlip.length === 0) return;
+
+    try {
+      // ── pre: repos を self-seed し、repo_id 列を追加して backfill する ──
+      for (const table of tablesToFlip) {
+        if (columnExists(db, table, 'repo_name')) {
+          db.run(
+            `INSERT OR IGNORE INTO repos (repo_name, created_at)
+             SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+             FROM "${table}" WHERE repo_name IS NOT NULL`,
+          );
+        }
+        db.run(`ALTER TABLE "${table}" ADD COLUMN repo_id INTEGER`);
+        if (columnExists(db, table, 'repo_name')) {
+          db.run(
+            `UPDATE "${table}"
+               SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name)`,
+          );
+        }
+      }
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        for (const table of tablesToFlip) {
+          this.rebuildSessionCommitTableForRepoIdFlip(db, table);
+        }
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[session-commit flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[session-commit flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error('migrateSessionCommitTablesRepoId failed', e instanceof Error ? e : new Error(String(e)));
+      throw e;
+    }
+  }
+
+  /**
+   * sessions に repo_id 列が無ければ ALTER ADD COLUMN で追加し backfill する (Phase D・additive)。
+   * sessions は PK が `id` のため 12-step 再構築は不要。SQLite の ALTER ADD COLUMN は default 無しの
+   * NOT NULL を追加できないため、repo_id は nullable で追加し repo_name → repos で backfill する。
+   * 新規 DB は CREATE_SESSIONS に repo_id を含むため no-op。FK は init で off のため REFERENCES は付けない。
+   */
+  private migrateSessionsRepoIdColumn(db: Database): void {
+    const exists =
+      db.exec("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sessions'")[0]?.values
+        ?.length;
+    if (!exists) return; // 新規 DB → CREATE_SESSIONS が新スキーマを作る
+    try {
+      if (!columnExists(db, 'sessions', 'repo_id')) {
+        db.run('ALTER TABLE sessions ADD COLUMN repo_id INTEGER');
+      }
+      // repo_name を repos へ self-seed してから backfill する (chicken-egg 回避)。
+      db.run(
+        `INSERT OR IGNORE INTO repos (repo_name, created_at)
+         SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         FROM sessions WHERE repo_name IS NOT NULL`,
+      );
+      db.run(
+        `UPDATE sessions
+           SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = sessions.repo_name)
+         WHERE repo_id IS NULL`,
+      );
+    } catch (e) {
+      this.logger.warn(
+        `[sessions repo_id migrate] ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  /** flip: session/commit 系テーブルを新スキーマ (repo_id PK) へ 12-step 再構築する。 */
+  private rebuildSessionCommitTableForRepoIdFlip(db: Database, table: string): void {
+    const ddl = SESSION_COMMIT_REPO_ID_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[session-commit flip] no DDL registered for ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    // 新スキーマの列のうち旧テーブルにも存在する列を共有列としてコピーする (repo_id を含む)。
+    const sharedCols = newCols.filter((c) => oldCols.has(c));
+    // repo_id IS NULL の行 (= repos に無い repo_name の orphan) は新スキーマの NOT NULL を
+    // 満たさないため除外する。旧 PK は新 PK の部分集合/等価のため残った行は新 PK で衝突しない。
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE repo_id IS NOT NULL`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
+  // Phase E flip 対象の c4_manual 系テーブル。PK / 複合 FK を repo_id ベースへ再設計する 3 つ。
+  // 親 (c4_manual_elements) を先頭に置く: 12-step 再構築は親→子の順で回す (複合 FK 解決のため。
+  // FK は init で OFF のため runtime 強制はされないが、意図を明示する)。
+  private static readonly C4_MANUAL_REPO_ID_TABLES: readonly string[] = [
+    'c4_manual_elements',
+    'c4_manual_relationships',
+    'c4_manual_groups',
+  ];
+
+  /**
+   * Phase E flip: 既存 DB の c4_manual 系 3 テーブルを repo_id 代理キー PK + 複合 FK へ
+   * 再設計する破壊的マイグレーション。
+   *
+   * - `c4_manual_elements`: PK `(repo_name, element_id)` → `(repo_id, element_id)`、自己参照複合 FK
+   *   `(repo_name, parent_id)` → `(repo_id, parent_id) → c4_manual_elements(repo_id, element_id)`。
+   * - `c4_manual_relationships`: PK `(repo_name, rel_id)` → `(repo_id, rel_id)`、複合 FK
+   *   `(repo_id, from_id)` / `(repo_id, to_id) → c4_manual_elements(repo_id, element_id)`。
+   * - `c4_manual_groups`: PK `(repo_name, group_id)` → `(repo_id, group_id)`。
+   *
+   * `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
+   * - CREATE_C4_MANUAL_* の実行前に呼ぶ (CREATE TABLE IF NOT EXISTS は既存テーブルへ無効なため)。
+   * - 新規 DB (テーブル不在) は no-op。CREATE_* が新スキーマを直接作る。
+   * - 既に flip 済 (repo_id 列あり) なら no-op (冪等)。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * chicken-egg 回避: 各テーブルの distinct repo_name を `INSERT OR IGNORE INTO repos` で self-seed
+   * してから repo_id 列を追加し、`repo_id = (SELECT repo_id FROM repos WHERE repo_name = <table>.repo_name)`
+   * で backfill する (repo_name='' も sentinel repo へ解決される)。repo_id IS NULL の orphan 行は新
+   * NOT NULL を満たさないため 12-step 再構築の INSERT...SELECT で除外する。親 (elements) を先に再構築する。
+   */
+  private migrateC4ManualTablesRepoId(db: Database): void {
+    // PK / FK 再設計が必要なテーブル (存在し、かつ repo_id 列が無い) を洗い出す。
+    const tablesToFlip = TrailDatabase.C4_MANUAL_REPO_ID_TABLES.filter((table) => {
+      const exists =
+        db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+          ?.length;
+      if (!exists) return false; // 新規 DB → CREATE_* が新スキーマを作る
+      if (columnExists(db, table, 'repo_id')) return false; // 既に flip 済 (冪等)
+      // 旧スキーマには必ず repo_name 列がある (旧 PK 構成列)。退化 DB の防御は backfill の
+      // columnExists ガードで吸収する。
+      return true;
+    });
+    if (tablesToFlip.length === 0) return;
+
+    try {
+      // ── pre: repos を self-seed し、repo_id 列を追加して backfill する ──
+      for (const table of tablesToFlip) {
+        if (columnExists(db, table, 'repo_name')) {
+          db.run(
+            `INSERT OR IGNORE INTO repos (repo_name, created_at)
+             SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+             FROM "${table}" WHERE repo_name IS NOT NULL`,
+          );
+        }
+        db.run(`ALTER TABLE "${table}" ADD COLUMN repo_id INTEGER`);
+        if (columnExists(db, table, 'repo_name')) {
+          db.run(
+            `UPDATE "${table}"
+               SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name)`,
+          );
+        }
+      }
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        // 親 (c4_manual_elements) → 子 (relationships / groups) の順で再構築する
+        // (複合 FK 解決のため。C4_MANUAL_REPO_ID_TABLES の宣言順がこの順序)。
+        for (const table of TrailDatabase.C4_MANUAL_REPO_ID_TABLES) {
+          if (!tablesToFlip.includes(table)) continue;
+          this.rebuildC4ManualTableForRepoIdFlip(db, table);
+        }
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[c4-manual flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[c4-manual flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error('migrateC4ManualTablesRepoId failed', e instanceof Error ? e : new Error(String(e)));
+      throw e;
+    }
+  }
+
+  /** flip: c4_manual 系テーブルを新スキーマ (repo_id PK + 複合 FK) へ 12-step 再構築する。 */
+  private rebuildC4ManualTableForRepoIdFlip(db: Database, table: string): void {
+    const ddl = C4_MANUAL_REPO_ID_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[c4-manual flip] no DDL registered for ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    // 新スキーマの列のうち旧テーブルにも存在する列を共有列としてコピーする (repo_id を含む)。
+    const sharedCols = newCols.filter((c) => oldCols.has(c));
+    // repo_id IS NULL の行 (= repos に無い repo_name の orphan) は新スキーマの NOT NULL を
+    // 満たさないため除外する。旧 PK (repo_name, <id>) は新 PK (repo_id, <id>) と 1:1 対応のため
+    // 残った行は新 PK で衝突しない。
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE repo_id IS NOT NULL`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
+  /**
+   * Phase F flip: 既存 DB の derived テーブル (dora_metrics / pr_reviews /
+   * cross_source_correlations) を repo_id 化する破壊的/additive マイグレーション。
+   *
+   * - `dora_metrics`: PK を `(repo_name, period)` → `(repo_id, period)` へ再設計する。
+   *   `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
+   * - `pr_reviews`: PK は `review_id` 単独のまま不変。repo_id を additive 追加し backfill する
+   *   のみ (12-step 不要)。旧 repo フィルタ索引 idx_pr_reviews_repo_pr を repo_id 先頭へ張替える。
+   * - `cross_source_correlations`: PK は `(correlation_type, source_a_id, source_b_id)` のまま不変。
+   *   repo_id (NULL-able) を additive 追加し backfill する。旧 repo フィルタ索引を張替える。
+   *
+   * - CREATE_DORA_METRICS / CREATE_PR_REVIEWS 等の実行前に呼ぶ (CREATE TABLE IF NOT EXISTS は
+   *   既存テーブルへ無効なため)。新規 DB (テーブル不在) は no-op。CREATE_* が新スキーマを直接作る。
+   * - 既に flip 済 (repo_id 列あり) なら no-op (冪等)。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * chicken-egg 回避: 各テーブルの distinct repo_name を `INSERT OR IGNORE INTO repos` で
+   * self-seed してから repo_id 列を追加し、`repo_id = (SELECT repo_id FROM repos WHERE
+   * repo_name = <table>.repo_name)` で backfill する (repo_name='' も sentinel repo へ解決される)。
+   * dora_metrics の NOT NULL repo_id で IS NULL の orphan 行は 12-step 再構築の INSERT...SELECT で
+   * 除外する (通常発生しない)。
+   */
+  private migrateDerivedTablesRepoId(db: Database): void {
+    // ── dora_metrics: PK 再設計 (12-step) ──
+    this.migrateDoraMetricsRepoIdFlip(db);
+    // ── pr_reviews / cross_source_correlations: additive (repo_id 追加 + backfill + 索引張替) ──
+    this.migrateDerivedAdditiveRepoIdColumn(db, {
+      table: 'pr_reviews',
+      repoIdNotNull: true,
+      oldIndex: 'idx_pr_reviews_repo_pr',
+    });
+    this.migrateDerivedAdditiveRepoIdColumn(db, {
+      table: 'cross_source_correlations',
+      repoIdNotNull: false,
+      oldIndex: 'idx_cross_source_correlations_repo',
+    });
+  }
+
+  /** Phase F flip: dora_metrics を新スキーマ (repo_id PK) へ 12-step 再構築する (冪等)。 */
+  private migrateDoraMetricsRepoIdFlip(db: Database): void {
+    const exists =
+      db.exec("SELECT 1 FROM sqlite_master WHERE type='table' AND name='dora_metrics'")[0]?.values
+        ?.length;
+    if (!exists) return; // 新規 DB → CREATE_DORA_METRICS が新スキーマを作る
+    if (columnExists(db, 'dora_metrics', 'repo_id')) return; // 既に flip 済 (冪等)
+    if (!columnExists(db, 'dora_metrics', 'repo_name')) return; // 退化 DB は対象外
+
+    try {
+      // ── pre: repos を self-seed し、repo_id 列を追加して backfill する ──
+      db.run(
+        `INSERT OR IGNORE INTO repos (repo_name, created_at)
+         SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         FROM dora_metrics WHERE repo_name IS NOT NULL`,
+      );
+      db.run('ALTER TABLE dora_metrics ADD COLUMN repo_id INTEGER');
+      db.run(
+        `UPDATE dora_metrics
+           SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = dora_metrics.repo_name)`,
+      );
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        this.rebuildDerivedTableForRepoIdFlip(db, 'dora_metrics');
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[derived flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[derived flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error('migrateDoraMetricsRepoIdFlip failed', e instanceof Error ? e : new Error(String(e)));
+      throw e;
+    }
+  }
+
+  /** flip: derived テーブルを新スキーマ (repo_id PK) へ 12-step 再構築する。 */
+  private rebuildDerivedTableForRepoIdFlip(db: Database, table: string): void {
+    const ddl = DERIVED_REPO_ID_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[derived flip] no DDL registered for ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    // 新スキーマの列のうち旧テーブルにも存在する列を共有列としてコピーする (repo_id を含む)。
+    const sharedCols = newCols.filter((c) => oldCols.has(c));
+    // repo_id IS NULL の行 (= repos に無い repo_name の orphan) は新スキーマの NOT NULL を
+    // 満たさないため除外する。旧 PK (repo_name, period) は新 PK (repo_id, period) と 1:1 対応のため
+    // 残った行は新 PK で衝突しない。
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE repo_id IS NOT NULL`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
+  /**
+   * Phase F flip: PK 不変の derived テーブルへ repo_id 列を additive 追加し backfill する (冪等)。
+   * 旧 repo フィルタ索引 (repo_name 先頭) を DROP し、CREATE_*_INDEXES の repo_id 先頭索引へ委ねる。
+   * - 新規 DB / flip 済 DB (repo_id 列あり) は no-op。
+   * - repoIdNotNull=true の場合 DEFAULT 0 sentinel で埋めるが、backfill で解決済み repo_id を入れる。
+   */
+  private migrateDerivedAdditiveRepoIdColumn(
+    db: Database,
+    opts: { table: string; repoIdNotNull: boolean; oldIndex: string },
+  ): void {
+    const { table, repoIdNotNull, oldIndex } = opts;
+    const exists =
+      db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+        ?.length;
+    if (!exists) return; // 新規 DB → CREATE_* が新スキーマを作る
+    try {
+      if (!columnExists(db, table, 'repo_id')) {
+        // SQLite の ALTER ADD COLUMN は NOT NULL を default 無しで追加できないため、NOT NULL 列は
+        // DEFAULT 0 sentinel を付ける (新規 DB の CREATE と整合)。NULL-able は plain INTEGER。
+        db.run(
+          `ALTER TABLE "${table}" ADD COLUMN repo_id INTEGER${repoIdNotNull ? ' NOT NULL DEFAULT 0' : ''}`,
+        );
+      }
+      if (columnExists(db, table, 'repo_name')) {
+        db.run(
+          `INSERT OR IGNORE INTO repos (repo_name, created_at)
+           SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           FROM "${table}" WHERE repo_name IS NOT NULL`,
+        );
+        // backfill: repo_name が repos に解決できる行のみ更新する。NOT NULL 列は未解決時に
+        // DEFAULT 0 sentinel が残る (新規 DB の DEFAULT と整合)。NULL-able は NULL のまま許容。
+        db.run(
+          `UPDATE "${table}"
+             SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name)
+           WHERE (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name) IS NOT NULL`,
+        );
+      }
+      // 旧 repo フィルタ索引 (repo_name 先頭) を撤去する。新 repo_id 索引は CREATE_*_INDEXES が張る。
+      db.run(`DROP INDEX IF EXISTS ${oldIndex}`);
+    } catch (e) {
+      this.logger.warn(
+        `[derived additive repo_id ${table}] ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  /**
    * 既存 DB の releases に repo_id 列が無ければ追加する (Phase B step1・非破壊)。
    * 新規 DB は CREATE_RELEASES に repo_id を含むため no-op。FK は init で off のため
    * ALTER では REFERENCES を付けず plain INTEGER とする (既存挙動と整合)。
@@ -1847,11 +2703,16 @@ export class TrailDatabase {
 
   /**
    * release 子テーブルへ release_id 列を追加し、tag 列経由で releases.release_id を
-   * backfill する (Phase B-2b-i・additive/非破壊・冪等)。FK 張替・PK flip は後続。
+   * backfill する (Phase B-2b-i・additive/非破壊・冪等)。
+   *
+   * Phase B-2b-iii flip 後は子テーブルに旧 tag 列 (tag / release_tag) が存在しないため、
+   * 該当テーブルは backfill 対象外として skip する (release_id は FK で既に充足済み)。
    */
   private migrateReleaseChildrenReleaseId(db: Database): void {
     for (const { table, tagCol } of TrailDatabase.RELEASE_CHILD_TABLES) {
       try {
+        // flip 済テーブルは旧 tag 列が無い → backfill 不要 (release_id が FK)。
+        if (!columnExists(db, table, tagCol)) continue;
         if (!columnExists(db, table, 'release_id')) {
           db.run(`ALTER TABLE "${table}" ADD COLUMN release_id INTEGER`);
         }
@@ -1919,11 +2780,26 @@ export class TrailDatabase {
     // repo 正規化の基盤テーブル (Phase A)。後続 Phase で各テーブルが repo_id を
     // FK 参照するため最初に作成する。Phase A 時点では参照する子はまだ無い (非破壊・追加のみ)。
     db.run(CREATE_REPOS);
+    // Phase C-2 flip: 既存 DB の current_* 6 テーブルを repo_id PK スキーマへ再構築する。
+    // CREATE TABLE IF NOT EXISTS は既存テーブルに無効なため、CREATE_CURRENT_* 実行前に呼ぶ。
+    // 新規 DB / flip 済 DB では no-op。repos を self-seed してから backfill するため、
+    // init() の seedReposFromLegacyRepoNames より前に走っても repo_id を解決できる。
+    this.migrateCurrentTablesRepoId(db);
+    // Phase D flip: 既存 DB の session/commit 系 (sessions additive + session_commits /
+    // commit_files / session_commit_resolutions の PK 再設計) を repo_id 化する。
+    // CREATE TABLE IF NOT EXISTS は既存テーブルに無効なため、CREATE_SESSIONS /
+    // CREATE_SESSION_COMMITS 等の実行前に呼ぶ。新規 DB / flip 済 DB では no-op。
+    this.migrateSessionCommitTablesRepoId(db);
     db.run(CREATE_SESSIONS);
     db.run(CREATE_SESSION_COSTS);
     db.run(CREATE_DAILY_COUNTS);
     db.run(CREATE_MESSAGES);
     db.run(CREATE_SESSION_COMMITS);
+    // Phase B-2b-iii flip: 既存 DB の releases + 子 7 を代理キー (release_id) スキーマへ再構築する。
+    // CREATE TABLE IF NOT EXISTS は既存テーブルに無効なため、CREATE_RELEASES 実行前に呼ぶ。
+    // 新規 DB / flip 済 DB では no-op。子テーブル (release_code_graph_communities 等) も
+    // ここで rebuild するため、それらの CREATE 文より前に実行する。
+    this.migrateReleasesFlip(db);
     db.run(CREATE_RELEASES);
     db.run(CREATE_RELEASE_FILES);
     db.run(CREATE_RELEASE_COVERAGE);
@@ -1993,11 +2869,15 @@ export class TrailDatabase {
     db.run(CREATE_MESSAGE_COMMITS);
     db.run(CREATE_COMMIT_FILES);
     db.run(CREATE_SESSION_COMMIT_RESOLUTIONS);
-    // session_commits / commit_files への repo_name 追加はインデックス作成より前に行う
-    // （idx_session_commits_repo / idx_commit_files_repo が repo_name を参照するため）
+    // session_commits / commit_files への repo_name / repo_id 追加はインデックス作成より前に行う
+    // （idx_session_commits_repo_id_* / idx_commit_files_repo_id_* が repo_id を参照するため）。
+    // Phase D flip が必ず先に repo_id を入れるため、ここの repo_id ALTER は防御的な保険
+    // (flip 済テーブルでは Column already exists で no-op)。repo_name は移行互換の残置列。
     for (const sql of [
       "ALTER TABLE session_commits ADD COLUMN repo_name TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE commit_files ADD COLUMN repo_name TEXT NOT NULL DEFAULT ''",
+      'ALTER TABLE session_commits ADD COLUMN repo_id INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE commit_files ADD COLUMN repo_id INTEGER NOT NULL DEFAULT 0',
     ]) {
       try { db.run(sql); } catch { /* Column already exists */ }
     }
@@ -2012,9 +2892,20 @@ export class TrailDatabase {
     // Hotspot / activity map 集計用 (trail-time-axis-requirements 3.2)
     db.run('CREATE INDEX IF NOT EXISTS idx_messages_subagent_type ON messages(subagent_type)');
     db.run('CREATE INDEX IF NOT EXISTS idx_message_tool_calls_tool_name_file_path ON message_tool_calls(tool_name, file_path)');
+    // Phase E flip: 既存 DB の c4_manual 系 3 テーブルを repo_id PK + 複合 FK スキーマへ再構築する。
+    // CREATE TABLE IF NOT EXISTS は既存テーブルに無効なため、CREATE_C4_MANUAL_* の実行前に呼ぶ。
+    // 新規 DB / flip 済 DB では no-op。repos を self-seed してから backfill する。
+    this.migrateC4ManualTablesRepoId(db);
     db.run(CREATE_C4_MANUAL_ELEMENTS);
     db.run(CREATE_C4_MANUAL_RELATIONSHIPS);
     db.run(CREATE_C4_MANUAL_GROUPS);
+    for (const idx of CREATE_C4_MANUAL_INDEXES) {
+      db.run(idx);
+    }
+    // Phase F flip: 既存 DB の derived テーブル (dora_metrics PK 再設計 + pr_reviews /
+    // cross_source_correlations の repo_id additive) を repo_id 化する。CREATE TABLE IF NOT EXISTS
+    // は既存テーブルに無効なため、CREATE_DORA_METRICS 等の実行前に呼ぶ。新規 DB / flip 済 DB では no-op。
+    this.migrateDerivedTablesRepoId(db);
     // LEP Layer 4 (Aggregator) の DORA 指標出力先。新規テーブル追加のみ (既存 DDL 不変)。
     db.run(CREATE_DORA_METRICS);
     // LEP 新ソース参照実装 (Step 4b): GitHub PR review の生データ。新規テーブル追加のみ。
@@ -2345,12 +3236,19 @@ export class TrailDatabase {
       if (!cols.includes('project')) return;
       const fkInfo = db.exec('PRAGMA foreign_keys');
       foreignKeysWereEnabled = Number(fkInfo[0]?.values?.[0]?.[0] ?? 1) === 1;
+      // Phase D: この migration は migrateSessionsRepoIdColumn の後に走るため、ここに来る時点で
+      // sessions には既に additive な repo_id 列 (backfill 済) が存在する。project 撤去再構築で
+      // repo_id を SELECT に含めないと、追加直後の repo_id 列とその値が消失する。新スキーマと
+      // INSERT...SELECT の双方に repo_id を含め、再構築をまたいで保持する。repo_id が無い退化 DB
+      // (project 列はあるが repo_id 列が無い) では NULL を補い、後続 importSession で解決される。
+      const hasRepoId = columnExists(db, 'sessions', 'repo_id');
+      const repoIdColDdl = hasRepoId ? '\n        repo_id INTEGER,' : '';
       db.run('PRAGMA foreign_keys = OFF');
       db.run('BEGIN TRANSACTION');
       db.run(`CREATE TABLE sessions_new (
         id TEXT PRIMARY KEY,
         slug TEXT NOT NULL DEFAULT '',
-        repo_name TEXT NOT NULL DEFAULT '',
+        repo_name TEXT NOT NULL DEFAULT '',${repoIdColDdl}
         version TEXT NOT NULL DEFAULT '',
         entrypoint TEXT NOT NULL DEFAULT '',
         model TEXT NOT NULL DEFAULT '',
@@ -2371,14 +3269,14 @@ export class TrailDatabase {
         compact_count INTEGER
       )`);
       db.run(`INSERT INTO sessions_new (
-        id, slug, repo_name, version, entrypoint, model,
+        id, slug, repo_name,${hasRepoId ? ' repo_id,' : ''} version, entrypoint, model,
         start_time, end_time, message_count, file_path, file_size, imported_at,
         commits_resolved_at, peak_context_tokens, initial_context_tokens, git_branch,
         interruption_reason, interruption_context_tokens, message_commits_resolved_at,
         source, compact_count
       )
       SELECT
-        id, slug, repo_name, version, entrypoint, model,
+        id, slug, repo_name,${hasRepoId ? ' repo_id,' : ''} version, entrypoint, model,
         start_time, end_time, message_count, file_path, file_size, imported_at,
         commits_resolved_at, peak_context_tokens, initial_context_tokens, git_branch,
         interruption_reason, interruption_context_tokens, message_commits_resolved_at,
@@ -2408,23 +3306,33 @@ export class TrailDatabase {
     const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'commit_files_backfill_v2'");
     if (done[0]?.values?.length) return;
 
+    // Phase D: commit_files の PK が (repo_id, commit_hash, file_path) になったため、各 commit_hash の
+    // repo_name / repo_id を session_commits から引いて埋める。同一 hash が複数 repo にまたがる場合は
+    // MIN(repo_id) を採用する (DISTINCT 1 行に正規化)。
     const commitRes = db.exec(
-      'SELECT DISTINCT commit_hash FROM session_commits WHERE NOT EXISTS (SELECT 1 FROM commit_files cf WHERE cf.commit_hash = session_commits.commit_hash)',
+      `SELECT commit_hash, repo_name, MIN(repo_id) AS repo_id
+       FROM session_commits
+       WHERE NOT EXISTS (SELECT 1 FROM commit_files cf WHERE cf.commit_hash = session_commits.commit_hash)
+       GROUP BY commit_hash`,
     );
-    const hashes = commitRes[0]?.values.map((row) => row[0] as string) ?? [];
-    if (hashes.length === 0) {
+    const commits = (commitRes[0]?.values ?? []).map((row) => ({
+      hash: asText(row[0] ?? ''),
+      repoName: asText(row[1] ?? ''),
+      repoId: Number(row[2] ?? 0),
+    }));
+    if (commits.length === 0) {
       db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('commit_files_backfill_v2')");
       return;
     }
 
-    onProgress?.(`Backfilling commit files for ${hashes.length} commits...`);
-    this.logger.info(`[Migration] commit_files_backfill_v2: backfilling file lists for ${hashes.length} commits`);
+    onProgress?.(`Backfilling commit files for ${commits.length} commits...`);
+    this.logger.info(`[Migration] commit_files_backfill_v2: backfilling file lists for ${commits.length} commits`);
 
-    const insertStmt = db.prepare('INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)');
+    const insertStmt = db.prepare('INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_name, repo_id) VALUES (?, ?, ?, ?)');
     try {
       let processed = 0;
       let skipped = 0;
-      for (const hash of hashes) {
+      for (const { hash, repoName, repoId } of commits) {
         try {
           const out = execFileSync('git', [
             'show', '--format=', '--numstat', hash,
@@ -2434,7 +3342,7 @@ export class TrailDatabase {
             if (!trimmed) continue;
             const parts = trimmed.split('\t');
             const filePath = parts[2];
-            if (filePath) insertStmt.run([hash, filePath]);
+            if (filePath) insertStmt.run([hash, filePath, repoName, repoId]);
           }
           processed++;
         } catch {
@@ -2442,7 +3350,7 @@ export class TrailDatabase {
           skipped++;
         }
         if (processed % 50 === 0) {
-          onProgress?.(`Backfilling commit files: ${processed}/${hashes.length}`);
+          onProgress?.(`Backfilling commit files: ${processed}/${commits.length}`);
         }
       }
       this.logger.info(`[Migration] commit_files_backfill_v2: processed=${processed}, skipped=${skipped}`);
@@ -2743,12 +3651,18 @@ export class TrailDatabase {
           orphans.push(tag);
           continue;
         }
+        // flip 後 release_graphs は release_id PK。tag を release_id へ解決して保存する。
+        const releaseId = this.releaseIdForTag(db, tag);
+        if (releaseId == null) {
+          orphans.push(tag);
+          continue;
+        }
         db.run(
           `INSERT OR REPLACE INTO release_graphs
-             (tag, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+             (release_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?)`,
           [
-            tag,
+            releaseId,
             asText(row[1] ?? ''),
             asText(row[2] ?? ''),
             asText(row[3] ?? ''),
@@ -3025,12 +3939,15 @@ export class TrailDatabase {
       db.run('DELETE FROM dora_metrics');
       const stmt = db.prepare(
         `INSERT INTO dora_metrics
-           (repo_name, period, deployment_frequency, lead_time_hours, computed_at)
-         VALUES (?, ?, ?, ?, ?)`,
+           (repo_id, repo_name, period, deployment_frequency, lead_time_hours, computed_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       );
       try {
         for (const r of rows) {
-          stmt.run([r.repoName, r.period, r.deploymentFrequency, r.leadTimeHours, r.computedAt]);
+          // Phase F: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を
+          // 解決して保存する (新 PK は (repo_id, period))。repoIdForName は upsert で repos に登録する。
+          const repoId = this.repoIdForName(r.repoName);
+          stmt.run([repoId, r.repoName, r.period, r.deploymentFrequency, r.leadTimeHours, r.computedAt]);
         }
       } finally {
         stmt.free();
@@ -3055,12 +3972,16 @@ export class TrailDatabase {
    */
   upsertPrReview(review: PrReviewUpsert): void {
     this.withTransaction((db) => {
+      // Phase F: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して
+      // 保存する (PK は review_id のまま不変・repo_id は additive 列)。
+      const repoId = this.repoIdForName(review.repoName);
       db.run(
         `INSERT OR REPLACE INTO pr_reviews
-           (review_id, repo_name, pr_number, author, state, submitted_at, body, body_hash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (review_id, repo_id, repo_name, pr_number, author, state, submitted_at, body, body_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           review.reviewId,
+          repoId,
           review.repoName,
           review.prNumber,
           review.author,
@@ -3240,13 +4161,18 @@ export class TrailDatabase {
       db.run('DELETE FROM cross_source_correlations');
       const stmt = db.prepare(
         `INSERT INTO cross_source_correlations
-           (correlation_type, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (correlation_type, repo_id, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       try {
         for (const r of rows) {
+          // Phase F: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して
+          // 保存する (PK は (correlation_type, source_a_id, source_b_id) のまま不変・repo_id は additive)。
+          // source_b_id に release tag を保存している箇所でも repo_id 列でリポを区別できるようにする。
+          const repoId = this.repoIdForName(r.repoName);
           stmt.run([
             r.correlationType,
+            repoId,
             r.repoName,
             r.sourceAKind,
             r.sourceAId,
@@ -3840,11 +4766,14 @@ export class TrailDatabase {
     const execOpts = { encoding: 'utf-8' as const, timeout: 10_000 };
     const logFormat = '%H%x00%s%x00%an%x00%aI%x00%b%x1e';
 
+    // Phase D: 外部 API は repo_name を受けるが、内部で repo_id を解決して保存する (PK 構成列)。
+    const repoId = this.repoIdForName(repoName);
+
     const insertStmt = db.prepare(
       `INSERT OR IGNORE INTO session_commits
         (session_id, commit_hash, commit_message, author, committed_at,
-         is_ai_assisted, files_changed, lines_added, lines_deleted, repo_name)
-        VALUES (?,?,?,?,?,?,?,?,?,?)`,
+         is_ai_assisted, files_changed, lines_added, lines_deleted, repo_name, repo_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
     );
 
     let count = 0;
@@ -3859,7 +4788,7 @@ export class TrailDatabase {
         '--no-merges',
       ], { ...execOpts, cwd: gitRoot });
 
-      count += this.processCommitEntries(phaseAOutput, sessionId, repoName, insertStmt, execOpts, gitRoot);
+      count += this.processCommitEntries(phaseAOutput, sessionId, repoName, repoId, insertStmt, execOpts, gitRoot);
     } catch {
       // git grep may fail if no commits match — not an error
     }
@@ -3892,7 +4821,7 @@ export class TrailDatabase {
       }
     }
 
-    count += this.processCommitEntries(logOutput, sessionId, repoName, insertStmt, execOpts, gitRoot, true);
+    count += this.processCommitEntries(logOutput, sessionId, repoName, repoId, insertStmt, execOpts, gitRoot, true);
 
     insertStmt.free();
 
@@ -3904,11 +4833,13 @@ export class TrailDatabase {
   /** Mark (sessionId, repoName) as resolved in session_commit_resolutions, plus legacy sessions.commits_resolved_at. */
   private markCommitResolutionDone(sessionId: string, repoName: string): void {
     const db = this.ensureDb();
+    // Phase D: PK が (session_id, repo_id) になったため repo_id を解決して ON CONFLICT を repo_id 基準にする。
+    const repoId = this.repoIdForName(repoName);
     db.run(
-      `INSERT INTO session_commit_resolutions (session_id, repo_name, resolved_at)
-         VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-         ON CONFLICT(session_id, repo_name) DO UPDATE SET resolved_at = excluded.resolved_at`,
-      [sessionId, repoName],
+      `INSERT INTO session_commit_resolutions (session_id, repo_name, repo_id, resolved_at)
+         VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+         ON CONFLICT(session_id, repo_id) DO UPDATE SET resolved_at = excluded.resolved_at, repo_name = excluded.repo_name`,
+      [sessionId, repoName, repoId],
     );
     // 既存挙動の互換: 主リポジトリ解決時も sessions.commits_resolved_at を更新
     db.run(
@@ -3957,14 +4888,14 @@ export class TrailDatabase {
   }
 
   /** Insert commit_files rows for a single commit hash. */
-  private insertCommitFiles(hash: string, filePaths: string[], repoName: string): void {
+  private insertCommitFiles(hash: string, filePaths: string[], repoName: string, repoId: number): void {
     if (filePaths.length === 0) return;
     const filesStmt = this.ensureDb().prepare(
-      'INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_name) VALUES (?, ?, ?)',
+      'INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_name, repo_id) VALUES (?, ?, ?, ?)',
     );
     try {
       for (const fp of filePaths) {
-        filesStmt.run([hash, fp, repoName]);
+        filesStmt.run([hash, fp, repoName, repoId]);
       }
     } finally {
       filesStmt.free();
@@ -3977,6 +4908,7 @@ export class TrailDatabase {
     logOutput: string,
     sessionId: string,
     repoName: string,
+    repoId: number,
     insertStmt: SqlJsStatement,
     execOpts: { encoding: 'utf-8'; timeout: number },
     gitRoot: string,
@@ -4010,10 +4942,10 @@ export class TrailDatabase {
 
       insertStmt.run([
         sessionId, hash, subject, author, committedAt,
-        isAiAssisted, filesChanged, linesAdded, linesDeleted, repoName,
+        isAiAssisted, filesChanged, linesAdded, linesDeleted, repoName, repoId,
       ]);
 
-      this.insertCommitFiles(hash, filePaths, repoName);
+      this.insertCommitFiles(hash, filePaths, repoName, repoId);
       count++;
     }
 
@@ -4118,8 +5050,10 @@ export class TrailDatabase {
         if (!startTime) {
           this.logger.warn(`importSession: ${filePath} has no parseable timestamp; storing start_time as NULL`);
         }
+        // Phase D: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して保存する。
+        const repoId = this.repoIdForName(repoName);
         db.run(INSERT_SESSION, [
-          sessionId, slug, repoName, version,
+          sessionId, slug, repoName, repoId, version,
           entrypoint, model, startTimeOrNull, endTimeOrNull, messageCount,
           filePath, fileSize, importedAt, source,
         ]);
@@ -4652,11 +5586,13 @@ export class TrailDatabase {
     const nextN = this.getNextManualSequence(repoName, prefix) + 1;
     const id = `${prefix}${nextN}`;
     const now = new Date().toISOString();
+    // Phase E flip: c4_manual_elements は repo_id PK。repo_name は移行互換のため併記する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT INTO c4_manual_elements
-         (repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [repoName, id, input.type, input.name, input.description ?? null, input.external ? 1 : 0, input.parentId, input.serviceType ?? null, now],
+         (repo_id, repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, id, input.type, input.name, input.description ?? null, input.external ? 1 : 0, input.parentId, input.serviceType ?? null, now],
     );
     this.save();
     return id;
@@ -4726,11 +5662,13 @@ export class TrailDatabase {
     const nextN = this.getNextManualSequence(repoName, 'rel_manual_') + 1;
     const id = `rel_manual_${nextN}`;
     const now = new Date().toISOString();
+    // Phase E flip: c4_manual_relationships は repo_id PK。repo_name は移行互換のため併記する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT INTO c4_manual_relationships
-         (repo_name, rel_id, from_id, to_id, label, technology, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [repoName, id, input.fromId, input.toId, input.label ?? null, input.technology ?? null, now],
+         (repo_id, repo_name, rel_id, from_id, to_id, label, technology, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, id, input.fromId, input.toId, input.label ?? null, input.technology ?? null, now],
     );
     this.save();
     return id;
@@ -4765,33 +5703,39 @@ export class TrailDatabase {
 
   insertManualElementRaw(repoName: string, e: ManualElement): void {
     const db = this.ensureDb();
+    // Phase E flip: repo_id PK。INSERT OR REPLACE は新 PK (repo_id, element_id) で衝突解決する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT OR REPLACE INTO c4_manual_elements
-         (repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [repoName, e.id, e.type, e.name, e.description ?? null, e.external ? 1 : 0, e.parentId, e.serviceType ?? null, e.updatedAt],
+         (repo_id, repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, e.id, e.type, e.name, e.description ?? null, e.external ? 1 : 0, e.parentId, e.serviceType ?? null, e.updatedAt],
     );
     this.save();
   }
 
   insertManualRelationshipRaw(repoName: string, r: ManualRelationship): void {
     const db = this.ensureDb();
+    // Phase E flip: repo_id PK。INSERT OR REPLACE は新 PK (repo_id, rel_id) で衝突解決する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT OR REPLACE INTO c4_manual_relationships
-         (repo_name, rel_id, from_id, to_id, label, technology, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [repoName, r.id, r.fromId, r.toId, r.label ?? null, r.technology ?? null, r.updatedAt],
+         (repo_id, repo_name, rel_id, from_id, to_id, label, technology, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, r.id, r.fromId, r.toId, r.label ?? null, r.technology ?? null, r.updatedAt],
     );
     this.save();
   }
 
   insertManualGroupRaw(repoName: string, g: ManualGroup): void {
     const db = this.ensureDb();
+    // Phase E flip: repo_id PK。INSERT OR REPLACE は新 PK (repo_id, group_id) で衝突解決する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT OR REPLACE INTO c4_manual_groups
-         (repo_name, group_id, member_ids, label, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [repoName, g.id, JSON.stringify(g.memberIds), g.label ?? null, g.updatedAt],
+         (repo_id, repo_name, group_id, member_ids, label, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, g.id, JSON.stringify(g.memberIds), g.label ?? null, g.updatedAt],
     );
     this.save();
   }
@@ -4811,10 +5755,12 @@ export class TrailDatabase {
     }, 0);
     const id = `grp_manual_${maxN + 1}`;
     const now = new Date().toISOString();
+    // Phase E flip: c4_manual_groups は repo_id PK。repo_name は移行互換のため併記する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
-      `INSERT INTO c4_manual_groups (repo_name, group_id, member_ids, label, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [repoName, id, JSON.stringify(input.memberIds), input.label ?? null, now],
+      `INSERT INTO c4_manual_groups (repo_id, repo_name, group_id, member_ids, label, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [repoId, repoName, id, JSON.stringify(input.memberIds), input.label ?? null, now],
     );
     this.save();
     return id;
@@ -4885,11 +5831,14 @@ export class TrailDatabase {
 
   saveCurrentGraph(graph: TrailGraph, tsconfigPath: string, commitId: string, repoName: string): void {
     const db = this.ensureDb();
+    // Phase C-2 flip: current_graphs は repo_id PK。repo_name は移行互換のため併記する。
+    const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT OR REPLACE INTO current_graphs
-         (repo_name, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+         (repo_id, repo_name, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
       [
+        repoId,
         repoName,
         commitId,
         JSON.stringify(graph),
@@ -4926,12 +5875,18 @@ export class TrailDatabase {
 
   saveReleaseGraph(graph: TrailGraph, tsconfigPath: string, tag: string): void {
     const db = this.ensureDb();
+    // flip 後 release_graphs は release_id PK。tag を解決してから保存する。
+    const releaseId = this.releaseIdForTag(db, tag);
+    if (releaseId == null) {
+      this.logger.warn(`[saveReleaseGraph] no release for tag=${tag}, skip`);
+      return;
+    }
     db.run(
       `INSERT OR REPLACE INTO release_graphs
-         (tag, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+         (release_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
        VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
       [
-        tag,
+        releaseId,
         JSON.stringify(graph),
         tsconfigPath,
         graph.metadata.projectRoot,
@@ -4944,7 +5899,9 @@ export class TrailDatabase {
   getReleaseGraph(tag: string): TrailGraph | null {
     const db = this.ensureDb();
     const result = db.exec(
-      'SELECT graph_json FROM release_graphs WHERE tag = ?',
+      `SELECT rg.graph_json FROM release_graphs rg
+        JOIN releases r ON r.release_id = rg.release_id
+       WHERE r.tag = ?`,
       [tag],
     );
     const json = result[0]?.values?.[0]?.[0];
@@ -4960,11 +5917,14 @@ export class TrailDatabase {
     const db = this.ensureDb();
     ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
     ensureCommunityMappingsJsonColumn(db, 'current_code_graph_communities');
+    // Phase C-2 flip: current_code_graphs / current_code_graph_communities は repo_id PK。
+    // repo_name は移行互換のため併記する。
+    const repoId = this.repoIdForName(repoName);
     const { stored, communities } = splitCodeGraph(graph);
 
     // ジャッカード引き継ぎ: DELETE/INSERT で community_id が再採番される前に、
     // 旧スナップショット（members 集合 + name / summary / mappings_json）を読み出して引き継ぎ表を構築する。
-    const oldCommunities = this.readCommunitiesForCarryOver(db, repoName);
+    const oldCommunities = this.readCommunitiesForCarryOver(db, repoId);
     const newCommunities: NewCommunity[] = communities.map((c) => ({
       id: c.id,
       stableKey: c.stableKey,
@@ -4974,18 +5934,18 @@ export class TrailDatabase {
 
     db.run(
       `INSERT OR REPLACE INTO current_code_graphs
-         (repo_name, graph_json, generated_at, updated_at)
-       VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
-      [repoName, JSON.stringify(stored), stored.generatedAt],
+         (repo_id, repo_name, graph_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+      [repoId, repoName, JSON.stringify(stored), stored.generatedAt],
     );
     // 新しいグラフに存在しない古いコミュニティを削除。mappings_json などは Step 1/2 で carryOver に退避済み。
     if (communities.length === 0) {
-      db.run('DELETE FROM current_code_graph_communities WHERE repo_name = ?', [repoName]);
+      db.run('DELETE FROM current_code_graph_communities WHERE repo_id = ?', [repoId]);
     } else {
       const placeholders = communities.map(() => '?').join(',');
       db.run(
-        `DELETE FROM current_code_graph_communities WHERE repo_name = ? AND community_id NOT IN (${placeholders})`,
-        [repoName, ...communities.map((c) => c.id)],
+        `DELETE FROM current_code_graph_communities WHERE repo_id = ? AND community_id NOT IN (${placeholders})`,
+        [repoId, ...communities.map((c) => c.id)],
       );
     }
     // label / stable_key は常に最新を採用。
@@ -4994,9 +5954,9 @@ export class TrailDatabase {
     // INSERT 時の VALUES に直接埋めて NULL 上書きを防ぐ）。
     const stmt = db.prepare(
       `INSERT INTO current_code_graph_communities
-         (repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-       ON CONFLICT(repo_name, community_id) DO UPDATE SET
+         (repo_id, repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+       ON CONFLICT(repo_id, community_id) DO UPDATE SET
          label      = excluded.label,
          name       = CASE WHEN excluded.name    != '' THEN excluded.name    ELSE name    END,
          summary    = CASE WHEN excluded.summary != '' THEN excluded.summary ELSE summary END,
@@ -5009,7 +5969,7 @@ export class TrailDatabase {
       const effectiveName = c.name !== '' ? c.name : (co?.name ?? '');
       const effectiveSummary = c.summary !== '' ? c.summary : (co?.summary ?? '');
       const effectiveMappingsJson = co?.mappingsJson ?? null;
-      stmt.run([repoName, c.id, c.label, effectiveName, effectiveSummary, c.stableKey, effectiveMappingsJson]);
+      stmt.run([repoId, repoName, c.id, c.label, effectiveName, effectiveSummary, c.stableKey, effectiveMappingsJson]);
     }
     stmt.free();
     this.save();
@@ -5020,11 +5980,11 @@ export class TrailDatabase {
    * `current_code_graphs.graph_json` と `current_code_graph_communities` から再構築する。
    * graph_json から community_id ごとの members を集計し、別テーブル列と join する。
    */
-  private readCommunitiesForCarryOver(db: Database, repoName: string): readonly OldCommunity[] {
-    // graph_json から members 集合を取得
+  private readCommunitiesForCarryOver(db: Database, repoId: number): readonly OldCommunity[] {
+    // graph_json から members 集合を取得 (Phase C-2 flip: repo_id で参照する)
     const graphResult = db.exec(
-      'SELECT graph_json FROM current_code_graphs WHERE repo_name = ?',
-      [repoName],
+      'SELECT graph_json FROM current_code_graphs WHERE repo_id = ?',
+      [repoId],
     );
     const json = graphResult[0]?.values?.[0]?.[0];
     const membersByCommunity = new Map<number, Set<string>>();
@@ -5052,8 +6012,8 @@ export class TrailDatabase {
       ...(hasMappings ? ['mappings_json'] : []),
     ];
     const result = db.exec(
-      `SELECT ${cols.join(', ')} FROM current_code_graph_communities WHERE repo_name = ?`,
-      [repoName],
+      `SELECT ${cols.join(', ')} FROM current_code_graph_communities WHERE repo_id = ?`,
+      [repoId],
     );
     const idx = (col: string) => cols.indexOf(col);
 
@@ -5151,7 +6111,12 @@ export class TrailDatabase {
 
   getAllReleaseCodeGraphRaws(): Array<{ release_tag: string; graph_json: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
-    const result = db.exec('SELECT release_tag, graph_json, generated_at, updated_at FROM release_code_graphs');
+    // flip 後は release_id FK。Supabase 同期は tag キーのため releases へ JOIN して tag を供給する。
+    const result = db.exec(
+      `SELECT r.tag, rcg.graph_json, rcg.generated_at, rcg.updated_at
+         FROM release_code_graphs rcg
+         JOIN releases r ON r.release_id = rcg.release_id`,
+    );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
       release_tag: asText(r[0] ?? ''),
@@ -5164,9 +6129,12 @@ export class TrailDatabase {
   getAllReleaseCodeGraphCommunityRaws(): Array<{ release_tag: string; community_id: number; label: string; name: string; summary: string; stable_key: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
     const hasStableKey = columnExists(db, 'release_code_graph_communities', 'stable_key');
+    // flip 後は release_id FK。Supabase 同期は tag キーのため releases へ JOIN して tag を供給する。
     const sql = hasStableKey
-      ? 'SELECT release_tag, community_id, label, name, summary, stable_key, generated_at, updated_at FROM release_code_graph_communities'
-      : 'SELECT release_tag, community_id, label, name, summary, generated_at, updated_at FROM release_code_graph_communities';
+      ? `SELECT r.tag, rcgc.community_id, rcgc.label, rcgc.name, rcgc.summary, rcgc.stable_key, rcgc.generated_at, rcgc.updated_at
+           FROM release_code_graph_communities rcgc JOIN releases r ON r.release_id = rcgc.release_id`
+      : `SELECT r.tag, rcgc.community_id, rcgc.label, rcgc.name, rcgc.summary, rcgc.generated_at, rcgc.updated_at
+           FROM release_code_graph_communities rcgc JOIN releases r ON r.release_id = rcgc.release_id`;
     const result = db.exec(sql);
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
@@ -5188,12 +6156,14 @@ export class TrailDatabase {
     const db = this.ensureDb();
     ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
     ensureCommunityMappingsJsonColumn(db, 'current_code_graph_communities');
+    // Phase C-2 flip: PK は (repo_id, community_id)。repo_name は移行互換で併記する。
+    const repoId = this.repoIdForName(repoName);
     for (const c of communities) {
       // 既存行から失われたくない列（label / stable_key / mappings_json）を退避してから INSERT OR REPLACE する。
       // INSERT OR REPLACE は SQLite で「DELETE → INSERT」になり、VALUES に含めない列は NULL / DEFAULT に上書きされてしまうため。
       const existing = db.exec(
-        'SELECT label, stable_key, mappings_json FROM current_code_graph_communities WHERE repo_name = ? AND community_id = ?',
-        [repoName, c.community_id],
+        'SELECT label, stable_key, mappings_json FROM current_code_graph_communities WHERE repo_id = ? AND community_id = ?',
+        [repoId, c.community_id],
       );
       const row = existing[0]?.values?.[0];
       const existingLabel = row?.[0] as string | undefined;
@@ -5201,9 +6171,10 @@ export class TrailDatabase {
       const existingMappingsJson = row?.[2] as string | undefined;
       db.run(
         `INSERT OR REPLACE INTO current_code_graph_communities
-           (repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+           (repo_id, repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
         [
+          repoId,
           repoName,
           c.community_id,
           c.label ?? existingLabel ?? '',
@@ -5227,16 +6198,18 @@ export class TrailDatabase {
     rows: ReadonlyArray<{ communityId: number; name: string; summary: string }>,
   ): { updated: number } {
     const db = this.ensureDb();
+    // Phase C-2 flip: PK は (repo_id, community_id)。repo_name は移行互換で併記する。
+    const repoId = this.repoIdForName(repoName);
     for (const r of rows) {
       db.run(
         `INSERT INTO current_code_graph_communities
-           (repo_name, community_id, label, name, summary, generated_at, updated_at)
-         VALUES (?, ?, '', ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-         ON CONFLICT(repo_name, community_id) DO UPDATE SET
+           (repo_id, repo_name, community_id, label, name, summary, generated_at, updated_at)
+         VALUES (?, ?, ?, '', ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+         ON CONFLICT(repo_id, community_id) DO UPDATE SET
            name = excluded.name,
            summary = excluded.summary,
            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
-        [repoName, r.communityId, r.name, r.summary],
+        [repoId, repoName, r.communityId, r.name, r.summary],
       );
     }
     this.save();
@@ -5263,23 +6236,25 @@ export class TrailDatabase {
       db.run('ALTER TABLE current_code_graph_communities ADD COLUMN mappings_json TEXT');
     }
     ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
+    // Phase C-2 flip: PK は (repo_id, community_id)。repo_name は移行互換で併記する。
+    const repoId = this.repoIdForName(repoName);
 
     let updated = 0;
     let inserted = 0;
     for (const r of rows) {
       const exists = db.exec(
-        'SELECT 1 FROM current_code_graph_communities WHERE repo_name = ? AND community_id = ?',
-        [repoName, r.communityId],
+        'SELECT 1 FROM current_code_graph_communities WHERE repo_id = ? AND community_id = ?',
+        [repoId, r.communityId],
       );
       const found = (exists[0]?.values?.length ?? 0) > 0;
       db.run(
         `INSERT INTO current_code_graph_communities
-           (repo_name, community_id, label, name, summary, generated_at, updated_at, mappings_json)
-         VALUES (?, ?, '', '', '', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?)
-         ON CONFLICT(repo_name, community_id) DO UPDATE SET
+           (repo_id, repo_name, community_id, label, name, summary, generated_at, updated_at, mappings_json)
+         VALUES (?, ?, ?, '', '', '', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?)
+         ON CONFLICT(repo_id, community_id) DO UPDATE SET
            mappings_json = excluded.mappings_json,
            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
-        [repoName, r.communityId, JSON.stringify(r.mappings)],
+        [repoId, repoName, r.communityId, JSON.stringify(r.mappings)],
       );
       if (found) updated++;
       else inserted++;
@@ -5336,21 +6311,27 @@ export class TrailDatabase {
   saveReleaseCodeGraph(tag: string, graph: CodeGraph): void {
     const db = this.ensureDb();
     ensureCommunityStableKeyColumn(db, 'release_code_graph_communities');
+    // flip 後は release_id FK。tag を解決してから保存する。
+    const releaseId = this.releaseIdForTag(db, tag);
+    if (releaseId == null) {
+      this.logger.warn(`[saveReleaseCodeGraph] no release for tag=${tag}, skip`);
+      return;
+    }
     const { stored, communities } = splitCodeGraph(graph);
     db.run(
       `INSERT OR REPLACE INTO release_code_graphs
-         (release_tag, graph_json, generated_at, updated_at)
+         (release_id, graph_json, generated_at, updated_at)
        VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
-      [tag, JSON.stringify(stored), stored.generatedAt],
+      [releaseId, JSON.stringify(stored), stored.generatedAt],
     );
-    db.run('DELETE FROM release_code_graph_communities WHERE release_tag = ?', [tag]);
+    db.run('DELETE FROM release_code_graph_communities WHERE release_id = ?', [releaseId]);
     const stmt = db.prepare(
       `INSERT INTO release_code_graph_communities
-         (release_tag, community_id, label, name, summary, stable_key, generated_at, updated_at)
+         (release_id, community_id, label, name, summary, stable_key, generated_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
     );
     for (const c of communities) {
-      stmt.run([tag, c.id, c.label, c.name, c.summary, c.stableKey]);
+      stmt.run([releaseId, c.id, c.label, c.name, c.summary, c.stableKey]);
     }
     stmt.free();
     this.save();
@@ -5358,18 +6339,20 @@ export class TrailDatabase {
 
   getReleaseCodeGraph(tag: string): CodeGraph | null {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, tag);
+    if (releaseId == null) return null;
     const graphResult = db.exec(
-      'SELECT graph_json FROM release_code_graphs WHERE release_tag = ?',
-      [tag],
+      'SELECT graph_json FROM release_code_graphs WHERE release_id = ?',
+      [releaseId],
     );
     const json = graphResult[0]?.values?.[0]?.[0];
     if (typeof json !== 'string') return null;
     const stored = JSON.parse(json) as import('@anytime-markdown/trail-core/codeGraph').StoredCodeGraph;
     const hasStableKey = columnExists(db, 'release_code_graph_communities', 'stable_key');
     const sql = hasStableKey
-      ? 'SELECT community_id, label, name, summary, stable_key FROM release_code_graph_communities WHERE release_tag = ?'
-      : 'SELECT community_id, label, name, summary FROM release_code_graph_communities WHERE release_tag = ?';
-    const commResult = db.exec(sql, [tag]);
+      ? 'SELECT community_id, label, name, summary, stable_key FROM release_code_graph_communities WHERE release_id = ?'
+      : 'SELECT community_id, label, name, summary FROM release_code_graph_communities WHERE release_id = ?';
+    const commResult = db.exec(sql, [releaseId]);
     const communities: StoredCommunity[] = (commResult[0]?.values ?? []).map((row) => ({
       id: row[0] as number,
       label: row[1] as string,
@@ -5395,7 +6378,7 @@ export class TrailDatabase {
   }
 
   analyzeReleaseCodeGraphsForce(opts: {
-    codeGraphService: { generate: (onProgress?: (phase: string, percent: number) => void) => Promise<CodeGraph> };
+    codeGraphService: { generate: (onProgress?: (phase: string, percent: number) => void) => Promise<CodeGraph[]> };
     gitRoot: string;
     onProgress?: (msg: string) => void;
   }): Promise<number> {
@@ -5425,7 +6408,15 @@ export class TrailDatabase {
         if (!fs.existsSync(worktreeNodeModules)) {
           fs.symlinkSync(path.join(opts.gitRoot, 'node_modules'), worktreeNodeModules, 'dir');
         }
-        const graph = await opts.codeGraphService.generate();
+        // generate() は per-repo の CodeGraph 配列を返す。release_code_graphs は
+        // tag 単位（リポジトリ単位ではない）に 1 グラフを保存する設計のため、
+        // 先頭リポジトリのグラフを採用する。空配列ならこの tag はスキップする。
+        const graphs = await opts.codeGraphService.generate();
+        const graph = graphs[0];
+        if (!graph) {
+          opts.onProgress?.(`Skipping ${tag}: no code graph generated`);
+          return runNext(i + 1);
+        }
         this.saveReleaseCodeGraph(tag, graph);
         count++;
         opts.onProgress?.(`Release ${tag}: code graph saved`);
@@ -5830,9 +6821,9 @@ export class TrailDatabase {
         SELECT 'current' AS id, 0 AS sort_order, '' AS released_at
           FROM current_graphs
         UNION ALL
-        SELECT rg.tag AS id, 1 AS sort_order, COALESCE(r.released_at, '') AS released_at
+        SELECT r.tag AS id, 1 AS sort_order, COALESCE(r.released_at, '') AS released_at
           FROM release_graphs rg
-          LEFT JOIN releases r ON rg.tag = r.tag
+          JOIN releases r ON rg.release_id = r.release_id
       )
       ORDER BY sort_order, released_at DESC
     `);
@@ -5851,9 +6842,9 @@ export class TrailDatabase {
         SELECT 'current' AS tag, repo_name AS repo_name, 0 AS sort_order, '' AS released_at
           FROM current_graphs
         UNION ALL
-        SELECT rg.tag AS tag, r.repo_name AS repo_name, 1 AS sort_order, COALESCE(r.released_at, '') AS released_at
+        SELECT r.tag AS tag, r.repo_name AS repo_name, 1 AS sort_order, COALESCE(r.released_at, '') AS released_at
           FROM release_graphs rg
-          LEFT JOIN releases r ON rg.tag = r.tag
+          JOIN releases r ON rg.release_id = r.release_id
       )
       ORDER BY sort_order, released_at DESC
     `);
@@ -7982,7 +8973,7 @@ export class TrailDatabase {
 
   /** Insert one package's coverage-summary.json into release_coverage. Returns count of inserted rows. */
   private importReleaseCoverageForPackage(
-    db: Database, latestTag: string, pkgDir: string, summaryPath: string,
+    db: Database, latestReleaseId: number, pkgDir: string, summaryPath: string,
   ): number {
     let summary: Record<string, CoverageSummaryEntry>;
     try {
@@ -7997,14 +8988,14 @@ export class TrailDatabase {
       try {
         db.run(
           `INSERT OR IGNORE INTO release_coverage (
-            release_tag, package, file_path,
+            release_id, package, file_path,
             lines_total, lines_covered, lines_pct,
             statements_total, statements_covered, statements_pct,
             functions_total, functions_covered, functions_pct,
             branches_total, branches_covered, branches_pct
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            latestTag, pkgDir, filePath,
+            latestReleaseId, pkgDir, filePath,
             entry.lines.total, entry.lines.covered, entry.lines.pct,
             entry.statements.total, entry.statements.covered, entry.statements.pct,
             entry.functions.total, entry.functions.covered, entry.functions.pct,
@@ -8020,11 +9011,12 @@ export class TrailDatabase {
   importCoverage(gitRoot: string): number {
     const db = this.ensureDb();
 
+    // flip 後 release_coverage は release_id FK。最新リリースの release_id を取得する。
     const latestResult = db.exec(
-      "SELECT tag FROM releases ORDER BY released_at DESC LIMIT 1",
+      "SELECT release_id FROM releases ORDER BY released_at DESC LIMIT 1",
     );
-    const latestTag = latestResult[0]?.values?.[0]?.[0] as string | undefined;
-    if (!latestTag) return 0;
+    const latestReleaseId = latestResult[0]?.values?.[0]?.[0];
+    if (latestReleaseId == null) return 0;
 
     const packagesDir = path.join(gitRoot, 'packages');
     let packageDirs: string[];
@@ -8037,15 +9029,17 @@ export class TrailDatabase {
     let count = 0;
     for (const pkgDir of packageDirs) {
       const summaryPath = path.join(packagesDir, pkgDir, 'coverage', 'coverage-summary.json');
-      count += this.importReleaseCoverageForPackage(db, latestTag, pkgDir, summaryPath);
+      count += this.importReleaseCoverageForPackage(db, Number(latestReleaseId), pkgDir, summaryPath);
     }
     return count;
   }
 
   importCurrentCoverage(gitRoot: string, repoName: string): number {
     const db = this.ensureDb();
+    // Phase C-2 flip: current_coverage は (repo_id, package, file_path) PK。repo_name は移行互換で併記。
+    const repoId = this.repoIdForName(repoName);
     // 洗い替え
-    db.run('DELETE FROM current_coverage WHERE repo_name = ?', [repoName]);
+    db.run('DELETE FROM current_coverage WHERE repo_id = ?', [repoId]);
 
     const packagesDir = path.join(gitRoot, 'packages');
     let count = 0;
@@ -8073,15 +9067,15 @@ export class TrailDatabase {
         const filePath = key === 'total' ? '__total__' : key;
         db.run(
           `INSERT OR REPLACE INTO current_coverage (
-            repo_name, package, file_path,
+            repo_id, repo_name, package, file_path,
             lines_total, lines_covered, lines_pct,
             statements_total, statements_covered, statements_pct,
             functions_total, functions_covered, functions_pct,
             branches_total, branches_covered, branches_pct,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            repoName, pkgDir, filePath,
+            repoId, repoName, pkgDir, filePath,
             e.lines.total, e.lines.covered, toPct(e.lines.pct),
             e.statements.total, e.statements.covered, toPct(e.statements.pct),
             e.functions.total, e.functions.covered, toPct(e.functions.pct),
@@ -8175,10 +9169,13 @@ export class TrailDatabase {
   upsertCurrentFileAnalysis(rows: readonly FileAnalysisRow[]): void {
     if (rows.length === 0) return;
     const db = this.ensureDb();
+    // Phase C-2 flip: current_file_analysis は (repo_id, file_path) PK。repo_id を先頭に
+    // 追加し、repo_name は fileAnalysisRowParams 内で併記される (移行互換)。
     for (const r of rows) {
+      const repoId = this.repoIdForName(r.repoName);
       db.run(
         `INSERT OR REPLACE INTO current_file_analysis (
-          repo_name, file_path,
+          repo_id, repo_name, file_path,
           importance_score, fan_in_total, cognitive_complexity_max, line_count, cyclomatic_complexity_max, function_count,
           dead_code_score,
           signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
@@ -8187,8 +9184,8 @@ export class TrailDatabase {
           cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
           category,
           analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        this.fileAnalysisRowParams(r),
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [repoId, ...this.fileAnalysisRowParams(r)],
       );
     }
     this.save();
@@ -8248,10 +9245,16 @@ export class TrailDatabase {
   upsertReleaseFileAnalysis(releaseTag: string, rows: readonly FileAnalysisRow[]): void {
     if (rows.length === 0) return;
     const db = this.ensureDb();
+    // flip 後 release_file_analysis は release_id FK。tag を解決する。
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) {
+      this.logger.warn(`[upsertReleaseFileAnalysis] no release for tag=${releaseTag}, skip`);
+      return;
+    }
     for (const r of rows) {
       db.run(
         `INSERT OR REPLACE INTO release_file_analysis (
-          release_tag, repo_name, file_path,
+          release_id, repo_name, file_path,
           importance_score, fan_in_total, cognitive_complexity_max, line_count, cyclomatic_complexity_max, function_count,
           dead_code_score,
           signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
@@ -8261,13 +9264,15 @@ export class TrailDatabase {
           category,
           analyzed_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [releaseTag, ...this.fileAnalysisRowParams(r)],
+        [releaseId, ...this.fileAnalysisRowParams(r)],
       );
     }
   }
 
   getReleaseFileAnalysis(releaseTag: string, repoName: string): FileAnalysisRow[] {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return [];
     const result = db.exec(
       `SELECT repo_name, file_path,
               importance_score, fan_in_total, cognitive_complexity_max, line_count, cyclomatic_complexity_max, function_count,
@@ -8278,8 +9283,8 @@ export class TrailDatabase {
               cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
               category,
               analyzed_at
-       FROM release_file_analysis WHERE release_tag = ? AND repo_name = ?`,
-      [releaseTag, repoName],
+       FROM release_file_analysis WHERE release_id = ? AND repo_name = ?`,
+      [releaseId, repoName],
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
@@ -8313,7 +9318,9 @@ export class TrailDatabase {
 
   clearReleaseFileAnalysis(releaseTag: string, repoName: string): void {
     const db = this.ensureDb();
-    db.run('DELETE FROM release_file_analysis WHERE release_tag = ? AND repo_name = ?', [releaseTag, repoName]);
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return;
+    db.run('DELETE FROM release_file_analysis WHERE release_id = ? AND repo_name = ?', [releaseId, repoName]);
     this.save();
   }
 
@@ -8324,18 +9331,21 @@ export class TrailDatabase {
   upsertCurrentFunctionAnalysis(rows: readonly FunctionAnalysisRow[]): void {
     if (rows.length === 0) return;
     const db = this.ensureDb();
+    // Phase C-2 flip: current_function_analysis は (repo_id, file_path, function_name, start_line) PK。
+    // repo_name は移行互換で併記する。
     for (const r of rows) {
+      const repoId = this.repoIdForName(r.repoName);
       db.run(
         `INSERT OR REPLACE INTO current_function_analysis (
-          repo_name, file_path, function_name, start_line,
+          repo_id, repo_name, file_path, function_name, start_line,
           end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
           data_mutation_score, side_effect_score, line_count,
           importance_score, signal_fan_in_zero,
           fan_out, distinct_callees, function_role,
           analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          r.repoName, r.filePath, r.functionName, r.startLine,
+          repoId, r.repoName, r.filePath, r.functionName, r.startLine,
           r.endLine, r.language, r.fanIn, r.cognitiveComplexity, r.cyclomaticComplexity,
           r.dataMutationScore, r.sideEffectScore, r.lineCount,
           r.importanceScore, r.signalFanInZero ? 1 : 0,
@@ -8391,10 +9401,16 @@ export class TrailDatabase {
   upsertReleaseFunctionAnalysis(releaseTag: string, rows: readonly FunctionAnalysisRow[]): void {
     if (rows.length === 0) return;
     const db = this.ensureDb();
+    // flip 後 release_function_analysis は release_id FK。tag を解決する。
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) {
+      this.logger.warn(`[upsertReleaseFunctionAnalysis] no release for tag=${releaseTag}, skip`);
+      return;
+    }
     for (const r of rows) {
       db.run(
         `INSERT OR REPLACE INTO release_function_analysis (
-          release_tag, repo_name, file_path, function_name, start_line,
+          release_id, repo_name, file_path, function_name, start_line,
           end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
           data_mutation_score, side_effect_score, line_count,
           importance_score, signal_fan_in_zero,
@@ -8402,7 +9418,7 @@ export class TrailDatabase {
           analyzed_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          releaseTag, r.repoName, r.filePath, r.functionName, r.startLine,
+          releaseId, r.repoName, r.filePath, r.functionName, r.startLine,
           r.endLine, r.language, r.fanIn, r.cognitiveComplexity, r.cyclomaticComplexity,
           r.dataMutationScore, r.sideEffectScore, r.lineCount,
           r.importanceScore, r.signalFanInZero ? 1 : 0,
@@ -8416,6 +9432,8 @@ export class TrailDatabase {
 
   getReleaseFunctionAnalysis(releaseTag: string, repoName: string): FunctionAnalysisRow[] {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return [];
     const result = db.exec(
       `SELECT repo_name, file_path, function_name, start_line,
               end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
@@ -8423,8 +9441,8 @@ export class TrailDatabase {
               importance_score, signal_fan_in_zero,
               fan_out, distinct_callees, function_role,
               analyzed_at
-       FROM release_function_analysis WHERE release_tag = ? AND repo_name = ?`,
-      [releaseTag, repoName],
+       FROM release_function_analysis WHERE release_id = ? AND repo_name = ?`,
+      [releaseId, repoName],
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
@@ -8451,7 +9469,9 @@ export class TrailDatabase {
 
   clearReleaseFunctionAnalysis(releaseTag: string, repoName: string): void {
     const db = this.ensureDb();
-    db.run('DELETE FROM release_function_analysis WHERE release_tag = ? AND repo_name = ?', [releaseTag, repoName]);
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return;
+    db.run('DELETE FROM release_function_analysis WHERE release_id = ? AND repo_name = ?', [releaseId, repoName]);
     this.save();
   }
 
@@ -8465,21 +9485,28 @@ export class TrailDatabase {
     const tags = git.getVersionTags();
     let count = 0;
 
+    // flip 後 releases は repo 内で UNIQUE (repo_id, tag)。repo_id を一度だけ解決する
+    // (repoIdForName は upsert で repos に登録する)。
+    const repoName = path.basename(gitRoot);
+    const repoId = this.repoIdForName(repoName);
+
     for (let i = 0; i < tags.length; i++) {
       const tag = tags[i];
-      const existing = db.exec(`SELECT tag FROM releases WHERE tag = '${tag.replaceAll("'", "''")}'`);
-      if (existing[0]?.values?.length) {
+      const existingRes = db.exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
+      const existingReleaseId = existingRes[0]?.values?.[0]?.[0];
+      if (existingReleaseId != null) {
         // Release exists — backfill release_files if missing
+        const relId = Number(existingReleaseId);
         const prevTag = i + 1 < tags.length ? tags[i + 1] : null;
-        const totalLinesResult = db.exec(`SELECT total_lines FROM releases WHERE tag = '${tag.replaceAll("'", "''")}'`);
+        const totalLinesResult = db.exec('SELECT total_lines FROM releases WHERE release_id = ?', [relId]);
         const existingTotalLines = Number(totalLinesResult[0]?.values?.[0]?.[0] ?? 0);
         if (existingTotalLines === 0) {
           const snapshotLines = git.getSnapshotLineCount(tag);
           if (snapshotLines > 0) {
             try {
               db.run(
-                `UPDATE releases SET total_lines = ? WHERE tag = ?`,
-                [snapshotLines, tag],
+                `UPDATE releases SET total_lines = ? WHERE release_id = ?`,
+                [snapshotLines, relId],
               );
               count++;
             } catch {
@@ -8489,16 +9516,17 @@ export class TrailDatabase {
         }
         if (prevTag) {
           const filesExist = db.exec(
-            `SELECT COUNT(*) FROM release_files WHERE release_tag = '${tag.replaceAll("'", "''")}'`,
+            'SELECT COUNT(*) FROM release_files WHERE release_id = ?',
+            [relId],
           );
           if ((filesExist[0]?.values?.[0]?.[0] as number) <= 0) {
             const fileStats = git.getFileStatsByRange(prevTag, tag);
             for (const f of fileStats) {
               try {
                 db.run(
-                  `INSERT OR IGNORE INTO release_files (release_tag, file_path, lines_added, lines_deleted, change_type)
+                  `INSERT OR IGNORE INTO release_files (release_id, file_path, lines_added, lines_deleted, change_type)
                    VALUES (?, ?, ?, ?, ?)`,
-                  [tag, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
+                  [relId, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
                 );
               } catch { /* ignore */ }
             }
@@ -8527,7 +9555,7 @@ export class TrailDatabase {
         prevTag,
         releasedAt,
         prevReleasedAt,
-        repoName: path.basename(gitRoot),
+        repoName,
         packageTags,
         commitSubjects,
         filesChanged: stats.filesChanged,
@@ -8537,19 +9565,23 @@ export class TrailDatabase {
         affectedPackages: packages,
       });
 
+      // flip: prev_tag → prev_release_id を解決 (同 repo 内の tag を引く)。
+      const prevReleaseId = release.prevTag ? this.releaseIdForTag(db, release.prevTag) : null;
+
       db.run(
-        `INSERT OR REPLACE INTO releases (
-          tag, released_at, prev_tag, repo_name, package_tags,
+        `INSERT INTO releases (
+          tag, released_at, prev_release_id, repo_name, repo_id, package_tags,
           commit_count, files_changed, lines_added, lines_deleted,
           total_lines,
           feat_count, fix_count, refactor_count, test_count, other_count,
           affected_packages, duration_days
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           release.tag,
           release.releasedAt,
-          release.prevTag,
-          path.basename(gitRoot),
+          prevReleaseId,
+          repoName,
+          repoId,
           JSON.stringify(release.packageTags),
           release.commitCount,
           release.filesChanged,
@@ -8566,15 +9598,18 @@ export class TrailDatabase {
         ],
       );
 
+      // 新規挿入した release の release_id を取得 (auto-assigned ROWID)。
+      const newRelId = this.releaseIdForTag(db, release.tag);
+
       // Save release files
-      if (prevTag) {
+      if (prevTag && newRelId != null) {
         const fileStats = git.getFileStatsByRange(prevTag, tag);
         for (const f of fileStats) {
           try {
             db.run(
-              `INSERT OR IGNORE INTO release_files (release_tag, file_path, lines_added, lines_deleted, change_type)
+              `INSERT OR IGNORE INTO release_files (release_id, file_path, lines_added, lines_deleted, change_type)
                VALUES (?, ?, ?, ?, ?)`,
-              [tag, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
+              [newRelId, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
             );
           } catch { /* ignore */ }
         }
@@ -8582,6 +9617,22 @@ export class TrailDatabase {
       }
 
       count++;
+    }
+
+    // flip: prev_release_id の解決 2nd pass。tags は新しい順なので 1st pass 時点では
+    // prev (古い) release が未挿入で prev_release_id が null になる。全 release 挿入後に
+    // tag ペア (tags[i] → tags[i+1]) で prev_release_id を埋める (同 repo_id 内)。
+    for (let i = 0; i + 1 < tags.length; i++) {
+      const tag = tags[i];
+      const prevTag = tags[i + 1];
+      const prevReleaseId = this.releaseIdForTag(db, prevTag);
+      if (prevReleaseId == null) continue;
+      try {
+        db.run(
+          'UPDATE releases SET prev_release_id = ? WHERE tag = ? AND repo_id IS ? AND prev_release_id IS NULL',
+          [prevReleaseId, tag, repoId],
+        );
+      } catch { /* ignore */ }
     }
 
     if (count > 0) this.save();
@@ -8722,7 +9773,10 @@ export class TrailDatabase {
     const releases = this.getReleases();
     if (releases.length === 0) return 0;
 
-    const existingResult = db.exec('SELECT tag FROM release_graphs');
+    // flip 後 release_graphs は release_id FK。dedup は tag ベースのため releases へ JOIN する。
+    const existingResult = db.exec(
+      `SELECT r.tag FROM release_graphs rg JOIN releases r ON r.release_id = rg.release_id`,
+    );
     const existingIds = new Set<string>(
       existingResult[0]?.values?.map((r) => r[0] as string) ?? [],
     );
@@ -8753,7 +9807,14 @@ export class TrailDatabase {
 
   getReleases(): ReleaseRow[] {
     const db = this.ensureDb();
-    const result = db.exec('SELECT * FROM releases ORDER BY released_at DESC');
+    // flip 後 releases は prev_release_id を持つ。外部 I/F (Supabase 同期) は従来通り
+    // prev_tag を期待するため、自己 JOIN で prev_release_id → prev.tag を解決して供給する。
+    const result = db.exec(
+      `SELECT r.*, p.tag AS prev_tag
+         FROM releases r
+         LEFT JOIN releases p ON p.release_id = r.prev_release_id
+        ORDER BY r.released_at DESC`,
+    );
     if (!result[0]) return [];
     const cols = result[0].columns;
     return result[0].values.map((row) => {
@@ -8896,39 +9957,69 @@ export class TrailDatabase {
 
   getReleaseFiles(releaseTag: string): ReleaseFileRow[] {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return [];
+    // flip 後 release_files は release_id FK。外部 I/F は release_tag を期待するため
+    // パラメータ tag をそのまま row に詰め直す (data 列のみ DB から取得)。
     const result = db.exec(
-      `SELECT * FROM release_files WHERE release_tag = '${releaseTag.replaceAll("'", "''")}'`,
+      `SELECT file_path, lines_added, lines_deleted, change_type
+         FROM release_files WHERE release_id = ?`,
+      [releaseId],
     );
     if (!result[0]?.values) return [];
-    const cols = result[0].columns;
-    return result[0].values.map((row) => {
-      const obj: Record<string, unknown> = {};
-      cols.forEach((col, i) => { obj[col] = row[i]; });
-      return obj as unknown as ReleaseFileRow;
-    });
+    return result[0].values.map((row) => ({
+      release_tag: releaseTag,
+      file_path: asText(row[0] ?? ''),
+      lines_added: Number(row[1] ?? 0),
+      lines_deleted: Number(row[2] ?? 0),
+      change_type: asText(row[3] ?? 'modified'),
+    }));
   }
 
   getCoverageByTag(releaseTag: string): ReleaseCoverageRow[] {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return [];
     const result = db.exec(
-      `SELECT * FROM release_coverage WHERE release_tag = '${releaseTag.replaceAll("'", "''")}'`,
-    );
-    if (!result[0]?.values) return [];
-    const cols = result[0].columns;
-    return result[0].values.map((row) =>
-      Object.fromEntries(cols.map((col, i) => [col, row[i]])) as unknown as ReleaseCoverageRow,
-    );
-  }
-
-  getAllReleaseCoverage(): ReleaseCoverageRow[] {
-    const db = this.ensureDb();
-    const result = db.exec(
-      `SELECT release_tag, package, file_path,
+      `SELECT package, file_path,
               lines_total, lines_covered, lines_pct,
               statements_total, statements_covered, statements_pct,
               functions_total, functions_covered, functions_pct,
               branches_total, branches_covered, branches_pct
-       FROM release_coverage`,
+         FROM release_coverage WHERE release_id = ?`,
+      [releaseId],
+    );
+    if (!result[0]?.values) return [];
+    const toNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0; };
+    return result[0].values.map((r) => ({
+      release_tag: releaseTag,
+      package: asText(r[0] ?? ''),
+      file_path: asText(r[1] ?? ''),
+      lines_total: toNum(r[2]),
+      lines_covered: toNum(r[3]),
+      lines_pct: toNum(r[4]),
+      statements_total: toNum(r[5]),
+      statements_covered: toNum(r[6]),
+      statements_pct: toNum(r[7]),
+      functions_total: toNum(r[8]),
+      functions_covered: toNum(r[9]),
+      functions_pct: toNum(r[10]),
+      branches_total: toNum(r[11]),
+      branches_covered: toNum(r[12]),
+      branches_pct: toNum(r[13]),
+    }));
+  }
+
+  getAllReleaseCoverage(): ReleaseCoverageRow[] {
+    const db = this.ensureDb();
+    // flip 後は release_id FK。Supabase 同期は release_tag キーのため releases へ JOIN する。
+    const result = db.exec(
+      `SELECT r.tag, rc.package, rc.file_path,
+              rc.lines_total, rc.lines_covered, rc.lines_pct,
+              rc.statements_total, rc.statements_covered, rc.statements_pct,
+              rc.functions_total, rc.functions_covered, rc.functions_pct,
+              rc.branches_total, rc.branches_covered, rc.branches_pct
+       FROM release_coverage rc JOIN releases r ON r.release_id = rc.release_id`,
     );
     const values = result[0]?.values ?? [];
     const toNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0; };
@@ -9018,12 +10109,13 @@ export class TrailDatabase {
   }> {
     const db = this.ensureDb();
     const result = db.exec(
-      `SELECT release_tag, repo_name, file_path, importance_score, fan_in_total, cognitive_complexity_max, function_count,
-              dead_code_score, signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
-              signal_zero_coverage, signal_isolated_community, is_ignored, ignore_reason,
-              cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
-              analyzed_at, line_count, cyclomatic_complexity_max, category
-       FROM release_file_analysis`,
+      // flip 後は release_id FK。Supabase 同期は release_tag キーのため releases へ JOIN する。
+      `SELECT r.tag, rfa.repo_name, rfa.file_path, rfa.importance_score, rfa.fan_in_total, rfa.cognitive_complexity_max, rfa.function_count,
+              rfa.dead_code_score, rfa.signal_orphan, rfa.signal_fan_in_zero, rfa.signal_no_recent_churn,
+              rfa.signal_zero_coverage, rfa.signal_isolated_community, rfa.is_ignored, rfa.ignore_reason,
+              rfa.cross_pkg_in_count, rfa.external_consumer_pkgs, rfa.total_in_count, rfa.is_barrel, rfa.centrality_score,
+              rfa.analyzed_at, rfa.line_count, rfa.cyclomatic_complexity_max, rfa.category
+       FROM release_file_analysis rfa JOIN releases r ON r.release_id = rfa.release_id`,
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
@@ -9110,14 +10202,15 @@ export class TrailDatabase {
   }> {
     const db = this.ensureDb();
     const result = db.exec(
-      `SELECT release_tag, repo_name, file_path, function_name, start_line,
-              end_line, language, fan_in, cognitive_complexity,
-              data_mutation_score, side_effect_score, line_count,
-              importance_score, signal_fan_in_zero,
-              fan_out, distinct_callees, function_role,
-              analyzed_at,
-              cyclomatic_complexity
-       FROM release_function_analysis`,
+      // flip 後は release_id FK。Supabase 同期は release_tag キーのため releases へ JOIN する。
+      `SELECT r.tag, rfa.repo_name, rfa.file_path, rfa.function_name, rfa.start_line,
+              rfa.end_line, rfa.language, rfa.fan_in, rfa.cognitive_complexity,
+              rfa.data_mutation_score, rfa.side_effect_score, rfa.line_count,
+              rfa.importance_score, rfa.signal_fan_in_zero,
+              rfa.fan_out, rfa.distinct_callees, rfa.function_role,
+              rfa.analyzed_at,
+              rfa.cyclomatic_complexity
+       FROM release_function_analysis rfa JOIN releases r ON r.release_id = rfa.release_id`,
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
@@ -9145,15 +10238,36 @@ export class TrailDatabase {
 
   getCoverageSummary(releaseTag: string): ReleaseCoverageRow[] {
     const db = this.ensureDb();
+    const releaseId = this.releaseIdForTag(db, releaseTag);
+    if (releaseId == null) return [];
     const result = db.exec(
-      `SELECT * FROM release_coverage WHERE release_tag = '${releaseTag.replaceAll("'", "''")}'
-       AND file_path = '__total__'`,
+      `SELECT package, file_path,
+              lines_total, lines_covered, lines_pct,
+              statements_total, statements_covered, statements_pct,
+              functions_total, functions_covered, functions_pct,
+              branches_total, branches_covered, branches_pct
+         FROM release_coverage WHERE release_id = ? AND file_path = '__total__'`,
+      [releaseId],
     );
     if (!result[0]?.values) return [];
-    const cols = result[0].columns;
-    return result[0].values.map((row) =>
-      Object.fromEntries(cols.map((col, i) => [col, row[i]])) as unknown as ReleaseCoverageRow,
-    );
+    const toNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0; };
+    return result[0].values.map((r) => ({
+      release_tag: releaseTag,
+      package: asText(r[0] ?? ''),
+      file_path: asText(r[1] ?? ''),
+      lines_total: toNum(r[2]),
+      lines_covered: toNum(r[3]),
+      lines_pct: toNum(r[4]),
+      statements_total: toNum(r[5]),
+      statements_covered: toNum(r[6]),
+      statements_pct: toNum(r[7]),
+      functions_total: toNum(r[8]),
+      functions_covered: toNum(r[9]),
+      functions_pct: toNum(r[10]),
+      branches_total: toNum(r[11]),
+      branches_covered: toNum(r[12]),
+      branches_pct: toNum(r[13]),
+    }));
   }
 
   // ---------------------------------------------------------------------------

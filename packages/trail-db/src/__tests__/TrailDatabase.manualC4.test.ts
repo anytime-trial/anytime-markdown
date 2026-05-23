@@ -184,29 +184,37 @@ describe('TrailDatabase.getReleases', () => {
   });
 
   it('returns releases sorted by released_at DESC', () => {
+    // flip 後 releases は prev_release_id 列 (旧 prev_tag は廃止)。
     inner(db).run(
       `INSERT OR REPLACE INTO releases (
-         tag, released_at, prev_tag, repo_name, package_tags,
+         tag, released_at, prev_release_id, repo_name, package_tags,
          commit_count, files_changed, lines_added, lines_deleted,
          total_lines, feat_count, fix_count, refactor_count, test_count, other_count,
          affected_packages, duration_days
        ) VALUES (?, ?, NULL, 'test-repo', '[]', 5, 10, 100, 50, 1000, 2, 1, 1, 0, 0, '[]', 30)`,
       ['v1.0.0', '2026-03-01T00:00:00.000Z'],
     );
+    const v1Id = Number(
+      (db as unknown as { db: { exec: (sql: string, p?: ReadonlyArray<unknown>) => Array<{ values: unknown[][] }> } }).db
+        .exec('SELECT release_id FROM releases WHERE tag = ?', ['v1.0.0'])[0]?.values?.[0]?.[0],
+    );
     inner(db).run(
       `INSERT OR REPLACE INTO releases (
-         tag, released_at, prev_tag, repo_name, package_tags,
+         tag, released_at, prev_release_id, repo_name, package_tags,
          commit_count, files_changed, lines_added, lines_deleted,
          total_lines, feat_count, fix_count, refactor_count, test_count, other_count,
          affected_packages, duration_days
        ) VALUES (?, ?, ?, 'test-repo', '[]', 3, 5, 50, 20, 1020, 1, 0, 0, 1, 0, '[]', 14)`,
-      ['v1.1.0', '2026-04-01T00:00:00.000Z', 'v1.0.0'],
+      ['v1.1.0', '2026-04-01T00:00:00.000Z', v1Id],
     );
     const releases = db.getReleases();
     expect(releases).toHaveLength(2);
     // DESC order: v1.1.0 first
     expect((releases[0] as unknown as Record<string, unknown>).tag).toBe('v1.1.0');
     expect((releases[1] as unknown as Record<string, unknown>).tag).toBe('v1.0.0');
+    // prev_release_id → prev_tag が getReleases で解決される (外部 I/F 互換維持)。
+    expect((releases[0] as unknown as Record<string, unknown>).prev_tag).toBe('v1.0.0');
+    expect((releases[1] as unknown as Record<string, unknown>).prev_tag).toBeNull();
   });
 });
 

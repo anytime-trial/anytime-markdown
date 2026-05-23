@@ -16,6 +16,9 @@ export const dynamic = 'force-dynamic';
  * 特定タグのときは trail_releases.repo_name で repo 帰属を確認のうえ
  * trail_release_code_graphs + trail_release_code_graph_communities を返す。
  *
+ * コードグラフは repo 単位で個別保存されるため、repo 指定時は repo_name で絞り込む。
+ * repo 未指定時は先頭 1 件にフォールバックする（単一リポ環境・後方互換）。
+ *
  * グラフ未生成時または tag が repo に属さない場合は 404。
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -28,7 +31,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const supabase = createClient(env.url, env.anonKey);
     const result = release === 'current'
-      ? await fetchCurrent(supabase)
+      ? await fetchCurrent(supabase, repo)
       : await fetchRelease(supabase, release, repo);
     if (!result) return new NextResponse(null, { status: 404 });
 
@@ -44,10 +47,21 @@ interface FetchedGraph {
   communities: StoredCommunity[];
 }
 
-async function fetchCurrent(supabase: SupabaseClient): Promise<FetchedGraph | null> {
+async function fetchCurrent(
+  supabase: SupabaseClient,
+  repo: string | undefined,
+): Promise<FetchedGraph | null> {
+  let graphQuery = supabase.from('trail_current_code_graphs').select('graph_json');
+  let communityQuery = supabase
+    .from('trail_current_code_graph_communities')
+    .select('community_id,label,name,summary');
+  if (repo) {
+    graphQuery = graphQuery.eq('repo_name', repo);
+    communityQuery = communityQuery.eq('repo_name', repo);
+  }
   const [{ data: graphRow, error: graphErr }, { data: communityRows }] = await Promise.all([
-    supabase.from('trail_current_code_graphs').select('graph_json').limit(1).single(),
-    supabase.from('trail_current_code_graph_communities').select('community_id,label,name,summary').limit(1000),
+    graphQuery.limit(1).single(),
+    communityQuery.limit(1000),
   ]);
   if (graphErr || !graphRow) return null;
   return {

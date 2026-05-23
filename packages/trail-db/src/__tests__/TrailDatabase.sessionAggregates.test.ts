@@ -20,10 +20,21 @@ import type { TrailDatabase } from '../TrailDatabase';
 
 type RawDb = {
   run: (sql: string, params?: ReadonlyArray<unknown>) => void;
+  exec: (sql: string, params?: ReadonlyArray<unknown>) => Array<{ values: unknown[][] }>;
 };
 
 function inner(db: TrailDatabase): RawDb {
   return (db as unknown as { db: RawDb }).db;
+}
+
+// flip 後 release_coverage は release_id FK。tag の親 release を作り release_id を返す。
+function seedReleaseAndGetId(db: TrailDatabase, tag: string): number {
+  inner(db).run(
+    `INSERT OR IGNORE INTO releases (tag, released_at, repo_name) VALUES (?, '2026-01-01T00:00:00.000Z', 'r')`,
+    [tag],
+  );
+  const res = inner(db).exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
+  return Number(res[0]?.values?.[0]?.[0]);
 }
 
 function insertSession(
@@ -395,14 +406,16 @@ describe('TrailDatabase.getCoverageSummary', () => {
   });
 
   it('returns coverage row when inserted', () => {
+    const relId = seedReleaseAndGetId(db, 'v1.0.0');
     inner(db).run(
       `INSERT OR IGNORE INTO release_coverage (
-         release_tag, package, file_path,
+         release_id, package, file_path,
          lines_total, lines_covered, lines_pct,
          statements_total, statements_covered, statements_pct,
          functions_total, functions_covered, functions_pct,
          branches_total, branches_covered, branches_pct
-       ) VALUES ('v1.0.0', 'trail-db', '__total__', 100, 80, 80.0, 200, 160, 80.0, 50, 40, 80.0, 120, 96, 80.0)`,
+       ) VALUES (?, 'trail-db', '__total__', 100, 80, 80.0, 200, 160, 80.0, 50, 40, 80.0, 120, 96, 80.0)`,
+      [relId],
     );
     const result = db.getCoverageSummary('v1.0.0');
     expect(result).toHaveLength(1);
@@ -412,23 +425,26 @@ describe('TrailDatabase.getCoverageSummary', () => {
   });
 
   it('only returns __total__ rows (not per-file rows)', () => {
+    const relId = seedReleaseAndGetId(db, 'v2.0.0');
     inner(db).run(
       `INSERT OR IGNORE INTO release_coverage (
-         release_tag, package, file_path,
+         release_id, package, file_path,
          lines_total, lines_covered, lines_pct,
          statements_total, statements_covered, statements_pct,
          functions_total, functions_covered, functions_pct,
          branches_total, branches_covered, branches_pct
-       ) VALUES ('v2.0.0', 'trail-db', 'src/foo.ts', 10, 8, 80.0, 20, 16, 80.0, 5, 4, 80.0, 12, 10, 80.0)`,
+       ) VALUES (?, 'trail-db', 'src/foo.ts', 10, 8, 80.0, 20, 16, 80.0, 5, 4, 80.0, 12, 10, 80.0)`,
+      [relId],
     );
     inner(db).run(
       `INSERT OR IGNORE INTO release_coverage (
-         release_tag, package, file_path,
+         release_id, package, file_path,
          lines_total, lines_covered, lines_pct,
          statements_total, statements_covered, statements_pct,
          functions_total, functions_covered, functions_pct,
          branches_total, branches_covered, branches_pct
-       ) VALUES ('v2.0.0', 'trail-db', '__total__', 100, 80, 80.0, 200, 160, 80.0, 50, 40, 80.0, 120, 96, 80.0)`,
+       ) VALUES (?, 'trail-db', '__total__', 100, 80, 80.0, 200, 160, 80.0, 50, 40, 80.0, 120, 96, 80.0)`,
+      [relId],
     );
     const result = db.getCoverageSummary('v2.0.0');
     expect(result).toHaveLength(1);
