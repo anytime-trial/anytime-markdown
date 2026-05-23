@@ -106,13 +106,26 @@ export interface LepGitHubSourceConfig {
   since: string;
 }
 
-export interface LepSourcesConfig {
-  github: LepGitHubSourceConfig;
+/**
+ * Claude Code セッションログ (JSONL) の探索元。`projectsDir` 空文字は「未指定」とし、
+ * JsonlIngester の既定 (`os.homedir()/.claude/projects`) にフォールバックする。
+ */
+export interface LepClaudeSourceConfig {
+  projectsDir: string;
 }
 
-export interface LepConfig {
-  version: number;
-  stage: LepStage;
+/**
+ * Codex セッションログ (rollout JSONL) の探索元。`sessionsDir` 空文字は「未指定」とし、
+ * JsonlIngester の既定 (`os.homedir()/.codex/sessions`) にフォールバックする。
+ */
+export interface LepCodexSourceConfig {
+  sessionsDir: string;
+}
+
+export interface LepSourcesConfig {
+  github: LepGitHubSourceConfig;
+  claude: LepClaudeSourceConfig;
+  codex: LepCodexSourceConfig;
   /**
    * 解析対象 git リポジトリのルート群 (拡張・daemon 共通の監視対象)。
    * daemon は CLI 引数 → home-tier lep.json の順で bootstrap する (workspace lep.json は
@@ -120,6 +133,11 @@ export interface LepConfig {
    * 拡張は本 gitRoots に加えて anytimeTrail.workspace.path を監視対象へ追加する。
    */
   gitRoots: string[];
+}
+
+export interface LepConfig {
+  version: number;
+  stage: LepStage;
   schedule: LepScheduleConfig;
   llm: LepLlmConfig;
   memory: LepMemoryConfig;
@@ -174,7 +192,6 @@ export const disabledMemoryAnalyzerIds = disabledAnalyzerIds;
 export interface PartialLepConfig {
   version?: number;
   stage?: LepStage;
-  gitRoots?: string[];
   schedule?: Partial<LepScheduleConfig>;
   llm?: {
     providers?: {
@@ -190,7 +207,12 @@ export interface PartialLepConfig {
     conversation?: Partial<LepConversationConfig>;
   };
   analyzers?: LepAnalyzersConfig;
-  sources?: { github?: Partial<LepGitHubSourceConfig> };
+  sources?: {
+    github?: Partial<LepGitHubSourceConfig>;
+    claude?: Partial<LepClaudeSourceConfig>;
+    codex?: Partial<LepCodexSourceConfig>;
+    gitRoots?: string[];
+  };
   logs?: { minLevel?: LepLogLevel };
 }
 
@@ -198,7 +220,6 @@ export interface PartialLepConfig {
 export const DEFAULT_LEP_CONFIG: LepConfig = {
   version: LEP_CONFIG_VERSION,
   stage: 'disabled',
-  gitRoots: [],
   schedule: { intervalSec: 1800, runOnStart: false, startupDelaySec: 30 },
   llm: {
     providers: {
@@ -218,6 +239,9 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
   ) as LepAnalyzersConfig,
   sources: {
     github: { enabled: false, tokenEnv: 'GITHUB_TOKEN', maxPrs: 30, since: '' },
+    claude: { projectsDir: '' },
+    codex: { sessionsDir: '' },
+    gitRoots: [],
   },
   logs: { minLevel: 'info' },
 };
@@ -233,7 +257,6 @@ export class LepConfigError extends Error {
 const KNOWN_TOP_LEVEL_KEYS = new Set([
   'version',
   'stage',
-  'gitRoots',
   'schedule',
   'llm',
   'memory',
@@ -289,14 +312,6 @@ export function validateLepConfigInput(
       );
     }
     value.stage = raw['stage'] as LepStage;
-  }
-
-  if (raw['gitRoots'] !== undefined) {
-    if (Array.isArray(raw['gitRoots']) && raw['gitRoots'].every((r) => typeof r === 'string')) {
-      value.gitRoots = raw['gitRoots'] as string[];
-    } else {
-      warnings.push(`${sourceLabel}: gitRoots は文字列配列である必要があります (無視)`);
-    }
   }
 
   if (raw['schedule'] !== undefined) {
@@ -378,18 +393,60 @@ export function validateLepConfigInput(
   if (raw['sources'] !== undefined) {
     if (!isPlainObject(raw['sources'])) {
       warnings.push(`${sourceLabel}: sources はオブジェクトである必要があります (無視)`);
-    } else if (isPlainObject(raw['sources']['github'])) {
-      const g = raw['sources']['github'];
-      const github: Partial<LepGitHubSourceConfig> = {};
-      if (typeof g['enabled'] === 'boolean') github.enabled = g['enabled'];
-      if (typeof g['tokenEnv'] === 'string') github.tokenEnv = g['tokenEnv'];
-      if (typeof g['maxPrs'] === 'number' && Number.isFinite(g['maxPrs'])) {
-        github.maxPrs = g['maxPrs'];
-      }
-      if (typeof g['since'] === 'string') github.since = g['since'];
-      value.sources = { github };
     } else {
-      warnings.push(`${sourceLabel}: sources.github はオブジェクトである必要があります (無視)`);
+      const sourcesRaw = raw['sources'];
+      const sources: NonNullable<PartialLepConfig['sources']> = {};
+
+      if (sourcesRaw['github'] !== undefined) {
+        if (isPlainObject(sourcesRaw['github'])) {
+          const g = sourcesRaw['github'];
+          const github: Partial<LepGitHubSourceConfig> = {};
+          if (typeof g['enabled'] === 'boolean') github.enabled = g['enabled'];
+          if (typeof g['tokenEnv'] === 'string') github.tokenEnv = g['tokenEnv'];
+          if (typeof g['maxPrs'] === 'number' && Number.isFinite(g['maxPrs'])) {
+            github.maxPrs = g['maxPrs'];
+          }
+          if (typeof g['since'] === 'string') github.since = g['since'];
+          sources.github = github;
+        } else {
+          warnings.push(`${sourceLabel}: sources.github はオブジェクトである必要があります (無視)`);
+        }
+      }
+
+      if (sourcesRaw['claude'] !== undefined) {
+        if (isPlainObject(sourcesRaw['claude'])) {
+          const c = sourcesRaw['claude'];
+          const claude: Partial<LepClaudeSourceConfig> = {};
+          if (typeof c['projectsDir'] === 'string') claude.projectsDir = c['projectsDir'];
+          sources.claude = claude;
+        } else {
+          warnings.push(`${sourceLabel}: sources.claude はオブジェクトである必要があります (無視)`);
+        }
+      }
+
+      if (sourcesRaw['codex'] !== undefined) {
+        if (isPlainObject(sourcesRaw['codex'])) {
+          const cx = sourcesRaw['codex'];
+          const codex: Partial<LepCodexSourceConfig> = {};
+          if (typeof cx['sessionsDir'] === 'string') codex.sessionsDir = cx['sessionsDir'];
+          sources.codex = codex;
+        } else {
+          warnings.push(`${sourceLabel}: sources.codex はオブジェクトである必要があります (無視)`);
+        }
+      }
+
+      if (sourcesRaw['gitRoots'] !== undefined) {
+        if (
+          Array.isArray(sourcesRaw['gitRoots']) &&
+          sourcesRaw['gitRoots'].every((r) => typeof r === 'string')
+        ) {
+          sources.gitRoots = sourcesRaw['gitRoots'] as string[];
+        } else {
+          warnings.push(`${sourceLabel}: sources.gitRoots は文字列配列である必要があります (無視)`);
+        }
+      }
+
+      if (Object.keys(sources).length > 0) value.sources = sources;
     }
   }
 
@@ -410,7 +467,6 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
   return {
     version: override.version ?? base.version,
     stage: override.stage ?? base.stage,
-    gitRoots: override.gitRoots ?? base.gitRoots,
     schedule: {
       intervalSec: override.schedule?.intervalSec ?? base.schedule.intervalSec,
       runOnStart: override.schedule?.runOnStart ?? base.schedule.runOnStart,
@@ -453,6 +509,13 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
         maxPrs: override.sources?.github?.maxPrs ?? base.sources.github.maxPrs,
         since: override.sources?.github?.since ?? base.sources.github.since,
       },
+      claude: {
+        projectsDir: override.sources?.claude?.projectsDir ?? base.sources.claude.projectsDir,
+      },
+      codex: {
+        sessionsDir: override.sources?.codex?.sessionsDir ?? base.sources.codex.sessionsDir,
+      },
+      gitRoots: override.sources?.gitRoots ?? base.sources.gitRoots,
     },
     logs: { minLevel: override.logs?.minLevel ?? base.logs.minLevel },
   };
@@ -511,7 +574,7 @@ export function migrateLegacyToLepConfig(legacy: LegacyLepConfigInput): PartialL
   if (Object.keys(models).length > 0) ollama.models = models;
   if (Object.keys(ollama).length > 0) out.llm = { providers: { ollama } };
 
-  if (legacy.gitRoots && legacy.gitRoots.length > 0) out.gitRoots = legacy.gitRoots;
+  if (legacy.gitRoots && legacy.gitRoots.length > 0) out.sources = { gitRoots: legacy.gitRoots };
 
   const memory: NonNullable<PartialLepConfig['memory']> = {};
   if (legacy.rag && Object.keys(legacy.rag).length > 0) memory.rag = legacy.rag;
@@ -793,7 +856,7 @@ export function migrateConfigJsonIntoLepJson(opts: MigrateConfigJsonOptions): Mi
     const lepObj = lepRaw as Record<string, unknown>;
     const migratedRecord = migrated as unknown as Record<string, unknown>;
     let injected = false;
-    for (const key of ['stage', 'gitRoots', 'schedule', 'llm', 'memory'] as const) {
+    for (const key of ['stage', 'sources', 'schedule', 'llm', 'memory'] as const) {
       if (!(key in lepObj) && migratedRecord[key] !== undefined) {
         lepObj[key] = migratedRecord[key];
         injected = true;

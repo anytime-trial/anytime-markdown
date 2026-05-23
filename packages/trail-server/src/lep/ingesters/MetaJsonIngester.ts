@@ -11,7 +11,11 @@ import type {
 const AGENT_META_RE = /^agent-(.+)\.meta\.json$/;
 
 export interface MetaJsonIngesterOptions {
-  /** ~/.claude/projects のオーバーライド (テスト用) */
+  /**
+   * Claude Code セッションログの探索元 (lep.json `sources.claude.projectsDir` / テスト上書き)。
+   * JsonlIngester と同一の projects dir を読むため、同じ値を渡して整合させる。
+   * 省略時は `os.homedir()/.claude/projects`。
+   */
   readonly claudeProjectsDir?: string;
 }
 

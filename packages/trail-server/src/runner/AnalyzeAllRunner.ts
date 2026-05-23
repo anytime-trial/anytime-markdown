@@ -66,6 +66,16 @@ export interface AnalyzeAllRunnerOptions {
   trailDb?: TrailDatabase;
   /** 監視対象 gitRoot 集合 (commit / release / coverage / codegraph 解析対象) */
   gitRoots?: readonly string[];
+  /**
+   * Claude Code セッションログ (JSONL) の探索元 (lep.json `sources.claude.projectsDir`)。
+   * 省略 / 空時は JsonlIngester 既定 (`os.homedir()/.claude/projects`)。
+   */
+  claudeProjectsDir?: string;
+  /**
+   * Codex セッションログ (rollout JSONL) の探索元 (lep.json `sources.codex.sessionsDir`)。
+   * 省略 / 空時は JsonlIngester 既定 (`os.homedir()/.codex/sessions`)。
+   */
+  codexSessionsDir?: string;
   /** memory-core ingest pipeline を実行する service (省略時は memory-core ステップをスキップ) */
   memoryCoreService?: MemoryCoreService;
   /**
@@ -218,10 +228,15 @@ export class AnalyzeAllRunner extends BaseRunner {
 
       // Layer 1 (sources)
       const ingesters: Analyzer[] = [
-        new JsonlIngester({ gitRoot: opts.gitRoot ?? gitRoots[0], repoName: primaryRepoName }),
+        new JsonlIngester({
+          gitRoot: opts.gitRoot ?? gitRoots[0],
+          repoName: primaryRepoName,
+          claudeProjectsDir: opts.claudeProjectsDir,
+          codexSessionsDir: opts.codexSessionsDir,
+        }),
         new GitIngester({ gitRoots }),
         new CoverageIngester({ gitRoots }),
-        new MetaJsonIngester(),
+        new MetaJsonIngester({ claudeProjectsDir: opts.claudeProjectsDir }),
       ];
       // 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (githubPrReview 指定時のみ)。
       if (opts.githubPrReview) {

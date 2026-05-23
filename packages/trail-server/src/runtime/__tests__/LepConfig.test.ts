@@ -105,16 +105,67 @@ describe('validateLepConfigInput', () => {
     });
   });
 
-  it('parses gitRoots string array', () => {
-    const { value, warnings } = validateLepConfigInput({ gitRoots: ['/a', '/b'] }, 'test');
+  it('parses sources.claude.projectsDir / sources.codex.sessionsDir', () => {
+    const { value, warnings } = validateLepConfigInput(
+      { sources: { claude: { projectsDir: '/data/claude/projects' }, codex: { sessionsDir: '/data/codex/sessions' } } },
+      'test',
+    );
     expect(warnings).toEqual([]);
-    expect(value.gitRoots).toEqual(['/a', '/b']);
+    expect(value.sources?.claude).toEqual({ projectsDir: '/data/claude/projects' });
+    expect(value.sources?.codex).toEqual({ sessionsDir: '/data/codex/sessions' });
   });
 
-  it('warns and ignores non-string-array gitRoots', () => {
-    const { value, warnings } = validateLepConfigInput({ gitRoots: [1, '/b'] }, 'test');
+  it('parses github / claude / codex independently in one sources block', () => {
+    const { value, warnings } = validateLepConfigInput(
+      {
+        sources: {
+          github: { enabled: true },
+          claude: { projectsDir: '/c' },
+          codex: { sessionsDir: '/x' },
+        },
+      },
+      'test',
+    );
+    expect(warnings).toEqual([]);
+    expect(value.sources?.github).toEqual({ enabled: true });
+    expect(value.sources?.claude).toEqual({ projectsDir: '/c' });
+    expect(value.sources?.codex).toEqual({ sessionsDir: '/x' });
+  });
+
+  it('does not warn about github when only claude is specified', () => {
+    const { value, warnings } = validateLepConfigInput(
+      { sources: { claude: { projectsDir: '/c' } } },
+      'test',
+    );
+    expect(warnings).toEqual([]);
+    expect(value.sources?.github).toBeUndefined();
+    expect(value.sources?.claude).toEqual({ projectsDir: '/c' });
+  });
+
+  it('warns when sources.claude / sources.codex are not plain objects', () => {
+    const { warnings } = validateLepConfigInput(
+      { sources: { claude: 'bad', codex: 5 } },
+      'test',
+    );
+    expect(warnings.some((w) => w.includes('sources.claude'))).toBe(true);
+    expect(warnings.some((w) => w.includes('sources.codex'))).toBe(true);
+  });
+
+  it('parses sources.gitRoots string array', () => {
+    const { value, warnings } = validateLepConfigInput({ sources: { gitRoots: ['/a', '/b'] } }, 'test');
+    expect(warnings).toEqual([]);
+    expect(value.sources?.gitRoots).toEqual(['/a', '/b']);
+  });
+
+  it('warns and ignores non-string-array sources.gitRoots', () => {
+    const { value, warnings } = validateLepConfigInput({ sources: { gitRoots: [1, '/b'] } }, 'test');
+    expect(warnings.some((w) => w.includes('sources.gitRoots'))).toBe(true);
+    expect(value.sources?.gitRoots).toBeUndefined();
+  });
+
+  it('warns on now-unknown top-level gitRoots key', () => {
+    const { warnings } = validateLepConfigInput({ gitRoots: ['/a'] }, 'test');
     expect(warnings.some((w) => w.includes('gitRoots'))).toBe(true);
-    expect(value.gitRoots).toBeUndefined();
   });
 
   it('parses memory.rag / fts / conversation', () => {
@@ -192,6 +243,23 @@ describe('resolveGitHubSource', () => {
   });
 });
 
+describe('sources.claude / sources.codex defaults & merge', () => {
+  it('defaults claude.projectsDir / codex.sessionsDir to empty string', () => {
+    expect(DEFAULT_LEP_CONFIG.sources.claude.projectsDir).toBe('');
+    expect(DEFAULT_LEP_CONFIG.sources.codex.sessionsDir).toBe('');
+  });
+
+  it('merges claude/codex overrides while preserving github defaults', () => {
+    const cfg = mergeLepConfig(DEFAULT_LEP_CONFIG, {
+      sources: { claude: { projectsDir: '/p' }, codex: { sessionsDir: '/s' } },
+    });
+    expect(cfg.sources.claude.projectsDir).toBe('/p');
+    expect(cfg.sources.codex.sessionsDir).toBe('/s');
+    // github は base 既定を維持
+    expect(cfg.sources.github.enabled).toBe(false);
+  });
+});
+
 describe('mergeLepConfig', () => {
   it('returns base when override empty', () => {
     expect(mergeLepConfig(DEFAULT_LEP_CONFIG, {})).toEqual(DEFAULT_LEP_CONFIG);
@@ -219,12 +287,12 @@ describe('mergeLepConfig', () => {
     expect(merged.analyzers['CodeMemoryAnalyzer']).toEqual({ enabled: true });
   });
 
-  it('overrides gitRoots and memory leaves, preserving the rest', () => {
+  it('overrides sources.gitRoots and memory leaves, preserving the rest', () => {
     const merged = mergeLepConfig(DEFAULT_LEP_CONFIG, {
-      gitRoots: ['/repo'],
+      sources: { gitRoots: ['/repo'] },
       memory: { rag: { bm25Limit: 99 }, conversation: { backfillDays: 21 } },
     });
-    expect(merged.gitRoots).toEqual(['/repo']);
+    expect(merged.sources.gitRoots).toEqual(['/repo']);
     expect(merged.memory.rag.bm25Limit).toBe(99);
     expect(merged.memory.rag.vecLimit).toBe(30); // default preserved
     expect(merged.memory.conversation.backfillDays).toBe(21);
@@ -269,7 +337,7 @@ describe('migrateLegacyToLepConfig', () => {
       fts: { rebuildIntervalMinutes: 90 },
       backfillDays: 7,
     });
-    expect(out.gitRoots).toEqual(['/x']);
+    expect(out.sources?.gitRoots).toEqual(['/x']);
     expect(out.memory?.rag).toEqual({ bm25Limit: 11, vecLimit: 22, finalLimit: 6, rrfK: 50 });
     expect(out.memory?.fts).toEqual({ rebuildIntervalMinutes: 90 });
     expect(out.memory?.conversation).toEqual({ backfillDays: 7 });
@@ -277,7 +345,7 @@ describe('migrateLegacyToLepConfig', () => {
 
   it('omits gitRoots / memory when not provided', () => {
     const out = migrateLegacyToLepConfig({ analyzeAllEnabled: true });
-    expect(out.gitRoots).toBeUndefined();
+    expect(out.sources?.gitRoots).toBeUndefined();
     expect(out.memory).toBeUndefined();
   });
 
@@ -477,7 +545,7 @@ describe('migrateConfigJsonIntoLepJson', () => {
 
     const { config } = loadLepConfig({ workspaceRoot: ws, homeDir: join(ws, 'nohome') });
     expect(config.stage).toBe('primary+memory');
-    expect(config.gitRoots).toEqual(['/repo']);
+    expect(config.sources.gitRoots).toEqual(['/repo']);
     expect(config.schedule).toEqual({ intervalSec: 600, runOnStart: true, startupDelaySec: 5 });
     expect(config.llm.providers.ollama.baseUrl).toBe('http://host.docker.internal:11434');
     expect(config.memory.rag.bm25Limit).toBe(15);
@@ -511,7 +579,7 @@ describe('migrateConfigJsonIntoLepJson', () => {
     expect(config.schedule).toEqual({ intervalSec: 1800, runOnStart: true, startupDelaySec: 30 });
     expect(config.llm.providers.ollama.baseUrl).toBe('http://host.docker.internal:11434');
     // missing sections gap-filled from config.json
-    expect(config.gitRoots).toEqual(['/repo']);
+    expect(config.sources.gitRoots).toEqual(['/repo']);
     expect(config.memory.rag.bm25Limit).toBe(15);
     expect(config.memory.fts.rebuildIntervalMinutes).toBe(120);
     expect(config.memory.conversation.backfillDays).toBe(14);
