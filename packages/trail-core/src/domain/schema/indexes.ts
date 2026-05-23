@@ -31,12 +31,14 @@ export const CREATE_RELEASE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_release_code_graphs_release_id ON release_code_graphs(release_id)',
   'CREATE INDEX IF NOT EXISTS idx_release_code_graph_communities_release_id ON release_code_graph_communities(release_id)',
   // stable_key による「同じノード集合のコミュニティ」高速検索（mappings_json 引き継ぎ用）
-  "CREATE INDEX IF NOT EXISTS idx_ccgc_stable_key ON current_code_graph_communities(repo_name, stable_key) WHERE stable_key != ''",
+  // Phase C-2 flip: current_code_graph_communities の PK が repo_id 化されたため先頭列を repo_id へ。
+  "CREATE INDEX IF NOT EXISTS idx_ccgc_stable_key ON current_code_graph_communities(repo_id, stable_key) WHERE stable_key != ''",
   "CREATE INDEX IF NOT EXISTS idx_rcgc_stable_key ON release_code_graph_communities(release_id, stable_key) WHERE stable_key != ''",
 ];
 
 export const CREATE_CURRENT_COVERAGE_INDEXES = [
-  'CREATE INDEX IF NOT EXISTS idx_current_coverage_repo ON current_coverage(repo_name)',
+  // Phase C-2 flip: current_coverage の PK が repo_id 化されたため repo_id を索引する。
+  'CREATE INDEX IF NOT EXISTS idx_current_coverage_repo ON current_coverage(repo_id)',
 ];
 
 export const CREATE_MESSAGE_TOOL_CALLS_INDEXES = [

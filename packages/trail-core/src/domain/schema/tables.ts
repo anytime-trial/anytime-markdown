@@ -160,8 +160,11 @@ export const CREATE_MESSAGE_COMMITS = `CREATE TABLE IF NOT EXISTS message_commit
   PRIMARY KEY (message_uuid, commit_hash)
 ) STRICT`;
 
+// Phase C-2 flip: PK を repo_name → repo_id 代理キーへ。repo_name 列は移行互換のため
+// 残す (撤去は将来 Phase H)。repo_id は repos(repo_id) を FK 参照する。
 export const CREATE_CURRENT_GRAPHS = `CREATE TABLE IF NOT EXISTS current_graphs (
-  repo_name     TEXT PRIMARY KEY,
+  repo_id       INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+  repo_name     TEXT NOT NULL DEFAULT '',
   commit_id     TEXT NOT NULL DEFAULT '',
   graph_json    TEXT NOT NULL CHECK (json_valid(graph_json)),
   tsconfig_path TEXT NOT NULL,
@@ -252,8 +255,10 @@ export const CREATE_RELEASE_COVERAGE = `CREATE TABLE IF NOT EXISTS release_cover
   PRIMARY KEY (release_id, package, file_path)
 ) STRICT`;
 
+// Phase C-2 flip: PK の repo_name → repo_id へ置換。repo_name 列は移行互換で残す。
 export const CREATE_CURRENT_COVERAGE = `CREATE TABLE IF NOT EXISTS current_coverage (
-  repo_name          TEXT    NOT NULL,
+  repo_id            INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  repo_name          TEXT    NOT NULL DEFAULT '',
   package            TEXT    NOT NULL,
   file_path          TEXT    NOT NULL,
   lines_total        INTEGER NOT NULL DEFAULT 0,
@@ -269,7 +274,7 @@ export const CREATE_CURRENT_COVERAGE = `CREATE TABLE IF NOT EXISTS current_cover
   branches_covered   INTEGER NOT NULL DEFAULT 0,
   branches_pct       REAL    NOT NULL DEFAULT 0,
   updated_at         TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (repo_name, package, file_path)
+  PRIMARY KEY (repo_id, package, file_path)
 ) STRICT`;
 
 // AUTOINCREMENT は撤去。INTEGER PRIMARY KEY は ROWID と同義で再利用される可能性があるが、
@@ -331,8 +336,10 @@ export const CREATE_C4_MANUAL_GROUPS = `CREATE TABLE IF NOT EXISTS c4_manual_gro
   PRIMARY KEY (repo_name, group_id)
 ) STRICT`;
 
+// Phase C-2 flip: PK の repo_name → repo_id へ置換。repo_name 列は移行互換で残す。
 export const CREATE_CURRENT_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS current_code_graphs (
-  repo_name    TEXT PRIMARY KEY,
+  repo_id      INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+  repo_name    TEXT NOT NULL DEFAULT '',
   graph_json   TEXT NOT NULL CHECK (json_valid(graph_json)),
   generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
   updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
@@ -345,8 +352,10 @@ export const CREATE_RELEASE_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_co
   updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;
 
+// Phase C-2 flip: PK の repo_name → repo_id へ置換。repo_name 列は移行互換で残す。
 export const CREATE_CURRENT_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS current_code_graph_communities (
-  repo_name    TEXT    NOT NULL,
+  repo_id      INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  repo_name    TEXT    NOT NULL DEFAULT '',
   community_id INTEGER NOT NULL,
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
@@ -354,7 +363,7 @@ export const CREATE_CURRENT_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS
   stable_key   TEXT    NOT NULL DEFAULT '',
   generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
   updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (repo_name, community_id)
+  PRIMARY KEY (repo_id, community_id)
 ) STRICT`;
 
 export const CREATE_RELEASE_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS release_code_graph_communities (
@@ -373,8 +382,10 @@ export const CREATE_RELEASE_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS
 //  File / Function Analysis (Dead Code Detection)
 // ---------------------------------------------------------------------------
 
+// Phase C-2 flip: PK の repo_name → repo_id へ置換。repo_name 列は移行互換で残す。
 export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_file_analysis (
-  repo_name                  TEXT NOT NULL,
+  repo_id                    INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  repo_name                  TEXT NOT NULL DEFAULT '',
   file_path                  TEXT NOT NULL,
   importance_score           REAL    NOT NULL DEFAULT 0,
   fan_in_total               INTEGER NOT NULL DEFAULT 0,
@@ -397,7 +408,7 @@ export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_
   centrality_score       REAL    NOT NULL DEFAULT 0,
   category                   TEXT NOT NULL DEFAULT 'logic' CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (repo_name, file_path)
+  PRIMARY KEY (repo_id, file_path)
 ) STRICT`;
 
 export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_file_analysis (
@@ -428,8 +439,10 @@ export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_
   PRIMARY KEY (release_id, repo_name, file_path)
 ) STRICT`;
 
+// Phase C-2 flip: PK の repo_name → repo_id へ置換。repo_name 列は移行互換で残す。
 export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_function_analysis (
-  repo_name              TEXT NOT NULL,
+  repo_id                INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  repo_name              TEXT NOT NULL DEFAULT '',
   file_path              TEXT NOT NULL,
   function_name          TEXT NOT NULL,
   start_line             INTEGER NOT NULL,
@@ -447,7 +460,7 @@ export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS curr
   distinct_callees INTEGER NOT NULL DEFAULT 0,
   function_role    TEXT NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (repo_name, file_path, function_name, start_line)
+  PRIMARY KEY (repo_id, file_path, function_name, start_line)
 ) STRICT`;
 
 export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_function_analysis (
@@ -473,17 +486,18 @@ export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS rele
   PRIMARY KEY (release_id, repo_name, file_path, function_name, start_line)
 ) STRICT`;
 
+// Phase C-2 flip: current_* の PK が repo_id 化されたため、先頭列を repo_id へ揃える。
 export const CREATE_FILE_ANALYSIS_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_current_file_analysis_dead_code
-    ON current_file_analysis (repo_name, dead_code_score DESC)`,
+    ON current_file_analysis (repo_id, dead_code_score DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_current_file_analysis_importance
-    ON current_file_analysis (repo_name, importance_score DESC)`,
+    ON current_file_analysis (repo_id, importance_score DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_current_function_analysis_fan_in
-    ON current_function_analysis (repo_name, fan_in)`,
+    ON current_function_analysis (repo_id, fan_in)`,
   `CREATE INDEX IF NOT EXISTS idx_current_function_analysis_importance
-    ON current_function_analysis (repo_name, importance_score DESC)`,
+    ON current_function_analysis (repo_id, importance_score DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_current_file_analysis_centrality
-    ON current_file_analysis (repo_name, centrality_score DESC)`,
+    ON current_file_analysis (repo_id, centrality_score DESC)`,
 ];
 
 // Extension and daemon logs for live streaming and history search.
