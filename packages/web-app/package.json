@@ -19,7 +19,7 @@
     "@anytime-markdown/cms-core": "*",
     "@anytime-markdown/database-core": "*",
     "@anytime-markdown/database-viewer": "*",
-    "@anytime-trial/graph-embed": "*",
+    "@anytime-markdown/graph": "*",
     "@anytime-markdown/graph-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",

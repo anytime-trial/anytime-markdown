@@ -1,4 +1,4 @@
-# @anytime-trial/graph-embed
+# @anytime-markdown/graph
 
 `<anytime-graph>` は、マインドマップ／グラフを**読み取り専用**で描画する vanilla な Web Component（Custom Element）です。
 React 非依存で、任意の Web アプリ・VS Code 拡張（Webview）・素の HTML に組み込めます。
@@ -19,25 +19,25 @@ React 非依存で、任意の Web アプリ・VS Code 拡張（Webview）・素
 ### npm（バンドラ利用のアプリ）
 
 ```bash
-npm install @anytime-trial/graph-embed
+npm install @anytime-markdown/graph
 ```
 
 ```js
-import '@anytime-trial/graph-embed'; // import するだけで <anytime-graph> が登録される
+import '@anytime-markdown/graph'; // import するだけで <anytime-graph> が登録される
 ```
 
 ### CDN（jsDelivr・素の HTML）
 
 ```html
 <script type="module"
-  src="https://cdn.jsdelivr.net/npm/@anytime-trial/graph-embed/dist/anytime-graph.js"></script>
+  src="https://cdn.jsdelivr.net/npm/@anytime-markdown/graph/dist/anytime-graph.js"></script>
 ```
 
 > モジュールを使わない環境では IIFE 版 `dist/anytime-graph.iife.js` を `<script>` で読み込む（読み込み時に要素が登録される）。
 
 ### バンドル同梱（publish 不要）
 
-`npm run build --workspace=@anytime-trial/graph-embed` で生成した `dist/anytime-graph.js`（ESM）または `dist/anytime-graph.iife.js` を相手アプリにコピーして読み込む。
+`npm run build --workspace=@anytime-markdown/graph` で生成した `dist/anytime-graph.js`（ESM）または `dist/anytime-graph.iife.js` を相手アプリにコピーして読み込む。
 
 ### VS Code 拡張（Webview）
 
@@ -52,7 +52,7 @@ CSP は nonce 方式（`script-src 'nonce-...'`）に準拠する。
   style="display:block; width:100%; height:600px"></anytime-graph>
 
 <script type="module">
-  import '@anytime-trial/graph-embed';
+  import '@anytime-markdown/graph';
 
   const el = document.querySelector('anytime-graph');
 
@@ -150,8 +150,8 @@ interface NodeClickDetail {
 }
 ```
 
-バリデーション用の JSON Schema（Draft 2020-12）をサブパス `@anytime-trial/graph-embed/schema`（= `graph-input.schema.json`）で公開している。
-CDN なら `https://cdn.jsdelivr.net/npm/@anytime-trial/graph-embed/graph-input.schema.json` から取得できる。
+バリデーション用の JSON Schema（Draft 2020-12）をサブパス `@anytime-markdown/graph/schema`（= `graph-input.schema.json`）で公開している。
+CDN なら `https://cdn.jsdelivr.net/npm/@anytime-markdown/graph/graph-input.schema.json` から取得できる。
 
 > `id` は一意かつ非空であること。重複・空文字・未知の `schemaVersion` は `data` 代入時に例外になる。
 
@@ -165,9 +165,9 @@ CDN なら `https://cdn.jsdelivr.net/npm/@anytime-trial/graph-embed/graph-input.
 ## 開発（このリポジトリ内）
 
 ```bash
-npm run build --workspace=@anytime-trial/graph-embed   # dist 生成（ESM + IIFE + .d.ts）
-npm run typecheck --workspace=@anytime-trial/graph-embed
-npm test --workspace=@anytime-trial/graph-embed
+npm run build --workspace=@anytime-markdown/graph   # dist 生成（ESM + IIFE + .d.ts）
+npm run typecheck --workspace=@anytime-markdown/graph
+npm test --workspace=@anytime-markdown/graph
 ```
 
 

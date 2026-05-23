@@ -3,7 +3,7 @@
 import { Box, Button, ButtonGroup, Paper, Stack, Typography } from '@mui/material';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { GraphInput } from '@anytime-trial/graph-embed';
+import type { GraphInput } from '@anytime-markdown/graph';
 
 import LandingHeader from '../components/LandingHeader';
 import { useThemeMode } from '../providers';
@@ -64,7 +64,7 @@ export default function GraphEmbedDebugPage() {
     let el: AnytimeGraphEl | null = null;
     const onNodeClick = (e: Event) => setClicked(JSON.stringify((e as CustomEvent).detail));
     void (async () => {
-      await import('@anytime-trial/graph-embed');
+      await import('@anytime-markdown/graph');
       if (cancelled || !hostRef.current) return;
       el = document.createElement('anytime-graph') as AnytimeGraphEl;
       el.setAttribute('theme', themeMode);
