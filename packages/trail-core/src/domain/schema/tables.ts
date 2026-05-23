@@ -20,6 +20,15 @@ const TS_GLOB_NO_MS = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0
 // Date-only pattern (10 chars: YYYY-MM-DD)
 const DATE_GLOB = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'`;
 
+// repo 正規化の基盤テーブル (Phase A)。散在する repo_name TEXT を repo_id 代理キーへ
+// 集約する参照テーブル。repo_name='' は sentinel リポ (表示 '(unknown)') として 1 行採番する。
+// 後続 Phase で各テーブルの repo_name 列を repo_id FK へ移行する。
+export const CREATE_REPOS = `CREATE TABLE IF NOT EXISTS repos (
+  repo_id    INTEGER PRIMARY KEY,
+  repo_name  TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
 export const CREATE_SESSIONS = `CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   slug TEXT NOT NULL DEFAULT '',
