@@ -14,12 +14,18 @@ export interface GraphViewOptions {
 
 type NodeClickHandler = (nodeId: string) => void;
 
+interface Rect { x: number; y: number; w: number; h: number }
+
 const CLICK_MOVE_THRESHOLD = 4;
 const TOGGLE_RADIUS_CSS = 10;
-const MINIMAP_W_CSS = 180;
+const MINIMAP_W_CSS = 200;
 const MINIMAP_H_CSS = 130;
-const MINIMAP_MARGIN_CSS = 12;
-const MINIMAP_PAD_CSS = 8;
+const MINIMAP_MARGIN_CSS = 8;
+const MINIMAP_BOUNDS_PAD = 10; // ワールド単位のコンテンツ余白（MinimapCanvas と同じ）
+const MINIMAP_ZOOM_DELTA = 300;
+const MINIMAP_BTN_CSS = 18; // ズーム/fit ボタンの一辺
+const MINIMAP_BTN_GAP_CSS = 4;
+const MINIMAP_RADIUS_CSS = 8;
 
 export class GraphView {
   private readonly canvas: HTMLCanvasElement;
@@ -45,6 +51,7 @@ export class GraphView {
   private pressEndpointNodeId: string | null = null;
   private hoverToggleNodeId: string | null = null;
   private dragMode: 'none' | 'pan' | 'node' | 'minimap' = 'none';
+  private minimapDrag: { mode: 'viewport' | 'select'; startX: number; startY: number; curX: number; curY: number; initOffX: number; initOffY: number } | null = null;
   private readonly collapsed = new Set<string>();
   private readonly childrenMap = new Map<string, string[]>();
   private hidden = new Set<string>();
@@ -290,11 +297,17 @@ export class GraphView {
     this.lastX = p.x;
     this.lastY = p.y;
     if (this.pointInMinimap(p)) {
-      // ミニマップ上: クリック位置を主ビューの中心へパン（ノード操作はしない）
+      // ミニマップ上: ボタン / 表示範囲枠ドラッグ / 範囲選択（ノード操作はしない）
       this.dragMode = 'minimap';
       this.pressNodeId = null;
       this.pressEndpointNodeId = null;
-      this.recenterFromMinimap(p);
+      const btn = this.hitMinimapButton(p);
+      if (btn === 'zoomOut') { this.minimapZoom(MINIMAP_ZOOM_DELTA); return; }
+      if (btn === 'zoomIn') { this.minimapZoom(-MINIMAP_ZOOM_DELTA); return; }
+      if (btn === 'fit') { this.fitToContent(); return; }
+      this.minimapDrag = this.isInsideViewportRect(p)
+        ? { mode: 'viewport', startX: p.x, startY: p.y, curX: p.x, curY: p.y, initOffX: this.viewport.offsetX, initOffY: this.viewport.offsetY }
+        : { mode: 'select', startX: p.x, startY: p.y, curX: p.x, curY: p.y, initOffX: 0, initOffY: 0 };
       return;
     }
     const world = screenToWorld(this.viewport, p.x, p.y);
@@ -316,7 +329,25 @@ export class GraphView {
     this.lastX = p.x;
     this.lastY = p.y;
     if (this.dragMode === 'minimap') {
-      this.recenterFromMinimap(p);
+      const dd = this.minimapDrag;
+      if (dd?.mode === 'viewport') {
+        dd.curX = p.x;
+        dd.curY = p.y;
+        const t = this.minimapTransform(this.minimapRect());
+        if (t) {
+          this.viewport = {
+            ...this.viewport,
+            offsetX: dd.initOffX - ((p.x - dd.startX) / t.s) * this.viewport.scale,
+            offsetY: dd.initOffY - ((p.y - dd.startY) / t.s) * this.viewport.scale,
+          };
+          this.userInteracted = true;
+        }
+        this.requestRender();
+      } else if (dd?.mode === 'select') {
+        dd.curX = p.x;
+        dd.curY = p.y;
+        this.requestRender();
+      }
       return;
     }
     if (this.dragMode === 'node' && this.pressNodeId) {
@@ -361,7 +392,21 @@ export class GraphView {
     const wasClick = this.moved <= CLICK_MOVE_THRESHOLD;
     const wasMinimap = this.dragMode === 'minimap';
     this.dragMode = 'none';
-    if (!wasMinimap && wasClick) {
+    if (wasMinimap) {
+      const dd = this.minimapDrag;
+      this.minimapDrag = null;
+      if (dd?.mode === 'select') {
+        // 範囲選択: 動いていれば範囲ズーム、クリックのみなら中心パン
+        const moved = Math.abs(dd.curX - dd.startX) > 3 || Math.abs(dd.curY - dd.startY) > 3;
+        if (moved) this.zoomToMinimapSelection({ x: dd.startX, y: dd.startY }, { x: dd.curX, y: dd.curY });
+        else this.recenterFromMinimap({ x: dd.startX, y: dd.startY });
+      }
+      // viewport ドラッグは move 中にパン済み
+      this.pressNodeId = null;
+      this.pressEndpointNodeId = null;
+      return;
+    }
+    if (wasClick) {
       if (this.pressEndpointNodeId) {
         // コネクタ端点クリック: 枝を折りたたむ/展開する（node-click は出さない）
         this.toggleCollapse(this.pressEndpointNodeId);
@@ -415,27 +460,31 @@ export class GraphView {
     this.drawMinimap();
   }
 
-  /** ミニマップの矩形（backing px・右下）。 */
+  /** ミニマップの矩形（backing px・右上）。 */
   private minimapRect(): { x: number; y: number; w: number; h: number } {
     const d = this.deviceScale();
     const w = MINIMAP_W_CSS * d;
     const h = MINIMAP_H_CSS * d;
     const m = MINIMAP_MARGIN_CSS * d;
-    return { x: this.canvas.width - w - m, y: this.canvas.height - h - m, w, h };
+    return { x: this.canvas.width - w - m, y: m, w, h };
   }
 
-  /** 可視ノードのコンテンツ境界 → ミニマップ矩形への変換（s 倍 + ox/oy 平行移動）。 */
-  private minimapTransform(box: { x: number; y: number; w: number; h: number }): { s: number; ox: number; oy: number } | null {
+  /** 可視ノードのコンテンツ境界（PAD 付き・ワールド）。 */
+  private minimapBounds(): { minX: number; minY: number; maxX: number; maxY: number } | null {
     const b = this.contentBounds();
     if (!b) return null;
-    const pad = MINIMAP_PAD_CSS * this.deviceScale();
-    const cw = (b.maxX - b.minX) || 1;
-    const ch = (b.maxY - b.minY) || 1;
-    const innerW = Math.max(1, box.w - pad * 2);
-    const innerH = Math.max(1, box.h - pad * 2);
-    const s = Math.min(innerW / cw, innerH / ch);
-    const ox = box.x + (box.w - cw * s) / 2 - b.minX * s;
-    const oy = box.y + (box.h - ch * s) / 2 - b.minY * s;
+    return { minX: b.minX - MINIMAP_BOUNDS_PAD, minY: b.minY - MINIMAP_BOUNDS_PAD, maxX: b.maxX + MINIMAP_BOUNDS_PAD, maxY: b.maxY + MINIMAP_BOUNDS_PAD };
+  }
+
+  /** ワールド → ミニマップ矩形への変換（s 倍 + ox/oy 平行移動）。 */
+  private minimapTransform(box: { x: number; y: number; w: number; h: number }): { s: number; ox: number; oy: number } | null {
+    const b = this.minimapBounds();
+    if (!b) return null;
+    const bw = (b.maxX - b.minX) || 1;
+    const bh = (b.maxY - b.minY) || 1;
+    const s = Math.min(box.w / bw, box.h / bh);
+    const ox = box.x + (box.w - bw * s) / 2 - b.minX * s;
+    const oy = box.y + (box.h - bh * s) / 2 - b.minY * s;
     return { s, ox, oy };
   }
 
@@ -445,7 +494,43 @@ export class GraphView {
     return p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
   }
 
-  /** ミニマップ上の点（backing px）を主ビューの中心に合わせるようパンする。 */
+  /** ズーム/fit ボタンの矩形（backing px・ミニマップ右下）。 */
+  private minimapButtonRects(): { zoomOut: Rect; zoomIn: Rect; fit: Rect } {
+    const box = this.minimapRect();
+    const d = this.deviceScale();
+    const sz = MINIMAP_BTN_CSS * d;
+    const g = MINIMAP_BTN_GAP_CSS * d;
+    const y = box.y + box.h - sz - g;
+    const fit = { x: box.x + box.w - sz - g, y, w: sz, h: sz };
+    const zoomIn = { x: fit.x - sz - g, y, w: sz, h: sz };
+    const zoomOut = { x: zoomIn.x - sz - g, y, w: sz, h: sz };
+    return { zoomOut, zoomIn, fit };
+  }
+
+  private hitMinimapButton(p: { x: number; y: number }): 'zoomOut' | 'zoomIn' | 'fit' | null {
+    const b = this.minimapButtonRects();
+    const inside = (r: Rect) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+    if (inside(b.fit)) return 'fit';
+    if (inside(b.zoomIn)) return 'zoomIn';
+    if (inside(b.zoomOut)) return 'zoomOut';
+    return null;
+  }
+
+  /** 現在の表示範囲のミニマップ矩形（backing px）。 */
+  private viewportRectScreen(): Rect | null {
+    const box = this.minimapRect();
+    const t = this.minimapTransform(box);
+    if (!t) return null;
+    const vb = getVisibleBounds(this.viewport, this.canvas.width, this.canvas.height, 0);
+    return { x: vb.minX * t.s + t.ox, y: vb.minY * t.s + t.oy, w: (vb.maxX - vb.minX) * t.s, h: (vb.maxY - vb.minY) * t.s };
+  }
+
+  private isInsideViewportRect(p: { x: number; y: number }): boolean {
+    const r = this.viewportRectScreen();
+    return !!r && p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+  }
+
+  /** ミニマップ上の点を主ビューの中心へパンする。 */
   private recenterFromMinimap(p: { x: number; y: number }): void {
     const box = this.minimapRect();
     const t = this.minimapTransform(box);
@@ -461,37 +546,138 @@ export class GraphView {
     this.requestRender();
   }
 
-  /** 全体俯瞰のミニマップを右下に描画する。screen(backing) px。 */
+  /** ミニマップ上の矩形選択範囲に fit する。 */
+  private zoomToMinimapSelection(start: { x: number; y: number }, cur: { x: number; y: number }): void {
+    const box = this.minimapRect();
+    const t = this.minimapTransform(box);
+    if (!t) return;
+    const x1 = (Math.min(start.x, cur.x) - t.ox) / t.s;
+    const y1 = (Math.min(start.y, cur.y) - t.oy) / t.s;
+    const x2 = (Math.max(start.x, cur.x) - t.ox) / t.s;
+    const y2 = (Math.max(start.y, cur.y) - t.oy) / t.s;
+    if (x2 <= x1 || y2 <= y1) return;
+    this.viewport = computeFit(this.canvas.width, this.canvas.height, { minX: x1, minY: y1, maxX: x2, maxY: y2 }, 20 * this.deviceScale());
+    this.userInteracted = true;
+    this.requestRender();
+  }
+
+  /** メインビュー中央を基点にズーム（delta>0 で縮小）。 */
+  private minimapZoom(delta: number): void {
+    this.viewport = zoom(this.viewport, this.canvas.width / 2, this.canvas.height / 2, delta);
+    this.userInteracted = true;
+    this.requestRender();
+  }
+
+  private roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  /** 全体俯瞰のミニマップを右上に描画する（MinimapCanvas 準拠）。screen(backing) px。 */
   private drawMinimap(): void {
     if (!this.minimap) return;
     const box = this.minimapRect();
     const t = this.minimapTransform(box);
-    if (!t) return;
     const colors = getCanvasColors(this.isDark);
+    const d = this.deviceScale();
+    const r = MINIMAP_RADIUS_CSS * d;
     const ctx = this.ctx;
     ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = colors.panelBg;
-    ctx.fillRect(box.x, box.y, box.w, box.h);
-    ctx.globalAlpha = 1;
+    // パネル背景（角丸 + 影）
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 8 * d;
+    ctx.shadowOffsetY = 2 * d;
+    ctx.fillStyle = this.isDark ? 'rgba(13,17,23,0.85)' : 'rgba(242,239,232,0.85)';
+    this.roundRectPath(ctx, box.x, box.y, box.w, box.h, r);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
     ctx.lineWidth = 1;
     ctx.strokeStyle = colors.panelBorder;
-    ctx.strokeRect(box.x, box.y, box.w, box.h);
-    ctx.beginPath();
-    ctx.rect(box.x, box.y, box.w, box.h);
+    this.roundRectPath(ctx, box.x, box.y, box.w, box.h, r);
+    ctx.stroke();
+    this.roundRectPath(ctx, box.x, box.y, box.w, box.h, r);
     ctx.clip();
-    // ノード
-    ctx.fillStyle = colors.accentColor;
-    for (const n of this.nodes) {
-      if (this.hidden.has(n.id)) continue;
-      ctx.fillRect(n.x * t.s + t.ox, n.y * t.s + t.oy, Math.max(1, n.width * t.s), Math.max(1, n.height * t.s));
+    if (t) {
+      // ノード（各ノードの fill/stroke）
+      ctx.lineWidth = 0.5 * d;
+      for (const n of this.nodes) {
+        if (this.hidden.has(n.id)) continue;
+        const x = n.x * t.s + t.ox;
+        const y = n.y * t.s + t.oy;
+        const w = Math.max(n.width * t.s, 2 * d);
+        const h = Math.max(n.height * t.s, 2 * d);
+        ctx.fillStyle = n.style.fill;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = n.style.stroke;
+        ctx.strokeRect(x, y, w, h);
+      }
+      // 現在の表示範囲（塗り + 枠）
+      const vr = this.viewportRectScreen();
+      if (vr) {
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(vr.x, vr.y, vr.w, vr.h);
+        ctx.lineWidth = 1.5 * d;
+        ctx.strokeStyle = this.minimapDrag?.mode === 'viewport' ? 'rgba(144,202,249,0.9)' : 'rgba(255,255,255,0.75)';
+        ctx.strokeRect(vr.x, vr.y, vr.w, vr.h);
+      }
+      // 範囲選択（点線）
+      if (this.minimapDrag?.mode === 'select') {
+        const dd = this.minimapDrag;
+        const sx = Math.min(dd.startX, dd.curX);
+        const sy = Math.min(dd.startY, dd.curY);
+        ctx.fillStyle = 'rgba(144,202,249,0.15)';
+        ctx.fillRect(sx, sy, Math.abs(dd.curX - dd.startX), Math.abs(dd.curY - dd.startY));
+        ctx.setLineDash([3 * d, 2 * d]);
+        ctx.lineWidth = 1 * d;
+        ctx.strokeStyle = 'rgba(144,202,249,0.9)';
+        ctx.strokeRect(sx, sy, Math.abs(dd.curX - dd.startX), Math.abs(dd.curY - dd.startY));
+        ctx.setLineDash([]);
+      }
     }
-    // 現在の表示範囲
-    const vb = getVisibleBounds(this.viewport, this.canvas.width, this.canvas.height, 0);
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = colors.canvasSelection;
-    ctx.strokeRect(vb.minX * t.s + t.ox, vb.minY * t.s + t.oy, (vb.maxX - vb.minX) * t.s, (vb.maxY - vb.minY) * t.s);
+    this.drawMinimapButtons(ctx);
     ctx.restore();
+  }
+
+  private drawMinimapButtons(ctx: CanvasRenderingContext2D): void {
+    const b = this.minimapButtonRects();
+    const d = this.deviceScale();
+    const br = 4 * d;
+    const fg = this.isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
+    const bg = this.isDark ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)';
+    const draw = (rect: Rect, glyph: '-' | '+' | 'fit') => {
+      ctx.fillStyle = bg;
+      this.roundRectPath(ctx, rect.x, rect.y, rect.w, rect.h, br);
+      ctx.fill();
+      ctx.strokeStyle = fg;
+      ctx.fillStyle = fg;
+      ctx.lineWidth = 1.4 * d;
+      const cx = rect.x + rect.w / 2;
+      const cy = rect.y + rect.h / 2;
+      const g = rect.w * 0.28;
+      if (glyph === 'fit') {
+        ctx.strokeRect(cx - g, cy - g, g * 2, g * 2);
+        return;
+      }
+      ctx.beginPath();
+      ctx.moveTo(cx - g, cy);
+      ctx.lineTo(cx + g, cy);
+      if (glyph === '+') {
+        ctx.moveTo(cx, cy - g);
+        ctx.lineTo(cx, cy + g);
+      }
+      ctx.stroke();
+    };
+    draw(b.zoomOut, '-');
+    draw(b.zoomIn, '+');
+    draw(b.fit, 'fit');
   }
 
   /** ホバー中ノードの折りたたみトグル（−=展開中/＋=折りたたみ中）をコネクタ起点に描画する。screen(backing) px。 */

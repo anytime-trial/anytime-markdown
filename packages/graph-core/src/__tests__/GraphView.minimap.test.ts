@@ -30,16 +30,16 @@ describe('GraphView minimap', () => {
     const { canvas, click } = makeCanvas();
     const view = new GraphView(canvas, { minimap: true });
     const doc = createDocument('t');
-    // viewport 既定 {0,0,1}・dpr1 → world == 画面座標。ミニマップ箱は右下 (608..788, 458..588)。
-    doc.nodes.push({ ...createNode('rect', 100, 100), id: 'n1', width: 100, height: 100 });
-    doc.nodes.push({ ...createNode('rect', 650, 470), id: 'under', width: 100, height: 100 }); // ミニマップ箱の下
+    // viewport 既定 {0,0,1}・dpr1 → world == 画面座標。ミニマップ箱は右上 (592..792, 8..138)。
+    doc.nodes.push({ ...createNode('rect', 100, 300), id: 'n1', width: 100, height: 100 });
+    doc.nodes.push({ ...createNode('rect', 640, 40), id: 'under', width: 100, height: 100 }); // ミニマップ箱の下に重なる
     view.setDocument(doc);
 
     const clicks: string[] = [];
     view.on('nodeClick', (id) => clicks.push(id));
 
-    click(150, 150); // n1 本体 → node-click(n1)
-    click(700, 520); // ミニマップ箱内（'under' を覆う）→ ナビゲーションのみ・node-click なし
+    click(150, 350); // n1 本体 → node-click(n1)
+    click(680, 60); // ミニマップ箱内（'under' を覆う）→ ナビゲーションのみ・node-click なし
 
     expect(clicks).toEqual(['n1']);
     view.destroy();
