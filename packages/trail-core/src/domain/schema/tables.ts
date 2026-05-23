@@ -557,21 +557,31 @@ export const CREATE_EXTENSION_LOGS_INDEXES = [
 // lead time for changes (commit → 含有 release の中央値) の 2 指標のみ。
 // change_failure_rate / mttr は bug→release attribution リンクが実データに無いため
 // 列を設けず deferred とする (列追加は将来の additive migration で対応)。
+// Phase F flip: PK を (repo_name, period) → (repo_id, period) 代理キーへ。repo_id は
+// repos(repo_id) を FK 参照する (PK 構成列のため NOT NULL)。repo_name 列は移行互換のため残す
+// (撤去は将来 Phase H)。DEFAULT 0 は repos に未登録の sentinel だが、書き込み経路
+// (replaceDoraMetrics) は repoIdForName で解決済みの値を供給する。
 export const CREATE_DORA_METRICS = `CREATE TABLE IF NOT EXISTS dora_metrics (
+  repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
   repo_name TEXT NOT NULL,
   period TEXT NOT NULL CHECK (period GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]'),
   deployment_frequency REAL NOT NULL DEFAULT 0,
   lead_time_hours REAL,
   computed_at TEXT NOT NULL CHECK (computed_at GLOB ${TS_GLOB_MS} OR computed_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (repo_name, period)
+  PRIMARY KEY (repo_id, period)
 ) STRICT`;
 
 // LEP 新ソース参照実装 (Step 4b): GitHub PR review の生データ。
 // review_id は GitHub REST の review id (グローバル一意) を文字列で保持し PRIMARY KEY とする。
 // repo_name / pr_number を参照する FK (pr_review_comments) を妥当にするため、合成 PK ではなく
 // review_id 単独 PK とし、repo × PR の検索はインデックスで賄う。
+// Phase F flip: repo_id を additive 追加 (PK は review_id 単独のまま不変)。repo_id は
+// repos(repo_id) を FK 参照する。PK が repo_name 非依存のため PK 変更は不要。repo_name 列は
+// 移行互換で残す。DEFAULT 0 は sentinel だが、書き込み経路 (upsertPrReview) は repoIdForName で
+// 解決済みの値を供給する。子 (pr_review_comments / pr_review_findings) は review_id 参照のため不変。
 export const CREATE_PR_REVIEWS = `CREATE TABLE IF NOT EXISTS pr_reviews (
   review_id TEXT PRIMARY KEY,
+  repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
   repo_name TEXT NOT NULL,
   pr_number INTEGER NOT NULL,
   author TEXT NOT NULL DEFAULT '',
@@ -592,7 +602,8 @@ export const CREATE_PR_REVIEW_COMMENTS = `CREATE TABLE IF NOT EXISTS pr_review_c
 ) STRICT`;
 
 export const CREATE_PR_REVIEW_INDEXES = [
-  `CREATE INDEX IF NOT EXISTS idx_pr_reviews_repo_pr ON pr_reviews(repo_name, pr_number)`,
+  // Phase F flip: repo × PR の検索インデックスを repo_name 先頭 → repo_id 先頭へ移行する。
+  `CREATE INDEX IF NOT EXISTS idx_pr_reviews_repo_id_pr ON pr_reviews(repo_id, pr_number)`,
   `CREATE INDEX IF NOT EXISTS idx_pr_reviews_submitted_at ON pr_reviews(submitted_at)`,
 ];
 
@@ -618,9 +629,15 @@ export const CREATE_PR_REVIEW_FINDINGS_INDEXES = [
 // LEP Layer 4 (Aggregator): 複数ソース横断の相関 (Step 4d)。
 // CrossSourceCorrelator が既存 trail.db データ (pr_reviews / pr_review_findings /
 // session_commits / releases / commit_files) のみを突合して書き込む。新規テーブルのみ。
+// Phase F flip: repo_id を additive 追加 (PK は (correlation_type, source_a_id, source_b_id) の
+// まま不変)。repo は確定しないこともある (source_b が release tag 等で別 repo を指す可能性) ため
+// repo_id は NULL-able + ON DELETE SET NULL とする。書き込み経路 (replaceCrossSourceCorrelations) は
+// repoIdForName で解決済みの値を供給し、source_b_id に release tag を保存している箇所でも repo_id 列で
+// リポを区別できるようにする。repo_name 列は移行互換で残す。
 export const CREATE_CROSS_SOURCE_CORRELATIONS = `CREATE TABLE IF NOT EXISTS cross_source_correlations (
   correlation_type TEXT NOT NULL
     CHECK (correlation_type IN ('pr_review_session', 'pr_review_release', 'pr_finding_commit')),
+  repo_id INTEGER REFERENCES repos(repo_id) ON DELETE SET NULL,
   repo_name TEXT NOT NULL DEFAULT '',
   source_a_kind TEXT NOT NULL CHECK (source_a_kind IN ('pr_review', 'pr_finding')),
   source_a_id TEXT NOT NULL,
@@ -632,5 +649,6 @@ export const CREATE_CROSS_SOURCE_CORRELATIONS = `CREATE TABLE IF NOT EXISTS cros
 ) STRICT`;
 
 export const CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES = [
-  `CREATE INDEX IF NOT EXISTS idx_cross_source_correlations_repo ON cross_source_correlations(repo_name)`,
+  // Phase F flip: repo フィルタ索引を repo_name → repo_id へ移行する。
+  `CREATE INDEX IF NOT EXISTS idx_cross_source_correlations_repo_id ON cross_source_correlations(repo_id)`,
 ];

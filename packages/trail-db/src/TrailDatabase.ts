@@ -223,6 +223,13 @@ const C4_MANUAL_REPO_ID_DDL: Readonly<Record<string, string>> = {
   c4_manual_groups: CREATE_C4_MANUAL_GROUPS,
 };
 
+// Phase F flip: derived テーブル名 → 新スキーマ (repo_id 化) DDL の対応表。
+// migrateDerivedTablesRepoId で使う。dora_metrics は PK 変更 (12-step 再構築) のため DDL を引く。
+// pr_reviews / cross_source_correlations は PK 不変 (additive) のためここには含めない。
+const DERIVED_REPO_ID_DDL: Readonly<Record<string, string>> = {
+  dora_metrics: CREATE_DORA_METRICS,
+};
+
 /**
  * `*_code_graph_communities` テーブルに `stable_key` 列が無ければ ALTER で追加する。
  * 起動時マイグレーションのため、`saveCurrentCodeGraph` / `saveReleaseCodeGraph` / `upsert*` の
@@ -2476,6 +2483,182 @@ export class TrailDatabase {
   }
 
   /**
+   * Phase F flip: 既存 DB の derived テーブル (dora_metrics / pr_reviews /
+   * cross_source_correlations) を repo_id 化する破壊的/additive マイグレーション。
+   *
+   * - `dora_metrics`: PK を `(repo_name, period)` → `(repo_id, period)` へ再設計する。
+   *   `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
+   * - `pr_reviews`: PK は `review_id` 単独のまま不変。repo_id を additive 追加し backfill する
+   *   のみ (12-step 不要)。旧 repo フィルタ索引 idx_pr_reviews_repo_pr を repo_id 先頭へ張替える。
+   * - `cross_source_correlations`: PK は `(correlation_type, source_a_id, source_b_id)` のまま不変。
+   *   repo_id (NULL-able) を additive 追加し backfill する。旧 repo フィルタ索引を張替える。
+   *
+   * - CREATE_DORA_METRICS / CREATE_PR_REVIEWS 等の実行前に呼ぶ (CREATE TABLE IF NOT EXISTS は
+   *   既存テーブルへ無効なため)。新規 DB (テーブル不在) は no-op。CREATE_* が新スキーマを直接作る。
+   * - 既に flip 済 (repo_id 列あり) なら no-op (冪等)。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * chicken-egg 回避: 各テーブルの distinct repo_name を `INSERT OR IGNORE INTO repos` で
+   * self-seed してから repo_id 列を追加し、`repo_id = (SELECT repo_id FROM repos WHERE
+   * repo_name = <table>.repo_name)` で backfill する (repo_name='' も sentinel repo へ解決される)。
+   * dora_metrics の NOT NULL repo_id で IS NULL の orphan 行は 12-step 再構築の INSERT...SELECT で
+   * 除外する (通常発生しない)。
+   */
+  private migrateDerivedTablesRepoId(db: Database): void {
+    // ── dora_metrics: PK 再設計 (12-step) ──
+    this.migrateDoraMetricsRepoIdFlip(db);
+    // ── pr_reviews / cross_source_correlations: additive (repo_id 追加 + backfill + 索引張替) ──
+    this.migrateDerivedAdditiveRepoIdColumn(db, {
+      table: 'pr_reviews',
+      repoIdNotNull: true,
+      oldIndex: 'idx_pr_reviews_repo_pr',
+    });
+    this.migrateDerivedAdditiveRepoIdColumn(db, {
+      table: 'cross_source_correlations',
+      repoIdNotNull: false,
+      oldIndex: 'idx_cross_source_correlations_repo',
+    });
+  }
+
+  /** Phase F flip: dora_metrics を新スキーマ (repo_id PK) へ 12-step 再構築する (冪等)。 */
+  private migrateDoraMetricsRepoIdFlip(db: Database): void {
+    const exists =
+      db.exec("SELECT 1 FROM sqlite_master WHERE type='table' AND name='dora_metrics'")[0]?.values
+        ?.length;
+    if (!exists) return; // 新規 DB → CREATE_DORA_METRICS が新スキーマを作る
+    if (columnExists(db, 'dora_metrics', 'repo_id')) return; // 既に flip 済 (冪等)
+    if (!columnExists(db, 'dora_metrics', 'repo_name')) return; // 退化 DB は対象外
+
+    try {
+      // ── pre: repos を self-seed し、repo_id 列を追加して backfill する ──
+      db.run(
+        `INSERT OR IGNORE INTO repos (repo_name, created_at)
+         SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         FROM dora_metrics WHERE repo_name IS NOT NULL`,
+      );
+      db.run('ALTER TABLE dora_metrics ADD COLUMN repo_id INTEGER');
+      db.run(
+        `UPDATE dora_metrics
+           SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = dora_metrics.repo_name)`,
+      );
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        this.rebuildDerivedTableForRepoIdFlip(db, 'dora_metrics');
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[derived flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[derived flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error('migrateDoraMetricsRepoIdFlip failed', e instanceof Error ? e : new Error(String(e)));
+      throw e;
+    }
+  }
+
+  /** flip: derived テーブルを新スキーマ (repo_id PK) へ 12-step 再構築する。 */
+  private rebuildDerivedTableForRepoIdFlip(db: Database, table: string): void {
+    const ddl = DERIVED_REPO_ID_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[derived flip] no DDL registered for ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    // 新スキーマの列のうち旧テーブルにも存在する列を共有列としてコピーする (repo_id を含む)。
+    const sharedCols = newCols.filter((c) => oldCols.has(c));
+    // repo_id IS NULL の行 (= repos に無い repo_name の orphan) は新スキーマの NOT NULL を
+    // 満たさないため除外する。旧 PK (repo_name, period) は新 PK (repo_id, period) と 1:1 対応のため
+    // 残った行は新 PK で衝突しない。
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE repo_id IS NOT NULL`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
+  /**
+   * Phase F flip: PK 不変の derived テーブルへ repo_id 列を additive 追加し backfill する (冪等)。
+   * 旧 repo フィルタ索引 (repo_name 先頭) を DROP し、CREATE_*_INDEXES の repo_id 先頭索引へ委ねる。
+   * - 新規 DB / flip 済 DB (repo_id 列あり) は no-op。
+   * - repoIdNotNull=true の場合 DEFAULT 0 sentinel で埋めるが、backfill で解決済み repo_id を入れる。
+   */
+  private migrateDerivedAdditiveRepoIdColumn(
+    db: Database,
+    opts: { table: string; repoIdNotNull: boolean; oldIndex: string },
+  ): void {
+    const { table, repoIdNotNull, oldIndex } = opts;
+    const exists =
+      db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+        ?.length;
+    if (!exists) return; // 新規 DB → CREATE_* が新スキーマを作る
+    try {
+      if (!columnExists(db, table, 'repo_id')) {
+        // SQLite の ALTER ADD COLUMN は NOT NULL を default 無しで追加できないため、NOT NULL 列は
+        // DEFAULT 0 sentinel を付ける (新規 DB の CREATE と整合)。NULL-able は plain INTEGER。
+        db.run(
+          `ALTER TABLE "${table}" ADD COLUMN repo_id INTEGER${repoIdNotNull ? ' NOT NULL DEFAULT 0' : ''}`,
+        );
+      }
+      if (columnExists(db, table, 'repo_name')) {
+        db.run(
+          `INSERT OR IGNORE INTO repos (repo_name, created_at)
+           SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           FROM "${table}" WHERE repo_name IS NOT NULL`,
+        );
+        // backfill: repo_name が repos に解決できる行のみ更新する。NOT NULL 列は未解決時に
+        // DEFAULT 0 sentinel が残る (新規 DB の DEFAULT と整合)。NULL-able は NULL のまま許容。
+        db.run(
+          `UPDATE "${table}"
+             SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name)
+           WHERE (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name) IS NOT NULL`,
+        );
+      }
+      // 旧 repo フィルタ索引 (repo_name 先頭) を撤去する。新 repo_id 索引は CREATE_*_INDEXES が張る。
+      db.run(`DROP INDEX IF EXISTS ${oldIndex}`);
+    } catch (e) {
+      this.logger.warn(
+        `[derived additive repo_id ${table}] ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  /**
    * 既存 DB の releases に repo_id 列が無ければ追加する (Phase B step1・非破壊)。
    * 新規 DB は CREATE_RELEASES に repo_id を含むため no-op。FK は init で off のため
    * ALTER では REFERENCES を付けず plain INTEGER とする (既存挙動と整合)。
@@ -2719,6 +2902,10 @@ export class TrailDatabase {
     for (const idx of CREATE_C4_MANUAL_INDEXES) {
       db.run(idx);
     }
+    // Phase F flip: 既存 DB の derived テーブル (dora_metrics PK 再設計 + pr_reviews /
+    // cross_source_correlations の repo_id additive) を repo_id 化する。CREATE TABLE IF NOT EXISTS
+    // は既存テーブルに無効なため、CREATE_DORA_METRICS 等の実行前に呼ぶ。新規 DB / flip 済 DB では no-op。
+    this.migrateDerivedTablesRepoId(db);
     // LEP Layer 4 (Aggregator) の DORA 指標出力先。新規テーブル追加のみ (既存 DDL 不変)。
     db.run(CREATE_DORA_METRICS);
     // LEP 新ソース参照実装 (Step 4b): GitHub PR review の生データ。新規テーブル追加のみ。
@@ -3752,12 +3939,15 @@ export class TrailDatabase {
       db.run('DELETE FROM dora_metrics');
       const stmt = db.prepare(
         `INSERT INTO dora_metrics
-           (repo_name, period, deployment_frequency, lead_time_hours, computed_at)
-         VALUES (?, ?, ?, ?, ?)`,
+           (repo_id, repo_name, period, deployment_frequency, lead_time_hours, computed_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       );
       try {
         for (const r of rows) {
-          stmt.run([r.repoName, r.period, r.deploymentFrequency, r.leadTimeHours, r.computedAt]);
+          // Phase F: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を
+          // 解決して保存する (新 PK は (repo_id, period))。repoIdForName は upsert で repos に登録する。
+          const repoId = this.repoIdForName(r.repoName);
+          stmt.run([repoId, r.repoName, r.period, r.deploymentFrequency, r.leadTimeHours, r.computedAt]);
         }
       } finally {
         stmt.free();
@@ -3782,12 +3972,16 @@ export class TrailDatabase {
    */
   upsertPrReview(review: PrReviewUpsert): void {
     this.withTransaction((db) => {
+      // Phase F: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して
+      // 保存する (PK は review_id のまま不変・repo_id は additive 列)。
+      const repoId = this.repoIdForName(review.repoName);
       db.run(
         `INSERT OR REPLACE INTO pr_reviews
-           (review_id, repo_name, pr_number, author, state, submitted_at, body, body_hash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (review_id, repo_id, repo_name, pr_number, author, state, submitted_at, body, body_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           review.reviewId,
+          repoId,
           review.repoName,
           review.prNumber,
           review.author,
@@ -3967,13 +4161,18 @@ export class TrailDatabase {
       db.run('DELETE FROM cross_source_correlations');
       const stmt = db.prepare(
         `INSERT INTO cross_source_correlations
-           (correlation_type, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (correlation_type, repo_id, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       try {
         for (const r of rows) {
+          // Phase F: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して
+          // 保存する (PK は (correlation_type, source_a_id, source_b_id) のまま不変・repo_id は additive)。
+          // source_b_id に release tag を保存している箇所でも repo_id 列でリポを区別できるようにする。
+          const repoId = this.repoIdForName(r.repoName);
           stmt.run([
             r.correlationType,
+            repoId,
             r.repoName,
             r.sourceAKind,
             r.sourceAId,
