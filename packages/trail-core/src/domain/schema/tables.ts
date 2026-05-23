@@ -20,6 +20,15 @@ const TS_GLOB_NO_MS = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0
 // Date-only pattern (10 chars: YYYY-MM-DD)
 const DATE_GLOB = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'`;
 
+// repo 正規化の基盤テーブル (Phase A)。散在する repo_name TEXT を repo_id 代理キーへ
+// 集約する参照テーブル。repo_name='' は sentinel リポ (表示 '(unknown)') として 1 行採番する。
+// 後続 Phase で各テーブルの repo_name 列を repo_id FK へ移行する。
+export const CREATE_REPOS = `CREATE TABLE IF NOT EXISTS repos (
+  repo_id    INTEGER PRIMARY KEY,
+  repo_name  TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
 export const CREATE_SESSIONS = `CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   slug TEXT NOT NULL DEFAULT '',
@@ -163,6 +172,7 @@ export const CREATE_CURRENT_GRAPHS = `CREATE TABLE IF NOT EXISTS current_graphs 
 
 export const CREATE_RELEASE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_graphs (
   tag           TEXT PRIMARY KEY REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id    INTEGER,
   graph_json    TEXT NOT NULL CHECK (json_valid(graph_json)),
   tsconfig_path TEXT NOT NULL,
   project_root  TEXT NOT NULL,
@@ -190,6 +200,8 @@ export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
   released_at TEXT CHECK (released_at IS NULL OR released_at = '' OR released_at GLOB ${TS_GLOB_MS} OR released_at GLOB ${TS_GLOB_NO_MS}),
   prev_tag TEXT REFERENCES releases(tag) ON DELETE SET NULL,
   repo_name TEXT NOT NULL DEFAULT '',
+  repo_id INTEGER REFERENCES repos(repo_id) ON DELETE SET NULL,
+  release_id INTEGER,
   package_tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(package_tags)),
   commit_count INTEGER NOT NULL DEFAULT 0,
   files_changed INTEGER NOT NULL DEFAULT 0,
@@ -209,6 +221,7 @@ export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
 
 export const CREATE_RELEASE_FILES = `CREATE TABLE IF NOT EXISTS release_files (
   release_tag TEXT NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id INTEGER,
   file_path TEXT NOT NULL,
   lines_added INTEGER NOT NULL DEFAULT 0,
   lines_deleted INTEGER NOT NULL DEFAULT 0,
@@ -219,6 +232,7 @@ export const CREATE_RELEASE_FILES = `CREATE TABLE IF NOT EXISTS release_files (
 
 export const CREATE_RELEASE_COVERAGE = `CREATE TABLE IF NOT EXISTS release_coverage (
   release_tag        TEXT    NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id         INTEGER,
   package            TEXT    NOT NULL,
   file_path          TEXT    NOT NULL,
   lines_total        INTEGER NOT NULL DEFAULT 0,
@@ -324,6 +338,7 @@ export const CREATE_CURRENT_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS current_co
 
 export const CREATE_RELEASE_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_code_graphs (
   release_tag  TEXT PRIMARY KEY REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id   INTEGER,
   graph_json   TEXT NOT NULL CHECK (json_valid(graph_json)),
   generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
   updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
@@ -343,6 +358,7 @@ export const CREATE_CURRENT_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS
 
 export const CREATE_RELEASE_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS release_code_graph_communities (
   release_tag  TEXT    NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id   INTEGER,
   community_id INTEGER NOT NULL,
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
@@ -386,6 +402,7 @@ export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_
 
 export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_file_analysis (
   release_tag                TEXT NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id                 INTEGER,
   repo_name                  TEXT NOT NULL,
   file_path                  TEXT NOT NULL,
   importance_score           REAL    NOT NULL DEFAULT 0,
@@ -436,6 +453,7 @@ export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS curr
 
 export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_function_analysis (
   release_tag            TEXT NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id             INTEGER,
   repo_name              TEXT NOT NULL,
   file_path              TEXT NOT NULL,
   function_name          TEXT NOT NULL,

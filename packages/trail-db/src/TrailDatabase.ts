@@ -12,6 +12,7 @@ import os from 'node:os';
 import ignore from 'ignore';
 import { toUTC, getSqliteTzOffset } from './dateUtils';
 import {
+  CREATE_REPOS,
   CREATE_SESSIONS,
   CREATE_SESSION_COSTS,
   CREATE_DAILY_COUNTS,
@@ -1715,6 +1716,14 @@ export class TrailDatabase {
     );
 
     this.createTables();
+    const initDb = this.ensureDb();
+    // repos を既存テーブルの repo_name から seed (Phase A・冪等)。
+    this.seedReposFromLegacyRepoNames(initDb);
+    // releases.repo_id を追加・backfill (Phase B step1・非破壊。FK は off のまま)。
+    this.migrateReleasesRepoIdColumn(initDb);
+    this.backfillReleaseRepoIds(initDb);
+    this.backfillReleaseIds(initDb);
+    this.migrateReleaseChildrenReleaseId(initDb);
   }
 
   private ensureDb(): Database {
@@ -1741,12 +1750,175 @@ export class TrailDatabase {
     }
   }
 
+  // ── repo 正規化基盤 (Phase A) ───────────────────────────────────────────
+  // repo_name TEXT の散在を repos(repo_id) 代理キーへ集約するための入口。
+  // 後続 Phase で各テーブルの repo_name を repo_id FK へ移行するまで、
+  // 新規 write path は repo_name 保存前に repoIdForName() を通す運用とする。
+
+  /** repo_name から repo_id を取得する。未登録なら登録してから返す (upsert・冪等)。 */
+  repoIdForName(repoName: string): number {
+    const db = this.ensureDb();
+    db.run(
+      `INSERT INTO repos (repo_name, created_at)
+       VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+       ON CONFLICT(repo_name) DO NOTHING`,
+      [repoName],
+    );
+    const res = db.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+    const id = res[0]?.values?.[0]?.[0];
+    return Number(id);
+  }
+
+  /** repo_id から repo_name を引く。未知の id は null。 */
+  repoNameForId(repoId: number): string | null {
+    const db = this.ensureDb();
+    const res = db.exec('SELECT repo_name FROM repos WHERE repo_id = ?', [repoId]);
+    const name = res[0]?.values?.[0]?.[0];
+    return name == null ? null : asText(name);
+  }
+
+  /** repos 全件 (repo_id 昇順)。 */
+  listRepos(): Array<{ repoId: number; repoName: string }> {
+    const db = this.ensureDb();
+    const res = db.exec('SELECT repo_id, repo_name FROM repos ORDER BY repo_id');
+    return (res[0]?.values ?? []).map((r) => ({
+      repoId: Number(r[0]),
+      repoName: asText(r[1] ?? ''),
+    }));
+  }
+
+  /**
+   * 既存テーブルに散在する repo_name を repos へ取り込む (冪等・再実行可能)。
+   * seed 後に増えた repo を後追い登録するためにも使う。repo_name='' (sentinel) も取り込む。
+   * 戻り値は同期後の repos 件数。
+   */
+  syncReposFromLegacyRepoNames(): number {
+    const db = this.ensureDb();
+    this.seedReposFromLegacyRepoNames(db);
+    this.backfillReleaseRepoIds(db);
+    this.backfillReleaseIds(db);
+    this.migrateReleaseChildrenReleaseId(db);
+    const res = db.exec('SELECT COUNT(*) FROM repos');
+    return Number(res[0]?.values?.[0]?.[0] ?? 0);
+  }
+
+  /**
+   * 既存 DB の releases に repo_id 列が無ければ追加する (Phase B step1・非破壊)。
+   * 新規 DB は CREATE_RELEASES に repo_id を含むため no-op。FK は init で off のため
+   * ALTER では REFERENCES を付けず plain INTEGER とする (既存挙動と整合)。
+   */
+  private migrateReleasesRepoIdColumn(db: Database): void {
+    try {
+      if (!columnExists(db, 'releases', 'repo_id')) {
+        db.run('ALTER TABLE releases ADD COLUMN repo_id INTEGER');
+      }
+      // release_id 代理キー列 (Phase B-2a・additive)。後続で子 FK 張替・PK flip に使う。
+      if (!columnExists(db, 'releases', 'release_id')) {
+        db.run('ALTER TABLE releases ADD COLUMN release_id INTEGER');
+      }
+    } catch (e) {
+      this.logger.warn(
+        `[releases columns migrate] ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  /** releases.release_id を rowid から backfill する (release_id IS NULL のみ・冪等)。 */
+  private backfillReleaseIds(db: Database): void {
+    try {
+      db.run('UPDATE releases SET release_id = rowid WHERE release_id IS NULL');
+    } catch (e) {
+      this.logger.warn(
+        `[releases release_id backfill] ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  // release 子テーブルと、releases へ JOIN する際の tag 列名 (release_graphs のみ tag)。
+  private static readonly RELEASE_CHILD_TABLES: ReadonlyArray<{ table: string; tagCol: string }> = [
+    { table: 'release_graphs', tagCol: 'tag' },
+    { table: 'release_files', tagCol: 'release_tag' },
+    { table: 'release_coverage', tagCol: 'release_tag' },
+    { table: 'release_code_graphs', tagCol: 'release_tag' },
+    { table: 'release_code_graph_communities', tagCol: 'release_tag' },
+    { table: 'release_file_analysis', tagCol: 'release_tag' },
+    { table: 'release_function_analysis', tagCol: 'release_tag' },
+  ];
+
+  /**
+   * release 子テーブルへ release_id 列を追加し、tag 列経由で releases.release_id を
+   * backfill する (Phase B-2b-i・additive/非破壊・冪等)。FK 張替・PK flip は後続。
+   */
+  private migrateReleaseChildrenReleaseId(db: Database): void {
+    for (const { table, tagCol } of TrailDatabase.RELEASE_CHILD_TABLES) {
+      try {
+        if (!columnExists(db, table, 'release_id')) {
+          db.run(`ALTER TABLE "${table}" ADD COLUMN release_id INTEGER`);
+        }
+        db.run(
+          `UPDATE "${table}"
+             SET release_id = (SELECT r.release_id FROM releases r WHERE r.tag = "${table}"."${tagCol}")
+           WHERE release_id IS NULL`,
+        );
+      } catch (e) {
+        this.logger.warn(
+          `[release child release_id ${table}] ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    }
+  }
+
+  /** releases.repo_id を repo_name → repos で backfill する (repo_id IS NULL のみ・冪等)。 */
+  private backfillReleaseRepoIds(db: Database): void {
+    try {
+      db.run(
+        `UPDATE releases
+           SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = releases.repo_name)
+         WHERE repo_id IS NULL`,
+      );
+    } catch (e) {
+      this.logger.warn(
+        `[releases repo_id backfill] ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  /** repo_name 列を持つ既存テーブルから distinct repo_name を repos へ INSERT OR IGNORE する。 */
+  private seedReposFromLegacyRepoNames(db: Database): void {
+    // repo_name 列を持つ既知テーブル群。旧 DB に存在しないテーブルは try/catch で skip。
+    const REPO_NAME_TABLES = [
+      'sessions', 'session_commits', 'commit_files', 'session_commit_resolutions',
+      'current_graphs', 'releases', 'current_coverage',
+      'c4_manual_elements', 'c4_manual_relationships', 'c4_manual_groups',
+      'current_code_graphs', 'current_code_graph_communities',
+      'current_file_analysis', 'release_file_analysis',
+      'current_function_analysis', 'release_function_analysis',
+      'dora_metrics', 'pr_reviews', 'cross_source_correlations',
+    ];
+    for (const table of REPO_NAME_TABLES) {
+      try {
+        db.run(
+          `INSERT OR IGNORE INTO repos (repo_name, created_at)
+           SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           FROM "${table}" WHERE repo_name IS NOT NULL`,
+        );
+      } catch (e) {
+        this.logger.warn(
+          `[repos seed] skip ${table}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    }
+  }
+
   private createTables(): void {
     const db = this.ensureDb();
     // FK 強制は init() で OFF にしている。sql.js 時代の `db.run('PRAGMA
     // foreign_keys = ON')` は WASM 側で no-op だったため、ここで ON にすると
     // 既存挙動 (FK 未強制) と乖離してテスト fixture (orphan FK 値を含むもの)
     // が失敗する。詳細は init() のコメント参照。
+    // repo 正規化の基盤テーブル (Phase A)。後続 Phase で各テーブルが repo_id を
+    // FK 参照するため最初に作成する。Phase A 時点では参照する子はまだ無い (非破壊・追加のみ)。
+    db.run(CREATE_REPOS);
     db.run(CREATE_SESSIONS);
     db.run(CREATE_SESSION_COSTS);
     db.run(CREATE_DAILY_COUNTS);
