@@ -69,8 +69,12 @@ export function fromTrailGraph(opts: {
   // Use prepare/bind/step instead of parameterized exec() because the
   // installTrailReadonlyGuard wraps db.exec() but drops the params argument.
   let graphJson: string | null = null;
+  // Phase H-3: trail.current_code_graphs から repo_name 列を撤去した。attach 済 trail スキーマの
+  // repos を JOIN して repo_name → repo_id を解決し、repo_id で絞る (クロス DB JOIN)。
   const stmt = db.prepare(
-    `SELECT graph_json FROM trail.current_code_graphs WHERE repo_name = ?`
+    `SELECT g.graph_json FROM trail.current_code_graphs g
+       JOIN trail.repos r ON r.repo_id = g.repo_id
+      WHERE r.repo_name = ?`
   );
   try {
     const row = stmt.get(repoName);

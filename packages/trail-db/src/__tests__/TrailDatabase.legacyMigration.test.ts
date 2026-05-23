@@ -55,10 +55,10 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(relCols).toContain('stable_key');
   });
 
-  it('Phase C-2 flip: repo_name PK の legacy current_code_graph_communities を repo_id PK へ再構築する', async () => {
+  it('Phase C-2 flip + H-3: repo_name PK の legacy current_code_graph_communities を repo_id PK へ再構築し repo_name を撤去する', async () => {
     // legacy 状態 (repo_name PK・repo_id 列なし) を再現し、data を 1 行入れてから
     // createTables を再実行する。flip 後は repo_id 列 + (repo_id, community_id) PK になり、
-    // 旧データの repo_id が repos.repo_name 経由で backfill されることを確認する。
+    // 旧データの repo_id が repos.repo_name 経由で backfill される。Phase H-3 で repo_name 列は撤去される。
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
@@ -85,30 +85,32 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
 
-    // flip 後: repo_id 列が追加され、PK が (repo_id, community_id) になっている。
+    // flip + H-3 後: repo_id 列があり PK が (repo_id, community_id)。repo_name 列は撤去済。
     const info = inner.exec('PRAGMA table_info(current_code_graph_communities)');
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
-    expect(colNames).toContain('repo_name'); // 移行互換のため残置
+    expect(colNames).not.toContain('repo_name'); // Phase H-3: 物理撤去済
+    expect(colNames).toContain('stable_key'); // 引き継ぎ用途のため維持
     // pk 列 (5 番目フィールド) が 1 以上の列を PK 構成列とみなす。
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
     expect(pkCols).toEqual(['community_id', 'repo_id']);
 
-    // 旧データが repo_id backfill 済で残っている。
+    // 旧データが repo_id backfill 済で残っている。repo_name は repos 経由で復元する。
+    const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-repo');
     const data = inner.exec(
-      "SELECT repo_id, repo_name, community_id, name FROM current_code_graph_communities WHERE repo_name = 'legacy-repo'",
+      'SELECT repo_id, community_id, name FROM current_code_graph_communities WHERE repo_id = ?',
+      [repoIdViaName],
     );
     const dataRow = data[0]?.values?.[0];
     expect(dataRow).toBeDefined();
     expect(Number(dataRow![0])).toBeGreaterThan(0); // repo_id が backfill された
-    expect(String(dataRow![3])).toBe('N');
+    expect(String(dataRow![2])).toBe('N');
     // repo_id が repos.repo_name='legacy-repo' に対応している。
-    const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-repo');
     expect(Number(dataRow![0])).toBe(repoIdViaName);
   });
 
-  it('Phase C-2 flip: repo_name PK の legacy current_file_analysis を repo_id PK へ再構築しデータを保持する', async () => {
+  it('Phase C-2 flip + H-3: repo_name PK の legacy current_file_analysis を repo_id PK へ再構築し repo_name 撤去後もデータを保持する', async () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
@@ -153,13 +155,15 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
+    expect(colNames).not.toContain('repo_name'); // Phase H-3: 物理撤去済
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
     expect(pkCols).toEqual(['file_path', 'repo_id']);
 
-    // データが repo_id backfill 済で生存している。
+    // データが repo_id backfill 済で生存している。read は repos を JOIN して repoName を復元する。
     const fa = db.getCurrentFileAnalysis('legacy-fa');
     expect(fa).toHaveLength(1);
     expect(fa[0].filePath).toBe('src/a.ts');
+    expect(fa[0].repoName).toBe('legacy-fa');
   });
 
   it('Phase D flip: 旧 PK の legacy session_commits / commit_files / session_commit_resolutions を repo_id PK へ再構築しデータを保持する', async () => {
@@ -646,6 +650,243 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       expect(colsOf(t)).not.toContain('repo_name');
     }
     expect(db.getManualElements('h2-repo')).toHaveLength(3);
+
+    db.close();
+  });
+
+  it('Phase H-3: current 系から repo_name を撤去し repo_id データ・PK・stable_key・mappings_json を保全する', async () => {
+    // Phase C-2 flip 済の中間スキーマ = repo_id PK + repo_name 残置列を再現する (撤去直前の状態)。
+    // current_code_graph_communities には ALTER 由来の mappings_json も付け、撤去後も保全されることを確認する。
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+    const colsOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.map((c) => String(c[1]));
+    };
+    const pkOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
+    };
+
+    const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h3-repo');
+
+    // current_graphs (repo_id PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS current_graphs');
+    inner.run(`
+      CREATE TABLE current_graphs (
+        repo_id       INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name     TEXT NOT NULL DEFAULT '',
+        commit_id     TEXT NOT NULL DEFAULT '',
+        graph_json    TEXT NOT NULL,
+        tsconfig_path TEXT NOT NULL,
+        project_root  TEXT NOT NULL,
+        analyzed_at   TEXT NOT NULL,
+        updated_at    TEXT
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO current_graphs (repo_id, repo_name, commit_id, graph_json, tsconfig_path, project_root, analyzed_at) VALUES (?, 'h3-repo', 'c1', '{\"nodes\":[],\"edges\":[],\"metadata\":{\"projectRoot\":\"/r\",\"analyzedAt\":\"2026-05-23T00:00:00.000Z\"}}', 'tsconfig.json', '/r', '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+
+    // current_code_graphs (repo_id PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS current_code_graphs');
+    inner.run(`
+      CREATE TABLE current_code_graphs (
+        repo_id      INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name    TEXT NOT NULL DEFAULT '',
+        graph_json   TEXT NOT NULL,
+        generated_at TEXT,
+        updated_at   TEXT
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO current_code_graphs (repo_id, repo_name, graph_json, generated_at, updated_at) VALUES (?, 'h3-repo', '{\"generatedAt\":\"2026-05-23T00:00:00.000Z\",\"repositories\":[],\"nodes\":[],\"edges\":[],\"communities\":{},\"godNodes\":[]}', '2026-05-23T00:00:00.000Z', '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+
+    // current_code_graph_communities (repo_id PK + repo_name 残置 + stable_key + ALTER 由来の mappings_json)
+    inner.run('DROP TABLE IF EXISTS current_code_graph_communities');
+    inner.run('DROP INDEX IF EXISTS idx_ccgc_stable_key');
+    inner.run(`
+      CREATE TABLE current_code_graph_communities (
+        repo_id      INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name    TEXT    NOT NULL DEFAULT '',
+        community_id INTEGER NOT NULL,
+        label        TEXT    NOT NULL DEFAULT '',
+        name         TEXT    NOT NULL DEFAULT '',
+        summary      TEXT    NOT NULL DEFAULT '',
+        stable_key   TEXT    NOT NULL DEFAULT '',
+        generated_at TEXT,
+        updated_at   TEXT,
+        PRIMARY KEY (repo_id, community_id)
+      ) STRICT
+    `);
+    inner.run('ALTER TABLE current_code_graph_communities ADD COLUMN mappings_json TEXT');
+    inner.run(
+      "INSERT INTO current_code_graph_communities (repo_id, repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at) VALUES (?, 'h3-repo', 7, 'L7', 'Name7', 'Sum7', 'sk7', '[{\"elementId\":\"e1\",\"role\":\"primary\"}]', '2026-05-23T00:00:00.000Z', '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+
+    // current_coverage (複合 PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS current_coverage');
+    inner.run(`
+      CREATE TABLE current_coverage (
+        repo_id   INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name TEXT    NOT NULL DEFAULT '',
+        package   TEXT    NOT NULL,
+        file_path TEXT    NOT NULL,
+        lines_total INTEGER NOT NULL DEFAULT 0,
+        lines_covered INTEGER NOT NULL DEFAULT 0,
+        lines_pct REAL NOT NULL DEFAULT 0,
+        statements_total INTEGER NOT NULL DEFAULT 0,
+        statements_covered INTEGER NOT NULL DEFAULT 0,
+        statements_pct REAL NOT NULL DEFAULT 0,
+        functions_total INTEGER NOT NULL DEFAULT 0,
+        functions_covered INTEGER NOT NULL DEFAULT 0,
+        functions_pct REAL NOT NULL DEFAULT 0,
+        branches_total INTEGER NOT NULL DEFAULT 0,
+        branches_covered INTEGER NOT NULL DEFAULT 0,
+        branches_pct REAL NOT NULL DEFAULT 0,
+        updated_at TEXT,
+        PRIMARY KEY (repo_id, package, file_path)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO current_coverage (repo_id, repo_name, package, file_path, lines_total, lines_covered, lines_pct) VALUES (?, 'h3-repo', 'pkg-a', 'src/x.ts', 10, 8, 80)",
+      [repoId],
+    );
+
+    // current_file_analysis (複合 PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS current_file_analysis');
+    inner.run(`
+      CREATE TABLE current_file_analysis (
+        repo_id   INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name TEXT NOT NULL DEFAULT '',
+        file_path TEXT NOT NULL,
+        importance_score REAL NOT NULL DEFAULT 0,
+        fan_in_total INTEGER NOT NULL DEFAULT 0,
+        cognitive_complexity_max INTEGER NOT NULL DEFAULT 0,
+        line_count INTEGER NOT NULL DEFAULT 0,
+        cyclomatic_complexity_max INTEGER NOT NULL DEFAULT 0,
+        function_count INTEGER NOT NULL DEFAULT 0,
+        dead_code_score INTEGER NOT NULL DEFAULT 0,
+        signal_orphan INTEGER NOT NULL DEFAULT 0,
+        signal_fan_in_zero INTEGER NOT NULL DEFAULT 0,
+        signal_no_recent_churn INTEGER NOT NULL DEFAULT 0,
+        signal_zero_coverage INTEGER NOT NULL DEFAULT 0,
+        signal_isolated_community INTEGER NOT NULL DEFAULT 0,
+        is_ignored INTEGER NOT NULL DEFAULT 0,
+        ignore_reason TEXT NOT NULL DEFAULT '',
+        cross_pkg_in_count INTEGER NOT NULL DEFAULT 0,
+        external_consumer_pkgs INTEGER NOT NULL DEFAULT 0,
+        total_in_count INTEGER NOT NULL DEFAULT 0,
+        is_barrel INTEGER NOT NULL DEFAULT 0,
+        centrality_score REAL NOT NULL DEFAULT 0,
+        category TEXT NOT NULL DEFAULT 'logic',
+        analyzed_at TEXT NOT NULL,
+        PRIMARY KEY (repo_id, file_path)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO current_file_analysis (repo_id, repo_name, file_path, analyzed_at) VALUES (?, 'h3-repo', 'src/fa.ts', '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+
+    // current_function_analysis (複合 PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS current_function_analysis');
+    inner.run(`
+      CREATE TABLE current_function_analysis (
+        repo_id INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name TEXT NOT NULL DEFAULT '',
+        file_path TEXT NOT NULL,
+        function_name TEXT NOT NULL,
+        start_line INTEGER NOT NULL,
+        end_line INTEGER NOT NULL DEFAULT 0,
+        language TEXT NOT NULL DEFAULT '',
+        fan_in INTEGER NOT NULL DEFAULT 0,
+        cognitive_complexity INTEGER NOT NULL DEFAULT 0,
+        cyclomatic_complexity INTEGER NOT NULL DEFAULT 0,
+        data_mutation_score INTEGER NOT NULL DEFAULT 0,
+        side_effect_score INTEGER NOT NULL DEFAULT 0,
+        line_count INTEGER NOT NULL DEFAULT 0,
+        importance_score REAL NOT NULL DEFAULT 0,
+        signal_fan_in_zero INTEGER NOT NULL DEFAULT 0,
+        fan_out INTEGER NOT NULL DEFAULT 0,
+        distinct_callees INTEGER NOT NULL DEFAULT 0,
+        function_role TEXT NOT NULL DEFAULT 'peripheral',
+        analyzed_at TEXT NOT NULL,
+        PRIMARY KEY (repo_id, file_path, function_name, start_line)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO current_function_analysis (repo_id, repo_name, file_path, function_name, start_line, analyzed_at) VALUES (?, 'h3-repo', 'src/fn.ts', 'doThing', 1, '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+
+    // createTables を再実行 → H-3 drop migration が repo_name を撤去する。例外なく完了すること。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+
+    const currentTables = [
+      'current_graphs',
+      'current_code_graphs',
+      'current_code_graph_communities',
+      'current_coverage',
+      'current_file_analysis',
+      'current_function_analysis',
+    ];
+    // 6 テーブルから repo_name が消え、repo_id は残っている。PK は不変。
+    for (const t of currentTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+      expect(colsOf(t)).toContain('repo_id');
+    }
+    expect(pkOf('current_graphs')).toEqual(['repo_id']);
+    expect(pkOf('current_code_graphs')).toEqual(['repo_id']);
+    expect(pkOf('current_code_graph_communities')).toEqual(['community_id', 'repo_id']);
+    expect(pkOf('current_coverage')).toEqual(['file_path', 'package', 'repo_id']);
+    expect(pkOf('current_file_analysis')).toEqual(['file_path', 'repo_id']);
+    expect(pkOf('current_function_analysis')).toEqual(['file_path', 'function_name', 'repo_id', 'start_line']);
+
+    // stable_key・mappings_json (ALTER 由来) が communities に保全されている。
+    expect(colsOf('current_code_graph_communities')).toContain('stable_key');
+    expect(colsOf('current_code_graph_communities')).toContain('mappings_json');
+    const comm = inner.exec(
+      'SELECT stable_key, mappings_json FROM current_code_graph_communities WHERE repo_id = ? AND community_id = 7',
+      [repoId],
+    );
+    const commRow = comm[0]?.values?.[0];
+    expect(String(commRow?.[0])).toBe('sk7'); // stable_key 保全
+    expect(String(commRow?.[1])).toContain('primary'); // mappings_json 保全
+
+    // repo_id データが保全されている。
+    expect(Number(inner.exec('SELECT repo_id FROM current_coverage WHERE file_path = ?', ['src/x.ts'])[0]?.values?.[0]?.[0])).toBe(repoId);
+
+    // read メソッドは repo_name を結果に含む契約を維持する (repos JOIN で復元)。
+    expect(db.getCurrentFileAnalysis('h3-repo').map((r) => r.repoName)).toEqual(['h3-repo']);
+    expect(db.getCurrentFunctionAnalysis('h3-repo').map((r) => r.repoName)).toEqual(['h3-repo']);
+    expect(db.getCurrentCoverage('h3-repo').map((r) => r.repo_name)).toEqual(['h3-repo']);
+    expect(db.getAllCurrentCoverage().map((r) => r.repo_name)).toContain('h3-repo');
+    expect(db.getAllCurrentCodeGraphRaws().map((r) => r.repo_name)).toContain('h3-repo');
+    const commRaws = db.getAllCurrentCodeGraphCommunityRaws();
+    expect(commRaws.map((r) => r.repo_name)).toContain('h3-repo');
+    expect(commRaws.find((r) => r.community_id === 7)?.mappings_json).toContain('primary');
+    // repo_id フィルタの read も機能する。
+    expect(db.getCurrentCodeGraph('h3-repo')).not.toBeNull();
+    expect(db.getCurrentGraph('h3-repo')).not.toBeNull();
+    expect(db.listCurrentCodeGraphCommunities('h3-repo').map((c) => c.communityId)).toEqual([7]);
+
+    // 冪等: 再度 createTables を走らせても repo_name は無いまま例外なく完了する。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+    for (const t of currentTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+    }
+    expect(db.getCurrentFileAnalysis('h3-repo')).toHaveLength(1);
 
     db.close();
   });

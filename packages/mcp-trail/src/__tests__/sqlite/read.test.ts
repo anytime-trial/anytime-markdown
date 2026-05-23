@@ -14,21 +14,29 @@ function execInsert(db: Database, sql: string, params: readonly unknown[] = []):
   db.prepare(sql).run(...(params as unknown[]));
 }
 
-// Phase H-2: c4_manual_* から repo_name 列を撤去した。fixture は実スキーマに合わせ repo_id を持ち、
-// repos に test-repo を seed する。read の lookupRepoId が 'test-repo' → REPO_ID を解決する。
+// Phase H-2 / H-3: c4_manual_* / current_code_graph(_communities) から repo_name 列を撤去した。
+// fixture は実スキーマに合わせ repo_id を持ち、repos に test-repo を seed する。
+// read の lookupRepoId が 'test-repo' → REPO_ID を解決する。
 const REPO_ID = 1;
 
-function createTestDb(): Database {
-  const db = new BetterSqlite3(':memory:');
+/** どの fixture DB にも repos を作り test-repo を seed する (lookupRepoId が repos を引くため)。 */
+function seedRepos(db: Database): void {
   db.exec(`
     CREATE TABLE repos (
       repo_id INTEGER PRIMARY KEY,
       repo_name TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL
     );
+    INSERT INTO repos (repo_id, repo_name, created_at) VALUES (${REPO_ID}, 'test-repo', '2026-01-01T00:00:00.000Z');
+  `);
+}
+
+function createTestDb(): Database {
+  const db = new BetterSqlite3(':memory:');
+  seedRepos(db);
+  db.exec(`
     CREATE TABLE current_code_graphs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER PRIMARY KEY,
       graph_json TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -62,31 +70,31 @@ function createTestDb(): Database {
       PRIMARY KEY (repo_id, group_id)
     );
     CREATE TABLE current_code_graph_communities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
       community_id INTEGER NOT NULL,
       label TEXT NOT NULL,
       name TEXT NOT NULL,
       summary TEXT NOT NULL,
       mappings_json TEXT,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_id, community_id)
     );
-    INSERT INTO repos (repo_id, repo_name, created_at) VALUES (${REPO_ID}, 'test-repo', '2026-01-01T00:00:00.000Z');
   `);
   return db;
 }
 
 function createTestDbWithoutMappingsJson(): Database {
   const db = new BetterSqlite3(':memory:');
+  seedRepos(db);
   db.exec(`
     CREATE TABLE current_code_graph_communities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
       community_id INTEGER NOT NULL,
       label TEXT NOT NULL,
       name TEXT NOT NULL,
       summary TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_id, community_id)
     );
   `);
   return db;
@@ -95,16 +103,17 @@ function createTestDbWithoutMappingsJson(): Database {
 /** stable_key も mappings_json もない最古スキーマ（フォールバック2段目のテスト用） */
 function createTestDbWithoutStableKey(): Database {
   const db = new BetterSqlite3(':memory:');
+  seedRepos(db);
   db.exec(`
     CREATE TABLE current_code_graph_communities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
       community_id INTEGER NOT NULL,
       label TEXT NOT NULL,
       name TEXT NOT NULL,
       summary TEXT NOT NULL,
       mappings_json TEXT,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_id, community_id)
     );
   `);
   return db;
@@ -113,17 +122,18 @@ function createTestDbWithoutStableKey(): Database {
 /** stable_key および mappings_json カラムがある最新スキーマ */
 function createTestDbWithStableKey(): Database {
   const db = new BetterSqlite3(':memory:');
+  seedRepos(db);
   db.exec(`
     CREATE TABLE current_code_graph_communities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
       community_id INTEGER NOT NULL,
       label TEXT NOT NULL,
       name TEXT NOT NULL,
       summary TEXT NOT NULL,
       mappings_json TEXT,
       stable_key TEXT NOT NULL DEFAULT '',
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_id, community_id)
     );
   `);
   return db;
@@ -165,8 +175,8 @@ describe('getC4ModelDirect', () => {
     };
     execInsert(
       db,
-      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
-      [REPO, JSON.stringify(graph), NOW],
+      'INSERT INTO current_code_graphs (repo_id, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO_ID, JSON.stringify(graph), NOW],
     );
     const { model } = getC4ModelDirect(db, REPO);
     expect(model.elements.find((e) => e.id === 'sys_r1')).toMatchObject({ type: 'system', name: 'TestRepo' });
@@ -370,8 +380,8 @@ describe('listElementsDirect', () => {
     };
     execInsert(
       db,
-      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
-      [REPO, JSON.stringify(graph), NOW],
+      'INSERT INTO current_code_graphs (repo_id, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO_ID, JSON.stringify(graph), NOW],
     );
     // manual 要素を追加（mergeManualIntoC4Model が manual:true を付ける）
     execInsert(
@@ -458,8 +468,8 @@ describe('listCommunitiesDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 1, 'auth', 'Auth Module', 'Handles authentication', '{"elements":[]}', NOW],
+      'INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 1, 'auth', 'Auth Module', 'Handles authentication', '{"elements":[]}', NOW],
     );
 
     const { communities } = listCommunitiesDirect(db, REPO);
@@ -476,8 +486,8 @@ describe('listCommunitiesDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 2, 'core', 'Core Module', 'Core logic', null, NOW],
+      'INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 2, 'core', 'Core Module', 'Core logic', null, NOW],
     );
 
     const { communities } = listCommunitiesDirect(db, REPO);
@@ -489,8 +499,8 @@ describe('listCommunitiesDirect', () => {
     const db = createTestDbWithoutMappingsJson();
     execInsert(
       db,
-      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [REPO, 1, 'infra', 'Infrastructure', 'Infra services', NOW],
+      'INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 1, 'infra', 'Infrastructure', 'Infra services', NOW],
     );
 
     const { communities } = listCommunitiesDirect(db, REPO);
@@ -511,8 +521,8 @@ describe('listCommunitiesDirect', () => {
     const db = createTestDbWithStableKey();
     execInsert(
       db,
-      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, stable_key, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 1, 'auth', 'Auth Module', 'Auth logic', '{}', 'sk_abc123', NOW],
+      'INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, mappings_json, stable_key, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 1, 'auth', 'Auth Module', 'Auth logic', '{}', 'sk_abc123', NOW],
     );
 
     const { communities } = listCommunitiesDirect(db, REPO);
@@ -526,8 +536,8 @@ describe('listCommunitiesDirect', () => {
     const db = createTestDbWithoutStableKey();
     execInsert(
       db,
-      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 1, 'core', 'Core Module', 'Core logic', '{"elements":[]}', NOW],
+      'INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 1, 'core', 'Core Module', 'Core logic', '{"elements":[]}', NOW],
     );
 
     const { communities } = listCommunitiesDirect(db, REPO);
@@ -559,10 +569,16 @@ describe('listCommunityNodesDirect', () => {
       edges: [],
       godNodes: [],
     };
+    // Phase H-3: current_code_graphs は repo_id PK。repoName を repos へ upsert して repo_id を引く
+    // (trail-db / mcp-trail の resolveRepoId 相当・別 repo は別 repo_id になる)。
+    db.prepare(
+      "INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z') ON CONFLICT(repo_name) DO NOTHING",
+    ).run(repoName);
+    const repoId = (db.prepare('SELECT repo_id FROM repos WHERE repo_name = ?').get(repoName) as { repo_id: number }).repo_id;
     execInsert(
       db,
-      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
-      [repoName, JSON.stringify(graph), NOW],
+      'INSERT INTO current_code_graphs (repo_id, graph_json, updated_at) VALUES (?, ?, ?)',
+      [repoId, JSON.stringify(graph), NOW],
     );
   }
 
@@ -636,8 +652,8 @@ describe('listCommunityNodesDirect', () => {
     });
     execInsert(
       db,
-      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
-      [REPO, graphWithoutNodes, NOW],
+      'INSERT INTO current_code_graphs (repo_id, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO_ID, graphWithoutNodes, NOW],
     );
 
     const { communities } = listCommunityNodesDirect(db, REPO);
@@ -670,8 +686,8 @@ describe('listCommunityNodesDirect', () => {
     });
     execInsert(
       db,
-      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
-      [REPO, graphWithoutPackage, NOW],
+      'INSERT INTO current_code_graphs (repo_id, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO_ID, graphWithoutPackage, NOW],
     );
 
     const { communities } = listCommunityNodesDirect(db, REPO);

@@ -72,10 +72,19 @@ function makeMemoryDb(): BetterSqlite3MemoryDb {
 
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
+  // Phase H-3: trail.current_code_graphs から repo_name 列を撤去し repo_id PK にしたため、
+  // fixture も repos + repo_id PK スキーマで作る。
+  trailDb.run(`
+    CREATE TABLE repos (
+      repo_id    INTEGER PRIMARY KEY,
+      repo_name  TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL
+    ) STRICT
+  `);
   // current_code_graphs
   trailDb.run(`
     CREATE TABLE current_code_graphs (
-      repo_name    TEXT PRIMARY KEY,
+      repo_id      INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
       graph_json   TEXT NOT NULL,
       generated_at TEXT NOT NULL,
       updated_at   TEXT NOT NULL
@@ -127,10 +136,30 @@ function insertCodeGraph(
     communities: {},
     godNodes: [],
   });
+  const repoId = trailRepoId(trailDb, repoName);
   trailDb.run(
-    `INSERT INTO current_code_graphs (repo_name, graph_json, generated_at, updated_at) VALUES (?, ?, ?, ?)`,
-    [repoName, graphJson, updatedAt, updatedAt]
+    `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at) VALUES (?, ?, ?, ?)`,
+    [repoId, graphJson, updatedAt, updatedAt]
   );
+}
+
+/** repo_name から repo_id を取得する (未登録なら登録・冪等)。trail-db の repoIdForName 相当。 */
+function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
+  trailDb.run(
+    `INSERT INTO repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
+    [repoName, updatedAtSeed()]
+  );
+  const stmt = trailDb.prepare('SELECT repo_id FROM repos WHERE repo_name = ?');
+  try {
+    const row = stmt.get(repoName);
+    return Number(row?.['repo_id'] ?? 0);
+  } finally {
+    stmt.free?.();
+  }
+}
+
+function updatedAtSeed(): string {
+  return '2026-01-01T00:00:00.000Z';
 }
 
 function countPipelineRuns(db: BetterSqlite3MemoryDb): number {

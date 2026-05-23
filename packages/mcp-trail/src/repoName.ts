@@ -15,9 +15,10 @@ export function resolveRepoName(
   }
 
   try {
+    // Phase H-3: repo_name は current_code_graphs から撤去済。repos を JOIN して repo_name を引く。
     const rows = all<{ repo_name: string }>(
       db,
-      'SELECT DISTINCT repo_name FROM current_code_graphs',
+      'SELECT DISTINCT r.repo_name FROM current_code_graphs g JOIN repos r USING(repo_id)',
     );
 
     if (rows.length === 1) {

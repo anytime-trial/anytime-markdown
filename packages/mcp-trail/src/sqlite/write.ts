@@ -29,18 +29,21 @@ export function upsertCommunitySummariesDirect(
   repoName: string,
   rows: ReadonlyArray<{ communityId: number; name: string; summary: string }>,
 ): { updated: number } {
+  // Phase H-3: current_code_graph_communities から repo_name 列を撤去した。INSERT 列から repo_name を
+  // 除き、UPDATE / INSERT の repo フィルタ・PK は resolveRepoId で解決した repo_id = ? で行う。
+  const repoId = resolveRepoId(db, repoName);
   let updated = 0;
   for (const row of rows) {
     const result = run(
       db,
-      `UPDATE current_code_graph_communities SET name = ?, summary = ?, updated_at = datetime('now') WHERE repo_name = ? AND community_id = ?`,
-      [row.name, row.summary, repoName, row.communityId],
+      `UPDATE current_code_graph_communities SET name = ?, summary = ?, updated_at = datetime('now') WHERE repo_id = ? AND community_id = ?`,
+      [row.name, row.summary, repoId, row.communityId],
     );
     if (result.changes === 0) {
       run(
         db,
-        `INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, generated_at, updated_at) VALUES (?, ?, '', ?, ?, datetime('now'), datetime('now'))`,
-        [repoName, row.communityId, row.name, row.summary],
+        `INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, generated_at, updated_at) VALUES (?, ?, '', ?, ?, datetime('now'), datetime('now'))`,
+        [repoId, row.communityId, row.name, row.summary],
       );
     } else {
       updated++;
@@ -64,20 +67,23 @@ export function upsertCommunityMappingsDirect(
     run(db, 'ALTER TABLE current_code_graph_communities ADD COLUMN mappings_json TEXT');
   }
 
+  // Phase H-3: current_code_graph_communities から repo_name 列を撤去した。INSERT 列から repo_name を
+  // 除き、UPDATE / INSERT の repo フィルタ・PK は resolveRepoId で解決した repo_id = ? で行う。
+  const repoId = resolveRepoId(db, repoName);
   let updated = 0;
   let inserted = 0;
   for (const row of rows) {
     const mappingsJson = JSON.stringify(row.mappings);
     const result = run(
       db,
-      `UPDATE current_code_graph_communities SET mappings_json = ?, updated_at = datetime('now') WHERE repo_name = ? AND community_id = ?`,
-      [mappingsJson, repoName, row.communityId],
+      `UPDATE current_code_graph_communities SET mappings_json = ?, updated_at = datetime('now') WHERE repo_id = ? AND community_id = ?`,
+      [mappingsJson, repoId, row.communityId],
     );
     if (result.changes === 0) {
       run(
         db,
-        `INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, generated_at, updated_at) VALUES (?, ?, '', '', '', ?, datetime('now'), datetime('now'))`,
-        [repoName, row.communityId, mappingsJson],
+        `INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, mappings_json, generated_at, updated_at) VALUES (?, ?, '', '', '', ?, datetime('now'), datetime('now'))`,
+        [repoId, row.communityId, mappingsJson],
       );
       inserted++;
     } else {

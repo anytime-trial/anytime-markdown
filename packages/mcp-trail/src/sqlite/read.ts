@@ -109,18 +109,18 @@ interface CommunityRowRaw {
 }
 
 export function getC4ModelDirect(db: Database, repoName: string): { model: C4Model } {
+  // Phase H-2 / H-3: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
+  const repoId = lookupRepoId(db, repoName);
+
   const graphRow = get<GraphRow>(
     db,
-    'SELECT graph_json FROM current_code_graphs WHERE repo_name = ?',
-    [repoName],
+    'SELECT graph_json FROM current_code_graphs WHERE repo_id = ?',
+    [repoId],
   );
 
   const base: C4Model = graphRow
     ? codeGraphToC4(JSON.parse(graphRow.graph_json) as StoredCodeGraphJson)
     : { level: 'container', elements: [], relationships: [] };
-
-  // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
-  const repoId = lookupRepoId(db, repoName);
 
   const manualElementRows = all<ManualElementRow>(
     db,
@@ -205,28 +205,30 @@ export function listRelationshipsDirect(db: Database, repoName: string): ListedR
 }
 
 export function listCommunitiesDirect(db: Database, repoName: string): { communities: CommunityRow[] } {
+  // Phase H-3: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
+  const repoId = lookupRepoId(db, repoName);
   // 古いスキーマ（mappings_json / stable_key 列未追加）への後方互換のため、列存在を try で段階的にフォールバック
   let rows: CommunityRowRaw[];
   try {
     rows = all<CommunityRowRaw>(
       db,
-      'SELECT community_id, label, name, summary, mappings_json, stable_key FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
-      [repoName],
+      'SELECT community_id, label, name, summary, mappings_json, stable_key FROM current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
+      [repoId],
     );
   } catch (err) {
     console.error('[mcp-trail] listCommunitiesDirect: stable_key column not found, falling back', err);
     try {
       rows = all<CommunityRowRaw>(
         db,
-        'SELECT community_id, label, name, summary, mappings_json FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
-        [repoName],
+        'SELECT community_id, label, name, summary, mappings_json FROM current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
+        [repoId],
       );
     } catch (err2) {
       console.error('[mcp-trail] listCommunitiesDirect: mappings_json column not found, falling back', err2);
       rows = all<CommunityRowRaw>(
         db,
-        'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
-        [repoName],
+        'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
+        [repoId],
       );
     }
   }
@@ -258,10 +260,12 @@ export function listCommunityNodesDirect(
   db: Database,
   repoName: string,
 ): { communities: CommunityNodes[] } {
+  // Phase H-3: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
+  const repoId = lookupRepoId(db, repoName);
   const row = get<GraphRow>(
     db,
-    'SELECT graph_json FROM current_code_graphs WHERE repo_name = ?',
-    [repoName],
+    'SELECT graph_json FROM current_code_graphs WHERE repo_id = ?',
+    [repoId],
   );
   if (!row) return { communities: [] };
 
