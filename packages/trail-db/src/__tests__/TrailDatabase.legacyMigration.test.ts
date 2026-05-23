@@ -555,21 +555,23 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
-    expect(colNames).toContain('repo_name'); // 移行互換で残置
+    expect(colNames).not.toContain('repo_name'); // Phase H-1: 物理撤去済
     // PK は (repo_id, period) → ソートで period, repo_id。
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
     expect(pkCols).toEqual(['period', 'repo_id']);
 
-    // 旧データが repo_id backfill 済で全件残っている (除外 0 件)。
+    // 旧データが repo_id backfill 済で全件残っている (除外 0 件)。repo_name は repos 経由で復元する。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-dora');
     const data = inner.exec(
-      "SELECT repo_id, repo_name, period, deployment_frequency, lead_time_hours FROM dora_metrics WHERE repo_name = 'legacy-dora' ORDER BY period",
+      `SELECT d.repo_id, r.repo_name, d.period, d.deployment_frequency, d.lead_time_hours
+       FROM dora_metrics d JOIN repos r USING(repo_id) WHERE d.repo_id = ? ORDER BY d.period`,
+      [repoIdViaName],
     );
     const vals = (data[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(vals).toHaveLength(2);
     for (const row of vals) {
       expect(Number(row[0])).toBe(repoIdViaName); // repo_id backfill
-      expect(String(row[1])).toBe('legacy-dora');
+      expect(String(row[1])).toBe('legacy-dora'); // repo_name は JOIN repos で復元
     }
     expect(String(vals[0]?.[2])).toBe('2026-01');
     expect(Number(vals[0]?.[3])).toBe(3);
@@ -623,16 +625,18 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
-    expect(colNames).toContain('repo_name'); // 移行互換で残置
+    expect(colNames).not.toContain('repo_name'); // Phase H-1: 物理撤去済
     // PK は review_id のまま不変 (additive)。
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1]));
     expect(pkCols).toEqual(['review_id']);
 
-    // repo_id が backfill されている。
+    // repo_id が backfill されている。repo_name は repos 経由で復元する (read メソッドの契約)。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-pr');
-    const data = inner.exec("SELECT repo_id, repo_name FROM pr_reviews WHERE review_id = 'rev-legacy'");
+    const data = inner.exec("SELECT repo_id FROM pr_reviews WHERE review_id = 'rev-legacy'");
     expect(Number(data[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
-    expect(String(data[0]?.values?.[0]?.[1])).toBe('legacy-pr');
+    // read メソッドは依然 repoName を返す (契約不変)。
+    expect(db.getPrReviewDetail('rev-legacy')?.repoName).toBe('legacy-pr');
+    expect(db.getPrReviews().find((r) => r.reviewId === 'rev-legacy')?.repoName).toBe('legacy-pr');
 
     // 旧索引が撤去され、新 repo_id 先頭索引が張られている。
     const idx = inner.exec("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='pr_reviews'");
@@ -685,17 +689,19 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
-    expect(colNames).toContain('repo_name'); // 移行互換で残置
+    expect(colNames).not.toContain('repo_name'); // Phase H-1: 物理撤去済
     // PK は (correlation_type, source_a_id, source_b_id) のまま不変 (additive)。
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
     expect(pkCols).toEqual(['correlation_type', 'source_a_id', 'source_b_id']);
 
     // repo_id が backfill されている (release tag 行でもリポを区別できる)。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-cs');
-    const data = inner.exec("SELECT repo_id, repo_name, source_b_id FROM cross_source_correlations WHERE source_a_id = 'r1'");
+    const data = inner.exec("SELECT repo_id, source_b_id FROM cross_source_correlations WHERE source_a_id = 'r1'");
     expect(Number(data[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
-    expect(String(data[0]?.values?.[0]?.[1])).toBe('legacy-cs');
-    expect(String(data[0]?.values?.[0]?.[2])).toBe('v1.2.3');
+    expect(String(data[0]?.values?.[0]?.[1])).toBe('v1.2.3');
+    // read メソッドは依然 repoName を返す (LEFT JOIN repos で復元・契約不変)。
+    const corr = db.getCrossSourceCorrelations().find((c) => c.sourceAId === 'r1');
+    expect(corr?.repoName).toBe('legacy-cs');
 
     // 旧索引が撤去され、新 repo_id 索引が張られている。
     const idx = inner.exec("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='cross_source_correlations'");
@@ -726,14 +732,120 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       const rows = (dbinfo[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
       return rows.map((c) => String(c[1]));
     };
-    // dora_metrics: PK が (repo_id, period)。
+    // dora_metrics: PK が (repo_id, period)。Phase H-1: repo_name 列は無い。
     expect(colsOf('dora_metrics')).toContain('repo_id');
+    expect(colsOf('dora_metrics')).not.toContain('repo_name');
     expect(pkOf('dora_metrics')).toEqual(['period', 'repo_id']);
-    // pr_reviews / cross_source_correlations: repo_id 列を持つ (PK は不変)。
+    // pr_reviews / cross_source_correlations: repo_id 列を持つ (PK は不変)。Phase H-1: repo_name 列は無い。
     expect(colsOf('pr_reviews')).toContain('repo_id');
+    expect(colsOf('pr_reviews')).not.toContain('repo_name');
     expect(pkOf('pr_reviews')).toEqual(['review_id']);
     expect(colsOf('cross_source_correlations')).toContain('repo_id');
+    expect(colsOf('cross_source_correlations')).not.toContain('repo_name');
     expect(pkOf('cross_source_correlations')).toEqual(['correlation_type', 'source_a_id', 'source_b_id']);
+    db.close();
+  });
+
+  it('Phase H-1: repo_name 列ありの legacy DB から 3 テーブルの repo_name を物理撤去し repo_id データを保全する', async () => {
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+    const colsOf = (table: string): string[] => {
+      const dbinfo = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (dbinfo[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.map((c) => String(c[1]));
+    };
+
+    // 旧 (Phase F) スキーマ = repo_id 列 + repo_name 残置列を再現する (撤去直前の状態)。
+    inner.run('DROP TABLE IF EXISTS dora_metrics');
+    inner.run('DROP TABLE IF EXISTS pr_reviews');
+    inner.run('DROP TABLE IF EXISTS cross_source_correlations');
+    inner.run(`
+      CREATE TABLE dora_metrics (
+        repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name TEXT NOT NULL,
+        period TEXT NOT NULL CHECK (period GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]'),
+        deployment_frequency REAL NOT NULL DEFAULT 0,
+        lead_time_hours REAL,
+        computed_at TEXT NOT NULL,
+        PRIMARY KEY (repo_id, period)
+      ) STRICT
+    `);
+    inner.run(`
+      CREATE TABLE pr_reviews (
+        review_id TEXT PRIMARY KEY,
+        repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name TEXT NOT NULL,
+        pr_number INTEGER NOT NULL,
+        author TEXT NOT NULL DEFAULT '',
+        state TEXT NOT NULL CHECK (state IN ('APPROVED', 'CHANGES_REQUESTED', 'COMMENTED')),
+        submitted_at TEXT NOT NULL,
+        body TEXT NOT NULL DEFAULT '',
+        body_hash TEXT NOT NULL DEFAULT ''
+      ) STRICT
+    `);
+    inner.run(`
+      CREATE TABLE cross_source_correlations (
+        correlation_type TEXT NOT NULL
+          CHECK (correlation_type IN ('pr_review_session', 'pr_review_release', 'pr_finding_commit')),
+        repo_id INTEGER REFERENCES repos(repo_id) ON DELETE SET NULL,
+        repo_name TEXT NOT NULL DEFAULT '',
+        source_a_kind TEXT NOT NULL CHECK (source_a_kind IN ('pr_review', 'pr_finding')),
+        source_a_id TEXT NOT NULL,
+        source_b_kind TEXT NOT NULL CHECK (source_b_kind IN ('session', 'release', 'commit')),
+        source_b_id TEXT NOT NULL,
+        confidence TEXT NOT NULL DEFAULT 'low' CHECK (confidence IN ('high', 'medium', 'low')),
+        computed_at TEXT NOT NULL,
+        PRIMARY KEY (correlation_type, source_a_id, source_b_id)
+      ) STRICT
+    `);
+
+    // repo_id を repos 経由で確定させてからデータ投入する (repo_id と repo_name を整合)。
+    const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h1-repo');
+    inner.run(
+      `INSERT INTO dora_metrics (repo_id, repo_name, period, deployment_frequency, lead_time_hours, computed_at)
+       VALUES (?, 'h1-repo', '2026-04', 5, 12, '2026-05-23T00:00:00.000Z')`,
+      [repoId],
+    );
+    inner.run(
+      `INSERT INTO pr_reviews (review_id, repo_id, repo_name, pr_number, author, state, submitted_at, body, body_hash)
+       VALUES ('h1-rev', ?, 'h1-repo', 7, 'dave', 'APPROVED', '2026-05-23T00:00:00.000Z', 'ok', 'hh')`,
+      [repoId],
+    );
+    inner.run(
+      `INSERT INTO cross_source_correlations (correlation_type, repo_id, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at)
+       VALUES ('pr_review_session', ?, 'h1-repo', 'pr_review', 'h1-a', 'session', 'h1-b', 'medium', '2026-05-23T00:00:00.000Z')`,
+      [repoId],
+    );
+
+    // createTables を再実行 → H-1 drop migration が repo_name を撤去する。例外なく完了すること。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+
+    // 3 テーブルから repo_name が消え、repo_id は残っている。
+    for (const t of ['dora_metrics', 'pr_reviews', 'cross_source_correlations']) {
+      expect(colsOf(t)).not.toContain('repo_name');
+      expect(colsOf(t)).toContain('repo_id');
+    }
+
+    // repo_id データが保全されている。
+    expect(Number(inner.exec("SELECT repo_id FROM dora_metrics WHERE period = '2026-04'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM pr_reviews WHERE review_id = 'h1-rev'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM cross_source_correlations WHERE source_a_id = 'h1-a'")[0]?.values?.[0]?.[0])).toBe(repoId);
+
+    // read メソッドは依然 repoName を返す (JOIN repos で復元・下流契約不変)。
+    expect(db.getPrReviewDetail('h1-rev')?.repoName).toBe('h1-repo');
+    expect(db.getPrReviews().find((r) => r.reviewId === 'h1-rev')?.repoName).toBe('h1-repo');
+    expect(db.getCrossSourceCorrelations().find((c) => c.sourceAId === 'h1-a')?.repoName).toBe('h1-repo');
+
+    // 冪等: 再度 createTables を走らせても repo_name は無いまま例外なく完了する。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+    for (const t of ['dora_metrics', 'pr_reviews', 'cross_source_correlations']) {
+      expect(colsOf(t)).not.toContain('repo_name');
+    }
+
     db.close();
   });
 });

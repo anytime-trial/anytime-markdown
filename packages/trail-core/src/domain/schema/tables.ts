@@ -558,12 +558,12 @@ export const CREATE_EXTENSION_LOGS_INDEXES = [
 // change_failure_rate / mttr は bug→release attribution リンクが実データに無いため
 // 列を設けず deferred とする (列追加は将来の additive migration で対応)。
 // Phase F flip: PK を (repo_name, period) → (repo_id, period) 代理キーへ。repo_id は
-// repos(repo_id) を FK 参照する (PK 構成列のため NOT NULL)。repo_name 列は移行互換のため残す
-// (撤去は将来 Phase H)。DEFAULT 0 は repos に未登録の sentinel だが、書き込み経路
-// (replaceDoraMetrics) は repoIdForName で解決済みの値を供給する。
+// repos(repo_id) を FK 参照する (PK 構成列のため NOT NULL)。DEFAULT 0 は repos に未登録の
+// sentinel だが、書き込み経路 (replaceDoraMetrics) は repoIdForName で解決済みの値を供給する。
+// Phase H-1: 非正規化キャッシュの repo_name 列を物理撤去。repo_name が必要な read は
+// JOIN repos USING(repo_id) で r.repo_name を射影する (下流契約は不変)。
 export const CREATE_DORA_METRICS = `CREATE TABLE IF NOT EXISTS dora_metrics (
   repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
-  repo_name TEXT NOT NULL,
   period TEXT NOT NULL CHECK (period GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]'),
   deployment_frequency REAL NOT NULL DEFAULT 0,
   lead_time_hours REAL,
@@ -576,13 +576,14 @@ export const CREATE_DORA_METRICS = `CREATE TABLE IF NOT EXISTS dora_metrics (
 // repo_name / pr_number を参照する FK (pr_review_comments) を妥当にするため、合成 PK ではなく
 // review_id 単独 PK とし、repo × PR の検索はインデックスで賄う。
 // Phase F flip: repo_id を additive 追加 (PK は review_id 単独のまま不変)。repo_id は
-// repos(repo_id) を FK 参照する。PK が repo_name 非依存のため PK 変更は不要。repo_name 列は
-// 移行互換で残す。DEFAULT 0 は sentinel だが、書き込み経路 (upsertPrReview) は repoIdForName で
-// 解決済みの値を供給する。子 (pr_review_comments / pr_review_findings) は review_id 参照のため不変。
+// repos(repo_id) を FK 参照する。PK が repo_name 非依存のため PK 変更は不要。DEFAULT 0 は
+// sentinel だが、書き込み経路 (upsertPrReview) は repoIdForName で解決済みの値を供給する。
+// 子 (pr_review_comments / pr_review_findings) は review_id 参照のため不変。
+// Phase H-1: 非正規化キャッシュの repo_name 列を物理撤去。repo_name が必要な read は
+// JOIN repos USING(repo_id) で r.repo_name を射影する (下流契約は不変)。
 export const CREATE_PR_REVIEWS = `CREATE TABLE IF NOT EXISTS pr_reviews (
   review_id TEXT PRIMARY KEY,
   repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
-  repo_name TEXT NOT NULL,
   pr_number INTEGER NOT NULL,
   author TEXT NOT NULL DEFAULT '',
   state TEXT NOT NULL CHECK (state IN ('APPROVED', 'CHANGES_REQUESTED', 'COMMENTED')),
@@ -633,12 +634,13 @@ export const CREATE_PR_REVIEW_FINDINGS_INDEXES = [
 // まま不変)。repo は確定しないこともある (source_b が release tag 等で別 repo を指す可能性) ため
 // repo_id は NULL-able + ON DELETE SET NULL とする。書き込み経路 (replaceCrossSourceCorrelations) は
 // repoIdForName で解決済みの値を供給し、source_b_id に release tag を保存している箇所でも repo_id 列で
-// リポを区別できるようにする。repo_name 列は移行互換で残す。
+// リポを区別できるようにする。
+// Phase H-1: 非正規化キャッシュの repo_name 列を物理撤去。repo_name が必要な read は
+// LEFT JOIN repos USING(repo_id) で r.repo_name を射影する (repo_id NULL 行は repo_name='' とする)。
 export const CREATE_CROSS_SOURCE_CORRELATIONS = `CREATE TABLE IF NOT EXISTS cross_source_correlations (
   correlation_type TEXT NOT NULL
     CHECK (correlation_type IN ('pr_review_session', 'pr_review_release', 'pr_finding_commit')),
   repo_id INTEGER REFERENCES repos(repo_id) ON DELETE SET NULL,
-  repo_name TEXT NOT NULL DEFAULT '',
   source_a_kind TEXT NOT NULL CHECK (source_a_kind IN ('pr_review', 'pr_finding')),
   source_a_id TEXT NOT NULL,
   source_b_kind TEXT NOT NULL CHECK (source_b_kind IN ('session', 'release', 'commit')),

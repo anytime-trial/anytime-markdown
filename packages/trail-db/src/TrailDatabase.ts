@@ -230,6 +230,15 @@ const DERIVED_REPO_ID_DDL: Readonly<Record<string, string>> = {
   dora_metrics: CREATE_DORA_METRICS,
 };
 
+// Phase H-1: derived テーブル名 → 新スキーマ (repo_name 列を撤去した) DDL の対応表。
+// migrateDropDerivedRepoName が repo_name 物理撤去の 12-step 再構築で引く。
+// repo_name が必要な read は JOIN repos USING(repo_id) で復元する (下流契約は不変)。
+const DERIVED_DROP_REPO_NAME_DDL: Readonly<Record<string, string>> = {
+  dora_metrics: CREATE_DORA_METRICS,
+  pr_reviews: CREATE_PR_REVIEWS,
+  cross_source_correlations: CREATE_CROSS_SOURCE_CORRELATIONS,
+};
+
 /**
  * `*_code_graph_communities` テーブルに `stable_key` 列が無ければ ALTER で追加する。
  * 起動時マイグレーションのため、`saveCurrentCodeGraph` / `saveReleaseCodeGraph` / `upsert*` の
@@ -2659,6 +2668,129 @@ export class TrailDatabase {
   }
 
   /**
+   * Phase H-1: derived 3 テーブル (dora_metrics / pr_reviews / cross_source_correlations) から
+   * 非正規化キャッシュの repo_name 列を物理撤去する (冪等)。`~/.claude/rules/
+   * sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
+   *
+   * - 各テーブルに repo_name 列が在る時のみ実行する (`columnExists` ガードで冪等)。
+   * - 撤去前に repo_name から repos を self-seed し、未解決の repo_id を backfill する (Phase F flip /
+   *   additive が既に repo_id を埋めている前提だが防御的に再実行する)。
+   * - 新スキーマ (repo_name を持たない CREATE_* DDL) へ INSERT...SELECT で共有列をコピーする。
+   *   repo_name 列は新スキーマに無いため自然に落ちる。
+   * - CREATE_* (CREATE TABLE IF NOT EXISTS) の実行前に呼ぶ。新規 DB / 撤去済 DB は no-op。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * 撤去後、repo_name が必要な read メソッドは JOIN repos USING(repo_id) で r.repo_name を射影し、
+   * 結果行のキー名 repo_name を維持する (下流契約は不変)。
+   */
+  private migrateDropDerivedRepoName(db: Database): void {
+    for (const table of ['dora_metrics', 'pr_reviews', 'cross_source_correlations']) {
+      this.dropDerivedRepoNameColumn(db, table);
+    }
+  }
+
+  /** Phase H-1: 1 テーブルから repo_name 列を 12-step 再構築で物理撤去する (冪等)。 */
+  private dropDerivedRepoNameColumn(db: Database, table: string): void {
+    const exists =
+      db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+        ?.length;
+    if (!exists) return; // 新規 DB → CREATE_* が新スキーマ (repo_name なし) を作る
+    if (!columnExists(db, table, 'repo_name')) return; // 既に撤去済 (冪等)
+    if (!columnExists(db, table, 'repo_id')) {
+      // repo_id が無い退化 DB は H-1 の対象外 (Phase F flip/additive が先に repo_id を入れる想定)。
+      this.logger.warn(`[derived drop repo_name] ${table} has no repo_id, skip drop`);
+      return;
+    }
+
+    try {
+      // ── pre: repo_name から repos を self-seed し、未解決 repo_id を backfill する (防御的) ──
+      db.run(
+        `INSERT OR IGNORE INTO repos (repo_name, created_at)
+         SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         FROM "${table}" WHERE repo_name IS NOT NULL`,
+      );
+      db.run(
+        `UPDATE "${table}"
+           SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name)
+         WHERE (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name) IS NOT NULL`,
+      );
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        this.rebuildDerivedTableDroppingRepoName(db, table);
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(
+            `[derived drop repo_name] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(
+            `[derived drop repo_name] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error(
+        `dropDerivedRepoNameColumn(${table}) failed`,
+        e instanceof Error ? e : new Error(String(e)),
+      );
+      throw e;
+    }
+  }
+
+  /** flip: derived テーブルを新スキーマ (repo_name なし) へ 12-step 再構築する。 */
+  private rebuildDerivedTableDroppingRepoName(db: Database, table: string): void {
+    const ddl = DERIVED_DROP_REPO_NAME_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[derived drop repo_name] no DDL registered for ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    // 新スキーマの列のうち旧テーブルにも存在する列を共有列としてコピーする。新スキーマには
+    // repo_name が無いため、共有列に repo_name は含まれず自然に落ちる。repo_id は両者に在るためコピーされる。
+    const sharedCols = newCols.filter((c) => oldCols.has(c));
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}"`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
+  /**
    * 既存 DB の releases に repo_id 列が無ければ追加する (Phase B step1・非破壊)。
    * 新規 DB は CREATE_RELEASES に repo_id を含むため no-op。FK は init で off のため
    * ALTER では REFERENCES を付けず plain INTEGER とする (既存挙動と整合)。
@@ -2754,7 +2886,8 @@ export class TrailDatabase {
       'current_code_graphs', 'current_code_graph_communities',
       'current_file_analysis', 'release_file_analysis',
       'current_function_analysis', 'release_function_analysis',
-      'dora_metrics', 'pr_reviews', 'cross_source_correlations',
+      // Phase H-1: dora_metrics / pr_reviews / cross_source_correlations は repo_name 列を撤去済。
+      // これらの repo seed は H-1 の drop migration (drop 直前に self-seed) が担うため、ここから除外する。
     ];
     for (const table of REPO_NAME_TABLES) {
       try {
@@ -2906,6 +3039,10 @@ export class TrailDatabase {
     // cross_source_correlations の repo_id additive) を repo_id 化する。CREATE TABLE IF NOT EXISTS
     // は既存テーブルに無効なため、CREATE_DORA_METRICS 等の実行前に呼ぶ。新規 DB / flip 済 DB では no-op。
     this.migrateDerivedTablesRepoId(db);
+    // Phase H-1: derived 3 テーブルから repo_name 列 (非正規化キャッシュ) を物理撤去する。
+    // migrateDerivedTablesRepoId が先に repo_id を埋めた後に呼ぶ。CREATE TABLE IF NOT EXISTS は
+    // 既存テーブルに無効なため CREATE_* の前に呼ぶ。新規 DB / 撤去済 DB では no-op。
+    this.migrateDropDerivedRepoName(db);
     // LEP Layer 4 (Aggregator) の DORA 指標出力先。新規テーブル追加のみ (既存 DDL 不変)。
     db.run(CREATE_DORA_METRICS);
     // LEP 新ソース参照実装 (Step 4b): GitHub PR review の生データ。新規テーブル追加のみ。
@@ -3939,15 +4076,16 @@ export class TrailDatabase {
       db.run('DELETE FROM dora_metrics');
       const stmt = db.prepare(
         `INSERT INTO dora_metrics
-           (repo_id, repo_name, period, deployment_frequency, lead_time_hours, computed_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+           (repo_id, period, deployment_frequency, lead_time_hours, computed_at)
+         VALUES (?, ?, ?, ?, ?)`,
       );
       try {
         for (const r of rows) {
           // Phase F: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を
           // 解決して保存する (新 PK は (repo_id, period))。repoIdForName は upsert で repos に登録する。
+          // Phase H-1: repo_name 列は撤去済。repo_name は repos 経由で復元する (read で JOIN)。
           const repoId = this.repoIdForName(r.repoName);
-          stmt.run([repoId, r.repoName, r.period, r.deploymentFrequency, r.leadTimeHours, r.computedAt]);
+          stmt.run([repoId, r.period, r.deploymentFrequency, r.leadTimeHours, r.computedAt]);
         }
       } finally {
         stmt.free();
@@ -3974,15 +4112,15 @@ export class TrailDatabase {
     this.withTransaction((db) => {
       // Phase F: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して
       // 保存する (PK は review_id のまま不変・repo_id は additive 列)。
+      // Phase H-1: repo_name 列は撤去済。repo_name は repos 経由で復元する (read で JOIN)。
       const repoId = this.repoIdForName(review.repoName);
       db.run(
         `INSERT OR REPLACE INTO pr_reviews
-           (review_id, repo_id, repo_name, pr_number, author, state, submitted_at, body, body_hash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (review_id, repo_id, pr_number, author, state, submitted_at, body, body_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           review.reviewId,
           repoId,
-          review.repoName,
           review.prNumber,
           review.author,
           review.state,
@@ -4012,8 +4150,10 @@ export class TrailDatabase {
    */
   getPrReviewDetail(reviewId: string): PrReviewDetail | null {
     const db = this.ensureDb();
+    // Phase H-1: repo_name は pr_reviews に無い。repos を JOIN して射影する (結果キーは不変)。
     const head = db.exec(
-      'SELECT repo_name, pr_number, state, body FROM pr_reviews WHERE review_id = ?',
+      `SELECT r.repo_name, p.pr_number, p.state, p.body
+       FROM pr_reviews p JOIN repos r USING(repo_id) WHERE p.review_id = ?`,
       [reviewId],
     );
     const row = head[0]?.values[0];
@@ -4040,9 +4180,10 @@ export class TrailDatabase {
   /** CrossSourceCorrelator (Step 4d) 用: 全 PR review を返す。 */
   getPrReviews(): PrReviewRow[] {
     const db = this.ensureDb();
+    // Phase H-1: repo_name は pr_reviews に無い。repos を JOIN して射影する (結果キーは不変)。
     const result = db.exec(
-      `SELECT review_id, repo_name, pr_number, author, state, submitted_at, body_hash
-       FROM pr_reviews ORDER BY submitted_at`,
+      `SELECT p.review_id, r.repo_name, p.pr_number, p.author, p.state, p.submitted_at, p.body_hash
+       FROM pr_reviews p JOIN repos r USING(repo_id) ORDER BY p.submitted_at`,
     );
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
@@ -4161,19 +4302,19 @@ export class TrailDatabase {
       db.run('DELETE FROM cross_source_correlations');
       const stmt = db.prepare(
         `INSERT INTO cross_source_correlations
-           (correlation_type, repo_id, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (correlation_type, repo_id, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       try {
         for (const r of rows) {
           // Phase F: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して
           // 保存する (PK は (correlation_type, source_a_id, source_b_id) のまま不変・repo_id は additive)。
           // source_b_id に release tag を保存している箇所でも repo_id 列でリポを区別できるようにする。
+          // Phase H-1: repo_name 列は撤去済。repo_name は repos 経由で復元する (read で LEFT JOIN)。
           const repoId = this.repoIdForName(r.repoName);
           stmt.run([
             r.correlationType,
             repoId,
-            r.repoName,
             r.sourceAKind,
             r.sourceAId,
             r.sourceBKind,
@@ -4191,10 +4332,13 @@ export class TrailDatabase {
   /** テスト / 診断用: cross_source_correlations を返す。 */
   getCrossSourceCorrelations(): CrossSourceCorrelationRow[] {
     const db = this.ensureDb();
+    // Phase H-1: repo_name は cross_source_correlations に無い。repo_id は NULL-able のため
+    // LEFT JOIN repos で射影し、未解決 (repo_id NULL/未登録) は '' とする (結果キー・値は不変)。
     const result = db.exec(
-      `SELECT correlation_type, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at
-       FROM cross_source_correlations
-       ORDER BY correlation_type, source_a_id, source_b_id`,
+      `SELECT c.correlation_type, COALESCE(r.repo_name, '') AS repo_name, c.source_a_kind,
+              c.source_a_id, c.source_b_kind, c.source_b_id, c.confidence, c.computed_at
+       FROM cross_source_correlations c LEFT JOIN repos r USING(repo_id)
+       ORDER BY c.correlation_type, c.source_a_id, c.source_b_id`,
     );
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
