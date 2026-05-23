@@ -1,16 +1,16 @@
 {
-  "name": "@anytime-markdown/graph",
+  "name": "@anytime-markdown/mindmap-viewer",
   "version": "0.1.0",
   "license": "MIT",
   "private": false,
   "publishConfig": { "access": "public" },
   "type": "module",
-  "main": "dist/anytime-graph.js",
-  "module": "dist/anytime-graph.js",
+  "main": "dist/mindmap-viewer.js",
+  "module": "dist/mindmap-viewer.js",
   "types": "dist/index.d.ts",
   "files": ["dist/*.js", "dist/*.d.ts", "graph-input.schema.json"],
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/anytime-graph.js" },
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/mindmap-viewer.js" },
     "./schema": "./graph-input.schema.json"
   },
   "scripts": {
