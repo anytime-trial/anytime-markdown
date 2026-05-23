@@ -684,6 +684,8 @@ export async function activate(context: vscode.ExtensionContext) {
 				gitRoot: wsRootForDb,
 				trailDb,
 				gitRoots: getWatchedGitRoots(lepConfig.gitRoots),
+				claudeProjectsDir: lepConfig.sources.claude.projectsDir || undefined,
+				codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
 				memoryCoreService: memoryCoreService ?? undefined,
 				stage: lepStage,
 				// Wave 3 前 LLM Pre-flight。Ollama 不在時は LLM 依存 analyzer のみ skip し、

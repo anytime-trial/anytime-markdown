@@ -106,8 +106,26 @@ export interface LepGitHubSourceConfig {
   since: string;
 }
 
+/**
+ * Claude Code セッションログ (JSONL) の探索元。`projectsDir` 空文字は「未指定」とし、
+ * JsonlIngester の既定 (`os.homedir()/.claude/projects`) にフォールバックする。
+ */
+export interface LepClaudeSourceConfig {
+  projectsDir: string;
+}
+
+/**
+ * Codex セッションログ (rollout JSONL) の探索元。`sessionsDir` 空文字は「未指定」とし、
+ * JsonlIngester の既定 (`os.homedir()/.codex/sessions`) にフォールバックする。
+ */
+export interface LepCodexSourceConfig {
+  sessionsDir: string;
+}
+
 export interface LepSourcesConfig {
   github: LepGitHubSourceConfig;
+  claude: LepClaudeSourceConfig;
+  codex: LepCodexSourceConfig;
 }
 
 export interface LepConfig {
@@ -190,7 +208,11 @@ export interface PartialLepConfig {
     conversation?: Partial<LepConversationConfig>;
   };
   analyzers?: LepAnalyzersConfig;
-  sources?: { github?: Partial<LepGitHubSourceConfig> };
+  sources?: {
+    github?: Partial<LepGitHubSourceConfig>;
+    claude?: Partial<LepClaudeSourceConfig>;
+    codex?: Partial<LepCodexSourceConfig>;
+  };
   logs?: { minLevel?: LepLogLevel };
 }
 
@@ -218,6 +240,8 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
   ) as LepAnalyzersConfig,
   sources: {
     github: { enabled: false, tokenEnv: 'GITHUB_TOKEN', maxPrs: 30, since: '' },
+    claude: { projectsDir: '' },
+    codex: { sessionsDir: '' },
   },
   logs: { minLevel: 'info' },
 };
@@ -378,18 +402,49 @@ export function validateLepConfigInput(
   if (raw['sources'] !== undefined) {
     if (!isPlainObject(raw['sources'])) {
       warnings.push(`${sourceLabel}: sources はオブジェクトである必要があります (無視)`);
-    } else if (isPlainObject(raw['sources']['github'])) {
-      const g = raw['sources']['github'];
-      const github: Partial<LepGitHubSourceConfig> = {};
-      if (typeof g['enabled'] === 'boolean') github.enabled = g['enabled'];
-      if (typeof g['tokenEnv'] === 'string') github.tokenEnv = g['tokenEnv'];
-      if (typeof g['maxPrs'] === 'number' && Number.isFinite(g['maxPrs'])) {
-        github.maxPrs = g['maxPrs'];
-      }
-      if (typeof g['since'] === 'string') github.since = g['since'];
-      value.sources = { github };
     } else {
-      warnings.push(`${sourceLabel}: sources.github はオブジェクトである必要があります (無視)`);
+      const sourcesRaw = raw['sources'];
+      const sources: NonNullable<PartialLepConfig['sources']> = {};
+
+      if (sourcesRaw['github'] !== undefined) {
+        if (isPlainObject(sourcesRaw['github'])) {
+          const g = sourcesRaw['github'];
+          const github: Partial<LepGitHubSourceConfig> = {};
+          if (typeof g['enabled'] === 'boolean') github.enabled = g['enabled'];
+          if (typeof g['tokenEnv'] === 'string') github.tokenEnv = g['tokenEnv'];
+          if (typeof g['maxPrs'] === 'number' && Number.isFinite(g['maxPrs'])) {
+            github.maxPrs = g['maxPrs'];
+          }
+          if (typeof g['since'] === 'string') github.since = g['since'];
+          sources.github = github;
+        } else {
+          warnings.push(`${sourceLabel}: sources.github はオブジェクトである必要があります (無視)`);
+        }
+      }
+
+      if (sourcesRaw['claude'] !== undefined) {
+        if (isPlainObject(sourcesRaw['claude'])) {
+          const c = sourcesRaw['claude'];
+          const claude: Partial<LepClaudeSourceConfig> = {};
+          if (typeof c['projectsDir'] === 'string') claude.projectsDir = c['projectsDir'];
+          sources.claude = claude;
+        } else {
+          warnings.push(`${sourceLabel}: sources.claude はオブジェクトである必要があります (無視)`);
+        }
+      }
+
+      if (sourcesRaw['codex'] !== undefined) {
+        if (isPlainObject(sourcesRaw['codex'])) {
+          const cx = sourcesRaw['codex'];
+          const codex: Partial<LepCodexSourceConfig> = {};
+          if (typeof cx['sessionsDir'] === 'string') codex.sessionsDir = cx['sessionsDir'];
+          sources.codex = codex;
+        } else {
+          warnings.push(`${sourceLabel}: sources.codex はオブジェクトである必要があります (無視)`);
+        }
+      }
+
+      if (Object.keys(sources).length > 0) value.sources = sources;
     }
   }
 
@@ -452,6 +507,12 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
         tokenEnv: override.sources?.github?.tokenEnv ?? base.sources.github.tokenEnv,
         maxPrs: override.sources?.github?.maxPrs ?? base.sources.github.maxPrs,
         since: override.sources?.github?.since ?? base.sources.github.since,
+      },
+      claude: {
+        projectsDir: override.sources?.claude?.projectsDir ?? base.sources.claude.projectsDir,
+      },
+      codex: {
+        sessionsDir: override.sources?.codex?.sessionsDir ?? base.sources.codex.sessionsDir,
       },
     },
     logs: { minLevel: override.logs?.minLevel ?? base.logs.minLevel },

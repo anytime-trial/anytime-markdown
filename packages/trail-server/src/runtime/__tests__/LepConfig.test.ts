@@ -105,6 +105,52 @@ describe('validateLepConfigInput', () => {
     });
   });
 
+  it('parses sources.claude.projectsDir / sources.codex.sessionsDir', () => {
+    const { value, warnings } = validateLepConfigInput(
+      { sources: { claude: { projectsDir: '/data/claude/projects' }, codex: { sessionsDir: '/data/codex/sessions' } } },
+      'test',
+    );
+    expect(warnings).toEqual([]);
+    expect(value.sources?.claude).toEqual({ projectsDir: '/data/claude/projects' });
+    expect(value.sources?.codex).toEqual({ sessionsDir: '/data/codex/sessions' });
+  });
+
+  it('parses github / claude / codex independently in one sources block', () => {
+    const { value, warnings } = validateLepConfigInput(
+      {
+        sources: {
+          github: { enabled: true },
+          claude: { projectsDir: '/c' },
+          codex: { sessionsDir: '/x' },
+        },
+      },
+      'test',
+    );
+    expect(warnings).toEqual([]);
+    expect(value.sources?.github).toEqual({ enabled: true });
+    expect(value.sources?.claude).toEqual({ projectsDir: '/c' });
+    expect(value.sources?.codex).toEqual({ sessionsDir: '/x' });
+  });
+
+  it('does not warn about github when only claude is specified', () => {
+    const { value, warnings } = validateLepConfigInput(
+      { sources: { claude: { projectsDir: '/c' } } },
+      'test',
+    );
+    expect(warnings).toEqual([]);
+    expect(value.sources?.github).toBeUndefined();
+    expect(value.sources?.claude).toEqual({ projectsDir: '/c' });
+  });
+
+  it('warns when sources.claude / sources.codex are not plain objects', () => {
+    const { warnings } = validateLepConfigInput(
+      { sources: { claude: 'bad', codex: 5 } },
+      'test',
+    );
+    expect(warnings.some((w) => w.includes('sources.claude'))).toBe(true);
+    expect(warnings.some((w) => w.includes('sources.codex'))).toBe(true);
+  });
+
   it('parses gitRoots string array', () => {
     const { value, warnings } = validateLepConfigInput({ gitRoots: ['/a', '/b'] }, 'test');
     expect(warnings).toEqual([]);
@@ -189,6 +235,23 @@ describe('resolveGitHubSource', () => {
     });
     const r = resolveGitHubSource(cfg, { GITHUB_TOKEN: 't' });
     expect(r.since).toBeUndefined();
+  });
+});
+
+describe('sources.claude / sources.codex defaults & merge', () => {
+  it('defaults claude.projectsDir / codex.sessionsDir to empty string', () => {
+    expect(DEFAULT_LEP_CONFIG.sources.claude.projectsDir).toBe('');
+    expect(DEFAULT_LEP_CONFIG.sources.codex.sessionsDir).toBe('');
+  });
+
+  it('merges claude/codex overrides while preserving github defaults', () => {
+    const cfg = mergeLepConfig(DEFAULT_LEP_CONFIG, {
+      sources: { claude: { projectsDir: '/p' }, codex: { sessionsDir: '/s' } },
+    });
+    expect(cfg.sources.claude.projectsDir).toBe('/p');
+    expect(cfg.sources.codex.sessionsDir).toBe('/s');
+    // github は base 既定を維持
+    expect(cfg.sources.github.enabled).toBe(false);
   });
 });
 

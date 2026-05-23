@@ -28,9 +28,15 @@ export interface JsonlIngesterOptions {
    * Step 2a 時点で SessionImporter は未実装のため、未指定の場合は全件「未 import 扱い」で emit する。
    */
   readonly importedFilesProvider?: ImportedFilesProvider;
-  /** ~/.claude/projects のオーバーライド (テスト用) */
+  /**
+   * Claude Code セッションログの探索元 (lep.json `sources.claude.projectsDir` / テスト上書き)。
+   * 省略時は `os.homedir()/.claude/projects`。
+   */
   readonly claudeProjectsDir?: string;
-  /** ~/.codex/sessions のオーバーライド (テスト用) */
+  /**
+   * Codex セッションログの探索元 (lep.json `sources.codex.sessionsDir` / テスト上書き)。
+   * 省略時は `os.homedir()/.codex/sessions`。
+   */
   readonly codexSessionsDir?: string;
 }
 

@@ -295,6 +295,8 @@ program
       gitRoot: memoryCorePrimaryGitRoot,
       trailDb,
       gitRoots: effectiveGitRoots,
+      claudeProjectsDir: lepConfig.sources.claude.projectsDir || undefined,
+      codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
       memoryCoreService,
       stage: lepStage,
       checkLlmAvailability: () =>
