@@ -6,7 +6,7 @@ await build({
   format: 'esm',
   target: 'es2023',
   outfile: 'dist/anytime-graph.js',
-  sourcemap: true,
+  sourcemap: false,
   // graph-core を内包（external にしない）。React は元々含まれない。
 });
 
@@ -16,5 +16,5 @@ await build({
   format: 'iife',
   target: 'es2023',
   outfile: 'dist/anytime-graph.iife.js',
-  sourcemap: true,
+  sourcemap: false,
 });

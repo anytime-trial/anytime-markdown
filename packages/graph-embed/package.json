@@ -8,7 +8,7 @@
   "main": "dist/anytime-graph.js",
   "module": "dist/anytime-graph.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "graph-input.schema.json"],
+  "files": ["dist/*.js", "dist/*.d.ts", "graph-input.schema.json"],
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/anytime-graph.js" },
     "./schema": "./graph-input.schema.json"
