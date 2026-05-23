@@ -236,7 +236,7 @@ export class AnalyzeAllRunner extends BaseRunner {
         }),
         new GitIngester({ gitRoots }),
         new CoverageIngester({ gitRoots }),
-        new MetaJsonIngester(),
+        new MetaJsonIngester({ claudeProjectsDir: opts.claudeProjectsDir }),
       ];
       // 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (githubPrReview 指定時のみ)。
       if (opts.githubPrReview) {
