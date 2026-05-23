@@ -4,7 +4,6 @@
   "viewsContainer.title": "Anytime Trail",
   "config.daemon.useExternalDaemon": "外部で起動済みの trail-server デーモンを利用する。先に `npx anytime-trail-server start` を起動しておく必要がある。",
   "config.analyzeAll.enabled": "AnalyzeAll パイプライン (importAll + memory-core runOnce) を有効化する。OFF (既定) のとき Pipelines ツリービューは非表示になり、自動実行・手動実行ともに行われない。",
-  "config.lep.stageOverride": "`lep.json` (`<workspace>/.anytime/trail/lep.json`) の LEP stage を一時的に上書きする。`disabled` / `sources` / `primary` / `memory` / `primary+memory` / `all` のいずれか。空欄なら `lep.json` の値を使用。実行する Wave (1=取込, 2=primary, 3=memory) を制御する。反映には Reload Window が必要。",
   "config.lep.configPath": "`lep.json` の代替パス。指定時はこのファイルのみを読み込む (標準の `.anytime/trail/lep.json` 探索はスキップ)。反映には Reload Window が必要。",
   "command.memory.rebuildIndex": "メモリインデックスを再構築",
   "command.analyzeAll.status": "AnalyzeAll の状態を表示",
