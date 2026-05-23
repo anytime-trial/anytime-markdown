@@ -13,7 +13,7 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
@@ -286,6 +286,21 @@ jobs:
         working-directory: packages/web-app
         env:
           AUTH_SECRET: test-secret-for-ci
+
+      # SonarCloud のカバレッジ計測対象を daily-build と揃える。
+      # 上で個別に coverage 済みの 6 パッケージ以外の lcov をここで生成する。
+      # lcov を作らないパッケージは sonar.sources に載っていても 0% 計上される。
+      - name: Run remaining package tests with coverage
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: |
+          set -e
+          for p in mcp-cms mcp-cms-remote mcp-graph mcp-markdown mcp-trail \
+                   spreadsheet-core trace-core trail-core trail-db memory-core \
+                   trail-server agent-core markdown-eval-core review-agent ollama-core; do
+            echo "::group::coverage $p"
+            (cd "packages/$p" && npx jest --maxWorkers=2 --coverage --coverageReporters=lcov)
+            echo "::endgroup::"
+          done
 
       - name: SonarCloud Scan
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
