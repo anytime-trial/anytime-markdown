@@ -29,15 +29,16 @@ export const CREATE_REPOS = `CREATE TABLE IF NOT EXISTS repos (
   created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;
 
-// Phase D flip: sessions に repo_id を additive 追加 (PK は id のまま不変)。repo_name は移行互換で残置。
+// Phase D flip: sessions に repo_id を additive 追加 (PK は id のまま不変)。
 // repo_id は nullable とする: 既存 DB は ALTER ADD COLUMN で追加し backfill するが、SQLite の
 // ALTER ADD COLUMN は NOT NULL を default 無しで追加できないため additive 経路と整合させる。
 // 新規 DB の CREATE もこれに合わせ nullable + DEFAULT なしとし、書き込み経路 (INSERT_SESSION) で
 // repoIdForName 解決済みの値を必ず供給する。FK は init() で OFF のため宣言のみ (現運用と整合)。
+// Phase H-4: 非正規化キャッシュの repo_name 列を物理撤去。repo フィルタは repo_id = ? (repoIdForName
+// 解決) で行い、repo_name が必要な read は (LEFT) JOIN repos で復元する (下流契約は不変)。
 export const CREATE_SESSIONS = `CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   slug TEXT NOT NULL DEFAULT '',
-  repo_name TEXT NOT NULL DEFAULT '',
   repo_id INTEGER REFERENCES repos(repo_id) ON DELETE CASCADE,
   version TEXT NOT NULL DEFAULT '',
   entrypoint TEXT NOT NULL DEFAULT '',
@@ -130,10 +131,12 @@ export const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
 ) STRICT`;
 
 // Phase D flip: PK を (session_id, commit_hash) → (session_id, repo_id, commit_hash) へ再設計し、
-// リポ横断で同一 commit_hash を扱えるようにする (widening: 旧 PK は新 PK の部分集合)。repo_name は
-// 移行互換で残置。repo_id は PK 構成列のため NOT NULL。FK は init() で OFF のため宣言のみ。
+// リポ横断で同一 commit_hash を扱えるようにする (widening: 旧 PK は新 PK の部分集合)。
+// repo_id は PK 構成列のため NOT NULL。FK は init() で OFF のため宣言のみ。
 // DEFAULT 0 は repos に未登録の "未解決" sentinel。書き込み経路 (resolveCommits) は repoIdForName で
 // 解決済みの値を供給するが、repo_id を省略する既存テスト fixture との互換のため DEFAULT を持たせる。
+// Phase H-4: 非正規化キャッシュの repo_name 列を物理撤去。repo_name が必要な read (SyncService の
+// Supabase ミラー含む) は (LEFT) JOIN repos USING(repo_id) で復元する (下流契約は不変)。
 export const CREATE_SESSION_COMMITS = `CREATE TABLE IF NOT EXISTS session_commits (
   session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   commit_hash TEXT NOT NULL,
@@ -144,28 +147,27 @@ export const CREATE_SESSION_COMMITS = `CREATE TABLE IF NOT EXISTS session_commit
   files_changed INTEGER NOT NULL DEFAULT 0,
   lines_added INTEGER NOT NULL DEFAULT 0,
   lines_deleted INTEGER NOT NULL DEFAULT 0,
-  repo_name TEXT NOT NULL DEFAULT '',
   repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
   PRIMARY KEY (session_id, repo_id, commit_hash)
 ) STRICT`;
 
 // Phase D flip: PK を (commit_hash, file_path) → (repo_id, commit_hash, file_path) へ再設計し、
-// リポ横断で同一 commit_hash を扱えるようにする (widening)。repo_name は移行互換で残置。
+// リポ横断で同一 commit_hash を扱えるようにする (widening)。
 // repo_id は PK 構成列のため NOT NULL。DEFAULT 0 sentinel + 書き込み経路で repoIdForName 解決。
+// Phase H-4: 非正規化キャッシュの repo_name 列を物理撤去。repo_name が必要な read は (LEFT) JOIN repos。
 export const CREATE_COMMIT_FILES = `CREATE TABLE IF NOT EXISTS commit_files (
   commit_hash TEXT NOT NULL,
   file_path TEXT NOT NULL,
-  repo_name TEXT NOT NULL DEFAULT '',
   repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
   PRIMARY KEY (repo_id, commit_hash, file_path)
 ) STRICT`;
 
-// Phase D flip: PK を (session_id, repo_name) → (session_id, repo_id) へ再設計する。repo_name は
-// 移行互換で残置。repo_id は PK 構成列のため NOT NULL。DEFAULT 0 sentinel + 書き込み経路
+// Phase D flip: PK を (session_id, repo_name) → (session_id, repo_id) へ再設計する。
+// repo_id は PK 構成列のため NOT NULL。DEFAULT 0 sentinel + 書き込み経路
 // (markCommitResolutionDone) で repoIdForName 解決済みの値を供給する。
+// Phase H-4: 非正規化キャッシュの repo_name 列を物理撤去。resolved 判定 filter は repo_id = ? で行う。
 export const CREATE_SESSION_COMMIT_RESOLUTIONS = `CREATE TABLE IF NOT EXISTS session_commit_resolutions (
   session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  repo_name TEXT NOT NULL,
   repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
   resolved_at TEXT NOT NULL CHECK (resolved_at GLOB ${TS_GLOB_MS} OR resolved_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (session_id, repo_id)

@@ -14,10 +14,7 @@ const isoDaysAgo = (days: number): string =>
 const insertSession = (db: TrailDatabase, sessionId: string, startTime: string): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-       message_count, file_path, file_size, imported_at
-     ) VALUES (?, ?, 'r', '0', '', '', ?, '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
     [sessionId, sessionId, startTime],
   );
 };
@@ -63,10 +60,7 @@ const insertSessionCommit = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-       message_count, file_path, file_size, imported_at
-     ) VALUES (?, ?, 'r', '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [sessionId, sessionId],
   );
   inner.run(

@@ -66,30 +66,43 @@ async function buildSetup(opts: {
   const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
 
   // 2. Build trail DB in-memory
+  // Phase H-4: trail.session_commits / commit_files から repo_name 列を撤去した。repo 帰属は repo_id で
+  // 表現し、linkAddresses は trail.repos を JOIN して repo_name → repo_id を解決する。
   const trailHandle: BetterSqlite3MemoryDb = BetterSqlite3MemoryDb.openInMemory();
   trailHandle.run('PRAGMA foreign_keys = ON');
+  trailHandle.run(`CREATE TABLE repos (
+    repo_id INTEGER PRIMARY KEY,
+    repo_name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  ) STRICT`);
+  trailHandle.run(
+    `INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    [repoName]
+  );
+  const repoIdRow = trailHandle.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  const repoId = Number(repoIdRow[0]?.values?.[0]?.[0] ?? 0);
   trailHandle.run(`CREATE TABLE session_commits (
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL,
     committed_at TEXT NOT NULL,
-    repo_name TEXT NOT NULL
+    repo_id INTEGER NOT NULL
   ) STRICT`);
   trailHandle.run(`CREATE TABLE commit_files (
     id INTEGER PRIMARY KEY,
     commit_hash TEXT NOT NULL,
     file_path TEXT NOT NULL,
-    repo_name TEXT NOT NULL
+    repo_id INTEGER NOT NULL
   ) STRICT`);
 
   if (commitFile && commitMessage && commitAt) {
     const hash = 'abc123def456';
     trailHandle.run(
-      `INSERT INTO session_commits (commit_hash, commit_message, committed_at, repo_name) VALUES (?, ?, ?, ?)`,
-      [hash, commitMessage, commitAt, repoName]
+      `INSERT INTO session_commits (commit_hash, commit_message, committed_at, repo_id) VALUES (?, ?, ?, ?)`,
+      [hash, commitMessage, commitAt, repoId]
     );
     trailHandle.run(
-      `INSERT INTO commit_files (commit_hash, file_path, repo_name) VALUES (?, ?, ?)`,
-      [hash, commitFile, repoName]
+      `INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`,
+      [hash, commitFile, repoId]
     );
   }
 

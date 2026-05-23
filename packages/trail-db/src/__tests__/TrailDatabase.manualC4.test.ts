@@ -46,13 +46,15 @@ function insertSession(
     fileSize = 1024,
     commitsResolvedAt = null,
   } = opts;
+  // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
+  const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
     `INSERT OR IGNORE INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
+       id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source,
        commits_resolved_at
      ) VALUES (?, ?, ?, '', '', ?, ?, ?, 0, '', ?, ?, ?, ?)`,
-    [id, id, repoName, model, startTime, endTime, fileSize, importedAt, source, commitsResolvedAt],
+    [id, id, repoId, model, startTime, endTime, fileSize, importedAt, source, commitsResolvedAt],
   );
 }
 

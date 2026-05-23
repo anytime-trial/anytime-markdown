@@ -264,6 +264,20 @@ const CURRENT_DROP_REPO_NAME_DDL: Readonly<Record<string, string>> = {
   current_function_analysis: CREATE_CURRENT_FUNCTION_ANALYSIS,
 };
 
+// Phase H-4: session/commit 系テーブル名 → 新スキーマ (repo_name 列を撤去した) DDL の対応表。
+// migrateDropSessionCommitRepoName が repo_name 物理撤去の 12-step 再構築で引く。
+// 複合 PK (session_id, repo_id, commit_hash) / (repo_id, commit_hash, file_path) / (session_id, repo_id) ・
+// FK は repo_id 構成のため repo_name 撤去後も不変。sessions は PK が id・repo_id additive。新 DDL に無い
+// ALTER 由来の列 (sessions の peak_context_tokens など多数) は再構築時に旧テーブルから引き継ぐ
+// (rebuildSessionCommitTableDroppingRepoName 参照)。repo_name が必要な read (SyncService の Supabase
+// ミラー含む) は (LEFT) JOIN repos USING(repo_id) で復元する (下流契約は不変)。
+const SESSION_COMMIT_DROP_REPO_NAME_DDL: Readonly<Record<string, string>> = {
+  sessions: CREATE_SESSIONS,
+  session_commits: CREATE_SESSION_COMMITS,
+  commit_files: CREATE_COMMIT_FILES,
+  session_commit_resolutions: CREATE_SESSION_COMMIT_RESOLUTIONS,
+};
+
 /**
  * `*_code_graph_communities` テーブルに `stable_key` 列が無ければ ALTER で追加する。
  * 起動時マイグレーションのため、`saveCurrentCodeGraph` / `saveReleaseCodeGraph` / `upsert*` の
@@ -649,10 +663,10 @@ interface RawContentBlock {
 // CREATE_INDEXES imported from trail-core (see import at top of file)
 
 const INSERT_SESSION = `INSERT OR REPLACE INTO sessions
-  (id, slug, repo_name, repo_id, version, entrypoint, model,
+  (id, slug, repo_id, version, entrypoint, model,
    start_time, end_time, message_count,
    file_path, file_size, imported_at, source)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
 const INSERT_SESSION_COST = `INSERT OR REPLACE INTO session_costs
   (session_id, model, input_tokens, output_tokens,
@@ -2792,6 +2806,182 @@ export class TrailDatabase {
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
   }
 
+  // Phase H-4 flip 対象の session/commit 系 4 テーブル。子 (session_commits / commit_files /
+  // session_commit_resolutions) を sessions より先に再構築する: sessions__new RENAME 時点で子の FK
+  // 参照先が壊れないようにする (FK は init で OFF のため runtime 強制はされないが意図を明示する)。
+  private static readonly SESSION_COMMIT_REPO_NAME_TABLES: readonly string[] = [
+    'session_commits',
+    'commit_files',
+    'session_commit_resolutions',
+    'sessions',
+  ];
+
+  /**
+   * Phase H-4: session/commit 系 4 テーブル (sessions / session_commits / commit_files /
+   * session_commit_resolutions) から非正規化キャッシュの repo_name 列を物理撤去する (冪等)。
+   * `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
+   *
+   * - 各テーブルに repo_name 列が在る時のみ実行する (`columnExists` ガードで冪等)。
+   * - 撤去前に repo_name から repos を self-seed し、未解決の repo_id を backfill する (Phase D flip /
+   *   additive が既に repo_id を埋めている前提だが、退化 DB 防御のため再実行する)。sessions は
+   *   repo_id が nullable のため未解決行は NULL のまま残し、後続 importSession で解決される。
+   * - 新スキーマ (repo_name を持たない CREATE_* DDL) へ INSERT...SELECT で共有列をコピーする。
+   *   repo_name 列は新スキーマに無いため自然に落ちる。複合 PK / FK は repo_id 構成のため不変。
+   *   静的 DDL に無い ALTER 由来の列 (sessions の compact_count 等) は宣言型を保ったまま `__new` へ
+   *   復元してから copy する (rebuildSessionCommitTableDroppingRepoName 参照)。
+   * - CREATE_SESSIONS / CREATE_SESSION_COMMITS 等 (CREATE TABLE IF NOT EXISTS) の実行前に呼ぶ。
+   *   新規 DB / 撤去済 DB は no-op。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * 撤去後、repo フィルタは repo_id = ? (repoIdForName 解決) で行う。repo_name が必要な read メソッド
+   * (SyncService の getSessions / getSessionCommits / getCommitFiles 経由で Supabase ミラーへ運ぶもの
+   * を含む) は (LEFT) JOIN repos USING(repo_id) で r.repo_name を射影し、結果行のキー名 repo_name を
+   * 維持する (下流契約・Supabase trail_* ミラーは不変)。repo_id=0 sentinel など repos に未解決の行は
+   * LEFT JOIN + COALESCE(r.repo_name, '') で '' に落とす (旧 repo_name='' と等価)。
+   */
+  private migrateDropSessionCommitRepoName(db: Database): void {
+    for (const table of TrailDatabase.SESSION_COMMIT_REPO_NAME_TABLES) {
+      this.dropSessionCommitRepoNameColumn(db, table);
+    }
+  }
+
+  /** Phase H-4: 1 テーブルから repo_name 列を 12-step 再構築で物理撤去する (冪等)。 */
+  private dropSessionCommitRepoNameColumn(db: Database, table: string): void {
+    const exists =
+      db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+        ?.length;
+    if (!exists) return; // 新規 DB → CREATE_* が新スキーマ (repo_name なし) を作る
+    if (!columnExists(db, table, 'repo_name')) return; // 既に撤去済 (冪等)
+    if (!columnExists(db, table, 'repo_id')) {
+      // repo_id が無い退化 DB は H-4 の対象外 (Phase D flip/additive が先に repo_id を入れる想定)。
+      this.logger.warn(`[session-commit drop repo_name] ${table} has no repo_id, skip drop`);
+      return;
+    }
+
+    try {
+      // ── pre: repo_name から repos を self-seed し、未解決 repo_id を backfill する (防御的) ──
+      // sessions は repo_id nullable のため repo_id IS NULL の行も解決を試みる。子テーブルは repo_id
+      // NOT NULL (DEFAULT 0 sentinel) のため repos に解決できる行のみ更新し、未解決行は sentinel を残す。
+      db.run(
+        `INSERT OR IGNORE INTO repos (repo_name, created_at)
+         SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         FROM "${table}" WHERE repo_name IS NOT NULL AND repo_name <> ''`,
+      );
+      if (table === 'sessions') {
+        db.run(
+          `UPDATE "${table}"
+             SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name)
+           WHERE repo_id IS NULL
+             AND (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name) IS NOT NULL`,
+        );
+      } else {
+        db.run(
+          `UPDATE "${table}"
+             SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name)
+           WHERE (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name) IS NOT NULL`,
+        );
+      }
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        this.rebuildSessionCommitTableDroppingRepoName(db, table);
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(
+            `[session-commit drop repo_name] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(
+            `[session-commit drop repo_name] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error(
+        `dropSessionCommitRepoNameColumn(${table}) failed`,
+        e instanceof Error ? e : new Error(String(e)),
+      );
+      throw e;
+    }
+  }
+
+  /**
+   * flip: session/commit 系テーブルを新スキーマ (repo_name なし) へ 12-step 再構築する。
+   *
+   * 静的 DDL (CREATE_SESSIONS 等) に無い ALTER 由来の列 (例: sessions.compact_count・将来追加分) は
+   * repo_name 撤去だけが目的なので保全する必要がある。`__new` を静的 DDL で作った後、旧テーブルに在って
+   * `__new` に無い列 (repo_name を除く) を旧テーブルの宣言型を保ったまま `__new` へ ALTER ADD COLUMN で
+   * 復元してから共有列をコピーする。STRICT のため宣言型が空/不明な列は TEXT へフォールバックする。
+   * これにより repo_name のみが落ち、ALTER 由来の列は値ごと引き継がれる。複合 PK / FK は不変。
+   */
+  private rebuildSessionCommitTableDroppingRepoName(db: Database, table: string): void {
+    const ddl = SESSION_COMMIT_DROP_REPO_NAME_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[session-commit drop repo_name] no DDL registered for ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    // 旧テーブルの (列名 → 宣言型) を取得する。STRICT で復元できる型へ正規化する。
+    const oldColInfo = (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => ({
+      name: asText(c[1] ?? ''),
+      declType: asText(c[2] ?? '').toUpperCase(),
+    }));
+    const oldCols = oldColInfo.map((c) => c.name);
+    const newColSet = new Set(
+      (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+        asText(c[1] ?? ''),
+      ),
+    );
+    // 静的 DDL に無い ALTER 由来の列 (repo_name 以外) を旧宣言型で `__new` へ復元する。STRICT が
+    // 受理する型 (INT / INTEGER / REAL / TEXT / BLOB / ANY) のみ採用し、それ以外は TEXT へ寄せる。
+    // ALTER ADD COLUMN は NOT NULL + DEFAULT 無しを付けられないため nullable のまま追加する。
+    const strictTypes = new Set(['INT', 'INTEGER', 'REAL', 'TEXT', 'BLOB', 'ANY']);
+    for (const { name, declType } of oldColInfo) {
+      if (name === 'repo_name') continue;
+      if (newColSet.has(name)) continue;
+      const restoreType = strictTypes.has(declType) ? declType : 'TEXT';
+      db.run(`ALTER TABLE "${table}__new" ADD COLUMN "${name}" ${restoreType}`);
+      newColSet.add(name);
+    }
+    // 旧テーブルの列のうち `__new` にも存在する列を共有列としてコピーする。新スキーマ + 復元列には
+    // repo_name が無いため共有列に repo_name は含まれず自然に落ちる。repo_id を含む PK 構成列はコピーされ
+    // 整合は維持される。
+    const sharedCols = oldCols.filter((c) => newColSet.has(c) && c !== 'repo_name');
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}"`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
   /**
    * Phase F flip: 既存 DB の derived テーブル (dora_metrics / pr_reviews /
    * cross_source_correlations) を repo_id 化する破壊的/additive マイグレーション。
@@ -3232,6 +3422,13 @@ export class TrailDatabase {
     // CREATE TABLE IF NOT EXISTS は既存テーブルに無効なため、CREATE_SESSIONS /
     // CREATE_SESSION_COMMITS 等の実行前に呼ぶ。新規 DB / flip 済 DB では no-op。
     this.migrateSessionCommitTablesRepoId(db);
+    // Phase H-4: session/commit 系 4 テーブル (sessions / session_commits / commit_files /
+    // session_commit_resolutions) から repo_name 列 (非正規化キャッシュ) を物理撤去する。
+    // migrateSessionCommitTablesRepoId が先に repo_id を入れた後に呼ぶ。CREATE TABLE IF NOT EXISTS は
+    // 既存テーブルに無効なため CREATE_SESSIONS / CREATE_SESSION_COMMITS 等の前に呼ぶ。新規 DB /
+    // 撤去済 DB では no-op。sessions は additive 撤去のため ALTER 由来の列を全保全する
+    // (rebuildSessionCommitTableDroppingRepoName 参照)。
+    this.migrateDropSessionCommitRepoName(db);
     db.run(CREATE_SESSIONS);
     db.run(CREATE_SESSION_COSTS);
     db.run(CREATE_DAILY_COUNTS);
@@ -3311,13 +3508,13 @@ export class TrailDatabase {
     db.run(CREATE_MESSAGE_COMMITS);
     db.run(CREATE_COMMIT_FILES);
     db.run(CREATE_SESSION_COMMIT_RESOLUTIONS);
-    // session_commits / commit_files への repo_name / repo_id 追加はインデックス作成より前に行う
+    // session_commits / commit_files への repo_id 追加はインデックス作成より前に行う
     // （idx_session_commits_repo_id_* / idx_commit_files_repo_id_* が repo_id を参照するため）。
     // Phase D flip が必ず先に repo_id を入れるため、ここの repo_id ALTER は防御的な保険
-    // (flip 済テーブルでは Column already exists で no-op)。repo_name は移行互換の残置列。
+    // (flip 済テーブルでは Column already exists で no-op)。
+    // Phase H-4: repo_name 列は migrateDropSessionCommitRepoName で撤去済のため再追加しない
+    // (ここで ALTER ADD repo_name すると撤去が無効化される)。
     for (const sql of [
-      "ALTER TABLE session_commits ADD COLUMN repo_name TEXT NOT NULL DEFAULT ''",
-      "ALTER TABLE commit_files ADD COLUMN repo_name TEXT NOT NULL DEFAULT ''",
       'ALTER TABLE session_commits ADD COLUMN repo_id INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE commit_files ADD COLUMN repo_id INTEGER NOT NULL DEFAULT 0',
     ]) {
@@ -3490,12 +3687,27 @@ export class TrailDatabase {
   /**
    * 既存 row の session_commits.repo_name / commit_files.repo_name を sessions.repo_name から
    * バックフィルする。`_migrations` テーブルで一度だけ走らせる冪等運用。
+   *
+   * Phase H-4: session_commits / commit_files / sessions から repo_name 列を物理撤去した。repo 帰属は
+   * repo_id へ正規化済で、Phase D flip / migrateDropSessionCommitRepoName が drop 直前に repo_name から
+   * repo_id を backfill 済のため、この repo_name ベース backfill は完全に superseded。repo_name 列が無い
+   * 環境では UPDATE がそのまま失敗するため、列が無ければ no-op で done を記録する (再実行ループ防止)。
    */
   private backfillRepoName_v1(): void {
     const db = this.ensureDb();
     db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
     const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'repo_name_backfill_v1'");
     if (done[0]?.values?.length) return;
+
+    // Phase H-4: repo_name 列が撤去済なら本 migration は不要 (repo 帰属は repo_id で確定済)。done を
+    // 記録して終了する。新規 DB / 撤去済 DB はここに入る。
+    if (!columnExists(db, 'session_commits', 'repo_name')) {
+      this.logger.info(
+        '[Migration] repo_name_backfill_v1: repo_name column removed (Phase H-4); superseded by repo_id flip backfill, marking done',
+      );
+      db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('repo_name_backfill_v1')");
+      return;
+    }
 
     // session_commits: 既存 row の repo_name='' を sessions.repo_name から埋める
     db.run(
@@ -3557,24 +3769,28 @@ export class TrailDatabase {
     if (done[0]?.values?.length) return;
 
     const startedAt = Date.now();
-    const rows = db.exec("SELECT id, file_path, repo_name FROM sessions WHERE file_path != ''")[0]?.values ?? [];
+    // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現するため、cwd 由来の
+    // 正しい repo_name を repoIdForName で repo_id へ解決し、現在の repo_id と異なる行のみ更新する
+    // (旧バグで誤分類された repo_id を是正する。旧実装の repo_name 直接書き換えと意味等価)。
+    const rows = db.exec("SELECT id, file_path, repo_id FROM sessions WHERE file_path != ''")[0]?.values ?? [];
     let updated = 0;
     let unchanged = 0;
     let missing = 0;
-    const stmt = db.prepare('UPDATE sessions SET repo_name = ? WHERE id = ?');
+    const stmt = db.prepare('UPDATE sessions SET repo_id = ? WHERE id = ?');
     try {
       for (const row of rows) {
         const idStr = String(row[0]);
         const filePathStr = asText(row[1] ?? '');
-        const oldRepoName = asText(row[2] ?? '');
+        const oldRepoId = row[2] === null || row[2] === undefined ? null : Number(row[2]);
         let derived = extractRepoNameFromJsonl(filePathStr);
         if (derived === null) {
           const m = /\/projects\/([^/]+)\//.exec(filePathStr);
           if (m?.[1]) derived = m[1].replace(/^-+/, '') || null;
         }
         if (!derived) { missing++; continue; }
-        if (derived === oldRepoName) { unchanged++; continue; }
-        stmt.run([derived, idStr]);
+        const derivedRepoId = this.repoIdForName(derived);
+        if (derivedRepoId === oldRepoId) { unchanged++; continue; }
+        stmt.run([derivedRepoId, idStr]);
         updated++;
       }
     } finally {
@@ -3693,12 +3909,17 @@ export class TrailDatabase {
       // (project 列はあるが repo_id 列が無い) では NULL を補い、後続 importSession で解決される。
       const hasRepoId = columnExists(db, 'sessions', 'repo_id');
       const repoIdColDdl = hasRepoId ? '\n        repo_id INTEGER,' : '';
+      // Phase H-4: repo_name 列は migrateDropSessionCommitRepoName が先に物理撤去するため、
+      // ここに来る時点で通常は存在しない。project 列付きの退化 DB でも repo_name が残っている場合のみ
+      // 再構築先に含める (列がなければ SELECT repo_name が "no such column" で失敗するため条件化する)。
+      const hasRepoName = columnExists(db, 'sessions', 'repo_name');
+      const repoNameColDdl = hasRepoName ? "\n        repo_name TEXT NOT NULL DEFAULT '',\n" : '';
+      const repoNameSelect = hasRepoName ? ' repo_name,' : '';
       db.run('PRAGMA foreign_keys = OFF');
       db.run('BEGIN TRANSACTION');
       db.run(`CREATE TABLE sessions_new (
         id TEXT PRIMARY KEY,
-        slug TEXT NOT NULL DEFAULT '',
-        repo_name TEXT NOT NULL DEFAULT '',${repoIdColDdl}
+        slug TEXT NOT NULL DEFAULT '',${repoNameColDdl}${repoIdColDdl}
         version TEXT NOT NULL DEFAULT '',
         entrypoint TEXT NOT NULL DEFAULT '',
         model TEXT NOT NULL DEFAULT '',
@@ -3719,14 +3940,14 @@ export class TrailDatabase {
         compact_count INTEGER
       )`);
       db.run(`INSERT INTO sessions_new (
-        id, slug, repo_name,${hasRepoId ? ' repo_id,' : ''} version, entrypoint, model,
+        id, slug,${repoNameSelect}${hasRepoId ? ' repo_id,' : ''} version, entrypoint, model,
         start_time, end_time, message_count, file_path, file_size, imported_at,
         commits_resolved_at, peak_context_tokens, initial_context_tokens, git_branch,
         interruption_reason, interruption_context_tokens, message_commits_resolved_at,
         source, compact_count
       )
       SELECT
-        id, slug, repo_name,${hasRepoId ? ' repo_id,' : ''} version, entrypoint, model,
+        id, slug,${repoNameSelect}${hasRepoId ? ' repo_id,' : ''} version, entrypoint, model,
         start_time, end_time, message_count, file_path, file_size, imported_at,
         commits_resolved_at, peak_context_tokens, initial_context_tokens, git_branch,
         interruption_reason, interruption_context_tokens, message_commits_resolved_at,
@@ -3757,18 +3978,18 @@ export class TrailDatabase {
     if (done[0]?.values?.length) return;
 
     // Phase D: commit_files の PK が (repo_id, commit_hash, file_path) になったため、各 commit_hash の
-    // repo_name / repo_id を session_commits から引いて埋める。同一 hash が複数 repo にまたがる場合は
+    // repo_id を session_commits から引いて埋める。同一 hash が複数 repo にまたがる場合は
     // MIN(repo_id) を採用する (DISTINCT 1 行に正規化)。
+    // Phase H-4: repo_name 列は撤去済。repo 帰属は repo_id のみで表現する。
     const commitRes = db.exec(
-      `SELECT commit_hash, repo_name, MIN(repo_id) AS repo_id
+      `SELECT commit_hash, MIN(repo_id) AS repo_id
        FROM session_commits
        WHERE NOT EXISTS (SELECT 1 FROM commit_files cf WHERE cf.commit_hash = session_commits.commit_hash)
        GROUP BY commit_hash`,
     );
     const commits = (commitRes[0]?.values ?? []).map((row) => ({
       hash: asText(row[0] ?? ''),
-      repoName: asText(row[1] ?? ''),
-      repoId: Number(row[2] ?? 0),
+      repoId: Number(row[1] ?? 0),
     }));
     if (commits.length === 0) {
       db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('commit_files_backfill_v2')");
@@ -3778,11 +3999,11 @@ export class TrailDatabase {
     onProgress?.(`Backfilling commit files for ${commits.length} commits...`);
     this.logger.info(`[Migration] commit_files_backfill_v2: backfilling file lists for ${commits.length} commits`);
 
-    const insertStmt = db.prepare('INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_name, repo_id) VALUES (?, ?, ?, ?)');
+    const insertStmt = db.prepare('INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)');
     try {
       let processed = 0;
       let skipped = 0;
-      for (const { hash, repoName, repoId } of commits) {
+      for (const { hash, repoId } of commits) {
         try {
           const out = execFileSync('git', [
             'show', '--format=', '--numstat', hash,
@@ -3792,7 +4013,7 @@ export class TrailDatabase {
             if (!trimmed) continue;
             const parts = trimmed.split('\t');
             const filePath = parts[2];
-            if (filePath) insertStmt.run([hash, filePath, repoName, repoId]);
+            if (filePath) insertStmt.run([hash, filePath, repoId]);
           }
           processed++;
         } catch {
@@ -4381,11 +4602,14 @@ export class TrailDatabase {
    */
   getDoraCommits(): DoraCommitInput[] {
     const db = this.ensureDb();
+    // Phase H-4: session_commits.repo_name 列は撤去済。dedup は repo_id × commit_hash で行い
+    // (repo_id は repo_name と 1:1)、repo_name は repos を LEFT JOIN して射影する (結果キー・意味は不変)。
     const result = db.exec(
-      `SELECT commit_hash, MIN(committed_at) AS committed_at, repo_name
-       FROM session_commits
-       WHERE committed_at IS NOT NULL AND committed_at <> ''
-       GROUP BY repo_name, commit_hash
+      `SELECT sc.commit_hash, MIN(sc.committed_at) AS committed_at, COALESCE(r.repo_name, '') AS repo_name
+       FROM session_commits sc
+       LEFT JOIN repos r ON r.repo_id = sc.repo_id
+       WHERE sc.committed_at IS NOT NULL AND sc.committed_at <> ''
+       GROUP BY sc.repo_id, sc.commit_hash
        ORDER BY committed_at`,
     );
     if (!result[0]) return [];
@@ -4592,10 +4816,14 @@ export class TrailDatabase {
    */
   getCorrelationSessionCommits(sinceCommittedAt?: string): CorrelationSessionCommit[] {
     const db = this.ensureDb();
-    const base = `SELECT session_id, commit_hash, committed_at, repo_name FROM session_commits
-       WHERE committed_at IS NOT NULL AND committed_at <> ''`;
+    // Phase H-4: session_commits.repo_name 列は撤去済。repos を LEFT JOIN して repo_name を射影する
+    // (repo_id=0 sentinel など未解決は '' = 旧 repo_name='' と等価・結果キーは不変)。
+    const base = `SELECT sc.session_id, sc.commit_hash, sc.committed_at, COALESCE(r.repo_name, '') AS repo_name
+       FROM session_commits sc
+       LEFT JOIN repos r ON r.repo_id = sc.repo_id
+       WHERE sc.committed_at IS NOT NULL AND sc.committed_at <> ''`;
     const result = sinceCommittedAt
-      ? db.exec(`${base} AND committed_at >= ?`, [sinceCommittedAt])
+      ? db.exec(`${base} AND sc.committed_at >= ?`, [sinceCommittedAt])
       : db.exec(base);
     if (!result[0]) return [];
     return result[0].values.map((row) => ({
@@ -4615,8 +4843,13 @@ export class TrailDatabase {
     if (filePaths.length === 0) return [];
     const db = this.ensureDb();
     const placeholders = filePaths.map(() => '?').join(', ');
+    // Phase H-4: commit_files.repo_name 列は撤去済。repos を LEFT JOIN して repo_name を射影する
+    // (repo_id=0 sentinel など未解決は '' = 旧 repo_name='' と等価・結果キーは不変)。
     const result = db.exec(
-      `SELECT commit_hash, file_path, repo_name FROM commit_files WHERE file_path IN (${placeholders})`,
+      `SELECT cf.commit_hash, cf.file_path, COALESCE(r.repo_name, '') AS repo_name
+       FROM commit_files cf
+       LEFT JOIN repos r ON r.repo_id = cf.repo_id
+       WHERE cf.file_path IN (${placeholders})`,
       filePaths,
     );
     if (!result[0]) return [];
@@ -5242,13 +5475,14 @@ export class TrailDatabase {
     const logFormat = '%H%x00%s%x00%an%x00%aI%x00%b%x1e';
 
     // Phase D: 外部 API は repo_name を受けるが、内部で repo_id を解決して保存する (PK 構成列)。
+    // Phase H-4: repo_name 列は撤去済。repo 帰属は repo_id のみで保存する。
     const repoId = this.repoIdForName(repoName);
 
     const insertStmt = db.prepare(
       `INSERT OR IGNORE INTO session_commits
         (session_id, commit_hash, commit_message, author, committed_at,
-         is_ai_assisted, files_changed, lines_added, lines_deleted, repo_name, repo_id)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+         is_ai_assisted, files_changed, lines_added, lines_deleted, repo_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?)`,
     );
 
     let count = 0;
@@ -5263,7 +5497,7 @@ export class TrailDatabase {
         '--no-merges',
       ], { ...execOpts, cwd: gitRoot });
 
-      count += this.processCommitEntries(phaseAOutput, sessionId, repoName, repoId, insertStmt, execOpts, gitRoot);
+      count += this.processCommitEntries(phaseAOutput, sessionId, repoId, insertStmt, execOpts, gitRoot);
     } catch {
       // git grep may fail if no commits match — not an error
     }
@@ -5296,7 +5530,7 @@ export class TrailDatabase {
       }
     }
 
-    count += this.processCommitEntries(logOutput, sessionId, repoName, repoId, insertStmt, execOpts, gitRoot, true);
+    count += this.processCommitEntries(logOutput, sessionId, repoId, insertStmt, execOpts, gitRoot, true);
 
     insertStmt.free();
 
@@ -5309,12 +5543,13 @@ export class TrailDatabase {
   private markCommitResolutionDone(sessionId: string, repoName: string): void {
     const db = this.ensureDb();
     // Phase D: PK が (session_id, repo_id) になったため repo_id を解決して ON CONFLICT を repo_id 基準にする。
+    // Phase H-4: repo_name 列は撤去済。repo 帰属は repo_id のみで保存する。
     const repoId = this.repoIdForName(repoName);
     db.run(
-      `INSERT INTO session_commit_resolutions (session_id, repo_name, repo_id, resolved_at)
-         VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-         ON CONFLICT(session_id, repo_id) DO UPDATE SET resolved_at = excluded.resolved_at, repo_name = excluded.repo_name`,
-      [sessionId, repoName, repoId],
+      `INSERT INTO session_commit_resolutions (session_id, repo_id, resolved_at)
+         VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+         ON CONFLICT(session_id, repo_id) DO UPDATE SET resolved_at = excluded.resolved_at`,
+      [sessionId, repoId],
     );
     // 既存挙動の互換: 主リポジトリ解決時も sessions.commits_resolved_at を更新
     db.run(
@@ -5326,9 +5561,10 @@ export class TrailDatabase {
   /** Returns true if (sessionId, repoName) is already recorded as resolved. */
   isCommitResolutionDone(sessionId: string, repoName: string): boolean {
     const db = this.ensureDb();
+    // Phase H-4: repo_name 列は撤去済。repo フィルタは repo_id = ? (repoIdForName 解決) で行う。
     const r = db.exec(
-      'SELECT 1 FROM session_commit_resolutions WHERE session_id = ? AND repo_name = ? LIMIT 1',
-      [sessionId, repoName],
+      'SELECT 1 FROM session_commit_resolutions WHERE session_id = ? AND repo_id = ? LIMIT 1',
+      [sessionId, this.repoIdForName(repoName)],
     );
     return Boolean(r[0]?.values?.length);
   }
@@ -5363,14 +5599,15 @@ export class TrailDatabase {
   }
 
   /** Insert commit_files rows for a single commit hash. */
-  private insertCommitFiles(hash: string, filePaths: string[], repoName: string, repoId: number): void {
+  // Phase H-4: commit_files.repo_name 列は撤去済。repo 帰属は repo_id のみで保存する。
+  private insertCommitFiles(hash: string, filePaths: string[], repoId: number): void {
     if (filePaths.length === 0) return;
     const filesStmt = this.ensureDb().prepare(
-      'INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_name, repo_id) VALUES (?, ?, ?, ?)',
+      'INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)',
     );
     try {
       for (const fp of filePaths) {
-        filesStmt.run([hash, fp, repoName, repoId]);
+        filesStmt.run([hash, fp, repoId]);
       }
     } finally {
       filesStmt.free();
@@ -5379,10 +5616,10 @@ export class TrailDatabase {
 
   /** Parse git log output and insert commits into session_commits table.
    *  @param filterBySessionId If true, skip commits whose Session-Id trailer belongs to another session */
+  // Phase H-4: session_commits / commit_files.repo_name 列は撤去済。repo 帰属は repoId のみで扱う。
   private processCommitEntries(
     logOutput: string,
     sessionId: string,
-    repoName: string,
     repoId: number,
     insertStmt: SqlJsStatement,
     execOpts: { encoding: 'utf-8'; timeout: number },
@@ -5417,10 +5654,10 @@ export class TrailDatabase {
 
       insertStmt.run([
         sessionId, hash, subject, author, committedAt,
-        isAiAssisted, filesChanged, linesAdded, linesDeleted, repoName, repoId,
+        isAiAssisted, filesChanged, linesAdded, linesDeleted, repoId,
       ]);
 
-      this.insertCommitFiles(hash, filePaths, repoName, repoId);
+      this.insertCommitFiles(hash, filePaths, repoId);
       count++;
     }
 
@@ -5526,9 +5763,10 @@ export class TrailDatabase {
           this.logger.warn(`importSession: ${filePath} has no parseable timestamp; storing start_time as NULL`);
         }
         // Phase D: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して保存する。
+        // Phase H-4: repo_name 列は撤去済。repo 帰属は repo_id のみで保存する。
         const repoId = this.repoIdForName(repoName);
         db.run(INSERT_SESSION, [
-          sessionId, slug, repoName, repoId, version,
+          sessionId, slug, repoId, version,
           entrypoint, model, startTimeOrNull, endTimeOrNull, messageCount,
           filePath, fileSize, importedAt, source,
         ]);
@@ -7256,20 +7494,21 @@ export class TrailDatabase {
     const toIso = now.toISOString();
     const fromIso = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000).toISOString();
 
+    // Phase H-4: sessions.repo_name 列は撤去済。repo フィルタは s.repo_id = ? (repoIdForName 解決) で行う。
     const sql = repo
       ? `SELECT sc.commit_hash, sc.commit_message, sc.committed_at, cf.file_path
          FROM session_commits sc
          JOIN commit_files cf ON cf.commit_hash = sc.commit_hash
          INNER JOIN sessions s ON s.id = sc.session_id
          WHERE sc.committed_at >= ? AND sc.committed_at <= ?
-           AND s.repo_name = ?
+           AND s.repo_id = ?
          ORDER BY sc.committed_at`
       : `SELECT sc.commit_hash, sc.commit_message, sc.committed_at, cf.file_path
          FROM session_commits sc
          JOIN commit_files cf ON cf.commit_hash = sc.commit_hash
          WHERE sc.committed_at >= ? AND sc.committed_at <= ?
          ORDER BY sc.committed_at`;
-    const args = repo ? [fromIso, toIso, repo] : [fromIso, toIso];
+    const args: (string | number)[] = repo ? [fromIso, toIso, this.repoIdForName(repo)] : [fromIso, toIso];
     const result = db.exec(sql, args);
 
     const values = result[0]?.values ?? [];
@@ -7376,7 +7615,7 @@ export class TrailDatabase {
   getSessions(filters?: SessionFilters): SessionRow[] {
     const db = this.ensureDb();
     const conditions: string[] = [];
-    const params: string[] = [];
+    const params: (string | number)[] = [];
 
     if (filters?.branch) {
       conditions.push('s.id IN (SELECT DISTINCT session_id FROM messages WHERE git_branch = ?)');
@@ -7387,8 +7626,9 @@ export class TrailDatabase {
       params.push(filters.model);
     }
     if (filters?.repository) {
-      conditions.push('s.repo_name = ?');
-      params.push(filters.repository);
+      // Phase H-4: sessions.repo_name 列は撤去済。repo フィルタは repo_id = ? (repoIdForName 解決) で行う。
+      conditions.push('s.repo_id = ?');
+      params.push(this.repoIdForName(filters.repository));
     }
     if (filters?.from) {
       conditions.push('s.start_time >= ?');
@@ -7402,13 +7642,18 @@ export class TrailDatabase {
     const where = conditions.length > 0
       ? `WHERE ${conditions.join(' AND ')}`
       : '';
+    // Phase H-4: sessions.repo_name 列は撤去済。SyncService が Supabase trail_sessions へ運ぶ repo_name を
+    // 含む契約を維持するため repos を LEFT JOIN して COALESCE(r.repo_name, '') を repo_name として射影する
+    // (repo_id 未解決/sentinel は '' = 旧 repo_name='' と等価)。getAsObject が repo_name を含む (契約不変)。
     const sql = `SELECT s.*,
+      COALESCE(r.repo_name, '') AS repo_name,
       COALESCE(SUM(sc.input_tokens), 0) AS input_tokens,
       COALESCE(SUM(sc.output_tokens), 0) AS output_tokens,
       COALESCE(SUM(sc.cache_read_tokens), 0) AS cache_read_tokens,
       COALESCE(SUM(sc.cache_creation_tokens), 0) AS cache_creation_tokens,
       COALESCE(SUM(sc.estimated_cost_usd), 0) AS estimated_cost_usd
       FROM sessions s
+      LEFT JOIN repos r ON r.repo_id = s.repo_id
       LEFT JOIN session_costs sc ON s.id = sc.session_id
       ${where}
       GROUP BY s.id
@@ -7703,8 +7948,17 @@ export class TrailDatabase {
 
   getSessionCommits(sessionId: string): SessionCommitRow[] {
     const db = this.ensureDb();
+    // Phase H-4: session_commits.repo_name 列は撤去済。SyncService が Supabase trail_session_commits へ
+    // 運ぶ repo_name を含む契約を維持するため repos を LEFT JOIN して COALESCE(r.repo_name, '') を
+    // repo_name として射影する (repo_id=0 sentinel など未解決は '' = 旧 repo_name='' と等価)。
+    // getAsObject が repo_name を含む (SessionCommitRow 契約不変)。
     const stmt = db.prepare(
-      'SELECT * FROM session_commits WHERE session_id = ? ORDER BY committed_at ASC',
+      `SELECT sc.session_id, sc.commit_hash, sc.commit_message, sc.author, sc.committed_at,
+              sc.is_ai_assisted, sc.files_changed, sc.lines_added, sc.lines_deleted, sc.repo_id,
+              COALESCE(r.repo_name, '') AS repo_name
+       FROM session_commits sc
+       LEFT JOIN repos r ON r.repo_id = sc.repo_id
+       WHERE sc.session_id = ? ORDER BY sc.committed_at ASC`,
     );
     stmt.bind([sessionId]);
     const rows: SessionCommitRow[] = [];
@@ -7970,17 +8224,22 @@ export class TrailDatabase {
     db: Database,
     repoFilter: string[],
   ): Map<string, Array<{ id: string; repoName: string; startMs: number; endMs: number }>> {
+    // Phase H-4: sessions.repo_name 列は撤去済。repos を LEFT JOIN して repo_name を射影し、
+    // repo フィルタも r.repo_name IN (...) で行う (旧 repo_name フィルタと意味等価・出力 repoName 不変)。
     const codexRes = repoFilter.length > 0
       ? db.exec(
-          `SELECT id, repo_name, start_time, end_time
-           FROM sessions
-           WHERE source = 'codex' AND repo_name IN (${repoFilter.map(() => '?').join(',')})
-           ORDER BY start_time ASC`,
+          `SELECT s.id, COALESCE(r.repo_name, '') AS repo_name, s.start_time, s.end_time
+           FROM sessions s
+           LEFT JOIN repos r ON r.repo_id = s.repo_id
+           WHERE s.source = 'codex' AND COALESCE(r.repo_name, '') IN (${repoFilter.map(() => '?').join(',')})
+           ORDER BY s.start_time ASC`,
           repoFilter,
         )
       : db.exec(
-          `SELECT id, repo_name, start_time, end_time
-           FROM sessions WHERE source = 'codex' ORDER BY start_time ASC`,
+          `SELECT s.id, COALESCE(r.repo_name, '') AS repo_name, s.start_time, s.end_time
+           FROM sessions s
+           LEFT JOIN repos r ON r.repo_id = s.repo_id
+           WHERE s.source = 'codex' ORDER BY s.start_time ASC`,
         );
     const byRepo = new Map<string, Array<{ id: string; repoName: string; startMs: number; endMs: number }>>();
     for (const r of codexRes[0]?.values ?? []) {
@@ -8006,8 +8265,12 @@ export class TrailDatabase {
 
     type Delegation = { ccSessionId: string; parentUuid: string; ms: number };
 
+    // Phase H-4: sessions.repo_name 列は撤去済。repos を LEFT JOIN して repo_name を射影する
+    // (repo_id 未解決/sentinel は '' = 旧 repo_name='' と等価)。
     const ccRepoRes = db.exec(
-      `SELECT id, repo_name FROM sessions WHERE id IN (${idPlaceholders})`,
+      `SELECT s.id, COALESCE(r.repo_name, '') AS repo_name
+       FROM sessions s LEFT JOIN repos r ON r.repo_id = s.repo_id
+       WHERE s.id IN (${idPlaceholders})`,
       ccSessionIds,
     );
     const repoByCcId = new Map<string, string>();
@@ -8059,7 +8322,7 @@ export class TrailDatabase {
   private fetchSubagentPathA(
     db: Database,
     from: string, to: string,
-    repoArg: string[], toolNames: readonly string[], toolPlaceholders: string,
+    repoArg: (string | number)[], toolNames: readonly string[], toolPlaceholders: string,
     rangeJoin: string, rangeWhere: string, repoFilter: string,
     rows: Array<{ committedAt: string; filePath: string; subagentType: string; sessionId: string; messageUuid: string }>,
   ): void {
@@ -8099,7 +8362,7 @@ export class TrailDatabase {
   private fetchSubagentPathB(
     db: Database,
     from: string, to: string,
-    repoArg: string[], toolNames: readonly string[], toolPlaceholders: string,
+    repoArg: (string | number)[], toolNames: readonly string[], toolPlaceholders: string,
     rangeJoin: string, rangeWhere: string, repoFilter: string,
     codexSessionIds: Set<string>,
     rows: Array<{ committedAt: string; filePath: string; subagentType: string; sessionId: string; messageUuid: string }>,
@@ -8182,8 +8445,9 @@ export class TrailDatabase {
     const rangeWhere = filterBy === 'session'
       ? 's.start_time >= ? AND s.start_time <= ?'
       : 'm.timestamp >= ? AND m.timestamp <= ?';
-    const repoFilter = repo ? 'AND s.repo_name = ?' : '';
-    const repoArg = repo ? [repo] : [];
+    // Phase H-4: sessions.repo_name 列は撤去済。repo フィルタは s.repo_id = ? (repoIdForName 解決) で行う。
+    const repoFilter = repo ? 'AND s.repo_id = ?' : '';
+    const repoArg: (string | number)[] = repo ? [this.repoIdForName(repo)] : [];
 
     // 経路 A: CC ネイティブ subagent
     this.fetchSubagentPathA(db, from, to, repoArg, toolNames, toolPlaceholders, rangeJoin, rangeWhere, repoFilter, rows);
@@ -8865,13 +9129,15 @@ export class TrailDatabase {
       .map(([date, v]) => ({ date, ...v }));
 
     // Commit totals
+    // Phase H-4: session_commits.repo_name 列は撤去済。dedup は repo_id × commit_hash で行う
+    // (repo_id は repo_name と 1:1 のため重複排除の結果は等価。repo_name は出力に不要)。
     const commitTotals = db.exec(
       `SELECT COUNT(*) AS total_commits,
         COALESCE(SUM(lines_added), 0) AS total_lines_added,
         COALESCE(SUM(lines_deleted), 0) AS total_lines_deleted
       FROM (
-        SELECT repo_name, commit_hash, MAX(COALESCE(lines_added, 0)) AS lines_added, MAX(COALESCE(lines_deleted, 0)) AS lines_deleted
-        FROM session_commits GROUP BY repo_name, commit_hash
+        SELECT repo_id, commit_hash, MAX(COALESCE(lines_added, 0)) AS lines_added, MAX(COALESCE(lines_deleted, 0)) AS lines_deleted
+        FROM session_commits GROUP BY repo_id, commit_hash
       )`,
     );
     const cr = commitTotals[0]?.values[0] ?? [0, 0, 0];
@@ -9157,8 +9423,11 @@ export class TrailDatabase {
     const sessionDateExpr = period === 'week'
       ? `strftime('%Y-W%W', s.start_time, '${tzOffset}')`
       : `DATE(s.start_time, '${tzOffset}')`;
+    // Phase H-4: session_commits.repo_name 列は撤去済。repos を LEFT JOIN して repo_name を射影し
+    // (出力 repoName 不変)、dedup は repo_id (1:1 で repo_name) を含めて行う。下の commit_files lookup の
+    // `${repoName}:${hash}` キーと整合させるため、両側で repos JOIN による repo_name を使う。
     const commitResult = db.exec(
-      `SELECT ${sessionDateExpr} AS period, sc.repo_name, sc.commit_hash,
+      `SELECT ${sessionDateExpr} AS period, COALESCE(rp.repo_name, '') AS repo_name, sc.commit_hash,
               MAX(sc.commit_message) AS commit_message,
               MIN(sc.committed_at) AS committed_at,
               MAX(sc.is_ai_assisted) AS is_ai_assisted,
@@ -9166,9 +9435,10 @@ export class TrailDatabase {
               MAX(COALESCE(sc.lines_deleted, 0)) AS lines_deleted
        FROM session_commits sc
        JOIN sessions s ON sc.session_id = s.id
+       LEFT JOIN repos rp ON rp.repo_id = sc.repo_id
        WHERE sc.committed_at >= DATETIME('now', '-${rangeDays} days')
          AND sc.committed_at <= DATETIME('now', '+${commitWindowSec} seconds')
-       GROUP BY sc.session_id, sc.repo_name, sc.commit_hash`,
+       GROUP BY sc.session_id, sc.repo_id, sc.commit_hash`,
     );
     type CommitRow = {
       period: string;
@@ -9196,8 +9466,13 @@ export class TrailDatabase {
     // Batch-fetch commit_files for all commit hashes in the window
     if (commitRows.length > 0) {
       const hashPlaceholders = commitRows.map(() => '?').join(',');
+      // Phase H-4: commit_files.repo_name 列は撤去済。repos を LEFT JOIN して repo_name を射影し
+      // (上の commitResult と同じ repo_name キーで `${repoName}:${hash}` を引けるようにする)。
       const filesResult = db.exec(
-        `SELECT repo_name, commit_hash, file_path FROM commit_files WHERE commit_hash IN (${hashPlaceholders})`,
+        `SELECT COALESCE(r.repo_name, '') AS repo_name, cf.commit_hash, cf.file_path
+         FROM commit_files cf
+         LEFT JOIN repos r ON r.repo_id = cf.repo_id
+         WHERE cf.commit_hash IN (${hashPlaceholders})`,
         commitRows.map(c => c.hash),
       );
       if (filesResult[0]) {
@@ -9234,6 +9509,8 @@ export class TrailDatabase {
 
     // Commit baseline: 表示期間 cutoff より前の全 commit を category 別に集計 (累積モード用)。
     // commit_hash で DISTINCT し、同一 commit が複数 session に紐づく重複を排除する。
+    // Phase H-4: session_commits.repo_name 列は撤去済。dedup は repo_id × commit_hash で行う
+    // (repo_id は repo_name と 1:1 のため等価。repo_name は出力に不要)。
     const baselineResult = db.exec(
       `SELECT commit_message, lines_added, lines_deleted FROM (
          SELECT MAX(commit_message) AS commit_message,
@@ -9241,7 +9518,7 @@ export class TrailDatabase {
                 MAX(COALESCE(lines_deleted, 0)) AS lines_deleted
          FROM session_commits
          WHERE committed_at < DATETIME('now', '-${rangeDays} days')
-         GROUP BY repo_name, commit_hash
+         GROUP BY repo_id, commit_hash
        )`,
     );
     const baselineRows = toRows(baselineResult).map(r => ({
@@ -9261,17 +9538,21 @@ export class TrailDatabase {
     }
 
     // Repository stats: TOKEN は messages JOIN sessions で集計（session start_time 基準）
+    // Phase H-4: sessions.repo_name 列は撤去済。repos を JOIN して repo_name を射影・グルーピングする。
+    // 旧 `s.repo_name != ''` (非空 repo のみ) は repos JOIN + `r.repo_name != ''` で意味等価
+    // (sentinel '' repo・repo_id 未解決行を除外する)。
     const repoTokenResult = db.exec(
       `SELECT ${sessionStartPeriodExpr} AS period,
-              s.repo_name,
+              r.repo_name AS repo_name,
               SUM(COALESCE(m.input_tokens,0) + COALESCE(m.output_tokens,0)
                   + COALESCE(m.cache_read_tokens,0) + COALESCE(m.cache_creation_tokens,0)) AS tokens
        FROM messages m
        JOIN sessions s ON s.id = m.session_id
+       JOIN repos r ON r.repo_id = s.repo_id
        WHERE m.type = 'assistant'
          AND DATE(s.start_time, '${tzOffset}') >= ${cutoff}
-         AND s.repo_name != ''
-       GROUP BY period, s.repo_name`,
+         AND r.repo_name != ''
+       GROUP BY period, s.repo_id`,
     );
     const repoTokenMap = new Map<string, number>();
     for (const r of toRows(repoTokenResult)) {
@@ -10363,14 +10644,15 @@ export class TrailDatabase {
    */
   getCommitFilesChurnSince(repoName: string, sinceIso: string): Map<string, number> {
     const db = this.ensureDb();
+    // Phase H-4: sessions.repo_name 列は撤去済。repo フィルタは s.repo_id = ? (repoIdForName 解決) で行う。
     const result = db.exec(
       `SELECT cf.file_path, COUNT(DISTINCT cf.commit_hash) AS cnt
        FROM commit_files cf
        JOIN session_commits sc ON sc.commit_hash = cf.commit_hash
        JOIN sessions s ON s.id = sc.session_id
-       WHERE sc.committed_at >= ? AND s.repo_name = ?
+       WHERE sc.committed_at >= ? AND s.repo_id = ?
        GROUP BY cf.file_path`,
-      [sinceIso, repoName],
+      [sinceIso, this.repoIdForName(repoName)],
     );
     const out = new Map<string, number>();
     const values = result[0]?.values ?? [];
@@ -10387,13 +10669,14 @@ export class TrailDatabase {
    */
   getCommitFilesEverChurned(repoName: string): Set<string> {
     const db = this.ensureDb();
+    // Phase H-4: sessions.repo_name 列は撤去済。repo フィルタは s.repo_id = ? (repoIdForName 解決) で行う。
     const result = db.exec(
       `SELECT DISTINCT cf.file_path
        FROM commit_files cf
        JOIN session_commits sc ON sc.commit_hash = cf.commit_hash
        JOIN sessions s ON s.id = sc.session_id
-       WHERE s.repo_name = ?`,
-      [repoName],
+       WHERE s.repo_id = ?`,
+      [this.repoIdForName(repoName)],
     );
     const out = new Set<string>();
     const values = result[0]?.values ?? [];
@@ -10405,8 +10688,14 @@ export class TrailDatabase {
     if (commitHashes.length === 0) return [];
     const db = this.ensureDb();
     const placeholders = commitHashes.map(() => '?').join(',');
+    // Phase H-4: commit_files.repo_name 列は撤去済。SyncService が Supabase trail_commit_files へ運ぶ
+    // repo_name を含む契約を維持するため repos を LEFT JOIN して COALESCE(r.repo_name, '') を射影する
+    // (repo_id=0 sentinel など未解決は '' = 旧 repo_name='' と等価・結果キーは不変)。
     const res = db.exec(
-      `SELECT repo_name, commit_hash, file_path FROM commit_files WHERE commit_hash IN (${placeholders})`,
+      `SELECT COALESCE(r.repo_name, '') AS repo_name, cf.commit_hash, cf.file_path
+       FROM commit_files cf
+       LEFT JOIN repos r ON r.repo_id = cf.repo_id
+       WHERE cf.commit_hash IN (${placeholders})`,
       commitHashes,
     );
     if (!res[0]) return [];
@@ -11042,7 +11331,8 @@ export class TrailDatabase {
     const sql = repo
       ? HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO[granularity]
       : HOTSPOT_SQL_BY_GRANULARITY[granularity];
-    const args = repo ? [from, to, repo] : [from, to];
+    // Phase H-4: sessions.repo_name 列は撤去済。WITH_REPO SQL は s.repo_id = ? を使うため repo_id を渡す。
+    const args: (string | number)[] = repo ? [from, to, this.repoIdForName(repo)] : [from, to];
     const res = db.exec(sql, args);
     if (!res.length) return [];
     return res[0].values.map((row) => ({
@@ -11278,7 +11568,9 @@ const HOTSPOT_SQL_BY_GRANULARITY: Record<'commit' | 'session', string> = {
   `,
 };
 
-// repo フィルタ付きの hotspot SQL（params: from, to, repo）
+// repo フィルタ付きの hotspot SQL（params: from, to, repoId）
+// Phase H-4: sessions.repo_name 列は撤去済。repo フィルタは s.repo_id = ? (呼び出し側 fetchHotspotRows が
+// repoIdForName で解決した repo_id をバインド) で行う。
 const HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO: Record<'commit' | 'session', string> = {
   commit: `
     SELECT cf.file_path AS filePath, COUNT(DISTINCT cf.commit_hash) AS churn
@@ -11286,7 +11578,7 @@ const HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO: Record<'commit' | 'session', string>
     INNER JOIN session_commits sc ON cf.commit_hash = sc.commit_hash
     INNER JOIN sessions s ON s.id = sc.session_id
     WHERE sc.committed_at >= ? AND sc.committed_at <= ?
-      AND s.repo_name = ?
+      AND s.repo_id = ?
     GROUP BY cf.file_path
     ORDER BY churn DESC
   `,
@@ -11296,7 +11588,7 @@ const HOTSPOT_SQL_BY_GRANULARITY_WITH_REPO: Record<'commit' | 'session', string>
     INNER JOIN messages m ON mtc.message_uuid = m.uuid
     INNER JOIN sessions s ON s.id = m.session_id
     WHERE m.timestamp >= ? AND m.timestamp <= ?
-      AND s.repo_name = ?
+      AND s.repo_id = ?
       AND mtc.tool_name IN ('Edit', 'Write', 'NotebookEdit')
       AND mtc.file_path IS NOT NULL
     GROUP BY mtc.file_path

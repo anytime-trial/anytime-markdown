@@ -12,10 +12,7 @@ const isoDaysAgo = (days: number): string =>
 const insertSession = (db: TrailDatabase, sessionId: string, startTime: string): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-       message_count, file_path, file_size, imported_at
-     ) VALUES (?, ?, 'r', '0', '', '', ?, '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
     [sessionId, sessionId, startTime],
   );
 };
@@ -201,10 +198,7 @@ describe('TrailDatabase.fetchTemporalCoupling (granularity=subagentType)', () =>
     const codexStart = new Date(Date.parse(ccStart) + 60_000).toISOString();
     const codexEnd = new Date(Date.parse(ccStart) + 5 * 60_000).toISOString();
     inner.run(
-      `INSERT INTO sessions (
-         id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-         message_count, file_path, file_size, imported_at, source
-       ) VALUES ('codex1', 'codex1', 'r', '0', '', '', ?, ?, 0, '', 0, '', 'codex')`,
+      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('codex1', 'codex1', '0', '', '', ?, ?, 0, '', 0, '', 'codex')`,
       [codexStart, codexEnd],
     );
     // codex session message edits 2 files (both within same group → co-change pair within 'codex')

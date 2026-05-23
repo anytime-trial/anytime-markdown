@@ -34,12 +34,14 @@ function insertSession(db: TrailDatabase, overrides: Partial<Record<string, unkn
     imported_at: '2026-05-01T01:00:00.000Z',
     ...overrides,
   };
+  // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
+  const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(row.repo_name);
   inner(db).run(
-    `INSERT INTO sessions (id, slug, git_branch, repo_name, model, version, start_time, end_time,
+    `INSERT INTO sessions (id, slug, git_branch, repo_id, model, version, start_time, end_time,
        message_count, file_path, file_size, imported_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      row.id, row.slug, row.git_branch, row.repo_name, row.model, row.version,
+      row.id, row.slug, row.git_branch, repoId, row.model, row.version,
       row.start_time, row.end_time, row.message_count, row.file_path, row.file_size, row.imported_at,
     ],
   );

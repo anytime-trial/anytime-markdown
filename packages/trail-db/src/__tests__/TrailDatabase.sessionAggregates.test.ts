@@ -57,12 +57,14 @@ function insertSession(
     model = 'claude-opus-4',
     importedAt = '2026-04-29T01:00:00.000Z',
   } = opts;
+  // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
+  const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
     `INSERT OR IGNORE INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
+       id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source
      ) VALUES (?, ?, ?, '', '', ?, ?, ?, 0, '', 0, ?, ?)`,
-    [id, id, repoName, model, startTime, endTime, importedAt, source],
+    [id, id, repoId, model, startTime, endTime, importedAt, source],
   );
 }
 
@@ -87,12 +89,14 @@ function insertSessionCommit(
     repoName = 'test-repo',
     committedAt = '2026-04-29T00:30:00.000Z',
   } = opts;
+  // Phase H-4: session_commits.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
+  const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
     `INSERT OR IGNORE INTO session_commits
        (session_id, commit_hash, commit_message, author, committed_at,
-        is_ai_assisted, files_changed, lines_added, lines_deleted, repo_name)
+        is_ai_assisted, files_changed, lines_added, lines_deleted, repo_id)
      VALUES (?, ?, 'test commit', 'test author', ?, ?, ?, ?, ?, ?)`,
-    [sessionId, commitHash, committedAt, isAiAssisted, filesChanged, linesAdded, linesDeleted, repoName],
+    [sessionId, commitHash, committedAt, isAiAssisted, filesChanged, linesAdded, linesDeleted, repoId],
   );
 }
 

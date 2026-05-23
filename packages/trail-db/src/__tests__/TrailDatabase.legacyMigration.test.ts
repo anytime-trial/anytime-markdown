@@ -235,17 +235,19 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     };
 
     expect(colsOf('session_commits')).toContain('repo_id');
-    expect(colsOf('session_commits')).toContain('repo_name'); // 移行互換で残置
+    expect(colsOf('session_commits')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
+    expect(colsOf('commit_files')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
+    expect(colsOf('session_commit_resolutions')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
     // PK は (session_id, repo_id, commit_hash) → ソートで commit_hash, repo_id, session_id。
     expect(pkOf('session_commits')).toEqual(['commit_hash', 'repo_id', 'session_id']);
     expect(pkOf('commit_files')).toEqual(['commit_hash', 'file_path', 'repo_id']);
     expect(pkOf('session_commit_resolutions')).toEqual(['repo_id', 'session_id']);
 
-    // 旧データが repo_id backfill 済で残っている。
+    // 旧データが repo_id backfill 済で残っている。repo_name は repos 経由で復元する。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-sc');
-    const sc = inner.exec("SELECT repo_id, repo_name, commit_hash FROM session_commits WHERE session_id = 'legacy-sess'");
+    const sc = inner.exec("SELECT repo_id, commit_hash FROM session_commits WHERE session_id = 'legacy-sess'");
     expect(Number(sc[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
-    expect(String(sc[0]?.values?.[0]?.[1])).toBe('legacy-sc');
+    expect(String(sc[0]?.values?.[0]?.[1])).toBe('h-legacy');
 
     const cf = inner.exec("SELECT repo_id, file_path FROM commit_files WHERE commit_hash = 'h-legacy'");
     expect(Number(cf[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
@@ -253,6 +255,12 @@ describe('TrailDatabase: legacy DB migration on init', () => {
 
     const res = inner.exec("SELECT repo_id FROM session_commit_resolutions WHERE session_id = 'legacy-sess'");
     expect(Number(res[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
+
+    // read 契約: getSessionCommits / getCommitFiles は repos を JOIN して repo_name を復元する。
+    const scRows = db.getSessionCommits('legacy-sess');
+    expect(scRows.map((r) => r.repo_name)).toEqual(['legacy-sc']);
+    const cfRows = db.getCommitFiles(['h-legacy']);
+    expect(cfRows.map((r) => r.repo_name)).toEqual(['legacy-sc']);
   });
 
   it('Phase D additive: legacy sessions (repo_id 列なし) に repo_id を追加し repo_name から backfill する', async () => {
@@ -290,13 +298,16 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
+    expect(colNames).not.toContain('repo_name'); // Phase H-4: 物理撤去済
     // PK は id のまま (additive のため変更しない)。
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1]));
     expect(pkCols).toEqual(['id']);
 
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-sessrepo');
-    const s = inner.exec("SELECT repo_id, repo_name FROM sessions WHERE id = 'legacy-s'");
+    const s = inner.exec("SELECT repo_id FROM sessions WHERE id = 'legacy-s'");
     expect(Number(s[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
+    // read 契約: getSessions は repos を JOIN して repo_name を復元する。
+    expect(db.getSessions().find((r) => r.id === 'legacy-s')?.repo_name).toBe('legacy-sessrepo');
   });
 
   it('Phase D: legacy sessions に project 列が残る DB でも、project 撤去再構築後に repo_id とその backfill 値が保持される', async () => {
@@ -337,16 +348,17 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const info = inner.exec('PRAGMA table_info(sessions)');
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
-    // project は撤去され、repo_id は保持される。
+    // project は撤去され、repo_id は保持される。Phase H-4: repo_name も撤去済。
     expect(colNames).not.toContain('project');
     expect(colNames).toContain('repo_id');
-    expect(colNames).toContain('repo_name');
+    expect(colNames).not.toContain('repo_name'); // Phase H-4: 物理撤去済
 
     // repo_id の backfill 値が project 撤去再構築をまたいで保持される。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('proj-sessrepo');
-    const s = inner.exec("SELECT repo_id, repo_name FROM sessions WHERE id = 'proj-s'");
+    const s = inner.exec("SELECT repo_id FROM sessions WHERE id = 'proj-s'");
     expect(Number(s[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
-    expect(String(s[0]?.values?.[0]?.[1])).toBe('proj-sessrepo');
+    // read 契約: getSessions は repos を JOIN して repo_name を復元する。
+    expect(db.getSessions().find((r) => r.id === 'proj-s')?.repo_name).toBe('proj-sessrepo');
   });
 
   it('Phase E flip: 旧 PK / 複合 FK の legacy c4_manual_* を repo_id PK へ再構築し、データ・複合 FK・backfill を保持する', async () => {
@@ -887,6 +899,161 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       expect(colsOf(t)).not.toContain('repo_name');
     }
     expect(db.getCurrentFileAnalysis('h3-repo')).toHaveLength(1);
+
+    db.close();
+  });
+
+  it('Phase H-4: session/commit 系から repo_name を撤去し repo_id データ・複合 PK・ALTER 由来列・read 契約を保全する', async () => {
+    // Phase D flip 済の中間スキーマ = repo_id PK/列 + repo_name 残置列を再現する (撤去直前の状態)。
+    // sessions には静的 DDL に無い ALTER 由来の compact_count(INTEGER) も付け、撤去後も値・型が保全される
+    // ことを確認する。撤去後 read メソッドは repos を JOIN して repo_name を結果に復元する (契約不変)。
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+    const colsOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.map((c) => String(c[1]));
+    };
+    const pkOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
+    };
+    const typeOf = (table: string, col: string): string => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return String(rows.find((c) => String(c[1]) === col)?.[2] ?? '').toUpperCase();
+    };
+
+    const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h4-repo');
+    const ts = '2026-05-23T00:00:00.000Z';
+
+    // sessions (id PK + repo_id additive + repo_name 残置 + ALTER 由来 compact_count INTEGER)
+    inner.run('DROP TABLE IF EXISTS sessions');
+    inner.run(`
+      CREATE TABLE sessions (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL DEFAULT '',
+        repo_name TEXT NOT NULL DEFAULT '',
+        repo_id INTEGER,
+        version TEXT NOT NULL DEFAULT '',
+        entrypoint TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL DEFAULT '',
+        start_time TEXT,
+        end_time TEXT,
+        message_count INTEGER NOT NULL DEFAULT 0,
+        file_path TEXT NOT NULL DEFAULT '',
+        file_size INTEGER NOT NULL DEFAULT 0,
+        imported_at TEXT,
+        source TEXT NOT NULL DEFAULT 'claude_code',
+        compact_count INTEGER
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO sessions (id, slug, repo_name, repo_id, start_time, end_time, imported_at, compact_count) VALUES ('h4-s', 'h4-s', 'h4-repo', ?, ?, ?, ?, 7)",
+      [repoId, ts, ts, ts],
+    );
+
+    // session_commits (複合 PK (session_id, repo_id, commit_hash) + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS session_commits');
+    inner.run(`
+      CREATE TABLE session_commits (
+        session_id TEXT NOT NULL,
+        commit_hash TEXT NOT NULL,
+        commit_message TEXT NOT NULL DEFAULT '',
+        author TEXT NOT NULL DEFAULT '',
+        committed_at TEXT,
+        is_ai_assisted INTEGER NOT NULL DEFAULT 0,
+        files_changed INTEGER NOT NULL DEFAULT 0,
+        lines_added INTEGER NOT NULL DEFAULT 0,
+        lines_deleted INTEGER NOT NULL DEFAULT 0,
+        repo_name TEXT NOT NULL DEFAULT '',
+        repo_id INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (session_id, repo_id, commit_hash)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO session_commits (session_id, commit_hash, repo_name, repo_id, committed_at) VALUES ('h4-s', 'h4-hash', 'h4-repo', ?, ?)",
+      [repoId, ts],
+    );
+
+    // commit_files (複合 PK (repo_id, commit_hash, file_path) + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS commit_files');
+    inner.run(`
+      CREATE TABLE commit_files (
+        commit_hash TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        repo_name TEXT NOT NULL DEFAULT '',
+        repo_id INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (repo_id, commit_hash, file_path)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO commit_files (commit_hash, file_path, repo_name, repo_id) VALUES ('h4-hash', 'src/h4.ts', 'h4-repo', ?)",
+      [repoId],
+    );
+
+    // session_commit_resolutions (複合 PK (session_id, repo_id) + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS session_commit_resolutions');
+    inner.run(`
+      CREATE TABLE session_commit_resolutions (
+        session_id TEXT NOT NULL,
+        repo_name TEXT NOT NULL,
+        repo_id INTEGER NOT NULL DEFAULT 0,
+        resolved_at TEXT NOT NULL,
+        PRIMARY KEY (session_id, repo_id)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO session_commit_resolutions (session_id, repo_name, repo_id, resolved_at) VALUES ('h4-s', 'h4-repo', ?, ?)",
+      [repoId, ts],
+    );
+
+    // createTables を再実行 → H-4 drop migration が repo_name を撤去する。例外なく完了すること。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+
+    const targetTables = ['sessions', 'session_commits', 'commit_files', 'session_commit_resolutions'];
+    // 4 テーブルから repo_name が消え、repo_id は残っている。
+    for (const t of targetTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+      expect(colsOf(t)).toContain('repo_id');
+    }
+    // 複合 PK / id PK は不変。
+    expect(pkOf('sessions')).toEqual(['id']);
+    expect(pkOf('session_commits')).toEqual(['commit_hash', 'repo_id', 'session_id']);
+    expect(pkOf('commit_files')).toEqual(['commit_hash', 'file_path', 'repo_id']);
+    expect(pkOf('session_commit_resolutions')).toEqual(['repo_id', 'session_id']);
+
+    // ALTER 由来の compact_count(INTEGER) が値・型ごと保全されている。
+    expect(colsOf('sessions')).toContain('compact_count');
+    expect(typeOf('sessions', 'compact_count')).toBe('INTEGER');
+    const cc = inner.exec("SELECT compact_count FROM sessions WHERE id = 'h4-s'");
+    expect(Number(cc[0]?.values?.[0]?.[0])).toBe(7);
+
+    // repo_id データが保全されている。
+    expect(Number(inner.exec("SELECT repo_id FROM session_commits WHERE session_id = 'h4-s'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM commit_files WHERE commit_hash = 'h4-hash'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM session_commit_resolutions WHERE session_id = 'h4-s'")[0]?.values?.[0]?.[0])).toBe(repoId);
+
+    // read 契約: repos JOIN で repo_name を結果に復元する (SyncService が Supabase ミラーへ運ぶ契約)。
+    expect(db.getSessions().find((r) => r.id === 'h4-s')?.repo_name).toBe('h4-repo');
+    expect(db.getSessionCommits('h4-s').map((r) => r.repo_name)).toEqual(['h4-repo']);
+    expect(db.getCommitFiles(['h4-hash']).map((r) => r.repo_name)).toEqual(['h4-repo']);
+    // repo_id フィルタの read も機能する (commits_resolved の判定)。
+    expect(
+      (db as unknown as { isCommitResolutionDone(s: string, r: string): boolean }).isCommitResolutionDone('h4-s', 'h4-repo'),
+    ).toBe(true);
+
+    // 冪等: 再度 createTables を走らせても repo_name は無いまま例外なく完了する。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+    for (const t of targetTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+    }
+    expect(db.getSessionCommits('h4-s')).toHaveLength(1);
 
     db.close();
   });

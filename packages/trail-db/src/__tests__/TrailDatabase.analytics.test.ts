@@ -42,12 +42,14 @@ function insertSession(
     model = 'claude-opus-4',
     importedAt = '2026-04-29T01:00:00.000Z',
   } = opts;
+  // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
+  const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
     `INSERT OR IGNORE INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
+       id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source
      ) VALUES (?, ?, ?, '', '', ?, ?, ?, 0, '', 0, ?, ?)`,
-    [id, id, repoName, model, startTime, endTime, importedAt, source],
+    [id, id, repoId, model, startTime, endTime, importedAt, source],
   );
 }
 
