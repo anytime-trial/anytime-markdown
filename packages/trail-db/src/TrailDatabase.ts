@@ -239,6 +239,16 @@ const DERIVED_DROP_REPO_NAME_DDL: Readonly<Record<string, string>> = {
   cross_source_correlations: CREATE_CROSS_SOURCE_CORRELATIONS,
 };
 
+// Phase H-2: c4_manual 系テーブル名 → 新スキーマ (repo_name 列を撤去した) DDL の対応表。
+// migrateDropC4ManualRepoName が repo_name 物理撤去の 12-step 再構築で引く。複合 PK (repo_id, <id>)・
+// 複合 FK (repo_id, parent_id/from_id/to_id) は repo_id 構成のため repo_name 撤去後も不変。
+// repo フィルタは repo_id = ? (repoIdForName 解決) で行う (read の WHERE は repo_id = ?)。
+const C4_MANUAL_DROP_REPO_NAME_DDL: Readonly<Record<string, string>> = {
+  c4_manual_elements: CREATE_C4_MANUAL_ELEMENTS,
+  c4_manual_relationships: CREATE_C4_MANUAL_RELATIONSHIPS,
+  c4_manual_groups: CREATE_C4_MANUAL_GROUPS,
+};
+
 /**
  * `*_code_graph_communities` テーブルに `stable_key` 列が無ければ ALTER で追加する。
  * 起動時マイグレーションのため、`saveCurrentCodeGraph` / `saveReleaseCodeGraph` / `upsert*` の
@@ -2492,6 +2502,134 @@ export class TrailDatabase {
   }
 
   /**
+   * Phase H-2: c4_manual 系 3 テーブル (c4_manual_elements / c4_manual_relationships /
+   * c4_manual_groups) から非正規化キャッシュの repo_name 列を物理撤去する (冪等)。
+   * `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
+   *
+   * - 各テーブルに repo_name 列が在る時のみ実行する (`columnExists` ガードで冪等)。
+   * - 撤去前に repo_name から repos を self-seed し、未解決の repo_id を backfill する (Phase E flip が
+   *   既に repo_id を埋めている前提だが、退化 DB 防御のため再実行する)。
+   * - 新スキーマ (repo_name を持たない CREATE_C4_MANUAL_* DDL) へ INSERT...SELECT で共有列をコピーする。
+   *   repo_name 列は新スキーマに無いため自然に落ちる。複合 PK (repo_id, <id>)・複合 FK
+   *   (repo_id, parent_id/from_id/to_id)・CHECK・STRICT は repo_id 構成のため不変。
+   * - CREATE_C4_MANUAL_* (CREATE TABLE IF NOT EXISTS) の実行前に呼ぶ。新規 DB / 撤去済 DB は no-op。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *   FK OFF のため再構築順は影響しないが、Phase E と同じ親 (elements) → 子 (relationships / groups)
+   *   の順で回し、意図を明示する。
+   *
+   * 撤去後、repo フィルタは repo_id = ? (repoIdForName 解決) で行う。c4_manual の read メソッドは
+   * repo_name を結果に含めない (repoName を入力に取り repo_id で絞り込む契約) ため、下流契約は不変。
+   */
+  private migrateDropC4ManualRepoName(db: Database): void {
+    for (const table of TrailDatabase.C4_MANUAL_REPO_ID_TABLES) {
+      this.dropC4ManualRepoNameColumn(db, table);
+    }
+  }
+
+  /** Phase H-2: 1 テーブルから repo_name 列を 12-step 再構築で物理撤去する (冪等)。 */
+  private dropC4ManualRepoNameColumn(db: Database, table: string): void {
+    const exists =
+      db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+        ?.length;
+    if (!exists) return; // 新規 DB → CREATE_C4_MANUAL_* が新スキーマ (repo_name なし) を作る
+    if (!columnExists(db, table, 'repo_name')) return; // 既に撤去済 (冪等)
+    if (!columnExists(db, table, 'repo_id')) {
+      // repo_id が無い退化 DB は H-2 の対象外 (Phase E flip が先に repo_id PK を入れる想定)。
+      this.logger.warn(`[c4-manual drop repo_name] ${table} has no repo_id, skip drop`);
+      return;
+    }
+
+    try {
+      // ── pre: repo_name から repos を self-seed し、未解決 repo_id を backfill する (防御的) ──
+      db.run(
+        `INSERT OR IGNORE INTO repos (repo_name, created_at)
+         SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         FROM "${table}" WHERE repo_name IS NOT NULL`,
+      );
+      db.run(
+        `UPDATE "${table}"
+           SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name)
+         WHERE repo_id IS NULL
+           AND (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name) IS NOT NULL`,
+      );
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        this.rebuildC4ManualTableDroppingRepoName(db, table);
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(
+            `[c4-manual drop repo_name] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(
+            `[c4-manual drop repo_name] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error(
+        `dropC4ManualRepoNameColumn(${table}) failed`,
+        e instanceof Error ? e : new Error(String(e)),
+      );
+      throw e;
+    }
+  }
+
+  /** flip: c4_manual 系テーブルを新スキーマ (repo_name なし・複合 PK/FK 維持) へ 12-step 再構築する。 */
+  private rebuildC4ManualTableDroppingRepoName(db: Database, table: string): void {
+    const ddl = C4_MANUAL_DROP_REPO_NAME_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[c4-manual drop repo_name] no DDL registered for ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    // 新スキーマの列のうち旧テーブルにも存在する列を共有列としてコピーする。新スキーマには
+    // repo_name が無いため共有列に repo_name は含まれず自然に落ちる。repo_id・element_id 等の
+    // 複合 PK/FK 構成列は両者に在るためコピーされ、PK/FK の整合は維持される。
+    const sharedCols = newCols.filter((c) => oldCols.has(c));
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}"`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
+  /**
    * Phase F flip: 既存 DB の derived テーブル (dora_metrics / pr_reviews /
    * cross_source_correlations) を repo_id 化する破壊的/additive マイグレーション。
    *
@@ -2882,12 +3020,13 @@ export class TrailDatabase {
     const REPO_NAME_TABLES = [
       'sessions', 'session_commits', 'commit_files', 'session_commit_resolutions',
       'current_graphs', 'releases', 'current_coverage',
-      'c4_manual_elements', 'c4_manual_relationships', 'c4_manual_groups',
       'current_code_graphs', 'current_code_graph_communities',
       'current_file_analysis', 'release_file_analysis',
       'current_function_analysis', 'release_function_analysis',
       // Phase H-1: dora_metrics / pr_reviews / cross_source_correlations は repo_name 列を撤去済。
       // これらの repo seed は H-1 の drop migration (drop 直前に self-seed) が担うため、ここから除外する。
+      // Phase H-2: c4_manual_elements / c4_manual_relationships / c4_manual_groups も repo_name 列を撤去済。
+      // これらの repo seed は H-2 の drop migration (drop 直前に self-seed) が担うため、ここから除外する。
     ];
     for (const table of REPO_NAME_TABLES) {
       try {
@@ -3029,6 +3168,10 @@ export class TrailDatabase {
     // CREATE TABLE IF NOT EXISTS は既存テーブルに無効なため、CREATE_C4_MANUAL_* の実行前に呼ぶ。
     // 新規 DB / flip 済 DB では no-op。repos を self-seed してから backfill する。
     this.migrateC4ManualTablesRepoId(db);
+    // Phase H-2: c4_manual 系 3 テーブルから repo_name 列 (非正規化キャッシュ) を物理撤去する。
+    // migrateC4ManualTablesRepoId が先に repo_id PK を入れた後に呼ぶ。CREATE TABLE IF NOT EXISTS は
+    // 既存テーブルに無効なため CREATE_C4_MANUAL_* の前に呼ぶ。新規 DB / 撤去済 DB では no-op。
+    this.migrateDropC4ManualRepoName(db);
     db.run(CREATE_C4_MANUAL_ELEMENTS);
     db.run(CREATE_C4_MANUAL_RELATIONSHIPS);
     db.run(CREATE_C4_MANUAL_GROUPS);
@@ -5730,13 +5873,13 @@ export class TrailDatabase {
     const nextN = this.getNextManualSequence(repoName, prefix) + 1;
     const id = `${prefix}${nextN}`;
     const now = new Date().toISOString();
-    // Phase E flip: c4_manual_elements は repo_id PK。repo_name は移行互換のため併記する。
+    // Phase E flip: c4_manual_elements は repo_id PK。Phase H-2: repo_name 列は撤去済。
     const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT INTO c4_manual_elements
-         (repo_id, repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [repoId, repoName, id, input.type, input.name, input.description ?? null, input.external ? 1 : 0, input.parentId, input.serviceType ?? null, now],
+         (repo_id, element_id, type, name, description, external, parent_id, service_type, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, id, input.type, input.name, input.description ?? null, input.external ? 1 : 0, input.parentId, input.serviceType ?? null, now],
     );
     this.save();
     return id;
@@ -5757,9 +5900,11 @@ export class TrailDatabase {
     if (changes.serviceType !== undefined) { sets.push('service_type = ?'); vals.push(changes.serviceType); }
     if (sets.length === 0) return;
     sets.push('updated_at = ?');
-    vals.push(now, repoName, elementId);
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoId = this.repoIdForName(repoName);
+    vals.push(now, repoId, elementId);
     db.run(
-      `UPDATE c4_manual_elements SET ${sets.join(', ')} WHERE repo_name = ? AND element_id = ?`,
+      `UPDATE c4_manual_elements SET ${sets.join(', ')} WHERE repo_id = ? AND element_id = ?`,
       vals,
     );
     this.save();
@@ -5767,23 +5912,27 @@ export class TrailDatabase {
 
   deleteManualElement(repoName: string, elementId: string): void {
     const db = this.ensureDb();
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoId = this.repoIdForName(repoName);
     db.run(
-      `DELETE FROM c4_manual_relationships WHERE repo_name = ? AND (from_id = ? OR to_id = ?)`,
-      [repoName, elementId, elementId],
+      `DELETE FROM c4_manual_relationships WHERE repo_id = ? AND (from_id = ? OR to_id = ?)`,
+      [repoId, elementId, elementId],
     );
     db.run(
-      `DELETE FROM c4_manual_elements WHERE repo_name = ? AND element_id = ?`,
-      [repoName, elementId],
+      `DELETE FROM c4_manual_elements WHERE repo_id = ? AND element_id = ?`,
+      [repoId, elementId],
     );
     this.save();
   }
 
   getManualElements(repoName: string): readonly ManualElement[] {
     const db = this.ensureDb();
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoId = this.repoIdForName(repoName);
     const result = db.exec(
       `SELECT element_id, type, name, description, external, parent_id, service_type, updated_at
-         FROM c4_manual_elements WHERE repo_name = ? ORDER BY element_id`,
-      [repoName],
+         FROM c4_manual_elements WHERE repo_id = ? ORDER BY element_id`,
+      [repoId],
     );
     const rows = result[0]?.values ?? [];
     return rows.map((row) => ({
@@ -5806,13 +5955,13 @@ export class TrailDatabase {
     const nextN = this.getNextManualSequence(repoName, 'rel_manual_') + 1;
     const id = `rel_manual_${nextN}`;
     const now = new Date().toISOString();
-    // Phase E flip: c4_manual_relationships は repo_id PK。repo_name は移行互換のため併記する。
+    // Phase E flip: c4_manual_relationships は repo_id PK。Phase H-2: repo_name 列は撤去済。
     const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT INTO c4_manual_relationships
-         (repo_id, repo_name, rel_id, from_id, to_id, label, technology, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [repoId, repoName, id, input.fromId, input.toId, input.label ?? null, input.technology ?? null, now],
+         (repo_id, rel_id, from_id, to_id, label, technology, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, id, input.fromId, input.toId, input.label ?? null, input.technology ?? null, now],
     );
     this.save();
     return id;
@@ -5820,19 +5969,23 @@ export class TrailDatabase {
 
   deleteManualRelationship(repoName: string, relId: string): void {
     const db = this.ensureDb();
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoId = this.repoIdForName(repoName);
     db.run(
-      `DELETE FROM c4_manual_relationships WHERE repo_name = ? AND rel_id = ?`,
-      [repoName, relId],
+      `DELETE FROM c4_manual_relationships WHERE repo_id = ? AND rel_id = ?`,
+      [repoId, relId],
     );
     this.save();
   }
 
   getManualRelationships(repoName: string): readonly ManualRelationship[] {
     const db = this.ensureDb();
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoId = this.repoIdForName(repoName);
     const result = db.exec(
       `SELECT rel_id, from_id, to_id, label, technology, updated_at
-         FROM c4_manual_relationships WHERE repo_name = ? ORDER BY rel_id`,
-      [repoName],
+         FROM c4_manual_relationships WHERE repo_id = ? ORDER BY rel_id`,
+      [repoId],
     );
     const rows = result[0]?.values ?? [];
     return rows.map((row) => ({
@@ -5851,9 +6004,9 @@ export class TrailDatabase {
     const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT OR REPLACE INTO c4_manual_elements
-         (repo_id, repo_name, element_id, type, name, description, external, parent_id, service_type, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [repoId, repoName, e.id, e.type, e.name, e.description ?? null, e.external ? 1 : 0, e.parentId, e.serviceType ?? null, e.updatedAt],
+         (repo_id, element_id, type, name, description, external, parent_id, service_type, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, e.id, e.type, e.name, e.description ?? null, e.external ? 1 : 0, e.parentId, e.serviceType ?? null, e.updatedAt],
     );
     this.save();
   }
@@ -5864,9 +6017,9 @@ export class TrailDatabase {
     const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT OR REPLACE INTO c4_manual_relationships
-         (repo_id, repo_name, rel_id, from_id, to_id, label, technology, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [repoId, repoName, r.id, r.fromId, r.toId, r.label ?? null, r.technology ?? null, r.updatedAt],
+         (repo_id, rel_id, from_id, to_id, label, technology, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [repoId, r.id, r.fromId, r.toId, r.label ?? null, r.technology ?? null, r.updatedAt],
     );
     this.save();
   }
@@ -5877,9 +6030,9 @@ export class TrailDatabase {
     const repoId = this.repoIdForName(repoName);
     db.run(
       `INSERT OR REPLACE INTO c4_manual_groups
-         (repo_id, repo_name, group_id, member_ids, label, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [repoId, repoName, g.id, JSON.stringify(g.memberIds), g.label ?? null, g.updatedAt],
+         (repo_id, group_id, member_ids, label, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [repoId, g.id, JSON.stringify(g.memberIds), g.label ?? null, g.updatedAt],
     );
     this.save();
   }
@@ -5889,9 +6042,11 @@ export class TrailDatabase {
     input: { memberIds: string[]; label?: string },
   ): string {
     const db = this.ensureDb();
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoId = this.repoIdForName(repoName);
     const result = db.exec(
-      `SELECT group_id FROM c4_manual_groups WHERE repo_name = ? AND group_id LIKE 'grp_manual_%'`,
-      [repoName],
+      `SELECT group_id FROM c4_manual_groups WHERE repo_id = ? AND group_id LIKE 'grp_manual_%'`,
+      [repoId],
     );
     const maxN = (result[0]?.values ?? []).reduce((m: number, row) => {
       const n = Number.parseInt(String(row[0]).substring('grp_manual_'.length), 10);
@@ -5899,12 +6054,11 @@ export class TrailDatabase {
     }, 0);
     const id = `grp_manual_${maxN + 1}`;
     const now = new Date().toISOString();
-    // Phase E flip: c4_manual_groups は repo_id PK。repo_name は移行互換のため併記する。
-    const repoId = this.repoIdForName(repoName);
+    // Phase E flip: c4_manual_groups は repo_id PK。Phase H-2: repo_name 列は撤去済。
     db.run(
-      `INSERT INTO c4_manual_groups (repo_id, repo_name, group_id, member_ids, label, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [repoId, repoName, id, JSON.stringify(input.memberIds), input.label ?? null, now],
+      `INSERT INTO c4_manual_groups (repo_id, group_id, member_ids, label, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [repoId, id, JSON.stringify(input.memberIds), input.label ?? null, now],
     );
     this.save();
     return id;
@@ -5917,25 +6071,31 @@ export class TrailDatabase {
   ): void {
     const db = this.ensureDb();
     const sets: string[] = ['updated_at = ?'];
-    const values: (string | null)[] = [new Date().toISOString()];
+    const values: (string | number | null)[] = [new Date().toISOString()];
     if (changes.memberIds !== undefined) { sets.push('member_ids = ?'); values.push(JSON.stringify(changes.memberIds)); }
     if ('label' in changes) { sets.push('label = ?'); values.push(changes.label ?? null); }
-    values.push(repoName, groupId);
-    db.run(`UPDATE c4_manual_groups SET ${sets.join(', ')} WHERE repo_name = ? AND group_id = ?`, values);
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoId = this.repoIdForName(repoName);
+    values.push(repoId, groupId);
+    db.run(`UPDATE c4_manual_groups SET ${sets.join(', ')} WHERE repo_id = ? AND group_id = ?`, values);
     this.save();
   }
 
   deleteManualGroup(repoName: string, groupId: string): void {
     const db = this.ensureDb();
-    db.run(`DELETE FROM c4_manual_groups WHERE repo_name = ? AND group_id = ?`, [repoName, groupId]);
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoId = this.repoIdForName(repoName);
+    db.run(`DELETE FROM c4_manual_groups WHERE repo_id = ? AND group_id = ?`, [repoId, groupId]);
     this.save();
   }
 
   getManualGroups(repoName: string): readonly ManualGroup[] {
     const db = this.ensureDb();
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoId = this.repoIdForName(repoName);
     const result = db.exec(
-      `SELECT group_id, member_ids, label, updated_at FROM c4_manual_groups WHERE repo_name = ? ORDER BY group_id`,
-      [repoName],
+      `SELECT group_id, member_ids, label, updated_at FROM c4_manual_groups WHERE repo_id = ? ORDER BY group_id`,
+      [repoId],
     );
     return (result[0]?.values ?? []).map((row) => ({
       id: String(row[0]),
@@ -5959,9 +6119,11 @@ export class TrailDatabase {
     const db = this.ensureDb();
     const table = prefix === 'rel_manual_' ? 'c4_manual_relationships' : 'c4_manual_elements';
     const col = prefix === 'rel_manual_' ? 'rel_id' : 'element_id';
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoId = this.repoIdForName(repoName);
     const result = db.exec(
-      `SELECT ${col} FROM ${table} WHERE repo_name = ? AND ${col} LIKE ?`,
-      [repoName, `${prefix}%`],
+      `SELECT ${col} FROM ${table} WHERE repo_id = ? AND ${col} LIKE ?`,
+      [repoId, `${prefix}%`],
     );
     const rows = result[0]?.values ?? [];
     let max = 0;

@@ -3,6 +3,16 @@ import type { C4Model, ManualElement, ManualRelationship } from '@anytime-markdo
 import { codeGraphToC4, mergeManualIntoC4Model } from '@anytime-markdown/trail-core';
 import { all, get } from './sqlJsUtil';
 
+/**
+ * Phase H-2: c4_manual_* から repo_name 列を撤去したため、read の repo フィルタは repo_id = ? で行う。
+ * read は副作用を避けるため repos へ upsert せず参照のみする。未登録の repo は -1 (どの行にも
+ * マッチしない sentinel) を返し、空結果を返させる。
+ */
+function lookupRepoId(db: Database, repoName: string): number {
+  const row = get<{ repo_id: number }>(db, 'SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  return row ? Number(row.repo_id) : -1;
+}
+
 // current_code_graphs.graph_json は trail-core の StoredCodeGraph 形式。
 // import 時の型衝突を避けるため runtime はそのまま JSON.parse、型は構造のみ参照。
 interface StoredCodeGraphJson {
@@ -109,10 +119,13 @@ export function getC4ModelDirect(db: Database, repoName: string): { model: C4Mod
     ? codeGraphToC4(JSON.parse(graphRow.graph_json) as StoredCodeGraphJson)
     : { level: 'container', elements: [], relationships: [] };
 
+  // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
+  const repoId = lookupRepoId(db, repoName);
+
   const manualElementRows = all<ManualElementRow>(
     db,
-    'SELECT element_id, type, name, description, service_type, external, updated_at FROM c4_manual_elements WHERE repo_name = ? ORDER BY element_id',
-    [repoName],
+    'SELECT element_id, type, name, description, service_type, external, updated_at FROM c4_manual_elements WHERE repo_id = ? ORDER BY element_id',
+    [repoId],
   );
 
   const manualElements: ManualElement[] = manualElementRows.map((row) => ({
@@ -128,8 +141,8 @@ export function getC4ModelDirect(db: Database, repoName: string): { model: C4Mod
 
   const manualRelationshipRows = all<ManualRelationshipRow>(
     db,
-    'SELECT rel_id, from_id, to_id, label, technology, updated_at FROM c4_manual_relationships WHERE repo_name = ? ORDER BY rel_id',
-    [repoName],
+    'SELECT rel_id, from_id, to_id, label, technology, updated_at FROM c4_manual_relationships WHERE repo_id = ? ORDER BY rel_id',
+    [repoId],
   );
 
   const manualRelationships: ManualRelationship[] = manualRelationshipRows.map((row) => ({
@@ -156,10 +169,12 @@ export function listElementsDirect(db: Database, repoName: string): ListedElemen
 }
 
 export function listGroupsDirect(db: Database, repoName: string): ListedGroup[] {
+  // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
+  const repoId = lookupRepoId(db, repoName);
   const rows = all<ManualGroupRow>(
     db,
-    'SELECT group_id, member_ids, label FROM c4_manual_groups WHERE repo_name = ? ORDER BY group_id',
-    [repoName],
+    'SELECT group_id, member_ids, label FROM c4_manual_groups WHERE repo_id = ? ORDER BY group_id',
+    [repoId],
   );
 
   return rows.map((row) => {
@@ -173,10 +188,12 @@ export function listGroupsDirect(db: Database, repoName: string): ListedGroup[] 
 }
 
 export function listRelationshipsDirect(db: Database, repoName: string): ListedRelationship[] {
+  // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
+  const repoId = lookupRepoId(db, repoName);
   const rows = all<ManualRelationshipRow>(
     db,
-    'SELECT rel_id, from_id, to_id, label, technology FROM c4_manual_relationships WHERE repo_name = ? ORDER BY rel_id',
-    [repoName],
+    'SELECT rel_id, from_id, to_id, label, technology FROM c4_manual_relationships WHERE repo_id = ? ORDER BY rel_id',
+    [repoId],
   );
 
   return rows.map((row) => {

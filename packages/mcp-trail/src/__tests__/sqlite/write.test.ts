@@ -47,7 +47,6 @@ function createTestDb(includeMappingsJson = false): Database {
     );
     CREATE TABLE c4_manual_elements (
       repo_id INTEGER NOT NULL,
-      repo_name TEXT NOT NULL DEFAULT '',
       element_id TEXT NOT NULL,
       type TEXT NOT NULL,
       name TEXT NOT NULL,
@@ -60,7 +59,6 @@ function createTestDb(includeMappingsJson = false): Database {
     );
     CREATE TABLE c4_manual_relationships (
       repo_id INTEGER NOT NULL,
-      repo_name TEXT NOT NULL DEFAULT '',
       rel_id TEXT NOT NULL,
       from_id TEXT NOT NULL,
       to_id TEXT NOT NULL,
@@ -71,7 +69,6 @@ function createTestDb(includeMappingsJson = false): Database {
     );
     CREATE TABLE c4_manual_groups (
       repo_id INTEGER NOT NULL,
-      repo_name TEXT NOT NULL DEFAULT '',
       group_id TEXT NOT NULL,
       member_ids TEXT NOT NULL DEFAULT '[]',
       label TEXT,
@@ -178,7 +175,9 @@ describe('addElementDirect', () => {
 
   test('SELECT で取得できる', () => {
     const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'API', external: false, parentId: null, description: 'desc', serviceType: 'web' });
-    const row = get<Record<string, unknown>>(db, 'SELECT * FROM c4_manual_elements WHERE repo_name=? AND element_id=?', [REPO, id]);
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoIdRow = get<{ repo_id: number }>(db, 'SELECT repo_id FROM repos WHERE repo_name=?', [REPO]);
+    const row = get<Record<string, unknown>>(db, 'SELECT * FROM c4_manual_elements WHERE repo_id=? AND element_id=?', [repoIdRow!.repo_id, id]);
     expect(row).toBeDefined();
     expect(row!.name).toBe('API');
     expect(row!.type).toBe('Container');
