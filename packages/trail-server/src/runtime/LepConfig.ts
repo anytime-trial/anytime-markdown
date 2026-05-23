@@ -126,11 +126,6 @@ export interface LepSourcesConfig {
   github: LepGitHubSourceConfig;
   claude: LepClaudeSourceConfig;
   codex: LepCodexSourceConfig;
-}
-
-export interface LepConfig {
-  version: number;
-  stage: LepStage;
   /**
    * 解析対象 git リポジトリのルート群 (拡張・daemon 共通の監視対象)。
    * daemon は CLI 引数 → home-tier lep.json の順で bootstrap する (workspace lep.json は
@@ -138,6 +133,11 @@ export interface LepConfig {
    * 拡張は本 gitRoots に加えて anytimeTrail.workspace.path を監視対象へ追加する。
    */
   gitRoots: string[];
+}
+
+export interface LepConfig {
+  version: number;
+  stage: LepStage;
   schedule: LepScheduleConfig;
   llm: LepLlmConfig;
   memory: LepMemoryConfig;
@@ -192,7 +192,6 @@ export const disabledMemoryAnalyzerIds = disabledAnalyzerIds;
 export interface PartialLepConfig {
   version?: number;
   stage?: LepStage;
-  gitRoots?: string[];
   schedule?: Partial<LepScheduleConfig>;
   llm?: {
     providers?: {
@@ -212,6 +211,7 @@ export interface PartialLepConfig {
     github?: Partial<LepGitHubSourceConfig>;
     claude?: Partial<LepClaudeSourceConfig>;
     codex?: Partial<LepCodexSourceConfig>;
+    gitRoots?: string[];
   };
   logs?: { minLevel?: LepLogLevel };
 }
@@ -220,7 +220,6 @@ export interface PartialLepConfig {
 export const DEFAULT_LEP_CONFIG: LepConfig = {
   version: LEP_CONFIG_VERSION,
   stage: 'disabled',
-  gitRoots: [],
   schedule: { intervalSec: 1800, runOnStart: false, startupDelaySec: 30 },
   llm: {
     providers: {
@@ -242,6 +241,7 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
     github: { enabled: false, tokenEnv: 'GITHUB_TOKEN', maxPrs: 30, since: '' },
     claude: { projectsDir: '' },
     codex: { sessionsDir: '' },
+    gitRoots: [],
   },
   logs: { minLevel: 'info' },
 };
@@ -257,7 +257,6 @@ export class LepConfigError extends Error {
 const KNOWN_TOP_LEVEL_KEYS = new Set([
   'version',
   'stage',
-  'gitRoots',
   'schedule',
   'llm',
   'memory',
@@ -313,14 +312,6 @@ export function validateLepConfigInput(
       );
     }
     value.stage = raw['stage'] as LepStage;
-  }
-
-  if (raw['gitRoots'] !== undefined) {
-    if (Array.isArray(raw['gitRoots']) && raw['gitRoots'].every((r) => typeof r === 'string')) {
-      value.gitRoots = raw['gitRoots'] as string[];
-    } else {
-      warnings.push(`${sourceLabel}: gitRoots は文字列配列である必要があります (無視)`);
-    }
   }
 
   if (raw['schedule'] !== undefined) {
@@ -444,6 +435,17 @@ export function validateLepConfigInput(
         }
       }
 
+      if (sourcesRaw['gitRoots'] !== undefined) {
+        if (
+          Array.isArray(sourcesRaw['gitRoots']) &&
+          sourcesRaw['gitRoots'].every((r) => typeof r === 'string')
+        ) {
+          sources.gitRoots = sourcesRaw['gitRoots'] as string[];
+        } else {
+          warnings.push(`${sourceLabel}: sources.gitRoots は文字列配列である必要があります (無視)`);
+        }
+      }
+
       if (Object.keys(sources).length > 0) value.sources = sources;
     }
   }
@@ -465,7 +467,6 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
   return {
     version: override.version ?? base.version,
     stage: override.stage ?? base.stage,
-    gitRoots: override.gitRoots ?? base.gitRoots,
     schedule: {
       intervalSec: override.schedule?.intervalSec ?? base.schedule.intervalSec,
       runOnStart: override.schedule?.runOnStart ?? base.schedule.runOnStart,
@@ -514,6 +515,7 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
       codex: {
         sessionsDir: override.sources?.codex?.sessionsDir ?? base.sources.codex.sessionsDir,
       },
+      gitRoots: override.sources?.gitRoots ?? base.sources.gitRoots,
     },
     logs: { minLevel: override.logs?.minLevel ?? base.logs.minLevel },
   };
@@ -572,7 +574,7 @@ export function migrateLegacyToLepConfig(legacy: LegacyLepConfigInput): PartialL
   if (Object.keys(models).length > 0) ollama.models = models;
   if (Object.keys(ollama).length > 0) out.llm = { providers: { ollama } };
 
-  if (legacy.gitRoots && legacy.gitRoots.length > 0) out.gitRoots = legacy.gitRoots;
+  if (legacy.gitRoots && legacy.gitRoots.length > 0) out.sources = { gitRoots: legacy.gitRoots };
 
   const memory: NonNullable<PartialLepConfig['memory']> = {};
   if (legacy.rag && Object.keys(legacy.rag).length > 0) memory.rag = legacy.rag;
@@ -854,7 +856,7 @@ export function migrateConfigJsonIntoLepJson(opts: MigrateConfigJsonOptions): Mi
     const lepObj = lepRaw as Record<string, unknown>;
     const migratedRecord = migrated as unknown as Record<string, unknown>;
     let injected = false;
-    for (const key of ['stage', 'gitRoots', 'schedule', 'llm', 'memory'] as const) {
+    for (const key of ['stage', 'sources', 'schedule', 'llm', 'memory'] as const) {
       if (!(key in lepObj) && migratedRecord[key] !== undefined) {
         lepObj[key] = migratedRecord[key];
         injected = true;

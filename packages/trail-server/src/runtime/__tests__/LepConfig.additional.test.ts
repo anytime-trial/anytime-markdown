@@ -211,7 +211,7 @@ describe('migrateConfigJsonIntoLepJson — additional branches', () => {
     // lep.json already has all keys that config.json might inject
     writeFileSync(
       join(dir, 'lep.json'),
-      JSON.stringify({ version: 1, stage: 'primary', schedule: {}, llm: {}, memory: {}, gitRoots: [] }),
+      JSON.stringify({ version: 1, stage: 'primary', schedule: {}, llm: {}, memory: {}, sources: {} }),
       'utf-8',
     );
     writeFileSync(join(dir, 'config.json'), JSON.stringify({ gitRoots: ['/r'] }), 'utf-8');

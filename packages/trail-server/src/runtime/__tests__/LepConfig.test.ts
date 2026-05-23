@@ -151,16 +151,21 @@ describe('validateLepConfigInput', () => {
     expect(warnings.some((w) => w.includes('sources.codex'))).toBe(true);
   });
 
-  it('parses gitRoots string array', () => {
-    const { value, warnings } = validateLepConfigInput({ gitRoots: ['/a', '/b'] }, 'test');
+  it('parses sources.gitRoots string array', () => {
+    const { value, warnings } = validateLepConfigInput({ sources: { gitRoots: ['/a', '/b'] } }, 'test');
     expect(warnings).toEqual([]);
-    expect(value.gitRoots).toEqual(['/a', '/b']);
+    expect(value.sources?.gitRoots).toEqual(['/a', '/b']);
   });
 
-  it('warns and ignores non-string-array gitRoots', () => {
-    const { value, warnings } = validateLepConfigInput({ gitRoots: [1, '/b'] }, 'test');
+  it('warns and ignores non-string-array sources.gitRoots', () => {
+    const { value, warnings } = validateLepConfigInput({ sources: { gitRoots: [1, '/b'] } }, 'test');
+    expect(warnings.some((w) => w.includes('sources.gitRoots'))).toBe(true);
+    expect(value.sources?.gitRoots).toBeUndefined();
+  });
+
+  it('warns on now-unknown top-level gitRoots key', () => {
+    const { warnings } = validateLepConfigInput({ gitRoots: ['/a'] }, 'test');
     expect(warnings.some((w) => w.includes('gitRoots'))).toBe(true);
-    expect(value.gitRoots).toBeUndefined();
   });
 
   it('parses memory.rag / fts / conversation', () => {
@@ -282,12 +287,12 @@ describe('mergeLepConfig', () => {
     expect(merged.analyzers['CodeMemoryAnalyzer']).toEqual({ enabled: true });
   });
 
-  it('overrides gitRoots and memory leaves, preserving the rest', () => {
+  it('overrides sources.gitRoots and memory leaves, preserving the rest', () => {
     const merged = mergeLepConfig(DEFAULT_LEP_CONFIG, {
-      gitRoots: ['/repo'],
+      sources: { gitRoots: ['/repo'] },
       memory: { rag: { bm25Limit: 99 }, conversation: { backfillDays: 21 } },
     });
-    expect(merged.gitRoots).toEqual(['/repo']);
+    expect(merged.sources.gitRoots).toEqual(['/repo']);
     expect(merged.memory.rag.bm25Limit).toBe(99);
     expect(merged.memory.rag.vecLimit).toBe(30); // default preserved
     expect(merged.memory.conversation.backfillDays).toBe(21);
@@ -332,7 +337,7 @@ describe('migrateLegacyToLepConfig', () => {
       fts: { rebuildIntervalMinutes: 90 },
       backfillDays: 7,
     });
-    expect(out.gitRoots).toEqual(['/x']);
+    expect(out.sources?.gitRoots).toEqual(['/x']);
     expect(out.memory?.rag).toEqual({ bm25Limit: 11, vecLimit: 22, finalLimit: 6, rrfK: 50 });
     expect(out.memory?.fts).toEqual({ rebuildIntervalMinutes: 90 });
     expect(out.memory?.conversation).toEqual({ backfillDays: 7 });
@@ -340,7 +345,7 @@ describe('migrateLegacyToLepConfig', () => {
 
   it('omits gitRoots / memory when not provided', () => {
     const out = migrateLegacyToLepConfig({ analyzeAllEnabled: true });
-    expect(out.gitRoots).toBeUndefined();
+    expect(out.sources?.gitRoots).toBeUndefined();
     expect(out.memory).toBeUndefined();
   });
 
@@ -540,7 +545,7 @@ describe('migrateConfigJsonIntoLepJson', () => {
 
     const { config } = loadLepConfig({ workspaceRoot: ws, homeDir: join(ws, 'nohome') });
     expect(config.stage).toBe('primary+memory');
-    expect(config.gitRoots).toEqual(['/repo']);
+    expect(config.sources.gitRoots).toEqual(['/repo']);
     expect(config.schedule).toEqual({ intervalSec: 600, runOnStart: true, startupDelaySec: 5 });
     expect(config.llm.providers.ollama.baseUrl).toBe('http://host.docker.internal:11434');
     expect(config.memory.rag.bm25Limit).toBe(15);
@@ -574,7 +579,7 @@ describe('migrateConfigJsonIntoLepJson', () => {
     expect(config.schedule).toEqual({ intervalSec: 1800, runOnStart: true, startupDelaySec: 30 });
     expect(config.llm.providers.ollama.baseUrl).toBe('http://host.docker.internal:11434');
     // missing sections gap-filled from config.json
-    expect(config.gitRoots).toEqual(['/repo']);
+    expect(config.sources.gitRoots).toEqual(['/repo']);
     expect(config.memory.rag.bm25Limit).toBe(15);
     expect(config.memory.fts.rebuildIntervalMinutes).toBe(120);
     expect(config.memory.conversation.backfillDays).toBe(14);

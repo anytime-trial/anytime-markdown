@@ -683,7 +683,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				logSink: memoryCoreOutputChannel,
 				gitRoot: wsRootForDb,
 				trailDb,
-				gitRoots: getWatchedGitRoots(lepConfig.gitRoots),
+				gitRoots: getWatchedGitRoots(lepConfig.sources.gitRoots),
 				claudeProjectsDir: lepConfig.sources.claude.projectsDir || undefined,
 				codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
 				memoryCoreService: memoryCoreService ?? undefined,

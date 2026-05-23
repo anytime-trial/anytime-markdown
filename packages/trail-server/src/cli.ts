@@ -101,7 +101,7 @@ program
     // gitRoots の bootstrap (鶏卵回避): CLI --git-roots → home-tier ~/.anytime/trail/lep.json
     // の gitRoots → 空。workspace lep.json は gitRoots 解決後でないと読めないため home-tier を使う。
     const bootstrapGitRoots =
-      gitRoots.length > 0 ? gitRoots : loadLepConfig({ logger }).config.gitRoots;
+      gitRoots.length > 0 ? gitRoots : loadLepConfig({ logger }).config.sources.gitRoots;
     const effectiveGitRoots = bootstrapGitRoots;
 
     // LEP 設定 (lep.json) — 唯一の設定ソース。旧 config.json は一度きり lep.json へ移行し以後読まない。
