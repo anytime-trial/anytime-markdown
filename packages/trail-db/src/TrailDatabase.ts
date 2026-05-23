@@ -5645,7 +5645,7 @@ export class TrailDatabase {
   }
 
   analyzeReleaseCodeGraphsForce(opts: {
-    codeGraphService: { generate: (onProgress?: (phase: string, percent: number) => void) => Promise<CodeGraph> };
+    codeGraphService: { generate: (onProgress?: (phase: string, percent: number) => void) => Promise<CodeGraph[]> };
     gitRoot: string;
     onProgress?: (msg: string) => void;
   }): Promise<number> {
@@ -5675,7 +5675,15 @@ export class TrailDatabase {
         if (!fs.existsSync(worktreeNodeModules)) {
           fs.symlinkSync(path.join(opts.gitRoot, 'node_modules'), worktreeNodeModules, 'dir');
         }
-        const graph = await opts.codeGraphService.generate();
+        // generate() は per-repo の CodeGraph 配列を返す。release_code_graphs は
+        // tag 単位（リポジトリ単位ではない）に 1 グラフを保存する設計のため、
+        // 先頭リポジトリのグラフを採用する。空配列ならこの tag はスキップする。
+        const graphs = await opts.codeGraphService.generate();
+        const graph = graphs[0];
+        if (!graph) {
+          opts.onProgress?.(`Skipping ${tag}: no code graph generated`);
+          return runNext(i + 1);
+        }
         this.saveReleaseCodeGraph(tag, graph);
         count++;
         opts.onProgress?.(`Release ${tag}: code graph saved`);

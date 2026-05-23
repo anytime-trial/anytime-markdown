@@ -400,7 +400,8 @@ describe('TrailDatabase analyzeReleaseCodeGraphsForce (empty releases)', () => {
 
   it('returns 0 immediately when no releases exist', async () => {
     const count = await db.analyzeReleaseCodeGraphsForce({
-      codeGraphService: { generate: async () => makeCodeGraph() },
+      // generate() は per-repo の CodeGraph 配列を返す（C-1 で単一→配列に変更）。
+      codeGraphService: { generate: async () => [makeCodeGraph()] },
       gitRoot: '/tmp/fake-repo',
     });
     expect(count).toBe(0);
