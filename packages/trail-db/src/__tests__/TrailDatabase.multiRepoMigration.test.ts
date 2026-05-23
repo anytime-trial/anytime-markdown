@@ -95,13 +95,14 @@ describe('TrailDatabase migration: repo_name', () => {
     expect(fileColNames).toContain('repo_name');
   });
 
-  it('session_commit_resolutions table exists with composite PK', () => {
+  it('session_commit_resolutions table exists with repo_id composite PK', () => {
     const cols = inner(db).exec('PRAGMA table_info(session_commit_resolutions)')[0]?.values ?? [];
     const colNames = cols.map((r) => String(r[1]));
-    expect(colNames).toEqual(expect.arrayContaining(['session_id', 'repo_name', 'resolved_at']));
+    // Phase D flip: repo_name は移行互換で残置し、PK は (session_id, repo_id) へ再設計された。
+    expect(colNames).toEqual(expect.arrayContaining(['session_id', 'repo_name', 'repo_id', 'resolved_at']));
 
     const pkCols = cols.filter((r) => Number(r[5]) > 0).map((r) => String(r[1]));
-    expect(pkCols.sort()).toEqual(['repo_name', 'session_id']);
+    expect(pkCols.sort()).toEqual(['repo_id', 'session_id']);
   });
 
   it('backfill: empty repo_name in session_commits is filled from sessions.repo_name', () => {

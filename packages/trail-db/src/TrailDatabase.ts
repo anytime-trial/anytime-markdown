@@ -202,6 +202,16 @@ const CURRENT_REPO_ID_DDL: Readonly<Record<string, string>> = {
   current_function_analysis: CREATE_CURRENT_FUNCTION_ANALYSIS,
 };
 
+// Phase D flip: session/commit 系テーブル名 → 新スキーマ (repo_id 化) DDL の対応表。
+// migrateSessionCommitTablesRepoId の 12-step 再構築で `<table>__new` を作る際に使う。
+// session_commits / commit_files / session_commit_resolutions は PK が repo_id を含むよう
+// 再設計される (PK widening)。sessions は PK 不変 (additive) のためここには含めない。
+const SESSION_COMMIT_REPO_ID_DDL: Readonly<Record<string, string>> = {
+  session_commits: CREATE_SESSION_COMMITS,
+  commit_files: CREATE_COMMIT_FILES,
+  session_commit_resolutions: CREATE_SESSION_COMMIT_RESOLUTIONS,
+};
+
 /**
  * `*_code_graph_communities` テーブルに `stable_key` 列が無ければ ALTER で追加する。
  * 起動時マイグレーションのため、`saveCurrentCodeGraph` / `saveReleaseCodeGraph` / `upsert*` の
@@ -587,10 +597,10 @@ interface RawContentBlock {
 // CREATE_INDEXES imported from trail-core (see import at top of file)
 
 const INSERT_SESSION = `INSERT OR REPLACE INTO sessions
-  (id, slug, repo_name, version, entrypoint, model,
+  (id, slug, repo_name, repo_id, version, entrypoint, model,
    start_time, end_time, message_count,
    file_path, file_size, imported_at, source)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
 const INSERT_SESSION_COST = `INSERT OR REPLACE INTO session_costs
   (session_id, model, input_tokens, output_tokens,
@@ -2150,6 +2160,172 @@ export class TrailDatabase {
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
   }
 
+  // Phase D flip 対象の session/commit 系テーブル。PK が repo_id を含むよう再設計する 3 つ。
+  private static readonly SESSION_COMMIT_REPO_ID_TABLES: readonly string[] = [
+    'session_commits',
+    'commit_files',
+    'session_commit_resolutions',
+  ];
+
+  /**
+   * Phase D flip: 既存 DB の session/commit 系テーブルを repo_id 化する破壊的マイグレーション。
+   *
+   * - `sessions`: PK は `id` のまま不変。repo_id を additive 追加し backfill するのみ (12-step 不要)。
+   * - `session_commits` / `commit_files` / `session_commit_resolutions`: PK を repo_id を含むよう
+   *   再設計する (widening)。`~/.claude/rules/sqlite-table-definition.md` の 12-step 再構築に従う。
+   *
+   * - CREATE_SESSIONS / CREATE_SESSION_COMMITS 等の実行前に呼ぶ (CREATE TABLE IF NOT EXISTS は
+   *   既存テーブルへ無効なため)。新規 DB (テーブル不在) は no-op。CREATE_* が新スキーマを直接作る。
+   * - 既に flip 済 (repo_id 列あり) なら no-op (冪等)。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * 各テーブルの distinct repo_name を repos へ self-seed (chicken-egg 回避) してから repo_id 列を
+   * 追加し、`repo_id = (SELECT repo_id FROM repos WHERE repo_name = <table>.repo_name)` で backfill
+   * する (repo_name='' も sentinel repo へ解決される)。旧 PK は新 PK の部分集合または等価なので
+   * 既存行は新 PK で衝突しない (widening)。repo_id IS NULL の orphan 行は新 NOT NULL を満たさない
+   * ため 12-step 再構築の INSERT...SELECT で除外する。
+   */
+  private migrateSessionCommitTablesRepoId(db: Database): void {
+    // PK 再設計が必要なテーブル (存在し、かつ repo_id 列が無い) を洗い出す。
+    const tablesToFlip = TrailDatabase.SESSION_COMMIT_REPO_ID_TABLES.filter((table) => {
+      const exists =
+        db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+          ?.length;
+      if (!exists) return false; // 新規 DB → CREATE_* が新スキーマを作る
+      if (columnExists(db, table, 'repo_id')) return false; // 既に flip 済 (冪等)
+      // 旧スキーマに repo_name 列が無い退化 DB は backfill 不能だが、self-seed/backfill を
+      // repo_name 不在でも安全に行うため対象に含める (repo_id は DEFAULT 0 で埋まる)。
+      return true;
+    });
+
+    // sessions は PK 不変・additive。repo_id 列が無ければ追加して backfill する (独立処理)。
+    this.migrateSessionsRepoIdColumn(db);
+
+    if (tablesToFlip.length === 0) return;
+
+    try {
+      // ── pre: repos を self-seed し、repo_id 列を追加して backfill する ──
+      for (const table of tablesToFlip) {
+        if (columnExists(db, table, 'repo_name')) {
+          db.run(
+            `INSERT OR IGNORE INTO repos (repo_name, created_at)
+             SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+             FROM "${table}" WHERE repo_name IS NOT NULL`,
+          );
+        }
+        db.run(`ALTER TABLE "${table}" ADD COLUMN repo_id INTEGER`);
+        if (columnExists(db, table, 'repo_name')) {
+          db.run(
+            `UPDATE "${table}"
+               SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = "${table}".repo_name)`,
+          );
+        }
+      }
+
+      // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
+      const viewDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      const triggerDefs =
+        db.exec("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL")[0]
+          ?.values ?? [];
+      for (const t of triggerDefs) db.run(`DROP TRIGGER IF EXISTS "${asText(t[0] ?? '')}"`);
+      for (const v of viewDefs) db.run(`DROP VIEW IF EXISTS "${asText(v[0] ?? '')}"`);
+
+      db.run('BEGIN');
+      try {
+        for (const table of tablesToFlip) {
+          this.rebuildSessionCommitTableForRepoIdFlip(db, table);
+        }
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+
+      // ── view / trigger を再作成 ──
+      for (const v of viewDefs) {
+        try {
+          db.run(asText(v[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[session-commit flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      for (const t of triggerDefs) {
+        try {
+          db.run(asText(t[1] ?? ''));
+        } catch (e) {
+          this.logger.warn(`[session-commit flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      this.save();
+    } catch (e) {
+      this.logger.error('migrateSessionCommitTablesRepoId failed', e instanceof Error ? e : new Error(String(e)));
+      throw e;
+    }
+  }
+
+  /**
+   * sessions に repo_id 列が無ければ ALTER ADD COLUMN で追加し backfill する (Phase D・additive)。
+   * sessions は PK が `id` のため 12-step 再構築は不要。SQLite の ALTER ADD COLUMN は default 無しの
+   * NOT NULL を追加できないため、repo_id は nullable で追加し repo_name → repos で backfill する。
+   * 新規 DB は CREATE_SESSIONS に repo_id を含むため no-op。FK は init で off のため REFERENCES は付けない。
+   */
+  private migrateSessionsRepoIdColumn(db: Database): void {
+    const exists =
+      db.exec("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sessions'")[0]?.values
+        ?.length;
+    if (!exists) return; // 新規 DB → CREATE_SESSIONS が新スキーマを作る
+    try {
+      if (!columnExists(db, 'sessions', 'repo_id')) {
+        db.run('ALTER TABLE sessions ADD COLUMN repo_id INTEGER');
+      }
+      // repo_name を repos へ self-seed してから backfill する (chicken-egg 回避)。
+      db.run(
+        `INSERT OR IGNORE INTO repos (repo_name, created_at)
+         SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         FROM sessions WHERE repo_name IS NOT NULL`,
+      );
+      db.run(
+        `UPDATE sessions
+           SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = sessions.repo_name)
+         WHERE repo_id IS NULL`,
+      );
+    } catch (e) {
+      this.logger.warn(
+        `[sessions repo_id migrate] ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  /** flip: session/commit 系テーブルを新スキーマ (repo_id PK) へ 12-step 再構築する。 */
+  private rebuildSessionCommitTableForRepoIdFlip(db: Database, table: string): void {
+    const ddl = SESSION_COMMIT_REPO_ID_DDL[table];
+    if (!ddl) {
+      this.logger.warn(`[session-commit flip] no DDL registered for ${table}, skip`);
+      return;
+    }
+    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    db.run(`DROP TABLE IF EXISTS "${table}__new"`);
+    db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
+    const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
+      asText(c[1] ?? ''),
+    );
+    const oldCols = new Set(
+      (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) => asText(c[1] ?? '')),
+    );
+    // 新スキーマの列のうち旧テーブルにも存在する列を共有列としてコピーする (repo_id を含む)。
+    const sharedCols = newCols.filter((c) => oldCols.has(c));
+    // repo_id IS NULL の行 (= repos に無い repo_name の orphan) は新スキーマの NOT NULL を
+    // 満たさないため除外する。旧 PK は新 PK の部分集合/等価のため残った行は新 PK で衝突しない。
+    db.run(
+      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
+       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE repo_id IS NOT NULL`,
+    );
+    db.run(`DROP TABLE "${table}"`);
+    db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
+  }
+
   /**
    * 既存 DB の releases に repo_id 列が無ければ追加する (Phase B step1・非破壊)。
    * 新規 DB は CREATE_RELEASES に repo_id を含むため no-op。FK は init で off のため
@@ -2277,6 +2453,11 @@ export class TrailDatabase {
     // 新規 DB / flip 済 DB では no-op。repos を self-seed してから backfill するため、
     // init() の seedReposFromLegacyRepoNames より前に走っても repo_id を解決できる。
     this.migrateCurrentTablesRepoId(db);
+    // Phase D flip: 既存 DB の session/commit 系 (sessions additive + session_commits /
+    // commit_files / session_commit_resolutions の PK 再設計) を repo_id 化する。
+    // CREATE TABLE IF NOT EXISTS は既存テーブルに無効なため、CREATE_SESSIONS /
+    // CREATE_SESSION_COMMITS 等の実行前に呼ぶ。新規 DB / flip 済 DB では no-op。
+    this.migrateSessionCommitTablesRepoId(db);
     db.run(CREATE_SESSIONS);
     db.run(CREATE_SESSION_COSTS);
     db.run(CREATE_DAILY_COUNTS);
@@ -2356,11 +2537,15 @@ export class TrailDatabase {
     db.run(CREATE_MESSAGE_COMMITS);
     db.run(CREATE_COMMIT_FILES);
     db.run(CREATE_SESSION_COMMIT_RESOLUTIONS);
-    // session_commits / commit_files への repo_name 追加はインデックス作成より前に行う
-    // （idx_session_commits_repo / idx_commit_files_repo が repo_name を参照するため）
+    // session_commits / commit_files への repo_name / repo_id 追加はインデックス作成より前に行う
+    // （idx_session_commits_repo_id_* / idx_commit_files_repo_id_* が repo_id を参照するため）。
+    // Phase D flip が必ず先に repo_id を入れるため、ここの repo_id ALTER は防御的な保険
+    // (flip 済テーブルでは Column already exists で no-op)。repo_name は移行互換の残置列。
     for (const sql of [
       "ALTER TABLE session_commits ADD COLUMN repo_name TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE commit_files ADD COLUMN repo_name TEXT NOT NULL DEFAULT ''",
+      'ALTER TABLE session_commits ADD COLUMN repo_id INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE commit_files ADD COLUMN repo_id INTEGER NOT NULL DEFAULT 0',
     ]) {
       try { db.run(sql); } catch { /* Column already exists */ }
     }
@@ -2708,12 +2893,19 @@ export class TrailDatabase {
       if (!cols.includes('project')) return;
       const fkInfo = db.exec('PRAGMA foreign_keys');
       foreignKeysWereEnabled = Number(fkInfo[0]?.values?.[0]?.[0] ?? 1) === 1;
+      // Phase D: この migration は migrateSessionsRepoIdColumn の後に走るため、ここに来る時点で
+      // sessions には既に additive な repo_id 列 (backfill 済) が存在する。project 撤去再構築で
+      // repo_id を SELECT に含めないと、追加直後の repo_id 列とその値が消失する。新スキーマと
+      // INSERT...SELECT の双方に repo_id を含め、再構築をまたいで保持する。repo_id が無い退化 DB
+      // (project 列はあるが repo_id 列が無い) では NULL を補い、後続 importSession で解決される。
+      const hasRepoId = columnExists(db, 'sessions', 'repo_id');
+      const repoIdColDdl = hasRepoId ? '\n        repo_id INTEGER,' : '';
       db.run('PRAGMA foreign_keys = OFF');
       db.run('BEGIN TRANSACTION');
       db.run(`CREATE TABLE sessions_new (
         id TEXT PRIMARY KEY,
         slug TEXT NOT NULL DEFAULT '',
-        repo_name TEXT NOT NULL DEFAULT '',
+        repo_name TEXT NOT NULL DEFAULT '',${repoIdColDdl}
         version TEXT NOT NULL DEFAULT '',
         entrypoint TEXT NOT NULL DEFAULT '',
         model TEXT NOT NULL DEFAULT '',
@@ -2734,14 +2926,14 @@ export class TrailDatabase {
         compact_count INTEGER
       )`);
       db.run(`INSERT INTO sessions_new (
-        id, slug, repo_name, version, entrypoint, model,
+        id, slug, repo_name,${hasRepoId ? ' repo_id,' : ''} version, entrypoint, model,
         start_time, end_time, message_count, file_path, file_size, imported_at,
         commits_resolved_at, peak_context_tokens, initial_context_tokens, git_branch,
         interruption_reason, interruption_context_tokens, message_commits_resolved_at,
         source, compact_count
       )
       SELECT
-        id, slug, repo_name, version, entrypoint, model,
+        id, slug, repo_name,${hasRepoId ? ' repo_id,' : ''} version, entrypoint, model,
         start_time, end_time, message_count, file_path, file_size, imported_at,
         commits_resolved_at, peak_context_tokens, initial_context_tokens, git_branch,
         interruption_reason, interruption_context_tokens, message_commits_resolved_at,
@@ -2771,23 +2963,33 @@ export class TrailDatabase {
     const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'commit_files_backfill_v2'");
     if (done[0]?.values?.length) return;
 
+    // Phase D: commit_files の PK が (repo_id, commit_hash, file_path) になったため、各 commit_hash の
+    // repo_name / repo_id を session_commits から引いて埋める。同一 hash が複数 repo にまたがる場合は
+    // MIN(repo_id) を採用する (DISTINCT 1 行に正規化)。
     const commitRes = db.exec(
-      'SELECT DISTINCT commit_hash FROM session_commits WHERE NOT EXISTS (SELECT 1 FROM commit_files cf WHERE cf.commit_hash = session_commits.commit_hash)',
+      `SELECT commit_hash, repo_name, MIN(repo_id) AS repo_id
+       FROM session_commits
+       WHERE NOT EXISTS (SELECT 1 FROM commit_files cf WHERE cf.commit_hash = session_commits.commit_hash)
+       GROUP BY commit_hash`,
     );
-    const hashes = commitRes[0]?.values.map((row) => row[0] as string) ?? [];
-    if (hashes.length === 0) {
+    const commits = (commitRes[0]?.values ?? []).map((row) => ({
+      hash: asText(row[0] ?? ''),
+      repoName: asText(row[1] ?? ''),
+      repoId: Number(row[2] ?? 0),
+    }));
+    if (commits.length === 0) {
       db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('commit_files_backfill_v2')");
       return;
     }
 
-    onProgress?.(`Backfilling commit files for ${hashes.length} commits...`);
-    this.logger.info(`[Migration] commit_files_backfill_v2: backfilling file lists for ${hashes.length} commits`);
+    onProgress?.(`Backfilling commit files for ${commits.length} commits...`);
+    this.logger.info(`[Migration] commit_files_backfill_v2: backfilling file lists for ${commits.length} commits`);
 
-    const insertStmt = db.prepare('INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)');
+    const insertStmt = db.prepare('INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_name, repo_id) VALUES (?, ?, ?, ?)');
     try {
       let processed = 0;
       let skipped = 0;
-      for (const hash of hashes) {
+      for (const { hash, repoName, repoId } of commits) {
         try {
           const out = execFileSync('git', [
             'show', '--format=', '--numstat', hash,
@@ -2797,7 +2999,7 @@ export class TrailDatabase {
             if (!trimmed) continue;
             const parts = trimmed.split('\t');
             const filePath = parts[2];
-            if (filePath) insertStmt.run([hash, filePath]);
+            if (filePath) insertStmt.run([hash, filePath, repoName, repoId]);
           }
           processed++;
         } catch {
@@ -2805,7 +3007,7 @@ export class TrailDatabase {
           skipped++;
         }
         if (processed % 50 === 0) {
-          onProgress?.(`Backfilling commit files: ${processed}/${hashes.length}`);
+          onProgress?.(`Backfilling commit files: ${processed}/${commits.length}`);
         }
       }
       this.logger.info(`[Migration] commit_files_backfill_v2: processed=${processed}, skipped=${skipped}`);
@@ -4209,11 +4411,14 @@ export class TrailDatabase {
     const execOpts = { encoding: 'utf-8' as const, timeout: 10_000 };
     const logFormat = '%H%x00%s%x00%an%x00%aI%x00%b%x1e';
 
+    // Phase D: 外部 API は repo_name を受けるが、内部で repo_id を解決して保存する (PK 構成列)。
+    const repoId = this.repoIdForName(repoName);
+
     const insertStmt = db.prepare(
       `INSERT OR IGNORE INTO session_commits
         (session_id, commit_hash, commit_message, author, committed_at,
-         is_ai_assisted, files_changed, lines_added, lines_deleted, repo_name)
-        VALUES (?,?,?,?,?,?,?,?,?,?)`,
+         is_ai_assisted, files_changed, lines_added, lines_deleted, repo_name, repo_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
     );
 
     let count = 0;
@@ -4228,7 +4433,7 @@ export class TrailDatabase {
         '--no-merges',
       ], { ...execOpts, cwd: gitRoot });
 
-      count += this.processCommitEntries(phaseAOutput, sessionId, repoName, insertStmt, execOpts, gitRoot);
+      count += this.processCommitEntries(phaseAOutput, sessionId, repoName, repoId, insertStmt, execOpts, gitRoot);
     } catch {
       // git grep may fail if no commits match — not an error
     }
@@ -4261,7 +4466,7 @@ export class TrailDatabase {
       }
     }
 
-    count += this.processCommitEntries(logOutput, sessionId, repoName, insertStmt, execOpts, gitRoot, true);
+    count += this.processCommitEntries(logOutput, sessionId, repoName, repoId, insertStmt, execOpts, gitRoot, true);
 
     insertStmt.free();
 
@@ -4273,11 +4478,13 @@ export class TrailDatabase {
   /** Mark (sessionId, repoName) as resolved in session_commit_resolutions, plus legacy sessions.commits_resolved_at. */
   private markCommitResolutionDone(sessionId: string, repoName: string): void {
     const db = this.ensureDb();
+    // Phase D: PK が (session_id, repo_id) になったため repo_id を解決して ON CONFLICT を repo_id 基準にする。
+    const repoId = this.repoIdForName(repoName);
     db.run(
-      `INSERT INTO session_commit_resolutions (session_id, repo_name, resolved_at)
-         VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-         ON CONFLICT(session_id, repo_name) DO UPDATE SET resolved_at = excluded.resolved_at`,
-      [sessionId, repoName],
+      `INSERT INTO session_commit_resolutions (session_id, repo_name, repo_id, resolved_at)
+         VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+         ON CONFLICT(session_id, repo_id) DO UPDATE SET resolved_at = excluded.resolved_at, repo_name = excluded.repo_name`,
+      [sessionId, repoName, repoId],
     );
     // 既存挙動の互換: 主リポジトリ解決時も sessions.commits_resolved_at を更新
     db.run(
@@ -4326,14 +4533,14 @@ export class TrailDatabase {
   }
 
   /** Insert commit_files rows for a single commit hash. */
-  private insertCommitFiles(hash: string, filePaths: string[], repoName: string): void {
+  private insertCommitFiles(hash: string, filePaths: string[], repoName: string, repoId: number): void {
     if (filePaths.length === 0) return;
     const filesStmt = this.ensureDb().prepare(
-      'INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_name) VALUES (?, ?, ?)',
+      'INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_name, repo_id) VALUES (?, ?, ?, ?)',
     );
     try {
       for (const fp of filePaths) {
-        filesStmt.run([hash, fp, repoName]);
+        filesStmt.run([hash, fp, repoName, repoId]);
       }
     } finally {
       filesStmt.free();
@@ -4346,6 +4553,7 @@ export class TrailDatabase {
     logOutput: string,
     sessionId: string,
     repoName: string,
+    repoId: number,
     insertStmt: SqlJsStatement,
     execOpts: { encoding: 'utf-8'; timeout: number },
     gitRoot: string,
@@ -4379,10 +4587,10 @@ export class TrailDatabase {
 
       insertStmt.run([
         sessionId, hash, subject, author, committedAt,
-        isAiAssisted, filesChanged, linesAdded, linesDeleted, repoName,
+        isAiAssisted, filesChanged, linesAdded, linesDeleted, repoName, repoId,
       ]);
 
-      this.insertCommitFiles(hash, filePaths, repoName);
+      this.insertCommitFiles(hash, filePaths, repoName, repoId);
       count++;
     }
 
@@ -4487,8 +4695,10 @@ export class TrailDatabase {
         if (!startTime) {
           this.logger.warn(`importSession: ${filePath} has no parseable timestamp; storing start_time as NULL`);
         }
+        // Phase D: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して保存する。
+        const repoId = this.repoIdForName(repoName);
         db.run(INSERT_SESSION, [
-          sessionId, slug, repoName, version,
+          sessionId, slug, repoName, repoId, version,
           entrypoint, model, startTimeOrNull, endTimeOrNull, messageCount,
           filePath, fileSize, importedAt, source,
         ]);

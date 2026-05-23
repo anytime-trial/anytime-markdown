@@ -9,10 +9,12 @@ export const CREATE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_messages_type_timestamp ON messages(type, timestamp)',
   'CREATE INDEX IF NOT EXISTS idx_session_commits_session ON session_commits(session_id)',
   'CREATE INDEX IF NOT EXISTS idx_session_commits_committed_at ON session_commits(committed_at)',
-  'CREATE INDEX IF NOT EXISTS idx_session_commits_repo ON session_commits(repo_name, committed_at)',
-  'CREATE INDEX IF NOT EXISTS idx_session_commits_repo_hash ON session_commits(repo_name, commit_hash)',
-  'CREATE INDEX IF NOT EXISTS idx_commit_files_repo ON commit_files(repo_name, file_path)',
-  'CREATE INDEX IF NOT EXISTS idx_commit_files_repo_hash ON commit_files(repo_name, commit_hash)',
+  // Phase D flip: session_commits / commit_files の PK が repo_id 化されたため、repo フィルタ系
+  // インデックスの先頭列を repo_id へ移行する (repo_name 系は撤去)。命名は idx_<table>_<cols>。
+  'CREATE INDEX IF NOT EXISTS idx_session_commits_repo_id_committed_at ON session_commits(repo_id, committed_at)',
+  'CREATE INDEX IF NOT EXISTS idx_session_commits_repo_id_hash ON session_commits(repo_id, commit_hash)',
+  'CREATE INDEX IF NOT EXISTS idx_commit_files_repo_id_file_path ON commit_files(repo_id, file_path)',
+  'CREATE INDEX IF NOT EXISTS idx_commit_files_repo_id_hash ON commit_files(repo_id, commit_hash)',
   // CrossSourceCorrelator (Step 4d) の `WHERE file_path IN (...)` 用。上の複合 idx は repo_name 先頭で
   // file_path 単独条件に効かないため、file_path 単独 idx を足して commit_files 全表スキャンを避ける。
   'CREATE INDEX IF NOT EXISTS idx_commit_files_file_path ON commit_files(file_path)',
