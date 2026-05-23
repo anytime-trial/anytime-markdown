@@ -28,7 +28,7 @@ import {
 	checkLlmAvailability,
 	LogService,
 } from '@anytime-markdown/trail-server';
-import type { AnalyzeAllRunnerOptions, LepConfig } from '@anytime-markdown/trail-server';
+import type { AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
 import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
@@ -83,9 +83,11 @@ function isAnalyzeAllEnabled(): boolean {
 		.get<boolean>('enabled', false);
 }
 
-function wireDaemonLogSink(daemonUrl: string, context: vscode.ExtensionContext): void {
-	const cfg = vscode.workspace.getConfiguration('anytimeTrail.logs');
-	const minLevel = cfg.get<'debug' | 'info' | 'warn' | 'error'>('minLevel') ?? 'debug';
+function wireDaemonLogSink(
+	daemonUrl: string,
+	context: vscode.ExtensionContext,
+	minLevel: LepLogLevel,
+): void {
 	const sink = new DaemonSinkLogger({ baseUrl: daemonUrl, component: 'TrailLogger', minLevel });
 	TrailLogger.addSink(sink);
 	context.subscriptions.push({
@@ -285,6 +287,20 @@ export async function activate(context: vscode.ExtensionContext) {
 			);
 		}
 	});
+	// ログ最低レベルは lep.json (logs.minLevel) で一元管理する (旧 VS Code 設定
+	// anytimeTrail.logs.minLevel は廃止)。外部デーモン検出時の DaemonSinkLogger が
+	// lepConfig 本ロードより前に必要なため、ここで先読みする (後段の full load と同値)。
+	const lepConfigPathOverrideForLogs = vscode.workspace
+		.getConfiguration('anytimeTrail.lep')
+		.get<string>('configPath', '')
+		.trim();
+	const lepLogMinLevel: LepLogLevel = wsRootForDb
+		? loadLepConfig({
+				workspaceRoot: wsRootForDb,
+				configPathOverride: lepConfigPathOverrideForLogs || undefined,
+			}).config.logs.minLevel
+		: DEFAULT_LEP_CONFIG.logs.minLevel;
+
 	// --- 外部デーモン検出 (Milestone C-2) ---
 	const useExternalDaemon = vscode.workspace
 		.getConfiguration('anytimeTrail.daemon')
@@ -294,7 +310,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	if (externalDaemonInfo) {
 		TrailLogger.info(`[DaemonClient] Using external daemon at ${externalDaemonInfo.url} (pid=${externalDaemonInfo.pid})`);
 		TrailPanel.setDaemonUrl(externalDaemonInfo.url);
-		wireDaemonLogSink(externalDaemonInfo.url, context);
+		wireDaemonLogSink(externalDaemonInfo.url, context, lepLogMinLevel);
 	} else if (useExternalDaemon) {
 		TrailLogger.warn('[DaemonClient] anytimeTrail.daemon.useExternalDaemon=true but no live daemon found; falling back to local server mode');
 	}
@@ -745,7 +761,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				await trailDataServer!.start(trailPort);
 				const actualPort = trailDataServer!.port;
 				TrailLogger.info(`Trail Data Server started on port ${actualPort}`);
-				wireDaemonLogSink(`http://127.0.0.1:${actualPort}`, context);
+				wireDaemonLogSink(`http://127.0.0.1:${actualPort}`, context, lepLogMinLevel);
 
 				// トークン予算設定を反映
 				const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');

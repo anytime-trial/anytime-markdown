@@ -195,12 +195,6 @@
           "type": "string",
           "default": "",
           "markdownDescription": "%config.lep.configPath%"
-        },
-        "anytimeTrail.logs.minLevel": {
-          "type": "string",
-          "enum": ["debug", "info", "warn", "error"],
-          "default": "debug",
-          "markdownDescription": "%config.logs.minLevel%"
         }
       }
     }
