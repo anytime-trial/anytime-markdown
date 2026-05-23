@@ -108,4 +108,22 @@ describe('TrailDatabase repos (Phase A: repo 正規化基盤)', () => {
       expect(Number(res[0]?.values?.[0]?.[0])).toBe(sentinelId);
     });
   });
+
+  describe('releases.release_id backfill (Phase B-2a・代理キー additive)', () => {
+    it('sync で release_id が rowid から backfill され非 NULL になる', () => {
+      seedRelease(db, 'v7', 'repo-a');
+      seedRelease(db, 'v7b', 'repo-b');
+      db.syncReposFromLegacyRepoNames();
+      const res = inner(db).exec('SELECT tag, release_id FROM releases ORDER BY tag');
+      const rows = res[0]?.values ?? [];
+      expect(rows.length).toBe(2);
+      for (const r of rows) {
+        expect(r[1]).not.toBeNull();
+        expect(Number(r[1])).toBeGreaterThan(0);
+      }
+      // release_id は一意
+      const ids = rows.map((r) => Number(r[1]));
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+  });
 });

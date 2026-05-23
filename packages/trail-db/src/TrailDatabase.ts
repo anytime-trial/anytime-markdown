@@ -1722,6 +1722,7 @@ export class TrailDatabase {
     // releases.repo_id を追加・backfill (Phase B step1・非破壊。FK は off のまま)。
     this.migrateReleasesRepoIdColumn(initDb);
     this.backfillReleaseRepoIds(initDb);
+    this.backfillReleaseIds(initDb);
   }
 
   private ensureDb(): Database {
@@ -1794,6 +1795,7 @@ export class TrailDatabase {
     const db = this.ensureDb();
     this.seedReposFromLegacyRepoNames(db);
     this.backfillReleaseRepoIds(db);
+    this.backfillReleaseIds(db);
     const res = db.exec('SELECT COUNT(*) FROM repos');
     return Number(res[0]?.values?.[0]?.[0] ?? 0);
   }
@@ -1808,9 +1810,24 @@ export class TrailDatabase {
       if (!columnExists(db, 'releases', 'repo_id')) {
         db.run('ALTER TABLE releases ADD COLUMN repo_id INTEGER');
       }
+      // release_id 代理キー列 (Phase B-2a・additive)。後続で子 FK 張替・PK flip に使う。
+      if (!columnExists(db, 'releases', 'release_id')) {
+        db.run('ALTER TABLE releases ADD COLUMN release_id INTEGER');
+      }
     } catch (e) {
       this.logger.warn(
-        `[releases repo_id migrate] ${e instanceof Error ? e.message : String(e)}`,
+        `[releases columns migrate] ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  /** releases.release_id を rowid から backfill する (release_id IS NULL のみ・冪等)。 */
+  private backfillReleaseIds(db: Database): void {
+    try {
+      db.run('UPDATE releases SET release_id = rowid WHERE release_id IS NULL');
+    } catch (e) {
+      this.logger.warn(
+        `[releases release_id backfill] ${e instanceof Error ? e.message : String(e)}`,
       );
     }
   }
