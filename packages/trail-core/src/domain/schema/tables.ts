@@ -172,6 +172,7 @@ export const CREATE_CURRENT_GRAPHS = `CREATE TABLE IF NOT EXISTS current_graphs 
 
 export const CREATE_RELEASE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_graphs (
   tag           TEXT PRIMARY KEY REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id    INTEGER,
   graph_json    TEXT NOT NULL CHECK (json_valid(graph_json)),
   tsconfig_path TEXT NOT NULL,
   project_root  TEXT NOT NULL,
@@ -220,6 +221,7 @@ export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
 
 export const CREATE_RELEASE_FILES = `CREATE TABLE IF NOT EXISTS release_files (
   release_tag TEXT NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id INTEGER,
   file_path TEXT NOT NULL,
   lines_added INTEGER NOT NULL DEFAULT 0,
   lines_deleted INTEGER NOT NULL DEFAULT 0,
@@ -230,6 +232,7 @@ export const CREATE_RELEASE_FILES = `CREATE TABLE IF NOT EXISTS release_files (
 
 export const CREATE_RELEASE_COVERAGE = `CREATE TABLE IF NOT EXISTS release_coverage (
   release_tag        TEXT    NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id         INTEGER,
   package            TEXT    NOT NULL,
   file_path          TEXT    NOT NULL,
   lines_total        INTEGER NOT NULL DEFAULT 0,
@@ -335,6 +338,7 @@ export const CREATE_CURRENT_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS current_co
 
 export const CREATE_RELEASE_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_code_graphs (
   release_tag  TEXT PRIMARY KEY REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id   INTEGER,
   graph_json   TEXT NOT NULL CHECK (json_valid(graph_json)),
   generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
   updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
@@ -354,6 +358,7 @@ export const CREATE_CURRENT_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS
 
 export const CREATE_RELEASE_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS release_code_graph_communities (
   release_tag  TEXT    NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id   INTEGER,
   community_id INTEGER NOT NULL,
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
@@ -397,6 +402,7 @@ export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_
 
 export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_file_analysis (
   release_tag                TEXT NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id                 INTEGER,
   repo_name                  TEXT NOT NULL,
   file_path                  TEXT NOT NULL,
   importance_score           REAL    NOT NULL DEFAULT 0,
@@ -447,6 +453,7 @@ export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS curr
 
 export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_function_analysis (
   release_tag            TEXT NOT NULL REFERENCES releases(tag) ON DELETE CASCADE,
+  release_id             INTEGER,
   repo_name              TEXT NOT NULL,
   file_path              TEXT NOT NULL,
   function_name          TEXT NOT NULL,

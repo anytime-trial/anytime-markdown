@@ -1723,6 +1723,7 @@ export class TrailDatabase {
     this.migrateReleasesRepoIdColumn(initDb);
     this.backfillReleaseRepoIds(initDb);
     this.backfillReleaseIds(initDb);
+    this.migrateReleaseChildrenReleaseId(initDb);
   }
 
   private ensureDb(): Database {
@@ -1796,6 +1797,7 @@ export class TrailDatabase {
     this.seedReposFromLegacyRepoNames(db);
     this.backfillReleaseRepoIds(db);
     this.backfillReleaseIds(db);
+    this.migrateReleaseChildrenReleaseId(db);
     const res = db.exec('SELECT COUNT(*) FROM repos');
     return Number(res[0]?.values?.[0]?.[0] ?? 0);
   }
@@ -1829,6 +1831,40 @@ export class TrailDatabase {
       this.logger.warn(
         `[releases release_id backfill] ${e instanceof Error ? e.message : String(e)}`,
       );
+    }
+  }
+
+  // release 子テーブルと、releases へ JOIN する際の tag 列名 (release_graphs のみ tag)。
+  private static readonly RELEASE_CHILD_TABLES: ReadonlyArray<{ table: string; tagCol: string }> = [
+    { table: 'release_graphs', tagCol: 'tag' },
+    { table: 'release_files', tagCol: 'release_tag' },
+    { table: 'release_coverage', tagCol: 'release_tag' },
+    { table: 'release_code_graphs', tagCol: 'release_tag' },
+    { table: 'release_code_graph_communities', tagCol: 'release_tag' },
+    { table: 'release_file_analysis', tagCol: 'release_tag' },
+    { table: 'release_function_analysis', tagCol: 'release_tag' },
+  ];
+
+  /**
+   * release 子テーブルへ release_id 列を追加し、tag 列経由で releases.release_id を
+   * backfill する (Phase B-2b-i・additive/非破壊・冪等)。FK 張替・PK flip は後続。
+   */
+  private migrateReleaseChildrenReleaseId(db: Database): void {
+    for (const { table, tagCol } of TrailDatabase.RELEASE_CHILD_TABLES) {
+      try {
+        if (!columnExists(db, table, 'release_id')) {
+          db.run(`ALTER TABLE "${table}" ADD COLUMN release_id INTEGER`);
+        }
+        db.run(
+          `UPDATE "${table}"
+             SET release_id = (SELECT r.release_id FROM releases r WHERE r.tag = "${table}"."${tagCol}")
+           WHERE release_id IS NULL`,
+        );
+      } catch (e) {
+        this.logger.warn(
+          `[release child release_id ${table}] ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     }
   }
 
