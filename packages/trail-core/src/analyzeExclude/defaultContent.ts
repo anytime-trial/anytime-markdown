@@ -21,6 +21,12 @@ __mocks__/
 fixtures/
 demos/
 dist/
+__pycache__/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
 **/CHANGELOG.ja.md
 **/CHANGELOG.md
 **/README.ja.md
