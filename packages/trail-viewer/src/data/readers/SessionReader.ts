@@ -22,7 +22,7 @@ export class SessionReader {
     let query = this.client
       .from('trail_sessions')
       // repo_id 正規化後: repo_name は trail_repos を FK 埋め込みして復元する (下で row に flatten)。
-      .select('*, repo:trail_repos(repo_name), trail_session_costs(*)')
+      .select('*, repo:trail_repos!repo_id(repo_name), trail_session_costs(*)')
       .order('start_time', { ascending: false });
 
     if (filters?.model) {
@@ -95,7 +95,7 @@ export class SessionReader {
   async getSessionCommits(sessionId: string): Promise<readonly TrailSessionCommit[]> {
     const { data, error } = await this.client
       .from('trail_session_commits')
-      .select('*, repo:trail_repos(repo_name)')
+      .select('*, repo:trail_repos!repo_id(repo_name)')
       .eq('session_id', sessionId);
     if (error) throw new Error(`Supabase getSessionCommits failed: ${error.message}`);
     return (data ?? []).map((r: CommitDbRow & { repo?: { repo_name: string } | null }) => ({

@@ -44,7 +44,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (!repo) {
       const { data } = await supabase
         .from('trail_current_graphs')
-        .select('repo:trail_repos(repo_name)')
+        .select('repo:trail_repos!repo_id(repo_name)')
         .order('repo_id', { ascending: true })
         .limit(1)
         .maybeSingle<{ repo: { repo_name: string } | null }>();

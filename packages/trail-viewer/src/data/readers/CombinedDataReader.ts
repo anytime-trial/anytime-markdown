@@ -358,7 +358,7 @@ export class CombinedDataReader {
         for (let offset = 0; ; offset += 1000) {
           const { data, error } = await this.client
             .from('trail_sessions')
-            .select('id,source,start_time,repo:trail_repos(repo_name)')
+            .select('id,source,start_time,repo:trail_repos!repo_id(repo_name)')
             .gte('start_time', cutoffIso)
             .range(offset, offset + 999);
           if (error || !data || data.length === 0) break;
@@ -389,14 +389,14 @@ export class CombinedDataReader {
         for (let offset = 0; ; offset += 1000) {
           let { data, error } = await this.client
             .from('trail_session_commits')
-            .select(`commit_hash,${column},lines_added,lines_deleted,repo:trail_repos(repo_name)`)
+            .select(`commit_hash,${column},lines_added,lines_deleted,repo:trail_repos!repo_id(repo_name)`)
             .lt('committed_at', cutoffIso)
             .range(offset, offset + 999);
           if (error && column === 'commit_message') {
             column = 'subject';
             const fb = await this.client
               .from('trail_session_commits')
-              .select('commit_hash,subject,lines_added,lines_deleted,repo:trail_repos(repo_name)')
+              .select('commit_hash,subject,lines_added,lines_deleted,repo:trail_repos!repo_id(repo_name)')
               .lt('committed_at', cutoffIso)
               .range(offset, offset + 999);
             data = fb.data;
@@ -426,7 +426,7 @@ export class CombinedDataReader {
         for (let offset = 0; ; offset += 1000) {
           let { data, error } = await this.client
             .from('trail_session_commits')
-            .select(`session_id,commit_hash,${column},committed_at,lines_added,lines_deleted,repo:trail_repos(repo_name)`)
+            .select(`session_id,commit_hash,${column},committed_at,lines_added,lines_deleted,repo:trail_repos!repo_id(repo_name)`)
             .gte('committed_at', cutoffIso)
             .order('committed_at', { ascending: true })
             .range(offset, offset + 999);
@@ -434,7 +434,7 @@ export class CombinedDataReader {
             column = 'subject';
             const fallback = await this.client
               .from('trail_session_commits')
-              .select('session_id,commit_hash,subject,committed_at,lines_added,lines_deleted,repo:trail_repos(repo_name)')
+              .select('session_id,commit_hash,subject,committed_at,lines_added,lines_deleted,repo:trail_repos!repo_id(repo_name)')
               .gte('committed_at', cutoffIso)
               .order('committed_at', { ascending: true })
               .range(offset, offset + 999);

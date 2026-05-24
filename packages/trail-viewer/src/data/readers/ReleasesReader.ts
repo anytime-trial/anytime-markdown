@@ -17,7 +17,7 @@ export class ReleasesReader {
       .from('trail_releases')
       // repo_id / prev_release_id 正規化後: repo_name は trail_repos、prev_tag は自己参照
       // (prev_release_id → tag) を FK 埋め込みで復元する。
-      .select('*, repo:trail_repos(repo_name), prev:trail_releases!prev_release_id(tag)')
+      .select('*, repo:trail_repos!repo_id(repo_name), prev:trail_releases!prev_release_id(tag)')
       .order('released_at', { ascending: false });
     if (error || !data) return [];
     return (data as readonly {

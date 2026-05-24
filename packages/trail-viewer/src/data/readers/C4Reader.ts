@@ -118,11 +118,11 @@ export class C4Reader implements IC4ModelStore {
     const [currentRes, releaseRes] = await Promise.all([
       this.client
         .from('trail_current_graphs')
-        .select('repo:trail_repos(repo_name)')
+        .select('repo:trail_repos!repo_id(repo_name)')
         .returns<{ repo: { repo_name: string } | null }[]>(),
       this.client
         .from('trail_releases')
-        .select('tag, repo:trail_repos(repo_name), released_at')
+        .select('tag, repo:trail_repos!repo_id(repo_name), released_at')
         .order('released_at', { ascending: false })
         .returns<TrailReleaseRow[]>(),
     ]);

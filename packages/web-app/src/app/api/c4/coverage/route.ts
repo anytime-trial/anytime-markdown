@@ -39,7 +39,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (!repoName) {
       const { data: firstRow } = await supabase
         .from('trail_current_coverage')
-        .select('repo:trail_repos(repo_name)')
+        .select('repo:trail_repos!repo_id(repo_name)')
         .limit(1)
         .maybeSingle<{ repo: { repo_name: string } | null }>();
       if (!firstRow?.repo) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
