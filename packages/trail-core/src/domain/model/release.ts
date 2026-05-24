@@ -29,6 +29,10 @@ export interface ReleaseRow {
   readonly tag: string;
   readonly released_at: string;
   readonly prev_tag: string | null;
+  // Supabase 正規化ミラー用 (additive)。release_id 代理キー化に伴い、prev は release_id、
+  // repo は repo_id で持つ。拡張ローカル UI 向けの repo_name / prev_tag は従来通り保持する。
+  readonly prev_release_id?: number | null;
+  readonly repo_id?: number;
   readonly repo_name: string;
   readonly package_tags: string;
   readonly commit_count: number;
