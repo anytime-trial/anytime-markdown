@@ -23,6 +23,8 @@ export type ThrottleState = 'NORMAL' | 'COOLING';
 export type OllamaOp = 'generate' | 'embeddings';
 
 const IDLE_RESET_MS = 60_000;
+const EWMA_ALPHA = 0.3;
+const MIN_SAMPLES = 5;
 
 const defaultDeps: OllamaThrottleDeps = {
   now: () => Date.now(),
@@ -34,6 +36,7 @@ export class OllamaThrottleGovernor {
   private busySince: number | null = null;
   private lastActivityAt: number | null = null;
   private tail: Promise<void> = Promise.resolve();
+  private readonly baselines = new Map<string, { ewma: number; count: number }>();
 
   constructor(
     private readonly opts: OllamaThrottleOptions,
@@ -100,8 +103,24 @@ export class OllamaThrottleGovernor {
     return release;
   }
 
-  /** リクエスト完了後の状態更新 (COOLING 突入判定)。Task 3/4 で中身を実装する。 */
-  private report(_op: OllamaOp, _model: string, _latencyMs: number, _ok: boolean, _errorCode?: string): void {
-    // 検知ロジックは Task 3 (embeddings) / Task 4 (error・連続稼働) で実装する。
+  /** リクエスト完了後の状態更新 (COOLING 突入判定)。 */
+  private report(op: OllamaOp, model: string, latencyMs: number, ok: boolean, _errorCode?: string): void {
+    if (!ok) return; // error トリガは Task 4 で実装
+
+    // トリガ 1: embeddings レイテンシが baseline×slowdownFactor 超 (検知素材は embeddings のみ)。
+    if (op !== 'embeddings') return;
+    const key = `${op}:${model}`;
+    const b = this.baselines.get(key);
+    if (b && b.count >= MIN_SAMPLES && latencyMs > b.ewma * this.opts.slowdownFactor) {
+      this.enterCooling(this.deps.now()); // このスパイクは baseline に混ぜない (凍結)
+      return;
+    }
+    const ewma = b ? EWMA_ALPHA * latencyMs + (1 - EWMA_ALPHA) * b.ewma : latencyMs;
+    this.baselines.set(key, { ewma, count: (b?.count ?? 0) + 1 });
+  }
+
+  private enterCooling(now: number): void {
+    this.coolingUntil = now + this.opts.cooldownSec * 1000;
+    this.busySince = null; // streak リセット
   }
 }
