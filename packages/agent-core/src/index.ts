@@ -45,6 +45,8 @@ export {
   DEFAULT_OLLAMA_BASE_URL,
   OllamaChatProvider,
   OllamaEmbeddingProvider,
+  OllamaThrottleGovernor,
+  createThrottledOllamaClient,
 } from '@anytime-markdown/ollama-core';
 export type {
   OllamaClient,
@@ -55,6 +57,10 @@ export type {
   EmbeddingsResult,
   OllamaChatProviderOptions,
   OllamaEmbeddingProviderOptions,
+  OllamaThrottleOptions,
+  OllamaThrottleDeps,
+  ThrottleState,
+  OllamaOp,
 } from '@anytime-markdown/ollama-core';
 export { Emitter } from './util/Emitter';
 export type { Disposable, Listener } from './util/Emitter';
