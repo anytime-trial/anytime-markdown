@@ -87,20 +87,25 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
   // ── 1. Read commits from trail.session_commits ────────────────────────────
   // Use prepare/bind/step because db.exec() drops params after the trail
   // readonly guard wraps it (see attach.ts installTrailReadonlyGuard).
+  // Phase H-4: trail.session_commits から repo_name 列を撤去した。attach 済 trail スキーマの repos を
+  // JOIN して repo_name → repo_id を解決し、repo フィルタは repos.repo_name で行う (クロス DB JOIN)。
+  // GROUP BY commit_hash は repo フィルタ済なので維持で可。
   const sql =
     sinceCommittedAt !== null
-      ? `SELECT commit_hash, commit_message, committed_at
-           FROM trail.session_commits
-           WHERE repo_name = ? AND committed_at > ?
-             AND (committed_at IS NULL OR committed_at != '')
-           GROUP BY commit_hash
-           ORDER BY committed_at`
-      : `SELECT commit_hash, commit_message, committed_at
-           FROM trail.session_commits
-           WHERE repo_name = ?
-             AND (committed_at IS NULL OR committed_at != '')
-           GROUP BY commit_hash
-           ORDER BY committed_at`;
+      ? `SELECT sc.commit_hash, sc.commit_message, sc.committed_at
+           FROM trail.session_commits sc
+           JOIN trail.repos r ON r.repo_id = sc.repo_id
+           WHERE r.repo_name = ? AND sc.committed_at > ?
+             AND (sc.committed_at IS NULL OR sc.committed_at != '')
+           GROUP BY sc.commit_hash
+           ORDER BY sc.committed_at`
+      : `SELECT sc.commit_hash, sc.commit_message, sc.committed_at
+           FROM trail.session_commits sc
+           JOIN trail.repos r ON r.repo_id = sc.repo_id
+           WHERE r.repo_name = ?
+             AND (sc.committed_at IS NULL OR sc.committed_at != '')
+           GROUP BY sc.commit_hash
+           ORDER BY sc.committed_at`;
 
   const stmt = db.prepare(sql);
   try {

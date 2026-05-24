@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-import { NO_STORE_HEADERS } from '../../../lib/api-helpers';
+import { NO_STORE_HEADERS, resolveRepoId } from '../../../lib/api-helpers';
 import { resolveSupabaseEnv } from '../../../lib/supabase-env';
 
 export const dynamic = 'force-dynamic';
@@ -73,11 +73,14 @@ async function fetchCommitFiles(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function fetchSessionIdsForRepo(supabase: any, repo: string): Promise<Set<string>> {
   const result = new Set<string>();
+  // trail_sessions は repo_id キー。repo_name → repo_id を解決する。未登録は空集合。
+  const repoId = await resolveRepoId(supabase, repo);
+  if (repoId == null) return result;
   for (let offset = 0; ; offset += 1000) {
     const { data, error } = await supabase
       .from('trail_sessions')
       .select('id')
-      .eq('repo_name', repo)
+      .eq('repo_id', repoId)
       .range(offset, offset + 999);
     if (error || !data || data.length === 0) break;
     for (const r of data as Array<{ id: string }>) result.add(r.id);

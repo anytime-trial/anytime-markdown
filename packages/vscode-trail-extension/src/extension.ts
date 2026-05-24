@@ -28,7 +28,7 @@ import {
 	checkLlmAvailability,
 	LogService,
 } from '@anytime-markdown/trail-server';
-import type { AnalyzeAllRunnerOptions, LepConfig } from '@anytime-markdown/trail-server';
+import type { AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
 import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
@@ -37,7 +37,7 @@ import {
 	CREATE_EXTENSION_LOGS,
 	CREATE_EXTENSION_LOGS_INDEXES,
 } from '@anytime-markdown/trail-core/domain/schema';
-import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome, LEP_STAGES, type LepStage } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome, type LepStage } from '@anytime-markdown/memory-core';
 import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
@@ -51,6 +51,9 @@ let pipelineProvider: PipelineProvider | undefined;
 let memoryCoreService: MemoryCoreService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
 let extensionDistPath = '';
+// C4 ドキュメントリンク用ドキュメントディレクトリ (lep.json workspace.docsPath)。
+// 旧 VS Code 設定 anytimeTrail.workspace.docsPath は廃止。activate で lepConfig から解決する。
+let lepWorkspaceDocsPath = '';
 
 function getEffectiveWorkspacePath(): string | undefined {
 	const configured = vscode.workspace.getConfiguration('anytimeTrail.workspace').get<string>('path', '').trim();
@@ -59,22 +62,21 @@ function getEffectiveWorkspacePath(): string | undefined {
 
 /**
  * commit 監視対象 repo を解決する。
- * - anytimeTrail.workspace.path（主リポジトリ）
- * - <workspaceFolder>/.anytime/anytime-history.json の specDocsRoots（history 拡張が管理）
+ * - lep.json の gitRoots（拡張・デーモン共通の監視対象）
+ * - anytimeTrail.workspace.path（拡張のみ追加する主リポジトリ）
  * の union を、git working tree 検証してから返す。
  */
-function getWatchedGitRoots(): string[] {
+function getWatchedGitRoots(lepGitRoots: readonly string[]): string[] {
 	const resolved = resolveWatchedRepos({
+		gitRoots: lepGitRoots,
 		workspacePath: getEffectiveWorkspacePath(),
-		workspaceFolder: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
 		logger: { warn: (msg) => TrailLogger.warn(msg) },
 	});
 	return resolved.map((r) => r.gitRoot);
 }
 
 function applyDocsPathConfig(): void {
-	const docsPath = vscode.workspace.getConfiguration('anytimeTrail.workspace').get<string>('docsPath', '');
-	trailDataServer?.setDocsPath(docsPath || undefined);
+	trailDataServer?.setDocsPath(lepWorkspaceDocsPath || undefined);
 }
 
 function isAnalyzeAllEnabled(): boolean {
@@ -83,9 +85,11 @@ function isAnalyzeAllEnabled(): boolean {
 		.get<boolean>('enabled', false);
 }
 
-function wireDaemonLogSink(daemonUrl: string, context: vscode.ExtensionContext): void {
-	const cfg = vscode.workspace.getConfiguration('anytimeTrail.logs');
-	const minLevel = cfg.get<'debug' | 'info' | 'warn' | 'error'>('minLevel') ?? 'debug';
+function wireDaemonLogSink(
+	daemonUrl: string,
+	context: vscode.ExtensionContext,
+	minLevel: LepLogLevel,
+): void {
 	const sink = new DaemonSinkLogger({ baseUrl: daemonUrl, component: 'TrailLogger', minLevel });
 	TrailLogger.addSink(sink);
 	context.subscriptions.push({
@@ -100,10 +104,10 @@ function wireDaemonLogSink(daemonUrl: string, context: vscode.ExtensionContext):
 function setupServerCallbacks(server: TrailDataServer): void {
 	applyDocsPathConfig();
 	server.onOpenDocLink = (docPath) => {
-		const docsDir = vscode.workspace.getConfiguration('anytimeTrail.workspace').get<string>('docsPath', '');
+		const docsDir = lepWorkspaceDocsPath;
 		if (!docsDir) {
-			TrailLogger.warn(`[open-doc-link] docsPath is not configured (anytimeTrail.workspace.docsPath). Cannot open: ${docPath}`);
-			vscode.window.showWarningMessage('Set anytimeTrail.workspace.docsPath to open document links.');
+			TrailLogger.warn(`[open-doc-link] docsPath is not configured (lep.json workspace.docsPath). Cannot open: ${docPath}`);
+			vscode.window.showWarningMessage('Set workspace.docsPath in lep.json to open document links.');
 			return;
 		}
 		const fsPath = path.join(docsDir, docPath);
@@ -235,8 +239,71 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Trail Database + Data Server (non-blocking initialization)
-	const dbStoragePathSetting = vscode.workspace.getConfiguration('anytimeTrail.database').get<string>('storagePath', '.anytime/trail/db') || '.anytime/trail/db';
 	const wsRootForDb = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+	// LEP 設定 (lep.json) — 唯一の設定ソース (設計書 13 章)。storagePath / docsPath /
+	// logs.minLevel も lep.json に集約したため、TrailDatabase 構築・docsPath 適用・
+	// DaemonSinkLogger より前にロードする。旧 config.json は migrateConfigJsonIntoLepJson
+	// で一度きり lep.json へ移行し、以後読まない。
+	const lepLogger = { warn: (m: string) => TrailLogger.warn(m), info: (m: string) => TrailLogger.info(m) };
+	let lepConfig: LepConfig = DEFAULT_LEP_CONFIG;
+	let lepStage: LepStage = isAnalyzeAllEnabled() ? 'primary+memory' : 'disabled';
+	let lepDisabledAnalyzers: readonly string[] = [];
+	let githubPrReview: AnalyzeAllRunnerOptions['githubPrReview'] | undefined;
+	if (wsRootForDb) {
+		try {
+			// 旧 config.json → lep.json 一度きり移行 (欠落セクションのみ gap-fill、完了後 rename)。
+			migrateConfigJsonIntoLepJson({
+				workspaceRoot: wsRootForDb,
+				analyzeAllEnabled: isAnalyzeAllEnabled(),
+				logger: lepLogger,
+			});
+			const lepConfigPathOverride = vscode.workspace
+				.getConfiguration('anytimeTrail.lep')
+				.get<string>('configPath', '')
+				.trim();
+			const lep = loadLepConfig({
+				workspaceRoot: wsRootForDb,
+				configPathOverride: lepConfigPathOverride || undefined,
+				logger: lepLogger,
+			});
+			lepConfig = lep.config;
+			lepStage = lep.config.stage;
+			lepDisabledAnalyzers = disabledAnalyzerIds(lep.config);
+			TrailLogger.info(
+				`[LepConfig] resolved stage=${lepStage} (loaded ${lep.loadedPaths.length} file(s))`,
+			);
+
+			// 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (sources.github.enabled)。
+			const ghSource = resolveGitHubSource(lep.config);
+			if (ghSource.enabled) {
+				githubPrReview = {
+					client: ghSource.token
+						? createFetchGitHubReviewClient({
+								token: ghSource.token,
+								logger: { info: (m) => TrailLogger.info(m), warn: (m) => TrailLogger.warn(m) },
+							})
+						: null,
+					since: ghSource.since,
+					maxPrs: ghSource.maxPrs,
+				};
+				TrailLogger.info(
+					`[LepConfig] GitHub PR review source enabled (hasToken=${Boolean(ghSource.token)})`,
+				);
+			}
+		} catch (err) {
+			// version / stage 不正 (LepConfigError) は起動を止めず warn に留め、旧 boolean 由来の
+			// fallback stage で続行する (extension の activate を壊さないため)。
+			TrailLogger.warn(
+				`[LepConfig] failed to load lep.json: ${err instanceof Error ? err.message : String(err)}. ` +
+					`fallback stage=${lepStage}`,
+			);
+		}
+	}
+	// docsPath は lep.json workspace.docsPath で一元管理する (旧 anytimeTrail.workspace.docsPath は廃止)。
+	lepWorkspaceDocsPath = lepConfig.workspace.docsPath;
+	// trail.db 保存先は lep.json database.storagePath (旧 anytimeTrail.database.storagePath は廃止)。
+	const dbStoragePathSetting = lepConfig.database.storagePath || '.anytime/trail/db';
 
 	// `.anytime/analyze-exclude` を activate 時に seed する。analyze pipeline
 	// (analyzeCurrentCode / analyzeReleaseCode) でも seed されるが、AnalyzeAll が
@@ -285,6 +352,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			);
 		}
 	});
+
 	// --- 外部デーモン検出 (Milestone C-2) ---
 	const useExternalDaemon = vscode.workspace
 		.getConfiguration('anytimeTrail.daemon')
@@ -294,7 +362,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	if (externalDaemonInfo) {
 		TrailLogger.info(`[DaemonClient] Using external daemon at ${externalDaemonInfo.url} (pid=${externalDaemonInfo.pid})`);
 		TrailPanel.setDaemonUrl(externalDaemonInfo.url);
-		wireDaemonLogSink(externalDaemonInfo.url, context);
+		wireDaemonLogSink(externalDaemonInfo.url, context, lepConfig.logs.minLevel);
 	} else if (useExternalDaemon) {
 		TrailLogger.warn('[DaemonClient] anytimeTrail.daemon.useExternalDaemon=true but no live daemon found; falling back to local server mode');
 	}
@@ -308,74 +376,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// TRAIL_HOME (trace dir 等の解決に使用)。
 	const trailHomeForConfig = wsRootForDb ? getTrailHome(wsRootForDb) : getTrailHome();
-
-	// LEP 設定 (lep.json) — 唯一の設定ソース (設計書 13 章)。旧 config.json は
-	// migrateConfigJsonIntoLepJson で一度きり lep.json へ移行し、以後読まない。
-	// stage / analyzer 有効化 / schedule / llm / memory / gitRoots を集約する。
-	const lepLogger = { warn: (m: string) => TrailLogger.warn(m), info: (m: string) => TrailLogger.info(m) };
-	let lepConfig: LepConfig = DEFAULT_LEP_CONFIG;
-	let lepStage: LepStage = isAnalyzeAllEnabled() ? 'primary+memory' : 'disabled';
-	let lepDisabledAnalyzers: readonly string[] = [];
-	let githubPrReview: AnalyzeAllRunnerOptions['githubPrReview'] | undefined;
-	if (wsRootForDb) {
-		try {
-			// 旧 config.json → lep.json 一度きり移行 (欠落セクションのみ gap-fill、完了後 rename)。
-			migrateConfigJsonIntoLepJson({
-				workspaceRoot: wsRootForDb,
-				analyzeAllEnabled: isAnalyzeAllEnabled(),
-				logger: lepLogger,
-			});
-			const lepConfigPathOverride = vscode.workspace
-				.getConfiguration('anytimeTrail.lep')
-				.get<string>('configPath', '')
-				.trim();
-			const lep = loadLepConfig({
-				workspaceRoot: wsRootForDb,
-				configPathOverride: lepConfigPathOverride || undefined,
-				logger: lepLogger,
-			});
-			lepConfig = lep.config;
-			lepStage = lep.config.stage;
-			lepDisabledAnalyzers = disabledAnalyzerIds(lep.config);
-			// VS Code 設定 anytimeTrail.lep.stageOverride で一時的に stage を上書き可能 (設計書 13.4)。
-			const stageOverride = vscode.workspace
-				.getConfiguration('anytimeTrail.lep')
-				.get<string>('stageOverride', '')
-				.trim();
-			if (stageOverride && LEP_STAGES.includes(stageOverride as LepStage)) {
-				lepStage = stageOverride as LepStage;
-				TrailLogger.info(`[LepConfig] stage overridden by anytimeTrail.lep.stageOverride=${lepStage}`);
-			}
-			TrailLogger.info(
-				`[LepConfig] resolved stage=${lepStage} (loaded ${lep.loadedPaths.length} file(s))`,
-			);
-
-			// 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (sources.github.enabled)。
-			const ghSource = resolveGitHubSource(lep.config);
-			if (ghSource.enabled) {
-				githubPrReview = {
-					client: ghSource.token
-						? createFetchGitHubReviewClient({
-								token: ghSource.token,
-								logger: { info: (m) => TrailLogger.info(m), warn: (m) => TrailLogger.warn(m) },
-							})
-						: null,
-					since: ghSource.since,
-					maxPrs: ghSource.maxPrs,
-				};
-				TrailLogger.info(
-					`[LepConfig] GitHub PR review source enabled (hasToken=${Boolean(ghSource.token)})`,
-				);
-			}
-		} catch (err) {
-			// version / stage 不正 (LepConfigError) は起動を止めず warn に留め、旧 boolean 由来の
-			// fallback stage で続行する (extension の activate を壊さないため)。
-			TrailLogger.warn(
-				`[LepConfig] failed to load lep.json: ${err instanceof Error ? err.message : String(err)}. ` +
-					`fallback stage=${lepStage}`,
-			);
-		}
-	}
 
 	// lep.json から ingest / chat / health で共有する LLM 値を解決する。
 	// baseUrl は resolveOllamaBaseUrl で env / Dev Container 検出を畳み込み、
@@ -492,7 +492,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		codeGraphRepos.push({ id: workspaceLabel, label: workspaceLabel, path: analysisWorkspacePath });
 	}
 
-	const docsPathForCodeGraph = vscode.workspace.getConfiguration('anytimeTrail.workspace').get<string>('docsPath', '').trim();
+	const docsPathForCodeGraph = lepWorkspaceDocsPath.trim();
 	if (docsPathForCodeGraph && !codeGraphRepos.some((r) => r.path === docsPathForCodeGraph)) {
 		const docsLabel = path.basename(docsPathForCodeGraph) || 'Docs';
 		const uniqueDocsLabel = codeGraphRepos.some((r) => r.id === docsLabel) ? `${docsLabel}-docs` : docsLabel;
@@ -502,6 +502,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const codeGraphService = new CodeGraphService({
 		repositories: codeGraphRepos,
 		trailDb: trailDb!,
+		pythonWasmPath: path.join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
 	});
 	trailDataServer.setCodeGraphService(codeGraphService);
 
@@ -683,7 +684,9 @@ export async function activate(context: vscode.ExtensionContext) {
 				logSink: memoryCoreOutputChannel,
 				gitRoot: wsRootForDb,
 				trailDb,
-				gitRoots: getWatchedGitRoots(),
+				gitRoots: getWatchedGitRoots(lepConfig.sources.gitRoots),
+				claudeProjectsDir: lepConfig.sources.claude.projectsDir || undefined,
+				codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
 				memoryCoreService: memoryCoreService ?? undefined,
 				stage: lepStage,
 				// Wave 3 前 LLM Pre-flight。Ollama 不在時は LLM 依存 analyzer のみ skip し、
@@ -743,7 +746,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				await trailDataServer!.start(trailPort);
 				const actualPort = trailDataServer!.port;
 				TrailLogger.info(`Trail Data Server started on port ${actualPort}`);
-				wireDaemonLogSink(`http://127.0.0.1:${actualPort}`, context);
+				wireDaemonLogSink(`http://127.0.0.1:${actualPort}`, context, lepConfig.logs.minLevel);
 
 				// トークン予算設定を反映
 				const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
@@ -912,9 +915,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Watch for configuration changes
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('anytimeTrail.workspace.docsPath')) {
-				applyDocsPathConfig();
-			}
+			// docsPath は lep.json (workspace.docsPath) へ移行。lep.json 変更は Reload Window で反映する。
 			if (e.affectsConfiguration('anytimeAgent.budget') && trailDataServer) {
 				const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
 				trailDataServer.setTokenBudgetConfig({

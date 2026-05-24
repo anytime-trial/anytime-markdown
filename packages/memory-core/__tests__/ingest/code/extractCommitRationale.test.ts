@@ -27,7 +27,17 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
 
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
-  // Minimal schema matching trail.session_commits
+  // Phase H-4: trail.session_commits から repo_name 列を撤去した。repo 帰属は repo_id で表現し、
+  // extractCommitRationale は trail.repos を JOIN して repo_name → repo_id を解決する。
+  trailDb.run(`CREATE TABLE repos (
+    repo_id INTEGER PRIMARY KEY,
+    repo_name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  ) STRICT`);
+  trailDb.run(
+    `INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    [REPO]
+  );
   trailDb.run(`
     CREATE TABLE sessions (
       id TEXT PRIMARY KEY,
@@ -40,11 +50,24 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
       commit_hash  TEXT NOT NULL,
       commit_message TEXT NOT NULL DEFAULT '',
       committed_at TEXT,
-      repo_name    TEXT NOT NULL DEFAULT '',
+      repo_id      INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (session_id, commit_hash)
     ) STRICT
   `);
   return trailDb;
+}
+
+/** Resolve repo_id from repos by name, seeding the row if it does not yet exist. */
+function resolveRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
+  const existing = trailDb.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  const found = existing[0]?.values?.[0]?.[0];
+  if (found !== undefined && found !== null) return Number(found);
+  trailDb.run(
+    `INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    [repoName]
+  );
+  const row = trailDb.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  return Number(row[0]?.values?.[0]?.[0] ?? 0);
 }
 
 function insertSession(trailDb: BetterSqlite3MemoryDb, sessionId: string): void {
@@ -64,15 +87,16 @@ function insertCommit(
     repoName?: string;
   }
 ): void {
+  const repoId = resolveRepoId(trailDb, opts.repoName ?? REPO);
   trailDb.run(
-    `INSERT INTO session_commits (session_id, commit_hash, commit_message, committed_at, repo_name)
+    `INSERT INTO session_commits (session_id, commit_hash, commit_message, committed_at, repo_id)
      VALUES (?, ?, ?, ?, ?)`,
     [
       opts.sessionId,
       opts.commitHash,
       opts.commitMessage,
       opts.committedAt ?? RECORDED_AT,
-      opts.repoName ?? REPO,
+      repoId,
     ]
   );
 }

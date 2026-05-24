@@ -11,10 +11,17 @@ export interface IRemoteTrailStore {
   unsafeClearAll(): Promise<void>;
   getExistingSessionIds(): Promise<readonly string[]>;
   getExistingSyncedAt(): Promise<ReadonlyMap<string, string>>;
+  /**
+   * repo 正規化の参照テーブル trail_repos を upsert する。
+   * FK 親のため、子テーブルの同期より前に呼ぶこと。repo_id=0 sentinel はスキーマ側で seed 済み。
+   */
+  upsertRepos(rows: readonly { repo_id: number; repo_name: string; created_at: string | null }[]): Promise<void>;
+  /** [DESTRUCTIVE] trail_repos を sentinel(repo_id=0) を残して全削除する（洗い替え同期用）。 */
+  unsafeClearRepos(): Promise<void>;
   upsertSessions(rows: readonly SessionRow[]): Promise<void>;
   upsertMessages(rows: readonly MessageRow[]): Promise<void>;
   upsertCommits(rows: readonly SessionCommitRow[]): Promise<void>;
-  upsertCommitFiles(rows: readonly { repo_name: string; commit_hash: string; file_path: string }[]): Promise<void>;
+  upsertCommitFiles(rows: readonly { repo_id: number; commit_hash: string; file_path: string }[]): Promise<void>;
   upsertReleases(rows: readonly ReleaseRow[]): Promise<void>;
   upsertReleaseFiles(rows: readonly ReleaseFileRow[]): Promise<void>;
   upsertSessionCosts(sessionId: string, costs: readonly {
@@ -51,17 +58,17 @@ export interface IRemoteTrailStore {
   unsafeClearCurrentGraphs(): Promise<void>;
   /** [DESTRUCTIVE] release_graphs テーブルを全削除する（洗い替え同期用）。 */
   unsafeClearReleaseGraphs(): Promise<void>;
-  upsertCurrentGraph(repoName: string, graphJson: string, commitId: string): Promise<void>;
-  upsertReleaseGraph(tag: string, graphJson: string): Promise<void>;
-  listManualElements(repoName: string): Promise<readonly ManualElement[]>;
-  upsertManualElement(repoName: string, element: ManualElement): Promise<void>;
-  deleteManualElement(repoName: string, elementId: string): Promise<void>;
-  listManualRelationships(repoName: string): Promise<readonly ManualRelationship[]>;
-  upsertManualRelationship(repoName: string, rel: ManualRelationship): Promise<void>;
-  deleteManualRelationship(repoName: string, relId: string): Promise<void>;
-  listManualGroups(repoName: string): Promise<readonly ManualGroup[]>;
-  upsertManualGroup(repoName: string, group: ManualGroup): Promise<void>;
-  deleteManualGroup(repoName: string, groupId: string): Promise<void>;
+  upsertCurrentGraph(repoId: number, graphJson: string, commitId: string): Promise<void>;
+  upsertReleaseGraph(releaseId: number, graphJson: string): Promise<void>;
+  listManualElements(repoId: number): Promise<readonly ManualElement[]>;
+  upsertManualElement(repoId: number, element: ManualElement): Promise<void>;
+  deleteManualElement(repoId: number, elementId: string): Promise<void>;
+  listManualRelationships(repoId: number): Promise<readonly ManualRelationship[]>;
+  upsertManualRelationship(repoId: number, rel: ManualRelationship): Promise<void>;
+  deleteManualRelationship(repoId: number, relId: string): Promise<void>;
+  listManualGroups(repoId: number): Promise<readonly ManualGroup[]>;
+  upsertManualGroup(repoId: number, group: ManualGroup): Promise<void>;
+  deleteManualGroup(repoId: number, groupId: string): Promise<void>;
   /** [DESTRUCTIVE] message_tool_calls テーブルを全削除する（洗い替え同期用）。 */
   unsafeClearMessageToolCalls(): Promise<void>;
   upsertMessageToolCalls(rows: readonly {
@@ -85,7 +92,7 @@ export interface IRemoteTrailStore {
   /** [DESTRUCTIVE] trail_current_coverage を全削除する（洗い替え同期用）。 */
   unsafeClearCurrentCoverage(): Promise<void>;
   upsertCurrentCoverage(rows: readonly {
-    repo_name: string;
+    repo_id?: number;
     package: string;
     file_path: string;
     lines_total: number;
@@ -105,7 +112,7 @@ export interface IRemoteTrailStore {
   /** [DESTRUCTIVE] trail_release_coverage を全削除する（洗い替え同期用）。 */
   unsafeClearReleaseCoverage(): Promise<void>;
   upsertReleaseCoverage(rows: readonly {
-    release_tag: string;
+    release_id?: number;
     package: string;
     file_path: string;
     lines_total: number;
@@ -124,7 +131,7 @@ export interface IRemoteTrailStore {
   /** [DESTRUCTIVE] trail_current_file_analysis を全削除する（洗い替え同期用）。 */
   unsafeClearCurrentFileAnalysis(): Promise<void>;
   upsertCurrentFileAnalysis(rows: readonly {
-    repo_name: string; file_path: string;
+    repo_id: number; file_path: string;
     importance_score: number; fan_in_total: number; cognitive_complexity_max: number; function_count: number;
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
@@ -138,7 +145,7 @@ export interface IRemoteTrailStore {
   /** [DESTRUCTIVE] trail_release_file_analysis を全削除する（洗い替え同期用）。 */
   unsafeClearReleaseFileAnalysis(): Promise<void>;
   upsertReleaseFileAnalysis(rows: readonly {
-    release_tag: string; repo_name: string; file_path: string;
+    release_id: number; file_path: string;
     importance_score: number; fan_in_total: number; cognitive_complexity_max: number; function_count: number;
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
@@ -152,7 +159,7 @@ export interface IRemoteTrailStore {
   /** [DESTRUCTIVE] trail_current_function_analysis を全削除する（洗い替え同期用）。 */
   unsafeClearCurrentFunctionAnalysis(): Promise<void>;
   upsertCurrentFunctionAnalysis(rows: readonly {
-    repo_name: string; file_path: string; function_name: string; start_line: number;
+    repo_id: number; file_path: string; function_name: string; start_line: number;
     end_line: number; language: string;
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
@@ -164,7 +171,7 @@ export interface IRemoteTrailStore {
   /** [DESTRUCTIVE] trail_release_function_analysis を全削除する（洗い替え同期用）。 */
   unsafeClearReleaseFunctionAnalysis(): Promise<void>;
   upsertReleaseFunctionAnalysis(rows: readonly {
-    release_tag: string; repo_name: string; file_path: string; function_name: string; start_line: number;
+    release_id: number; file_path: string; function_name: string; start_line: number;
     end_line: number; language: string;
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
@@ -176,13 +183,13 @@ export interface IRemoteTrailStore {
   /** [DESTRUCTIVE] trail_current_code_graphs と trail_current_code_graph_communities を全削除する（洗い替え同期用）。 */
   unsafeClearCurrentCodeGraphs(): Promise<void>;
   upsertCurrentCodeGraphs(rows: readonly {
-    repo_name: string;
+    repo_id: number;
     graph_json: string;
     generated_at: string;
     updated_at: string;
   }[]): Promise<void>;
   upsertCurrentCodeGraphCommunities(rows: readonly {
-    repo_name: string;
+    repo_id: number;
     community_id: number;
     label: string;
     name: string;
@@ -195,13 +202,13 @@ export interface IRemoteTrailStore {
   /** [DESTRUCTIVE] trail_release_code_graphs と trail_release_code_graph_communities を全削除する（洗い替え同期用）。 */
   unsafeClearReleaseCodeGraphs(): Promise<void>;
   upsertReleaseCodeGraphs(rows: readonly {
-    release_tag: string;
+    release_id: number;
     graph_json: string;
     generated_at: string;
     updated_at: string;
   }[]): Promise<void>;
   upsertReleaseCodeGraphCommunities(rows: readonly {
-    release_tag: string;
+    release_id: number;
     community_id: number;
     label: string;
     name: string;

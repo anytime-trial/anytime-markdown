@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { createC4ModelStore, NO_STORE_HEADERS } from "../../../../lib/api-helpers";
+import { createC4ModelStore, NO_STORE_HEADERS, resolveRepoId, resolveReleaseId } from "../../../../lib/api-helpers";
 import { resolveSupabaseEnv } from "../../../../lib/supabase-env";
 
 export const dynamic = 'force-dynamic';
@@ -48,11 +48,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   try {
     const supabase = createClient(env.url, env.anonKey);
-    const tableName = tag === 'current' ? 'trail_current_file_analysis' : 'trail_release_file_analysis';
-
-    let q = supabase.from(tableName).select('*').eq('repo_name', repo);
-    if (tag !== 'current') {
-      q = q.eq('release_tag', tag);
+    // repo_id / release_id 正規化後: current は repo_id、release は release_id でフィルタする。
+    const repoId = await resolveRepoId(supabase, repo);
+    let q;
+    if (tag === 'current') {
+      if (repoId == null) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
+      q = supabase.from('trail_current_file_analysis').select('*').eq('repo_id', repoId);
+    } else {
+      const releaseId = await resolveReleaseId(supabase, tag, repoId);
+      if (releaseId == null) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
+      q = supabase.from('trail_release_file_analysis').select('*').eq('release_id', releaseId);
     }
 
     const { data, error } = await q;

@@ -14,53 +14,70 @@ function execInsert(db: Database, sql: string, params: readonly unknown[] = []):
   db.prepare(sql).run(...(params as unknown[]));
 }
 
+// Phase H-2 / H-3: c4_manual_* / current_code_graph(_communities) から repo_name 列を撤去した。
+// fixture は実スキーマに合わせ repo_id を持ち、repos に test-repo を seed する。
+// read の lookupRepoId が 'test-repo' → REPO_ID を解決する。
+const REPO_ID = 1;
+
+/** どの fixture DB にも repos を作り test-repo を seed する (lookupRepoId が repos を引くため)。 */
+function seedRepos(db: Database): void {
+  db.exec(`
+    CREATE TABLE repos (
+      repo_id INTEGER PRIMARY KEY,
+      repo_name TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL
+    );
+    INSERT INTO repos (repo_id, repo_name, created_at) VALUES (${REPO_ID}, 'test-repo', '2026-01-01T00:00:00.000Z');
+  `);
+}
+
 function createTestDb(): Database {
   const db = new BetterSqlite3(':memory:');
+  seedRepos(db);
   db.exec(`
     CREATE TABLE current_code_graphs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER PRIMARY KEY,
       graph_json TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
     CREATE TABLE c4_manual_elements (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
       element_id TEXT NOT NULL,
       type TEXT NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
       service_type TEXT,
       external INTEGER NOT NULL DEFAULT 0,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_id, element_id)
     );
     CREATE TABLE c4_manual_relationships (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
       rel_id TEXT NOT NULL,
       from_id TEXT NOT NULL,
       to_id TEXT NOT NULL,
       label TEXT,
       technology TEXT,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_id, rel_id)
     );
     CREATE TABLE c4_manual_groups (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
       group_id TEXT NOT NULL,
       member_ids TEXT NOT NULL,
       label TEXT,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_id, group_id)
     );
     CREATE TABLE current_code_graph_communities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
       community_id INTEGER NOT NULL,
       label TEXT NOT NULL,
       name TEXT NOT NULL,
       summary TEXT NOT NULL,
       mappings_json TEXT,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_id, community_id)
     );
   `);
   return db;
@@ -68,15 +85,16 @@ function createTestDb(): Database {
 
 function createTestDbWithoutMappingsJson(): Database {
   const db = new BetterSqlite3(':memory:');
+  seedRepos(db);
   db.exec(`
     CREATE TABLE current_code_graph_communities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
       community_id INTEGER NOT NULL,
       label TEXT NOT NULL,
       name TEXT NOT NULL,
       summary TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_id, community_id)
     );
   `);
   return db;
@@ -85,16 +103,17 @@ function createTestDbWithoutMappingsJson(): Database {
 /** stable_key も mappings_json もない最古スキーマ（フォールバック2段目のテスト用） */
 function createTestDbWithoutStableKey(): Database {
   const db = new BetterSqlite3(':memory:');
+  seedRepos(db);
   db.exec(`
     CREATE TABLE current_code_graph_communities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
       community_id INTEGER NOT NULL,
       label TEXT NOT NULL,
       name TEXT NOT NULL,
       summary TEXT NOT NULL,
       mappings_json TEXT,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_id, community_id)
     );
   `);
   return db;
@@ -103,17 +122,18 @@ function createTestDbWithoutStableKey(): Database {
 /** stable_key および mappings_json カラムがある最新スキーマ */
 function createTestDbWithStableKey(): Database {
   const db = new BetterSqlite3(':memory:');
+  seedRepos(db);
   db.exec(`
     CREATE TABLE current_code_graph_communities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      repo_name TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
       community_id INTEGER NOT NULL,
       label TEXT NOT NULL,
       name TEXT NOT NULL,
       summary TEXT NOT NULL,
       mappings_json TEXT,
       stable_key TEXT NOT NULL DEFAULT '',
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_id, community_id)
     );
   `);
   return db;
@@ -155,8 +175,8 @@ describe('getC4ModelDirect', () => {
     };
     execInsert(
       db,
-      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
-      [REPO, JSON.stringify(graph), NOW],
+      'INSERT INTO current_code_graphs (repo_id, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO_ID, JSON.stringify(graph), NOW],
     );
     const { model } = getC4ModelDirect(db, REPO);
     expect(model.elements.find((e) => e.id === 'sys_r1')).toMatchObject({ type: 'system', name: 'TestRepo' });
@@ -170,13 +190,13 @@ describe('getC4ModelDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, description, external, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 'elem-1', 'system', 'MySystem', 'A system', 0, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, description, external, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'elem-1', 'system', 'MySystem', 'A system', 0, NOW],
     );
     execInsert(
       db,
-      'INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 'rel-1', 'elem-1', 'elem-2', 'uses', 'HTTP', NOW],
+      'INSERT INTO c4_manual_relationships (repo_id, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'rel-1', 'elem-1', 'elem-2', 'uses', 'HTTP', NOW],
     );
 
     const { model } = getC4ModelDirect(db, REPO);
@@ -191,8 +211,8 @@ describe('getC4ModelDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [REPO, 'ext-elem', 'system', 'ExternalSystem', 1, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'ext-elem', 'system', 'ExternalSystem', 1, NOW],
     );
 
     const { model } = getC4ModelDirect(db, REPO);
@@ -205,8 +225,8 @@ describe('getC4ModelDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, description, external, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 'no-desc-elem', 'system', 'NoDesc', null, 0, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, description, external, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'no-desc-elem', 'system', 'NoDesc', null, 0, NOW],
     );
 
     const { model } = getC4ModelDirect(db, REPO);
@@ -220,8 +240,8 @@ describe('getC4ModelDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, description, service_type, external, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 'svc-elem', 'container', 'MyService', null, 'grpc', 0, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, description, service_type, external, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'svc-elem', 'container', 'MyService', null, 'grpc', 0, NOW],
     );
 
     const { model } = getC4ModelDirect(db, REPO);
@@ -235,18 +255,18 @@ describe('getC4ModelDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [REPO, 'src-elem', 'system', 'Src', 0, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'src-elem', 'system', 'Src', 0, NOW],
     );
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [REPO, 'dst-elem', 'system', 'Dst', 0, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'dst-elem', 'system', 'Dst', 0, NOW],
     );
     execInsert(
       db,
-      'INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 'r-no-label', 'src-elem', 'dst-elem', null, null, NOW],
+      'INSERT INTO c4_manual_relationships (repo_id, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'r-no-label', 'src-elem', 'dst-elem', null, null, NOW],
     );
 
     const { model } = getC4ModelDirect(db, REPO);
@@ -264,18 +284,18 @@ describe('getC4ModelDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [REPO, 'from-elem', 'system', 'From', 0, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'from-elem', 'system', 'From', 0, NOW],
     );
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [REPO, 'to-elem', 'system', 'To', 0, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'to-elem', 'system', 'To', 0, NOW],
     );
     execInsert(
       db,
-      'INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 'r-with-label', 'from-elem', 'to-elem', 'calls', 'HTTP/2', NOW],
+      'INSERT INTO c4_manual_relationships (repo_id, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'r-with-label', 'from-elem', 'to-elem', 'calls', 'HTTP/2', NOW],
     );
 
     const { model } = getC4ModelDirect(db, REPO);
@@ -296,8 +316,8 @@ describe('listElementsDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [REPO, 'e1', 'container', 'ServiceA', 0, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'e1', 'container', 'ServiceA', 0, NOW],
     );
 
     const elements = listElementsDirect(db, REPO);
@@ -312,8 +332,8 @@ describe('listElementsDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [REPO, 'ext-1', 'system', 'ExternalSys', 1, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'ext-1', 'system', 'ExternalSys', 1, NOW],
     );
 
     const elements = listElementsDirect(db, REPO);
@@ -326,8 +346,8 @@ describe('listElementsDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [REPO, 'int-1', 'container', 'Internal', 0, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'int-1', 'container', 'Internal', 0, NOW],
     );
 
     const elements = listElementsDirect(db, REPO);
@@ -360,14 +380,14 @@ describe('listElementsDirect', () => {
     };
     execInsert(
       db,
-      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
-      [REPO, JSON.stringify(graph), NOW],
+      'INSERT INTO current_code_graphs (repo_id, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO_ID, JSON.stringify(graph), NOW],
     );
     // manual 要素を追加（mergeManualIntoC4Model が manual:true を付ける）
     execInsert(
       db,
-      'INSERT INTO c4_manual_elements (repo_name, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [REPO, 'man-elem', 'system', 'ManualSystem', 0, NOW],
+      'INSERT INTO c4_manual_elements (repo_id, element_id, type, name, external, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'man-elem', 'system', 'ManualSystem', 0, NOW],
     );
 
     const elements = listElementsDirect(db, REPO);
@@ -383,8 +403,8 @@ describe('listGroupsDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_groups (repo_name, group_id, member_ids, label, updated_at) VALUES (?, ?, ?, ?, ?)',
-      [REPO, 'grp-1', JSON.stringify(['e1', 'e2']), 'Group A', NOW],
+      'INSERT INTO c4_manual_groups (repo_id, group_id, member_ids, label, updated_at) VALUES (?, ?, ?, ?, ?)',
+      [REPO_ID, 'grp-1', JSON.stringify(['e1', 'e2']), 'Group A', NOW],
     );
 
     const groups = listGroupsDirect(db, REPO);
@@ -399,8 +419,8 @@ describe('listGroupsDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_groups (repo_name, group_id, member_ids, label, updated_at) VALUES (?, ?, ?, ?, ?)',
-      [REPO, 'grp-2', JSON.stringify(['e3']), null, NOW],
+      'INSERT INTO c4_manual_groups (repo_id, group_id, member_ids, label, updated_at) VALUES (?, ?, ?, ?, ?)',
+      [REPO_ID, 'grp-2', JSON.stringify(['e3']), null, NOW],
     );
 
     const groups = listGroupsDirect(db, REPO);
@@ -414,8 +434,8 @@ describe('listRelationshipsDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 'rel-1', 'a', 'b', 'calls', 'gRPC', NOW],
+      'INSERT INTO c4_manual_relationships (repo_id, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'rel-1', 'a', 'b', 'calls', 'gRPC', NOW],
     );
 
     const rels = listRelationshipsDirect(db, REPO);
@@ -432,8 +452,8 @@ describe('listRelationshipsDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 'rel-2', 'c', 'd', null, null, NOW],
+      'INSERT INTO c4_manual_relationships (repo_id, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 'rel-2', 'c', 'd', null, null, NOW],
     );
 
     const rels = listRelationshipsDirect(db, REPO);
@@ -448,8 +468,8 @@ describe('listCommunitiesDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 1, 'auth', 'Auth Module', 'Handles authentication', '{"elements":[]}', NOW],
+      'INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 1, 'auth', 'Auth Module', 'Handles authentication', '{"elements":[]}', NOW],
     );
 
     const { communities } = listCommunitiesDirect(db, REPO);
@@ -466,8 +486,8 @@ describe('listCommunitiesDirect', () => {
     const db = createTestDb();
     execInsert(
       db,
-      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 2, 'core', 'Core Module', 'Core logic', null, NOW],
+      'INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 2, 'core', 'Core Module', 'Core logic', null, NOW],
     );
 
     const { communities } = listCommunitiesDirect(db, REPO);
@@ -479,8 +499,8 @@ describe('listCommunitiesDirect', () => {
     const db = createTestDbWithoutMappingsJson();
     execInsert(
       db,
-      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [REPO, 1, 'infra', 'Infrastructure', 'Infra services', NOW],
+      'INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 1, 'infra', 'Infrastructure', 'Infra services', NOW],
     );
 
     const { communities } = listCommunitiesDirect(db, REPO);
@@ -501,8 +521,8 @@ describe('listCommunitiesDirect', () => {
     const db = createTestDbWithStableKey();
     execInsert(
       db,
-      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, stable_key, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 1, 'auth', 'Auth Module', 'Auth logic', '{}', 'sk_abc123', NOW],
+      'INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, mappings_json, stable_key, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 1, 'auth', 'Auth Module', 'Auth logic', '{}', 'sk_abc123', NOW],
     );
 
     const { communities } = listCommunitiesDirect(db, REPO);
@@ -516,8 +536,8 @@ describe('listCommunitiesDirect', () => {
     const db = createTestDbWithoutStableKey();
     execInsert(
       db,
-      'INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [REPO, 1, 'core', 'Core Module', 'Core logic', '{"elements":[]}', NOW],
+      'INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, mappings_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [REPO_ID, 1, 'core', 'Core Module', 'Core logic', '{"elements":[]}', NOW],
     );
 
     const { communities } = listCommunitiesDirect(db, REPO);
@@ -549,10 +569,16 @@ describe('listCommunityNodesDirect', () => {
       edges: [],
       godNodes: [],
     };
+    // Phase H-3: current_code_graphs は repo_id PK。repoName を repos へ upsert して repo_id を引く
+    // (trail-db / mcp-trail の resolveRepoId 相当・別 repo は別 repo_id になる)。
+    db.prepare(
+      "INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z') ON CONFLICT(repo_name) DO NOTHING",
+    ).run(repoName);
+    const repoId = (db.prepare('SELECT repo_id FROM repos WHERE repo_name = ?').get(repoName) as { repo_id: number }).repo_id;
     execInsert(
       db,
-      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
-      [repoName, JSON.stringify(graph), NOW],
+      'INSERT INTO current_code_graphs (repo_id, graph_json, updated_at) VALUES (?, ?, ?)',
+      [repoId, JSON.stringify(graph), NOW],
     );
   }
 
@@ -626,8 +652,8 @@ describe('listCommunityNodesDirect', () => {
     });
     execInsert(
       db,
-      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
-      [REPO, graphWithoutNodes, NOW],
+      'INSERT INTO current_code_graphs (repo_id, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO_ID, graphWithoutNodes, NOW],
     );
 
     const { communities } = listCommunityNodesDirect(db, REPO);
@@ -660,8 +686,8 @@ describe('listCommunityNodesDirect', () => {
     });
     execInsert(
       db,
-      'INSERT INTO current_code_graphs (repo_name, graph_json, updated_at) VALUES (?, ?, ?)',
-      [REPO, graphWithoutPackage, NOW],
+      'INSERT INTO current_code_graphs (repo_id, graph_json, updated_at) VALUES (?, ?, ?)',
+      [REPO_ID, graphWithoutPackage, NOW],
     );
 
     const { communities } = listCommunityNodesDirect(db, REPO);

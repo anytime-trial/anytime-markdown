@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.15.4",
+  "version": "0.15.5",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -35,10 +35,14 @@
     "packages/web-app",
     "packages/mobile-app",
     "packages/trail-server",
+    "packages/code-analysis-core",
+    "packages/code-analysis-typescript",
+    "packages/code-analysis-python",
     "packages/trail-core",
     "packages/trail-db",
     "packages/trail-viewer",
     "packages/graph-viewer",
+    "packages/mindmap-viewer",
     "packages/mcp-trail",
     "packages/trace-core",
     "packages/trace-agent-node",

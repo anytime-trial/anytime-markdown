@@ -12,6 +12,7 @@ import type {
   RunnerStartOptions as BaseRunnerStartOptions,
   RunnerStatus as BaseRunnerStatus,
 } from '../runner/types';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 // 後方互換: 既存 import パスを維持するため alias で re-export する
 export type RunReason = BaseRunReason;
@@ -48,6 +49,8 @@ export interface PipelineRunnerContext {
   backfillDays?: number;
   /** LLM 接続先・モデル (省略時は env / 内蔵既定)。 */
   llm?: MemoryLlmConfig;
+  /** Ollama クライアント生成口 (省略時 openMemoryDbSession が createOllamaClient で生成)。 */
+  ollamaFactory?: () => OllamaClient;
   /**
    * memory-core.db の世代バックアップ設定。
    * - backupGenerations: 保持世代数 (0 以下で無効、既定 1)
@@ -92,6 +95,8 @@ export interface MemoryCoreServiceOptions {
   backfillDays?: number;
   /** LLM 接続先・モデル (lep.json から解決した値)。省略時は env / 内蔵既定。 */
   llm?: MemoryLlmConfig;
+  /** Ollama クライアント生成口。trail-server が throttle 用 decorator を注入する。 */
+  ollamaFactory?: () => OllamaClient;
   /**
    * memory-core.db の世代バックアップ設定。anytimeDatabase.backup.* と
    * 同じ値を渡す想定。省略時は generations=1, intervalDays=1 (database-core

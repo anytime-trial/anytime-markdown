@@ -13,7 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { NO_STORE_HEADERS } from "../../../../lib/api-helpers";
+import { NO_STORE_HEADERS, resolveRepoId } from "../../../../lib/api-helpers";
 import { resolveSupabaseEnv } from "../../../../lib/supabase-env";
 
 export const dynamic = 'force-dynamic';
@@ -114,7 +114,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     let query = supabase.from('trail_current_graphs').select('graph_json').limit(1);
     if (repoParam) {
-      query = query.eq('repo_name', repoParam);
+      const repoId = await resolveRepoId(supabase, repoParam);
+      if (repoId == null) {
+        return NextResponse.json({ error: 'graph not available' }, { status: 503, headers: NO_STORE_HEADERS });
+      }
+      query = query.eq('repo_id', repoId);
     }
     const { data, error } = await query.maybeSingle<{ graph_json: string }>();
     if (error || !data?.graph_json) {

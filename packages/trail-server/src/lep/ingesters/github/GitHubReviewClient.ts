@@ -72,6 +72,16 @@ const DEFAULT_BASE_URL = 'https://api.github.com';
 const PER_PAGE = 100;
 
 /**
+ * 末尾の `/` を全て除去する。`/\/+$/` の量指定子による js/polynomial-redos を避けるため
+ * 正規表現を使わない O(n) 実装にする。
+ */
+function stripTrailingSlashes(input: string): string {
+  let end = input.length;
+  while (end > 0 && input.charCodeAt(end - 1) === 0x2f /* '/' */) end--;
+  return end === input.length ? input : input.slice(0, end);
+}
+
+/**
  * `fetch` ベースの {@link GitHubReviewClient} 実装。
  *
  * - 認証: `Authorization: Bearer <token>`
@@ -83,7 +93,7 @@ const PER_PAGE = 100;
 export function createFetchGitHubReviewClient(
   opts: FetchGitHubReviewClientOptions,
 ): GitHubReviewClient {
-  const baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
+  const baseUrl = stripTrailingSlashes(opts.baseUrl ?? DEFAULT_BASE_URL);
   const resolvedFetch = opts.fetchImpl ?? (globalThis.fetch as FetchLike | undefined);
   const maxRetries = opts.maxRetries ?? 3;
   const maxWaitMs = opts.maxWaitMs ?? 60_000;

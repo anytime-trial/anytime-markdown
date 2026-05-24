@@ -12,6 +12,8 @@ jest.mock('../lib/supabase-env', () => ({
 
 jest.mock('../lib/api-helpers', () => ({
   NO_STORE_HEADERS: { 'Cache-Control': 'no-store' },
+  resolveRepoId: jest.fn().mockResolvedValue(1),
+  resolveReleaseId: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock('@supabase/supabase-js', () => ({
@@ -43,6 +45,7 @@ jest.mock('next/server', () => ({
 
 import { GET as explainGET } from '../app/api/code-graph/explain/route';
 import { GET as queryGET } from '../app/api/code-graph/query/route';
+import { GET as graphGET } from '../app/api/code-graph/route';
 
 type MockResp = { _body: unknown; _status: number };
 
@@ -178,6 +181,84 @@ describe('GET /api/code-graph/query', () => {
 
     const req = makeRequest({ q: 'foo' });
     const result = (await queryGET(req)) as unknown as MockResp;
+    expect(result._status).toBe(404);
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// /api/code-graph (current, per-repo フィルタ)
+// コードグラフは repo 単位で個別保存されるため、current は repo_name で絞り込む。
+// ─────────────────────────────────────────────────────────
+function makeCurrentSupabase(graphJson: string | null) {
+  const eqCalls: Array<[string, string, unknown]> = [];
+  const from = jest.fn((table: string) => {
+    if (table === 'trail_current_code_graphs') {
+      const builder: Record<string, unknown> = {};
+      builder.eq = jest.fn((col: string, val: unknown) => {
+        eqCalls.push([table, col, val]);
+        return builder;
+      });
+      builder.limit = jest.fn(() => ({
+        single: jest.fn().mockResolvedValue({
+          data: graphJson !== null ? { graph_json: graphJson } : null,
+          error: null,
+        }),
+      }));
+      return { select: jest.fn(() => builder) };
+    }
+    // trail_current_code_graph_communities
+    const builder: Record<string, unknown> = {};
+    builder.eq = jest.fn((col: string, val: unknown) => {
+      eqCalls.push([table, col, val]);
+      return builder;
+    });
+    builder.limit = jest.fn().mockResolvedValue({ data: [] });
+    return { select: jest.fn(() => builder) };
+  });
+  return { client: { from }, eqCalls };
+}
+
+const VALID_STORED_GRAPH = JSON.stringify({
+  generatedAt: '2026-05-23T00:00:00.000Z',
+  repositories: [{ id: 'my-repo', label: 'my-repo', path: '/x' }],
+  nodes: [],
+  edges: [],
+  godNodes: [],
+});
+
+describe('GET /api/code-graph (current, per-repo)', () => {
+  it('repo 指定時は trail_current_code_graphs / communities を repo_id で絞り込む', async () => {
+    mockResolveSupabaseEnv.mockReturnValue({ url: 'u', anonKey: 'k' });
+    const { client, eqCalls } = makeCurrentSupabase(VALID_STORED_GRAPH);
+    mockCreateClient.mockReturnValue(client);
+
+    const req = makeRequest({ repo: 'my-repo' });
+    const result = (await graphGET(req)) as unknown as MockResp;
+
+    expect(result._status).toBe(200);
+    expect(eqCalls).toContainEqual(['trail_current_code_graphs', 'repo_id', 1]);
+    expect(eqCalls).toContainEqual(['trail_current_code_graph_communities', 'repo_id', 1]);
+  });
+
+  it('repo 未指定時は eq 絞り込みせず先頭 1 件にフォールバックする', async () => {
+    mockResolveSupabaseEnv.mockReturnValue({ url: 'u', anonKey: 'k' });
+    const { client, eqCalls } = makeCurrentSupabase(VALID_STORED_GRAPH);
+    mockCreateClient.mockReturnValue(client);
+
+    const req = makeRequest({});
+    const result = (await graphGET(req)) as unknown as MockResp;
+
+    expect(result._status).toBe(200);
+    expect(eqCalls).toHaveLength(0);
+  });
+
+  it('グラフ未生成時は 404 を返す', async () => {
+    mockResolveSupabaseEnv.mockReturnValue({ url: 'u', anonKey: 'k' });
+    const { client } = makeCurrentSupabase(null);
+    mockCreateClient.mockReturnValue(client);
+
+    const req = makeRequest({ repo: 'my-repo' });
+    const result = (await graphGET(req)) as unknown as MockResp;
     expect(result._status).toBe(404);
   });
 });

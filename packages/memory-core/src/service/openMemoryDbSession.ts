@@ -90,8 +90,11 @@ export async function openMemoryDbSession(
 
   // ingest の ollama 接続先を health-check と同一に解決する (split-brain 防止)。
   // env OLLAMA_BASE_URL > lep.json baseUrl > Dev Container 自動検出 / localhost。
-  const ollama = opts.ollamaFactory
-    ? opts.ollamaFactory()
+  // 優先順: ctx.ollamaFactory (daemon が throttle 用に注入) > opts.ollamaFactory (テスト) >
+  // 既定 (createOllamaClient + resolveOllamaBaseUrl)。
+  const ollamaFactory = ctx.ollamaFactory ?? opts.ollamaFactory;
+  const ollama = ollamaFactory
+    ? ollamaFactory()
     : createOllamaClient({ baseUrl: resolveOllamaBaseUrl(ctx.llm?.baseUrl) });
 
   let statusWriter: PipelineStatusWriter | undefined;

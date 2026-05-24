@@ -1272,8 +1272,11 @@ export function C4ViewerCore({
         </Box>
       )}
       <Box ref={containerRef} sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* 要素ツリーパネル（左側固定表示） */}
-        {elementTree.length > 0 && (
+        {/* 要素ツリーパネル（左側固定表示）。
+            current モデルが空 (elementTree=[]) でも、repo/release セレクタを表示して
+            release へ切り替えられるようにするため repoOptions も描画条件に含める
+            (セレクタは C4ElementTree 内で repoOptions/releaseOptions により独立描画される)。 */}
+        {(elementTree.length > 0 || repoOptions.length > 0) && (
           <C4ElementTree
             tree={elementTree}
             dispatch={dispatch}
@@ -1767,7 +1770,7 @@ export function C4ViewerCore({
                   i18nResize={t('c4.popup.resize')}
                 >
                   <Suspense fallback={<CodeGraphPanelSkeleton />}>
-                    <CodeGraphPanel serverUrl={serverUrl} isDark={isDark} tcValue={tcValue} />
+                    <CodeGraphPanel serverUrl={serverUrl} isDark={isDark} tcValue={tcValue} repoName={selectedRepo} />
                   </Suspense>
                 </ResizablePopup>
               )}

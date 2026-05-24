@@ -22,13 +22,25 @@ export function parseGitHubRemote(remoteUrl: string | null | undefined): GitHubR
   if (!trimmed) return null;
 
   // host が github.com のものだけを対象にする。scp 形式 (git@github.com:owner/name) と
-  // URL 形式 (https://github.com/owner/name) の両方を 1 本の正規表現で吸収する。
-  const match = /github\.com[/:]([^/]+)\/(.+?)(?:\.git)?\/?$/.exec(trimmed);
+  // URL 形式 (https://github.com/owner/name) の両方を吸収する。host 以降の path 部分は
+  // 単一の貪欲キャプチャ (`.+`) で取り、末尾スラッシュ・`.git` の除去と owner/name 分割は
+  // 文字列操作で行う (lazy + optional 連鎖による js/polynomial-redos / S5852 を回避)。
+  const match = /github\.com[/:](.+)$/.exec(trimmed);
   if (!match) return null;
 
-  const owner = match[1];
-  const name = match[2];
-  if (!owner || !name || name.includes('/')) return null;
+  // 末尾スラッシュを正規表現を使わず O(n) で除去する。
+  let path = match[1];
+  let end = path.length;
+  while (end > 0 && path.charCodeAt(end - 1) === 0x2f /* '/' */) end--;
+  path = path.slice(0, end);
+
+  if (path.endsWith('.git')) path = path.slice(0, -4);
+
+  const slash = path.indexOf('/');
+  if (slash <= 0) return null;
+  const owner = path.slice(0, slash);
+  const name = path.slice(slash + 1);
+  if (!name || name.includes('/')) return null;
 
   return { owner, name };
 }

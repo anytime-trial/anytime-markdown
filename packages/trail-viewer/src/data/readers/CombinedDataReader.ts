@@ -358,11 +358,11 @@ export class CombinedDataReader {
         for (let offset = 0; ; offset += 1000) {
           const { data, error } = await this.client
             .from('trail_sessions')
-            .select('id,source,start_time,repo_name')
+            .select('id,source,start_time,repo:trail_repos!repo_id(repo_name)')
             .gte('start_time', cutoffIso)
             .range(offset, offset + 999);
           if (error || !data || data.length === 0) break;
-          rows.push(...(data as SessionRow[]));
+          rows.push(...(data as unknown as Array<SessionRow & { repo?: { repo_name: string } | null }>).map((r) => ({ ...r, repo_name: r.repo?.repo_name ?? null })));
           if (data.length < 1000) break;
         }
         return rows;
@@ -389,28 +389,28 @@ export class CombinedDataReader {
         for (let offset = 0; ; offset += 1000) {
           let { data, error } = await this.client
             .from('trail_session_commits')
-            .select(`repo_name,commit_hash,${column},lines_added,lines_deleted`)
+            .select(`commit_hash,${column},lines_added,lines_deleted,repo:trail_repos!repo_id(repo_name)`)
             .lt('committed_at', cutoffIso)
             .range(offset, offset + 999);
           if (error && column === 'commit_message') {
             column = 'subject';
             const fb = await this.client
               .from('trail_session_commits')
-              .select('repo_name,commit_hash,subject,lines_added,lines_deleted')
+              .select('commit_hash,subject,lines_added,lines_deleted,repo:trail_repos!repo_id(repo_name)')
               .lt('committed_at', cutoffIso)
               .range(offset, offset + 999);
             data = fb.data;
             error = fb.error;
           }
           if (error || !data || data.length === 0) break;
-          for (const r of data as Array<{ repo_name: string | null; commit_hash: string; commit_message?: string | null; subject?: string | null; lines_added: number | null; lines_deleted: number | null }>) {
+          for (const r of data as unknown as Array<{ repo?: { repo_name: string } | null; commit_hash: string; commit_message?: string | null; subject?: string | null; lines_added: number | null; lines_deleted: number | null }>) {
             const subject = String((r.commit_message ?? r.subject ?? '')).split('\n')[0];
             rows.push({
               subject,
               linesAdded: r.lines_added ?? 0,
               linesDeleted: r.lines_deleted ?? 0,
               commitHash: r.commit_hash,
-              repoName: r.repo_name ?? '',
+              repoName: r.repo?.repo_name ?? '',
             });
           }
           if (data.length < 1000) break;
@@ -426,7 +426,7 @@ export class CombinedDataReader {
         for (let offset = 0; ; offset += 1000) {
           let { data, error } = await this.client
             .from('trail_session_commits')
-            .select(`session_id,repo_name,commit_hash,${column},committed_at,lines_added,lines_deleted`)
+            .select(`session_id,commit_hash,${column},committed_at,lines_added,lines_deleted,repo:trail_repos!repo_id(repo_name)`)
             .gte('committed_at', cutoffIso)
             .order('committed_at', { ascending: true })
             .range(offset, offset + 999);
@@ -434,7 +434,7 @@ export class CombinedDataReader {
             column = 'subject';
             const fallback = await this.client
               .from('trail_session_commits')
-              .select('session_id,repo_name,commit_hash,subject,committed_at,lines_added,lines_deleted')
+              .select('session_id,commit_hash,subject,committed_at,lines_added,lines_deleted,repo:trail_repos!repo_id(repo_name)')
               .gte('committed_at', cutoffIso)
               .order('committed_at', { ascending: true })
               .range(offset, offset + 999);
@@ -442,7 +442,7 @@ export class CombinedDataReader {
             error = fallback.error;
           }
           if (error || !data || data.length === 0) break;
-          rows.push(...(data as CommitChartRow[]));
+          rows.push(...(data as unknown as Array<CommitChartRow & { repo?: { repo_name: string } | null }>).map((r) => ({ ...r, repo_name: r.repo?.repo_name ?? null })));
           if (data.length < 1000) break;
         }
         return rows;

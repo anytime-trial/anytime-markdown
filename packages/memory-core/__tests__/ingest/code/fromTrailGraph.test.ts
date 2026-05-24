@@ -22,17 +22,41 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
   return db;
 }
 
+// Phase H-3: trail.current_code_graphs から repo_name 列を撤去し repo_id PK にしたため、
+// fixture も repos + repo_id PK スキーマで作る。repo_name は repos 経由で JOIN 解決される。
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run(`
+    CREATE TABLE repos (
+      repo_id    INTEGER PRIMARY KEY,
+      repo_name  TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL
+    ) STRICT
+  `);
+  trailDb.run(`
     CREATE TABLE current_code_graphs (
-      repo_name    TEXT PRIMARY KEY,
+      repo_id      INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
       graph_json   TEXT NOT NULL,
       generated_at TEXT NOT NULL,
       updated_at   TEXT NOT NULL
     ) STRICT
   `);
   return trailDb;
+}
+
+/** repo_name から repo_id を取得する (未登録なら登録・冪等)。trail-db の repoIdForName 相当。 */
+function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
+  trailDb.run(
+    `INSERT INTO repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
+    [repoName, RECORDED_AT]
+  );
+  const stmt = trailDb.prepare('SELECT repo_id FROM repos WHERE repo_name = ?');
+  try {
+    const row = stmt.get(repoName);
+    return Number(row?.['repo_id'] ?? 0);
+  } finally {
+    stmt.free?.();
+  }
 }
 
 interface MockNode {
@@ -75,11 +99,12 @@ function insertGraph(
     godNodes: [],
   });
 
+  const repoId = trailRepoId(trailDb, repoName);
   trailDb.run(
-    `INSERT INTO current_code_graphs (repo_name, graph_json, generated_at, updated_at)
+    `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
      VALUES (?, ?, ?, ?)
-     ON CONFLICT(repo_name) DO UPDATE SET graph_json = excluded.graph_json`,
-    [repoName, graphJson, RECORDED_AT, RECORDED_AT]
+     ON CONFLICT(repo_id) DO UPDATE SET graph_json = excluded.graph_json`,
+    [repoId, graphJson, RECORDED_AT, RECORDED_AT]
   );
 }
 
@@ -383,9 +408,9 @@ describe('fromTrailGraph', () => {
       godNodes: [],
     });
     trailDb.run(
-      `INSERT INTO current_code_graphs (repo_name, graph_json, generated_at, updated_at)
+      `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
        VALUES (?, ?, ?, ?)`,
-      ['my-repo', graphJson, GENERATED_AT, RECORDED_AT]
+      [trailRepoId(trailDb, 'my-repo'), graphJson, GENERATED_AT, RECORDED_AT]
     );
 
     attachTrailDbFromHandle(memDb, trailDb);
@@ -478,9 +503,9 @@ describe('fromTrailGraph', () => {
     const trailDb = makeTrailDb();
 
     trailDb.run(
-      `INSERT INTO current_code_graphs (repo_name, graph_json, generated_at, updated_at)
+      `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
        VALUES (?, ?, ?, ?)`,
-      ['bad-json-repo', 'NOT VALID JSON {{{{', RECORDED_AT, RECORDED_AT]
+      [trailRepoId(trailDb, 'bad-json-repo'), 'NOT VALID JSON {{{{', RECORDED_AT, RECORDED_AT]
     );
 
     attachTrailDbFromHandle(memDb, trailDb);
@@ -533,9 +558,9 @@ describe('fromTrailGraph', () => {
       godNodes: [],
     });
     trailDb.run(
-      `INSERT INTO current_code_graphs (repo_name, graph_json, generated_at, updated_at)
+      `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
        VALUES (?, ?, ?, ?)`,
-      ['fallback-repo', graphJson, RECORDED_AT, RECORDED_AT]
+      [trailRepoId(trailDb, 'fallback-repo'), graphJson, RECORDED_AT, RECORDED_AT]
     );
 
     attachTrailDbFromHandle(memDb, trailDb);

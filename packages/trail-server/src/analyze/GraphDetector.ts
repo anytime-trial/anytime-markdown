@@ -14,7 +14,7 @@ const DEFAULT_EXCLUDE_DIRS = new Set([
   '__tests__',
   '.worktrees',
 ]);
-const CODE_EXTS = new Set(['.ts', '.tsx']);
+const CODE_EXTS = new Set(['.ts', '.tsx', '.py', '.pyi']);
 const DOC_EXTS = new Set(['.md', '.txt']);
 
 export class GraphDetector {

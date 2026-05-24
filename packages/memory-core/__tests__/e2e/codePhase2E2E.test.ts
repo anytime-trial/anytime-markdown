@@ -57,7 +57,15 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
     peak_context_tokens INTEGER
   ) STRICT`);
 
-  // session_commits
+  // Phase H-3/H-4: trail.current_code_graphs / session_commits から repo_name 列を撤去し
+  // repo_id 参照にしたため、fixture も repos + repo_id スキーマで作る。
+  db.run(`CREATE TABLE repos (
+    repo_id    INTEGER PRIMARY KEY,
+    repo_name  TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  ) STRICT`);
+
+  // session_commits (Phase H-4: repo_name 撤去・repo_id 参照)
   db.run(`CREATE TABLE session_commits (
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     commit_hash TEXT NOT NULL,
@@ -69,13 +77,13 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
     files_changed INTEGER NOT NULL DEFAULT 0,
     lines_added INTEGER NOT NULL DEFAULT 0,
     lines_deleted INTEGER NOT NULL DEFAULT 0,
-    repo_name TEXT NOT NULL DEFAULT '',
+    repo_id INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (session_id, commit_hash)
   ) STRICT`);
 
   // current_code_graphs
   db.run(`CREATE TABLE current_code_graphs (
-    repo_name TEXT PRIMARY KEY,
+    repo_id INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
     graph_json TEXT NOT NULL CHECK (json_valid(graph_json)),
     generated_at TEXT,
     updated_at TEXT
@@ -84,18 +92,21 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
   // Seed session
   db.run(`INSERT INTO sessions (id, repo_name) VALUES ('sess-code-e2e', ?)`, [repoName]);
 
+  // Seed repos row and resolve repo_id for the commit
+  const repoId = trailRepoId(db, repoName);
+
   // Seed commit with Rationale: section
   const committedAt = '2026-01-15T10:00:00.000Z';
   db.run(
     `INSERT INTO session_commits
-       (session_id, commit_hash, commit_message, committed_at, repo_name)
+       (session_id, commit_hash, commit_message, committed_at, repo_id)
      VALUES (?, ?, ?, ?, ?)`,
     [
       'sess-code-e2e',
       'abc1234567890def',
       'feat(core): add bar module\n\nRationale: Separating bar from foo improves testability.',
       committedAt,
-      repoName,
+      repoId,
     ]
   );
 
@@ -180,11 +191,27 @@ function insertCodeGraph(trailDb: BetterSqlite3MemoryDb, repoName: string): void
     godNodes: [],
   });
 
+  const repoId = trailRepoId(trailDb, repoName);
   trailDb.run(
-    `INSERT INTO current_code_graphs (repo_name, graph_json, generated_at, updated_at)
+    `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
      VALUES (?, ?, ?, ?)`,
-    [repoName, graphJson, generatedAt, generatedAt]
+    [repoId, graphJson, generatedAt, generatedAt]
   );
+}
+
+/** repo_name から repo_id を取得する (未登録なら登録・冪等)。trail-db の repoIdForName 相当。 */
+function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
+  trailDb.run(
+    `INSERT INTO repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
+    [repoName, '2026-01-15T00:00:00.000Z']
+  );
+  const stmt = trailDb.prepare('SELECT repo_id FROM repos WHERE repo_name = ?');
+  try {
+    const row = stmt.get(repoName);
+    return Number(row?.['repo_id'] ?? 0);
+  } finally {
+    stmt.free?.();
+  }
 }
 
 /** Opens an in-memory memory-core DB with Phase 1+2 migrations applied. */

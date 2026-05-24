@@ -13,12 +13,6 @@ const initGitRepo = (dir: string): void => {
   execFileSync('git', ['config', 'user.name', 'Test'], opts);
 };
 
-const writeHistoryJson = (workspaceFolder: string, body: unknown): void => {
-  const anytimeDir = path.join(workspaceFolder, '.anytime');
-  fs.mkdirSync(anytimeDir, { recursive: true });
-  fs.writeFileSync(path.join(anytimeDir, 'anytime-history.json'), JSON.stringify(body));
-};
-
 describe('resolveWatchedRepos', () => {
   let tmpRoot: string;
   let warnLog: string[];
@@ -33,46 +27,45 @@ describe('resolveWatchedRepos', () => {
     try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
-  it('case 1: workspace.path のみ + anytime-history.json 不在 → 1 件返す', () => {
-    const wsRepo = path.join(tmpRoot, 'ws');
-    initGitRepo(wsRepo);
+  it('case 1: gitRoots 空 + workspacePath のみ → 1 件返す', () => {
+    const ws = path.join(tmpRoot, 'ws');
+    initGitRepo(ws);
 
     const result = resolveWatchedRepos({
-      workspacePath: wsRepo,
-      workspaceFolder: wsRepo,
+      gitRoots: [],
+      workspacePath: ws,
       logger,
     });
 
-    expect(result).toEqual([{ gitRoot: wsRepo, repoName: 'ws' }]);
+    expect(result).toEqual([{ gitRoot: ws, repoName: 'ws' }]);
   });
 
-  it('case 2: workspace.path + specDocsRoots 2 件 → 3 件返す（重複なし）', () => {
+  it('case 2: gitRoots 2 件 + workspacePath（別パス）→ 3 件返す（gitRoots 先頭順）', () => {
     const ws = path.join(tmpRoot, 'ws-a');
     const docs = path.join(tmpRoot, 'docs-a');
     const skills = path.join(tmpRoot, 'skills-a');
     initGitRepo(ws);
     initGitRepo(docs);
     initGitRepo(skills);
-    writeHistoryJson(ws, { specDocsRoots: [docs, skills] });
 
     const result = resolveWatchedRepos({
+      gitRoots: [docs, skills],
       workspacePath: ws,
-      workspaceFolder: ws,
       logger,
     });
 
     expect(result).toHaveLength(3);
-    expect(result.map((r) => r.repoName).sort()).toEqual(['docs-a', 'skills-a', 'ws-a']);
+    // gitRoots を先頭に積むため docs → skills → ws の順
+    expect(result.map((r) => r.repoName)).toEqual(['docs-a', 'skills-a', 'ws-a']);
   });
 
-  it('case 3: specDocsRoots に workspace.path と同一パス → 1 件に集約', () => {
+  it('case 3: workspacePath が gitRoots と同一パス → 1 件に集約（gitRoots 側を維持）', () => {
     const ws = path.join(tmpRoot, 'ws-b');
     initGitRepo(ws);
-    writeHistoryJson(ws, { specDocsRoots: [ws] });
 
     const result = resolveWatchedRepos({
+      gitRoots: [ws],
       workspacePath: ws,
-      workspaceFolder: ws,
       logger,
     });
 
@@ -80,23 +73,23 @@ describe('resolveWatchedRepos', () => {
     expect(result[0].gitRoot).toBe(ws);
   });
 
-  it('case 4: specDocsRoots に重複パス → 1 件に集約', () => {
+  it('case 4: gitRoots 内に重複パス → 1 件に集約', () => {
     const ws = path.join(tmpRoot, 'ws-c');
     const docs = path.join(tmpRoot, 'docs-c');
     initGitRepo(ws);
     initGitRepo(docs);
-    writeHistoryJson(ws, { specDocsRoots: [docs, docs] });
 
     const result = resolveWatchedRepos({
+      gitRoots: [docs, docs],
       workspacePath: ws,
-      workspaceFolder: ws,
       logger,
     });
 
     expect(result).toHaveLength(2);
+    expect(result.map((r) => r.repoName)).toEqual(['docs-c', 'ws-c']);
   });
 
-  it('case 5: specDocsRoots に存在しないパス・git でないパス → warn 後にスキップ、有効分のみ返る', () => {
+  it('case 5: gitRoots に存在しないパス・git でないパス → warn 後スキップ、有効分のみ返る', () => {
     const ws = path.join(tmpRoot, 'ws-d');
     const validRepo = path.join(tmpRoot, 'valid-d');
     const nonExistent = path.join(tmpRoot, 'nope-d');
@@ -104,11 +97,10 @@ describe('resolveWatchedRepos', () => {
     initGitRepo(ws);
     initGitRepo(validRepo);
     fs.mkdirSync(notGitDir, { recursive: true });
-    writeHistoryJson(ws, { specDocsRoots: [validRepo, nonExistent, notGitDir] });
 
     const result = resolveWatchedRepos({
+      gitRoots: [validRepo, nonExistent, notGitDir],
       workspacePath: ws,
-      workspaceFolder: ws,
       logger,
     });
 
@@ -117,35 +109,32 @@ describe('resolveWatchedRepos', () => {
     expect(warnLog.some((m) => m.includes('not a git working tree') && m.includes('plain-d'))).toBe(true);
   });
 
-  it('case 6: anytime-history.json が JSON 破損 → warn 出力し workspace.path のみで続行', () => {
-    const ws = path.join(tmpRoot, 'ws-e');
-    initGitRepo(ws);
-    fs.mkdirSync(path.join(ws, '.anytime'), { recursive: true });
-    fs.writeFileSync(path.join(ws, '.anytime', 'anytime-history.json'), '{ broken json');
+  it('case 6: workspacePath undefined + gitRoots のみ（デーモン相当）→ gitRoots を返す', () => {
+    const docs = path.join(tmpRoot, 'docs-e');
+    const skills = path.join(tmpRoot, 'skills-e');
+    initGitRepo(docs);
+    initGitRepo(skills);
 
     const result = resolveWatchedRepos({
-      workspacePath: ws,
-      workspaceFolder: ws,
+      gitRoots: [docs, skills],
       logger,
     });
 
-    expect(result).toHaveLength(1);
-    expect(result[0].repoName).toBe('ws-e');
-    expect(warnLog.some((m) => m.includes('failed to parse'))).toBe(true);
+    expect(result.map((r) => r.repoName)).toEqual(['docs-e', 'skills-e']);
   });
 
-  it('case 7: specDocsRoots フィールド欠落 → workspace.path のみ', () => {
+  it('case 7: 空文字エントリは無視する', () => {
     const ws = path.join(tmpRoot, 'ws-f');
+    const docs = path.join(tmpRoot, 'docs-f');
     initGitRepo(ws);
-    writeHistoryJson(ws, { mdOnly: true });
+    initGitRepo(docs);
 
     const result = resolveWatchedRepos({
-      workspacePath: ws,
-      workspaceFolder: ws,
+      gitRoots: [docs, '', '   '],
+      workspacePath: '',
       logger,
     });
 
-    expect(result).toHaveLength(1);
-    expect(result[0].repoName).toBe('ws-f');
+    expect(result.map((r) => r.repoName)).toEqual(['docs-f']);
   });
 });

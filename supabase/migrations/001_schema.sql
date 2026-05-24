@@ -33,11 +33,22 @@ DROP TABLE IF EXISTS trail_commit_files CASCADE;
 DROP TABLE IF EXISTS trail_session_commits CASCADE;
 DROP TABLE IF EXISTS trail_messages CASCADE;
 DROP TABLE IF EXISTS trail_sessions CASCADE;
+DROP TABLE IF EXISTS trail_repos CASCADE;
+
+-- repo 正規化の参照テーブル（SQLite の repos と対応）。repo_id=0 は未解決 sentinel。
+CREATE TABLE IF NOT EXISTS trail_repos (
+    repo_id    INTEGER PRIMARY KEY,
+    repo_name  TEXT NOT NULL UNIQUE,
+    created_at TEXT
+);
+-- 未解決 repo_id=0 sentinel（子テーブルの DEFAULT 0 を FK 充足させるため必須）
+INSERT INTO trail_repos (repo_id, repo_name, created_at)
+    VALUES (0, '', NULL) ON CONFLICT (repo_id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS trail_sessions (
     id TEXT PRIMARY KEY,
     slug TEXT NOT NULL DEFAULT '',
-    repo_name TEXT NOT NULL DEFAULT '',
+    repo_id INTEGER REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     model TEXT NOT NULL DEFAULT '',
     version TEXT NOT NULL DEFAULT '',
     entrypoint TEXT NOT NULL DEFAULT '',
@@ -101,7 +112,7 @@ CREATE TABLE IF NOT EXISTS trail_messages (
 
 CREATE TABLE IF NOT EXISTS trail_session_commits (
     session_id TEXT NOT NULL REFERENCES trail_sessions(id) ON DELETE CASCADE,
-    repo_name TEXT NOT NULL DEFAULT '',
+    repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL DEFAULT '',
     author TEXT NOT NULL DEFAULT '',
@@ -110,15 +121,15 @@ CREATE TABLE IF NOT EXISTS trail_session_commits (
     files_changed INTEGER NOT NULL DEFAULT 0,
     lines_added INTEGER NOT NULL DEFAULT 0,
     lines_deleted INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (session_id, repo_name, commit_hash)
+    PRIMARY KEY (session_id, repo_id, commit_hash)
 );
 
 -- コミットごとの変更ファイル一覧。コミットは複数セッションに現れるためセッション非依存。
 CREATE TABLE IF NOT EXISTS trail_commit_files (
-    repo_name TEXT NOT NULL DEFAULT '',
+    repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     commit_hash TEXT NOT NULL,
     file_path TEXT NOT NULL,
-    PRIMARY KEY (repo_name, commit_hash, file_path)
+    PRIMARY KEY (repo_id, commit_hash, file_path)
 );
 
 CREATE TABLE IF NOT EXISTS trail_session_costs (
@@ -147,18 +158,9 @@ CREATE TABLE IF NOT EXISTS trail_daily_counts (
     PRIMARY KEY (date, kind, key)
 );
 
--- リリース版 TrailGraph（id=release tag）。
--- 取得時に trailToC4() で C4Model へ、buildSourceMatrix() で DSM へ変換する。
-CREATE TABLE IF NOT EXISTS trail_release_graphs (
-    tag        TEXT PRIMARY KEY,
-    graph_json TEXT NOT NULL,
-    updated_at TEXT,
-    synced_at  TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- リポジトリ別 current TrailGraph（拡張機能の current_graphs と対応）
 CREATE TABLE IF NOT EXISTS trail_current_graphs (
-    repo_name  TEXT PRIMARY KEY,
+    repo_id    INTEGER PRIMARY KEY REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     commit_id  TEXT NOT NULL DEFAULT '',
     graph_json TEXT NOT NULL,
     updated_at TEXT,
@@ -166,10 +168,11 @@ CREATE TABLE IF NOT EXISTS trail_current_graphs (
 );
 
 CREATE TABLE IF NOT EXISTS trail_releases (
-    tag TEXT PRIMARY KEY,
+    release_id INTEGER PRIMARY KEY,
+    tag TEXT NOT NULL,
+    repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     released_at TEXT,
-    prev_tag TEXT,
-    repo_name TEXT NOT NULL DEFAULT '',
+    prev_release_id INTEGER REFERENCES trail_releases(release_id) ON DELETE SET NULL,
     package_tags TEXT NOT NULL DEFAULT '[]',
     commit_count INTEGER NOT NULL DEFAULT 0,
     files_changed INTEGER NOT NULL DEFAULT 0,
@@ -185,24 +188,34 @@ CREATE TABLE IF NOT EXISTS trail_releases (
     duration_days REAL NOT NULL DEFAULT 0,
     resolved_at TEXT,
     release_time_min REAL,
-    synced_at TIMESTAMPTZ DEFAULT NOW()
+    synced_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (repo_id, tag)
+);
+
+-- リリース版 TrailGraph（release_id ごと）。trail_releases の後に定義する（FK 順序）。
+-- 取得時に trailToC4() で C4Model へ、buildSourceMatrix() で DSM へ変換する。
+CREATE TABLE IF NOT EXISTS trail_release_graphs (
+    release_id INTEGER PRIMARY KEY REFERENCES trail_releases(release_id) ON DELETE CASCADE,
+    graph_json TEXT NOT NULL,
+    updated_at TEXT,
+    synced_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS trail_release_files (
-    release_tag TEXT NOT NULL REFERENCES trail_releases(tag) ON DELETE CASCADE,
+    release_id INTEGER NOT NULL REFERENCES trail_releases(release_id) ON DELETE CASCADE,
     file_path TEXT NOT NULL,
     lines_added INTEGER NOT NULL DEFAULT 0,
     lines_deleted INTEGER NOT NULL DEFAULT 0,
     change_type TEXT NOT NULL DEFAULT 'modified',
-    PRIMARY KEY (release_tag, file_path)
+    PRIMARY KEY (release_id, file_path)
 );
 
 CREATE TABLE IF NOT EXISTS trail_release_features (
-    release_tag TEXT NOT NULL REFERENCES trail_releases(tag) ON DELETE CASCADE,
+    release_id INTEGER NOT NULL REFERENCES trail_releases(release_id) ON DELETE CASCADE,
     feature_id TEXT NOT NULL,
     feature_name TEXT NOT NULL DEFAULT '',
     role TEXT NOT NULL DEFAULT '',
-    PRIMARY KEY (release_tag, feature_id)
+    PRIMARY KEY (release_id, feature_id)
 );
 
 CREATE TABLE IF NOT EXISTS trail_message_tool_calls (
@@ -227,7 +240,7 @@ CREATE TABLE IF NOT EXISTS trail_message_tool_calls (
 
 -- C4 手動追加要素（拡張 SQLite の c4_manual_elements と対応）
 CREATE TABLE IF NOT EXISTS trail_c4_manual_elements (
-    repo_name   TEXT NOT NULL,
+    repo_id     INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     element_id  TEXT NOT NULL,
     type        TEXT NOT NULL,
     name        TEXT NOT NULL,
@@ -236,12 +249,12 @@ CREATE TABLE IF NOT EXISTS trail_c4_manual_elements (
     parent_id   TEXT,
     updated_at  TEXT NOT NULL,
     synced_at   TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (repo_name, element_id)
+    PRIMARY KEY (repo_id, element_id)
 );
 
 -- C4 手動追加関係（拡張 SQLite の c4_manual_relationships と対応）
 CREATE TABLE IF NOT EXISTS trail_c4_manual_relationships (
-    repo_name   TEXT NOT NULL,
+    repo_id     INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     rel_id      TEXT NOT NULL,
     from_id     TEXT NOT NULL,
     to_id       TEXT NOT NULL,
@@ -249,23 +262,23 @@ CREATE TABLE IF NOT EXISTS trail_c4_manual_relationships (
     technology  TEXT,
     updated_at  TEXT NOT NULL,
     synced_at   TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (repo_name, rel_id)
+    PRIMARY KEY (repo_id, rel_id)
 );
 
 -- C4 手動グループ（拡張 SQLite の c4_manual_groups と対応）
 CREATE TABLE IF NOT EXISTS trail_c4_manual_groups (
-    repo_name  TEXT NOT NULL,
+    repo_id    INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     group_id   TEXT NOT NULL,
     member_ids TEXT NOT NULL,
     label      TEXT,
     updated_at TEXT NOT NULL,
     synced_at  TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (repo_name, group_id)
+    PRIMARY KEY (repo_id, group_id)
 );
 
 -- カバレッジ最新スナップショット（ローカル current_coverage と対応）
 CREATE TABLE IF NOT EXISTS trail_current_coverage (
-  repo_name          TEXT    NOT NULL,
+  repo_id            INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
   package            TEXT    NOT NULL,
   file_path          TEXT    NOT NULL,
   lines_total        INTEGER NOT NULL DEFAULT 0,
@@ -281,12 +294,12 @@ CREATE TABLE IF NOT EXISTS trail_current_coverage (
   branches_covered   INTEGER NOT NULL DEFAULT 0,
   branches_pct       REAL    NOT NULL DEFAULT 0,
   updated_at         TEXT,
-  PRIMARY KEY (repo_name, package, file_path)
+  PRIMARY KEY (repo_id, package, file_path)
 );
 
 -- カバレッジ リリーススナップショット（ローカル release_coverage と対応）
 CREATE TABLE IF NOT EXISTS trail_release_coverage (
-  release_tag        TEXT    NOT NULL REFERENCES trail_releases(tag) ON DELETE CASCADE,
+  release_id         INTEGER NOT NULL REFERENCES trail_releases(release_id) ON DELETE CASCADE,
   package            TEXT    NOT NULL,
   file_path          TEXT    NOT NULL,
   lines_total        INTEGER NOT NULL DEFAULT 0,
@@ -301,12 +314,12 @@ CREATE TABLE IF NOT EXISTS trail_release_coverage (
   branches_total     INTEGER NOT NULL DEFAULT 0,
   branches_covered   INTEGER NOT NULL DEFAULT 0,
   branches_pct       REAL    NOT NULL DEFAULT 0,
-  PRIMARY KEY (release_tag, package, file_path)
+  PRIMARY KEY (release_id, package, file_path)
 );
 
 -- 未使用コード検出 ファイル単位スコア（ローカル current_file_analysis と対応）
 CREATE TABLE IF NOT EXISTS trail_current_file_analysis (
-  repo_name                  TEXT             NOT NULL,
+  repo_id                    INTEGER          NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
   file_path                  TEXT             NOT NULL,
   importance_score           DOUBLE PRECISION NOT NULL DEFAULT 0,
   fan_in_total               INTEGER          NOT NULL DEFAULT 0,
@@ -330,19 +343,18 @@ CREATE TABLE IF NOT EXISTS trail_current_file_analysis (
   category                   TEXT             NOT NULL DEFAULT 'logic'
                              CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT             NOT NULL,
-  PRIMARY KEY (repo_name, file_path)
+  PRIMARY KEY (repo_id, file_path)
 );
 CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_dead_code
-  ON trail_current_file_analysis (repo_name, dead_code_score DESC);
+  ON trail_current_file_analysis (repo_id, dead_code_score DESC);
 CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_importance
-  ON trail_current_file_analysis (repo_name, importance_score DESC);
+  ON trail_current_file_analysis (repo_id, importance_score DESC);
 CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_centrality
-  ON trail_current_file_analysis (repo_name, centrality_score DESC);
+  ON trail_current_file_analysis (repo_id, centrality_score DESC);
 
 -- 未使用コード検出 ファイル単位スコア リリース版（ローカル release_file_analysis と対応）
 CREATE TABLE IF NOT EXISTS trail_release_file_analysis (
-  release_tag                TEXT             NOT NULL REFERENCES trail_releases(tag) ON DELETE CASCADE,
-  repo_name                  TEXT             NOT NULL,
+  release_id                 INTEGER          NOT NULL REFERENCES trail_releases(release_id) ON DELETE CASCADE,
   file_path                  TEXT             NOT NULL,
   importance_score           DOUBLE PRECISION NOT NULL DEFAULT 0,
   fan_in_total               INTEGER          NOT NULL DEFAULT 0,
@@ -366,12 +378,12 @@ CREATE TABLE IF NOT EXISTS trail_release_file_analysis (
   category                   TEXT             NOT NULL DEFAULT 'logic'
                              CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT             NOT NULL,
-  PRIMARY KEY (release_tag, repo_name, file_path)
+  PRIMARY KEY (release_id, file_path)
 );
 
 -- 未使用コード検出 関数単位スコア（ローカル current_function_analysis と対応）
 CREATE TABLE IF NOT EXISTS trail_current_function_analysis (
-  repo_name              TEXT             NOT NULL,
+  repo_id                INTEGER          NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
   file_path              TEXT             NOT NULL,
   function_name          TEXT             NOT NULL,
   start_line             INTEGER          NOT NULL,
@@ -389,13 +401,12 @@ CREATE TABLE IF NOT EXISTS trail_current_function_analysis (
   distinct_callees       INTEGER          NOT NULL DEFAULT 0,
   function_role          TEXT             NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT             NOT NULL,
-  PRIMARY KEY (repo_name, file_path, function_name, start_line)
+  PRIMARY KEY (repo_id, file_path, function_name, start_line)
 );
 
 -- 未使用コード検出 関数単位スコア リリース版（ローカル release_function_analysis と対応）
 CREATE TABLE IF NOT EXISTS trail_release_function_analysis (
-  release_tag            TEXT             NOT NULL REFERENCES trail_releases(tag) ON DELETE CASCADE,
-  repo_name              TEXT             NOT NULL,
+  release_id             INTEGER          NOT NULL REFERENCES trail_releases(release_id) ON DELETE CASCADE,
   file_path              TEXT             NOT NULL,
   function_name          TEXT             NOT NULL,
   start_line             INTEGER          NOT NULL,
@@ -413,12 +424,12 @@ CREATE TABLE IF NOT EXISTS trail_release_function_analysis (
   distinct_callees       INTEGER          NOT NULL DEFAULT 0,
   function_role          TEXT             NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT             NOT NULL,
-  PRIMARY KEY (release_tag, repo_name, file_path, function_name, start_line)
+  PRIMARY KEY (release_id, file_path, function_name, start_line)
 );
 
 -- コードグラフ最新スナップショット（ローカル current_code_graphs と対応）
 CREATE TABLE IF NOT EXISTS trail_current_code_graphs (
-  repo_name    TEXT PRIMARY KEY,
+  repo_id      INTEGER PRIMARY KEY REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
   graph_json   TEXT NOT NULL,
   generated_at TEXT,
   updated_at   TEXT
@@ -426,7 +437,7 @@ CREATE TABLE IF NOT EXISTS trail_current_code_graphs (
 
 -- コードグラフコミュニティ（ローカル current_code_graph_communities と対応）
 CREATE TABLE IF NOT EXISTS trail_current_code_graph_communities (
-  repo_name    TEXT    NOT NULL,
+  repo_id      INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
   community_id INTEGER NOT NULL,
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
@@ -435,12 +446,12 @@ CREATE TABLE IF NOT EXISTS trail_current_code_graph_communities (
   mappings_json TEXT NULL,
   generated_at TEXT,
   updated_at   TEXT,
-  PRIMARY KEY (repo_name, community_id)
+  PRIMARY KEY (repo_id, community_id)
 );
 
 -- コードグラフ リリーススナップショット（ローカル release_code_graphs と対応）
 CREATE TABLE IF NOT EXISTS trail_release_code_graphs (
-  release_tag  TEXT PRIMARY KEY REFERENCES trail_releases(tag) ON DELETE CASCADE,
+  release_id   INTEGER PRIMARY KEY REFERENCES trail_releases(release_id) ON DELETE CASCADE,
   graph_json   TEXT NOT NULL,
   generated_at TEXT,
   updated_at   TEXT
@@ -448,7 +459,7 @@ CREATE TABLE IF NOT EXISTS trail_release_code_graphs (
 
 -- コードグラフ リリースコミュニティ（ローカル release_code_graph_communities と対応）
 CREATE TABLE IF NOT EXISTS trail_release_code_graph_communities (
-  release_tag  TEXT    NOT NULL REFERENCES trail_releases(tag) ON DELETE CASCADE,
+  release_id   INTEGER NOT NULL REFERENCES trail_releases(release_id) ON DELETE CASCADE,
   community_id INTEGER NOT NULL,
   label        TEXT    NOT NULL DEFAULT '',
   name         TEXT    NOT NULL DEFAULT '',
@@ -456,7 +467,7 @@ CREATE TABLE IF NOT EXISTS trail_release_code_graph_communities (
   stable_key   TEXT    NOT NULL DEFAULT '',
   generated_at TEXT,
   updated_at   TEXT,
-  PRIMARY KEY (release_tag, community_id)
+  PRIMARY KEY (release_id, community_id)
 );
 
 -- インデックス
@@ -472,19 +483,19 @@ CREATE INDEX IF NOT EXISTS idx_trail_daily_counts_date ON trail_daily_counts(dat
 CREATE INDEX IF NOT EXISTS idx_trail_daily_counts_kind ON trail_daily_counts(kind);
 CREATE INDEX IF NOT EXISTS idx_trail_session_commits_session ON trail_session_commits(session_id);
 CREATE INDEX IF NOT EXISTS idx_trail_session_commits_committed_at ON trail_session_commits(committed_at);
-CREATE INDEX IF NOT EXISTS idx_trail_session_commits_repo_committed_at ON trail_session_commits(repo_name, committed_at);
-CREATE INDEX IF NOT EXISTS idx_trail_session_commits_repo_hash ON trail_session_commits(repo_name, commit_hash);
+CREATE INDEX IF NOT EXISTS idx_trail_session_commits_repo_committed_at ON trail_session_commits(repo_id, committed_at);
+CREATE INDEX IF NOT EXISTS idx_trail_session_commits_repo_hash ON trail_session_commits(repo_id, commit_hash);
 CREATE INDEX IF NOT EXISTS idx_trail_commit_files_hash ON trail_commit_files(commit_hash);
-CREATE INDEX IF NOT EXISTS idx_trail_commit_files_repo_hash ON trail_commit_files(repo_name, commit_hash);
+CREATE INDEX IF NOT EXISTS idx_trail_commit_files_repo_hash ON trail_commit_files(repo_id, commit_hash);
 CREATE INDEX IF NOT EXISTS idx_trail_releases_released_at ON trail_releases(released_at);
-CREATE INDEX IF NOT EXISTS idx_trail_release_files_tag ON trail_release_files(release_tag);
-CREATE INDEX IF NOT EXISTS idx_trail_release_features_tag ON trail_release_features(release_tag);
-CREATE INDEX IF NOT EXISTS idx_trail_release_coverage_tag ON trail_release_coverage(release_tag);
-CREATE INDEX IF NOT EXISTS idx_trail_release_code_graphs_tag ON trail_release_code_graphs(release_tag);
-CREATE INDEX IF NOT EXISTS idx_trail_release_code_graph_communities_tag ON trail_release_code_graph_communities(release_tag);
+CREATE INDEX IF NOT EXISTS idx_trail_release_files_rid ON trail_release_files(release_id);
+CREATE INDEX IF NOT EXISTS idx_trail_release_features_rid ON trail_release_features(release_id);
+CREATE INDEX IF NOT EXISTS idx_trail_release_coverage_rid ON trail_release_coverage(release_id);
+CREATE INDEX IF NOT EXISTS idx_trail_release_code_graphs_rid ON trail_release_code_graphs(release_id);
+CREATE INDEX IF NOT EXISTS idx_trail_release_code_graph_communities_rid ON trail_release_code_graph_communities(release_id);
 -- stable_key（ノード集合コンテンツハッシュ）による「同じノード集合のコミュニティ」高速検索
-CREATE INDEX IF NOT EXISTS idx_trail_ccgc_stable_key ON trail_current_code_graph_communities(repo_name, stable_key) WHERE stable_key != '';
-CREATE INDEX IF NOT EXISTS idx_trail_rcgc_stable_key ON trail_release_code_graph_communities(release_tag, stable_key) WHERE stable_key != '';
+CREATE INDEX IF NOT EXISTS idx_trail_ccgc_stable_key ON trail_current_code_graph_communities(repo_id, stable_key) WHERE stable_key != '';
+CREATE INDEX IF NOT EXISTS idx_trail_rcgc_stable_key ON trail_release_code_graph_communities(release_id, stable_key) WHERE stable_key != '';
 CREATE INDEX IF NOT EXISTS idx_trail_mtc_session ON trail_message_tool_calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_trail_mtc_timestamp ON trail_message_tool_calls(timestamp);
 
@@ -495,6 +506,10 @@ CREATE INDEX IF NOT EXISTS idx_trail_mtc_timestamp ON trail_message_tool_calls(t
 -- service_role は Postgres の BYPASSRLS 属性を持つため、書き込み用ポリシーは不要。
 -- これにより、web app バンドルで公開済みの anon key では read のみ可能となり、第三者による
 -- edit/delete を防止する。service_role キーはサーバ env とローカル設定にのみ保持しブラウザに露出しない。
+
+ALTER TABLE trail_repos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "trail_repos_select" ON trail_repos;
+CREATE POLICY "trail_repos_select" ON trail_repos FOR SELECT USING (true);
 
 ALTER TABLE trail_sessions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_sessions_all" ON trail_sessions;

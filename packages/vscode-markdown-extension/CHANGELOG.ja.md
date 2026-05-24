@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.15.5] - 2026-05-24
+
+### Editor Core (markdown-core)
+
+- ランディングフッターの mindmap viewer リンク用 i18n ラベルを追加
+
 ## [0.15.4] - 2026-05-21
 
 ### 変更

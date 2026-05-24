@@ -189,7 +189,7 @@ jobs:
 
   sonarcloud:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -205,21 +205,33 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # メモリの重い 3 パッケージは個別の worker 設定を維持する。
       - name: Run markdown-core tests with coverage
         run: npx jest --coverage --coverageReporters=lcov
         working-directory: packages/markdown-core
+
+      - name: Run web-app tests with coverage
+        run: npx jest --coverage --coverageReporters=lcov
+        working-directory: packages/web-app
 
       - name: Run graph-core tests with coverage
         run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
         working-directory: packages/graph-core
 
-      - name: Run cms-core tests with coverage
-        run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
-        working-directory: packages/cms-core
-
-      - name: Run web-app tests with coverage
-        run: npx jest --coverage --coverageReporters=lcov
-        working-directory: packages/web-app
+      # 残りの計測対象パッケージはループで lcov を生成する。
+      # ここで lcov を作らないパッケージは sonar.sources に載っていても
+      # 全行 uncovered (0%) として計上されるため、計測対象は漏れなく実行する。
+      - name: Run remaining package tests with coverage
+        run: |
+          set -e
+          for p in cms-core mcp-cms mcp-cms-remote mcp-graph mcp-markdown mcp-trail \
+                   spreadsheet-core trace-core trail-core trail-db memory-core \
+                   trail-server database-core database-viewer agent-core \
+                   markdown-eval-core review-agent ollama-core; do
+            echo "::group::coverage $p"
+            (cd "packages/$p" && npx jest --maxWorkers=2 --coverage --coverageReporters=lcov)
+            echo "::endgroup::"
+          done
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6

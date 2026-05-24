@@ -18,17 +18,11 @@ const isoDaysAgo = (days: number): string =>
 const seedSubagentTypeData = (db: TrailDatabase): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-       message_count, file_path, file_size, imported_at
-     ) VALUES (?, ?, 'test-repo', '0', '', '', ?, '', 0, '', 0, '')`,
+    `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
     ['s1', 's1', isoDaysAgo(1)],
   );
   inner.run(
-    `INSERT INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-       message_count, file_path, file_size, imported_at
-     ) VALUES (?, ?, 'test-repo', '0', '', '', ?, '', 0, '', 0, '')`,
+    `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
     ['s2', 's2', isoDaysAgo(2)],
   );
   inner.run(

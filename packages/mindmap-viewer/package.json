@@ -1,0 +1,30 @@
+{
+  "name": "@anytime-markdown/mindmap-viewer",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": false,
+  "publishConfig": { "access": "public" },
+  "type": "module",
+  "main": "dist/mindmap-viewer.js",
+  "module": "dist/mindmap-viewer.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist/*.js", "dist/*.d.ts", "graph-input.schema.json"],
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/mindmap-viewer.js" },
+    "./schema": "./graph-input.schema.json"
+  },
+  "scripts": {
+    "build": "node esbuild.mjs && tsc -p tsconfig.json --emitDeclarationOnly",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "jest"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@anytime-markdown/graph-core": "*",
+    "@types/jest": "30.0.0",
+    "esbuild": "0.27.3",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.6",
+    "typescript": "5.9.3"
+  }
+}

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-05-24
+
+### Changed
+
+- Synchronized with `database-core` 0.2.4 (ReDoS fix in `limitDetection`)
+
 ## [0.2.3] - 2026-05-21
 
 ### Changed

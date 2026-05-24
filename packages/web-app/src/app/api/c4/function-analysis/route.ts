@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { NO_STORE_HEADERS } from "../../../../lib/api-helpers";
+import { NO_STORE_HEADERS, resolveRepoId, resolveReleaseId } from "../../../../lib/api-helpers";
 import { resolveSupabaseEnv } from "../../../../lib/supabase-env";
 
 export const dynamic = 'force-dynamic';
@@ -59,12 +59,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   try {
     const supabase = createClient(env.url, env.anonKey);
-    const tableName =
-      tag === 'current' ? 'trail_current_function_analysis' : 'trail_release_function_analysis';
-
-    let q = supabase.from(tableName).select('*').eq('repo_name', repo);
-    if (tag !== 'current') {
-      q = q.eq('release_tag', tag);
+    // repo_id / release_id 正規化後: current は repo_id、release は release_id でフィルタする。
+    const repoId = await resolveRepoId(supabase, repo);
+    let q;
+    if (tag === 'current') {
+      if (repoId == null) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
+      q = supabase.from('trail_current_function_analysis').select('*').eq('repo_id', repoId);
+    } else {
+      const releaseId = await resolveReleaseId(supabase, tag, repoId);
+      if (releaseId == null) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
+      q = supabase.from('trail_release_function_analysis').select('*').eq('release_id', releaseId);
     }
     if (file) {
       q = q.eq('file_path', file);
@@ -78,7 +82,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const rows = (data ?? []) as SupabaseFunctionAnalysisRow[];
 
     const entries = rows.map((r) => ({
-      repoName: r.repo_name,
+      repoName: repo,
       filePath: r.file_path,
       functionName: r.function_name,
       startLine: r.start_line,

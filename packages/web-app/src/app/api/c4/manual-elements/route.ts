@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 import { resolveSupabaseServiceEnv } from '../../../../lib/supabase-env';
+import { resolveRepoId } from '../../../../lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,12 +32,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const env = resolveSupabaseServiceEnv();
   if (!env) return new NextResponse('Supabase not configured', { status: 503 });
   const supabase = createClient(env.url, env.serviceRoleKey);
+  // trail_c4_manual_elements は repo_id キー。repo_name → repo_id を解決する。
+  const repoId = await resolveRepoId(supabase, repoName);
+  if (repoId == null) return new NextResponse('unknown repo', { status: 404 });
 
   const prefix = getTypePrefix(String(body.type));
   const { data: existing } = await supabase
     .from('trail_c4_manual_elements')
     .select('element_id')
-    .eq('repo_name', repoName)
+    .eq('repo_id', repoId)
     .like('element_id', `${prefix}%`);
   const maxN = (existing ?? []).reduce((m: number, row: { element_id: string }) => {
     const n = Number.parseInt(row.element_id.substring(prefix.length), 10);
@@ -48,7 +52,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { error } = await supabase
     .from('trail_c4_manual_elements')
     .insert({
-      repo_name: repoName,
+      repo_id: repoId,
       element_id: id,
       type: body.type,
       name: body.name,

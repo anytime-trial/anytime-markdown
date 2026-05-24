@@ -12,11 +12,14 @@
     "build": "node scripts/build-viewer-dist.mjs && webpack --mode production",
     "compile": "webpack",
     "watch": "webpack --watch",
-    "test": "jest --maxWorkers=1"
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --maxWorkers=1"
   },
   "dependencies": {
     "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/cms-core": "*",
+    "@anytime-markdown/code-analysis-core": "*",
+    "@anytime-markdown/code-analysis-python": "*",
+    "@anytime-markdown/code-analysis-typescript": "*",
     "@anytime-markdown/memory-core": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trail-db": "*",

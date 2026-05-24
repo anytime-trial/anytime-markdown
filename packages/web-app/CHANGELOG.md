@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-05-24
+
+### Added
+
+- Wired per-repo code graph selection to the viewer (repository normalization Phase G)
+- Added mindmap viewer link to the landing footer
+- Added graph-embed debug page (Web Component) with minimap / collapsible subtree / node-move toggles
+
+### Changed
+
+- trail API routes now resolve `repo_id` / `release_id`
+- Renamed `graph-embed` package to `mindmap-viewer`; changed npm scope to `@anytime-trial`
+
+### Fixed
+
+- Resolved embed ambiguity in `trail_repos` (`!repo_id`; shared regression fix with `vscode-trail-extension`)
+
 ## [0.26.5] - 2026-05-21
 
 ### Changed

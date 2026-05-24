@@ -8,14 +8,18 @@ type SqlJsDb = {
 };
 
 const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb }).db;
+const repoIdFor = (db: TrailDatabase, name: string): number =>
+  (db as unknown as { repoIdForName(n: string): number }).repoIdForName(name);
 
+// Phase H-4: sessions / session_commits / commit_files から repo_name 列を物理撤去した。
+// repo 帰属は repo_id で表現し、repo_name が必要な read は repos を (LEFT) JOIN して復元する。
 const insertSession = (db: TrailDatabase, sessionId: string, repoName: string): void => {
   inner(db).run(
     `INSERT OR IGNORE INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
+       id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at
      ) VALUES (?, ?, ?, '0', '', '', '2026-04-29T00:00:00.000Z', '', 0, '', 0, '')`,
-    [sessionId, sessionId, repoName],
+    [sessionId, sessionId, repoIdFor(db, repoName)],
   );
 };
 
@@ -28,9 +32,9 @@ const insertCommit = (
   inner(db).run(
     `INSERT OR IGNORE INTO session_commits
        (session_id, commit_hash, commit_message, author, committed_at,
-        is_ai_assisted, files_changed, lines_added, lines_deleted, repo_name)
+        is_ai_assisted, files_changed, lines_added, lines_deleted, repo_id)
      VALUES (?, ?, '', '', '2026-04-29T00:00:00.000Z', 0, 0, 0, 0, ?)`,
-    [sessionId, commitHash, repoName],
+    [sessionId, commitHash, repoIdFor(db, repoName)],
   );
 };
 
@@ -41,15 +45,18 @@ const insertCommitFile = (
   repoName: string,
 ): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_name)
+    `INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_id)
      VALUES (?, ?, ?)`,
-    [commitHash, filePath, repoName],
+    [commitHash, filePath, repoIdFor(db, repoName)],
   );
 };
 
+// repo_name は撤去済のため repo_id 経由で repos から復元する。
 const getCommitRepoName = (db: TrailDatabase, sessionId: string, commitHash: string): string => {
   const r = inner(db).exec(
-    'SELECT repo_name FROM session_commits WHERE session_id = ? AND commit_hash = ?',
+    `SELECT COALESCE(rp.repo_name, '') FROM session_commits sc
+       LEFT JOIN repos rp ON rp.repo_id = sc.repo_id
+      WHERE sc.session_id = ? AND sc.commit_hash = ?`,
     [sessionId, commitHash],
   );
   return String(r[0]?.values[0]?.[0] ?? '');
@@ -57,7 +64,9 @@ const getCommitRepoName = (db: TrailDatabase, sessionId: string, commitHash: str
 
 const getCommitFileRepoName = (db: TrailDatabase, commitHash: string, filePath: string): string => {
   const r = inner(db).exec(
-    'SELECT repo_name FROM commit_files WHERE commit_hash = ? AND file_path = ?',
+    `SELECT COALESCE(rp.repo_name, '') FROM commit_files cf
+       LEFT JOIN repos rp ON rp.repo_id = cf.repo_id
+      WHERE cf.commit_hash = ? AND cf.file_path = ?`,
     [commitHash, filePath],
   );
   return String(r[0]?.values[0]?.[0] ?? '');
@@ -68,7 +77,7 @@ const hasMigrationKey = (db: TrailDatabase, key: string): boolean => {
   return Boolean(r[0]?.values?.length);
 };
 
-describe('TrailDatabase migration: repo_name', () => {
+describe('TrailDatabase migration: repo normalization (Phase H-4)', () => {
   let db: TrailDatabase;
 
   beforeEach(async () => {
@@ -85,69 +94,60 @@ describe('TrailDatabase migration: repo_name', () => {
     db.close();
   });
 
-  it('schema includes repo_name columns on session_commits and commit_files', () => {
+  it('Phase H-4: session_commits / commit_files から repo_name 列が撤去され repo_id を持つ', () => {
     const cols = inner(db).exec('PRAGMA table_info(session_commits)')[0]?.values ?? [];
     const colNames = cols.map((r) => String(r[1]));
-    expect(colNames).toContain('repo_name');
+    expect(colNames).not.toContain('repo_name');
+    expect(colNames).toContain('repo_id');
 
     const fileCols = inner(db).exec('PRAGMA table_info(commit_files)')[0]?.values ?? [];
     const fileColNames = fileCols.map((r) => String(r[1]));
-    expect(fileColNames).toContain('repo_name');
+    expect(fileColNames).not.toContain('repo_name');
+    expect(fileColNames).toContain('repo_id');
   });
 
-  it('session_commit_resolutions table exists with composite PK', () => {
+  it('session_commit_resolutions table exists with repo_id composite PK (repo_name 撤去済)', () => {
     const cols = inner(db).exec('PRAGMA table_info(session_commit_resolutions)')[0]?.values ?? [];
     const colNames = cols.map((r) => String(r[1]));
-    expect(colNames).toEqual(expect.arrayContaining(['session_id', 'repo_name', 'resolved_at']));
+    // Phase H-4: repo_name は撤去され、PK は (session_id, repo_id)。
+    expect(colNames).toEqual(expect.arrayContaining(['session_id', 'repo_id', 'resolved_at']));
+    expect(colNames).not.toContain('repo_name');
 
     const pkCols = cols.filter((r) => Number(r[5]) > 0).map((r) => String(r[1]));
-    expect(pkCols.sort()).toEqual(['repo_name', 'session_id']);
+    expect(pkCols.sort()).toEqual(['repo_id', 'session_id']);
   });
 
-  it('backfill: empty repo_name in session_commits is filled from sessions.repo_name', () => {
+  it('repo 帰属が repo_id 経由で session_commits に保存され、repos JOIN で repo_name を復元できる', () => {
     insertSession(db, 'sess-1', 'anytime-markdown');
-    insertCommit(db, 'sess-1', 'hash-a', '');
-
-    expect(getCommitRepoName(db, 'sess-1', 'hash-a')).toBe('');
-
-    (db as unknown as { backfillRepoName_v1: () => void }).backfillRepoName_v1();
+    insertCommit(db, 'sess-1', 'hash-a', 'anytime-markdown');
 
     expect(getCommitRepoName(db, 'sess-1', 'hash-a')).toBe('anytime-markdown');
-    expect(hasMigrationKey(db, 'repo_name_backfill_v1')).toBe(true);
+    // session_commits.repo_id は repos.repo_name='anytime-markdown' に対応する。
+    const expected = repoIdFor(db, 'anytime-markdown');
+    const r = inner(db).exec(
+      "SELECT repo_id FROM session_commits WHERE session_id = 'sess-1' AND commit_hash = 'hash-a'",
+    );
+    expect(Number(r[0]?.values[0]?.[0])).toBe(expected);
   });
 
-  it('backfill: commit_files rows are populated via session_commits join', () => {
+  it('repo 帰属が repo_id 経由で commit_files に保存され、repos JOIN で repo_name を復元できる', () => {
     insertSession(db, 'sess-2', 'anytime-markdown');
-    insertCommit(db, 'sess-2', 'hash-b', '');
-    insertCommitFile(db, 'hash-b', 'src/foo.ts', '');
-
-    (db as unknown as { backfillRepoName_v1: () => void }).backfillRepoName_v1();
+    insertCommit(db, 'sess-2', 'hash-b', 'anytime-markdown');
+    insertCommitFile(db, 'hash-b', 'src/foo.ts', 'anytime-markdown');
 
     expect(getCommitFileRepoName(db, 'hash-b', 'src/foo.ts')).toBe('anytime-markdown');
   });
 
-  it('idempotent: re-running backfill does not overwrite existing non-empty repo_name', () => {
-    insertSession(db, 'sess-3', 'anytime-markdown');
-    insertCommit(db, 'sess-3', 'hash-c', 'manually-set');
-
-    (db as unknown as { backfillRepoName_v1: () => void }).backfillRepoName_v1();
-
-    expect(getCommitRepoName(db, 'sess-3', 'hash-c')).toBe('manually-set');
-  });
-
-  it('does not double-run after recording the migration flag', () => {
+  it('backfillRepoName_v1 は Phase H-4 で superseded され、no-op で done を記録する', () => {
     insertSession(db, 'sess-4', 'anytime-markdown');
-    insertCommit(db, 'sess-4', 'hash-d', '');
+    insertCommit(db, 'sess-4', 'hash-d', 'anytime-markdown');
 
-    (db as unknown as { backfillRepoName_v1: () => void }).backfillRepoName_v1();
+    // repo_name 列は撤去済のため backfill は何もせず done だけ記録する (例外を投げない)。
+    expect(() => {
+      (db as unknown as { backfillRepoName_v1: () => void }).backfillRepoName_v1();
+    }).not.toThrow();
+    expect(hasMigrationKey(db, 'repo_name_backfill_v1')).toBe(true);
+    // repo 帰属は repo_id のまま維持される。
     expect(getCommitRepoName(db, 'sess-4', 'hash-d')).toBe('anytime-markdown');
-
-    // 紐付け先 session の repo_name を変更しても、二度目の backfill は走らない
-    inner(db).run("UPDATE sessions SET repo_name = 'changed' WHERE id = 'sess-4'");
-    inner(db).run("UPDATE session_commits SET repo_name = '' WHERE session_id = 'sess-4'");
-
-    (db as unknown as { backfillRepoName_v1: () => void }).backfillRepoName_v1();
-    // フラグ済みなので backfill されず空のまま
-    expect(getCommitRepoName(db, 'sess-4', 'hash-d')).toBe('');
   });
 });

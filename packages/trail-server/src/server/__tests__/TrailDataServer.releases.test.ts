@@ -17,11 +17,13 @@ type SqlJsDb = {
 const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb }).db;
 
 const insertRelease = (db: TrailDatabase, overrides: Partial<Record<string, unknown>> = {}): void => {
+  // Phase B-2b-iii flip 後、releases の旧 prev_tag 列は prev_release_id 代理キーへ移行済み。
+  // 本ヘルパは prev_tag を使う旧スキーマ前提だったため、現スキーマ (prev_release_id) に合わせる。
+  // Phase H-5: releases.repo_name 列は撤去済。repo 帰属は repo_id (省略時 NULL) で表現する。
   const row = {
     tag: 'v1.0.0',
     released_at: '2026-05-01T00:00:00.000Z',
-    prev_tag: null,
-    repo_name: 'r',
+    prev_release_id: null,
     package_tags: '[]',
     commit_count: 1,
     files_changed: 1,
@@ -39,14 +41,14 @@ const insertRelease = (db: TrailDatabase, overrides: Partial<Record<string, unkn
   };
   inner(db).run(
     `INSERT INTO releases (
-       tag, released_at, prev_tag, repo_name, package_tags,
+       tag, released_at, prev_release_id, package_tags,
        commit_count, files_changed, lines_added, lines_deleted,
        total_lines,
        feat_count, fix_count, refactor_count, test_count, other_count,
        affected_packages, duration_days
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      row.tag, row.released_at, row.prev_tag, row.repo_name, row.package_tags,
+      row.tag, row.released_at, row.prev_release_id, row.package_tags,
       row.commit_count, row.files_changed, row.lines_added, row.lines_deleted,
       row.total_lines,
       row.feat_count, row.fix_count, row.refactor_count, row.test_count, row.other_count,

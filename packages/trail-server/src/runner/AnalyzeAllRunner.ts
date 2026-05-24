@@ -55,6 +55,14 @@ import { MetaJsonIngester } from '../lep/ingesters/MetaJsonIngester';
 type ImportAllAnalyzeFn = NonNullable<Parameters<TrailDatabase['importAll']>[3]>;
 type ImportAllResult = Awaited<ReturnType<TrailDatabase['importAll']>>;
 
+/**
+ * periodic（スケジュール）起動かつ gate が COOLING のときだけ true。
+ * manual / import / startup 契機は常に実行する（ユーザー起点を阻害しない）。
+ */
+export function shouldDeferPeriodicRun(reason: RunReason, deferFn?: () => boolean): boolean {
+  return reason === 'periodic' && deferFn?.() === true;
+}
+
 export interface AnalyzeAllRunnerOptions {
   /** ログ書き込み先 (拡張: OutputChannel, daemon: Logger ラッパ) */
   logSink: RunnerLogSink;
@@ -66,6 +74,16 @@ export interface AnalyzeAllRunnerOptions {
   trailDb?: TrailDatabase;
   /** 監視対象 gitRoot 集合 (commit / release / coverage / codegraph 解析対象) */
   gitRoots?: readonly string[];
+  /**
+   * Claude Code セッションログ (JSONL) の探索元 (lep.json `sources.claude.projectsDir`)。
+   * 省略 / 空時は JsonlIngester 既定 (`os.homedir()/.claude/projects`)。
+   */
+  claudeProjectsDir?: string;
+  /**
+   * Codex セッションログ (rollout JSONL) の探索元 (lep.json `sources.codex.sessionsDir`)。
+   * 省略 / 空時は JsonlIngester 既定 (`os.homedir()/.codex/sessions`)。
+   */
+  codexSessionsDir?: string;
   /** memory-core ingest pipeline を実行する service (省略時は memory-core ステップをスキップ) */
   memoryCoreService?: MemoryCoreService;
   /**
@@ -113,6 +131,9 @@ export interface AnalyzeAllRunnerOptions {
    * 表示し続けるのを防ぐ。memory wave を含む stage では Wave 3 側 writer に委ねるため書かない。
    */
   pipelineStatusFilePath?: string;
+
+  /** スケジューラ gate。periodic run の起動時に COOLING なら true を返す。 */
+  shouldDeferScheduled?: () => boolean;
 
   // -- Optional callback hooks (拡張モードでの UI 統合用) --
   /** import の onProgress に渡される。ログ・進捗バー更新等。 */
@@ -168,6 +189,7 @@ export class AnalyzeAllRunner extends BaseRunner {
   private readonly trailDb: TrailDatabase | undefined;
   private readonly importPipelineEnabled: boolean;
   private readonly pipelineStatusFilePath: string | undefined;
+  private readonly shouldDeferScheduled: (() => boolean) | undefined;
 
   // Layer 3 (memory) analyzer (7 個) の error 集約に使う id 一覧。
   // Wave 3 完了後に provider.closeIfOpen() を呼ぶ。
@@ -218,10 +240,15 @@ export class AnalyzeAllRunner extends BaseRunner {
 
       // Layer 1 (sources)
       const ingesters: Analyzer[] = [
-        new JsonlIngester({ gitRoot: opts.gitRoot ?? gitRoots[0], repoName: primaryRepoName }),
+        new JsonlIngester({
+          gitRoot: opts.gitRoot ?? gitRoots[0],
+          repoName: primaryRepoName,
+          claudeProjectsDir: opts.claudeProjectsDir,
+          codexSessionsDir: opts.codexSessionsDir,
+        }),
         new GitIngester({ gitRoots }),
         new CoverageIngester({ gitRoots }),
-        new MetaJsonIngester(),
+        new MetaJsonIngester({ claudeProjectsDir: opts.claudeProjectsDir }),
       ];
       // 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (githubPrReview 指定時のみ)。
       if (opts.githubPrReview) {
@@ -331,6 +358,7 @@ export class AnalyzeAllRunner extends BaseRunner {
 
     this.stage = opts.stage ?? 'primary+memory';
     this.pipelineStatusFilePath = opts.pipelineStatusFilePath;
+    this.shouldDeferScheduled = opts.shouldDeferScheduled;
 
     this.orchestrator = new LepOrchestrator(bus, analyzers, {
       info: (msg) => this.log(msg),
@@ -341,6 +369,11 @@ export class AnalyzeAllRunner extends BaseRunner {
   }
 
   protected override async runImpl(reason: RunReason): Promise<void> {
+    if (shouldDeferPeriodicRun(reason, this.shouldDeferScheduled)) {
+      this.log('[INFO] periodic run deferred — Ollama throttle COOLING');
+      return;
+    }
+
     let runError: Error | null = null;
 
     try {

@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-24
+
+### Graph Core (graph-core)
+
+- Added read-only `GraphView` with overview minimap, collapsible subtrees, and opt-in node drag-move
+- Added radial mindmap and rooted tree layouts
+- Fixed wheel zoom and DPR > 1 hit-test / pan / zoom misalignment
+- Extracted `resolveEdgesForRender` to engine for O(1) node lookup
+
 ## [0.3.4] - 2026-05-21
 
 ### Changed

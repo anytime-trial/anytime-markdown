@@ -1,7 +1,8 @@
-import fs from 'node:fs';
 import path from 'node:path';
 
-import { analyze } from '@anytime-markdown/trail-core/analyze';
+import { LanguageRegistry, analyzeRepo } from '@anytime-markdown/code-analysis-core';
+import { TypeScriptLanguageAnalyzer } from '@anytime-markdown/code-analysis-typescript';
+import { PythonLanguageAnalyzer } from '@anytime-markdown/code-analysis-python';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Element } from '@anytime-markdown/trail-core/c4';
 import { loadAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
@@ -19,6 +20,8 @@ export interface CodeGraphServiceConfig {
   readonly repositories: readonly CodeGraphRepository[];
   /** ディレクトリ名で除外するパターン（GraphDetector のデフォルトに追加される） */
   readonly excludePatterns?: readonly string[];
+  /** bundle 環境で tree-sitter-python.wasm の絶対パスを注入する（Node 実行時は省略可）。 */
+  readonly pythonWasmPath?: string;
   /** Logger instance. Defaults to a no-op logger if not provided. */
   readonly logger?: Logger;
   /**
@@ -50,6 +53,7 @@ const NOOP_LOGGER: Logger = {
 export class CodeGraphService {
   private readonly cached = new Map<string, CodeGraph>();
   private readonly logger: Logger;
+  private languageRegistry: LanguageRegistry | undefined;
 
   constructor(private readonly config: CodeGraphServiceConfig) {
     this.logger = config.logger ?? NOOP_LOGGER;
@@ -91,46 +95,85 @@ export class CodeGraphService {
     }
   }
 
-  async generate(onProgress?: ProgressCallback): Promise<CodeGraph> {
+  /**
+   * config.repositories をリポジトリ単位で個別に解析し、各リポジトリの
+   * ノード/エッジのみを含む CodeGraph を生成・個別保存する。
+   *
+   * 旧実装（全リポを 1 つの統合グラフへマージし repositories[0] 名で 1 回保存）は廃止。
+   * リポ横断マージは行わない。
+   *
+   * @returns config.repositories の順に並んだ、リポジトリごとの CodeGraph 配列。
+   *          空 repositories の場合は空配列を返し、save も行わない。
+   */
+  async generate(onProgress?: ProgressCallback): Promise<CodeGraph[]> {
     const repos = this.config.repositories;
     onProgress?.('ファイル検出中', 0);
 
-    const allNodes: NodeInput[] = [];
-    const allEdges: CodeGraphEdge[] = [];
+    if (repos.length === 0) {
+      onProgress?.('', 100);
+      return [];
+    }
 
     const trailGraphCache = this.config.trailGraphProvider?.() ?? {};
+    const results: CodeGraph[] = [];
 
     for (let i = 0; i < repos.length; i++) {
       const repo = repos[i];
-      const pct = Math.round((i / Math.max(repos.length, 1)) * 60);
-      onProgress?.(`${repo.label} を解析中`, pct);
+      // 各リポジトリを 0→100 のうち均等配分した区間で進捗通知する。
+      const base = (i / repos.length) * 100;
+      const span = 100 / repos.length;
+      const repoProgress: ProgressCallback | undefined = onProgress
+        ? (phase, percent) => onProgress(phase, Math.round(base + (percent / 100) * span))
+        : undefined;
 
-      const excludePatterns = this.config.excludePatterns ?? loadAnalyzeExclude(repo.path);
-      const detector = new GraphDetector(repo.path, excludePatterns);
-      const docFiles = detector.detectDocFiles();
+      const codeGraph = await this.generateForRepo(repo, trailGraphCache, repoProgress);
 
-      const trailGraph = trailGraphCache[repo.id] ?? this.runAnalyze(repo);
-
-      const { nodes, edges } = trailGraphToCodeGraphInputs({
-        repoId: repo.id,
-        repoRootPath: repo.path,
-        trailGraph,
-        docFiles,
-      });
-      allNodes.push(...nodes);
-      allEdges.push(...edges);
+      onProgress?.('保存中', Math.round(base + span * 0.97));
+      this.save(repo, codeGraph);
+      // cache キーは save() / defaultRepoName() と同じ解決規則（label 優先、空なら basename）。
+      const repoKey = repo.label || path.basename(repo.path);
+      this.cached.set(repoKey, codeGraph);
+      results.push(codeGraph);
     }
+
+    onProgress?.('', 100);
+    return results;
+  }
+
+  /**
+   * 単一リポジトリについて detect → build → cluster → layout を行い、
+   * そのリポジトリのノード/エッジのみを含む CodeGraph を組み立てる（保存はしない）。
+   */
+  private async generateForRepo(
+    repo: CodeGraphRepository,
+    trailGraphCache: Record<string, TrailGraph | undefined>,
+    onProgress?: ProgressCallback,
+  ): Promise<CodeGraph> {
+    onProgress?.(`${repo.label} を解析中`, 0);
+
+    const excludePatterns = this.config.excludePatterns ?? loadAnalyzeExclude(repo.path);
+    const detector = new GraphDetector(repo.path, excludePatterns);
+    const docFiles = detector.detectDocFiles();
+
+    const trailGraph = trailGraphCache[repo.id] ?? (await this.runAnalyze(repo));
+
+    const { nodes: repoNodes, edges: repoEdges } = trailGraphToCodeGraphInputs({
+      repoId: repo.id,
+      repoRootPath: repo.path,
+      trailGraph,
+      docFiles,
+    });
 
     onProgress?.('グラフ構築中', 65);
     const builder = new GraphBuilder();
     const seenNodes = new Set<string>();
-    for (const n of allNodes) {
+    for (const n of repoNodes) {
       if (!seenNodes.has(n.id)) {
         builder.addNode(n);
         seenNodes.add(n.id);
       }
     }
-    for (const e of allEdges) builder.addEdge(e);
+    for (const e of repoEdges) builder.addEdge(e);
     const graph = builder.build();
 
     onProgress?.('クラスタリング中', 75);
@@ -172,7 +215,7 @@ export class CodeGraphService {
 
     const seenEdgeKeys = new Set<string>();
     const edges: CodeGraphEdge[] = [];
-    for (const e of allEdges) {
+    for (const e of repoEdges) {
       if (!seenNodes.has(e.source) || !seenNodes.has(e.target)) continue;
       const key = `${e.source} ${e.target}`;
       if (seenEdgeKeys.has(key)) continue;
@@ -180,47 +223,61 @@ export class CodeGraphService {
       edges.push(e);
     }
 
-    const codeGraph: CodeGraph = {
+    return {
       generatedAt: new Date().toISOString(),
-      repositories: repos.slice(),
+      // per-repo グラフなので repositories は当該リポジトリ 1 件のみ。
+      repositories: [repo],
       nodes,
       edges,
       communities: labels,
       godNodes,
     };
-
-    onProgress?.('保存中', 97);
-    this.save(codeGraph);
-    const repoKey = this.defaultRepoName();
-    if (repoKey) this.cached.set(repoKey, codeGraph);
-    onProgress?.('', 100);
-    return codeGraph;
   }
 
-  private runAnalyze(repo: CodeGraphRepository): TrailGraph | undefined {
-    const tsconfigPath = path.join(repo.path, 'tsconfig.json');
-    if (!fs.existsSync(tsconfigPath)) {
-      this.logger.info(
-        `[CodeGraphService] tsconfig not found for ${repo.label}, skipping code analysis`,
-      );
-      return undefined;
+  /** bundle 環境で注入された tree-sitter-python.wasm の絶対パス（Node 実行時は undefined）。 */
+  getPythonWasmPath(): string | undefined {
+    return this.config.pythonWasmPath;
+  }
+
+  /** TS + Python のアナライザを登録したレジストリ（遅延生成）。 */
+  private getLanguageRegistry(): LanguageRegistry {
+    if (!this.languageRegistry) {
+      const registry = new LanguageRegistry();
+      registry.register(new TypeScriptLanguageAnalyzer());
+      registry.register(new PythonLanguageAnalyzer(this.config.pythonWasmPath));
+      this.languageRegistry = registry;
     }
+    return this.languageRegistry;
+  }
+
+  /**
+   * repo で検出された言語（TS は tsconfig.json、Python は .py/pyproject）を解析し、
+   * 結果を 1 つの TrailGraph に union する。analyze-exclude を全言語に反映する。
+   * 検出言語が無ければ undefined（旧 TS のみ時の「tsconfig 無しスキップ」を包含）。
+   */
+  private async runAnalyze(repo: CodeGraphRepository): Promise<TrailGraph | undefined> {
+    const exclude = loadAnalyzeExclude(repo.path);
     try {
-      // analyze-exclude を反映する。TrailGraph 生成時から test や除外ディレクトリを
-      // 落とすことで、後段の CodeGraph 経由の current_file_analysis にも流入しない。
-      const exclude = loadAnalyzeExclude(repo.path);
-      return analyze({ tsconfigPath, exclude });
+      const graph = await analyzeRepo(this.getLanguageRegistry(), repo.path, analyzer => ({
+        projectRoot: repo.path,
+        configPath:
+          analyzer.id === 'typescript' ? path.join(repo.path, 'tsconfig.json') : undefined,
+        exclude,
+      }));
+      if (!graph) {
+        this.logger.info(
+          `[CodeGraphService] no supported language detected for ${repo.label}, skipping code analysis`,
+        );
+      }
+      return graph;
     } catch (err) {
-      this.logger.error(
-        `[CodeGraphService] analyze() failed for ${repo.label} (${tsconfigPath})`,
-        err,
-      );
+      this.logger.error(`[CodeGraphService] analyzeRepo() failed for ${repo.label}`, err);
       return undefined;
     }
   }
 
-  private save(graph: CodeGraph): void {
-    const repoName = this.config.repositories[0]?.label ?? path.basename(this.config.repositories[0]?.path ?? '');
+  private save(repo: CodeGraphRepository, graph: CodeGraph): void {
+    const repoName = repo.label || path.basename(repo.path);
     if (this.config.trailDb && repoName) {
       this.config.trailDb.saveCurrentCodeGraph(repoName, graph);
       this.logger.info(`Code graph saved to DB (repo=${repoName})`);

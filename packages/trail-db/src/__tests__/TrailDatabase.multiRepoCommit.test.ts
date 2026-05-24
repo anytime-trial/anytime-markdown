@@ -16,10 +16,7 @@ const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb })
 
 const insertSession = (db: TrailDatabase, sessionId: string, startTime: string, endTime: string): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-       message_count, file_path, file_size, imported_at
-     ) VALUES (?, ?, '', '0', '', '', ?, ?, 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, ?, 0, '', 0, '')`,
     [sessionId, sessionId, startTime, endTime],
   );
 };
@@ -49,12 +46,16 @@ const commitWithMessage = (
   return hash;
 };
 
+// Phase H-4: session_commits / session_commit_resolutions から repo_name 列を撤去した。
+// repo 名は repo_id 経由で repos から復元する。
 const getCommitRows = (
   db: TrailDatabase,
   sessionId: string,
 ): Array<{ commit_hash: string; repo_name: string }> => {
   const r = inner(db).exec(
-    'SELECT commit_hash, repo_name FROM session_commits WHERE session_id = ? ORDER BY commit_hash',
+    `SELECT sc.commit_hash, COALESCE(rp.repo_name, '') AS repo_name
+       FROM session_commits sc LEFT JOIN repos rp ON rp.repo_id = sc.repo_id
+      WHERE sc.session_id = ? ORDER BY sc.commit_hash`,
     [sessionId],
   );
   const values = r[0]?.values ?? [];
@@ -69,7 +70,9 @@ const getResolutionRows = (
   sessionId: string,
 ): Array<{ repo_name: string; resolved_at: string }> => {
   const r = inner(db).exec(
-    'SELECT repo_name, resolved_at FROM session_commit_resolutions WHERE session_id = ? ORDER BY repo_name',
+    `SELECT COALESCE(rp.repo_name, '') AS repo_name, scr.resolved_at
+       FROM session_commit_resolutions scr LEFT JOIN repos rp ON rp.repo_id = scr.repo_id
+      WHERE scr.session_id = ? ORDER BY rp.repo_name`,
     [sessionId],
   );
   const values = r[0]?.values ?? [];
@@ -120,13 +123,16 @@ describe('TrailDatabase.resolveCommits multi-repo', () => {
   });
 
   it('returns repo_name with commit files for remote sync', () => {
+    // Phase H-4: commit_files.repo_name 列は撤去済。repo 帰属は repo_id で保存し、getCommitFiles は
+    // repos を JOIN して repo_name を復元する (Supabase ミラーへ運ぶ契約)。
+    const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('repo-a');
     inner(db).run(
-      `INSERT OR IGNORE INTO commit_files (repo_name, commit_hash, file_path)
-       VALUES ('repo-a', 'hash-a', 'a.txt')`,
+      `INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_id) VALUES ('hash-a', 'a.txt', ?)`,
+      [repoId],
     );
 
     expect(db.getCommitFiles(['hash-a'])).toEqual([
-      { repo_name: 'repo-a', commit_hash: 'hash-a', file_path: 'a.txt' },
+      { repo_id: repoId, repo_name: 'repo-a', commit_hash: 'hash-a', file_path: 'a.txt' },
     ]);
   });
 

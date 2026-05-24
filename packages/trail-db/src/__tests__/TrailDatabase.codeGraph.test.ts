@@ -23,10 +23,12 @@ const makeCodeGraph = (overrides: Partial<CodeGraph> = {}): CodeGraph => ({
   ...overrides,
 });
 
+// Phase H-5: releases.repo_name 列は撤去済。本テストは code graph の FK/CRUD (release_id ベース) を
+// 検証するだけで repo 識別に依存しないため repo_id は省略 (NULL) のままにする。
 const insertRelease = (db: TrailDatabase, tag: string): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO releases (tag, released_at, repo_name)
-     VALUES (?, ?, 'test-repo')`,
+    `INSERT OR IGNORE INTO releases (tag, released_at)
+     VALUES (?, ?)`,
     [tag, '2026-01-01T00:00:00.000Z'],
   );
 };
@@ -323,6 +325,8 @@ describe('TrailDatabase getTrailGraph', () => {
   });
 
   it('returns release graph after saveReleaseGraph', () => {
+    // flip 後 release_graphs は release_id FK のため、親 release を先に作る。
+    insertRelease(db, 'v1.0.0');
     db.saveReleaseGraph(makeTrailGraph(), '/tsconfig.json', 'v1.0.0');
     const result = db.getTrailGraph('v1.0.0');
     expect(result).not.toBeNull();
@@ -364,6 +368,8 @@ describe('TrailDatabase asC4ModelStore', () => {
   });
 
   it('getReleaseC4Model returns model after saveReleaseGraph', () => {
+    // flip 後 release_graphs は release_id FK のため、親 release を先に作る。
+    insertRelease(db, 'v1.0.0');
     db.saveReleaseGraph(makeTrailGraph(), '/tsconfig.json', 'v1.0.0');
     const store = db.asC4ModelStore();
     const result = store.getReleaseC4Model('v1.0.0') as { model: unknown } | null;
@@ -396,7 +402,8 @@ describe('TrailDatabase analyzeReleaseCodeGraphsForce (empty releases)', () => {
 
   it('returns 0 immediately when no releases exist', async () => {
     const count = await db.analyzeReleaseCodeGraphsForce({
-      codeGraphService: { generate: async () => makeCodeGraph() },
+      // generate() は per-repo の CodeGraph 配列を返す（C-1 で単一→配列に変更）。
+      codeGraphService: { generate: async () => [makeCodeGraph()] },
       gitRoot: '/tmp/fake-repo',
     });
     expect(count).toBe(0);

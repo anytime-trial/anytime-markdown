@@ -6,6 +6,10 @@ const mockResolveSupabaseEnv = jest.fn();
 const mockResolveSupabaseServiceEnv = jest.fn();
 const mockCreateClient = jest.fn();
 
+jest.mock('../lib/api-helpers', () => ({
+  resolveRepoId: jest.fn().mockResolvedValue(1),
+}));
+
 jest.mock('../lib/supabase-env', () => ({
   resolveSupabaseEnv: mockResolveSupabaseEnv,
   resolveSupabaseServiceEnv: mockResolveSupabaseServiceEnv,

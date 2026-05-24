@@ -140,13 +140,17 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
   for (const finding of findings) {
     try {
       // Query candidate commits from trail DB
+      // Phase H-4: trail.session_commits / commit_files から repo_name 列を撤去した。JOIN は
+      // cf.repo_id = sc.repo_id で行い、repo フィルタは trail.repos を JOIN して repo_name で絞る
+      // (クロス DB JOIN・意味は旧 repo_name 等値 JOIN/フィルタと等価)。
       const commitResult = db.exec(
         `SELECT sc.commit_hash, sc.commit_message, sc.committed_at
          FROM trail.session_commits sc
          JOIN trail.commit_files cf ON cf.commit_hash = sc.commit_hash
-                                    AND cf.repo_name = sc.repo_name
+                                    AND cf.repo_id = sc.repo_id
+         JOIN trail.repos r ON r.repo_id = sc.repo_id
          WHERE cf.file_path = ?
-           AND sc.repo_name = ?
+           AND r.repo_name = ?
            AND sc.committed_at >= ?
            AND sc.committed_at <= datetime(?, '+' || ? || ' days')
          ORDER BY sc.committed_at ASC`,
