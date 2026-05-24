@@ -104,15 +104,29 @@ export class OllamaThrottleGovernor {
   }
 
   /** リクエスト完了後の状態更新 (COOLING 突入判定)。 */
-  private report(op: OllamaOp, model: string, latencyMs: number, ok: boolean, _errorCode?: string): void {
-    if (!ok) return; // error トリガは Task 4 で実装
+  private report(op: OllamaOp, model: string, latencyMs: number, ok: boolean, errorCode?: string): void {
+    const now = this.deps.now();
+
+    // トリガ 2: Ollama timeout / unreachable はホストクラッシュの疑い → COOLING。
+    if (!ok) {
+      if (errorCode === 'ollama_timeout' || errorCode === 'ollama_unreachable') {
+        this.enterCooling(now);
+      }
+      return;
+    }
+
+    // トリガ 3: 連続稼働上限。
+    if (this.busySince !== null && now - this.busySince >= this.opts.maxContinuousMin * 60_000) {
+      this.enterCooling(now);
+      return;
+    }
 
     // トリガ 1: embeddings レイテンシが baseline×slowdownFactor 超 (検知素材は embeddings のみ)。
     if (op !== 'embeddings') return;
     const key = `${op}:${model}`;
     const b = this.baselines.get(key);
     if (b && b.count >= MIN_SAMPLES && latencyMs > b.ewma * this.opts.slowdownFactor) {
-      this.enterCooling(this.deps.now()); // このスパイクは baseline に混ぜない (凍結)
+      this.enterCooling(now); // このスパイクは baseline に混ぜない (凍結)
       return;
     }
     const ewma = b ? EWMA_ALPHA * latencyMs + (1 - EWMA_ALPHA) * b.ewma : latencyMs;

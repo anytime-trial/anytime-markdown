@@ -124,3 +124,55 @@ describe('OllamaThrottleGovernor — embeddings latency detection', () => {
     expect(g.state()).toBe('NORMAL'); // generate は検知素材にしない
   });
 });
+
+describe('OllamaThrottleGovernor — error & continuous-time triggers', () => {
+  it('enters COOLING on ollama_timeout', async () => {
+    const c = fakeClock();
+    const g = new OllamaThrottleGovernor(baseOpts, { now: c.now, sleep: c.sleep });
+    c.advance(30_000);
+    await expect(
+      g.run('embeddings', 'bge-m3', async () => {
+        const e = new Error('ollama_timeout') as Error & { code: string };
+        e.code = 'ollama_timeout';
+        throw e;
+      }),
+    ).rejects.toThrow();
+    expect(g.state()).toBe('COOLING');
+  });
+
+  it('does not enter COOLING on an unrelated error', async () => {
+    const c = fakeClock();
+    const g = new OllamaThrottleGovernor(baseOpts, { now: c.now, sleep: c.sleep });
+    c.advance(30_000);
+    await expect(
+      g.run('embeddings', 'bge-m3', async () => {
+        const e = new Error('model_not_pulled') as Error & { code: string };
+        e.code = 'model_not_pulled';
+        throw e;
+      }),
+    ).rejects.toThrow();
+    expect(g.state()).toBe('NORMAL');
+  });
+
+  it('enters COOLING after maxContinuousMin of continuous activity', async () => {
+    const c = fakeClock();
+    const g = new OllamaThrottleGovernor(baseOpts, { now: c.now, sleep: c.sleep });
+    c.advance(30_000);
+    await g.run('embeddings', 'bge-m3', async () => 0); // streak 開始
+    for (let i = 0; i < 15; i++) {
+      c.advance(60_000); // 1 分ごと (= IDLE_RESET_MS、> ではないので streak 継続)
+      await g.run('embeddings', 'bge-m3', async () => 0);
+    }
+    expect(g.state()).toBe('COOLING'); // 15 分連続で強制 COOLING
+  });
+
+  it('resets the continuous streak after a long idle gap', async () => {
+    const c = fakeClock();
+    const g = new OllamaThrottleGovernor(baseOpts, { now: c.now, sleep: c.sleep });
+    c.advance(30_000);
+    await g.run('embeddings', 'bge-m3', async () => 0);
+    c.advance(20 * 60_000); // 20 分アイドル (> IDLE_RESET_MS) → streak リセット
+    await g.run('embeddings', 'bge-m3', async () => 0);
+    expect(g.state()).toBe('NORMAL');
+  });
+});
