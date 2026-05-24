@@ -1,7 +1,8 @@
-import fs from 'node:fs';
 import path from 'node:path';
 
-import { analyze } from '@anytime-markdown/trail-core/analyze';
+import { LanguageRegistry, analyzeRepo } from '@anytime-markdown/code-analysis-core';
+import { TypeScriptLanguageAnalyzer } from '@anytime-markdown/code-analysis-typescript';
+import { PythonLanguageAnalyzer } from '@anytime-markdown/code-analysis-python';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Element } from '@anytime-markdown/trail-core/c4';
 import { loadAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
@@ -19,6 +20,8 @@ export interface CodeGraphServiceConfig {
   readonly repositories: readonly CodeGraphRepository[];
   /** ディレクトリ名で除外するパターン（GraphDetector のデフォルトに追加される） */
   readonly excludePatterns?: readonly string[];
+  /** bundle 環境で tree-sitter-python.wasm の絶対パスを注入する（Node 実行時は省略可）。 */
+  readonly pythonWasmPath?: string;
   /** Logger instance. Defaults to a no-op logger if not provided. */
   readonly logger?: Logger;
   /**
@@ -50,6 +53,7 @@ const NOOP_LOGGER: Logger = {
 export class CodeGraphService {
   private readonly cached = new Map<string, CodeGraph>();
   private readonly logger: Logger;
+  private languageRegistry: LanguageRegistry | undefined;
 
   constructor(private readonly config: CodeGraphServiceConfig) {
     this.logger = config.logger ?? NOOP_LOGGER;
@@ -122,7 +126,7 @@ export class CodeGraphService {
         ? (phase, percent) => onProgress(phase, Math.round(base + (percent / 100) * span))
         : undefined;
 
-      const codeGraph = this.generateForRepo(repo, trailGraphCache, repoProgress);
+      const codeGraph = await this.generateForRepo(repo, trailGraphCache, repoProgress);
 
       onProgress?.('保存中', Math.round(base + span * 0.97));
       this.save(repo, codeGraph);
@@ -140,18 +144,18 @@ export class CodeGraphService {
    * 単一リポジトリについて detect → build → cluster → layout を行い、
    * そのリポジトリのノード/エッジのみを含む CodeGraph を組み立てる（保存はしない）。
    */
-  private generateForRepo(
+  private async generateForRepo(
     repo: CodeGraphRepository,
     trailGraphCache: Record<string, TrailGraph | undefined>,
     onProgress?: ProgressCallback,
-  ): CodeGraph {
+  ): Promise<CodeGraph> {
     onProgress?.(`${repo.label} を解析中`, 0);
 
     const excludePatterns = this.config.excludePatterns ?? loadAnalyzeExclude(repo.path);
     const detector = new GraphDetector(repo.path, excludePatterns);
     const docFiles = detector.detectDocFiles();
 
-    const trailGraph = trailGraphCache[repo.id] ?? this.runAnalyze(repo);
+    const trailGraph = trailGraphCache[repo.id] ?? (await this.runAnalyze(repo));
 
     const { nodes: repoNodes, edges: repoEdges } = trailGraphToCodeGraphInputs({
       repoId: repo.id,
@@ -230,24 +234,39 @@ export class CodeGraphService {
     };
   }
 
-  private runAnalyze(repo: CodeGraphRepository): TrailGraph | undefined {
-    const tsconfigPath = path.join(repo.path, 'tsconfig.json');
-    if (!fs.existsSync(tsconfigPath)) {
-      this.logger.info(
-        `[CodeGraphService] tsconfig not found for ${repo.label}, skipping code analysis`,
-      );
-      return undefined;
+  /** TS + Python のアナライザを登録したレジストリ（遅延生成）。 */
+  private getLanguageRegistry(): LanguageRegistry {
+    if (!this.languageRegistry) {
+      const registry = new LanguageRegistry();
+      registry.register(new TypeScriptLanguageAnalyzer());
+      registry.register(new PythonLanguageAnalyzer(this.config.pythonWasmPath));
+      this.languageRegistry = registry;
     }
+    return this.languageRegistry;
+  }
+
+  /**
+   * repo で検出された言語（TS は tsconfig.json、Python は .py/pyproject）を解析し、
+   * 結果を 1 つの TrailGraph に union する。analyze-exclude を全言語に反映する。
+   * 検出言語が無ければ undefined（旧 TS のみ時の「tsconfig 無しスキップ」を包含）。
+   */
+  private async runAnalyze(repo: CodeGraphRepository): Promise<TrailGraph | undefined> {
+    const exclude = loadAnalyzeExclude(repo.path);
     try {
-      // analyze-exclude を反映する。TrailGraph 生成時から test や除外ディレクトリを
-      // 落とすことで、後段の CodeGraph 経由の current_file_analysis にも流入しない。
-      const exclude = loadAnalyzeExclude(repo.path);
-      return analyze({ tsconfigPath, exclude });
+      const graph = await analyzeRepo(this.getLanguageRegistry(), repo.path, analyzer => ({
+        projectRoot: repo.path,
+        configPath:
+          analyzer.id === 'typescript' ? path.join(repo.path, 'tsconfig.json') : undefined,
+        exclude,
+      }));
+      if (!graph) {
+        this.logger.info(
+          `[CodeGraphService] no supported language detected for ${repo.label}, skipping code analysis`,
+        );
+      }
+      return graph;
     } catch (err) {
-      this.logger.error(
-        `[CodeGraphService] analyze() failed for ${repo.label} (${tsconfigPath})`,
-        err,
-      );
+      this.logger.error(`[CodeGraphService] analyzeRepo() failed for ${repo.label}`, err);
       return undefined;
     }
   }
