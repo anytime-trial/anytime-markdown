@@ -43,8 +43,18 @@ export interface ScopeResult {
  * - `runDrift`:        多源 drift detection
  * - `runEmbeddingBackfill`: NULL embedding 補完
  */
+/** conversation scope の実行オプション。 */
+export interface RunConversationOptions {
+  /**
+   * 会話ループ境界で確認する中断ゲート。true を返すと incremental/backfill を
+   * 途中で打ち切り、failed-items retry も skip して partial を返す
+   * (Ollama throttle COOLING 時の会話スキップ用)。cursor は据え置き。
+   */
+  shouldStop?: () => boolean;
+}
+
 export interface MemoryCoreScopeRunner {
-  runConversation(): Promise<ScopeResult>;
+  runConversation(opts?: RunConversationOptions): Promise<ScopeResult>;
   runCode(): Promise<ScopeResult>;
   runBugHistory(): Promise<ScopeResult>;
   runReview(): Promise<ScopeResult>;
@@ -114,7 +124,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
   }
 
   // ── conversation (backfill/incremental + failed-items retry) ────────────────
-  async runConversation(): Promise<ScopeResult> {
+  async runConversation(opts: RunConversationOptions = {}): Promise<ScopeResult> {
     const { memDb, ollama, backfillDays, chatModel } = this.deps;
     const logger = this.logger;
     const sinceDays = backfillDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS;
@@ -169,6 +179,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
           onTotal: (total) => this.status?.start('conversation_incremental', total),
           progress: (processed, failed) =>
             this.status?.update('conversation_incremental', processed, failed),
+          shouldStop: opts.shouldStop,
         });
         this.status?.finish('conversation_incremental', result.status, result.items_processed, result.items_failed);
         convResult = {
@@ -187,6 +198,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
           save: () => this.save(),
           progress: (processed, failed) =>
             this.status?.update('conversation_incremental', processed, failed),
+          shouldStop: opts.shouldStop,
         });
         this.status?.finish('conversation_incremental', result.status, result.items_processed, result.items_failed);
         convResult = {
@@ -202,6 +214,14 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
       return { scope: 'conversation_incremental', status: 'error', itemsProcessed: 0, itemsFailed: 0, error: msg };
     }
     this.save();
+
+    // throttle COOLING 中は failed-items retry も skip し、Wave 3 を次 scope へ進める。
+    // cursor は incremental/backfill 側で据え置き済みなので次 run で続行する。
+    if (opts.shouldStop?.()) {
+      this.status?.finish('conversation_failed_items_retry', 'skipped', 0, 0);
+      this.logger.info('runConversation: throttle COOLING — skipping failed-items retry');
+      return convResult;
+    }
 
     // failed-items retry
     this.status?.start('conversation_failed_items_retry');

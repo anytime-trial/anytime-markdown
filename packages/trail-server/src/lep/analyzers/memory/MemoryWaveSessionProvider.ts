@@ -28,6 +28,12 @@ export class MemoryWaveSessionProvider {
     private readonly availabilityChecker?: LlmAvailabilityChecker,
     /** ヒントメッセージ用の Ollama baseUrl。 */
     readonly ollamaBaseUrl?: string,
+    /**
+     * Ollama throttle が COOLING かを返すゲート。true のとき
+     * `ConversationMemoryAnalyzer` は会話ループを中断して次 scope へ進む。
+     * 未指定時は throttle スキップ無効 (従来動作)。
+     */
+    readonly throttleGate?: () => boolean,
   ) {}
 
   async ensure(): Promise<MemoryDbSession | null> {

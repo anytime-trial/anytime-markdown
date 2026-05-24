@@ -193,11 +193,18 @@ export async function runConversationIncremental(opts: {
   save?: () => void;
   /** 進捗チェックポイント時に呼ばれる progress callback (TreeView 表示用)。 */
   progress?: (processed: number, failed: number) => void;
+  /**
+   * episode ループ境界で確認する中断ゲート。true を返すと以降の episode を
+   * 処理せず early return する (Ollama throttle COOLING 時の会話スキップ用)。
+   * cursor は前進させないため、次 run で existingIds により冪等に再開する。
+   */
+  shouldStop?: () => boolean;
 }): Promise<IncrementalResult> {
   const { db, ollama, model } = opts;
   const logger = opts.logger ?? noopLogger;
   const save = opts.save;
   const progress = opts.progress;
+  const shouldStop = opts.shouldStop;
 
   const startedAt = new Date().toISOString();
   const rId = runId(startedAt);
@@ -245,6 +252,7 @@ export async function runConversationIncremental(opts: {
   let lastFailedEpisodeTime: string | null = null;
   let consecutiveFailures = 0;
   let finalStatus: 'success' | 'partial' | 'error' = 'success';
+  let stoppedByThrottle = false;
 
   // ── 3. Iterate sessions ──────────────────────────────────────────────────
   try {
@@ -252,6 +260,13 @@ export async function runConversationIncremental(opts: {
       const episodes = splitEpisodes(messages);
 
       for (const episode of episodes) {
+        // Ollama throttle が COOLING に入ったら以降の episode を処理せず中断する。
+        // cursor は据え置き、永続化済み episode は次 run で existingIds が冪等に skip。
+        if (shouldStop?.()) {
+          stoppedByThrottle = true;
+          break;
+        }
+
         // Track latest timestamp seen — used ONLY for the completion-time
         // cursor advancement at end of run, not for mid-session bookkeeping.
         if (episode.valid_from > maxTimestamp) {
@@ -386,6 +401,8 @@ export async function runConversationIncremental(opts: {
         }
       }
 
+      if (stoppedByThrottle) break;
+
       // 意図的にここで last_processed_at を前進させない。
       // 旧実装は max(timestamp seen so far) でカーソルを毎セッション境界で
       // 前進させていたが、これは reload 時のデータスキップを引き起こした:
@@ -410,6 +427,20 @@ export async function runConversationIncremental(opts: {
     });
     finalizePipelineRun(db, rId, startedAt, 'error', totals);
     return { status: 'error', ...totals };
+  }
+
+  // ── 3.5 Throttle 中断 ─────────────────────────────────────────────────────
+  // COOLING で中断した場合は cursor を前進させず partial で返す。last_processed_at
+  // に '' を渡すと upsertPipelineState の CASE で既存 cursor が保持される。
+  // 永続化済み episode は次 run の existingIds preload で冪等に skip される。
+  if (stoppedByThrottle) {
+    logger.info(
+      `[anytime-memory] conversation incremental: throttle COOLING — stopping early ` +
+        `(processed=${totals.items_processed}, failed=${totals.items_failed}), cursor unchanged`
+    );
+    upsertPipelineState(db, { status: 'idle', last_processed_at: '' });
+    finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+    return { status: 'partial', ...totals };
   }
 
   // ── 4. Finalize ──────────────────────────────────────────────────────────

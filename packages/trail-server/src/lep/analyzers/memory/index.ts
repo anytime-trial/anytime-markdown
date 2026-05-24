@@ -32,6 +32,11 @@ export interface CreateMemoryAnalyzersOptions {
   ollamaBaseUrl?: string;
   /** `lep.json` の `analyzers.<id>.enabled === false` な analyzer id。登録せず Wave 3 で実行しない。 */
   disabledAnalyzerIds?: readonly string[];
+  /**
+   * Ollama throttle が COOLING かを返すゲート。指定時、`ConversationMemoryAnalyzer` は
+   * COOLING 中に会話ループを中断して次 scope へ進む。未指定なら throttle スキップ無効。
+   */
+  throttleGate?: () => boolean;
 }
 
 /**
@@ -50,6 +55,7 @@ export function createMemoryAnalyzers(
     () => memoryCoreService.openScopeSession(),
     opts.checkLlmAvailability,
     opts.ollamaBaseUrl,
+    opts.throttleGate,
   );
   const disabled = new Set(opts.disabledAnalyzerIds ?? []);
   const analyzers: Analyzer[] = [
