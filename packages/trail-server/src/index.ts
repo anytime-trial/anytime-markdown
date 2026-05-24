@@ -8,6 +8,7 @@ export { CodeGraphService } from './analyze/CodeGraphService';
 export { GraphQueryEngine } from './analyze/GraphQueryEngine';
 export {
   findTsconfigCandidates,
+  hasPythonFiles,
   runAnalyzeCurrentCodePipeline,
   runAnalyzeReleaseCodePipeline,
 } from './analyze/AnalyzePipeline';

@@ -31,6 +31,7 @@ import { createFetchGitHubReviewClient } from './lep/ingesters/github/GitHubRevi
 import { CodeGraphService } from './analyze/CodeGraphService';
 import {
   findTsconfigCandidates,
+  hasPythonFiles,
   runAnalyzeCurrentCodePipeline,
   runAnalyzeReleaseCodePipeline,
 } from './analyze/AnalyzePipeline';
@@ -197,13 +198,16 @@ program
           throw new Error(`workspace path is not a directory: ${analysisRoot}`);
         }
 
-        let resolvedTsconfig = tsconfigPath;
+        let resolvedTsconfig: string | undefined = tsconfigPath;
         if (!resolvedTsconfig) {
           const candidates = findTsconfigCandidates(analysisRoot);
-          if (candidates.length === 0) {
-            throw new Error(`No tsconfig.json found under ${analysisRoot}`);
+          if (candidates.length > 0) {
+            resolvedTsconfig = candidates[0].fsPath;
+          } else if (hasPythonFiles(analysisRoot)) {
+            resolvedTsconfig = undefined; // Python-only 解析
+          } else {
+            throw new Error(`No tsconfig.json or Python files found under ${analysisRoot}`);
           }
-          resolvedTsconfig = candidates[0].fsPath;
         }
 
         return runAnalyzeCurrentCodePipeline({
