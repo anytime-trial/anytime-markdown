@@ -23,21 +23,35 @@ describe('extractCfg', () => {
     }
   });
 
-  it('captures loop as a single stmt without descending the body (flow parity)', () => {
+  it('captures loop as a single stmt with raw text (truncation done by projector)', () => {
     const cfg = cfgFor(`export function f(xs: number[]) { for (let i = 0; i < xs.length; i++) { use(xs[i]); } }`);
     const loop = cfg.body.stmts[0];
     expect(loop.kind).toBe('loop');
     if (loop.kind === 'loop') {
       expect(loop.loopKind).toBe('for');
-      expect(loop.rawText.endsWith('…')).toBe(true);
+      // rawText は素のループ文（slice/'…' は flow 射影側）
+      expect(loop.rawText.startsWith('for (')).toBe(true);
+      expect(loop.rawText.endsWith('…')).toBe(false);
     }
   });
 
-  it('captures return with truncated expr text', () => {
+  it('captures return with raw expr text', () => {
     const cfg = cfgFor(`export function f() { return 'hello'; }`);
     const ret = cfg.body.stmts[0];
     expect(ret.kind).toBe('return');
     if (ret.kind === 'return') expect(ret.exprText).toBe("'hello'");
+  });
+
+  it('captures a standalone block as a block stmt', () => {
+    const cfg = cfgFor(`export function f() { { doA(); } }`);
+    expect(cfg.body.stmts[0].kind).toBe('block');
+  });
+
+  it('captures calls inside return expression', () => {
+    const cfg = cfgFor(`export function f() { return foo(); }`);
+    const ret = cfg.body.stmts[0];
+    expect(ret.kind).toBe('return');
+    if (ret.kind === 'return') expect(ret.calls[0]?.calleeName).toBe('foo');
   });
 
   it('populates calls (for sequence reuse) including call arguments', () => {

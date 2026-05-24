@@ -22,6 +22,7 @@ describe('flowGraphFromCfg parity with FlowAnalyzer.buildControlFlow', () => {
     `export function f(x: number) { if (x) { return 1; } return 0; }`,
     `export function f(x: number) { if (!x) { throw new Error('x'); } work(); }`,
     `export function f(x: number) { if (x > 0) { a(); } else if (x < 0) { b(); } else { c(); } }`,
+    `export function f() { { doA(); doB(); } work(); }`,
   ];
   for (const code of samples) {
     it(`produces identical FlowGraph: ${code.slice(20, 55)}`, () => {

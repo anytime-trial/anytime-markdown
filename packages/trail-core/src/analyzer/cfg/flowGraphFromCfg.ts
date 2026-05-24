@@ -39,7 +39,7 @@ export function flowGraphFromCfg(cfg: CfgFunction): FlowGraph {
     switch (stmt.kind) {
       case 'if': {
         const dId = nextId('decision');
-        nodes.push({ id: dId, label: stmt.condition, kind: 'decision', line: stmt.line });
+        nodes.push({ id: dId, label: stmt.condition.slice(0, 40), kind: 'decision', line: stmt.line });
         linkPrev(prev, dId);
 
         const tId = nextId('process');
@@ -57,10 +57,12 @@ export function flowGraphFromCfg(cfg: CfgFunction): FlowGraph {
       }
       case 'loop': {
         const id = nextId('loop');
-        nodes.push({ id, label: stmt.rawText, kind: 'loop', line: stmt.line });
+        nodes.push({ id, label: stmt.rawText.slice(0, 30) + '…', kind: 'loop', line: stmt.line });
         linkPrev(prev, id);
         return [id];
       }
+      case 'block':
+        return visitBlock(stmt.body, prev);
       case 'try': {
         const tId = nextId('process');
         nodes.push({ id: tId, label: 'try', kind: 'process', line: stmt.line });
@@ -77,7 +79,7 @@ export function flowGraphFromCfg(cfg: CfgFunction): FlowGraph {
         const id = nextId('return');
         nodes.push({
           id,
-          label: stmt.exprText ? `return ${stmt.exprText}` : 'return',
+          label: stmt.exprText ? `return ${stmt.exprText.slice(0, 30)}` : 'return',
           kind: 'return',
           line: stmt.line,
         });
@@ -87,14 +89,14 @@ export function flowGraphFromCfg(cfg: CfgFunction): FlowGraph {
       }
       case 'throw': {
         const id = nextId('error');
-        nodes.push({ id, label: `throw ${stmt.exprText}`, kind: 'error', line: stmt.line });
+        nodes.push({ id, label: `throw ${stmt.exprText.slice(0, 30)}`, kind: 'error', line: stmt.line });
         linkPrev(prev, id);
         edges.push({ from: id, to: endId });
         return [];
       }
       default: {
         const id = nextId('process');
-        nodes.push({ id, label: stmt.label, kind: 'process', line: stmt.line });
+        nodes.push({ id, label: stmt.label.slice(0, 40), kind: 'process', line: stmt.line });
         linkPrev(prev, id);
         return [id];
       }

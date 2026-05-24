@@ -1,0 +1,369 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`SequenceAnalyzer.build characterization snapshot: directCall 1`] = `
+{
+  "participants": [
+    {
+      "elementId": "pkg_root",
+      "id": "elem_pkg_root",
+      "label": "Root",
+    },
+    {
+      "elementId": "pkg_target",
+      "id": "elem_pkg_target",
+      "label": "Target",
+    },
+  ],
+  "root": {
+    "kind": "sequence",
+    "steps": [
+      {
+        "callerFnName": "caller",
+        "chainId": "out_pkg_target",
+        "fnName": "callee",
+        "from": "elem_pkg_root",
+        "kind": "call",
+        "line": 1,
+        "to": "elem_pkg_target",
+      },
+    ],
+  },
+  "rootElementId": "pkg_root",
+  "version": 1,
+}
+`;
+
+exports[`SequenceAnalyzer.build characterization snapshot: elseIf 1`] = `
+{
+  "participants": [
+    {
+      "elementId": "pkg_root",
+      "id": "elem_pkg_root",
+      "label": "Root",
+    },
+    {
+      "elementId": "pkg_target",
+      "id": "elem_pkg_target",
+      "label": "Target",
+    },
+  ],
+  "root": {
+    "kind": "sequence",
+    "steps": [
+      {
+        "fragment": {
+          "branches": [
+            {
+              "condition": "x > 1",
+              "steps": [
+                {
+                  "callerFnName": "caller",
+                  "chainId": "out_pkg_target",
+                  "fnName": "callee",
+                  "from": "elem_pkg_root",
+                  "kind": "call",
+                  "line": 1,
+                  "to": "elem_pkg_target",
+                },
+              ],
+            },
+            {
+              "condition": "x > 0",
+              "steps": [
+                {
+                  "callerFnName": "caller",
+                  "chainId": "out_pkg_target",
+                  "fnName": "other",
+                  "from": "elem_pkg_root",
+                  "kind": "call",
+                  "line": 1,
+                  "to": "elem_pkg_target",
+                },
+              ],
+            },
+            {
+              "condition": "else",
+              "steps": [
+                {
+                  "callerFnName": "caller",
+                  "chainId": "out_pkg_target",
+                  "fnName": "callee",
+                  "from": "elem_pkg_root",
+                  "kind": "call",
+                  "line": 1,
+                  "to": "elem_pkg_target",
+                },
+              ],
+            },
+          ],
+          "kind": "alt",
+        },
+        "kind": "fragment",
+      },
+    ],
+  },
+  "rootElementId": "pkg_root",
+  "version": 1,
+}
+`;
+
+exports[`SequenceAnalyzer.build characterization snapshot: forEach 1`] = `
+{
+  "participants": [
+    {
+      "elementId": "pkg_root",
+      "id": "elem_pkg_root",
+      "label": "Root",
+    },
+    {
+      "elementId": "pkg_target",
+      "id": "elem_pkg_target",
+      "label": "Target",
+    },
+  ],
+  "root": {
+    "kind": "sequence",
+    "steps": [
+      {
+        "fragment": {
+          "condition": "forEach xs",
+          "kind": "loop",
+          "steps": [
+            {
+              "callerFnName": "caller",
+              "chainId": "out_pkg_target",
+              "fnName": "callee",
+              "from": "elem_pkg_root",
+              "kind": "call",
+              "line": 1,
+              "to": "elem_pkg_target",
+            },
+          ],
+        },
+        "kind": "fragment",
+      },
+    ],
+  },
+  "rootElementId": "pkg_root",
+  "version": 1,
+}
+`;
+
+exports[`SequenceAnalyzer.build characterization snapshot: forLoop 1`] = `
+{
+  "participants": [
+    {
+      "elementId": "pkg_root",
+      "id": "elem_pkg_root",
+      "label": "Root",
+    },
+    {
+      "elementId": "pkg_target",
+      "id": "elem_pkg_target",
+      "label": "Target",
+    },
+  ],
+  "root": {
+    "kind": "sequence",
+    "steps": [
+      {
+        "fragment": {
+          "condition": "i < xs.length",
+          "kind": "loop",
+          "steps": [
+            {
+              "callerFnName": "caller",
+              "chainId": "out_pkg_target",
+              "fnName": "callee",
+              "from": "elem_pkg_root",
+              "kind": "call",
+              "line": 1,
+              "to": "elem_pkg_target",
+            },
+          ],
+        },
+        "kind": "fragment",
+      },
+    ],
+  },
+  "rootElementId": "pkg_root",
+  "version": 1,
+}
+`;
+
+exports[`SequenceAnalyzer.build characterization snapshot: ifElse 1`] = `
+{
+  "participants": [
+    {
+      "elementId": "pkg_root",
+      "id": "elem_pkg_root",
+      "label": "Root",
+    },
+    {
+      "elementId": "pkg_target",
+      "id": "elem_pkg_target",
+      "label": "Target",
+    },
+  ],
+  "root": {
+    "kind": "sequence",
+    "steps": [
+      {
+        "fragment": {
+          "branches": [
+            {
+              "condition": "x > 0",
+              "steps": [
+                {
+                  "callerFnName": "caller",
+                  "chainId": "out_pkg_target",
+                  "fnName": "callee",
+                  "from": "elem_pkg_root",
+                  "kind": "call",
+                  "line": 1,
+                  "to": "elem_pkg_target",
+                },
+              ],
+            },
+            {
+              "condition": "else",
+              "steps": [
+                {
+                  "callerFnName": "caller",
+                  "chainId": "out_pkg_target",
+                  "fnName": "other",
+                  "from": "elem_pkg_root",
+                  "kind": "call",
+                  "line": 1,
+                  "to": "elem_pkg_target",
+                },
+              ],
+            },
+          ],
+          "kind": "alt",
+        },
+        "kind": "fragment",
+      },
+    ],
+  },
+  "rootElementId": "pkg_root",
+  "version": 1,
+}
+`;
+
+exports[`SequenceAnalyzer.build characterization snapshot: ifOpt 1`] = `
+{
+  "participants": [
+    {
+      "elementId": "pkg_root",
+      "id": "elem_pkg_root",
+      "label": "Root",
+    },
+    {
+      "elementId": "pkg_target",
+      "id": "elem_pkg_target",
+      "label": "Target",
+    },
+  ],
+  "root": {
+    "kind": "sequence",
+    "steps": [
+      {
+        "fragment": {
+          "condition": "x > 0",
+          "kind": "opt",
+          "steps": [
+            {
+              "callerFnName": "caller",
+              "chainId": "out_pkg_target",
+              "fnName": "callee",
+              "from": "elem_pkg_root",
+              "kind": "call",
+              "line": 1,
+              "to": "elem_pkg_target",
+            },
+          ],
+        },
+        "kind": "fragment",
+      },
+    ],
+  },
+  "rootElementId": "pkg_root",
+  "version": 1,
+}
+`;
+
+exports[`SequenceAnalyzer.build characterization snapshot: nestedArg 1`] = `
+{
+  "participants": [
+    {
+      "elementId": "pkg_root",
+      "id": "elem_pkg_root",
+      "label": "Root",
+    },
+    {
+      "elementId": "pkg_target",
+      "id": "elem_pkg_target",
+      "label": "Target",
+    },
+  ],
+  "root": {
+    "kind": "sequence",
+    "steps": [
+      {
+        "callerFnName": "caller",
+        "chainId": "out_pkg_target",
+        "fnName": "other",
+        "from": "elem_pkg_root",
+        "kind": "call",
+        "line": 1,
+        "to": "elem_pkg_target",
+      },
+      {
+        "callerFnName": "caller",
+        "chainId": "out_pkg_target",
+        "fnName": "callee",
+        "from": "elem_pkg_root",
+        "kind": "call",
+        "line": 1,
+        "to": "elem_pkg_target",
+      },
+    ],
+  },
+  "rootElementId": "pkg_root",
+  "version": 1,
+}
+`;
+
+exports[`SequenceAnalyzer.build characterization snapshot: returnCall 1`] = `
+{
+  "participants": [
+    {
+      "elementId": "pkg_root",
+      "id": "elem_pkg_root",
+      "label": "Root",
+    },
+    {
+      "elementId": "pkg_target",
+      "id": "elem_pkg_target",
+      "label": "Target",
+    },
+  ],
+  "root": {
+    "kind": "sequence",
+    "steps": [
+      {
+        "callerFnName": "caller",
+        "chainId": "out_pkg_target",
+        "fnName": "callee",
+        "from": "elem_pkg_root",
+        "kind": "call",
+        "line": 1,
+        "to": "elem_pkg_target",
+      },
+    ],
+  },
+  "rootElementId": "pkg_root",
+  "version": 1,
+}
+`;

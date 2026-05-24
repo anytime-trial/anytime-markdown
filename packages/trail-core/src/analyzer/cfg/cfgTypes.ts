@@ -41,8 +41,9 @@ export type CfgStmt =
       readonly catch?: CfgBlock;
       readonly finally?: CfgBlock;
     }
-  | { readonly kind: 'return'; readonly line: number; readonly exprText?: string }
-  | { readonly kind: 'throw'; readonly line: number; readonly exprText: string }
+  | { readonly kind: 'block'; readonly line: number; readonly body: CfgBlock }
+  | { readonly kind: 'return'; readonly line: number; readonly exprText?: string; readonly calls: readonly CfgCall[] }
+  | { readonly kind: 'throw'; readonly line: number; readonly exprText: string; readonly calls: readonly CfgCall[] }
   | { readonly kind: 'expr'; readonly line: number; readonly label: string; readonly calls: readonly CfgCall[] }
   | { readonly kind: 'other'; readonly line: number; readonly label: string; readonly calls: readonly CfgCall[] };
 
