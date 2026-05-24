@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-05-24
+
+### 変更
+
+- trail-viewer: current C4 model が空のときにリポジトリ / リリースセレクタを表示
+- `trail_repos` の embed の曖昧性を解消（`!repo_id`）
+
+### Trail Core (trail-core / trail-server / trail-db / memory-core)
+
+- `trail-core`: Python 多言語コードグラフ解析（tree-sitter-python、import / 継承 / 呼び出しエッジ、`PythonExportExtractor`、関数一覧 / ツリー、importance 算出）
+- `trail-core`: Ollama サーマルスロットル（`OllamaThrottleGovernor`）— EWMA レイテンシ・エラー・連続稼働上限で検知し、バックグラウンド解析を直列化。`lep.json` に `throttle` セクション追加
+- `trail-core`: リポジトリ正規化 — `repo_id` / `release_id` を導入し Supabase ミラーと同期
+
 ## [0.22.1] - 2026-05-21
 
 ### セキュリティ

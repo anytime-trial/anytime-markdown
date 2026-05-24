@@ -6,6 +6,26 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-24
+
+### 追加
+
+- 読み取り専用 `GraphView`（`./viewer` サブパス、vanilla 埋め込み用）を追加
+- radial mindmap レイアウトを追加
+- rooted tree レイアウト（`rootId` 対応の階層レイアウト）を追加
+- mindmap 風の折りたたみ可能サブツリーを読み取り専用ビューアに追加（コネクタ端点クリックで折りたたみ、ホバー時に -/+ トグルを表示）
+- 読み取り専用ビューアにオーバービュー minimap を追加（trail-viewer の `MinimapCanvas` に準拠）
+- オプトインのノード選択＋ドラッグ移動を読み取り専用ビューアに追加
+
+### 修正
+
+- `GraphView` の wheel zoom を補正し、リサイズ時に viewport を保持
+- ポインタ座標を canvas backing px へ変換し、DPR > 1 環境での hit-test / pan / zoom のずれを修正
+
+### 変更
+
+- `resolveEdgesForRender` を engine に抽出し、隣接構築の重複排除と O(1) ノード探索に整理
+
 ## [0.3.4] - 2026-05-21
 
 ### 変更

@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-24
+
+### Added
+
+- Added read-only `GraphView` (`./viewer` subpath) for vanilla embed consumers
+- Added radial mindmap layout
+- Added rooted tree layout (hierarchical layout with `rootId` support)
+- Added collapsible subtrees to the read-only viewer (click connector endpoint to collapse; hover to show -/+ toggle)
+- Added overview minimap to the read-only viewer (aligned with trail-viewer `MinimapCanvas`)
+- Added opt-in node selection and drag-move to the read-only viewer
+
+### Fixed
+
+- Corrected wheel zoom in `GraphView` and preserved viewport on resize
+- Converted pointer coordinates to canvas backing px, fixing hit-test / pan / zoom misalignment on DPR > 1
+
+### Changed
+
+- Extracted `resolveEdgesForRender` into the engine to deduplicate adjacency building and achieve O(1) node lookup
+
 ## [0.3.4] - 2026-05-21
 
 ### Changed

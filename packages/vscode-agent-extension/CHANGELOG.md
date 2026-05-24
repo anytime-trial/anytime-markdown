@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-24
+
+### Changed
+
+- `agent-core` now re-exports the Ollama throttle governor / decorator, making throttle control available to agent-side consumers
+
 ## [0.2.1] - 2026-05-20
 
 ### Security

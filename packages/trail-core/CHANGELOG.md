@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-05-24
+
+### Added
+
+- Python multi-language code graph analysis: `PythonLanguageAnalyzer` via tree-sitter-python with import / inheritance / call edge extraction, `PythonExportExtractor`, function list / tree, and importance scoring
+- Introduced language-agnostic `LanguageAnalyzer` SPI and `LanguageRegistry` for dynamic dispatch across TypeScript and Python
+- Ollama thermal throttle (`OllamaThrottleGovernor`): detects COOLING state via EWMA of embedding latency, errors, and consecutive-run cap; serializes and suppresses background analysis passes. Added `throttle` section to `lep.json`
+- Repository normalization (`repo_id` / `release_id`): each reader resolves `repo_name` / tag via `repo_id` / `release_id`; Supabase mirror syncs `repo_id` / `release_id`
+
+### Changed
+
+- Extracted TypeScript analyzer pipeline into `code-analysis-typescript` / `code-analysis-core` packages
+- Bundled tree-sitter wasm assets into the extension bundle
+
 ## [0.22.1] - 2026-05-21
 
 ### Changed

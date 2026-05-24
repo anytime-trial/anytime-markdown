@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-24
+
+### Graph Core (graph-core)
+
+- オーバービュー minimap・折りたたみ可能サブツリー・オプトインのノードドラッグ移動を持つ読み取り専用 `GraphView` を追加
+- radial mindmap レイアウトおよび rooted tree レイアウトを追加
+- wheel zoom の補正と DPR > 1 環境での hit-test / pan / zoom ずれを修正
+- `resolveEdgesForRender` を engine に抽出し O(1) ノード探索に整理
+
 ## [0.3.4] - 2026-05-21
 
 ### 変更

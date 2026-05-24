@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-24
+
+### 変更
+
+- `agent-core` が Ollama throttle governor / decorator を re-export するようになり、エージェント側からスロットル制御を利用可能に
+
 ## [0.2.1] - 2026-05-20
 
 ### セキュリティ

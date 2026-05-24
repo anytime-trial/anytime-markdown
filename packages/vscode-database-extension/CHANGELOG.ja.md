@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-05-24
+
+### 変更
+
+- `storagePath` / `docsPath` の設定を trail 拡張から database 拡張側へ移行
+
+### Database Core (database-core / database-viewer)
+
+- `database-core`: `limitDetection` の正規表現から二重 `\s*` による多項式 ReDoS を除去
+
 ## [0.2.3] - 2026-05-21
 
 ### 変更

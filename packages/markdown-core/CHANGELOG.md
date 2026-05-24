@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.5] - 2026-05-24
+
+### Added
+
+- Added i18n label keys for the landing footer mindmap viewer link (en.json / ja.json)
+
 ## [0.15.4] - 2026-05-21
 
 ### Changed

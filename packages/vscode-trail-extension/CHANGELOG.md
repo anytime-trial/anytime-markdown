@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-05-24
+
+### Changed
+
+- trail-viewer: show repository / release selector when the current C4 model is empty
+- Resolved embed ambiguity in `trail_repos` (`!repo_id`)
+
+### Trail Core (trail-core / trail-server / trail-db / memory-core)
+
+- `trail-core`: Python multi-language code graph analysis (tree-sitter-python, import / inheritance / call edges, `PythonExportExtractor`, function list / tree, importance scoring)
+- `trail-core`: Ollama thermal throttle (`OllamaThrottleGovernor`) — EWMA latency / error / run-cap detection; serializes background analysis; `throttle` config in `lep.json`
+- `trail-core`: repository normalization — `repo_id` / `release_id` introduced; Supabase mirror synced
+
 ## [0.22.1] - 2026-05-21
 
 ### Security

@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-05-24
+
+### 追加
+
+- per-repo コードグラフ選択を viewer に配線（リポジトリ正規化 Phase G）
+- ランディングフッターに mindmap viewer へのリンクを追加
+- graph-embed デバッグページ（Web Component）を追加し、minimap / 折りたたみ / ノード移動のトグルを有効化
+
+### 変更
+
+- trail API ルートが `repo_id` / `release_id` を解決するよう変更
+- `graph-embed` パッケージを `mindmap-viewer` にリネーム、npm scope を `@anytime-trial` に変更
+
+### 修正
+
+- `trail_repos` の embed の曖昧性を解消（`!repo_id`、`vscode-trail-extension` と共通の回帰修正）
+
 ## [0.26.5] - 2026-05-21
 
 ### 変更

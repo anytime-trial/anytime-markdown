@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-05-24
+
+### 追加
+
+- Python の多言語コードグラフ解析対応: tree-sitter-python による `PythonLanguageAnalyzer`（import / 継承 / 呼び出しエッジ抽出）、`PythonExportExtractor`、関数一覧 / ツリー、importance 算出
+- 言語非依存の `LanguageAnalyzer` SPI と `LanguageRegistry` を導入し、TypeScript と Python を動的ディスパッチ
+- Ollama サーマルスロットル（`OllamaThrottleGovernor`）: 埋め込みレイテンシの EWMA・エラー・連続稼働上限で COOLING を検知し、解析バックグラウンドパスを直列化・抑制。`lep.json` に `throttle` セクションを追加
+- リポジトリ正規化（`repo_id` / `release_id`）: 各 reader が `repo_id` / `release_id` 経由で `repo_name` / tag を解決。Supabase ミラーへ `repo_id` / `release_id` を同期
+
+### 変更
+
+- TypeScript アナライザのパイプラインを `code-analysis-typescript` / `code-analysis-core` パッケージへ分離
+- tree-sitter の wasm アセットを拡張バンドルに同梱
+
 ## [0.22.1] - 2026-05-21
 
 ### 変更

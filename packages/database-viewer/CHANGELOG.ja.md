@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-05-24
+
+### 変更
+
+- `database-core` 0.2.4 に追随（`limitDetection` の ReDoS 修正）
+
 ## [0.2.3] - 2026-05-21
 
 ### 変更

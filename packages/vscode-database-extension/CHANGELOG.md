@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-05-24
+
+### Changed
+
+- Migrated `storagePath` / `docsPath` settings from the trail VS Code extension to this extension
+
+### Database Core (database-core / database-viewer)
+
+- `database-core`: removed polynomial ReDoS from `limitDetection` regex (double `\s*`)
+
 ## [0.2.3] - 2026-05-21
 
 ### Changed
