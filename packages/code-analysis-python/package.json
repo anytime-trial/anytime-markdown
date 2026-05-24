@@ -1,0 +1,30 @@
+{
+  "name": "@anytime-markdown/code-analysis-python",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*"
+  },
+  "dependencies": {
+    "web-tree-sitter": "0.26.9",
+    "tree-sitter-python": "0.25.0",
+    "ignore": "7.0.5"
+  },
+  "peerDependencies": {
+    "@anytime-markdown/code-analysis-core": "*"
+  },
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@anytime-markdown/code-analysis-core": "*",
+    "@types/jest": "30.0.0",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.6",
+    "typescript": "5.9.3"
+  }
+}
