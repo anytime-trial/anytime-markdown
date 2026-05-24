@@ -176,3 +176,55 @@ describe('OllamaThrottleGovernor — error & continuous-time triggers', () => {
     expect(g.state()).toBe('NORMAL');
   });
 });
+
+describe('OllamaThrottleGovernor — snapshot()', () => {
+  async function runWithLatency(
+    g: OllamaThrottleGovernor,
+    c: ReturnType<typeof fakeClock>,
+    op: 'generate' | 'embeddings',
+    model: string,
+    latencyMs: number,
+  ) {
+    return g.run(op, model, async () => {
+      c.advance(latencyMs);
+      return 0;
+    });
+  }
+
+  it('reports enabled, state, and embeddings entries (lastLatency/ewma/count)', async () => {
+    const c = fakeClock();
+    const g = new OllamaThrottleGovernor(baseOpts, { now: c.now, sleep: c.sleep });
+    c.advance(30_000);
+    for (let i = 0; i < 3; i++) await runWithLatency(g, c, 'embeddings', 'bge-m3', 200);
+    const s = g.snapshot();
+    expect(s.enabled).toBe(true);
+    expect(s.state).toBe('NORMAL');
+    expect(s.entries).toHaveLength(1);
+    expect(s.entries[0]).toMatchObject({ op: 'embeddings', model: 'bge-m3', lastLatencyMs: 200, count: 3 });
+    expect(s.entries[0].ewmaMs).toBeCloseTo(200, 5);
+  });
+
+  it('keeps lastLatencyMs updated on a spike that triggers COOLING (ewma/count frozen)', async () => {
+    const c = fakeClock();
+    const g = new OllamaThrottleGovernor(baseOpts, { now: c.now, sleep: c.sleep });
+    c.advance(30_000);
+    for (let i = 0; i < 5; i++) await runWithLatency(g, c, 'embeddings', 'bge-m3', 200);
+    const before = g.snapshot().entries[0];
+    await runWithLatency(g, c, 'embeddings', 'bge-m3', 400); // 400 > 200*1.5 → spike
+    const after = g.snapshot();
+    expect(after.state).toBe('COOLING');
+    expect(after.entries[0].lastLatencyMs).toBe(400);
+    expect(after.entries[0].ewmaMs).toBeCloseTo(before.ewmaMs, 5);
+    expect(after.entries[0].count).toBe(before.count);
+  });
+
+  it('parses model names containing colons (bge-m3:latest)', async () => {
+    const c = fakeClock();
+    const g = new OllamaThrottleGovernor(baseOpts, { now: c.now, sleep: c.sleep });
+    c.advance(30_000);
+    await runWithLatency(g, c, 'embeddings', 'bge-m3:latest', 150);
+    const e = g.snapshot().entries[0];
+    expect(e.op).toBe('embeddings');
+    expect(e.model).toBe('bge-m3:latest');
+  });
+});
