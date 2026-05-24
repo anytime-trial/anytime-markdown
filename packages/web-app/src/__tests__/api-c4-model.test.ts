@@ -12,6 +12,7 @@ const mockCreateClient = jest.fn();
 jest.mock('../lib/api-helpers', () => ({
   createC4ModelStore: mockCreateC4ModelStore,
   NO_STORE_HEADERS: { 'Cache-Control': 'no-store' },
+  resolveRepoId: jest.fn().mockResolvedValue(1),
 }));
 
 jest.mock('../lib/supabase-env', () => ({

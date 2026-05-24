@@ -12,6 +12,8 @@ jest.mock('../lib/supabase-env', () => ({
 
 jest.mock('../lib/api-helpers', () => ({
   NO_STORE_HEADERS: { 'Cache-Control': 'no-store' },
+  resolveRepoId: jest.fn().mockResolvedValue(1),
+  resolveReleaseId: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock('@supabase/supabase-js', () => ({
@@ -225,7 +227,7 @@ const VALID_STORED_GRAPH = JSON.stringify({
 });
 
 describe('GET /api/code-graph (current, per-repo)', () => {
-  it('repo 指定時は trail_current_code_graphs / communities を repo_name で絞り込む', async () => {
+  it('repo 指定時は trail_current_code_graphs / communities を repo_id で絞り込む', async () => {
     mockResolveSupabaseEnv.mockReturnValue({ url: 'u', anonKey: 'k' });
     const { client, eqCalls } = makeCurrentSupabase(VALID_STORED_GRAPH);
     mockCreateClient.mockReturnValue(client);
@@ -234,8 +236,8 @@ describe('GET /api/code-graph (current, per-repo)', () => {
     const result = (await graphGET(req)) as unknown as MockResp;
 
     expect(result._status).toBe(200);
-    expect(eqCalls).toContainEqual(['trail_current_code_graphs', 'repo_name', 'my-repo']);
-    expect(eqCalls).toContainEqual(['trail_current_code_graph_communities', 'repo_name', 'my-repo']);
+    expect(eqCalls).toContainEqual(['trail_current_code_graphs', 'repo_id', 1]);
+    expect(eqCalls).toContainEqual(['trail_current_code_graph_communities', 'repo_id', 1]);
   });
 
   it('repo 未指定時は eq 絞り込みせず先頭 1 件にフォールバックする', async () => {

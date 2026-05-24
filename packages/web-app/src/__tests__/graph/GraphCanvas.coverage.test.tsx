@@ -30,6 +30,7 @@ jest.mock("@anytime-markdown/graph-core/engine", () => ({
   computeBezierPath: jest.fn().mockReturnValue([{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 70, y: 100 }, { x: 100, y: 100 }]),
   bestSides: jest.fn().mockReturnValue({ fromSide: "right", toSide: "left" }),
   getConnectionPoints: jest.fn().mockReturnValue([{ x: 0, y: 50, side: "left" }, { x: 150, y: 50, side: "right" }]),
+  resolveEdgesForRender: jest.fn((_nodes: unknown, edges: unknown) => edges),
 }));
 
 // connector mock merged into @anytime-markdown/graph-core/engine above
