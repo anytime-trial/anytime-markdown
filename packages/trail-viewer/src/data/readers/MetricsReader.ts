@@ -66,7 +66,7 @@ export class MetricsReader {
       session_id: string;
     };
     type CommitRow = {
-      repo_name: string | null;
+      repo_id: number | null;
       commit_hash: string;
       commit_message: string;
       committed_at: string;
@@ -215,7 +215,7 @@ export class MetricsReader {
       while (true) {
         let q = this.client
           .from('trail_session_commits')
-          .select('repo_name, commit_hash, commit_message, committed_at, session_id, is_ai_assisted, lines_added, lines_deleted')
+          .select('repo_id, commit_hash, commit_message, committed_at, session_id, is_ai_assisted, lines_added, lines_deleted')
           .gte('committed_at', f)
           .lte('committed_at', t)
           .order('committed_at', { ascending: true })
@@ -243,10 +243,10 @@ export class MetricsReader {
       for (let i = 0; i < hashes.length; i += BATCH) {
         const { data } = await this.client
           .from('trail_commit_files')
-          .select('repo_name, commit_hash, file_path')
+          .select('repo_id, commit_hash, file_path')
           .in('commit_hash', hashes.slice(i, i + BATCH));
-        for (const { repo_name, commit_hash, file_path } of (data ?? []) as Array<{ repo_name: string | null; commit_hash: string; file_path: string }>) {
-          const key = `${repo_name ?? ''}:${commit_hash}`;
+        for (const { repo_id, commit_hash, file_path } of (data ?? []) as Array<{ repo_id: number | null; commit_hash: string; file_path: string }>) {
+          const key = `${repo_id ?? 0}:${commit_hash}`;
           const arr = map.get(key);
           if (arr) arr.push(file_path);
           else map.set(key, [file_path]);
@@ -339,7 +339,7 @@ export class MetricsReader {
           subject: (c.commit_message ?? '').split('\n')[0],
           committed_at: c.committed_at,
           is_ai_assisted: c.is_ai_assisted === 1,
-          files: curFilesByHash.get(`${c.repo_name ?? ''}:${c.commit_hash}`) ?? [],
+          files: curFilesByHash.get(`${c.repo_id ?? 0}:${c.commit_hash}`) ?? [],
           session_id: c.session_id,
           lines_added: c.lines_added ?? 0,
           lines_deleted: c.lines_deleted ?? 0,
@@ -366,7 +366,7 @@ export class MetricsReader {
           subject: (c.commit_message ?? '').split('\n')[0],
           committed_at: c.committed_at,
           is_ai_assisted: c.is_ai_assisted === 1,
-          files: prevFilesByHash.get(`${c.repo_name ?? ''}:${c.commit_hash}`) ?? [],
+          files: prevFilesByHash.get(`${c.repo_id ?? 0}:${c.commit_hash}`) ?? [],
           session_id: c.session_id,
           lines_added: c.lines_added ?? 0,
           lines_deleted: c.lines_deleted ?? 0,

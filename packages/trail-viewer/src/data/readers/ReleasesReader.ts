@@ -15,12 +15,15 @@ export class ReleasesReader {
   async getReleases(): Promise<readonly TrailRelease[]> {
     const { data, error } = await this.client
       .from('trail_releases')
-      .select('*')
+      // repo_id / prev_release_id 正規化後: repo_name は trail_repos、prev_tag は自己参照
+      // (prev_release_id → tag) を FK 埋め込みで復元する。
+      .select('*, repo:trail_repos(repo_name), prev:trail_releases!prev_release_id(tag)')
       .order('released_at', { ascending: false });
     if (error || !data) return [];
     return (data as readonly {
-      tag: string; released_at: string; prev_tag: string | null;
-      repo_name: string | null;
+      tag: string; released_at: string;
+      prev: { tag: string } | null;
+      repo: { repo_name: string } | null;
       package_tags: string; commit_count: number;
       files_changed: number; lines_added: number; lines_deleted: number;
       total_lines?: number | null;
@@ -31,8 +34,8 @@ export class ReleasesReader {
     }[]).map((r) => ({
       tag: r.tag,
       releasedAt: r.released_at,
-      prevTag: r.prev_tag,
-      repoName: r.repo_name,
+      prevTag: r.prev?.tag ?? null,
+      repoName: r.repo?.repo_name ?? null,
       packageTags: JSON.parse(r.package_tags) as string[],
       commitCount: r.commit_count,
       filesChanged: r.files_changed,
@@ -84,45 +87,45 @@ export class ReleasesReader {
         .lte('released_at', range.to),
       this.client
         .from('trail_session_commits')
-        .select('repo_name, commit_hash, subject, committed_at')
+        .select('repo_id, commit_hash, subject, committed_at')
         .gte('committed_at', range.from)
         .lte('committed_at', extendedTo),
     ]);
 
     const releases = (releaseData ?? []) as Array<{ released_at: string }>;
-    const rawCommits = (commitData ?? []) as Array<{ repo_name: string | null; commit_hash: string; subject: string; committed_at: string }>;
+    const rawCommits = (commitData ?? []) as Array<{ repo_id: number | null; commit_hash: string; subject: string; committed_at: string }>;
 
     const seenHashes = new Set<string>();
-    const uniqueCommits = rawCommits.filter(({ repo_name, commit_hash }) => {
-      const identity = `${repo_name ?? ''}:${commit_hash}`;
+    const uniqueCommits = rawCommits.filter(({ repo_id, commit_hash }) => {
+      const identity = `${repo_id ?? 0}:${commit_hash}`;
       if (seenHashes.has(identity)) return false;
       seenHashes.add(identity);
       return true;
     });
 
     const hashes = uniqueCommits.map((c) => c.commit_hash);
-    let rawFiles: Array<{ repo_name?: string | null; commit_hash: string; file_path: string }> = [];
+    let rawFiles: Array<{ repo_id?: number | null; commit_hash: string; file_path: string }> = [];
     if (hashes.length > 0) {
       const { data } = await this.client
         .from('trail_commit_files')
-        .select('repo_name, commit_hash, file_path')
+        .select('repo_id, commit_hash, file_path')
         .in('commit_hash', hashes);
-      rawFiles = (data ?? []) as Array<{ repo_name?: string | null; commit_hash: string; file_path: string }>;
+      rawFiles = (data ?? []) as Array<{ repo_id?: number | null; commit_hash: string; file_path: string }>;
     }
 
     const filesByHash = new Map<string, string[]>();
-    for (const { repo_name, commit_hash, file_path } of rawFiles) {
-      const key = `${repo_name ?? ''}:${commit_hash}`;
+    for (const { repo_id, commit_hash, file_path } of rawFiles) {
+      const key = `${repo_id ?? 0}:${commit_hash}`;
       const arr = filesByHash.get(key);
       if (arr) arr.push(file_path);
       else filesByHash.set(key, [file_path]);
     }
 
-    const commits = uniqueCommits.map(({ repo_name, commit_hash, subject, committed_at }) => ({
+    const commits = uniqueCommits.map(({ repo_id, commit_hash, subject, committed_at }) => ({
       hash: commit_hash,
       subject,
       committed_at,
-      files: filesByHash.get(`${repo_name ?? ''}:${commit_hash}`) ?? [],
+      files: filesByHash.get(`${repo_id ?? 0}:${commit_hash}`) ?? [],
     }));
 
     return computeReleaseQualityTimeSeries(
