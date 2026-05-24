@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { ImportanceAnalyzer } from '../ImportanceAnalyzer';
+import { ImportanceAnalyzer } from '@anytime-markdown/code-analysis-core/importance';
 import { TypeScriptAdapter } from '../adapters/TypeScriptAdapter';
 
 const FIXTURE_DIR = path.resolve(__dirname, 'fixtures/importance');

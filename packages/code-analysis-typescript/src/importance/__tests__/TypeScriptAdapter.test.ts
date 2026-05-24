@@ -81,7 +81,7 @@ describe('TypeScriptAdapter.computeFanInMap', () => {
     const mutationsFile = path.join(FIXTURE_DIR, 'mutations.ts');
     const callerFile = path.join(FIXTURE_DIR, 'caller.ts');
     const adapter = new TypeScriptAdapter([mutationsFile, callerFile]);
-    const { ImportanceAnalyzer } = require('../ImportanceAnalyzer');
+    const { ImportanceAnalyzer } = require('@anytime-markdown/code-analysis-core/importance');
     const analyzer = new ImportanceAnalyzer(adapter);
 
     const results = analyzer.analyze([mutationsFile, callerFile]);

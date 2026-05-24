@@ -49,6 +49,8 @@
     "test": "jest --maxWorkers=1"
   },
   "peerDependencies": {
+    "@anytime-markdown/code-analysis-core": "*",
+    "@anytime-markdown/code-analysis-typescript": "*",
     "@anytime-markdown/graph-core": "*",
     "typescript": ">=5.0.0"
   },
