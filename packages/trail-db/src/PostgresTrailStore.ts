@@ -44,13 +44,30 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     return map;
   }
 
+  async upsertRepos(rows: readonly { repo_id: number; repo_name: string; created_at: string | null }[]): Promise<void> {
+    if (rows.length === 0) return;
+    const pool = this.ensurePool();
+    for (const r of rows) {
+      await pool.query(
+        `INSERT INTO trail_repos (repo_id, repo_name, created_at) VALUES ($1, $2, $3)
+         ON CONFLICT (repo_id) DO UPDATE SET repo_name = EXCLUDED.repo_name, created_at = EXCLUDED.created_at`,
+        [r.repo_id, r.repo_name, r.created_at],
+      );
+    }
+  }
+
+  async unsafeClearRepos(): Promise<void> {
+    // sentinel(repo_id=0) は残す。
+    await this.ensurePool().query('DELETE FROM trail_repos WHERE repo_id > 0');
+  }
+
   async upsertSessions(rows: readonly SessionRow[]): Promise<void> {
     if (rows.length === 0) return;
     const pool = this.ensurePool();
     for (const r of rows) {
       await pool.query(
         `INSERT INTO trail_sessions (
-          id, slug, repo_name, git_branch, cwd, model, version, entrypoint,
+          id, slug, repo_id, git_branch, cwd, model, version, entrypoint,
           permission_mode, start_time, end_time, message_count,
           input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
           file_path, file_size, imported_at,
@@ -63,7 +80,7 @@ export class PostgresTrailStore implements IRemoteTrailStore {
           $21, $22, NOW()
         ) ON CONFLICT (id) DO UPDATE SET
           slug = EXCLUDED.slug,
-          repo_name = EXCLUDED.repo_name,
+          repo_id = EXCLUDED.repo_id,
           git_branch = EXCLUDED.git_branch, cwd = EXCLUDED.cwd,
           model = EXCLUDED.model, version = EXCLUDED.version,
           entrypoint = EXCLUDED.entrypoint, permission_mode = EXCLUDED.permission_mode,
@@ -79,7 +96,7 @@ export class PostgresTrailStore implements IRemoteTrailStore {
           commits_resolved_at = EXCLUDED.commits_resolved_at,
           synced_at = NOW()`,
         [
-          r.id, r.slug, r.repo_name, r.git_branch, r.cwd, r.model,
+          r.id, r.slug, r.repo_id ?? null, r.git_branch, r.cwd, r.model,
           r.version, r.entrypoint, r.permission_mode,
           r.start_time, r.end_time, r.message_count,
           r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens,
@@ -166,17 +183,17 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     for (const r of rows) {
       await pool.query(
         `INSERT INTO trail_session_commits (
-          session_id, repo_name, commit_hash, commit_message, author,
+          session_id, repo_id, commit_hash, commit_message, author,
           committed_at, is_ai_assisted, files_changed,
           lines_added, lines_deleted
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        ON CONFLICT (session_id, repo_name, commit_hash) DO UPDATE SET
+        ON CONFLICT (session_id, repo_id, commit_hash) DO UPDATE SET
           commit_message = EXCLUDED.commit_message, author = EXCLUDED.author,
           committed_at = EXCLUDED.committed_at, is_ai_assisted = EXCLUDED.is_ai_assisted,
           files_changed = EXCLUDED.files_changed,
           lines_added = EXCLUDED.lines_added, lines_deleted = EXCLUDED.lines_deleted`,
         [
-          r.session_id, r.repo_name, r.commit_hash, r.commit_message, r.author,
+          r.session_id, r.repo_id ?? 0, r.commit_hash, r.commit_message, r.author,
           r.committed_at, r.is_ai_assisted, r.files_changed,
           r.lines_added, r.lines_deleted,
         ],
@@ -190,27 +207,27 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     for (const r of rows) {
       await pool.query(
         `INSERT INTO trail_releases (
-          tag, released_at, prev_tag, repo_name, package_tags, commit_count,
+          release_id, tag, repo_id, released_at, prev_release_id, package_tags, commit_count,
           files_changed, lines_added, lines_deleted, total_lines,
           feat_count, fix_count, refactor_count, test_count, other_count,
-          affected_packages, duration_days, resolved_at, synced_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
-        ON CONFLICT (tag) DO UPDATE SET
-          released_at = EXCLUDED.released_at, prev_tag = EXCLUDED.prev_tag,
-          repo_name = EXCLUDED.repo_name,
+          affected_packages, duration_days, resolved_at, release_time_min, synced_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW())
+        ON CONFLICT (release_id) DO UPDATE SET
+          tag = EXCLUDED.tag, repo_id = EXCLUDED.repo_id,
+          released_at = EXCLUDED.released_at, prev_release_id = EXCLUDED.prev_release_id,
           package_tags = EXCLUDED.package_tags, commit_count = EXCLUDED.commit_count,
           files_changed = EXCLUDED.files_changed, lines_added = EXCLUDED.lines_added,
           lines_deleted = EXCLUDED.lines_deleted, total_lines = EXCLUDED.total_lines,
           feat_count = EXCLUDED.feat_count, refactor_count = EXCLUDED.refactor_count,
           test_count = EXCLUDED.test_count, other_count = EXCLUDED.other_count,
           affected_packages = EXCLUDED.affected_packages, duration_days = EXCLUDED.duration_days,
-          resolved_at = EXCLUDED.resolved_at, synced_at = NOW()`,
+          resolved_at = EXCLUDED.resolved_at, release_time_min = EXCLUDED.release_time_min, synced_at = NOW()`,
         [
-          r.tag, r.released_at, r.prev_tag ?? null, r.repo_name, r.package_tags, r.commit_count,
+          r.release_id, r.tag, r.repo_id ?? 0, r.released_at, r.prev_release_id ?? null, r.package_tags, r.commit_count,
           r.files_changed, r.lines_added, r.lines_deleted,
           r.total_lines,
           r.feat_count, r.fix_count, r.refactor_count, r.test_count, r.other_count,
-          r.affected_packages, r.duration_days, r.resolved_at ?? null,
+          r.affected_packages, r.duration_days, r.resolved_at ?? null, r.release_time_min ?? null,
         ],
       );
     }
@@ -221,12 +238,12 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     const pool = this.ensurePool();
     for (const r of rows) {
       await pool.query(
-        `INSERT INTO trail_release_files (release_tag, file_path, lines_added, lines_deleted, change_type)
+        `INSERT INTO trail_release_files (release_id, file_path, lines_added, lines_deleted, change_type)
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (release_tag, file_path) DO UPDATE SET
+        ON CONFLICT (release_id, file_path) DO UPDATE SET
           lines_added = EXCLUDED.lines_added, lines_deleted = EXCLUDED.lines_deleted,
           change_type = EXCLUDED.change_type`,
-        [r.release_tag, r.file_path, r.lines_added, r.lines_deleted, r.change_type],
+        [r.release_id ?? 0, r.file_path, r.lines_added, r.lines_deleted, r.change_type],
       );
     }
   }
@@ -323,27 +340,27 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     await pool.query('DELETE FROM trail_release_graphs');
   }
 
-  async upsertCurrentGraph(repoName: string, graphJson: string, commitId: string): Promise<void> {
+  async upsertCurrentGraph(repoId: number, graphJson: string, commitId: string): Promise<void> {
     const pool = this.ensurePool();
     await pool.query(
-      `INSERT INTO trail_current_graphs (repo_name, commit_id, graph_json, updated_at, synced_at)
+      `INSERT INTO trail_current_graphs (repo_id, commit_id, graph_json, updated_at, synced_at)
       VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (repo_name) DO UPDATE SET
+      ON CONFLICT (repo_id) DO UPDATE SET
         commit_id = EXCLUDED.commit_id, graph_json = EXCLUDED.graph_json,
         updated_at = EXCLUDED.updated_at, synced_at = NOW()`,
-      [repoName, commitId, graphJson, new Date().toISOString()],
+      [repoId, commitId, graphJson, new Date().toISOString()],
     );
   }
 
-  async upsertReleaseGraph(tag: string, graphJson: string): Promise<void> {
+  async upsertReleaseGraph(releaseId: number, graphJson: string): Promise<void> {
     const pool = this.ensurePool();
     await pool.query(
-      `INSERT INTO trail_release_graphs (tag, graph_json, updated_at, synced_at)
+      `INSERT INTO trail_release_graphs (release_id, graph_json, updated_at, synced_at)
       VALUES ($1, $2, $3, NOW())
-      ON CONFLICT (tag) DO UPDATE SET
+      ON CONFLICT (release_id) DO UPDATE SET
         graph_json = EXCLUDED.graph_json,
         updated_at = EXCLUDED.updated_at, synced_at = NOW()`,
-      [tag, graphJson, new Date().toISOString()],
+      [releaseId, graphJson, new Date().toISOString()],
     );
   }
 
@@ -428,13 +445,13 @@ export class PostgresTrailStore implements IRemoteTrailStore {
   async upsertReleaseCodeGraphCommunities(): Promise<never> { throw new Error('PostgresTrailStore.upsertReleaseCodeGraphCommunities not implemented'); }
 
   async listManualElements(): Promise<never> { throw new Error('PostgresTrailStore.listManualElements not implemented'); }
-  async upsertCommitFiles(rows: readonly { repo_name: string; commit_hash: string; file_path: string }[]): Promise<void> {
+  async upsertCommitFiles(rows: readonly { repo_id: number; commit_hash: string; file_path: string }[]): Promise<void> {
     if (rows.length === 0) return;
     const pool = this.ensurePool();
     for (const r of rows) {
       await pool.query(
-        `INSERT INTO trail_commit_files (repo_name, commit_hash, file_path) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-        [r.repo_name, r.commit_hash, r.file_path],
+        `INSERT INTO trail_commit_files (repo_id, commit_hash, file_path) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+        [r.repo_id, r.commit_hash, r.file_path],
       );
     }
   }

@@ -4,6 +4,8 @@
 
 export interface ReleaseFileRow {
   readonly release_tag: string;
+  // Supabase 正規化ミラー用 (additive)。release_id 代理キー。拡張ローカル UI 向けに release_tag も保持。
+  readonly release_id?: number;
   readonly file_path: string;
   readonly lines_added: number;
   readonly lines_deleted: number;
@@ -12,6 +14,8 @@ export interface ReleaseFileRow {
 
 export interface ReleaseCoverageRow {
   readonly release_tag: string;
+  // Supabase 正規化ミラー用 (additive)。
+  readonly release_id?: number;
   readonly package: string;
   readonly file_path: string;
   readonly lines_total: number;
@@ -30,6 +34,8 @@ export interface ReleaseCoverageRow {
 
 export interface CurrentCoverageRow {
   repo_name: string;
+  // Supabase 正規化ミラー用 (additive)。
+  repo_id?: number;
   package: string;
   file_path: string;
   lines_total: number;

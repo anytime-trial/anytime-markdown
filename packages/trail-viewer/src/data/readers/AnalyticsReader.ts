@@ -19,11 +19,11 @@ export class AnalyticsReader {
     if (allSessions.length === 0) return null;
     const sessions = allSessions;
 
-    const allCommits: Array<{ repo_name?: string; committed_at?: string; lines_added: number; lines_deleted: number; files_changed: number; is_ai_assisted: number }> = [];
+    const allCommits: Array<{ committed_at?: string; lines_added: number; lines_deleted: number; files_changed: number; is_ai_assisted: number }> = [];
     for (let offset = 0; ; offset += 1000) {
       const { data: batch } = await this.client
         .from('trail_session_commits')
-        .select('repo_name,committed_at,lines_added,lines_deleted,files_changed,is_ai_assisted')
+        .select('committed_at,lines_added,lines_deleted,files_changed,is_ai_assisted')
         .order('committed_at', { ascending: true })
         .range(offset, offset + 999);
       if (!batch || batch.length === 0) break;

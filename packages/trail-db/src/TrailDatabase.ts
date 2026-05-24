@@ -438,6 +438,8 @@ export interface SessionRow {
   readonly id: string;
   readonly slug: string;
   readonly repo_name: string;
+  // Supabase 正規化ミラー用 (additive)。拡張ローカル UI は repo_name を使う。
+  readonly repo_id?: number | null;
   readonly git_branch?: string | null;
   readonly cwd?: string | null;
   readonly permission_mode?: string | null;
@@ -516,6 +518,8 @@ export interface SessionCommitRow {
   readonly lines_added: number;
   readonly lines_deleted: number;
   readonly repo_name: string;
+  // Supabase 正規化ミラー用 (additive)。getSessionCommits が sc.repo_id を投影する。
+  readonly repo_id?: number;
 }
 
 interface SessionFilters {
@@ -1911,6 +1915,20 @@ export class TrailDatabase {
     return (res[0]?.values ?? []).map((r) => ({
       repoId: Number(r[0]),
       repoName: asText(r[1] ?? ''),
+    }));
+  }
+
+  /**
+   * repos 全件を Supabase ミラー (trail_repos) へ運ぶ形で返す (repo_id 昇順、created_at 含む)。
+   * SyncService が子テーブルより前に upsertRepos へ渡す (FK 親優先)。
+   */
+  getAllRepos(): Array<{ repo_id: number; repo_name: string; created_at: string | null }> {
+    const db = this.ensureDb();
+    const res = db.exec('SELECT repo_id, repo_name, created_at FROM repos ORDER BY repo_id');
+    return (res[0]?.values ?? []).map((r) => ({
+      repo_id: Number(r[0] ?? 0),
+      repo_name: asText(r[1] ?? ''),
+      created_at: r[2] == null ? null : asText(r[2]),
     }));
   }
 
@@ -7046,30 +7064,33 @@ export class TrailDatabase {
     return composeCodeGraph(stored, communities);
   }
 
-  getAllCurrentCodeGraphRaws(): Array<{ repo_name: string; graph_json: string; generated_at: string; updated_at: string }> {
+  getAllCurrentCodeGraphRaws(): Array<{ repo_id: number; repo_name: string; graph_json: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
     // Phase H-3: repo_name は current_code_graphs に無い。repos を LEFT JOIN して射影する (結果キーは不変)。
     // 未解決 repo_id (0/NULL) 行も同期から落とさないため LEFT JOIN + COALESCE(r.repo_name, '')。
+    // Supabase 正規化ミラー用に repo_id も additive 投影する (repo_name は拡張ローカル UI 互換のため保持)。
     const result = db.exec(
-      `SELECT COALESCE(r.repo_name, '') AS repo_name, g.graph_json, g.generated_at, g.updated_at
+      `SELECT g.repo_id, COALESCE(r.repo_name, '') AS repo_name, g.graph_json, g.generated_at, g.updated_at
        FROM current_code_graphs g LEFT JOIN repos r ON r.repo_id = g.repo_id`,
     );
     const values = result[0]?.values ?? [];
     return values.map((r) => ({
-      repo_name: asText(r[0] ?? ''),
-      graph_json: asText(r[1] ?? ''),
-      generated_at: asText(r[2] ?? ''),
-      updated_at: asText(r[3] ?? ''),
+      repo_id: Number(r[0] ?? 0),
+      repo_name: asText(r[1] ?? ''),
+      graph_json: asText(r[2] ?? ''),
+      generated_at: asText(r[3] ?? ''),
+      updated_at: asText(r[4] ?? ''),
     }));
   }
 
-  getAllCurrentCodeGraphCommunityRaws(): Array<{ repo_name: string; community_id: number; label: string; name: string; summary: string; mappings_json: string | null; stable_key: string; generated_at: string; updated_at: string }> {
+  getAllCurrentCodeGraphCommunityRaws(): Array<{ repo_id: number; repo_name: string; community_id: number; label: string; name: string; summary: string; mappings_json: string | null; stable_key: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
     const cols = db.exec('PRAGMA table_info(current_code_graph_communities)');
     const colNames = new Set((cols[0]?.values ?? []).map((r) => String(r[1])));
     const hasMappings = colNames.has('mappings_json');
     const hasStableKey = colNames.has('stable_key');
     const selectCols = [
+      'repo_id',
       'repo_name',
       'community_id',
       'label',
@@ -7096,6 +7117,7 @@ export class TrailDatabase {
       const sIdx = idx('stable_key');
       const rawMappings = mIdx >= 0 ? r[mIdx] : null;
       return {
+        repo_id: Number(r[idx('repo_id')] ?? 0),
         repo_name: asText(r[idx('repo_name')] ?? ''),
         community_id: Number(r[idx('community_id')] ?? 0),
         label: asText(r[idx('label')] ?? ''),
@@ -7109,11 +7131,12 @@ export class TrailDatabase {
     });
   }
 
-  getAllReleaseCodeGraphRaws(): Array<{ release_tag: string; graph_json: string; generated_at: string; updated_at: string }> {
+  getAllReleaseCodeGraphRaws(): Array<{ release_id: number; release_tag: string; graph_json: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
     // flip 後は release_id FK。Supabase 同期は tag キーのため releases へ JOIN して tag を供給する。
+    // Supabase 正規化ミラー用に r.release_id も additive 投影する (release_tag は互換のため保持)。
     const result = db.exec(
-      `SELECT r.tag, rcg.graph_json, rcg.generated_at, rcg.updated_at
+      `SELECT r.tag, rcg.graph_json, rcg.generated_at, rcg.updated_at, r.release_id
          FROM release_code_graphs rcg
          JOIN releases r ON r.release_id = rcg.release_id`,
     );
@@ -7123,17 +7146,19 @@ export class TrailDatabase {
       graph_json: asText(r[1] ?? ''),
       generated_at: asText(r[2] ?? ''),
       updated_at: asText(r[3] ?? ''),
+      release_id: Number(r[4] ?? 0),
     }));
   }
 
-  getAllReleaseCodeGraphCommunityRaws(): Array<{ release_tag: string; community_id: number; label: string; name: string; summary: string; stable_key: string; generated_at: string; updated_at: string }> {
+  getAllReleaseCodeGraphCommunityRaws(): Array<{ release_id: number; release_tag: string; community_id: number; label: string; name: string; summary: string; stable_key: string; generated_at: string; updated_at: string }> {
     const db = this.ensureDb();
     const hasStableKey = columnExists(db, 'release_code_graph_communities', 'stable_key');
     // flip 後は release_id FK。Supabase 同期は tag キーのため releases へ JOIN して tag を供給する。
+    // Supabase 正規化ミラー用に r.release_id を末尾へ additive 投影する (release_tag は互換のため保持)。
     const sql = hasStableKey
-      ? `SELECT r.tag, rcgc.community_id, rcgc.label, rcgc.name, rcgc.summary, rcgc.stable_key, rcgc.generated_at, rcgc.updated_at
+      ? `SELECT r.tag, rcgc.community_id, rcgc.label, rcgc.name, rcgc.summary, rcgc.stable_key, rcgc.generated_at, rcgc.updated_at, r.release_id
            FROM release_code_graph_communities rcgc JOIN releases r ON r.release_id = rcgc.release_id`
-      : `SELECT r.tag, rcgc.community_id, rcgc.label, rcgc.name, rcgc.summary, rcgc.generated_at, rcgc.updated_at
+      : `SELECT r.tag, rcgc.community_id, rcgc.label, rcgc.name, rcgc.summary, rcgc.generated_at, rcgc.updated_at, r.release_id
            FROM release_code_graph_communities rcgc JOIN releases r ON r.release_id = rcgc.release_id`;
     const result = db.exec(sql);
     const values = result[0]?.values ?? [];
@@ -7146,6 +7171,7 @@ export class TrailDatabase {
       stable_key: hasStableKey ? asText(r[5] ?? '') : '',
       generated_at: asText(r[hasStableKey ? 6 : 5] ?? ''),
       updated_at: asText(r[hasStableKey ? 7 : 6] ?? ''),
+      release_id: Number(r[hasStableKey ? 8 : 7] ?? 0),
     }));
   }
 
@@ -7472,23 +7498,25 @@ export class TrailDatabase {
   /**
    * 全 current_graphs 行を返す（洗い替え同期用）。
    */
-  listCurrentGraphs(): Array<{ repoName: string; commitId: string; graph: TrailGraph }> {
+  listCurrentGraphs(): Array<{ repoId: number; repoName: string; commitId: string; graph: TrailGraph }> {
     const db = this.ensureDb();
     // Phase H-3: repo_name は current_graphs に無い。repos を LEFT JOIN して射影する (結果キーは不変)。
     // 未解決 repo_id (0/NULL) 行も同期から落とさないため LEFT JOIN + COALESCE(r.repo_name, '')。
+    // Supabase 正規化ミラー用に repoId も additive 提供する (repoName は拡張ローカル UI 互換のため保持)。
     const result = db.exec(
-      `SELECT COALESCE(r.repo_name, '') AS repo_name, g.commit_id, g.graph_json
+      `SELECT g.repo_id, COALESCE(r.repo_name, '') AS repo_name, g.commit_id, g.graph_json
        FROM current_graphs g LEFT JOIN repos r ON r.repo_id = g.repo_id`,
     );
     const rows = result[0]?.values ?? [];
-    const out: Array<{ repoName: string; commitId: string; graph: TrailGraph }> = [];
+    const out: Array<{ repoId: number; repoName: string; commitId: string; graph: TrailGraph }> = [];
     for (const row of rows) {
-      const repoName = asText(row[0] ?? '');
-      const commitId = asText(row[1] ?? '');
-      const json = row[2];
+      const repoId = Number(row[0] ?? 0);
+      const repoName = asText(row[1] ?? '');
+      const commitId = asText(row[2] ?? '');
+      const json = row[3];
       if (typeof json !== 'string') continue;
       try {
-        out.push({ repoName, commitId, graph: JSON.parse(json) as TrailGraph });
+        out.push({ repoId, repoName, commitId, graph: JSON.parse(json) as TrailGraph });
       } catch (e) {
         this.logger.warn(`listCurrentGraphs: failed to parse graph_json for repo=${repoName}: ${e instanceof Error ? e.message : String(e)}`);
       }
@@ -10183,7 +10211,7 @@ export class TrailDatabase {
     // Phase H-3: repo_name は current_coverage に無い。repos を LEFT JOIN して射影する (結果キーは不変)。
     // 未解決 repo_id (0/NULL) 行も同期から落とさないため LEFT JOIN + COALESCE(r.repo_name, '')。
     const result = db.exec(
-      `SELECT COALESCE(r.repo_name, '') AS repo_name, c.package, c.file_path, c.lines_total, c.lines_covered, c.lines_pct, c.statements_total, c.statements_covered, c.statements_pct, c.functions_total, c.functions_covered, c.functions_pct, c.branches_total, c.branches_covered, c.branches_pct, c.updated_at
+      `SELECT COALESCE(r.repo_name, '') AS repo_name, c.package, c.file_path, c.lines_total, c.lines_covered, c.lines_pct, c.statements_total, c.statements_covered, c.statements_pct, c.functions_total, c.functions_covered, c.functions_pct, c.branches_total, c.branches_covered, c.branches_pct, c.updated_at, c.repo_id
        FROM current_coverage c LEFT JOIN repos r ON r.repo_id = c.repo_id`,
     );
     const values = result[0]?.values ?? [];
@@ -10207,6 +10235,7 @@ export class TrailDatabase {
       branches_covered: toNum(r[13]),
       branches_pct: toNum(r[14]),
       updated_at: asText(r[15] ?? ''),
+      repo_id: Number(r[16] ?? 0),
     }));
   }
 
@@ -10984,15 +11013,16 @@ export class TrailDatabase {
     return out;
   }
 
-  getCommitFiles(commitHashes: string[]): Array<{ repo_name: string; commit_hash: string; file_path: string }> {
+  getCommitFiles(commitHashes: string[]): Array<{ repo_id: number; repo_name: string; commit_hash: string; file_path: string }> {
     if (commitHashes.length === 0) return [];
     const db = this.ensureDb();
     const placeholders = commitHashes.map(() => '?').join(',');
     // Phase H-4: commit_files.repo_name 列は撤去済。SyncService が Supabase trail_commit_files へ運ぶ
     // repo_name を含む契約を維持するため repos を LEFT JOIN して COALESCE(r.repo_name, '') を射影する
     // (repo_id=0 sentinel など未解決は '' = 旧 repo_name='' と等価・結果キーは不変)。
+    // Supabase 正規化ミラー用に cf.repo_id を末尾へ additive 投影する (repo_name は拡張ローカル UI 互換のため保持)。
     const res = db.exec(
-      `SELECT COALESCE(r.repo_name, '') AS repo_name, cf.commit_hash, cf.file_path
+      `SELECT COALESCE(r.repo_name, '') AS repo_name, cf.commit_hash, cf.file_path, cf.repo_id
        FROM commit_files cf
        LEFT JOIN repos r ON r.repo_id = cf.repo_id
        WHERE cf.commit_hash IN (${placeholders})`,
@@ -11003,6 +11033,7 @@ export class TrailDatabase {
       repo_name: row[0] as string,
       commit_hash: row[1] as string,
       file_path: row[2] as string,
+      repo_id: Number(row[3] ?? 0),
     }));
   }
 
@@ -11085,6 +11116,7 @@ export class TrailDatabase {
     if (!result[0]?.values) return [];
     return result[0].values.map((row) => ({
       release_tag: releaseTag,
+      release_id: releaseId,
       file_path: asText(row[0] ?? ''),
       lines_added: Number(row[1] ?? 0),
       lines_deleted: Number(row[2] ?? 0),
@@ -11129,12 +11161,13 @@ export class TrailDatabase {
   getAllReleaseCoverage(): ReleaseCoverageRow[] {
     const db = this.ensureDb();
     // flip 後は release_id FK。Supabase 同期は release_tag キーのため releases へ JOIN する。
+    // Supabase 正規化ミラー用に r.release_id を末尾へ additive 投影する (release_tag は互換のため保持)。
     const result = db.exec(
       `SELECT r.tag, rc.package, rc.file_path,
               rc.lines_total, rc.lines_covered, rc.lines_pct,
               rc.statements_total, rc.statements_covered, rc.statements_pct,
               rc.functions_total, rc.functions_covered, rc.functions_pct,
-              rc.branches_total, rc.branches_covered, rc.branches_pct
+              rc.branches_total, rc.branches_covered, rc.branches_pct, r.release_id
        FROM release_coverage rc JOIN releases r ON r.release_id = rc.release_id`,
     );
     const values = result[0]?.values ?? [];
@@ -11155,6 +11188,7 @@ export class TrailDatabase {
       branches_total: toNum(r[12]),
       branches_covered: toNum(r[13]),
       branches_pct: toNum(r[14]),
+      release_id: Number(r[15] ?? 0),
     }));
   }
 
@@ -11163,7 +11197,7 @@ export class TrailDatabase {
   // ---------------------------------------------------------------------------
 
   getAllCurrentFileAnalysis(): Array<{
-    repo_name: string; file_path: string;
+    repo_id: number; repo_name: string; file_path: string;
     importance_score: number; fan_in_total: number; cognitive_complexity_max: number; function_count: number;
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
@@ -11182,7 +11216,7 @@ export class TrailDatabase {
               fa.dead_code_score, fa.signal_orphan, fa.signal_fan_in_zero, fa.signal_no_recent_churn,
               fa.signal_zero_coverage, fa.signal_isolated_community, fa.is_ignored, fa.ignore_reason,
               fa.cross_pkg_in_count, fa.external_consumer_pkgs, fa.total_in_count, fa.is_barrel, fa.centrality_score,
-              fa.analyzed_at, fa.line_count, fa.cyclomatic_complexity_max, fa.category
+              fa.analyzed_at, fa.line_count, fa.cyclomatic_complexity_max, fa.category, fa.repo_id
        FROM current_file_analysis fa LEFT JOIN repos rp ON rp.repo_id = fa.repo_id`,
     );
     const values = result[0]?.values ?? [];
@@ -11210,11 +11244,12 @@ export class TrailDatabase {
       line_count: Number(r[20] ?? 0),
       cyclomatic_complexity_max: Number(r[21] ?? 0),
       category: parseCategory(r[22]),
+      repo_id: Number(r[23] ?? 0),
     }));
   }
 
   getAllReleaseFileAnalysis(): Array<{
-    release_tag: string; repo_name: string; file_path: string;
+    release_id: number; release_tag: string; repo_name: string; file_path: string;
     importance_score: number; fan_in_total: number; cognitive_complexity_max: number; function_count: number;
     dead_code_score: number;
     signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
@@ -11236,7 +11271,7 @@ export class TrailDatabase {
               rfa.dead_code_score, rfa.signal_orphan, rfa.signal_fan_in_zero, rfa.signal_no_recent_churn,
               rfa.signal_zero_coverage, rfa.signal_isolated_community, rfa.is_ignored, rfa.ignore_reason,
               rfa.cross_pkg_in_count, rfa.external_consumer_pkgs, rfa.total_in_count, rfa.is_barrel, rfa.centrality_score,
-              rfa.analyzed_at, rfa.line_count, rfa.cyclomatic_complexity_max, rfa.category
+              rfa.analyzed_at, rfa.line_count, rfa.cyclomatic_complexity_max, rfa.category, r.release_id
        FROM release_file_analysis rfa
        JOIN releases r ON r.release_id = rfa.release_id
        LEFT JOIN repos repo ON repo.repo_id = r.repo_id`,
@@ -11267,11 +11302,12 @@ export class TrailDatabase {
       line_count: Number(r[21] ?? 0),
       cyclomatic_complexity_max: Number(r[22] ?? 0),
       category: parseCategory(r[23]),
+      release_id: Number(r[24] ?? 0),
     }));
   }
 
   getAllCurrentFunctionAnalysis(): Array<{
-    repo_name: string; file_path: string; function_name: string; start_line: number;
+    repo_id: number; repo_name: string; file_path: string; function_name: string; start_line: number;
     end_line: number; language: string;
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
@@ -11290,7 +11326,7 @@ export class TrailDatabase {
               fn.importance_score, fn.signal_fan_in_zero,
               fn.fan_out, fn.distinct_callees, fn.function_role,
               fn.analyzed_at,
-              fn.cyclomatic_complexity
+              fn.cyclomatic_complexity, fn.repo_id
        FROM current_function_analysis fn LEFT JOIN repos rp ON rp.repo_id = fn.repo_id`,
     );
     const values = result[0]?.values ?? [];
@@ -11313,11 +11349,12 @@ export class TrailDatabase {
       function_role: asText(r[15] ?? 'peripheral'),
       analyzed_at: asText(r[16] ?? ''),
       cyclomatic_complexity: Number(r[17] ?? 0),
+      repo_id: Number(r[18] ?? 0),
     }));
   }
 
   getAllReleaseFunctionAnalysis(): Array<{
-    release_tag: string; repo_name: string; file_path: string; function_name: string; start_line: number;
+    release_id: number; release_tag: string; repo_name: string; file_path: string; function_name: string; start_line: number;
     end_line: number; language: string;
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;
@@ -11338,7 +11375,7 @@ export class TrailDatabase {
               rfa.importance_score, rfa.signal_fan_in_zero,
               rfa.fan_out, rfa.distinct_callees, rfa.function_role,
               rfa.analyzed_at,
-              rfa.cyclomatic_complexity
+              rfa.cyclomatic_complexity, r.release_id
        FROM release_function_analysis rfa
        JOIN releases r ON r.release_id = rfa.release_id
        LEFT JOIN repos repo ON repo.repo_id = r.repo_id`,
@@ -11364,6 +11401,7 @@ export class TrailDatabase {
       function_role: asText(r[16] ?? 'peripheral'),
       analyzed_at: asText(r[17] ?? ''),
       cyclomatic_complexity: Number(r[18] ?? 0),
+      release_id: Number(r[19] ?? 0),
     }));
   }
 

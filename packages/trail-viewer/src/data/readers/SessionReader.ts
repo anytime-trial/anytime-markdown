@@ -21,7 +21,8 @@ export class SessionReader {
   async getSessions(filters?: TrailFilter): Promise<readonly TrailSession[]> {
     let query = this.client
       .from('trail_sessions')
-      .select('*, trail_session_costs(*)')
+      // repo_id 正規化後: repo_name は trail_repos を FK 埋め込みして復元する (下で row に flatten)。
+      .select('*, repo:trail_repos(repo_name), trail_session_costs(*)')
       .order('start_time', { ascending: false });
 
     if (filters?.model) {
@@ -34,7 +35,9 @@ export class SessionReader {
     const { data, error } = await query;
     if (error) throw new Error(`Supabase getSessions failed: ${error.message}`);
 
-    const sessions = (data ?? []) as readonly SessionDbRow[];
+    // 埋め込んだ trail_repos.repo_name を行へ flatten し、下流 (mapper / codex 照合) を不変に保つ。
+    const sessions = ((data ?? []) as Array<SessionDbRow & { repo?: { repo_name: string } | null }>)
+      .map((r) => ({ ...r, repo_name: r.repo?.repo_name ?? r.repo_name ?? '' })) as readonly SessionDbRow[];
     const sessionById = new Map(sessions.map((s) => [s.id, s] as const));
     const sessionIds = sessions.map((s) => s.id);
     const linkedCodexByParent = await this.fetchLinkedCodexSessionIdsByParent(sessions);
@@ -92,10 +95,10 @@ export class SessionReader {
   async getSessionCommits(sessionId: string): Promise<readonly TrailSessionCommit[]> {
     const { data, error } = await this.client
       .from('trail_session_commits')
-      .select('*')
+      .select('*, repo:trail_repos(repo_name)')
       .eq('session_id', sessionId);
     if (error) throw new Error(`Supabase getSessionCommits failed: ${error.message}`);
-    return (data ?? []).map((r: CommitDbRow) => ({
+    return (data ?? []).map((r: CommitDbRow & { repo?: { repo_name: string } | null }) => ({
       commitHash: r.commit_hash,
       commitMessage: r.commit_message,
       author: r.author,
@@ -104,7 +107,7 @@ export class SessionReader {
       filesChanged: r.files_changed,
       linesAdded: r.lines_added,
       linesDeleted: r.lines_deleted,
-      repoName: r.repo_name ?? '',
+      repoName: r.repo?.repo_name ?? r.repo_name ?? '',
     }));
   }
 

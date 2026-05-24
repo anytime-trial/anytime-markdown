@@ -4,9 +4,38 @@
 // noStore ヘッダ、SupabaseTrailReader を使った薄いラッパー、SupabaseC4ModelStore 生成。
 
 import { SupabaseC4ModelStore, SupabaseTrailReader } from '@anytime-markdown/trail-viewer/supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 import { resolveSupabaseEnv } from './supabase-env';
+
+/**
+ * repo_name → repo_id を解決する。trail_* テーブルは repo_id 正規化済のため、
+ * repo 名でフィルタする前に repo_id へ解決する。未登録は null (= 結果なし)。
+ */
+export async function resolveRepoId(supabase: SupabaseClient, repoName: string): Promise<number | null> {
+  const { data } = await supabase
+    .from('trail_repos')
+    .select('repo_id')
+    .eq('repo_name', repoName)
+    .maybeSingle<{ repo_id: number }>();
+  return data?.repo_id ?? null;
+}
+
+/**
+ * tag → release_id を解決する。release 系は release_id 正規化済。
+ * repoId 指定時は (repo_id, tag) で一意化する (UNIQUE(repo_id, tag))。未登録は null。
+ */
+export async function resolveReleaseId(
+  supabase: SupabaseClient,
+  tag: string,
+  repoId?: number | null,
+): Promise<number | null> {
+  let q = supabase.from('trail_releases').select('release_id').eq('tag', tag);
+  if (repoId != null) q = q.eq('repo_id', repoId);
+  const { data } = await q.limit(1).returns<{ release_id: number }[]>();
+  return data?.[0]?.release_id ?? null;
+}
 
 /** unknown 型の catch 値からエラーメッセージ文字列を取得する。 */
 export function extractErrorMessage(e: unknown): string {

@@ -4,7 +4,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { createC4ModelStore, NO_STORE_HEADERS } from "../../../../lib/api-helpers";
+import { createC4ModelStore, NO_STORE_HEADERS, resolveRepoId, resolveReleaseId } from "../../../../lib/api-helpers";
 import { resolveSupabaseEnv } from "../../../../lib/supabase-env";
 
 export const dynamic = 'force-dynamic';
@@ -39,11 +39,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (!repoName) {
       const { data: firstRow } = await supabase
         .from('trail_current_coverage')
-        .select('repo_name')
+        .select('repo:trail_repos(repo_name)')
         .limit(1)
-        .maybeSingle<{ repo_name: string }>();
-      if (!firstRow) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
-      repoName = firstRow.repo_name;
+        .maybeSingle<{ repo: { repo_name: string } | null }>();
+      if (!firstRow?.repo) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
+      repoName = firstRow.repo.repo_name;
     }
 
     const coverageRows = release === 'current'
@@ -68,10 +68,13 @@ async function fetchCurrentCoverageRows(
   supabase: SupabaseClient,
   repoName: string,
 ): Promise<ReleaseCoverageRow[]> {
+  // trail_current_coverage は repo_id キー。repo_name → repo_id を解決する。
+  const repoId = await resolveRepoId(supabase, repoName);
+  if (repoId == null) return [];
   const { data } = await supabase
     .from('trail_current_coverage')
     .select(COVERAGE_COLUMNS)
-    .eq('repo_name', repoName);
+    .eq('repo_id', repoId);
   const rows = (data ?? []) as Array<Record<string, unknown>>;
   return rows.map((r) => mapCoverageRow('__current__', r));
 }
@@ -81,23 +84,17 @@ async function fetchReleaseCoverageRows(
   release: string,
   repoName: string,
 ): Promise<ReleaseCoverageRow[] | null> {
-  // 1. requested release tag が requested repo に属するか確認
-  const { data: tagRow } = await supabase
-    .from('trail_releases')
-    .select('tag')
-    .eq('tag', release)
-    .eq('repo_name', repoName)
-    .limit(1)
-    .maybeSingle<{ tag: string }>();
-  if (!tagRow) return null;
+  // tag を (repo_id, tag) で release_id へ解決する (repo 帰属確認を兼ねる)。未登録は null。
+  const repoId = await resolveRepoId(supabase, repoName);
+  const releaseId = await resolveReleaseId(supabase, release, repoId);
+  if (releaseId == null) return null;
 
-  // 2. release_coverage を取得
   const { data } = await supabase
     .from('trail_release_coverage')
-    .select(`release_tag,${COVERAGE_COLUMNS}`)
-    .eq('release_tag', release);
+    .select(COVERAGE_COLUMNS)
+    .eq('release_id', releaseId);
   const rows = (data ?? []) as Array<Record<string, unknown>>;
-  return rows.map((r) => mapCoverageRow(String(r.release_tag ?? release), r));
+  return rows.map((r) => mapCoverageRow(release, r));
 }
 
 function mapCoverageRow(release_tag: string, r: Record<string, unknown>): ReleaseCoverageRow {

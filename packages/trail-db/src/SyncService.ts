@@ -48,6 +48,10 @@ export class SyncService {
     onProgress?.({ message: 'Clearing remote tables...' });
     await this.store.unsafeClearAll();
 
+    // FK 親テーブル: 子テーブルより先に trail_repos を upsert する (repo_id 正規化)。
+    onProgress?.({ message: 'Syncing repos...' });
+    await this.store.upsertRepos(this.trailDb.getAllRepos());
+
     onProgress?.({ message: 'Fetching local sessions...' });
     const localSessions = this.trailDb.getSessions();
 
@@ -89,26 +93,30 @@ export class SyncService {
       onProgress?.({ message: `Syncing ${currents.length} current TrailGraphs (wash-away)...` });
       await this.store.unsafeClearCurrentGraphs();
       for (const row of currents) {
-        await this.store.upsertCurrentGraph(row.repoName, JSON.stringify(row.graph), row.commitId);
+        await this.store.upsertCurrentGraph(row.repoId, JSON.stringify(row.graph), row.commitId);
       }
     }, 'Failed to sync current TrailGraphs');
 
     errors += await this.syncStep(null, onProgress, async () => {
-      const graphIds = this.trailDb.getTrailGraphIds();
-      const releaseIds = graphIds.filter((id) => id !== 'current');
-      onProgress?.({ message: `Syncing ${releaseIds.length} release TrailGraphs (wash-away)...` });
+      // release_graphs は release_id キー。getTrailGraphIds は tag を返すため、release_id を
+      // 持つ getReleases() から引き直して upsert する (graph 不在の release は skip)。
+      const releases = this.trailDb.getReleases();
+      onProgress?.({ message: `Syncing ${releases.length} release TrailGraphs (wash-away)...` });
       await this.store.unsafeClearReleaseGraphs();
-      for (const id of releaseIds) {
-        const graph = this.trailDb.getTrailGraph(id);
+      for (const rel of releases) {
+        if (rel.release_id == null) continue;
+        const graph = this.trailDb.getTrailGraph(rel.tag);
         if (!graph) continue;
-        await this.store.upsertReleaseGraph(id, JSON.stringify(graph));
+        await this.store.upsertReleaseGraph(rel.release_id, JSON.stringify(graph));
       }
     }, 'Failed to sync release TrailGraphs');
 
     errors += await this.syncStep(null, onProgress, async () => {
-      const repoNames = [...new Set(this.trailDb.listCurrentGraphs().map(r => r.repoName))];
-      for (const repoName of repoNames) {
-        await this.syncManualElements(repoName);
+      // manual C4 は store 側 repo_id・local 側 repo_name で扱うため両方を渡す。
+      const repos = new Map<number, string>();
+      for (const r of this.trailDb.listCurrentGraphs()) repos.set(r.repoId, r.repoName);
+      for (const [repoId, repoName] of repos) {
+        await this.syncManualElements(repoId, repoName);
       }
     }, 'Failed to sync manual C4 elements');
 
@@ -230,37 +238,38 @@ export class SyncService {
     return { synced, errors };
   }
 
-  async syncManualElements(repoName: string): Promise<void> {
+  // store 側は repo_id キー (正規化済 Supabase)、local 側は repo_name キー (内部で repo_id 解決) で扱う。
+  async syncManualElements(repoId: number, repoName: string): Promise<void> {
     const [localElements, remoteElements] = await Promise.all([
       Promise.resolve(this.trailDb.getManualElements(repoName)),
-      this.store.listManualElements(repoName),
+      this.store.listManualElements(repoId),
     ]);
     await this.mergeManualItems(
       localElements,
       remoteElements,
-      (item) => this.store.upsertManualElement(repoName, item),
+      (item) => this.store.upsertManualElement(repoId, item),
       (item) => this.trailDb.insertManualElementRaw(repoName, item),
     );
 
     const [localRels, remoteRels] = await Promise.all([
       Promise.resolve(this.trailDb.getManualRelationships(repoName)),
-      this.store.listManualRelationships(repoName),
+      this.store.listManualRelationships(repoId),
     ]);
     await this.mergeManualItems(
       localRels,
       remoteRels,
-      (item) => this.store.upsertManualRelationship(repoName, item),
+      (item) => this.store.upsertManualRelationship(repoId, item),
       (item) => this.trailDb.insertManualRelationshipRaw(repoName, item),
     );
 
     const [localGroups, remoteGroups] = await Promise.all([
       Promise.resolve(this.trailDb.getManualGroups(repoName)),
-      this.store.listManualGroups(repoName),
+      this.store.listManualGroups(repoId),
     ]);
     await this.mergeManualItems(
       localGroups,
       remoteGroups,
-      (item) => this.store.upsertManualGroup(repoName, item),
+      (item) => this.store.upsertManualGroup(repoId, item),
       (item) => this.trailDb.insertManualGroupRaw(repoName, item),
     );
   }

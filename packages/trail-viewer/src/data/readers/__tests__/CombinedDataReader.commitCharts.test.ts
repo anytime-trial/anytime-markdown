@@ -28,7 +28,8 @@ function makeClient() {
             id: 's1',
             source: 'codex',
             start_time: '2026-05-01T00:00:00.000Z',
-            repo_name: 'anytime-markdown',
+            // repo_id 正規化後: repo_name は trail_repos 埋め込み (repo) で返る。
+            repo: { repo_name: 'anytime-markdown' },
           }],
         }));
       }
@@ -52,7 +53,7 @@ function makeClient() {
           if (selectArg.includes('subject')) {
             return {
               data: [{
-                repo_name: 'anytime-markdown',
+                repo: { repo_name: 'anytime-markdown' },
                 commit_hash: 'abc123',
                 subject: 'fix(web): restore activity charts',
                 committed_at: '2026-05-01T01:00:00.000Z',

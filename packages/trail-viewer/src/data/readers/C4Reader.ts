@@ -15,19 +15,17 @@ import type {
 } from '@anytime-markdown/trail-core/domain';
 
 interface CurrentGraphRow {
-  readonly repo_name: string;
   readonly commit_id: string;
   readonly graph_json: string;
 }
 
 interface ReleaseGraphRow {
-  readonly tag: string;
   readonly graph_json: string;
 }
 
 interface TrailReleaseRow {
   readonly tag: string;
-  readonly repo_name: string | null;
+  readonly repo: { repo_name: string } | null;
   readonly released_at: string | null;
 }
 
@@ -66,12 +64,35 @@ export class C4Reader implements IC4ModelStore {
     return { model: trailToC4(graph) };
   }
 
+  /** repo_name → repo_id を解決する (trail_current_graphs は repo_id キー)。未登録は null。 */
+  private async resolveRepoId(repoName: string): Promise<number | null> {
+    const { data } = await this.client
+      .from('trail_repos')
+      .select('repo_id')
+      .eq('repo_name', repoName)
+      .maybeSingle<{ repo_id: number }>();
+    return data?.repo_id ?? null;
+  }
+
+  /** tag → release_id を解決する (trail_release_graphs は release_id キー)。未登録は null。 */
+  private async resolveReleaseId(tag: string): Promise<number | null> {
+    const { data } = await this.client
+      .from('trail_releases')
+      .select('release_id')
+      .eq('tag', tag)
+      .limit(1)
+      .returns<{ release_id: number }[]>();
+    return data?.[0]?.release_id ?? null;
+  }
+
   /** 生の TrailGraph を取得する（DSM 計算用）。 */
   async getCurrentGraph(repoName: string): Promise<{ graph: TrailGraph; commitId: string } | null> {
+    const repoId = await this.resolveRepoId(repoName);
+    if (repoId == null) return null;
     const { data, error } = await this.client
       .from('trail_current_graphs')
-      .select('repo_name, commit_id, graph_json')
-      .eq('repo_name', repoName)
+      .select('commit_id, graph_json')
+      .eq('repo_id', repoId)
       .maybeSingle<CurrentGraphRow>();
     if (error || !data) return null;
     const graph = C4Reader.parseGraph(data.graph_json);
@@ -81,10 +102,12 @@ export class C4Reader implements IC4ModelStore {
 
   /** リリース別の生の TrailGraph を取得する（DSM 計算用）。 */
   async getReleaseGraph(tag: string): Promise<TrailGraph | null> {
+    const releaseId = await this.resolveReleaseId(tag);
+    if (releaseId == null) return null;
     const { data, error } = await this.client
       .from('trail_release_graphs')
-      .select('tag, graph_json')
-      .eq('tag', tag)
+      .select('graph_json')
+      .eq('release_id', releaseId)
       .maybeSingle<ReleaseGraphRow>();
     if (error || !data) return null;
     return C4Reader.parseGraph(data.graph_json);
@@ -95,11 +118,11 @@ export class C4Reader implements IC4ModelStore {
     const [currentRes, releaseRes] = await Promise.all([
       this.client
         .from('trail_current_graphs')
-        .select('repo_name')
-        .returns<{ repo_name: string }[]>(),
+        .select('repo:trail_repos(repo_name)')
+        .returns<{ repo: { repo_name: string } | null }[]>(),
       this.client
         .from('trail_releases')
-        .select('tag, repo_name, released_at')
+        .select('tag, repo:trail_repos(repo_name), released_at')
         .order('released_at', { ascending: false })
         .returns<TrailReleaseRow[]>(),
     ]);
@@ -112,10 +135,10 @@ export class C4Reader implements IC4ModelStore {
 
     const entries: C4ModelEntry[] = [];
     for (const r of currentRes.data ?? []) {
-      entries.push({ tag: 'current', repoName: r.repo_name });
+      entries.push({ tag: 'current', repoName: r.repo?.repo_name ?? '' });
     }
     for (const r of releaseRes.data ?? []) {
-      entries.push({ tag: r.tag, repoName: r.repo_name });
+      entries.push({ tag: r.tag, repoName: r.repo?.repo_name ?? null });
     }
     return entries;
   }
