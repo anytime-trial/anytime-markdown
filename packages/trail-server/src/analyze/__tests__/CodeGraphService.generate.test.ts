@@ -406,7 +406,7 @@ describe('CodeGraphService.generate() — runAnalyze() スキップ分岐', () =
       });
       const graph = (await svc.generate())[0];
       expect(graph.nodes).toHaveLength(0);
-      expect(errorMessages.some((m) => m.includes('analyzeRepo() failed'))).toBe(true);
+      expect(errorMessages.some((m) => m.includes('analyzeRepoTrailGraph() failed'))).toBe(true);
     } finally {
       fs.rmSync(tmpDir, { recursive: true });
     }

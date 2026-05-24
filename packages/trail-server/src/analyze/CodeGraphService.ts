@@ -251,29 +251,39 @@ export class CodeGraphService {
   }
 
   /**
-   * repo で検出された言語（TS は tsconfig.json、Python は .py/pyproject）を解析し、
-   * 結果を 1 つの TrailGraph に union する。analyze-exclude を全言語に反映する。
-   * 検出言語が無ければ undefined（旧 TS のみ時の「tsconfig 無しスキップ」を包含）。
+   * 任意のリポジトリパスに対し、検出された全言語（TS は tsconfig.json、Python は
+   * .py/pyproject）を解析して 1 つの TrailGraph に union する。analyze-exclude を
+   * 全言語に反映する。検出言語が無ければ undefined。
+   * Python-only パイプライン（tsconfig 無し）が current_graphs / C4 モデル用の
+   * TrailGraph を得るために公開する。
    */
-  private async runAnalyze(repo: CodeGraphRepository): Promise<TrailGraph | undefined> {
-    const exclude = loadAnalyzeExclude(repo.path);
+  async analyzeRepoTrailGraph(repoPath: string): Promise<TrailGraph | undefined> {
+    const exclude = loadAnalyzeExclude(repoPath);
     try {
-      const graph = await analyzeRepo(this.getLanguageRegistry(), repo.path, analyzer => ({
-        projectRoot: repo.path,
+      const graph = await analyzeRepo(this.getLanguageRegistry(), repoPath, analyzer => ({
+        projectRoot: repoPath,
         configPath:
-          analyzer.id === 'typescript' ? path.join(repo.path, 'tsconfig.json') : undefined,
+          analyzer.id === 'typescript' ? path.join(repoPath, 'tsconfig.json') : undefined,
         exclude,
       }));
       if (!graph) {
         this.logger.info(
-          `[CodeGraphService] no supported language detected for ${repo.label}, skipping code analysis`,
+          `[CodeGraphService] no supported language detected for ${repoPath}, skipping code analysis`,
         );
       }
       return graph;
     } catch (err) {
-      this.logger.error(`[CodeGraphService] analyzeRepo() failed for ${repo.label}`, err);
+      this.logger.error(`[CodeGraphService] analyzeRepoTrailGraph() failed for ${repoPath}`, err);
       return undefined;
     }
+  }
+
+  /**
+   * repo で検出された言語を解析し TrailGraph を返す（analyzeRepoTrailGraph へ委譲）。
+   * 検出言語が無ければ undefined（旧 TS のみ時の「tsconfig 無しスキップ」を包含）。
+   */
+  private async runAnalyze(repo: CodeGraphRepository): Promise<TrailGraph | undefined> {
+    return this.analyzeRepoTrailGraph(repo.path);
   }
 
   private save(repo: CodeGraphRepository, graph: CodeGraph): void {
