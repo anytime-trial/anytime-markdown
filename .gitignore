@@ -5,7 +5,8 @@ prebuilt-vscode
 .agents
 .anytime
 .clone
-.claude
+.claude/*
+!.claude/rules/
 .next
 .playwright-mcp
 .serena
