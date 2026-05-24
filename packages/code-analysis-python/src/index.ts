@@ -9,3 +9,5 @@ export { PythonMetrics } from './importance/PythonMetrics';
 export { PythonAdapter } from './importance/PythonAdapter';
 export { PythonExportExtractor } from './PythonExportExtractor';
 export type { PythonExportedSymbol } from './PythonExportExtractor';
+export { classifyPythonFile, classifyPythonFiles } from './PythonFileClassifier';
+export type { PythonFileCategory } from './PythonFileClassifier';
