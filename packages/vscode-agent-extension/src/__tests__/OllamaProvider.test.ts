@@ -6,10 +6,12 @@ jest.mock('node:child_process', () => ({
   spawn: (...args: unknown[]) => mockSpawn(...(args as Parameters<typeof mockSpawn>)),
 }));
 
-// fs モック (/.dockerenv 検出用)
+// fs モック (/.dockerenv 検出 + throttle-status.json 読込用)
 const mockExistsSync = jest.fn().mockReturnValue(false);
+const mockReadFileSync = jest.fn();
 jest.mock('node:fs', () => ({
   existsSync: (...args: unknown[]) => mockExistsSync(...args),
+  readFileSync: (...args: unknown[]) => mockReadFileSync(...args),
 }));
 
 // fetch モック (Node 18+ built-in を上書き)
@@ -184,5 +186,78 @@ describe('OllamaProvider.startOllama()', () => {
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
       'Dev Container 内では ollama を直接起動できません。WSL ターミナルで `ollama serve` を実行してください。',
     );
+  });
+});
+
+describe('OllamaProvider throttle rows', () => {
+  const THROTTLE_PATH = '/ws/.anytime/trail/db/throttle-status.json';
+
+  function freshThrottle(overrides: Record<string, unknown> = {}): string {
+    return JSON.stringify({
+      enabled: true,
+      state: 'NORMAL',
+      entries: [{ op: 'embeddings', model: 'bge-m3:latest', lastLatencyMs: 245, ewmaMs: 198, count: 9 }],
+      updatedAt: new Date().toISOString(),
+      ...overrides,
+    });
+  }
+
+  async function buildChildren(
+    fileBehavior: () => string,
+  ): Promise<{ kind: string; label: string; description?: string }[]> {
+    mockFetch.mockReturnValue(
+      Promise.resolve({ ok: true, json: () => Promise.resolve({ models: [{ name: 'bge-m3:latest' }] }) }),
+    );
+    mockReadFileSync.mockImplementation(fileBehavior);
+    const provider = new OllamaProvider(THROTTLE_PATH);
+    try {
+      await (provider as unknown as { _poll(): Promise<void> })._poll();
+      const items = await provider.getChildren();
+      return items.map((i) => ({
+        kind: i.kind,
+        label: String(i.label),
+        description: typeof i.description === 'string' ? i.description : undefined,
+      }));
+    } finally {
+      provider.dispose();
+    }
+  }
+
+  it('inserts throttle state + embeddings rows after the header when fresh', async () => {
+    const rows = await buildChildren(() => freshThrottle());
+    expect(rows[0].kind).toBe('header');
+    expect(rows[1].kind).toBe('throttle');
+    expect(rows[1].description).toBe('NORMAL');
+    expect(rows[2].kind).toBe('throttle');
+    expect(rows[2].label).toBe('embeddings');
+    expect(rows[2].description).toContain('直近 245ms');
+    expect(rows[2].description).toContain('基準 198ms');
+    expect(rows[2].description).toContain('×1.24');
+  });
+
+  it('omits throttle rows when the file is stale', async () => {
+    const stale = freshThrottle({ updatedAt: new Date(Date.now() - 120_000).toISOString() });
+    const rows = await buildChildren(() => stale);
+    expect(rows.some((r) => r.kind === 'throttle')).toBe(false);
+  });
+
+  it('omits throttle rows when the file is absent (ENOENT)', async () => {
+    const rows = await buildChildren(() => {
+      throw Object.assign(new Error('no file'), { code: 'ENOENT' });
+    });
+    expect(rows.some((r) => r.kind === 'throttle')).toBe(false);
+  });
+
+  it('omits throttle rows when throttle is disabled', async () => {
+    const rows = await buildChildren(() => freshThrottle({ enabled: false }));
+    expect(rows.some((r) => r.kind === 'throttle')).toBe(false);
+  });
+
+  it('marks the baseline provisional when count < 5', async () => {
+    const rows = await buildChildren(() =>
+      freshThrottle({ entries: [{ op: 'embeddings', model: 'bge-m3:latest', lastLatencyMs: 245, ewmaMs: 198, count: 3 }] }),
+    );
+    const embeddings = rows.find((r) => r.label === 'embeddings');
+    expect(embeddings?.description).toContain('(測定中)');
   });
 });
