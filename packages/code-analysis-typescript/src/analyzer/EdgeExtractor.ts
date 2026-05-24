@@ -1,7 +1,12 @@
 import ts from 'typescript';
 import path from 'node:path';
+import fs from 'node:fs';
 import type { ImportKind, TrailEdge, TrailNode } from '@anytime-markdown/code-analysis-core/model';
 import type { ProjectAnalyzer } from './ProjectAnalyzer';
+import {
+  resolveDeclarationToSource,
+  type DeclarationSourceResolverDeps,
+} from './declarationSourceResolver';
 
 export interface EdgeExtractorResult {
   readonly edges: TrailEdge[];
@@ -28,6 +33,10 @@ export class EdgeExtractor {
   private readonly nodes: readonly TrailNode[];
   private readonly symbolToNodeId: Map<ts.Symbol, string>;
   private nodeIndex: Map<string, TrailNode>;
+  /** ファイルノードの絶対パス集合（宣言ファイル救済の照合用、初回構築でメモ化）。 */
+  private fileNodeAbsPaths?: ReadonlySet<string>;
+  /** findPackageDir のディレクトリ単位キャッシュ。 */
+  private readonly packageDirCache = new Map<string, string | null>();
 
   constructor(analyzer: ProjectAnalyzer, nodes: readonly TrailNode[]) {
     this.analyzer = analyzer;
@@ -118,6 +127,95 @@ export class EdgeExtractor {
     return this.nodeIndex.get(`${relativePath}::${name}`);
   }
 
+  /**
+   * 宣言ファイル(.d.ts)への解決を、同一 in-repo パッケージの実ソースノードへ
+   * 張り直す。救済不可（外部依存・対応ソース無し）の場合は null。
+   */
+  private recoverDeclarationSource(
+    declAbs: string,
+    root: string,
+    diagnostics: string[],
+  ): string | null {
+    // preserveSymlinks 環境では node_modules シンボリックリンク経由で返ることが
+    // あるため、projectRoot 判定前に実体パスへ正規化する。
+    let real = declAbs;
+    try {
+      real = fs.realpathSync(declAbs);
+    } catch (err) {
+      diagnostics.push(
+        `realpath failed for ${declAbs}: ${(err as Error).message}`,
+      );
+      real = declAbs;
+    }
+    const deps: DeclarationSourceResolverDeps = {
+      readDeclarationMapSources: (p) => this.readDeclarationMapSources(p, diagnostics),
+      findPackageDir: (p) => this.findPackageDir(p),
+    };
+    return resolveDeclarationToSource(real, root, this.getFileNodeAbsPaths(root), deps);
+  }
+
+  private getFileNodeAbsPaths(root: string): ReadonlySet<string> {
+    if (!this.fileNodeAbsPaths) {
+      const set = new Set<string>();
+      for (const node of this.nodes) {
+        if (node.type === 'file') set.add(path.resolve(root, node.filePath));
+      }
+      this.fileNodeAbsPaths = set;
+    }
+    return this.fileNodeAbsPaths;
+  }
+
+  /** declarationMap(.d.ts.map) から元ソースの絶対パスを返す。無ければ空配列。 */
+  private readDeclarationMapSources(declFilePath: string, diagnostics: string[]): string[] {
+    const mapPath = `${declFilePath}.map`;
+    let raw: string;
+    try {
+      raw = fs.readFileSync(mapPath, 'utf8');
+    } catch (err) {
+      // .d.ts.map が無いのは通常ケース（declarationMap 未出力）なので ENOENT は無視
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        diagnostics.push(
+          `Failed to read declaration map ${mapPath}: ${(err as Error).message}`,
+        );
+      }
+      return [];
+    }
+    try {
+      const json = JSON.parse(raw) as { sources?: string[]; sourceRoot?: string };
+      const sources = json.sources ?? [];
+      const mapDir = path.dirname(mapPath);
+      const sourceRoot = json.sourceRoot ?? '';
+      return sources.map((s) => path.resolve(mapDir, sourceRoot, s));
+    } catch (err) {
+      diagnostics.push(
+        `Failed to parse declaration map ${mapPath}: ${(err as Error).message}`,
+      );
+      return [];
+    }
+  }
+
+  /** 指定ファイルの最近接 package.json ディレクトリ（絶対パス）。無ければ null。 */
+  private findPackageDir(filePath: string): string | null {
+    const startDir = path.dirname(filePath);
+    const cached = this.packageDirCache.get(startDir);
+    if (cached !== undefined) return cached;
+
+    const fsRoot = path.parse(startDir).root;
+    let cursor = startDir;
+    while (true) {
+      if (fs.existsSync(path.join(cursor, 'package.json'))) {
+        this.packageDirCache.set(startDir, cursor);
+        return cursor;
+      }
+      if (cursor === fsRoot) break;
+      const parent = path.dirname(cursor);
+      if (parent === cursor) break;
+      cursor = parent;
+    }
+    this.packageDirCache.set(startDir, null);
+    return null;
+  }
+
   private extractImportEdges(
     sourceFile: ts.SourceFile,
     checker: ts.TypeChecker,
@@ -149,7 +247,13 @@ export class EdgeExtractor {
         return;
       }
       const targetFile = declarations[0].getSourceFile();
-      const targetRelative = path.relative(root, targetFile.fileName);
+      // 宣言ファイル(.d.ts)はノード除外されるため、in-repo パッケージの
+      // ビルド成果物経由で参照された場合はエッジが消える。同一パッケージの
+      // 実ソースノードへ張り直してエッジを救済する（外部依存・救済不可は元のまま）。
+      const targetFileName = targetFile.isDeclarationFile
+        ? this.recoverDeclarationSource(targetFile.fileName, root, diagnostics) ?? targetFile.fileName
+        : targetFile.fileName;
+      const targetRelative = path.relative(root, targetFileName);
       const targetFileNodeId = `file::${targetRelative}`;
       if (sourceFileNodeId === targetFileNodeId) return;
       edges.push({
