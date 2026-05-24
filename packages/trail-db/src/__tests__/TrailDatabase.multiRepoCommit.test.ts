@@ -132,7 +132,7 @@ describe('TrailDatabase.resolveCommits multi-repo', () => {
     );
 
     expect(db.getCommitFiles(['hash-a'])).toEqual([
-      { repo_name: 'repo-a', commit_hash: 'hash-a', file_path: 'a.txt' },
+      { repo_id: repoId, repo_name: 'repo-a', commit_hash: 'hash-a', file_path: 'a.txt' },
     ]);
   });
 
