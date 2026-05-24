@@ -1,112 +1,12 @@
 // packages/trail-core/src/analyzer/FlowAnalyzer.ts
 import ts from 'typescript';
 import type { FlowGraph, FlowNode, FlowEdge } from './flowTypes';
+import { extractCfg } from './cfg/TsCfgExtractor';
+import { flowGraphFromCfg } from './cfg/flowGraphFromCfg';
 
 let nodeCounter = 0;
 function nextId(prefix: string): string {
   return `${prefix}_${++nodeCounter}`;
-}
-
-function linkPrev(edges: FlowEdge[], prevIds: string[], toId: string): void {
-  for (const p of prevIds) edges.push({ from: p, to: toId });
-}
-
-function visitIfStatement(
-  stmt: ts.IfStatement,
-  sf: ts.SourceFile,
-  nodes: FlowNode[],
-  edges: FlowEdge[],
-  prevIds: string[],
-  endId: string,
-  line: number,
-): string[] {
-  const condText = stmt.expression.getText(sf).slice(0, 40);
-  const nodeId = nextId('decision');
-  nodes.push({ id: nodeId, label: condText, kind: 'decision', line });
-  linkPrev(edges, prevIds, nodeId);
-
-  const trueNodeId = nextId('process');
-  nodes.push({ id: trueNodeId, label: 'then', kind: 'process' });
-  edges.push({ from: nodeId, to: trueNodeId, label: 'true' });
-  const thenOut = FlowAnalyzer.visitStatement(stmt.thenStatement, sf, nodes, edges, [trueNodeId], endId);
-
-  if (!stmt.elseStatement) return [...thenOut, nodeId];
-
-  const falseNodeId = nextId('process');
-  nodes.push({ id: falseNodeId, label: 'else', kind: 'process' });
-  edges.push({ from: nodeId, to: falseNodeId, label: 'false' });
-  const elseOut = FlowAnalyzer.visitStatement(stmt.elseStatement, sf, nodes, edges, [falseNodeId], endId);
-  return [...thenOut, ...elseOut];
-}
-
-function visitLoopStatement(
-  stmt: ts.ForStatement | ts.WhileStatement | ts.DoStatement,
-  sf: ts.SourceFile,
-  nodes: FlowNode[],
-  edges: FlowEdge[],
-  prevIds: string[],
-  line: number,
-): string[] {
-  const nodeId = nextId('loop');
-  nodes.push({ id: nodeId, label: stmt.getText(sf).slice(0, 30) + '…', kind: 'loop', line });
-  linkPrev(edges, prevIds, nodeId);
-  return [nodeId];
-}
-
-function visitTryStatement(
-  stmt: ts.TryStatement,
-  sf: ts.SourceFile,
-  nodes: FlowNode[],
-  edges: FlowEdge[],
-  prevIds: string[],
-  endId: string,
-  line: number,
-): string[] {
-  const tryId = nextId('process');
-  nodes.push({ id: tryId, label: 'try', kind: 'process', line });
-  linkPrev(edges, prevIds, tryId);
-
-  const tryOut = FlowAnalyzer.visitBlock(stmt.tryBlock, sf, nodes, edges, [tryId], endId);
-  if (!stmt.catchClause) return tryOut;
-
-  const catchId = nextId('error');
-  nodes.push({ id: catchId, label: 'catch', kind: 'error', line });
-  edges.push({ from: tryId, to: catchId, label: 'error' });
-  const catchOut = FlowAnalyzer.visitBlock(stmt.catchClause.block, sf, nodes, edges, [catchId], endId);
-  return [...tryOut, ...catchOut];
-}
-
-function visitReturnStatement(
-  stmt: ts.ReturnStatement,
-  sf: ts.SourceFile,
-  nodes: FlowNode[],
-  edges: FlowEdge[],
-  prevIds: string[],
-  endId: string,
-  line: number,
-): string[] {
-  const nodeId = nextId('return');
-  const label = stmt.expression ? `return ${stmt.expression.getText(sf).slice(0, 30)}` : 'return';
-  nodes.push({ id: nodeId, label, kind: 'return', line });
-  linkPrev(edges, prevIds, nodeId);
-  edges.push({ from: nodeId, to: endId });
-  return [];
-}
-
-function visitThrowStatement(
-  stmt: ts.ThrowStatement,
-  sf: ts.SourceFile,
-  nodes: FlowNode[],
-  edges: FlowEdge[],
-  prevIds: string[],
-  endId: string,
-  line: number,
-): string[] {
-  const nodeId = nextId('error');
-  nodes.push({ id: nodeId, label: `throw ${stmt.expression.getText(sf).slice(0, 30)}`, kind: 'error', line });
-  linkPrev(edges, prevIds, nodeId);
-  edges.push({ from: nodeId, to: endId });
-  return [];
 }
 
 export class FlowAnalyzer {
@@ -117,86 +17,9 @@ export class FlowAnalyzer {
     sf: ts.SourceFile,
     funcNode: ts.FunctionDeclaration | ts.MethodDeclaration | ts.ArrowFunction | ts.FunctionExpression,
   ): FlowGraph {
-    nodeCounter = 0;
-    const nodes: FlowNode[] = [];
-    const edges: FlowEdge[] = [];
-
-    const startId = nextId('start');
-    const endId = nextId('end');
-    nodes.push({ id: startId, label: 'start', kind: 'start' }, { id: endId, label: 'end', kind: 'end' });
-
-    const hasDeclaredBody = ts.isFunctionDeclaration(funcNode) || ts.isMethodDeclaration(funcNode) || ts.isFunctionExpression(funcNode);
-    const body = hasDeclaredBody
-      ? funcNode.body
-      : (ts.isBlock(funcNode.body) ? funcNode.body : undefined);
-
-    if (!body) {
-      edges.push({ from: startId, to: endId });
-      return { nodes, edges };
-    }
-
-    const lastIds = FlowAnalyzer.visitBlock(body, sf, nodes, edges, [startId], endId);
-    for (const id of lastIds) {
-      edges.push({ from: id, to: endId });
-    }
-
-    return { nodes, edges };
-  }
-
-  /** @internal Used by module-level flow helpers */
-  static visitBlock(
-    block: ts.Block,
-    sf: ts.SourceFile,
-    nodes: FlowNode[],
-    edges: FlowEdge[],
-    prevIds: string[],
-    endId: string,
-  ): string[] {
-    let current = prevIds;
-    for (const stmt of block.statements) {
-      current = FlowAnalyzer.visitStatement(stmt, sf, nodes, edges, current, endId);
-    }
-    return current;
-  }
-
-  /** @internal Used by module-level flow helpers */
-  static visitStatement(
-    stmt: ts.Statement,
-    sf: ts.SourceFile,
-    nodes: FlowNode[],
-    edges: FlowEdge[],
-    prevIds: string[],
-    endId: string,
-  ): string[] {
-    const line = sf.getLineAndCharacterOfPosition(stmt.getStart()).line + 1;
-
-    if (ts.isIfStatement(stmt)) {
-      return visitIfStatement(stmt, sf, nodes, edges, prevIds, endId, line);
-    }
-    if (ts.isForStatement(stmt) || ts.isWhileStatement(stmt) || ts.isDoStatement(stmt)) {
-      return visitLoopStatement(stmt, sf, nodes, edges, prevIds, line);
-    }
-    if (ts.isTryStatement(stmt)) {
-      return visitTryStatement(stmt, sf, nodes, edges, prevIds, endId, line);
-    }
-    if (ts.isReturnStatement(stmt)) {
-      return visitReturnStatement(stmt, sf, nodes, edges, prevIds, endId, line);
-    }
-    if (ts.isThrowStatement(stmt)) {
-      return visitThrowStatement(stmt, sf, nodes, edges, prevIds, endId, line);
-    }
-    if (ts.isBlock(stmt)) {
-      return FlowAnalyzer.visitBlock(stmt, sf, nodes, edges, prevIds, endId);
-    }
-
-    // ExpressionStatement またはその他の文（宣言など）は process として扱う
-    const label = ts.isExpressionStatement(stmt)
-      ? stmt.expression.getText(sf).slice(0, 40)
-      : stmt.getText(sf).slice(0, 40);
-    const nodeId = nextId('process');
-    nodes.push({ id: nodeId, label, kind: 'process', line });
-    for (const p of prevIds) edges.push({ from: p, to: nodeId });
-    return [nodeId];
+    // 言語非依存の CFG-IR を経由して FlowGraph を生成する（flow/sequence で抽出器を共有）。
+    // 出力は従来の AST 直接走査と完全一致（cfg/__tests__ の parity テストで担保）。
+    return flowGraphFromCfg(extractCfg(sf, funcNode));
   }
 
   /**
