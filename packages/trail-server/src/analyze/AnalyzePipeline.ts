@@ -5,6 +5,7 @@ import { ExecFileGitService } from '@anytime-markdown/trail-db';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { loadAnalyzeExclude, seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
+import { discoverPythonFiles } from '@anytime-markdown/code-analysis-python';
 
 import type { Logger } from '../runtime/Logger';
 import type { CodeGraphService } from './CodeGraphService';
@@ -59,6 +60,15 @@ export function findTsconfigCandidates(analysisRoot: string): TsconfigCandidate[
       return { fsPath, rel, depth: rel.split(path.sep).length };
     })
     .sort((a, b) => (a.depth !== b.depth ? a.depth - b.depth : a.rel.localeCompare(b.rel)));
+}
+
+/**
+ * `analysisRoot` 配下に解析対象の Python ファイルが存在するか。
+ * tsconfig が無い場合に Python-only 解析へフォールバックするかの判定に使う。
+ * analyze-exclude を反映する（discoverPythonFiles が exclude を受け取る）。
+ */
+export function hasPythonFiles(analysisRoot: string): boolean {
+  return discoverPythonFiles(analysisRoot, loadAnalyzeExclude(analysisRoot)).length > 0;
 }
 
 const NOOP_LOGGER: Logger = {
