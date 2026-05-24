@@ -230,13 +230,41 @@ export async function runAnalyzeCurrentCodePipeline(
         `C4 analysis [${repoName}]: classified ${categoryByFile.size} files (ui/logic/excluded)`,
       );
 
+      // Phase 2 方針 A: 混在リポ（tsconfig あり + .py あり）で Python importance を結合する。
+      // TS scored（program ベース）はそのまま、Python ファイルがあれば PythonAdapter で
+      // 算出した ScoredFunction(language='python') を追記し、同一の永続化へ流す。
+      let scored = importanceResult.scored;
+      let lineCountByFile: ReadonlyMap<string, number> = importanceResult.lineCountByFile;
+      try {
+        const { computePythonImportance } = await import('./computePythonImportance.js');
+        const py = await computePythonImportance({
+          repoRoot: analysisRoot,
+          exclude,
+          pythonWasmPath: codeGraphService.getPythonWasmPath(),
+          logger,
+        });
+        if (py.scored.length > 0) {
+          scored = [...importanceResult.scored, ...py.scored];
+          const merged = new Map(importanceResult.lineCountByFile);
+          for (const [rel, count] of py.lineCountByFile) merged.set(rel, count);
+          lineCountByFile = merged;
+          logger.info(
+            `C4 analysis [${repoName}]: python importance computed (${py.scored.length} functions)`,
+          );
+        }
+      } catch (err) {
+        const msg = `python importance failed: ${err instanceof Error ? err.message : String(err)}`;
+        logger.warn(`C4 analysis [${repoName}]: ${msg}`);
+        warnings.push(msg);
+      }
+
       const { computeAndPersistFileAnalysis } = await import('./computeAndPersistFileAnalysis.js');
       const { fileRows, functionRows } = await computeAndPersistFileAnalysis({
         analysisRoot,
         repoName,
         trailDb,
-        scored: importanceResult.scored,
-        lineCountByFile: importanceResult.lineCountByFile,
+        scored,
+        lineCountByFile,
         categoryByFile,
       });
       logger.info(

@@ -234,6 +234,11 @@ export class CodeGraphService {
     };
   }
 
+  /** bundle 環境で注入された tree-sitter-python.wasm の絶対パス（Node 実行時は undefined）。 */
+  getPythonWasmPath(): string | undefined {
+    return this.config.pythonWasmPath;
+  }
+
   /** TS + Python のアナライザを登録したレジストリ（遅延生成）。 */
   private getLanguageRegistry(): LanguageRegistry {
     if (!this.languageRegistry) {

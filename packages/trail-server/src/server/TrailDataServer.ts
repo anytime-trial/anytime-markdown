@@ -2900,17 +2900,27 @@ export class TrailDataServer {
         res.end(JSON.stringify({ symbols: [] }));
         return;
       }
-      let sourceFile;
+      let content: string;
       try {
-        const content = fs.readFileSync(absolutePath, 'utf-8');
-        sourceFile = createSourceFile(node.filePath, content);
+        content = fs.readFileSync(absolutePath, 'utf-8');
       } catch (e) {
         this.logger.error(`[/api/c4/functions] failed to read file: ${node.filePath}`, e);
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ symbols: [] }));
         return;
       }
-      const symbols = ExportExtractor.extract([sourceFile], elementId);
+      // Python は tree-sitter ベースの PythonExportExtractor、それ以外は TS の ExportExtractor。
+      let symbols: import('@anytime-markdown/trail-core/analyzer').ExportedSymbol[];
+      if (node.filePath.endsWith('.py')) {
+        const { createPythonParser, PythonExportExtractor } = await import('@anytime-markdown/code-analysis-python');
+        const parser = await createPythonParser(this.codeGraphService?.getPythonWasmPath());
+        const tree = parser.parse(content);
+        symbols = tree ? PythonExportExtractor.extract(node.filePath, tree.rootNode) : [];
+        tree?.delete();
+      } else {
+        const sourceFile = createSourceFile(node.filePath, content);
+        symbols = ExportExtractor.extract([sourceFile], elementId);
+      }
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ symbols }));
     } catch (e) {
