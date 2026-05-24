@@ -1,13 +1,16 @@
 import type { Node } from 'web-tree-sitter';
 import type { TrailEdge } from '@anytime-markdown/code-analysis-core/model';
+import { PythonNameResolver } from './PythonNameResolver';
 
 type ResolveModule = (module: string, fromRel: string) => string | undefined;
 
 /**
- * Python ツリーから import（file→file）と inheritance エッジを抽出する。
- * call/type_use は意味解決が必要なため Phase 2 で追加する。
+ * Python ツリーから import（file→file）・inheritance・call エッジを抽出する。
+ * type_use は TS EdgeExtractor でも未実装のためパリティ維持で対象外。
  * id 規約は SymbolExtractor と同一（file::<rel> / <parentId>::<name>）。
  * inheritance は単純基底（identifier）のみ解決: from-import 束縛 or 同一ファイル class。
+ * call は PythonNameResolver による自前名前解決（import 束縛 + 同一ファイル関数 +
+ * 囲い関数追跡）で近似する。解決できない呼び出し（attribute・動的）はスキップする。
  */
 export class PythonEdgeExtractor {
   constructor(private readonly resolveModule: ResolveModule) {}
@@ -19,7 +22,24 @@ export class PythonEdgeExtractor {
     const localClasses = this.collectLocalClassNames(root);
     this.collectImports(root, relPath, fileId, edges, bindings);
     this.collectInheritance(root, fileId, edges, bindings, localClasses);
+    this.collectCalls(root, relPath, edges);
     return edges;
+  }
+
+  private collectCalls(root: Node, relPath: string, edges: TrailEdge[]): void {
+    const resolver = new PythonNameResolver(relPath, root, this.resolveModule);
+    const visit = (node: Node): void => {
+      if (node.type === 'call') {
+        const target = resolver.resolveCallee(node);
+        if (target) {
+          edges.push({ source: resolver.enclosingFunctionId(node), target, type: 'call' });
+        }
+      }
+      for (const child of node.namedChildren) {
+        if (child) visit(child);
+      }
+    };
+    visit(root);
   }
 
   private defOf(node: Node | null): Node | null {

@@ -39,4 +39,31 @@ describe('PythonEdgeExtractor', () => {
       type: 'inheritance',
     });
   });
+
+  it('extracts cross-file call edge (adopt -> make_dog) via import binding', async () => {
+    const edges = await edgesFor('app.py');
+    expect(edges).toContainEqual({
+      source: 'file::app.py::adopt',
+      target: 'file::pkg/models.py::make_dog',
+      type: 'call',
+    });
+  });
+
+  it('extracts same-file call edge (main -> adopt)', async () => {
+    const edges = await edgesFor('app.py');
+    expect(edges).toContainEqual({
+      source: 'file::app.py::main',
+      target: 'file::app.py::adopt',
+      type: 'call',
+    });
+  });
+
+  it('does not emit call edges for unresolvable calls (Puppy(), obj.fetch())', async () => {
+    const edges = await edgesFor('app.py');
+    const calls = edges.filter((e) => e.type === 'call');
+    expect(calls).toEqual([
+      { source: 'file::app.py::adopt', target: 'file::pkg/models.py::make_dog', type: 'call' },
+      { source: 'file::app.py::main', target: 'file::app.py::adopt', type: 'call' },
+    ]);
+  });
 });
