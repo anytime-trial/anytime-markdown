@@ -1,9 +1,6 @@
-export { ProjectAnalyzer } from './ProjectAnalyzer';
-export { SymbolExtractor } from './SymbolExtractor';
-export { EdgeExtractor } from './EdgeExtractor';
-export { ExportExtractor } from './ExportExtractor';
+export { ProjectAnalyzer, SymbolExtractor, EdgeExtractor, createSourceFile, findFunctionNode } from '@anytime-markdown/code-analysis-typescript/analyzer';
 export { type FilterConfig, applyFilter } from './FilterConfig';
+export { ExportExtractor } from './ExportExtractor';
 export type { FlowGraph, FlowNode, FlowEdge, FlowNodeKind, ExportedSymbol } from './flowTypes';
 export { FlowAnalyzer } from './FlowAnalyzer';
 export { SequenceAnalyzer } from './SequenceAnalyzer';
-export { createSourceFile, findFunctionNode } from './sourceFileFactory';

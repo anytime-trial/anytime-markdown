@@ -14,7 +14,7 @@ import type {
   SequenceParticipant,
   SequenceStep,
 } from '@anytime-markdown/trace-core/c4Sequence';
-import { findFunctionNode } from './sourceFileFactory';
+import { findFunctionNode } from '@anytime-markdown/code-analysis-typescript/analyzer';
 
 const MAX_STEPS = 500;
 const MAX_CONDITION_LEN = 60;

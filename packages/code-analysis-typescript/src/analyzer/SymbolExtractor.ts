@@ -1,6 +1,6 @@
 import ts from 'typescript';
 import path from 'node:path';
-import type { TrailNode } from '../model/types';
+import type { TrailNode } from '@anytime-markdown/code-analysis-core/model';
 import type { ProjectAnalyzer } from './ProjectAnalyzer';
 
 export class SymbolExtractor {
@@ -179,7 +179,7 @@ function extractVariableSymbol(
   parentId: string,
   relativePath: string,
   line: number,
-): import('../model/types').TrailNode | null {
+): import('@anytime-markdown/code-analysis-core/model').TrailNode | null {
   const statement = node.parent?.parent;
   if (!statement || !ts.isVariableStatement(statement)) return null;
 

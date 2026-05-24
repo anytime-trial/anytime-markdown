@@ -1,6 +1,6 @@
 import ts from 'typescript';
 import path from 'node:path';
-import type { ImportKind, TrailEdge, TrailNode } from '../model/types';
+import type { ImportKind, TrailEdge, TrailNode } from '@anytime-markdown/code-analysis-core/model';
 import type { ProjectAnalyzer } from './ProjectAnalyzer';
 
 export interface EdgeExtractorResult {
