@@ -38,6 +38,8 @@ describe('runAnalyzeCurrentCodePipeline (Python-only, no tsconfig)', () => {
     fs.writeFileSync(path.join(repoRoot, 'app.py'), APP_PY);
     fs.writeFileSync(path.join(repoRoot, 'pkg', '__init__.py'), '');
     fs.writeFileSync(path.join(repoRoot, 'pkg', 'models.py'), MODELS_PY);
+    fs.mkdirSync(path.join(repoRoot, 'views'), { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, 'views', 'home.py'), 'def index():\n    return "home"\n');
     const repoName = path.basename(repoRoot);
 
     try {
@@ -67,6 +69,12 @@ describe('runAnalyzeCurrentCodePipeline (Python-only, no tsconfig)', () => {
       const c4 = await trailDb.asC4ModelStore().getCurrentC4Model(repoName);
       expect(c4).not.toBeNull();
       expect(c4!.model.elements.length).toBeGreaterThan(0);
+
+      // views/ 配下は PythonFileClassifier で ui に分類される
+      const fileRows = trailDb.getCurrentFileAnalysis(repoName);
+      const viewRow = fileRows.find((r) => r.filePath === 'views/home.py');
+      expect(viewRow).toBeDefined();
+      expect(viewRow!.category).toBe('ui');
     } finally {
       fs.rmSync(repoRoot, { recursive: true, force: true });
     }
