@@ -17,8 +17,12 @@ import {
   buildImportAllPhaseDisplay,
   IMPORT_ALL_PHASE_ORDER,
   BACKUP_GROUP_LABEL,
+  WAVE1_GROUP_LABEL,
   WAVE2_GROUP_LABEL,
   WAVE3_GROUP_LABEL,
+  WAVE4_GROUP_LABEL,
+  WAVE1_SOURCE_IDS,
+  WAVE4_DERIVED_IDS,
 } from '../providers/PipelineProvider';
 
 /** Wave グループ (親) を label で取得する。 */
@@ -119,7 +123,7 @@ describe('PipelineProvider.getChildren() — Wave グルーピング', () => {
     provider?.dispose();
   });
 
-  it('トップレベルは Backup → Wave 2 → Wave 3 の折りたたみ可能な親ノード', async () => {
+  it('トップレベルは Backup → Wave 1 → Wave 2 → Wave 3 → Wave 4 の折りたたみ可能な親ノード', async () => {
     const statusPath = '/fake/pipeline-status.json';
     mockExistsSync.mockImplementation((p: string) => p === statusPath);
     mockReadFileSync.mockReturnValue(JSON.stringify({
@@ -133,14 +137,56 @@ describe('PipelineProvider.getChildren() — Wave グルーピング', () => {
 
     expect(groups.map((g) => g.label)).toEqual([
       BACKUP_GROUP_LABEL,
+      WAVE1_GROUP_LABEL,
       WAVE2_GROUP_LABEL,
       WAVE3_GROUP_LABEL,
+      WAVE4_GROUP_LABEL,
     ]);
     // 親ノードは kind='group' / Expanded で折りたためる。
     for (const g of groups) {
       expect(g.kind).toBe('group');
       expect(g.collapsibleState).toBe(2 /* TreeItemCollapsibleState.Expanded */);
     }
+  });
+
+  it('Wave 1 グループは ingester 群を状態「—」の静的エントリで並べる', async () => {
+    mockExistsSync.mockReturnValue(false);
+    provider = new PipelineProvider({ dbFilePath });
+
+    const wave1 = await getGroupChildren(provider, WAVE1_GROUP_LABEL);
+    expect(wave1.map((c) => c.label)).toEqual([...WAVE1_SOURCE_IDS]);
+    expect(wave1[0].label).toBe('JsonlIngester');
+    for (const item of wave1) {
+      expect(item.kind).toBe('pipeline');
+      expect(item.description).toBe('—');
+      expect(item.contextValue).toBe('trailPipelineStatic');
+    }
+  });
+
+  it('Wave 4 グループは aggregator 群を状態「—」の静的エントリで並べる', async () => {
+    mockExistsSync.mockReturnValue(false);
+    provider = new PipelineProvider({ dbFilePath });
+
+    const wave4 = await getGroupChildren(provider, WAVE4_GROUP_LABEL);
+    expect(wave4.map((c) => c.label)).toEqual([...WAVE4_DERIVED_IDS]);
+    for (const item of wave4) {
+      expect(item.description).toBe('—');
+      expect(item.contextValue).toBe('trailPipelineStatic');
+    }
+  });
+
+  it('Wave 1 / Wave 4 は dbFilePath なしでは表示しない', async () => {
+    const statusPath = '/fake/pipeline-status.json';
+    mockExistsSync.mockImplementation((p: string) => p === statusPath);
+    mockReadFileSync.mockReturnValue(JSON.stringify({
+      updated_at: '2026-05-11T22:00:00.000Z',
+      run_id: 'r1',
+      pipelines: [{ scope: 'embedding_backfill', state: 'pending' }],
+    }));
+    provider = new PipelineProvider({ statusFilePath: statusPath });
+
+    const groups = await provider.getChildren();
+    expect(groups.map((g) => g.label)).toEqual([WAVE3_GROUP_LABEL]);
   });
 
   it('import_sessions は Wave 2 グループ配下に並ぶ', async () => {
@@ -211,7 +257,7 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
     expect(backupChildren[0].description).toContain(fakeMtime.toLocaleString());
   });
 
-  it('表示順: Backup[trail.db] → Wave 2[8 phases] → Wave 3[memory pipelines]', async () => {
+  it('表示順: Backup → Wave 1 → Wave 2 → Wave 3 → Wave 4', async () => {
     const statusPath = '/fake/pipeline-status.json';
     mockExistsSync.mockImplementation((p: string) => p === statusPath || p === bakPath);
     mockStatSync.mockReturnValue({ size: 1024, mtime: new Date() });
@@ -228,12 +274,16 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
     const groups = await provider.getChildren();
     expect(groups.map((g) => g.label)).toEqual([
       BACKUP_GROUP_LABEL,
+      WAVE1_GROUP_LABEL,
       WAVE2_GROUP_LABEL,
       WAVE3_GROUP_LABEL,
+      WAVE4_GROUP_LABEL,
     ]);
     expect((await getGroupChildren(provider, BACKUP_GROUP_LABEL)).map((c) => c.label)).toEqual(['trail.db']);
+    expect((await getGroupChildren(provider, WAVE1_GROUP_LABEL)).map((c) => c.label)).toEqual([...WAVE1_SOURCE_IDS]);
     expect((await getGroupChildren(provider, WAVE2_GROUP_LABEL)).map((c) => c.label)).toEqual([...IMPORT_ALL_PHASE_ORDER]);
     expect((await getGroupChildren(provider, WAVE3_GROUP_LABEL)).map((c) => c.label)).toEqual(['embedding_backfill']);
+    expect((await getGroupChildren(provider, WAVE4_GROUP_LABEL)).map((c) => c.label)).toEqual([...WAVE4_DERIVED_IDS]);
   });
 
   it('memoryDbFilePath あり / .bak.1.gz 不在: memory backup を Wave 3 配下に pending 表示', async () => {
