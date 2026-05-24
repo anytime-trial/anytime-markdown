@@ -223,12 +223,13 @@ FROM skill_models s`;
 // Phase B-2b-iii flip: PK を tag → release_id 代理キーへ。tag は repo 内で一意な
 // 表示キーとして残し UNIQUE (repo_id, tag) で保証する。prev_tag は prev_release_id へ。
 // repo_name 列は移行互換のため残す (撤去は将来 Phase H)。
+// Phase H-5: 非正規化キャッシュの repo_name 列を物理撤去。repo 帰属は repo_id (repos FK) で表現する。
+// read で repo_name が要る箇所 (SyncService の Supabase trail_releases ミラー含む) は JOIN repos で射影。
 export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS releases (
   release_id INTEGER PRIMARY KEY,
   tag TEXT NOT NULL,
   released_at TEXT CHECK (released_at IS NULL OR released_at = '' OR released_at GLOB ${TS_GLOB_MS} OR released_at GLOB ${TS_GLOB_NO_MS}),
   prev_release_id INTEGER REFERENCES releases(release_id) ON DELETE SET NULL,
-  repo_name TEXT NOT NULL DEFAULT '',
   repo_id INTEGER REFERENCES repos(repo_id) ON DELETE SET NULL,
   package_tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(package_tags)),
   commit_count INTEGER NOT NULL DEFAULT 0,
@@ -443,9 +444,11 @@ export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_
   PRIMARY KEY (repo_id, file_path)
 ) STRICT`;
 
+// Phase H-5: 非正規化キャッシュの repo_name 列を物理撤去。release_id が (repo, tag) を一意に決めるため
+// PK から repo_name を除いた (release_id, file_path) で一意性は保たれる (repo_name は冗長)。read で
+// repo_name が要る箇所 (Supabase trail_release_file_analysis ミラー含む) は releases→repos JOIN で射影。
 export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_file_analysis (
   release_id                 INTEGER NOT NULL REFERENCES releases(release_id) ON DELETE CASCADE,
-  repo_name                  TEXT NOT NULL,
   file_path                  TEXT NOT NULL,
   importance_score           REAL    NOT NULL DEFAULT 0,
   fan_in_total               INTEGER NOT NULL DEFAULT 0,
@@ -468,7 +471,7 @@ export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_
   centrality_score       REAL    NOT NULL DEFAULT 0,
   category                   TEXT NOT NULL DEFAULT 'logic' CHECK (category IN ('ui', 'logic', 'excluded')),
   analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (release_id, repo_name, file_path)
+  PRIMARY KEY (release_id, file_path)
 ) STRICT`;
 
 // Phase C-2 flip: PK の repo_name → repo_id へ置換。
@@ -495,9 +498,11 @@ export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS curr
   PRIMARY KEY (repo_id, file_path, function_name, start_line)
 ) STRICT`;
 
+// Phase H-5: 非正規化キャッシュの repo_name 列を物理撤去。release_id が (repo, tag) を一意に決めるため
+// PK から repo_name を除いた (release_id, file_path, function_name, start_line) で一意性は保たれる。read で
+// repo_name が要る箇所 (Supabase trail_release_function_analysis ミラー含む) は releases→repos JOIN で射影。
 export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_function_analysis (
   release_id             INTEGER NOT NULL REFERENCES releases(release_id) ON DELETE CASCADE,
-  repo_name              TEXT NOT NULL,
   file_path              TEXT NOT NULL,
   function_name          TEXT NOT NULL,
   start_line             INTEGER NOT NULL,
@@ -515,7 +520,7 @@ export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS rele
   distinct_callees INTEGER NOT NULL DEFAULT 0,
   function_role    TEXT NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
   analyzed_at            TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (release_id, repo_name, file_path, function_name, start_line)
+  PRIMARY KEY (release_id, file_path, function_name, start_line)
 ) STRICT`;
 
 // Phase C-2 flip: current_* の PK が repo_id 化されたため、先頭列を repo_id へ揃える。

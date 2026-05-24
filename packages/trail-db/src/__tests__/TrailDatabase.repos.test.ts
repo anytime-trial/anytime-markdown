@@ -8,10 +8,14 @@ type SqlJsDb = {
 };
 const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb }).db;
 
+// Phase H-5: releases.repo_name 列は撤去済。repo 帰属は repo_id (repos FK) で表現する。
+// テストの legacy 「repo_name から repos を seed する」入口を再現するため、repoIdForName で repo_id を解決して
+// (= repos へ upsert される) releases.repo_id に直接書き込む。これにより release は正規化済の状態で seed される。
 const seedRelease = (db: TrailDatabase, tag: string, repoName: string): void => {
+  const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO releases (tag, released_at, repo_name) VALUES (?, ?, ?)`,
-    [tag, '2026-01-01T00:00:00.000Z', repoName],
+    `INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)`,
+    [tag, '2026-01-01T00:00:00.000Z', repoId],
   );
 };
 

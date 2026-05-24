@@ -28,9 +28,11 @@ function inner(db: TrailDatabase): RawDb {
 }
 
 // flip 後 release_coverage は release_id FK。tag の親 release を作り release_id を返す。
+// Phase H-5: releases.repo_name 列は撤去済。本テストは coverage (release_id ベース) を検証するだけで
+// repo 識別に依存しないため repo_id は省略 (NULL) のままにする。
 function seedReleaseAndGetId(db: TrailDatabase, tag: string): number {
   inner(db).run(
-    `INSERT OR IGNORE INTO releases (tag, released_at, repo_name) VALUES (?, '2026-01-01T00:00:00.000Z', 'r')`,
+    `INSERT OR IGNORE INTO releases (tag, released_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
     [tag],
   );
   const res = inner(db).exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);

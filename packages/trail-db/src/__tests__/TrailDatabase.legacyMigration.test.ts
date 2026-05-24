@@ -1058,6 +1058,189 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     db.close();
   });
 
+  it('Phase H-5: releases サブツリーから repo_name を撤去し PK 張替・データ保全・read 契約・冪等を満たす', async () => {
+    // Phase B-2b-iii flip 済の中間スキーマ = release_id PK/FK + repo_id + repo_name 残置 を再現する
+    // (撤去直前の状態)。release_*_analysis は旧 PK に repo_name を含む。撤去後は repo_name が消え、
+    // PK が (release_id, file_path[, function_name, start_line]) へ張り替わり、read は repos を JOIN して
+    // repo_name を結果に復元する (SyncService が Supabase ミラーへ運ぶ契約)。
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+    const colsOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.map((c) => String(c[1]));
+    };
+    const pkOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
+    };
+
+    const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h5-repo');
+    const ts = '2026-05-24T00:00:00.000Z';
+
+    // releases (release_id PK + repo_id + repo_name 残置)。flip 済の中間スキーマを最小列で再現する。
+    inner.run('DROP TABLE IF EXISTS releases');
+    inner.run(`
+      CREATE TABLE releases (
+        release_id INTEGER PRIMARY KEY,
+        tag TEXT NOT NULL,
+        released_at TEXT,
+        prev_release_id INTEGER,
+        repo_name TEXT NOT NULL DEFAULT '',
+        repo_id INTEGER,
+        package_tags TEXT NOT NULL DEFAULT '[]',
+        commit_count INTEGER NOT NULL DEFAULT 0,
+        files_changed INTEGER NOT NULL DEFAULT 0,
+        lines_added INTEGER NOT NULL DEFAULT 0,
+        lines_deleted INTEGER NOT NULL DEFAULT 0,
+        total_lines INTEGER NOT NULL DEFAULT 0,
+        feat_count INTEGER NOT NULL DEFAULT 0,
+        fix_count INTEGER NOT NULL DEFAULT 0,
+        refactor_count INTEGER NOT NULL DEFAULT 0,
+        test_count INTEGER NOT NULL DEFAULT 0,
+        other_count INTEGER NOT NULL DEFAULT 0,
+        affected_packages TEXT NOT NULL DEFAULT '[]',
+        duration_days REAL NOT NULL DEFAULT 0,
+        resolved_at TEXT,
+        release_time_min REAL
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO releases (release_id, tag, released_at, repo_name, repo_id, total_lines) VALUES (1, 'v1.0.0', ?, 'h5-repo', ?, 4200)",
+      [ts, repoId],
+    );
+
+    // release_file_analysis (旧 PK (release_id, repo_name, file_path) + repo_name 残置)。静的 DDL の全列を含む。
+    inner.run('DROP TABLE IF EXISTS release_file_analysis');
+    inner.run(`
+      CREATE TABLE release_file_analysis (
+        release_id INTEGER NOT NULL,
+        repo_name TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        importance_score REAL NOT NULL DEFAULT 0,
+        fan_in_total INTEGER NOT NULL DEFAULT 0,
+        cognitive_complexity_max INTEGER NOT NULL DEFAULT 0,
+        line_count INTEGER NOT NULL DEFAULT 0,
+        cyclomatic_complexity_max INTEGER NOT NULL DEFAULT 0,
+        function_count INTEGER NOT NULL DEFAULT 0,
+        dead_code_score INTEGER NOT NULL DEFAULT 0,
+        signal_orphan INTEGER NOT NULL DEFAULT 0,
+        signal_fan_in_zero INTEGER NOT NULL DEFAULT 0,
+        signal_no_recent_churn INTEGER NOT NULL DEFAULT 0,
+        signal_zero_coverage INTEGER NOT NULL DEFAULT 0,
+        signal_isolated_community INTEGER NOT NULL DEFAULT 0,
+        is_ignored INTEGER NOT NULL DEFAULT 0,
+        ignore_reason TEXT NOT NULL DEFAULT '',
+        cross_pkg_in_count INTEGER NOT NULL DEFAULT 0,
+        external_consumer_pkgs INTEGER NOT NULL DEFAULT 0,
+        total_in_count INTEGER NOT NULL DEFAULT 0,
+        is_barrel INTEGER NOT NULL DEFAULT 0,
+        centrality_score REAL NOT NULL DEFAULT 0,
+        category TEXT NOT NULL DEFAULT 'logic',
+        analyzed_at TEXT NOT NULL,
+        PRIMARY KEY (release_id, repo_name, file_path)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO release_file_analysis (release_id, repo_name, file_path, dead_code_score, analyzed_at) VALUES (1, 'h5-repo', 'src/h5.ts', 88, ?)",
+      [ts],
+    );
+
+    // release_function_analysis (旧 PK (release_id, repo_name, file_path, function_name, start_line) + repo_name 残置)。
+    inner.run('DROP TABLE IF EXISTS release_function_analysis');
+    inner.run(`
+      CREATE TABLE release_function_analysis (
+        release_id INTEGER NOT NULL,
+        repo_name TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        function_name TEXT NOT NULL,
+        start_line INTEGER NOT NULL,
+        end_line INTEGER NOT NULL DEFAULT 0,
+        language TEXT NOT NULL DEFAULT '',
+        fan_in INTEGER NOT NULL DEFAULT 0,
+        cognitive_complexity INTEGER NOT NULL DEFAULT 0,
+        cyclomatic_complexity INTEGER NOT NULL DEFAULT 0,
+        data_mutation_score INTEGER NOT NULL DEFAULT 0,
+        side_effect_score INTEGER NOT NULL DEFAULT 0,
+        line_count INTEGER NOT NULL DEFAULT 0,
+        importance_score REAL NOT NULL DEFAULT 0,
+        signal_fan_in_zero INTEGER NOT NULL DEFAULT 0,
+        fan_out INTEGER NOT NULL DEFAULT 0,
+        distinct_callees INTEGER NOT NULL DEFAULT 0,
+        function_role TEXT NOT NULL DEFAULT 'peripheral',
+        analyzed_at TEXT NOT NULL,
+        PRIMARY KEY (release_id, repo_name, file_path, function_name, start_line)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO release_function_analysis (release_id, repo_name, file_path, function_name, start_line, fan_in, analyzed_at) VALUES (1, 'h5-repo', 'src/h5.ts', 'foo', 1, 5, ?)",
+      [ts],
+    );
+
+    // createTables を再実行 → H-5 drop migration が repo_name を撤去する。例外なく完了すること。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+
+    const targetTables = ['releases', 'release_file_analysis', 'release_function_analysis'];
+    // 3 テーブルから repo_name が消えている。
+    for (const t of targetTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+    }
+    // releases は repo_id を残す。release_*_analysis は repo_id を持たず release_id FK で repo 帰属を表す。
+    expect(colsOf('releases')).toContain('repo_id');
+    expect(colsOf('release_file_analysis')).toContain('release_id');
+    expect(colsOf('release_function_analysis')).toContain('release_id');
+
+    // PK 張替: releases は release_id 単独 (不変)、release_*_analysis は repo_name を除いた新 PK。
+    expect(pkOf('releases')).toEqual(['release_id']);
+    expect(pkOf('release_file_analysis')).toEqual(['file_path', 'release_id']);
+    expect(pkOf('release_function_analysis')).toEqual(['file_path', 'function_name', 'release_id', 'start_line']);
+
+    // データ保全: 行が残り、release_id・主要指標が保持されている。
+    expect(Number(inner.exec("SELECT repo_id FROM releases WHERE tag = 'v1.0.0'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT total_lines FROM releases WHERE tag = 'v1.0.0'")[0]?.values?.[0]?.[0])).toBe(4200);
+    expect(Number(inner.exec("SELECT dead_code_score FROM release_file_analysis WHERE release_id = 1 AND file_path = 'src/h5.ts'")[0]?.values?.[0]?.[0])).toBe(88);
+    expect(Number(inner.exec("SELECT fan_in FROM release_function_analysis WHERE release_id = 1 AND file_path = 'src/h5.ts' AND function_name = 'foo'")[0]?.values?.[0]?.[0])).toBe(5);
+
+    // 重複が生じないこと: 新 PK (release_id, file_path[, ...]) は理論上一意のため row 数は不変 (各 1)。
+    expect(Number(inner.exec('SELECT COUNT(*) FROM release_file_analysis')[0]?.values?.[0]?.[0])).toBe(1);
+    expect(Number(inner.exec('SELECT COUNT(*) FROM release_function_analysis')[0]?.values?.[0]?.[0])).toBe(1);
+
+    // read 契約: getReleases は repos JOIN で repo_name を復元する (Supabase trail_releases ミラー)。
+    expect(db.getReleases().find((r) => r.tag === 'v1.0.0')?.repo_name).toBe('h5-repo');
+    // getDoraReleases も repo_name を復元する。
+    expect(
+      (db as unknown as { getDoraReleases(): Array<{ tag: string; repoName: string }> }).getDoraReleases()
+        .find((r) => r.tag === 'v1.0.0')?.repoName,
+    ).toBe('h5-repo');
+    // getReleaseFileAnalysis / getReleaseFunctionAnalysis は releases→repos JOIN で repoName を復元する。
+    const rfa = db.getReleaseFileAnalysis('v1.0.0', 'h5-repo');
+    expect(rfa.map((r) => r.repoName)).toEqual(['h5-repo']);
+    expect(rfa[0].deadCodeScore).toBe(88);
+    const rfn = db.getReleaseFunctionAnalysis('v1.0.0', 'h5-repo');
+    expect(rfn.map((r) => r.repoName)).toEqual(['h5-repo']);
+    expect(rfn[0].fanIn).toBe(5);
+    // SyncService 用 read: release_tag + repo_name を含む (Supabase trail_release_*_analysis PK)。
+    const allRfa = (db as unknown as { getAllReleaseFileAnalysis(): Array<{ release_tag: string; repo_name: string; file_path: string }> }).getAllReleaseFileAnalysis();
+    expect(allRfa).toContainEqual(expect.objectContaining({ release_tag: 'v1.0.0', repo_name: 'h5-repo', file_path: 'src/h5.ts' }));
+    const allRfn = (db as unknown as { getAllReleaseFunctionAnalysis(): Array<{ release_tag: string; repo_name: string; function_name: string }> }).getAllReleaseFunctionAnalysis();
+    expect(allRfn).toContainEqual(expect.objectContaining({ release_tag: 'v1.0.0', repo_name: 'h5-repo', function_name: 'foo' }));
+
+    // 冪等: 再度 createTables を走らせても repo_name は無いまま例外なく完了し、データも保持される。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+    for (const t of targetTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+    }
+    expect(db.getReleaseFileAnalysis('v1.0.0', 'h5-repo')).toHaveLength(1);
+    expect(db.getReleaseFunctionAnalysis('v1.0.0', 'h5-repo')).toHaveLength(1);
+
+    db.close();
+  });
+
   it('createTables は新規 DB でも従来通り動作する (既存 *_code_graph_communities テーブル無し)', async () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
