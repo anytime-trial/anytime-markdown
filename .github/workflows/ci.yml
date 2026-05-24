@@ -298,7 +298,7 @@ jobs:
                    spreadsheet-core trace-core trail-core trail-db memory-core \
                    trail-server agent-core markdown-eval-core review-agent ollama-core; do
             echo "::group::coverage $p"
-            (cd "packages/$p" && npx jest --maxWorkers=2 --coverage --coverageReporters=lcov)
+            (cd "packages/$p" && NODE_OPTIONS=--experimental-vm-modules npx jest --maxWorkers=2 --coverage --coverageReporters=lcov)
             echo "::endgroup::"
           done
 
