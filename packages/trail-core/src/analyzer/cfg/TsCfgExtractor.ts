@@ -48,7 +48,7 @@ function extractStmt(stmt: ts.Statement, sf: ts.SourceFile): CfgStmt {
     return {
       kind: 'if',
       line,
-      condition: stmt.expression.getText(sf).slice(0, 40),
+      condition: stmt.expression.getText(sf),
       then: blockOf(stmt.thenStatement, sf),
       ...(stmt.elseStatement ? { else: blockOf(stmt.elseStatement, sf) } : {}),
     };
@@ -74,7 +74,7 @@ function extractStmt(stmt: ts.Statement, sf: ts.SourceFile): CfgStmt {
       kind: 'loop',
       line,
       loopKind,
-      rawText: stmt.getText(sf).slice(0, 30) + '…',
+      rawText: stmt.getText(sf),
       condition: extractLoopCondition(stmt, sf),
       body: blockOf(stmt.statement, sf),
     };
@@ -90,37 +90,43 @@ function extractStmt(stmt: ts.Statement, sf: ts.SourceFile): CfgStmt {
     };
   }
 
+  // standalone block 文 (`{ ... }`) は再帰する（FlowAnalyzer / SequenceAnalyzer と同じ）。
+  if (ts.isBlock(stmt)) {
+    return { kind: 'block', line, body: extractBlock(stmt, sf) };
+  }
+
   if (ts.isReturnStatement(stmt)) {
     return {
       kind: 'return',
       line,
-      ...(stmt.expression ? { exprText: stmt.expression.getText(sf).slice(0, 30) } : {}),
+      ...(stmt.expression ? { exprText: stmt.expression.getText(sf) } : {}),
+      calls: stmt.expression ? extractCalls(stmt.expression, sf) : [],
     };
   }
 
   if (ts.isThrowStatement(stmt)) {
-    return { kind: 'throw', line, exprText: stmt.expression.getText(sf).slice(0, 30) };
+    return { kind: 'throw', line, exprText: stmt.expression.getText(sf), calls: extractCalls(stmt.expression, sf) };
   }
 
   if (ts.isExpressionStatement(stmt)) {
     return {
       kind: 'expr',
       line,
-      label: stmt.expression.getText(sf).slice(0, 40),
+      label: stmt.expression.getText(sf),
       calls: extractCalls(stmt.expression, sf),
     };
   }
 
-  return { kind: 'other', line, label: stmt.getText(sf).slice(0, 40), calls: extractCalls(stmt, sf) };
+  return { kind: 'other', line, label: stmt.getText(sf), calls: extractCalls(stmt, sf) };
 }
 
+// raw な loop 条件文字列を返す（trim/collapse/truncate は sequence 射影側の truncate に委ねる）。
 function extractLoopCondition(stmt: ts.Statement, sf: ts.SourceFile): string {
-  const t = (s: string): string => s.trim().replace(/\s+/g, ' ');
-  if (ts.isForStatement(stmt)) return t(stmt.condition?.getText(sf) ?? 'for');
-  if (ts.isForInStatement(stmt)) return t(`for in ${stmt.expression.getText(sf)}`);
-  if (ts.isForOfStatement(stmt)) return t(`for of ${stmt.expression.getText(sf)}`);
-  if (ts.isWhileStatement(stmt)) return t(stmt.expression.getText(sf));
-  if (ts.isDoStatement(stmt)) return t(`do while ${stmt.expression.getText(sf)}`);
+  if (ts.isForStatement(stmt)) return stmt.condition?.getText(sf) ?? 'for';
+  if (ts.isForInStatement(stmt)) return `for in ${stmt.expression.getText(sf)}`;
+  if (ts.isForOfStatement(stmt)) return `for of ${stmt.expression.getText(sf)}`;
+  if (ts.isWhileStatement(stmt)) return stmt.expression.getText(sf);
+  if (ts.isDoStatement(stmt)) return `do while ${stmt.expression.getText(sf)}`;
   return 'loop';
 }
 
