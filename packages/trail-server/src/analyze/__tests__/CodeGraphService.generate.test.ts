@@ -6,7 +6,7 @@
  */
 
 // analyze と loadAnalyzeExclude をモック化（ファイルシステム/TSコンパイラ不要）
-jest.mock('@anytime-markdown/trail-core/analyze', () => ({
+jest.mock('@anytime-markdown/code-analysis-typescript/analyze', () => ({
   analyze: jest.fn(() => ({ nodes: [], edges: [], metadata: { projectRoot: '/tmp/repo', analyzedAt: '2026-01-01', fileCount: 0 } })),
 }));
 jest.mock('@anytime-markdown/trail-core/analyzeExclude', () => ({
@@ -226,7 +226,7 @@ describe('CodeGraphService.generate()', () => {
   });
 
   it('trailGraphProvider がグラフを返すとき analyze() は呼ばれない', async () => {
-    const { analyze } = require('@anytime-markdown/trail-core/analyze') as { analyze: jest.Mock };
+    const { analyze } = require('@anytime-markdown/code-analysis-typescript/analyze') as { analyze: jest.Mock };
     analyze.mockClear();
 
     const trailGraph: TrailGraph = {
@@ -377,14 +377,14 @@ describe('CodeGraphService.generate() — runAnalyze() スキップ分岐', () =
       });
       const graph = (await svc.generate())[0];
       expect(graph.nodes).toHaveLength(0);
-      expect(infoMessages.some((m) => m.includes('tsconfig not found'))).toBe(true);
+      expect(infoMessages.some((m) => m.includes('skipping code analysis'))).toBe(true);
     } finally {
       fs.rmSync(tmpDir, { recursive: true });
     }
   });
 
   it('analyze() が例外をスローしたとき error ログを出して空グラフを継続する', async () => {
-    const { analyze } = require('@anytime-markdown/trail-core/analyze') as { analyze: jest.Mock };
+    const { analyze } = require('@anytime-markdown/code-analysis-typescript/analyze') as { analyze: jest.Mock };
     analyze.mockImplementationOnce(() => { throw new Error('TS_CRASH'); });
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cgs-analyzecrash-'));
@@ -406,10 +406,26 @@ describe('CodeGraphService.generate() — runAnalyze() スキップ分岐', () =
       });
       const graph = (await svc.generate())[0];
       expect(graph.nodes).toHaveLength(0);
-      expect(errorMessages.some((m) => m.includes('analyze() failed'))).toBe(true);
+      expect(errorMessages.some((m) => m.includes('analyzeRepo() failed'))).toBe(true);
     } finally {
       fs.rmSync(tmpDir, { recursive: true });
     }
+  });
+
+  it('generates a Python CodeGraph from a .py repo (no tsconfig)', async () => {
+    const pyRepoPath = path.join(__dirname, 'fixtures', 'pyrepo-e2e');
+    const db = makeTrailDbStub();
+    const svc = new CodeGraphService({
+      repositories: [makeRepo({ id: 'pyrepo', label: 'pyrepo', path: pyRepoPath })],
+      trailDb: db as never,
+    });
+    const graph = (await svc.generate())[0];
+    const ids = graph.nodes.map((n) => n.id);
+    expect(ids).toContain('pyrepo:app');
+    expect(ids).toContain('pyrepo:pkg/models');
+    expect(
+      graph.edges.some((e) => e.source === 'pyrepo:app' && e.target === 'pyrepo:pkg/models'),
+    ).toBe(true);
   });
 });
 

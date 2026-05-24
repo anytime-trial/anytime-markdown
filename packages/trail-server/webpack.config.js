@@ -55,6 +55,15 @@ const serverConfig = {
           from: path.resolve(__dirname, '../memory-core/src/db/migrations/*.sql'),
           to: '[name][ext]',
         },
+        // tree-sitter wasm（Python コードグラフ解析用）を dist/wasm/ に同梱する。
+        {
+          from: path.resolve(__dirname, '../../node_modules/tree-sitter-python/tree-sitter-python.wasm'),
+          to: 'wasm/[name][ext]',
+        },
+        {
+          from: path.resolve(__dirname, '../../node_modules/web-tree-sitter/web-tree-sitter.wasm'),
+          to: 'wasm/[name][ext]',
+        },
         {
           from: path.resolve(__dirname, 'src/viewer-dist'),
           to: 'viewer-dist',

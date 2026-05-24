@@ -38,6 +38,18 @@ function makeTrailGraph(
 }
 
 describe('trailGraphToCodeGraphInputs', () => {
+  it('maps Python file nodes and import edges (strips .py)', () => {
+    const trailGraph = makeTrailGraph(
+      [fileNode('app.py'), fileNode('pkg/models.py')],
+      [{ source: 'file::app.py', target: 'file::pkg/models.py', type: 'import' }],
+    );
+    const result = trailGraphToCodeGraphInputs({ repoId: 'pyrepo', repoRootPath: '/repo', trailGraph });
+    expect(result.nodes.map((n) => n.id).sort()).toEqual(['pyrepo:app', 'pyrepo:pkg/models']);
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({ source: 'pyrepo:app', target: 'pyrepo:pkg/models' }),
+    );
+  });
+
   it('extracts file nodes only (skips symbol nodes)', () => {
     const trailGraph = makeTrailGraph(
       [

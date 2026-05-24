@@ -37,6 +37,7 @@
     "packages/trail-server",
     "packages/code-analysis-core",
     "packages/code-analysis-typescript",
+    "packages/code-analysis-python",
     "packages/trail-core",
     "packages/trail-db",
     "packages/trail-viewer",

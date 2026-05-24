@@ -97,5 +97,5 @@ function makeCodeNode(
 }
 
 function stripExt(relPath: string): string {
-  return relPath.replace(/\.(tsx?|mdx?)$/, '');
+  return relPath.replace(/\.(tsx?|mdx?|pyi?)$/, '');
 }

@@ -502,6 +502,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const codeGraphService = new CodeGraphService({
 		repositories: codeGraphRepos,
 		trailDb: trailDb!,
+		pythonWasmPath: path.join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
 	});
 	trailDataServer.setCodeGraphService(codeGraphService);
 

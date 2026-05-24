@@ -10,7 +10,8 @@ export interface FilterConfig {
   readonly includeTests: boolean;
 }
 
-const TEST_PATTERN = /\.(test|spec)\.(ts|tsx|js|jsx)$/;
+// TS/JS: foo.test.ts / foo.spec.tsx 等。Python: test_foo.py / foo_test.py（パスセグメント先頭）。
+const TEST_PATTERN = /\.(test|spec)\.(ts|tsx|js|jsx)$|(^|\/)(test_[^/]+|[^/]+_test)\.pyi?$/;
 
 export function applyFilter(
   nodes: readonly TrailNode[],

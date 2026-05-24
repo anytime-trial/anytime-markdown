@@ -25,6 +25,17 @@ describe('FilterConfig', () => {
     expect(fileLabels).not.toContain('app.test.ts');
   });
 
+  it('should exclude Python test files by default (test_*.py / *_test.py)', () => {
+    const pyNodes: TrailNode[] = [
+      { id: 'file::pkg/models.py', label: 'models.py', type: 'file', filePath: 'pkg/models.py', line: 1 },
+      { id: 'file::pkg/test_models.py', label: 'test_models.py', type: 'file', filePath: 'pkg/test_models.py', line: 1 },
+      { id: 'file::pkg/models_test.py', label: 'models_test.py', type: 'file', filePath: 'pkg/models_test.py', line: 1 },
+    ];
+    const config: FilterConfig = { exclude: makeIgnore([]), includeTests: false };
+    const result = applyFilter(pyNodes, [], config);
+    expect(result.nodes.map(n => n.label)).toEqual(['models.py']);
+  });
+
   it('should include test files when configured', () => {
     const config: FilterConfig = { exclude: makeIgnore([]), includeTests: true };
     const result = applyFilter(nodes, edges, config);
