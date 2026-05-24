@@ -18,5 +18,7 @@ export interface LanguageAnalyzer {
   readonly id: string;
   /** repoRoot が当該言語のプロジェクトかを判定する（設定ファイル・拡張子の有無など）。 */
   detect(repoRoot: string): boolean;
+  /** 解析前の一度きりの非同期初期化（例: WASM パーサのロード）。同期言語は未実装でよい。 */
+  init?(): Promise<void>;
   analyze(input: LanguageAnalyzeInput): TrailGraph;
 }
