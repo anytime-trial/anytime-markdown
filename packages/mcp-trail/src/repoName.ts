@@ -16,9 +16,10 @@ export function resolveRepoName(
 
   try {
     // Phase H-3: repo_name は current_code_graphs から撤去済。repos を JOIN して repo_name を引く。
+    // 空名 sentinel repo (repo_name = '') は既定 repo として返さないため除外する。
     const rows = all<{ repo_name: string }>(
       db,
-      'SELECT DISTINCT r.repo_name FROM current_code_graphs g JOIN repos r USING(repo_id)',
+      "SELECT DISTINCT r.repo_name FROM current_code_graphs g JOIN repos r USING(repo_id) WHERE r.repo_name != ''",
     );
 
     if (rows.length === 1) {
