@@ -13,6 +13,11 @@ interface PipelineItemOptions {
   description?: string;
   /** group ノードの場合の子要素 (各 Wave に属する pipeline)。pipeline ノードでは未使用。 */
   children?: PipelineItem[];
+  /**
+   * ライブ状態を持たない静的エントリ (Wave 1 sources / Wave 4 derived)。
+   * 状態アイコンを中立表示にし、description はデフォルトで `—`。
+   */
+  staticEntry?: boolean;
 }
 
 const PIPELINE_ICON: Record<PipelineState, string> = {
@@ -24,18 +29,41 @@ const PIPELINE_ICON: Record<PipelineState, string> = {
   skipped: 'dash',
 };
 
+/** ライブ状態を持たない静的エントリ (Wave 1/4) の中立アイコンと description。 */
+const STATIC_ENTRY_ICON = 'circle-outline';
+const STATIC_ENTRY_DESCRIPTION = '—';
+
 /**
  * 折りたたみ可能な Wave グループ (親ノード) のラベル。LEP の tier (Wave) モデルに対応する:
  * - `Backup`          : trail.db の世代バックアップ。Wave に属さない infra ジョブ
+ * - `Wave 1 · sources`: ingester 群 (tier=1)。ライブ状態は持たず名称のみ静的表示
  * - `Wave 2 · primary`: importAll 8 phases (tier=2, 旧 importAll 相当)
  * - `Wave 3 · memory` : memory backup + memory-core pipelines (tier=3)
+ * - `Wave 4 · derived`: aggregator 群 (tier=4)。ライブ状態は持たず名称のみ静的表示
  *
- * Wave 1 (sources/ingester) と Wave 4 (derived/aggregator) は本パネルに専用
- * ステータスファイルを持たないため表示しない。
+ * Wave 1 / Wave 4 は本パネルが読む status ファイルに状態を書かないため、
+ * 構造を示す目的で名称のみを静的エントリ (state `—`) として並べる。
  */
 export const BACKUP_GROUP_LABEL = 'Backup';
+export const WAVE1_GROUP_LABEL = 'Wave 1 · sources';
 export const WAVE2_GROUP_LABEL = 'Wave 2 · primary';
 export const WAVE3_GROUP_LABEL = 'Wave 3 · memory';
+export const WAVE4_GROUP_LABEL = 'Wave 4 · derived';
+
+/** Wave 1 (sources) の ingester。LEP 登録順に並べる。 */
+export const WAVE1_SOURCE_IDS: readonly string[] = [
+  'JsonlIngester',
+  'GitIngester',
+  'CoverageIngester',
+  'GitHubPrReviewIngester',
+  'MetaJsonIngester',
+];
+
+/** Wave 4 (derived) の aggregator。 */
+export const WAVE4_DERIVED_IDS: readonly string[] = [
+  'DoraMetricsAggregator',
+  'CrossSourceCorrelator',
+];
 
 export class PipelineItem extends vscode.TreeItem {
   /** group ノードの子要素 (pipeline ノードでは undefined)。 */
@@ -57,6 +85,10 @@ export class PipelineItem extends vscode.TreeItem {
       this.contextValue = 'trailPipelineGroup';
       // 2 秒ポーリングで refresh されても折りたたみ状態を保持するため安定 id を付与する。
       this.id = `group:${label}`;
+    } else if (options.staticEntry) {
+      this.iconPath = new vscode.ThemeIcon(STATIC_ENTRY_ICON);
+      this.description = options.description ?? STATIC_ENTRY_DESCRIPTION;
+      this.contextValue = 'trailPipelineStatic';
     } else {
       this.iconPath = new vscode.ThemeIcon(PIPELINE_ICON[options.state ?? 'pending']);
       this.description = options.description;
@@ -280,8 +312,10 @@ export interface PipelineProviderOptions {
  * Wave グループ (親ノード) の下に pipeline (子ノード) を並べる 2 階層ツリー:
  *
  *   Backup            ← trail.db 世代バックアップ
+ *   Wave 1 · sources  ← ingester 群 (静的表示)
  *   Wave 2 · primary  ← importAll 8 phases
  *   Wave 3 · memory   ← memory backup + memory-core pipelines
+ *   Wave 4 · derived  ← aggregator 群 (静的表示)
  *
  * importAll の per-phase 状態は in-process (setImportAllPhase) と
  * daemon mode (importall-phase-status.json polling) の両経路で受け取る。
@@ -422,6 +456,15 @@ export class PipelineProvider
       );
     }
 
+    // Wave 1 · sources — ingester 群 (dbFilePath 指定時のみ)。専用ステータスを
+    // 持たないため名称のみの静的エントリとして並べ、Wave 構造を可視化する。
+    if (this._dbFilePath) {
+      const sourceItems = WAVE1_SOURCE_IDS.map(
+        (id) => new PipelineItem('pipeline', id, { staticEntry: true }),
+      );
+      groups.push(new PipelineItem('group', WAVE1_GROUP_LABEL, { children: sourceItems }));
+    }
+
     // Wave 2 · primary — importAll 8 phases (dbFilePath 指定時のみ常時表示)。
     if (this._dbFilePath) {
       const phaseItems = IMPORT_ALL_PHASE_ORDER.map((phase) => {
@@ -458,6 +501,15 @@ export class PipelineProvider
     }
     if (wave3.length > 0) {
       groups.push(new PipelineItem('group', WAVE3_GROUP_LABEL, { children: wave3 }));
+    }
+
+    // Wave 4 · derived — aggregator 群 (dbFilePath 指定時のみ)。Wave 1 同様に
+    // 専用ステータスを持たないため名称のみの静的エントリとして並べる。
+    if (this._dbFilePath) {
+      const derivedItems = WAVE4_DERIVED_IDS.map(
+        (id) => new PipelineItem('pipeline', id, { staticEntry: true }),
+      );
+      groups.push(new PipelineItem('group', WAVE4_GROUP_LABEL, { children: derivedItems }));
     }
 
     return groups;
