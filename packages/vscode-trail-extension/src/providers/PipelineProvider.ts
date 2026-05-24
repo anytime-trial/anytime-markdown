@@ -6,11 +6,13 @@ import { readImportAllPhaseStatus } from '@anytime-markdown/trail-server';
 
 const POLL_STATUS_FILE_MS = 2_000;
 
-export type PipelineItemKind = 'pipeline';
+export type PipelineItemKind = 'group' | 'pipeline';
 
 interface PipelineItemOptions {
   state?: PipelineState;
   description?: string;
+  /** group ノードの場合の子要素 (各 Wave に属する pipeline)。pipeline ノードでは未使用。 */
+  children?: PipelineItem[];
 }
 
 const PIPELINE_ICON: Record<PipelineState, string> = {
@@ -22,16 +24,44 @@ const PIPELINE_ICON: Record<PipelineState, string> = {
   skipped: 'dash',
 };
 
+/**
+ * 折りたたみ可能な Wave グループ (親ノード) のラベル。LEP の tier (Wave) モデルに対応する:
+ * - `Backup`          : trail.db の世代バックアップ。Wave に属さない infra ジョブ
+ * - `Wave 2 · primary`: importAll 8 phases (tier=2, 旧 importAll 相当)
+ * - `Wave 3 · memory` : memory backup + memory-core pipelines (tier=3)
+ *
+ * Wave 1 (sources/ingester) と Wave 4 (derived/aggregator) は本パネルに専用
+ * ステータスファイルを持たないため表示しない。
+ */
+export const BACKUP_GROUP_LABEL = 'Backup';
+export const WAVE2_GROUP_LABEL = 'Wave 2 · primary';
+export const WAVE3_GROUP_LABEL = 'Wave 3 · memory';
+
 export class PipelineItem extends vscode.TreeItem {
+  /** group ノードの子要素 (pipeline ノードでは undefined)。 */
+  readonly children?: PipelineItem[];
+
   constructor(
     public readonly kind: PipelineItemKind,
     label: string,
     options: PipelineItemOptions = {},
   ) {
-    super(label, vscode.TreeItemCollapsibleState.None);
-    this.iconPath = new vscode.ThemeIcon(PIPELINE_ICON[options.state ?? 'pending']);
-    this.description = options.description;
-    this.contextValue = 'trailPipeline';
+    super(
+      label,
+      kind === 'group'
+        ? vscode.TreeItemCollapsibleState.Expanded
+        : vscode.TreeItemCollapsibleState.None,
+    );
+    if (kind === 'group') {
+      this.children = options.children ?? [];
+      this.contextValue = 'trailPipelineGroup';
+      // 2 秒ポーリングで refresh されても折りたたみ状態を保持するため安定 id を付与する。
+      this.id = `group:${label}`;
+    } else {
+      this.iconPath = new vscode.ThemeIcon(PIPELINE_ICON[options.state ?? 'pending']);
+      this.description = options.description;
+      this.contextValue = 'trailPipeline';
+    }
   }
 }
 
@@ -246,7 +276,13 @@ export interface PipelineProviderOptions {
 
 /**
  * Pipelines パネル (anytimeTrail.pipelines view) の TreeDataProvider。
- * backup → 8 importAll phases → memory-core pipelines の順で表示する。
+ * 各パイプラインがどの Wave で動作するかが分かるよう、折りたたみ可能な
+ * Wave グループ (親ノード) の下に pipeline (子ノード) を並べる 2 階層ツリー:
+ *
+ *   Backup            ← trail.db 世代バックアップ
+ *   Wave 2 · primary  ← importAll 8 phases
+ *   Wave 3 · memory   ← memory backup + memory-core pipelines
+ *
  * importAll の per-phase 状態は in-process (setImportAllPhase) と
  * daemon mode (importall-phase-status.json polling) の両経路で受け取る。
  */
@@ -356,59 +392,75 @@ export class PipelineProvider
     return element;
   }
 
-  async getChildren(): Promise<PipelineItem[]> {
-    const items: PipelineItem[] = [];
+  /**
+   * 親 (`element` なし) では Wave グループを、子 (`element` = group) では
+   * 当該 Wave 配下の pipeline を返す 2 階層ツリー。
+   */
+  async getChildren(element?: PipelineItem): Promise<PipelineItem[]> {
+    if (element) {
+      return element.children ? [...element.children] : [];
+    }
+    return this._buildGroups();
+  }
 
-    // backup (dbFilePath が指定されていれば常時表示)
+  /** トップレベルの Wave グループ (折りたたみ親ノード) を組み立てる。 */
+  private _buildGroups(): PipelineItem[] {
+    const groups: PipelineItem[] = [];
+
+    // Backup (trail.db) — dbFilePath 指定時のみ。Wave に属さない infra ジョブ。
     if (this._dbFilePath) {
       const backup = buildBackupDisplay(this._dbFilePath);
-      items.push(
-        new PipelineItem('pipeline', backup.scope, {
-          state: backup.state,
-          description: backup.description,
+      groups.push(
+        new PipelineItem('group', BACKUP_GROUP_LABEL, {
+          children: [
+            new PipelineItem('pipeline', 'trail.db', {
+              state: backup.state,
+              description: backup.description,
+            }),
+          ],
         }),
       );
     }
 
-    // importAll 8 phases (dbFilePath が指定されていれば常時表示)
+    // Wave 2 · primary — importAll 8 phases (dbFilePath 指定時のみ常時表示)。
     if (this._dbFilePath) {
-      for (const phase of IMPORT_ALL_PHASE_ORDER) {
+      const phaseItems = IMPORT_ALL_PHASE_ORDER.map((phase) => {
         const display = buildImportAllPhaseDisplay(phase, this._importAllPhases.get(phase) ?? null);
-        items.push(
-          new PipelineItem('pipeline', display.scope, {
-            state: display.state,
-            description: display.description,
-          }),
-        );
-      }
+        return new PipelineItem('pipeline', display.scope, {
+          state: display.state,
+          description: display.description,
+        });
+      });
+      groups.push(new PipelineItem('group', WAVE2_GROUP_LABEL, { children: phaseItems }));
     }
 
-    // memory-core backup (memoryDbFilePath が指定されていれば常時表示)。
-    // importAll で trail.db が更新された直後 + memory-core pipelines で
-    // memory-core.db が書き換わる直前のタイミングで配置することで、論理的に
-    // 各 DB の世代バックアップが対応する書き込みの直前に並ぶ。
+    // Wave 3 · memory — memory backup + memory-core pipelines。
+    // memory backup を Wave 3 の先頭に置くことで、memory-core pipelines が
+    // memory-core.db を書き換える直前の世代バックアップが論理的に対応する。
+    const wave3: PipelineItem[] = [];
     if (this._memoryDbFilePath) {
       const memBackup = buildBackupDisplay(this._memoryDbFilePath);
-      items.push(
+      wave3.push(
         new PipelineItem('pipeline', 'memory backup', {
           state: memBackup.state,
           description: memBackup.description,
         }),
       );
     }
-
-    // memory-core pipelines
     const pipelineStatus = readPipelineStatus(this._statusFilePath);
     for (const p of pipelineStatus?.pipelines ?? []) {
-      items.push(
+      wave3.push(
         new PipelineItem('pipeline', p.scope, {
           state: p.state,
           description: formatPipelineDescription(p),
         }),
       );
     }
+    if (wave3.length > 0) {
+      groups.push(new PipelineItem('group', WAVE3_GROUP_LABEL, { children: wave3 }));
+    }
 
-    return items;
+    return groups;
   }
 
   /**
