@@ -11,3 +11,11 @@ export { OllamaChatProvider } from './OllamaChatProvider';
 export type { OllamaChatProviderOptions } from './OllamaChatProvider';
 export { OllamaEmbeddingProvider } from './OllamaEmbeddingProvider';
 export type { OllamaEmbeddingProviderOptions } from './OllamaEmbeddingProvider';
+export { OllamaThrottleGovernor } from './throttle/OllamaThrottleGovernor';
+export type {
+  OllamaThrottleOptions,
+  OllamaThrottleDeps,
+  ThrottleState,
+  OllamaOp,
+} from './throttle/OllamaThrottleGovernor';
+export { createThrottledOllamaClient } from './throttle/createThrottledOllamaClient';

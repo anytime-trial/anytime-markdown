@@ -52,6 +52,18 @@ export interface LepScheduleConfig {
   startupDelaySec: number;
 }
 
+/**
+ * Ollama 熱負荷スロットリング (劣化 CPU の延命策)。embeddings レイテンシの代理信号で
+ * COOLING を判定し、背景パイプラインの per-request 待機 + スケジューラ gate で熱を逃がす。
+ * 既定 off。詳細: plan/20260524-ollama-thermal-throttle-design.ja.md。
+ */
+export interface LepThrottleConfig {
+  enabled: boolean;
+  slowdownFactor: number;
+  cooldownSec: number;
+  maxContinuousMin: number;
+}
+
 export interface LepOllamaProviderConfig {
   baseUrl: string;
   models: { chat: string; embedding: string };
@@ -161,6 +173,7 @@ export interface LepConfig {
   sources: LepSourcesConfig;
   database: LepDatabaseConfig;
   workspace: LepWorkspaceConfig;
+  throttle: LepThrottleConfig;
   logs: { minLevel: LepLogLevel };
 }
 
@@ -233,6 +246,7 @@ export interface PartialLepConfig {
   };
   database?: Partial<LepDatabaseConfig>;
   workspace?: Partial<LepWorkspaceConfig>;
+  throttle?: Partial<LepThrottleConfig>;
   logs?: { minLevel?: LepLogLevel };
 }
 
@@ -265,6 +279,7 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
   },
   database: { storagePath: '.anytime/trail/db' },
   workspace: { docsPath: '' },
+  throttle: { enabled: false, slowdownFactor: 1.5, cooldownSec: 30, maxContinuousMin: 15 },
   logs: { minLevel: 'info' },
 };
 
@@ -286,6 +301,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   'sources',
   'database',
   'workspace',
+  'throttle',
   'logs',
   '$schema',
 ]);
@@ -348,6 +364,20 @@ export function validateLepConfigInput(
       if (typeof s['runOnStart'] === 'boolean') schedule.runOnStart = s['runOnStart'];
       if (typeof s['startupDelaySec'] === 'number') schedule.startupDelaySec = s['startupDelaySec'];
       value.schedule = schedule;
+    }
+  }
+
+  if (raw['throttle'] !== undefined) {
+    if (!isPlainObject(raw['throttle'])) {
+      warnings.push(`${sourceLabel}: throttle はオブジェクトである必要があります (無視)`);
+    } else {
+      const th = raw['throttle'];
+      const throttle: Partial<LepThrottleConfig> = {};
+      if (typeof th['enabled'] === 'boolean') throttle.enabled = th['enabled'];
+      if (typeof th['slowdownFactor'] === 'number') throttle.slowdownFactor = th['slowdownFactor'];
+      if (typeof th['cooldownSec'] === 'number') throttle.cooldownSec = th['cooldownSec'];
+      if (typeof th['maxContinuousMin'] === 'number') throttle.maxContinuousMin = th['maxContinuousMin'];
+      value.throttle = throttle;
     }
   }
 
@@ -568,6 +598,12 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
     },
     workspace: {
       docsPath: override.workspace?.docsPath ?? base.workspace.docsPath,
+    },
+    throttle: {
+      enabled: override.throttle?.enabled ?? base.throttle.enabled,
+      slowdownFactor: override.throttle?.slowdownFactor ?? base.throttle.slowdownFactor,
+      cooldownSec: override.throttle?.cooldownSec ?? base.throttle.cooldownSec,
+      maxContinuousMin: override.throttle?.maxContinuousMin ?? base.throttle.maxContinuousMin,
     },
     logs: { minLevel: override.logs?.minLevel ?? base.logs.minLevel },
   };

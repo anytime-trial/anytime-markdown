@@ -19,7 +19,12 @@ import {
   DEFAULT_LEP_CONFIG,
   type LepConfig,
 } from './runtime/LepConfig';
-import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
+import {
+  resolveOllamaBaseUrl,
+  createOllamaClient,
+  createThrottledOllamaClient,
+  OllamaThrottleGovernor,
+} from '@anytime-markdown/agent-core';
 import { checkLlmAvailability } from './lep/LlmAvailability';
 import { AnalyzeAllRunner, type AnalyzeAllRunnerOptions } from './runner/AnalyzeAllRunner';
 import { createFetchGitHubReviewClient } from './lep/ingesters/github/GitHubReviewClient';
@@ -152,6 +157,20 @@ program
     const resolvedOllamaBaseUrl = resolveOllamaBaseUrl(lepOllama.baseUrl);
     const ingestGenModel = process.env['MEMORY_CORE_GEN_MODEL'] || lepOllama.models.chat;
 
+    // Ollama 熱負荷スロットリング (劣化 CPU 延命)。背景パイプラインのみに適用する。
+    const throttleCfg = lepConfig.throttle;
+    const throttleGovernor = new OllamaThrottleGovernor(throttleCfg);
+    if (throttleCfg.enabled) {
+      logger.info('ollama throttle enabled', {
+        slowdownFactor: throttleCfg.slowdownFactor,
+        cooldownSec: throttleCfg.cooldownSec,
+        maxContinuousMin: throttleCfg.maxContinuousMin,
+      });
+    }
+    const throttledOllamaFactory = throttleCfg.enabled
+      ? () => createThrottledOllamaClient(createOllamaClient({ baseUrl: resolvedOllamaBaseUrl }), throttleGovernor)
+      : undefined;
+
     // Wire analyze pipeline if gitRoots are available
     if (effectiveGitRoots.length > 0) {
       const codeGraphRepos = effectiveGitRoots.map((p) => ({
@@ -248,6 +267,7 @@ program
         chatModel: ingestGenModel,
         embedModel: lepOllama.models.embedding,
       },
+      ...(throttledOllamaFactory ? { ollamaFactory: throttledOllamaFactory } : {}),
     });
     logger.info('memory-core service constructed (orchestrated by AnalyzeAllRunner)', {
       gitRoot: memoryCorePrimaryGitRoot ?? null,
@@ -314,6 +334,7 @@ program
       importAllStatusFilePath: join(dbStorageDir, 'importall-phase-status.json'),
       // stage が memory を含まない run 後に memory scope を skipped 記録する宛先。
       pipelineStatusFilePath: join(dbStorageDir, 'pipeline-status.json'),
+      shouldDeferScheduled: () => throttleGovernor.shouldDeferScheduled(),
     });
     server.setAnalyzeAllRunner(analyzeAllRunner);
     logger.info('analyze-all runner wired', {

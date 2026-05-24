@@ -55,6 +55,14 @@ import { MetaJsonIngester } from '../lep/ingesters/MetaJsonIngester';
 type ImportAllAnalyzeFn = NonNullable<Parameters<TrailDatabase['importAll']>[3]>;
 type ImportAllResult = Awaited<ReturnType<TrailDatabase['importAll']>>;
 
+/**
+ * periodic（スケジュール）起動かつ gate が COOLING のときだけ true。
+ * manual / import / startup 契機は常に実行する（ユーザー起点を阻害しない）。
+ */
+export function shouldDeferPeriodicRun(reason: RunReason, deferFn?: () => boolean): boolean {
+  return reason === 'periodic' && deferFn?.() === true;
+}
+
 export interface AnalyzeAllRunnerOptions {
   /** ログ書き込み先 (拡張: OutputChannel, daemon: Logger ラッパ) */
   logSink: RunnerLogSink;
@@ -124,6 +132,9 @@ export interface AnalyzeAllRunnerOptions {
    */
   pipelineStatusFilePath?: string;
 
+  /** スケジューラ gate。periodic run の起動時に COOLING なら true を返す。 */
+  shouldDeferScheduled?: () => boolean;
+
   // -- Optional callback hooks (拡張モードでの UI 統合用) --
   /** import の onProgress に渡される。ログ・進捗バー更新等。 */
   onImportProgress?: (message: string, increment?: number) => void;
@@ -178,6 +189,7 @@ export class AnalyzeAllRunner extends BaseRunner {
   private readonly trailDb: TrailDatabase | undefined;
   private readonly importPipelineEnabled: boolean;
   private readonly pipelineStatusFilePath: string | undefined;
+  private readonly shouldDeferScheduled: (() => boolean) | undefined;
 
   // Layer 3 (memory) analyzer (7 個) の error 集約に使う id 一覧。
   // Wave 3 完了後に provider.closeIfOpen() を呼ぶ。
@@ -346,6 +358,7 @@ export class AnalyzeAllRunner extends BaseRunner {
 
     this.stage = opts.stage ?? 'primary+memory';
     this.pipelineStatusFilePath = opts.pipelineStatusFilePath;
+    this.shouldDeferScheduled = opts.shouldDeferScheduled;
 
     this.orchestrator = new LepOrchestrator(bus, analyzers, {
       info: (msg) => this.log(msg),
@@ -356,6 +369,11 @@ export class AnalyzeAllRunner extends BaseRunner {
   }
 
   protected override async runImpl(reason: RunReason): Promise<void> {
+    if (shouldDeferPeriodicRun(reason, this.shouldDeferScheduled)) {
+      this.log('[INFO] periodic run deferred — Ollama throttle COOLING');
+      return;
+    }
+
     let runError: Error | null = null;
 
     try {
