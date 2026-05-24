@@ -3,8 +3,12 @@ import * as path from 'node:path';
 import { analyzeWithProgram } from '@anytime-markdown/trail-core/analyze';
 import { ExecFileGitService } from '@anytime-markdown/trail-db';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
+import type { TrailGraph } from '@anytime-markdown/trail-core';
+import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
+import type { FileCategory } from '@anytime-markdown/trail-core/classify';
 
 import { loadAnalyzeExclude, seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
+import { discoverPythonFiles } from '@anytime-markdown/code-analysis-python';
 
 import type { Logger } from '../runtime/Logger';
 import type { CodeGraphService } from './CodeGraphService';
@@ -61,6 +65,15 @@ export function findTsconfigCandidates(analysisRoot: string): TsconfigCandidate[
     .sort((a, b) => (a.depth !== b.depth ? a.depth - b.depth : a.rel.localeCompare(b.rel)));
 }
 
+/**
+ * `analysisRoot` 配下に解析対象の Python ファイルが存在するか。
+ * tsconfig が無い場合に Python-only 解析へフォールバックするかの判定に使う。
+ * analyze-exclude を反映する（discoverPythonFiles が exclude を受け取る）。
+ */
+export function hasPythonFiles(analysisRoot: string): boolean {
+  return discoverPythonFiles(analysisRoot, loadAnalyzeExclude(analysisRoot)).length > 0;
+}
+
 const NOOP_LOGGER: Logger = {
   debug: () => {},
   info: () => {},
@@ -71,7 +84,8 @@ const NOOP_LOGGER: Logger = {
 
 export interface AnalyzeCurrentOpts {
   analysisRoot: string;
-  tsconfigPath: string;
+  /** tsconfig.json の絶対パス。無い場合（Python-only リポ）は undefined。 */
+  tsconfigPath: string | undefined;
   trailDb: TrailDatabase;
   callbacks: AnalyzePipelineCallbacks;
   codeGraphService: CodeGraphService;
@@ -93,10 +107,156 @@ export interface AnalyzeCurrentResult {
   warnings: string[];
 }
 
+/** 解析ブランチ（TS / Python-only）の共通結果。共通末尾の永続化に渡す。 */
+interface AnalyzeBranchResult {
+  /** current_graphs に保存した TrailGraph（fileCount/nodeCount/edgeCount に使う）。null=保存不可。 */
+  readonly graph: TrailGraph | null;
+  readonly scored: readonly ScoredFunction[];
+  readonly lineCountByFile: ReadonlyMap<string, number>;
+  readonly categoryByFile?: ReadonlyMap<string, FileCategory>;
+}
+
+/**
+ * TS 経路: tsconfig から ts.Program を構築し、C4 TrailGraph 保存・importance 計算・
+ * classify を行う。混在リポ（+.py）では Python importance を結合する（Phase 2 方針 A）。
+ */
+async function analyzeTypeScriptBranch(
+  opts: AnalyzeCurrentOpts,
+  tsconfigPath: string,
+  exclude: import('ignore').Ignore | undefined,
+  commitId: string,
+  repoName: string,
+  logger: Logger,
+  warnings: string[],
+): Promise<AnalyzeBranchResult> {
+  const { analysisRoot, trailDb, callbacks, codeGraphService, onProgress } = opts;
+  const { graph, program } = analyzeWithProgram({
+    tsconfigPath,
+    exclude,
+    onProgress: (phase) => {
+      logger.info(`C4 analysis [${repoName}]: ${phase}`);
+      const percent = phasePercent(phase);
+      callbacks.notifyProgress(phase, percent);
+      onProgress?.(phase, percent);
+    },
+  });
+  trailDb.saveCurrentGraph(graph, tsconfigPath, commitId, repoName);
+  logger.info(
+    `C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
+  );
+
+  let importanceResult: Awaited<
+    ReturnType<AnalyzePipelineCallbacks['computeAndPersistImportance']>
+  > = null;
+  try {
+    onProgress?.('Computing importance scores...');
+    importanceResult = await callbacks.computeAndPersistImportance(
+      tsconfigPath,
+      exclude,
+      program as unknown as import('typescript').Program,
+    );
+    logger.info(`C4 analysis [${repoName}]: importance scores computed`);
+  } catch (err) {
+    const msg = `importance computation failed: ${err instanceof Error ? err.message : String(err)}`;
+    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
+    warnings.push(msg);
+  }
+
+  if (!importanceResult) {
+    return { graph, scored: [], lineCountByFile: new Map(), categoryByFile: undefined };
+  }
+
+  const { classifyAllFiles } = await import('@anytime-markdown/trail-core/classify');
+  const categoryByFile = classifyAllFiles(
+    program as unknown as import('typescript').Program,
+    analysisRoot,
+  );
+  logger.info(
+    `C4 analysis [${repoName}]: classified ${categoryByFile.size} files (ui/logic/excluded)`,
+  );
+
+  // 混在リポ（tsconfig あり + .py あり）の Python importance を結合する。
+  let scored: readonly ScoredFunction[] = importanceResult.scored;
+  let lineCountByFile: ReadonlyMap<string, number> = importanceResult.lineCountByFile;
+  try {
+    const { computePythonImportance } = await import('./computePythonImportance.js');
+    const py = await computePythonImportance({
+      repoRoot: analysisRoot,
+      exclude,
+      pythonWasmPath: codeGraphService.getPythonWasmPath(),
+      logger,
+    });
+    if (py.scored.length > 0) {
+      scored = [...importanceResult.scored, ...py.scored];
+      const merged = new Map(importanceResult.lineCountByFile);
+      for (const [rel, count] of py.lineCountByFile) merged.set(rel, count);
+      lineCountByFile = merged;
+      logger.info(`C4 analysis [${repoName}]: python importance computed (${py.scored.length} functions)`);
+    }
+  } catch (err) {
+    const msg = `python importance failed: ${err instanceof Error ? err.message : String(err)}`;
+    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
+    warnings.push(msg);
+  }
+
+  return { graph, scored, lineCountByFile, categoryByFile };
+}
+
+/**
+ * Python-only 経路（tsconfig 無し）: 言語レジストリで TrailGraph を生成して
+ * current_graphs に保存（C4 モデルは getCurrentC4Model=trailToC4 で都度導出）し、
+ * PythonAdapter ベースの importance を算出する。classify は ts.Program 前提のため
+ * スキップする（category は computeAndPersistFileAnalysis 既定の 'logic'）。
+ */
+async function analyzePythonOnlyBranch(
+  opts: AnalyzeCurrentOpts,
+  exclude: import('ignore').Ignore | undefined,
+  commitId: string,
+  repoName: string,
+  logger: Logger,
+  warnings: string[],
+): Promise<AnalyzeBranchResult> {
+  const { analysisRoot, trailDb, codeGraphService, onProgress } = opts;
+  onProgress?.('Analyzing Python sources...');
+  const graph = (await codeGraphService.analyzeRepoTrailGraph(analysisRoot)) ?? null;
+  if (graph) {
+    // Python-only は tsconfig 無しのため tsconfig_path は空文字で保存する。
+    trailDb.saveCurrentGraph(graph, '', commitId, repoName);
+    logger.info(
+      `C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
+    );
+  } else {
+    warnings.push('python TrailGraph analysis returned no graph');
+  }
+
+  let scored: readonly ScoredFunction[] = [];
+  let lineCountByFile: ReadonlyMap<string, number> = new Map();
+  try {
+    onProgress?.('Computing importance scores...');
+    const { computePythonImportance } = await import('./computePythonImportance.js');
+    const py = await computePythonImportance({
+      repoRoot: analysisRoot,
+      exclude,
+      pythonWasmPath: codeGraphService.getPythonWasmPath(),
+      logger,
+    });
+    scored = py.scored;
+    lineCountByFile = py.lineCountByFile;
+    logger.info(`C4 analysis [${repoName}]: python importance computed (${py.scored.length} functions)`);
+  } catch (err) {
+    const msg = `python importance failed: ${err instanceof Error ? err.message : String(err)}`;
+    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
+    warnings.push(msg);
+  }
+
+  return { graph, scored, lineCountByFile, categoryByFile: undefined };
+}
+
 /**
  * C4 / コードグラフ解析の本体パイプライン。
  * VS Code コマンド (`anytime-trail.analyzeCurrentCode`) と HTTP エンドポイント
- * (`POST /api/analyze/current`) の両方から呼び出される。
+ * (`POST /api/analyze/current`) の両方から呼び出される。tsconfig があれば TS 経路、
+ * 無く .py があれば Python-only 経路を実行する。
  *
  * UI 専用処理（QuickPick・vscode.window.withProgress・showInformationMessage）は
  * 含まない。それらは呼び出し側で実装する。
@@ -104,7 +264,7 @@ export interface AnalyzeCurrentResult {
 export async function runAnalyzeCurrentCodePipeline(
   opts: AnalyzeCurrentOpts,
 ): Promise<AnalyzeCurrentResult> {
-  const { analysisRoot, tsconfigPath, trailDb, callbacks, codeGraphService, onProgress } = opts;
+  const { analysisRoot, trailDb, callbacks, codeGraphService, onProgress } = opts;
   const logger = opts.logger ?? NOOP_LOGGER;
   const startedAt = Date.now();
   const repoName = path.basename(analysisRoot);
@@ -122,25 +282,8 @@ export async function runAnalyzeCurrentCodePipeline(
     warnings.push(`seedAnalyzeExclude failed: ${err instanceof Error ? err.message : String(err)}`);
   }
   const exclude = loadAnalyzeExclude(analysisRoot);
-  // Program を保持して後段の computeAndPersistImportance で再利用する。
-  // これにより同一 tsconfig に対する ts.Program の二重構築 (~数秒〜数十秒) を回避し、
-  // かつ analyze() と Importance 解析の対象ファイル集合が完全一致する
-  // (両者が同じ Program を見るため C4 model と file-analysis の drift が原理的に起きない)。
-  const { graph, program } = analyzeWithProgram({
-    tsconfigPath,
-    exclude,
-    onProgress: (phase) => {
-      logger.info(`C4 analysis [${repoName}]: ${phase}`);
-      const percent = phasePercent(phase);
-      callbacks.notifyProgress(phase, percent);
-      onProgress?.(phase, percent);
-    },
-  });
 
-  logger.info(
-    `C4 analysis [${repoName}]: analyzed ${graph.metadata.fileCount} files, ${graph.nodes.length} nodes, ${graph.edges.length} edges`,
-  );
-
+  // commitId は両ブランチ共通（getHeadCommit は git 非リポでは警告のみ）。
   let commitId = '';
   try {
     commitId = new ExecFileGitService(analysisRoot).getHeadCommit();
@@ -149,29 +292,16 @@ export async function runAnalyzeCurrentCodePipeline(
       `C4 analysis [${repoName}]: getHeadCommit failed (not a git repo?): ${err instanceof Error ? err.message : String(err)}`,
     );
   }
-  trailDb.saveCurrentGraph(graph, tsconfigPath, commitId, repoName);
-  logger.info(
-    `C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
-  );
 
-  let importanceResult: Awaited<ReturnType<AnalyzePipelineCallbacks['computeAndPersistImportance']>> = null;
-  try {
-    onProgress?.('Computing importance scores...');
-    // analyzeWithProgram で構築した Program を再利用する (Program 二重構築の回避)。
-    // trail-core と vscode-trail-extension は別の typescript インスタンスを持つが、
-    // ts.Program は構造的に互換 (バージョン 5.8.x / 5.9.x で API が安定) なので
-    // unknown 経由でキャストする。
-    importanceResult = await callbacks.computeAndPersistImportance(
-      tsconfigPath,
-      exclude,
-      program as unknown as import('typescript').Program,
-    );
-    logger.info(`C4 analysis [${repoName}]: importance scores computed`);
-  } catch (err) {
-    const msg = `importance computation failed: ${err instanceof Error ? err.message : String(err)}`;
-    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
-    warnings.push(msg);
-  }
+  // tsconfig があれば TS 経路、無ければ Python-only 経路。両者とも current_graphs へ
+  // TrailGraph を保存し、scored / lineCountByFile / categoryByFile を共通末尾へ渡す。
+  const branch = opts.tsconfigPath
+    ? await analyzeTypeScriptBranch(opts, opts.tsconfigPath, exclude, commitId, repoName, logger, warnings)
+    : await analyzePythonOnlyBranch(opts, exclude, commitId, repoName, logger, warnings);
+  const graph = branch.graph;
+  logger.info(
+    `C4 analysis [${repoName}]: analyzed ${graph?.metadata.fileCount ?? 0} files, ${graph?.nodes.length ?? 0} nodes, ${graph?.edges.length ?? 0} edges`,
+  );
 
   try {
     onProgress?.('Generating code graph...');
@@ -215,63 +345,25 @@ export async function runAnalyzeCurrentCodePipeline(
     warnings.push(`seedDeadCodeIgnore failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // ファイル別・関数別デッドコード解析を current_file_analysis / current_function_analysis に保存
+  // ファイル別・関数別デッドコード解析を current_file_analysis / current_function_analysis に保存。
+  // scored / lineCountByFile / categoryByFile は実行したブランチ（TS / Python-only）の結果を使う。
   try {
     onProgress?.('Computing file analysis...');
-    if (importanceResult) {
-      // C4 architecture overlay 用に各ファイルを UI / Logic に分類する。
-      // analyzeWithProgram で構築した program を再利用するため追加コストは AST 走査のみ。
-      const { classifyAllFiles } = await import('@anytime-markdown/trail-core/classify');
-      const categoryByFile = classifyAllFiles(
-        program as unknown as import('typescript').Program,
-        analysisRoot,
-      );
-      logger.info(
-        `C4 analysis [${repoName}]: classified ${categoryByFile.size} files (ui/logic/excluded)`,
-      );
-
-      // Phase 2 方針 A: 混在リポ（tsconfig あり + .py あり）で Python importance を結合する。
-      // TS scored（program ベース）はそのまま、Python ファイルがあれば PythonAdapter で
-      // 算出した ScoredFunction(language='python') を追記し、同一の永続化へ流す。
-      let scored = importanceResult.scored;
-      let lineCountByFile: ReadonlyMap<string, number> = importanceResult.lineCountByFile;
-      try {
-        const { computePythonImportance } = await import('./computePythonImportance.js');
-        const py = await computePythonImportance({
-          repoRoot: analysisRoot,
-          exclude,
-          pythonWasmPath: codeGraphService.getPythonWasmPath(),
-          logger,
-        });
-        if (py.scored.length > 0) {
-          scored = [...importanceResult.scored, ...py.scored];
-          const merged = new Map(importanceResult.lineCountByFile);
-          for (const [rel, count] of py.lineCountByFile) merged.set(rel, count);
-          lineCountByFile = merged;
-          logger.info(
-            `C4 analysis [${repoName}]: python importance computed (${py.scored.length} functions)`,
-          );
-        }
-      } catch (err) {
-        const msg = `python importance failed: ${err instanceof Error ? err.message : String(err)}`;
-        logger.warn(`C4 analysis [${repoName}]: ${msg}`);
-        warnings.push(msg);
-      }
-
+    if (branch.scored.length > 0) {
       const { computeAndPersistFileAnalysis } = await import('./computeAndPersistFileAnalysis.js');
       const { fileRows, functionRows } = await computeAndPersistFileAnalysis({
         analysisRoot,
         repoName,
         trailDb,
-        scored,
-        lineCountByFile,
-        categoryByFile,
+        scored: branch.scored,
+        lineCountByFile: branch.lineCountByFile,
+        categoryByFile: branch.categoryByFile,
       });
       logger.info(
         `C4 analysis [${repoName}]: file_analysis=${fileRows} function_analysis=${functionRows}`,
       );
     } else {
-      logger.warn(`C4 analysis [${repoName}]: skipping file analysis (no importance result)`);
+      logger.warn(`C4 analysis [${repoName}]: skipping file analysis (no scored functions)`);
     }
   } catch (err) {
     const msg = `file analysis failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -284,10 +376,10 @@ export async function runAnalyzeCurrentCodePipeline(
 
   return {
     repoName,
-    tsconfigPath,
-    fileCount: graph.metadata.fileCount,
-    nodeCount: graph.nodes.length,
-    edgeCount: graph.edges.length,
+    tsconfigPath: opts.tsconfigPath ?? '',
+    fileCount: graph?.metadata.fileCount ?? 0,
+    nodeCount: graph?.nodes.length ?? 0,
+    edgeCount: graph?.edges.length ?? 0,
     commitId,
     durationMs: Date.now() - startedAt,
     warnings,

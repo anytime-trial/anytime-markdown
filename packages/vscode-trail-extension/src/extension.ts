@@ -17,6 +17,7 @@ import {
 	TrailDataServer,
 	CodeGraphService,
 	findTsconfigCandidates,
+	hasPythonFiles,
 	runAnalyzeCurrentCodePipeline,
 	runAnalyzeReleaseCodePipeline,
 	loadLepConfig,
@@ -522,13 +523,16 @@ export async function activate(context: vscode.ExtensionContext) {
 			throw new Error(`workspace path is not a directory: ${analysisRoot}`);
 		}
 
-		let resolvedTsconfig = tsconfigPath;
+		let resolvedTsconfig: string | undefined = tsconfigPath;
 		if (!resolvedTsconfig) {
 			const candidates = findTsconfigCandidates(analysisRoot);
-			if (candidates.length === 0) {
-				throw new Error(`No tsconfig.json found under ${analysisRoot}`);
+			if (candidates.length > 0) {
+				resolvedTsconfig = candidates[0].fsPath;
+			} else if (hasPythonFiles(analysisRoot)) {
+				resolvedTsconfig = undefined; // Python-only 解析
+			} else {
+				throw new Error(`No tsconfig.json or Python files found under ${analysisRoot}`);
 			}
-			resolvedTsconfig = candidates[0].fsPath;
 		}
 
 		if (!trailDb) throw new Error('Trail DB not initialized');
@@ -591,14 +595,17 @@ export async function activate(context: vscode.ExtensionContext) {
 		const repoName = path.basename(analysisRoot);
 		TrailLogger.info(`C4 analysis [${repoName}]: searching tsconfig.json under ${analysisRoot}`);
 		const tsconfigFiles = findTsconfigCandidates(analysisRoot);
+		let tsconfigPath: string | undefined;
 		if (tsconfigFiles.length === 0) {
-			TrailLogger.warn(`C4 analysis [${repoName}]: no tsconfig.json found under ${analysisRoot}`);
-			vscode.window.showWarningMessage(`No tsconfig.json found under ${analysisRoot}`);
-			return;
-		}
-
-		let tsconfigPath: string;
-		if (tsconfigFiles.length === 1 || !opts.pickTsconfig) {
+			if (hasPythonFiles(analysisRoot)) {
+				tsconfigPath = undefined; // Python-only 解析
+				TrailLogger.info(`C4 analysis [${repoName}]: no tsconfig.json, analyzing Python sources`);
+			} else {
+				TrailLogger.warn(`C4 analysis [${repoName}]: no tsconfig.json or Python files found under ${analysisRoot}`);
+				vscode.window.showWarningMessage(`No tsconfig.json or Python files found under ${analysisRoot}`);
+				return;
+			}
+		} else if (tsconfigFiles.length === 1 || !opts.pickTsconfig) {
 			tsconfigPath = tsconfigFiles[0].fsPath;
 			if (tsconfigFiles.length > 1 && !opts.pickTsconfig) {
 				vscode.window.showInformationMessage(
@@ -622,7 +629,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			tsconfigPath = picked.fsPath;
 		}
 
-		TrailLogger.info(`C4 analysis [${repoName}]: starting for ${tsconfigPath}`);
+		TrailLogger.info(`C4 analysis [${repoName}]: starting for ${tsconfigPath ?? '(Python-only)'}`);
 		TrailPanel.openViewer(true);
 
 		if (!trailDb || !trailDataServer) {
