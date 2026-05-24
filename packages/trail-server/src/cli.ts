@@ -11,6 +11,7 @@ import { TrailDataServer } from './server/TrailDataServer';
 import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
+import { ThrottleStatusWriter } from './runtime/ThrottleStatusWriter';
 import {
   migrateConfigJsonIntoLepJson,
   loadLepConfig,
@@ -170,6 +171,12 @@ program
     const throttledOllamaFactory = throttleCfg.enabled
       ? () => createThrottledOllamaClient(createOllamaClient({ baseUrl: resolvedOllamaBaseUrl }), throttleGovernor)
       : undefined;
+
+    // throttle 状態を OLLAMA パネル (vscode-agent-extension) へ渡す status file writer。
+    const throttleStatusWriter = throttleCfg.enabled
+      ? new ThrottleStatusWriter(throttleGovernor, join(dbStorageDir, 'throttle-status.json'), logger)
+      : undefined;
+    throttleStatusWriter?.start();
 
     // Wire analyze pipeline if gitRoots are available
     if (effectiveGitRoots.length > 0) {
@@ -371,6 +378,7 @@ program
 
     const shutdown = async (signal: string) => {
       logger.info('shutdown requested', { signal });
+      try { throttleStatusWriter?.stop(); } catch (err) { logger.error('throttle status writer stop failed', err); }
       try { await analyzeAllRunner.dispose(); } catch (err) { logger.error('analyze-all runner dispose failed', err); }
       try { await memoryCoreService.dispose(); } catch (err) { logger.error('memory-core dispose failed', err); }
       try { rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }
