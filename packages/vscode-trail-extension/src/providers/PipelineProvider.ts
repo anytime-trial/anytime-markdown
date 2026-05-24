@@ -35,16 +35,16 @@ const STATIC_ENTRY_DESCRIPTION = '—';
 
 /**
  * 折りたたみ可能な Wave グループ (親ノード) のラベル。LEP の tier (Wave) モデルに対応する:
- * - `Backup`          : trail.db の世代バックアップ。Wave に属さない infra ジョブ
  * - `Wave 1 · sources`: ingester 群 (tier=1)。ライブ状態は持たず名称のみ静的表示
- * - `Wave 2 · primary`: importAll 8 phases (tier=2, 旧 importAll 相当)
+ * - `Wave 2 · primary`: trail.db 世代バックアップ + importAll 8 phases (tier=2, 旧 importAll 相当)
  * - `Wave 3 · memory` : memory backup + memory-core pipelines (tier=3)
  * - `Wave 4 · derived`: aggregator 群 (tier=4)。ライブ状態は持たず名称のみ静的表示
  *
+ * trail.db / memory-core.db の世代バックアップは、それぞれを書き込む Wave (2 / 3) の
+ * 先頭に置く (書き込み直前の世代を論理的に対応させる)。
  * Wave 1 / Wave 4 は本パネルが読む status ファイルに状態を書かないため、
  * 構造を示す目的で名称のみを静的エントリ (state `—`) として並べる。
  */
-export const BACKUP_GROUP_LABEL = 'Backup';
 export const WAVE1_GROUP_LABEL = 'Wave 1 · sources';
 export const WAVE2_GROUP_LABEL = 'Wave 2 · primary';
 export const WAVE3_GROUP_LABEL = 'Wave 3 · memory';
@@ -311,9 +311,8 @@ export interface PipelineProviderOptions {
  * 各パイプラインがどの Wave で動作するかが分かるよう、折りたたみ可能な
  * Wave グループ (親ノード) の下に pipeline (子ノード) を並べる 2 階層ツリー:
  *
- *   Backup            ← trail.db 世代バックアップ
  *   Wave 1 · sources  ← ingester 群 (静的表示)
- *   Wave 2 · primary  ← importAll 8 phases
+ *   Wave 2 · primary  ← trail.db backup + importAll 8 phases
  *   Wave 3 · memory   ← memory backup + memory-core pipelines
  *   Wave 4 · derived  ← aggregator 群 (静的表示)
  *
@@ -441,21 +440,6 @@ export class PipelineProvider
   private _buildGroups(): PipelineItem[] {
     const groups: PipelineItem[] = [];
 
-    // Backup (trail.db) — dbFilePath 指定時のみ。Wave に属さない infra ジョブ。
-    if (this._dbFilePath) {
-      const backup = buildBackupDisplay(this._dbFilePath);
-      groups.push(
-        new PipelineItem('group', BACKUP_GROUP_LABEL, {
-          children: [
-            new PipelineItem('pipeline', 'trail.db', {
-              state: backup.state,
-              description: backup.description,
-            }),
-          ],
-        }),
-      );
-    }
-
     // Wave 1 · sources — ingester 群 (dbFilePath 指定時のみ)。専用ステータスを
     // 持たないため名称のみの静的エントリとして並べ、Wave 構造を可視化する。
     if (this._dbFilePath) {
@@ -465,16 +449,27 @@ export class PipelineProvider
       groups.push(new PipelineItem('group', WAVE1_GROUP_LABEL, { children: sourceItems }));
     }
 
-    // Wave 2 · primary — importAll 8 phases (dbFilePath 指定時のみ常時表示)。
+    // Wave 2 · primary — trail.db 世代バックアップ + importAll 8 phases (dbFilePath 指定時のみ)。
+    // trail.db を書き込むのは Wave 2 (PersistAnalyzer.save) なので、その直前の世代
+    // バックアップを Wave 2 の先頭に置く (Wave 3 の memory backup と対称)。
     if (this._dbFilePath) {
-      const phaseItems = IMPORT_ALL_PHASE_ORDER.map((phase) => {
+      const backup = buildBackupDisplay(this._dbFilePath);
+      const wave2: PipelineItem[] = [
+        new PipelineItem('pipeline', 'trail.db backup', {
+          state: backup.state,
+          description: backup.description,
+        }),
+      ];
+      for (const phase of IMPORT_ALL_PHASE_ORDER) {
         const display = buildImportAllPhaseDisplay(phase, this._importAllPhases.get(phase) ?? null);
-        return new PipelineItem('pipeline', display.scope, {
-          state: display.state,
-          description: display.description,
-        });
-      });
-      groups.push(new PipelineItem('group', WAVE2_GROUP_LABEL, { children: phaseItems }));
+        wave2.push(
+          new PipelineItem('pipeline', display.scope, {
+            state: display.state,
+            description: display.description,
+          }),
+        );
+      }
+      groups.push(new PipelineItem('group', WAVE2_GROUP_LABEL, { children: wave2 }));
     }
 
     // Wave 3 · memory — memory backup + memory-core pipelines。
