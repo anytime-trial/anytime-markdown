@@ -14,6 +14,8 @@ export class ConversationMemoryAnalyzer extends MemoryAnalyzerBase {
   } as const;
 
   protected runScope(session: MemoryDbSession): Promise<ScopeResult> {
-    return session.runConversation();
+    // throttle gate を会話ループへ伝播。COOLING 中は incremental/backfill を
+    // 途中で打ち切り、failed-items retry も skip して次 scope (Code) へ進む。
+    return session.runConversation({ shouldStop: this.provider.throttleGate });
   }
 }

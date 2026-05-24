@@ -327,6 +327,9 @@ export class AnalyzeAllRunner extends BaseRunner {
         checkLlmAvailability: opts.checkLlmAvailability,
         ollamaBaseUrl: opts.ollamaBaseUrl,
         disabledAnalyzerIds: opts.disabledMemoryAnalyzers,
+        // throttle gate = run レベル defer と同じ「enabled かつ COOLING」判定を流用する。
+        // COOLING 中は ConversationMemoryAnalyzer が会話ループを中断し次 scope へ進む。
+        throttleGate: opts.shouldDeferScheduled,
       });
       const ordered = topoSortByDependsOn(memAnalyzers);
       for (const a of ordered) {

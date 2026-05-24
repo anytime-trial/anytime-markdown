@@ -77,6 +77,91 @@ describe('runConversationIncremental', () => {
     jest.clearAllMocks();
   });
 
+  // ── T1: throttle 中断 — 即時 stop で何も処理せず partial・cursor 据え置き ──
+  test('T1: shouldStop=true → 0 件処理・partial・generate 未呼出・cursor 不変', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    insertSession(trailDb, 'sess1');
+    insertMessage(trailDb, 'msg1', 'sess1', 'user', '2026-01-01T00:00:00.000Z', 'hello');
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const result = await runConversationIncremental({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+      shouldStop: () => true,
+    });
+
+    expect(result.status).toBe('partial');
+    expect(result.items_processed).toBe(0);
+    expect(ollama.generate).not.toHaveBeenCalled();
+
+    // cursor は前進しない (first run の epoch 既定のまま = 空文字)
+    const state = memDb.exec(
+      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+    );
+    expect(state[0]?.values?.[0]?.[0]).toBe('');
+
+    const run = memDb.exec(
+      `SELECT status FROM memory_pipeline_runs WHERE scope = 'conversation_incremental'`
+    );
+    expect(run[0]?.values?.[0]?.[0]).toBe('partial');
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── T2: 途中中断 → 再 run が未処理 episode を取りこぼさない (cursor 据え置きの肝) ──
+  test('T2: 1 件処理後 stop → 再 run で残りを処理 (既処理は existingIds で skip)', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    // 2 session → 2 episode。sessA(00:00) が先に iterate される。
+    insertSession(trailDb, 'sessA');
+    insertMessage(trailDb, 'a1', 'sessA', 'user', '2026-01-01T00:00:00.000Z', 'first');
+    insertSession(trailDb, 'sessB');
+    insertMessage(trailDb, 'b1', 'sessB', 'user', '2026-01-01T01:00:00.000Z', 'second');
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+
+    // Run1: 1 件処理した後 (2 episode 目の境界) で COOLING 中断。
+    let calls = 0;
+    const result1 = await runConversationIncremental({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+      shouldStop: () => calls++ > 0, // 1 件目は false、2 件目で true
+    });
+    expect(result1.status).toBe('partial');
+    expect(result1.items_processed).toBe(1);
+    // cursor 据え置き (未処理 episode の取りこぼし防止)
+    const cur1 = memDb.exec(
+      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+    );
+    expect(cur1[0]?.values?.[0]?.[0]).toBe('');
+
+    // Run2: 中断なし → 残り 1 件を処理、Run1 で永続化済みは existingIds で skip。
+    const result2 = await runConversationIncremental({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+    });
+    expect(result2.status).toBe('success');
+    expect(result2.items_processed).toBe(1);
+    expect(result2.items_skipped).toBeGreaterThanOrEqual(1);
+    // 今度は cursor が前進する
+    const cur2 = memDb.exec(
+      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+    );
+    expect(cur2[0]?.values?.[0]?.[0] as string).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
   // ── I1: basic happy path ─────────────────────────────────────────────────
   test('I1: 1 session, 2 messages → entities_inserted ≥ 1, pipeline_state updated', async () => {
     const memDb = await makeMemoryDb();
