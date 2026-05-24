@@ -6,4 +6,4 @@ export type {
   TrailEdge,
   TrailGraphMetadata,
   TrailGraph,
-} from '@anytime-markdown/code-analysis-core/model';
+} from './types';

@@ -1,7 +1,6 @@
 import ts from 'typescript';
 import path from 'node:path';
-import type { ILanguageAdapter } from './ILanguageAdapter';
-import type { FunctionInfo, FunctionMetrics } from '../types';
+import type { ILanguageAdapter, FunctionInfo, FunctionMetrics } from '@anytime-markdown/code-analysis-core/importance';
 import { MutationAnalyzer } from '../MutationAnalyzer';
 
 type FunctionLikeNode = ts.FunctionDeclaration | ts.MethodDeclaration | ts.ArrowFunction | ts.FunctionExpression;

@@ -5,9 +5,9 @@ export type {
   ImportanceMatrix,
   ImportanceReport,
   ImportanceScorerWeights,
-} from './types';
-export { ImportanceScorer, DEFAULT_WEIGHTS } from './ImportanceScorer';
+} from '@anytime-markdown/code-analysis-core/importance';
+export { ImportanceScorer, DEFAULT_WEIGHTS } from '@anytime-markdown/code-analysis-core/importance';
+export { ImportanceAnalyzer } from '@anytime-markdown/code-analysis-core/importance';
+export type { ILanguageAdapter } from '@anytime-markdown/code-analysis-core/importance';
 export { MutationAnalyzer } from './MutationAnalyzer';
-export { ImportanceAnalyzer } from './ImportanceAnalyzer';
-export type { ILanguageAdapter } from './adapters/ILanguageAdapter';
 export { TypeScriptAdapter } from './adapters/TypeScriptAdapter';
