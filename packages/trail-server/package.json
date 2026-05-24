@@ -12,7 +12,7 @@
     "build": "node scripts/build-viewer-dist.mjs && webpack --mode production",
     "compile": "webpack",
     "watch": "webpack --watch",
-    "test": "jest --maxWorkers=1"
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --maxWorkers=1"
   },
   "dependencies": {
     "@anytime-markdown/agent-core": "*",

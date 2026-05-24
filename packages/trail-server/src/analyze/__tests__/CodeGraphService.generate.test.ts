@@ -411,6 +411,22 @@ describe('CodeGraphService.generate() — runAnalyze() スキップ分岐', () =
       fs.rmSync(tmpDir, { recursive: true });
     }
   });
+
+  it('generates a Python CodeGraph from a .py repo (no tsconfig)', async () => {
+    const pyRepoPath = path.join(__dirname, 'fixtures', 'pyrepo-e2e');
+    const db = makeTrailDbStub();
+    const svc = new CodeGraphService({
+      repositories: [makeRepo({ id: 'pyrepo', label: 'pyrepo', path: pyRepoPath })],
+      trailDb: db as never,
+    });
+    const graph = (await svc.generate())[0];
+    const ids = graph.nodes.map((n) => n.id);
+    expect(ids).toContain('pyrepo:app');
+    expect(ids).toContain('pyrepo:pkg/models');
+    expect(
+      graph.edges.some((e) => e.source === 'pyrepo:app' && e.target === 'pyrepo:pkg/models'),
+    ).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
