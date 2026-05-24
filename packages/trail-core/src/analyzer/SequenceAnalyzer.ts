@@ -9,15 +9,15 @@ import ts from 'typescript';
 import type { C4Element, C4Model } from '../c4/types';
 import type { TrailEdge, TrailGraph, TrailNode } from '../model/types';
 import type {
-  SequenceAltBranch,
   SequenceModel,
   SequenceParticipant,
   SequenceStep,
 } from '@anytime-markdown/trace-core/c4Sequence';
 import { findFunctionNode } from '@anytime-markdown/code-analysis-typescript/analyzer';
+import { extractCfg } from './cfg/TsCfgExtractor';
+import { sequenceStepsFromCfg } from './cfg/sequenceStepsFromCfg';
 
 const MAX_STEPS = 500;
-const MAX_CONDITION_LEN = 60;
 
 interface ChainPair {
   readonly source: C4Element;
@@ -222,17 +222,19 @@ function processCallerNode(
   }
 
   const calleeNames = buildCalleeNames(calls, ctx);
-  const collected: SequenceStep[] = [];
-  walkBody(funcNode.body, sf, {
+  // 共通 CFG-IR 射影で caller 関数本体から SequenceStep[] を生成する。
+  // 残り step 上限を渡し、消費分を ctx.totalSteps に加算する（build の chain ループの打ち切りと整合）。
+  const cfg = extractCfg(sf, funcNode);
+  const result = sequenceStepsFromCfg(cfg.body, {
     calleeNames,
     from: fromParticipantId,
     to: toParticipantId,
     callerFnName,
     chainId,
-    out: collected,
-    ctx,
+    maxSteps: MAX_STEPS - ctx.totalSteps,
   });
-  return collected;
+  ctx.totalSteps += result.stepCount;
+  return result.steps;
 }
 
 function buildFallbackSteps(
@@ -279,277 +281,6 @@ function getComponentForNode(node: TrailNode, ctx: BuildContext): string | null 
   // Code element id format: 'file::<relativePath>'
   const fileElementId = `file::${node.filePath}`;
   return ctx.fileToComponent.get(fileElementId) ?? null;
-}
-
-// ---------------------------------------------------------------------------
-//  AST walk: 制御フロー文脈と call の収集
-// ---------------------------------------------------------------------------
-
-interface WalkState {
-  readonly calleeNames: ReadonlySet<string>;
-  readonly from: string;
-  readonly to: string;
-  readonly callerFnName: string;
-  readonly chainId: string;
-  readonly out: SequenceStep[];
-  readonly ctx: BuildContext;
-}
-
-/**
- * 関数 body を walk し、関連要素の関数を呼ぶ CallExpression を
- * if/loop/opt の制御文脈に応じてフラグメント階層に記録する。
- */
-function walkBody(body: ts.Node, sf: ts.SourceFile, state: WalkState): void {
-  visitFunctionBody(body, sf, state, state.out);
-}
-
-function visitStmt(stmt: ts.Statement, sf: ts.SourceFile, state: WalkState, out: SequenceStep[]): void {
-  if (state.ctx.totalSteps >= MAX_STEPS) return;
-
-  if (ts.isIfStatement(stmt)) { visitIfStatement(stmt, sf, state, out); return; }
-  if (isLoopStatement(stmt)) { visitLoopStatement(stmt, sf, state, out); return; }
-  if (ts.isBlock(stmt)) { visitBlockStmts(stmt.statements, sf, state, out); return; }
-  if (ts.isExpressionStatement(stmt)) { visitExpression(stmt.expression, sf, state, out); return; }
-  if (ts.isVariableStatement(stmt)) { visitVariableStatement(stmt, sf, state, out); return; }
-  if (ts.isReturnStatement(stmt)) { if (stmt.expression) { visitExpression(stmt.expression, sf, state, out); } return; }
-  if (ts.isTryStatement(stmt)) { visitTryStatement(stmt, sf, state, out); return; }
-
-  // Generic statement: visit nested expressions / blocks shallowly
-  ts.forEachChild(stmt, (child) => {
-    if (ts.isStatement(child)) visitStmt(child, sf, state, out);
-    else visitExpression(child, sf, state, out);
-  });
-}
-
-function isLoopStatement(stmt: ts.Statement): stmt is ts.ForStatement | ts.ForInStatement | ts.ForOfStatement | ts.WhileStatement | ts.DoStatement {
-  return ts.isForStatement(stmt) || ts.isForInStatement(stmt) || ts.isForOfStatement(stmt) || ts.isWhileStatement(stmt) || ts.isDoStatement(stmt);
-}
-
-function visitBlockStmts(
-  statements: ts.NodeArray<ts.Statement>,
-  sf: ts.SourceFile,
-  state: WalkState,
-  out: SequenceStep[],
-): void {
-  for (const child of statements) visitStmt(child, sf, state, out);
-}
-
-function visitVariableStatement(
-  stmt: ts.VariableStatement,
-  sf: ts.SourceFile,
-  state: WalkState,
-  out: SequenceStep[],
-): void {
-  for (const decl of stmt.declarationList.declarations) {
-    if (decl.initializer) visitExpression(decl.initializer, sf, state, out);
-  }
-}
-
-function visitTryStatement(
-  stmt: ts.TryStatement,
-  sf: ts.SourceFile,
-  state: WalkState,
-  out: SequenceStep[],
-): void {
-  visitBlockStmts(stmt.tryBlock.statements, sf, state, out);
-  if (stmt.catchClause) {
-    visitBlockStmts(stmt.catchClause.block.statements, sf, state, out);
-  }
-  if (stmt.finallyBlock) {
-    visitBlockStmts(stmt.finallyBlock.statements, sf, state, out);
-  }
-}
-
-function visitIfStatement(stmt: ts.IfStatement, sf: ts.SourceFile, state: WalkState, out: SequenceStep[]): void {
-  const condition = truncate(stmt.expression.getText(sf), MAX_CONDITION_LEN);
-
-  const thenSteps: SequenceStep[] = [];
-  visitStmt(stmt.thenStatement, sf, state, thenSteps);
-
-  if (!stmt.elseStatement) {
-    // opt
-    if (thenSteps.length > 0) {
-      out.push({ kind: 'fragment', fragment: { kind: 'opt', condition, steps: thenSteps } });
-    }
-    return;
-  }
-
-  // alt 構造（else または else if あり）
-  const branches: SequenceAltBranch[] = [];
-  if (thenSteps.length > 0) {
-    branches.push({ condition, steps: thenSteps });
-  }
-
-  let elseStmt: ts.Statement | undefined = stmt.elseStatement;
-  while (elseStmt && ts.isIfStatement(elseStmt)) {
-    const cond = truncate(elseStmt.expression.getText(sf), MAX_CONDITION_LEN);
-    const branchSteps: SequenceStep[] = [];
-    visitStmt(elseStmt.thenStatement, sf, state, branchSteps);
-    if (branchSteps.length > 0) {
-      branches.push({ condition: cond, steps: branchSteps });
-    }
-    elseStmt = elseStmt.elseStatement;
-  }
-  if (elseStmt) {
-    const branchSteps: SequenceStep[] = [];
-    visitStmt(elseStmt, sf, state, branchSteps);
-    if (branchSteps.length > 0) {
-      branches.push({ condition: 'else', steps: branchSteps });
-    }
-  }
-
-  if (branches.length > 0) {
-    out.push({ kind: 'fragment', fragment: { kind: 'alt', branches } });
-  }
-}
-
-function visitLoopStatement(stmt: ts.Statement, sf: ts.SourceFile, state: WalkState, out: SequenceStep[]): void {
-  const condition = describeLoopCondition(stmt, sf);
-  const bodyStmt = getLoopBody(stmt);
-  if (!bodyStmt) return;
-  const bodySteps: SequenceStep[] = [];
-  visitStmt(bodyStmt, sf, state, bodySteps);
-  if (bodySteps.length > 0) {
-    out.push({ kind: 'fragment', fragment: { kind: 'loop', condition, steps: bodySteps } });
-  }
-}
-
-function describeLoopCondition(stmt: ts.Statement, sf: ts.SourceFile): string {
-  if (ts.isForStatement(stmt)) {
-    const cond = stmt.condition?.getText(sf) ?? '';
-    return truncate(cond || 'for', MAX_CONDITION_LEN);
-  }
-  if (ts.isForInStatement(stmt)) {
-    return truncate(`for in ${stmt.expression.getText(sf)}`, MAX_CONDITION_LEN);
-  }
-  if (ts.isForOfStatement(stmt)) {
-    return truncate(`for of ${stmt.expression.getText(sf)}`, MAX_CONDITION_LEN);
-  }
-  if (ts.isWhileStatement(stmt)) {
-    return truncate(stmt.expression.getText(sf), MAX_CONDITION_LEN);
-  }
-  if (ts.isDoStatement(stmt)) {
-    return truncate(`do while ${stmt.expression.getText(sf)}`, MAX_CONDITION_LEN);
-  }
-  return 'loop';
-}
-
-function getLoopBody(stmt: ts.Statement): ts.Statement | undefined {
-  if (
-    ts.isForStatement(stmt) ||
-    ts.isForInStatement(stmt) ||
-    ts.isForOfStatement(stmt) ||
-    ts.isWhileStatement(stmt) ||
-    ts.isDoStatement(stmt)
-  ) {
-    return stmt.statement;
-  }
-  return undefined;
-}
-
-const ITERATOR_METHODS = new Set(['forEach', 'map', 'filter', 'reduce', 'flatMap', 'find', 'some', 'every']);
-
-function visitExpression(expr: ts.Node, sf: ts.SourceFile, state: WalkState, out: SequenceStep[]): void {
-  if (state.ctx.totalSteps >= MAX_STEPS) return;
-
-  if (ts.isCallExpression(expr)) {
-    visitCallExpression(expr, sf, state, out);
-    return;
-  }
-
-  if (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr)) {
-    visitFunctionBody(expr.body, sf, state, out);
-    return;
-  }
-
-  // 一般式: 子要素を再帰
-  ts.forEachChild(expr, (child) => visitExpression(child, sf, state, out));
-}
-
-function visitCallExpression(
-  expr: ts.CallExpression,
-  sf: ts.SourceFile,
-  state: WalkState,
-  out: SequenceStep[],
-): void {
-  // .forEach((...) => { ... }) などの iterator 系を loop として扱う
-  if (tryVisitIteratorCall(expr, sf, state, out)) return;
-
-  // 通常呼び出し: callee 名を抽出
-  const calleeName = getCallExpressionName(expr);
-  if (calleeName && state.calleeNames.has(calleeName)) {
-    const line = sf.getLineAndCharacterOfPosition(expr.getStart()).line + 1;
-    out.push({
-      kind: 'call',
-      from: state.from,
-      to: state.to,
-      fnName: calleeName,
-      callerFnName: state.callerFnName,
-      line,
-      chainId: state.chainId,
-    });
-    state.ctx.totalSteps += 1;
-  }
-
-  // 引数も再帰（コールバック内の呼び出し等）
-  for (const arg of expr.arguments) {
-    visitExpression(arg, sf, state, out);
-  }
-}
-
-/**
- * iterator メソッド呼び出し（forEach/map 等）を loop フラグメントとして記録する。
- * loop として出力した場合は true を返す（caller は以降の処理をスキップする）。
- */
-function tryVisitIteratorCall(
-  expr: ts.CallExpression,
-  sf: ts.SourceFile,
-  state: WalkState,
-  out: SequenceStep[],
-): boolean {
-  if (!ts.isPropertyAccessExpression(expr.expression)) return false;
-  if (!ITERATOR_METHODS.has(expr.expression.name.text)) return false;
-
-  const cb = expr.arguments[0];
-  if (!cb || (!ts.isArrowFunction(cb) && !ts.isFunctionExpression(cb))) return false;
-
-  const condition = truncate(
-    `${expr.expression.name.text} ${expr.expression.expression.getText(sf)}`,
-    MAX_CONDITION_LEN,
-  );
-  const bodySteps: SequenceStep[] = [];
-  visitFunctionBody(cb.body, sf, state, bodySteps);
-
-  if (bodySteps.length > 0) {
-    out.push({ kind: 'fragment', fragment: { kind: 'loop', condition, steps: bodySteps } });
-    return true;
-  }
-  return false;
-}
-
-function visitFunctionBody(
-  body: ts.Node | undefined,
-  sf: ts.SourceFile,
-  state: WalkState,
-  out: SequenceStep[],
-): void {
-  if (!body) return;
-  if (ts.isBlock(body)) {
-    visitBlockStmts(body.statements, sf, state, out);
-  } else {
-    visitExpression(body, sf, state, out);
-  }
-}
-
-function getCallExpressionName(expr: ts.CallExpression): string | null {
-  if (ts.isIdentifier(expr.expression)) return expr.expression.text;
-  if (ts.isPropertyAccessExpression(expr.expression)) return expr.expression.name.text;
-  return null;
-}
-
-function truncate(s: string, max: number): string {
-  const trimmed = s.trim().replace(/\s+/g, ' ');
-  return trimmed.length > max ? `${trimmed.slice(0, max - 1)}…` : trimmed;
 }
 
 function emptyModel(rootElementId: string): SequenceModel {
