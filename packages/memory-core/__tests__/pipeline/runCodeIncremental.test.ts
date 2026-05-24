@@ -97,13 +97,15 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
       started_at TEXT NOT NULL DEFAULT ''
     ) STRICT
   `);
+  // Phase H-4: trail.session_commits から repo_name 列を撤去し repo_id 参照にしたため、
+  // fixture も repo_id 列で作る (extractCommitRationale が trail.repos を JOIN して解決する)。
   trailDb.run(`
     CREATE TABLE session_commits (
       session_id     TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
       commit_hash    TEXT NOT NULL,
       commit_message TEXT NOT NULL DEFAULT '',
       committed_at   TEXT,
-      repo_name      TEXT NOT NULL DEFAULT '',
+      repo_id        INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (session_id, commit_hash)
     ) STRICT
   `);
