@@ -7,3 +7,5 @@ export { PythonNameResolver } from './PythonNameResolver';
 export { PythonEdgeExtractor } from './PythonEdgeExtractor';
 export { PythonMetrics } from './importance/PythonMetrics';
 export { PythonAdapter } from './importance/PythonAdapter';
+export { PythonExportExtractor } from './PythonExportExtractor';
+export type { PythonExportedSymbol } from './PythonExportExtractor';
