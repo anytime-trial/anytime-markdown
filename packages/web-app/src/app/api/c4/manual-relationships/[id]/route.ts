@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 import { resolveSupabaseServiceEnv } from '../../../../../lib/supabase-env';
+import { resolveRepoId } from '../../../../../lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,11 +21,13 @@ export async function DELETE(
   const env = resolveSupabaseServiceEnv();
   if (!env) return new NextResponse('Supabase not configured', { status: 503 });
   const supabase = createClient(env.url, env.serviceRoleKey);
+  const repoId = await resolveRepoId(supabase, repoName);
+  if (repoId == null) return new NextResponse('unknown repo', { status: 404 });
 
   const { error } = await supabase
     .from('trail_c4_manual_relationships')
     .delete()
-    .eq('repo_name', repoName)
+    .eq('repo_id', repoId)
     .eq('rel_id', id);
   if (error) return new NextResponse(error.message, { status: 500 });
 

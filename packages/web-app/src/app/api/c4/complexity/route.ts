@@ -44,11 +44,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (!repo) {
       const { data } = await supabase
         .from('trail_current_graphs')
-        .select('repo_name')
-        .order('repo_name', { ascending: true })
+        .select('repo:trail_repos(repo_name)')
+        .order('repo_id', { ascending: true })
         .limit(1)
-        .maybeSingle<{ repo_name: string }>();
-      if (data?.repo_name) repo = data.repo_name;
+        .maybeSingle<{ repo: { repo_name: string } | null }>();
+      if (data?.repo?.repo_name) repo = data.repo.repo_name;
     }
 
     // get_complexity_tool_summary RPC: DB 側で tool_calls JSON を展開し

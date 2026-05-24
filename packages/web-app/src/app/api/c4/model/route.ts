@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { createC4ModelStore,NO_STORE_HEADERS } from "../../../../lib/api-helpers";
+import { createC4ModelStore,NO_STORE_HEADERS, resolveRepoId } from "../../../../lib/api-helpers";
 import { resolveSupabaseEnv } from "../../../../lib/supabase-env";
 
 export const dynamic = 'force-dynamic';
@@ -32,10 +32,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const env = resolveSupabaseEnv();
       if (env) {
         const supabase = createClient(env.url, env.anonKey);
+        // 各テーブルは repo_id キー。repo_name → repo_id を解決する (未登録なら merge せず base を返す)。
+        const repoId = await resolveRepoId(supabase, repo);
+        if (repoId == null) return NextResponse.json(payload, { headers: NO_STORE_HEADERS });
         const [{ data: elements }, { data: rels }, { data: communities }] = await Promise.all([
-          supabase.from('trail_c4_manual_elements').select('*').eq('repo_name', repo),
-          supabase.from('trail_c4_manual_relationships').select('*').eq('repo_name', repo),
-          supabase.from('trail_current_code_graph_communities').select('community_id,name,label,mappings_json').eq('repo_name', repo),
+          supabase.from('trail_c4_manual_elements').select('*').eq('repo_id', repoId),
+          supabase.from('trail_c4_manual_relationships').select('*').eq('repo_id', repoId),
+          supabase.from('trail_current_code_graph_communities').select('community_id,name,label,mappings_json').eq('repo_id', repoId),
         ]);
         const manualElements: ManualElement[] = (elements ?? []).map((row: Record<string, unknown>) => ({
           id: String(row.element_id),

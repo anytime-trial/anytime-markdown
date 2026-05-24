@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 import { resolveSupabaseEnv, resolveSupabaseServiceEnv } from '../../../../lib/supabase-env';
+import { resolveRepoId } from '../../../../lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,11 +14,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const env = resolveSupabaseEnv();
   if (!env) return new NextResponse('Supabase not configured', { status: 503 });
   const supabase = createClient(env.url, env.anonKey);
+  const repoId = await resolveRepoId(supabase, repoName);
+  if (repoId == null) return NextResponse.json([]);
 
   const { data, error } = await supabase
     .from('trail_c4_manual_groups')
     .select('group_id, member_ids, label, updated_at')
-    .eq('repo_name', repoName)
+    .eq('repo_id', repoId)
     .order('group_id');
   if (error) return new NextResponse(error.message, { status: 500 });
 
@@ -46,11 +49,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const env = resolveSupabaseServiceEnv();
   if (!env) return new NextResponse('Supabase not configured', { status: 503 });
   const supabase = createClient(env.url, env.serviceRoleKey);
+  const repoId = await resolveRepoId(supabase, repoName);
+  if (repoId == null) return new NextResponse('unknown repo', { status: 404 });
 
   const { data: existing } = await supabase
     .from('trail_c4_manual_groups')
     .select('group_id')
-    .eq('repo_name', repoName)
+    .eq('repo_id', repoId)
     .like('group_id', 'grp_manual_%');
   const maxN = (existing ?? []).reduce((m: number, row: { group_id: string }) => {
     const n = Number.parseInt(row.group_id.substring('grp_manual_'.length), 10);
@@ -62,7 +67,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { error } = await supabase
     .from('trail_c4_manual_groups')
     .insert({
-      repo_name: repoName,
+      repo_id: repoId,
       group_id: id,
       member_ids: JSON.stringify(memberIds),
       label: body.label ?? null,

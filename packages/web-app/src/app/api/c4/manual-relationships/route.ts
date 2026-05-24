@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 import { resolveSupabaseServiceEnv } from '../../../../lib/supabase-env';
+import { resolveRepoId } from '../../../../lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,11 +22,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const env = resolveSupabaseServiceEnv();
   if (!env) return new NextResponse('Supabase not configured', { status: 503 });
   const supabase = createClient(env.url, env.serviceRoleKey);
+  const repoId = await resolveRepoId(supabase, repoName);
+  if (repoId == null) return new NextResponse('unknown repo', { status: 404 });
 
   const { data: existing } = await supabase
     .from('trail_c4_manual_relationships')
     .select('rel_id')
-    .eq('repo_name', repoName)
+    .eq('repo_id', repoId)
     .like('rel_id', 'rel_manual_%');
   const maxN = (existing ?? []).reduce((m: number, row: { rel_id: string }) => {
     const n = Number.parseInt(row.rel_id.substring('rel_manual_'.length), 10);
@@ -37,7 +40,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { error } = await supabase
     .from('trail_c4_manual_relationships')
     .insert({
-      repo_name: repoName, rel_id: id,
+      repo_id: repoId, rel_id: id,
       from_id: body.fromId, to_id: body.toId,
       label: body.label ?? null, technology: body.technology ?? null,
       updated_at: now,

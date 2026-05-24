@@ -4,7 +4,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-import { NO_STORE_HEADERS } from '../../../lib/api-helpers';
+import { NO_STORE_HEADERS, resolveRepoId, resolveReleaseId } from '../../../lib/api-helpers';
 import { resolveSupabaseEnv } from '../../../lib/supabase-env';
 
 export const dynamic = 'force-dynamic';
@@ -56,8 +56,10 @@ async function fetchCurrent(
     .from('trail_current_code_graph_communities')
     .select('community_id,label,name,summary');
   if (repo) {
-    graphQuery = graphQuery.eq('repo_name', repo);
-    communityQuery = communityQuery.eq('repo_name', repo);
+    const repoId = await resolveRepoId(supabase, repo);
+    if (repoId == null) return null;
+    graphQuery = graphQuery.eq('repo_id', repoId);
+    communityQuery = communityQuery.eq('repo_id', repoId);
   }
   const [{ data: graphRow, error: graphErr }, { data: communityRows }] = await Promise.all([
     graphQuery.limit(1).single(),
@@ -76,20 +78,15 @@ async function fetchRelease(
   repo: string | undefined,
 ): Promise<FetchedGraph | null> {
   if (!repo) return null;
-  // 1. tag が repo に属するか確認
-  const { data: tagRow } = await supabase
-    .from('trail_releases')
-    .select('tag')
-    .eq('tag', release)
-    .eq('repo_name', repo)
-    .limit(1)
-    .maybeSingle<{ tag: string }>();
-  if (!tagRow) return null;
+  // 1. tag を (repo_id, tag) で release_id へ解決する (repo 帰属確認を兼ねる)。
+  const repoId = await resolveRepoId(supabase, repo);
+  const releaseId = await resolveReleaseId(supabase, release, repoId);
+  if (releaseId == null) return null;
 
-  // 2. release_code_graphs / communities を取得
+  // 2. release_code_graphs / communities を取得 (release_id キー)
   const [{ data: graphRow, error: graphErr }, { data: communityRows }] = await Promise.all([
-    supabase.from('trail_release_code_graphs').select('graph_json').eq('release_tag', release).limit(1).single(),
-    supabase.from('trail_release_code_graph_communities').select('community_id,label,name,summary').eq('release_tag', release).limit(1000),
+    supabase.from('trail_release_code_graphs').select('graph_json').eq('release_id', releaseId).limit(1).single(),
+    supabase.from('trail_release_code_graph_communities').select('community_id,label,name,summary').eq('release_id', releaseId).limit(1000),
   ]);
   if (graphErr || !graphRow) return null;
   return {
