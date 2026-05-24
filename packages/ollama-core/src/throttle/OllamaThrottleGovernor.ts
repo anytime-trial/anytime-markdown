@@ -22,6 +22,19 @@ export interface OllamaThrottleDeps {
 export type ThrottleState = 'NORMAL' | 'COOLING';
 export type OllamaOp = 'generate' | 'embeddings';
 
+export interface ThrottleSnapshotEntry {
+  op: OllamaOp;
+  model: string;
+  lastLatencyMs: number;
+  ewmaMs: number;
+  count: number;
+}
+export interface ThrottleSnapshot {
+  enabled: boolean;
+  state: ThrottleState;
+  entries: ThrottleSnapshotEntry[];
+}
+
 const IDLE_RESET_MS = 60_000;
 const EWMA_ALPHA = 0.3;
 const MIN_SAMPLES = 5;
@@ -36,7 +49,7 @@ export class OllamaThrottleGovernor {
   private busySince: number | null = null;
   private lastActivityAt: number | null = null;
   private tail: Promise<void> = Promise.resolve();
-  private readonly baselines = new Map<string, { ewma: number; count: number }>();
+  private readonly baselines = new Map<string, { ewma: number; count: number; lastLatencyMs: number }>();
 
   constructor(
     private readonly opts: OllamaThrottleOptions,
@@ -125,12 +138,27 @@ export class OllamaThrottleGovernor {
     if (op !== 'embeddings') return;
     const key = `${op}:${model}`;
     const b = this.baselines.get(key);
-    if (b && b.count >= MIN_SAMPLES && latencyMs > b.ewma * this.opts.slowdownFactor) {
-      this.enterCooling(now); // このスパイクは baseline に混ぜない (凍結)
+    const spiking = b !== undefined && b.count >= MIN_SAMPLES && latencyMs > b.ewma * this.opts.slowdownFactor;
+    if (spiking) {
+      // スパイクは ewma/count に混ぜず凍結。直近値 (lastLatencyMs) だけ更新して COOLING。
+      this.baselines.set(key, { ewma: b.ewma, count: b.count, lastLatencyMs: latencyMs });
+      this.enterCooling(now);
       return;
     }
     const ewma = b ? EWMA_ALPHA * latencyMs + (1 - EWMA_ALPHA) * b.ewma : latencyMs;
-    this.baselines.set(key, { ewma, count: (b?.count ?? 0) + 1 });
+    this.baselines.set(key, { ewma, count: (b?.count ?? 0) + 1, lastLatencyMs: latencyMs });
+  }
+
+  /** 現在の状態と embeddings ベースラインのスナップショット (パネル表示用・純粋)。 */
+  snapshot(): ThrottleSnapshot {
+    const entries: ThrottleSnapshotEntry[] = [];
+    for (const [key, b] of this.baselines) {
+      const idx = key.indexOf(':');
+      const op = key.slice(0, idx) as OllamaOp;
+      const model = key.slice(idx + 1);
+      entries.push({ op, model, lastLatencyMs: b.lastLatencyMs, ewmaMs: b.ewma, count: b.count });
+    }
+    return { enabled: this.opts.enabled, state: this.state(), entries };
   }
 
   private enterCooling(now: number): void {

@@ -18,10 +18,13 @@ function isInsideContainer(): boolean {
   }
 }
 
-export type OllamaItemKind = 'header' | 'model';
+export type OllamaItemKind = 'header' | 'model' | 'throttle';
 
 interface OllamaItemOptions {
   running?: boolean;
+  description?: string;
+  iconId?: string;
+  color?: vscode.ThemeColor;
 }
 
 export class OllamaItem extends vscode.TreeItem {
@@ -34,10 +37,51 @@ export class OllamaItem extends vscode.TreeItem {
     if (kind === 'header') {
       this.iconPath = new vscode.ThemeIcon(options.running ? 'pass' : 'circle-slash');
       this.contextValue = 'ollamaHeader';
+    } else if (kind === 'throttle') {
+      this.iconPath = new vscode.ThemeIcon(options.iconId ?? 'pulse', options.color);
+      this.description = options.description;
+      this.contextValue = 'ollamaThrottle';
     } else {
       this.iconPath = new vscode.ThemeIcon('package');
       this.contextValue = 'ollamaModel';
     }
+  }
+}
+
+const THROTTLE_STALE_MS = 60_000;
+
+interface ThrottleStatusFile {
+  enabled: boolean;
+  state: 'NORMAL' | 'COOLING';
+  entries: { op: string; model: string; lastLatencyMs: number; ewmaMs: number; count: number }[];
+  updatedAt: string;
+}
+
+/** throttle-status.json を読む。不在/stale/disabled/parse 失敗時は null。 */
+function readThrottleStatus(filePath: string | undefined, nowMs: number): ThrottleStatusFile | null {
+  if (!filePath) return null;
+  let raw: string;
+  try {
+    raw = fs.readFileSync(filePath, 'utf-8') as string;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      AgentLogger.error(
+        `[OllamaProvider] throttle-status read failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+      );
+    }
+    return null; // 不在は throttle 無効時の正常系
+  }
+  try {
+    const parsed = JSON.parse(raw) as ThrottleStatusFile;
+    if (!parsed.enabled) return null;
+    const updated = Date.parse(parsed.updatedAt);
+    if (Number.isNaN(updated) || nowMs - updated > THROTTLE_STALE_MS) return null;
+    return parsed;
+  } catch (err) {
+    AgentLogger.error(
+      `[OllamaProvider] throttle-status parse failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+    );
+    return null;
   }
 }
 
@@ -85,8 +129,11 @@ export class OllamaProvider
   private _status: OllamaStatus = { running: false, models: [] };
   private _pollTimer: ReturnType<typeof setInterval> | undefined;
   private _fastPollTimer: ReturnType<typeof setTimeout> | undefined;
+  private _throttle: ThrottleStatusFile | null = null;
+  private readonly _throttleStatusPath: string | undefined;
 
-  constructor() {
+  constructor(throttleStatusPath?: string) {
+    this._throttleStatusPath = throttleStatusPath;
     this._startPolling(POLL_NORMAL_MS);
     void this._poll();
   }
@@ -102,11 +149,14 @@ export class OllamaProvider
 
   private async _poll(): Promise<void> {
     const status = await fetchOllamaStatus();
+    const throttle = readThrottleStatus(this._throttleStatusPath, Date.now());
     const runningChanged = status.running !== this._status.running;
     const treeChanged =
       runningChanged ||
-      JSON.stringify(status.models) !== JSON.stringify(this._status.models);
+      JSON.stringify(status.models) !== JSON.stringify(this._status.models) ||
+      JSON.stringify(throttle) !== JSON.stringify(this._throttle);
     this._status = status;
+    this._throttle = throttle;
     if (runningChanged) {
       await vscode.commands.executeCommand(
         'setContext',
@@ -125,6 +175,28 @@ export class OllamaProvider
     const items: OllamaItem[] = [
       new OllamaItem('header', headerLabel, { running: status.running }),
     ];
+    const throttle = this._throttle;
+    if (throttle) {
+      const cooling = throttle.state === 'COOLING';
+      items.push(
+        new OllamaItem('throttle', 'throttle', {
+          description: throttle.state,
+          iconId: 'thermometer',
+          color: cooling ? new vscode.ThemeColor('notificationsWarningIcon.foreground') : undefined,
+        }),
+      );
+      for (const e of throttle.entries) {
+        if (e.op !== 'embeddings') continue;
+        const ratio = e.ewmaMs > 0 ? (e.lastLatencyMs / e.ewmaMs).toFixed(2) : '—';
+        const provisional = e.count < 5 ? ' (測定中)' : '';
+        items.push(
+          new OllamaItem('throttle', 'embeddings', {
+            description: `直近 ${Math.round(e.lastLatencyMs)}ms · 基準 ${Math.round(e.ewmaMs)}ms (×${ratio})${provisional}`,
+            iconId: 'pulse',
+          }),
+        );
+      }
+    }
     for (const model of status.models) {
       items.push(new OllamaItem('model', model));
     }

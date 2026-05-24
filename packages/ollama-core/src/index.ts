@@ -17,5 +17,7 @@ export type {
   OllamaThrottleDeps,
   ThrottleState,
   OllamaOp,
+  ThrottleSnapshot,
+  ThrottleSnapshotEntry,
 } from './throttle/OllamaThrottleGovernor';
 export { createThrottledOllamaClient } from './throttle/createThrottledOllamaClient';

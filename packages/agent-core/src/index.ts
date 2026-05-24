@@ -61,6 +61,8 @@ export type {
   OllamaThrottleDeps,
   ThrottleState,
   OllamaOp,
+  ThrottleSnapshot,
+  ThrottleSnapshotEntry,
 } from '@anytime-markdown/ollama-core';
 export { Emitter } from './util/Emitter';
 export type { Disposable, Listener } from './util/Emitter';
