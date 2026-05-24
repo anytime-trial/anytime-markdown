@@ -35,6 +35,8 @@
     "packages/web-app",
     "packages/mobile-app",
     "packages/trail-server",
+    "packages/code-analysis-core",
+    "packages/code-analysis-typescript",
     "packages/trail-core",
     "packages/trail-db",
     "packages/trail-viewer",
