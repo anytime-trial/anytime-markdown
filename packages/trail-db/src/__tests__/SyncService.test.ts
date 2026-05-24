@@ -161,6 +161,10 @@ describe('SyncService.sync commits', () => {
   it('syncs session commits even when message sync fails for that session', async () => {
     const localDb = await createDb();
     const inner = (localDb as unknown as { ensureDb(): { run(sql: string, params?: unknown[]): void } }).ensureDb();
+    // Phase H-4: sessions / session_commits から repo_name 列を撤去したため、repo 帰属は repo_id で表現する。
+    // repos を seed して repo_id を解決し fixture に埋める。SyncService の getSessionCommits は repos を
+    // JOIN して repo_name を復元するため、Supabase ミラーへ運ぶ commit 行の repo_name は維持される。
+    const repoId = (localDb as unknown as { repoIdForName(n: string): number }).repoIdForName('repo-a');
     // messageCutoff = Date.now() - 7 日 のためメッセージは「直近 7 日以内」である必要がある。
     // テスト実行時刻に依存しないよう Date.now() からの相対時刻を採用。
     const now = new Date();
@@ -168,17 +172,17 @@ describe('SyncService.sync commits', () => {
     const sessionStartIso = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(); // 2 時間前
     inner.run(
       `INSERT OR IGNORE INTO sessions (
-        id, slug, repo_name, version, entrypoint, model, start_time, end_time,
+        id, slug, repo_id, version, entrypoint, model, start_time, end_time,
         message_count, file_path, file_size, imported_at
       ) VALUES (?, ?, ?, '0', '', '', ?, ?, 0, '', 0, ?)`,
-      ['s1', 's1', 'repo-a', sessionStartIso, recentIso, recentIso],
+      ['s1', 's1', repoId, sessionStartIso, recentIso, recentIso],
     );
     inner.run(
       `INSERT OR IGNORE INTO session_commits (
-        session_id, repo_name, commit_hash, commit_message, author, committed_at,
+        session_id, repo_id, commit_hash, commit_message, author, committed_at,
         is_ai_assisted, files_changed, lines_added, lines_deleted
       ) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 12, 3)`,
-      ['s1', 'repo-a', 'abc123', 'fix: keep commits synced', 'Tester', recentIso],
+      ['s1', repoId, 'abc123', 'fix: keep commits synced', 'Tester', recentIso],
     );
     inner.run(
       `INSERT OR IGNORE INTO messages (
@@ -193,6 +197,8 @@ describe('SyncService.sync commits', () => {
 
     expect(result.errors).toBeGreaterThan(0);
     expect(remoteStore.commitRows).toHaveLength(1);
+    // Phase H-4: getSessionCommits の JOIN repos が repo_name を復元し、Supabase ミラーへ運ぶ契約を維持する。
+    expect((remoteStore.commitRows[0] as { repo_name: string }).repo_name).toBe('repo-a');
     localDb.close();
   });
 });

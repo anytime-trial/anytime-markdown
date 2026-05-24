@@ -133,10 +133,24 @@ function makeTrailDb(repoName: string, commits: CommitSeed[]): BetterSqlite3Memo
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
 
+  // Phase H-4: trail.sessions / session_commits / commit_files から repo_name 列を撤去した。repo 帰属は
+  // repo_id で表現し、消費側 (runBugHistoryIncremental / linkAffectedFiles) は trail.repos を JOIN する。
+  db.run(`CREATE TABLE repos (
+    repo_id INTEGER PRIMARY KEY,
+    repo_name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  ) STRICT`);
+  db.run(
+    `INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    [repoName]
+  );
+  const repoIdRow = db.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  const repoId = Number(repoIdRow[0]?.values?.[0]?.[0] ?? 0);
+
   db.run(`CREATE TABLE sessions (
     id TEXT PRIMARY KEY,
     slug TEXT NOT NULL DEFAULT '',
-    repo_name TEXT NOT NULL DEFAULT '',
+    repo_id INTEGER REFERENCES repos(repo_id) ON DELETE CASCADE,
     version TEXT NOT NULL DEFAULT '',
     entrypoint TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL DEFAULT '',
@@ -163,35 +177,35 @@ function makeTrailDb(repoName: string, commits: CommitSeed[]): BetterSqlite3Memo
     files_changed INTEGER NOT NULL DEFAULT 0,
     lines_added INTEGER NOT NULL DEFAULT 0,
     lines_deleted INTEGER NOT NULL DEFAULT 0,
-    repo_name TEXT NOT NULL DEFAULT '',
-    PRIMARY KEY (session_id, commit_hash)
+    repo_id INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (session_id, repo_id, commit_hash)
   ) STRICT`);
 
   db.run(`CREATE TABLE commit_files (
     commit_hash TEXT NOT NULL,
-    repo_name TEXT NOT NULL DEFAULT '',
+    repo_id INTEGER NOT NULL DEFAULT 0,
     file_path TEXT NOT NULL,
     change_type TEXT NOT NULL DEFAULT 'M',
-    PRIMARY KEY (commit_hash, file_path)
+    PRIMARY KEY (repo_id, commit_hash, file_path)
   ) STRICT`);
 
   // Insert unique sessions
   const sessionIds = [...new Set(commits.map((c) => c.sessionId))];
   for (const sid of sessionIds) {
-    db.run(`INSERT INTO sessions (id, repo_name) VALUES (?, ?)`, [sid, repoName]);
+    db.run(`INSERT INTO sessions (id, repo_id) VALUES (?, ?)`, [sid, repoId]);
   }
 
   for (const commit of commits) {
     db.run(
       `INSERT INTO session_commits
-         (session_id, commit_hash, commit_message, committed_at, repo_name)
+         (session_id, commit_hash, commit_message, committed_at, repo_id)
        VALUES (?, ?, ?, ?, ?)`,
-      [commit.sessionId, commit.commitHash, commit.commitMessage, commit.committedAt, repoName]
+      [commit.sessionId, commit.commitHash, commit.commitMessage, commit.committedAt, repoId]
     );
     for (const fp of commit.filePaths) {
       db.run(
-        `INSERT INTO commit_files (commit_hash, repo_name, file_path) VALUES (?, ?, ?)`,
-        [commit.commitHash, repoName, fp]
+        `INSERT INTO commit_files (commit_hash, repo_id, file_path) VALUES (?, ?, ?)`,
+        [commit.commitHash, repoId, fp]
       );
     }
   }

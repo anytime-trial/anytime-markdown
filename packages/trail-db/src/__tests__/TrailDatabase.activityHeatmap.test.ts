@@ -10,10 +10,7 @@ const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb })
 
 const insertSession = (db: TrailDatabase, id: string, slug = id): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-       message_count, file_path, file_size, imported_at
-     ) VALUES (?, ?, 'r', '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [id, slug],
   );
 };
@@ -117,10 +114,7 @@ describe('TrailDatabase.fetchActivityHeatmapRows', () => {
   test('subagent-file mode includes codex-linked sessions as rowId="codex"', () => {
     // CC parent session + delegation marker
     inner(db).run(
-      `INSERT INTO sessions (
-         id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-         message_count, file_path, file_size, imported_at, source
-       ) VALUES ('cc1', 'cc1', 'r', '0', '', '', '2026-04-25T10:00:00.000Z', '2026-04-25T11:00:00.000Z', 0, '', 0, '', 'claude_code')`,
+      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('cc1', 'cc1', '0', '', '', '2026-04-25T10:00:00.000Z', '2026-04-25T11:00:00.000Z', 0, '', 0, '', 'claude_code')`,
     );
     inner(db).run(
       `INSERT INTO messages (uuid, session_id, type, timestamp, source_tool_assistant_uuid)
@@ -128,10 +122,7 @@ describe('TrailDatabase.fetchActivityHeatmapRows', () => {
     );
     // codex session in same repo, time-overlapping
     inner(db).run(
-      `INSERT INTO sessions (
-         id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-         message_count, file_path, file_size, imported_at, source
-       ) VALUES ('codex1', 'codex1', 'r', '0', '', '', '2026-04-25T10:02:00.000Z', '2026-04-25T10:05:00.000Z', 0, '', 0, '', 'codex')`,
+      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('codex1', 'codex1', '0', '', '', '2026-04-25T10:02:00.000Z', '2026-04-25T10:05:00.000Z', 0, '', 0, '', 'codex')`,
     );
     inner(db).run(
       `INSERT INTO messages (uuid, session_id, type, timestamp)

@@ -21,8 +21,7 @@ function releaseIdForTag(db: TrailDatabase, tag: string): number {
 
 function insertSession(db: TrailDatabase, id: string): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, repo_name, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at)
-     VALUES (?, ?, 'r', '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [id, id],
   );
 }
@@ -37,8 +36,11 @@ function insertProdReleaseMessage(db: TrailDatabase, uuid: string, sessionId: st
 }
 
 function insertRelease(db: TrailDatabase, tag: string, releasedAt: string | null): void {
+  // Phase H-5: releases.repo_name 列は撤去済。repo 帰属は repo_id (repos FK) で表現する。
+  // 本テストは coverage / timing (release_id ベース) を検証するだけで repo 識別に依存しないため
+  // repo_id は省略 (NULL) のままにする。
   inner(db).run(
-    `INSERT OR REPLACE INTO releases (tag, released_at, repo_name) VALUES (?, ?, 'repo')`,
+    `INSERT OR REPLACE INTO releases (tag, released_at) VALUES (?, ?)`,
     [tag, releasedAt],
   );
 }

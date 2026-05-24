@@ -9,10 +9,12 @@ function inner(db: TrailDatabase): SqlJsDb {
 }
 
 function insertSession(db: TrailDatabase, sessionId: string, repoName: string): void {
+  // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
+  const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, repo_name, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at)
+    `INSERT OR IGNORE INTO sessions (id, slug, repo_id, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at)
      VALUES (?, ?, ?, '0', '', '', '', '', 0, '', 0, '')`,
-    [sessionId, sessionId, repoName],
+    [sessionId, sessionId, repoId],
   );
 }
 

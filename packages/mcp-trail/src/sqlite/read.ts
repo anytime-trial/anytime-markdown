@@ -3,6 +3,16 @@ import type { C4Model, ManualElement, ManualRelationship } from '@anytime-markdo
 import { codeGraphToC4, mergeManualIntoC4Model } from '@anytime-markdown/trail-core';
 import { all, get } from './sqlJsUtil';
 
+/**
+ * Phase H-2: c4_manual_* から repo_name 列を撤去したため、read の repo フィルタは repo_id = ? で行う。
+ * read は副作用を避けるため repos へ upsert せず参照のみする。未登録の repo は -1 (どの行にも
+ * マッチしない sentinel) を返し、空結果を返させる。
+ */
+function lookupRepoId(db: Database, repoName: string): number {
+  const row = get<{ repo_id: number }>(db, 'SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  return row ? Number(row.repo_id) : -1;
+}
+
 // current_code_graphs.graph_json は trail-core の StoredCodeGraph 形式。
 // import 時の型衝突を避けるため runtime はそのまま JSON.parse、型は構造のみ参照。
 interface StoredCodeGraphJson {
@@ -99,10 +109,13 @@ interface CommunityRowRaw {
 }
 
 export function getC4ModelDirect(db: Database, repoName: string): { model: C4Model } {
+  // Phase H-2 / H-3: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
+  const repoId = lookupRepoId(db, repoName);
+
   const graphRow = get<GraphRow>(
     db,
-    'SELECT graph_json FROM current_code_graphs WHERE repo_name = ?',
-    [repoName],
+    'SELECT graph_json FROM current_code_graphs WHERE repo_id = ?',
+    [repoId],
   );
 
   const base: C4Model = graphRow
@@ -111,8 +124,8 @@ export function getC4ModelDirect(db: Database, repoName: string): { model: C4Mod
 
   const manualElementRows = all<ManualElementRow>(
     db,
-    'SELECT element_id, type, name, description, service_type, external, updated_at FROM c4_manual_elements WHERE repo_name = ? ORDER BY element_id',
-    [repoName],
+    'SELECT element_id, type, name, description, service_type, external, updated_at FROM c4_manual_elements WHERE repo_id = ? ORDER BY element_id',
+    [repoId],
   );
 
   const manualElements: ManualElement[] = manualElementRows.map((row) => ({
@@ -128,8 +141,8 @@ export function getC4ModelDirect(db: Database, repoName: string): { model: C4Mod
 
   const manualRelationshipRows = all<ManualRelationshipRow>(
     db,
-    'SELECT rel_id, from_id, to_id, label, technology, updated_at FROM c4_manual_relationships WHERE repo_name = ? ORDER BY rel_id',
-    [repoName],
+    'SELECT rel_id, from_id, to_id, label, technology, updated_at FROM c4_manual_relationships WHERE repo_id = ? ORDER BY rel_id',
+    [repoId],
   );
 
   const manualRelationships: ManualRelationship[] = manualRelationshipRows.map((row) => ({
@@ -156,10 +169,12 @@ export function listElementsDirect(db: Database, repoName: string): ListedElemen
 }
 
 export function listGroupsDirect(db: Database, repoName: string): ListedGroup[] {
+  // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
+  const repoId = lookupRepoId(db, repoName);
   const rows = all<ManualGroupRow>(
     db,
-    'SELECT group_id, member_ids, label FROM c4_manual_groups WHERE repo_name = ? ORDER BY group_id',
-    [repoName],
+    'SELECT group_id, member_ids, label FROM c4_manual_groups WHERE repo_id = ? ORDER BY group_id',
+    [repoId],
   );
 
   return rows.map((row) => {
@@ -173,10 +188,12 @@ export function listGroupsDirect(db: Database, repoName: string): ListedGroup[] 
 }
 
 export function listRelationshipsDirect(db: Database, repoName: string): ListedRelationship[] {
+  // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
+  const repoId = lookupRepoId(db, repoName);
   const rows = all<ManualRelationshipRow>(
     db,
-    'SELECT rel_id, from_id, to_id, label, technology FROM c4_manual_relationships WHERE repo_name = ? ORDER BY rel_id',
-    [repoName],
+    'SELECT rel_id, from_id, to_id, label, technology FROM c4_manual_relationships WHERE repo_id = ? ORDER BY rel_id',
+    [repoId],
   );
 
   return rows.map((row) => {
@@ -188,28 +205,30 @@ export function listRelationshipsDirect(db: Database, repoName: string): ListedR
 }
 
 export function listCommunitiesDirect(db: Database, repoName: string): { communities: CommunityRow[] } {
+  // Phase H-3: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
+  const repoId = lookupRepoId(db, repoName);
   // 古いスキーマ（mappings_json / stable_key 列未追加）への後方互換のため、列存在を try で段階的にフォールバック
   let rows: CommunityRowRaw[];
   try {
     rows = all<CommunityRowRaw>(
       db,
-      'SELECT community_id, label, name, summary, mappings_json, stable_key FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
-      [repoName],
+      'SELECT community_id, label, name, summary, mappings_json, stable_key FROM current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
+      [repoId],
     );
   } catch (err) {
     console.error('[mcp-trail] listCommunitiesDirect: stable_key column not found, falling back', err);
     try {
       rows = all<CommunityRowRaw>(
         db,
-        'SELECT community_id, label, name, summary, mappings_json FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
-        [repoName],
+        'SELECT community_id, label, name, summary, mappings_json FROM current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
+        [repoId],
       );
     } catch (err2) {
       console.error('[mcp-trail] listCommunitiesDirect: mappings_json column not found, falling back', err2);
       rows = all<CommunityRowRaw>(
         db,
-        'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_name = ? ORDER BY community_id',
-        [repoName],
+        'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
+        [repoId],
       );
     }
   }
@@ -241,10 +260,12 @@ export function listCommunityNodesDirect(
   db: Database,
   repoName: string,
 ): { communities: CommunityNodes[] } {
+  // Phase H-3: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う (read は upsert しない)。
+  const repoId = lookupRepoId(db, repoName);
   const row = get<GraphRow>(
     db,
-    'SELECT graph_json FROM current_code_graphs WHERE repo_name = ?',
-    [repoName],
+    'SELECT graph_json FROM current_code_graphs WHERE repo_id = ?',
+    [repoId],
   );
   if (!row) return { communities: [] };
 

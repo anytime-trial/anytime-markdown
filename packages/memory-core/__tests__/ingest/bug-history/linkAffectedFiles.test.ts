@@ -19,19 +19,32 @@ async function buildTestDb(commitSha: string, filePaths: string[], repoName = 'a
   const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
 
   // 2. Build trail DB in-memory using sql.js and attach via handle
+  // Phase H-4: trail.commit_files から repo_name 列を撤去した。repo 帰属は repo_id で表現し、
+  // linkAffectedFiles は trail.repos を JOIN して repo_name → repo_id を解決する。
   const trailHandle = BetterSqlite3MemoryDb.openInMemory();
   trailHandle.run('PRAGMA foreign_keys = ON');
+  trailHandle.run(`CREATE TABLE repos (
+    repo_id INTEGER PRIMARY KEY,
+    repo_name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  ) STRICT`);
+  trailHandle.run(
+    `INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    [repoName]
+  );
+  const repoIdRow = trailHandle.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  const repoId = Number(repoIdRow[0]?.values?.[0]?.[0] ?? 0);
   trailHandle.run(`CREATE TABLE commit_files (
     id INTEGER PRIMARY KEY,
     commit_hash TEXT NOT NULL,
-    repo_name TEXT NOT NULL,
+    repo_id INTEGER NOT NULL,
     file_path TEXT NOT NULL,
     change_type TEXT NOT NULL DEFAULT 'M'
   ) STRICT`);
   for (const fp of filePaths) {
     trailHandle.run(
-      `INSERT INTO commit_files (commit_hash, repo_name, file_path) VALUES (?, ?, ?)`,
-      [commitSha, repoName, fp]
+      `INSERT INTO commit_files (commit_hash, repo_id, file_path) VALUES (?, ?, ?)`,
+      [commitSha, repoId, fp]
     );
   }
 

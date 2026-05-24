@@ -11,8 +11,7 @@ function inner(db: TrailDatabase): SqlJsDb {
 
 function insertSession(db: TrailDatabase, id: string): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, repo_name, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at)
-     VALUES (?, ?, 'r', '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [id, id],
   );
 }

@@ -55,10 +55,10 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(relCols).toContain('stable_key');
   });
 
-  it('Phase C-2 flip: repo_name PK の legacy current_code_graph_communities を repo_id PK へ再構築する', async () => {
+  it('Phase C-2 flip + H-3: repo_name PK の legacy current_code_graph_communities を repo_id PK へ再構築し repo_name を撤去する', async () => {
     // legacy 状態 (repo_name PK・repo_id 列なし) を再現し、data を 1 行入れてから
     // createTables を再実行する。flip 後は repo_id 列 + (repo_id, community_id) PK になり、
-    // 旧データの repo_id が repos.repo_name 経由で backfill されることを確認する。
+    // 旧データの repo_id が repos.repo_name 経由で backfill される。Phase H-3 で repo_name 列は撤去される。
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
@@ -85,30 +85,32 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
 
-    // flip 後: repo_id 列が追加され、PK が (repo_id, community_id) になっている。
+    // flip + H-3 後: repo_id 列があり PK が (repo_id, community_id)。repo_name 列は撤去済。
     const info = inner.exec('PRAGMA table_info(current_code_graph_communities)');
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
-    expect(colNames).toContain('repo_name'); // 移行互換のため残置
+    expect(colNames).not.toContain('repo_name'); // Phase H-3: 物理撤去済
+    expect(colNames).toContain('stable_key'); // 引き継ぎ用途のため維持
     // pk 列 (5 番目フィールド) が 1 以上の列を PK 構成列とみなす。
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
     expect(pkCols).toEqual(['community_id', 'repo_id']);
 
-    // 旧データが repo_id backfill 済で残っている。
+    // 旧データが repo_id backfill 済で残っている。repo_name は repos 経由で復元する。
+    const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-repo');
     const data = inner.exec(
-      "SELECT repo_id, repo_name, community_id, name FROM current_code_graph_communities WHERE repo_name = 'legacy-repo'",
+      'SELECT repo_id, community_id, name FROM current_code_graph_communities WHERE repo_id = ?',
+      [repoIdViaName],
     );
     const dataRow = data[0]?.values?.[0];
     expect(dataRow).toBeDefined();
     expect(Number(dataRow![0])).toBeGreaterThan(0); // repo_id が backfill された
-    expect(String(dataRow![3])).toBe('N');
+    expect(String(dataRow![2])).toBe('N');
     // repo_id が repos.repo_name='legacy-repo' に対応している。
-    const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-repo');
     expect(Number(dataRow![0])).toBe(repoIdViaName);
   });
 
-  it('Phase C-2 flip: repo_name PK の legacy current_file_analysis を repo_id PK へ再構築しデータを保持する', async () => {
+  it('Phase C-2 flip + H-3: repo_name PK の legacy current_file_analysis を repo_id PK へ再構築し repo_name 撤去後もデータを保持する', async () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
@@ -153,13 +155,15 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
+    expect(colNames).not.toContain('repo_name'); // Phase H-3: 物理撤去済
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
     expect(pkCols).toEqual(['file_path', 'repo_id']);
 
-    // データが repo_id backfill 済で生存している。
+    // データが repo_id backfill 済で生存している。read は repos を JOIN して repoName を復元する。
     const fa = db.getCurrentFileAnalysis('legacy-fa');
     expect(fa).toHaveLength(1);
     expect(fa[0].filePath).toBe('src/a.ts');
+    expect(fa[0].repoName).toBe('legacy-fa');
   });
 
   it('Phase D flip: 旧 PK の legacy session_commits / commit_files / session_commit_resolutions を repo_id PK へ再構築しデータを保持する', async () => {
@@ -231,17 +235,19 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     };
 
     expect(colsOf('session_commits')).toContain('repo_id');
-    expect(colsOf('session_commits')).toContain('repo_name'); // 移行互換で残置
+    expect(colsOf('session_commits')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
+    expect(colsOf('commit_files')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
+    expect(colsOf('session_commit_resolutions')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
     // PK は (session_id, repo_id, commit_hash) → ソートで commit_hash, repo_id, session_id。
     expect(pkOf('session_commits')).toEqual(['commit_hash', 'repo_id', 'session_id']);
     expect(pkOf('commit_files')).toEqual(['commit_hash', 'file_path', 'repo_id']);
     expect(pkOf('session_commit_resolutions')).toEqual(['repo_id', 'session_id']);
 
-    // 旧データが repo_id backfill 済で残っている。
+    // 旧データが repo_id backfill 済で残っている。repo_name は repos 経由で復元する。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-sc');
-    const sc = inner.exec("SELECT repo_id, repo_name, commit_hash FROM session_commits WHERE session_id = 'legacy-sess'");
+    const sc = inner.exec("SELECT repo_id, commit_hash FROM session_commits WHERE session_id = 'legacy-sess'");
     expect(Number(sc[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
-    expect(String(sc[0]?.values?.[0]?.[1])).toBe('legacy-sc');
+    expect(String(sc[0]?.values?.[0]?.[1])).toBe('h-legacy');
 
     const cf = inner.exec("SELECT repo_id, file_path FROM commit_files WHERE commit_hash = 'h-legacy'");
     expect(Number(cf[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
@@ -249,6 +255,12 @@ describe('TrailDatabase: legacy DB migration on init', () => {
 
     const res = inner.exec("SELECT repo_id FROM session_commit_resolutions WHERE session_id = 'legacy-sess'");
     expect(Number(res[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
+
+    // read 契約: getSessionCommits / getCommitFiles は repos を JOIN して repo_name を復元する。
+    const scRows = db.getSessionCommits('legacy-sess');
+    expect(scRows.map((r) => r.repo_name)).toEqual(['legacy-sc']);
+    const cfRows = db.getCommitFiles(['h-legacy']);
+    expect(cfRows.map((r) => r.repo_name)).toEqual(['legacy-sc']);
   });
 
   it('Phase D additive: legacy sessions (repo_id 列なし) に repo_id を追加し repo_name から backfill する', async () => {
@@ -286,13 +298,16 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
+    expect(colNames).not.toContain('repo_name'); // Phase H-4: 物理撤去済
     // PK は id のまま (additive のため変更しない)。
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1]));
     expect(pkCols).toEqual(['id']);
 
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-sessrepo');
-    const s = inner.exec("SELECT repo_id, repo_name FROM sessions WHERE id = 'legacy-s'");
+    const s = inner.exec("SELECT repo_id FROM sessions WHERE id = 'legacy-s'");
     expect(Number(s[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
+    // read 契約: getSessions は repos を JOIN して repo_name を復元する。
+    expect(db.getSessions().find((r) => r.id === 'legacy-s')?.repo_name).toBe('legacy-sessrepo');
   });
 
   it('Phase D: legacy sessions に project 列が残る DB でも、project 撤去再構築後に repo_id とその backfill 値が保持される', async () => {
@@ -333,23 +348,24 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const info = inner.exec('PRAGMA table_info(sessions)');
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
-    // project は撤去され、repo_id は保持される。
+    // project は撤去され、repo_id は保持される。Phase H-4: repo_name も撤去済。
     expect(colNames).not.toContain('project');
     expect(colNames).toContain('repo_id');
-    expect(colNames).toContain('repo_name');
+    expect(colNames).not.toContain('repo_name'); // Phase H-4: 物理撤去済
 
     // repo_id の backfill 値が project 撤去再構築をまたいで保持される。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('proj-sessrepo');
-    const s = inner.exec("SELECT repo_id, repo_name FROM sessions WHERE id = 'proj-s'");
+    const s = inner.exec("SELECT repo_id FROM sessions WHERE id = 'proj-s'");
     expect(Number(s[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
-    expect(String(s[0]?.values?.[0]?.[1])).toBe('proj-sessrepo');
+    // read 契約: getSessions は repos を JOIN して repo_name を復元する。
+    expect(db.getSessions().find((r) => r.id === 'proj-s')?.repo_name).toBe('proj-sessrepo');
   });
 
   it('Phase E flip: 旧 PK / 複合 FK の legacy c4_manual_* を repo_id PK へ再構築し、データ・複合 FK・backfill を保持する', async () => {
     // legacy 状態 (旧 PK (repo_name, <id>)・自己参照/複合 FK・repo_id 列なし) を再現し、各テーブルに
     // 親子・複合 FK を含む data を入れてから createTables を再実行する。flip 後は repo_id 列 + 新 PK
     // (repo_id, <id>) + repo_id ベースの複合 FK になり、旧データの repo_id が repos.repo_name 経由で
-    // backfill されることを確認する。
+    // backfill される。Phase H-2: 続いて repo_name 列が物理撤去される (複合 PK/FK は repo_id 構成のため不変)。
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
@@ -425,10 +441,11 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       return rows.map((c) => String(c[1]));
     };
 
-    // flip 後: repo_id 列が追加され、PK が (repo_id, <id>) になっている。repo_name は移行互換で残置。
+    // flip 後: repo_id 列が追加され、PK が (repo_id, <id>) になっている。
+    // Phase H-2: repo_name は物理撤去済 (read は repo_id = ? で絞る)。
     for (const table of ['c4_manual_elements', 'c4_manual_relationships', 'c4_manual_groups']) {
       expect(colsOf(table)).toContain('repo_id');
-      expect(colsOf(table)).toContain('repo_name');
+      expect(colsOf(table)).not.toContain('repo_name');
     }
     // PK は ソートで [element_id, repo_id] / [rel_id, repo_id] / [group_id, repo_id]。
     expect(pkOf('c4_manual_elements')).toEqual(['element_id', 'repo_id']);
@@ -453,19 +470,19 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(relFromCols).toContain('to_id');
 
     // 旧データが repo_id backfill 済で全件残っている (除外 0 件・データ保全)。
+    // Phase H-2: repo_name 列は無いため repo_id = ? で絞る。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-c4');
-    const elems = inner.exec("SELECT repo_id, repo_name, element_id, parent_id FROM c4_manual_elements WHERE repo_name = 'legacy-c4' ORDER BY element_id");
+    const elems = inner.exec('SELECT repo_id, element_id, parent_id FROM c4_manual_elements WHERE repo_id = ? ORDER BY element_id', [repoIdViaName]);
     const elemVals = (elems[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(elemVals).toHaveLength(2);
     for (const row of elemVals) {
       expect(Number(row[0])).toBe(repoIdViaName); // repo_id backfill
-      expect(String(row[1])).toBe('legacy-c4');
     }
     // 子要素の parent_id 自己参照が保持されている。
-    const child = elemVals.find((r) => String(r[2]) === 'pkg_manual_1');
-    expect(String(child?.[3])).toBe('sys_manual_1');
+    const child = elemVals.find((r) => String(r[1]) === 'pkg_manual_1');
+    expect(String(child?.[2])).toBe('sys_manual_1');
 
-    const rels = inner.exec("SELECT repo_id, from_id, to_id, label FROM c4_manual_relationships WHERE repo_name = 'legacy-c4'");
+    const rels = inner.exec('SELECT repo_id, from_id, to_id, label FROM c4_manual_relationships WHERE repo_id = ?', [repoIdViaName]);
     const relVals = (rels[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(relVals).toHaveLength(1);
     expect(Number(relVals[0]?.[0])).toBe(repoIdViaName);
@@ -473,7 +490,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(String(relVals[0]?.[2])).toBe('sys_manual_1');
     expect(String(relVals[0]?.[3])).toBe('uses');
 
-    const groups = inner.exec("SELECT repo_id, member_ids, label FROM c4_manual_groups WHERE repo_name = 'legacy-c4'");
+    const groups = inner.exec('SELECT repo_id, member_ids, label FROM c4_manual_groups WHERE repo_id = ?', [repoIdViaName]);
     const groupVals = (groups[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(groupVals).toHaveLength(1);
     expect(Number(groupVals[0]?.[0])).toBe(repoIdViaName);
@@ -503,9 +520,724 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       return rows.map((c) => String(c[1]));
     };
     expect(colsOf('c4_manual_elements')).toContain('repo_id');
+    // Phase H-2: 新規 DB の c4_manual_* は repo_name 列を持たない。
+    expect(colsOf('c4_manual_elements')).not.toContain('repo_name');
+    expect(colsOf('c4_manual_relationships')).not.toContain('repo_name');
+    expect(colsOf('c4_manual_groups')).not.toContain('repo_name');
     expect(pkOf('c4_manual_elements')).toEqual(['element_id', 'repo_id']);
     expect(pkOf('c4_manual_relationships')).toEqual(['rel_id', 'repo_id']);
     expect(pkOf('c4_manual_groups')).toEqual(['group_id', 'repo_id']);
+    db.close();
+  });
+
+  it('Phase H-2: repo_name 列ありの legacy c4_manual_* から repo_name を物理撤去し repo_id データ・複合 FK を保全する', async () => {
+    // Phase E flip 済の中間スキーマ = repo_id PK + 複合 FK + repo_name 残置列を再現する (撤去直前の状態)。
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+    const colsOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.map((c) => String(c[1]));
+    };
+    const pkOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
+    };
+
+    inner.run('DROP TABLE IF EXISTS c4_manual_relationships');
+    inner.run('DROP TABLE IF EXISTS c4_manual_groups');
+    inner.run('DROP TABLE IF EXISTS c4_manual_elements');
+    inner.run(`
+      CREATE TABLE c4_manual_elements (
+        repo_id      INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name    TEXT NOT NULL DEFAULT '',
+        element_id   TEXT NOT NULL,
+        type         TEXT NOT NULL
+          CHECK (type IN ('person', 'system', 'container', 'component', 'code', 'enterprise')),
+        name         TEXT NOT NULL,
+        description  TEXT,
+        external     INTEGER NOT NULL DEFAULT 0 CHECK (external IN (0, 1)),
+        parent_id    TEXT,
+        service_type TEXT,
+        updated_at   TEXT NOT NULL,
+        PRIMARY KEY (repo_id, element_id),
+        FOREIGN KEY (repo_id, parent_id) REFERENCES c4_manual_elements(repo_id, element_id)
+      ) STRICT
+    `);
+    inner.run(`
+      CREATE TABLE c4_manual_relationships (
+        repo_id     INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name   TEXT NOT NULL DEFAULT '',
+        rel_id      TEXT NOT NULL,
+        from_id     TEXT NOT NULL,
+        to_id       TEXT NOT NULL,
+        label       TEXT,
+        technology  TEXT,
+        updated_at  TEXT NOT NULL,
+        PRIMARY KEY (repo_id, rel_id),
+        FOREIGN KEY (repo_id, from_id) REFERENCES c4_manual_elements(repo_id, element_id),
+        FOREIGN KEY (repo_id, to_id)   REFERENCES c4_manual_elements(repo_id, element_id)
+      ) STRICT
+    `);
+    inner.run(`
+      CREATE TABLE c4_manual_groups (
+        repo_id    INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name  TEXT NOT NULL DEFAULT '',
+        group_id   TEXT NOT NULL,
+        member_ids TEXT NOT NULL CHECK (json_valid(member_ids)),
+        label      TEXT,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (repo_id, group_id)
+      ) STRICT
+    `);
+
+    // repo_id を repos 経由で確定させてからデータ投入する (repo_id と repo_name を整合)。
+    const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h2-repo');
+    inner.run(
+      "INSERT INTO c4_manual_elements (repo_id, repo_name, element_id, type, name, parent_id, updated_at) VALUES (?, 'h2-repo', 'sys_manual_1', 'system', 'Parent', NULL, '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+    inner.run(
+      "INSERT INTO c4_manual_elements (repo_id, repo_name, element_id, type, name, parent_id, updated_at) VALUES (?, 'h2-repo', 'pkg_manual_1', 'container', 'Child', 'sys_manual_1', '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+    inner.run(
+      "INSERT INTO c4_manual_relationships (repo_id, repo_name, rel_id, from_id, to_id, label, updated_at) VALUES (?, 'h2-repo', 'rel_manual_1', 'pkg_manual_1', 'sys_manual_1', 'uses', '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+    inner.run(
+      "INSERT INTO c4_manual_groups (repo_id, repo_name, group_id, member_ids, label, updated_at) VALUES (?, 'h2-repo', 'grp_manual_1', '[\"sys_manual_1\",\"pkg_manual_1\"]', 'Group A', '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+
+    // createTables を再実行 → H-2 drop migration が repo_name を撤去する。例外なく完了すること。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+
+    // 3 テーブルから repo_name が消え、repo_id・複合 PK は残っている。
+    for (const t of ['c4_manual_elements', 'c4_manual_relationships', 'c4_manual_groups']) {
+      expect(colsOf(t)).not.toContain('repo_name');
+      expect(colsOf(t)).toContain('repo_id');
+    }
+    expect(pkOf('c4_manual_elements')).toEqual(['element_id', 'repo_id']);
+    expect(pkOf('c4_manual_relationships')).toEqual(['rel_id', 'repo_id']);
+    expect(pkOf('c4_manual_groups')).toEqual(['group_id', 'repo_id']);
+
+    // 複合 FK が repo_id ベースのまま維持されている。
+    const relFks = inner.exec('PRAGMA foreign_key_list(c4_manual_relationships)');
+    const relFkRows = (relFks[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+    const relFromCols = relFkRows.map((r) => String(r[3]));
+    expect(relFromCols).toContain('repo_id');
+    expect(relFromCols).toContain('from_id');
+    expect(relFromCols).toContain('to_id');
+    const elemFks = inner.exec('PRAGMA foreign_key_list(c4_manual_elements)');
+    const elemFkRows = (elemFks[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+    expect(elemFkRows.map((r) => String(r[3]))).toContain('parent_id');
+
+    // repo_id データ・親子自己参照が保全されている。
+    const elems = inner.exec('SELECT repo_id, element_id, parent_id FROM c4_manual_elements WHERE repo_id = ? ORDER BY element_id', [repoId]);
+    const elemVals = (elems[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+    expect(elemVals).toHaveLength(2);
+    const child = elemVals.find((r) => String(r[1]) === 'pkg_manual_1');
+    expect(String(child?.[2])).toBe('sys_manual_1');
+    expect(Number(inner.exec('SELECT repo_id FROM c4_manual_relationships WHERE rel_id = ?', ['rel_manual_1'])[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec('SELECT repo_id FROM c4_manual_groups WHERE group_id = ?', ['grp_manual_1'])[0]?.values?.[0]?.[0])).toBe(repoId);
+
+    // read メソッドは repoName を入力に取り、repo_id で絞った結果を返す (下流契約不変)。
+    expect(db.getManualElements('h2-repo')).toHaveLength(2);
+    expect(db.getManualRelationships('h2-repo')).toHaveLength(1);
+    expect(db.getManualGroups('h2-repo')).toHaveLength(1);
+    // 撤去後も write が機能する (新規 element を追加できる)。
+    const newId = db.saveManualElement('h2-repo', { type: 'person', name: 'New User', external: false, parentId: null });
+    expect(newId).toBe('person_1');
+    expect(db.getManualElements('h2-repo')).toHaveLength(3);
+
+    // 冪等: 再度 createTables を走らせても repo_name は無いまま例外なく完了する。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+    for (const t of ['c4_manual_elements', 'c4_manual_relationships', 'c4_manual_groups']) {
+      expect(colsOf(t)).not.toContain('repo_name');
+    }
+    expect(db.getManualElements('h2-repo')).toHaveLength(3);
+
+    db.close();
+  });
+
+  it('Phase H-3: current 系から repo_name を撤去し repo_id データ・PK・stable_key・mappings_json を保全する', async () => {
+    // Phase C-2 flip 済の中間スキーマ = repo_id PK + repo_name 残置列を再現する (撤去直前の状態)。
+    // current_code_graph_communities には ALTER 由来の mappings_json も付け、撤去後も保全されることを確認する。
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+    const colsOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.map((c) => String(c[1]));
+    };
+    const pkOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
+    };
+
+    const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h3-repo');
+
+    // current_graphs (repo_id PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS current_graphs');
+    inner.run(`
+      CREATE TABLE current_graphs (
+        repo_id       INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name     TEXT NOT NULL DEFAULT '',
+        commit_id     TEXT NOT NULL DEFAULT '',
+        graph_json    TEXT NOT NULL,
+        tsconfig_path TEXT NOT NULL,
+        project_root  TEXT NOT NULL,
+        analyzed_at   TEXT NOT NULL,
+        updated_at    TEXT
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO current_graphs (repo_id, repo_name, commit_id, graph_json, tsconfig_path, project_root, analyzed_at) VALUES (?, 'h3-repo', 'c1', '{\"nodes\":[],\"edges\":[],\"metadata\":{\"projectRoot\":\"/r\",\"analyzedAt\":\"2026-05-23T00:00:00.000Z\"}}', 'tsconfig.json', '/r', '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+
+    // current_code_graphs (repo_id PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS current_code_graphs');
+    inner.run(`
+      CREATE TABLE current_code_graphs (
+        repo_id      INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name    TEXT NOT NULL DEFAULT '',
+        graph_json   TEXT NOT NULL,
+        generated_at TEXT,
+        updated_at   TEXT
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO current_code_graphs (repo_id, repo_name, graph_json, generated_at, updated_at) VALUES (?, 'h3-repo', '{\"generatedAt\":\"2026-05-23T00:00:00.000Z\",\"repositories\":[],\"nodes\":[],\"edges\":[],\"communities\":{},\"godNodes\":[]}', '2026-05-23T00:00:00.000Z', '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+
+    // current_code_graph_communities (repo_id PK + repo_name 残置 + stable_key + ALTER 由来の mappings_json)
+    inner.run('DROP TABLE IF EXISTS current_code_graph_communities');
+    inner.run('DROP INDEX IF EXISTS idx_ccgc_stable_key');
+    inner.run(`
+      CREATE TABLE current_code_graph_communities (
+        repo_id      INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name    TEXT    NOT NULL DEFAULT '',
+        community_id INTEGER NOT NULL,
+        label        TEXT    NOT NULL DEFAULT '',
+        name         TEXT    NOT NULL DEFAULT '',
+        summary      TEXT    NOT NULL DEFAULT '',
+        stable_key   TEXT    NOT NULL DEFAULT '',
+        generated_at TEXT,
+        updated_at   TEXT,
+        PRIMARY KEY (repo_id, community_id)
+      ) STRICT
+    `);
+    inner.run('ALTER TABLE current_code_graph_communities ADD COLUMN mappings_json TEXT');
+    inner.run(
+      "INSERT INTO current_code_graph_communities (repo_id, repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at) VALUES (?, 'h3-repo', 7, 'L7', 'Name7', 'Sum7', 'sk7', '[{\"elementId\":\"e1\",\"role\":\"primary\"}]', '2026-05-23T00:00:00.000Z', '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+
+    // current_coverage (複合 PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS current_coverage');
+    inner.run(`
+      CREATE TABLE current_coverage (
+        repo_id   INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name TEXT    NOT NULL DEFAULT '',
+        package   TEXT    NOT NULL,
+        file_path TEXT    NOT NULL,
+        lines_total INTEGER NOT NULL DEFAULT 0,
+        lines_covered INTEGER NOT NULL DEFAULT 0,
+        lines_pct REAL NOT NULL DEFAULT 0,
+        statements_total INTEGER NOT NULL DEFAULT 0,
+        statements_covered INTEGER NOT NULL DEFAULT 0,
+        statements_pct REAL NOT NULL DEFAULT 0,
+        functions_total INTEGER NOT NULL DEFAULT 0,
+        functions_covered INTEGER NOT NULL DEFAULT 0,
+        functions_pct REAL NOT NULL DEFAULT 0,
+        branches_total INTEGER NOT NULL DEFAULT 0,
+        branches_covered INTEGER NOT NULL DEFAULT 0,
+        branches_pct REAL NOT NULL DEFAULT 0,
+        updated_at TEXT,
+        PRIMARY KEY (repo_id, package, file_path)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO current_coverage (repo_id, repo_name, package, file_path, lines_total, lines_covered, lines_pct) VALUES (?, 'h3-repo', 'pkg-a', 'src/x.ts', 10, 8, 80)",
+      [repoId],
+    );
+
+    // current_file_analysis (複合 PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS current_file_analysis');
+    inner.run(`
+      CREATE TABLE current_file_analysis (
+        repo_id   INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name TEXT NOT NULL DEFAULT '',
+        file_path TEXT NOT NULL,
+        importance_score REAL NOT NULL DEFAULT 0,
+        fan_in_total INTEGER NOT NULL DEFAULT 0,
+        cognitive_complexity_max INTEGER NOT NULL DEFAULT 0,
+        line_count INTEGER NOT NULL DEFAULT 0,
+        cyclomatic_complexity_max INTEGER NOT NULL DEFAULT 0,
+        function_count INTEGER NOT NULL DEFAULT 0,
+        dead_code_score INTEGER NOT NULL DEFAULT 0,
+        signal_orphan INTEGER NOT NULL DEFAULT 0,
+        signal_fan_in_zero INTEGER NOT NULL DEFAULT 0,
+        signal_no_recent_churn INTEGER NOT NULL DEFAULT 0,
+        signal_zero_coverage INTEGER NOT NULL DEFAULT 0,
+        signal_isolated_community INTEGER NOT NULL DEFAULT 0,
+        is_ignored INTEGER NOT NULL DEFAULT 0,
+        ignore_reason TEXT NOT NULL DEFAULT '',
+        cross_pkg_in_count INTEGER NOT NULL DEFAULT 0,
+        external_consumer_pkgs INTEGER NOT NULL DEFAULT 0,
+        total_in_count INTEGER NOT NULL DEFAULT 0,
+        is_barrel INTEGER NOT NULL DEFAULT 0,
+        centrality_score REAL NOT NULL DEFAULT 0,
+        category TEXT NOT NULL DEFAULT 'logic',
+        analyzed_at TEXT NOT NULL,
+        PRIMARY KEY (repo_id, file_path)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO current_file_analysis (repo_id, repo_name, file_path, analyzed_at) VALUES (?, 'h3-repo', 'src/fa.ts', '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+
+    // current_function_analysis (複合 PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS current_function_analysis');
+    inner.run(`
+      CREATE TABLE current_function_analysis (
+        repo_id INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name TEXT NOT NULL DEFAULT '',
+        file_path TEXT NOT NULL,
+        function_name TEXT NOT NULL,
+        start_line INTEGER NOT NULL,
+        end_line INTEGER NOT NULL DEFAULT 0,
+        language TEXT NOT NULL DEFAULT '',
+        fan_in INTEGER NOT NULL DEFAULT 0,
+        cognitive_complexity INTEGER NOT NULL DEFAULT 0,
+        cyclomatic_complexity INTEGER NOT NULL DEFAULT 0,
+        data_mutation_score INTEGER NOT NULL DEFAULT 0,
+        side_effect_score INTEGER NOT NULL DEFAULT 0,
+        line_count INTEGER NOT NULL DEFAULT 0,
+        importance_score REAL NOT NULL DEFAULT 0,
+        signal_fan_in_zero INTEGER NOT NULL DEFAULT 0,
+        fan_out INTEGER NOT NULL DEFAULT 0,
+        distinct_callees INTEGER NOT NULL DEFAULT 0,
+        function_role TEXT NOT NULL DEFAULT 'peripheral',
+        analyzed_at TEXT NOT NULL,
+        PRIMARY KEY (repo_id, file_path, function_name, start_line)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO current_function_analysis (repo_id, repo_name, file_path, function_name, start_line, analyzed_at) VALUES (?, 'h3-repo', 'src/fn.ts', 'doThing', 1, '2026-05-23T00:00:00.000Z')",
+      [repoId],
+    );
+
+    // createTables を再実行 → H-3 drop migration が repo_name を撤去する。例外なく完了すること。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+
+    const currentTables = [
+      'current_graphs',
+      'current_code_graphs',
+      'current_code_graph_communities',
+      'current_coverage',
+      'current_file_analysis',
+      'current_function_analysis',
+    ];
+    // 6 テーブルから repo_name が消え、repo_id は残っている。PK は不変。
+    for (const t of currentTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+      expect(colsOf(t)).toContain('repo_id');
+    }
+    expect(pkOf('current_graphs')).toEqual(['repo_id']);
+    expect(pkOf('current_code_graphs')).toEqual(['repo_id']);
+    expect(pkOf('current_code_graph_communities')).toEqual(['community_id', 'repo_id']);
+    expect(pkOf('current_coverage')).toEqual(['file_path', 'package', 'repo_id']);
+    expect(pkOf('current_file_analysis')).toEqual(['file_path', 'repo_id']);
+    expect(pkOf('current_function_analysis')).toEqual(['file_path', 'function_name', 'repo_id', 'start_line']);
+
+    // stable_key・mappings_json (ALTER 由来) が communities に保全されている。
+    expect(colsOf('current_code_graph_communities')).toContain('stable_key');
+    expect(colsOf('current_code_graph_communities')).toContain('mappings_json');
+    const comm = inner.exec(
+      'SELECT stable_key, mappings_json FROM current_code_graph_communities WHERE repo_id = ? AND community_id = 7',
+      [repoId],
+    );
+    const commRow = comm[0]?.values?.[0];
+    expect(String(commRow?.[0])).toBe('sk7'); // stable_key 保全
+    expect(String(commRow?.[1])).toContain('primary'); // mappings_json 保全
+
+    // repo_id データが保全されている。
+    expect(Number(inner.exec('SELECT repo_id FROM current_coverage WHERE file_path = ?', ['src/x.ts'])[0]?.values?.[0]?.[0])).toBe(repoId);
+
+    // read メソッドは repo_name を結果に含む契約を維持する (repos JOIN で復元)。
+    expect(db.getCurrentFileAnalysis('h3-repo').map((r) => r.repoName)).toEqual(['h3-repo']);
+    expect(db.getCurrentFunctionAnalysis('h3-repo').map((r) => r.repoName)).toEqual(['h3-repo']);
+    expect(db.getCurrentCoverage('h3-repo').map((r) => r.repo_name)).toEqual(['h3-repo']);
+    expect(db.getAllCurrentCoverage().map((r) => r.repo_name)).toContain('h3-repo');
+    expect(db.getAllCurrentCodeGraphRaws().map((r) => r.repo_name)).toContain('h3-repo');
+    const commRaws = db.getAllCurrentCodeGraphCommunityRaws();
+    expect(commRaws.map((r) => r.repo_name)).toContain('h3-repo');
+    expect(commRaws.find((r) => r.community_id === 7)?.mappings_json).toContain('primary');
+    // repo_id フィルタの read も機能する。
+    expect(db.getCurrentCodeGraph('h3-repo')).not.toBeNull();
+    expect(db.getCurrentGraph('h3-repo')).not.toBeNull();
+    expect(db.listCurrentCodeGraphCommunities('h3-repo').map((c) => c.communityId)).toEqual([7]);
+
+    // 冪等: 再度 createTables を走らせても repo_name は無いまま例外なく完了する。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+    for (const t of currentTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+    }
+    expect(db.getCurrentFileAnalysis('h3-repo')).toHaveLength(1);
+
+    db.close();
+  });
+
+  it('Phase H-4: session/commit 系から repo_name を撤去し repo_id データ・複合 PK・ALTER 由来列・read 契約を保全する', async () => {
+    // Phase D flip 済の中間スキーマ = repo_id PK/列 + repo_name 残置列を再現する (撤去直前の状態)。
+    // sessions には静的 DDL に無い ALTER 由来の compact_count(INTEGER) も付け、撤去後も値・型が保全される
+    // ことを確認する。撤去後 read メソッドは repos を JOIN して repo_name を結果に復元する (契約不変)。
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+    const colsOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.map((c) => String(c[1]));
+    };
+    const pkOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
+    };
+    const typeOf = (table: string, col: string): string => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return String(rows.find((c) => String(c[1]) === col)?.[2] ?? '').toUpperCase();
+    };
+
+    const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h4-repo');
+    const ts = '2026-05-23T00:00:00.000Z';
+
+    // sessions (id PK + repo_id additive + repo_name 残置 + ALTER 由来 compact_count INTEGER)
+    inner.run('DROP TABLE IF EXISTS sessions');
+    inner.run(`
+      CREATE TABLE sessions (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL DEFAULT '',
+        repo_name TEXT NOT NULL DEFAULT '',
+        repo_id INTEGER,
+        version TEXT NOT NULL DEFAULT '',
+        entrypoint TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL DEFAULT '',
+        start_time TEXT,
+        end_time TEXT,
+        message_count INTEGER NOT NULL DEFAULT 0,
+        file_path TEXT NOT NULL DEFAULT '',
+        file_size INTEGER NOT NULL DEFAULT 0,
+        imported_at TEXT,
+        source TEXT NOT NULL DEFAULT 'claude_code',
+        compact_count INTEGER
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO sessions (id, slug, repo_name, repo_id, start_time, end_time, imported_at, compact_count) VALUES ('h4-s', 'h4-s', 'h4-repo', ?, ?, ?, ?, 7)",
+      [repoId, ts, ts, ts],
+    );
+
+    // session_commits (複合 PK (session_id, repo_id, commit_hash) + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS session_commits');
+    inner.run(`
+      CREATE TABLE session_commits (
+        session_id TEXT NOT NULL,
+        commit_hash TEXT NOT NULL,
+        commit_message TEXT NOT NULL DEFAULT '',
+        author TEXT NOT NULL DEFAULT '',
+        committed_at TEXT,
+        is_ai_assisted INTEGER NOT NULL DEFAULT 0,
+        files_changed INTEGER NOT NULL DEFAULT 0,
+        lines_added INTEGER NOT NULL DEFAULT 0,
+        lines_deleted INTEGER NOT NULL DEFAULT 0,
+        repo_name TEXT NOT NULL DEFAULT '',
+        repo_id INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (session_id, repo_id, commit_hash)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO session_commits (session_id, commit_hash, repo_name, repo_id, committed_at) VALUES ('h4-s', 'h4-hash', 'h4-repo', ?, ?)",
+      [repoId, ts],
+    );
+
+    // commit_files (複合 PK (repo_id, commit_hash, file_path) + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS commit_files');
+    inner.run(`
+      CREATE TABLE commit_files (
+        commit_hash TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        repo_name TEXT NOT NULL DEFAULT '',
+        repo_id INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (repo_id, commit_hash, file_path)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO commit_files (commit_hash, file_path, repo_name, repo_id) VALUES ('h4-hash', 'src/h4.ts', 'h4-repo', ?)",
+      [repoId],
+    );
+
+    // session_commit_resolutions (複合 PK (session_id, repo_id) + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS session_commit_resolutions');
+    inner.run(`
+      CREATE TABLE session_commit_resolutions (
+        session_id TEXT NOT NULL,
+        repo_name TEXT NOT NULL,
+        repo_id INTEGER NOT NULL DEFAULT 0,
+        resolved_at TEXT NOT NULL,
+        PRIMARY KEY (session_id, repo_id)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO session_commit_resolutions (session_id, repo_name, repo_id, resolved_at) VALUES ('h4-s', 'h4-repo', ?, ?)",
+      [repoId, ts],
+    );
+
+    // createTables を再実行 → H-4 drop migration が repo_name を撤去する。例外なく完了すること。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+
+    const targetTables = ['sessions', 'session_commits', 'commit_files', 'session_commit_resolutions'];
+    // 4 テーブルから repo_name が消え、repo_id は残っている。
+    for (const t of targetTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+      expect(colsOf(t)).toContain('repo_id');
+    }
+    // 複合 PK / id PK は不変。
+    expect(pkOf('sessions')).toEqual(['id']);
+    expect(pkOf('session_commits')).toEqual(['commit_hash', 'repo_id', 'session_id']);
+    expect(pkOf('commit_files')).toEqual(['commit_hash', 'file_path', 'repo_id']);
+    expect(pkOf('session_commit_resolutions')).toEqual(['repo_id', 'session_id']);
+
+    // ALTER 由来の compact_count(INTEGER) が値・型ごと保全されている。
+    expect(colsOf('sessions')).toContain('compact_count');
+    expect(typeOf('sessions', 'compact_count')).toBe('INTEGER');
+    const cc = inner.exec("SELECT compact_count FROM sessions WHERE id = 'h4-s'");
+    expect(Number(cc[0]?.values?.[0]?.[0])).toBe(7);
+
+    // repo_id データが保全されている。
+    expect(Number(inner.exec("SELECT repo_id FROM session_commits WHERE session_id = 'h4-s'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM commit_files WHERE commit_hash = 'h4-hash'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM session_commit_resolutions WHERE session_id = 'h4-s'")[0]?.values?.[0]?.[0])).toBe(repoId);
+
+    // read 契約: repos JOIN で repo_name を結果に復元する (SyncService が Supabase ミラーへ運ぶ契約)。
+    expect(db.getSessions().find((r) => r.id === 'h4-s')?.repo_name).toBe('h4-repo');
+    expect(db.getSessionCommits('h4-s').map((r) => r.repo_name)).toEqual(['h4-repo']);
+    expect(db.getCommitFiles(['h4-hash']).map((r) => r.repo_name)).toEqual(['h4-repo']);
+    // repo_id フィルタの read も機能する (commits_resolved の判定)。
+    expect(
+      (db as unknown as { isCommitResolutionDone(s: string, r: string): boolean }).isCommitResolutionDone('h4-s', 'h4-repo'),
+    ).toBe(true);
+
+    // 冪等: 再度 createTables を走らせても repo_name は無いまま例外なく完了する。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+    for (const t of targetTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+    }
+    expect(db.getSessionCommits('h4-s')).toHaveLength(1);
+
+    db.close();
+  });
+
+  it('Phase H-5: releases サブツリーから repo_name を撤去し PK 張替・データ保全・read 契約・冪等を満たす', async () => {
+    // Phase B-2b-iii flip 済の中間スキーマ = release_id PK/FK + repo_id + repo_name 残置 を再現する
+    // (撤去直前の状態)。release_*_analysis は旧 PK に repo_name を含む。撤去後は repo_name が消え、
+    // PK が (release_id, file_path[, function_name, start_line]) へ張り替わり、read は repos を JOIN して
+    // repo_name を結果に復元する (SyncService が Supabase ミラーへ運ぶ契約)。
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+    const colsOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.map((c) => String(c[1]));
+    };
+    const pkOf = (table: string): string[] => {
+      const info = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
+    };
+
+    const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h5-repo');
+    const ts = '2026-05-24T00:00:00.000Z';
+
+    // releases (release_id PK + repo_id + repo_name 残置)。flip 済の中間スキーマを最小列で再現する。
+    inner.run('DROP TABLE IF EXISTS releases');
+    inner.run(`
+      CREATE TABLE releases (
+        release_id INTEGER PRIMARY KEY,
+        tag TEXT NOT NULL,
+        released_at TEXT,
+        prev_release_id INTEGER,
+        repo_name TEXT NOT NULL DEFAULT '',
+        repo_id INTEGER,
+        package_tags TEXT NOT NULL DEFAULT '[]',
+        commit_count INTEGER NOT NULL DEFAULT 0,
+        files_changed INTEGER NOT NULL DEFAULT 0,
+        lines_added INTEGER NOT NULL DEFAULT 0,
+        lines_deleted INTEGER NOT NULL DEFAULT 0,
+        total_lines INTEGER NOT NULL DEFAULT 0,
+        feat_count INTEGER NOT NULL DEFAULT 0,
+        fix_count INTEGER NOT NULL DEFAULT 0,
+        refactor_count INTEGER NOT NULL DEFAULT 0,
+        test_count INTEGER NOT NULL DEFAULT 0,
+        other_count INTEGER NOT NULL DEFAULT 0,
+        affected_packages TEXT NOT NULL DEFAULT '[]',
+        duration_days REAL NOT NULL DEFAULT 0,
+        resolved_at TEXT,
+        release_time_min REAL
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO releases (release_id, tag, released_at, repo_name, repo_id, total_lines) VALUES (1, 'v1.0.0', ?, 'h5-repo', ?, 4200)",
+      [ts, repoId],
+    );
+
+    // release_file_analysis (旧 PK (release_id, repo_name, file_path) + repo_name 残置)。静的 DDL の全列を含む。
+    inner.run('DROP TABLE IF EXISTS release_file_analysis');
+    inner.run(`
+      CREATE TABLE release_file_analysis (
+        release_id INTEGER NOT NULL,
+        repo_name TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        importance_score REAL NOT NULL DEFAULT 0,
+        fan_in_total INTEGER NOT NULL DEFAULT 0,
+        cognitive_complexity_max INTEGER NOT NULL DEFAULT 0,
+        line_count INTEGER NOT NULL DEFAULT 0,
+        cyclomatic_complexity_max INTEGER NOT NULL DEFAULT 0,
+        function_count INTEGER NOT NULL DEFAULT 0,
+        dead_code_score INTEGER NOT NULL DEFAULT 0,
+        signal_orphan INTEGER NOT NULL DEFAULT 0,
+        signal_fan_in_zero INTEGER NOT NULL DEFAULT 0,
+        signal_no_recent_churn INTEGER NOT NULL DEFAULT 0,
+        signal_zero_coverage INTEGER NOT NULL DEFAULT 0,
+        signal_isolated_community INTEGER NOT NULL DEFAULT 0,
+        is_ignored INTEGER NOT NULL DEFAULT 0,
+        ignore_reason TEXT NOT NULL DEFAULT '',
+        cross_pkg_in_count INTEGER NOT NULL DEFAULT 0,
+        external_consumer_pkgs INTEGER NOT NULL DEFAULT 0,
+        total_in_count INTEGER NOT NULL DEFAULT 0,
+        is_barrel INTEGER NOT NULL DEFAULT 0,
+        centrality_score REAL NOT NULL DEFAULT 0,
+        category TEXT NOT NULL DEFAULT 'logic',
+        analyzed_at TEXT NOT NULL,
+        PRIMARY KEY (release_id, repo_name, file_path)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO release_file_analysis (release_id, repo_name, file_path, dead_code_score, analyzed_at) VALUES (1, 'h5-repo', 'src/h5.ts', 88, ?)",
+      [ts],
+    );
+
+    // release_function_analysis (旧 PK (release_id, repo_name, file_path, function_name, start_line) + repo_name 残置)。
+    inner.run('DROP TABLE IF EXISTS release_function_analysis');
+    inner.run(`
+      CREATE TABLE release_function_analysis (
+        release_id INTEGER NOT NULL,
+        repo_name TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        function_name TEXT NOT NULL,
+        start_line INTEGER NOT NULL,
+        end_line INTEGER NOT NULL DEFAULT 0,
+        language TEXT NOT NULL DEFAULT '',
+        fan_in INTEGER NOT NULL DEFAULT 0,
+        cognitive_complexity INTEGER NOT NULL DEFAULT 0,
+        cyclomatic_complexity INTEGER NOT NULL DEFAULT 0,
+        data_mutation_score INTEGER NOT NULL DEFAULT 0,
+        side_effect_score INTEGER NOT NULL DEFAULT 0,
+        line_count INTEGER NOT NULL DEFAULT 0,
+        importance_score REAL NOT NULL DEFAULT 0,
+        signal_fan_in_zero INTEGER NOT NULL DEFAULT 0,
+        fan_out INTEGER NOT NULL DEFAULT 0,
+        distinct_callees INTEGER NOT NULL DEFAULT 0,
+        function_role TEXT NOT NULL DEFAULT 'peripheral',
+        analyzed_at TEXT NOT NULL,
+        PRIMARY KEY (release_id, repo_name, file_path, function_name, start_line)
+      ) STRICT
+    `);
+    inner.run(
+      "INSERT INTO release_function_analysis (release_id, repo_name, file_path, function_name, start_line, fan_in, analyzed_at) VALUES (1, 'h5-repo', 'src/h5.ts', 'foo', 1, 5, ?)",
+      [ts],
+    );
+
+    // createTables を再実行 → H-5 drop migration が repo_name を撤去する。例外なく完了すること。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+
+    const targetTables = ['releases', 'release_file_analysis', 'release_function_analysis'];
+    // 3 テーブルから repo_name が消えている。
+    for (const t of targetTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+    }
+    // releases は repo_id を残す。release_*_analysis は repo_id を持たず release_id FK で repo 帰属を表す。
+    expect(colsOf('releases')).toContain('repo_id');
+    expect(colsOf('release_file_analysis')).toContain('release_id');
+    expect(colsOf('release_function_analysis')).toContain('release_id');
+
+    // PK 張替: releases は release_id 単独 (不変)、release_*_analysis は repo_name を除いた新 PK。
+    expect(pkOf('releases')).toEqual(['release_id']);
+    expect(pkOf('release_file_analysis')).toEqual(['file_path', 'release_id']);
+    expect(pkOf('release_function_analysis')).toEqual(['file_path', 'function_name', 'release_id', 'start_line']);
+
+    // データ保全: 行が残り、release_id・主要指標が保持されている。
+    expect(Number(inner.exec("SELECT repo_id FROM releases WHERE tag = 'v1.0.0'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT total_lines FROM releases WHERE tag = 'v1.0.0'")[0]?.values?.[0]?.[0])).toBe(4200);
+    expect(Number(inner.exec("SELECT dead_code_score FROM release_file_analysis WHERE release_id = 1 AND file_path = 'src/h5.ts'")[0]?.values?.[0]?.[0])).toBe(88);
+    expect(Number(inner.exec("SELECT fan_in FROM release_function_analysis WHERE release_id = 1 AND file_path = 'src/h5.ts' AND function_name = 'foo'")[0]?.values?.[0]?.[0])).toBe(5);
+
+    // 重複が生じないこと: 新 PK (release_id, file_path[, ...]) は理論上一意のため row 数は不変 (各 1)。
+    expect(Number(inner.exec('SELECT COUNT(*) FROM release_file_analysis')[0]?.values?.[0]?.[0])).toBe(1);
+    expect(Number(inner.exec('SELECT COUNT(*) FROM release_function_analysis')[0]?.values?.[0]?.[0])).toBe(1);
+
+    // read 契約: getReleases は repos JOIN で repo_name を復元する (Supabase trail_releases ミラー)。
+    expect(db.getReleases().find((r) => r.tag === 'v1.0.0')?.repo_name).toBe('h5-repo');
+    // getDoraReleases も repo_name を復元する。
+    expect(
+      (db as unknown as { getDoraReleases(): Array<{ tag: string; repoName: string }> }).getDoraReleases()
+        .find((r) => r.tag === 'v1.0.0')?.repoName,
+    ).toBe('h5-repo');
+    // getReleaseFileAnalysis / getReleaseFunctionAnalysis は releases→repos JOIN で repoName を復元する。
+    const rfa = db.getReleaseFileAnalysis('v1.0.0', 'h5-repo');
+    expect(rfa.map((r) => r.repoName)).toEqual(['h5-repo']);
+    expect(rfa[0].deadCodeScore).toBe(88);
+    const rfn = db.getReleaseFunctionAnalysis('v1.0.0', 'h5-repo');
+    expect(rfn.map((r) => r.repoName)).toEqual(['h5-repo']);
+    expect(rfn[0].fanIn).toBe(5);
+    // SyncService 用 read: release_tag + repo_name を含む (Supabase trail_release_*_analysis PK)。
+    const allRfa = (db as unknown as { getAllReleaseFileAnalysis(): Array<{ release_tag: string; repo_name: string; file_path: string }> }).getAllReleaseFileAnalysis();
+    expect(allRfa).toContainEqual(expect.objectContaining({ release_tag: 'v1.0.0', repo_name: 'h5-repo', file_path: 'src/h5.ts' }));
+    const allRfn = (db as unknown as { getAllReleaseFunctionAnalysis(): Array<{ release_tag: string; repo_name: string; function_name: string }> }).getAllReleaseFunctionAnalysis();
+    expect(allRfn).toContainEqual(expect.objectContaining({ release_tag: 'v1.0.0', repo_name: 'h5-repo', function_name: 'foo' }));
+
+    // 冪等: 再度 createTables を走らせても repo_name は無いまま例外なく完了し、データも保持される。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+    for (const t of targetTables) {
+      expect(colsOf(t)).not.toContain('repo_name');
+    }
+    expect(db.getReleaseFileAnalysis('v1.0.0', 'h5-repo')).toHaveLength(1);
+    expect(db.getReleaseFunctionAnalysis('v1.0.0', 'h5-repo')).toHaveLength(1);
+
     db.close();
   });
 
@@ -555,21 +1287,23 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
-    expect(colNames).toContain('repo_name'); // 移行互換で残置
+    expect(colNames).not.toContain('repo_name'); // Phase H-1: 物理撤去済
     // PK は (repo_id, period) → ソートで period, repo_id。
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
     expect(pkCols).toEqual(['period', 'repo_id']);
 
-    // 旧データが repo_id backfill 済で全件残っている (除外 0 件)。
+    // 旧データが repo_id backfill 済で全件残っている (除外 0 件)。repo_name は repos 経由で復元する。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-dora');
     const data = inner.exec(
-      "SELECT repo_id, repo_name, period, deployment_frequency, lead_time_hours FROM dora_metrics WHERE repo_name = 'legacy-dora' ORDER BY period",
+      `SELECT d.repo_id, r.repo_name, d.period, d.deployment_frequency, d.lead_time_hours
+       FROM dora_metrics d JOIN repos r USING(repo_id) WHERE d.repo_id = ? ORDER BY d.period`,
+      [repoIdViaName],
     );
     const vals = (data[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(vals).toHaveLength(2);
     for (const row of vals) {
       expect(Number(row[0])).toBe(repoIdViaName); // repo_id backfill
-      expect(String(row[1])).toBe('legacy-dora');
+      expect(String(row[1])).toBe('legacy-dora'); // repo_name は JOIN repos で復元
     }
     expect(String(vals[0]?.[2])).toBe('2026-01');
     expect(Number(vals[0]?.[3])).toBe(3);
@@ -623,16 +1357,18 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
-    expect(colNames).toContain('repo_name'); // 移行互換で残置
+    expect(colNames).not.toContain('repo_name'); // Phase H-1: 物理撤去済
     // PK は review_id のまま不変 (additive)。
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1]));
     expect(pkCols).toEqual(['review_id']);
 
-    // repo_id が backfill されている。
+    // repo_id が backfill されている。repo_name は repos 経由で復元する (read メソッドの契約)。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-pr');
-    const data = inner.exec("SELECT repo_id, repo_name FROM pr_reviews WHERE review_id = 'rev-legacy'");
+    const data = inner.exec("SELECT repo_id FROM pr_reviews WHERE review_id = 'rev-legacy'");
     expect(Number(data[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
-    expect(String(data[0]?.values?.[0]?.[1])).toBe('legacy-pr');
+    // read メソッドは依然 repoName を返す (契約不変)。
+    expect(db.getPrReviewDetail('rev-legacy')?.repoName).toBe('legacy-pr');
+    expect(db.getPrReviews().find((r) => r.reviewId === 'rev-legacy')?.repoName).toBe('legacy-pr');
 
     // 旧索引が撤去され、新 repo_id 先頭索引が張られている。
     const idx = inner.exec("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='pr_reviews'");
@@ -685,17 +1421,19 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
-    expect(colNames).toContain('repo_name'); // 移行互換で残置
+    expect(colNames).not.toContain('repo_name'); // Phase H-1: 物理撤去済
     // PK は (correlation_type, source_a_id, source_b_id) のまま不変 (additive)。
     const pkCols = rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
     expect(pkCols).toEqual(['correlation_type', 'source_a_id', 'source_b_id']);
 
     // repo_id が backfill されている (release tag 行でもリポを区別できる)。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-cs');
-    const data = inner.exec("SELECT repo_id, repo_name, source_b_id FROM cross_source_correlations WHERE source_a_id = 'r1'");
+    const data = inner.exec("SELECT repo_id, source_b_id FROM cross_source_correlations WHERE source_a_id = 'r1'");
     expect(Number(data[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
-    expect(String(data[0]?.values?.[0]?.[1])).toBe('legacy-cs');
-    expect(String(data[0]?.values?.[0]?.[2])).toBe('v1.2.3');
+    expect(String(data[0]?.values?.[0]?.[1])).toBe('v1.2.3');
+    // read メソッドは依然 repoName を返す (LEFT JOIN repos で復元・契約不変)。
+    const corr = db.getCrossSourceCorrelations().find((c) => c.sourceAId === 'r1');
+    expect(corr?.repoName).toBe('legacy-cs');
 
     // 旧索引が撤去され、新 repo_id 索引が張られている。
     const idx = inner.exec("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='cross_source_correlations'");
@@ -726,14 +1464,120 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       const rows = (dbinfo[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
       return rows.map((c) => String(c[1]));
     };
-    // dora_metrics: PK が (repo_id, period)。
+    // dora_metrics: PK が (repo_id, period)。Phase H-1: repo_name 列は無い。
     expect(colsOf('dora_metrics')).toContain('repo_id');
+    expect(colsOf('dora_metrics')).not.toContain('repo_name');
     expect(pkOf('dora_metrics')).toEqual(['period', 'repo_id']);
-    // pr_reviews / cross_source_correlations: repo_id 列を持つ (PK は不変)。
+    // pr_reviews / cross_source_correlations: repo_id 列を持つ (PK は不変)。Phase H-1: repo_name 列は無い。
     expect(colsOf('pr_reviews')).toContain('repo_id');
+    expect(colsOf('pr_reviews')).not.toContain('repo_name');
     expect(pkOf('pr_reviews')).toEqual(['review_id']);
     expect(colsOf('cross_source_correlations')).toContain('repo_id');
+    expect(colsOf('cross_source_correlations')).not.toContain('repo_name');
     expect(pkOf('cross_source_correlations')).toEqual(['correlation_type', 'source_a_id', 'source_b_id']);
+    db.close();
+  });
+
+  it('Phase H-1: repo_name 列ありの legacy DB から 3 テーブルの repo_name を物理撤去し repo_id データを保全する', async () => {
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+    const colsOf = (table: string): string[] => {
+      const dbinfo = inner.exec(`PRAGMA table_info(${table})`);
+      const rows = (dbinfo[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
+      return rows.map((c) => String(c[1]));
+    };
+
+    // 旧 (Phase F) スキーマ = repo_id 列 + repo_name 残置列を再現する (撤去直前の状態)。
+    inner.run('DROP TABLE IF EXISTS dora_metrics');
+    inner.run('DROP TABLE IF EXISTS pr_reviews');
+    inner.run('DROP TABLE IF EXISTS cross_source_correlations');
+    inner.run(`
+      CREATE TABLE dora_metrics (
+        repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name TEXT NOT NULL,
+        period TEXT NOT NULL CHECK (period GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]'),
+        deployment_frequency REAL NOT NULL DEFAULT 0,
+        lead_time_hours REAL,
+        computed_at TEXT NOT NULL,
+        PRIMARY KEY (repo_id, period)
+      ) STRICT
+    `);
+    inner.run(`
+      CREATE TABLE pr_reviews (
+        review_id TEXT PRIMARY KEY,
+        repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_name TEXT NOT NULL,
+        pr_number INTEGER NOT NULL,
+        author TEXT NOT NULL DEFAULT '',
+        state TEXT NOT NULL CHECK (state IN ('APPROVED', 'CHANGES_REQUESTED', 'COMMENTED')),
+        submitted_at TEXT NOT NULL,
+        body TEXT NOT NULL DEFAULT '',
+        body_hash TEXT NOT NULL DEFAULT ''
+      ) STRICT
+    `);
+    inner.run(`
+      CREATE TABLE cross_source_correlations (
+        correlation_type TEXT NOT NULL
+          CHECK (correlation_type IN ('pr_review_session', 'pr_review_release', 'pr_finding_commit')),
+        repo_id INTEGER REFERENCES repos(repo_id) ON DELETE SET NULL,
+        repo_name TEXT NOT NULL DEFAULT '',
+        source_a_kind TEXT NOT NULL CHECK (source_a_kind IN ('pr_review', 'pr_finding')),
+        source_a_id TEXT NOT NULL,
+        source_b_kind TEXT NOT NULL CHECK (source_b_kind IN ('session', 'release', 'commit')),
+        source_b_id TEXT NOT NULL,
+        confidence TEXT NOT NULL DEFAULT 'low' CHECK (confidence IN ('high', 'medium', 'low')),
+        computed_at TEXT NOT NULL,
+        PRIMARY KEY (correlation_type, source_a_id, source_b_id)
+      ) STRICT
+    `);
+
+    // repo_id を repos 経由で確定させてからデータ投入する (repo_id と repo_name を整合)。
+    const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h1-repo');
+    inner.run(
+      `INSERT INTO dora_metrics (repo_id, repo_name, period, deployment_frequency, lead_time_hours, computed_at)
+       VALUES (?, 'h1-repo', '2026-04', 5, 12, '2026-05-23T00:00:00.000Z')`,
+      [repoId],
+    );
+    inner.run(
+      `INSERT INTO pr_reviews (review_id, repo_id, repo_name, pr_number, author, state, submitted_at, body, body_hash)
+       VALUES ('h1-rev', ?, 'h1-repo', 7, 'dave', 'APPROVED', '2026-05-23T00:00:00.000Z', 'ok', 'hh')`,
+      [repoId],
+    );
+    inner.run(
+      `INSERT INTO cross_source_correlations (correlation_type, repo_id, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at)
+       VALUES ('pr_review_session', ?, 'h1-repo', 'pr_review', 'h1-a', 'session', 'h1-b', 'medium', '2026-05-23T00:00:00.000Z')`,
+      [repoId],
+    );
+
+    // createTables を再実行 → H-1 drop migration が repo_name を撤去する。例外なく完了すること。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+
+    // 3 テーブルから repo_name が消え、repo_id は残っている。
+    for (const t of ['dora_metrics', 'pr_reviews', 'cross_source_correlations']) {
+      expect(colsOf(t)).not.toContain('repo_name');
+      expect(colsOf(t)).toContain('repo_id');
+    }
+
+    // repo_id データが保全されている。
+    expect(Number(inner.exec("SELECT repo_id FROM dora_metrics WHERE period = '2026-04'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM pr_reviews WHERE review_id = 'h1-rev'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM cross_source_correlations WHERE source_a_id = 'h1-a'")[0]?.values?.[0]?.[0])).toBe(repoId);
+
+    // read メソッドは依然 repoName を返す (JOIN repos で復元・下流契約不変)。
+    expect(db.getPrReviewDetail('h1-rev')?.repoName).toBe('h1-repo');
+    expect(db.getPrReviews().find((r) => r.reviewId === 'h1-rev')?.repoName).toBe('h1-repo');
+    expect(db.getCrossSourceCorrelations().find((c) => c.sourceAId === 'h1-a')?.repoName).toBe('h1-repo');
+
+    // 冪等: 再度 createTables を走らせても repo_name は無いまま例外なく完了する。
+    expect(() => {
+      (db as unknown as { createTables(): void }).createTables();
+    }).not.toThrow();
+    for (const t of ['dora_metrics', 'pr_reviews', 'cross_source_correlations']) {
+      expect(colsOf(t)).not.toContain('repo_name');
+    }
+
     db.close();
   });
 });

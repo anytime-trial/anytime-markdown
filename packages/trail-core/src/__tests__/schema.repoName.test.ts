@@ -6,20 +6,22 @@ import {
 } from '../domain/schema';
 
 describe('schema repoName columns', () => {
-  it('CREATE_SESSION_COMMITS DDL includes repo_name column', () => {
-    expect(CREATE_SESSION_COMMITS).toMatch(/repo_name\s+TEXT\s+NOT\s+NULL\s+DEFAULT\s+''/);
+  // Phase H-4: session_commits / commit_files / session_commit_resolutions から repo_name 列を撤去した。
+  // repo 帰属は repo_id のみで表現し、repo_name が必要な read は repos を (LEFT) JOIN して復元する。
+  it('CREATE_SESSION_COMMITS DDL no longer has repo_name column (Phase H-4)', () => {
+    expect(CREATE_SESSION_COMMITS).not.toMatch(/\brepo_name\b/);
   });
 
-  it('CREATE_COMMIT_FILES DDL includes repo_name column', () => {
-    expect(CREATE_COMMIT_FILES).toMatch(/repo_name\s+TEXT\s+NOT\s+NULL\s+DEFAULT\s+''/);
+  it('CREATE_COMMIT_FILES DDL no longer has repo_name column (Phase H-4)', () => {
+    expect(CREATE_COMMIT_FILES).not.toMatch(/\brepo_name\b/);
   });
 
   // Phase D flip: PK を (session_id, repo_name) → (session_id, repo_id) へ再設計した。
-  // repo_name は移行互換で残置し、PK は repo_id を含む。
-  it('CREATE_SESSION_COMMIT_RESOLUTIONS DDL is exported with repo_id composite PK', () => {
+  // Phase H-4: repo_name 列を撤去し、PK は repo_id のみで構成する。
+  it('CREATE_SESSION_COMMIT_RESOLUTIONS DDL is exported with repo_id composite PK (no repo_name)', () => {
     expect(CREATE_SESSION_COMMIT_RESOLUTIONS).toMatch(/CREATE TABLE IF NOT EXISTS session_commit_resolutions/);
     expect(CREATE_SESSION_COMMIT_RESOLUTIONS).toMatch(/session_id\s+TEXT\s+NOT\s+NULL/);
-    expect(CREATE_SESSION_COMMIT_RESOLUTIONS).toMatch(/repo_name\s+TEXT\s+NOT\s+NULL/);
+    expect(CREATE_SESSION_COMMIT_RESOLUTIONS).not.toMatch(/\brepo_name\b/);
     expect(CREATE_SESSION_COMMIT_RESOLUTIONS).toMatch(/repo_id\s+INTEGER\s+NOT\s+NULL/);
     expect(CREATE_SESSION_COMMIT_RESOLUTIONS).toMatch(/resolved_at\s+TEXT\s+NOT\s+NULL/);
     expect(CREATE_SESSION_COMMIT_RESOLUTIONS).toMatch(/PRIMARY KEY\s*\(\s*session_id\s*,\s*repo_id\s*\)/);

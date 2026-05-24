@@ -46,13 +46,15 @@ function insertSession(
     fileSize = 1024,
     commitsResolvedAt = null,
   } = opts;
+  // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
+  const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
     `INSERT OR IGNORE INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
+       id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source,
        commits_resolved_at
      ) VALUES (?, ?, ?, '', '', ?, ?, ?, 0, '', ?, ?, ?, ?)`,
-    [id, id, repoName, model, startTime, endTime, fileSize, importedAt, source, commitsResolvedAt],
+    [id, id, repoId, model, startTime, endTime, fileSize, importedAt, source, commitsResolvedAt],
   );
 }
 
@@ -185,13 +187,14 @@ describe('TrailDatabase.getReleases', () => {
 
   it('returns releases sorted by released_at DESC', () => {
     // flip 後 releases は prev_release_id 列 (旧 prev_tag は廃止)。
+    // Phase H-5: releases.repo_name 列は撤去済。repo 帰属は repo_id (省略時 NULL) で表現する。
     inner(db).run(
       `INSERT OR REPLACE INTO releases (
-         tag, released_at, prev_release_id, repo_name, package_tags,
+         tag, released_at, prev_release_id, package_tags,
          commit_count, files_changed, lines_added, lines_deleted,
          total_lines, feat_count, fix_count, refactor_count, test_count, other_count,
          affected_packages, duration_days
-       ) VALUES (?, ?, NULL, 'test-repo', '[]', 5, 10, 100, 50, 1000, 2, 1, 1, 0, 0, '[]', 30)`,
+       ) VALUES (?, ?, NULL, '[]', 5, 10, 100, 50, 1000, 2, 1, 1, 0, 0, '[]', 30)`,
       ['v1.0.0', '2026-03-01T00:00:00.000Z'],
     );
     const v1Id = Number(
@@ -200,11 +203,11 @@ describe('TrailDatabase.getReleases', () => {
     );
     inner(db).run(
       `INSERT OR REPLACE INTO releases (
-         tag, released_at, prev_release_id, repo_name, package_tags,
+         tag, released_at, prev_release_id, package_tags,
          commit_count, files_changed, lines_added, lines_deleted,
          total_lines, feat_count, fix_count, refactor_count, test_count, other_count,
          affected_packages, duration_days
-       ) VALUES (?, ?, ?, 'test-repo', '[]', 3, 5, 50, 20, 1020, 1, 0, 0, 1, 0, '[]', 14)`,
+       ) VALUES (?, ?, ?, '[]', 3, 5, 50, 20, 1020, 1, 0, 0, 1, 0, '[]', 14)`,
       ['v1.1.0', '2026-04-01T00:00:00.000Z', v1Id],
     );
     const releases = db.getReleases();

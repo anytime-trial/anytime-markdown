@@ -13,11 +13,13 @@ import {
   removeRelationshipDirect,
 } from '../../sqlite/write';
 
+// Phase H-3: current_code_graph_communities から repo_name 列を撤去し repo_id PK にしたため、
+// fixture も repo_id PK スキーマで作る。write の resolveRepoId が repos へ 'test-repo' を upsert する。
 function createTestDb(includeMappingsJson = false): Database {
   const db = new BetterSqlite3(':memory:');
   const communitySchema = includeMappingsJson
     ? `CREATE TABLE current_code_graph_communities (
-        repo_name TEXT NOT NULL,
+        repo_id INTEGER NOT NULL,
         community_id INTEGER NOT NULL,
         label TEXT,
         name TEXT NOT NULL DEFAULT '',
@@ -25,17 +27,17 @@ function createTestDb(includeMappingsJson = false): Database {
         mappings_json TEXT,
         generated_at TEXT,
         updated_at TEXT,
-        PRIMARY KEY (repo_name, community_id)
+        PRIMARY KEY (repo_id, community_id)
       );`
     : `CREATE TABLE current_code_graph_communities (
-        repo_name TEXT NOT NULL,
+        repo_id INTEGER NOT NULL,
         community_id INTEGER NOT NULL,
         label TEXT,
         name TEXT NOT NULL DEFAULT '',
         summary TEXT NOT NULL DEFAULT '',
         generated_at TEXT,
         updated_at TEXT,
-        PRIMARY KEY (repo_name, community_id)
+        PRIMARY KEY (repo_id, community_id)
       );`;
 
   db.exec(`
@@ -47,7 +49,6 @@ function createTestDb(includeMappingsJson = false): Database {
     );
     CREATE TABLE c4_manual_elements (
       repo_id INTEGER NOT NULL,
-      repo_name TEXT NOT NULL DEFAULT '',
       element_id TEXT NOT NULL,
       type TEXT NOT NULL,
       name TEXT NOT NULL,
@@ -60,7 +61,6 @@ function createTestDb(includeMappingsJson = false): Database {
     );
     CREATE TABLE c4_manual_relationships (
       repo_id INTEGER NOT NULL,
-      repo_name TEXT NOT NULL DEFAULT '',
       rel_id TEXT NOT NULL,
       from_id TEXT NOT NULL,
       to_id TEXT NOT NULL,
@@ -71,7 +71,6 @@ function createTestDb(includeMappingsJson = false): Database {
     );
     CREATE TABLE c4_manual_groups (
       repo_id INTEGER NOT NULL,
-      repo_name TEXT NOT NULL DEFAULT '',
       group_id TEXT NOT NULL,
       member_ids TEXT NOT NULL DEFAULT '[]',
       label TEXT,
@@ -96,7 +95,7 @@ describe('upsertCommunitySummariesDirect', () => {
     expect(result.updated).toBe(0);
     const row = get<{ name: string; summary: string }>(
       db,
-      'SELECT name, summary FROM current_code_graph_communities WHERE repo_name=? AND community_id=?',
+      'SELECT name, summary FROM current_code_graph_communities WHERE repo_id=(SELECT repo_id FROM repos WHERE repo_name=?) AND community_id=?',
       [REPO, 1],
     );
     expect(row).toBeDefined();
@@ -110,7 +109,7 @@ describe('upsertCommunitySummariesDirect', () => {
     expect(result.updated).toBe(1);
     const row = get<{ name: string; summary: string }>(
       db,
-      'SELECT name, summary FROM current_code_graph_communities WHERE repo_name=? AND community_id=?',
+      'SELECT name, summary FROM current_code_graph_communities WHERE repo_id=(SELECT repo_id FROM repos WHERE repo_name=?) AND community_id=?',
       [REPO, 1],
     );
     expect(row!.name).toBe('New');
@@ -139,7 +138,7 @@ describe('upsertCommunityMappingsDirect', () => {
     upsertCommunityMappingsDirect(db, REPO, [{ communityId: 1, mappings }]);
     const row = get<{ mappings_json: string }>(
       db,
-      'SELECT mappings_json FROM current_code_graph_communities WHERE repo_name=? AND community_id=?',
+      'SELECT mappings_json FROM current_code_graph_communities WHERE repo_id=(SELECT repo_id FROM repos WHERE repo_name=?) AND community_id=?',
       [REPO, 1],
     );
     expect(row).toBeDefined();
@@ -178,7 +177,9 @@ describe('addElementDirect', () => {
 
   test('SELECT で取得できる', () => {
     const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'API', external: false, parentId: null, description: 'desc', serviceType: 'web' });
-    const row = get<Record<string, unknown>>(db, 'SELECT * FROM c4_manual_elements WHERE repo_name=? AND element_id=?', [REPO, id]);
+    // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
+    const repoIdRow = get<{ repo_id: number }>(db, 'SELECT repo_id FROM repos WHERE repo_name=?', [REPO]);
+    const row = get<Record<string, unknown>>(db, 'SELECT * FROM c4_manual_elements WHERE repo_id=? AND element_id=?', [repoIdRow!.repo_id, id]);
     expect(row).toBeDefined();
     expect(row!.name).toBe('API');
     expect(row!.type).toBe('Container');

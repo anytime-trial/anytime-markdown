@@ -19,10 +19,7 @@ const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb })
 const seed = (db: TrailDatabase): void => {
   const recent = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
   inner(db).run(
-    `INSERT INTO sessions (
-       id, slug, repo_name, version, entrypoint, model, start_time, end_time,
-       message_count, file_path, file_size, imported_at
-     ) VALUES ('s1', 's1', 'r', '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES ('s1', 's1', '0', '', '', '', '', 0, '', 0, '')`,
   );
   inner(db).run(
     `INSERT INTO session_commits (session_id, commit_hash, committed_at)

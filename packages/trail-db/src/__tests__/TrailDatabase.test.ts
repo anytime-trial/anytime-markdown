@@ -111,15 +111,11 @@ describe('TrailDatabase.getImportedFileMap', () => {
 
     // Broken session: row inserted but messages silently dropped by a prior bug.
     inMemoryDb.run(
-      `INSERT INTO sessions (id, slug, repo_name, version, entrypoint, model,
-         start_time, end_time, message_count, file_path, file_size, imported_at)
-       VALUES ('broken-sid','','','','','','','',10,'/tmp/broken.jsonl',123,'')`,
+      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES ('broken-sid', '', '', '', '', '', '', 10, '/tmp/broken.jsonl', 123, '')`,
     );
     // Healthy session with matching messages.
     inMemoryDb.run(
-      `INSERT INTO sessions (id, slug, repo_name, version, entrypoint, model,
-         start_time, end_time, message_count, file_path, file_size, imported_at)
-       VALUES ('ok-sid','','','','','','','',1,'/tmp/ok.jsonl',456,'')`,
+      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES ('ok-sid', '', '', '', '', '', '', 1, '/tmp/ok.jsonl', 456, '')`,
     );
     inMemoryDb.run(
       `INSERT INTO messages (uuid, session_id, type, timestamp)
@@ -127,9 +123,7 @@ describe('TrailDatabase.getImportedFileMap', () => {
     );
     // Empty-log session (message_count=0) is considered healthy — nothing to reimport.
     inMemoryDb.run(
-      `INSERT INTO sessions (id, slug, repo_name, version, entrypoint, model,
-         start_time, end_time, message_count, file_path, file_size, imported_at)
-       VALUES ('empty-sid','','','','','','','',0,'/tmp/empty.jsonl',789,'')`,
+      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES ('empty-sid', '', '', '', '', '', '', 0, '/tmp/empty.jsonl', 789, '')`,
     );
 
     const map = (db as unknown as Record<string, () => Map<string, { hasMessages: boolean }>>).getImportedFileMap();
@@ -144,9 +138,7 @@ describe('TrailDatabase.getImportedFileMap', () => {
     const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
 
     inMemoryDb.run(
-      `INSERT INTO sessions (id, slug, repo_name, version, entrypoint, model,
-         start_time, end_time, message_count, file_path, file_size, imported_at, source)
-       VALUES ('codex-zero','','','','','','','',2,'/tmp/codex-zero.jsonl',123,'','codex')`,
+      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('codex-zero', '', '', '', '', '', '', 2, '/tmp/codex-zero.jsonl', 123, '', 'codex')`,
     );
     inMemoryDb.run(
       `INSERT INTO messages (uuid, session_id, type, timestamp)
@@ -159,9 +151,7 @@ describe('TrailDatabase.getImportedFileMap', () => {
     );
 
     inMemoryDb.run(
-      `INSERT INTO sessions (id, slug, repo_name, version, entrypoint, model,
-         start_time, end_time, message_count, file_path, file_size, imported_at, source)
-       VALUES ('codex-ok','','','','','','','',2,'/tmp/codex-ok.jsonl',456,'','codex')`,
+      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('codex-ok', '', '', '', '', '', '', 2, '/tmp/codex-ok.jsonl', 456, '', 'codex')`,
     );
     inMemoryDb.run(
       `INSERT INTO messages (uuid, session_id, type, timestamp)
@@ -225,8 +215,7 @@ describe('TrailDatabase.migrateDropSessionsProjectColumn', () => {
     )`);
     inMemoryDb.run('PRAGMA foreign_keys = ON');
     inMemoryDb.run(
-      `INSERT INTO sessions (id, slug, project, repo_name, start_time, end_time, file_path, imported_at)
-       VALUES ('s1', 'slug', 'legacy-project', 'repo', '2026-04-29T00:00:00.000Z', '2026-04-29T00:00:01.000Z', '/tmp/s1.jsonl', '2026-04-29T00:00:02.000Z')`,
+      `INSERT INTO sessions (id, slug, project, repo_name, start_time, end_time, file_path, imported_at) VALUES ('s1', 'slug', 'legacy-project', 'repo', '2026-04-29T00:00:00.000Z', '2026-04-29T00:00:01.000Z', '/tmp/s1.jsonl', '2026-04-29T00:00:02.000Z')`,
     );
     inMemoryDb.run(
       `INSERT INTO session_costs (session_id, model, input_tokens, output_tokens)
@@ -337,11 +326,8 @@ describe('TrailDatabase.rebuildDailyCounts', () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: import('sql.js').Database }).db;
     inner.run(
-      `INSERT INTO sessions (id, slug, repo_name, version, entrypoint, model,
-         start_time, end_time, message_count, file_path, file_size, imported_at, source)
-       VALUES
-         ('codex-default','','repo','','','','2026-04-29T00:00:00Z','2026-04-29T00:01:00Z',1,'/tmp/codex-default.jsonl',1,'','codex'),
-         ('codex-explicit','','repo','','','gpt-5.1-codex','2026-04-29T00:00:00Z','2026-04-29T00:01:00Z',1,'/tmp/codex-explicit.jsonl',1,'','codex')`,
+      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('codex-default', '', '', '', '', '2026-04-29T00:00:00Z', '2026-04-29T00:01:00Z', 1, '/tmp/codex-default.jsonl', 1, '', 'codex'),
+         ('codex-explicit','','','','gpt-5.1-codex','2026-04-29T00:00:00Z','2026-04-29T00:01:00Z',1,'/tmp/codex-explicit.jsonl',1,'','codex')`,
     );
     inner.run(
       `INSERT INTO messages
@@ -377,11 +363,8 @@ describe('TrailDatabase.rebuildDailyCounts', () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: import('sql.js').Database }).db;
     inner.run(
-      `INSERT INTO sessions (id, slug, repo_name, version, entrypoint, model,
-         start_time, end_time, message_count, file_path, file_size, imported_at, source)
-       VALUES
-         ('s-empty','','repo','','','','','',1,'/tmp/empty.jsonl',1,'','claude_code'),
-         ('s-valid','','repo','','','','2026-04-29T00:00:00Z','2026-04-29T00:01:00Z',1,'/tmp/valid.jsonl',1,'','claude_code')`,
+      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('s-empty', '', '', '', '', '', '', 1, '/tmp/empty.jsonl', 1, '', 'claude_code'),
+         ('s-valid','','','','','2026-04-29T00:00:00Z','2026-04-29T00:01:00Z',1,'/tmp/valid.jsonl',1,'','claude_code')`,
     );
     inner.run(
       `INSERT INTO messages

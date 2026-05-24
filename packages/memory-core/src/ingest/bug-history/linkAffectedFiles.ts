@@ -28,8 +28,12 @@ export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFi
 
   let rows: { values: ReadonlyArray<ReadonlyArray<unknown>> } | undefined;
   try {
+    // Phase H-4: trail.commit_files から repo_name 列を撤去した。attach 済 trail スキーマの repos を
+    // JOIN して repo_name → repo_id を解決し、repo_id で絞る (クロス DB JOIN)。
     const result = db.exec(
-      `SELECT file_path FROM trail.commit_files WHERE commit_hash = ? AND repo_name = ?`,
+      `SELECT cf.file_path FROM trail.commit_files cf
+         JOIN trail.repos r ON r.repo_id = cf.repo_id
+        WHERE cf.commit_hash = ? AND r.repo_name = ?`,
       [commitSha, repoName]
     );
     rows = result[0];

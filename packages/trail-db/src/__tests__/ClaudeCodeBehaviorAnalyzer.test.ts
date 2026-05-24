@@ -75,8 +75,7 @@ function makeDb(): SqlJsCompatDatabase {
 
 function insertSession(db: SqlJsCompatDatabase, id: string): void {
   db.run(
-    `INSERT INTO sessions (id, slug, repo_name, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at)
-     VALUES (?, ?, '', '', '', '', '', '', 0, '', 0, '')`,
+    `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '', '', '', '', '', 0, '', 0, '')`,
     [id, id],
   );
 }

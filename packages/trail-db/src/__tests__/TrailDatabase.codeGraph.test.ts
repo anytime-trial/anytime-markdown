@@ -23,10 +23,12 @@ const makeCodeGraph = (overrides: Partial<CodeGraph> = {}): CodeGraph => ({
   ...overrides,
 });
 
+// Phase H-5: releases.repo_name 列は撤去済。本テストは code graph の FK/CRUD (release_id ベース) を
+// 検証するだけで repo 識別に依存しないため repo_id は省略 (NULL) のままにする。
 const insertRelease = (db: TrailDatabase, tag: string): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO releases (tag, released_at, repo_name)
-     VALUES (?, ?, 'test-repo')`,
+    `INSERT OR IGNORE INTO releases (tag, released_at)
+     VALUES (?, ?)`,
     [tag, '2026-01-01T00:00:00.000Z'],
   );
 };
