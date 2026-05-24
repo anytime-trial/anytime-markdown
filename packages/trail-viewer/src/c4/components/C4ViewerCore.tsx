@@ -39,6 +39,7 @@ import { DeadCodeDetailSection } from './panels/DeadCodeDetailSection';
 import { fileAnalysisEntriesForElement } from './fileAnalysisEntriesForElement';
 import { FunctionScatterPlot } from './panels/FunctionScatterPlot';
 import { functionAnalysisEntriesForElement } from './functionAnalysisEntriesForElement';
+import { kindBadge } from './kindBadge';
 import { ResizablePopup, type ResizablePopupSize } from './widgets/ResizablePopup';
 import GroupWorkIcon from '@mui/icons-material/GroupWork';
 
@@ -2147,18 +2148,25 @@ export function C4ViewerCore({
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                           {elementFunctions.symbols.map(sym => (
                             <Box key={sym.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Typography
-                                component="span"
-                                sx={{
-                                  fontSize: '0.58rem',
-                                  fontWeight: 700,
-                                  color: colors.codeLink,
-                                  flexShrink: 0,
-                                  textTransform: 'uppercase',
-                                }}
-                              >
-                                {sym.kind.slice(0, 2)}
-                              </Typography>
+                              {(() => {
+                                const badge = kindBadge(sym.kind, t);
+                                return (
+                                  <Typography
+                                    component="span"
+                                    title={badge.full}
+                                    aria-label={badge.full}
+                                    sx={{
+                                      fontSize: '0.58rem',
+                                      fontWeight: 700,
+                                      color: colors.codeLink,
+                                      flexShrink: 0,
+                                      textTransform: 'uppercase',
+                                    }}
+                                  >
+                                    {badge.short}
+                                  </Typography>
+                                );
+                              })()}
                               <Typography
                                 component="span"
                                 sx={{
