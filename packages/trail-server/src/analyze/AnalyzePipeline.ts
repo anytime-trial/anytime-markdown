@@ -8,7 +8,7 @@ import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
 import type { FileCategory } from '@anytime-markdown/trail-core/classify';
 
 import { loadAnalyzeExclude, seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
-import { discoverPythonFiles } from '@anytime-markdown/code-analysis-python';
+import { discoverPythonFiles, classifyPythonFiles } from '@anytime-markdown/code-analysis-python';
 
 import type { Logger } from '../runtime/Logger';
 import type { CodeGraphService } from './CodeGraphService';
@@ -171,6 +171,19 @@ async function analyzeTypeScriptBranch(
     program as unknown as import('typescript').Program,
     analysisRoot,
   );
+  // 混在リポ: program に含まれない .py を Python classify でマージする。
+  try {
+    const pyCategories = await classifyPythonFiles({
+      repoRoot: analysisRoot,
+      exclude,
+      pythonWasmPath: codeGraphService.getPythonWasmPath(),
+    });
+    for (const [rel, cat] of pyCategories) categoryByFile.set(rel, cat);
+  } catch (err) {
+    const msg = `python classify failed: ${err instanceof Error ? err.message : String(err)}`;
+    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
+    warnings.push(msg);
+  }
   logger.info(
     `C4 analysis [${repoName}]: classified ${categoryByFile.size} files (ui/logic/excluded)`,
   );
@@ -205,8 +218,8 @@ async function analyzeTypeScriptBranch(
 /**
  * Python-only 経路（tsconfig 無し）: 言語レジストリで TrailGraph を生成して
  * current_graphs に保存（C4 モデルは getCurrentC4Model=trailToC4 で都度導出）し、
- * PythonAdapter ベースの importance を算出する。classify は ts.Program 前提のため
- * スキップする（category は computeAndPersistFileAnalysis 既定の 'logic'）。
+ * PythonAdapter ベースの importance と PythonFileClassifier による ui/logic/excluded
+ * 分類（categoryByFile）を算出する。
  */
 async function analyzePythonOnlyBranch(
   opts: AnalyzeCurrentOpts,
@@ -249,7 +262,21 @@ async function analyzePythonOnlyBranch(
     warnings.push(msg);
   }
 
-  return { graph, scored, lineCountByFile, categoryByFile: undefined };
+  // Python ファイルを ui/logic/excluded に分類して category に反映する。
+  let categoryByFile: ReadonlyMap<string, FileCategory> | undefined;
+  try {
+    categoryByFile = await classifyPythonFiles({
+      repoRoot: analysisRoot,
+      exclude,
+      pythonWasmPath: codeGraphService.getPythonWasmPath(),
+    });
+  } catch (err) {
+    const msg = `python classify failed: ${err instanceof Error ? err.message : String(err)}`;
+    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
+    warnings.push(msg);
+  }
+
+  return { graph, scored, lineCountByFile, categoryByFile };
 }
 
 /**
