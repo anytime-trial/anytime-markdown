@@ -163,6 +163,7 @@ program
         repositories: codeGraphRepos,
         trailDb,
         logger,
+        pythonWasmPath: join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
       });
       server.setCodeGraphService(codeGraphService);
 
