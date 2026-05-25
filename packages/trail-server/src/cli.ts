@@ -17,6 +17,7 @@ import {
   loadLepConfig,
   disabledAnalyzerIds,
   resolveGitHubSource,
+  resolveExcludeRoot,
   DEFAULT_LEP_CONFIG,
   type LepConfig,
 } from './runtime/LepConfig';
@@ -187,21 +188,22 @@ program
         path: p,
       }));
       const primaryGitRoot = effectiveGitRoots[0]!;
+      // 除外ルートは lep.json workspace.excludeRoot で一元管理する（空なら undefined →
+      // 解析対象リポ自身にフォールバック）。相対は primary gitRoot 起点で絶対化。
+      const analyzeExcludeRoot = resolveExcludeRoot(lepConfig, lepWorkspaceRoot);
 
       const codeGraphService = new CodeGraphService({
         repositories: codeGraphRepos,
         trailDb,
         logger,
         pythonWasmPath: join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
-        // 外部リポも含め、除外は primary gitRoot（開いているワークスペース相当）を参照する。
-        excludeRoot: primaryGitRoot,
+        excludeRoot: analyzeExcludeRoot,
       });
       server.setCodeGraphService(codeGraphService);
 
       server.onAnalyzeCurrentCode = async ({ workspacePath, tsconfigPath }) => {
         const analysisRoot = workspacePath ?? primaryGitRoot;
-        // 除外パターンは解析対象リポ自身ではなく primary gitRoot を基準にする。
-        const excludeRoot = primaryGitRoot;
+        const excludeRoot = analyzeExcludeRoot;
         let rootStat: ReturnType<typeof statSync>;
         try { rootStat = statSync(analysisRoot); }
         catch { throw new Error(`workspace path does not exist: ${analysisRoot}`); }
