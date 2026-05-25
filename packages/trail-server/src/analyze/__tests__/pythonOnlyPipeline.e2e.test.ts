@@ -24,7 +24,9 @@ const MODELS_PY = `def make_dog():
 const noopCallbacks: AnalyzePipelineCallbacks = {
   notifyProgress: () => {},
   notifyCodeGraphProgress: () => {},
-  notifyCodeGraphUpdated: () => {},
+  notifyCodeGraphUpdated: jest.fn(),
+  // 解析後に C4 モデル更新イベント (model-updated) を viewer へ通知する。
+  notifyModelUpdated: jest.fn(),
   // tsconfig 無し経路では呼ばれない（呼ばれたら検知のため失敗させる）。
   computeAndPersistImportance: async () => {
     throw new Error('computeAndPersistImportance must not be called on the Python-only path');
@@ -58,6 +60,11 @@ describe('runAnalyzeCurrentCodePipeline (Python-only, no tsconfig)', () => {
       });
 
       expect(result.repoName).toBe(repoName);
+
+      // 解析後に C4 モデル更新イベント (model-updated) と code-graph-updated の両方を通知する。
+      // viewer はこの notifyModelUpdated 経由で C4 モデルを再 fetch する。
+      expect(noopCallbacks.notifyModelUpdated).toHaveBeenCalled();
+      expect(noopCallbacks.notifyCodeGraphUpdated).toHaveBeenCalled();
 
       // function analysis に Python 関数が language='python' で入っている
       const fns = trailDb.getCurrentFunctionAnalysis(repoName);

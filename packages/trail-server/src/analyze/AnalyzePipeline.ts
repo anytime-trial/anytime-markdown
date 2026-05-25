@@ -22,6 +22,12 @@ export interface AnalyzePipelineCallbacks {
   notifyProgress(phase: string, percent: number): void;
   notifyCodeGraphProgress(phase: string, percent: number): void;
   notifyCodeGraphUpdated(): void;
+  /**
+   * C4 モデル (current_graphs → trailToC4) を更新したことを viewer へ通知する
+   * (`model-updated` WS イベント)。解析は code graph と C4 モデルの両方を更新するため、
+   * `notifyCodeGraphUpdated()` と対で呼ぶ。viewer はこの通知で C4 モデルを再 fetch する。
+   */
+  notifyModelUpdated(): void;
   computeAndPersistImportance(
     tsconfigPath: string,
     exclude: import('ignore').Ignore | undefined,
@@ -348,6 +354,11 @@ export async function runAnalyzeCurrentCodePipeline(
   logger.info(
     `C4 analysis [${repoName}]: analyzed ${graph?.metadata.fileCount ?? 0} files, ${graph?.nodes.length ?? 0} nodes, ${graph?.edges.length ?? 0} edges`,
   );
+
+  // C4 モデル (current_graphs → trailToC4) は branch 内の saveCurrentGraph で更新済み。
+  // code graph 生成 (下記 try) の成否に依存せず viewer の C4 モデルを再 fetch させるため、
+  // ここで model-updated を通知する。
+  callbacks.notifyModelUpdated();
 
   try {
     onProgress?.('Generating code graph...');
