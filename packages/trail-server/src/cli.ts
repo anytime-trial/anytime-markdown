@@ -186,18 +186,22 @@ program
         label: basename(p),
         path: p,
       }));
+      const primaryGitRoot = effectiveGitRoots[0]!;
+
       const codeGraphService = new CodeGraphService({
         repositories: codeGraphRepos,
         trailDb,
         logger,
         pythonWasmPath: join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
+        // 外部リポも含め、除外は primary gitRoot（開いているワークスペース相当）を参照する。
+        excludeRoot: primaryGitRoot,
       });
       server.setCodeGraphService(codeGraphService);
 
-      const primaryGitRoot = effectiveGitRoots[0]!;
-
       server.onAnalyzeCurrentCode = async ({ workspacePath, tsconfigPath }) => {
         const analysisRoot = workspacePath ?? primaryGitRoot;
+        // 除外パターンは解析対象リポ自身ではなく primary gitRoot を基準にする。
+        const excludeRoot = primaryGitRoot;
         let rootStat: ReturnType<typeof statSync>;
         try { rootStat = statSync(analysisRoot); }
         catch { throw new Error(`workspace path does not exist: ${analysisRoot}`); }
@@ -207,10 +211,10 @@ program
 
         let resolvedTsconfig: string | undefined = tsconfigPath;
         if (!resolvedTsconfig) {
-          const candidates = findTsconfigCandidates(analysisRoot);
+          const candidates = findTsconfigCandidates(analysisRoot, excludeRoot);
           if (candidates.length > 0) {
             resolvedTsconfig = candidates[0].fsPath;
-          } else if (hasPythonFiles(analysisRoot)) {
+          } else if (hasPythonFiles(analysisRoot, excludeRoot)) {
             resolvedTsconfig = undefined; // Python-only 解析
           } else {
             throw new Error(`No tsconfig.json or Python files found under ${analysisRoot}`);
@@ -219,6 +223,7 @@ program
 
         return runAnalyzeCurrentCodePipeline({
           analysisRoot,
+          excludeRoot,
           tsconfigPath: resolvedTsconfig,
           trailDb,
           callbacks: server,

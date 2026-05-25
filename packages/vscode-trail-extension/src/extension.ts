@@ -504,6 +504,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		repositories: codeGraphRepos,
 		trailDb: trailDb!,
 		pythonWasmPath: path.join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
+		// 外部リポも含め、除外は開いているワークスペースの analyze-exclude を参照する。
+		excludeRoot: getEffectiveWorkspacePath(),
 	});
 	trailDataServer.setCodeGraphService(codeGraphService);
 
@@ -513,6 +515,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		if (!analysisRoot) {
 			throw new Error('No workspace path. Set anytimeTrail.workspace.path or open a workspace.');
 		}
+		// 除外パターンは解析対象リポ自身ではなく開いているワークスペースを基準にする。
+		const excludeRoot = getEffectiveWorkspacePath();
 		let rootStat: fs.Stats;
 		try {
 			rootStat = fs.statSync(analysisRoot);
@@ -525,10 +529,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 		let resolvedTsconfig: string | undefined = tsconfigPath;
 		if (!resolvedTsconfig) {
-			const candidates = findTsconfigCandidates(analysisRoot);
+			const candidates = findTsconfigCandidates(analysisRoot, excludeRoot);
 			if (candidates.length > 0) {
 				resolvedTsconfig = candidates[0].fsPath;
-			} else if (hasPythonFiles(analysisRoot)) {
+			} else if (hasPythonFiles(analysisRoot, excludeRoot)) {
 				resolvedTsconfig = undefined; // Python-only 解析
 			} else {
 				throw new Error(`No tsconfig.json or Python files found under ${analysisRoot}`);
@@ -538,6 +542,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		if (!trailDb) throw new Error('Trail DB not initialized');
 		return runAnalyzeCurrentCodePipeline({
 			analysisRoot,
+			excludeRoot,
 			tsconfigPath: resolvedTsconfig,
 			trailDb,
 			callbacks: trailDataServer!,
