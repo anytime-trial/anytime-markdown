@@ -1488,6 +1488,15 @@ export class TrailDataServer {
     for (const ws of this.clients) ws.send(payload);
   }
 
+  /**
+   * C4 モデル更新を viewer へ通知する (`model-updated` WS イベント)。
+   * AnalyzePipelineCallbacks の一員として解析パイプラインから呼ばれ、viewer は
+   * これを受けて C4 モデルを再 fetch する (手動 CRUD の model-updated と同じ経路)。
+   */
+  notifyModelUpdated(): void {
+    this.notify('model-updated');
+  }
+
   notifyCodeGraphProgress(phase: string, percent: number): void {
     if (this.clients.size === 0) return;
     const message: ServerMessage = { type: 'code-graph-progress', phase, percent };
