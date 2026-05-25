@@ -54,9 +54,16 @@ export interface TsconfigCandidate {
 /**
  * `analysisRoot` 配下から `tsconfig.json` 候補を浅い順に返す。
  * 複数ある場合の選択は呼び出し側の責務（コマンドは QuickPick、HTTP は 1 件目）。
+ *
+ * `excludeRoot` を渡すと除外パターンを `analysisRoot` 自身ではなく `excludeRoot`
+ * （開いているワークスペース）の `.anytime/analyze-exclude` から読む。省略時は
+ * 後方互換のため `analysisRoot` から読む。
  */
-export function findTsconfigCandidates(analysisRoot: string): TsconfigCandidate[] {
-  return new GraphDetector(analysisRoot, loadAnalyzeExclude(analysisRoot))
+export function findTsconfigCandidates(
+  analysisRoot: string,
+  excludeRoot?: string,
+): TsconfigCandidate[] {
+  return new GraphDetector(analysisRoot, loadAnalyzeExclude(excludeRoot ?? analysisRoot))
     .detectFilesByName('tsconfig.json')
     .map((fsPath) => {
       const rel = path.relative(analysisRoot, fsPath);
@@ -69,9 +76,12 @@ export function findTsconfigCandidates(analysisRoot: string): TsconfigCandidate[
  * `analysisRoot` 配下に解析対象の Python ファイルが存在するか。
  * tsconfig が無い場合に Python-only 解析へフォールバックするかの判定に使う。
  * analyze-exclude を反映する（discoverPythonFiles が exclude を受け取る）。
+ *
+ * `excludeRoot` を渡すと除外パターンを `analysisRoot` 自身ではなく `excludeRoot`
+ * （開いているワークスペース）から読む。省略時は後方互換で `analysisRoot` から読む。
  */
-export function hasPythonFiles(analysisRoot: string): boolean {
-  return discoverPythonFiles(analysisRoot, loadAnalyzeExclude(analysisRoot)).length > 0;
+export function hasPythonFiles(analysisRoot: string, excludeRoot?: string): boolean {
+  return discoverPythonFiles(analysisRoot, loadAnalyzeExclude(excludeRoot ?? analysisRoot)).length > 0;
 }
 
 const NOOP_LOGGER: Logger = {
@@ -84,6 +94,13 @@ const NOOP_LOGGER: Logger = {
 
 export interface AnalyzeCurrentOpts {
   analysisRoot: string;
+  /**
+   * 除外パターン (`.anytime/analyze-exclude`) を読むルート。開いているワークスペースの
+   * ルートを渡す想定。省略時は後方互換で `analysisRoot` から読む。
+   * 外部リポ（gitRoots）解析時に、対象リポ自身ではなくワークスペースの exclude を
+   * 適用するために使う。
+   */
+  excludeRoot?: string;
   /** tsconfig.json の絶対パス。無い場合（Python-only リポ）は undefined。 */
   tsconfigPath: string | undefined;
   trailDb: TrailDatabase;
@@ -301,6 +318,7 @@ export async function runAnalyzeCurrentCodePipeline(
   onProgress?.('Loading project...', 0);
 
   try {
+    // seed は従来どおり解析対象リポ自身に対して行う（読み込み先は excludeRoot へ切替）。
     const seeded = seedAnalyzeExclude(analysisRoot);
     if (seeded) {
       logger.info(`C4 analysis [${repoName}]: .anytime/analyze-exclude created`);
@@ -308,7 +326,8 @@ export async function runAnalyzeCurrentCodePipeline(
   } catch (err) {
     warnings.push(`seedAnalyzeExclude failed: ${err instanceof Error ? err.message : String(err)}`);
   }
-  const exclude = loadAnalyzeExclude(analysisRoot);
+  // 除外パターンは開いているワークスペース (excludeRoot) から読む。省略時は analysisRoot。
+  const exclude = loadAnalyzeExclude(opts.excludeRoot ?? analysisRoot);
 
   // commitId は両ブランチ共通（getHeadCommit は git 非リポでは警告のみ）。
   let commitId = '';

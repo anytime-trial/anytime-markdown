@@ -20,6 +20,13 @@ export interface CodeGraphServiceConfig {
   readonly repositories: readonly CodeGraphRepository[];
   /** ディレクトリ名で除外するパターン（GraphDetector のデフォルトに追加される） */
   readonly excludePatterns?: readonly string[];
+  /**
+   * 除外パターン (`.anytime/analyze-exclude`) を読むルート。開いているワークスペースの
+   * ルートを渡す想定。省略時は後方互換で各 `repo.path` から読む。
+   * 外部リポ（gitRoots）解析時に、対象リポ自身ではなくワークスペースの exclude を
+   * 適用するために使う。`excludePatterns` が指定された場合はそちらが優先される。
+   */
+  readonly excludeRoot?: string;
   /** bundle 環境で tree-sitter-python.wasm の絶対パスを注入する（Node 実行時は省略可）。 */
   readonly pythonWasmPath?: string;
   /** Logger instance. Defaults to a no-op logger if not provided. */
@@ -151,7 +158,8 @@ export class CodeGraphService {
   ): Promise<CodeGraph> {
     onProgress?.(`${repo.label} を解析中`, 0);
 
-    const excludePatterns = this.config.excludePatterns ?? loadAnalyzeExclude(repo.path);
+    const excludePatterns =
+      this.config.excludePatterns ?? loadAnalyzeExclude(this.config.excludeRoot ?? repo.path);
     const detector = new GraphDetector(repo.path, excludePatterns);
     const docFiles = detector.detectDocFiles();
 
@@ -258,7 +266,7 @@ export class CodeGraphService {
    * TrailGraph を得るために公開する。
    */
   async analyzeRepoTrailGraph(repoPath: string): Promise<TrailGraph | undefined> {
-    const exclude = loadAnalyzeExclude(repoPath);
+    const exclude = loadAnalyzeExclude(this.config.excludeRoot ?? repoPath);
     try {
       const graph = await analyzeRepo(this.getLanguageRegistry(), repoPath, analyzer => ({
         projectRoot: repoPath,
