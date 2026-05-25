@@ -504,8 +504,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		repositories: codeGraphRepos,
 		trailDb: trailDb!,
 		pythonWasmPath: path.join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
-		// 外部リポも含め、除外は開いているワークスペースの analyze-exclude を参照する。
-		excludeRoot: getEffectiveWorkspacePath(),
+		// 除外は「実際に開いている VS Code フォルダ」(workspaceFolders[0]) の analyze-exclude を
+		// 参照する。getEffectiveWorkspacePath() は anytimeTrail.workspace.path（=解析対象。
+		// 外部リポ解析時は対象リポ自身）を返すため excludeRoot には使わない。
+		excludeRoot: wsRootForDb,
 	});
 	trailDataServer.setCodeGraphService(codeGraphService);
 
@@ -515,8 +517,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		if (!analysisRoot) {
 			throw new Error('No workspace path. Set anytimeTrail.workspace.path or open a workspace.');
 		}
-		// 除外パターンは解析対象リポ自身ではなく開いているワークスペースを基準にする。
-		const excludeRoot = getEffectiveWorkspacePath();
+		// 除外パターンは解析対象 (analysisRoot) ではなく、実際に開いている VS Code フォルダ
+		// (workspaceFolders[0]) を基準にする。anytimeTrail.workspace.path で外部リポを解析する
+		// 場合でも、ユーザーが編集した開きフォルダの analyze-exclude を適用するため。
+		const excludeRoot = wsRootForDb;
 		let rootStat: fs.Stats;
 		try {
 			rootStat = fs.statSync(analysisRoot);
