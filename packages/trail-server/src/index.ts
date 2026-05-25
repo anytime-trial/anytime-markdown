@@ -78,6 +78,7 @@ export {
   workspaceLepConfigPath,
   workspaceConfigJsonPath,
   resolveGitHubSource,
+  resolveExcludeRoot,
 } from './runtime/LepConfig';
 export type {
   LepConfig,

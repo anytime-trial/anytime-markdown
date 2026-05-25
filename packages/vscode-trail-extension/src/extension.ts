@@ -25,6 +25,7 @@ import {
 	DEFAULT_LEP_CONFIG,
 	disabledAnalyzerIds,
 	resolveGitHubSource,
+	resolveExcludeRoot,
 	createFetchGitHubReviewClient,
 	checkLlmAvailability,
 	LogService,
@@ -303,6 +304,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 	// docsPath は lep.json workspace.docsPath で一元管理する (旧 anytimeTrail.workspace.docsPath は廃止)。
 	lepWorkspaceDocsPath = lepConfig.workspace.docsPath;
+	// code graph / C4 解析の除外ルートは lep.json workspace.excludeRoot で一元管理する。
+	// どのフォルダを開いていても指定ディレクトリの .anytime/analyze-exclude を全解析経路に適用する
+	// (空なら undefined → 解析対象リポ自身にフォールバック)。相対は wsRootForDb 起点で絶対化。
+	const analyzeExcludeRoot = resolveExcludeRoot(lepConfig, wsRootForDb);
 	// trail.db 保存先は lep.json database.storagePath (旧 anytimeTrail.database.storagePath は廃止)。
 	const dbStoragePathSetting = lepConfig.database.storagePath || '.anytime/trail/db';
 
@@ -504,10 +509,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		repositories: codeGraphRepos,
 		trailDb: trailDb!,
 		pythonWasmPath: path.join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
-		// 除外は「実際に開いている VS Code フォルダ」(workspaceFolders[0]) の analyze-exclude を
-		// 参照する。getEffectiveWorkspacePath() は anytimeTrail.workspace.path（=解析対象。
-		// 外部リポ解析時は対象リポ自身）を返すため excludeRoot には使わない。
-		excludeRoot: wsRootForDb,
+		// 除外は lep.json workspace.excludeRoot で指定した中央ディレクトリの analyze-exclude を
+		// 参照する。開きフォルダや解析対象リポに依存せず単一の exclude を全リポに適用する。
+		excludeRoot: analyzeExcludeRoot,
 	});
 	trailDataServer.setCodeGraphService(codeGraphService);
 
@@ -517,10 +521,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		if (!analysisRoot) {
 			throw new Error('No workspace path. Set anytimeTrail.workspace.path or open a workspace.');
 		}
-		// 除外パターンは解析対象 (analysisRoot) ではなく、実際に開いている VS Code フォルダ
-		// (workspaceFolders[0]) を基準にする。anytimeTrail.workspace.path で外部リポを解析する
-		// 場合でも、ユーザーが編集した開きフォルダの analyze-exclude を適用するため。
-		const excludeRoot = wsRootForDb;
+		// 除外パターンは lep.json workspace.excludeRoot で指定した中央ディレクトリを基準にする
+		// (空なら undefined → 解析対象リポ自身にフォールバック)。
+		const excludeRoot = analyzeExcludeRoot;
 		let rootStat: fs.Stats;
 		try {
 			rootStat = fs.statSync(analysisRoot);
@@ -652,6 +655,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				async (progress) => {
 					const result = await runAnalyzeCurrentCodePipeline({
 						analysisRoot,
+						excludeRoot: analyzeExcludeRoot,
 						tsconfigPath,
 						trailDb: trailDb!,
 						callbacks: trailDataServer!,
