@@ -232,11 +232,8 @@ export class AnalyzeAllRunner extends BaseRunner {
       const gitRoots = opts.gitRoots ?? [];
       const onPhase = opts.onImportPhase;
       const onProgress = opts.onImportProgress;
-      const primaryRepoName = opts.gitRoot
-        ? basename(opts.gitRoot)
-        : gitRoots[0]
-          ? basename(gitRoots[0])
-          : undefined;
+      const fallbackRepoName = gitRoots[0] ? basename(gitRoots[0]) : undefined;
+      const primaryRepoName = opts.gitRoot ? basename(opts.gitRoot) : fallbackRepoName;
 
       // Layer 1 (sources)
       const ingesters: Analyzer[] = [

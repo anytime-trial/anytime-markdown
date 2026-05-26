@@ -5,7 +5,7 @@ export interface Disposable {
 
 /** 複数 Disposable をまとめて解放するヘルパー。逆順で dispose する。 */
 export class DisposableStore implements Disposable {
-  private items: Disposable[] = [];
+  private readonly items: Disposable[] = [];
 
   add(d: Disposable): void {
     this.items.push(d);

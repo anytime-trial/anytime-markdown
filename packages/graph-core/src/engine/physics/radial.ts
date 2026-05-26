@@ -21,7 +21,10 @@ export function computeRadialLayout(
 
   const visited = new Set<string>();
   const order = [...ids];
-  if (rootId && bodies.has(rootId)) order.sort((a, b) => (a === rootId ? -1 : b === rootId ? 1 : 0));
+  if (rootId && bodies.has(rootId)) order.sort((a, b) => {
+    const aIsRoot = a === rootId ? -1 : 0;
+    return aIsRoot !== 0 ? aIsRoot : (b === rootId ? 1 : 0);
+  });
 
   let offsetY = 0;
   for (const start of order) {

@@ -8,8 +8,8 @@ const EMBEDDINGS_TIMEOUT_MS = 30_000;
 
 function isInsideContainer(): boolean {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require('node:fs') as typeof import('node:fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+    const fs = require('node:fs');
     return fs.existsSync('/.dockerenv');
   } catch {
     return false;

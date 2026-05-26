@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { discoverChangedSpecs } from '../ingest/spec/discoverSpecDocs';
 import { parseFrontmatter } from '../ingest/spec/parseFrontmatter';

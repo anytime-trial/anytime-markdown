@@ -32,7 +32,7 @@ export interface PipelineStatusFile {
  * に反映されない。realtime な UI 表示用に、本クラスが fs に atomic 書き込みする。
  */
 export class PipelineStatusWriter {
-  private state: PipelineStatusFile;
+  private readonly state: PipelineStatusFile;
 
   constructor(
     private readonly filePath: string,

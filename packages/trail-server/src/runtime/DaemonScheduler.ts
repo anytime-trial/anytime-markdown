@@ -17,9 +17,9 @@ export interface ScheduledJob {
 
 export class DaemonScheduler {
   private timers: NodeJS.Timeout[] = [];
-  private running: Set<string> = new Set();
+  private readonly running: Set<string> = new Set();
   private stopRequested = false;
-  private pending: Promise<unknown>[] = [];
+  private readonly pending: Promise<unknown>[] = [];
 
   constructor(
     private readonly jobs: readonly ScheduledJob[],

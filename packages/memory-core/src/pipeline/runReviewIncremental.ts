@@ -386,12 +386,9 @@ export async function runReviewIncremental(input: {
 
   // ── Finalize ──────────────────────────────────────────────────────────────
 
+  const partialOrSuccess: 'partial' | 'success' = itemsFailed > 0 ? 'partial' : 'success';
   const finalStatus: 'success' | 'partial' | 'error' =
-    itemsFailed > 0 && totals.items_processed === itemsFailed
-      ? 'error'
-      : itemsFailed > 0
-        ? 'partial'
-        : 'success';
+    itemsFailed > 0 && totals.items_processed === itemsFailed ? 'error' : partialOrSuccess;
 
   upsertPipelineState(db, SCOPE_DOC, { status: 'idle' });
   finalizePipelineRun(db, runIdHash, startedAt, finalStatus, totals);

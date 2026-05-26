@@ -27,7 +27,7 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
   readonly id = 'sqlite-better' as const;
   readonly displayName: string;
   readonly capabilities: DatabaseCapabilities;
-  private db: Database.Database;
+  private readonly db: Database.Database;
   private inTransaction = false;
 
   constructor(opts: BetterSqlite3AdapterOptions) {

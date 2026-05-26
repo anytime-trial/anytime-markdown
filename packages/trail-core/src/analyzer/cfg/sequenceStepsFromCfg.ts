@@ -90,7 +90,7 @@ export function sequenceStepsFromCfg(block: CfgBlock, opts: SeqWalkOptions): Seq
 
     // else が単一の if（else-if）なら連鎖を flatten
     let elseBlock: CfgBlock | undefined = stmt.else;
-    while (elseBlock && elseBlock.stmts.length === 1 && elseBlock.stmts[0].kind === 'if') {
+    while (elseBlock?.stmts.length === 1 && elseBlock.stmts[0].kind === 'if') {
       const elif = elseBlock.stmts[0] as Extract<CfgStmt, { kind: 'if' }>;
       const branchSteps: SequenceStep[] = [];
       visitBlock(elif.then, branchSteps);
@@ -119,7 +119,7 @@ export function sequenceStepsFromCfg(block: CfgBlock, opts: SeqWalkOptions): Seq
     // iterator メソッド（forEach 等・第1引数がコールバック）を loop fragment 化
     if (call.isPropertyAccess && call.calleeName && ITERATOR_METHODS.has(call.calleeName)) {
       const first = call.args[0];
-      if (first && first.kind === 'functionBody') {
+      if (first?.kind === 'functionBody') {
         const bodySteps: SequenceStep[] = [];
         visitBlock(first.body, bodySteps);
         if (bodySteps.length > 0) {

@@ -828,8 +828,11 @@ export class MemoryApiHandler {
       );
       if (!result[0]) return [];
       const { columns, values } = result[0];
-      const rankToStatus = (n: number): PipelineRunStatus =>
-        n === 3 ? 'error' : n === 2 ? 'partial' : n === 1 ? 'success' : 'running';
+      const rankToStatus = (n: number): PipelineRunStatus => {
+        if (n === 3) return 'error';
+        if (n === 2) return 'partial';
+        return n === 1 ? 'success' : 'running';
+      };
       return values.map((row) => {
         const r = mapRow<Record<string, unknown>>(columns, row);
         return {

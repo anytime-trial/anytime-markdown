@@ -135,7 +135,7 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
   const gitRoot = input.gitRoot ?? process.cwd();
 
   // Normalize the gitRoot to a posix-style path with trailing separator stripped
-  const normalizedGitRoot = gitRoot.replace(/\\/g, '/').replace(/\/$/, '');
+  const normalizedGitRoot = gitRoot.replaceAll('\\', '/').replace(/\/$/, '');
 
   /**
    * Convert an absolute TypeScript compiler path to a project-relative posix path.
@@ -143,7 +143,7 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
    * the original absolute path unchanged (e.g. for temp-dir test fixtures).
    */
   function toRelPath(absPath: string): string {
-    const normalized = absPath.replace(/\\/g, '/');
+    const normalized = absPath.replaceAll('\\', '/');
     if (normalized.startsWith(normalizedGitRoot + '/')) {
       return normalized.slice(normalizedGitRoot.length + 1);
     }

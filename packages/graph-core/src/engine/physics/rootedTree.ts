@@ -34,7 +34,10 @@ export function computeRootedTreeLayout(
   const treeEdges: GraphEdge[] = [];
   const visited = new Set<string>();
   const starts = [...ids];
-  if (rootId && bodies.has(rootId)) starts.sort((a, b) => (a === rootId ? -1 : b === rootId ? 1 : 0));
+  if (rootId && bodies.has(rootId)) starts.sort((a, b) => {
+    const aIsRoot = a === rootId ? -1 : 0;
+    return aIsRoot !== 0 ? aIsRoot : (b === rootId ? 1 : 0);
+  });
   for (const s of starts) {
     if (visited.has(s)) continue;
     visited.add(s);

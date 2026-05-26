@@ -98,6 +98,17 @@ export const SqlEditorPanel = forwardRef<SqlEditorPanelHandle, SqlEditorPanelPro
     }
   };
 
+  const sqlStatusLabel = last ? (
+    <Typography variant="caption">
+      {t("sqlStatusRows", { count: last.rows.length })} ·{" "}
+      {t("sqlStatusTime", { ms: Math.round(last.executionTimeMs) })}
+    </Typography>
+  ) : (
+    <Typography variant="caption">
+      {running ? t("sqlStatusRunning") : t("sqlStatusIdle")}
+    </Typography>
+  );
+
   return (
     <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
       <Stack direction="row" alignItems="center" sx={{ px: 1, py: 0.5 }}>
@@ -114,15 +125,8 @@ export const SqlEditorPanel = forwardRef<SqlEditorPanelHandle, SqlEditorPanelPro
           <Typography variant="caption" color="error">
             {t("sqlStatusError")}: {last.error}
           </Typography>
-        ) : last ? (
-          <Typography variant="caption">
-            {t("sqlStatusRows", { count: last.rows.length })} ·{" "}
-            {t("sqlStatusTime", { ms: Math.round(last.executionTimeMs) })}
-          </Typography>
         ) : (
-          <Typography variant="caption">
-            {running ? t("sqlStatusRunning") : t("sqlStatusIdle")}
-          </Typography>
+          sqlStatusLabel
         )}
       </Stack>
       <Collapse in={expanded}>

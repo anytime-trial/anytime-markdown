@@ -74,7 +74,7 @@ export class HealthMonitor {
     const prev = this.snapshots.get(key);
     this.snapshots.set(key, next);
 
-    if (!prev || prev.ok !== next.ok || prev.detail !== next.detail) {
+    if (prev?.ok !== next.ok || prev?.detail !== next.detail) {
       this.changed.emit(next);
     }
   }

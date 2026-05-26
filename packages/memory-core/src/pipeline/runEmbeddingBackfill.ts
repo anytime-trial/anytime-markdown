@@ -114,8 +114,9 @@ export async function runEmbeddingBackfill(opts: {
 
   const finishedAt = new Date().toISOString();
   const durationMs = Date.parse(finishedAt) - Date.parse(startedAt);
+  const partialOrError: EmbeddingBackfillResult['status'] = counters.processed > 0 ? 'partial' : 'error';
   const status: EmbeddingBackfillResult['status'] =
-    counters.failed === 0 ? 'success' : counters.processed > 0 ? 'partial' : 'error';
+    counters.failed === 0 ? 'success' : partialOrError;
 
   db.run(
     `UPDATE memory_pipeline_runs SET

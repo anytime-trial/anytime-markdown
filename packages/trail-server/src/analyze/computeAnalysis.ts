@@ -29,7 +29,7 @@ export async function computeAnalysis(
   const imp = await computeImportance(
     tsconfigPath,
     exclude,
-    program as unknown as import('typescript').Program,
+    program,
   );
   if (imp) {
     scored = imp.scored;
@@ -40,7 +40,7 @@ export async function computeAnalysis(
 
   const { classifyAllFiles } = await import('@anytime-markdown/trail-core/classify');
   const categoryByFile = classifyAllFiles(
-    program as unknown as import('typescript').Program,
+    program,
     analysisRoot,
   );
   try {

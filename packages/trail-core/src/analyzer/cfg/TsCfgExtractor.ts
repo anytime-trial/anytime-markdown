@@ -61,15 +61,18 @@ function extractStmt(stmt: ts.Statement, sf: ts.SourceFile): CfgStmt {
     ts.isWhileStatement(stmt) ||
     ts.isDoStatement(stmt)
   ) {
-    const loopKind = ts.isForStatement(stmt)
-      ? 'for'
-      : ts.isForInStatement(stmt)
-        ? 'forIn'
-        : ts.isForOfStatement(stmt)
-          ? 'forOf'
-          : ts.isWhileStatement(stmt)
-            ? 'while'
-            : 'do';
+    let loopKind: 'for' | 'forIn' | 'forOf' | 'while' | 'do';
+    if (ts.isForStatement(stmt)) {
+      loopKind = 'for';
+    } else if (ts.isForInStatement(stmt)) {
+      loopKind = 'forIn';
+    } else if (ts.isForOfStatement(stmt)) {
+      loopKind = 'forOf';
+    } else if (ts.isWhileStatement(stmt)) {
+      loopKind = 'while';
+    } else {
+      loopKind = 'do';
+    }
     return {
       kind: 'loop',
       line,
@@ -147,11 +150,10 @@ function extractCalls(node: ts.Node, sf: ts.SourceFile): CfgCall[] {
 
 function toCall(expr: ts.CallExpression, sf: ts.SourceFile): CfgCall {
   const isProp = ts.isPropertyAccessExpression(expr.expression);
+  const propCalleeOrNull = isProp ? (expr.expression as ts.PropertyAccessExpression).name.text : null;
   const calleeName = ts.isIdentifier(expr.expression)
     ? expr.expression.text
-    : isProp
-      ? (expr.expression as ts.PropertyAccessExpression).name.text
-      : null;
+    : propCalleeOrNull;
   const receiverText = isProp
     ? (expr.expression as ts.PropertyAccessExpression).expression.getText(sf)
     : undefined;
