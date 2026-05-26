@@ -7,6 +7,11 @@ export interface AnalyzeChildRequest {
   readonly analysisRoot: string;
   readonly excludeRoot?: string;
   readonly tsconfigPath: string;
+  /**
+   * tree-sitter-python.wasm の絶対パス。バンドル環境（analyze-child.js）の Python
+   * マージで必須。ホストが codeGraphService.getPythonWasmPath() から解決して渡す。
+   */
+  readonly pythonWasmPath?: string;
 }
 
 /**
