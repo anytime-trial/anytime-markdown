@@ -1,6 +1,5 @@
 import * as path from 'node:path';
 
-import { analyzeWithProgram } from '@anytime-markdown/trail-core/analyze';
 import { ExecFileGitService } from '@anytime-markdown/trail-db';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
@@ -115,6 +114,11 @@ export interface AnalyzeCurrentOpts {
   logger?: Logger;
   /** UI 側（VS Code progress）の進捗コールバック。HTTP 経路では未指定。 */
   onProgress?: (phase: string, percent?: number) => void;
+  /**
+   * 解析子プロセス (analyze-child.js) の絶対パス。指定時は TS 経路を child_process で
+   * 隔離する（SIGSEGV 耐性化）。未指定時は在来どおりホスト内で計算する（テスト・後方互換）。
+   */
+  analyzeChildPath?: string;
 }
 
 export interface AnalyzeCurrentResult {
@@ -152,89 +156,52 @@ async function analyzeTypeScriptBranch(
   warnings: string[],
 ): Promise<AnalyzeBranchResult> {
   const { analysisRoot, trailDb, callbacks, codeGraphService, onProgress } = opts;
-  const { graph, program } = analyzeWithProgram({
+
+  const reportProgress = (phase: string): void => {
+    logger.info(`C4 analysis [${repoName}]: ${phase}`);
+    const percent = phasePercent(phase);
+    callbacks.notifyProgress(phase, percent);
+    onProgress?.(phase, percent);
+  };
+
+  const request = {
+    analysisRoot,
+    excludeRoot: opts.excludeRoot,
     tsconfigPath,
-    exclude,
-    onProgress: (phase) => {
-      logger.info(`C4 analysis [${repoName}]: ${phase}`);
-      const percent = phasePercent(phase);
-      callbacks.notifyProgress(phase, percent);
-      onProgress?.(phase, percent);
-    },
-  });
-  trailDb.saveCurrentGraph(graph, tsconfigPath, commitId, repoName);
+    pythonWasmPath: codeGraphService.getPythonWasmPath(),
+  };
+
+  // 重い TS 解析（program 構築・抽出・importance・classify）は child_process に隔離する。
+  // 子が SIGSEGV してもホストは生存し、AnalyzeChildRunner が 1 回リトライする。
+  // analyzeChildPath 未指定時は在来どおりホスト内で計算する（テスト・後方互換）。
+  let compute: import('./analyzeChildProtocol').AnalyzeComputeResult;
+  if (opts.analyzeChildPath) {
+    const { AnalyzeChildRunner } = await import('./AnalyzeChildRunner.js');
+    const runner = new AnalyzeChildRunner(opts.analyzeChildPath, {
+      onProgress: (phase) => reportProgress(phase),
+      logger,
+    });
+    compute = await runner.run(request);
+  } else {
+    const { computeAnalysis } = await import('./computeAnalysis.js');
+    compute = await computeAnalysis(request, (phase) => reportProgress(phase));
+  }
+  warnings.push(...compute.warnings);
+
+  trailDb.saveCurrentGraph(compute.graph, tsconfigPath, commitId, repoName);
   logger.info(
     `C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
   );
-
-  let importanceResult: Awaited<
-    ReturnType<AnalyzePipelineCallbacks['computeAndPersistImportance']>
-  > = null;
-  try {
-    onProgress?.('Computing importance scores...');
-    importanceResult = await callbacks.computeAndPersistImportance(
-      tsconfigPath,
-      exclude,
-      program as unknown as import('typescript').Program,
-    );
-    logger.info(`C4 analysis [${repoName}]: importance scores computed`);
-  } catch (err) {
-    const msg = `importance computation failed: ${err instanceof Error ? err.message : String(err)}`;
-    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
-    warnings.push(msg);
-  }
-
-  if (!importanceResult) {
-    return { graph, scored: [], lineCountByFile: new Map(), categoryByFile: undefined };
-  }
-
-  const { classifyAllFiles } = await import('@anytime-markdown/trail-core/classify');
-  const categoryByFile = classifyAllFiles(
-    program as unknown as import('typescript').Program,
-    analysisRoot,
-  );
-  // 混在リポ: program に含まれない .py を Python classify でマージする。
-  try {
-    const pyCategories = await classifyPythonFiles({
-      repoRoot: analysisRoot,
-      exclude,
-      pythonWasmPath: codeGraphService.getPythonWasmPath(),
-    });
-    for (const [rel, cat] of pyCategories) categoryByFile.set(rel, cat);
-  } catch (err) {
-    const msg = `python classify failed: ${err instanceof Error ? err.message : String(err)}`;
-    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
-    warnings.push(msg);
-  }
   logger.info(
-    `C4 analysis [${repoName}]: classified ${categoryByFile.size} files (ui/logic/excluded)`,
+    `C4 analysis [${repoName}]: classified ${compute.categoryByFile?.length ?? 0} files, scored ${compute.scored.length} functions`,
   );
 
-  // 混在リポ（tsconfig あり + .py あり）の Python importance を結合する。
-  let scored: readonly ScoredFunction[] = importanceResult.scored;
-  let lineCountByFile: ReadonlyMap<string, number> = importanceResult.lineCountByFile;
-  try {
-    const { computePythonImportance } = await import('./computePythonImportance.js');
-    const py = await computePythonImportance({
-      repoRoot: analysisRoot,
-      exclude,
-      pythonWasmPath: codeGraphService.getPythonWasmPath(),
-      logger,
-    });
-    if (py.scored.length > 0) {
-      scored = [...importanceResult.scored, ...py.scored];
-      const merged = new Map(importanceResult.lineCountByFile);
-      for (const [rel, count] of py.lineCountByFile) merged.set(rel, count);
-      lineCountByFile = merged;
-      logger.info(`C4 analysis [${repoName}]: python importance computed (${py.scored.length} functions)`);
-    }
-  } catch (err) {
-    const msg = `python importance failed: ${err instanceof Error ? err.message : String(err)}`;
-    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
-    warnings.push(msg);
-  }
-
-  return { graph, scored, lineCountByFile, categoryByFile };
+  return {
+    graph: compute.graph,
+    scored: compute.scored,
+    lineCountByFile: new Map(compute.lineCountByFile),
+    categoryByFile: compute.categoryByFile ? new Map(compute.categoryByFile) : undefined,
+  };
 }
 
 /**
