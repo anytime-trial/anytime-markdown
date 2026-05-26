@@ -144,14 +144,14 @@ const SUGGESTION_MARKERS = [
 ] as const;
 
 /** bullet 接頭辞 `- ` / `* ` / `+ ` を吸収する prefix 正規表現片 */
-const BULLET_PREFIX = '(?:[-*+]\\s+)?';
+const BULLET_PREFIX = String.raw`(?:[-*+]\s+)?`;
 
 /** `**marker:**` または `**marker**:` 形式の判定正規表現を marker 配列から生成する。 */
 function buildMarkerRegex(markers: readonly string[]): RegExp {
-  const escaped = markers.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const escaped = markers.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)).join('|');
   // ^[bullet]? **(marker)[：:]** または **(marker)**[：:]
   return new RegExp(
-    `^${BULLET_PREFIX}\\*\\*(?:${escaped})[：:]\\*\\*|^${BULLET_PREFIX}\\*\\*(?:${escaped})\\*\\*[：:]`,
+    String.raw`^${BULLET_PREFIX}\*\*(?:${escaped})[：:]\*\*|^${BULLET_PREFIX}\*\*(?:${escaped})\*\*[：:]`,
     'i',
   );
 }
@@ -161,9 +161,9 @@ const SUGGESTION_LINE_RE = buildMarkerRegex(SUGGESTION_MARKERS);
 
 /** 行頭マーカー（bullet + `**marker:**` or `**marker**:`）を除去して残りを返す */
 function stripMarker(line: string, markers: readonly string[]): string {
-  const escaped = markers.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const escaped = markers.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)).join('|');
   const re = new RegExp(
-    `^${BULLET_PREFIX}\\*\\*(?:${escaped})[：:]\\*\\*|^${BULLET_PREFIX}\\*\\*(?:${escaped})\\*\\*[：:]`,
+    String.raw`^${BULLET_PREFIX}\*\*(?:${escaped})[：:]\*\*|^${BULLET_PREFIX}\*\*(?:${escaped})\*\*[：:]`,
     'i',
   );
   return line.replace(re, '').trim();

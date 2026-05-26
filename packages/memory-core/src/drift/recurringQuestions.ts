@@ -68,7 +68,7 @@ export function detectRecurringQuestions(input: {
   for (const row of rows[0]?.values ?? []) {
     const id = row[0] as string;
     const attrsJson = row[1] as string;
-    const embeddingRaw = toUint8ArrayOrNull(row[2] as SqlValue);
+    const embeddingRaw = toUint8ArrayOrNull(row[2]);
 
     let attrs: Record<string, unknown> = {};
     try {

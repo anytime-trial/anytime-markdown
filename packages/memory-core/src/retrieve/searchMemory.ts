@@ -98,7 +98,7 @@ export async function vectorTopK(opts: {
     const type = row[1] as string;
     const display_name = row[2] as string;
     const summary = row[3] as string;
-    const embBlob = toUint8ArrayOrNull(row[4] as SqlValue);
+    const embBlob = toUint8ArrayOrNull(row[4]);
     if (embBlob == null) continue;
 
     let entityVec: Float32Array;

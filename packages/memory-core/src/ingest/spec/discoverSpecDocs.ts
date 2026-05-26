@@ -48,7 +48,7 @@ export async function discoverChangedSpecs(input: DiscoverInput): Promise<Change
 
   const mdFiles = allEntries.filter((entry) => {
     if (typeof entry !== 'string' || extname(entry) !== '.md') return false;
-    const normalized = entry.replace(/\\/g, '/');
+    const normalized = entry.replaceAll('\\', '/');
     return !EXCLUDED_DIR_PREFIXES.some((p) => normalized.startsWith(p));
   });
 
@@ -117,7 +117,7 @@ export async function discoverChangedSpecs(input: DiscoverInput): Promise<Change
       if (content === null) continue;
 
       const source_hash = createHash('sha1').update(content).digest('hex');
-      const rel_path = rel.replace(/\\/g, '/'); // normalize path separators on Windows
+      const rel_path = rel.replaceAll('\\', '/'); // normalize path separators on Windows
 
       // Query DB for existing hash
       const row = stmt.get(rel_path);

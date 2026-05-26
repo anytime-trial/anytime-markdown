@@ -54,7 +54,7 @@ export function parseReviewDoc(input: {
   const reviewer = typeof data['reviewer'] === 'string' ? data['reviewer'] : undefined;
   const fmSeverity =
     data['severity'] === 'info' || data['severity'] === 'warn' || data['severity'] === 'error'
-      ? (data['severity'] as 'info' | 'warn' | 'error')
+      ? data['severity']
       : undefined;
   const fmTargetRefs = Array.isArray(data['target_refs'])
     ? (data['target_refs'] as unknown[]).filter((x) => typeof x === 'string').map(String)

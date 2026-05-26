@@ -72,16 +72,13 @@ export class MemoryCoreService extends BaseRunner {
   private buildPipelineLogger(): PipelineLogger {
     return {
       info: (msg: string) => this.log(`[INFO] ${msg}`),
-      error: (msg: string, err?: unknown) =>
-        this.log(
-          `[ERROR] ${msg}${
-            err instanceof Error
-              ? '\n' + (err.stack ?? err.message)
-              : err !== undefined
-                ? '\n' + String(err)
-                : ''
-          }`,
-        ),
+      error: (msg: string, err?: unknown) => {
+        const nonErrorSuffix = err !== undefined ? '\n' + String(err) : '';
+        const errSuffix = err instanceof Error
+          ? '\n' + (err.stack ?? err.message)
+          : nonErrorSuffix;
+        this.log(`[ERROR] ${msg}${errSuffix}`);
+      },
     };
   }
 }

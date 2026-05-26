@@ -216,7 +216,7 @@ export async function ingestAgentReviewResult(input: {
         if (newEmbedding.length > 0) {
           for (const row of candidateRows) {
             const existingEntityId = row[0] as string;
-            const existingBlob = toUint8ArrayOrNull(row[1] as SqlValue);
+            const existingBlob = toUint8ArrayOrNull(row[1]);
             if (!existingBlob || existingBlob.byteLength === 0) continue;
             const existingEmbedding = blobToFloat32(existingBlob);
             if (cosineSimilarity(newEmbedding, existingEmbedding) >= MERGE_THRESHOLD) {
@@ -308,12 +308,9 @@ export async function ingestAgentReviewResult(input: {
 
   // ── Step 7: Finalize memory_review_runs ───────────────────────────────────
 
+  const partialOrSuccess: 'partial' | 'success' = itemsFailed > 0 ? 'partial' : 'success';
   const finalStatus: 'success' | 'partial' | 'error' =
-    itemsFailed > 0 && itemsFailed === parsed.findings.length
-      ? 'error'
-      : itemsFailed > 0
-        ? 'partial'
-        : 'success';
+    itemsFailed > 0 && itemsFailed === parsed.findings.length ? 'error' : partialOrSuccess;
 
   db.run(
     `UPDATE memory_review_runs SET

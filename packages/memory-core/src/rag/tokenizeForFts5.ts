@@ -6,7 +6,7 @@ function stripReserved(s: string): string {
 
 export function tokenizeForFts5(query: string): string {
   if (!query) return '';
-  const normalized = query.replace(/　/g, ' ').trim();
+  const normalized = query.replaceAll('　', ' ').trim();
   if (!normalized) return '';
 
   const phrases: string[] = [];

@@ -27,14 +27,14 @@ export function upsertEntityFts(conn: MemoryDbConnection, entityId: string): voi
   const row = r[0]?.values[0];
   if (!row) return;
   const [rowid, displayName, summary, aliasesJson] = row;
-  conn.run(`DELETE FROM memory_entities_fts WHERE rowid = ?`, [rowid as number]);
+  conn.run(`DELETE FROM memory_entities_fts WHERE rowid = ?`, [rowid]);
   conn.run(
     `INSERT INTO memory_entities_fts (rowid, display_name, summary, aliases_text)
      VALUES (?, ?, ?, ?)`,
     [
-      rowid as number,
-      (displayName as string | null) ?? '',
-      (summary as string | null) ?? '',
+      rowid,
+      displayName ?? '',
+      summary ?? '',
       aliasesJsonToText(aliasesJson as string | null),
     ],
   );
@@ -54,10 +54,10 @@ export function upsertEpisodeFts(conn: MemoryDbConnection, episodeId: string): v
   const row = r[0]?.values[0];
   if (!row) return;
   const [rowid, rawExcerpt] = row;
-  conn.run(`DELETE FROM memory_episodes_fts WHERE rowid = ?`, [rowid as number]);
+  conn.run(`DELETE FROM memory_episodes_fts WHERE rowid = ?`, [rowid]);
   conn.run(
     `INSERT INTO memory_episodes_fts (rowid, raw_excerpt) VALUES (?, ?)`,
-    [rowid as number, (rawExcerpt as string | null) ?? ''],
+    [rowid, rawExcerpt ?? ''],
   );
 }
 
@@ -76,18 +76,18 @@ export function upsertDriftFts(conn: MemoryDbConnection, driftId: string): void 
   const row = r[0]?.values[0];
   if (!row) return;
   const [rowid, predicate, convVal, specVal, codeVal, resNote] = row;
-  conn.run(`DELETE FROM memory_drift_events_fts WHERE rowid = ?`, [rowid as number]);
+  conn.run(`DELETE FROM memory_drift_events_fts WHERE rowid = ?`, [rowid]);
   conn.run(
     `INSERT INTO memory_drift_events_fts
        (rowid, predicate, conversation_value, spec_value, code_value, resolution_note)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [
-      rowid as number,
-      (predicate as string | null) ?? '',
-      (convVal as string | null) ?? '',
-      (specVal as string | null) ?? '',
-      (codeVal as string | null) ?? '',
-      (resNote as string | null) ?? '',
+      rowid,
+      predicate ?? '',
+      convVal ?? '',
+      specVal ?? '',
+      codeVal ?? '',
+      resNote ?? '',
     ],
   );
 }

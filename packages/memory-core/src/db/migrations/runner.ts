@@ -28,7 +28,7 @@ const MIGRATIONS: MigrationDef[] = [
 let cachedFts5: WeakMap<MemoryDbConnection, boolean> | null = null;
 
 export function hasFts5(conn: MemoryDbConnection): boolean {
-  if (!cachedFts5) cachedFts5 = new WeakMap();
+  cachedFts5 ??= new WeakMap();
   const cached = cachedFts5.get(conn);
   if (cached !== undefined) return cached;
   let supported = false;
