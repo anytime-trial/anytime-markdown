@@ -109,8 +109,8 @@ export class OllamaThrottleGovernor {
     const now = this.deps.now();
     if (this.lastActivityAt !== null && now - this.lastActivityAt > IDLE_RESET_MS) {
       this.busySince = now; // アイドル後の再開は新しい streak
-    } else if (this.busySince === null) {
-      this.busySince = now;
+    } else {
+      this.busySince ??= now;
     }
     this.lastActivityAt = now;
     return release;

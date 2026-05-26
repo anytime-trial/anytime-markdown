@@ -23,7 +23,7 @@ export class SqlJsAdapter implements DatabaseAdapter {
   readonly id = 'sqlite-sqljs' as const;
   readonly displayName = 'SQLite (sql.js)';
   readonly capabilities: DatabaseCapabilities;
-  private db: Database;
+  private readonly db: Database;
 
   static async create(opts: SqlJsAdapterOptions): Promise<SqlJsAdapter> {
     const SQL: SqlJsStatic = await initSqlJs(

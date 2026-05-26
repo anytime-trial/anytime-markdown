@@ -4,7 +4,6 @@ import {
   evaluateReverseSpec,
 } from '@anytime-markdown/markdown-eval-core';
 import type {
-  EvaluateReverseSpecInput,
   EvaluateReverseSpecOutput,
 } from '@anytime-markdown/markdown-eval-core';
 
