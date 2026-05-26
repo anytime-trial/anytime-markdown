@@ -34,7 +34,6 @@ export interface AnalyzePipelineCallbacks {
     program: import('typescript').Program,
   ): Promise<{
     scored: import('@anytime-markdown/trail-core/importance').ScoredFunction[];
-    fileAggregates: Map<string, import('@anytime-markdown/trail-core/deadCode').FileImportanceAggregate>;
     lineCountByFile: ReadonlyMap<string, number>;
   } | null>;
 }
