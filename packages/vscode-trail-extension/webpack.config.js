@@ -345,3 +345,8 @@ const analyzeChildConfig = {
 };
 
 module.exports = [extensionConfig, trailStandaloneConfig, mcpTrailServerConfig, analyzeChildConfig];
+
+// マルチ config を逐次ビルドし、ピークメモリと同時 V8 JIT 負荷を抑える。
+// analyze-child 追加で typescript バンドルが 1 つ増えたため、並列ビルドの
+// ピークが Node24/WSL の非決定的 SIGSEGV を誘発しやすくなる。逐次化で緩和する。
+module.exports.parallelism = 1;
