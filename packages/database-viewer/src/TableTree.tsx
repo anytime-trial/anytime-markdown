@@ -62,7 +62,7 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
 
   if (!schema) return <Typography>{t("treeLoading")}</Typography>;
 
-  const empty = filtered && filtered.tables.length === 0 && filtered.views.length === 0;
+  const empty = filtered?.tables.length === 0 && filtered.views.length === 0;
 
   return (
     <Stack sx={{ p: 1, flex: 1, minHeight: 0, overflow: "hidden" }}>

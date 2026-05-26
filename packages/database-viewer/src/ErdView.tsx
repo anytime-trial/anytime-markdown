@@ -231,8 +231,7 @@ function routeAroundObstacles(
   // 障害物の左右境界を候補に試す
   const candidates: number[] = [];
   for (const r of obstacles) {
-    candidates.push(r.x - margin - 4);
-    candidates.push(r.x + r.width + margin + 4);
+    candidates.push(r.x - margin - 4, r.x + r.width + margin + 4);
   }
   // 探索順は baseMid に近い順
   candidates.sort((a, b) => Math.abs(a - baseMid) - Math.abs(b - baseMid));
@@ -287,7 +286,8 @@ function ColumnRow({
   const textColor = isDark ? "rgba(255,255,255,0.87)" : "rgba(0,0,0,0.87)";
   const typeColor = isDark ? "rgba(255,180,84,0.85)" : "rgba(180,90,0,0.85)";
   const dimText = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)";
-  const markerFill = column.notNull ? (isDark ? "#bbb" : "#444") : "transparent";
+  const notNullFill = isDark ? "#bbb" : "#444";
+  const markerFill = column.notNull ? notNullFill : "transparent";
   const markerStroke = isDark ? "#bbb" : "#444";
   return (
     <g transform={`translate(0, ${y})`}>
@@ -358,12 +358,13 @@ function TableCardSvg({
   onClick: (e: React.MouseEvent) => void;
 }>): React.ReactElement {
   const { node, table } = card;
-  const headerFill = selected
-    ? (isDark ? "#1f3a5f" : "#cfe1ff")
-    : (isDark ? "#0e1116" : "#e9ecef");
+  const headerFillSelected = isDark ? "#1f3a5f" : "#cfe1ff";
+  const headerFillDefault = isDark ? "#0e1116" : "#e9ecef";
+  const headerFill = selected ? headerFillSelected : headerFillDefault;
   const headerText = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.87)";
   const cardFill = isDark ? "#181c22" : "#ffffff";
-  const stroke = selected ? "#3aa0ff" : (isDark ? "#3a4148" : "#c8ccd1");
+  const strokeDefault = isDark ? "#3a4148" : "#c8ccd1";
+  const stroke = selected ? "#3aa0ff" : strokeDefault;
   const strokeWidth = selected ? 2 : 1;
   return (
     <g
@@ -635,7 +636,7 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
       e.stopPropagation();
       const card = cardByTable.get(tableName);
       if (!card) return;
-      const rect = (e.currentTarget as Element).closest("svg")?.getBoundingClientRect();
+      const rect = e.currentTarget.closest("svg")?.getBoundingClientRect();
       if (!rect) return;
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
@@ -646,7 +647,7 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
         offsetX: wp.x - card.node.x,
         offsetY: wp.y - card.node.y,
       };
-      (e.currentTarget as Element).closest("svg")?.setPointerCapture?.(e.pointerId);
+      e.currentTarget.closest("svg")?.setPointerCapture?.(e.pointerId);
     },
     [cardByTable, screenToWorld],
   );

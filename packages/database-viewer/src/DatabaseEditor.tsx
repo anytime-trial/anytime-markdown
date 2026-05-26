@@ -243,7 +243,7 @@ const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
 
   // タブが追加された/ページが変わった時に SELECT を発行 (data view のみ)
   useEffect(() => {
-    if (!activeTab || activeTab.kind !== "table" || !activeTab.tableName) return;
+    if (activeTab?.kind !== "table" || !activeTab.tableName) return;
     if (activeTab.mode !== "table") return;
     const tableName = activeTab.tableName;
     const tabId = activeTab.id;
@@ -348,14 +348,14 @@ const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
       const name = headers[col];
       if (!name) return;
       // 列名にスペースや特殊記号が含まれる場合はダブルクォートで囲んで安全に
-      const ident = /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `"${name.replaceAll('"', '""')}"`;
+      const ident = /^[A-Za-z_]\w*$/.test(name) ? name : `"${name.replaceAll('"', '""')}"`;
       sqlPanelRef.current?.insertText(ident);
     },
     [activeTab],
   );
 
   const pagination = useMemo(() => {
-    if (!activeTab || activeTab.mode !== "table") return undefined;
+    if (activeTab?.mode !== "table") return undefined;
     const tabId = activeTab.id;
     return {
       page: activeTab.page,
@@ -367,6 +367,72 @@ const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
       },
     };
   }, [activeTab, updateTab]);
+
+  const activeTabContent = activeTab ? (
+    activeTab.kind === "erd" ? (
+      <ErdView schema={schema} themeMode={themeMode} />
+    ) : (
+      <>
+        <SqlEditorPanel
+          ref={sqlPanelRef}
+          key={activeTab.id}
+          value={activeTab.sql}
+          onValueChange={(s) => {
+            updateTab(activeTab.id, (x) => ({ ...x, sql: s }));
+          }}
+          onRun={handleRun}
+          readOnly={adapter.capabilities.readOnly}
+        />
+        {activeTab.kind === "table" ? (
+          <Box
+            sx={{
+              borderBottom: 1,
+              borderColor: "divider",
+              flexShrink: 0,
+            }}
+          >
+            <Tabs
+              value={activeTab.view}
+              onChange={(_, v) => setActiveTabView(v as "data" | "schema")}
+              sx={{ minHeight: 32 }}
+            >
+              <Tab
+                value="data"
+                label={t("viewData")}
+                sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
+              />
+              <Tab
+                value="schema"
+                label={t("viewSchema")}
+                sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
+              />
+            </Tabs>
+          </Box>
+        ) : null}
+        <ResultGrid
+          adapter={activeTab.sheetAdapter}
+          pagination={activeTab.view === "data" ? pagination : undefined}
+          themeMode={themeMode}
+          onColumnHeaderDoubleClick={handleColumnHeaderDoubleClick}
+          visibleRowCount={activeTab.pageSize}
+        />
+      </>
+    )
+  ) : (
+    <Stack
+      sx={{ flexGrow: 1, minHeight: 0, overflow: "auto", p: 2 }}
+      spacing={2}
+    >
+      <SqlEditorPanel
+        onRun={handleRun}
+        readOnly={adapter.capabilities.readOnly}
+        disabled
+      />
+      <Typography color="text.secondary" sx={{ textAlign: "center" }}>
+        {t("selectTablePrompt")}
+      </Typography>
+    </Stack>
+  );
 
   return (
     <Stack direction="row" sx={{ height: "100%", overflow: "hidden" }}>
@@ -448,71 +514,7 @@ const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
             </Tooltip>
           </Box>
         ) : null}
-        {activeTab ? (
-          activeTab.kind === "erd" ? (
-            <ErdView schema={schema} themeMode={themeMode} />
-          ) : (
-            <>
-              <SqlEditorPanel
-                ref={sqlPanelRef}
-                key={activeTab.id}
-                value={activeTab.sql}
-                onValueChange={(s) => {
-                  updateTab(activeTab.id, (x) => ({ ...x, sql: s }));
-                }}
-                onRun={handleRun}
-                readOnly={adapter.capabilities.readOnly}
-              />
-              {activeTab.kind === "table" ? (
-                <Box
-                  sx={{
-                    borderBottom: 1,
-                    borderColor: "divider",
-                    flexShrink: 0,
-                  }}
-                >
-                  <Tabs
-                    value={activeTab.view}
-                    onChange={(_, v) => setActiveTabView(v as "data" | "schema")}
-                    sx={{ minHeight: 32 }}
-                  >
-                    <Tab
-                      value="data"
-                      label={t("viewData")}
-                      sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
-                    />
-                    <Tab
-                      value="schema"
-                      label={t("viewSchema")}
-                      sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
-                    />
-                  </Tabs>
-                </Box>
-              ) : null}
-              <ResultGrid
-                adapter={activeTab.sheetAdapter}
-                pagination={activeTab.view === "data" ? pagination : undefined}
-                themeMode={themeMode}
-                onColumnHeaderDoubleClick={handleColumnHeaderDoubleClick}
-                visibleRowCount={activeTab.pageSize}
-              />
-            </>
-          )
-        ) : (
-          <Stack
-            sx={{ flexGrow: 1, minHeight: 0, overflow: "auto", p: 2 }}
-            spacing={2}
-          >
-            <SqlEditorPanel
-              onRun={handleRun}
-              readOnly={adapter.capabilities.readOnly}
-              disabled
-            />
-            <Typography color="text.secondary" sx={{ textAlign: "center" }}>
-              {t("selectTablePrompt")}
-            </Typography>
-          </Stack>
-        )}
+        {activeTabContent}
       </Stack>
     </Stack>
   );
