@@ -153,7 +153,8 @@ function computePeriodRangeUtc(period: HotspotPeriod): { from: string; to: strin
   const now = new Date();
   const to = now.toISOString();
   if (period === 'all') return { from: ALL_PERIOD_FROM, to };
-  const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
+  const days30or90 = period === '30d' ? 30 : 90;
+  const days = period === '7d' ? 7 : days30or90;
   const from = new Date(now.getTime() - days * MS_PER_DAY).toISOString();
   return { from, to };
 }
@@ -163,7 +164,7 @@ function collectFilePathsForElement(elementId: string, c4Model: C4Model): string
   const elementById = new Map(c4Model.elements.map((el) => [el.id, el] as const));
   const target = elementById.get(elementId);
   const result = new Set<string>();
-  if (target && target.type === 'code' && target.id.startsWith(FILE_PREFIX)) {
+  if (target?.type === 'code' && target.id.startsWith(FILE_PREFIX)) {
     result.add(target.id.slice(FILE_PREFIX.length));
     return Array.from(result);
   }
@@ -1191,10 +1192,9 @@ export class TrailDataServer {
       res.end(JSON.stringify({ error: "granularity must be 'commit', 'session', or 'subagentType'" }));
       return;
     }
+    const subagentOrCommit = granularityRaw === 'subagentType' ? 'subagentType' : 'commit';
     const granularity: 'commit' | 'session' | 'subagentType' =
-      granularityRaw === 'session' ? 'session'
-      : granularityRaw === 'subagentType' ? 'subagentType'
-      : 'commit';
+      granularityRaw === 'session' ? 'session' : subagentOrCommit;
 
     const windowDays = clampInt(params.get('windowDays'), 30, 1, 365);
     const topK = clampInt(params.get('topK'), 50, 1, 500);
@@ -1336,7 +1336,7 @@ export class TrailDataServer {
   private async handleActivityTrend(res: http.ServerResponse, params: URLSearchParams): Promise<void> {
     const elementId = (params.get('elementId') ?? '').trim();
     if (!ELEMENT_ID_RE.test(elementId)) {
-      this.sendError(res, 400, 'elementId is required and must match ^(sys|pkg|comp|code|file)_[\\w/.:-]+$');
+      this.sendError(res, 400, String.raw`elementId is required and must match ^(sys|pkg|comp|code|file)_[\w/.:-]+$`);
       return;
     }
     const period = parseHotspotPeriod(params.get('period'));
@@ -1568,7 +1568,7 @@ export class TrailDataServer {
       const distinctAgentIdCounts = this.trailDb.getSessionDistinctAgentIdCounts(sessionIds);
       const delegatedTrackCounts = this.trailDb.getSessionDelegatedTrackCounts(sessionIds);
       const nonCodexIds = rawSessions
-        .filter((s) => (s.source as string | undefined) !== 'codex')
+        .filter((s) => s.source !== 'codex')
         .map((s) => s.id);
       const linkedMapByParent = this.trailDb.fetchLinkedCodexSessionMapForCcSessions(nonCodexIds);
       const linkedCodexSessionIdsByParent = new Map<string, Set<string>>();
@@ -1584,7 +1584,7 @@ export class TrailDataServer {
       }
 
       const sessions = rawSessions
-        .filter((s) => !((s.source as string | undefined) === 'codex' && consumedCodexSessionIds.has(s.id)))
+        .filter((s) => !(s.source === 'codex' && consumedCodexSessionIds.has(s.id)))
         .map((s) => {
         const cStats = commitStats.get(s.id);
         const distinctAgentIdCount = distinctAgentIdCounts.get(s.id) ?? 0;
@@ -1724,7 +1724,7 @@ export class TrailDataServer {
         subtype: m.subtype,
         textContent: m.text_content,
         userContent: m.user_content,
-        toolCalls: m.tool_calls ? JSON.parse(m.tool_calls as string) : undefined,
+        toolCalls: m.tool_calls ? JSON.parse(m.tool_calls) : undefined,
         model: m.model,
         usage: (m.input_tokens || m.output_tokens || m.cache_read_tokens)
           ? {
@@ -2310,7 +2310,7 @@ export class TrailDataServer {
   private handleGetDeploymentFrequencyQuality(res: http.ServerResponse, params: URLSearchParams): void {
     const from = params.get('from');
     const to = params.get('to');
-    const bucket = (params.get('bucket') === 'week' ? 'week' : 'day') as 'day' | 'week';
+    const bucket: 'day' | 'week' = params.get('bucket') === 'week' ? 'week' : 'day';
     if (!from || !to) {
       res.writeHead(400, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'from and to are required' }));
@@ -2335,7 +2335,7 @@ export class TrailDataServer {
   private handleGetDeploymentFrequency(res: http.ServerResponse, params: URLSearchParams): void {
     const from = params.get('from');
     const to = params.get('to');
-    const bucket = (params.get('bucket') === 'week' ? 'week' : 'day') as 'day' | 'week';
+    const bucket: 'day' | 'week' = params.get('bucket') === 'week' ? 'week' : 'day';
     if (!from || !to) {
       res.writeHead(400, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'from and to are required' }));

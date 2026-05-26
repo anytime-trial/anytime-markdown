@@ -104,8 +104,7 @@ export class JsonlIngester implements Analyzer {
       this.opts.codexSessionsDir ?? path.join(os.homedir(), '.codex', 'sessions');
 
     const out: SessionDescriptor[] = [];
-    out.push(...this.discoverClaude(claudeProjectsDir));
-    out.push(...this.discoverCodex(codexSessionsDir));
+    out.push(...this.discoverClaude(claudeProjectsDir), ...this.discoverCodex(codexSessionsDir));
     return out;
   }
 

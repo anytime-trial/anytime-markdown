@@ -156,9 +156,13 @@ export class C4ManualApiHandler {
     const repoName = url.searchParams.get('repoName');
     if (!repoName) { res.writeHead(400); res.end('repoName required'); return; }
     const body = await this.readJsonBody(req) as Record<string, unknown>;
+    let labelValue: string | null | undefined;
+    if ('label' in body) {
+      labelValue = body.label == null ? null : String(body.label);
+    }
     this.trailDb.updateManualGroup(repoName, id, {
       memberIds: Array.isArray(body.memberIds) ? body.memberIds.map(String) : undefined,
-      label: 'label' in body ? (body.label == null ? null : String(body.label)) : undefined,
+      label: labelValue,
     });
     res.writeHead(204); res.end();
     this.notifier.notifyModelUpdated();

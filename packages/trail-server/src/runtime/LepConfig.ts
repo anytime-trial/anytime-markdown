@@ -410,7 +410,7 @@ export function validateLepConfigInput(
 
   if (raw['llm'] !== undefined) {
     const ollamaRaw = isPlainObject(raw['llm']) && isPlainObject(raw['llm']['providers'])
-      ? (raw['llm']['providers'] as Record<string, unknown>)['ollama']
+      ? raw['llm']['providers']['ollama']
       : undefined;
     if (isPlainObject(ollamaRaw)) {
       const ollama: NonNullable<NonNullable<NonNullable<PartialLepConfig['llm']>['providers']>['ollama']> = {};
@@ -776,8 +776,7 @@ export interface LepConfigLoadResult {
 export function lepConfigSearchPaths(workspaceRoot: string | undefined, home: string): string[] {
   const paths: string[] = [join(home, '.anytime', 'trail', 'lep.json')];
   if (workspaceRoot) {
-    paths.push(join(workspaceRoot, '.anytime', 'trail', 'lep.json'));
-    paths.push(join(workspaceRoot, '.anytime', 'trail', 'lep.local.json'));
+    paths.push(join(workspaceRoot, '.anytime', 'trail', 'lep.json'), join(workspaceRoot, '.anytime', 'trail', 'lep.local.json'));
   }
   return paths;
 }

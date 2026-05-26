@@ -41,7 +41,7 @@ export interface ImportAllPhaseEntry {
  * 反映する writer。run_id は構築時に固定 (1 ジョブ = 1 run_id)。
  */
 export class ImportAllPhaseStatusWriter {
-  private state: {
+  private readonly state: {
     updated_at: string;
     run_id: string;
     phases: { [phase in ImportAllPhase]?: ImportAllPhaseEntry };
