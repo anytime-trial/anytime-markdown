@@ -1488,6 +1488,15 @@ export class TrailDataServer {
     for (const ws of this.clients) ws.send(payload);
   }
 
+  /**
+   * C4 モデル更新を viewer へ通知する (`model-updated` WS イベント)。
+   * AnalyzePipelineCallbacks の一員として解析パイプラインから呼ばれ、viewer は
+   * これを受けて C4 モデルを再 fetch する (手動 CRUD の model-updated と同じ経路)。
+   */
+  notifyModelUpdated(): void {
+    this.notify('model-updated');
+  }
+
   notifyCodeGraphProgress(phase: string, percent: number): void {
     if (this.clients.size === 0) return;
     const message: ServerMessage = { type: 'code-graph-progress', phase, percent };
@@ -2716,53 +2725,17 @@ export class TrailDataServer {
     program: import('typescript').Program,
   ): Promise<{
     scored: import('@anytime-markdown/trail-core/importance').ScoredFunction[];
-    fileAggregates: Map<string, import('@anytime-markdown/trail-core/deadCode').FileImportanceAggregate>;
     lineCountByFile: ReadonlyMap<string, number>;
   } | null> {
     if (this.importanceComputing) return null;
     this.importanceComputing = true;
     try {
-      // C4 model is no longer needed here — element aggregation now happens in the REST endpoint at fetch time.
-      // We compute per-function ScoredFunction[] and per-file aggregate, leaving element-level aggregation to consumers.
-      const { TypeScriptAdapter, ImportanceAnalyzer } = await import('@anytime-markdown/trail-core/importance');
-      const { aggregateImportanceToFile } = await import('@anytime-markdown/trail-core/deadCode');
-      // TypeScriptAdapter は trail-core 側の typescript (5.8.x) で定義された
-      // ts.Program を期待する。本拡張機能側 (5.9.x) との型差異を吸収するため
-      // unknown 経由でキャストする (Program API は構造的に互換)。
-      const adapter = TypeScriptAdapter.fromProgram(
-        program as unknown as Parameters<typeof TypeScriptAdapter.fromProgram>[0],
-      );
-      const resolvedDir = path.dirname(path.resolve(tsconfigPath));
-      const isExcluded = (sf: { isDeclarationFile: boolean; fileName: string }): boolean => {
-        if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) return true;
-        if (!exclude) return false;
-        const relPath = path.relative(resolvedDir, sf.fileName).split(path.sep).join('/');
-        if (relPath === '' || relPath.startsWith('../')) return false;
-        return exclude.ignores(relPath);
-      };
-      const allSourceFiles = adapter
-        .getProgram()
-        .getSourceFiles()
-        .filter((sf) => !isExcluded(sf))
-        .map((sf) => sf.fileName);
-      const analyzer = new ImportanceAnalyzer(adapter);
-      let scored: ReturnType<typeof analyzer.analyze>;
-      try {
-        scored = analyzer.analyze(allSourceFiles);
-      } catch (err) {
-        this.logger.error('[importance] analyzer.analyze failed', err);
-        return null;
-      }
-      const fileAggregates = aggregateImportanceToFile(scored);
-      // SourceFile の行数を相対パスでインデックスする（tsconfig ディレクトリ基準）
-      const lineCountByFile = new Map<string, number>();
-      for (const sf of adapter.getProgram().getSourceFiles()) {
-        if (isExcluded(sf)) continue;
-        const relPath = path.relative(resolvedDir, sf.fileName);
-        const loc = sf.getLineAndCharacterOfPosition(sf.end).line + 1;
-        lineCountByFile.set(relPath, loc);
-      }
-      return { scored, fileAggregates, lineCountByFile };
+      // importance 純粋計算は computeImportance に集約済み (子プロセス隔離と共有)。
+      const { computeImportance } = await import('../analyze/computeImportance.js');
+      return await computeImportance(tsconfigPath, exclude, program);
+    } catch (err) {
+      this.logger.error('[importance] computeImportance failed', err);
+      return null;
     } finally {
       this.importanceComputing = false;
     }

@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-05-26
+
+### 追加
+
+- flow / sequence 解析器が共有する言語非依存の CFG-IR（`flowGraphFromCfg`、`sequenceStepsFromCfg`、`TsCfgExtractor`）。
+- 解析パイプラインに統合した Python ファイル分類器（ui / logic / excluded）。
+
+### 変更
+
+- 純粋な解析計算（`computeAnalysis`、`computeImportance`）を抽出し、隔離した子プロセスで実行可能にした。永続化はホスト側に残し DB ライタを単一化。
+- 解析パイプラインを `tsconfig` 任意化し、Python-only ブランチを追加。
+
+### 修正
+
+- in-repo の built `.d.ts` 解決 import をソースノードへ救済（コードグラフのエッジ）。
+
 ## [0.23.0] - 2026-05-24
 
 ### 追加

@@ -1,0 +1,51 @@
+name: 'Coverage for remaining packages'
+description: >-
+  Run jest with lcov coverage over the canonical set of "remaining" packages
+  (every coverage-tracked package not already handled by an individual step).
+  Sets NODE_OPTIONS=--experimental-vm-modules so packages that rely on dynamic
+  import() under jest (e.g. web-tree-sitter in trail-server) do not fail with
+  "A dynamic import callback was invoked without --experimental-vm-modules".
+  This is the single source of truth shared by ci.yml and daily-build.yml so
+  the package list and the flag cannot drift between the two workflows.
+
+inputs:
+  exclude:
+    description: >-
+      Whitespace-separated package names already covered by individual coverage
+      steps in the calling workflow. They are skipped here to avoid running the
+      same suite twice.
+    required: false
+    default: ''
+  max-workers:
+    description: 'Value passed to jest --maxWorkers.'
+    required: false
+    default: '2'
+
+runs:
+  using: 'composite'
+  steps:
+    - shell: bash
+      env:
+        EXCLUDE: ${{ inputs.exclude }}
+        MAX_WORKERS: ${{ inputs.max-workers }}
+      run: |
+        set -e
+        # Canonical list of coverage-tracked packages generated in this loop.
+        # When a package gains coverage, add it here once and both workflows
+        # pick it up. A workflow that already covers a package individually
+        # passes it via the `exclude` input instead of editing this list.
+        ALL="cms-core mcp-cms mcp-cms-remote mcp-graph mcp-markdown mcp-trail \
+             spreadsheet-core trace-core trail-core trail-db memory-core \
+             trail-server database-core database-viewer agent-core \
+             markdown-eval-core review-agent ollama-core"
+        for p in $ALL; do
+          case " $EXCLUDE " in
+            *" $p "*)
+              echo "skip $p (covered by an individual step)"
+              continue
+              ;;
+          esac
+          echo "::group::coverage $p"
+          (cd "packages/$p" && NODE_OPTIONS=--experimental-vm-modules npx jest --maxWorkers="$MAX_WORKERS" --coverage --coverageReporters=lcov)
+          echo "::endgroup::"
+        done

@@ -282,7 +282,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   // Ollama view
-  ollamaProvider = new OllamaProvider();
+  const throttleStatusPath = path.join(workspacePath, '.anytime', 'trail', 'db', 'throttle-status.json');
+  ollamaProvider = new OllamaProvider(throttleStatusPath);
   const ollamaTreeView = vscode.window.createTreeView('anytimeAgent.ollama', {
     treeDataProvider: ollamaProvider,
   });

@@ -11,11 +11,13 @@ import { TrailDataServer } from './server/TrailDataServer';
 import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
 import { ConsoleLogger, FileLogger, type Logger } from './runtime/Logger';
+import { ThrottleStatusWriter } from './runtime/ThrottleStatusWriter';
 import {
   migrateConfigJsonIntoLepJson,
   loadLepConfig,
   disabledAnalyzerIds,
   resolveGitHubSource,
+  resolveExcludeRoot,
   DEFAULT_LEP_CONFIG,
   type LepConfig,
 } from './runtime/LepConfig';
@@ -31,6 +33,7 @@ import { createFetchGitHubReviewClient } from './lep/ingesters/github/GitHubRevi
 import { CodeGraphService } from './analyze/CodeGraphService';
 import {
   findTsconfigCandidates,
+  hasPythonFiles,
   runAnalyzeCurrentCodePipeline,
   runAnalyzeReleaseCodePipeline,
 } from './analyze/AnalyzePipeline';
@@ -171,6 +174,12 @@ program
       ? () => createThrottledOllamaClient(createOllamaClient({ baseUrl: resolvedOllamaBaseUrl }), throttleGovernor)
       : undefined;
 
+    // throttle 状態を OLLAMA パネル (vscode-agent-extension) へ渡す status file writer。
+    const throttleStatusWriter = throttleCfg.enabled
+      ? new ThrottleStatusWriter(throttleGovernor, join(dbStorageDir, 'throttle-status.json'), logger)
+      : undefined;
+    throttleStatusWriter?.start();
+
     // Wire analyze pipeline if gitRoots are available
     if (effectiveGitRoots.length > 0) {
       const codeGraphRepos = effectiveGitRoots.map((p) => ({
@@ -178,18 +187,23 @@ program
         label: basename(p),
         path: p,
       }));
+      const primaryGitRoot = effectiveGitRoots[0]!;
+      // 除外ルートは lep.json workspace.excludeRoot で一元管理する（空なら undefined →
+      // 解析対象リポ自身にフォールバック）。相対は primary gitRoot 起点で絶対化。
+      const analyzeExcludeRoot = resolveExcludeRoot(lepConfig, lepWorkspaceRoot);
+
       const codeGraphService = new CodeGraphService({
         repositories: codeGraphRepos,
         trailDb,
         logger,
         pythonWasmPath: join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
+        excludeRoot: analyzeExcludeRoot,
       });
       server.setCodeGraphService(codeGraphService);
 
-      const primaryGitRoot = effectiveGitRoots[0]!;
-
       server.onAnalyzeCurrentCode = async ({ workspacePath, tsconfigPath }) => {
         const analysisRoot = workspacePath ?? primaryGitRoot;
+        const excludeRoot = analyzeExcludeRoot;
         let rootStat: ReturnType<typeof statSync>;
         try { rootStat = statSync(analysisRoot); }
         catch { throw new Error(`workspace path does not exist: ${analysisRoot}`); }
@@ -197,17 +211,21 @@ program
           throw new Error(`workspace path is not a directory: ${analysisRoot}`);
         }
 
-        let resolvedTsconfig = tsconfigPath;
+        let resolvedTsconfig: string | undefined = tsconfigPath;
         if (!resolvedTsconfig) {
-          const candidates = findTsconfigCandidates(analysisRoot);
-          if (candidates.length === 0) {
-            throw new Error(`No tsconfig.json found under ${analysisRoot}`);
+          const candidates = findTsconfigCandidates(analysisRoot, excludeRoot);
+          if (candidates.length > 0) {
+            resolvedTsconfig = candidates[0].fsPath;
+          } else if (hasPythonFiles(analysisRoot, excludeRoot)) {
+            resolvedTsconfig = undefined; // Python-only 解析
+          } else {
+            throw new Error(`No tsconfig.json or Python files found under ${analysisRoot}`);
           }
-          resolvedTsconfig = candidates[0].fsPath;
         }
 
         return runAnalyzeCurrentCodePipeline({
           analysisRoot,
+          excludeRoot,
           tsconfigPath: resolvedTsconfig,
           trailDb,
           callbacks: server,
@@ -371,6 +389,7 @@ program
 
     const shutdown = async (signal: string) => {
       logger.info('shutdown requested', { signal });
+      try { throttleStatusWriter?.stop(); } catch (err) { logger.error('throttle status writer stop failed', err); }
       try { await analyzeAllRunner.dispose(); } catch (err) { logger.error('analyze-all runner dispose failed', err); }
       try { await memoryCoreService.dispose(); } catch (err) { logger.error('memory-core dispose failed', err); }
       try { rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }

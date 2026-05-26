@@ -1,0 +1,336 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`FlowAnalyzer.buildControlFlow characterization snapshot: empty 1`] = `
+{
+  "edges": [
+    {
+      "from": "start_1",
+      "to": "end_2",
+    },
+  ],
+  "nodes": [
+    {
+      "id": "start_1",
+      "kind": "start",
+      "label": "start",
+    },
+    {
+      "id": "end_2",
+      "kind": "end",
+      "label": "end",
+    },
+  ],
+}
+`;
+
+exports[`FlowAnalyzer.buildControlFlow characterization snapshot: ifElse 1`] = `
+{
+  "edges": [
+    {
+      "from": "start_1",
+      "to": "decision_3",
+    },
+    {
+      "from": "decision_3",
+      "label": "true",
+      "to": "process_4",
+    },
+    {
+      "from": "process_4",
+      "to": "process_5",
+    },
+    {
+      "from": "decision_3",
+      "label": "false",
+      "to": "process_6",
+    },
+    {
+      "from": "process_6",
+      "to": "process_7",
+    },
+    {
+      "from": "process_5",
+      "to": "end_2",
+    },
+    {
+      "from": "process_7",
+      "to": "end_2",
+    },
+  ],
+  "nodes": [
+    {
+      "id": "start_1",
+      "kind": "start",
+      "label": "start",
+    },
+    {
+      "id": "end_2",
+      "kind": "end",
+      "label": "end",
+    },
+    {
+      "id": "decision_3",
+      "kind": "decision",
+      "label": "x > 0",
+      "line": 1,
+    },
+    {
+      "id": "process_4",
+      "kind": "process",
+      "label": "then",
+    },
+    {
+      "id": "process_5",
+      "kind": "process",
+      "label": "doA()",
+      "line": 1,
+    },
+    {
+      "id": "process_6",
+      "kind": "process",
+      "label": "else",
+    },
+    {
+      "id": "process_7",
+      "kind": "process",
+      "label": "doB()",
+      "line": 1,
+    },
+  ],
+}
+`;
+
+exports[`FlowAnalyzer.buildControlFlow characterization snapshot: loop 1`] = `
+{
+  "edges": [
+    {
+      "from": "start_1",
+      "to": "loop_3",
+    },
+    {
+      "from": "loop_3",
+      "to": "end_2",
+    },
+  ],
+  "nodes": [
+    {
+      "id": "start_1",
+      "kind": "start",
+      "label": "start",
+    },
+    {
+      "id": "end_2",
+      "kind": "end",
+      "label": "end",
+    },
+    {
+      "id": "loop_3",
+      "kind": "loop",
+      "label": "for (let i = 0; i < xs.length;…",
+      "line": 1,
+    },
+  ],
+}
+`;
+
+exports[`FlowAnalyzer.buildControlFlow characterization snapshot: returns 1`] = `
+{
+  "edges": [
+    {
+      "from": "start_1",
+      "to": "decision_3",
+    },
+    {
+      "from": "decision_3",
+      "label": "true",
+      "to": "process_4",
+    },
+    {
+      "from": "process_4",
+      "to": "return_5",
+    },
+    {
+      "from": "return_5",
+      "to": "end_2",
+    },
+    {
+      "from": "decision_3",
+      "to": "return_6",
+    },
+    {
+      "from": "return_6",
+      "to": "end_2",
+    },
+  ],
+  "nodes": [
+    {
+      "id": "start_1",
+      "kind": "start",
+      "label": "start",
+    },
+    {
+      "id": "end_2",
+      "kind": "end",
+      "label": "end",
+    },
+    {
+      "id": "decision_3",
+      "kind": "decision",
+      "label": "x",
+      "line": 1,
+    },
+    {
+      "id": "process_4",
+      "kind": "process",
+      "label": "then",
+    },
+    {
+      "id": "return_5",
+      "kind": "return",
+      "label": "return 1",
+      "line": 1,
+    },
+    {
+      "id": "return_6",
+      "kind": "return",
+      "label": "return 0",
+      "line": 1,
+    },
+  ],
+}
+`;
+
+exports[`FlowAnalyzer.buildControlFlow characterization snapshot: throws 1`] = `
+{
+  "edges": [
+    {
+      "from": "start_1",
+      "to": "decision_3",
+    },
+    {
+      "from": "decision_3",
+      "label": "true",
+      "to": "process_4",
+    },
+    {
+      "from": "process_4",
+      "to": "error_5",
+    },
+    {
+      "from": "error_5",
+      "to": "end_2",
+    },
+    {
+      "from": "decision_3",
+      "to": "process_6",
+    },
+    {
+      "from": "process_6",
+      "to": "end_2",
+    },
+  ],
+  "nodes": [
+    {
+      "id": "start_1",
+      "kind": "start",
+      "label": "start",
+    },
+    {
+      "id": "end_2",
+      "kind": "end",
+      "label": "end",
+    },
+    {
+      "id": "decision_3",
+      "kind": "decision",
+      "label": "!x",
+      "line": 1,
+    },
+    {
+      "id": "process_4",
+      "kind": "process",
+      "label": "then",
+    },
+    {
+      "id": "error_5",
+      "kind": "error",
+      "label": "throw new Error('x')",
+      "line": 1,
+    },
+    {
+      "id": "process_6",
+      "kind": "process",
+      "label": "work()",
+      "line": 1,
+    },
+  ],
+}
+`;
+
+exports[`FlowAnalyzer.buildControlFlow characterization snapshot: tryCatch 1`] = `
+{
+  "edges": [
+    {
+      "from": "start_1",
+      "to": "process_3",
+    },
+    {
+      "from": "process_3",
+      "to": "process_4",
+    },
+    {
+      "from": "process_3",
+      "label": "error",
+      "to": "error_5",
+    },
+    {
+      "from": "error_5",
+      "to": "process_6",
+    },
+    {
+      "from": "process_4",
+      "to": "end_2",
+    },
+    {
+      "from": "process_6",
+      "to": "end_2",
+    },
+  ],
+  "nodes": [
+    {
+      "id": "start_1",
+      "kind": "start",
+      "label": "start",
+    },
+    {
+      "id": "end_2",
+      "kind": "end",
+      "label": "end",
+    },
+    {
+      "id": "process_3",
+      "kind": "process",
+      "label": "try",
+      "line": 1,
+    },
+    {
+      "id": "process_4",
+      "kind": "process",
+      "label": "risky()",
+      "line": 1,
+    },
+    {
+      "id": "error_5",
+      "kind": "error",
+      "label": "catch",
+      "line": 1,
+    },
+    {
+      "id": "process_6",
+      "kind": "process",
+      "label": "handle(e)",
+      "line": 1,
+    },
+  ],
+}
+`;

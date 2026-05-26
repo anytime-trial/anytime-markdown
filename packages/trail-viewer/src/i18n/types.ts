@@ -316,6 +316,14 @@ export interface TrailI18n {
   'c4.popup.metric.functionCount': string;
   'c4.popup.functions': string;
   'c4.popup.functions.empty': string;
+  'c4.kind.function': string;
+  'c4.kind.function.full': string;
+  'c4.kind.class': string;
+  'c4.kind.class.full': string;
+  'c4.kind.method': string;
+  'c4.kind.method.full': string;
+  'c4.kind.variable': string;
+  'c4.kind.variable.full': string;
   'c4.popup.deadCode.title': string;
   'c4.popup.deadCode.judgmentStrong': string;
   'c4.popup.deadCode.judgmentReview': string;

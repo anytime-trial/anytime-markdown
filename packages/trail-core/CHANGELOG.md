@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-05-26
+
+### Added
+
+- Language-agnostic CFG-IR shared by the flow and sequence analyzers (`flowGraphFromCfg`, `sequenceStepsFromCfg`, `TsCfgExtractor`).
+- Python file classifier (ui / logic / excluded) integrated into the analyze pipeline.
+
+### Changed
+
+- Extracted pure analysis compute (`computeAnalysis`, `computeImportance`) so it can run in an isolated child process; persistence stays in the host for a single DB writer.
+- Analyze pipeline is `tsconfig`-optional with a Python-only branch.
+
+### Fixed
+
+- Recover in-repo built `.d.ts` resolution imports to source nodes (code graph edges).
+
 ## [0.23.0] - 2026-05-24
 
 ### Added

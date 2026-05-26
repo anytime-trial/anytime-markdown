@@ -82,6 +82,50 @@ describe('runConversationBackfill', () => {
     jest.clearAllMocks();
   });
 
+  // ── T1: throttle 中断 — 即時 stop で何も処理せず partial・cursor 据え置き ──
+  test('T1: shouldStop=true → 0 件処理・partial・generate 未呼出・cursor 不変', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    insertSession(trailDb, 'sess_recent');
+    insertMessage(trailDb, 'msg_recent', 'sess_recent', 'user', ts1DayAgo, 'recent message');
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const result = await runConversationBackfill({
+      db: memDb,
+      ollama,
+      sinceDays: 7,
+      logger: silentLogger,
+      shouldStop: () => true,
+    });
+
+    expect(result.status).toBe('partial');
+    expect(result.items_processed).toBe(0);
+    expect(ollama.generate).not.toHaveBeenCalled();
+
+    // backfill cursor は前進しない (空文字のまま)
+    const backfillState = memDb.exec(
+      `SELECT status, last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_backfill'`
+    );
+    expect(backfillState[0]?.values?.[0]?.[1]).toBe('');
+
+    // 中断時は incremental cursor の前進処理 (finalize) も通らない
+    const incState = memDb.exec(
+      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+    );
+    const incCursor = (incState[0]?.values?.[0]?.[0] as string | undefined) ?? '';
+    expect(incCursor).not.toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    const run = memDb.exec(
+      `SELECT status FROM memory_pipeline_runs WHERE scope = 'conversation_backfill'`
+    );
+    expect(run[0]?.values?.[0]?.[0]).toBe('partial');
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
   // ── B1: 7-day window excludes old message ─────────────────────────────────
   test('B1: 7-day window excludes 8-day-old message, processes 6-day and 1-day → items_processed = 2', async () => {
     const memDb = await makeMemoryDb();

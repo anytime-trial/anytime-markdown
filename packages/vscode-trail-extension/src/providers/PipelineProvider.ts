@@ -6,11 +6,18 @@ import { readImportAllPhaseStatus } from '@anytime-markdown/trail-server';
 
 const POLL_STATUS_FILE_MS = 2_000;
 
-export type PipelineItemKind = 'pipeline';
+export type PipelineItemKind = 'group' | 'pipeline';
 
 interface PipelineItemOptions {
   state?: PipelineState;
   description?: string;
+  /** group ノードの場合の子要素 (各 Wave に属する pipeline)。pipeline ノードでは未使用。 */
+  children?: PipelineItem[];
+  /**
+   * ライブ状態を持たない静的エントリ (Wave 1 sources / Wave 4 derived)。
+   * 状態アイコンを中立表示にし、description はデフォルトで `—`。
+   */
+  staticEntry?: boolean;
 }
 
 const PIPELINE_ICON: Record<PipelineState, string> = {
@@ -22,16 +29,71 @@ const PIPELINE_ICON: Record<PipelineState, string> = {
   skipped: 'dash',
 };
 
+/** ライブ状態を持たない静的エントリ (Wave 1/4) の中立アイコンと description。 */
+const STATIC_ENTRY_ICON = 'circle-outline';
+const STATIC_ENTRY_DESCRIPTION = '—';
+
+/**
+ * 折りたたみ可能な Wave グループ (親ノード) のラベル。LEP の tier (Wave) モデルに対応する:
+ * - `Wave 1 · sources`: ingester 群 (tier=1)。ライブ状態は持たず名称のみ静的表示
+ * - `Wave 2 · primary`: trail.db 世代バックアップ + importAll 8 phases (tier=2, 旧 importAll 相当)
+ * - `Wave 3 · memory` : memory backup + memory-core pipelines (tier=3)
+ * - `Wave 4 · derived`: aggregator 群 (tier=4)。ライブ状態は持たず名称のみ静的表示
+ *
+ * trail.db / memory-core.db の世代バックアップは、それぞれを書き込む Wave (2 / 3) の
+ * 先頭に置く (書き込み直前の世代を論理的に対応させる)。
+ * Wave 1 / Wave 4 は本パネルが読む status ファイルに状態を書かないため、
+ * 構造を示す目的で名称のみを静的エントリ (state `—`) として並べる。
+ */
+export const WAVE1_GROUP_LABEL = 'Wave 1 · sources';
+export const WAVE2_GROUP_LABEL = 'Wave 2 · primary';
+export const WAVE3_GROUP_LABEL = 'Wave 3 · memory';
+export const WAVE4_GROUP_LABEL = 'Wave 4 · derived';
+
+/** Wave 1 (sources) の ingester。LEP 登録順に並べる。 */
+export const WAVE1_SOURCE_IDS: readonly string[] = [
+  'JsonlIngester',
+  'GitIngester',
+  'CoverageIngester',
+  'GitHubPrReviewIngester',
+  'MetaJsonIngester',
+];
+
+/** Wave 4 (derived) の aggregator。 */
+export const WAVE4_DERIVED_IDS: readonly string[] = [
+  'DoraMetricsAggregator',
+  'CrossSourceCorrelator',
+];
+
 export class PipelineItem extends vscode.TreeItem {
+  /** group ノードの子要素 (pipeline ノードでは undefined)。 */
+  readonly children?: PipelineItem[];
+
   constructor(
     public readonly kind: PipelineItemKind,
     label: string,
     options: PipelineItemOptions = {},
   ) {
-    super(label, vscode.TreeItemCollapsibleState.None);
-    this.iconPath = new vscode.ThemeIcon(PIPELINE_ICON[options.state ?? 'pending']);
-    this.description = options.description;
-    this.contextValue = 'trailPipeline';
+    super(
+      label,
+      kind === 'group'
+        ? vscode.TreeItemCollapsibleState.Expanded
+        : vscode.TreeItemCollapsibleState.None,
+    );
+    if (kind === 'group') {
+      this.children = options.children ?? [];
+      this.contextValue = 'trailPipelineGroup';
+      // 2 秒ポーリングで refresh されても折りたたみ状態を保持するため安定 id を付与する。
+      this.id = `group:${label}`;
+    } else if (options.staticEntry) {
+      this.iconPath = new vscode.ThemeIcon(STATIC_ENTRY_ICON);
+      this.description = options.description ?? STATIC_ENTRY_DESCRIPTION;
+      this.contextValue = 'trailPipelineStatic';
+    } else {
+      this.iconPath = new vscode.ThemeIcon(PIPELINE_ICON[options.state ?? 'pending']);
+      this.description = options.description;
+      this.contextValue = 'trailPipeline';
+    }
   }
 }
 
@@ -246,7 +308,14 @@ export interface PipelineProviderOptions {
 
 /**
  * Pipelines パネル (anytimeTrail.pipelines view) の TreeDataProvider。
- * backup → 8 importAll phases → memory-core pipelines の順で表示する。
+ * 各パイプラインがどの Wave で動作するかが分かるよう、折りたたみ可能な
+ * Wave グループ (親ノード) の下に pipeline (子ノード) を並べる 2 階層ツリー:
+ *
+ *   Wave 1 · sources  ← ingester 群 (静的表示)
+ *   Wave 2 · primary  ← trail.db backup + importAll 8 phases
+ *   Wave 3 · memory   ← memory backup + memory-core pipelines
+ *   Wave 4 · derived  ← aggregator 群 (静的表示)
+ *
  * importAll の per-phase 状態は in-process (setImportAllPhase) と
  * daemon mode (importall-phase-status.json polling) の両経路で受け取る。
  */
@@ -356,59 +425,89 @@ export class PipelineProvider
     return element;
   }
 
-  async getChildren(): Promise<PipelineItem[]> {
-    const items: PipelineItem[] = [];
+  /**
+   * 親 (`element` なし) では Wave グループを、子 (`element` = group) では
+   * 当該 Wave 配下の pipeline を返す 2 階層ツリー。
+   */
+  async getChildren(element?: PipelineItem): Promise<PipelineItem[]> {
+    if (element) {
+      return element.children ? [...element.children] : [];
+    }
+    return this._buildGroups();
+  }
 
-    // backup (dbFilePath が指定されていれば常時表示)
+  /** トップレベルの Wave グループ (折りたたみ親ノード) を組み立てる。 */
+  private _buildGroups(): PipelineItem[] {
+    const groups: PipelineItem[] = [];
+
+    // Wave 1 · sources — ingester 群 (dbFilePath 指定時のみ)。専用ステータスを
+    // 持たないため名称のみの静的エントリとして並べ、Wave 構造を可視化する。
+    if (this._dbFilePath) {
+      const sourceItems = WAVE1_SOURCE_IDS.map(
+        (id) => new PipelineItem('pipeline', id, { staticEntry: true }),
+      );
+      groups.push(new PipelineItem('group', WAVE1_GROUP_LABEL, { children: sourceItems }));
+    }
+
+    // Wave 2 · primary — trail.db 世代バックアップ + importAll 8 phases (dbFilePath 指定時のみ)。
+    // trail.db を書き込むのは Wave 2 (PersistAnalyzer.save) なので、その直前の世代
+    // バックアップを Wave 2 の先頭に置く (Wave 3 の memory backup と対称)。
     if (this._dbFilePath) {
       const backup = buildBackupDisplay(this._dbFilePath);
-      items.push(
-        new PipelineItem('pipeline', backup.scope, {
+      const wave2: PipelineItem[] = [
+        new PipelineItem('pipeline', 'trail.db backup', {
           state: backup.state,
           description: backup.description,
         }),
-      );
-    }
-
-    // importAll 8 phases (dbFilePath が指定されていれば常時表示)
-    if (this._dbFilePath) {
+      ];
       for (const phase of IMPORT_ALL_PHASE_ORDER) {
         const display = buildImportAllPhaseDisplay(phase, this._importAllPhases.get(phase) ?? null);
-        items.push(
+        wave2.push(
           new PipelineItem('pipeline', display.scope, {
             state: display.state,
             description: display.description,
           }),
         );
       }
+      groups.push(new PipelineItem('group', WAVE2_GROUP_LABEL, { children: wave2 }));
     }
 
-    // memory-core backup (memoryDbFilePath が指定されていれば常時表示)。
-    // importAll で trail.db が更新された直後 + memory-core pipelines で
-    // memory-core.db が書き換わる直前のタイミングで配置することで、論理的に
-    // 各 DB の世代バックアップが対応する書き込みの直前に並ぶ。
+    // Wave 3 · memory — memory backup + memory-core pipelines。
+    // memory backup を Wave 3 の先頭に置くことで、memory-core pipelines が
+    // memory-core.db を書き換える直前の世代バックアップが論理的に対応する。
+    const wave3: PipelineItem[] = [];
     if (this._memoryDbFilePath) {
       const memBackup = buildBackupDisplay(this._memoryDbFilePath);
-      items.push(
+      wave3.push(
         new PipelineItem('pipeline', 'memory backup', {
           state: memBackup.state,
           description: memBackup.description,
         }),
       );
     }
-
-    // memory-core pipelines
     const pipelineStatus = readPipelineStatus(this._statusFilePath);
     for (const p of pipelineStatus?.pipelines ?? []) {
-      items.push(
+      wave3.push(
         new PipelineItem('pipeline', p.scope, {
           state: p.state,
           description: formatPipelineDescription(p),
         }),
       );
     }
+    if (wave3.length > 0) {
+      groups.push(new PipelineItem('group', WAVE3_GROUP_LABEL, { children: wave3 }));
+    }
 
-    return items;
+    // Wave 4 · derived — aggregator 群 (dbFilePath 指定時のみ)。Wave 1 同様に
+    // 専用ステータスを持たないため名称のみの静的エントリとして並べる。
+    if (this._dbFilePath) {
+      const derivedItems = WAVE4_DERIVED_IDS.map(
+        (id) => new PipelineItem('pipeline', id, { staticEntry: true }),
+      );
+      groups.push(new PipelineItem('group', WAVE4_GROUP_LABEL, { children: derivedItems }));
+    }
+
+    return groups;
   }
 
   /**

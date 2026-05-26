@@ -71,6 +71,29 @@ describe('memory analyzers', () => {
     expect(calls).toEqual(['conversation', 'code', 'bugHistory', 'review', 'spec', 'drift', 'embedding']);
   });
 
+  it('ConversationMemoryAnalyzer は provider.throttleGate を runConversation の shouldStop に渡す', async () => {
+    const gate = () => true;
+    let received: (() => boolean) | undefined;
+    const { session } = makeFakeSession({
+      runConversation: (async (opts?: { shouldStop?: () => boolean }) => {
+        received = opts?.shouldStop;
+        return ok('conversation_incremental');
+      }) as unknown as () => Promise<ScopeResult>,
+    });
+    const provider = new MemoryWaveSessionProvider(async () => session, undefined, undefined, gate);
+
+    await new ConversationMemoryAnalyzer(provider).onEvent(primaryEvent, makeCtx());
+
+    expect(received).toBe(gate);
+  });
+
+  it('createMemoryAnalyzers が throttleGate を provider へ伝播する', () => {
+    const gate = () => true;
+    const fakeService = { openScopeSession: async () => null } as unknown as MemoryCoreService;
+    const { provider } = createMemoryAnalyzers(fakeService, { throttleGate: gate });
+    expect(provider.throttleGate).toBe(gate);
+  });
+
   it('only acts on wave_start:memory (ignores other waves/events)', async () => {
     const { session, calls } = makeFakeSession();
     const provider = new MemoryWaveSessionProvider(async () => session);

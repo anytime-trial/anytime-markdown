@@ -222,12 +222,19 @@ export async function runConversationBackfill(opts: {
    * 1 回呼ばれる。runEmbeddingBackfill と同じパターン。
    */
   onTotal?: (total: number) => void;
+  /**
+   * バッチ境界で確認する中断ゲート。true を返すと以降のバッチを処理せず
+   * early return する (Ollama throttle COOLING 時の会話スキップ用)。cursor は
+   * 前進させないため、次 run で existingIds により冪等に再開する。
+   */
+  shouldStop?: () => boolean;
 }): Promise<BackfillResult> {
   const { db, ollama, model } = opts;
   const logger = opts.logger ?? noopLogger;
   const save = opts.save;
   const progress = opts.progress;
   const onTotal = opts.onTotal;
+  const shouldStop = opts.shouldStop;
   const sinceDays = opts.sinceDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS;
   const extractConcurrency = resolveExtractConcurrency();
 
@@ -264,6 +271,7 @@ export async function runConversationBackfill(opts: {
   let lastFailedEpisodeTime: string | null = null;
   let consecutiveFailures = 0;
   let finalStatus: 'success' | 'partial' | 'error' = 'success';
+  let stoppedByThrottle = false;
 
   // ── 3. Iterate sessions ──────────────────────────────────────────────────
   // Pre-count sessions for progress display
@@ -329,6 +337,12 @@ export async function runConversationBackfill(opts: {
       // single-threaded WASM, not thread-safe). With CONCURRENCY=1 this is
       // equivalent to the previous serial behavior.
       for (let batchStart = 0; batchStart < toExtract.length; batchStart += extractConcurrency) {
+        // Ollama throttle が COOLING に入ったら次バッチを処理せず中断する。
+        // cursor は据え置き、永続化済み episode は次 run で existingIds が冪等に skip。
+        if (shouldStop?.()) {
+          stoppedByThrottle = true;
+          break;
+        }
         const batch = toExtract.slice(batchStart, batchStart + extractConcurrency);
         const recordedAt = new Date().toISOString();
 
@@ -446,6 +460,8 @@ export async function runConversationBackfill(opts: {
         }
       }
 
+      if (stoppedByThrottle) break;
+
       // 意図的にここで last_processed_at を前進させない。
       // 旧実装は max(timestamp seen) をセッション境界毎にカーソル化していたが、
       // セッション iterate 順 (MIN(timestamp)) と各セッションの MAX timestamp は
@@ -467,6 +483,20 @@ export async function runConversationBackfill(opts: {
     });
     finalizePipelineRun(db, rId, startedAt, 'error', totals);
     return { status: 'error', ...totals };
+  }
+
+  // ── 3.5 Throttle 中断 ─────────────────────────────────────────────────────
+  // COOLING で中断した場合は backfill / incremental どちらの cursor も前進させず
+  // partial で返す。last_processed_at に '' を渡すと既存 cursor が保持される。
+  // 永続化済み episode は次 run の existingIds preload で冪等に skip される。
+  if (stoppedByThrottle) {
+    logger.info(
+      `[anytime-memory] backfill: throttle COOLING — stopping early ` +
+        `(processed=${totals.items_processed}, failed=${totals.items_failed}), cursor unchanged`
+    );
+    upsertPipelineState(db, { status: 'idle', last_processed_at: '' });
+    finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+    return { status: 'partial', ...totals };
   }
 
   // ── 4. Finalize ──────────────────────────────────────────────────────────

@@ -1,0 +1,6 @@
+{
+  "name": "@fixture/pkgb",
+  "version": "0.0.0",
+  "main": "built/index.js",
+  "types": "built/index.d.ts"
+}

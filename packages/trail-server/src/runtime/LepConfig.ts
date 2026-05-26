@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 
 import { DEFAULT_CONVERSATION_BACKFILL_DAYS, LEP_STAGES, type LepStage } from '@anytime-markdown/memory-core';
 
@@ -158,9 +158,16 @@ export interface LepDatabaseConfig {
 /**
  * ワークスペース関連パス。`docsPath` は C4 ドキュメントリンク用ドキュメントディレクトリ
  * (旧 VS Code 設定 `anytimeTrail.workspace.docsPath` の移行先)。空文字 = 未設定。
+ *
+ * `excludeRoot` は code graph / C4 解析の除外パターン (`.anytime/analyze-exclude`) を
+ * 読むディレクトリ。絶対パス、または workspace ルートからの相対パス。空文字 = 未指定
+ * (解析対象リポ自身の `.anytime/analyze-exclude` にフォールバック)。
+ * 外部リポ (gitRoots) をどのフォルダから解析しても単一の analyze-exclude を適用したい
+ * 場合に、中央ディレクトリ (例: 主リポジトリのルート) を指定する。
  */
 export interface LepWorkspaceConfig {
   docsPath: string;
+  excludeRoot: string;
 }
 
 export interface LepConfig {
@@ -203,6 +210,26 @@ export function resolveGitHubSource(
     maxPrs: gh.maxPrs,
     since: gh.since ? gh.since : undefined,
   };
+}
+
+/**
+ * code graph / C4 解析の除外ルート (`workspace.excludeRoot`) を解決する。
+ *
+ * - 空文字 / 空白のみ → `undefined`（呼び出し側で解析対象リポ自身にフォールバックさせる）
+ * - 絶対パス → そのまま返す
+ * - 相対パス → `workspaceRoot` 起点で絶対化（`workspaceRoot` 未指定なら相対のまま返す）
+ *
+ * 返り値はそのまま `loadAnalyzeExclude(excludeRoot)` / `runAnalyzeCurrentCodePipeline` /
+ * `CodeGraphService` の `excludeRoot` に渡せる。
+ */
+export function resolveExcludeRoot(
+  config: LepConfig,
+  workspaceRoot: string | undefined,
+): string | undefined {
+  const raw = config.workspace.excludeRoot.trim();
+  if (raw === '') return undefined;
+  if (isAbsolute(raw)) return raw;
+  return workspaceRoot ? join(workspaceRoot, raw) : raw;
 }
 
 /**
@@ -278,7 +305,7 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
     gitRoots: [],
   },
   database: { storagePath: '.anytime/trail/db' },
-  workspace: { docsPath: '' },
+  workspace: { docsPath: '', excludeRoot: '' },
   throttle: { enabled: false, slowdownFactor: 1.5, cooldownSec: 30, maxContinuousMin: 15 },
   logs: { minLevel: 'info' },
 };
@@ -520,6 +547,7 @@ export function validateLepConfigInput(
       const w = raw['workspace'];
       const workspace: Partial<LepWorkspaceConfig> = {};
       if (typeof w['docsPath'] === 'string') workspace.docsPath = w['docsPath'];
+      if (typeof w['excludeRoot'] === 'string') workspace.excludeRoot = w['excludeRoot'];
       value.workspace = workspace;
     } else {
       warnings.push(`${sourceLabel}: workspace はオブジェクトである必要があります (無視)`);
@@ -598,6 +626,7 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
     },
     workspace: {
       docsPath: override.workspace?.docsPath ?? base.workspace.docsPath,
+      excludeRoot: override.workspace?.excludeRoot ?? base.workspace.excludeRoot,
     },
     throttle: {
       enabled: override.throttle?.enabled ?? base.throttle.enabled,

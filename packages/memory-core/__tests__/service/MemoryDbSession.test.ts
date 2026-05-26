@@ -147,6 +147,48 @@ describe('MemoryDbSession', () => {
     });
   });
 
+  // ── runConversation — throttle shouldStop ────────────────────────────
+
+  describe('runConversation — throttle shouldStop', () => {
+    it('forwards shouldStop gate to backfill', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb);
+      mockRunConversationBackfill.mockResolvedValue({ status: 'ok', items_processed: 0, items_failed: 0 });
+
+      const gate = () => false;
+      await session.runConversation({ shouldStop: gate });
+
+      expect(mockRunConversationBackfill.mock.calls[0]?.[0]?.shouldStop).toBe(gate);
+      trailDb.close();
+    });
+
+    it('skips failed-items retry when shouldStop returns true', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb);
+      mockRunConversationBackfill.mockResolvedValue({ status: 'partial', items_processed: 1, items_failed: 0 });
+
+      const result = await session.runConversation({ shouldStop: () => true });
+
+      expect(mockRunConversationFailedItemsRetry).not.toHaveBeenCalled();
+      expect(result.scope).toBe('conversation_incremental');
+      trailDb.close();
+    });
+
+    it('runs failed-items retry when shouldStop returns false', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb);
+      mockRunConversationBackfill.mockResolvedValue({ status: 'ok', items_processed: 1, items_failed: 0 });
+
+      await session.runConversation({ shouldStop: () => false });
+
+      expect(mockRunConversationFailedItemsRetry).toHaveBeenCalledTimes(1);
+      trailDb.close();
+    });
+  });
+
   // ── runConversation — first-run (isFirstRun=true, backfill) ───────────
 
   describe('runConversation — first run (backfill)', () => {

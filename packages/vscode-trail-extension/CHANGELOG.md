@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-05-26
+
+### Changed
+
+- Analyze now runs the heavy TypeScript analysis in an isolated child process (`analyze-child`). A native crash in analysis no longer takes down the extension host; the host survives, retries once, and returns a structured error instead of an opaque failure.
+- Pipeline panel shows all 4 LEP waves, grouped by wave.
+- `analyze-exclude` / `excludeRoot` is resolved from the open VS Code workspace folder (`lep.json` `workspace.excludeRoot`).
+- Analyze supports Python-only repositories (no `tsconfig.json`).
+
+### Fixed
+
+- Notify `model-updated` after analyze so the C4 model view refreshes.
+
+### Build
+
+- Build the webpack multi-config sequentially (`parallelism: 1`) to reduce peak load and mitigate non-deterministic SIGSEGV on Node 24 / WSL2.
+
+### Trail Core (trail-core / trail-server)
+
+- Heavy TS analysis isolated into a child process (compute in child, persist in host) for crash resilience.
+- Language-agnostic CFG-IR shared by the flow and sequence analyzers.
+- Python file classification (ui / logic / excluded) applied in the analyze pipeline.
+- Ollama load throttle: skip conversation scopes while COOLING.
+- Recover in-repo built `.d.ts` resolution imports to source nodes.
+- Localized code-graph kind badges (`c4.kind.*`).
+
 ## [0.23.0] - 2026-05-24
 
 ### Changed

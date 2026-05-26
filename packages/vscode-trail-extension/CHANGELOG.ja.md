@@ -6,6 +6,32 @@
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-05-26
+
+### 変更
+
+- コード解析の重い TypeScript 解析を隔離した子プロセス（`analyze-child`）で実行するようにした。解析中のネイティブクラッシュで拡張ホストが巻き込まれなくなり、ホストは生存して 1 回リトライし、不透明な失敗ではなく構造化エラーを返す。
+- パイプラインパネルで LEP の 4 ウェーブをすべて表示し、ウェーブ単位でグループ化。
+- `analyze-exclude` / `excludeRoot` を開いている VS Code ワークスペースフォルダ（`lep.json` の `workspace.excludeRoot`）基準で解決。
+- `tsconfig.json` の無い Python-only リポジトリの解析に対応。
+
+### 修正
+
+- 解析後に `model-updated` を通知し、C4 モデルビューを更新する。
+
+### ビルド
+
+- webpack マルチ config を逐次ビルド（`parallelism: 1`）してピーク負荷を下げ、Node 24 / WSL2 の非決定的 SIGSEGV を緩和。
+
+### Trail Core (trail-core / trail-server)
+
+- 重い TS 解析を子プロセスへ隔離（計算は子・永続化はホスト）しクラッシュ耐性化。
+- flow / sequence 解析器が共有する言語非依存の CFG-IR を導入。
+- 解析パイプラインに Python ファイル分類（ui / logic / excluded）を適用。
+- Ollama 負荷スロットル: COOLING 中は会話スコープをスキップ。
+- in-repo の built `.d.ts` 解決 import をソースノードへ救済。
+- コードグラフの kind バッジをローカライズ（`c4.kind.*`）。
+
 ## [0.23.0] - 2026-05-24
 
 ### 変更

@@ -354,6 +354,59 @@ describe('CodeGraphService.generate()', () => {
 });
 
 // ---------------------------------------------------------------------------
+// excludeRoot — 除外パターンの読み込みルートの切り替え
+// ---------------------------------------------------------------------------
+
+describe('CodeGraphService — excludeRoot', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cgs-exclroot-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('config.excludeRoot 指定時は repo.path ではなく excludeRoot から exclude を読む', async () => {
+    const { loadAnalyzeExclude } = require('@anytime-markdown/trail-core/analyzeExclude') as {
+      loadAnalyzeExclude: jest.Mock;
+    };
+    loadAnalyzeExclude.mockClear();
+
+    const db = makeTrailDbStub();
+    const svc = new CodeGraphService({
+      repositories: [makeRepo({ id: 'mermaid', label: 'mermaid', path: tmpDir })],
+      trailDb: db as never,
+      excludeRoot: '/open/workspace',
+    });
+    await svc.generate();
+
+    // generateForRepo / analyzeRepoTrailGraph いずれの読み込みも excludeRoot を使う。
+    const calledArgs = loadAnalyzeExclude.mock.calls.map((c: unknown[]) => c[0]);
+    expect(calledArgs).toContain('/open/workspace');
+    expect(calledArgs).not.toContain(tmpDir);
+  });
+
+  it('config.excludeRoot 省略時は従来どおり repo.path から exclude を読む', async () => {
+    const { loadAnalyzeExclude } = require('@anytime-markdown/trail-core/analyzeExclude') as {
+      loadAnalyzeExclude: jest.Mock;
+    };
+    loadAnalyzeExclude.mockClear();
+
+    const db = makeTrailDbStub();
+    const svc = new CodeGraphService({
+      repositories: [makeRepo({ id: 'fallback', label: 'fallback', path: tmpDir })],
+      trailDb: db as never,
+    });
+    await svc.generate();
+
+    const calledArgs = loadAnalyzeExclude.mock.calls.map((c: unknown[]) => c[0]);
+    expect(calledArgs).toContain(tmpDir);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // runAnalyze() — tsconfig がない場合は undefined を返してスキップ
 // ---------------------------------------------------------------------------
 
@@ -406,7 +459,7 @@ describe('CodeGraphService.generate() — runAnalyze() スキップ分岐', () =
       });
       const graph = (await svc.generate())[0];
       expect(graph.nodes).toHaveLength(0);
-      expect(errorMessages.some((m) => m.includes('analyzeRepo() failed'))).toBe(true);
+      expect(errorMessages.some((m) => m.includes('analyzeRepoTrailGraph() failed'))).toBe(true);
     } finally {
       fs.rmSync(tmpDir, { recursive: true });
     }
