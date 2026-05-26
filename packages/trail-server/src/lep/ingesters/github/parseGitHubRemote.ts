@@ -22,14 +22,21 @@ export function parseGitHubRemote(remoteUrl: string | null | undefined): GitHubR
   if (!trimmed) return null;
 
   // host が github.com のものだけを対象にする。scp 形式 (git@github.com:owner/name) と
-  // URL 形式 (https://github.com/owner/name) の両方を吸収する。host 以降の path 部分は
-  // 単一の貪欲キャプチャ (`.+`) で取り、末尾スラッシュ・`.git` の除去と owner/name 分割は
-  // 文字列操作で行う (lazy + optional 連鎖による js/polynomial-redos / S5852 を回避)。
-  const match = /github\.com[/:](.+)$/.exec(trimmed);
-  if (!match) return null;
+  // URL 形式 (https://github.com/owner/name) の両方を吸収する。正規表現を一切使わず
+  // O(n) の indexOf 走査で「`/` か `:` が直後に続く最初の github.com」を探し、host 以降の
+  // path 部分を文字列操作で取り出す (未アンカー literal + `.+` による js/polynomial-redos /
+  // S5852 を構造的に回避する)。
+  const MARKER = 'github.com';
+  let markerIndex = trimmed.indexOf(MARKER);
+  while (markerIndex >= 0) {
+    const sep = trimmed[markerIndex + MARKER.length];
+    if (sep === '/' || sep === ':') break;
+    markerIndex = trimmed.indexOf(MARKER, markerIndex + 1);
+  }
+  if (markerIndex < 0) return null;
 
   // 末尾スラッシュを正規表現を使わず O(n) で除去する。
-  let path = match[1];
+  let path = trimmed.slice(markerIndex + MARKER.length + 1);
   let end = path.length;
   while (end > 0 && path.charCodeAt(end - 1) === 0x2f /* '/' */) end--;
   path = path.slice(0, end);

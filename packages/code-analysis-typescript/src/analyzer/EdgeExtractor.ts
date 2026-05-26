@@ -138,7 +138,9 @@ export class EdgeExtractor {
   ): string | null {
     // preserveSymlinks 環境では node_modules シンボリックリンク経由で返ることが
     // あるため、projectRoot 判定前に実体パスへ正規化する。
-    let real = declAbs;
+    // 初期代入は try で必ず上書きされ catch でも再代入されるため、未読の初期値は持たせない
+    // (js/useless-assignment-to-local 回避)。
+    let real: string;
     try {
       real = fs.realpathSync(declAbs);
     } catch (err) {
