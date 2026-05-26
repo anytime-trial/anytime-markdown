@@ -287,4 +287,61 @@ const mcpTrailServerConfig = {
   devtool: 'nosources-source-map',
 };
 
-module.exports = [extensionConfig, trailStandaloneConfig, mcpTrailServerConfig];
+/**
+ * 解析子プロセス (analyze-child.js)。重い TS 解析を別 OS プロセスで実行し、
+ * SIGSEGV をホストから隔離する。計算専用で DB を持たないが、万一の transitive
+ * 依存に備え better-sqlite3 は externals 化する (dist/node_modules で解決)。
+ * @type WebpackConfig
+ */
+const analyzeChildConfig = {
+  target: 'node',
+  mode: 'development',
+  entry: '../trail-server/src/analyze/analyzeChildEntry.ts',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'analyze-child.js',
+    libraryTarget: 'commonjs2',
+  },
+  externals: {
+    'better-sqlite3': 'commonjs better-sqlite3',
+  },
+  resolve: {
+    extensions: ['.ts', '.js'],
+    extensionAlias: {
+      '.js': ['.ts', '.js'],
+    },
+  },
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/])/,
+        use: [
+          {
+            loader: 'ts-loader',
+            options: {
+              allowTsInNodeModules: true,
+              transpileOnly: true,
+            },
+          },
+        ],
+      },
+    ],
+  },
+  node: {
+    __dirname: false,
+    __filename: false,
+  },
+  ignoreWarnings: [
+    {
+      module: /node_modules[\\/]typescript[\\/]lib[\\/]typescript\.js$/,
+      message: /Critical dependency: the request of a dependency is an expression/,
+    },
+  ],
+  plugins: [
+    ...buildBundleAnalyzerPlugins('analyze-child'),
+  ],
+  devtool: 'nosources-source-map',
+};
+
+module.exports = [extensionConfig, trailStandaloneConfig, mcpTrailServerConfig, analyzeChildConfig];
