@@ -18,7 +18,11 @@ async function run(msg: Extract<AnalyzeHostMessage, { type: 'analyze' }>): Promi
     const result = await computeAnalysis(msg.request, (phase, percent) =>
       send({ type: 'progress', phase, percent }),
     );
-    const resultPath = path.join(os.tmpdir(), `analyze-result-${process.pid}-${Date.now()}.json`);
+    // os.tmpdir() に予測可能名 (pid + 時刻) で直接書くと symlink/race の対象になる
+    // (js/insecure-temporary-file)。mkdtempSync でランダムサフィックス付きの private dir
+    // (mode 0700) を作り、その中に結果を書く。dir は host (AnalyzeChildRunner) が読了後に削除する。
+    const resultDir = fs.mkdtempSync(path.join(os.tmpdir(), 'analyze-result-'));
+    const resultPath = path.join(resultDir, 'result.json');
     fs.writeFileSync(resultPath, JSON.stringify(result));
     send({ type: 'result', resultPath });
     process.exit(0);

@@ -1,6 +1,7 @@
 import { fork as nodeFork, type ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
+import * as path from 'node:path';
 import type {
   AnalyzeChildRequest,
   AnalyzeComputeResult,
@@ -79,7 +80,8 @@ export class AnalyzeChildRunner {
         if (resultPath) {
           try {
             const parsed = JSON.parse(fs.readFileSync(resultPath, 'utf8')) as AnalyzeComputeResult;
-            fs.rmSync(resultPath, { force: true });
+            // child が mkdtempSync で作った private dir ごと削除する (result.json + 親 dir)。
+            fs.rmSync(path.dirname(resultPath), { recursive: true, force: true });
             finish(() => resolve(parsed));
           } catch (e) {
             finish(() => reject(e));
