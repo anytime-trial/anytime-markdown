@@ -123,6 +123,7 @@ export function c4ToGraphDocument(
           ? { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor }
           : { fill: `${baseColors.fill}26`, stroke: baseColors.fill };
         const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
+        const serviceIconMeta: Record<string, string | number> = serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {};
         frame.metadata = {
           ...frame.metadata,
           c4Type: elem.type,
@@ -130,7 +131,7 @@ export function c4ToGraphDocument(
           c4NodeStroke: nodeColors.stroke,
           ...(serviceEntry?.iconBody
             ? { serviceIconBody: serviceEntry.iconBody, serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24' }
-            : (serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {})),
+            : serviceIconMeta),
         };
         frame.style = { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke };
         frame.text = buildNodeText(elem);
@@ -146,6 +147,7 @@ export function c4ToGraphDocument(
     const nodeColors = serviceEntry
       ? { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor }
       : { fill: `${baseColors.fill}26`, stroke: baseColors.fill };
+    const serviceIconMeta2: Record<string, string | number> = serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {};
     const node: GraphNode = {
       id: frameId,
       type: 'frame',
@@ -163,7 +165,7 @@ export function c4ToGraphDocument(
         ...(elem.manual ? { manual: 1 } : {}),
         ...(serviceEntry?.iconBody
           ? { serviceIconBody: serviceEntry.iconBody, serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24' }
-          : (serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {})),
+          : serviceIconMeta2),
       },
     };
     doc.nodes.push(node);
@@ -186,12 +188,14 @@ export function c4ToGraphDocument(
 
     const mapping = NODE_MAP[elem.type];
     const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
+    const elemBaseColors = elem.external ? EXTERNAL_COLOR : C4_COLORS[elem.type];
     const colors = serviceEntry
       ? { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor }
-      : elem.external ? EXTERNAL_COLOR : C4_COLORS[elem.type];
+      : elemBaseColors;
     const nodeId = nextId();
     elemIdMap.set(elem.id, nodeId);
 
+    const serviceIconMeta3: Record<string, string | number> = serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {};
     const node: GraphNode = {
       id: nodeId,
       type: mapping.type,
@@ -212,7 +216,7 @@ export function c4ToGraphDocument(
         ...(elem.manual ? { manual: 1 } : {}),
         ...(serviceEntry?.iconBody
           ? { serviceIconBody: serviceEntry.iconBody, serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24' }
-          : (serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {})),
+          : serviceIconMeta3),
       },
       ...(elem.boundaryId && boundaryIdMap.has(elem.boundaryId)
         ? { groupId: boundaryIdMap.get(elem.boundaryId) }
