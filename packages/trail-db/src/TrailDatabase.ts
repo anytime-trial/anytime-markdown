@@ -790,7 +790,7 @@ function normalizeCodexRecords(records: readonly RawLine[], fallbackSessionId: s
   for (const record of records) {
     const timestamp = typeof record.timestamp === 'string' ? record.timestamp : '';
     if (record.type === 'session_meta' && record.payload && typeof record.payload === 'object') {
-      const payload = record.payload as Record<string, unknown>;
+      const payload = record.payload;
       const id = payload.id;
       if (typeof id === 'string' && id) sessionId = id;
       const cliVersion = payload.cli_version;
@@ -798,7 +798,7 @@ function normalizeCodexRecords(records: readonly RawLine[], fallbackSessionId: s
       continue;
     }
     if (record.type === 'event_msg' && record.payload && typeof record.payload === 'object') {
-      const payload = record.payload as Record<string, unknown>;
+      const payload = record.payload;
       if (payload.type === 'task_started') {
         continue;
       }
@@ -830,7 +830,7 @@ function normalizeCodexRecords(records: readonly RawLine[], fallbackSessionId: s
       continue;
     }
     if (record.type !== 'response_item' || !record.payload || typeof record.payload !== 'object') continue;
-    const payload = record.payload as Record<string, unknown>;
+    const payload = record.payload;
     const payloadType = typeof payload.type === 'string' ? payload.type : '';
     if (payloadType === 'message') {
       const role = typeof payload.role === 'string' ? payload.role : '';
@@ -2122,7 +2122,7 @@ export class TrailDatabase {
       this.logger.warn(`[flip] no DDL registered for child table ${table}, skip`);
       return;
     }
-    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    const re = new RegExp(String.raw`CREATE TABLE IF NOT EXISTS ${table}\b`);
     db.run(`DROP TABLE IF EXISTS "${table}__new"`);
     db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
     const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
@@ -2251,7 +2251,7 @@ export class TrailDatabase {
       this.logger.warn(`[current flip] no DDL registered for ${table}, skip`);
       return;
     }
-    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    const re = new RegExp(String.raw`CREATE TABLE IF NOT EXISTS ${table}\b`);
     db.run(`DROP TABLE IF EXISTS "${table}__new"`);
     db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
     const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
@@ -2417,7 +2417,7 @@ export class TrailDatabase {
       this.logger.warn(`[session-commit flip] no DDL registered for ${table}, skip`);
       return;
     }
-    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    const re = new RegExp(String.raw`CREATE TABLE IF NOT EXISTS ${table}\b`);
     db.run(`DROP TABLE IF EXISTS "${table}__new"`);
     db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
     const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
@@ -2554,7 +2554,7 @@ export class TrailDatabase {
       this.logger.warn(`[c4-manual flip] no DDL registered for ${table}, skip`);
       return;
     }
-    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    const re = new RegExp(String.raw`CREATE TABLE IF NOT EXISTS ${table}\b`);
     db.run(`DROP TABLE IF EXISTS "${table}__new"`);
     db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
     const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
@@ -2683,7 +2683,7 @@ export class TrailDatabase {
       this.logger.warn(`[c4-manual drop repo_name] no DDL registered for ${table}, skip`);
       return;
     }
-    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    const re = new RegExp(String.raw`CREATE TABLE IF NOT EXISTS ${table}\b`);
     db.run(`DROP TABLE IF EXISTS "${table}__new"`);
     db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
     const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
@@ -2819,7 +2819,7 @@ export class TrailDatabase {
       this.logger.warn(`[current drop repo_name] no DDL registered for ${table}, skip`);
       return;
     }
-    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    const re = new RegExp(String.raw`CREATE TABLE IF NOT EXISTS ${table}\b`);
     db.run(`DROP TABLE IF EXISTS "${table}__new"`);
     db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
     const oldCols = (db.exec(`PRAGMA table_info("${table}")`)[0]?.values ?? []).map((c) =>
@@ -2991,7 +2991,7 @@ export class TrailDatabase {
       this.logger.warn(`[session-commit drop repo_name] no DDL registered for ${table}, skip`);
       return;
     }
-    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    const re = new RegExp(String.raw`CREATE TABLE IF NOT EXISTS ${table}\b`);
     db.run(`DROP TABLE IF EXISTS "${table}__new"`);
     db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
     // 旧テーブルの (列名 → 宣言型) を取得する。STRICT で復元できる型へ正規化する。
@@ -3162,7 +3162,7 @@ export class TrailDatabase {
       this.logger.warn(`[release-subtree drop repo_name] no DDL registered for ${table}, skip`);
       return;
     }
-    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    const re = new RegExp(String.raw`CREATE TABLE IF NOT EXISTS ${table}\b`);
     db.run(`DROP TABLE IF EXISTS "${table}__new"`);
     db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
     // 旧テーブルの (列名 → 宣言型) を取得する。STRICT で復元できる型へ正規化する。
@@ -3322,7 +3322,7 @@ export class TrailDatabase {
       this.logger.warn(`[derived flip] no DDL registered for ${table}, skip`);
       return;
     }
-    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    const re = new RegExp(String.raw`CREATE TABLE IF NOT EXISTS ${table}\b`);
     db.run(`DROP TABLE IF EXISTS "${table}__new"`);
     db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
     const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
@@ -3493,7 +3493,7 @@ export class TrailDatabase {
       this.logger.warn(`[derived drop repo_name] no DDL registered for ${table}, skip`);
       return;
     }
-    const re = new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`);
+    const re = new RegExp(String.raw`CREATE TABLE IF NOT EXISTS ${table}\b`);
     db.run(`DROP TABLE IF EXISTS "${table}__new"`);
     db.run(ddl.replace(re, `CREATE TABLE ${table}__new`));
     const newCols = (db.exec(`PRAGMA table_info("${table}__new")`)[0]?.values ?? []).map((c) =>
@@ -5469,9 +5469,9 @@ export class TrailDatabase {
 
     // ── kind='error' : ツール別エラー日次集計（session start_time 基準）──
     const errors = db.exec(
-      `SELECT DATE(s.start_time, '${tzOffset}') AS d,
+      String.raw`SELECT DATE(s.start_time, '${tzOffset}') AS d,
               CASE
-                WHEN mtc.tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                WHEN mtc.tool_name LIKE 'mcp\_\_%\_\_%' ESCAPE '\'
                 THEN SUBSTR(mtc.tool_name, 1, INSTR(SUBSTR(mtc.tool_name, 6), '__') + 4)
                 ELSE mtc.tool_name
               END AS tool,
@@ -5714,7 +5714,7 @@ export class TrailDatabase {
           continue;
         }
         if (rec.type !== 'session_meta' || !rec.payload || typeof rec.payload !== 'object') continue;
-        const cwd = (rec.payload as Record<string, unknown>).cwd;
+        const cwd = rec.payload?.cwd;
         return { cwd: typeof cwd === 'string' ? cwd : null };
       }
       return null;
@@ -6042,9 +6042,8 @@ export class TrailDatabase {
         const textContent = raw.type === 'assistant'
           ? extractTextContent(raw.message?.content)
           : null;
-        const userContent = raw.type === 'user'
-          ? (typeof raw.message?.content === 'string' ? raw.message.content : null)
-          : null;
+        const userMessageContent = typeof raw.message?.content === 'string' ? raw.message.content : null;
+        const userContent = raw.type === 'user' ? userMessageContent : null;
         const toolCalls = raw.type === 'assistant'
           ? extractToolCalls(raw.message?.content)
           : null;
@@ -7562,7 +7561,8 @@ export class TrailDatabase {
     // subagentType は 1 型あたり数百〜数千ファイルになる（general-purpose は半年で 500+）。
     // maxFilesPerGroup を絞ると「巨大な役割」が丸ごとスキップされ実質 0 件になる典型ケースを生む。
     // ペア計算は内部 Map で N^2 だが N=2000 なら 2M ペアで in-memory に収まるため Infinity 相当の上限にする。
-    const maxFilesPerGroup = isSubagentType ? 5000 : isSession ? 20 : 50;
+    const maxFilesPerGroupWhenSession = isSession ? 20 : 50;
+    const maxFilesPerGroup = isSubagentType ? 5000 : maxFilesPerGroupWhenSession;
 
     const now = new Date();
     const toIso = now.toISOString();
@@ -9069,8 +9069,8 @@ export class TrailDatabase {
       let errorsByTool: { tool: string; count: number }[] | undefined;
       if (sessionId) {
         const erResult = db.exec(
-          `SELECT CASE
-                    WHEN tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+          String.raw`SELECT CASE
+                    WHEN tool_name LIKE 'mcp\_\_%\_\_%' ESCAPE '\'
                     THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
                     ELSE tool_name
                   END AS tool,
@@ -9209,8 +9209,8 @@ export class TrailDatabase {
 
       // errorsByTool: session start_time 基準で集計（セッション一覧の errorCount と同じスコープ）
       const errResult = db.exec(
-        `SELECT CASE
-                  WHEN mtc.tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+        String.raw`SELECT CASE
+                  WHEN mtc.tool_name LIKE 'mcp\_\_%\_\_%' ESCAPE '\'
                   THEN SUBSTR(mtc.tool_name, 1, INSTR(SUBSTR(mtc.tool_name, 6), '__') + 4)
                   ELSE mtc.tool_name
                 END AS tool,
@@ -9547,9 +9547,9 @@ export class TrailDatabase {
 
     // エラー集計: session start_time 基準（daily_counts の timestamp 基準と一致させる）
     const errResult = db.exec(
-      `SELECT ${sessionStartPeriodExpr} AS period,
+      String.raw`SELECT ${sessionStartPeriodExpr} AS period,
               CASE
-                WHEN mtc.tool_name LIKE 'mcp\\_\\_%\\_\\_%' ESCAPE '\\'
+                WHEN mtc.tool_name LIKE 'mcp\_\_%\_\_%' ESCAPE '\'
                 THEN SUBSTR(mtc.tool_name, 1, INSTR(SUBSTR(mtc.tool_name, 6), '__') + 4)
                 ELSE mtc.tool_name
               END AS tool,
