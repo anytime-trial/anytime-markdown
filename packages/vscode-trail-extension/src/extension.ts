@@ -554,6 +554,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			trailDb,
 			callbacks: trailDataServer!,
 			codeGraphService,
+			analyzeChildPath: path.join(extensionDistPath, 'analyze-child.js'),
 		});
 	};
 
@@ -660,6 +661,7 @@ export async function activate(context: vscode.ExtensionContext) {
 						trailDb: trailDb!,
 						callbacks: trailDataServer!,
 						codeGraphService,
+						analyzeChildPath: path.join(extensionDistPath, 'analyze-child.js'),
 						onProgress: (phase) => progress.report({ message: phase }),
 					});
 					TrailLogger.info(`C4 analysis [${repoName}]: completed in ${result.durationMs}ms`);
