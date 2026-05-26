@@ -163,7 +163,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
   return (
     <Popper
       open
-      anchorEl={virtualAnchor as VirtualElement}
+      anchorEl={virtualAnchor}
       placement="bottom-start"
       role="menu"
       aria-label={t("slashCommandPlaceholder")}

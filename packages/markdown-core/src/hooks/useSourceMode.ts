@@ -51,7 +51,7 @@ interface UseSourceModeParams {
 
 export function useSourceMode({ editor, saveContent, t, frontmatterRef, defaultSourceMode, onModeChange }: UseSourceModeParams) {
   const [initialMode] = useState(() => {
-    if (defaultSourceMode) return "source" as EditorMode;
+    if (defaultSourceMode) return "source";
     return migrateEditorMode();
   });
   const [sourceMode, setSourceMode] = useState(defaultSourceMode ?? initialMode === "source");

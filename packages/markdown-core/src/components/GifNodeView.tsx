@@ -112,7 +112,7 @@ function onRecordComplete(
     const reader = new FileReader();
     reader.onload = () => {
       updateAttributes({
-        src: reader.result as string,
+        src: reader.result,
         alt: fileName,
         gifSettings: JSON.stringify(settings),
       });

@@ -217,7 +217,7 @@ function SourceModePanel({
   return (
     <Paper
       variant="outlined"
-      ref={scrollRef as React.RefObject<HTMLDivElement> | undefined}
+      ref={scrollRef}
       sx={[
         { flex: 1, overflow: autoResize ? "auto" : "hidden", borderRadius: 0, border: 0, ...hideScrollbarSx },
         ...normalizeSx(paperSx),
@@ -421,7 +421,7 @@ export function MergeEditorPanel({
   const paperContent = (
     <Paper
       variant="outlined"
-      ref={scrollRef as React.RefObject<HTMLDivElement> | undefined}
+      ref={scrollRef}
       sx={[
         {
           flex: 1,
