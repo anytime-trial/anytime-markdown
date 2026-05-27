@@ -271,18 +271,28 @@ async function analyzePythonOnlyBranch(
 async function generateCodeGraph(args: {
   codeGraphService: CodeGraphService;
   repoName: string;
+  analysisRoot: string;
+  trailGraph: TrailGraph | null;
   callbacks: AnalyzePipelineCallbacks;
   onProgress: AnalyzeCurrentOpts['onProgress'];
   logger: Logger;
   warnings: string[];
 }): Promise<void> {
-  const { codeGraphService, repoName, callbacks, onProgress, logger, warnings } = args;
+  const { codeGraphService, repoName, analysisRoot, trailGraph, callbacks, onProgress, logger, warnings } = args;
+  // per-call の analysisRoot を current_code_graphs / communities 生成へ貫通させる。
+  // codeGraphService は activate 時に固定した repositories を持つため、上書きしないと
+  // 別 repo を再生成し current_graphs(per-call) と current_code_graphs(固定) がズレる。
+  // 直前の解析で得た TrailGraph を流用し、generateForRepo 内での二重解析を避ける。
+  const override = {
+    repositories: [{ id: repoName, label: repoName, path: analysisRoot }],
+    trailGraphByRepoId: trailGraph ? { [repoName]: trailGraph } : undefined,
+  };
   try {
     onProgress?.('Generating code graph...');
     await codeGraphService.generate((phase, percent) => {
       callbacks.notifyCodeGraphProgress(phase, percent);
       onProgress?.(`Code graph: ${phase}`, percent);
-    });
+    }, override);
     // generate() は fresh graph で in-memory cache を上書きするため、
     // saveCurrentCodeGraph で温存された AI 要約は cache に反映されない。
     // loadFromDb() で DB と join 済みの graph を取り直し、要約込みで cache を再構築する。
@@ -392,7 +402,7 @@ export async function runAnalyzeCurrentCodePipeline(
   // ここで model-updated を通知する。
   callbacks.notifyModelUpdated();
 
-  await generateCodeGraph({ codeGraphService, repoName, callbacks, onProgress, logger, warnings });
+  await generateCodeGraph({ codeGraphService, repoName, analysisRoot, trailGraph: graph, callbacks, onProgress, logger, warnings });
 
   try {
     const count = trailDb.importCurrentCoverage(analysisRoot, repoName);

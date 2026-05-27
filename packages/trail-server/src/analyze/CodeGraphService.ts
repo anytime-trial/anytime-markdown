@@ -109,11 +109,21 @@ export class CodeGraphService {
    * 旧実装（全リポを 1 つの統合グラフへマージし repositories[0] 名で 1 回保存）は廃止。
    * リポ横断マージは行わない。
    *
-   * @returns config.repositories の順に並んだ、リポジトリごとの CodeGraph 配列。
+   * @param override 指定時は config.repositories の代わりに override.repositories を
+   *   対象とし、override.trailGraphByRepoId で解析済み TrailGraph（repo.id キー）を流用する。
+   *   MCP analyze_current_code(workspacePath) の per-call パスを current_code_graphs /
+   *   communities 生成へ貫通させるために使う。省略時は従来どおり config.repositories を使う。
+   * @returns 対象 repositories の順に並んだ、リポジトリごとの CodeGraph 配列。
    *          空 repositories の場合は空配列を返し、save も行わない。
    */
-  async generate(onProgress?: ProgressCallback): Promise<CodeGraph[]> {
-    const repos = this.config.repositories;
+  async generate(
+    onProgress?: ProgressCallback,
+    override?: {
+      repositories: readonly CodeGraphRepository[];
+      trailGraphByRepoId?: Record<string, TrailGraph | undefined>;
+    },
+  ): Promise<CodeGraph[]> {
+    const repos = override?.repositories ?? this.config.repositories;
     onProgress?.('ファイル検出中', 0);
 
     if (repos.length === 0) {
@@ -121,7 +131,7 @@ export class CodeGraphService {
       return [];
     }
 
-    const trailGraphCache = this.config.trailGraphProvider?.() ?? {};
+    const trailGraphCache = override?.trailGraphByRepoId ?? this.config.trailGraphProvider?.() ?? {};
     const results: CodeGraph[] = [];
 
     for (let i = 0; i < repos.length; i++) {
