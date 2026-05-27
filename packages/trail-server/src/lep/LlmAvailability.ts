@@ -94,10 +94,9 @@ export function evaluateLlmRequirement(
 }
 
 /** Ollama 不在時のスキップ理由に添える環境別ヒント (設計書 12.6)。 */
-export function ollamaUnavailableHint(baseUrl?: string): string {
-  const url = baseUrl ?? 'http://localhost:11434';
+export function ollamaUnavailableHint(baseUrl = 'http://localhost:11434'): string {
   return (
-    `Ollama unreachable at ${url}. ` +
+    `Ollama unreachable at ${baseUrl}. ` +
     `Dev Container 内なら anytimeTrail.memory.ollama.baseUrl を "http://host.docker.internal:11434" に設定 / ` +
     `ホストで \`ollama serve\` 起動を確認 / モデル未 pull なら \`ollama pull <model>\``
   );

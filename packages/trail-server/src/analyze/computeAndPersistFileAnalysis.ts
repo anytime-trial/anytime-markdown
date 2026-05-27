@@ -197,7 +197,7 @@ export async function computeAndPersistFileAnalysis(
 
     // コミュニティサイズ
     const communityId = hasNode ? (nodeCommunityMap.get(nodeId) ?? null) : null;
-    const commSize = communityId !== null ? (communitySize.get(communityId) ?? 0) : 0;
+    const commSize = communityId === null ? 0 : (communitySize.get(communityId) ?? 0);
 
     const signals: DeadCodeSignals = {
       // orphan: グラフに存在するが in-degree = 0

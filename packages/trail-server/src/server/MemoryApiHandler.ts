@@ -1,9 +1,7 @@
-import { BetterSqlite3MemoryDb, attachTrailDbReadOnly, getMemoryCoreDbPath } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, attachTrailDbReadOnly, getMemoryCoreDbPath, resolveDrift } from '@anytime-markdown/memory-core';
 import type { MemoryDbConnection, MemoryDbSqlValue as SqlValue } from '@anytime-markdown/memory-core';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-
-import { resolveDrift } from '@anytime-markdown/memory-core';
 
 import type { Logger } from '../runtime/Logger';
 

@@ -72,7 +72,7 @@ export function trailGraphToCodeGraphInputs(
       source: sourceId,
       target: targetId,
       confidence: 'EXTRACTED',
-      confidence_score: 1.0,
+      confidence_score: 1,
       crossRepo: false,
     });
   }

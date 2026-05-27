@@ -181,10 +181,10 @@ export class SessionImporter implements Analyzer {
       );
       try {
         this.opts.trailDb.rollbackExternalTransaction();
-      } catch (re) {
+      } catch (error_) {
         ctx.logger.error(
           `[SessionImporter] ROLLBACK also failed: ${
-            re instanceof Error ? re.message : String(re)
+            error_ instanceof Error ? error_.message : String(error_)
           }`,
         );
       }
