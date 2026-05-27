@@ -71,11 +71,12 @@ import {
   computeSubagentTypeConfidenceCoupling,
   resolvePricingModelName,
 } from '@anytime-markdown/trail-core';
-import { matchCommitsToMessages, computeDefectRisk, type CommitRiskRow, type DefectRiskEntry, type TrailGraph, type IC4ModelStore, type C4ModelEntry, type C4ModelResult, type TrailMessageCommit, type MessageCommitInput, type ManualElement, type ManualRelationship, type ManualGroup, type CommitFileRow, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type ConfidenceCouplingEdge, type PricingSource } from '@anytime-markdown/trail-core';
+import { matchCommitsToMessages, computeDefectRisk, type CommitRiskRow, type DefectRiskEntry, type TrailGraph, type IC4ModelStore, type C4ModelEntry, type C4ModelResult, type TrailMessageCommit, type MessageCommitInput, type ManualElement, type ManualRelationship, type ManualGroup, type CommitFileRow, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type ConfidenceCouplingEdge, type PricingSource, type CurrentCoverageRow, type ReleaseFileRow, type ReleaseCoverageRow, type ReleaseRow } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 
 import { aggregateQualityRates, aggregateCommitPrefixStats, aggregateCommitPrefixBaseline, type CommitBaselineSummary } from './combinedDataAggregators';
 export type AnalyzeFunction = (options: AnalyzeOptions) => TrailGraph;
+type DbScalar = string | number | null;
 
 /**
  * importAll() を構成する論理 phase の識別子。
@@ -138,7 +139,6 @@ import { JsonlSessionReader } from './JsonlSessionReader';
 import { ExecFileGitService } from './ExecFileGitService';
 import { type DbLogger, noopDbLogger } from './DbLogger';
 import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
-import type { CurrentCoverageRow, ReleaseFileRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
 export type { ReleaseFileRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
 
 declare const __non_webpack_require__: (id: string) => unknown;
@@ -1137,9 +1137,9 @@ export class TrailDatabase {
    * 失敗時はログを出さず例外をそのまま伝播する。
    */
   private runQuery<T>(name: string, fn: () => T, getRowCount?: (result: T) => number): T {
-    const t0 = (typeof performance !== 'undefined' ? performance : Date).now();
+    const t0 = (typeof performance === 'undefined' ? Date : performance).now();
     const result = fn();
-    const t1 = (typeof performance !== 'undefined' ? performance : Date).now();
+    const t1 = (typeof performance === 'undefined' ? Date : performance).now();
     const meta: { name: string; durationMs: number; rowCount?: number } = {
       name,
       durationMs: t1 - t0,
@@ -1577,17 +1577,20 @@ export class TrailDatabase {
     period: 'day' | 'week',
     tzOffset: string,
     cutoffDate: string,
-    toolsInMsg: Map<string, number>,
-    toolsInTurn: Map<string, number>,
-    msgInfoMap: Map<string, {
-      type: string; timestamp: string; sessionId: string;
-      inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number;
-    }>,
-    sessionSourceMap: Map<string, string>,
-    sessionStartTsMap: Map<string, string>,
+    ctx: {
+      toolsInMsg: Map<string, number>;
+      toolsInTurn: Map<string, number>;
+      msgInfoMap: Map<string, {
+        type: string; timestamp: string; sessionId: string;
+        inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number;
+      }>;
+      sessionSourceMap: Map<string, string>;
+      sessionStartTsMap: Map<string, string>;
+    },
     sep: string,
     aggMap: Map<string, { count: number; tokens: number; duration: number; tokenTotalTurns: number; tokenMissingTurns: number }>,
   ): void {
+    const { toolsInMsg, toolsInTurn, msgInfoMap, sessionSourceMap, sessionStartTsMap } = ctx;
     for (const row of tcRows) {
       const sessionIdTc = row[0] as string;
       const messageUuid = row[1] as string;
@@ -1744,7 +1747,7 @@ export class TrailDatabase {
         const aggMap = new Map<string, Agg>();
         this.aggregateToolUsageTcRows(
           tcRows, period, tzOffset, cutoffDate,
-          toolsInMsg, toolsInTurn, msgInfoMap, sessionSourceMap, sessionStartTsMap,
+          { toolsInMsg, toolsInTurn, msgInfoMap, sessionSourceMap, sessionStartTsMap },
           TURN_KEY_SEP, aggMap,
         );
 
@@ -2107,9 +2110,11 @@ export class TrailDatabase {
         '(SELECT p.release_id FROM releases p WHERE p.tag = releases.prev_tag) AS prev_release_id',
       );
     }
+    const quotedInsertCols = insertCols.map((c) => `"${c}"`).join(',');
+    const quotedSelectExprs = selectExprs.map((e) => (e.includes(' AS ') ? e : `"${e}"`)).join(',');
     db.run(
-      `INSERT INTO releases__new (${insertCols.map((c) => `"${c}"`).join(',')})
-       SELECT ${selectExprs.map((e) => (e.includes(' AS ') ? e : `"${e}"`)).join(',')} FROM releases`,
+      `INSERT INTO releases__new (${quotedInsertCols})
+       SELECT ${quotedSelectExprs} FROM releases`,
     );
     db.run('DROP TABLE releases');
     db.run('ALTER TABLE releases__new RENAME TO releases');
@@ -2137,9 +2142,10 @@ export class TrailDatabase {
       this.logger.warn(`[flip] ${table}: release_id missing after backfill, dropping table to rebuild empty`);
     }
     // release_id IS NULL の行 (旧 tag が releases に無い orphan) は新テーブルの NOT NULL を満たさないため除外。
+    const quotedCols2141 = sharedCols.map((c) => `"${c}"`).join(',');
     db.run(
-      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
-       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE release_id IS NOT NULL`,
+      `INSERT INTO "${table}__new" (${quotedCols2141})
+       SELECT ${quotedCols2141} FROM "${table}" WHERE release_id IS NOT NULL`,
     );
     db.run(`DROP TABLE "${table}"`);
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
@@ -2264,9 +2270,10 @@ export class TrailDatabase {
     const sharedCols = newCols.filter((c) => oldCols.has(c));
     // repo_id IS NULL の行 (= repos に無い repo_name の orphan) は新スキーマの NOT NULL を
     // 満たさないため除外する。
+    const quotedCols2270 = sharedCols.map((c) => `"${c}"`).join(',');
     db.run(
-      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
-       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE repo_id IS NOT NULL`,
+      `INSERT INTO "${table}__new" (${quotedCols2270})
+       SELECT ${quotedCols2270} FROM "${table}" WHERE repo_id IS NOT NULL`,
     );
     db.run(`DROP TABLE "${table}"`);
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
@@ -2430,9 +2437,10 @@ export class TrailDatabase {
     const sharedCols = newCols.filter((c) => oldCols.has(c));
     // repo_id IS NULL の行 (= repos に無い repo_name の orphan) は新スキーマの NOT NULL を
     // 満たさないため除外する。旧 PK は新 PK の部分集合/等価のため残った行は新 PK で衝突しない。
+    const quotedCols2436 = sharedCols.map((c) => `"${c}"`).join(',');
     db.run(
-      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
-       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE repo_id IS NOT NULL`,
+      `INSERT INTO "${table}__new" (${quotedCols2436})
+       SELECT ${quotedCols2436} FROM "${table}" WHERE repo_id IS NOT NULL`,
     );
     db.run(`DROP TABLE "${table}"`);
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
@@ -2568,9 +2576,10 @@ export class TrailDatabase {
     // repo_id IS NULL の行 (= repos に無い repo_name の orphan) は新スキーマの NOT NULL を
     // 満たさないため除外する。旧 PK (repo_name, <id>) は新 PK (repo_id, <id>) と 1:1 対応のため
     // 残った行は新 PK で衝突しない。
+    const quotedCols2576 = sharedCols.map((c) => `"${c}"`).join(',');
     db.run(
-      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
-       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE repo_id IS NOT NULL`,
+      `INSERT INTO "${table}__new" (${quotedCols2576})
+       SELECT ${quotedCols2576} FROM "${table}" WHERE repo_id IS NOT NULL`,
     );
     db.run(`DROP TABLE "${table}"`);
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
@@ -2696,9 +2705,10 @@ export class TrailDatabase {
     // repo_name が無いため共有列に repo_name は含まれず自然に落ちる。repo_id・element_id 等の
     // 複合 PK/FK 構成列は両者に在るためコピーされ、PK/FK の整合は維持される。
     const sharedCols = newCols.filter((c) => oldCols.has(c));
+    const quotedCols2705 = sharedCols.map((c) => `"${c}"`).join(',');
     db.run(
-      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
-       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}"`,
+      `INSERT INTO "${table}__new" (${quotedCols2705})
+       SELECT ${quotedCols2705} FROM "${table}"`,
     );
     db.run(`DROP TABLE "${table}"`);
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
@@ -2844,9 +2854,10 @@ export class TrailDatabase {
     // repo_name が無いため共有列に repo_name は含まれず自然に落ちる。repo_id を含む PK 構成列・
     // mappings_json 等は両者に在るためコピーされ、整合は維持される。
     const sharedCols = oldCols.filter((c) => newColSet.has(c) && c !== 'repo_name');
+    const quotedColsH3 = sharedCols.map((c) => `"${c}"`).join(',');
     db.run(
-      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
-       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}"`,
+      `INSERT INTO "${table}__new" (${quotedColsH3})
+       SELECT ${quotedColsH3} FROM "${table}"`,
     );
     db.run(`DROP TABLE "${table}"`);
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
@@ -3020,9 +3031,10 @@ export class TrailDatabase {
     // repo_name が無いため共有列に repo_name は含まれず自然に落ちる。repo_id を含む PK 構成列はコピーされ
     // 整合は維持される。
     const sharedCols = oldCols.filter((c) => newColSet.has(c) && c !== 'repo_name');
+    const quotedColsH4 = sharedCols.map((c) => `"${c}"`).join(',');
     db.run(
-      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
-       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}"`,
+      `INSERT INTO "${table}__new" (${quotedColsH4})
+       SELECT ${quotedColsH4} FROM "${table}"`,
     );
     db.run(`DROP TABLE "${table}"`);
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
@@ -3193,9 +3205,10 @@ export class TrailDatabase {
     // 例外を投げずに先勝ちで取り込む。
     const sharedCols = oldCols.filter((c) => newColSet.has(c) && c !== 'repo_name');
     const insertVerb = table === 'releases' ? 'INSERT' : 'INSERT OR IGNORE';
+    const quotedColsH5 = sharedCols.map((c) => `"${c}"`).join(',');
     db.run(
-      `${insertVerb} INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
-       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}"`,
+      `${insertVerb} INTO "${table}__new" (${quotedColsH5})
+       SELECT ${quotedColsH5} FROM "${table}"`,
     );
     // INSERT OR IGNORE は新 PK (repo_name を除いた構成) の衝突行を黙って drop する。万一 release_id が
     // 複数 repo に対応していると行が落ちるため、コピー元と __new の行数を比較し、不足があれば error ログ
@@ -3336,9 +3349,10 @@ export class TrailDatabase {
     // repo_id IS NULL の行 (= repos に無い repo_name の orphan) は新スキーマの NOT NULL を
     // 満たさないため除外する。旧 PK (repo_name, period) は新 PK (repo_id, period) と 1:1 対応のため
     // 残った行は新 PK で衝突しない。
+    const quotedColsF = sharedCols.map((c) => `"${c}"`).join(',');
     db.run(
-      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
-       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}" WHERE repo_id IS NOT NULL`,
+      `INSERT INTO "${table}__new" (${quotedColsF})
+       SELECT ${quotedColsF} FROM "${table}" WHERE repo_id IS NOT NULL`,
     );
     db.run(`DROP TABLE "${table}"`);
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
@@ -3505,9 +3519,10 @@ export class TrailDatabase {
     // 新スキーマの列のうち旧テーブルにも存在する列を共有列としてコピーする。新スキーマには
     // repo_name が無いため、共有列に repo_name は含まれず自然に落ちる。repo_id は両者に在るためコピーされる。
     const sharedCols = newCols.filter((c) => oldCols.has(c));
+    const quotedColsHG = sharedCols.map((c) => `"${c}"`).join(',');
     db.run(
-      `INSERT INTO "${table}__new" (${sharedCols.map((c) => `"${c}"`).join(',')})
-       SELECT ${sharedCols.map((c) => `"${c}"`).join(',')} FROM "${table}"`,
+      `INSERT INTO "${table}__new" (${quotedColsHG})
+       SELECT ${quotedColsHG} FROM "${table}"`,
     );
     db.run(`DROP TABLE "${table}"`);
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
@@ -3612,32 +3627,8 @@ export class TrailDatabase {
     // 全 Phase で repo_name 列を撤去済のため、現状はどのテーブルも残っていない。各 Phase の drop
     // migration が drop 直前に self-seed するため、ここに残すと撤去後 `SELECT repo_name` が毎 init で
     // throw → warn ログを出すだけで実害がない。
-    const REPO_NAME_TABLES: readonly string[] = [
-      // Phase H-1: dora_metrics / pr_reviews / cross_source_correlations は repo_name 列を撤去済。
-      // これらの repo seed は H-1 の drop migration (drop 直前に self-seed) が担うため、ここから除外する。
-      // Phase H-2: c4_manual_elements / c4_manual_relationships / c4_manual_groups も repo_name 列を撤去済。
-      // これらの repo seed は H-2 の drop migration (drop 直前に self-seed) が担うため、ここから除外する。
-      // Phase H-3: current_graphs / current_code_graphs / current_code_graph_communities /
-      // current_coverage / current_file_analysis / current_function_analysis も repo_name 列を撤去済。
-      // これらの repo seed は H-3 の drop migration (drop 直前に self-seed) が担うため、ここから除外する。
-      // Phase H-4: sessions / session_commits / commit_files / session_commit_resolutions も repo_name 列を撤去済。
-      // これらの repo seed は H-4 の drop migration (drop 直前に self-seed) が担うため、ここから除外する。
-      // Phase H-5: releases / release_file_analysis / release_function_analysis も repo_name 列を撤去済。
-      // これらの repo seed は H-5 の drop migration (drop 直前に self-seed) が担うため、ここから除外する。
-    ];
-    for (const table of REPO_NAME_TABLES) {
-      try {
-        db.run(
-          `INSERT OR IGNORE INTO repos (repo_name, created_at)
-           SELECT DISTINCT repo_name, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-           FROM "${table}" WHERE repo_name IS NOT NULL`,
-        );
-      } catch (e) {
-        this.logger.warn(
-          `[repos seed] skip ${table}: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      }
-    }
+    // 全 Phase (H-1〜H-5) で repo_name 列を撤去済。各 Phase の drop migration が drop 直前に
+    // self-seed するため、ここに列挙するテーブルは現時点で存在しない。
   }
 
   private createTables(): void {
@@ -6582,7 +6573,7 @@ export class TrailDatabase {
     const db = this.ensureDb();
     const now = new Date().toISOString();
     const sets: string[] = [];
-    const vals: (string | number | null)[] = [];
+    const vals: DbScalar[] = [];
     if (changes.name !== undefined) { sets.push('name = ?'); vals.push(changes.name); }
     if (changes.description !== undefined) { sets.push('description = ?'); vals.push(changes.description); }
     if (changes.external !== undefined) { sets.push('external = ?'); vals.push(changes.external ? 1 : 0); }
@@ -6762,7 +6753,7 @@ export class TrailDatabase {
   ): void {
     const db = this.ensureDb();
     const sets: string[] = ['updated_at = ?'];
-    const values: (string | number | null)[] = [new Date().toISOString()];
+    const values: DbScalar[] = [new Date().toISOString()];
     if (changes.memberIds !== undefined) { sets.push('member_ids = ?'); values.push(JSON.stringify(changes.memberIds)); }
     if ('label' in changes) { sets.push('label = ?'); values.push(changes.label ?? null); }
     // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
@@ -6967,8 +6958,8 @@ export class TrailDatabase {
     );
     for (const c of communities) {
       const co = carryOver.get(c.id);
-      const effectiveName = c.name !== '' ? c.name : (co?.name ?? '');
-      const effectiveSummary = c.summary !== '' ? c.summary : (co?.summary ?? '');
+      const effectiveName = c.name === '' ? (co?.name ?? '') : c.name;
+      const effectiveSummary = c.summary === '' ? (co?.summary ?? '') : c.summary;
       const effectiveMappingsJson = co?.mappingsJson ?? null;
       stmt.run([repoId, c.id, c.label, effectiveName, effectiveSummary, c.stableKey, effectiveMappingsJson]);
     }
@@ -7030,7 +7021,7 @@ export class TrailDatabase {
         members: membersByCommunity.get(communityId) ?? new Set<string>(),
         name: asText(row[idx('name')] ?? ''),
         summary: asText(row[idx('summary')] ?? ''),
-        mappingsJson: rawMappings != null ? asText(rawMappings) : null,
+        mappingsJson: rawMappings == null ? null : asText(rawMappings),
       });
     }
     return olds;
@@ -7122,7 +7113,7 @@ export class TrailDatabase {
         label: asText(r[idx('label')] ?? ''),
         name: asText(r[idx('name')] ?? ''),
         summary: asText(r[idx('summary')] ?? ''),
-        mappings_json: rawMappings != null ? asText(rawMappings) : null,
+        mappings_json: rawMappings == null ? null : asText(rawMappings),
         stable_key: sIdx >= 0 ? asText(r[sIdx] ?? '') : '',
         generated_at: asText(r[idx('generated_at')] ?? ''),
         updated_at: asText(r[idx('updated_at')] ?? ''),
@@ -7329,7 +7320,7 @@ export class TrailDatabase {
         label: asText(row[idx('label')] ?? ''),
         name: asText(row[idx('name')] ?? ''),
         summary: asText(row[idx('summary')] ?? ''),
-        mappingsJson: rawMappings != null ? asText(rawMappings) : null,
+        mappingsJson: rawMappings == null ? null : asText(rawMappings),
         stableKey: sIdx >= 0 ? asText(row[sIdx] ?? '') : '',
       };
     });
@@ -7474,22 +7465,21 @@ export class TrailDatabase {
    * TrailGraph → C4Model 変換（trailToC4）はこのアダプタ内で実行する。
    */
   asC4ModelStore(): IC4ModelStore {
-    const db = this;
     return {
-      getCurrentC4Model(repoName: string): C4ModelResult | null {
-        const graph = db.getCurrentGraph(repoName);
+      getCurrentC4Model: (repoName: string): C4ModelResult | null => {
+        const graph = this.getCurrentGraph(repoName);
         if (!graph) return null;
         const model = trailToC4(graph);
-        const info = db.getCurrentGraphCommit(repoName);
+        const info = this.getCurrentGraphCommit(repoName);
         return { model, commitId: info?.commitId };
       },
-      getReleaseC4Model(tag: string): C4ModelResult | null {
-        const graph = db.getReleaseGraph(tag);
+      getReleaseC4Model: (tag: string): C4ModelResult | null => {
+        const graph = this.getReleaseGraph(tag);
         if (!graph) return null;
         return { model: trailToC4(graph) };
       },
-      getC4ModelEntries(): readonly C4ModelEntry[] {
-        return db.getTrailGraphEntries();
+      getC4ModelEntries: (): readonly C4ModelEntry[] => {
+        return this.getTrailGraphEntries();
       },
     };
   }
@@ -8611,10 +8601,10 @@ export class TrailDatabase {
   private fetchSubagentPathA(
     db: Database,
     from: string, to: string,
-    repoArg: (string | number)[], toolNames: readonly string[], toolPlaceholders: string,
-    rangeJoin: string, rangeWhere: string, repoFilter: string,
+    qctx: { repoArg: (string | number)[]; toolNames: readonly string[]; toolPlaceholders: string; rangeJoin: string; rangeWhere: string; repoFilter: string },
     rows: Array<{ committedAt: string; filePath: string; subagentType: string; sessionId: string; messageUuid: string }>,
   ): void {
+    const { repoArg, toolNames, toolPlaceholders, rangeJoin, rangeWhere, repoFilter } = qctx;
     try {
       const resA = db.exec(
         `SELECT m.timestamp, mtc.file_path, m.subagent_type, m.session_id, m.uuid
@@ -8651,11 +8641,11 @@ export class TrailDatabase {
   private fetchSubagentPathB(
     db: Database,
     from: string, to: string,
-    repoArg: (string | number)[], toolNames: readonly string[], toolPlaceholders: string,
-    rangeJoin: string, rangeWhere: string, repoFilter: string,
+    qctx: { repoArg: (string | number)[]; toolNames: readonly string[]; toolPlaceholders: string; rangeJoin: string; rangeWhere: string; repoFilter: string },
     codexSessionIds: Set<string>,
     rows: Array<{ committedAt: string; filePath: string; subagentType: string; sessionId: string; messageUuid: string }>,
   ): void {
+    const { repoArg, toolNames, toolPlaceholders, rangeJoin, rangeWhere, repoFilter } = qctx;
     try {
       const idList = Array.from(codexSessionIds);
       const idPlaceholders = idList.map(() => '?').join(',');
@@ -8739,13 +8729,14 @@ export class TrailDatabase {
     const repoFilter = repo ? 'AND s.repo_id = ?' : '';
     const repoArg: (string | number)[] = repo ? [this.repoIdForNameReadonly(repo)] : [];
 
+    const qctx = { repoArg, toolNames, toolPlaceholders, rangeJoin, rangeWhere, repoFilter };
     // 経路 A: CC ネイティブ subagent
-    this.fetchSubagentPathA(db, from, to, repoArg, toolNames, toolPlaceholders, rangeJoin, rangeWhere, repoFilter, rows);
+    this.fetchSubagentPathA(db, from, to, qctx, rows);
 
     // 経路 B: codex 委任セッション（同一 repo + 時刻近傍でリンク済）
     const codexSessionIds = this.fetchLinkedCodexSessionIdsInRange(from, to);
     if (codexSessionIds.size > 0) {
-      this.fetchSubagentPathB(db, from, to, repoArg, toolNames, toolPlaceholders, rangeJoin, rangeWhere, repoFilter, codexSessionIds, rows);
+      this.fetchSubagentPathB(db, from, to, qctx, codexSessionIds, rows);
     }
 
     rows.sort((a, b) => {
@@ -8956,7 +8947,7 @@ export class TrailDatabase {
       for (const row of result[0].values) {
         const sessId = String(row[0]);
         const toolCallsJson = String(row[1]);
-        const toolResultStr = row[2] != null ? asText(row[2]) : null;
+        const toolResultStr = row[2] == null ? null : asText(row[2]);
 
         let calls: { name: string; input: Record<string, unknown> }[];
         try {
@@ -10861,12 +10852,9 @@ export class TrailDatabase {
     tag: string,
     gitRoot: string,
     tmpDir: string,
-    tsconfigPath: string,
-    git: ExecFileGitService,
-    analyzeFn: AnalyzeFunction,
-    excludePatterns: readonly string[],
-    onProgress?: (message: string) => void,
+    opts: { tsconfigPath: string; git: ExecFileGitService; analyzeFn: AnalyzeFunction; excludePatterns: readonly string[]; onProgress?: (message: string) => void },
   ): boolean {
+    const { tsconfigPath, git, analyzeFn, excludePatterns, onProgress } = opts;
     onProgress?.(`Analyzing release ${tag}...`);
 
     if (fs.existsSync(tmpDir)) this.removeWorktreeDir(tmpDir, gitRoot);
@@ -10921,7 +10909,7 @@ export class TrailDatabase {
       if (existingIds.has(tag)) continue;
       const tmpDir = path.join(os.tmpdir(), `trail-release-${tag.replaceAll('/', '-')}`);
       try {
-        const saved = this.analyzeOneRelease(tag, gitRoot, tmpDir, tsconfigPath, git, analyzeFn, excludePatterns, onProgress);
+        const saved = this.analyzeOneRelease(tag, gitRoot, tmpDir, { tsconfigPath, git, analyzeFn, excludePatterns, onProgress });
         if (saved) {
           existingIds.add(tag);
           count++;
@@ -11840,7 +11828,7 @@ export class TrailDatabase {
     }
 
     let sql: string;
-    let bindings: Array<string | number | null>;
+    let bindings: DbScalar[];
     if (granularity === 'commit') {
       sql = `
         SELECT sc.committed_at AS committedAt, cf.file_path AS filePath, NULL AS subagentType

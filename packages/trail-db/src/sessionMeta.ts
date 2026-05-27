@@ -6,7 +6,7 @@ const WORKTREE_SEGMENTS = new Set(['.worktrees', '.claude-worktrees']);
 // (CodeQL js/polynomial-redos / Sonar S5852) になるため、線形スキャンで除去する。
 function stripTrailingSlashes(value: string): string {
   let end = value.length;
-  while (end > 0 && value.charCodeAt(end - 1) === 47 /* '/' */) end--;
+  while (end > 0 && value.codePointAt(end - 1) === 47 /* '/' */) end--;
   return value.slice(0, end);
 }
 

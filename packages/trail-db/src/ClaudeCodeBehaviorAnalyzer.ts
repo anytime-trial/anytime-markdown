@@ -63,7 +63,7 @@ export class ClaudeCodeBehaviorAnalyzer {
         for (let callIndex = 0; callIndex < toolBlocks.length; callIndex++) {
           const tool = toolBlocks[callIndex];
           if (!tool?.name) continue;
-          this.insertToolCallRow(insertStmt, sessionId, msg, turnIndex, callIndex, tool, turnExecMs, errorMap);
+          this.insertToolCallRow(insertStmt, sessionId, msg, { turnIndex, callIndex, tool, turnExecMs }, errorMap);
         }
 
         turnIndex++;
@@ -93,12 +93,10 @@ export class ClaudeCodeBehaviorAnalyzer {
     insertStmt: ReturnType<Database['prepare']>,
     sessionId: string,
     msg: RawMessage,
-    turnIndex: number,
-    callIndex: number,
-    tool: ToolCallBlock,
-    turnExecMs: number | null,
+    opts: { turnIndex: number; callIndex: number; tool: ToolCallBlock; turnExecMs: number | null },
     errorMap: Map<string, { is_error: boolean; content: string }>,
   ): void {
+    const { turnIndex, callIndex, tool, turnExecMs } = opts;
     const errorEntry = errorMap.get(tool.id);
     const isError = errorEntry?.is_error ? 1 : 0;
     const errorContent = errorEntry?.content ?? '';
