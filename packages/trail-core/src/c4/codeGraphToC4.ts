@@ -129,6 +129,19 @@ function buildCodeElements(graph: StoredCodeGraph): C4Element[] {
   }));
 }
 
+/** 重複排除しながら relationship を追加するヘルパー。 */
+function addRelIfNew(
+  seen: Set<string>,
+  key: string,
+  from: string,
+  to: string,
+  relationships: C4Relationship[],
+): void {
+  if (seen.has(key)) return;
+  seen.add(key);
+  relationships.push({ from, to, label: 'imports' });
+}
+
 /** Phase 5: edges → 3 階層 Relationships（重複排除済み） */
 function buildRelationships(graph: StoredCodeGraph): C4Relationship[] {
   const nodeById = new Map<string, CodeGraphNode>();
@@ -145,36 +158,28 @@ function buildRelationships(graph: StoredCodeGraph): C4Relationship[] {
     if (!src || !dst) continue;
 
     // file 層
-    const fileKey = `${edge.source}→${edge.target}`;
-    if (!fileSeen.has(fileKey)) {
-      fileSeen.add(fileKey);
-      relationships.push({ from: edge.source, to: edge.target, label: 'imports' });
-    }
+    addRelIfNew(fileSeen, `${edge.source}→${edge.target}`, edge.source, edge.target, relationships);
 
     // component 層 (異 community のみ)
     if (src.community !== dst.community) {
-      const cKey = `${src.community}→${dst.community}`;
-      if (!componentSeen.has(cKey)) {
-        componentSeen.add(cKey);
-        relationships.push({
-          from: `community_${src.community}`,
-          to: `community_${dst.community}`,
-          label: 'imports',
-        });
-      }
+      addRelIfNew(
+        componentSeen,
+        `${src.community}→${dst.community}`,
+        `community_${src.community}`,
+        `community_${dst.community}`,
+        relationships,
+      );
     }
 
     // container 層 (異 package のみ)
     if (src.package && dst.package && src.package !== dst.package) {
-      const pKey = `${src.package}→${dst.package}`;
-      if (!containerSeen.has(pKey)) {
-        containerSeen.add(pKey);
-        relationships.push({
-          from: `pkg_${src.package}`,
-          to: `pkg_${dst.package}`,
-          label: 'imports',
-        });
-      }
+      addRelIfNew(
+        containerSeen,
+        `${src.package}→${dst.package}`,
+        `pkg_${src.package}`,
+        `pkg_${dst.package}`,
+        relationships,
+      );
     }
   }
   return relationships;

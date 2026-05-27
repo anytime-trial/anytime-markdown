@@ -91,6 +91,28 @@ function classifyFiles(graph: TrailGraph, monorepo: boolean, projectRoot: string
   return { fileToPackage, fileToComponent, packageSet, componentSet };
 }
 
+/** L4: ファイルノードを Code 要素に変換する。 */
+function buildCodeElements(
+  graph: TrailGraph,
+  fileToPackage: Map<string, string>,
+  fileToComponent: Map<string, string>,
+): C4Element[] {
+  const elements: C4Element[] = [];
+  for (const node of graph.nodes) {
+    if (node.type !== 'file') continue;
+    const pkg = fileToPackage.get(node.id);
+    if (!pkg) continue;
+    const compKey = fileToComponent.get(node.id);
+    elements.push({
+      id: node.id,
+      type: 'code',
+      name: node.label,
+      boundaryId: compKey ? `pkg_${compKey}` : `pkg_${pkg}`,
+    });
+  }
+  return elements;
+}
+
 /** Phase 2-4: C4 要素（system / container / component / code）を生成する。 */
 function buildElements(
   graph: TrailGraph,
@@ -133,20 +155,24 @@ function buildElements(
   }
 
   // L4: Code 要素
-  for (const node of graph.nodes) {
-    if (node.type !== 'file') continue;
-    const pkg = fileToPackage.get(node.id);
-    if (!pkg) continue;
-    const compKey = fileToComponent.get(node.id);
-    elements.push({
-      id: node.id,
-      type: 'code',
-      name: node.label,
-      boundaryId: compKey ? `pkg_${compKey}` : `pkg_${pkg}`,
-    });
+  for (const el of buildCodeElements(graph, fileToPackage, fileToComponent)) {
+    elements.push(el);
   }
 
   return elements;
+}
+
+/** 重複排除しながら 'imports' リレーションシップを追加するヘルパー。 */
+function addImportRelIfNew(
+  seen: Set<string>,
+  key: string,
+  from: string,
+  to: string,
+  relationships: C4Relationship[],
+): void {
+  if (seen.has(key)) return;
+  seen.add(key);
+  relationships.push({ from, to, label: 'imports' });
 }
 
 /** Phase 5: エッジから L2/L3/L4 リレーションシップを生成する。 */
@@ -167,30 +193,18 @@ function buildRelationships(
     if (!fromPkg || !toPkg) continue;
 
     // L4: ファイル間
-    const l4Key = `${edge.source}→${edge.target}`;
-    if (!l4Set.has(l4Key)) {
-      l4Set.add(l4Key);
-      relationships.push({ from: edge.source, to: edge.target, label: 'imports' });
-    }
+    addImportRelIfNew(l4Set, `${edge.source}→${edge.target}`, edge.source, edge.target, relationships);
 
     // L3: コンポーネント間
     const fromComp = fileToComponent.get(edge.source);
     const toComp = fileToComponent.get(edge.target);
     if (fromComp && toComp && fromComp !== toComp) {
-      const l3Key = `${fromComp}→${toComp}`;
-      if (!l3Set.has(l3Key)) {
-        l3Set.add(l3Key);
-        relationships.push({ from: `pkg_${fromComp}`, to: `pkg_${toComp}`, label: 'imports' });
-      }
+      addImportRelIfNew(l3Set, `${fromComp}→${toComp}`, `pkg_${fromComp}`, `pkg_${toComp}`, relationships);
     }
 
     // L2: パッケージ間
     if (fromPkg !== toPkg) {
-      const l2Key = `${fromPkg}→${toPkg}`;
-      if (!l2Set.has(l2Key)) {
-        l2Set.add(l2Key);
-        relationships.push({ from: `pkg_${fromPkg}`, to: `pkg_${toPkg}`, label: 'imports' });
-      }
+      addImportRelIfNew(l2Set, `${fromPkg}→${toPkg}`, `pkg_${fromPkg}`, `pkg_${toPkg}`, relationships);
     }
   }
 

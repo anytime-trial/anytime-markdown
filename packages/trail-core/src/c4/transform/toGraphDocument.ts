@@ -70,6 +70,211 @@ function buildNodeText(elem: C4Element): string {
   return parts.join('\n');
 }
 
+/** serviceEntry のアイコン metadata を構築する。 */
+type ServiceEntry = ReturnType<typeof findService>;
+function buildServiceIconMeta(serviceEntry: ServiceEntry): Record<string, string | number> {
+  if (!serviceEntry) return {};
+  if (serviceEntry.iconBody) {
+    return { serviceIconBody: serviceEntry.iconBody, serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24' };
+  }
+  if (serviceEntry.iconPath) {
+    return { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor };
+  }
+  return {};
+}
+
+/** serviceEntry がある場合はブランドカラー、ない場合は baseColors を返す。 */
+function resolveNodeColors(
+  serviceEntry: ServiceEntry,
+  baseColors: { fill: string; stroke: string },
+): { fill: string; stroke: string } {
+  if (!serviceEntry) return baseColors;
+  return { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor };
+}
+
+/** Phase 1: BoundaryInfo からフレームを生成し、boundaryIdMap を構築する。 */
+function buildPhase1Frames(
+  boundaries: readonly BoundaryInfo[] | undefined,
+  doc: GraphDocument,
+  boundaryIdMap: Map<string, string>,
+): void {
+  if (!boundaries) return;
+  for (const b of boundaries) {
+    const frameId = nextId();
+    boundaryIdMap.set(b.id, frameId);
+    doc.nodes.push({
+      id: frameId,
+      type: 'frame',
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 300,
+      text: b.name,
+      style: { fill: 'transparent', stroke: '#444444', ...DEFAULT_STYLE },
+      metadata: { c4Id: b.id },
+    });
+  }
+}
+
+/** Phase 2a: 境界要素のフレームノードを生成（または Phase 1 で作成済みのものを補完）する。 */
+function buildPhase2aFrames(
+  model: C4Model,
+  doc: GraphDocument,
+  boundaryIdMap: Map<string, string>,
+): void {
+  for (const elem of model.elements) {
+    if (!BOUNDARY_TYPES.has(elem.type) || elem.external) continue;
+    if (boundaryIdMap.has(elem.id)) {
+      // Phase 1 で作成済み → c4Type / 色 / スタイルを補完する（groupId は 2b で設定）
+      const existingFrameId = boundaryIdMap.get(elem.id)!;
+      const frame = doc.nodes.find(n => n.id === existingFrameId);
+      if (frame && !frame.metadata?.c4Type) {
+        const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
+        const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
+        const nodeColors = resolveNodeColors(serviceEntry, { fill: `${baseColors.fill}26`, stroke: baseColors.fill });
+        const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
+        frame.metadata = {
+          ...frame.metadata,
+          c4Type: elem.type,
+          c4NodeFill: nodeColors.fill,
+          c4NodeStroke: nodeColors.stroke,
+          ...buildServiceIconMeta(serviceEntry),
+        };
+        frame.style = { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke };
+        frame.text = buildNodeText(elem);
+      }
+      continue;
+    }
+
+    const frameId = nextId();
+    boundaryIdMap.set(elem.id, frameId);
+    const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
+    const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
+    const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
+    const nodeColors = resolveNodeColors(serviceEntry, { fill: `${baseColors.fill}26`, stroke: baseColors.fill });
+    const node: GraphNode = {
+      id: frameId,
+      type: 'frame',
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 300,
+      text: buildNodeText(elem),
+      style: { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke },
+      metadata: {
+        c4Id: elem.id,
+        c4Type: elem.type,
+        c4NodeFill: nodeColors.fill,
+        c4NodeStroke: nodeColors.stroke,
+        ...(elem.manual ? { manual: 1 } : {}),
+        ...buildServiceIconMeta(serviceEntry),
+      },
+    };
+    doc.nodes.push(node);
+  }
+}
+
+/** Phase 2b: 全境界要素の groupId を設定（2a 完了後に boundaryIdMap が揃っている）。 */
+function buildPhase2bGroupIds(
+  model: C4Model,
+  doc: GraphDocument,
+  boundaryIdMap: ReadonlyMap<string, string>,
+): void {
+  for (const elem of model.elements) {
+    if (!BOUNDARY_TYPES.has(elem.type) || elem.external) continue;
+    if (!elem.boundaryId || !boundaryIdMap.has(elem.boundaryId)) continue;
+    const frameId = boundaryIdMap.get(elem.id);
+    if (!frameId) continue;
+    const frame = doc.nodes.find(n => n.id === frameId);
+    if (frame) frame.groupId = boundaryIdMap.get(elem.boundaryId);
+  }
+}
+
+/** Phase 3: 境界要素以外の要素をノードとして生成する。 */
+function buildPhase3Nodes(
+  model: C4Model,
+  doc: GraphDocument,
+  boundaryIdMap: ReadonlyMap<string, string>,
+  elemIdMap: Map<string, string>,
+): void {
+  for (const elem of model.elements) {
+    if (BOUNDARY_TYPES.has(elem.type) && !elem.external) continue; // フレームとして既に生成済み
+
+    const mapping = NODE_MAP[elem.type];
+    const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
+    const elemBaseColors = elem.external ? EXTERNAL_COLOR : C4_COLORS[elem.type];
+    const colors = resolveNodeColors(serviceEntry, elemBaseColors);
+    const nodeId = nextId();
+    elemIdMap.set(elem.id, nodeId);
+
+    const node: GraphNode = {
+      id: nodeId,
+      type: mapping.type,
+      x: 0,
+      y: 0,
+      width: mapping.width,
+      height: mapping.height,
+      text: buildNodeText(elem),
+      style: {
+        ...DEFAULT_STYLE,
+        fill: colors.fill,
+        stroke: colors.stroke,
+        ...(elem.external ? { dashed: true } : {}),
+      },
+      metadata: {
+        c4Id: elem.id,
+        c4Type: elem.type,
+        ...(elem.manual ? { manual: 1 } : {}),
+        ...buildServiceIconMeta(serviceEntry),
+      },
+      ...(elem.boundaryId && boundaryIdMap.has(elem.boundaryId)
+        ? { groupId: boundaryIdMap.get(elem.boundaryId) }
+        : {}),
+    };
+    doc.nodes.push(node);
+  }
+}
+
+/** Phase 4: リレーションシップからエッジを生成する。 */
+function buildPhase4Edges(
+  model: C4Model,
+  doc: GraphDocument,
+  allIdMap: ReadonlyMap<string, string>,
+): void {
+  for (const rel of model.relationships) {
+    const fromId = allIdMap.get(rel.from);
+    const toId = allIdMap.get(rel.to);
+    if (!fromId || !toId) continue;
+    doc.edges.push({
+      id: nextId(),
+      type: 'connector',
+      from: { nodeId: fromId, x: 0, y: 0 },
+      to: { nodeId: toId, x: 0, y: 0 },
+      style: DEFAULT_EDGE_STYLE,
+      label: rel.label,
+    });
+  }
+}
+
+/** Phase 5: ManualGroup を GraphGroup に変換する。 */
+function buildPhase5Groups(
+  manualGroups: readonly ManualGroup[] | undefined,
+  doc: GraphDocument,
+  allIdMap: ReadonlyMap<string, string>,
+): void {
+  if (!manualGroups || manualGroups.length === 0) return;
+  const groups: GraphGroup[] = [];
+  for (const mg of manualGroups) {
+    const memberIds = mg.memberIds
+      .map(c4Id => allIdMap.get(c4Id))
+      .filter((id): id is string => id !== undefined);
+    if (memberIds.length >= 2) {
+      groups.push({ id: mg.id, memberIds, label: mg.label });
+    }
+  }
+  if (groups.length > 0) doc.groups = groups;
+}
+
 /** C4Model を GraphDocument に変換する */
 export function c4ToGraphDocument(
   model: C4Model,
@@ -90,173 +295,20 @@ export function c4ToGraphDocument(
 
   // --- Phase 1: BoundaryInfo からフレームを生成 ---
   const boundaryIdMap = new Map<string, string>(); // c4Id → graphNodeId
-  if (boundaries) {
-    for (const b of boundaries) {
-      const frameId = nextId();
-      boundaryIdMap.set(b.id, frameId);
-      doc.nodes.push({
-        id: frameId,
-        type: 'frame',
-        x: 0,
-        y: 0,
-        width: 400,
-        height: 300,
-        text: b.name,
-        style: { fill: 'transparent', stroke: '#444444', ...DEFAULT_STYLE },
-        metadata: { c4Id: b.id },
-      });
-    }
-  }
+  buildPhase1Frames(boundaries, doc, boundaryIdMap);
 
   // --- Phase 2: 境界要素をフレームとして生成（2パス）---
-  // Pass 2a: 全境界要素のフレームノードを生成（groupId は未設定）
-  for (const elem of model.elements) {
-    if (!BOUNDARY_TYPES.has(elem.type) || elem.external) continue;
-    if (boundaryIdMap.has(elem.id)) {
-      // Phase 1 で作成済み → c4Type / 色 / スタイルを補完する（groupId は 2b で設定）
-      const existingFrameId = boundaryIdMap.get(elem.id)!;
-      const frame = doc.nodes.find(n => n.id === existingFrameId);
-      if (frame && !frame.metadata?.c4Type) {
-        const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
-        const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
-        const nodeColors = serviceEntry
-          ? { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor }
-          : { fill: `${baseColors.fill}26`, stroke: baseColors.fill };
-        const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
-        const serviceIconMeta: Record<string, string | number> = serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {};
-        frame.metadata = {
-          ...frame.metadata,
-          c4Type: elem.type,
-          c4NodeFill: nodeColors.fill,
-          c4NodeStroke: nodeColors.stroke,
-          ...(serviceEntry?.iconBody
-            ? { serviceIconBody: serviceEntry.iconBody, serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24' }
-            : serviceIconMeta),
-        };
-        frame.style = { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke };
-        frame.text = buildNodeText(elem);
-      }
-      continue;
-    }
-
-    const frameId = nextId();
-    boundaryIdMap.set(elem.id, frameId);
-    const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
-    const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
-    const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
-    const nodeColors = serviceEntry
-      ? { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor }
-      : { fill: `${baseColors.fill}26`, stroke: baseColors.fill };
-    const serviceIconMeta2: Record<string, string | number> = serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {};
-    const node: GraphNode = {
-      id: frameId,
-      type: 'frame',
-      x: 0,
-      y: 0,
-      width: 400,
-      height: 300,
-      text: buildNodeText(elem),
-      style: { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke },
-      metadata: {
-        c4Id: elem.id,
-        c4Type: elem.type,
-        c4NodeFill: nodeColors.fill,
-        c4NodeStroke: nodeColors.stroke,
-        ...(elem.manual ? { manual: 1 } : {}),
-        ...(serviceEntry?.iconBody
-          ? { serviceIconBody: serviceEntry.iconBody, serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24' }
-          : serviceIconMeta2),
-      },
-    };
-    doc.nodes.push(node);
-  }
-
-  // Pass 2b: 全境界要素の groupId を設定（2a 完了後に boundaryIdMap が揃っている）
-  for (const elem of model.elements) {
-    if (!BOUNDARY_TYPES.has(elem.type) || elem.external) continue;
-    if (!elem.boundaryId || !boundaryIdMap.has(elem.boundaryId)) continue;
-    const frameId = boundaryIdMap.get(elem.id);
-    if (!frameId) continue;
-    const frame = doc.nodes.find(n => n.id === frameId);
-    if (frame) frame.groupId = boundaryIdMap.get(elem.boundaryId);
-  }
+  buildPhase2aFrames(model, doc, boundaryIdMap);
+  buildPhase2bGroupIds(model, doc, boundaryIdMap);
 
   // --- Phase 3: その他の要素をノードとして生成 ---
   const elemIdMap = new Map<string, string>(); // c4ElementId → graphNodeId
-  for (const elem of model.elements) {
-    if (BOUNDARY_TYPES.has(elem.type) && !elem.external) continue; // フレームとして既に生成済み
+  buildPhase3Nodes(model, doc, boundaryIdMap, elemIdMap);
 
-    const mapping = NODE_MAP[elem.type];
-    const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
-    const elemBaseColors = elem.external ? EXTERNAL_COLOR : C4_COLORS[elem.type];
-    const colors = serviceEntry
-      ? { fill: `${serviceEntry.brandColor}26`, stroke: serviceEntry.brandColor }
-      : elemBaseColors;
-    const nodeId = nextId();
-    elemIdMap.set(elem.id, nodeId);
-
-    const serviceIconMeta3: Record<string, string | number> = serviceEntry?.iconPath ? { serviceIconPath: serviceEntry.iconPath, serviceColor: serviceEntry.brandColor } : {};
-    const node: GraphNode = {
-      id: nodeId,
-      type: mapping.type,
-      x: 0,
-      y: 0,
-      width: mapping.width,
-      height: mapping.height,
-      text: buildNodeText(elem),
-      style: {
-        ...DEFAULT_STYLE,
-        fill: colors.fill,
-        stroke: colors.stroke,
-        ...(elem.external ? { dashed: true } : {}),
-      },
-      metadata: {
-        c4Id: elem.id,
-        c4Type: elem.type,
-        ...(elem.manual ? { manual: 1 } : {}),
-        ...(serviceEntry?.iconBody
-          ? { serviceIconBody: serviceEntry.iconBody, serviceIconViewBox: serviceEntry.iconViewBox ?? '0 0 24 24' }
-          : serviceIconMeta3),
-      },
-      ...(elem.boundaryId && boundaryIdMap.has(elem.boundaryId)
-        ? { groupId: boundaryIdMap.get(elem.boundaryId) }
-        : {}),
-    };
-    doc.nodes.push(node);
-  }
-
-  // --- Phase 4: リレーションシップからエッジを生成 ---
-  // boundary として生成された要素は boundaryIdMap に、その他は elemIdMap にある
+  // --- Phase 4/5: エッジ・グループを生成 ---
   const allIdMap = new Map([...boundaryIdMap, ...elemIdMap]);
-
-  for (const rel of model.relationships) {
-    const fromId = allIdMap.get(rel.from);
-    const toId = allIdMap.get(rel.to);
-    if (!fromId || !toId) continue;
-
-    doc.edges.push({
-      id: nextId(),
-      type: 'connector',
-      from: { nodeId: fromId, x: 0, y: 0 },
-      to: { nodeId: toId, x: 0, y: 0 },
-      style: DEFAULT_EDGE_STYLE,
-      label: rel.label,
-    });
-  }
-
-  // --- Phase 5: ManualGroup を GraphGroup に変換 ---
-  if (manualGroups && manualGroups.length > 0) {
-    const groups: GraphGroup[] = [];
-    for (const mg of manualGroups) {
-      const memberIds = mg.memberIds
-        .map(c4Id => allIdMap.get(c4Id))
-        .filter((id): id is string => id !== undefined);
-      if (memberIds.length >= 2) {
-        groups.push({ id: mg.id, memberIds, label: mg.label });
-      }
-    }
-    if (groups.length > 0) doc.groups = groups;
-  }
+  buildPhase4Edges(model, doc, allIdMap);
+  buildPhase5Groups(manualGroups, doc, allIdMap);
 
   return doc;
 }
