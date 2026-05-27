@@ -27,7 +27,7 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
   readonly id = 'sqlite-better' as const;
   readonly displayName: string;
   readonly capabilities: DatabaseCapabilities;
-  private db: Database.Database;
+  private readonly db: Database.Database;
   private inTransaction = false;
 
   constructor(opts: BetterSqlite3AdapterOptions) {
@@ -203,7 +203,6 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
 
 function formatCell(v: unknown): string {
   if (v === null || v === undefined) return '';
-  if (v instanceof Uint8Array) return `<BLOB:${v.byteLength}b>`;
-  if (typeof v === 'object') return JSON.stringify(v);
+  if (typeof v === 'object') return v instanceof Uint8Array ? `<BLOB:${v.byteLength}b>` : JSON.stringify(v);
   return String(v);
 }

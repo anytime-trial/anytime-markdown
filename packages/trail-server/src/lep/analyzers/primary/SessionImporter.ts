@@ -74,6 +74,62 @@ export class SessionImporter implements Analyzer {
     ctx.logger.info('[SessionImporter] start');
   }
 
+  /**
+   * 既存データとファイルサイズを比較してスキップ可否を判定する。
+   * - 'skip': 変更なしでスキップ (skippedCount を更新)
+   * - 'stat_error': statSync 失敗 (skippedCount を +1)
+   * - null: インポートを続行
+   */
+  private checkSkipReason(
+    existing: { fileSize: number },
+    mainFile: string,
+    sessionFileTotal: number,
+    logger: AnalyzerContext['logger'],
+  ): 'skip' | 'stat_error' | null {
+    let currentFileSize = 0;
+    try {
+      currentFileSize = fs.statSync(mainFile).size;
+    } catch (err) {
+      logger.error(
+        `[SessionImporter] statSync failed: ${mainFile} (${
+          err instanceof Error ? err.message : String(err)
+        })`,
+      );
+      this.skippedCount += 1;
+      return 'stat_error';
+    }
+    if (currentFileSize <= existing.fileSize) {
+      this.skippedCount += sessionFileTotal;
+      return 'skip';
+    }
+    return null;
+  }
+
+  private importFilesForSession(
+    filesToImport: readonly { filePath: string; isSubagent: boolean }[],
+    repoName: string,
+    logger: AnalyzerContext['logger'],
+  ): number {
+    const db = this.opts.trailDb;
+    let totalMsgCount = 0;
+    for (const f of filesToImport) {
+      try {
+        const msgCount = db.importSession(f.filePath, repoName, f.isSubagent, true);
+        this.importedCount += 1;
+        this.batchMessageCount += msgCount;
+        this.batchFileCount += 1;
+        totalMsgCount += msgCount;
+      } catch (err) {
+        logger.error(
+          `[SessionImporter] importSession failed: ${f.filePath} (${
+            err instanceof Error ? err.message : String(err)
+          })`,
+        );
+      }
+    }
+    return totalMsgCount;
+  }
+
   async onEvent(e: AnalyzerEvent, ctx: AnalyzerContext): Promise<void> {
     if (e.kind !== 'jsonl_session_discovered') return;
     if (!this.importedFiles) return;
@@ -82,30 +138,9 @@ export class SessionImporter implements Analyzer {
     const sessionFileTotal = 1 + e.subagentFiles.length;
     const existing = this.importedFiles.get(e.mainFile);
     if (existing && existing.hasMessages && existing.hasUsableCostData) {
-      let currentFileSize = 0;
-      try {
-        currentFileSize = fs.statSync(e.mainFile).size;
-      } catch (err) {
-        ctx.logger.error(
-          `[SessionImporter] statSync failed: ${e.mainFile} (${
-            err instanceof Error ? err.message : String(err)
-          })`,
-        );
-        this.skippedCount += 1;
-        await ctx.bus.publish({
-          kind: 'session_skipped',
-          sessionId: e.sessionId,
-          reason: 'file_unchanged',
-        });
-        return;
-      }
-      if (currentFileSize <= existing.fileSize) {
-        this.skippedCount += sessionFileTotal;
-        await ctx.bus.publish({
-          kind: 'session_skipped',
-          sessionId: e.sessionId,
-          reason: 'file_unchanged',
-        });
+      const skipReason = this.checkSkipReason(existing, e.mainFile, sessionFileTotal, ctx.logger);
+      if (skipReason !== null) {
+        await ctx.bus.publish({ kind: 'session_skipped', sessionId: e.sessionId, reason: 'file_unchanged' });
         return;
       }
     }
@@ -125,22 +160,7 @@ export class SessionImporter implements Analyzer {
       ...e.subagentFiles.map((f) => ({ filePath: f, isSubagent: true })),
     ];
 
-    let totalMsgCount = 0;
-    for (const f of filesToImport) {
-      try {
-        const msgCount = db.importSession(f.filePath, e.repoName, f.isSubagent, true);
-        this.importedCount += 1;
-        this.batchMessageCount += msgCount;
-        this.batchFileCount += 1;
-        totalMsgCount += msgCount;
-      } catch (err) {
-        ctx.logger.error(
-          `[SessionImporter] importSession failed: ${f.filePath} (${
-            err instanceof Error ? err.message : String(err)
-          })`,
-        );
-      }
-    }
+    const totalMsgCount = this.importFilesForSession(filesToImport, e.repoName, ctx.logger);
 
     // Commit at session boundary when limits exceeded
     if (
@@ -181,10 +201,10 @@ export class SessionImporter implements Analyzer {
       );
       try {
         this.opts.trailDb.rollbackExternalTransaction();
-      } catch (re) {
+      } catch (error_) {
         ctx.logger.error(
           `[SessionImporter] ROLLBACK also failed: ${
-            re instanceof Error ? re.message : String(re)
+            error_ instanceof Error ? error_.message : String(error_)
           }`,
         );
       }

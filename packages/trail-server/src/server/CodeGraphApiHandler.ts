@@ -69,9 +69,7 @@ export class CodeGraphApiHandler {
     // current: cache hit → 返す。miss → DB lazy load。repo 指定があれば
     // 該当 repo のグラフのみ対象（マルチリポジトリ対応）。
     let graph = this.codeGraphService?.getGraph(repo) ?? null;
-    if (!graph) {
-      graph = (await this.codeGraphService?.loadFromDb(repo)) ?? null;
-    }
+    graph ??= (await this.codeGraphService?.loadFromDb(repo)) ?? null;
     if (!graph) {
       res.writeHead(404, JSON_HEADERS);
       res.end('{}');
@@ -136,9 +134,7 @@ export class CodeGraphApiHandler {
     const cached = this.cachedEngines.get(key);
     if (cached) return cached;
     let graph = this.codeGraphService?.getGraph(repo) ?? null;
-    if (!graph) {
-      graph = (await this.codeGraphService?.loadFromDb(repo)) ?? null;
-    }
+    graph ??= (await this.codeGraphService?.loadFromDb(repo)) ?? null;
     if (!graph) return null;
     try {
       const engine = new GraphQueryEngine(graph);

@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 
 /**
  * Generates a stable 16-character hex ID from an entity type and canonical name.

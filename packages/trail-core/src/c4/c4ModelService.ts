@@ -28,12 +28,12 @@ export async function fetchC4Model(
   featureMatrix?: FeatureMatrix,
   manualProvider?: IManualElementProvider,
 ): Promise<C4ModelPayload | null> {
-  const currentResult = releaseId === 'current'
-    ? (repoName ? await Promise.resolve(store.getCurrentC4Model(repoName)) : null)
-    : null;
-  const result = releaseId === 'current'
-    ? currentResult
-    : await Promise.resolve(store.getReleaseC4Model(releaseId));
+  let result: Awaited<ReturnType<typeof store.getReleaseC4Model>> | null;
+  if (releaseId === 'current') {
+    result = repoName ? await Promise.resolve(store.getCurrentC4Model(repoName)) : null;
+  } else {
+    result = await Promise.resolve(store.getReleaseC4Model(releaseId));
+  }
 
   if (!result) return null;
 

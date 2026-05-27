@@ -1,5 +1,5 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { MemoryDbConnection } from '../connection/types';
 
 interface MigrationDef {
@@ -28,7 +28,7 @@ const MIGRATIONS: MigrationDef[] = [
 let cachedFts5: WeakMap<MemoryDbConnection, boolean> | null = null;
 
 export function hasFts5(conn: MemoryDbConnection): boolean {
-  if (!cachedFts5) cachedFts5 = new WeakMap();
+  cachedFts5 ??= new WeakMap();
   const cached = cachedFts5.get(conn);
   if (cached !== undefined) return cached;
   let supported = false;
@@ -51,10 +51,10 @@ export function runMigrations(conn: MemoryDbConnection): void {
   ) STRICT`);
 
   const result = conn.exec('SELECT version FROM _migrations');
-  const applied: number[] = (result[0]?.values ?? []).map((r) => Number(r[0]));
+  const applied = new Set<number>((result[0]?.values ?? []).map((r) => Number(r[0])));
 
   for (const migration of MIGRATIONS) {
-    if (applied.includes(migration.version)) continue;
+    if (applied.has(migration.version)) continue;
     if (migration.requiresFts5 && !hasFts5(conn)) {
       const ts = new Date().toISOString();
       // eslint-disable-next-line no-console

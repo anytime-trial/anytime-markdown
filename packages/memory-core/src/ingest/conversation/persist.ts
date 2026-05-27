@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
@@ -258,10 +258,7 @@ export function persistEpisodeFacts(opts: {
         [qId, qCanon, q.text, recordedAt, recordedAt, recordedAt]
       );
     } catch (err) {
-      logger.error(
-        `[anytime-memory] persist: failed to upsert Question entity text="${q.text}"`,
-        err
-      );
+      logger.error(`[anytime-memory] persist: failed to upsert Question entity text="${q.text}"`, err);
       continue;
     }
 
@@ -274,14 +271,15 @@ export function persistEpisodeFacts(opts: {
         [epId, qId]
       );
     } catch (err) {
-      logger.error(
-        `[anytime-memory] persist: failed episode_entity for question entity qId=${qId}`,
-        err
-      );
+      logger.error(`[anytime-memory] persist: failed episode_entity for question entity qId=${qId}`, err);
     }
 
+    const sessionId = episode.session_id;
+    const validFrom = episode.valid_from;
+    const msgStart = episode.message_uuid_start;
+
     // asked_by edge: Question → session_id (object_literal)
-    const askedById = edgeId(qId, 'asked_by', episode.session_id, episode.message_uuid_start);
+    const askedById = edgeId(qId, 'asked_by', sessionId, msgStart);
     try {
       db.run(
         `INSERT INTO memory_edges
@@ -290,31 +288,20 @@ export function persistEpisodeFacts(opts: {
             confidence, confidence_label, modality)
          VALUES (?, ?, 'asked_by', ?, ?, ?, 'conversation', ?, 1.0, 'EXTRACTED', 'asserted')
          ON CONFLICT(id) DO NOTHING`,
-        [askedById, qId, episode.session_id, episode.valid_from, recordedAt, epId]
+        [askedById, qId, sessionId, validFrom, recordedAt, epId]
       );
       stats.edges_inserted += 1;
     } catch (err) {
-      logger.error(
-        `[anytime-memory] persist: failed to insert asked_by edge for question qId=${qId}`,
-        err
-      );
+      logger.error(`[anytime-memory] persist: failed to insert asked_by edge for question qId=${qId}`, err);
     }
     const { invalidated_edge_ids: invAsked } = applySingleActiveRule(db, {
-      id: askedById,
-      subject_entity_id: qId,
-      predicate: 'asked_by',
-      object_literal: episode.session_id,
-      recorded_at: recordedAt,
+      id: askedById, subject_entity_id: qId, predicate: 'asked_by',
+      object_literal: sessionId, recorded_at: recordedAt,
     });
     stats.edges_invalidated += invAsked.length;
 
     // answered_in edge: Question → session_id (object_literal)
-    const answeredInId = edgeId(
-      qId,
-      'answered_in',
-      episode.session_id,
-      episode.message_uuid_start
-    );
+    const answeredInId = edgeId(qId, 'answered_in', sessionId, msgStart);
     try {
       db.run(
         `INSERT INTO memory_edges
@@ -323,22 +310,16 @@ export function persistEpisodeFacts(opts: {
             confidence, confidence_label, modality)
          VALUES (?, ?, 'answered_in', ?, ?, ?, 'conversation', ?, 1.0, 'EXTRACTED', 'asserted')
          ON CONFLICT(id) DO NOTHING`,
-        [answeredInId, qId, episode.session_id, episode.valid_from, recordedAt, epId]
+        [answeredInId, qId, sessionId, validFrom, recordedAt, epId]
       );
       stats.edges_inserted += 1;
     } catch (err) {
-      logger.error(
-        `[anytime-memory] persist: failed to insert answered_in edge for question qId=${qId}`,
-        err
-      );
+      logger.error(`[anytime-memory] persist: failed to insert answered_in edge for question qId=${qId}`, err);
     }
     // answered_in is multiple_active — no invalidation expected, rule is no-op
     applySingleActiveRule(db, {
-      id: answeredInId,
-      subject_entity_id: qId,
-      predicate: 'answered_in',
-      object_literal: episode.session_id,
-      recorded_at: recordedAt,
+      id: answeredInId, subject_entity_id: qId, predicate: 'answered_in',
+      object_literal: sessionId, recorded_at: recordedAt,
     });
   }
 

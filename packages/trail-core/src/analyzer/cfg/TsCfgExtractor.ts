@@ -41,6 +41,45 @@ function blockOf(stmt: ts.Statement, sf: ts.SourceFile): CfgBlock {
   return { stmts: [extractStmt(stmt, sf)] };
 }
 
+function isLoopStatement(stmt: ts.Statement): stmt is ts.ForStatement | ts.ForInStatement | ts.ForOfStatement | ts.WhileStatement | ts.DoStatement {
+  return (
+    ts.isForStatement(stmt) ||
+    ts.isForInStatement(stmt) ||
+    ts.isForOfStatement(stmt) ||
+    ts.isWhileStatement(stmt) ||
+    ts.isDoStatement(stmt)
+  );
+}
+
+function resolveLoopKind(stmt: ts.ForStatement | ts.ForInStatement | ts.ForOfStatement | ts.WhileStatement | ts.DoStatement): 'for' | 'forIn' | 'forOf' | 'while' | 'do' {
+  if (ts.isForStatement(stmt)) return 'for';
+  if (ts.isForInStatement(stmt)) return 'forIn';
+  if (ts.isForOfStatement(stmt)) return 'forOf';
+  if (ts.isWhileStatement(stmt)) return 'while';
+  return 'do';
+}
+
+function extractLoopStmt(stmt: ts.ForStatement | ts.ForInStatement | ts.ForOfStatement | ts.WhileStatement | ts.DoStatement, sf: ts.SourceFile): CfgStmt {
+  return {
+    kind: 'loop',
+    line: lineOf(stmt, sf),
+    loopKind: resolveLoopKind(stmt),
+    rawText: stmt.getText(sf),
+    condition: extractLoopCondition(stmt, sf),
+    body: blockOf(stmt.statement, sf),
+  };
+}
+
+function extractTryStmt(stmt: ts.TryStatement, sf: ts.SourceFile): CfgStmt {
+  return {
+    kind: 'try',
+    line: lineOf(stmt, sf),
+    body: extractBlock(stmt.tryBlock, sf),
+    ...(stmt.catchClause ? { catch: extractBlock(stmt.catchClause.block, sf) } : {}),
+    ...(stmt.finallyBlock ? { finally: extractBlock(stmt.finallyBlock, sf) } : {}),
+  };
+}
+
 function extractStmt(stmt: ts.Statement, sf: ts.SourceFile): CfgStmt {
   const line = lineOf(stmt, sf);
 
@@ -54,41 +93,9 @@ function extractStmt(stmt: ts.Statement, sf: ts.SourceFile): CfgStmt {
     };
   }
 
-  if (
-    ts.isForStatement(stmt) ||
-    ts.isForInStatement(stmt) ||
-    ts.isForOfStatement(stmt) ||
-    ts.isWhileStatement(stmt) ||
-    ts.isDoStatement(stmt)
-  ) {
-    const loopKind = ts.isForStatement(stmt)
-      ? 'for'
-      : ts.isForInStatement(stmt)
-        ? 'forIn'
-        : ts.isForOfStatement(stmt)
-          ? 'forOf'
-          : ts.isWhileStatement(stmt)
-            ? 'while'
-            : 'do';
-    return {
-      kind: 'loop',
-      line,
-      loopKind,
-      rawText: stmt.getText(sf),
-      condition: extractLoopCondition(stmt, sf),
-      body: blockOf(stmt.statement, sf),
-    };
-  }
+  if (isLoopStatement(stmt)) return extractLoopStmt(stmt, sf);
 
-  if (ts.isTryStatement(stmt)) {
-    return {
-      kind: 'try',
-      line,
-      body: extractBlock(stmt.tryBlock, sf),
-      ...(stmt.catchClause ? { catch: extractBlock(stmt.catchClause.block, sf) } : {}),
-      ...(stmt.finallyBlock ? { finally: extractBlock(stmt.finallyBlock, sf) } : {}),
-    };
-  }
+  if (ts.isTryStatement(stmt)) return extractTryStmt(stmt, sf);
 
   // standalone block 文 (`{ ... }`) は再帰する（FlowAnalyzer / SequenceAnalyzer と同じ）。
   if (ts.isBlock(stmt)) {
@@ -147,11 +154,10 @@ function extractCalls(node: ts.Node, sf: ts.SourceFile): CfgCall[] {
 
 function toCall(expr: ts.CallExpression, sf: ts.SourceFile): CfgCall {
   const isProp = ts.isPropertyAccessExpression(expr.expression);
+  const propCalleeOrNull = isProp ? (expr.expression as ts.PropertyAccessExpression).name.text : null;
   const calleeName = ts.isIdentifier(expr.expression)
     ? expr.expression.text
-    : isProp
-      ? (expr.expression as ts.PropertyAccessExpression).name.text
-      : null;
+    : propCalleeOrNull;
   const receiverText = isProp
     ? (expr.expression as ts.PropertyAccessExpression).expression.getText(sf)
     : undefined;

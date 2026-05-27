@@ -35,10 +35,23 @@ describe('parseGitHubRemote', () => {
   });
 
   it('returns null when name contains a slash (nested path)', () => {
-    // line 31: name.includes('/') check
-    // Crafted URL where the regex captures a name containing a slash
-    // The regex is: github.com[/:]([^/]+)/(.+?)(?:\.git)?\/?$
-    // To get name with '/', we need a URL like github.com/owner/a/b without .git suffix
+    // name.includes('/') check: nested path 形式は name に '/' が残るため null
     expect(parseGitHubRemote('https://github.com/acme/sub/nested')).toBeNull();
+  });
+
+  it('skips a github.com substring not followed by / or : and finds the real host', () => {
+    // 'github.commercial' の github.com は直後が 'm' なのでスキップし、後続の本物の host を採る
+    expect(parseGitHubRemote('https://github.commercial.example/x@github.com:acme/widget.git')).toEqual({
+      owner: 'acme',
+      name: 'widget',
+    });
+  });
+
+  it('parses pathological large input in linear time (js/polynomial-redos regression)', () => {
+    // 巨大入力でもバックトラッキングで停止しない (indexOf ベースの O(n) 実装)
+    const longName = 'x'.repeat(100000);
+    const start = Date.now();
+    expect(parseGitHubRemote(`https://github.com/acme/${longName}`)).toEqual({ owner: 'acme', name: longName });
+    expect(Date.now() - start).toBeLessThan(1000);
   });
 });

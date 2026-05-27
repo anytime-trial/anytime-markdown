@@ -237,6 +237,15 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
 
   /** アニメーション開始/停止 */
   const toggleAnimation = useCallback((param: string) => {
+    const step = () => {
+      setParamValues((pv) => {
+        const current = pv[param] ?? PARAM_DEFAULT_RANGE[0];
+        let next = current + PARAM_STEP;
+        if (next > PARAM_DEFAULT_RANGE[1]) next = PARAM_DEFAULT_RANGE[0];
+        return { ...pv, [param]: Math.round(next * 10) / 10 };
+      });
+      animFrameRef.current[param] = requestAnimationFrame(step);
+    };
     setAnimating((prev) => {
       const next = { ...prev };
       if (next[param]) {
@@ -249,15 +258,6 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
       } else {
         // 開始
         next[param] = true;
-        const step = () => {
-          setParamValues((pv) => {
-            const current = pv[param] ?? PARAM_DEFAULT_RANGE[0];
-            let next = current + PARAM_STEP;
-            if (next > PARAM_DEFAULT_RANGE[1]) next = PARAM_DEFAULT_RANGE[0];
-            return { ...pv, [param]: Math.round(next * 10) / 10 };
-          });
-          animFrameRef.current[param] = requestAnimationFrame(step);
-        };
         animFrameRef.current[param] = requestAnimationFrame(step);
       }
       return next;

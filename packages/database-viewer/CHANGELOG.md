@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-05-27
+
+### Changed
+
+- SonarCloud code quality improvements: reduced cognitive complexity (S3776), plus S3358 / S6582 / S4325 / S6353 / S7778 fixes. No functional changes.
+
 ## [0.2.4] - 2026-05-24
 
 ### Changed

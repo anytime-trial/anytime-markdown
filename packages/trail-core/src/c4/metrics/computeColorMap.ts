@@ -140,6 +140,69 @@ function computeHotspotColorMap(
   return map;
 }
 
+function computeCoverageColorMap(
+  overlay: 'coverage-lines' | 'coverage-branches' | 'coverage-functions',
+  coverageMatrix: CoverageMatrix,
+): Map<string, string> {
+  const field: 'lines' | 'branches' | 'functions' =
+    overlay === 'coverage-lines' ? 'lines' : overlay === 'coverage-branches' ? 'branches' : 'functions';
+  const map = new Map<string, string>();
+  for (const entry of coverageMatrix.entries) {
+    const metric = entry[field];
+    map.set(entry.elementId, metric.total > 0 ? coverageHeatColor(metric.pct) : COLOR_NO_DATA);
+  }
+  return map;
+}
+
+function computeDsmOutInColorMap(overlay: 'dsm-out' | 'dsm-in', dsmMatrix: DsmMatrix): Map<string, string> {
+  const counts = dsmMatrix.nodes.map((_node, i) => {
+    if (overlay === 'dsm-out') {
+      return dsmMatrix.adjacency[i].reduce((s: number, v: number) => s + (v > 0 ? 1 : 0), 0);
+    }
+    return dsmMatrix.adjacency.reduce((s: number, row: readonly number[]) => s + (row[i] > 0 ? 1 : 0), 0);
+  });
+  const maxCount = Math.max(...counts, 1);
+  const map = new Map<string, string>();
+  for (let i = 0; i < dsmMatrix.nodes.length; i++) {
+    map.set(dsmMatrix.nodes[i].id, interpolateDsmColor(counts[i] / maxCount));
+  }
+  return map;
+}
+
+function computeDsmCyclicColorMap(dsmMatrix: DsmMatrix): Map<string, string> {
+  const nodeIds = dsmMatrix.nodes.map((n) => n.id);
+  const sccs = detectCycles(dsmMatrix.adjacency, nodeIds);
+  const cyclic = new Set<string>();
+  for (const scc of sccs) {
+    for (const id of scc) cyclic.add(id);
+  }
+  const map = new Map<string, string>();
+  for (const node of dsmMatrix.nodes) {
+    map.set(node.id, cyclic.has(node.id) ? COLOR_CYCLIC : COLOR_NO_CYCLIC);
+  }
+  return map;
+}
+
+// ── Size metrics (LOC / files / functions) ──
+// size-loc は単一ファイルの最大行数 (locMax) で色判定する。
+// 集約レベル (component / container / system) で SUM ベースだと
+// 大きな package がほぼ全て赤になり差が見えなくなるため、
+// 「巨大ファイルが含まれているか」を可視化する Max ベースに統一する。
+function computeSizeColorMap(
+  overlay: 'size-loc' | 'size-files' | 'size-functions',
+  sizeMatrix: SizeMatrix,
+): Map<string, string> {
+  const colorFn =
+    overlay === 'size-loc' ? sizeLocColor : overlay === 'size-files' ? sizeFilesColor : sizeFunctionsColor;
+  const field: keyof SizeMatrix[string] =
+    overlay === 'size-loc' ? 'locMax' : overlay === 'size-files' ? 'files' : 'functions';
+  const map = new Map<string, string>();
+  for (const [elementId, entry] of Object.entries(sizeMatrix)) {
+    map.set(elementId, colorFn(entry[field]));
+  }
+  return map;
+}
+
 export function computeColorMap(
   overlay: MetricOverlay,
   coverageMatrix: CoverageMatrix | null,
@@ -158,61 +221,24 @@ export function computeColorMap(
 
   // ── Coverage ──
   if (overlay === 'coverage-lines' || overlay === 'coverage-branches' || overlay === 'coverage-functions') {
-    if (!coverageMatrix) return new Map();
-    const map = new Map<string, string>();
-    let field: 'lines' | 'branches' | 'functions';
-    if (overlay === 'coverage-lines') field = 'lines';
-    else if (overlay === 'coverage-branches') field = 'branches';
-    else field = 'functions';
-    for (const entry of coverageMatrix.entries) {
-      const metric = entry[field];
-      map.set(entry.elementId, metric.total > 0 ? coverageHeatColor(metric.pct) : COLOR_NO_DATA);
-    }
-    return map;
+    return coverageMatrix ? computeCoverageColorMap(overlay, coverageMatrix) : new Map();
   }
 
   // ── DSM out/in ──
   if (overlay === 'dsm-out' || overlay === 'dsm-in') {
-    if (!dsmMatrix) return new Map();
-    const map = new Map<string, string>();
-    const counts = dsmMatrix.nodes.map((_node, i) => {
-      if (overlay === 'dsm-out') {
-        return dsmMatrix.adjacency[i].reduce((s: number, v: number) => s + (v > 0 ? 1 : 0), 0);
-      } else {
-        return dsmMatrix.adjacency.reduce((s: number, row: readonly number[]) => s + (row[i] > 0 ? 1 : 0), 0);
-      }
-    });
-    const maxCount = Math.max(...counts, 1);
-    for (let i = 0; i < dsmMatrix.nodes.length; i++) {
-      const t = counts[i] / maxCount;
-      map.set(dsmMatrix.nodes[i].id, interpolateDsmColor(t));
-    }
-    return map;
+    return dsmMatrix ? computeDsmOutInColorMap(overlay, dsmMatrix) : new Map();
   }
 
   // ── DSM cyclic ──
   if (overlay === 'dsm-cyclic') {
-    if (!dsmMatrix) return new Map();
-    const nodeIds = dsmMatrix.nodes.map((n) => n.id);
-    const sccs = detectCycles(dsmMatrix.adjacency, nodeIds);
-    const cyclic = new Set<string>();
-    for (const scc of sccs) {
-      for (const id of scc) {
-        cyclic.add(id);
-      }
-    }
-    const map = new Map<string, string>();
-    for (const node of dsmMatrix.nodes) {
-      map.set(node.id, cyclic.has(node.id) ? COLOR_CYCLIC : COLOR_NO_CYCLIC);
-    }
-    return map;
+    return dsmMatrix ? computeDsmCyclicColorMap(dsmMatrix) : new Map();
   }
 
   // ── Complexity ──
   if (overlay === 'edit-complexity-most' || overlay === 'edit-complexity-highest') {
     if (!complexityMatrix) return new Map();
-    const map = new Map<string, string>();
     const field = overlay === 'edit-complexity-most' ? 'mostFrequent' : 'highest';
+    const map = new Map<string, string>();
     for (const entry of complexityMatrix.entries) {
       map.set(entry.elementId, COMPLEXITY_COLORS[entry[field]]);
     }
@@ -276,25 +302,8 @@ export function computeColorMap(
   }
 
   // ── Size metrics (LOC / files / functions) ──
-  // size-loc は単一ファイルの最大行数 (locMax) で色判定する。
-  // 集約レベル (component / container / system) で SUM ベースだと
-  // 大きな package がほぼ全て赤になり差が見えなくなるため、
-  // 「巨大ファイルが含まれているか」を可視化する Max ベースに統一する。
   if (overlay === 'size-loc' || overlay === 'size-files' || overlay === 'size-functions') {
-    if (!sizeMatrix) return new Map();
-    let colorFn: (value: number) => string;
-    if (overlay === 'size-loc') colorFn = sizeLocColor;
-    else if (overlay === 'size-files') colorFn = sizeFilesColor;
-    else colorFn = sizeFunctionsColor;
-    let field: keyof SizeMatrix[string];
-    if (overlay === 'size-loc') field = 'locMax';
-    else if (overlay === 'size-files') field = 'files';
-    else field = 'functions';
-    const map = new Map<string, string>();
-    for (const [elementId, entry] of Object.entries(sizeMatrix)) {
-      map.set(elementId, colorFn(entry[field]));
-    }
-    return map;
+    return sizeMatrix ? computeSizeColorMap(overlay, sizeMatrix) : new Map();
   }
 
   // ── Architecture: UI / Logic 比率 ──

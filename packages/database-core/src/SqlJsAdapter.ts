@@ -23,7 +23,7 @@ export class SqlJsAdapter implements DatabaseAdapter {
   readonly id = 'sqlite-sqljs' as const;
   readonly displayName = 'SQLite (sql.js)';
   readonly capabilities: DatabaseCapabilities;
-  private db: Database;
+  private readonly db: Database;
 
   static async create(opts: SqlJsAdapterOptions): Promise<SqlJsAdapter> {
     const SQL: SqlJsStatic = await initSqlJs(
@@ -183,7 +183,6 @@ export class SqlJsAdapter implements DatabaseAdapter {
 
 function formatCell(v: unknown): string {
   if (v === null || v === undefined) return '';
-  if (v instanceof Uint8Array) return `<BLOB:${v.byteLength}b>`;
-  if (typeof v === 'object') return JSON.stringify(v);
+  if (typeof v === 'object') return v instanceof Uint8Array ? `<BLOB:${v.byteLength}b>` : JSON.stringify(v);
   return String(v);
 }

@@ -114,13 +114,23 @@ const extensionConfig = {
         {
           from: path.resolve(__dirname, '../../node_modules/better-sqlite3'),
           to: path.resolve(__dirname, 'dist/node_modules/better-sqlite3'),
-          // build/Release/better_sqlite3.node はホスト Node 用にビルドされる
-          // ことが多く VS Code Node (v22) と不一致になる。
-          // .node は別途 prebuilt-vscode/ から上書きコピーするため filter で除外する。
-          // (globOptions.ignore は copy-webpack-plugin v14 で稀に効かないので
-          // filter() による明示判定にする。)
+          // ビルド時専用のファイルは dist (= VSIX) に含めない。
+          // - .node: ホスト Node 用にビルドされ VS Code Node (v22) と不一致に
+          //   なりやすいため除外し、prebuilt-vscode/ から別途上書きコピーする。
+          // - deps/ (sqlite amalgamation C ~10MB) / src/ (C++ addon source) /
+          //   binding.gyp: ランタイムは lib/ + .node のみ使用するため不要。
+          // globOptions.ignore は copy-webpack-plugin v14 で効かないことがあり
+          // (deps/ の C ソースが dist へ漏れていた実績あり)、filter() で確実に
+          // 除外する。globOptions は first-pass の意図表明として残す。
           globOptions: { ignore: ['**/src/**', '**/deps/**', '**/binding.gyp'] },
-          filter: (resourcePath) => !resourcePath.endsWith('.node'),
+          filter: (resourcePath) => {
+            const p = resourcePath.replace(/\\/g, '/');
+            if (p.endsWith('.node')) return false;
+            if (p.includes('/deps/')) return false;
+            if (p.includes('/src/')) return false;
+            if (p.endsWith('/binding.gyp')) return false;
+            return true;
+          },
         },
         {
           from: path.resolve(__dirname, 'prebuilt-vscode/better_sqlite3.node'),

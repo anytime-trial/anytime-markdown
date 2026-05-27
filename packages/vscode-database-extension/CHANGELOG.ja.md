@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-05-27
+
+### Database Core (database-core / database-viewer)
+
+- SonarCloud コード品質改善（認知的複雑度削減・機械的安全修正）。
+
 ## [0.2.4] - 2026-05-24
 
 ### 変更

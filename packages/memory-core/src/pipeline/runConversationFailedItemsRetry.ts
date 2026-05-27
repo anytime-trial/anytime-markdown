@@ -1,10 +1,12 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { splitEpisodes, type Message } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
 import { noopLogger, type MemoryLogger } from '../logger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
+
+type PipelineStatus = 'success' | 'partial' | 'error';
 
 const RETRY_SCOPE = 'conversation_failed_items_retry';
 const DEFAULT_SOURCE_SCOPE = 'conversation_backfill';
@@ -195,11 +197,44 @@ function updateHeartbeatAndProgress(
   );
 }
 
+type PartialReturnPayload = {
+  status: 'partial';
+  items_retried: number;
+  items_recovered: number;
+  items_failed: number;
+};
+
+/**
+ * Sets quarantine pipeline state and returns the standard partial result.
+ * Called when consecutiveFailures reaches QUARANTINE_THRESHOLD.
+ */
+function enterQuarantine(
+  db: MemoryDbConnection,
+  rId: string,
+  startedAt: string,
+  errorDetail: string,
+  totals: PersistStats & { items_processed: number; items_failed: number },
+  recoveredCount: number,
+  logger: { error: (msg: string) => void },
+): PartialReturnPayload {
+  logger.error(
+    `[anytime-memory] failed-items retry: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
+  );
+  upsertPipelineState(db, { status: 'quarantine', error_detail: errorDetail });
+  finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+  return {
+    status: 'partial',
+    items_retried: totals.items_processed,
+    items_recovered: recoveredCount,
+    items_failed: totals.items_failed,
+  };
+}
+
 function finalizePipelineRun(
   db: MemoryDbConnection,
   id: string,
   startedAt: string,
-  status: 'success' | 'partial' | 'error',
+  status: PipelineStatus,
   totals: PersistStats & { items_processed: number; items_failed: number },
 ): void {
   const finishedAt = new Date().toISOString();
@@ -348,28 +383,11 @@ export async function runConversationFailedItemsRetry(opts: {
         if (!ep) {
           totals.items_failed += 1;
           consecutiveFailures += 1;
-          recordFailedItem(
-            db,
-            item.scope,
-            item.item_key,
-            'episode_not_found',
-            `episode not reconstructed from trail.db for ${item.item_key}`
-          );
+          recordFailedItem(db, item.scope, item.item_key, 'episode_not_found',
+            `episode not reconstructed from trail.db for ${item.item_key}`);
           if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
-            logger.error(
-              `[anytime-memory] failed-items retry: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
-            );
-            upsertPipelineState(db, {
-              status: 'quarantine',
-              error_detail: `${QUARANTINE_THRESHOLD} consecutive failures`,
-            });
-            finalizePipelineRun(db, rId, startedAt, 'partial', totals);
-            return {
-              status: 'partial',
-              items_retried: totals.items_processed,
-              items_recovered: recoveredCount,
-              items_failed: totals.items_failed,
-            };
+            return enterQuarantine(db, rId, startedAt,
+              `${QUARANTINE_THRESHOLD} consecutive failures`, totals, recoveredCount, logger);
           }
           continue;
         }
@@ -378,28 +396,11 @@ export async function runConversationFailedItemsRetry(opts: {
         if (ex === null) {
           totals.items_failed += 1;
           consecutiveFailures += 1;
-          recordFailedItem(
-            db,
-            item.scope,
-            item.item_key,
-            'extraction_failed',
-            `retry attempt ${item.attempt_count + 1} failed`
-          );
+          recordFailedItem(db, item.scope, item.item_key, 'extraction_failed',
+            `retry attempt ${item.attempt_count + 1} failed`);
           if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
-            logger.error(
-              `[anytime-memory] failed-items retry: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
-            );
-            upsertPipelineState(db, {
-              status: 'quarantine',
-              error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
-            });
-            finalizePipelineRun(db, rId, startedAt, 'partial', totals);
-            return {
-              status: 'partial',
-              items_retried: totals.items_processed,
-              items_recovered: recoveredCount,
-              items_failed: totals.items_failed,
-            };
+            return enterQuarantine(db, rId, startedAt,
+              `${QUARANTINE_THRESHOLD} consecutive extraction failures`, totals, recoveredCount, logger);
           }
           continue;
         }

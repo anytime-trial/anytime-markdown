@@ -21,24 +21,39 @@ export function computeRadialLayout(
 
   const visited = new Set<string>();
   const order = [...ids];
-  if (rootId && bodies.has(rootId)) order.sort((a, b) => (a === rootId ? -1 : b === rootId ? 1 : 0));
+  if (rootId && bodies.has(rootId)) order.sort((a, b) => {
+    const aIsRoot = a === rootId ? -1 : 0;
+    return aIsRoot !== 0 ? aIsRoot : (b === rootId ? 1 : 0);
+  });
 
   let offsetY = 0;
   for (const start of order) {
     if (visited.has(start)) continue;
-    const comp: string[] = [];
-    const q = [start];
-    visited.add(start);
-    while (q.length) {
-      const cur = q.shift()!;
-      comp.push(cur);
-      for (const nb of undirected.get(cur)!) if (!visited.has(nb)) { visited.add(nb); q.push(nb); }
-    }
+    const comp = collectComponent(start, visited, undirected);
     layoutComponent(bodies, undirected, pickRoot(comp), comp, ringGap, offsetY);
     let maxBottom = offsetY;
     for (const id of comp) { const b = bodies.get(id)!; maxBottom = Math.max(maxBottom, b.y + b.height); }
     offsetY = maxBottom + ringGap;
   }
+}
+
+/** BFS で連結成分を収集し、visited を更新する。 */
+function collectComponent(
+  start: string,
+  visited: Set<string>,
+  undirected: Map<string, Set<string>>,
+): string[] {
+  const comp: string[] = [];
+  const q = [start];
+  visited.add(start);
+  while (q.length) {
+    const cur = q.shift()!;
+    comp.push(cur);
+    for (const nb of undirected.get(cur)!) {
+      if (!visited.has(nb)) { visited.add(nb); q.push(nb); }
+    }
+  }
+  return comp;
 }
 
 function layoutComponent(

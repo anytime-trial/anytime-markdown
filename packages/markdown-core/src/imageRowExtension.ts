@@ -52,7 +52,8 @@ export const ImageRow = Node.create({
               return false;
             }
           });
-          rows.reverse().forEach(({ pos, size, children }) => {
+          rows.reverse();
+          rows.forEach(({ pos, size, children }) => {
             if (children.length === 0) {
               tr.delete(pos, pos + size);
               modified = true;
@@ -76,14 +77,17 @@ export const ImageRow = Node.create({
           },
         },
         serialize(state: MarkdownSerializerLike, node: ProseMirrorNode) {
+          const escapedBackslashMatch = String.raw`\$&`;
+          const escapedQuote = String.raw`\"`;
+          const escapedBracketMatch = String.raw`\$1`;
           node.forEach((child) => {
             if (child.type.name !== "image") return;
             const alt = String(child.attrs.alt ?? "");
-            const src = String(child.attrs.src ?? "").replaceAll(/[\\()]/g, String.raw`\$&`);
+            const src = String(child.attrs.src ?? "").replaceAll(/[\\()]/g, escapedBackslashMatch);
             const title = child.attrs.title
-              ? ` "${String(child.attrs.title).replaceAll('"', String.raw`\"`)}"`
+              ? ` "${String(child.attrs.title).replaceAll('"', escapedQuote)}"`
               : "";
-            state.write(`![${alt.replaceAll(/([\\[\]])/g, String.raw`\$1`)}](${src}${title})`);
+            state.write(`![${alt.replaceAll(/([\\[\]])/g, escapedBracketMatch)}](${src}${title})`);
           });
           state.closeBlock(node);
         },

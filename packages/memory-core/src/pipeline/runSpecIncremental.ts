@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { discoverChangedSpecs } from '../ingest/spec/discoverSpecDocs';
 import { parseFrontmatter } from '../ingest/spec/parseFrontmatter';
@@ -138,6 +137,30 @@ function ensurePredicateExists(db: MemoryDbConnection, predicate: string): void 
   );
 }
 
+/**
+ * Records a failed spec item and checks if the quarantine threshold is reached.
+ * Returns true when caller should break the loop (quarantine triggered).
+ */
+function recordAndCheckQuarantine(opts: {
+  db: MemoryDbConnection;
+  scope: string;
+  itemKey: string;
+  reason: string;
+  detail: string;
+  recordedAt: string;
+  consecutiveFailures: number;
+  maxConsecutive: number;
+  logger: MemoryLogger;
+}): boolean {
+  const { db, scope, itemKey, reason, detail, recordedAt, consecutiveFailures, maxConsecutive, logger } = opts;
+  recordFailedItem(db, scope, itemKey, reason, detail, recordedAt);
+  if (consecutiveFailures >= maxConsecutive) {
+    logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
+    return true;
+  }
+  return false;
+}
+
 // ── Main pipeline ─────────────────────────────────────────────────────────────
 
 /**
@@ -223,12 +246,10 @@ export async function runSpecIncremental(
         } catch (readErr) {
           const detail = readErr instanceof Error ? readErr.message : String(readErr);
           logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: failed to read ${spec.rel_path}`, readErr);
-          recordFailedItem(db, 'spec', spec.rel_path, 'read_error', detail, recordedAt);
           items_failed++;
           consecutiveFailures++;
-          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          if (recordAndCheckQuarantine({ db, scope: 'spec', itemKey: spec.rel_path, reason: 'read_error', detail, recordedAt, consecutiveFailures, maxConsecutive: MAX_CONSECUTIVE_FAILURES, logger })) {
             finalStatus = 'partial';
-            logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
             break;
           }
           continue;
@@ -246,12 +267,10 @@ export async function runSpecIncremental(
           // reason === 'invalid': has --- block but zod validation failed — data quality issue
           const detail = `parseFrontmatter invalid: ${parseResult.detail}`;
           logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: ${detail} for ${spec.rel_path}`);
-          recordFailedItem(db, 'spec', spec.rel_path, 'parse_error', detail, recordedAt);
           items_failed++;
           consecutiveFailures++;
-          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          if (recordAndCheckQuarantine({ db, scope: 'spec', itemKey: spec.rel_path, reason: 'parse_error', detail, recordedAt, consecutiveFailures, maxConsecutive: MAX_CONSECUTIVE_FAILURES, logger })) {
             finalStatus = 'partial';
-            logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
             break;
           }
           continue;
@@ -275,12 +294,10 @@ export async function runSpecIncremental(
             // LLM failure — check if it's a connection error
             const detail = 'extractClaims returned null (LLM failure)';
             logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: ${detail} for ${spec.rel_path}`);
-            recordFailedItem(db, 'spec', spec.rel_path, 'llm_error', detail, recordedAt);
             items_failed++;
             consecutiveFailures++;
-            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            if (recordAndCheckQuarantine({ db, scope: 'spec', itemKey: spec.rel_path, reason: 'llm_error', detail, recordedAt, consecutiveFailures, maxConsecutive: MAX_CONSECUTIVE_FAILURES, logger })) {
               finalStatus = 'partial';
-              logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
               break;
             }
             continue;
@@ -339,7 +356,6 @@ export async function runSpecIncremental(
         const isConnRefused =
           err instanceof Error &&
           (err.message.includes('ECONNREFUSED') || err.message.includes('fetch failed'));
-
         const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err);
 
         if (isConnRefused) {
@@ -352,12 +368,10 @@ export async function runSpecIncremental(
         }
 
         logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: unexpected error processing ${spec.rel_path}`, err);
-        recordFailedItem(db, 'spec', spec.rel_path, 'unexpected_error', detail, recordedAt);
         items_failed++;
         consecutiveFailures++;
-        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        if (recordAndCheckQuarantine({ db, scope: 'spec', itemKey: spec.rel_path, reason: 'unexpected_error', detail, recordedAt, consecutiveFailures, maxConsecutive: MAX_CONSECUTIVE_FAILURES, logger })) {
           finalStatus = 'partial';
-          logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: quarantine triggered after ${consecutiveFailures} consecutive failures`);
           break;
         }
       }

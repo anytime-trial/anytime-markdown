@@ -8,3 +8,23 @@ tsconfig.json
 package-lock.json
 **/*.map
 **/*.ts
+
+# --- 開発・ビルド専用アーティファクト (VSIX には不要) ---
+# tsc 出力 (ランタイムは dist/extension.js を使う。out/ は require されない)
+out/**
+# jest カバレッジ HTML レポート
+coverage/**
+# Serena シンボルキャッシュ
+.serena/**
+# better-sqlite3 prebuilt のステージ用 (webpack が dist/node_modules へコピー済)
+prebuilt-vscode/**
+# webpack stats / bundle-analyzer 出力 (ANALYZE=1 / 手動生成の dev 専用)
+dist/stats.json
+dist/bundle-report-*.html
+# ビルド時専用 (sqlite amalgamation C / C++ addon source)。ランタイムは .node のみ使用
+dist/node_modules/**/deps/**
+dist/node_modules/**/src/**
+dist/node_modules/**/*.c
+dist/node_modules/**/*.h
+dist/node_modules/**/binding.gyp
+**/*.tsbuildinfo

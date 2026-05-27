@@ -66,9 +66,6 @@ abstract class BaseLogger implements Logger {
 }
 
 export class ConsoleLogger extends BaseLogger {
-  constructor(level: LogLevel, scope?: string) {
-    super(level, scope);
-  }
   protected emit(line: string): void {
     process.stdout.write(line);
   }
@@ -79,7 +76,7 @@ export class ConsoleLogger extends BaseLogger {
 }
 
 export class FileLogger extends BaseLogger {
-  private fd: number;
+  private readonly fd: number;
   constructor(private readonly path: string, level: LogLevel, scope?: string) {
     super(level, scope);
     mkdirSync(dirname(path), { recursive: true });

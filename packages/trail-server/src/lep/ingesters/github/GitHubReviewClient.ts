@@ -77,7 +77,7 @@ const PER_PAGE = 100;
  */
 function stripTrailingSlashes(input: string): string {
   let end = input.length;
-  while (end > 0 && input.charCodeAt(end - 1) === 0x2f /* '/' */) end--;
+  while (end > 0 && input.codePointAt(end - 1) === 0x2f /* '/' */) end--;
   return end === input.length ? input : input.slice(0, end);
 }
 
@@ -138,8 +138,9 @@ export function createFetchGitHubReviewClient(
       }
 
       const bodyText = await safeText(res);
+      const bodyDetail = bodyText ? `: ${bodyText}` : '';
       throw new Error(
-        `GitHub API ${res.status} ${res.statusText} for ${pathAndQuery}${bodyText ? `: ${bodyText}` : ''}`,
+        `GitHub API ${res.status} ${res.statusText} for ${pathAndQuery}${bodyDetail}`,
       );
     }
   }

@@ -17,9 +17,7 @@ export async function computeImportance(
   program: import('typescript').Program,
 ): Promise<ComputeImportanceResult | null> {
   const { TypeScriptAdapter, ImportanceAnalyzer } = await import('@anytime-markdown/trail-core/importance');
-  const adapter = TypeScriptAdapter.fromProgram(
-    program as unknown as Parameters<typeof TypeScriptAdapter.fromProgram>[0],
-  );
+  const adapter = TypeScriptAdapter.fromProgram(program);
   const resolvedDir = path.dirname(path.resolve(tsconfigPath));
   const isExcluded = (sf: { isDeclarationFile: boolean; fileName: string }): boolean => {
     if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) return true;

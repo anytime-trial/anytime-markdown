@@ -117,7 +117,7 @@ function parseLine(line: string, state: ParseState): void {
   // `[A-Za-z][A-Za-z0-9_]*Boundary` で `\w+_?Boundary` の曖昧なバックトラックを除去。
   // 入力は line.trim() 済みのため、末尾の `\s*` を取り除き、`)` 後の空白は
   // 限定数 (0-2 個) に縛って CodeQL `js/polynomial-redos` の対象から外す。
-  const boundaryMatch = /^([A-Za-z][\w]*Boundary)[ \t]{0,2}\(([^)]*)\)(?:[ \t]{1,2}\{)?$/.exec(line);
+  const boundaryMatch = /^([A-Za-z]\w*Boundary)[ \t]{0,2}\(([^)]*)\)(?:[ \t]{1,2}\{)?$/.exec(line);
   if (boundaryMatch) {
     state.boundaryStack.push(parseArgs(boundaryMatch[2])[0]);
     return;

@@ -39,27 +39,12 @@ export function computeDoraMetrics(
     const sorted = [...repoReleases].sort((a, b) => compareStr(a.releasedAt, b.releasedAt));
     const releaseTimes = sorted.map((r) => Date.parse(r.releasedAt));
 
-    // deployment frequency: period (YYYY-MM) ごとの release 件数
-    const deploymentsByPeriod = new Map<string, number>();
-    for (const r of sorted) {
-      const period = periodOf(r.releasedAt);
-      deploymentsByPeriod.set(period, (deploymentsByPeriod.get(period) ?? 0) + 1);
-    }
-
-    // lead time: commit を「含有 release」に割り当て、その release の period に集計
-    const leadTimesByPeriod = new Map<string, number[]>();
-    for (const c of commitsByRepo.get(repoName) ?? []) {
-      const committedMs = Date.parse(c.committedAt);
-      if (Number.isNaN(committedMs)) continue;
-      const idx = firstReleaseAtOrAfter(releaseTimes, committedMs);
-      if (idx >= sorted.length) continue; // 最終 release より後の commit = 未 deploy
-      const leadHours = (releaseTimes[idx] - committedMs) / 3_600_000;
-      if (leadHours < 0 || Number.isNaN(leadHours)) continue;
-      const period = periodOf(sorted[idx].releasedAt);
-      const bucket = leadTimesByPeriod.get(period);
-      if (bucket) bucket.push(leadHours);
-      else leadTimesByPeriod.set(period, [leadHours]);
-    }
+    const deploymentsByPeriod = buildDeploymentsByPeriod(sorted);
+    const leadTimesByPeriod = buildLeadTimesByPeriod(
+      commitsByRepo.get(repoName) ?? [],
+      sorted,
+      releaseTimes,
+    );
 
     for (const [period, deploymentFrequency] of deploymentsByPeriod) {
       const leads = leadTimesByPeriod.get(period);
@@ -72,6 +57,40 @@ export function computeDoraMetrics(
   // 決定的な順序 (repo → period 昇順) で返す
   rows.sort((a, b) => compareStr(a.repoName, b.repoName) || compareStr(a.period, b.period));
   return rows;
+}
+
+/** deployment frequency: period (YYYY-MM) ごとの release 件数を集計する。 */
+function buildDeploymentsByPeriod(sorted: readonly DoraReleaseInput[]): Map<string, number> {
+  const deploymentsByPeriod = new Map<string, number>();
+  for (const r of sorted) {
+    const period = periodOf(r.releasedAt);
+    deploymentsByPeriod.set(period, (deploymentsByPeriod.get(period) ?? 0) + 1);
+  }
+  return deploymentsByPeriod;
+}
+
+/**
+ * lead time: commit を「含有 release」に割り当て、その release の period に lead time (時間) を集計する。
+ */
+function buildLeadTimesByPeriod(
+  repoCommits: readonly DoraCommitInput[],
+  sorted: readonly DoraReleaseInput[],
+  releaseTimes: readonly number[],
+): Map<string, number[]> {
+  const leadTimesByPeriod = new Map<string, number[]>();
+  for (const c of repoCommits) {
+    const committedMs = Date.parse(c.committedAt);
+    if (Number.isNaN(committedMs)) continue;
+    const idx = firstReleaseAtOrAfter(releaseTimes, committedMs);
+    if (idx >= sorted.length) continue; // 最終 release より後の commit = 未 deploy
+    const leadHours = (releaseTimes[idx] - committedMs) / 3_600_000;
+    if (leadHours < 0 || Number.isNaN(leadHours)) continue;
+    const period = periodOf(sorted[idx].releasedAt);
+    const bucket = leadTimesByPeriod.get(period);
+    if (bucket) bucket.push(leadHours);
+    else leadTimesByPeriod.set(period, [leadHours]);
+  }
+  return leadTimesByPeriod;
 }
 
 /** ISO 8601 文字列の先頭 7 文字 (YYYY-MM) を期間キーとして返す。 */

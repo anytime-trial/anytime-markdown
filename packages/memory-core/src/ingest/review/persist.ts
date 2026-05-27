@@ -164,9 +164,9 @@ export function upsertReviewDoc(
       [relPath],
     );
     const existingHash =
-      existingRows[0]?.values?.[0]?.[0] != null
-        ? String(existingRows[0].values[0][0])
-        : null;
+      existingRows[0]?.values?.[0]?.[0] == null
+        ? null
+        : String(existingRows[0].values[0][0]);
 
     if (existingHash !== null && existingHash === sourceHash) {
       return { review_id: reviewEntityId, is_new: false, findings_inserted: 0, edges_inserted: 0 };

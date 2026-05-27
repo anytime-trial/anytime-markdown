@@ -78,9 +78,7 @@ export class ChatBridge {
 
   /** 接続したクライアントに最新のステータスを送る (キャッシュがあれば即時、無ければ healthCheck 起動)。 */
   async sendStatus(ws: WebSocket | ReadonlyArray<WebSocket>): Promise<void> {
-    if (!this.lastStatus) {
-      this.lastStatus = await this.runHealthCheck();
-    }
+    this.lastStatus ??= await this.runHealthCheck();
     this.broadcast(this.statusMessage(this.lastStatus), ws);
   }
 
@@ -135,20 +133,14 @@ export class ChatBridge {
 
     const cfg = this.deps.getConfig();
     try {
-      if (!this.memoryDb) {
-        this.memoryDb = await openMemoryCoreDb(this.deps.memoryDbPath, {
-          nativeBinding: this.deps.memoryNativeBinding,
-        });
-      }
-      if (!this.ollama) {
-        this.ollama = createOllamaClient({ baseUrl: cfg.baseUrl });
-      }
-      if (!this.chatProvider) {
-        this.chatProvider = new OllamaChatProvider({
-          baseUrl: cfg.baseUrl,
-          model: cfg.chatModel,
-        });
-      }
+      this.memoryDb ??= await openMemoryCoreDb(this.deps.memoryDbPath, {
+        nativeBinding: this.deps.memoryNativeBinding,
+      });
+      this.ollama ??= createOllamaClient({ baseUrl: cfg.baseUrl });
+      this.chatProvider ??= new OllamaChatProvider({
+        baseUrl: cfg.baseUrl,
+        model: cfg.chatModel,
+      });
       // チャット開始前に health 確認 (失敗時は status を返して service を組まない)
       const status = await this.chatProvider.healthCheck();
       this.lastStatus = status;
@@ -176,12 +168,10 @@ export class ChatBridge {
 
   private async runHealthCheck(): Promise<HealthCheckResult> {
     const cfg = this.deps.getConfig();
-    if (!this.chatProvider) {
-      this.chatProvider = new OllamaChatProvider({
-        baseUrl: cfg.baseUrl,
-        model: cfg.chatModel,
-      });
-    }
+    this.chatProvider ??= new OllamaChatProvider({
+      baseUrl: cfg.baseUrl,
+      model: cfg.chatModel,
+    });
     try {
       return await this.chatProvider.healthCheck();
     } catch (error) {

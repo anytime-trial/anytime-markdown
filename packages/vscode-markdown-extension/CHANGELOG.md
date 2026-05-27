@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.6] - 2026-05-27
+
+### Editor Core (markdown-core)
+
+- SonarCloud code quality improvements (type assertion removal, mechanical safe fixes).
+
 ## [0.15.5] - 2026-05-24
 
 ### Editor Core (markdown-core)

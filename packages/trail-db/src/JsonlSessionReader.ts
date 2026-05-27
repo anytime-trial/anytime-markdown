@@ -68,6 +68,102 @@ export class JsonlSessionReader {
     return messages;
   }
 
+  private static normalizeMessagePayload(
+    payload: Record<string, unknown>,
+    timestamp: string,
+    seq: number,
+  ): { line: RawLine | null; newSeq: number } {
+    const role = typeof payload.role === 'string' ? payload.role : '';
+    if (role !== 'user' && role !== 'assistant' && role !== 'developer' && role !== 'system') {
+      return { line: null, newSeq: seq };
+    }
+    const text = JsonlSessionReader.extractCodexText(payload.content);
+    const normalizedTypeInner = role === 'assistant' ? 'assistant' : 'system';
+    const normalizedType = role === 'user' ? 'user' : normalizedTypeInner;
+    return {
+      line: {
+        uuid: `codex-${seq}`,
+        type: normalizedType,
+        subtype: role,
+        timestamp,
+        message: { content: text ?? '' },
+      },
+      newSeq: seq + 1,
+    };
+  }
+
+  private static normalizeFunctionCallPayload(
+    payload: Record<string, unknown>,
+    payloadType: string,
+    timestamp: string,
+    seq: number,
+  ): { line: RawLine; newSeq: number } {
+    const id = typeof payload.call_id === 'string' ? payload.call_id : `codex-call-${seq}`;
+    const name = typeof payload.name === 'string' ? payload.name : 'tool';
+    const rawInput = payloadType === 'function_call' ? payload.arguments : payload.input;
+    let parsedInput: Record<string, unknown> = {};
+    if (typeof rawInput === 'string' && rawInput.trim()) {
+      try {
+        parsedInput = JSON.parse(rawInput) as Record<string, unknown>;
+      } catch {
+        parsedInput = { raw: rawInput };
+      }
+    } else if (rawInput && typeof rawInput === 'object') {
+      parsedInput = rawInput as Record<string, unknown>;
+    }
+    return {
+      line: {
+        uuid: `codex-${seq}`,
+        type: 'assistant',
+        timestamp,
+        message: { content: [{ type: 'tool_use', id, name, input: parsedInput }] },
+      },
+      newSeq: seq + 1,
+    };
+  }
+
+  private static normalizeResponseItem(
+    record: RawLine,
+    seq: number,
+  ): { lines: RawLine[]; newSeq: number } {
+    if (!record.payload || typeof record.payload !== 'object') return { lines: [], newSeq: seq };
+    const payload = record.payload;
+    const payloadType = typeof payload.type === 'string' ? payload.type : '';
+    const timestamp = typeof record.timestamp === 'string' ? record.timestamp : '';
+
+    if (payloadType === 'message') {
+      const { line, newSeq } = JsonlSessionReader.normalizeMessagePayload(payload, timestamp, seq);
+      return { lines: line ? [line] : [], newSeq };
+    }
+    if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
+      const { line, newSeq } = JsonlSessionReader.normalizeFunctionCallPayload(payload, payloadType, timestamp, seq);
+      return { lines: [line], newSeq };
+    }
+    if (payloadType === 'function_call_output' || payloadType === 'custom_tool_call_output') {
+      const id = typeof payload.call_id === 'string' ? payload.call_id : '';
+      const output = typeof payload.output === 'string'
+        ? payload.output
+        : JSON.stringify(payload.output ?? '');
+      return {
+        lines: [{
+          uuid: `codex-${seq}`,
+          type: 'user',
+          timestamp,
+          message: {
+            content: [{
+              type: 'tool_result',
+              tool_use_id: id,
+              content: output,
+              is_error: false,
+            }] as unknown as readonly RawContentBlock[],
+          },
+        }],
+        newSeq: seq + 1,
+      };
+    }
+    return { lines: [], newSeq: seq };
+  }
+
   private static normalizeRecords(records: readonly RawLine[]): readonly RawLine[] {
     const hasCodexEnvelope = records.some(
       (r) => r.type === 'session_meta' || r.type === 'response_item' || r.type === 'event_msg',
@@ -77,69 +173,10 @@ export class JsonlSessionReader {
     const normalized: RawLine[] = [];
     let seq = 0;
     for (const record of records) {
-      const timestamp = typeof record.timestamp === 'string' ? record.timestamp : '';
-      if (record.type === 'response_item' && record.payload && typeof record.payload === 'object') {
-        const payload = record.payload;
-        const payloadType = typeof payload.type === 'string' ? payload.type : '';
-        if (payloadType === 'message') {
-          const role = typeof payload.role === 'string' ? payload.role : '';
-          if (role === 'user' || role === 'assistant' || role === 'developer' || role === 'system') {
-            const text = JsonlSessionReader.extractCodexText(payload.content);
-            const normalizedTypeInner = role === 'assistant' ? 'assistant' : 'system';
-            const normalizedType = role === 'user' ? 'user' : normalizedTypeInner;
-            normalized.push({
-              uuid: `codex-${seq++}`,
-              type: normalizedType,
-              subtype: role,
-              timestamp,
-              message: { content: text ?? '' },
-            });
-          }
-          continue;
-        }
-        if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
-          const id = typeof payload.call_id === 'string' ? payload.call_id : `codex-call-${seq}`;
-          const name = typeof payload.name === 'string' ? payload.name : 'tool';
-          const rawInput = payloadType === 'function_call' ? payload.arguments : payload.input;
-          let parsedInput: Record<string, unknown> = {};
-          if (typeof rawInput === 'string' && rawInput.trim()) {
-            try {
-              parsedInput = JSON.parse(rawInput) as Record<string, unknown>;
-            } catch {
-              parsedInput = { raw: rawInput };
-            }
-          } else if (rawInput && typeof rawInput === 'object') {
-            parsedInput = rawInput as Record<string, unknown>;
-          }
-          normalized.push({
-            uuid: `codex-${seq++}`,
-            type: 'assistant',
-            timestamp,
-            message: {
-              content: [{ type: 'tool_use', id, name, input: parsedInput }],
-            },
-          });
-          continue;
-        }
-        if (payloadType === 'function_call_output' || payloadType === 'custom_tool_call_output') {
-          const id = typeof payload.call_id === 'string' ? payload.call_id : '';
-          const output = typeof payload.output === 'string'
-            ? payload.output
-            : JSON.stringify(payload.output ?? '');
-          normalized.push({
-            uuid: `codex-${seq++}`,
-            type: 'user',
-            timestamp,
-            message: {
-              content: [{
-                type: 'tool_result',
-                tool_use_id: id,
-                content: output,
-                is_error: false,
-              }] as unknown as readonly RawContentBlock[],
-            },
-          });
-        }
+      if (record.type === 'response_item') {
+        const { lines, newSeq } = JsonlSessionReader.normalizeResponseItem(record, seq);
+        normalized.push(...lines);
+        seq = newSeq;
       }
     }
     return normalized;

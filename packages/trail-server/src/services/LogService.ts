@@ -8,7 +8,7 @@ export interface LogEntry {
   level: LogLevel;
   component: string;
   message: string;
-  metadata?: unknown | null;
+  metadata?: unknown;
   stack?: string | null;
 }
 
@@ -63,7 +63,7 @@ export class LogService {
           source,
           e.component,
           e.message,
-          e.metadata != null ? JSON.stringify(e.metadata) : null,
+          e.metadata == null ? null : JSON.stringify(e.metadata),
           e.stack ?? null,
         );
         inserted.push({ ...e, id: Number(result.lastInsertRowid), source });
@@ -76,8 +76,7 @@ export class LogService {
     this.broadcaster.notifyLog(inserted);
   }
 
-  queryLogs(params: QueryParams): QueryResult {
-    const limit = Math.min(params.limit ?? 500, 1000);
+  private buildQueryConditions(params: QueryParams): { conds: string[]; args: SqlValue[] } {
     const conds: string[] = [];
     const args: SqlValue[] = [];
 
@@ -108,6 +107,13 @@ export class LogService {
       args.push(ts, ts, Number(idStr));
     }
 
+    return { conds, args };
+  }
+
+  queryLogs(params: QueryParams): QueryResult {
+    const limit = Math.min(params.limit ?? 500, 1000);
+    const { conds, args } = this.buildQueryConditions(params);
+
     const where = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
     const sql = `
       SELECT id, timestamp, level, source, component, message, metadata, stack
@@ -135,10 +141,10 @@ export class LogService {
       source: r.source as LogSource,
       component: String(r.component),
       message: String(r.message),
-      metadata: r.metadata != null ? JSON.parse(String(r.metadata)) : null,
-      stack: r.stack != null ? String(r.stack) : null,
+      metadata: r.metadata == null ? null : JSON.parse(String(r.metadata)),
+      stack: r.stack == null ? null : String(r.stack),
     }));
-    const last = sliced[sliced.length - 1];
+    const last = sliced.at(-1);
     const nextCursor = hasMore && last ? `${String(last.timestamp)}_${Number(last.id)}` : null;
     return { logs, nextCursor };
   }

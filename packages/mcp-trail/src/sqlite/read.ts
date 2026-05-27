@@ -223,8 +223,8 @@ export function listCommunitiesDirect(db: Database, repoName: string): { communi
         'SELECT community_id, label, name, summary, mappings_json FROM current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
         [repoId],
       );
-    } catch (err2) {
-      console.error('[mcp-trail] listCommunitiesDirect: mappings_json column not found, falling back', err2);
+    } catch (error_) {
+      console.error('[mcp-trail] listCommunitiesDirect: mappings_json column not found, falling back', error_);
       rows = all<CommunityRowRaw>(
         db,
         'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',

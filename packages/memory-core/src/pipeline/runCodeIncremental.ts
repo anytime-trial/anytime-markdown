@@ -1,5 +1,5 @@
-import { createHash } from 'crypto';
-import { execFileSync } from 'child_process';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { fromTrailGraph } from '../ingest/code/fromTrailGraph';
 import { ingestAstFacts } from '../ingest/code/astFunctionLevel';
@@ -225,11 +225,7 @@ export async function runCodeIncremental(opts: {
   }
 
   const { graph } = analyzeResult;
-  // Cast is safe: ts.Program API is structurally compatible between trail-core's
-  // bundled TypeScript (5.8.x) and the workspace TypeScript (5.9.x). Nominal
-  // SyntaxKind enum values differ between the two separate TypeScript copies
-  // resolved by the module system, but the runtime objects are identical.
-  const program = analyzeResult.program as unknown as ts.Program;
+  const program = analyzeResult.program;
 
   // ── 6. ingestFromTrailGraph ──────────────────────────────────────────────
   try {

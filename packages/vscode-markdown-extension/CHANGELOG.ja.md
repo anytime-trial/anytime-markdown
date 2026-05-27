@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.15.6] - 2026-05-27
+
+### Editor Core (markdown-core)
+
+- SonarCloud コード品質改善（型アサーション除去・機械的安全修正）。
+
 ## [0.15.5] - 2026-05-24
 
 ### Editor Core (markdown-core)

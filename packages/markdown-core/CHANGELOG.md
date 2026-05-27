@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.6] - 2026-05-27
+
+### Changed
+
+- SonarCloud code quality improvements: removed unnecessary type assertions (S4325), and S4624 / S2004 / S4043 / S7744 / S3735 fixes. No functional changes.
+
 ## [0.15.5] - 2026-05-24
 
 ### Added

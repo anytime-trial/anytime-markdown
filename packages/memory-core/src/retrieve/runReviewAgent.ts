@@ -1,6 +1,6 @@
 import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 
 export type RunReviewAgentInput = {
   db: MemoryDbConnection;

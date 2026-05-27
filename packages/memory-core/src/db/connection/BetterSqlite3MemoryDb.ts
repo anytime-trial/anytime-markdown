@@ -45,7 +45,7 @@ export class BetterSqlite3MemoryDb implements MemoryDbConnection {
     if (this.readOnlyAliases.size === 0) return;
     if (!/^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql)) return;
     for (const alias of this.readOnlyAliases) {
-      const re = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.`, 'i');
+      const re = new RegExp(String.raw`\b${alias.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}\.`, 'i');
       if (re.test(sql)) {
         throw new Error(
           `[anytime-memory] write to read-only attached schema '${alias}' is forbidden. SQL: ${sql.slice(0, 100)}`,
@@ -119,7 +119,7 @@ export class BetterSqlite3MemoryDb implements MemoryDbConnection {
   attach(filePath: string, alias: string, readOnly = false): void {
     // ファイル名にシングルクォートが含まれるとエスケープが必要。SQLite の文字列リテラル仕様
     // (シングルクォート 2 個でエスケープ) に従う。
-    const escaped = filePath.replace(/'/g, "''");
+    const escaped = filePath.replaceAll("'", "''");
     this.db.exec(`ATTACH DATABASE '${escaped}' AS ${alias}`);
     if (readOnly) {
       this.readOnlyAliases.add(alias);

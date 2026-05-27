@@ -1,9 +1,7 @@
 import type { MemoryDbConnection } from '../db/connection/types';
 import { canonicalize } from '../canonical/canonicalize';
 import type { MemoryLogger } from '../logger';
-import { DriftType } from './policy';
-
-export type { DriftType };
+export type { DriftType } from './policy';
 
 export type DriftCandidate = {
   subject_entity_id: string;
@@ -20,6 +18,17 @@ export type DriftCandidate = {
  */
 function normalizeValue(value: string): string {
   return canonicalize(value).replace(/\.js$/, '');
+}
+
+function resolveDriftType(
+  convSpecDiff: boolean,
+  specCodeDiff: boolean,
+  convCodeDiff: boolean,
+): DriftCandidate['drift_type'] {
+  if (convSpecDiff && specCodeDiff && convCodeDiff) return 'three_way';
+  if (specCodeDiff) return 'spec_vs_code';
+  if (convCodeDiff) return 'conv_vs_code';
+  return 'conv_vs_spec';
 }
 
 /**
@@ -50,7 +59,7 @@ export function detectThreeSourceDrifts(input: {
         : null;
 
     const whereExclude =
-      placeholders !== null ? `AND predicate NOT IN (${placeholders})` : '';
+      placeholders === null ? '' : `AND predicate NOT IN (${placeholders})`;
 
     const sql = `
       SELECT
@@ -91,9 +100,9 @@ export function detectThreeSourceDrifts(input: {
       const rawCode = row[colIndex('code_v')] as string | null;
 
       // Normalize for comparison
-      const convN = rawConv !== null ? normalizeValue(rawConv) : null;
-      const specN = rawSpec !== null ? normalizeValue(rawSpec) : null;
-      const codeN = rawCode !== null ? normalizeValue(rawCode) : null;
+      const convN = rawConv === null ? null : normalizeValue(rawConv);
+      const specN = rawSpec === null ? null : normalizeValue(rawSpec);
+      const codeN = rawCode === null ? null : normalizeValue(rawCode);
 
       // Check disagreements using normalized values
       const convSpecDiff = convN !== null && specN !== null && convN !== specN;
@@ -106,16 +115,7 @@ export function detectThreeSourceDrifts(input: {
       }
 
       // Determine drift_type (three_way takes priority)
-      let drift_type: DriftCandidate['drift_type'];
-      if (convSpecDiff && specCodeDiff && convCodeDiff) {
-        drift_type = 'three_way';
-      } else if (specCodeDiff) {
-        drift_type = 'spec_vs_code';
-      } else if (convCodeDiff) {
-        drift_type = 'conv_vs_code';
-      } else {
-        drift_type = 'conv_vs_spec';
-      }
+      const drift_type = resolveDriftType(convSpecDiff, specCodeDiff, convCodeDiff);
 
       candidates.push({
         subject_entity_id,

@@ -37,9 +37,9 @@ export function parseRssLatest(xml: string): RssLatest | null {
     if (rootTag === "rss") {
         const item = root.getElementsByTagName("item")[0];
         if (!item) return null;
-        const guid = text(item as unknown as Element, "guid") ?? text(item as unknown as Element, "link");
-        const pubDate = text(item as unknown as Element, "pubDate");
-        const title = text(item as unknown as Element, "title") ?? "";
+        const guid = text(item, "guid") ?? text(item, "link");
+        const pubDate = text(item, "pubDate");
+        const title = text(item, "title") ?? "";
         if (!guid) return null;
         return { guid, pubDate: normalizeDate(pubDate), title };
     }
@@ -47,9 +47,9 @@ export function parseRssLatest(xml: string): RssLatest | null {
     if (rootTag === "feed") {
         const entry = root.getElementsByTagName("entry")[0];
         if (!entry) return null;
-        const guid = text(entry as unknown as Element, "id");
-        const pubDate = text(entry as unknown as Element, "updated") ?? text(entry as unknown as Element, "published");
-        const title = text(entry as unknown as Element, "title") ?? "";
+        const guid = text(entry, "id");
+        const pubDate = text(entry, "updated") ?? text(entry, "published");
+        const title = text(entry, "title") ?? "";
         if (!guid) return null;
         return { guid, pubDate: normalizeDate(pubDate), title };
     }

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-05-27
+
+### Changed
+
+- Version bump for release consistency with `@anytime-markdown/mcp-cms`. No functional changes.
+
 ## [0.1.5] - 2026-05-04
 
 ### Fixed

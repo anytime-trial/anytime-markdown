@@ -1,4 +1,4 @@
-const VALID = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const VALID = /^[A-Za-z_]\w*$/;
 
 export function isSafeIdentifier(name: unknown): name is string {
   if (typeof name !== 'string' || name.length === 0) return false;

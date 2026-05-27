@@ -1,9 +1,7 @@
-import { BetterSqlite3MemoryDb, attachTrailDbReadOnly, getMemoryCoreDbPath } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, attachTrailDbReadOnly, getMemoryCoreDbPath, resolveDrift } from '@anytime-markdown/memory-core';
 import type { MemoryDbConnection, MemoryDbSqlValue as SqlValue } from '@anytime-markdown/memory-core';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-
-import { resolveDrift } from '@anytime-markdown/memory-core';
 
 import type { Logger } from '../runtime/Logger';
 
@@ -828,8 +826,11 @@ export class MemoryApiHandler {
       );
       if (!result[0]) return [];
       const { columns, values } = result[0];
-      const rankToStatus = (n: number): PipelineRunStatus =>
-        n === 3 ? 'error' : n === 2 ? 'partial' : n === 1 ? 'success' : 'running';
+      const rankToStatus = (n: number): PipelineRunStatus => {
+        if (n === 3) return 'error';
+        if (n === 2) return 'partial';
+        return n === 1 ? 'success' : 'running';
+      };
       return values.map((row) => {
         const r = mapRow<Record<string, unknown>>(columns, row);
         return {

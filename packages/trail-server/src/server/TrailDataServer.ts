@@ -32,12 +32,7 @@ import type {
   CallHierarchyIndex,
   CallHierarchyScope,
 } from '@anytime-markdown/trail-core/c4/callHierarchy';
-import type { FileCoverage, MessageInput } from '@anytime-markdown/trail-core/c4';
-import type {
-  C4Model,
-  DsmMatrix,
-  FeatureMatrix,
-} from '@anytime-markdown/trail-core/c4';
+import type { FileCoverage, MessageInput, C4Model, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import type { TrailGraph, ReleaseCoverageRow, CurrentCoverageRow } from '@anytime-markdown/trail-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
@@ -153,7 +148,8 @@ function computePeriodRangeUtc(period: HotspotPeriod): { from: string; to: strin
   const now = new Date();
   const to = now.toISOString();
   if (period === 'all') return { from: ALL_PERIOD_FROM, to };
-  const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
+  const days30or90 = period === '30d' ? 30 : 90;
+  const days = period === '7d' ? 7 : days30or90;
   const from = new Date(now.getTime() - days * MS_PER_DAY).toISOString();
   return { from, to };
 }
@@ -163,7 +159,7 @@ function collectFilePathsForElement(elementId: string, c4Model: C4Model): string
   const elementById = new Map(c4Model.elements.map((el) => [el.id, el] as const));
   const target = elementById.get(elementId);
   const result = new Set<string>();
-  if (target && target.type === 'code' && target.id.startsWith(FILE_PREFIX)) {
+  if (target?.type === 'code' && target.id.startsWith(FILE_PREFIX)) {
     result.add(target.id.slice(FILE_PREFIX.length));
     return Array.from(result);
   }
@@ -251,11 +247,11 @@ export class TrailDataServer {
 
   /** POST /api/analyze/current ハンドラ。extension.ts で登録される */
   onAnalyzeCurrentCode:
-    | ((req: { workspacePath?: string; tsconfigPath?: string }) => Promise<AnalyzePipelineResult>)
+    | ((req: { workspacePath?: string; tsconfigPath?: string }) => Promise<AnalyzeCurrentResult>)
     | undefined;
   /** POST /api/analyze/release ハンドラ */
   onAnalyzeReleaseCode:
-    | (() => Promise<AnalyzeReleasePipelineResult>)
+    | (() => Promise<AnalyzeReleaseResult>)
     | undefined;
   /** POST /api/analyze/all ハンドラ */
   onAnalyzeAll:
@@ -1191,10 +1187,9 @@ export class TrailDataServer {
       res.end(JSON.stringify({ error: "granularity must be 'commit', 'session', or 'subagentType'" }));
       return;
     }
+    const subagentOrCommit = granularityRaw === 'subagentType' ? 'subagentType' : 'commit';
     const granularity: 'commit' | 'session' | 'subagentType' =
-      granularityRaw === 'session' ? 'session'
-      : granularityRaw === 'subagentType' ? 'subagentType'
-      : 'commit';
+      granularityRaw === 'session' ? 'session' : subagentOrCommit;
 
     const windowDays = clampInt(params.get('windowDays'), 30, 1, 365);
     const topK = clampInt(params.get('topK'), 50, 1, 500);
@@ -1204,9 +1199,9 @@ export class TrailDataServer {
 
     // 明示指定された場合のみ採用。未指定なら undefined を渡し、TrailDatabase 側の粒度別デフォルトを使う。
     const thresholdRaw = params.get('threshold');
-    const threshold = thresholdRaw !== null ? clampFloat(thresholdRaw, 0.5, 0, 1) : undefined;
+    const threshold = thresholdRaw === null ? undefined : clampFloat(thresholdRaw, 0.5, 0, 1);
     const minChangeRaw = params.get('minChange');
-    const minChange = minChangeRaw !== null ? clampInt(minChangeRaw, 5, 1, 1000) : undefined;
+    const minChange = minChangeRaw === null ? undefined : clampInt(minChangeRaw, 5, 1, 1000);
 
     try {
       const computedAt = new Date().toISOString();
@@ -1336,7 +1331,7 @@ export class TrailDataServer {
   private async handleActivityTrend(res: http.ServerResponse, params: URLSearchParams): Promise<void> {
     const elementId = (params.get('elementId') ?? '').trim();
     if (!ELEMENT_ID_RE.test(elementId)) {
-      this.sendError(res, 400, 'elementId is required and must match ^(sys|pkg|comp|code|file)_[\\w/.:-]+$');
+      this.sendError(res, 400, String.raw`elementId is required and must match ^(sys|pkg|comp|code|file)_[\w/.:-]+$`);
       return;
     }
     const period = parseHotspotPeriod(params.get('period'));
@@ -1429,7 +1424,14 @@ export class TrailDataServer {
       return;
     }
     const traceDir = this.resolveTraceDir();
-    const filePath = path.join(traceDir, name);
+    // defense-in-depth: 上の name ガード (.. / / / 非.json を reject) に加え、
+    // 解決後の絶対パスが traceDir 配下に収まることを検証する (path injection / S2083)。
+    const resolvedDir = path.resolve(traceDir);
+    const filePath = path.resolve(resolvedDir, name);
+    if (!filePath.startsWith(resolvedDir + path.sep)) {
+      this.sendError(res, 400, 'Invalid file name');
+      return;
+    }
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1568,7 +1570,7 @@ export class TrailDataServer {
       const distinctAgentIdCounts = this.trailDb.getSessionDistinctAgentIdCounts(sessionIds);
       const delegatedTrackCounts = this.trailDb.getSessionDelegatedTrackCounts(sessionIds);
       const nonCodexIds = rawSessions
-        .filter((s) => (s.source as string | undefined) !== 'codex')
+        .filter((s) => s.source !== 'codex')
         .map((s) => s.id);
       const linkedMapByParent = this.trailDb.fetchLinkedCodexSessionMapForCcSessions(nonCodexIds);
       const linkedCodexSessionIdsByParent = new Map<string, Set<string>>();
@@ -1584,7 +1586,7 @@ export class TrailDataServer {
       }
 
       const sessions = rawSessions
-        .filter((s) => !((s.source as string | undefined) === 'codex' && consumedCodexSessionIds.has(s.id)))
+        .filter((s) => !(s.source === 'codex' && consumedCodexSessionIds.has(s.id)))
         .map((s) => {
         const cStats = commitStats.get(s.id);
         const distinctAgentIdCount = distinctAgentIdCounts.get(s.id) ?? 0;
@@ -1724,7 +1726,7 @@ export class TrailDataServer {
         subtype: m.subtype,
         textContent: m.text_content,
         userContent: m.user_content,
-        toolCalls: m.tool_calls ? JSON.parse(m.tool_calls as string) : undefined,
+        toolCalls: m.tool_calls ? JSON.parse(m.tool_calls) : undefined,
         model: m.model,
         usage: (m.input_tokens || m.output_tokens || m.cache_read_tokens)
           ? {
@@ -2042,7 +2044,7 @@ export class TrailDataServer {
 
       // C4 model 取得
       const store = this.trailDb.asC4ModelStore();
-      const payload = await fetchC4Model(store, tag, repoName, undefined);
+      const payload = await fetchC4Model(store, tag, repoName);
       const elements = payload?.model?.elements ?? [];
 
       // file → element 集約 (importance / deadCodeScore / centrality)
@@ -2310,7 +2312,7 @@ export class TrailDataServer {
   private handleGetDeploymentFrequencyQuality(res: http.ServerResponse, params: URLSearchParams): void {
     const from = params.get('from');
     const to = params.get('to');
-    const bucket = (params.get('bucket') === 'week' ? 'week' : 'day') as 'day' | 'week';
+    const bucket: 'day' | 'week' = params.get('bucket') === 'week' ? 'week' : 'day';
     if (!from || !to) {
       res.writeHead(400, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'from and to are required' }));
@@ -2335,7 +2337,7 @@ export class TrailDataServer {
   private handleGetDeploymentFrequency(res: http.ServerResponse, params: URLSearchParams): void {
     const from = params.get('from');
     const to = params.get('to');
-    const bucket = (params.get('bucket') === 'week' ? 'week' : 'day') as 'day' | 'week';
+    const bucket: 'day' | 'week' = params.get('bucket') === 'week' ? 'week' : 'day';
     if (!from || !to) {
       res.writeHead(400, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'from and to are required' }));
@@ -3163,7 +3165,8 @@ export class TrailDataServer {
     try {
       await this.codeGraphService.loadFromDb(repoName);
     } catch (err) {
-      this.logger.warn(`[community-upsert] cache compose failed (loadFromDb${repoName ? `(${repoName})` : ''}): ${err instanceof Error ? err.message : String(err)}`);
+      const repoSuffix = repoName ? `(${repoName})` : '';
+      this.logger.warn(`[community-upsert] cache compose failed (loadFromDb${repoSuffix}): ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

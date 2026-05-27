@@ -393,36 +393,44 @@ export class GraphView {
     const wasMinimap = this.dragMode === 'minimap';
     this.dragMode = 'none';
     if (wasMinimap) {
-      const dd = this.minimapDrag;
-      this.minimapDrag = null;
-      if (dd?.mode === 'select') {
-        // 範囲選択: 動いていれば範囲ズーム、クリックのみなら中心パン
-        const moved = Math.abs(dd.curX - dd.startX) > 3 || Math.abs(dd.curY - dd.startY) > 3;
-        if (moved) this.zoomToMinimapSelection({ x: dd.startX, y: dd.startY }, { x: dd.curX, y: dd.curY });
-        else this.recenterFromMinimap({ x: dd.startX, y: dd.startY });
-      }
-      // viewport ドラッグは move 中にパン済み
-      this.pressNodeId = null;
-      this.pressEndpointNodeId = null;
+      this.handleMinimapPointerUp();
       return;
     }
     if (wasClick) {
-      if (this.pressEndpointNodeId) {
-        // コネクタ端点クリック: 枝を折りたたむ/展開する（node-click は出さない）
-        this.toggleCollapse(this.pressEndpointNodeId);
-      } else {
-        // 矩形（ノード本体）クリック: movableNodes 時のみ選択ハイライト。node-click は常に通知。
-        if (this.movableNodes) {
-          this.selectedNodeId = this.pressNodeId;
-          this.requestRender();
-        }
-        if (this.pressNodeId) {
-          for (const cb of this.nodeClickHandlers) cb(this.pressNodeId);
-        }
-      }
+      this.handleClickAction();
     }
     this.pressNodeId = null;
     this.pressEndpointNodeId = null;
+  }
+
+  private handleMinimapPointerUp(): void {
+    const dd = this.minimapDrag;
+    this.minimapDrag = null;
+    if (dd?.mode === 'select') {
+      // 範囲選択: 動いていれば範囲ズーム、クリックのみなら中心パン
+      const moved = Math.abs(dd.curX - dd.startX) > 3 || Math.abs(dd.curY - dd.startY) > 3;
+      if (moved) this.zoomToMinimapSelection({ x: dd.startX, y: dd.startY }, { x: dd.curX, y: dd.curY });
+      else this.recenterFromMinimap({ x: dd.startX, y: dd.startY });
+    }
+    // viewport ドラッグは move 中にパン済み
+    this.pressNodeId = null;
+    this.pressEndpointNodeId = null;
+  }
+
+  private handleClickAction(): void {
+    if (this.pressEndpointNodeId) {
+      // コネクタ端点クリック: 枝を折りたたむ/展開する（node-click は出さない）
+      this.toggleCollapse(this.pressEndpointNodeId);
+    } else {
+      // 矩形（ノード本体）クリック: movableNodes 時のみ選択ハイライト。node-click は常に通知。
+      if (this.movableNodes) {
+        this.selectedNodeId = this.pressNodeId;
+        this.requestRender();
+      }
+      if (this.pressNodeId) {
+        for (const cb of this.nodeClickHandlers) cb(this.pressNodeId);
+      }
+    }
   }
 
   private handleWheel(e: WheelEvent): void {

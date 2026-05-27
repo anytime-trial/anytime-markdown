@@ -55,19 +55,28 @@ export function buildElementTree(
   }
 
   // boundary-only仮想ノード（ルートレベルのもの）
-  const boundaryOnlyRoots: C4TreeNode[] = [];
-  for (const id of boundaryOnlyIds) {
-    // このboundary自体がどこかの子でないか確認
-    const hasParent = elements.some(el => el.id === id && el.boundaryId);
-    if (!hasParent) {
-      boundaryOnlyRoots.push(buildBoundaryNode(id, childrenByParent, boundaryInfoMap));
-    }
-  }
-  for (const node of sortByName(boundaryOnlyRoots)) {
+  for (const node of buildBoundaryOnlyRoots(boundaryOnlyIds, elements, childrenByParent, boundaryInfoMap)) {
     roots.push(node);
   }
 
   return sortByName(roots);
+}
+
+/** boundary-only 仮想ノードのうちルートレベル（親を持たない）のものを構築する。 */
+function buildBoundaryOnlyRoots(
+  boundaryOnlyIds: ReadonlySet<string>,
+  elements: readonly C4Element[],
+  childrenByParent: ReadonlyMap<string | undefined, C4Element[]>,
+  boundaryInfoMap: ReadonlyMap<string, BoundaryInfo>,
+): C4TreeNode[] {
+  const result: C4TreeNode[] = [];
+  for (const id of boundaryOnlyIds) {
+    const hasParent = elements.some(el => el.id === id && el.boundaryId);
+    if (!hasParent) {
+      result.push(buildBoundaryNode(id, childrenByParent, boundaryInfoMap));
+    }
+  }
+  return sortByName(result);
 }
 
 function sortByName<T extends { name: string }>(list: T[]): T[] {

@@ -90,10 +90,7 @@ export function reportDriftEvents(input: {
   for (const candidate of candidates) {
     const key = driftKey(candidate.subject_entity_id, candidate.predicate, candidate.drift_type);
     const existing = activeByKey.get(key);
-    const detailJson = JSON.stringify({
-      ...candidate.detail,
-      policy_version: 'phase4-v1',
-    });
+    const detailJson = JSON.stringify({ ...candidate.detail, policy_version: 'phase4-v1' });
 
     if (existing) {
       // severity と detail_json のみ更新（detected_at は変えない）
@@ -108,7 +105,6 @@ export function reportDriftEvents(input: {
       }
     } else {
       // 新規 INSERT（resolved の行があっても新規行として追加）
-      const id = eventId(candidate.subject_entity_id, candidate.predicate, candidate.drift_type);
       try {
         db.run(
           `INSERT INTO memory_drift_events
@@ -116,7 +112,7 @@ export function reportDriftEvents(input: {
               drift_type, severity, detected_at, detail_json)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            id,
+            eventId(candidate.subject_entity_id, candidate.predicate, candidate.drift_type),
             candidate.subject_entity_id,
             candidate.predicate,
             candidate.conversation_value ?? null,

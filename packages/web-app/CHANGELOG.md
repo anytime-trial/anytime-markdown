@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-05-27
+
+### Changed
+
+- SonarCloud S1874 deprecated API migration and S3358 nested ternary fix. No functional changes.
+
 ## [0.27.0] - 2026-05-24
 
 ### Added
