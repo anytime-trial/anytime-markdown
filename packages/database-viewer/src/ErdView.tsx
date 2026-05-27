@@ -203,6 +203,39 @@ function segmentIntersectsRect(
   return maxX >= rx1 && minX <= rx2 && maxY >= ry1 && minY <= ry2;
 }
 
+/** 5 セグメント迂回経路を試みる。見つかれば path string、なければ null。 */
+function tryDetourPath(
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  obstacles: readonly RectBox[],
+  margin: number,
+): string | null {
+  const detourMargin = margin + 24;
+  const overY = Math.min(...obstacles.map((r) => r.y - detourMargin), fromY, toY) - 16;
+  const underY = Math.max(...obstacles.map((r) => r.y + r.height + detourMargin), fromY, toY) + 16;
+  const candidatesY = [overY, underY].sort(
+    (a, b) => Math.abs(a - fromY) + Math.abs(a - toY) - (Math.abs(b - fromY) + Math.abs(b - toY)),
+  );
+  const xLeft = Math.min(fromX, toX) - 30;
+  const xRight = Math.max(fromX, toX) + 30;
+  for (const detourY of candidatesY) {
+    for (const detourX of [xRight, xLeft]) {
+      const path = `M ${fromX} ${fromY} L ${detourX} ${fromY} L ${detourX} ${detourY} L ${toX} ${detourY} L ${toX} ${toY}`;
+      const clear = obstacles.every(
+        (r) =>
+          !segmentIntersectsRect(fromX, fromY, detourX, fromY, r, margin) &&
+          !segmentIntersectsRect(detourX, fromY, detourX, detourY, r, margin) &&
+          !segmentIntersectsRect(detourX, detourY, toX, detourY, r, margin) &&
+          !segmentIntersectsRect(toX, detourY, toX, toY, r, margin),
+      );
+      if (clear) return path;
+    }
+  }
+  return null;
+}
+
 /**
  * orthogonal 経路 (横→縦→横) のセグメントが obstacles と交差するか確認し、
  * 交差する場合は midX を障害物外にずらすか、上下に迂回する経路を返す。
@@ -239,32 +272,8 @@ function routeAroundObstacles(
     if (segmentsClear(m)) return pathFor(m);
   }
   // どうしても見つからない: 上 or 下から大きく迂回 (5 セグメント)
-  const detourMargin = margin + 24;
-  const overY = Math.min(...obstacles.map((r) => r.y - detourMargin), fromY, toY) - 16;
-  const underY = Math.max(...obstacles.map((r) => r.y + r.height + detourMargin), fromY, toY) + 16;
-  const candidatesY = [overY, underY].sort(
-    (a, b) => Math.abs(a - fromY) + Math.abs(a - toY) - (Math.abs(b - fromY) + Math.abs(b - toY)),
-  );
-  for (const detourY of candidatesY) {
-    const xLeft = Math.min(fromX, toX) - 30;
-    const xRight = Math.max(fromX, toX) + 30;
-    for (const detourX of [xRight, xLeft]) {
-      const path = `M ${fromX} ${fromY} L ${detourX} ${fromY} L ${detourX} ${detourY} L ${toX} ${detourY} L ${toX} ${toY}`;
-      let ok = true;
-      for (const r of obstacles) {
-        if (
-          segmentIntersectsRect(fromX, fromY, detourX, fromY, r, margin) ||
-          segmentIntersectsRect(detourX, fromY, detourX, detourY, r, margin) ||
-          segmentIntersectsRect(detourX, detourY, toX, detourY, r, margin) ||
-          segmentIntersectsRect(toX, detourY, toX, toY, r, margin)
-        ) {
-          ok = false;
-          break;
-        }
-      }
-      if (ok) return path;
-    }
-  }
+  const detourPath = tryDetourPath(fromX, fromY, toX, toY, obstacles, margin);
+  if (detourPath !== null) return detourPath;
   // 最終フォールバック
   return pathFor(baseMid);
 }
