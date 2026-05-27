@@ -13,6 +13,26 @@ export interface ApiResponse {
   headers?: Record<string, string>;
 }
 
+function validateLogEntry(item: unknown): { entry: LogEntry } | { error: string } {
+  if (!item || typeof item !== 'object') return { error: 'invalid entry' };
+  const e = item as Record<string, unknown>;
+  if (typeof e.timestamp !== 'string' || !TS_REGEX.test(e.timestamp)) return { error: 'invalid timestamp' };
+  if (typeof e.level !== 'string' || !VALID_LEVELS.has(e.level)) return { error: 'invalid level' };
+  if (typeof e.component !== 'string') return { error: 'invalid component' };
+  if (typeof e.message !== 'string') return { error: 'invalid message' };
+  if (e.stack != null && typeof e.stack !== 'string') return { error: 'invalid stack' };
+  return {
+    entry: {
+      timestamp: e.timestamp,
+      level: e.level as LogLevel,
+      component: e.component,
+      message: e.message,
+      metadata: e.metadata ?? null,
+      stack: (e.stack as string | undefined) ?? null,
+    },
+  };
+}
+
 export function handlePostLogs(rawBody: string, svc: LogService): ApiResponse {
   let parsed: unknown;
   try {
@@ -28,25 +48,9 @@ export function handlePostLogs(rawBody: string, svc: LogService): ApiResponse {
 
   const validated: LogEntry[] = [];
   for (const item of logs) {
-    if (!item || typeof item !== 'object') return { status: 400, body: 'invalid entry' };
-    const e = item as Record<string, unknown>;
-    if (typeof e.timestamp !== 'string' || !TS_REGEX.test(e.timestamp)) {
-      return { status: 400, body: 'invalid timestamp' };
-    }
-    if (typeof e.level !== 'string' || !VALID_LEVELS.has(e.level)) {
-      return { status: 400, body: 'invalid level' };
-    }
-    if (typeof e.component !== 'string') return { status: 400, body: 'invalid component' };
-    if (typeof e.message !== 'string') return { status: 400, body: 'invalid message' };
-    if (e.stack != null && typeof e.stack !== 'string') return { status: 400, body: 'invalid stack' };
-    validated.push({
-      timestamp: e.timestamp,
-      level: e.level as LogLevel,
-      component: e.component,
-      message: e.message,
-      metadata: e.metadata ?? null,
-      stack: (e.stack as string | undefined) ?? null,
-    });
+    const result = validateLogEntry(item);
+    if ('error' in result) return { status: 400, body: result.error };
+    validated.push(result.entry);
   }
 
   try {

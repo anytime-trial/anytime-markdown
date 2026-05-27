@@ -201,38 +201,17 @@ program
       });
       server.setCodeGraphService(codeGraphService);
 
-      server.onAnalyzeCurrentCode = async ({ workspacePath, tsconfigPath }) => {
-        const analysisRoot = workspacePath ?? primaryGitRoot;
-        const excludeRoot = analyzeExcludeRoot;
-        let rootStat: ReturnType<typeof statSync>;
-        try { rootStat = statSync(analysisRoot); }
-        catch { throw new Error(`workspace path does not exist: ${analysisRoot}`); }
-        if (!rootStat.isDirectory()) {
-          throw new Error(`workspace path is not a directory: ${analysisRoot}`);
-        }
-
-        let resolvedTsconfig: string | undefined = tsconfigPath;
-        if (!resolvedTsconfig) {
-          const candidates = findTsconfigCandidates(analysisRoot, excludeRoot);
-          if (candidates.length > 0) {
-            resolvedTsconfig = candidates[0].fsPath;
-          } else if (hasPythonFiles(analysisRoot, excludeRoot)) {
-            resolvedTsconfig = undefined; // Python-only 解析
-          } else {
-            throw new Error(`No tsconfig.json or Python files found under ${analysisRoot}`);
-          }
-        }
-
-        return runAnalyzeCurrentCodePipeline({
-          analysisRoot,
-          excludeRoot,
-          tsconfigPath: resolvedTsconfig,
+      server.onAnalyzeCurrentCode = ({ workspacePath, tsconfigPath }) =>
+        runCurrentCodeAnalysis({
+          workspacePath,
+          tsconfigPath,
+          primaryGitRoot,
+          excludeRoot: analyzeExcludeRoot,
           trailDb,
-          callbacks: server,
+          server,
           codeGraphService,
           logger,
         });
-      };
 
       server.onAnalyzeReleaseCode = async () => {
         return runAnalyzeReleaseCodePipeline({
@@ -517,6 +496,48 @@ async function callDaemonAnalyzeAll(
     console.error('Failed to reach daemon:', err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
+}
+
+async function runCurrentCodeAnalysis(args: {
+  workspacePath: string | undefined;
+  tsconfigPath: string | undefined;
+  primaryGitRoot: string;
+  excludeRoot: string | undefined;
+  trailDb: TrailDatabase;
+  server: TrailDataServer;
+  codeGraphService: CodeGraphService;
+  logger: Logger;
+}): Promise<ReturnType<typeof runAnalyzeCurrentCodePipeline>> {
+  const { workspacePath, tsconfigPath, primaryGitRoot, excludeRoot, trailDb, server, codeGraphService, logger } = args;
+  const analysisRoot = workspacePath ?? primaryGitRoot;
+  let rootStat: ReturnType<typeof statSync>;
+  try { rootStat = statSync(analysisRoot); }
+  catch { throw new Error(`workspace path does not exist: ${analysisRoot}`); }
+  if (!rootStat.isDirectory()) {
+    throw new Error(`workspace path is not a directory: ${analysisRoot}`);
+  }
+
+  let resolvedTsconfig: string | undefined = tsconfigPath;
+  if (!resolvedTsconfig) {
+    const candidates = findTsconfigCandidates(analysisRoot, excludeRoot);
+    if (candidates.length > 0) {
+      resolvedTsconfig = candidates[0].fsPath;
+    } else if (hasPythonFiles(analysisRoot, excludeRoot)) {
+      resolvedTsconfig = undefined; // Python-only 解析
+    } else {
+      throw new Error(`No tsconfig.json or Python files found under ${analysisRoot}`);
+    }
+  }
+
+  return runAnalyzeCurrentCodePipeline({
+    analysisRoot,
+    excludeRoot,
+    tsconfigPath: resolvedTsconfig,
+    trailDb,
+    callbacks: server,
+    codeGraphService,
+    logger,
+  });
 }
 
 function createLogger(toStdout: boolean): Logger {

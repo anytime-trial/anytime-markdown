@@ -49,6 +49,17 @@ export class GraphDetector {
     return this.walk(this.rootPath, (entry) => entry.name === name);
   }
 
+  private shouldSkipDir(entry: fs.Dirent, fullPath: string): boolean {
+    if (DEFAULT_EXCLUDE_DIRS.has(entry.name)) return true;
+    const relPath = toPosixRelative(this.rootPath, fullPath);
+    return relPath !== '' && this.userIgnore.ignores(`${relPath}/`);
+  }
+
+  private shouldSkipFile(fullPath: string): boolean {
+    const relPath = toPosixRelative(this.rootPath, fullPath);
+    return relPath !== '' && this.userIgnore.ignores(relPath);
+  }
+
   private walk(dir: string, match: (entry: fs.Dirent) => boolean): string[] {
     const results: string[] = [];
     let entries: fs.Dirent[];
@@ -60,13 +71,10 @@ export class GraphDetector {
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (DEFAULT_EXCLUDE_DIRS.has(entry.name)) continue;
-        const relPath = toPosixRelative(this.rootPath, fullPath);
-        if (relPath !== '' && this.userIgnore.ignores(`${relPath}/`)) continue;
-        results.push(...this.walk(fullPath, match));
-      } else if (entry.isFile() && match(entry)) {
-        const relPath = toPosixRelative(this.rootPath, fullPath);
-        if (relPath !== '' && this.userIgnore.ignores(relPath)) continue;
+        if (!this.shouldSkipDir(entry, fullPath)) {
+          results.push(...this.walk(fullPath, match));
+        }
+      } else if (entry.isFile() && match(entry) && !this.shouldSkipFile(fullPath)) {
         results.push(fullPath);
       }
     }

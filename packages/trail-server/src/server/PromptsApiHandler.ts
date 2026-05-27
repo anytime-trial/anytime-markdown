@@ -25,6 +25,62 @@ export interface PromptEntry {
  * 全件 fs.readdirSync / readFileSync の同期 I/O を使うため、HTTP ハンドラから直接呼ぶと
  * イベントループをブロックする。`PromptsApiHandler` は 30 秒 TTL でキャッシュする。
  */
+type AddFileFn = (filePath: string, tags: string[]) => void;
+
+function scanMemoryFiles(projectsDir: string, addFile: AddFileFn): void {
+  try {
+    for (const proj of fs.readdirSync(projectsDir)) {
+      const memDir = path.join(projectsDir, proj, 'memory');
+      if (!fs.existsSync(memDir)) continue;
+      try {
+        if (!fs.statSync(memDir).isDirectory()) continue;
+      } catch {
+        continue;
+      }
+      try {
+        for (const f of fs.readdirSync(memDir)) {
+          if (f.endsWith('.md')) {
+            addFile(path.join(memDir, f), ['memory', proj]);
+          }
+        }
+      } catch {
+        // skip unreadable memory dir
+      }
+    }
+  } catch {
+    // projects dir may not exist
+  }
+}
+
+function scanSkillFiles(skillsDir: string, addFile: AddFileFn): void {
+  try {
+    for (const skillName of fs.readdirSync(skillsDir)) {
+      const skillFile = path.join(skillsDir, skillName, 'SKILL.md');
+      if (fs.existsSync(skillFile)) {
+        addFile(skillFile, ['skill', skillName]);
+      }
+    }
+  } catch {
+    // skills dir may not exist
+  }
+}
+
+function scanScriptFiles(scriptsDir: string, addFile: AddFileFn): void {
+  try {
+    for (const f of fs.readdirSync(scriptsDir)) {
+      const scriptFile = path.join(scriptsDir, f);
+      try {
+        if (!fs.statSync(scriptFile).isFile()) continue;
+      } catch {
+        continue;
+      }
+      addFile(scriptFile, ['script']);
+    }
+  } catch {
+    // scripts dir may not exist
+  }
+}
+
 export function scanPromptFiles(): PromptEntry[] {
   const claudeDir = path.join(os.homedir(), '.claude');
   const prompts: PromptEntry[] = [];
@@ -90,46 +146,13 @@ export function scanPromptFiles(): PromptEntry[] {
   }
 
   // 4. Memory
-  const memoryDir = path.join(claudeDir, 'projects');
-  try {
-    for (const proj of fs.readdirSync(memoryDir)) {
-      const memDir = path.join(memoryDir, proj, 'memory');
-      if (fs.existsSync(memDir) && fs.statSync(memDir).isDirectory()) {
-        for (const f of fs.readdirSync(memDir)) {
-          if (f.endsWith('.md')) {
-            addFile(path.join(memDir, f), ['memory', proj]);
-          }
-        }
-      }
-    }
-  } catch {
-    // skip
-  }
+  scanMemoryFiles(path.join(claudeDir, 'projects'), addFile);
 
   // 5. Skills (SKILL.md in each skill directory)
-  const skillsDir = path.join(claudeDir, 'skills');
-  try {
-    for (const skillName of fs.readdirSync(skillsDir)) {
-      const skillFile = path.join(skillsDir, skillName, 'SKILL.md');
-      if (fs.existsSync(skillFile)) {
-        addFile(skillFile, ['skill', skillName]);
-      }
-    }
-  } catch {
-    // skills dir may not exist
-  }
+  scanSkillFiles(path.join(claudeDir, 'skills'), addFile);
 
   // 6. Scripts
-  const scriptsDir = path.join(claudeDir, 'scripts');
-  try {
-    for (const f of fs.readdirSync(scriptsDir)) {
-      const scriptFile = path.join(scriptsDir, f);
-      if (!fs.existsSync(scriptFile) || !fs.statSync(scriptFile).isFile()) continue;
-      addFile(scriptFile, ['script']);
-    }
-  } catch {
-    // scripts dir may not exist
-  }
+  scanScriptFiles(path.join(claudeDir, 'scripts'), addFile);
 
   // 7. settings.json
   const settingsFile = path.join(claudeDir, 'settings.json');

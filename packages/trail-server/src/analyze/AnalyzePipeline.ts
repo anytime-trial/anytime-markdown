@@ -268,6 +268,72 @@ async function analyzePythonOnlyBranch(
   return { graph, scored, lineCountByFile, categoryByFile };
 }
 
+async function generateCodeGraph(args: {
+  codeGraphService: CodeGraphService;
+  repoName: string;
+  callbacks: AnalyzePipelineCallbacks;
+  onProgress: AnalyzeCurrentOpts['onProgress'];
+  logger: Logger;
+  warnings: string[];
+}): Promise<void> {
+  const { codeGraphService, repoName, callbacks, onProgress, logger, warnings } = args;
+  try {
+    onProgress?.('Generating code graph...');
+    await codeGraphService.generate((phase, percent) => {
+      callbacks.notifyCodeGraphProgress(phase, percent);
+      onProgress?.(`Code graph: ${phase}`, percent);
+    });
+    // generate() は fresh graph で in-memory cache を上書きするため、
+    // saveCurrentCodeGraph で温存された AI 要約は cache に反映されない。
+    // loadFromDb() で DB と join 済みの graph を取り直し、要約込みで cache を再構築する。
+    try {
+      await codeGraphService.loadFromDb(repoName);
+    } catch (err) {
+      logger.warn(`C4 analysis [${repoName}]: cache compose failed (loadFromDb): ${err instanceof Error ? err.message : String(err)}`);
+    }
+    callbacks.notifyCodeGraphUpdated();
+  } catch (err) {
+    const msg = `code graph generation failed: ${err instanceof Error ? err.message : String(err)}`;
+    logger.error(`C4 analysis [${repoName}]: ${msg}`, err);
+    warnings.push(msg);
+  }
+}
+
+async function computeFileAnalysisStep(args: {
+  analysisRoot: string;
+  repoName: string;
+  trailDb: TrailDatabase;
+  branch: AnalyzeBranchResult;
+  onProgress: AnalyzeCurrentOpts['onProgress'];
+  logger: Logger;
+  warnings: string[];
+}): Promise<void> {
+  const { analysisRoot, repoName, trailDb, branch, onProgress, logger, warnings } = args;
+  try {
+    onProgress?.('Computing file analysis...');
+    if (branch.scored.length > 0) {
+      const { computeAndPersistFileAnalysis } = await import('./computeAndPersistFileAnalysis.js');
+      const { fileRows, functionRows } = await computeAndPersistFileAnalysis({
+        analysisRoot,
+        repoName,
+        trailDb,
+        scored: branch.scored,
+        lineCountByFile: branch.lineCountByFile,
+        categoryByFile: branch.categoryByFile,
+      });
+      logger.info(
+        `C4 analysis [${repoName}]: file_analysis=${fileRows} function_analysis=${functionRows}`,
+      );
+    } else {
+      logger.warn(`C4 analysis [${repoName}]: skipping file analysis (no scored functions)`);
+    }
+  } catch (err) {
+    const msg = `file analysis failed: ${err instanceof Error ? err.message : String(err)}`;
+    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
+    warnings.push(msg);
+  }
+}
+
 /**
  * C4 / コードグラフ解析の本体パイプライン。
  * VS Code コマンド (`anytime-trail.analyzeCurrentCode`) と HTTP エンドポイント
@@ -326,26 +392,7 @@ export async function runAnalyzeCurrentCodePipeline(
   // ここで model-updated を通知する。
   callbacks.notifyModelUpdated();
 
-  try {
-    onProgress?.('Generating code graph...');
-    await codeGraphService.generate((phase, percent) => {
-      callbacks.notifyCodeGraphProgress(phase, percent);
-      onProgress?.(`Code graph: ${phase}`, percent);
-    });
-    // generate() は fresh graph で in-memory cache を上書きするため、
-    // saveCurrentCodeGraph で温存された AI 要約は cache に反映されない。
-    // loadFromDb() で DB と join 済みの graph を取り直し、要約込みで cache を再構築する。
-    try {
-      await codeGraphService.loadFromDb(repoName);
-    } catch (err) {
-      logger.warn(`C4 analysis [${repoName}]: cache compose failed (loadFromDb): ${err instanceof Error ? err.message : String(err)}`);
-    }
-    callbacks.notifyCodeGraphUpdated();
-  } catch (err) {
-    const msg = `code graph generation failed: ${err instanceof Error ? err.message : String(err)}`;
-    logger.error(`C4 analysis [${repoName}]: ${msg}`, err);
-    warnings.push(msg);
-  }
+  await generateCodeGraph({ codeGraphService, repoName, callbacks, onProgress, logger, warnings });
 
   try {
     const count = trailDb.importCurrentCoverage(analysisRoot, repoName);
@@ -370,29 +417,15 @@ export async function runAnalyzeCurrentCodePipeline(
 
   // ファイル別・関数別デッドコード解析を current_file_analysis / current_function_analysis に保存。
   // scored / lineCountByFile / categoryByFile は実行したブランチ（TS / Python-only）の結果を使う。
-  try {
-    onProgress?.('Computing file analysis...');
-    if (branch.scored.length > 0) {
-      const { computeAndPersistFileAnalysis } = await import('./computeAndPersistFileAnalysis.js');
-      const { fileRows, functionRows } = await computeAndPersistFileAnalysis({
-        analysisRoot,
-        repoName,
-        trailDb,
-        scored: branch.scored,
-        lineCountByFile: branch.lineCountByFile,
-        categoryByFile: branch.categoryByFile,
-      });
-      logger.info(
-        `C4 analysis [${repoName}]: file_analysis=${fileRows} function_analysis=${functionRows}`,
-      );
-    } else {
-      logger.warn(`C4 analysis [${repoName}]: skipping file analysis (no scored functions)`);
-    }
-  } catch (err) {
-    const msg = `file analysis failed: ${err instanceof Error ? err.message : String(err)}`;
-    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
-    warnings.push(msg);
-  }
+  await computeFileAnalysisStep({
+    analysisRoot,
+    repoName,
+    trailDb,
+    branch,
+    onProgress,
+    logger,
+    warnings,
+  });
 
   callbacks.notifyProgress('', 100);
   onProgress?.('', 100);

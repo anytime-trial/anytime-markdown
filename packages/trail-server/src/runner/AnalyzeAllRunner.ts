@@ -236,29 +236,7 @@ export class AnalyzeAllRunner extends BaseRunner {
       const primaryRepoName = opts.gitRoot ? basename(opts.gitRoot) : fallbackRepoName;
 
       // Layer 1 (sources)
-      const ingesters: Analyzer[] = [
-        new JsonlIngester({
-          gitRoot: opts.gitRoot ?? gitRoots[0],
-          repoName: primaryRepoName,
-          claudeProjectsDir: opts.claudeProjectsDir,
-          codexSessionsDir: opts.codexSessionsDir,
-        }),
-        new GitIngester({ gitRoots }),
-        new CoverageIngester({ gitRoots }),
-        new MetaJsonIngester({ claudeProjectsDir: opts.claudeProjectsDir }),
-      ];
-      // 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (githubPrReview 指定時のみ)。
-      if (opts.githubPrReview) {
-        ingesters.push(
-          new GitHubPrReviewIngester({
-            client: opts.githubPrReview.client,
-            gitRoots,
-            since: opts.githubPrReview.since,
-            maxPrs: opts.githubPrReview.maxPrs,
-            gitRemoteReader: opts.githubPrReview.gitRemoteReader,
-          }),
-        );
-      }
+      const ingesters = this.buildIngesters(opts, gitRoots, primaryRepoName);
       analyzers.push(...ingesters);
 
       // Layer 2 (primary)
@@ -343,17 +321,7 @@ export class AnalyzeAllRunner extends BaseRunner {
     // tier 4 は stage='all' でのみ実行される (LepOrchestrator の STAGE_TIERS)。
     // trailDb が無い場合 (daemon の memory-only 等) は DORA を算出できないため登録しない。
     if (opts.trailDb) {
-      const disabledAggregators = opts.disabledAggregators ?? [];
-      if (!disabledAggregators.includes('DoraMetricsAggregator')) {
-        const doraAggregator = new DoraMetricsAggregator({ trailDb: opts.trailDb });
-        bus.subscribe(doraAggregator);
-        analyzers.push(doraAggregator);
-      }
-      if (!disabledAggregators.includes('CrossSourceCorrelator')) {
-        const correlator = new CrossSourceCorrelator({ trailDb: opts.trailDb });
-        bus.subscribe(correlator);
-        analyzers.push(correlator);
-      }
+      this.registerAggregators(opts.trailDb, opts.disabledAggregators ?? [], bus, analyzers);
     }
 
     this.stage = opts.stage ?? 'primary+memory';
@@ -366,6 +334,57 @@ export class AnalyzeAllRunner extends BaseRunner {
     });
 
     this.onAfterRun = opts.onAfterRun;
+  }
+
+  /** Layer 1 ingesters (sources) を生成する。GitHub PR source は opt-in。 */
+  private buildIngesters(
+    opts: AnalyzeAllRunnerOptions,
+    gitRoots: readonly string[],
+    primaryRepoName: string | undefined,
+  ): Analyzer[] {
+    const ingesters: Analyzer[] = [
+      new JsonlIngester({
+        gitRoot: opts.gitRoot ?? gitRoots[0],
+        repoName: primaryRepoName,
+        claudeProjectsDir: opts.claudeProjectsDir,
+        codexSessionsDir: opts.codexSessionsDir,
+      }),
+      new GitIngester({ gitRoots }),
+      new CoverageIngester({ gitRoots }),
+      new MetaJsonIngester({ claudeProjectsDir: opts.claudeProjectsDir }),
+    ];
+    // 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (githubPrReview 指定時のみ)。
+    if (opts.githubPrReview) {
+      ingesters.push(
+        new GitHubPrReviewIngester({
+          client: opts.githubPrReview.client,
+          gitRoots,
+          since: opts.githubPrReview.since,
+          maxPrs: opts.githubPrReview.maxPrs,
+          gitRemoteReader: opts.githubPrReview.gitRemoteReader,
+        }),
+      );
+    }
+    return ingesters;
+  }
+
+  /** Layer 4 aggregator (DORA / CrossSource) を bus + analyzers に登録する。 */
+  private registerAggregators(
+    trailDb: TrailDatabase,
+    disabledAggregators: readonly string[],
+    bus: EventBus,
+    analyzers: Analyzer[],
+  ): void {
+    if (!disabledAggregators.includes('DoraMetricsAggregator')) {
+      const doraAggregator = new DoraMetricsAggregator({ trailDb });
+      bus.subscribe(doraAggregator);
+      analyzers.push(doraAggregator);
+    }
+    if (!disabledAggregators.includes('CrossSourceCorrelator')) {
+      const correlator = new CrossSourceCorrelator({ trailDb });
+      bus.subscribe(correlator);
+      analyzers.push(correlator);
+    }
   }
 
   protected override async runImpl(reason: RunReason): Promise<void> {

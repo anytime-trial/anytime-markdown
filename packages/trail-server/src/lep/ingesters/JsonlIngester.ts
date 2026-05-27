@@ -122,43 +122,7 @@ export class JsonlIngester implements Analyzer {
       } catch {
         continue;
       }
-      let entries: string[];
-      try {
-        entries = fs.readdirSync(projectPath);
-      } catch {
-        continue;
-      }
-      for (const entry of entries) {
-        if (!entry.endsWith('.jsonl')) continue;
-        const sid = entry.slice(0, -6);
-        if (!UUID_RE.test(sid)) continue;
-        const mainFile = path.join(projectPath, entry);
-
-        const subagentDir = path.join(projectPath, sid, 'subagents');
-        const subagentFiles: string[] = [];
-        try {
-          for (const sf of fs.readdirSync(subagentDir)) {
-            if (sf.endsWith('.jsonl')) {
-              subagentFiles.push(path.join(subagentDir, sf));
-            }
-          }
-        } catch {
-          // no subagent dir
-        }
-
-        // 性能優先: project dir 名から導出する (先頭 "-" を剥がした文字列をそのまま使う)。
-        // JSONL 中の `cwd` フィールドから worktree を正規化した正確な repoName を得たい場合は、
-        // 下流の SessionImporter (Step 2b 予定) で `extractRepoNameFromJsonl(mainFile)` を呼び直す。
-        // Step 2a の Ingester は ~/.claude/projects を fast-scan するためにファイル本体を開かない。
-        const derived = projectName.replace(/^-+/, '');
-        out.push({
-          sessionId: sid,
-          mainFile,
-          subagentFiles,
-          repoName: derived,
-          source: 'claude_code',
-        });
-      }
+      out.push(...discoverClaudeSessionsInProject(projectPath, projectName));
     }
     return out;
   }
@@ -189,6 +153,49 @@ export class JsonlIngester implements Analyzer {
     }
     return out;
   }
+}
+
+/** 1 つの Claude Code project ディレクトリ内の全セッションを収集する。 */
+function discoverClaudeSessionsInProject(
+  projectPath: string,
+  projectName: string,
+): SessionDescriptor[] {
+  const out: SessionDescriptor[] = [];
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(projectPath);
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    if (!entry.endsWith('.jsonl')) continue;
+    const sid = entry.slice(0, -6);
+    if (!UUID_RE.test(sid)) continue;
+    const mainFile = path.join(projectPath, entry);
+
+    const subagentDir = path.join(projectPath, sid, 'subagents');
+    const subagentFiles: string[] = [];
+    try {
+      for (const sf of fs.readdirSync(subagentDir)) {
+        if (sf.endsWith('.jsonl')) {
+          subagentFiles.push(path.join(subagentDir, sf));
+        }
+      }
+    } catch {
+      // no subagent dir
+    }
+
+    // 性能優先: project dir 名から導出する (先頭 "-" を剥がした文字列をそのまま使う)。
+    const derived = projectName.replace(/^-+/, '');
+    out.push({
+      sessionId: sid,
+      mainFile,
+      subagentFiles,
+      repoName: derived,
+      source: 'claude_code',
+    });
+  }
+  return out;
 }
 
 function collectRolloutJsonlFiles(rootDir: string): string[] {

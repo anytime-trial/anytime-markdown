@@ -76,8 +76,7 @@ export class LogService {
     this.broadcaster.notifyLog(inserted);
   }
 
-  queryLogs(params: QueryParams): QueryResult {
-    const limit = Math.min(params.limit ?? 500, 1000);
+  private buildQueryConditions(params: QueryParams): { conds: string[]; args: SqlValue[] } {
     const conds: string[] = [];
     const args: SqlValue[] = [];
 
@@ -107,6 +106,13 @@ export class LogService {
       conds.push(`(timestamp < ? OR (timestamp = ? AND id < ?))`);
       args.push(ts, ts, Number(idStr));
     }
+
+    return { conds, args };
+  }
+
+  queryLogs(params: QueryParams): QueryResult {
+    const limit = Math.min(params.limit ?? 500, 1000);
+    const { conds, args } = this.buildQueryConditions(params);
 
     const where = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
     const sql = `
