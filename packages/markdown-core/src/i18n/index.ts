@@ -6,6 +6,6 @@ export type MarkdownMessages = typeof jaMessages;
 // ビルド時に en と ja の構造が一致することを保証する。
 // ja に存在するキーが en に欠けているとここで型エラーになる。
 const _enAssertion: MarkdownMessages = enMessages;
-void _enAssertion;
+_enAssertion;
 
 export { enMessages,jaMessages };
