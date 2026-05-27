@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-05-27
+
+### Changed
+
+- SonarCloud mechanical safe fixes. No functional changes.
+
 ## [0.2.4] - 2026-05-24
 
 ### Security

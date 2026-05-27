@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-05-27
+
+### Fixed
+
+- `analyze_current_code` now persists `current_code_graphs` and communities to the same repository as the analyzed workspace (per-call `repositories` override). Previously the statistics (saved to the analyzed workspace) and the code graph / communities (generated for the fixed activation-time repo) could diverge to different projects.
+
+### Security
+
+- Hardened `handleTraceFile` with resolved-path containment check to defend against path injection (S2083).
+- The analyze child process now writes results to a private directory created via `mkdtempSync`, resolving an insecure temporary file issue.
+- Replaced `parseGitHubRemote` with an `indexOf`-based implementation to eliminate a polynomial ReDoS.
+
+### Build
+
+- Reduced VSIX size by ~40% by excluding development and build artifacts from the package.
+
+### Trail Core (trail-core / trail-server / trail-db / memory-core)
+
+- Reduced cognitive complexity (S3776) across trail-server, trail-db, memory-core and trail-core.
+- Added +181 coverage tests in trail-db (package coverage 77.5% → 80.6%).
+- Various SonarCloud mechanical safe fixes (S4624, S7735, S7780, S4325, etc.).
+
 ## [0.23.1] - 2026-05-26
 
 ### Changed

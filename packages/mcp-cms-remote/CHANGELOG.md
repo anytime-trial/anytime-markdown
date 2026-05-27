@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-05-27
+
+### Changed
+
+- SonarCloud S1874 deprecated API migration and mechanical safe fixes.
+
 ## [0.0.6] - 2026-05-20
 
 ### Changed

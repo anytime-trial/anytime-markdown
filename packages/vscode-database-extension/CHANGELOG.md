@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-05-27
+
+### Database Core (database-core / database-viewer)
+
+- SonarCloud code quality improvements (reduced cognitive complexity, mechanical safe fixes).
+
 ## [0.2.4] - 2026-05-24
 
 ### Changed

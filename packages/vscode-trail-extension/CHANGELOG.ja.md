@@ -6,6 +6,28 @@
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-05-27
+
+### 修正
+
+- `analyze_current_code` が `current_code_graphs` とコミュニティを、解析対象ワークスペースと同じリポジトリに保存するよう修正（呼び出しごとの `repositories` 上書き）。従来は統計（解析対象ワークスペースに保存）とコードグラフ・コミュニティ（activate 時固定 repo に生成）が別プロジェクトにズレることがあった。
+
+### セキュリティ
+
+- `handleTraceFile` に解決済みパスの包含チェックを追加し、path injection (S2083) を多層防御。
+- analyze 子プロセスの結果を `mkdtempSync` で作成した private ディレクトリに書き込み、insecure temporary file を解消。
+- `parseGitHubRemote` を `indexOf` ベースに置換し、polynomial ReDoS を解消。
+
+### ビルド
+
+- 開発・ビルド成果物をパッケージから除外し、VSIX サイズを約40%削減。
+
+### Trail Core (trail-core / trail-server / trail-db / memory-core)
+
+- trail-server / trail-db / memory-core / trail-core 全体で認知的複雑度 (S3776) を削減。
+- trail-db にカバレッジ向上テストを +181 追加（パッケージカバレッジ 77.5% → 80.6%）。
+- SonarCloud 機械的安全修正（S4624 / S7735 / S7780 / S4325 ほか）多数。
+
 ## [0.23.1] - 2026-05-26
 
 ### 変更

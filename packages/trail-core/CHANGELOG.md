@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-05-27
+
+### Changed
+
+- SonarCloud code quality improvements: reduced cognitive complexity (S3776) in `computeColorMap` / `c4ToGraphDocument`, plus S3358 (nested ternary) and S6582 (optional chaining) fixes. No functional changes.
+
 ## [0.23.1] - 2026-05-26
 
 ### Added

@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-05-27
+
+### Graph Core (graph-core)
+
+- SonarCloud コード品質改善（認知的複雑度削減・機械的安全修正）。
+
 ## [0.4.0] - 2026-05-24
 
 ### Graph Core (graph-core)
