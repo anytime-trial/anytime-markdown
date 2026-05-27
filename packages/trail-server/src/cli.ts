@@ -361,14 +361,14 @@ program
 
     const schedulerDisabledByEnv = process.env.TRAIL_DISABLE_SCHEDULER === '1';
     const schedulerEnabled = opts.scheduler && !schedulerDisabledByEnv;
-    if (!schedulerEnabled) {
-      logger.info('scheduler disabled', {
-        reason: schedulerDisabledByEnv ? 'TRAIL_DISABLE_SCHEDULER=1' : '--no-scheduler',
-      });
-    } else {
+    if (schedulerEnabled) {
       analyzeAllRunner.start(lepConfig.schedule.intervalSec * 1000, {
         runOnStart: lepConfig.schedule.runOnStart,
         startupDelayMs: lepConfig.schedule.startupDelaySec * 1000,
+      });
+    } else {
+      logger.info('scheduler disabled', {
+        reason: schedulerDisabledByEnv ? 'TRAIL_DISABLE_SCHEDULER=1' : '--no-scheduler',
       });
     }
 
@@ -508,7 +508,7 @@ async function callDaemonAnalyzeAll(
     });
     if (!res.ok) {
       const text = await res.text();
-      console.error(`HTTP ${res.status} from daemon: ${text}`);
+      console.error(`HTTP ${res.status} from daemon: ${text.replaceAll(/[\r\n]/g, '')}`);
       process.exit(1);
     }
     const status = await res.json();

@@ -1,8 +1,8 @@
 import type { LogEntry, LogLevel, LogService, LogSource } from '../services/LogService';
 
 const TS_REGEX = /^\d{4}-[0-1]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d(\.\d{3})?Z$/;
-const VALID_LEVELS: ReadonlyArray<LogLevel> = ['debug', 'info', 'warn', 'error'];
-const VALID_SOURCES: ReadonlyArray<LogSource> = ['extension', 'daemon'];
+const VALID_LEVELS: ReadonlySet<string> = new Set<LogLevel>(['debug', 'info', 'warn', 'error']);
+const VALID_SOURCES: ReadonlySet<string> = new Set<LogSource>(['extension', 'daemon']);
 const MAX_BATCH = 200;
 const DEFAULT_LIMIT = 500;
 const MAX_LIMIT = 1000;
@@ -33,7 +33,7 @@ export function handlePostLogs(rawBody: string, svc: LogService): ApiResponse {
     if (typeof e.timestamp !== 'string' || !TS_REGEX.test(e.timestamp)) {
       return { status: 400, body: 'invalid timestamp' };
     }
-    if (typeof e.level !== 'string' || !VALID_LEVELS.includes(e.level as LogLevel)) {
+    if (typeof e.level !== 'string' || !VALID_LEVELS.has(e.level)) {
       return { status: 400, body: 'invalid level' };
     }
     if (typeof e.component !== 'string') return { status: 400, body: 'invalid component' };
@@ -66,15 +66,15 @@ function splitCsv(value: string | null): string[] | undefined {
 export function handleGetLogs(qs: URLSearchParams, svc: LogService): ApiResponse {
   const levelRaw = splitCsv(qs.get('level'));
   const sourceRaw = splitCsv(qs.get('source'));
-  if (levelRaw?.some((l) => !VALID_LEVELS.includes(l as LogLevel))) {
+  if (levelRaw?.some((l) => !VALID_LEVELS.has(l))) {
     return { status: 400, body: 'invalid level' };
   }
-  if (sourceRaw?.some((s) => !VALID_SOURCES.includes(s as LogSource))) {
+  if (sourceRaw?.some((s) => !VALID_SOURCES.has(s))) {
     return { status: 400, body: 'invalid source' };
   }
 
   const rawLimit = qs.get('limit');
-  const parsedLimit = rawLimit != null ? Number.parseInt(rawLimit, 10) : DEFAULT_LIMIT;
+  const parsedLimit = rawLimit === null ? DEFAULT_LIMIT : Number.parseInt(rawLimit, 10);
   const limit = Math.min(Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : DEFAULT_LIMIT, MAX_LIMIT);
 
   const result = svc.queryLogs({

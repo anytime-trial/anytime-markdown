@@ -32,12 +32,7 @@ import type {
   CallHierarchyIndex,
   CallHierarchyScope,
 } from '@anytime-markdown/trail-core/c4/callHierarchy';
-import type { FileCoverage, MessageInput } from '@anytime-markdown/trail-core/c4';
-import type {
-  C4Model,
-  DsmMatrix,
-  FeatureMatrix,
-} from '@anytime-markdown/trail-core/c4';
+import type { FileCoverage, MessageInput, C4Model, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import type { TrailGraph, ReleaseCoverageRow, CurrentCoverageRow } from '@anytime-markdown/trail-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
@@ -252,11 +247,11 @@ export class TrailDataServer {
 
   /** POST /api/analyze/current ハンドラ。extension.ts で登録される */
   onAnalyzeCurrentCode:
-    | ((req: { workspacePath?: string; tsconfigPath?: string }) => Promise<AnalyzePipelineResult>)
+    | ((req: { workspacePath?: string; tsconfigPath?: string }) => Promise<AnalyzeCurrentResult>)
     | undefined;
   /** POST /api/analyze/release ハンドラ */
   onAnalyzeReleaseCode:
-    | (() => Promise<AnalyzeReleasePipelineResult>)
+    | (() => Promise<AnalyzeReleaseResult>)
     | undefined;
   /** POST /api/analyze/all ハンドラ */
   onAnalyzeAll:
@@ -1204,9 +1199,9 @@ export class TrailDataServer {
 
     // 明示指定された場合のみ採用。未指定なら undefined を渡し、TrailDatabase 側の粒度別デフォルトを使う。
     const thresholdRaw = params.get('threshold');
-    const threshold = thresholdRaw !== null ? clampFloat(thresholdRaw, 0.5, 0, 1) : undefined;
+    const threshold = thresholdRaw === null ? undefined : clampFloat(thresholdRaw, 0.5, 0, 1);
     const minChangeRaw = params.get('minChange');
-    const minChange = minChangeRaw !== null ? clampInt(minChangeRaw, 5, 1, 1000) : undefined;
+    const minChange = minChangeRaw === null ? undefined : clampInt(minChangeRaw, 5, 1, 1000);
 
     try {
       const computedAt = new Date().toISOString();
@@ -2042,7 +2037,7 @@ export class TrailDataServer {
 
       // C4 model 取得
       const store = this.trailDb.asC4ModelStore();
-      const payload = await fetchC4Model(store, tag, repoName, undefined);
+      const payload = await fetchC4Model(store, tag, repoName);
       const elements = payload?.model?.elements ?? [];
 
       // file → element 集約 (importance / deadCodeScore / centrality)
@@ -3163,7 +3158,8 @@ export class TrailDataServer {
     try {
       await this.codeGraphService.loadFromDb(repoName);
     } catch (err) {
-      this.logger.warn(`[community-upsert] cache compose failed (loadFromDb${repoName ? `(${repoName})` : ''}): ${err instanceof Error ? err.message : String(err)}`);
+      const repoSuffix = repoName ? `(${repoName})` : '';
+      this.logger.warn(`[community-upsert] cache compose failed (loadFromDb${repoSuffix}): ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

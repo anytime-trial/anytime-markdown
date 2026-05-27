@@ -66,9 +66,6 @@ abstract class BaseLogger implements Logger {
 }
 
 export class ConsoleLogger extends BaseLogger {
-  constructor(level: LogLevel, scope?: string) {
-    super(level, scope);
-  }
   protected emit(line: string): void {
     process.stdout.write(line);
   }

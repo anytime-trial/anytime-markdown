@@ -114,7 +114,7 @@ function extractFindings(bodyText: string): ParsedFinding[] {
     const { category, is_category_inferred } = inferCategory(chapter.heading);
     const bodyBasedSeverity = inferSeverity(chapterBody);
     const headingSeverity = inferSeverityFromHeading(chapter.heading);
-    const severity = bodyBasedSeverity !== 'info' ? bodyBasedSeverity : headingSeverity;
+    const severity = bodyBasedSeverity === 'info' ? headingSeverity : bodyBasedSeverity;
 
     // Strategy 1: 既存ペア抽出（拡張 marker + bullet 接頭辞対応済み）
     const pairs = extractProblemSuggestionPairs(chapter.lines);
@@ -281,11 +281,11 @@ export function parseReviewSessions(input: {
 
   for (const block of blocks) {
     // Track block index within session for subagent_invocation_id purposes
-    if (block.session_id !== lastSessionId) {
+    if (block.session_id === lastSessionId) {
+      blockIndexInSession++;
+    } else {
       blockIndexInSession = 0;
       lastSessionId = block.session_id;
-    } else {
-      blockIndexInSession++;
     }
 
     const firstRow = block.rows[0];

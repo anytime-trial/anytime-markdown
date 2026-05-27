@@ -17,7 +17,7 @@ export async function attachTrailDbReadOnly(
   trailDbPath: string,
 ): Promise<void> {
   if (!(db instanceof BetterSqlite3MemoryDb)) {
-    throw new Error(
+    throw new TypeError(
       '[anytime-memory] attachTrailDbReadOnly: only BetterSqlite3MemoryDb is supported',
     );
   }
@@ -38,12 +38,12 @@ export function attachTrailDbFromHandle(
   trailHandle: MemoryDbConnection,
 ): void {
   if (!(db instanceof BetterSqlite3MemoryDb)) {
-    throw new Error(
+    throw new TypeError(
       '[anytime-memory] attachTrailDbFromHandle: only BetterSqlite3MemoryDb is supported for main db',
     );
   }
   if (!(trailHandle instanceof BetterSqlite3MemoryDb)) {
-    throw new Error(
+    throw new TypeError(
       '[anytime-memory] attachTrailDbFromHandle: only BetterSqlite3MemoryDb is supported for trailHandle',
     );
   }

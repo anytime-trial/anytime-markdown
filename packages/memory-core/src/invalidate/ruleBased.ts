@@ -1,5 +1,5 @@
 import type { MemoryDbConnection } from '../db/connection/types';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 
 export interface EdgeInput {
   id: string;

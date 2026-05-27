@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { splitEpisodes } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
@@ -7,13 +7,15 @@ import { episodeId, persistEpisodeFacts, type PersistStats } from '../ingest/con
 import { noopLogger, type MemoryLogger } from '../logger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
+type PipelineStatus = 'success' | 'partial' | 'error';
+
 const SCOPE = 'conversation_incremental';
 const DEFAULT_SINCE = '1970-01-01T00:00:00.000Z';
 const QUARANTINE_THRESHOLD = 3;
 const PROGRESS_LOG_INTERVAL = 50;
 
 export interface IncrementalResult {
-  status: 'success' | 'partial' | 'error';
+  status: PipelineStatus;
   items_processed: number;
   items_skipped: number;
   entities_inserted: number;

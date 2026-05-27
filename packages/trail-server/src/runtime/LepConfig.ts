@@ -382,22 +382,20 @@ export function validateLepConfigInput(
   }
 
   if (raw['schedule'] !== undefined) {
-    if (!isPlainObject(raw['schedule'])) {
-      warnings.push(`${sourceLabel}: schedule はオブジェクトである必要があります (無視)`);
-    } else {
+    if (isPlainObject(raw['schedule'])) {
       const s = raw['schedule'];
       const schedule: Partial<LepScheduleConfig> = {};
       if (typeof s['intervalSec'] === 'number') schedule.intervalSec = s['intervalSec'];
       if (typeof s['runOnStart'] === 'boolean') schedule.runOnStart = s['runOnStart'];
       if (typeof s['startupDelaySec'] === 'number') schedule.startupDelaySec = s['startupDelaySec'];
       value.schedule = schedule;
+    } else {
+      warnings.push(`${sourceLabel}: schedule はオブジェクトである必要があります (無視)`);
     }
   }
 
   if (raw['throttle'] !== undefined) {
-    if (!isPlainObject(raw['throttle'])) {
-      warnings.push(`${sourceLabel}: throttle はオブジェクトである必要があります (無視)`);
-    } else {
+    if (isPlainObject(raw['throttle'])) {
       const th = raw['throttle'];
       const throttle: Partial<LepThrottleConfig> = {};
       if (typeof th['enabled'] === 'boolean') throttle.enabled = th['enabled'];
@@ -405,6 +403,8 @@ export function validateLepConfigInput(
       if (typeof th['cooldownSec'] === 'number') throttle.cooldownSec = th['cooldownSec'];
       if (typeof th['maxContinuousMin'] === 'number') throttle.maxContinuousMin = th['maxContinuousMin'];
       value.throttle = throttle;
+    } else {
+      warnings.push(`${sourceLabel}: throttle はオブジェクトである必要があります (無視)`);
     }
   }
 
@@ -427,9 +427,7 @@ export function validateLepConfigInput(
   }
 
   if (raw['memory'] !== undefined) {
-    if (!isPlainObject(raw['memory'])) {
-      warnings.push(`${sourceLabel}: memory はオブジェクトである必要があります (無視)`);
-    } else {
+    if (isPlainObject(raw['memory'])) {
       const mem = raw['memory'];
       const memory: NonNullable<PartialLepConfig['memory']> = {};
       if (isPlainObject(mem['rag'])) {
@@ -448,13 +446,13 @@ export function validateLepConfigInput(
         memory.conversation = { backfillDays: mem['conversation']['backfillDays'] };
       }
       value.memory = memory;
+    } else {
+      warnings.push(`${sourceLabel}: memory はオブジェクトである必要があります (無視)`);
     }
   }
 
   if (raw['analyzers'] !== undefined) {
-    if (!isPlainObject(raw['analyzers'])) {
-      warnings.push(`${sourceLabel}: analyzers はオブジェクトである必要があります (無視)`);
-    } else {
+    if (isPlainObject(raw['analyzers'])) {
       const analyzers: LepAnalyzersConfig = {};
       for (const [id, toggle] of Object.entries(raw['analyzers'])) {
         if (!KNOWN_ANALYZER_IDS.includes(id)) {
@@ -468,13 +466,13 @@ export function validateLepConfigInput(
         }
       }
       value.analyzers = analyzers;
+    } else {
+      warnings.push(`${sourceLabel}: analyzers はオブジェクトである必要があります (無視)`);
     }
   }
 
   if (raw['sources'] !== undefined) {
-    if (!isPlainObject(raw['sources'])) {
-      warnings.push(`${sourceLabel}: sources はオブジェクトである必要があります (無視)`);
-    } else {
+    if (isPlainObject(raw['sources'])) {
       const sourcesRaw = raw['sources'];
       const sources: NonNullable<PartialLepConfig['sources']> = {};
 
@@ -528,6 +526,8 @@ export function validateLepConfigInput(
       }
 
       if (Object.keys(sources).length > 0) value.sources = sources;
+    } else {
+      warnings.push(`${sourceLabel}: sources はオブジェクトである必要があります (無視)`);
     }
   }
 
@@ -605,7 +605,7 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
       },
     },
     // analyzers は id 単位で上書き (未指定 id は base を維持)
-    analyzers: { ...base.analyzers, ...(override.analyzers ?? {}) },
+    analyzers: override.analyzers ? { ...base.analyzers, ...override.analyzers } : { ...base.analyzers },
     sources: {
       github: {
         enabled: override.sources?.github?.enabled ?? base.sources.github.enabled,

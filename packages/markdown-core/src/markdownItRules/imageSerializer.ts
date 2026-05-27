@@ -11,10 +11,13 @@ export interface MarkdownSerializerLike {
  * 通常のブロック画像は closeBlock で前後に空行を挿入する。
  */
 export function serializeImage(state: MarkdownSerializerLike, node: ProseMirrorNode): void {
-  const alt = String(node.attrs.alt ?? "").replaceAll(/([\\[\]])/g, String.raw`\$1`);
-  const src = String(node.attrs.src ?? "").replaceAll(/[\\()]/g, String.raw`\$&`);
+  const escapedBracketMatch = String.raw`\$1`;
+  const escapedBackslashMatch = String.raw`\$&`;
+  const escapedQuote = String.raw`\"`;
+  const alt = String(node.attrs.alt ?? "").replaceAll(/([\\[\]])/g, escapedBracketMatch);
+  const src = String(node.attrs.src ?? "").replaceAll(/[\\()]/g, escapedBackslashMatch);
   const title = node.attrs.title
-    ? ` "${String(node.attrs.title).replaceAll('"', String.raw`\"`)}"`
+    ? ` "${String(node.attrs.title).replaceAll('"', escapedQuote)}"`
     : "";
   state.write(`![${alt}](${src}${title})`);
   if (!node.type.spec.inline) {

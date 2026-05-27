@@ -14,9 +14,7 @@ const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
  * Step 2b 以降の `SessionImporter` が「既にこの mainFile を import 済みか」を
  * 判定するための、当該 trail.db 行の現状値を返すフック。
  */
-export interface ImportedFilesProvider {
-  (mainFile: string): { fileSize: number; hasMessages: boolean; hasUsableCostData: boolean } | undefined;
-}
+export type ImportedFilesProvider = (mainFile: string) => { fileSize: number; hasMessages: boolean; hasUsableCostData: boolean } | undefined;
 
 export interface JsonlIngesterOptions {
   /** 主 git working tree (Codex セッションフィルタに使用)。省略時は Codex セッションも全件 emit */

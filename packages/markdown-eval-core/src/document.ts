@@ -79,7 +79,7 @@ export function pairDocuments(
 
   return {
     matched,
-    unmatchedReference: unmatchedReference.sort(),
-    unmatchedCandidate: unmatchedCandidate.sort(),
+    unmatchedReference: unmatchedReference.toSorted((a, b) => a.localeCompare(b)),
+    unmatchedCandidate: unmatchedCandidate.toSorted((a, b) => a.localeCompare(b)),
   };
 }

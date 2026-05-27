@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { encodeEmbedding } from '../embedding/codec';
 import { noopLogger, type MemoryLogger } from '../logger';

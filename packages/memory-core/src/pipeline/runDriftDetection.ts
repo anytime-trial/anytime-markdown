@@ -1,6 +1,6 @@
 import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 
 import { detectThreeSourceDrifts } from '../drift/compare';
 import { detectRegressionClusters, detectSpecViolationClusters, detectRecurringRootCauses } from '../drift/recurringBugs';
@@ -59,7 +59,7 @@ export async function runDriftDetection(input: {
         spec_value: c.spec_value,
         code_value: c.code_value,
         drift_type: c.drift_type,
-        severity: decideSeverity(c.drift_type, c.predicate, 1.0),
+        severity: decideSeverity(c.drift_type, c.predicate, 1),
         detail: {
           conversation_value: c.conversation_value,
           spec_value: c.spec_value,

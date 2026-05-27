@@ -1,5 +1,5 @@
-import { createHash } from 'crypto';
-import { execFileSync } from 'child_process';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { fromTrailGraph } from '../ingest/code/fromTrailGraph';
 import { ingestAstFacts } from '../ingest/code/astFunctionLevel';

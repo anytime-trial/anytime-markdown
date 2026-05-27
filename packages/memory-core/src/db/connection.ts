@@ -1,5 +1,5 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { getMemoryCoreDbPath } from './paths';
 import { runMigrations } from './migrations/runner';
 import { BetterSqlite3MemoryDb } from './connection/BetterSqlite3MemoryDb';

@@ -41,17 +41,20 @@ export function aggregateQualityRates(
   };
 
   for (const r of buildTestRows) {
-    const e = getEntry(String(r['period'] ?? ''));
+    const p = r['period'];
+    const e = getEntry(p == null ? '' : String(p));
     e.buildRuns += Number(r['build_runs'] ?? 0);
     e.buildFails += Number(r['build_fails'] ?? 0);
     e.testRuns += Number(r['test_runs'] ?? 0);
     e.testFails += Number(r['test_fails'] ?? 0);
   }
   for (const r of editRows) {
-    getEntry(String(r['period'] ?? '')).edits += Number(r['total_edits'] ?? 0);
+    const p = r['period'];
+    getEntry(p == null ? '' : String(p)).edits += Number(r['total_edits'] ?? 0);
   }
   for (const r of retryRows) {
-    getEntry(String(r['period'] ?? '')).retries += Number(r['total_retries'] ?? 0);
+    const p = r['period'];
+    getEntry(p == null ? '' : String(p)).retries += Number(r['total_retries'] ?? 0);
   }
 
   return [...qualityMap.entries()]

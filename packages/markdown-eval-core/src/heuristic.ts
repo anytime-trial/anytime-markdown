@@ -94,13 +94,13 @@ export function extractHeadings(text: string): Set<string> {
   const result = new Set<string>();
   for (const rawLine of text.split('\n')) {
     let i = 0;
-    while (i < rawLine.length && rawLine.charCodeAt(i) === 0x23 /* '#' */) i++;
+    while (i < rawLine.length && rawLine.codePointAt(i) === 0x23 /* '#' */) i++;
     if (i === 0) continue;
     let j = i;
     while (
       j < rawLine.length &&
-      (rawLine.charCodeAt(j) === 0x20 /* space */ ||
-        rawLine.charCodeAt(j) === 0x09 /* tab */)
+      (rawLine.codePointAt(j) === 0x20 /* space */ ||
+        rawLine.codePointAt(j) === 0x09 /* tab */)
     ) {
       j++;
     }
@@ -108,7 +108,7 @@ export function extractHeadings(text: string): Set<string> {
     let h = rawLine.slice(j).trim();
     // 末尾の半角/全角コロン + 空白を除去
     while (h.length > 0) {
-      const last = h.charCodeAt(h.length - 1);
+      const last = h.codePointAt(h.length - 1);
       if (last === 0x20 || last === 0x09) {
         h = h.slice(0, -1);
         continue;
@@ -129,7 +129,7 @@ export function cosineSimilarity(
   a: ReadonlyMap<string, number>,
   b: ReadonlyMap<string, number>,
 ): number {
-  if (a.size === 0 || b.size === 0) return 0.0;
+  if (a.size === 0 || b.size === 0) return 0;
 
   let dot = 0;
   for (const [k, v] of a) {
@@ -141,14 +141,14 @@ export function cosineSimilarity(
   for (const v of a.values()) magA += v * v;
   let magB = 0;
   for (const v of b.values()) magB += v * v;
-  if (magA === 0 || magB === 0) return 0.0;
+  if (magA === 0 || magB === 0) return 0;
 
   return dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }
 
 export function jaccardSimilarity(a: ReadonlySet<string>, b: ReadonlySet<string>): number {
-  if (a.size === 0 && b.size === 0) return 1.0;
-  if (a.size === 0 || b.size === 0) return 0.0;
+  if (a.size === 0 && b.size === 0) return 1;
+  if (a.size === 0 || b.size === 0) return 0;
 
   let intersection = 0;
   for (const x of a) {
@@ -192,7 +192,7 @@ export function scoreHeuristic(reference: string, candidate: string): HeuristicS
   let completeness: number;
   if (refHeadings.size === 0) {
     // golden に見出しがない場合、candidate にも見出しがなければ満点、あれば 0
-    completeness = candHeadings.size === 0 ? 1.0 : 0.0;
+    completeness = candHeadings.size === 0 ? 1 : 0;
   } else {
     let hits = 0;
     for (const h of refHeadings) {

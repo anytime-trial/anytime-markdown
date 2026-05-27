@@ -73,7 +73,7 @@ export function findTsconfigCandidates(
       const rel = path.relative(analysisRoot, fsPath);
       return { fsPath, rel, depth: rel.split(path.sep).length };
     })
-    .sort((a, b) => (a.depth !== b.depth ? a.depth - b.depth : a.rel.localeCompare(b.rel)));
+    .sort((a, b) => (a.depth === b.depth ? a.rel.localeCompare(b.rel) : a.depth - b.depth));
 }
 
 /**

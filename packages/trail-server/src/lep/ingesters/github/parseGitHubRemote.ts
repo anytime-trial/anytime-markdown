@@ -38,7 +38,7 @@ export function parseGitHubRemote(remoteUrl: string | null | undefined): GitHubR
   // 末尾スラッシュを正規表現を使わず O(n) で除去する。
   let path = trimmed.slice(markerIndex + MARKER.length + 1);
   let end = path.length;
-  while (end > 0 && path.charCodeAt(end - 1) === 0x2f /* '/' */) end--;
+  while (end > 0 && path.codePointAt(end - 1) === 0x2f /* '/' */) end--;
   path = path.slice(0, end);
 
   if (path.endsWith('.git')) path = path.slice(0, -4);

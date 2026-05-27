@@ -1,4 +1,4 @@
-import * as path from 'path';
+import * as path from 'node:path';
 
 const PROTECTED_FALLBACK_PATTERNS = [
   /\/vscode-server\//,

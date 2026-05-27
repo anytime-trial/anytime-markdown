@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { splitEpisodes } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
@@ -6,6 +6,8 @@ import { readMessagesSince } from '../ingest/conversation/readMessages';
 import { episodeId, persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
 import { noopLogger, type MemoryLogger } from '../logger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
+
+type PipelineStatus = 'success' | 'partial' | 'error';
 
 const SCOPE = 'conversation_backfill';
 const QUARANTINE_THRESHOLD = 3;
@@ -30,7 +32,7 @@ function resolveExtractConcurrency(): number {
 }
 
 export interface BackfillResult {
-  status: 'success' | 'partial' | 'error';
+  status: PipelineStatus;
   items_processed: number;
   items_skipped: number;
   entities_inserted: number;

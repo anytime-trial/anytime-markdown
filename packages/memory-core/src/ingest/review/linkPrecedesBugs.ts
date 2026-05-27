@@ -50,8 +50,8 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
     findings = rows.values.map((r) => ({
       id: String(r[0]),
       finding_entity_id: String(r[1]),
-      target_file_path: r[2] != null ? String(r[2]) : null,
-      target_symbol: r[3] != null ? String(r[3]) : null,
+      target_file_path: r[2] == null ? null : String(r[2]),
+      target_symbol: r[3] == null ? null : String(r[3]),
       reviewed_at: String(r[4]),
     }));
   } catch (err) {

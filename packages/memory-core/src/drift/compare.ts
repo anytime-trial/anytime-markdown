@@ -1,9 +1,7 @@
 import type { MemoryDbConnection } from '../db/connection/types';
 import { canonicalize } from '../canonical/canonicalize';
 import type { MemoryLogger } from '../logger';
-import { DriftType } from './policy';
-
-export type { DriftType };
+export type { DriftType } from './policy';
 
 export type DriftCandidate = {
   subject_entity_id: string;
@@ -50,7 +48,7 @@ export function detectThreeSourceDrifts(input: {
         : null;
 
     const whereExclude =
-      placeholders !== null ? `AND predicate NOT IN (${placeholders})` : '';
+      placeholders === null ? '' : `AND predicate NOT IN (${placeholders})`;
 
     const sql = `
       SELECT
@@ -91,9 +89,9 @@ export function detectThreeSourceDrifts(input: {
       const rawCode = row[colIndex('code_v')] as string | null;
 
       // Normalize for comparison
-      const convN = rawConv !== null ? normalizeValue(rawConv) : null;
-      const specN = rawSpec !== null ? normalizeValue(rawSpec) : null;
-      const codeN = rawCode !== null ? normalizeValue(rawCode) : null;
+      const convN = rawConv === null ? null : normalizeValue(rawConv);
+      const specN = rawSpec === null ? null : normalizeValue(rawSpec);
+      const codeN = rawCode === null ? null : normalizeValue(rawCode);
 
       // Check disagreements using normalized values
       const convSpecDiff = convN !== null && specN !== null && convN !== specN;

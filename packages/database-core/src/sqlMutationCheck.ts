@@ -1,15 +1,15 @@
-const MUTATION_KEYWORDS = [
+const MUTATION_KEYWORDS = new Set([
   'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE',
   'ALTER', 'TRUNCATE', 'REPLACE', 'ATTACH', 'DETACH',
   'REINDEX', 'VACUUM',
-];
+]);
 
 export function isMutationSql(sql: string): boolean {
   if (!sql) return false;
   const stripped = stripCommentsAndLeadingWith(sql).trimStart();
   if (!stripped) return false;
   const firstToken = stripped.split(/\s+/, 1)[0]?.toUpperCase() ?? '';
-  return MUTATION_KEYWORDS.includes(firstToken);
+  return MUTATION_KEYWORDS.has(firstToken);
 }
 
 function stripCommentsAndLeadingWith(sql: string): string {

@@ -25,7 +25,7 @@ export const CodeBlockWithMermaid = CodeBlockLowlight.extend({
     return {
       ...parent,
       language: {
-        ...(parentLanguage ?? {}),
+        ...parentLanguage,
         default: null,
         parseHTML: (element: HTMLElement) => {
           const code = element.querySelector("code") ?? element;
