@@ -30,6 +30,48 @@ type QuestionRow = {
   embedding: Uint8Array | null;
 };
 
+type QuestionWithEmbedding = QuestionRow & {
+  targetSpecPath: string | null;
+  embedding32: Float32Array;
+};
+
+function buildRecurringQuestionEvent(
+  groupKey: string,
+  qs: QuestionWithEmbedding[],
+  minCount: number,
+  cosineThreshold: number,
+): DriftEventInput | null {
+  if (qs.length < minCount) return null;
+
+  const pairs: Array<{ a: string; b: string; cosine: number }> = [];
+  for (let i = 0; i < qs.length; i++) {
+    for (let j = i + 1; j < qs.length; j++) {
+      const cosine = cosineSimilarity(qs[i].embedding32, qs[j].embedding32);
+      if (cosine >= cosineThreshold) {
+        pairs.push({ a: qs[i].id, b: qs[j].id, cosine });
+      }
+    }
+  }
+
+  if (pairs.length === 0) return null;
+
+  return {
+    subject_entity_id: `spec_clarification:${groupKey}`,
+    predicate: 'recurring_question',
+    conversation_value: null,
+    spec_value: null,
+    code_value: null,
+    drift_type: 'spec_clarification_recurring',
+    severity: 'warn',
+    detail: {
+      target_spec_path: qs[0].targetSpecPath,
+      group_key: groupKey,
+      question_ids: qs.map((q) => q.id),
+      pairs,
+    },
+  };
+}
+
 export function detectRecurringQuestions(input: {
   db: MemoryDbConnection;
   windowDays?: number;
@@ -100,42 +142,8 @@ export function detectRecurringQuestions(input: {
   const results: DriftEventInput[] = [];
 
   for (const [groupKey, qs] of groups) {
-    if (qs.length < minCount) continue;
-
-    // 総当たりでペアを確認
-    const pairs: Array<{ a: string; b: string; cosine: number }> = [];
-    let hasSimilarPair = false;
-
-    for (let i = 0; i < qs.length; i++) {
-      for (let j = i + 1; j < qs.length; j++) {
-        const cosine = cosineSimilarity(qs[i].embedding32, qs[j].embedding32);
-        if (cosine >= cosineThreshold) {
-          pairs.push({ a: qs[i].id, b: qs[j].id, cosine });
-          hasSimilarPair = true;
-        }
-      }
-    }
-
-    if (!hasSimilarPair) continue;
-
-    const targetSpecPath = qs[0].targetSpecPath;
-    const subjectId = `spec_clarification:${groupKey}`;
-
-    results.push({
-      subject_entity_id: subjectId,
-      predicate: 'recurring_question',
-      conversation_value: null,
-      spec_value: null,
-      code_value: null,
-      drift_type: 'spec_clarification_recurring',
-      severity: 'warn',
-      detail: {
-        target_spec_path: targetSpecPath,
-        group_key: groupKey,
-        question_ids: qs.map((q) => q.id),
-        pairs,
-      },
-    });
+    const event = buildRecurringQuestionEvent(groupKey, qs, minCount, cosineThreshold);
+    if (event !== null) results.push(event);
   }
 
   return results;

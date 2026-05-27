@@ -53,58 +53,64 @@ export class MetaJsonIngester implements Analyzer {
     let emitted = 0;
     for (const projectName of projectNames) {
       const projectPath = path.join(baseDir, projectName);
-      let sessionEntries: string[];
+      emitted += await this.emitMetaJsonForProject(projectPath, ctx);
+    }
+
+    ctx.logger.info(`[MetaJsonIngester] emitted ${emitted} meta.json entries`);
+  }
+
+  private async emitMetaJsonForProject(projectPath: string, ctx: AnalyzerContext): Promise<number> {
+    let sessionEntries: string[];
+    try {
+      if (!fs.statSync(projectPath).isDirectory()) return 0;
+      sessionEntries = fs.readdirSync(projectPath);
+    } catch {
+      return 0;
+    }
+
+    let emitted = 0;
+    for (const sessionEntry of sessionEntries) {
+      const subagentDir = path.join(projectPath, sessionEntry, 'subagents');
+      let metaFiles: string[];
       try {
-        if (!fs.statSync(projectPath).isDirectory()) continue;
-        sessionEntries = fs.readdirSync(projectPath);
+        metaFiles = fs.readdirSync(subagentDir).filter((f) => f.endsWith('.meta.json'));
       } catch {
         continue;
       }
 
-      for (const sessionEntry of sessionEntries) {
-        const subagentDir = path.join(projectPath, sessionEntry, 'subagents');
-        let metaFiles: string[];
+      for (const metaFile of metaFiles) {
+        const match = AGENT_META_RE.exec(metaFile);
+        if (!match) continue;
+        const agentId = match[1];
+        const fullPath = path.join(subagentDir, metaFile);
+
+        let agentType: string | null = null;
         try {
-          metaFiles = fs.readdirSync(subagentDir).filter((f) => f.endsWith('.meta.json'));
-        } catch {
+          const raw = fs.readFileSync(fullPath, 'utf-8');
+          const parsed = JSON.parse(raw) as { agentType?: unknown };
+          if (typeof parsed.agentType === 'string' && parsed.agentType.length > 0) {
+            agentType = parsed.agentType;
+          }
+        } catch (err) {
+          ctx.logger.error(
+            `[MetaJsonIngester] failed to read ${fullPath}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
           continue;
         }
+        if (!agentType) continue;
 
-        for (const metaFile of metaFiles) {
-          const match = AGENT_META_RE.exec(metaFile);
-          if (!match) continue;
-          const agentId = match[1];
-          const fullPath = path.join(subagentDir, metaFile);
-
-          let agentType: string | null = null;
-          try {
-            const raw = fs.readFileSync(fullPath, 'utf-8');
-            const parsed = JSON.parse(raw) as { agentType?: unknown };
-            if (typeof parsed.agentType === 'string' && parsed.agentType.length > 0) {
-              agentType = parsed.agentType;
-            }
-          } catch (err) {
-            ctx.logger.error(
-              `[MetaJsonIngester] failed to read ${fullPath}: ${
-                err instanceof Error ? err.message : String(err)
-              }`,
-            );
-            continue;
-          }
-          if (!agentType) continue;
-
-          await ctx.bus.publish({
-            kind: 'meta_json',
-            sessionId: sessionEntry,
-            agentId,
-            agentType,
-            filePath: fullPath,
-          });
-          emitted++;
-        }
+        await ctx.bus.publish({
+          kind: 'meta_json',
+          sessionId: sessionEntry,
+          agentId,
+          agentType,
+          filePath: fullPath,
+        });
+        emitted++;
       }
     }
-
-    ctx.logger.info(`[MetaJsonIngester] emitted ${emitted} meta.json entries`);
+    return emitted;
   }
 }

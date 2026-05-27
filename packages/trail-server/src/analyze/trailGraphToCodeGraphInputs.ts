@@ -53,16 +53,26 @@ export function trailGraphToCodeGraphInputs(
     seenNodeIds.add(docNode.id);
   }
 
+  const edges = buildFileEdges(input.repoId, input.trailGraph?.edges ?? [], fileByNodeId, seenNodeIds);
+
+  return { nodes, edges };
+}
+
+function buildFileEdges(
+  repoId: string,
+  trailEdges: readonly TrailGraph['edges'][number][],
+  fileByNodeId: Map<string, string>,
+  seenNodeIds: Set<string>,
+): EdgeInput[] {
   const seenEdgeKeys = new Set<string>();
   const edges: EdgeInput[] = [];
-  for (const e of input.trailGraph?.edges ?? []) {
+  for (const e of trailEdges) {
     const sourceFile = fileByNodeId.get(e.source);
     const targetFile = fileByNodeId.get(e.target);
-    if (!sourceFile || !targetFile) continue;
-    if (sourceFile === targetFile) continue;
+    if (!sourceFile || !targetFile || sourceFile === targetFile) continue;
 
-    const sourceId = `${input.repoId}:${stripExt(sourceFile)}`;
-    const targetId = `${input.repoId}:${stripExt(targetFile)}`;
+    const sourceId = `${repoId}:${stripExt(sourceFile)}`;
+    const targetId = `${repoId}:${stripExt(targetFile)}`;
     if (!seenNodeIds.has(sourceId) || !seenNodeIds.has(targetId)) continue;
 
     const key = `${sourceId} ${targetId}`;
@@ -76,8 +86,7 @@ export function trailGraphToCodeGraphInputs(
       crossRepo: false,
     });
   }
-
-  return { nodes, edges };
+  return edges;
 }
 
 function makeCodeNode(

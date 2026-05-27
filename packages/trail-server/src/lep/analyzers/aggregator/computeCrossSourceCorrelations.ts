@@ -39,6 +39,16 @@ const MS_PER_DAY = 86_400_000;
  * > memory-core の別 DB に依存し Wave 4 (trail.db reader) から到達できないため、trail.db で完結する
  * > 上記 3 相関に調整した (lep-step4 §6.4 / フォローアップ)。
  */
+type PushFn = (
+  correlationType: CrossSourceCorrelationRow['correlationType'],
+  repoName: string,
+  sourceAKind: CrossSourceAKind,
+  sourceAId: string,
+  sourceBKind: CrossSourceBKind,
+  sourceBId: string,
+  confidence: CrossSourceCorrelationRow['confidence'],
+) => void;
+
 export function computeCrossSourceCorrelations(
   input: CrossSourceInput,
   computedAt: string,
@@ -48,28 +58,11 @@ export function computeCrossSourceCorrelations(
   const rows: CrossSourceCorrelationRow[] = [];
   const seen = new Set<string>();
 
-  const push = (
-    correlationType: CrossSourceCorrelationRow['correlationType'],
-    repoName: string,
-    sourceAKind: CrossSourceAKind,
-    sourceAId: string,
-    sourceBKind: CrossSourceBKind,
-    sourceBId: string,
-    confidence: CrossSourceCorrelationRow['confidence'],
-  ): void => {
+  const push: PushFn = (correlationType, repoName, sourceAKind, sourceAId, sourceBKind, sourceBId, confidence) => {
     const key = `${correlationType}|${sourceAId}|${sourceBId}`;
     if (seen.has(key)) return;
     seen.add(key);
-    rows.push({
-      correlationType,
-      repoName,
-      sourceAKind,
-      sourceAId,
-      sourceBKind,
-      sourceBId,
-      confidence,
-      computedAt,
-    });
+    rows.push({ correlationType, repoName, sourceAKind, sourceAId, sourceBKind, sourceBId, confidence, computedAt });
   };
 
   // repo ごとの session commit 時刻 (sessionId 単位)
@@ -83,36 +76,11 @@ export function computeCrossSourceCorrelations(
   for (const review of input.reviews) {
     const submittedMs = Date.parse(review.submittedAt);
     if (Number.isNaN(submittedMs)) continue;
-
-    // 1. pr_review_session
-    for (const c of commitsByRepo.get(review.repoName) ?? []) {
-      const committedMs = Date.parse(c.committedAt);
-      if (Number.isNaN(committedMs)) continue;
-      if (committedMs <= submittedMs && submittedMs - committedMs <= windowMs) {
-        push('pr_review_session', review.repoName, 'pr_review', review.reviewId, 'session', c.sessionId, 'medium');
-      }
-    }
-
-    // 2. pr_review_release
-    for (const rel of releasesByRepo.get(review.repoName) ?? []) {
-      const releasedMs = Date.parse(rel.releasedAt);
-      if (Number.isNaN(releasedMs)) continue;
-      if (releasedMs >= submittedMs && releasedMs - submittedMs <= windowMs) {
-        push('pr_review_release', review.repoName, 'pr_review', review.reviewId, 'release', rel.tag, 'low');
-      }
-    }
+    correlateReviewSessions(review, submittedMs, commitsByRepo.get(review.repoName) ?? [], windowMs, push);
+    correlateReviewReleases(review, submittedMs, releasesByRepo.get(review.repoName) ?? [], windowMs, push);
   }
 
-  // 3. pr_finding_commit
-  for (const finding of input.findings) {
-    if (!finding.filePath) continue;
-    const review = reviewsById.get(finding.reviewId);
-    const repoName = review?.repoName ?? '';
-    for (const cf of commitsByFile.get(finding.filePath) ?? []) {
-      if (repoName && cf.repoName && cf.repoName !== repoName) continue;
-      push('pr_finding_commit', repoName, 'pr_finding', finding.findingId, 'commit', cf.commitHash, 'medium');
-    }
-  }
+  correlateFindingCommits(input.findings, reviewsById, commitsByFile, push);
 
   rows.sort(
     (a, b) =>
@@ -121,4 +89,56 @@ export function computeCrossSourceCorrelations(
       compareStr(a.sourceBId, b.sourceBId),
   );
   return rows;
+}
+
+/** 1. pr_review_session: review 提出の直前 windowMs 以内に commit した session を紐づける。 */
+function correlateReviewSessions(
+  review: CrossSourceInput['reviews'][number],
+  submittedMs: number,
+  repoCommits: readonly CorrelationSessionCommit[],
+  windowMs: number,
+  push: PushFn,
+): void {
+  for (const c of repoCommits) {
+    const committedMs = Date.parse(c.committedAt);
+    if (Number.isNaN(committedMs)) continue;
+    if (committedMs <= submittedMs && submittedMs - committedMs <= windowMs) {
+      push('pr_review_session', review.repoName, 'pr_review', review.reviewId, 'session', c.sessionId, 'medium');
+    }
+  }
+}
+
+/** 2. pr_review_release: review 提出後 windowMs 以内の release を紐づける。 */
+function correlateReviewReleases(
+  review: CrossSourceInput['reviews'][number],
+  submittedMs: number,
+  repoReleases: readonly DoraReleaseInput[],
+  windowMs: number,
+  push: PushFn,
+): void {
+  for (const rel of repoReleases) {
+    const releasedMs = Date.parse(rel.releasedAt);
+    if (Number.isNaN(releasedMs)) continue;
+    if (releasedMs >= submittedMs && releasedMs - submittedMs <= windowMs) {
+      push('pr_review_release', review.repoName, 'pr_review', review.reviewId, 'release', rel.tag, 'low');
+    }
+  }
+}
+
+/** 3. pr_finding_commit: finding のファイルを変更した commit を紐づける。 */
+function correlateFindingCommits(
+  findings: readonly PrReviewFindingRow[],
+  reviewsById: Map<string, CrossSourceInput['reviews'][number]>,
+  commitsByFile: Map<string, readonly CorrelationCommitFile[]>,
+  push: PushFn,
+): void {
+  for (const finding of findings) {
+    if (!finding.filePath) continue;
+    const review = reviewsById.get(finding.reviewId);
+    const repoName = review?.repoName ?? '';
+    for (const cf of commitsByFile.get(finding.filePath) ?? []) {
+      if (repoName && cf.repoName && cf.repoName !== repoName) continue;
+      push('pr_finding_commit', repoName, 'pr_finding', finding.findingId, 'commit', cf.commitHash, 'medium');
+    }
+  }
 }

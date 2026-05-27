@@ -107,29 +107,32 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
     return { introduced_commit_sha: null, edges_inserted: 0 };
   }
 
-  // Find most frequent SHA
-  let candidate: string | null = null;
-  let maxCount = 0;
-  for (const [sha, count] of shaCount) {
-    if (count > maxCount) {
-      maxCount = count;
-      candidate = sha;
-    }
-  }
-
-  // Skip if candidate is itself a fix commit
-  if (candidate && isFix(db, candidate)) {
-    // Try next best candidate
-    shaCount.delete(candidate);
-    candidate = null;
-    maxCount = 0;
-    for (const [sha, count] of shaCount) {
-      if (count > maxCount && !isFix(db, sha)) {
-        maxCount = count;
-        candidate = sha;
+  // Find most frequent SHA that is not itself a fix commit
+  function bestNonFixCandidate(counts: Map<string, number>, exclude?: string): string | null {
+    let best: string | null = null;
+    let bestCount = 0;
+    for (const [sha, count] of counts) {
+      if (sha === exclude) continue;
+      if (count > bestCount && !isFix(db, sha)) {
+        bestCount = count;
+        best = sha;
       }
     }
+    return best;
   }
+
+  // Find most frequent SHA (may be a fix commit)
+  let topCandidate: string | null = null;
+  let topCount = 0;
+  for (const [sha, count] of shaCount) {
+    if (count > topCount) { topCount = count; topCandidate = sha; }
+  }
+
+  // If top candidate is itself a fix commit, fall back to next best non-fix
+  const candidate =
+    topCandidate && isFix(db, topCandidate)
+      ? bestNonFixCandidate(shaCount, topCandidate)
+      : topCandidate;
 
   if (!candidate) {
     return { introduced_commit_sha: null, edges_inserted: 0 };

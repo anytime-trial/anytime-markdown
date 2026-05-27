@@ -73,65 +73,80 @@ export class GitIngester implements Analyzer {
 
     for (const gitRoot of this.opts.gitRoots) {
       const repo = path.basename(gitRoot);
-
-      let commits: readonly GitLogEntry[];
-      try {
-        commits = this.reader.listCommits(gitRoot, limit);
-      } catch (err) {
-        ctx.logger.error(
-          `[GitIngester] listCommits failed for ${gitRoot}: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-        commits = [];
-      }
-      for (const c of commits) {
-        await ctx.bus.publish({
-          kind: 'git_commit',
-          repo,
-          hash: c.hash,
-          committedAt: c.committedAt,
-          author: c.author,
-          message: c.message,
-        });
-        totalCommits++;
-      }
-
-      let tags: readonly string[];
-      try {
-        tags = this.reader.listTags(gitRoot);
-      } catch (err) {
-        ctx.logger.error(
-          `[GitIngester] listTags failed for ${gitRoot}: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-        tags = [];
-      }
-      for (const tag of tags) {
-        let commitHash = '';
-        try {
-          commitHash = this.reader.getTagCommit(gitRoot, tag);
-        } catch (err) {
-          ctx.logger.error(
-            `[GitIngester] getTagCommit failed for ${gitRoot} ${tag}: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-        }
-        await ctx.bus.publish({
-          kind: 'git_tag',
-          repo,
-          tag,
-          commitHash,
-        });
-        totalTags++;
-      }
+      totalCommits += await this.emitCommitsForRoot(gitRoot, repo, limit, ctx);
+      totalTags += await this.emitTagsForRoot(gitRoot, repo, ctx);
     }
 
     ctx.logger.info(
       `[GitIngester] emitted ${totalCommits} commits, ${totalTags} tags from ${this.opts.gitRoots.length} roots`,
     );
+  }
+
+  private async emitCommitsForRoot(
+    gitRoot: string,
+    repo: string,
+    limit: number,
+    ctx: AnalyzerContext,
+  ): Promise<number> {
+    let commits: readonly GitLogEntry[];
+    try {
+      commits = this.reader.listCommits(gitRoot, limit);
+    } catch (err) {
+      ctx.logger.error(
+        `[GitIngester] listCommits failed for ${gitRoot}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      commits = [];
+    }
+    for (const c of commits) {
+      await ctx.bus.publish({
+        kind: 'git_commit',
+        repo,
+        hash: c.hash,
+        committedAt: c.committedAt,
+        author: c.author,
+        message: c.message,
+      });
+    }
+    return commits.length;
+  }
+
+  private async emitTagsForRoot(
+    gitRoot: string,
+    repo: string,
+    ctx: AnalyzerContext,
+  ): Promise<number> {
+    let tags: readonly string[];
+    try {
+      tags = this.reader.listTags(gitRoot);
+    } catch (err) {
+      ctx.logger.error(
+        `[GitIngester] listTags failed for ${gitRoot}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      tags = [];
+    }
+    for (const tag of tags) {
+      let commitHash = '';
+      try {
+        commitHash = this.reader.getTagCommit(gitRoot, tag);
+      } catch (err) {
+        ctx.logger.error(
+          `[GitIngester] getTagCommit failed for ${gitRoot} ${tag}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+      await ctx.bus.publish({
+        kind: 'git_tag',
+        repo,
+        tag,
+        commitHash,
+      });
+    }
+    return tags.length;
   }
 }
 

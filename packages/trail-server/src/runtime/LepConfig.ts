@@ -339,6 +339,256 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+function validateLlmSection(
+  raw: unknown,
+): NonNullable<PartialLepConfig['llm']> | undefined {
+  const ollamaRaw = isPlainObject(raw) && isPlainObject(raw['providers'])
+    ? raw['providers']['ollama']
+    : undefined;
+  if (!isPlainObject(ollamaRaw)) return undefined;
+  const ollama: NonNullable<NonNullable<NonNullable<PartialLepConfig['llm']>['providers']>['ollama']> = {};
+  if (typeof ollamaRaw['baseUrl'] === 'string') ollama.baseUrl = ollamaRaw['baseUrl'];
+  if (isPlainObject(ollamaRaw['models'])) {
+    const m = ollamaRaw['models'];
+    const models: Partial<LepOllamaProviderConfig['models']> = {};
+    if (typeof m['chat'] === 'string') models.chat = m['chat'];
+    if (typeof m['embedding'] === 'string') models.embedding = m['embedding'];
+    ollama.models = models;
+  }
+  return { providers: { ollama } };
+}
+
+function validateMemorySection(
+  raw: unknown,
+  sourceLabel: string,
+  warnings: string[],
+): NonNullable<PartialLepConfig['memory']> | undefined {
+  if (raw === undefined) return undefined;
+  if (!isPlainObject(raw)) {
+    warnings.push(`${sourceLabel}: memory はオブジェクトである必要があります (無視)`);
+    return undefined;
+  }
+  const memory: NonNullable<PartialLepConfig['memory']> = {};
+  if (isPlainObject(raw['rag'])) {
+    const r = raw['rag'];
+    const rag: Partial<LepRagConfig> = {};
+    if (typeof r['bm25Limit'] === 'number') rag.bm25Limit = r['bm25Limit'];
+    if (typeof r['vecLimit'] === 'number') rag.vecLimit = r['vecLimit'];
+    if (typeof r['finalLimit'] === 'number') rag.finalLimit = r['finalLimit'];
+    if (typeof r['rrfK'] === 'number') rag.rrfK = r['rrfK'];
+    memory.rag = rag;
+  }
+  if (isPlainObject(raw['fts']) && typeof raw['fts']['rebuildIntervalMinutes'] === 'number') {
+    memory.fts = { rebuildIntervalMinutes: raw['fts']['rebuildIntervalMinutes'] };
+  }
+  if (isPlainObject(raw['conversation']) && typeof raw['conversation']['backfillDays'] === 'number') {
+    memory.conversation = { backfillDays: raw['conversation']['backfillDays'] };
+  }
+  return memory;
+}
+
+function validateAnalyzersSection(
+  raw: unknown,
+  sourceLabel: string,
+  warnings: string[],
+): LepAnalyzersConfig | undefined {
+  if (raw === undefined) return undefined;
+  if (!isPlainObject(raw)) {
+    warnings.push(`${sourceLabel}: analyzers はオブジェクトである必要があります (無視)`);
+    return undefined;
+  }
+  const analyzers: LepAnalyzersConfig = {};
+  for (const [id, toggle] of Object.entries(raw)) {
+    if (!KNOWN_ANALYZER_IDS.includes(id)) {
+      warnings.push(`${sourceLabel}: 未知の analyzer "${id}" は無視されます`);
+      continue;
+    }
+    if (isPlainObject(toggle) && typeof toggle['enabled'] === 'boolean') {
+      analyzers[id] = { enabled: toggle['enabled'] };
+    } else {
+      warnings.push(`${sourceLabel}: analyzers.${id} は { "enabled": boolean } 形式である必要があります (無視)`);
+    }
+  }
+  return analyzers;
+}
+
+function validateSourcesSection(
+  raw: unknown,
+  sourceLabel: string,
+  warnings: string[],
+): NonNullable<PartialLepConfig['sources']> | undefined {
+  if (raw === undefined) return undefined;
+  if (!isPlainObject(raw)) {
+    warnings.push(`${sourceLabel}: sources はオブジェクトである必要があります (無視)`);
+    return undefined;
+  }
+  const sources: NonNullable<PartialLepConfig['sources']> = {};
+
+  if (raw['github'] !== undefined) {
+    if (isPlainObject(raw['github'])) {
+      const g = raw['github'];
+      const github: Partial<LepGitHubSourceConfig> = {};
+      if (typeof g['enabled'] === 'boolean') github.enabled = g['enabled'];
+      if (typeof g['tokenEnv'] === 'string') github.tokenEnv = g['tokenEnv'];
+      if (typeof g['maxPrs'] === 'number' && Number.isFinite(g['maxPrs'])) github.maxPrs = g['maxPrs'];
+      if (typeof g['since'] === 'string') github.since = g['since'];
+      sources.github = github;
+    } else {
+      warnings.push(`${sourceLabel}: sources.github はオブジェクトである必要があります (無視)`);
+    }
+  }
+
+  if (raw['claude'] !== undefined) {
+    if (isPlainObject(raw['claude'])) {
+      const c = raw['claude'];
+      const claude: Partial<LepClaudeSourceConfig> = {};
+      if (typeof c['projectsDir'] === 'string') claude.projectsDir = c['projectsDir'];
+      sources.claude = claude;
+    } else {
+      warnings.push(`${sourceLabel}: sources.claude はオブジェクトである必要があります (無視)`);
+    }
+  }
+
+  if (raw['codex'] !== undefined) {
+    if (isPlainObject(raw['codex'])) {
+      const cx = raw['codex'];
+      const codex: Partial<LepCodexSourceConfig> = {};
+      if (typeof cx['sessionsDir'] === 'string') codex.sessionsDir = cx['sessionsDir'];
+      sources.codex = codex;
+    } else {
+      warnings.push(`${sourceLabel}: sources.codex はオブジェクトである必要があります (無視)`);
+    }
+  }
+
+  if (raw['gitRoots'] !== undefined) {
+    if (Array.isArray(raw['gitRoots']) && raw['gitRoots'].every((r) => typeof r === 'string')) {
+      sources.gitRoots = raw['gitRoots'] as string[];
+    } else {
+      warnings.push(`${sourceLabel}: sources.gitRoots は文字列配列である必要があります (無視)`);
+    }
+  }
+
+  return Object.keys(sources).length > 0 ? sources : undefined;
+}
+
+function validateScheduleSection(
+  raw: unknown,
+  sourceLabel: string,
+  warnings: string[],
+): Partial<LepScheduleConfig> | undefined {
+  if (raw === undefined) return undefined;
+  if (!isPlainObject(raw)) {
+    warnings.push(`${sourceLabel}: schedule はオブジェクトである必要があります (無視)`);
+    return undefined;
+  }
+  const schedule: Partial<LepScheduleConfig> = {};
+  if (typeof raw['intervalSec'] === 'number') schedule.intervalSec = raw['intervalSec'];
+  if (typeof raw['runOnStart'] === 'boolean') schedule.runOnStart = raw['runOnStart'];
+  if (typeof raw['startupDelaySec'] === 'number') schedule.startupDelaySec = raw['startupDelaySec'];
+  return schedule;
+}
+
+function validateThrottleSection(
+  raw: unknown,
+  sourceLabel: string,
+  warnings: string[],
+): Partial<LepThrottleConfig> | undefined {
+  if (raw === undefined) return undefined;
+  if (!isPlainObject(raw)) {
+    warnings.push(`${sourceLabel}: throttle はオブジェクトである必要があります (無視)`);
+    return undefined;
+  }
+  const throttle: Partial<LepThrottleConfig> = {};
+  if (typeof raw['enabled'] === 'boolean') throttle.enabled = raw['enabled'];
+  if (typeof raw['slowdownFactor'] === 'number') throttle.slowdownFactor = raw['slowdownFactor'];
+  if (typeof raw['cooldownSec'] === 'number') throttle.cooldownSec = raw['cooldownSec'];
+  if (typeof raw['maxContinuousMin'] === 'number') throttle.maxContinuousMin = raw['maxContinuousMin'];
+  return throttle;
+}
+
+function validateDatabaseSection(
+  raw: unknown,
+  sourceLabel: string,
+  warnings: string[],
+): Partial<LepDatabaseConfig> | undefined {
+  if (raw === undefined) return undefined;
+  if (!isPlainObject(raw)) {
+    warnings.push(`${sourceLabel}: database はオブジェクトである必要があります (無視)`);
+    return undefined;
+  }
+  const database: Partial<LepDatabaseConfig> = {};
+  if (typeof raw['storagePath'] === 'string') database.storagePath = raw['storagePath'];
+  return database;
+}
+
+function validateWorkspaceSection(
+  raw: unknown,
+  sourceLabel: string,
+  warnings: string[],
+): Partial<LepWorkspaceConfig> | undefined {
+  if (raw === undefined) return undefined;
+  if (!isPlainObject(raw)) {
+    warnings.push(`${sourceLabel}: workspace はオブジェクトである必要があります (無視)`);
+    return undefined;
+  }
+  const workspace: Partial<LepWorkspaceConfig> = {};
+  if (typeof raw['docsPath'] === 'string') workspace.docsPath = raw['docsPath'];
+  if (typeof raw['excludeRoot'] === 'string') workspace.excludeRoot = raw['excludeRoot'];
+  return workspace;
+}
+
+function validateLogsSection(
+  raw: unknown,
+  sourceLabel: string,
+  warnings: string[],
+): NonNullable<PartialLepConfig['logs']> | undefined {
+  if (raw === undefined || !isPlainObject(raw)) return undefined;
+  const level = raw['minLevel'];
+  if (typeof level === 'string' && VALID_LOG_LEVELS.has(level as LepLogLevel)) {
+    return { minLevel: level as LepLogLevel };
+  }
+  if (level !== undefined) {
+    warnings.push(`${sourceLabel}: logs.minLevel="${String(level)}" は不正です (無視)`);
+  }
+  return undefined;
+}
+
+/** Validates top-level keys and returns any unknown-key warnings. */
+function collectUnknownKeyWarnings(raw: Record<string, unknown>, sourceLabel: string): string[] {
+  const warnings: string[] = [];
+  for (const key of Object.keys(raw)) {
+    if (!KNOWN_TOP_LEVEL_KEYS.has(key)) {
+      warnings.push(`${sourceLabel}: 未知のキー "${key}" は無視されます`);
+    }
+  }
+  return warnings;
+}
+
+/** Validates and extracts version + stage fields, throws LepConfigError on violations. */
+function validateVersionAndStage(
+  raw: Record<string, unknown>,
+  sourceLabel: string,
+): Pick<PartialLepConfig, 'version' | 'stage'> {
+  const result: Pick<PartialLepConfig, 'version' | 'stage'> = {};
+  if (raw['version'] !== undefined) {
+    if (raw['version'] !== LEP_CONFIG_VERSION) {
+      throw new LepConfigError(
+        `${sourceLabel}: version=${String(raw['version'])} は非対応です (期待値 ${LEP_CONFIG_VERSION})`,
+      );
+    }
+    result.version = LEP_CONFIG_VERSION;
+  }
+  if (raw['stage'] !== undefined) {
+    if (!LEP_STAGES.includes(raw['stage'] as LepStage)) {
+      throw new LepConfigError(
+        `${sourceLabel}: stage="${String(raw['stage'])}" は不正です (許容: ${LEP_STAGES.join(' / ')})`,
+      );
+    }
+    result.stage = raw['stage'] as LepStage;
+  }
+  return result;
+}
+
 /**
  * 1 ファイル分の生 JSON を検証し、`PartialLepConfig` に正規化する。
  *
@@ -350,218 +600,39 @@ export function validateLepConfigInput(
   raw: unknown,
   sourceLabel: string,
 ): { value: PartialLepConfig; warnings: string[] } {
-  const warnings: string[] = [];
   if (!isPlainObject(raw)) {
     throw new LepConfigError(`${sourceLabel}: ルートは JSON オブジェクトである必要があります`);
   }
 
-  for (const key of Object.keys(raw)) {
-    if (!KNOWN_TOP_LEVEL_KEYS.has(key)) {
-      warnings.push(`${sourceLabel}: 未知のキー "${key}" は無視されます`);
-    }
-  }
+  const warnings = collectUnknownKeyWarnings(raw, sourceLabel);
+  const value: PartialLepConfig = { ...validateVersionAndStage(raw, sourceLabel) };
 
-  const value: PartialLepConfig = {};
+  const scheduleResult = validateScheduleSection(raw['schedule'], sourceLabel, warnings);
+  if (scheduleResult !== undefined) value.schedule = scheduleResult;
 
-  if (raw['version'] !== undefined) {
-    if (raw['version'] !== LEP_CONFIG_VERSION) {
-      throw new LepConfigError(
-        `${sourceLabel}: version=${String(raw['version'])} は非対応です (期待値 ${LEP_CONFIG_VERSION})`,
-      );
-    }
-    value.version = LEP_CONFIG_VERSION;
-  }
+  const throttleResult = validateThrottleSection(raw['throttle'], sourceLabel, warnings);
+  if (throttleResult !== undefined) value.throttle = throttleResult;
 
-  if (raw['stage'] !== undefined) {
-    if (!LEP_STAGES.includes(raw['stage'] as LepStage)) {
-      throw new LepConfigError(
-        `${sourceLabel}: stage="${String(raw['stage'])}" は不正です (許容: ${LEP_STAGES.join(' / ')})`,
-      );
-    }
-    value.stage = raw['stage'] as LepStage;
-  }
+  const llmResult = validateLlmSection(raw['llm']);
+  if (llmResult !== undefined) value.llm = llmResult;
 
-  if (raw['schedule'] !== undefined) {
-    if (isPlainObject(raw['schedule'])) {
-      const s = raw['schedule'];
-      const schedule: Partial<LepScheduleConfig> = {};
-      if (typeof s['intervalSec'] === 'number') schedule.intervalSec = s['intervalSec'];
-      if (typeof s['runOnStart'] === 'boolean') schedule.runOnStart = s['runOnStart'];
-      if (typeof s['startupDelaySec'] === 'number') schedule.startupDelaySec = s['startupDelaySec'];
-      value.schedule = schedule;
-    } else {
-      warnings.push(`${sourceLabel}: schedule はオブジェクトである必要があります (無視)`);
-    }
-  }
+  const memResult = validateMemorySection(raw['memory'], sourceLabel, warnings);
+  if (memResult !== undefined) value.memory = memResult;
 
-  if (raw['throttle'] !== undefined) {
-    if (isPlainObject(raw['throttle'])) {
-      const th = raw['throttle'];
-      const throttle: Partial<LepThrottleConfig> = {};
-      if (typeof th['enabled'] === 'boolean') throttle.enabled = th['enabled'];
-      if (typeof th['slowdownFactor'] === 'number') throttle.slowdownFactor = th['slowdownFactor'];
-      if (typeof th['cooldownSec'] === 'number') throttle.cooldownSec = th['cooldownSec'];
-      if (typeof th['maxContinuousMin'] === 'number') throttle.maxContinuousMin = th['maxContinuousMin'];
-      value.throttle = throttle;
-    } else {
-      warnings.push(`${sourceLabel}: throttle はオブジェクトである必要があります (無視)`);
-    }
-  }
+  const analyzersResult = validateAnalyzersSection(raw['analyzers'], sourceLabel, warnings);
+  if (analyzersResult !== undefined) value.analyzers = analyzersResult;
 
-  if (raw['llm'] !== undefined) {
-    const ollamaRaw = isPlainObject(raw['llm']) && isPlainObject(raw['llm']['providers'])
-      ? raw['llm']['providers']['ollama']
-      : undefined;
-    if (isPlainObject(ollamaRaw)) {
-      const ollama: NonNullable<NonNullable<NonNullable<PartialLepConfig['llm']>['providers']>['ollama']> = {};
-      if (typeof ollamaRaw['baseUrl'] === 'string') ollama.baseUrl = ollamaRaw['baseUrl'];
-      if (isPlainObject(ollamaRaw['models'])) {
-        const m = ollamaRaw['models'];
-        const models: Partial<LepOllamaProviderConfig['models']> = {};
-        if (typeof m['chat'] === 'string') models.chat = m['chat'];
-        if (typeof m['embedding'] === 'string') models.embedding = m['embedding'];
-        ollama.models = models;
-      }
-      value.llm = { providers: { ollama } };
-    }
-  }
+  const sourcesResult = validateSourcesSection(raw['sources'], sourceLabel, warnings);
+  if (sourcesResult !== undefined) value.sources = sourcesResult;
 
-  if (raw['memory'] !== undefined) {
-    if (isPlainObject(raw['memory'])) {
-      const mem = raw['memory'];
-      const memory: NonNullable<PartialLepConfig['memory']> = {};
-      if (isPlainObject(mem['rag'])) {
-        const r = mem['rag'];
-        const rag: Partial<LepRagConfig> = {};
-        if (typeof r['bm25Limit'] === 'number') rag.bm25Limit = r['bm25Limit'];
-        if (typeof r['vecLimit'] === 'number') rag.vecLimit = r['vecLimit'];
-        if (typeof r['finalLimit'] === 'number') rag.finalLimit = r['finalLimit'];
-        if (typeof r['rrfK'] === 'number') rag.rrfK = r['rrfK'];
-        memory.rag = rag;
-      }
-      if (isPlainObject(mem['fts']) && typeof mem['fts']['rebuildIntervalMinutes'] === 'number') {
-        memory.fts = { rebuildIntervalMinutes: mem['fts']['rebuildIntervalMinutes'] };
-      }
-      if (isPlainObject(mem['conversation']) && typeof mem['conversation']['backfillDays'] === 'number') {
-        memory.conversation = { backfillDays: mem['conversation']['backfillDays'] };
-      }
-      value.memory = memory;
-    } else {
-      warnings.push(`${sourceLabel}: memory はオブジェクトである必要があります (無視)`);
-    }
-  }
+  const databaseResult = validateDatabaseSection(raw['database'], sourceLabel, warnings);
+  if (databaseResult !== undefined) value.database = databaseResult;
 
-  if (raw['analyzers'] !== undefined) {
-    if (isPlainObject(raw['analyzers'])) {
-      const analyzers: LepAnalyzersConfig = {};
-      for (const [id, toggle] of Object.entries(raw['analyzers'])) {
-        if (!KNOWN_ANALYZER_IDS.includes(id)) {
-          warnings.push(`${sourceLabel}: 未知の analyzer "${id}" は無視されます`);
-          continue;
-        }
-        if (isPlainObject(toggle) && typeof toggle['enabled'] === 'boolean') {
-          analyzers[id] = { enabled: toggle['enabled'] };
-        } else {
-          warnings.push(`${sourceLabel}: analyzers.${id} は { "enabled": boolean } 形式である必要があります (無視)`);
-        }
-      }
-      value.analyzers = analyzers;
-    } else {
-      warnings.push(`${sourceLabel}: analyzers はオブジェクトである必要があります (無視)`);
-    }
-  }
+  const workspaceResult = validateWorkspaceSection(raw['workspace'], sourceLabel, warnings);
+  if (workspaceResult !== undefined) value.workspace = workspaceResult;
 
-  if (raw['sources'] !== undefined) {
-    if (isPlainObject(raw['sources'])) {
-      const sourcesRaw = raw['sources'];
-      const sources: NonNullable<PartialLepConfig['sources']> = {};
-
-      if (sourcesRaw['github'] !== undefined) {
-        if (isPlainObject(sourcesRaw['github'])) {
-          const g = sourcesRaw['github'];
-          const github: Partial<LepGitHubSourceConfig> = {};
-          if (typeof g['enabled'] === 'boolean') github.enabled = g['enabled'];
-          if (typeof g['tokenEnv'] === 'string') github.tokenEnv = g['tokenEnv'];
-          if (typeof g['maxPrs'] === 'number' && Number.isFinite(g['maxPrs'])) {
-            github.maxPrs = g['maxPrs'];
-          }
-          if (typeof g['since'] === 'string') github.since = g['since'];
-          sources.github = github;
-        } else {
-          warnings.push(`${sourceLabel}: sources.github はオブジェクトである必要があります (無視)`);
-        }
-      }
-
-      if (sourcesRaw['claude'] !== undefined) {
-        if (isPlainObject(sourcesRaw['claude'])) {
-          const c = sourcesRaw['claude'];
-          const claude: Partial<LepClaudeSourceConfig> = {};
-          if (typeof c['projectsDir'] === 'string') claude.projectsDir = c['projectsDir'];
-          sources.claude = claude;
-        } else {
-          warnings.push(`${sourceLabel}: sources.claude はオブジェクトである必要があります (無視)`);
-        }
-      }
-
-      if (sourcesRaw['codex'] !== undefined) {
-        if (isPlainObject(sourcesRaw['codex'])) {
-          const cx = sourcesRaw['codex'];
-          const codex: Partial<LepCodexSourceConfig> = {};
-          if (typeof cx['sessionsDir'] === 'string') codex.sessionsDir = cx['sessionsDir'];
-          sources.codex = codex;
-        } else {
-          warnings.push(`${sourceLabel}: sources.codex はオブジェクトである必要があります (無視)`);
-        }
-      }
-
-      if (sourcesRaw['gitRoots'] !== undefined) {
-        if (
-          Array.isArray(sourcesRaw['gitRoots']) &&
-          sourcesRaw['gitRoots'].every((r) => typeof r === 'string')
-        ) {
-          sources.gitRoots = sourcesRaw['gitRoots'] as string[];
-        } else {
-          warnings.push(`${sourceLabel}: sources.gitRoots は文字列配列である必要があります (無視)`);
-        }
-      }
-
-      if (Object.keys(sources).length > 0) value.sources = sources;
-    } else {
-      warnings.push(`${sourceLabel}: sources はオブジェクトである必要があります (無視)`);
-    }
-  }
-
-  if (raw['database'] !== undefined) {
-    if (isPlainObject(raw['database'])) {
-      const d = raw['database'];
-      const database: Partial<LepDatabaseConfig> = {};
-      if (typeof d['storagePath'] === 'string') database.storagePath = d['storagePath'];
-      value.database = database;
-    } else {
-      warnings.push(`${sourceLabel}: database はオブジェクトである必要があります (無視)`);
-    }
-  }
-
-  if (raw['workspace'] !== undefined) {
-    if (isPlainObject(raw['workspace'])) {
-      const w = raw['workspace'];
-      const workspace: Partial<LepWorkspaceConfig> = {};
-      if (typeof w['docsPath'] === 'string') workspace.docsPath = w['docsPath'];
-      if (typeof w['excludeRoot'] === 'string') workspace.excludeRoot = w['excludeRoot'];
-      value.workspace = workspace;
-    } else {
-      warnings.push(`${sourceLabel}: workspace はオブジェクトである必要があります (無視)`);
-    }
-  }
-
-  if (raw['logs'] !== undefined && isPlainObject(raw['logs'])) {
-    const level = raw['logs']['minLevel'];
-    if (typeof level === 'string' && VALID_LOG_LEVELS.has(level as LepLogLevel)) {
-      value.logs = { minLevel: level as LepLogLevel };
-    } else if (level !== undefined) {
-      warnings.push(`${sourceLabel}: logs.minLevel="${String(level)}" は不正です (無視)`);
-    }
-  }
+  const logsResult = validateLogsSection(raw['logs'], sourceLabel, warnings);
+  if (logsResult !== undefined) value.logs = logsResult;
 
   return { value, warnings };
 }
@@ -675,31 +746,51 @@ export function migrateLegacyToLepConfig(legacy: LegacyLepConfigInput): PartialL
     out.stage = legacy.analyzeAllEnabled ? 'primary+memory' : 'disabled';
   }
 
-  if (legacy.analyzeAll) {
-    const schedule: Partial<LepScheduleConfig> = {};
-    if (typeof legacy.analyzeAll.intervalSec === 'number') schedule.intervalSec = legacy.analyzeAll.intervalSec;
-    if (typeof legacy.analyzeAll.runOnStart === 'boolean') schedule.runOnStart = legacy.analyzeAll.runOnStart;
-    if (typeof legacy.analyzeAll.startupDelaySec === 'number') schedule.startupDelaySec = legacy.analyzeAll.startupDelaySec;
-    if (Object.keys(schedule).length > 0) out.schedule = schedule;
-  }
+  const schedule = migrateLegacySchedule(legacy.analyzeAll);
+  if (schedule) out.schedule = schedule;
 
+  const llm = migrateLegacyLlm(legacy);
+  if (llm) out.llm = llm;
+
+  if (legacy.gitRoots && legacy.gitRoots.length > 0) out.sources = { gitRoots: legacy.gitRoots };
+
+  const memory = migrateLegacyMemory(legacy);
+  if (memory) out.memory = memory;
+
+  return out;
+}
+
+function migrateLegacySchedule(
+  analyzeAll: LegacyLepConfigInput['analyzeAll'],
+): Partial<LepScheduleConfig> | null {
+  if (!analyzeAll) return null;
+  const schedule: Partial<LepScheduleConfig> = {};
+  if (typeof analyzeAll.intervalSec === 'number') schedule.intervalSec = analyzeAll.intervalSec;
+  if (typeof analyzeAll.runOnStart === 'boolean') schedule.runOnStart = analyzeAll.runOnStart;
+  if (typeof analyzeAll.startupDelaySec === 'number') schedule.startupDelaySec = analyzeAll.startupDelaySec;
+  return Object.keys(schedule).length > 0 ? schedule : null;
+}
+
+function migrateLegacyLlm(
+  legacy: LegacyLepConfigInput,
+): NonNullable<PartialLepConfig['llm']> | null {
   const ollama: { baseUrl?: string; models?: Partial<LepOllamaProviderConfig['models']> } = {};
   if (legacy.ollamaBaseUrl) ollama.baseUrl = legacy.ollamaBaseUrl;
   const models: Partial<LepOllamaProviderConfig['models']> = {};
   if (legacy.chatModel) models.chat = legacy.chatModel;
   if (legacy.embeddingModel) models.embedding = legacy.embeddingModel;
   if (Object.keys(models).length > 0) ollama.models = models;
-  if (Object.keys(ollama).length > 0) out.llm = { providers: { ollama } };
+  return Object.keys(ollama).length > 0 ? { providers: { ollama } } : null;
+}
 
-  if (legacy.gitRoots && legacy.gitRoots.length > 0) out.sources = { gitRoots: legacy.gitRoots };
-
+function migrateLegacyMemory(
+  legacy: LegacyLepConfigInput,
+): NonNullable<PartialLepConfig['memory']> | null {
   const memory: NonNullable<PartialLepConfig['memory']> = {};
   if (legacy.rag && Object.keys(legacy.rag).length > 0) memory.rag = legacy.rag;
   if (legacy.fts && typeof legacy.fts.rebuildIntervalMinutes === 'number') memory.fts = legacy.fts;
   if (typeof legacy.backfillDays === 'number') memory.conversation = { backfillDays: legacy.backfillDays };
-  if (Object.keys(memory).length > 0) out.memory = memory;
-
-  return out;
+  return Object.keys(memory).length > 0 ? memory : null;
 }
 
 /**
@@ -953,53 +1044,75 @@ export function migrateConfigJsonIntoLepJson(opts: MigrateConfigJsonOptions): Mi
     mkdirSync(dirname(lepPath), { recursive: true });
     writeFileSync(lepPath, JSON.stringify(full, null, 2) + '\n', { encoding: 'utf-8' });
   } else {
-    let lepRaw: unknown;
-    try {
-      lepRaw = JSON.parse(lepContent);
-    } catch (err) {
-      opts.logger?.warn(
-        `[LepConfig] 既存 lep.json のパースに失敗したため config.json を残します: ${lepPath}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-      return { migrated: false, lepPath };
-    }
-    if (!isPlainObject(lepRaw)) {
-      opts.logger?.warn(`[LepConfig] 既存 lep.json がオブジェクトでないため config.json を残します: ${lepPath}`);
-      return { migrated: false, lepPath };
-    }
-    // 欠落 top-level セクションのみ移行値を注入する (既存の明示値は触らない)。
-    const lepObj = lepRaw as Record<string, unknown>;
-    const migratedRecord = migrated as unknown as Record<string, unknown>;
-    let injected = false;
-    for (const key of ['stage', 'sources', 'schedule', 'llm', 'memory'] as const) {
-      if (!(key in lepObj) && migratedRecord[key] !== undefined) {
-        lepObj[key] = migratedRecord[key];
-        injected = true;
-      }
-    }
-    if (injected) {
-      writeFileSync(lepPath, JSON.stringify(lepObj, null, 2) + '\n', { encoding: 'utf-8' });
-    }
+    const gapFilled = applyMigratedGapsToLepJson(lepContent, lepPath, migrated, opts.logger);
+    if (!gapFilled.ok) return { migrated: false, lepPath };
   }
 
   // config.json を保全リネーム (削除しない)。
-  const stamp = new Date().toISOString().slice(0, 10).replaceAll('-', '');
-  let renamedTo = `${configPath}.migrated-${stamp}`;
-  if (existsSync(renamedTo)) renamedTo = `${configPath}.migrated-${stamp}-${Date.now()}`;
-  try {
-    renameSync(configPath, renamedTo);
-  } catch (err) {
-    opts.logger?.warn(
-      `[LepConfig] config.json の rename に失敗 (移行値は lep.json に反映済み): ${configPath}: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-    return { migrated: true, lepPath };
-  }
+  const renamedTo = renameConfigJson(configPath, opts.logger);
+  if (!renamedTo) return { migrated: true, lepPath };
 
   opts.logger?.info(
     `[LepConfig] config.json を lep.json へ移行しました。config.json は ${renamedTo} に退避しました`,
   );
   return { migrated: true, lepPath, configRenamedTo: renamedTo };
+}
+
+/**
+ * 既存の lep.json の内容をパースし、欠落 top-level セクションを migrated 由来値で gap-fill して書き戻す。
+ * パース失敗・型不正の場合は ok:false を返す。
+ */
+function applyMigratedGapsToLepJson(
+  lepContent: string,
+  lepPath: string,
+  migrated: PartialLepConfig,
+  logger: MigrateConfigJsonOptions['logger'],
+): { ok: boolean } {
+  let lepRaw: unknown;
+  try {
+    lepRaw = JSON.parse(lepContent);
+  } catch (err) {
+    logger?.warn(
+      `[LepConfig] 既存 lep.json のパースに失敗したため config.json を残します: ${lepPath}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return { ok: false };
+  }
+  if (!isPlainObject(lepRaw)) {
+    logger?.warn(`[LepConfig] 既存 lep.json がオブジェクトでないため config.json を残します: ${lepPath}`);
+    return { ok: false };
+  }
+  // 欠落 top-level セクションのみ移行値を注入する (既存の明示値は触らない)。
+  const lepObj = lepRaw as Record<string, unknown>;
+  const migratedRecord = migrated as unknown as Record<string, unknown>;
+  let injected = false;
+  for (const key of ['stage', 'sources', 'schedule', 'llm', 'memory'] as const) {
+    if (!(key in lepObj) && migratedRecord[key] !== undefined) {
+      lepObj[key] = migratedRecord[key];
+      injected = true;
+    }
+  }
+  if (injected) {
+    writeFileSync(lepPath, JSON.stringify(lepObj, null, 2) + '\n', { encoding: 'utf-8' });
+  }
+  return { ok: true };
+}
+
+/** config.json を保全リネームし、rename 後パスを返す。失敗時は null。 */
+function renameConfigJson(configPath: string, logger: MigrateConfigJsonOptions['logger']): string | null {
+  const stamp = new Date().toISOString().slice(0, 10).replaceAll('-', '');
+  let renamedTo = `${configPath}.migrated-${stamp}`;
+  if (existsSync(renamedTo)) renamedTo = `${configPath}.migrated-${stamp}-${Date.now()}`;
+  try {
+    renameSync(configPath, renamedTo);
+    return renamedTo;
+  } catch (err) {
+    logger?.warn(
+      `[LepConfig] config.json の rename に失敗 (移行値は lep.json に反映済み): ${configPath}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return null;
+  }
 }

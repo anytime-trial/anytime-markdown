@@ -117,6 +117,14 @@ export function getReviewHistory(input: {
   }
 
   if (include_precedes_bugs && findingEntityIds.size > 0) {
+    // Build a flat index of finding_id → finding object across all review entries
+    const findingById = new Map<string, ReviewFindingSummary>();
+    for (const entry of reviewMap.values()) {
+      for (const f of entry.findings) {
+        findingById.set(f.finding_id, f);
+      }
+    }
+
     for (const [findingId, entityId] of findingEntityIds) {
       let edgeRows: ReturnType<MemoryDbConnection['exec']>;
       try {
@@ -131,12 +139,8 @@ export function getReviewHistory(input: {
       }
       const bugEntityIds = (edgeRows[0]?.values ?? []).map((r) => r[0] as string);
       if (bugEntityIds.length > 0) {
-        for (const entry of reviewMap.values()) {
-          const f = entry.findings.find((f) => f.finding_id === findingId);
-          if (f) {
-            f.precedes_bug_entity_ids = bugEntityIds;
-          }
-        }
+        const f = findingById.get(findingId);
+        if (f) f.precedes_bug_entity_ids = bugEntityIds;
       }
     }
   }

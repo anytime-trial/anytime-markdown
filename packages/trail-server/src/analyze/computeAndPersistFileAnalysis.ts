@@ -173,76 +173,23 @@ export async function computeAndPersistFileAnalysis(
   // 8. FileAnalysisRow を構築
   const fileRows: FileAnalysisRow[] = [];
   for (const relPath of allRelFilePaths) {
-    const agg = fileAggregates.get(relPath) ?? {
-      importanceScore: 0,
-      fanInTotal: 0,
-      cognitiveComplexityMax: 0,
-      cyclomaticComplexityMax: 0,
-      functionCount: 0,
-    };
-
-    // CodeGraph ノード照合（拡張子なし相対パスでマッチング）
-    const relPathNoExt = stripExt(relPath);
-    const nodeId = relPathNoExtToNodeId.get(relPathNoExt);
-    const hasNode = nodeId !== undefined;
-    const inDeg = hasNode ? (inDegree.get(nodeId) ?? 0) : 0;
-
-    // commit churn（git 相対パスと照合。通常 relPath と一致する）
-    const churn = churnMap.get(relPath) ?? 0;
-    const hasHistory = everChurned.has(relPath);
-
-    // カバレッジ
-    const coveragePct = coverageMap.get(relPath);
-    const coverageKnown = coveragePct !== undefined;
-
-    // コミュニティサイズ
-    const communityId = hasNode ? (nodeCommunityMap.get(nodeId) ?? null) : null;
-    const commSize = communityId === null ? 0 : (communitySize.get(communityId) ?? 0);
-
-    const signals: DeadCodeSignals = {
-      // orphan: グラフに存在するが in-degree = 0
-      orphan: hasNode && inDeg === 0,
-      // fanInZero: importance 解析対象で全関数の fanIn 合計が 0
-      fanInZero: agg.functionCount > 0 && agg.fanInTotal === 0,
-      // noRecentChurn: コミット履歴があるが recent 窓内 (30 日) は変更なし
-      noRecentChurn: hasHistory && churn === 0,
-      // zeroCoverage: カバレッジデータがあり、行カバレッジが 0%
-      zeroCoverage: coverageKnown && (coveragePct ?? 0) === 0,
-      // isolatedCommunity: 小さいコミュニティ（≤3）に属している
-      isolatedCommunity: communityId !== null && commSize > 0 && commSize <= ISOLATED_COMMUNITY_THRESHOLD,
-    };
-
-    const m = matchIgnore(relPath, ignoreRules);
-    const isIgnored = m.matched;
-    const ignoreReason = m.matched ? `user:${m.pattern}` : '';
-
-    const deadCodeScore = computeDeadCodeScore(signals, isIgnored);
-
-    const lineCount = lineCountByFile.get(relPath) ?? 0;
-    const cyclomaticComplexityMax = agg.cyclomaticComplexityMax;
-    const c = centralityMap.get(relPath);
-    const category = categoryByFile?.get(relPath) ?? 'logic';
-    fileRows.push({
+    fileRows.push(buildFileAnalysisRow({
+      relPath,
       repoName,
-      filePath: relPath,
-      importanceScore: agg.importanceScore,
-      fanInTotal: agg.fanInTotal,
-      cognitiveComplexityMax: agg.cognitiveComplexityMax,
-      lineCount,
-      cyclomaticComplexityMax,
-      functionCount: agg.functionCount,
-      deadCodeScore,
-      signals,
-      isIgnored,
-      ignoreReason,
-      crossPkgInCount: c?.crossPkgIn ?? 0,
-      externalConsumerPkgs: c?.externalConsumerPkgs ?? 0,
-      totalInCount: c?.totalIn ?? 0,
-      isBarrel: c?.isBarrel ?? false,
-      centralityScore: c?.centralityScore ?? 0,
-      category,
       analyzedAt,
-    });
+      fileAggregates,
+      inDegree,
+      communitySize,
+      nodeCommunityMap,
+      relPathNoExtToNodeId,
+      churnMap,
+      everChurned,
+      coverageMap,
+      centralityMap,
+      ignoreRules,
+      lineCountByFile,
+      categoryByFile,
+    }));
   }
 
   // 9. FunctionAnalysisRow を構築（filePath を相対パスに変換）
@@ -298,6 +245,107 @@ export async function computeAndPersistFileAnalysis(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+interface BuildFileRowCtx {
+  relPath: string;
+  repoName: string;
+  analyzedAt: string;
+  fileAggregates: ReadonlyMap<string, {
+    importanceScore: number;
+    fanInTotal: number;
+    cognitiveComplexityMax: number;
+    cyclomaticComplexityMax: number;
+    functionCount: number;
+  }>;
+  inDegree: ReadonlyMap<string, number>;
+  communitySize: ReadonlyMap<number, number>;
+  nodeCommunityMap: ReadonlyMap<string, number>;
+  relPathNoExtToNodeId: ReadonlyMap<string, string>;
+  churnMap: ReadonlyMap<string, number>;
+  everChurned: ReadonlySet<string>;
+  coverageMap: ReadonlyMap<string, number>;
+  centralityMap: ReadonlyMap<string, { crossPkgIn: number; externalConsumerPkgs: number; totalIn: number; isBarrel: boolean; centralityScore: number }>;
+  ignoreRules: IgnoreRules;
+  lineCountByFile: ReadonlyMap<string, number>;
+  categoryByFile?: ReadonlyMap<string, FileCategory>;
+}
+
+function buildFileAnalysisRow(ctx: BuildFileRowCtx): FileAnalysisRow {
+  const {
+    relPath, repoName, analyzedAt, fileAggregates, inDegree, communitySize,
+    nodeCommunityMap, relPathNoExtToNodeId, churnMap, everChurned,
+    coverageMap, centralityMap, ignoreRules, lineCountByFile, categoryByFile,
+  } = ctx;
+
+  const agg = fileAggregates.get(relPath) ?? {
+    importanceScore: 0,
+    fanInTotal: 0,
+    cognitiveComplexityMax: 0,
+    cyclomaticComplexityMax: 0,
+    functionCount: 0,
+  };
+
+  // CodeGraph ノード照合（拡張子なし相対パスでマッチング）
+  const relPathNoExt = stripExt(relPath);
+  const nodeId = relPathNoExtToNodeId.get(relPathNoExt);
+  const hasNode = nodeId !== undefined;
+  const inDeg = hasNode ? (inDegree.get(nodeId) ?? 0) : 0;
+
+  // commit churn（git 相対パスと照合。通常 relPath と一致する）
+  const churn = churnMap.get(relPath) ?? 0;
+  const hasHistory = everChurned.has(relPath);
+
+  // カバレッジ
+  const coveragePct = coverageMap.get(relPath);
+  const coverageKnown = coveragePct !== undefined;
+
+  // コミュニティサイズ
+  const communityId = hasNode ? (nodeCommunityMap.get(nodeId) ?? null) : null;
+  const commSize = communityId === null ? 0 : (communitySize.get(communityId) ?? 0);
+
+  const signals: DeadCodeSignals = {
+    // orphan: グラフに存在するが in-degree = 0
+    orphan: hasNode && inDeg === 0,
+    // fanInZero: importance 解析対象で全関数の fanIn 合計が 0
+    fanInZero: agg.functionCount > 0 && agg.fanInTotal === 0,
+    // noRecentChurn: コミット履歴があるが recent 窓内 (30 日) は変更なし
+    noRecentChurn: hasHistory && churn === 0,
+    // zeroCoverage: カバレッジデータがあり、行カバレッジが 0%
+    zeroCoverage: coverageKnown && (coveragePct ?? 0) === 0,
+    // isolatedCommunity: 小さいコミュニティ（≤3）に属している
+    isolatedCommunity: communityId !== null && commSize > 0 && commSize <= ISOLATED_COMMUNITY_THRESHOLD,
+  };
+
+  const m = matchIgnore(relPath, ignoreRules);
+  const isIgnored = m.matched;
+  const ignoreReason = m.matched ? `user:${m.pattern}` : '';
+  const deadCodeScore = computeDeadCodeScore(signals, isIgnored);
+  const lineCount = lineCountByFile.get(relPath) ?? 0;
+  const c = centralityMap.get(relPath);
+  const category = categoryByFile?.get(relPath) ?? 'logic';
+
+  return {
+    repoName,
+    filePath: relPath,
+    importanceScore: agg.importanceScore,
+    fanInTotal: agg.fanInTotal,
+    cognitiveComplexityMax: agg.cognitiveComplexityMax,
+    lineCount,
+    cyclomaticComplexityMax: agg.cyclomaticComplexityMax,
+    functionCount: agg.functionCount,
+    deadCodeScore,
+    signals,
+    isIgnored,
+    ignoreReason,
+    crossPkgInCount: c?.crossPkgIn ?? 0,
+    externalConsumerPkgs: c?.externalConsumerPkgs ?? 0,
+    totalInCount: c?.totalIn ?? 0,
+    isBarrel: c?.isBarrel ?? false,
+    centralityScore: c?.centralityScore ?? 0,
+    category,
+    analyzedAt,
+  };
+}
 
 function safeReadFile(p: string): string | null {
   try {

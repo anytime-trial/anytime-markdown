@@ -19,6 +19,37 @@ export type BugHistoryEntry = {
   caused_by: CausedByRef[];
 };
 
+function queryByFilePath(
+  db: MemoryDbConnection,
+  filePath: string,
+  pkg: string | undefined,
+  category: string | undefined,
+  limit: number,
+  logger: MemoryLogger,
+): ReturnType<MemoryDbConnection['exec']> | null {
+  const fileConds: string[] = [];
+  const fileParams: (string | number)[] = [filePath];
+  if (pkg != null) { fileConds.push('bf.package = ?'); fileParams.push(pkg); }
+  if (category != null) { fileConds.push('bf.category = ?'); fileParams.push(category); }
+  fileParams.push(limit);
+  const wherePart = fileConds.length > 0 ? 'AND ' + fileConds.join(' AND ') : '';
+  try {
+    return db.exec(
+      `SELECT DISTINCT bf.id, bf.commit_sha, bf.package, bf.category,
+              bf.subject_summary, bf.committed_at,
+              bf.affected_file_paths_json, bf.introduced_commit_sha, bf.bug_entity_id
+       FROM memory_bug_fixes bf, json_each(bf.affected_file_paths_json)
+       WHERE json_each.value = ? ${wherePart}
+       ORDER BY bf.committed_at DESC
+       LIMIT ?`,
+      fileParams,
+    );
+  } catch (err) {
+    logger.error(`[getBugHistory] file_path query failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+    return null;
+  }
+}
+
 export function getBugHistory(input: {
   db: MemoryDbConnection;
   package?: string;
@@ -29,36 +60,13 @@ export function getBugHistory(input: {
 }): BugHistoryEntry[] {
   const { db, limit = 20, logger } = input;
 
-  const conditions: string[] = [];
-  const params: (string | number)[] = [];
-
   if (input.file_path != null) {
-    // Use json_each join for file_path filter
-    let rows: ReturnType<MemoryDbConnection['exec']>;
-    try {
-      const fileConds: string[] = [];
-      const fileParams: (string | number)[] = [input.file_path];
-      if (input.package != null) { fileConds.push('bf.package = ?'); fileParams.push(input.package); }
-      if (input.category != null) { fileConds.push('bf.category = ?'); fileParams.push(input.category); }
-      fileParams.push(limit);
-      const wherePart = fileConds.length > 0 ? 'AND ' + fileConds.join(' AND ') : '';
-      rows = db.exec(
-        `SELECT DISTINCT bf.id, bf.commit_sha, bf.package, bf.category,
-                bf.subject_summary, bf.committed_at,
-                bf.affected_file_paths_json, bf.introduced_commit_sha, bf.bug_entity_id
-         FROM memory_bug_fixes bf, json_each(bf.affected_file_paths_json)
-         WHERE json_each.value = ? ${wherePart}
-         ORDER BY bf.committed_at DESC
-         LIMIT ?`,
-        fileParams,
-      );
-    } catch (err) {
-      logger.error(`[getBugHistory] file_path query failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
-      return [];
-    }
-    return buildEntries(db, rows, logger);
+    const rows = queryByFilePath(db, input.file_path, input.package, input.category, limit, logger);
+    return rows === null ? [] : buildEntries(db, rows, logger);
   }
 
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
   if (input.package != null) { conditions.push('bf.package = ?'); params.push(input.package); }
   if (input.category != null) { conditions.push('bf.category = ?'); params.push(input.category); }
   params.push(limit);

@@ -24,6 +24,62 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 // memory ingestion 対象外のサブツリー (frontmatter type enum に無いカテゴリ)
 const EXCLUDED_DIR_PREFIXES = ['90.skill/'];
 
+// ── File reading helper ───────────────────────────────────────────────────────
+
+/**
+ * Read the full contents of a file using openSync/fstatSync/readSync to avoid
+ * TOCTOU race (stat-then-open). Returns null if the file should be skipped
+ * (too large, unreadable, etc.).
+ */
+function readFileContent(abs_path: string, logger: MemoryLogger): Buffer | null {
+  let fd: number | null = null;
+  try {
+    try {
+      fd = openSync(abs_path, 'r');
+    } catch (err) {
+      logger.error(`[anytime-memory] discoverChangedSpecs: failed to open file ${abs_path}`, err);
+      return null;
+    }
+
+    const fileSize = fstatSync(fd).size;
+    if (fileSize > MAX_FILE_BYTES) {
+      const warnMsg = `[anytime-memory] discoverChangedSpecs: skipping large file (${fileSize} bytes) ${abs_path}`;
+      if (typeof logger.warn === 'function') {
+        logger.warn(warnMsg);
+      } else {
+        logger.info(`[WARN] ${warnMsg}`);
+      }
+      return null;
+    }
+
+    try {
+      const buf = Buffer.alloc(fileSize);
+      let read = 0;
+      while (read < fileSize) {
+        const n = readSync(fd, buf, read, fileSize - read, null);
+        if (n === 0) break;
+        read += n;
+      }
+      return read === fileSize ? buf : buf.subarray(0, read);
+    } catch (err) {
+      logger.error(`[anytime-memory] discoverChangedSpecs: failed to read file ${abs_path}`, err);
+      return null;
+    }
+  } finally {
+    if (fd !== null) {
+      try {
+        closeSync(fd);
+      } catch (err) {
+        logger.warn?.(
+          `[anytime-memory] discoverChangedSpecs: failed to close fd for ${abs_path}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+  }
+}
+
 // ── Implementation ────────────────────────────────────────────────────────────
 
 /**
@@ -61,80 +117,20 @@ export async function discoverChangedSpecs(input: DiscoverInput): Promise<Change
 
       // openSync → fstatSync(fd) → readSync で同一 fd を使い、stat→read 間の
       // TOCTOU (CodeQL `js/file-system-race`) を回避する。
-      let fd: number | null = null;
-      let content: Buffer | null = null;
-      try {
-        try {
-          fd = openSync(abs_path, 'r');
-        } catch (err) {
-          logger.error(
-            `[anytime-memory] discoverChangedSpecs: failed to open file ${abs_path}`,
-            err,
-          );
-          continue;
-        }
-
-        const fileSize = fstatSync(fd).size;
-        if (fileSize > MAX_FILE_BYTES) {
-          const warnMsg = `[anytime-memory] discoverChangedSpecs: skipping large file (${fileSize} bytes) ${rel}`;
-          if (typeof logger.warn === 'function') {
-            logger.warn(warnMsg);
-          } else {
-            logger.info(`[WARN] ${warnMsg}`);
-          }
-          continue;
-        }
-
-        try {
-          const buf = Buffer.alloc(fileSize);
-          let read = 0;
-          while (read < fileSize) {
-            const n = readSync(fd, buf, read, fileSize - read, null);
-            if (n === 0) break;
-            read += n;
-          }
-          content = read === fileSize ? buf : buf.subarray(0, read);
-        } catch (err) {
-          logger.error(
-            `[anytime-memory] discoverChangedSpecs: failed to read file ${abs_path}`,
-            err,
-          );
-          continue;
-        }
-      } finally {
-        if (fd !== null) {
-          try {
-            closeSync(fd);
-          } catch (err) {
-            logger.warn?.(
-              `[anytime-memory] discoverChangedSpecs: failed to close fd for ${abs_path}: ${
-                err instanceof Error ? err.message : String(err)
-              }`,
-            );
-          }
-        }
-      }
+      const content = readFileContent(abs_path, logger);
       if (content === null) continue;
 
       const source_hash = createHash('sha1').update(content).digest('hex');
       const rel_path = rel.replaceAll('\\', '/'); // normalize path separators on Windows
 
-      // Query DB for existing hash
       const row = stmt.get(rel_path);
-      let existingHash: string | null = null;
-      if (row) {
-        const val = row['source_hash'];
-        existingHash = typeof val === 'string' ? val : null;
-      }
+      const existingHash = row ? (typeof row['source_hash'] === 'string' ? row['source_hash'] : null) : null;
 
       if (existingHash === null) {
-        // Not found in DB → new file
         results.push({ rel_path, abs_path, source_hash, is_new: true });
       } else if (existingHash !== source_hash) {
-        // Found but hash changed
         results.push({ rel_path, abs_path, source_hash, is_new: false });
       }
-      // else: hash matches → skip (no change)
     }
   } finally {
     stmt.free?.();

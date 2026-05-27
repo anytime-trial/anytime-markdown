@@ -54,6 +54,143 @@ function recordFailedItem(
   );
 }
 
+/** F21: find an existing finding entity id whose embedding is similar enough to merge into. */
+async function computeMergeTarget(
+  candidateRows: readonly (readonly SqlValue[])[],
+  findingText: string,
+  ollama: OllamaClient,
+  logger: MemoryLogger,
+): Promise<string | null> {
+  let newEmbedding: Float32Array;
+  try {
+    const embResult = await ollama.embeddings({ model: EMBEDDING_MODEL, prompt: findingText });
+    newEmbedding = embResult.embedding;
+  } catch (_) {
+    logger.warn?.(
+      `[anytime-memory] ingestAgentReviewResult: embedding failed`,
+    );
+    return null;
+  }
+  if (newEmbedding.length === 0) return null;
+  for (const row of candidateRows) {
+    const existingEntityId = row[0] as string;
+    const existingBlob = toUint8ArrayOrNull(row[1]);
+    if (!existingBlob || existingBlob.byteLength === 0) continue;
+    const existingEmbedding = blobToFloat32(existingBlob);
+    if (cosineSimilarity(newEmbedding, existingEmbedding) >= MERGE_THRESHOLD) {
+      return existingEntityId;
+    }
+  }
+  return null;
+}
+
+/** Insert one finding (entity + row + edge), returning whether it was inserted and/or merged. */
+async function ingestOneFinding(opts: {
+  db: MemoryDbConnection;
+  ollama: OllamaClient;
+  logger: MemoryLogger;
+  finding: {
+    finding_index: number;
+    target_file_path: string | null;
+    target_symbol: string | null;
+    target_line_start: number | null;
+    target_line_end: number | null;
+    category: string;
+    severity: string;
+    finding_text: string;
+    suggestion_text: string | null;
+  };
+  reviewEntityId: string;
+  runId: string;
+  recordedAt: string;
+}): Promise<{ inserted: boolean; merged: boolean; failed: boolean; failDetail: string }> {
+  const { db, ollama, logger, finding, reviewEntityId, runId, recordedAt } = opts;
+  try {
+    const findingCanonicalName = `${reviewEntityId}:${finding.finding_index}`;
+    const findingEntityId = entityId('ReviewFinding', findingCanonicalName);
+
+    // F21: look for existing findings with matching file/symbol/category
+    const candidates = db.exec(
+      `SELECT mrf.finding_entity_id, me.embedding
+       FROM memory_review_findings mrf
+       JOIN memory_entities me ON me.id = mrf.finding_entity_id
+       WHERE mrf.target_file_path IS ?
+         AND mrf.target_symbol IS ?
+         AND mrf.category = ?
+         AND mrf.review_id != ?`,
+      [finding.target_file_path, finding.target_symbol, finding.category, reviewEntityId],
+    );
+    const candidateRows = candidates[0]?.values ?? [];
+    const mergedInto =
+      candidateRows.length > 0
+        ? await computeMergeTarget(candidateRows, finding.finding_text, ollama, logger)
+        : null;
+
+    const attributesJson = mergedInto
+      ? JSON.stringify({ merged_into: mergedInto, confidence_label: 'INFERRED' })
+      : JSON.stringify({ confidence_label: 'INFERRED' });
+
+    db.run(
+      `INSERT OR IGNORE INTO memory_entities
+         (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
+          first_seen_at, last_updated_at, recorded_at)
+       VALUES (?, 'ReviewFinding', ?, ?, '[]', '[]', ?, ?, ?, ?)`,
+      [
+        findingEntityId, findingCanonicalName,
+        finding.finding_text.slice(0, 100),
+        attributesJson, recordedAt, recordedAt, recordedAt,
+      ],
+    );
+    if (mergedInto) {
+      db.run(
+        `UPDATE memory_entities SET attributes_json = ?, last_updated_at = ?
+         WHERE id = ? AND type = 'ReviewFinding'`,
+        [attributesJson, recordedAt, findingEntityId],
+      );
+    }
+
+    const findingRowId = entityId('finding_row', findingCanonicalName);
+    db.run(
+      `INSERT OR IGNORE INTO memory_review_findings
+         (id, review_id, finding_entity_id, finding_index,
+          target_file_path, target_symbol, target_line_start, target_line_end,
+          category, severity, finding_text, suggestion_text, recorded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        findingRowId, reviewEntityId, findingEntityId, finding.finding_index,
+        finding.target_file_path, finding.target_symbol,
+        finding.target_line_start, finding.target_line_end,
+        finding.category, finding.severity,
+        finding.finding_text, finding.suggestion_text,
+        recordedAt,
+      ],
+    );
+    const inserted = db.getRowsModified() > 0;
+
+    const edgeId = entityId('edge', `flagged:${reviewEntityId}:${findingEntityId}`);
+    db.run(
+      `INSERT OR IGNORE INTO memory_edges
+         (id, subject_entity_id, predicate, object_entity_id,
+          valid_from, valid_to, recorded_at,
+          source_type, source_ref, confidence, confidence_label, modality)
+       VALUES (?, ?, 'flagged', ?, ?, NULL, ?, 'review', ?, 1.0, 'INFERRED', 'asserted')`,
+      [
+        edgeId, reviewEntityId, findingEntityId,
+        recordedAt, recordedAt,
+        `agent#${runId}`,
+      ],
+    );
+    return { inserted, merged: mergedInto !== null, failed: false, failDetail: '' };
+  } catch (err) {
+    const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    logger.error(
+      `[anytime-memory] ingestAgentReviewResult: failed finding ${finding.finding_index}`,
+      err,
+    );
+    return { inserted: false, merged: false, failed: true, failDetail: detail };
+  }
+}
+
 export async function ingestAgentReviewResult(input: {
   db: MemoryDbConnection;
   input: unknown;
@@ -179,131 +316,16 @@ export async function ingestAgentReviewResult(input: {
   let itemsFailed = 0;
 
   for (const finding of parsed.findings) {
-    try {
-      const findingCanonicalName = `${reviewEntityId}:${finding.finding_index}`;
-      const findingEntityId = entityId('ReviewFinding', findingCanonicalName);
-
-      // F21: look for existing findings with matching file/symbol/category
-      let mergedInto: string | null = null;
-      const candidates = db.exec(
-        `SELECT mrf.finding_entity_id, me.embedding
-         FROM memory_review_findings mrf
-         JOIN memory_entities me ON me.id = mrf.finding_entity_id
-         WHERE mrf.target_file_path IS ?
-           AND mrf.target_symbol IS ?
-           AND mrf.category = ?
-           AND mrf.review_id != ?`,
-        [finding.target_file_path, finding.target_symbol, finding.category, reviewEntityId],
-      );
-
-      const candidateRows = candidates[0]?.values ?? [];
-      if (candidateRows.length > 0) {
-        // Compute embedding for new finding text
-        let newEmbedding: Float32Array;
-        try {
-          const embResult = await ollama.embeddings({
-            model: EMBEDDING_MODEL,
-            prompt: finding.finding_text,
-          });
-          newEmbedding = embResult.embedding;
-        } catch (err) {
-          logger.warn?.(
-            `[anytime-memory] ingestAgentReviewResult: embedding failed for finding ${finding.finding_index}`,
-          );
-          newEmbedding = new Float32Array(0);
-        }
-
-        if (newEmbedding.length > 0) {
-          for (const row of candidateRows) {
-            const existingEntityId = row[0] as string;
-            const existingBlob = toUint8ArrayOrNull(row[1]);
-            if (!existingBlob || existingBlob.byteLength === 0) continue;
-            const existingEmbedding = blobToFloat32(existingBlob);
-            if (cosineSimilarity(newEmbedding, existingEmbedding) >= MERGE_THRESHOLD) {
-              mergedInto = existingEntityId;
-              break;
-            }
-          }
-        }
-      }
-
-      // Insert finding entity with confidence_label='INFERRED' (D21)
-      const attributesJson = mergedInto
-        ? JSON.stringify({ merged_into: mergedInto, confidence_label: 'INFERRED' })
-        : JSON.stringify({ confidence_label: 'INFERRED' });
-
-      db.run(
-        `INSERT OR IGNORE INTO memory_entities
-           (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
-            first_seen_at, last_updated_at, recorded_at)
-         VALUES (?, 'ReviewFinding', ?, ?, '[]', '[]', ?, ?, ?, ?)`,
-        [
-          findingEntityId, findingCanonicalName,
-          finding.finding_text.slice(0, 100),
-          attributesJson, recordedAt, recordedAt, recordedAt,
-        ],
-      );
-      if (mergedInto) {
-        db.run(
-          `UPDATE memory_entities SET attributes_json = ?, last_updated_at = ?
-           WHERE id = ? AND type = 'ReviewFinding'`,
-          [attributesJson, recordedAt, findingEntityId],
-        );
-      }
-
-      // Insert finding row
-      const findingRowId = entityId('finding_row', findingCanonicalName);
-      db.run(
-        `INSERT OR IGNORE INTO memory_review_findings
-           (id, review_id, finding_entity_id, finding_index,
-            target_file_path, target_symbol, target_line_start, target_line_end,
-            category, severity, finding_text, suggestion_text, recorded_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          findingRowId, reviewEntityId, findingEntityId, finding.finding_index,
-          finding.target_file_path, finding.target_symbol,
-          finding.target_line_start, finding.target_line_end,
-          finding.category, finding.severity,
-          finding.finding_text, finding.suggestion_text,
-          recordedAt,
-        ],
-      );
-      if (db.getRowsModified() > 0) {
-        findingsInserted += 1;
-      }
-      if (mergedInto !== null) {
-        findingsMerged += 1;
-      }
-
-      // Flagged edge: Review → ReviewFinding (confidence_label='INFERRED')
-      const edgeId = entityId('edge', `flagged:${reviewEntityId}:${findingEntityId}`);
-      db.run(
-        `INSERT OR IGNORE INTO memory_edges
-           (id, subject_entity_id, predicate, object_entity_id,
-            valid_from, valid_to, recorded_at,
-            source_type, source_ref, confidence, confidence_label, modality)
-         VALUES (?, ?, 'flagged', ?, ?, NULL, ?, 'review', ?, 1.0, 'INFERRED', 'asserted')`,
-        [
-          edgeId, reviewEntityId, findingEntityId,
-          recordedAt, recordedAt,
-          `agent#${parsed.run_id}`,
-        ],
-      );
-    } catch (err) {
-      const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
-      logger.error(
-        `[anytime-memory] ingestAgentReviewResult: failed finding ${finding.finding_index}`,
-        err,
-      );
+    const result = await ingestOneFinding({
+      db, ollama, logger, finding, reviewEntityId, runId: parsed.run_id, recordedAt,
+    });
+    if (result.failed) {
       itemsFailed += 1;
-      recordFailedItem(
-        db,
-        'review',
-        `${parsed.run_id}#${finding.finding_index}`,
-        'finding_error',
-        detail,
-      );
+      recordFailedItem(db, 'review', `${parsed.run_id}#${finding.finding_index}`, 'finding_error', result.failDetail);
+      continue;
     }
+    if (result.inserted) findingsInserted += 1;
+    if (result.merged) findingsMerged += 1;
   }
 
   // ── Step 7: Finalize memory_review_runs ───────────────────────────────────

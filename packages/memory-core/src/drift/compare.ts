@@ -20,6 +20,17 @@ function normalizeValue(value: string): string {
   return canonicalize(value).replace(/\.js$/, '');
 }
 
+function resolveDriftType(
+  convSpecDiff: boolean,
+  specCodeDiff: boolean,
+  convCodeDiff: boolean,
+): DriftCandidate['drift_type'] {
+  if (convSpecDiff && specCodeDiff && convCodeDiff) return 'three_way';
+  if (specCodeDiff) return 'spec_vs_code';
+  if (convCodeDiff) return 'conv_vs_code';
+  return 'conv_vs_spec';
+}
+
 /**
  * Detects drift candidates by comparing memory_edges across
  * 'conversation', 'spec', and 'code' source types.
@@ -104,16 +115,7 @@ export function detectThreeSourceDrifts(input: {
       }
 
       // Determine drift_type (three_way takes priority)
-      let drift_type: DriftCandidate['drift_type'];
-      if (convSpecDiff && specCodeDiff && convCodeDiff) {
-        drift_type = 'three_way';
-      } else if (specCodeDiff) {
-        drift_type = 'spec_vs_code';
-      } else if (convCodeDiff) {
-        drift_type = 'conv_vs_code';
-      } else {
-        drift_type = 'conv_vs_spec';
-      }
+      const drift_type = resolveDriftType(convSpecDiff, specCodeDiff, convCodeDiff);
 
       candidates.push({
         subject_entity_id,

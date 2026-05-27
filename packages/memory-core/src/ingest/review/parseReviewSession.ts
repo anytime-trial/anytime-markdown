@@ -98,6 +98,31 @@ function inferTargetKind(refs: string[]): ParsedReviewSession['target_kind'] {
   return 'mixed';
 }
 
+function makeFinding(
+  findingIndex: number,
+  target: string | null,
+  category: ParsedFinding['category'],
+  severity: ParsedFinding['severity'],
+  findingText: string,
+  suggestionText: string,
+  chapterHeading: string,
+  is_category_inferred: boolean,
+): ParsedFinding {
+  return {
+    finding_index: findingIndex,
+    target_file_path: target,
+    target_symbol: null,
+    target_line_start: null,
+    target_line_end: null,
+    category,
+    severity,
+    finding_text: findingText,
+    suggestion_text: suggestionText,
+    chapter_path: chapterHeading,
+    is_category_inferred,
+  };
+}
+
 /**
  * Extract ParsedFinding array from a combined body text.
  */
@@ -122,43 +147,17 @@ function extractFindings(bodyText: string): ParsedFinding[] {
       for (const [findingText, suggestionText] of pairs) {
         const target =
           extractTargetFromFinding(chapter.heading + '\n' + findingText + '\n' + suggestionText);
-        findings.push({
-          finding_index: findingIndex++,
-          target_file_path: target,
-          target_symbol: null,
-          target_line_start: null,
-          target_line_end: null,
-          category,
-          severity,
-          finding_text: findingText,
-          suggestion_text: suggestionText,
-          chapter_path: chapter.heading,
-          is_category_inferred,
-        });
+        findings.push(makeFinding(findingIndex++, target, category, severity, findingText, suggestionText, chapter.heading, is_category_inferred));
       }
       continue;
     }
 
     // Strategy 2: 番号付き finding（Sample 2/3）
     const numbered = extractNumberedFindings(chapter.lines);
-    if (numbered.length > 0) {
-      for (const nf of numbered) {
-        const findingText = nf.title + (nf.finding ? `\n\n${nf.finding}` : '');
-        const target = extractTargetFromFinding(findingText + '\n' + nf.suggestion);
-        findings.push({
-          finding_index: findingIndex++,
-          target_file_path: target,
-          target_symbol: null,
-          target_line_start: null,
-          target_line_end: null,
-          category,
-          severity,
-          finding_text: findingText,
-          suggestion_text: nf.suggestion,
-          chapter_path: chapter.heading,
-          is_category_inferred,
-        });
-      }
+    for (const nf of numbered) {
+      const findingText = nf.title + (nf.finding ? `\n\n${nf.finding}` : '');
+      const target = extractTargetFromFinding(findingText + '\n' + nf.suggestion);
+      findings.push(makeFinding(findingIndex++, target, category, severity, findingText, nf.suggestion, chapter.heading, is_category_inferred));
     }
   }
 
@@ -235,6 +234,40 @@ function groupIntoBlocks(
 
 const BODY_EXCERPT_MAX = 4096;
 
+function buildSessionFromBlock(
+  block: ReviewBlock,
+  logger: { warn: (msg: string) => void },
+): ParsedReviewSession {
+  const firstRow = block.rows[0];
+  const lastRow = block.rows.at(-1)!;
+
+  const parts: string[] = [];
+  const rawRefs: string[] = [];
+  for (const row of block.rows) {
+    if (row.text_excerpt.length > 0) parts.push(row.text_excerpt);
+    rawRefs.push(...extractRefsFromToolCalls(row.tool_calls, logger));
+    if (row.type === 'user') rawRefs.push(...extractBacktickPaths(row.text_excerpt));
+  }
+
+  const fullBody = parts.join('\n---\n');
+  const body_excerpt =
+    fullBody.length > BODY_EXCERPT_MAX ? fullBody.slice(0, BODY_EXCERPT_MAX) : fullBody;
+  const target_refs = Array.from(new Set(rawRefs));
+
+  return {
+    session_id: block.session_id,
+    message_uuid_start: firstRow.uuid,
+    message_uuid_end: lastRow.uuid,
+    subagent_invocation_id: null,
+    reviewer: 'unknown',
+    target_kind: inferTargetKind(target_refs),
+    target_refs,
+    body_excerpt,
+    findings: extractFindings(body_excerpt),
+    reviewed_at: firstRow.timestamp,
+  };
+}
+
 export function parseReviewSessions(input: {
   db: MemoryDbConnection;
   sinceISO: string;
@@ -280,56 +313,13 @@ export function parseReviewSessions(input: {
   let lastSessionId: string | null = null;
 
   for (const block of blocks) {
-    // Track block index within session for subagent_invocation_id purposes
     if (block.session_id === lastSessionId) {
       blockIndexInSession++;
     } else {
       blockIndexInSession = 0;
       lastSessionId = block.session_id;
     }
-
-    const firstRow = block.rows[0];
-    const lastRow = block.rows.at(-1)!;
-
-    // Collect body_excerpt from all messages
-    const parts: string[] = [];
-    for (const row of block.rows) {
-      if (row.text_excerpt.length > 0) {
-        parts.push(row.text_excerpt);
-      }
-    }
-    const fullBody = parts.join('\n---\n');
-    const body_excerpt =
-      fullBody.length > BODY_EXCERPT_MAX ? fullBody.slice(0, BODY_EXCERPT_MAX) : fullBody;
-
-    // Collect target refs from tool_calls and user message text_excerpts
-    const rawRefs: string[] = [];
-    for (const row of block.rows) {
-      rawRefs.push(...extractRefsFromToolCalls(row.tool_calls, logger));
-      if (row.type === 'user') {
-        rawRefs.push(...extractBacktickPaths(row.text_excerpt));
-      }
-    }
-    const target_refs = Array.from(new Set(rawRefs));
-
-    // Infer target_kind
-    const target_kind = inferTargetKind(target_refs);
-
-    // Extract findings from body_excerpt
-    const findings = extractFindings(body_excerpt);
-
-    results.push({
-      session_id: block.session_id,
-      message_uuid_start: firstRow.uuid,
-      message_uuid_end: lastRow.uuid,
-      subagent_invocation_id: null,
-      reviewer: 'unknown',
-      target_kind,
-      target_refs,
-      body_excerpt,
-      findings,
-      reviewed_at: firstRow.timestamp,
-    });
+    results.push(buildSessionFromBlock(block, logger));
   }
 
   return results;

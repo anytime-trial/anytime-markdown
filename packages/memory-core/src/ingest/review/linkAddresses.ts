@@ -91,19 +91,93 @@ function scoreCommit(commitMessage: string, findingText: string): number {
   return score;
 }
 
+// ── Internal types ─────────────────────────────────────────────────────────────
+
+type FindingRow = {
+  id: string;
+  finding_entity_id: string;
+  target_file_path: string;
+  finding_text: string;
+  recorded_at: string;
+};
+
+// ── Per-finding helper ─────────────────────────────────────────────────────────
+
+/**
+ * Attempt to link one finding to the oldest qualifying commit.
+ * Returns { edgeInserted: boolean } on success, null if no commit matched.
+ */
+function linkOneFinding(
+  db: MemoryDbConnection,
+  finding: FindingRow,
+  repoName: string,
+  effectiveWindowDays: number,
+): { edgeInserted: boolean } | null {
+  // Phase H-4: trail.session_commits / commit_files から repo_name 列を撤去した。
+  const commitResult = db.exec(
+    `SELECT sc.commit_hash, sc.commit_message, sc.committed_at
+     FROM trail.session_commits sc
+     JOIN trail.commit_files cf ON cf.commit_hash = sc.commit_hash
+                                AND cf.repo_id = sc.repo_id
+     JOIN trail.repos r ON r.repo_id = sc.repo_id
+     WHERE cf.file_path = ?
+       AND r.repo_name = ?
+       AND sc.committed_at >= ?
+       AND sc.committed_at <= datetime(?, '+' || ? || ' days')
+     ORDER BY sc.committed_at ASC`,
+    [finding.target_file_path, repoName, finding.recorded_at, finding.recorded_at, effectiveWindowDays]
+  );
+
+  const commitRows = commitResult[0];
+  if (!commitRows) return null;
+
+  let acceptedCommit: { commit_hash: string; committed_at: string } | null = null;
+  for (const row of commitRows.values) {
+    const score = scoreCommit(String(row[1]), finding.finding_text);
+    if (score >= 2) {
+      acceptedCommit = { commit_hash: String(row[0]), committed_at: String(row[2]) };
+      break;
+    }
+  }
+  if (!acceptedCommit) return null;
+
+  const now = new Date().toISOString();
+
+  db.run(
+    `UPDATE memory_review_findings SET addressed_commit_sha = ?, addressed_at = ? WHERE id = ?`,
+    [acceptedCommit.commit_hash, now, finding.id]
+  );
+
+  const commitEntityId = entityId('Commit', acceptedCommit.commit_hash);
+  db.run(
+    `INSERT OR IGNORE INTO memory_entities
+       (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
+        first_seen_at, last_updated_at, recorded_at)
+     VALUES (?, 'Commit', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
+    [commitEntityId, acceptedCommit.commit_hash, acceptedCommit.commit_hash, now, now, now]
+  );
+
+  const edgeId = entityId('edge', `addresses:${commitEntityId}:${finding.finding_entity_id}`);
+  db.run(
+    `INSERT OR IGNORE INTO memory_edges
+       (id, subject_entity_id, predicate, object_entity_id,
+        valid_from, valid_to, recorded_at,
+        source_type, source_ref,
+        confidence, confidence_label, modality)
+     VALUES (?, ?, 'addresses', ?, ?, NULL, ?, 'review', ?, 0.7, 'INFERRED', 'asserted')`,
+    [edgeId, commitEntityId, finding.finding_entity_id, acceptedCommit.committed_at, now, `review_finding#${finding.id}`]
+  );
+
+  return { edgeInserted: db.getRowsModified() > 0 };
+}
+
 // ── Main function ─────────────────────────────────────────────────────────────
 
 export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
   const { db, repoName, windowDays = 30, logger } = input;
   const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 30;
 
-  let findings: Array<{
-    id: string;
-    finding_entity_id: string;
-    target_file_path: string;
-    finding_text: string;
-    recorded_at: string;
-  }>;
+  let findings: FindingRow[];
 
   try {
     const result = db.exec(`
@@ -139,109 +213,11 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
 
   for (const finding of findings) {
     try {
-      // Query candidate commits from trail DB
-      // Phase H-4: trail.session_commits / commit_files から repo_name 列を撤去した。JOIN は
-      // cf.repo_id = sc.repo_id で行い、repo フィルタは trail.repos を JOIN して repo_name で絞る
-      // (クロス DB JOIN・意味は旧 repo_name 等値 JOIN/フィルタと等価)。
-      const commitResult = db.exec(
-        `SELECT sc.commit_hash, sc.commit_message, sc.committed_at
-         FROM trail.session_commits sc
-         JOIN trail.commit_files cf ON cf.commit_hash = sc.commit_hash
-                                    AND cf.repo_id = sc.repo_id
-         JOIN trail.repos r ON r.repo_id = sc.repo_id
-         WHERE cf.file_path = ?
-           AND r.repo_name = ?
-           AND sc.committed_at >= ?
-           AND sc.committed_at <= datetime(?, '+' || ? || ' days')
-         ORDER BY sc.committed_at ASC`,
-        [
-          finding.target_file_path,
-          repoName,
-          finding.recorded_at,
-          finding.recorded_at,
-          effectiveWindowDays,
-        ]
-      );
-
-      const commitRows = commitResult[0];
-      if (!commitRows) {
-        continue;
+      const result = linkOneFinding(db, finding, repoName, effectiveWindowDays);
+      if (result !== null) {
+        findingsLinked += 1;
+        if (result.edgeInserted) edgesInserted += 1;
       }
-
-      // Find the oldest commit that meets the score threshold
-      let acceptedCommit: { commit_hash: string; committed_at: string } | null = null;
-
-      for (const row of commitRows.values) {
-        const commitHash = String(row[0]);
-        const commitMessage = String(row[1]);
-        const committedAt = String(row[2]);
-
-        const score = scoreCommit(commitMessage, finding.finding_text);
-        if (score >= 2) {
-          acceptedCommit = { commit_hash: commitHash, committed_at: committedAt };
-          break; // Take oldest (first in ASC order)
-        }
-      }
-
-      if (!acceptedCommit) {
-        continue;
-      }
-
-      const now = new Date().toISOString();
-
-      // Update finding with addressed_commit_sha and addressed_at
-      db.run(
-        `UPDATE memory_review_findings
-         SET addressed_commit_sha = ?, addressed_at = ?
-         WHERE id = ?`,
-        [acceptedCommit.commit_hash, now, finding.id]
-      );
-
-      // Upsert Commit entity
-      const commitEntityId = entityId('Commit', acceptedCommit.commit_hash);
-      db.run(
-        `INSERT OR IGNORE INTO memory_entities
-           (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
-            first_seen_at, last_updated_at, recorded_at)
-         VALUES (?, 'Commit', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
-        [
-          commitEntityId,
-          acceptedCommit.commit_hash,
-          acceptedCommit.commit_hash,
-          now,
-          now,
-          now,
-        ]
-      );
-
-      // Insert addresses edge
-      const edgeId = entityId(
-        'edge',
-        `addresses:${commitEntityId}:${finding.finding_entity_id}`
-      );
-      db.run(
-        `INSERT OR IGNORE INTO memory_edges
-           (id, subject_entity_id, predicate, object_entity_id,
-            valid_from, valid_to, recorded_at,
-            source_type, source_ref,
-            confidence, confidence_label, modality)
-         VALUES (?, ?, 'addresses', ?, ?, NULL, ?, 'review', ?, 0.7, 'INFERRED', 'asserted')`,
-        [
-          edgeId,
-          commitEntityId,
-          finding.finding_entity_id,
-          acceptedCommit.committed_at,
-          now,
-          `review_finding#${finding.id}`,
-        ]
-      );
-
-      const edgeInserted = db.getRowsModified() > 0;
-      if (edgeInserted) {
-        edgesInserted += 1;
-      }
-
-      findingsLinked += 1;
     } catch (err) {
       logger.warn(
         `[anytime-memory] linkAddresses: failed to process finding id=${finding.id}: ${String(err)}`

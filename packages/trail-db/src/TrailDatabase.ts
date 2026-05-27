@@ -776,6 +776,130 @@ function collectJsonlFilesRecursive(rootDir: string): string[] {
   return results;
 }
 
+function applyCodexTokenCountToNormalized(
+  payload: Record<string, unknown>,
+  normalized: RawLine[],
+): void {
+  if (!payload.info || typeof payload.info !== 'object') return;
+  const info = payload.info as Record<string, unknown>;
+  const last = info.last_token_usage as Record<string, unknown> | undefined;
+  if (!last || normalized.length === 0) return;
+  for (let i = normalized.length - 1; i >= 0; i--) {
+    const candidate = normalized[i];
+    if (candidate.type !== 'assistant') continue;
+    candidate.message = {
+      ...(candidate.message),
+      usage: normalizeCodexTokenUsage(last),
+    };
+    break;
+  }
+}
+
+function normalizeCodexEventMsg(
+  payload: Record<string, unknown>,
+  normalized: RawLine[],
+  seq: number,
+  sessionId: string,
+  timestamp: string,
+): { lines: RawLine[]; newSeq: number } {
+  if (payload.type === 'task_started') return { lines: [], newSeq: seq };
+  if (payload.type === 'token_count') {
+    applyCodexTokenCountToNormalized(payload, normalized);
+    return { lines: [], newSeq: seq };
+  }
+  if (payload.type === 'agent_message' && typeof payload.message === 'string') {
+    return {
+      lines: [{
+        uuid: `codex-${seq}`,
+        sessionId,
+        type: 'assistant',
+        timestamp,
+        message: { content: payload.message },
+      }],
+      newSeq: seq + 1,
+    };
+  }
+  return { lines: [], newSeq: seq };
+}
+
+function normalizeCodexResponseItem(
+  payload: Record<string, unknown>,
+  payloadType: string,
+  sessionId: string,
+  timestamp: string,
+  seq: number,
+  normalized: RawLine[],
+): { lines: RawLine[]; newSeq: number } {
+  if (payloadType === 'message') {
+    const role = typeof payload.role === 'string' ? payload.role : '';
+    if (role !== 'user' && role !== 'assistant' && role !== 'developer' && role !== 'system') {
+      return { lines: [], newSeq: seq };
+    }
+    const text = extractCodexText(payload.content);
+    const normalizedTypeInner: 'assistant' | 'system' = role === 'assistant' ? 'assistant' : 'system';
+    const normalizedType: 'user' | 'assistant' | 'system' = role === 'user' ? 'user' : normalizedTypeInner;
+    return {
+      lines: [{
+        uuid: `codex-${seq}`,
+        sessionId,
+        type: normalizedType,
+        subtype: role,
+        timestamp,
+        message: { content: text ?? '' },
+      }],
+      newSeq: seq + 1,
+    };
+  }
+  if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
+    const id = typeof payload.call_id === 'string' ? payload.call_id : `codex-call-${seq}`;
+    const name = typeof payload.name === 'string' ? payload.name : 'tool';
+    const rawInput = payloadType === 'function_call' ? payload.arguments : payload.input;
+    let parsedInput: Record<string, unknown> = {};
+    if (typeof rawInput === 'string' && rawInput.trim()) {
+      try { parsedInput = JSON.parse(rawInput) as Record<string, unknown>; } catch { parsedInput = { raw: rawInput }; }
+    } else if (rawInput && typeof rawInput === 'object') {
+      parsedInput = rawInput as Record<string, unknown>;
+    }
+    return {
+      lines: [{
+        uuid: `codex-${seq}`,
+        sessionId,
+        type: 'assistant',
+        timestamp,
+        message: { content: [{ type: 'tool_use', id, name, input: parsedInput }] },
+      }],
+      newSeq: seq + 1,
+    };
+  }
+  if (payloadType === 'function_call_output' || payloadType === 'custom_tool_call_output') {
+    const id = typeof payload.call_id === 'string' ? payload.call_id : '';
+    const output = typeof payload.output === 'string'
+      ? payload.output
+      : JSON.stringify(payload.output ?? '');
+    return {
+      lines: [{
+        uuid: `codex-${seq}`,
+        sessionId,
+        type: 'user',
+        timestamp,
+        message: {
+          content: [{
+            type: 'tool_result',
+            tool_use_id: id,
+            content: output,
+            is_error: false,
+          }] as unknown as readonly RawContentBlock[],
+        },
+      }],
+      newSeq: seq + 1,
+    };
+  }
+  if (payloadType === 'token_count') {
+    applyCodexTokenCountToNormalized(payload, normalized);
+  }
+  return { lines: [], newSeq: seq };
+}
+
 function normalizeCodexRecords(records: readonly RawLine[], fallbackSessionId: string): {
   normalized: RawLine[];
   sessionId: string;
@@ -798,113 +922,17 @@ function normalizeCodexRecords(records: readonly RawLine[], fallbackSessionId: s
       continue;
     }
     if (record.type === 'event_msg' && record.payload && typeof record.payload === 'object') {
-      const payload = record.payload;
-      if (payload.type === 'task_started') {
-        continue;
-      }
-      if (payload.type === 'token_count' && payload.info && typeof payload.info === 'object') {
-        const info = payload.info as Record<string, unknown>;
-        const last = info.last_token_usage as Record<string, unknown> | undefined;
-        if (last && normalized.length > 0) {
-          for (let i = normalized.length - 1; i >= 0; i--) {
-            const candidate = normalized[i];
-            if (candidate.type !== 'assistant') continue;
-            candidate.message = {
-              ...(candidate.message),
-              usage: normalizeCodexTokenUsage(last),
-            };
-            break;
-          }
-        }
-        continue;
-      }
-      if (payload.type === 'agent_message' && typeof payload.message === 'string') {
-        normalized.push({
-          uuid: `codex-${seq++}`,
-          sessionId,
-          type: 'assistant',
-          timestamp,
-          message: { content: payload.message },
-        });
-      }
+      const { lines, newSeq } = normalizeCodexEventMsg(record.payload, normalized, seq, sessionId, timestamp);
+      normalized.push(...lines);
+      seq = newSeq;
       continue;
     }
     if (record.type !== 'response_item' || !record.payload || typeof record.payload !== 'object') continue;
     const payload = record.payload;
     const payloadType = typeof payload.type === 'string' ? payload.type : '';
-    if (payloadType === 'message') {
-      const role = typeof payload.role === 'string' ? payload.role : '';
-      if (role !== 'user' && role !== 'assistant' && role !== 'developer' && role !== 'system') continue;
-      const text = extractCodexText(payload.content);
-      const normalizedTypeInner: 'assistant' | 'system' = role === 'assistant' ? 'assistant' : 'system';
-      const normalizedType: 'user' | 'assistant' | 'system' = role === 'user' ? 'user' : normalizedTypeInner;
-      normalized.push({
-        uuid: `codex-${seq++}`,
-        sessionId,
-        type: normalizedType,
-        subtype: role,
-        timestamp,
-        message: { content: text ?? '' },
-      });
-      continue;
-    }
-    if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
-      const id = typeof payload.call_id === 'string' ? payload.call_id : `codex-call-${seq}`;
-      const name = typeof payload.name === 'string' ? payload.name : 'tool';
-      const rawInput = payloadType === 'function_call' ? payload.arguments : payload.input;
-      let parsedInput: Record<string, unknown> = {};
-      if (typeof rawInput === 'string' && rawInput.trim()) {
-        try { parsedInput = JSON.parse(rawInput) as Record<string, unknown>; } catch { parsedInput = { raw: rawInput }; }
-      } else if (rawInput && typeof rawInput === 'object') {
-        parsedInput = rawInput as Record<string, unknown>;
-      }
-      normalized.push({
-        uuid: `codex-${seq++}`,
-        sessionId,
-        type: 'assistant',
-        timestamp,
-        message: {
-          content: [{ type: 'tool_use', id, name, input: parsedInput }],
-        },
-      });
-      continue;
-    }
-    if (payloadType === 'function_call_output' || payloadType === 'custom_tool_call_output') {
-      const id = typeof payload.call_id === 'string' ? payload.call_id : '';
-      const output = typeof payload.output === 'string'
-        ? payload.output
-        : JSON.stringify(payload.output ?? '');
-      normalized.push({
-        uuid: `codex-${seq++}`,
-        sessionId,
-        type: 'user',
-        timestamp,
-        message: {
-          content: [{
-            type: 'tool_result',
-            tool_use_id: id,
-            content: output,
-            is_error: false,
-          }] as unknown as readonly RawContentBlock[],
-        },
-      });
-      continue;
-    }
-    if (payloadType === 'token_count' && payload.info && typeof payload.info === 'object') {
-      const info = payload.info as Record<string, unknown>;
-      const last = info.last_token_usage as Record<string, unknown> | undefined;
-      if (last && normalized.length > 0) {
-        for (let i = normalized.length - 1; i >= 0; i--) {
-          const candidate = normalized[i];
-          if (candidate.type !== 'assistant') continue;
-          candidate.message = {
-            ...(candidate.message),
-            usage: normalizeCodexTokenUsage(last),
-          };
-          break;
-        }
-      }
-    }
+    const { lines, newSeq } = normalizeCodexResponseItem(payload, payloadType, sessionId, timestamp, seq, normalized);
+    normalized.push(...lines);
+    seq = newSeq;
   }
   return { normalized, sessionId, version, source: 'codex' };
 }
@@ -2018,23 +2046,7 @@ export class TrailDatabase {
            WHERE repo_id IS NULL`,
         );
       }
-      for (const { table, oldTagCol } of TrailDatabase.RELEASE_CHILD_FLIP) {
-        const tExists =
-          db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
-            ?.length;
-        if (!tExists) continue;
-        if (!columnExists(db, table, oldTagCol)) continue; // 旧列が無い (= 既に flip 済) なら skip
-        if (!columnExists(db, table, 'release_id')) {
-          db.run(`ALTER TABLE "${table}" ADD COLUMN release_id INTEGER`);
-        }
-        // 旧 tag 列 → releases.release_id で release_id を補完。
-        // releases 側が旧スキーマ (release_id 列追加直後) でも上で backfill 済。
-        db.run(
-          `UPDATE "${table}"
-             SET release_id = (SELECT r.release_id FROM releases r WHERE r.tag = "${table}"."${oldTagCol}")
-           WHERE release_id IS NULL`,
-        );
-      }
+      this.backfillReleaseChildrenPreFlip(db);
 
       // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
       const viewDefs =
@@ -2067,21 +2079,7 @@ export class TrailDatabase {
         throw e;
       }
 
-      // ── view / trigger を再作成 ──
-      for (const v of viewDefs) {
-        try {
-          db.run(asText(v[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(`[flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-      for (const t of triggerDefs) {
-        try {
-          db.run(asText(t[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(`[flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
+      this.recreateViewsAndTriggers(db, viewDefs, triggerDefs, '[flip]');
       this.save();
     } catch (e) {
       this.logger.error('migrateReleasesFlip failed', e instanceof Error ? e : new Error(String(e)));
@@ -2118,6 +2116,27 @@ export class TrailDatabase {
     );
     db.run('DROP TABLE releases');
     db.run('ALTER TABLE releases__new RENAME TO releases');
+  }
+
+  /** pre-flip: release 子テーブルに release_id 列を追加して backfill する。 */
+  private backfillReleaseChildrenPreFlip(db: Database): void {
+    for (const { table, oldTagCol } of TrailDatabase.RELEASE_CHILD_FLIP) {
+      const tExists =
+        db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
+          ?.length;
+      if (!tExists) continue;
+      if (!columnExists(db, table, oldTagCol)) continue; // 旧列が無い (= 既に flip 済) なら skip
+      if (!columnExists(db, table, 'release_id')) {
+        db.run(`ALTER TABLE "${table}" ADD COLUMN release_id INTEGER`);
+      }
+      // 旧 tag 列 → releases.release_id で release_id を補完。
+      // releases 側が旧スキーマ (release_id 列追加直後) でも上で backfill 済。
+      db.run(
+        `UPDATE "${table}"
+           SET release_id = (SELECT r.release_id FROM releases r WHERE r.tag = "${table}"."${oldTagCol}")
+         WHERE release_id IS NULL`,
+      );
+    }
   }
 
   /** flip: release 子テーブルを新スキーマ (release_id FK) へ 12-step 再構築する。 */
@@ -2228,25 +2247,33 @@ export class TrailDatabase {
         throw e;
       }
 
-      // ── view / trigger を再作成 ──
-      for (const v of viewDefs) {
-        try {
-          db.run(asText(v[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(`[current flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-      for (const t of triggerDefs) {
-        try {
-          db.run(asText(t[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(`[current flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
+      this.recreateViewsAndTriggers(db, viewDefs, triggerDefs, '[current flip]');
       this.save();
     } catch (e) {
       this.logger.error('migrateCurrentTablesRepoId failed', e instanceof Error ? e : new Error(String(e)));
       throw e;
+    }
+  }
+
+  private recreateViewsAndTriggers(
+    db: Database,
+    viewDefs: unknown[][],
+    triggerDefs: unknown[][],
+    logPrefix: string,
+  ): void {
+    for (const v of viewDefs) {
+      try {
+        db.run(asText(v[1] ?? ''));
+      } catch (e) {
+        this.logger.warn(`${logPrefix} recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    for (const t of triggerDefs) {
+      try {
+        db.run(asText(t[1] ?? ''));
+      } catch (e) {
+        this.logger.warn(`${logPrefix} recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
   }
 
@@ -2362,21 +2389,7 @@ export class TrailDatabase {
         throw e;
       }
 
-      // ── view / trigger を再作成 ──
-      for (const v of viewDefs) {
-        try {
-          db.run(asText(v[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(`[session-commit flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-      for (const t of triggerDefs) {
-        try {
-          db.run(asText(t[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(`[session-commit flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
+      this.recreateViewsAndTriggers(db, viewDefs, triggerDefs, '[session-commit flip]');
       this.save();
     } catch (e) {
       this.logger.error('migrateSessionCommitTablesRepoId failed', e instanceof Error ? e : new Error(String(e)));
@@ -2533,21 +2546,7 @@ export class TrailDatabase {
         throw e;
       }
 
-      // ── view / trigger を再作成 ──
-      for (const v of viewDefs) {
-        try {
-          db.run(asText(v[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(`[c4-manual flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-      for (const t of triggerDefs) {
-        try {
-          db.run(asText(t[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(`[c4-manual flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
+      this.recreateViewsAndTriggers(db, viewDefs, triggerDefs, '[c4-manual flip]');
       this.save();
     } catch (e) {
       this.logger.error('migrateC4ManualTablesRepoId failed', e instanceof Error ? e : new Error(String(e)));
@@ -2656,25 +2655,7 @@ export class TrailDatabase {
         throw e;
       }
 
-      // ── view / trigger を再作成 ──
-      for (const v of viewDefs) {
-        try {
-          db.run(asText(v[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(
-            `[c4-manual drop repo_name] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      }
-      for (const t of triggerDefs) {
-        try {
-          db.run(asText(t[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(
-            `[c4-manual drop repo_name] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      }
+      this.recreateViewsAndTriggers(db, viewDefs, triggerDefs, '[c4-manual drop repo_name]');
       this.save();
     } catch (e) {
       this.logger.error(
@@ -2786,25 +2767,7 @@ export class TrailDatabase {
         throw e;
       }
 
-      // ── view / trigger を再作成 ──
-      for (const v of viewDefs) {
-        try {
-          db.run(asText(v[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(
-            `[current drop repo_name] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      }
-      for (const t of triggerDefs) {
-        try {
-          db.run(asText(t[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(
-            `[current drop repo_name] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      }
+      this.recreateViewsAndTriggers(db, viewDefs, triggerDefs, '[current drop repo_name]');
       this.save();
     } catch (e) {
       this.logger.error(
@@ -2958,25 +2921,7 @@ export class TrailDatabase {
         throw e;
       }
 
-      // ── view / trigger を再作成 ──
-      for (const v of viewDefs) {
-        try {
-          db.run(asText(v[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(
-            `[session-commit drop repo_name] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      }
-      for (const t of triggerDefs) {
-        try {
-          db.run(asText(t[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(
-            `[session-commit drop repo_name] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      }
+      this.recreateViewsAndTriggers(db, viewDefs, triggerDefs, '[session-commit drop repo_name]');
       this.save();
     } catch (e) {
       this.logger.error(
@@ -3128,25 +3073,7 @@ export class TrailDatabase {
         throw e;
       }
 
-      // ── view / trigger を再作成 ──
-      for (const v of viewDefs) {
-        try {
-          db.run(asText(v[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(
-            `[release-subtree drop repo_name] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      }
-      for (const t of triggerDefs) {
-        try {
-          db.run(asText(t[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(
-            `[release-subtree drop repo_name] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      }
+      this.recreateViewsAndTriggers(db, viewDefs, triggerDefs, '[release-subtree drop repo_name]');
       this.save();
     } catch (e) {
       this.logger.error(
@@ -3306,21 +3233,7 @@ export class TrailDatabase {
         throw e;
       }
 
-      // ── view / trigger を再作成 ──
-      for (const v of viewDefs) {
-        try {
-          db.run(asText(v[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(`[derived flip] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-      for (const t of triggerDefs) {
-        try {
-          db.run(asText(t[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(`[derived flip] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
+      this.recreateViewsAndTriggers(db, viewDefs, triggerDefs, '[derived flip]');
       this.save();
     } catch (e) {
       this.logger.error('migrateDoraMetricsRepoIdFlip failed', e instanceof Error ? e : new Error(String(e)));
@@ -3471,25 +3384,7 @@ export class TrailDatabase {
         throw e;
       }
 
-      // ── view / trigger を再作成 ──
-      for (const v of viewDefs) {
-        try {
-          db.run(asText(v[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(
-            `[derived drop repo_name] recreate view ${asText(v[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      }
-      for (const t of triggerDefs) {
-        try {
-          db.run(asText(t[1] ?? ''));
-        } catch (e) {
-          this.logger.warn(
-            `[derived drop repo_name] recreate trigger ${asText(t[0] ?? '')}: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      }
+      this.recreateViewsAndTriggers(db, viewDefs, triggerDefs, '[derived drop repo_name]');
       this.save();
     } catch (e) {
       this.logger.error(
@@ -3631,6 +3526,22 @@ export class TrailDatabase {
     // self-seed するため、ここに列挙するテーブルは現時点で存在しない。
   }
 
+  /** 複数の ALTER TABLE 文を順に実行し、"Column already exists" 相当のエラーは無視する。 */
+  private runAlterStatements(db: Database, sqls: readonly string[]): void {
+    for (const sql of sqls) {
+      try { db.run(sql); } catch { /* Column already exists */ }
+    }
+  }
+
+  /** バックフィル処理を non-fatal で実行する。失敗した場合は warn ログを出して継続する。 */
+  private runNonFatalBackfill(name: string, fn: () => void): void {
+    try {
+      fn();
+    } catch (e) {
+      this.logger.warn(`${name} (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   private createTables(): void {
     const db = this.ensureDb();
     // FK 強制は init() で OFF にしている。sql.js 時代の `db.run('PRAGMA
@@ -3714,7 +3625,7 @@ export class TrailDatabase {
     // architectural centrality 関連カラムの追加。既存 DB に対して
     // CREATE TABLE IF NOT EXISTS は no-op になるため ALTER TABLE で補う。
     // CHECK 制約は ALTER ADD COLUMN では付かないが、insert 経路は trail-core の型で守る。
-    for (const sql of [
+    this.runAlterStatements(db, [
       'ALTER TABLE current_file_analysis ADD COLUMN cross_pkg_in_count INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE current_file_analysis ADD COLUMN external_consumer_pkgs INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE current_file_analysis ADD COLUMN total_in_count INTEGER NOT NULL DEFAULT 0',
@@ -3736,9 +3647,7 @@ export class TrailDatabase {
       // 型安全を trail-core の TS 型で担保する (centrality 列と同方針)。
       "ALTER TABLE current_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
       "ALTER TABLE release_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
-    ]) {
-      try { db.run(sql); } catch { /* Column already exists */ }
-    }
+    ]);
     for (const idx of CREATE_FILE_ANALYSIS_INDEXES) {
       db.run(idx);
     }
@@ -3753,12 +3662,10 @@ export class TrailDatabase {
     // (flip 済テーブルでは Column already exists で no-op)。
     // Phase H-4: repo_name 列は migrateDropSessionCommitRepoName で撤去済のため再追加しない
     // (ここで ALTER ADD repo_name すると撤去が無効化される)。
-    for (const sql of [
+    this.runAlterStatements(db, [
       'ALTER TABLE session_commits ADD COLUMN repo_id INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE commit_files ADD COLUMN repo_id INTEGER NOT NULL DEFAULT 0',
-    ]) {
-      try { db.run(sql); } catch { /* Column already exists */ }
-    }
+    ]);
     db.run('CREATE INDEX IF NOT EXISTS idx_commit_files_hash ON commit_files(commit_hash)');
     for (const sql of [...CREATE_INDEXES, ...CREATE_RELEASE_INDEXES]) {
       db.run(sql);
@@ -3811,11 +3718,7 @@ export class TrailDatabase {
       db.run(idx);
     }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
-    try {
-      db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)');
-    } catch {
-      // Already exists — ignore
-    }
+    this.runAlterStatements(db, ['CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)']);
 
     this.migrateMessageCommitsSchema(db);
 
@@ -3834,13 +3737,13 @@ export class TrailDatabase {
       'ALTER TABLE sessions ADD COLUMN error_count INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE sessions ADD COLUMN assistant_message_count INTEGER NOT NULL DEFAULT 0',
     ];
-    for (const sql of sessionAlters) {
-      try { db.run(sql); } catch { /* Column already exists */ }
-    }
-    try { db.run('ALTER TABLE releases ADD COLUMN total_lines INTEGER NOT NULL DEFAULT 0'); } catch { /* Column already exists */ }
-    try { db.run('ALTER TABLE releases ADD COLUMN release_time_min REAL'); } catch { /* Column already exists */ }
+    this.runAlterStatements(db, sessionAlters);
+    this.runAlterStatements(db, [
+      'ALTER TABLE releases ADD COLUMN total_lines INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE releases ADD COLUMN release_time_min REAL',
+    ]);
     this.migrateDropSessionsProjectColumn(db);
-    const messageAlters = [
+    this.runAlterStatements(db, [
       'ALTER TABLE messages ADD COLUMN rule_recommended_model TEXT',
       'ALTER TABLE messages ADD COLUMN feature_recommended_model TEXT',
       'ALTER TABLE messages ADD COLUMN cost_category TEXT',
@@ -3855,28 +3758,20 @@ export class TrailDatabase {
       'ALTER TABLE messages ADD COLUMN source_tool_use_id TEXT',
       'ALTER TABLE messages ADD COLUMN system_command TEXT',
       'ALTER TABLE messages ADD COLUMN subagent_type TEXT',
-    ];
-    for (const sql of messageAlters) {
-      try { db.run(sql); } catch { /* Column already exists */ }
-    }
+    ]);
 
     // AST メトリクス列追加（既存 DB 向け）
-    const astMetricsAlters = [
+    this.runAlterStatements(db, [
       'ALTER TABLE current_file_analysis ADD COLUMN line_count INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE current_file_analysis ADD COLUMN cyclomatic_complexity_max INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE release_file_analysis ADD COLUMN line_count INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE release_file_analysis ADD COLUMN cyclomatic_complexity_max INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE current_function_analysis ADD COLUMN cyclomatic_complexity INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE release_function_analysis ADD COLUMN cyclomatic_complexity INTEGER NOT NULL DEFAULT 0',
-    ];
-    for (const sql of astMetricsAlters) {
-      try { db.run(sql); } catch { /* Column already exists */ }
-    }
+    ]);
 
     // service_type カラム追加（既存 DB 向け）
-    try {
-      db.run('ALTER TABLE c4_manual_elements ADD COLUMN service_type TEXT');
-    } catch { /* Column already exists */ }
+    this.runAlterStatements(db, ['ALTER TABLE c4_manual_elements ADD COLUMN service_type TEXT']);
 
     // Seed skill_models with defaults if empty
     const smCount = db.exec('SELECT COUNT(*) FROM skill_models');
@@ -3893,31 +3788,11 @@ export class TrailDatabase {
     this.migrateMessageCommitsToUserUuid(db);
     // Phase D-2: subagent_type を既存データに後付けで埋める（_migrations で冪等性確保）。
     // importAll() を待たず init 段階で実行するため、ユーザーが同期未実行でも有効。
-    try {
-      this.backfillSubagentType();
-    } catch (e) {
-      this.logger.warn(`backfillSubagentType (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
-    }
-    try {
-      this.backfillSourceToolLinkFields();
-    } catch (e) {
-      this.logger.warn(`backfillSourceToolLinkFields (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
-    }
-    try {
-      this.backfillRepoName_v1();
-    } catch (e) {
-      this.logger.warn(`backfillRepoName_v1 (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
-    }
-    try {
-      this.backfillDerivedCounts_v1();
-    } catch (e) {
-      this.logger.warn(`backfillDerivedCounts_v1 (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
-    }
-    try {
-      this.backfillSessionsRepoNameFromCwd_v1();
-    } catch (e) {
-      this.logger.warn(`backfillSessionsRepoNameFromCwd_v1 (init) failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
-    }
+    this.runNonFatalBackfill('backfillSubagentType', () => this.backfillSubagentType());
+    this.runNonFatalBackfill('backfillSourceToolLinkFields', () => this.backfillSourceToolLinkFields());
+    this.runNonFatalBackfill('backfillRepoName_v1', () => this.backfillRepoName_v1());
+    this.runNonFatalBackfill('backfillDerivedCounts_v1', () => this.backfillDerivedCounts_v1());
+    this.runNonFatalBackfill('backfillSessionsRepoNameFromCwd_v1', () => this.backfillSessionsRepoNameFromCwd_v1());
     // ALTER TABLE / backfill 等のスキーマ変更をディスクに永続化する。
     // save() を呼ばないと _migrations フラグが保存されず、次回起動で再実行される。
     this.save();
@@ -4301,29 +4176,15 @@ export class TrailDatabase {
    * 既に値がある行は触らない（`WHERE subagent_type IS NULL`）。
    * @internal テスト用に projectsDir を差し替え可能。本番は `~/.claude/projects` を使用。
    */
-  private backfillSubagentType(projectsDir?: string): void {
-    const db = this.ensureDb();
-    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
-    const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'subagent_type_backfill_v1'");
-    if (done[0]?.values?.length) return;
-
-    const startedAt = Date.now();
-    this.logger.info('[Migration] subagent_type_backfill_v1: starting...');
-
-    // 性能上の必須: messages.agent_id にインデックスがないと UPDATE WHERE agent_id=? が
-    // 毎回フルスキャン。1000+ meta.json × 数十万 messages で数億行スキャンになり数十分ハングする。
-    db.run('CREATE INDEX IF NOT EXISTS idx_messages_agent_id ON messages(agent_id)');
-
-    const baseDir = projectsDir ?? path.join(os.homedir(), '.claude', 'projects');
-
-    // Step 1: meta.json を集約してメモリ上で agent_id → agentType マップを作る（fs IO のみ、SQL なし）
+  /** Step 1 of backfillSubagentType: scan meta.json files and build agent_id → agentType map. */
+  private collectAgentTypeMap(baseDir: string): Map<string, string> {
     const agentTypeByAgentId = new Map<string, string>();
     let projectNames: string[];
     try {
       projectNames = fs.readdirSync(baseDir);
     } catch (e) {
       this.logger.warn(`[Migration] subagent_type_backfill_v1: cannot read projects dir ${baseDir}: ${e instanceof Error ? e.message : String(e)}`);
-      projectNames = [];
+      return agentTypeByAgentId;
     }
     for (const projectName of projectNames) {
       const projectPath = path.join(baseDir, projectName);
@@ -4333,31 +4194,40 @@ export class TrailDatabase {
         sessionEntries = fs.readdirSync(projectPath);
       } catch { continue; }
       for (const sessionEntry of sessionEntries) {
-        const subagentDir = path.join(projectPath, sessionEntry, 'subagents');
-        let metaFiles: string[];
-        try {
-          metaFiles = fs.readdirSync(subagentDir).filter((f) => f.endsWith('.meta.json'));
-        } catch { continue; }
-        for (const metaFile of metaFiles) {
-          const match = /^agent-(.+)\.meta\.json$/.exec(metaFile);
-          if (!match) continue;
-          const agentId = match[1];
-          try {
-            const raw = fs.readFileSync(path.join(subagentDir, metaFile), 'utf-8');
-            const meta = JSON.parse(raw) as { agentType?: unknown };
-            const agentType = typeof meta.agentType === 'string' && meta.agentType.length > 0 ? meta.agentType : null;
-            if (agentType) agentTypeByAgentId.set(agentId, agentType);
-          } catch (e) {
-            this.logger.warn(`[Migration] subagent_type_backfill_v1: skip ${metaFile}: ${e instanceof Error ? e.message : String(e)}`);
-          }
-        }
+        this.collectAgentTypeMapForSession(agentTypeByAgentId, projectPath, sessionEntry);
       }
     }
-    this.logger.info(`[Migration] subagent_type_backfill_v1: collected ${agentTypeByAgentId.size} agent_id mappings (${Date.now() - startedAt}ms)`);
+    return agentTypeByAgentId;
+  }
 
-    // Step 2: 単一トランザクションで一括 UPDATE。インデックスありで O(log N)/UPDATE。
+  private collectAgentTypeMapForSession(
+    agentTypeByAgentId: Map<string, string>,
+    projectPath: string,
+    sessionEntry: string,
+  ): void {
+    const subagentDir = path.join(projectPath, sessionEntry, 'subagents');
+    let metaFiles: string[];
+    try {
+      metaFiles = fs.readdirSync(subagentDir).filter((f) => f.endsWith('.meta.json'));
+    } catch { return; }
+    for (const metaFile of metaFiles) {
+      const match = /^agent-(.+)\.meta\.json$/.exec(metaFile);
+      if (!match) continue;
+      const agentId = match[1];
+      try {
+        const raw = fs.readFileSync(path.join(subagentDir, metaFile), 'utf-8');
+        const meta = JSON.parse(raw) as { agentType?: unknown };
+        const agentType = typeof meta.agentType === 'string' && meta.agentType.length > 0 ? meta.agentType : null;
+        if (agentType) agentTypeByAgentId.set(agentId, agentType);
+      } catch (e) {
+        this.logger.warn(`[Migration] subagent_type_backfill_v1: skip ${metaFile}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  }
+
+  /** Step 2 of backfillSubagentType: UPDATE messages by agent_id in a single transaction. */
+  private backfillSubagentTypeByAgentId(db: Database, agentTypeByAgentId: Map<string, string>, phase2Start: number): number {
     let metaUpdated = 0;
-    const phase2Start = Date.now();
     db.run('BEGIN TRANSACTION');
     try {
       const updateByAgentId = db.prepare(
@@ -4381,6 +4251,74 @@ export class TrailDatabase {
       try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('[Migration] subagent_type_backfill_v1: ROLLBACK failed', error_); }
       throw e;
     }
+    return metaUpdated;
+  }
+
+  /** Step 3 of backfillSubagentType: UPDATE parent messages that contain Agent tool_use calls. */
+  private backfillSubagentTypeForParents(db: Database, candidateUuids: string[]): number {
+    let parentUpdated = 0;
+    if (candidateUuids.length === 0) return parentUpdated;
+    db.run('BEGIN TRANSACTION');
+    try {
+      const selectStmt = db.prepare('SELECT tool_calls FROM messages WHERE uuid = ?');
+      const updateParent = db.prepare('UPDATE messages SET subagent_type = ? WHERE uuid = ?');
+      try {
+        for (let i = 0; i < candidateUuids.length; i++) {
+          const uuid = candidateUuids[i];
+          selectStmt.bind([uuid]);
+          try {
+            if (selectStmt.step()) {
+              const row = selectStmt.get();
+              const toolCalls = row[0] as string | null;
+              if (toolCalls) {
+                const info = extractAgentInfo(toolCalls);
+                if (info.subagentType) {
+                  updateParent.run([info.subagentType, uuid]);
+                  parentUpdated++;
+                }
+              }
+            }
+          } finally {
+            selectStmt.reset();
+          }
+          if ((i + 1) % 500 === 0) {
+            this.logger.info(`[Migration] subagent_type_backfill_v1: parent ${i + 1}/${candidateUuids.length} processed`);
+          }
+        }
+      } finally {
+        selectStmt.free();
+        updateParent.free();
+      }
+      db.run('COMMIT');
+    } catch (e) {
+      try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('[Migration] subagent_type_backfill_v1: ROLLBACK failed', error_); }
+      throw e;
+    }
+    return parentUpdated;
+  }
+
+  private backfillSubagentType(projectsDir?: string): void {
+    const db = this.ensureDb();
+    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
+    const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'subagent_type_backfill_v1'");
+    if (done[0]?.values?.length) return;
+
+    const startedAt = Date.now();
+    this.logger.info('[Migration] subagent_type_backfill_v1: starting...');
+
+    // 性能上の必須: messages.agent_id にインデックスがないと UPDATE WHERE agent_id=? が
+    // 毎回フルスキャン。1000+ meta.json × 数十万 messages で数億行スキャンになり数十分ハングする。
+    db.run('CREATE INDEX IF NOT EXISTS idx_messages_agent_id ON messages(agent_id)');
+
+    const baseDir = projectsDir ?? path.join(os.homedir(), '.claude', 'projects');
+
+    // Step 1: meta.json を集約してメモリ上で agent_id → agentType マップを作る（fs IO のみ、SQL なし）
+    const agentTypeByAgentId = this.collectAgentTypeMap(baseDir);
+    this.logger.info(`[Migration] subagent_type_backfill_v1: collected ${agentTypeByAgentId.size} agent_id mappings (${Date.now() - startedAt}ms)`);
+
+    // Step 2: 単一トランザクションで一括 UPDATE。インデックスありで O(log N)/UPDATE。
+    const phase2Start = Date.now();
+    const metaUpdated = this.backfillSubagentTypeByAgentId(db, agentTypeByAgentId, phase2Start);
     this.logger.info(`[Migration] subagent_type_backfill_v1: meta UPDATE done meta=${metaUpdated} (${Date.now() - phase2Start}ms)`);
 
     // Step 3: 親メッセージ側 (Agent tool_use を持つ assistant)。tool_calls JSON は大きいので
@@ -4392,45 +4330,7 @@ export class TrailDatabase {
     const candidateUuids = (uuidRes[0]?.values ?? []).map((r) => asText(r[0] ?? '')).filter(Boolean);
     this.logger.info(`[Migration] subagent_type_backfill_v1: ${candidateUuids.length} parent message candidates (${Date.now() - phase3Start}ms)`);
 
-    let parentUpdated = 0;
-    if (candidateUuids.length > 0) {
-      db.run('BEGIN TRANSACTION');
-      try {
-        const selectStmt = db.prepare('SELECT tool_calls FROM messages WHERE uuid = ?');
-        const updateParent = db.prepare('UPDATE messages SET subagent_type = ? WHERE uuid = ?');
-        try {
-          for (let i = 0; i < candidateUuids.length; i++) {
-            const uuid = candidateUuids[i];
-            selectStmt.bind([uuid]);
-            try {
-              if (selectStmt.step()) {
-                const row = selectStmt.get();
-                const toolCalls = row[0] as string | null;
-                if (toolCalls) {
-                  const info = extractAgentInfo(toolCalls);
-                  if (info.subagentType) {
-                    updateParent.run([info.subagentType, uuid]);
-                    parentUpdated++;
-                  }
-                }
-              }
-            } finally {
-              selectStmt.reset();
-            }
-            if ((i + 1) % 500 === 0) {
-              this.logger.info(`[Migration] subagent_type_backfill_v1: parent ${i + 1}/${candidateUuids.length} processed`);
-            }
-          }
-        } finally {
-          selectStmt.free();
-          updateParent.free();
-        }
-        db.run('COMMIT');
-      } catch (e) {
-        try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('[Migration] subagent_type_backfill_v1: ROLLBACK failed', error_); }
-        throw e;
-      }
-    }
+    const parentUpdated = this.backfillSubagentTypeForParents(db, candidateUuids);
 
     this.logger.info(
       `[Migration] subagent_type_backfill_v1: COMPLETED meta=${metaUpdated} parent=${parentUpdated} totalMs=${Date.now() - startedAt}`,
@@ -5940,6 +5840,61 @@ export class TrailDatabase {
     this.ensureDb().run('ROLLBACK');
   }
 
+  private buildMessageInsertParams(
+    raw: RawLine,
+    sessionId: string,
+    isSubagent: boolean,
+    fileSubagentType: string | null,
+  ): unknown[] {
+    const textContent = raw.type === 'assistant'
+      ? extractTextContent(raw.message?.content) : null;
+    const userMessageContent = typeof raw.message?.content === 'string' ? raw.message.content : null;
+    const userContent = raw.type === 'user' ? userMessageContent : null;
+    const toolCalls = raw.type === 'assistant' ? extractToolCalls(raw.message?.content) : null;
+
+    // tool_use_result: ユーザーメッセージの content から tool_result ブロックを抽出する。
+    let toolUseResult: string | null = null;
+    if (raw.type === 'user' && Array.isArray(raw.message?.content)) {
+      const toolResults = (raw.message.content as unknown[]).filter(
+        (b) => typeof b === 'object' && b !== null && (b as Record<string, unknown>).type === 'tool_result',
+      );
+      if (toolResults.length > 0) toolUseResult = JSON.stringify(toolResults);
+    }
+    if (!toolUseResult && raw.toolUseResult != null) {
+      toolUseResult = typeof raw.toolUseResult === 'string'
+        ? raw.toolUseResult : JSON.stringify(raw.toolUseResult);
+    }
+
+    const durationMs = raw.durationMs ?? null;
+    const toolResultSize = estimateTokenCount(toolUseResult);
+    const agentInfo = extractAgentInfo(toolCalls);
+    const permMode = raw.permissionMode ?? null;
+    const skill = extractSkillName(toolCalls);
+    const agentId = raw.agentId ?? null;
+    const sourceToolAssistantUUID = raw.sourceToolAssistantUUID ?? null;
+    const sourceToolUseID = raw.sourceToolUseID ?? null;
+    const systemCommandInner = raw.subtype === 'local_command' ? '/clear' : null;
+    const systemCommand = raw.subtype === 'compact_boundary' ? '/compact' : systemCommandInner;
+    // 主セッションでは Agent tool_use を持つ親メッセージのみ subagent_type を持つ（呼び出し意図記録）。
+    // サブエージェント JSONL では全メッセージが meta.json 由来の subagent_type を持つ。
+    const subagentType = isSubagent ? fileSubagentType : agentInfo.subagentType;
+
+    return [
+      raw.uuid ?? '', sessionId, raw.parentUuid ?? null,
+      raw.type ?? '', raw.subtype ?? null,
+      textContent, userContent, toolCalls, toolUseResult,
+      raw.message?.model ?? null, raw.requestId ?? null, raw.message?.stop_reason ?? null,
+      raw.message?.usage?.input_tokens ?? 0, raw.message?.usage?.output_tokens ?? 0,
+      raw.message?.usage?.cache_read_input_tokens ?? 0, raw.message?.usage?.cache_creation_input_tokens ?? 0,
+      raw.message?.usage?.service_tier ?? null, raw.message?.usage?.speed ?? null,
+      toUTC(raw.timestamp ?? ''), raw.isSidechain ? 1 : 0, raw.isMeta ? 1 : 0,
+      raw.cwd ?? null, raw.gitBranch ?? null,
+      durationMs, toolResultSize, agentInfo.description, agentInfo.model,
+      permMode, skill, agentId, sourceToolAssistantUUID, sourceToolUseID,
+      systemCommand, subagentType,
+    ];
+  }
+
   /** @returns number of messages imported */
   importSession(filePath: string, repoName: string, isSubagent = false, externalTransaction = false): number {
     const db = this.ensureDb();
@@ -6030,87 +5985,8 @@ export class TrailDatabase {
       // Insert messages
       const msgStmt = db.prepare(INSERT_MESSAGE);
       for (const raw of messagesToInsert) {
-        const textContent = raw.type === 'assistant'
-          ? extractTextContent(raw.message?.content)
-          : null;
-        const userMessageContent = typeof raw.message?.content === 'string' ? raw.message.content : null;
-        const userContent = raw.type === 'user' ? userMessageContent : null;
-        const toolCalls = raw.type === 'assistant'
-          ? extractToolCalls(raw.message?.content)
-          : null;
-        // tool_use_result: ユーザーメッセージの content から tool_result ブロックを抽出する。
-        // raw.toolUseResult はエラーテキストのみの場合があり、buildErrorMap が期待する
-        // [{type:"tool_result", is_error:true, tool_use_id:"..."}] 形式ではないため、
-        // message.content 配列から tool_result ブロックを直接取得する。
-        let toolUseResult: string | null = null;
-        if (raw.type === 'user' && Array.isArray(raw.message?.content)) {
-          const toolResults = (raw.message.content as unknown[]).filter(
-            (b) => typeof b === 'object' && b !== null && (b as Record<string, unknown>).type === 'tool_result',
-          );
-          if (toolResults.length > 0) {
-            toolUseResult = JSON.stringify(toolResults);
-          }
-        }
-        if (!toolUseResult && raw.toolUseResult != null) {
-          toolUseResult = typeof raw.toolUseResult === 'string'
-            ? raw.toolUseResult
-            : JSON.stringify(raw.toolUseResult);
-        }
-
-        // --- Analytics fields ---
-        const durationMs = raw.durationMs ?? null;
-        const toolResultSize = estimateTokenCount(toolUseResult);
-        const agentInfo = extractAgentInfo(toolCalls);
-
-        // --- New metadata fields ---
-        const permMode = raw.permissionMode ?? null;
-        const skill = extractSkillName(toolCalls);
-        const agentId = raw.agentId ?? null;
-        const sourceToolAssistantUUID = raw.sourceToolAssistantUUID ?? null;
-        const sourceToolUseID = raw.sourceToolUseID ?? null;
-        const systemCommandInner = raw.subtype === 'local_command' ? '/clear' : null;
-        const systemCommand = raw.subtype === 'compact_boundary' ? '/compact' : systemCommandInner;
-
-        // 主セッションでは Agent tool_use を持つ親メッセージのみ subagent_type を持つ（呼び出し意図記録）。
-        // サブエージェント JSONL では全メッセージが meta.json 由来の subagent_type を持つ。
-        const subagentType = isSubagent ? fileSubagentType : agentInfo.subagentType;
-
-        msgStmt.run([
-          raw.uuid ?? '',
-          sessionId,
-          raw.parentUuid ?? null,
-          raw.type ?? '',
-          raw.subtype ?? null,
-          textContent,
-          userContent,
-          toolCalls,
-          toolUseResult,
-          raw.message?.model ?? null,
-          raw.requestId ?? null,
-          raw.message?.stop_reason ?? null,
-          raw.message?.usage?.input_tokens ?? 0,
-          raw.message?.usage?.output_tokens ?? 0,
-          raw.message?.usage?.cache_read_input_tokens ?? 0,
-          raw.message?.usage?.cache_creation_input_tokens ?? 0,
-          raw.message?.usage?.service_tier ?? null,
-          raw.message?.usage?.speed ?? null,
-          toUTC(raw.timestamp ?? ''),
-          raw.isSidechain ? 1 : 0,
-          raw.isMeta ? 1 : 0,
-          raw.cwd ?? null,
-          raw.gitBranch ?? null,
-          durationMs,
-          toolResultSize,
-          agentInfo.description,
-          agentInfo.model,
-          permMode,
-          skill,
-          agentId,
-          sourceToolAssistantUUID,
-          sourceToolUseID,
-          systemCommand,
-          subagentType,
-        ]);
+        const params = this.buildMessageInsertParams(raw, sessionId, isSubagent, fileSubagentType);
+        msgStmt.run(params);
       }
       msgStmt.free();
 
@@ -6120,6 +5996,245 @@ export class TrailDatabase {
       if (!externalTransaction) db.run('ROLLBACK');
       throw err;
     }
+  }
+
+  private collectClaudeCodeSessionDirs(
+    projectDirs: string[],
+    projectsDir: string,
+    UUID_RE: RegExp,
+  ): Array<{ sid: string; mainFile: string; subagentFiles: string[]; repoName: string; source: 'claude_code' | 'codex' }> {
+    const sessionDirs: Array<{ sid: string; mainFile: string; subagentFiles: string[]; repoName: string; source: 'claude_code' | 'codex' }> = [];
+    for (const projectName of projectDirs) {
+      const projectPath = path.join(projectsDir, projectName);
+      try {
+        if (!fs.statSync(projectPath).isDirectory()) continue;
+      } catch { continue; }
+
+      let entries: string[];
+      try { entries = fs.readdirSync(projectPath); } catch { continue; }
+
+      for (const entry of entries) {
+        if (!entry.endsWith('.jsonl')) continue;
+        const sid = entry.slice(0, -6);
+        if (!UUID_RE.test(sid)) continue;
+        const mainFile = path.join(projectPath, entry);
+        const subagentDir = path.join(projectPath, sid, 'subagents');
+        const subagentFiles: string[] = [];
+        try {
+          for (const sf of fs.readdirSync(subagentDir)) {
+            if (sf.endsWith('.jsonl')) subagentFiles.push(path.join(subagentDir, sf));
+          }
+        } catch { /* no subagents dir */ }
+        const derivedRepoName = extractRepoNameFromJsonl(mainFile) ?? projectName.replace(/^-+/, '');
+        sessionDirs.push({ sid, mainFile, subagentFiles, repoName: derivedRepoName, source: 'claude_code' });
+      }
+    }
+    return sessionDirs;
+  }
+
+  private collectCodexSessionDirs(
+    codexSessionsDir: string,
+    gitRoot: string | undefined,
+    repoName: string,
+  ): Array<{ sid: string; mainFile: string; subagentFiles: string[]; repoName: string; source: 'claude_code' | 'codex' }> {
+    const sessionDirs: Array<{ sid: string; mainFile: string; subagentFiles: string[]; repoName: string; source: 'claude_code' | 'codex' }> = [];
+    try {
+      const codexFiles = collectJsonlFilesRecursive(codexSessionsDir).filter((f: string) =>
+        path.basename(f).startsWith('rollout-'),
+      );
+      for (const filePath of codexFiles) {
+        const sidMatch = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(filePath);
+        const sid = sidMatch?.[1] ?? path.basename(filePath, '.jsonl');
+        if (gitRoot) {
+          const meta = this.readCodexSessionMeta(filePath);
+          if (!meta?.cwd) continue;
+          if (!path.resolve(meta.cwd).startsWith(path.resolve(gitRoot))) continue;
+        }
+        sessionDirs.push({ sid, mainFile: filePath, subagentFiles: [], repoName: repoName || 'codex', source: 'codex' });
+      }
+    } catch {
+      // codex sessions may not exist
+    }
+    return sessionDirs;
+  }
+
+  private async importAllPhaseResolveReleases(
+    onProgress: ((msg: string, inc?: number) => void) | undefined,
+    onPhase: ((e: ImportAllPhaseEvent) => void) | undefined,
+    yieldForUi: () => Promise<void>,
+    phasesToSkip: ReadonlySet<ImportAllPhase>,
+    gitRoot: string | undefined,
+    initialCount: number,
+  ): Promise<number> {
+    let releasesResolved = initialCount;
+    const skip = phasesToSkip.has('resolve_releases');
+    if (!skip && gitRoot) {
+      onPhase?.({ phase: 'resolve_releases', action: 'start' });
+      await yieldForUi();
+      let failed = false;
+      try {
+        onProgress?.('Resolving releases from version tags...', 0);
+        releasesResolved = this.resolveReleases(gitRoot);
+        onProgress?.(`Releases resolved: ${releasesResolved}`, 0);
+      } catch (e) {
+        failed = true;
+        onPhase?.({ phase: 'resolve_releases', action: 'error', message: e instanceof Error ? e.message : String(e) });
+      }
+      try {
+        onProgress?.('Resolving release times...', 0);
+        const timesResolved = this.resolveReleaseTimes();
+        onProgress?.(`Release times resolved: ${timesResolved}`, 0);
+      } catch (e) {
+        if (!failed) {
+          onPhase?.({ phase: 'resolve_releases', action: 'error', message: e instanceof Error ? e.message : String(e) });
+          failed = true;
+        }
+      }
+      if (!failed) onPhase?.({ phase: 'resolve_releases', action: 'finish', count: releasesResolved });
+    } else if (!skip) {
+      onPhase?.({ phase: 'resolve_releases', action: 'skip', message: 'no gitRoot' });
+    }
+    await yieldForUi();
+    return releasesResolved;
+  }
+
+  private async importAllPhaseAnalyzeReleases(
+    onProgress: ((msg: string, inc?: number) => void) | undefined,
+    onPhase: ((e: ImportAllPhaseEvent) => void) | undefined,
+    yieldForUi: () => Promise<void>,
+    phasesToSkip: ReadonlySet<ImportAllPhase>,
+    gitRoot: string | undefined,
+    analyzeFn: AnalyzeFunction | undefined,
+    excludePatterns: readonly string[] | undefined,
+  ): Promise<number> {
+    let releasesAnalyzed = 0;
+    const skip = phasesToSkip.has('analyze_releases');
+    if (skip) {
+      // CodeGraphBuilder が担当
+    } else if (gitRoot && analyzeFn) {
+      onPhase?.({ phase: 'analyze_releases', action: 'start' });
+      await yieldForUi();
+      try {
+        onProgress?.('Analyzing releases...', 0);
+        releasesAnalyzed = this.analyzeReleases(gitRoot, analyzeFn, (msg) => onProgress?.(msg, 0), excludePatterns);
+        onProgress?.(`Releases analyzed: ${releasesAnalyzed}`, 0);
+        onPhase?.({ phase: 'analyze_releases', action: 'finish', count: releasesAnalyzed });
+      } catch (e) {
+        onPhase?.({ phase: 'analyze_releases', action: 'error', message: e instanceof Error ? e.message : String(e) });
+      }
+    } else {
+      onPhase?.({ phase: 'analyze_releases', action: 'skip', message: gitRoot ? 'no analyzeFn' : 'no gitRoot' });
+    }
+    await yieldForUi();
+    return releasesAnalyzed;
+  }
+
+  private async importAllPhaseImportCoverage(
+    onProgress: ((msg: string, inc?: number) => void) | undefined,
+    onPhase: ((e: ImportAllPhaseEvent) => void) | undefined,
+    yieldForUi: () => Promise<void>,
+    phasesToSkip: ReadonlySet<ImportAllPhase>,
+    gitRoot: string | undefined,
+    initialCoverage: number,
+    initialCurrentCoverage: number,
+  ): Promise<{ coverageImported: number; currentCoverageImported: number }> {
+    let coverageImported = initialCoverage;
+    let currentCoverageImported = initialCurrentCoverage;
+    const skip = phasesToSkip.has('import_coverage');
+    if (!skip && gitRoot) {
+      onPhase?.({ phase: 'import_coverage', action: 'start' });
+      await yieldForUi();
+      let failed = false;
+      try {
+        onProgress?.('Importing coverage data...', 0);
+        coverageImported = this.importCoverage(gitRoot);
+        onProgress?.(`Coverage imported: ${coverageImported} entries`, 0);
+      } catch (e) {
+        failed = true;
+        onPhase?.({ phase: 'import_coverage', action: 'error', message: e instanceof Error ? e.message : String(e) });
+      }
+      try {
+        onProgress?.('Importing current coverage snapshot...', 0);
+        currentCoverageImported = this.importCurrentCoverage(gitRoot, path.basename(gitRoot));
+        onProgress?.(`Current coverage imported: ${currentCoverageImported} entries`, 0);
+      } catch (e) {
+        if (!failed) {
+          onPhase?.({ phase: 'import_coverage', action: 'error', message: e instanceof Error ? e.message : String(e) });
+          failed = true;
+        }
+      }
+      if (!failed) onPhase?.({ phase: 'import_coverage', action: 'finish', count: coverageImported + currentCoverageImported });
+    } else if (!skip) {
+      onPhase?.({ phase: 'import_coverage', action: 'skip', message: 'no gitRoot' });
+    }
+    await yieldForUi();
+    return { coverageImported, currentCoverageImported };
+  }
+
+  private async importAllPhaseAnalyzeBehavior(
+    onProgress: ((msg: string, inc?: number) => void) | undefined,
+    onPhase: ((e: ImportAllPhaseEvent) => void) | undefined,
+    yieldForUi: () => Promise<void>,
+    phasesToSkip: ReadonlySet<ImportAllPhase>,
+    effectiveSessionsToAnalyze: ReadonlySet<string>,
+  ): Promise<void> {
+    if (phasesToSkip.has('analyze_behavior')) {
+      // skip entirely
+    } else if (effectiveSessionsToAnalyze.size > 0) {
+      onPhase?.({ phase: 'analyze_behavior', action: 'start', count: effectiveSessionsToAnalyze.size });
+      await yieldForUi();
+      const db = this.ensureDb();
+      const analyzer = new ClaudeCodeBehaviorAnalyzer();
+      onProgress?.(`Analyzing Claude Code behavior (${effectiveSessionsToAnalyze.size} sessions)...`, 0);
+      let failedCount = 0;
+      for (const sid of effectiveSessionsToAnalyze) {
+        try {
+          analyzer.analyze(sid, db);
+        } catch (e) {
+          failedCount += 1;
+          this.logger.error(`ClaudeCodeBehaviorAnalyzer failed for session ${sid}`, e);
+        }
+      }
+      onPhase?.({ phase: 'analyze_behavior', action: 'finish', count: effectiveSessionsToAnalyze.size - failedCount });
+    } else {
+      onPhase?.({ phase: 'analyze_behavior', action: 'skip', message: 'no new sessions' });
+    }
+    await yieldForUi();
+  }
+
+  private async importAllPhaseBackfill(
+    onProgress: ((msg: string, inc?: number) => void) | undefined,
+    onPhase: ((e: ImportAllPhaseEvent) => void) | undefined,
+    yieldForUi: () => Promise<void>,
+    phasesToSkip: ReadonlySet<ImportAllPhase>,
+    gitRoot: string | undefined,
+  ): Promise<number> {
+    let messageCommitsBackfilled = 0;
+    if (!phasesToSkip.has('backfill')) {
+      onPhase?.({ phase: 'backfill', action: 'start' });
+      await yieldForUi();
+      let backfillFailed = false;
+      if (gitRoot) {
+        try {
+          this.backfillCommitFiles(gitRoot, (msg) => onProgress?.(msg, 0));
+        } catch (e) {
+          backfillFailed = true;
+          onPhase?.({ phase: 'backfill', action: 'error', message: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      onProgress?.('Backfilling subagent_type...', 0);
+      try {
+        this.backfillSubagentType();
+      } catch (e) {
+        this.logger.warn(`backfillSubagentType failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
+      }
+      onProgress?.('Backfilling message_commits...', 0);
+      messageCommitsBackfilled = this.backfillMessageCommits((msg) => onProgress?.(msg, 0));
+      if (!backfillFailed) {
+        onPhase?.({ phase: 'backfill', action: 'finish', count: messageCommitsBackfilled });
+      }
+    }
+    return messageCommitsBackfilled;
   }
 
   async importAll(
@@ -6141,7 +6256,6 @@ export class TrailDatabase {
     let skipped = lepOpts?.externalCounters?.skipped ?? 0;
     let commitsResolved = lepOpts?.externalCounters?.commitsResolved ?? 0;
 
-
     // phasesToSkip に import_sessions が含まれる場合、projects dir のスキャン自体を丸ごとスキップする。
     const skipImportSessions = phasesToSkip.has('import_sessions');
 
@@ -6161,71 +6275,10 @@ export class TrailDatabase {
     const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
     // Collect files per session directory (main + subagents grouped)
-    type SessionDir = {
-      sid: string;
-      mainFile: string;
-      subagentFiles: string[];
-      repoName: string;
-      source: 'claude_code' | 'codex';
-    };
-    const sessionDirs: SessionDir[] = [];
-
-    for (const projectName of projectDirs) {
-      const projectPath = path.join(projectsDir, projectName);
-      try {
-        if (!fs.statSync(projectPath).isDirectory()) continue;
-      } catch { continue; }
-
-      let entries: string[];
-      try { entries = fs.readdirSync(projectPath); } catch { continue; }
-
-      for (const entry of entries) {
-        // Main session file: UUID.jsonl at project directory level
-        if (!entry.endsWith('.jsonl')) continue;
-        const sid = entry.slice(0, -6); // remove .jsonl
-        if (!UUID_RE.test(sid)) continue;
-
-        const mainFile = path.join(projectPath, entry);
-
-        // Subagent files: UUID/subagents/*.jsonl
-        const subagentDir = path.join(projectPath, sid, 'subagents');
-        const subagentFiles: string[] = [];
-        try {
-          for (const sf of fs.readdirSync(subagentDir)) {
-            if (sf.endsWith('.jsonl')) {
-              subagentFiles.push(path.join(subagentDir, sf));
-            }
-          }
-        } catch { /* no subagents dir */ }
-
-        // repo_name は JSONL の cwd から派生させる (起動 ws の basename にフォールバックしない)。
-        // cwd が取れなかった場合は project dir 名の先頭ハイフンを除いて使う。
-        // 詳細: plan/20260518-sessions-repo-name-from-cwd.ja.md
-        const derivedRepoName = extractRepoNameFromJsonl(mainFile) ?? projectName.replace(/^-+/, '');
-        sessionDirs.push({ sid, mainFile, subagentFiles, repoName: derivedRepoName, source: 'claude_code' });
-      }
-    }
-
-    // Codex sessions (~/.codex/sessions/**/rollout-*.jsonl) — LEP 移行時はスキップ
-    if (!skipImportSessions) try {
-      const codexFiles = collectJsonlFilesRecursive(codexSessionsDir).filter((f: string) =>
-        path.basename(f).startsWith('rollout-'),
-      );
-      for (const filePath of codexFiles) {
-        const sidMatch = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(filePath);
-        const sid = sidMatch?.[1] ?? path.basename(filePath, '.jsonl');
-        if (gitRoot) {
-          const meta = this.readCodexSessionMeta(filePath);
-          if (!meta?.cwd) continue;
-          const normalizedCwd = path.resolve(meta.cwd);
-          const normalizedGitRoot = path.resolve(gitRoot);
-          if (!normalizedCwd.startsWith(normalizedGitRoot)) continue;
-        }
-        sessionDirs.push({ sid, mainFile: filePath, subagentFiles: [], repoName: repoName || 'codex', source: 'codex' });
-      }
-    } catch {
-      // codex sessions may not exist
-    }
+    const sessionDirs = [
+      ...this.collectClaudeCodeSessionDirs(projectDirs, projectsDir, UUID_RE),
+      ...(skipImportSessions ? [] : this.collectCodexSessionDirs(codexSessionsDir, gitRoot, repoName)),
+    ];
 
     const totalSessions = sessionDirs.length;
     const totalFiles = sessionDirs.reduce((s, d) => s + 1 + d.subagentFiles.length, 0);
@@ -6256,9 +6309,7 @@ export class TrailDatabase {
     // onPhase emit 直後に event loop へ yield する。短い phase が同期連続すると
     // _onDidChangeTreeData.fire() の処理が後回しになり中間状態が見えなくなるため。
     const yieldForUi = async (): Promise<void> => {
-      if (onPhase) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      }
+      if (onPhase) await new Promise<void>((resolve) => setTimeout(resolve, 0));
     };
 
     if (!skipImportSessions) {
@@ -6351,93 +6402,20 @@ export class TrailDatabase {
       await yieldForUi();
     }
 
-    // Resolve releases from version tags
-    let releasesResolved = lepOpts?.externalCounters?.releasesResolved ?? 0;
-    const skipResolveReleases = phasesToSkip.has('resolve_releases');
-    if (!skipResolveReleases && gitRoot) {
-      onPhase?.({ phase: 'resolve_releases', action: 'start' });
-      await yieldForUi();
-      let resolveReleasesFailed = false;
-      try {
-        onProgress?.('Resolving releases from version tags...', 0);
-        releasesResolved = this.resolveReleases(gitRoot);
-        onProgress?.(`Releases resolved: ${releasesResolved}`, 0);
-      } catch (e) {
-        resolveReleasesFailed = true;
-        onPhase?.({ phase: 'resolve_releases', action: 'error', message: e instanceof Error ? e.message : String(e) });
-      }
-      try {
-        onProgress?.('Resolving release times...', 0);
-        const timesResolved = this.resolveReleaseTimes();
-        onProgress?.(`Release times resolved: ${timesResolved}`, 0);
-      } catch (e) {
-        if (!resolveReleasesFailed) {
-          onPhase?.({ phase: 'resolve_releases', action: 'error', message: e instanceof Error ? e.message : String(e) });
-          resolveReleasesFailed = true;
-        }
-      }
-      if (!resolveReleasesFailed) {
-        onPhase?.({ phase: 'resolve_releases', action: 'finish', count: releasesResolved });
-      }
-    } else if (!skipResolveReleases) {
-      onPhase?.({ phase: 'resolve_releases', action: 'skip', message: 'no gitRoot' });
-    }
-    await yieldForUi();
+    const releasesResolved = await this.importAllPhaseResolveReleases(
+      onProgress, onPhase, yieldForUi, phasesToSkip, gitRoot,
+      lepOpts?.externalCounters?.releasesResolved ?? 0,
+    );
 
-    // Analyze source code for each release
-    let releasesAnalyzed = 0;
-    const skipAnalyzeReleases = phasesToSkip.has('analyze_releases');
-    if (skipAnalyzeReleases) {
-      // CodeGraphBuilder が担当
-    } else if (gitRoot && analyzeFn) {
-      onPhase?.({ phase: 'analyze_releases', action: 'start' });
-      await yieldForUi();
-      try {
-        onProgress?.('Analyzing releases...', 0);
-        releasesAnalyzed = this.analyzeReleases(gitRoot, analyzeFn, (msg) => onProgress?.(msg, 0), excludePatterns);
-        onProgress?.(`Releases analyzed: ${releasesAnalyzed}`, 0);
-        onPhase?.({ phase: 'analyze_releases', action: 'finish', count: releasesAnalyzed });
-      } catch (e) {
-        onPhase?.({ phase: 'analyze_releases', action: 'error', message: e instanceof Error ? e.message : String(e) });
-      }
-    } else {
-      onPhase?.({ phase: 'analyze_releases', action: 'skip', message: gitRoot ? 'no analyzeFn' : 'no gitRoot' });
-    }
-    await yieldForUi();
+    const releasesAnalyzed = await this.importAllPhaseAnalyzeReleases(
+      onProgress, onPhase, yieldForUi, phasesToSkip, gitRoot, analyzeFn, excludePatterns,
+    );
 
-    // Import coverage data from packages/*/coverage/coverage-summary.json
-    let coverageImported = lepOpts?.externalCounters?.coverageImported ?? 0;
-    let currentCoverageImported = lepOpts?.externalCounters?.currentCoverageImported ?? 0;
-    const skipImportCoverage = phasesToSkip.has('import_coverage');
-    if (!skipImportCoverage && gitRoot) {
-      onPhase?.({ phase: 'import_coverage', action: 'start' });
-      await yieldForUi();
-      let coverageFailed = false;
-      try {
-        onProgress?.('Importing coverage data...', 0);
-        coverageImported = this.importCoverage(gitRoot);
-        onProgress?.(`Coverage imported: ${coverageImported} entries`, 0);
-      } catch (e) {
-        coverageFailed = true;
-        onPhase?.({ phase: 'import_coverage', action: 'error', message: e instanceof Error ? e.message : String(e) });
-      }
-      try {
-        onProgress?.('Importing current coverage snapshot...', 0);
-        currentCoverageImported = this.importCurrentCoverage(gitRoot, path.basename(gitRoot));
-        onProgress?.(`Current coverage imported: ${currentCoverageImported} entries`, 0);
-      } catch (e) {
-        if (!coverageFailed) {
-          onPhase?.({ phase: 'import_coverage', action: 'error', message: e instanceof Error ? e.message : String(e) });
-          coverageFailed = true;
-        }
-      }
-      if (!coverageFailed) {
-        onPhase?.({ phase: 'import_coverage', action: 'finish', count: coverageImported + currentCoverageImported });
-      }
-    } else if (!skipImportCoverage) {
-      onPhase?.({ phase: 'import_coverage', action: 'skip', message: 'no gitRoot' });
-    }
-    await yieldForUi();
+    const { coverageImported, currentCoverageImported } = await this.importAllPhaseImportCoverage(
+      onProgress, onPhase, yieldForUi, phasesToSkip, gitRoot,
+      lepOpts?.externalCounters?.coverageImported ?? 0,
+      lepOpts?.externalCounters?.currentCoverageImported ?? 0,
+    );
 
     // Rebuild session_costs from messages
     if (!phasesToSkip.has('rebuild_costs')) {
@@ -6458,28 +6436,7 @@ export class TrailDatabase {
     // Sessions skipped above had no new messages, so message_tool_calls is already current.
     // Phase 1 が外部に移管されている場合、対象 session 集合は externalSessionsToAnalyze から受け取る。
     const effectiveSessionsToAnalyze = lepOpts?.externalSessionsToAnalyze ?? sessionsToAnalyze;
-    if (phasesToSkip.has('analyze_behavior')) {
-      // skip entirely
-    } else if (effectiveSessionsToAnalyze.size > 0) {
-      onPhase?.({ phase: 'analyze_behavior', action: 'start', count: effectiveSessionsToAnalyze.size });
-      await yieldForUi();
-      const db = this.ensureDb();
-      const analyzer = new ClaudeCodeBehaviorAnalyzer();
-      onProgress?.(`Analyzing Claude Code behavior (${effectiveSessionsToAnalyze.size} sessions)...`, 0);
-      let failedCount = 0;
-      for (const sid of effectiveSessionsToAnalyze) {
-        try {
-          analyzer.analyze(sid, db);
-        } catch (e) {
-          failedCount += 1;
-          this.logger.error(`ClaudeCodeBehaviorAnalyzer failed for session ${sid}`, e);
-        }
-      }
-      onPhase?.({ phase: 'analyze_behavior', action: 'finish', count: effectiveSessionsToAnalyze.size - failedCount });
-    } else {
-      onPhase?.({ phase: 'analyze_behavior', action: 'skip', message: 'no new sessions' });
-    }
-    await yieldForUi();
+    await this.importAllPhaseAnalyzeBehavior(onProgress, onPhase, yieldForUi, phasesToSkip, effectiveSessionsToAnalyze);
 
     // Rebuild daily_counts (6 kinds) after message_tool_calls is populated, then session_stats
     if (!phasesToSkip.has('rebuild_counts')) {
@@ -6499,37 +6456,9 @@ export class TrailDatabase {
       await yieldForUi();
     }
 
-    // backfill: commit_files / subagent_type / message_commits
-    let messageCommitsBackfilled = 0;
-    if (!phasesToSkip.has('backfill')) {
-      onPhase?.({ phase: 'backfill', action: 'start' });
-      await yieldForUi();
-      let backfillFailed = false;
-      if (gitRoot) {
-        try {
-          this.backfillCommitFiles(gitRoot, (msg) => onProgress?.(msg, 0));
-        } catch (e) {
-          backfillFailed = true;
-          onPhase?.({ phase: 'backfill', action: 'error', message: e instanceof Error ? e.message : String(e) });
-        }
-      }
-
-      // Phase D-2: backfill subagent_type from .meta.json + parent tool_calls (one-time)
-      onProgress?.('Backfilling subagent_type...', 0);
-      try {
-        this.backfillSubagentType();
-      } catch (e) {
-        this.logger.warn(`backfillSubagentType failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
-      }
-
-      // Phase 2: backfill message_commits
-      onProgress?.('Backfilling message_commits...', 0);
-      messageCommitsBackfilled = this.backfillMessageCommits((msg) => onProgress?.(msg, 0));
-
-      if (!backfillFailed) {
-        onPhase?.({ phase: 'backfill', action: 'finish', count: messageCommitsBackfilled });
-      }
-    }
+    const messageCommitsBackfilled = await this.importAllPhaseBackfill(
+      onProgress, onPhase, yieldForUi, phasesToSkip, gitRoot,
+    );
 
     this.save();
     return {
@@ -7560,166 +7489,17 @@ export class TrailDatabase {
 
     const excludePairs = this.buildStaticDependencyPairs(repoName);
 
+    const tcParams = {
+      db, fromIso, toIso, directional, minChangeCount, jaccardThreshold,
+      confidenceThreshold, directionalDiffThreshold, topK, maxFilesPerGroup, excludePairs,
+    };
+
     if (isSession) {
-      const editToolPlaceholders = SESSION_COUPLING_EDIT_TOOLS.map(() => '?').join(', ');
-      const result = db.exec(
-        `SELECT mtc.session_id, mtc.file_path
-         FROM message_tool_calls mtc
-         JOIN sessions s ON s.id = mtc.session_id
-         WHERE mtc.tool_name IN (${editToolPlaceholders})
-           AND mtc.file_path IS NOT NULL
-           AND mtc.file_path != ''
-           AND s.start_time >= ? AND s.start_time <= ?
-         ORDER BY mtc.session_id`,
-        [...SESSION_COUPLING_EDIT_TOOLS, fromIso, toIso],
-      );
-      const values = result[0]?.values ?? [];
-
-      // message_tool_calls.file_path は Claude Code の Edit/Write ツール input を
-      // そのまま記録するため絶対パス。CodeGraph のノード ID はリポ相対パス前提なので
-      // current_graphs.metadata.projectRoot を起点に正規化する。
-      //
-      // repoName と current_graphs.repo_name の表記が揺れる運用（例: CodeGraph 側は
-      // 'Workspace' / TrailDatabase 側はパッケージ名）にも耐えるよう、すべての
-      // current_graphs 行から projectRoot を集めて prefix match で相対化する。
-      // 短い順（リポルートに近いほうが先）にソートして、`/anytime-markdown/packages/...`
-      // のような長いルートよりリポルート側を優先する。
-      const projectRootCandidates = Array.from(
-        new Set(
-          this.listCurrentGraphs()
-            .map((g) => g.graph?.metadata?.projectRoot)
-            .filter((p): p is string => typeof p === 'string' && p.length > 0),
-        ),
-      ).sort((a, b) => a.length - b.length);
-
-      const normalize = this.buildFilePathNormalizer(projectRootCandidates);
-
-      const sessionRows: SessionFileRow[] = [];
-      for (const r of values) {
-        const sessionId = asText(r[0] ?? '');
-        const normalized = normalize(asText(r[1] ?? ''));
-        if (sessionId && normalized) {
-          sessionRows.push({ sessionId, filePath: normalized });
-        }
-      }
-
-      if (directional) {
-        return computeSessionConfidenceCoupling(sessionRows, {
-          minChangeCount,
-          confidenceThreshold,
-          directionalDiffThreshold,
-          topK,
-          maxFilesPerCommit: maxFilesPerGroup,
-          excludePairs,
-          pathFilter: defaultTemporalCouplingPathFilter,
-        });
-      }
-
-      return computeSessionCoupling(sessionRows, {
-        minChangeCount,
-        jaccardThreshold,
-        topK,
-        maxFilesPerCommit: maxFilesPerGroup,
-        excludePairs,
-        pathFilter: defaultTemporalCouplingPathFilter,
-      });
+      return this.fetchTemporalCouplingSession(tcParams);
     }
 
     if (isSubagentType) {
-      // filterBy='session' で TC subagentType の既存挙動（s.start_time でのウィンドウ判定）を維持。
-      const activityRows = this.fetchSubagentActivityRows({
-        from: fromIso,
-        to: toIso,
-        toolNames: SESSION_COUPLING_EDIT_TOOLS,
-        filterBy: 'session',
-      });
-      const values: ReadonlyArray<readonly [string, string]> = activityRows.map(
-        (r) => [r.subagentType, r.filePath] as const,
-      );
-
-      // session 粒度と同じ projectRoot 正規化を適用（mtc.file_path は絶対パス）。
-      const projectRootCandidates = Array.from(
-        new Set(
-          this.listCurrentGraphs()
-            .map((g) => g.graph?.metadata?.projectRoot)
-            .filter((p): p is string => typeof p === 'string' && p.length > 0),
-        ),
-      ).sort((a, b) => a.length - b.length);
-      const normalize = this.buildFilePathNormalizer(projectRootCandidates);
-
-      const subagentRows: SubagentTypeFileRow[] = [];
-      let normalizationDropped = 0;
-      for (const r of values) {
-        const subagentType = asText(r[0] ?? '');
-        const rawPath = asText(r[1] ?? '');
-        const normalized = normalize(rawPath);
-        if (subagentType && normalized) {
-          subagentRows.push({ subagentType, filePath: normalized });
-        } else if (subagentType && rawPath && !normalized) {
-          normalizationDropped++;
-        }
-      }
-
-      // 0 件時の診断: 取得段階で空ならスキーマ/データの欠落、正規化で全部落ちたなら projectRoot ミスマッチ。
-      if (subagentRows.length === 0) {
-        const totalMessages = (db.exec(
-          'SELECT COUNT(*) FROM messages WHERE subagent_type IS NOT NULL',
-        )[0]?.values[0]?.[0] ?? 0) as number;
-        this.logger.warn(
-          `[fetchTemporalCoupling/subagentType] 0 rows. ` +
-          `messages.subagent_type populated=${totalMessages}, ` +
-          `mtc_join_rows=${values.length}, normalizationDropped=${normalizationDropped}, ` +
-          `projectRootCandidates=${projectRootCandidates.length}`,
-        );
-      } else {
-        // edges=0 が「グループのファイル数が多すぎてスキップ」由来かを確認できるよう、
-        // 粒度別の生データ件数を残す。maxFilesPerGroup 越えのグループは丸ごと aggregatePairs で除外される。
-        const filesPerType = new Map<string, Set<string>>();
-        for (const r of subagentRows) {
-          let s = filesPerType.get(r.subagentType);
-          if (!s) { s = new Set(); filesPerType.set(r.subagentType, s); }
-          s.add(r.filePath);
-        }
-        const summary = Array.from(filesPerType.entries())
-          .map(([t, s]) => `${t}=${s.size}${s.size > maxFilesPerGroup ? '(SKIPPED:>maxFilesPerGroup)' : ''}`)
-          .join(', ');
-        this.logger.info(
-          `[fetchTemporalCoupling/subagentType] rows=${subagentRows.length}, ` +
-          `maxFilesPerGroup=${maxFilesPerGroup}, normalizationDropped=${normalizationDropped}, ` +
-          `groups: ${summary}`,
-        );
-        // directional は粒度間で Confidence の差を見るので、グループが 1 つしかない場合は
-        // 任意のペアで co=count(A)=count(B) → C(A→B)=C(B→A)=1.0 → diff=0 で必ず undirected になる。
-        // 矢印が出ない原因が「単一グループ」であることを発見できるよう WARN を出す。
-        if (directional && filesPerType.size < 2) {
-          this.logger.warn(
-            `[fetchTemporalCoupling/subagentType] directional=true だが subagent_type が ${filesPerType.size} 種類しか存在しないため、` +
-            `すべてのペアが undirected になり矢印は描画されません。` +
-            `期間（windowDays）を伸ばすか、複数の subagent_type を含むデータの取り込みを確認してください。`,
-          );
-        }
-      }
-
-      if (directional) {
-        return computeSubagentTypeConfidenceCoupling(subagentRows, {
-          minChangeCount,
-          confidenceThreshold,
-          directionalDiffThreshold,
-          topK,
-          maxFilesPerCommit: maxFilesPerGroup,
-          excludePairs,
-          pathFilter: defaultTemporalCouplingPathFilter,
-        });
-      }
-
-      return computeSubagentTypeCoupling(subagentRows, {
-        minChangeCount,
-        jaccardThreshold,
-        topK,
-        maxFilesPerCommit: maxFilesPerGroup,
-        excludePairs,
-        pathFilter: defaultTemporalCouplingPathFilter,
-      });
+      return this.fetchTemporalCouplingSubagentType(tcParams);
     }
 
     // commit 粒度 (Phase 1/2)
@@ -7759,6 +7539,153 @@ export class TrailDatabase {
       excludePairs,
       pathFilter: defaultTemporalCouplingPathFilter,
     });
+  }
+
+  private fetchTemporalCouplingSession(p: {
+    db: Database; fromIso: string; toIso: string; directional: boolean;
+    minChangeCount: number; jaccardThreshold: number; confidenceThreshold: number;
+    directionalDiffThreshold: number; topK: number; maxFilesPerGroup: number;
+    excludePairs: ReadonlyArray<readonly [string, string]>;
+  }): TemporalCouplingEdge[] | ConfidenceCouplingEdge[] {
+    const { db, fromIso, toIso, directional, minChangeCount, jaccardThreshold,
+      confidenceThreshold, directionalDiffThreshold, topK, maxFilesPerGroup, excludePairs } = p;
+    const editToolPlaceholders = SESSION_COUPLING_EDIT_TOOLS.map(() => '?').join(', ');
+    const result = db.exec(
+      `SELECT mtc.session_id, mtc.file_path
+       FROM message_tool_calls mtc
+       JOIN sessions s ON s.id = mtc.session_id
+       WHERE mtc.tool_name IN (${editToolPlaceholders})
+         AND mtc.file_path IS NOT NULL
+         AND mtc.file_path != ''
+         AND s.start_time >= ? AND s.start_time <= ?
+       ORDER BY mtc.session_id`,
+      [...SESSION_COUPLING_EDIT_TOOLS, fromIso, toIso],
+    );
+    const values = result[0]?.values ?? [];
+
+    const projectRootCandidates = Array.from(
+      new Set(
+        this.listCurrentGraphs()
+          .map((g) => g.graph?.metadata?.projectRoot)
+          .filter((p): p is string => typeof p === 'string' && p.length > 0),
+      ),
+    ).sort((a, b) => a.length - b.length);
+    const normalize = this.buildFilePathNormalizer(projectRootCandidates);
+
+    const sessionRows: SessionFileRow[] = [];
+    for (const r of values) {
+      const sessionId = asText(r[0] ?? '');
+      const normalized = normalize(asText(r[1] ?? ''));
+      if (sessionId && normalized) {
+        sessionRows.push({ sessionId, filePath: normalized });
+      }
+    }
+
+    if (directional) {
+      return computeSessionConfidenceCoupling(sessionRows, {
+        minChangeCount, confidenceThreshold, directionalDiffThreshold, topK,
+        maxFilesPerCommit: maxFilesPerGroup, excludePairs, pathFilter: defaultTemporalCouplingPathFilter,
+      });
+    }
+    return computeSessionCoupling(sessionRows, {
+      minChangeCount, jaccardThreshold, topK,
+      maxFilesPerCommit: maxFilesPerGroup, excludePairs, pathFilter: defaultTemporalCouplingPathFilter,
+    });
+  }
+
+  private fetchTemporalCouplingSubagentType(p: {
+    db: Database; fromIso: string; toIso: string; directional: boolean;
+    minChangeCount: number; jaccardThreshold: number; confidenceThreshold: number;
+    directionalDiffThreshold: number; topK: number; maxFilesPerGroup: number;
+    excludePairs: ReadonlyArray<readonly [string, string]>;
+  }): TemporalCouplingEdge[] | ConfidenceCouplingEdge[] {
+    const { db, fromIso, toIso, directional, minChangeCount, jaccardThreshold,
+      confidenceThreshold, directionalDiffThreshold, topK, maxFilesPerGroup, excludePairs } = p;
+    // filterBy='session' で TC subagentType の既存挙動（s.start_time でのウィンドウ判定）を維持。
+    const activityRows = this.fetchSubagentActivityRows({
+      from: fromIso, to: toIso, toolNames: SESSION_COUPLING_EDIT_TOOLS, filterBy: 'session',
+    });
+    const rawValues: ReadonlyArray<readonly [string, string]> = activityRows.map(
+      (r) => [r.subagentType, r.filePath] as const,
+    );
+
+    const projectRootCandidates = Array.from(
+      new Set(
+        this.listCurrentGraphs()
+          .map((g) => g.graph?.metadata?.projectRoot)
+          .filter((p): p is string => typeof p === 'string' && p.length > 0),
+      ),
+    ).sort((a, b) => a.length - b.length);
+    const normalize = this.buildFilePathNormalizer(projectRootCandidates);
+
+    const subagentRows: SubagentTypeFileRow[] = [];
+    let normalizationDropped = 0;
+    for (const r of rawValues) {
+      const subagentType = asText(r[0] ?? '');
+      const rawPath = asText(r[1] ?? '');
+      const normalized = normalize(rawPath);
+      if (subagentType && normalized) {
+        subagentRows.push({ subagentType, filePath: normalized });
+      } else if (subagentType && rawPath && !normalized) {
+        normalizationDropped++;
+      }
+    }
+
+    this.logSubagentTypeCouplingDiagnostics(db, subagentRows, rawValues.length, normalizationDropped, maxFilesPerGroup, directional);
+
+    if (directional) {
+      return computeSubagentTypeConfidenceCoupling(subagentRows, {
+        minChangeCount, confidenceThreshold, directionalDiffThreshold, topK,
+        maxFilesPerCommit: maxFilesPerGroup, excludePairs, pathFilter: defaultTemporalCouplingPathFilter,
+      });
+    }
+    return computeSubagentTypeCoupling(subagentRows, {
+      minChangeCount, jaccardThreshold, topK,
+      maxFilesPerCommit: maxFilesPerGroup, excludePairs, pathFilter: defaultTemporalCouplingPathFilter,
+    });
+  }
+
+  private logSubagentTypeCouplingDiagnostics(
+    db: Database,
+    subagentRows: SubagentTypeFileRow[],
+    rawCount: number,
+    normalizationDropped: number,
+    maxFilesPerGroup: number,
+    directional: boolean,
+  ): void {
+    if (subagentRows.length === 0) {
+      const totalMessages = (db.exec(
+        'SELECT COUNT(*) FROM messages WHERE subagent_type IS NOT NULL',
+      )[0]?.values[0]?.[0] ?? 0) as number;
+      this.logger.warn(
+        `[fetchTemporalCoupling/subagentType] 0 rows. ` +
+        `messages.subagent_type populated=${totalMessages}, ` +
+        `mtc_join_rows=${rawCount}, normalizationDropped=${normalizationDropped}`,
+      );
+      return;
+    }
+    // edges=0 が「グループのファイル数が多すぎてスキップ」由来かを確認できるよう、粒度別の生データ件数を残す。
+    const filesPerType = new Map<string, Set<string>>();
+    for (const r of subagentRows) {
+      let s = filesPerType.get(r.subagentType);
+      if (!s) { s = new Set(); filesPerType.set(r.subagentType, s); }
+      s.add(r.filePath);
+    }
+    const summary = Array.from(filesPerType.entries())
+      .map(([t, s]) => `${t}=${s.size}${s.size > maxFilesPerGroup ? '(SKIPPED:>maxFilesPerGroup)' : ''}`)
+      .join(', ');
+    this.logger.info(
+      `[fetchTemporalCoupling/subagentType] rows=${subagentRows.length}, ` +
+      `maxFilesPerGroup=${maxFilesPerGroup}, normalizationDropped=${normalizationDropped}, ` +
+      `groups: ${summary}`,
+    );
+    if (directional && filesPerType.size < 2) {
+      this.logger.warn(
+        `[fetchTemporalCoupling/subagentType] directional=true だが subagent_type が ${filesPerType.size} 種類しか存在しないため、` +
+        `すべてのペアが undirected になり矢印は描画されません。` +
+        `期間（windowDays）を伸ばすか、複数の subagent_type を含むデータの取り込みを確認してください。`,
+      );
+    }
   }
 
   fetchDefectRisk(options: FetchDefectRiskOptions & { repo?: string }): DefectRiskEntry[] {
@@ -8587,14 +8514,22 @@ export class TrailDatabase {
       const repo = repoByCcId.get(ccId) ?? '';
       const candidates = codexByRepo.get(repo) ?? [];
       if (candidates.length === 0) continue;
-      const m = new Map<string, string>();
-      for (const d of delegations) {
-        const matched = matchCodexSessionByTime(d.ms, candidates);
-        if (matched) m.set(d.parentUuid, matched);
-      }
+      const m = this.buildDelegationMatchMap(delegations, candidates);
       if (m.size > 0) out.set(ccId, m);
     }
     return out;
+  }
+
+  private buildDelegationMatchMap(
+    delegations: Array<{ parentUuid: string; ms: number }>,
+    candidates: Parameters<typeof matchCodexSessionByTime>[1],
+  ): Map<string, string> {
+    const m = new Map<string, string>();
+    for (const d of delegations) {
+      const matched = matchCodexSessionByTime(d.ms, candidates);
+      if (matched) m.set(d.parentUuid, matched);
+    }
+    return m;
   }
 
   /** fetchSubagentActivityRows 経路 A: CC ネイティブ subagent の行を rows に追記する。 */
@@ -8853,6 +8788,116 @@ export class TrailDatabase {
    * Compute tool-call-based metrics (Retry Rate, Build/Test Fail Rate).
    * If sessionId is provided, scopes to that session only.
    */
+  private analyzeSessionToolCallRows(
+    rows: unknown[][],
+  ): {
+    totalEdits: number; totalRetries: number;
+    totalBuildRuns: number; totalBuildFails: number;
+    totalTestRuns: number; totalTestFails: number;
+  } {
+    const BUILD_RE = /\b(npm run build|npx tsc|tsc\b|webpack|vite build|esbuild|rollup)\b/;
+    const TEST_RE = /\b(jest|vitest|npm run test|npm test|npx jest)\b/;
+    const FAIL_RE = /ERR!|exit code [1-9]|non-zero exit|Command failed/i;
+    let totalEdits = 0; let totalRetries = 0;
+    let totalBuildRuns = 0; let totalBuildFails = 0;
+    let totalTestRuns = 0; let totalTestFails = 0;
+    const editsBySession = new Map<string, Map<string, number>>();
+
+    for (const row of rows) {
+      const sessId = String(row[0]);
+      const toolCallsJson = String(row[1]);
+      const toolResultStr = row[2] == null ? null : asText(row[2]);
+      let calls: { name: string; input: Record<string, unknown> }[];
+      try {
+        calls = JSON.parse(toolCallsJson);
+      } catch { continue; }
+      if (!Array.isArray(calls)) continue;
+
+      for (const call of calls) {
+        if (call.name === 'Edit' || call.name === 'Write') {
+          totalEdits++;
+          const filePath = typeof call.input?.file_path === 'string' ? call.input.file_path : '';
+          if (filePath) {
+            let fileMap = editsBySession.get(sessId);
+            if (!fileMap) { fileMap = new Map(); editsBySession.set(sessId, fileMap); }
+            fileMap.set(filePath, (fileMap.get(filePath) ?? 0) + 1);
+          }
+        }
+        if (call.name === 'Bash') {
+          const cmd = typeof call.input?.command === 'string' ? call.input.command : '';
+          const isFailed = toolResultStr != null && FAIL_RE.test(toolResultStr);
+          if (BUILD_RE.test(cmd)) { totalBuildRuns++; if (isFailed) totalBuildFails++; }
+          if (TEST_RE.test(cmd)) { totalTestRuns++; if (isFailed) totalTestFails++; }
+        }
+      }
+    }
+    for (const fileMap of editsBySession.values()) {
+      for (const count of fileMap.values()) {
+        if (count > 1) totalRetries += count - 1;
+      }
+    }
+    return { totalEdits, totalRetries, totalBuildRuns, totalBuildFails, totalTestRuns, totalTestFails };
+  }
+
+  private fetchSessionModelUsage(db: Database, sessionId: string): { model: string; count: number; tokens: number; durationMs: number }[] | undefined {
+    const mdResult = db.exec(
+      `SELECT model,
+              COUNT(*) AS count,
+              CAST(SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) AS INTEGER) AS tokens
+       FROM messages
+       WHERE session_id = ? AND type = 'assistant' AND model IS NOT NULL
+       GROUP BY model ORDER BY count DESC`,
+      [sessionId],
+    );
+    const durResult = db.exec(
+      `WITH turn_dur AS (
+         SELECT DISTINCT session_id, turn_index, model, turn_exec_ms
+         FROM message_tool_calls
+         WHERE session_id = ? AND model IS NOT NULL
+       )
+       SELECT model, CAST(SUM(COALESCE(turn_exec_ms, 0)) AS INTEGER) AS duration_ms
+       FROM turn_dur GROUP BY model`,
+      [sessionId],
+    );
+    const durMap = new Map<string, number>();
+    if (durResult[0]) {
+      const cols = durResult[0].columns;
+      for (const row of durResult[0].values) {
+        const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
+        durMap.set(asText(r['model'] ?? ''), Number(r['duration_ms'] ?? 0));
+      }
+    }
+    if (!mdResult[0]) return undefined;
+    const cols = mdResult[0].columns;
+    return mdResult[0].values.map(row => {
+      const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
+      const model = asText(r['model'] ?? '');
+      return { model, count: Number(r['count'] ?? 0), tokens: Number(r['tokens'] ?? 0), durationMs: durMap.get(model) ?? 0 };
+    });
+  }
+
+  private fetchSessionErrorsByTool(db: Database, sessionId: string): { tool: string; count: number }[] | undefined {
+    const erResult = db.exec(
+      String.raw`SELECT CASE
+                WHEN tool_name LIKE 'mcp\_\_%\_\_%' ESCAPE '\'
+                THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
+                ELSE tool_name
+              END AS tool,
+              COUNT(*) AS count
+       FROM message_tool_calls
+       WHERE session_id = ? AND is_error = 1
+       GROUP BY tool
+       ORDER BY count DESC`,
+      [sessionId],
+    );
+    if (!erResult[0]) return undefined;
+    const cols = erResult[0].columns;
+    return erResult[0].values.map(row => {
+      const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
+      return { tool: asText(r['tool'] ?? ''), count: Number(r['count'] ?? 0) };
+    });
+  }
+
   computeToolMetrics(sessionId?: string): {
     totalRetries: number;
     totalEdits: number;
@@ -8930,156 +8975,17 @@ export class TrailDatabase {
       );
       if (!result[0]) return zero;
 
-      const BUILD_RE = /\b(npm run build|npx tsc|tsc\b|webpack|vite build|esbuild|rollup)\b/;
-      const TEST_RE = /\b(jest|vitest|npm run test|npm test|npx jest)\b/;
-      const FAIL_RE = /ERR!|exit code [1-9]|non-zero exit|Command failed/i;
+      const {
+        totalEdits, totalRetries,
+        totalBuildRuns, totalBuildFails,
+        totalTestRuns, totalTestFails,
+      } = this.analyzeSessionToolCallRows(result[0].values);
 
-      let totalEdits = 0;
-      let totalRetries = 0;
-      let totalBuildRuns = 0;
-      let totalBuildFails = 0;
-      let totalTestRuns = 0;
-      let totalTestFails = 0;
-
-      // Track Edit file paths per session for retry detection
-      const editsBySession = new Map<string, Map<string, number>>();
-
-      for (const row of result[0].values) {
-        const sessId = String(row[0]);
-        const toolCallsJson = String(row[1]);
-        const toolResultStr = row[2] == null ? null : asText(row[2]);
-
-        let calls: { name: string; input: Record<string, unknown> }[];
-        try {
-          calls = JSON.parse(toolCallsJson);
-        } catch {
-          continue;
-        }
-        if (!Array.isArray(calls)) continue;
-
-        for (const call of calls) {
-          if (call.name === 'Edit' || call.name === 'Write') {
-            totalEdits++;
-            const filePath = typeof call.input?.file_path === 'string'
-              ? call.input.file_path : '';
-            if (filePath) {
-              let fileMap = editsBySession.get(sessId);
-              if (!fileMap) {
-                fileMap = new Map();
-                editsBySession.set(sessId, fileMap);
-              }
-              fileMap.set(filePath, (fileMap.get(filePath) ?? 0) + 1);
-            }
-          }
-
-          if (call.name === 'Bash') {
-            const cmd = typeof call.input?.command === 'string'
-              ? call.input.command : '';
-            const isFailed = toolResultStr != null && FAIL_RE.test(toolResultStr);
-
-            if (BUILD_RE.test(cmd)) {
-              totalBuildRuns++;
-              if (isFailed) totalBuildFails++;
-            }
-            if (TEST_RE.test(cmd)) {
-              totalTestRuns++;
-              if (isFailed) totalTestFails++;
-            }
-          }
-        }
-      }
-
-      // Count retries: for each session, files edited 2+ times contribute
-      // (editCount - 1) retries per file
-      for (const fileMap of editsBySession.values()) {
-        for (const count of fileMap.values()) {
-          if (count > 1) {
-            totalRetries += count - 1;
-          }
-        }
-      }
-
-      // セッション指定時のみツール別利用統計を集計
-      let toolUsage: readonly { tool: string; count: number; tokens: number; durationMs: number }[] | undefined;
-      if (sessionId) {
-        toolUsage = this.aggregateToolUsageBySession(sessionId);
-      }
-
-      // スキル別利用統計
-      let skillUsage: readonly { skill: string; count: number; tokens: number; durationMs: number }[] | undefined;
-      if (sessionId) {
-        skillUsage = this.aggregateSkillUsageBySession(sessionId);
-      }
-
-      // モデル別利用統計: count/tokens は assistant メッセージから、durationMs は distinct turn_exec_ms から集計
-      let modelUsage: { model: string; count: number; tokens: number; durationMs: number }[] | undefined;
-      if (sessionId) {
-        const mdResult = db.exec(
-          `SELECT model,
-                  COUNT(*) AS count,
-                  CAST(SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) AS INTEGER) AS tokens
-           FROM messages
-           WHERE session_id = ? AND type = 'assistant' AND model IS NOT NULL
-           GROUP BY model ORDER BY count DESC`,
-          [sessionId],
-        );
-        const durResult = db.exec(
-          `WITH turn_dur AS (
-             SELECT DISTINCT session_id, turn_index, model, turn_exec_ms
-             FROM message_tool_calls
-             WHERE session_id = ? AND model IS NOT NULL
-           )
-           SELECT model, CAST(SUM(COALESCE(turn_exec_ms, 0)) AS INTEGER) AS duration_ms
-           FROM turn_dur GROUP BY model`,
-          [sessionId],
-        );
-        const durMap = new Map<string, number>();
-        if (durResult[0]) {
-          const cols = durResult[0].columns;
-          for (const row of durResult[0].values) {
-            const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
-            durMap.set(asText(r['model'] ?? ''), Number(r['duration_ms'] ?? 0));
-          }
-        }
-        if (mdResult[0]) {
-          const cols = mdResult[0].columns;
-          modelUsage = mdResult[0].values.map(row => {
-            const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
-            const model = asText(r['model'] ?? '');
-            return {
-              model,
-              count: Number(r['count'] ?? 0),
-              tokens: Number(r['tokens'] ?? 0),
-              durationMs: durMap.get(model) ?? 0,
-            };
-          });
-        }
-      }
-
-      // ツール別エラー回数（MCP 正規化）
-      let errorsByTool: { tool: string; count: number }[] | undefined;
-      if (sessionId) {
-        const erResult = db.exec(
-          String.raw`SELECT CASE
-                    WHEN tool_name LIKE 'mcp\_\_%\_\_%' ESCAPE '\'
-                    THEN SUBSTR(tool_name, 1, INSTR(SUBSTR(tool_name, 6), '__') + 4)
-                    ELSE tool_name
-                  END AS tool,
-                  COUNT(*) AS count
-           FROM message_tool_calls
-           WHERE session_id = ? AND is_error = 1
-           GROUP BY tool
-           ORDER BY count DESC`,
-          [sessionId],
-        );
-        if (erResult[0]) {
-          const cols = erResult[0].columns;
-          errorsByTool = erResult[0].values.map(row => {
-            const r = Object.fromEntries(cols.map((c, i) => [c, row[i]]));
-            return { tool: asText(r['tool'] ?? ''), count: Number(r['count'] ?? 0) };
-          });
-        }
-      }
+      // セッション指定時のみツール別/スキル別/モデル別/エラー別統計を集計
+      const toolUsage = this.aggregateToolUsageBySession(sessionId);
+      const skillUsage = this.aggregateSkillUsageBySession(sessionId);
+      const modelUsage = this.fetchSessionModelUsage(db, sessionId);
+      const errorsByTool = this.fetchSessionErrorsByTool(db, sessionId);
 
       return {
         totalRetries, totalEdits,
@@ -9479,6 +9385,132 @@ export class TrailDatabase {
     };
   }
 
+  private aggregateModelStats(modelRows: Record<string, unknown>[]): Array<{
+    period: string; model: string; count: number; tokens: number;
+    tokenMissingRate: number; tokenTotalTurns: number; tokenMissingTurns: number;
+  }> {
+    const modelAggMap = new Map<string, { count: number; tokens: number; totalTurns: number; missingTurns: number }>();
+    for (const r of modelRows) {
+      const period = asText(r['period'] ?? '');
+      const source = asText(r['source'] ?? '') as PricingSource;
+      const model = resolvePricingModelName(asText(r['model'] ?? ''), source);
+      const count = Number(r['count'] ?? 0);
+      const rawTokens = Number(r['tokens'] ?? 0);
+      const missingTurns = Number(r['token_missing_turns'] ?? 0);
+      const observedTurns = count - missingTurns;
+      const factor = observedTurns > 0 ? count / observedTurns : 1;
+      const key = `${period}::${model}`;
+      const cur = modelAggMap.get(key) ?? { count: 0, tokens: 0, totalTurns: 0, missingTurns: 0 };
+      cur.count += count;
+      cur.tokens += Math.round(rawTokens * factor);
+      cur.totalTurns += count;
+      cur.missingTurns += missingTurns;
+      modelAggMap.set(key, cur);
+    }
+    return [...modelAggMap.entries()].map(([k, v]) => {
+      const sep = k.indexOf('::');
+      return {
+        period: k.slice(0, sep),
+        model: k.slice(sep + 2),
+        count: v.count,
+        tokens: v.tokens,
+        tokenMissingRate: v.totalTurns > 0 ? v.missingTurns / v.totalTurns : 0,
+        tokenTotalTurns: v.totalTurns,
+        tokenMissingTurns: v.missingTurns,
+      };
+    });
+  }
+
+  private aggregateAgentStats(
+    agentTokenRows: Record<string, unknown>[],
+    agentCostRows: Record<string, unknown>[],
+    agentLocRows: Record<string, unknown>[],
+  ): Array<{
+    period: string; agent: string; tokens: number; costUsd: number; loc: number;
+    tokenMissingRate: number; tokenTotalTurns: number; tokenMissingTurns: number;
+  }> {
+    type AgentEntry = { tokens: number; costUsd: number; loc: number; tokenTotalTurns: number; tokenMissingTurns: number };
+    const agentMap = new Map<string, AgentEntry>();
+    const addMetric = (period: string, agent: string, delta: Partial<AgentEntry>) => {
+      const key = `${period}::${agent}`;
+      const cur = agentMap.get(key) ?? { tokens: 0, costUsd: 0, loc: 0, tokenTotalTurns: 0, tokenMissingTurns: 0 };
+      cur.tokens += delta.tokens ?? 0;
+      cur.costUsd += delta.costUsd ?? 0;
+      cur.loc += delta.loc ?? 0;
+      cur.tokenTotalTurns += delta.tokenTotalTurns ?? 0;
+      cur.tokenMissingTurns += delta.tokenMissingTurns ?? 0;
+      agentMap.set(key, cur);
+    };
+    for (const r of agentTokenRows) {
+      addMetric(asText(r['period'] ?? ''), asText(r['agent'] ?? ''), {
+        tokens: Number(r['tokens'] ?? 0),
+        tokenTotalTurns: Number(r['token_total_turns'] ?? 0),
+        tokenMissingTurns: Number(r['token_missing_turns'] ?? 0),
+      });
+    }
+    for (const r of agentCostRows) {
+      addMetric(asText(r['period'] ?? ''), asText(r['agent'] ?? ''), { costUsd: Number(r['cost_usd'] ?? 0) });
+    }
+    for (const r of agentLocRows) {
+      addMetric(asText(r['period'] ?? ''), asText(r['agent'] ?? ''), { loc: Number(r['loc'] ?? 0) });
+    }
+    return [...agentMap.entries()].map(([k, v]) => {
+      const sep = k.indexOf('::');
+      const observedTurns = v.tokenTotalTurns - v.tokenMissingTurns;
+      const factor = observedTurns > 0 ? v.tokenTotalTurns / observedTurns : 1;
+      return {
+        period: k.slice(0, sep),
+        agent: k.slice(sep + 2),
+        tokens: Math.round(v.tokens * factor),
+        costUsd: v.costUsd * factor,
+        loc: v.loc,
+        tokenMissingRate: v.tokenTotalTurns > 0 ? v.tokenMissingTurns / v.tokenTotalTurns : 0,
+        tokenTotalTurns: v.tokenTotalTurns,
+        tokenMissingTurns: v.tokenMissingTurns,
+      };
+    });
+  }
+
+  private computeAiFirstTryRate(
+    commitRows: Array<{
+      period: string; repoName: string; hash: string; subject: string;
+      committed_at: string; is_ai_assisted: boolean; linesAdded: number;
+      linesDeleted: number; files: string[];
+    }>,
+    todayPeriod: string,
+  ): Array<{ period: string; rate: number; sampleSize: number }> {
+    const fixes = commitRows
+      .filter(c => isAiFirstTryFailureCommit(c.subject))
+      .map(c => ({ ms: Date.parse(c.committed_at), codeFiles: c.files.filter(isCodeFile) }))
+      .filter(f => !Number.isNaN(f.ms));
+    const rateAgg = new Map<string, { total: number; success: number }>();
+    for (const c of commitRows) {
+      if (!c.is_ai_assisted) continue;
+      if (c.period > todayPeriod) continue;
+      const codeFiles = c.files.filter(isCodeFile);
+      if (c.files.length > 0 && codeFiles.length === 0) continue;
+      const commitMs = Date.parse(c.committed_at);
+      if (Number.isNaN(commitMs)) continue;
+      const aiSet = new Set(codeFiles);
+      const failed = fixes.some(f =>
+        f.ms > commitMs &&
+        f.ms - commitMs <= AI_FIRST_TRY_FIX_WINDOW_MS &&
+        (aiSet.size > 0 && f.codeFiles.some(fp => aiSet.has(fp))),
+      );
+      const e = rateAgg.get(c.period) ?? { total: 0, success: 0 };
+      e.total += 1;
+      if (!failed) e.success += 1;
+      rateAgg.set(c.period, e);
+    }
+    return [...rateAgg.entries()]
+      .map(([period, { total, success }]) => ({
+        period,
+        rate: total === 0 ? 0 : (success / total) * 100,
+        sampleSize: total,
+      }))
+      .sort((a, b) => a.period.localeCompare(b.period));
+  }
+
   getCombinedData(period: 'day' | 'week', rangeDays: 30 | 90): CombinedData {
     const db = this.ensureDb();
     // daily_counts.date は YYYY-MM-DD（タイムゾーン適用済み）。
@@ -9592,36 +9624,7 @@ export class TrailDatabase {
        WHERE m.type = 'assistant' AND DATE(s.start_time, '${tzOffset}') >= ${cutoff}
        GROUP BY period, COALESCE(m.model, ''), s.source`,
     );
-    const modelAggMap = new Map<string, { count: number; tokens: number; totalTurns: number; missingTurns: number }>();
-    for (const r of toRows(modelResult)) {
-      const period = asText(r['period'] ?? '');
-      const source = asText(r['source'] ?? '') as PricingSource;
-      const model = resolvePricingModelName(asText(r['model'] ?? ''), source);
-      const count = Number(r['count'] ?? 0);
-      const rawTokens = Number(r['tokens'] ?? 0);
-      const missingTurns = Number(r['token_missing_turns'] ?? 0);
-      const observedTurns = count - missingTurns;
-      const factor = observedTurns > 0 ? count / observedTurns : 1;
-      const key = `${period}::${model}`;
-      const cur = modelAggMap.get(key) ?? { count: 0, tokens: 0, totalTurns: 0, missingTurns: 0 };
-      cur.count += count;
-      cur.tokens += Math.round(rawTokens * factor);
-      cur.totalTurns += count;
-      cur.missingTurns += missingTurns;
-      modelAggMap.set(key, cur);
-    }
-    const modelStats = [...modelAggMap.entries()].map(([k, v]) => {
-      const sep = k.indexOf('::');
-      return {
-        period: k.slice(0, sep),
-        model: k.slice(sep + 2),
-        count: v.count,
-        tokens: v.tokens,
-        tokenMissingRate: v.totalTurns > 0 ? v.missingTurns / v.totalTurns : 0,
-        tokenTotalTurns: v.totalTurns,
-        tokenMissingTurns: v.missingTurns,
-      };
-    });
+    const modelStats = this.aggregateModelStats(toRows(modelResult));
 
     const agentTokenResult = db.exec(
       `SELECT ${sessionStartPeriodExpr} AS period,
@@ -9656,45 +9659,9 @@ export class TrailDatabase {
        WHERE DATE(c.committed_at, '${tzOffset}') >= ${cutoff}
        GROUP BY period, agent`,
     );
-    const agentMap = new Map<string, { tokens: number; costUsd: number; loc: number; tokenTotalTurns: number; tokenMissingTurns: number }>();
-    const addAgentMetric = (period: string, agent: string, delta: Partial<{ tokens: number; costUsd: number; loc: number; tokenTotalTurns: number; tokenMissingTurns: number }>) => {
-      const key = `${period}::${agent}`;
-      const cur = agentMap.get(key) ?? { tokens: 0, costUsd: 0, loc: 0, tokenTotalTurns: 0, tokenMissingTurns: 0 };
-      cur.tokens += delta.tokens ?? 0;
-      cur.costUsd += delta.costUsd ?? 0;
-      cur.loc += delta.loc ?? 0;
-      cur.tokenTotalTurns += delta.tokenTotalTurns ?? 0;
-      cur.tokenMissingTurns += delta.tokenMissingTurns ?? 0;
-      agentMap.set(key, cur);
-    };
-    for (const r of toRows(agentTokenResult)) {
-      addAgentMetric(asText(r['period'] ?? ''), asText(r['agent'] ?? ''), {
-        tokens: Number(r['tokens'] ?? 0),
-        tokenTotalTurns: Number(r['token_total_turns'] ?? 0),
-        tokenMissingTurns: Number(r['token_missing_turns'] ?? 0),
-      });
-    }
-    for (const r of toRows(agentCostResult)) {
-      addAgentMetric(asText(r['period'] ?? ''), asText(r['agent'] ?? ''), { costUsd: Number(r['cost_usd'] ?? 0) });
-    }
-    for (const r of toRows(agentLocResult)) {
-      addAgentMetric(asText(r['period'] ?? ''), asText(r['agent'] ?? ''), { loc: Number(r['loc'] ?? 0) });
-    }
-    const agentStats = [...agentMap.entries()].map(([k, v]) => {
-      const sep = k.indexOf('::');
-      const observedTurns = v.tokenTotalTurns - v.tokenMissingTurns;
-      const factor = observedTurns > 0 ? v.tokenTotalTurns / observedTurns : 1;
-      return {
-        period: k.slice(0, sep),
-        agent: k.slice(sep + 2),
-        tokens: Math.round(v.tokens * factor),
-        costUsd: v.costUsd * factor,
-        loc: v.loc,
-        tokenMissingRate: v.tokenTotalTurns > 0 ? v.tokenMissingTurns / v.tokenTotalTurns : 0,
-        tokenTotalTurns: v.tokenTotalTurns,
-        tokenMissingTurns: v.tokenMissingTurns,
-      };
-    });
+    const agentStats = this.aggregateAgentStats(
+      toRows(agentTokenResult), toRows(agentCostResult), toRows(agentLocResult),
+    );
 
     // Commit stats: session_commits を取得し、AI 1 発成功率のファイル overlap 判定に必要な
     // committed_at / is_ai_assisted / commit_files を一緒に取る。分母の fix 検出のために
@@ -9857,36 +9824,7 @@ export class TrailDatabase {
     }).filter(r => r.repoName !== '');
 
     // AI First-Try Success Rate per period
-    const fixes = commitRows
-      .filter(c => isAiFirstTryFailureCommit(c.subject))
-      .map(c => ({ ms: Date.parse(c.committed_at), codeFiles: c.files.filter(isCodeFile) }))
-      .filter(f => !Number.isNaN(f.ms));
-    const rateAgg = new Map<string, { total: number; success: number }>();
-    for (const c of commitRows) {
-      if (!c.is_ai_assisted) continue;
-      if (c.period > todayPeriod) continue;
-      const codeFiles = c.files.filter(isCodeFile);
-      if (c.files.length > 0 && codeFiles.length === 0) continue;
-      const commitMs = Date.parse(c.committed_at);
-      if (Number.isNaN(commitMs)) continue;
-      const aiSet = new Set(codeFiles);
-      const failed = fixes.some(f =>
-        f.ms > commitMs &&
-        f.ms - commitMs <= AI_FIRST_TRY_FIX_WINDOW_MS &&
-        (aiSet.size > 0 && f.codeFiles.some(fp => aiSet.has(fp))),
-      );
-      const e = rateAgg.get(c.period) ?? { total: 0, success: 0 };
-      e.total += 1;
-      if (!failed) e.success += 1;
-      rateAgg.set(c.period, e);
-    }
-    const aiFirstTryRate = [...rateAgg.entries()]
-      .map(([period, { total, success }]) => ({
-        period,
-        rate: total === 0 ? 0 : (success / total) * 100,
-        sampleSize: total,
-      }))
-      .sort((a, b) => a.period.localeCompare(b.period));
+    const aiFirstTryRate = this.computeAiFirstTryRate(commitRows, todayPeriod);
 
     // Build / Test fail rate per period
     const buildTestResult = db.exec(
@@ -10601,6 +10539,109 @@ export class TrailDatabase {
   //  Releases
   // -------------------------------------------------------------------------
 
+  private insertReleaseFiles(
+    db: Database,
+    git: ExecFileGitService,
+    prevTag: string,
+    tag: string,
+    relId: number,
+  ): void {
+    const fileStats = git.getFileStatsByRange(prevTag, tag);
+    for (const f of fileStats) {
+      try {
+        db.run(
+          `INSERT OR IGNORE INTO release_files (release_id, file_path, lines_added, lines_deleted, change_type)
+           VALUES (?, ?, ?, ?, ?)`,
+          [relId, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
+        );
+      } catch { /* ignore */ }
+    }
+  }
+
+  private backfillExistingRelease(
+    db: Database,
+    git: ExecFileGitService,
+    relId: number,
+    tag: string,
+    prevTag: string | null,
+  ): boolean {
+    let updated = false;
+    const totalLinesResult = db.exec('SELECT total_lines FROM releases WHERE release_id = ?', [relId]);
+    const existingTotalLines = Number(totalLinesResult[0]?.values?.[0]?.[0] ?? 0);
+    if (existingTotalLines === 0) {
+      const snapshotLines = git.getSnapshotLineCount(tag);
+      if (snapshotLines > 0) {
+        try {
+          db.run(`UPDATE releases SET total_lines = ? WHERE release_id = ?`, [snapshotLines, relId]);
+          updated = true;
+        } catch {
+          // ignore backfill failures
+        }
+      }
+    }
+    if (prevTag) {
+      const filesExist = db.exec('SELECT COUNT(*) FROM release_files WHERE release_id = ?', [relId]);
+      if ((filesExist[0]?.values?.[0]?.[0] as number) <= 0) {
+        const fileStats = git.getFileStatsByRange(prevTag, tag);
+        this.insertReleaseFiles(db, git, prevTag, tag, relId);
+        if (fileStats.length > 0) updated = true;
+      }
+    }
+    return updated;
+  }
+
+  private insertNewRelease(
+    db: Database,
+    git: ExecFileGitService,
+    tag: string,
+    prevTag: string | null,
+    repoName: string,
+    repoId: number,
+  ): void {
+    const commitHash = git.getTagCommitHash(tag);
+    const allTagsAtCommit = git.getTagsAtCommit(commitHash);
+    const packageTags = allTagsAtCommit.filter((t) => t !== tag && !t.startsWith('v'));
+    const releasedAt = git.getTagDate(tag);
+    const prevReleasedAt = prevTag ? git.getTagDate(prevTag) : null;
+
+    const commitSubjects = prevTag ? git.getCommitSubjects(prevTag, tag) : [];
+    const stats = prevTag
+      ? git.getDiffStats(prevTag, tag)
+      : { filesChanged: 0, linesAdded: 0, linesDeleted: 0 };
+    const packages = prevTag ? git.getChangedPackages(prevTag, tag) : [];
+    const totalLines = git.getSnapshotLineCount(tag);
+
+    const release = buildReleaseFromGitData({
+      tag, prevTag, releasedAt, prevReleasedAt, repoName, packageTags, commitSubjects,
+      filesChanged: stats.filesChanged, linesAdded: stats.linesAdded, linesDeleted: stats.linesDeleted,
+      totalLines, affectedPackages: packages,
+    });
+
+    const prevReleaseId = release.prevTag ? this.releaseIdForTag(db, release.prevTag) : null;
+
+    db.run(
+      `INSERT INTO releases (
+        tag, released_at, prev_release_id, repo_id, package_tags,
+        commit_count, files_changed, lines_added, lines_deleted,
+        total_lines,
+        feat_count, fix_count, refactor_count, test_count, other_count,
+        affected_packages, duration_days
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        release.tag, release.releasedAt, prevReleaseId, repoId,
+        JSON.stringify(release.packageTags), release.commitCount,
+        release.filesChanged, release.linesAdded, release.linesDeleted, release.totalLines,
+        release.featCount, release.fixCount, release.refactorCount, release.testCount, release.otherCount,
+        JSON.stringify(release.affectedPackages), release.durationDays,
+      ],
+    );
+
+    const newRelId = this.releaseIdForTag(db, release.tag);
+    if (prevTag && newRelId != null) {
+      this.insertReleaseFiles(db, git, prevTag, tag, newRelId);
+    }
+  }
+
   resolveReleases(gitRoot: string): number {
     const db = this.ensureDb();
     const git = new ExecFileGitService(gitRoot);
@@ -10614,130 +10655,17 @@ export class TrailDatabase {
 
     for (let i = 0; i < tags.length; i++) {
       const tag = tags[i];
+      const prevTag = i + 1 < tags.length ? tags[i + 1] : null;
       const existingRes = db.exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
       const existingReleaseId = existingRes[0]?.values?.[0]?.[0];
       if (existingReleaseId != null) {
-        // Release exists — backfill release_files if missing
-        const relId = Number(existingReleaseId);
-        const prevTag = i + 1 < tags.length ? tags[i + 1] : null;
-        const totalLinesResult = db.exec('SELECT total_lines FROM releases WHERE release_id = ?', [relId]);
-        const existingTotalLines = Number(totalLinesResult[0]?.values?.[0]?.[0] ?? 0);
-        if (existingTotalLines === 0) {
-          const snapshotLines = git.getSnapshotLineCount(tag);
-          if (snapshotLines > 0) {
-            try {
-              db.run(
-                `UPDATE releases SET total_lines = ? WHERE release_id = ?`,
-                [snapshotLines, relId],
-              );
-              count++;
-            } catch {
-              // ignore backfill failures
-            }
-          }
-        }
-        if (prevTag) {
-          const filesExist = db.exec(
-            'SELECT COUNT(*) FROM release_files WHERE release_id = ?',
-            [relId],
-          );
-          if ((filesExist[0]?.values?.[0]?.[0] as number) <= 0) {
-            const fileStats = git.getFileStatsByRange(prevTag, tag);
-            for (const f of fileStats) {
-              try {
-                db.run(
-                  `INSERT OR IGNORE INTO release_files (release_id, file_path, lines_added, lines_deleted, change_type)
-                   VALUES (?, ?, ?, ?, ?)`,
-                  [relId, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
-                );
-              } catch { /* ignore */ }
-            }
-            if (fileStats.length > 0) count++;
-          }
-        }
+        // Release exists — backfill release_files/total_lines if missing
+        const updated = this.backfillExistingRelease(db, git, Number(existingReleaseId), tag, prevTag);
+        if (updated) count++;
         continue;
       }
 
-      const prevTag = i + 1 < tags.length ? tags[i + 1] : null;
-      const commitHash = git.getTagCommitHash(tag);
-      const allTagsAtCommit = git.getTagsAtCommit(commitHash);
-      const packageTags = allTagsAtCommit.filter((t) => t !== tag && !t.startsWith('v'));
-      const releasedAt = git.getTagDate(tag);
-      const prevReleasedAt = prevTag ? git.getTagDate(prevTag) : null;
-
-      const commitSubjects = prevTag ? git.getCommitSubjects(prevTag, tag) : [];
-      const stats = prevTag
-        ? git.getDiffStats(prevTag, tag)
-        : { filesChanged: 0, linesAdded: 0, linesDeleted: 0 };
-      const packages = prevTag ? git.getChangedPackages(prevTag, tag) : [];
-      const totalLines = git.getSnapshotLineCount(tag);
-
-      const release = buildReleaseFromGitData({
-        tag,
-        prevTag,
-        releasedAt,
-        prevReleasedAt,
-        repoName,
-        packageTags,
-        commitSubjects,
-        filesChanged: stats.filesChanged,
-        linesAdded: stats.linesAdded,
-        linesDeleted: stats.linesDeleted,
-        totalLines,
-        affectedPackages: packages,
-      });
-
-      // flip: prev_tag → prev_release_id を解決 (同 repo 内の tag を引く)。
-      const prevReleaseId = release.prevTag ? this.releaseIdForTag(db, release.prevTag) : null;
-
-      // Phase H-5: releases.repo_name 列は撤去済。repo 帰属は repo_id のみで保存する。
-      db.run(
-        `INSERT INTO releases (
-          tag, released_at, prev_release_id, repo_id, package_tags,
-          commit_count, files_changed, lines_added, lines_deleted,
-          total_lines,
-          feat_count, fix_count, refactor_count, test_count, other_count,
-          affected_packages, duration_days
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          release.tag,
-          release.releasedAt,
-          prevReleaseId,
-          repoId,
-          JSON.stringify(release.packageTags),
-          release.commitCount,
-          release.filesChanged,
-          release.linesAdded,
-          release.linesDeleted,
-          release.totalLines,
-          release.featCount,
-          release.fixCount,
-          release.refactorCount,
-          release.testCount,
-          release.otherCount,
-          JSON.stringify(release.affectedPackages),
-          release.durationDays,
-        ],
-      );
-
-      // 新規挿入した release の release_id を取得 (auto-assigned ROWID)。
-      const newRelId = this.releaseIdForTag(db, release.tag);
-
-      // Save release files
-      if (prevTag && newRelId != null) {
-        const fileStats = git.getFileStatsByRange(prevTag, tag);
-        for (const f of fileStats) {
-          try {
-            db.run(
-              `INSERT OR IGNORE INTO release_files (release_id, file_path, lines_added, lines_deleted, change_type)
-               VALUES (?, ?, ?, ?, ?)`,
-              [newRelId, f.filePath, f.linesAdded, f.linesDeleted, f.changeType],
-            );
-          } catch { /* ignore */ }
-        }
-
-      }
-
+      this.insertNewRelease(db, git, tag, prevTag, repoName, repoId);
       count++;
     }
 
@@ -11827,10 +11755,8 @@ export class TrailDatabase {
       }));
     }
 
-    let sql: string;
-    let bindings: DbScalar[];
     if (granularity === 'commit') {
-      sql = `
+      const sql = `
         SELECT sc.committed_at AS committedAt, cf.file_path AS filePath, NULL AS subagentType
         FROM commit_files cf
         INNER JOIN session_commits sc ON cf.commit_hash = sc.commit_hash
@@ -11838,51 +11764,55 @@ export class TrailDatabase {
           AND cf.file_path IN ${inClause}
         ORDER BY sc.committed_at
       `;
-      bindings = useTempTable ? [from, to] : [from, to, ...filePathsIn];
-    } else {
-      const toolNames = sessionMode === 'read' ? ACTIVITY_TREND_READ_TOOLS : SESSION_COUPLING_EDIT_TOOLS;
-      const projectRootCandidates = Array.from(
-        new Set(
-          this.listCurrentGraphs()
-            .map((g) => g.graph?.metadata?.projectRoot)
-            .filter((p): p is string => typeof p === 'string' && p.length > 0),
-        ),
-      );
-      const normalize = this.buildFilePathNormalizer(projectRootCandidates);
-      const allowed = new Set(filePathsIn);
-      const toolPlaceholders = toolNames.map(() => '?').join(', ');
-      sql = `
-        SELECT m.timestamp AS committedAt,
-               mtc.file_path AS filePath,
-               m.subagent_type AS subagentType
-        FROM message_tool_calls mtc
-        INNER JOIN messages m ON mtc.message_uuid = m.uuid
-        WHERE m.timestamp >= ? AND m.timestamp <= ?
-          AND mtc.tool_name IN (${toolPlaceholders})
-          AND mtc.file_path IS NOT NULL
-          AND mtc.file_path != ''
-        ORDER BY m.timestamp
-      `;
-      bindings = [from, to, ...toolNames];
+      const bindings: DbScalar[] = useTempTable ? [from, to] : [from, to, ...filePathsIn];
       const res = db.exec(sql, bindings);
       if (useTempTable) db.run('DROP TABLE IF EXISTS _hotspot_paths');
       if (!res.length) return [];
-      return res[0].values.flatMap((row) => {
-        const normalized = normalize(String(row[1]));
-        if (!normalized || !allowed.has(normalized)) return [];
-        return [{ committedAt: asText(row[0]), filePath: normalized, subagentType: row[2] == null ? null : asText(row[2]) }];
-      });
+      return res[0].values.map((row) => ({
+        committedAt: String(row[0]),
+        filePath: String(row[1]),
+        subagentType: row[2] == null ? null : asText(row[2]),
+      }));
     }
+    return this.fetchActivityTrendSessionRows(db, { from, to, sessionMode, filePathsIn, useTempTable });
+  }
+
+  private fetchActivityTrendSessionRows(
+    db: Database,
+    params: { from: string; to: string; sessionMode: 'read' | 'write'; filePathsIn: ReadonlyArray<string>; useTempTable: boolean },
+  ): ReadonlyArray<{ readonly committedAt: string; readonly filePath: string; readonly subagentType?: string | null }> {
+    const { from, to, sessionMode, filePathsIn, useTempTable } = params;
+    const toolNames = sessionMode === 'read' ? ACTIVITY_TREND_READ_TOOLS : SESSION_COUPLING_EDIT_TOOLS;
+    const projectRootCandidates = Array.from(
+      new Set(
+        this.listCurrentGraphs()
+          .map((g) => g.graph?.metadata?.projectRoot)
+          .filter((p): p is string => typeof p === 'string' && p.length > 0),
+      ),
+    );
+    const normalize = this.buildFilePathNormalizer(projectRootCandidates);
+    const allowed = new Set(filePathsIn);
+    const toolPlaceholders = toolNames.map(() => '?').join(', ');
+    const sql = `
+      SELECT m.timestamp AS committedAt,
+             mtc.file_path AS filePath,
+             m.subagent_type AS subagentType
+      FROM message_tool_calls mtc
+      INNER JOIN messages m ON mtc.message_uuid = m.uuid
+      WHERE m.timestamp >= ? AND m.timestamp <= ?
+        AND mtc.tool_name IN (${toolPlaceholders})
+        AND mtc.file_path IS NOT NULL
+        AND mtc.file_path != ''
+      ORDER BY m.timestamp
+    `;
+    const bindings: DbScalar[] = [from, to, ...toolNames];
     const res = db.exec(sql, bindings);
     if (useTempTable) db.run('DROP TABLE IF EXISTS _hotspot_paths');
     if (!res.length) return [];
-    return res[0].values.map((row) => {
-      const subagentType = row[2];
-      return {
-        committedAt: String(row[0]),
-        filePath: String(row[1]),
-        subagentType: subagentType == null ? null : asText(subagentType),
-      };
+    return res[0].values.flatMap((row) => {
+      const normalized = normalize(String(row[1]));
+      if (!normalized || !allowed.has(normalized)) return [];
+      return [{ committedAt: asText(row[0]), filePath: normalized, subagentType: row[2] == null ? null : asText(row[2]) }];
     });
   }
 }

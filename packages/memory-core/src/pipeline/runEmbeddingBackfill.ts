@@ -105,10 +105,8 @@ export async function runEmbeddingBackfill(opts: {
 
     const done = counters.processed + counters.failed;
     if (done % PROGRESS_LOG_INTERVAL === 0) {
-      logger.info(
-        `[anytime-memory] embedding backfill progress: ${done}/${totalNull} (${counters.failed} failed)`
-      );
-      if (progress) progress(counters.processed, counters.failed);
+      logger.info(`[anytime-memory] embedding backfill progress: ${done}/${totalNull} (${counters.failed} failed)`);
+      progress?.(counters.processed, counters.failed);
     }
   }
 
