@@ -1424,7 +1424,14 @@ export class TrailDataServer {
       return;
     }
     const traceDir = this.resolveTraceDir();
-    const filePath = path.join(traceDir, name);
+    // defense-in-depth: 上の name ガード (.. / / / 非.json を reject) に加え、
+    // 解決後の絶対パスが traceDir 配下に収まることを検証する (path injection / S2083)。
+    const resolvedDir = path.resolve(traceDir);
+    const filePath = path.resolve(resolvedDir, name);
+    if (!filePath.startsWith(resolvedDir + path.sep)) {
+      this.sendError(res, 400, 'Invalid file name');
+      return;
+    }
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
       res.writeHead(200, { 'Content-Type': 'application/json' });
