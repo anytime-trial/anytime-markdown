@@ -237,6 +237,22 @@ function upsertLibraryEntity(
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
+type EdgeMeta = { factType: 'imports' | 'calls' | 'extends'; predicate: 'depends_on' | 'relates_to' };
+
+/**
+ * Maps a TrailEdge type to the fact_type and predicate used when inserting into
+ * memory_code_facts / memory_edges. Returns null for edge types that should be skipped.
+ */
+function resolveEdgeMeta(edgeType: string, target: string, internalFilePaths: Set<string>): EdgeMeta | null {
+  if (edgeType === 'import') {
+    const predicate: 'depends_on' | 'relates_to' = internalFilePaths.has(target) ? 'relates_to' : 'depends_on';
+    return { factType: 'imports', predicate };
+  }
+  if (edgeType === 'call') return { factType: 'calls', predicate: 'relates_to' };
+  if (edgeType === 'inheritance') return { factType: 'extends', predicate: 'relates_to' };
+  return null; // skip type_use, implementation, override
+}
+
 /**
  * Ingests AST-level facts from a TrailGraph into memory_code_facts and
  * memory_edges.
@@ -291,24 +307,9 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
   // ── Process edges ─────────────────────────────────────────────────────────
   for (const edge of graph.edges) {
     // Map TrailEdgeType → fact_type and predicate
-    let factType: 'imports' | 'calls' | 'extends';
-    let predicate: 'depends_on' | 'relates_to';
-
-    if (edge.type === 'import') {
-      factType = 'imports';
-      // External if target is not in the internal file set
-      const isExternal = !internalFilePaths.has(edge.target);
-      predicate = isExternal ? 'depends_on' : 'relates_to';
-    } else if (edge.type === 'call') {
-      factType = 'calls';
-      predicate = 'relates_to';
-    } else if (edge.type === 'inheritance') {
-      factType = 'extends';
-      predicate = 'relates_to';
-    } else {
-      // Skip type_use, implementation, override
-      continue;
-    }
+    const edgeMeta = resolveEdgeMeta(edge.type, edge.target, internalFilePaths);
+    if (edgeMeta === null) continue; // skip type_use, implementation, override
+    const { factType, predicate } = edgeMeta;
 
     // ── Resolve file_path from source node ───────────────────────────────
     const sourceNode = nodeById.get(edge.source);

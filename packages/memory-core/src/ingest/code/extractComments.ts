@@ -172,93 +172,76 @@ export function extractDecisionComments(input: ExtractCommentsInput): ExtractCom
     // Upsert File entity once per file (not once per comment)
     const targetId = upsertFileEntity(db, relFilePath, recordedAt, logger);
 
+    function processCommentRange(range: ts.CommentRange, node: ts.Node): void {
+      if (seenCommentPositions.has(range.pos)) return;
+      seenCommentPositions.add(range.pos);
+
+      const raw = sourceText.slice(range.pos, range.end);
+      const inner = commentInnerText(raw, range.kind);
+      const match = COMMENT_PATTERN.exec(inner);
+      if (!match) return;
+
+      const text = match[1].trim();
+      if (!text) return;
+
+      const { line: lineZero } = sourceFile.getLineAndCharacterOfPosition(range.pos);
+      const line = lineZero + 1;
+      const symbolName = namedNodeIdent(node);
+      const canonName = createHash('sha1')
+        .update(`${repoName}:${relFilePath}:${line}:${text}`)
+        .digest('hex')
+        .slice(0, 16);
+      const decisionId = entityId('Decision', canonName);
+      const displayName = (symbolName ? `${symbolName}: ` : '') + text.slice(0, 80);
+      const summary = text.slice(0, 200);
+
+      try {
+        db.run(
+          `INSERT OR IGNORE INTO memory_entities
+             (id, type, canonical_name, display_name,
+              aliases_json, tags_json, attributes_json, summary,
+              first_seen_at, last_updated_at, recorded_at)
+           VALUES (?, 'Decision', ?, ?, '[]', '[]', '{}', ?, ?, ?, ?)`,
+          [decisionId, canonName, displayName, summary, recordedAt, recordedAt, recordedAt]
+        );
+        if (db.getRowsModified() > 0) stats.decisions_inserted += 1;
+      } catch (err) {
+        logger.error(
+          `[anytime-memory] extractComments: failed to upsert Decision entity ` +
+            `file="${relFilePath}" line=${line}`,
+          err
+        );
+        return;
+      }
+
+      const sourceRef = `code_fact:comment:${relFilePath}#${line}`;
+      const edgeId = entityId('edge', `rationale_for:${decisionId}:${targetId}:comment:${line}`);
+      try {
+        db.run(
+          `INSERT INTO memory_edges
+             (id, subject_entity_id, predicate, object_entity_id,
+              valid_from, recorded_at, source_type, source_ref,
+              confidence, confidence_label, modality)
+           VALUES (?, ?, 'rationale_for', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
+           ON CONFLICT(id) DO NOTHING`,
+          [edgeId, decisionId, targetId, recordedAt, recordedAt, sourceRef]
+        );
+        if (db.getRowsModified() > 0) stats.edges_inserted += 1;
+      } catch (err) {
+        logger.error(
+          `[anytime-memory] extractComments: failed to insert edge ` +
+            `file="${relFilePath}" line=${line}`,
+          err
+        );
+      }
+    }
+
     function visit(node: ts.Node): void {
       const commentRanges =
         ts.getLeadingCommentRanges(sourceText, node.getFullStart()) ?? [];
-
       for (const range of commentRanges) {
-        if (seenCommentPositions.has(range.pos)) continue;
-        seenCommentPositions.add(range.pos);
-
-        const raw = sourceText.slice(range.pos, range.end);
-        const inner = commentInnerText(raw, range.kind);
-
-        const match = COMMENT_PATTERN.exec(inner);
-        if (!match) continue;
-
-        const text = match[1].trim();
-        if (!text) continue;
-
-        const { line: lineZero } = sourceFile.getLineAndCharacterOfPosition(range.pos);
-        const line = lineZero + 1;
-
-        // Determine target entity: symbol name if the annotated node has one,
-        // otherwise fall back to the File entity.
-        const symbolName = namedNodeIdent(node);
-
-        // Decision canonical_name: sha1(repoName:relFilePath:line:text) sliced to 16 chars
-        const canonName = createHash('sha1')
-          .update(`${repoName}:${relFilePath}:${line}:${text}`)
-          .digest('hex')
-          .slice(0, 16);
-
-        const decisionId = entityId('Decision', canonName);
-        const displayName = (symbolName ? `${symbolName}: ` : '') + text.slice(0, 80);
-        const summary = text.slice(0, 200);
-
-        // Insert Decision entity (idempotent: canonical_name + type is unique;
-        // use INSERT OR IGNORE so getRowsModified() returns 1 only for new rows)
-        try {
-          db.run(
-            `INSERT OR IGNORE INTO memory_entities
-               (id, type, canonical_name, display_name,
-                aliases_json, tags_json, attributes_json, summary,
-                first_seen_at, last_updated_at, recorded_at)
-             VALUES (?, 'Decision', ?, ?, '[]', '[]', '{}', ?, ?, ?, ?)`,
-            [
-              decisionId,
-              canonName,
-              displayName,
-              summary,
-              recordedAt,
-              recordedAt,
-              recordedAt,
-            ]
-          );
-          if (db.getRowsModified() > 0) stats.decisions_inserted += 1;
-        } catch (err) {
-          logger.error(
-            `[anytime-memory] extractComments: failed to upsert Decision entity ` +
-              `file="${relFilePath}" line=${line}`,
-            err
-          );
-          continue;
-        }
-
-        // Insert rationale_for edge: Decision → rationale_for → File
-        const sourceRef = `code_fact:comment:${relFilePath}#${line}`;
-        const edgeId = entityId('edge', `rationale_for:${decisionId}:${targetId}:comment:${line}`);
-
-        try {
-          db.run(
-            `INSERT INTO memory_edges
-               (id, subject_entity_id, predicate, object_entity_id,
-                valid_from, recorded_at, source_type, source_ref,
-                confidence, confidence_label, modality)
-             VALUES (?, ?, 'rationale_for', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
-             ON CONFLICT(id) DO NOTHING`,
-            [edgeId, decisionId, targetId, recordedAt, recordedAt, sourceRef]
-          );
-          if (db.getRowsModified() > 0) stats.edges_inserted += 1;
-        } catch (err) {
-          logger.error(
-            `[anytime-memory] extractComments: failed to insert edge ` +
-              `file="${relFilePath}" line=${line}`,
-            err
-          );
-        }
+        processCommentRange(range, node);
       }
-
       ts.forEachChild(node, visit);
     }
 

@@ -15,6 +15,116 @@ export type RecurringBugGroup = {
   bugs: BugFixSummary[];
 };
 
+function toBugFixSummary(row: readonly unknown[]): BugFixSummary {
+  return {
+    bug_fix_id: row[0] as string,
+    commit_sha: row[1] as string,
+    subject: row[2] as string,
+    committed_at: row[3] as string,
+  };
+}
+
+function queryPackageBugs(
+  db: MemoryDbConnection,
+  pkg: string,
+  windowDays: number,
+  minCount: number,
+  logger: MemoryLogger,
+): RecurringBugGroup | null {
+  let rows: ReturnType<MemoryDbConnection['exec']>;
+  try {
+    rows = db.exec(
+      `SELECT id, commit_sha, subject_summary, committed_at
+       FROM memory_bug_fixes
+       WHERE package = ?
+         AND committed_at >= datetime('now', '-' || ? || ' days')
+       ORDER BY committed_at DESC`,
+      [pkg, windowDays],
+    );
+  } catch (err) {
+    logger.error(`[listRecurringBugs] package query failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+    return null;
+  }
+  const bugs = (rows[0]?.values ?? []).map(toBugFixSummary);
+  return bugs.length >= minCount ? { grouping: 'package', grouping_value: pkg, bug_count: bugs.length, bugs } : null;
+}
+
+function queryFilePathBugs(
+  db: MemoryDbConnection,
+  filePath: string,
+  windowDays: number,
+  minCount: number,
+  logger: MemoryLogger,
+): RecurringBugGroup | null {
+  let rows: ReturnType<MemoryDbConnection['exec']>;
+  try {
+    rows = db.exec(
+      `SELECT memory_bug_fixes.id, commit_sha, subject_summary, committed_at
+       FROM memory_bug_fixes, json_each(affected_file_paths_json)
+       WHERE json_each.value = ?
+         AND committed_at >= datetime('now', '-' || ? || ' days')
+       ORDER BY committed_at DESC`,
+      [filePath, windowDays],
+    );
+  } catch (err) {
+    logger.error(`[listRecurringBugs] file_path query failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+    return null;
+  }
+  const bugs = (rows[0]?.values ?? []).map(toBugFixSummary);
+  return bugs.length >= minCount ? { grouping: 'file_path', grouping_value: filePath, bug_count: bugs.length, bugs } : null;
+}
+
+function queryCausedByBugs(
+  db: MemoryDbConnection,
+  causedByEntityId: string,
+  windowDays: number,
+  minCount: number,
+  logger: MemoryLogger,
+): RecurringBugGroup | null {
+  let bugEntityRows: ReturnType<MemoryDbConnection['exec']>;
+  try {
+    bugEntityRows = db.exec(
+      `SELECT DISTINCT subject_entity_id
+       FROM memory_edges
+       WHERE predicate = 'caused_by'
+         AND object_entity_id = ?
+         AND valid_to IS NULL
+         AND confidence_label != 'AMBIGUOUS'`,
+      [causedByEntityId],
+    );
+  } catch (err) {
+    logger.error(`[listRecurringBugs] caused_by query failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+    return null;
+  }
+
+  const bugEntityIds = (bugEntityRows[0]?.values ?? []).map((r) => r[0] as string);
+  if (bugEntityIds.length < minCount) return null;
+
+  const bugs: BugFixSummary[] = [];
+  for (const bugEntityId of bugEntityIds) {
+    let fixRows: ReturnType<MemoryDbConnection['exec']>;
+    try {
+      fixRows = db.exec(
+        `SELECT id, commit_sha, subject_summary, committed_at
+         FROM memory_bug_fixes
+         WHERE bug_entity_id = ?
+           AND committed_at >= datetime('now', '-' || ? || ' days')
+         ORDER BY committed_at DESC LIMIT 1`,
+        [bugEntityId, windowDays],
+      );
+    } catch (err) {
+      logger.error(`[listRecurringBugs] bug fix lookup failed entity=${bugEntityId}: ${String(err)}`);
+      continue;
+    }
+    if (fixRows[0]?.values?.length) {
+      bugs.push(toBugFixSummary(fixRows[0].values[0]));
+    }
+  }
+  return bugs.length >= minCount
+    ? { grouping: 'caused_by', grouping_value: causedByEntityId, bug_count: bugs.length, bugs }
+    : null;
+}
+
 export function listRecurringBugs(input: {
   db: MemoryDbConnection;
   package?: string;
@@ -28,102 +138,20 @@ export function listRecurringBugs(input: {
   const results: RecurringBugGroup[] = [];
 
   if (input.package != null) {
-    let rows: ReturnType<MemoryDbConnection['exec']>;
-    try {
-      rows = db.exec(
-        `SELECT id, commit_sha, subject_summary, committed_at
-         FROM memory_bug_fixes
-         WHERE package = ?
-           AND committed_at >= datetime('now', '-' || ? || ' days')
-         ORDER BY committed_at DESC`,
-        [input.package, windowDays],
-      );
-    } catch (err) {
-      logger.error(`[listRecurringBugs] package query failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
-      return results;
-    }
-    const bugs: BugFixSummary[] = (rows[0]?.values ?? []).map((row) => ({
-      bug_fix_id: row[0] as string,
-      commit_sha: row[1] as string,
-      subject: row[2] as string,
-      committed_at: row[3] as string,
-    }));
-    if (bugs.length >= minCount) {
-      results.push({ grouping: 'package', grouping_value: input.package, bug_count: bugs.length, bugs });
-    }
+    const group = queryPackageBugs(db, input.package, windowDays, minCount, logger);
+    if (group) results.push(group);
     return results;
   }
 
   if (input.file_path != null) {
-    let rows: ReturnType<MemoryDbConnection['exec']>;
-    try {
-      rows = db.exec(
-        `SELECT memory_bug_fixes.id, commit_sha, subject_summary, committed_at
-         FROM memory_bug_fixes, json_each(affected_file_paths_json)
-         WHERE json_each.value = ?
-           AND committed_at >= datetime('now', '-' || ? || ' days')
-         ORDER BY committed_at DESC`,
-        [input.file_path, windowDays],
-      );
-    } catch (err) {
-      logger.error(`[listRecurringBugs] file_path query failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
-      return results;
-    }
-    const bugs: BugFixSummary[] = (rows[0]?.values ?? []).map((row) => ({
-      bug_fix_id: row[0] as string,
-      commit_sha: row[1] as string,
-      subject: row[2] as string,
-      committed_at: row[3] as string,
-    }));
-    if (bugs.length >= minCount) {
-      results.push({ grouping: 'file_path', grouping_value: input.file_path, bug_count: bugs.length, bugs });
-    }
+    const group = queryFilePathBugs(db, input.file_path, windowDays, minCount, logger);
+    if (group) results.push(group);
     return results;
   }
 
   if (input.caused_by_entity_id != null) {
-    let bugEntityRows: ReturnType<MemoryDbConnection['exec']>;
-    try {
-      bugEntityRows = db.exec(
-        `SELECT DISTINCT subject_entity_id
-         FROM memory_edges
-         WHERE predicate = 'caused_by'
-           AND object_entity_id = ?
-           AND valid_to IS NULL
-           AND confidence_label != 'AMBIGUOUS'`,
-        [input.caused_by_entity_id],
-      );
-    } catch (err) {
-      logger.error(`[listRecurringBugs] caused_by query failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
-      return results;
-    }
-    const bugEntityIds = (bugEntityRows[0]?.values ?? []).map((r) => r[0] as string);
-    if (bugEntityIds.length < minCount) return results;
-
-    const bugs: BugFixSummary[] = [];
-    for (const bugEntityId of bugEntityIds) {
-      let fixRows: ReturnType<MemoryDbConnection['exec']>;
-      try {
-        fixRows = db.exec(
-          `SELECT id, commit_sha, subject_summary, committed_at
-           FROM memory_bug_fixes
-           WHERE bug_entity_id = ?
-             AND committed_at >= datetime('now', '-' || ? || ' days')
-           ORDER BY committed_at DESC LIMIT 1`,
-          [bugEntityId, windowDays],
-        );
-      } catch (err) {
-        logger.error(`[listRecurringBugs] bug fix lookup failed entity=${bugEntityId}: ${String(err)}`);
-        continue;
-      }
-      if (fixRows[0]?.values?.length) {
-        const row = fixRows[0].values[0];
-        bugs.push({ bug_fix_id: row[0] as string, commit_sha: row[1] as string, subject: row[2] as string, committed_at: row[3] as string });
-      }
-    }
-    if (bugs.length >= minCount) {
-      results.push({ grouping: 'caused_by', grouping_value: input.caused_by_entity_id, bug_count: bugs.length, bugs });
-    }
+    const group = queryCausedByBugs(db, input.caused_by_entity_id, windowDays, minCount, logger);
+    if (group) results.push(group);
   }
 
   return results;

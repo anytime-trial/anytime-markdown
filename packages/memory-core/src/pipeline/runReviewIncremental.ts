@@ -120,6 +120,87 @@ function recordFailedItem(
   );
 }
 
+type RouteADocResult =
+  | { outcome: 'skipped' }
+  | { outcome: 'failed'; detail: string }
+  | { outcome: 'processed'; is_new: boolean; findings_inserted: number; edges_inserted: number };
+
+/**
+ * Processes a single Route A review doc file.
+ * Reads file, checks source_hash, parses, refines categories, upserts.
+ */
+async function processRouteADoc(opts: {
+  db: MemoryDbConnection;
+  filePath: string;
+  relPath: string;
+  reviewDir: string;
+  recordedAt: string;
+  force: boolean;
+  ollama: OllamaClient;
+  model: string;
+  logger: MemoryLogger;
+}): Promise<RouteADocResult> {
+  const { db, filePath, relPath, recordedAt, force, ollama, model, logger } = opts;
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const sha1 = createHash('sha1').update(content).digest('hex').slice(0, 16);
+
+    const existingRows = db.exec(
+      `SELECT source_hash FROM memory_reviews WHERE source_kind='review_doc' AND source_ref=?`,
+      [relPath],
+    );
+    const existingHash =
+      existingRows[0]?.values?.[0]?.[0] == null
+        ? null
+        : String(existingRows[0].values[0][0]);
+
+    if (!force && existingHash !== null && existingHash === sha1) {
+      logger.info(`[anytime-memory] runReviewIncremental: skip unchanged file=${relPath}`);
+      return { outcome: 'skipped' };
+    }
+
+    if (force && existingHash !== null) {
+      db.run(
+        `DELETE FROM memory_review_findings WHERE review_id IN (
+           SELECT id FROM memory_reviews WHERE source_kind='review_doc' AND source_ref=?
+         )`,
+        [relPath],
+      );
+      db.run(
+        `UPDATE memory_reviews SET source_hash='' WHERE source_kind='review_doc' AND source_ref=?`,
+        [relPath],
+      );
+      logger.info(`[anytime-memory] runReviewIncremental: force re-parse, cleared findings file=${relPath}`);
+    }
+
+    const doc = parseReviewDoc({ rel_path: relPath, content });
+    if (doc === null) {
+      logger.info(`[anytime-memory] runReviewIncremental: not a review doc, skip=${relPath}`);
+      return { outcome: 'skipped' };
+    }
+
+    const refined = await refineCategories({
+      findings: doc.findings,
+      ollama,
+      model,
+      logger: { warn: (msg: string) => logger.info(msg) },
+    });
+    doc.findings.splice(0, doc.findings.length, ...refined.findings);
+
+    const result = upsertReviewDoc(db, doc, relPath, sha1, recordedAt, logger);
+    return {
+      outcome: 'processed',
+      is_new: result.is_new,
+      findings_inserted: result.findings_inserted,
+      edges_inserted: result.edges_inserted,
+    };
+  } catch (err) {
+    const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    logger.error(`[anytime-memory] runReviewIncremental: failed to process file=${filePath}`, err);
+    return { outcome: 'failed', detail };
+  }
+}
+
 // ── Main function ─────────────────────────────────────────────────────────────
 
 export async function runReviewIncremental(input: {
@@ -189,81 +270,28 @@ export async function runReviewIncremental(input: {
       totals.items_processed += 1;
       routeAProcessed += 1;
       if (routeAProcessed % PROGRESS_LOG_INTERVAL === 0) {
-        logger.info(
-          `[anytime-memory] review incremental Route A progress: ${routeAProcessed}/${mdFiles.length}`
-        );
+        logger.info(`[anytime-memory] review incremental Route A progress: ${routeAProcessed}/${mdFiles.length}`);
       }
 
-      try {
-        const content = fs.readFileSync(filePath, 'utf8');
-        const sha1 = createHash('sha1').update(content).digest('hex').slice(0, 16);
+      const docResult = await processRouteADoc({
+        db, filePath, relPath, reviewDir, recordedAt, force, ollama, model, logger,
+      });
 
-        // Check existing source_hash
-        const existingRows = db.exec(
-          `SELECT source_hash FROM memory_reviews WHERE source_kind='review_doc' AND source_ref=?`,
-          [relPath],
-        );
-        const existingHash =
-          existingRows[0]?.values?.[0]?.[0] == null
-            ? null
-            : String(existingRows[0].values[0][0]);
-
-        if (!force && existingHash !== null && existingHash === sha1) {
-          // Already processed, hash unchanged — skip
-          logger.info(`[anytime-memory] runReviewIncremental: skip unchanged file=${relPath}`);
-          continue;
-        }
-
-        // force 時: 既存 review_doc の findings を削除し、source_hash もクリア
-        // (upsertReviewDoc は hash 一致時に early-return するため hash も無効化する)
-        if (force && existingHash !== null) {
-          db.run(
-            `DELETE FROM memory_review_findings WHERE review_id IN (
-               SELECT id FROM memory_reviews WHERE source_kind='review_doc' AND source_ref=?
-             )`,
-            [relPath],
-          );
-          db.run(
-            `UPDATE memory_reviews SET source_hash='' WHERE source_kind='review_doc' AND source_ref=?`,
-            [relPath],
-          );
-          logger.info(`[anytime-memory] runReviewIncremental: force re-parse, cleared findings file=${relPath}`);
-        }
-
-        const doc = parseReviewDoc({ rel_path: relPath, content });
-        if (doc === null) {
-          // Not a review doc (e.g. type: spec) — skip silently
-          logger.info(`[anytime-memory] runReviewIncremental: not a review doc, skip=${relPath}`);
-          continue;
-        }
-
-        // Refine categories via LLM
-        const refined = await refineCategories({
-          findings: doc.findings,
-          ollama,
-          model,
-          logger: {
-            warn: (msg: string) => logger.info(msg),
-          },
-        });
-        doc.findings.splice(0, doc.findings.length, ...refined.findings);
-
-        const result = upsertReviewDoc(db, doc, relPath, sha1, recordedAt, logger);
-        if (result.is_new) {
-          reviewsInserted += 1;
-          totals.entities_inserted += 1;
-        }
-        findingsInserted += result.findings_inserted;
-        totals.edges_inserted += result.edges_inserted;
-      } catch (err) {
-        const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
-        logger.error(
-          `[anytime-memory] runReviewIncremental: failed to process file=${filePath}`,
-          err,
-        );
-        recordFailedItem(db, SCOPE_DOC, relPath, 'parse_error', detail);
+      if (docResult.outcome === 'skipped') {
+        continue;
+      }
+      if (docResult.outcome === 'failed') {
+        recordFailedItem(db, SCOPE_DOC, relPath, 'parse_error', docResult.detail);
         itemsFailed += 1;
+        continue;
       }
+      // outcome === 'processed'
+      if (docResult.is_new) {
+        reviewsInserted += 1;
+        totals.entities_inserted += 1;
+      }
+      findingsInserted += docResult.findings_inserted;
+      totals.edges_inserted += docResult.edges_inserted;
     }
   } else {
     logger.info(

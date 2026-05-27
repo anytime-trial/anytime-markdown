@@ -167,11 +167,7 @@ export function fromTrailGraph(opts: {
   for (const node of codeNodes) {
     const fileCanonName = canonicalize(node.id);
     const fileEId = entityId('File', fileCanonName);
-    const fileAttributes = JSON.stringify({
-      repo: node.repo,
-      package: node.package,
-      label: node.label,
-    });
+    const fileAttributes = JSON.stringify({ repo: node.repo, package: node.package, label: node.label });
 
     try {
       db.run(
@@ -186,42 +182,36 @@ export function fromTrailGraph(opts: {
       );
       stats.files_upserted += 1;
     } catch (err) {
+      logger.error(`[anytime-memory] fromTrailGraph: failed to upsert File entity id="${node.id}"`, err);
+      continue;
+    }
+
+    if (!node.package) continue;
+
+    const pkgEId = packageIdMap.get(node.package);
+    if (pkgEId === undefined) {
       logger.error(
-        `[anytime-memory] fromTrailGraph: failed to upsert File entity id="${node.id}"`,
-        err
+        `[anytime-memory] fromTrailGraph: package entity not found for package="${node.package}" file="${node.id}"`
       );
       continue;
     }
 
-    // Insert Package→relates_to→File edge if package is known
-    if (node.package) {
-      const pkgEId = packageIdMap.get(node.package);
-      if (pkgEId === undefined) {
-        logger.error(
-          `[anytime-memory] fromTrailGraph: package entity not found for package="${node.package}" file="${node.id}"`
-        );
-        continue;
-      }
-
-      const edId = codeEdgeId(pkgEId, 'relates_to', fileEId);
-
-      try {
-        db.run(
-          `INSERT INTO memory_edges
-             (id, subject_entity_id, predicate, object_entity_id,
-              valid_from, recorded_at, source_type, source_ref,
-              confidence, confidence_label, modality)
-           VALUES (?, ?, 'relates_to', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
-           ON CONFLICT(id) DO NOTHING`,
-          [edId, pkgEId, fileEId, validFrom, recordedAt, sourceRef]
-        );
-        stats.edges_inserted += 1;
-      } catch (err) {
-        logger.error(
-          `[anytime-memory] fromTrailGraph: failed to insert edge pkg="${node.package}" → file="${node.id}"`,
-          err
-        );
-      }
+    try {
+      db.run(
+        `INSERT INTO memory_edges
+           (id, subject_entity_id, predicate, object_entity_id,
+            valid_from, recorded_at, source_type, source_ref,
+            confidence, confidence_label, modality)
+         VALUES (?, ?, 'relates_to', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
+         ON CONFLICT(id) DO NOTHING`,
+        [codeEdgeId(pkgEId, 'relates_to', fileEId), pkgEId, fileEId, validFrom, recordedAt, sourceRef]
+      );
+      stats.edges_inserted += 1;
+    } catch (err) {
+      logger.error(
+        `[anytime-memory] fromTrailGraph: failed to insert edge pkg="${node.package}" → file="${node.id}"`,
+        err
+      );
     }
   }
 

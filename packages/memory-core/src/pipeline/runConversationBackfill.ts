@@ -186,6 +186,61 @@ function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: strin
   );
 }
 
+type BackfillEpisodeOutcome =
+  | { outcome: 'failed' }
+  | { outcome: 'quarantine'; quarantineCursor: string }
+  | { outcome: 'persisted'; stats: PersistStats };
+
+/**
+ * Persists (or records a failure for) a single already-extracted backfill episode.
+ * Returns typed outcome so the caller can update totals and quarantine without
+ * duplicating branching logic.
+ */
+function persistBackfillEpisode(opts: {
+  db: MemoryDbConnection;
+  episode: ReturnType<typeof splitEpisodes>[number];
+  ex: Awaited<ReturnType<typeof extractFactsFromEpisode>> | null;
+  recordedAt: string;
+  consecutiveFailures: number;
+  logger: MemoryLogger;
+}): BackfillEpisodeOutcome {
+  const { db, episode, ex, recordedAt, consecutiveFailures, logger } = opts;
+
+  if (ex === null) {
+    recordFailedItem(
+      db,
+      `${episode.session_id}:${episode.message_uuid_start}`,
+      'extraction_failed',
+      `episode ${episode.message_uuid_start} in session ${episode.session_id}`
+    );
+    const newConsecutive = consecutiveFailures + 1;
+    if (newConsecutive >= QUARANTINE_THRESHOLD) {
+      const quarantineCursor = new Date(
+        new Date(episode.valid_from).getTime() + 1
+      ).toISOString();
+      return { outcome: 'quarantine', quarantineCursor };
+    }
+    return { outcome: 'failed' };
+  }
+
+  try {
+    const stats = persistEpisodeFacts({ db, episode, extracted: ex, recordedAt, logger });
+    return { outcome: 'persisted', stats };
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] runConversationBackfill: persist failed for episode ${episode.message_uuid_start}`,
+      err
+    );
+    recordFailedItem(
+      db,
+      `${episode.session_id}:${episode.message_uuid_start}`,
+      'persist_failed',
+      err instanceof Error ? (err.stack ?? err.message) : String(err)
+    );
+    return { outcome: 'failed' };
+  }
+}
+
 /**
  * Backfill pipeline that re-reads messages from the last N days (default 7)
  * from the ATTACHed trail DB, splits them into episodes, runs LLM extraction,
@@ -380,9 +435,7 @@ export async function runConversationBackfill(opts: {
           const ex = extracted[j];
 
           totals.items_processed += 1;
-          if (episode.valid_from > maxTimestamp) {
-            maxTimestamp = episode.valid_from;
-          }
+          if (episode.valid_from > maxTimestamp) maxTimestamp = episode.valid_from;
 
           // UI 通知は毎エピソード発火 (incremental と同じ理由)。
           // 50 件 checkpoint 間で UI が 0/N のまま動かないように見える
@@ -391,74 +444,42 @@ export async function runConversationBackfill(opts: {
 
           // Progress log every PROGRESS_LOG_INTERVAL episodes
           if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
-            logger.info(
-              `[anytime-memory] backfill progress: ${totals.items_processed}/${toProcess} episodes processed (${totals.items_skipped} skipped)`
-            );
+            logger.info(`[anytime-memory] backfill progress: ${totals.items_processed}/${toProcess} episodes processed (${totals.items_skipped} skipped)`);
             updateHeartbeatAndProgress(db, rId, totals);
             save?.();
           }
 
-          if (ex === null) {
+          const episodeResult = persistBackfillEpisode({
+            db, episode, ex, recordedAt, consecutiveFailures, logger,
+          });
+
+          if (episodeResult.outcome === 'quarantine') {
+            totals.items_failed += 1;
+            logger.error(`[anytime-memory] runConversationBackfill: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`);
+            // 失敗 episode + 1ms をカーソルに。後続セッションは再走査可能。
+            upsertPipelineState(db, {
+              status: 'quarantine',
+              last_processed_at: episodeResult.quarantineCursor,
+              error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
+            });
+            finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+            return { status: 'partial', ...totals };
+          }
+
+          if (episodeResult.outcome === 'failed') {
             totals.items_failed += 1;
             consecutiveFailures += 1;
             lastFailedEpisodeTime = episode.valid_from;
-            recordFailedItem(
-              db,
-              `${episode.session_id}:${episode.message_uuid_start}`,
-              'extraction_failed',
-              `episode ${episode.message_uuid_start} in session ${episode.session_id}`
-            );
-
-            if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
-              logger.error(
-                `[anytime-memory] runConversationBackfill: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
-              );
-              // 失敗 episode + 1ms をカーソルに。後続セッションは再走査可能。
-              const quarantineCursor = new Date(
-                new Date(lastFailedEpisodeTime).getTime() + 1
-              ).toISOString();
-              upsertPipelineState(db, {
-                status: 'quarantine',
-                last_processed_at: quarantineCursor,
-                error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
-              });
-              finalizePipelineRun(db, rId, startedAt, 'partial', totals);
-              return {
-                status: 'partial',
-                ...totals,
-              };
-            }
             continue;
           }
 
-          // Reset consecutive failure counter on success
+          // outcome === 'persisted'
           consecutiveFailures = 0;
-
-          try {
-            const persisted = persistEpisodeFacts({
-              db,
-              episode,
-              extracted: ex,
-              recordedAt,
-              logger,
-            });
-            totals.entities_inserted += persisted.entities_inserted;
-            totals.entities_updated += persisted.entities_updated;
-            totals.edges_inserted += persisted.edges_inserted;
-            totals.edges_invalidated += persisted.edges_invalidated;
-          } catch (err) {
-            logger.error(
-              `[anytime-memory] runConversationBackfill: persist failed for episode ${episode.message_uuid_start}`,
-              err
-            );
-            totals.items_failed += 1;
-            recordFailedItem(
-              db,
-              `${episode.session_id}:${episode.message_uuid_start}`,
-              'persist_failed',
-              err instanceof Error ? (err.stack ?? err.message) : String(err)
-            );
-          }
+          const s = episodeResult.stats;
+          totals.entities_inserted += s.entities_inserted;
+          totals.entities_updated += s.entities_updated;
+          totals.edges_inserted += s.edges_inserted;
+          totals.edges_invalidated += s.edges_invalidated;
         }
       }
 

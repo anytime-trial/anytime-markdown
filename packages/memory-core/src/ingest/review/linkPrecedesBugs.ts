@@ -75,10 +75,9 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
       );
 
       const bugRows = bugResult[0];
-      if (!bugRows) {
-        continue;
-      }
+      if (!bugRows) continue;
 
+      const now = new Date().toISOString();
       for (const row of bugRows.values) {
         const bugId = String(row[0]);
         const bugEntityId = String(row[1]);
@@ -86,10 +85,8 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
         const affectedFilePathsJson = String(row[3]);
         const subjectSummary = String(row[4]);
 
-        // Check linkage conditions
+        // File path match
         let matches = false;
-
-        // File path match: finding.target_file_path is in the affected_file_paths array
         if (finding.target_file_path != null) {
           try {
             const affectedPaths: unknown = JSON.parse(affectedFilePathsJson);
@@ -101,20 +98,16 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
           }
         }
 
-        // Symbol match: finding.target_symbol (non-null, non-empty) appears as substring in subject_summary
+        // Symbol match
         if (!matches && finding.target_symbol != null && finding.target_symbol.length > 0) {
           if (subjectSummary.toLowerCase().includes(finding.target_symbol.toLowerCase())) {
             matches = true;
           }
         }
 
-        if (!matches) {
-          continue;
-        }
+        if (!matches) continue;
 
         const edgeId = entityId('edge', `precedes:${finding.finding_entity_id}:${bugEntityId}`);
-        const now = new Date().toISOString();
-
         db.run(
           `INSERT OR IGNORE INTO memory_edges
               (id, subject_entity_id, predicate, object_entity_id,
@@ -122,20 +115,9 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
                source_type, source_ref,
                confidence, confidence_label, modality)
             VALUES (?, ?, 'precedes', ?, ?, NULL, ?, 'review', ?, 0.7, 'INFERRED', 'asserted')`,
-          [
-            edgeId,
-            finding.finding_entity_id,
-            bugEntityId,
-            committedAt,
-            now,
-            `review_finding#${finding.id}=>bug#${bugId}`,
-          ]
+          [edgeId, finding.finding_entity_id, bugEntityId, committedAt, now, `review_finding#${finding.id}=>bug#${bugId}`]
         );
-
-        const edgeInserted = db.getRowsModified() > 0;
-        if (edgeInserted) {
-          edgesInserted += 1;
-        }
+        if (db.getRowsModified() > 0) edgesInserted += 1;
       }
     } catch (err) {
       logger.warn(

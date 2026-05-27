@@ -75,43 +75,48 @@ export async function runRagFtsRebuild(
   try {
     if (signal?.aborted) throw new Error('aborted');
 
+    type FtsPhase = 'entities' | 'episodes' | 'drift';
+
+    function rebuildPhase(
+      ids: string[],
+      phase: FtsPhase,
+      upsert: (db: MemoryDbConnection, id: string) => void,
+    ): void {
+      for (let i = 0; i < ids.length; i++) {
+        if (signal?.aborted) throw new Error('aborted');
+        upsert(db, ids[i]);
+        processed++;
+        if (i % PROGRESS_EVERY === 0) {
+          onProgress?.({ processed, total: ids.length, phase });
+        }
+      }
+    }
+
     // 1. entities (valid_until IS NULL のみ)
     const entityRows = db.exec(
       `SELECT id FROM memory_entities WHERE valid_until IS NULL ORDER BY id`,
     );
-    const entityIds = (entityRows[0]?.values ?? []).map((r) => r[0] as string);
-    for (let i = 0; i < entityIds.length; i++) {
-      if (signal?.aborted) throw new Error('aborted');
-      upsertEntityFts(db, entityIds[i]);
-      processed++;
-      if (i % PROGRESS_EVERY === 0) {
-        onProgress?.({ processed, total: entityIds.length, phase: 'entities' });
-      }
-    }
+    rebuildPhase(
+      (entityRows[0]?.values ?? []).map((r) => r[0] as string),
+      'entities',
+      upsertEntityFts,
+    );
 
     // 2. episodes
     const episodeRows = db.exec(`SELECT id FROM memory_episodes ORDER BY id`);
-    const episodeIds = (episodeRows[0]?.values ?? []).map((r) => r[0] as string);
-    for (let i = 0; i < episodeIds.length; i++) {
-      if (signal?.aborted) throw new Error('aborted');
-      upsertEpisodeFts(db, episodeIds[i]);
-      processed++;
-      if (i % PROGRESS_EVERY === 0) {
-        onProgress?.({ processed, total: episodeIds.length, phase: 'episodes' });
-      }
-    }
+    rebuildPhase(
+      (episodeRows[0]?.values ?? []).map((r) => r[0] as string),
+      'episodes',
+      upsertEpisodeFts,
+    );
 
     // 3. drift events
     const driftRows = db.exec(`SELECT id FROM memory_drift_events ORDER BY id`);
-    const driftIds = (driftRows[0]?.values ?? []).map((r) => r[0] as string);
-    for (let i = 0; i < driftIds.length; i++) {
-      if (signal?.aborted) throw new Error('aborted');
-      upsertDriftFts(db, driftIds[i]);
-      processed++;
-      if (i % PROGRESS_EVERY === 0) {
-        onProgress?.({ processed, total: driftIds.length, phase: 'drift' });
-      }
-    }
+    rebuildPhase(
+      (driftRows[0]?.values ?? []).map((r) => r[0] as string),
+      'drift',
+      upsertDriftFts,
+    );
 
     const finishedAt = ts();
     const durationMs = Date.now() - startedMs;

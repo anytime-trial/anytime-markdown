@@ -61,6 +61,99 @@ function extractRationaleText(message: string): string | null {
   return text || null;
 }
 
+// ── Per-commit ingestion helper ───────────────────────────────────────────────
+
+/**
+ * Ingest one commit's rationale into memory_entities and memory_edges.
+ * Returns { decisionInserted, edgeInserted } or null if rationaleText is empty.
+ */
+function ingestCommitRationale(
+  db: MemoryDbConnection,
+  opts: {
+    commitHash: string;
+    rationaleText: string;
+    repoName: string;
+    committedAt: string;
+    recordedAt: string;
+    logger: MemoryLogger;
+  },
+): { decisionInserted: boolean; edgeInserted: boolean } | null {
+  const { commitHash, rationaleText, repoName, committedAt, recordedAt, logger } = opts;
+  const text = rationaleText;
+
+  const commitId = entityId('Commit', commitHash);
+  const commitAttributes = JSON.stringify({ committed_at: committedAt });
+
+  try {
+    db.run(
+      `INSERT OR IGNORE INTO memory_entities
+         (id, type, canonical_name, display_name,
+          aliases_json, tags_json, attributes_json,
+          first_seen_at, last_updated_at, recorded_at)
+       VALUES (?, 'Commit', ?, ?, '[]', '[]', ?, ?, ?, ?)`,
+      [commitId, commitHash, commitHash.slice(0, 12), commitAttributes, committedAt, recordedAt, recordedAt]
+    );
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] extractCommitRationale: failed to upsert Commit entity hash="${commitHash}"`,
+      err
+    );
+    return null;
+  }
+
+  const decisionCanonName = createHash('sha1')
+    .update(`commit:${repoName}:${commitHash}:rationale`)
+    .digest('hex')
+    .slice(0, 16);
+  const decisionId = entityId('Decision', decisionCanonName);
+  const summary = text.slice(0, 200);
+
+  let decisionInserted = false;
+  try {
+    db.run(
+      `INSERT OR IGNORE INTO memory_entities
+         (id, type, canonical_name, display_name,
+          aliases_json, tags_json, attributes_json, summary,
+          first_seen_at, last_updated_at, recorded_at)
+       VALUES (?, 'Decision', ?, ?, '[]', '[]', '{}', ?, ?, ?, ?)`,
+      [decisionId, decisionCanonName, summary.slice(0, 80), summary, committedAt, recordedAt, recordedAt]
+    );
+    decisionInserted = db.getRowsModified() > 0;
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] extractCommitRationale: failed to insert Decision entity hash="${commitHash}"`,
+      err
+    );
+    return null;
+  }
+
+  const sourceRef = `session_commits#${commitHash}`;
+  const edgeId = entityId(
+    'edge',
+    `rationale_for:${decisionId}:${commitId}:commit:${commitHash.slice(0, 8)}`
+  );
+  let edgeInserted = false;
+  try {
+    db.run(
+      `INSERT INTO memory_edges
+         (id, subject_entity_id, predicate, object_entity_id,
+          valid_from, recorded_at, source_type, source_ref,
+          confidence, confidence_label, modality)
+       VALUES (?, ?, 'rationale_for', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
+       ON CONFLICT(id) DO NOTHING`,
+      [edgeId, decisionId, commitId, committedAt, recordedAt, sourceRef]
+    );
+    edgeInserted = db.getRowsModified() > 0;
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] extractCommitRationale: failed to insert edge hash="${commitHash}"`,
+      err
+    );
+  }
+
+  return { decisionInserted, edgeInserted };
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
@@ -127,100 +220,17 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
       const rationaleText = extractRationaleText(commitMessage);
       if (rationaleText === null) continue;
 
-      const text = rationaleText;
-
-      // ── 3. Upsert Commit entity ───────────────────────────────────────────
-      const commitId = entityId('Commit', commitHash);
-      const commitAttributes = JSON.stringify({ committed_at: committedAt });
-
-      try {
-        // INSERT OR IGNORE (not REPLACE): Commit data is immutable. INSERT OR REPLACE
-        // internally does DELETE+INSERT, which triggers ON DELETE SET NULL on
-        // memory_edges.object_entity_id and then violates a NOT NULL constraint on
-        // re-runs that already have edges pointing to this Commit entity.
-        db.run(
-          `INSERT OR IGNORE INTO memory_entities
-             (id, type, canonical_name, display_name,
-              aliases_json, tags_json, attributes_json,
-              first_seen_at, last_updated_at, recorded_at)
-           VALUES (?, 'Commit', ?, ?, '[]', '[]', ?, ?, ?, ?)`,
-          [
-            commitId,
-            commitHash,
-            commitHash.slice(0, 12),
-            commitAttributes,
-            committedAt,
-            recordedAt,
-            recordedAt,
-          ]
-        );
-      } catch (err) {
-        logger.error(
-          `[anytime-memory] extractCommitRationale: failed to upsert Commit entity hash="${commitHash}"`,
-          err
-        );
-        continue;
-      }
-
-      // ── 4. Insert Decision entity ─────────────────────────────────────────
-      // canonical_name: sha1("commit:<repoName>:<commitHash>:rationale").slice(0,16)
-      const decisionCanonName = createHash('sha1')
-        .update(`commit:${repoName}:${commitHash}:rationale`)
-        .digest('hex')
-        .slice(0, 16);
-      const decisionId = entityId('Decision', decisionCanonName);
-      const summary = text.slice(0, 200);
-
-      try {
-        db.run(
-          `INSERT OR IGNORE INTO memory_entities
-             (id, type, canonical_name, display_name,
-              aliases_json, tags_json, attributes_json, summary,
-              first_seen_at, last_updated_at, recorded_at)
-           VALUES (?, 'Decision', ?, ?, '[]', '[]', '{}', ?, ?, ?, ?)`,
-          [
-            decisionId,
-            decisionCanonName,
-            summary.slice(0, 80),
-            summary,
-            committedAt,
-            recordedAt,
-            recordedAt,
-          ]
-        );
-        if (db.getRowsModified() > 0) stats.decisions_inserted += 1;
-      } catch (err) {
-        logger.error(
-          `[anytime-memory] extractCommitRationale: failed to insert Decision entity hash="${commitHash}"`,
-          err
-        );
-        continue;
-      }
-
-      // ── 5. Insert rationale_for edge: Decision → Commit ───────────────────
-      const sourceRef = `session_commits#${commitHash}`;
-      const edgeId = entityId(
-        'edge',
-        `rationale_for:${decisionId}:${commitId}:commit:${commitHash.slice(0, 8)}`
-      );
-
-      try {
-        db.run(
-          `INSERT INTO memory_edges
-             (id, subject_entity_id, predicate, object_entity_id,
-              valid_from, recorded_at, source_type, source_ref,
-              confidence, confidence_label, modality)
-           VALUES (?, ?, 'rationale_for', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
-           ON CONFLICT(id) DO NOTHING`,
-          [edgeId, decisionId, commitId, committedAt, recordedAt, sourceRef]
-        );
-        if (db.getRowsModified() > 0) stats.edges_inserted += 1;
-      } catch (err) {
-        logger.error(
-          `[anytime-memory] extractCommitRationale: failed to insert edge hash="${commitHash}"`,
-          err
-        );
-      }
+      // ── 3-5. Upsert Commit, Decision, and edge ────────────────────────────
+      // INSERT OR IGNORE (not REPLACE): Commit data is immutable. INSERT OR REPLACE
+      // internally does DELETE+INSERT, which triggers ON DELETE SET NULL on
+      // memory_edges.object_entity_id and then violates a NOT NULL constraint on
+      // re-runs that already have edges pointing to this Commit entity.
+      const result = ingestCommitRationale(db, {
+        commitHash, rationaleText, repoName, committedAt, recordedAt, logger,
+      });
+      if (result === null) continue;
+      if (result.decisionInserted) stats.decisions_inserted += 1;
+      if (result.edgeInserted) stats.edges_inserted += 1;
     }
   } finally {
     stmt.free?.();

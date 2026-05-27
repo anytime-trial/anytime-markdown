@@ -2,6 +2,58 @@ import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 import type { DriftEventInput } from './report';
 
+function suggestSpecCategory(
+  db: MemoryDbConnection,
+  targetSpecPath: string,
+  eventId: string,
+  recordedAt: string,
+  logger: MemoryLogger,
+): number {
+  let rows: ReturnType<MemoryDbConnection['exec']>;
+  try {
+    rows = db.exec(
+      `SELECT e.id, e.attributes_json
+       FROM memory_review_findings rf
+       JOIN memory_entities e ON e.id = rf.finding_entity_id
+       WHERE rf.target_file_path = ?
+         AND rf.category = 'other'`,
+      [targetSpecPath],
+    );
+  } catch (err) {
+    logger.error(
+      `[postProcessF22] query failed for ${targetSpecPath}: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`,
+    );
+    return 0;
+  }
+
+  let count = 0;
+  for (const row of rows[0]?.values ?? []) {
+    const entityId = row[0] as string;
+    const attrsJson = row[1] as string;
+    let attrs: Record<string, unknown> = {};
+    try {
+      attrs = JSON.parse(attrsJson);
+    } catch {
+      // malformed json — skip
+    }
+    attrs['category_suggested'] = 'spec';
+    attrs['suggested_at'] = recordedAt;
+    attrs['suggested_by'] = eventId;
+    try {
+      db.run(`UPDATE memory_entities SET attributes_json = ? WHERE id = ?`, [
+        JSON.stringify(attrs),
+        entityId,
+      ]);
+      count++;
+    } catch (err) {
+      logger.error(
+        `[postProcessF22] update failed entity=${entityId}: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`,
+      );
+    }
+  }
+  return count;
+}
+
 export function postProcessF22(input: {
   db: MemoryDbConnection;
   driftEvents: DriftEventInput[];
@@ -19,51 +71,7 @@ export function postProcessF22(input: {
 
     // drift event の ID を生成（report.ts と同一ロジック）
     const eventId = `drift:${event.subject_entity_id}:${event.predicate}:${event.drift_type}`;
-
-    let rows: ReturnType<MemoryDbConnection['exec']>;
-    try {
-      rows = db.exec(
-        `SELECT e.id, e.attributes_json
-         FROM memory_review_findings rf
-         JOIN memory_entities e ON e.id = rf.finding_entity_id
-         WHERE rf.target_file_path = ?
-           AND rf.category = 'other'`,
-        [targetSpecPath],
-      );
-    } catch (err) {
-      logger.error(
-        `[postProcessF22] query failed for ${targetSpecPath}: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`,
-      );
-      continue;
-    }
-
-    for (const row of rows[0]?.values ?? []) {
-      const entityId = row[0] as string;
-      const attrsJson = row[1] as string;
-
-      let attrs: Record<string, unknown> = {};
-      try {
-        attrs = JSON.parse(attrsJson);
-      } catch {
-        // malformed json — skip
-      }
-
-      attrs['category_suggested'] = 'spec';
-      attrs['suggested_at'] = recordedAt;
-      attrs['suggested_by'] = eventId;
-
-      try {
-        db.run(`UPDATE memory_entities SET attributes_json = ? WHERE id = ?`, [
-          JSON.stringify(attrs),
-          entityId,
-        ]);
-        findingsSuggested++;
-      } catch (err) {
-        logger.error(
-          `[postProcessF22] update failed entity=${entityId}: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`,
-        );
-      }
-    }
+    findingsSuggested += suggestSpecCategory(db, targetSpecPath, eventId, recordedAt, logger);
   }
 
   return { findings_suggested: findingsSuggested };
