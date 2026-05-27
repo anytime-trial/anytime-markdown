@@ -33,7 +33,7 @@ export async function resolveReleaseId(
 ): Promise<number | null> {
   let q = supabase.from('trail_releases').select('release_id').eq('tag', tag);
   if (repoId != null) q = q.eq('repo_id', repoId);
-  const { data } = await q.limit(1).returns<{ release_id: number }[]>();
+  const { data } = await q.limit(1).overrideTypes<{ release_id: number }[], { merge: false }>();
   return data?.[0]?.release_id ?? null;
 }
 

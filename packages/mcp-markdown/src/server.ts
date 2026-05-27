@@ -17,7 +17,7 @@ type ToolResult = { content: Array<{ type: 'text'; text: string }> };
 type ToolCallback = (args: ToolArgs) => Promise<ToolResult>;
 
 /**
- * server.tool() のラッパー。MCP SDK の Zod スキーマ型推論が TS2589 を引き起こすため、
+ * server.registerTool() のラッパー。MCP SDK の Zod スキーマ型推論が TS2589 を引き起こすため、
  * パラメータ型を Record<string, z.ZodType> にキャストして型推論の深さを制限する。
  */
 function registerTool(
@@ -28,7 +28,7 @@ function registerTool(
   handler: ToolCallback,
 ): void {
   // @ts-expect-error TS2589: MCP SDK の Zod 型推論が深すぎる既知の制限
-  server.tool(name, description, params, handler);
+  server.registerTool(name, { description, inputSchema: params }, handler);
 }
 
 export function createMcpServer(options: McpEditorOptions): McpServer {
