@@ -354,6 +354,66 @@ describe('CodeGraphService.generate()', () => {
 });
 
 // ---------------------------------------------------------------------------
+// generate() — per-call repositories 上書き（MCP analyze_current_code の workspacePath 貫通）
+// ---------------------------------------------------------------------------
+
+describe('CodeGraphService.generate() — per-call repositories 上書き', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cgs-override-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('override.repositories を渡すと config.repositories ではなく override repo に保存する', async () => {
+    const { analyze } = require('@anytime-markdown/code-analysis-typescript/analyze') as { analyze: jest.Mock };
+    analyze.mockClear();
+
+    const db = makeTrailDbStub();
+    const svc = new CodeGraphService({
+      // config 側は使われてはならない（存在しないパスを置く）
+      repositories: [makeRepo({ id: 'configured', label: 'configured', path: '/tmp/should-not-be-used' })],
+      trailDb: db as never,
+    });
+
+    const overrideGraph: TrailGraph = {
+      nodes: [
+        { id: 'file::packages/o/src/x.ts', label: 'x', type: 'file', filePath: 'packages/o/src/x.ts', line: 1 },
+      ],
+      edges: [],
+      metadata: { projectRoot: tmpDir, analyzedAt: '2026-01-01', fileCount: 1 },
+    };
+
+    const graphs = await svc.generate(undefined, {
+      repositories: [{ id: 'override-repo', label: 'override-repo', path: tmpDir }],
+      trailGraphByRepoId: { 'override-repo': overrideGraph },
+    });
+
+    // override repo に対して 1 回だけ保存される（config の 'configured' ではない）
+    expect(db.saveCurrentCodeGraph).toHaveBeenCalledTimes(1);
+    expect(db.saveCurrentCodeGraph.mock.calls[0][0]).toBe('override-repo');
+    // override の TrailGraph が使われ、ノードが override repo 名で出力される
+    expect(graphs[0].nodes.map((n) => n.id)).toContain('override-repo:packages/o/src/x');
+    // trailGraph を渡したので runAnalyze（analyze）は呼ばれない
+    expect(analyze).not.toHaveBeenCalled();
+  });
+
+  it('override 省略時は従来どおり config.repositories を生成・保存する（リグレッション保護）', async () => {
+    const db = makeTrailDbStub();
+    const svc = new CodeGraphService({
+      repositories: [makeRepo({ id: 'configured', label: 'configured', path: tmpDir })],
+      trailDb: db as never,
+    });
+    await svc.generate();
+    expect(db.saveCurrentCodeGraph).toHaveBeenCalledTimes(1);
+    expect(db.saveCurrentCodeGraph.mock.calls[0][0]).toBe('configured');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // excludeRoot — 除外パターンの読み込みルートの切り替え
 // ---------------------------------------------------------------------------
 
