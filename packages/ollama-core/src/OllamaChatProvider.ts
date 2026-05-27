@@ -39,7 +39,7 @@ export class OllamaChatProvider implements ChatProvider {
         messages: opts.messages,
         stream: true,
         options:
-          opts.temperature !== undefined ? { temperature: opts.temperature } : undefined,
+          opts.temperature === undefined ? undefined : { temperature: opts.temperature },
       }),
       signal: opts.signal,
     });

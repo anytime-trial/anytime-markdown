@@ -1,4 +1,4 @@
-import path from 'path';
+import path from 'node:path';
 import type { MappingState, SessionMapping, WorktreeEntry, WorktreeMapping } from './types';
 
 // ---------------------------------------------------------------------------
@@ -180,10 +180,10 @@ export function buildAgentMapping(
     } else {
       const key = resolved.path;
       const existing = wtSessions.get(key);
-      if (existing !== undefined) {
-        existing.push(session);
-      } else {
+      if (existing === undefined) {
         wtSessions.set(key, [session]);
+      } else {
+        existing.push(session);
       }
     }
   }
