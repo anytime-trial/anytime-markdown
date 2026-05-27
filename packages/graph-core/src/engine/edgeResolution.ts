@@ -39,11 +39,18 @@ function resolveLayoutRunningEdge(e: GraphEdge, nodeMap: Map<string, GraphNode>)
   return e;
 }
 
+type RoutingContext = {
+  fromPt: { side: Side; x: number; y: number };
+  toPt: { side: Side; x: number; y: number };
+  sides: { fromSide: Side; toSide: Side };
+  parallelIndex: number;
+  pairTotal: number;
+};
+
 function resolveBezierRouting(
-  e: GraphEdge, fromNode: GraphNode, toNode: GraphNode,
-  fromPt: { side: Side; x: number; y: number }, toPt: { side: Side; x: number; y: number },
-  sides: { fromSide: Side; toSide: Side }, parallelIndex: number, pairTotal: number,
+  e: GraphEdge, fromNode: GraphNode, toNode: GraphNode, ctx: RoutingContext,
 ): GraphEdge {
+  const { fromPt, toPt, sides, parallelIndex, pairTotal } = ctx;
   const bezierPath = computeBezierPath(fromNode, toNode);
   if (pairTotal > 1) {
     bezierPath[0] = fromPt;
@@ -56,12 +63,11 @@ function resolveBezierRouting(
 }
 
 function resolveConnectorRouting(
-  e: GraphEdge, fromNode: GraphNode, toNode: GraphNode,
-  fromPt: { side: Side; x: number; y: number }, toPt: { side: Side; x: number; y: number },
-  sides: { fromSide: Side; toSide: Side }, parallelIndex: number, pairTotal: number,
+  e: GraphEdge, fromNode: GraphNode, toNode: GraphNode, ctx: RoutingContext,
 ): GraphEdge {
+  const { fromPt, toPt, sides } = ctx;
   const routing = e.style.routing ?? 'orthogonal';
-  if (routing === 'bezier') return resolveBezierRouting(e, fromNode, toNode, fromPt, toPt, sides, parallelIndex, pairTotal);
+  if (routing === 'bezier') return resolveBezierRouting(e, fromNode, toNode, ctx);
   if (routing === 'straight') return { ...e, from: { ...e.from, ...fromPt }, to: { ...e.to, ...toPt } };
   if (e.manualWaypoints?.length) {
     const waypoints = [fromPt, ...e.manualWaypoints, toPt];
@@ -124,6 +130,6 @@ export function resolveEdgesForRender(
       fromPt = offsetAlongSide(fromPt, sides.fromSide, offset);
       toPt = offsetAlongSide(toPt, sides.toSide, offset);
     }
-    return resolveConnectorRouting(e, fromNode, toNode, fromPt, toPt, sides, parallelIndex, pairTotal);
+    return resolveConnectorRouting(e, fromNode, toNode, { fromPt, toPt, sides, parallelIndex, pairTotal });
   });
 }

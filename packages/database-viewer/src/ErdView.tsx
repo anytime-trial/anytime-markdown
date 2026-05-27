@@ -823,9 +823,9 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
             const fromColIdx = fromCard.table.columns.findIndex((c) => c.name === e.fromColumn);
             const toColIdx = toCard.table.columns.findIndex((c) => c.name === e.toColumn);
             const fromY =
-              fromCard.node.y + HEADER_HEIGHT + (fromColIdx < 0 ? 0 : fromColIdx) * ROW_HEIGHT + ROW_HEIGHT / 2;
+              fromCard.node.y + HEADER_HEIGHT + Math.max(0, fromColIdx) * ROW_HEIGHT + ROW_HEIGHT / 2;
             const toY =
-              toCard.node.y + HEADER_HEIGHT + (toColIdx < 0 ? 0 : toColIdx) * ROW_HEIGHT + ROW_HEIGHT / 2;
+              toCard.node.y + HEADER_HEIGHT + Math.max(0, toColIdx) * ROW_HEIGHT + ROW_HEIGHT / 2;
             const fromCx = fromCard.node.x + fromCard.node.width / 2;
             const toCx = toCard.node.x + toCard.node.width / 2;
             // from / to ともに「相手側に近い側」のカード境界をアンカー位置として選ぶ

@@ -52,7 +52,7 @@ function formatDateUtc(d: Date): string {
 function floorToWeekStart(d: Date): Date {
   const day = d.getUTCDay();
   const offsetToMonday = (day + 6) % 7;
-  const out = new Date(d.getTime());
+  const out = new Date(d);
   out.setUTCDate(out.getUTCDate() - offsetToMonday);
   return out;
 }

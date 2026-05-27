@@ -109,7 +109,7 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
             </ListItemIcon>
             <ListItemText
               primary={databaseName ?? t("databaseLabel")}
-              primaryTypographyProps={{ fontWeight: 600 }}
+              slotProps={{ primary: { fontWeight: 600 } }}
             />
             {dbExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
           </ListItemButton>

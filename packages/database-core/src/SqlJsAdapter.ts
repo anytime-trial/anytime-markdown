@@ -183,7 +183,6 @@ export class SqlJsAdapter implements DatabaseAdapter {
 
 function formatCell(v: unknown): string {
   if (v === null || v === undefined) return '';
-  if (v instanceof Uint8Array) return `<BLOB:${v.byteLength}b>`;
-  if (typeof v === 'object') return JSON.stringify(v);
+  if (typeof v === 'object') return v instanceof Uint8Array ? `<BLOB:${v.byteLength}b>` : JSON.stringify(v);
   return String(v);
 }
