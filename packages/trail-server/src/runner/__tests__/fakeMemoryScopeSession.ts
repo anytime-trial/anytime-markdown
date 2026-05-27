@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 
-import { MemoryCoreService, type MemoryDbSession, type ScopeResult } from '@anytime-markdown/memory-core';
+import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
+import type { MemoryDbSession, ScopeResult } from '@anytime-markdown/memory-core';
 
 /**
  * テスト用 fake memory-core scope session ヘルパ (LEP Step 3d 以降)。

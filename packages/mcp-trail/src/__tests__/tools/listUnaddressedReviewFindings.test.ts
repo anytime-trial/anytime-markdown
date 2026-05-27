@@ -1,6 +1,6 @@
 import { handleListUnaddressedReviewFindings } from '../../tools/listUnaddressedReviewFindings';
 
-jest.mock('@anytime-markdown/memory-core', () => ({
+jest.mock('@anytime-markdown/memory-core/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -27,7 +27,7 @@ describe('handleListUnaddressedReviewFindings', () => {
   });
 
   test('calls listUnaddressedReviewFindings with correct filters (I21)', async () => {
-    const { listUnaddressedReviewFindings: mockFn } = jest.requireMock('@anytime-markdown/memory-core');
+    const { listUnaddressedReviewFindings: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     const result = await handleListUnaddressedReviewFindings({ severity: 'warn', daysSinceMin: 30 });
 
@@ -40,7 +40,7 @@ describe('handleListUnaddressedReviewFindings', () => {
   });
 
   test('passes file_path and category filters', async () => {
-    const { listUnaddressedReviewFindings: mockFn } = jest.requireMock('@anytime-markdown/memory-core');
+    const { listUnaddressedReviewFindings: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     await handleListUnaddressedReviewFindings({ target_file_path: 'src/foo.ts', category: 'logic' });
 
@@ -51,7 +51,7 @@ describe('handleListUnaddressedReviewFindings', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     await handleListUnaddressedReviewFindings({});
 

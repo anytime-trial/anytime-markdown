@@ -1,6 +1,6 @@
 import { handleResolveDrift } from '../../tools/resolveDrift';
 
-jest.mock('@anytime-markdown/memory-core', () => ({
+jest.mock('@anytime-markdown/memory-core/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -15,7 +15,7 @@ describe('handleResolveDrift', () => {
   });
 
   test('calls resolveDrift and returns resolved=true', async () => {
-    const { resolveDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core');
+    const { resolveDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     const result = await handleResolveDrift({ event_id: 'ev-1', resolution_note: 'fixed in PR #42' });
 
@@ -27,7 +27,7 @@ describe('handleResolveDrift', () => {
   });
 
   test('returns resolved=false when event not found', async () => {
-    const { resolveDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core');
+    const { resolveDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
     mockFn.mockReturnValueOnce({ resolved: false });
 
     const result = await handleResolveDrift({ event_id: 'nonexistent', resolution_note: 'n/a' });
@@ -36,7 +36,7 @@ describe('handleResolveDrift', () => {
   });
 
   test('passes optional resolved_at through', async () => {
-    const { resolveDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core');
+    const { resolveDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     await handleResolveDrift({
       event_id: 'ev-1',
@@ -50,7 +50,7 @@ describe('handleResolveDrift', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     await handleResolveDrift({ event_id: 'ev-1', resolution_note: 'done' });
 

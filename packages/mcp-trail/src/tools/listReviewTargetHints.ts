@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { listReviewTargetHints, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { ReviewTargetHint } from '@anytime-markdown/memory-core';
+import { listReviewTargetHints, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { ReviewTargetHint } from '@anytime-markdown/memory-core/query';
 
 export const ListReviewTargetHintsInputSchema = z.object({
   limit: z.number().optional().describe('Max results (default 20)'),

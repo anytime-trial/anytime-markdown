@@ -1,6 +1,6 @@
 import { handleRunReviewAgent } from '../../tools/runReviewAgent';
 
-jest.mock('@anytime-markdown/memory-core', () => ({
+jest.mock('@anytime-markdown/memory-core/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -15,7 +15,7 @@ describe('handleRunReviewAgent', () => {
   });
 
   test('registers run and returns run_id immediately (E8)', async () => {
-    const { runReviewAgent: mockFn } = jest.requireMock('@anytime-markdown/memory-core');
+    const { runReviewAgent: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     const result = await handleRunReviewAgent({
       trigger_kind: 'mcp',
@@ -34,7 +34,7 @@ describe('handleRunReviewAgent', () => {
   });
 
   test('passes optional model override', async () => {
-    const { runReviewAgent: mockFn } = jest.requireMock('@anytime-markdown/memory-core');
+    const { runReviewAgent: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     await handleRunReviewAgent({
       trigger_kind: 'mcp',
@@ -48,7 +48,7 @@ describe('handleRunReviewAgent', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     await handleRunReviewAgent({
       trigger_kind: 'mcp',

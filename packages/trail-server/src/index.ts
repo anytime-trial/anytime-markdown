@@ -31,6 +31,8 @@ export type { MemoryCoreRunner, MemoryCoreOutputChannel } from './runtime/memory
 export {
   MemoryCoreService,
   defaultStatePath as memoryCoreServiceDefaultStatePath,
+} from '@anytime-markdown/memory-core/pipeline';
+export {
   defaultState as memoryCoreServiceDefaultState,
   readState as memoryCoreServiceReadState,
   writeState as memoryCoreServiceWriteState,

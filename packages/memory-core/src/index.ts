@@ -34,13 +34,11 @@ export { runConversationFailedItemsRetry } from './pipeline/runConversationFaile
 export type { FailedItemsRetryResult } from './pipeline/runConversationFailedItemsRetry';
 export { runPipelineWatchdog } from './pipeline/pipelineWatchdog';
 export type { PipelineWatchdogResult } from './pipeline/pipelineWatchdog';
-export { runCodeIncremental } from './pipeline/runCodeIncremental';
 export type { CodeIncrementalResult } from './pipeline/runCodeIncremental';
 export { runBugHistoryIncremental } from './pipeline/runBugHistoryIncremental';
 export type { BugHistoryIncrementalResult } from './pipeline/runBugHistoryIncremental';
 export { ingestAstFacts } from './ingest/code/astFunctionLevel';
 export type { AstFactInput, AstFactStats } from './ingest/code/astFunctionLevel';
-export { extractDecisionComments } from './ingest/code/extractComments';
 export type { ExtractCommentsInput, ExtractCommentsStats } from './ingest/code/extractComments';
 export { extractCommitRationale } from './ingest/code/extractCommitRationale';
 export type { ExtractRationaleInput, ExtractRationaleStats } from './ingest/code/extractCommitRationale';
@@ -133,16 +131,15 @@ export { CitationStreamParser } from './chat/citationParser';
 export { ChatService } from './chat/ChatService';
 export type { ChatServiceOptions } from './chat/ChatService';
 
-export { MemoryCoreService, defaultStatePath } from './service/MemoryCoreService';
-export { MemoryDbSession } from './service/MemoryDbSession';
+export type { MemoryCoreService } from './service/MemoryCoreService';
 export type {
+  MemoryDbSession,
   ScopeResult,
   MemoryCoreScopeRunner,
   MemoryDbSessionDeps,
 } from './service/MemoryDbSession';
 export { defaultState, readState, writeState, STATE_SCHEMA_VERSION } from './service/state';
 export type { ReadStateOptions } from './service/state';
-export { runMemoryCorePipeline } from './service/defaultMemoryCorePipelineRunner';
 export type {
   MemoryCoreLogSink,
   MemoryCoreServiceOptions,

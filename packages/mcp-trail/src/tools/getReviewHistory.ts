@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { getReviewHistory, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { ReviewHistoryEntry } from '@anytime-markdown/memory-core';
+import { getReviewHistory, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { ReviewHistoryEntry } from '@anytime-markdown/memory-core/query';
 
 export const GetReviewHistoryInputSchema = z.object({
   target_file_path: z.string().optional().describe('Filter by file path'),

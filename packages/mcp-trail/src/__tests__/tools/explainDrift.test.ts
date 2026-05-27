@@ -1,6 +1,6 @@
 import { handleExplainDrift } from '../../tools/explainDrift';
 
-jest.mock('@anytime-markdown/memory-core', () => ({
+jest.mock('@anytime-markdown/memory-core/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -26,7 +26,7 @@ describe('handleExplainDrift', () => {
   });
 
   test('returns 5-source explanation for an event', async () => {
-    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core');
+    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     const result = await handleExplainDrift({ event_id: 'ev-1' });
 
@@ -37,7 +37,7 @@ describe('handleExplainDrift', () => {
   });
 
   test('returns null for unknown event', async () => {
-    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core');
+    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
     mockFn.mockReturnValueOnce(null);
 
     const result = await handleExplainDrift({ event_id: 'nonexistent' });
@@ -46,7 +46,7 @@ describe('handleExplainDrift', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     await handleExplainDrift({ event_id: 'ev-1' });
 
