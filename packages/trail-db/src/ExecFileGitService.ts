@@ -109,6 +109,26 @@ const STATUS_TYPE_MAP: Record<string, string> = {
   A: 'added', M: 'modified', D: 'deleted', R: 'renamed',
 };
 
+function applyNameStatusLine(
+  parts: string[],
+  fileMap: FileStatMap,
+  requireExisting: boolean,
+): void {
+  const status = parts[0].charAt(0);
+  const filePath = status === 'R' && parts[2] ? parts[2] : parts[1];
+  if (!filePath) return;
+  const changeType = STATUS_TYPE_MAP[status] ?? 'modified';
+  if (requireExisting) {
+    const existing = fileMap.get(filePath);
+    if (!existing) return;
+    existing.changeType = changeType;
+    return;
+  }
+  const existing = fileMap.get(filePath) ?? { added: 0, deleted: 0, changeType };
+  existing.changeType = changeType;
+  fileMap.set(filePath, existing);
+}
+
 function applyNameStatusToMap(
   nameStatus: string,
   fileMap: FileStatMap,
@@ -119,19 +139,7 @@ function applyNameStatusToMap(
     if (!trimmed) continue;
     const parts = trimmed.split('\t');
     if (parts.length < 2) continue;
-    const status = parts[0].charAt(0);
-    const filePath = status === 'R' && parts[2] ? parts[2] : parts[1];
-    if (!filePath) continue;
-    const changeType = STATUS_TYPE_MAP[status] ?? 'modified';
-    if (requireExisting) {
-      const existing = fileMap.get(filePath);
-      if (!existing) continue;
-      existing.changeType = changeType;
-    } else {
-      const existing = fileMap.get(filePath) ?? { added: 0, deleted: 0, changeType };
-      existing.changeType = changeType;
-      fileMap.set(filePath, existing);
-    }
+    applyNameStatusLine(parts, fileMap, requireExisting);
   }
 }
 
