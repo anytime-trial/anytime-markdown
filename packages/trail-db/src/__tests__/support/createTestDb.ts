@@ -19,3 +19,21 @@ export async function createTestTrailDatabase(logger?: DbLogger): Promise<TrailD
   await db.init();
   return db;
 }
+
+/**
+ * init() を呼ばない未初期化インスタンス。ensureDb() の「init 前に呼ぶと throw」ガードを
+ * テストする用途。本番 DB 上書き事故防止のため InMemoryTrailStorage を注入する。
+ */
+export function createUninitializedTestDb(): TrailDatabase {
+  return new TrailDatabase('/tmp', new InMemoryTrailStorage());
+}
+
+/**
+ * 文字列 storageDir を渡す FileTrailStorage 分岐をテストする用途。storageDir は呼び出し側が
+ * 用意した一時ディレクトリ（os.tmpdir 配下）を渡すこと（本番パス禁止）。
+ */
+export async function createFileBackedTestDb(storageDir: string): Promise<TrailDatabase> {
+  const db = new TrailDatabase('/tmp', storageDir);
+  await db.init();
+  return db;
+}
