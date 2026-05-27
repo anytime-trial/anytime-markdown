@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { parseFixCommit } from '../ingest/bug-history/parseFixCommit';
 import { buildBugEntity } from '../ingest/bug-history/buildBugEntity';
@@ -140,7 +140,7 @@ export async function runBugHistoryIncremental(opts: {
       commit_message: String(r['commit_message'] ?? ''),
       committed_at: String(r['committed_at'] ?? ''),
       repo_name: String(r['repo_name'] ?? repoName),
-      session_id: r['session_id'] != null ? String(r['session_id']) : null,
+      session_id: r['session_id'] == null ? null : String(r['session_id']),
     });
   }
   stmt.free?.();

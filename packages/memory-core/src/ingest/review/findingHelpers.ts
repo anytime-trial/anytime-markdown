@@ -72,7 +72,7 @@ export function inferSeverity(chapterBody: string): ParsedFinding['severity'] {
   if (ERROR_KEYWORDS_RE.test(chapterBody)) {
     return 'error';
   }
-  if (/^>\s*\[!IMPORTANT\]|\*\*注意:\*\*/m.test(chapterBody)) {
+  if (/(?:^>\s*\[!IMPORTANT\]|\*\*注意:\*\*)/m.test(chapterBody)) {
     return 'warn';
   }
   if (WARN_KEYWORDS_RE.test(chapterBody)) {

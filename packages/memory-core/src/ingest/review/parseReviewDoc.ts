@@ -88,7 +88,7 @@ export function parseReviewDoc(input: {
     const bodyBasedSeverity = inferSeverity(chapterBody);
     const headingSeverity = inferSeverityFromHeading(chapter.heading);
     // chapter heading severity (Important/Critical 等) を優先、body admonition で上書き許容
-    const severity = bodyBasedSeverity !== 'info' ? bodyBasedSeverity : headingSeverity;
+    const severity = bodyBasedSeverity === 'info' ? headingSeverity : bodyBasedSeverity;
 
     // Strategy 1: 既存ペア抽出（拡張 marker + bullet 接頭辞対応済み）
     const pairs = extractProblemSuggestionPairs(chapter.lines);

@@ -181,7 +181,7 @@ export function explainDrift(input: {
     sources.push({ source: 'code', items: [{ value: codeValue }] });
   }
 
-  void driftType; // used in result only
+  driftType; // used in result only
 
   return {
     event_id,

@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import type { MemoryLogger } from '../../logger';
@@ -91,18 +91,18 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
   // JOIN して repo_name → repo_id を解決し、repo フィルタは repos.repo_name で行う (クロス DB JOIN)。
   // GROUP BY commit_hash は repo フィルタ済なので維持で可。
   const sql =
-    sinceCommittedAt !== null
+    sinceCommittedAt === null
       ? `SELECT sc.commit_hash, sc.commit_message, sc.committed_at
            FROM trail.session_commits sc
            JOIN trail.repos r ON r.repo_id = sc.repo_id
-           WHERE r.repo_name = ? AND sc.committed_at > ?
+           WHERE r.repo_name = ?
              AND (sc.committed_at IS NULL OR sc.committed_at != '')
            GROUP BY sc.commit_hash
            ORDER BY sc.committed_at`
       : `SELECT sc.commit_hash, sc.commit_message, sc.committed_at
            FROM trail.session_commits sc
            JOIN trail.repos r ON r.repo_id = sc.repo_id
-           WHERE r.repo_name = ?
+           WHERE r.repo_name = ? AND sc.committed_at > ?
              AND (sc.committed_at IS NULL OR sc.committed_at != '')
            GROUP BY sc.commit_hash
            ORDER BY sc.committed_at`;
@@ -110,7 +110,7 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
   const stmt = db.prepare(sql);
   try {
     const params: (string | null)[] =
-      sinceCommittedAt !== null ? [repoName, sinceCommittedAt] : [repoName];
+      sinceCommittedAt === null ? [repoName] : [repoName, sinceCommittedAt];
 
     // better-sqlite3 では iterate() の途中で別のクエリ (db.run) を実行できない
     // ("This database connection is busy")。先に全行集約してからループする。

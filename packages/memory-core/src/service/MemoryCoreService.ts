@@ -4,9 +4,7 @@ import { getTrailHome } from '../db/paths';
 import { BaseRunner } from '../runner/BaseRunner';
 import type { RunReason } from '../runner/types';
 import type {
-  MemoryCoreLogSink,
   MemoryCoreServiceOptions,
-  MemoryCoreServiceStatus,
   PipelineLogger,
   PipelineRunnerContext,
 } from './types';
@@ -73,7 +71,7 @@ export class MemoryCoreService extends BaseRunner {
     return {
       info: (msg: string) => this.log(`[INFO] ${msg}`),
       error: (msg: string, err?: unknown) => {
-        const nonErrorSuffix = err !== undefined ? '\n' + String(err) : '';
+        const nonErrorSuffix = err === undefined ? '' : '\n' + String(err);
         const errSuffix = err instanceof Error
           ? '\n' + (err.stack ?? err.message)
           : nonErrorSuffix;
@@ -103,4 +101,5 @@ export function defaultStatePath(workspaceRoot?: string): string {
 
 // re-export so callers don't have to dig into state.ts / types.ts
 export { defaultState } from './state';
-export type { MemoryCoreLogSink, MemoryCoreServiceOptions, MemoryCoreServiceStatus };
+export type { MemoryCoreLogSink, MemoryCoreServiceStatus } from './types';
+export type { MemoryCoreServiceOptions };

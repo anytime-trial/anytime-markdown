@@ -1,4 +1,4 @@
-import * as child_process from 'child_process';
+import * as child_process from 'node:child_process';
 import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import { parseFixCommit } from './parseFixCommit';
@@ -31,7 +31,7 @@ function parseDiffHunks(diffOutput: string): number[] {
     const match = /^@@ -(\d+)(?:,(\d+))? \+/.exec(line);
     if (match) {
       const start = Number(match[1]);
-      const count = match[2] !== undefined ? Number(match[2]) : 1;
+      const count = match[2] === undefined ? 1 : Number(match[2]);
       for (let i = 0; i < Math.max(count, 1); i++) {
         lines.push(start + i);
       }

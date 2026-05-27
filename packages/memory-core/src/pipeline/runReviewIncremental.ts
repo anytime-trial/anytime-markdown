@@ -1,6 +1,6 @@
-import { createHash } from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
+import { createHash } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { parseReviewDoc } from '../ingest/review/parseReviewDoc';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
@@ -11,6 +11,8 @@ import { linkPrecedesBugs } from '../ingest/review/linkPrecedesBugs';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import { noopLogger, type MemoryLogger } from '../logger';
 
+type PipelineStatus = 'success' | 'partial' | 'error';
+
 const SCOPE_DOC = 'review_incremental';
 const SCOPE_SESSION = 'review_session_incremental';
 const DEFAULT_REVIEW_DIR = '/Shared/anytime-markdown-docs/review';
@@ -18,7 +20,7 @@ const DEFAULT_SINCE = '1970-01-01T00:00:00.000Z';
 const PROGRESS_LOG_INTERVAL = 50;
 
 export interface ReviewIncrementalResult {
-  status: 'success' | 'partial' | 'error';
+  status: PipelineStatus;
   items_processed: number;
   reviews_inserted: number;
   findings_inserted: number;
@@ -202,9 +204,9 @@ export async function runReviewIncremental(input: {
           [relPath],
         );
         const existingHash =
-          existingRows[0]?.values?.[0]?.[0] != null
-            ? String(existingRows[0].values[0][0])
-            : null;
+          existingRows[0]?.values?.[0]?.[0] == null
+            ? null
+            : String(existingRows[0].values[0][0]);
 
         if (!force && existingHash !== null && existingHash === sha1) {
           // Already processed, hash unchanged — skip

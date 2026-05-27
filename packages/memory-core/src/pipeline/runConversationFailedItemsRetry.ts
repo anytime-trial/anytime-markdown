@@ -1,10 +1,12 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { splitEpisodes, type Message } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
 import { noopLogger, type MemoryLogger } from '../logger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
+
+type PipelineStatus = 'success' | 'partial' | 'error';
 
 const RETRY_SCOPE = 'conversation_failed_items_retry';
 const DEFAULT_SOURCE_SCOPE = 'conversation_backfill';
@@ -199,7 +201,7 @@ function finalizePipelineRun(
   db: MemoryDbConnection,
   id: string,
   startedAt: string,
-  status: 'success' | 'partial' | 'error',
+  status: PipelineStatus,
   totals: PersistStats & { items_processed: number; items_failed: number },
 ): void {
   const finishedAt = new Date().toISOString();
