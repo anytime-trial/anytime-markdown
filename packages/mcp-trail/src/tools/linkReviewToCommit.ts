@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { linkReviewToCommit, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { LinkReviewToCommitResult } from '@anytime-markdown/memory-core';
+import { linkReviewToCommit, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { LinkReviewToCommitResult } from '@anytime-markdown/memory-core/query';
 
 export const LinkReviewToCommitInputSchema = z.object({
   finding_id: z.string().describe('Review finding ID to mark as addressed'),

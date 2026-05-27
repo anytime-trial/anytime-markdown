@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { listReviewRuns, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { ReviewRunStatus } from '@anytime-markdown/memory-core';
+import { listReviewRuns, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { ReviewRunStatus } from '@anytime-markdown/memory-core/query';
 
 export const ListReviewRunsInputSchema = z.object({
   trigger_kind: z.string().optional().describe('Filter by trigger kind'),

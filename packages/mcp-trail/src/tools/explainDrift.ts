@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { explainDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { ExplainDriftResult } from '@anytime-markdown/memory-core';
+import { explainDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { ExplainDriftResult } from '@anytime-markdown/memory-core/query';
 
 export const ExplainDriftInputSchema = z.object({
   event_id: z.string().describe('Drift event ID to explain'),
