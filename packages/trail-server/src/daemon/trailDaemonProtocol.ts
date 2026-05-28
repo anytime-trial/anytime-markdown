@@ -69,15 +69,15 @@ export interface SerializableAnalyzeCurrentCodeRequest {
   /** 解析対象リポジトリのルートディレクトリの絶対パス。 */
   readonly analysisRoot: string;
   /**
-   * tsconfig.json の絶対パス。Python-only リポジトリの場合は undefined。
-   * undefined を明示的に渡すことができるよう省略可能にしている。
-   */
-  readonly tsconfigPath?: string;
-  /**
    * 除外パターン (`.anytime/analyze-exclude`) を読むルートの絶対パス。
    * 省略時は daemon 側で analysisRoot にフォールバックする。
    */
   readonly excludeRoot?: string;
+  /**
+   * tsconfig.json の絶対パス。Python-only リポジトリの場合は undefined。
+   * undefined を明示的に渡すことができるよう省略可能にしている。
+   */
+  readonly tsconfigPath?: string;
   /**
    * analyze-child.js (TS 経路を隔離する子プロセスエントリ) の絶対パス。
    * 省略時は daemon 内で在来どおり in-process で計算する。

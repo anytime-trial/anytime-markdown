@@ -69,18 +69,21 @@ describe('trailDaemonProtocol JSON round-trip', () => {
     expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
   });
 
-  it('analyzeCurrentCode リクエスト (optional フィールド省略) が JSON round-trip 可', () => {
-    const params: SerializableAnalyzeCurrentCodeRequest = {
-      analysisRoot: '/workspace/python-only',
-      tsconfigPath: undefined,
-    };
+  it('analyzeCurrentCode リクエスト: optional フィールドは round-trip 後に欠如する', () => {
     const msg: HostMessage = {
       type: 'request',
       id: 'r4',
       method: 'analyzeCurrentCode',
-      params,
+      params: {
+        analysisRoot: '/workspace/python-only',
+        // tsconfigPath intentionally omitted (undefined)
+        excludeRoot: '/workspace',
+      } satisfies SerializableAnalyzeCurrentCodeRequest,
     };
-    expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+    const roundTripped = JSON.parse(JSON.stringify(msg)) as HostMessage;
+    expect(roundTripped).toEqual(msg);
+    // The optional field must not appear in the JSON-deserialized payload.
+    expect((roundTripped.params as Record<string, unknown>)).not.toHaveProperty('tsconfigPath');
   });
 
   it('analyzeReleaseCode リクエストが JSON round-trip 可', () => {
