@@ -49,7 +49,7 @@ export interface SerializableAnalyzeAllConfig {
   readonly gitRoots?: readonly string[];
   readonly claudeProjectsDir?: string;
   readonly codexSessionsDir?: string;
-  readonly stage: 'disabled' | 'primary' | 'primary+memory' | 'all';
+  readonly stage: 'disabled' | 'sources' | 'primary' | 'memory' | 'primary+memory' | 'all';
   readonly ollamaBaseUrl: string;
   readonly disabledMemoryAnalyzers?: readonly string[];
   readonly disabledAggregators?: readonly string[];
