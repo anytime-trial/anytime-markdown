@@ -96,6 +96,16 @@ import type { C4ViewerCoreProps } from './types';
 
 export type { C4ViewerCoreProps };
 
+/** C5 (関数レベル) のグラフ領域で空状態・ロード・エラーを中央表示する sx */
+const L5_PLACEHOLDER_SX = {
+  height: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  textAlign: 'center',
+  p: 4,
+} as const;
+
 export function C4ViewerCore({
   isDark = false,
   c4Model,
@@ -1337,13 +1347,13 @@ export function C4ViewerCore({
             <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
               {currentLevel === 5 ? (
                 !selectedCodeElementId ? (
-                  <Box sx={{ p: 4, color: 'text.secondary' }}>{t('c4.level.L5.emptySelection')}</Box>
+                  <Box sx={{ ...L5_PLACEHOLDER_SX, color: 'text.secondary' }}>{t('c4.level.L5.emptySelection')}</Box>
                 ) : fnGraphResult.loading ? (
-                  <Box sx={{ p: 4, color: 'text.secondary' }}>{t('viewer.loading')}</Box>
+                  <Box sx={{ ...L5_PLACEHOLDER_SX, color: 'text.secondary' }}>{t('viewer.loading')}</Box>
                 ) : fnGraphResult.error ? (
-                  <Box sx={{ p: 4, color: 'error.main' }}>{t('c4.level.L5.error')}</Box>
+                  <Box sx={{ ...L5_PLACEHOLDER_SX, color: 'error.main' }}>{t('c4.level.L5.error')}</Box>
                 ) : fnGraphResult.data && fnGraphResult.data.nodes.length === 0 ? (
-                  <Box sx={{ p: 4, color: 'text.secondary' }}>{t('c4.level.L5.emptyNoFunctions')}</Box>
+                  <Box sx={{ ...L5_PLACEHOLDER_SX, color: 'text.secondary' }}>{t('c4.level.L5.emptyNoFunctions')}</Box>
                 ) : l5Document ? (
                   <GraphCanvas
                     isDark={isDark}
@@ -1353,7 +1363,7 @@ export function C4ViewerCore({
                     canvasRef={canvasRef}
                   />
                 ) : (
-                  <Box sx={{ p: 4, color: 'text.secondary' }}>{t('c4.level.L5.emptySelection')}</Box>
+                  <Box sx={{ ...L5_PLACEHOLDER_SX, color: 'text.secondary' }}>{t('c4.level.L5.emptySelection')}</Box>
                 )
               ) : (
                 <GraphCanvas
