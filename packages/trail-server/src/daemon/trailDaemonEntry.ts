@@ -6,6 +6,8 @@
 // バンドルは vscode-trail-extension/webpack.config.js の `trailDaemonConfig` 経由で
 // `dist/trail-daemon.js` として生成され、TrailDaemonHost が fork する。
 
+import * as path from 'node:path';
+
 import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
@@ -195,7 +197,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
 
   // TrailDatabase を開く。distPath と trailDbPath は configure 済みの cfg から取得。
   // startHttpServer の opts.distPath が native binding の基準ディレクトリになる。
-  const trailDb = new TrailDatabase(opts.distPath, lastCfg.trailDbPath);
+  const trailDb = new TrailDatabase(opts.distPath, path.dirname(lastCfg.trailDbPath));
 
   // CodeGraphService を構築。c4ElementsProvider / trailGraphProvider は省略 (dormant 段階)。
   const codeGraphService = new CodeGraphService({
