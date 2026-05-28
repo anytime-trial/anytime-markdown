@@ -113,4 +113,20 @@ describe('filterTrailGraphByElement', () => {
     expect(cs[0].kind).toBe('external');
     expect(out.edges).toHaveLength(2);
   });
+
+  it('out エッジなし・in エッジのみで external_caller ノードを生成する', () => {
+    const graph: TrailGraph = {
+      metadata: md,
+      nodes: [
+        { id: 'src/foo.ts::a', label: 'a', type: 'function', filePath: 'src/foo.ts', line: 1 },
+        { id: 'src/bar.ts::c', label: 'c', type: 'function', filePath: 'src/bar.ts', line: 1 },
+      ],
+      edges: [
+        { source: 'src/bar.ts::c', target: 'src/foo.ts::a', type: 'call' }, // in のみ
+      ],
+    };
+    const out = filterTrailGraphByElement(graph, 'src/foo.ts', sampleModel);
+    const caller = out.nodes.find((n) => n.id === 'src/bar.ts::c');
+    expect(caller?.kind).toBe('external_caller');
+  });
 });

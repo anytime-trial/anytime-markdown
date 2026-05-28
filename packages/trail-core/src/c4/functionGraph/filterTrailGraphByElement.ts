@@ -78,7 +78,7 @@ export function filterTrailGraphByElement(
     const dstInternal = internalFnIds.has(e.target);
     if (!srcInternal && !dstInternal) continue;
 
-    const key = `${e.source}${e.target}`;
+    const key = `${e.source}\0${e.target}`;
     if (seen.has(key)) continue;
     seen.add(key);
     edges.push({ source: e.source, target: e.target });
