@@ -388,7 +388,7 @@ export const ja: TrailI18n = {
   'c4.hotspot.controls.granularity': '粒度',
   'c4.hotspot.controls.granularityCommit': 'Commit',
   'c4.hotspot.controls.granularitySession': 'Session',
-  'c4.level.L5': 'L5',
+  'c4.level.L5': 'C5',
   'c4.level.L5.description': '関数呼び出しグラフ',
   'c4.level.L5.emptySelection': 'L4 でファイル要素を選択してください。',
   'c4.level.L5.emptyNoFunctions': 'このファイルには関数が含まれません。',

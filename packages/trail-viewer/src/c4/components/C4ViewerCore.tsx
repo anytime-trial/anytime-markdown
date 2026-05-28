@@ -1,4 +1,5 @@
-import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
+import type { GraphDocument, GraphNode, Viewport } from '@anytime-markdown/graph-core';
+import { DEFAULT_VIEWPORT } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, MinimapCanvas, state as graphState } from '@anytime-markdown/graph-core';
 import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, CommunityOverlayEntry, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix, HotspotMap, ImportanceMatrix, ManualGroup, MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, aggregateHotspotToC4, buildArchitectureMatrix, buildC4ElementById, buildCommunityTree, buildElementTree, buildLevelView, buildSizeMatrix, c4ToGraphDocument, collectDescendantIds, computeColorMap, computeCommunityOverlay, computeFileHotspot, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, mapFileToC4Elements, resolveSelectedElementCommunity, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
@@ -893,6 +894,19 @@ export function C4ViewerCore({
     return buildFunctionGraphDocument(fnGraphResult.data, !!isDark);
   }, [fnGraphResult.data, isDark]);
 
+  // L5 専用 viewport state: C4 reducer とは独立して管理する（SET_VIEWPORT が毎フレーム
+  // l5Document.viewport の初期値を読み直して pan/zoom をリセットしてしまう問題を回避）
+  const [l5Viewport, setL5Viewport] = useState<Viewport>(() => ({ ...DEFAULT_VIEWPORT }));
+
+  useEffect(() => {
+    if (fnGraphResult.data) setL5Viewport({ ...DEFAULT_VIEWPORT });
+  }, [fnGraphResult.data]);
+
+  const l5Dispatch = useCallback((action: graphState.Action) => {
+    if (action.type === 'SET_VIEWPORT') setL5Viewport(action.viewport);
+    // 他のアクションは L5 では使用しない
+  }, []);
+
   // Community overlay: L3/L4 のみ。トグル ON かつ codeGraph が取得済みのときのみ計算する
   const communityOverlay = useMemo<ReadonlyMap<string, CommunityOverlayEntry> | null>(() => {
     if (!showCommunity || !codeGraph || !c4Model) return null;
@@ -1334,11 +1348,13 @@ export function C4ViewerCore({
                   <GraphCanvas
                     isDark={isDark}
                     document={l5Document}
-                    viewport={l5Document.viewport}
-                    dispatch={dispatch}
+                    viewport={l5Viewport}
+                    dispatch={l5Dispatch}
                     canvasRef={canvasRef}
                   />
-                ) : null
+                ) : (
+                  <Box sx={{ p: 4, color: 'text.secondary' }}>{t('c4.level.L5.emptySelection')}</Box>
+                )
               ) : (
                 <GraphCanvas
                   isDark={isDark}
@@ -1433,7 +1449,7 @@ export function C4ViewerCore({
                           title={({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code', 5: 'Functions' } as const)[level]}
                           sx={currentLevel === level ? levelButtonActiveSx : levelButtonSx}
                         >
-                          {level < 5 ? `C${level}` : 'L5'}
+                          {`C${level}`}
                         </Button>
                       ))}
                     </ButtonGroup>

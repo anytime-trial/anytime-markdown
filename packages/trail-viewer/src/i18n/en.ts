@@ -388,7 +388,7 @@ export const en: TrailI18n = {
   'c4.hotspot.controls.granularity': 'Granularity',
   'c4.hotspot.controls.granularityCommit': 'Commit',
   'c4.hotspot.controls.granularitySession': 'Session',
-  'c4.level.L5': 'L5',
+  'c4.level.L5': 'C5',
   'c4.level.L5.description': 'Function call graph',
   'c4.level.L5.emptySelection': 'Select a code element in L4 to view its function graph.',
   'c4.level.L5.emptyNoFunctions': 'No functions found in the selected file.',
