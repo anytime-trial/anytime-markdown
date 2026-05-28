@@ -60,6 +60,41 @@ export interface SerializableAnalyzeAllConfig {
   readonly memoryCore: SerializableMemoryCoreConfig | null;
 }
 
+/**
+ * daemon が runAnalyzeCurrentCodePipeline を実行するのに必要なシリアライズ可能な引数。
+ * 非シリアライズ要素 (trailDb / codeGraphService / callbacks / logger / onProgress)
+ * は daemon 側で構築 or イベントで bridge する。
+ */
+export interface SerializableAnalyzeCurrentCodeRequest {
+  /** 解析対象リポジトリのルートディレクトリの絶対パス。 */
+  readonly analysisRoot: string;
+  /**
+   * tsconfig.json の絶対パス。Python-only リポジトリの場合は undefined。
+   * undefined を明示的に渡すことができるよう省略可能にしている。
+   */
+  readonly tsconfigPath?: string;
+  /**
+   * 除外パターン (`.anytime/analyze-exclude`) を読むルートの絶対パス。
+   * 省略時は daemon 側で analysisRoot にフォールバックする。
+   */
+  readonly excludeRoot?: string;
+  /**
+   * analyze-child.js (TS 経路を隔離する子プロセスエントリ) の絶対パス。
+   * 省略時は daemon 内で在来どおり in-process で計算する。
+   */
+  readonly analyzeChildPath?: string;
+}
+
+/**
+ * daemon が runAnalyzeReleaseCodePipeline を実行するのに必要なシリアライズ可能な引数。
+ * 非シリアライズ要素 (trailDb / codeGraphService / onProgress)
+ * は daemon 側で構築 or イベントで bridge する。
+ */
+export interface SerializableAnalyzeReleaseCodeRequest {
+  /** リリース解析のベースとなる git リポジトリのルートの絶対パス。 */
+  readonly gitRoot: string;
+}
+
 /** host -> daemon に送れる RPC メソッド名。 */
 export type MethodName =
   | 'configure'
@@ -70,6 +105,8 @@ export type MethodName =
   | 'resume'
   | 'getStatus'
   | 'getLastImportResult'
+  | 'analyzeCurrentCode'
+  | 'analyzeReleaseCode'
   | 'dispose';
 
 export interface HostRequest {
