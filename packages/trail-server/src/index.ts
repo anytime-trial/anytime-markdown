@@ -7,9 +7,9 @@ export type * from './server/types';
 
 export { CodeGraphService } from './analyze/CodeGraphService';
 export { GraphQueryEngine } from './analyze/GraphQueryEngine';
+export { findTsconfigCandidates, hasPythonFiles } from './analyze/analyzeUtils';
+export type { TsconfigCandidate } from './analyze/analyzeUtils';
 export {
-  findTsconfigCandidates,
-  hasPythonFiles,
   runAnalyzeCurrentCodePipeline,
   runAnalyzeReleaseCodePipeline,
 } from './analyze/AnalyzePipeline';

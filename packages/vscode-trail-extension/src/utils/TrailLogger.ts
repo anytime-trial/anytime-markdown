@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { Logger, LogLevel } from '@anytime-markdown/trail-server';
-import { combineLoggers } from '@anytime-markdown/trail-server';
+import { combineLoggers } from '@anytime-markdown/trail-server/services';
 
 const LEVEL_LABEL: Record<LogLevel, string> = {
   debug: 'DEBUG', info: 'INFO', warn: 'WARN', error: 'ERROR',

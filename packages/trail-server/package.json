@@ -7,8 +7,15 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./config": "./src/config.ts",
     "./daemon": "./src/daemon/index.ts",
-    "./pipeline": "./src/pipeline.ts"
+    "./pipeline": "./src/pipeline.ts",
+    "./services": "./src/services.ts",
+    "./analyze-utils": "./src/analyze-utils.ts",
+    "./llm": "./src/llm.ts",
+    "./github": "./src/github.ts",
+    "./runtime": "./src/runtime.ts",
+    "./jobs": "./src/jobs.ts"
   },
   "bin": {
     "anytime-trail-server": "dist/cli.js"

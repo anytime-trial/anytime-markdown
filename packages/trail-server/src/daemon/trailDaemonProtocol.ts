@@ -60,6 +60,153 @@ export interface SerializableAnalyzeAllConfig {
   readonly memoryCore: SerializableMemoryCoreConfig | null;
 }
 
+/**
+ * daemon が runAnalyzeCurrentCodePipeline を実行するのに必要なシリアライズ可能な引数。
+ * 非シリアライズ要素 (trailDb / codeGraphService / callbacks / logger / onProgress)
+ * は daemon 側で構築 or イベントで bridge する。
+ */
+export interface SerializableAnalyzeCurrentCodeRequest {
+  /** 解析対象リポジトリのルートディレクトリの絶対パス。 */
+  readonly analysisRoot: string;
+  /**
+   * 除外パターン (`.anytime/analyze-exclude`) を読むルートの絶対パス。
+   * 省略時は daemon 側で analysisRoot にフォールバックする。
+   */
+  readonly excludeRoot?: string;
+  /**
+   * tsconfig.json の絶対パス。Python-only リポジトリの場合は undefined。
+   * undefined を明示的に渡すことができるよう省略可能にしている。
+   */
+  readonly tsconfigPath?: string;
+  /**
+   * analyze-child.js (TS 経路を隔離する子プロセスエントリ) の絶対パス。
+   * 省略時は daemon 内で在来どおり in-process で計算する。
+   */
+  readonly analyzeChildPath?: string;
+}
+
+/**
+ * daemon が runAnalyzeReleaseCodePipeline を実行するのに必要なシリアライズ可能な引数。
+ * 非シリアライズ要素 (trailDb / codeGraphService / onProgress)
+ * は daemon 側で構築 or イベントで bridge する。
+ */
+export interface SerializableAnalyzeReleaseCodeRequest {
+  /** リリース解析のベースとなる git リポジトリのルートの絶対パス。 */
+  readonly gitRoot: string;
+}
+
+/**
+ * daemon が TrailDataServer + CodeGraphService を起動するのに必要なシリアライズ可能な引数。
+ * 非シリアライズ要素 (trailDb handle / logger instance) は daemon 側で構築する。
+ */
+export interface SerializableHttpServerOptions {
+  /** 拡張の dist ディレクトリ。daemon が better-sqlite3 native binding を解決するのに使う。 */
+  readonly distPath: string;
+  /** コードグラフ解析・exclude 読み込みに使うリポジトリルート。 */
+  readonly gitRoot?: string;
+  /** memory (better-sqlite3) DB ファイルの絶対パス。省略時は MemoryApiHandler が無効化される。 */
+  readonly memoryDbPath?: string;
+  /** HTTP サーバの希望ポート。EADDRINUSE 時は +1..+9 → 0 (OS 任意) の順で試みる。 */
+  readonly preferredPort?: number;
+  /**
+   * tree-sitter-python.wasm の絶対パス。bundle 環境で Python コードグラフ解析を有効化する。
+   * 省略時は Python 解析が無効になる（TS のみ）。
+   */
+  readonly pythonWasmPath?: string;
+  /**
+   * ChatBridge 構築設定。指定時に daemon 内で ChatBridge を構築し setChatBridge で wire する。
+   * 非シリアライズ要素 (trailDb / codeGraphService / server / WebSocket) は daemon 側で wire する。
+   */
+  readonly chatBridge?: SerializableChatBridgeConfig;
+  /**
+   * LogService 構築設定。指定時に daemon 内で BetterSqlite3MemoryDb + LogService を構築し
+   * setLogService で wire する。
+   * 非シリアライズ要素 (broadcaster = TrailDataServer instance) は daemon 側で wire する。
+   */
+  readonly logService?: SerializableLogServiceConfig;
+  /**
+   * RebuildScheduler 構築設定。指定時に daemon 内で RebuildScheduler を構築し
+   * start() を呼び出して定期実行を開始する。
+   * 非シリアライズ要素 (logger instance) は daemon 側で生成する。
+   */
+  readonly rebuildScheduler?: SerializableRebuildSchedulerConfig;
+  /** トークン予算の初期設定。startHttpServer 完了後に setTokenBudgetConfig を呼ぶ。 */
+  readonly tokenBudgetConfig?: SerializableTokenBudgetConfig;
+  /** ドキュメントパスの初期設定。startHttpServer 完了後に setDocsPath を呼ぶ。 */
+  readonly docsPath?: string;
+}
+
+/**
+ * daemon が ChatBridge を構築するのに必要なシリアライズ可能な設定。
+ * getConfig の動的フィールドは staticConfig として渡す (daemon 側でそのまま返す lambda を生成)。
+ * logger は daemon 内で daemonLoggerAsLogger から生成する (非シリアライズ)。
+ */
+export interface SerializableChatBridgeConfig {
+  readonly memoryDbPath: string;
+  readonly memoryNativeBinding?: string;
+  /** ChatBridgeConfig の静的スナップショット。daemon は getConfig: () => staticConfig で wire する。 */
+  readonly staticConfig: {
+    readonly baseUrl: string;
+    readonly chatModel: string;
+    readonly embedModel: string;
+    readonly bm25Limit?: number;
+    readonly vecLimit?: number;
+    readonly finalLimit?: number;
+    readonly rrfK?: number;
+  };
+}
+
+/**
+ * daemon が LogService 用 BetterSqlite3MemoryDb を構築するのに必要なシリアライズ可能な設定。
+ * db handle と broadcaster (TrailDataServer) は daemon 側で wire する。
+ */
+export interface SerializableLogServiceConfig {
+  readonly extensionLogsDbPath: string;
+  /** better-sqlite3 native binding への絶対パス。省略時は distPath から導出する。 */
+  readonly nativeBinding?: string;
+}
+
+/**
+ * daemon が RebuildScheduler を構築するのに必要なシリアライズ可能な設定。
+ * logger は daemon 内で生成する (非シリアライズ)。
+ */
+export interface SerializableRebuildSchedulerConfig {
+  readonly memoryDbPath: string;
+  readonly memoryNativeBinding?: string;
+  /** FTS 再構築の実行間隔 (ミリ秒)。省略時は 60 分。 */
+  readonly intervalMs?: number;
+}
+
+/** トークン予算設定。TrailDataServer.setTokenBudgetConfig と同じフィールド。 */
+export interface SerializableTokenBudgetConfig {
+  readonly dailyLimitTokens: number | null;
+  readonly sessionLimitTokens: number | null;
+  readonly alertThresholdPct: number;
+}
+
+/**
+ * daemon が setDocsPath リクエストを受けたときに渡す引数。
+ * docsPath が undefined の場合は setDocsPath(undefined) を呼んでパスをクリアする。
+ */
+export interface SerializableSetDocsPathRequest {
+  readonly docsPath?: string;
+}
+
+/**
+ * トークン予算超過イベントのペイロード。TokenBudgetUpdatedMessage の
+ * シリアライズ可能なサブセット (type フィールドは IPC チャネルで代替するため除外)。
+ */
+export interface SerializableTokenBudgetExceededPayload {
+  readonly sessionId: string;
+  readonly sessionTokens: number;
+  readonly dailyTokens: number;
+  readonly dailyLimitTokens: number | null;
+  readonly sessionLimitTokens: number | null;
+  readonly alertThresholdPct: number;
+  readonly turnCount: number;
+  readonly messageCount: number;
+}
+
 /** host -> daemon に送れる RPC メソッド名。 */
 export type MethodName =
   | 'configure'
@@ -70,6 +217,11 @@ export type MethodName =
   | 'resume'
   | 'getStatus'
   | 'getLastImportResult'
+  | 'analyzeCurrentCode'
+  | 'analyzeReleaseCode'
+  | 'startHttpServer'
+  | 'setDocsPath'
+  | 'setTokenBudgetConfig'
   | 'dispose';
 
 export interface HostRequest {
@@ -124,6 +276,26 @@ export type DaemonEvent =
       readonly type: 'event';
       readonly channel: 'status';
       readonly payload: RunnerStatus;
+    }
+  | {
+      readonly type: 'event';
+      readonly channel: 'httpReady';
+      readonly payload: { readonly port: number; readonly url: string };
+    }
+  | {
+      readonly type: 'event';
+      readonly channel: 'openDocLink';
+      readonly payload: { readonly docPath: string };
+    }
+  | {
+      readonly type: 'event';
+      readonly channel: 'openFile';
+      readonly payload: { readonly filePath: string };
+    }
+  | {
+      readonly type: 'event';
+      readonly channel: 'tokenBudgetExceeded';
+      readonly payload: SerializableTokenBudgetExceededPayload;
     };
 
 export type HostMessage = HostRequest;

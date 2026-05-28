@@ -6,11 +6,30 @@
 // バンドルは vscode-trail-extension/webpack.config.js の `trailDaemonConfig` 経由で
 // `dist/trail-daemon.js` として生成され、TrailDaemonHost が fork する。
 
+import * as path from 'node:path';
+
+import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
 import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
+import {
+  CREATE_EXTENSION_LOGS,
+  CREATE_EXTENSION_LOGS_INDEXES,
+} from '@anytime-markdown/trail-core/domain/schema';
+import { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { checkLlmAvailability } from '../lep/LlmAvailability';
 import { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
+import { TrailDataServer } from '../server/TrailDataServer';
+import { CodeGraphService } from '../analyze/CodeGraphService';
+import { ChatBridge } from '../memory-chat/chatBridge';
+import { RebuildScheduler } from '../memory-chat/rebuildScheduler';
+import { LogService } from '../services/LogService';
+import type { Logger } from '../runtime/Logger';
+import {
+  runAnalyzeCurrentCodePipeline,
+  runAnalyzeReleaseCodePipeline,
+} from '../analyze/AnalyzePipeline';
+import type { AnalyzeCurrentOpts, AnalyzeReleaseOpts } from '../analyze/AnalyzePipeline';
 
 import type {
   DaemonEvent,
@@ -19,6 +38,11 @@ import type {
   MethodName,
   RunReason,
   SerializableAnalyzeAllConfig,
+  SerializableAnalyzeCurrentCodeRequest,
+  SerializableAnalyzeReleaseCodeRequest,
+  SerializableHttpServerOptions,
+  SerializableSetDocsPathRequest,
+  SerializableTokenBudgetConfig,
 } from './trailDaemonProtocol';
 
 function send(m: DaemonMessage): void {
@@ -58,11 +82,83 @@ export const daemonLogger = {
 
 let memoryCoreService: MemoryCoreService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
+/** configure() 完了後に保持する設定 (startHttpServer が参照する)。 */
+let lastCfg: SerializableAnalyzeAllConfig | null = null;
+/** startHttpServer() で構築した TrailDataServer。 */
+let httpServer: TrailDataServer | null = null;
+/** startHttpServer() で構築した CodeGraphService。 */
+let httpCodeGraphService: CodeGraphService | null = null;
+/** startHttpServer() で構築した TrailDatabase (analyze pipeline に渡す)。 */
+let httpTrailDb: TrailDatabase | null = null;
+/** startHttpServer() が確立したポート番号。 */
+let httpPort: number | null = null;
+
+/** meta が存在する場合、JSON 化して msg に追記する。循環参照はキャッチして無視する。 */
+function formatWithMeta(msg: string, meta?: Record<string, unknown>): string {
+  if (!meta || Object.keys(meta).length === 0) return msg;
+  try {
+    return `${msg} ${JSON.stringify(meta)}`;
+  } catch {
+    return msg;
+  }
+}
+
+/** Error.stack を優先して文字列化する。スタックがない場合は message、非 Error は String()。 */
+function formatError(err: unknown): string {
+  if (err instanceof Error) return err.stack ?? err.message;
+  return String(err);
+}
+
+/**
+ * Logger adapter: daemonLogger (イベントブリッジ) を runtime/Logger の Logger インタフェースに
+ * 適合させる薄いラッパ。TrailDataServer / CodeGraphService が期待する Logger を満たす。
+ * 新規ファイルは作らず daemon entry 内に局所定義する。
+ */
+const daemonLoggerAsLogger: Logger = {
+  debug: (msg: string, meta?: Record<string, unknown>) => daemonLogger.debug(formatWithMeta(msg, meta)),
+  info: (msg: string, meta?: Record<string, unknown>) => daemonLogger.info(formatWithMeta(msg, meta)),
+  warn: (msg: string, meta?: Record<string, unknown>) => daemonLogger.warn(formatWithMeta(msg, meta)),
+  error: (msg: string, err?: unknown, meta?: Record<string, unknown>) => {
+    const errStr = err instanceof Error
+      ? err.message + (err.stack ? `\n${err.stack}` : '')
+      : err !== undefined ? String(err) : '';
+    const metaStr = meta ? (() => { try { return JSON.stringify(meta); } catch { return ''; } })() : '';
+    daemonLogger.error([msg, errStr, metaStr].filter(Boolean).join(' '));
+  },
+  child: (scope: string): Logger => ({
+    debug: (msg: string, meta?: Record<string, unknown>) => daemonLogger.debug(formatWithMeta(`[${scope}] ${msg}`, meta)),
+    info: (msg: string, meta?: Record<string, unknown>) => daemonLogger.info(formatWithMeta(`[${scope}] ${msg}`, meta)),
+    warn: (msg: string, meta?: Record<string, unknown>) => daemonLogger.warn(formatWithMeta(`[${scope}] ${msg}`, meta)),
+    error: (msg: string, err?: unknown, meta?: Record<string, unknown>) => {
+      const errStr = err instanceof Error
+        ? err.message + (err.stack ? `\n${err.stack}` : '')
+        : err !== undefined ? String(err) : '';
+      const metaStr = meta ? (() => { try { return JSON.stringify(meta); } catch { return ''; } })() : '';
+      daemonLogger.error([`[${scope}] ${msg}`, errStr, metaStr].filter(Boolean).join(' '));
+    },
+    child: (childScope: string) => daemonLoggerAsLogger.child(`${scope}/${childScope}`),
+  }),
+};
+
+/** startHttpServer() で構築した RebuildScheduler disposable。 */
+let httpRebuildSchedulerDisposable: { dispose(): void } | null = null;
+/** startHttpServer() で構築した ChatBridge。dispose() で SQLite WAL をフラッシュする。 */
+let httpChatBridge: ChatBridge | null = null;
+/** startHttpServer() で構築した extensionLogsDb。 */
+let httpExtensionLogsDb: BetterSqlite3MemoryDb | null = null;
 
 /** テスト用: 状態リセット。 */
 export function _resetForTest(): void {
   memoryCoreService = null;
   analyzeAllRunner = null;
+  lastCfg = null;
+  httpServer = null;
+  httpCodeGraphService = null;
+  httpTrailDb = null;
+  httpPort = null;
+  httpRebuildSchedulerDisposable = null;
+  httpChatBridge = null;
+  httpExtensionLogsDb = null;
 }
 
 function requireRunner(): AnalyzeAllRunner {
@@ -82,6 +178,7 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     await memoryCoreService.dispose();
     memoryCoreService = null;
   }
+  lastCfg = null; // 再 configure 時はリセット
 
   // MemoryCoreService (cfg.memoryCore が null なら memory pipeline をスキップ)
   if (cfg.memoryCore) {
@@ -131,6 +228,231 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     onImportPhase: (event) => sendEvent('phase', event),
     onAfterRun: () => sendEvent('afterRun', {}),
   });
+  lastCfg = cfg;
+}
+
+/**
+ * HTTP サーバ (TrailDataServer + CodeGraphService) を起動し httpReady イベントを emit する。
+ * 冪等: 既に起動済みの場合は httpReady を再 emit して return する。
+ * configure() が先に完了していること (lastCfg が null でないこと) を要求する。
+ */
+async function startHttpServer(opts: SerializableHttpServerOptions): Promise<void> {
+  if (!lastCfg) {
+    throw new Error('not configured: call configure() first');
+  }
+
+  // 冪等: 既に起動済みなら httpReady を再 emit して終了。
+  if (httpServer !== null && httpPort !== null) {
+    sendEvent('httpReady', { port: httpPort, url: `http://localhost:${httpPort}` });
+    return;
+  }
+
+  // TrailDatabase を開く。distPath と trailDbPath は configure 済みの cfg から取得。
+  // startHttpServer の opts.distPath が native binding の基準ディレクトリになる。
+  const trailDb = new TrailDatabase(opts.distPath, path.dirname(lastCfg.trailDbPath));
+
+  // CodeGraphService を構築。c4ElementsProvider / trailGraphProvider は省略 (dormant 段階)。
+  const codeGraphService = new CodeGraphService({
+    repositories:
+      opts.gitRoot
+        ? [{ id: opts.gitRoot, label: opts.gitRoot.split('/').at(-1) ?? opts.gitRoot, path: opts.gitRoot }]
+        : [],
+    trailDb,
+    pythonWasmPath: opts.pythonWasmPath,
+    excludeRoot: opts.gitRoot,
+    logger: daemonLoggerAsLogger,
+  });
+
+  // TrailDataServer を構築。distPath は better-sqlite3 native binding の解決に使う。
+  const server = new TrailDataServer(
+    opts.distPath,
+    trailDb,
+    daemonLoggerAsLogger,
+    opts.gitRoot,
+    opts.memoryDbPath,
+  );
+  server.setCodeGraphService(codeGraphService);
+
+  // ---- 付属オブジェクトの構築と wire ----
+
+  // LogService
+  if (opts.logService) {
+    const lsCfg = opts.logService;
+    const nativeBinding =
+      lsCfg.nativeBinding ?? path.join(opts.distPath, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+    const extensionLogsDb = new BetterSqlite3MemoryDb({ filePath: lsCfg.extensionLogsDbPath, nativeBinding });
+    extensionLogsDb.run(CREATE_EXTENSION_LOGS);
+    for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
+    extensionLogsDb.run('PRAGMA journal_mode=WAL');
+    const logService = new LogService(extensionLogsDb, server);
+    server.setLogService(logService);
+    httpExtensionLogsDb = extensionLogsDb;
+    daemonLogger.info(`[daemon] LogService wired: ${lsCfg.extensionLogsDbPath}`);
+  }
+
+  // ChatBridge
+  if (opts.chatBridge) {
+    const cbCfg = opts.chatBridge;
+    const chatBridge = new ChatBridge({
+      memoryDbPath: cbCfg.memoryDbPath,
+      memoryNativeBinding: cbCfg.memoryNativeBinding,
+      getConfig: () => cbCfg.staticConfig,
+      logger: {
+        info: (msg: string) => daemonLogger.info(`[chatBridge] ${msg}`),
+        error: (msg: string, err?: unknown) =>
+          daemonLogger.error(`[chatBridge] ${msg}${err ? ` ${formatError(err)}` : ''}`),
+      },
+    });
+    server.setChatBridge(chatBridge);
+    httpChatBridge = chatBridge;
+    daemonLogger.info('[daemon] ChatBridge wired');
+  }
+
+  // RebuildScheduler
+  if (opts.rebuildScheduler) {
+    const rsCfg = opts.rebuildScheduler;
+    const rebuildScheduler = new RebuildScheduler({
+      memoryDbPath: rsCfg.memoryDbPath,
+      memoryNativeBinding: rsCfg.memoryNativeBinding,
+      logger: {
+        info: (msg: string) => daemonLogger.info(`[rebuildScheduler] ${msg}`),
+        error: (msg: string, err?: unknown) =>
+          daemonLogger.error(`[rebuildScheduler] ${msg}${err ? ` ${formatError(err)}` : ''}`),
+      },
+    });
+    const intervalMs = rsCfg.intervalMs ?? 60 * 60 * 1000; // default 60 min
+    httpRebuildSchedulerDisposable = rebuildScheduler.start(intervalMs);
+    daemonLogger.info('[daemon] RebuildScheduler wired');
+  }
+
+  // ---- VS Code API 非依存コールバックの wire ----
+  // onOpenDocLink / onOpenFile は VS Code API を使えないため IPC イベントとして返す。
+  // extension (host) 側 (M2 で実装) がこのイベントを受けて VS Code API を呼び出す。
+  server.onOpenDocLink = (docPath: string) => {
+    sendEvent('openDocLink', { docPath });
+  };
+  server.onOpenFile = (filePath: string) => {
+    sendEvent('openFile', { filePath });
+  };
+
+  // onTokenBudgetExceeded: シリアライズ可能なフィールドのみ IPC イベントとして返す。
+  server.onTokenBudgetExceeded = (status) => {
+    sendEvent('tokenBudgetExceeded', {
+      sessionId: status.sessionId,
+      sessionTokens: status.sessionTokens,
+      dailyTokens: status.dailyTokens,
+      dailyLimitTokens: status.dailyLimitTokens,
+      sessionLimitTokens: status.sessionLimitTokens,
+      alertThresholdPct: status.alertThresholdPct,
+      turnCount: status.turnCount,
+      messageCount: status.messageCount,
+    });
+  };
+
+  // ---- analyze コールバックの wire ----
+  // onAnalyzeCurrentCode / onAnalyzeReleaseCode は daemon 内部の pipeline 関数で処理する。
+  // onAnalyzeAll は daemon 内部の AnalyzeAllRunner 経由。
+
+  // HTTP request shape (webview → TrailDataServer): workspacePath / tsconfigPath のみ。
+  // IPC dispatch 'analyzeCurrentCode' arm は SerializableAnalyzeCurrentCodeRequest を受け
+  // analysisRoot / excludeRoot / analyzeChildPath まで渡す。意図的に異なるシグネチャ。
+  server.onAnalyzeCurrentCode = async (req) => {
+    if (httpTrailDb === null || httpCodeGraphService === null) {
+      throw new Error('http server state not ready');
+    }
+    const opts2: AnalyzeCurrentOpts = {
+      // lastCfg! は安全: startHttpServer の冒頭で lastCfg !== null を確認済み。
+      analysisRoot: req.workspacePath ?? lastCfg!.gitRoot,
+      tsconfigPath: req.tsconfigPath,
+      trailDb: httpTrailDb,
+      codeGraphService: httpCodeGraphService,
+      callbacks: server,
+      logger: daemonLoggerAsLogger,
+      onProgress: (phase: string, percent?: number) =>
+        sendEvent('progress', { message: percent !== undefined ? `${phase} (${percent}%)` : phase }),
+    };
+    return runAnalyzeCurrentCodePipeline(opts2);
+  };
+
+  // HTTP request shape (webview → TrailDataServer): パラメータなし (gitRoot は lastCfg から取得)。
+  // IPC dispatch 'analyzeReleaseCode' arm は SerializableAnalyzeReleaseCodeRequest で gitRoot を受ける。
+  server.onAnalyzeReleaseCode = async () => {
+    if (httpTrailDb === null || httpCodeGraphService === null) {
+      throw new Error('http server state not ready');
+    }
+    if (!lastCfg?.gitRoot) {
+      throw new Error('gitRoot not configured; call configure() with a gitRoot first');
+    }
+    const opts3: AnalyzeReleaseOpts = {
+      trailDb: httpTrailDb,
+      codeGraphService: httpCodeGraphService,
+      gitRoot: lastCfg.gitRoot,
+      onProgress: (msg: string) => sendEvent('progress', { message: msg }),
+    };
+    return runAnalyzeReleaseCodePipeline(opts3);
+  };
+
+  server.onAnalyzeAll = async () => {
+    if (!analyzeAllRunner) {
+      throw new Error('AnalyzeAllRunner not configured; call configure() first');
+    }
+    const startedAt = Date.now();
+    await analyzeAllRunner.runOnce('import');
+    const result = await analyzeAllRunner.getLastImportResult();
+    if (!result) {
+      throw new Error('importAll did not produce a result');
+    }
+    return { ...result, durationMs: Date.now() - startedAt };
+  };
+
+  // ---- 初期設定の適用 ----
+  if (opts.tokenBudgetConfig) {
+    server.setTokenBudgetConfig(opts.tokenBudgetConfig);
+  }
+  if (opts.docsPath !== undefined) {
+    server.setDocsPath(opts.docsPath);
+  }
+
+  // ---- AnalyzeAllRunner を wire (configure 済みの場合) ----
+  if (analyzeAllRunner) {
+    server.setAnalyzeAllRunner(analyzeAllRunner);
+  }
+
+  // ポートを試みる: preferredPort → preferred+1..+9 → 0 (OS 任意)。
+  const preferred = opts.preferredPort ?? 19841;
+  const portCandidates: number[] =
+    preferred === 0
+      ? [0]
+      : [...Array.from({ length: 10 }, (_, i) => preferred + i), 0];
+
+  let lastErr: Error | null = null;
+  let startedPort: number | null = null;
+
+  for (const candidate of portCandidates) {
+    try {
+      await server.start(candidate);
+      startedPort = server.port;
+      break;
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('already in use')) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  if (startedPort === null) {
+    throw lastErr ?? new Error('Failed to bind HTTP server on any port');
+  }
+
+  // 成功 — モジュールスコープに保持し dispose で後始末できるようにする。
+  httpServer = server;
+  httpCodeGraphService = codeGraphService;
+  httpTrailDb = trailDb;
+  httpPort = startedPort;
+
+  sendEvent('httpReady', { port: startedPort, url: `http://localhost:${startedPort}` });
 }
 
 async function disposeAll(): Promise<void> {
@@ -142,6 +464,38 @@ async function disposeAll(): Promise<void> {
     await memoryCoreService.dispose();
     memoryCoreService = null;
   }
+  if (httpRebuildSchedulerDisposable) {
+    httpRebuildSchedulerDisposable.dispose();
+    httpRebuildSchedulerDisposable = null;
+  }
+  if (httpChatBridge) {
+    try {
+      httpChatBridge.dispose();
+    } catch (err) {
+      daemonLogger.error(`[daemon] ChatBridge dispose error: ${formatError(err)}`);
+    }
+    httpChatBridge = null;
+  }
+  if (httpServer) {
+    try {
+      await httpServer.stop();
+    } catch (err) {
+      daemonLogger.error(`[daemon] HTTP server stop error: ${formatError(err)}`);
+    }
+    httpServer = null;
+  }
+  if (httpExtensionLogsDb) {
+    try {
+      httpExtensionLogsDb.close();
+    } catch (err) {
+      daemonLogger.error(`[daemon] extensionLogsDb close error: ${formatError(err)}`);
+    }
+    httpExtensionLogsDb = null;
+  }
+  httpCodeGraphService = null;
+  httpTrailDb = null;
+  httpPort = null;
+  lastCfg = null;
 }
 
 export async function dispatch(method: MethodName | string, params: unknown): Promise<unknown> {
@@ -174,6 +528,62 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
       return requireRunner().getStatus();
     case 'getLastImportResult':
       return requireRunner().getLastImportResult();
+    case 'analyzeCurrentCode': {
+      if (lastCfg === null) {
+        throw new Error('not configured: call configure() first');
+      }
+      if (httpTrailDb === null || httpCodeGraphService === null || httpServer === null) {
+        throw new Error('http server not started: call startHttpServer() first');
+      }
+      const req = params as SerializableAnalyzeCurrentCodeRequest;
+      const opts: AnalyzeCurrentOpts = {
+        analysisRoot: req.analysisRoot,
+        excludeRoot: req.excludeRoot,
+        tsconfigPath: req.tsconfigPath,
+        analyzeChildPath: req.analyzeChildPath,
+        trailDb: httpTrailDb,
+        codeGraphService: httpCodeGraphService,
+        callbacks: httpServer,
+        logger: daemonLoggerAsLogger,
+        onProgress: (phase: string, percent?: number) =>
+          sendEvent('progress', { message: percent !== undefined ? `${phase} (${percent}%)` : phase }),
+      };
+      return await runAnalyzeCurrentCodePipeline(opts);
+    }
+    case 'analyzeReleaseCode': {
+      if (lastCfg === null) {
+        throw new Error('not configured: call configure() first');
+      }
+      if (httpTrailDb === null || httpCodeGraphService === null || httpServer === null) {
+        throw new Error('http server not started: call startHttpServer() first');
+      }
+      const req = params as SerializableAnalyzeReleaseCodeRequest;
+      const opts: AnalyzeReleaseOpts = {
+        trailDb: httpTrailDb,
+        codeGraphService: httpCodeGraphService,
+        gitRoot: req.gitRoot,
+        onProgress: (msg: string) => sendEvent('progress', { message: msg }),
+      };
+      return await runAnalyzeReleaseCodePipeline(opts);
+    }
+    case 'startHttpServer':
+      await startHttpServer(params as SerializableHttpServerOptions);
+      return;
+    case 'setDocsPath': {
+      if (!httpServer) {
+        throw new Error('http server not started: call startHttpServer() first');
+      }
+      const req = params as SerializableSetDocsPathRequest;
+      httpServer.setDocsPath(req.docsPath);
+      return;
+    }
+    case 'setTokenBudgetConfig': {
+      if (!httpServer) {
+        throw new Error('http server not started: call startHttpServer() first');
+      }
+      httpServer.setTokenBudgetConfig(params as SerializableTokenBudgetConfig);
+      return;
+    }
     case 'dispose':
       await disposeAll();
       return;
