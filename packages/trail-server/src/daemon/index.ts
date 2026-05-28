@@ -7,6 +7,7 @@
 
 export { TrailDaemonHost } from './TrailDaemonHost';
 export { AnalyzeAllRunnerClient } from './AnalyzeAllRunnerClient';
+export { AnalyzeCommandClient } from './AnalyzeCommandClient';
 export { TrailDaemonHttpClient } from './TrailDaemonHttpClient';
 export type {
   HostMessage,
