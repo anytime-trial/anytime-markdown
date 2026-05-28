@@ -95,6 +95,26 @@ export interface SerializableAnalyzeReleaseCodeRequest {
   readonly gitRoot: string;
 }
 
+/**
+ * daemon が TrailDataServer + CodeGraphService を起動するのに必要なシリアライズ可能な引数。
+ * 非シリアライズ要素 (trailDb handle / logger instance) は daemon 側で構築する。
+ */
+export interface SerializableHttpServerOptions {
+  /** 拡張の dist ディレクトリ。daemon が better-sqlite3 native binding を解決するのに使う。 */
+  readonly distPath: string;
+  /** コードグラフ解析・exclude 読み込みに使うリポジトリルート。 */
+  readonly gitRoot?: string;
+  /** memory (better-sqlite3) DB ファイルの絶対パス。省略時は MemoryApiHandler が無効化される。 */
+  readonly memoryDbPath?: string;
+  /** HTTP サーバの希望ポート。EADDRINUSE 時は +1..+9 → 0 (OS 任意) の順で試みる。 */
+  readonly preferredPort?: number;
+  /**
+   * tree-sitter-python.wasm の絶対パス。bundle 環境で Python コードグラフ解析を有効化する。
+   * 省略時は Python 解析が無効になる（TS のみ）。
+   */
+  readonly pythonWasmPath?: string;
+}
+
 /** host -> daemon に送れる RPC メソッド名。 */
 export type MethodName =
   | 'configure'
@@ -107,6 +127,7 @@ export type MethodName =
   | 'getLastImportResult'
   | 'analyzeCurrentCode'
   | 'analyzeReleaseCode'
+  | 'startHttpServer'
   | 'dispose';
 
 export interface HostRequest {
@@ -161,6 +182,11 @@ export type DaemonEvent =
       readonly type: 'event';
       readonly channel: 'status';
       readonly payload: RunnerStatus;
+    }
+  | {
+      readonly type: 'event';
+      readonly channel: 'httpReady';
+      readonly payload: { readonly port: number; readonly url: string };
     };
 
 export type HostMessage = HostRequest;

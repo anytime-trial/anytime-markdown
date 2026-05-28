@@ -3,6 +3,7 @@ import type {
   DaemonMessage,
   SerializableAnalyzeCurrentCodeRequest,
   SerializableAnalyzeReleaseCodeRequest,
+  SerializableHttpServerOptions,
 } from '../trailDaemonProtocol';
 
 describe('trailDaemonProtocol JSON round-trip', () => {
@@ -124,6 +125,50 @@ describe('trailDaemonProtocol JSON round-trip', () => {
       id: 'r5',
       ok: true,
       result: { releaseCount: 5, durationMs: 999 },
+    };
+    expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+  });
+
+  it('startHttpServer リクエスト (全フィールド) が JSON round-trip 可', () => {
+    const params: SerializableHttpServerOptions = {
+      distPath: '/ext/dist',
+      gitRoot: '/workspace/my-repo',
+      memoryDbPath: '/home/user/.anytime/memory.db',
+      preferredPort: 19841,
+      pythonWasmPath: '/ext/dist/wasm/tree-sitter-python.wasm',
+    };
+    const msg: HostMessage = {
+      type: 'request',
+      id: 'r6',
+      method: 'startHttpServer',
+      params,
+    };
+    expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+  });
+
+  it('startHttpServer リクエスト (required のみ) が JSON round-trip 可', () => {
+    const msg: HostMessage = {
+      type: 'request',
+      id: 'r7',
+      method: 'startHttpServer',
+      params: {
+        distPath: '/ext/dist',
+      } satisfies SerializableHttpServerOptions,
+    };
+    const roundTripped = JSON.parse(JSON.stringify(msg)) as HostMessage;
+    expect(roundTripped).toEqual(msg);
+    // optional フィールドは JSON に現れない。
+    expect((roundTripped.params as Record<string, unknown>)).not.toHaveProperty('gitRoot');
+    expect((roundTripped.params as Record<string, unknown>)).not.toHaveProperty('memoryDbPath');
+    expect((roundTripped.params as Record<string, unknown>)).not.toHaveProperty('preferredPort');
+    expect((roundTripped.params as Record<string, unknown>)).not.toHaveProperty('pythonWasmPath');
+  });
+
+  it('httpReady イベントが JSON round-trip 可', () => {
+    const msg: DaemonMessage = {
+      type: 'event',
+      channel: 'httpReady',
+      payload: { port: 19841, url: 'http://localhost:19841' },
     };
     expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
   });

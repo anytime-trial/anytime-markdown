@@ -8,9 +8,13 @@
 
 import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
+import { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { checkLlmAvailability } from '../lep/LlmAvailability';
 import { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
+import { TrailDataServer } from '../server/TrailDataServer';
+import { CodeGraphService } from '../analyze/CodeGraphService';
+import type { Logger } from '../runtime/Logger';
 
 import type {
   DaemonEvent,
@@ -19,6 +23,7 @@ import type {
   MethodName,
   RunReason,
   SerializableAnalyzeAllConfig,
+  SerializableHttpServerOptions,
 } from './trailDaemonProtocol';
 
 function send(m: DaemonMessage): void {
@@ -58,11 +63,48 @@ export const daemonLogger = {
 
 let memoryCoreService: MemoryCoreService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
+/** configure() 完了後に保持する設定 (startHttpServer が参照する)。 */
+let lastCfg: SerializableAnalyzeAllConfig | null = null;
+/** startHttpServer() で構築した TrailDataServer。 */
+let httpServer: TrailDataServer | null = null;
+/** startHttpServer() で構築した CodeGraphService。 */
+let httpCodeGraphService: CodeGraphService | null = null;
+/** startHttpServer() が確立したポート番号。 */
+let httpPort: number | null = null;
+
+/**
+ * Logger adapter: daemonLogger (イベントブリッジ) を runtime/Logger の Logger インタフェースに
+ * 適合させる薄いラッパ。TrailDataServer / CodeGraphService が期待する Logger を満たす。
+ * 新規ファイルは作らず daemon entry 内に局所定義する。
+ */
+const daemonLoggerAsLogger: Logger = {
+  debug: (msg: string) => daemonLogger.debug(msg),
+  info: (msg: string) => daemonLogger.info(msg),
+  warn: (msg: string) => daemonLogger.warn(msg),
+  error: (msg: string, err?: unknown) => {
+    const errStr = err instanceof Error && err.stack ? err.stack : err !== undefined ? String(err) : '';
+    daemonLogger.error(errStr ? `${msg}\n${errStr}` : msg);
+  },
+  child: (scope: string): Logger => ({
+    debug: (msg: string) => daemonLogger.debug(`[${scope}] ${msg}`),
+    info: (msg: string) => daemonLogger.info(`[${scope}] ${msg}`),
+    warn: (msg: string) => daemonLogger.warn(`[${scope}] ${msg}`),
+    error: (msg: string, err?: unknown) => {
+      const errStr = err instanceof Error && err.stack ? err.stack : err !== undefined ? String(err) : '';
+      daemonLogger.error(errStr ? `[${scope}] ${msg}\n${errStr}` : `[${scope}] ${msg}`);
+    },
+    child: (childScope: string) => daemonLoggerAsLogger.child(`${scope}/${childScope}`),
+  }),
+};
 
 /** テスト用: 状態リセット。 */
 export function _resetForTest(): void {
   memoryCoreService = null;
   analyzeAllRunner = null;
+  lastCfg = null;
+  httpServer = null;
+  httpCodeGraphService = null;
+  httpPort = null;
 }
 
 function requireRunner(): AnalyzeAllRunner {
@@ -82,6 +124,7 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     await memoryCoreService.dispose();
     memoryCoreService = null;
   }
+  lastCfg = null; // 再 configure 時はリセット
 
   // MemoryCoreService (cfg.memoryCore が null なら memory pipeline をスキップ)
   if (cfg.memoryCore) {
@@ -131,6 +174,85 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     onImportPhase: (event) => sendEvent('phase', event),
     onAfterRun: () => sendEvent('afterRun', {}),
   });
+  lastCfg = cfg;
+}
+
+/**
+ * HTTP サーバ (TrailDataServer + CodeGraphService) を起動し httpReady イベントを emit する。
+ * 冪等: 既に起動済みの場合は httpReady を再 emit して return する。
+ * configure() が先に完了していること (lastCfg が null でないこと) を要求する。
+ */
+async function startHttpServer(opts: SerializableHttpServerOptions): Promise<void> {
+  if (!lastCfg) {
+    throw new Error('not configured: call configure() first');
+  }
+
+  // 冪等: 既に起動済みなら httpReady を再 emit して終了。
+  if (httpServer !== null && httpPort !== null) {
+    sendEvent('httpReady', { port: httpPort, url: `http://localhost:${httpPort}` });
+    return;
+  }
+
+  // TrailDatabase を開く。distPath と trailDbPath は configure 済みの cfg から取得。
+  // startHttpServer の opts.distPath が native binding の基準ディレクトリになる。
+  const trailDb = new TrailDatabase(opts.distPath, lastCfg.trailDbPath);
+
+  // CodeGraphService を構築。c4ElementsProvider / trailGraphProvider は省略 (dormant 段階)。
+  const codeGraphService = new CodeGraphService({
+    repositories:
+      opts.gitRoot
+        ? [{ id: opts.gitRoot, label: opts.gitRoot.split('/').at(-1) ?? opts.gitRoot, path: opts.gitRoot }]
+        : [],
+    trailDb,
+    pythonWasmPath: opts.pythonWasmPath,
+    excludeRoot: opts.gitRoot,
+    logger: daemonLoggerAsLogger,
+  });
+
+  // TrailDataServer を構築。distPath は better-sqlite3 native binding の解決に使う。
+  const server = new TrailDataServer(
+    opts.distPath,
+    trailDb,
+    daemonLoggerAsLogger,
+    opts.gitRoot,
+    opts.memoryDbPath,
+  );
+  server.setCodeGraphService(codeGraphService);
+
+  // ポートを試みる: preferredPort → preferred+1..+9 → 0 (OS 任意)。
+  const preferred = opts.preferredPort ?? 19841;
+  const portCandidates: number[] =
+    preferred === 0
+      ? [0]
+      : [...Array.from({ length: 10 }, (_, i) => preferred + i), 0];
+
+  let lastErr: Error | null = null;
+  let startedPort: number | null = null;
+
+  for (const candidate of portCandidates) {
+    try {
+      await server.start(candidate);
+      startedPort = server.port;
+      break;
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('already in use')) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  if (startedPort === null) {
+    throw lastErr ?? new Error('Failed to bind HTTP server on any port');
+  }
+
+  // 成功 — モジュールスコープに保持し dispose で後始末できるようにする。
+  httpServer = server;
+  httpCodeGraphService = codeGraphService;
+  httpPort = startedPort;
+
+  sendEvent('httpReady', { port: startedPort, url: `http://localhost:${startedPort}` });
 }
 
 async function disposeAll(): Promise<void> {
@@ -142,6 +264,17 @@ async function disposeAll(): Promise<void> {
     await memoryCoreService.dispose();
     memoryCoreService = null;
   }
+  if (httpServer) {
+    try {
+      await httpServer.stop();
+    } catch (err) {
+      daemonLogger.error(`[daemon] HTTP server stop error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    httpServer = null;
+  }
+  httpCodeGraphService = null;
+  httpPort = null;
+  lastCfg = null;
 }
 
 export async function dispatch(method: MethodName | string, params: unknown): Promise<unknown> {
@@ -174,6 +307,9 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
       return requireRunner().getStatus();
     case 'getLastImportResult':
       return requireRunner().getLastImportResult();
+    case 'startHttpServer':
+      await startHttpServer(params as SerializableHttpServerOptions);
+      return;
     case 'dispose':
       await disposeAll();
       return;
