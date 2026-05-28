@@ -16,14 +16,13 @@ import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
 import {
 	TrailDataServer,
 	CodeGraphService,
-	findTsconfigCandidates,
-	hasPythonFiles,
 	runAnalyzeCurrentCodePipeline,
 	runAnalyzeReleaseCodePipeline,
-	createFetchGitHubReviewClient,
-	checkLlmAvailability,
-	LogService,
 } from '@anytime-markdown/trail-server';
+import { LogService } from '@anytime-markdown/trail-server/services';
+import { findTsconfigCandidates, hasPythonFiles } from '@anytime-markdown/trail-server/analyze-utils';
+import { checkLlmAvailability } from '@anytime-markdown/trail-server/llm';
+import { createFetchGitHubReviewClient } from '@anytime-markdown/trail-server/github';
 import {
 	loadLepConfig,
 	migrateConfigJsonIntoLepJson,
