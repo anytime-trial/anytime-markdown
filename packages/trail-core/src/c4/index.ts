@@ -121,3 +121,10 @@ export type {
 export type { ServiceEntry } from './services/catalog';
 // SERVICE_CATALOG / findService / filterServices は simple-icons (5.2 MB) を取り込む。
 // '@anytime-markdown/trail-core/c4/services' からのみ import 可能とする。
+
+export type {
+  FunctionGraphNode,
+  FunctionGraphEdge,
+  FunctionGraphResponse,
+} from './functionGraph';
+export { filterTrailGraphByElement } from './functionGraph';
