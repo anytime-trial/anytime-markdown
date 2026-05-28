@@ -9,6 +9,7 @@ module.exports = {
   moduleNameMapper: {
     '^vscode$': '<rootDir>/src/__mocks__/vscode.ts',
     '^@anytime-markdown/memory-core$': '<rootDir>/../memory-core/src/index.ts',
+    '^@anytime-markdown/memory-core/pipeline$': '<rootDir>/../memory-core/src/pipeline-exports.ts',
   },
   maxWorkers: 1,
   // 保護領域（~/.claude, ~/.vscode-server）への書き込みを全テストで禁止する
