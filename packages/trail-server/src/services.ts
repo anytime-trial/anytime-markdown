@@ -8,3 +8,4 @@ export type {
   QueryParams,
   QueryResult,
 } from './services/LogService';
+export { LogSink, combineLoggers } from './services/LogSink';

@@ -13,7 +13,9 @@
     "./services": "./src/services.ts",
     "./analyze-utils": "./src/analyze-utils.ts",
     "./llm": "./src/llm.ts",
-    "./github": "./src/github.ts"
+    "./github": "./src/github.ts",
+    "./runtime": "./src/runtime.ts",
+    "./jobs": "./src/jobs.ts"
   },
   "bin": {
     "anytime-trail-server": "dist/cli.js"
