@@ -23,6 +23,7 @@ jest.mock('../../analyze/AnalyzePipeline', () => ({
 // モジュールごと差し替える。
 jest.mock('@anytime-markdown/trail-db', () => ({
   TrailDatabase: jest.fn().mockImplementation(() => ({
+    init: jest.fn(async () => {}),
     saveCurrentGraph: jest.fn(),
     importCurrentCoverage: jest.fn(() => 0),
     deleteReleaseCodeGraphs: jest.fn(),
@@ -47,6 +48,7 @@ jest.mock('../../server/TrailDataServer', () => ({
     notifyCodeGraphProgress: jest.fn(),
     notifyCodeGraphUpdated: jest.fn(),
     notifyModelUpdated: jest.fn(),
+    notifySessionsUpdated: jest.fn(),
     computeAndPersistImportance: jest.fn(async () => null),
     // callback slots (M1: daemon が wire するプロパティ)
     onOpenDocLink: undefined as unknown,

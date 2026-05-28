@@ -15,8 +15,8 @@ export class AnalyzeCommandClient {
    * 戻り値は `AnalyzeCurrentResult` に対応するが、export されていないため
    * consumer 側で cast する。
    */
-  async analyzeCurrentCode(req: SerializableAnalyzeCurrentCodeRequest): Promise<unknown> {
-    return await this.host.call('analyzeCurrentCode', req);
+  analyzeCurrentCode(req: SerializableAnalyzeCurrentCodeRequest): Promise<unknown> {
+    return this.host.call('analyzeCurrentCode', req);
   }
 
   /**
@@ -24,7 +24,7 @@ export class AnalyzeCommandClient {
    * 戻り値は `AnalyzeReleaseResult` に対応するが、export されていないため
    * consumer 側で cast する。
    */
-  async analyzeReleaseCode(req: SerializableAnalyzeReleaseCodeRequest): Promise<unknown> {
-    return await this.host.call('analyzeReleaseCode', req);
+  analyzeReleaseCode(req: SerializableAnalyzeReleaseCodeRequest): Promise<unknown> {
+    return this.host.call('analyzeReleaseCode', req);
   }
 }

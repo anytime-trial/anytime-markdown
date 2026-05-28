@@ -109,36 +109,37 @@ function formatError(err: unknown): string {
   return String(err);
 }
 
+/** msg + (err 整形) + (meta JSON) を 1 行に結合する。error ログ用。 */
+function buildErrorLine(msg: string, err?: unknown, meta?: Record<string, unknown>): string {
+  const base = err !== undefined ? `${msg} ${formatError(err)}` : msg;
+  return formatWithMeta(base, meta);
+}
+
 /**
  * Logger adapter: daemonLogger (イベントブリッジ) を runtime/Logger の Logger インタフェースに
- * 適合させる薄いラッパ。TrailDataServer / CodeGraphService が期待する Logger を満たす。
- * 新規ファイルは作らず daemon entry 内に局所定義する。
+ * 適合させる薄いラッパ。TrailDataServer / CodeGraphService / ChatBridge / RebuildScheduler が
+ * 期待する Logger を満たす。新規ファイルは作らず daemon entry 内に局所定義する。
+ * scope を伴う child() も同じ factory を再帰利用し、root / child の実装重複を排除する。
  */
-const daemonLoggerAsLogger: Logger = {
-  debug: (msg: string, meta?: Record<string, unknown>) => daemonLogger.debug(formatWithMeta(msg, meta)),
-  info: (msg: string, meta?: Record<string, unknown>) => daemonLogger.info(formatWithMeta(msg, meta)),
-  warn: (msg: string, meta?: Record<string, unknown>) => daemonLogger.warn(formatWithMeta(msg, meta)),
-  error: (msg: string, err?: unknown, meta?: Record<string, unknown>) => {
-    const errStr = err instanceof Error
-      ? err.message + (err.stack ? `\n${err.stack}` : '')
-      : err !== undefined ? String(err) : '';
-    const metaStr = meta ? (() => { try { return JSON.stringify(meta); } catch { return ''; } })() : '';
-    daemonLogger.error([msg, errStr, metaStr].filter(Boolean).join(' '));
-  },
-  child: (scope: string): Logger => ({
-    debug: (msg: string, meta?: Record<string, unknown>) => daemonLogger.debug(formatWithMeta(`[${scope}] ${msg}`, meta)),
-    info: (msg: string, meta?: Record<string, unknown>) => daemonLogger.info(formatWithMeta(`[${scope}] ${msg}`, meta)),
-    warn: (msg: string, meta?: Record<string, unknown>) => daemonLogger.warn(formatWithMeta(`[${scope}] ${msg}`, meta)),
-    error: (msg: string, err?: unknown, meta?: Record<string, unknown>) => {
-      const errStr = err instanceof Error
-        ? err.message + (err.stack ? `\n${err.stack}` : '')
-        : err !== undefined ? String(err) : '';
-      const metaStr = meta ? (() => { try { return JSON.stringify(meta); } catch { return ''; } })() : '';
-      daemonLogger.error([`[${scope}] ${msg}`, errStr, metaStr].filter(Boolean).join(' '));
-    },
-    child: (childScope: string) => daemonLoggerAsLogger.child(`${scope}/${childScope}`),
-  }),
-};
+function makeScopedDaemonLogger(scope?: string): Logger {
+  const prefix = scope ? `[${scope}] ` : '';
+  return {
+    debug: (msg, meta) => daemonLogger.debug(formatWithMeta(prefix + msg, meta)),
+    info: (msg, meta) => daemonLogger.info(formatWithMeta(prefix + msg, meta)),
+    warn: (msg, meta) => daemonLogger.warn(formatWithMeta(prefix + msg, meta)),
+    error: (msg, err, meta) => daemonLogger.error(buildErrorLine(prefix + msg, err, meta)),
+    child: (childScope) => makeScopedDaemonLogger(scope ? `${scope}/${childScope}` : childScope),
+  };
+}
+const daemonLoggerAsLogger: Logger = makeScopedDaemonLogger();
+
+/** analyze current/release pipeline の onProgress を IPC 'progress' イベントに変換する共通実装。 */
+function emitAnalyzeCurrentProgress(phase: string, percent?: number): void {
+  sendEvent('progress', { message: percent !== undefined ? `${phase} (${percent}%)` : phase });
+}
+function emitAnalyzeReleaseProgress(message: string): void {
+  sendEvent('progress', { message });
+}
 
 /** startHttpServer() で構築した RebuildScheduler disposable。 */
 let httpRebuildSchedulerDisposable: { dispose(): void } | null = null;
@@ -226,7 +227,14 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     onImportProgress: (message: string) => sendEvent('progress', { message }),
     analyzeReleaseFn: analyze,
     onImportPhase: (event) => sendEvent('phase', event),
-    onAfterRun: () => sendEvent('afterRun', {}),
+    onAfterRun: () => {
+      // daemon 内の TrailDataServer に sessions 更新を WebSocket push させる。
+      // Phase 3 で TrailDataServer が daemon 側へ移ったため、旧 extension の
+      // afterRun → trailDataServer.notifySessionsUpdated() を daemon 内で完結させる
+      // (IPC afterRun イベントは extension 側のログ用に残す)。
+      httpServer?.notifySessionsUpdated();
+      sendEvent('afterRun', {});
+    },
   });
   lastCfg = cfg;
 }
@@ -301,11 +309,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       memoryDbPath: cbCfg.memoryDbPath,
       memoryNativeBinding: cbCfg.memoryNativeBinding,
       getConfig: () => cbCfg.staticConfig,
-      logger: {
-        info: (msg: string) => daemonLogger.info(`[chatBridge] ${msg}`),
-        error: (msg: string, err?: unknown) =>
-          daemonLogger.error(`[chatBridge] ${msg}${err ? ` ${formatError(err)}` : ''}`),
-      },
+      logger: daemonLoggerAsLogger.child('chatBridge'),
     });
     server.setChatBridge(chatBridge);
     httpChatBridge = chatBridge;
@@ -318,11 +322,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     const rebuildScheduler = new RebuildScheduler({
       memoryDbPath: rsCfg.memoryDbPath,
       memoryNativeBinding: rsCfg.memoryNativeBinding,
-      logger: {
-        info: (msg: string) => daemonLogger.info(`[rebuildScheduler] ${msg}`),
-        error: (msg: string, err?: unknown) =>
-          daemonLogger.error(`[rebuildScheduler] ${msg}${err ? ` ${formatError(err)}` : ''}`),
-      },
+      logger: daemonLoggerAsLogger.child('rebuildScheduler'),
     });
     const intervalMs = rsCfg.intervalMs ?? 60 * 60 * 1000; // default 60 min
     httpRebuildSchedulerDisposable = rebuildScheduler.start(intervalMs);
@@ -372,8 +372,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       codeGraphService: httpCodeGraphService,
       callbacks: server,
       logger: daemonLoggerAsLogger,
-      onProgress: (phase: string, percent?: number) =>
-        sendEvent('progress', { message: percent !== undefined ? `${phase} (${percent}%)` : phase }),
+      onProgress: emitAnalyzeCurrentProgress,
     };
     return runAnalyzeCurrentCodePipeline(opts2);
   };
@@ -391,7 +390,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       trailDb: httpTrailDb,
       codeGraphService: httpCodeGraphService,
       gitRoot: lastCfg.gitRoot,
-      onProgress: (msg: string) => sendEvent('progress', { message: msg }),
+      onProgress: emitAnalyzeReleaseProgress,
     };
     return runAnalyzeReleaseCodePipeline(opts3);
   };
@@ -549,8 +548,7 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
         codeGraphService: httpCodeGraphService,
         callbacks: httpServer,
         logger: daemonLoggerAsLogger,
-        onProgress: (phase: string, percent?: number) =>
-          sendEvent('progress', { message: percent !== undefined ? `${phase} (${percent}%)` : phase }),
+        onProgress: emitAnalyzeCurrentProgress,
       };
       return await runAnalyzeCurrentCodePipeline(opts);
     }
@@ -566,7 +564,7 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
         trailDb: httpTrailDb,
         codeGraphService: httpCodeGraphService,
         gitRoot: req.gitRoot,
-        onProgress: (msg: string) => sendEvent('progress', { message: msg }),
+        onProgress: emitAnalyzeReleaseProgress,
       };
       return await runAnalyzeReleaseCodePipeline(opts);
     }

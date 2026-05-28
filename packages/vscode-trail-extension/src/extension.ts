@@ -444,7 +444,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		try {
 			await vscode.window.withProgress(
 				{ location: vscode.ProgressLocation.Notification, title: 'C4 Analysis', cancellable: false },
-				async (_progress) => {
+				async () => {
 					// onProgress は daemon 内で実行されるため extension 側から直接 progress.report は
 					// 呼べない。daemon の 'progress' IPC イベントは trailDaemonHost.on('progress') で
 					// ログ出力のみ行う (withProgress のスピナーは継続表示)。
