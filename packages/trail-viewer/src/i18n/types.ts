@@ -273,6 +273,12 @@ export interface TrailI18n {
   'c4.hotspot.controls.granularity': string;
   'c4.hotspot.controls.granularityCommit': string;
   'c4.hotspot.controls.granularitySession': string;
+  'c4.level.L5': string;
+  'c4.level.L5.description': string;
+  'c4.level.L5.emptySelection': string;
+  'c4.level.L5.emptyNoFunctions': string;
+  'c4.level.L5.error': string;
+  'c4.level.L5.retry': string;
   'c4.trend.title': string;
   'c4.trend.loading': string;
   'c4.trend.seriesCommit': string;
