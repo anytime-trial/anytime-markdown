@@ -103,6 +103,12 @@ function formatWithMeta(msg: string, meta?: Record<string, unknown>): string {
   }
 }
 
+/** Error.stack を優先して文字列化する。スタックがない場合は message、非 Error は String()。 */
+function formatError(err: unknown): string {
+  if (err instanceof Error) return err.stack ?? err.message;
+  return String(err);
+}
+
 /**
  * Logger adapter: daemonLogger (イベントブリッジ) を runtime/Logger の Logger インタフェースに
  * 適合させる薄いラッパ。TrailDataServer / CodeGraphService が期待する Logger を満たす。
@@ -136,6 +142,8 @@ const daemonLoggerAsLogger: Logger = {
 
 /** startHttpServer() で構築した RebuildScheduler disposable。 */
 let httpRebuildSchedulerDisposable: { dispose(): void } | null = null;
+/** startHttpServer() で構築した ChatBridge。dispose() で SQLite WAL をフラッシュする。 */
+let httpChatBridge: ChatBridge | null = null;
 /** startHttpServer() で構築した extensionLogsDb。 */
 let httpExtensionLogsDb: BetterSqlite3MemoryDb | null = null;
 
@@ -149,6 +157,7 @@ export function _resetForTest(): void {
   httpTrailDb = null;
   httpPort = null;
   httpRebuildSchedulerDisposable = null;
+  httpChatBridge = null;
   httpExtensionLogsDb = null;
 }
 
@@ -291,10 +300,11 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       logger: {
         info: (msg: string) => daemonLogger.info(`[chatBridge] ${msg}`),
         error: (msg: string, err?: unknown) =>
-          daemonLogger.error(`[chatBridge] ${msg}${err ? ` ${err instanceof Error ? err.message : String(err)}` : ''}`),
+          daemonLogger.error(`[chatBridge] ${msg}${err ? ` ${formatError(err)}` : ''}`),
       },
     });
     server.setChatBridge(chatBridge);
+    httpChatBridge = chatBridge;
     daemonLogger.info('[daemon] ChatBridge wired');
   }
 
@@ -307,7 +317,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       logger: {
         info: (msg: string) => daemonLogger.info(`[rebuildScheduler] ${msg}`),
         error: (msg: string, err?: unknown) =>
-          daemonLogger.error(`[rebuildScheduler] ${msg}${err ? ` ${err instanceof Error ? err.message : String(err)}` : ''}`),
+          daemonLogger.error(`[rebuildScheduler] ${msg}${err ? ` ${formatError(err)}` : ''}`),
       },
     });
     const intervalMs = rsCfg.intervalMs ?? 60 * 60 * 1000; // default 60 min
@@ -342,11 +352,16 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   // ---- analyze コールバックの wire ----
   // onAnalyzeCurrentCode / onAnalyzeReleaseCode は daemon 内部の pipeline 関数で処理する。
   // onAnalyzeAll は daemon 内部の AnalyzeAllRunner 経由。
+
+  // HTTP request shape (webview → TrailDataServer): workspacePath / tsconfigPath のみ。
+  // IPC dispatch 'analyzeCurrentCode' arm は SerializableAnalyzeCurrentCodeRequest を受け
+  // analysisRoot / excludeRoot / analyzeChildPath まで渡す。意図的に異なるシグネチャ。
   server.onAnalyzeCurrentCode = async (req) => {
     if (httpTrailDb === null || httpCodeGraphService === null) {
       throw new Error('http server state not ready');
     }
     const opts2: AnalyzeCurrentOpts = {
+      // lastCfg! は安全: startHttpServer の冒頭で lastCfg !== null を確認済み。
       analysisRoot: req.workspacePath ?? lastCfg!.gitRoot,
       tsconfigPath: req.tsconfigPath,
       trailDb: httpTrailDb,
@@ -359,6 +374,8 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     return runAnalyzeCurrentCodePipeline(opts2);
   };
 
+  // HTTP request shape (webview → TrailDataServer): パラメータなし (gitRoot は lastCfg から取得)。
+  // IPC dispatch 'analyzeReleaseCode' arm は SerializableAnalyzeReleaseCodeRequest で gitRoot を受ける。
   server.onAnalyzeReleaseCode = async () => {
     if (httpTrailDb === null || httpCodeGraphService === null) {
       throw new Error('http server state not ready');
@@ -451,11 +468,19 @@ async function disposeAll(): Promise<void> {
     httpRebuildSchedulerDisposable.dispose();
     httpRebuildSchedulerDisposable = null;
   }
+  if (httpChatBridge) {
+    try {
+      httpChatBridge.dispose();
+    } catch (err) {
+      daemonLogger.error(`[daemon] ChatBridge dispose error: ${formatError(err)}`);
+    }
+    httpChatBridge = null;
+  }
   if (httpServer) {
     try {
       await httpServer.stop();
     } catch (err) {
-      daemonLogger.error(`[daemon] HTTP server stop error: ${err instanceof Error ? err.message : String(err)}`);
+      daemonLogger.error(`[daemon] HTTP server stop error: ${formatError(err)}`);
     }
     httpServer = null;
   }
@@ -463,7 +488,7 @@ async function disposeAll(): Promise<void> {
     try {
       httpExtensionLogsDb.close();
     } catch (err) {
-      daemonLogger.error(`[daemon] extensionLogsDb close error: ${err instanceof Error ? err.message : String(err)}`);
+      daemonLogger.error(`[daemon] extensionLogsDb close error: ${formatError(err)}`);
     }
     httpExtensionLogsDb = null;
   }
