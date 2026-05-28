@@ -130,3 +130,68 @@ describe('filterTrailGraphByElement', () => {
     expect(caller?.kind).toBe('external_caller');
   });
 });
+
+describe('filterTrailGraphByElement: Phase 2 component scope', () => {
+  const componentModel: C4Model = {
+    level: 'component',
+    elements: [
+      { id: 'community_a', type: 'component', name: 'community A' },
+      { id: 'community_b', type: 'component', name: 'community B' },
+      { id: 'src/x.ts', type: 'code', name: 'x.ts', boundaryId: 'community_a' },
+      { id: 'src/y.ts', type: 'code', name: 'y.ts', boundaryId: 'community_a' },
+      { id: 'src/z.ts', type: 'code', name: 'z.ts', boundaryId: 'community_b' },
+      { id: 'community_empty', type: 'component', name: 'empty community' },
+    ],
+    relationships: [],
+  };
+
+  const componentGraph = (): TrailGraph => ({
+    metadata: md,
+    nodes: [
+      { id: 'src/x.ts::p', label: 'p', type: 'function', filePath: 'src/x.ts', line: 1 },
+      { id: 'src/y.ts::q', label: 'q', type: 'function', filePath: 'src/y.ts', line: 1 },
+      { id: 'src/z.ts::r', label: 'r', type: 'function', filePath: 'src/z.ts', line: 1 },
+    ],
+    edges: [
+      { source: 'src/x.ts::p', target: 'src/y.ts::q', type: 'call' }, // 同 component 内ファイル間
+      { source: 'src/y.ts::q', target: 'src/z.ts::r', type: 'call' }, // 別 component への out
+      { source: 'src/z.ts::r', target: 'src/x.ts::p', type: 'call' }, // 別 component からの in
+    ],
+  });
+
+  it('component 要素配下の全 code ファイルの関数を返す', () => {
+    const out = filterTrailGraphByElement(componentGraph(), 'community_a', componentModel);
+    const fnIds = out.nodes.filter((n) => n.kind === 'function').map((n) => n.id).sort();
+    expect(fnIds).toEqual(['src/x.ts::p', 'src/y.ts::q']);
+  });
+
+  it('component 内のファイル間 call は internal エッジとして残る (external にならない)', () => {
+    const out = filterTrailGraphByElement(componentGraph(), 'community_a', componentModel);
+    // p -> q は internal edge として残る
+    const internalEdge = out.edges.find(
+      (e) => e.source === 'src/x.ts::p' && e.target === 'src/y.ts::q',
+    );
+    expect(internalEdge).toBeDefined();
+    // q も p も external プレースホルダノードにはならない
+    const qAsExternal = out.nodes.find(
+      (n) => n.id === 'src/y.ts::q' && n.kind !== 'function',
+    );
+    expect(qAsExternal).toBeUndefined();
+  });
+
+  it('component 外への call は external プレースホルダになる', () => {
+    const out = filterTrailGraphByElement(componentGraph(), 'community_a', componentModel);
+    // q -> r (別 community) は r が external として残る
+    const externalR = out.nodes.find((n) => n.id === 'src/z.ts::r' && n.kind === 'external');
+    expect(externalR).toBeDefined();
+    // r -> p (別 community からの in) は r が external 優先で確定済みのため重複しない
+    const callerR = out.nodes.filter((n) => n.id === 'src/z.ts::r');
+    expect(callerR).toHaveLength(1);
+  });
+
+  it('component に code 子要素が 0 件なら空グラフ', () => {
+    const out = filterTrailGraphByElement(componentGraph(), 'community_empty', componentModel);
+    expect(out.nodes).toEqual([]);
+    expect(out.edges).toEqual([]);
+  });
+});
