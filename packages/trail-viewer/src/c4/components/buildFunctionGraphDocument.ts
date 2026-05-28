@@ -4,10 +4,11 @@ import type { GraphDocument } from '@anytime-markdown/graph-core';
 
 const FN_FILL_LIGHT = '#1976d2';
 const FN_FILL_DARK = '#64b5f6';
-const EXT_FILL_LIGHT = '#9e9e9e';
-const EXT_FILL_DARK = '#616161';
-const CALLER_FILL_LIGHT = '#bdbdbd';
-const CALLER_FILL_DARK = '#757575';
+// external_caller は呼び出し元 (周辺的) を表すためトーンを暗めにする
+const EXT_FILL_LIGHT = '#bdbdbd';
+const EXT_FILL_DARK = '#757575';
+const CALLER_FILL_LIGHT = '#9e9e9e';
+const CALLER_FILL_DARK = '#616161';
 
 const RADIUS = 200;
 const NODE_W = 140;
@@ -49,17 +50,12 @@ export function buildFunctionGraphDocument(
     doc.nodes.push(node);
   }
 
+  // 端点 x/y はレンダラ (resolveEdgesForRender) がノード位置から再計算するためダミー値
   for (const e of response.edges) {
-    const sourceNode = doc.nodes.find((n) => n.id === e.source);
-    const targetNode = doc.nodes.find((n) => n.id === e.target);
-    const fromX = sourceNode ? sourceNode.x + sourceNode.width / 2 : 0;
-    const fromY = sourceNode ? sourceNode.y + sourceNode.height / 2 : 0;
-    const toX = targetNode ? targetNode.x + targetNode.width / 2 : 0;
-    const toY = targetNode ? targetNode.y + targetNode.height / 2 : 0;
     const edge = createEdge(
       'connector',
-      { nodeId: e.source, x: fromX, y: fromY },
-      { nodeId: e.target, x: toX, y: toY },
+      { nodeId: e.source, x: 0, y: 0 },
+      { nodeId: e.target, x: 0, y: 0 },
       { id: `${e.source}->${e.target}` },
       isDark,
     );
