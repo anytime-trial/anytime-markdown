@@ -74,26 +74,42 @@ let httpCodeGraphService: CodeGraphService | null = null;
 /** startHttpServer() が確立したポート番号。 */
 let httpPort: number | null = null;
 
+/** meta が存在する場合、JSON 化して msg に追記する。循環参照はキャッチして無視する。 */
+function formatWithMeta(msg: string, meta?: Record<string, unknown>): string {
+  if (!meta || Object.keys(meta).length === 0) return msg;
+  try {
+    return `${msg} ${JSON.stringify(meta)}`;
+  } catch {
+    return msg;
+  }
+}
+
 /**
  * Logger adapter: daemonLogger (イベントブリッジ) を runtime/Logger の Logger インタフェースに
  * 適合させる薄いラッパ。TrailDataServer / CodeGraphService が期待する Logger を満たす。
  * 新規ファイルは作らず daemon entry 内に局所定義する。
  */
 const daemonLoggerAsLogger: Logger = {
-  debug: (msg: string) => daemonLogger.debug(msg),
-  info: (msg: string) => daemonLogger.info(msg),
-  warn: (msg: string) => daemonLogger.warn(msg),
-  error: (msg: string, err?: unknown) => {
-    const errStr = err instanceof Error && err.stack ? err.stack : err !== undefined ? String(err) : '';
-    daemonLogger.error(errStr ? `${msg}\n${errStr}` : msg);
+  debug: (msg: string, meta?: Record<string, unknown>) => daemonLogger.debug(formatWithMeta(msg, meta)),
+  info: (msg: string, meta?: Record<string, unknown>) => daemonLogger.info(formatWithMeta(msg, meta)),
+  warn: (msg: string, meta?: Record<string, unknown>) => daemonLogger.warn(formatWithMeta(msg, meta)),
+  error: (msg: string, err?: unknown, meta?: Record<string, unknown>) => {
+    const errStr = err instanceof Error
+      ? err.message + (err.stack ? `\n${err.stack}` : '')
+      : err !== undefined ? String(err) : '';
+    const metaStr = meta ? (() => { try { return JSON.stringify(meta); } catch { return ''; } })() : '';
+    daemonLogger.error([msg, errStr, metaStr].filter(Boolean).join(' '));
   },
   child: (scope: string): Logger => ({
-    debug: (msg: string) => daemonLogger.debug(`[${scope}] ${msg}`),
-    info: (msg: string) => daemonLogger.info(`[${scope}] ${msg}`),
-    warn: (msg: string) => daemonLogger.warn(`[${scope}] ${msg}`),
-    error: (msg: string, err?: unknown) => {
-      const errStr = err instanceof Error && err.stack ? err.stack : err !== undefined ? String(err) : '';
-      daemonLogger.error(errStr ? `[${scope}] ${msg}\n${errStr}` : `[${scope}] ${msg}`);
+    debug: (msg: string, meta?: Record<string, unknown>) => daemonLogger.debug(formatWithMeta(`[${scope}] ${msg}`, meta)),
+    info: (msg: string, meta?: Record<string, unknown>) => daemonLogger.info(formatWithMeta(`[${scope}] ${msg}`, meta)),
+    warn: (msg: string, meta?: Record<string, unknown>) => daemonLogger.warn(formatWithMeta(`[${scope}] ${msg}`, meta)),
+    error: (msg: string, err?: unknown, meta?: Record<string, unknown>) => {
+      const errStr = err instanceof Error
+        ? err.message + (err.stack ? `\n${err.stack}` : '')
+        : err !== undefined ? String(err) : '';
+      const metaStr = meta ? (() => { try { return JSON.stringify(meta); } catch { return ''; } })() : '';
+      daemonLogger.error([`[${scope}] ${msg}`, errStr, metaStr].filter(Boolean).join(' '));
     },
     child: (childScope: string) => daemonLoggerAsLogger.child(`${scope}/${childScope}`),
   }),
