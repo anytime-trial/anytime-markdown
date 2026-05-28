@@ -35,6 +35,8 @@ import { useDefectRisk } from '../hooks/useDefectRisk';
 import { useHotspot } from '../hooks/useHotspot';
 import { useTemporalCoupling } from '../hooks/useTemporalCoupling';
 import { useElementFunctions } from '../hooks/useElementFunctions';
+import { useFunctionGraph } from '../hooks/useFunctionGraph';
+import { buildFunctionGraphDocument } from './buildFunctionGraphDocument';
 import { DeadCodeDetailSection } from './panels/DeadCodeDetailSection';
 import { fileAnalysisEntriesForElement } from './fileAnalysisEntriesForElement';
 import { FunctionScatterPlot } from './panels/FunctionScatterPlot';
@@ -876,6 +878,21 @@ export function C4ViewerCore({
 
   const effectiveOverlayMap = overlayMap;
 
+  // L5: 選択中の code 要素 ID を解決する（L5 以外は空文字でフェッチをスキップ）
+  const selectedCodeElementId = useMemo<string>(() => {
+    if (currentLevel !== 5) return '';
+    if (!selectedElementId || !c4Model) return '';
+    const el = c4Model.elements.find((e) => e.id === selectedElementId);
+    return el?.type === 'code' ? el.id : '';
+  }, [currentLevel, selectedElementId, c4Model]);
+
+  const fnGraphResult = useFunctionGraph(serverUrl ?? '', selectedCodeElementId);
+
+  const l5Document = useMemo(() => {
+    if (!fnGraphResult.data) return null;
+    return buildFunctionGraphDocument(fnGraphResult.data, !!isDark);
+  }, [fnGraphResult.data, isDark]);
+
   // Community overlay: L3/L4 のみ。トグル ON かつ codeGraph が取得済みのときのみ計算する
   const communityOverlay = useMemo<ReadonlyMap<string, CommunityOverlayEntry> | null>(() => {
     if (!showCommunity || !codeGraph || !c4Model) return null;
@@ -1304,53 +1321,73 @@ export function C4ViewerCore({
         {/* C4 Graph */}
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 100, position: 'relative' }}>
             <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-              <GraphCanvas
-                isDark={isDark}
-                document={state.document}
-                viewport={state.document.viewport}
-                dispatch={dispatch}
-                canvasRef={canvasRef}
-                selectedNodeId={selectedElementId ? (state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null) : null}
-                centerOnSelect={centerOnSelect}
-                overlayMap={effectiveOverlayMap.size > 0 ? effectiveOverlayMap : null}
-                claudeActivityMap={claudeActivityMapWithConflicts}
-                communityMap={communityMap}
-                communityRoleBadgeMap={communityRoleBadgeMap}
-                ghostEdges={
-                  tcValue.enabled && (currentLevel === 3 || currentLevel === 4)
-                    ? ghostEdges.map((e) => ({
-                      source: e.source,
-                      target: e.target,
-                      jaccard: e.jaccard,
-                      direction: e.direction,
-                      confidenceForward: e.confidenceForward,
-                    }))
-                    : undefined
-                }
-                ghostEdgeGranularity={tcGranularity}
-                onNodeSelect={(id) => { setCenterOnSelect(false); setSelectedElementId(id); setSelectedElementIds([]); }}
-                onMultiNodeSelect={(ids) => {
-                  if (ids.length === 1) {
-                    setSelectedElementId(ids[0]);
-                    setSelectedElementIds([]);
-                  } else if (ids.length === 0) {
-                    setSelectedElementId(null);
-                    setSelectedElementIds([]);
-                  } else {
-                    setSelectedElementId(null);
-                    setSelectedElementIds(ids);
+              {currentLevel === 5 ? (
+                !selectedCodeElementId ? (
+                  <Box sx={{ p: 4, color: 'text.secondary' }}>{t('c4.level.L5.emptySelection')}</Box>
+                ) : fnGraphResult.loading ? (
+                  <Box sx={{ p: 4, color: 'text.secondary' }}>{t('viewer.loading')}</Box>
+                ) : fnGraphResult.error ? (
+                  <Box sx={{ p: 4, color: 'error.main' }}>{t('c4.level.L5.error')}</Box>
+                ) : fnGraphResult.data && fnGraphResult.data.nodes.length === 0 ? (
+                  <Box sx={{ p: 4, color: 'text.secondary' }}>{t('c4.level.L5.emptyNoFunctions')}</Box>
+                ) : l5Document ? (
+                  <GraphCanvas
+                    isDark={isDark}
+                    document={l5Document}
+                    viewport={l5Document.viewport}
+                    dispatch={dispatch}
+                    canvasRef={canvasRef}
+                  />
+                ) : null
+              ) : (
+                <GraphCanvas
+                  isDark={isDark}
+                  document={state.document}
+                  viewport={state.document.viewport}
+                  dispatch={dispatch}
+                  canvasRef={canvasRef}
+                  selectedNodeId={selectedElementId ? (state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null) : null}
+                  centerOnSelect={centerOnSelect}
+                  overlayMap={effectiveOverlayMap.size > 0 ? effectiveOverlayMap : null}
+                  claudeActivityMap={claudeActivityMapWithConflicts}
+                  communityMap={communityMap}
+                  communityRoleBadgeMap={communityRoleBadgeMap}
+                  ghostEdges={
+                    tcValue.enabled && (currentLevel === 3 || currentLevel === 4)
+                      ? ghostEdges.map((e) => ({
+                        source: e.source,
+                        target: e.target,
+                        jaccard: e.jaccard,
+                        direction: e.direction,
+                        confidenceForward: e.confidenceForward,
+                      }))
+                      : undefined
                   }
-                }}
-                onNodeDoubleClick={(nodeId) => {
-                  if (!c4Model) return;
-                  const elem = c4Model.elements.find(e => e.id === nodeId);
-                  const editableTypes: readonly string[] = ['person', 'system', 'container', 'component'];
-                  if (elem?.manual && editableTypes.includes(elem.type)) {
-                    setEditElement({ id: elem.id, type: elem.type as C4ElementKind, name: elem.name, description: elem.description ?? '', external: elem.external ?? false });
-                  }
-                }}
-                onNodeContextMenu={handleNodeContextMenu}
-              />
+                  ghostEdgeGranularity={tcGranularity}
+                  onNodeSelect={(id) => { setCenterOnSelect(false); setSelectedElementId(id); setSelectedElementIds([]); }}
+                  onMultiNodeSelect={(ids) => {
+                    if (ids.length === 1) {
+                      setSelectedElementId(ids[0]);
+                      setSelectedElementIds([]);
+                    } else if (ids.length === 0) {
+                      setSelectedElementId(null);
+                      setSelectedElementIds([]);
+                    } else {
+                      setSelectedElementId(null);
+                      setSelectedElementIds(ids);
+                    }
+                  }}
+                  onNodeDoubleClick={(nodeId) => {
+                    if (!c4Model) return;
+                    const elem = c4Model.elements.find(e => e.id === nodeId);
+                    const editableTypes: readonly string[] = ['person', 'system', 'container', 'component'];
+                    if (elem?.manual && editableTypes.includes(elem.type)) {
+                      setEditElement({ id: elem.id, type: elem.type as C4ElementKind, name: elem.name, description: elem.description ?? '', external: elem.external ?? false });
+                    }
+                  }}
+                  onNodeContextMenu={handleNodeContextMenu}
+                />
+              )}
               {/* 左側パネル: 全体マップ + C4 ビュー設定コントロール群 */}
               <Box sx={{ position: 'absolute', top: 8, left: 8, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {/* 全体マップ（ミニマップ） */}
@@ -1387,16 +1424,16 @@ export function C4ViewerCore({
                       C4 Level
                     </Typography>
                     <ButtonGroup size="small" fullWidth>
-                      {([1, 2, 3, 4] as const).map(level => (
+                      {([1, 2, 3, 4, 5] as const).map(level => (
                         <Button
                           key={level}
                           onClick={() => handleSetLevel(level)}
                           aria-pressed={currentLevel === level}
-                          aria-label={`Level ${level}: ${({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code' } as const)[level]}`}
-                          title={({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code' } as const)[level]}
+                          aria-label={`Level ${level}: ${({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code', 5: 'Functions' } as const)[level]}`}
+                          title={({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code', 5: 'Functions' } as const)[level]}
                           sx={currentLevel === level ? levelButtonActiveSx : levelButtonSx}
                         >
-                          C{level}
+                          {level < 5 ? `C${level}` : 'L5'}
                         </Button>
                       ))}
                     </ButtonGroup>
