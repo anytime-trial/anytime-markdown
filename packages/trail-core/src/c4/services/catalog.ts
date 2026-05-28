@@ -34,7 +34,9 @@ import {
   siCapacitor, siExpo,
   siHono,
   siMui,
-} from 'simple-icons';
+  // simple-icons から必要分のみ抽出した生成ファイル。simple-icons 全体 (約 5 MiB) を
+  // バンドルに取り込まないための分離レイヤー。再生成: npm run gen:service-icons
+} from './serviceIcons.generated';
 
 export interface ServiceEntry {
   readonly id: string;
