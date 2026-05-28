@@ -46,7 +46,8 @@
     "./classify": "./src/classify/index.ts"
   },
   "scripts": {
-    "test": "jest --maxWorkers=1"
+    "test": "jest --maxWorkers=1",
+    "gen:service-icons": "node scripts/gen-service-icons.mjs"
   },
   "peerDependencies": {
     "@anytime-markdown/code-analysis-core": "*",
@@ -60,13 +61,13 @@
     "@types/minimatch": "5.1.2",
     "esbuild": "0.25.4",
     "jest": "30.2.0",
+    "simple-icons": "16.17.0",
     "ts-jest": "29.4.6",
     "ts-node": "10.9.2",
     "typescript": "5.9.3"
   },
   "dependencies": {
     "ignore": "7.0.5",
-    "minimatch": "9.0.9",
-    "simple-icons": "16.17.0"
+    "minimatch": "9.0.9"
   }
 }

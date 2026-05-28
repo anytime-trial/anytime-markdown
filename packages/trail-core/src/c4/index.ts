@@ -119,7 +119,8 @@ export type {
 } from './manualTypes';
 
 export type { ServiceEntry } from './services/catalog';
-// SERVICE_CATALOG / findService / filterServices は simple-icons (5.2 MB) を取り込む。
+// SERVICE_CATALOG / findService / filterServices は serviceIcons.generated.ts
+// (simple-icons から抽出した約 79 KiB のアイコンデータ) を取り込む UI 専用定数。
 // '@anytime-markdown/trail-core/c4/services' からのみ import 可能とする。
 
 export type {

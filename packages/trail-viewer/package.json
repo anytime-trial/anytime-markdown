@@ -18,8 +18,7 @@
     "@anytime-markdown/trace-viewer": "*",
     "@mui/x-charts": "9.0.1",
     "graphology": "0.26.0",
-    "sigma": "3.0.2",
-    "simple-icons": "16.17.0"
+    "sigma": "3.0.2"
   },
   "peerDependencies": {
     "@anytime-markdown/graph-core": "*",
