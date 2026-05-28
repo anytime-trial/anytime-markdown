@@ -12,7 +12,7 @@ describe('TrailDaemonHost (integration with built daemon)', () => {
     const host = new TrailDaemonHost(DAEMON_PATH);
     host.start();
     try {
-      await expect(host.call('unknown' as never)).rejects.toThrow(/unknown or not-yet-implemented/);
+      await expect(host.call('unknown' as never)).rejects.toThrow(/unknown method/);
     } finally {
       host.dispose();
     }

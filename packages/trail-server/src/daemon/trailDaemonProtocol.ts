@@ -9,15 +9,8 @@
 import type { ImportAllPhaseEvent } from '@anytime-markdown/trail-db';
 import type { RunnerStatus } from '@anytime-markdown/memory-core';
 
-/** BaseRunner.runOnce の reason 引数。BaseRunner 互換のため string も許容。 */
-export type RunReason =
-  | 'import'
-  | 'memory'
-  | 'all'
-  | 'startup'
-  | 'periodic'
-  | 'manual'
-  | string;
+/** BaseRunner.runOnce の reason 引数 (memory-core の RunReason と一致)。 */
+export type RunReason = 'startup' | 'periodic' | 'import' | 'manual';
 
 /** daemon が内部で MemoryCoreService を構築するのに必要なシリアライズ設定。 */
 export interface SerializableMemoryCoreConfig {
