@@ -58,4 +58,39 @@ describe('buildFunctionGraphDocument', () => {
     expect(doc.nodes).toHaveLength(0);
     expect(doc.edges).toHaveLength(0);
   });
+
+  it('多数ノードの star グラフでノード矩形が重ならない (overlap 回帰)', () => {
+    // root から 20 個の子関数へ呼び出すフラットな star パターン。
+    // 旧 RADIUS=200 固定実装ではこのケースで外周ノードが重なっていた。
+    const root = {
+      id: 'src/f.ts::root', label: 'root', filePath: 'src/f.ts', line: 1,
+      kind: 'function' as const,
+    };
+    const children = Array.from({ length: 20 }, (_, i) => ({
+      id: `src/f.ts::child${i}`,
+      label: `child${i}`,
+      filePath: 'src/f.ts',
+      line: i + 2,
+      kind: 'function' as const,
+    }));
+    const nodes = [root, ...children];
+    const edges = children.map((c) => ({ source: root.id, target: c.id }));
+    const doc = buildFunctionGraphDocument(
+      { elementId: 'src/f.ts', nodes, edges },
+      false,
+    );
+
+    // 全ノードペアで矩形 (AABB) が重なっていないことを検証
+    const overlaps: Array<[string, string]> = [];
+    for (let i = 0; i < doc.nodes.length; i++) {
+      for (let j = i + 1; j < doc.nodes.length; j++) {
+        const a = doc.nodes[i];
+        const b = doc.nodes[j];
+        const overlapX = a.x < b.x + b.width && b.x < a.x + a.width;
+        const overlapY = a.y < b.y + b.height && b.y < a.y + a.height;
+        if (overlapX && overlapY) overlaps.push([a.id, b.id]);
+      }
+    }
+    expect(overlaps).toEqual([]);
+  });
 });

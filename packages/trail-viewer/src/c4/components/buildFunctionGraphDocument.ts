@@ -1,6 +1,8 @@
 import type { FunctionGraphResponse } from '@anytime-markdown/trail-core/c4';
 import { createDocument, createEdge, createNode } from '@anytime-markdown/graph-core';
-import type { GraphDocument } from '@anytime-markdown/graph-core';
+import type { GraphDocument, GraphEdge } from '@anytime-markdown/graph-core';
+import { computeHierarchicalLayout } from '@anytime-markdown/graph-core/engine';
+import type { PhysicsBody } from '@anytime-markdown/graph-core/engine';
 
 const FN_FILL_LIGHT = '#1976d2';
 const FN_FILL_DARK = '#64b5f6';
@@ -10,9 +12,10 @@ const EXT_FILL_DARK = '#757575';
 const CALLER_FILL_LIGHT = '#9e9e9e';
 const CALLER_FILL_DARK = '#616161';
 
-const RADIUS = 200;
 const NODE_W = 140;
 const NODE_H = 40;
+const LEVEL_GAP = 120;
+const NODE_SPACING = NODE_W + 30;
 
 function fillFor(kind: 'function' | 'external' | 'external_caller', isDark: boolean): string {
   if (kind === 'function') return isDark ? FN_FILL_DARK : FN_FILL_LIGHT;
@@ -29,12 +32,42 @@ export function buildFunctionGraphDocument(
   const count = response.nodes.length;
   if (count === 0) return doc;
 
-  for (let i = 0; i < count; i++) {
-    const n = response.nodes[i];
-    const theta = (2 * Math.PI * i) / count - Math.PI / 2;
-    const x = Math.round(Math.cos(theta) * RADIUS);
-    const y = Math.round(Math.sin(theta) * RADIUS);
-    const node = createNode('rect', x, y, {
+  // 1) PhysicsBody Map を構築 (positions は (0,0) で初期化、layout が破壊的更新)
+  const bodies = new Map<string, PhysicsBody>();
+  for (const n of response.nodes) {
+    bodies.set(n.id, {
+      id: n.id,
+      x: 0, y: 0,
+      vx: 0, vy: 0,
+      fx: 0, fy: 0,
+      width: NODE_W,
+      height: NODE_H,
+      fixed: false,
+      mass: 1,
+    });
+  }
+
+  // 2) layout / レンダリング両用の GraphEdge を構築。
+  //    端点 x/y はレンダラ (resolveEdgesForRender) がノード位置から再計算するためダミー値。
+  const renderEdges: GraphEdge[] = response.edges.map((e) =>
+    createEdge(
+      'connector',
+      { nodeId: e.source, x: 0, y: 0 },
+      { nodeId: e.target, x: 0, y: 0 },
+      { id: `${e.source}->${e.target}` },
+      isDark,
+    ),
+  );
+
+  // 3) 階層レイアウト (Sugiyama 風縦階層配置)。
+  //    決定的・非反復、ノード数に応じて行幅 / 段高が自動拡張するため固定 RADIUS 実装の
+  //    star パターン外周オーバーラップが解消する。
+  computeHierarchicalLayout(bodies, renderEdges, 'TB', LEVEL_GAP, NODE_SPACING);
+
+  // 4) 計算済み座標で GraphNode を作成
+  for (const n of response.nodes) {
+    const body = bodies.get(n.id)!;
+    const node = createNode('rect', Math.round(body.x), Math.round(body.y), {
       id: n.id,
       text: n.label,
       width: NODE_W,
@@ -50,15 +83,7 @@ export function buildFunctionGraphDocument(
     doc.nodes.push(node);
   }
 
-  // 端点 x/y はレンダラ (resolveEdgesForRender) がノード位置から再計算するためダミー値
-  for (const e of response.edges) {
-    const edge = createEdge(
-      'connector',
-      { nodeId: e.source, x: 0, y: 0 },
-      { nodeId: e.target, x: 0, y: 0 },
-      { id: `${e.source}->${e.target}` },
-      isDark,
-    );
+  for (const edge of renderEdges) {
     doc.edges.push(edge);
   }
 
