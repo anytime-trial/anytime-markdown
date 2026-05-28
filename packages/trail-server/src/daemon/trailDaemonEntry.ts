@@ -17,6 +17,11 @@ import { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
 import { TrailDataServer } from '../server/TrailDataServer';
 import { CodeGraphService } from '../analyze/CodeGraphService';
 import type { Logger } from '../runtime/Logger';
+import {
+  runAnalyzeCurrentCodePipeline,
+  runAnalyzeReleaseCodePipeline,
+} from '../analyze/AnalyzePipeline';
+import type { AnalyzeCurrentOpts, AnalyzeReleaseOpts } from '../analyze/AnalyzePipeline';
 
 import type {
   DaemonEvent,
@@ -25,6 +30,8 @@ import type {
   MethodName,
   RunReason,
   SerializableAnalyzeAllConfig,
+  SerializableAnalyzeCurrentCodeRequest,
+  SerializableAnalyzeReleaseCodeRequest,
   SerializableHttpServerOptions,
 } from './trailDaemonProtocol';
 
@@ -71,6 +78,8 @@ let lastCfg: SerializableAnalyzeAllConfig | null = null;
 let httpServer: TrailDataServer | null = null;
 /** startHttpServer() で構築した CodeGraphService。 */
 let httpCodeGraphService: CodeGraphService | null = null;
+/** startHttpServer() で構築した TrailDatabase (analyze pipeline に渡す)。 */
+let httpTrailDb: TrailDatabase | null = null;
 /** startHttpServer() が確立したポート番号。 */
 let httpPort: number | null = null;
 
@@ -122,6 +131,7 @@ export function _resetForTest(): void {
   lastCfg = null;
   httpServer = null;
   httpCodeGraphService = null;
+  httpTrailDb = null;
   httpPort = null;
 }
 
@@ -268,6 +278,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   // 成功 — モジュールスコープに保持し dispose で後始末できるようにする。
   httpServer = server;
   httpCodeGraphService = codeGraphService;
+  httpTrailDb = trailDb;
   httpPort = startedPort;
 
   sendEvent('httpReady', { port: startedPort, url: `http://localhost:${startedPort}` });
@@ -291,6 +302,7 @@ async function disposeAll(): Promise<void> {
     httpServer = null;
   }
   httpCodeGraphService = null;
+  httpTrailDb = null;
   httpPort = null;
   lastCfg = null;
 }
@@ -325,6 +337,44 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
       return requireRunner().getStatus();
     case 'getLastImportResult':
       return requireRunner().getLastImportResult();
+    case 'analyzeCurrentCode': {
+      if (lastCfg === null) {
+        throw new Error('not configured: call configure() first');
+      }
+      if (httpTrailDb === null || httpCodeGraphService === null || httpServer === null) {
+        throw new Error('http server not started: call startHttpServer() first');
+      }
+      const req = params as SerializableAnalyzeCurrentCodeRequest;
+      const opts: AnalyzeCurrentOpts = {
+        analysisRoot: req.analysisRoot,
+        excludeRoot: req.excludeRoot,
+        tsconfigPath: req.tsconfigPath,
+        analyzeChildPath: req.analyzeChildPath,
+        trailDb: httpTrailDb,
+        codeGraphService: httpCodeGraphService,
+        callbacks: httpServer,
+        logger: daemonLoggerAsLogger,
+        onProgress: (phase: string, percent?: number) =>
+          sendEvent('progress', { message: percent !== undefined ? `${phase} (${percent}%)` : phase }),
+      };
+      return await runAnalyzeCurrentCodePipeline(opts);
+    }
+    case 'analyzeReleaseCode': {
+      if (lastCfg === null) {
+        throw new Error('not configured: call configure() first');
+      }
+      if (httpTrailDb === null || httpCodeGraphService === null || httpServer === null) {
+        throw new Error('http server not started: call startHttpServer() first');
+      }
+      const req = params as SerializableAnalyzeReleaseCodeRequest;
+      const opts: AnalyzeReleaseOpts = {
+        trailDb: httpTrailDb,
+        codeGraphService: httpCodeGraphService,
+        gitRoot: req.gitRoot,
+        onProgress: (msg: string) => sendEvent('progress', { message: msg }),
+      };
+      return await runAnalyzeReleaseCodePipeline(opts);
+    }
     case 'startHttpServer':
       await startHttpServer(params as SerializableHttpServerOptions);
       return;
