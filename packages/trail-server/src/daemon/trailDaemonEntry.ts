@@ -249,7 +249,11 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
 
   // TrailDatabase を開く。distPath と trailDbPath は configure 済みの cfg から取得。
   // startHttpServer の opts.distPath が native binding の基準ディレクトリになる。
+  // init() を呼ばないと TrailDatabase.ensureDb() が "not initialized" で throw し
+  // 全 /api/trail/* エンドポイントが 500 を返す (Phase 3 で TrailDataServer を
+  // daemon 側に移した時の漏れ。extension 側 trailDb には別途 init() してある)。
   const trailDb = new TrailDatabase(opts.distPath, path.dirname(lastCfg.trailDbPath));
+  await trailDb.init();
 
   // CodeGraphService を構築。c4ElementsProvider / trailGraphProvider は省略 (dormant 段階)。
   const codeGraphService = new CodeGraphService({
