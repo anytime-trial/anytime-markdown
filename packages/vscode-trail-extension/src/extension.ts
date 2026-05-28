@@ -20,16 +20,18 @@ import {
 	hasPythonFiles,
 	runAnalyzeCurrentCodePipeline,
 	runAnalyzeReleaseCodePipeline,
+	createFetchGitHubReviewClient,
+	checkLlmAvailability,
+	LogService,
+} from '@anytime-markdown/trail-server';
+import {
 	loadLepConfig,
 	migrateConfigJsonIntoLepJson,
 	DEFAULT_LEP_CONFIG,
 	disabledAnalyzerIds,
 	resolveGitHubSource,
 	resolveExcludeRoot,
-	createFetchGitHubReviewClient,
-	checkLlmAvailability,
-	LogService,
-} from '@anytime-markdown/trail-server';
+} from '@anytime-markdown/trail-server/config';
 import type { AnalyzeAllPipelineResult, AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
 import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
