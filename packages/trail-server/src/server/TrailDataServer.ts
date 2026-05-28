@@ -801,6 +801,12 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/c4/function-graph' && method === 'GET') {
+      const elementId = parsed.searchParams.get('elementId') ?? '';
+      void this.handleC4FunctionGraphEndpoint(res, elementId);
+      return;
+    }
+
     if (pathname === '/api/c4/call-hierarchy' && method === 'GET') {
       const file = parsed.searchParams.get('file') ?? '';
       const fn = parsed.searchParams.get('fn') ?? '';
@@ -2902,6 +2908,38 @@ export class TrailDataServer {
       this.logger.error(`[/api/c4/functions] error: elementId=${elementId}`, e);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ symbols: [] }));
+    }
+  }
+
+  private async handleC4FunctionGraphEndpoint(
+    res: http.ServerResponse,
+    elementId: string,
+  ): Promise<void> {
+    try {
+      if (!elementId) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'elementId is required' }));
+        return;
+      }
+      const resolved = await this.resolveModelAndGraph();
+      if (!resolved) {
+        this.logger.warn(`[/api/c4/function-graph] model or graph not available for elementId=${elementId}`);
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ elementId, nodes: [], edges: [] }));
+        return;
+      }
+      const { model, graph } = resolved;
+      const { filterTrailGraphByElement } = await import('@anytime-markdown/trail-core/c4');
+      const out = filterTrailGraphByElement(graph, elementId, model);
+      if (out.nodes.length === 0) {
+        this.logger.warn(`[/api/c4/function-graph] empty result for elementId=${elementId}`);
+      }
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(out));
+    } catch (e) {
+      this.logger.error(`[/api/c4/function-graph] error: elementId=${elementId}`, e);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ elementId, nodes: [], edges: [] }));
     }
   }
 
