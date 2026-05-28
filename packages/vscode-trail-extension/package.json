@@ -191,7 +191,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run prepare-native && npm run package",
+    "vscode:prepublish": "npm run package",
     "prepare-native": "node scripts/prepare-native-binding.cjs",
     "compile": "npm run prepare-native && webpack",
     "watch": "webpack --watch",
