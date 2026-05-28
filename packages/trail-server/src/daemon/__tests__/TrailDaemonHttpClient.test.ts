@@ -1,7 +1,11 @@
 // TrailDaemonHttpClient のユニットテスト。
 // TrailDaemonHost をモックし、call / on の呼び出しを検証する。
 
-import type { SerializableHttpServerOptions } from '../trailDaemonProtocol';
+import type {
+  SerializableHttpServerOptions,
+  SerializableTokenBudgetConfig,
+  SerializableTokenBudgetExceededPayload,
+} from '../trailDaemonProtocol';
 import { TrailDaemonHttpClient } from '../TrailDaemonHttpClient';
 
 /** TrailDaemonHost の最小モック。 */
@@ -84,5 +88,102 @@ describe('TrailDaemonHttpClient', () => {
 
     const unsub = client.onHttpReady(() => {});
     expect(typeof unsub).toBe('function');
+  });
+
+  // ---- M1 追加: 新メソッドのテスト ----
+
+  it('setDocsPath(path) が host.call("setDocsPath", { docsPath: path }) を発行する', async () => {
+    const host = makeMockHost();
+    const client = new TrailDaemonHttpClient(host as never);
+
+    await client.setDocsPath('/Shared/docs');
+
+    expect(host.call).toHaveBeenCalledTimes(1);
+    expect(host.call).toHaveBeenCalledWith('setDocsPath', { docsPath: '/Shared/docs' });
+  });
+
+  it('setDocsPath() (引数なし) が host.call("setDocsPath", { }) を発行する', async () => {
+    const host = makeMockHost();
+    const client = new TrailDaemonHttpClient(host as never);
+
+    await client.setDocsPath();
+
+    expect(host.call).toHaveBeenCalledWith('setDocsPath', { docsPath: undefined });
+  });
+
+  it('setTokenBudgetConfig が host.call("setTokenBudgetConfig", config) を発行する', async () => {
+    const host = makeMockHost();
+    const client = new TrailDaemonHttpClient(host as never);
+
+    const config: SerializableTokenBudgetConfig = {
+      dailyLimitTokens: 1_000_000,
+      sessionLimitTokens: null,
+      alertThresholdPct: 80,
+    };
+    await client.setTokenBudgetConfig(config);
+
+    expect(host.call).toHaveBeenCalledTimes(1);
+    expect(host.call).toHaveBeenCalledWith('setTokenBudgetConfig', config);
+  });
+
+  it('onOpenDocLink(cb) が host.on("openDocLink", cb) で登録され、イベントが届く', () => {
+    const host = makeMockHost();
+    const client = new TrailDaemonHttpClient(host as never);
+
+    const received: Array<{ docPath: string }> = [];
+    const unsub = client.onOpenDocLink((p) => received.push(p));
+
+    expect(host.on).toHaveBeenCalledWith('openDocLink', expect.any(Function));
+
+    host.emit('openDocLink', { docPath: 'spec/my-doc.md' });
+    expect(received).toEqual([{ docPath: 'spec/my-doc.md' }]);
+
+    unsub();
+    host.emit('openDocLink', { docPath: 'spec/other.md' });
+    expect(received).toHaveLength(1);
+  });
+
+  it('onOpenFile(cb) が host.on("openFile", cb) で登録され、イベントが届く', () => {
+    const host = makeMockHost();
+    const client = new TrailDaemonHttpClient(host as never);
+
+    const received: Array<{ filePath: string }> = [];
+    const unsub = client.onOpenFile((p) => received.push(p));
+
+    expect(host.on).toHaveBeenCalledWith('openFile', expect.any(Function));
+
+    host.emit('openFile', { filePath: 'src/main.ts' });
+    expect(received).toEqual([{ filePath: 'src/main.ts' }]);
+
+    unsub();
+    host.emit('openFile', { filePath: 'src/other.ts' });
+    expect(received).toHaveLength(1);
+  });
+
+  it('onTokenBudgetExceeded(cb) が host.on("tokenBudgetExceeded", cb) で登録され、イベントが届く', () => {
+    const host = makeMockHost();
+    const client = new TrailDaemonHttpClient(host as never);
+
+    const received: SerializableTokenBudgetExceededPayload[] = [];
+    const unsub = client.onTokenBudgetExceeded((s) => received.push(s));
+
+    expect(host.on).toHaveBeenCalledWith('tokenBudgetExceeded', expect.any(Function));
+
+    const status: SerializableTokenBudgetExceededPayload = {
+      sessionId: 'abc12345',
+      sessionTokens: 50_000,
+      dailyTokens: 800_000,
+      dailyLimitTokens: 1_000_000,
+      sessionLimitTokens: null,
+      alertThresholdPct: 80,
+      turnCount: 42,
+      messageCount: 120,
+    };
+    host.emit('tokenBudgetExceeded', status);
+    expect(received).toEqual([status]);
+
+    unsub();
+    host.emit('tokenBudgetExceeded', status);
+    expect(received).toHaveLength(1);
   });
 });

@@ -23,4 +23,10 @@ export type {
   SerializableGitHubPrReviewConfig,
   SerializableMemoryCoreConfig,
   SerializableHttpServerOptions,
+  SerializableChatBridgeConfig,
+  SerializableLogServiceConfig,
+  SerializableRebuildSchedulerConfig,
+  SerializableTokenBudgetConfig,
+  SerializableSetDocsPathRequest,
+  SerializableTokenBudgetExceededPayload,
 } from './trailDaemonProtocol';

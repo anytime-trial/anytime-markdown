@@ -34,6 +34,11 @@ jest.mock('@anytime-markdown/trail-db', () => ({
 jest.mock('../../server/TrailDataServer', () => ({
   TrailDataServer: jest.fn().mockImplementation(() => ({
     setCodeGraphService: jest.fn(),
+    setAnalyzeAllRunner: jest.fn(),
+    setLogService: jest.fn(),
+    setChatBridge: jest.fn(),
+    setTokenBudgetConfig: jest.fn(),
+    setDocsPath: jest.fn(),
     start: jest.fn(async () => {}),
     stop: jest.fn(async () => {}),
     port: 19841,
@@ -43,6 +48,13 @@ jest.mock('../../server/TrailDataServer', () => ({
     notifyCodeGraphUpdated: jest.fn(),
     notifyModelUpdated: jest.fn(),
     computeAndPersistImportance: jest.fn(async () => null),
+    // callback slots (M1: daemon が wire するプロパティ)
+    onOpenDocLink: undefined as unknown,
+    onOpenFile: undefined as unknown,
+    onTokenBudgetExceeded: undefined as unknown,
+    onAnalyzeCurrentCode: undefined as unknown,
+    onAnalyzeReleaseCode: undefined as unknown,
+    onAnalyzeAll: undefined as unknown,
   })),
 }));
 

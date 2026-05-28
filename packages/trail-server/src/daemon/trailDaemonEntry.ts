@@ -8,14 +8,22 @@
 
 import * as path from 'node:path';
 
+import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
 import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
+import {
+  CREATE_EXTENSION_LOGS,
+  CREATE_EXTENSION_LOGS_INDEXES,
+} from '@anytime-markdown/trail-core/domain/schema';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { checkLlmAvailability } from '../lep/LlmAvailability';
 import { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
 import { TrailDataServer } from '../server/TrailDataServer';
 import { CodeGraphService } from '../analyze/CodeGraphService';
+import { ChatBridge } from '../memory-chat/chatBridge';
+import { RebuildScheduler } from '../memory-chat/rebuildScheduler';
+import { LogService } from '../services/LogService';
 import type { Logger } from '../runtime/Logger';
 import {
   runAnalyzeCurrentCodePipeline,
@@ -33,6 +41,8 @@ import type {
   SerializableAnalyzeCurrentCodeRequest,
   SerializableAnalyzeReleaseCodeRequest,
   SerializableHttpServerOptions,
+  SerializableSetDocsPathRequest,
+  SerializableTokenBudgetConfig,
 } from './trailDaemonProtocol';
 
 function send(m: DaemonMessage): void {
@@ -124,6 +134,11 @@ const daemonLoggerAsLogger: Logger = {
   }),
 };
 
+/** startHttpServer() で構築した RebuildScheduler disposable。 */
+let httpRebuildSchedulerDisposable: { dispose(): void } | null = null;
+/** startHttpServer() で構築した extensionLogsDb。 */
+let httpExtensionLogsDb: BetterSqlite3MemoryDb | null = null;
+
 /** テスト用: 状態リセット。 */
 export function _resetForTest(): void {
   memoryCoreService = null;
@@ -133,6 +148,8 @@ export function _resetForTest(): void {
   httpCodeGraphService = null;
   httpTrailDb = null;
   httpPort = null;
+  httpRebuildSchedulerDisposable = null;
+  httpExtensionLogsDb = null;
 }
 
 function requireRunner(): AnalyzeAllRunner {
@@ -247,6 +264,143 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   );
   server.setCodeGraphService(codeGraphService);
 
+  // ---- 付属オブジェクトの構築と wire ----
+
+  // LogService
+  if (opts.logService) {
+    const lsCfg = opts.logService;
+    const nativeBinding =
+      lsCfg.nativeBinding ?? path.join(opts.distPath, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+    const extensionLogsDb = new BetterSqlite3MemoryDb({ filePath: lsCfg.extensionLogsDbPath, nativeBinding });
+    extensionLogsDb.run(CREATE_EXTENSION_LOGS);
+    for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
+    extensionLogsDb.run('PRAGMA journal_mode=WAL');
+    const logService = new LogService(extensionLogsDb, server);
+    server.setLogService(logService);
+    httpExtensionLogsDb = extensionLogsDb;
+    daemonLogger.info(`[daemon] LogService wired: ${lsCfg.extensionLogsDbPath}`);
+  }
+
+  // ChatBridge
+  if (opts.chatBridge) {
+    const cbCfg = opts.chatBridge;
+    const chatBridge = new ChatBridge({
+      memoryDbPath: cbCfg.memoryDbPath,
+      memoryNativeBinding: cbCfg.memoryNativeBinding,
+      getConfig: () => cbCfg.staticConfig,
+      logger: {
+        info: (msg: string) => daemonLogger.info(`[chatBridge] ${msg}`),
+        error: (msg: string, err?: unknown) =>
+          daemonLogger.error(`[chatBridge] ${msg}${err ? ` ${err instanceof Error ? err.message : String(err)}` : ''}`),
+      },
+    });
+    server.setChatBridge(chatBridge);
+    daemonLogger.info('[daemon] ChatBridge wired');
+  }
+
+  // RebuildScheduler
+  if (opts.rebuildScheduler) {
+    const rsCfg = opts.rebuildScheduler;
+    const rebuildScheduler = new RebuildScheduler({
+      memoryDbPath: rsCfg.memoryDbPath,
+      memoryNativeBinding: rsCfg.memoryNativeBinding,
+      logger: {
+        info: (msg: string) => daemonLogger.info(`[rebuildScheduler] ${msg}`),
+        error: (msg: string, err?: unknown) =>
+          daemonLogger.error(`[rebuildScheduler] ${msg}${err ? ` ${err instanceof Error ? err.message : String(err)}` : ''}`),
+      },
+    });
+    const intervalMs = rsCfg.intervalMs ?? 60 * 60 * 1000; // default 60 min
+    httpRebuildSchedulerDisposable = rebuildScheduler.start(intervalMs);
+    daemonLogger.info('[daemon] RebuildScheduler wired');
+  }
+
+  // ---- VS Code API 非依存コールバックの wire ----
+  // onOpenDocLink / onOpenFile は VS Code API を使えないため IPC イベントとして返す。
+  // extension (host) 側 (M2 で実装) がこのイベントを受けて VS Code API を呼び出す。
+  server.onOpenDocLink = (docPath: string) => {
+    sendEvent('openDocLink', { docPath });
+  };
+  server.onOpenFile = (filePath: string) => {
+    sendEvent('openFile', { filePath });
+  };
+
+  // onTokenBudgetExceeded: シリアライズ可能なフィールドのみ IPC イベントとして返す。
+  server.onTokenBudgetExceeded = (status) => {
+    sendEvent('tokenBudgetExceeded', {
+      sessionId: status.sessionId,
+      sessionTokens: status.sessionTokens,
+      dailyTokens: status.dailyTokens,
+      dailyLimitTokens: status.dailyLimitTokens,
+      sessionLimitTokens: status.sessionLimitTokens,
+      alertThresholdPct: status.alertThresholdPct,
+      turnCount: status.turnCount,
+      messageCount: status.messageCount,
+    });
+  };
+
+  // ---- analyze コールバックの wire ----
+  // onAnalyzeCurrentCode / onAnalyzeReleaseCode は daemon 内部の pipeline 関数で処理する。
+  // onAnalyzeAll は daemon 内部の AnalyzeAllRunner 経由。
+  server.onAnalyzeCurrentCode = async (req) => {
+    if (httpTrailDb === null || httpCodeGraphService === null) {
+      throw new Error('http server state not ready');
+    }
+    const opts2: AnalyzeCurrentOpts = {
+      analysisRoot: req.workspacePath ?? lastCfg!.gitRoot,
+      tsconfigPath: req.tsconfigPath,
+      trailDb: httpTrailDb,
+      codeGraphService: httpCodeGraphService,
+      callbacks: server,
+      logger: daemonLoggerAsLogger,
+      onProgress: (phase: string, percent?: number) =>
+        sendEvent('progress', { message: percent !== undefined ? `${phase} (${percent}%)` : phase }),
+    };
+    return runAnalyzeCurrentCodePipeline(opts2);
+  };
+
+  server.onAnalyzeReleaseCode = async () => {
+    if (httpTrailDb === null || httpCodeGraphService === null) {
+      throw new Error('http server state not ready');
+    }
+    if (!lastCfg?.gitRoot) {
+      throw new Error('gitRoot not configured; call configure() with a gitRoot first');
+    }
+    const opts3: AnalyzeReleaseOpts = {
+      trailDb: httpTrailDb,
+      codeGraphService: httpCodeGraphService,
+      gitRoot: lastCfg.gitRoot,
+      onProgress: (msg: string) => sendEvent('progress', { message: msg }),
+    };
+    return runAnalyzeReleaseCodePipeline(opts3);
+  };
+
+  server.onAnalyzeAll = async () => {
+    if (!analyzeAllRunner) {
+      throw new Error('AnalyzeAllRunner not configured; call configure() first');
+    }
+    const startedAt = Date.now();
+    await analyzeAllRunner.runOnce('import');
+    const result = await analyzeAllRunner.getLastImportResult();
+    if (!result) {
+      throw new Error('importAll did not produce a result');
+    }
+    return { ...result, durationMs: Date.now() - startedAt };
+  };
+
+  // ---- 初期設定の適用 ----
+  if (opts.tokenBudgetConfig) {
+    server.setTokenBudgetConfig(opts.tokenBudgetConfig);
+  }
+  if (opts.docsPath !== undefined) {
+    server.setDocsPath(opts.docsPath);
+  }
+
+  // ---- AnalyzeAllRunner を wire (configure 済みの場合) ----
+  if (analyzeAllRunner) {
+    server.setAnalyzeAllRunner(analyzeAllRunner);
+  }
+
   // ポートを試みる: preferredPort → preferred+1..+9 → 0 (OS 任意)。
   const preferred = opts.preferredPort ?? 19841;
   const portCandidates: number[] =
@@ -293,6 +447,10 @@ async function disposeAll(): Promise<void> {
     await memoryCoreService.dispose();
     memoryCoreService = null;
   }
+  if (httpRebuildSchedulerDisposable) {
+    httpRebuildSchedulerDisposable.dispose();
+    httpRebuildSchedulerDisposable = null;
+  }
   if (httpServer) {
     try {
       await httpServer.stop();
@@ -300,6 +458,14 @@ async function disposeAll(): Promise<void> {
       daemonLogger.error(`[daemon] HTTP server stop error: ${err instanceof Error ? err.message : String(err)}`);
     }
     httpServer = null;
+  }
+  if (httpExtensionLogsDb) {
+    try {
+      httpExtensionLogsDb.close();
+    } catch (err) {
+      daemonLogger.error(`[daemon] extensionLogsDb close error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    httpExtensionLogsDb = null;
   }
   httpCodeGraphService = null;
   httpTrailDb = null;
@@ -378,6 +544,21 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
     case 'startHttpServer':
       await startHttpServer(params as SerializableHttpServerOptions);
       return;
+    case 'setDocsPath': {
+      if (!httpServer) {
+        throw new Error('http server not started: call startHttpServer() first');
+      }
+      const req = params as SerializableSetDocsPathRequest;
+      httpServer.setDocsPath(req.docsPath);
+      return;
+    }
+    case 'setTokenBudgetConfig': {
+      if (!httpServer) {
+        throw new Error('http server not started: call startHttpServer() first');
+      }
+      httpServer.setTokenBudgetConfig(params as SerializableTokenBudgetConfig);
+      return;
+    }
     case 'dispose':
       await disposeAll();
       return;

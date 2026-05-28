@@ -4,6 +4,9 @@ import type {
   SerializableAnalyzeCurrentCodeRequest,
   SerializableAnalyzeReleaseCodeRequest,
   SerializableHttpServerOptions,
+  SerializableSetDocsPathRequest,
+  SerializableTokenBudgetConfig,
+  SerializableTokenBudgetExceededPayload,
 } from '../trailDaemonProtocol';
 
 describe('trailDaemonProtocol JSON round-trip', () => {
@@ -171,5 +174,190 @@ describe('trailDaemonProtocol JSON round-trip', () => {
       payload: { port: 19841, url: 'http://localhost:19841' },
     };
     expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+  });
+
+  // ---- M1 追加: 新メソッドのリクエスト round-trip ----
+
+  it('setDocsPath リクエスト (docsPath あり) が JSON round-trip 可', () => {
+    const params: SerializableSetDocsPathRequest = {
+      docsPath: '/workspace/docs',
+    };
+    const msg: HostMessage = {
+      type: 'request',
+      id: 'r-docs-1',
+      method: 'setDocsPath',
+      params,
+    };
+    expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+  });
+
+  it('setDocsPath リクエスト (docsPath 省略) が JSON round-trip 可 かつ docsPath が消える', () => {
+    const msg: HostMessage = {
+      type: 'request',
+      id: 'r-docs-2',
+      method: 'setDocsPath',
+      params: {} satisfies SerializableSetDocsPathRequest,
+    };
+    const roundTripped = JSON.parse(JSON.stringify(msg)) as HostMessage;
+    expect(roundTripped).toEqual(msg);
+    expect((roundTripped.params as Record<string, unknown>)).not.toHaveProperty('docsPath');
+  });
+
+  it('setTokenBudgetConfig リクエストが JSON round-trip 可', () => {
+    const params: SerializableTokenBudgetConfig = {
+      dailyLimitTokens: 1_000_000,
+      sessionLimitTokens: null,
+      alertThresholdPct: 80,
+    };
+    const msg: HostMessage = {
+      type: 'request',
+      id: 'r-budget-1',
+      method: 'setTokenBudgetConfig',
+      params,
+    };
+    expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+  });
+
+  it('setTokenBudgetConfig: dailyLimitTokens=null が保持される', () => {
+    const params: SerializableTokenBudgetConfig = {
+      dailyLimitTokens: null,
+      sessionLimitTokens: null,
+      alertThresholdPct: 75,
+    };
+    const roundTripped = JSON.parse(JSON.stringify(params)) as SerializableTokenBudgetConfig;
+    expect(roundTripped.dailyLimitTokens).toBeNull();
+    expect(roundTripped.sessionLimitTokens).toBeNull();
+  });
+
+  // ---- M1 追加: 新 DaemonEvent の round-trip ----
+
+  it('openDocLink イベントが JSON round-trip 可', () => {
+    const msg: DaemonMessage = {
+      type: 'event',
+      channel: 'openDocLink',
+      payload: { docPath: 'spec/my-doc.md' },
+    };
+    expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+  });
+
+  it('openFile イベントが JSON round-trip 可', () => {
+    const msg: DaemonMessage = {
+      type: 'event',
+      channel: 'openFile',
+      payload: { filePath: 'src/main.ts' },
+    };
+    expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+  });
+
+  it('tokenBudgetExceeded イベント (全フィールド) が JSON round-trip 可', () => {
+    const payload: SerializableTokenBudgetExceededPayload = {
+      sessionId: 'abc12345-6789-0000-0000-000000000000',
+      sessionTokens: 50_000,
+      dailyTokens: 800_000,
+      dailyLimitTokens: 1_000_000,
+      sessionLimitTokens: null,
+      alertThresholdPct: 80,
+      turnCount: 42,
+      messageCount: 120,
+    };
+    const msg: DaemonMessage = {
+      type: 'event',
+      channel: 'tokenBudgetExceeded',
+      payload,
+    };
+    expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+  });
+
+  it('tokenBudgetExceeded: null フィールドが保持される', () => {
+    const payload: SerializableTokenBudgetExceededPayload = {
+      sessionId: 'sid',
+      sessionTokens: 0,
+      dailyTokens: 0,
+      dailyLimitTokens: null,
+      sessionLimitTokens: null,
+      alertThresholdPct: 80,
+      turnCount: 0,
+      messageCount: 0,
+    };
+    const rt = JSON.parse(JSON.stringify(payload)) as SerializableTokenBudgetExceededPayload;
+    expect(rt.dailyLimitTokens).toBeNull();
+    expect(rt.sessionLimitTokens).toBeNull();
+  });
+
+  // ---- M1 追加: SerializableHttpServerOptions 拡張フィールドの round-trip ----
+
+  it('startHttpServer: chatBridge config が JSON round-trip 可', () => {
+    const msg: HostMessage = {
+      type: 'request',
+      id: 'r-http-cb',
+      method: 'startHttpServer',
+      params: {
+        distPath: '/ext/dist',
+        chatBridge: {
+          memoryDbPath: '/home/user/.anytime/memory.db',
+          memoryNativeBinding: '/ext/dist/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
+          staticConfig: {
+            baseUrl: 'http://localhost:11434',
+            chatModel: 'llama3',
+            embedModel: 'nomic-embed-text',
+            bm25Limit: 10,
+            vecLimit: 5,
+            finalLimit: 8,
+            rrfK: 60,
+          },
+        },
+      } satisfies SerializableHttpServerOptions,
+    };
+    expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+  });
+
+  it('startHttpServer: logService config が JSON round-trip 可', () => {
+    const msg: HostMessage = {
+      type: 'request',
+      id: 'r-http-ls',
+      method: 'startHttpServer',
+      params: {
+        distPath: '/ext/dist',
+        logService: {
+          extensionLogsDbPath: '/home/user/.vscode-server/data/extension-logs.db',
+        },
+      } satisfies SerializableHttpServerOptions,
+    };
+    expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+  });
+
+  it('startHttpServer: rebuildScheduler config が JSON round-trip 可', () => {
+    const msg: HostMessage = {
+      type: 'request',
+      id: 'r-http-rs',
+      method: 'startHttpServer',
+      params: {
+        distPath: '/ext/dist',
+        rebuildScheduler: {
+          memoryDbPath: '/home/user/.anytime/memory.db',
+          intervalMs: 3_600_000,
+        },
+      } satisfies SerializableHttpServerOptions,
+    };
+    expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
+  });
+
+  it('startHttpServer: tokenBudgetConfig + docsPath が JSON round-trip 可', () => {
+    const msg: HostMessage = {
+      type: 'request',
+      id: 'r-http-full',
+      method: 'startHttpServer',
+      params: {
+        distPath: '/ext/dist',
+        tokenBudgetConfig: {
+          dailyLimitTokens: 2_000_000,
+          sessionLimitTokens: 500_000,
+          alertThresholdPct: 75,
+        },
+        docsPath: '/Shared/anytime-markdown-docs',
+      } satisfies SerializableHttpServerOptions,
+    };
+    const roundTripped = JSON.parse(JSON.stringify(msg)) as HostMessage;
+    expect(roundTripped).toEqual(msg);
   });
 });
