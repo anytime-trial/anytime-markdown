@@ -30,10 +30,9 @@ import {
 	checkLlmAvailability,
 	LogService,
 } from '@anytime-markdown/trail-server';
-import type { AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
+import type { AnalyzeAllPipelineResult, AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
 import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { analyze } from '@anytime-markdown/trail-core/analyze';
 import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
 import {
 	CREATE_EXTENSION_LOGS,
@@ -45,13 +44,19 @@ import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
 import { TrailLogger } from './utils/TrailLogger';
 import { DaemonSinkLogger } from './utils/DaemonSinkLogger';
-import { AnalyzeAllRunner, MemoryCoreService } from '@anytime-markdown/trail-server';
+// AnalyzeAllRunner / MemoryCoreService は trail-daemon child process が hosting する。
+// extension は AnalyzeAllRunnerClient (IPC proxy) 経由で操作し、typescript を引かない。
+import {
+	AnalyzeAllRunnerClient,
+	TrailDaemonHost,
+	type SerializableAnalyzeAllConfig,
+} from '@anytime-markdown/trail-server/daemon';
 
 let trailDataServer: TrailDataServer | undefined;
 let trailDb: TrailDatabase | undefined;
 let pipelineProvider: PipelineProvider | undefined;
-let memoryCoreService: MemoryCoreService | null = null;
-let analyzeAllRunner: AnalyzeAllRunner | null = null;
+let trailDaemonHost: TrailDaemonHost | null = null;
+let analyzeAllRunner: AnalyzeAllRunnerClient | null = null;
 let extensionDistPath = '';
 // C4 ドキュメントリンク用ドキュメントディレクトリ (lep.json workspace.docsPath)。
 // 旧 VS Code 設定 anytimeTrail.workspace.docsPath は廃止。activate で lepConfig から解決する。
@@ -398,31 +403,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// service を起動する (TrailPanel が local server URL を使うのと同じ paradigm)。
 	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
 	if (hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
-		const trailDbPath = path.join(dbStorageDir, 'trail.db');
-		// MemoryCoreService は AnalyzeAllRunner の内部実行ユニット。
-		// 自前 scheduler は持たず、AnalyzeAllRunner.runOnce 経由でのみ起動される
-		// (二重発火回避のため start() は呼ばない)。
-		memoryCoreService = new MemoryCoreService({
-			logSink: memoryCoreOutputChannel,
-			trailDbPath,
-			dbPath: getMemoryCoreDbPath(wsRootForDb),
-			nativeBinding: memoryCoreNativeBinding,
-			gitRoot: wsRootForDb,
-			backfillDays: lepConfig.memory.conversation.backfillDays,
-			// lep.json の llm を ingest パイプラインへ通す (baseUrl は openMemoryDbSession
-			// が resolveOllamaBaseUrl で再解決するため raw 値を渡す)。
-			llm: {
-				baseUrl: lepOllama.baseUrl,
-				chatModel: ingestGenModel,
-				embedModel: lepOllama.models.embedding,
-			},
-			// trail.db と同じ anytimeDatabase.backup 設定を memory-core.db
-			// にも適用する。pipeline runner が openMemoryCoreDb 直前に
-			// FileBackupManager 経由でローテートする。
-			backupGenerations,
-			backupIntervalDays,
-		});
-		TrailLogger.info('[MemoryCore] service constructed (orchestrated by AnalyzeAllRunner)');
+		// MemoryCoreService は trail-daemon child process が AnalyzeAllRunner と一体構築する。
+		// extension 側ではここで instance を作らない (typescript を引かないため)。
+		// 実構築は L704+ の AnalyzeAllRunnerClient.configure() 経由で daemon が行う。
+		TrailLogger.info('[MemoryCore] will be hosted by trail-daemon child process (orchestrated by AnalyzeAllRunner)');
 	} else if (useExternalDaemon && externalDaemonInfo) {
 		TrailLogger.info('[MemoryCore] hosted by external daemon, skipping local service');
 	}
@@ -575,11 +559,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		const startedAt = Date.now();
 		pipelineProvider?.resetImportAllPhases();
 		await analyzeAllRunner.runOnce('import');
-		const result = analyzeAllRunner.getLastImportResult();
+		const result = await analyzeAllRunner.getLastImportResult();
 		if (!result) {
 			throw new Error('importAll did not produce a result');
 		}
-		return { ...result, durationMs: Date.now() - startedAt };
+		// daemon は ImportAllResult を unknown で返す (client は pass-through)。
+		// AnalyzeAllPipelineResult として spread しつつ durationMs を付与する。
+		return { ...(result as AnalyzeAllPipelineResult), durationMs: Date.now() - startedAt };
 	};
 
 	// loadFromDb() は trailDb.init() 完了後に下の async IIFE 内で呼ぶ。
@@ -701,42 +687,64 @@ export async function activate(context: vscode.ExtensionContext) {
 		// trailDb.init() 完了後に構築する (init 前の getWatchedGitRoots は意味を持たない)。
 		// memoryCoreService が null (useExternalDaemon) でも runner は構築する (Wave 1/2 のみ走る)。
 		// lep.json stage が disabled のときは構築自体をスキップし、自動・手動・HTTP API を無効化する。
-		if (trailDb && hostMemoryCoreLocally && dbStorageDir && lepStage !== 'disabled') {
-			analyzeAllRunner = new AnalyzeAllRunner({
-				logSink: memoryCoreOutputChannel,
+		if (trailDb && hostMemoryCoreLocally && dbStorageDir && wsRootForDb && lepStage !== 'disabled') {
+			// trail-daemon child process を spawn し、内部で MemoryCoreService + AnalyzeAllRunner を
+			// 構築する。extension は AnalyzeAllRunnerClient (IPC proxy) で操作するため、
+			// この activate コードパス自体は typescript を引かない。
+			const daemonPath = path.join(extensionDistPath, 'trail-daemon.js');
+			trailDaemonHost = new TrailDaemonHost(daemonPath);
+			trailDaemonHost.start();
+
+			// 非シリアライズ callback は IPC イベントで橋渡しする (plan 表参照)。
+			trailDaemonHost.on('log', (p) => {
+				memoryCoreOutputChannel.appendLine(`[${p.level}] ${p.message}`);
+			});
+			trailDaemonHost.on('progress', (p) => TrailLogger.info(`[analyzeAll] ${p.message}`));
+			trailDaemonHost.on('phase', (e) =>
+				pipelineProvider?.setImportAllPhase(e.phase, e.action, {
+					count: e.count,
+					message: e.message,
+				}),
+			);
+			trailDaemonHost.on('afterRun', () => trailDataServer?.notifySessionsUpdated());
+
+			const trailDbPath = path.join(dbStorageDir, 'trail.db');
+			const cfg: SerializableAnalyzeAllConfig = {
+				trailDbPath,
 				gitRoot: wsRootForDb,
-				trailDb,
 				gitRoots: getWatchedGitRoots(lepConfig.sources.gitRoots),
 				claudeProjectsDir: lepConfig.sources.claude.projectsDir || undefined,
 				codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
-				memoryCoreService: memoryCoreService ?? undefined,
 				stage: lepStage,
-				// Wave 3 前 LLM Pre-flight。Ollama 不在時は LLM 依存 analyzer のみ skip し、
-				// Code / BugHistory / Drift (LLM 非依存) は実行する。
-				checkLlmAvailability: () =>
-					checkLlmAvailability({
-						baseUrl: resolvedOllamaBaseUrl,
-						chatModel: ingestGenModel,
-						embedModel: lepOllama.models.embedding,
-					}),
 				ollamaBaseUrl: resolvedOllamaBaseUrl,
 				disabledMemoryAnalyzers: lepDisabledAnalyzers,
 				disabledAggregators: lepDisabledAnalyzers,
-				githubPrReview,
 				importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
-				// stage が memory を含まない run 後に memory scope を skipped 記録する宛先。
 				pipelineStatusFilePath: path.join(dbStorageDir, 'pipeline-status.json'),
-				onImportProgress: (message) => TrailLogger.info(`[analyzeAll] ${message}`),
-				analyzeReleaseFn: analyze,
-				onImportPhase: (event) =>
-					pipelineProvider?.setImportAllPhase(event.phase, event.action, {
-						count: event.count,
-						message: event.message,
-					}),
-				onAfterRun: () => trailDataServer?.notifySessionsUpdated(),
-			});
-			trailDataServer?.setAnalyzeAllRunner(analyzeAllRunner);
-			TrailLogger.info(`[AnalyzeAllRunner] wired (stage=${lepStage})`);
+				// githubPrReview: daemon が serializable {token, owner, repo, since, maxPrs} から
+				// concrete client を構築する。extension 側の抽出ロジック整備は後段 task。
+				memoryCore: hostMemoryCoreLocally
+					? {
+							trailDbPath,
+							dbPath: getMemoryCoreDbPath(wsRootForDb),
+							nativeBinding: memoryCoreNativeBinding,
+							gitRoot: wsRootForDb,
+							backfillDays: lepConfig.memory.conversation.backfillDays,
+							llm: {
+								baseUrl: lepOllama.baseUrl,
+								chatModel: ingestGenModel,
+								embedModel: lepOllama.models.embedding,
+							},
+							backupGenerations,
+							backupIntervalDays,
+						}
+					: null,
+			};
+			analyzeAllRunner = new AnalyzeAllRunnerClient(trailDaemonHost, cfg);
+			await analyzeAllRunner.configure();
+			// Task 2.5 で IAnalyzeAllRunner インタフェース抽出後に型整合化予定。
+			trailDataServer?.setAnalyzeAllRunner(analyzeAllRunner as never);
+			TrailLogger.info(`[AnalyzeAllRunner] wired via trail-daemon (stage=${lepStage})`);
 		}
 		// 外部デーモンが有効な場合はローカルサーバー起動をスキップ。
 		// ブラウザは TrailPanel.daemonUrl 経由でデーモンに直接アクセスする。
@@ -850,8 +858,9 @@ export async function activate(context: vscode.ExtensionContext) {
 						await analyzeAllRunner!.runOnce('manual');
 					},
 				);
-				const status = analyzeAllRunner.getStatus();
-				const result = analyzeAllRunner.getLastImportResult();
+				const status = await analyzeAllRunner.getStatus();
+				const rawResult = await analyzeAllRunner.getLastImportResult();
+				const result = rawResult as { imported?: number; skipped?: number; commitsResolved?: number; releasesResolved?: number; releasesAnalyzed?: number; coverageImported?: number } | null;
 				if (status.lastError) {
 					TrailLogger.error(`Trail DB [${repoName}]: import failed - ${status.lastError}`);
 					vscode.window.showWarningMessage(`Trail: refresh failed - ${status.lastError}`);
@@ -877,9 +886,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			trailDataServer?.stop().catch((err) => {
 				TrailLogger.error('Failed to stop trail data server (dispose)', err);
 			});
-			memoryCoreService?.dispose().catch((err) => {
-				TrailLogger.error('Failed to dispose memory-core service', err);
-			});
+			trailDaemonHost?.dispose();
 			trailDb?.close();
 		},
 	});
@@ -891,7 +898,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('anytime-trail.analyzeAll.status', async () => {
 			try {
 				if (analyzeAllRunner) {
-					const s = analyzeAllRunner.getStatus();
+					const s = await analyzeAllRunner.getStatus();
 					vscode.window.showInformationMessage(
 						`AnalyzeAll (local): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
 							`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
@@ -1059,12 +1066,12 @@ export async function deactivate(): Promise<void> {
 	try {
 		await analyzeAllRunner?.dispose();
 	} catch (err) {
-		TrailLogger.error('Failed to dispose analyze-all runner', err);
+		TrailLogger.error('Failed to dispose analyze-all runner client', err);
 	}
 	try {
-		await memoryCoreService?.dispose();
+		trailDaemonHost?.dispose();
 	} catch (err) {
-		TrailLogger.error('Failed to dispose memory-core service', err);
+		TrailLogger.error('Failed to dispose trail-daemon host', err);
 	}
 	trailDb?.close();
 	TrailLogger.dispose();

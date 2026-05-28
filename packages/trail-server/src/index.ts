@@ -1,6 +1,7 @@
 export const TRAIL_SERVER_VERSION = '0.18.0';
 
 export { TrailDataServer } from './server/TrailDataServer';
+export type { AnalyzeAllPipelineResult } from './server/TrailDataServer';
 export { MemoryApiHandler } from './server/MemoryApiHandler';
 export type * from './server/types';
 
@@ -25,13 +26,15 @@ export { ChatBridge } from './memory-chat/chatBridge';
 export type { ChatBridgeLogger, ChatBridgeConfig, ChatBridgeDeps } from './memory-chat/chatBridge';
 export type { MemoryChatLogger } from './memory-chat/types';
 
-export { createMemoryCoreRunner } from './runtime/memoryCoreRunner';
+// createMemoryCoreRunner 値は MemoryCoreService 経由で ts を引き込むため
+// `@anytime-markdown/trail-server/pipeline` subpath へ分離した (root は ts-free)。
 export type { MemoryCoreRunner, MemoryCoreOutputChannel } from './runtime/memoryCoreRunner';
 
-export {
-  MemoryCoreService,
-  defaultStatePath as memoryCoreServiceDefaultStatePath,
-} from '@anytime-markdown/memory-core/pipeline';
+// MemoryCoreService / defaultStatePath の **値** は ts を引き込むため
+// `@anytime-markdown/trail-server/pipeline` subpath へ分離した (root は ts-free)。
+// 型のみ参照する thin client は root の `export type {...} from 'memory-core'`
+// (下記 type 専用ブロック) を経由する。
+export type { MemoryCoreService } from '@anytime-markdown/memory-core';
 export {
   defaultState as memoryCoreServiceDefaultState,
   readState as memoryCoreServiceReadState,

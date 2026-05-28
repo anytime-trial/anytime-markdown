@@ -354,7 +354,65 @@ const analyzeChildConfig = {
   devtool: 'nosources-source-map',
 };
 
-module.exports = [extensionConfig, trailStandaloneConfig, mcpTrailServerConfig, analyzeChildConfig];
+/**
+ * trail-daemon (trail-daemon.js)。MemoryCoreService + AnalyzeAllRunner を内部で
+ * wire する長寿命 child process。extension は IPC client (TrailDaemonHost +
+ * AnalyzeAllRunnerClient) でこの daemon を操作し、extension.js から typescript
+ * を完全除去する設計 (plan: 20260528-trail-daemon-process-isolation)。
+ * @type WebpackConfig
+ */
+const trailDaemonConfig = {
+  target: 'node',
+  mode: 'development',
+  entry: '../trail-server/src/daemon/trailDaemonEntry.ts',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'trail-daemon.js',
+    libraryTarget: 'commonjs2',
+  },
+  externals: {
+    'better-sqlite3': 'commonjs better-sqlite3',
+  },
+  resolve: {
+    extensions: ['.ts', '.js'],
+    extensionAlias: {
+      '.js': ['.ts', '.js'],
+    },
+  },
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/])/,
+        use: [
+          {
+            loader: 'ts-loader',
+            options: {
+              allowTsInNodeModules: true,
+              transpileOnly: true,
+            },
+          },
+        ],
+      },
+    ],
+  },
+  node: {
+    __dirname: false,
+    __filename: false,
+  },
+  ignoreWarnings: [
+    {
+      module: /node_modules[\\/]typescript[\\/]lib[\\/]typescript\.js$/,
+      message: /Critical dependency: the request of a dependency is an expression/,
+    },
+  ],
+  plugins: [
+    ...buildBundleAnalyzerPlugins('trail-daemon'),
+  ],
+  devtool: 'nosources-source-map',
+};
+
+module.exports = [extensionConfig, trailStandaloneConfig, mcpTrailServerConfig, analyzeChildConfig, trailDaemonConfig];
 
 // マルチ config を逐次ビルドし、ピークメモリと同時 V8 JIT 負荷を抑える。
 // analyze-child 追加で typescript バンドルが 1 つ増えたため、並列ビルドの
