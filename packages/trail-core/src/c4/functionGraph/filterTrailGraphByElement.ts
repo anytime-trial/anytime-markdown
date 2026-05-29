@@ -40,8 +40,14 @@ function resolveTargetFilePaths(
     resolveCodeFilePaths(element, graph, out);
     return out;
   }
-  // Phase 2 (Task 3 で解禁): component 配下の code 子要素を収集
-  // この段階では component 分岐を実装しない → out 空のまま返る
+  if (element.type === 'component') {
+    // component 配下の code 子要素を boundaryId 一致で収集し、各 code 要素から filePath を解決
+    for (const child of model.elements) {
+      if (child.boundaryId !== element.id || child.type !== 'code') continue;
+      resolveCodeFilePaths(child, graph, out);
+    }
+    return out;
+  }
   return out;
 }
 
@@ -57,7 +63,7 @@ export function filterTrailGraphByElement(
   model: C4Model,
 ): FunctionGraphResponse {
   const element = model.elements.find((e) => e.id === elementId);
-  if (!element || element.type !== 'code') {
+  if (!element || (element.type !== 'code' && element.type !== 'component')) {
     return { elementId, nodes: [], edges: [] };
   }
 
