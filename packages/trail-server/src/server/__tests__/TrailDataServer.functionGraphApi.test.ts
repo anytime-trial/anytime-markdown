@@ -89,4 +89,41 @@ describe('GET /api/c4/function-graph', () => {
     expect(body.nodes).toEqual([]);
     expect(body.edges).toEqual([]);
   });
+
+  it('elementId が component の場合に配下の関数を返す', async () => {
+    const compModel: C4ModelPayload['model'] = {
+      level: 'component',
+      elements: [
+        { id: 'community_x', type: 'component', name: 'community X' },
+        { id: 'src/m.ts', type: 'code', name: 'm.ts', boundaryId: 'community_x' },
+        { id: 'src/n.ts', type: 'code', name: 'n.ts', boundaryId: 'community_x' },
+      ],
+      relationships: [],
+    };
+    const compGraph: TrailGraph = {
+      metadata: { projectRoot: '/tmp', analyzedAt: '2026-05-29T00:00:00.000Z', fileCount: 2 },
+      nodes: [
+        { id: 'src/m.ts::aa', label: 'aa', type: 'function', filePath: 'src/m.ts', line: 1 },
+        { id: 'src/n.ts::bb', label: 'bb', type: 'function', filePath: 'src/n.ts', line: 1 },
+      ],
+      edges: [
+        { source: 'src/m.ts::aa', target: 'src/n.ts::bb', type: 'call' },
+      ],
+    };
+    // 既存 server を一度 stop し、component 用の graph / model に差し替えて再起動
+    await server.stop();
+    db.saveCurrentGraph(compGraph, '/tmp/tsconfig.json', 'commit-2', 'tmp');
+    (fetchC4Model as jest.Mock).mockResolvedValue({ model: compModel, boundaries: [] });
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), '/tmp');
+    await server.start(0);
+    port = server.port;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/c4/function-graph?elementId=${encodeURIComponent('community_x')}`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { elementId: string; nodes: unknown[]; edges: unknown[] };
+    expect(body.elementId).toBe('community_x');
+    // aa, bb の 2 関数 + internal edge 1 件
+    expect(body.nodes).toHaveLength(2);
+    expect(body.edges).toHaveLength(1);
+  });
 });
