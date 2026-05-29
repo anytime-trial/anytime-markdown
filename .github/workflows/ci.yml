@@ -275,10 +275,12 @@ jobs:
           retention-days: 3
 
       # e2e: master PR → chromium のみ、それ以外 → スキップ
-      # （firefox / webkit の一括 install は runner で間欠的にハングするため chromium に限定）
+      # firefox / webkit と --with-deps（apt システム依存取得）は runner で間欠的に
+      # ハングするため、chromium のみ・--with-deps なしに限定する。
+      # chromium の実行依存は ubuntu-latest にプリインストール済みのため動作する。
       - name: Install Playwright browsers
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
         working-directory: packages/web-app
 
       - name: Run e2e tests
