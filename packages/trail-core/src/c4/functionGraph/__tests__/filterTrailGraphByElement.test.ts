@@ -88,7 +88,7 @@ describe('filterTrailGraphByElement', () => {
     expect(out.edges).toEqual([]);
   });
 
-  it("elementId の type が 'code' 以外なら空グラフ (MVP)", () => {
+  it('elementId の type が container / system 等の非対応 type なら空グラフ', () => {
     const out = filterTrailGraphByElement(sampleGraph(), 'pkg_app', sampleModel);
     expect(out.nodes).toEqual([]);
     expect(out.edges).toEqual([]);
