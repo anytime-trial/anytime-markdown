@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-05-29
+
+### Added
+
+- L5 function-level graph viewer in the C4 model view: select a component to inspect its function-call graph (new C4 level 5).
+- C5 component scope: the function graph can now be scoped to an individual component in addition to container / system.
+
+### Changed
+
+- Migrated the extension host to the trail-daemon architecture (HTTP + IPC clients via `DaemonClient`), reaching the milestone of zero bundled TypeScript in `extension.js`.
+
+### Fixed
+
+- Externalized optional native dependencies in node bundles to avoid resolution failures.
+- Plugged a `ChatBridge` leak and hardened daemon error logging.
+
+### Trail Core (trail-core / trail-server / memory-core / mcp-trail)
+
+- trail-server: new `/api/c4/function-graph` endpoint and trail-daemon host with IPC analyze pipelines (`AnalyzeAllRunnerClient` / `AnalyzeCommandClient`); added `/services` `/analyze-utils` `/llm` `/github` `/config` subpaths.
+- trail-core: L5 function graph engine (`filterTrailGraphByElement`) and generated service icon data that drops `simple-icons` from bundles.
+- memory-core / mcp-trail: split TypeScript-consuming exports into `/pipeline` and `/query` subpaths to keep root barrels TypeScript-free.
+
 ## [0.23.2] - 2026-05-27
 
 ### Fixed

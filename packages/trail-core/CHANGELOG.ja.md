@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-05-29
+
+### 追加
+
+- L5 関数レベルグラフ: `filterTrailGraphByElement` と `FunctionGraphResponse` 型が新しい関数コールグラフビューアを支え、c4 ルートの `functionGraph` バレルから公開。
+- サービスカタログを追加し、`simple-icons` の SVG パスデータを生成 (`serviceIcons.generated.ts`)。これによりアイコン依存を実行時バンドルから除外。
+
+### 変更
+
+- `filterTrailGraphByElement` が container / system に加えてコンポーネントレベル (C5) スコープに対応。`resolveTargetFilePaths` をヘルパーとして抽出。
+
 ## [0.23.2] - 2026-05-27
 
 ### 変更
