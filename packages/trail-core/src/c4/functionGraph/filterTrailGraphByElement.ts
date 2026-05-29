@@ -1,7 +1,7 @@
 // packages/trail-core/src/c4/functionGraph/filterTrailGraphByElement.ts
 import type { TrailGraph, TrailNode } from '@anytime-markdown/code-analysis-core/model';
 
-import type { C4Model } from '../types';
+import type { C4Element, C4Model } from '../types';
 import type {
   FunctionGraphEdge,
   FunctionGraphNode,
@@ -9,7 +9,50 @@ import type {
 } from './types';
 
 /**
- * TrailGraph を C4 要素 (MVP では type='code' のみ) のファイル範囲でフィルタし、
+ * code 要素 1 つから filePath 集合を解決する内部ヘルパー。
+ * 2 経路で候補を得る:
+ *   - elementId が file ノード id と一致する場合
+ *   - elementId 自体を filePath として扱う (codeGraphToC4 の生成規則)
+ */
+function resolveCodeFilePaths(
+  element: C4Element,
+  graph: TrailGraph,
+  out: Set<string>,
+): void {
+  const fileNode = graph.nodes.find((n) => n.id === element.id && n.type === 'file');
+  if (fileNode) out.add(fileNode.filePath);
+  for (const n of graph.nodes) {
+    if (n.filePath === element.id) out.add(n.filePath);
+  }
+}
+
+/**
+ * C4 要素 (Phase 1: type='code', Phase 2: 'component') からスコープ対象の filePath 集合を解決する。
+ * その他の type (system / container / containerDb) では空集合を返す。
+ */
+function resolveTargetFilePaths(
+  element: C4Element,
+  model: C4Model,
+  graph: TrailGraph,
+): Set<string> {
+  const out = new Set<string>();
+  if (element.type === 'code') {
+    resolveCodeFilePaths(element, graph, out);
+    return out;
+  }
+  if (element.type === 'component') {
+    // component 配下の code 子要素を boundaryId 一致で収集し、各 code 要素から filePath を解決
+    for (const child of model.elements) {
+      if (child.boundaryId !== element.id || child.type !== 'code') continue;
+      resolveCodeFilePaths(child, graph, out);
+    }
+    return out;
+  }
+  return out;
+}
+
+/**
+ * TrailGraph を C4 要素 (Phase 1: type='code', Phase 2: 'component' も対応) のファイル範囲でフィルタし、
  * 関数ノード + call エッジを返す。
  * 外部呼び出しは external / external_caller プレースホルダノードで保持。
  * 同一 external ノードは「呼び出し先 (external)」を優先し dedup する。
@@ -20,21 +63,11 @@ export function filterTrailGraphByElement(
   model: C4Model,
 ): FunctionGraphResponse {
   const element = model.elements.find((e) => e.id === elementId);
-  if (!element || element.type !== 'code') {
+  if (!element || (element.type !== 'code' && element.type !== 'component')) {
     return { elementId, nodes: [], edges: [] };
   }
 
-  // MVP: type='code' = 1 ファイル。element.name はファイル名のみのことがあるので
-  // 「graph 内で elementId == filePath を満たす file ノードがあるか」と
-  // 「graph 内に filePath を持つ function ノードがあるか」の 2 経路で候補を得る。
-  const targetFilePaths = new Set<string>();
-  // 第一経路: elementId が file ノード id と一致する場合
-  const fileNode = graph.nodes.find((n) => n.id === elementId && n.type === 'file');
-  if (fileNode) targetFilePaths.add(fileNode.filePath);
-  // 第二経路: elementId 自体を filePath として扱う (codeGraphToC4 の生成規則)
-  for (const n of graph.nodes) {
-    if (n.filePath === elementId) targetFilePaths.add(n.filePath);
-  }
+  const targetFilePaths = resolveTargetFilePaths(element, model, graph);
 
   if (targetFilePaths.size === 0) {
     return { elementId, nodes: [], edges: [] };

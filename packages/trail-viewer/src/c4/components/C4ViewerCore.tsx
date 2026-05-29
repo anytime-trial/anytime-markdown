@@ -889,12 +889,14 @@ export function C4ViewerCore({
 
   const effectiveOverlayMap = overlayMap;
 
-  // L5: 選択中の code 要素 ID を解決する（L5 以外は空文字でフェッチをスキップ）
+  // L5: 選択中の code または component 要素 ID を解決する（L5 以外は空文字でフェッチをスキップ）
+  // Phase 2: C3 component 選択時にも C5 スコープとして許容する
   const selectedCodeElementId = useMemo<string>(() => {
     if (currentLevel !== 5) return '';
     if (!selectedElementId || !c4Model) return '';
     const el = c4Model.elements.find((e) => e.id === selectedElementId);
-    return el?.type === 'code' ? el.id : '';
+    if (!el) return '';
+    return (el.type === 'code' || el.type === 'component') ? el.id : '';
   }, [currentLevel, selectedElementId, c4Model]);
 
   const fnGraphResult = useFunctionGraph(serverUrl ?? '', selectedCodeElementId);
