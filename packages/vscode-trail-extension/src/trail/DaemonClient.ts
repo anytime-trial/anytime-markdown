@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { DaemonLifecycle } from '@anytime-markdown/trail-server';
+import { DaemonLifecycle } from '@anytime-markdown/trail-server/runtime';
 import type { DaemonInfo, Logger } from '@anytime-markdown/trail-server';
 import { getTrailHome } from '@anytime-markdown/memory-core';
 

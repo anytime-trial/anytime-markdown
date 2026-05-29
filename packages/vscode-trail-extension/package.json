@@ -2,7 +2,7 @@
   "name": "anytime-trail",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.23.2",
+  "version": "0.24.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -191,7 +191,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run prepare-native && npm run package",
+    "vscode:prepublish": "npm run package",
     "prepare-native": "node scripts/prepare-native-binding.cjs",
     "compile": "npm run prepare-native && webpack",
     "watch": "webpack --watch",

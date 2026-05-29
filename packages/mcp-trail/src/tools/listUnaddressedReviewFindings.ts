@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { listUnaddressedReviewFindings, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { UnaddressedReviewFinding } from '@anytime-markdown/memory-core';
+import { listUnaddressedReviewFindings, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { UnaddressedReviewFinding } from '@anytime-markdown/memory-core/query';
 
 export const ListUnaddressedReviewFindingsInputSchema = z.object({
   severity: z.string().optional().describe('Filter by severity (info, warn, error)'),

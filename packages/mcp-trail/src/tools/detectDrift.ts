@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { detectDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { DriftEventSummary } from '@anytime-markdown/memory-core';
+import { detectDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { DriftEventSummary } from '@anytime-markdown/memory-core/query';
 
 export const DetectDriftInputSchema = z.object({
   unresolved_only: z.boolean().optional().describe('Only return unresolved events (default true)'),

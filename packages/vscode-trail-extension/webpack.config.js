@@ -30,6 +30,34 @@ function buildBundleAnalyzerPlugins(reportName) {
   ];
 }
 
+// node 系 config 共通: ws / pg のオプショナル native 依存。未インストールでも
+// ws は try/catch、pg は pg.native getter 経由でしか参照しないため externals 化で安全
+// (実際に require されない config では externals 指定は no-op)。
+const OPTIONAL_NATIVE_EXTERNALS = {
+  bufferutil: 'commonjs bufferutil',
+  'utf-8-validate': 'commonjs utf-8-validate',
+  'pg-native': 'commonjs pg-native',
+};
+
+// node 系 config 共通の警告抑制。いずれも実害のない動的 require:
+// - typescript: compiler 内部の plugin ローダー (本プロジェクトは plugin 機構未使用)。
+//   過去 typescript を externalize して回避していたが VSIX 配布では node_modules が
+//   同梱されずランタイムで Cannot find module 'typescript' になり拡張が起動しないため、
+//   bundle に含めて警告のみ抑制する方針に戻した。
+// - PythonParser: bundle 環境では呼び出し側が wasm パスを注入し defaultPythonWasmPath
+//   内の require.resolve(<.wasm>) には到達しない。
+const NODE_IGNORE_WARNINGS = [
+  {
+    module: /node_modules[\\/]typescript[\\/]lib[\\/]typescript\.js$/,
+    message: /Critical dependency: the request of a dependency is an expression/,
+  },
+  {
+    module: /code-analysis-python[\\/]src[\\/]PythonParser\.ts$/,
+    message:
+      /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/,
+  },
+];
+
 /** @type WebpackConfig */
 const extensionConfig = {
   target: 'node',
@@ -42,12 +70,8 @@ const extensionConfig = {
   },
   externals: {
     vscode: 'commonjs vscode',
-    // ws のオプショナルなネイティブ依存を除外（バンドルなしで動作する）
-    bufferutil: 'commonjs bufferutil',
-    'utf-8-validate': 'commonjs utf-8-validate',
-    // pg のオプションネイティブバインディング (pg-native) は未インストール。
-    // pg.native を参照しない限りロードされないため外部化で OK。
-    'pg-native': 'commonjs pg-native',
+    // ws / pg のオプショナル native 依存 (OPTIONAL_NATIVE_EXTERNALS の定義参照)
+    ...OPTIONAL_NATIVE_EXTERNALS,
     // memory-core が require('better-sqlite3') を呼ぶ。webpack に取り込ませると
     // 内部の bindings ロジックが壊れて native binary を解決できないため、
     // ランタイムで Node の require に解決させる。dist/node_modules/ に native
@@ -64,18 +88,7 @@ const extensionConfig = {
       '.js': ['.ts', '.js'],
     },
   },
-  // typescript の内部プラグインローダーが動的 require を使うため
-  // 「Critical dependency: the request of a dependency is an expression」警告
-  // が出るが、実害なし (typescript 自身の plugin 機構は使っていない)。
-  // 過去 typescript を externalize して回避していたが VSIX 配布では node_modules
-  // が同梱されないためランタイムで Cannot find module 'typescript' になり拡張が
-  // 起動しない。bundle に含めて警告は ignore する方針に戻す。
-  ignoreWarnings: [
-    {
-      module: /node_modules[\\/]typescript[\\/]lib[\\/]typescript\.js$/,
-      message: /Critical dependency: the request of a dependency is an expression/,
-    },
-  ],
+  ignoreWarnings: NODE_IGNORE_WARNINGS,
   module: {
     rules: [
       {
@@ -249,6 +262,7 @@ const mcpTrailServerConfig = {
   // webpack に取り込まず、runtime に `require('better-sqlite3')` で
   // dist/node_modules/better-sqlite3 を解決する (CopyPlugin で配置済み)。
   externals: {
+    ...OPTIONAL_NATIVE_EXTERNALS,
     'better-sqlite3': 'commonjs better-sqlite3',
   },
   resolve: {
@@ -282,15 +296,7 @@ const mcpTrailServerConfig = {
     __dirname: false,
     __filename: false,
   },
-  // memory-core が typescript を import しており、ts compiler の内部プラグイン
-  // ローダーが動的 require を使うため警告が出る (extensionConfig と同根)。
-  // bundle に含めて警告のみ抑制する。
-  ignoreWarnings: [
-    {
-      module: /node_modules[\\/]typescript[\\/]lib[\\/]typescript\.js$/,
-      message: /Critical dependency: the request of a dependency is an expression/,
-    },
-  ],
+  ignoreWarnings: NODE_IGNORE_WARNINGS,
   plugins: [
     ...buildBundleAnalyzerPlugins('mcp-trail'),
   ],
@@ -313,6 +319,7 @@ const analyzeChildConfig = {
     libraryTarget: 'commonjs2',
   },
   externals: {
+    ...OPTIONAL_NATIVE_EXTERNALS,
     'better-sqlite3': 'commonjs better-sqlite3',
   },
   resolve: {
@@ -342,19 +349,68 @@ const analyzeChildConfig = {
     __dirname: false,
     __filename: false,
   },
-  ignoreWarnings: [
-    {
-      module: /node_modules[\\/]typescript[\\/]lib[\\/]typescript\.js$/,
-      message: /Critical dependency: the request of a dependency is an expression/,
-    },
-  ],
+  ignoreWarnings: NODE_IGNORE_WARNINGS,
   plugins: [
     ...buildBundleAnalyzerPlugins('analyze-child'),
   ],
   devtool: 'nosources-source-map',
 };
 
-module.exports = [extensionConfig, trailStandaloneConfig, mcpTrailServerConfig, analyzeChildConfig];
+/**
+ * trail-daemon (trail-daemon.js)。MemoryCoreService + AnalyzeAllRunner を内部で
+ * wire する長寿命 child process。extension は IPC client (TrailDaemonHost +
+ * AnalyzeAllRunnerClient) でこの daemon を操作し、extension.js から typescript
+ * を完全除去する設計 (plan: 20260528-trail-daemon-process-isolation)。
+ * @type WebpackConfig
+ */
+const trailDaemonConfig = {
+  target: 'node',
+  mode: 'development',
+  entry: '../trail-server/src/daemon/trailDaemonEntry.ts',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'trail-daemon.js',
+    libraryTarget: 'commonjs2',
+  },
+  externals: {
+    ...OPTIONAL_NATIVE_EXTERNALS,
+    'better-sqlite3': 'commonjs better-sqlite3',
+  },
+  resolve: {
+    extensions: ['.ts', '.js'],
+    extensionAlias: {
+      '.js': ['.ts', '.js'],
+    },
+  },
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/])/,
+        use: [
+          {
+            loader: 'ts-loader',
+            options: {
+              allowTsInNodeModules: true,
+              transpileOnly: true,
+            },
+          },
+        ],
+      },
+    ],
+  },
+  node: {
+    __dirname: false,
+    __filename: false,
+  },
+  ignoreWarnings: NODE_IGNORE_WARNINGS,
+  plugins: [
+    ...buildBundleAnalyzerPlugins('trail-daemon'),
+  ],
+  devtool: 'nosources-source-map',
+};
+
+module.exports = [extensionConfig, trailStandaloneConfig, mcpTrailServerConfig, analyzeChildConfig, trailDaemonConfig];
 
 // マルチ config を逐次ビルドし、ピークメモリと同時 V8 JIT 負荷を抑える。
 // analyze-child 追加で typescript バンドルが 1 つ増えたため、並列ビルドの

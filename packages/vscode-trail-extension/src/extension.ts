@@ -13,45 +13,44 @@ import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
 import { PipelineProvider } from './providers/PipelineProvider';
 import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
 import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
+import { findTsconfigCandidates, hasPythonFiles } from '@anytime-markdown/trail-server/analyze-utils';
+import { checkLlmAvailability } from '@anytime-markdown/trail-server/llm';
+import { createFetchGitHubReviewClient } from '@anytime-markdown/trail-server/github';
 import {
-	TrailDataServer,
-	CodeGraphService,
-	findTsconfigCandidates,
-	hasPythonFiles,
-	runAnalyzeCurrentCodePipeline,
-	runAnalyzeReleaseCodePipeline,
 	loadLepConfig,
 	migrateConfigJsonIntoLepJson,
 	DEFAULT_LEP_CONFIG,
 	disabledAnalyzerIds,
 	resolveGitHubSource,
 	resolveExcludeRoot,
-	createFetchGitHubReviewClient,
-	checkLlmAvailability,
-	LogService,
-} from '@anytime-markdown/trail-server';
-import type { AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
+} from '@anytime-markdown/trail-server/config';
+import type { AnalyzeAllPipelineResult, AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
 import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { analyze } from '@anytime-markdown/trail-core/analyze';
 import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
-import {
-	CREATE_EXTENSION_LOGS,
-	CREATE_EXTENSION_LOGS_INDEXES,
-} from '@anytime-markdown/trail-core/domain/schema';
-import { BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome, type LepStage } from '@anytime-markdown/memory-core';
+import { getMemoryCoreDbPath, getTrailHome, type LepStage } from '@anytime-markdown/memory-core';
 import { DaemonClient } from './trail/DaemonClient';
 import { TrailPanel } from './trail/TrailPanel';
 import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
 import { TrailLogger } from './utils/TrailLogger';
 import { DaemonSinkLogger } from './utils/DaemonSinkLogger';
-import { AnalyzeAllRunner, MemoryCoreService } from '@anytime-markdown/trail-server';
+// AnalyzeAllRunner / MemoryCoreService / TrailDataServer / CodeGraphService は
+// trail-daemon child process が hosting する。
+// extension は各 IPC client (IPC proxy) 経由で操作し、typescript を引かない。
+import {
+	AnalyzeAllRunnerClient,
+	TrailDaemonHost,
+	TrailDaemonHttpClient,
+	AnalyzeCommandClient,
+	type SerializableAnalyzeAllConfig,
+} from '@anytime-markdown/trail-server/daemon';
 
-let trailDataServer: TrailDataServer | undefined;
+let httpClient: TrailDaemonHttpClient | undefined;
+let analyzeCmdClient: AnalyzeCommandClient | undefined;
 let trailDb: TrailDatabase | undefined;
 let pipelineProvider: PipelineProvider | undefined;
-let memoryCoreService: MemoryCoreService | null = null;
-let analyzeAllRunner: AnalyzeAllRunner | null = null;
+let trailDaemonHost: TrailDaemonHost | null = null;
+let analyzeAllRunner: AnalyzeAllRunnerClient | null = null;
 let extensionDistPath = '';
 // C4 ドキュメントリンク用ドキュメントディレクトリ (lep.json workspace.docsPath)。
 // 旧 VS Code 設定 anytimeTrail.workspace.docsPath は廃止。activate で lepConfig から解決する。
@@ -78,7 +77,11 @@ function getWatchedGitRoots(lepGitRoots: readonly string[]): string[] {
 }
 
 function applyDocsPathConfig(): void {
-	trailDataServer?.setDocsPath(lepWorkspaceDocsPath || undefined);
+	if (httpClient) {
+		httpClient.setDocsPath(lepWorkspaceDocsPath || undefined).catch((err) => {
+			TrailLogger.error('[applyDocsPathConfig] setDocsPath failed', err);
+		});
+	}
 }
 
 function isAnalyzeAllEnabled(): boolean {
@@ -103,47 +106,8 @@ function wireDaemonLogSink(
 	TrailLogger.info(`[DaemonSinkLogger] wired url=${daemonUrl} minLevel=${minLevel}`);
 }
 
-function setupServerCallbacks(server: TrailDataServer): void {
-	applyDocsPathConfig();
-	server.onOpenDocLink = (docPath) => {
-		const docsDir = lepWorkspaceDocsPath;
-		if (!docsDir) {
-			TrailLogger.warn(`[open-doc-link] docsPath is not configured (lep.json workspace.docsPath). Cannot open: ${docPath}`);
-			vscode.window.showWarningMessage('Set workspace.docsPath in lep.json to open document links.');
-			return;
-		}
-		const fsPath = path.join(docsDir, docPath);
-		if (!fs.existsSync(fsPath)) {
-			TrailLogger.warn(`[open-doc-link] file not found: ${fsPath}`);
-			vscode.window.showWarningMessage(`File not found: ${fsPath}`);
-			return;
-		}
-		const uri = vscode.Uri.file(fsPath);
-		TrailLogger.info(`[open-doc-link] opening ${fsPath}`);
-		vscode.commands.executeCommand('vscode.openWith', uri, 'anytimeMarkdown').then(
-			undefined,
-			(err) => {
-				TrailLogger.warn(`[open-doc-link] vscode.openWith(anytimeMarkdown) failed, falling back to text editor: ${String(err)}`);
-				vscode.workspace.openTextDocument(uri).then(
-					(doc) => vscode.window.showTextDocument(doc),
-					(err2) => {
-						TrailLogger.error(`[open-doc-link] openTextDocument fallback failed: ${String(err2)}`);
-						vscode.window.showWarningMessage(`Failed to open: ${fsPath}`);
-					},
-				);
-			},
-		);
-	};
-	server.onOpenFile = (filePath) => {
-		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-		if (!workspaceFolder) return;
-		const uri = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, filePath));
-		vscode.workspace.openTextDocument(uri).then(
-			(doc) => vscode.window.showTextDocument(doc),
-			() => vscode.window.showWarningMessage(`File not found: ${uri.fsPath}`),
-		);
-	};
-}
+// setupServerCallbacks は削除 — openDocLink / openFile は TrailDaemonHttpClient
+// の IPC イベントリスナーとして activate 内で直接 wire する。
 
 export async function activate(context: vscode.ExtensionContext) {
 	extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
@@ -376,9 +340,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const gitRoot = wsRootForDb;
 	const memoryDbPathForServer = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
-	trailDataServer = new TrailDataServer(extensionDistPath, trailDb, TrailLogger.asLogger(), gitRoot, memoryDbPathForServer);
-	TrailPanel.setDataServer(trailDataServer);
-	setupServerCallbacks(trailDataServer);
 
 	// TRAIL_HOME (trace dir 等の解決に使用)。
 	const trailHomeForConfig = wsRootForDb ? getTrailHome(wsRootForDb) : getTrailHome();
@@ -398,189 +359,19 @@ export async function activate(context: vscode.ExtensionContext) {
 	// service を起動する (TrailPanel が local server URL を使うのと同じ paradigm)。
 	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
 	if (hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
-		const trailDbPath = path.join(dbStorageDir, 'trail.db');
-		// MemoryCoreService は AnalyzeAllRunner の内部実行ユニット。
-		// 自前 scheduler は持たず、AnalyzeAllRunner.runOnce 経由でのみ起動される
-		// (二重発火回避のため start() は呼ばない)。
-		memoryCoreService = new MemoryCoreService({
-			logSink: memoryCoreOutputChannel,
-			trailDbPath,
-			dbPath: getMemoryCoreDbPath(wsRootForDb),
-			nativeBinding: memoryCoreNativeBinding,
-			gitRoot: wsRootForDb,
-			backfillDays: lepConfig.memory.conversation.backfillDays,
-			// lep.json の llm を ingest パイプラインへ通す (baseUrl は openMemoryDbSession
-			// が resolveOllamaBaseUrl で再解決するため raw 値を渡す)。
-			llm: {
-				baseUrl: lepOllama.baseUrl,
-				chatModel: ingestGenModel,
-				embedModel: lepOllama.models.embedding,
-			},
-			// trail.db と同じ anytimeDatabase.backup 設定を memory-core.db
-			// にも適用する。pipeline runner が openMemoryCoreDb 直前に
-			// FileBackupManager 経由でローテートする。
-			backupGenerations,
-			backupIntervalDays,
-		});
-		TrailLogger.info('[MemoryCore] service constructed (orchestrated by AnalyzeAllRunner)');
+		// MemoryCoreService / ChatBridge / RebuildScheduler は trail-daemon child process が
+		// AnalyzeAllRunner と一体構築する (startHttpServer opts で設定を渡す)。
+		// extension 側ではここで instance を作らない (typescript を引かないため)。
+		TrailLogger.info('[MemoryCore] will be hosted by trail-daemon child process (orchestrated by AnalyzeAllRunner)');
 	} else if (useExternalDaemon && externalDaemonInfo) {
 		TrailLogger.info('[MemoryCore] hosted by external daemon, skipping local service');
 	}
 
-	// Memory chat (MEMORY > Chat タブ) — Ollama 経由の RAG チャット。
-	// activate のクリティカルパスを伸ばさないよう、初期化は全て setImmediate に
-	// 非同期で逃がす。何らかの理由 (native binding 失敗、memory-core.db 破損等) で
-	// 初期化が失敗しても拡張全体の起動が止まらないよう try/catch でガード。
-	// wsRootForDb 未取得時 (workspace folder 未オープン) は memory-core DB 初期化をスキップ。
-	// process.cwd() フォールバックは VS Code Server バイナリパス等を返す可能性があり、
-	// EACCES エラーで初期化が失敗するため。
-	const memoryDbPath = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
-	const memoryNativeBinding = memoryCoreNativeBinding;
-	const memoryLogger = {
-		info: (msg: string, ctx?: Record<string, unknown>): void =>
-			TrailLogger.info(ctx ? `${msg} ${JSON.stringify(ctx)}` : msg),
-		error: (msg: string, err?: unknown): void => TrailLogger.error(msg, err),
-	};
-	setImmediate(() => {
-		void (async () => {
-			if (!hostMemoryCoreLocally) {
-				TrailLogger.info('[memory-chat] hosted by external daemon, skipping local ChatBridge/RebuildScheduler');
-				return;
-			}
-			if (!memoryDbPath) {
-				TrailLogger.warn('[memory-chat] no workspace folder open, skipping ChatBridge/RebuildScheduler init');
-				return;
-			}
-			try {
-				const { ChatBridge } = await import('@anytime-markdown/trail-server');
-				const chatBridge = new ChatBridge({
-					memoryDbPath,
-					memoryNativeBinding,
-					getConfig: () => ({
-						baseUrl: resolvedOllamaBaseUrl,
-						chatModel: lepConfig.llm.providers.ollama.models.chat,
-						embedModel: lepConfig.llm.providers.ollama.models.embedding,
-						bm25Limit: lepConfig.memory.rag.bm25Limit,
-						vecLimit: lepConfig.memory.rag.vecLimit,
-						finalLimit: lepConfig.memory.rag.finalLimit,
-						rrfK: lepConfig.memory.rag.rrfK,
-					}),
-					logger: memoryLogger,
-				});
-				trailDataServer!.setChatBridge(chatBridge);
-				context.subscriptions.push({ dispose: () => void chatBridge.dispose() });
-
-				const { RebuildScheduler } = await import('@anytime-markdown/trail-server');
-				const rebuildIntervalMin = lepConfig.memory.fts.rebuildIntervalMinutes;
-				const rebuildScheduler = new RebuildScheduler({
-					memoryDbPath,
-					memoryNativeBinding,
-					logger: memoryLogger,
-				});
-				context.subscriptions.push(rebuildScheduler.start(rebuildIntervalMin * 60 * 1000));
-				context.subscriptions.push(
-					vscode.commands.registerCommand('anytime-trail.memory.rebuildIndex', () =>
-						rebuildScheduler.runManual(),
-					),
-				);
-				TrailLogger.info('[memory-chat] initialized');
-			} catch (error) {
-				TrailLogger.error('[memory-chat] init failed', error);
-			}
-		})();
-	});
-
-	// Code graph service
-	const codeGraphRepos: { id: string; label: string; path: string }[] = [];
-	const analysisWorkspacePath = getEffectiveWorkspacePath();
-	if (analysisWorkspacePath) {
-		const workspaceLabel = path.basename(analysisWorkspacePath) || 'Workspace';
-		codeGraphRepos.push({ id: workspaceLabel, label: workspaceLabel, path: analysisWorkspacePath });
-	}
-
-	const docsPathForCodeGraph = lepWorkspaceDocsPath.trim();
-	if (docsPathForCodeGraph && !codeGraphRepos.some((r) => r.path === docsPathForCodeGraph)) {
-		const docsLabel = path.basename(docsPathForCodeGraph) || 'Docs';
-		const uniqueDocsLabel = codeGraphRepos.some((r) => r.id === docsLabel) ? `${docsLabel}-docs` : docsLabel;
-		codeGraphRepos.push({ id: uniqueDocsLabel, label: uniqueDocsLabel, path: docsPathForCodeGraph });
-	}
-
-	const codeGraphService = new CodeGraphService({
-		repositories: codeGraphRepos,
-		trailDb: trailDb!,
-		pythonWasmPath: path.join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
-		// 除外は lep.json workspace.excludeRoot で指定した中央ディレクトリの analyze-exclude を
-		// 参照する。開きフォルダや解析対象リポに依存せず単一の exclude を全リポに適用する。
-		excludeRoot: analyzeExcludeRoot,
-	});
-	trailDataServer.setCodeGraphService(codeGraphService);
-
-	// HTTP 経由（mcp-trail 等）から解析パイプラインを起動するためのハンドラ登録
-	trailDataServer.onAnalyzeCurrentCode = async ({ workspacePath, tsconfigPath }) => {
-		const analysisRoot = workspacePath ?? getEffectiveWorkspacePath();
-		if (!analysisRoot) {
-			throw new Error('No workspace path. Set anytimeTrail.workspace.path or open a workspace.');
-		}
-		// 除外パターンは lep.json workspace.excludeRoot で指定した中央ディレクトリを基準にする
-		// (空なら undefined → 解析対象リポ自身にフォールバック)。
-		const excludeRoot = analyzeExcludeRoot;
-		let rootStat: fs.Stats;
-		try {
-			rootStat = fs.statSync(analysisRoot);
-		} catch {
-			throw new Error(`workspace path does not exist: ${analysisRoot}`);
-		}
-		if (!rootStat.isDirectory()) {
-			throw new Error(`workspace path is not a directory: ${analysisRoot}`);
-		}
-
-		let resolvedTsconfig: string | undefined = tsconfigPath;
-		if (!resolvedTsconfig) {
-			const candidates = findTsconfigCandidates(analysisRoot, excludeRoot);
-			if (candidates.length > 0) {
-				resolvedTsconfig = candidates[0].fsPath;
-			} else if (hasPythonFiles(analysisRoot, excludeRoot)) {
-				resolvedTsconfig = undefined; // Python-only 解析
-			} else {
-				throw new Error(`No tsconfig.json or Python files found under ${analysisRoot}`);
-			}
-		}
-
-		if (!trailDb) throw new Error('Trail DB not initialized');
-		return runAnalyzeCurrentCodePipeline({
-			analysisRoot,
-			excludeRoot,
-			tsconfigPath: resolvedTsconfig,
-			trailDb,
-			callbacks: trailDataServer!,
-			codeGraphService,
-			analyzeChildPath: path.join(extensionDistPath, 'analyze-child.js'),
-		});
-	};
-
-	trailDataServer.onAnalyzeReleaseCode = async () => {
-		if (!trailDb) throw new Error('Trail DB not initialized');
-		if (!gitRoot) throw new Error('No workspace folder for release analysis');
-		return runAnalyzeReleaseCodePipeline({
-			trailDb,
-			codeGraphService,
-			gitRoot,
-		});
-	};
-
-	trailDataServer.onAnalyzeAll = async () => {
-		if (!analyzeAllRunner) {
-			throw new Error('AnalyzeAll is disabled. Enable anytimeTrail.analyzeAll.enabled in settings and reload the window.');
-		}
-		const startedAt = Date.now();
-		pipelineProvider?.resetImportAllPhases();
-		await analyzeAllRunner.runOnce('import');
-		const result = analyzeAllRunner.getLastImportResult();
-		if (!result) {
-			throw new Error('importAll did not produce a result');
-		}
-		return { ...result, durationMs: Date.now() - startedAt };
-	};
+	// TrailDaemonHttpClient — daemon 内の TrailDataServer を起動・操作する IPC プロキシ。
+	// AnalyzeCommandClient — daemon 内の analyze pipeline を呼び出す IPC プロキシ。
+	// これらは trailDaemonHost (spawn 後の IPC チャネル) を wrap する薄いクライアントであり、
+	// typescript / TypeScript compiler API を引かない。
+	// (trailDaemonHost は下の async IIFE 内で作成するが、clients 自体はここで宣言する)
 
 	// loadFromDb() は trailDb.init() 完了後に下の async IIFE 内で呼ぶ。
 	// ここで呼ぶと DB 未初期化のまま ensureDb() が throw → null が返るため。
@@ -645,26 +436,25 @@ export async function activate(context: vscode.ExtensionContext) {
 		TrailLogger.info(`C4 analysis [${repoName}]: starting for ${tsconfigPath ?? '(Python-only)'}`);
 		TrailPanel.openViewer(true);
 
-		if (!trailDb || !trailDataServer) {
-			vscode.window.showErrorMessage('Trail DB or server is not initialized.');
+		if (!analyzeCmdClient) {
+			vscode.window.showErrorMessage('Trail daemon is not initialized. AnalyzeAll must be enabled and the daemon must be running.');
 			return;
 		}
 
 		try {
 			await vscode.window.withProgress(
 				{ location: vscode.ProgressLocation.Notification, title: 'C4 Analysis', cancellable: false },
-				async (progress) => {
-					const result = await runAnalyzeCurrentCodePipeline({
+				async () => {
+					// onProgress は daemon 内で実行されるため extension 側から直接 progress.report は
+					// 呼べない。daemon の 'progress' IPC イベントは trailDaemonHost.on('progress') で
+					// ログ出力のみ行う (withProgress のスピナーは継続表示)。
+					const result = await analyzeCmdClient!.analyzeCurrentCode({
 						analysisRoot,
 						excludeRoot: analyzeExcludeRoot,
 						tsconfigPath,
-						trailDb: trailDb!,
-						callbacks: trailDataServer!,
-						codeGraphService,
 						analyzeChildPath: path.join(extensionDistPath, 'analyze-child.js'),
-						onProgress: (phase) => progress.report({ message: phase }),
-					});
-					TrailLogger.info(`C4 analysis [${repoName}]: completed in ${result.durationMs}ms`);
+					}) as { durationMs: number } | undefined;
+					TrailLogger.info(`C4 analysis [${repoName}]: completed${result ? ` in ${result.durationMs}ms` : ''}`);
 				},
 			);
 			vscode.window.showInformationMessage('C4 analysis completed.');
@@ -681,130 +471,216 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);
 
-	// Initialize DB and start server in background — do not block activate
+	// Initialize DB and start daemon HTTP server in background — do not block activate
 	void (async () => {
 		try {
 			TrailLogger.info(`Trail DB: initializing with distPath=${extensionDistPath}`);
 			await trailDb!.init();
 			TrailLogger.info('Trail DB: initialized');
-			// DB 初期化完了後に loadFromDb() を実行（初期化前に呼ぶと ensureDb が throw するため）
-			const dbGraph = await codeGraphService!.loadFromDb();
-			if (dbGraph) {
-				trailDataServer?.notifyCodeGraphUpdated();
-			}
+			// daemon 側が loadFromDb() を担うため、extension 側からは呼ばない。
 		} catch (err) {
 			TrailLogger.error('Failed to initialize trail database', err);
 			return; // DB 初期化失敗時はサーバー起動もスキップ
 		}
 
-		// AnalyzeAllRunner — Wave 1+2 (importAll 相当) + Wave 3 (memory) の唯一の orchestrator。
-		// trailDb.init() 完了後に構築する (init 前の getWatchedGitRoots は意味を持たない)。
-		// memoryCoreService が null (useExternalDaemon) でも runner は構築する (Wave 1/2 のみ走る)。
-		// lep.json stage が disabled のときは構築自体をスキップし、自動・手動・HTTP API を無効化する。
-		if (trailDb && hostMemoryCoreLocally && dbStorageDir && lepStage !== 'disabled') {
-			analyzeAllRunner = new AnalyzeAllRunner({
-				logSink: memoryCoreOutputChannel,
-				gitRoot: wsRootForDb,
-				trailDb,
-				gitRoots: getWatchedGitRoots(lepConfig.sources.gitRoots),
-				claudeProjectsDir: lepConfig.sources.claude.projectsDir || undefined,
-				codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
-				memoryCoreService: memoryCoreService ?? undefined,
-				stage: lepStage,
-				// Wave 3 前 LLM Pre-flight。Ollama 不在時は LLM 依存 analyzer のみ skip し、
-				// Code / BugHistory / Drift (LLM 非依存) は実行する。
-				checkLlmAvailability: () =>
-					checkLlmAvailability({
-						baseUrl: resolvedOllamaBaseUrl,
-						chatModel: ingestGenModel,
-						embedModel: lepOllama.models.embedding,
-					}),
-				ollamaBaseUrl: resolvedOllamaBaseUrl,
-				disabledMemoryAnalyzers: lepDisabledAnalyzers,
-				disabledAggregators: lepDisabledAnalyzers,
-				githubPrReview,
-				importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
-				// stage が memory を含まない run 後に memory scope を skipped 記録する宛先。
-				pipelineStatusFilePath: path.join(dbStorageDir, 'pipeline-status.json'),
-				onImportProgress: (message) => TrailLogger.info(`[analyzeAll] ${message}`),
-				analyzeReleaseFn: analyze,
-				onImportPhase: (event) =>
-					pipelineProvider?.setImportAllPhase(event.phase, event.action, {
-						count: event.count,
-						message: event.message,
-					}),
-				onAfterRun: () => trailDataServer?.notifySessionsUpdated(),
+		// trail-daemon child process を spawn する。
+		// AnalyzeAllRunner + TrailDataServer + CodeGraphService + ChatBridge + LogService +
+		// RebuildScheduler はすべて daemon 内で構築する。extension 側は IPC client のみを使う。
+		if (!externalDaemonInfo && trailDb && hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
+			const daemonPath = path.join(extensionDistPath, 'trail-daemon.js');
+			trailDaemonHost = new TrailDaemonHost(daemonPath);
+			trailDaemonHost.start();
+
+			// IPC イベント: ログ・進捗・インポートフェーズ
+			trailDaemonHost.on('log', (p) => {
+				memoryCoreOutputChannel.appendLine(`[${p.level}] ${p.message}`);
 			});
-			trailDataServer?.setAnalyzeAllRunner(analyzeAllRunner);
-			TrailLogger.info(`[AnalyzeAllRunner] wired (stage=${lepStage})`);
-		}
-		// 外部デーモンが有効な場合はローカルサーバー起動をスキップ。
-		// ブラウザは TrailPanel.daemonUrl 経由でデーモンに直接アクセスする。
-		if (externalDaemonInfo) {
-			TrailLogger.info('[DaemonClient] Skipping local TrailDataServer.start — using external daemon');
-		} else {
-			try {
-				// LogService 配線: extension_logs テーブルへの永続化と WS broadcast を有効化する。
-				// cli.ts (外部 daemon) と同等の wiring をローカルサーバーモードでも実施。
-				// dbStorageDir 未確定時は logs タブが空のまま動作する (OutputChannel は健在)。
-				if (dbStorageDir) {
-					const extensionLogsDbPath = path.join(dbStorageDir, 'extension-logs.db');
-					const extensionLogsDb = new BetterSqlite3MemoryDb({
-						filePath: extensionLogsDbPath,
-						nativeBinding: memoryCoreNativeBinding,
-					});
-					extensionLogsDb.run(CREATE_EXTENSION_LOGS);
-					for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
-					extensionLogsDb.run('PRAGMA journal_mode=WAL');
-					const logService = new LogService(extensionLogsDb, trailDataServer!);
-					trailDataServer!.setLogService(logService);
-					context.subscriptions.push({ dispose: (): void => extensionLogsDb.close() });
-					TrailLogger.info(`[LogService] wired: ${extensionLogsDbPath}`);
-				} else {
-					TrailLogger.warn('[LogService] dbStorageDir not resolved; logs tab will remain empty');
-				}
+			trailDaemonHost.on('progress', (p) => TrailLogger.info(`[daemon] ${p.message}`));
+			trailDaemonHost.on('phase', (e) =>
+				pipelineProvider?.setImportAllPhase(e.phase, e.action, {
+					count: e.count,
+					message: e.message,
+				}),
+			);
+			trailDaemonHost.on('afterRun', () => {
+				// daemon 側で sessions が更新されたら TrailPanel の WebSocket 経由でフロントに通知する。
+				// TrailPanel は daemonUrl 経由で直接 HTTP を叩くため、ここでは HTTP 通知不要。
+				TrailLogger.info('[daemon] afterRun received');
+			});
 
-				TrailLogger.info(`Trail Data Server: starting on port ${trailPort}...`);
-				await trailDataServer!.start(trailPort);
-				const actualPort = trailDataServer!.port;
-				TrailLogger.info(`Trail Data Server started on port ${actualPort}`);
-				wireDaemonLogSink(`http://127.0.0.1:${actualPort}`, context, lepConfig.logs.minLevel);
-
-				// トークン予算設定を反映
-				const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
-				trailDataServer!.setTokenBudgetConfig({
-					dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
-					sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),
-					alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
-				});
-
-				// 閾値超過時の VS Code 通知
-				trailDataServer!.onTokenBudgetExceeded = (status) => {
-					const sessionLabel = status.sessionId.slice(0, 8);
-					const messages: string[] = [];
-					if (status.dailyLimitTokens !== null && status.dailyTokens >= status.dailyLimitTokens * status.alertThresholdPct / 100) {
-						messages.push(`[${sessionLabel}] 本日のトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.dailyTokens.toLocaleString()} / ${status.dailyLimitTokens.toLocaleString()}）`);
-					}
-					if (status.sessionLimitTokens !== null && status.sessionTokens >= status.sessionLimitTokens * status.alertThresholdPct / 100) {
-						messages.push(`[${sessionLabel}] 現セッションのトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.sessionTokens.toLocaleString()} / ${status.sessionLimitTokens.toLocaleString()}）`);
-					}
-					for (const msg of messages) {
-						void vscode.window.showWarningMessage(msg);
-						TrailLogger.warn(msg);
-					}
+			// AnalyzeAllRunner (lep.json stage !== 'disabled' の場合のみ)
+			if (lepStage !== 'disabled') {
+				const trailDbPath = path.join(dbStorageDir, 'trail.db');
+				const cfg: SerializableAnalyzeAllConfig = {
+					trailDbPath,
+					gitRoot: wsRootForDb,
+					gitRoots: getWatchedGitRoots(lepConfig.sources.gitRoots),
+					claudeProjectsDir: lepConfig.sources.claude.projectsDir || undefined,
+					codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
+					stage: lepStage,
+					ollamaBaseUrl: resolvedOllamaBaseUrl,
+					disabledMemoryAnalyzers: lepDisabledAnalyzers,
+					disabledAggregators: lepDisabledAnalyzers,
+					importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
+					pipelineStatusFilePath: path.join(dbStorageDir, 'pipeline-status.json'),
+					memoryCore: hostMemoryCoreLocally
+						? {
+								trailDbPath,
+								dbPath: getMemoryCoreDbPath(wsRootForDb),
+								nativeBinding: memoryCoreNativeBinding,
+								gitRoot: wsRootForDb,
+								backfillDays: lepConfig.memory.conversation.backfillDays,
+								llm: {
+									baseUrl: lepOllama.baseUrl,
+									chatModel: ingestGenModel,
+									embedModel: lepOllama.models.embedding,
+								},
+								backupGenerations,
+								backupIntervalDays,
+							}
+						: null,
 				};
+				analyzeAllRunner = new AnalyzeAllRunnerClient(trailDaemonHost, cfg);
+				await analyzeAllRunner.configure();
+				TrailLogger.info(`[AnalyzeAllRunner] wired via trail-daemon (stage=${lepStage})`);
+			}
+
+			// TrailDaemonHttpClient — daemon 内の TrailDataServer を操作する IPC プロキシ。
+			httpClient = new TrailDaemonHttpClient(trailDaemonHost);
+			analyzeCmdClient = new AnalyzeCommandClient(trailDaemonHost);
+
+			// IPC イベント: httpReady → TrailPanel.setDaemonUrl + DaemonSinkLogger 配線
+			httpClient.onHttpReady(({ url }) => {
+				TrailLogger.info(`[TrailDaemonHttpClient] httpReady: ${url}`);
+				TrailPanel.setDaemonUrl(url);
+				wireDaemonLogSink(url, context, lepConfig.logs.minLevel);
+			});
+
+			// IPC イベント: openDocLink → VS Code でドキュメントを開く
+			httpClient.onOpenDocLink(({ docPath }) => {
+				const docsDir = lepWorkspaceDocsPath;
+				if (!docsDir) {
+					TrailLogger.warn(`[open-doc-link] docsPath is not configured (lep.json workspace.docsPath). Cannot open: ${docPath}`);
+					void vscode.window.showWarningMessage('Set workspace.docsPath in lep.json to open document links.');
+					return;
+				}
+				const fsPath = path.join(docsDir, docPath);
+				if (!fs.existsSync(fsPath)) {
+					TrailLogger.warn(`[open-doc-link] file not found: ${fsPath}`);
+					void vscode.window.showWarningMessage(`File not found: ${fsPath}`);
+					return;
+				}
+				const uri = vscode.Uri.file(fsPath);
+				TrailLogger.info(`[open-doc-link] opening ${fsPath}`);
+				vscode.commands.executeCommand('vscode.openWith', uri, 'anytimeMarkdown').then(
+					undefined,
+					(err) => {
+						TrailLogger.warn(`[open-doc-link] vscode.openWith(anytimeMarkdown) failed, falling back: ${String(err)}`);
+						vscode.workspace.openTextDocument(uri).then(
+							(doc) => vscode.window.showTextDocument(doc),
+							(err2) => {
+								TrailLogger.error(`[open-doc-link] openTextDocument fallback failed: ${String(err2)}`);
+								void vscode.window.showWarningMessage(`Failed to open: ${fsPath}`);
+							},
+						);
+					},
+				);
+			});
+
+			// IPC イベント: openFile → VS Code でファイルを開く
+			httpClient.onOpenFile(({ filePath }) => {
+				const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+				if (!workspaceFolder) return;
+				const uri = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, filePath));
+				vscode.workspace.openTextDocument(uri).then(
+					(doc) => vscode.window.showTextDocument(doc),
+					() => void vscode.window.showWarningMessage(`File not found: ${uri.fsPath}`),
+				);
+			});
+
+			// IPC イベント: tokenBudgetExceeded → VS Code 警告通知
+			httpClient.onTokenBudgetExceeded((status) => {
+				const sessionLabel = status.sessionId.slice(0, 8);
+				const messages: string[] = [];
+				if (status.dailyLimitTokens !== null && status.dailyTokens >= status.dailyLimitTokens * status.alertThresholdPct / 100) {
+					messages.push(`[${sessionLabel}] 本日のトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.dailyTokens.toLocaleString()} / ${status.dailyLimitTokens.toLocaleString()}）`);
+				}
+				if (status.sessionLimitTokens !== null && status.sessionTokens >= status.sessionLimitTokens * status.alertThresholdPct / 100) {
+					messages.push(`[${sessionLabel}] 現セッションのトークン使用量が上限の ${status.alertThresholdPct}% を超えました（${status.sessionTokens.toLocaleString()} / ${status.sessionLimitTokens.toLocaleString()}）`);
+				}
+				for (const msg of messages) {
+					void vscode.window.showWarningMessage(msg);
+					TrailLogger.warn(msg);
+				}
+			});
+
+			// daemon 内で TrailDataServer + CodeGraphService + ChatBridge + LogService +
+			// RebuildScheduler を起動する。httpReady イベントで URL を受け取る。
+			const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
+			const extensionLogsDbPath = dbStorageDir ? path.join(dbStorageDir, 'extension-logs.db') : undefined;
+			const rebuildIntervalMin = lepConfig.memory.fts.rebuildIntervalMinutes;
+			try {
+				await httpClient.start({
+					distPath: extensionDistPath,
+					gitRoot: wsRootForDb,
+					memoryDbPath: memoryDbPathForServer,
+					preferredPort: trailPort,
+					pythonWasmPath: path.join(extensionDistPath, 'wasm', 'tree-sitter-python.wasm'),
+					chatBridge: memoryDbPathForServer
+						? {
+								memoryDbPath: memoryDbPathForServer,
+								memoryNativeBinding: memoryCoreNativeBinding,
+								staticConfig: {
+									baseUrl: resolvedOllamaBaseUrl,
+									chatModel: lepConfig.llm.providers.ollama.models.chat,
+									embedModel: lepConfig.llm.providers.ollama.models.embedding,
+									bm25Limit: lepConfig.memory.rag.bm25Limit,
+									vecLimit: lepConfig.memory.rag.vecLimit,
+									finalLimit: lepConfig.memory.rag.finalLimit,
+									rrfK: lepConfig.memory.rag.rrfK,
+								},
+							}
+						: undefined,
+					logService: extensionLogsDbPath
+						? {
+								extensionLogsDbPath,
+								nativeBinding: memoryCoreNativeBinding,
+							}
+						: undefined,
+					rebuildScheduler: memoryDbPathForServer
+						? {
+								memoryDbPath: memoryDbPathForServer,
+								memoryNativeBinding: memoryCoreNativeBinding,
+								intervalMs: rebuildIntervalMin * 60 * 1000,
+							}
+						: undefined,
+					tokenBudgetConfig: {
+						dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
+						sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),
+						alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
+					},
+					docsPath: lepWorkspaceDocsPath || undefined,
+				});
+				TrailLogger.info('[TrailDaemonHttpClient] startHttpServer called successfully');
 			} catch (err) {
-				TrailLogger.error('Trail Data Server failed to start', err);
+				TrailLogger.error('Trail Data Server (daemon) failed to start', err);
 				const message = err instanceof Error ? err.message : String(err);
-				// EADDRINUSE は別 VS Code ウィンドウが同じポートを掴んでいるケースが圧倒的に多いので、
-				// OutputChannel のみだとユーザーが trail viewer 不通の原因に気付けない。
-				// 通知でポートと回復策を示す。
 				const isPortConflict = /EADDRINUSE|already in use/i.test(message);
 				const userMsg = isPortConflict
 					? `Trail Data Server failed to bind port ${trailPort} (already in use). 別の VS Code ウィンドウが同じポートを掴んでいる可能性が高いです。古いウィンドウを閉じるか anytimeTrail.viewer.port 設定で別ポートに変更してください。`
 					: `Trail Data Server failed to start: ${message}`;
 				void vscode.window.showErrorMessage(userMsg);
 			}
+
+			// rebuildIndex コマンドを登録 (daemon IPC 経由で rebuildScheduler.runManual に相当する
+			// 機能は Phase 3-4 以降で追加予定。現時点は UI のみ登録し機能は no-op)。
+			context.subscriptions.push(
+				vscode.commands.registerCommand('anytime-trail.memory.rebuildIndex', () => {
+					void vscode.window.showInformationMessage('Memory index rebuild is managed by the trail-daemon process.');
+				}),
+			);
+		} else if (externalDaemonInfo) {
+			TrailLogger.info('[DaemonClient] Skipping daemon spawn — using external daemon');
 		}
 
 		// 起動時自動実行 + 周期実行は AnalyzeAllRunner が一元管理する。
@@ -850,8 +726,9 @@ export async function activate(context: vscode.ExtensionContext) {
 						await analyzeAllRunner!.runOnce('manual');
 					},
 				);
-				const status = analyzeAllRunner.getStatus();
-				const result = analyzeAllRunner.getLastImportResult();
+				const status = await analyzeAllRunner.getStatus();
+				const rawResult = await analyzeAllRunner.getLastImportResult();
+				const result = rawResult as { imported?: number; skipped?: number; commitsResolved?: number; releasesResolved?: number; releasesAnalyzed?: number; coverageImported?: number } | null;
 				if (status.lastError) {
 					TrailLogger.error(`Trail DB [${repoName}]: import failed - ${status.lastError}`);
 					vscode.window.showWarningMessage(`Trail: refresh failed - ${status.lastError}`);
@@ -872,14 +749,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push({
 		dispose: () => {
 			// VS Code の Disposable は async dispose を await しないため fire-and-forget。
-			// 通常時は deactivate() 側で stop を await するので、ここはセーフティネット
-			// (stop() は idempotent)。エラーはログのみ確保する。
-			trailDataServer?.stop().catch((err) => {
-				TrailLogger.error('Failed to stop trail data server (dispose)', err);
-			});
-			memoryCoreService?.dispose().catch((err) => {
-				TrailLogger.error('Failed to dispose memory-core service', err);
-			});
+			// 通常時は deactivate() 側で trailDaemonHost.dispose() を await するので、
+			// ここはセーフティネット。trailDaemonHost.dispose() が child process を kill する。
+			trailDaemonHost?.dispose();
 			trailDb?.close();
 		},
 	});
@@ -891,7 +763,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('anytime-trail.analyzeAll.status', async () => {
 			try {
 				if (analyzeAllRunner) {
-					const s = analyzeAllRunner.getStatus();
+					const s = await analyzeAllRunner.getStatus();
 					vscode.window.showInformationMessage(
 						`AnalyzeAll (local): paused=${s.paused}, ticksRun=${s.ticksRun}, ticksSkipped=${s.ticksSkipped}, ` +
 							`lastRunAt=${s.lastRunAt ?? '—'}, lastError=${s.lastError ?? '—'}`,
@@ -938,12 +810,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {
 			// docsPath は lep.json (workspace.docsPath) へ移行。lep.json 変更は Reload Window で反映する。
-			if (e.affectsConfiguration('anytimeAgent.budget') && trailDataServer) {
+			if (e.affectsConfiguration('anytimeAgent.budget') && httpClient) {
 				const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
-				trailDataServer.setTokenBudgetConfig({
+				httpClient.setTokenBudgetConfig({
 					dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
 					sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),
 					alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
+				}).catch((err) => {
+					TrailLogger.error('[config change] setTokenBudgetConfig failed', err);
 				});
 			}
 			if (e.affectsConfiguration('anytimeTrail.analyzeAll.enabled')) {
@@ -1051,20 +925,18 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export async function deactivate(): Promise<void> {
-	try {
-		await trailDataServer?.stop();
-	} catch (err) {
-		TrailLogger.error('Failed to stop trail data server', err);
-	}
+	// TrailDataServer は daemon child process が hosting するため、
+	// trailDaemonHost.dispose() が child process を kill して暗黙的に stop する。
+	// httpClient には独立した dispose は不要 (host.dispose で完結する)。
 	try {
 		await analyzeAllRunner?.dispose();
 	} catch (err) {
-		TrailLogger.error('Failed to dispose analyze-all runner', err);
+		TrailLogger.error('Failed to dispose analyze-all runner client', err);
 	}
 	try {
-		await memoryCoreService?.dispose();
+		trailDaemonHost?.dispose();
 	} catch (err) {
-		TrailLogger.error('Failed to dispose memory-core service', err);
+		TrailLogger.error('Failed to dispose trail-daemon host', err);
 	}
 	trailDb?.close();
 	TrailLogger.dispose();

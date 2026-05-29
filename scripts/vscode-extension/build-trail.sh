@@ -14,7 +14,21 @@ npm install --ignore-scripts 2>/dev/null || npm install
 
 echo "Building..."
 cd "$EXT_DIR"
-npm run package
+# Node24 + WSL では webpack production の terser ミニファイ中に V8 codegen が
+# 非決定的に SIGSEGV(exit 139) する既知事象がある (重量バンドル trail-daemon.js /
+# analyze-child.js で発生しやすい)。crash はランダムで再実行すれば通るため、
+# 最大 PACKAGE_MAX_ATTEMPTS 回までリトライする。
+PACKAGE_MAX_ATTEMPTS="${PACKAGE_MAX_ATTEMPTS:-3}"
+attempt=1
+until npm run package; do
+  status=$?
+  if [ "$attempt" -ge "$PACKAGE_MAX_ATTEMPTS" ]; then
+    echo "ERROR: 'npm run package' が ${PACKAGE_MAX_ATTEMPTS} 回失敗しました (最後の exit code: ${status})。" >&2
+    exit "$status"
+  fi
+  echo "WARN: 'npm run package' が exit ${status} で失敗。リトライ ${attempt}/${PACKAGE_MAX_ATTEMPTS}..." >&2
+  attempt=$((attempt + 1))
+done
 
 echo "Packaging vsix..."
 npx vsce package --no-dependencies -o "$DIST_DIR/anytime-trail.vsix"

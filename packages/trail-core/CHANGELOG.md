@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-05-29
+
+### Added
+
+- L5 function-level graph: `filterTrailGraphByElement` and `FunctionGraphResponse` types power the new function-call graph viewer, exported via the `functionGraph` barrel from the c4 root.
+- Service catalog with generated `simple-icons` SVG path data (`serviceIcons.generated.ts`), allowing the icon dependency to be dropped from runtime bundles.
+
+### Changed
+
+- `filterTrailGraphByElement` now supports component-level (C5) scope in addition to container/system, with `resolveTargetFilePaths` extracted as a helper.
+
 ## [0.23.2] - 2026-05-27
 
 ### Changed

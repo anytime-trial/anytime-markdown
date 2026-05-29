@@ -11,9 +11,10 @@ export { mergeManualIntoC4Model } from './c4/mergeManual';
 export type { C4Model } from './c4/types';
 
 export type { ServiceEntry } from './c4/services/catalog';
-// SERVICE_CATALOG / findService / filterServices は simple-icons (5.2 MB) を取り込む。
+// SERVICE_CATALOG / findService / filterServices は serviceIcons.generated.ts
+// (simple-icons から抽出した約 79 KiB のアイコンデータ) を取り込む UI 専用定数。
 // 専用 subpath '@anytime-markdown/trail-core/c4/services' からのみ import 可能とし、
-// main index からは値 export しない (mcp-trail / extension bundle に simple-icons が混入するのを防ぐ)。
+// main index からは値 export しない (共通 barrel に UI 用の重い定数を載せないため)。
 
 export { computeTemporalCoupling } from './temporalCoupling/computeTemporalCoupling';
 export { computeSessionCoupling } from './temporalCoupling/computeSessionCoupling';

@@ -1,6 +1,6 @@
 import { handleGetReviewHistory } from '../../tools/getReviewHistory';
 
-jest.mock('@anytime-markdown/memory-core', () => ({
+jest.mock('@anytime-markdown/memory-core/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -42,7 +42,7 @@ describe('handleGetReviewHistory', () => {
   });
 
   test('calls getReviewHistory with correct filters', async () => {
-    const { getReviewHistory: mockFn } = jest.requireMock('@anytime-markdown/memory-core');
+    const { getReviewHistory: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     const result = await handleGetReviewHistory({ target_file_path: 'src/foo.ts' });
 
@@ -55,7 +55,7 @@ describe('handleGetReviewHistory', () => {
   });
 
   test('passes include_precedes_bugs flag', async () => {
-    const { getReviewHistory: mockFn } = jest.requireMock('@anytime-markdown/memory-core');
+    const { getReviewHistory: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     await handleGetReviewHistory({ include_precedes_bugs: true });
 
@@ -65,7 +65,7 @@ describe('handleGetReviewHistory', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
 
     await handleGetReviewHistory({});
 

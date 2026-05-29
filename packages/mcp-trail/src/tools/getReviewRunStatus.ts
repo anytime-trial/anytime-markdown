@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { getReviewRunStatus, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { ReviewRunStatus } from '@anytime-markdown/memory-core';
+import { getReviewRunStatus, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { ReviewRunStatus } from '@anytime-markdown/memory-core/query';
 
 export const GetReviewRunStatusInputSchema = z.object({
   run_id: z.string().describe('Review run ID returned by run_review_agent'),

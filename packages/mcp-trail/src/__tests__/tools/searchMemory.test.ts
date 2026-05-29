@@ -5,7 +5,7 @@ const mockSearchMemoryFn = jest.fn();
 const mockOpenMemoryCoreDb = jest.fn();
 const mockCreateOllamaClient = jest.fn().mockReturnValue({});
 
-jest.mock('@anytime-markdown/memory-core', () => ({
+jest.mock('@anytime-markdown/memory-core/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: (...args: unknown[]) => mockOpenMemoryCoreDb(...args),
   searchMemory: (...args: unknown[]) => mockSearchMemoryFn(...args),

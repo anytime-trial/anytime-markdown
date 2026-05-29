@@ -6,6 +6,28 @@
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-05-29
+
+### 追加
+
+- C4 モデルビューに L5 関数レベルグラフビューアを追加。コンポーネントを選択すると関数コールグラフを確認できる (新 C4 レベル5)。
+- C5 コンポーネントスコープ: 関数グラフを container / system に加えて個別コンポーネント単位に絞り込めるよう対応。
+
+### 変更
+
+- 拡張ホストを trail-daemon アーキテクチャ (`DaemonClient` 経由の HTTP + IPC クライアント) へ移行。`extension.js` のバンドル TypeScript ゼロのマイルストーンを達成。
+
+### 修正
+
+- node バンドルでオプショナルなネイティブ依存を externalize し、解決失敗を回避。
+- `ChatBridge` のリークを解消し、デーモンのエラーログを強化。
+
+### Trail Core (trail-core / trail-server / memory-core / mcp-trail)
+
+- trail-server: `/api/c4/function-graph` エンドポイントと、IPC 解析パイプラインを持つ trail-daemon ホスト (`AnalyzeAllRunnerClient` / `AnalyzeCommandClient`) を追加。`/services` `/analyze-utils` `/llm` `/github` `/config` サブパスを追加。
+- trail-core: L5 関数グラフエンジン (`filterTrailGraphByElement`) と、`simple-icons` をバンドルから除外する生成済みサービスアイコンデータ。
+- memory-core / mcp-trail: TypeScript 依存の export を `/pipeline` `/query` サブパスへ分離し、ルートバレルを TypeScript-free に維持。
+
 ## [0.23.2] - 2026-05-27
 
 ### 修正

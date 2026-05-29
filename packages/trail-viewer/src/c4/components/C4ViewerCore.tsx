@@ -1,4 +1,5 @@
-import type { GraphDocument, GraphNode } from '@anytime-markdown/graph-core';
+import type { GraphDocument, GraphNode, Viewport } from '@anytime-markdown/graph-core';
+import { DEFAULT_VIEWPORT } from '@anytime-markdown/graph-core';
 import { engine, layoutWithSubgroups, MinimapCanvas, state as graphState } from '@anytime-markdown/graph-core';
 import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, CommunityOverlayEntry, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix, HotspotMap, ImportanceMatrix, ManualGroup, MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, aggregateHotspotToC4, buildArchitectureMatrix, buildC4ElementById, buildCommunityTree, buildElementTree, buildLevelView, buildSizeMatrix, c4ToGraphDocument, collectDescendantIds, computeColorMap, computeCommunityOverlay, computeFileHotspot, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, mapFileToC4Elements, resolveSelectedElementCommunity, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
@@ -35,6 +36,8 @@ import { useDefectRisk } from '../hooks/useDefectRisk';
 import { useHotspot } from '../hooks/useHotspot';
 import { useTemporalCoupling } from '../hooks/useTemporalCoupling';
 import { useElementFunctions } from '../hooks/useElementFunctions';
+import { useFunctionGraph } from '../hooks/useFunctionGraph';
+import { buildFunctionGraphDocument } from './buildFunctionGraphDocument';
 import { DeadCodeDetailSection } from './panels/DeadCodeDetailSection';
 import { fileAnalysisEntriesForElement } from './fileAnalysisEntriesForElement';
 import { FunctionScatterPlot } from './panels/FunctionScatterPlot';
@@ -92,6 +95,16 @@ import {
 import type { C4ViewerCoreProps } from './types';
 
 export type { C4ViewerCoreProps };
+
+/** C5 (関数レベル) のグラフ領域で空状態・ロード・エラーを中央表示する sx */
+const L5_PLACEHOLDER_SX = {
+  height: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  textAlign: 'center',
+  p: 4,
+} as const;
 
 export function C4ViewerCore({
   isDark = false,
@@ -876,6 +889,36 @@ export function C4ViewerCore({
 
   const effectiveOverlayMap = overlayMap;
 
+  // L5: 選択中の code または component 要素 ID を解決する（L5 以外は空文字でフェッチをスキップ）
+  // Phase 2: C3 component 選択時にも C5 スコープとして許容する
+  const selectedCodeElementId = useMemo<string>(() => {
+    if (currentLevel !== 5) return '';
+    if (!selectedElementId || !c4Model) return '';
+    const el = c4Model.elements.find((e) => e.id === selectedElementId);
+    if (!el) return '';
+    return (el.type === 'code' || el.type === 'component') ? el.id : '';
+  }, [currentLevel, selectedElementId, c4Model]);
+
+  const fnGraphResult = useFunctionGraph(serverUrl ?? '', selectedCodeElementId);
+
+  const l5Document = useMemo(() => {
+    if (!fnGraphResult.data) return null;
+    return buildFunctionGraphDocument(fnGraphResult.data, !!isDark);
+  }, [fnGraphResult.data, isDark]);
+
+  // L5 専用 viewport state: C4 reducer とは独立して管理する（SET_VIEWPORT が毎フレーム
+  // l5Document.viewport の初期値を読み直して pan/zoom をリセットしてしまう問題を回避）
+  const [l5Viewport, setL5Viewport] = useState<Viewport>(() => ({ ...DEFAULT_VIEWPORT }));
+
+  useEffect(() => {
+    if (fnGraphResult.data) setL5Viewport({ ...DEFAULT_VIEWPORT });
+  }, [fnGraphResult.data]);
+
+  const l5Dispatch = useCallback((action: graphState.Action) => {
+    if (action.type === 'SET_VIEWPORT') setL5Viewport(action.viewport);
+    // 他のアクションは L5 では使用しない
+  }, []);
+
   // Community overlay: L3/L4 のみ。トグル ON かつ codeGraph が取得済みのときのみ計算する
   const communityOverlay = useMemo<ReadonlyMap<string, CommunityOverlayEntry> | null>(() => {
     if (!showCommunity || !codeGraph || !c4Model) return null;
@@ -1304,53 +1347,75 @@ export function C4ViewerCore({
         {/* C4 Graph */}
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 100, position: 'relative' }}>
             <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-              <GraphCanvas
-                isDark={isDark}
-                document={state.document}
-                viewport={state.document.viewport}
-                dispatch={dispatch}
-                canvasRef={canvasRef}
-                selectedNodeId={selectedElementId ? (state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null) : null}
-                centerOnSelect={centerOnSelect}
-                overlayMap={effectiveOverlayMap.size > 0 ? effectiveOverlayMap : null}
-                claudeActivityMap={claudeActivityMapWithConflicts}
-                communityMap={communityMap}
-                communityRoleBadgeMap={communityRoleBadgeMap}
-                ghostEdges={
-                  tcValue.enabled && (currentLevel === 3 || currentLevel === 4)
-                    ? ghostEdges.map((e) => ({
-                      source: e.source,
-                      target: e.target,
-                      jaccard: e.jaccard,
-                      direction: e.direction,
-                      confidenceForward: e.confidenceForward,
-                    }))
-                    : undefined
-                }
-                ghostEdgeGranularity={tcGranularity}
-                onNodeSelect={(id) => { setCenterOnSelect(false); setSelectedElementId(id); setSelectedElementIds([]); }}
-                onMultiNodeSelect={(ids) => {
-                  if (ids.length === 1) {
-                    setSelectedElementId(ids[0]);
-                    setSelectedElementIds([]);
-                  } else if (ids.length === 0) {
-                    setSelectedElementId(null);
-                    setSelectedElementIds([]);
-                  } else {
-                    setSelectedElementId(null);
-                    setSelectedElementIds(ids);
+              {currentLevel === 5 ? (
+                !selectedCodeElementId ? (
+                  <Box sx={{ ...L5_PLACEHOLDER_SX, color: 'text.secondary' }}>{t('c4.level.L5.emptySelection')}</Box>
+                ) : fnGraphResult.loading ? (
+                  <Box sx={{ ...L5_PLACEHOLDER_SX, color: 'text.secondary' }}>{t('viewer.loading')}</Box>
+                ) : fnGraphResult.error ? (
+                  <Box sx={{ ...L5_PLACEHOLDER_SX, color: 'error.main' }}>{t('c4.level.L5.error')}</Box>
+                ) : fnGraphResult.data && fnGraphResult.data.nodes.length === 0 ? (
+                  <Box sx={{ ...L5_PLACEHOLDER_SX, color: 'text.secondary' }}>{t('c4.level.L5.emptyNoFunctions')}</Box>
+                ) : l5Document ? (
+                  <GraphCanvas
+                    isDark={isDark}
+                    document={l5Document}
+                    viewport={l5Viewport}
+                    dispatch={l5Dispatch}
+                    canvasRef={canvasRef}
+                  />
+                ) : (
+                  <Box sx={{ ...L5_PLACEHOLDER_SX, color: 'text.secondary' }}>{t('c4.level.L5.emptySelection')}</Box>
+                )
+              ) : (
+                <GraphCanvas
+                  isDark={isDark}
+                  document={state.document}
+                  viewport={state.document.viewport}
+                  dispatch={dispatch}
+                  canvasRef={canvasRef}
+                  selectedNodeId={selectedElementId ? (state.document.nodes.find(n => n.metadata?.c4Id === selectedElementId)?.id ?? null) : null}
+                  centerOnSelect={centerOnSelect}
+                  overlayMap={effectiveOverlayMap.size > 0 ? effectiveOverlayMap : null}
+                  claudeActivityMap={claudeActivityMapWithConflicts}
+                  communityMap={communityMap}
+                  communityRoleBadgeMap={communityRoleBadgeMap}
+                  ghostEdges={
+                    tcValue.enabled && (currentLevel === 3 || currentLevel === 4)
+                      ? ghostEdges.map((e) => ({
+                        source: e.source,
+                        target: e.target,
+                        jaccard: e.jaccard,
+                        direction: e.direction,
+                        confidenceForward: e.confidenceForward,
+                      }))
+                      : undefined
                   }
-                }}
-                onNodeDoubleClick={(nodeId) => {
-                  if (!c4Model) return;
-                  const elem = c4Model.elements.find(e => e.id === nodeId);
-                  const editableTypes: readonly string[] = ['person', 'system', 'container', 'component'];
-                  if (elem?.manual && editableTypes.includes(elem.type)) {
-                    setEditElement({ id: elem.id, type: elem.type as C4ElementKind, name: elem.name, description: elem.description ?? '', external: elem.external ?? false });
-                  }
-                }}
-                onNodeContextMenu={handleNodeContextMenu}
-              />
+                  ghostEdgeGranularity={tcGranularity}
+                  onNodeSelect={(id) => { setCenterOnSelect(false); setSelectedElementId(id); setSelectedElementIds([]); }}
+                  onMultiNodeSelect={(ids) => {
+                    if (ids.length === 1) {
+                      setSelectedElementId(ids[0]);
+                      setSelectedElementIds([]);
+                    } else if (ids.length === 0) {
+                      setSelectedElementId(null);
+                      setSelectedElementIds([]);
+                    } else {
+                      setSelectedElementId(null);
+                      setSelectedElementIds(ids);
+                    }
+                  }}
+                  onNodeDoubleClick={(nodeId) => {
+                    if (!c4Model) return;
+                    const elem = c4Model.elements.find(e => e.id === nodeId);
+                    const editableTypes: readonly string[] = ['person', 'system', 'container', 'component'];
+                    if (elem?.manual && editableTypes.includes(elem.type)) {
+                      setEditElement({ id: elem.id, type: elem.type as C4ElementKind, name: elem.name, description: elem.description ?? '', external: elem.external ?? false });
+                    }
+                  }}
+                  onNodeContextMenu={handleNodeContextMenu}
+                />
+              )}
               {/* 左側パネル: 全体マップ + C4 ビュー設定コントロール群 */}
               <Box sx={{ position: 'absolute', top: 8, left: 8, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {/* 全体マップ（ミニマップ） */}
@@ -1387,16 +1452,16 @@ export function C4ViewerCore({
                       C4 Level
                     </Typography>
                     <ButtonGroup size="small" fullWidth>
-                      {([1, 2, 3, 4] as const).map(level => (
+                      {([1, 2, 3, 4, 5] as const).map(level => (
                         <Button
                           key={level}
                           onClick={() => handleSetLevel(level)}
                           aria-pressed={currentLevel === level}
-                          aria-label={`Level ${level}: ${({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code' } as const)[level]}`}
-                          title={({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code' } as const)[level]}
+                          aria-label={`Level ${level}: ${({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code', 5: 'Functions' } as const)[level]}`}
+                          title={({ 1: 'Context', 2: 'Container', 3: 'Component', 4: 'Code', 5: 'Functions' } as const)[level]}
                           sx={currentLevel === level ? levelButtonActiveSx : levelButtonSx}
                         >
-                          C{level}
+                          {`C${level}`}
                         </Button>
                       ))}
                     </ButtonGroup>

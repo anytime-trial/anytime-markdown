@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { runReviewAgent, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { RunReviewAgentResult } from '@anytime-markdown/memory-core';
+import { runReviewAgent, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { RunReviewAgentResult } from '@anytime-markdown/memory-core/query';
 
 export const RunReviewAgentInputSchema = z.object({
   trigger_kind: z.literal('mcp').describe('Trigger kind (must be "mcp")'),

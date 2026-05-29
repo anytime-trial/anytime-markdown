@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as vscode from 'vscode';
 import type { PipelineStatusFile, PipelineStatusEntry, PipelineState } from '@anytime-markdown/memory-core';
 import type { ImportAllPhase } from '@anytime-markdown/trail-db';
-import { readImportAllPhaseStatus } from '@anytime-markdown/trail-server';
+import { readImportAllPhaseStatus } from '@anytime-markdown/trail-server/jobs';
 
 const POLL_STATUS_FILE_MS = 2_000;
 

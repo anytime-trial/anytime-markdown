@@ -48,3 +48,5 @@ export type { BatchNodeInput, BatchEdgeInput, BatchImportInput } from './batchIm
 export { resolveEdgesForRender } from './edgeResolution';
 export { computeRadialLayout } from './physics/radial';
 export { computeRootedTreeLayout } from './physics/rootedTree';
+export { computeHierarchicalLayout } from './physics/hierarchical';
+export type { PhysicsBody } from './physics/types';

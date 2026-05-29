@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { listRecurringBugs, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { RecurringBugGroup } from '@anytime-markdown/memory-core';
+import { listRecurringBugs, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { RecurringBugGroup } from '@anytime-markdown/memory-core/query';
 
 export const ListRecurringBugsInputSchema = z.object({
   package: z.string().optional().describe('Filter by package name'),

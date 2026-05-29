@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { getBugHistory, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { BugHistoryEntry } from '@anytime-markdown/memory-core';
+import { getBugHistory, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { BugHistoryEntry } from '@anytime-markdown/memory-core/query';
 
 export const GetBugHistoryInputSchema = z.object({
   package: z.string().optional().describe('Filter by package name'),

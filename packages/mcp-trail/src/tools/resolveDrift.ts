@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { resolveDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core';
-import type { ResolveDriftResult } from '@anytime-markdown/memory-core';
+import { resolveDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
+import type { ResolveDriftResult } from '@anytime-markdown/memory-core/query';
 
 export const ResolveDriftInputSchema = z.object({
   event_id: z.string().describe('Drift event ID to resolve'),

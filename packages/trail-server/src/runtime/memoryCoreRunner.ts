@@ -1,7 +1,5 @@
-import {
-  MemoryCoreService,
-  type MemoryCoreServiceOptions,
-} from '@anytime-markdown/memory-core';
+import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
+import type { MemoryCoreServiceOptions } from '@anytime-markdown/memory-core';
 
 export interface MemoryCoreRunner {
   runAfterImport(): Promise<void>;
