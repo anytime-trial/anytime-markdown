@@ -1,5 +1,5 @@
 // Main page component
-export { MarkdownCoreI18nProvider } from './i18n/context';
+export { MarkdownCoreI18nProvider, useMarkdownT } from './i18n/context';
 export { default as MarkdownEditorPage } from './MarkdownEditorPage';
 
 // Hooks
@@ -20,6 +20,12 @@ export {
   useEditorSettingsContext,
 } from './useEditorSettings';
 export { useMarkdownEditor } from './useMarkdownEditor';
+export { useBlockCapture } from './hooks/useBlockCapture';
+export { useBlockResize } from './hooks/useBlockResize';
+export { useDeleteBlock } from './hooks/useDeleteBlock';
+export { useNodeSelected } from './hooks/useNodeSelected';
+export type { NotificationKey } from './hooks/useNotification';
+export { useNotification } from './hooks/useNotification';
 
 // Components
 export { EditorBubbleMenu } from './components/EditorBubbleMenu';
@@ -33,6 +39,10 @@ export { getMergeTiptapStyles,MergeEditorPanel } from './components/MergeEditorP
 export { OutlinePanel } from './components/OutlinePanel';
 export { SearchReplaceBar } from './components/SearchReplaceBar';
 export { StatusBar } from './components/StatusBar';
+export type { BlockInlineToolbarProps } from './components/codeblock/BlockInlineToolbar';
+export { BlockInlineToolbar } from './components/codeblock/BlockInlineToolbar';
+export { EditDialogHeader } from './components/EditDialogHeader';
+export { EditDialogWrapper } from './components/EditDialogWrapper';
 
 // NodeView components
 export { ImageNodeView } from './ImageNodeView';
@@ -114,7 +124,10 @@ PLANTUML_DARK_BG,   PLANTUML_DARK_FG, PLANTUML_DARK_SURFACE,
 } from './constants/colors';
 export { defaultContent } from './constants/defaultContent';
 export {
-  COMMENT_PANEL_WIDTH, EDITOR_HEIGHT_DEFAULT,   EDITOR_HEIGHT_MD, EDITOR_HEIGHT_MIN,
+  COMMENT_PANEL_WIDTH,
+  EDITOR_HEIGHT_DEFAULT,   EDITOR_HEIGHT_MD, EDITOR_HEIGHT_MIN,
+  FS_CHIP_HEIGHT, FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH,
+  FS_PANEL_HEADER_FONT_SIZE, FS_TAB_FONT_SIZE, FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH,
 EDITOR_HEIGHT_MOBILE, EDITOR_PADDING_BORDER,
 EDITOR_PADDING_TOP,   OUTLINE_WIDTH_DEFAULT, OUTLINE_WIDTH_MAX,
 OUTLINE_WIDTH_MIN,   PREVIEW_MAX_HEIGHT,
@@ -123,7 +136,7 @@ SPACING_3XS, SPACING_LG, SPACING_MD, SPACING_SM, SPACING_XL, SPACING_XS, SPACING
 STATUSBAR_HEIGHT,
 } from './constants/dimensions';
 export type { DiagramSample } from './constants/samples';
-export { MERMAID_SAMPLES, PLANTUML_SAMPLES } from './constants/samples';
+export { MATH_SAMPLES, MERMAID_SAMPLES, PLANTUML_SAMPLES } from './constants/samples';
 export { isMac, KEYBOARD_SHORTCUTS, modKey } from './constants/shortcuts';
 export {
 STORAGE_KEY_CONTENT, STORAGE_KEY_EDITOR_MODE,
@@ -135,7 +148,7 @@ export type { ThemePreset, ThemePresetName } from './constants/themePresets';
 export {
   DEFAULT_PRESET_NAME, getPreset, isPresetName, PRESET_NAMES, THEME_PRESETS,
 } from './constants/themePresets';
-export { DEBOUNCE_MEDIUM,DEBOUNCE_SHORT, MERMAID_RENDER_TIMEOUT, NOTIFICATION_DURATION, PRINT_DELAY } from './constants/timing';
+export { DEBOUNCE_MEDIUM,DEBOUNCE_SHORT, FETCH_TIMEOUT, MERMAID_RENDER_TIMEOUT, NOTIFICATION_DURATION, PRINT_DELAY } from './constants/timing';
 export { Z_FULLSCREEN, Z_LINK_TOOLTIP, Z_SKIP_LINK,Z_TOOLBAR } from './constants/zIndex';
 
 // Utils
@@ -145,6 +158,12 @@ export { buildPlantUmlUrl,PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS, PLANTU
 export { preserveBlankLines, restoreBlankLines, sanitizeMarkdown, splitByCodeBlocks } from './utils/sanitizeMarkdown';
 export { getSectionRange, moveHeadingSection } from './utils/sectionHelpers';
 export { moveTableColumn,moveTableRow } from './utils/tableHelpers';
+export { saveBlob } from './utils/clipboardHelpers';
+export type { MarkdownItLike } from './utils/embedFenceRenderer';
+export { EMBED_DATA_ATTR, installEmbedFenceRenderer } from './utils/embedFenceRenderer';
+
+// Styles
+export { getHljsStyles } from './styles/codeStyles';
 
 // Icons
 export { default as MarkdownIcon } from './icons/MarkdownIcon';
@@ -153,6 +172,9 @@ export { default as MermaidIcon } from './icons/MermaidIcon';
 // Contexts
 export type { EditorModeContextValue, EditorModeState } from './contexts/EditorModeContext';
 export { EditorModeContext, useEditorMode } from './contexts/EditorModeContext';
+export type { EditorFeatures } from './contexts/EditorFeaturesContext';
+export { useEditorFeaturesContext } from './contexts/EditorFeaturesContext';
+export { findCodeBlockByIndex, findCounterpartCode, getMergeEditors } from './contexts/MergeEditorsContext';
 
 // Providers
 export { ConfirmContext,ConfirmProvider } from './providers/ConfirmProvider';

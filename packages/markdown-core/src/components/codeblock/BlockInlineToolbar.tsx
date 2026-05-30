@@ -11,7 +11,7 @@ import React, { useRef, useState } from "react";
 
 import { getActionHover, getPrimaryMain, getTextSecondary } from "../../constants/colors";
 
-interface BlockInlineToolbarProps {
+export interface BlockInlineToolbarProps {
   /** Block label (e.g. "Mermaid", "Math", "Table") */
   label: string;
   /** Show edit button */
