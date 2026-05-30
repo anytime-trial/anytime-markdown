@@ -1850,6 +1850,13 @@ export class TrailDatabase {
       'better_sqlite3.node',
     );
     const options = fs.existsSync(nativeBinding) ? { nativeBinding } : {};
+    // better-sqlite3 は親ディレクトリが存在しないと "Cannot open database because the
+    // directory does not exist" で開けない。sql.js 時代は load 経路の readInitialBytes() が
+    // mkdir していたが、better-sqlite3 移行で init() は getFilePath() のみを使うため
+    // ディレクトリ作成が漏れていた (新規環境・初回 activate でクラッシュ)。ここで補う。
+    if (filePath) {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    }
     const inner = new Ctor(filePath ?? ':memory:', options);
     // FK 制約は intentionally OFF。sql.js 時代は createTables() の
     // PRAGMA foreign_keys = ON が WASM 側で no-op だったため事実上 FK 未強制で

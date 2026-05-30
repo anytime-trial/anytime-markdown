@@ -415,6 +415,21 @@ describe('TrailDatabase constructor — string storageDir branch', () => {
       db.close();
     }
   });
+
+  it('init() creates the parent directory when it does not exist (regression)', async () => {
+    // 親ディレクトリが未作成の状態で better-sqlite3 を開くと
+    // "Cannot open database because the directory does not exist" で落ちていた回帰
+    // (新規環境・初回 activate で再現)。init() が親ディレクトリを作成して開けること。
+    const nestedDir = path.join(tmpDir, 'does', 'not', 'exist', 'trail');
+    expect(fs.existsSync(nestedDir)).toBe(false);
+
+    const db = await createFileBackedTestDb(nestedDir);
+    try {
+      expect(fs.existsSync(path.join(nestedDir, 'trail.db'))).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
