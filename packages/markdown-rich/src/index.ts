@@ -16,3 +16,8 @@ export { CodeBlockNodeView } from "./MermaidNodeView";
 
 // PDF 出力時のダークモード図ライト化戦略 (B-5: usePdfExport から注入される)
 export { prepareDarkDiagramsForPrint } from "./pdf/prepareDarkDiagramsForPrint";
+
+// MarkdownEditorPage に rich の codeblock 拡張を注入する薄ラッパー (B-7)。
+// consumer (web-app / vscode-markdown-extension) はこれを MarkdownEditorPage の代わりに使う。
+export type { RichMarkdownEditorPageProps } from "./RichMarkdownEditorPage";
+export { default as RichMarkdownEditorPage } from "./RichMarkdownEditorPage";

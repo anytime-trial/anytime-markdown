@@ -11,8 +11,9 @@ import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
 import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
 
+// rich の codeblock 描画拡張を注入する RichMarkdownEditorPage を使う (B-8)
 const MarkdownEditorPage = dynamic(
-  () => import('@anytime-markdown/markdown-core/src/MarkdownEditorPage'),
+  () => import('@anytime-markdown/markdown-rich/src/RichMarkdownEditorPage'),
   {
     ssr: false,
     loading: () => (
