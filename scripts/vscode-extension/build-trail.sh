@@ -12,6 +12,9 @@ echo "=== Anytime Trail: Build & Install ==="
 cd "$REPO_ROOT"
 npm install --ignore-scripts 2>/dev/null || npm install
 
+echo "Building workspace dependencies..."
+node "$REPO_ROOT/scripts/vscode-extension/_build-workspace-deps.mjs" "$EXT_DIR"
+
 echo "Building..."
 cd "$EXT_DIR"
 # Node24 + WSL では webpack production の terser ミニファイ中に V8 codegen が
