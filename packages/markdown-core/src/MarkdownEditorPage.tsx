@@ -52,6 +52,7 @@ import { useEditorConfig } from "./hooks/useEditorConfig";
 import { useEditorDialogs } from "./hooks/useEditorDialogs";
 import { useEditorFileHandling } from "./hooks/useEditorFileHandling";
 import { useEditorFileOps } from "./hooks/useEditorFileOps";
+import type { DarkDiagramPrintPreparer } from "./hooks/usePdfExport";
 import { useEditorHeight } from "./hooks/useEditorHeight";
 import { useEditorMenuState } from "./hooks/useEditorMenuState";
 import { useEditorSettingsSync } from "./hooks/useEditorSettingsSync";
@@ -182,6 +183,8 @@ interface MarkdownEditorPageProps {
   gridCols?: number;
   /** codeBlock 拡張の注入 (rich の CodeBlockWithMermaid)。未注入時は素の CodeBlockLowlight (B-5) */
   codeBlockExtension?: AnyExtension;
+  /** ダークモード PDF 出力時の図ライト化戦略の注入 (rich の prepareDarkDiagramsForPrint)。未注入時はスキップ (B-5) */
+  prepareDarkDiagrams?: DarkDiagramPrintPreparer;
   /** ホームリンクのクリックハンドラ（ツールバー左端のロゴ） */
   onHomeClick?: () => void;
 }
@@ -329,7 +332,7 @@ function buildEditorPortalTarget(): HTMLDivElement | null {
 
 type InnerProps = Omit<MarkdownEditorPageProps, "locale">;
 
-function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, codeBlockExtension, onHomeClick }: InnerProps = {}) {
+function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, codeBlockExtension, prepareDarkDiagrams, onHomeClick }: InnerProps = {}) {
   const t = useMarkdownT("MarkdownEditor");
   const locale = useMarkdownLocale();
   const muiTheme = useTheme();
@@ -462,6 +465,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
     encoding: fileHandling.encoding, fileHandle, setFileHandle, frontmatterRef,
     onFrontmatterChange: fileHandling.setFrontmatterText,
     onExternalSave,
+    prepareDarkDiagrams,
   });
 
   // Update refs for useEditor callbacks

@@ -8,6 +8,6 @@
 // それらを注入する RichMarkdownEditorPage を提供する。
 //
 // 実体の移動は段階的に行う (plan: 20260530-markdown-rich-split-design)。
-// 現段階 (B-1) ではパッケージの器のみを定義する。
 
-export {};
+// PDF 出力時のダークモード図ライト化戦略 (B-5: usePdfExport から注入される)
+export { prepareDarkDiagramsForPrint } from "./pdf/prepareDarkDiagramsForPrint";

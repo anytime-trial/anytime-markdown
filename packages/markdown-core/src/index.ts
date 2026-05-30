@@ -26,6 +26,7 @@ export { useDeleteBlock } from './hooks/useDeleteBlock';
 export { useNodeSelected } from './hooks/useNodeSelected';
 export type { NotificationKey } from './hooks/useNotification';
 export { useNotification } from './hooks/useNotification';
+export type { DarkDiagramPrintPreparer } from './hooks/usePdfExport';
 
 // Components
 export { EditorBubbleMenu } from './components/EditorBubbleMenu';
