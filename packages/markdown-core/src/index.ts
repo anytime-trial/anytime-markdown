@@ -47,11 +47,11 @@ export { EditDialogWrapper } from './components/EditDialogWrapper';
 
 // NodeView components
 export { ImageNodeView } from './ImageNodeView';
-export { CodeBlockNodeView } from './MermaidNodeView';
 export { TableNodeView } from './TableNodeView';
 
 // Extensions
-export { CodeBlockWithMermaid } from './codeBlockWithMermaid';
+// CodeBlockWithMermaid / CodeBlockNodeView は markdown-rich へ移動予定 (B-3+B-4)。
+// rich re-export を除去し cluster を core 公開 API から切り離す (B-6)。getBaseExtensions は core 残留 (注入版)。
 export { getBaseExtensions } from './editorExtensions';
 export { CustomHardBreak } from './extensions/customHardBreak';
 export { CustomTableCell, CustomTableHeader } from './extensions/customTableCells';
