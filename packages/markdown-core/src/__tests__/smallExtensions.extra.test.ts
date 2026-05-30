@@ -1,7 +1,6 @@
 /**
  * 小規模 TipTap 拡張のテスト
  * - CustomTable (tableExtension.ts)
- * - CodeBlockWithMermaid (codeBlockWithMermaid.ts)
  * - GifBlock (extensions/gifExtension.ts)
  * - CustomImage (imageExtension.ts)
  * - CustomTableCell / CustomTableHeader (extensions/customTableCells.ts)
@@ -12,22 +11,12 @@ jest.mock("@tiptap/react", () => ({
   ReactNodeViewRenderer: jest.fn(() => jest.fn()),
 }));
 
-// lowlight モック（CodeBlockLowlight が依存）
-jest.mock("lowlight", () => ({
-  createLowlight: () => ({
-    register: jest.fn(),
-  }),
-  common: {},
-}));
-
 // NodeView コンポーネントモック
 jest.mock("../TableNodeView", () => ({ TableNodeView: () => null }));
-jest.mock("../MermaidNodeView", () => ({ CodeBlockNodeView: () => null }));
 jest.mock("../components/GifNodeView", () => ({ GifNodeView: () => null }));
 jest.mock("../ImageNodeView", () => ({ ImageNodeView: () => null }));
 
 import { CustomTable } from "../tableExtension";
-import { CodeBlockWithMermaid } from "../codeBlockWithMermaid";
 import { GifBlock } from "../extensions/gifExtension";
 import { CustomImage } from "../imageExtension";
 import {
@@ -282,103 +271,6 @@ describe("CustomTable (tableExtension)", () => {
       // `\|` は既に escape 済み扱いとして保持する
       expect(state.out).toContain(String.raw`a\|b`);
       expect(state.out).not.toContain(String.raw`a\\|b`);
-    });
-  });
-});
-
-// ===========================================================================
-// CodeBlockWithMermaid
-// ===========================================================================
-
-describe("CodeBlockWithMermaid (codeBlockWithMermaid)", () => {
-  it("has name 'codeBlock'", () => {
-    expect(CodeBlockWithMermaid.name).toBe("codeBlock");
-  });
-
-  it("is draggable", () => {
-    expect(CodeBlockWithMermaid.config.draggable).toBe(true);
-  });
-
-  it("adds collapsed attribute (default false)", () => {
-    const attrs = getAttributes(CodeBlockWithMermaid);
-    expect(attrs.collapsed).toEqual({ default: false, rendered: false });
-  });
-
-  it("adds codeCollapsed attribute (default true)", () => {
-    const attrs = getAttributes(CodeBlockWithMermaid);
-    expect(attrs.codeCollapsed).toEqual({ default: true, rendered: false });
-  });
-
-  it("adds width attribute (default null)", () => {
-    const attrs = getAttributes(CodeBlockWithMermaid);
-    expect(attrs.width).toEqual({ default: null, rendered: false });
-  });
-
-  it("defines addNodeView", () => {
-    expect(CodeBlockWithMermaid.config.addNodeView).toBeDefined();
-  });
-
-  describe("markdown serializer", () => {
-    it("serializes normal code block", () => {
-      const storage = getStorage(CodeBlockWithMermaid);
-      const state = createMockSerializerState();
-      const node = {
-        attrs: { language: "javascript" },
-        textContent: 'console.log("hello");',
-      };
-
-      storage.markdown.serialize(state, node);
-      const output = state.output;
-      expect(output).toContain("```javascript");
-      expect(output).toContain('console.log("hello");');
-      expect(output).toContain("```");
-    });
-
-    it("serializes code block without language", () => {
-      const storage = getStorage(CodeBlockWithMermaid);
-      const state = createMockSerializerState();
-      const node = {
-        attrs: { language: "" },
-        textContent: "plain text",
-      };
-
-      storage.markdown.serialize(state, node);
-      const output = state.output;
-      expect(output).toContain("```\n");
-    });
-
-    it("serializes code block with null language", () => {
-      const storage = getStorage(CodeBlockWithMermaid);
-      const state = createMockSerializerState();
-      const node = {
-        attrs: { language: null },
-        textContent: "text",
-      };
-
-      storage.markdown.serialize(state, node);
-      const output = state.output;
-      expect(output).toContain("```\n");
-    });
-
-    it("serializes math block with $$ delimiters", () => {
-      const storage = getStorage(CodeBlockWithMermaid);
-      const state = createMockSerializerState();
-      const node = {
-        attrs: { language: "math" },
-        textContent: "E = mc^2",
-      };
-
-      storage.markdown.serialize(state, node);
-      const output = state.output;
-      expect(output).toContain("$$");
-      expect(output).toContain("E = mc^2");
-      // Should NOT contain backticks
-      expect(output).not.toContain("```");
-    });
-
-    it("parse exposes a setup hook for the embed fence renderer", () => {
-      const storage = getStorage(CodeBlockWithMermaid);
-      expect(typeof storage.markdown.parse.setup).toBe("function");
     });
   });
 });

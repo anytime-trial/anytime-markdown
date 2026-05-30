@@ -10,8 +10,6 @@ export { useOutline } from './hooks/useOutline';
 export { useSourceMode } from './hooks/useSourceMode';
 export type { TextareaSearchMatch, TextareaSearchState } from './hooks/useTextareaSearch';
 export { useTextareaSearch } from './hooks/useTextareaSearch';
-export type { UseZoomPanReturn } from './hooks/useZoomPan';
-export { useZoomPan } from './hooks/useZoomPan';
 export type { EditorSettings } from './useEditorSettings';
 export {
   DEFAULT_SETTINGS,
@@ -42,16 +40,19 @@ export { SearchReplaceBar } from './components/SearchReplaceBar';
 export { StatusBar } from './components/StatusBar';
 export type { BlockInlineToolbarProps } from './components/codeblock/BlockInlineToolbar';
 export { BlockInlineToolbar } from './components/codeblock/BlockInlineToolbar';
+export { DeleteBlockDialog } from './components/codeblock/DeleteBlockDialog';
 export { EditDialogHeader } from './components/EditDialogHeader';
 export { EditDialogWrapper } from './components/EditDialogWrapper';
+export { EmbedEditDialog } from './components/EmbedEditDialog';
+export { EmbedNodeView } from './components/EmbedNodeView';
 
 // NodeView components
 export { ImageNodeView } from './ImageNodeView';
 export { TableNodeView } from './TableNodeView';
 
 // Extensions
-// CodeBlockWithMermaid / CodeBlockNodeView は markdown-rich へ移動予定 (B-3+B-4)。
-// rich re-export を除去し cluster を core 公開 API から切り離す (B-6)。getBaseExtensions は core 残留 (注入版)。
+// CodeBlockWithMermaid / CodeBlockNodeView は markdown-rich へ物理移動済み (B-3+B-4)。
+// getBaseExtensions は core 残留 (codeBlockExtension 注入版)。
 export { getBaseExtensions } from './editorExtensions';
 export { CustomHardBreak } from './extensions/customHardBreak';
 export { CustomTableCell, CustomTableHeader } from './extensions/customTableCells';
@@ -114,6 +115,7 @@ getEditDialogBg,   getEditorBg, getEditorText,
   getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain,
   getSuccessBg, getSuccessMain, getTextDisabled, getTextPrimary, getTextSecondary,
   getWarningBg, getWarningLight, getWarningMain,
+  HLJS_DARK, HLJS_LIGHT,
   LIGHT_ACTION_HOVER, LIGHT_ACTION_SELECTED, LIGHT_BG_PAPER, LIGHT_DIVIDER,
 LIGHT_ERROR_MAIN,
 LIGHT_GREY_100, LIGHT_GREY_300, LIGHT_GREY_900,
@@ -125,14 +127,16 @@ PLANTUML_DARK_BG,   PLANTUML_DARK_FG, PLANTUML_DARK_SURFACE,
 } from './constants/colors';
 export { defaultContent } from './constants/defaultContent';
 export {
+  CHIP_FONT_SIZE,
   COMMENT_PANEL_WIDTH,
   EDITOR_HEIGHT_DEFAULT,   EDITOR_HEIGHT_MD, EDITOR_HEIGHT_MIN,
   FS_CHIP_HEIGHT, FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH,
   FS_PANEL_HEADER_FONT_SIZE, FS_TAB_FONT_SIZE, FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH,
 EDITOR_HEIGHT_MOBILE, EDITOR_PADDING_BORDER,
-EDITOR_PADDING_TOP,   OUTLINE_WIDTH_DEFAULT, OUTLINE_WIDTH_MAX,
+EDITOR_PADDING_TOP,   MENU_ITEM_FONT_SIZE,   OUTLINE_WIDTH_DEFAULT, OUTLINE_WIDTH_MAX,
 OUTLINE_WIDTH_MIN,   PREVIEW_MAX_HEIGHT,
 RADIUS_FULL, RADIUS_LG, RADIUS_MD, RADIUS_NONE, RADIUS_SM,
+SMALL_CAPTION_FONT_SIZE,
 SPACING_3XS, SPACING_LG, SPACING_MD, SPACING_SM, SPACING_XL, SPACING_XS, SPACING_XXL, SPACING_XXS,
 STATUSBAR_HEIGHT,
 } from './constants/dimensions';
@@ -149,13 +153,17 @@ export type { ThemePreset, ThemePresetName } from './constants/themePresets';
 export {
   DEFAULT_PRESET_NAME, getPreset, isPresetName, PRESET_NAMES, THEME_PRESETS,
 } from './constants/themePresets';
+export { DURATION_FAST, REDUCED_MOTION_SX, getSplitterSx } from './constants/uiPatterns';
 export { DEBOUNCE_MEDIUM,DEBOUNCE_SHORT, FETCH_TIMEOUT, MERMAID_RENDER_TIMEOUT, NOTIFICATION_DURATION, PRINT_DELAY } from './constants/timing';
 export { Z_FULLSCREEN, Z_LINK_TOOLTIP, Z_SKIP_LINK,Z_TOOLBAR } from './constants/zIndex';
 
 // Utils
 export type { DiffBlock, DiffLine, DiffOptions, DiffResult, InlineSegment } from './utils/diffEngine';
 export { applyMerge,computeDiff, computeInlineDiff, computeSemanticDiff } from './utils/diffEngine';
-export { buildPlantUmlUrl,PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS, PLANTUML_SERVER } from './utils/plantumlHelpers';
+export { buildColorRuns } from './utils/colorRuns';
+export type { EmbedBaseline, EmbedVariant } from './utils/embedInfoString';
+export { buildEmbedInfoString, DEFAULT_EMBED_BASELINE, parseEmbedInfoString } from './utils/embedInfoString';
+export { buildPlantUmlUrl,PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS, PLANTUML_LIGHT_SKINPARAMS, PLANTUML_SERVER } from './utils/plantumlHelpers';
 export { preserveBlankLines, restoreBlankLines, sanitizeMarkdown, splitByCodeBlocks } from './utils/sanitizeMarkdown';
 export { getSectionRange, moveHeadingSection } from './utils/sectionHelpers';
 export { moveTableColumn,moveTableRow } from './utils/tableHelpers';
@@ -175,7 +183,7 @@ export type { EditorModeContextValue, EditorModeState } from './contexts/EditorM
 export { EditorModeContext, useEditorMode } from './contexts/EditorModeContext';
 export type { EditorFeatures } from './contexts/EditorFeaturesContext';
 export { useEditorFeaturesContext } from './contexts/EditorFeaturesContext';
-export { findCodeBlockByIndex, findCounterpartCode, getMergeEditors } from './contexts/MergeEditorsContext';
+export { findCodeBlockByIndex, findCounterpartCode, getCodeBlockIndex, getMergeEditors } from './contexts/MergeEditorsContext';
 
 // Providers
 export { ConfirmContext,ConfirmProvider } from './providers/ConfirmProvider';

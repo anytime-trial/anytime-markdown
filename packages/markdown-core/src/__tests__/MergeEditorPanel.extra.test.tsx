@@ -48,12 +48,6 @@ jest.mock("../useEditorSettings", () => ({
   }),
 }));
 
-jest.mock("../components/LineNumberTextarea", () => ({
-  LineNumberTextarea: React.forwardRef((props: any, ref: any) => (
-    <textarea ref={ref} data-testid="line-number-textarea" value={props.value} onChange={() => {}} />
-  )),
-}));
-
 import { MergeEditorPanel } from "../components/MergeEditorPanel";
 
 const theme = createTheme();
