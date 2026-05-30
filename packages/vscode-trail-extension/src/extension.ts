@@ -19,6 +19,7 @@ import { createFetchGitHubReviewClient } from '@anytime-markdown/trail-server/gi
 import {
 	loadLepConfig,
 	migrateConfigJsonIntoLepJson,
+	ensureLepConfigFile,
 	DEFAULT_LEP_CONFIG,
 	disabledAnalyzerIds,
 	resolveGitHubSource,
@@ -222,6 +223,13 @@ export async function activate(context: vscode.ExtensionContext) {
 			migrateConfigJsonIntoLepJson({
 				workspaceRoot: wsRootForDb,
 				analyzeAllEnabled: isAnalyzeAllEnabled(),
+				logger: lepLogger,
+			});
+			// lep.json が無ければ初期設定 (DEFAULT_LEP_CONFIG + 現在の analyzeAll 設定) で生成する。
+			// config.json からの移行で既に生成済みなら flag:'wx' により no-op。
+			ensureLepConfigFile({
+				workspaceRoot: wsRootForDb,
+				legacy: { analyzeAllEnabled: isAnalyzeAllEnabled() },
 				logger: lepLogger,
 			});
 			const lepConfigPathOverride = vscode.workspace
