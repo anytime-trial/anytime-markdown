@@ -12,28 +12,16 @@ const mockSaveBlob = jest.fn().mockResolvedValue(undefined);
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  saveBlob: (...args: unknown[]) => mockSaveBlob(...args),
-}))(),
-    ...(() => ({
-  buildPlantUmlUrl: jest.fn().mockImplementation((encoded: string) => `https://www.plantuml.com/plantuml/svg/${encoded}`),
-}))(),
-    ...(() => ({
-  CAPTURE_BG: "#ffffff",
-}))(),
-    ...(() => ({
-  FETCH_TIMEOUT: 100,
-}))(),
+    saveBlob: (...args: unknown[]) => mockSaveBlob(...args),
+    buildPlantUmlUrl: jest.fn().mockImplementation((encoded: string) => `https://www.plantuml.com/plantuml/svg/${encoded}`),
+    CAPTURE_BG: "#ffffff",
+    FETCH_TIMEOUT: 100,
 }));
 
 jest.mock("plantuml-encoder", () => ({
   __esModule: true,
   default: { encode: jest.fn().mockReturnValue("encoded-data") },
 }));
-
-
-
-
 
 import { useDiagramCapture } from "../hooks/useDiagramCapture";
 

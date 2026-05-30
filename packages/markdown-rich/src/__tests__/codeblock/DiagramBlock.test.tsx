@@ -9,12 +9,8 @@ let mockPlantUmlConsent = "pending";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6, editorBg: "white" }),
-}))(),
-    ...(() => ({
-  usePlantUmlToolbar: () => ({ setSampleAnchorEl: jest.fn() }),
-}))(),
+    useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6, editorBg: "white" }),
+    usePlantUmlToolbar: () => ({ setSampleAnchorEl: jest.fn() }),
 }));
 
 jest.mock("@tiptap/react", () => ({
@@ -41,7 +37,6 @@ jest.mock("@mui/material/styles", () => ({
     spacing: (n: number) => `${n * 8}px`,
   }),
 }));
-
 
 jest.mock("../../hooks/useMermaidRender", () => ({
   useMermaidRender: () => ({ svg: mockSvg, error: mockMermaidError, setError: jest.fn() }),
@@ -70,7 +65,6 @@ jest.mock("../../hooks/useZoomPan", () => ({
   }),
 }));
 
-
 jest.mock("dompurify", () => ({
   __esModule: true,
   default: { sanitize: (html: string) => html },
@@ -83,8 +77,6 @@ jest.mock("../../components/MermaidEditDialog", () => ({
 jest.mock("../../components/PlantUmlEditDialog", () => ({
   PlantUmlEditDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
 }));
-
-
 
 jest.mock("../../utils/diagramAltText", () => ({
   extractDiagramAltText: () => "diagram alt text",

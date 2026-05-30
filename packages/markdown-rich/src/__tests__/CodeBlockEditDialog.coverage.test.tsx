@@ -34,36 +34,26 @@ jest.mock("@anytime-markdown/markdown-core", () => ({
     HLJS_LIGHT: hljs,
   };
 })(),
-    ...(() => ({
-  FS_TAB_FONT_SIZE: 12,
-  FS_TOOLBAR_HEIGHT: 40,
-  CHIP_FONT_SIZE: "0.7rem",
-  FS_CHIP_HEIGHT: 24,
-  FS_PANEL_HEADER_FONT_SIZE: "0.7rem",
-}))(),
-    ...(() => ({
-  useEditorSettingsContext: () => ({
-    fontSize: 14,
-    lineHeight: 1.6,
-    fontFamily: "monospace",
-  }),
-}))(),
-    ...(() => ({
-  computeDiff: () => ({ leftLines: [], rightLines: [], blocks: [] }),
-  applyMerge: jest.fn().mockReturnValue({ newLeftText: "", newRightText: "" }),
-}))(),
-    ...(() => ({
-  EditDialogHeader: ({ label, showCompareView }: any) => (
-    <div data-testid="edit-dialog-header">
-      <span>{label}</span>
-      {showCompareView && <span data-testid="compare-indicator">compare</span>}
-    </div>
-  ),
-}))(),
-    ...(() => ({
-  EditDialogWrapper: ({ children, open }: any) =>
-    open ? <div data-testid="edit-dialog-wrapper">{children}</div> : null,
-}))(),
+    FS_TAB_FONT_SIZE: 12,
+    FS_TOOLBAR_HEIGHT: 40,
+    CHIP_FONT_SIZE: "0.7rem",
+    FS_CHIP_HEIGHT: 24,
+    FS_PANEL_HEADER_FONT_SIZE: "0.7rem",
+    useEditorSettingsContext: () => ({
+      fontSize: 14,
+      lineHeight: 1.6,
+      fontFamily: "monospace",
+    }),
+    computeDiff: () => ({ leftLines: [], rightLines: [], blocks: [] }),
+    applyMerge: jest.fn().mockReturnValue({ newLeftText: "", newRightText: "" }),
+    EditDialogHeader: ({ label, showCompareView }: any) => (
+      <div data-testid="edit-dialog-header">
+        <span>{label}</span>
+        {showCompareView && <span data-testid="compare-indicator">compare</span>}
+      </div>
+    ),
+    EditDialogWrapper: ({ children, open }: any) =>
+      open ? <div data-testid="edit-dialog-wrapper">{children}</div> : null,
 }));
 
 jest.mock("lowlight", () => ({
@@ -75,16 +65,12 @@ jest.mock("lowlight", () => ({
   }),
 }));
 
-
-
 jest.mock("../constants/codeHelloSamples", () => ({
   CODE_HELLO_SAMPLES: {
     javascript: 'console.log("Hello");',
     python: 'print("Hello")',
   } as Record<string, string>,
 }));
-
-
 
 jest.mock("../components/DraggableSplitLayout", () => ({
   DraggableSplitLayout: ({ left, right }: any) => (
@@ -94,8 +80,6 @@ jest.mock("../components/DraggableSplitLayout", () => ({
     </div>
   ),
 }));
-
-
 
 jest.mock("../components/FullscreenDiffView", () => ({
   FullscreenDiffView: ({ initialLeftCode, initialRightCode }: any) => (

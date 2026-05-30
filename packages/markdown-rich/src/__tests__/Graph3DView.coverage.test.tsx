@@ -5,18 +5,14 @@ import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-
 import { Graph3DView } from "../components/codeblock/Graph3DView";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  DEFAULT_DARK_BG: "#0D1117",
-  DEFAULT_LIGHT_BG: "#E8E6E1",
-  getTextSecondary: (isDark: boolean) => isDark ? "#aaa" : "#666",
-}))(),
+    DEFAULT_DARK_BG: "#0D1117",
+    DEFAULT_LIGHT_BG: "#E8E6E1",
+    getTextSecondary: (isDark: boolean) => isDark ? "#aaa" : "#666",
 }));
-
 
 const lightTheme = createTheme({ palette: { mode: "light" } });
 const darkTheme = createTheme({ palette: { mode: "dark" } });

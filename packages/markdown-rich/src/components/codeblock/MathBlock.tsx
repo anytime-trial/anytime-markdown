@@ -6,14 +6,10 @@ import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContent
 import DOMPurify from "dompurify";
 import { useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getPrimaryMain, getTextSecondary } from "@anytime-markdown/markdown-core";
-import { PREVIEW_MAX_HEIGHT } from "@anytime-markdown/markdown-core";
-import { useEditorFeaturesContext } from "@anytime-markdown/markdown-core";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getPrimaryMain, getTextSecondary, PREVIEW_MAX_HEIGHT, useEditorFeaturesContext, useBlockResize, BlockInlineToolbar } from "@anytime-markdown/markdown-core";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
-import { useBlockResize } from "@anytime-markdown/markdown-core";
 import { MATH_SANITIZE_CONFIG,useKatexRender } from "../../hooks/useKatexRender";
 import { MathEditDialog } from "../MathEditDialog";
-import { BlockInlineToolbar } from "@anytime-markdown/markdown-core";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import { shouldShowBorder, shouldShowToolbar } from "./compareHelpers";
 import { GraphView } from "./GraphView";

@@ -1,25 +1,18 @@
 "use client";
 
-import { MarkdownEditorPage } from "@anytime-markdown/markdown-core";
-import { common, createLowlight } from "lowlight";
+import { appLowlight, MarkdownEditorPage } from "@anytime-markdown/markdown-core";
 import type { ComponentProps } from "react";
 
 import { CodeBlockWithMermaid } from "./codeBlockWithMermaid";
 import { prepareDarkDiagramsForPrint } from "./pdf/prepareDarkDiagramsForPrint";
 
-// markdown-core の editorExtensions と同一の lowlight 構成を rich 側で再現する。
-// CodeBlockWithMermaid は CodeBlockLowlight を継承するため lowlight インスタンスが必要。
-// math / mermaid / plantuml は NodeView 描画専用言語のため no-op 登録し、
-// highlightAuto の誤検出を防ぐ (core editorExtensions と同じ扱い)。
-const lowlight = createLowlight(common);
-const noopGrammar = () => ({ name: "noop", contains: [] as never[] });
-for (const lang of ["math", "mermaid", "plantuml"]) {
-  lowlight.register(lang, noopGrammar);
-}
-
-/** rich の codeblock 描画拡張 (mermaid/katex/plantuml/graph/html/embed の NodeView 付き)。 */
+/**
+ * rich の codeblock 描画拡張 (mermaid/katex/plantuml/graph/html/embed の NodeView 付き)。
+ * lowlight は core editorExtensions と共有の `appLowlight`
+ * (common + math/mermaid/plantuml no-op 登録済み) を使い、インスタンス重複を避ける。
+ */
 const richCodeBlockExtension = CodeBlockWithMermaid.configure({
-  lowlight,
+  lowlight: appLowlight,
   defaultLanguage: "plaintext",
 });
 

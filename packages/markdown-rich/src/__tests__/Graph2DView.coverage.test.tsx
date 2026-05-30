@@ -11,11 +11,8 @@ import { Graph2DView } from "../components/codeblock/Graph2DView";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  getTextSecondary: (isDark: boolean) => isDark ? "#aaa" : "#666",
-}))(),
+    getTextSecondary: (isDark: boolean) => isDark ? "#aaa" : "#666",
 }));
-
 
 const lightTheme = createTheme({ palette: { mode: "light" } });
 const darkTheme = createTheme({ palette: { mode: "dark" } });

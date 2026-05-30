@@ -14,47 +14,28 @@ global.ResizeObserver = class ResizeObserver {
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  getDivider: () => "#ccc",
-}))(),
-    ...(() => ({
-  FS_TAB_FONT_SIZE: 12,
-  FS_TOOLBAR_HEIGHT: 40,
-}))(),
-    ...(() => ({
-  MERMAID_SAMPLES: [],
-}))(),
-    ...(() => ({
-  useEditorSettingsContext: () => ({
-    fontSize: 14,
-    lineHeight: 1.6,
-    fontFamily: "monospace",
-  }),
-}))(),
-    ...(() => ({
-  computeDiff: () => ({ leftLines: [], rightLines: [], blocks: [] }),
-  applyMerge: jest.fn().mockReturnValue({ newLeftText: "", newRightText: "" }),
-}))(),
-    ...(() => ({
-  EditDialogHeader: () => <div data-testid="edit-dialog-header" />,
-}))(),
-    ...(() => ({
-  EditDialogWrapper: ({ children, open }: any) => open ? <div data-testid="edit-dialog-wrapper">{children}</div> : null,
-}))(),
+    getDivider: () => "#ccc",
+    FS_TAB_FONT_SIZE: 12,
+    FS_TOOLBAR_HEIGHT: 40,
+    MERMAID_SAMPLES: [],
+    useEditorSettingsContext: () => ({
+      fontSize: 14,
+      lineHeight: 1.6,
+      fontFamily: "monospace",
+    }),
+    computeDiff: () => ({ leftLines: [], rightLines: [], blocks: [] }),
+    applyMerge: jest.fn().mockReturnValue({ newLeftText: "", newRightText: "" }),
+    EditDialogHeader: () => <div data-testid="edit-dialog-header" />,
+    EditDialogWrapper: ({ children, open }: any) => open ? <div data-testid="edit-dialog-wrapper">{children}</div> : null,
 }));
 
 jest.mock("dompurify", () => ({
   sanitize: (html: string) => html,
 }));
 
-
-
-
 jest.mock("../hooks/useMermaidRender", () => ({
   SVG_SANITIZE_CONFIG: {},
 }));
-
-
 
 jest.mock("../utils/diagramAltText", () => ({
   extractDiagramAltText: () => "",
@@ -68,8 +49,6 @@ jest.mock("../utils/mermaidConfig", () => ({
 jest.mock("../components/DraggableSplitLayout", () => ({
   DraggableSplitLayout: ({ children }: any) => <div data-testid="split-layout">{children}</div>,
 }));
-
-
 
 jest.mock("../components/FullscreenDiffView", () => ({
   FullscreenDiffView: () => <div data-testid="fullscreen-diff-view" />,

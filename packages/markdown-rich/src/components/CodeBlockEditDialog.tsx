@@ -5,15 +5,10 @@ import { common, createLowlight } from "lowlight";
 import React, { useCallback, useMemo, useState } from "react";
 
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextPrimary,HLJS_DARK, HLJS_LIGHT } from "@anytime-markdown/markdown-core";
-import { CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT } from "@anytime-markdown/markdown-core";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextPrimary, HLJS_DARK, HLJS_LIGHT, CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT, getHljsStyles, useEditorSettingsContext, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-core";
 import type { TextareaSearchState } from "@anytime-markdown/markdown-core";
 import { useZoomPan } from "../hooks/useZoomPan";
-import { getHljsStyles } from "@anytime-markdown/markdown-core";
-import { useEditorSettingsContext } from "@anytime-markdown/markdown-core";
 import { DraggableSplitLayout } from "./DraggableSplitLayout";
-import { EditDialogHeader } from "@anytime-markdown/markdown-core";
-import { EditDialogWrapper } from "@anytime-markdown/markdown-core";
 import { FullscreenDiffView } from "./FullscreenDiffView";
 import { LineNumberTextarea } from "./LineNumberTextarea";
 import { SamplePanel } from "./SamplePanel";

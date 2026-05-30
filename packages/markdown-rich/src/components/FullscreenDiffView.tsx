@@ -3,10 +3,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { alpha, Box, IconButton, type Theme,Tooltip, useTheme } from "@mui/material";
 import React, { useCallback, useEffect,useMemo, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "@anytime-markdown/markdown-core";
-import { useEditorSettingsContext } from "@anytime-markdown/markdown-core";
-import { buildColorRuns } from "@anytime-markdown/markdown-core";
-import { applyMerge, computeDiff, type DiffLine } from "@anytime-markdown/markdown-core";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary, useEditorSettingsContext, buildColorRuns, applyMerge, computeDiff, type DiffLine } from "@anytime-markdown/markdown-core";
 
 interface FullscreenDiffViewProps {
   initialLeftCode: string;

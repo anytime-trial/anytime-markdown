@@ -10,12 +10,7 @@ import { EmbedBlock } from "./components/codeblock/EmbedBlock";
 import { HtmlPreviewBlock } from "./components/codeblock/HtmlPreviewBlock";
 import { MathBlock } from "./components/codeblock/MathBlock";
 import { RegularCodeBlock } from "./components/codeblock/RegularCodeBlock";
-import { getMergeEditors } from "@anytime-markdown/markdown-core";
-import { useBlockCapture } from "@anytime-markdown/markdown-core";
-import { useDeleteBlock } from "@anytime-markdown/markdown-core";
-import { useNodeSelected } from "@anytime-markdown/markdown-core";
-import { useTextareaSearch } from "@anytime-markdown/markdown-core";
-import { useMarkdownT } from "@anytime-markdown/markdown-core";
+import { getMergeEditors, useBlockCapture, useDeleteBlock, useNodeSelected, useTextareaSearch, useMarkdownT } from "@anytime-markdown/markdown-core";
 
 export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
   const theme = useTheme();

@@ -8,28 +8,16 @@ import { renderHook } from "@testing-library/react";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  saveBlob: jest.fn().mockResolvedValue(undefined),
-}))(),
-    ...(() => ({
-  buildPlantUmlUrl: jest.fn().mockImplementation((encoded: string) => `https://www.plantuml.com/plantuml/svg/${encoded}`),
-}))(),
-    ...(() => ({
-  CAPTURE_BG: "#ffffff",
-}))(),
-    ...(() => ({
-  FETCH_TIMEOUT: 10000,
-}))(),
+    saveBlob: jest.fn().mockResolvedValue(undefined),
+    buildPlantUmlUrl: jest.fn().mockImplementation((encoded: string) => `https://www.plantuml.com/plantuml/svg/${encoded}`),
+    CAPTURE_BG: "#ffffff",
+    FETCH_TIMEOUT: 10000,
 }));
 
 jest.mock("plantuml-encoder", () => ({
   __esModule: true,
   default: { encode: jest.fn().mockReturnValue("encoded") },
 }));
-
-
-
-
 
 import { useDiagramCapture } from "../hooks/useDiagramCapture";
 

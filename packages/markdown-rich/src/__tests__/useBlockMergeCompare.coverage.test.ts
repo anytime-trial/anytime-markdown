@@ -11,19 +11,15 @@ const mockFindCounterpartCode = jest.fn();
 const mockGetCodeBlockIndex = jest.fn();
 const mockFindCodeBlockByIndex = jest.fn();
 
-
 import { useBlockMergeCompare } from "../hooks/useBlockMergeCompare";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  getMergeEditors: () => mockGetMergeEditors(),
-  findCounterpartCode: (...args: any[]) => mockFindCounterpartCode(...args),
-  getCodeBlockIndex: (...args: any[]) => mockGetCodeBlockIndex(...args),
-  findCodeBlockByIndex: (...args: any[]) => mockFindCodeBlockByIndex(...args),
-}))(),
+    getMergeEditors: () => mockGetMergeEditors(),
+    findCounterpartCode: (...args: any[]) => mockFindCounterpartCode(...args),
+    getCodeBlockIndex: (...args: any[]) => mockGetCodeBlockIndex(...args),
+    findCodeBlockByIndex: (...args: any[]) => mockFindCodeBlockByIndex(...args),
 }));
-
 
 function createMockEditor(id: string = "editor") {
   const trMock = {

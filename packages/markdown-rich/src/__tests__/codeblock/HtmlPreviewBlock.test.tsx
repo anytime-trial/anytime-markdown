@@ -4,9 +4,7 @@ import type { NodeViewProps } from "@tiptap/react";
 // --- Mocks ---
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6 }),
-}))(),
+    useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6 }),
 }));
 
 jest.mock("@tiptap/react", () => ({
@@ -34,7 +32,6 @@ jest.mock("@mui/material/styles", () => ({
   }),
 }));
 
-
 jest.mock("dompurify", () => ({
   __esModule: true,
   default: { sanitize: (html: string) => html },
@@ -43,7 +40,6 @@ jest.mock("dompurify", () => ({
 jest.mock("../../components/CodeBlockEditDialog", () => ({
   CodeBlockEditDialog: ({ toolbarExtra }: { toolbarExtra?: React.ReactNode }) => <div data-testid="fs-dialog">{toolbarExtra}</div>,
 }));
-
 
 import { HtmlPreviewBlock } from "../../components/codeblock/HtmlPreviewBlock";
 

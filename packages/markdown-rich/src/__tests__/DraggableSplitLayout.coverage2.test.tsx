@@ -7,9 +7,6 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { ThemeProvider, createTheme, useMediaQuery } from "@mui/material";
 
-
-
-
 Element.prototype.setPointerCapture = Element.prototype.setPointerCapture ?? jest.fn();
 Element.prototype.releasePointerCapture = Element.prototype.releasePointerCapture ?? jest.fn();
 
@@ -17,17 +14,11 @@ Element.prototype.releasePointerCapture = Element.prototype.releasePointerCaptur
 let mockIsMobile = false;
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  getDivider: () => "#ccc",
-  getPrimaryMain: () => "#1976d2",
-}))(),
-    ...(() => ({
-  FS_CODE_INITIAL_WIDTH: 500,
-  FS_CODE_MIN_WIDTH: 200,
-}))(),
-    ...(() => ({
-  getSplitterSx: () => ({}),
-}))(),
+    getDivider: () => "#ccc",
+    getPrimaryMain: () => "#1976d2",
+    FS_CODE_INITIAL_WIDTH: 500,
+    FS_CODE_MIN_WIDTH: 200,
+    getSplitterSx: () => ({}),
 }));
 
 jest.mock("@mui/material", () => {

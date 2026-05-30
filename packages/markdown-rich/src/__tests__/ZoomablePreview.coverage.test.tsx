@@ -6,22 +6,15 @@ import React from "react";
 import { render } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-
-
 import { ZoomablePreview } from "../components/ZoomablePreview";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  DEFAULT_DARK_BG: "#1e1e1e",
-  DEFAULT_LIGHT_BG: "#ffffff",
-}))(),
-    ...(() => ({
-  REDUCED_MOTION_SX: {},
-  DURATION_FAST: "0.15s",
-}))(),
+    DEFAULT_DARK_BG: "#1e1e1e",
+    DEFAULT_LIGHT_BG: "#ffffff",
+    REDUCED_MOTION_SX: {},
+    DURATION_FAST: "0.15s",
 }));
-
 
 const lightTheme = createTheme({ palette: { mode: "light" } });
 const darkTheme = createTheme({ palette: { mode: "dark" } });

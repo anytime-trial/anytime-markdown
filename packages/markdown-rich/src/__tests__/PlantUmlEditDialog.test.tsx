@@ -11,55 +11,31 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 } as any;
 
-
-
-
-
-
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  getDivider: () => "#ccc",
-}))(),
-    ...(() => ({
-  FS_TAB_FONT_SIZE: 12,
-  FS_TOOLBAR_HEIGHT: 40,
-}))(),
-    ...(() => ({
-  PLANTUML_SAMPLES: [],
-}))(),
-    ...(() => ({
-  useEditorSettingsContext: () => ({
-    fontSize: 14,
-    lineHeight: 1.6,
-    fontFamily: "monospace",
-  }),
-}))(),
-    ...(() => ({
-  computeDiff: () => ({ leftLines: [], rightLines: [], blocks: [] }),
-  applyMerge: jest.fn().mockReturnValue({ newLeftText: "", newRightText: "" }),
-}))(),
-    ...(() => ({
-  buildPlantUmlUrl: () => "http://plantuml.test/svg/test",
-}))(),
-    ...(() => ({
-  EditDialogHeader: () => <div data-testid="edit-dialog-header" />,
-}))(),
-    ...(() => ({
-  EditDialogWrapper: ({ children, open }: any) => open ? <div data-testid="wrapper">{children}</div> : null,
-}))(),
+    getDivider: () => "#ccc",
+    FS_TAB_FONT_SIZE: 12,
+    FS_TOOLBAR_HEIGHT: 40,
+    PLANTUML_SAMPLES: [],
+    useEditorSettingsContext: () => ({
+      fontSize: 14,
+      lineHeight: 1.6,
+      fontFamily: "monospace",
+    }),
+    computeDiff: () => ({ leftLines: [], rightLines: [], blocks: [] }),
+    applyMerge: jest.fn().mockReturnValue({ newLeftText: "", newRightText: "" }),
+    buildPlantUmlUrl: () => "http://plantuml.test/svg/test",
+    EditDialogHeader: () => <div data-testid="edit-dialog-header" />,
+    EditDialogWrapper: ({ children, open }: any) => open ? <div data-testid="wrapper">{children}</div> : null,
 }));
 
 jest.mock("../utils/diagramAltText", () => ({
   extractDiagramAltText: () => "",
 }));
 
-
 jest.mock("../components/DraggableSplitLayout", () => ({
   DraggableSplitLayout: ({ children }: any) => <div>{children}</div>,
 }));
-
-
 
 jest.mock("../components/FullscreenDiffView", () => ({
   FullscreenDiffView: () => <div />,

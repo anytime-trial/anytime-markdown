@@ -9,9 +9,6 @@ import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-
-
-
 // jsdom does not support pointer capture
 Element.prototype.setPointerCapture = Element.prototype.setPointerCapture ?? jest.fn();
 Element.prototype.releasePointerCapture = Element.prototype.releasePointerCapture ?? jest.fn();
@@ -20,19 +17,12 @@ import { DraggableSplitLayout } from "../components/DraggableSplitLayout";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  getDivider: () => "#ccc",
-  getPrimaryMain: () => "#1976d2",
-}))(),
-    ...(() => ({
-  FS_CODE_INITIAL_WIDTH: 500,
-  FS_CODE_MIN_WIDTH: 200,
-}))(),
-    ...(() => ({
-  getSplitterSx: () => ({}),
-}))(),
+    getDivider: () => "#ccc",
+    getPrimaryMain: () => "#1976d2",
+    FS_CODE_INITIAL_WIDTH: 500,
+    FS_CODE_MIN_WIDTH: 200,
+    getSplitterSx: () => ({}),
 }));
-
 
 const theme = createTheme();
 const t = (key: string) => key;

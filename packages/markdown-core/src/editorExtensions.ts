@@ -16,17 +16,7 @@ import { Fragment } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Extension, type Extensions } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { common, createLowlight } from "lowlight";
 import { Markdown } from "tiptap-markdown";
-
-/** lowlight インスタンス（シンタックスハイライト用） */
-const lowlight = createLowlight(common);
-
-// NodeView 専用言語を no-op 登録し、highlightAuto の誤検出を防止
-const noopGrammar = () => ({ name: "noop", contains: [] as never[] });
-for (const lang of ["math", "mermaid", "plantuml"]) {
-  lowlight.register(lang, noopGrammar);
-}
 
 import { AdmonitionBlockquote } from "./extensions/admonitionExtension";
 import { BlockGapCursorExtension } from "./extensions/blockGapCursorExtension";
@@ -40,6 +30,7 @@ import { HeadingFoldExtension } from "./extensions/headingFoldExtension";
 import { HeadingNumberExtension } from "./extensions/headingNumberExtension";
 import { CustomImage } from "./imageExtension";
 import { ImageRow } from "./imageRowExtension";
+import { appLowlight } from "./lowlight";
 import { imagePastePlugin } from "./plugins/imagePastePlugin";
 import { imageRowDropPlugin } from "./plugins/imageRowDropPlugin";
 import { CustomTable } from "./tableExtension";
@@ -292,7 +283,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
     }),
     AdmonitionBlockquote,
     // rich パッケージが CodeBlockWithMermaid を注入する。未注入時は素の CodeBlockLowlight にフォールバック (B-5)
-    options?.codeBlockExtension ?? CodeBlockLowlight.configure({ lowlight, defaultLanguage: "plaintext" }),
+    options?.codeBlockExtension ?? CodeBlockLowlight.configure({ lowlight: appLowlight, defaultLanguage: "plaintext" }),
     Highlight.configure({ multicolor: false }),
     Underline,
     LinkExtension.configure({ openOnClick: false, validate: () => true, isAllowedUri: () => true }),

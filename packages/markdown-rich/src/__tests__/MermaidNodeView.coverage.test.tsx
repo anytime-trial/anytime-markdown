@@ -17,24 +17,14 @@ let mockIsSelected = false;
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  useNodeSelected: () => mockIsSelected,
-}))(),
-    ...(() => ({
-  useDeleteBlock: () => jest.fn(),
-}))(),
-    ...(() => ({
-  useBlockCapture: () => jest.fn(),
-}))(),
-    ...(() => ({
-  useTextareaSearch: () => ({
-    searchState: null,
-    setSearchState: jest.fn(),
-  }),
-}))(),
-    ...(() => ({
-  getMergeEditors: () => null,
-}))(),
+    useNodeSelected: () => mockIsSelected,
+    useDeleteBlock: () => jest.fn(),
+    useBlockCapture: () => jest.fn(),
+    useTextareaSearch: () => ({
+      searchState: null,
+      setSearchState: jest.fn(),
+    }),
+    getMergeEditors: () => null,
 }));
 
 jest.mock("@tiptap/react", () => ({
@@ -57,11 +47,6 @@ jest.mock("@mui/material", () => ({
     },
   }),
 }));
-
-
-
-
-
 
 // Mock the block sub-components
 const mockDiagramBlock = jest.fn((_props: any) => <div data-testid="diagram-block" />);

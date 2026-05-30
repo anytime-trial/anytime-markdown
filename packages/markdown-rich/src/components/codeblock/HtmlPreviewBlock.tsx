@@ -5,13 +5,10 @@ import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, D
 import DOMPurify from "dompurify";
 import { useRef } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextSecondary } from "@anytime-markdown/markdown-core";
-import { PREVIEW_MAX_HEIGHT } from "@anytime-markdown/markdown-core";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextSecondary, PREVIEW_MAX_HEIGHT, useBlockResize, BlockInlineToolbar } from "@anytime-markdown/markdown-core";
 import htmlSamples from "../../constants/htmlSamples.json";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
-import { useBlockResize } from "@anytime-markdown/markdown-core";
 import { CodeBlockEditDialog } from "../CodeBlockEditDialog";
-import { BlockInlineToolbar } from "@anytime-markdown/markdown-core";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import { shouldShowBorder } from "./compareHelpers";
 import { ResizeGrip } from "./ResizeGrip";

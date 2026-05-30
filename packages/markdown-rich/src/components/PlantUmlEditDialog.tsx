@@ -2,17 +2,12 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import { Box, Tab, Tabs, useTheme } from "@mui/material";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { getDivider } from "@anytime-markdown/markdown-core";
-import { FS_TAB_FONT_SIZE, FS_TOOLBAR_HEIGHT } from "@anytime-markdown/markdown-core";
-import { PLANTUML_SAMPLES } from "@anytime-markdown/markdown-core";
+import { getDivider, FS_TAB_FONT_SIZE, FS_TOOLBAR_HEIGHT, PLANTUML_SAMPLES, useEditorSettingsContext, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-core";
 import type { TextareaSearchState } from "@anytime-markdown/markdown-core";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
-import { useEditorSettingsContext } from "@anytime-markdown/markdown-core";
 import { extractDiagramAltText } from "../utils/diagramAltText";
 import { extractPlantUmlConfig, mergePlantUmlConfig } from "../utils/plantumlConfig";
 import { DraggableSplitLayout } from "./DraggableSplitLayout";
-import { EditDialogHeader } from "@anytime-markdown/markdown-core";
-import { EditDialogWrapper } from "@anytime-markdown/markdown-core";
 import { FullscreenDiffView } from "./FullscreenDiffView";
 import { LineNumberTextarea } from "./LineNumberTextarea";
 import { SamplePanel } from "./SamplePanel";

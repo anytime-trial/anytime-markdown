@@ -13,31 +13,19 @@ global.ResizeObserver = class ResizeObserver {
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  getDivider: () => "#ccc",
-  getTextSecondary: () => "#666",
-}))(),
-    ...(() => ({
-  FS_TAB_FONT_SIZE: 12,
-  FS_TOOLBAR_HEIGHT: 40,
-}))(),
-    ...(() => ({
-  useEditorSettingsContext: () => ({
-    fontSize: 14,
-    lineHeight: 1.6,
-    fontFamily: "monospace",
-  }),
-}))(),
-    ...(() => ({
-  computeDiff: () => ({ leftLines: [], rightLines: [], blocks: [] }),
-  applyMerge: jest.fn().mockReturnValue({ newLeftText: "", newRightText: "" }),
-}))(),
-    ...(() => ({
-  EditDialogHeader: () => <div data-testid="edit-dialog-header" />,
-}))(),
-    ...(() => ({
-  EditDialogWrapper: ({ children, open }: any) => open ? <div data-testid="edit-dialog-wrapper">{children}</div> : null,
-}))(),
+    getDivider: () => "#ccc",
+    getTextSecondary: () => "#666",
+    FS_TAB_FONT_SIZE: 12,
+    FS_TOOLBAR_HEIGHT: 40,
+    useEditorSettingsContext: () => ({
+      fontSize: 14,
+      lineHeight: 1.6,
+      fontFamily: "monospace",
+    }),
+    computeDiff: () => ({ leftLines: [], rightLines: [], blocks: [] }),
+    applyMerge: jest.fn().mockReturnValue({ newLeftText: "", newRightText: "" }),
+    EditDialogHeader: () => <div data-testid="edit-dialog-header" />,
+    EditDialogWrapper: ({ children, open }: any) => open ? <div data-testid="edit-dialog-wrapper">{children}</div> : null,
 }));
 
 jest.mock("lowlight", () => ({
@@ -48,15 +36,9 @@ jest.mock("lowlight", () => ({
   }),
 }));
 
-
-
-
-
 jest.mock("../components/DraggableSplitLayout", () => ({
   DraggableSplitLayout: ({ children }: any) => <div>{children}</div>,
 }));
-
-
 
 jest.mock("../components/FullscreenDiffView", () => ({
   FullscreenDiffView: () => <div />,

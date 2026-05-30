@@ -3,17 +3,7 @@
 import { Box } from "@mui/material";
 import { useCallback, useMemo, useRef } from "react";
 
-import { useBlockResize } from "@anytime-markdown/markdown-core";
-import {
-    buildEmbedInfoString,
-    DEFAULT_EMBED_BASELINE,
-    type EmbedBaseline,
-    type EmbedVariant,
-    parseEmbedInfoString,
-} from "@anytime-markdown/markdown-core";
-import { EmbedEditDialog } from "@anytime-markdown/markdown-core";
-import { EmbedNodeView } from "@anytime-markdown/markdown-core";
-import { BlockInlineToolbar } from "@anytime-markdown/markdown-core";
+import { useBlockResize, buildEmbedInfoString, DEFAULT_EMBED_BASELINE, type EmbedBaseline, type EmbedVariant, parseEmbedInfoString, EmbedEditDialog, EmbedNodeView, BlockInlineToolbar } from "@anytime-markdown/markdown-core";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import { shouldShowBorder } from "./compareHelpers";
 import { ResizeGrip } from "./ResizeGrip";

@@ -8,18 +8,15 @@ import { renderHook, act } from "@testing-library/react";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  buildPlantUmlUrl: jest.fn().mockImplementation((encoded: string) => `https://www.plantuml.com/plantuml/svg/${encoded}`),
-  PLANTUML_CONSENT_KEY: "plantuml-external-consent",
-  PLANTUML_DARK_SKINPARAMS: "skinparam backgroundColor #1E1E1E",
-}))(),
+    buildPlantUmlUrl: jest.fn().mockImplementation((encoded: string) => `https://www.plantuml.com/plantuml/svg/${encoded}`),
+    PLANTUML_CONSENT_KEY: "plantuml-external-consent",
+    PLANTUML_DARK_SKINPARAMS: "skinparam backgroundColor #1E1E1E",
 }));
 
 jest.mock("plantuml-encoder", () => ({
   __esModule: true,
   default: { encode: jest.fn().mockReturnValue("encoded") },
 }));
-
 
 jest.mock("../utils/BoundedMap", () => ({
   BoundedMap: jest.fn().mockImplementation(() => {

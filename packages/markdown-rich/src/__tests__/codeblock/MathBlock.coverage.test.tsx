@@ -14,19 +14,15 @@ let mockKatexError: string | null = null;
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6 }),
-}))(),
-    ...(() => ({
-  useBlockResize: () => ({
-    resizing: false,
-    resizeWidth: null,
-    displayWidth: undefined,
-    handleResizePointerDown: jest.fn(),
-    handleResizePointerMove: jest.fn(),
-    handleResizePointerUp: jest.fn(),
-  }),
-}))(),
+    useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6 }),
+    useBlockResize: () => ({
+      resizing: false,
+      resizeWidth: null,
+      displayWidth: undefined,
+      handleResizePointerDown: jest.fn(),
+      handleResizePointerMove: jest.fn(),
+      handleResizePointerUp: jest.fn(),
+    }),
 }));
 
 jest.mock("@tiptap/react", () => ({
@@ -53,7 +49,6 @@ jest.mock("@mui/material/styles", () => ({
     spacing: (n: number) => `${n * 8}px`,
   }),
 }));
-
 
 jest.mock("../../hooks/useKatexRender", () => ({
   useKatexRender: () => ({ html: mockKatexHtml, error: mockKatexError }),
@@ -86,7 +81,6 @@ jest.mock("../../hooks/useBlockMergeCompare", () => ({
     handleMergeApply: jest.fn(),
   }),
 }));
-
 
 import { MathBlock } from "../../components/codeblock/MathBlock";
 

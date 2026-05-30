@@ -11,47 +11,37 @@ import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-
-
-
 import { FullscreenDiffView } from "../components/FullscreenDiffView";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  DEFAULT_DARK_BG: "#1e1e1e",
-  DEFAULT_LIGHT_BG: "#fff",
-  getDivider: () => "#ccc",
-  getErrorMain: () => "#f00",
-  getSuccessMain: () => "#0f0",
-  getTextPrimary: () => "#000",
-  getTextSecondary: () => "#666",
-}))(),
-    ...(() => ({
-  useEditorSettingsContext: () => ({
-    fontSize: 14,
-    lineHeight: 1.6,
-    fontFamily: "monospace",
-  }),
-}))(),
-    ...(() => ({
-  computeDiff: () => ({
-    leftLines: [
-      { type: "equal", text: "line1" },
-      { type: "removed", text: "old line" },
-      { type: "equal", text: "line3" },
-    ],
-    rightLines: [
-      { type: "equal", text: "line1" },
-      { type: "added", text: "new line" },
-      { type: "equal", text: "line3" },
-    ],
-    blocks: [{ id: 0, leftStart: 1, leftEnd: 2, rightStart: 1, rightEnd: 2 }],
-  }),
-  applyMerge: jest.fn().mockReturnValue({ newLeftText: "merged left", newRightText: "merged right" }),
-}))(),
+    DEFAULT_DARK_BG: "#1e1e1e",
+    DEFAULT_LIGHT_BG: "#fff",
+    getDivider: () => "#ccc",
+    getErrorMain: () => "#f00",
+    getSuccessMain: () => "#0f0",
+    getTextPrimary: () => "#000",
+    getTextSecondary: () => "#666",
+    useEditorSettingsContext: () => ({
+      fontSize: 14,
+      lineHeight: 1.6,
+      fontFamily: "monospace",
+    }),
+    computeDiff: () => ({
+      leftLines: [
+        { type: "equal", text: "line1" },
+        { type: "removed", text: "old line" },
+        { type: "equal", text: "line3" },
+      ],
+      rightLines: [
+        { type: "equal", text: "line1" },
+        { type: "added", text: "new line" },
+        { type: "equal", text: "line3" },
+      ],
+      blocks: [{ id: 0, leftStart: 1, leftEnd: 2, rightStart: 1, rightEnd: 2 }],
+    }),
+    applyMerge: jest.fn().mockReturnValue({ newLeftText: "merged left", newRightText: "merged right" }),
 }));
-
 
 const theme = createTheme();
 

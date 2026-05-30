@@ -7,8 +7,7 @@ import { Box, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip, T
 import { useTheme } from "@mui/material/styles";
 import React, { useRef, useState } from "react";
 
-import { getDivider, getTextSecondary } from "@anytime-markdown/markdown-core";
-import { FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH, SMALL_CAPTION_FONT_SIZE } from "@anytime-markdown/markdown-core";
+import { getDivider, getTextSecondary, FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH, SMALL_CAPTION_FONT_SIZE } from "@anytime-markdown/markdown-core";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 
 interface ZoomToolbarProps {

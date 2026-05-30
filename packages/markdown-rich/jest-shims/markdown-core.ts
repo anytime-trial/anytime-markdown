@@ -87,6 +87,10 @@ export {
 
 export { getHljsStyles } from "../../markdown-core/src/styles/codeStyles";
 
+// 注: `appLowlight` は意図的に再 export しない。唯一の利用者 RichMarkdownEditorPage は
+// どのテストからもロードされず、ここで export すると ESM の lowlight が全テストに
+// eager ロードされて transform エラーになる。実 barrel (core index.ts) には存在する。
+
 export { saveBlob } from "../../markdown-core/src/utils/clipboardHelpers";
 export { buildColorRuns } from "../../markdown-core/src/utils/colorRuns";
 export { applyMerge, computeDiff } from "../../markdown-core/src/utils/diffEngine";

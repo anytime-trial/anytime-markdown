@@ -7,11 +7,9 @@ import { renderHook, act } from "@testing-library/react";
 // Mock plantuml-encoder
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  buildPlantUmlUrl: (encoded: string) => `https://plantuml.com/svg/${encoded}`,
-  PLANTUML_CONSENT_KEY: "plantuml-consent",
-  PLANTUML_DARK_SKINPARAMS: "skinparam dark",
-}))(),
+    buildPlantUmlUrl: (encoded: string) => `https://plantuml.com/svg/${encoded}`,
+    PLANTUML_CONSENT_KEY: "plantuml-consent",
+    PLANTUML_DARK_SKINPARAMS: "skinparam dark",
 }));
 
 jest.mock("plantuml-encoder", () => ({
@@ -28,7 +26,6 @@ jest.mock("../utils/BoundedMap", () => ({
     };
   }),
 }));
-
 
 // Mock sessionStorage
 const sessionStore: Record<string, string> = {};

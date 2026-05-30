@@ -6,18 +6,15 @@ import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContent
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useMemo, useRef } from "react";
 
-import { getEditorBg, getErrorMain, getTextSecondary } from "@anytime-markdown/markdown-core";
+import { getEditorBg, getErrorMain, getTextSecondary, useBlockResize, useEditorSettingsContext, BlockInlineToolbar } from "@anytime-markdown/markdown-core";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
-import { useBlockResize } from "@anytime-markdown/markdown-core";
 import { useDiagramCapture } from "../../hooks/useDiagramCapture";
 import { useMermaidRender } from "../../hooks/useMermaidRender";
 import { usePlantUmlRender } from "../../hooks/usePlantUmlRender";
 import { useZoomPan } from "../../hooks/useZoomPan";
-import { useEditorSettingsContext } from "@anytime-markdown/markdown-core";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
 import { MermaidEditDialog } from "../MermaidEditDialog";
 import { PlantUmlEditDialog } from "../PlantUmlEditDialog";
-import { BlockInlineToolbar } from "@anytime-markdown/markdown-core";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import { shouldShowBorder, shouldShowToolbar } from "./compareHelpers";
 import { ResizeGrip } from "./ResizeGrip";

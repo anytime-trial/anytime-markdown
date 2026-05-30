@@ -13,29 +13,22 @@ import React from "react";
 import { render, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-
-
 import { FullscreenDiffView } from "../components/FullscreenDiffView";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  DEFAULT_DARK_BG: "#1e1e1e",
-  DEFAULT_LIGHT_BG: "#fff",
-  getDivider: () => "#ccc",
-  getErrorMain: () => "#f44336",
-  getSuccessMain: () => "#4caf50",
-  getTextPrimary: () => "#000",
-  getTextSecondary: () => "#666",
-}))(),
-    ...(() => ({
-  useEditorSettingsContext: () => ({
-    fontSize: 14,
-    lineHeight: 1.6,
-  }),
-}))(),
+    DEFAULT_DARK_BG: "#1e1e1e",
+    DEFAULT_LIGHT_BG: "#fff",
+    getDivider: () => "#ccc",
+    getErrorMain: () => "#f44336",
+    getSuccessMain: () => "#4caf50",
+    getTextPrimary: () => "#000",
+    getTextSecondary: () => "#666",
+    useEditorSettingsContext: () => ({
+      fontSize: 14,
+      lineHeight: 1.6,
+    }),
 }));
-
 
 const theme = createTheme();
 const t = (key: string) => key;

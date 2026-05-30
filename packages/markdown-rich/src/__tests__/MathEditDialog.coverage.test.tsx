@@ -7,36 +7,22 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Mock all complex dependencies
 
-
-
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  getDivider: () => "#ccc",
-  getTextSecondary: () => "#666",
-}))(),
-    ...(() => ({
-  FS_PANEL_HEADER_FONT_SIZE: "0.75rem",
-  FS_TOOLBAR_HEIGHT: 32,
-  MENU_ITEM_FONT_SIZE: "0.8rem",
-}))(),
-    ...(() => ({
-  MATH_SAMPLES: [
-    { label: "Sample", i18nKey: "sampleKey", code: "E=mc^2", enabled: true },
-  ],
-}))(),
-    ...(() => ({
-  useEditorSettingsContext: () => ({
-    fontSize: 14,
-    lineHeight: 1.6,
-  }),
-}))(),
-    ...(() => ({
-  EditDialogHeader: ({ label }: any) => <div data-testid="header">{label}</div>,
-}))(),
-    ...(() => ({
-  EditDialogWrapper: ({ children, open }: any) => open ? <div data-testid="wrapper">{children}</div> : null,
-}))(),
+    getDivider: () => "#ccc",
+    getTextSecondary: () => "#666",
+    FS_PANEL_HEADER_FONT_SIZE: "0.75rem",
+    FS_TOOLBAR_HEIGHT: 32,
+    MENU_ITEM_FONT_SIZE: "0.8rem",
+    MATH_SAMPLES: [
+      { label: "Sample", i18nKey: "sampleKey", code: "E=mc^2", enabled: true },
+    ],
+    useEditorSettingsContext: () => ({
+      fontSize: 14,
+      lineHeight: 1.6,
+    }),
+    EditDialogHeader: ({ label }: any) => <div data-testid="header">{label}</div>,
+    EditDialogWrapper: ({ children, open }: any) => open ? <div data-testid="wrapper">{children}</div> : null,
 }));
 
 jest.mock("../hooks/useKatexRender", () => ({
@@ -63,7 +49,6 @@ jest.mock("../hooks/useZoomPan", () => ({
   }),
 }));
 
-
 jest.mock("dompurify", () => ({
   __esModule: true,
   default: { sanitize: (html: string) => html },
@@ -72,8 +57,6 @@ jest.mock("dompurify", () => ({
 jest.mock("../components/DraggableSplitLayout", () => ({
   DraggableSplitLayout: ({ left, right }: any) => <div>{left}{right}</div>,
 }));
-
-
 
 jest.mock("../components/FullscreenDiffView", () => ({
   FullscreenDiffView: () => <div data-testid="diff-view" />,

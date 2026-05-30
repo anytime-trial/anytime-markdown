@@ -6,15 +6,9 @@ let mockIsSelected = false;
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6, editorBg: "white" }),
-}))(),
-    ...(() => ({
-  useTextareaSearch: () => ({ reset: jest.fn(), query: "", setQuery: jest.fn(), matches: [], currentIdx: 0, next: jest.fn(), prev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn() }),
-}))(),
-    ...(() => ({
-  usePlantUmlToolbar: () => ({ setSampleAnchorEl: jest.fn() }),
-}))(),
+    useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6, editorBg: "white" }),
+    useTextareaSearch: () => ({ reset: jest.fn(), query: "", setQuery: jest.fn(), matches: [], currentIdx: 0, next: jest.fn(), prev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn() }),
+    usePlantUmlToolbar: () => ({ setSampleAnchorEl: jest.fn() }),
 }));
 
 jest.mock("@tiptap/react", () => ({
@@ -46,8 +40,6 @@ jest.mock("@mui/material/styles", () => ({
   }),
 }));
 
-
-
 jest.mock("../../hooks/useKatexRender", () => ({
   useKatexRender: () => ({ html: "<span>rendered</span>", error: null }),
   MATH_SANITIZE_CONFIG: {},
@@ -70,8 +62,6 @@ jest.mock("../../hooks/useDiagramCapture", () => ({
 jest.mock("../../hooks/useZoomPan", () => ({
   useZoomPan: () => ({ zoom: 1, pan: { x: 0, y: 0 }, isPanningRef: { current: false }, handlePointerDown: jest.fn(), handlePointerMove: jest.fn(), handlePointerUp: jest.fn(), handleWheel: jest.fn(), reset: jest.fn() }),
 }));
-
-
 
 jest.mock("dompurify", () => ({
   __esModule: true,

@@ -5,20 +5,16 @@ import React from "react";
 import { render, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-
 import { LineNumberTextarea } from "../components/LineNumberTextarea";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  DEFAULT_DARK_BG: "#1e1e1e",
-  DEFAULT_LIGHT_BG: "#fff",
-  getDivider: () => "#ccc",
-  getTextDisabled: () => "#999",
-  getTextPrimary: () => "#000",
-}))(),
+    DEFAULT_DARK_BG: "#1e1e1e",
+    DEFAULT_LIGHT_BG: "#fff",
+    getDivider: () => "#ccc",
+    getTextDisabled: () => "#999",
+    getTextPrimary: () => "#000",
 }));
-
 
 const theme = createTheme();
 

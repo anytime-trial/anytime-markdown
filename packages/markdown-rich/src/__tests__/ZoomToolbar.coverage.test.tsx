@@ -3,15 +3,11 @@ import { render, screen, fireEvent } from "@testing-library/react";
 
 jest.mock("@anytime-markdown/markdown-core", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-core"),
-    ...(() => ({
-  getDivider: () => "#ccc",
-  getTextSecondary: () => "#666",
-}))(),
-    ...(() => ({
-  FS_TOOLBAR_HEIGHT: 32,
-  FS_ZOOM_LABEL_WIDTH: 48,
-  SMALL_CAPTION_FONT_SIZE: 10,
-}))(),
+    getDivider: () => "#ccc",
+    getTextSecondary: () => "#666",
+    FS_TOOLBAR_HEIGHT: 32,
+    FS_ZOOM_LABEL_WIDTH: 48,
+    SMALL_CAPTION_FONT_SIZE: 10,
 }));
 
 jest.mock("@mui/material/styles", () => ({
@@ -20,8 +16,6 @@ jest.mock("@mui/material/styles", () => ({
     palette: { mode: "light" },
   }),
 }));
-
-
 
 import { ZoomToolbar } from "../components/ZoomToolbar";
 

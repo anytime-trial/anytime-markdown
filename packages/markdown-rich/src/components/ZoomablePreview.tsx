@@ -1,8 +1,7 @@
 import { Box, useTheme } from "@mui/material";
 import React from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from "@anytime-markdown/markdown-core";
-import { DURATION_FAST, REDUCED_MOTION_SX } from "@anytime-markdown/markdown-core";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DURATION_FAST, REDUCED_MOTION_SX } from "@anytime-markdown/markdown-core";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 
 interface ZoomablePreviewProps {

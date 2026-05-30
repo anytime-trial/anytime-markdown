@@ -23,53 +23,11 @@ import {
   CustomTableCell,
   CustomTableHeader,
 } from "../extensions/customTableCells";
-
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
-
-/** addAttributes を呼んで属性定義を取得する */
-function getAttributes(ext: any): Record<string, any> {
-  const addAttrs = ext.config.addAttributes;
-  if (!addAttrs) return {};
-  // parent を返すように context を設定
-  return addAttrs.call({ parent: () => ({}) });
-}
-
-/** addStorage を呼んでストレージオブジェクトを取得する */
-function getStorage(ext: any): any {
-  const addStorage = ext.config.addStorage;
-  if (!addStorage) return {};
-  return addStorage.call({});
-}
-
-/** Markdown シリアライズ用のモック state を作成する */
-function createMockSerializerState() {
-  const state = {
-    out: "" as string,
-    get output() {
-      return state.out;
-    },
-    write(text: string) {
-      state.out += text;
-    },
-    text(text: string, _escape?: boolean) {
-      state.out += text;
-    },
-    ensureNewLine() {
-      if (!state.out.endsWith("\n")) state.out += "\n";
-    },
-    closeBlock(_node: any) {
-      if (state.out && !state.out.endsWith("\n")) state.out += "\n";
-      state.out += "\n";
-    },
-    renderInline(node: any) {
-      state.out += node.textContent || "";
-    },
-    inTable: false,
-  };
-  return state;
-}
+import {
+  createMockSerializerState,
+  getAttributes,
+  getStorage,
+} from "../testUtils/extensionTestHelpers";
 
 // ===========================================================================
 // CustomTable

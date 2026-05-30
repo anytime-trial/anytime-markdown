@@ -30,6 +30,7 @@ const config = {
     "!src/__tests__/**",
     "!src/__mocks__/**",
     "!src/index.ts",
+    // Canvas/画像キャプチャ処理を含み jsdom で意味のある実行ができないため除外（core jest と同様）
     "!src/hooks/useDiagramCapture.ts",
   ],
 };
