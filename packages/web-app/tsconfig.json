@@ -20,6 +20,8 @@
       "@/*": ["../markdown-core/src/*"],
       "@anytime-markdown/markdown-core/src/*": ["../markdown-core/src/*"],
       "@anytime-markdown/markdown-core": ["../markdown-core/src/index.ts"],
+      "@anytime-markdown/markdown-rich/src/*": ["../markdown-rich/src/*"],
+      "@anytime-markdown/markdown-rich": ["../markdown-rich/src/index.ts"],
       "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
       "@anytime-markdown/graph-core/*": ["../graph-core/src/*"],
       "@anytime-markdown/graph-viewer": ["../graph-viewer/src/index.ts"],

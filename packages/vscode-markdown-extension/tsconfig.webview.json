@@ -7,6 +7,8 @@
 		"paths": {
 			"@anytime-markdown/markdown-core": ["../markdown-core/src/index.ts"],
 			"@anytime-markdown/markdown-core/*": ["../markdown-core/*"],
+			"@anytime-markdown/markdown-rich": ["../markdown-rich/src/index.ts"],
+			"@anytime-markdown/markdown-rich/*": ["../markdown-rich/*"],
 			"@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"],
 			"@/*": ["../markdown-core/src/*"]
 		}
@@ -14,10 +16,12 @@
 	"include": [
 		"src/webview/**/*",
 		"../markdown-core/src/**/*",
+		"../markdown-rich/src/**/*",
 		"../vscode-common/src/webview/**/*"
 	],
 	"exclude": [
 		"../markdown-core/src/__tests__/**/*",
-		"../markdown-core/src/testUtils/**/*"
+		"../markdown-core/src/testUtils/**/*",
+		"../markdown-rich/src/__tests__/**/*"
 	]
 }

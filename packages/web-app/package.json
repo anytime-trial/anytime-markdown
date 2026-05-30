@@ -22,6 +22,7 @@
     "@anytime-markdown/graph-viewer": "*",
     "@anytime-markdown/mindmap-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
+    "@anytime-markdown/markdown-rich": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/trace-core": "*",
     "@anytime-markdown/trace-viewer": "*",

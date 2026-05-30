@@ -4,7 +4,8 @@
  * メインエディタと比較エディタで共有する Extension リストを一元管理する。
  * エディタ固有の Extension（検索、削除行ショートカット等）は各エディタで追加する。
  */
-import type { Editor } from "@tiptap/core";
+import type { AnyExtension, Editor } from "@tiptap/core";
+import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import Highlight from "@tiptap/extension-highlight";
 import LinkExtension from "@tiptap/extension-link";
 import { TableKit } from "@tiptap/extension-table";
@@ -17,8 +18,6 @@ import { Extension, type Extensions } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { Markdown } from "tiptap-markdown";
-
-import { CodeBlockWithMermaid } from "./codeBlockWithMermaid";
 
 /** lowlight インスタンス（シンタックスハイライト用） */
 const lowlight = createLowlight(common);
@@ -127,7 +126,7 @@ const ListTextCleanup = Extension.create({
 });
 
 /** 共通 Extension（メインエディタ / 比較エディタで共有） */
-export function getBaseExtensions(options?: { disableComments?: boolean; disableCheckboxToggle?: boolean; gridRows?: number; gridCols?: number }): Extensions {
+export function getBaseExtensions(options?: { disableComments?: boolean; disableCheckboxToggle?: boolean; gridRows?: number; gridCols?: number; codeBlockExtension?: AnyExtension }): Extensions {
   const extensions: Extensions = [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4, 5] },
@@ -292,7 +291,8 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
       },
     }),
     AdmonitionBlockquote,
-    CodeBlockWithMermaid.configure({ lowlight, defaultLanguage: "plaintext" }),
+    // rich パッケージが CodeBlockWithMermaid を注入する。未注入時は素の CodeBlockLowlight にフォールバック (B-5)
+    options?.codeBlockExtension ?? CodeBlockLowlight.configure({ lowlight, defaultLanguage: "plaintext" }),
     Highlight.configure({ multicolor: false }),
     Underline,
     LinkExtension.configure({ openOnClick: false, validate: () => true, isAllowedUri: () => true }),

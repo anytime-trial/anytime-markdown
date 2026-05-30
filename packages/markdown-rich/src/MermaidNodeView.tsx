@@ -1,0 +1,166 @@
+"use client";
+
+import { useTheme } from "@mui/material";
+import type { NodeViewProps } from "@tiptap/react";
+import { useEditorState } from "@tiptap/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { DiagramBlock } from "./components/codeblock/DiagramBlock";
+import { EmbedBlock } from "./components/codeblock/EmbedBlock";
+import { HtmlPreviewBlock } from "./components/codeblock/HtmlPreviewBlock";
+import { MathBlock } from "./components/codeblock/MathBlock";
+import { RegularCodeBlock } from "./components/codeblock/RegularCodeBlock";
+import { getMergeEditors } from "@anytime-markdown/markdown-core";
+import { useBlockCapture } from "@anytime-markdown/markdown-core";
+import { useDeleteBlock } from "@anytime-markdown/markdown-core";
+import { useNodeSelected } from "@anytime-markdown/markdown-core";
+import { useTextareaSearch } from "@anytime-markdown/markdown-core";
+import { useMarkdownT } from "@anytime-markdown/markdown-core";
+
+export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
+  const theme = useTheme();
+  const t = useMarkdownT("MarkdownEditor");
+  const isDark = theme.palette.mode === "dark";
+  const language = node.attrs.language;
+  const isMath = language === "math";
+  const isHtml = language === "html";
+  const isDiagram = language === "mermaid" || language === "plantuml";
+  const isEmbed = language === "embed" || (typeof language === "string" && language.startsWith("embed "));
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const isEditable = useEditorState({ editor, selector: (ctx) => !!ctx.editor?.isEditable });
+  const codeCollapsed = !!node.attrs.codeCollapsed || !isEditable;
+  const [editOpen, setEditOpen] = useState(false);
+  const [fsCode, setFsCode] = useState("");
+  const fsTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const isSelected = useNodeSelected(editor, getPos, node.nodeSize);
+
+  // autoEditOpen: スラッシュコマンドから作成された場合、即座に全画面編集を開く
+  useEffect(() => {
+    if ((isDiagram || isMath || isHtml || isEmbed) && node.attrs.autoEditOpen) {
+      requestAnimationFrame(() => {
+        updateAttributes({ autoEditOpen: false });
+        setEditOpen(true);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectNode = useCallback(() => {
+    if (!editor || typeof getPos !== "function") return;
+    const pos = getPos();
+    if (pos == null) return;
+    editor.commands.setTextSelection(pos + 1);
+    if (!isDiagram && !isMath && !isHtml && !isEmbed && codeCollapsed) updateAttributes({ codeCollapsed: false });
+  }, [editor, getPos, codeCollapsed, updateAttributes, isDiagram, isMath, isHtml, isEmbed]);
+
+  // Auto-collapse code when deselected
+  // codeCollapsed, updateAttributes は意図的に除外（選択解除時のみ発火させる）
+  useEffect(() => {
+    if (!isSelected && !codeCollapsed) {
+      updateAttributes({ codeCollapsed: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSelected]);
+
+  const code = node.textContent;
+  const handleCopyCode = useCallback(() => { navigator.clipboard.writeText(code); }, [code]);
+
+  // Sync code on editOpen open
+  // code は意図的に除外（editOpen 切替時のスナップショットのみ取得）
+  const originalCodeRef = useRef("");
+  const [fsDirty, setFsDirty] = useState(false);
+  useEffect(() => {
+    if (editOpen) {
+      setFsCode(code);
+      originalCodeRef.current = code;
+      setFsDirty(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editOpen]);
+
+  /** ローカル状態のみ更新（ProseMirror に同期しない） */
+  const handleFsCodeChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newCode = e.target.value;
+    setFsCode(newCode);
+    setFsDirty(newCode !== originalCodeRef.current);
+  }, []);
+
+  /** テキスト直接更新（検索置換、サンプル挿入） */
+  const handleFsTextChange = useCallback((newCode: string) => {
+    setFsCode(newCode);
+    setFsDirty(newCode !== originalCodeRef.current);
+  }, []);
+
+  /** 適用: ProseMirror に一括反映 */
+  const handleFsApply = useCallback(() => {
+    if (!editor || typeof getPos !== "function") return;
+    const pos = getPos();
+    if (pos == null) return;
+    const from = pos + 1;
+    const to = from + node.content.size;
+    editor.chain().command(({ tr }) => {
+      if (fsCode) {
+        tr.replaceWith(from, to, editor.schema.text(fsCode));
+      } else {
+        tr.delete(from, to);
+      }
+      return true;
+    }).run();
+    originalCodeRef.current = fsCode;
+    setFsDirty(false);
+    setEditOpen(false);
+  }, [editor, getPos, node.content.size, fsCode, setEditOpen]);
+
+  /** 閉じるときの確認 */
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const tryCloseEdit = useCallback(() => {
+    if (fsDirty) {
+      setDiscardDialogOpen(true);
+    } else {
+      setEditOpen(false);
+    }
+  }, [fsDirty]);
+  const handleDiscardConfirm = useCallback(() => {
+    setDiscardDialogOpen(false);
+    setFsDirty(false);
+    setEditOpen(false);
+  }, []);
+
+  const fsSearch = useTextareaSearch(fsTextareaRef, fsCode, handleFsTextChange);
+
+  /** Delete the code block */
+  const handleDeleteBlock = useDeleteBlock(editor, getPos, node.nodeSize);
+
+  const mergeEditors = getMergeEditors();
+  const isCompareLeft = !!mergeEditors && editor === mergeEditors.leftEditor;
+  const isCompareLeftEditable = isCompareLeft && !mergeEditors?.isReviewMode;
+
+  const handleCapture = useBlockCapture(editor, getPos, `${language || "code"}.png`);
+
+  // Shared props for all block sub-components
+  const shared = {
+    editor, node, updateAttributes, getPos,
+    isSelected, codeCollapsed,
+    selectNode, code,
+    handleCopyCode, handleDeleteBlock, deleteDialogOpen, setDeleteDialogOpen,
+    editOpen, setEditOpen, tryCloseEdit, fsCode, onFsCodeChange: handleFsCodeChange, fsTextareaRef, fsSearch,
+    onFsApply: handleFsApply, fsDirty, discardDialogOpen, setDiscardDialogOpen, handleDiscardConfirm,
+    t, isDark, isEditable, isCompareLeft, isCompareLeftEditable,
+    onExport: handleCapture,
+  };
+
+  if (isMath) return <MathBlock {...shared} handleFsTextChange={handleFsTextChange} />;
+  if (isHtml) return <HtmlPreviewBlock {...shared} handleFsTextChange={handleFsTextChange} />;
+  if (isEmbed) return <EmbedBlock {...shared} handleFsTextChange={handleFsTextChange} />;
+  if (isDiagram) {
+    return (
+      <DiagramBlock
+        {...shared}
+        handleFsTextChange={handleFsTextChange}
+      />
+    );
+  }
+  return <RegularCodeBlock {...shared} handleFsTextChange={handleFsTextChange} />;
+}

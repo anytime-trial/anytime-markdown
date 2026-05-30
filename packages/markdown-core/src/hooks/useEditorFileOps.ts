@@ -11,6 +11,7 @@ import { applyMarkdownToEditor } from "../utils/editorContentLoader";
 import { readFileAsText } from "../utils/fileReading";
 import { prependFrontmatter } from "../utils/frontmatterHelpers";
 import { useNotification } from "./useNotification";
+import type { DarkDiagramPrintPreparer } from "./usePdfExport";
 import { usePdfExport } from "./usePdfExport";
 
 // Re-export for backwards compatibility
@@ -34,6 +35,8 @@ interface UseEditorFileOpsParams {
   frontmatterRef: React.RefObject<string | null>;
   onFrontmatterChange?: (value: string | null) => void;
   onExternalSave?: (content: string) => void;
+  /** ダークモード図のライト化戦略（markdown-rich が注入）。usePdfExport へ中継 (B-5) */
+  prepareDarkDiagrams?: DarkDiagramPrintPreparer;
 }
 
 export function useEditorFileOps({
@@ -54,6 +57,7 @@ export function useEditorFileOps({
   frontmatterRef,
   onFrontmatterChange,
   onExternalSave,
+  prepareDarkDiagrams,
 }: UseEditorFileOpsParams) {
   const { notification, setNotification, showNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -198,7 +202,7 @@ export function useEditorFileOps({
     if (saved) showNotification("fileSaved");
   }, [saveAsFile, getFullMarkdown, showNotification]);
 
-  const { pdfExporting, handleExportPdf } = usePdfExport({ editor, showNotification });
+  const { pdfExporting, handleExportPdf } = usePdfExport({ editor, showNotification, prepareDarkDiagrams });
 
   return {
     notification,
