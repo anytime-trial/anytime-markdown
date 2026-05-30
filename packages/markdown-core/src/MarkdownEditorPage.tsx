@@ -43,7 +43,7 @@ const InlineMergeView = lazy(() =>
   import("./components/InlineMergeView").then((m) => ({ default: m.InlineMergeView })),
 );
 
-import type { Editor } from "@tiptap/react";
+import type { AnyExtension, Editor } from "@tiptap/react";
 
 import type { MarkdownTemplate } from "./constants/templates";
 import { useEditorBlockActions } from "./hooks/useEditorBlockActions";
@@ -180,6 +180,8 @@ interface MarkdownEditorPageProps {
   gridRows?: number;
   /** スプレッドシートのグリッド列数 */
   gridCols?: number;
+  /** codeBlock 拡張の注入 (rich の CodeBlockWithMermaid)。未注入時は素の CodeBlockLowlight (B-5) */
+  codeBlockExtension?: AnyExtension;
   /** ホームリンクのクリックハンドラ（ツールバー左端のロゴ） */
   onHomeClick?: () => void;
 }
@@ -327,7 +329,7 @@ function buildEditorPortalTarget(): HTMLDivElement | null {
 
 type InnerProps = Omit<MarkdownEditorPageProps, "locale">;
 
-function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, onHomeClick }: InnerProps = {}) {
+function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, codeBlockExtension, onHomeClick }: InnerProps = {}) {
   const t = useMarkdownT("MarkdownEditor");
   const locale = useMarkdownLocale();
   const muiTheme = useTheme();
@@ -390,6 +392,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
     setHeadingMenu,
     gridRows,
     gridCols,
+    codeBlockExtension,
   });
   const editor = useEditor(editorConfig, [processedInitialContent]);
   editorRef.current = editor;

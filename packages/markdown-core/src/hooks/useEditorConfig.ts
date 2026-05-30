@@ -1,5 +1,5 @@
 import Placeholder from "@tiptap/extension-placeholder";
-import type { Editor } from "@tiptap/react";
+import type { AnyExtension, Editor } from "@tiptap/react";
 import type { RefObject } from "react";
 import { useEffect } from "react";
 
@@ -50,6 +50,8 @@ interface UseEditorConfigParams {
   gridRows?: number;
   /** スプレッドシートのグリッド列数 */
   gridCols?: number;
+  /** codeBlock 拡張の注入 (rich の CodeBlockWithMermaid)。未指定時は素の CodeBlockLowlight */
+  codeBlockExtension?: AnyExtension;
 }
 
 export function useEditorConfig({
@@ -69,6 +71,7 @@ export function useEditorConfig({
   setHeadingMenu,
   gridRows,
   gridCols,
+  codeBlockExtension,
 }: UseEditorConfigParams) {
   // Clean up debounce timer on unmount
   // headingsDebounceRef は安定な ref オブジェクトのため依存配列から除外
@@ -89,7 +92,7 @@ export function useEditorConfig({
 
   return {
     extensions: [
-      ...getBaseExtensions({ gridRows, gridCols }),
+      ...getBaseExtensions({ gridRows, gridCols, codeBlockExtension }),
       CustomHardBreak,
       DeleteLineExtension,
       SearchReplaceExtension,
