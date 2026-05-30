@@ -13,6 +13,7 @@ import {
   migrateConfigJsonIntoLepJson,
   migrateLegacyToLepConfig,
   resolveGitHubSource,
+  resolveWorkspaceConfigPath,
   validateLepConfigInput,
   workspaceConfigJsonPath,
   workspaceLepConfigPath,
@@ -635,5 +636,47 @@ describe('migrateConfigJsonIntoLepJson', () => {
     const res = migrateConfigJsonIntoLepJson({ workspaceRoot: ws });
     expect(res.migrated).toBe(false);
     expect(existsSync(workspaceConfigJsonPath(ws))).toBe(true); // preserved for user to fix
+  });
+});
+
+describe('resolveWorkspaceConfigPath', () => {
+  it('空文字は workspace 相対の既定 .anytime/<file> を絶対化する', () => {
+    expect(resolveWorkspaceConfigPath(DEFAULT_LEP_CONFIG, 'commitCategories', '/work/repo')).toBe(
+      join('/work/repo', '.anytime', 'commit-categories.json'),
+    );
+    expect(resolveWorkspaceConfigPath(DEFAULT_LEP_CONFIG, 'metricsThresholds', '/work/repo')).toBe(
+      join('/work/repo', '.anytime', 'metrics-thresholds.yaml'),
+    );
+  });
+
+  it('絶対パス指定はそのまま返す', () => {
+    const cfg = mergeLepConfig(DEFAULT_LEP_CONFIG, {
+      workspace: { configPaths: { toolCategories: '/etc/anytime/tools.json' } },
+    });
+    expect(resolveWorkspaceConfigPath(cfg, 'toolCategories', '/work/repo')).toBe('/etc/anytime/tools.json');
+  });
+
+  it('相対パス指定は workspaceRoot 起点で絶対化する', () => {
+    const cfg = mergeLepConfig(DEFAULT_LEP_CONFIG, {
+      workspace: { configPaths: { skillCategories: 'config/skills.json' } },
+    });
+    expect(resolveWorkspaceConfigPath(cfg, 'skillCategories', '/work/repo')).toBe(
+      join('/work/repo', 'config/skills.json'),
+    );
+  });
+
+  it('workspaceRoot 未指定 + 相対 は undefined を返す', () => {
+    expect(resolveWorkspaceConfigPath(DEFAULT_LEP_CONFIG, 'commitCategories', undefined)).toBeUndefined();
+  });
+
+  it('validate → merge で configPaths が往復する', () => {
+    const { value } = validateLepConfigInput(
+      { workspace: { configPaths: { commitCategories: '/abs/commit.json' } } },
+      'test',
+    );
+    const merged = mergeLepConfig(DEFAULT_LEP_CONFIG, value);
+    expect(merged.workspace.configPaths.commitCategories).toBe('/abs/commit.json');
+    // 未指定キーは既定 (空文字) を維持
+    expect(merged.workspace.configPaths.toolCategories).toBe('');
   });
 });
