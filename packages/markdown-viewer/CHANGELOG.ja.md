@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-05-31
+
+### 変更
+
+- パッケージ名を `@anytime-markdown/markdown-core` から `@anytime-markdown/markdown-viewer` へ改名。
+- vendored Tiptap v3.20.0 へ移行: `@tiptap/*` の import は npm パッケージではなく `@anytime-markdown/markdown-*` の vendored 名前空間に解決される。`prosemirror-tables` は `@tiptap/pm/tables` 経由で import。
+- リッチコードブロッククラスタ（図表・PDF ダーク図表レンダリング）を `@anytime-markdown/markdown-rich` へ移設し、該当 re-export を公開 API から削除。`codeBlock` 拡張は `getBaseExtensions` で注入する。`markdown-rich` 向けに共有 API を公開。
+
 ## [0.15.6] - 2026-05-27
 
 ### 変更

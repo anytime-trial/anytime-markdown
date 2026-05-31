@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.27.2] - 2026-05-31
+
+### Changed
+
+- Adopted the vendored Tiptap v3.20.0 editor core (`@anytime-markdown/markdown-viewer` / `markdown-rich`); the web editor no longer depends on `@tiptap/*` npm packages.
+- Added `RichMarkdownEditorPage` wiring for the split rich code-block cluster.
+- SonarCloud S1874 deprecated-API migration and S3358 nested-ternary fix. No functional changes.
+
 ## [0.27.1] - 2026-05-27
 
 ### Changed

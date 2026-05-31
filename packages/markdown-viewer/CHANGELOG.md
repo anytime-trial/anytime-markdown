@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-05-31
+
+### Changed
+
+- Renamed the package from `@anytime-markdown/markdown-core` to `@anytime-markdown/markdown-viewer`.
+- Migrated to vendored Tiptap v3.20.0: `@tiptap/*` imports now resolve to the `@anytime-markdown/markdown-*` vendored namespace instead of npm packages. `prosemirror-tables` is imported via `@tiptap/pm/tables`.
+- Relocated the rich code-block cluster (diagrams, PDF dark-diagram rendering) to `@anytime-markdown/markdown-rich`, removed those re-exports from the public API, and now inject the `codeBlock` extension via `getBaseExtensions`. A shared API is exposed for `markdown-rich`.
+
 ## [0.15.6] - 2026-05-27
 
 ### Changed

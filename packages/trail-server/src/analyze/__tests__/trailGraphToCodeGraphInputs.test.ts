@@ -150,7 +150,7 @@ describe('trailGraphToCodeGraphInputs', () => {
     });
     expect(result.nodes[0]).toMatchObject({
       id: 'Workspace:packages/markdown-viewer/src/utils/latexToExpr',
-      package: 'markdown-core',
+      package: 'markdown-viewer',
       label: 'latexToExpr',
     });
   });
