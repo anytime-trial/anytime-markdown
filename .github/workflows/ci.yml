@@ -291,7 +291,20 @@ jobs:
       # chromium の実行依存は ubuntu-latest にプリインストール済みのため動作する。
       - name: Install Playwright browsers
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
-        run: npx playwright install chromium
+        # chromium の DL がハングして 60 分のジョブ上限に達する事象があるため、
+        # ステップ単位でタイムアウトし、各試行を 300s で打ち切って最大 3 回リトライする。
+        timeout-minutes: 12
+        run: |
+          for attempt in 1 2 3; do
+            echo "Playwright install attempt $attempt"
+            if timeout 300 npx playwright install chromium; then
+              exit 0
+            fi
+            echo "::warning::Playwright install attempt $attempt failed or timed out; retrying"
+            sleep 10
+          done
+          echo "::error::Playwright install failed after 3 attempts"
+          exit 1
         working-directory: packages/web-app
 
       - name: Run e2e tests
