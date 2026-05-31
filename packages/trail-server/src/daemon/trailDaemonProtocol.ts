@@ -113,15 +113,17 @@ export interface SerializableHttpServerOptions {
   /** memory (better-sqlite3) DB ファイルの絶対パス。省略時は MemoryApiHandler が無効化される。 */
   readonly memoryDbPath?: string;
   /**
-   * lep.json `workspace.configPaths` から extension が解決した絶対ファイルパス。
+   * lep.json `workspace.configPaths` から extension が解決した絶対ファイルパス群。
    * daemon は fork 時 cwd 未指定でワークスペースルートを確実に知らないため、categories /
    * metrics をこのパスから読むことで gitRoot 非依存にする。省略キーは `<gitRoot>/.anytime/<file>`
-   * へフォールバックする。
+   * へフォールバックする。`TrailDataServer` の `options.configPaths` と同形。
    */
-  readonly commitCategoriesPath?: string;
-  readonly toolCategoriesPath?: string;
-  readonly skillCategoriesPath?: string;
-  readonly metricsThresholdsPath?: string;
+  readonly configPaths?: {
+    readonly commitCategories?: string;
+    readonly toolCategories?: string;
+    readonly skillCategories?: string;
+    readonly metricsThresholds?: string;
+  };
   /**
    * trace 一覧/取得が読む trace ディレクトリの絶対パス。extension が writer (traceCommands) と
    * 同じ `TRAIL_HOME ?? <wsRoot>/.anytime/trail` + `/trace` で解決して渡す。省略時は

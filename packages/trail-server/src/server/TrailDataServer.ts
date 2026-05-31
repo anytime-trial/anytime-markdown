@@ -369,6 +369,27 @@ export class TrailDataServer {
     return this.gitRoot ? path.basename(this.gitRoot) : undefined;
   }
 
+  /**
+   * `/api/config/*-categories` の共通レスポンス。configPaths でファイルが指定されていれば
+   * そこから、なければ `<gitRoot>/.anytime/<file>` から entries / labels を読んで返す。
+   */
+  private respondCategories(
+    res: http.ServerResponse,
+    file: string | undefined,
+    loadEntries: (root: string) => ReadonlyMap<string, number>,
+    loadEntriesFromFile: (file: string) => ReadonlyMap<string, number>,
+    loadLabels: (root: string) => ReadonlyMap<number, string>,
+    loadLabelsFromFile: (file: string) => ReadonlyMap<number, string>,
+  ): void {
+    const root = this.gitRoot ?? process.cwd();
+    const entries: Record<string, number> = {};
+    for (const [k, v] of file ? loadEntriesFromFile(file) : loadEntries(root)) entries[k] = v;
+    const categories: Record<string, string> = {};
+    for (const [k, v] of file ? loadLabelsFromFile(file) : loadLabels(root)) categories[String(k)] = v;
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify({ entries, categories }));
+  }
+
   setCodeGraphService(service: CodeGraphService): void {
     this.codeGraphService = service;
     this.codeGraphApi.setCodeGraphService(service);
@@ -971,38 +992,20 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/config/commit-categories' && method === 'GET') {
-      const file = this.options?.configPaths?.commitCategories;
-      const root = this.gitRoot ?? process.cwd();
-      const entries: Record<string, number> = {};
-      for (const [k, v] of file ? loadCommitCategoriesFromFile(file) : loadCommitCategories(root)) entries[k] = v;
-      const categories: Record<string, string> = {};
-      for (const [k, v] of file ? loadCommitCategoryLabelsFromFile(file) : loadCommitCategoryLabels(root)) categories[String(k)] = v;
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ entries, categories }));
+      this.respondCategories(res, this.options?.configPaths?.commitCategories,
+        loadCommitCategories, loadCommitCategoriesFromFile, loadCommitCategoryLabels, loadCommitCategoryLabelsFromFile);
       return;
     }
 
     if (pathname === '/api/config/tool-categories' && method === 'GET') {
-      const file = this.options?.configPaths?.toolCategories;
-      const root = this.gitRoot ?? process.cwd();
-      const entries: Record<string, number> = {};
-      for (const [k, v] of file ? loadToolCategoriesFromFile(file) : loadToolCategories(root)) entries[k] = v;
-      const categories: Record<string, string> = {};
-      for (const [k, v] of file ? loadToolCategoryLabelsFromFile(file) : loadToolCategoryLabels(root)) categories[String(k)] = v;
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ entries, categories }));
+      this.respondCategories(res, this.options?.configPaths?.toolCategories,
+        loadToolCategories, loadToolCategoriesFromFile, loadToolCategoryLabels, loadToolCategoryLabelsFromFile);
       return;
     }
 
     if (pathname === '/api/config/skill-categories' && method === 'GET') {
-      const file = this.options?.configPaths?.skillCategories;
-      const root = this.gitRoot ?? process.cwd();
-      const entries: Record<string, number> = {};
-      for (const [k, v] of file ? loadSkillCategoriesFromFile(file) : loadSkillCategories(root)) entries[k] = v;
-      const categories: Record<string, string> = {};
-      for (const [k, v] of file ? loadSkillCategoryLabelsFromFile(file) : loadSkillCategoryLabels(root)) categories[String(k)] = v;
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ entries, categories }));
+      this.respondCategories(res, this.options?.configPaths?.skillCategories,
+        loadSkillCategories, loadSkillCategoriesFromFile, loadSkillCategoryLabels, loadSkillCategoryLabelsFromFile);
       return;
     }
 
@@ -2311,7 +2314,7 @@ export class TrailDataServer {
       const metricsFile = this.options?.configPaths?.metricsThresholds;
       const loader = metricsFile
         ? MetricsThresholdsLoader.fromFile(metricsFile)
-        : new MetricsThresholdsLoader(this.gitRoot ?? process.cwd());
+        : MetricsThresholdsLoader.fromWorkspaceRoot(this.gitRoot ?? process.cwd());
       const thresholds = loader.load();
 
       // Compute previous range (same duration before current range)

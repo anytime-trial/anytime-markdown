@@ -255,6 +255,23 @@ const WORKSPACE_CONFIG_PATH_DEFAULTS: Record<keyof LepWorkspaceConfigPaths, stri
   metricsThresholds: join('.anytime', 'metrics-thresholds.yaml'),
 };
 
+/** {@link LepWorkspaceConfigPaths} の全キー。validate / merge の単一の真実源。 */
+const WORKSPACE_CONFIG_PATH_KEYS = Object.keys(
+  WORKSPACE_CONFIG_PATH_DEFAULTS,
+) as (keyof LepWorkspaceConfigPaths)[];
+
+/** override を base に上書きマージする (キー追加時もここだけで完結)。 */
+function mergeWorkspaceConfigPaths(
+  base: LepWorkspaceConfigPaths,
+  override?: Partial<LepWorkspaceConfigPaths>,
+): LepWorkspaceConfigPaths {
+  const result = { ...base };
+  for (const key of WORKSPACE_CONFIG_PATH_KEYS) {
+    result[key] = override?.[key] ?? base[key];
+  }
+  return result;
+}
+
 /**
  * `workspace.configPaths.<key>` を絶対パスへ解決する。
  *
@@ -593,7 +610,7 @@ function validateWorkspaceSection(
   const rawPaths = raw['configPaths'];
   if (isPlainObject(rawPaths)) {
     const configPaths: Partial<LepWorkspaceConfigPaths> = {};
-    for (const key of ['commitCategories', 'toolCategories', 'skillCategories', 'metricsThresholds'] as const) {
+    for (const key of WORKSPACE_CONFIG_PATH_KEYS) {
       if (typeof rawPaths[key] === 'string') configPaths[key] = rawPaths[key] as string;
     }
     workspace.configPaths = configPaths;
@@ -762,16 +779,7 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
     workspace: {
       docsPath: override.workspace?.docsPath ?? base.workspace.docsPath,
       excludeRoot: override.workspace?.excludeRoot ?? base.workspace.excludeRoot,
-      configPaths: {
-        commitCategories:
-          override.workspace?.configPaths?.commitCategories ?? base.workspace.configPaths.commitCategories,
-        toolCategories:
-          override.workspace?.configPaths?.toolCategories ?? base.workspace.configPaths.toolCategories,
-        skillCategories:
-          override.workspace?.configPaths?.skillCategories ?? base.workspace.configPaths.skillCategories,
-        metricsThresholds:
-          override.workspace?.configPaths?.metricsThresholds ?? base.workspace.configPaths.metricsThresholds,
-      },
+      configPaths: mergeWorkspaceConfigPaths(base.workspace.configPaths, override.workspace?.configPaths),
     },
     throttle: {
       enabled: override.throttle?.enabled ?? base.throttle.enabled,

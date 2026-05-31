@@ -670,10 +670,12 @@ export async function activate(context: vscode.ExtensionContext) {
 					},
 					docsPath: lepWorkspaceDocsPath || undefined,
 						// lep.json workspace.configPaths を絶対パス化して渡す (categories / metrics を gitRoot 非依存で読む)。
-						commitCategoriesPath: resolveWorkspaceConfigPath(lepConfig, 'commitCategories', wsRootForDb),
-						toolCategoriesPath: resolveWorkspaceConfigPath(lepConfig, 'toolCategories', wsRootForDb),
-						skillCategoriesPath: resolveWorkspaceConfigPath(lepConfig, 'skillCategories', wsRootForDb),
-						metricsThresholdsPath: resolveWorkspaceConfigPath(lepConfig, 'metricsThresholds', wsRootForDb),
+						configPaths: {
+						commitCategories: resolveWorkspaceConfigPath(lepConfig, 'commitCategories', wsRootForDb),
+						toolCategories: resolveWorkspaceConfigPath(lepConfig, 'toolCategories', wsRootForDb),
+						skillCategories: resolveWorkspaceConfigPath(lepConfig, 'skillCategories', wsRootForDb),
+						metricsThresholds: resolveWorkspaceConfigPath(lepConfig, 'metricsThresholds', wsRootForDb),
+						},
 						// 表示のデフォルト repo 名を明示注入 (gitRoots は複数あり得るため単一 gitRoot basename 導出を避ける)。
 						defaultRepoName: wsRootForDb ? path.basename(wsRootForDb) : undefined,
 						// trace dir を writer (traceCommands) と同一ロジックで解決し注入 (daemon の gitRoot/cwd 非依存)。

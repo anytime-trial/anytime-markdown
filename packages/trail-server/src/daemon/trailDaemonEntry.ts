@@ -285,12 +285,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     opts.gitRoot,
     opts.memoryDbPath,
     {
-      configPaths: {
-        commitCategories: opts.commitCategoriesPath,
-        toolCategories: opts.toolCategoriesPath,
-        skillCategories: opts.skillCategoriesPath,
-        metricsThresholds: opts.metricsThresholdsPath,
-      },
+      configPaths: opts.configPaths,
       defaultRepoName: opts.defaultRepoName,
       traceDir: opts.traceDir,
     },
