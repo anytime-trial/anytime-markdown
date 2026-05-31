@@ -105,6 +105,34 @@ describe('setupClaudeHooks', () => {
     expect(planCmd).not.toContain(`wr='${wrongWr}'`);
   });
 
+  test('commit-tracker / session-guard hooks anchor TRAIL_HOME at workspaceRoot (not cwd-relative)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace, '.anytime/trail/agent-status');
+
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const expectedEnv = `TRAIL_HOME='${tmpWorkspace}/.anytime/trail'`;
+
+    const commitTracker = settings.hooks.PostToolUse.find(
+      (e: { hooks: Array<{ command: string }> }) =>
+        e.hooks?.[0]?.command?.includes('commit-tracker.sh'),
+    );
+    expect(commitTracker).toBeDefined();
+    expect(commitTracker.hooks[0].command).toContain(expectedEnv);
+
+    const sessionGuard = settings.hooks.UserPromptSubmit.find(
+      (e: { hooks: Array<{ command: string }> }) =>
+        e.hooks?.[0]?.command?.includes('session-guard.sh'),
+    );
+    expect(sessionGuard).toBeDefined();
+    expect(sessionGuard.hooks[0].command).toContain(expectedEnv);
+
+    // cwd 相対のフォールバックが残っていないこと（${CWD} を含まない）
+    expect(commitTracker.hooks[0].command).not.toContain('${CWD}');
+    expect(sessionGuard.hooks[0].command).not.toContain('${CWD}');
+  });
+
   test('is idempotent: running twice does not duplicate hook entries', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace, '.anytime/trail/agent-status');

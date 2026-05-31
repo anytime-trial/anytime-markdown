@@ -239,6 +239,13 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, tra
   while (rootEnd > 0 && rawRoot.charCodeAt(rootEnd - 1) === 0x2f) rootEnd--;
   const workspaceRootForHook = rawRoot.slice(0, rootEnd) + '/';
 
+  // commit-tracker.sh / session-guard.sh は state ディレクトリを `${TRAIL_HOME:-${CWD}/.anytime/trail}`
+  // で決めるため、TRAIL_HOME 未指定だと Bash ツールの cwd 相対になり、サブパッケージで Bash を
+  // 実行するたびに packages/**/.anytime が散乱する。setup 時に確定する workspaceRoot を基点とした
+  // 絶対パスを TRAIL_HOME としてフックコマンドに前置し、agent-status と同じ「setup 時固定絶対パス」
+  // 方式に統一する（cwd 依存の散乱を根絶）。
+  const trailHome = workspaceRootForHook + '.anytime/trail';
+
   // stdin の JSON を読み取り、セッション履歴を保持しながらステータスファイルを更新する。
   // session_id がある場合は claude-code-status-{sessionId}.json に書き込む（マルチエージェント対応）。
   // session_id が空の場合は従来の claude-code-status.json に書き込む（後方互換）。
@@ -290,7 +297,7 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, tra
   settings.hooks.PostToolUse = removeHooksByMarker(settings.hooks.PostToolUse, 'commit-tracker.sh');
   settings.hooks.PostToolUse.push({
     matcher: 'Bash',
-    hooks: [{ type: 'command', command: 'bash ~/.claude/scripts/commit-tracker.sh', timeout: 5 }],
+    hooks: [{ type: 'command', command: `TRAIL_HOME='${trailHome}' bash ~/.claude/scripts/commit-tracker.sh`, timeout: 5 }],
   });
 
   // Stop hook: trail-token-budget.sh
@@ -302,7 +309,7 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, tra
   // UserPromptSubmit hook: session-guard.sh
   settings.hooks.UserPromptSubmit = removeHooksByMarker(settings.hooks.UserPromptSubmit, 'session-guard.sh');
   settings.hooks.UserPromptSubmit.push({
-    hooks: [{ type: 'command', command: 'bash ~/.claude/scripts/session-guard.sh', timeout: 5 }],
+    hooks: [{ type: 'command', command: `TRAIL_HOME='${trailHome}' bash ~/.claude/scripts/session-guard.sh`, timeout: 5 }],
   });
 
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
