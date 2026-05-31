@@ -28,14 +28,6 @@ export interface AnalyzePipelineCallbacks {
    * `notifyCodeGraphUpdated()` と対で呼ぶ。viewer はこの通知で C4 モデルを再 fetch する。
    */
   notifyModelUpdated(): void;
-  computeAndPersistImportance(
-    tsconfigPath: string,
-    exclude: import('ignore').Ignore | undefined,
-    program: import('typescript').Program,
-  ): Promise<{
-    scored: import('@anytime-markdown/trail-core/importance').ScoredFunction[];
-    lineCountByFile: ReadonlyMap<string, number>;
-  } | null>;
 }
 
 const ANALYZE_PHASES = [

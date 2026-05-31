@@ -54,5 +54,35 @@ export type AnalyzeChildMessage =
   | { readonly type: 'result'; readonly resultPath: string }
   | { readonly type: 'error'; readonly message: string; readonly stack?: string };
 
+/**
+ * 対話的ソース解析（exports/flowchart/sequence）の child 委譲リクエスト。
+ * daemon がファイル内容を読んで送り、child が createSourceFile + analyzer を実行する
+ * （typescript を daemon から排除するため）。型は loose（unknown）にして typescript を
+ * 静的に引かないようにする。実体は c4SourceAnalyze.ts が解釈する。
+ */
+export interface C4SourceFileInput {
+  readonly filePath: string;
+  readonly content: string;
+}
+
+export type C4SourceAnalyzeRequest =
+  | { readonly kind: 'exports'; readonly files: readonly C4SourceFileInput[]; readonly componentId: string }
+  | { readonly kind: 'flowchartControl'; readonly files: readonly C4SourceFileInput[]; readonly filePart: string; readonly funcName: string }
+  | { readonly kind: 'flowchartCall'; readonly files: readonly C4SourceFileInput[]; readonly symbolId: string }
+  | {
+      readonly kind: 'sequence';
+      readonly files: readonly C4SourceFileInput[];
+      readonly elementId: string;
+      readonly model: unknown;
+      readonly graph: TrailGraph;
+    };
+
+export type C4SourceAnalyzeResult =
+  | { readonly kind: 'exports'; readonly symbols: readonly unknown[] }
+  | { readonly kind: 'flowchart'; readonly graph: { readonly nodes: readonly unknown[]; readonly edges: readonly unknown[] } }
+  | { readonly kind: 'sequence'; readonly model: unknown };
+
 /** ホスト → 子 メッセージ */
-export type AnalyzeHostMessage = { readonly type: 'analyze'; readonly request: AnalyzeChildRequest };
+export type AnalyzeHostMessage =
+  | { readonly type: 'analyze'; readonly request: AnalyzeChildRequest }
+  | { readonly type: 'c4SourceAnalyze'; readonly request: C4SourceAnalyzeRequest };

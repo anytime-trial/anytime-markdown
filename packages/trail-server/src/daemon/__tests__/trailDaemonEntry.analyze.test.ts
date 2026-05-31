@@ -49,7 +49,6 @@ jest.mock('../../server/TrailDataServer', () => ({
     notifyCodeGraphUpdated: jest.fn(),
     notifyModelUpdated: jest.fn(),
     notifySessionsUpdated: jest.fn(),
-    computeAndPersistImportance: jest.fn(async () => null),
     // callback slots (M1: daemon が wire するプロパティ)
     onOpenDocLink: undefined as unknown,
     onOpenFile: undefined as unknown,

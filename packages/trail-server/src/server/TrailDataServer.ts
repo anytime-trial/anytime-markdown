@@ -46,6 +46,8 @@ import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality
 import type { Logger, LogLevel } from '../runtime/Logger';
 import type { CodeGraphService } from '../analyze/CodeGraphService';
 import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/AnalyzePipeline';
+import { runC4SourceAnalyze } from '../analyze/runC4SourceAnalyze';
+import type { C4SourceFileInput } from '../analyze/analyzeChildProtocol';
 import type { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
@@ -237,7 +239,6 @@ export class TrailDataServer {
   private getC4Provider: (() => C4DataProvider | undefined) | undefined;
   private lastClaudeActivity: { activeElementIds: readonly string[]; touchedElementIds: readonly string[]; plannedElementIds: readonly string[] } | undefined;
   private lastMultiAgentActivity: { agents: readonly import('./types').AgentActivityEntry[]; conflicts: readonly import('./types').FileConflict[] } | undefined;
-  private importanceComputing = false;
   /** /api/c4/call-hierarchy 用の隣接リストキャッシュ。current_graphs ロード後に lazy 構築し、graph 更新時に invalidate */
   private callHierarchyIndex: CallHierarchyIndex | null = null;
   private callHierarchyIndexRepo: string | undefined;
@@ -2727,32 +2728,6 @@ export class TrailDataServer {
     }
   }
 
-  async computeAndPersistImportance(
-    tsconfigPath: string,
-    exclude: import('ignore').Ignore | undefined,
-    /**
-     * `analyzeWithProgram` で構築済みの ts.Program。
-     * analyze() と完全に同じ対象ファイル集合で重要度計算を行うため必須。
-     */
-    program: import('typescript').Program,
-  ): Promise<{
-    scored: import('@anytime-markdown/trail-core/importance').ScoredFunction[];
-    lineCountByFile: ReadonlyMap<string, number>;
-  } | null> {
-    if (this.importanceComputing) return null;
-    this.importanceComputing = true;
-    try {
-      // importance 純粋計算は computeImportance に集約済み (子プロセス隔離と共有)。
-      const { computeImportance } = await import('../analyze/computeImportance.js');
-      return await computeImportance(tsconfigPath, exclude, program);
-    } catch (err) {
-      this.logger.error('[importance] computeImportance failed', err);
-      return null;
-    } finally {
-      this.importanceComputing = false;
-    }
-  }
-
   notifyMultiAgentActivity(agents: readonly import('./types').AgentActivityEntry[], conflicts: readonly import('./types').FileConflict[]): void {
     this.lastMultiAgentActivity = { agents, conflicts };
     if (this.clients.size === 0) return;
@@ -2801,11 +2776,43 @@ export class TrailDataServer {
     return { model, graph };
   }
 
+  /** analyze-child.js の絶対パス。対話的ソース解析（typescript）を child へ委譲するため使う。 */
+  private analyzeChildScriptPath(): string {
+    return path.join(this.distPath, 'analyze-child.js');
+  }
+
+  /**
+   * projectRoot 配下の code 要素ノードのソースを読み、`{filePath, content}[]` を返す。
+   * createSourceFile（typescript）は呼ばず、child へ渡すための内容収集のみ行う。
+   */
+  private readComponentSourceFiles(
+    graph: import('@anytime-markdown/trail-core').TrailGraph,
+    nodeFilter: (nodeId: string) => boolean,
+    logTag: string,
+  ): C4SourceFileInput[] {
+    const { projectRoot } = graph.metadata;
+    const normalizedRoot = projectRoot.endsWith(path.sep) ? projectRoot : `${projectRoot}${path.sep}`;
+    const files: C4SourceFileInput[] = [];
+    for (const node of graph.nodes) {
+      if (!nodeFilter(node.id)) continue;
+      const absolutePath = path.resolve(projectRoot, node.filePath);
+      if (!absolutePath.startsWith(normalizedRoot)) {
+        this.logger.warn(`[${logTag}] path traversal blocked: ${node.filePath}`);
+        continue;
+      }
+      try {
+        files.push({ filePath: node.filePath, content: fs.readFileSync(absolutePath, 'utf-8') });
+      } catch (e) {
+        this.logger.error(`[${logTag}] failed to read file: ${node.filePath}`, e);
+      }
+    }
+    return files;
+  }
+
   private async handleC4ExportsEndpoint(
     res: http.ServerResponse,
     componentId: string,
   ): Promise<void> {
-    const { ExportExtractor, createSourceFile } = await import('@anytime-markdown/trail-core/analyzer');
     try {
       const resolved = await this.resolveModelAndGraph();
 
@@ -2817,32 +2824,20 @@ export class TrailDataServer {
       }
 
       const { model, graph } = resolved;
-
-      const { projectRoot } = graph.metadata;
       const codeElementIds = new Set(
         model.elements
           .filter(el => el.type === 'code' && el.boundaryId === componentId)
           .map(el => el.id),
       );
+      const files = this.readComponentSourceFiles(graph, id => codeElementIds.has(id), '/api/c4/exports');
 
-      const normalizedRoot = projectRoot.endsWith(path.sep) ? projectRoot : `${projectRoot}${path.sep}`;
-      const sourceFiles = [];
-      for (const node of graph.nodes) {
-        if (!codeElementIds.has(node.id)) continue;
-        const absolutePath = path.resolve(projectRoot, node.filePath);
-        if (!absolutePath.startsWith(normalizedRoot)) {
-          this.logger.warn(`[/api/c4/exports] path traversal blocked: ${node.filePath}`);
-          continue;
-        }
-        try {
-          const content = fs.readFileSync(absolutePath, 'utf-8');
-          sourceFiles.push(createSourceFile(node.filePath, content));
-        } catch (e) {
-          this.logger.error(`[/api/c4/exports] failed to read file: ${node.filePath}`, e);
-        }
-      }
-
-      const symbols = ExportExtractor.extract(sourceFiles, componentId);
+      // createSourceFile + ExportExtractor は typescript 依存のため analyze-child へ委譲する。
+      const result = await runC4SourceAnalyze(this.analyzeChildScriptPath(), {
+        kind: 'exports',
+        files,
+        componentId,
+      });
+      const symbols = result.kind === 'exports' ? result.symbols : [];
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ symbols }));
     } catch (e) {
@@ -2856,7 +2851,6 @@ export class TrailDataServer {
     res: http.ServerResponse,
     elementId: string,
   ): Promise<void> {
-    const { ExportExtractor, createSourceFile } = await import('@anytime-markdown/trail-core/analyzer');
     try {
       if (!elementId) {
         res.writeHead(400, JSON_HEADERS);
@@ -2894,8 +2888,9 @@ export class TrailDataServer {
         res.end(JSON.stringify({ symbols: [] }));
         return;
       }
-      // Python は tree-sitter ベースの PythonExportExtractor、それ以外は TS の ExportExtractor。
-      let symbols: import('@anytime-markdown/trail-core/analyzer').ExportedSymbol[];
+      // Python は tree-sitter ベースの PythonExportExtractor（typescript 非依存、daemon 内で実行）、
+      // それ以外は TS の ExportExtractor を analyze-child へ委譲する。
+      let symbols: readonly unknown[];
       if (node.filePath.endsWith('.py')) {
         const { createPythonParser, PythonExportExtractor } = await import('@anytime-markdown/code-analysis-python');
         const parser = await createPythonParser(this.codeGraphService?.getPythonWasmPath());
@@ -2903,8 +2898,12 @@ export class TrailDataServer {
         symbols = tree ? PythonExportExtractor.extract(node.filePath, tree.rootNode) : [];
         tree?.delete();
       } else {
-        const sourceFile = createSourceFile(node.filePath, content);
-        symbols = ExportExtractor.extract([sourceFile], elementId);
+        const result = await runC4SourceAnalyze(this.analyzeChildScriptPath(), {
+          kind: 'exports',
+          files: [{ filePath: node.filePath, content }],
+          componentId: elementId,
+        });
+        symbols = result.kind === 'exports' ? result.symbols : [];
       }
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ symbols }));
@@ -2953,7 +2952,6 @@ export class TrailDataServer {
     symbolId: string,
     type: 'control' | 'call',
   ): Promise<void> {
-    const { FlowAnalyzer, createSourceFile, findFunctionNode } = await import('@anytime-markdown/trail-core/analyzer');
     const EMPTY_GRAPH = { nodes: [], edges: [] };
     try {
       const resolved = await this.resolveModelAndGraph();
@@ -2966,50 +2964,28 @@ export class TrailDataServer {
       }
 
       const { model, graph } = resolved;
-      const { projectRoot } = graph.metadata;
       const codeElementIds = new Set(
         model.elements
           .filter(el => el.type === 'code' && el.boundaryId === componentId)
           .map(el => el.id),
       );
+      const files = this.readComponentSourceFiles(graph, id => codeElementIds.has(id), '/api/c4/flowchart');
 
-      const normalizedFlowRoot = projectRoot.endsWith(path.sep) ? projectRoot : `${projectRoot}${path.sep}`;
-      const sourceFiles = [];
-      for (const node of graph.nodes) {
-        if (!codeElementIds.has(node.id)) continue;
-        const absolutePath = path.resolve(projectRoot, node.filePath);
-        if (!absolutePath.startsWith(normalizedFlowRoot)) {
-          this.logger.warn(`[/api/c4/flowchart] path traversal blocked: ${node.filePath}`);
-          continue;
-        }
-        try {
-          const content = fs.readFileSync(absolutePath, 'utf-8');
-          sourceFiles.push(createSourceFile(node.filePath, content));
-        } catch (e) {
-          this.logger.error(`[/api/c4/flowchart] failed to read file: ${node.filePath}`, e);
-        }
-      }
-
-      let flowGraph;
-      if (type === 'control') {
-        const filePart = symbolId.split('::')[0];
-        const funcName = symbolId.split('::').at(-1);
-        const targetSf = sourceFiles.find(sf => sf.fileName === filePart);
-        if (!targetSf || !funcName) {
-          res.writeHead(200, JSON_HEADERS);
-          res.end(JSON.stringify({ graph: EMPTY_GRAPH }));
-          return;
-        }
-        const funcNode = findFunctionNode(targetSf, funcName);
-        if (!funcNode) {
-          res.writeHead(200, JSON_HEADERS);
-          res.end(JSON.stringify({ graph: EMPTY_GRAPH }));
-          return;
-        }
-        flowGraph = FlowAnalyzer.buildControlFlow(targetSf, funcNode);
-      } else {
-        flowGraph = FlowAnalyzer.buildCallGraph(sourceFiles, symbolId);
-      }
+      // FlowAnalyzer / createSourceFile は typescript 依存のため analyze-child へ委譲する。
+      const result =
+        type === 'control'
+          ? await runC4SourceAnalyze(this.analyzeChildScriptPath(), {
+              kind: 'flowchartControl',
+              files,
+              filePart: symbolId.split('::')[0],
+              funcName: symbolId.split('::').at(-1) ?? '',
+            })
+          : await runC4SourceAnalyze(this.analyzeChildScriptPath(), {
+              kind: 'flowchartCall',
+              files,
+              symbolId,
+            });
+      const flowGraph = result.kind === 'flowchart' ? result.graph : EMPTY_GRAPH;
 
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ graph: flowGraph }));
@@ -3024,7 +3000,6 @@ export class TrailDataServer {
     res: http.ServerResponse,
     elementId: string,
   ): Promise<void> {
-    const { SequenceAnalyzer, createSourceFile } = await import('@anytime-markdown/trail-core/analyzer');
     const emptyModel = {
       version: 1 as const,
       rootElementId: elementId,
@@ -3047,7 +3022,6 @@ export class TrailDataServer {
       }
 
       const { model, graph } = resolved;
-      const { projectRoot } = graph.metadata;
 
       // 起点要素 + In/Out 関連要素配下の code 要素を全部対象にしてソースを読む
       const involvedComponentIds = new Set<string>([elementId]);
@@ -3060,25 +3034,17 @@ export class TrailDataServer {
           .filter(el => el.type === 'code' && el.boundaryId !== undefined && involvedComponentIds.has(el.boundaryId))
           .map(el => el.id),
       );
+      const files = this.readComponentSourceFiles(graph, id => codeElementIds.has(id), '/api/c4/sequence');
 
-      const normalizedRoot = projectRoot.endsWith(path.sep) ? projectRoot : `${projectRoot}${path.sep}`;
-      const sourceFiles = new Map<string, ReturnType<typeof createSourceFile>>();
-      for (const node of graph.nodes) {
-        if (!codeElementIds.has(node.id)) continue;
-        const absolutePath = path.resolve(projectRoot, node.filePath);
-        if (!absolutePath.startsWith(normalizedRoot)) {
-          this.logger.warn(`[/api/c4/sequence] path traversal blocked: ${node.filePath}`);
-          continue;
-        }
-        try {
-          const content = fs.readFileSync(absolutePath, 'utf-8');
-          sourceFiles.set(node.filePath, createSourceFile(node.filePath, content));
-        } catch (e) {
-          this.logger.error(`[/api/c4/sequence] failed to read file: ${node.filePath}`, e);
-        }
-      }
-
-      const sequenceModel = SequenceAnalyzer.build(elementId, model, graph, sourceFiles);
+      // SequenceAnalyzer / createSourceFile は typescript 依存のため analyze-child へ委譲する。
+      const result = await runC4SourceAnalyze(this.analyzeChildScriptPath(), {
+        kind: 'sequence',
+        files,
+        elementId,
+        model,
+        graph,
+      });
+      const sequenceModel = result.kind === 'sequence' ? result.model : emptyModel;
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(sequenceModel));
     } catch (e) {
