@@ -1,7 +1,7 @@
-import { Extension } from "@tiptap/core";
-import type { Node as PMNode } from "@tiptap/pm/model";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { Extension } from "@anytime-markdown/markdown-core";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
+import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
+import { Decoration, DecorationSet } from "@anytime-markdown/markdown-pm/view";
 
 import type { PlaceholderPosition } from "../utils/blockDiffComputation";
 
@@ -32,7 +32,7 @@ const RIGHT_BLOCK_STYLE = "background-color: rgba(46, 160, 67, 0.10); border-rad
 const LEFT_CELL_STYLE = "background-color: rgba(248, 81, 73, 0.18);";
 const RIGHT_CELL_STYLE = "background-color: rgba(46, 160, 67, 0.18);";
 
-declare module "@tiptap/core" {
+declare module "@anytime-markdown/markdown-core" {
   interface Commands<ReturnType> {
     diffHighlight: {
       setDiffHighlight: (

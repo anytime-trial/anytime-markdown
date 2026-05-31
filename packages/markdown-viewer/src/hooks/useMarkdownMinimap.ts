@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { getChangedPositions } from "../extensions/changeGutterExtension";

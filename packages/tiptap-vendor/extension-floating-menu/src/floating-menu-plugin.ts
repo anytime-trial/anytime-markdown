@@ -10,12 +10,12 @@ import {
   shift,
   size,
 } from '@floating-ui/dom'
-import type { Editor } from '@tiptap/core'
-import { getText, getTextSerializersFromSchema, posToDOMRect } from '@tiptap/core'
-import type { Node as ProsemirrorNode } from '@tiptap/pm/model'
-import type { EditorState, Transaction } from '@tiptap/pm/state'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
-import type { EditorView } from '@tiptap/pm/view'
+import type { Editor } from '@anytime-markdown/markdown-core'
+import { getText, getTextSerializersFromSchema, posToDOMRect } from '@anytime-markdown/markdown-core'
+import type { Node as ProsemirrorNode } from '@anytime-markdown/markdown-pm/model'
+import type { EditorState, Transaction } from '@anytime-markdown/markdown-pm/state'
+import { Plugin, PluginKey } from '@anytime-markdown/markdown-pm/state'
+import type { EditorView } from '@anytime-markdown/markdown-pm/view'
 
 export interface FloatingMenuPluginProps {
   /**

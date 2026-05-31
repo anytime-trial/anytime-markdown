@@ -1,7 +1,7 @@
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { getMarkdownFromEditor } from "../types";
 import { createTestEditor } from "../testUtils/createTestEditor";
-import { Editor } from "@tiptap/core";
+import { Editor } from "@anytime-markdown/markdown-core";
 
 describe("2行の空行ラウンドトリップ", () => {
   let editor: Editor;

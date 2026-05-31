@@ -1,11 +1,11 @@
-import { lift as originalLift } from '@tiptap/pm/commands'
-import type { NodeType } from '@tiptap/pm/model'
+import { lift as originalLift } from '@anytime-markdown/markdown-pm/commands'
+import type { NodeType } from '@anytime-markdown/markdown-pm/model'
 
 import { getNodeType } from '../helpers/getNodeType'
 import { isNodeActive } from '../helpers/isNodeActive'
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     lift: {
       /**

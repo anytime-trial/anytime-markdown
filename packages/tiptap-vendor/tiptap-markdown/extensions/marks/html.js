@@ -1,5 +1,5 @@
-import { Fragment } from "@tiptap/pm/model";
-import { getHTMLFromFragment, Mark } from "@tiptap/core";
+import { Fragment } from "@anytime-markdown/markdown-pm/model";
+import { getHTMLFromFragment, Mark } from "@anytime-markdown/markdown-core";
 
 
 export default Mark.create({

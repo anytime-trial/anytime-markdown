@@ -1,4 +1,4 @@
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 import { useState } from "react";
 
 import { getMergeEditors } from "../contexts/MergeEditorsContext";

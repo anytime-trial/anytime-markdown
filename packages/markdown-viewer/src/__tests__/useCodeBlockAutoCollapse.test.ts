@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { useCodeBlockAutoCollapse } from "../hooks/useCodeBlockAutoCollapse";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 
 // --- Helpers ---
 interface MockNode {

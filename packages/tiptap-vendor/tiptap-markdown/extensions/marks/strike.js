@@ -1,4 +1,4 @@
-import { Mark } from "@tiptap/core";
+import { Mark } from "@anytime-markdown/markdown-core";
 
 
 const Strike = Mark.create({

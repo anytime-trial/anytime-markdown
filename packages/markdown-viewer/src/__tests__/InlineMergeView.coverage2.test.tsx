@@ -48,7 +48,7 @@ const createMockLeftEditor = () => {
   };
 };
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditor: () => {
     mockLeftEditorInstance = createMockLeftEditor();
     return mockLeftEditorInstance;

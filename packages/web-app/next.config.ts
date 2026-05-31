@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 import withBundleAnalyzerInit from '@next/bundle-analyzer';
 import withSerwistInit from '@serwist/next';
 import createNextIntlPlugin from 'next-intl/plugin';
-// @tiptap/* → vendored ソースへの alias（共有ヘルパ）。webpack=next build 用 / Turbopack=dev 用。
+// @anytime-markdown/markdown-* → vendored ソースへの alias（共有ヘルパ）。webpack=next build 用 / Turbopack=dev 用。
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { buildWebpackAlias, buildTurbopackAlias } = require('../tiptap-vendor/alias.cjs');
 
@@ -41,7 +41,7 @@ const nextConfig: NextConfig = {
       },
     },
     resolveAlias: {
-      // @tiptap/* → vendored ソース（dev = Turbopack）
+      // @anytime-markdown/markdown-* → vendored ソース（dev = Turbopack）
       ...buildTurbopackAlias(process.cwd()),
       // sql.js (WASM) は Node 用 require('fs'/'path'/'crypto') を含むため
       // ブラウザバンドルでは noop に解決して dead code として除去する
@@ -90,7 +90,7 @@ const nextConfig: NextConfig = {
       test: /\.md$/,
       type: 'asset/source',
     });
-    // @tiptap/* → vendored ソース（next build = webpack）
+    // @anytime-markdown/markdown-* → vendored ソース（next build = webpack）
     config.resolve ??= {};
     config.resolve.alias = { ...(config.resolve.alias ?? {}), ...buildWebpackAlias() };
     // sql.js (WASM) は Node 用 fs/path/crypto API を持つため、ブラウザバンドルでは無効化

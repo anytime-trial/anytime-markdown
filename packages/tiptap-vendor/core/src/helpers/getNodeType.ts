@@ -1,4 +1,4 @@
-import type { NodeType, Schema } from '@tiptap/pm/model'
+import type { NodeType, Schema } from '@anytime-markdown/markdown-pm/model'
 
 export function getNodeType(nameOrType: string | NodeType, schema: Schema): NodeType {
   if (typeof nameOrType === 'string') {

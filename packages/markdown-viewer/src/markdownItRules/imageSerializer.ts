@@ -1,4 +1,4 @@
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
 
 export interface MarkdownSerializerLike {
   write(content: string): void;

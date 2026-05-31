@@ -7,8 +7,8 @@ import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
 import InsertLinkIcon from "@mui/icons-material/InsertLink";
 import StrikethroughSIcon from "@mui/icons-material/StrikethroughS";
 import { IconButton, Paper, Tooltip } from "@mui/material";
-import type { Editor } from "@tiptap/react";
-import { BubbleMenu } from "@tiptap/react/menus";
+import type { Editor } from "@anytime-markdown/markdown-react";
+import { BubbleMenu } from "@anytime-markdown/markdown-react/menus";
 import React from "react";
 
 import { modKey } from "../constants/shortcuts";

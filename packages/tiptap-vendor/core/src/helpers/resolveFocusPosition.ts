@@ -1,5 +1,5 @@
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-import { Selection, TextSelection } from '@tiptap/pm/state'
+import type { Node as ProseMirrorNode } from '@anytime-markdown/markdown-pm/model'
+import { Selection, TextSelection } from '@anytime-markdown/markdown-pm/state'
 
 import type { FocusPosition } from '../types'
 import { minMax } from '../utilities/minMax'

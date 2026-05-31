@@ -1,6 +1,6 @@
-import type { EditorState } from '@tiptap/pm/state'
-import { NodeSelection, TextSelection } from '@tiptap/pm/state'
-import { canSplit } from '@tiptap/pm/transform'
+import type { EditorState } from '@anytime-markdown/markdown-pm/state'
+import { NodeSelection, TextSelection } from '@anytime-markdown/markdown-pm/state'
+import { canSplit } from '@anytime-markdown/markdown-pm/transform'
 
 import { defaultBlockAt } from '../helpers/defaultBlockAt'
 import { getSplittedAttributes } from '../helpers/getSplittedAttributes'
@@ -16,7 +16,7 @@ function ensureMarks(state: EditorState, splittableMarks?: string[]) {
   }
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     splitBlock: {
       /**

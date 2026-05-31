@@ -1,8 +1,8 @@
-import type { ParentConfig } from '@tiptap/core'
-import { callOrReturn, Extension, getExtensionField } from '@tiptap/core'
-import { gapCursor } from '@tiptap/pm/gapcursor'
+import type { ParentConfig } from '@anytime-markdown/markdown-core'
+import { callOrReturn, Extension, getExtensionField } from '@anytime-markdown/markdown-core'
+import { gapCursor } from '@anytime-markdown/markdown-pm/gapcursor'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface NodeConfig<Options, Storage> {
     /**
      * A function to determine whether the gap cursor is allowed at the current position. Must return `true` or `false`.

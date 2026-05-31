@@ -1,4 +1,4 @@
-import type { EditorView } from "@tiptap/pm/view";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 import {
   findCellPosFromEvent,
   handleMouseDown,

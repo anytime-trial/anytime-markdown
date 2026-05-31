@@ -6,7 +6,7 @@ import {
   computeBlockDiff,
   DiffHighlight,
 } from "../extensions/diffHighlight";
-import type { Node as PMNode } from "@tiptap/pm/model";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 
 function mockNode(text: string, typeName: string, attrs: Record<string, unknown> = {}): PMNode {
   return {

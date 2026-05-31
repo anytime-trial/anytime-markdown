@@ -1,4 +1,4 @@
-import type { NodeType } from '@tiptap/pm/model'
+import type { NodeType } from '@anytime-markdown/markdown-pm/model'
 
 import type { InputRuleFinder } from '../InputRule'
 import { InputRule } from '../InputRule'

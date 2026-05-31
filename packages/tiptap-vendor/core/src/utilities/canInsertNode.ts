@@ -1,5 +1,5 @@
-import type { NodeType } from '@tiptap/pm/model'
-import { type EditorState, NodeSelection } from '@tiptap/pm/state'
+import type { NodeType } from '@anytime-markdown/markdown-pm/model'
+import { type EditorState, NodeSelection } from '@anytime-markdown/markdown-pm/state'
 
 export function canInsertNode(state: EditorState, nodeType: NodeType): boolean {
   const { selection } = state

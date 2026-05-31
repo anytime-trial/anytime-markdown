@@ -1,6 +1,6 @@
-import { BulletList } from '@tiptap/extension-list'
+import { BulletList } from '@anytime-markdown/markdown-extension-list'
 
-export type { BulletListOptions } from '@tiptap/extension-list'
-export { BulletList } from '@tiptap/extension-list'
+export type { BulletListOptions } from '@anytime-markdown/markdown-extension-list'
+export { BulletList } from '@anytime-markdown/markdown-extension-list'
 
 export default BulletList

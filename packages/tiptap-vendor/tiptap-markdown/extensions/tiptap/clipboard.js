@@ -1,6 +1,6 @@
-import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey } from '@tiptap/pm/state';
-import { DOMParser } from '@tiptap/pm/model';
+import { Extension } from "@anytime-markdown/markdown-core";
+import { Plugin, PluginKey } from '@anytime-markdown/markdown-pm/state';
+import { DOMParser } from '@anytime-markdown/markdown-pm/model';
 import { elementFromString } from "../../util/dom";
 
 export const MarkdownClipboard = Extension.create({

@@ -1,4 +1,4 @@
-import type { Fragment, Node as ProsemirrorNode, Schema } from '@tiptap/pm/model'
+import type { Fragment, Node as ProsemirrorNode, Schema } from '@anytime-markdown/markdown-pm/model'
 
 import { createCell } from './createCell'
 import { getTableNodeTypes } from './getTableNodeTypes'

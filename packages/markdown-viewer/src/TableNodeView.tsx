@@ -10,9 +10,9 @@ import TableChartIcon from "@mui/icons-material/TableChart";
 import TableRowsIcon from "@mui/icons-material/TableRows";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Divider, Paper, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme } from "@mui/material";
-import type { Fragment } from "@tiptap/pm/model";
-import type { Editor, NodeViewProps } from "@tiptap/react";
-import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
+import type { Fragment } from "@anytime-markdown/markdown-pm/model";
+import type { Editor, NodeViewProps } from "@anytime-markdown/markdown-react";
+import { NodeViewContent, NodeViewWrapper } from "@anytime-markdown/markdown-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";

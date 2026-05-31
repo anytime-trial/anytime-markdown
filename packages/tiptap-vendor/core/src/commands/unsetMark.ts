@@ -1,10 +1,10 @@
-import type { MarkType } from '@tiptap/pm/model'
+import type { MarkType } from '@anytime-markdown/markdown-pm/model'
 
 import { getMarkRange } from '../helpers/getMarkRange'
 import { getMarkType } from '../helpers/getMarkType'
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     unsetMark: {
       /**

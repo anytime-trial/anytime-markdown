@@ -1,5 +1,5 @@
-import { Extension } from '@tiptap/core'
-import { dropCursor } from '@tiptap/pm/dropcursor'
+import { Extension } from '@anytime-markdown/markdown-core'
+import { dropCursor } from '@anytime-markdown/markdown-pm/dropcursor'
 
 export interface DropcursorOptions {
   /**

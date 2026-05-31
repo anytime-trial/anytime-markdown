@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import type { RefObject } from "react";
 import { useEffect,useState } from "react";
 

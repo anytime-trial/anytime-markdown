@@ -1,4 +1,4 @@
-// @tiptap/* 名 → vendored ソース絶対パスの単一マッピング源。
+// @anytime-markdown/markdown-* 名 → vendored ソース絶対パスの単一マッピング源。
 // jest(moduleNameMapper) / webpack(resolve.alias) / Turbopack(resolveAlias) の各アダプタ、
 // および jest transform を生成し、consumer 間の定義 drift を防ぐ。
 // tsconfig paths は glob 対応のため各 tsconfig に手書きする（本ファイルがその同期元）。
@@ -11,25 +11,25 @@ const VENDOR = __dirname;
 // placeholder は extensions/ 配下、task-* は extension-list/ 配下と umbrella 構造のため、
 // 独立フォルダを持つ他 extension と違い named export しか持たない。default を _shims で補う。
 const SHIM_OVERRIDES = {
-	"@tiptap/extension-placeholder": "_shims/extension-placeholder.ts",
-	"@tiptap/extension-task-item": "_shims/extension-task-item.ts",
-	"@tiptap/extension-task-list": "_shims/extension-task-list.ts",
+	"@anytime-markdown/markdown-extension-placeholder": "_shims/extension-placeholder.ts",
+	"@anytime-markdown/markdown-extension-task-item": "_shims/extension-task-item.ts",
+	"@anytime-markdown/markdown-extension-task-list": "_shims/extension-task-list.ts",
 };
 
 function computeAliasEntries(vendorDir) {
 	const entries = [];
 	const add = (request, rel) => entries.push({ request, target: path.join(vendorDir, rel) });
 
-	add("@tiptap/core", "core/src/index.ts");
-	// JSX automatic runtime（pragma @jsxImportSource @tiptap/core）。jsx-runtime.ts は jsx/jsxs/jsxDEV/Fragment を全て export
-	add("@tiptap/core/jsx-runtime", "core/src/jsx-runtime.ts");
-	add("@tiptap/core/jsx-dev-runtime", "core/src/jsx-runtime.ts");
-	add("@tiptap/react", "react/src/index.ts");
-	add("@tiptap/react/menus", "react/src/menus/index.ts");
-	add("@tiptap/starter-kit", "starter-kit/src/index.ts");
+	add("@anytime-markdown/markdown-core", "core/src/index.ts");
+	// JSX automatic runtime（pragma @jsxImportSource @anytime-markdown/markdown-core）。jsx-runtime.ts は jsx/jsxs/jsxDEV/Fragment を全て export
+	add("@anytime-markdown/markdown-core/jsx-runtime", "core/src/jsx-runtime.ts");
+	add("@anytime-markdown/markdown-core/jsx-dev-runtime", "core/src/jsx-runtime.ts");
+	add("@anytime-markdown/markdown-react", "react/src/index.ts");
+	add("@anytime-markdown/markdown-react/menus", "react/src/menus/index.ts");
+	add("@anytime-markdown/markdown-starter-kit", "starter-kit/src/index.ts");
 	// extensions umbrella（starter-kit が Dropcursor/Gapcursor/TrailingNode/UndoRedo を値 import）
-	add("@tiptap/extensions", "extensions/src/index.ts");
-	add("tiptap-markdown", "tiptap-markdown/index.js");
+	add("@anytime-markdown/markdown-extensions", "extensions/src/index.ts");
+	add("@anytime-markdown/markdown-md", "tiptap-markdown/index.js");
 
 	// umbrella シムを先に登録し、後段の extension-* スキャンでは重複追加しない
 	for (const [request, rel] of Object.entries(SHIM_OVERRIDES)) add(request, rel);
@@ -38,16 +38,16 @@ function computeAliasEntries(vendorDir) {
 	// pm subpath: prosemirror 再export を持つ各サブディレクトリ
 	for (const ent of fs.readdirSync(path.join(vendorDir, "pm"), { withFileTypes: true })) {
 		if (ent.isDirectory() && fs.existsSync(path.join(vendorDir, "pm", ent.name, "index.ts"))) {
-			add(`@tiptap/pm/${ent.name}`, `pm/${ent.name}/index.ts`);
+			add(`@anytime-markdown/markdown-pm/${ent.name}`, `pm/${ent.name}/index.ts`);
 		}
 	}
 
 	// extension-*（1:1 フォルダ）。シム済みは除外
 	for (const ent of fs.readdirSync(vendorDir, { withFileTypes: true })) {
 		if (!ent.isDirectory() || !ent.name.startsWith("extension-")) continue;
-		if (shimmed.has(`@tiptap/${ent.name}`)) continue;
+		if (shimmed.has(`@anytime-markdown/markdown-${ent.name}`)) continue;
 		if (fs.existsSync(path.join(vendorDir, ent.name, "src/index.ts"))) {
-			add(`@tiptap/${ent.name}`, `${ent.name}/src/index.ts`);
+			add(`@anytime-markdown/markdown-${ent.name}`, `${ent.name}/src/index.ts`);
 		}
 	}
 	return entries;

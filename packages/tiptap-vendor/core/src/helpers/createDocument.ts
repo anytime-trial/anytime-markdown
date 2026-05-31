@@ -1,4 +1,4 @@
-import type { Fragment, Node as ProseMirrorNode, ParseOptions, Schema } from '@tiptap/pm/model'
+import type { Fragment, Node as ProseMirrorNode, ParseOptions, Schema } from '@anytime-markdown/markdown-pm/model'
 
 import type { Content } from '../types'
 import { createNodeFromContent } from './createNodeFromContent'

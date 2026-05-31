@@ -1,4 +1,4 @@
-import type { Fragment, Node as ProseMirrorNode, ParseOptions } from '@tiptap/pm/model'
+import type { Fragment, Node as ProseMirrorNode, ParseOptions } from '@anytime-markdown/markdown-pm/model'
 
 import { createDocument } from '../helpers/createDocument'
 import type { Content, RawCommands } from '../types'
@@ -22,7 +22,7 @@ export interface SetContentOptions {
   emitUpdate?: boolean
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     setContent: {
       /**

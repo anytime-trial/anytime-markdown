@@ -1,7 +1,7 @@
 import { getMarkdownFromEditor } from "../types";
 import { createTestEditor } from "../testUtils/createTestEditor";
 import { applyMarkdownToEditor, setTrailingNewline } from "../utils/editorContentLoader";
-import type { Editor } from "@tiptap/core";
+import type { Editor } from "@anytime-markdown/markdown-core";
 
 describe("末尾改行テスト", () => {
   let editor: Editor;

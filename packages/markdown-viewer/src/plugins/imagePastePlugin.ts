@@ -1,5 +1,5 @@
-import { Plugin, PluginKey } from "@tiptap/pm/state";
-import type { EditorView } from "@tiptap/pm/view";
+import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
 async function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise<string>((resolve, reject) => {

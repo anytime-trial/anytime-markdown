@@ -4,7 +4,7 @@
  */
 import { renderHook } from "@testing-library/react";
 import { useBlockCapture, saveBlob } from "../hooks/useBlockCapture";
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 
 // clipboardHelpers のモック
 jest.mock("../utils/clipboardHelpers", () => ({

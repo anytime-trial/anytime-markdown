@@ -14,17 +14,17 @@
 		"lib": ["ES2023", "DOM", "DOM.Iterable"],
 		"baseUrl": ".",
 		"paths": {
-			"@tiptap/core": ["./core/src/index.ts"],
-			"@tiptap/core/*": ["./core/src/*"],
-			"@tiptap/react": ["./react/src/index.ts"],
-			"@tiptap/react/*": ["./react/src/*"],
-			"@tiptap/pm/*": ["./pm/*/index.ts"],
-			"@tiptap/starter-kit": ["./starter-kit/src/index.ts"],
-			"@tiptap/extensions": ["./extensions/src/index.ts"],
-			"@tiptap/extension-placeholder": ["./_shims/extension-placeholder.ts"],
-			"@tiptap/extension-task-item": ["./_shims/extension-task-item.ts"],
-			"@tiptap/extension-task-list": ["./_shims/extension-task-list.ts"],
-			"@tiptap/extension-*": ["./extension-*/src/index.ts"]
+			"@anytime-markdown/markdown-core": ["./core/src/index.ts"],
+			"@anytime-markdown/markdown-core/*": ["./core/src/*"],
+			"@anytime-markdown/markdown-react": ["./react/src/index.ts"],
+			"@anytime-markdown/markdown-react/*": ["./react/src/*"],
+			"@anytime-markdown/markdown-pm/*": ["./pm/*/index.ts"],
+			"@anytime-markdown/markdown-starter-kit": ["./starter-kit/src/index.ts"],
+			"@anytime-markdown/markdown-extensions": ["./extensions/src/index.ts"],
+			"@anytime-markdown/markdown-extension-placeholder": ["./_shims/extension-placeholder.ts"],
+			"@anytime-markdown/markdown-extension-task-item": ["./_shims/extension-task-item.ts"],
+			"@anytime-markdown/markdown-extension-task-list": ["./_shims/extension-task-list.ts"],
+			"@anytime-markdown/markdown-extension-*": ["./extension-*/src/index.ts"]
 		}
 	},
 	"include": [
@@ -37,5 +37,5 @@
 		"starter-kit/src/**/*",
 		"_shims/*.ts"
 	],
-	"exclude": ["tiptap-markdown", "**/__tests__/**", "dist"]
+	"exclude": ["@anytime-markdown/markdown-md", "**/__tests__/**", "dist"]
 }

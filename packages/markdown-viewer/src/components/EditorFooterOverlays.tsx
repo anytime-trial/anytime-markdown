@@ -5,8 +5,8 @@ import {
   Snackbar,
   Typography,
 } from "@mui/material";
-import type { Editor } from "@tiptap/react";
-import { EditorContent } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
+import { EditorContent } from "@anytime-markdown/markdown-react";
 import { createPortal } from "react-dom";
 
 import type { MarkdownTemplate } from "../constants/templates";

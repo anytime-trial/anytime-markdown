@@ -1,5 +1,5 @@
 {
-  "name": "@tiptap/extension-italic",
+  "name": "@anytime-markdown/markdown-extension-italic",
   "description": "italic extension for tiptap",
   "version": "3.20.0",
   "homepage": "https://tiptap.dev",
@@ -31,10 +31,10 @@
     "dist"
   ],
   "devDependencies": {
-    "@tiptap/core": "workspace:^"
+    "@anytime-markdown/markdown-core": "workspace:^"
   },
   "peerDependencies": {
-    "@tiptap/core": "workspace:^"
+    "@anytime-markdown/markdown-core": "workspace:^"
   },
   "repository": {
     "type": "git",

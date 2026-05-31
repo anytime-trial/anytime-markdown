@@ -1,8 +1,8 @@
-import { TextSelection } from '@tiptap/pm/state'
+import { TextSelection } from '@anytime-markdown/markdown-pm/state'
 
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     cut: {
       /**

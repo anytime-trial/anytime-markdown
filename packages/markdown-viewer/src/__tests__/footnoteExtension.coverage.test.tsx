@@ -3,8 +3,8 @@
  * Targets: lines 21-25 (FootnoteRefView component), lines 88-91 (InputRule handler)
  */
 
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
 import { FootnoteRef } from "../extensions/footnoteExtension";
 
 jest.mock("../constants/colors", () => ({

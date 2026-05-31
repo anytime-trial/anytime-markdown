@@ -1,6 +1,6 @@
-import { OrderedList } from '@tiptap/extension-list'
+import { OrderedList } from '@anytime-markdown/markdown-extension-list'
 
-export type { OrderedListOptions } from '@tiptap/extension-list'
-export { OrderedList } from '@tiptap/extension-list'
+export type { OrderedListOptions } from '@anytime-markdown/markdown-extension-list'
+export { OrderedList } from '@anytime-markdown/markdown-extension-list'
 
 export default OrderedList

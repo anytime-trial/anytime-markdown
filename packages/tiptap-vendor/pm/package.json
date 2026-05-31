@@ -1,5 +1,5 @@
 {
-  "name": "@tiptap/pm",
+  "name": "@anytime-markdown/markdown-pm",
   "description": "prosemirror wrapper package for tiptap",
   "version": "3.20.0",
   "homepage": "https://tiptap.dev",

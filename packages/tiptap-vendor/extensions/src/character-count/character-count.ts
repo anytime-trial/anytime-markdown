@@ -1,6 +1,6 @@
-import { Extension } from '@tiptap/core'
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Extension } from '@anytime-markdown/markdown-core'
+import type { Node as ProseMirrorNode } from '@anytime-markdown/markdown-pm/model'
+import { Plugin, PluginKey } from '@anytime-markdown/markdown-pm/state'
 
 export interface CharacterCountOptions {
   /**
@@ -47,7 +47,7 @@ export interface CharacterCountStorage {
   words: (options?: { node?: ProseMirrorNode }) => number
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Storage {
     characterCount: CharacterCountStorage
   }

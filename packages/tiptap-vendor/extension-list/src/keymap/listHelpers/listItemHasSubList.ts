@@ -1,6 +1,6 @@
-import { getNodeType } from '@tiptap/core'
-import type { Node } from '@tiptap/pm/model'
-import type { EditorState } from '@tiptap/pm/state'
+import { getNodeType } from '@anytime-markdown/markdown-core'
+import type { Node } from '@anytime-markdown/markdown-pm/model'
+import type { EditorState } from '@anytime-markdown/markdown-pm/state'
 
 export const listItemHasSubList = (typeOrName: string, state: EditorState, node?: Node) => {
   if (!node) {

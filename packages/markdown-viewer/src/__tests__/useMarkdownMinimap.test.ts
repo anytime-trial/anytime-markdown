@@ -80,7 +80,7 @@ describe("useMarkdownMinimap", () => {
     mockGetChangedPositions.mockReturnValue([]);
     const editor = makeEditor([]);
     const { result } = renderHook(() =>
-      useMarkdownMinimap(editor as unknown as import("@tiptap/react").Editor),
+      useMarkdownMinimap(editor as unknown as import("@anytime-markdown/markdown-react").Editor),
     );
     expect(result.current.markerRatios).toEqual([]);
     expect(result.current.hasChanges).toBe(false);
@@ -94,7 +94,7 @@ describe("useMarkdownMinimap", () => {
   it("handleBarClick は比率に応じて scrollTo を呼ぶ", () => {
     const editor = makeEditor();
     const { result } = renderHook(() =>
-      useMarkdownMinimap(editor as unknown as import("@tiptap/react").Editor),
+      useMarkdownMinimap(editor as unknown as import("@anytime-markdown/markdown-react").Editor),
     );
     act(() => {
       result.current.handleBarClick(0.5);
@@ -108,7 +108,7 @@ describe("useMarkdownMinimap", () => {
   it("goToNext は editor.commands.goToNextChange を呼ぶ", () => {
     const editor = makeEditor();
     const { result } = renderHook(() =>
-      useMarkdownMinimap(editor as unknown as import("@tiptap/react").Editor),
+      useMarkdownMinimap(editor as unknown as import("@anytime-markdown/markdown-react").Editor),
     );
     act(() => { result.current.goToNext(); });
     expect(editor.commands.goToNextChange).toHaveBeenCalledTimes(1);
@@ -117,7 +117,7 @@ describe("useMarkdownMinimap", () => {
   it("goToPrev は editor.commands.goToPrevChange を呼ぶ", () => {
     const editor = makeEditor();
     const { result } = renderHook(() =>
-      useMarkdownMinimap(editor as unknown as import("@tiptap/react").Editor),
+      useMarkdownMinimap(editor as unknown as import("@anytime-markdown/markdown-react").Editor),
     );
     act(() => { result.current.goToPrev(); });
     expect(editor.commands.goToPrevChange).toHaveBeenCalledTimes(1);

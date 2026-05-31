@@ -1,5 +1,5 @@
-import HardBreak from "@tiptap/extension-hard-break";
-import type { Node as PMNode } from "@tiptap/pm/model";
+import HardBreak from "@anytime-markdown/markdown-extension-hard-break";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 
 import type { MdSerializerState } from "../types";
 

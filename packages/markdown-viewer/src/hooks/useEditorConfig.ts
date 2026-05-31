@@ -1,5 +1,5 @@
-import Placeholder from "@tiptap/extension-placeholder";
-import type { AnyExtension, Editor } from "@tiptap/react";
+import Placeholder from "@anytime-markdown/markdown-extension-placeholder";
+import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
 import type { RefObject } from "react";
 import { useEffect } from "react";
 

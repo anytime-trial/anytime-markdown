@@ -1,4 +1,4 @@
-import type { MarkType, NodeType } from '@tiptap/pm/model'
+import type { MarkType, NodeType } from '@anytime-markdown/markdown-pm/model'
 
 import { getMarkType } from '../helpers/getMarkType'
 import { getNodeType } from '../helpers/getNodeType'
@@ -6,7 +6,7 @@ import { getSchemaTypeNameByName } from '../helpers/getSchemaTypeNameByName'
 import type { RawCommands } from '../types'
 import { deleteProps } from '../utilities/deleteProps'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     resetAttributes: {
       /**

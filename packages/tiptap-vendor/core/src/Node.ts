@@ -1,4 +1,4 @@
-import type { DOMOutputSpec, Node as ProseMirrorNode, NodeSpec, NodeType } from '@tiptap/pm/model'
+import type { DOMOutputSpec, Node as ProseMirrorNode, NodeSpec, NodeType } from '@anytime-markdown/markdown-pm/model'
 
 import type { Editor } from './Editor'
 import type { ExtendableConfig } from './Extendable'

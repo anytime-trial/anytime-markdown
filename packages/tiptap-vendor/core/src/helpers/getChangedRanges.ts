@@ -1,4 +1,4 @@
-import type { Step, Transform } from '@tiptap/pm/transform'
+import type { Step, Transform } from '@anytime-markdown/markdown-pm/transform'
 
 import type { Range } from '../types'
 import { removeDuplicates } from '../utilities/removeDuplicates'

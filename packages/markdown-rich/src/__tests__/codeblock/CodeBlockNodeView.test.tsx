@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 
 // --- Mocks ---
 let mockIsSelected = false;
@@ -11,7 +11,7 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     usePlantUmlToolbar: () => ({ setSampleAnchorEl: jest.fn() }),
 }));
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   NodeViewWrapper: ({ children }: React.PropsWithChildren) => <div data-testid="node-view-wrapper">{children}</div>,
   NodeViewContent: () => <code data-testid="node-view-content" />,
   useEditorState: () => mockIsSelected,

@@ -3,7 +3,7 @@ import * as path from "path";
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { getMarkdownFromEditor } from "../types";
 import { createTestEditor } from "../testUtils/createTestEditor";
-import { Editor } from "@tiptap/core";
+import { Editor } from "@anytime-markdown/markdown-core";
 import { parseFrontmatter, prependFrontmatter } from "../utils/frontmatterHelpers";
 
 // ---------- ラウンドトリップ: markdown → Editor → markdown ----------

@@ -1,7 +1,7 @@
-import type { Editor } from '@tiptap/core'
-import { getAttributes } from '@tiptap/core'
-import type { MarkType } from '@tiptap/pm/model'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import type { Editor } from '@anytime-markdown/markdown-core'
+import { getAttributes } from '@anytime-markdown/markdown-core'
+import type { MarkType } from '@anytime-markdown/markdown-pm/model'
+import { Plugin, PluginKey } from '@anytime-markdown/markdown-pm/state'
 
 type ClickHandlerOptions = {
   type: MarkType

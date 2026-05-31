@@ -1,4 +1,4 @@
-import type { Node as PMNode } from "@tiptap/pm/model";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 
 // --- Block diff computation ---
 

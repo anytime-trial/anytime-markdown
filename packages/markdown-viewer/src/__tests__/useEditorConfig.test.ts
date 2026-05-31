@@ -11,7 +11,7 @@ jest.mock("../editorExtensions", () => ({
   getBaseExtensions: jest.fn().mockReturnValue([]),
 }));
 
-jest.mock("@tiptap/extension-placeholder", () => ({
+jest.mock("@anytime-markdown/markdown-extension-placeholder", () => ({
   __esModule: true,
   default: { configure: jest.fn().mockReturnValue({ name: "placeholder" }) },
 }));

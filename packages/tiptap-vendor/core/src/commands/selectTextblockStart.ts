@@ -1,10 +1,10 @@
 // @ts-ignore
 // TODO: add types to @types/prosemirror-commands
-import { selectTextblockStart as originalSelectTextblockStart } from '@tiptap/pm/commands'
+import { selectTextblockStart as originalSelectTextblockStart } from '@anytime-markdown/markdown-pm/commands'
 
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     selectTextblockStart: {
       /**

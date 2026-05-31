@@ -1,4 +1,4 @@
-import type { DOMOutputSpec, Node as ProseMirrorNode } from '@tiptap/pm/model'
+import type { DOMOutputSpec, Node as ProseMirrorNode } from '@anytime-markdown/markdown-pm/model'
 
 import { getColStyleDeclaration } from './colStyle'
 

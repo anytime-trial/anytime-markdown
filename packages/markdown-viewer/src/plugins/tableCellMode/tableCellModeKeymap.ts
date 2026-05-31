@@ -1,6 +1,6 @@
-import { TextSelection } from "@tiptap/pm/state";
-import type { EditorView } from "@tiptap/pm/view";
-import { TableMap } from "@tiptap/pm/tables";
+import { TextSelection } from "@anytime-markdown/markdown-pm/state";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
+import { TableMap } from "@anytime-markdown/markdown-pm/tables";
 
 import { isInlineTable } from "./tableCellModeMouse";
 import {

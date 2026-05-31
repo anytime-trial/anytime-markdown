@@ -1,11 +1,11 @@
-import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { Extension } from "@anytime-markdown/markdown-core";
+import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
+import { Decoration, DecorationSet } from "@anytime-markdown/markdown-pm/view";
 
 export const headingNumberPluginKey = new PluginKey("headingNumber");
 
 function buildNumberDecorations(
-  doc: import("@tiptap/pm/model").Node,
+  doc: import("@anytime-markdown/markdown-pm/model").Node,
   mode: "on" | "off",
 ): DecorationSet {
   if (mode === "off") return DecorationSet.empty;
@@ -39,7 +39,7 @@ function buildNumberDecorations(
 
 type HeadingNumberMode = "on" | "off";
 
-declare module "@tiptap/core" {
+declare module "@anytime-markdown/markdown-core" {
   interface Commands<ReturnType> {
     headingNumber: {
       setShowHeadingNumbers: (mode: HeadingNumberMode) => ReturnType;

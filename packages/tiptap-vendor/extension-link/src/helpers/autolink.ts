@@ -1,7 +1,7 @@
-import type { NodeWithPos } from '@tiptap/core'
-import { combineTransactionSteps, findChildrenInRange, getChangedRanges, getMarksBetween } from '@tiptap/core'
-import type { MarkType } from '@tiptap/pm/model'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import type { NodeWithPos } from '@anytime-markdown/markdown-core'
+import { combineTransactionSteps, findChildrenInRange, getChangedRanges, getMarksBetween } from '@anytime-markdown/markdown-core'
+import type { MarkType } from '@anytime-markdown/markdown-pm/model'
+import { Plugin, PluginKey } from '@anytime-markdown/markdown-pm/state'
 import type { MultiToken } from 'linkifyjs'
 import { tokenize } from 'linkifyjs'
 

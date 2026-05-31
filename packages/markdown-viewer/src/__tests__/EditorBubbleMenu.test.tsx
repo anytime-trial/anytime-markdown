@@ -5,7 +5,7 @@ import React from "react";
 import { render } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-jest.mock("@tiptap/react/menus", () => ({
+jest.mock("@anytime-markdown/markdown-react/menus", () => ({
   BubbleMenu: ({ children }: any) => <div data-testid="bubble-menu">{children}</div>,
 }));
 

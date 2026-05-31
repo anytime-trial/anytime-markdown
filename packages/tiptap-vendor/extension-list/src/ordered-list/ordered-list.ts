@@ -1,4 +1,4 @@
-import { mergeAttributes, Node, wrappingInputRule } from '@tiptap/core'
+import { mergeAttributes, Node, wrappingInputRule } from '@anytime-markdown/markdown-core'
 
 import { buildNestedStructure, collectOrderedListItems, parseListItems } from './utils'
 
@@ -35,7 +35,7 @@ export interface OrderedListOptions {
   keepAttributes: boolean
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     orderedList: {
       /**

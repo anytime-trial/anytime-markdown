@@ -9,7 +9,7 @@ import {
   type BlockDiffResult,
   type PlaceholderPosition,
 } from "../extensions/diffHighlight";
-import type { Node as PMNode } from "@tiptap/pm/model";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 
 // --- helper: PMNode-like mock ---
 function mockNode(text: string, typeName: string, attrs: Record<string, unknown> = {}): PMNode {
@@ -225,8 +225,8 @@ describe("PlaceholderPosition type", () => {
 });
 
 // --- DiffHighlight Extension integration tests ---
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
 
 function createEditorWithDiffHighlight(content = ""): Editor {
   return new Editor({

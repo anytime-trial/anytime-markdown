@@ -1,6 +1,6 @@
-import type { Editor } from "@tiptap/core";
-import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import type { Editor } from "@anytime-markdown/markdown-core";
+import { Extension } from "@anytime-markdown/markdown-core";
+import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
 
 /** Type-safe accessor for ReviewModeExtension storage */
 export function reviewModeStorage(editor: Editor): { enabled: boolean } {

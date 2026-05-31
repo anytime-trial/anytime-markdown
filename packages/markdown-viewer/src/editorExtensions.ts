@@ -4,19 +4,19 @@
  * メインエディタと比較エディタで共有する Extension リストを一元管理する。
  * エディタ固有の Extension（検索、削除行ショートカット等）は各エディタで追加する。
  */
-import type { AnyExtension, Editor } from "@tiptap/core";
-import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
-import Highlight from "@tiptap/extension-highlight";
-import LinkExtension from "@tiptap/extension-link";
-import { TableKit } from "@tiptap/extension-table";
-import TaskItem from "@tiptap/extension-task-item";
-import TaskList from "@tiptap/extension-task-list";
-import Underline from "@tiptap/extension-underline";
-import { Fragment } from "@tiptap/pm/model";
-import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
-import { Extension, type Extensions } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import { Markdown } from "tiptap-markdown";
+import type { AnyExtension, Editor } from "@anytime-markdown/markdown-core";
+import { CodeBlockLowlight } from "@anytime-markdown/markdown-extension-code-block-lowlight";
+import Highlight from "@anytime-markdown/markdown-extension-highlight";
+import LinkExtension from "@anytime-markdown/markdown-extension-link";
+import { TableKit } from "@anytime-markdown/markdown-extension-table";
+import TaskItem from "@anytime-markdown/markdown-extension-task-item";
+import TaskList from "@anytime-markdown/markdown-extension-task-list";
+import Underline from "@anytime-markdown/markdown-extension-underline";
+import { Fragment } from "@anytime-markdown/markdown-pm/model";
+import { Plugin, PluginKey, TextSelection } from "@anytime-markdown/markdown-pm/state";
+import { Extension, type Extensions } from "@anytime-markdown/markdown-react";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
+import { Markdown } from "@anytime-markdown/markdown-md";
 
 import { AdmonitionBlockquote } from "./extensions/admonitionExtension";
 import { BlockGapCursorExtension } from "./extensions/blockGapCursorExtension";
@@ -84,7 +84,7 @@ const ListTextCleanup = Extension.create({
         key: new PluginKey("listTextCleanup"),
         appendTransaction(transactions, _oldState, newState) {
           if (!transactions.some((tr) => tr.docChanged)) return null;
-          const changes: { from: number; to: number; text: string; marks: readonly import("@tiptap/pm/model").Mark[] }[] = [];
+          const changes: { from: number; to: number; text: string; marks: readonly import("@anytime-markdown/markdown-pm/model").Mark[] }[] = [];
           newState.doc.descendants((node, pos) => {
             if (!node.isText || !node.text?.endsWith("\n")) return;
             const $pos = newState.doc.resolve(pos);

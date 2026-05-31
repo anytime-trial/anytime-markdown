@@ -27,7 +27,7 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     getMergeEditors: () => null,
 }));
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditorState: jest.fn(() => mockIsEditable),
 }));
 

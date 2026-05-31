@@ -1,6 +1,6 @@
-import type { Slice } from "@tiptap/pm/model";
-import type { EditorView } from "@tiptap/pm/view";
-import type { Editor } from "@tiptap/react";
+import type { Slice } from "@anytime-markdown/markdown-pm/model";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import type { RefObject } from "react";
 
 import { getCopiedBlockNode, handleBlockClipboardEvent, performBlockCopy, setHandledByKeydown } from "../utils/blockClipboard";

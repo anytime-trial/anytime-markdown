@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/core'
+import { Extension } from '@anytime-markdown/markdown-core'
 
 import type { TableCellOptions } from '../cell/index'
 import { TableCell } from '../cell/index'

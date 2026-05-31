@@ -1,4 +1,4 @@
-import type { Mark as ProseMirrorMark, MarkType, ResolvedPos } from '@tiptap/pm/model'
+import type { Mark as ProseMirrorMark, MarkType, ResolvedPos } from '@anytime-markdown/markdown-pm/model'
 
 import type { Range } from '../types'
 import { objectIncludes } from '../utilities/objectIncludes'

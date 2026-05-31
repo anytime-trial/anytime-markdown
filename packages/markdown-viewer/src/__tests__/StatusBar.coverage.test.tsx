@@ -51,7 +51,7 @@ function createMockEditor(overrides: {
         listeners[event] = listeners[event].filter((fn) => fn !== cb);
       }
     },
-  } as unknown as import("@tiptap/react").Editor;
+  } as unknown as import("@anytime-markdown/markdown-react").Editor;
 }
 
 const t = (key: string, _params?: any) => key;

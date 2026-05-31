@@ -1,4 +1,4 @@
-import type { NodeType } from '@tiptap/pm/model'
+import type { NodeType } from '@anytime-markdown/markdown-pm/model'
 
 import type { PasteRuleFinder } from '../PasteRule'
 import { PasteRule } from '../PasteRule'

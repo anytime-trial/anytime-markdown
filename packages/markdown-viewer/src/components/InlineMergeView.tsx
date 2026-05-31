@@ -7,8 +7,8 @@ import {
   Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import type { Editor } from "@tiptap/react";
-import { useEditor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
+import { useEditor } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { FILE_DROP_OVERLAY_COLOR, getDivider, getEditorBg, getTextDisabled } from "../constants/colors";

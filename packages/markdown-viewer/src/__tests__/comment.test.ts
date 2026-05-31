@@ -11,9 +11,9 @@
  * - CommentPoint Node: ポイントコメント挿入
  * - CommentDataPlugin: Plugin State + コマンド
  */
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import { Markdown } from "tiptap-markdown";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
+import { Markdown } from "@anytime-markdown/markdown-md";
 import type { InlineComment } from "../utils/commentHelpers";
 import {
   parseCommentData,

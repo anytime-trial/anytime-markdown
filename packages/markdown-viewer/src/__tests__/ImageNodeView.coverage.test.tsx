@@ -12,7 +12,7 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 
 // --- Mocks ---
 let mockIsSelected = false;
@@ -20,7 +20,7 @@ let mockIsEditable = true;
 let mockCollapsed = false;
 let mockShowToolbar = true;
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   NodeViewWrapper: ({ children }: React.PropsWithChildren) => <div data-testid="node-view-wrapper">{children}</div>,
   useEditorState: () => mockIsSelected,
 }));

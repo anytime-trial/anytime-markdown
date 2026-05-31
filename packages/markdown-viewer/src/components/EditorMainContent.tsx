@@ -1,5 +1,5 @@
 import { Box, ClickAwayListener, useMediaQuery } from "@mui/material";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import type React from "react";
 import { useCallback } from "react";
 

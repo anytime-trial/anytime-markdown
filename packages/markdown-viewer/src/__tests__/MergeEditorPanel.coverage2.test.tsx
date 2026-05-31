@@ -13,7 +13,7 @@ import React from "react";
 import { render } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   EditorContent: () => <div data-testid="editor-content" />,
 }));
 

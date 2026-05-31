@@ -1,5 +1,5 @@
-import type { MarkSpec, NodeSpec, TagParseRule } from '@tiptap/pm/model'
-import { Schema } from '@tiptap/pm/model'
+import type { MarkSpec, NodeSpec, TagParseRule } from '@anytime-markdown/markdown-pm/model'
+import { Schema } from '@anytime-markdown/markdown-pm/model'
 
 import type { Editor, MarkConfig, NodeConfig } from '../index'
 import type { AnyConfig, Extensions } from '../types'

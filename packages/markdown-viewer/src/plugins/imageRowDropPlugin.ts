@@ -1,6 +1,6 @@
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
-import type { EditorView } from "@tiptap/pm/view";
+import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
+import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
 export type DropDecision =
   | { action: "wrap-left" | "wrap-right"; targetPos: number; targetElement: Element }

@@ -1,6 +1,6 @@
 import type { Command, CommandProps, RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     first: {
       /**

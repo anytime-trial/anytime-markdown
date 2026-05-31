@@ -1,5 +1,5 @@
-import type { EditorView } from "@tiptap/pm/view";
-import { TextSelection } from "@tiptap/pm/state";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
+import { TextSelection } from "@anytime-markdown/markdown-pm/state";
 import {
   isPrintableKey,
   isModifierOnly,

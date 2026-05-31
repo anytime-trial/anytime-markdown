@@ -10,7 +10,7 @@ import {
 } from "../utils/blockClipboard";
 
 // Mock DOMSerializer for handleBlockClipboardEvent
-jest.mock("@tiptap/pm/model", () => ({
+jest.mock("@anytime-markdown/markdown-pm/model", () => ({
   DOMSerializer: {
     fromSchema: () => ({
       serializeNode: () => {

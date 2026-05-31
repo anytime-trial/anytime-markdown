@@ -1,4 +1,4 @@
-import { TableCell, TableHeader } from "@tiptap/extension-table";
+import { TableCell, TableHeader } from "@anytime-markdown/markdown-extension-table";
 
 /** textAlign 属性付きの TableCell 拡張 */
 export const CustomTableCell = TableCell.extend({

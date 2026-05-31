@@ -17,7 +17,7 @@ if (typeof window !== "undefined") {
 }
 
 import { Box, CircularProgress, useMediaQuery, useTheme } from "@mui/material";
-import { useEditor } from "@tiptap/react";
+import { useEditor } from "@anytime-markdown/markdown-react";
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { EditorDialogsSection } from "./components/EditorDialogsSection";
@@ -43,7 +43,7 @@ const InlineMergeView = lazy(() =>
   import("./components/InlineMergeView").then((m) => ({ default: m.InlineMergeView })),
 );
 
-import type { AnyExtension, Editor } from "@tiptap/react";
+import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
 
 import type { MarkdownTemplate } from "./constants/templates";
 import { useEditorBlockActions } from "./hooks/useEditorBlockActions";

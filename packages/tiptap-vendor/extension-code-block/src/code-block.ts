@@ -1,5 +1,5 @@
-import { mergeAttributes, Node, textblockTypeInputRule } from '@tiptap/core'
-import { Plugin, PluginKey, Selection, TextSelection } from '@tiptap/pm/state'
+import { mergeAttributes, Node, textblockTypeInputRule } from '@anytime-markdown/markdown-core'
+import { Plugin, PluginKey, Selection, TextSelection } from '@anytime-markdown/markdown-pm/state'
 
 const DEFAULT_TAB_SIZE = 4
 
@@ -43,7 +43,7 @@ export interface CodeBlockOptions {
   HTMLAttributes: Record<string, any>
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     codeBlock: {
       /**

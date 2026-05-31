@@ -1,6 +1,6 @@
-import { Table } from "@tiptap/extension-table";
-import type { Node as PMNode } from "@tiptap/pm/model";
-import { ReactNodeViewRenderer } from "@tiptap/react";
+import { Table } from "@anytime-markdown/markdown-extension-table";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
+import { ReactNodeViewRenderer } from "@anytime-markdown/markdown-react";
 
 import { tableCellModePlugin } from "./plugins/tableCellMode/tableCellModePlugin";
 import { TableNodeView } from "./TableNodeView";

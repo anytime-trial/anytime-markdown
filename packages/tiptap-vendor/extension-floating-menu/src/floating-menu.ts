@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/core'
+import { Extension } from '@anytime-markdown/markdown-core'
 
 import type { FloatingMenuPluginProps } from './floating-menu-plugin'
 import { FloatingMenuPlugin } from './floating-menu-plugin'
@@ -12,7 +12,7 @@ export type FloatingMenuOptions = Omit<FloatingMenuPluginProps, 'editor' | 'elem
   element: HTMLElement | null
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     floatingMenu: {
       /**

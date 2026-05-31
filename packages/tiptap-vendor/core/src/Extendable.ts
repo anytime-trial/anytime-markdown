@@ -1,4 +1,4 @@
-import type { Plugin } from '@tiptap/pm/state'
+import type { Plugin } from '@anytime-markdown/markdown-pm/state'
 
 import type { Editor } from './Editor'
 import { getExtensionField } from './helpers/getExtensionField'

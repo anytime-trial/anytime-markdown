@@ -494,7 +494,7 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
       };
 
       // Mock TextSelection.near
-      const { TextSelection } = require("@tiptap/pm/state");
+      const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
       const nearSpy = jest.spyOn(TextSelection, "near").mockReturnValue({});
 
       const result = shortcuts["Mod-Enter"]({ editor: mockEditor });
@@ -525,7 +525,7 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
         view: { dispatch: jest.fn() },
       };
 
-      const { TextSelection } = require("@tiptap/pm/state");
+      const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
       const nearSpy = jest.spyOn(TextSelection, "near").mockReturnValue({});
 
       const result = shortcuts["Mod-Shift-Enter"]({ editor: mockEditor });
@@ -559,7 +559,7 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
         view: { dispatch: jest.fn() },
       };
 
-      const { TextSelection } = require("@tiptap/pm/state");
+      const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
       const createSpy = jest.spyOn(TextSelection, "create").mockReturnValue({});
 
       const result = shortcuts["Mod-l"]({ editor: mockEditor });
@@ -594,7 +594,7 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
         view: { dispatch: jest.fn() },
       };
 
-      const { TextSelection } = require("@tiptap/pm/state");
+      const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
       const createSpy = jest.spyOn(TextSelection, "create").mockReturnValue({});
 
       const result = shortcuts["Mod-d"]({ editor: mockEditor });
@@ -694,7 +694,7 @@ describe("editorExtensions coverage - VS Code block movement shortcuts", () => {
           view: { dispatch: jest.fn() },
         };
 
-        const { TextSelection, Fragment } = require("@tiptap/pm/state");
+        const { TextSelection, Fragment } = require("@anytime-markdown/markdown-pm/state");
         jest.spyOn(TextSelection, "near").mockReturnValue({});
 
         const result = shortcuts["Alt-ArrowUp"]({ editor: mockEditor });
@@ -762,7 +762,7 @@ describe("editorExtensions coverage - VS Code block movement shortcuts", () => {
           view: { dispatch: jest.fn() },
         };
 
-        const { TextSelection } = require("@tiptap/pm/state");
+        const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
         jest.spyOn(TextSelection, "near").mockReturnValue({});
 
         const result = shortcuts["Alt-ArrowDown"]({ editor: mockEditor });
@@ -824,7 +824,7 @@ describe("editorExtensions coverage - VS Code block movement shortcuts", () => {
           view: { dispatch: jest.fn() },
         };
 
-        const { TextSelection } = require("@tiptap/pm/state");
+        const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
         jest.spyOn(TextSelection, "near").mockReturnValue({});
 
         const result = shortcuts["Shift-Alt-ArrowUp"]({ editor: mockEditor });
@@ -862,7 +862,7 @@ describe("editorExtensions coverage - VS Code block movement shortcuts", () => {
           view: { dispatch: jest.fn() },
         };
 
-        const { TextSelection } = require("@tiptap/pm/state");
+        const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
         jest.spyOn(TextSelection, "near").mockReturnValue({});
 
         const result = shortcuts["Shift-Alt-ArrowDown"]({ editor: mockEditor });

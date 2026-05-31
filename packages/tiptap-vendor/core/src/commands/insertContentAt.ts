@@ -1,5 +1,5 @@
-import type { Node as ProseMirrorNode, ParseOptions } from '@tiptap/pm/model'
-import { Fragment } from '@tiptap/pm/model'
+import type { Node as ProseMirrorNode, ParseOptions } from '@anytime-markdown/markdown-pm/model'
+import { Fragment } from '@anytime-markdown/markdown-pm/model'
 
 import { createNodeFromContent } from '../helpers/createNodeFromContent'
 import { selectionToInsertionEnd } from '../helpers/selectionToInsertionEnd'
@@ -32,7 +32,7 @@ export interface InsertContentAtOptions {
   errorOnInvalidContent?: boolean
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     insertContentAt: {
       /**

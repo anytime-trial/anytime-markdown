@@ -1,7 +1,7 @@
 import { renderHook, act } from "@testing-library/react";
 import { useMergeMode } from "../hooks/useMergeMode";
 import { getMarkdownFromEditor } from "../types";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 
 jest.mock("../types", () => ({
   ...jest.requireActual("../types"),

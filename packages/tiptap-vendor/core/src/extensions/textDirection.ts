@@ -1,4 +1,4 @@
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Plugin, PluginKey } from '@anytime-markdown/markdown-pm/state'
 
 import { Extension } from '../Extension'
 import { splitExtensions } from '../helpers/splitExtensions'

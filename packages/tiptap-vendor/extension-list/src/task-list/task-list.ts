@@ -1,4 +1,4 @@
-import { mergeAttributes, Node, parseIndentedBlocks } from '@tiptap/core'
+import { mergeAttributes, Node, parseIndentedBlocks } from '@anytime-markdown/markdown-core'
 
 export interface TaskListOptions {
   /**
@@ -16,7 +16,7 @@ export interface TaskListOptions {
   HTMLAttributes: Record<string, any>
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     taskList: {
       /**

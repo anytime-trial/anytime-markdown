@@ -1,5 +1,5 @@
-import type { KeyboardShortcutCommand } from '@tiptap/core'
-import { findParentNodeClosestToPos } from '@tiptap/core'
+import type { KeyboardShortcutCommand } from '@anytime-markdown/markdown-core'
+import { findParentNodeClosestToPos } from '@anytime-markdown/markdown-core'
 
 import { isCellSelection } from './isCellSelection'
 

@@ -1,12 +1,12 @@
-import type { KeyboardShortcutCommand } from '@tiptap/core'
+import type { KeyboardShortcutCommand } from '@anytime-markdown/markdown-core'
 import {
   getRenderedAttributes,
   mergeAttributes,
   Node,
   renderNestedMarkdownContent,
   wrappingInputRule,
-} from '@tiptap/core'
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+} from '@anytime-markdown/markdown-core'
+import type { Node as ProseMirrorNode } from '@anytime-markdown/markdown-pm/model'
 
 export interface TaskItemOptions {
   /**

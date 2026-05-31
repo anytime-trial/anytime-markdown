@@ -1,7 +1,7 @@
 import { renderHook, act } from "@testing-library/react";
 import { useSourceMode } from "../hooks/useSourceMode";
 import { getMarkdownFromEditor } from "../types";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { STORAGE_KEY_EDITOR_MODE } from "../constants/storageKeys";
 
 jest.mock("../types", () => ({

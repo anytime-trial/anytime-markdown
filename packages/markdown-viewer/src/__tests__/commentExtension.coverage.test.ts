@@ -7,8 +7,8 @@
  * - resolveComment/unresolveComment/updateCommentText: dispatch guards (lines 273, 283, 293, 303)
  * - plugin state: resolve/unresolve/updateText when comment exists/missing (lines 337, 342, 347)
  */
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
 import {
   CommentHighlight,
   CommentPoint,

@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/core'
+import { Extension } from '@anytime-markdown/markdown-core'
 
 import type { BulletListOptions } from '../bullet-list/index'
 import { BulletList } from '../bullet-list/index'

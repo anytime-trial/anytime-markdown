@@ -1,8 +1,8 @@
-import { liftEmptyBlock as originalLiftEmptyBlock } from '@tiptap/pm/commands'
+import { liftEmptyBlock as originalLiftEmptyBlock } from '@anytime-markdown/markdown-pm/commands'
 
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     liftEmptyBlock: {
       /**

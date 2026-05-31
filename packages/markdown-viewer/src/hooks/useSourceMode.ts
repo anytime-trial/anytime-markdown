@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { STORAGE_KEY_EDITOR_MODE, STORAGE_KEY_READONLY_MODE, STORAGE_KEY_REVIEW_MODE, STORAGE_KEY_SOURCE_MODE } from "../constants/storageKeys";

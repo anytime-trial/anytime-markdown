@@ -1,5 +1,5 @@
-import type { EditorView } from "@tiptap/pm/view";
-import type { Editor } from "@tiptap/react";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import type { RefObject } from "react";
 
 import { reviewModeStorage } from "../extensions/reviewModeExtension";

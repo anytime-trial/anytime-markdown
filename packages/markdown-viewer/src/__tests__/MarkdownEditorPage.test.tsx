@@ -20,7 +20,7 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditor: () => null,
   EditorContent: () => <div data-testid="editor-content" />,
   ReactNodeViewRenderer: () => () => null,

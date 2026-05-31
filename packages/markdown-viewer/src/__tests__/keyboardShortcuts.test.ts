@@ -1,7 +1,7 @@
-import { Editor, Extension } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import { Fragment } from "@tiptap/pm/model";
-import { TextSelection } from "@tiptap/pm/state";
+import { Editor, Extension } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
+import { Fragment } from "@anytime-markdown/markdown-pm/model";
+import { TextSelection } from "@anytime-markdown/markdown-pm/state";
 
 /** ショートカットロジックのみを含むテスト用拡張 */
 const ShortcutExtension = Extension.create({

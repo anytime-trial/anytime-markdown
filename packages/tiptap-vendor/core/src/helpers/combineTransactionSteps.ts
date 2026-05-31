@@ -1,6 +1,6 @@
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-import type { Transaction } from '@tiptap/pm/state'
-import { Transform } from '@tiptap/pm/transform'
+import type { Node as ProseMirrorNode } from '@anytime-markdown/markdown-pm/model'
+import type { Transaction } from '@anytime-markdown/markdown-pm/state'
+import { Transform } from '@anytime-markdown/markdown-pm/transform'
 
 /**
  * Returns a new `Transform` based on all steps of the passed transactions.

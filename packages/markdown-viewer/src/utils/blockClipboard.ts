@@ -2,9 +2,9 @@
  * ブロック要素のクリップボード操作共通ユーティリティ。
  * useEditorConfig.ts（Ctrl+C/X）と EditorContextMenu.tsx（右クリック）で共用。
  */
-import { DOMSerializer, type Node as PMNode } from "@tiptap/pm/model";
-import type { EditorState } from "@tiptap/pm/state";
-import type { EditorView } from "@tiptap/pm/view";
+import { DOMSerializer, type Node as PMNode } from "@anytime-markdown/markdown-pm/model";
+import type { EditorState } from "@anytime-markdown/markdown-pm/state";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
 /** クリップボード操作の対象となるブロックノードタイプ */
 export const BLOCK_NODE_TYPES = new Set(["codeBlock", "table", "gifBlock", "image"]);

@@ -1,6 +1,6 @@
-import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { Extension } from '@anytime-markdown/markdown-core'
+import { Plugin, PluginKey } from '@anytime-markdown/markdown-pm/state'
+import { Decoration, DecorationSet } from '@anytime-markdown/markdown-pm/view'
 
 export interface FocusOptions {
   /**

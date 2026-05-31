@@ -1,5 +1,5 @@
 {
-  "name": "@tiptap/core",
+  "name": "@anytime-markdown/markdown-core",
   "description": "headless rich text editor",
   "version": "3.20.0",
   "homepage": "https://tiptap.dev",
@@ -52,10 +52,10 @@
     "jsx-dev-runtime"
   ],
   "devDependencies": {
-    "@tiptap/pm": "workspace:^"
+    "@anytime-markdown/markdown-pm": "workspace:^"
   },
   "peerDependencies": {
-    "@tiptap/pm": "workspace:^"
+    "@anytime-markdown/markdown-pm": "workspace:^"
   },
   "repository": {
     "type": "git",

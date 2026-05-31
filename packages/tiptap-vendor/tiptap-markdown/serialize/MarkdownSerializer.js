@@ -7,7 +7,7 @@ import HardBreak from "../extensions/nodes/hard-break";
 
 export class MarkdownSerializer {
     /**
-     * @type {import('@tiptap/core').Editor}
+     * @type {import('@anytime-markdown/markdown-core').Editor}
      */
     editor = null;
 

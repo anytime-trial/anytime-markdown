@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useEffect } from "react";
 
 import { computeBlockDiff } from "../utils/blockDiffComputation";

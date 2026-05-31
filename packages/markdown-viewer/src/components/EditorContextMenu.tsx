@@ -9,8 +9,8 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { Divider, ListItemIcon, ListItemText, Menu, MenuItem, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import type { Node as PMNode } from "@tiptap/pm/model";
-import type { Editor } from "@tiptap/react";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { getBgPaper, getDivider, getTextSecondary } from "../constants/colors";

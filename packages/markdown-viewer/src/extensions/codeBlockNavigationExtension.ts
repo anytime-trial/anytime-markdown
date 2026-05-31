@@ -1,5 +1,5 @@
-import { Extension } from "@tiptap/core";
-import { TextSelection } from "@tiptap/pm/state";
+import { Extension } from "@anytime-markdown/markdown-core";
+import { TextSelection } from "@anytime-markdown/markdown-pm/state";
 
 export const CodeBlockNavigation = Extension.create({
   name: "codeBlockNavigation",

@@ -13,7 +13,7 @@ const config = {
   testMatch: ["<rootDir>/src/__tests__/**/*.test.ts", "<rootDir>/src/__tests__/**/*.test.tsx"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {
-    // @tiptap/* → vendored ソースへ解決（共有 alias ヘルパ）
+    // @anytime-markdown/markdown-* → vendored ソースへ解決（共有 alias ヘルパ）
     ...buildJestMapper(),
     // barrel は core の index.ts (MarkdownEditorPage / templates.md など重量ツリーを eager ロード)
     // ではなく、rich が使う葉モジュールだけを再 export する軽量 shim に差し替える。

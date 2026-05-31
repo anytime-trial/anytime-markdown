@@ -1,7 +1,7 @@
-import { keymap } from '@tiptap/pm/keymap'
-import type { Schema } from '@tiptap/pm/model'
-import type { Plugin, Transaction } from '@tiptap/pm/state'
-import type { EditorView, MarkViewConstructor, NodeViewConstructor } from '@tiptap/pm/view'
+import { keymap } from '@anytime-markdown/markdown-pm/keymap'
+import type { Schema } from '@anytime-markdown/markdown-pm/model'
+import type { Plugin, Transaction } from '@anytime-markdown/markdown-pm/state'
+import type { EditorView, MarkViewConstructor, NodeViewConstructor } from '@anytime-markdown/markdown-pm/view'
 
 import type { Editor } from './Editor'
 import {

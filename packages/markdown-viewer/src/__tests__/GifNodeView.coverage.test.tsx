@@ -8,7 +8,7 @@ import { render, screen, fireEvent, act, waitFor } from "@testing-library/react"
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Mock dependencies before importing component
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   NodeViewWrapper: ({ children, ...props }: any) => <div data-testid="node-view-wrapper" {...props}>{children}</div>,
 }));
 

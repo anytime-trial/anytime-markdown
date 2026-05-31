@@ -17,7 +17,7 @@ const mockApplyMarkdownToEditor = jest.fn();
 const mockReadFileAsText = jest.fn();
 const mockReviewModeStorage = jest.fn().mockReturnValue({ enabled: false });
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditor: () => null,
   EditorContent: () => <div data-testid="editor-content" />,
 }));

@@ -14,8 +14,8 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import type { Editor } from "@tiptap/react";
-import { useEditorState } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
+import { useEditorState } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getPrimaryMain, getTextDisabled, getTextSecondary } from "../constants/colors";

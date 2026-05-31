@@ -62,10 +62,10 @@ function createMockEditor(storageOverrides: Record<string, unknown> = {}) {
       toggleWholeWord: jest.fn(),
       toggleUseRegex: jest.fn(),
     },
-  } as unknown as import("@tiptap/react").Editor;
+  } as unknown as import("@anytime-markdown/markdown-react").Editor;
 }
 
-function openSearchBar(editor: import("@tiptap/react").Editor) {
+function openSearchBar(editor: import("@anytime-markdown/markdown-react").Editor) {
   act(() => {
     editor.storage.searchReplace.isOpen = true;
     editor.storage.searchReplace.onSearchStateChange?.();

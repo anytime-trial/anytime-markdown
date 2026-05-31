@@ -1,4 +1,4 @@
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 import { useCallback } from "react";
 
 import { CAPTURE_BG } from "../constants/colors";

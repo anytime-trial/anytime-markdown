@@ -5,7 +5,7 @@ import { isAndroid } from '../utilities/isAndroid'
 import { isiOS } from '../utilities/isiOS'
 import { isSafari } from '../utilities/isSafari'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     focus: {
       /**

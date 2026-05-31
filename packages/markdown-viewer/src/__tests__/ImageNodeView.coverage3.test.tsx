@@ -4,7 +4,7 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 
 let mockIsSelected = true;
 let mockIsEditable = true;
@@ -16,7 +16,7 @@ let mockDeleteDialogOpen = false;
 let mockSetDeleteDialogOpen = jest.fn();
 let mockIsCompareLeft = false;
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   NodeViewWrapper: ({ children }: React.PropsWithChildren) => <div data-testid="node-view-wrapper">{children}</div>,
   useEditorState: () => mockIsSelected,
 }));

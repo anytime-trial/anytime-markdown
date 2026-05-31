@@ -1,7 +1,7 @@
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import { TableKit } from "@tiptap/extension-table";
-import { Extension } from "@tiptap/core";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
+import { TableKit } from "@anytime-markdown/markdown-extension-table";
+import { Extension } from "@anytime-markdown/markdown-core";
 import {
   tableCellModePlugin,
   tableCellModePluginKey,
