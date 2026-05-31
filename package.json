@@ -14,7 +14,7 @@
   "workspaces": [
     "packages/markdown-viewer",
     "packages/markdown-rich",
-    "packages/tiptap-vendor",
+    "packages/markdown-core",
     "packages/spreadsheet-core",
     "packages/spreadsheet-viewer",
     "packages/database-core",

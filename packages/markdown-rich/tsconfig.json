@@ -12,20 +12,20 @@
 			"@/*": ["./src/*"],
 			"@anytime-markdown/markdown-viewer": ["../markdown-viewer/src/index.ts"],
 			"@anytime-markdown/markdown-viewer/src/*": ["../markdown-viewer/src/*"],
-			"@anytime-markdown/markdown-core": ["../tiptap-vendor/core/src/index.ts"],
-			"@anytime-markdown/markdown-core/*": ["../tiptap-vendor/core/src/*"],
-			"@anytime-markdown/markdown-react": ["../tiptap-vendor/react/src/index.ts"],
-			"@anytime-markdown/markdown-react/*": ["../tiptap-vendor/react/src/*"],
-			"@anytime-markdown/markdown-pm/*": ["../tiptap-vendor/pm/*/index.ts"],
-			"@anytime-markdown/markdown-starter-kit": ["../tiptap-vendor/starter-kit/src/index.ts"],
-			"@anytime-markdown/markdown-extensions": ["../tiptap-vendor/extensions/src/index.ts"],
-			"@anytime-markdown/markdown-extension-placeholder": ["../tiptap-vendor/_shims/extension-placeholder.ts"],
-			"@anytime-markdown/markdown-extension-task-item": ["../tiptap-vendor/_shims/extension-task-item.ts"],
-			"@anytime-markdown/markdown-extension-task-list": ["../tiptap-vendor/_shims/extension-task-list.ts"],
-			"@anytime-markdown/markdown-extension-*": ["../tiptap-vendor/extension-*/src/index.ts"],
-			"@anytime-markdown/markdown-md": ["../tiptap-vendor/tiptap-markdown"]
+			"@anytime-markdown/markdown-core": ["../markdown-core/core/src/index.ts"],
+			"@anytime-markdown/markdown-core/*": ["../markdown-core/core/src/*"],
+			"@anytime-markdown/markdown-react": ["../markdown-core/react/src/index.ts"],
+			"@anytime-markdown/markdown-react/*": ["../markdown-core/react/src/*"],
+			"@anytime-markdown/markdown-pm/*": ["../markdown-core/pm/*/index.ts"],
+			"@anytime-markdown/markdown-starter-kit": ["../markdown-core/starter-kit/src/index.ts"],
+			"@anytime-markdown/markdown-extensions": ["../markdown-core/extensions/src/index.ts"],
+			"@anytime-markdown/markdown-extension-placeholder": ["../markdown-core/_shims/extension-placeholder.ts"],
+			"@anytime-markdown/markdown-extension-task-item": ["../markdown-core/_shims/extension-task-item.ts"],
+			"@anytime-markdown/markdown-extension-task-list": ["../markdown-core/_shims/extension-task-list.ts"],
+			"@anytime-markdown/markdown-extension-*": ["../markdown-core/extension-*/src/index.ts"],
+			"@anytime-markdown/markdown-md": ["../markdown-core/tiptap-markdown"]
 		}
 	},
-	"references": [{ "path": "../tiptap-vendor" }],
+	"references": [{ "path": "../markdown-core" }],
 	"include": ["src/**/*", "src/**/*.json"]
 }

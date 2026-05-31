@@ -4,7 +4,7 @@ import withSerwistInit from '@serwist/next';
 import createNextIntlPlugin from 'next-intl/plugin';
 // @anytime-markdown/markdown-* → vendored ソースへの alias（共有ヘルパ）。webpack=next build 用 / Turbopack=dev 用。
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { buildWebpackAlias, buildTurbopackAlias } = require('../tiptap-vendor/alias.cjs');
+const { buildWebpackAlias, buildTurbopackAlias } = require('../markdown-core/alias.cjs');
 
 process.env.SERWIST_SUPPRESS_TURBOPACK_WARNING = '1';
 
@@ -21,7 +21,7 @@ const isCapacitorBuild = !isCloudflare && process.env.CAPACITOR_BUILD === 'true'
 const nextConfig: NextConfig = {
   devIndicators: false,
   transpilePackages: [
-    '@anytime-markdown/tiptap-vendor',
+    '@anytime-markdown/markdown-core',
     '@anytime-markdown/database-core',
     '@anytime-markdown/database-viewer',
     '@anytime-markdown/markdown-viewer',
