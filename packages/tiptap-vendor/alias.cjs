@@ -21,9 +21,14 @@ function computeAliasEntries(vendorDir) {
 	const add = (request, rel) => entries.push({ request, target: path.join(vendorDir, rel) });
 
 	add("@tiptap/core", "core/src/index.ts");
+	// JSX automatic runtime（pragma @jsxImportSource @tiptap/core）。jsx-runtime.ts は jsx/jsxs/jsxDEV/Fragment を全て export
+	add("@tiptap/core/jsx-runtime", "core/src/jsx-runtime.ts");
+	add("@tiptap/core/jsx-dev-runtime", "core/src/jsx-runtime.ts");
 	add("@tiptap/react", "react/src/index.ts");
 	add("@tiptap/react/menus", "react/src/menus/index.ts");
 	add("@tiptap/starter-kit", "starter-kit/src/index.ts");
+	// extensions umbrella（starter-kit が Dropcursor/Gapcursor/TrailingNode/UndoRedo を値 import）
+	add("@tiptap/extensions", "extensions/src/index.ts");
 	add("tiptap-markdown", "tiptap-markdown/index.js");
 
 	// umbrella シムを先に登録し、後段の extension-* スキャンでは重複追加しない

@@ -6,6 +6,7 @@
 	"license": "MIT",
 	"comment": "@tiptap/* npm 依存の置換。consumer は @tiptap/* import のまま alias で本ディレクトリへ解決する。下記 dependencies は vendored ソースが必要とする leaf npm（旧 transitive 依存を直接 deps へ昇格、exact 固定）。",
 	"dependencies": {
+		"@floating-ui/dom": "1.7.6",
 		"prosemirror-changeset": "2.4.0",
 		"prosemirror-collab": "1.3.1",
 		"prosemirror-commands": "1.7.1",

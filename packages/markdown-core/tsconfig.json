@@ -10,18 +10,20 @@
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/*"],
-			"@tiptap/core": ["@anytime-markdown/tiptap-vendor/core/src/index.ts"],
-			"@tiptap/core/*": ["@anytime-markdown/tiptap-vendor/core/src/*"],
-			"@tiptap/react": ["@anytime-markdown/tiptap-vendor/react/src/index.ts"],
-			"@tiptap/react/*": ["@anytime-markdown/tiptap-vendor/react/src/*"],
-			"@tiptap/pm/*": ["@anytime-markdown/tiptap-vendor/pm/*/index.ts"],
-			"@tiptap/starter-kit": ["@anytime-markdown/tiptap-vendor/starter-kit/src/index.ts"],
-			"@tiptap/extension-placeholder": ["@anytime-markdown/tiptap-vendor/_shims/extension-placeholder.ts"],
-			"@tiptap/extension-task-item": ["@anytime-markdown/tiptap-vendor/_shims/extension-task-item.ts"],
-			"@tiptap/extension-task-list": ["@anytime-markdown/tiptap-vendor/_shims/extension-task-list.ts"],
-			"@tiptap/extension-*": ["@anytime-markdown/tiptap-vendor/extension-*/src/index.ts"],
-			"tiptap-markdown": ["@anytime-markdown/tiptap-vendor/tiptap-markdown"]
+			"@tiptap/core": ["../tiptap-vendor/core/src/index.ts"],
+			"@tiptap/core/*": ["../tiptap-vendor/core/src/*"],
+			"@tiptap/react": ["../tiptap-vendor/react/src/index.ts"],
+			"@tiptap/react/*": ["../tiptap-vendor/react/src/*"],
+			"@tiptap/pm/*": ["../tiptap-vendor/pm/*/index.ts"],
+			"@tiptap/starter-kit": ["../tiptap-vendor/starter-kit/src/index.ts"],
+			"@tiptap/extensions": ["../tiptap-vendor/extensions/src/index.ts"],
+			"@tiptap/extension-placeholder": ["../tiptap-vendor/_shims/extension-placeholder.ts"],
+			"@tiptap/extension-task-item": ["../tiptap-vendor/_shims/extension-task-item.ts"],
+			"@tiptap/extension-task-list": ["../tiptap-vendor/_shims/extension-task-list.ts"],
+			"@tiptap/extension-*": ["../tiptap-vendor/extension-*/src/index.ts"],
+			"tiptap-markdown": ["../tiptap-vendor/tiptap-markdown"]
 		}
 	},
+	"references": [{ "path": "../tiptap-vendor" }],
 	"include": ["src/**/*", "src/**/*.json"]
 }

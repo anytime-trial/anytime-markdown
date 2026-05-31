@@ -1,0 +1,41 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"comment": "vendored 第三者ソース。consumer から composite 参照され、相対 paths 解決時の rootDir 制約(TS6059)回避と第三者型エラー抑制を担う。strict は上流のゆるい設定に合わせ off。tiptap-markdown(.js) は除外（consumer は index.d.ts を直接参照）。",
+	"compilerOptions": {
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"composite": true,
+		"rootDir": ".",
+		"outDir": "dist",
+		"declaration": true,
+		"strict": false,
+		"noImplicitAny": false,
+		"skipLibCheck": true,
+		"lib": ["ES2023", "DOM", "DOM.Iterable"],
+		"baseUrl": ".",
+		"paths": {
+			"@tiptap/core": ["./core/src/index.ts"],
+			"@tiptap/core/*": ["./core/src/*"],
+			"@tiptap/react": ["./react/src/index.ts"],
+			"@tiptap/react/*": ["./react/src/*"],
+			"@tiptap/pm/*": ["./pm/*/index.ts"],
+			"@tiptap/starter-kit": ["./starter-kit/src/index.ts"],
+			"@tiptap/extensions": ["./extensions/src/index.ts"],
+			"@tiptap/extension-placeholder": ["./_shims/extension-placeholder.ts"],
+			"@tiptap/extension-task-item": ["./_shims/extension-task-item.ts"],
+			"@tiptap/extension-task-list": ["./_shims/extension-task-list.ts"],
+			"@tiptap/extension-*": ["./extension-*/src/index.ts"]
+		}
+	},
+	"include": [
+		"core/src/**/*",
+		"react/src/**/*",
+		"pm/**/*.ts",
+		"extension-*/src/**/*",
+		"extensions/src/**/*",
+		"extension-list/src/**/*",
+		"starter-kit/src/**/*",
+		"_shims/*.ts"
+	],
+	"exclude": ["tiptap-markdown", "**/__tests__/**", "dist"]
+}
