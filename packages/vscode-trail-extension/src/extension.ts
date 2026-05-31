@@ -678,6 +678,8 @@ export async function activate(context: vscode.ExtensionContext) {
 						defaultRepoName: wsRootForDb ? path.basename(wsRootForDb) : undefined,
 						// trace dir を writer (traceCommands) と同一ロジックで解決し注入 (daemon の gitRoot/cwd 非依存)。
 						traceDir: wsRootForDb ? getTraceOutputDir(wsRootForDb) : undefined,
+						// lep.json workspace.excludeRoot を表示側 CodeGraphService にも反映 (従来 daemon は gitRoot 固定だった)。
+						excludeRoot: analyzeExcludeRoot,
 				});
 				TrailLogger.info('[TrailDaemonHttpClient] startHttpServer called successfully');
 			} catch (err) {

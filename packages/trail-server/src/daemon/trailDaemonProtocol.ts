@@ -128,6 +128,12 @@ export interface SerializableHttpServerOptions {
    * daemon 側で `<gitRoot>/.anytime/trail/trace` にフォールバック。
    */
   readonly traceDir?: string;
+  /**
+   * code graph / C4 解析の除外ルート (`.anytime/analyze-exclude` を読むディレクトリ)。
+   * extension が lep.json `workspace.excludeRoot` を `resolveExcludeRoot` で解決して渡す。
+   * 省略 (空文字解決で undefined) 時は daemon 側で `opts.gitRoot` にフォールバックする。
+   */
+  readonly excludeRoot?: string;
   /** HTTP サーバの希望ポート。EADDRINUSE 時は +1..+9 → 0 (OS 任意) の順で試みる。 */
   readonly preferredPort?: number;
   /**

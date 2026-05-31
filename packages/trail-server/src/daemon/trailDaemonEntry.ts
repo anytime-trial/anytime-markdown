@@ -271,7 +271,8 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
         : [],
     trailDb,
     pythonWasmPath: opts.pythonWasmPath,
-    excludeRoot: opts.gitRoot,
+    // lep.json workspace.excludeRoot を優先し、未指定 (空文字解決) 時のみ gitRoot にフォールバック。
+    excludeRoot: opts.excludeRoot ?? opts.gitRoot,
     logger: daemonLoggerAsLogger,
     defaultRepoName: opts.defaultRepoName,
   });

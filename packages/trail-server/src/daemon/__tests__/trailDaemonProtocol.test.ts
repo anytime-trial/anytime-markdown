@@ -139,6 +139,13 @@ describe('trailDaemonProtocol JSON round-trip', () => {
       memoryDbPath: '/home/user/.anytime/memory.db',
       preferredPort: 19841,
       pythonWasmPath: '/ext/dist/wasm/tree-sitter-python.wasm',
+      commitCategoriesPath: '/workspace/my-repo/.anytime/commit-categories.json',
+      toolCategoriesPath: '/workspace/my-repo/.anytime/tool-categories.json',
+      skillCategoriesPath: '/workspace/my-repo/.anytime/skill-categories.json',
+      metricsThresholdsPath: '/workspace/my-repo/.anytime/metrics-thresholds.yaml',
+      traceDir: '/workspace/my-repo/.anytime/trail/trace',
+      excludeRoot: '/workspace/my-repo',
+      defaultRepoName: 'my-repo',
     };
     const msg: HostMessage = {
       type: 'request',
