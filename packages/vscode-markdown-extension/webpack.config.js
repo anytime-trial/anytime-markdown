@@ -5,7 +5,7 @@
 const path = require('path');
 const webpack = require('webpack');
 // @anytime-markdown/markdown-* → vendored ソースへの alias（共有ヘルパ）
-const { buildWebpackAlias } = require('../tiptap-vendor/alias.cjs');
+const { buildWebpackAlias } = require('../markdown-core/alias.cjs');
 
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
@@ -79,9 +79,9 @@ const webviewConfig = {
             options: {
               configFile: 'tsconfig.webview.json',
               allowTsInNodeModules: true,
-              // tiptap-vendor は第三者 vendored ソース（tiptap 自前のゆるい設定でビルドされ
+              // markdown-core は第三者 vendored ソース（tiptap 自前のゆるい設定でビルドされ
               // strict 下では implicitNoAny 等が出る）。app コード(markdown-core/rich)のみ型診断する。
-              reportFiles: ['**/*.{ts,tsx}', '!**/tiptap-vendor/**', '!**/node_modules/**'],
+              reportFiles: ['**/*.{ts,tsx}', '!**/markdown-core/**', '!**/node_modules/**'],
             },
           }
         ]

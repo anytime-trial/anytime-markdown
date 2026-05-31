@@ -1,5 +1,5 @@
 const base = require('../../jest.config.base');
-const { buildJestMapper } = require('../tiptap-vendor/alias.cjs');
+const { buildJestMapper } = require('../markdown-core/alias.cjs');
 /** @type {import('jest').Config} */
 const config = {
   ...base,
