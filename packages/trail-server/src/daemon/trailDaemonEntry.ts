@@ -82,8 +82,6 @@ export const daemonLogger = {
 
 let memoryCoreService: MemoryCoreService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
-/** configure() 完了後に保持する設定 (startHttpServer が参照する)。 */
-let lastCfg: SerializableAnalyzeAllConfig | null = null;
 /** startHttpServer() で構築した TrailDataServer。 */
 let httpServer: TrailDataServer | null = null;
 /** startHttpServer() で構築した CodeGraphService。 */
@@ -152,7 +150,6 @@ let httpExtensionLogsDb: BetterSqlite3MemoryDb | null = null;
 export function _resetForTest(): void {
   memoryCoreService = null;
   analyzeAllRunner = null;
-  lastCfg = null;
   httpServer = null;
   httpCodeGraphService = null;
   httpTrailDb = null;
@@ -179,7 +176,6 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     await memoryCoreService.dispose();
     memoryCoreService = null;
   }
-  lastCfg = null; // 再 configure 時はリセット
 
   // MemoryCoreService (cfg.memoryCore が null なら memory pipeline をスキップ)
   if (cfg.memoryCore) {
@@ -236,19 +232,15 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
       sendEvent('afterRun', {});
     },
   });
-  lastCfg = cfg;
 }
 
 /**
  * HTTP サーバ (TrailDataServer + CodeGraphService) を起動し httpReady イベントを emit する。
  * 冪等: 既に起動済みの場合は httpReady を再 emit して return する。
- * configure() が先に完了していること (lastCfg が null でないこと) を要求する。
+ * configure() (インポートパイプライン) とは独立して起動できる。必要な設定 (trailDbPath /
+ * gitRoot) は opts から受け取るため lastCfg には依存しない。
  */
 async function startHttpServer(opts: SerializableHttpServerOptions): Promise<void> {
-  if (!lastCfg) {
-    throw new Error('not configured: call configure() first');
-  }
-
   // 冪等: 既に起動済みなら httpReady を再 emit して終了。
   if (httpServer !== null && httpPort !== null) {
     sendEvent('httpReady', { port: httpPort, url: `http://localhost:${httpPort}` });
@@ -260,7 +252,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   // init() を呼ばないと TrailDatabase.ensureDb() が "not initialized" で throw し
   // 全 /api/trail/* エンドポイントが 500 を返す (Phase 3 で TrailDataServer を
   // daemon 側に移した時の漏れ。extension 側 trailDb には別途 init() してある)。
-  const trailDb = new TrailDatabase(opts.distPath, path.dirname(lastCfg.trailDbPath));
+  const trailDb = new TrailDatabase(opts.distPath, path.dirname(opts.trailDbPath));
   await trailDb.init();
 
   // CodeGraphService を構築。c4ElementsProvider / trailGraphProvider は省略 (dormant 段階)。
@@ -371,9 +363,14 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     if (httpTrailDb === null || httpCodeGraphService === null) {
       throw new Error('http server state not ready');
     }
+    // gitRoot は startHttpServer の opts から取得 (lastCfg 非依存)。opts.gitRoot は optional のため
+    // workspacePath も未指定なら解決不能としてエラーにする。
+    const analysisRoot = req.workspacePath ?? opts.gitRoot;
+    if (!analysisRoot) {
+      throw new Error('analysisRoot not resolvable: pass workspacePath or startHttpServer gitRoot');
+    }
     const opts2: AnalyzeCurrentOpts = {
-      // lastCfg! は安全: startHttpServer の冒頭で lastCfg !== null を確認済み。
-      analysisRoot: req.workspacePath ?? lastCfg!.gitRoot,
+      analysisRoot,
       tsconfigPath: req.tsconfigPath,
       trailDb: httpTrailDb,
       codeGraphService: httpCodeGraphService,
@@ -384,19 +381,19 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     return runAnalyzeCurrentCodePipeline(opts2);
   };
 
-  // HTTP request shape (webview → TrailDataServer): パラメータなし (gitRoot は lastCfg から取得)。
+  // HTTP request shape (webview → TrailDataServer): パラメータなし (gitRoot は opts から取得)。
   // IPC dispatch 'analyzeReleaseCode' arm は SerializableAnalyzeReleaseCodeRequest で gitRoot を受ける。
   server.onAnalyzeReleaseCode = async () => {
     if (httpTrailDb === null || httpCodeGraphService === null) {
       throw new Error('http server state not ready');
     }
-    if (!lastCfg?.gitRoot) {
-      throw new Error('gitRoot not configured; call configure() with a gitRoot first');
+    if (!opts.gitRoot) {
+      throw new Error('gitRoot not configured; pass gitRoot to startHttpServer first');
     }
     const opts3: AnalyzeReleaseOpts = {
       trailDb: httpTrailDb,
       codeGraphService: httpCodeGraphService,
-      gitRoot: lastCfg.gitRoot,
+      gitRoot: opts.gitRoot,
       onProgress: emitAnalyzeReleaseProgress,
     };
     return runAnalyzeReleaseCodePipeline(opts3);
@@ -505,7 +502,6 @@ async function disposeAll(): Promise<void> {
   httpCodeGraphService = null;
   httpTrailDb = null;
   httpPort = null;
-  lastCfg = null;
 }
 
 export async function dispatch(method: MethodName | string, params: unknown): Promise<unknown> {
@@ -539,9 +535,6 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
     case 'getLastImportResult':
       return requireRunner().getLastImportResult();
     case 'analyzeCurrentCode': {
-      if (lastCfg === null) {
-        throw new Error('not configured: call configure() first');
-      }
       if (httpTrailDb === null || httpCodeGraphService === null || httpServer === null) {
         throw new Error('http server not started: call startHttpServer() first');
       }
@@ -560,9 +553,6 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
       return await runAnalyzeCurrentCodePipeline(opts);
     }
     case 'analyzeReleaseCode': {
-      if (lastCfg === null) {
-        throw new Error('not configured: call configure() first');
-      }
       if (httpTrailDb === null || httpCodeGraphService === null || httpServer === null) {
         throw new Error('http server not started: call startHttpServer() first');
       }

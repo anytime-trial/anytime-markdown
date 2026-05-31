@@ -631,6 +631,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			try {
 				await httpClient.start({
 					distPath: extensionDistPath,
+					// HTTP サーバ (Data Server) は import パイプライン (configure) 非依存で起動する。
+					// trail.db パスを直接渡すことで stage='disabled' でも起動できる。dbStorageDir は
+					// このブロックの if 条件 (498行) で非 null 保証済み。
+					trailDbPath: path.join(dbStorageDir, 'trail.db'),
 					gitRoot: wsRootForDb,
 					memoryDbPath: memoryDbPathForServer,
 					preferredPort: trailPort,
