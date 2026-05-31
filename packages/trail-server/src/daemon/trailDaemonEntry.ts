@@ -282,6 +282,12 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     daemonLoggerAsLogger,
     opts.gitRoot,
     opts.memoryDbPath,
+    {
+      commitCategories: opts.commitCategoriesPath,
+      toolCategories: opts.toolCategoriesPath,
+      skillCategories: opts.skillCategoriesPath,
+      metricsThresholds: opts.metricsThresholdsPath,
+    },
   );
   server.setCodeGraphService(codeGraphService);
 

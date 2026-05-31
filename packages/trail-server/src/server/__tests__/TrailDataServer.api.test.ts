@@ -7,6 +7,9 @@ jest.mock('@anytime-markdown/trail-core/c4', () => {
   return { ...actual, fetchC4Model: jest.fn() };
 });
 
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
@@ -653,5 +656,44 @@ describe('TrailDataServer — server lifecycle', () => {
     expect(server.port).toBeGreaterThan(0);
     await server.stop();
     db.close();
+  });
+});
+
+describe('GET /api/config/commit-categories — configPaths override (gitRoot 非依存)', () => {
+  let server: TrailDataServer;
+  let db: TrailDatabase;
+  let port: number;
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    tmpDir = mkdtempSync(join(tmpdir(), 'trail-configpaths-'));
+    // gitRoot とは無関係な場所にカスタム設定を置き、configPaths で直接指定する。
+    const file = join(tmpDir, 'custom-commit-categories.json');
+    writeFileSync(
+      file,
+      JSON.stringify({ entries: { zzcustom: { category: 2 } }, categories: { '2': 'CustomLabel' } }),
+      'utf-8',
+    );
+    // gitRoot は渡さない (第4引数 undefined) → configPaths が効いていることを確認できる。
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, undefined, {
+      commitCategories: file,
+    });
+    await server.start(0);
+    port = server.port;
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    db.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('configPaths.commitCategories のファイルから読む', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/config/commit-categories`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { entries: Record<string, number>; categories: Record<string, string> };
+    expect(body.entries['zzcustom']).toBe(2);
+    expect(body.categories['2']).toBe('CustomLabel');
   });
 });

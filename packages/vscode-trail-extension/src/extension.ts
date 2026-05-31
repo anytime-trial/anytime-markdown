@@ -24,6 +24,7 @@ import {
 	disabledAnalyzerIds,
 	resolveGitHubSource,
 	resolveExcludeRoot,
+	resolveWorkspaceConfigPath,
 } from '@anytime-markdown/trail-server/config';
 import type { AnalyzeAllPipelineResult, AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
 import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
@@ -668,6 +669,11 @@ export async function activate(context: vscode.ExtensionContext) {
 						alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
 					},
 					docsPath: lepWorkspaceDocsPath || undefined,
+						// lep.json workspace.configPaths を絶対パス化して渡す (categories / metrics を gitRoot 非依存で読む)。
+						commitCategoriesPath: resolveWorkspaceConfigPath(lepConfig, 'commitCategories', wsRootForDb),
+						toolCategoriesPath: resolveWorkspaceConfigPath(lepConfig, 'toolCategories', wsRootForDb),
+						skillCategoriesPath: resolveWorkspaceConfigPath(lepConfig, 'skillCategories', wsRootForDb),
+						metricsThresholdsPath: resolveWorkspaceConfigPath(lepConfig, 'metricsThresholds', wsRootForDb),
 				});
 				TrailLogger.info('[TrailDaemonHttpClient] startHttpServer called successfully');
 			} catch (err) {

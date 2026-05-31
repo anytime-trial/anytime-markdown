@@ -106,6 +106,16 @@ export interface SerializableHttpServerOptions {
   readonly gitRoot?: string;
   /** memory (better-sqlite3) DB ファイルの絶対パス。省略時は MemoryApiHandler が無効化される。 */
   readonly memoryDbPath?: string;
+  /**
+   * lep.json `workspace.configPaths` から extension が解決した絶対ファイルパス。
+   * daemon は fork 時 cwd 未指定でワークスペースルートを確実に知らないため、categories /
+   * metrics をこのパスから読むことで gitRoot 非依存にする。省略キーは `<gitRoot>/.anytime/<file>`
+   * へフォールバックする。
+   */
+  readonly commitCategoriesPath?: string;
+  readonly toolCategoriesPath?: string;
+  readonly skillCategoriesPath?: string;
+  readonly metricsThresholdsPath?: string;
   /** HTTP サーバの希望ポート。EADDRINUSE 時は +1..+9 → 0 (OS 任意) の順で試みる。 */
   readonly preferredPort?: number;
   /**

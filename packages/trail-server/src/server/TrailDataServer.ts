@@ -19,9 +19,24 @@ import {
   parseCoverage,
 } from '@anytime-markdown/trail-core/c4';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
-import { loadCommitCategories, loadCommitCategoryLabels } from '@anytime-markdown/trail-core/commitCategories';
-import { loadToolCategories, loadToolCategoryLabels } from '@anytime-markdown/trail-core/toolCategories';
-import { loadSkillCategories, loadSkillCategoryLabels } from '@anytime-markdown/trail-core/skillCategories';
+import {
+  loadCommitCategories,
+  loadCommitCategoriesFromFile,
+  loadCommitCategoryLabels,
+  loadCommitCategoryLabelsFromFile,
+} from '@anytime-markdown/trail-core/commitCategories';
+import {
+  loadToolCategories,
+  loadToolCategoriesFromFile,
+  loadToolCategoryLabels,
+  loadToolCategoryLabelsFromFile,
+} from '@anytime-markdown/trail-core/toolCategories';
+import {
+  loadSkillCategories,
+  loadSkillCategoriesFromFile,
+  loadSkillCategoryLabels,
+  loadSkillCategoryLabelsFromFile,
+} from '@anytime-markdown/trail-core/skillCategories';
 import {
   buildIndex as buildCallHierarchyIndex,
   buildCallHierarchyNodeFilter,
@@ -284,6 +299,17 @@ export class TrailDataServer {
     private logger: Logger,
     private readonly gitRoot?: string,
     memoryDbPath?: string,
+    /**
+     * lep.json `workspace.configPaths` から解決した絶対ファイルパス。
+     * 指定時は categories / metrics をこのパスから読み (gitRoot 非依存)、
+     * 未指定キーは従来どおり `<gitRoot>/.anytime/<file>` にフォールバックする。
+     */
+    private readonly configPaths?: {
+      commitCategories?: string;
+      toolCategories?: string;
+      skillCategories?: string;
+      metricsThresholds?: string;
+    },
   ) {
     // webpack-bundled VS Code 拡張では bindings package が call stack から
     // `.node` を推測できず crash するため、distPath から絶対パスを組み立てて
@@ -930,33 +956,36 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/config/commit-categories' && method === 'GET') {
+      const file = this.configPaths?.commitCategories;
       const root = this.gitRoot ?? process.cwd();
       const entries: Record<string, number> = {};
-      for (const [k, v] of loadCommitCategories(root)) entries[k] = v;
+      for (const [k, v] of file ? loadCommitCategoriesFromFile(file) : loadCommitCategories(root)) entries[k] = v;
       const categories: Record<string, string> = {};
-      for (const [k, v] of loadCommitCategoryLabels(root)) categories[String(k)] = v;
+      for (const [k, v] of file ? loadCommitCategoryLabelsFromFile(file) : loadCommitCategoryLabels(root)) categories[String(k)] = v;
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ entries, categories }));
       return;
     }
 
     if (pathname === '/api/config/tool-categories' && method === 'GET') {
+      const file = this.configPaths?.toolCategories;
       const root = this.gitRoot ?? process.cwd();
       const entries: Record<string, number> = {};
-      for (const [k, v] of loadToolCategories(root)) entries[k] = v;
+      for (const [k, v] of file ? loadToolCategoriesFromFile(file) : loadToolCategories(root)) entries[k] = v;
       const categories: Record<string, string> = {};
-      for (const [k, v] of loadToolCategoryLabels(root)) categories[String(k)] = v;
+      for (const [k, v] of file ? loadToolCategoryLabelsFromFile(file) : loadToolCategoryLabels(root)) categories[String(k)] = v;
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ entries, categories }));
       return;
     }
 
     if (pathname === '/api/config/skill-categories' && method === 'GET') {
+      const file = this.configPaths?.skillCategories;
       const root = this.gitRoot ?? process.cwd();
       const entries: Record<string, number> = {};
-      for (const [k, v] of loadSkillCategories(root)) entries[k] = v;
+      for (const [k, v] of file ? loadSkillCategoriesFromFile(file) : loadSkillCategories(root)) entries[k] = v;
       const categories: Record<string, string> = {};
-      for (const [k, v] of loadSkillCategoryLabels(root)) categories[String(k)] = v;
+      for (const [k, v] of file ? loadSkillCategoryLabelsFromFile(file) : loadSkillCategoryLabels(root)) categories[String(k)] = v;
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ entries, categories }));
       return;
@@ -2290,7 +2319,10 @@ export class TrailDataServer {
       return;
     }
     try {
-      const loader = new MetricsThresholdsLoader(this.gitRoot ?? process.cwd());
+      const metricsFile = this.configPaths?.metricsThresholds;
+      const loader = metricsFile
+        ? MetricsThresholdsLoader.fromFile(metricsFile)
+        : new MetricsThresholdsLoader(this.gitRoot ?? process.cwd());
       const thresholds = loader.load();
 
       // Compute previous range (same duration before current range)
