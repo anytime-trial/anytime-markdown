@@ -300,23 +300,24 @@ export class TrailDataServer {
     private readonly gitRoot?: string,
     memoryDbPath?: string,
     /**
-     * lep.json `workspace.configPaths` から解決した絶対ファイルパス。
-     * 指定時は categories / metrics をこのパスから読み (gitRoot 非依存)、
-     * 未指定キーは従来どおり `<gitRoot>/.anytime/<file>` にフォールバックする。
+     * extension が lep.json / ワークスペースルートから解決して注入する表示用パス群。
+     * daemon は fork 時 cwd 未指定でワークスペースを確実に知らないため、これらを明示注入して
+     * categories / metrics / trace / デフォルト repo 名を gitRoot 非依存にする。未指定キーは
+     * 従来どおり `<gitRoot>/.anytime/<file>` 等にフォールバックする (後方互換)。
      */
-    private readonly configPaths?: {
-      commitCategories?: string;
-      toolCategories?: string;
-      skillCategories?: string;
-      metricsThresholds?: string;
+    private readonly options?: {
+      /** lep.json `workspace.configPaths` から解決した categories / metrics の絶対ファイルパス。 */
+      configPaths?: {
+        commitCategories?: string;
+        toolCategories?: string;
+        skillCategories?: string;
+        metricsThresholds?: string;
+      };
+      /** 表示エンドポイントが `?repo=` 未指定時に使うデフォルト repo 名 (`basename(wsRootForDb)`)。 */
+      defaultRepoName?: string;
+      /** trace 一覧/取得が読む trace ディレクトリの絶対パス (`<trailHome>/trace`)。 */
+      traceDir?: string;
     },
-    /**
-     * 表示エンドポイントが `?repo=` 未指定時に使うデフォルト repo 名。extension が
-     * `basename(wsRootForDb)` を注入する。gitRoots は複数指定され得るため、単一 gitRoot の
-     * basename からの導出をやめ、ワークスペース主 repo 名を明示注入で受ける。未指定時のみ
-     * 従来どおり `basename(gitRoot)` にフォールバックする (後方互換)。
-     */
-    private readonly defaultRepoName?: string,
   ) {
     // webpack-bundled VS Code 拡張では bindings package が call stack から
     // `.node` を推測できず crash するため、distPath から絶対パスを組み立てて
@@ -366,7 +367,7 @@ export class TrailDataServer {
    * 未指定時のみ `basename(gitRoot)` にフォールバックする (後方互換)。
    */
   private defaultRepo(): string | undefined {
-    if (this.defaultRepoName) return this.defaultRepoName;
+    if (this.options?.defaultRepoName) return this.options.defaultRepoName;
     return this.gitRoot ? path.basename(this.gitRoot) : undefined;
   }
 
@@ -972,7 +973,7 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/config/commit-categories' && method === 'GET') {
-      const file = this.configPaths?.commitCategories;
+      const file = this.options?.configPaths?.commitCategories;
       const root = this.gitRoot ?? process.cwd();
       const entries: Record<string, number> = {};
       for (const [k, v] of file ? loadCommitCategoriesFromFile(file) : loadCommitCategories(root)) entries[k] = v;
@@ -984,7 +985,7 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/config/tool-categories' && method === 'GET') {
-      const file = this.configPaths?.toolCategories;
+      const file = this.options?.configPaths?.toolCategories;
       const root = this.gitRoot ?? process.cwd();
       const entries: Record<string, number> = {};
       for (const [k, v] of file ? loadToolCategoriesFromFile(file) : loadToolCategories(root)) entries[k] = v;
@@ -996,7 +997,7 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/config/skill-categories' && method === 'GET') {
-      const file = this.configPaths?.skillCategories;
+      const file = this.options?.configPaths?.skillCategories;
       const root = this.gitRoot ?? process.cwd();
       const entries: Record<string, number> = {};
       for (const [k, v] of file ? loadSkillCategoriesFromFile(file) : loadSkillCategories(root)) entries[k] = v;
@@ -1435,6 +1436,10 @@ export class TrailDataServer {
   }
 
   private resolveTraceDir(): string {
+    // extension が writer (traceCommands) と同じロジックで解決した trace dir を優先する。
+    // daemon は fork 時 cwd 未指定でワークスペースを知らず、gitRoot fallback は writer の
+    // wsRoot とズレ得るため、注入値を最優先にする。
+    if (this.options?.traceDir) return this.options.traceDir;
     const trailHome = process.env['TRAIL_HOME'] ?? path.join(this.gitRoot ?? process.cwd(), '.anytime', 'trail');
     return path.join(trailHome, 'trace');
   }
@@ -2335,7 +2340,7 @@ export class TrailDataServer {
       return;
     }
     try {
-      const metricsFile = this.configPaths?.metricsThresholds;
+      const metricsFile = this.options?.configPaths?.metricsThresholds;
       const loader = metricsFile
         ? MetricsThresholdsLoader.fromFile(metricsFile)
         : new MetricsThresholdsLoader(this.gitRoot ?? process.cwd());

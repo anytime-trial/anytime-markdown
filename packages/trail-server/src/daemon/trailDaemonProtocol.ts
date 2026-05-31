@@ -122,6 +122,12 @@ export interface SerializableHttpServerOptions {
   readonly toolCategoriesPath?: string;
   readonly skillCategoriesPath?: string;
   readonly metricsThresholdsPath?: string;
+  /**
+   * trace 一覧/取得が読む trace ディレクトリの絶対パス。extension が writer (traceCommands) と
+   * 同じ `TRAIL_HOME ?? <wsRoot>/.anytime/trail` + `/trace` で解決して渡す。省略時は
+   * daemon 側で `<gitRoot>/.anytime/trail/trace` にフォールバック。
+   */
+  readonly traceDir?: string;
   /** HTTP サーバの希望ポート。EADDRINUSE 時は +1..+9 → 0 (OS 任意) の順で試みる。 */
   readonly preferredPort?: number;
   /**

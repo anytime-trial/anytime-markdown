@@ -284,12 +284,15 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     opts.gitRoot,
     opts.memoryDbPath,
     {
-      commitCategories: opts.commitCategoriesPath,
-      toolCategories: opts.toolCategoriesPath,
-      skillCategories: opts.skillCategoriesPath,
-      metricsThresholds: opts.metricsThresholdsPath,
+      configPaths: {
+        commitCategories: opts.commitCategoriesPath,
+        toolCategories: opts.toolCategoriesPath,
+        skillCategories: opts.skillCategoriesPath,
+        metricsThresholds: opts.metricsThresholdsPath,
+      },
+      defaultRepoName: opts.defaultRepoName,
+      traceDir: opts.traceDir,
     },
-    opts.defaultRepoName,
   );
   server.setCodeGraphService(codeGraphService);
 

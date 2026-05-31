@@ -7,7 +7,7 @@ jest.mock('@anytime-markdown/trail-core/c4', () => {
   return { ...actual, fetchC4Model: jest.fn() };
 });
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
@@ -678,7 +678,7 @@ describe('GET /api/config/commit-categories — configPaths override (gitRoot �
     );
     // gitRoot は渡さない (第4引数 undefined) → configPaths が効いていることを確認できる。
     server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, undefined, {
-      commitCategories: file,
+      configPaths: { commitCategories: file },
     });
     await server.start(0);
     port = server.port;
@@ -707,15 +707,9 @@ describe('GET /api/c4/tree — defaultRepoName 注入 (gitRoot basename 非依�
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     // gitRoot の basename は 'wrong-repo' だが、defaultRepoName で 'injected-repo' を注入する。
-    server = new TrailDataServer(
-      '/tmp',
-      db,
-      makeMockLogger(),
-      '/tmp/wrong-repo',
-      undefined,
-      undefined,
-      'injected-repo',
-    );
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), '/tmp/wrong-repo', undefined, {
+      defaultRepoName: 'injected-repo',
+    });
     await server.start(0);
     port = server.port;
   });
@@ -733,5 +727,37 @@ describe('GET /api/c4/tree — defaultRepoName 注入 (gitRoot basename 非依�
     expect(fetchC4Model).toHaveBeenCalled();
     // 3 番目の引数 (repoName) が注入値であること。
     expect((fetchC4Model as jest.Mock).mock.calls[0][2]).toBe('injected-repo');
+  });
+});
+
+describe('GET /api/trace/list — traceDir 注入 (gitRoot 非依存)', () => {
+  let server: TrailDataServer;
+  let db: TrailDatabase;
+  let port: number;
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    tmpDir = mkdtempSync(join(tmpdir(), 'trail-tracedir-'));
+    // gitRoot とは無関係な trace dir を注入し、そこに trace ファイルを置く。
+    const traceDir = join(tmpDir, 'custom-trace');
+    mkdirSync(traceDir, { recursive: true });
+    writeFileSync(join(traceDir, 'sample.json'), JSON.stringify({ ok: true }), 'utf-8');
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), '/tmp/wrong-repo', undefined, { traceDir });
+    await server.start(0);
+    port = server.port;
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    db.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('注入 traceDir のファイルを一覧する (gitRoot basename ではなく)', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/trace/list`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Array<{ name: string }>;
+    expect(body.some((t) => t.name === 'sample.json')).toBe(true);
   });
 });

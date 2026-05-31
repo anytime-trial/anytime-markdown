@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
-import { registerTraceCommands } from './commands/traceCommands';
+import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
 import {
 	installBundledSkills,
 	installStaticSkillDir,
@@ -676,6 +676,8 @@ export async function activate(context: vscode.ExtensionContext) {
 						metricsThresholdsPath: resolveWorkspaceConfigPath(lepConfig, 'metricsThresholds', wsRootForDb),
 						// 表示のデフォルト repo 名を明示注入 (gitRoots は複数あり得るため単一 gitRoot basename 導出を避ける)。
 						defaultRepoName: wsRootForDb ? path.basename(wsRootForDb) : undefined,
+						// trace dir を writer (traceCommands) と同一ロジックで解決し注入 (daemon の gitRoot/cwd 非依存)。
+						traceDir: wsRootForDb ? getTraceOutputDir(wsRootForDb) : undefined,
 				});
 				TrailLogger.info('[TrailDaemonHttpClient] startHttpServer called successfully');
 			} catch (err) {
