@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/core";
+import type { Editor } from "@anytime-markdown/markdown-core";
 
 async function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise<string>((resolve, reject) => {

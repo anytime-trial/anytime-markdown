@@ -12,7 +12,7 @@ const config = {
   testMatch: ["<rootDir>/src/__tests__/**/*.test.{ts,tsx}"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {
-    // @tiptap/* → vendored ソースへ解決（共有 alias ヘルパ）
+    // @anytime-markdown/markdown-* → vendored ソースへ解決（共有 alias ヘルパ）
     ...buildJestMapper(),
     "\\.md$": "<rootDir>/src/__mocks__/md-raw.js",
     "^@/(.*)$": "<rootDir>/../markdown-viewer/src/$1",

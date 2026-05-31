@@ -1,6 +1,6 @@
-import { mergeAttributes,Node } from "@tiptap/core";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { mergeAttributes,Node } from "@anytime-markdown/markdown-core";
+import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
+import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
 import type MarkdownIt from "markdown-it";
 
 import type { MarkdownSerializerLike } from "./markdownItRules/imageSerializer";

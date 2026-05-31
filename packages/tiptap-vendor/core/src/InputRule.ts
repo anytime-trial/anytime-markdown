@@ -1,7 +1,7 @@
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-import { Fragment } from '@tiptap/pm/model'
-import type { EditorState, TextSelection } from '@tiptap/pm/state'
-import { Plugin } from '@tiptap/pm/state'
+import type { Node as ProseMirrorNode } from '@anytime-markdown/markdown-pm/model'
+import { Fragment } from '@anytime-markdown/markdown-pm/model'
+import type { EditorState, TextSelection } from '@anytime-markdown/markdown-pm/state'
+import { Plugin } from '@anytime-markdown/markdown-pm/state'
 
 import { CommandManager } from './CommandManager'
 import type { Editor } from './Editor'

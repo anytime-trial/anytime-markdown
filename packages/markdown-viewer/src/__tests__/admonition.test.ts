@@ -3,9 +3,9 @@
  *
  * GitHub 互換 `> [!NOTE]` 記法のラウンドトリップ（Markdown → Editor → Markdown）を検証する。
  */
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import { Markdown } from "tiptap-markdown";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
+import { Markdown } from "@anytime-markdown/markdown-md";
 import { AdmonitionBlockquote } from "../extensions/admonitionExtension";
 import { preprocessAdmonition } from "../utils/admonitionHelpers";
 import { getMarkdownFromEditor, getMarkdownStorage } from "../types";

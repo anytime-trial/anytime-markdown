@@ -5,7 +5,7 @@ import React from "react";
 import { render } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditorState: ({ selector }: any) => {
     // Return empty array as fallback (selector needs valid editor)
     return [];

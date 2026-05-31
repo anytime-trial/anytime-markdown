@@ -1,4 +1,4 @@
-import type { Fragment, Node, ResolvedPos } from '@tiptap/pm/model'
+import type { Fragment, Node, ResolvedPos } from '@anytime-markdown/markdown-pm/model'
 
 import type { Editor } from './Editor'
 import type { Content, Range } from './types'

@@ -1,4 +1,4 @@
-import type { ParseRule } from '@tiptap/pm/model'
+import type { ParseRule } from '@anytime-markdown/markdown-pm/model'
 
 import type { ExtensionAttribute } from '../types'
 import { fromString } from '../utilities/fromString'

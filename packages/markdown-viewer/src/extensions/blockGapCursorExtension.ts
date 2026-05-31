@@ -2,9 +2,9 @@
  * ブロック要素（NodeView）の前後で GapCursor を表示し、
  * GapCursor 状態でのキー操作を処理する拡張。
  */
-import { Extension } from "@tiptap/core";
-import { GapCursor } from "@tiptap/pm/gapcursor";
-import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import { Extension } from "@anytime-markdown/markdown-core";
+import { GapCursor } from "@anytime-markdown/markdown-pm/gapcursor";
+import { Plugin, PluginKey, TextSelection } from "@anytime-markdown/markdown-pm/state";
 
 /** GapCursor 対象のブロックノードタイプ名 */
 const BLOCK_NODE_TYPES = new Set(["codeBlock", "image", "gifBlock", "table"]);
@@ -27,8 +27,8 @@ function adjustGapCursorPosition(dom: HTMLElement) {
   });
 }
 
-import type { EditorState } from "@tiptap/pm/state";
-import type { EditorView } from "@tiptap/pm/view";
+import type { EditorState } from "@anytime-markdown/markdown-pm/state";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
 /** GapCursor 状態での ArrowDown 処理 */
 function handleGapArrowDown(view: EditorView, state: EditorState, pos: number): boolean {
@@ -121,8 +121,8 @@ const GAP_PREVENTABLE_KEYS = new Set(["ArrowDown", "ArrowUp", "ArrowRight", "Ent
 
 /** Handle keydown when GapCursor is active */
 function handleGapKeydown(
-  view: import("@tiptap/pm/view").EditorView,
-  state: import("@tiptap/pm/state").EditorState,
+  view: import("@anytime-markdown/markdown-pm/view").EditorView,
+  state: import("@anytime-markdown/markdown-pm/state").EditorState,
   pos: number,
   event: KeyboardEvent,
 ): boolean {
@@ -143,8 +143,8 @@ function handleGapKeydown(
 
 /** Handle keydown from normal (non-gap) cursor for block navigation */
 function handleNormalKeydown(
-  view: import("@tiptap/pm/view").EditorView,
-  state: import("@tiptap/pm/state").EditorState,
+  view: import("@anytime-markdown/markdown-pm/view").EditorView,
+  state: import("@anytime-markdown/markdown-pm/state").EditorState,
   event: KeyboardEvent,
 ): boolean {
   if (event.key === "ArrowDown") {

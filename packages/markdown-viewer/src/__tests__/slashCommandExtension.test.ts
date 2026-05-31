@@ -2,9 +2,9 @@
  * slashCommandExtension.ts のテスト
  * stripZWS / handleHeadingSlash / tryActivate / Plugin state management を網羅
  */
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import { TextSelection } from "@tiptap/pm/state";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
+import { TextSelection } from "@anytime-markdown/markdown-pm/state";
 import {
   SlashCommandExtension,
   type SlashCommandState,

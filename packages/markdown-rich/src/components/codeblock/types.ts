@@ -1,6 +1,6 @@
 "use client";
 
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 
 import type { useTextareaSearch } from "@anytime-markdown/markdown-viewer";
 

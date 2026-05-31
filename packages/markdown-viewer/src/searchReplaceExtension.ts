@@ -1,7 +1,7 @@
-import { type Editor,Extension } from "@tiptap/core";
-import type { Node as PMNode } from "@tiptap/pm/model";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { type Editor,Extension } from "@anytime-markdown/markdown-core";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
+import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
+import { Decoration, DecorationSet } from "@anytime-markdown/markdown-pm/view";
 
 export interface SearchReplaceStorage {
   searchTerm: string;
@@ -386,7 +386,7 @@ function scrollToMatch(editor: Editor) {
   }
 }
 
-declare module "@tiptap/core" {
+declare module "@anytime-markdown/markdown-core" {
   interface Commands<ReturnType> {
     searchReplace: {
       setSearchTerm: (term: string) => ReturnType;

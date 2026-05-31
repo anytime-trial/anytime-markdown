@@ -1,6 +1,6 @@
-import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { ReactNodeViewRenderer } from "@tiptap/react";
+import { CodeBlockLowlight } from "@anytime-markdown/markdown-extension-code-block-lowlight";
+import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
+import { ReactNodeViewRenderer } from "@anytime-markdown/markdown-react";
 
 import { CodeBlockNodeView } from "./MermaidNodeView";
 import {

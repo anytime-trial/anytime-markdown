@@ -1,4 +1,4 @@
-import type { EditorState } from '@tiptap/pm/state'
+import type { EditorState } from '@anytime-markdown/markdown-pm/state'
 
 import { getSchemaTypeNameByName } from './getSchemaTypeNameByName'
 import { isMarkActive } from './isMarkActive'

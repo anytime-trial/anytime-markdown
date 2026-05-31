@@ -1,6 +1,6 @@
-import type { Editor } from '@tiptap/core'
-import { isAtStartOfNode, isNodeActive } from '@tiptap/core'
-import type { Node } from '@tiptap/pm/model'
+import type { Editor } from '@anytime-markdown/markdown-core'
+import { isAtStartOfNode, isNodeActive } from '@anytime-markdown/markdown-core'
+import type { Node } from '@anytime-markdown/markdown-pm/model'
 
 import { findListItemPos } from './findListItemPos'
 import { hasListBefore } from './hasListBefore'

@@ -1,4 +1,4 @@
-import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model'
+import type { Node as ProseMirrorNode, ResolvedPos } from '@anytime-markdown/markdown-pm/model'
 
 import type { Predicate } from '../types'
 

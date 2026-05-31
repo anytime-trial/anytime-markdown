@@ -1,7 +1,7 @@
 "use client";
 
-import type { NodeViewProps } from "@tiptap/react";
-import { useEditorState } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
+import { useEditorState } from "@anytime-markdown/markdown-react";
 
 /**
  * Detect whether the editor selection is within this node view.

@@ -6,7 +6,7 @@
  * 契約のみを検証する。実際の図変換挙動は markdown-rich の prepareDarkDiagramsForPrint.test.ts。
  */
 import { renderHook, act } from "@testing-library/react";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 
 let themeMode: "dark" | "light" = "dark";
 jest.mock("@mui/material", () => ({

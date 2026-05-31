@@ -2,7 +2,7 @@
 
 import type { SxProps, Theme } from "@mui/material";
 import { Box } from "@mui/material";
-import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
+import { NodeViewContent, NodeViewWrapper } from "@anytime-markdown/markdown-react";
 
 import { DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_CODE_BG, getDivider, useEditorSettingsContext, DeleteBlockDialog } from "@anytime-markdown/markdown-viewer";
 

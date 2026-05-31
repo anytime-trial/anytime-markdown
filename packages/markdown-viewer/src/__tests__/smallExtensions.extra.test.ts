@@ -7,7 +7,7 @@
  */
 
 // React / ReactNodeViewRenderer モック
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   ReactNodeViewRenderer: jest.fn(() => jest.fn()),
 }));
 

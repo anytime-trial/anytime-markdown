@@ -1,8 +1,8 @@
-import { deleteSelection as originalDeleteSelection } from '@tiptap/pm/commands'
+import { deleteSelection as originalDeleteSelection } from '@anytime-markdown/markdown-pm/commands'
 
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     deleteSelection: {
       /**

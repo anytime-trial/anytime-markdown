@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { OUTLINE_WIDTH_DEFAULT, OUTLINE_WIDTH_MAX,OUTLINE_WIDTH_MIN } from "../constants/dimensions";

@@ -4,7 +4,7 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import { Box, IconButton, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useRef } from "react";
 
 import { useMarkdownMinimap } from "../hooks/useMarkdownMinimap";

@@ -1,4 +1,4 @@
-import { RemoveMarkStep } from '@tiptap/pm/transform'
+import { RemoveMarkStep } from '@anytime-markdown/markdown-pm/transform'
 
 import { Extension } from '../Extension'
 import { combineTransactionSteps, getChangedRanges } from '../helpers/index'

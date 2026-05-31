@@ -3,8 +3,8 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Box, IconButton, Paper, Tooltip } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
 import { alpha, useTheme } from "@mui/material/styles";
-import type { Editor } from "@tiptap/react";
-import { EditorContent } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
+import { EditorContent } from "@anytime-markdown/markdown-react";
 import React, { useEffect, useRef } from "react";
 
 import { getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";

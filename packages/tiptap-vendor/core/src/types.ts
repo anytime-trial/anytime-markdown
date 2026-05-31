@@ -1,6 +1,6 @@
-import type { Mark as ProseMirrorMark, Node as ProseMirrorNode, ParseOptions, Slice } from '@tiptap/pm/model'
-import type { EditorState, Transaction } from '@tiptap/pm/state'
-import type { Mappable, Transform } from '@tiptap/pm/transform'
+import type { Mark as ProseMirrorMark, Node as ProseMirrorNode, ParseOptions, Slice } from '@anytime-markdown/markdown-pm/model'
+import type { EditorState, Transaction } from '@anytime-markdown/markdown-pm/state'
+import type { Mappable, Transform } from '@anytime-markdown/markdown-pm/transform'
 import type {
   Decoration,
   DecorationAttrs,
@@ -11,7 +11,7 @@ import type {
   NodeView,
   NodeViewConstructor,
   ViewMutationRecord,
-} from '@tiptap/pm/view'
+} from '@anytime-markdown/markdown-pm/view'
 
 import type { Editor } from './Editor'
 import type { Extendable } from './Extendable'

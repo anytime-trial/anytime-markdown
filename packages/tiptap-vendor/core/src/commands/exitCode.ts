@@ -1,8 +1,8 @@
-import { exitCode as originalExitCode } from '@tiptap/pm/commands'
+import { exitCode as originalExitCode } from '@anytime-markdown/markdown-pm/commands'
 
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     exitCode: {
       /**

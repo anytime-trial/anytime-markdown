@@ -1,6 +1,6 @@
-import type { FloatingMenuPluginProps } from '@tiptap/extension-floating-menu'
-import { FloatingMenuPlugin } from '@tiptap/extension-floating-menu'
-import { useCurrentEditor } from '@tiptap/react'
+import type { FloatingMenuPluginProps } from '@anytime-markdown/markdown-extension-floating-menu'
+import { FloatingMenuPlugin } from '@anytime-markdown/markdown-extension-floating-menu'
+import { useCurrentEditor } from '@anytime-markdown/markdown-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 

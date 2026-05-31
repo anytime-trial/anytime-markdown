@@ -1,11 +1,11 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ImageNodeView } from "../ImageNodeView";
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 
 // --- Mocks ---
 let mockIsSelected = false;
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   NodeViewWrapper: ({ children }: React.PropsWithChildren) => <div data-testid="node-view-wrapper">{children}</div>,
   useEditorState: () => mockIsSelected,
 }));

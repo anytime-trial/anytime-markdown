@@ -41,7 +41,7 @@ const mockEditorForSelector = {
   },
 };
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditorState: ({ selector }: any) => {
     try {
       const result = selector({ editor: mockEditorForSelector });

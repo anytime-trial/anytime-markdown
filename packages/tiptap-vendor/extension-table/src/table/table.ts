@@ -7,9 +7,9 @@ import {
   getExtensionField,
   mergeAttributes,
   Node,
-} from '@tiptap/core'
-import type { DOMOutputSpec, Node as ProseMirrorNode } from '@tiptap/pm/model'
-import { TextSelection } from '@tiptap/pm/state'
+} from '@anytime-markdown/markdown-core'
+import type { DOMOutputSpec, Node as ProseMirrorNode } from '@anytime-markdown/markdown-pm/model'
+import { TextSelection } from '@anytime-markdown/markdown-pm/state'
 import {
   addColumnAfter,
   addColumnBefore,
@@ -28,8 +28,8 @@ import {
   tableEditing,
   toggleHeader,
   toggleHeaderCell,
-} from '@tiptap/pm/tables'
-import type { EditorView, NodeView } from '@tiptap/pm/view'
+} from '@anytime-markdown/markdown-pm/tables'
+import type { EditorView, NodeView } from '@anytime-markdown/markdown-pm/view'
 
 import { TableView } from './TableView'
 import { createColGroup } from './utilities/createColGroup'
@@ -100,7 +100,7 @@ export interface TableOptions {
   allowTableNodeSelection: boolean
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     table: {
       /**

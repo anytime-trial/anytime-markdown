@@ -1,8 +1,8 @@
 "use client";
 
 import { useTheme } from "@mui/material";
-import type { NodeViewProps } from "@tiptap/react";
-import { useEditorState } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
+import { useEditorState } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DiagramBlock } from "./components/codeblock/DiagramBlock";

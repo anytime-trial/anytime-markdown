@@ -1,8 +1,8 @@
-import type { Plugin, PluginKey } from '@tiptap/pm/state'
+import type { Plugin, PluginKey } from '@anytime-markdown/markdown-pm/state'
 
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     setMeta: {
       /**

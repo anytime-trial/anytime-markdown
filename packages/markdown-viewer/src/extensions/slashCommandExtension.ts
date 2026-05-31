@@ -1,6 +1,6 @@
-import { Extension } from "@tiptap/core";
-import { type EditorState, Plugin, PluginKey, Selection } from "@tiptap/pm/state";
-import type { EditorView } from "@tiptap/pm/view";
+import { Extension } from "@anytime-markdown/markdown-core";
+import { type EditorState, Plugin, PluginKey, Selection } from "@anytime-markdown/markdown-pm/state";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
 export interface SlashCommandState {
   active: boolean;

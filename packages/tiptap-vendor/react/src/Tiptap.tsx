@@ -40,7 +40,7 @@ TiptapContext.displayName = 'TiptapContext'
  *
  * @example
  * ```tsx
- * import { useTiptap } from '@tiptap/react'
+ * import { useTiptap } from '@anytime-markdown/markdown-react'
  *
  * function Toolbar() {
  *   const { editor } = useTiptap()
@@ -124,7 +124,7 @@ export type TiptapWrapperProps = {
  *
  * @example
  * ```tsx
- * import { Tiptap, useEditor } from '@tiptap/react'
+ * import { Tiptap, useEditor } from '@anytime-markdown/markdown-react'
  *
  * function App() {
  *   const editor = useEditor({ extensions: [...] })
@@ -192,12 +192,12 @@ TiptapContent.displayName = 'Tiptap.Content'
  * backwards compatibility.
  *
  * For bubble menus and floating menus, import them separately from
- * `@tiptap/react/menus` to keep floating-ui as an optional dependency.
+ * `@anytime-markdown/markdown-react/menus` to keep floating-ui as an optional dependency.
  *
  * @example
  * ```tsx
- * import { Tiptap, useEditor } from '@tiptap/react'
- * import { BubbleMenu } from '@tiptap/react/menus'
+ * import { Tiptap, useEditor } from '@anytime-markdown/markdown-react'
+ * import { BubbleMenu } from '@anytime-markdown/markdown-react/menus'
  *
  * function App() {
  *   const editor = useEditor({ extensions: [...] })

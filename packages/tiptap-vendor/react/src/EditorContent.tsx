@@ -1,4 +1,4 @@
-import type { Editor } from '@tiptap/core'
+import type { Editor } from '@anytime-markdown/markdown-core'
 import type { ForwardedRef, HTMLProps, LegacyRef, MutableRefObject } from 'react'
 import React, { forwardRef } from 'react'
 import ReactDOM from 'react-dom'

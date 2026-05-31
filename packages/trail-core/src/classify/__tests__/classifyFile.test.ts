@@ -32,8 +32,8 @@ describe('classifyFile', () => {
       expect(classifyFile('packages/foo/src/blockAlignment.ts', sf)).toBe('ui');
     });
 
-    it('imports @tiptap/core', () => {
-      const sf = makeSourceFile(`import { Extension } from '@tiptap/core'; export const Foo = Extension.create({});`);
+    it('imports @anytime-markdown/markdown-core', () => {
+      const sf = makeSourceFile(`import { Extension } from '@anytime-markdown/markdown-core'; export const Foo = Extension.create({});`);
       expect(classifyFile('packages/foo/src/MyExtension.ts', sf)).toBe('ui');
     });
   });

@@ -1,12 +1,12 @@
-import type { MarkType, ResolvedPos } from '@tiptap/pm/model'
-import type { EditorState, Transaction } from '@tiptap/pm/state'
+import type { MarkType, ResolvedPos } from '@anytime-markdown/markdown-pm/model'
+import type { EditorState, Transaction } from '@anytime-markdown/markdown-pm/state'
 
 import { getMarkAttributes } from '../helpers/getMarkAttributes'
 import { getMarkType } from '../helpers/getMarkType'
 import { isTextSelection } from '../helpers/index'
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     setMark: {
       /**

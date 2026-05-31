@@ -1,4 +1,4 @@
-import type { Schema } from '@tiptap/pm/model'
+import type { Schema } from '@anytime-markdown/markdown-pm/model'
 
 import type { TextSerializer } from '../types'
 

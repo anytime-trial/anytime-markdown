@@ -1,5 +1,5 @@
-import { type BubbleMenuPluginProps, BubbleMenuPlugin } from '@tiptap/extension-bubble-menu'
-import { useCurrentEditor } from '@tiptap/react'
+import { type BubbleMenuPluginProps, BubbleMenuPlugin } from '@anytime-markdown/markdown-extension-bubble-menu'
+import { useCurrentEditor } from '@anytime-markdown/markdown-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 

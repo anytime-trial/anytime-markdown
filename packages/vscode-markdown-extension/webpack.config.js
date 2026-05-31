@@ -4,7 +4,7 @@
 
 const path = require('path');
 const webpack = require('webpack');
-// @tiptap/* → vendored ソースへの alias（共有ヘルパ）
+// @anytime-markdown/markdown-* → vendored ソースへの alias（共有ヘルパ）
 const { buildWebpackAlias } = require('../tiptap-vendor/alias.cjs');
 
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
@@ -60,7 +60,7 @@ const webviewConfig = {
   resolve: {
     extensions: ['.tsx', '.ts', '.js', '.json'],
     alias: {
-      // @tiptap/* → vendored ソース
+      // @anytime-markdown/markdown-* → vendored ソース
       ...buildWebpackAlias(),
       'next-intl': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),
       'next-intl/server': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),

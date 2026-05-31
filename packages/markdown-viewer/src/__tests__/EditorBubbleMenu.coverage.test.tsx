@@ -9,7 +9,7 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 let mockShouldShow: any = null;
 
-jest.mock("@tiptap/react/menus", () => ({
+jest.mock("@anytime-markdown/markdown-react/menus", () => ({
   BubbleMenu: ({ children, shouldShow }: any) => {
     mockShouldShow = shouldShow;
     return <div data-testid="bubble-menu">{children}</div>;

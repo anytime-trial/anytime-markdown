@@ -1,4 +1,4 @@
-import { Plugin, PluginKey, Selection } from '@tiptap/pm/state'
+import { Plugin, PluginKey, Selection } from '@anytime-markdown/markdown-pm/state'
 
 import { CommandManager } from '../CommandManager'
 import { Extension } from '../Extension'

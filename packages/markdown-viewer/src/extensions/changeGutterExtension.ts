@@ -1,7 +1,7 @@
-import { Extension } from "@tiptap/core";
-import type { Node as PmNode } from "@tiptap/pm/model";
-import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { Extension } from "@anytime-markdown/markdown-core";
+import type { Node as PmNode } from "@anytime-markdown/markdown-pm/model";
+import { Plugin, PluginKey, TextSelection } from "@anytime-markdown/markdown-pm/state";
+import { Decoration, DecorationSet } from "@anytime-markdown/markdown-pm/view";
 
 const changeGutterKey = new PluginKey("changeGutter");
 
@@ -190,7 +190,7 @@ interface ChangeGutterState {
 
 /** プラグイン state から変更位置リストを取得 */
 export function getChangedPositions(
-  editorState: import("@tiptap/pm/state").EditorState,
+  editorState: import("@anytime-markdown/markdown-pm/state").EditorState,
 ): number[] {
   return changeGutterKey.getState(editorState)?.changedPositions ?? [];
 }
@@ -218,7 +218,7 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 
-declare module "@tiptap/core" {
+declare module "@anytime-markdown/markdown-core" {
   interface Commands<ReturnType> {
     changeGutter: {
       /** 現在の doc を baseline として保存 */

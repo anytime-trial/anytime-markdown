@@ -1,4 +1,4 @@
-import type { Mark, Node } from '@tiptap/pm/model'
+import type { Mark, Node } from '@anytime-markdown/markdown-pm/model'
 
 import type { ExtensionAttribute } from '../types'
 import { mergeAttributes } from '../utilities/mergeAttributes'

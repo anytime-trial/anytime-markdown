@@ -19,7 +19,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useMemo } from "react";
 
 import { getDivider } from "../constants/colors";

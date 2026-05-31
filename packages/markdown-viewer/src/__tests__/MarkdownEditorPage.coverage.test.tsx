@@ -45,7 +45,7 @@ const mockEditor = {
   view: { dom: { scrollTop: 0 } },
 };
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditor: () => mockEditor,
   EditorContent: () => <div data-testid="editor-content" />,
   ReactNodeViewRenderer: () => () => null,

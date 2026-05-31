@@ -1,5 +1,5 @@
-import { DOMSerializer } from "@tiptap/pm/model";
-import type { Editor } from "@tiptap/react";
+import { DOMSerializer } from "@anytime-markdown/markdown-pm/model";
+import type { Editor } from "@anytime-markdown/markdown-react";
 
 interface MergeEditorsValue {
   rightEditor: Editor | null;

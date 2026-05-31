@@ -4,7 +4,7 @@
  * findBackgroundColor, captureHtmlElement 等の動作を間接的にテスト。
  */
 import { renderHook } from "@testing-library/react";
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 import { useBlockCapture } from "../hooks/useBlockCapture";
 
 jest.mock("../utils/clipboardHelpers", () => ({

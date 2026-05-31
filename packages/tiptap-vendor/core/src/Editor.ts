@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
-import type { MarkType, Node as ProseMirrorNode, NodeType, Schema } from '@tiptap/pm/model'
-import type { Plugin, PluginKey, Transaction } from '@tiptap/pm/state'
-import { EditorState } from '@tiptap/pm/state'
-import { type DirectEditorProps, EditorView } from '@tiptap/pm/view'
+import type { MarkType, Node as ProseMirrorNode, NodeType, Schema } from '@anytime-markdown/markdown-pm/model'
+import type { Plugin, PluginKey, Transaction } from '@anytime-markdown/markdown-pm/state'
+import { EditorState } from '@anytime-markdown/markdown-pm/state'
+import { type DirectEditorProps, EditorView } from '@anytime-markdown/markdown-pm/view'
 
 import { CommandManager } from './CommandManager'
 import { EventEmitter } from './EventEmitter'

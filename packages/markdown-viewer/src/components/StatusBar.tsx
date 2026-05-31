@@ -3,7 +3,7 @@
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import { Box, Button, Menu, MenuItem, Tooltip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getBgPaper, getDivider, getTextSecondary, getWarningMain } from "../constants/colors";

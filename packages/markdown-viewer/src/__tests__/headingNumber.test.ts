@@ -3,11 +3,11 @@
  *
  * Widget Decoration で見出しに番号を付与する機能を検証する。
  */
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import { Markdown } from "tiptap-markdown";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
+import { Markdown } from "@anytime-markdown/markdown-md";
 import { HeadingNumberExtension, headingNumberPluginKey } from "../extensions/headingNumberExtension";
-import { DecorationSet } from "@tiptap/pm/view";
+import { DecorationSet } from "@anytime-markdown/markdown-pm/view";
 
 function createEditor(md = ""): Editor {
   return new Editor({

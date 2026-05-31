@@ -1,5 +1,5 @@
-import { NodeSelection } from '@tiptap/pm/state'
-import type { NodeView as ProseMirrorNodeView, ViewMutationRecord } from '@tiptap/pm/view'
+import { NodeSelection } from '@anytime-markdown/markdown-pm/state'
+import type { NodeView as ProseMirrorNodeView, ViewMutationRecord } from '@anytime-markdown/markdown-pm/view'
 
 import type { Editor as CoreEditor } from './Editor'
 import type { DecorationWithType, NodeViewRendererOptions, NodeViewRendererProps } from './types'

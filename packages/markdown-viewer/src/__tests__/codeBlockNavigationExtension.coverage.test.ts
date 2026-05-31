@@ -4,14 +4,14 @@
  */
 import { CodeBlockNavigation } from "../extensions/codeBlockNavigationExtension";
 
-// Mock @tiptap/core Extension.create
-jest.mock("@tiptap/core", () => ({
+// Mock @anytime-markdown/markdown-core Extension.create
+jest.mock("@anytime-markdown/markdown-core", () => ({
   Extension: {
     create: jest.fn().mockImplementation((config) => config),
   },
 }));
 
-jest.mock("@tiptap/pm/state", () => ({
+jest.mock("@anytime-markdown/markdown-pm/state", () => ({
   TextSelection: {
     near: jest.fn().mockImplementation((resolved, bias) => ({ resolved, bias })),
   },

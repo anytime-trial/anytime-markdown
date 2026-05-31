@@ -1,6 +1,6 @@
-import type { NodeType } from '@tiptap/pm/model'
-import type { Transaction } from '@tiptap/pm/state'
-import { canJoin } from '@tiptap/pm/transform'
+import type { NodeType } from '@anytime-markdown/markdown-pm/model'
+import type { Transaction } from '@anytime-markdown/markdown-pm/state'
+import { canJoin } from '@anytime-markdown/markdown-pm/transform'
 
 import { findParentNode } from '../helpers/findParentNode'
 import { getNodeType } from '../helpers/getNodeType'
@@ -57,7 +57,7 @@ const joinListForwards = (tr: Transaction, listType: NodeType): boolean => {
   return true
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     toggleList: {
       /**

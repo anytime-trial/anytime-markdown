@@ -1,7 +1,7 @@
-import { findChildren } from '@tiptap/core'
-import type { Node as ProsemirrorNode } from '@tiptap/pm/model'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { findChildren } from '@anytime-markdown/markdown-core'
+import type { Node as ProsemirrorNode } from '@anytime-markdown/markdown-pm/model'
+import { Plugin, PluginKey } from '@anytime-markdown/markdown-pm/state'
+import { Decoration, DecorationSet } from '@anytime-markdown/markdown-pm/view'
 // @ts-ignore
 import highlight from 'highlight.js/lib/core'
 

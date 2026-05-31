@@ -14,7 +14,7 @@ export type DOMOutputSpecArray =
   | [string, DOMOutputSpecArray]
 
 // JSX types for Tiptap's JSX runtime
-// These types only apply when using @jsxImportSource @tiptap/core
+// These types only apply when using @jsxImportSource @anytime-markdown/markdown-core
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace JSX {
   export type Element = DOMOutputSpecArray

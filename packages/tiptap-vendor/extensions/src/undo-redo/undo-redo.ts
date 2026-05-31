@@ -1,5 +1,5 @@
-import { Extension } from '@tiptap/core'
-import { history, redo, undo } from '@tiptap/pm/history'
+import { Extension } from '@anytime-markdown/markdown-core'
+import { history, redo, undo } from '@anytime-markdown/markdown-pm/history'
 
 export interface UndoRedoOptions {
   /**
@@ -17,7 +17,7 @@ export interface UndoRedoOptions {
   newGroupDelay: number
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     undoRedo: {
       /**
@@ -38,10 +38,10 @@ declare module '@tiptap/core' {
  * This extension allows you to undo and redo recent changes.
  * @see https://www.tiptap.dev/api/extensions/undo-redo
  *
- * **Important**: If the `@tiptap/extension-collaboration` package is used, make sure to remove
+ * **Important**: If the `@anytime-markdown/markdown-extension-collaboration` package is used, make sure to remove
  * the `undo-redo` extension, as it is not compatible with the `collaboration` extension.
  *
- * `@tiptap/extension-collaboration` uses its own history implementation.
+ * `@anytime-markdown/markdown-extension-collaboration` uses its own history implementation.
  */
 export const UndoRedo = Extension.create<UndoRedoOptions>({
   name: 'undoRedo',

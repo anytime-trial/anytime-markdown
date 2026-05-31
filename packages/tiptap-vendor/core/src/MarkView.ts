@@ -1,5 +1,5 @@
-import type { Mark } from '@tiptap/pm/model'
-import type { ViewMutationRecord } from '@tiptap/pm/view'
+import type { Mark } from '@anytime-markdown/markdown-pm/model'
+import type { ViewMutationRecord } from '@anytime-markdown/markdown-pm/view'
 
 import type { Editor } from './Editor'
 import type { MarkViewProps, MarkViewRendererOptions } from './types'

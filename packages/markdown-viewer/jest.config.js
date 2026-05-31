@@ -9,7 +9,7 @@ const config = {
   testMatch: ["<rootDir>/src/__tests__/**/*.test.ts", "<rootDir>/src/__tests__/**/*.test.tsx"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {
-    // @tiptap/* → vendored ソースへ解決（共有 alias ヘルパ）
+    // @anytime-markdown/markdown-* → vendored ソースへ解決（共有 alias ヘルパ）
     ...buildJestMapper(),
     "^@/(.*)$": "<rootDir>/src/$1",
     "^next-intl$": "<rootDir>/__mocks__/next-intl.ts",

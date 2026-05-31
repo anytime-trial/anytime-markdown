@@ -1,4 +1,4 @@
-import { mergeAttributes, Node, renderNestedMarkdownContent } from '@tiptap/core'
+import { mergeAttributes, Node, renderNestedMarkdownContent } from '@anytime-markdown/markdown-core'
 
 export interface ListItemOptions {
   /**

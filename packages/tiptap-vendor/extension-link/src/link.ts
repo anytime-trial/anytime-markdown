@@ -1,6 +1,6 @@
-import type { PasteRuleMatch } from '@tiptap/core'
-import { Mark, markPasteRule, mergeAttributes } from '@tiptap/core'
-import type { Plugin } from '@tiptap/pm/state'
+import type { PasteRuleMatch } from '@anytime-markdown/markdown-core'
+import { Mark, markPasteRule, mergeAttributes } from '@anytime-markdown/markdown-core'
+import type { Plugin } from '@anytime-markdown/markdown-pm/state'
 import { find, registerCustomProtocol, reset } from 'linkifyjs'
 
 import { autolink } from './helpers/autolink'
@@ -128,7 +128,7 @@ export interface LinkOptions {
   shouldAutoLink: (url: string) => boolean
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     link: {
       /**

@@ -1,9 +1,9 @@
-import { NodeSelection } from '@tiptap/pm/state'
+import { NodeSelection } from '@anytime-markdown/markdown-pm/state'
 
 import type { RawCommands } from '../types'
 import { minMax } from '../utilities/minMax'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     setNodeSelection: {
       /**

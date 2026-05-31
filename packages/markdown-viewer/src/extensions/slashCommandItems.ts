@@ -29,7 +29,7 @@ import TipsAndUpdatesIcon from "@mui/icons-material/TipsAndUpdates";
 import TocIcon from "@mui/icons-material/Toc";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import WebIcon from "@mui/icons-material/Web";
-import type { Editor } from "@tiptap/core";
+import type { Editor } from "@anytime-markdown/markdown-core";
 import React from "react";
 
 import apiSpec from "../constants/templates/apiSpec.md";

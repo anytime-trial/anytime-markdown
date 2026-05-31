@@ -10,10 +10,10 @@
  *
  * 対応タイプ: NOTE, TIP, IMPORTANT, WARNING, CAUTION
  */
-import Blockquote from "@tiptap/extension-blockquote";
-import type { Node as PMNode } from "@tiptap/pm/model";
-import type { EditorState, Transaction } from "@tiptap/pm/state";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import Blockquote from "@anytime-markdown/markdown-extension-blockquote";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
+import type { EditorState, Transaction } from "@anytime-markdown/markdown-pm/state";
+import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
 
 const ADMONITION_RE = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i;
 const MAX_BLOCKQUOTE_DEPTH = 6;

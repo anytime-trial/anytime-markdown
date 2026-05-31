@@ -2,7 +2,7 @@
  * useEditorSettingsSync のテスト
  */
 import { renderHook } from "@testing-library/react";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useEditorSettingsSync } from "../hooks/useEditorSettingsSync";
 
 function createMockEditor(): Editor {

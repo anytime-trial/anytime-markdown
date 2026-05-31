@@ -1,9 +1,9 @@
-import { Editor } from "@tiptap/core";
-import Document from "@tiptap/extension-document";
-import Paragraph from "@tiptap/extension-paragraph";
-import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
-import Text from "@tiptap/extension-text";
-import type { Node as PMNode } from "@tiptap/pm/model";
+import { Editor } from "@anytime-markdown/markdown-core";
+import Document from "@anytime-markdown/markdown-extension-document";
+import Paragraph from "@anytime-markdown/markdown-extension-paragraph";
+import { Table, TableCell, TableHeader, TableRow } from "@anytime-markdown/markdown-extension-table";
+import Text from "@anytime-markdown/markdown-extension-text";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 
 import { createTiptapSheetAdapter } from "../spreadsheet/TiptapSheetAdapter";
 

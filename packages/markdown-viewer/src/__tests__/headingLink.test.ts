@@ -1,7 +1,7 @@
 import { sanitizeMarkdown, preserveBlankLines } from "../utils/sanitizeMarkdown";
 import { getMarkdownFromEditor } from "../types";
 import { createTestEditor } from "../testUtils/createTestEditor";
-import { Editor } from "@tiptap/core";
+import { Editor } from "@anytime-markdown/markdown-core";
 
 describe("見出し内リンクのラウンドトリップ", () => {
   let editor: Editor;

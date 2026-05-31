@@ -3,9 +3,9 @@
  *
  * [^id] 記法の前処理・パース・シリアライズを検証する。
  */
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import { Markdown } from "tiptap-markdown";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
+import { Markdown } from "@anytime-markdown/markdown-md";
 import {
   FootnoteRef,
   findFootnoteDefinition,

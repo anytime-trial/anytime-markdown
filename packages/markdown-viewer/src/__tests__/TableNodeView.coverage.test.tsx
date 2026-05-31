@@ -24,7 +24,7 @@ let mockIsCompareLeft = false;
 const mockSetEditOpen = jest.fn();
 const mockSetDeleteDialogOpen = jest.fn();
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   NodeViewWrapper: ({ children, ...props }: any) => <div data-testid="node-view-wrapper" {...props}>{children}</div>,
   NodeViewContent: (props: any) => <table data-testid="node-view-content"><tbody><tr><td>content</td></tr></tbody></table>,
 }));

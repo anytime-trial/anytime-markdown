@@ -1,5 +1,5 @@
-import { getNodeAtPosition } from '@tiptap/core'
-import type { EditorState } from '@tiptap/pm/state'
+import { getNodeAtPosition } from '@anytime-markdown/markdown-core'
+import type { EditorState } from '@anytime-markdown/markdown-pm/state'
 
 import { findListItemPos } from './findListItemPos'
 

@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/core'
+import { Extension } from '@anytime-markdown/markdown-core'
 
 import type { BubbleMenuPluginProps } from './bubble-menu-plugin'
 import { BubbleMenuPlugin } from './bubble-menu-plugin'

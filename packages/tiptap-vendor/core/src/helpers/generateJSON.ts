@@ -1,4 +1,4 @@
-import { DOMParser } from '@tiptap/pm/model'
+import { DOMParser } from '@anytime-markdown/markdown-pm/model'
 
 import type { Extensions } from '../types'
 import { elementFromString } from '../utilities/elementFromString'

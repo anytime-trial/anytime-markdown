@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useEffect, useRef } from "react";
 
 import { DEBOUNCE_MEDIUM } from "../constants/timing";
@@ -17,7 +17,7 @@ type CommentInfo = {
 
 /** descendants コールバック: コメントに対応するノード位置とテキストを探す */
 function findCommentTarget(
-  doc: import("@tiptap/pm/model").Node,
+  doc: import("@anytime-markdown/markdown-pm/model").Node,
   commentId: string,
 ): { targetText: string; pos: number; isPoint: boolean } {
   let targetText = '';

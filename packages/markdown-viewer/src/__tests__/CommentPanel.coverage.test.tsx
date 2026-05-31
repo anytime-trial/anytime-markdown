@@ -14,7 +14,7 @@ import type { ImageAnnotation } from "../types/imageAnnotation";
 const mockComments = new Map<string, InlineComment>();
 let mockImageAnnotations: { pos: number; src: string; allAnnotations: ImageAnnotation[]; annotations: ImageAnnotation[] }[] = [];
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditorState: ({ selector }: any) => {
     // The component calls useEditorState twice: once for comments, once for imageAnnotations
     // We detect by calling selector with a fake editor context

@@ -1,5 +1,5 @@
 import { useTheme } from "@mui/material";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useState } from "react";
 
 import { PRINT_DELAY } from "../constants/timing";

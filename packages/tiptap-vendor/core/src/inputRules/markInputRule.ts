@@ -1,4 +1,4 @@
-import type { MarkType } from '@tiptap/pm/model'
+import type { MarkType } from '@anytime-markdown/markdown-pm/model'
 
 import { getMarksBetween } from '../helpers/getMarksBetween'
 import type { InputRuleFinder } from '../InputRule'

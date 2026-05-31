@@ -1,4 +1,4 @@
-import type { Selection } from '@tiptap/pm/state'
+import type { Selection } from '@anytime-markdown/markdown-pm/state'
 
 import type { Predicate } from '../types'
 import { findParentNodeClosestToPos } from './findParentNodeClosestToPos'

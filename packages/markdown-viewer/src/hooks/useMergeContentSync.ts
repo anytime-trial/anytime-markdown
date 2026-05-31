@@ -1,6 +1,6 @@
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import type { Transaction } from "@tiptap/pm/state";
-import type { Editor } from "@tiptap/react";
+import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
+import type { Transaction } from "@anytime-markdown/markdown-pm/state";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useEffect, useRef } from "react";
 
 import { reviewModeStorage } from "../extensions/reviewModeExtension";

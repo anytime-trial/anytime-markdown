@@ -1,5 +1,5 @@
-import { Fragment } from "@tiptap/pm/model";
-import { getHTMLFromFragment, Node } from "@tiptap/core";
+import { Fragment } from "@anytime-markdown/markdown-pm/model";
+import { getHTMLFromFragment, Node } from "@anytime-markdown/markdown-core";
 import { elementFromString } from "../../util/dom";
 
 

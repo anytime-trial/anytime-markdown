@@ -1,9 +1,9 @@
-import { TextSelection } from '@tiptap/pm/state'
+import { TextSelection } from '@anytime-markdown/markdown-pm/state'
 
 import type { Range, RawCommands } from '../types'
 import { minMax } from '../utilities/minMax'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     setTextSelection: {
       /**

@@ -1,5 +1,5 @@
-import type { MarkType, NodeType } from '@tiptap/pm/model'
-import type { EditorState } from '@tiptap/pm/state'
+import type { MarkType, NodeType } from '@anytime-markdown/markdown-pm/model'
+import type { EditorState } from '@anytime-markdown/markdown-pm/state'
 
 import { getMarkAttributes } from './getMarkAttributes'
 import { getNodeAttributes } from './getNodeAttributes'

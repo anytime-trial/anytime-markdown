@@ -6,7 +6,7 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 
 // --- Mocks ---
 let mockKatexHtml: string | null = "<span>x^2</span>";
@@ -25,7 +25,7 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     }),
 }));
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   NodeViewWrapper: ({ children }: React.PropsWithChildren) => <div data-testid="node-view-wrapper">{children}</div>,
   NodeViewContent: () => <code data-testid="node-view-content" />,
 }));

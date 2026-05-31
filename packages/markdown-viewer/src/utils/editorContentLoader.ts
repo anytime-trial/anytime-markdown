@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 
 import { getEditorStorage } from "../types";
 import type { InlineComment } from "./commentHelpers";

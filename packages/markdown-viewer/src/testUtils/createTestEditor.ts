@@ -1,17 +1,17 @@
-import { Editor, Extension, type Extensions } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import { TableKit } from "@tiptap/extension-table";
-import { Markdown } from "tiptap-markdown";
+import { Editor, Extension, type Extensions } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
+import { TableKit } from "@anytime-markdown/markdown-extension-table";
+import { Markdown } from "@anytime-markdown/markdown-md";
 import { CustomImage } from "../imageExtension";
 import { ImageRow } from "../imageRowExtension";
 import { imagePastePlugin } from "../plugins/imagePastePlugin";
-import Link from "@tiptap/extension-link";
-import Highlight from "@tiptap/extension-highlight";
-import Underline from "@tiptap/extension-underline";
-import TaskList from "@tiptap/extension-task-list";
-import TaskItem from "@tiptap/extension-task-item";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
-import type { Mark } from "@tiptap/pm/model";
+import Link from "@anytime-markdown/markdown-extension-link";
+import Highlight from "@anytime-markdown/markdown-extension-highlight";
+import Underline from "@anytime-markdown/markdown-extension-underline";
+import TaskList from "@anytime-markdown/markdown-extension-task-list";
+import TaskItem from "@anytime-markdown/markdown-extension-task-item";
+import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
+import type { Mark } from "@anytime-markdown/markdown-pm/model";
 
 const ImagePasteTest = Extension.create({
   name: "imagePasteTest",

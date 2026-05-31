@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { useDiffHighlight } from "../hooks/useDiffHighlight";
 import { computeBlockDiff } from "../utils/blockDiffComputation";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 
 jest.mock("../utils/blockDiffComputation", () => ({
   computeBlockDiff: jest.fn(() => ({

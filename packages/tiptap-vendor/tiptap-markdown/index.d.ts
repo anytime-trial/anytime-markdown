@@ -1,4 +1,4 @@
-import { Editor, Extension } from "@tiptap/core";
+import { Editor, Extension } from "@anytime-markdown/markdown-core";
 import { MarkdownSerializer, MarkdownSerializerState } from "prosemirror-markdown";
 import * as Prosemirror from "prosemirror-model";
 import * as MarkdownIt from "markdown-it";

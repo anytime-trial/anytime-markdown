@@ -6,7 +6,7 @@ import { renderHook } from "@testing-library/react";
 
 let selectorFn: ((ctx: any) => any) | null = null;
 
-jest.mock("@tiptap/react", () => ({
+jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditorState: ({ selector }: any) => {
     selectorFn = selector;
     return selector({ editor: null });

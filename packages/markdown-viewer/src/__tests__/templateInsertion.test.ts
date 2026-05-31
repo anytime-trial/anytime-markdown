@@ -9,7 +9,7 @@
  * 1. insertContent でテンプレートの Mermaid/PlantUML コードブロックが保持されること
  * 2. handleInsertTemplate が requestAnimationFrame 経由で insertContent を呼ぶこと
  */
-import { Editor } from "@tiptap/core";
+import { Editor } from "@anytime-markdown/markdown-core";
 import { createTestEditor } from "../testUtils/createTestEditor";
 import { getMarkdownFromEditor } from "../types";
 

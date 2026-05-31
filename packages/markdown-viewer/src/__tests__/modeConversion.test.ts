@@ -1,8 +1,8 @@
 import { sanitizeMarkdown, preserveBlankLines, restoreBlankLines } from "../utils/sanitizeMarkdown";
 import { getMarkdownFromEditor } from "../types";
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import { Markdown } from "tiptap-markdown";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
+import { Markdown } from "@anytime-markdown/markdown-md";
 import { createTestEditor } from "../testUtils/createTestEditor";
 
 // ---------- sanitizeMarkdown ----------

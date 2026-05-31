@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect } from "react";
 
 const SECTION_NUMBER_RE = /^\d+(\.\d+)*\.?\s/;

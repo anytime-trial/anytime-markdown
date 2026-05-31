@@ -1,5 +1,5 @@
-import type { Editor } from '@tiptap/core'
-import { isAtEndOfNode, isNodeActive } from '@tiptap/core'
+import type { Editor } from '@anytime-markdown/markdown-core'
+import { isAtEndOfNode, isNodeActive } from '@anytime-markdown/markdown-core'
 
 import { nextListIsDeeper } from './nextListIsDeeper'
 import { nextListIsHigher } from './nextListIsHigher'

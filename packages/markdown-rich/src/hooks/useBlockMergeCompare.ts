@@ -1,6 +1,6 @@
 "use client";
 
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { findCodeBlockByIndex, findCounterpartCode, getCodeBlockIndex, getMergeEditors } from "@anytime-markdown/markdown-viewer";

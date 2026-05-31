@@ -6,9 +6,9 @@
  * - appendTransaction: docChanged false (line 80)
  * - appendTransaction: modifications.length === 0 (line 106/114)
  */
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import { Markdown } from "tiptap-markdown";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
+import { Markdown } from "@anytime-markdown/markdown-md";
 import { AdmonitionBlockquote } from "../extensions/admonitionExtension";
 
 function createEditor(md = ""): Editor {

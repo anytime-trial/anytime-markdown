@@ -1,12 +1,12 @@
-import type { Mark, MarkType, Node, NodeType } from '@tiptap/pm/model'
-import type { SelectionRange } from '@tiptap/pm/state'
+import type { Mark, MarkType, Node, NodeType } from '@anytime-markdown/markdown-pm/model'
+import type { SelectionRange } from '@anytime-markdown/markdown-pm/state'
 
 import { getMarkType } from '../helpers/getMarkType'
 import { getNodeType } from '../helpers/getNodeType'
 import { getSchemaTypeNameByName } from '../helpers/getSchemaTypeNameByName'
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     updateAttributes: {
       /**

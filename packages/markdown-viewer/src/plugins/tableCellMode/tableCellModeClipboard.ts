@@ -1,5 +1,5 @@
-import type { EditorView } from "@tiptap/pm/view";
-import { TableMap } from "@tiptap/pm/tables";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
+import { TableMap } from "@anytime-markdown/markdown-pm/tables";
 
 import { tableCellModePluginKey } from "./tableCellModePlugin";
 
@@ -48,7 +48,7 @@ function replaceCellContent(
   cellPos: number,
   text: string,
   dispatch: boolean = true,
-): import("@tiptap/pm/state").Transaction | null {
+): import("@anytime-markdown/markdown-pm/state").Transaction | null {
   const { doc, schema, tr } = view.state;
   const cell = doc.nodeAt(cellPos);
   if (!cell) return null;
@@ -76,7 +76,7 @@ function replaceCellContent(
 function findTable(
   view: EditorView,
   cellPos: number,
-): { tableNode: import("@tiptap/pm/model").Node; tableStart: number } | null {
+): { tableNode: import("@anytime-markdown/markdown-pm/model").Node; tableStart: number } | null {
   const { doc } = view.state;
   try {
     const $pos = doc.resolve(cellPos);
@@ -128,14 +128,14 @@ function getCellPosAt(
 
 /** 1セル分の貼り付けを行い、更新された Transaction を返す */
 function pasteSingleCell(
-  tr: import("@tiptap/pm/state").Transaction,
+  tr: import("@anytime-markdown/markdown-pm/state").Transaction,
   view: EditorView,
   startCellPos: number,
   rowIdx: number,
   colIdx: number,
   text: string,
-  schema: import("@tiptap/pm/model").Schema,
-): import("@tiptap/pm/state").Transaction {
+  schema: import("@anytime-markdown/markdown-pm/model").Schema,
+): import("@anytime-markdown/markdown-pm/state").Transaction {
   const targetPos = getCellPosAt(view, startCellPos, rowIdx, colIdx);
   if (targetPos == null) return tr;
 

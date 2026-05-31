@@ -15,7 +15,7 @@ jest.mock("prosemirror-model", () => ({
   },
 }));
 
-jest.mock("@tiptap/pm/model", () => ({
+jest.mock("@anytime-markdown/markdown-pm/model", () => ({
   DOMSerializer: {
     fromSchema: mockFromSchema,
   },

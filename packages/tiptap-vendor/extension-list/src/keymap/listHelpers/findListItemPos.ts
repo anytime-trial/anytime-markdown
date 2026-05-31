@@ -1,6 +1,6 @@
-import { getNodeType } from '@tiptap/core'
-import type { NodeType } from '@tiptap/pm/model'
-import type { EditorState } from '@tiptap/pm/state'
+import { getNodeType } from '@anytime-markdown/markdown-core'
+import type { NodeType } from '@anytime-markdown/markdown-pm/model'
+import type { EditorState } from '@anytime-markdown/markdown-pm/state'
 
 export const findListItemPos = (typeOrName: string | NodeType, state: EditorState) => {
   const { $from } = state.selection

@@ -6,7 +6,7 @@
  * getEffectiveBackground, findBackgroundColor, createScaledCanvas, loadImage, downloadCanvas.
  */
 import { renderHook } from "@testing-library/react";
-import type { NodeViewProps } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 
 const mockSaveBlob = jest.fn().mockResolvedValue(undefined);
 

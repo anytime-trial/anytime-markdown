@@ -56,7 +56,7 @@ function normalizeKeyName(name: string) {
   return result
 }
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     keyboardShortcut: {
       /**

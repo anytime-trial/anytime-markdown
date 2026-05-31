@@ -1,4 +1,4 @@
-import { Node } from '@tiptap/pm/model'
+import { Node } from '@anytime-markdown/markdown-pm/model'
 
 import type { Extensions, JSONContent, TextSerializer } from '../types'
 import { getSchema } from './getSchema'

@@ -9,8 +9,8 @@ import LinkIcon from "@mui/icons-material/Link";
 import ScreenshotMonitorIcon from "@mui/icons-material/ScreenshotMonitor";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
-import type { NodeViewProps } from "@tiptap/react";
-import { NodeViewWrapper } from "@tiptap/react";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
+import { NodeViewWrapper } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AnnotationOverlay } from "./components/AnnotationOverlay";

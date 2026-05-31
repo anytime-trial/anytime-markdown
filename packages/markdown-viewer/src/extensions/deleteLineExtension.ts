@@ -1,4 +1,4 @@
-import { Extension } from "@tiptap/react";
+import { Extension } from "@anytime-markdown/markdown-react";
 
 /** Ctrl+Shift+K でカーソル行を削除 */
 export const DeleteLineExtension = Extension.create({

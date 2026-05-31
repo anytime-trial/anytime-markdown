@@ -1,6 +1,6 @@
-import { mergeAttributes,Node } from "@tiptap/core";
-import type { Node as PMNode } from "@tiptap/pm/model";
-import { ReactNodeViewRenderer } from "@tiptap/react";
+import { mergeAttributes,Node } from "@anytime-markdown/markdown-core";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
+import { ReactNodeViewRenderer } from "@anytime-markdown/markdown-react";
 
 import { GifNodeView } from "../components/GifNodeView";
 import type { MdSerializerState } from "../types";

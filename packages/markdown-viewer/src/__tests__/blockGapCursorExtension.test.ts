@@ -18,7 +18,7 @@ class MockGapCursor {
   }
 }
 
-jest.mock("@tiptap/pm/gapcursor", () => ({
+jest.mock("@anytime-markdown/markdown-pm/gapcursor", () => ({
   GapCursor: MockGapCursor,
 }));
 
@@ -26,8 +26,8 @@ jest.mock("@tiptap/pm/gapcursor", () => ({
 const mockTextSelectionNear = jest.fn().mockReturnValue({ type: "textSelection" });
 const mockTextSelectionCreate = jest.fn().mockReturnValue({ type: "textSelectionCreated" });
 
-jest.mock("@tiptap/pm/state", () => {
-  const actual = jest.requireActual("@tiptap/pm/state");
+jest.mock("@anytime-markdown/markdown-pm/state", () => {
+  const actual = jest.requireActual("@anytime-markdown/markdown-pm/state");
   return {
     ...actual,
     TextSelection: {

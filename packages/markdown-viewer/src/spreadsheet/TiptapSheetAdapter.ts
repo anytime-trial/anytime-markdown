@@ -3,8 +3,8 @@ import type {
   SheetAdapter,
   SheetSnapshot,
 } from "@anytime-markdown/spreadsheet-viewer";
-import type { Node as PMNode } from "@tiptap/pm/model";
-import type { Editor } from "@tiptap/react";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
+import type { Editor } from "@anytime-markdown/markdown-react";
 
 const EMPTY_SNAPSHOT: SheetSnapshot = {
   cells: [],

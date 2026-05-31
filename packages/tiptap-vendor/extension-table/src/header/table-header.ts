@@ -1,6 +1,6 @@
 import '../types'
 
-import { mergeAttributes, Node } from '@tiptap/core'
+import { mergeAttributes, Node } from '@anytime-markdown/markdown-core'
 
 export interface TableHeaderOptions {
   /**

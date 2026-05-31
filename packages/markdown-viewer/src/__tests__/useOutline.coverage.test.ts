@@ -7,7 +7,7 @@
 
 import { renderHook, act } from "@testing-library/react";
 import { useOutline } from "../hooks/useOutline";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import type { HeadingItem } from "../types";
 
 jest.mock("../types", () => ({

@@ -9,7 +9,7 @@ import {
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type { VirtualElement } from "@popperjs/core";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getTextSecondary } from "../constants/colors";

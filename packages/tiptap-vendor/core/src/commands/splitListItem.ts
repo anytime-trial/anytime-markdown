@@ -1,13 +1,13 @@
-import type { Node as ProseMirrorNode, NodeType } from '@tiptap/pm/model'
-import { Fragment, Slice } from '@tiptap/pm/model'
-import { TextSelection } from '@tiptap/pm/state'
-import { canSplit } from '@tiptap/pm/transform'
+import type { Node as ProseMirrorNode, NodeType } from '@anytime-markdown/markdown-pm/model'
+import { Fragment, Slice } from '@anytime-markdown/markdown-pm/model'
+import { TextSelection } from '@anytime-markdown/markdown-pm/state'
+import { canSplit } from '@anytime-markdown/markdown-pm/transform'
 
 import { getNodeType } from '../helpers/getNodeType'
 import { getSplittedAttributes } from '../helpers/getSplittedAttributes'
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     splitListItem: {
       /**

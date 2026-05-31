@@ -1,4 +1,4 @@
-import { Extension } from "@tiptap/core";
+import { Extension } from "@anytime-markdown/markdown-core";
 
 export const MarkdownTightLists = Extension.create({
     name: 'markdownTightLists',

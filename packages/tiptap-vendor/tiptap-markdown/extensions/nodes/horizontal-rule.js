@@ -1,4 +1,4 @@
-import { Node } from "@tiptap/core";
+import { Node } from "@anytime-markdown/markdown-core";
 import { defaultMarkdownSerializer } from "prosemirror-markdown";
 
 

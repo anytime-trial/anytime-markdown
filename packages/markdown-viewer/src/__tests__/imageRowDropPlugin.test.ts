@@ -1,5 +1,5 @@
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import type { EditorView } from "@tiptap/pm/view";
+import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
 import { applyDropAction, computeDropTarget } from "../plugins/imageRowDropPlugin";
 import { createTestEditor } from "../testUtils/createTestEditor";

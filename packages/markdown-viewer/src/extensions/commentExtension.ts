@@ -6,8 +6,8 @@
  * - CommentPoint Node: カーソル位置にポイントコメントを挿入
  * - CommentDataPlugin: Plugin State でコメントデータを管理 + コマンド
  */
-import { Extension,Mark, Node } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Extension,Mark, Node } from "@anytime-markdown/markdown-core";
+import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
 
 import type { InlineComment } from "../utils/commentHelpers";
 
@@ -165,7 +165,7 @@ type CommentAction =
   | { type: "updateText"; id: string; text: string }
   | { type: "init"; comments: Map<string, InlineComment> };
 
-declare module "@tiptap/core" {
+declare module "@anytime-markdown/markdown-core" {
   interface Commands<ReturnType> {
     commentData: {
       addComment: (text: string) => ReturnType;

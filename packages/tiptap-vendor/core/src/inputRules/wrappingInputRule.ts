@@ -1,5 +1,5 @@
-import type { Node as ProseMirrorNode, NodeType } from '@tiptap/pm/model'
-import { canJoin, findWrapping } from '@tiptap/pm/transform'
+import type { Node as ProseMirrorNode, NodeType } from '@anytime-markdown/markdown-pm/model'
+import { canJoin, findWrapping } from '@anytime-markdown/markdown-pm/transform'
 
 import type { Editor } from '../Editor'
 import type { InputRuleFinder } from '../InputRule'

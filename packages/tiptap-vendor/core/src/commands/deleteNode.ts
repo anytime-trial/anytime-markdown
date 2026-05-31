@@ -1,9 +1,9 @@
-import type { NodeType } from '@tiptap/pm/model'
+import type { NodeType } from '@anytime-markdown/markdown-pm/model'
 
 import { getNodeType } from '../helpers/getNodeType'
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     deleteNode: {
       /**

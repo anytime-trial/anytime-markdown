@@ -1,4 +1,4 @@
-import type { EditorState, Transaction } from '@tiptap/pm/state'
+import type { EditorState, Transaction } from '@anytime-markdown/markdown-pm/state'
 
 import type { Editor } from './Editor'
 import { createChainableState } from './helpers/createChainableState'

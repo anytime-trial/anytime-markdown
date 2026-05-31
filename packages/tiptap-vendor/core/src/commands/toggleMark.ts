@@ -1,10 +1,10 @@
-import type { MarkType } from '@tiptap/pm/model'
+import type { MarkType } from '@anytime-markdown/markdown-pm/model'
 
 import { getMarkType } from '../helpers/getMarkType'
 import { isMarkActive } from '../helpers/isMarkActive'
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     toggleMark: {
       /**

@@ -6,8 +6,8 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-// @tiptap/react モック - useEditorState をスタブ化
-jest.mock("@tiptap/react", () => ({
+// @anytime-markdown/markdown-react モック - useEditorState をスタブ化
+jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditorState: () => ({
     canUndo: false,
     canRedo: false,

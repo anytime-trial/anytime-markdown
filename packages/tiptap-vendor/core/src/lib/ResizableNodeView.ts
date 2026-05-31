@@ -1,5 +1,5 @@
-import type { Node as PMNode } from '@tiptap/pm/model'
-import type { Decoration, DecorationSource, NodeView } from '@tiptap/pm/view'
+import type { Node as PMNode } from '@anytime-markdown/markdown-pm/model'
+import type { Decoration, DecorationSource, NodeView } from '@anytime-markdown/markdown-pm/view'
 
 import type { Editor } from '../Editor'
 

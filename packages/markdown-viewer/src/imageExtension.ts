@@ -1,5 +1,5 @@
-import Image from "@tiptap/extension-image";
-import { ReactNodeViewRenderer } from "@tiptap/react";
+import Image from "@anytime-markdown/markdown-extension-image";
+import { ReactNodeViewRenderer } from "@anytime-markdown/markdown-react";
 
 import { ImageNodeView } from "./ImageNodeView";
 import { imageMarkdownSpec } from "./markdownItRules/imageSerializer";

@@ -12,10 +12,10 @@
  * - クリックで定義内のURLを新しいタブで開く
  */
 import { Box, Tooltip, useTheme } from "@mui/material";
-import { InputRule,Node } from "@tiptap/core";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import type { NodeViewProps } from "@tiptap/react";
-import { NodeViewWrapper,ReactNodeViewRenderer } from "@tiptap/react";
+import { InputRule,Node } from "@anytime-markdown/markdown-core";
+import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
+import type { NodeViewProps } from "@anytime-markdown/markdown-react";
+import { NodeViewWrapper,ReactNodeViewRenderer } from "@anytime-markdown/markdown-react";
 import { useCallback } from "react";
 
 import { getPrimaryMain } from "../constants/colors";

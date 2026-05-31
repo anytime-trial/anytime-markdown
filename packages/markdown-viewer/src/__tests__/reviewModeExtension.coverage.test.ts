@@ -11,8 +11,8 @@ jest.mock("lowlight", () => ({
 }));
 
 import { ReviewModeExtension, reviewModeStorage } from "../extensions/reviewModeExtension";
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
 
 describe("ReviewModeExtension", () => {
   let editor: Editor;

@@ -1,5 +1,5 @@
-import type { ParseOptions } from '@tiptap/pm/model'
-import { DOMParser, Fragment, Node as ProseMirrorNode, Schema } from '@tiptap/pm/model'
+import type { ParseOptions } from '@anytime-markdown/markdown-pm/model'
+import { DOMParser, Fragment, Node as ProseMirrorNode, Schema } from '@anytime-markdown/markdown-pm/model'
 
 import type { Content } from '../types'
 import { elementFromString } from '../utilities/elementFromString'

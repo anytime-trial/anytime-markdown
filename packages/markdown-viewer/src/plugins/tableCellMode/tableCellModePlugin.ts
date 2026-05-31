@@ -1,5 +1,5 @@
-import { Plugin, PluginKey, TextSelection, type Transaction } from "@tiptap/pm/state";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { Plugin, PluginKey, TextSelection, type Transaction } from "@anytime-markdown/markdown-pm/state";
+import { Decoration, DecorationSet } from "@anytime-markdown/markdown-pm/view";
 
 import { handleCopy, handleCut, handlePaste } from "./tableCellModeClipboard";
 import { handleKeyDown } from "./tableCellModeKeymap";
@@ -62,7 +62,7 @@ export function exitTableMode(tr: Transaction): Transaction {
 
 function buildDecorations(
   state: TableCellModeState,
-  doc: import("@tiptap/pm/model").Node,
+  doc: import("@anytime-markdown/markdown-pm/model").Node,
 ): DecorationSet {
   const decos: Decoration[] = [];
 
@@ -190,7 +190,7 @@ function mapPositions(
 
 /** 位置がテーブルセルノードを指しているか検証する */
 function validateCellPos(
-  doc: import("@tiptap/pm/model").Node,
+  doc: import("@anytime-markdown/markdown-pm/model").Node,
   pos: number,
 ): number | null {
   try {

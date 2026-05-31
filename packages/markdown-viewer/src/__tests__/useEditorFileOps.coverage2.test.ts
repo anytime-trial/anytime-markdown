@@ -4,7 +4,7 @@
  *   340-341 (mermaid replacement in print), 350-351 (diagram restores in finally)
  */
 import { renderHook, act } from "@testing-library/react";
-import type { Editor } from "@tiptap/react";
+import type { Editor } from "@anytime-markdown/markdown-react";
 import { useEditorFileOps } from "../hooks/useEditorFileOps";
 import { getMarkdownFromEditor } from "../types";
 

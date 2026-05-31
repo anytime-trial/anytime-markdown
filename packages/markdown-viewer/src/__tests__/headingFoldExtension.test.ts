@@ -3,8 +3,8 @@
  * HeadingFoldExtension の構造、コマンド、Plugin state、buildDecorations をテスト
  */
 import { HeadingFoldExtension, headingFoldPluginKey } from "../extensions/headingFoldExtension";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
+import { Decoration, DecorationSet } from "@anytime-markdown/markdown-pm/view";
 
 // DecorationSet.create は実際の ProseMirror ドキュメントを要求するためモック化
 const mockDecorationSet = { mock: true } as unknown as DecorationSet;

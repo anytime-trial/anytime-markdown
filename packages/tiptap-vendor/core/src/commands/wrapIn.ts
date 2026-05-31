@@ -1,10 +1,10 @@
-import { wrapIn as originalWrapIn } from '@tiptap/pm/commands'
-import type { NodeType } from '@tiptap/pm/model'
+import { wrapIn as originalWrapIn } from '@anytime-markdown/markdown-pm/commands'
+import type { NodeType } from '@anytime-markdown/markdown-pm/model'
 
 import { getNodeType } from '../helpers/getNodeType'
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     wrapIn: {
       /**

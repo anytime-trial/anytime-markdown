@@ -7,8 +7,8 @@ import {
   ChangeGutterExtension,
   getChangedPositions,
 } from "../extensions/changeGutterExtension";
-import type { Node as PmNode } from "@tiptap/pm/model";
-import { DecorationSet } from "@tiptap/pm/view";
+import type { Node as PmNode } from "@anytime-markdown/markdown-pm/model";
+import { DecorationSet } from "@anytime-markdown/markdown-pm/view";
 
 // Mock DecorationSet.create to avoid needing real ProseMirror doc internals
 const originalCreate = DecorationSet.create;
@@ -129,7 +129,7 @@ describe("getChangedPositions", () => {
   it("returns empty array when plugin state is undefined", () => {
     const mockState = {
       plugins: [],
-    } as unknown as import("@tiptap/pm/state").EditorState;
+    } as unknown as import("@anytime-markdown/markdown-pm/state").EditorState;
     const positions = getChangedPositions(mockState);
     expect(positions).toEqual([]);
   });
@@ -634,7 +634,7 @@ describe("Navigation commands with positions", () => {
     const view = { focus: jest.fn() };
 
     // Need to mock TextSelection.create
-    const { TextSelection } = require("@tiptap/pm/state");
+    const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
     const origCreate = TextSelection.create;
     const mockSelection = { from: 15 };
     TextSelection.create = jest.fn().mockReturnValue(mockSelection);
@@ -660,7 +660,7 @@ describe("Navigation commands with positions", () => {
     const dispatch = jest.fn();
     const view = { focus: jest.fn() };
 
-    const { TextSelection } = require("@tiptap/pm/state");
+    const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
     const origCreate = TextSelection.create;
     TextSelection.create = jest.fn().mockReturnValue({ from: 5 });
 
@@ -692,7 +692,7 @@ describe("Navigation commands with positions", () => {
     const cmd = (commands.goToNextChange as Function)();
     const { mockState, cleanup } = mockStateWithPositions([5], 0);
 
-    const { TextSelection } = require("@tiptap/pm/state");
+    const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
     const origCreate = TextSelection.create;
     TextSelection.create = jest.fn().mockReturnValue({ from: 5 });
 
@@ -713,7 +713,7 @@ describe("Navigation commands with positions", () => {
     const dispatch = jest.fn();
     const view = { focus: jest.fn() };
 
-    const { TextSelection } = require("@tiptap/pm/state");
+    const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
     const origCreate = TextSelection.create;
     TextSelection.create = jest.fn().mockReturnValue({ from: 15 });
 
@@ -737,7 +737,7 @@ describe("Navigation commands with positions", () => {
     const dispatch = jest.fn();
     const view = { focus: jest.fn() };
 
-    const { TextSelection } = require("@tiptap/pm/state");
+    const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
     const origCreate = TextSelection.create;
     TextSelection.create = jest.fn().mockReturnValue({ from: 25 });
 
@@ -769,7 +769,7 @@ describe("Navigation commands with positions", () => {
     const cmd = (commands.goToPrevChange as Function)();
     const { mockState, cleanup } = mockStateWithPositions([5], 10);
 
-    const { TextSelection } = require("@tiptap/pm/state");
+    const { TextSelection } = require("@anytime-markdown/markdown-pm/state");
     const origCreate = TextSelection.create;
     TextSelection.create = jest.fn().mockReturnValue({ from: 5 });
 

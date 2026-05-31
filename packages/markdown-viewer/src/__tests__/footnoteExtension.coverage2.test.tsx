@@ -16,8 +16,8 @@ jest.mock("../constants/colors", () => ({
 // We need to test the FootnoteRefView component directly
 // Since it's not exported, we test it through the extension's NodeView
 
-jest.mock("@tiptap/react", () => ({
-  ...jest.requireActual("@tiptap/react"),
+jest.mock("@anytime-markdown/markdown-react", () => ({
+  ...jest.requireActual("@anytime-markdown/markdown-react"),
   NodeViewWrapper: ({ children, as, style }: any) => <span data-testid="node-view-wrapper" style={style}>{children}</span>,
   ReactNodeViewRenderer: jest.fn((Component: any) => {
     // Store the component for direct testing
@@ -27,8 +27,8 @@ jest.mock("@tiptap/react", () => ({
 }));
 
 import { FootnoteRef } from "../extensions/footnoteExtension";
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
+import { Editor } from "@anytime-markdown/markdown-core";
+import StarterKit from "@anytime-markdown/markdown-starter-kit";
 
 const theme = createTheme();
 

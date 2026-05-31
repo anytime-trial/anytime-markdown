@@ -1,8 +1,8 @@
-import { joinPoint } from '@tiptap/pm/transform'
+import { joinPoint } from '@anytime-markdown/markdown-pm/transform'
 
 import type { RawCommands } from '../types'
 
-declare module '@tiptap/core' {
+declare module '@anytime-markdown/markdown-core' {
   interface Commands<ReturnType> {
     joinItemBackward: {
       /**
