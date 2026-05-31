@@ -19,23 +19,10 @@
   },
   "dependencies": {
     "@anytime-markdown/spreadsheet-viewer": "*",
-    "@tiptap/core": "3.20.0",
+    "@anytime-markdown/tiptap-vendor": "*",
     "@xmldom/xmldom": "0.9.10",
-    "@tiptap/extension-code-block-lowlight": "3.20.0",
-    "@tiptap/extension-highlight": "3.20.0",
-    "@tiptap/extension-image": "3.20.0",
-    "@tiptap/extension-link": "3.20.0",
-    "@tiptap/extension-placeholder": "3.20.0",
-    "@tiptap/extension-table": "3.20.0",
-    "@tiptap/extension-task-item": "3.20.0",
-    "@tiptap/extension-task-list": "3.20.0",
-    "@tiptap/extension-underline": "3.20.0",
-    "@tiptap/pm": "3.20.0",
-    "@tiptap/react": "3.20.0",
-    "@tiptap/starter-kit": "3.20.0",
     "encoding-japanese": "2.2.0",
-    "lowlight": "3.3.0",
-    "tiptap-markdown": "0.9.0"
+    "lowlight": "3.3.0"
   },
   "peerDependencies": {
     "@emotion/react": "^11.0.0",

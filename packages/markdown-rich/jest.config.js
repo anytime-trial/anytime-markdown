@@ -1,19 +1,20 @@
 const base = require('../../jest.config.base');
+const { buildJestMapper, buildJestTransform } = require('../tiptap-vendor/alias.cjs');
 /** @type {import('jest').Config} */
 const config = {
   ...base,
   testEnvironment: "jsdom",
   setupFiles: ["<rootDir>/jest.setup.ts"],
-  transform: {
-    // isolatedModules: 型チェックせずトランスパイルのみ。barrel (@anytime-markdown/markdown-core)
-    // 経由でロードされる markdown-core ソースを rich tsconfig で型評価しないため
-    // (@/ パス等が rich 基準で解決され TS2307 になるのを回避)。
-    // rich ソースの実コンテキスト型検証は web-app の next build で行う (設計方針)。
-    "^.+\\.tsx?$": ["ts-jest", { isolatedModules: true }],
-  },
+  // isolatedModules(buildJestTransform 内): barrel(@anytime-markdown/markdown-core) 経由で
+  // ロードされる markdown-core ソースを rich tsconfig で型評価しないため
+  // (@/ パス等が rich 基準で解決され TS2307 になるのを回避)。
+  // rich ソースの実コンテキスト型検証は web-app の next build で行う (設計方針)。
+  transform: buildJestTransform(),
   testMatch: ["<rootDir>/src/__tests__/**/*.test.ts", "<rootDir>/src/__tests__/**/*.test.tsx"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {
+    // @tiptap/* → vendored ソースへ解決（共有 alias ヘルパ）
+    ...buildJestMapper(),
     // barrel は core の index.ts (MarkdownEditorPage / templates.md など重量ツリーを eager ロード)
     // ではなく、rich が使う葉モジュールだけを再 export する軽量 shim に差し替える。
     // requireActual も moduleNameMapper を通るため、テストの barrel mock の base もこの shim になる。

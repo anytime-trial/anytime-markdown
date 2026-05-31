@@ -1,14 +1,19 @@
 const base = require('../../jest.config.base');
+const { buildJestMapper } = require('../tiptap-vendor/alias.cjs');
 /** @type {import('jest').Config} */
 const config = {
   ...base,
   testEnvironment: "jsdom",
   transform: {
     "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: "react-jsx" } }],
+    // vendored tiptap-markdown は ESM .js のため allowJs で transpile する
+    "^.+\\.jsx?$": ["ts-jest", { tsconfig: { jsx: "react-jsx", allowJs: true } }],
   },
   testMatch: ["<rootDir>/src/__tests__/**/*.test.{ts,tsx}"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {
+    // @tiptap/* → vendored ソースへ解決（共有 alias ヘルパ）
+    ...buildJestMapper(),
     "\\.md$": "<rootDir>/src/__mocks__/md-raw.js",
     "^@/(.*)$": "<rootDir>/../markdown-core/src/$1",
     "^@anytime-markdown/markdown-core/src/(.*)$": "<rootDir>/../markdown-core/src/$1",
