@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
-import { registerTraceCommands } from './commands/traceCommands';
+import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
 import {
 	installBundledSkills,
 	installStaticSkillDir,
@@ -24,6 +24,7 @@ import {
 	disabledAnalyzerIds,
 	resolveGitHubSource,
 	resolveExcludeRoot,
+	resolveWorkspaceConfigPath,
 } from '@anytime-markdown/trail-server/config';
 import type { AnalyzeAllPipelineResult, AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
 import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
@@ -668,6 +669,17 @@ export async function activate(context: vscode.ExtensionContext) {
 						alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
 					},
 					docsPath: lepWorkspaceDocsPath || undefined,
+						// lep.json workspace.configPaths を絶対パス化して渡す (categories / metrics を gitRoot 非依存で読む)。
+						commitCategoriesPath: resolveWorkspaceConfigPath(lepConfig, 'commitCategories', wsRootForDb),
+						toolCategoriesPath: resolveWorkspaceConfigPath(lepConfig, 'toolCategories', wsRootForDb),
+						skillCategoriesPath: resolveWorkspaceConfigPath(lepConfig, 'skillCategories', wsRootForDb),
+						metricsThresholdsPath: resolveWorkspaceConfigPath(lepConfig, 'metricsThresholds', wsRootForDb),
+						// 表示のデフォルト repo 名を明示注入 (gitRoots は複数あり得るため単一 gitRoot basename 導出を避ける)。
+						defaultRepoName: wsRootForDb ? path.basename(wsRootForDb) : undefined,
+						// trace dir を writer (traceCommands) と同一ロジックで解決し注入 (daemon の gitRoot/cwd 非依存)。
+						traceDir: wsRootForDb ? getTraceOutputDir(wsRootForDb) : undefined,
+						// lep.json workspace.excludeRoot を表示側 CodeGraphService にも反映 (従来 daemon は gitRoot 固定だった)。
+						excludeRoot: analyzeExcludeRoot,
 				});
 				TrailLogger.info('[TrailDaemonHttpClient] startHttpServer called successfully');
 			} catch (err) {

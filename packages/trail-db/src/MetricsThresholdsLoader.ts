@@ -56,8 +56,15 @@ function toThresholdsConfig(raw: Record<string, Record<string, number>>): Partia
 export class MetricsThresholdsLoader {
   private readonly filePath: string;
 
-  constructor(workspaceRoot: string) {
-    this.filePath = path.join(workspaceRoot, '.anytime', 'metrics-thresholds.yaml');
+  constructor(workspaceRootOrFile: string, opts?: { resolvedFilePath?: boolean }) {
+    this.filePath = opts?.resolvedFilePath
+      ? workspaceRootOrFile
+      : path.join(workspaceRootOrFile, '.anytime', 'metrics-thresholds.yaml');
+  }
+
+  /** 解決済みの完全なファイルパスから直接ローダを生成する (lep.json configPaths 用)。 */
+  static fromFile(filePath: string): MetricsThresholdsLoader {
+    return new MetricsThresholdsLoader(filePath, { resolvedFilePath: true });
   }
 
   load(): ThresholdsConfig {

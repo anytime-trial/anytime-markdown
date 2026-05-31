@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  aggregateCoverage,
   aggregateCoverageFromDb,
   aggregateHeatmapColumnsToC4,
   buildElementTree,
@@ -16,12 +15,26 @@ import {
   fetchC4Model,
   fetchC4ModelEntries,
   filterTreeByLevel,
-  parseCoverage,
 } from '@anytime-markdown/trail-core/c4';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
-import { loadCommitCategories, loadCommitCategoryLabels } from '@anytime-markdown/trail-core/commitCategories';
-import { loadToolCategories, loadToolCategoryLabels } from '@anytime-markdown/trail-core/toolCategories';
-import { loadSkillCategories, loadSkillCategoryLabels } from '@anytime-markdown/trail-core/skillCategories';
+import {
+  loadCommitCategories,
+  loadCommitCategoriesFromFile,
+  loadCommitCategoryLabels,
+  loadCommitCategoryLabelsFromFile,
+} from '@anytime-markdown/trail-core/commitCategories';
+import {
+  loadToolCategories,
+  loadToolCategoriesFromFile,
+  loadToolCategoryLabels,
+  loadToolCategoryLabelsFromFile,
+} from '@anytime-markdown/trail-core/toolCategories';
+import {
+  loadSkillCategories,
+  loadSkillCategoriesFromFile,
+  loadSkillCategoryLabels,
+  loadSkillCategoryLabelsFromFile,
+} from '@anytime-markdown/trail-core/skillCategories';
 import {
   buildIndex as buildCallHierarchyIndex,
   buildCallHierarchyNodeFilter,
@@ -32,7 +45,7 @@ import type {
   CallHierarchyIndex,
   CallHierarchyScope,
 } from '@anytime-markdown/trail-core/c4/callHierarchy';
-import type { FileCoverage, MessageInput, C4Model, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import type { MessageInput, C4Model, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import type { TrailGraph, ReleaseCoverageRow, CurrentCoverageRow } from '@anytime-markdown/trail-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
@@ -284,6 +297,25 @@ export class TrailDataServer {
     private logger: Logger,
     private readonly gitRoot?: string,
     memoryDbPath?: string,
+    /**
+     * extension が lep.json / ワークスペースルートから解決して注入する表示用パス群。
+     * daemon は fork 時 cwd 未指定でワークスペースを確実に知らないため、これらを明示注入して
+     * categories / metrics / trace / デフォルト repo 名を gitRoot 非依存にする。未指定キーは
+     * 従来どおり `<gitRoot>/.anytime/<file>` 等にフォールバックする (後方互換)。
+     */
+    private readonly options?: {
+      /** lep.json `workspace.configPaths` から解決した categories / metrics の絶対ファイルパス。 */
+      configPaths?: {
+        commitCategories?: string;
+        toolCategories?: string;
+        skillCategories?: string;
+        metricsThresholds?: string;
+      };
+      /** 表示エンドポイントが `?repo=` 未指定時に使うデフォルト repo 名 (`basename(wsRootForDb)`)。 */
+      defaultRepoName?: string;
+      /** trace 一覧/取得が読む trace ディレクトリの絶対パス (`<trailHome>/trace`)。 */
+      traceDir?: string;
+    },
   ) {
     // webpack-bundled VS Code 拡張では bindings package が call stack から
     // `.node` を推測できず crash するため、distPath から絶対パスを組み立てて
@@ -326,6 +358,15 @@ export class TrailDataServer {
       },
       this.logger.child('DocsApiHandler'),
     );
+  }
+
+  /**
+   * 表示エンドポイントのデフォルト repo 名。注入された defaultRepoName を優先し、
+   * 未指定時のみ `basename(gitRoot)` にフォールバックする (後方互換)。
+   */
+  private defaultRepo(): string | undefined {
+    if (this.options?.defaultRepoName) return this.options.defaultRepoName;
+    return this.gitRoot ? path.basename(this.gitRoot) : undefined;
   }
 
   setCodeGraphService(service: CodeGraphService): void {
@@ -930,33 +971,36 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/config/commit-categories' && method === 'GET') {
+      const file = this.options?.configPaths?.commitCategories;
       const root = this.gitRoot ?? process.cwd();
       const entries: Record<string, number> = {};
-      for (const [k, v] of loadCommitCategories(root)) entries[k] = v;
+      for (const [k, v] of file ? loadCommitCategoriesFromFile(file) : loadCommitCategories(root)) entries[k] = v;
       const categories: Record<string, string> = {};
-      for (const [k, v] of loadCommitCategoryLabels(root)) categories[String(k)] = v;
+      for (const [k, v] of file ? loadCommitCategoryLabelsFromFile(file) : loadCommitCategoryLabels(root)) categories[String(k)] = v;
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ entries, categories }));
       return;
     }
 
     if (pathname === '/api/config/tool-categories' && method === 'GET') {
+      const file = this.options?.configPaths?.toolCategories;
       const root = this.gitRoot ?? process.cwd();
       const entries: Record<string, number> = {};
-      for (const [k, v] of loadToolCategories(root)) entries[k] = v;
+      for (const [k, v] of file ? loadToolCategoriesFromFile(file) : loadToolCategories(root)) entries[k] = v;
       const categories: Record<string, string> = {};
-      for (const [k, v] of loadToolCategoryLabels(root)) categories[String(k)] = v;
+      for (const [k, v] of file ? loadToolCategoryLabelsFromFile(file) : loadToolCategoryLabels(root)) categories[String(k)] = v;
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ entries, categories }));
       return;
     }
 
     if (pathname === '/api/config/skill-categories' && method === 'GET') {
+      const file = this.options?.configPaths?.skillCategories;
       const root = this.gitRoot ?? process.cwd();
       const entries: Record<string, number> = {};
-      for (const [k, v] of loadSkillCategories(root)) entries[k] = v;
+      for (const [k, v] of file ? loadSkillCategoriesFromFile(file) : loadSkillCategories(root)) entries[k] = v;
       const categories: Record<string, string> = {};
-      for (const [k, v] of loadSkillCategoryLabels(root)) categories[String(k)] = v;
+      for (const [k, v] of file ? loadSkillCategoryLabelsFromFile(file) : loadSkillCategoryLabels(root)) categories[String(k)] = v;
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ entries, categories }));
       return;
@@ -1390,6 +1434,10 @@ export class TrailDataServer {
   }
 
   private resolveTraceDir(): string {
+    // extension が writer (traceCommands) と同じロジックで解決した trace dir を優先する。
+    // daemon は fork 時 cwd 未指定でワークスペースを知らず、gitRoot fallback は writer の
+    // wsRoot とズレ得るため、注入値を最優先にする。
+    if (this.options?.traceDir) return this.options.traceDir;
     const trailHome = process.env['TRAIL_HOME'] ?? path.join(this.gitRoot ?? process.cwd(), '.anytime', 'trail');
     return path.join(trailHome, 'trace');
   }
@@ -1457,7 +1505,7 @@ export class TrailDataServer {
   }
 
   private async loadCurrentC4Model(repoName?: string): Promise<C4Model | null> {
-    const resolvedRepo = repoName ?? (this.gitRoot ? path.basename(this.gitRoot) : undefined);
+    const resolvedRepo = repoName ?? (this.defaultRepo());
     if (!resolvedRepo) return null;
     try {
       const store = this.trailDb.asC4ModelStore();
@@ -1839,7 +1887,7 @@ export class TrailDataServer {
 
   private async handleC4ModelEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
     // trail-core の fetchC4Model 経由でストアから取得（pure 関数 + IC4ModelStore アダプタ）
-    const repoName = repo ?? (this.gitRoot ? path.basename(this.gitRoot) : undefined);
+    const repoName = repo ?? (this.defaultRepo());
     const provider = this.getC4Provider?.();
     const store = this.trailDb.asC4ModelStore();
     const manualProvider = repoName ? {
@@ -1904,7 +1952,7 @@ export class TrailDataServer {
   }
 
   private async handleC4TreeEndpoint(res: http.ServerResponse): Promise<void> {
-    const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
+    const repoName = this.defaultRepo();
     const provider = this.getC4Provider?.();
     const store = this.trailDb.asC4ModelStore();
     const featureMatrix = provider?.featureMatrix ?? this.trailDb.getCurrentFeatureMatrix() ?? undefined;
@@ -1928,7 +1976,7 @@ export class TrailDataServer {
   private async handleC4CoverageEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
     try {
       const provider = this.getC4Provider?.();
-      const repoName = repo ?? (this.gitRoot ? path.basename(this.gitRoot) : undefined);
+      const repoName = repo ?? (this.defaultRepo());
       const store = this.trailDb.asC4ModelStore();
       const payload = await fetchC4Model(store, releaseId, repoName, provider?.featureMatrix);
       if (!payload) {
@@ -1959,7 +2007,7 @@ export class TrailDataServer {
         return;
       }
 
-      // current 要求: current_coverage を優先、なければファイルスキャン
+      // current 要求: current_coverage を読む (他の current 系と同じく DB-only)。
       if (repoName) {
         const currentRows = this.trailDb.getCurrentCoverage(repoName);
         if (currentRows.length > 0) {
@@ -1987,41 +2035,11 @@ export class TrailDataServer {
         }
       }
 
-      // current 要求のフォールバック: scan packages/*/coverage/coverage-final.json
-      // 要求された repo が現在のワークスペースの gitRoot と一致しない場合は、
-      // ローカルのファイルスキャン結果は他リポジトリのデータと混ざるため返さない
-      const projectRoot = provider?.projectRoot ?? this.gitRoot;
-      const workspaceRepoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
-      if (!this.gitRoot || !projectRoot || (repoName && repoName !== workspaceRepoName)) {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ coverageMatrix: null, coverageDiff: null }));
-        return;
-      }
-
-      const allFiles: FileCoverage[] = [];
-      const packagesDir = path.join(this.gitRoot, 'packages');
-      if (fs.existsSync(packagesDir)) {
-        for (const pkgDir of fs.readdirSync(packagesDir)) {
-          const coveragePath = path.join(packagesDir, pkgDir, 'coverage', 'coverage-final.json');
-          if (!fs.existsSync(coveragePath)) continue;
-          try {
-            const raw = JSON.parse(fs.readFileSync(coveragePath, 'utf-8')) as Parameters<typeof parseCoverage>[0];
-            allFiles.push(...parseCoverage(raw));
-          } catch {
-            // skip unreadable files
-          }
-        }
-      }
-
-      if (allFiles.length === 0) {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ coverageMatrix: null, coverageDiff: null }));
-        return;
-      }
-
-      const coverageMatrix = aggregateCoverage(allFiles, payload.model, projectRoot);
+      // current_coverage が空 (import 未実行) の場合は他の current 系と同じく空を返す。
+      // 旧 FS フォールバック (packages/*/coverage/coverage-final.json スキャン) は廃止し DB-only に統一。
+      // これにより current 系の表示は「DB が単一の真実源」に一本化され、gitRoot 依存も解消する。
       res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ coverageMatrix, coverageDiff: null }));
+      res.end(JSON.stringify({ coverageMatrix: null, coverageDiff: null }));
     } catch (e) {
       this.logger.error('[/api/c4/coverage] failed', e);
       res.writeHead(200, JSON_HEADERS);
@@ -2151,7 +2169,7 @@ export class TrailDataServer {
 
   private async handleC4ComplexityEndpoint(res: http.ServerResponse, repo?: string): Promise<void> {
     try {
-      const repoName = repo ?? (this.gitRoot ? path.basename(this.gitRoot) : undefined);
+      const repoName = repo ?? (this.defaultRepo());
       const store = this.trailDb.asC4ModelStore();
       const provider = this.getC4Provider?.();
 
@@ -2290,7 +2308,10 @@ export class TrailDataServer {
       return;
     }
     try {
-      const loader = new MetricsThresholdsLoader(this.gitRoot ?? process.cwd());
+      const metricsFile = this.options?.configPaths?.metricsThresholds;
+      const loader = metricsFile
+        ? MetricsThresholdsLoader.fromFile(metricsFile)
+        : new MetricsThresholdsLoader(this.gitRoot ?? process.cwd());
       const thresholds = loader.load();
 
       // Compute previous range (same duration before current range)
@@ -2785,7 +2806,7 @@ export class TrailDataServer {
   /** model / trailGraph を SQLite およびプロバイダから取得 */
   private async resolveModelAndGraph(): Promise<{ model: import('@anytime-markdown/trail-core/c4').C4Model; graph: import('@anytime-markdown/trail-core').TrailGraph } | null> {
     const provider = this.getC4Provider?.();
-    const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
+    const repoName = this.defaultRepo();
 
     const store = this.trailDb.asC4ModelStore();
     const payload = await fetchC4Model(store, 'current', repoName, provider?.featureMatrix);
@@ -3131,7 +3152,7 @@ export class TrailDataServer {
       const depth = clampInt(depthParam, 1, 0, 10);
       const requestedLine = lineParam !== null && lineParam !== '' ? Number.parseInt(lineParam, 10) : undefined;
 
-      const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
+      const repoName = this.defaultRepo();
       const index = this.getOrBuildCallHierarchyIndex(repoName);
       if (!index) {
         res.writeHead(503, JSON_HEADERS);

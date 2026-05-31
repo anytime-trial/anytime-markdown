@@ -7,6 +7,9 @@ jest.mock('@anytime-markdown/trail-core/c4', () => {
   return { ...actual, fetchC4Model: jest.fn() };
 });
 
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
@@ -145,6 +148,52 @@ describe('GET /api/c4/coverage', () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/c4/coverage?release=v1.0.0`);
     expect(res.status).toBe(200);
     const body = await res.json() as { coverageMatrix: null };
+    expect(body.coverageMatrix).toBeNull();
+  });
+});
+
+describe('GET /api/c4/coverage — DB-only (FS フォールバック廃止)', () => {
+  let server: TrailDataServer;
+  let db: TrailDatabase;
+  let port: number;
+  let tmpDir: string;
+  let repoName: string;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    tmpDir = mkdtempSync(join(tmpdir(), 'trail-cov-dbonly-'));
+    repoName = basename(tmpDir);
+    // 旧実装なら FS スキャンで拾われる coverage-final.json を配置 (DB-only では無視されるべき)。
+    const covDir = join(tmpDir, 'packages', 'pkg-a', 'coverage');
+    mkdirSync(covDir, { recursive: true });
+    writeFileSync(
+      join(covDir, 'coverage-final.json'),
+      JSON.stringify({
+        '/abs/pkg-a/src/foo.ts': {
+          path: '/abs/pkg-a/src/foo.ts',
+          statementMap: {}, s: {}, branchMap: {}, b: {}, fnMap: {}, f: {},
+        },
+      }),
+      'utf-8',
+    );
+    // payload を非 null にして coverage 分岐へ到達させる (current_coverage 空のため model は未使用)。
+    mockedFetchC4Model.mockResolvedValue({ model: { elements: [], relationships: [] }, boundaries: [] } as never);
+    // gitRoot = tmpDir, defaultRepoName = repoName で旧 FS スキャンのガードを通過させる。
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), tmpDir, undefined, { defaultRepoName: repoName });
+    await server.start(0);
+    port = server.port;
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    db.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('current_coverage が空なら FS の coverage-final.json を無視して null を返す', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/c4/coverage?repo=${encodeURIComponent(repoName)}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { coverageMatrix: unknown };
     expect(body.coverageMatrix).toBeNull();
   });
 });

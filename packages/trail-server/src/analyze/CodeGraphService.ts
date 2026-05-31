@@ -43,6 +43,12 @@ export interface CodeGraphServiceConfig {
   readonly trailGraphProvider?: () => Record<string, TrailGraph | undefined> | undefined;
   /** CodeGraph の保存・読み込みに使用する DB */
   readonly trailDb?: TrailDatabase;
+  /**
+   * 表示時のデフォルト repo 名 (getGraph / loadFromDb の repoName 省略時に使う)。
+   * 指定時は `repositories[0]` 由来の導出より優先する。gitRoots は複数あり得るため、
+   * 単一 repo からの導出ではなくワークスペース主 repo 名を明示注入で受ける。
+   */
+  readonly defaultRepoName?: string;
 }
 
 export type ProgressCallback = (phase: string, percent: number) => void;
@@ -67,6 +73,7 @@ export class CodeGraphService {
   }
 
   private defaultRepoName(): string | undefined {
+    if (this.config.defaultRepoName) return this.config.defaultRepoName;
     const r = this.config.repositories[0];
     if (!r) return undefined;
     return r.label || path.basename(r.path);

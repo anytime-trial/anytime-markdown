@@ -104,8 +104,36 @@ export interface SerializableHttpServerOptions {
   readonly distPath: string;
   /** コードグラフ解析・exclude 読み込みに使うリポジトリルート。 */
   readonly gitRoot?: string;
+  /**
+   * 表示エンドポイントが `?repo=` 未指定時に使うデフォルト repo 名 (extension が
+   * `basename(wsRootForDb)` を注入)。gitRoots は複数指定され得るため、単一 gitRoot の
+   * basename からの導出をやめ主 repo 名を明示注入する。未指定時は `basename(gitRoot)` へフォールバック。
+   */
+  readonly defaultRepoName?: string;
   /** memory (better-sqlite3) DB ファイルの絶対パス。省略時は MemoryApiHandler が無効化される。 */
   readonly memoryDbPath?: string;
+  /**
+   * lep.json `workspace.configPaths` から extension が解決した絶対ファイルパス。
+   * daemon は fork 時 cwd 未指定でワークスペースルートを確実に知らないため、categories /
+   * metrics をこのパスから読むことで gitRoot 非依存にする。省略キーは `<gitRoot>/.anytime/<file>`
+   * へフォールバックする。
+   */
+  readonly commitCategoriesPath?: string;
+  readonly toolCategoriesPath?: string;
+  readonly skillCategoriesPath?: string;
+  readonly metricsThresholdsPath?: string;
+  /**
+   * trace 一覧/取得が読む trace ディレクトリの絶対パス。extension が writer (traceCommands) と
+   * 同じ `TRAIL_HOME ?? <wsRoot>/.anytime/trail` + `/trace` で解決して渡す。省略時は
+   * daemon 側で `<gitRoot>/.anytime/trail/trace` にフォールバック。
+   */
+  readonly traceDir?: string;
+  /**
+   * code graph / C4 解析の除外ルート (`.anytime/analyze-exclude` を読むディレクトリ)。
+   * extension が lep.json `workspace.excludeRoot` を `resolveExcludeRoot` で解決して渡す。
+   * 省略 (空文字解決で undefined) 時は daemon 側で `opts.gitRoot` にフォールバックする。
+   */
+  readonly excludeRoot?: string;
   /** HTTP サーバの希望ポート。EADDRINUSE 時は +1..+9 → 0 (OS 任意) の順で試みる。 */
   readonly preferredPort?: number;
   /**

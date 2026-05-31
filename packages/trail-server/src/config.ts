@@ -6,4 +6,5 @@ export {
   migrateConfigJsonIntoLepJson,
   resolveExcludeRoot,
   resolveGitHubSource,
+  resolveWorkspaceConfigPath,
 } from './runtime/LepConfig';

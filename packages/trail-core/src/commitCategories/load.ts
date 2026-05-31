@@ -9,7 +9,11 @@ import { DEFAULT_COMMIT_CATEGORIES, DEFAULT_COMMIT_CATEGORY_LABELS } from './def
  * ファイル不在・不正 JSON・entries 欠落時はデフォルトを返す。
  */
 export function loadCommitCategories(workspaceRoot: string): ReadonlyMap<string, number> {
-  const file = path.join(workspaceRoot, '.anytime', 'commit-categories.json');
+  return loadCommitCategoriesFromFile(path.join(workspaceRoot, '.anytime', 'commit-categories.json'));
+}
+
+/** 完全なファイルパスから commit categories を読む。不在は ENOENT でデフォルト、他例外は throw。 */
+export function loadCommitCategoriesFromFile(file: string): ReadonlyMap<string, number> {
   let raw: string;
   try {
     raw = fs.readFileSync(file, 'utf-8');
@@ -40,7 +44,11 @@ export function loadCommitCategories(workspaceRoot: string): ReadonlyMap<string,
 }
 
 export function loadCommitCategoryLabels(workspaceRoot: string): ReadonlyMap<number, string> {
-  const file = path.join(workspaceRoot, '.anytime', 'commit-categories.json');
+  return loadCommitCategoryLabelsFromFile(path.join(workspaceRoot, '.anytime', 'commit-categories.json'));
+}
+
+/** 完全なファイルパスから commit category ラベルを読む。不在・不正時はデフォルト。 */
+export function loadCommitCategoryLabelsFromFile(file: string): ReadonlyMap<number, string> {
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as CommitCategoriesFile;

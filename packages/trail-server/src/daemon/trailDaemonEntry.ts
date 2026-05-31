@@ -271,8 +271,10 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
         : [],
     trailDb,
     pythonWasmPath: opts.pythonWasmPath,
-    excludeRoot: opts.gitRoot,
+    // lep.json workspace.excludeRoot を優先し、未指定 (空文字解決) 時のみ gitRoot にフォールバック。
+    excludeRoot: opts.excludeRoot ?? opts.gitRoot,
     logger: daemonLoggerAsLogger,
+    defaultRepoName: opts.defaultRepoName,
   });
 
   // TrailDataServer を構築。distPath は better-sqlite3 native binding の解決に使う。
@@ -282,6 +284,16 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     daemonLoggerAsLogger,
     opts.gitRoot,
     opts.memoryDbPath,
+    {
+      configPaths: {
+        commitCategories: opts.commitCategoriesPath,
+        toolCategories: opts.toolCategoriesPath,
+        skillCategories: opts.skillCategoriesPath,
+        metricsThresholds: opts.metricsThresholdsPath,
+      },
+      defaultRepoName: opts.defaultRepoName,
+      traceDir: opts.traceDir,
+    },
   );
   server.setCodeGraphService(codeGraphService);
 
