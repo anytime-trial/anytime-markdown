@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
+import { fetchC4Model } from '@anytime-markdown/trail-core/c4';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 describe('GET /api/trail/search', () => {
@@ -695,5 +696,42 @@ describe('GET /api/config/commit-categories — configPaths override (gitRoot �
     const body = (await res.json()) as { entries: Record<string, number>; categories: Record<string, string> };
     expect(body.entries['zzcustom']).toBe(2);
     expect(body.categories['2']).toBe('CustomLabel');
+  });
+});
+
+describe('GET /api/c4/tree — defaultRepoName 注入 (gitRoot basename 非依存)', () => {
+  let server: TrailDataServer;
+  let db: TrailDatabase;
+  let port: number;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    // gitRoot の basename は 'wrong-repo' だが、defaultRepoName で 'injected-repo' を注入する。
+    server = new TrailDataServer(
+      '/tmp',
+      db,
+      makeMockLogger(),
+      '/tmp/wrong-repo',
+      undefined,
+      undefined,
+      'injected-repo',
+    );
+    await server.start(0);
+    port = server.port;
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    db.close();
+  });
+
+  it('fetchC4Model を gitRoot basename ではなく注入 defaultRepoName で呼ぶ', async () => {
+    (fetchC4Model as jest.Mock).mockClear();
+    (fetchC4Model as jest.Mock).mockResolvedValue(undefined);
+    const res = await fetch(`http://127.0.0.1:${port}/api/c4/tree`);
+    expect(res.status).toBe(204);
+    expect(fetchC4Model).toHaveBeenCalled();
+    // 3 番目の引数 (repoName) が注入値であること。
+    expect((fetchC4Model as jest.Mock).mock.calls[0][2]).toBe('injected-repo');
   });
 });

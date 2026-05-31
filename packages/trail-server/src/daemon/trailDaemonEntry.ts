@@ -273,6 +273,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     pythonWasmPath: opts.pythonWasmPath,
     excludeRoot: opts.gitRoot,
     logger: daemonLoggerAsLogger,
+    defaultRepoName: opts.defaultRepoName,
   });
 
   // TrailDataServer を構築。distPath は better-sqlite3 native binding の解決に使う。
@@ -288,6 +289,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       skillCategories: opts.skillCategoriesPath,
       metricsThresholds: opts.metricsThresholdsPath,
     },
+    opts.defaultRepoName,
   );
   server.setCodeGraphService(codeGraphService);
 

@@ -104,6 +104,12 @@ export interface SerializableHttpServerOptions {
   readonly distPath: string;
   /** コードグラフ解析・exclude 読み込みに使うリポジトリルート。 */
   readonly gitRoot?: string;
+  /**
+   * 表示エンドポイントが `?repo=` 未指定時に使うデフォルト repo 名 (extension が
+   * `basename(wsRootForDb)` を注入)。gitRoots は複数指定され得るため、単一 gitRoot の
+   * basename からの導出をやめ主 repo 名を明示注入する。未指定時は `basename(gitRoot)` へフォールバック。
+   */
+  readonly defaultRepoName?: string;
   /** memory (better-sqlite3) DB ファイルの絶対パス。省略時は MemoryApiHandler が無効化される。 */
   readonly memoryDbPath?: string;
   /**

@@ -310,6 +310,13 @@ export class TrailDataServer {
       skillCategories?: string;
       metricsThresholds?: string;
     },
+    /**
+     * 表示エンドポイントが `?repo=` 未指定時に使うデフォルト repo 名。extension が
+     * `basename(wsRootForDb)` を注入する。gitRoots は複数指定され得るため、単一 gitRoot の
+     * basename からの導出をやめ、ワークスペース主 repo 名を明示注入で受ける。未指定時のみ
+     * 従来どおり `basename(gitRoot)` にフォールバックする (後方互換)。
+     */
+    private readonly defaultRepoName?: string,
   ) {
     // webpack-bundled VS Code 拡張では bindings package が call stack から
     // `.node` を推測できず crash するため、distPath から絶対パスを組み立てて
@@ -352,6 +359,15 @@ export class TrailDataServer {
       },
       this.logger.child('DocsApiHandler'),
     );
+  }
+
+  /**
+   * 表示エンドポイントのデフォルト repo 名。注入された defaultRepoName を優先し、
+   * 未指定時のみ `basename(gitRoot)` にフォールバックする (後方互換)。
+   */
+  private defaultRepo(): string | undefined {
+    if (this.defaultRepoName) return this.defaultRepoName;
+    return this.gitRoot ? path.basename(this.gitRoot) : undefined;
   }
 
   setCodeGraphService(service: CodeGraphService): void {
@@ -1486,7 +1502,7 @@ export class TrailDataServer {
   }
 
   private async loadCurrentC4Model(repoName?: string): Promise<C4Model | null> {
-    const resolvedRepo = repoName ?? (this.gitRoot ? path.basename(this.gitRoot) : undefined);
+    const resolvedRepo = repoName ?? (this.defaultRepo());
     if (!resolvedRepo) return null;
     try {
       const store = this.trailDb.asC4ModelStore();
@@ -1868,7 +1884,7 @@ export class TrailDataServer {
 
   private async handleC4ModelEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
     // trail-core の fetchC4Model 経由でストアから取得（pure 関数 + IC4ModelStore アダプタ）
-    const repoName = repo ?? (this.gitRoot ? path.basename(this.gitRoot) : undefined);
+    const repoName = repo ?? (this.defaultRepo());
     const provider = this.getC4Provider?.();
     const store = this.trailDb.asC4ModelStore();
     const manualProvider = repoName ? {
@@ -1933,7 +1949,7 @@ export class TrailDataServer {
   }
 
   private async handleC4TreeEndpoint(res: http.ServerResponse): Promise<void> {
-    const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
+    const repoName = this.defaultRepo();
     const provider = this.getC4Provider?.();
     const store = this.trailDb.asC4ModelStore();
     const featureMatrix = provider?.featureMatrix ?? this.trailDb.getCurrentFeatureMatrix() ?? undefined;
@@ -1957,7 +1973,7 @@ export class TrailDataServer {
   private async handleC4CoverageEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
     try {
       const provider = this.getC4Provider?.();
-      const repoName = repo ?? (this.gitRoot ? path.basename(this.gitRoot) : undefined);
+      const repoName = repo ?? (this.defaultRepo());
       const store = this.trailDb.asC4ModelStore();
       const payload = await fetchC4Model(store, releaseId, repoName, provider?.featureMatrix);
       if (!payload) {
@@ -2020,7 +2036,7 @@ export class TrailDataServer {
       // 要求された repo が現在のワークスペースの gitRoot と一致しない場合は、
       // ローカルのファイルスキャン結果は他リポジトリのデータと混ざるため返さない
       const projectRoot = provider?.projectRoot ?? this.gitRoot;
-      const workspaceRepoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
+      const workspaceRepoName = this.defaultRepo();
       if (!this.gitRoot || !projectRoot || (repoName && repoName !== workspaceRepoName)) {
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ coverageMatrix: null, coverageDiff: null }));
@@ -2180,7 +2196,7 @@ export class TrailDataServer {
 
   private async handleC4ComplexityEndpoint(res: http.ServerResponse, repo?: string): Promise<void> {
     try {
-      const repoName = repo ?? (this.gitRoot ? path.basename(this.gitRoot) : undefined);
+      const repoName = repo ?? (this.defaultRepo());
       const store = this.trailDb.asC4ModelStore();
       const provider = this.getC4Provider?.();
 
@@ -2817,7 +2833,7 @@ export class TrailDataServer {
   /** model / trailGraph を SQLite およびプロバイダから取得 */
   private async resolveModelAndGraph(): Promise<{ model: import('@anytime-markdown/trail-core/c4').C4Model; graph: import('@anytime-markdown/trail-core').TrailGraph } | null> {
     const provider = this.getC4Provider?.();
-    const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
+    const repoName = this.defaultRepo();
 
     const store = this.trailDb.asC4ModelStore();
     const payload = await fetchC4Model(store, 'current', repoName, provider?.featureMatrix);
@@ -3163,7 +3179,7 @@ export class TrailDataServer {
       const depth = clampInt(depthParam, 1, 0, 10);
       const requestedLine = lineParam !== null && lineParam !== '' ? Number.parseInt(lineParam, 10) : undefined;
 
-      const repoName = this.gitRoot ? path.basename(this.gitRoot) : undefined;
+      const repoName = this.defaultRepo();
       const index = this.getOrBuildCallHierarchyIndex(repoName);
       if (!index) {
         res.writeHead(503, JSON_HEADERS);
