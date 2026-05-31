@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  aggregateCoverage,
   aggregateCoverageFromDb,
   aggregateHeatmapColumnsToC4,
   buildElementTree,
@@ -16,7 +15,6 @@ import {
   fetchC4Model,
   fetchC4ModelEntries,
   filterTreeByLevel,
-  parseCoverage,
 } from '@anytime-markdown/trail-core/c4';
 import { analyze } from '@anytime-markdown/trail-core/analyze';
 import {
@@ -47,7 +45,7 @@ import type {
   CallHierarchyIndex,
   CallHierarchyScope,
 } from '@anytime-markdown/trail-core/c4/callHierarchy';
-import type { FileCoverage, MessageInput, C4Model, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import type { MessageInput, C4Model, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import type { TrailGraph, ReleaseCoverageRow, CurrentCoverageRow } from '@anytime-markdown/trail-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
@@ -2009,7 +2007,7 @@ export class TrailDataServer {
         return;
       }
 
-      // current 要求: current_coverage を優先、なければファイルスキャン
+      // current 要求: current_coverage を読む (他の current 系と同じく DB-only)。
       if (repoName) {
         const currentRows = this.trailDb.getCurrentCoverage(repoName);
         if (currentRows.length > 0) {
@@ -2037,41 +2035,11 @@ export class TrailDataServer {
         }
       }
 
-      // current 要求のフォールバック: scan packages/*/coverage/coverage-final.json
-      // 要求された repo が現在のワークスペースの gitRoot と一致しない場合は、
-      // ローカルのファイルスキャン結果は他リポジトリのデータと混ざるため返さない
-      const projectRoot = provider?.projectRoot ?? this.gitRoot;
-      const workspaceRepoName = this.defaultRepo();
-      if (!this.gitRoot || !projectRoot || (repoName && repoName !== workspaceRepoName)) {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ coverageMatrix: null, coverageDiff: null }));
-        return;
-      }
-
-      const allFiles: FileCoverage[] = [];
-      const packagesDir = path.join(this.gitRoot, 'packages');
-      if (fs.existsSync(packagesDir)) {
-        for (const pkgDir of fs.readdirSync(packagesDir)) {
-          const coveragePath = path.join(packagesDir, pkgDir, 'coverage', 'coverage-final.json');
-          if (!fs.existsSync(coveragePath)) continue;
-          try {
-            const raw = JSON.parse(fs.readFileSync(coveragePath, 'utf-8')) as Parameters<typeof parseCoverage>[0];
-            allFiles.push(...parseCoverage(raw));
-          } catch {
-            // skip unreadable files
-          }
-        }
-      }
-
-      if (allFiles.length === 0) {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ coverageMatrix: null, coverageDiff: null }));
-        return;
-      }
-
-      const coverageMatrix = aggregateCoverage(allFiles, payload.model, projectRoot);
+      // current_coverage が空 (import 未実行) の場合は他の current 系と同じく空を返す。
+      // 旧 FS フォールバック (packages/*/coverage/coverage-final.json スキャン) は廃止し DB-only に統一。
+      // これにより current 系の表示は「DB が単一の真実源」に一本化され、gitRoot 依存も解消する。
       res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify({ coverageMatrix, coverageDiff: null }));
+      res.end(JSON.stringify({ coverageMatrix: null, coverageDiff: null }));
     } catch (e) {
       this.logger.error('[/api/c4/coverage] failed', e);
       res.writeHead(200, JSON_HEADERS);
