@@ -1,5 +1,5 @@
-import { parseOgpHtml } from "@anytime-markdown/markdown-core/src/utils/ogpParser";
-import { assertSafeUrl } from "@anytime-markdown/markdown-core/src/utils/ssrfGuard";
+import { parseOgpHtml } from "@anytime-markdown/markdown-viewer/src/utils/ogpParser";
+import { assertSafeUrl } from "@anytime-markdown/markdown-viewer/src/utils/ssrfGuard";
 import { NextResponse } from "next/server";
 
 const TIMEOUT_MS = 5000;

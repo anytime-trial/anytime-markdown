@@ -4,7 +4,7 @@ import { Box, Chip, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React, { useState } from "react";
 
-import { getActionHover, getDivider, getTextSecondary, CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE } from "@anytime-markdown/markdown-core";
+import { getActionHover, getDivider, getTextSecondary, CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE } from "@anytime-markdown/markdown-viewer";
 
 interface SampleItem {
   label: string;

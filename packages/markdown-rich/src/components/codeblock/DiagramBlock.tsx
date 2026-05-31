@@ -6,7 +6,7 @@ import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContent
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useMemo, useRef } from "react";
 
-import { getEditorBg, getErrorMain, getTextSecondary, useBlockResize, useEditorSettingsContext, BlockInlineToolbar } from "@anytime-markdown/markdown-core";
+import { getEditorBg, getErrorMain, getTextSecondary, useBlockResize, useEditorSettingsContext, BlockInlineToolbar } from "@anytime-markdown/markdown-viewer";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { useDiagramCapture } from "../../hooks/useDiagramCapture";
 import { useMermaidRender } from "../../hooks/useMermaidRender";

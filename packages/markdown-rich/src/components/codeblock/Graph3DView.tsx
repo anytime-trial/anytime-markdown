@@ -5,7 +5,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Box, IconButton, Slider, Tooltip, Typography } from "@mui/material";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextSecondary } from "@anytime-markdown/markdown-core";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextSecondary } from "@anytime-markdown/markdown-viewer";
 import type { GraphExpr } from "../../utils/latexToExpr";
 
 /** グリッドサイズ */

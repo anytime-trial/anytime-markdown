@@ -19,8 +19,8 @@ const mockHighlight = jest.fn();
 const mockHighlightAuto = jest.fn();
 const mockListLanguages = jest.fn();
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     ...(() => {
   const hljs = { keyword: "#000", string: "#000", comment: "#000", number: "#000", title: "#000", params: "#000", meta: "#000", addition: "#000", additionBg: "transparent", deletion: "#000", deletionBg: "transparent" };
   return {

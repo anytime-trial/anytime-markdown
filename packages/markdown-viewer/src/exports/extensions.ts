@@ -1,4 +1,4 @@
-/** @anytime-markdown/markdown-core/extensions サブパスエクスポート */
+/** @anytime-markdown/markdown-viewer/extensions サブパスエクスポート */
 // CodeBlockWithMermaid は markdown-rich へ移動予定 (B-3+B-4)。rich re-export を除去 (B-6)。
 export { getBaseExtensions } from '../editorExtensions';
 export { CustomHardBreak } from '../extensions/customHardBreak';

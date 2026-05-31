@@ -6,8 +6,8 @@
 		"resolveJsonModule": true,
 		"baseUrl": ".",
 		"paths": {
-			"@anytime-markdown/markdown-core": ["../markdown-core/src/index.ts"],
-			"@anytime-markdown/markdown-core/*": ["../markdown-core/*"],
+			"@anytime-markdown/markdown-viewer": ["../markdown-viewer/src/index.ts"],
+			"@anytime-markdown/markdown-viewer/*": ["../markdown-viewer/*"],
 			"@anytime-markdown/markdown-rich": ["../markdown-rich/src/index.ts"],
 			"@anytime-markdown/markdown-rich/*": ["../markdown-rich/*"],
 			"@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"],
@@ -23,18 +23,18 @@
 			"@tiptap/extension-task-list": ["../tiptap-vendor/_shims/extension-task-list.ts"],
 			"@tiptap/extension-*": ["../tiptap-vendor/extension-*/src/index.ts"],
 			"tiptap-markdown": ["../tiptap-vendor/tiptap-markdown"],
-			"@/*": ["../markdown-core/src/*"]
+			"@/*": ["../markdown-viewer/src/*"]
 		}
 	},
 	"include": [
 		"src/webview/**/*",
-		"../markdown-core/src/**/*",
+		"../markdown-viewer/src/**/*",
 		"../markdown-rich/src/**/*",
 		"../vscode-common/src/webview/**/*"
 	],
 	"exclude": [
-		"../markdown-core/src/__tests__/**/*",
-		"../markdown-core/src/testUtils/**/*",
+		"../markdown-viewer/src/__tests__/**/*",
+		"../markdown-viewer/src/testUtils/**/*",
 		"../markdown-rich/src/__tests__/**/*"
 	]
 }

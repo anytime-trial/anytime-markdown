@@ -1,6 +1,6 @@
 'use client';
 
-import { COMMENT_PANEL_WIDTH } from '@anytime-markdown/markdown-core';
+import { COMMENT_PANEL_WIDTH } from '@anytime-markdown/markdown-viewer';
 import { Alert, Box, CircularProgress, Snackbar } from '@mui/material';
 import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';

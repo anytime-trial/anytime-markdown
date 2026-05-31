@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import React from "react";
 
-jest.mock("@anytime-markdown/markdown-core/src/components/loader/FullPageLoader", () => ({
+jest.mock("@anytime-markdown/markdown-viewer/src/components/loader/FullPageLoader", () => ({
   __esModule: true,
   default: () => <div data-testid="loader">Loading...</div>,
 }));

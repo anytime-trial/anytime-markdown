@@ -5,8 +5,8 @@ import { common, createLowlight } from "lowlight";
 import React, { useCallback, useMemo, useState } from "react";
 
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextPrimary, HLJS_DARK, HLJS_LIGHT, CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT, getHljsStyles, useEditorSettingsContext, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-core";
-import type { TextareaSearchState } from "@anytime-markdown/markdown-core";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextPrimary, HLJS_DARK, HLJS_LIGHT, CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT, getHljsStyles, useEditorSettingsContext, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
+import type { TextareaSearchState } from "@anytime-markdown/markdown-viewer";
 import { useZoomPan } from "../hooks/useZoomPan";
 import { DraggableSplitLayout } from "./DraggableSplitLayout";
 import { FullscreenDiffView } from "./FullscreenDiffView";

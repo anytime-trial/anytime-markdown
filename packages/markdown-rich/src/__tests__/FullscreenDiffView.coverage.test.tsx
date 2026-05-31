@@ -16,8 +16,8 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 // Use real diffEngine for integration tests
 import { FullscreenDiffView } from "../components/FullscreenDiffView";
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     DEFAULT_DARK_BG: "#1e1e1e",
     DEFAULT_LIGHT_BG: "#fff",
     getDivider: () => "#ccc",

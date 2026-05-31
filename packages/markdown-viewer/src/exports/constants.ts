@@ -1,4 +1,4 @@
-/** @anytime-markdown/markdown-core/constants サブパスエクスポート */
+/** @anytime-markdown/markdown-viewer/constants サブパスエクスポート */
 export {
   ACCENT_COLOR, ACCENT_COLOR_ALPHA,
   CAPTURE_BG,

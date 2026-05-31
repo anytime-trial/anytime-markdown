@@ -2,9 +2,9 @@
 
 import { DatabaseI18nProvider } from '@anytime-markdown/database-viewer';
 import { GraphI18nProvider } from '@anytime-markdown/graph-viewer';
-import { MarkdownCoreI18nProvider } from '@anytime-markdown/markdown-core';
-import markdownCoreEnMessages from '@anytime-markdown/markdown-core/src/i18n/en.json';
-import markdownCoreJaMessages from '@anytime-markdown/markdown-core/src/i18n/ja.json';
+import { MarkdownCoreI18nProvider } from '@anytime-markdown/markdown-viewer';
+import markdownCoreEnMessages from '@anytime-markdown/markdown-viewer/src/i18n/en.json';
+import markdownCoreJaMessages from '@anytime-markdown/markdown-viewer/src/i18n/ja.json';
 import { SpreadsheetI18nProvider } from '@anytime-markdown/spreadsheet-viewer';
 import { NextIntlClientProvider } from 'next-intl';
 import { createContext, useCallback, useContext, useEffect, useMemo,useState } from 'react';

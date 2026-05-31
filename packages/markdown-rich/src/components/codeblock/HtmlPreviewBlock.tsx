@@ -5,7 +5,7 @@ import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, D
 import DOMPurify from "dompurify";
 import { useRef } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextSecondary, PREVIEW_MAX_HEIGHT, useBlockResize, BlockInlineToolbar } from "@anytime-markdown/markdown-core";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextSecondary, PREVIEW_MAX_HEIGHT, useBlockResize, BlockInlineToolbar } from "@anytime-markdown/markdown-viewer";
 import htmlSamples from "../../constants/htmlSamples.json";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { CodeBlockEditDialog } from "../CodeBlockEditDialog";

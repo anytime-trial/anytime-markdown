@@ -2,8 +2,8 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import type { NodeViewProps } from "@tiptap/react";
 
 // --- Mocks ---
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6 }),
 }));
 

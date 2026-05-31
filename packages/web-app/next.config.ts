@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
     '@anytime-markdown/tiptap-vendor',
     '@anytime-markdown/database-core',
     '@anytime-markdown/database-viewer',
-    '@anytime-markdown/markdown-core',
+    '@anytime-markdown/markdown-viewer',
     '@anytime-markdown/spreadsheet-core',
     '@anytime-markdown/spreadsheet-viewer',
     '@anytime-markdown/trace-core',

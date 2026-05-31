@@ -5,8 +5,8 @@
 import { renderHook, act } from "@testing-library/react";
 
 // Mock plantuml-encoder
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     buildPlantUmlUrl: (encoded: string) => `https://plantuml.com/svg/${encoded}`,
     PLANTUML_CONSENT_KEY: "plantuml-consent",
     PLANTUML_DARK_SKINPARAMS: "skinparam dark",

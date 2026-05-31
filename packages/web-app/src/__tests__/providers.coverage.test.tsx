@@ -15,7 +15,7 @@ jest.mock("@capacitor/status-bar", () => ({
   Style: { Light: "LIGHT", Dark: "DARK" },
 }));
 
-jest.mock("@anytime-markdown/markdown-core", () => {
+jest.mock("@anytime-markdown/markdown-viewer", () => {
   const presets: Record<string, any> = {
     professional: {
       label: "Professional",

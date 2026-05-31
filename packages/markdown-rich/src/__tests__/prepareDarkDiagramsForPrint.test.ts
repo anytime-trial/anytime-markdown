@@ -18,7 +18,7 @@ jest.mock("plantuml-encoder", () => ({
 }));
 
 jest.mock(
-  "@anytime-markdown/markdown-core",
+  "@anytime-markdown/markdown-viewer",
   () => ({
     buildPlantUmlUrl: (encoded: string) => `https://plantuml.test/svg/${encoded}`,
     MERMAID_RENDER_TIMEOUT: 5000,

@@ -1,4 +1,4 @@
-/** @anytime-markdown/markdown-core/embed-utils サブパスエクスポート
+/** @anytime-markdown/markdown-viewer/embed-utils サブパスエクスポート
  *  サーバーサイド / 拡張ホスト環境（DOM 非依存）から使える embed 関連ユーティリティのみ。 */
 export type { EmbedProviders, OembedData, OgpData } from "../types/embedProvider";
 export type { EmbedKind } from "../utils/embedClassifier";

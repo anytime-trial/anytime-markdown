@@ -7,7 +7,7 @@ import {
   EMBED_DATA_ATTR,
   installEmbedFenceRenderer,
   type MarkdownItLike,
-} from "@anytime-markdown/markdown-core";
+} from "@anytime-markdown/markdown-viewer";
 
 interface MarkdownSerializerState {
   write: (text: string) => void;

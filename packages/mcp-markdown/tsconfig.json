@@ -9,7 +9,7 @@
     "declaration": true,
     "baseUrl": ".",
     "paths": {
-      "@anytime-markdown/markdown-core/src/*": ["../markdown-core/src/*"]
+      "@anytime-markdown/markdown-viewer/src/*": ["../markdown-viewer/src/*"]
     }
   },
   "include": ["src/**/*"]

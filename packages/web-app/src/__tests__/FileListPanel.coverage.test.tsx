@@ -9,7 +9,7 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
   DEFAULT_DARK_BG: "#0D1117",
   DEFAULT_LIGHT_BG: "#F8F9FA",
 }));

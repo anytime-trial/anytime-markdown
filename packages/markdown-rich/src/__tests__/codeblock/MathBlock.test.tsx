@@ -5,8 +5,8 @@ import type { NodeViewProps } from "@tiptap/react";
 let mockKatexHtml: string | null = "<span>E=mc^2</span>";
 let mockKatexError: string | null = null;
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6 }),
 }));
 

@@ -26,7 +26,7 @@ import {
   createMockSerializerState,
   getAttributes,
   getStorage,
-} from "../../../markdown-core/src/testUtils/extensionTestHelpers";
+} from "../../../markdown-viewer/src/testUtils/extensionTestHelpers";
 
 describe("CodeBlockWithMermaid (codeBlockWithMermaid)", () => {
   it("has name 'codeBlock'", () => {

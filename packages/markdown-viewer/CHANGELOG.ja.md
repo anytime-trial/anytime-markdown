@@ -1,6 +1,6 @@
 # 変更履歴
 
-`@anytime-markdown/markdown-core` に関するすべての注目すべき変更をこのファイルに記録します。
+`@anytime-markdown/markdown-viewer` に関するすべての注目すべき変更をこのファイルに記録します。
 
 フォーマットは [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) に基づいており、
 このプロジェクトは [Semantic Versioning](https://semver.org/) に準拠しています。

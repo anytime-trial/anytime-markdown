@@ -3,10 +3,10 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import type { PaletteMode } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
 import { getVsCodeApi } from './vscodeApi';
-import { ACCENT_COLOR, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS } from '@anytime-markdown/markdown-core';
-import type { ThemePresetName } from '@anytime-markdown/markdown-core/src/constants/themePresets';
-import { getPreset } from '@anytime-markdown/markdown-core/src/constants/themePresets';
-import { EmbedProvidersProvider } from '@anytime-markdown/markdown-core/src/contexts/EmbedProvidersContext';
+import { ACCENT_COLOR, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS } from '@anytime-markdown/markdown-viewer';
+import type { ThemePresetName } from '@anytime-markdown/markdown-viewer/src/constants/themePresets';
+import { getPreset } from '@anytime-markdown/markdown-viewer/src/constants/themePresets';
+import { EmbedProvidersProvider } from '@anytime-markdown/markdown-viewer/src/contexts/EmbedProvidersContext';
 // rich の codeblock 描画拡張を注入する RichMarkdownEditorPage を使う (B-8)
 import MarkdownEditorPage from '@anytime-markdown/markdown-rich/src/RichMarkdownEditorPage';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';

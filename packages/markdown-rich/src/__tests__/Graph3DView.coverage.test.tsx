@@ -7,8 +7,8 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { Graph3DView } from "../components/codeblock/Graph3DView";
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     DEFAULT_DARK_BG: "#0D1117",
     DEFAULT_LIGHT_BG: "#E8E6E1",
     getTextSecondary: (isDark: boolean) => isDark ? "#aaa" : "#666",

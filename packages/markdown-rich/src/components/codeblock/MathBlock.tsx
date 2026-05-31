@@ -6,7 +6,7 @@ import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContent
 import DOMPurify from "dompurify";
 import { useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getPrimaryMain, getTextSecondary, PREVIEW_MAX_HEIGHT, useEditorFeaturesContext, useBlockResize, BlockInlineToolbar } from "@anytime-markdown/markdown-core";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getPrimaryMain, getTextSecondary, PREVIEW_MAX_HEIGHT, useEditorFeaturesContext, useBlockResize, BlockInlineToolbar } from "@anytime-markdown/markdown-viewer";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { MATH_SANITIZE_CONFIG,useKatexRender } from "../../hooks/useKatexRender";
 import { MathEditDialog } from "../MathEditDialog";
