@@ -517,9 +517,13 @@ export async function activate(context: vscode.ExtensionContext) {
 				TrailLogger.info('[daemon] afterRun received');
 			});
 
+			// trail.db パスは import パイプライン (configure) と Data Server (startHttpServer) の
+			// 双方が同一ファイルを指す必要があるため、両者で参照できるよう 1 箇所で導出する。
+			// dbStorageDir はこのブロックの if 条件 (498行) で非 null 保証済み。
+			const trailDbPath = path.join(dbStorageDir, 'trail.db');
+
 			// AnalyzeAllRunner (lep.json stage !== 'disabled' の場合のみ)
 			if (lepStage !== 'disabled') {
-				const trailDbPath = path.join(dbStorageDir, 'trail.db');
 				const cfg: SerializableAnalyzeAllConfig = {
 					trailDbPath,
 					gitRoot: wsRootForDb,
@@ -632,9 +636,8 @@ export async function activate(context: vscode.ExtensionContext) {
 				await httpClient.start({
 					distPath: extensionDistPath,
 					// HTTP サーバ (Data Server) は import パイプライン (configure) 非依存で起動する。
-					// trail.db パスを直接渡すことで stage='disabled' でも起動できる。dbStorageDir は
-					// このブロックの if 条件 (498行) で非 null 保証済み。
-					trailDbPath: path.join(dbStorageDir, 'trail.db'),
+					// trail.db パスを直接渡すことで stage='disabled' でも起動できる (上で導出した定数を共有)。
+					trailDbPath,
 					gitRoot: wsRootForDb,
 					memoryDbPath: memoryDbPathForServer,
 					preferredPort: trailPort,
