@@ -278,20 +278,20 @@ export async function activate(context: vscode.ExtensionContext) {
 	// docsPath は lep.json workspace.docsPath で一元管理する (旧 anytimeTrail.workspace.docsPath は廃止)。
 	lepWorkspaceDocsPath = lepConfig.workspace.docsPath;
 	// code graph / C4 解析の除外ルートは lep.json workspace.excludeRoot で一元管理する。
-	// どのフォルダを開いていても指定ディレクトリの .anytime/analyze-exclude を全解析経路に適用する
+	// どのフォルダを開いていても指定ディレクトリの .anytime/trail/analyze-exclude を全解析経路に適用する
 	// (空なら undefined → 解析対象リポ自身にフォールバック)。相対は wsRootForDb 起点で絶対化。
 	const analyzeExcludeRoot = resolveExcludeRoot(lepConfig, wsRootForDb);
 	// trail.db 保存先は lep.json database.storagePath (旧 anytimeTrail.database.storagePath は廃止)。
 	const dbStoragePathSetting = lepConfig.database.storagePath || '.anytime/trail/db';
 
-	// `.anytime/analyze-exclude` を activate 時に seed する。analyze pipeline
+	// `.anytime/trail/analyze-exclude` を activate 時に seed する。analyze pipeline
 	// (analyzeCurrentCode / analyzeReleaseCode) でも seed されるが、AnalyzeAll が
 	// OFF のままだとそちらが走らないため、ここで初期生成を保証する。flag:'wx' で
 	// 既存ファイルは上書きされない (EEXIST → false 返却で no-op)。
 	if (wsRootForDb) {
 		try {
 			if (seedAnalyzeExclude(wsRootForDb)) {
-				TrailLogger.info(`[analyzeExclude] seeded .anytime/analyze-exclude at ${wsRootForDb}`);
+				TrailLogger.info(`[analyzeExclude] seeded .anytime/trail/analyze-exclude at ${wsRootForDb}`);
 			}
 		} catch (err) {
 			TrailLogger.warn(

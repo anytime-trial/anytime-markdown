@@ -159,9 +159,9 @@ export interface LepDatabaseConfig {
  * ワークスペース関連パス。`docsPath` は C4 ドキュメントリンク用ドキュメントディレクトリ
  * (旧 VS Code 設定 `anytimeTrail.workspace.docsPath` の移行先)。空文字 = 未設定。
  *
- * `excludeRoot` は code graph / C4 解析の除外パターン (`.anytime/analyze-exclude`) を
+ * `excludeRoot` は code graph / C4 解析の除外パターン (`.anytime/trail/analyze-exclude`) を
  * 読むディレクトリ。絶対パス、または workspace ルートからの相対パス。空文字 = 未指定
- * (解析対象リポ自身の `.anytime/analyze-exclude` にフォールバック)。
+ * (解析対象リポ自身の `.anytime/trail/analyze-exclude` にフォールバック)。
  * 外部リポ (gitRoots) をどのフォルダから解析しても単一の analyze-exclude を適用したい
  * 場合に、中央ディレクトリ (例: 主リポジトリのルート) を指定する。
  */

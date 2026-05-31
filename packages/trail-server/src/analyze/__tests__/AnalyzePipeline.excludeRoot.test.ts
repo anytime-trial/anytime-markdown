@@ -8,13 +8,13 @@ import { findTsconfigCandidates, hasPythonFiles } from '../AnalyzePipeline';
  * findTsconfigCandidates / hasPythonFiles の `excludeRoot` 引数の挙動を検証する。
  *
  * `excludeRoot` を渡すと、解析対象ルート (analysisRoot) 自身の
- * `.anytime/analyze-exclude` ではなく、`excludeRoot` の `.anytime/analyze-exclude`
+ * `.anytime/trail/analyze-exclude` ではなく、`excludeRoot` の `.anytime/trail/analyze-exclude`
  * が除外パターンとして適用される（開いているワークスペース基準への切り替え）。
  */
 
-/** `excludeRoot/.anytime/analyze-exclude` を指定内容で作成する。 */
+/** `excludeRoot/.anytime/trail/analyze-exclude` を指定内容で作成する。 */
 function writeExclude(root: string, content: string): void {
-  const dir = path.join(root, '.anytime');
+  const dir = path.join(root, '.anytime', 'trail');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'analyze-exclude'), content, 'utf-8');
 }

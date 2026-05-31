@@ -16,7 +16,7 @@ export interface TsconfigCandidate {
  * 複数ある場合の選択は呼び出し側の責務（コマンドは QuickPick、HTTP は 1 件目）。
  *
  * `excludeRoot` を渡すと除外パターンを `analysisRoot` 自身ではなく `excludeRoot`
- * （開いているワークスペース）の `.anytime/analyze-exclude` から読む。省略時は
+ * （開いているワークスペース）の `.anytime/trail/analyze-exclude` から読む。省略時は
  * 後方互換のため `analysisRoot` から読む。
  */
 export function findTsconfigCandidates(

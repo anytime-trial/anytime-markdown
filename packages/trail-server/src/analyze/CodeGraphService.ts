@@ -21,7 +21,7 @@ export interface CodeGraphServiceConfig {
   /** ディレクトリ名で除外するパターン（GraphDetector のデフォルトに追加される） */
   readonly excludePatterns?: readonly string[];
   /**
-   * 除外パターン (`.anytime/analyze-exclude`) を読むルート。開いているワークスペースの
+   * 除外パターン (`.anytime/trail/analyze-exclude`) を読むルート。開いているワークスペースの
    * ルートを渡す想定。省略時は後方互換で各 `repo.path` から読む。
    * 外部リポ（gitRoots）解析時に、対象リポ自身ではなくワークスペースの exclude を
    * 適用するために使う。`excludePatterns` が指定された場合はそちらが優先される。

@@ -1,10 +1,10 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { DEFAULT_ANALYZE_EXCLUDE_CONTENT } from './defaultContent';
+import { analyzeExcludeDir, analyzeExcludeFilePath } from './paths';
 
 export function seedAnalyzeExclude(workspaceRoot: string): boolean {
-  const dir = path.join(workspaceRoot, '.anytime');
-  const file = path.join(dir, 'analyze-exclude');
+  const dir = analyzeExcludeDir(workspaceRoot);
+  const file = analyzeExcludeFilePath(workspaceRoot);
   fs.mkdirSync(dir, { recursive: true });
   try {
     fs.writeFileSync(file, DEFAULT_ANALYZE_EXCLUDE_CONTENT, { flag: 'wx', encoding: 'utf-8' });

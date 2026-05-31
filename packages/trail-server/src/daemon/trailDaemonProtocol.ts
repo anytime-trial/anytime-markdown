@@ -69,7 +69,7 @@ export interface SerializableAnalyzeCurrentCodeRequest {
   /** 解析対象リポジトリのルートディレクトリの絶対パス。 */
   readonly analysisRoot: string;
   /**
-   * 除外パターン (`.anytime/analyze-exclude`) を読むルートの絶対パス。
+   * 除外パターン (`.anytime/trail/analyze-exclude`) を読むルートの絶対パス。
    * 省略時は daemon 側で analysisRoot にフォールバックする。
    */
   readonly excludeRoot?: string;
@@ -131,7 +131,7 @@ export interface SerializableHttpServerOptions {
    */
   readonly traceDir?: string;
   /**
-   * code graph / C4 解析の除外ルート (`.anytime/analyze-exclude` を読むディレクトリ)。
+   * code graph / C4 解析の除外ルート (`.anytime/trail/analyze-exclude` を読むディレクトリ)。
    * extension が lep.json `workspace.excludeRoot` を `resolveExcludeRoot` で解決して渡す。
    * 省略 (空文字解決で undefined) 時は daemon 側で `opts.gitRoot` にフォールバックする。
    */
