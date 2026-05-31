@@ -4,7 +4,11 @@ import { DEFAULT_SKILL_CATEGORIES, DEFAULT_SKILL_CATEGORY_LABELS } from './defau
 import type { SkillCategoriesFile } from './types';
 
 export function loadSkillCategories(workspaceRoot: string): ReadonlyMap<string, number> {
-  const file = path.join(workspaceRoot, '.anytime', 'skill-categories.json');
+  return loadSkillCategoriesFromFile(path.join(workspaceRoot, '.anytime', 'skill-categories.json'));
+}
+
+/** 完全なファイルパスから skill categories を読む。不在・不正時はデフォルト。 */
+export function loadSkillCategoriesFromFile(file: string): ReadonlyMap<string, number> {
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as SkillCategoriesFile;
@@ -20,7 +24,11 @@ export function loadSkillCategories(workspaceRoot: string): ReadonlyMap<string, 
 }
 
 export function loadSkillCategoryLabels(workspaceRoot: string): ReadonlyMap<number, string> {
-  const file = path.join(workspaceRoot, '.anytime', 'skill-categories.json');
+  return loadSkillCategoryLabelsFromFile(path.join(workspaceRoot, '.anytime', 'skill-categories.json'));
+}
+
+/** 完全なファイルパスから skill category ラベルを読む。不在・不正時はデフォルト。 */
+export function loadSkillCategoryLabelsFromFile(file: string): ReadonlyMap<number, string> {
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as SkillCategoriesFile;
