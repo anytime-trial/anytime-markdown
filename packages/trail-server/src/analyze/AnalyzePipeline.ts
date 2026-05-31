@@ -61,7 +61,7 @@ const NOOP_LOGGER: Logger = {
 export interface AnalyzeCurrentOpts {
   analysisRoot: string;
   /**
-   * 除外パターン (`.anytime/analyze-exclude`) を読むルート。開いているワークスペースの
+   * 除外パターン (`.anytime/trail/analyze-exclude`) を読むルート。開いているワークスペースの
    * ルートを渡す想定。省略時は後方互換で `analysisRoot` から読む。
    * 外部リポ（gitRoots）解析時に、対象リポ自身ではなくワークスペースの exclude を
    * 適用するために使う。
@@ -331,7 +331,7 @@ export async function runAnalyzeCurrentCodePipeline(
     // seed は従来どおり解析対象リポ自身に対して行う（読み込み先は excludeRoot へ切替）。
     const seeded = seedAnalyzeExclude(analysisRoot);
     if (seeded) {
-      logger.info(`C4 analysis [${repoName}]: .anytime/analyze-exclude created`);
+      logger.info(`C4 analysis [${repoName}]: .anytime/trail/analyze-exclude created`);
     }
   } catch (err) {
     warnings.push(`seedAnalyzeExclude failed: ${err instanceof Error ? err.message : String(err)}`);
