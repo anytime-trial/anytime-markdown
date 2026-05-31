@@ -86,6 +86,7 @@ const MINIMAL_CFG = {
 /** startHttpServer() を成功させるための最小オプション。 */
 const MINIMAL_HTTP_OPTS = {
   distPath: '/tmp/dist',
+  trailDbPath: '/tmp/trail.db',
   gitRoot: '/tmp/repo',
   preferredPort: 19841,
 };
@@ -97,13 +98,13 @@ describe('trailDaemonEntry.dispatch — analyzeCurrentCode', () => {
     (runAnalyzeReleaseCodePipeline as jest.Mock).mockClear();
   });
 
-  it('configure 未呼び出しで analyzeCurrentCode が拒否される', async () => {
+  it('startHttpServer 未呼び出しで analyzeCurrentCode が拒否される', async () => {
     await expect(
       dispatch('analyzeCurrentCode', { analysisRoot: '/tmp/repo' }),
-    ).rejects.toThrow(/not configured/);
+    ).rejects.toThrow(/http server not started/);
   });
 
-  it('configure 済みだが startHttpServer 未呼び出しで analyzeCurrentCode が拒否される', async () => {
+  it('configure 済みでも startHttpServer 未呼び出しなら analyzeCurrentCode は拒否される', async () => {
     await dispatch('configure', MINIMAL_CFG);
     await expect(
       dispatch('analyzeCurrentCode', { analysisRoot: '/tmp/repo' }),
@@ -157,13 +158,13 @@ describe('trailDaemonEntry.dispatch — analyzeReleaseCode', () => {
     (runAnalyzeReleaseCodePipeline as jest.Mock).mockClear();
   });
 
-  it('configure 未呼び出しで analyzeReleaseCode が拒否される', async () => {
+  it('startHttpServer 未呼び出しで analyzeReleaseCode が拒否される', async () => {
     await expect(
       dispatch('analyzeReleaseCode', { gitRoot: '/tmp/repo' }),
-    ).rejects.toThrow(/not configured/);
+    ).rejects.toThrow(/http server not started/);
   });
 
-  it('configure 済みだが startHttpServer 未呼び出しで analyzeReleaseCode が拒否される', async () => {
+  it('configure 済みでも startHttpServer 未呼び出しなら analyzeReleaseCode は拒否される', async () => {
     await dispatch('configure', MINIMAL_CFG);
     await expect(
       dispatch('analyzeReleaseCode', { gitRoot: '/tmp/repo' }),
@@ -187,5 +188,30 @@ describe('trailDaemonEntry.dispatch — analyzeReleaseCode', () => {
     expect(calledOpts.codeGraphService).toBeDefined();
     // 戻り値が呼び出し元に伝播しているか
     expect((result as { releaseCount: number }).releaseCount).toBe(1);
+  });
+});
+
+describe('trailDaemonEntry.dispatch — startHttpServer の configure 非依存', () => {
+  beforeEach(() => {
+    _resetForTest();
+    (runAnalyzeCurrentCodePipeline as jest.Mock).mockClear();
+    (runAnalyzeReleaseCodePipeline as jest.Mock).mockClear();
+  });
+
+  it('configure 未呼び出しでも startHttpServer が成功する (stage=disabled 相当)', async () => {
+    await expect(
+      dispatch('startHttpServer', MINIMAL_HTTP_OPTS),
+    ).resolves.toBeUndefined();
+  });
+
+  it('startHttpServer 単独で analyzeCurrentCode が runAnalyzeCurrentCodePipeline を呼ぶ', async () => {
+    await dispatch('startHttpServer', MINIMAL_HTTP_OPTS);
+
+    const result = await dispatch('analyzeCurrentCode', {
+      analysisRoot: '/tmp/repo',
+    });
+
+    expect(runAnalyzeCurrentCodePipeline).toHaveBeenCalledTimes(1);
+    expect((result as { repoName: string }).repoName).toBe('test');
   });
 });
