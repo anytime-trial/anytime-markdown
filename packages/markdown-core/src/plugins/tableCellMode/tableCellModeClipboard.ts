@@ -1,5 +1,5 @@
 import type { EditorView } from "@tiptap/pm/view";
-import { TableMap } from "prosemirror-tables";
+import { TableMap } from "@tiptap/pm/tables";
 
 import { tableCellModePluginKey } from "./tableCellModePlugin";
 
