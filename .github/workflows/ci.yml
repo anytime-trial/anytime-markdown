@@ -52,14 +52,25 @@ jobs:
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
         run: npx tsc --noEmit
 
+      # vendored tiptap の tsconfig paths が alias.cjs と同期しているか検証する。
+      # next build（master PR のみ）の型解決失敗を develop 時点で検出するためのガード。
+      - name: Check vendored tsconfig paths are in sync
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+        run: node scripts/sync-vendored-tsconfig-paths.mjs --check
+
       - name: Lint
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
         run: npm run lint
 
-      - name: Run markdown-core tests with coverage
+      - name: Run markdown-viewer tests with coverage
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
         run: npx jest --coverage --coverageReporters=lcov
-        working-directory: packages/markdown-core
+        working-directory: packages/markdown-viewer
+
+      - name: Run markdown-rich tests with coverage
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --coverage --coverageReporters=lcov
+        working-directory: packages/markdown-rich
 
       - name: Run mcp-markdown tests
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
@@ -293,8 +304,8 @@ jobs:
       # SonarCloud のカバレッジ計測対象を daily-build と揃える（canonical な
       # パッケージリストと --experimental-vm-modules フラグは coverage-remaining
       # action に集約）。上で個別に coverage 済みの cms-core / database-core /
-      # database-viewer は exclude で二重計測を避ける（markdown-core / web-app /
-      # graph-core は action のリストに含まれないため exclude 不要）。
+      # database-viewer は exclude で二重計測を避ける（markdown-viewer / markdown-rich /
+      # web-app / graph-core は action のリストに含まれないため exclude 不要）。
       # lcov を作らないパッケージは sonar.sources に載っていても 0% 計上される。
       - name: Run remaining package tests with coverage
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
