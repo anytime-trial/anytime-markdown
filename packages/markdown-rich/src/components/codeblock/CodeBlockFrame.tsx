@@ -4,7 +4,7 @@ import type { SxProps, Theme } from "@mui/material";
 import { Box } from "@mui/material";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 
-import { DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_CODE_BG, getDivider, useEditorSettingsContext, DeleteBlockDialog } from "@anytime-markdown/markdown-core";
+import { DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_CODE_BG, getDivider, useEditorSettingsContext, DeleteBlockDialog } from "@anytime-markdown/markdown-viewer";
 
 interface CodeBlockFrameProps {
   /** Toolbar row rendered above the code editor */

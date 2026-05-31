@@ -7,8 +7,8 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Mock all complex dependencies
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     getDivider: () => "#ccc",
     getTextSecondary: () => "#666",
     FS_PANEL_HEADER_FONT_SIZE: "0.75rem",

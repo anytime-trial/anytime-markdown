@@ -7,8 +7,8 @@ let mockMermaidError: string | null = null;
 let mockPlantUmlUrl: string | null = null;
 let mockPlantUmlConsent = "pending";
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6, editorBg: "white" }),
     usePlantUmlToolbar: () => ({ setSampleAnchorEl: jest.fn() }),
 }));

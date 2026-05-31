@@ -2,7 +2,7 @@
 
 import type { NodeViewProps } from "@tiptap/react";
 
-import type { useTextareaSearch } from "@anytime-markdown/markdown-core";
+import type { useTextareaSearch } from "@anytime-markdown/markdown-viewer";
 
 /** Props shared by all code block sub-components */
 export interface CodeBlockSharedProps {

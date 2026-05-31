@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 // Import directly to avoid React/Next.js barrel export dependencies
-import { computeDiff as coreComputeDiff } from '@anytime-markdown/markdown-core/src/utils/diffEngine';
-import type { DiffResult } from '@anytime-markdown/markdown-core/src/utils/diffEngine';
+import { computeDiff as coreComputeDiff } from '@anytime-markdown/markdown-viewer/src/utils/diffEngine';
+import type { DiffResult } from '@anytime-markdown/markdown-viewer/src/utils/diffEngine';
 
 const ALLOWED_EXTENSIONS = ['.md', '.markdown'];
 

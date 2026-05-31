@@ -10,8 +10,8 @@
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/*"],
-			"@anytime-markdown/markdown-core": ["../markdown-core/src/index.ts"],
-			"@anytime-markdown/markdown-core/src/*": ["../markdown-core/src/*"],
+			"@anytime-markdown/markdown-viewer": ["../markdown-viewer/src/index.ts"],
+			"@anytime-markdown/markdown-viewer/src/*": ["../markdown-viewer/src/*"],
 			"@tiptap/core": ["../tiptap-vendor/core/src/index.ts"],
 			"@tiptap/core/*": ["../tiptap-vendor/core/src/*"],
 			"@tiptap/react": ["../tiptap-vendor/react/src/index.ts"],

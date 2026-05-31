@@ -6,7 +6,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Box, IconButton, Slider, Tooltip, Typography } from "@mui/material";
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 
-import { getTextSecondary } from "@anytime-markdown/markdown-core";
+import { getTextSecondary } from "@anytime-markdown/markdown-viewer";
 import type { GraphExpr } from "../../utils/latexToExpr";
 
 /** デフォルト表示範囲 */

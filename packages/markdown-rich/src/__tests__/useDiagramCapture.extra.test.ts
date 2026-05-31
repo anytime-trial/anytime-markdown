@@ -4,8 +4,8 @@
  */
 import { renderHook } from "@testing-library/react";
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     saveBlob: jest.fn().mockResolvedValue(undefined),
     buildPlantUmlUrl: jest.fn().mockImplementation(
       (encoded: string) => `https://www.plantuml.com/plantuml/svg/${encoded}`,

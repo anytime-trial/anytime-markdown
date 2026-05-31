@@ -8,8 +8,8 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { ZoomablePreview } from "../components/ZoomablePreview";
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     DEFAULT_DARK_BG: "#1e1e1e",
     DEFAULT_LIGHT_BG: "#ffffff",
     REDUCED_MOTION_SX: {},

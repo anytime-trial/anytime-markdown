@@ -1,6 +1,6 @@
 'use client';
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from '@anytime-markdown/markdown-core';
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG } from '@anytime-markdown/markdown-viewer';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import FolderIcon from '@mui/icons-material/Folder';

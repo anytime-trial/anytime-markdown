@@ -3,7 +3,7 @@
 import type { NodeViewProps } from "@tiptap/react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { findCodeBlockByIndex, findCounterpartCode, getCodeBlockIndex, getMergeEditors } from "@anytime-markdown/markdown-core";
+import { findCodeBlockByIndex, findCounterpartCode, getCodeBlockIndex, getMergeEditors } from "@anytime-markdown/markdown-viewer";
 
 /**
  * Shared merge/compare mode logic for code-block-based node views

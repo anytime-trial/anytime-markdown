@@ -12,8 +12,8 @@ Element.prototype.releasePointerCapture = Element.prototype.releasePointerCaptur
 
 // Mock useMediaQuery to return true for mobile
 let mockIsMobile = false;
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     getDivider: () => "#ccc",
     getPrimaryMain: () => "#1976d2",
     FS_CODE_INITIAL_WIDTH: 500,

@@ -4,7 +4,7 @@ import { Button, Dialog, DialogActions, DialogContent, DialogContentText, Dialog
 
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { CodeBlockEditDialog } from "../CodeBlockEditDialog";
-import { BlockInlineToolbar } from "@anytime-markdown/markdown-core";
+import { BlockInlineToolbar } from "@anytime-markdown/markdown-viewer";
 import { CodeBlockFrame } from "./CodeBlockFrame";
 import { shouldShowBorder } from "./compareHelpers";
 import type { CodeBlockSharedProps } from "./types";

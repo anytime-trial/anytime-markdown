@@ -4,8 +4,8 @@ import type { NodeViewProps } from "@tiptap/react";
 // --- Mocks ---
 let mockIsSelected = false;
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6, editorBg: "white" }),
     useTextareaSearch: () => ({ reset: jest.fn(), query: "", setQuery: jest.fn(), matches: [], currentIdx: 0, next: jest.fn(), prev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn() }),
     usePlantUmlToolbar: () => ({ setSampleAnchorEl: jest.fn() }),

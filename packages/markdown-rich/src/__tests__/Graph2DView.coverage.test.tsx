@@ -9,8 +9,8 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { Graph2DView } from "../components/codeblock/Graph2DView";
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     getTextSecondary: (isDark: boolean) => isDark ? "#aaa" : "#666",
 }));
 

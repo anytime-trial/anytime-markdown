@@ -2,7 +2,7 @@ import plantumlEncoder from "plantuml-encoder";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BoundedMap } from "../utils/BoundedMap";
-import { buildPlantUmlUrl, PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS, PLANTUML_LIGHT_SKINPARAMS } from "@anytime-markdown/markdown-core";
+import { buildPlantUmlUrl, PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS, PLANTUML_LIGHT_SKINPARAMS } from "@anytime-markdown/markdown-viewer";
 
 /** CSS変数からエディタのフォントを読み取り、手書き風プリセットかを判定 */
 function isHandwrittenPreset(): boolean {

@@ -1,7 +1,7 @@
 import { Box, Divider, useMediaQuery, useTheme } from "@mui/material";
 import React, { useEffect, useRef, useState } from "react";
 
-import { FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH, getSplitterSx } from "@anytime-markdown/markdown-core";
+import { FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH, getSplitterSx } from "@anytime-markdown/markdown-viewer";
 
 interface DraggableSplitLayoutProps {
   /** Initial code panel width in px (default: FS_CODE_INITIAL_WIDTH) */

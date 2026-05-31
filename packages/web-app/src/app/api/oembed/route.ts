@@ -1,5 +1,5 @@
-import type { OembedData } from "@anytime-markdown/markdown-core/src/types/embedProvider";
-import { sanitizeTweetHtml } from "@anytime-markdown/markdown-core/src/utils/tweetSanitize";
+import type { OembedData } from "@anytime-markdown/markdown-viewer/src/types/embedProvider";
+import { sanitizeTweetHtml } from "@anytime-markdown/markdown-viewer/src/utils/tweetSanitize";
 import { NextResponse } from "next/server";
 
 const TIMEOUT_MS = 5000;

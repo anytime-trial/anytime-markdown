@@ -197,7 +197,7 @@ const trailStandaloneConfig = {
     alias: {
       // markdown-core 内部で `@/...` 形式 import (例: `@/hooks/useConfirm`) を
       // ts-loader が解決できるよう markdown-core/src へ alias する。
-      '@': path.resolve(__dirname, '../markdown-core/src'),
+      '@': path.resolve(__dirname, '../markdown-viewer/src'),
     },
   },
   module: {

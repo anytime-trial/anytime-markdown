@@ -4,8 +4,8 @@ import { Box, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import React, { useCallback, useState } from "react";
 
-import { getDivider, getPrimaryMain, getTextSecondary, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT, MENU_ITEM_FONT_SIZE, MATH_SAMPLES, useEditorFeaturesContext, useEditorSettingsContext, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-core";
-import type { TextareaSearchState } from "@anytime-markdown/markdown-core";
+import { getDivider, getPrimaryMain, getTextSecondary, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT, MENU_ITEM_FONT_SIZE, MATH_SAMPLES, useEditorFeaturesContext, useEditorSettingsContext, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
+import type { TextareaSearchState } from "@anytime-markdown/markdown-viewer";
 import { MATH_SANITIZE_CONFIG, useKatexRender } from "../hooks/useKatexRender";
 import { useZoomPan } from "../hooks/useZoomPan";
 import { GraphView } from "./codeblock/GraphView";

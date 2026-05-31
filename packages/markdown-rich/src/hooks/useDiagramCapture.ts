@@ -1,7 +1,7 @@
 import plantumlEncoder from "plantuml-encoder";
 import { useCallback } from "react";
 
-import { CAPTURE_BG, FETCH_TIMEOUT, saveBlob, buildPlantUmlUrl } from "@anytime-markdown/markdown-core";
+import { CAPTURE_BG, FETCH_TIMEOUT, saveBlob, buildPlantUmlUrl } from "@anytime-markdown/markdown-viewer";
 
 interface UseDiagramCaptureParams {
   isMermaid: boolean;

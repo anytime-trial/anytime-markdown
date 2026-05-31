@@ -1,7 +1,7 @@
 import { Box, useTheme } from "@mui/material";
 import React from "react";
 
-import { getPrimaryMain, SMALL_CAPTION_FONT_SIZE } from "@anytime-markdown/markdown-core";
+import { getPrimaryMain, SMALL_CAPTION_FONT_SIZE } from "@anytime-markdown/markdown-viewer";
 
 interface ResizeGripProps {
   visible: boolean;

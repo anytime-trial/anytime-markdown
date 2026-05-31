@@ -1,7 +1,7 @@
 import { Box } from "@mui/material";
 import React, { useCallback, useRef } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextDisabled, getTextPrimary } from "@anytime-markdown/markdown-core";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextDisabled, getTextPrimary } from "@anytime-markdown/markdown-viewer";
 
 interface LineNumberTextareaProps {
   value: string;

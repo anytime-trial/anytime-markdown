@@ -8,7 +8,7 @@ import {
   buildPlantUmlUrl,
   type DarkDiagramPrintPreparer,
   MERMAID_RENDER_TIMEOUT,
-} from "@anytime-markdown/markdown-core";
+} from "@anytime-markdown/markdown-viewer";
 import plantumlEncoder from "plantuml-encoder";
 
 interface MermaidReplacement {

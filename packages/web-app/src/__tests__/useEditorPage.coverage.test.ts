@@ -3,7 +3,7 @@
  */
 import { renderHook, act } from "@testing-library/react";
 
-jest.mock("@anytime-markdown/markdown-core/src/constants/storageKeys", () => ({
+jest.mock("@anytime-markdown/markdown-viewer/src/constants/storageKeys", () => ({
   STORAGE_KEY_CONTENT: "anytime-markdown-content",
 }));
 

@@ -1,6 +1,6 @@
 // jest 専用の軽量 barrel shim。
 //
-// markdown-rich のソースは @anytime-markdown/markdown-core (= core の index.ts) から
+// markdown-rich のソースは @anytime-markdown/markdown-viewer (= core の index.ts) から
 // 共有部品を import する。だが core の index.ts は MarkdownEditorPage / templates(.md) など
 // 重量ツリーを eager にロードするため、rich の単体テストで barrel をそのまま読み込むと
 // .md トランスフォーマ未設定や巨大依存で破綻する (core 自身のテストも full barrel は読まない)。
@@ -14,29 +14,29 @@ export {
   findCounterpartCode,
   getCodeBlockIndex,
   getMergeEditors,
-} from "../../markdown-core/src/contexts/MergeEditorsContext";
-export { useEditorFeaturesContext } from "../../markdown-core/src/contexts/EditorFeaturesContext";
-export type { EditorFeatures } from "../../markdown-core/src/contexts/EditorFeaturesContext";
+} from "../../markdown-viewer/src/contexts/MergeEditorsContext";
+export { useEditorFeaturesContext } from "../../markdown-viewer/src/contexts/EditorFeaturesContext";
+export type { EditorFeatures } from "../../markdown-viewer/src/contexts/EditorFeaturesContext";
 
-export { useMarkdownT } from "../../markdown-core/src/i18n/context";
+export { useMarkdownT } from "../../markdown-viewer/src/i18n/context";
 
-export { useBlockCapture } from "../../markdown-core/src/hooks/useBlockCapture";
-export { useBlockResize } from "../../markdown-core/src/hooks/useBlockResize";
-export { useDeleteBlock } from "../../markdown-core/src/hooks/useDeleteBlock";
-export { useNodeSelected } from "../../markdown-core/src/hooks/useNodeSelected";
-export { useTextareaSearch } from "../../markdown-core/src/hooks/useTextareaSearch";
+export { useBlockCapture } from "../../markdown-viewer/src/hooks/useBlockCapture";
+export { useBlockResize } from "../../markdown-viewer/src/hooks/useBlockResize";
+export { useDeleteBlock } from "../../markdown-viewer/src/hooks/useDeleteBlock";
+export { useNodeSelected } from "../../markdown-viewer/src/hooks/useNodeSelected";
+export { useTextareaSearch } from "../../markdown-viewer/src/hooks/useTextareaSearch";
 export type {
   TextareaSearchMatch,
   TextareaSearchState,
-} from "../../markdown-core/src/hooks/useTextareaSearch";
+} from "../../markdown-viewer/src/hooks/useTextareaSearch";
 
 export {
   DEFAULT_SETTINGS,
   EditorSettingsContext,
   useEditorSettings,
   useEditorSettingsContext,
-} from "../../markdown-core/src/useEditorSettings";
-export type { EditorSettings } from "../../markdown-core/src/useEditorSettings";
+} from "../../markdown-viewer/src/useEditorSettings";
+export type { EditorSettings } from "../../markdown-viewer/src/useEditorSettings";
 
 export {
   CAPTURE_BG,
@@ -55,7 +55,7 @@ export {
   getTextSecondary,
   HLJS_DARK,
   HLJS_LIGHT,
-} from "../../markdown-core/src/constants/colors";
+} from "../../markdown-viewer/src/constants/colors";
 
 export {
   CHIP_FONT_SIZE,
@@ -69,57 +69,57 @@ export {
   MENU_ITEM_FONT_SIZE,
   PREVIEW_MAX_HEIGHT,
   SMALL_CAPTION_FONT_SIZE,
-} from "../../markdown-core/src/constants/dimensions";
+} from "../../markdown-viewer/src/constants/dimensions";
 
 export {
   MATH_SAMPLES,
   MERMAID_SAMPLES,
   PLANTUML_SAMPLES,
-} from "../../markdown-core/src/constants/samples";
+} from "../../markdown-viewer/src/constants/samples";
 
-export { FETCH_TIMEOUT } from "../../markdown-core/src/constants/timing";
+export { FETCH_TIMEOUT } from "../../markdown-viewer/src/constants/timing";
 
 export {
   DURATION_FAST,
   getSplitterSx,
   REDUCED_MOTION_SX,
-} from "../../markdown-core/src/constants/uiPatterns";
+} from "../../markdown-viewer/src/constants/uiPatterns";
 
-export { getHljsStyles } from "../../markdown-core/src/styles/codeStyles";
+export { getHljsStyles } from "../../markdown-viewer/src/styles/codeStyles";
 
 // 注: `appLowlight` は意図的に再 export しない。唯一の利用者 RichMarkdownEditorPage は
 // どのテストからもロードされず、ここで export すると ESM の lowlight が全テストに
 // eager ロードされて transform エラーになる。実 barrel (core index.ts) には存在する。
 
-export { saveBlob } from "../../markdown-core/src/utils/clipboardHelpers";
-export { buildColorRuns } from "../../markdown-core/src/utils/colorRuns";
-export { applyMerge, computeDiff } from "../../markdown-core/src/utils/diffEngine";
-export type { DiffLine } from "../../markdown-core/src/utils/diffEngine";
+export { saveBlob } from "../../markdown-viewer/src/utils/clipboardHelpers";
+export { buildColorRuns } from "../../markdown-viewer/src/utils/colorRuns";
+export { applyMerge, computeDiff } from "../../markdown-viewer/src/utils/diffEngine";
+export type { DiffLine } from "../../markdown-viewer/src/utils/diffEngine";
 export {
   buildPlantUmlUrl,
   PLANTUML_CONSENT_KEY,
   PLANTUML_DARK_SKINPARAMS,
   PLANTUML_LIGHT_SKINPARAMS,
-} from "../../markdown-core/src/utils/plantumlHelpers";
+} from "../../markdown-viewer/src/utils/plantumlHelpers";
 export {
   EMBED_DATA_ATTR,
   installEmbedFenceRenderer,
-} from "../../markdown-core/src/utils/embedFenceRenderer";
-export type { MarkdownItLike } from "../../markdown-core/src/utils/embedFenceRenderer";
+} from "../../markdown-viewer/src/utils/embedFenceRenderer";
+export type { MarkdownItLike } from "../../markdown-viewer/src/utils/embedFenceRenderer";
 export {
   buildEmbedInfoString,
   DEFAULT_EMBED_BASELINE,
   parseEmbedInfoString,
-} from "../../markdown-core/src/utils/embedInfoString";
+} from "../../markdown-viewer/src/utils/embedInfoString";
 export type {
   EmbedBaseline,
   EmbedVariant,
-} from "../../markdown-core/src/utils/embedInfoString";
+} from "../../markdown-viewer/src/utils/embedInfoString";
 
-export { EditDialogHeader } from "../../markdown-core/src/components/EditDialogHeader";
-export { EditDialogWrapper } from "../../markdown-core/src/components/EditDialogWrapper";
-export { EmbedEditDialog } from "../../markdown-core/src/components/EmbedEditDialog";
-export { EmbedNodeView } from "../../markdown-core/src/components/EmbedNodeView";
-export { BlockInlineToolbar } from "../../markdown-core/src/components/codeblock/BlockInlineToolbar";
-export type { BlockInlineToolbarProps } from "../../markdown-core/src/components/codeblock/BlockInlineToolbar";
-export { DeleteBlockDialog } from "../../markdown-core/src/components/codeblock/DeleteBlockDialog";
+export { EditDialogHeader } from "../../markdown-viewer/src/components/EditDialogHeader";
+export { EditDialogWrapper } from "../../markdown-viewer/src/components/EditDialogWrapper";
+export { EmbedEditDialog } from "../../markdown-viewer/src/components/EmbedEditDialog";
+export { EmbedNodeView } from "../../markdown-viewer/src/components/EmbedNodeView";
+export { BlockInlineToolbar } from "../../markdown-viewer/src/components/codeblock/BlockInlineToolbar";
+export type { BlockInlineToolbarProps } from "../../markdown-viewer/src/components/codeblock/BlockInlineToolbar";
+export { DeleteBlockDialog } from "../../markdown-viewer/src/components/codeblock/DeleteBlockDialog";

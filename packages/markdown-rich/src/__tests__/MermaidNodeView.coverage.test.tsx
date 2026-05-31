@@ -15,8 +15,8 @@ import { render, act } from "@testing-library/react";
 let mockIsEditable = true;
 let mockIsSelected = false;
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     useNodeSelected: () => mockIsSelected,
     useDeleteBlock: () => jest.fn(),
     useBlockCapture: () => jest.fn(),

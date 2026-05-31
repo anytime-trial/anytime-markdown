@@ -10,8 +10,8 @@ import { renderHook } from "@testing-library/react";
 
 const mockSaveBlob = jest.fn().mockResolvedValue(undefined);
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     saveBlob: (...args: unknown[]) => mockSaveBlob(...args),
     buildPlantUmlUrl: jest.fn().mockImplementation((encoded: string) => `https://www.plantuml.com/plantuml/svg/${encoded}`),
     CAPTURE_BG: "#ffffff",

@@ -11,8 +11,8 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 } as any;
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
-    ...jest.requireActual("@anytime-markdown/markdown-core"),
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+    ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     getDivider: () => "#ccc",
     getTextSecondary: () => "#666",
     FS_TAB_FONT_SIZE: 12,

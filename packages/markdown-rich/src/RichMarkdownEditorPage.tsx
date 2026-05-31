@@ -1,6 +1,6 @@
 "use client";
 
-import { appLowlight, MarkdownEditorPage } from "@anytime-markdown/markdown-core";
+import { appLowlight, MarkdownEditorPage } from "@anytime-markdown/markdown-viewer";
 import type { ComponentProps } from "react";
 
 import { CodeBlockWithMermaid } from "./codeBlockWithMermaid";

@@ -3,7 +3,7 @@ import type {
   OembedData,
   OgpData,
   RssLatestData,
-} from '@anytime-markdown/markdown-core/src/types/embedProvider';
+} from '@anytime-markdown/markdown-viewer/src/types/embedProvider';
 
 import { getVsCodeApi } from './vscodeApi';
 
