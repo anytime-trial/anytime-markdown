@@ -1,7 +1,6 @@
 import path from 'node:path';
 
 import { LanguageRegistry, analyzeRepo } from '@anytime-markdown/code-analysis-core';
-import { TypeScriptLanguageAnalyzer } from '@anytime-markdown/code-analysis-typescript';
 import { PythonLanguageAnalyzer } from '@anytime-markdown/code-analysis-python';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Element } from '@anytime-markdown/trail-core/c4';
@@ -268,7 +267,10 @@ export class CodeGraphService {
   private getLanguageRegistry(): LanguageRegistry {
     if (!this.languageRegistry) {
       const registry = new LanguageRegistry();
-      registry.register(new TypeScriptLanguageAnalyzer());
+      // typescript を trail-daemon バンドルから排除するため、TS 解析は analyze-child へ
+      // 一本化する。ここでは Python のみ登録する (tsconfig 無し Python repo の TrailGraph
+      // 生成用)。TS repo の code graph は AnalyzePipeline が analyze-child の TrailGraph を
+      // generate() の override で渡すため runAnalyze (= 本レジストリ) に到達しない。
       registry.register(new PythonLanguageAnalyzer(this.config.pythonWasmPath));
       this.languageRegistry = registry;
     }

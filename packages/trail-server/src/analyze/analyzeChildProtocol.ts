@@ -12,6 +12,26 @@ export interface AnalyzeChildRequest {
    * マージで必須。ホストが codeGraphService.getPythonWasmPath() から解決して渡す。
    */
   readonly pythonWasmPath?: string;
+  /**
+   * decision comment（WHY/RATIONALE/理由）の AST 走査を行うか。current code 解析でのみ
+   * true（memory-core が trail-db 経由で読む）。release 解析では graph のみ使うため false。
+   */
+  readonly includeDecisionComments?: boolean;
+}
+
+/**
+ * ソースから抽出した意思決定コメント 1 件。memory-core の Decision entity 化に必要な
+ * 最小情報のみ持つ（DB 永続化時に repo_id / commit_sha / recorded_at を付与）。
+ */
+export interface DecisionComment {
+  /** リポジトリルート相対パス */
+  readonly filePath: string;
+  /** 1-based 行番号 */
+  readonly line: number;
+  /** WHY/RATIONALE/理由 接頭辞を除いた本文 */
+  readonly text: string;
+  /** コメント直後の宣言シンボル名（file-level の場合 null） */
+  readonly symbolName: string | null;
 }
 
 /**
@@ -23,6 +43,8 @@ export interface AnalyzeComputeResult {
   readonly scored: ScoredFunction[];
   readonly lineCountByFile: ReadonlyArray<readonly [string, number]>;
   readonly categoryByFile?: ReadonlyArray<readonly [string, FileCategory]>;
+  /** includeDecisionComments=true のとき抽出した decision comment 群（既定 undefined） */
+  readonly decisionComments?: DecisionComment[];
   readonly warnings: string[];
 }
 
@@ -32,5 +54,35 @@ export type AnalyzeChildMessage =
   | { readonly type: 'result'; readonly resultPath: string }
   | { readonly type: 'error'; readonly message: string; readonly stack?: string };
 
+/**
+ * 対話的ソース解析（exports/flowchart/sequence）の child 委譲リクエスト。
+ * daemon がファイル内容を読んで送り、child が createSourceFile + analyzer を実行する
+ * （typescript を daemon から排除するため）。型は loose（unknown）にして typescript を
+ * 静的に引かないようにする。実体は c4SourceAnalyze.ts が解釈する。
+ */
+export interface C4SourceFileInput {
+  readonly filePath: string;
+  readonly content: string;
+}
+
+export type C4SourceAnalyzeRequest =
+  | { readonly kind: 'exports'; readonly files: readonly C4SourceFileInput[]; readonly componentId: string }
+  | { readonly kind: 'flowchartControl'; readonly files: readonly C4SourceFileInput[]; readonly filePart: string; readonly funcName: string }
+  | { readonly kind: 'flowchartCall'; readonly files: readonly C4SourceFileInput[]; readonly symbolId: string }
+  | {
+      readonly kind: 'sequence';
+      readonly files: readonly C4SourceFileInput[];
+      readonly elementId: string;
+      readonly model: unknown;
+      readonly graph: TrailGraph;
+    };
+
+export type C4SourceAnalyzeResult =
+  | { readonly kind: 'exports'; readonly symbols: readonly unknown[] }
+  | { readonly kind: 'flowchart'; readonly graph: { readonly nodes: readonly unknown[]; readonly edges: readonly unknown[] } }
+  | { readonly kind: 'sequence'; readonly model: unknown };
+
 /** ホスト → 子 メッセージ */
-export type AnalyzeHostMessage = { readonly type: 'analyze'; readonly request: AnalyzeChildRequest };
+export type AnalyzeHostMessage =
+  | { readonly type: 'analyze'; readonly request: AnalyzeChildRequest }
+  | { readonly type: 'c4SourceAnalyze'; readonly request: C4SourceAnalyzeRequest };

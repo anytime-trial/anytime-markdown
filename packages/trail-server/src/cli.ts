@@ -78,7 +78,10 @@ program
     await trailDb.init();
 
     const gitRoots = opts.gitRoots ? String(opts.gitRoots).split(',').filter(Boolean) : [];
-    const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0]);
+    // CLI は standalone（typescript 同梱）のため /api/trail/refresh の release 解析は
+    // in-process `analyze` を analyzeReleaseFn として注入する（daemon は analyze-child へ委譲）。
+    const { analyze } = await import('@anytime-markdown/trail-core/analyze');
+    const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0], undefined, undefined, analyze);
 
     // extension_logs 専用 DB を better-sqlite3 で開き、LogService を wire する。
     // trail.db とは別ファイルとし、WAL 競合と性能影響を避ける。

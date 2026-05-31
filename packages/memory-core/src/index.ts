@@ -39,7 +39,7 @@ export { runBugHistoryIncremental } from './pipeline/runBugHistoryIncremental';
 export type { BugHistoryIncrementalResult } from './pipeline/runBugHistoryIncremental';
 export { ingestAstFacts } from './ingest/code/astFunctionLevel';
 export type { AstFactInput, AstFactStats } from './ingest/code/astFunctionLevel';
-export type { ExtractCommentsInput, ExtractCommentsStats } from './ingest/code/extractComments';
+export type { IngestDecisionCommentsInput, ExtractCommentsStats, DecisionCommentItem } from './ingest/code/extractComments';
 export { extractCommitRationale } from './ingest/code/extractCommitRationale';
 export type { ExtractRationaleInput, ExtractRationaleStats } from './ingest/code/extractCommitRationale';
 export { runReviewIncremental } from './pipeline/runReviewIncremental';

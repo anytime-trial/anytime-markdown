@@ -10,7 +10,7 @@ import * as path from 'node:path';
 
 import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
 import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
-import { analyze } from '@anytime-markdown/trail-core/analyze';
+import { makeChildAnalyzeFn } from '../analyze/childAnalyzeFn';
 import {
   CREATE_EXTENSION_LOGS,
   CREATE_EXTENSION_LOGS_INDEXES,
@@ -44,6 +44,13 @@ import type {
   SerializableSetDocsPathRequest,
   SerializableTokenBudgetConfig,
 } from './trailDaemonProtocol';
+
+// daemon バンドル (dist/trail-daemon.js) と同じ dist/ 配下に配置される解析子プロセスと
+// wasm を __dirname 起点で解決する。webpack trailDaemonConfig は node.__dirname=false の
+// ため __dirname は runtime の dist/ を指す。これにより daemon は typescript を静的 import
+// せず、release/on-demand 解析を analyze-child へ委譲できる。
+const analyzeChildPath = path.join(__dirname, 'analyze-child.js');
+const pythonWasmPath = path.join(__dirname, 'wasm', 'tree-sitter-python.wasm');
 
 function send(m: DaemonMessage): void {
   process.send?.(m);
@@ -79,6 +86,13 @@ export const daemonLogger = {
   error: (m: string) =>
     sendEvent('log', { level: 'error', message: m, timestamp: new Date().toISOString() }),
 };
+
+// typescript を引き込む同期 `analyze` の代替。release 解析 (AnalyzeAllRunner) と
+// HTTP refresh (TrailDataServer) の両方へ注入し、TS 解析を analyze-child へ一本化する。
+const childAnalyzeFn = makeChildAnalyzeFn(analyzeChildPath, {
+  pythonWasmPath,
+  logger: daemonLogger,
+});
 
 let memoryCoreService: MemoryCoreService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
@@ -221,7 +235,9 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     importAllStatusFilePath: cfg.importAllStatusFilePath,
     pipelineStatusFilePath: cfg.pipelineStatusFilePath,
     onImportProgress: (message: string) => sendEvent('progress', { message }),
-    analyzeReleaseFn: analyze,
+    // typescript を引き込む同期 `analyze` の代わりに analyze-child へ fork する非同期
+    // 実装を注入する。release 解析は TrailGraph のみ使うため child の graph を返す。
+    analyzeReleaseFn: childAnalyzeFn,
     onImportPhase: (event) => sendEvent('phase', event),
     onAfterRun: () => {
       // daemon 内の TrailDataServer に sessions 更新を WebSocket push させる。
@@ -281,6 +297,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       defaultRepoName: opts.defaultRepoName,
       traceDir: opts.traceDir,
     },
+    childAnalyzeFn,
   );
   server.setCodeGraphService(codeGraphService);
 

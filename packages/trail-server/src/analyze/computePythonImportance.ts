@@ -23,7 +23,9 @@ import {
   PythonImportResolver,
   PythonAdapter,
 } from '@anytime-markdown/code-analysis-python';
-import { ImportanceAnalyzer } from '@anytime-markdown/trail-core/importance';
+// barrel `trail-core/importance` 経由だと TypeScriptAdapter/MutationAnalyzer(typescript) を
+// 巻き込むため、typescript 非依存の code-analysis-core/importance から直接 import する。
+import { ImportanceAnalyzer } from '@anytime-markdown/code-analysis-core/importance';
 import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
 
 import type { Logger } from '../runtime/Logger';

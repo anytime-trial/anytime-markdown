@@ -21,6 +21,9 @@ import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runCodeIncremental } from '../../src/pipeline/runCodeIncremental';
 import { noopLogger } from '../../src/logger';
 import type { MemoryCoreDb } from '../../src/db/connection';
+// runCodeIncremental は typescript 依存を撤去し current_graphs（生 TrailGraph）から読むため、
+// E2E では analyze-child の役割を実 analyzeWithProgram で再現して current_graphs をシードする。
+import { analyzeWithProgram } from '@anytime-markdown/trail-core/analyze';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -87,6 +90,30 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
     graph_json TEXT NOT NULL CHECK (json_valid(graph_json)),
     generated_at TEXT,
     updated_at TEXT
+  ) STRICT`);
+
+  // current_graphs（生 TrailGraph。ingestAstFacts が読む）
+  db.run(`CREATE TABLE current_graphs (
+    repo_id INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+    commit_id TEXT NOT NULL DEFAULT '',
+    graph_json TEXT NOT NULL CHECK (json_valid(graph_json)),
+    tsconfig_path TEXT NOT NULL DEFAULT '',
+    project_root TEXT NOT NULL DEFAULT '',
+    analyzed_at TEXT NOT NULL,
+    updated_at TEXT
+  ) STRICT`);
+
+  // code_decision_comments（analyze-child が永続化。ingestDecisionComments が読む）
+  db.run(`CREATE TABLE code_decision_comments (
+    repo_id INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+    comment_hash TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    line INTEGER NOT NULL,
+    comment_text TEXT NOT NULL,
+    symbol_name TEXT,
+    commit_sha TEXT,
+    recorded_at TEXT NOT NULL,
+    PRIMARY KEY (repo_id, comment_hash)
   ) STRICT`);
 
   // Seed session
@@ -196,6 +223,21 @@ function insertCodeGraph(trailDb: BetterSqlite3MemoryDb, repoName: string): void
     `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
      VALUES (?, ?, ?, ?)`,
     [repoId, graphJson, generatedAt, generatedAt]
+  );
+}
+
+/**
+ * analyze-child の役割（生 TrailGraph を current_graphs に保存）を実 analyzeWithProgram で再現する。
+ * runCodeIncremental は current_graphs から graph を読んで ingestAstFacts に渡す。
+ */
+function seedCurrentGraph(trailDb: BetterSqlite3MemoryDb, repoName: string, tsconfigPath: string): void {
+  const { graph } = analyzeWithProgram({ tsconfigPath });
+  const repoId = trailRepoId(trailDb, repoName);
+  const analyzedAt = '2026-01-15T12:00:00.000Z';
+  trailDb.run(
+    `INSERT INTO current_graphs (repo_id, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+     VALUES (?, '', ?, ?, '', ?, ?)`,
+    [repoId, JSON.stringify(graph), tsconfigPath, analyzedAt, analyzedAt]
   );
 }
 
@@ -353,6 +395,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       const memDb = await makeMemoryDb();
       const trailDb = makeTrailDb(repoName);
       insertCodeGraph(trailDb, repoName);
+      seedCurrentGraph(trailDb, repoName, tsconfigPath);
 
       attachTrailDbFromHandle(memDb.db, trailDb);
 
@@ -488,6 +531,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       const memDb = await makeMemoryDb();
       const trailDb = makeTrailDb(repoName);
       insertCodeGraph(trailDb, repoName);
+      seedCurrentGraph(trailDb, repoName, tsconfigPath);
       attachTrailDbFromHandle(memDb.db, trailDb);
 
       const result = await runCodeIncremental({
