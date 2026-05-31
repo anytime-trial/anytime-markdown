@@ -384,6 +384,21 @@ export const CREATE_RELEASE_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_co
   updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;
 
+// current code から抽出した意思決定コメント（WHY/RATIONALE/理由）。analyze-child が
+// ts.Program 走査で抽出し、memory-core が trail-db 経由で読んで Decision entity 化する
+// （memory-core から typescript を排除するための中継テーブル）。repo 単位 wash-away。
+export const CREATE_CODE_DECISION_COMMENTS = `CREATE TABLE IF NOT EXISTS code_decision_comments (
+  repo_id      INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  comment_hash TEXT NOT NULL,
+  file_path    TEXT NOT NULL,
+  line         INTEGER NOT NULL,
+  comment_text TEXT NOT NULL,
+  symbol_name  TEXT,
+  commit_sha   TEXT,
+  recorded_at  TEXT NOT NULL CHECK (recorded_at GLOB ${TS_GLOB_MS} OR recorded_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, comment_hash)
+) STRICT`;
+
 // Phase C-2 flip: PK の repo_name → repo_id へ置換。
 // Phase H-3: 非正規化キャッシュの repo_name 列を物理撤去。read で repo_name が要る箇所は JOIN repos。
 // stable_key 列・部分索引 (idx_ccgc_stable_key) は引き継ぎ用途のため維持する。

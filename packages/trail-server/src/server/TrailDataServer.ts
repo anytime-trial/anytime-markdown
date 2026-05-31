@@ -18,7 +18,7 @@ import {
   filterTreeByLevel,
   parseCoverage,
 } from '@anytime-markdown/trail-core/c4';
-import { analyze } from '@anytime-markdown/trail-core/analyze';
+import type { AnalyzeFunction } from '@anytime-markdown/trail-db';
 import { loadCommitCategories, loadCommitCategoryLabels } from '@anytime-markdown/trail-core/commitCategories';
 import { loadToolCategories, loadToolCategoryLabels } from '@anytime-markdown/trail-core/toolCategories';
 import { loadSkillCategories, loadSkillCategoryLabels } from '@anytime-markdown/trail-core/skillCategories';
@@ -284,6 +284,10 @@ export class TrailDataServer {
     private logger: Logger,
     private readonly gitRoot?: string,
     memoryDbPath?: string,
+    // HTTP refresh での release 解析関数。daemon が analyze-child へ fork する
+    // 実装を注入する (typescript を TrailDataServer 経由で静的 import しないため)。
+    // 未指定時は handleRefresh で release 解析をスキップする。
+    private readonly analyzeReleaseFn?: AnalyzeFunction,
   ) {
     // webpack-bundled VS Code 拡張では bindings package が call stack から
     // `.node` を推測できず crash するため、distPath から絶対パスを組み立てて
@@ -2413,7 +2417,7 @@ export class TrailDataServer {
     // multi-repo 取り込みは onAnalyzeAll 経由（extension.ts で resolveWatchedRepos を使う）に乗せる。
     const gitRoots = this.gitRoot ? [this.gitRoot] : undefined;
     this.trailDb
-      .importAll(undefined, gitRoots, undefined, analyze)
+      .importAll(undefined, gitRoots, undefined, this.analyzeReleaseFn)
       .then((result) => {
         this.notifySessionsUpdated();
         res.writeHead(200, JSON_HEADERS);

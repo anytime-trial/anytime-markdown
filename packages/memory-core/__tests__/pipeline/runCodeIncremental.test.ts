@@ -4,18 +4,13 @@ import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runCodeIncremental } from '../../src/pipeline/runCodeIncremental';
 import type { MemoryLogger } from '../../src/logger';
 
-// ── Mock analyzeWithProgram ──────────────────────────────────────────────────
-// Do NOT call real tsc in unit tests; inject a synthetic TrailGraph + ts.Program.
+// typescript 依存は撤去済み。runCodeIncremental は trail-db の current_graphs（生 TrailGraph）と
+// code_decision_comments（analyze-child が永続化）から読むため、fixture でそれらを用意する。
 
-const MOCK_GRAPH = {
+/** ingestAstFacts が処理する生 TrailGraph（file + function ノード + call エッジ）。 */
+const RAW_TRAIL_GRAPH = {
   nodes: [
-    {
-      id: 'src/index.ts',
-      label: 'index.ts',
-      type: 'file' as const,
-      filePath: 'src/index.ts',
-      line: 0,
-    },
+    { id: 'src/index.ts', label: 'index.ts', type: 'file' as const, filePath: 'src/index.ts', line: 0 },
     {
       id: 'src/index.ts#myFunc',
       label: 'myFunc',
@@ -25,32 +20,9 @@ const MOCK_GRAPH = {
       parent: 'src/index.ts',
     },
   ],
-  edges: [
-    {
-      source: 'src/index.ts',
-      target: 'src/index.ts#myFunc',
-      type: 'call' as const,
-    },
-  ],
-  metadata: {
-    projectRoot: '/fake/root',
-    analyzedAt: '2026-01-01T00:00:00.000Z',
-    fileCount: 1,
-  },
+  edges: [{ source: 'src/index.ts', target: 'src/index.ts#myFunc', type: 'call' as const }],
+  metadata: { projectRoot: '/fake/root', analyzedAt: '2026-01-01T00:00:00.000Z', fileCount: 1 },
 };
-
-// Minimal ts.Program stub (only getSourceFiles() is used by extractDecisionComments)
-const MOCK_PROGRAM = {
-  getSourceFiles: () => [],
-};
-
-jest.mock('@anytime-markdown/trail-core/analyze', () => ({
-  analyzeWithProgram: jest.fn((_opts: unknown) => ({
-    graph: MOCK_GRAPH,
-    program: MOCK_PROGRAM,
-    projectRoot: '/fake/root',
-  })),
-}));
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,7 +34,6 @@ const silentLogger: MemoryLogger = {
   error: () => {},
 };
 
-
 function makeMemoryDb(): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
@@ -72,8 +43,6 @@ function makeMemoryDb(): BetterSqlite3MemoryDb {
 
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
-  // Phase H-3: trail.current_code_graphs から repo_name 列を撤去し repo_id PK にしたため、
-  // fixture も repos + repo_id PK スキーマで作る。
   trailDb.run(`
     CREATE TABLE repos (
       repo_id    INTEGER PRIMARY KEY,
@@ -81,7 +50,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
       created_at TEXT NOT NULL
     ) STRICT
   `);
-  // current_code_graphs
+  // current_code_graphs（fromTrailGraph が読む C4 グラフ）
   trailDb.run(`
     CREATE TABLE current_code_graphs (
       repo_id      INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
@@ -90,15 +59,38 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
       updated_at   TEXT NOT NULL
     ) STRICT
   `);
-  // session_commits (required by extractCommitRationale)
+  // current_graphs（ingestAstFacts が読む生 TrailGraph）
+  trailDb.run(`
+    CREATE TABLE current_graphs (
+      repo_id       INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+      commit_id     TEXT NOT NULL DEFAULT '',
+      graph_json    TEXT NOT NULL,
+      tsconfig_path TEXT NOT NULL DEFAULT '',
+      project_root  TEXT NOT NULL DEFAULT '',
+      analyzed_at   TEXT NOT NULL,
+      updated_at    TEXT
+    ) STRICT
+  `);
+  // code_decision_comments（ingestDecisionComments が読む decision comment）
+  trailDb.run(`
+    CREATE TABLE code_decision_comments (
+      repo_id      INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+      comment_hash TEXT NOT NULL,
+      file_path    TEXT NOT NULL,
+      line         INTEGER NOT NULL,
+      comment_text TEXT NOT NULL,
+      symbol_name  TEXT,
+      commit_sha   TEXT,
+      recorded_at  TEXT NOT NULL,
+      PRIMARY KEY (repo_id, comment_hash)
+    ) STRICT
+  `);
   trailDb.run(`
     CREATE TABLE sessions (
       id TEXT PRIMARY KEY,
       started_at TEXT NOT NULL DEFAULT ''
     ) STRICT
   `);
-  // Phase H-4: trail.session_commits から repo_name 列を撤去し repo_id 参照にしたため、
-  // fixture も repo_id 列で作る (extractCommitRationale が trail.repos を JOIN して解決する)。
   trailDb.run(`
     CREATE TABLE session_commits (
       session_id     TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -112,12 +104,9 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
   return trailDb;
 }
 
-function insertCodeGraph(
-  trailDb: BetterSqlite3MemoryDb,
-  repoName: string,
-  updatedAt: string
-): void {
-  const graphJson = JSON.stringify({
+function insertCodeGraph(trailDb: BetterSqlite3MemoryDb, repoName: string, updatedAt: string): void {
+  const repoId = trailRepoId(trailDb, repoName);
+  const codeGraphJson = JSON.stringify({
     generatedAt: updatedAt,
     repositories: [{ id: repoName, label: repoName, path: `/repos/${repoName}` }],
     nodes: [
@@ -138,18 +127,44 @@ function insertCodeGraph(
     communities: {},
     godNodes: [],
   });
-  const repoId = trailRepoId(trailDb, repoName);
   trailDb.run(
     `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at) VALUES (?, ?, ?, ?)`,
-    [repoId, graphJson, updatedAt, updatedAt]
+    [repoId, codeGraphJson, updatedAt, updatedAt]
+  );
+  // 生 TrailGraph（ingestAstFacts 用）
+  trailDb.run(
+    `INSERT INTO current_graphs (repo_id, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+     VALUES (?, '', ?, '', '/fake/root', ?, ?)`,
+    [repoId, JSON.stringify(RAW_TRAIL_GRAPH), updatedAt, updatedAt]
   );
 }
 
-/** repo_name から repo_id を取得する (未登録なら登録・冪等)。trail-db の repoIdForName 相当。 */
+function insertDecisionComment(
+  trailDb: BetterSqlite3MemoryDb,
+  repoName: string,
+  comment: { filePath: string; line: number; text: string; symbolName: string | null }
+): void {
+  const repoId = trailRepoId(trailDb, repoName);
+  trailDb.run(
+    `INSERT INTO code_decision_comments
+       (repo_id, comment_hash, file_path, line, comment_text, symbol_name, commit_sha, recorded_at)
+     VALUES (?, ?, ?, ?, ?, ?, NULL, ?)`,
+    [
+      repoId,
+      `${comment.filePath}:${comment.line}`,
+      comment.filePath,
+      comment.line,
+      comment.text,
+      comment.symbolName,
+      '2026-01-01T00:00:00.000Z',
+    ]
+  );
+}
+
 function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
   trailDb.run(
     `INSERT INTO repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
-    [repoName, updatedAtSeed()]
+    [repoName, '2026-01-01T00:00:00.000Z']
   );
   const stmt = trailDb.prepare('SELECT repo_id FROM repos WHERE repo_name = ?');
   try {
@@ -160,17 +175,15 @@ function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
   }
 }
 
-function updatedAtSeed(): string {
-  return '2026-01-01T00:00:00.000Z';
-}
-
 function countPipelineRuns(db: BetterSqlite3MemoryDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM memory_pipeline_runs WHERE scope = 'code_incremental'`);
-  return result[0]?.values[0][0] as number ?? 0;
+  return (result[0]?.values[0][0] as number) ?? 0;
 }
 
 function getPipelineState(db: BetterSqlite3MemoryDb): { status: string; last_processed_at: string } | null {
-  const stmt = db.prepare(`SELECT status, last_processed_at FROM memory_pipeline_state WHERE scope = 'code_incremental'`);
+  const stmt = db.prepare(
+    `SELECT status, last_processed_at FROM memory_pipeline_state WHERE scope = 'code_incremental'`
+  );
   try {
     const row = stmt.get();
     if (row) {
@@ -215,7 +228,6 @@ describe('runCodeIncremental', () => {
       insertCodeGraph(trailDb, REPO, GRAPH_UPDATED_AT);
       attachTrailDbFromHandle(memDb, trailDb);
 
-      // Seed pipeline_state so last_processed_at === GRAPH_UPDATED_AT
       memDb.run(
         `INSERT INTO memory_pipeline_state (scope, status, last_processed_at)
          VALUES ('code_incremental', 'idle', ?)`,
@@ -254,13 +266,11 @@ describe('runCodeIncremental', () => {
       expect(result.items_processed).toBeGreaterThan(0);
       expect(result.duration_ms).toBeGreaterThanOrEqual(0);
 
-      // Pipeline state should advance to GRAPH_UPDATED_AT
       const state = getPipelineState(memDb);
       expect(state).not.toBeNull();
       expect(state!.status).toBe('idle');
       expect(state!.last_processed_at).toBe(GRAPH_UPDATED_AT);
 
-      // A pipeline_run row should exist and be finalized
       expect(countPipelineRuns(memDb)).toBe(1);
       const runRows = memDb.exec(
         `SELECT status FROM memory_pipeline_runs WHERE scope = 'code_incremental'`
@@ -276,7 +286,6 @@ describe('runCodeIncremental', () => {
       insertCodeGraph(trailDb, REPO, GRAPH_UPDATED_AT);
       attachTrailDbFromHandle(memDb, trailDb);
 
-      // First run
       const first = await runCodeIncremental({
         db: memDb,
         repoName: REPO,
@@ -286,7 +295,6 @@ describe('runCodeIncremental', () => {
       });
       expect(first.status).toBe('success');
 
-      // Second run — graph unchanged
       const second = await runCodeIncremental({
         db: memDb,
         repoName: REPO,
@@ -295,49 +303,36 @@ describe('runCodeIncremental', () => {
         logger: silentLogger,
       });
       expect(second.status).toBe('skipped');
-      // Still only 1 pipeline_run row (no new run created for skip)
       expect(countPipelineRuns(memDb)).toBe(1);
     });
   });
 
-  describe('status=error on invalid tsconfigPath', () => {
-    it('records failed_item and returns error when analyzeWithProgram throws', async () => {
-      // Override mock to throw for this test
-      const { analyzeWithProgram } = jest.requireMock('@anytime-markdown/trail-core/analyze') as {
-        analyzeWithProgram: jest.Mock;
-      };
-      analyzeWithProgram.mockImplementationOnce(() => {
-        throw new Error('Cannot find tsconfig: /nonexistent/tsconfig.json');
-      });
-
+  describe('decision comments ingested from trail.code_decision_comments', () => {
+    it('creates a Decision entity for each stored comment', async () => {
       const memDb = makeMemoryDb();
       const trailDb = makeTrailDb();
       insertCodeGraph(trailDb, REPO, GRAPH_UPDATED_AT);
+      insertDecisionComment(trailDb, REPO, {
+        filePath: 'src/index.ts',
+        line: 4,
+        text: 'use sync IO for simplicity',
+        symbolName: 'myFunc',
+      });
       attachTrailDbFromHandle(memDb, trailDb);
 
       const result = await runCodeIncremental({
         db: memDb,
         repoName: REPO,
-        tsconfigPath: '/nonexistent/tsconfig.json',
+        tsconfigPath: '/fake/tsconfig.json',
         gitRoot: '/fake/root',
         logger: silentLogger,
       });
 
-      expect(result.status).toBe('error');
-
-      // A failed_item row should be recorded with scope='code'
-      const failedRows = memDb.exec(
-        `SELECT scope, item_key FROM memory_failed_items WHERE scope = 'code'`
+      expect(result.status).toBe('success');
+      const decisionRows = memDb.exec(
+        `SELECT COUNT(*) FROM memory_entities WHERE type = 'Decision'`
       );
-      expect(failedRows[0]?.values.length).toBeGreaterThanOrEqual(1);
-      expect(failedRows[0]?.values[0][1]).toBe('/nonexistent/tsconfig.json');
-
-      // Pipeline_run should exist and be finalized as error
-      expect(countPipelineRuns(memDb)).toBe(1);
-      const runRows = memDb.exec(
-        `SELECT status FROM memory_pipeline_runs WHERE scope = 'code_incremental'`
-      );
-      expect(runRows[0]?.values[0][0]).toBe('error');
+      expect(decisionRows[0]?.values[0][0]).toBe(1);
     });
   });
 });

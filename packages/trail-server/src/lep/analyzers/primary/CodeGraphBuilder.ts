@@ -75,7 +75,7 @@ export class CodeGraphBuilder implements Analyzer {
     this.opts.onPhase?.({ phase: 'analyze_releases', action: 'start' });
     try {
       this.opts.onProgress?.('Analyzing releases...', 0);
-      this.releasesAnalyzed = this.opts.trailDb.analyzeReleases(
+      this.releasesAnalyzed = await this.opts.trailDb.analyzeReleases(
         gitRoot,
         this.opts.analyzeFn,
         (msg: string) => this.opts.onProgress?.(msg, 0),

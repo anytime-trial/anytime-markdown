@@ -131,6 +131,9 @@ async function analyzeTypeScriptBranch(
     excludeRoot: opts.excludeRoot,
     tsconfigPath,
     pythonWasmPath: codeGraphService.getPythonWasmPath(),
+    // current 解析では decision comment を抽出して trail-db に永続化する
+    // （memory-core が typescript を持たず trail-db 経由で読むため）。
+    includeDecisionComments: true,
   };
 
   // 重い TS 解析（program 構築・抽出・importance・classify）は child_process に隔離する。
@@ -145,7 +148,11 @@ async function analyzeTypeScriptBranch(
     });
     compute = await runner.run(request);
   } else {
-    const { computeAnalysis } = await import('./computeAnalysis.js');
+    // computeAnalysis は trail-core/analyze (typescript) を引き込む。daemon バンドルは
+    // 常に analyzeChildPath を渡すためこの else に到達しないが、webpack は静的に追跡して
+    // typescript を同梱してしまう。webpackIgnore で追跡を止め、trail-daemon.js から
+    // typescript を排除する。テスト・非バンドル環境 (jest) では従来どおり解決される。
+    const { computeAnalysis } = await import(/* webpackIgnore: true */ './computeAnalysis.js');
     compute = await computeAnalysis(request, (phase) => reportProgress(phase));
   }
   warnings.push(...compute.warnings);
@@ -154,6 +161,21 @@ async function analyzeTypeScriptBranch(
   logger.info(
     `C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
   );
+
+  // decision comment を trail-db へ洗い替え永続化（memory-core が読む中継）。
+  try {
+    trailDb.saveDecisionComments(repoName, compute.decisionComments ?? [], {
+      commitSha: commitId || null,
+      recordedAt: new Date().toISOString(),
+    });
+    logger.info(
+      `C4 analysis [${repoName}]: saved ${compute.decisionComments?.length ?? 0} decision comments`,
+    );
+  } catch (err) {
+    const msg = `saveDecisionComments failed: ${err instanceof Error ? err.message : String(err)}`;
+    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
+    warnings.push(msg);
+  }
   logger.info(
     `C4 analysis [${repoName}]: classified ${compute.categoryByFile?.length ?? 0} files, scored ${compute.scored.length} functions`,
   );
