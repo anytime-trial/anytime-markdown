@@ -1,19 +1,15 @@
 const base = require('../../jest.config.base');
-const { buildJestMapper } = require('../tiptap-vendor/alias.cjs');
+const { buildJestMapper, buildJestTransform } = require('../tiptap-vendor/alias.cjs');
 /** @type {import('jest').Config} */
 const config = {
   ...base,
   testEnvironment: "jsdom",
   setupFiles: ["<rootDir>/jest.setup.ts"],
-  transform: {
-    // isolatedModules: 型チェックせずトランスパイルのみ。barrel (@anytime-markdown/markdown-core)
-    // 経由でロードされる markdown-core ソースを rich tsconfig で型評価しないため
-    // (@/ パス等が rich 基準で解決され TS2307 になるのを回避)。
-    // rich ソースの実コンテキスト型検証は web-app の next build で行う (設計方針)。
-    "^.+\\.tsx?$": ["ts-jest", { isolatedModules: true }],
-    // vendored tiptap-markdown は ESM .js のため allowJs で transpile する
-    "^.+\\.jsx?$": ["ts-jest", { isolatedModules: true, tsconfig: { allowJs: true } }],
-  },
+  // isolatedModules(buildJestTransform 内): barrel(@anytime-markdown/markdown-core) 経由で
+  // ロードされる markdown-core ソースを rich tsconfig で型評価しないため
+  // (@/ パス等が rich 基準で解決され TS2307 になるのを回避)。
+  // rich ソースの実コンテキスト型検証は web-app の next build で行う (設計方針)。
+  transform: buildJestTransform(),
   testMatch: ["<rootDir>/src/__tests__/**/*.test.ts", "<rootDir>/src/__tests__/**/*.test.tsx"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {

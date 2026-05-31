@@ -91,11 +91,10 @@ const nextConfig: NextConfig = {
       type: 'asset/source',
     });
     // @tiptap/* → vendored ソース（next build = webpack）
-    config.resolve = config.resolve ?? {};
+    config.resolve ??= {};
     config.resolve.alias = { ...(config.resolve.alias ?? {}), ...buildWebpackAlias() };
     // sql.js (WASM) は Node 用 fs/path/crypto API を持つため、ブラウザバンドルでは無効化
     if (!isServer) {
-      config.resolve = config.resolve ?? {};
       config.resolve.fallback = {
         ...(config.resolve.fallback ?? {}),
         fs: false,
