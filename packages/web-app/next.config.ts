@@ -2,6 +2,9 @@ import type { NextConfig } from 'next';
 import withBundleAnalyzerInit from '@next/bundle-analyzer';
 import withSerwistInit from '@serwist/next';
 import createNextIntlPlugin from 'next-intl/plugin';
+// @tiptap/* → vendored ソースへの alias（共有ヘルパ）。webpack=next build 用 / Turbopack=dev 用。
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { buildWebpackAlias, buildTurbopackAlias } = require('../tiptap-vendor/alias.cjs');
 
 process.env.SERWIST_SUPPRESS_TURBOPACK_WARNING = '1';
 
@@ -18,6 +21,7 @@ const isCapacitorBuild = !isCloudflare && process.env.CAPACITOR_BUILD === 'true'
 const nextConfig: NextConfig = {
   devIndicators: false,
   transpilePackages: [
+    '@anytime-markdown/tiptap-vendor',
     '@anytime-markdown/database-core',
     '@anytime-markdown/database-viewer',
     '@anytime-markdown/markdown-core',
@@ -37,6 +41,8 @@ const nextConfig: NextConfig = {
       },
     },
     resolveAlias: {
+      // @tiptap/* → vendored ソース（dev = Turbopack）
+      ...buildTurbopackAlias(process.cwd()),
       // sql.js (WASM) は Node 用 require('fs'/'path'/'crypto') を含むため
       // ブラウザバンドルでは noop に解決して dead code として除去する
       fs: { browser: './src/lib/sqlJsNoopShim.ts' },
@@ -84,6 +90,9 @@ const nextConfig: NextConfig = {
       test: /\.md$/,
       type: 'asset/source',
     });
+    // @tiptap/* → vendored ソース（next build = webpack）
+    config.resolve = config.resolve ?? {};
+    config.resolve.alias = { ...(config.resolve.alias ?? {}), ...buildWebpackAlias() };
     // sql.js (WASM) は Node 用 fs/path/crypto API を持つため、ブラウザバンドルでは無効化
     if (!isServer) {
       config.resolve = config.resolve ?? {};

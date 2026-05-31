@@ -1,4 +1,5 @@
 const base = require('../../jest.config.base');
+const { buildJestMapper } = require('../tiptap-vendor/alias.cjs');
 /** @type {import('jest').Config} */
 const config = {
   ...base,
@@ -10,10 +11,14 @@ const config = {
     // (@/ パス等が rich 基準で解決され TS2307 になるのを回避)。
     // rich ソースの実コンテキスト型検証は web-app の next build で行う (設計方針)。
     "^.+\\.tsx?$": ["ts-jest", { isolatedModules: true }],
+    // vendored tiptap-markdown は ESM .js のため allowJs で transpile する
+    "^.+\\.jsx?$": ["ts-jest", { isolatedModules: true, tsconfig: { allowJs: true } }],
   },
   testMatch: ["<rootDir>/src/__tests__/**/*.test.ts", "<rootDir>/src/__tests__/**/*.test.tsx"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {
+    // @tiptap/* → vendored ソースへ解決（共有 alias ヘルパ）
+    ...buildJestMapper(),
     // barrel は core の index.ts (MarkdownEditorPage / templates.md など重量ツリーを eager ロード)
     // ではなく、rich が使う葉モジュールだけを再 export する軽量 shim に差し替える。
     // requireActual も moduleNameMapper を通るため、テストの barrel mock の base もこの shim になる。

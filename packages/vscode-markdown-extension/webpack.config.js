@@ -4,6 +4,8 @@
 
 const path = require('path');
 const webpack = require('webpack');
+// @tiptap/* → vendored ソースへの alias（共有ヘルパ）
+const { buildWebpackAlias } = require('../tiptap-vendor/alias.cjs');
 
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
@@ -58,6 +60,8 @@ const webviewConfig = {
   resolve: {
     extensions: ['.tsx', '.ts', '.js', '.json'],
     alias: {
+      // @tiptap/* → vendored ソース
+      ...buildWebpackAlias(),
       'next-intl': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),
       'next-intl/server': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),
       'next/dynamic': path.resolve(__dirname, 'src/webview/shims/next-dynamic.ts'),
@@ -75,6 +79,9 @@ const webviewConfig = {
             options: {
               configFile: 'tsconfig.webview.json',
               allowTsInNodeModules: true,
+              // tiptap-vendor は第三者 vendored ソース（tiptap 自前のゆるい設定でビルドされ
+              // strict 下では implicitNoAny 等が出る）。app コード(markdown-core/rich)のみ型診断する。
+              reportFiles: ['**/*.{ts,tsx}', '!**/tiptap-vendor/**', '!**/node_modules/**'],
             },
           }
         ]
