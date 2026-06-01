@@ -46,15 +46,29 @@ export interface AgentSessionRow {
   readonly updatedAt: string;
 }
 
-/** POST /api/agent-status/edit の body */
+/**
+ * POST /api/agent-status/edit の body。
+ *
+ * 部分更新セマンティクス: `undefined` のフィールドは既存値を保持する。現行フックの「Edit/Write は
+ * file + sessionEdits、Bash は workspacePath、plan は plannedEdits のみ更新」という選択マージを
+ * 単一エンドポイントで再現する。commit 系・summary 系の列は一切触らない。
+ */
 export interface EditUpsertInput {
   readonly sessionId: string;
-  readonly editing: boolean;
+  /** 編集中フラグ。省略時は既存値を保持 */
+  readonly editing?: boolean;
+  /** 現在編集中のファイル。省略時は既存値を保持 */
   readonly file?: string;
+  /** git ブランチ。省略時は既存値を保持 */
   readonly branch?: string;
+  /** Bash ツールの cwd。省略時は既存値を保持 */
   readonly workspacePath?: string;
-  readonly sessionEdits?: readonly AgentSessionEdit[];
+  /** session_edits に追記マージする 1 件（同 file は timestamp 更新、無ければ push） */
+  readonly appendEdit?: AgentSessionEdit;
+  /** planned_edits をまるごと置換する（plan hook 用）。省略時は既存値を保持 */
   readonly plannedEdits?: readonly string[];
+  /** session_edits / planned_edits を空配列にする（clearEdits 用） */
+  readonly clearEdits?: boolean;
   /** 更新時刻。省略時はワーカーが現在時刻を補う */
   readonly updatedAt?: string;
 }

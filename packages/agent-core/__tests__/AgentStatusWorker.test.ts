@@ -89,6 +89,18 @@ describe('AgentStatusWorker (loopback HTTP)', () => {
     expect(res.status).toBe(400);
   });
 
+  it('DELETE /:id でセッション行を削除する', async () => {
+    await fetch(`${base}/api/agent-status/edit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: 'del', editing: true }),
+    });
+    const delRes = await fetch(`${base}/api/agent-status/del`, { method: 'DELETE' });
+    expect(delRes.status).toBe(200);
+    const env = await (await fetch(`${base}/api/agent-status/del`)).json();
+    expect(env.data).toBeNull();
+  });
+
   it('未知パスは 404', async () => {
     const res = await fetch(`${base}/api/unknown`);
     expect(res.status).toBe(404);

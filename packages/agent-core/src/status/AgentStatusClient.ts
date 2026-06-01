@@ -102,4 +102,14 @@ export class AgentStatusClient {
     );
     return res.ok === true;
   }
+
+  /** セッション行を削除する。未起動時は false */
+  async deleteSession(sessionId: string): Promise<boolean> {
+    const res = await this.request<{ ok?: boolean }>(
+      `/api/agent-status/${encodeURIComponent(sessionId)}`,
+      { method: 'DELETE' },
+      { ok: false },
+    );
+    return res.ok === true;
+  }
 }

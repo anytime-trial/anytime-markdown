@@ -93,14 +93,36 @@ export class AgentStatusStore {
     this.db.exec(CREATE_AGENT_SESSIONS);
   }
 
-  /** 編集状況のみ UPSERT する。commit 系・summary 系の列は触らない。 */
+  /**
+   * 編集状況を部分更新する。commit 系・summary 系の列は触らない。
+   *
+   * `undefined` のフィールドは既存値を保持する read-modify-write。ワーカーは単一プロセスで
+   * POST を直列処理するため、read→write 間に他 writer は割り込まない。
+   */
   upsertEditing(input: EditUpsertInput): void {
     const updatedAt = input.updatedAt ?? nowIso();
-    const file = input.file ?? '';
-    const branch = input.branch ?? '';
-    const workspacePath = input.workspacePath ?? '';
-    const sessionEdits = JSON.stringify(input.sessionEdits ?? []);
-    const plannedEdits = JSON.stringify(input.plannedEdits ?? []);
+    const prev = this.queryOne(input.sessionId);
+
+    const editing = input.editing ?? prev?.editing ?? false;
+    const file = input.file ?? prev?.file ?? '';
+    const branch = input.branch ?? prev?.branch ?? '';
+    const workspacePath = input.workspacePath ?? prev?.workspacePath ?? '';
+
+    let sessionEdits: AgentSessionRow['sessionEdits'] = input.clearEdits
+      ? []
+      : (prev?.sessionEdits ?? []);
+    if (!input.clearEdits && input.appendEdit) {
+      const next = [...sessionEdits];
+      const idx = next.findIndex((e) => e.file === input.appendEdit!.file);
+      if (idx >= 0) next[idx] = input.appendEdit;
+      else next.push(input.appendEdit);
+      sessionEdits = next;
+    }
+
+    const plannedEdits = input.clearEdits
+      ? []
+      : (input.plannedEdits ?? prev?.plannedEdits ?? []);
+
     const stmt = this.db.prepare(`
       INSERT INTO agent_sessions
         (session_id, editing, file, branch, workspace_path, session_edits, planned_edits, updated_at)
@@ -117,14 +139,19 @@ export class AgentStatusStore {
     `);
     stmt.run({
       $sid: input.sessionId,
-      $editing: input.editing ? 1 : 0,
+      $editing: editing ? 1 : 0,
       $file: file,
       $branch: branch,
       $ws: workspacePath,
-      $sedits: sessionEdits,
-      $pedits: plannedEdits,
+      $sedits: JSON.stringify(sessionEdits),
+      $pedits: JSON.stringify(plannedEdits),
       $updatedAt: updatedAt,
     });
+  }
+
+  /** セッション行を削除する（deleteSessionFile 相当）。存在しなくてもエラーにしない。 */
+  deleteSession(sessionId: string): void {
+    this.db.prepare('DELETE FROM agent_sessions WHERE session_id = ?').run(sessionId);
   }
 
   /**

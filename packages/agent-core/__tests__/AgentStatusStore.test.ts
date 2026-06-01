@@ -35,7 +35,7 @@ describe('AgentStatusStore', () => {
       file: '/ws/a.ts',
       branch: 'feature/x',
       workspacePath: '/ws',
-      sessionEdits: [{ file: '/ws/a.ts', timestamp: '2026-05-31T00:00:00.000Z' }],
+      appendEdit: { file: '/ws/a.ts', timestamp: '2026-05-31T00:00:00.000Z' },
       plannedEdits: ['/ws/b.ts'],
       updatedAt: '2026-05-31T00:00:00.000Z',
     });
@@ -70,6 +70,75 @@ describe('AgentStatusStore', () => {
     const row = store.queryOne('s1');
     expect(row!.editing).toBe(false);
     expect(row!.file).toBe('/ws/c.ts');
+  });
+
+  it('部分更新: undefined のフィールドは既存値を保持する', () => {
+    store.upsertEditing({
+      sessionId: 's1',
+      editing: true,
+      file: '/ws/a.ts',
+      branch: 'main',
+      workspacePath: '/ws',
+    });
+    // Bash hook 相当: workspacePath と editing のみ更新、file/branch は保持
+    store.upsertEditing({ sessionId: 's1', editing: false, workspacePath: '/ws2' });
+    const row = store.queryOne('s1');
+    expect(row!.editing).toBe(false);
+    expect(row!.file).toBe('/ws/a.ts');
+    expect(row!.branch).toBe('main');
+    expect(row!.workspacePath).toBe('/ws2');
+  });
+
+  it('appendEdit は同一 file の timestamp を更新し、別 file は追記する', () => {
+    store.upsertEditing({
+      sessionId: 's1',
+      appendEdit: { file: '/ws/a.ts', timestamp: '2026-05-31T00:00:00.000Z' },
+    });
+    store.upsertEditing({
+      sessionId: 's1',
+      appendEdit: { file: '/ws/b.ts', timestamp: '2026-05-31T00:00:01.000Z' },
+    });
+    store.upsertEditing({
+      sessionId: 's1',
+      appendEdit: { file: '/ws/a.ts', timestamp: '2026-05-31T00:00:02.000Z' },
+    });
+    const row = store.queryOne('s1');
+    expect(row!.sessionEdits).toEqual([
+      { file: '/ws/a.ts', timestamp: '2026-05-31T00:00:02.000Z' },
+      { file: '/ws/b.ts', timestamp: '2026-05-31T00:00:01.000Z' },
+    ]);
+  });
+
+  it('plannedEdits の置換は appendEdit と独立して動く', () => {
+    store.upsertEditing({
+      sessionId: 's1',
+      appendEdit: { file: '/ws/a.ts', timestamp: '2026-05-31T00:00:00.000Z' },
+    });
+    store.upsertEditing({ sessionId: 's1', plannedEdits: ['/ws/p1.ts', '/ws/p2.ts'] });
+    const row = store.queryOne('s1');
+    expect(row!.sessionEdits.length).toBe(1);
+    expect(row!.plannedEdits).toEqual(['/ws/p1.ts', '/ws/p2.ts']);
+  });
+
+  it('clearEdits は sessionEdits と plannedEdits を空にする', () => {
+    store.upsertEditing({
+      sessionId: 's1',
+      appendEdit: { file: '/ws/a.ts', timestamp: '2026-05-31T00:00:00.000Z' },
+      plannedEdits: ['/ws/p1.ts'],
+    });
+    store.upsertEditing({ sessionId: 's1', clearEdits: true });
+    const row = store.queryOne('s1');
+    expect(row!.sessionEdits).toEqual([]);
+    expect(row!.plannedEdits).toEqual([]);
+  });
+
+  it('deleteSession は行を削除する', () => {
+    store.upsertEditing({ sessionId: 's1', editing: true });
+    expect(store.queryOne('s1')).not.toBeNull();
+    store.deleteSession('s1');
+    expect(store.queryOne('s1')).toBeNull();
+    // 存在しないセッションの削除はエラーにならない
+    expect(() => store.deleteSession('nope')).not.toThrow();
   });
 
   it('upsertCommit は行が無ければ作成し committed_count を設定する', () => {

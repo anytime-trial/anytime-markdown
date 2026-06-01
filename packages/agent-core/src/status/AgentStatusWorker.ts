@@ -127,12 +127,18 @@ export class AgentStatusWorker {
     }
 
     const oneMatch = /^\/api\/agent-status\/([^/]+)$/.exec(pathname);
-    if (method === 'GET' && oneMatch) {
+    if (oneMatch && method === 'GET') {
       const sessionId = decodeURIComponent(oneMatch[1]);
       sendJson(res, 200, {
         version: AGENT_STATUS_API_VERSION,
         data: this.store.queryOne(sessionId),
       });
+      return;
+    }
+    if (oneMatch && method === 'DELETE') {
+      const sessionId = decodeURIComponent(oneMatch[1]);
+      this.store.deleteSession(sessionId);
+      sendJson(res, 200, { ok: true });
       return;
     }
 
