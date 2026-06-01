@@ -25,6 +25,7 @@ export { parseWorktreeList } from './mapping/parseWorktreeList';
 export type {
   MappingState,
   SessionMapping,
+  SessionLastCommit,
   WorktreeEntry,
   WorktreeMapping,
 } from './mapping/types';

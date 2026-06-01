@@ -16,6 +16,8 @@ interface AgentInfoLike {
   readonly sessionTitle?: string;
   readonly workspacePath?: string;
   readonly contextTokens?: number;
+  readonly committedCount?: number;
+  readonly lastCommit?: { hash: string; timestamp: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -170,6 +172,8 @@ export function buildAgentMapping(
       sessionTitle: agent.sessionTitle,
       workspacePath: agent.workspacePath,
       contextTokens: agent.contextTokens,
+      committedCount: agent.committedCount,
+      lastCommit: agent.lastCommit,
     };
 
     const resolved = resolveWorktree(
