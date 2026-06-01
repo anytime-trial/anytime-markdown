@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-05-31
+
+### Added
+
+- Auto-generate `lep.json` with sensible defaults on activation when the file is absent.
+- `lep.json` workspace configuration wired end-to-end: `configPaths`, `defaultRepoName`, and trace-directory injection decouple the data server / daemon from a single git root.
+
+### Changed
+
+- Decoupled the daemon HTTP server from `configure()` and routed `lep.json workspace.excludeRoot` / `configPaths` through to the daemon `CodeGraphService` and data server.
+
+### Fixed
+
+- Clean `dist` before production packaging so stale artifacts are excluded from the VSIX.
+- Anchor the trail hook `TRAIL_HOME` at the workspace root (`vscode-common`).
+
+### Trail Core (trail-core / trail-server / trail-db)
+
+- `trail-server`: add `/config` lep helpers and `workspace.configPaths` schema; inject trace dir and default repo name to decouple display from a single git root.
+- `trail-db`: create the database parent directory in `init()` before opening better-sqlite3.
+
 ## [0.24.0] - 2026-05-29
 
 ### Added

@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { fromTrailGraph } from '../ingest/code/fromTrailGraph';
-import { ingestAstFacts } from '../ingest/code/astFunctionLevel';
-import { extractDecisionComments } from '../ingest/code/extractComments';
+import { ingestAstFacts, type AstFactInput } from '../ingest/code/astFunctionLevel';
+import { ingestDecisionComments, type DecisionCommentItem } from '../ingest/code/extractComments';
 import { extractCommitRationale } from '../ingest/code/extractCommitRationale';
 import { noopLogger, type MemoryLogger } from '../logger';
-import * as ts from 'typescript';
-import { analyzeWithProgram } from '@anytime-markdown/trail-core/analyze';
+// typescript / analyzeWithProgram への依存は撤去。code graph は trail-db の current_graphs、
+// decision comment は trail-db の code_decision_comments（analyze-child が永続化）から読む。
 
 const SCOPE = 'code_incremental';
 const DEFAULT_SINCE = '1970-01-01T00:00:00.000Z';
@@ -108,30 +108,14 @@ function finalizePipelineRun(
   );
 }
 
-function recordFailedItem(
-  db: MemoryDbConnection,
-  scope: string,
-  itemKey: string,
-  reason: string,
-  detail: string
-): void {
-  const failedAt = new Date().toISOString();
-  db.run(
-    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
-     VALUES (?, ?, ?, ?, ?, 1)
-     ON CONFLICT(scope, item_key) DO UPDATE SET
-       attempt_count = attempt_count + 1,
-       failed_at     = excluded.failed_at,
-       detail        = excluded.detail`,
-    [scope, itemKey, failedAt, reason, detail]
-  );
-}
 
 /**
  * Incremental pipeline that reads `trail.current_code_graphs` and runs the
- * full code analysis pipeline (fromTrailGraph, ingestAstFacts,
- * extractDecisionComments, extractCommitRationale) when the graph has been
- * updated since the last run.
+ * code ingest pipeline (fromTrailGraph, ingestAstFacts, ingestDecisionComments,
+ * extractCommitRationale) when the graph has been updated since the last run.
+ *
+ * typescript には依存しない。生 TrailGraph は `trail.current_graphs` から、decision
+ * comment は `trail.code_decision_comments`（analyze-child が永続化）から読む。
  *
  * The trail DB must already be ATTACHed as "trail" on `db`.
  */
@@ -142,7 +126,8 @@ export async function runCodeIncremental(opts: {
   gitRoot: string;
   logger?: MemoryLogger;
 }): Promise<CodeIncrementalResult> {
-  const { db, repoName, tsconfigPath, gitRoot } = opts;
+  // tsconfigPath は opts に残すが本処理では未使用（TS 再解析を撤去したため）。
+  const { db, repoName, gitRoot } = opts;
   const logger = opts.logger ?? noopLogger;
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
@@ -198,34 +183,26 @@ export async function runCodeIncremental(opts: {
 
   const recordedAt = new Date().toISOString();
 
-  // ── 5. analyzeWithProgram ────────────────────────────────────────────────
-  let analyzeResult: Awaited<ReturnType<typeof analyzeWithProgram>>;
+  // ── 5. 生 TrailGraph を trail.current_graphs から読む ───────────────────────
+  // 旧版は analyzeWithProgram で TS 再解析していたが、同じ graph は analyze-child が
+  // current_graphs に保存済み。typescript 依存を断つため DB から読む。
+  let graph: AstFactInput['graph'] | null = null;
+  const graphStmt = db.prepare(
+    `SELECT g.graph_json FROM trail.current_graphs g
+       JOIN trail.repos r ON r.repo_id = g.repo_id
+      WHERE r.repo_name = ?`
+  );
   try {
-    analyzeResult = analyzeWithProgram({
-      tsconfigPath,
-      onProgress: (phase) => logger.info(`[memory] code: ${phase}`),
-    });
+    const row = graphStmt.get(repoName);
+    if (row) graph = JSON.parse(row['graph_json'] as string) as AstFactInput['graph'];
   } catch (err) {
     logger.error(
-      `[anytime-memory] runCodeIncremental: analyzeWithProgram failed (tsconfigPath=${tsconfigPath})`,
+      `[anytime-memory] runCodeIncremental: failed to read/parse current_graphs (repo="${repoName}")`,
       err
     );
-    recordFailedItem(db, 'code', tsconfigPath, 'analyze_failed', err instanceof Error ? (err.stack ?? err.message) : String(err));
-    upsertPipelineState(db, {
-      status: 'error',
-      error_detail: err instanceof Error ? (err.stack ?? err.message) : String(err),
-    });
-    finalizePipelineRun(db, rId, startedAt, 'error', totals);
-    return {
-      status: 'error',
-      ...totals,
-      duration_ms: Date.now() - startMs,
-      current_entity_ids: new Set(),
-    };
+  } finally {
+    graphStmt.free?.();
   }
-
-  const { graph } = analyzeResult;
-  const program = analyzeResult.program;
 
   // ── 6. ingestFromTrailGraph ──────────────────────────────────────────────
   try {
@@ -240,24 +217,55 @@ export async function runCodeIncremental(opts: {
 
   // ── 7. ingestAstFacts ────────────────────────────────────────────────────
   const currentEntityIds = new Set<string>();
-  try {
-    const stats = ingestAstFacts({ db, repoName, graph, commitSha, recordedAt, logger });
-    totals.items_processed += stats.facts_inserted;
-    totals.entities_inserted += stats.facts_inserted + stats.function_entities_upserted;
-    totals.edges_inserted += stats.edges_inserted;
-    for (const id of stats.current_entity_ids) currentEntityIds.add(id);
-  } catch (err) {
-    logger.error(`[anytime-memory] runCodeIncremental: ingestAstFacts failed`, err);
-    hasIngestFailure = true;
+  if (graph) {
+    try {
+      const stats = ingestAstFacts({ db, repoName, graph, commitSha, recordedAt, logger });
+      totals.items_processed += stats.facts_inserted;
+      totals.entities_inserted += stats.facts_inserted + stats.function_entities_upserted;
+      totals.edges_inserted += stats.edges_inserted;
+      for (const id of stats.current_entity_ids) currentEntityIds.add(id);
+    } catch (err) {
+      logger.error(`[anytime-memory] runCodeIncremental: ingestAstFacts failed`, err);
+      hasIngestFailure = true;
+    }
+  } else {
+    logger.warn?.(
+      `[anytime-memory] runCodeIncremental: current_graphs に TrailGraph が無いため ingestAstFacts をスキップ (repo="${repoName}")`
+    );
   }
 
-  // ── 8. extractDecisionComments ───────────────────────────────────────────
+  // ── 8. ingestDecisionComments（trail.code_decision_comments を読む）─────────
+  // decision comment の AST 走査は analyze-child へ移設済み。ここでは抽出済みデータを
+  // trail-db から読み memory DB へ ingest するのみ（typescript 非依存）。
   try {
-    const stats = extractDecisionComments({ db, program, repoName, commitSha, recordedAt, gitRoot, logger });
+    const cStmt = db.prepare(
+      `SELECT c.file_path, c.line, c.comment_text, c.symbol_name
+         FROM trail.code_decision_comments c
+         JOIN trail.repos r ON r.repo_id = c.repo_id
+        WHERE r.repo_name = ?`
+    );
+    let comments: DecisionCommentItem[] = [];
+    try {
+      const rows = cStmt.all(repoName) as Array<{
+        file_path: string;
+        line: number;
+        comment_text: string;
+        symbol_name: string | null;
+      }>;
+      comments = rows.map((r) => ({
+        filePath: r.file_path,
+        line: r.line,
+        text: r.comment_text,
+        symbolName: r.symbol_name ?? null,
+      }));
+    } finally {
+      cStmt.free?.();
+    }
+    const stats = ingestDecisionComments({ db, comments, repoName, recordedAt, logger });
     totals.entities_inserted += stats.decisions_inserted;
     totals.edges_inserted += stats.edges_inserted;
   } catch (err) {
-    logger.error(`[anytime-memory] runCodeIncremental: extractDecisionComments failed`, err);
+    logger.error(`[anytime-memory] runCodeIncremental: ingestDecisionComments failed`, err);
     hasIngestFailure = true;
   }
 

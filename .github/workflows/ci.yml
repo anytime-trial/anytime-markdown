@@ -52,14 +52,25 @@ jobs:
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
         run: npx tsc --noEmit
 
+      # vendored tiptap の tsconfig paths が alias.cjs と同期しているか検証する。
+      # next build（master PR のみ）の型解決失敗を develop 時点で検出するためのガード。
+      - name: Check vendored tsconfig paths are in sync
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+        run: node scripts/sync-vendored-tsconfig-paths.mjs --check
+
       - name: Lint
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
         run: npm run lint
 
-      - name: Run markdown-core tests with coverage
+      - name: Run markdown-viewer tests with coverage
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
         run: npx jest --coverage --coverageReporters=lcov
-        working-directory: packages/markdown-core
+        working-directory: packages/markdown-viewer
+
+      - name: Run markdown-rich tests with coverage
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --coverage --coverageReporters=lcov
+        working-directory: packages/markdown-rich
 
       - name: Run mcp-markdown tests
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
@@ -274,32 +285,46 @@ jobs:
           path: packages/vscode-extension-pack/*.vsix
           retention-days: 3
 
+      # ===== E2E 一時無効化（2026-06-01）=====
+      # Playwright の chromium ブラウザ取得が CI ランナーで post-download ハングする
+      # 外部・一過性のインフラ問題のため、e2e を一時的にコメントアウトしてリリースを
+      # ブロックしないようにする。同一構成（@playwright/test 1.58.2）は 2026-05-29 の
+      # master PR では成功していた。CDN / ランナーの回復後、または Microsoft Playwright
+      # コンテナ（mcr.microsoft.com/playwright）への移行と合わせて再有効化する。
+      #
       # e2e: master PR → chromium のみ、それ以外 → スキップ
       # firefox / webkit と --with-deps（apt システム依存取得）は runner で間欠的に
       # ハングするため、chromium のみ・--with-deps なしに限定する。
       # chromium の実行依存は ubuntu-latest にプリインストール済みのため動作する。
+      # - name: Install Playwright browsers
+      #   if: github.event_name == 'pull_request' && github.base_ref == 'master'
+      #   timeout-minutes: 12
+      #   run: |
+      #     for attempt in 1 2 3; do
+      #       echo "Playwright install attempt $attempt"
+      #       if timeout 240 npx playwright install chromium --no-shell; then
+      #         exit 0
+      #       fi
+      #       echo "::warning::Playwright install attempt $attempt failed or timed out; retrying"
+      #       sleep 10
+      #     done
+      #     echo "::error::Playwright install failed after 3 attempts"
+      #     exit 1
+      #   working-directory: packages/web-app
       #
-      # TEMP(trail v0.24.0): `false &&` で e2e を一時スキップ中。Playwright ブラウザの
-      # CDN ダウンロードが runner で間欠ハングしリリースをブロックするため。app コードは
-      # 同一ツリーの 9beeeb31 で e2e 含む full gate 通過済み。マージ後に各 if から
-      # `false && ` を除去して e2e を復帰すること。
-      - name: Install Playwright browsers
-        if: false && github.event_name == 'pull_request' && github.base_ref == 'master'
-        run: npx playwright install chromium
-        working-directory: packages/web-app
-
-      - name: Run e2e tests
-        if: false && github.event_name == 'pull_request' && github.base_ref == 'master'
-        run: xvfb-run npm run e2e -- --project=chromium
-        working-directory: packages/web-app
-        env:
-          AUTH_SECRET: test-secret-for-ci
+      # - name: Run e2e tests
+      #   if: github.event_name == 'pull_request' && github.base_ref == 'master'
+      #   run: xvfb-run npm run e2e -- --project=chromium
+      #   working-directory: packages/web-app
+      #   env:
+      #     AUTH_SECRET: test-secret-for-ci
+      # ===== E2E 一時無効化ここまで =====
 
       # SonarCloud のカバレッジ計測対象を daily-build と揃える（canonical な
       # パッケージリストと --experimental-vm-modules フラグは coverage-remaining
       # action に集約）。上で個別に coverage 済みの cms-core / database-core /
-      # database-viewer は exclude で二重計測を避ける（markdown-core / web-app /
-      # graph-core は action のリストに含まれないため exclude 不要）。
+      # database-viewer は exclude で二重計測を避ける（markdown-viewer / markdown-rich /
+      # web-app / graph-core は action のリストに含まれないため exclude 不要）。
       # lcov を作らないパッケージは sonar.sources に載っていても 0% 計上される。
       - name: Run remaining package tests with coverage
         if: github.event_name == 'pull_request' && github.base_ref == 'master'

@@ -5,11 +5,11 @@
 const mockAssertSafeUrl = jest.fn();
 const mockParseOgpHtml = jest.fn();
 
-jest.mock('@anytime-markdown/markdown-core/src/utils/ssrfGuard', () => ({
+jest.mock('@anytime-markdown/markdown-viewer/src/utils/ssrfGuard', () => ({
   assertSafeUrl: mockAssertSafeUrl,
 }), { virtual: true });
 
-jest.mock('@anytime-markdown/markdown-core/src/utils/ogpParser', () => ({
+jest.mock('@anytime-markdown/markdown-viewer/src/utils/ogpParser', () => ({
   parseOgpHtml: mockParseOgpHtml,
 }), { virtual: true });
 

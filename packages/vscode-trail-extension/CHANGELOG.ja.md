@@ -6,6 +6,27 @@
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-05-31
+
+### 追加
+
+- `lep.json` が存在しない場合、アクティベート時に既定値で自動生成する。
+- `lep.json` のワークスペース設定を一気通貫で配線: `configPaths`・`defaultRepoName`・トレースディレクトリ注入により、データサーバー / デーモンを単一 git ルートから分離。
+
+### 変更
+
+- デーモンの HTTP サーバーを `configure()` から分離し、`lep.json workspace.excludeRoot` / `configPaths` をデーモンの `CodeGraphService` とデータサーバーへ貫通。
+
+### 修正
+
+- 本番パッケージング前に `dist` をクリーンし、古い成果物を VSIX から除外。
+- trail フックの `TRAIL_HOME` をワークスペースルートに固定（`vscode-common`）。
+
+### Trail Core (trail-core / trail-server / trail-db)
+
+- `trail-server`: `/config` の lep ヘルパーと `workspace.configPaths` スキーマを追加。トレースディレクトリと既定リポジトリ名を注入し、表示を単一 git ルートから分離。
+- `trail-db`: better-sqlite3 を開く前に `init()` で DB の親ディレクトリを作成。
+
 ## [0.24.0] - 2026-05-29
 
 ### 追加

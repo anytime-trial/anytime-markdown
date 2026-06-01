@@ -1,0 +1,26 @@
+import type { NodeType } from '@anytime-markdown/markdown-pm/model'
+import { liftListItem as originalLiftListItem } from '@anytime-markdown/markdown-pm/schema-list'
+
+import { getNodeType } from '../helpers/getNodeType'
+import type { RawCommands } from '../types'
+
+declare module '@anytime-markdown/markdown-core' {
+  interface Commands<ReturnType> {
+    liftListItem: {
+      /**
+       * Create a command to lift the list item around the selection up into a wrapping list.
+       * @param typeOrName The type or name of the node.
+       * @example editor.commands.liftListItem('listItem')
+       */
+      liftListItem: (typeOrName: string | NodeType) => ReturnType
+    }
+  }
+}
+
+export const liftListItem: RawCommands['liftListItem'] =
+  typeOrName =>
+  ({ state, dispatch }) => {
+    const type = getNodeType(typeOrName, state.schema)
+
+    return originalLiftListItem(type)(state, dispatch)
+  }

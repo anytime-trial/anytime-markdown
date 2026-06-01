@@ -496,30 +496,34 @@ describe('CodeGraphService.generate() — runAnalyze() スキップ分岐', () =
     }
   });
 
-  it('analyze() が例外をスローしたとき error ログを出して空グラフを継続する', async () => {
+  it('TS repo (tsconfig あり) でも in-process TS 解析は行わず空グラフを返す（TS 解析は analyze-child へ委譲）', async () => {
+    // CodeGraphService は typescript を daemon バンドルから排除するため TS analyzer を
+    // 登録しない。tsconfig.json があっても runAnalyze は「言語未検出」で空グラフを返し、
+    // in-process の analyze() は呼ばれない（TS の code graph は AnalyzePipeline が
+    // analyze-child の TrailGraph を override で渡す）。
     const { analyze } = require('@anytime-markdown/code-analysis-typescript/analyze') as { analyze: jest.Mock };
-    analyze.mockImplementationOnce(() => { throw new Error('TS_CRASH'); });
+    analyze.mockClear();
 
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cgs-analyzecrash-'));
-    // tsconfig.json を置いて runAnalyze() 内の analyze() 呼び出しに到達させる
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cgs-ts-delegated-'));
     fs.writeFileSync(path.join(tmpDir, 'tsconfig.json'), JSON.stringify({ compilerOptions: {} }));
     try {
       const db = makeTrailDbStub();
-      const errorMessages: string[] = [];
+      const infoMessages: string[] = [];
       const svc = new CodeGraphService({
-        repositories: [makeRepo({ id: 'crash-repo', label: 'crash-repo', path: tmpDir })],
+        repositories: [makeRepo({ id: 'ts-repo', label: 'ts-repo', path: tmpDir })],
         trailDb: db as never,
         logger: {
           debug: jest.fn(),
-          info: jest.fn(),
+          info: jest.fn((msg: string) => infoMessages.push(msg)),
           warn: jest.fn(),
-          error: jest.fn((msg: string) => errorMessages.push(msg)),
+          error: jest.fn(),
           child: jest.fn(),
         },
       });
       const graph = (await svc.generate())[0];
+      expect(analyze).not.toHaveBeenCalled();
       expect(graph.nodes).toHaveLength(0);
-      expect(errorMessages.some((m) => m.includes('analyzeRepoTrailGraph() failed'))).toBe(true);
+      expect(infoMessages.some((m) => m.includes('skipping code analysis'))).toBe(true);
     } finally {
       fs.rmSync(tmpDir, { recursive: true });
     }

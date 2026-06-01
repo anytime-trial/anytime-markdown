@@ -4,7 +4,11 @@ import { DEFAULT_TOOL_CATEGORIES, DEFAULT_TOOL_CATEGORY_LABELS } from './default
 import type { ToolCategoriesFile } from './types';
 
 export function loadToolCategories(workspaceRoot: string): ReadonlyMap<string, number> {
-  const file = path.join(workspaceRoot, '.anytime', 'tool-categories.json');
+  return loadToolCategoriesFromFile(path.join(workspaceRoot, '.anytime', 'tool-categories.json'));
+}
+
+/** 完全なファイルパスから tool categories を読む。不在・不正時はデフォルト。 */
+export function loadToolCategoriesFromFile(file: string): ReadonlyMap<string, number> {
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as ToolCategoriesFile;
@@ -20,7 +24,11 @@ export function loadToolCategories(workspaceRoot: string): ReadonlyMap<string, n
 }
 
 export function loadToolCategoryLabels(workspaceRoot: string): ReadonlyMap<number, string> {
-  const file = path.join(workspaceRoot, '.anytime', 'tool-categories.json');
+  return loadToolCategoryLabelsFromFile(path.join(workspaceRoot, '.anytime', 'tool-categories.json'));
+}
+
+/** 完全なファイルパスから tool category ラベルを読む。不在・不正時はデフォルト。 */
+export function loadToolCategoryLabelsFromFile(file: string): ReadonlyMap<number, string> {
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as ToolCategoriesFile;

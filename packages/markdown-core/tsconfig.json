@@ -1,16 +1,41 @@
 {
 	"extends": "../../tsconfig.base.json",
+	"comment": "vendored 第三者ソース。consumer から composite 参照され、相対 paths 解決時の rootDir 制約(TS6059)回避と第三者型エラー抑制を担う。strict は上流のゆるい設定に合わせ off。tiptap-markdown(.js) は除外（consumer は index.d.ts を直接参照）。",
 	"compilerOptions": {
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"composite": true,
-		"rootDir": "src",
+		"rootDir": ".",
 		"outDir": "dist",
-		"resolveJsonModule": true,
+		"declaration": true,
+		"strict": false,
+		"noImplicitAny": false,
+		"skipLibCheck": true,
+		"lib": ["ES2023", "DOM", "DOM.Iterable"],
 		"baseUrl": ".",
 		"paths": {
-			"@/*": ["./src/*"]
+			"@anytime-markdown/markdown-core": ["./core/src/index.ts"],
+			"@anytime-markdown/markdown-core/*": ["./core/src/*"],
+			"@anytime-markdown/markdown-react": ["./react/src/index.ts"],
+			"@anytime-markdown/markdown-react/*": ["./react/src/*"],
+			"@anytime-markdown/markdown-pm/*": ["./pm/*/index.ts"],
+			"@anytime-markdown/markdown-starter-kit": ["./starter-kit/src/index.ts"],
+			"@anytime-markdown/markdown-extensions": ["./extensions/src/index.ts"],
+			"@anytime-markdown/markdown-extension-placeholder": ["./_shims/extension-placeholder.ts"],
+			"@anytime-markdown/markdown-extension-task-item": ["./_shims/extension-task-item.ts"],
+			"@anytime-markdown/markdown-extension-task-list": ["./_shims/extension-task-list.ts"],
+			"@anytime-markdown/markdown-extension-*": ["./extension-*/src/index.ts"]
 		}
 	},
-	"include": ["src/**/*", "src/**/*.json"]
+	"include": [
+		"core/src/**/*",
+		"react/src/**/*",
+		"pm/**/*.ts",
+		"extension-*/src/**/*",
+		"extensions/src/**/*",
+		"extension-list/src/**/*",
+		"starter-kit/src/**/*",
+		"_shims/*.ts"
+	],
+	"exclude": ["@anytime-markdown/markdown-md", "**/__tests__/**", "dist"]
 }

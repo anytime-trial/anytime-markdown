@@ -1,0 +1,43 @@
+import Image from "@anytime-markdown/markdown-extension-image";
+import { ReactNodeViewRenderer } from "@anytime-markdown/markdown-react";
+
+import { ImageNodeView } from "./ImageNodeView";
+import { imageMarkdownSpec } from "./markdownItRules/imageSerializer";
+
+export const CustomImage = Image.extend({
+  draggable: true,
+
+  addStorage() {
+    return {
+      onEditImage: null as ((data: { pos: number; src: string; alt: string }) => void) | null,
+      markdown: imageMarkdownSpec,
+    };
+  },
+
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      collapsed: { default: false, rendered: false },
+      width: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("width") || element.style.width || null,
+        renderHTML: (attributes: Record<string, unknown>) => {
+          if (!attributes.width) return {};
+          return { width: attributes.width };
+        },
+      },
+      annotations: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.dataset.annotations ?? null,
+        renderHTML: (attributes: Record<string, unknown>) => {
+          if (!attributes.annotations) return {};
+          return { "data-annotations": attributes.annotations };
+        },
+      },
+    };
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(ImageNodeView);
+  },
+});

@@ -11,7 +11,8 @@ const CUSTOM_HOOK_RE = /^use[A-Z][a-zA-Z0-9]*\.tsx?$/;
 const UI_IMPORT_PATTERNS: readonly RegExp[] = [
   /^react(\/.*)?$/,
   /^prosemirror-/,
-  /^@tiptap\//,
+  // vendored tiptap（@tiptap/* から移行）。core/react/pm/starter-kit/extensions/extension-*/md。
+  /^@anytime-markdown\/markdown-(core|react|pm|starter-kit|extensions?|extension-|md)(\/|$)/,
 ];
 
 const VSCODE_IMPORT_RE = /^vscode$/;

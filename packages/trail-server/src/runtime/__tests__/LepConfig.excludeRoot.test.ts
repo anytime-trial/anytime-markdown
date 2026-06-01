@@ -25,7 +25,11 @@ describe('LepConfig workspace.excludeRoot', () => {
     const merged = mergeLepConfig(DEFAULT_LEP_CONFIG, {
       workspace: { excludeRoot: '/anytime-markdown' },
     });
-    expect(merged.workspace).toEqual({ docsPath: '', excludeRoot: '/anytime-markdown' });
+    expect(merged.workspace).toEqual({
+      docsPath: '',
+      excludeRoot: '/anytime-markdown',
+      configPaths: { commitCategories: '', toolCategories: '', skillCategories: '', metricsThresholds: '' },
+    });
   });
 });
 

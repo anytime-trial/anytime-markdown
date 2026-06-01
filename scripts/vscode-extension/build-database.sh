@@ -12,6 +12,9 @@ echo "=== Anytime Database: Build & Install ==="
 cd "$REPO_ROOT"
 npm install --ignore-scripts 2>/dev/null || npm install
 
+echo "Building workspace dependencies..."
+node "$REPO_ROOT/scripts/vscode-extension/_build-workspace-deps.mjs" "$EXT_DIR"
+
 # VS Code Extension Host は Node 22 系で動作するため、ホスト Node のバージョン
 # (24 等) 向け prebuild が node_modules に置かれている場合は VSIX で
 # NODE_MODULE_VERSION 不一致エラーになる。VSCODE_NODE_TARGET (例: 22.20.0) を

@@ -9,6 +9,9 @@ export {
   estimateCost,
 } from './TrailDatabase';
 export type {
+  AnalyzeFunction,
+  DecisionCommentInput,
+  DecisionCommentRow,
   SessionRow,
   MessageRow,
   SessionCommitRow,

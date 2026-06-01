@@ -159,15 +159,30 @@ export interface LepDatabaseConfig {
  * ワークスペース関連パス。`docsPath` は C4 ドキュメントリンク用ドキュメントディレクトリ
  * (旧 VS Code 設定 `anytimeTrail.workspace.docsPath` の移行先)。空文字 = 未設定。
  *
- * `excludeRoot` は code graph / C4 解析の除外パターン (`.anytime/analyze-exclude`) を
+ * `excludeRoot` は code graph / C4 解析の除外パターン (`.anytime/trail/analyze-exclude`) を
  * 読むディレクトリ。絶対パス、または workspace ルートからの相対パス。空文字 = 未指定
- * (解析対象リポ自身の `.anytime/analyze-exclude` にフォールバック)。
+ * (解析対象リポ自身の `.anytime/trail/analyze-exclude` にフォールバック)。
  * 外部リポ (gitRoots) をどのフォルダから解析しても単一の analyze-exclude を適用したい
  * 場合に、中央ディレクトリ (例: 主リポジトリのルート) を指定する。
  */
+/**
+ * `<workspaceRoot>/.anytime/` 配下の設定ファイルパス。空文字 = 既定
+ * (`.anytime/<file>` を workspace ルートから解決)。絶対パスまたは workspace 相対で上書き可。
+ * daemon は workspace ルートを確実には知らない (fork 時 cwd 未指定) ため、extension が
+ * {@link resolveWorkspaceConfigPath} で絶対化して daemon へ渡す。これにより categories /
+ * metrics の読み取りが gitRoot 非依存になる。
+ */
+export interface LepWorkspaceConfigPaths {
+  commitCategories: string;
+  toolCategories: string;
+  skillCategories: string;
+  metricsThresholds: string;
+}
+
 export interface LepWorkspaceConfig {
   docsPath: string;
   excludeRoot: string;
+  configPaths: LepWorkspaceConfigPaths;
 }
 
 export interface LepConfig {
@@ -232,6 +247,51 @@ export function resolveExcludeRoot(
   return workspaceRoot ? join(workspaceRoot, raw) : raw;
 }
 
+/** {@link LepWorkspaceConfigPaths} の各キーの既定 (workspace 相対)。空文字時に使う。 */
+const WORKSPACE_CONFIG_PATH_DEFAULTS: Record<keyof LepWorkspaceConfigPaths, string> = {
+  commitCategories: join('.anytime', 'commit-categories.json'),
+  toolCategories: join('.anytime', 'tool-categories.json'),
+  skillCategories: join('.anytime', 'skill-categories.json'),
+  metricsThresholds: join('.anytime', 'metrics-thresholds.yaml'),
+};
+
+/** {@link LepWorkspaceConfigPaths} の全キー。validate / merge の単一の真実源。 */
+const WORKSPACE_CONFIG_PATH_KEYS = Object.keys(
+  WORKSPACE_CONFIG_PATH_DEFAULTS,
+) as (keyof LepWorkspaceConfigPaths)[];
+
+/** override を base に上書きマージする (キー追加時もここだけで完結)。 */
+function mergeWorkspaceConfigPaths(
+  base: LepWorkspaceConfigPaths,
+  override?: Partial<LepWorkspaceConfigPaths>,
+): LepWorkspaceConfigPaths {
+  const result = { ...base };
+  for (const key of WORKSPACE_CONFIG_PATH_KEYS) {
+    result[key] = override?.[key] ?? base[key];
+  }
+  return result;
+}
+
+/**
+ * `workspace.configPaths.<key>` を絶対パスへ解決する。
+ *
+ * - 空文字 → 既定 (`.anytime/<file>`) を workspace 相対として解決
+ * - 絶対パス → そのまま
+ * - 相対パス → `workspaceRoot` 起点で絶対化（`workspaceRoot` 未指定なら `undefined`）
+ *
+ * 返り値はそのまま `load*FromFile(path)` / `MetricsThresholdsLoader.fromFile(path)` に渡せる。
+ */
+export function resolveWorkspaceConfigPath(
+  config: LepConfig,
+  key: keyof LepWorkspaceConfigPaths,
+  workspaceRoot: string | undefined,
+): string | undefined {
+  const raw = config.workspace.configPaths[key].trim();
+  const rel = raw === '' ? WORKSPACE_CONFIG_PATH_DEFAULTS[key] : raw;
+  if (isAbsolute(rel)) return rel;
+  return workspaceRoot ? join(workspaceRoot, rel) : undefined;
+}
+
 /**
  * `lep.json` の `analyzers.<id>.enabled === false` な analyzer id 一覧を返す
  * (memory / aggregator を区別せず全 disabled id)。AnalyzeAllRunner の
@@ -272,7 +332,11 @@ export interface PartialLepConfig {
     gitRoots?: string[];
   };
   database?: Partial<LepDatabaseConfig>;
-  workspace?: Partial<LepWorkspaceConfig>;
+  workspace?: {
+    docsPath?: string;
+    excludeRoot?: string;
+    configPaths?: Partial<LepWorkspaceConfigPaths>;
+  };
   throttle?: Partial<LepThrottleConfig>;
   logs?: { minLevel?: LepLogLevel };
 }
@@ -305,7 +369,16 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
     gitRoots: [],
   },
   database: { storagePath: '.anytime/trail/db' },
-  workspace: { docsPath: '', excludeRoot: '' },
+  workspace: {
+    docsPath: '',
+    excludeRoot: '',
+    configPaths: {
+      commitCategories: '',
+      toolCategories: '',
+      skillCategories: '',
+      metricsThresholds: '',
+    },
+  },
   throttle: { enabled: false, slowdownFactor: 1.5, cooldownSec: 30, maxContinuousMin: 15 },
   logs: { minLevel: 'info' },
 };
@@ -525,15 +598,23 @@ function validateWorkspaceSection(
   raw: unknown,
   sourceLabel: string,
   warnings: string[],
-): Partial<LepWorkspaceConfig> | undefined {
+): PartialLepConfig['workspace'] | undefined {
   if (raw === undefined) return undefined;
   if (!isPlainObject(raw)) {
     warnings.push(`${sourceLabel}: workspace はオブジェクトである必要があります (無視)`);
     return undefined;
   }
-  const workspace: Partial<LepWorkspaceConfig> = {};
+  const workspace: PartialLepConfig['workspace'] = {};
   if (typeof raw['docsPath'] === 'string') workspace.docsPath = raw['docsPath'];
   if (typeof raw['excludeRoot'] === 'string') workspace.excludeRoot = raw['excludeRoot'];
+  const rawPaths = raw['configPaths'];
+  if (isPlainObject(rawPaths)) {
+    const configPaths: Partial<LepWorkspaceConfigPaths> = {};
+    for (const key of WORKSPACE_CONFIG_PATH_KEYS) {
+      if (typeof rawPaths[key] === 'string') configPaths[key] = rawPaths[key] as string;
+    }
+    workspace.configPaths = configPaths;
+  }
   return workspace;
 }
 
@@ -698,6 +779,7 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
     workspace: {
       docsPath: override.workspace?.docsPath ?? base.workspace.docsPath,
       excludeRoot: override.workspace?.excludeRoot ?? base.workspace.excludeRoot,
+      configPaths: mergeWorkspaceConfigPaths(base.workspace.configPaths, override.workspace?.configPaths),
     },
     throttle: {
       enabled: override.throttle?.enabled ?? base.throttle.enabled,

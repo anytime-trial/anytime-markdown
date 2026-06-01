@@ -1,7 +1,6 @@
 import path from 'node:path';
 
 import { LanguageRegistry, analyzeRepo } from '@anytime-markdown/code-analysis-core';
-import { TypeScriptLanguageAnalyzer } from '@anytime-markdown/code-analysis-typescript';
 import { PythonLanguageAnalyzer } from '@anytime-markdown/code-analysis-python';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Element } from '@anytime-markdown/trail-core/c4';
@@ -21,7 +20,7 @@ export interface CodeGraphServiceConfig {
   /** ディレクトリ名で除外するパターン（GraphDetector のデフォルトに追加される） */
   readonly excludePatterns?: readonly string[];
   /**
-   * 除外パターン (`.anytime/analyze-exclude`) を読むルート。開いているワークスペースの
+   * 除外パターン (`.anytime/trail/analyze-exclude`) を読むルート。開いているワークスペースの
    * ルートを渡す想定。省略時は後方互換で各 `repo.path` から読む。
    * 外部リポ（gitRoots）解析時に、対象リポ自身ではなくワークスペースの exclude を
    * 適用するために使う。`excludePatterns` が指定された場合はそちらが優先される。
@@ -43,6 +42,12 @@ export interface CodeGraphServiceConfig {
   readonly trailGraphProvider?: () => Record<string, TrailGraph | undefined> | undefined;
   /** CodeGraph の保存・読み込みに使用する DB */
   readonly trailDb?: TrailDatabase;
+  /**
+   * 表示時のデフォルト repo 名 (getGraph / loadFromDb の repoName 省略時に使う)。
+   * 指定時は `repositories[0]` 由来の導出より優先する。gitRoots は複数あり得るため、
+   * 単一 repo からの導出ではなくワークスペース主 repo 名を明示注入で受ける。
+   */
+  readonly defaultRepoName?: string;
 }
 
 export type ProgressCallback = (phase: string, percent: number) => void;
@@ -67,6 +72,7 @@ export class CodeGraphService {
   }
 
   private defaultRepoName(): string | undefined {
+    if (this.config.defaultRepoName) return this.config.defaultRepoName;
     const r = this.config.repositories[0];
     if (!r) return undefined;
     return r.label || path.basename(r.path);
@@ -261,7 +267,10 @@ export class CodeGraphService {
   private getLanguageRegistry(): LanguageRegistry {
     if (!this.languageRegistry) {
       const registry = new LanguageRegistry();
-      registry.register(new TypeScriptLanguageAnalyzer());
+      // typescript を trail-daemon バンドルから排除するため、TS 解析は analyze-child へ
+      // 一本化する。ここでは Python のみ登録する (tsconfig 無し Python repo の TrailGraph
+      // 生成用)。TS repo の code graph は AnalyzePipeline が analyze-child の TrailGraph を
+      // generate() の override で渡すため runAnalyze (= 本レジストリ) に到達しない。
       registry.register(new PythonLanguageAnalyzer(this.config.pythonWasmPath));
       this.languageRegistry = registry;
     }

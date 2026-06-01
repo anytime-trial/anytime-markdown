@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-05-31
+
+### Changed
+
+- Version aligned with the `anytime-trail` extension release (no functional changes in `trail-core`; the release bundles `trail-server` / `trail-db` lep.json configuration and daemon decoupling work).
+
 ## [0.24.0] - 2026-05-29
 
 ### Added

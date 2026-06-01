@@ -12,6 +12,9 @@ echo "=== Anytime Agent: Build & Install ==="
 cd "$REPO_ROOT"
 npm install --ignore-scripts 2>/dev/null || npm install
 
+echo "Building workspace dependencies..."
+node "$REPO_ROOT/scripts/vscode-extension/_build-workspace-deps.mjs" "$EXT_DIR"
+
 echo "Building..."
 cd "$EXT_DIR"
 npm run package

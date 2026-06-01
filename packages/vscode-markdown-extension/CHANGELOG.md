@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-05-31
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Replaced the `@tiptap/*` npm dependencies with vendored Tiptap v3.20.0 sources under the `@anytime-markdown/markdown-*` namespace, removing the external Tiptap supply chain.
+- Split the rich code-block cluster (diagrams, dark-mode PDF rendering) into the new `@anytime-markdown/markdown-rich` package; `markdown-viewer` exposes the shared API it consumes.
+- Renamed the editor core package to `@anytime-markdown/markdown-viewer` (the former `markdown-core` name now hosts the vendored Tiptap sources).
+
 ## [0.15.6] - 2026-05-27
 
 ### Editor Core (markdown-core)

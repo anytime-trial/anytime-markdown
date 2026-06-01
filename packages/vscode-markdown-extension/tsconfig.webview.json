@@ -4,20 +4,37 @@
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"resolveJsonModule": true,
+		"baseUrl": ".",
 		"paths": {
-			"@anytime-markdown/markdown-core": ["../markdown-core/src/index.ts"],
-			"@anytime-markdown/markdown-core/*": ["../markdown-core/*"],
+			"@anytime-markdown/markdown-viewer": ["../markdown-viewer/src/index.ts"],
+			"@anytime-markdown/markdown-viewer/*": ["../markdown-viewer/*"],
+			"@anytime-markdown/markdown-rich": ["../markdown-rich/src/index.ts"],
+			"@anytime-markdown/markdown-rich/*": ["../markdown-rich/*"],
 			"@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"],
-			"@/*": ["../markdown-core/src/*"]
+			"@anytime-markdown/markdown-core": ["../markdown-core/core/src/index.ts"],
+			"@anytime-markdown/markdown-core/*": ["../markdown-core/core/src/*"],
+			"@anytime-markdown/markdown-react": ["../markdown-core/react/src/index.ts"],
+			"@anytime-markdown/markdown-react/*": ["../markdown-core/react/src/*"],
+			"@anytime-markdown/markdown-pm/*": ["../markdown-core/pm/*/index.ts"],
+			"@anytime-markdown/markdown-starter-kit": ["../markdown-core/starter-kit/src/index.ts"],
+			"@anytime-markdown/markdown-extensions": ["../markdown-core/extensions/src/index.ts"],
+			"@anytime-markdown/markdown-extension-placeholder": ["../markdown-core/_shims/extension-placeholder.ts"],
+			"@anytime-markdown/markdown-extension-task-item": ["../markdown-core/_shims/extension-task-item.ts"],
+			"@anytime-markdown/markdown-extension-task-list": ["../markdown-core/_shims/extension-task-list.ts"],
+			"@anytime-markdown/markdown-extension-*": ["../markdown-core/extension-*/src/index.ts"],
+			"@anytime-markdown/markdown-md": ["../markdown-core/tiptap-markdown"],
+			"@/*": ["../markdown-viewer/src/*"]
 		}
 	},
 	"include": [
 		"src/webview/**/*",
-		"../markdown-core/src/**/*",
+		"../markdown-viewer/src/**/*",
+		"../markdown-rich/src/**/*",
 		"../vscode-common/src/webview/**/*"
 	],
 	"exclude": [
-		"../markdown-core/src/__tests__/**/*",
-		"../markdown-core/src/testUtils/**/*"
+		"../markdown-viewer/src/__tests__/**/*",
+		"../markdown-viewer/src/testUtils/**/*",
+		"../markdown-rich/src/__tests__/**/*"
 	]
 }

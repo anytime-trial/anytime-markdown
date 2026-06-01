@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-05-31
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- `@tiptap/*` npm 依存を vendored な Tiptap v3.20.0 ソース（`@anytime-markdown/markdown-*` 名前空間）へ全面置換し、外部 Tiptap サプライチェーンを排除。
+- リッチコードブロッククラスタ（図表・ダークモード PDF レンダリング）を新パッケージ `@anytime-markdown/markdown-rich` へ分離。`markdown-viewer` は利用側の共有 API を公開。
+- エディタコアパッケージを `@anytime-markdown/markdown-viewer` へ改名（旧 `markdown-core` 名は vendored Tiptap ソースを保持）。
+
 ## [0.15.6] - 2026-05-27
 
 ### Editor Core (markdown-core)

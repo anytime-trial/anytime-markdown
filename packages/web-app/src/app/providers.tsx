@@ -8,7 +8,7 @@ getPreset, getPrimaryContrast,
 getPrimaryDark, getPrimaryLight,   getPrimaryMain, getSuccessMain, getTextDisabled,
 getTextPrimary, getTextSecondary, getWarningLight, getWarningMain, isPresetName,
   type ThemePresetName,
-} from '@anytime-markdown/markdown-core';
+} from '@anytime-markdown/markdown-viewer';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import CssBaseline from '@mui/material/CssBaseline';

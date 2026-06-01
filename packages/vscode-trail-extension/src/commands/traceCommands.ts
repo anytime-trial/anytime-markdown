@@ -1,7 +1,12 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
-function getTraceOutputDir(wsRoot: string): string {
+/**
+ * trace 出力/読み取りディレクトリを解決する。writer (本コマンド) と reader (daemon の
+ * TrailDataServer) で同一の値を使うため export する。`TRAIL_HOME` 優先、未設定時は
+ * `<wsRoot>/.anytime/trail/trace`。
+ */
+export function getTraceOutputDir(wsRoot: string): string {
 	const trailHome = process.env['TRAIL_HOME'] ?? path.join(wsRoot, '.anytime', 'trail');
 	return path.join(trailHome, 'trace');
 }

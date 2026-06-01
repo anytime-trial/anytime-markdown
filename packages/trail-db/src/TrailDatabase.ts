@@ -2,6 +2,7 @@ import { SqlJsCompatDatabase } from './internal/SqlJsCompatDatabase';
 import { SqlJsCompatStatement } from './internal/SqlJsCompatStatement';
 import { loadBetterSqlite3 } from './internal/loadBetterSqlite3';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 // Backward compatibility: 既存 call site 互換のため、shim 型を旧名で再 export する。
 type Database = SqlJsCompatDatabase;
@@ -31,6 +32,7 @@ import {
   CREATE_CURRENT_COVERAGE_INDEXES,
   CREATE_CURRENT_CODE_GRAPHS,
   CREATE_RELEASE_CODE_GRAPHS,
+  CREATE_CODE_DECISION_COMMENTS,
   CREATE_CURRENT_CODE_GRAPH_COMMUNITIES,
   CREATE_RELEASE_CODE_GRAPH_COMMUNITIES,
   CREATE_CURRENT_FILE_ANALYSIS,
@@ -75,7 +77,28 @@ import { matchCommitsToMessages, computeDefectRisk, type CommitRiskRow, type Def
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 
 import { aggregateQualityRates, aggregateCommitPrefixStats, aggregateCommitPrefixBaseline, type CommitBaselineSummary } from './combinedDataAggregators';
-export type AnalyzeFunction = (options: AnalyzeOptions) => TrailGraph;
+// daemon は analyze-child へ fork する非同期実装を注入するため、同期 (in-process
+// `analyze`: CLI / テスト) と非同期 (child fork) の両方を許容する union とする。
+// 呼び出し側 (analyzeReleases) は常に `await` するため両者を透過的に扱える。
+export type AnalyzeFunction = (options: AnalyzeOptions) => TrailGraph | Promise<TrailGraph>;
+
+/** saveDecisionComments の入力（analyze-child の DecisionComment と構造一致）。 */
+export interface DecisionCommentInput {
+  readonly filePath: string;
+  readonly line: number;
+  readonly text: string;
+  readonly symbolName: string | null;
+}
+
+/** getDecisionComments の行（memory-core の ingestDecisionComments が消費）。 */
+export interface DecisionCommentRow {
+  readonly file_path: string;
+  readonly line: number;
+  readonly comment_text: string;
+  readonly symbol_name: string | null;
+  readonly commit_sha: string | null;
+}
+
 type DbScalar = string | number | null;
 
 /**
@@ -1850,6 +1873,13 @@ export class TrailDatabase {
       'better_sqlite3.node',
     );
     const options = fs.existsSync(nativeBinding) ? { nativeBinding } : {};
+    // better-sqlite3 は親ディレクトリが存在しないと "Cannot open database because the
+    // directory does not exist" で開けない。sql.js 時代は load 経路の readInitialBytes() が
+    // mkdir していたが、better-sqlite3 移行で init() は getFilePath() のみを使うため
+    // ディレクトリ作成が漏れていた (新規環境・初回 activate でクラッシュ)。ここで補う。
+    if (filePath) {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    }
     const inner = new Ctor(filePath ?? ':memory:', options);
     // FK 制約は intentionally OFF。sql.js 時代は createTables() の
     // PRAGMA foreign_keys = ON が WASM 側で no-op だったため事実上 FK 未強制で
@@ -3610,6 +3640,7 @@ export class TrailDatabase {
     this.migrateTrailGraphsTable(db);
     db.run(CREATE_CURRENT_CODE_GRAPHS);
     db.run(CREATE_RELEASE_CODE_GRAPHS);
+    db.run(CREATE_CODE_DECISION_COMMENTS);
     db.run(CREATE_CURRENT_CODE_GRAPH_COMMUNITIES);
     db.run(CREATE_RELEASE_CODE_GRAPH_COMMUNITIES);
     // Legacy DBs lack stable_key on *_code_graph_communities; without this
@@ -6116,7 +6147,7 @@ export class TrailDatabase {
       await yieldForUi();
       try {
         onProgress?.('Analyzing releases...', 0);
-        releasesAnalyzed = this.analyzeReleases(gitRoot, analyzeFn, (msg) => onProgress?.(msg, 0), excludePatterns);
+        releasesAnalyzed = await this.analyzeReleases(gitRoot, analyzeFn, (msg) => onProgress?.(msg, 0), excludePatterns);
         onProgress?.(`Releases analyzed: ${releasesAnalyzed}`, 0);
         onPhase?.({ phase: 'analyze_releases', action: 'finish', count: releasesAnalyzed });
       } catch (e) {
@@ -6828,6 +6859,56 @@ export class TrailDatabase {
     const json = result[0]?.values?.[0]?.[0];
     if (typeof json !== 'string') return null;
     return JSON.parse(json) as TrailGraph;
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Decision comments (code_decision_comments) — analyze-child が抽出し
+  //  memory-core が読む中継テーブル。repo 単位 wash-away。
+  // ---------------------------------------------------------------------------
+
+  /**
+   * repo の decision comment を洗い替え保存する（既存を全削除 → 全行 INSERT）。
+   * comment_hash は memory-core の Decision canonName と同式 sha1(repo:file:line:text)[0:16]。
+   */
+  saveDecisionComments(
+    repoName: string,
+    comments: ReadonlyArray<DecisionCommentInput>,
+    opts: { commitSha?: string | null; recordedAt: string },
+  ): void {
+    const db = this.ensureDb();
+    const repoId = this.repoIdForName(repoName);
+    db.run('DELETE FROM code_decision_comments WHERE repo_id = ?', [repoId]);
+    const commitSha = opts.commitSha ?? null;
+    for (const c of comments) {
+      const commentHash = createHash('sha1')
+        .update(`${repoName}:${c.filePath}:${c.line}:${c.text}`)
+        .digest('hex')
+        .slice(0, 16);
+      db.run(
+        `INSERT OR IGNORE INTO code_decision_comments
+           (repo_id, comment_hash, file_path, line, comment_text, symbol_name, commit_sha, recorded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [repoId, commentHash, c.filePath, c.line, c.text, c.symbolName ?? null, commitSha, opts.recordedAt],
+      );
+    }
+  }
+
+  /** repo の decision comment を読み出す（memory-core の ingestDecisionComments 用）。 */
+  getDecisionComments(repoName: string): DecisionCommentRow[] {
+    const db = this.ensureDb();
+    const repoId = this.repoIdForNameReadonly(repoName);
+    const result = db.exec(
+      `SELECT file_path, line, comment_text, symbol_name, commit_sha
+         FROM code_decision_comments WHERE repo_id = ?`,
+      [repoId],
+    );
+    return (result[0]?.values ?? []).map((row) => ({
+      file_path: row[0] as string,
+      line: row[1] as number,
+      comment_text: row[2] as string,
+      symbol_name: (row[3] as string | null) ?? null,
+      commit_sha: (row[4] as string | null) ?? null,
+    }));
   }
 
   // ---------------------------------------------------------------------------
@@ -10776,12 +10857,12 @@ export class TrailDatabase {
    * Analyze one release tag in a temporary worktree. Returns true if the graph was saved.
    * Throws on unrecoverable errors; caller is responsible for worktree cleanup in finally.
    */
-  private analyzeOneRelease(
+  private async analyzeOneRelease(
     tag: string,
     gitRoot: string,
     tmpDir: string,
     opts: { tsconfigPath: string; git: ExecFileGitService; analyzeFn: AnalyzeFunction; excludePatterns: readonly string[]; onProgress?: (message: string) => void },
-  ): boolean {
+  ): Promise<boolean> {
     const { tsconfigPath, git, analyzeFn, excludePatterns, onProgress } = opts;
     onProgress?.(`Analyzing release ${tag}...`);
 
@@ -10803,19 +10884,19 @@ export class TrailDatabase {
 
     const exclude = ignore();
     if (excludePatterns.length > 0) exclude.add([...excludePatterns]);
-    const graph = analyzeFn({ tsconfigPath: worktreeTsconfig, exclude });
+    const graph = await analyzeFn({ tsconfigPath: worktreeTsconfig, exclude });
 
     this.saveReleaseGraph(graph, tsconfigPath, tag);
     onProgress?.(`Release ${tag} analyzed: ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
     return true;
   }
 
-  analyzeReleases(
+  async analyzeReleases(
     gitRoot: string,
     analyzeFn: AnalyzeFunction,
     onProgress?: (message: string) => void,
     excludePatterns: readonly string[] = ['.worktrees', '.vscode-test', '__tests__', 'fixtures'],
-  ): number {
+  ): Promise<number> {
     const db = this.ensureDb();
     const releases = this.getReleases();
     if (releases.length === 0) return 0;
@@ -10837,7 +10918,7 @@ export class TrailDatabase {
       if (existingIds.has(tag)) continue;
       const tmpDir = path.join(os.tmpdir(), `trail-release-${tag.replaceAll('/', '-')}`);
       try {
-        const saved = this.analyzeOneRelease(tag, gitRoot, tmpDir, { tsconfigPath, git, analyzeFn, excludePatterns, onProgress });
+        const saved = await this.analyzeOneRelease(tag, gitRoot, tmpDir, { tsconfigPath, git, analyzeFn, excludePatterns, onProgress });
         if (saved) {
           existingIds.add(tag);
           count++;

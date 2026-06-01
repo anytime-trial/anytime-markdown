@@ -26,7 +26,10 @@ function makeSupabaseMock(fromHandler: FromCallHandler): {
 // A chainable mock that resolves to { data, error }
 function chain(resolvedData: unknown, resolvedError: unknown = null) {
   const obj: Record<string, unknown> = {};
-  const methods = ['select', 'eq', 'in', 'gte', 'lte', 'order', 'limit', 'filter', 'range'];
+  const methods = [
+    'select', 'eq', 'neq', 'not', 'in', 'gt', 'gte', 'lt', 'lte',
+    'is', 'like', 'ilike', 'or', 'order', 'limit', 'filter', 'range',
+  ];
   for (const m of methods) {
     obj[m] = (..._args: unknown[]) => obj;
   }

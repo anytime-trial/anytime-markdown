@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.15.6",
+  "version": "0.16.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -308,7 +308,8 @@
     "webpack-cli": "6.0.1"
   },
   "dependencies": {
-    "@anytime-markdown/markdown-core": "*",
+    "@anytime-markdown/markdown-viewer": "*",
+    "@anytime-markdown/markdown-rich": "*",
     "@anytime-markdown/vscode-common": "*",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",

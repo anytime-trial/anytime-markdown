@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/web-app",
-  "version": "0.27.1",
+  "version": "0.27.2",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -21,7 +21,8 @@
     "@anytime-markdown/database-viewer": "*",
     "@anytime-markdown/graph-viewer": "*",
     "@anytime-markdown/mindmap-viewer": "*",
-    "@anytime-markdown/markdown-core": "*",
+    "@anytime-markdown/markdown-viewer": "*",
+    "@anytime-markdown/markdown-rich": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/trace-core": "*",
     "@anytime-markdown/trace-viewer": "*",

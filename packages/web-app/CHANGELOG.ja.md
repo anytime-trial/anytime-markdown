@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [0.27.2] - 2026-05-31
+
+### 変更
+
+- vendored Tiptap v3.20.0 エディタコア（`@anytime-markdown/markdown-viewer` / `markdown-rich`）を採用。Web エディタは `@tiptap/*` npm パッケージに依存しなくなった。
+- 分離したリッチコードブロッククラスタ向けに `RichMarkdownEditorPage` を配線。
+- SonarCloud S1874 非推奨 API の移行と S3358 ネスト三項演算子の修正。機能変更なし。
+
 ## [0.27.1] - 2026-05-27
 
 ### 変更

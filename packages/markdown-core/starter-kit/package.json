@@ -1,0 +1,68 @@
+{
+  "name": "@anytime-markdown/markdown-starter-kit",
+  "description": "starter kit for tiptap",
+  "version": "3.20.0",
+  "homepage": "https://tiptap.dev",
+  "keywords": [
+    "tiptap",
+    "tiptap starter kit"
+  ],
+  "license": "MIT",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/ueberdosis"
+  },
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./dist/index.d.ts",
+        "require": "./dist/index.d.cts"
+      },
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "src",
+    "dist"
+  ],
+  "dependencies": {
+    "@anytime-markdown/markdown-core": "workspace:^",
+    "@anytime-markdown/markdown-extension-blockquote": "workspace:^",
+    "@anytime-markdown/markdown-extension-bold": "workspace:^",
+    "@anytime-markdown/markdown-extension-bullet-list": "workspace:^",
+    "@anytime-markdown/markdown-extension-code": "workspace:^",
+    "@anytime-markdown/markdown-extension-code-block": "workspace:^",
+    "@anytime-markdown/markdown-extension-document": "workspace:^",
+    "@anytime-markdown/markdown-extension-dropcursor": "workspace:^",
+    "@anytime-markdown/markdown-extension-gapcursor": "workspace:^",
+    "@anytime-markdown/markdown-extension-hard-break": "workspace:^",
+    "@anytime-markdown/markdown-extension-heading": "workspace:^",
+    "@anytime-markdown/markdown-extension-horizontal-rule": "workspace:^",
+    "@anytime-markdown/markdown-extension-italic": "workspace:^",
+    "@anytime-markdown/markdown-extension-link": "workspace:^",
+    "@anytime-markdown/markdown-extension-list": "workspace:^",
+    "@anytime-markdown/markdown-extension-list-item": "workspace:^",
+    "@anytime-markdown/markdown-extension-list-keymap": "workspace:^",
+    "@anytime-markdown/markdown-extension-ordered-list": "workspace:^",
+    "@anytime-markdown/markdown-extension-paragraph": "workspace:^",
+    "@anytime-markdown/markdown-extension-strike": "workspace:^",
+    "@anytime-markdown/markdown-extension-text": "workspace:^",
+    "@anytime-markdown/markdown-extension-underline": "workspace:^",
+    "@anytime-markdown/markdown-extensions": "workspace:^",
+    "@anytime-markdown/markdown-pm": "workspace:^"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ueberdosis/tiptap",
+    "directory": "packages/starter-kit"
+  },
+  "scripts": {
+    "build": "tsup",
+    "lint": "prettier ./src/ --check && eslint --cache --quiet --no-error-on-unmatched-pattern ./src/"
+  }
+}

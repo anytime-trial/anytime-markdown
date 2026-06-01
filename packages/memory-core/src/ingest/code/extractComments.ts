@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import * as ts from 'typescript';
 import type { MemoryDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
@@ -7,14 +6,27 @@ import type { MemoryLogger } from '../../logger';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface ExtractCommentsInput {
+/**
+ * 1 件の decision comment。analyze-child が ts.Program 走査で抽出し trail-db に
+ * 永続化したものを、memory-core が読み込んで渡す（typescript 非依存）。
+ */
+export interface DecisionCommentItem {
+  /** リポジトリルート相対パス */
+  filePath: string;
+  /** 1-based 行番号 */
+  line: number;
+  /** WHY/RATIONALE/理由 接頭辞を除いた本文 */
+  text: string;
+  /** コメント直後の宣言シンボル名（無ければ null） */
+  symbolName: string | null;
+}
+
+export interface IngestDecisionCommentsInput {
   db: MemoryDbConnection;
-  program: ts.Program;
+  /** trail-db の code_decision_comments から読んだ comment 群 */
+  comments: ReadonlyArray<DecisionCommentItem>;
   repoName: string;
-  commitSha: string | null;
   recordedAt: string;
-  /** Absolute path to the git repository root. Used to normalize file paths to relative. Defaults to process.cwd(). */
-  gitRoot?: string;
   logger: MemoryLogger;
 }
 
@@ -23,70 +35,7 @@ export interface ExtractCommentsStats {
   edges_inserted: number;
 }
 
-// ── Pattern ──────────────────────────────────────────────────────────────────
-
-/**
- * Matches WHY / RATIONALE / 理由 prefixes.
- * Flags: i = case-insensitive, m = multiline (^ / $ match per line).
- */
-const COMMENT_PATTERN = /(?:WHY|RATIONALE|理由)\s*[:：]\s*(.+)/i;
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Strip the outer comment delimiters from a raw comment string and return the
- * inner text.
- *
- * - Single-line (`// text`): removes the leading `//` and optional space.
- * - Multi-line (`/* text *\/`): removes `/*`, `*\/`, and any leading `*` on
- *   each inner line, then joins with a space.
- */
-function commentInnerText(raw: string, kind: ts.SyntaxKind): string {
-  if (kind === ts.SyntaxKind.SingleLineCommentTrivia) {
-    // Strip leading //
-    return raw.replace(/^\/\/\s?/, '').trim();
-  }
-  // Multi-line: strip /* */ and leading * per line
-  const inner = raw
-    .replace(/^\/\*+/, '')
-    .replace(/\*+\/$/, '')
-    .split('\n')
-    .map((line) => line.replace(/^\s*\*?\s?/, ''))
-    .join('\n')
-    .trim();
-  return inner;
-}
-
-/**
- * Attempt to extract the name of the symbol declared by a node.
- * Returns the name string or null if not a named declaration.
- */
-function namedNodeIdent(node: ts.Node): string | null {
-  if (
-    ts.isFunctionDeclaration(node) ||
-    ts.isClassDeclaration(node) ||
-    ts.isInterfaceDeclaration(node) ||
-    ts.isTypeAliasDeclaration(node) ||
-    ts.isEnumDeclaration(node) ||
-    ts.isModuleDeclaration(node)
-  ) {
-    return node.name?.text ?? null;
-  }
-  if (ts.isMethodDeclaration(node) || ts.isPropertyDeclaration(node)) {
-    const name = node.name;
-    if (ts.isIdentifier(name)) return name.text;
-    return null;
-  }
-  if (ts.isVariableStatement(node)) {
-    // e.g. const foo = ...
-    const decls = node.declarationList.declarations;
-    if (decls.length > 0 && ts.isIdentifier(decls[0].name)) {
-      return decls[0].name.text;
-    }
-    return null;
-  }
-  return null;
-}
 
 /**
  * Upsert a File entity and return its entity ID.
@@ -122,134 +71,85 @@ function upsertFileEntity(
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
- * Scans all source files in the given ts.Program for leading comments that
- * match WHY: / RATIONALE: / 理由: patterns and ingests them as Decision
- * entities with `rationale_for` edges pointing to the File (or containing
- * symbol) where the comment appears.
+ * trail-db から読んだ decision comment 群を Decision entity + `rationale_for` edge
+ * （Decision → File）として memory DB に ingest する。
  *
- * Idempotent: Decision entity IDs and edge IDs are derived deterministically
- * from file path + line + comment text, so re-running produces no duplicates.
+ * ソースの AST 走査（ts.Program 依存）は analyze-child 側の scanDecisionComments に
+ * 移設済み。本関数は typescript に依存せず、抽出済みデータを受け取って永続化のみ行う。
+ *
+ * 冪等: Decision entity ID / edge ID は file path + line + comment text から決定的に
+ * 導出するため、再実行で重複しない（旧 extractDecisionComments と同一の canonName 計算）。
  */
-export function extractDecisionComments(input: ExtractCommentsInput): ExtractCommentsStats {
-  const { db, program, repoName, commitSha: _commitSha, recordedAt, logger } = input;
-  const gitRoot = input.gitRoot ?? process.cwd();
-
-  // Normalize the gitRoot to a posix-style path with trailing separator stripped
-  const normalizedGitRoot = gitRoot.replaceAll('\\', '/').replace(/\/$/, '');
-
-  /**
-   * Convert an absolute TypeScript compiler path to a project-relative posix path.
-   * Only normalizes when the path is actually under gitRoot; otherwise returns
-   * the original absolute path unchanged (e.g. for temp-dir test fixtures).
-   */
-  function toRelPath(absPath: string): string {
-    const normalized = absPath.replaceAll('\\', '/');
-    if (normalized.startsWith(normalizedGitRoot + '/')) {
-      return normalized.slice(normalizedGitRoot.length + 1);
-    }
-    if (normalized === normalizedGitRoot) {
-      return '.';
-    }
-    // Path is not under gitRoot — return the absolute path as-is
-    return absPath;
-  }
+export function ingestDecisionComments(input: IngestDecisionCommentsInput): ExtractCommentsStats {
+  const { db, comments, repoName, recordedAt, logger } = input;
 
   const stats: ExtractCommentsStats = { decisions_inserted: 0, edges_inserted: 0 };
+  const fileEntityCache = new Map<string, string>();
 
-  for (const sourceFile of program.getSourceFiles()) {
-    const relFilePath = toRelPath(sourceFile.fileName);
+  for (const c of comments) {
+    const relFilePath = c.filePath;
+    const text = c.text.trim();
+    if (!text) continue;
 
-    // Skip declaration files and node_modules
-    if (sourceFile.isDeclarationFile) continue;
-    if (relFilePath.includes('node_modules')) continue;
-
-    // Use getFullText() to include leading trivia (comments before first node).
-    // getText() strips file-level leading trivia.
-    const sourceText = sourceFile.getFullText();
-    // Track processed comment positions to avoid O(N²) duplicates
-    const seenCommentPositions = new Set<number>();
-
-    // Upsert File entity once per file (not once per comment)
-    const targetId = upsertFileEntity(db, relFilePath, recordedAt, logger);
-
-    function processCommentRange(range: ts.CommentRange, node: ts.Node): void {
-      if (seenCommentPositions.has(range.pos)) return;
-      seenCommentPositions.add(range.pos);
-
-      const raw = sourceText.slice(range.pos, range.end);
-      const inner = commentInnerText(raw, range.kind);
-      const match = COMMENT_PATTERN.exec(inner);
-      if (!match) return;
-
-      const text = match[1].trim();
-      if (!text) return;
-
-      const { line: lineZero } = sourceFile.getLineAndCharacterOfPosition(range.pos);
-      const line = lineZero + 1;
-      const symbolName = namedNodeIdent(node);
-      const canonName = createHash('sha1')
-        .update(`${repoName}:${relFilePath}:${line}:${text}`)
-        .digest('hex')
-        .slice(0, 16);
-      const decisionId = entityId('Decision', canonName);
-      const displayName = (symbolName ? `${symbolName}: ` : '') + text.slice(0, 80);
-      const summary = text.slice(0, 200);
-
-      try {
-        db.run(
-          `INSERT OR IGNORE INTO memory_entities
-             (id, type, canonical_name, display_name,
-              aliases_json, tags_json, attributes_json, summary,
-              first_seen_at, last_updated_at, recorded_at)
-           VALUES (?, 'Decision', ?, ?, '[]', '[]', '{}', ?, ?, ?, ?)`,
-          [decisionId, canonName, displayName, summary, recordedAt, recordedAt, recordedAt]
-        );
-        if (db.getRowsModified() > 0) stats.decisions_inserted += 1;
-      } catch (err) {
-        logger.error(
-          `[anytime-memory] extractComments: failed to upsert Decision entity ` +
-            `file="${relFilePath}" line=${line}`,
-          err
-        );
-        return;
-      }
-
-      const sourceRef = `code_fact:comment:${relFilePath}#${line}`;
-      const edgeId = entityId('edge', `rationale_for:${decisionId}:${targetId}:comment:${line}`);
-      try {
-        db.run(
-          `INSERT INTO memory_edges
-             (id, subject_entity_id, predicate, object_entity_id,
-              valid_from, recorded_at, source_type, source_ref,
-              confidence, confidence_label, modality)
-           VALUES (?, ?, 'rationale_for', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
-           ON CONFLICT(id) DO NOTHING`,
-          [edgeId, decisionId, targetId, recordedAt, recordedAt, sourceRef]
-        );
-        if (db.getRowsModified() > 0) stats.edges_inserted += 1;
-      } catch (err) {
-        logger.error(
-          `[anytime-memory] extractComments: failed to insert edge ` +
-            `file="${relFilePath}" line=${line}`,
-          err
-        );
-      }
+    // File entity はファイルごとに 1 回 upsert する。
+    let targetId = fileEntityCache.get(relFilePath);
+    if (targetId === undefined) {
+      targetId = upsertFileEntity(db, relFilePath, recordedAt, logger);
+      fileEntityCache.set(relFilePath, targetId);
     }
 
-    function visit(node: ts.Node): void {
-      const commentRanges =
-        ts.getLeadingCommentRanges(sourceText, node.getFullStart()) ?? [];
-      for (const range of commentRanges) {
-        processCommentRange(range, node);
-      }
-      ts.forEachChild(node, visit);
+    const line = c.line;
+    const canonName = createHash('sha1')
+      .update(`${repoName}:${relFilePath}:${line}:${text}`)
+      .digest('hex')
+      .slice(0, 16);
+    const decisionId = entityId('Decision', canonName);
+    const displayName = (c.symbolName ? `${c.symbolName}: ` : '') + text.slice(0, 80);
+    const summary = text.slice(0, 200);
+
+    try {
+      db.run(
+        `INSERT OR IGNORE INTO memory_entities
+           (id, type, canonical_name, display_name,
+            aliases_json, tags_json, attributes_json, summary,
+            first_seen_at, last_updated_at, recorded_at)
+         VALUES (?, 'Decision', ?, ?, '[]', '[]', '{}', ?, ?, ?, ?)`,
+        [decisionId, canonName, displayName, summary, recordedAt, recordedAt, recordedAt]
+      );
+      if (db.getRowsModified() > 0) stats.decisions_inserted += 1;
+    } catch (err) {
+      logger.error(
+        `[anytime-memory] extractComments: failed to upsert Decision entity ` +
+          `file="${relFilePath}" line=${line}`,
+        err
+      );
+      continue;
     }
 
-    visit(sourceFile);
+    const sourceRef = `code_fact:comment:${relFilePath}#${line}`;
+    const edgeId = entityId('edge', `rationale_for:${decisionId}:${targetId}:comment:${line}`);
+    try {
+      db.run(
+        `INSERT INTO memory_edges
+           (id, subject_entity_id, predicate, object_entity_id,
+            valid_from, recorded_at, source_type, source_ref,
+            confidence, confidence_label, modality)
+         VALUES (?, ?, 'rationale_for', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
+         ON CONFLICT(id) DO NOTHING`,
+        [edgeId, decisionId, targetId, recordedAt, recordedAt, sourceRef]
+      );
+      if (db.getRowsModified() > 0) stats.edges_inserted += 1;
+    } catch (err) {
+      logger.error(
+        `[anytime-memory] extractComments: failed to insert edge ` +
+          `file="${relFilePath}" line=${line}`,
+        err
+      );
+    }
   }
 
   logger.info(
-    `[anytime-memory] extractComments: repo="${input.repoName}" ` +
+    `[anytime-memory] extractComments: repo="${repoName}" ` +
       `decisions=${stats.decisions_inserted} edges=${stats.edges_inserted}`
   );
 

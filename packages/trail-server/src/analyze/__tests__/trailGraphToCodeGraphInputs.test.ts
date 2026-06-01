@@ -140,7 +140,7 @@ describe('trailGraphToCodeGraphInputs', () => {
 
   it('produces stable repo prefix and package extraction for nodes', () => {
     const trailGraph = makeTrailGraph(
-      [fileNode('packages/markdown-core/src/utils/latexToExpr.ts')],
+      [fileNode('packages/markdown-viewer/src/utils/latexToExpr.ts')],
       [],
     );
     const result = trailGraphToCodeGraphInputs({
@@ -149,8 +149,8 @@ describe('trailGraphToCodeGraphInputs', () => {
       trailGraph,
     });
     expect(result.nodes[0]).toMatchObject({
-      id: 'Workspace:packages/markdown-core/src/utils/latexToExpr',
-      package: 'markdown-core',
+      id: 'Workspace:packages/markdown-viewer/src/utils/latexToExpr',
+      package: 'markdown-viewer',
       label: 'latexToExpr',
     });
   });

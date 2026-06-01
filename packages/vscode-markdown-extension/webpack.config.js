@@ -4,6 +4,8 @@
 
 const path = require('path');
 const webpack = require('webpack');
+// @anytime-markdown/markdown-* → vendored ソースへの alias（共有ヘルパ）
+const { buildWebpackAlias } = require('../markdown-core/alias.cjs');
 
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
@@ -58,10 +60,12 @@ const webviewConfig = {
   resolve: {
     extensions: ['.tsx', '.ts', '.js', '.json'],
     alias: {
+      // @anytime-markdown/markdown-* → vendored ソース
+      ...buildWebpackAlias(),
       'next-intl': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),
       'next-intl/server': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),
       'next/dynamic': path.resolve(__dirname, 'src/webview/shims/next-dynamic.ts'),
-      '@': path.resolve(__dirname, '../markdown-core/src'),
+      '@': path.resolve(__dirname, '../markdown-viewer/src'),
     },
   },
   module: {
@@ -75,6 +79,9 @@ const webviewConfig = {
             options: {
               configFile: 'tsconfig.webview.json',
               allowTsInNodeModules: true,
+              // markdown-core は第三者 vendored ソース（tiptap 自前のゆるい設定でビルドされ
+              // strict 下では implicitNoAny 等が出る）。app コード(markdown-core/rich)のみ型診断する。
+              reportFiles: ['**/*.{ts,tsx}', '!**/markdown-core/**', '!**/node_modules/**'],
             },
           }
         ]

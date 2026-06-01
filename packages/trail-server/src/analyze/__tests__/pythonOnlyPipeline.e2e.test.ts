@@ -27,10 +27,6 @@ const noopCallbacks: AnalyzePipelineCallbacks = {
   notifyCodeGraphUpdated: jest.fn(),
   // 解析後に C4 モデル更新イベント (model-updated) を viewer へ通知する。
   notifyModelUpdated: jest.fn(),
-  // tsconfig 無し経路では呼ばれない（呼ばれたら検知のため失敗させる）。
-  computeAndPersistImportance: async () => {
-    throw new Error('computeAndPersistImportance must not be called on the Python-only path');
-  },
 };
 
 describe('runAnalyzeCurrentCodePipeline (Python-only, no tsconfig)', () => {

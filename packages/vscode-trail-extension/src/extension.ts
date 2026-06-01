@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
-import { registerTraceCommands } from './commands/traceCommands';
+import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
 import {
 	installBundledSkills,
 	installStaticSkillDir,
@@ -19,10 +19,12 @@ import { createFetchGitHubReviewClient } from '@anytime-markdown/trail-server/gi
 import {
 	loadLepConfig,
 	migrateConfigJsonIntoLepJson,
+	ensureLepConfigFile,
 	DEFAULT_LEP_CONFIG,
 	disabledAnalyzerIds,
 	resolveGitHubSource,
 	resolveExcludeRoot,
+	resolveWorkspaceConfigPath,
 } from '@anytime-markdown/trail-server/config';
 import type { AnalyzeAllPipelineResult, AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
 import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
@@ -224,6 +226,13 @@ export async function activate(context: vscode.ExtensionContext) {
 				analyzeAllEnabled: isAnalyzeAllEnabled(),
 				logger: lepLogger,
 			});
+			// lep.json が無ければ初期設定 (DEFAULT_LEP_CONFIG + 現在の analyzeAll 設定) で生成する。
+			// config.json からの移行で既に生成済みなら flag:'wx' により no-op。
+			ensureLepConfigFile({
+				workspaceRoot: wsRootForDb,
+				legacy: { analyzeAllEnabled: isAnalyzeAllEnabled() },
+				logger: lepLogger,
+			});
 			const lepConfigPathOverride = vscode.workspace
 				.getConfiguration('anytimeTrail.lep')
 				.get<string>('configPath', '')
@@ -269,20 +278,20 @@ export async function activate(context: vscode.ExtensionContext) {
 	// docsPath は lep.json workspace.docsPath で一元管理する (旧 anytimeTrail.workspace.docsPath は廃止)。
 	lepWorkspaceDocsPath = lepConfig.workspace.docsPath;
 	// code graph / C4 解析の除外ルートは lep.json workspace.excludeRoot で一元管理する。
-	// どのフォルダを開いていても指定ディレクトリの .anytime/analyze-exclude を全解析経路に適用する
+	// どのフォルダを開いていても指定ディレクトリの .anytime/trail/analyze-exclude を全解析経路に適用する
 	// (空なら undefined → 解析対象リポ自身にフォールバック)。相対は wsRootForDb 起点で絶対化。
 	const analyzeExcludeRoot = resolveExcludeRoot(lepConfig, wsRootForDb);
 	// trail.db 保存先は lep.json database.storagePath (旧 anytimeTrail.database.storagePath は廃止)。
 	const dbStoragePathSetting = lepConfig.database.storagePath || '.anytime/trail/db';
 
-	// `.anytime/analyze-exclude` を activate 時に seed する。analyze pipeline
+	// `.anytime/trail/analyze-exclude` を activate 時に seed する。analyze pipeline
 	// (analyzeCurrentCode / analyzeReleaseCode) でも seed されるが、AnalyzeAll が
 	// OFF のままだとそちらが走らないため、ここで初期生成を保証する。flag:'wx' で
 	// 既存ファイルは上書きされない (EEXIST → false 返却で no-op)。
 	if (wsRootForDb) {
 		try {
 			if (seedAnalyzeExclude(wsRootForDb)) {
-				TrailLogger.info(`[analyzeExclude] seeded .anytime/analyze-exclude at ${wsRootForDb}`);
+				TrailLogger.info(`[analyzeExclude] seeded .anytime/trail/analyze-exclude at ${wsRootForDb}`);
 			}
 		} catch (err) {
 			TrailLogger.warn(
@@ -508,9 +517,13 @@ export async function activate(context: vscode.ExtensionContext) {
 				TrailLogger.info('[daemon] afterRun received');
 			});
 
+			// trail.db パスは import パイプライン (configure) と Data Server (startHttpServer) の
+			// 双方が同一ファイルを指す必要があるため、両者で参照できるよう 1 箇所で導出する。
+			// dbStorageDir はこのブロックの if 条件 (498行) で非 null 保証済み。
+			const trailDbPath = path.join(dbStorageDir, 'trail.db');
+
 			// AnalyzeAllRunner (lep.json stage !== 'disabled' の場合のみ)
 			if (lepStage !== 'disabled') {
-				const trailDbPath = path.join(dbStorageDir, 'trail.db');
 				const cfg: SerializableAnalyzeAllConfig = {
 					trailDbPath,
 					gitRoot: wsRootForDb,
@@ -622,6 +635,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			try {
 				await httpClient.start({
 					distPath: extensionDistPath,
+					// HTTP サーバ (Data Server) は import パイプライン (configure) 非依存で起動する。
+					// trail.db パスを直接渡すことで stage='disabled' でも起動できる (上で導出した定数を共有)。
+					trailDbPath,
 					gitRoot: wsRootForDb,
 					memoryDbPath: memoryDbPathForServer,
 					preferredPort: trailPort,
@@ -660,6 +676,19 @@ export async function activate(context: vscode.ExtensionContext) {
 						alertThresholdPct: budgetConfig.get<number>('alertThresholdPct', 80),
 					},
 					docsPath: lepWorkspaceDocsPath || undefined,
+						// lep.json workspace.configPaths を絶対パス化して渡す (categories / metrics を gitRoot 非依存で読む)。
+						configPaths: {
+						commitCategories: resolveWorkspaceConfigPath(lepConfig, 'commitCategories', wsRootForDb),
+						toolCategories: resolveWorkspaceConfigPath(lepConfig, 'toolCategories', wsRootForDb),
+						skillCategories: resolveWorkspaceConfigPath(lepConfig, 'skillCategories', wsRootForDb),
+						metricsThresholds: resolveWorkspaceConfigPath(lepConfig, 'metricsThresholds', wsRootForDb),
+						},
+						// 表示のデフォルト repo 名を明示注入 (gitRoots は複数あり得るため単一 gitRoot basename 導出を避ける)。
+						defaultRepoName: wsRootForDb ? path.basename(wsRootForDb) : undefined,
+						// trace dir を writer (traceCommands) と同一ロジックで解決し注入 (daemon の gitRoot/cwd 非依存)。
+						traceDir: wsRootForDb ? getTraceOutputDir(wsRootForDb) : undefined,
+						// lep.json workspace.excludeRoot を表示側 CodeGraphService にも反映 (従来 daemon は gitRoot 固定だった)。
+						excludeRoot: analyzeExcludeRoot,
 				});
 				TrailLogger.info('[TrailDaemonHttpClient] startHttpServer called successfully');
 			} catch (err) {

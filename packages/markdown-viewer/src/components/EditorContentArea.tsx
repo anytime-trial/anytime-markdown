@@ -1,0 +1,156 @@
+import { Box, Paper } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import type { Editor } from "@anytime-markdown/markdown-react";
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useEditorMode } from "../contexts/EditorModeContext";
+import type { TextareaSearchState } from "../hooks/useTextareaSearch";
+import { getEditorPaperSx } from "../styles/editorStyles";
+import { useEditorSettingsContext } from "../useEditorSettings";
+import { EditorContextMenu } from "./EditorContextMenu";
+import { FrontmatterBlock } from "./FrontmatterBlock";
+import { MarkdownMinimap } from "./MarkdownMinimap";
+import { SearchReplaceBar } from "./SearchReplaceBar";
+import { SourceModeEditor } from "./SourceModeEditor";
+import { SourceSearchBar } from "./SourceSearchBar";
+
+interface EditorContentAreaProps {
+  editor: Editor | null;
+  editorHeight: number;
+  editorWrapperRef: React.RefObject<HTMLDivElement | null>;
+  editorMountCallback: (node: HTMLDivElement | null) => void;
+  sourceText: string;
+  handleSourceChange: (text: string) => void;
+  sourceTextareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  sourceSearchOpen: boolean;
+  setSourceSearchOpen: (open: boolean) => void;
+  sourceSearch: TextareaSearchState;
+  frontmatterText: string | null;
+  handleFrontmatterChange: (value: string | null) => void;
+  t: (key: string) => string;
+}
+
+export function EditorContentArea({
+  editor,
+  editorHeight,
+  editorWrapperRef,
+  editorMountCallback,
+  sourceText,
+  handleSourceChange,
+  sourceTextareaRef,
+  sourceSearchOpen,
+  setSourceSearchOpen,
+  sourceSearch,
+  frontmatterText,
+  handleFrontmatterChange,
+  t,
+}: Readonly<EditorContentAreaProps>) {
+  const {
+    sourceMode, readonlyMode, reviewMode, noScroll,
+    onSwitchToReview, onSwitchToWysiwyg, onSwitchToSource,
+  } = useEditorMode();
+  const theme = useTheme();
+  const settings = useEditorSettingsContext();
+
+  const sourceContainerRef = useRef<HTMLDivElement>(null);
+
+  // Frontmatter パネルの高さを測定し editorHeight から差し引く
+  const frontmatterRef = useRef<HTMLDivElement>(null);
+  const [frontmatterHeight, setFrontmatterHeight] = useState(0);
+  useEffect(() => {
+    const el = frontmatterRef.current;
+    if (!el) { setFrontmatterHeight(0); return; }
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setFrontmatterHeight(entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [frontmatterText, sourceMode]);
+  const adjustedEditorHeight = editorHeight - frontmatterHeight;
+
+  if (sourceMode) {
+    return (
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <EditorContextMenu editor={editor} readOnly={false} t={t}
+          currentMode="source" extraContainerRef={sourceContainerRef} sourceTextareaRef={sourceTextareaRef}
+          onSwitchToReview={onSwitchToReview} onSwitchToWysiwyg={onSwitchToWysiwyg} onSwitchToSource={onSwitchToSource}
+        />
+        <Box
+          ref={sourceContainerRef}
+          sx={{ position: "relative" }}
+          onKeyDown={(e: React.KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+              e.preventDefault();
+              setSourceSearchOpen(true);
+              setTimeout(() => sourceSearch.focusSearch(), 50);
+            } else if (e.key === "Escape" && sourceSearchOpen) {
+              e.preventDefault();
+              setSourceSearchOpen(false);
+              sourceSearch.reset();
+            }
+          }}
+        >
+          {sourceSearchOpen && (
+            <SourceSearchBar
+              search={sourceSearch}
+              onClose={() => { setSourceSearchOpen(false); sourceSearch.reset(); }}
+              t={t}
+            />
+          )}
+          <SourceModeEditor
+            sourceText={sourceText}
+            onSourceChange={handleSourceChange}
+            editorHeight={editorHeight}
+            ariaLabel={t("sourceEditor")}
+            textareaRef={sourceTextareaRef}
+            searchMatches={sourceSearchOpen ? sourceSearch.matches : undefined}
+            searchCurrentIndex={sourceSearchOpen ? sourceSearch.currentIndex : undefined}
+          />
+        </Box>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box
+        ref={editorWrapperRef}
+        onKeyDown={(readonlyMode || reviewMode) ? (e: React.KeyboardEvent) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+            e.preventDefault();
+            editor?.commands.openSearch();
+          }
+        } : undefined}
+        sx={{ position: "relative", outline: "none" }}
+      >
+        {editor && <SearchReplaceBar editor={editor} t={t} />}
+        {editor && <EditorContextMenu editor={editor} readOnly={readonlyMode || reviewMode} t={t}
+          currentMode={reviewMode ? "review" : "wysiwyg"}
+          onSwitchToReview={onSwitchToReview} onSwitchToWysiwyg={onSwitchToWysiwyg} onSwitchToSource={onSwitchToSource}
+        />}
+        <div ref={frontmatterRef}>
+          <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} defaultCollapsed={true} t={t} />
+        </div>
+        <Box sx={{ display: "flex", alignItems: "flex-start" }}>
+          <Paper
+            id="md-editor-content"
+            variant="outlined"
+            sx={{
+              ...getEditorPaperSx(theme, settings, adjustedEditorHeight, { readonlyMode, noScroll }),
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            <div ref={editorMountCallback} style={{ display: "contents" }} />
+          </Paper>
+          {!sourceMode && editor && (
+            <MarkdownMinimap editor={editor} editorHeight={adjustedEditorHeight} />
+          )}
+        </Box>
+      </Box>
+    </Box>
+  );
+}

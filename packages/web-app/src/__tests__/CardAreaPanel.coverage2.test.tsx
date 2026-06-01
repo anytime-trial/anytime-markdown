@@ -47,7 +47,7 @@ jest.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: () => undefined } },
 }));
 
-jest.mock("@anytime-markdown/markdown-core", () => ({
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
   ACCENT_COLOR: "#e8a012",
   DEFAULT_DARK_BG: "#0D1117",
   DEFAULT_LIGHT_BG: "#F8F9FA",

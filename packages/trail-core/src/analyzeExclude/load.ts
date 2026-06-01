@@ -1,9 +1,9 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import ignore, { type Ignore } from 'ignore';
+import { analyzeExcludeFilePath } from './paths';
 
 /**
- * `<workspaceRoot>/.anytime/analyze-exclude` を読み込み、`.gitignore` 互換の
+ * `<workspaceRoot>/.anytime/trail/analyze-exclude` を読み込み、`.gitignore` 互換の
  * Ignore インスタンスを返す。
  *
  * - ファイル不在 → 何もマッチしない空 Ignore を返す
@@ -11,7 +11,7 @@ import ignore, { type Ignore } from 'ignore';
  *   `dir/` ディレクトリ専用 / `**` 再帰、コメント `#` と空行）
  */
 export function loadAnalyzeExclude(workspaceRoot: string): Ignore {
-  const file = path.join(workspaceRoot, '.anytime', 'analyze-exclude');
+  const file = analyzeExcludeFilePath(workspaceRoot);
   const ig = ignore();
   try {
     const content = fs.readFileSync(file, 'utf-8');

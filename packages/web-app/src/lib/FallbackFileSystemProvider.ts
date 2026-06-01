@@ -1,4 +1,4 @@
-import type { FileHandle, FileOpenResult, FileSystemProvider } from '@anytime-markdown/markdown-core';
+import type { FileHandle, FileOpenResult, FileSystemProvider } from '@anytime-markdown/markdown-viewer';
 
 export class FallbackFileSystemProvider implements FileSystemProvider {
   readonly supportsDirectAccess = false;
