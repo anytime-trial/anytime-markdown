@@ -56,6 +56,17 @@ export class TodaySummaryItem extends vscode.TreeItem {
   }
 }
 
+/** "abc1234 (HH:mm)" 形式で最新コミットを整形する（時刻はローカル TZ 表示） */
+function formatLastCommit(lastCommit: { hash: string; timestamp: string }): string {
+  const shortHash = lastCommit.hash.slice(0, 7);
+  let timeStr = '';
+  const t = new Date(lastCommit.timestamp);
+  if (!Number.isNaN(t.getTime())) {
+    timeStr = ` (${new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(t)})`;
+  }
+  return `\`${shortHash}\`${timeStr}`;
+}
+
 export class SessionTreeItem extends vscode.TreeItem {
   constructor(public readonly session: SessionMapping) {
     super(session.sessionId.slice(0, 8));
@@ -65,12 +76,20 @@ export class SessionTreeItem extends vscode.TreeItem {
       : `${Math.round(session.ageSeconds / 60)} min ago`;
     const label = session.sessionTitle || session.fileBasename;
     const tokenStr = session.contextTokens ? `  ${formatTokens(session.contextTokens)}` : '';
-    this.description = `${stateStr} • ${age}${tokenStr}${label ? `    ${label}` : ''}`;
+    // コミットありのときのみ idle/editing の直後に committed(N) を挿入（0 件は非表示で冗長さを避ける）。
+    const committed = session.committedCount ?? 0;
+    const committedStr = committed > 0 ? ` • committed(${committed})` : '';
+    this.description = `${stateStr}${committedStr} • ${age}${tokenStr}${label ? `    ${label}` : ''}`;
     this.iconPath = STATE_ICONS[session.state];
     this.contextValue = `session.${session.state}`;
     this.tooltip = new vscode.MarkdownString(
       `**Session:** \`${session.sessionId}\`\n\n` +
       (session.contextTokens ? `**Context:** ${formatTokens(session.contextTokens)} tokens\n\n` : '') +
+      (committed > 0
+        ? `**コミット:** ${committed} 件` +
+          (session.lastCommit ? ` / 最新 ${formatLastCommit(session.lastCommit)}` : '') +
+          '\n\n'
+        : '') +
       (session.sessionEdits.length > 0
         ? `**Edits:**\n${session.sessionEdits.map(e => `- \`${e.file}\``).join('\n')}`
         : '') +

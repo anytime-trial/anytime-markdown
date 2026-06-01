@@ -7,6 +7,11 @@ import {
   installTemplatedSkill,
   setupClaudeHooks,
 } from '@anytime-markdown/vscode-common';
+import { AgentStatusClient } from '@anytime-markdown/agent-core';
+import {
+  AgentStatusWorkerHost,
+  resolveWorkerScriptPath,
+} from './worker/AgentStatusWorkerHost';
 import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import {
   WorktreeTreeItem,
@@ -17,6 +22,7 @@ import { OllamaProvider } from './providers/OllamaProvider';
 import { AgentLogger } from './utils/AgentLogger';
 
 let ollamaProvider: OllamaProvider | undefined;
+let agentStatusWorkerHost: AgentStatusWorkerHost | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   AgentLogger.info('Anytime Agent: activate');
@@ -234,14 +240,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
   }
 
+  // agent-status ワーカーを起動（owner は agent 拡張のみ）。既存ワーカーがいれば接続のみ。
+  // SQLite を import するのはこのワーカーバンドルだけ。拡張ホストは HTTP クライアント経由で読む。
+  if (workspaceFolder) {
+    agentStatusWorkerHost = new AgentStatusWorkerHost(
+      workspacePath,
+      resolveWorkerScriptPath(context.extensionPath),
+      AgentLogger,
+    );
+    agentStatusWorkerHost.start();
+  }
+
   // Agent Mapping view
-  const watcher = new ClaudeStatusWatcher(workspacePath, claudeStatusDirSetting);
+  // claudeStatusDirSetting はフック登録の互換用に残すが、watcher のデータ源はワーカー HTTP。
+  const agentStatusClient = new AgentStatusClient({ workspaceRoot: workspacePath });
+  const watcher = new ClaudeStatusWatcher(agentStatusClient);
   const mappingProvider = new AgentMappingProvider(watcher, workspacePath);
   const mappingTreeView = vscode.window.createTreeView('anytimeAgent.mapping', {
     treeDataProvider: mappingProvider,
     showCollapseAll: true,
   });
-  context.subscriptions.push(mappingProvider, mappingTreeView);
+  context.subscriptions.push(mappingProvider, mappingTreeView, watcher);
+  if (agentStatusWorkerHost) {
+    context.subscriptions.push({ dispose: () => agentStatusWorkerHost?.dispose() });
+  }
   void vscode.commands.executeCommand('setContext', 'anytimeAgent.mapping.filterActive', false);
 
   context.subscriptions.push(
@@ -277,7 +299,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void vscode.env.clipboard.writeText(item.session.sessionId);
     }),
     vscode.commands.registerCommand('anytime-agent.mapping.deleteStatusFile', (item: SessionTreeItem) => {
-      mappingProvider.deleteSessionFile(item.session.sessionId);
+      void mappingProvider.deleteSessionFile(item.session.sessionId);
     }),
   );
 
@@ -299,5 +321,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export function deactivate(): void {
+  // context.subscriptions による dispose とは別に、deactivate でも確実にワーカーを止める。
+  agentStatusWorkerHost?.dispose();
+  agentStatusWorkerHost = undefined;
   AgentLogger.dispose();
 }

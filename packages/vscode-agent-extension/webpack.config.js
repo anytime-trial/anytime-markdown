@@ -9,10 +9,15 @@ const path = require('path');
 const extensionConfig = {
   target: 'node',
   mode: 'none',
-  entry: './src/extension.ts',
+  entry: {
+    // VS Code 拡張本体
+    extension: './src/extension.ts',
+    // agent 拡張が spawn する常駐ワーカー。node:sqlite を import するのはこのバンドルのみ。
+    'agent-status-worker': './src/worker/agentStatusWorkerEntry.ts',
+  },
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'extension.js',
+    filename: '[name].js',
     libraryTarget: 'commonjs2',
   },
   externals: {
