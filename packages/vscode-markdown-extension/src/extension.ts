@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { LinkValidationProvider } from './providers/LinkValidationProvider';
 import { ClaudeStatusWatcher, TimelineProvider, TimelineItem } from '@anytime-markdown/vscode-common';
+import { WorkerStatusSource } from './claude/WorkerStatusSource';
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
@@ -208,16 +209,13 @@ export function activate(context: vscode.ExtensionContext) {
 		},
 	);
 
-	// Claude Code 編集通知: ステータスファイル監視 + エディタロック
-	// フック登録は trail 拡張で一元管理する。markdown 拡張はステータスファイルの読み取りのみ。
-	const storagePathSetting = vscode.workspace.getConfiguration('anytimeMarkdown.claudeStatus').get<string>('directory', '') || '.anytime';
+	// Claude Code 編集通知: agent-status ワーカーを監視してエディタをロックする。
+	// フック登録・ワーカー起動は agent 拡張が一元管理する。markdown 拡張は consumer として
+	// ワーカー HTTP を読むだけ（SQLite 非依存）。ワーカー未起動時は editing 表示が出ない（欠落許容）。
 	const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-	const statusDir = path.isAbsolute(storagePathSetting)
-		? storagePathSetting
-		: wsRoot ? path.join(wsRoot, storagePathSetting) : storagePathSetting;
 	const claudeSubscriptions: vscode.Disposable[] = [];
-	{
-		const watcher = new ClaudeStatusWatcher(wsRoot, statusDir);
+	if (wsRoot) {
+		const watcher = new ClaudeStatusWatcher(new WorkerStatusSource(wsRoot));
 		watcher.onStatusChange((editing, filePath) => {
 			const p = MarkdownEditorProvider.getInstance();
 			if (!p) return;

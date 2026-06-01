@@ -1,5 +1,11 @@
 export type MappingState = 'active' | 'recent' | 'stale';
 
+export interface SessionLastCommit {
+  readonly hash: string;
+  /** UTC ISO 8601 */
+  readonly timestamp: string;
+}
+
 export interface SessionMapping {
   readonly sessionId: string;
   readonly state: MappingState;
@@ -13,6 +19,10 @@ export interface SessionMapping {
   readonly sessionTitle?: string;
   readonly workspacePath?: string;
   readonly contextTokens?: number;
+  /** そのセッションのコミット累計（agent-status DB 由来） */
+  readonly committedCount?: number;
+  /** 最新コミットのハッシュ・時刻（agent-status DB 由来） */
+  readonly lastCommit?: SessionLastCommit;
 }
 
 export interface WorktreeMapping {

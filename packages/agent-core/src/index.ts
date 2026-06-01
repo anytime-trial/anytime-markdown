@@ -25,6 +25,7 @@ export { parseWorktreeList } from './mapping/parseWorktreeList';
 export type {
   MappingState,
   SessionMapping,
+  SessionLastCommit,
   WorktreeEntry,
   WorktreeMapping,
 } from './mapping/types';
@@ -66,3 +67,32 @@ export type {
 } from '@anytime-markdown/ollama-core';
 export { Emitter } from './util/Emitter';
 export type { Disposable, Listener } from './util/Emitter';
+
+// agent-status: ワーカー単一所有モデルのステータスストア／クライアント。
+// AgentStatusStore / AgentStatusWorker は node:sqlite を import するためワーカープロセス専用。
+// AgentStatusClient は SQLite 非依存で、どの拡張からも import 一行で利用できる公開 API。
+export { AgentStatusClient } from './status/AgentStatusClient';
+export type { AgentStatusClientOptions } from './status/AgentStatusClient';
+export {
+  agentWorkerJsonPath,
+  agentStatusDbPath,
+  readWorkerInfo,
+  writeWorkerInfo,
+  removeWorkerInfo,
+  isWorkerAlive,
+  AGENT_WORKER_SCHEMA_VERSION,
+} from './status/agentWorkerInfo';
+export { AgentStatusStore } from './status/AgentStatusStore';
+export { AgentStatusWorker } from './status/AgentStatusWorker';
+export { runWorker } from './status/agentStatusWorkerMain';
+export { AGENT_STATUS_API_VERSION } from './status/types';
+export type {
+  AgentSessionRow,
+  AgentSessionEdit,
+  AgentLastCommit,
+  AgentWorkerInfo,
+  EditUpsertInput,
+  CommitUpsertInput,
+  AgentStatusEnvelope,
+  AgentStatusListEnvelope,
+} from './status/types';
