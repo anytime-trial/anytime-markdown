@@ -73,17 +73,23 @@ export interface EditUpsertInput {
   readonly updatedAt?: string;
 }
 
-/** POST /api/agent-status/commit の body */
+/**
+ * POST /api/agent-status/commit の body。
+ *
+ * `count > 0` かつ `commitHash` / `committedAt` 指定時のみ last_commit_* を更新する。
+ * 初回シード（`count: 0`・commitHash 無し）では last_head のみ更新し、既存 HEAD を
+ * 誤って「コミット済み」として表示しない。
+ */
 export interface CommitUpsertInput {
   readonly sessionId: string;
   /** 検出後の最新 HEAD。次回の差分検出基点として保存する */
   readonly lastHead: string;
-  /** 最新コミットのハッシュ */
-  readonly commitHash: string;
-  /** 最新コミットの時刻 UTC ISO 8601 */
-  readonly committedAt: string;
   /** 今回検出した新規コミット件数。committed_count に加算する */
   readonly count: number;
+  /** 最新コミットのハッシュ。count>0 のときのみ意味を持つ */
+  readonly commitHash?: string;
+  /** 最新コミットの時刻 UTC ISO 8601。count>0 のときのみ意味を持つ */
+  readonly committedAt?: string;
   /** 更新時刻。省略時はワーカーが現在時刻を補う */
   readonly updatedAt?: string;
 }

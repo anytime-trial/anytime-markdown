@@ -217,6 +217,33 @@ describe('AgentStatusStore', () => {
     expect(row!.editing).toBe(true);
   });
 
+  it('count=0 のシードは last_head のみ更新し last_commit は保持する', () => {
+    // 初回: HEAD のシードのみ（コミット 0 件）
+    store.upsertCommit({ sessionId: 's6', lastHead: 'seed', count: 0 });
+    let row = store.queryOne('s6');
+    expect(row!.lastHead).toBe('seed');
+    expect(row!.committedCount).toBe(0);
+    expect(row!.lastCommit).toBeNull();
+
+    // 実コミット検出
+    store.upsertCommit({
+      sessionId: 's6',
+      lastHead: 'real',
+      commitHash: 'real',
+      committedAt: '2026-05-31T03:00:00.000Z',
+      count: 1,
+    });
+    row = store.queryOne('s6');
+    expect(row!.committedCount).toBe(1);
+    expect(row!.lastCommit!.hash).toBe('real');
+
+    // 次回シード（新規コミット無し）: last_commit を保持
+    store.upsertCommit({ sessionId: 's6', lastHead: 'real', count: 0 });
+    row = store.queryOne('s6');
+    expect(row!.lastCommit!.hash).toBe('real');
+    expect(row!.committedCount).toBe(1);
+  });
+
   it('queryAll は updated_at 降順で全件返す', () => {
     store.upsertEditing({ sessionId: 'old', editing: false, updatedAt: '2026-05-31T00:00:00.000Z' });
     store.upsertEditing({ sessionId: 'new', editing: false, updatedAt: '2026-05-31T05:00:00.000Z' });

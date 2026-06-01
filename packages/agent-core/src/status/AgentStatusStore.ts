@@ -161,6 +161,13 @@ export class AgentStatusStore {
    */
   upsertCommit(input: CommitUpsertInput): void {
     const updatedAt = input.updatedAt ?? nowIso();
+    const prev = this.queryOne(input.sessionId);
+
+    // count===0 のシードでは last_commit_* を上書きしない（既存値を保持）。
+    const hasCommit = input.count > 0 && !!input.commitHash && !!input.committedAt;
+    const hash = hasCommit ? input.commitHash! : (prev?.lastCommit?.hash ?? null);
+    const committedAt = hasCommit ? input.committedAt! : (prev?.lastCommit?.timestamp ?? null);
+
     const stmt = this.db.prepare(`
       INSERT INTO agent_sessions
         (session_id, last_head, committed_count, last_commit_hash, last_commit_at, updated_at)
@@ -177,8 +184,8 @@ export class AgentStatusStore {
       $sid: input.sessionId,
       $lastHead: input.lastHead,
       $count: input.count,
-      $hash: input.commitHash,
-      $committedAt: input.committedAt,
+      $hash: hash,
+      $committedAt: committedAt,
       $updatedAt: updatedAt,
     });
   }
