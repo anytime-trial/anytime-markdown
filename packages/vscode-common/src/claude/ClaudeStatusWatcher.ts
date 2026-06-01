@@ -1,8 +1,16 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { getStatusFilePath } from './claudeHookSetup';
-import type { Disposable, ClaudeStatus, SessionEdit, StatusChangeCallback, AgentInfo, MultiStatusChangeCallback, TodayStats } from './types';
+import type {
+  Disposable,
+  SessionEdit,
+  StatusChangeCallback,
+  AgentInfo,
+  AgentStatusRow,
+  AgentStatusSource,
+  MultiStatusChangeCallback,
+  TodayStats,
+} from './types';
 
 const STALE_THRESHOLD_MS = 30_000;
 const POLL_INTERVAL_MS = 3000;
@@ -13,23 +21,32 @@ export function jstDateString(date: Date = new Date()): string {
   return _jstFmt.format(date);
 }
 
+/**
+ * agent-status ワーカーをポーリングし、編集状況の変化を通知する。
+ *
+ * データ源はファイルではなく注入された {@link AgentStatusSource}（agent-core の AgentStatusClient）。
+ * ワーカーが未起動なら空を返すため、その間は editing 表示・エージェント一覧が空になる（欠落許容）。
+ *
+ * sessionTitle / contextTokens / todayStats は agent-status DB ではなく `~/.claude/projects/*.jsonl`
+ * から直接読み取る（従来どおり）。
+ */
 export class ClaudeStatusWatcher implements Disposable {
   private readonly callbacks: StatusChangeCallback[] = [];
   private readonly multiCallbacks: MultiStatusChangeCallback[] = [];
-  private readonly statusDir: string;
-  private readonly statusFilePrefix: string;
+  private readonly source: AgentStatusSource;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private lastEditing: boolean | null = null;
   private lastTimestamp = '';
   private lastAgentMapJson = '';
+  /** ポーリングで取得した最新のエージェントマップ（同期 getter はここから返す） */
+  private _agentsCache = new Map<string, AgentInfo>();
+  private _polling = false;
   private readonly _titleCache = new Map<string, string>();
   private readonly _tokenCache = new Map<string, { tokens: number; expiry: number }>();
   private _todayStatsCache: { stats: TodayStats; expiry: number } | null = null;
 
-  constructor(workspaceRoot?: string, statusDir?: string) {
-    const filePath = getStatusFilePath(workspaceRoot, statusDir);
-    this.statusDir = path.dirname(filePath);
-    this.statusFilePrefix = 'claude-code-status';
+  constructor(source: AgentStatusSource) {
+    this.source = source;
     this.startPolling();
   }
 
@@ -43,9 +60,8 @@ export class ClaudeStatusWatcher implements Disposable {
 
   /** 現在の全エージェントのセッション編集履歴を統合して返す */
   getSessionEdits(): readonly SessionEdit[] {
-    const agents = this.readAllAgents();
     const edits: SessionEdit[] = [];
-    for (const agent of agents.values()) {
+    for (const agent of this._agentsCache.values()) {
       edits.push(...agent.sessionEdits);
     }
     return edits;
@@ -53,50 +69,40 @@ export class ClaudeStatusWatcher implements Disposable {
 
   /** 現在の全エージェントの計画対象ファイルを統合して返す */
   getPlannedEdits(): readonly string[] {
-    const agents = this.readAllAgents();
     const set = new Set<string>();
-    for (const agent of agents.values()) {
+    for (const agent of this._agentsCache.values()) {
       for (const p of agent.plannedEdits) set.add(p);
     }
     return [...set];
   }
 
-  /** 全ステータスファイルの sessionEdits と plannedEdits をクリアする */
-  clearEdits(): void {
-    try {
-      const files = this.listStatusFiles();
-      for (const filePath of files) {
-        try {
-          const raw = fs.readFileSync(filePath, 'utf-8');
-          const parsed: unknown = JSON.parse(raw);
-          if (typeof parsed === 'object' && parsed !== null) {
-            const record = parsed as Record<string, unknown>;
-            record.sessionEdits = [];
-            record.plannedEdits = [];
-            fs.writeFileSync(filePath, JSON.stringify(record));
-          }
-        } catch {
-          // 個別ファイルのパース失敗は無視
-        }
-      }
-    } catch {
-      // ディレクトリ読み取り失敗は無視
-    }
+  /** 全セッションの sessionEdits と plannedEdits をクリアする（ワーカー経由） */
+  async clearEdits(): Promise<void> {
+    // 個別の clear はワーカー側の責務だが、現状 consumer 不在のため最小実装にとどめる。
+    // 必要になれば AgentStatusSource に clear エンドポイントを追加する。
+    return Promise.resolve();
   }
 
-  /** アクティブなエージェント情報マップを返す */
+  /** アクティブな（非 stale）エージェント情報マップを返す */
   getAgents(): ReadonlyMap<string, AgentInfo> {
-    return this.readAllAgents();
+    const now = Date.now();
+    const active = new Map<string, AgentInfo>();
+    for (const [sid, agent] of this._agentsCache) {
+      if (now - new Date(agent.timestamp).getTime() <= STALE_THRESHOLD_MS) {
+        active.set(sid, agent);
+      }
+    }
+    return active;
   }
 
   /** ステール済みを含む全エージェント情報マップを返す（Agent Mapping ビュー用） */
   getAllAgents(): ReadonlyMap<string, AgentInfo> {
-    return this.readAllAgents(true);
+    return this._agentsCache;
   }
 
-  /** ステータスファイルの格納ディレクトリを返す */
-  getStatusDir(): string {
-    return this.statusDir;
+  /** セッション行を削除する（ワーカー経由） */
+  async deleteSession(sessionId: string): Promise<boolean> {
+    return this.source.deleteSession(sessionId);
   }
 
   /** 今日（JST）のセッション数・合計トークン数を返す（60s キャッシュ） */
@@ -120,14 +126,27 @@ export class ClaudeStatusWatcher implements Disposable {
   // ---------------------------------------------------------------------------
 
   private startPolling(): void {
+    // 起動直後に 1 回ポーリングし、以降は定期実行する。
+    void this.handlePoll();
     this.pollTimer = setInterval(() => {
-      this.handlePoll();
+      void this.handlePoll();
     }, POLL_INTERVAL_MS);
   }
 
-  private handlePoll(): void {
-    const agents = this.readAllAgents();
+  private async handlePoll(): Promise<void> {
+    // 前回のポーリングが未完了なら多重実行しない（ワーカー接続失敗時のタイムアウト累積を防ぐ）。
+    if (this._polling) return;
+    this._polling = true;
+    try {
+      const agents = await this.readAllAgents();
+      this._agentsCache = agents;
+      this.notify(agents);
+    } finally {
+      this._polling = false;
+    }
+  }
 
+  private notify(agents: Map<string, AgentInfo>): void {
     // マルチエージェントコールバック
     const json = JSON.stringify([...agents.entries()]);
     if (json !== this.lastAgentMapJson) {
@@ -170,71 +189,34 @@ export class ClaudeStatusWatcher implements Disposable {
     }
   }
 
-  private readAllAgents(includeStale = false): Map<string, AgentInfo> {
+  private async readAllAgents(): Promise<Map<string, AgentInfo>> {
     const agents = new Map<string, AgentInfo>();
-    const now = Date.now();
-    const files = this.listStatusFiles();
+    let rows: readonly AgentStatusRow[] = [];
+    try {
+      rows = await this.source.queryAll();
+    } catch (err) {
+      console.error(`[agent-status] queryAll failed: ${String(err)}`);
+      return agents;
+    }
 
-    for (const filePath of files) {
-      const status = this.readStatusFile(filePath);
-      if (!status) continue;
-
-      const elapsed = now - new Date(status.timestamp).getTime();
-      if (!includeStale && elapsed > STALE_THRESHOLD_MS) continue;
-
-      const sessionId = status.sessionId ?? this.extractSessionId(filePath);
-      if (!sessionId) continue;
-
-      agents.set(sessionId, {
-        sessionId,
-        editing: status.editing,
-        file: status.file,
-        timestamp: status.timestamp,
-        branch: status.branch ?? '',
-        sessionEdits: status.sessionEdits ?? [],
-        plannedEdits: status.plannedEdits ?? [],
-        sessionTitle: this._readSessionTitle(sessionId),
-        workspacePath: status.workspacePath,
-        contextTokens: this._readContextTokens(sessionId),
+    for (const row of rows) {
+      if (!row.sessionId) continue;
+      agents.set(row.sessionId, {
+        sessionId: row.sessionId,
+        editing: row.editing,
+        file: row.file,
+        timestamp: row.updatedAt,
+        branch: row.branch ?? '',
+        sessionEdits: row.sessionEdits ?? [],
+        plannedEdits: row.plannedEdits ?? [],
+        sessionTitle: this._readSessionTitle(row.sessionId),
+        workspacePath: row.workspacePath,
+        contextTokens: this._readContextTokens(row.sessionId),
+        committedCount: row.committedCount,
+        lastCommit: row.lastCommit ?? undefined,
       });
     }
     return agents;
-  }
-
-  private listStatusFiles(): string[] {
-    try {
-      const entries = fs.readdirSync(this.statusDir);
-      return entries
-        .filter((e) => e.startsWith(this.statusFilePrefix) && e.endsWith('.json'))
-        .map((e) => path.join(this.statusDir, e));
-    } catch {
-      return [];
-    }
-  }
-
-  private extractSessionId(filePath: string): string {
-    const base = path.basename(filePath, '.json');
-    const prefix = 'claude-code-status-';
-    if (base.startsWith(prefix)) {
-      return base.slice(prefix.length);
-    }
-    return '';
-  }
-
-  private readStatusFile(filePath: string): ClaudeStatus | null {
-    try {
-      const raw = fs.readFileSync(filePath, 'utf-8');
-      const parsed: unknown = JSON.parse(raw);
-      if (!this.isValidStatus(parsed)) return null;
-      // 旧形式（number の Unix ms タイムスタンプ）を UTC ISO 8601 文字列に正規化する
-      const record = parsed as unknown as Record<string, unknown>;
-      if (typeof record.timestamp === 'number') {
-        return { ...parsed, timestamp: new Date(record.timestamp).toISOString() } as ClaudeStatus;
-      }
-      return parsed as ClaudeStatus;
-    } catch {
-      return null;
-    }
   }
 
   private _readSessionTitle(sessionId: string): string {
@@ -368,16 +350,5 @@ export class ClaudeStatusWatcher implements Disposable {
     } catch {
       return '';
     }
-  }
-
-  private isValidStatus(obj: unknown): obj is ClaudeStatus {
-    if (typeof obj !== 'object' || obj === null) return false;
-    const record = obj as Record<string, unknown>;
-    return (
-      typeof record.editing === 'boolean' &&
-      typeof record.file === 'string' &&
-      // timestamp は UTC ISO 8601 文字列。旧形式（number）との後方互換のため number も許容する。
-      (typeof record.timestamp === 'string' || typeof record.timestamp === 'number')
-    );
   }
 }
