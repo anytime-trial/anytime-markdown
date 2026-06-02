@@ -23,6 +23,7 @@ import { BlockGapCursorExtension } from "./extensions/blockGapCursorExtension";
 import { CodeBlockNavigation } from "./extensions/codeBlockNavigationExtension";
 import { CommentDataPlugin,CommentHighlight, CommentPoint } from "./extensions/commentExtension";
 import { CustomTableCell, CustomTableHeader } from "./extensions/customTableCells";
+import { DiagramAggregateExtension } from "./extensions/diagramAggregateExtension";
 import { DiffHighlight } from "./extensions/diffHighlight";
 import { FootnoteRef } from "./extensions/footnoteExtension";
 import { GifBlock } from "./extensions/gifExtension";
@@ -318,6 +319,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
     HeadingNumberExtension,
     GifBlock,
     BlockGapCursorExtension,
+    DiagramAggregateExtension,
   ];
   if (!options?.disableComments) {
     extensions.push(CommentHighlight, CommentPoint, CommentDataPlugin);
