@@ -2,6 +2,7 @@ import type { Theme } from "@mui/material/styles";
 
 import { getActionHover, getActionSelected, getDivider, getErrorMain, getGrey, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { MERGE_BADGE_FONT_SIZE } from "../constants/dimensions";
+import { getImageRowStyles } from "../styles/imageRowStyles";
 
 /** マージエディタ共通のtiptapスタイル */
 export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1.6, options?: { showHoverLabels?: boolean }) {
@@ -178,6 +179,8 @@ export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1
         borderRadius: 1,
         my: 1,
       },
+      // 連続画像（README バッジ等）の横並びレイアウトを通常エディタと共用
+      ...getImageRowStyles(isDark),
       "& a": { color: getPrimaryMain(isDark), textDecoration: "underline" },
       "& hr": { border: "none", borderTop: `1px solid ${getDivider(isDark)}`, my: 2 },
       "& ul[data-type='taskList']": {
