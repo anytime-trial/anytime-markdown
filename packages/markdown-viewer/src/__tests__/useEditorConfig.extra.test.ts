@@ -81,6 +81,7 @@ function createRefs() {
     handleImport: { current: jest.fn() },
     onFileDragOver: { current: jest.fn() },
     slashCommandCallback: { current: jest.fn() },
+    inlineMergeOpen: { current: false },
   };
 }
 
@@ -254,9 +255,12 @@ describe("useEditorConfig - handleDOMEvents extra", () => {
 });
 
 describe("useEditorConfig - onUpdate", () => {
-  it("onUpdate calls saveContent and setEditorMarkdown", () => {
+  it("onUpdate は saveContent にプロデューサを渡し、マージ開時は setEditorMarkdown を呼ぶ", () => {
     const saveContent = jest.fn();
     const refs = createRefs();
+    refs.editor.current = { isDestroyed: false } as any;
+    // 比較モードを開いている前提（閉時は setEditorMarkdown を呼ばない）
+    refs.inlineMergeOpen.current = true;
     const { result } = renderHook(() =>
       useEditorConfig({
         t: (key: string) => key,
@@ -267,14 +271,19 @@ describe("useEditorConfig - onUpdate", () => {
       }),
     );
 
-    const mockEditor = {} as any;
+    const mockEditor = { isDestroyed: false } as any;
     (getMarkdownFromEditor as jest.Mock).mockReturnValue("# Updated");
 
     act(() => {
       result.current.onUpdate({ editor: mockEditor });
     });
 
-    expect(saveContent).toHaveBeenCalledWith("# Updated");
+    // 永続化はプロデューサ経由で遅延（同期シリアライズしない）
+    expect(saveContent).toHaveBeenCalledTimes(1);
+    const arg = (saveContent as jest.Mock).mock.calls[0][0];
+    expect(typeof arg).toBe("function");
+    expect(arg()).toBe("# Updated");
+    // マージ開時は差分追従のため即時更新する
     expect(refs.setEditorMarkdown.current).toHaveBeenCalledWith("# Updated");
   });
 });

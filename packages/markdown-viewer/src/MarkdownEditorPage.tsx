@@ -384,6 +384,8 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
   const [screenCaptureOpen, setScreenCaptureOpen] = useState(false);
   const onFileDragOverRef = useRef<(over: boolean) => void>((over) => setFileDragOver(over));
   const slashCommandCallbackRef = useRef<(state: SlashCommandState) => void>(() => {});
+  // 比較/マージモードの開閉。onUpdate が editorMarkdown を即時更新するか判定するため ref で参照する
+  const inlineMergeOpenRef = useRef(false);
 
   const editorConfig = useEditorConfig({
     t, initialContent: processedInitialContent, initialTrailingNewline, saveContent,
@@ -391,6 +393,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
       editor: editorRef, setEditorMarkdown: setEditorMarkdownRef, setHeadings: setHeadingsRef,
       headingsDebounce: headingsDebounceRef, handleImport: handleImportRef,
       onFileDragOver: onFileDragOverRef, slashCommandCallback: slashCommandCallbackRef,
+      inlineMergeOpen: inlineMergeOpenRef,
     },
     setHeadingMenu,
     gridRows,
@@ -501,6 +504,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
   }, [externalCompareContent, inlineMergeOpen, sourceMode, editor, setCompareFileContent, setEditorMarkdown, setInlineMergeOpen]);
 
   setEditorMarkdownRef.current = setEditorMarkdown;
+  inlineMergeOpenRef.current = inlineMergeOpen;
   useEditorSideEffects({ editor, isDirty, markDirty, setHeadingsRef, setEditorMarkdown, frontmatterRef, onFrontmatterChange: fileHandling.setFrontmatterText });
   useVSCodeIntegration(editor);
 

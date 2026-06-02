@@ -69,6 +69,60 @@ describe("useMarkdownEditor", () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBe("# Third");
   });
 
+  test("saveContent にプロデューサ関数を渡すと、500ms 後に1回だけ解決して保存する", () => {
+    const { result } = renderHook(() => useMarkdownEditor("# Default"));
+    const producer = jest.fn(() => "# Lazy");
+
+    act(() => {
+      result.current.saveContent(producer);
+    });
+
+    // debounce 経過前はプロデューサ未解決（打鍵中はシリアライズしない）
+    expect(producer).not.toHaveBeenCalled();
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(producer).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("# Lazy");
+  });
+
+  test("プロデューサの連続呼び出しは最後の1回だけ解決される", () => {
+    const { result } = renderHook(() => useMarkdownEditor("# Default"));
+    const p1 = jest.fn(() => "# A");
+    const p2 = jest.fn(() => "# B");
+
+    act(() => {
+      result.current.saveContent(p1);
+    });
+    act(() => {
+      jest.advanceTimersByTime(200);
+      result.current.saveContent(p2);
+    });
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(p1).not.toHaveBeenCalled();
+    expect(p2).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("# B");
+  });
+
+  test("プロデューサが null を返すと保存をスキップする", () => {
+    const { result } = renderHook(() => useMarkdownEditor("# Default"));
+
+    act(() => {
+      result.current.saveContent(() => null);
+    });
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
   test("clearContentでlocalStorageを空文字列にクリア", () => {
     localStorage.setItem(STORAGE_KEY, "# Saved");
     const { result } = renderHook(() => useMarkdownEditor("# Default"));

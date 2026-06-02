@@ -98,6 +98,7 @@ function createRefs() {
     handleImport: { current: jest.fn() },
     onFileDragOver: { current: jest.fn() },
     slashCommandCallback: { current: jest.fn() },
+    inlineMergeOpen: { current: false },
   };
 }
 
