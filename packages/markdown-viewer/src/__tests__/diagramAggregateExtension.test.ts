@@ -13,10 +13,11 @@ import {
   computeDiagramAggregate,
   createDiagramAggregatePlugin,
   getDiagramAggregate,
+  isDiagramLanguage,
   stepsTouchCodeBlock,
 } from "../extensions/diagramAggregateExtension";
 
-// 最小スキーマ（doc / paragraph / text / codeBlock）
+// 最小スキーマ（doc / paragraph / text / codeBlock / strong マーク）
 const schema = new Schema({
   nodes: {
     doc: { content: "block+" },
@@ -35,6 +36,9 @@ const schema = new Schema({
       parseDOM: [{ tag: "pre" }],
     },
     text: {},
+  },
+  marks: {
+    strong: { toDOM: () => ["strong", 0], parseDOM: [{ tag: "strong" }] },
   },
 });
 
@@ -101,6 +105,24 @@ describe("stepsTouchCodeBlock", () => {
     const state = stateOf(docOf(code("mermaid", false)));
     const tr = state.tr.setNodeMarkup(0, undefined, { language: "mermaid", codeCollapsed: true });
     expect(stepsTouchCodeBlock(tr)).toBe(true);
+  });
+
+  it("マーク変更（太字）では false（diagram 集計に無関係）", () => {
+    const state = stateOf(docOf(para("hello"), code("mermaid", true)));
+    const tr = state.tr.addMark(1, 4, schema.marks.strong.create());
+    expect(stepsTouchCodeBlock(tr)).toBe(false);
+  });
+});
+
+describe("isDiagramLanguage", () => {
+  it("mermaid / plantuml は true、大文字も許容", () => {
+    expect(isDiagramLanguage("mermaid")).toBe(true);
+    expect(isDiagramLanguage("PlantUML")).toBe(true);
+  });
+
+  it("その他の言語は false", () => {
+    expect(isDiagramLanguage("js")).toBe(false);
+    expect(isDiagramLanguage("")).toBe(false);
   });
 });
 

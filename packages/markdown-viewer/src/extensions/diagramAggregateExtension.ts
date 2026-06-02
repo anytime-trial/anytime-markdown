@@ -8,9 +8,10 @@
  */
 
 import { Extension } from "@anytime-markdown/markdown-core";
-import type { Node as PmNode } from "@anytime-markdown/markdown-pm/model";
+import type { Fragment, Node as PmNode } from "@anytime-markdown/markdown-pm/model";
 import type { EditorState, Transaction } from "@anytime-markdown/markdown-pm/state";
 import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
+import { AddMarkStep, RemoveMarkStep, ReplaceAroundStep, ReplaceStep } from "@anytime-markdown/markdown-pm/transform";
 
 export interface DiagramAggregate {
   /** mermaid/plantuml コードブロックが 1 つ以上存在するか */
@@ -19,17 +20,23 @@ export interface DiagramAggregate {
   allDiagramCodeCollapsed: boolean;
 }
 
-const DEFAULT_AGGREGATE: DiagramAggregate = {
+export const DEFAULT_AGGREGATE: DiagramAggregate = {
   hasDiagrams: false,
   allDiagramCodeCollapsed: true,
 };
 
+/** diagram としてレンダリングされるコードブロックの言語集合（single source of truth） */
+export const DIAGRAM_LANGUAGES = new Set(["mermaid", "plantuml"]);
+
 export const diagramAggregatePluginKey = new PluginKey<DiagramAggregate>("diagramAggregate");
 
-function isDiagramCodeBlock(node: PmNode): boolean {
-  if (node.type.name !== "codeBlock") return false;
-  const lang = String(node.attrs.language || "").toLowerCase();
-  return lang === "mermaid" || lang === "plantuml";
+/** コードブロックの言語が diagram（mermaid/plantuml）か */
+export function isDiagramLanguage(language: string): boolean {
+  return DIAGRAM_LANGUAGES.has(language.toLowerCase());
+}
+
+export function isDiagramCodeBlock(node: PmNode): boolean {
+  return node.type.name === "codeBlock" && isDiagramLanguage(String(node.attrs.language || ""));
 }
 
 /** ドキュメント全体から diagram 集計を計算する（codeBlock 内のテキストには降りない） */
@@ -49,10 +56,10 @@ export function computeDiagramAggregate(doc: PmNode): DiagramAggregate {
   return { hasDiagrams, allDiagramCodeCollapsed };
 }
 
-/** node とその子に diagram コードブロックが含まれるか（非 diagram codeBlock の中身は無視） */
-function containsDiagram(fragmentRoot: PmNode): boolean {
+/** フラグメントに diagram コードブロックが含まれるか（非 diagram codeBlock の中身は無視） */
+function fragmentHasDiagram(content: Fragment): boolean {
   let found = false;
-  fragmentRoot.descendants((node) => {
+  content.descendants((node) => {
     if (found) return false;
     if (node.type.name === "codeBlock") {
       if (isDiagramCodeBlock(node)) found = true;
@@ -63,47 +70,59 @@ function containsDiagram(fragmentRoot: PmNode): boolean {
   return found;
 }
 
+/** 旧ドキュメントの変更レンジに diagram コードブロックが含まれるか */
+function rangeHasDiagram(step: ReplaceStep | ReplaceAroundStep, docBefore: PmNode): boolean {
+  let touched = false;
+  step.getMap().forEach((oldStart, oldEnd) => {
+    if (touched) return;
+    const from = Math.max(0, Math.min(oldStart, docBefore.content.size));
+    const to = Math.max(from, Math.min(oldEnd, docBefore.content.size));
+    docBefore.nodesBetween(from, to, (node) => {
+      if (touched) return false;
+      if (node.type.name === "codeBlock") {
+        if (isDiagramCodeBlock(node)) touched = true;
+        return false;
+      }
+      return undefined;
+    });
+  });
+  return touched;
+}
+
 /**
  * トランザクションの step が diagram コードブロックに触れたか判定する。
- * - 旧ドキュメントの変更レンジに diagram codeBlock が含まれる（削除・attr/言語変更）
- * - 挿入スライスに diagram codeBlock が含まれる（挿入・setNodeMarkup 後のノード）
- * - attr 系 step の対象ノードが diagram codeBlock（AttrStep 等への安全側フォールバック）
  *
- * プレーンテキスト編集・非 diagram コードブロック内の編集・マーク変更では false を返す。
+ * - マーク変更（太字等）は diagram 集計に無関係 → スキップ
+ * - Replace 系: 挿入スライス（挿入・setNodeMarkup 後のノード）と旧レンジ（削除・言語変更）を検査
+ * - attr / node-mark 系（pos を持つ）: 対象ノードが diagram codeBlock か
+ * - 未知の step: 安全側で再計算する（誤スキップで集計が古く残るより安全）
+ *
+ * プレーンテキスト編集・非 diagram コードブロック内の編集では false を返す。
  */
 export function stepsTouchCodeBlock(tr: Transaction): boolean {
-  const steps = tr.steps;
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
+  for (let i = 0; i < tr.steps.length; i++) {
+    const step = tr.steps[i];
     const docBefore = tr.docs[i] ?? tr.before;
 
-    // 1. 旧ドキュメントの変更レンジ
-    let touched = false;
-    step.getMap().forEach((oldStart, oldEnd) => {
-      if (touched) return;
-      const from = Math.max(0, Math.min(oldStart, docBefore.content.size));
-      const to = Math.max(from, Math.min(oldEnd, docBefore.content.size));
-      docBefore.nodesBetween(from, to, (node) => {
-        if (touched) return false;
-        if (node.type.name === "codeBlock") {
-          if (isDiagramCodeBlock(node)) touched = true;
-          return false;
-        }
-        return undefined;
-      });
-    });
-    if (touched) return true;
+    if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) continue;
 
-    // 2. 挿入スライス
-    const slice = (step as { slice?: { content?: PmNode } }).slice;
-    if (slice?.content && containsDiagram(slice.content)) return true;
+    if (step instanceof ReplaceStep || step instanceof ReplaceAroundStep) {
+      // 挿入スライス（通常小さい）を先に、続いて旧レンジを検査
+      if (fragmentHasDiagram(step.slice.content)) return true;
+      if (rangeHasDiagram(step, docBefore)) return true;
+      continue;
+    }
 
-    // 3. attr 系 step（pos を持つ）の対象ノード（AttrStep 等へのフォールバック）
+    // attr / node-mark 系 step（AttrStep など pos を持つ）の対象ノード
     const pos = (step as { pos?: number }).pos;
     if (typeof pos === "number") {
       const node = docBefore.nodeAt(pos);
       if (node && isDiagramCodeBlock(node)) return true;
+      continue;
     }
+
+    // pos も slice も持たない未知 step → 安全側で再計算をトリガー
+    return true;
   }
   return false;
 }
