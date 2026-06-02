@@ -65,58 +65,40 @@ describe("useEditorMenuState", () => {
 // --- mergeTiptapStyles ---
 
 describe("getMergeTiptapStyles", () => {
-  it("returns an object with styles", async () => {
-    jest.mock("../constants/colors", () => ({
-      getActionHover: () => "rgba(0,0,0,0.04)",
-      getActionSelected: () => "rgba(0,0,0,0.08)",
-      getDivider: () => "#ccc",
-      getErrorMain: () => "#f00",
-      getGrey: () => "#999",
-      getPrimaryMain: () => "#1976d2",
-      getTextPrimary: () => "#000",
-      getTextSecondary: () => "#666",
-    }));
-    jest.mock("../constants/dimensions", () => ({
-      MERGE_BADGE_FONT_SIZE: 10,
-    }));
-
+  it("returns an object with .tiptap styles (light)", async () => {
     const { getMergeTiptapStyles } = await import("../components/mergeTiptapStyles");
+    const { DEFAULT_SETTINGS } = await import("../useEditorSettings");
     const { createTheme } = await import("@mui/material/styles");
     const theme = createTheme();
-    const styles = getMergeTiptapStyles(theme);
+    const styles = getMergeTiptapStyles(theme, DEFAULT_SETTINGS);
     expect(styles).toBeDefined();
-    expect(typeof styles).toBe("object");
+    expect(styles["& .tiptap"]).toBeDefined();
   });
 
   it("returns styles with showHoverLabels enabled", async () => {
     const { getMergeTiptapStyles } = await import("../components/mergeTiptapStyles");
+    const { DEFAULT_SETTINGS } = await import("../useEditorSettings");
     const { createTheme } = await import("@mui/material/styles");
     const theme = createTheme();
-    const styles = getMergeTiptapStyles(theme, 14, 1.6, { showHoverLabels: true });
+    const styles = getMergeTiptapStyles(theme, DEFAULT_SETTINGS, { showHoverLabels: true });
     expect(styles).toBeDefined();
   });
 
   it("returns styles with dark theme", async () => {
     const { getMergeTiptapStyles } = await import("../components/mergeTiptapStyles");
+    const { DEFAULT_SETTINGS } = await import("../useEditorSettings");
     const { createTheme } = await import("@mui/material/styles");
     const darkTheme = createTheme({ palette: { mode: "dark" } });
-    const styles = getMergeTiptapStyles(darkTheme, 16, 1.8);
+    const styles = getMergeTiptapStyles(darkTheme, DEFAULT_SETTINGS);
     expect(styles).toBeDefined();
   });
 
   it("returns styles with dark theme and showHoverLabels", async () => {
     const { getMergeTiptapStyles } = await import("../components/mergeTiptapStyles");
+    const { DEFAULT_SETTINGS } = await import("../useEditorSettings");
     const { createTheme } = await import("@mui/material/styles");
     const darkTheme = createTheme({ palette: { mode: "dark" } });
-    const styles = getMergeTiptapStyles(darkTheme, 14, 1.6, { showHoverLabels: true });
-    expect(styles).toBeDefined();
-  });
-
-  it("uses default fontSize and lineHeight parameters", async () => {
-    const { getMergeTiptapStyles } = await import("../components/mergeTiptapStyles");
-    const { createTheme } = await import("@mui/material/styles");
-    const theme = createTheme();
-    const styles = getMergeTiptapStyles(theme);
+    const styles = getMergeTiptapStyles(darkTheme, DEFAULT_SETTINGS, { showHoverLabels: true });
     expect(styles).toBeDefined();
   });
 });

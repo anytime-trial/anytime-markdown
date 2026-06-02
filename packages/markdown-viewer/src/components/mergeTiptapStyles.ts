@@ -1,197 +1,63 @@
 import type { Theme } from "@mui/material/styles";
 
-import { getActionHover, getActionSelected, getDivider, getErrorMain, getGrey, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
-import { MERGE_BADGE_FONT_SIZE } from "../constants/dimensions";
-import { getImageRowStyles } from "../styles/imageRowStyles";
+import { getEditorText } from "../constants/colors";
+import { getBaseStyles } from "../styles/baseStyles";
+import { getBlockStyles } from "../styles/blockStyles";
+import { getCodeStyles } from "../styles/codeStyles";
+import { getHeadingStyles } from "../styles/headingStyles";
+import { getInlineStyles } from "../styles/inlineStyles";
+import type { EditorSettings } from "../useEditorSettings";
 
-/** マージエディタ共通のtiptapスタイル */
-export function getMergeTiptapStyles(theme: Theme, fontSize = 14, lineHeight = 1.6, options?: { showHoverLabels?: boolean }) {
+/** showHoverLabels=false 時に隠すブロックラベル ::before のセレクタ群 */
+const BLOCK_LABEL_SELECTORS =
+  "& h1::before, & h2::before, & h3::before, & h4::before, & h5::before, & > p::before, & > blockquote > p::before, & li::before";
+
+/**
+ * マージ（比較）エディタ共通の tiptap スタイル。
+ *
+ * 通常エディタ (styles/editorStyles.ts の getEditorPaperSx) と同じ共有スタイル関数群
+ * (baseStyles / headingStyles / codeStyles / blockStyles / inlineStyles) を合成し、
+ * admonition・シンタックスハイライト・見出し装飾などを通常モードと一致させる。
+ * 比較固有の差分（左パディング pl:5、hover label の表示ゲート）のみを上乗せする。
+ *
+ * paperSize / blockAlign は比較ビュー（左右分割で幅が動的）では非対応とし適用しない。
+ *
+ * @param theme MUI テーマ
+ * @param settings エディタ設定（fontSize / lineHeight / tableWidth / 文字色など）
+ * @param options.showHoverLabels ブロックラベル(H1/P 等)を hover で表示するか。
+ *   readonly な diff ペインでは false にしてラベルを隠す。
+ */
+export function getMergeTiptapStyles(
+  theme: Theme,
+  settings: EditorSettings,
+  options?: { showHoverLabels?: boolean },
+) {
   const isDark = theme.palette.mode === "dark";
-  const hoverLabelBase = {
-    position: "absolute" as const,
-    fontSize: MERGE_BADGE_FONT_SIZE,
-    fontWeight: 700,
-    lineHeight: 1,
-    px: 0.5,
-    py: 0.25,
-    borderRadius: 0.5,
-    bgcolor: getActionHover(isDark),
-    color: getTextSecondary(isDark),
-    fontFamily: "monospace",
-    whiteSpace: "nowrap" as const,
-    cursor: "pointer",
-    opacity: 0,
-    transition: "opacity 0.15s",
-  };
-
-  const hoverLabelHeadingBase = {
-    position: "relative" as const,
-    "&::before": {
-      ...hoverLabelBase,
-      right: "calc(100% + 8px)",
-      top: "50%",
-      transform: "translateY(-50%)",
-    },
-    "&:hover::before, &:focus-within::before": { opacity: 1 },
-  };
-
-  const hoverLabels = options?.showHoverLabels ? {
-    "& h1, & h2, & h3, & h4, & h5": hoverLabelHeadingBase,
-    "& > p": {
-      position: "relative",
-      "&::before": {
-        content: "'P'",
-        ...hoverLabelBase,
-        right: "calc(100% + 8px)",
-        top: "50%",
-        transform: "translateY(-50%)",
-      },
-      "&:hover::before, &:focus-within::before": { opacity: 1 },
-    },
-    "& > blockquote > p": {
-      position: "relative",
-      "&::before": {
-        content: "'Quote'",
-        ...hoverLabelBase,
-        right: "calc(100% + 30px)",
-        top: 2,
-        "&:hover": { bgcolor: getActionSelected(isDark) },
-      },
-      "&:hover::before, &:focus-within::before": { opacity: 1 },
-    },
-  } : {};
+  const showHoverLabels = options?.showHoverLabels ?? false;
 
   return {
     "& .tiptap": {
       minHeight: "100%",
       py: 2,
       pr: 2,
+      // 比較モードは左端に行ラベル/マージガター領域を確保するため通常(pl:2)より広い
       pl: 5,
       outline: "none",
-      fontSize: `${fontSize}px`,
-      lineHeight,
-      color: getTextPrimary(isDark),
-      "& h1": {
-        fontSize: "2em", fontWeight: 700, mt: 2, mb: 1,
-        ...(options?.showHoverLabels && { "&::before": { content: "'H1'" } }),
-      },
-      "& h2": {
-        fontSize: "1.5em", fontWeight: 600, mt: 1.5, mb: 1,
-        ...(options?.showHoverLabels && { "&::before": { content: "'H2'" } }),
-      },
-      "& h3": {
-        fontSize: "1.25em", fontWeight: 600, mt: 1, mb: 0.5,
-        ...(options?.showHoverLabels && { "&::before": { content: "'H3'" } }),
-      },
-      "& h4": {
-        fontSize: "1.1em", fontWeight: 600, mt: 1, mb: 0.5,
-        ...(options?.showHoverLabels && { "&::before": { content: "'H4'" } }),
-      },
-      "& h5": {
-        fontSize: "1em", fontWeight: 600, mt: 0.75, mb: 0.5,
-        ...(options?.showHoverLabels && { "&::before": { content: "'H5'" } }),
-      },
-      "& p": { mb: 1 },
-      "& ul, & ol": { pl: 3, mb: 1 },
-      "& li": {
-        mb: 0.25,
-        ...(options?.showHoverLabels && {
-          position: "relative" as const,
-          "&::before": {
-            ...hoverLabelBase,
-            right: "calc(100% + 32px)",
-            top: 2,
-            "&:hover": { bgcolor: getActionSelected(isDark) },
-          },
-          "&:hover::before, &:focus-within::before": { opacity: 1 },
-        }),
-      },
-      "& > ul:not([data-type='taskList']) > li": {
-        ...(options?.showHoverLabels && { "&::before": { content: "'UL'" } }),
-      },
-      "& > ol > li": {
-        ...(options?.showHoverLabels && { "&::before": { content: "'OL'" } }),
-      },
-      "& > ul[data-type='taskList'] > li": {
-        ...(options?.showHoverLabels && { "&::before": { content: "'Task'", right: "calc(100% + 8px)" } }),
-      },
-      ...hoverLabels,
-      // レビュー/readonlyモード時はhover labelを非表示
-      '&[data-review-mode="true"], &[data-readonly-mode="true"]': {
-        "& h1::before, & h2::before, & h3::before, & h4::before, & h5::before, & > p::before, & > blockquote > p::before, & li::before": {
-          display: "none !important" as unknown as string,
-        },
-      },
-      // readonly/レビューモード時はコードブロックツールバーとリサイズハンドルを非表示
-      '&[contenteditable="false"] [data-block-toolbar], &[data-review-mode="true"] [data-block-toolbar], &[data-readonly-mode="true"] [data-block-toolbar]': {
-        display: "none !important" as unknown as string,
-      },
-      '&[contenteditable="false"] [data-resize-handle], &[data-review-mode="true"] [data-resize-handle], &[data-readonly-mode="true"] [data-resize-handle]': {
-        display: "none !important" as unknown as string,
-      },
-      "& code": {
-        bgcolor: getActionHover(isDark),
-        color: isDark ? getGrey(isDark, 300) : getErrorMain(isDark),
-        px: 0.5,
-        py: 0.25,
-        borderRadius: 0.5,
-        fontFamily: "monospace",
-        fontSize: "0.875em",
-      },
-      "& pre": {
-        bgcolor: isDark ? getGrey(isDark, 900) : getGrey(isDark, 100),
-        borderRadius: 1,
-        p: 2,
-        my: 1,
-        overflow: "auto",
-        "& code": { bgcolor: "transparent", color: "inherit", p: 0, borderRadius: 0 },
-      },
-      "& blockquote": {
-        borderLeft: `3px solid ${getDivider(isDark)}`,
-        pl: 2,
-        ml: 0,
-        my: 1,
-        color: getTextSecondary(isDark),
-      },
-      "& table": {
-        borderCollapse: "collapse",
-        width: "100%",
-        "& th, & td": {
-          border: `1px solid ${getDivider(isDark)}`,
-          px: 1,
-          py: 0,
-          textAlign: "left",
-          minWidth: 80,
-          fontSize: "inherit",
-          lineHeight: 1.2,
-        },
-        "& th": {
-          bgcolor: getActionHover(isDark),
-          fontWeight: 600,
-        },
-        "& .selectedCell": {
-          bgcolor: getActionSelected(isDark),
-        },
-      },
-      "& img": {
-        maxWidth: "100%",
-        height: "auto",
-        borderRadius: 1,
-        my: 1,
-      },
-      // 連続画像（README バッジ等）の横並びレイアウトを通常エディタと共用
-      ...getImageRowStyles(isDark),
-      "& a": { color: getPrimaryMain(isDark), textDecoration: "underline" },
-      "& hr": { border: "none", borderTop: `1px solid ${getDivider(isDark)}`, my: 2 },
-      "& ul[data-type='taskList']": {
-        listStyle: "none",
-        pl: 0,
-        "& li": {
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-        },
-      },
+      fontFamily: "var(--editor-content-font-family, sans-serif)",
+      fontSize: `${settings.fontSize}px`,
+      lineHeight: settings.lineHeight,
+      color: getEditorText(isDark, settings),
+      // 通常エディタと同一の共有スタイルを合成（二重管理を排し drift を防ぐ）
+      ...(getBaseStyles(theme) as Record<string, unknown>),
+      ...(getHeadingStyles(theme) as Record<string, unknown>),
+      ...(getCodeStyles(theme) as Record<string, unknown>),
+      ...(getBlockStyles(theme, settings) as Record<string, unknown>),
+      ...(getInlineStyles(theme) as Record<string, unknown>),
+      // getHeadingStyles はブロックラベルを常に定義するため、
+      // 非表示指定のペイン（readonly diff 側）では明示的に隠す。
+      ...(showHoverLabels ? {} : {
+        [BLOCK_LABEL_SELECTORS]: { display: "none !important" as unknown as string },
+      }),
     },
   };
 }
