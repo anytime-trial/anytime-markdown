@@ -4,11 +4,7 @@ import { getEditorBg, getEditorText } from "../constants/colors";
 import type { PaperSize } from "../constants/dimensions";
 import { calcPaperContentWidth, EDITOR_PADDING_BORDER,EDITOR_PADDING_TOP } from "../constants/dimensions";
 import type { EditorSettings } from "../useEditorSettings";
-import { getBaseStyles } from "./baseStyles";
-import { getBlockStyles } from "./blockStyles";
-import { getCodeStyles } from "./codeStyles";
-import { getHeadingStyles } from "./headingStyles";
-import { getInlineStyles } from "./inlineStyles";
+import { getSharedContentStyles } from "./sharedContentStyles";
 
 /**
  * WYSIWYG エディタ Paper の sx スタイルを生成する。
@@ -60,11 +56,7 @@ export function getEditorPaperSx(
       MozOsxFontSmoothing: isDark ? "grayscale" : "auto",
       wordBreak: settings.wordBreak === "keep-all" ? "keep-all" : "normal",
       overflowWrap: "break-word",
-      ...(getBaseStyles(theme, options) as Record<string, unknown>),
-      ...(getHeadingStyles(theme) as Record<string, unknown>),
-      ...(getCodeStyles(theme) as Record<string, unknown>),
-      ...(getBlockStyles(theme, settings) as Record<string, unknown>),
-      ...(getInlineStyles(theme) as Record<string, unknown>),
+      ...getSharedContentStyles(theme, settings, options),
       // blockAlign: 全ブロック要素を統一パターンで配置
       // NodeViewWrapper に text-align を設定し、直下の子要素を inline-block にして幅をコンテンツに合わせる
       ...(settings.blockAlign !== "left" && {
