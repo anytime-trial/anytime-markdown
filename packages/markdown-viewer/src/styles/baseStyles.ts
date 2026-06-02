@@ -2,6 +2,11 @@ import type { SxProps,Theme } from "@mui/material/styles";
 
 import { getTextDisabled } from "../constants/colors";
 
+/** ブロックラベル(H1/H2/.../P/Quote/UL/OL/Task)の ::before セレクタ群。
+ *  hover ラベルの一括非表示に使う。getHeadingStyles の定義と対で維持する。 */
+export const HOVER_LABEL_SELECTORS =
+  "& h1::before, & h2::before, & h3::before, & h4::before, & h5::before, & > p::before, & > blockquote > p::before, & li::before";
+
 /** readonly/レビューモード制御・プレースホルダー・基本設定スタイル */
 export function getBaseStyles(
   theme: Theme,
@@ -11,7 +16,7 @@ export function getBaseStyles(
   return {
     // readonly/レビューモード時はホバーラベルを非表示
     '&[contenteditable="false"], &[data-review-mode="true"], &[data-readonly-mode="true"]': {
-      "& h1::before, & h2::before, & h3::before, & h4::before, & h5::before, & > p::before, & > blockquote > p::before, & li::before": {
+      [HOVER_LABEL_SELECTORS]: {
         display: "none !important" as unknown as string,
       },
     },

@@ -1,26 +1,54 @@
 /**
- * Regression: 比較（マージ）モードで連続画像（README バッジ等）が縦並びになる不具合。
- * 原因は mergeTiptapStyles に画像行 [data-image-row] の flex レイアウト CSS が
- * 欠落していたこと。通常エディタ(blockStyles)と同じ横並びになることを保証する。
+ * Regression: 比較（マージ）モードと通常モードのスタイルパリティ。
+ *
+ * 元は「連続画像（README バッジ）が比較モードで縦並びになる」不具合の回帰テスト。
+ * 比較ビュー mergeTiptapStyles が独自再実装だったため imageRow の flex 欠落・
+ * admonition 欠落・シンタックスハイライト欠落などが生じていた。
+ * 共有スタイル関数の合成へ移行したことで通常モードと一致することを保証する。
  */
 import { createTheme } from "@mui/material/styles";
 
 import { getMergeTiptapStyles } from "../components/mergeTiptapStyles";
+import { DEFAULT_SETTINGS } from "../useEditorSettings";
 
 const lightTheme = createTheme({ palette: { mode: "light" } });
 const darkTheme = createTheme({ palette: { mode: "dark" } });
 
-describe("getMergeTiptapStyles imageRow layout (regression)", () => {
+function tiptapOf(isDark: boolean) {
+  const theme = isDark ? darkTheme : lightTheme;
+  return getMergeTiptapStyles(theme, DEFAULT_SETTINGS, { showHoverLabels: true })["& .tiptap"] as Record<string, any>;
+}
+
+describe("getMergeTiptapStyles parity (regression)", () => {
   it("lays out [data-image-row] horizontally with flex wrap", () => {
-    const tiptap = getMergeTiptapStyles(darkTheme)["& .tiptap"] as Record<string, any>;
+    const tiptap = tiptapOf(true);
     const imageRow = tiptap["& [data-image-row]"];
     expect(imageRow).toBeDefined();
     expect(String(imageRow.display)).toContain("flex");
     expect(imageRow.flexWrap).toBe("wrap");
   });
 
-  it("applies the same imageRow layout in light mode", () => {
-    const tiptap = getMergeTiptapStyles(lightTheme)["& .tiptap"] as Record<string, any>;
+  it("includes admonition decoration (blockquote[data-admonition-type])", () => {
+    const tiptap = tiptapOf(true);
+    expect(tiptap["& blockquote[data-admonition-type='note']"]).toBeDefined();
+    expect(tiptap["& blockquote[data-admonition-type='warning']"]).toBeDefined();
+  });
+
+  it("includes syntax highlight (hljs) styles inside pre", () => {
+    const tiptap = tiptapOf(true);
+    const pre = tiptap["& pre"];
+    expect(pre).toBeDefined();
+    const hljsKey = Object.keys(pre).find((k) => k.includes(".hljs-keyword"));
+    expect(hljsKey).toBeDefined();
+  });
+
+  it("includes heading left-border decoration (h1)", () => {
+    const tiptap = tiptapOf(true);
+    expect(tiptap["& h1"].borderLeft).toBeDefined();
+  });
+
+  it("applies imageRow flex layout in light mode too", () => {
+    const tiptap = tiptapOf(false);
     expect(String(tiptap["& [data-image-row]"].display)).toContain("flex");
   });
 });
