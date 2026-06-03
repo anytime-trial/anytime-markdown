@@ -76,8 +76,10 @@ export function toTrailMessage(r: MessageDbRow): TrailMessage {
   if (r.tool_calls) {
     try {
       toolCalls = JSON.parse(r.tool_calls) as readonly TrailToolCall[];
-    } catch {
-      // ignore parse errors
+    } catch (err) {
+      // 握りつぶすと UI 上ツール呼び出しが「なし」と表示され不正レコードの
+      // 切り分けができないため、uuid 付きでログを残す。
+      console.error(`[toTrailMessage] Failed to parse tool_calls for uuid=${r.uuid}:`, err);
     }
   }
 

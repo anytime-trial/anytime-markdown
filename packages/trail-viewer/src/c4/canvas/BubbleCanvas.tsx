@@ -121,8 +121,14 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
       if (w === 0 || h === 0) return;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
+      // canvas.width/height への代入は同値でもバッキングビットマップを破棄し
+      // GPU テクスチャを再アップロードさせるため、サイズ変化時のみ再設定する。
+      const wPx = w * dpr;
+      const hPx = h * dpr;
+      if (canvas.width !== wPx || canvas.height !== hPx) {
+        canvas.width = wPx;
+        canvas.height = hPx;
+      }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       const { viewX, viewY, zoom } = physicsRef.current;

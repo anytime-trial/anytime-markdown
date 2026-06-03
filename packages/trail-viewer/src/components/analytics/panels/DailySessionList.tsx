@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -79,23 +79,33 @@ export function DailySessionList({
     return () => { cancelled = true; };
   }, [date, fetchDayToolMetrics]);
 
+  // 最後にクリックされたセッション ID。並行フェッチが順不同で解決しても、
+  // 最新クリック以外の結果で timeline を上書きしないようガードする。
+  const latestRequestRef = useRef<string | null>(null);
+
   const handleSessionClick = (id: string) => {
     if (timelineSessionId === id) {
+      latestRequestRef.current = null;
       setTimelineSessionId(null);
       setTimelineMessages([]);
       setSessionToolMetrics(null);
       return;
     }
     if (fetchSessionMessages) {
+      latestRequestRef.current = id;
       setTimelineSessionId(id);
       setTimelineLoading(true);
       setSessionToolMetrics(null);
       void fetchSessionMessages(id).then((msgs) => {
+        if (latestRequestRef.current !== id) return;
         setTimelineMessages(msgs);
         setTimelineLoading(false);
       });
       if (fetchSessionToolMetrics) {
-        void fetchSessionToolMetrics(id).then(setSessionToolMetrics);
+        void fetchSessionToolMetrics(id).then((metrics) => {
+          if (latestRequestRef.current !== id) return;
+          setSessionToolMetrics(metrics);
+        });
       }
     } else {
       onSelectSession?.(id);
