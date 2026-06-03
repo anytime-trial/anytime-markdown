@@ -7,6 +7,40 @@ import { preprocessMathBlock } from "./mathHelpers";
 const ALLOWED_TAGS = ["br", "hr", "sub", "sup", "mark", "kbd", "u"];
 const ALLOWED_ATTR: string[] = [];
 
+type Purifier = {
+  sanitize: (
+    source: string,
+    config: { ALLOWED_TAGS: string[]; ALLOWED_ATTR: string[]; KEEP_CONTENT: boolean },
+  ) => string;
+};
+
+let purifier: Purifier | null = null;
+
+/**
+ * DOMPurify インスタンスを解決する。
+ * ブラウザではグローバル window に紐づく既定インスタンス、
+ * Node 等の非ブラウザ環境では {@link configureSanitizerWindow} で注入された
+ * window に紐づくインスタンスを返す。どちらも無い場合は null（素通し）。
+ */
+function resolvePurifier(): Purifier | null {
+  if (purifier) return purifier;
+  if (typeof window !== "undefined") {
+    purifier = DOMPurify as unknown as Purifier;
+    return purifier;
+  }
+  return null;
+}
+
+/**
+ * 非ブラウザ環境（Node 等）向けに DOMPurify 用の window を注入する。
+ * jsdom 等で生成した window を渡すと、グローバル（globalThis.window 等）を
+ * 汚染せずに {@link sanitizeMarkdown} がフル機能で動作する。
+ */
+export function configureSanitizerWindow(win: unknown): void {
+  const factory = DOMPurify as unknown as (w: unknown) => Purifier;
+  purifier = factory(win);
+}
+
 /** 空行保持用の Zero-Width Space マーカー */
 export const BLANK_LINE_MARKER = "\u200B";
 
@@ -293,9 +327,15 @@ function sanitizeNonCodePart(part: string): string {
   const cmtp = protectSpans(inner, /<span data-comment-point="[^"]*"><\/span>/g, "CMTP");
   inner = cmtp.result;
 
-  // DOMPurify でサニタイズ
-  let sanitized = DOMPurify.sanitize(inner, { ALLOWED_TAGS, ALLOWED_ATTR, KEEP_CONTENT: true })
-    .replaceAll(/&(amp|lt|gt);/g, (m) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">" })[m] ?? m);
+  // DOMPurify でサニタイズ（DOM も注入 window も無い環境では素通し + エンティティ正規化）
+  const unescapeEntities = (s: string) =>
+    s.replaceAll(/&(amp|lt|gt);/g, (m) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">" })[m] ?? m);
+  const activePurifier = resolvePurifier();
+  let sanitized = activePurifier
+    ? unescapeEntities(
+        activePurifier.sanitize(inner, { ALLOWED_TAGS, ALLOWED_ATTR, KEEP_CONTENT: true }),
+      )
+    : unescapeEntities(inner);
 
   // プレースホルダを復元
   sanitized = restoreSpans(sanitized, "MATH", math.spans);

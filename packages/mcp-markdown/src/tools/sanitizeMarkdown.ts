@@ -9,28 +9,15 @@ export interface SanitizeInput {
   path?: string;
 }
 
-// Set up DOM globals for DOMPurify before importing markdown-core
-function setupDomGlobals(): void {
-  if (typeof window === 'undefined') {
-    const dom = new JSDOM('');
-    const win = dom.window;
-    (globalThis as Record<string, unknown>).window = win;
-    (globalThis as Record<string, unknown>).document = win.document;
-    (globalThis as Record<string, unknown>).HTMLElement = win.HTMLElement;
-    (globalThis as Record<string, unknown>).Element = win.Element;
-    (globalThis as Record<string, unknown>).Node = win.Node;
-    (globalThis as Record<string, unknown>).navigator = win.navigator;
-  }
-}
-
 let sanitizeMarkdownFn: ((md: string) => string) | null = null;
 
 async function getSanitizeFunction(): Promise<(md: string) => string> {
   if (sanitizeMarkdownFn) return sanitizeMarkdownFn;
 
-  setupDomGlobals();
   // Import directly from the util file to avoid pulling in React/Next.js dependencies
   const mod = await import('@anytime-markdown/markdown-viewer/src/utils/sanitizeMarkdown');
+  // Inject a jsdom window into DOMPurify without polluting globalThis.
+  mod.configureSanitizerWindow(new JSDOM('').window);
   sanitizeMarkdownFn = mod.sanitizeMarkdown;
   return sanitizeMarkdownFn;
 }
