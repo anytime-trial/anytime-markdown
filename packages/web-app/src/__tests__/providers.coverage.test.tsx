@@ -32,6 +32,11 @@ jest.mock("@anytime-markdown/markdown-viewer", () => {
   };
   return {
     ConfirmProvider: ({ children }: { children: React.ReactNode }) => children,
+    // 実装の CSS 変数副作用（--editor-* / Google Fonts link）を検証するテストがあるため
+    // applyEditorThemeCssVars だけは実装に委譲する（refactor で providers から本ユーティリティへ移管）。
+    applyEditorThemeCssVars: jest.requireActual(
+      "@anytime-markdown/markdown-viewer/src/utils/applyEditorThemeCssVars",
+    ).applyEditorThemeCssVars,
     ACCENT_COLOR: "#e8a012",
     DEFAULT_DARK_BG: "#0D1117",
     DEFAULT_LIGHT_BG: "#F8F9FA",
