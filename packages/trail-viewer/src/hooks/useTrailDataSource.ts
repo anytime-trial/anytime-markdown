@@ -73,11 +73,22 @@ export interface TrailDataSourceResult {
  * signature) is preserved so that `TrailViewerApp` and downstream consumers
  * importing from `@anytime-markdown/trail-viewer` keep working unchanged.
  */
-export function useTrailDataSource(serverUrl: string): TrailDataSourceResult {
+export interface UseTrailDataSourceOptions {
+  /**
+   * prompts データの取得を有効化するか。プロンプトポップアップ初回オープンまで
+   * `false` にすることで起動時の `/api/trail/prompts` 取得を遅延する。既定 true。
+   */
+  readonly promptsEnabled?: boolean;
+}
+
+export function useTrailDataSource(
+  serverUrl: string,
+  options?: UseTrailDataSourceOptions,
+): TrailDataSourceResult {
   const sessions = useSessionsData(serverUrl);
   const analytics = useAnalyticsData(serverUrl);
   const releases = useReleasesData(serverUrl);
-  const prompts = usePromptsData(serverUrl);
+  const prompts = usePromptsData(serverUrl, options?.promptsEnabled ?? true);
 
   // Bridge the WS `sessions-updated` event to the sessions + analytics
   // sub-hooks, reproducing the cross-cutting refresh that the original

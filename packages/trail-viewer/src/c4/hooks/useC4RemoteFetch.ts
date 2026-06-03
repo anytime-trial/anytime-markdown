@@ -39,8 +39,11 @@ export function useRemoteInitialFetch(
   setComplexityMatrix: (m: ComplexityMatrix | null) => void,
   setReleases: (entries: readonly C4ReleaseEntry[]) => void,
   setDocLinks: (docs: readonly DocLink[]) => void,
+  enabled = true,
 ): void {
   useEffect(() => {
+    // C4 タブ未訪問の間は 6 本の初期 fetch を発行しない（起動時過剰取得の回避）。
+    if (!enabled) return;
     if (serverUrl === undefined) return;
 
     let cancelled = false;
@@ -128,5 +131,5 @@ export function useRemoteInitialFetch(
 
     void fetchInitial();
     return () => { cancelled = true; controller.abort(); };
-  }, [serverUrl, selectedRelease, selectedRepo, setC4Model, setBoundaries, setDsmMatrix, setFeatureMatrix, setCoverageMatrix, setCoverageDiff, setComplexityMatrix, setReleases, setDocLinks]);
+  }, [enabled, serverUrl, selectedRelease, selectedRepo, setC4Model, setBoundaries, setDsmMatrix, setFeatureMatrix, setCoverageMatrix, setCoverageDiff, setComplexityMatrix, setReleases, setDocLinks]);
 }

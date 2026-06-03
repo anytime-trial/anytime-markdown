@@ -115,6 +115,10 @@ export interface TrailViewerCoreProps {
   readonly onJumpToSource?: (loc: SourceLocation) => void;
   /** 初期表示タブ番号（0=Analytics, 1=Messages, 2=Prompts, 4=C4, 5=Trace）*/
   readonly initialTab?: number;
+  /** タブ訪問時（初期タブ含む）に呼ばれる。親側で C4 等のデータ取得を遅延起動するために使う。*/
+  readonly onTabVisit?: (tab: number) => void;
+  /** プロンプトポップアップ初回オープン時に呼ばれる。親側で prompts データ取得を遅延起動するために使う。*/
+  readonly onPromptsOpen?: () => void;
   /**
    * WebSocket 経由でコマンドを送る関数。perf-report の送出に使う。
    * Web アプリ版では disableWebSocket=true により no-op になる。
@@ -184,6 +188,8 @@ function TrailViewerCoreInner({
   traceFiles,
   onJumpToSource,
   initialTab,
+  onTabVisit,
+  onPromptsOpen,
   sendCommand,
   wsConnected = false,
   serverUrl = '',
@@ -217,12 +223,22 @@ function TrailViewerCoreInner({
   );
   const visitTab = useCallback((tab: number) => {
     setActiveTab(tab);
+    onTabVisit?.(tab);
     setVisitedTabs((prev) => {
       if (prev.has(tab)) return prev;
       const next = new Set(prev);
       next.add(tab);
       return next;
     });
+  }, [onTabVisit]);
+
+  // 初期タブは visitTab を経由せず visitedTabs に直接シードされるため、
+  // ディープリンクで C4 タブ等を直接開いた場合に親へ通知されない。
+  // マウント時に一度だけ初期タブの訪問を通知し、データ遅延起動を解禁する。
+  useEffect(() => {
+    onTabVisit?.(normalizedInitialTab);
+    // 初期タブの通知は初回マウント時のみ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [activeSequenceElementId, setActiveSequenceElementId] = useState<string | null>(null);
   const c4SequenceState = useC4SequenceData(c4?.serverUrl, activeSequenceElementId);
@@ -536,7 +552,7 @@ function TrailViewerCoreInner({
               fetchDeploymentFrequency={fetchDeploymentFrequency}
               fetchReleaseQuality={fetchReleaseQuality}
               onOpenReleasesPopup={() => setReleasesPopupOpen(true)}
-              onOpenPromptsPopup={() => setPromptsPopupOpen(true)}
+              onOpenPromptsPopup={() => { onPromptsOpen?.(); setPromptsPopupOpen(true); }}
               onOpenMessagesPopup={() => setMessagesPopupOpen(true)}
             />
           </Suspense>

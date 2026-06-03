@@ -15,6 +15,7 @@ import { DEFAULT_SKILL_CATEGORIES, DEFAULT_SKILL_CATEGORY_LABELS } from '@anytim
 
 import { TrailViewerCore } from './TrailViewerCore';
 import { useTrailDataSource } from '../hooks/useTrailDataSource';
+import { isC4RelatedTab } from './trailTabs';
 import { useC4DataSource } from '../c4/hooks/useC4DataSource';
 import { useTraceFiles } from '../hooks/useTraceFiles';
 import type { ElementFormData, RelationshipFormData } from '../c4/components/dialogs/C4EditDialogs';
@@ -63,8 +64,19 @@ export function TrailViewerApp({
   initialC4Level,
   disableWebSocket = false,
 }: Readonly<TrailViewerAppProps>) {
-  const dataSource = useTrailDataSource(serverUrl);
-  const c4 = useC4DataSource(serverUrl, disableWebSocket);
+  // C4 / prompts のデータ取得は対応 UI の初回アクセスまで遅延する。
+  // 起動時に C4 タブやプロンプトポップアップを開かないユーザーへの
+  // 不要な REST/WS を回避する（遅延マウント済みの描画とタイミングを揃える）。
+  const [c4Enabled, setC4Enabled] = useState(false);
+  const [promptsEnabled, setPromptsEnabled] = useState(false);
+  const handleTabVisit = useCallback((tab: number) => {
+    // C4 関連タブ（model=4 / trace=5 / functionTree=7）の初回訪問で C4 取得を解禁。
+    if (isC4RelatedTab(tab)) setC4Enabled(true);
+  }, []);
+  const handlePromptsOpen = useCallback(() => setPromptsEnabled(true), []);
+
+  const dataSource = useTrailDataSource(serverUrl, { promptsEnabled });
+  const c4 = useC4DataSource(serverUrl, disableWebSocket, c4Enabled);
   const sendCommand = c4.sendCommand;
 
   const [commitCategories, setCommitCategories] = useState<ReadonlyMap<string, number>>(DEFAULT_COMMIT_CATEGORIES);
@@ -279,6 +291,8 @@ export function TrailViewerApp({
       c4={c4Props}
       traceFiles={traceFiles.length > 0 ? traceFiles : undefined}
       initialTab={initialTab}
+      onTabVisit={handleTabVisit}
+      onPromptsOpen={handlePromptsOpen}
       sendCommand={sendCommand}
       wsConnected={c4.connected}
       serverUrl={serverUrl}
