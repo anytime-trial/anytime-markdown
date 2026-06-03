@@ -7,6 +7,24 @@
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-06-03
+
+### 変更
+
+- フレームワーク非依存の `diffEngine` と sanitize クラスタを新パッケージ `@anytime-markdown/markdown-engine` へ抽出。`sanitizeMarkdown` を DOM 非依存化。
+- 共有のエディタテーマ CSS 変数インジェクタ (`applyEditorThemeCssVars`) と Tiptap コンテンツスタイル合成を抽出し、比較モードのスタイルを通常エディタと統一。
+- `Extension` の import を `@anytime-markdown/markdown-core` に向ける。
+
+### パフォーマンス
+
+- キーストロークパスから `onUpdate` の全文シリアライズを遅延。
+- 図表集計をプラグイン状態にキャッシュしツールバーで再利用。
+
+### 修正
+
+- imageRow の flex レイアウトを比較ビューと共有 (リグレッション)。
+- React ノードビューの `renderer` フィールドを宣言し、SWC のクラスフィールドリセットでも保持 (markdown-core リグレッション)。
+
 ## [0.16.0] - 2026-05-31
 
 ### 変更

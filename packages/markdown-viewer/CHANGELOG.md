@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-06-03
+
+### Changed
+
+- Extracted the framework-agnostic `diffEngine` and sanitize cluster into the new `@anytime-markdown/markdown-engine` package; `sanitizeMarkdown` is now DOM-agnostic.
+- Extracted a shared editor theme CSS variable injector (`applyEditorThemeCssVars`) and a shared Tiptap content-style composer, unifying compare-mode styles with the normal editor.
+- Pointed the `Extension` import at `@anytime-markdown/markdown-core`.
+
+### Performance
+
+- Deferred full `onUpdate` serialization off the keystroke path.
+- Cached the diagram aggregate in plugin state for the toolbar.
+
+### Fixed
+
+- Shared the imageRow flex layout with the compare view (regression).
+- Declared the React node-view `renderer` field so it survives the SWC class-field reset (markdown-core regression).
+
 ## [0.16.0] - 2026-05-31
 
 ### Changed

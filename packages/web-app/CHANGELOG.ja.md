@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.27.3] - 2026-06-03
+
+### 変更
+
+- フレームワーク非依存の `@anytime-markdown/markdown-engine` パッケージを Turbopack / webpack の alias 経由で配線。
+- `Providers` で共有の `applyEditorThemeCssVars` インジェクタを採用し、インラインのテーマ CSS 変数ロジックを削除。
+
 ## [0.27.2] - 2026-05-31
 
 ### 変更

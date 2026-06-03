@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-06-03
+
+### 修正
+
+- MCP コマンドハンドラを await し、トレースターミナルを再利用。
+
+### Trail Core (trail-core / trail-server / trail-viewer)
+
+- `lep.json`: primary analyzer (ReleaseResolver / CoverageImporter / BehaviorAnalyzer / CommitFilesBackfiller / SubagentTypeBackfiller / MessageCommitMatcher) を個別 toggle 可能に。
+- trail-server: チャット初期化を直列化し、analyzer エラーの握りつぶしを停止。
+- trail-core: コールグラフの循環・null エントリ・ゼロ除算・O(n^2) 集計を修正。
+- trail-viewer: 非同期レース / ページネーション欠落 / フレームごとのキャンバスリセットを修正し、C4 / プロンプト取得を初回アクセスまで遅延。
+- trail-db: `SyncService` でメッセージカットオフを SQL 側に押し込み。
+
 ## [0.25.0] - 2026-05-31
 
 ### 追加

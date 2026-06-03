@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-06-03
+
+### Fixed
+
+- Await the MCP command handler and reuse the trace terminal.
+
+### Trail Core (trail-core / trail-server / trail-viewer)
+
+- `lep.json`: per-analyzer toggle for primary analyzers (ReleaseResolver, CoverageImporter, BehaviorAnalyzer, CommitFilesBackfiller, SubagentTypeBackfiller, MessageCommitMatcher).
+- trail-server: serialized chat init and stopped swallowing analyzer errors.
+- trail-core: fixed call-graph cycles, null entries, division-by-zero, and O(n^2) aggregation.
+- trail-viewer: fixed async races / pagination gaps / per-frame canvas resets and deferred C4 / prompts fetch until first access.
+- trail-db: pushed the message cutoff into SQL in `SyncService`.
+
 ## [0.25.0] - 2026-05-31
 
 ### Added

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-06-03
+
+### Added
+
+- Read the current editing status from the agent-status worker.
+
+### Fixed
+
+- Unified the heading border to the design-spec sumi (ink) color.
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Extracted the framework-agnostic `diffEngine` / sanitize cluster into the new `@anytime-markdown/markdown-engine` package and made `sanitizeMarkdown` DOM-agnostic.
+- Extracted shared editor theme CSS variable injector and Tiptap content-style composer; unified compare-mode styles with the normal editor.
+- Deferred `onUpdate` serialization off the keystroke path and cached the diagram aggregate for the toolbar.
+- Fixed the imageRow flex layout in compare view and the SWC class-field reset of the node-view renderer.
+
 ## [0.16.0] - 2026-05-31
 
 ### Editor Core (markdown-viewer / markdown-rich)

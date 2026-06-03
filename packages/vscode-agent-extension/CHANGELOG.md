@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-03
+
+### Added
+
+- Spawn an agent-status worker and display per-agent commit information (committed count / last commit).
+- Route Claude hooks and the status watcher through the agent-status worker (`vscode-common`).
+
+### Agent Core (agent-core)
+
+- Added a `node:sqlite` agent-status store with worker and client.
+- Carry `committedCount` / `lastCommit` through the agent mapping; seed commits without a phantom `last_commit`.
+- Partial-update edit semantics and a delete endpoint.
+
 ## [0.2.2] - 2026-05-24
 
 ### Changed

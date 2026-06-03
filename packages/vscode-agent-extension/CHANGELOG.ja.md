@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-03
+
+### 追加
+
+- agent-status ワーカーを起動し、エージェントごとのコミット情報 (コミット数 / 最終コミット) を表示。
+- Claude hooks とステータスウォッチャーを agent-status ワーカー経由に変更 (`vscode-common`)。
+
+### Agent Core (agent-core)
+
+- `node:sqlite` ベースの agent-status ストア・ワーカー・クライアントを追加。
+- `committedCount` / `lastCommit` をエージェントマッピングに貫通。phantom な `last_commit` なしでコミットを seed。
+- 部分更新の編集セマンティクスと delete エンドポイントを追加。
+
 ## [0.2.2] - 2026-05-24
 
 ### 変更
