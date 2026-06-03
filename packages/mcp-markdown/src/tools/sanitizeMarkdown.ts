@@ -14,8 +14,8 @@ let sanitizeMarkdownFn: ((md: string) => string) | null = null;
 async function getSanitizeFunction(): Promise<(md: string) => string> {
   if (sanitizeMarkdownFn) return sanitizeMarkdownFn;
 
-  // Import directly from the util file to avoid pulling in React/Next.js dependencies
-  const mod = await import('@anytime-markdown/markdown-viewer/src/utils/sanitizeMarkdown');
+  // Import directly from the framework-agnostic engine (no React/MUI/next-intl)
+  const mod = await import('@anytime-markdown/markdown-engine');
   // Inject a jsdom window into DOMPurify without polluting globalThis.
   mod.configureSanitizerWindow(new JSDOM('').window);
   sanitizeMarkdownFn = mod.sanitizeMarkdown;

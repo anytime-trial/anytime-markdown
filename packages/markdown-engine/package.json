@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "diff": "8.0.3"
+    "diff": "8.0.3",
+    "dompurify": "3.4.0"
   }
 }
