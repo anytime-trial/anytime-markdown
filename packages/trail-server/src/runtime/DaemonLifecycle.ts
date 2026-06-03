@@ -29,7 +29,13 @@ export class DaemonLifecycle {
     try {
       const raw = readFileSync(this.opts.jsonPath, 'utf8');
       return JSON.parse(raw) as DaemonInfo;
-    } catch {
+    } catch (err) {
+      // JSON 破損・読み取り権限エラーを握りつぶすと isDaemonAlive() が false を
+      // 返した原因 (重複起動の遠因) を追跡できなくなるため、パスと内容を残す。
+      console.error(
+        `[${new Date().toISOString()}] [ERROR] DaemonLifecycle: readDaemonJson failed for ${this.opts.jsonPath}`,
+        err instanceof Error ? err.stack ?? err.message : String(err),
+      );
       return undefined;
     }
   }

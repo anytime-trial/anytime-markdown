@@ -57,6 +57,7 @@ export class ChatBridge {
   private ollama: OllamaClient | undefined;
   private chatProvider: ChatProvider | undefined;
   private chatService: ChatService | undefined;
+  private initPromise: Promise<ChatService | undefined> | undefined;
   private currentAbort: AbortController | undefined;
   private lastStatus: HealthCheckResult | undefined;
 
@@ -74,6 +75,7 @@ export class ChatBridge {
     }
     this.memoryDb = undefined;
     this.chatService = undefined;
+    this.initPromise = undefined;
   }
 
   /** 接続したクライアントに最新のステータスを送る (キャッシュがあれば即時、無ければ healthCheck 起動)。 */
@@ -128,9 +130,20 @@ export class ChatBridge {
 
   // ---- internals ----------------------------------------------------------
 
-  private async ensureService(): Promise<ChatService | undefined> {
-    if (this.chatService) return this.chatService;
+  private ensureService(): Promise<ChatService | undefined> {
+    if (this.chatService) return Promise.resolve(this.chatService);
+    // in-flight 初期化を直列化する。複数の WebSocket クライアントが同時に
+    // chat.send を送っても openMemoryCoreDb が二重に呼ばれて DB ハンドルが
+    // リークするのを防ぐ。成功時は this.chatService に保持されるので次回は
+    // 上の早期 return で短絡し、失敗時は finally で initPromise をクリアして
+    // 再試行 (Ollama 復旧後など) を許す。
+    this.initPromise ??= this.initServiceOnce().finally(() => {
+      this.initPromise = undefined;
+    });
+    return this.initPromise;
+  }
 
+  private async initServiceOnce(): Promise<ChatService | undefined> {
     const cfg = this.deps.getConfig();
     try {
       this.memoryDb ??= await openMemoryCoreDb(this.deps.memoryDbPath, {
