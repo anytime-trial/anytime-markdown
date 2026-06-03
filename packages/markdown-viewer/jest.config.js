@@ -11,6 +11,8 @@ const config = {
   moduleNameMapper: {
     // @anytime-markdown/markdown-* → vendored ソースへ解決（共有 alias ヘルパ）
     ...buildJestMapper(),
+    // markdown-engine（フレームワーク非依存層）は alias.cjs(vendored)外のため明示マップ
+    "^@anytime-markdown/markdown-engine$": "<rootDir>/../markdown-engine/src/index.ts",
     "^@/(.*)$": "<rootDir>/src/$1",
     "^next-intl$": "<rootDir>/__mocks__/next-intl.ts",
     "^.+/i18n/context$": "<rootDir>/__mocks__/markdown-i18n-context.ts",
