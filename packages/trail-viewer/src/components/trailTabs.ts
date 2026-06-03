@@ -46,3 +46,12 @@ export function normalizeTrailInitialTab(
   const tabs = getTrailViewerTabDefs(options);
   return tabs.some((tab) => tab.value === initialTab) ? initialTab as TrailViewerTabValue : 0;
 }
+
+/**
+ * C4 データソース（model / dsm / coverage 等の取得と WS 接続）を必要とするタブか。
+ * model(4) / trace(5) / functionTree(7) はいずれも C4 データに依存する。
+ * これらの初回訪問まで `useC4DataSource` の取得を遅延するために使う。
+ */
+export function isC4RelatedTab(tab: number): boolean {
+  return tab === 4 || tab === 5 || tab === 7;
+}
