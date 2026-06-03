@@ -25,6 +25,7 @@ const nextConfig: NextConfig = {
     '@anytime-markdown/database-core',
     '@anytime-markdown/database-viewer',
     '@anytime-markdown/markdown-viewer',
+    '@anytime-markdown/markdown-engine',
     '@anytime-markdown/spreadsheet-core',
     '@anytime-markdown/spreadsheet-viewer',
     '@anytime-markdown/trace-core',
@@ -43,6 +44,8 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       // @anytime-markdown/markdown-* → vendored ソース（dev = Turbopack）
       ...buildTurbopackAlias(process.cwd()),
+      // markdown-engine（フレームワーク非依存層）は alias.cjs(vendored)外のため明示配線
+      '@anytime-markdown/markdown-engine': '../markdown-engine/src/index.ts',
       // sql.js (WASM) は Node 用 require('fs'/'path'/'crypto') を含むため
       // ブラウザバンドルでは noop に解決して dead code として除去する
       fs: { browser: './src/lib/sqlJsNoopShim.ts' },
@@ -92,7 +95,13 @@ const nextConfig: NextConfig = {
     });
     // @anytime-markdown/markdown-* → vendored ソース（next build = webpack）
     config.resolve ??= {};
-    config.resolve.alias = { ...(config.resolve.alias ?? {}), ...buildWebpackAlias() };
+    config.resolve.alias = {
+      ...(config.resolve.alias ?? {}),
+      ...buildWebpackAlias(),
+      // markdown-engine（フレームワーク非依存層）は alias.cjs(vendored)外のため明示配線
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      '@anytime-markdown/markdown-engine$': require('node:path').resolve(process.cwd(), '../markdown-engine/src/index.ts'),
+    };
     // sql.js (WASM) は Node 用 fs/path/crypto API を持つため、ブラウザバンドルでは無効化
     if (!isServer) {
       config.resolve.fallback = {
