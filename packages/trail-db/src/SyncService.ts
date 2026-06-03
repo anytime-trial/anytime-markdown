@@ -223,9 +223,8 @@ export class SyncService {
           if (commitFiles.length > 0) await this.store.upsertCommitFiles(commitFiles);
         }
 
-        const messages = this.trailDb
-          .getMessages(session.id)
-          .filter((m) => m.timestamp >= messageCutoff);
+        // カットオフを SQL 側に押し込み、古いメッセージを DB から取得しない。
+        const messages = this.trailDb.getMessages(session.id, { since: messageCutoff });
         if (messages.length > 0) await this.store.upsertMessages(messages);
 
         synced++;

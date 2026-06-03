@@ -13,7 +13,7 @@ const DEBOUNCE_MS = 500;
 export interface UseMarkdownEditorReturn {
   initialContent: string;
   loading: boolean;
-  saveContent: (markdown: string, withFrontmatter?: boolean) => void;
+  saveContent: (markdown: string | (() => string | null), withFrontmatter?: boolean) => void;
   downloadMarkdown: (markdown: string, encoding?: EncodingLabel) => Promise<void>;
   clearContent: () => void;
   frontmatterRef: React.RefObject<string | null>;
@@ -49,12 +49,17 @@ export function useMarkdownEditor(defaultContent: string, skipLocalStorage = fal
   const onContentChangeRef = useRef(onContentChange);
   onContentChangeRef.current = onContentChange;
 
-  const saveContent = useCallback((markdown: string, withFrontmatter = true) => {
+  const saveContent = useCallback((markdown: string | (() => string | null), withFrontmatter = true) => {
     if (skipLocalStorage) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       try {
-        const toSave = withFrontmatter ? prependFrontmatter(markdown, frontmatterRef.current) : markdown;
+        // プロデューサ関数の場合は debounce 経過後に1回だけ解決する。
+        // 打鍵中のフルシリアライズ（getMarkdownFromEditor）を回避するための遅延ポイント。
+        const resolved = typeof markdown === "function" ? markdown() : markdown;
+        // エディタ破棄などで内容が確定できない場合は保存をスキップ（空文字で上書きしない）
+        if (resolved == null) return;
+        const toSave = withFrontmatter ? prependFrontmatter(resolved, frontmatterRef.current) : resolved;
         localStorage.setItem(STORAGE_KEY_CONTENT, toSave);
         onContentChangeRef.current?.(toSave);
       } catch (e) {

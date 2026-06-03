@@ -38,8 +38,33 @@ export const AGGREGATOR_ANALYZER_IDS = ['DoraMetricsAggregator', 'CrossSourceCor
 
 export type AggregatorAnalyzerId = (typeof AGGREGATOR_ANALYZER_IDS)[number];
 
-/** lep.json `analyzers` で toggle 可能な全 analyzer ID (memory + aggregator)。バリデーションに使う。 */
+/**
+ * lep.json `analyzers` で toggle 可能な Layer 2 (primary) analyzer の ID。
+ *
+ * 核となる SessionImporter / CommitResolver / CostRebuilder / CountsRebuilder /
+ * PersistAnalyzer / CodeGraphBuilder は依存の基盤のため toggle 対象外 (常時実行)。
+ * ここに挙げた analyzer は `enabled:false` で個別に取込・解析を抑止できる
+ * (例: ReleaseResolver を無効化すると git tag→releases と release codegraph が止まる)。
+ */
+export const PRIMARY_TOGGLEABLE_ANALYZER_IDS = [
+  'ReleaseResolver',
+  'CoverageImporter',
+  'BehaviorAnalyzer',
+  'CommitFilesBackfiller',
+  'SubagentTypeBackfiller',
+  'MessageCommitMatcher',
+] as const;
+
+export type PrimaryToggleableAnalyzerId = (typeof PRIMARY_TOGGLEABLE_ANALYZER_IDS)[number];
+
+/**
+ * lep.json `analyzers` で toggle 可能な全 analyzer ID。
+ *
+ * 並びは実行 (Wave) 順に揃える: Layer 2 primary → Layer 3 memory → Layer 4 derived。
+ * DEFAULT_LEP_CONFIG.analyzers / 生成テンプレの出力順がこの順になる (toggle 機能には無影響)。
+ */
 export const KNOWN_ANALYZER_IDS: readonly string[] = [
+  ...PRIMARY_TOGGLEABLE_ANALYZER_IDS,
   ...MEMORY_ANALYZER_IDS,
   ...AGGREGATOR_ANALYZER_IDS,
 ];
@@ -294,8 +319,9 @@ export function resolveWorkspaceConfigPath(
 
 /**
  * `lep.json` の `analyzers.<id>.enabled === false` な analyzer id 一覧を返す
- * (memory / aggregator を区別せず全 disabled id)。AnalyzeAllRunner の
- * `disabledMemoryAnalyzers` / `disabledAggregators` 両方にそのまま渡してよい。
+ * (primary / memory / aggregator を区別せず全 disabled id)。AnalyzeAllRunner の
+ * `disabledPrimaryAnalyzers` / `disabledMemoryAnalyzers` / `disabledAggregators` の
+ * いずれにもそのまま渡してよい (各 layer で自分の id のみ照合される)。
  */
 export function disabledAnalyzerIds(config: LepConfig): string[] {
   return Object.entries(config.analyzers)
@@ -1023,13 +1049,138 @@ export interface EnsureLepConfigResult {
  * 設計書 13.5 に従い**ファイル不在時のみ**生成する (既存ファイルは上書きしない)。
  * TOCTOU (`js/file-system-race`) は `flag: 'wx'` (排他作成) で回避する。
  */
+/**
+ * lep.json 生成時に各セクションへ付与する注釈 (_comment)。
+ *
+ * JSON にコメント構文がないため `_comment` キーで代用する。loader は未知キーを無視するため
+ * 動作には影響しない (top-level `_comment` のみ起動時に info 警告を 1 行出す)。
+ */
+const LEP_TOP_COMMENT = {
+  _note:
+    '// や /* */ コメントは JSON.parse(LepConfig.ts) が壊れるため使用不可。注釈は _comment キーで代用する。この top-level _comment は起動時に \'lep.json: 未知のキー "_comment" は無視されます\' という info 警告を1行出すが動作には影響しない。各セクション内のネスト _comment は警告なし。',
+  version: 'lep.json スキーマ版数。現行は 1 固定 (不一致は起動中止)。',
+  stage:
+    '実行する Wave (Layer) 範囲。disabled=何もしない / sources=Wave1のみ / primary=Wave1+2 / memory=Wave3のみ / primary+memory=Wave1+2+3 / all=Wave1+2+3+4(全実行)。Wave1=sources取込, Wave2=primary解析, Wave3=memory(記憶/RAG, ollama必須), Wave4=derived(横断集計)。',
+  schedule: 'パイプラインの定期実行設定。',
+  llm:
+    'memory analyzer が使う LLM/embedding プロバイダ。Dev Container からホストの ollama に到達するため host.docker.internal を使用。',
+  analyzers:
+    '各 analyzer の有効/無効。Layer2(primary)=Release/Coverage/Behavior/CommitFiles/SubagentType/MessageCommit(取込・解析を個別抑止可), Layer3(memory)=7個, Layer4(derived)=Dora/CrossSource(stage=all時のみ実行)。SessionImporter 等の核 analyzer は toggle 不可。enabled以外のキーは無視される。',
+  sources:
+    '外部ソース取込設定 (Layer1)。gitRoots=解析対象 git リポジトリのルート群(拡張・daemon 共通。拡張は anytimeTrail.workspace.path も追加) / github=PR取込 / claude=セッションログ探索元 / codex=Codexセッション探索元。',
+  memory: 'memory pipeline のパラメータ。stage が memory を含む(memory/primary+memory/all)時のみ効く。',
+  throttle:
+    'Ollama。embeddings レイテンシの代理信号で COOLING を判定し、背景パイプラインの per-request 待機 + スケジューラ gate で熱を逃がす。対話 chat/検索は素通し。既定 off。',
+} as const;
+
+/** analyzer ごとの注釈。`analyzers.<id>._comment` として埋め込む。 */
+const LEP_ANALYZER_COMMENTS: Record<string, string> = {
+  ConversationMemoryAnalyzer: 'Layer3 memory。会話→記憶抽出。LLM依存(未到達時はPre-flightでskip)。',
+  CodeMemoryAnalyzer: 'Layer3 memory。コードグラフ→記憶。LLM非依存。',
+  BugHistoryMemoryAnalyzer: 'Layer3 memory。バグ履歴→記憶。LLM非依存。',
+  ReviewFindingMemoryAnalyzer: 'Layer3 memory。レビュー指摘→記憶。LLM依存。',
+  SpecMemoryAnalyzer: 'Layer3 memory。仕様→記憶。LLM依存。',
+  DriftMemoryAnalyzer: 'Layer3 memory。drift→記憶。LLM非依存。',
+  EmbeddingBackfillAnalyzer: 'Layer3 memory。未ベクトル化レコードの embedding 補完。embedding依存。',
+  DoraMetricsAggregator: "Layer4 derived。DORA 指標集計。stage='all' の時のみ実行(opt-in)。",
+  CrossSourceCorrelator: "Layer4 derived。クロスソース相関(PR↔commit等)。stage='all' の時のみ実行(opt-in)。",
+  ReleaseResolver: 'Layer2 primary。git tag→releases 解決 + release codegraph 連動。無効化でリリース取込を停止。',
+  CoverageImporter: 'Layer2 primary。カバレッジレポート取込。無効化でカバレッジ取込を停止。',
+  BehaviorAnalyzer: 'Layer2 primary。ツール使用挙動の集計。無効化で behavior 解析を停止。',
+  CommitFilesBackfiller: 'Layer2 primary。commit のファイル一覧補完。無効化で commit_files 補完を停止。',
+  SubagentTypeBackfiller: 'Layer2 primary。subagent 種別の補完。無効化で subagent 種別補完を停止。',
+  MessageCommitMatcher: 'Layer2 primary。message↔commit 紐付け。無効化で紐付けを停止。',
+};
+
+/**
+ * `LepConfig` を `_comment` 注釈付きの JSON 文字列へシリアライズする (末尾改行付き)。
+ *
+ * 生成 (新規作成 / config.json 移行) でのみ使う。値はそのまま保持し、各セクション先頭に
+ * 人間向けの注釈を差し込む。loader は `_comment` を未知キーとして無視するため round-trip に影響しない。
+ */
+export function serializeLepConfigWithComments(config: LepConfig): string {
+  const ollama = config.llm.providers.ollama;
+  const obj = {
+    _comment: LEP_TOP_COMMENT,
+    version: config.version,
+    stage: config.stage,
+    schedule: {
+      _comment:
+        'intervalSec=実行間隔(秒, 1800=30分) / runOnStart=拡張起動時に1回実行 / startupDelaySec=起動後この秒数待ってから初回実行',
+      ...config.schedule,
+    },
+    llm: {
+      providers: {
+        ollama: {
+          _comment:
+            'baseUrl=ollama エンドポイント (Dev Container は host.docker.internal:11434, それ以外は localhost:11434) / models.chat=要約・抽出用 / models.embedding=ベクトル化用',
+          baseUrl: ollama.baseUrl,
+          models: { ...ollama.models },
+        },
+      },
+    },
+    memory: {
+      _comment:
+        'stage が memory を含む(memory/primary+memory/all)時のみ有効。rag=ハイブリッド検索パラメータ / fts=全文索引再構築間隔(分) / conversation=会話バックフィル日数。',
+      rag: {
+        _comment:
+          'bm25Limit=BM25候補数 / vecLimit=ベクトル候補数 / finalLimit=RRF後の最終件数 / rrfK=RRF平滑化定数',
+        ...config.memory.rag,
+      },
+      fts: { ...config.memory.fts },
+      conversation: { ...config.memory.conversation },
+    },
+    analyzers: Object.fromEntries(
+      Object.entries(config.analyzers).map(([id, a]) => [
+        id,
+        { enabled: a.enabled, _comment: LEP_ANALYZER_COMMENTS[id] ?? '' },
+      ]),
+    ),
+    sources: {
+      github: {
+        _comment:
+          'GitHub PR 取込。enabled=true にし tokenEnv が指す環境変数に PAT を設定すると Layer1 で PR を取り込む。maxPrs=最大取得数 / since=取得開始日(空=全期間)。',
+        ...config.sources.github,
+      },
+      claude: {
+        _comment:
+          'Claude Code セッションログ(JSONL)の探索元。空文字=未指定で os.homedir()/.claude/projects を使う。WSL 等でホームと実ログ位置が異なる場合に絶対パスを指定する。',
+        ...config.sources.claude,
+      },
+      codex: {
+        _comment:
+          'Codex セッションログ(rollout JSONL)の探索元。空文字=未指定で os.homedir()/.codex/sessions を使う。',
+        ...config.sources.codex,
+      },
+      gitRoots: [...config.sources.gitRoots],
+    },
+    database: {
+      _comment:
+        'trail.db の保存ディレクトリ。絶対パスまたは workspace ルートからの相対パス。database 拡張は別途 anytimeDatabase.storagePath 設定を持つため両者を揃える。',
+      ...config.database,
+    },
+    workspace: {
+      _comment:
+        'docsPath=C4 ドキュメントリンク用ディレクトリ。空文字=未設定。変更は Reload Window で反映。excludeRoot=code graph/C4 解析の analyze-exclude を読むディレクトリ。空文字=解析対象リポ自身にフォールバック。configPaths=commit/tool/skill カテゴリ・metrics 閾値の定義ファイルパス(空文字=内蔵デフォルト)。',
+      ...config.workspace,
+    },
+    throttle: {
+      _comment:
+        'Ollama。enabled=on/off / slowdownFactor=embeddings レイテンシが直近EWMA基準×この倍を超えたらCOOLING(感度ダイヤル) / cooldownSec=COOLING窓秒(背景休止+起動時start slow) / maxContinuousMin=連続稼働上限分(超過でCOOLING)。背景パイプラインのみ対象。',
+      ...config.throttle,
+    },
+    logs: { ...config.logs },
+  };
+  return JSON.stringify(obj, null, 2) + '\n';
+}
+
 export function ensureLepConfigFile(opts: EnsureLepConfigOptions): EnsureLepConfigResult {
   const path = workspaceLepConfigPath(opts.workspaceRoot);
   const migrated = mergeLepConfig(DEFAULT_LEP_CONFIG, migrateLegacyToLepConfig(opts.legacy));
 
   try {
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, JSON.stringify(migrated, null, 2) + '\n', {
+    writeFileSync(path, serializeLepConfigWithComments(migrated), {
       encoding: 'utf-8',
       flag: 'wx',
     });
@@ -1124,7 +1275,7 @@ export function migrateConfigJsonIntoLepJson(opts: MigrateConfigJsonOptions): Mi
   if (lepContent === null) {
     const full = mergeLepConfig(DEFAULT_LEP_CONFIG, migrated);
     mkdirSync(dirname(lepPath), { recursive: true });
-    writeFileSync(lepPath, JSON.stringify(full, null, 2) + '\n', { encoding: 'utf-8' });
+    writeFileSync(lepPath, serializeLepConfigWithComments(full), { encoding: 'utf-8' });
   } else {
     const gapFilled = applyMigratedGapsToLepJson(lepContent, lepPath, migrated, opts.logger);
     if (!gapFilled.ok) return { migrated: false, lepPath };

@@ -27,6 +27,13 @@ export interface ClaudeStatus {
   readonly workspacePath?: string;
 }
 
+/** セッションの最新コミット要約 */
+export interface AgentLastCommit {
+  readonly hash: string;
+  /** UTC ISO 8601 */
+  readonly timestamp: string;
+}
+
 /** マルチエージェント監視で使用するエージェント情報 */
 export interface AgentInfo {
   readonly sessionId: string;
@@ -42,6 +49,10 @@ export interface AgentInfo {
   readonly workspacePath?: string;
   /** JSONL の最新 assistant.message.usage から算出したコンテキストトークン数 */
   readonly contextTokens?: number;
+  /** そのセッションのコミット累計（agent-status DB 由来） */
+  readonly committedCount?: number;
+  /** 最新コミットのハッシュ・時刻（agent-status DB 由来） */
+  readonly lastCommit?: AgentLastCommit;
 }
 
 export interface TodayStats {
@@ -51,3 +62,26 @@ export interface TodayStats {
 
 export type StatusChangeCallback = (editing: boolean, filePath: string) => void;
 export type MultiStatusChangeCallback = (agents: ReadonlyMap<string, AgentInfo>) => void;
+
+/** agent-status ワーカーの 1 行（AgentStatusClient.queryAll が返す形）の最小契約。 */
+export interface AgentStatusRow {
+  readonly sessionId: string;
+  readonly editing: boolean;
+  readonly file: string;
+  readonly branch: string;
+  readonly workspacePath: string;
+  readonly sessionEdits: readonly SessionEdit[];
+  readonly plannedEdits: readonly string[];
+  readonly committedCount: number;
+  readonly lastCommit: AgentLastCommit | null;
+  readonly updatedAt: string;
+}
+
+/**
+ * ClaudeStatusWatcher に注入するデータ源。agent-core の AgentStatusClient が満たす契約だが、
+ * vscode-common は node:sqlite を含む agent-core を import しないため、この interface だけに依存する。
+ */
+export interface AgentStatusSource {
+  queryAll(): Promise<readonly AgentStatusRow[]>;
+  deleteSession(sessionId: string): Promise<boolean>;
+}

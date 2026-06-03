@@ -3,9 +3,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import type { PaletteMode } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
 import { getVsCodeApi } from './vscodeApi';
-import { ACCENT_COLOR, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS } from '@anytime-markdown/markdown-viewer';
-import type { ThemePresetName } from '@anytime-markdown/markdown-viewer/src/constants/themePresets';
-import { getPreset } from '@anytime-markdown/markdown-viewer/src/constants/themePresets';
+import { ACCENT_COLOR, applyEditorThemeCssVars, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getPreset, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS, type ThemePresetName } from '@anytime-markdown/markdown-viewer';
 import { EmbedProvidersProvider } from '@anytime-markdown/markdown-viewer/src/contexts/EmbedProvidersContext';
 // rich の codeblock 描画拡張を注入する RichMarkdownEditorPage を使う (B-8)
 import MarkdownEditorPage from '@anytime-markdown/markdown-rich/src/RichMarkdownEditorPage';
@@ -189,82 +187,12 @@ export function App() {
 
   // プリセットに応じた CSS カスタムプロパティの適用
   useEffect(() => {
-    const p = getPreset(presetName);
-    const isDark = themeMode === 'dark';
-    document.documentElement.style.setProperty('--editor-content-font-family', p.fontFamily);
-    if (presetName === 'handwritten') {
-      const lineColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
-      const baseColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
-      document.documentElement.style.setProperty('--editor-heading-hatch',
-        `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${lineColor} 4px, ${lineColor} 5px), ${baseColor}`);
-      document.documentElement.style.setProperty('--editor-heading-font-family', '"Nunito", "Klee One", sans-serif');
-      if (isDark) {
-        document.documentElement.style.setProperty('--editor-heading-border-h1', 'rgba(100,160,210,0.7)');
-        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(100,160,210,0.5)');
-        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(100,160,210,0.35)');
-      } else {
-        document.documentElement.style.setProperty('--editor-heading-border-h1', 'rgba(160,120,60,0.5)');
-        document.documentElement.style.setProperty('--editor-heading-border-h2', 'rgba(160,120,60,0.4)');
-        document.documentElement.style.setProperty('--editor-heading-border-h3', 'rgba(160,120,60,0.35)');
-      }
-      document.documentElement.style.setProperty('--editor-heading-radius-h1', '12px 8px 10px 6px');
-      document.documentElement.style.setProperty('--editor-heading-radius-h2', '8px 10px 6px 12px');
-      document.documentElement.style.setProperty('--editor-heading-radius-h3', '6px 8px 10px 4px');
-      const filterId = 'handwritten-roughen';
-      if (!document.getElementById(filterId)) {
-        const svgNS = 'http://www.w3.org/2000/svg';
-        const svg = document.createElementNS(svgNS, 'svg');
-        svg.setAttribute('id', filterId);
-        svg.setAttribute('width', '0');
-        svg.setAttribute('height', '0');
-        svg.style.position = 'absolute';
-        svg.innerHTML = `<filter id="roughen"><feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="3" seed="1" /><feDisplacementMap in="SourceGraphic" scale="1.5" /></filter>`;
-        document.body.appendChild(svg);
-      }
-      document.documentElement.style.setProperty('--editor-heading-filter', 'url(#roughen)');
-      const hatch = (color: string) =>
-        `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${color} 4px, ${color} 5px), ${isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'}`;
-      document.documentElement.style.setProperty('--editor-admonition-radius', '10px 6px 8px 12px');
-      document.documentElement.style.setProperty('--editor-admonition-bg-note', hatch('rgba(31,111,235,0.08)'));
-      document.documentElement.style.setProperty('--editor-admonition-bg-tip', hatch('rgba(35,134,54,0.08)'));
-      document.documentElement.style.setProperty('--editor-admonition-bg-important', hatch('rgba(137,87,229,0.08)'));
-      document.documentElement.style.setProperty('--editor-admonition-bg-warning', hatch('rgba(210,153,34,0.08)'));
-      document.documentElement.style.setProperty('--editor-admonition-bg-caution', hatch('rgba(218,54,51,0.08)'));
-    } else {
-      document.documentElement.style.removeProperty('--editor-heading-hatch');
-      document.documentElement.style.removeProperty('--editor-heading-radius-h1');
-      document.documentElement.style.removeProperty('--editor-heading-radius-h2');
-      document.documentElement.style.removeProperty('--editor-heading-radius-h3');
-      document.documentElement.style.removeProperty('--editor-heading-filter');
-      document.documentElement.style.removeProperty('--editor-heading-border-h1');
-      document.documentElement.style.removeProperty('--editor-heading-border-h2');
-      document.documentElement.style.removeProperty('--editor-heading-border-h3');
-      document.documentElement.style.removeProperty('--editor-heading-font-family');
-      document.documentElement.style.removeProperty('--editor-admonition-radius');
-      document.documentElement.style.removeProperty('--editor-admonition-bg-note');
-      document.documentElement.style.removeProperty('--editor-admonition-bg-tip');
-      document.documentElement.style.removeProperty('--editor-admonition-bg-important');
-      document.documentElement.style.removeProperty('--editor-admonition-bg-warning');
-      document.documentElement.style.removeProperty('--editor-admonition-bg-caution');
-    }
-    // Google Fonts 読み込み
-    const families = [...new Set(
-      [p.fontFamily, p.displayFont]
-        .flatMap(s => s.split(','))
-        .map(s => s.trim().replaceAll(/^["']|["']$/g, ''))
-        .filter(f => !['Helvetica', 'Helvetica Neue', 'Arial', 'sans-serif', 'serif',
-          'Georgia', 'Times New Roman', 'Arial Rounded MT Bold', 'Roboto'].includes(f)),
-    )];
-    if (families.length > 0) {
-      const id = 'google-fonts-preset';
-      document.getElementById(id)?.remove();
-      const params = families.map(f => `family=${f.replaceAll(' ', '+')}:wght@400;600;700`).join('&');
-      const link = document.createElement('link');
-      link.id = id;
-      link.rel = 'stylesheet';
-      link.href = `https://fonts.googleapis.com/css2?${params}&display=swap`;
-      document.head.appendChild(link);
-    }
+    // 見出しボーダーはデザイン仕様準拠のニュートラル墨色（既定）に統一。
+    // 旧 vscode 固有の暖色 rgba(160,120,60,*) は未文書化のドリフトのため撤去（web-app と一致）。
+    applyEditorThemeCssVars({
+      presetName,
+      themeMode,
+    });
   }, [presetName, themeMode]);
 
   const latestContentRef = useRef<string | null>(null);

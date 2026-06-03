@@ -37,10 +37,14 @@ if (!mode) {
 const tsconfigPath = path.resolve(repoRoot, tsconfigRel);
 const tsconfigDir = path.dirname(tsconfigPath);
 
-// vendored consumer かどうかの判定（viewer/rich は consumer 自身の依存なので保持する）。
+// vendored consumer かどうかの判定（viewer/rich/engine は consumer 自身の依存なので保持する）。
+// markdown-engine はフレームワーク非依存層で vendored tiptap (alias.cjs) ではないが、
+// markdown-* prefix に合致するため明示的に除外しないと vendored と誤分類され除去される。
+// 除去すると next build(web-app) が paths→src で取り込む markdown-viewer ソースの
+// markdown-engine import を解決できず型エラーで落ちる。
 const isVendoredKey = (k) =>
   k.startsWith('@anytime-markdown/markdown-') &&
-  !/^@anytime-markdown\/markdown-(viewer|rich)(\/|$)/.test(k);
+  !/^@anytime-markdown\/markdown-(viewer|rich|engine)(\/|$)/.test(k);
 
 function buildVendoredPaths() {
   const alias = require(path.join(repoRoot, 'packages/markdown-core/alias.cjs'));

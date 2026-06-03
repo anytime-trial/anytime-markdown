@@ -14,7 +14,7 @@ import TaskList from "@anytime-markdown/markdown-extension-task-list";
 import Underline from "@anytime-markdown/markdown-extension-underline";
 import { Fragment } from "@anytime-markdown/markdown-pm/model";
 import { Plugin, PluginKey, TextSelection } from "@anytime-markdown/markdown-pm/state";
-import { Extension, type Extensions } from "@anytime-markdown/markdown-react";
+import { Extension, type Extensions } from "@anytime-markdown/markdown-core";
 import StarterKit from "@anytime-markdown/markdown-starter-kit";
 import { Markdown } from "@anytime-markdown/markdown-md";
 
@@ -23,6 +23,7 @@ import { BlockGapCursorExtension } from "./extensions/blockGapCursorExtension";
 import { CodeBlockNavigation } from "./extensions/codeBlockNavigationExtension";
 import { CommentDataPlugin,CommentHighlight, CommentPoint } from "./extensions/commentExtension";
 import { CustomTableCell, CustomTableHeader } from "./extensions/customTableCells";
+import { DiagramAggregateExtension } from "./extensions/diagramAggregateExtension";
 import { DiffHighlight } from "./extensions/diffHighlight";
 import { FootnoteRef } from "./extensions/footnoteExtension";
 import { GifBlock } from "./extensions/gifExtension";
@@ -318,6 +319,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
     HeadingNumberExtension,
     GifBlock,
     BlockGapCursorExtension,
+    DiagramAggregateExtension,
   ];
   if (!options?.disableComments) {
     extensions.push(CommentHighlight, CommentPoint, CommentDataPlugin);

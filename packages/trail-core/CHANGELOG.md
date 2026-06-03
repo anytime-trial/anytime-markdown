@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-06-03
+
+### Fixed
+
+- Fixed call-graph cycles, null entries, division-by-zero, and O(n^2) aggregation.
+
 ## [0.25.0] - 2026-05-31
 
 ### Changed

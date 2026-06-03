@@ -19,6 +19,7 @@ import type { CostOptimizationData } from '../domain/parser/types';
 import type { AnalyticsPanelProps } from './AnalyticsPanel';
 import type { AnalyticsData } from '../domain/parser/types';
 import { buildMessageTree } from '../domain/parser/buildMessageTree';
+import type { WsSubscribe } from '../hooks/useLogsDataSource';
 import { FilterBar } from './FilterBar';
 import { PromptManager } from './PromptManager';
 import { ReleasesPanel } from './ReleasesPanel';
@@ -114,6 +115,10 @@ export interface TrailViewerCoreProps {
   readonly onJumpToSource?: (loc: SourceLocation) => void;
   /** 初期表示タブ番号（0=Analytics, 1=Messages, 2=Prompts, 4=C4, 5=Trace）*/
   readonly initialTab?: number;
+  /** タブ訪問時（初期タブ含む）に呼ばれる。親側で C4 等のデータ取得を遅延起動するために使う。*/
+  readonly onTabVisit?: (tab: number) => void;
+  /** プロンプトポップアップ初回オープン時に呼ばれる。親側で prompts データ取得を遅延起動するために使う。*/
+  readonly onPromptsOpen?: () => void;
   /**
    * WebSocket 経由でコマンドを送る関数。perf-report の送出に使う。
    * Web アプリ版では disableWebSocket=true により no-op になる。
@@ -183,6 +188,8 @@ function TrailViewerCoreInner({
   traceFiles,
   onJumpToSource,
   initialTab,
+  onTabVisit,
+  onPromptsOpen,
   sendCommand,
   wsConnected = false,
   serverUrl = '',
@@ -216,12 +223,22 @@ function TrailViewerCoreInner({
   );
   const visitTab = useCallback((tab: number) => {
     setActiveTab(tab);
+    onTabVisit?.(tab);
     setVisitedTabs((prev) => {
       if (prev.has(tab)) return prev;
       const next = new Set(prev);
       next.add(tab);
       return next;
     });
+  }, [onTabVisit]);
+
+  // 初期タブは visitTab を経由せず visitedTabs に直接シードされるため、
+  // ディープリンクで C4 タブ等を直接開いた場合に親へ通知されない。
+  // マウント時に一度だけ初期タブの訪問を通知し、データ遅延起動を解禁する。
+  useEffect(() => {
+    onTabVisit?.(normalizedInitialTab);
+    // 初期タブの通知は初回マウント時のみ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [activeSequenceElementId, setActiveSequenceElementId] = useState<string | null>(null);
   const c4SequenceState = useC4SequenceData(c4?.serverUrl, activeSequenceElementId);
@@ -369,6 +386,32 @@ function TrailViewerCoreInner({
     '&:disabled': { color: c4Colors.textMuted },
   } as const;
 
+  // buildMessageTree は messages を 2 回走査するため、MessageTimeline と TraceTree
+  // で結果を共有する。messages 不変なら親の再レンダーで再構築しない。
+  const messageTree = useMemo(() => buildMessageTree(messages), [messages]);
+
+  // subscribe をインラインアローにすると毎レンダーで関数 identity が変わり、
+  // LogsTab 側の useEffect 依存で WebSocket が貼り直されてリークするため固定する。
+  const subscribeToLogs = useCallback<WsSubscribe>(
+    (handler) => {
+      const wsUrl = serverUrl.replace(/^http/, 'ws');
+      const ws = new WebSocket(wsUrl);
+      ws.addEventListener('message', (ev) => {
+        try {
+          const data = typeof ev.data === 'string' ? ev.data : '';
+          const msg = JSON.parse(data) as { type?: string };
+          if (msg && msg.type === 'log-batch') {
+            handler(msg as never);
+          }
+        } catch {
+          /* noop */
+        }
+      });
+      return () => ws.close();
+    },
+    [serverUrl],
+  );
+
   // メッセージタブとメッセージポップアップの両方で同じ JSX を使うため変数化。
   // 親 state を共有するので filter / 選択セッション / メッセージは両者で同期する。
   const messagesTabContent = (
@@ -400,13 +443,13 @@ function TrailViewerCoreInner({
         <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Suspense fallback={<TabSkeleton height="100%" />}>
             <MessageTimeline
-              nodes={buildMessageTree(messages)}
+              nodes={messageTree}
               session={selectedSession}
               onSelectMessage={() => { /* scroll handled inside component */ }}
             />
             {selectedSessionId && messages.length > 0 ? (
               <Box sx={{ flex: 1, overflow: 'auto', ...scrollbarSx }}>
-                <TraceTree nodes={buildMessageTree(messages)} />
+                <TraceTree nodes={messageTree} />
               </Box>
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
@@ -509,7 +552,7 @@ function TrailViewerCoreInner({
               fetchDeploymentFrequency={fetchDeploymentFrequency}
               fetchReleaseQuality={fetchReleaseQuality}
               onOpenReleasesPopup={() => setReleasesPopupOpen(true)}
-              onOpenPromptsPopup={() => setPromptsPopupOpen(true)}
+              onOpenPromptsPopup={() => { onPromptsOpen?.(); setPromptsPopupOpen(true); }}
               onOpenMessagesPopup={() => setMessagesPopupOpen(true)}
             />
           </Suspense>
@@ -590,22 +633,7 @@ function TrailViewerCoreInner({
           <Suspense fallback={<TabSkeleton height="100%" />}>
             <LogsTab
               baseUrl={serverUrl}
-              subscribe={(handler) => {
-                const wsUrl = serverUrl.replace(/^http/, 'ws');
-                const ws = new WebSocket(wsUrl);
-                ws.addEventListener('message', (ev) => {
-                  try {
-                    const data = typeof ev.data === 'string' ? ev.data : '';
-                    const msg = JSON.parse(data) as { type?: string };
-                    if (msg && msg.type === 'log-batch') {
-                      handler(msg as never);
-                    }
-                  } catch {
-                    /* noop */
-                  }
-                });
-                return () => ws.close();
-              }}
+              subscribe={subscribeToLogs}
             />
           </Suspense>
         </Box>

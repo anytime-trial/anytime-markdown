@@ -84,39 +84,47 @@ if [ -n "$MSG" ]; then
 fi
 `;
 
-function commitTrackerScriptContent(port: number): string {
+// commit-tracker.sh — Bash ツール後に git commit を検出し agent-status ワーカーへ通知する。
+// 旧実装の git-state ファイル + trail サーバ /api/message-commits を廃止し、agent-status DB に一本化。
+// 直近 HEAD はワーカーの GET から取得し、git で差分件数を数えて POST /commit する。
+// ワーカー未起動（agent-worker.json 無し / 接続失敗）なら何もせず exit 0（記録欠落許容）。
+function commitTrackerScriptContent(): string {
   return `#!/usr/bin/env bash
-# commit-tracker.sh — detect git commits after Bash tool use and notify Trail
+# commit-tracker.sh — detect git commits after Bash tool use and notify agent-status worker
 set -eu
 
 read -r -d '' STDIN_DATA || true
 SESSION_ID=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).session_id||'')}catch{}})")
 CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||process.cwd())}catch{}})")
-TRANSCRIPT=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).transcript_path||'')}catch{}})")
 [ -z "\$SESSION_ID" ] && exit 0
-TRAIL_HOME="\${TRAIL_HOME:-\${CWD}/.anytime/trail}"
-STATE_DIR="\${TRAIL_HOME}/state/git-state"
-mkdir -p "\$STATE_DIR"
 
-STATE_FILE="\$STATE_DIR/claude-code-git-state-\${SESSION_ID}.json"
+# ワーカー接続情報を解決（未起動なら exit 0）
+AGENT_HOME="\${AGENT_HOME:-\${CWD}/.anytime/agent}"
+WORKER_JSON="\${AGENT_HOME}/agent-worker.json"
+[ -f "\$WORKER_JSON" ] || exit 0
+URL=$(node -e "try{process.stdout.write(JSON.parse(require('fs').readFileSync('\${WORKER_JSON}','utf8')).url||'')}catch{}")
+[ -z "\$URL" ] && exit 0
+
 CURRENT=$(cd "\$CWD" && git rev-parse HEAD 2>/dev/null || true)
 [ -z "\$CURRENT" ] && exit 0
 
-LAST=""
-[ -f "\$STATE_FILE" ] && LAST=$(node -e "try{process.stdout.write(JSON.parse(require('fs').readFileSync('\${STATE_FILE}','utf8')).lastHead||'')}catch{}")
+# ワーカーから直近 HEAD を取得
+LAST=$(curl -s -m 2 "\${URL}/api/agent-status/\${SESSION_ID}" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write((JSON.parse(d).data||{}).lastHead||'')}catch{}})" || true)
 
-if [ "\$LAST" != "\$CURRENT" ] && [ -n "\$LAST" ]; then
-  UUID=$(node -e "const fs=require('fs');try{const lines=fs.readFileSync('\${TRANSCRIPT}','utf8').trim().split('\\\\n');for(let i=lines.length-1;i>=0;i--){const o=JSON.parse(lines[i]);if(o.type==='assistant'&&o.uuid){process.stdout.write(o.uuid);break}}}catch{}")
-  COMMITS=$(cd "\$CWD" && git log "\${LAST}..\${CURRENT}" --format=%H 2>/dev/null || true)
-  PORT="\${ANYTIME_TRAIL_PORT:-${port}}"
-  for HASH in \$COMMITS; do
-    [ -z "\$UUID" ] || curl -s -m 2 -X POST "http://localhost:\${PORT}/api/message-commits" \\
-      -H "Content-Type: application/json" \\
-      -d "{\\"messageUuid\\":\\"\${UUID}\\",\\"sessionId\\":\\"\${SESSION_ID}\\",\\"commitHash\\":\\"\${HASH}\\",\\"matchConfidence\\":\\"realtime\\"}" || true
-  done
+COUNT=0
+HASH=""
+COMMITTED_AT=""
+if [ -n "\$LAST" ] && [ "\$LAST" != "\$CURRENT" ]; then
+  COUNT=$(cd "\$CWD" && git rev-list --count "\${LAST}..\${CURRENT}" 2>/dev/null || echo 0)
+  HASH="\$CURRENT"
+  COMMITTED_AT=$(cd "\$CWD" && git log -1 --format=%cI "\$CURRENT" 2>/dev/null | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(new Date(d.trim()).toISOString())}catch{}})" || true)
 fi
 
-node -e "require('fs').writeFileSync('\${STATE_FILE}',JSON.stringify({sessionId:'\${SESSION_ID}',lastHead:'\${CURRENT}',updatedAt:new Date().toISOString()}))" || true
+# POST /commit（COUNT=0 のシードでも last_head を更新）
+PAYLOAD=$(node -e "const c=Number(process.argv[1])||0;const o={sessionId:process.argv[2],lastHead:process.argv[3],count:c};if(c>0){o.commitHash=process.argv[4];o.committedAt=process.argv[5]}process.stdout.write(JSON.stringify(o))" "\$COUNT" "\$SESSION_ID" "\$CURRENT" "\$HASH" "\$COMMITTED_AT")
+curl -s -m 2 -X POST "\${URL}/api/agent-status/commit" \\
+  -H "Content-Type: application/json" \\
+  -d "\$PAYLOAD" > /dev/null 2>&1 || true
 exit 0
 `;
 }
@@ -175,10 +183,18 @@ export function getStatusFileGlob(workspaceRoot?: string, statusDir?: string): s
   return path.join(base, 'claude-code-status*.json');
 }
 
-/** claude-code-status 関連の書き込みを含むフックエントリを除去する */
+/**
+ * agent-status 関連のステータス更新フックを除去する（idempotent 再登録用）。
+ * 旧方式のファイル書き込み（claude-code-status）と新方式の POST（/api/agent-status/edit）の両方を対象にする。
+ */
 function removeStatusFileHooks(entries: HookEntry[]): HookEntry[] {
   return entries.filter(
-    (m) => !m.hooks?.some((h: HookHandler) => h.command?.includes('claude-code-status'))
+    (m) =>
+      !m.hooks?.some(
+        (h: HookHandler) =>
+          h.command?.includes('claude-code-status') ||
+          h.command?.includes('/api/agent-status/edit'),
+      ),
   );
 }
 
@@ -203,7 +219,7 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, tra
   try {
     writeScript('trail-token-budget.sh', tokenBudgetScriptContent(trailPort));
     writeScript('session-guard.sh', SESSION_GUARD_SCRIPT);
-    writeScript('commit-tracker.sh', commitTrackerScriptContent(trailPort));
+    writeScript('commit-tracker.sh', commitTrackerScriptContent());
   } catch (err) {
     // スクリプト作成失敗はログのみ（フック設定は続行）
     if (process.env.NODE_ENV !== 'test') {
@@ -217,87 +233,81 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, tra
   settings.hooks.Stop ??= [];
   settings.hooks.UserPromptSubmit ??= [];
 
-  const statusFile = buildStatusFilePath(workspaceRoot, statusDir);
-  const statusFileBase = statusFile.replace(/\.json$/, '');
-  // hook の inline node コマンド内では mkdir を行わないため、setup 時に親ディレクトリを作る。
-  // statusDir が .anytime/trail/agent-status のような多段パスでも書き込みが ENOENT で
-  // silent catch に握り潰されないようにする。
-  try {
-    fs.mkdirSync(path.dirname(statusFile), { recursive: true });
-  } catch (err) {
-    if (process.env.NODE_ENV !== 'test') {
-      console.error('[trail] Failed to create status directory:', err);
-    }
-  }
   // workspaceRootForHook は (a) git branch --show-current の cwd、
-  // (b) plan-file hook で plannedEdits パスに前置する prefix の 2 用途で使う。
-  // 旧実装の path.dirname(path.dirname(statusFile)) は statusDir が単一階層 (.anytime) 前提で、
-  // .anytime/trail/agent-status のような多段パスでは workspace root より深い場所を指してしまう。
+  // (b) plan-file hook で plannedEdits パスに前置する prefix、(c) agent-worker.json / session-guard の
+  // state ディレクトリ解決 の用途で使う。setup 時に確定する workspaceRoot を基点とした絶対パスにする
+  // （Bash ツールの cwd 相対だとサブパッケージ実行のたびに別ディレクトリを見てしまうため）。
   // 末尾の `/` を全削除して `/` 1 つを付け直す。正規表現を使わず CodeQL `js/polynomial-redos` の対象を回避。
   const rawRoot = workspaceRoot ?? os.homedir();
   let rootEnd = rawRoot.length;
   while (rootEnd > 0 && rawRoot.charCodeAt(rootEnd - 1) === 0x2f) rootEnd--;
   const workspaceRootForHook = rawRoot.slice(0, rootEnd) + '/';
 
-  // commit-tracker.sh / session-guard.sh は state ディレクトリを `${TRAIL_HOME:-${CWD}/.anytime/trail}`
-  // で決めるため、TRAIL_HOME 未指定だと Bash ツールの cwd 相対になり、サブパッケージで Bash を
-  // 実行するたびに packages/**/.anytime が散乱する。setup 時に確定する workspaceRoot を基点とした
-  // 絶対パスを TRAIL_HOME としてフックコマンドに前置し、agent-status と同じ「setup 時固定絶対パス」
-  // 方式に統一する（cwd 依存の散乱を根絶）。
+  // session-guard.sh は自身の警告 state ファイル (claude-session-guard.json) を TRAIL_HOME/state に
+  // 書く。git-state とは無関係のため TRAIL_HOME はそのまま維持する（cwd 相対散乱を防ぐ前置）。
   const trailHome = workspaceRootForHook + '.anytime/trail';
 
-  // stdin の JSON を読み取り、セッション履歴を保持しながらステータスファイルを更新する。
-  // session_id がある場合は claude-code-status-{sessionId}.json に書き込む（マルチエージェント対応）。
-  // session_id が空の場合は従来の claude-code-status.json に書き込む（後方互換）。
-  // git branch --show-current で現在のブランチ名を取得し branch フィールドに書き込む。
-  // timestamp は UTC ISO 8601 文字列で記録する。
-  const makeCommand = (editing: boolean): string =>
-    `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d),fp=i.tool_input?.file_path;if(!fp)return;const sid=i.session_id||'',fs=require('fs'),fb='${statusFileBase}',f=sid?fb+'-'+sid+'.json':fb+'.json',ts=new Date().toISOString();let br='';try{br=require('child_process').execSync('git branch --show-current',{cwd:'${workspaceRootForHook}',timeout:3000}).toString().trim()}catch{}let c={};try{c=JSON.parse(fs.readFileSync(f,'utf8'))}catch{}const e=(c.sessionId===sid)?(c.sessionEdits||[]):[];const j=e.findIndex(x=>x.file===fp);if(j>=0)e[j].timestamp=ts;else e.push({file:fp,timestamp:ts});fs.writeFileSync(f,JSON.stringify({editing:${editing},file:fp,timestamp:ts,sessionId:sid,sessionEdits:e,plannedEdits:c.plannedEdits||[],branch:br}))}catch{}})"`;
+  // agent-status ワーカーの接続情報は `<workspace>/.anytime/agent/agent-worker.json` にある。
+  // commit-tracker.sh は AGENT_HOME からこれを解決する。inline node フックは agentWorkerJson を直接読む。
+  const agentHome = workspaceRootForHook + '.anytime/agent';
+  const agentWorkerJson = agentHome + '/agent-worker.json';
 
-  // Bash ツール実行時に cwd（実行ディレクトリ）を workspacePath として記録する。
-  // テスト実行など file_path がない操作でも worktree を特定できるようにする。
-  // 既存の file/sessionEdits は上書きせず timestamp と editing・workspacePath・branch のみ更新する。
-  const makeBashCommand = (editing: boolean): string =>
-    `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d),cwd=i.cwd||process.cwd(),sid=i.session_id||'',fs=require('fs'),fb='${statusFileBase}',f=sid?fb+'-'+sid+'.json':fb+'.json',ts=new Date().toISOString();let br='';try{br=require('child_process').execSync('git branch --show-current',{cwd,timeout:3000}).toString().trim()}catch{}let c={};try{c=JSON.parse(fs.readFileSync(f,'utf8'))}catch{}if(c.sessionId&&c.sessionId!==sid)return;c.editing=${editing};c.timestamp=ts;c.sessionId=sid;c.workspacePath=cwd;c.branch=br;fs.writeFileSync(f,JSON.stringify(c))}catch{}})"`;
+  // agent-status ワーカーへ JSON を POST する inline node コマンドを生成する。
+  // 1. stdin の hook payload を読む
+  // 2. agent-worker.json から url を解決（無ければ何もせず終了 = 記録欠落許容）
+  // 3. buildBody(input) で /edit へ送る body を組み立てる（null を返したらスキップ）
+  // 4. fetch で POST（node18+ の global fetch）。失敗は握りつぶす（exit 0 相当）
+  // git branch は execSync で取得し branch フィールドに入れる。timestamp は UTC ISO 8601。
+  const postEditCommand = (buildBody: string): string =>
+    `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);const fs=require('fs');let url='';try{url=JSON.parse(fs.readFileSync('${agentWorkerJson}','utf8')).url||''}catch{}if(!url)return;const body=(${buildBody})(i);if(!body)return;fetch(url+'/api/agent-status/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(()=>{})}catch{}})"`;
 
-  // プランファイル書き込み時に plannedEdits を更新するフック。
-  // /Shared/anytime-markdown-docs/plan/ 配下のファイルが Write ツールで書き込まれたとき、
-  // ## 変更対象ファイル セクションからパスを抽出して plannedEdits に書き込む。
-  const planHookCommand =
-    `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d),fp=i.tool_input?.file_path;if(!fp||!fp.startsWith('/Shared/anytime-markdown-docs/plan/'))return;const sid=i.session_id||'',fs=require('fs'),fb='${statusFileBase}',f=sid?fb+'-'+sid+'.json':fb+'.json',wr='${workspaceRootForHook}';let ct='';try{ct=fs.readFileSync(fp,'utf8')}catch{return}const ls=ct.split('\\n');let ins=false;const ps=[];for(const l of ls){if(l.trimEnd()==='## \\u5909\\u66f4\\u5bfe\\u8c61\\u30d5\\u30a1\\u30a4\\u30eb'){ins=true;continue}if(ins&&l.startsWith('## ')){break}if(ins&&l.startsWith('- ')){const s=l.indexOf('\`');const e=s>=0?l.indexOf('\`',s+1):-1;if(s>=0&&e>s)ps.push(wr+l.slice(s+1,e))}}let c={};try{c=JSON.parse(fs.readFileSync(f,'utf8'))}catch{}c.plannedEdits=ps;fs.writeFileSync(f,JSON.stringify(c))}catch{}})"`;
+  // Edit|Write フック: file と編集履歴(appendEdit)を更新する。file_path が無ければスキップ。
+  // branch は workspaceRoot を cwd として取得する。
+  const editBody = (editing: boolean): string =>
+    `(i)=>{const fp=i.tool_input&&i.tool_input.file_path;if(!fp)return null;const sid=i.session_id||'';const ts=new Date().toISOString();let br='';try{br=require('child_process').execSync('git branch --show-current',{cwd:'${workspaceRootForHook}',timeout:3000}).toString().trim()}catch{}return{sessionId:sid,editing:${editing},file:fp,branch:br,appendEdit:{file:fp,timestamp:ts}}}`;
 
-  // 古い/破損したフックをすべて除去してから登録し直す
+  // Bash フック: cwd を workspacePath として記録する。file/sessionEdits は触らない（部分更新）。
+  // branch は Bash ツールの実行 cwd を基準に取得する。
+  const bashBody = (editing: boolean): string =>
+    `(i)=>{const cwd=i.cwd||process.cwd();const sid=i.session_id||'';let br='';try{br=require('child_process').execSync('git branch --show-current',{cwd,timeout:3000}).toString().trim()}catch{}return{sessionId:sid,editing:${editing},workspacePath:cwd,branch:br}}`;
+
+  // プランファイル書き込み時に plannedEdits を抽出して全置換する。
+  // /Shared/anytime-markdown-docs/plan/ 配下の Write のみ対象。## 変更対象ファイル セクションを読む。
+  const planBody =
+    `(i)=>{const fp=i.tool_input&&i.tool_input.file_path;if(!fp||!fp.startsWith('/Shared/anytime-markdown-docs/plan/'))return null;const sid=i.session_id||'';const wr='${workspaceRootForHook}';let ct='';try{ct=require('fs').readFileSync(fp,'utf8')}catch{return null}const ls=ct.split('\\n');let ins=false;const ps=[];for(const l of ls){if(l.trimEnd()==='## \\u5909\\u66f4\\u5bfe\\u8c61\\u30d5\\u30a1\\u30a4\\u30eb'){ins=true;continue}if(ins&&l.startsWith('## ')){break}if(ins&&l.startsWith('- ')){const s=l.indexOf('\`');const e=s>=0?l.indexOf('\`',s+1):-1;if(s>=0&&e>s)ps.push(wr+l.slice(s+1,e))}}return{sessionId:sid,plannedEdits:ps}}`;
+
+  // 古い/破損したフックをすべて除去してから登録し直す（旧 claude-code-status ファイル書き込み + 新 agent-status POST）
   settings.hooks.PreToolUse = removeStatusFileHooks(settings.hooks.PreToolUse);
   settings.hooks.PostToolUse = removeStatusFileHooks(settings.hooks.PostToolUse);
 
   settings.hooks.PreToolUse.push({
     matcher: 'Edit|Write',
-    hooks: [{ type: 'command', command: makeCommand(true) }],
+    hooks: [{ type: 'command', command: postEditCommand(editBody(true)) }],
   });
   settings.hooks.PostToolUse.push({
     matcher: 'Edit|Write',
-    hooks: [{ type: 'command', command: makeCommand(false) }],
+    hooks: [{ type: 'command', command: postEditCommand(editBody(false)) }],
   });
   settings.hooks.PostToolUse.push({
     matcher: 'Write',
-    hooks: [{ type: 'command', command: planHookCommand }],
+    hooks: [{ type: 'command', command: postEditCommand(planBody) }],
   });
 
   // Bash フック: cwd を workspacePath として記録し、テスト実行中も worktree を特定可能にする
   settings.hooks.PreToolUse.push({
     matcher: 'Bash',
-    hooks: [{ type: 'command', command: makeBashCommand(true) }],
+    hooks: [{ type: 'command', command: postEditCommand(bashBody(true)) }],
   });
   settings.hooks.PostToolUse.push({
     matcher: 'Bash',
-    hooks: [{ type: 'command', command: makeBashCommand(false) }],
+    hooks: [{ type: 'command', command: postEditCommand(bashBody(false)) }],
   });
 
-  // PostToolUse hook: commit-tracker.sh (realtime message_commits recording)
+  // PostToolUse hook: commit-tracker.sh (agent-status ワーカーへコミット検出を通知)
   settings.hooks.PostToolUse = removeHooksByMarker(settings.hooks.PostToolUse, 'commit-tracker.sh');
   settings.hooks.PostToolUse.push({
     matcher: 'Bash',
-    hooks: [{ type: 'command', command: `TRAIL_HOME='${trailHome}' bash ~/.claude/scripts/commit-tracker.sh`, timeout: 5 }],
+    hooks: [{ type: 'command', command: `AGENT_HOME='${agentHome}' bash ~/.claude/scripts/commit-tracker.sh`, timeout: 5 }],
   });
 
   // Stop hook: trail-token-budget.sh

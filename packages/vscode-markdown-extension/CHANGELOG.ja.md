@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-06-03
+
+### 追加
+
+- 編集中ステータスを agent-status ワーカーから読み取るようにした。
+
+### 修正
+
+- 見出しボーダーをデザイン仕様準拠の墨色に統一。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- フレームワーク非依存の `diffEngine` / sanitize クラスタを新パッケージ `@anytime-markdown/markdown-engine` へ抽出し、`sanitizeMarkdown` を DOM 非依存化。
+- 共有のエディタテーマ CSS 変数インジェクタと Tiptap コンテンツスタイル合成を抽出し、比較モードのスタイルを通常エディタと統一。
+- `onUpdate` シリアライズをキーストロークパスから遅延し、図表集計をツールバー向けにキャッシュ。
+- 比較ビューの imageRow flex レイアウトとノードビュー renderer の SWC クラスフィールドリセットを修正。
+
 ## [0.16.0] - 2026-05-31
 
 ### Editor Core (markdown-viewer / markdown-rich)

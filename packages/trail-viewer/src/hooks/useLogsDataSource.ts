@@ -112,33 +112,47 @@ export function useLogsDataSource(opts: UseLogsDataSourceOptions): LogsDataSourc
   useEffect(() => {
     if (opts.mode !== 'live') return;
     const f = opts.fetcher ?? fetch;
+    // AbortController でアンマウント/依存変更時に in-flight fetch を中断し、
+    // 解決後の setLogs (stale state 更新) を防ぐ。
+    const controller = new AbortController();
     const url = `${opts.baseUrl}/api/logs?limit=${INITIAL_FETCH_LIMIT}`;
-    void f(url)
+    void f(url, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) return;
         const body = (await res.json()) as { logs: LogEntry[]; nextCursor: string | null };
+        if (controller.signal.aborted) return;
         // API returns DESC order; reverse to chronological (oldest first) for the ring
         ringRef.current = body.logs.slice().reverse();
         setLogs(ringRef.current);
       })
-      .catch(() => {
-        // best-effort; WS will fill in soon
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        // best-effort; WS が後続で埋めるため致命的ではないが、原因は残す
+        console.error('[useLogsDataSource] live initial fetch failed', err);
       });
+    return () => controller.abort();
   }, [opts.mode, opts.baseUrl, opts.fetcher]);
 
   // History mode: REST fetch on filter change
   useEffect(() => {
     if (opts.mode !== 'history') return;
     const f = opts.fetcher ?? fetch;
+    const controller = new AbortController();
     const params = buildQuery(opts.filter, { limit: String(HISTORY_PAGE_LIMIT) });
-    void f(`${opts.baseUrl}/api/logs?${params.toString()}`)
+    void f(`${opts.baseUrl}/api/logs?${params.toString()}`, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) return;
         const body = (await res.json()) as { logs: LogEntry[]; nextCursor: string | null };
+        if (controller.signal.aborted) return;
         setLogs(body.logs);
         setNextCursor(body.nextCursor);
       })
-      .catch(() => {/* silent */});
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        // 履歴 fetch の失敗を握りつぶすと空一覧のまま原因不明になるためログを残す。
+        console.error('[useLogsDataSource] history fetch failed', err);
+      });
+    return () => controller.abort();
   }, [opts.mode, opts.baseUrl, opts.fetcher, opts.filter]);
 
   const loadMore = useCallback(async (): Promise<void> => {

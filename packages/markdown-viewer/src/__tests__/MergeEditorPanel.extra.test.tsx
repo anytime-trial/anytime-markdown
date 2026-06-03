@@ -40,6 +40,11 @@ jest.mock("../constants/dimensions", () => ({
   MERGE_LINE_NUMBER_FONT_SIZE: 11,
 }));
 
+// スタイル合成は別テスト(mergeTiptapStyles.*)で検証するためここでは差し替える
+jest.mock("../components/mergeTiptapStyles", () => ({
+  getMergeTiptapStyles: () => ({}),
+}));
+
 jest.mock("../useEditorSettings", () => ({
   useEditorSettingsContext: () => ({
     fontSize: 14,

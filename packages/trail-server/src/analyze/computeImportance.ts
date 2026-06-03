@@ -35,7 +35,13 @@ export async function computeImportance(
   let scored: ScoredFunction[];
   try {
     scored = analyzer.analyze(allSourceFiles);
-  } catch {
+  } catch (err) {
+    // 呼び出し側は null を汎用警告に変換するだけで根本原因が失われるため、
+    // ここで tsconfig パスと stack を残す (silent catch 禁止)。
+    console.error(
+      `[${new Date().toISOString()}] [ERROR] computeImportance: ImportanceAnalyzer.analyze failed for ${tsconfigPath}`,
+      err instanceof Error ? err.stack ?? err.message : String(err),
+    );
     return null;
   }
   const lineCountByFile = new Map<string, number>();

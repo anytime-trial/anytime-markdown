@@ -55,19 +55,22 @@ describe('setupClaudeHooks', () => {
     return require('../claude/claudeHookSetup');
   }
 
-  test('creates the status directory for a multi-segment relative statusDir', () => {
+  test('registers hooks for a multi-segment relative statusDir', () => {
     const { setupClaudeHooks } = loadModule();
     const statusDir = '.anytime/trail/agent-status';
 
     const registered = setupClaudeHooks(tmpWorkspace, statusDir);
 
     expect(registered).toBe(true);
-    const expectedDir = path.join(tmpWorkspace, statusDir);
-    expect(fs.existsSync(expectedDir)).toBe(true);
-    expect(fs.statSync(expectedDir).isDirectory()).toBe(true);
+    // 新方式ではフックはファイルを書かず agent-status ワーカーへ POST するため、
+    // statusDir のディレクトリ作成は行わない。
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
+    );
+    expect(Array.isArray(settings.hooks.PreToolUse)).toBe(true);
   });
 
-  test('Edit|Write hook command uses workspaceRoot as cwd (not derived from statusFile)', () => {
+  test('Edit|Write hook posts to agent-status worker resolved from workspaceRoot', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace, '.anytime/trail/agent-status');
 
@@ -79,9 +82,14 @@ describe('setupClaudeHooks', () => {
     );
     const cmd: string = editPre.hooks[0].command;
 
+    // agent-worker.json は workspaceRoot 基点で解決される
+    expect(cmd).toContain(`${tmpWorkspace}/.anytime/agent/agent-worker.json`);
+    // /edit エンドポイントへ POST する
+    expect(cmd).toContain('/api/agent-status/edit');
+    // git branch は workspaceRoot を cwd にして取得する
     expect(cmd).toContain(`cwd:'${tmpWorkspace}/'`);
-    const wrongCwd = path.join(tmpWorkspace, '.anytime', 'trail') + '/';
-    expect(cmd).not.toContain(`cwd:'${wrongCwd}'`);
+    // 旧方式のファイル書き込み痕跡が無いこと
+    expect(cmd).not.toContain('claude-code-status');
   });
 
   test('plan-file hook embeds workspaceRoot for plannedEdits path prefixing', () => {
@@ -105,32 +113,50 @@ describe('setupClaudeHooks', () => {
     expect(planCmd).not.toContain(`wr='${wrongWr}'`);
   });
 
-  test('commit-tracker / session-guard hooks anchor TRAIL_HOME at workspaceRoot (not cwd-relative)', () => {
+  test('commit-tracker anchors AGENT_HOME and session-guard anchors TRAIL_HOME at workspaceRoot', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace, '.anytime/trail/agent-status');
 
     const settings = JSON.parse(
       fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
     );
-    const expectedEnv = `TRAIL_HOME='${tmpWorkspace}/.anytime/trail'`;
 
     const commitTracker = settings.hooks.PostToolUse.find(
       (e: { hooks: Array<{ command: string }> }) =>
         e.hooks?.[0]?.command?.includes('commit-tracker.sh'),
     );
     expect(commitTracker).toBeDefined();
-    expect(commitTracker.hooks[0].command).toContain(expectedEnv);
+    expect(commitTracker.hooks[0].command).toContain(
+      `AGENT_HOME='${tmpWorkspace}/.anytime/agent'`,
+    );
+    expect(commitTracker.hooks[0].command).not.toContain('${CWD}');
+    // 旧 trail サーバ /api/message-commits への通知が消えていること
+    expect(commitTracker.hooks[0].command).not.toContain('message-commits');
 
     const sessionGuard = settings.hooks.UserPromptSubmit.find(
       (e: { hooks: Array<{ command: string }> }) =>
         e.hooks?.[0]?.command?.includes('session-guard.sh'),
     );
     expect(sessionGuard).toBeDefined();
-    expect(sessionGuard.hooks[0].command).toContain(expectedEnv);
-
-    // cwd 相対のフォールバックが残っていないこと（${CWD} を含まない）
-    expect(commitTracker.hooks[0].command).not.toContain('${CWD}');
+    expect(sessionGuard.hooks[0].command).toContain(
+      `TRAIL_HOME='${tmpWorkspace}/.anytime/trail'`,
+    );
     expect(sessionGuard.hooks[0].command).not.toContain('${CWD}');
+  });
+
+  test('commit-tracker.sh script targets agent-status worker, not trail message-commits', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace, '.anytime/trail/agent-status');
+
+    const script = fs.readFileSync(
+      path.join(tmpHome, '.claude', 'scripts', 'commit-tracker.sh'),
+      'utf-8',
+    );
+    expect(script).toContain('/api/agent-status/commit');
+    expect(script).toContain('agent-worker.json');
+    expect(script).not.toContain('/api/message-commits');
+    // git-state ファイルへの書き込みが廃止されていること
+    expect(script).not.toContain('git-state');
   });
 
   test('is idempotent: running twice does not duplicate hook entries', () => {

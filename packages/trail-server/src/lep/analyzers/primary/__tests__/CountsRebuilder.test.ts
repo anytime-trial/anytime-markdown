@@ -66,7 +66,7 @@ describe('CountsRebuilder', () => {
     const { bus } = makeBus();
     const ctx = makeCtx(bus);
 
-    await rebuilder.onRunEnd(ctx);
+    await expect(rebuilder.onRunEnd(ctx)).rejects.toThrow('raw string error');
 
     expect(phaseMessages).toEqual(['raw string error']);
   });
@@ -81,7 +81,7 @@ describe('CountsRebuilder', () => {
     const { bus } = makeBus();
     const ctx = makeCtx(bus);
 
-    await rebuilder.onRunEnd(ctx);
+    await expect(rebuilder.onRunEnd(ctx)).rejects.toThrow('SQL error');
 
     expect(phaseEvents).toEqual(['rebuild_counts:start', 'rebuild_counts:error']);
   });
@@ -117,7 +117,7 @@ describe('CountsRebuilder', () => {
     const { bus } = makeBus();
     const ctx = makeCtx(bus);
 
-    await rebuilder.onRunEnd(ctx);
+    await expect(rebuilder.onRunEnd(ctx)).rejects.toThrow('stats error');
 
     expect(phaseEvents).toEqual(['rebuild_counts:start', 'rebuild_counts:error']);
   });

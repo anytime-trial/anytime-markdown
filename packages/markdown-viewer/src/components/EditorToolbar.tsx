@@ -28,6 +28,7 @@ import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT, getActionHover, 
 import { SIDE_TOOLBAR_WIDTH, TOOLBAR_FONT_SIZE } from "../constants/dimensions";
 import { modKey } from "../constants/shortcuts";
 import { Z_TOOLBAR } from "../constants/zIndex";
+import { DEFAULT_AGGREGATE, getDiagramAggregate, isDiagramLanguage } from "../extensions/diagramAggregateExtension";
 import AppIcon from "../icons/AppIcon";
 import type { TranslationFn } from "../types";
 import type { ToolbarFileCapabilities, ToolbarFileHandlers, ToolbarModeHandlers,ToolbarModeState, ToolbarVisibility } from "../types/toolbar";
@@ -126,27 +127,18 @@ interface EditorToolbarProps {
 }
 
 function selectToolbarEditorState(ctx: { editor: Editor | null }) {
-  let allDiagramCodeCollapsed = true;
-  let hasDiagrams = false;
-  ctx.editor?.state.doc.descendants((node) => {
-    if (node.type.name === "codeBlock") {
-      const lang = (node.attrs.language || "").toLowerCase();
-      if (lang === "mermaid" || lang === "plantuml") {
-        hasDiagrams = true;
-        if (!node.attrs.codeCollapsed) allDiagramCodeCollapsed = false;
-      }
-    }
-  });
+  // diagram 集計は DiagramAggregateExtension の Plugin state から O(1) で取得する。
+  // （doc.descendants 全走査を毎トランザクションで行わない）
+  const diagram = ctx.editor ? getDiagramAggregate(ctx.editor.state) : DEFAULT_AGGREGATE;
   const activeLang = (ctx.editor?.getAttributes("codeBlock")?.language || "").toLowerCase();
-  const isInDiagramCode = (ctx.editor?.isActive("codeBlock") ?? false)
-    && (activeLang === "mermaid" || activeLang === "plantuml");
+  const isInDiagramCode = (ctx.editor?.isActive("codeBlock") ?? false) && isDiagramLanguage(activeLang);
   return {
     canUndo: ctx.editor?.can().undo() ?? false,
     canRedo: ctx.editor?.can().redo() ?? false,
     isCodeBlock: ctx.editor?.isActive("codeBlock") ?? false,
     isInDiagramCode,
-    allDiagramCodeCollapsed: hasDiagrams && allDiagramCodeCollapsed,
-    hasDiagrams,
+    allDiagramCodeCollapsed: diagram.hasDiagrams && diagram.allDiagramCodeCollapsed,
+    hasDiagrams: diagram.hasDiagrams,
   };
 }
 

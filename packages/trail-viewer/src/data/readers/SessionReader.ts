@@ -142,7 +142,15 @@ export class SessionReader {
         .select('session_id, source_tool_assistant_uuid, timestamp')
         .in('session_id', batchIds as string[])
         .not('source_tool_assistant_uuid', 'is', null);
-      if (markerErr) return out;
+      if (markerErr) {
+        // 1 バッチの失敗で収集済みを全廃棄すると Codex セッションのリンクが
+        // 消えて二重表示になるため、当該バッチのみスキップして継続する。
+        console.error(
+          `[SessionReader] trail_messages marker fetch failed for batch ${i / BATCH} (${batchIds.length} ids):`,
+          markerErr,
+        );
+        continue;
+      }
       if (batchRows) allMarkerRows.push(...(batchRows as typeof allMarkerRows));
     }
     const markerRows = allMarkerRows;

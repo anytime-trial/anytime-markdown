@@ -37,13 +37,15 @@ interface EditorConfigRefs {
   handleImport: RefObject<(file: File, nativeHandle?: FileSystemFileHandle) => void | Promise<void>>;
   onFileDragOver: RefObject<(over: boolean) => void>;
   slashCommandCallback: RefObject<(state: SlashCommandState) => void>;
+  /** 比較/マージモードが開いているか。開いている間のみ editorMarkdown を即時更新する */
+  inlineMergeOpen: RefObject<boolean>;
 }
 
 interface UseEditorConfigParams {
   t: (key: string) => string;
   initialContent: string | null;
   initialTrailingNewline?: boolean;
-  saveContent: (md: string) => void;
+  saveContent: (md: string | (() => string | null)) => void;
   refs: EditorConfigRefs;
   setHeadingMenu: (menu: HeadingMenuArg) => void;
   /** スプレッドシートのグリッド行数 */
@@ -67,6 +69,7 @@ export function useEditorConfig({
     handleImport: handleImportRef,
     onFileDragOver: onFileDragOverRef,
     slashCommandCallback: slashCommandCallbackRef,
+    inlineMergeOpen: inlineMergeOpenRef,
   },
   setHeadingMenu,
   gridRows,
@@ -107,9 +110,17 @@ export function useEditorConfig({
     content: initialContent ?? "",
     autofocus: "start" as const,
     onUpdate: ({ editor: e }: { editor: Editor }) => {
-      const md = getMarkdownFromEditor(e);
-      saveContent(md);
-      setEditorMarkdownRef.current(md);
+      // 永続化のフルシリアライズは saveContent の debounce 内へ遅延する。
+      // 打鍵ごとに getMarkdownFromEditor を呼ばず、停止後の1回だけ解決させる。
+      saveContent(() => {
+        const ed = editorRef.current;
+        return ed && !ed.isDestroyed ? getMarkdownFromEditor(ed) : null;
+      });
+      // editorMarkdown は比較/マージビュー専用 state。閉じている間は描画されず、
+      // 開く瞬間に再計算されるため、開いている間のみ差分追従用に即時更新する。
+      if (inlineMergeOpenRef.current) {
+        setEditorMarkdownRef.current(getMarkdownFromEditor(e));
+      }
       if (headingsDebounceRef.current) clearTimeout(headingsDebounceRef.current);
       headingsDebounceRef.current = setTimeout(() => {
         setHeadingsRef.current(extractHeadings(e));

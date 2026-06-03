@@ -60,7 +60,7 @@ export class ReactNodeView<
   /**
    * The renderer instance.
    */
-  renderer!: ReactRenderer<unknown, ReactNodeViewProps<T>>
+  declare renderer: ReactRenderer<unknown, ReactNodeViewProps<T>>
 
   /**
    * The element that holds the rich-text content of the node.

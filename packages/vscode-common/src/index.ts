@@ -1,6 +1,6 @@
 export { ClaudeStatusWatcher, jstDateString } from './claude/ClaudeStatusWatcher';
 export { setupClaudeHooks, getStatusFilePath, getStatusFileGlob } from './claude/claudeHookSetup';
-export type { Disposable, ClaudeStatus, SessionEdit, StatusChangeCallback, AgentInfo, MultiStatusChangeCallback, TodayStats } from './claude/types';
+export type { Disposable, ClaudeStatus, SessionEdit, StatusChangeCallback, AgentInfo, AgentLastCommit, AgentStatusRow, AgentStatusSource, MultiStatusChangeCallback, TodayStats } from './claude/types';
 export { resolveLocale } from './locale';
 export { TimelineProvider, TimelineItem } from './git/TimelineProvider';
 export {

@@ -416,7 +416,7 @@ export function MergeEditorPanel({
     );
   }
 
-  const tiptapStyles = getMergeTiptapStyles(theme, editorSettings.fontSize, editorSettings.lineHeight, { showHoverLabels });
+  const tiptapStyles = getMergeTiptapStyles(theme, editorSettings, { showHoverLabels });
 
   const paperContent = (
     <Paper

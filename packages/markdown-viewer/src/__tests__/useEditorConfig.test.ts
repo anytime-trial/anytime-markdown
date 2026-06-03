@@ -69,16 +69,18 @@ jest.mock("../constants/timing", () => ({
 }));
 
 import { useEditorConfig } from "../hooks/useEditorConfig";
+import { getMarkdownFromEditor } from "../types";
 
 function createRefs() {
   return {
-    editor: { current: null },
+    editor: { current: { isDestroyed: false } },
     setEditorMarkdown: { current: jest.fn() },
     setHeadings: { current: jest.fn() },
     headingsDebounce: { current: null },
     handleImport: { current: jest.fn() },
     onFileDragOver: { current: jest.fn() },
     slashCommandCallback: { current: jest.fn() },
+    inlineMergeOpen: { current: false },
   };
 }
 
@@ -383,5 +385,84 @@ describe("useEditorConfig", () => {
 
       expect(handled).toBe(false);
     });
+  });
+});
+
+describe("onUpdate 遅延シリアライズ", () => {
+  const getMd = getMarkdownFromEditor as jest.Mock;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.clearAllMocks();
+    getMd.mockReturnValue("# Test");
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
+
+  function buildOnUpdate(refs: ReturnType<typeof createRefs>, saveContent = jest.fn()) {
+    const { result } = renderHook(() =>
+      useEditorConfig({
+        t: (k: string) => k,
+        initialContent: "",
+        saveContent,
+        refs: refs as any,
+        setHeadingMenu: jest.fn(),
+      }),
+    );
+    const onUpdate = result.current.onUpdate as (a: { editor: unknown }) => void;
+    return { onUpdate, saveContent };
+  }
+
+  it("マージ閉時: onUpdate は getMarkdownFromEditor を同期実行しない（永続化は debounce へ遅延）", () => {
+    const refs = createRefs();
+    const editor = { isDestroyed: false };
+    refs.editor.current = editor as never;
+    const { onUpdate } = buildOnUpdate(refs);
+
+    onUpdate({ editor });
+
+    expect(getMd).not.toHaveBeenCalled();
+  });
+
+  it("マージ閉時: onUpdate は setEditorMarkdown を呼ばない", () => {
+    const refs = createRefs();
+    const editor = { isDestroyed: false };
+    refs.editor.current = editor as never;
+    const { onUpdate } = buildOnUpdate(refs);
+
+    onUpdate({ editor });
+
+    expect(refs.setEditorMarkdown.current).not.toHaveBeenCalled();
+  });
+
+  it("マージ閉時: saveContent にプロデューサを渡し、解決すると最新 Markdown になる", () => {
+    const refs = createRefs();
+    const editor = { isDestroyed: false };
+    refs.editor.current = editor as never;
+    const { onUpdate, saveContent } = buildOnUpdate(refs);
+
+    onUpdate({ editor });
+
+    expect(saveContent).toHaveBeenCalledTimes(1);
+    const arg = (saveContent as jest.Mock).mock.calls[0][0];
+    expect(typeof arg).toBe("function");
+    expect(arg()).toBe("# Test");
+    // プロデューサを解決したときにだけシリアライズされる
+    expect(getMd).toHaveBeenCalledTimes(1);
+  });
+
+  it("マージ開時: onUpdate は setEditorMarkdown を最新 Markdown で呼ぶ（差分追従を維持）", () => {
+    const refs = createRefs();
+    refs.inlineMergeOpen.current = true;
+    const editor = { isDestroyed: false };
+    refs.editor.current = editor as never;
+    const { onUpdate } = buildOnUpdate(refs);
+
+    onUpdate({ editor });
+
+    expect(refs.setEditorMarkdown.current).toHaveBeenCalledWith("# Test");
   });
 });

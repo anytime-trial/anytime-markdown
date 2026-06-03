@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.27.3] - 2026-06-03
+
+### Changed
+
+- Wired the framework-agnostic `@anytime-markdown/markdown-engine` package through the Turbopack and webpack aliases.
+- Adopted the shared `applyEditorThemeCssVars` injector in `Providers`, removing the inline theme CSS-variable logic.
+
 ## [0.27.2] - 2026-05-31
 
 ### Changed

@@ -13,6 +13,7 @@ import {
   migrateConfigJsonIntoLepJson,
   migrateLegacyToLepConfig,
   resolveGitHubSource,
+  serializeLepConfigWithComments,
   resolveWorkspaceConfigPath,
   validateLepConfigInput,
   workspaceConfigJsonPath,
@@ -509,6 +510,74 @@ describe('ensureLepConfigFile', () => {
     const { config } = loadLepConfig({ workspaceRoot: ws, homeDir: join(ws, 'nonexistent-home') });
     expect(config.stage).toBe('disabled');
     expect(existsSync(workspaceLepConfigPath(ws))).toBe(true);
+  });
+});
+
+describe('serializeLepConfigWithComments', () => {
+  it('embeds _comment annotations on each section while preserving values', () => {
+    const json = serializeLepConfigWithComments(DEFAULT_LEP_CONFIG);
+    const parsed = JSON.parse(json) as Record<string, unknown>;
+    // top-level + nested annotations are present
+    expect(parsed._comment).toBeDefined();
+    expect((parsed.schedule as Record<string, unknown>)._comment).toContain('intervalSec');
+    expect((parsed.memory as Record<string, unknown>)._comment).toContain('ハイブリッド検索パラメータ');
+    expect(
+      ((parsed.analyzers as Record<string, Record<string, unknown>>).DoraMetricsAggregator)._comment,
+    ).toContain('Layer4');
+    expect((parsed.workspace as Record<string, unknown>)._comment).toContain('configPaths');
+  });
+
+  it('toggle 可能 Layer 2 analyzer を既定 (enabled) で含み、無効化を検出する', () => {
+    // 既定では 6 個の primary toggle analyzer が enabled:true で含まれる
+    for (const id of [
+      'ReleaseResolver',
+      'CoverageImporter',
+      'BehaviorAnalyzer',
+      'CommitFilesBackfiller',
+      'SubagentTypeBackfiller',
+      'MessageCommitMatcher',
+    ]) {
+      expect(DEFAULT_LEP_CONFIG.analyzers[id]).toEqual({ enabled: true });
+    }
+    // lep で ReleaseResolver を無効化 → validate で受理され disabledAnalyzerIds に現れる
+    const { value } = validateLepConfigInput(
+      { version: 1, stage: 'primary', analyzers: { ReleaseResolver: { enabled: false } } },
+      'test',
+    );
+    const merged = mergeLepConfig(DEFAULT_LEP_CONFIG, value);
+    expect(disabledMemoryAnalyzerIds(merged)).toContain('ReleaseResolver');
+    // serializer に注釈が出る
+    const json = serializeLepConfigWithComments(merged);
+    const parsed = JSON.parse(json) as { analyzers: Record<string, { _comment?: string }> };
+    expect(parsed.analyzers.ReleaseResolver._comment).toContain('Layer2 primary');
+  });
+
+  it('round-trips through loadLepConfig (annotations ignored by loader)', () => {
+    const ws = mkdtempSync(join(tmpdir(), 'lepserialize-'));
+    try {
+      const dir = join(ws, '.anytime', 'trail');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'lep.json'), serializeLepConfigWithComments(DEFAULT_LEP_CONFIG), 'utf-8');
+      const { config } = loadLepConfig({ workspaceRoot: ws, homeDir: join(ws, 'nohome') });
+      expect(config.stage).toBe(DEFAULT_LEP_CONFIG.stage);
+      expect(config.memory.rag.bm25Limit).toBe(DEFAULT_LEP_CONFIG.memory.rag.bm25Limit);
+      expect(config.workspace.configPaths).toEqual(DEFAULT_LEP_CONFIG.workspace.configPaths);
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
+  it('ensureLepConfigFile writes a commented lep.json', () => {
+    const ws = mkdtempSync(join(tmpdir(), 'lepensurecmt-'));
+    try {
+      const res = ensureLepConfigFile({ workspaceRoot: ws, legacy: { analyzeAllEnabled: true } });
+      const raw = readFileSync(res.path, 'utf-8');
+      expect(raw).toContain('"_comment"');
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      expect((parsed.sources as Record<string, Record<string, unknown>>).github._comment).toContain('GitHub');
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
   });
 });
 

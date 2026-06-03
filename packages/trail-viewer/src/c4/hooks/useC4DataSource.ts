@@ -92,7 +92,11 @@ interface C4DataSourceResult {
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4DataSourceResult {
+export function useC4DataSource(
+  serverUrl: string,
+  disableWebSocket = false,
+  enabled = true,
+): C4DataSourceResult {
   // State
   const [remoteModel, setRemoteModel] = useState<C4Model | null>(null);
   const [remoteBoundaries, setRemoteBoundaries] = useState<
@@ -138,6 +142,7 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
     setComplexityMatrix,
     setReleases,
     setDocLinks,
+    enabled,
   );
 
   // Manual element / group CRUD + manualGroups state
@@ -214,6 +219,8 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
   // WebSocket connect / reconnect
   useEffect(() => {
     if (disableWebSocket) return;
+    // C4 タブ未訪問の間は WS を接続しない（起動時の不要な常時接続を回避）。
+    if (!enabled) return;
 
     let mounted = true;
 
@@ -261,11 +268,11 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
         wsRef.current = null;
       }
     };
-  }, [serverUrl, handleWsMessage, disableWebSocket]);
+  }, [enabled, serverUrl, handleWsMessage, disableWebSocket]);
 
   // REST fetch: file-analysis (importance + dead code matrix)
   useEffect(() => {
-    if (!selectedRepo) return;
+    if (!enabled || !selectedRepo) return;
     const ctrl = new AbortController();
     void (async () => {
       try {
@@ -291,11 +298,11 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
       }
     })();
     return () => ctrl.abort();
-  }, [serverUrl, selectedRepo, selectedRelease, analysisCompleteCounter]);
+  }, [enabled, serverUrl, selectedRepo, selectedRelease, analysisCompleteCounter]);
 
   // REST fetch: function-analysis (per-function fanIn / fanOut / role)
   useEffect(() => {
-    if (!selectedRepo) return;
+    if (!enabled || !selectedRepo) return;
     const ctrl = new AbortController();
     void (async () => {
       try {
@@ -310,7 +317,7 @@ export function useC4DataSource(serverUrl: string, disableWebSocket = false): C4
       }
     })();
     return () => ctrl.abort();
-  }, [serverUrl, selectedRepo, selectedRelease, analysisCompleteCounter]);
+  }, [enabled, serverUrl, selectedRepo, selectedRelease, analysisCompleteCounter]);
 
   // sendCommand
   const sendCommand = useCallback(

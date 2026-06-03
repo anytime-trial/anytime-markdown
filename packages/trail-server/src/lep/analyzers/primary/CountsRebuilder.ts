@@ -47,6 +47,9 @@ export class CountsRebuilder implements Analyzer {
       ctx.logger.error(
         `[CountsRebuilder] failed: ${err instanceof Error ? err.message : String(err)}`,
       );
+      // CostRebuilder と同様、握りつぶすと失敗が AnalyzeAllRunner に伝わらず
+      // daily_counts / session_stats が古いまま成功扱いになるため re-throw する。
+      throw err instanceof Error ? err : new Error(String(err));
     }
   }
 }

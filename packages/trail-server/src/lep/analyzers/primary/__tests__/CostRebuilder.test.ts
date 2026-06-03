@@ -63,7 +63,7 @@ describe('CostRebuilder', () => {
     const ctx = makeCtx(bus);
 
     await rebuilder.onRunStart(ctx);
-    await rebuilder.onRunEnd(ctx);
+    await expect(rebuilder.onRunEnd(ctx)).rejects.toThrow('SQL error');
 
     expect(phaseEvents).toEqual(['rebuild_costs:start', 'rebuild_costs:error']);
   });
@@ -82,7 +82,7 @@ describe('CostRebuilder', () => {
     const ctx = makeCtx(bus);
 
     await rebuilder.onRunStart(ctx);
-    await rebuilder.onRunEnd(ctx);
+    await expect(rebuilder.onRunEnd(ctx)).rejects.toThrow('SQL string error');
 
     expect(phaseMessages).toEqual(['SQL string error']);
   });

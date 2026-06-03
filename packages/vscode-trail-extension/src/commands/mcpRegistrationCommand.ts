@@ -42,7 +42,19 @@ export function registerMcpRegistrationCommand(
     context.subscriptions.push(
         vscode.commands.registerCommand(
             'anytime-trail.registerMcpServer',
-            () => registerMcpServerToJson(extensionDistPath),
+            async () => {
+                // VS Code のコマンドハンドラは戻り値の Promise を await しないため、
+                // ここで明示的に await し、最外側で例外を捕捉して未処理 rejection を防ぐ
+                // (registerMcpServerToJson 末尾の showTextDocument 等が reject し得る)。
+                try {
+                    await registerMcpServerToJson(extensionDistPath);
+                } catch (err) {
+                    TrailLogger.error('[mcp-register] unexpected error', err);
+                    vscode.window.showErrorMessage(
+                        `Anytime Trail: MCP サーバー登録中に予期せぬエラーが発生しました: ${err instanceof Error ? err.message : String(err)}`,
+                    );
+                }
+            },
         ),
     );
 }

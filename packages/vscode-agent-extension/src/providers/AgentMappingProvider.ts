@@ -1,6 +1,4 @@
 import * as cp from 'node:child_process';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { ClaudeStatusWatcher, jstDateString } from '@anytime-markdown/vscode-common';
 import { buildAgentMapping, parseWorktreeList } from '@anytime-markdown/agent-core';
@@ -77,18 +75,19 @@ export class AgentMappingProvider
     this.refresh();
   }
 
-  deleteSessionFile(sessionId: string): boolean {
-    const filePath = path.join(
-      this.watcher.getStatusDir(),
-      `claude-code-status-${sessionId}.json`,
-    );
+  async deleteSessionFile(sessionId: string): Promise<boolean> {
     try {
-      fs.unlinkSync(filePath);
+      const ok = await this.watcher.deleteSession(sessionId);
       this.refresh();
-      return true;
+      if (!ok) {
+        void vscode.window.showWarningMessage(
+          `セッションの削除に失敗しました（ワーカー未起動の可能性）: ${sessionId}`,
+        );
+      }
+      return ok;
     } catch (err) {
       void vscode.window.showErrorMessage(
-        `ステータスファイルの削除に失敗しました: ${filePath}\n${String(err)}`,
+        `セッションの削除に失敗しました: ${sessionId}\n${String(err)}`,
       );
       return false;
     }

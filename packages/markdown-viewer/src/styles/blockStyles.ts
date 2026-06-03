@@ -8,6 +8,7 @@ import {
 } from "../constants/colors";
 import { BLOCK_STYLE_FONT_SIZE } from "../constants/dimensions";
 import type { EditorSettings } from "../useEditorSettings";
+import { getImageRowStyles } from "./imageRowStyles";
 
 /** blockquote・admonition・table・list・taskList・hr・img スタイル */
 export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<Theme> {
@@ -172,50 +173,7 @@ export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<
       "0%, 100%": { opacity: 1 },
       "50%": { opacity: 0 },
     },
-    // imageRow: React NodeView を使わず renderHTML 直出力。
-    // DOM: [data-image-row] > .react-renderer.node-image+
-    // 画像は横並びに詰め、空きがあるときは折り返し。flex を使う。
-    "& [data-image-row]": {
-      display: "flex !important" as unknown as string,
-      flexWrap: "wrap",
-      gap: "8px",
-      alignItems: "flex-start",
-      my: 1,
-    },
-    "& [data-image-row] > *": {
-      minWidth: "0 !important" as unknown as string,
-      maxWidth: "100%",
-      overflow: "hidden",
-    },
-    "& [data-image-row] .image-node-wrapper": {
-      marginTop: "0 !important",
-      marginBottom: "0 !important",
-      minWidth: "0 !important" as unknown as string,
-    },
-    "& [data-image-row] img": {
-      maxWidth: "100%",
-      height: "auto",
-    },
-    "& [data-image-row] .image-node-wrapper > .MuiBox-root": {
-      marginTop: "0 !important",
-      marginBottom: "0 !important",
-    },
-    // 単独画像ブロック（imageRow 外）は画像サイズに合わせて幅を縮める
-    "& .image-node-wrapper[data-inside-image-row='false']": {
-      width: "fit-content",
-      maxWidth: "100%",
-    },
-    "& .image-row[data-selected='true'], & [data-image-row][data-selected='true']": {
-      outline: `2px solid ${getPrimaryMain(isDark)}`,
-      outlineOffset: "2px",
-      borderRadius: "4px",
-    },
-    "& .image-row-drop-cursor-vertical": {
-      position: "absolute",
-      width: "2px",
-      backgroundColor: getPrimaryMain(isDark),
-      pointerEvents: "none",
-      zIndex: 10,
-    },
+    // imageRow（連続画像）のレイアウトは比較ビューと共用する共有スタイルに切り出し済み
+    ...getImageRowStyles(isDark),
   };
 }
