@@ -11,6 +11,7 @@
 		{ "path": "packages/trace-agent-node" },
 		{ "path": "packages/spreadsheet-core" },
 		{ "path": "packages/spreadsheet-viewer" },
+		{ "path": "packages/markdown-engine" },
 		{ "path": "packages/markdown-viewer" },
 		{ "path": "packages/cms-core" },
 		{ "path": "packages/database-core" },
