@@ -1,5 +1,5 @@
 import type { C4Element } from '../domain/engine/c4Mapper';
-import { mapFilesToC4Elements } from '../domain/engine/c4Mapper';
+import { buildC4ElementById, mapFileToC4Elements } from '../domain/engine/c4Mapper';
 import type { FileAnalysisRow } from './types';
 
 /**
@@ -18,9 +18,11 @@ export function aggregateDeadCodeToC4(
 ): Map<string, number> {
   const out = new Map<string, number>();
   const mappable = elements.filter((el) => el.type !== 'system');
+  // elementById をループ前に一度だけ構築し O(F×E) を回避する。
+  const elementById = buildC4ElementById(mappable);
   for (const r of rows) {
     if (r.deadCodeScore <= 0) continue;
-    const mappings = mapFilesToC4Elements([r.filePath], mappable);
+    const mappings = mapFileToC4Elements(r.filePath, elementById);
     for (const m of mappings) {
       const cur = out.get(m.elementId) ?? 0;
       if (r.deadCodeScore > cur) out.set(m.elementId, r.deadCodeScore);

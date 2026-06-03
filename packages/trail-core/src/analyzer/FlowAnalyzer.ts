@@ -36,7 +36,10 @@ export class FlowAnalyzer {
     nodeCounter = 0;
     const nodes: FlowNode[] = [];
     const edges: FlowEdge[] = [];
-    const visited = new Set<string>();
+    // symbolId → 生成済み nodeId。サイクル (相互再帰) で再訪したとき、生の
+    // symbolId ではなく対応する nodeId を返すことで、存在しないノードを指す
+    // 孤立エッジ (レンダラの参照クラッシュ要因) が生じるのを防ぐ。
+    const visited = new Map<string, string>();
 
     // ファイルパス → SourceFile マップ
     const sfMap = new Map<string, ts.SourceFile>();
@@ -53,12 +56,14 @@ export class FlowAnalyzer {
     }
 
     function walk(symbolId: string, depth: number): string {
-      if (visited.has(symbolId)) return symbolId;
-      visited.add(symbolId);
+      const existing = visited.get(symbolId);
+      if (existing !== undefined) return existing;
 
       const parts = symbolId.split('::');
       const funcName = parts.at(-1) ?? symbolId;
       const nodeId = nextId('call');
+      // collectCalls の再帰より前に登録する。以降のサイクルはこの nodeId を返す。
+      visited.set(symbolId, nodeId);
       nodes.push({ id: nodeId, label: funcName, kind: depth === 0 ? 'start' : 'call', filePath: parts[0], line: 0 });
 
       if (depth >= maxDepth) return nodeId;

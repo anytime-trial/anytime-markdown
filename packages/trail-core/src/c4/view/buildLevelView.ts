@@ -8,13 +8,26 @@ const VISIBLE_C4_TYPES: Readonly<Record<number, ReadonlySet<C4ElementType>>> = {
   3: new Set<C4ElementType>(['person', 'system']),
 };
 
-/** ノードのフレーム深さを計算（ルートフレーム=1, 子フレーム=2, ...） */
-export function getFrameDepth(node: GraphNode, allNodes: readonly GraphNode[]): number {
+/**
+ * ノードのフレーム深さを計算（ルートフレーム=1, 子フレーム=2, ...）。
+ *
+ * 祖先探索は id 引きの繰り返しになるため、配列を渡すと毎回 O(n) の find が
+ * 走り全体で O(n^2) に膨らむ。呼び出し側で一度だけ構築した `nodeById` Map を
+ * 渡せば各探索が O(1) になる。後方互換のため配列も受け付ける。
+ */
+export function getFrameDepth(
+  node: GraphNode,
+  allNodes: readonly GraphNode[] | ReadonlyMap<string, GraphNode>,
+): number {
+  const nodeById: ReadonlyMap<string, GraphNode> =
+    allNodes instanceof Map
+      ? allNodes
+      : new Map((allNodes as readonly GraphNode[]).map(n => [n.id, n]));
   let depth = 1;
   let parentId = node.groupId;
   while (parentId) {
     depth++;
-    const parent = allNodes.find(n => n.id === parentId);
+    const parent = nodeById.get(parentId);
     parentId = parent?.groupId;
   }
   return depth;
@@ -75,11 +88,14 @@ export function buildLevelView(
   // 子要素を持つフレーム ID の集合（子なしフレームは rect に変換する）
   const framesWithChildren = buildFramesWithChildren(doc.nodes);
 
+  // 全ノードの id 引き Map を一度だけ構築し、深さ計算の祖先探索を O(1) にする。
+  const allNodeById = new Map(doc.nodes.map(n => [n.id, n]));
+
   const visibleNodes: GraphNode[] = [];
   const visibleNodeIds = new Set<string>();
 
   for (const node of doc.nodes) {
-    const added = addVisibleNode(node, doc.nodes, level, maxFrameDepth, framesWithChildren, visibleNodes);
+    const added = addVisibleNode(node, allNodeById, level, maxFrameDepth, framesWithChildren, visibleNodes);
     if (added) visibleNodeIds.add(node.id);
   }
   const visibleNodeById = new Map(visibleNodes.map(n => [n.id, n]));
@@ -90,7 +106,7 @@ export function buildLevelView(
     : filterAncestorEdges(
       visibleEdges,
       visibleNodeById,
-      node => node.type === 'frame' && getFrameDepth(node, doc.nodes) < maxFrameDepth,
+      node => node.type === 'frame' && getFrameDepth(node, allNodeById) < maxFrameDepth,
     );
 
   return { ...doc, nodes: visibleNodes, edges: filteredEdges };
@@ -127,26 +143,26 @@ function filterEdgesByVisibleNodes(
 /** ノードを visible リストに追加する。追加した場合 true を返す。 */
 function addVisibleNode(
   node: GraphNode,
-  allNodes: readonly GraphNode[],
+  allNodeById: ReadonlyMap<string, GraphNode>,
   level: number,
   maxFrameDepth: number,
   framesWithChildren: ReadonlySet<string>,
   visibleNodes: GraphNode[],
 ): boolean {
   if (node.type === 'frame') {
-    return addVisibleFrameNode(node, allNodes, maxFrameDepth, framesWithChildren, visibleNodes);
+    return addVisibleFrameNode(node, allNodeById, maxFrameDepth, framesWithChildren, visibleNodes);
   }
   return addVisibleNonFrameNode(node, level, visibleNodes);
 }
 
 function addVisibleFrameNode(
   node: GraphNode,
-  allNodes: readonly GraphNode[],
+  allNodeById: ReadonlyMap<string, GraphNode>,
   maxFrameDepth: number,
   framesWithChildren: ReadonlySet<string>,
   visibleNodes: GraphNode[],
 ): boolean {
-  const depth = getFrameDepth(node, allNodes);
+  const depth = getFrameDepth(node, allNodeById);
   if (depth > maxFrameDepth) return false;
   // depth == maxFrameDepth、または子要素なしの中間フレーム（手動登録等）は rect に変換
   const isLeaf = depth === maxFrameDepth || !framesWithChildren.has(node.id);
