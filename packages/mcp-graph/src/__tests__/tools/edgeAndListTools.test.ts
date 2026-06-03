@@ -25,11 +25,11 @@ describe('addEdge', () => {
     const n2 = await addNode({ path: 'test.graph', type: 'rect', x: 200, y: 0, text: 'B' }, tmpDir);
     const edge = await addEdge({
       path: 'test.graph',
-      type: 'arrow',
+      type: 'line',
       from: { nodeId: n1.id, x: 0, y: 0 },
       to: { nodeId: n2.id, x: 0, y: 0 },
     }, tmpDir);
-    expect(edge.type).toBe('arrow');
+    expect(edge.type).toBe('line');
     expect(edge.from.nodeId).toBe(n1.id);
     const doc = await readGraph({ path: 'test.graph' }, tmpDir);
     expect(doc.edges).toHaveLength(1);
@@ -51,7 +51,7 @@ describe('addEdge', () => {
     const n2 = await addNode({ path: 'test.graph', type: 'rect', x: 200, y: 0 }, tmpDir);
     await expect(addEdge({
       path: 'test.graph',
-      type: 'arrow',
+      type: 'line',
       from: { nodeId: 'fake', x: 0, y: 0 },
       to: { nodeId: n2.id, x: 0, y: 0 },
     }, tmpDir)).rejects.toThrow('not found');
@@ -61,7 +61,7 @@ describe('addEdge', () => {
     const n1 = await addNode({ path: 'test.graph', type: 'rect', x: 0, y: 0 }, tmpDir);
     await expect(addEdge({
       path: 'test.graph',
-      type: 'arrow',
+      type: 'line',
       from: { nodeId: n1.id, x: 0, y: 0 },
       to: { nodeId: 'fake-target', x: 0, y: 0 },
     }, tmpDir)).rejects.toThrow('Target node not found');
@@ -84,7 +84,7 @@ describe('removeEdge', () => {
     const n1 = await addNode({ path: 'test.graph', type: 'rect', x: 0, y: 0 }, tmpDir);
     const n2 = await addNode({ path: 'test.graph', type: 'rect', x: 200, y: 0 }, tmpDir);
     const edge = await addEdge({
-      path: 'test.graph', type: 'arrow',
+      path: 'test.graph', type: 'line',
       from: { nodeId: n1.id, x: 0, y: 0 }, to: { nodeId: n2.id, x: 0, y: 0 },
     }, tmpDir);
     await removeEdge({ path: 'test.graph', edgeId: edge.id }, tmpDir);

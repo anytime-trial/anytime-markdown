@@ -33,7 +33,7 @@ const MockNextResponse = class {
 };
 
 // NextResponse constructor call (used by new NextResponse('text', { status }))
-const MockNextResponseClass = function (this: MockNextResponse, body: unknown, init?: { status?: number }) {
+const MockNextResponseClass = function (this: MockResp, body: unknown, init?: { status?: number }) {
   this._body = body;
   this._status = init?.status ?? 200;
 } as unknown as typeof MockNextResponse;

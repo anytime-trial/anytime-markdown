@@ -91,7 +91,7 @@ describe('useTableData', () => {
     const adapter = makeAdapter();
     const { result, rerender } = renderHook(
       ({ table }: { table: string | null }) => useTableData(adapter, table, 1, 20),
-      { initialProps: { table: 'users' } },
+      { initialProps: { table: 'users' as string | null } },
     );
 
     await waitFor(() => expect(result.current.columns).toEqual(['id', 'name']));

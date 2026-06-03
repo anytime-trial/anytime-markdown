@@ -228,7 +228,7 @@ describe('client.ts', () => {
       mockFetch([{ ok: true, status: 200, body: { status: 'started' } }]);
       const res = await analyzeCurrentCodeWithProgress(URL, { workspacePath: '/ws' });
       expect(res.progressLog).toEqual([]);
-      expect(res.status).toBe('started');
+      expect((res as unknown as { status: string }).status).toBe('started');
     });
 
     test('analyzeCurrentCodeWithProgress without body uses default empty object', async () => {
@@ -301,7 +301,7 @@ describe('client.ts', () => {
       const res = await analyzeCurrentCodeWithProgress(URL, {});
       // error 後は ws が undefined になって以降の処理が続行される
       expect(res.progressLog).toEqual([]);
-      expect(res.status).toBe('started');
+      expect((res as unknown as { status: string }).status).toBe('started');
     });
 
     test('analyzeCurrentCode が throw しても ws.close() が呼ばれる', async () => {
@@ -361,7 +361,7 @@ describe('client.ts', () => {
       // ws.close() の例外は catch {} で無視されるため正常に返る
       const res = await analyzeCurrentCodeWithProgress(URL, {});
       expect(res.progressLog).toEqual([]);
-      expect(res.status).toBe('started');
+      expect((res as unknown as { status: string }).status).toBe('started');
     });
 
     test('非 analysis-progress type の message は progressLog に追加しない', async () => {

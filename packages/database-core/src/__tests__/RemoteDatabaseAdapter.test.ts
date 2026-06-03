@@ -143,7 +143,7 @@ describe('RemoteDatabaseAdapter', () => {
       m.emit({ type: 'rpcResult', id: 'unknown-id', result: null }),
     ).not.toThrow();
     expect(() =>
-      m.emit({ type: 'init', schema: { tables: [], views: [] }, capabilities: a.capabilities, config: { queryMaxRows: 100, fileName: 'x' } } as ExtToWvMessage),
+      m.emit({ type: 'init', schema: { tables: [], views: [] }, capabilities: a.capabilities, config: { queryMaxRows: 100, fileName: 'x' } } as unknown as ExtToWvMessage),
     ).not.toThrow();
     // Pending requests still resolve normally afterwards
     const promise = a.listSchema();

@@ -232,7 +232,7 @@ describe('getC4ModelDirect', () => {
     const { model } = getC4ModelDirect(db, REPO);
     const elem = model.elements.find((e) => e.id === 'no-desc-elem');
     expect(elem).toBeDefined();
-    expect((elem as Record<string, unknown>).description).toBeUndefined();
+    expect((elem as unknown as Record<string, unknown>).description).toBeUndefined();
     db.close();
   });
 
@@ -247,7 +247,7 @@ describe('getC4ModelDirect', () => {
     const { model } = getC4ModelDirect(db, REPO);
     const elem = model.elements.find((e) => e.id === 'svc-elem');
     expect(elem).toBeDefined();
-    expect((elem as Record<string, unknown>).serviceType).toBe('grpc');
+    expect((elem as unknown as Record<string, unknown>).serviceType).toBe('grpc');
     db.close();
   });
 
