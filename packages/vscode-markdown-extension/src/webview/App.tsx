@@ -187,10 +187,11 @@ export function App() {
 
   // プリセットに応じた CSS カスタムプロパティの適用
   useEffect(() => {
+    // 見出しボーダーはデザイン仕様準拠のニュートラル墨色（既定）に統一。
+    // 旧 vscode 固有の暖色 rgba(160,120,60,*) は未文書化のドリフトのため撤去（web-app と一致）。
     applyEditorThemeCssVars({
       presetName,
       themeMode,
-      headingBorderLight: ['rgba(160,120,60,0.5)', 'rgba(160,120,60,0.4)', 'rgba(160,120,60,0.35)'],
     });
   }, [presetName, themeMode]);
 
