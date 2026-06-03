@@ -14,7 +14,7 @@ import TaskList from "@anytime-markdown/markdown-extension-task-list";
 import Underline from "@anytime-markdown/markdown-extension-underline";
 import { Fragment } from "@anytime-markdown/markdown-pm/model";
 import { Plugin, PluginKey, TextSelection } from "@anytime-markdown/markdown-pm/state";
-import { Extension, type Extensions } from "@anytime-markdown/markdown-react";
+import { Extension, type Extensions } from "@anytime-markdown/markdown-core";
 import StarterKit from "@anytime-markdown/markdown-starter-kit";
 import { Markdown } from "@anytime-markdown/markdown-md";
 
