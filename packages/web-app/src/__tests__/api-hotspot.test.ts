@@ -2,6 +2,8 @@
  * /api/hotspot (GET) の characterization test
  */
 
+export {}; // tsc -b: module 化して top-level 宣言の global 衝突(TS2451/TS2393)を防ぐ
+
 const mockComputeFileHotspot = jest.fn();
 const mockResolveSupabaseEnv = jest.fn();
 const mockCreateClient = jest.fn();

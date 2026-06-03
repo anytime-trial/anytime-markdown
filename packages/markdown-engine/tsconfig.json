@@ -4,10 +4,13 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2023", "DOM"],
-    "noEmit": true,
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
     "isolatedModules": true,
     "declaration": true,
     "baseUrl": "."
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["dist", "**/__tests__/**"]
 }

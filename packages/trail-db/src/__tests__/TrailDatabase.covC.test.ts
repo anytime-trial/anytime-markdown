@@ -862,20 +862,20 @@ describe('fetchLinkedCodexSessionIdsInRange — matchCodexSessionByTime branches
 // ---------------------------------------------------------------------------
 describe('estimateCost (exported function)', () => {
   it('returns a non-negative number for valid model and token counts', async () => {
-    const { estimateCost } = await import('../TrailDatabase');
+    const { estimateCost } = await import('../TrailDatabase.js');
     const cost = estimateCost('claude-opus-4', 1000, 500, 0, 0);
     expect(cost).toBeGreaterThanOrEqual(0);
     expect(typeof cost).toBe('number');
   });
 
   it('returns 0 for all-zero tokens', async () => {
-    const { estimateCost } = await import('../TrailDatabase');
+    const { estimateCost } = await import('../TrailDatabase.js');
     const cost = estimateCost('claude-opus-4', 0, 0, 0, 0);
     expect(cost).toBe(0);
   });
 
   it('accepts source param (codex)', async () => {
-    const { estimateCost } = await import('../TrailDatabase');
+    const { estimateCost } = await import('../TrailDatabase.js');
     const cost = estimateCost('claude-opus-4', 500, 200, 100, 50, 'codex');
     expect(cost).toBeGreaterThanOrEqual(0);
   });

@@ -345,7 +345,7 @@ describe('graphReducer', () => {
     const node = createNode('rect', 0, 0, { id: 'n1' });
     let s = graphReducer(state, { type: 'ADD_NODE', node });
     // Manually strip groups from the history entry to simulate missing field
-    (s.history[0] as Record<string, unknown>)['groups'] = undefined;
+    (s.history[0] as unknown as Record<string, unknown>)['groups'] = undefined;
     // UNDO should not throw and groups should default to []
     const undone = graphReducer(s, { type: 'UNDO' });
     expect(undone.document.groups).toEqual([]);
@@ -356,7 +356,7 @@ describe('graphReducer', () => {
     const node = createNode('rect', 0, 0, { id: 'n1' });
     let s = graphReducer(state, { type: 'ADD_NODE', node });
     // Strip selection from history entry
-    (s.history[0] as Record<string, unknown>)['selection'] = undefined;
+    (s.history[0] as unknown as Record<string, unknown>)['selection'] = undefined;
     const undone = graphReducer(s, { type: 'UNDO' });
     expect(undone.selection.nodeIds).toEqual([]);
     expect(undone.selection.edgeIds).toEqual([]);
@@ -449,7 +449,7 @@ describe('graphReducer', () => {
     // Create doc without groups field — exercises makeInitialEntry's groups ?? [] branch
     // The document itself retains undefined, but the history entry normalizes to []
     const doc = createDocument('NoGroups');
-    (doc as Record<string, unknown>)['groups'] = undefined;
+    (doc as unknown as Record<string, unknown>)['groups'] = undefined;
     const state = createInitialState();
     const next = graphReducer(state, { type: 'SET_DOCUMENT', doc: doc as never });
     // history[0].groups should be [] (via makeInitialEntry's ?? [] fallback)
@@ -460,7 +460,7 @@ describe('graphReducer', () => {
     // SNAPSHOT calls withHistory(state, state), so if state.document.groups is undefined,
     // withHistory sees after.document.groups === undefined → groups ?? [] branch fires
     let state = makeState();
-    (state.document as Record<string, unknown>)['groups'] = undefined;
+    (state.document as unknown as Record<string, unknown>)['groups'] = undefined;
     const next = graphReducer(state, { type: 'SNAPSHOT' });
     // History entry should have groups = [] (via ?? [] fallback in withHistory)
     expect(next.history[next.historyIndex].groups).toEqual([]);
@@ -527,8 +527,8 @@ describe('graphReducer', () => {
     // UNDO so historyIndex goes back, then modify entry[1] to strip groups/selection
     s = graphReducer(s, { type: 'UNDO' });
     // Strip groups and selection from history entry index 1
-    (s.history[1] as Record<string, unknown>)['groups'] = undefined;
-    (s.history[1] as Record<string, unknown>)['selection'] = undefined;
+    (s.history[1] as unknown as Record<string, unknown>)['groups'] = undefined;
+    (s.history[1] as unknown as Record<string, unknown>)['selection'] = undefined;
     const redone = graphReducer(s, { type: 'REDO' });
     // Should not throw; groups and selection default
     expect(redone.document.groups).toEqual([]);
@@ -550,9 +550,9 @@ describe('graphReducer', () => {
 
   it('GROUP_SELECTED with undefined document.groups falls back to [] (line 218)', () => {
     let state = makeState();
-    (state.document as Record<string, unknown>)['groups'] = undefined;
+    (state.document as unknown as Record<string, unknown>)['groups'] = undefined;
     state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1', 'n2'], edgeIds: [] } });
-    (state.document as Record<string, unknown>)['groups'] = undefined;
+    (state.document as unknown as Record<string, unknown>)['groups'] = undefined;
     const next = graphReducer(state, { type: 'GROUP_SELECTED', groupId: 'gx1' });
     expect(next.document.groups).toHaveLength(1);
     expect(next.document.groups![0].id).toBe('gx1');
@@ -560,7 +560,7 @@ describe('graphReducer', () => {
 
   it('UPDATE_GROUP_LABEL with undefined document.groups falls back to [] (line 271)', () => {
     let state = makeState();
-    (state.document as Record<string, unknown>)['groups'] = undefined;
+    (state.document as unknown as Record<string, unknown>)['groups'] = undefined;
     const next = graphReducer(state, { type: 'UPDATE_GROUP_LABEL', id: 'nonexistent', label: 'X' });
     expect(next.document.groups).toHaveLength(0);
   });
@@ -585,36 +585,36 @@ describe('graphReducer', () => {
   it('group operations with undefined groups falls back to [] (lines 230,249-284,295)', () => {
     // Strip groups from state before each group action to trigger the ?? [] fallback
     let state = makeState();
-    (state.document as Record<string, unknown>)['groups'] = undefined;
+    (state.document as unknown as Record<string, unknown>)['groups'] = undefined;
 
     // UNGROUP_SELECTED with undefined groups (line 230)
     state = graphReducer(state, { type: 'SET_SELECTION', selection: { nodeIds: ['n1'], edgeIds: [] } });
-    (state.document as Record<string, unknown>)['groups'] = undefined;
+    (state.document as unknown as Record<string, unknown>)['groups'] = undefined;
     const ungrouped = graphReducer(state, { type: 'UNGROUP_SELECTED' });
     expect(ungrouped.document.groups).toHaveLength(0);
 
     // CREATE_GROUP with undefined groups (line 249)
-    (state.document as Record<string, unknown>)['groups'] = undefined;
+    (state.document as unknown as Record<string, unknown>)['groups'] = undefined;
     const created = graphReducer(state, { type: 'CREATE_GROUP', memberIds: ['n1', 'n2'] });
     expect(created.document.groups).toHaveLength(1);
 
     // DELETE_GROUP with undefined groups (line 260)
-    (state.document as Record<string, unknown>)['groups'] = undefined;
+    (state.document as unknown as Record<string, unknown>)['groups'] = undefined;
     const deleted = graphReducer(state, { type: 'DELETE_GROUP', id: 'nonexistent' });
     expect(deleted.document.groups).toHaveLength(0);
 
     // UPDATE_GROUP_LABEL with undefined groups (line 271)
-    (state.document as Record<string, unknown>)['groups'] = undefined;
+    (state.document as unknown as Record<string, unknown>)['groups'] = undefined;
     const labeled = graphReducer(state, { type: 'UPDATE_GROUP_LABEL', id: 'nonexistent', label: 'X' });
     expect(labeled.document.groups).toHaveLength(0);
 
     // ADD_TO_GROUP with undefined groups (line 284)
-    (state.document as Record<string, unknown>)['groups'] = undefined;
+    (state.document as unknown as Record<string, unknown>)['groups'] = undefined;
     const added = graphReducer(state, { type: 'ADD_TO_GROUP', groupId: 'nonexistent', nodeId: 'n1' });
     expect(added.document.groups).toHaveLength(0);
 
     // REMOVE_FROM_GROUP with undefined groups (line 295)
-    (state.document as Record<string, unknown>)['groups'] = undefined;
+    (state.document as unknown as Record<string, unknown>)['groups'] = undefined;
     const removed = graphReducer(state, { type: 'REMOVE_FROM_GROUP', groupId: 'nonexistent', nodeId: 'n1' });
     expect(removed.document.groups).toHaveLength(0);
   });
