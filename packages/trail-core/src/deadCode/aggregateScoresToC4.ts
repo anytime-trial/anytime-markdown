@@ -1,5 +1,5 @@
 import type { C4Element } from '../domain/engine/c4Mapper';
-import { mapFilesToC4Elements } from '../domain/engine/c4Mapper';
+import { buildC4ElementById, mapFileToC4Elements } from '../domain/engine/c4Mapper';
 
 export interface AggregateScoresToC4Options {
   /**
@@ -24,9 +24,12 @@ export function aggregateScoresToC4(
 ): Record<string, number> {
   const out: Record<string, number> = {};
   const mappable = elements.filter((el) => el.type !== 'system');
+  // elementById をループ前に一度だけ構築する。mapFilesToC4Elements を毎回呼ぶと
+  // 内部で buildC4ElementById が走り O(F×E) になるため、単一ファイル版を使う。
+  const elementById = buildC4ElementById(mappable);
   for (const [filePath, score] of Object.entries(fileScores)) {
     if (score <= 0) continue;
-    const mappings = mapFilesToC4Elements([filePath], mappable);
+    const mappings = mapFileToC4Elements(filePath, elementById);
     const targets = opts.leafOnly ? mappings.slice(0, 1) : mappings;
     for (const m of targets) {
       const cur = out[m.elementId] ?? 0;

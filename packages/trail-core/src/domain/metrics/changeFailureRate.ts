@@ -97,7 +97,10 @@ export function computeChangeFailureRate(
   let comparison: MetricValue['comparison'] | undefined;
   if (previousInputs !== undefined) {
     const prev = computeRate(previousInputs, previousRange);
-    const deltaPct = prev.sampleSize === 0 ? null : ((value - prev.value) / prev.value) * 100;
+    // prev.value === 0 (前期間が 0%) を除外しないと Infinity/NaN になり
+    // 比較表示や JSON シリアライズが壊れるため両方ガードする。
+    const deltaPct =
+      prev.sampleSize === 0 || prev.value === 0 ? null : ((value - prev.value) / prev.value) * 100;
     comparison = { previousValue: prev.value, deltaPct };
   }
 

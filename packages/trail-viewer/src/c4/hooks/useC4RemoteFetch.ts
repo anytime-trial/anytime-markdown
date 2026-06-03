@@ -44,6 +44,9 @@ export function useRemoteInitialFetch(
     if (serverUrl === undefined) return;
 
     let cancelled = false;
+    // release/repo 切替やアンマウント時に in-flight な 6 本の fetch を中断する。
+    const controller = new AbortController();
+    const signal = controller.signal;
 
     async function fetchInitial(): Promise<void> {
       const repoQuery = selectedRepo ? `&repo=${encodeURIComponent(selectedRepo)}` : '';
@@ -54,12 +57,12 @@ export function useRemoteInitialFetch(
         ? `${serverUrl}/api/c4/complexity?repo=${encodeURIComponent(selectedRepo)}`
         : `${serverUrl}/api/c4/complexity`;
       const [modelRes, dsmRes, covRes, complexityRes, releasesRes, docsRes] = await Promise.all([
-        fetch(modelUrl).catch(() => null),
-        fetch(dsmUrl).catch(() => null),
-        fetch(`${serverUrl}/api/c4/coverage?release=${encodeURIComponent(selectedRelease)}${repoQuery}`).catch(() => null),
-        fetch(complexityUrl).catch(() => null),
-        fetch(`${serverUrl}/api/c4/releases`).catch(() => null),
-        fetch(`${serverUrl}/api/docs-index${selectedRepo ? `?repo=${encodeURIComponent(selectedRepo)}` : ''}`).catch(() => null),
+        fetch(modelUrl, { signal }).catch(() => null),
+        fetch(dsmUrl, { signal }).catch(() => null),
+        fetch(`${serverUrl}/api/c4/coverage?release=${encodeURIComponent(selectedRelease)}${repoQuery}`, { signal }).catch(() => null),
+        fetch(complexityUrl, { signal }).catch(() => null),
+        fetch(`${serverUrl}/api/c4/releases`, { signal }).catch(() => null),
+        fetch(`${serverUrl}/api/docs-index${selectedRepo ? `?repo=${encodeURIComponent(selectedRepo)}` : ''}`, { signal }).catch(() => null),
       ]);
 
       const [modelJson, dsmJson, covJson, complexityJson, docsJson] = await Promise.all([
@@ -124,6 +127,6 @@ export function useRemoteInitialFetch(
     }
 
     void fetchInitial();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [serverUrl, selectedRelease, selectedRepo, setC4Model, setBoundaries, setDsmMatrix, setFeatureMatrix, setCoverageMatrix, setCoverageDiff, setComplexityMatrix, setReleases, setDocLinks]);
 }

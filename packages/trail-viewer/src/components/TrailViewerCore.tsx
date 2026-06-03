@@ -19,6 +19,7 @@ import type { CostOptimizationData } from '../domain/parser/types';
 import type { AnalyticsPanelProps } from './AnalyticsPanel';
 import type { AnalyticsData } from '../domain/parser/types';
 import { buildMessageTree } from '../domain/parser/buildMessageTree';
+import type { WsSubscribe } from '../hooks/useLogsDataSource';
 import { FilterBar } from './FilterBar';
 import { PromptManager } from './PromptManager';
 import { ReleasesPanel } from './ReleasesPanel';
@@ -369,6 +370,32 @@ function TrailViewerCoreInner({
     '&:disabled': { color: c4Colors.textMuted },
   } as const;
 
+  // buildMessageTree は messages を 2 回走査するため、MessageTimeline と TraceTree
+  // で結果を共有する。messages 不変なら親の再レンダーで再構築しない。
+  const messageTree = useMemo(() => buildMessageTree(messages), [messages]);
+
+  // subscribe をインラインアローにすると毎レンダーで関数 identity が変わり、
+  // LogsTab 側の useEffect 依存で WebSocket が貼り直されてリークするため固定する。
+  const subscribeToLogs = useCallback<WsSubscribe>(
+    (handler) => {
+      const wsUrl = serverUrl.replace(/^http/, 'ws');
+      const ws = new WebSocket(wsUrl);
+      ws.addEventListener('message', (ev) => {
+        try {
+          const data = typeof ev.data === 'string' ? ev.data : '';
+          const msg = JSON.parse(data) as { type?: string };
+          if (msg && msg.type === 'log-batch') {
+            handler(msg as never);
+          }
+        } catch {
+          /* noop */
+        }
+      });
+      return () => ws.close();
+    },
+    [serverUrl],
+  );
+
   // メッセージタブとメッセージポップアップの両方で同じ JSX を使うため変数化。
   // 親 state を共有するので filter / 選択セッション / メッセージは両者で同期する。
   const messagesTabContent = (
@@ -400,13 +427,13 @@ function TrailViewerCoreInner({
         <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Suspense fallback={<TabSkeleton height="100%" />}>
             <MessageTimeline
-              nodes={buildMessageTree(messages)}
+              nodes={messageTree}
               session={selectedSession}
               onSelectMessage={() => { /* scroll handled inside component */ }}
             />
             {selectedSessionId && messages.length > 0 ? (
               <Box sx={{ flex: 1, overflow: 'auto', ...scrollbarSx }}>
-                <TraceTree nodes={buildMessageTree(messages)} />
+                <TraceTree nodes={messageTree} />
               </Box>
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
@@ -590,22 +617,7 @@ function TrailViewerCoreInner({
           <Suspense fallback={<TabSkeleton height="100%" />}>
             <LogsTab
               baseUrl={serverUrl}
-              subscribe={(handler) => {
-                const wsUrl = serverUrl.replace(/^http/, 'ws');
-                const ws = new WebSocket(wsUrl);
-                ws.addEventListener('message', (ev) => {
-                  try {
-                    const data = typeof ev.data === 'string' ? ev.data : '';
-                    const msg = JSON.parse(data) as { type?: string };
-                    if (msg && msg.type === 'log-batch') {
-                      handler(msg as never);
-                    }
-                  } catch {
-                    /* noop */
-                  }
-                });
-                return () => ws.close();
-              }}
+              subscribe={subscribeToLogs}
             />
           </Suspense>
         </Box>

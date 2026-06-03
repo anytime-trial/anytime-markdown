@@ -1,5 +1,5 @@
 import { classifyByFeatures } from '../../domain/engine/CostOptimizer';
-import { mapFilesToC4Elements } from '../../domain/engine/c4Mapper';
+import { buildC4ElementById, mapFileToC4Elements } from '../../domain/engine/c4Mapper';
 import type { C4Element, ComplexityClass, ComplexityEntry, ComplexityMatrix } from '../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -82,6 +82,11 @@ export function computeComplexityMatrix(
   messages: readonly MessageInput[],
   c4Elements: readonly C4Element[],
 ): ComplexityMatrix {
+  // c4Elements の id 引き Map をループ前に一度だけ構築する。メッセージごとに
+  // mapFilesToC4Elements を呼ぶと内部で buildC4ElementById が走り O(messages×elements)
+  // になるため、単一ファイル版を使い Map を引き回す。
+  const elementById = buildC4ElementById(c4Elements);
+
   // elementId → { counts per class, highest }
   const perElement = new Map<string, { counts: Record<ComplexityClass, number>; highest: ComplexityClass }>();
 
@@ -110,12 +115,16 @@ export function computeComplexityMatrix(
     // highest 計算用: 全ルール独立評価
     const highestCls = classifyHighest(features);
 
-    // ファイルパス → C4要素へのマッピング
-    const mappings = mapFilesToC4Elements(msg.editedFilePaths, c4Elements);
-    for (const mapping of mappings) {
-      const e = getOrCreate(mapping.elementId);
-      e.counts[cls]++;
-      e.highest = higherClass(e.highest, highestCls);
+    // ファイルパス → C4要素へのマッピング (メッセージ内で elementId 重複排除)
+    const seenEl = new Set<string>();
+    for (const filePath of msg.editedFilePaths) {
+      for (const mapping of mapFileToC4Elements(filePath, elementById)) {
+        if (seenEl.has(mapping.elementId)) continue;
+        seenEl.add(mapping.elementId);
+        const e = getOrCreate(mapping.elementId);
+        e.counts[cls]++;
+        e.highest = higherClass(e.highest, highestCls);
+      }
     }
   }
 

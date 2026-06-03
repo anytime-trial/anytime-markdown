@@ -211,6 +211,10 @@ export class MetricsReader {
       const PAGE_SIZE = 1000;
       const results: CommitRow[] = [];
       // Keyset pagination by committed_at. Backed by idx_trail_session_commits_committed_at.
+      // 同一 committed_at の commit がページ境界をまたぐと gt(cursor) では取りこぼすため、
+      // gte(cursor) で再取得し commit キー (repo_id:hash) で重複排除する。commit_hash の
+      // 二次ソートで取得順を安定させ、dedup を確実にする。
+      const seen = new Set<string>();
       let cursor: string | null = null;
       while (true) {
         let q = this.client
@@ -219,8 +223,9 @@ export class MetricsReader {
           .gte('committed_at', f)
           .lte('committed_at', t)
           .order('committed_at', { ascending: true })
+          .order('commit_hash', { ascending: true })
           .limit(PAGE_SIZE);
-        if (cursor !== null) q = q.gt('committed_at', cursor);
+        if (cursor !== null) q = q.gte('committed_at', cursor);
         const { data, error } = await q;
         if (error) {
           console.warn('MetricsReader.fetchCommits: query failed', {
@@ -230,8 +235,18 @@ export class MetricsReader {
           break;
         }
         const rows = (data ?? []) as CommitRow[];
-        results.push(...rows);
+        let added = 0;
+        for (const row of rows) {
+          const key = `${row.repo_id ?? 0}:${row.commit_hash}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          results.push(row);
+          added++;
+        }
         if (rows.length < PAGE_SIZE) break;
+        // gte で取り直すため、新規 0 件 (同一 committed_at が PAGE_SIZE を超過) なら
+        // 無限ループを避けて打ち切る。
+        if (added === 0) break;
         cursor = rows[rows.length - 1].committed_at;
       }
       return results;

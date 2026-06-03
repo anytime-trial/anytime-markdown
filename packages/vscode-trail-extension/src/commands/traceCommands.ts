@@ -15,7 +15,28 @@ function buildNodeOptions(): string {
 	return '--require @anytime-markdown/trace-agent-node';
 }
 
+/**
+ * 'Anytime Trace' ターミナルをモジュールスコープで使い回す。毎回 createTerminal
+ * すると同名タブが累積し、PTY/プロセスリソースが Extension Host にリークするため、
+ * 生きているターミナルがあれば再利用し、閉じられたら onDidCloseTerminal でクリアする。
+ */
+let traceTerminal: vscode.Terminal | undefined;
+
+function getTraceTerminal(): vscode.Terminal {
+	if (!traceTerminal) {
+		traceTerminal = vscode.window.createTerminal('Anytime Trace');
+	}
+	return traceTerminal;
+}
+
 export function registerTraceCommands(context: vscode.ExtensionContext): void {
+	context.subscriptions.push(
+		vscode.window.onDidCloseTerminal((closed) => {
+			if (closed === traceTerminal) {
+				traceTerminal = undefined;
+			}
+		}),
+	);
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			'anytime-trail.runWithTrace',
@@ -41,7 +62,7 @@ export function registerTraceCommands(context: vscode.ExtensionContext): void {
 					cmd = `${envPrefix} npx jest "${relPath}" --maxWorkers=1`;
 				}
 
-				const terminal = vscode.window.createTerminal('Anytime Trace');
+				const terminal = getTraceTerminal();
 				terminal.show();
 				terminal.sendText(cmd);
 			},

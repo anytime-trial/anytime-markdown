@@ -8447,12 +8447,18 @@ export class TrailDatabase {
     return map;
   }
 
-  getMessages(sessionId: string): MessageRow[] {
+  getMessages(sessionId: string, opts?: { since?: string }): MessageRow[] {
     const db = this.ensureDb();
-    const stmt = db.prepare(
-      'SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp ASC',
-    );
-    stmt.bind([sessionId]);
+    // since が指定された場合は timestamp フィルタを SQL 側に押し込む。同期処理が
+    // 全メッセージを取得してから JS で 7 日カットオフする無駄な I/O を避ける。
+    const stmt = opts?.since
+      ? db.prepare(
+          'SELECT * FROM messages WHERE session_id = ? AND timestamp >= ? ORDER BY timestamp ASC',
+        )
+      : db.prepare(
+          'SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp ASC',
+        );
+    stmt.bind(opts?.since ? [sessionId, opts.since] : [sessionId]);
 
     const rows: MessageRow[] = [];
     while (stmt.step()) {
