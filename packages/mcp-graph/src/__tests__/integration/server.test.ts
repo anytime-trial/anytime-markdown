@@ -68,7 +68,7 @@ describe('mcp-graph integration', () => {
       name: 'add_edge',
       arguments: {
         path: 'test.graph',
-        type: 'arrow',
+        type: 'line',
         from: { nodeId: n1.id, x: 0, y: 0 },
         to: { nodeId: n2.id, x: 0, y: 0 },
       },
