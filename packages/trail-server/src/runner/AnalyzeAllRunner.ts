@@ -109,6 +109,15 @@ export interface AnalyzeAllRunnerOptions {
    */
   disabledAggregators?: readonly string[];
   /**
+   * lep.json で `enabled:false` の toggle 可能 Layer 2 (primary) analyzer id。
+   * Wave 2 で登録・実行しない (ReleaseResolver / CoverageImporter / BehaviorAnalyzer /
+   * CommitFilesBackfiller / SubagentTypeBackfiller / MessageCommitMatcher)。
+   * 核 analyzer (SessionImporter / CommitResolver / CostRebuilder / CountsRebuilder /
+   * PersistAnalyzer / CodeGraphBuilder) は本リストに id があっても無視され、常時登録される。
+   * 通常 `disabledMemoryAnalyzers` と同じ「全 disabled id」リストを渡してよい。
+   */
+  disabledPrimaryAnalyzers?: readonly string[];
+  /**
    * GitHub PR review source (Step 4b)。opt-in。指定時のみ `GitHubPrReviewIngester` を
    * Layer 1 に登録する。`client=null` (token なし) でも登録され、Ingester が skip ログを出す。
    * 未指定なら GitHub source は完全に無効で既存挙動は変わらない。
@@ -196,6 +205,8 @@ export class AnalyzeAllRunner extends BaseRunner {
   private readonly memoryAnalyzerIds: readonly string[];
   private readonly memorySessionProvider: MemoryWaveSessionProvider | null;
   private readonly stage: LepStage;
+  /** 登録済み全 analyzer の id (toggle 反映後)。配線・無効化の検証用。 */
+  private readonly registeredAnalyzerIds: readonly string[];
 
   // counter 集計用の analyzer 参照 (getLastImportResult で読む)
   private readonly sessionImporter: SessionImporter | null;
@@ -240,9 +251,15 @@ export class AnalyzeAllRunner extends BaseRunner {
       analyzers.push(...ingesters);
 
       // Layer 2 (primary)
+      // toggle 可能 analyzer は lep.json `analyzers.<id>.enabled:false` で無効化できる。
+      // disabled の場合は構築・登録せず、対応 event の後段 (例: release_resolved → codegraph) も
+      // 連動して止まる。核 analyzer は本セットに id があっても常時登録する。
+      const disabledPrimary = new Set(opts.disabledPrimaryAnalyzers ?? []);
+      const primaryEnabled = (id: string): boolean => !disabledPrimary.has(id);
+
+      // 核 analyzer (toggle 不可)
       sessionImporter = new SessionImporter({ trailDb, onProgress, onPhase });
       commitResolver = new CommitResolver({ trailDb, gitRoots });
-      releaseResolver = new ReleaseResolver({ trailDb, gitRoots, onPhase, onProgress });
       codeGraphBuilder = new CodeGraphBuilder({
         trailDb,
         gitRoots,
@@ -250,13 +267,8 @@ export class AnalyzeAllRunner extends BaseRunner {
         onPhase,
         onProgress,
       });
-      coverageImporter = new CoverageImporter({ trailDb, gitRoots, onPhase, onProgress });
       const costRebuilder = new CostRebuilder({ trailDb, onPhase, onProgress });
-      const behaviorAnalyzer = new BehaviorAnalyzer({ trailDb, onPhase, onProgress });
       const countsRebuilder = new CountsRebuilder({ trailDb, onPhase, onProgress });
-      const commitFilesBackfiller = new CommitFilesBackfiller({ trailDb, gitRoots, onProgress });
-      const subagentTypeBackfiller = new SubagentTypeBackfiller({ trailDb, onProgress });
-      messageCommitMatcher = new MessageCommitMatcher({ trailDb, onProgress });
       // 新ソース取込 (Step 4c): github_pr_review → pr_reviews / pr_review_findings。
       // GitHub source 未設定時は対応 event が来ないため no-op。PersistAnalyzer の save 前に書込む。
       const prReviewImporter = new PrReviewImporter({ trailDb });
@@ -264,7 +276,29 @@ export class AnalyzeAllRunner extends BaseRunner {
       // PersistAnalyzer は tier=2 の最後に置く (他全 analyzer の DB 書込後に save)
       const persistAnalyzer = new PersistAnalyzer({ trailDb });
 
-      const primaryAnalyzers: Analyzer[] = [
+      // toggle 可能 analyzer (無効時は null → 後続の filter で除外)
+      if (primaryEnabled('ReleaseResolver')) {
+        releaseResolver = new ReleaseResolver({ trailDb, gitRoots, onPhase, onProgress });
+      }
+      if (primaryEnabled('CoverageImporter')) {
+        coverageImporter = new CoverageImporter({ trailDb, gitRoots, onPhase, onProgress });
+      }
+      const behaviorAnalyzer = primaryEnabled('BehaviorAnalyzer')
+        ? new BehaviorAnalyzer({ trailDb, onPhase, onProgress })
+        : null;
+      const commitFilesBackfiller = primaryEnabled('CommitFilesBackfiller')
+        ? new CommitFilesBackfiller({ trailDb, gitRoots, onProgress })
+        : null;
+      const subagentTypeBackfiller = primaryEnabled('SubagentTypeBackfiller')
+        ? new SubagentTypeBackfiller({ trailDb, onProgress })
+        : null;
+      if (primaryEnabled('MessageCommitMatcher')) {
+        messageCommitMatcher = new MessageCommitMatcher({ trailDb, onProgress });
+      }
+
+      // 登録順は従来どおり (PersistAnalyzer は最後)。disabled な toggle analyzer は null で
+      // 除外する。core/PR は常時含める。
+      const primaryAnalyzers: Analyzer[] = ([
         sessionImporter,
         commitResolver,
         releaseResolver,
@@ -279,7 +313,7 @@ export class AnalyzeAllRunner extends BaseRunner {
         prReviewImporter,
         prReviewFindingAnalyzer,
         persistAnalyzer,
-      ];
+      ] as Array<Analyzer | null>).filter((a): a is Analyzer => a !== null);
       // subscribes=[] の analyzer (CountsRebuilder / PersistAnalyzer) は EventBus.subscribe が
       // no-op になる。一律 subscribe しても害はない。
       for (const a of primaryAnalyzers) bus.subscribe(a);
@@ -327,6 +361,8 @@ export class AnalyzeAllRunner extends BaseRunner {
     this.stage = opts.stage ?? 'primary+memory';
     this.pipelineStatusFilePath = opts.pipelineStatusFilePath;
     this.shouldDeferScheduled = opts.shouldDeferScheduled;
+
+    this.registeredAnalyzerIds = analyzers.map((a) => a.id);
 
     this.orchestrator = new LepOrchestrator(bus, analyzers, {
       info: (msg) => this.log(msg),
@@ -474,6 +510,24 @@ export class AnalyzeAllRunner extends BaseRunner {
    */
   getLastImportResult(): ImportAllResult | null {
     return this.lastImportResult;
+  }
+
+  /**
+   * trail.db import パイプライン (Layer 1 ingester + Layer 2 primary analyzer) が有効か。
+   * `trailDb` 未指定 / `enableIngesters:false` の場合は false (memory-core ステップのみ実行)。
+   * daemon の配線検証 (trailDb が runner に届いているか) に使う。
+   */
+  get importEnabled(): boolean {
+    return this.importPipelineEnabled;
+  }
+
+  /**
+   * 登録済み全 analyzer の id 一覧 (Layer 1-4、toggle 反映後)。
+   * lep.json `analyzers.<id>.enabled:false` で除外された analyzer は含まれない。
+   * 主に toggle 配線の検証に使う。
+   */
+  getActiveAnalyzerIds(): readonly string[] {
+    return this.registeredAnalyzerIds;
   }
 
   private aggregateImportResult(): ImportAllResult {

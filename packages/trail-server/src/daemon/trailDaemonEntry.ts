@@ -96,6 +96,14 @@ const childAnalyzeFn = makeChildAnalyzeFn(analyzeChildPath, {
 
 let memoryCoreService: MemoryCoreService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
+/**
+ * 直近 configure() で受け取った import パイプライン設定。
+ *
+ * 拡張は configure() → startHttpServer() の順に呼ぶため、configure() 時点では httpTrailDb が
+ * 未構築 (trailDb=undefined で import パイプライン無効)。startHttpServer() が httpTrailDb を
+ * 確定した後に本 cfg で runner を再構築し、同一 TrailDatabase インスタンスを共有させる。
+ */
+let lastAnalyzeAllCfg: SerializableAnalyzeAllConfig | null = null;
 /** startHttpServer() で構築した TrailDataServer。 */
 let httpServer: TrailDataServer | null = null;
 /** startHttpServer() で構築した CodeGraphService。 */
@@ -164,6 +172,7 @@ let httpExtensionLogsDb: BetterSqlite3MemoryDb | null = null;
 export function _resetForTest(): void {
   memoryCoreService = null;
   analyzeAllRunner = null;
+  lastAnalyzeAllCfg = null;
   httpServer = null;
   httpCodeGraphService = null;
   httpTrailDb = null;
@@ -171,6 +180,11 @@ export function _resetForTest(): void {
   httpRebuildSchedulerDisposable = null;
   httpChatBridge = null;
   httpExtensionLogsDb = null;
+}
+
+/** テスト用: 現在の AnalyzeAllRunner を返す (import パイプライン配線の検証用)。 */
+export function _getAnalyzeAllRunnerForTest(): AnalyzeAllRunner | null {
+  return analyzeAllRunner;
 }
 
 function requireRunner(): AnalyzeAllRunner {
@@ -206,15 +220,35 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     });
   }
 
-  // AnalyzeAllRunner
-  // 注意: trailDb と githubPrReview は本 Phase では undefined (それぞれの concrete wire は別 task)。
-  // - trailDb undefined: AnalyzeAllRunner は trail.db import パイプラインをスキップ。
-  // - githubPrReview undefined: GitHub source は無効。
+  // import パイプライン設定を保持し、現時点で利用可能な trailDb (= 既に startHttpServer 済みなら
+  // httpTrailDb) で runner を構築する。通常順 (configure → startHttpServer) では httpTrailDb は
+  // まだ null のため trailDb=undefined となり、startHttpServer() 側で trailDb 付きに再構築される。
+  lastAnalyzeAllCfg = cfg;
+  await rebuildAnalyzeAllRunner(httpTrailDb ?? undefined);
+}
+
+/**
+ * import パイプラインの `AnalyzeAllRunner` を `lastAnalyzeAllCfg` から (再)構築する。
+ *
+ * `trailDb` を渡すと Layer 1/2 (取込・primary 解析) が有効化される。`undefined` の場合は
+ * memory-core ステップのみ実行する。startHttpServer() が httpTrailDb を確定した後に本関数を
+ * trailDb 付きで呼び直すことで、Data Server と同一 TrailDatabase インスタンスを共有し、
+ * 取込結果が即時に Data Server へ反映される (`bb0a0345` で configure から HTTP を切り離した際に
+ * 落ちていた trailDb 配線の復旧)。
+ */
+async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Promise<void> {
+  if (analyzeAllRunner) {
+    await analyzeAllRunner.dispose();
+    analyzeAllRunner = null;
+  }
+  const cfg = lastAnalyzeAllCfg;
+  if (!cfg) return;
+
   analyzeAllRunner = new AnalyzeAllRunner({
     logSink: { appendLine: (m: string) => daemonLogger.info(`[runner] ${m}`) },
     gitRoot: cfg.gitRoot,
     statePath: cfg.statePath,
-    trailDb: undefined,
+    trailDb,
     gitRoots: cfg.gitRoots,
     claudeProjectsDir: cfg.claudeProjectsDir,
     codexSessionsDir: cfg.codexSessionsDir,
@@ -231,6 +265,9 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     ollamaBaseUrl: cfg.ollamaBaseUrl,
     disabledMemoryAnalyzers: cfg.disabledMemoryAnalyzers,
     disabledAggregators: cfg.disabledAggregators,
+    // 拡張は disabledMemoryAnalyzers に「全 disabled id」を渡すため (memory/aggregator/primary
+    // を区別せず disabledAnalyzerIds の結果)、Layer 2 toggle 用にも同じ全リストを流用する。
+    disabledPrimaryAnalyzers: cfg.disabledMemoryAnalyzers,
     githubPrReview: undefined,
     importAllStatusFilePath: cfg.importAllStatusFilePath,
     pipelineStatusFilePath: cfg.pipelineStatusFilePath,
@@ -476,6 +513,17 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   httpTrailDb = trailDb;
   httpPort = startedPort;
 
+  // import パイプラインの trailDb を確定する。configure() は startHttpServer() より前に
+  // 呼ばれ、その時点では httpTrailDb が未構築のため runner は trailDb=undefined で作られている
+  // (= 取込スキップ)。ここで同一 TrailDatabase インスタンスを共有させて runner を再構築し、
+  // Layer 1/2 (取込・primary 解析) を有効化する。
+  if (lastAnalyzeAllCfg) {
+    await rebuildAnalyzeAllRunner(httpTrailDb);
+    if (analyzeAllRunner) {
+      server.setAnalyzeAllRunner(analyzeAllRunner);
+    }
+  }
+
   sendEvent('httpReady', { port: startedPort, url: `http://localhost:${startedPort}` });
 }
 
@@ -484,6 +532,7 @@ async function disposeAll(): Promise<void> {
     await analyzeAllRunner.dispose();
     analyzeAllRunner = null;
   }
+  lastAnalyzeAllCfg = null;
   if (memoryCoreService) {
     await memoryCoreService.dispose();
     memoryCoreService = null;

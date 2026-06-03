@@ -67,7 +67,7 @@ jest.mock('../../analyze/CodeGraphService', () => ({
   })),
 }));
 
-import { _resetForTest, dispatch } from '../trailDaemonEntry';
+import { _getAnalyzeAllRunnerForTest, _resetForTest, dispatch } from '../trailDaemonEntry';
 import { runAnalyzeCurrentCodePipeline, runAnalyzeReleaseCodePipeline } from '../../analyze/AnalyzePipeline';
 
 /** configure() を成功させるための最小設定。 */
@@ -147,6 +147,27 @@ describe('trailDaemonEntry.dispatch — analyzeCurrentCode', () => {
 
     const calledOpts = (runAnalyzeCurrentCodePipeline as jest.Mock).mock.calls[0][0];
     expect(calledOpts.analyzeChildPath).toBe('/tmp/analyze-child.js');
+  });
+});
+
+describe('trailDaemonEntry.dispatch — import pipeline wiring (trailDb)', () => {
+  beforeEach(() => _resetForTest());
+
+  // 回帰: bb0a0345 で HTTP server を configure から切り離した際、import パイプラインの
+  // trailDb 配線が落ち、SessionImporter 等の Layer 1/2 が一切走らなくなった
+  // (trail.db が 0 件のまま)。configure → startHttpServer の順で httpTrailDb を共有し、
+  // 取込が有効化されることを保証する。
+  const CFG = { ...MINIMAL_CFG, stage: 'primary' as const };
+
+  it('configure 単体では import パイプラインは無効 (httpTrailDb 未構築)', async () => {
+    await dispatch('configure', CFG);
+    expect(_getAnalyzeAllRunnerForTest()?.importEnabled).toBe(false);
+  });
+
+  it('startHttpServer 後に import パイプラインが有効化される (trailDb 共有)', async () => {
+    await dispatch('configure', CFG);
+    await dispatch('startHttpServer', MINIMAL_HTTP_OPTS);
+    expect(_getAnalyzeAllRunnerForTest()?.importEnabled).toBe(true);
   });
 });
 

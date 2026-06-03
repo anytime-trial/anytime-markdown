@@ -260,3 +260,62 @@ describe('AnalyzeAllRunner', () => {
     expect(status.lastError).toBeNull();
   });
 });
+
+describe('AnalyzeAllRunner — disabledPrimaryAnalyzers (Layer 2 toggle)', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'analyze-all-toggle-'));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  const TOGGLEABLE = [
+    'ReleaseResolver',
+    'CoverageImporter',
+    'BehaviorAnalyzer',
+    'CommitFilesBackfiller',
+    'SubagentTypeBackfiller',
+    'MessageCommitMatcher',
+  ];
+
+  it('既定では全 toggle 可能 Layer 2 analyzer を登録する', () => {
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 's.json'),
+      trailDb: makeFakeTrailDb(),
+    });
+    const ids = runner.getActiveAnalyzerIds();
+    for (const id of TOGGLEABLE) expect(ids).toContain(id);
+  });
+
+  it('disabled 指定の Layer 2 analyzer を登録しない (他は維持)', () => {
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 's.json'),
+      trailDb: makeFakeTrailDb(),
+      disabledPrimaryAnalyzers: ['ReleaseResolver', 'CoverageImporter', 'MessageCommitMatcher'],
+    });
+    const ids = runner.getActiveAnalyzerIds();
+    expect(ids).not.toContain('ReleaseResolver');
+    expect(ids).not.toContain('CoverageImporter');
+    expect(ids).not.toContain('MessageCommitMatcher');
+    // 無効化していない toggle 可能 analyzer は残る
+    expect(ids).toContain('BehaviorAnalyzer');
+    expect(ids).toContain('CommitFilesBackfiller');
+    expect(ids).toContain('SubagentTypeBackfiller');
+  });
+
+  it('核 analyzer は disabled に含めても常時登録される', () => {
+    const runner = new AnalyzeAllRunner({
+      logSink: makeLogSink(),
+      statePath: join(dir, 's.json'),
+      trailDb: makeFakeTrailDb(),
+      // 核 id を渡しても無視される
+      disabledPrimaryAnalyzers: ['SessionImporter', 'CommitResolver', 'Persist', 'CodeGraphBuilder'],
+    });
+    const ids = runner.getActiveAnalyzerIds();
+    expect(ids).toContain('SessionImporter');
+    expect(ids).toContain('CommitResolver');
+    expect(ids).toContain('Persist'); // PersistAnalyzer.id === 'Persist'
+    expect(ids).toContain('CodeGraphBuilder');
+  });
+});
