@@ -3,7 +3,9 @@
 // Tiptap の ReactRenderer が componentDidMount 内で flushSync を呼ぶ問題を抑制
 // @see https://github.com/ueberdosis/tiptap/issues/3764
 // TODO: tiptap v3 で修正される見込み。アップグレード時にこのパッチが不要か確認し除去する。
-if (typeof window !== "undefined") {
+// HMR でこのモジュールが再評価されてもラッパーが累積しないよう、1 度だけ適用する
+if (typeof window !== "undefined" && !(console as { _tiptapFlushSyncPatched?: boolean })._tiptapFlushSyncPatched) {
+  (console as { _tiptapFlushSyncPatched?: boolean })._tiptapFlushSyncPatched = true;
   const origError = console.error;
   console.error = (...args: unknown[]) => {
     if (

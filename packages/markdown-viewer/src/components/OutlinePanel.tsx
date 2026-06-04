@@ -313,9 +313,18 @@ export function OutlinePanel({
     [headings]
   );
 
+  // arrIdx → headingOnly idx の O(1) 逆引きマップ。
+  // toHeadingOnlyIdx はレンダリングの headings.map 内で N 回呼ばれるため、
+  // 配列 indexOf(O(M)) だと O(N×M) になる。Map で O(1) にする。
+  const headingOnlyIndexMap = useMemo(() => {
+    const map = new Map<number, number>();
+    headingOnlyIndices.forEach((arrIdx, hoIdx) => map.set(arrIdx, hoIdx));
+    return map;
+  }, [headingOnlyIndices]);
+
   const toHeadingOnlyIdx = useCallback(
-    (arrIdx: number) => headingOnlyIndices.indexOf(arrIdx),
-    [headingOnlyIndices]
+    (arrIdx: number) => headingOnlyIndexMap.get(arrIdx) ?? -1,
+    [headingOnlyIndexMap]
   );
 
 
