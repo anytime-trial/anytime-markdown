@@ -384,11 +384,19 @@ export function App() {
       if (currentEl) currentEl.addEventListener('scroll', handler, { passive: true });
     };
     attach();
-    // DOM 変更時にリスナーを再アタッチ（モード切替等）
-    const observer = new MutationObserver(attach);
+    // DOM 変更時にリスナーを再アタッチ（モード切替等）。
+    // TipTap は 1 打鍵で多数のミューテーションを発生させるため、rAF で 1 フレーム 1 回に間引いて
+    // querySelector の多発（大規模ドキュメントでの DOM スキャン）を抑える。
+    let rafId = 0;
+    const scheduleAttach = () => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => { rafId = 0; attach(); });
+    };
+    const observer = new MutationObserver(scheduleAttach);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => {
       observer.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
       if (currentEl) currentEl.removeEventListener('scroll', handler);
     };
   }, []);

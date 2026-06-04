@@ -48,6 +48,12 @@ export async function assertSafeUrl(url: string): Promise<void> {
  * SSRF ガード付き fetch。リダイレクトを手動追従し、各ホップの URL を assertSafeUrl で再検証する。
  * `redirect: 'follow'` のままだとリダイレクト先（例: 127.0.0.1 や 169.254.169.254）が
  * 検証されずにガードを迂回されるため、必ず本関数を経由する。
+ *
+ * 既知の残存リスク（DNS リバインディング TOCTOU）:
+ * assertSafeUrl の dns.lookup と実際の TCP 接続の間に DNS レコードが差し替わると、
+ * 検証時はパブリック IP・接続時はプライベート IP という rebinding 攻撃を完全には防げない。
+ * 完全な対策には「検証した IP で接続を固定する」カスタム undici dispatcher が必要で、
+ * 専用対応として別途実施する（本関数のリダイレクト再検証は緩和の一部）。
  */
 export async function safeFetch(
   url: string,
