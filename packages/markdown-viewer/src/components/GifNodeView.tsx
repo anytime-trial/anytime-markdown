@@ -246,12 +246,13 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
 
   // autoEditOpen: スラッシュコマンドから作成された場合、即座にレコーダーを開く
   useEffect(() => {
-    if (node.attrs.autoEditOpen && isEditable) {
-      requestAnimationFrame(() => {
-        updateAttributes({ autoEditOpen: false });
-        setRecorderOpen(true);
-      });
-    }
+    if (!node.attrs.autoEditOpen || !isEditable) return;
+    const rafId = requestAnimationFrame(() => {
+      updateAttributes({ autoEditOpen: false });
+      setRecorderOpen(true);
+    });
+    // アンマウント/即時削除時に破棄済み NodeView へのコマンド実行を防ぐ
+    return () => cancelAnimationFrame(rafId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

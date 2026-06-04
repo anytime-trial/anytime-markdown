@@ -59,6 +59,9 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
   const recorderRef = useRef<GifRecorderState | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  // revoke 対象の blob URL を ref で保持し、cleanup を安定化（resultUrl 変化で再生成しない）。
+  // resultUrl を deps にすると、URL 変化のたびに旧 cleanup が unmount effect 経由で走り二重 revoke になる。
+  const resultUrlRef = useRef<string | null>(null);
 
   const MAX_DURATION = 30000;
 
@@ -72,10 +75,11 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
-    if (resultUrl) {
-      URL.revokeObjectURL(resultUrl);
+    if (resultUrlRef.current) {
+      URL.revokeObjectURL(resultUrlRef.current);
+      resultUrlRef.current = null;
     }
-  }, [resultUrl]);
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -90,6 +94,11 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
       recorderRef.current = null;
     }
   }, [open, cleanup]);
+
+  // resultUrl state を revoke 用 ref に同期する
+  useEffect(() => {
+    resultUrlRef.current = resultUrl;
+  }, [resultUrl]);
 
   // Cleanup on unmount
   useEffect(() => cleanup, [cleanup]);
@@ -285,7 +294,10 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
 
   // --- Retry ---
   const handleRetry = useCallback(() => {
-    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    if (resultUrlRef.current) {
+      URL.revokeObjectURL(resultUrlRef.current);
+      resultUrlRef.current = null;
+    }
     setResultBlob(null);
     setResultUrl(null);
     setElapsed(0);
@@ -293,7 +305,7 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
     recorderRef.current?.reset();
     setPhase(streamRef.current ? "previewing" : "idle");
     drawOverlay(null);
-  }, [resultUrl, drawOverlay]);
+  }, [drawOverlay]);
 
   const t = (key: string) => key; // placeholder - i18n keys passed through
 
