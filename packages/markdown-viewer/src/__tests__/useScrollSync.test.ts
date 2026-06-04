@@ -15,6 +15,12 @@ function createScrollableElement(overrides: Partial<HTMLDivElement> = {}): HTMLD
   return el;
 }
 
+function createScrollEvent(target: HTMLElement): Event {
+  const e = new Event("scroll", { bubbles: true });
+  Object.defineProperty(e, "target", { value: target, configurable: true });
+  return e;
+}
+
 describe("useScrollSync", () => {
   let originalRaf: typeof requestAnimationFrame;
 
@@ -43,11 +49,8 @@ describe("useScrollSync", () => {
     renderHook(() => useScrollSync(leftRef, rightRef));
 
     // 左パネル内のスクロールイベントをシミュレート
-    const scrollEvent = new Event("scroll", { bubbles: true });
-    Object.defineProperty(scrollEvent, "target", { value: leftEl });
     Object.defineProperty(leftEl, "scrollTop", { value: 250, configurable: true }); // 50% スクロール
-
-    leftEl.dispatchEvent(scrollEvent);
+    leftEl.dispatchEvent(createScrollEvent(leftEl));
 
     // 右パネルのスクロール位置が同期される（50% = 750）
     expect(rightEl.scrollTop).toBe(750);
@@ -76,6 +79,37 @@ describe("useScrollSync", () => {
 
     // 左の子要素が同期される（50% = 200）
     expect(scrollableChild.scrollTop).toBe(200);
+  });
+
+  it("コンテナ内の表を横スクロールしても対向ペインが先頭へ飛ばない（リグレッション）", () => {
+    // leftEl = capture リスナが張られるコンテナ（視覚的な右ペイン）
+    const leftEl = createScrollableElement({ scrollHeight: 2000, clientHeight: 500 });
+    // rightEl = 同期先（視覚的な左ペイン）。途中までスクロール済み
+    const rightEl = createScrollableElement({ scrollHeight: 2000, clientHeight: 500 });
+
+    // メインの縦スクロールコンテナ（findScrollableChild が検出する想定）
+    const mainScroll = createScrollableElement({ scrollHeight: 2000, clientHeight: 500 });
+    mainScroll.style.overflowY = "auto";
+    leftEl.appendChild(mainScroll);
+
+    // 横スクロールのみの表ボックス（縦余地なし）。比較モードの widetable に相当
+    const tableBox = createScrollableElement({ scrollHeight: 200, clientHeight: 200 });
+    tableBox.style.overflowX = "auto";
+    mainScroll.appendChild(tableBox);
+
+    const leftRef = { current: leftEl };
+    const rightRef = { current: rightEl };
+
+    renderHook(() => useScrollSync(leftRef, rightRef));
+
+    // 対向ペインは途中までスクロール済み
+    rightEl.scrollTop = 300;
+
+    // 表ボックスの横スクロール（capture フェーズで拾われる）
+    tableBox.dispatchEvent(createScrollEvent(tableBox));
+
+    // 表の横スクロールはメインスクローラではないため無視され、対向ペインは飛ばない
+    expect(rightEl.scrollTop).toBe(300);
   });
 
   it("ref が null の場合はエラーにならない", () => {
