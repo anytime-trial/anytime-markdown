@@ -13,6 +13,8 @@ const config = {
     ...buildJestMapper(),
     // markdown-engine（フレームワーク非依存層）は alias.cjs(vendored)外のため明示マップ
     "^@anytime-markdown/markdown-engine$": "<rootDir>/../markdown-engine/src/index.ts",
+    // CSS Modules（*.module.css）はクラス名そのものを返す Proxy へ
+    "\\.module\\.css$": "<rootDir>/__mocks__/cssModuleProxy.js",
     "^@/(.*)$": "<rootDir>/src/$1",
     "^next-intl$": "<rootDir>/__mocks__/next-intl.ts",
     "^.+/i18n/context$": "<rootDir>/__mocks__/markdown-i18n-context.ts",

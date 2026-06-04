@@ -1,0 +1,88 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--am-space-1);
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--am-radius-md);
+  font: inherit;
+  font-weight: 600;
+  text-transform: none;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--am-duration-fast) var(--am-ease-standard),
+    border-color var(--am-duration-fast) var(--am-ease-standard);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--am-color-primary-main);
+  outline-offset: 1px;
+}
+
+/* sizes */
+.small {
+  font-size: 12px;
+  min-height: 26px;
+  padding: 0 12px;
+}
+
+.medium {
+  font-size: 0.875rem;
+  min-height: 32px;
+  padding: 0 16px;
+}
+
+/* text variant (default) */
+.text {
+  background: transparent;
+}
+
+.text:hover:not(:disabled) {
+  background: var(--am-color-action-hover);
+}
+
+/* outlined */
+.outlined {
+  background: transparent;
+  border-color: var(--am-color-divider);
+  color: var(--am-color-text-primary);
+}
+
+.outlined:hover:not(:disabled) {
+  background: var(--am-color-action-hover);
+}
+
+/* contained */
+.contained {
+  border-color: transparent;
+}
+
+/* colors */
+.primaryText {
+  color: var(--am-color-primary-main);
+}
+
+.errorText {
+  color: var(--am-color-error-main);
+}
+
+.inheritText {
+  color: var(--am-color-text-primary);
+}
+
+.containedPrimary {
+  background: var(--am-color-primary-main);
+  color: var(--am-color-primary-contrast);
+}
+
+.containedError {
+  background: var(--am-color-error-main);
+  color: #fff;
+}

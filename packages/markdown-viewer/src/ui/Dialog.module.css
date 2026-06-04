@@ -1,0 +1,38 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.paper {
+  min-width: 280px;
+  max-width: min(600px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  border-radius: var(--am-radius-md);
+  background: var(--am-color-bg-paper);
+  color: var(--am-color-text-primary);
+  box-shadow: var(--am-elevation-3);
+}
+
+.title {
+  margin: 0;
+  padding: var(--am-space-4) var(--am-space-4) var(--am-space-2);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.content {
+  padding: var(--am-space-2) var(--am-space-4);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--am-space-2);
+  padding: var(--am-space-2) var(--am-space-3) var(--am-space-3);
+}

@@ -1,3 +1,13 @@
+import {
+  getActionHover,
+  getBgPaper,
+  getDivider,
+  getErrorMain,
+  getPrimaryContrast,
+  getPrimaryMain,
+  getTextPrimary,
+  getTextSecondary,
+} from "../constants/colors";
 import { getPreset, type ThemePresetName } from "../constants/themePresets";
 
 /**
@@ -115,6 +125,36 @@ export function applyEditorThemeCssVars(
   const isDark = themeMode === "dark";
 
   root.style.setProperty("--editor-content-font-family", preset.fontFamily);
+
+  // chrome UI トークン（--am-color-*）。モード別の値を直接設定する（[data-theme] 非依存）。
+  // 既存の color getter を単一箇所で CSS 変数化し、chrome コンポーネントから JS の
+  // isDark 判定（useTheme 依存）を排除するための seam。
+  root.style.setProperty("--am-color-divider", getDivider(isDark));
+  root.style.setProperty("--am-color-text-primary", getTextPrimary(isDark));
+  root.style.setProperty("--am-color-text-secondary", getTextSecondary(isDark));
+  root.style.setProperty("--am-color-bg-paper", getBgPaper(isDark));
+  root.style.setProperty("--am-color-action-hover", getActionHover(isDark));
+  root.style.setProperty("--am-color-primary-main", getPrimaryMain(isDark));
+  root.style.setProperty("--am-color-primary-contrast", getPrimaryContrast(isDark));
+  root.style.setProperty("--am-color-error-main", getErrorMain(isDark));
+  root.style.setProperty("--am-color-tooltip-bg", isDark ? "rgba(50,50,50,0.95)" : "rgba(40,40,40,0.92)");
+  root.style.setProperty("--am-color-tooltip-text", "rgba(255,255,255,0.95)");
+
+  // chrome 寸法トークン（モード非依存・spec/12.design 準拠）。
+  // Next.js のグローバル CSS import 制約を避けるため CSS ファイルではなく JS で注入する。
+  root.style.setProperty("--am-space-1", "4px");
+  root.style.setProperty("--am-space-2", "8px");
+  root.style.setProperty("--am-space-3", "12px");
+  root.style.setProperty("--am-space-4", "16px");
+  root.style.setProperty("--am-radius-sm", "12px");
+  root.style.setProperty("--am-radius-md", "8px");
+  root.style.setProperty(
+    "--am-elevation-3",
+    "0 8px 10px -5px rgba(0,0,0,0.2), 0 16px 24px 2px rgba(0,0,0,0.14), 0 6px 30px 5px rgba(0,0,0,0.12)",
+  );
+  root.style.setProperty("--am-duration-fast", "150ms");
+  root.style.setProperty("--am-ease-standard", "cubic-bezier(0.4, 0, 0.2, 1)");
+  root.style.setProperty("--am-font-size-dialog-header", "0.875rem");
 
   if (presetName === "handwritten") {
     const lineColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
