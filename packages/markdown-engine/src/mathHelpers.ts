@@ -48,6 +48,12 @@ export function preprocessMathBlock(md: string): string {
     result.push(line);
   }
 
+  // 末尾で $$ が閉じられていない（入力途中など）場合、開いた ```math フェンスを閉じる。
+  // 閉じないと sanitizeMarkdown が数式本文を非コードとして扱い < > & が破損する。
+  if (inMathBlock) {
+    result.push("```");
+  }
+
   return result.join("\n");
 }
 
@@ -73,6 +79,11 @@ export function postprocessMathBlock(md: string): string {
     }
 
     result.push(line);
+  }
+
+  // 末尾で ```math フェンスが閉じられていない場合、開いた $$ を閉じてラウンドトリップを保つ
+  if (inMathFence) {
+    result.push("$$");
   }
 
   return result.join("\n");

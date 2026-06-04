@@ -309,11 +309,22 @@ export function computeSemanticDiff(leftText: string, rightText: string, options
 
   const matches = matchSections(leftSections, rightSections);
 
+  // 実テキスト行数（lineNumber !== null）の running カウント。
+  // 旧実装は各関数で allLeftLines.filter(...).length を呼び O(N²) になっていたため、
+  // ここで一度だけ確保し各関数でインクリメントして O(1) 参照にする。
+  const counts: LineCounts = { left: 0, right: 0 };
+
   for (const match of matches) {
-    blockIdCounter = processMatch(match, allLeftLines, allRightLines, allBlocks, blockIdCounter, options);
+    blockIdCounter = processMatch(match, allLeftLines, allRightLines, allBlocks, blockIdCounter, counts, options);
   }
 
   return { leftLines: allLeftLines, rightLines: allRightLines, blocks: allBlocks };
+}
+
+/** 実テキスト行（lineNumber !== null）の running カウント */
+interface LineCounts {
+  left: number;
+  right: number;
 }
 
 function sectionToText(section: MarkdownSection): string {
@@ -343,10 +354,12 @@ function sectionLineCount(section: MarkdownSection): number {
 function compareHeadingLines(
   leftHeading: string, rightHeading: string,
   allLeftLines: DiffLine[], allRightLines: DiffLine[], allBlocks: DiffBlock[],
-  blockIdCounter: number,
+  blockIdCounter: number, counts: LineCounts,
 ): number {
-  const leftLn = allLeftLines.filter(l => l.lineNumber !== null).length + 1;
-  const rightLn = allRightLines.filter(l => l.lineNumber !== null).length + 1;
+  const leftLn = counts.left + 1;
+  const rightLn = counts.right + 1;
+  counts.left++;
+  counts.right++;
   if (leftHeading === rightHeading) {
     allLeftLines.push({ text: leftHeading, type: "equal", blockId: null, lineNumber: leftLn });
     allRightLines.push({ text: rightHeading, type: "equal", blockId: null, lineNumber: rightLn });
@@ -368,25 +381,25 @@ function compareHeadingLines(
 function processMatchedSections(
   left: MarkdownSection, right: MarkdownSection,
   allLeftLines: DiffLine[], allRightLines: DiffLine[], allBlocks: DiffBlock[],
-  blockIdCounter: number, options?: DiffOptions,
+  blockIdCounter: number, counts: LineCounts, options?: DiffOptions,
 ): number {
   if (left.children.length > 0 || right.children.length > 0) {
     if (left.headingLine && right.headingLine) {
-      blockIdCounter = compareHeadingLines(left.headingLine, right.headingLine, allLeftLines, allRightLines, allBlocks, blockIdCounter);
+      blockIdCounter = compareHeadingLines(left.headingLine, right.headingLine, allLeftLines, allRightLines, allBlocks, blockIdCounter, counts);
     }
     const bodyLeft = left.bodyLines.join("\n");
     const bodyRight = right.bodyLines.join("\n");
     if (bodyLeft || bodyRight) {
-      blockIdCounter = appendSubDiff(bodyLeft, bodyRight, allLeftLines, allRightLines, allBlocks, blockIdCounter, options);
+      blockIdCounter = appendSubDiff(bodyLeft, bodyRight, allLeftLines, allRightLines, allBlocks, blockIdCounter, counts, options);
     }
     const childMatches = matchSections(left.children, right.children);
     for (const childMatch of childMatches) {
-      blockIdCounter = processMatch(childMatch, allLeftLines, allRightLines, allBlocks, blockIdCounter, options);
+      blockIdCounter = processMatch(childMatch, allLeftLines, allRightLines, allBlocks, blockIdCounter, counts, options);
     }
   } else {
     const leftText = sectionToText(left);
     const rightText = sectionToText(right);
-    blockIdCounter = appendSubDiff(leftText, rightText, allLeftLines, allRightLines, allBlocks, blockIdCounter, options);
+    blockIdCounter = appendSubDiff(leftText, rightText, allLeftLines, allRightLines, allBlocks, blockIdCounter, counts, options);
   }
   return blockIdCounter;
 }
@@ -395,7 +408,7 @@ function processMatchedSections(
 function processOneSideSection(
   section: MarkdownSection, side: "left" | "right",
   allLeftLines: DiffLine[], allRightLines: DiffLine[], allBlocks: DiffBlock[],
-  blockIdCounter: number,
+  blockIdCounter: number, counts: LineCounts,
 ): number {
   const lineCount = sectionLineCount(section);
   const blockId = blockIdCounter++;
@@ -404,7 +417,8 @@ function processOneSideSection(
 
   if (side === "left") {
     const leftStart = allLeftLines.length;
-    let leftLineNum = allLeftLines.filter(l => l.lineNumber !== null).length;
+    let leftLineNum = counts.left;
+    counts.left += lineCount;
     for (let k = 0; k < lineCount; k++) {
       leftLineNum++;
       allLeftLines.push({ text: lines[k] ?? "", type: "removed", blockId, lineNumber: leftLineNum });
@@ -418,7 +432,8 @@ function processOneSideSection(
     });
   } else {
     const rightStart = allRightLines.length;
-    let rightLineNum = allRightLines.filter(l => l.lineNumber !== null).length;
+    let rightLineNum = counts.right;
+    counts.right += lineCount;
     for (let k = 0; k < lineCount; k++) {
       rightLineNum++;
       allLeftLines.push({ text: "", type: "padding", blockId, lineNumber: null });
@@ -437,16 +452,16 @@ function processOneSideSection(
 function processMatch(
   match: { type: string; left: MarkdownSection | null; right: MarkdownSection | null },
   allLeftLines: DiffLine[], allRightLines: DiffLine[], allBlocks: DiffBlock[],
-  blockIdCounter: number, options?: DiffOptions,
+  blockIdCounter: number, counts: LineCounts, options?: DiffOptions,
 ): number {
   if (match.type === "matched" && match.left && match.right) {
-    return processMatchedSections(match.left, match.right, allLeftLines, allRightLines, allBlocks, blockIdCounter, options);
+    return processMatchedSections(match.left, match.right, allLeftLines, allRightLines, allBlocks, blockIdCounter, counts, options);
   }
   if (match.type === "left-only" && match.left) {
-    return processOneSideSection(match.left, "left", allLeftLines, allRightLines, allBlocks, blockIdCounter);
+    return processOneSideSection(match.left, "left", allLeftLines, allRightLines, allBlocks, blockIdCounter, counts);
   }
   if (match.type === "right-only" && match.right) {
-    return processOneSideSection(match.right, "right", allLeftLines, allRightLines, allBlocks, blockIdCounter);
+    return processOneSideSection(match.right, "right", allLeftLines, allRightLines, allBlocks, blockIdCounter, counts);
   }
   return blockIdCounter;
 }
@@ -455,15 +470,18 @@ function processMatch(
 function appendSubDiff(
   leftText: string, rightText: string,
   allLeftLines: DiffLine[], allRightLines: DiffLine[], allBlocks: DiffBlock[],
-  blockIdCounter: number, options?: DiffOptions,
+  blockIdCounter: number, counts: LineCounts, options?: DiffOptions,
 ): number {
   if (leftText === "" && rightText === "") return blockIdCounter;
   const sub = computeDiff(leftText || "", rightText || "", options);
   const leftOffset = allLeftLines.length;
   const rightOffset = allRightLines.length;
-  // 直前までの実テキスト行数（パディング行を除く）をカウントして行番号オフセットに使用
-  const leftLineNumOffset = allLeftLines.filter(l => l.lineNumber !== null).length;
-  const rightLineNumOffset = allRightLines.filter(l => l.lineNumber !== null).length;
+  // 直前までの実テキスト行数（パディング行を除く）をオフセットに使用（running カウント）
+  const leftLineNumOffset = counts.left;
+  const rightLineNumOffset = counts.right;
+  // このサブ diff が追加する実テキスト行数を counts に反映する
+  for (const line of sub.leftLines) if (line.lineNumber !== null) counts.left++;
+  for (const line of sub.rightLines) if (line.lineNumber !== null) counts.right++;
   for (const line of sub.leftLines) {
     allLeftLines.push({
       ...line,
@@ -488,7 +506,9 @@ function appendSubDiff(
       rightEndLine: block.rightEndLine + rightOffset,
     });
   }
-  return blockIdCounter + (sub.blocks.length > 0 ? Math.max(...sub.blocks.map(b => b.id)) + 1 : 0);
+  // sub.blocks の id は buildDiffResult 内で 0 から連番付与されるため max(id)+1 === blocks.length。
+  // spread (Math.max(...)) は大規模差分でスタックオーバーフローを起こすため length を使う。
+  return blockIdCounter + sub.blocks.length;
 }
 
 export function applyMerge(
