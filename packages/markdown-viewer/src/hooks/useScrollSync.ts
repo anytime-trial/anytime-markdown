@@ -34,6 +34,11 @@ export function useScrollSync(
       if (isSyncingScroll.current) return;
       const target = e.target as HTMLElement;
       if (!target || !container.contains(target)) return;
+      // メインの縦スクロールコンテナ以外（横スクロールする表など、ネストした
+      // スクロール要素）の scroll イベントを無視する。これらは縦余地がないため
+      // ratio が 0 になり、対向ペインを先頭へ飛ばしてしまう。
+      const mainScrollable = findScrollableChild(container) ?? container;
+      if (target !== mainScrollable) return;
       isSyncingScroll.current = true;
       requestAnimationFrame(() => {
         const right = rightScrollRef.current;
