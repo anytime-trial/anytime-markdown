@@ -460,6 +460,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     const handleSaveClipboardImage = (message: Record<string, unknown>) => {
       const imgData = typeof message.dataUrl === 'string' ? message.dataUrl : '';
       const imgFileName = typeof message.fileName === 'string' ? message.fileName : '';
+      // 保存結果(imageSaved)を発信元ノードに紐付けるための任意 ID（GIF ノード等が使用）
+      const requestId = typeof message.requestId === 'string' ? message.requestId : undefined;
       if (!imgData || !imgFileName) return;
       if (imgFileName.includes('/') || imgFileName.includes('\\') || imgFileName.startsWith('.')) {
         vscode.window.showErrorMessage('Invalid filename');
@@ -482,7 +484,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         fs.writeFileSync(filePath, buffer);
         const relativePath = `images/${imgFileName}`;
         const webviewUri = ctx.webviewPanel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString();
-        ctx.webviewPanel.webview.postMessage({ type: 'imageSaved', path: relativePath, webviewUri });
+        ctx.webviewPanel.webview.postMessage({ type: 'imageSaved', path: relativePath, webviewUri, requestId });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         vscode.window.showErrorMessage(`Image save failed: ${msg}`);
