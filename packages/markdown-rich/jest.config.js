@@ -18,6 +18,10 @@ const config = {
     // markdown-engine（フレームワーク非依存層）は alias.cjs(vendored)外のため明示マップ。
     // shim 経由でロードされる markdown-viewer の diffEngine が再 export する。
     "^@anytime-markdown/markdown-engine$": "<rootDir>/../markdown-engine/src/index.ts",
+    // CSS Modules（*.module.css）はクラス名そのものを返す Proxy へ。
+    // shim 経由でロードされる markdown-viewer の UI コンポーネント（EditDialogHeader → Button 等）が
+    // import するため、markdown-viewer の既存 proxy を共用する。
+    "\\.module\\.css$": "<rootDir>/../markdown-viewer/__mocks__/cssModuleProxy.js",
     // barrel は core の index.ts (MarkdownEditorPage / templates.md など重量ツリーを eager ロード)
     // ではなく、rich が使う葉モジュールだけを再 export する軽量 shim に差し替える。
     // requireActual も moduleNameMapper を通るため、テストの barrel mock の base もこの shim になる。
