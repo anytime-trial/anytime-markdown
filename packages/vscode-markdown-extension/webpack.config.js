@@ -89,7 +89,14 @@ const webviewConfig = {
       },
       {
         test: /\.css$/,
-        use: ['style-loader', 'css-loader']
+        use: [
+          'style-loader',
+          {
+            loader: 'css-loader',
+            // *.module.css は CSS Modules、それ以外はグローバル CSS として扱う。
+            options: { modules: { auto: true, localIdentName: '[name]__[local]__[hash:base64:5]' } },
+          },
+        ],
       },
       {
         test: /\.md$/,

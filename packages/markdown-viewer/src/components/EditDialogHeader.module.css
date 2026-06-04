@@ -1,0 +1,33 @@
+.header {
+  display: flex;
+  align-items: center;
+  padding: var(--am-space-1) var(--am-space-4);
+  border-bottom: 1px solid var(--am-color-divider);
+}
+
+.closeBtn {
+  margin-right: var(--am-space-2);
+}
+
+.iconSlot {
+  display: flex;
+  align-items: center;
+  margin-right: 6px;
+  color: var(--am-color-text-secondary);
+}
+
+.label {
+  margin: 0;
+  margin-right: var(--am-space-2);
+  font-size: var(--am-font-size-dialog-header);
+  font-weight: 600;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.applyBtn {
+  height: 26px;
+  margin-right: var(--am-space-2);
+}
