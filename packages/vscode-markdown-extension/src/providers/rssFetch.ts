@@ -2,7 +2,7 @@
 // Kept intentionally in sync with markdown-core/src/utils/rssParser.ts.
 import { DOMParser } from '@xmldom/xmldom';
 
-import { assertSafeUrl } from './embedFetchHelpers';
+import { safeFetch } from './embedFetchHelpers';
 
 export interface RssLatest {
   guid: string;
@@ -66,12 +66,12 @@ export function parseRssLatestXml(xml: string): RssLatest | null {
 }
 
 export async function fetchRssLatest(feedUrl: string): Promise<RssLatest> {
-  await assertSafeUrl(feedUrl);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let xml: string;
   try {
-    const res = await fetch(feedUrl, { signal: controller.signal, redirect: 'follow' });
+    // safeFetch が各リダイレクトホップを assertSafeUrl で再検証する（SSRF 対策）
+    const res = await safeFetch(feedUrl, { signal: controller.signal });
     if (!res.ok) throw new Error(`status-${res.status}`);
     const buf = await res.arrayBuffer();
     if (buf.byteLength > MAX_BYTES) throw new Error('too-large');

@@ -44,6 +44,32 @@ export async function assertSafeUrl(url: string): Promise<void> {
   }
 }
 
+/**
+ * SSRF ガード付き fetch。リダイレクトを手動追従し、各ホップの URL を assertSafeUrl で再検証する。
+ * `redirect: 'follow'` のままだとリダイレクト先（例: 127.0.0.1 や 169.254.169.254）が
+ * 検証されずにガードを迂回されるため、必ず本関数を経由する。
+ */
+export async function safeFetch(
+  url: string,
+  init: Readonly<RequestInit> = {},
+  maxRedirects = 5,
+): Promise<Response> {
+  let currentUrl = url;
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    await assertSafeUrl(currentUrl);
+    const res = await fetch(currentUrl, { ...init, redirect: 'manual' });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('location');
+      if (!location) return res;
+      // 相対 Location を絶対化し、次ループで再検証する
+      currentUrl = new URL(location, currentUrl).toString();
+      continue;
+    }
+    return res;
+  }
+  throw new Error('too-many-redirects');
+}
+
 function extractMeta(html: string, attr: 'property' | 'name', key: string): string | null {
   const escapedKey = key.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const re = new RegExp(
