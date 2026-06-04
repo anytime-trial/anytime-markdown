@@ -206,8 +206,11 @@ function handleArrowKey(
   if (nextPos != null) {
     const { tr } = view.state;
     view.dispatch(setNavigationMode(tr, nextPos));
+    return true;
   }
-  return true;
+  // テーブル端セルでは Arrow を消費せず、ProseMirror のデフォルトカーソル移動に委譲する
+  // （消費するとセル外に出られずキーボードトラップになる）
+  return false;
 }
 
 // ----------------------------------------------------------------
@@ -236,8 +239,11 @@ export function handleNavigationKeyDown(
     if (nextPos != null) {
       const { tr } = view.state;
       view.dispatch(setNavigationMode(tr, nextPos));
+      return true;
     }
-    return true;
+    // テーブル端セルでは Tab を消費せず、ブラウザ/ProseMirror のフォーカス移動に委譲する
+    // （消費するとフォーカスがテーブル外へ抜けられずキーボードトラップになる）
+    return false;
   }
 
   // Enter / F2 → editing モードに遷移
