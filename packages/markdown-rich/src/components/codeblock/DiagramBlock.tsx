@@ -171,14 +171,13 @@ interface DiagramKindInfo {
   exportSourceKey: string;
 }
 
+// DiagramBlock は MermaidNodeView から language === "mermaid" | "plantuml" のときのみ描画されるため、
+// 非 mermaid は plantuml として扱う（汎用言語の分岐は到達不能なため持たない）。
 function resolveDiagramKind(language: string, t: (key: string) => string): DiagramKindInfo {
   if (language === "mermaid") {
     return { isMermaid: true, isPlantUml: false, label: t("mermaid"), exportSourceKey: "exportMmd" };
   }
-  if (language === "plantuml") {
-    return { isMermaid: false, isPlantUml: true, label: t("plantuml"), exportSourceKey: "exportPuml" };
-  }
-  return { isMermaid: false, isPlantUml: false, label: language, exportSourceKey: "exportSource" };
+  return { isMermaid: false, isPlantUml: true, label: t("plantuml"), exportSourceKey: "exportPuml" };
 }
 
 type VoidCallback = () => void;

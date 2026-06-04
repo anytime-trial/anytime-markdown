@@ -36,7 +36,7 @@ export function EditDialogHeader({ label, onClose, showCompareView, icon, extra,
       </span>
       <span className={styles.spacer} />
       {onApply && (
-        <Tooltip title={t("spreadsheetApply")} placement="bottom">
+        <Tooltip title={t("apply")} placement="bottom">
           <Button
             size="small"
             variant={dirty ? "contained" : "outlined"}
@@ -45,7 +45,7 @@ export function EditDialogHeader({ label, onClose, showCompareView, icon, extra,
             onClick={onApply}
             className={styles.applyBtn}
           >
-            {t("spreadsheetApply")}
+            {t("apply")}
           </Button>
         </Tooltip>
       )}

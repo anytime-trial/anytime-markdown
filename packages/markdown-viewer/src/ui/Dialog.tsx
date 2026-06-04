@@ -22,9 +22,17 @@ export function Dialog({ open, onClose, children, labelledBy, ...rest }: Readonl
   useEffect(() => {
     if (!open) return;
     restoreRef.current = document.activeElement as HTMLElement | null;
-    const first = paperRef.current?.querySelector<HTMLElement>(FOCUSABLE);
-    first?.focus();
-    return () => restoreRef.current?.focus?.();
+    const paper = paperRef.current;
+    // フォーカス可能要素がなければ paper 自体（tabIndex=-1）へ退避する。
+    const first = paper?.querySelector<HTMLElement>(FOCUSABLE);
+    (first ?? paper)?.focus();
+    // 背景スクロールをロックし、閉じたら元の overflow へ戻す。
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      restoreRef.current?.focus?.();
+    };
   }, [open]);
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -61,6 +69,7 @@ export function Dialog({ open, onClose, children, labelledBy, ...rest }: Readonl
         aria-labelledby={labelledBy}
         aria-label={rest["aria-label"]}
         className={styles.paper}
+        tabIndex={-1}
         onKeyDown={onKeyDown}
       >
         {children}

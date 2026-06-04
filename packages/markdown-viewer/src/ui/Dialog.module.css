@@ -9,6 +9,7 @@
 }
 
 .paper {
+  outline: none;
   min-width: 280px;
   max-width: min(600px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);

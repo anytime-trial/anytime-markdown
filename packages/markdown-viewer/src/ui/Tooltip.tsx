@@ -1,10 +1,10 @@
-import { cloneElement, isValidElement, useCallback, useId, useRef, useState } from "react";
-import type { ReactElement, ReactNode } from "react";
+import { cloneElement, isValidElement, useCallback, useId, useState } from "react";
+import type { ReactElement, ReactNode, Ref } from "react";
 import { createPortal } from "react-dom";
+import type { Placement } from "@floating-ui/dom";
 
+import { useFloating } from "./useFloating";
 import styles from "./Tooltip.module.css";
-
-type Placement = "top" | "bottom";
 
 export interface TooltipProps {
   title: ReactNode;
@@ -12,64 +12,71 @@ export interface TooltipProps {
   children: ReactElement;
 }
 
-interface Pos {
-  left: number;
-  top: number;
+type ChildWithRef = ReactElement<Record<string, unknown>> & { ref?: Ref<HTMLElement> };
+
+function assignRef(ref: Ref<HTMLElement> | undefined, node: HTMLElement | null): void {
+  if (typeof ref === "function") {
+    ref(node);
+  } else if (ref) {
+    (ref as React.MutableRefObject<HTMLElement | null>).current = node;
+  }
 }
 
 /**
- * MUI Tooltip の置換（PoC・依存フリー版）。
- * 本番は @floating-ui/react で flip/shift を入れる想定。PoC では offset のみの最小実装。
+ * MUI Tooltip の置換（本番版）。`@floating-ui/dom` を直叩きして offset / flip / shift で
+ * viewport 端でも見切れない配置を行い、autoUpdate でスクロール・リサイズに追従する。
+ * hover / focus で開き、`role="tooltip"` と `aria-describedby` を張る。
  */
 export function Tooltip({ title, placement = "bottom", children }: Readonly<TooltipProps>) {
-  const [pos, setPos] = useState<Pos | null>(null);
+  const [open, setOpen] = useState(false);
   const id = useId();
-  const anchorRef = useRef<HTMLElement | null>(null);
+  const { referenceRef, floatingRef, x, y, ready } = useFloating({ open, placement });
 
-  const show = useCallback((el: HTMLElement) => {
-    const r = el.getBoundingClientRect();
-    const gap = 6;
-    setPos({
-      left: r.left + r.width / 2,
-      top: placement === "bottom" ? r.bottom + gap : r.top - gap,
-    });
-  }, [placement]);
-
-  const hide = useCallback(() => setPos(null), []);
+  const show = useCallback(() => setOpen(true), []);
+  const hide = useCallback(() => setOpen(false), []);
 
   if (!isValidElement(children)) return children;
 
-  const child = children as ReactElement<Record<string, unknown>>;
+  const child = children as ChildWithRef;
+  const childRef = child.ref;
+  const childProps = child.props;
+
+  const setReference = (node: HTMLElement | null) => {
+    referenceRef.current = node;
+    assignRef(childRef, node);
+  };
+
   const enhanced = cloneElement(child, {
-    "aria-describedby": pos ? id : undefined,
+    ref: setReference,
+    "aria-describedby": open ? id : (childProps["aria-describedby"] as string | undefined),
     onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
-      anchorRef.current = e.currentTarget;
-      show(e.currentTarget);
-      (child.props.onMouseEnter as ((e: React.MouseEvent) => void) | undefined)?.(e);
+      show();
+      (childProps.onMouseEnter as ((e: React.MouseEvent) => void) | undefined)?.(e);
     },
     onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
       hide();
-      (child.props.onMouseLeave as ((e: React.MouseEvent) => void) | undefined)?.(e);
+      (childProps.onMouseLeave as ((e: React.MouseEvent) => void) | undefined)?.(e);
     },
     onFocus: (e: React.FocusEvent<HTMLElement>) => {
-      show(e.currentTarget);
-      (child.props.onFocus as ((e: React.FocusEvent) => void) | undefined)?.(e);
+      show();
+      (childProps.onFocus as ((e: React.FocusEvent) => void) | undefined)?.(e);
     },
     onBlur: (e: React.FocusEvent<HTMLElement>) => {
       hide();
-      (child.props.onBlur as ((e: React.FocusEvent) => void) | undefined)?.(e);
+      (childProps.onBlur as ((e: React.FocusEvent) => void) | undefined)?.(e);
     },
-  });
+  } as Partial<Record<string, unknown>>);
 
   return (
     <>
       {enhanced}
-      {pos && typeof document !== "undefined" && createPortal(
+      {open && typeof document !== "undefined" && createPortal(
         <div
           id={id}
           role="tooltip"
+          ref={(node) => { floatingRef.current = node; }}
           className={styles.tooltip}
-          style={{ left: pos.left, top: pos.top, transform: placement === "bottom" ? "translate(-50%, 0)" : "translate(-50%, -100%)" }}
+          style={{ left: x, top: y, visibility: ready ? "visible" : "hidden" }}
         >
           {title}
         </div>,
