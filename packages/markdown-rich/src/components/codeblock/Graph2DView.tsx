@@ -87,14 +87,19 @@ export function Graph2DView({ graphExpr, jsxGraph, isDark, width = 500, height =
           break;
         }
         case "polar": {
-          const xFn = (theta: number) => {
-            const r = evalFn({ ...paramValuesRef.current, theta }) as number;
-            return r * Math.cos(theta);
+          // JSXGraph は同じ theta に対し xFn→yFn を連続で呼ぶため、
+          // 直前の theta の評価結果を再利用して evalFn 呼び出しを半減させる
+          let lastTheta: number | undefined;
+          let lastR = 0;
+          const evalR = (theta: number) => {
+            if (theta !== lastTheta) {
+              lastR = evalFn({ ...paramValuesRef.current, theta }) as number;
+              lastTheta = theta;
+            }
+            return lastR;
           };
-          const yFn = (theta: number) => {
-            const r = evalFn({ ...paramValuesRef.current, theta }) as number;
-            return r * Math.sin(theta);
-          };
+          const xFn = (theta: number) => evalR(theta) * Math.cos(theta);
+          const yFn = (theta: number) => evalR(theta) * Math.sin(theta);
           const polarAttrs: JXG.CurveAttributes = {
             curveType: "parameter",
             strokeColor,
@@ -106,12 +111,22 @@ export function Graph2DView({ graphExpr, jsxGraph, isDark, width = 500, height =
         case "parametric2d": {
           const tMin = -10;
           const tMax = 10;
+          // 同じ t に対する xParam→yParam の重複評価を直前結果の再利用で半減させる
+          let lastT: number | undefined;
+          let lastRes: ReturnType<typeof evalFn>;
+          const evalP = (t: number) => {
+            if (t !== lastT) {
+              lastRes = evalFn({ ...paramValuesRef.current, t });
+              lastT = t;
+            }
+            return lastRes;
+          };
           const xParam = (t: number) => {
-            const result = evalFn({ ...paramValuesRef.current, t });
+            const result = evalP(t);
             return typeof result === "object" && result !== null ? result.x : 0;
           };
           const yParam = (t: number) => {
-            const result = evalFn({ ...paramValuesRef.current, t });
+            const result = evalP(t);
             return typeof result === "object" && result !== null ? result.y : 0;
           };
           const paramAttrs: JXG.CurveAttributes = {

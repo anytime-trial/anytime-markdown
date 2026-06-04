@@ -22,6 +22,7 @@ export interface UseZoomPanReturn {
   handlePointerDown: (e: React.PointerEvent) => void;
   handlePointerMove: (e: React.PointerEvent) => void;
   handlePointerUp: () => void;
+  handlePointerCancel: () => void;
   handleWheel: (e: React.WheelEvent) => void;
 }
 
@@ -48,6 +49,10 @@ export function useZoomPan(): UseZoomPanReturn {
   const handlePointerUp = useCallback(() => {
     isPanningRef.current = false;
   }, []);
+
+  // pointercancel（タッチ中断・割り込み）でも必ずパン状態を解除する。
+  // これがないと isPanningRef が true のまま固着しパンが継続してしまう。
+  const handlePointerCancel = handlePointerUp;
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (!e.shiftKey) return;
@@ -82,6 +87,7 @@ export function useZoomPan(): UseZoomPanReturn {
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
+    handlePointerCancel,
     handleWheel,
   };
 }

@@ -50,7 +50,8 @@ export function usePlantUmlRender({ code, isPlantUml, isDark }: UsePlantUmlRende
   });
   const [error, setError] = useState("");
   const [plantUmlConsent, setPlantUmlConsent] = useState<"pending" | "accepted" | "rejected">(() => {
-    if (typeof globalThis === "undefined") return "pending";
+    // SSR では sessionStorage が未定義。globalThis は常に定義済みでガードにならない
+    if (typeof sessionStorage === "undefined") return "pending";
     const v = sessionStorage.getItem(PLANTUML_CONSENT_KEY);
     return v === "accepted" || v === "rejected" ? v : "pending";
   });

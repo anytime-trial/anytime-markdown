@@ -90,6 +90,7 @@ function onRecordComplete(
   gifBlobRef: React.RefObject<Blob | null>,
   setRecorderOpen: (v: boolean) => void,
   updateAttributes: (attrs: Record<string, unknown>) => void,
+  requestId: string,
 ): void {
   setRecorderOpen(false);
   gifBlobRef.current = blob;
@@ -98,10 +99,13 @@ function onRecordComplete(
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result !== "string") return;
+      // requestId で保存結果(imageSaved)をこの GIF ノードに紐付ける。
+      // これによりグローバルの画像挿入ハンドラがカーソル位置へ二重挿入するのを防ぐ。
       vscodeApi.postMessage({
         type: "saveClipboardImage",
         dataUrl: reader.result,
         fileName,
+        requestId,
       });
     };
     reader.readAsDataURL(blob);
@@ -190,6 +194,8 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
   const pngCapture = useBlockCapture(editor, getPos, "gif-block.png");
   const { src, alt, width } = node.attrs;
   const gifBlobRef = useRef<Blob | null>(null);
+  // 進行中の GIF 保存リクエストを識別し、imageSaved をこのノードに紐付けるための ID
+  const pendingSaveIdRef = useRef<string | null>(null);
 
   const handleCapture = useCallback(async () => {
     await captureGifBlob(gifBlobRef, src as string, alt as string, pngCapture);
@@ -207,7 +213,10 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
 
   const handleRecordComplete = useCallback(
     (blob: Blob, fileName: string, settings: GifSettings) => {
-      onRecordComplete(blob, fileName, settings, gifBlobRef, setRecorderOpen, updateAttributes);
+      const requestId =
+        globalThis.crypto?.randomUUID?.() ?? `gif-${fileName}-${performance.now()}`;
+      pendingSaveIdRef.current = requestId;
+      onRecordComplete(blob, fileName, settings, gifBlobRef, setRecorderOpen, updateAttributes, requestId);
     },
     [updateAttributes],
   );
@@ -218,8 +227,17 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
       // Web: origin は同一オリジン（空文字列）
       if (event.origin && !event.origin.startsWith('vscode-webview://') && event.origin !== globalThis.location?.origin) return;
       const data = event.data;
-      if (data?.type === "imageSaved" && typeof data.fileName === "string" && data.fileName) {
-        updateAttributes({ src: typeof data.path === "string" ? data.path : data.fileName });
+      // requestId が一致する imageSaved のみをこの GIF ノードの保存結果として処理する。
+      // 一致しない imageSaved（通常のペースト画像など）はグローバルハンドラに任せる。
+      if (
+        data?.type === "imageSaved" &&
+        typeof data.requestId === "string" &&
+        data.requestId === pendingSaveIdRef.current &&
+        typeof data.path === "string" &&
+        data.path
+      ) {
+        pendingSaveIdRef.current = null;
+        updateAttributes({ src: data.path });
       }
     };
     globalThis.addEventListener("message", handler);
@@ -228,12 +246,13 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
 
   // autoEditOpen: スラッシュコマンドから作成された場合、即座にレコーダーを開く
   useEffect(() => {
-    if (node.attrs.autoEditOpen && isEditable) {
-      requestAnimationFrame(() => {
-        updateAttributes({ autoEditOpen: false });
-        setRecorderOpen(true);
-      });
-    }
+    if (!node.attrs.autoEditOpen || !isEditable) return;
+    const rafId = requestAnimationFrame(() => {
+      updateAttributes({ autoEditOpen: false });
+      setRecorderOpen(true);
+    });
+    // アンマウント/即時削除時に破棄済み NodeView へのコマンド実行を防ぐ
+    return () => cancelAnimationFrame(rafId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

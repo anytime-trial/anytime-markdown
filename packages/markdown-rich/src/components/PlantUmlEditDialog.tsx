@@ -116,6 +116,7 @@ export function PlantUmlEditDialog({
         <DraggableSplitLayout
           onPointerMove={fsZP.handlePointerMove}
           onPointerUp={fsZP.handlePointerUp}
+          onPointerCancel={fsZP.handlePointerCancel}
           t={t}
           left={
             <>

@@ -215,7 +215,9 @@ export function activate(context: vscode.ExtensionContext) {
 	const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	const claudeSubscriptions: vscode.Disposable[] = [];
 	if (wsRoot) {
-		const watcher = new ClaudeStatusWatcher(new WorkerStatusSource(wsRoot));
+		const watcher = new ClaudeStatusWatcher(
+			new WorkerStatusSource(wsRoot, undefined, (msg) => timelineOutput.appendLine(msg)),
+		);
 		watcher.onStatusChange((editing, filePath) => {
 			const p = MarkdownEditorProvider.getInstance();
 			if (!p) return;

@@ -70,7 +70,16 @@ export class AiMemoryProvider implements vscode.TreeDataProvider<AiMemoryItem> {
 		const items: AiMemoryItem[] = [];
 		for (const fileName of files) {
 			const filePath = path.join(this.memoryDir, fileName);
-			const content = fs.readFileSync(filePath, 'utf-8');
+			// readdirSync 後にファイルが削除される等で readFileSync が失敗しても、
+			// 当該ファイルのみスキップし TreeView 全体が空にならないようにする。
+			let content: string;
+			try {
+				content = fs.readFileSync(filePath, 'utf-8');
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				console.warn(`[AiMemoryProvider] skip unreadable memory file: ${filePath} (${msg})`);
+				continue;
+			}
 			const { name, type } = parseFrontmatter(content);
 			const displayName = name || fileName.replace('.md', '');
 			items.push(new AiMemoryItem(filePath, fileName, displayName, type));

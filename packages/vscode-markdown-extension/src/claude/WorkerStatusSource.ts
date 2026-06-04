@@ -18,6 +18,8 @@ export class WorkerStatusSource implements AgentStatusSource {
   constructor(
     workspaceRoot: string,
     private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    // Extension Host の console は不可視のため、エラーは OutputChannel 等へ流す（CLAUDE.md 規約）
+    private readonly logError?: (message: string) => void,
   ) {
     this.jsonPath = path.join(workspaceRoot, '.anytime', 'agent', 'agent-worker.json');
   }
@@ -42,7 +44,9 @@ export class WorkerStatusSource implements AgentStatusSource {
       if (!res.ok) return fallback;
       return (await res.json()) as T;
     } catch (err) {
-      console.error(`[agent-status] markdown source request failed (${reqPath}): ${String(err)}`);
+      this.logError?.(
+        `[${new Date().toISOString()}] [ERROR] [agent-status] markdown source request failed (${reqPath}): ${String(err)}`,
+      );
       return fallback;
     } finally {
       clearTimeout(timer);

@@ -69,4 +69,21 @@ describe("postprocessMathBlock", () => {
     const expected = "$$\n$$";
     expect(postprocessMathBlock(input)).toBe(expected);
   });
+
+  test("末尾で閉じていない```mathフェンスは$$で閉じる", () => {
+    const input = "```math\nx < y";
+    const expected = "$$\nx < y\n$$";
+    expect(postprocessMathBlock(input)).toBe(expected);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  未閉フェンスの回帰: preprocess は ``` を補って閉じる              */
+/* ------------------------------------------------------------------ */
+describe("preprocessMathBlock: 未閉 $$ ブロック", () => {
+  test("末尾で閉じていない$$ブロックは```で閉じる", () => {
+    const input = "text\n$$\nx < y";
+    const expected = "text\n```math\nx < y\n```";
+    expect(preprocessMathBlock(input)).toBe(expected);
+  });
 });

@@ -30,6 +30,7 @@ export function ZoomablePreview({ fsZP, children, origin = "center" }: Readonly<
       onPointerDown={fsZP.handlePointerDown}
       onPointerMove={fsZP.handlePointerMove}
       onPointerUp={fsZP.handlePointerUp}
+      onPointerCancel={fsZP.handlePointerCancel}
       onWheel={fsZP.handleWheel}
     >
       <Box sx={{

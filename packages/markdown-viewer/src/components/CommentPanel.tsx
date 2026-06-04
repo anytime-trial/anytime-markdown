@@ -81,20 +81,26 @@ export const CommentPanel = React.memo(function CommentPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const editRef = useRef<HTMLInputElement>(null);
+  // Ctrl+Enter → commitEdit と直後の onBlur → commitEdit が二重に走るのを防ぐ。
+  // 編集セッション開始(startEdit)時に false へ戻す。
+  const isCommittingRef = useRef(false);
 
   const startEdit = useCallback((comment: InlineComment, e: React.MouseEvent) => {
     e.stopPropagation();
+    isCommittingRef.current = false;
     setEditingId(comment.id);
     setEditText(comment.text);
     setTimeout(() => editRef.current?.focus(), 50);
   }, []);
 
   const commitEdit = useCallback(() => {
-    if (editingId) {
-      editor.commands.updateCommentText(editingId, editText);
-      onSave?.();
-      setEditingId(null);
-    }
+    // editingId のクロージャは再レンダリングまで更新されないため、
+    // 二重コミット（Ctrl+Enter 直後の blur）を ref で抑止する。
+    if (!editingId || isCommittingRef.current) return;
+    isCommittingRef.current = true;
+    editor.commands.updateCommentText(editingId, editText);
+    onSave?.();
+    setEditingId(null);
   }, [editor, editingId, editText, onSave]);
 
   const cancelEdit = useCallback(() => {

@@ -87,6 +87,9 @@ const ListTextCleanup = Extension.create({
           if (!transactions.some((tr) => tr.docChanged)) return null;
           const changes: { from: number; to: number; text: string; marks: readonly import("@anytime-markdown/markdown-pm/model").Mark[] }[] = [];
           newState.doc.descendants((node, pos) => {
+            // listItem を含み得ない葉ブロックは降下不要（大きなコードブロック等の全文走査を回避）
+            const typeName = node.type?.name;
+            if (typeName === "codeBlock" || typeName === "heading") return false;
             if (!node.isText || !node.text?.endsWith("\n")) return;
             const $pos = newState.doc.resolve(pos);
             if ($pos.parent.type.name !== "paragraph") return;

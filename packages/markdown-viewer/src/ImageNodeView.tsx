@@ -160,7 +160,7 @@ function ImageToolbarExtra({
 function ImageWithResize({
   imgRef, imgContainerRef, src, alt, title, displayWidth, annotations,
   isSelected, isEditable, resizing, resizeWidth,
-  handleResizePointerDown, handleResizePointerMove, handleResizePointerUp, handleResizeKeyDown,
+  handleResizePointerDown, handleResizePointerMove, handleResizePointerUp, handleResizePointerCancel, handleResizeKeyDown,
   onDoubleClick, width, isDark, t,
 }: Readonly<{
   imgRef: React.RefObject<HTMLImageElement | null>;
@@ -172,6 +172,7 @@ function ImageWithResize({
   handleResizePointerDown: (e: React.PointerEvent) => void;
   handleResizePointerMove: (e: React.PointerEvent) => void;
   handleResizePointerUp: (e: React.PointerEvent) => void;
+  handleResizePointerCancel: (e: React.PointerEvent) => void;
   handleResizeKeyDown: (e: React.KeyboardEvent) => void;
   onDoubleClick: (() => void) | undefined;
   width: string; isDark: boolean; t: (key: string) => string;
@@ -183,6 +184,7 @@ function ImageWithResize({
       sx={{ lineHeight: 0, position: "relative", display: "inline-block" }}
       onPointerMove={handleResizePointerMove}
       onPointerUp={handleResizePointerUp}
+      onPointerCancel={handleResizePointerCancel}
       onDoubleClick={onDoubleClick}
     >
       <img
@@ -369,7 +371,7 @@ function isInsideImageRow(editor: NodeViewProps["editor"], getPos: NodeViewProps
 function ImageContentArea({
   collapsed, imgError, imgRef, imgContainerRef, src, alt, title, displayWidth, annotations,
   isSelected, isEditable, resizing, resizeWidth,
-  handleResizePointerDown, handleResizePointerMove, handleResizePointerUp, handleResizeKeyDown,
+  handleResizePointerDown, handleResizePointerMove, handleResizePointerUp, handleResizePointerCancel, handleResizeKeyDown,
   onDoubleClick, width, isDark, t,
 }: Readonly<{
   collapsed: boolean; imgError: boolean;
@@ -382,6 +384,7 @@ function ImageContentArea({
   handleResizePointerDown: (e: React.PointerEvent) => void;
   handleResizePointerMove: (e: React.PointerEvent) => void;
   handleResizePointerUp: (e: React.PointerEvent) => void;
+  handleResizePointerCancel: (e: React.PointerEvent) => void;
   handleResizeKeyDown: (e: React.KeyboardEvent) => void;
   onDoubleClick: (() => void) | undefined;
   width: string; isDark: boolean; t: (key: string) => string;
@@ -406,6 +409,7 @@ function ImageContentArea({
       handleResizePointerDown={handleResizePointerDown}
       handleResizePointerMove={handleResizePointerMove}
       handleResizePointerUp={handleResizePointerUp}
+      handleResizePointerCancel={handleResizePointerCancel}
       handleResizeKeyDown={handleResizeKeyDown}
       onDoubleClick={onDoubleClick}
       width={width}
@@ -465,7 +469,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
 
   // --- Resize ---
   const imgContainerRef = useRef<HTMLDivElement>(null);
-  const { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp } = useBlockResize({ containerRef: imgContainerRef, updateAttributes, currentWidth: width });
+  const { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp, handleResizePointerCancel } = useBlockResize({ containerRef: imgContainerRef, updateAttributes, currentWidth: width });
 
   const handleResizeKeyDown = useCallback(
     (e: React.KeyboardEvent) => handleResizeKeyDownImpl(e, imgContainerRef, width, updateAttributes),
@@ -558,6 +562,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
           handleResizePointerDown={handleResizePointerDown}
           handleResizePointerMove={handleResizePointerMove}
           handleResizePointerUp={handleResizePointerUp}
+          handleResizePointerCancel={handleResizePointerCancel}
           handleResizeKeyDown={handleResizeKeyDown}
           onDoubleClick={imageActions.onImageDoubleClick}
           width={width}

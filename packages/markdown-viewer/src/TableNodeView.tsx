@@ -461,7 +461,9 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
     return buildHighlightedCompareHtml(compareTableHtml, node.content, settings.tableWidth);
   }, [compareTableHtml, node.content, settings.tableWidth]);
 
-  const tableSx = buildTableSx(isDark, settings.tableWidth);
+  // NodeView は editor state 更新ごとに再レンダリングされるため、毎回 sx を再生成すると
+  // Emotion が毎回スタイル再計算する。依存が変わらない限りキャッシュする。
+  const tableSx = useMemo(() => buildTableSx(isDark, settings.tableWidth), [isDark, settings.tableWidth]);
 
   const showCompare = editOpen && isCompareMode && !!highlightedCompareHtml;
   const canInteract = !collapsed && !isCompareLeft;

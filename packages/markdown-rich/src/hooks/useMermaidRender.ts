@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import type mermaidAPI from "mermaid";
 import { useEffect, useRef, useState } from "react";
 
@@ -22,9 +23,9 @@ async function getMermaid() {
 
 let mermaidIdCounter = 0;
 
-/** Mermaid レンダリングを直列化するキュー（並行実行による DOM 競合を防止） */
+/** Mermaid レンダリングを直列化するキュー（並行実行による DOM 競合・initialize 競合を防止） */
 let renderQueue: Promise<void> = Promise.resolve();
-function enqueueRender<T>(fn: () => Promise<T>): Promise<T> {
+export function enqueueRender<T>(fn: () => Promise<T>): Promise<T> {
   const task = renderQueue.then(fn, fn);
   renderQueue = task.then(() => {}, () => {});
   return task;
@@ -59,8 +60,8 @@ export function detectMermaidType(code: string): string {
  * キー: `${code}\0${isDark}`
  */
 const svgCache = new BoundedMap<string, string>(64);
-function cacheKey(code: string, isDark: boolean): string {
-  return `${code}\0${isDark}\0${isHandwrittenPreset()}`;
+function cacheKey(code: string, isDark: boolean, handDrawn: boolean = isHandwrittenPreset()): string {
+  return `${code}\0${isDark}\0${handDrawn}`;
 }
 
 /**
@@ -142,8 +143,12 @@ function requestMermaidRender(code: string, isDark: boolean, callback: (svg: str
         document.body.appendChild(container);
         try {
           const { svg: rendered } = await mermaid.render(id, code, container);
-          svgCache.set(key, rendered);
-          for (const cb of entry.callbacks) cb(rendered, "");
+          // mermaid 出力 SVG を追加サニタイズ（foreignObject 経由 XSS の二重防御）
+          const sanitized = DOMPurify.sanitize(rendered, SVG_SANITIZE_CONFIG);
+          // 実際に描画したプリセット(handDrawn)でキーを確定し、500ms デバウンス中の
+          // プリセット変更による別キーへのキャッシュ汚染を防ぐ
+          svgCache.set(cacheKey(code, isDark, handDrawn), sanitized);
+          for (const cb of entry.callbacks) cb(sanitized, "");
         } finally {
           container.remove();
           document.getElementById(`d${id}`)?.remove();

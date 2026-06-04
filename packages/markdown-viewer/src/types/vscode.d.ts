@@ -3,7 +3,7 @@ export {};
 declare global {
   /** VS Code Webview API が受け付けるメッセージ型 */
   type VsCodeMessage =
-    | { type: "saveClipboardImage"; dataUrl: string; fileName: string }
+    | { type: "saveClipboardImage"; dataUrl: string; fileName: string; requestId?: string }
     | { type: "downloadImage"; url: string }
     | { type: "overwriteImage"; path: string; dataUrl: string }
     | { type: "readClipboard" }

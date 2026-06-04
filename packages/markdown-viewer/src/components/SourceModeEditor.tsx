@@ -134,8 +134,8 @@ export function SourceModeEditor({
   tokenMapRef.current = tokenMap;
   const hasBase64Tokens = tokenSpans.length > 0;
 
-  const lineCount = displayText.split("\n").length || 1;
   const displayLines = displayText.split("\n");
+  const lineCount = displayLines.length || 1;
   const digits = String(lineCount).length;
 
   // Sync textarea scroll to highlight layer and gutter

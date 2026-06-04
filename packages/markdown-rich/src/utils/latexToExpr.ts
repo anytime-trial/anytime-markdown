@@ -87,8 +87,12 @@ export function latexToMathjs(latex: string): string {
     );
   }
 
-  // \sqrt{x} → sqrt(x)
-  expr = expr.replaceAll(/\\sqrt\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, "sqrt($1)");
+  // \sqrt{x} → sqrt(x)。ネスト（\sqrt{\sqrt{x}}）に対応するため不変点まで繰り返す
+  let prevSqrt = "";
+  while (prevSqrt !== expr) {
+    prevSqrt = expr;
+    expr = expr.replaceAll(/\\sqrt\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, "sqrt($1)");
+  }
 
   // 三角関数・対数関数
   expr = expr.replaceAll(String.raw`\sin`, "sin");
