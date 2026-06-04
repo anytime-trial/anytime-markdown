@@ -178,28 +178,34 @@ function getBlockSections(blocks: BlockInfo[]): { preSections: number[]; section
 function computeLcsPairs(leftTexts: string[], rightTexts: string[]): [number, number][] {
   const n = leftTexts.length;
   const m = rightTexts.length;
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  // 連続メモリの Int32Array(フルテーブル) で確保し GC 断片化を抑える。dp[i*W+j] でアクセス。
+  const W = m + 1;
+  const dp = new Int32Array((n + 1) * W);
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
-      dp[i][j] = leftTexts[i - 1] === rightTexts[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+      dp[i * W + j] = leftTexts[i - 1] === rightTexts[j - 1]
+        ? dp[(i - 1) * W + (j - 1)] + 1
+        : Math.max(dp[(i - 1) * W + j], dp[i * W + (j - 1)]);
     }
   }
   const pairs: [number, number][] = [];
   let li = n, ri = m;
   while (li > 0 && ri > 0) {
     if (leftTexts[li - 1] === rightTexts[ri - 1]) { pairs.push([li - 1, ri - 1]); li--; ri--; }
-    else if (dp[li - 1][ri] >= dp[li][ri - 1]) { li--; }
+    else if (dp[(li - 1) * W + ri] >= dp[li * W + (ri - 1)]) { li--; }
     else { ri--; }
   }
   pairs.reverse();
   return pairs;
 }
 
-/** 指定 Set に含まれないアイテムを収集する */
-function collectUnmatched<T>(items: T[], from: number, to: number, matchedSet: Set<number>, out: T[]): void {
-  for (let i = from; i < to; i++) {
-    if (!matchedSet.has(i)) out.push(items[i]);
-  }
+/**
+ * 指定範囲 [from, to) のアイテムをそのまま収集する。
+ * classifyByPairs では LCS の単調性により範囲内に matched インデックスが含まれないため、
+ * 旧実装の Set.has() チェック（常に false）と Set 構築は不要。
+ */
+function collectRange<T>(items: T[], from: number, to: number, out: T[]): void {
+  for (let i = from; i < to; i++) out.push(items[i]);
 }
 
 /** LCS ペアからマッチ/左のみ/右のみに分類する */
@@ -209,19 +215,17 @@ function classifyByPairs<T>(
   const matched: [T, T][] = [];
   const leftOnly: T[] = [];
   const rightOnly: T[] = [];
-  const matchedLeftSet = new Set(pairs.map(p => p[0]));
-  const matchedRightSet = new Set(pairs.map(p => p[1]));
 
   let lp = 0, rp = 0;
   for (const [lIdx, rIdx] of pairs) {
-    collectUnmatched(leftItems, lp, lIdx, matchedLeftSet, leftOnly);
-    collectUnmatched(rightItems, rp, rIdx, matchedRightSet, rightOnly);
+    collectRange(leftItems, lp, lIdx, leftOnly);
+    collectRange(rightItems, rp, rIdx, rightOnly);
     matched.push([leftItems[lIdx], rightItems[rIdx]]);
     lp = lIdx + 1;
     rp = rIdx + 1;
   }
-  collectUnmatched(leftItems, lp, leftItems.length, matchedLeftSet, leftOnly);
-  collectUnmatched(rightItems, rp, rightItems.length, matchedRightSet, rightOnly);
+  collectRange(leftItems, lp, leftItems.length, leftOnly);
+  collectRange(rightItems, rp, rightItems.length, rightOnly);
 
   return { matched, leftOnly, rightOnly };
 }
@@ -325,13 +329,15 @@ function findInsertPosition(
 function computeBlockLcsPairs(lb: BlockInfo[], rb: BlockInfo[]): [number, number][] {
   const n = lb.length;
   const m = rb.length;
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  // 連続メモリの Int32Array(フルテーブル) で確保し GC 断片化を抑える。dp[i*W+j] でアクセス。
+  const W = m + 1;
+  const dp = new Int32Array((n + 1) * W);
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
       if (lb[i - 1].text === rb[j - 1].text && lb[i - 1].typeName === rb[j - 1].typeName) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
+        dp[i * W + j] = dp[(i - 1) * W + (j - 1)] + 1;
       } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+        dp[i * W + j] = Math.max(dp[(i - 1) * W + j], dp[i * W + (j - 1)]);
       }
     }
   }
@@ -340,7 +346,7 @@ function computeBlockLcsPairs(lb: BlockInfo[], rb: BlockInfo[]): [number, number
   while (i > 0 && j > 0) {
     if (lb[i - 1].text === rb[j - 1].text && lb[i - 1].typeName === rb[j - 1].typeName) {
       pairs.unshift([i - 1, j - 1]); i--; j--;
-    } else if (dp[i - 1][j] > dp[i][j - 1]) { i--; } else { j--; }
+    } else if (dp[(i - 1) * W + j] > dp[i * W + (j - 1)]) { i--; } else { j--; }
   }
   return pairs;
 }

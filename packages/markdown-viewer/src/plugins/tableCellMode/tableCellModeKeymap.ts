@@ -157,6 +157,21 @@ export function placeCursorAtCellEnd(
   view.dispatch(tr);
 }
 
+/**
+ * editing モードへの遷移とセル末尾へのカーソル移動を 1 つの transaction にまとめて dispatch する。
+ * 別々に dispatch すると plugin apply / decorations が 2 回連続で走る無駄が生じる。
+ */
+function enterEditingWithCursor(view: EditorView, cellPos: number): void {
+  // setEditingMode は setMeta のみで doc を変更しないため tr.doc === view.state.doc。
+  const { doc } = view.state;
+  const tr = setEditingMode(view.state.tr, cellPos);
+  const cell = doc.nodeAt(cellPos);
+  if (cell) {
+    tr.setSelection(TextSelection.create(doc, cellPos + cell.nodeSize - 2));
+  }
+  view.dispatch(tr);
+}
+
 // ----------------------------------------------------------------
 // クリップボード判定
 // ----------------------------------------------------------------
@@ -248,9 +263,7 @@ export function handleNavigationKeyDown(
 
   // Enter / F2 → editing モードに遷移
   if (key === "Enter" || key === "F2") {
-    const { tr } = view.state;
-    view.dispatch(setEditingMode(tr, cellPos));
-    placeCursorAtCellEnd(view, cellPos);
+    enterEditingWithCursor(view, cellPos);
     return true;
   }
 
@@ -275,9 +288,7 @@ export function handleNavigationKeyDown(
 
   // 印字可能文字（Ctrl/Meta/Alt なし） → editing モードに遷移して文字入力を許可
   if (isPrintableKey(key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
-    const { tr } = view.state;
-    view.dispatch(setEditingMode(tr, cellPos));
-    placeCursorAtCellEnd(view, cellPos);
+    enterEditingWithCursor(view, cellPos);
     return false;
   }
 

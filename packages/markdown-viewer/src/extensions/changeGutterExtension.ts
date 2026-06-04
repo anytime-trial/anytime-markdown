@@ -5,9 +5,18 @@ import { Decoration, DecorationSet } from "@anytime-markdown/markdown-pm/view";
 
 const changeGutterKey = new PluginKey("changeGutter");
 
-/** top-level ノードの fingerprint を生成 */
+/**
+ * top-level ノードの fingerprint を生成（ノード単位で WeakMap キャッシュ）。
+ * ProseMirror は変更されていないノードに同一オブジェクトを返すため、
+ * 毎キーストロークでの JSON.stringify(node.toJSON()) 再計算を回避できる。
+ */
+const fingerprintCache = new WeakMap<PmNode, string>();
 function nodeFingerprint(node: PmNode): string {
-  return JSON.stringify(node.toJSON());
+  const cached = fingerprintCache.get(node);
+  if (cached !== undefined) return cached;
+  const fp = JSON.stringify(node.toJSON());
+  fingerprintCache.set(node, fp);
+  return fp;
 }
 
 /** ノードがテキストを持たない空段落かどうか */
@@ -127,10 +136,15 @@ function detectDeletions(
   const seen = new Set<number>();
   const n = current.length;
 
+  // matchPairs は bi 昇順にソート済み。bi の単調増加に合わせてポインタを進めることで、
+  // 旧実装の matchPairs.find (O(n²)) を O(n+m) に置き換える。
+  let pIdx = 0;
   for (let bi = 0; bi < baselineLen; bi++) {
+    // bi-key が現在の bi 以下のペアを飛ばし、最初の bi-key > bi のペアに合わせる
+    while (pIdx < matchPairs.length && matchPairs[pIdx].bi <= bi) pIdx++;
     if (matchedBaseline.has(bi)) continue;
 
-    const nextPair = matchPairs.find((p) => p.bi > bi);
+    const nextPair = pIdx < matchPairs.length ? matchPairs[pIdx] : undefined;
     if (nextPair) {
       addDeletionTarget(current[nextPair.ci].docIndex, seen, changed, deletionBefore);
     } else {
