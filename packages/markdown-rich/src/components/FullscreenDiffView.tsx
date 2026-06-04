@@ -270,9 +270,11 @@ function DiffPanel({
     const textarea = textareaRef.current;
     const gutter = gutterRef.current;
     if (!textarea || !gutter) return;
-    const mg = mergeGutterRef.current;
     const syncScroll = () => {
       gutter.scrollTop = textarea.scrollTop;
+      // マージガターは差分が出てから動的にマウントされるため、毎回 ref を読み直す
+      // （マウント時にキャプチャすると後から現れたガターが追従しない）
+      const mg = mergeGutterRef.current;
       if (mg) mg.scrollTop = textarea.scrollTop;
     };
     textarea.addEventListener("scroll", syncScroll);

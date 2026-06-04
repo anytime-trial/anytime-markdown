@@ -16,6 +16,8 @@ interface DraggableSplitLayoutProps {
   onPointerMove?: (e: React.PointerEvent) => void;
   /** Pointer up handler forwarded to container (for zoom pan) */
   onPointerUp?: (e: React.PointerEvent) => void;
+  /** Pointer cancel handler forwarded to container (for zoom pan; releases pan state) */
+  onPointerCancel?: (e: React.PointerEvent) => void;
   t: (key: string) => string;
 }
 
@@ -24,7 +26,7 @@ interface DraggableSplitLayoutProps {
  * 編集ダイアログのコード / プレビュー分割に使用。
  */
 export function DraggableSplitLayout({
-  initialWidth, initialPercent, left, right, onPointerMove, onPointerUp, t,
+  initialWidth, initialPercent, left, right, onPointerMove, onPointerUp, onPointerCancel, t,
 }: Readonly<DraggableSplitLayoutProps>) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -63,6 +65,14 @@ export function DraggableSplitLayout({
           (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
         } else {
           onPointerUp?.(e);
+        }
+      }}
+      onPointerCancel={(e: React.PointerEvent) => {
+        if (dragging) {
+          setDragging(false);
+          (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+        } else {
+          onPointerCancel?.(e);
         }
       }}
     >

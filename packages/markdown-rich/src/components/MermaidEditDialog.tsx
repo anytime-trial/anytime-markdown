@@ -133,6 +133,7 @@ export function MermaidEditDialog({
         <DraggableSplitLayout
           onPointerMove={fsZP.handlePointerMove}
           onPointerUp={fsZP.handlePointerUp}
+          onPointerCancel={fsZP.handlePointerCancel}
           t={t}
           left={
             <>
