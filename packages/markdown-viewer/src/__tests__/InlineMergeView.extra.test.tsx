@@ -138,11 +138,12 @@ describe("InlineMergeView - additional tests", () => {
   });
 
   it("renders semantic diff toggle button", () => {
+    // セマンティックトグルはソースモード専用（WYSIWYG は常に semantic）
     const { container } = render(
       <ThemeProvider theme={theme}>
         <InlineMergeView
           editorContent=""
-          sourceMode={false}
+          sourceMode={true}
           editorHeight={500}
           t={t}
         >

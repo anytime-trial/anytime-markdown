@@ -243,7 +243,8 @@ describe("InlineMergeView - coverage tests", () => {
 
   // --- semantic diff toggle (lines 421-433) ---
   it("toggles semantic diff option when button clicked", () => {
-    const { container } = renderMergeView();
+    // セマンティックトグルはソースモード専用（WYSIWYG は常に semantic）
+    const { container } = renderMergeView({ sourceMode: true });
     const btn = container.querySelector('[aria-label="semanticDiff"]');
     expect(btn).toBeTruthy();
     fireEvent.click(btn!);

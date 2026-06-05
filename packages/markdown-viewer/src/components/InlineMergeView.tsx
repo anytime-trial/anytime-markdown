@@ -228,7 +228,9 @@ export function InlineMergeView({
     };
   }, [leftEditor]);
 
-  useDiffHighlight(sourceMode, rightEditor, leftEditor, diffOptions.semantic);
+  // WYSIWYG 比較モードは常に semantic で差分を取る（左右がセクション単位で揃い、
+  // 片側のみの追加/削除セクションも整合する）。セマンティックトグルはソースモード専用。
+  useDiffHighlight(sourceMode, rightEditor, leftEditor, true);
 
   useScrollSync(leftContainerRef, rightScrollRef);
 
@@ -327,19 +329,24 @@ export function InlineMergeView({
             </IconButton>
           </span>
         </Tooltip>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-        <Tooltip title={t("semanticDiff")}>
-          <IconButton
-            size="small"
-            onClick={() => setDiffOptions((prev) => ({ ...prev, semantic: !prev.semantic }))}
-            color={diffOptions.semantic ? "primary" : "default"}
-            aria-label={t("semanticDiff")}
-            aria-pressed={!!diffOptions.semantic}
-            sx={{ p: 0.5 }}
-          >
-            <AccountTreeOutlinedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        {/* セマンティックトグルはソースモード専用（WYSIWYG は常に semantic） */}
+        {sourceMode && (
+          <>
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+            <Tooltip title={t("semanticDiff")}>
+              <IconButton
+                size="small"
+                onClick={() => setDiffOptions((prev) => ({ ...prev, semantic: !prev.semantic }))}
+                color={diffOptions.semantic ? "primary" : "default"}
+                aria-label={t("semanticDiff")}
+                aria-pressed={!!diffOptions.semantic}
+                sx={{ p: 0.5 }}
+              >
+                <AccountTreeOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
       </Box>
 
       {/* Content area: left = compare (read-only), right = editor (children) */}
