@@ -1,5 +1,5 @@
+import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
 import { Box, ClickAwayListener, useMediaQuery } from "@mui/material";
-import type { Editor } from "@anytime-markdown/markdown-react";
 import type React from "react";
 import { useCallback } from "react";
 
@@ -19,6 +19,7 @@ import { OutlinePanel } from "./OutlinePanel";
 // InlineMergeView は dynamic import のため親から渡す
 type InlineMergeViewComponent = React.ComponentType<{
   rightEditor?: Editor | null;
+  codeBlockExtension?: AnyExtension;
   editorContent: string;
   sourceMode: boolean;
   editorHeight: number;
@@ -65,6 +66,7 @@ export interface OutlineProps {
 interface EditorMainContentProps {
   InlineMergeView: InlineMergeViewComponent;
   editor: Editor | null;
+  codeBlockExtension?: AnyExtension;
   editorHeight: number;
   editorContainerRef: React.RefObject<HTMLDivElement | null>;
   editorWrapperRef: React.RefObject<HTMLDivElement | null>;
@@ -99,6 +101,7 @@ interface EditorMainContentProps {
 export function EditorMainContent({
   InlineMergeView,
   editor,
+  codeBlockExtension,
   editorHeight,
   editorContainerRef,
   editorWrapperRef,
@@ -218,6 +221,7 @@ export function EditorMainContent({
         <EditorMergeContent
           InlineMergeView={InlineMergeView}
           editor={editor}
+          codeBlockExtension={codeBlockExtension}
           sourceMode={sourceMode}
           reviewMode={readonlyMode || reviewMode}
           editorHeight={editorHeight}

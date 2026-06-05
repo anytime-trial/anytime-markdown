@@ -680,6 +680,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
       <EditorMainContent
         InlineMergeView={InlineMergeView}
         editor={editor}
+        codeBlockExtension={codeBlockExtension}
         editorHeight={editorHeight} editorContainerRef={editorContainerRef}
         editorWrapperRef={editorWrapperRef} editorMountCallback={editorMountCallback}
         sourceText={sourceText} handleSourceChange={handleSourceChange}

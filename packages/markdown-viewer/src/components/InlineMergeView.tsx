@@ -1,3 +1,5 @@
+import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
+import { useEditor } from "@anytime-markdown/markdown-react";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import {
   Box,
@@ -7,16 +9,12 @@ import {
   Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import type { Editor } from "@anytime-markdown/markdown-react";
-import { useEditor } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
+import { buildEditorExtensions } from "../buildEditorExtensions";
 import { FILE_DROP_OVERLAY_COLOR, getDivider, getEditorBg, getTextDisabled } from "../constants/colors";
 import { MERGE_INFO_FONT_SIZE } from "../constants/dimensions";
 import { setMergeEditors } from "../contexts/MergeEditorsContext";
-import { getBaseExtensions } from "../editorExtensions";
-import { CustomHardBreak } from "../extensions/customHardBreak";
-import { ReviewModeExtension } from "../extensions/reviewModeExtension";
 import { useDiffBackground } from "../hooks/useDiffBackground";
 import { useDiffHighlight } from "../hooks/useDiffHighlight";
 import { useMergeContentSync } from "../hooks/useMergeContentSync";
@@ -39,6 +37,8 @@ export interface MergeUndoRedo {
 
 interface InlineMergeViewProps {
   rightEditor?: Editor | null;
+  /** codeBlock 拡張 (rich の CodeBlockWithMermaid)。左パネルの mermaid/plantuml/math/html/embed 描画に必須 */
+  codeBlockExtension?: AnyExtension;
   editorContent: string;
   sourceMode: boolean;
   editorHeight: number;
@@ -73,6 +73,7 @@ function downloadText(text: string, filename: string) {
 
 export function InlineMergeView({
   rightEditor,
+  codeBlockExtension,
   editorContent,
   sourceMode,
   editorHeight: _editorHeight,
@@ -141,7 +142,7 @@ export function InlineMergeView({
 
   // Right tiptap editor (for WYSIWYG mode) – readonly (cursor visible)
   const leftEditor = useEditor({
-    extensions: [...getBaseExtensions({ disableComments: true, disableCheckboxToggle: true }), CustomHardBreak, ReviewModeExtension],
+    extensions: buildEditorExtensions({ mode: "compare", codeBlockExtension }),
     content: "",
     immediatelyRender: false,
     editorProps: {

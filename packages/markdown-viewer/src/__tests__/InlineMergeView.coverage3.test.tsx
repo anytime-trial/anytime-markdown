@@ -68,7 +68,7 @@ jest.mock("../useEditorSettings", () => ({
   }),
 }));
 
-jest.mock("../editorExtensions", () => ({ getBaseExtensions: () => [] }));
+jest.mock("../buildEditorExtensions", () => ({ buildEditorExtensions: () => [] }));
 jest.mock("../extensions/customHardBreak", () => ({ CustomHardBreak: {} }));
 jest.mock("../extensions/reviewModeExtension", () => ({
   ReviewModeExtension: { name: "reviewMode" },
