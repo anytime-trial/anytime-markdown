@@ -107,7 +107,10 @@ function buildCellDecorations(
   });
 }
 
-/** プレースホルダー Widget デコレーションを作成する */
+/** プレースホルダーの最大高さ（px）。大きな未マッチセクションでも巨大な空白を作らない */
+const PLACEHOLDER_MAX_PX = 48;
+
+/** プレースホルダー Widget デコレーションを作成する（片側のみのセクション位置に小型マーカーを置く） */
 function buildPlaceholderDecorations(
   placeholderPositions: PlaceholderPosition[],
   decorations: Decoration[],
@@ -115,14 +118,22 @@ function buildPlaceholderDecorations(
   const lineHeight = 1.6;
   const fontSize = 16;
   for (const ph of placeholderPositions) {
-    const height = ph.lineCount * fontSize * lineHeight;
+    // セクション本来の高さに比例させつつ上限でクランプし、巨大な空白化を防ぐ
+    const height = Math.min(ph.lineCount * fontSize * lineHeight, PLACEHOLDER_MAX_PX);
     decorations.push(
       Decoration.widget(ph.pos, () => {
         const el = document.createElement("div");
         el.style.height = `${height}px`;
+        el.style.display = "flex";
+        el.style.alignItems = "center";
+        el.style.justifyContent = "center";
+        el.style.fontSize = "12px";
+        el.style.color = "rgba(128, 128, 128, 0.9)";
         el.style.backgroundColor = "rgba(128, 128, 128, 0.06)";
+        el.style.border = "1px dashed rgba(128, 128, 128, 0.3)";
         el.style.borderRadius = "4px";
         el.style.margin = "2px 0";
+        el.textContent = `⋯ ${ph.lineCount}`;
         el.setAttribute("aria-hidden", "true");
         return el;
       }, { side: 1 }),

@@ -258,6 +258,9 @@ function markUnmatchedSections(
   }
 }
 
+/** セクション対応率がこれ未満なら semantic を諦め flat 差分にフォールバックする閾値 */
+const SEMANTIC_MATCH_MIN_COVERAGE = 0.4;
+
 /** セマンティック（見出しベース）ブロック差分 */
 function computeSemanticBlockDiff(
   leftDoc: PMNode, rightDoc: PMNode,
@@ -286,6 +289,15 @@ function computeSemanticBlockDiff(
 
   // セクション LCS マッチング
   const { matched, leftOnly, rightOnly } = matchBlockSections(leftSec.sections, rightSec.sections);
+
+  // マッチ品質が低い（見出しがほとんど対応しない）場合は flat にフォールバックする。
+  // semantic を貫くと未マッチセクションの巨大プレースホルダで上部が空白だらけになるため。
+  const sectionBlocks = (secs: BlockSection[]) => secs.reduce((sum, s) => sum + (s.endIndex - s.startIndex), 0);
+  const totalSectionBlocks = sectionBlocks(leftSec.sections) + sectionBlocks(rightSec.sections);
+  const matchedSectionBlocks = matched.reduce((sum, [ls, rs]) => sum + (ls.endIndex - ls.startIndex) + (rs.endIndex - rs.startIndex), 0);
+  if (totalSectionBlocks > 0 && matchedSectionBlocks / totalSectionBlocks < SEMANTIC_MATCH_MIN_COVERAGE) {
+    return computeFlatBlockDiff(leftDoc, rightDoc);
+  }
 
   // マッチしたセクション: セクション内ブロックを diff
   for (const [ls, rs] of matched) {
