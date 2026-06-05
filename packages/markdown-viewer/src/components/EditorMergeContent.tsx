@@ -141,10 +141,7 @@ export function EditorMergeContent({
             side="right"
             showHoverLabels
             onHoverLine={onHoverLine}
-            collapse={collapseProps?.collapse}
-            contextLines={collapseProps?.contextLines}
-            expandedStarts={collapseProps?.expandedStarts}
-            onToggleExpand={collapseProps?.onToggleExpand}
+            {...(collapseProps ?? {})}
             paperSx={{
               bgcolor: getEditorBg(theme.palette.mode === "dark", settings),
             }}

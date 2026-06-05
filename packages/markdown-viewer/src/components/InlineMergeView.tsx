@@ -31,8 +31,10 @@ import { FrontmatterBlock } from "./FrontmatterBlock";
 import { LinePreviewPanel } from "./LinePreviewPanel";
 import { MergeEditorPanel } from "./MergeEditorPanel";
 
-/** 折りたたみ時に変更箇所の前後に残すコンテキスト行数 */
+/** 折りたたみ時に変更箇所の前後に残すコンテキスト量。
+ *  ソースモードは行単位（3 行）、WYSIWYG はブロック単位（1 ブロック）で粒度が異なる。 */
 const MERGE_COLLAPSE_CONTEXT_LINES = 3;
+const MERGE_COLLAPSE_CONTEXT_BLOCKS = 1;
 
 export interface MergeUndoRedo {
   undo: () => void;
@@ -152,12 +154,16 @@ export function InlineMergeView({
       return next;
     });
   }, []);
-  const collapseProps = {
-    collapse: collapseEnabled,
-    contextLines: MERGE_COLLAPSE_CONTEXT_LINES,
-    expandedStarts,
-    onToggleExpand: handleToggleExpand,
-  };
+  const collapseProps = useMemo(
+    () => ({
+      collapse: collapseEnabled,
+      contextLines: MERGE_COLLAPSE_CONTEXT_LINES,
+      expandedStarts,
+      onToggleExpand: handleToggleExpand,
+    }),
+    [collapseEnabled, expandedStarts, handleToggleExpand],
+  );
+  const expandBlocksLabel = useMemo(() => t("expandBlocks"), [t]);
 
   const {
     rightDragOver, setRightDragOver,
@@ -264,7 +270,7 @@ export function InlineMergeView({
 
   // WYSIWYG 比較モードは常に semantic で差分を取る（左右がセクション単位で揃い、
   // 片側のみの追加/削除セクションも整合する）。セマンティックトグルはソースモード専用。
-  useDiffHighlight(sourceMode, rightEditor, leftEditor, true, collapseEnabled, 1, t("expandBlocks"));
+  useDiffHighlight(sourceMode, rightEditor, leftEditor, true, collapseEnabled, MERGE_COLLAPSE_CONTEXT_BLOCKS, expandBlocksLabel);
 
   useScrollSync(leftContainerRef, rightScrollRef);
 
@@ -450,10 +456,7 @@ export function InlineMergeView({
               hideScrollbar
               onMerge={flippedMergeBlock}
               onHoverLine={handleHoverLine}
-              collapse={collapseProps.collapse}
-              contextLines={collapseProps.contextLines}
-              expandedStarts={collapseProps.expandedStarts}
-              onToggleExpand={collapseProps.onToggleExpand}
+              {...collapseProps}
               paperSx={{ bgcolor: getEditorBg(isDark, settings), '& input[type="checkbox"]': { pointerEvents: "none" } }}
             />
           </Box>

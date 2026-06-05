@@ -11,7 +11,7 @@ import React, { useEffect, useRef } from "react";
 import { getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { useMarkdownT } from "../i18n/context";
 import { useEditorSettingsContext } from "../useEditorSettings";
-import { buildColorRuns } from "../utils/colorRuns";
+import { buildDiffGradient } from "../utils/colorRuns";
 import { type CollapseRegion, computeCollapsedRegions, type DiffLine } from "../utils/diffEngine";
 import { getMergeTiptapStyles } from "./mergeTiptapStyles";
 
@@ -38,45 +38,6 @@ function _getLineBgColor(type: DiffLine["type"], theme: Theme) {
     default:
       return "transparent";
   }
-}
-
-/**
- * ソースモード textarea 用の背景グラデーションを diffLines から組み立てる（純粋関数）。
- * useDiffBackground と同一アルゴリズム。セグメント分割時は各スライス単位で呼ぶ。
- */
-function buildSourceGradient(
-  diffLines: DiffLine[] | undefined,
-  isDark: boolean,
-  fontSize: number,
-  lineHeight: number,
-): string {
-  if (!diffLines) return "none";
-  const lineColors: (string | null)[] = [];
-  for (const line of diffLines) {
-    switch (line.type) {
-      case "added":
-      case "modified-new":
-        lineColors.push(alpha(getSuccessMain(isDark), 0.18));
-        break;
-      case "removed":
-      case "modified-old":
-        lineColors.push(alpha(getErrorMain(isDark), 0.18));
-        break;
-      default:
-        lineColors.push(null);
-    }
-  }
-  if (lineColors.length === 0) return "none";
-  const runs = buildColorRuns(lineColors);
-  const lineH = fontSize * lineHeight;
-  const padTop = 16; // pt: 2 = 16px
-  const stops: string[] = [`transparent 0px`, `transparent ${padTop}px`];
-  let y = padTop;
-  for (const run of runs) {
-    stops.push(`${run.color} ${y}px`, `${run.color} ${y + run.count * lineH}px`);
-    y += run.count * lineH;
-  }
-  return `linear-gradient(to bottom, ${stops.join(", ")})`;
 }
 
 interface MergeEditorPanelProps {
@@ -299,7 +260,7 @@ function SourceSegment({
   const mirrorRef = useRef<HTMLDivElement>(null);
   const textContainerRef = useRef<HTMLDivElement>(null);
 
-  const bgGradient = buildSourceGradient(diffLines, isDark, editorSettings.fontSize, editorSettings.lineHeight);
+  const bgGradient = buildDiffGradient(diffLines, isDark, editorSettings.fontSize, editorSettings.lineHeight);
   const {
     paddingIndices, alignedCount, lineNumbersArray,
     displayText, displayLines, mergeButtonIndices, hasMergeButtons, gradientStyle,
@@ -518,7 +479,8 @@ function SourceModePanel({
 
   const regions = computeCollapsedRegions(effectiveLines, contextLines ?? 3, expandedStarts);
   const ranges = realLineRanges(effectiveLines, regions);
-  let firstVisible = true;
+  // 最初の可視セグメントにのみ外部 textareaRef を渡す（render 中の可変フラグを避け事前計算）
+  const firstVisibleRi = regions.findIndex((r) => r.kind === "visible");
 
   const handleSliceChange = (range: { start: number; end: number }, sliceRealText: string) => {
     const fullLines = rawText === "" ? [] : rawText.split("\n");
@@ -544,8 +506,7 @@ function SourceModePanel({
             );
           }
           const range = ranges[ri];
-          const isFirst = firstVisible;
-          firstVisible = false;
+          const isFirst = ri === firstVisibleRi;
           return (
             <SourceSegment
               key={`seg-${region.startIdx}`}

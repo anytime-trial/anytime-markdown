@@ -524,8 +524,24 @@ export interface CollapseRegion {
   collapsedCount: number;
 }
 
-/** これ未満の未変更ランは畳まずそのまま表示する（1行だけの折りたたみは無意味なため） */
-const MIN_COLLAPSE_ROWS = 2;
+/** これ未満の未変更ラン（行 / ブロック）は畳まずそのまま表示する（1 要素だけの折りたたみは無意味なため） */
+export const MIN_COLLAPSE_RUN = 2;
+
+/**
+ * 全 n 要素のうち、変更要素（isChanged(i)===true）の前後 ctx 要素を可視とするフラグ配列を返す。
+ * 行ベース折りたたみ（computeCollapsedRegions）とブロックベース折りたたみ（WYSIWYG）で共有する。
+ */
+export function markContextVisible(n: number, isChanged: (i: number) => boolean, ctx: number): boolean[] {
+  const c = Math.max(0, ctx);
+  const visible = new Array<boolean>(n).fill(false);
+  for (let i = 0; i < n; i++) {
+    if (!isChanged(i)) continue;
+    const lo = Math.max(0, i - c);
+    const hi = Math.min(n - 1, i + c);
+    for (let j = lo; j <= hi; j++) visible[j] = true;
+  }
+  return visible;
+}
 
 function mergeAdjacentVisible(regions: CollapseRegion[]): CollapseRegion[] {
   const out: CollapseRegion[] = [];
@@ -555,15 +571,8 @@ export function computeCollapsedRegions(
 ): CollapseRegion[] {
   const n = diffLines.length;
   if (n === 0) return [];
-  const ctx = Math.max(0, contextLines);
 
-  const visible = new Array<boolean>(n).fill(false);
-  for (let i = 0; i < n; i++) {
-    if (diffLines[i].type === "equal") continue;
-    const lo = Math.max(0, i - ctx);
-    const hi = Math.min(n - 1, i + ctx);
-    for (let j = lo; j <= hi; j++) visible[j] = true;
-  }
+  const visible = markContextVisible(n, (i) => diffLines[i].type !== "equal", contextLines);
 
   const regions: CollapseRegion[] = [];
   let i = 0;
@@ -575,7 +584,7 @@ export function computeCollapsedRegions(
     } else {
       const len = j - i;
       const expanded = expandedStarts?.has(i) ?? false;
-      if (len < MIN_COLLAPSE_ROWS || expanded) {
+      if (len < MIN_COLLAPSE_RUN || expanded) {
         regions.push({ kind: "visible", startIdx: i, endIdx: j, collapsedCount: 0 });
       } else {
         regions.push({ kind: "collapsed", startIdx: i, endIdx: j, collapsedCount: len });

@@ -5,6 +5,7 @@ import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 import { Decoration, DecorationSet } from "@anytime-markdown/markdown-pm/view";
 
 import type { PlaceholderPosition } from "../utils/blockDiffComputation";
+import { markContextVisible, MIN_COLLAPSE_RUN } from "../utils/diffEngine";
 
 // Re-export for external consumers
 export type { BlockDiffResult, PlaceholderPosition } from "../utils/blockDiffComputation";
@@ -44,9 +45,6 @@ const LEFT_BLOCK_STYLE = "background-color: rgba(248, 81, 73, 0.10); border-radi
 const RIGHT_BLOCK_STYLE = "background-color: rgba(46, 160, 67, 0.10); border-radius: 4px;";
 const LEFT_CELL_STYLE = "background-color: rgba(248, 81, 73, 0.18);";
 const RIGHT_CELL_STYLE = "background-color: rgba(46, 160, 67, 0.18);";
-
-/** これ未満の未変更ブロック run は畳まない */
-const MIN_COLLAPSE_BLOCKS = 2;
 
 // --- meta（プラグインへの指示）の型 ---
 
@@ -157,30 +155,18 @@ function createExpanderWidget(view: EditorView, runKey: string, count: number, l
   return el;
 }
 
-/** 折りたたみ（未変更ブロックの非表示 + 展開ウィジェット）デコレーションを作成する */
+/**
+ * 折りたたみ（未変更ブロックの非表示 + 展開ウィジェット）デコレーションを作成する。
+ * offsets / sizes は decorations() の単一走査で収集済みのトップレベルノード位置・サイズ。
+ */
 function buildCollapseDecorations(
-  doc: PMNode, changedBlocks: Set<number>, contextBlocks: number,
+  offsets: number[], sizes: number[], changedBlocks: Set<number>, contextBlocks: number,
   expandedRuns: Set<string>, expandLabel: string, decorations: Decoration[],
 ): void {
-  const n = doc.childCount;
+  const n = offsets.length;
   if (n === 0) return;
 
-  // 各トップレベルノードの絶対位置とサイズ
-  const offsets: number[] = [];
-  const sizes: number[] = [];
-  doc.forEach((node, offset) => {
-    offsets.push(offset);
-    sizes.push(node.nodeSize);
-  });
-
-  // 変更ブロックの前後 contextBlocks を可視とする
-  const visible = new Array<boolean>(n).fill(false);
-  for (let i = 0; i < n; i++) {
-    if (!changedBlocks.has(i)) continue;
-    const lo = Math.max(0, i - contextBlocks);
-    const hi = Math.min(n - 1, i + contextBlocks);
-    for (let j = lo; j <= hi; j++) visible[j] = true;
-  }
+  const visible = markContextVisible(n, (i) => changedBlocks.has(i), contextBlocks);
 
   let i = 0;
   while (i < n) {
@@ -189,7 +175,7 @@ function buildCollapseDecorations(
     while (j < n && !visible[j]) j++;
     const len = j - i;
     const key = String(i);
-    if (len >= MIN_COLLAPSE_BLOCKS && !expandedRuns.has(key)) {
+    if (len >= MIN_COLLAPSE_RUN && !expandedRuns.has(key)) {
       for (let k = i; k < j; k++) {
         decorations.push(Decoration.node(offsets[k], offsets[k] + sizes[k], { style: "display:none", contenteditable: "false" }));
       }
@@ -287,17 +273,24 @@ export const DiffHighlight = Extension.create({
             const cellStyle = side === "left" ? LEFT_CELL_STYLE : RIGHT_CELL_STYLE;
             const decorations: Decoration[] = [];
             let blockIndex = 0;
+            // collapse 時のみトップレベルノードの位置・サイズを単一走査で収集する
+            const offsets: number[] = [];
+            const sizes: number[] = [];
 
             state.doc.forEach((node, pos) => {
               buildBlockDecorations(node, pos, blockIndex, changedBlocks, blockStyle, decorations);
               buildCellDecorations(node, pos, blockIndex, cellDiffs, cellStyle, decorations);
+              if (collapse) {
+                offsets.push(pos);
+                sizes.push(node.nodeSize);
+              }
               blockIndex++;
             });
 
             buildPlaceholderDecorations(placeholderPositions, decorations);
 
             if (collapse) {
-              buildCollapseDecorations(state.doc, changedBlocks, contextBlocks, expandedRuns, expandLabel, decorations);
+              buildCollapseDecorations(offsets, sizes, changedBlocks, contextBlocks, expandedRuns, expandLabel, decorations);
             }
 
             return DecorationSet.create(state.doc, decorations);
