@@ -1,6 +1,6 @@
+import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
 import { Box, CircularProgress } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import type { Editor } from "@anytime-markdown/markdown-react";
 import type React from "react";
 import { Suspense, useEffect } from "react";
 
@@ -15,6 +15,7 @@ import { MergeEditorPanel } from "./MergeEditorPanel";
 // InlineMergeView は dynamic import のため親から渡す
 type InlineMergeViewComponent = React.ComponentType<{
   rightEditor?: Editor | null;
+  codeBlockExtension?: AnyExtension;
   editorContent: string;
   sourceMode: boolean;
   editorHeight: number;
@@ -38,6 +39,7 @@ type InlineMergeViewComponent = React.ComponentType<{
 export interface EditorMergeContentProps {
   InlineMergeView: InlineMergeViewComponent;
   editor: Editor | null;
+  codeBlockExtension?: AnyExtension;
   sourceMode: boolean;
   reviewMode?: boolean;
   editorHeight: number;
@@ -65,6 +67,7 @@ export interface EditorMergeContentProps {
 export function EditorMergeContent({
   InlineMergeView,
   editor,
+  codeBlockExtension,
   sourceMode,
   reviewMode,
   editorHeight,
@@ -103,6 +106,7 @@ export function EditorMergeContent({
     <Suspense fallback={<CircularProgress size={32} sx={{ m: "auto" }} />}>
     <InlineMergeView
       rightEditor={editor}
+      codeBlockExtension={codeBlockExtension}
       editorContent={sourceMode ? sourceText : editorMarkdown}
       sourceMode={sourceMode}
       editorHeight={editorHeight}
