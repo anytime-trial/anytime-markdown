@@ -1,11 +1,32 @@
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 
+import { markContextVisible, MIN_COLLAPSE_RUN } from "./diffEngine";
+
 // --- Block diff computation ---
 
 interface BlockInfo {
   text: string;
   typeName: string;
   level?: number;
+}
+
+/** 折りたたみ run（左右で共有する runId 付き） */
+export interface CollapseRun {
+  /** 左右共有 ID（アライン slot 開始 index） */
+  runId: number;
+  /** この side で非表示にするトップレベルブロック index 群 */
+  hideIndices: number[];
+  /** 展開ウィジェットを置くブロック index（hideIndices の先頭） */
+  anchorIndex: number;
+  /** 畳む slot 数（左右で同一） */
+  count: number;
+}
+
+export interface BlockCollapsePlan {
+  /** docA（第1引数）用の run 一覧 */
+  aRuns: CollapseRun[];
+  /** docB（第2引数）用の run 一覧 */
+  bRuns: CollapseRun[];
 }
 
 export function getTopLevelBlocks(doc: PMNode): BlockInfo[] {
@@ -457,4 +478,57 @@ function computeFlatBlockDiff(
   diffBlockRange({ leftBlocks, rightBlocks, leftNodes, rightNodes, leftIndices: allLeft, rightIndices: allRight, leftResult, rightResult });
 
   return { left: leftResult, right: rightResult };
+}
+
+
+/**
+ * 左右ドキュメントのトップレベルブロックを LCS で整合し、未変更ブロックの折りたたみ計画を返す。
+ * WYSIWYG 比較の「変更箇所のみ表示」で左右を厳密に同じ単位で畳む/展開するために使う。
+ * - aRuns[k] と bRuns[k] は同一 runId を共有し、同じ論理範囲を指す。
+ * - 折りたたみ run は未変更（LCS マッチ）slot のみで構成されるため、各 run は左右両方の index を持つ。
+ */
+export function computeBlockCollapsePlan(docA: PMNode, docB: PMNode, context: number): BlockCollapsePlan {
+  const aBlocks = getTopLevelBlocks(docA);
+  const bBlocks = getTopLevelBlocks(docB);
+  const pairs = computeBlockLcsPairs(aBlocks, bBlocks);
+
+  // 左右を整合した slot 列を組み立てる（equal=LCS マッチ、それ以外は片側のみ=変更）
+  interface Slot { a: number | null; b: number | null; equal: boolean }
+  const slots: Slot[] = [];
+  let pa = 0;
+  let pb = 0;
+  for (const [ai, bi] of pairs) {
+    while (pa < ai) { slots.push({ a: pa, b: null, equal: false }); pa++; }
+    while (pb < bi) { slots.push({ a: null, b: pb, equal: false }); pb++; }
+    slots.push({ a: ai, b: bi, equal: true });
+    pa = ai + 1;
+    pb = bi + 1;
+  }
+  while (pa < aBlocks.length) { slots.push({ a: pa, b: null, equal: false }); pa++; }
+  while (pb < bBlocks.length) { slots.push({ a: null, b: pb, equal: false }); pb++; }
+
+  const visible = markContextVisible(slots.length, (i) => !slots[i].equal, context);
+
+  const aRuns: CollapseRun[] = [];
+  const bRuns: CollapseRun[] = [];
+  let i = 0;
+  while (i < slots.length) {
+    if (visible[i]) { i++; continue; }
+    let j = i;
+    while (j < slots.length && !visible[j]) j++;
+    const len = j - i;
+    if (len >= MIN_COLLAPSE_RUN) {
+      const runId = i;
+      const aIdx: number[] = [];
+      const bIdx: number[] = [];
+      for (let k = i; k < j; k++) {
+        if (slots[k].a !== null) aIdx.push(slots[k].a as number);
+        if (slots[k].b !== null) bIdx.push(slots[k].b as number);
+      }
+      if (aIdx.length > 0) aRuns.push({ runId, hideIndices: aIdx, anchorIndex: aIdx[0], count: len });
+      if (bIdx.length > 0) bRuns.push({ runId, hideIndices: bIdx, anchorIndex: bIdx[0], count: len });
+    }
+    i = j;
+  }
+  return { aRuns, bRuns };
 }
