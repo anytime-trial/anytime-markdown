@@ -3,6 +3,7 @@ import { useEditor } from "@anytime-markdown/markdown-react";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import {
   Box,
   Divider,
@@ -11,7 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildEditorExtensions } from "../buildEditorExtensions";
 import { FILE_DROP_OVERLAY_COLOR, getDivider, getEditorBg, getTextDisabled } from "../constants/colors";
@@ -30,11 +31,23 @@ import { FrontmatterBlock } from "./FrontmatterBlock";
 import { LinePreviewPanel } from "./LinePreviewPanel";
 import { MergeEditorPanel } from "./MergeEditorPanel";
 
+/** 折りたたみ時に変更箇所の前後に残すコンテキスト量。
+ *  ソースモードは行単位（3 行）、WYSIWYG はブロック単位（1 ブロック）で粒度が異なる。 */
+const MERGE_COLLAPSE_CONTEXT_LINES = 3;
+const MERGE_COLLAPSE_CONTEXT_BLOCKS = 1;
+
 export interface MergeUndoRedo {
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+}
+
+export interface MergeCollapseProps {
+  collapse: boolean;
+  contextLines: number;
+  expandedStarts: Set<number>;
+  onToggleExpand: (startIdx: number) => void;
 }
 
 interface InlineMergeViewProps {
@@ -58,6 +71,7 @@ interface InlineMergeViewProps {
     leftDiffLines?: DiffLine[],
     onMerge?: (blockId: number, direction: "left-to-right" | "right-to-left") => void,
     onHoverLine?: (lineIndex: number | null) => void,
+    collapseProps?: MergeCollapseProps,
   ) => React.ReactNode;
 }
 
@@ -124,6 +138,32 @@ export function InlineMergeView({
   useEffect(() => {
     onUndoRedoReady?.({ undo, redo, canUndo, canRedo });
   }, [onUndoRedoReady, undo, redo, canUndo, canRedo]);
+
+  // 未変更セクション折りたたみ（変更箇所のみ表示）
+  const [collapseEnabled, setCollapseEnabled] = useState(false);
+  const [expandedStarts, setExpandedStarts] = useState<Set<number>>(() => new Set());
+  const handleToggleCollapse = useCallback(() => {
+    setCollapseEnabled((prev) => !prev);
+    setExpandedStarts(new Set()); // 切り替え時は手動展開をリセット
+  }, []);
+  const handleToggleExpand = useCallback((startIdx: number) => {
+    setExpandedStarts((prev) => {
+      const next = new Set(prev);
+      if (next.has(startIdx)) next.delete(startIdx);
+      else next.add(startIdx);
+      return next;
+    });
+  }, []);
+  const collapseProps = useMemo(
+    () => ({
+      collapse: collapseEnabled,
+      contextLines: MERGE_COLLAPSE_CONTEXT_LINES,
+      expandedStarts,
+      onToggleExpand: handleToggleExpand,
+    }),
+    [collapseEnabled, expandedStarts, handleToggleExpand],
+  );
+  const expandBlocksLabel = useMemo(() => t("expandBlocks"), [t]);
 
   const {
     rightDragOver, setRightDragOver,
@@ -228,7 +268,9 @@ export function InlineMergeView({
     };
   }, [leftEditor]);
 
-  useDiffHighlight(sourceMode, rightEditor, leftEditor, diffOptions.semantic);
+  // WYSIWYG 比較モードは常に semantic で差分を取る（左右がセクション単位で揃い、
+  // 片側のみの追加/削除セクションも整合する）。セマンティックトグルはソースモード専用。
+  useDiffHighlight(sourceMode, rightEditor, leftEditor, true, collapseEnabled, MERGE_COLLAPSE_CONTEXT_BLOCKS, expandBlocksLabel);
 
   useScrollSync(leftContainerRef, rightScrollRef);
 
@@ -328,18 +370,36 @@ export function InlineMergeView({
           </span>
         </Tooltip>
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-        <Tooltip title={t("semanticDiff")}>
+        <Tooltip title={t("collapseUnchanged")}>
           <IconButton
             size="small"
-            onClick={() => setDiffOptions((prev) => ({ ...prev, semantic: !prev.semantic }))}
-            color={diffOptions.semantic ? "primary" : "default"}
-            aria-label={t("semanticDiff")}
-            aria-pressed={!!diffOptions.semantic}
+            onClick={handleToggleCollapse}
+            color={collapseEnabled ? "primary" : "default"}
+            aria-label={t("collapseUnchanged")}
+            aria-pressed={collapseEnabled}
             sx={{ p: 0.5 }}
           >
-            <AccountTreeOutlinedIcon fontSize="small" />
+            <UnfoldLessIcon fontSize="small" />
           </IconButton>
         </Tooltip>
+        {/* セマンティックトグルはソースモード専用（WYSIWYG は常に semantic） */}
+        {sourceMode && (
+          <>
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+            <Tooltip title={t("semanticDiff")}>
+              <IconButton
+                size="small"
+                onClick={() => setDiffOptions((prev) => ({ ...prev, semantic: !prev.semantic }))}
+                color={diffOptions.semantic ? "primary" : "default"}
+                aria-label={t("semanticDiff")}
+                aria-pressed={!!diffOptions.semantic}
+                sx={{ p: 0.5 }}
+              >
+                <AccountTreeOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
       </Box>
 
       {/* Content area: left = compare (read-only), right = editor (children) */}
@@ -396,6 +456,7 @@ export function InlineMergeView({
               hideScrollbar
               onMerge={flippedMergeBlock}
               onHoverLine={handleHoverLine}
+              {...collapseProps}
               paperSx={{ bgcolor: getEditorBg(isDark, settings), '& input[type="checkbox"]': { pointerEvents: "none" } }}
             />
           </Box>
@@ -412,7 +473,7 @@ export function InlineMergeView({
             overflow: "hidden",
           }}
         >
-          {children(leftBgGradient, diffResult?.leftLines, flippedMergeBlock, handleHoverLine)}
+          {children(leftBgGradient, diffResult?.leftLines, flippedMergeBlock, handleHoverLine, collapseProps)}
         </Box>
         {commentSlot}
       </Box>
