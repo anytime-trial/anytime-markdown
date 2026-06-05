@@ -38,8 +38,12 @@ export async function computeImportance(
   } catch (err) {
     // 呼び出し側は null を汎用警告に変換するだけで根本原因が失われるため、
     // ここで tsconfig パスと stack を残す (silent catch 禁止)。
+    // tsconfigPath は %s プレースホルダ経由で渡し、format 文字列リテラルに混ぜない
+    // (tainted-format-string 回避)。併せて CR/LF を除去する (log-injection 回避)。
+    const safeTsconfigPath = tsconfigPath.replaceAll(/[\r\n]/g, '');
     console.error(
-      `[${new Date().toISOString()}] [ERROR] computeImportance: ImportanceAnalyzer.analyze failed for ${tsconfigPath}`,
+      `[${new Date().toISOString()}] [ERROR] computeImportance: ImportanceAnalyzer.analyze failed for %s`,
+      safeTsconfigPath,
       err instanceof Error ? err.stack ?? err.message : String(err),
     );
     return null;

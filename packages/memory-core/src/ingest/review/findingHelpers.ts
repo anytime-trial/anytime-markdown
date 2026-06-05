@@ -221,8 +221,10 @@ export function extractProblemSuggestionPairs(lines: string[]): Array<[string, s
 // ── Finding extraction (Sample 2/3: numbered findings) ───────────────────────
 
 /** Sample 2/3 の境界判定: `🟡 **N. title**` または `**N. title**` */
+// ⚠️ は U+26A0 + U+FE0F の合成絵文字。文字クラス内に入れると U+FE0F(異体字セレクタ)
+// 単独や U+26A0 単独にもマッチしてしまうため、合成文字は交替として外に出す (S5868)。
 const NUMBERED_BOUNDARY_RE =
-  /^(?:[\p{Emoji_Presentation}⚠️\u{1F534}\u{1F7E1}\u{1F7E2}\u{1F535}\u{26AB}\u{26AA}]\s*)?\*\*(\d+)\.\s+(.+?)\*\*\s*$/u;
+  /^(?:(?:⚠️|[\p{Emoji_Presentation}\u{1F534}\u{1F7E1}\u{1F7E2}\u{1F535}\u{26AB}\u{26AA}])\s*)?\*\*(\d+)\.\s+(.+?)\*\*\s*$/u;
 
 /**
  * Sample 2/3 の suggestion インラインマーカー（bold なし、コロン必須）。
