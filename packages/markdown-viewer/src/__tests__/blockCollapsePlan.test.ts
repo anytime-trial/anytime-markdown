@@ -1,4 +1,4 @@
-import { computeBlockCollapsePlan } from "../utils/blockDiffComputation";
+import { computeBlockAlignment,computeBlockCollapsePlan } from "../utils/blockDiffComputation";
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 
 function mockNode(text: string, typeName = "paragraph"): PMNode {
@@ -24,6 +24,35 @@ function mockDoc(nodes: PMNode[]): PMNode {
 }
 
 const doc = (texts: string[]) => mockDoc(texts.map((t) => mockNode(t)));
+
+describe("computeBlockAlignment", () => {
+  test("同一文書 → 全 slot が equal で左右 index 対応", () => {
+    const slots = computeBlockAlignment(doc(["A", "B"]), doc(["A", "B"]));
+    expect(slots).toEqual([
+      { a: 0, b: 0, equal: true },
+      { a: 1, b: 1, equal: true },
+    ]);
+  });
+
+  test("右に挿入 → 挿入ブロックは b のみの非 equal slot", () => {
+    const slots = computeBlockAlignment(doc(["A", "C"]), doc(["A", "B", "C"]));
+    expect(slots).toEqual([
+      { a: 0, b: 0, equal: true },
+      { a: null, b: 1, equal: false },
+      { a: 1, b: 2, equal: true },
+    ]);
+  });
+
+  test("置換 → 双方の非 equal slot を挟む", () => {
+    const slots = computeBlockAlignment(doc(["A", "X", "B"]), doc(["A", "Y", "B"]));
+    expect(slots).toEqual([
+      { a: 0, b: 0, equal: true },
+      { a: 1, b: null, equal: false },
+      { a: null, b: 1, equal: false },
+      { a: 2, b: 2, equal: true },
+    ]);
+  });
+});
 
 describe("computeBlockCollapsePlan", () => {
   test("同一文書 → 全体が1つの run、左右で同じ件数・index", () => {

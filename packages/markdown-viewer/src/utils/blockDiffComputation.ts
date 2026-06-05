@@ -487,14 +487,17 @@ function computeFlatBlockDiff(
  * - aRuns[k] と bRuns[k] は同一 runId を共有し、同じ論理範囲を指す。
  * - 折りたたみ run は未変更（LCS マッチ）slot のみで構成されるため、各 run は左右両方の index を持つ。
  */
-export function computeBlockCollapsePlan(docA: PMNode, docB: PMNode, context: number): BlockCollapsePlan {
-  const aBlocks = getTopLevelBlocks(docA);
-  const bBlocks = getTopLevelBlocks(docB);
-  const pairs = computeBlockLcsPairs(aBlocks, bBlocks);
+/** 左右ブロックの整合 slot（equal=LCS マッチ、それ以外は片側のみ=変更） */
+export interface AlignedSlot {
+  a: number | null;
+  b: number | null;
+  equal: boolean;
+}
 
-  // 左右を整合した slot 列を組み立てる（equal=LCS マッチ、それ以外は片側のみ=変更）
-  interface Slot { a: number | null; b: number | null; equal: boolean }
-  const slots: Slot[] = [];
+/** 左右ブロック列を LCS で整合した slot 列を組み立てる（collapse と縦整合で共有） */
+function buildAlignedSlots(aBlocks: BlockInfo[], bBlocks: BlockInfo[]): AlignedSlot[] {
+  const pairs = computeBlockLcsPairs(aBlocks, bBlocks);
+  const slots: AlignedSlot[] = [];
   let pa = 0;
   let pb = 0;
   for (const [ai, bi] of pairs) {
@@ -506,7 +509,16 @@ export function computeBlockCollapsePlan(docA: PMNode, docB: PMNode, context: nu
   }
   while (pa < aBlocks.length) { slots.push({ a: pa, b: null, equal: false }); pa++; }
   while (pb < bBlocks.length) { slots.push({ a: null, b: pb, equal: false }); pb++; }
+  return slots;
+}
 
+/** 左右ドキュメントのトップレベルブロックを LCS 整合した slot 列を返す（縦整合に使用） */
+export function computeBlockAlignment(docA: PMNode, docB: PMNode): AlignedSlot[] {
+  return buildAlignedSlots(getTopLevelBlocks(docA), getTopLevelBlocks(docB));
+}
+
+export function computeBlockCollapsePlan(docA: PMNode, docB: PMNode, context: number): BlockCollapsePlan {
+  const slots = computeBlockAlignment(docA, docB);
   const visible = markContextVisible(slots.length, (i) => !slots[i].equal, context);
 
   const aRuns: CollapseRun[] = [];

@@ -79,6 +79,7 @@ jest.mock("../hooks/useDiffBackground", () => ({
   useDiffBackground: () => ({ leftBgGradient: "lg1", rightBgGradient: "lg2" }),
 }));
 
+jest.mock("../hooks/useBlockAlignment", () => ({ useBlockAlignment: () => {} }));
 jest.mock("../hooks/useDiffHighlight", () => ({ useDiffHighlight: () => {} }));
 
 jest.mock("../hooks/useMergeDiff", () => ({
