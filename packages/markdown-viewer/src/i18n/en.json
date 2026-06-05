@@ -424,6 +424,8 @@
     "slashCommandPlaceholder": "Type to filter...",
     "slashCommandNoResults": "No matching commands",
     "semanticDiff": "Semantic comparison",
+    "mergeNav.prev": "Previous change",
+    "mergeNav.next": "Next change",
     "pasteAsMarkdown": "Paste as Markdown",
     "pasteAsCodeBlock": "Paste as Code Block",
     "clearScreen": "Clear Screen",

@@ -1,6 +1,8 @@
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
 import { useEditor } from "@anytime-markdown/markdown-react";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import {
   Box,
   Divider,
@@ -99,6 +101,10 @@ export function InlineMergeView({
     diffOptions,
     setDiffOptions,
     mergeBlock,
+    currentBlockIndex,
+    totalBlocks,
+    goToNextBlock,
+    goToPrevBlock,
     undo,
     redo,
     canUndo,
@@ -134,6 +140,39 @@ export function InlineMergeView({
   const leftContainerRef = useRef<HTMLDivElement>(null);
   const rightScrollRef = useRef<HTMLDivElement>(null);
   const compareTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 差分ナビゲーション: 選択中ブロックへ自動スクロール
+  const diffResultRef = useRef(diffResult);
+  diffResultRef.current = diffResult;
+  useEffect(() => {
+    const block = diffResultRef.current?.blocks?.[currentBlockIndex];
+    if (!block) return;
+    const raf = requestAnimationFrame(() => {
+      for (const container of [rightScrollRef.current, leftContainerRef.current]) {
+        if (!container) continue;
+        // ソースモード: ブロック ID で厳密に特定。WYSIWYG モード: doc ベース diff の出現順で best-effort
+        const anchor =
+          container.querySelector(`[data-diff-block-id="${block.id}"]`) ??
+          container.querySelectorAll("[data-diff-block]")[currentBlockIndex] ??
+          null;
+        if (anchor) {
+          anchor.scrollIntoView({ block: "center", behavior: "smooth" });
+          break;
+        }
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [currentBlockIndex]);
+
+  const handleMergeNavKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key !== "F8") return;
+      e.preventDefault();
+      if (e.shiftKey) goToPrevBlock();
+      else goToNextBlock();
+    },
+    [goToNextBlock, goToPrevBlock],
+  );
 
   const hoverSetterRef = useRef<((v: number | null) => void) | null>(null);
   const handleHoverLine = useCallback((idx: number | null) => {
@@ -204,7 +243,7 @@ export function InlineMergeView({
   }, [rightEditor, leftEditor]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden" }}>
+    <Box onKeyDown={handleMergeNavKeyDown} sx={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden" }}>
       {/* Hidden file input for right panel */}
       <input
         ref={fileInputRightRef}
@@ -253,8 +292,42 @@ export function InlineMergeView({
         </Box>
       )}
 
-      {/* Semantic diff toggle */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", px: 1, py: 0.5, flexShrink: 0 }}>
+      {/* Diff navigation + semantic diff toggle */}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.5, px: 1, py: 0.5, flexShrink: 0 }}>
+        <Tooltip title={t("mergeNav.prev")}>
+          <span>
+            <IconButton
+              size="small"
+              onClick={goToPrevBlock}
+              disabled={totalBlocks === 0}
+              aria-label={t("mergeNav.prev")}
+              sx={{ p: 0.5 }}
+            >
+              <KeyboardArrowUpIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Typography
+          variant="caption"
+          aria-live="polite"
+          sx={{ minWidth: "3.5em", textAlign: "center", fontVariantNumeric: "tabular-nums", color: getTextDisabled(isDark) }}
+        >
+          {totalBlocks === 0 ? "0 / 0" : `${currentBlockIndex + 1} / ${totalBlocks}`}
+        </Typography>
+        <Tooltip title={t("mergeNav.next")}>
+          <span>
+            <IconButton
+              size="small"
+              onClick={goToNextBlock}
+              disabled={totalBlocks === 0}
+              aria-label={t("mergeNav.next")}
+              sx={{ p: 0.5 }}
+            >
+              <KeyboardArrowDownIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
         <Tooltip title={t("semanticDiff")}>
           <IconButton
             size="small"

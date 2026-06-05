@@ -238,9 +238,18 @@ function SourceModePanel({
             overflow: "hidden", boxSizing: "border-box", flexShrink: 0,
           }}
         >
-          {lineNumbersArray.map((num, i) => (
-            <div key={`ln-${num || "pad"}-${i}`}>{num || "\u00A0"}</div>
-          ))}
+          {lineNumbersArray.map((num, i) => {
+            // data-diff-block-id: ブロック先頭行に付与する差分ナビゲーションのスクロールアンカー
+            const navBlockId = mergeButtonIndices.get(i);
+            return (
+              <div
+                key={`ln-${num || "pad"}-${i}`}
+                {...(navBlockId !== undefined ? { "data-diff-block-id": String(navBlockId) } : {})}
+              >
+                {num || " "}
+              </div>
+            );
+          })}
         </Box>
 
         <Box ref={textContainerRef} sx={{ flex: 1, minWidth: 0, position: "relative" }}>

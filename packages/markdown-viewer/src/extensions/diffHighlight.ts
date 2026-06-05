@@ -52,7 +52,9 @@ function buildBlockDecorations(
 ): void {
   if (changedBlocks.has(blockIndex)) {
     decorations.push(
-      Decoration.node(pos, pos + node.nodeSize, { style: blockStyle }),
+      // data-diff-block: 差分ナビゲーション（次/前ジャンプ）のスクロールアンカー。
+      // DOM 上の出現順 = 変更ブロック順として querySelectorAll で参照される。
+      Decoration.node(pos, pos + node.nodeSize, { style: blockStyle, "data-diff-block": "true" }),
     );
   }
 }

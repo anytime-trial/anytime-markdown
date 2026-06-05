@@ -88,6 +88,7 @@ jest.mock("../hooks/useMergeDiff", () => ({
     diffOptions: { semantic: false },
     setDiffOptions: mockSetDiffOptions,
     mergeBlock: mockMergeBlock,
+    currentBlockIndex: 0, totalBlocks: 0, goToNextBlock: jest.fn(), goToPrevBlock: jest.fn(),
     undo: jest.fn(), redo: jest.fn(), canUndo: true, canRedo: false,
   }),
 }));
