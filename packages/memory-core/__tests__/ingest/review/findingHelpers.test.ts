@@ -125,9 +125,14 @@ describe('extractNumberedFindings', () => {
       '🟢 **2. Minor issue**',
       'body 2',
       '修正: fix 2',
+      // ⚠️ は U+26A0 + U+FE0F の合成絵文字。旧 NUMBERED_BOUNDARY_RE は文字クラス内に
+      // 入れていたため合成シーケンスにマッチできず、この境界を取りこぼしていた (S5868 回帰)。
+      '⚠️ **3. Warning issue**',
+      'body 3',
+      '修正: fix 3',
     ];
     const findings = extractNumberedFindings(lines);
-    expect(findings).toHaveLength(2);
+    expect(findings).toHaveLength(3);
   });
 
   // ── Sample 3: bold number boundary (no emoji) ─────────────────────────────
