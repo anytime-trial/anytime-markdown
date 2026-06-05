@@ -424,6 +424,8 @@
     "slashCommandPlaceholder": "コマンドを検索...",
     "slashCommandNoResults": "一致するコマンドがありません",
     "semanticDiff": "セマンティック比較",
+    "mergeNav.prev": "前の差分",
+    "mergeNav.next": "次の差分",
     "pasteAsMarkdown": "Markdownで貼り付け",
     "pasteAsCodeBlock": "コードブロックで貼り付け",
     "clearScreen": "画面クリア",
