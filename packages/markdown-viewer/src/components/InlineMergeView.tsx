@@ -3,6 +3,7 @@ import { useEditor } from "@anytime-markdown/markdown-react";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import {
   Box,
   Divider,
@@ -11,7 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildEditorExtensions } from "../buildEditorExtensions";
 import { FILE_DROP_OVERLAY_COLOR, getDivider, getEditorBg, getTextDisabled } from "../constants/colors";
@@ -30,11 +31,21 @@ import { FrontmatterBlock } from "./FrontmatterBlock";
 import { LinePreviewPanel } from "./LinePreviewPanel";
 import { MergeEditorPanel } from "./MergeEditorPanel";
 
+/** 折りたたみ時に変更箇所の前後に残すコンテキスト行数 */
+const MERGE_COLLAPSE_CONTEXT_LINES = 3;
+
 export interface MergeUndoRedo {
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+}
+
+export interface MergeCollapseProps {
+  collapse: boolean;
+  contextLines: number;
+  expandedStarts: Set<number>;
+  onToggleExpand: (startIdx: number) => void;
 }
 
 interface InlineMergeViewProps {
@@ -58,6 +69,7 @@ interface InlineMergeViewProps {
     leftDiffLines?: DiffLine[],
     onMerge?: (blockId: number, direction: "left-to-right" | "right-to-left") => void,
     onHoverLine?: (lineIndex: number | null) => void,
+    collapseProps?: MergeCollapseProps,
   ) => React.ReactNode;
 }
 
@@ -124,6 +136,28 @@ export function InlineMergeView({
   useEffect(() => {
     onUndoRedoReady?.({ undo, redo, canUndo, canRedo });
   }, [onUndoRedoReady, undo, redo, canUndo, canRedo]);
+
+  // 未変更セクション折りたたみ（変更箇所のみ表示）
+  const [collapseEnabled, setCollapseEnabled] = useState(false);
+  const [expandedStarts, setExpandedStarts] = useState<Set<number>>(() => new Set());
+  const handleToggleCollapse = useCallback(() => {
+    setCollapseEnabled((prev) => !prev);
+    setExpandedStarts(new Set()); // 切り替え時は手動展開をリセット
+  }, []);
+  const handleToggleExpand = useCallback((startIdx: number) => {
+    setExpandedStarts((prev) => {
+      const next = new Set(prev);
+      if (next.has(startIdx)) next.delete(startIdx);
+      else next.add(startIdx);
+      return next;
+    });
+  }, []);
+  const collapseProps = {
+    collapse: collapseEnabled,
+    contextLines: MERGE_COLLAPSE_CONTEXT_LINES,
+    expandedStarts,
+    onToggleExpand: handleToggleExpand,
+  };
 
   const {
     rightDragOver, setRightDragOver,
@@ -329,6 +363,19 @@ export function InlineMergeView({
             </IconButton>
           </span>
         </Tooltip>
+        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+        <Tooltip title={t("collapseUnchanged")}>
+          <IconButton
+            size="small"
+            onClick={handleToggleCollapse}
+            color={collapseEnabled ? "primary" : "default"}
+            aria-label={t("collapseUnchanged")}
+            aria-pressed={collapseEnabled}
+            sx={{ p: 0.5 }}
+          >
+            <UnfoldLessIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         {/* セマンティックトグルはソースモード専用（WYSIWYG は常に semantic） */}
         {sourceMode && (
           <>
@@ -403,6 +450,10 @@ export function InlineMergeView({
               hideScrollbar
               onMerge={flippedMergeBlock}
               onHoverLine={handleHoverLine}
+              collapse={collapseProps.collapse}
+              contextLines={collapseProps.contextLines}
+              expandedStarts={collapseProps.expandedStarts}
+              onToggleExpand={collapseProps.onToggleExpand}
               paperSx={{ bgcolor: getEditorBg(isDark, settings), '& input[type="checkbox"]': { pointerEvents: "none" } }}
             />
           </Box>
@@ -419,7 +470,7 @@ export function InlineMergeView({
             overflow: "hidden",
           }}
         >
-          {children(leftBgGradient, diffResult?.leftLines, flippedMergeBlock, handleHoverLine)}
+          {children(leftBgGradient, diffResult?.leftLines, flippedMergeBlock, handleHoverLine, collapseProps)}
         </Box>
         {commentSlot}
       </Box>

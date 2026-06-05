@@ -10,6 +10,7 @@ import { useEditorSettingsContext } from "../useEditorSettings";
 import type { DiffLine } from "../utils/diffEngine";
 import type { OutlineProps } from "./EditorMainContent";
 import { EditorOutlineSection } from "./EditorOutlineSection";
+import type { MergeCollapseProps } from "./InlineMergeView";
 import { MergeEditorPanel } from "./MergeEditorPanel";
 
 // InlineMergeView は dynamic import のため親から渡す
@@ -33,6 +34,7 @@ type InlineMergeViewComponent = React.ComponentType<{
     leftDiffLines?: DiffLine[],
     onMerge?: (blockId: number, direction: "left-to-right" | "right-to-left") => void,
     onHoverLine?: (lineIndex: number | null) => void,
+    collapseProps?: MergeCollapseProps,
   ) => React.ReactNode;
 }>;
 
@@ -120,7 +122,7 @@ export function EditorMergeContent({
       onRightFileOpsReady={setRightFileOps}
       commentSlot={sideToolbar ? undefined : commentSlot}
     >
-      {(leftBgGradient, leftDiffLines, _onMerge, onHoverLine) => (
+      {(leftBgGradient, leftDiffLines, _onMerge, onHoverLine, collapseProps) => (
       <Box component="main" sx={{ display: "flex", gap: 0, height: "100%", position: "relative" }} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
         {fileDragOver && <Box sx={{ position: "absolute", inset: 0, bgcolor: FILE_DROP_OVERLAY_COLOR, zIndex: 10, pointerEvents: "none" }} />}
         {!sideToolbar && <EditorOutlineSection {...outlineProps} />}
@@ -139,6 +141,10 @@ export function EditorMergeContent({
             side="right"
             showHoverLabels
             onHoverLine={onHoverLine}
+            collapse={collapseProps?.collapse}
+            contextLines={collapseProps?.contextLines}
+            expandedStarts={collapseProps?.expandedStarts}
+            onToggleExpand={collapseProps?.onToggleExpand}
             paperSx={{
               bgcolor: getEditorBg(theme.palette.mode === "dark", settings),
             }}
