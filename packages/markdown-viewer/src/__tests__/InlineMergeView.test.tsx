@@ -43,6 +43,7 @@ jest.mock("../hooks/useDiffBackground", () => ({
   useDiffBackground: () => "none",
 }));
 
+jest.mock("../hooks/useBlockAlignment", () => ({ useBlockAlignment: () => {} }));
 jest.mock("../hooks/useDiffHighlight", () => ({
   useDiffHighlight: () => {},
 }));

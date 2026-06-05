@@ -5,6 +5,7 @@
  * エディタ固有の Extension（検索、削除行ショートカット等）は各エディタで追加する。
  */
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-core";
+import { Extension, type Extensions } from "@anytime-markdown/markdown-core";
 import { CodeBlockLowlight } from "@anytime-markdown/markdown-extension-code-block-lowlight";
 import Highlight from "@anytime-markdown/markdown-extension-highlight";
 import LinkExtension from "@anytime-markdown/markdown-extension-link";
@@ -12,13 +13,13 @@ import { TableKit } from "@anytime-markdown/markdown-extension-table";
 import TaskItem from "@anytime-markdown/markdown-extension-task-item";
 import TaskList from "@anytime-markdown/markdown-extension-task-list";
 import Underline from "@anytime-markdown/markdown-extension-underline";
+import { Markdown } from "@anytime-markdown/markdown-md";
 import { Fragment } from "@anytime-markdown/markdown-pm/model";
 import { Plugin, PluginKey, TextSelection } from "@anytime-markdown/markdown-pm/state";
-import { Extension, type Extensions } from "@anytime-markdown/markdown-core";
 import StarterKit from "@anytime-markdown/markdown-starter-kit";
-import { Markdown } from "@anytime-markdown/markdown-md";
 
 import { AdmonitionBlockquote } from "./extensions/admonitionExtension";
+import { BlockAlignSpacers } from "./extensions/blockAlignSpacers";
 import { BlockGapCursorExtension } from "./extensions/blockGapCursorExtension";
 import { CodeBlockNavigation } from "./extensions/codeBlockNavigationExtension";
 import { CommentDataPlugin,CommentHighlight, CommentPoint } from "./extensions/commentExtension";
@@ -316,6 +317,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
       transformCopiedText: false,
     }),
     DiffHighlight,
+    BlockAlignSpacers,
     HeadingFoldExtension,
     CodeBlockNavigation,
     FootnoteRef,

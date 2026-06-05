@@ -18,6 +18,7 @@ import { buildEditorExtensions } from "../buildEditorExtensions";
 import { FILE_DROP_OVERLAY_COLOR, getDivider, getEditorBg, getTextDisabled } from "../constants/colors";
 import { MERGE_INFO_FONT_SIZE } from "../constants/dimensions";
 import { setMergeEditors } from "../contexts/MergeEditorsContext";
+import { useBlockAlignment } from "../hooks/useBlockAlignment";
 import { useDiffBackground } from "../hooks/useDiffBackground";
 import { useDiffHighlight } from "../hooks/useDiffHighlight";
 import { useMergeContentSync } from "../hooks/useMergeContentSync";
@@ -271,6 +272,9 @@ export function InlineMergeView({
   // WYSIWYG 比較モードは常に semantic で差分を取る（左右がセクション単位で揃い、
   // 片側のみの追加/削除セクションも整合する）。セマンティックトグルはソースモード専用。
   useDiffHighlight(sourceMode, rightEditor, leftEditor, true, collapseEnabled, MERGE_COLLAPSE_CONTEXT_BLOCKS, expandBlocksLabel);
+
+  // WYSIWYG 比較で対応ブロックの上端を揃える（改行差によるドリフト解消）
+  useBlockAlignment(sourceMode, rightEditor, leftEditor, !sourceMode);
 
   useScrollSync(leftContainerRef, rightScrollRef);
 

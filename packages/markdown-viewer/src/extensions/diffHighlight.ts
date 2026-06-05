@@ -104,40 +104,6 @@ function buildCellDecorations(
   });
 }
 
-/** プレースホルダーの最大高さ（px）。大きな未マッチセクションでも巨大な空白を作らない */
-const PLACEHOLDER_MAX_PX = 48;
-
-/** プレースホルダー Widget デコレーションを作成する（片側のみのセクション位置に小型マーカーを置く） */
-function buildPlaceholderDecorations(
-  placeholderPositions: PlaceholderPosition[],
-  decorations: Decoration[],
-): void {
-  const lineHeight = 1.6;
-  const fontSize = 16;
-  for (const ph of placeholderPositions) {
-    // セクション本来の高さに比例させつつ上限でクランプし、巨大な空白化を防ぐ
-    const height = Math.min(ph.lineCount * fontSize * lineHeight, PLACEHOLDER_MAX_PX);
-    decorations.push(
-      Decoration.widget(ph.pos, () => {
-        const el = document.createElement("div");
-        el.style.height = `${height}px`;
-        el.style.display = "flex";
-        el.style.alignItems = "center";
-        el.style.justifyContent = "center";
-        el.style.fontSize = "12px";
-        el.style.color = "rgba(128, 128, 128, 0.9)";
-        el.style.backgroundColor = "rgba(128, 128, 128, 0.06)";
-        el.style.border = "1px dashed rgba(128, 128, 128, 0.3)";
-        el.style.borderRadius = "4px";
-        el.style.margin = "2px 0";
-        el.textContent = `⋯ ${ph.lineCount}`;
-        el.setAttribute("aria-hidden", "true");
-        return el;
-      }, { side: 1 }),
-    );
-  }
-}
-
 /** runId を左右両エディタへ同時に toggle する（片側操作で両側を同期展開） */
 function dispatchToggleRun(view: EditorView, runId: number): void {
   const editors = getMergeEditors();
@@ -276,9 +242,11 @@ export const DiffHighlight = Extension.create({
               | DiffHighlightState
               | undefined;
             if (!pluginState) return DecorationSet.empty;
-            const { changedBlocks, cellDiffs, placeholderPositions, side, collapsePlan, expandedRuns, expandLabel } = pluginState;
+            const { changedBlocks, cellDiffs, side, collapsePlan, expandedRuns, expandLabel } = pluginState;
             const collapsing = collapsePlan.length > 0;
-            const nothingToHighlight = changedBlocks.size === 0 && cellDiffs.size === 0 && placeholderPositions.length === 0;
+            // 片側のみセクションの空白は useBlockAlignment が正確に埋めるため、ここでは
+            // プレースホルダ widget を描画しない（描画すると整合スペーサーと二重化しドリフトする）。
+            const nothingToHighlight = changedBlocks.size === 0 && cellDiffs.size === 0;
             if (nothingToHighlight && !collapsing) {
               return DecorationSet.empty;
             }
@@ -300,8 +268,6 @@ export const DiffHighlight = Extension.create({
               }
               blockIndex++;
             });
-
-            buildPlaceholderDecorations(placeholderPositions, decorations);
 
             if (collapsing) {
               buildCollapseDecorations(offsets, sizes, collapsePlan, expandedRuns, expandLabel, decorations);
