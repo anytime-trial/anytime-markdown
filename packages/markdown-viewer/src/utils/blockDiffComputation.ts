@@ -494,21 +494,34 @@ export interface AlignedSlot {
   equal: boolean;
 }
 
-/** 左右ブロック列を LCS で整合した slot 列を組み立てる（collapse と縦整合で共有） */
+/**
+ * 左右ブロック列を LCS で整合した slot 列を組み立てる（collapse と縦整合で共有）。
+ * マッチしない区間（gap）では左右ブロックを位置でペアリング（zip）し、変更ブロックを
+ * 同一行（a/b 両方を持つ equal=false slot）に揃える。余剰のみ片側 slot にする。
+ * これにより「同じ見出し/段落の変更版」が左右で同じ行に並び、縦ずれを防ぐ。
+ */
 function buildAlignedSlots(aBlocks: BlockInfo[], bBlocks: BlockInfo[]): AlignedSlot[] {
   const pairs = computeBlockLcsPairs(aBlocks, bBlocks);
   const slots: AlignedSlot[] = [];
   let pa = 0;
   let pb = 0;
+  const emitGap = (aEnd: number, bEnd: number) => {
+    const aCount = aEnd - pa;
+    const bCount = bEnd - pb;
+    const paired = Math.min(aCount, bCount);
+    for (let k = 0; k < paired; k++) slots.push({ a: pa + k, b: pb + k, equal: false });
+    for (let k = paired; k < aCount; k++) slots.push({ a: pa + k, b: null, equal: false });
+    for (let k = paired; k < bCount; k++) slots.push({ a: null, b: pb + k, equal: false });
+    pa = aEnd;
+    pb = bEnd;
+  };
   for (const [ai, bi] of pairs) {
-    while (pa < ai) { slots.push({ a: pa, b: null, equal: false }); pa++; }
-    while (pb < bi) { slots.push({ a: null, b: pb, equal: false }); pb++; }
+    emitGap(ai, bi);
     slots.push({ a: ai, b: bi, equal: true });
     pa = ai + 1;
     pb = bi + 1;
   }
-  while (pa < aBlocks.length) { slots.push({ a: pa, b: null, equal: false }); pa++; }
-  while (pb < bBlocks.length) { slots.push({ a: null, b: pb, equal: false }); pb++; }
+  emitGap(aBlocks.length, bBlocks.length);
   return slots;
 }
 

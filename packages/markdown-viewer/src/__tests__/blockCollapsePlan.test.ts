@@ -43,13 +43,21 @@ describe("computeBlockAlignment", () => {
     ]);
   });
 
-  test("置換 → 双方の非 equal slot を挟む", () => {
+  test("置換 → 変更ブロックは同一行（zip）にペアリングされる", () => {
     const slots = computeBlockAlignment(doc(["A", "X", "B"]), doc(["A", "Y", "B"]));
     expect(slots).toEqual([
       { a: 0, b: 0, equal: true },
-      { a: 1, b: null, equal: false },
-      { a: null, b: 1, equal: false },
+      { a: 1, b: 1, equal: false }, // X↔Y を同一行に
       { a: 2, b: 2, equal: true },
+    ]);
+  });
+
+  test("見出し変更（先頭ブロック）も同一行にペアリングされる", () => {
+    // 旧「Any」→ 新「Anytime Markdown」のような先頭見出しの変更
+    const slots = computeBlockAlignment(doc(["Anytime Markdown", "body"]), doc(["Any", "body"]));
+    expect(slots).toEqual([
+      { a: 0, b: 0, equal: false }, // 見出し変更を同一行に
+      { a: 1, b: 1, equal: true },
     ]);
   });
 });
