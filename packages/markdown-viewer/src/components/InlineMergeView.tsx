@@ -264,7 +264,7 @@ export function InlineMergeView({
 
   // WYSIWYG 比較モードは常に semantic で差分を取る（左右がセクション単位で揃い、
   // 片側のみの追加/削除セクションも整合する）。セマンティックトグルはソースモード専用。
-  useDiffHighlight(sourceMode, rightEditor, leftEditor, true);
+  useDiffHighlight(sourceMode, rightEditor, leftEditor, true, collapseEnabled, 1, t("expandBlocks"));
 
   useScrollSync(leftContainerRef, rightScrollRef);
 

@@ -428,6 +428,7 @@
     "mergeNav.next": "Next change",
     "collapseUnchanged": "Show changes only",
     "expandLines": "Show {count} unchanged lines",
+    "expandBlocks": "Show {count} unchanged blocks",
     "pasteAsMarkdown": "Paste as Markdown",
     "pasteAsCodeBlock": "Paste as Code Block",
     "clearScreen": "Clear Screen",

@@ -8,6 +8,9 @@ export function useDiffHighlight(
   rightEditor: Editor | null | undefined,
   leftEditor: Editor | null | undefined,
   semantic?: boolean,
+  collapse?: boolean,
+  contextBlocks?: number,
+  expandLabel?: string,
 ): void {
   useEffect(() => {
     if (sourceMode) {
@@ -50,4 +53,15 @@ export function useDiffHighlight(
       });
     };
   }, [sourceMode, rightEditor, leftEditor, semantic]);
+
+  // 折りたたみ状態をプラグインへ反映（WYSIWYG のみ）
+  useEffect(() => {
+    const label = expandLabel ?? "Show {count} unchanged blocks";
+    const ctx = contextBlocks ?? 1;
+    const enabled = !sourceMode && !!collapse;
+    requestAnimationFrame(() => {
+      if (rightEditor && !rightEditor.isDestroyed) rightEditor.commands.setDiffCollapse(enabled, ctx, label);
+      if (leftEditor && !leftEditor.isDestroyed) leftEditor.commands.setDiffCollapse(enabled, ctx, label);
+    });
+  }, [sourceMode, rightEditor, leftEditor, collapse, contextBlocks, expandLabel]);
 }

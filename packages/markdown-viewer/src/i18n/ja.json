@@ -428,6 +428,7 @@
     "mergeNav.next": "次の差分",
     "collapseUnchanged": "変更箇所のみ表示",
     "expandLines": "未変更の {count} 行を表示",
+    "expandBlocks": "未変更の {count} ブロックを表示",
     "pasteAsMarkdown": "Markdownで貼り付け",
     "pasteAsCodeBlock": "コードブロックで貼り付け",
     "clearScreen": "画面クリア",
