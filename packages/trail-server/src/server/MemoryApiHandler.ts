@@ -233,12 +233,13 @@ export class MemoryApiHandler {
       });
       const trailDbPath = path.join(path.dirname(this.dbPath), 'trail.db');
       if (fs.existsSync(trailDbPath)) {
-        try {
-          void attachTrailDbReadOnly(this.cachedReadOnlyDb, trailDbPath);
-          this.trailDbAttached = true;
-        } catch (err) {
+        // attachTrailDbReadOnly は async。同期 try/catch では reject を捕捉できない (S4822) ため
+        // .catch() で拒否を処理する。楽観的に true をセットし、失敗時に false へ戻す。
+        this.trailDbAttached = true;
+        attachTrailDbReadOnly(this.cachedReadOnlyDb, trailDbPath).catch((err) => {
+          this.trailDbAttached = false;
           this.logger.warn(`[MemoryApiHandler.openReadOnly] trail.db attach failed: ${err instanceof Error ? err.message : String(err)}`);
-        }
+        });
       }
       return this.cachedReadOnlyDb;
     } catch (err) {
