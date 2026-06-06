@@ -7,8 +7,9 @@ import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
 import RectangleOutlinedIcon from "@mui/icons-material/RectangleOutlined";
-import { TextField, Tooltip } from "@mui/material";
+import { Tooltip } from "@mui/material";
 import { IconButton } from "../ui/IconButton";
+import { TextField } from "../ui/TextField";
 import { ToggleButton } from "../ui/ToggleButton";
 import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
 import { useTheme } from "@mui/material/styles";
@@ -327,7 +328,10 @@ export function ImageAnnotationDialog({
                   value={a.comment ?? ""}
                   onChange={(e) => handleCommentChange(a.id, e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  sx={{ "& .MuiInputBase-input": { fontSize: PANEL_INPUT_FONT_SIZE, py: 0.5 } }}
+                  style={{
+                    ["--tf-input-font-size" as string]: PANEL_INPUT_FONT_SIZE,
+                    ["--tf-input-pad-y" as string]: "4px",
+                  }}
                 />
               </div>
               );

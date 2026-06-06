@@ -7,7 +7,6 @@ import {
   FormControl,
   MenuItem,
   Select,
-  Slider,
   Switch,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
@@ -15,6 +14,7 @@ import React from "react";
 
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
+import { Slider } from "../ui/Slider";
 import { ToggleButton } from "../ui/ToggleButton";
 import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
 import styles from "./EditorSettingsPanel.module.css";

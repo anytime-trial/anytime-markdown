@@ -1,0 +1,118 @@
+/* MUI TextField(outlined) 相当。inputWrap のボーダーを label が paper 地で切り欠く。 */
+.root {
+  display: inline-flex;
+  flex-direction: column;
+  /* input の font-size / padding は consumer が上書き可能（旧 sx の .MuiInputBase-input 相当）。 */
+  --tf-input-font-size: 1rem;
+  --tf-input-pad-y: 8.5px;
+  --tf-input-pad-x: 14px;
+}
+
+.fullWidth {
+  display: flex;
+  width: 100%;
+}
+
+.inputWrap {
+  position: relative;
+  display: flex;
+}
+
+/* ---- 入力本体 ---- */
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  font: inherit;
+  font-size: var(--tf-input-font-size);
+  color: var(--am-color-text-primary);
+  background: transparent;
+  border: 1px solid var(--am-color-divider);
+  border-radius: var(--am-radius-md);
+  padding: var(--tf-input-pad-y) var(--tf-input-pad-x);
+  outline: none;
+  transition: border-color var(--am-duration-fast) var(--am-ease-standard);
+  resize: vertical;
+}
+
+.small {
+  --tf-input-pad-y: 8.5px;
+}
+
+.medium {
+  --tf-input-pad-y: 16.5px;
+}
+
+.input::placeholder {
+  color: var(--am-color-text-secondary);
+  opacity: 1;
+}
+
+.input:hover {
+  border-color: var(--am-color-text-primary);
+}
+
+.focused .input {
+  border-color: var(--am-color-primary-main);
+  border-width: 2px;
+  /* border-width 増加分の padding 補正（レイアウトずれ防止） */
+  padding: calc(var(--tf-input-pad-y) - 1px) calc(var(--tf-input-pad-x) - 1px);
+}
+
+.error .input,
+.error.focused .input {
+  border-color: var(--am-color-error-main);
+}
+
+.disabled .input {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- フローティングラベル ---- */
+.label {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  transform-origin: left top;
+  color: var(--am-color-text-secondary);
+  font-size: var(--tf-input-font-size);
+  pointer-events: none;
+  transition:
+    transform var(--am-duration-fast) var(--am-ease-standard),
+    color var(--am-duration-fast) var(--am-ease-standard);
+  max-width: calc(100% - 28px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* shrink: 上端へ移動し、paper 地でボーダーを切り欠く */
+.label[data-shrink="true"] {
+  top: 0;
+  transform: translateY(-50%) scale(0.75);
+  padding: 0 4px;
+  background-color: var(--am-color-bg-paper);
+  max-width: calc((100% - 16px) / 0.75);
+}
+
+.focused .label[data-shrink="true"] {
+  color: var(--am-color-primary-main);
+}
+
+.error .label {
+  color: var(--am-color-error-main);
+}
+
+/* ---- helper text ---- */
+.helper {
+  margin: 3px 14px 0;
+  font-size: 0.75rem;
+  line-height: 1.66;
+  color: var(--am-color-text-secondary);
+}
+
+.error .helper {
+  color: var(--am-color-error-main);
+}

@@ -7,9 +7,8 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
 import ScreenShareIcon from "@mui/icons-material/ScreenShare";
 import StopIcon from "@mui/icons-material/Stop";
-import { TextField } from "@mui/material";
-
 import { ProgressBar } from "../ui/ProgressBar";
+import { TextField } from "../ui/TextField";
 
 import { Button } from "../ui/Button";
 import { useTheme } from "@mui/material/styles";
@@ -413,8 +412,8 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
                 size="small"
                 value={fileName}
                 onChange={(e) => setFileName(e.target.value)}
-                sx={{ flex: 1 }}
-                slotProps={{ htmlInput: { "aria-label": "File name" } }}
+                style={{ flex: 1 }}
+                inputProps={{ "aria-label": "File name" }}
               />
               <Button size="small" variant="contained" startIcon={<SaveIcon />} onClick={handleSave}>
                 Save

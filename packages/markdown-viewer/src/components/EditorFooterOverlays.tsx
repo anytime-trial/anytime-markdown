@@ -1,8 +1,8 @@
 import {
-  Alert,
   Backdrop,
   Snackbar,
 } from "@mui/material";
+import { Alert } from "../ui/Alert";
 import { Spinner } from "../ui/Spinner";
 import { Text } from "../ui/Text";
 import type { Editor } from "@anytime-markdown/markdown-react";
@@ -172,7 +172,7 @@ export function EditorFooterOverlays({
           onClose={() => setNotification(null)}
           severity={notification?.endsWith("Error") ? "error" : "success"}
           variant="filled"
-          sx={{ width: "100%" }}
+          style={{ width: "100%" }}
         >
           {notification && t(notification)}
         </Alert>

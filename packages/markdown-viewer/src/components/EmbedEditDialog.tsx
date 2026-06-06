@@ -8,10 +8,10 @@ import {
     FormControlLabel,
     Radio,
     RadioGroup,
-    TextField,
 } from "@mui/material";
 
 import { Button } from "../ui/Button";
+import { TextField } from "../ui/TextField";
 import { useEffect, useState } from "react";
 
 import { useOptionalEmbedProviders } from "../contexts/EmbedProvidersContext";

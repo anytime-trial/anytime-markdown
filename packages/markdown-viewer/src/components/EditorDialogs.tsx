@@ -7,13 +7,13 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  TextField,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
 import { getActionHover, getActionSelected, getDivider, getTextSecondary } from "../constants/colors";
 import { Button } from "../ui/Button";
+import { TextField } from "../ui/TextField";
 import { SHORTCUT_HINT_FONT_SIZE } from "../constants/dimensions";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
 import type { TranslationFn } from "../types";
@@ -108,7 +108,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleCommentInsert(); }}
             error={touched.has("comment") && !commentText.trim()}
             helperText={touched.has("comment") && !commentText.trim() ? t("requiredField") : undefined}
-            slotProps={{ formHelperText: { id: "comment-helper" } }}
+            helperTextId="comment-helper"
             aria-describedby={touched.has("comment") && !commentText.trim() ? "comment-helper" : undefined}
             fullWidth
             size="small"
@@ -143,7 +143,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             onKeyDown={(e) => { if (e.key === "Enter") handleLinkInsert(); }}
             error={touched.has("linkUrl") && !linkUrl.trim()}
             helperText={touched.has("linkUrl") && !linkUrl.trim() ? t("requiredField") : undefined}
-            slotProps={{ formHelperText: { id: "link-url-helper" } }}
+            helperTextId="link-url-helper"
             aria-describedby={touched.has("linkUrl") && !linkUrl.trim() ? "link-url-helper" : undefined}
             fullWidth
             size="small"
@@ -178,7 +178,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             error={touched.has("imageUrl") && !imageUrl.trim()}
             helperText={touched.has("imageUrl") && !imageUrl.trim() ? t("requiredField") : undefined}
             disabled={imageUrl.startsWith("data:")}
-            slotProps={{ formHelperText: { id: "image-url-helper" } }}
+            helperTextId="image-url-helper"
             aria-describedby={touched.has("imageUrl") && !imageUrl.trim() ? "image-url-helper" : undefined}
             fullWidth
             size="small"
