@@ -34,15 +34,8 @@
   }
 }
 
-/* ── IconButton padding overrides ────────────────────────────── */
-/* p:0.5 = 0.5×8px = 4px */
-.iconBtnPadding {
-  padding: 4px !important;
-}
-
-/* HeadingFoldButton: p:0.5 + mr:0.25 (2px) + flex-shrink:0 */
+/* HeadingFoldButton: mr:0.25 (2px) + flex-shrink:0（padding は IconButton size="compact"=4px） */
 .foldBtn {
-  padding: 4px !important;
   margin-right: 2px;
   flex-shrink: 0;
 }

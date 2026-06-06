@@ -1,7 +1,3 @@
-.iconButtonCompact {
-  padding: 2px;
-}
-
 .dragHandle {
   cursor: grab;
   display: flex;

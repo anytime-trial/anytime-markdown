@@ -28,6 +28,14 @@
 /* MUI IconButton と同じくパディングでサイズが決まる（アイコン寸法は icon 側 fontSize が決定）。
    既定アイコン（fontSize="small"=20px）で small=30px / medium=40px となり従来の固定値と一致。
    sx={{ p: 0 }} 等のパディング上書きは呼び出し側の style/className で正しく反映される。 */
+.xs {
+  padding: 2px;
+}
+
+.compact {
+  padding: 4px;
+}
+
 .small {
   padding: 5px;
 }

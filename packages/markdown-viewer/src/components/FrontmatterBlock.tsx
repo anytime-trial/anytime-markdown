@@ -79,7 +79,7 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, defaultColla
         <div style={{ flex: 1 }} />
         {!readOnly && (
           <IconButton
-            size="small"
+            size="xs"
             title={t("delete")}
             onClick={async (e) => {
               e.stopPropagation();
@@ -95,7 +95,6 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, defaultColla
               }
               onChange(null);
             }}
-            className={styles.deleteBtn}
           >
             <Text variant="caption" style={{ fontSize: SMALL_CAPTION_FONT_SIZE, color: getTextSecondary(isDark) }}>
               ✕

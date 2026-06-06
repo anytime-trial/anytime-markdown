@@ -194,7 +194,7 @@ function GifPlaybackImage({
             paddingRight: 4,
           }}
         >
-          <IconButton size="small" onClick={onToggle} className={styles.playbackIconButton} aria-label={playing ? "Pause" : "Play"}>
+          <IconButton size="xs" onClick={onToggle} className={styles.playbackIconButton} aria-label={playing ? "Pause" : "Play"}>
             {playing ? <PauseIcon sx={{ fontSize: 18 }} /> : <PlayArrowIcon sx={{ fontSize: 18 }} />}
           </IconButton>
         </div>
@@ -315,7 +315,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
                   <>
                     <Divider orientation="vertical" flexItem style={{ marginLeft: 2, marginRight: 2 }} />
                     <Tooltip title="Record GIF" placement="top">
-                      <IconButton size="small" className={styles.recordIconButton} onClick={() => setRecorderOpen(true)} aria-label="Record GIF">
+                      <IconButton size="xs" onClick={() => setRecorderOpen(true)} aria-label="Record GIF">
                         <FiberManualRecordIcon sx={{ fontSize: 16, color: getErrorMain(isDark) }} />
                       </IconButton>
                     </Tooltip>

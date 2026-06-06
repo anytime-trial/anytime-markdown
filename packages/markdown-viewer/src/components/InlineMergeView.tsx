@@ -340,11 +340,10 @@ export function InlineMergeView({
         <Tooltip title={t("mergeNav.prev")}>
           <span>
             <IconButton
-              size="small"
+              size="compact"
               onClick={goToPrevBlock}
               disabled={totalBlocks === 0}
               aria-label={t("mergeNav.prev")}
-              className={styles.iconButtonSm}
             >
               <KeyboardArrowUpIcon fontSize="small" />
             </IconButton>
@@ -360,11 +359,10 @@ export function InlineMergeView({
         <Tooltip title={t("mergeNav.next")}>
           <span>
             <IconButton
-              size="small"
+              size="compact"
               onClick={goToNextBlock}
               disabled={totalBlocks === 0}
               aria-label={t("mergeNav.next")}
-              className={styles.iconButtonSm}
             >
               <KeyboardArrowDownIcon fontSize="small" />
             </IconButton>
@@ -373,11 +371,10 @@ export function InlineMergeView({
         <Divider orientation="vertical" flexItem style={{ marginLeft: 4, marginRight: 4 }} />
         <Tooltip title={t("collapseUnchanged")}>
           <IconButton
-            size="small"
+            size="compact"
             onClick={handleToggleCollapse}
             aria-label={t("collapseUnchanged")}
             aria-pressed={collapseEnabled}
-            className={styles.iconButtonSm}
             style={collapseEnabled ? { color: "var(--am-color-primary-main)" } : undefined}
           >
             <UnfoldLessIcon fontSize="small" />

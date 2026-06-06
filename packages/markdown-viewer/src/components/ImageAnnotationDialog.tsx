@@ -313,7 +313,7 @@ export function ImageAnnotationDialog({
                     {annotationLabel}
                   </Text>
                   <div style={{ flex: 1 }} />
-                  <IconButton size="small" className={styles.deleteIconButton} onClick={(e) => { e.stopPropagation(); handleDeleteItem(a.id); }}>
+                  <IconButton size="xs" onClick={(e) => { e.stopPropagation(); handleDeleteItem(a.id); }}>
                     <DeleteOutlineIcon style={{ fontSize: 14 }} />
                   </IconButton>
                 </div>
