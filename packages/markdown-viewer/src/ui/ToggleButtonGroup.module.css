@@ -1,0 +1,13 @@
+.group {
+  display: inline-flex;
+}
+
+/* pill: 角丸コンテナ（action-hover 地）。EditorToolbar の getPillToggleSx 由来。 */
+.pill {
+  box-sizing: border-box;
+  align-items: center;
+  height: 34px;
+  border-radius: 20px;
+  background-color: var(--am-color-action-hover);
+  padding: 2px;
+}

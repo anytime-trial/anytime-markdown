@@ -3,6 +3,7 @@ import {
   DEFAULT_DARK_BG,
   DEFAULT_LIGHT_BG,
   getActionHover,
+  getActionSelected,
   getBgPaper,
   getDivider,
   getErrorMain,
@@ -138,6 +139,7 @@ export function applyEditorThemeCssVars(
   root.style.setProperty("--am-color-text-secondary", getTextSecondary(isDark));
   root.style.setProperty("--am-color-bg-paper", getBgPaper(isDark));
   root.style.setProperty("--am-color-action-hover", getActionHover(isDark));
+  root.style.setProperty("--am-color-action-selected", getActionSelected(isDark));
   root.style.setProperty("--am-color-primary-main", getPrimaryMain(isDark));
   root.style.setProperty("--am-color-primary-contrast", getPrimaryContrast(isDark));
   root.style.setProperty("--am-color-error-main", getErrorMain(isDark));
