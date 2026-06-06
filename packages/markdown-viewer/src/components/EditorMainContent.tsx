@@ -1,9 +1,9 @@
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
-import { ClickAwayListener } from "@mui/material";
 import type React from "react";
 import { useCallback } from "react";
 
 import { FILE_DROP_OVERLAY_COLOR } from "../constants/colors";
+import { ClickAwayListener } from "../ui/ClickAwayListener";
 import { useMediaQuery } from "../ui/useMediaQuery";
 import { COMMENT_PANEL_WIDTH } from "../constants/dimensions";
 import { useEditorMode } from "../contexts/EditorModeContext";

@@ -2,9 +2,9 @@
 
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
-import { Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { IconButton } from "../ui/IconButton";
+import { Tooltip } from "../ui/Tooltip";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useRef } from "react";
 

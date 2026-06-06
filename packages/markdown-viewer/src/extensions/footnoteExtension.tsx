@@ -11,7 +11,8 @@
  * - ホバーで脚注定義テキストをツールチップ表示
  * - クリックで定義内のURLを新しいタブで開く
  */
-import { Tooltip, useTheme } from "@mui/material";
+import { useTheme } from "@mui/material";
+import { Tooltip } from "../ui/Tooltip";
 import { InputRule,Node } from "@anytime-markdown/markdown-core";
 import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
 import type { NodeViewProps } from "@anytime-markdown/markdown-react";
@@ -81,7 +82,7 @@ function FootnoteRefView({ node, selected, editor }: Readonly<NodeViewProps>) {
 
   return (
     <NodeViewWrapper as="span" style={{ display: "inline" }}>
-      <Tooltip title={defText} placement="top" arrow>
+      <Tooltip title={defText} placement="top">
         <span
           onClick={handleClick}
           style={{

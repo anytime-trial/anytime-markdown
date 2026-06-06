@@ -9,7 +9,7 @@ import MoveUpIcon from "@mui/icons-material/MoveUp";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import TableRowsIcon from "@mui/icons-material/TableRows";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
-import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Tooltip, useTheme } from "@mui/material";
+import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, useTheme } from "@mui/material";
 import { Button } from "./ui/Button";
 import { ToggleButton } from "./ui/ToggleButton";
 import { ToggleButtonGroup } from "./ui/ToggleButtonGroup";
@@ -29,6 +29,7 @@ import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEdito
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useMarkdownT } from "./i18n/context";
 import { createTiptapSheetAdapter } from "./spreadsheet/TiptapSheetAdapter";
+import { Tooltip } from "./ui/Tooltip";
 import { Divider } from "./ui/Divider";
 import { Paper } from "./ui/Paper";
 import { Text } from "./ui/Text";

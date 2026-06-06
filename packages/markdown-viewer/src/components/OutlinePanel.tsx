@@ -14,10 +14,10 @@ import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import {
   ButtonBase,
   Collapse,
-  Tooltip,
   useTheme,
 } from "@mui/material";
 import { IconButton } from "../ui/IconButton";
+import { Tooltip } from "../ui/Tooltip";
 import React, { useCallback, useMemo,useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getPrimaryMain, getTextDisabled, getTextPrimary, getTextSecondary } from "../constants/colors";

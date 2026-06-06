@@ -3,7 +3,7 @@
 import DrawIcon from "@mui/icons-material/Draw";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
-import { Tooltip } from "@mui/material";
+import { Tooltip } from "../ui/Tooltip";
 import { useTheme } from "@mui/material/styles";
 
 import { getTextSecondary } from "../constants/colors";
