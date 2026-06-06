@@ -103,6 +103,13 @@ jest.mock("../utils/frontmatterHelpers", () => ({
     frontmatter: md.includes("---") ? "title: test" : null,
     body: md,
   }),
+  prependFrontmatter: (body: string) => body,
+}));
+// 比較テキスト正規化（normalizeCompareMarkdown）が使う serializer。
+// getMarkdownFromEditor が compareText と同値を返すよう固定し、
+// 正規化が冪等（setCompareText を誘発しない）になるようにする。
+jest.mock("../utils/markdownSerializer", () => ({
+  getMarkdownFromEditor: () => "# Compare",
 }));
 
 jest.mock("../constants/colors", () => ({
@@ -159,6 +166,7 @@ function renderMergeView(props: Partial<React.ComponentProps<typeof InlineMergeV
 describe("InlineMergeView - coverage2 tests", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockApplyMarkdownToEditor.mockReturnValue({ frontmatter: null });
     capturedMergeEditorProps = {};
     mockLeftEditorInstance = null;
     mockReviewModeStorageObj.enabled = false;
@@ -225,10 +233,12 @@ describe("InlineMergeView - coverage2 tests", () => {
     (window.requestAnimationFrame as jest.Mock).mockRestore();
   });
 
-  it("skips editor sync when sourceMode is true", () => {
+  it("normalizes compareText via leftEditor in source mode", () => {
+    const rafSpy = jest.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => { cb(0); return 0; });
     renderMergeView({ sourceMode: true });
-    // applyMarkdownToEditor should NOT be called in source mode
-    expect(mockApplyMarkdownToEditor).not.toHaveBeenCalled();
+    // ソースモードでは比較テキストを Tiptap 往復で正規化するため applyMarkdownToEditor が呼ばれる
+    expect(mockApplyMarkdownToEditor).toHaveBeenCalled();
+    rafSpy.mockRestore();
   });
 
   // --- Lines 206: exportFile timestamp formatting ---

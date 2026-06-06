@@ -11,7 +11,7 @@ import React, { useEffect, useRef } from "react";
 import { getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { useMarkdownT } from "../i18n/context";
 import { useEditorSettingsContext } from "../useEditorSettings";
-import { buildDiffGradient } from "../utils/colorRuns";
+import { diffLineBgColor } from "../utils/colorRuns";
 import { type CollapseRegion, computeCollapsedRegions, type DiffLine } from "../utils/diffEngine";
 import { getMergeTiptapStyles } from "./mergeTiptapStyles";
 
@@ -163,7 +163,6 @@ function computeSourcePanelState(
   diffLines: DiffLine[] | undefined,
   side: "left" | "right" | undefined,
   onMerge: ((blockId: number, direction: "left-to-right" | "right-to-left") => void) | undefined,
-  bgGradient: string | undefined,
   digitsOverride?: number,
 ) {
   const rawText = sourceText ?? "";
@@ -184,12 +183,7 @@ function computeSourcePanelState(
   const mergeButtonIndices = diffLines && side && onMerge ? buildMergeButtonMap(diffLines) : new Map<number, number>();
   const hasMergeButtons = mergeButtonIndices.size > 0 && !!side && !!onMerge;
 
-  const gradientStyle: React.CSSProperties | undefined =
-    bgGradient && bgGradient !== "none"
-      ? { backgroundImage: bgGradient, backgroundAttachment: "local" }
-      : undefined;
-
-  return { rawText, digits, displayText, paddingIndices, alignedCount, lineNumbersArray, displayLines, mergeButtonIndices, hasMergeButtons, gradientStyle };
+  return { rawText, digits, displayText, paddingIndices, alignedCount, lineNumbersArray, displayLines, mergeButtonIndices, hasMergeButtons };
 }
 
 /** 折りたたみ展開ボタン行（collapsed 領域の代わりに表示） */
@@ -260,11 +254,12 @@ function SourceSegment({
   const mirrorRef = useRef<HTMLDivElement>(null);
   const textContainerRef = useRef<HTMLDivElement>(null);
 
-  const bgGradient = buildDiffGradient(diffLines, isDark, editorSettings.fontSize, editorSettings.lineHeight);
+  // 差分の色付けは折り返し対応のため固定位置グラデーションではなく、
+  // ミラー（行単位 div）の背景色で行う（diffLineBgColor）。bgGradient は使わない。
   const {
     paddingIndices, alignedCount, lineNumbersArray,
-    displayText, displayLines, mergeButtonIndices, hasMergeButtons, gradientStyle,
-  } = computeSourcePanelState(undefined, diffLines, side, onMerge, bgGradient, digits);
+    displayText, displayLines, mergeButtonIndices, hasMergeButtons,
+  } = computeSourcePanelState(undefined, diffLines, side, onMerge, digits);
 
   // textarea 自動リサイズ（autoResize 時のみ）
   useEffect(() => {
@@ -346,18 +341,30 @@ function SourceSegment({
       </Box>
 
       <Box ref={textContainerRef} sx={{ flex: 1, minWidth: 0, position: "relative" }}>
+        {/*
+          ミラー兼・差分背景レイヤー。
+          textarea と同一の折り返し（pre-wrap）でテキストを透明描画し、各行 div の
+          背景色で diff を着色する。これにより行が折り返しても色帯が実テキスト行と
+          一致する（固定位置グラデーションのズレを解消）。textarea の背後に置く。
+        */}
         <Box
           ref={mirrorRef}
           aria-hidden="true"
           sx={{
-            position: "absolute", top: 0, left: 0, right: 0, visibility: "hidden", pointerEvents: "none",
+            position: "absolute", top: 0, left: 0, right: 0, zIndex: 0, pointerEvents: "none",
+            color: "transparent",
             fontFamily: "monospace", fontSize: `${editorSettings.fontSize}px`, lineHeight: editorSettings.lineHeight,
             whiteSpace: "pre-wrap", overflowWrap: "break-word", pt: 2, pb: 2,
             pr: side === "left" && hasMergeButtons ? 0 : 2, pl: 1, boxSizing: "border-box",
           }}
         >
           {displayLines.map((line, i) => (
-            <div key={`dl-${i}-${line.length}`}>{line || " "}</div>
+            <div
+              key={`dl-${i}-${line.length}`}
+              style={{ backgroundColor: diffLineBgColor(diffLines[i]?.type ?? "equal", isDark) }}
+            >
+              {line || " "}
+            </div>
           ))}
         </Box>
         <Box
@@ -387,8 +394,8 @@ function SourceSegment({
             const lineIdx = (ta.value.slice(0, pos).match(/\n/g) || []).length;
             onHoverLine(lineIdx < diffLines.length ? baseAlignedIdx + lineIdx : null);
           }}
-          style={gradientStyle}
           sx={{
+            position: "relative", zIndex: 1,
             width: "100%", minHeight: "100%", pt: 2, pb: 2,
             pr: side === "left" && hasMergeButtons ? 0 : 2, pl: 1,
             border: "none", outline: "none", boxShadow: "none", resize: "none",

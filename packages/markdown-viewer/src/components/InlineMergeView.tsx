@@ -1,6 +1,5 @@
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
 import { useEditor } from "@anytime-markdown/markdown-react";
-import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
@@ -113,8 +112,6 @@ export function InlineMergeView({
     setEditText,
     setCompareText,
     diffResult,
-    diffOptions,
-    setDiffOptions,
     mergeBlock,
     currentBlockIndex,
     totalBlocks,
@@ -386,24 +383,8 @@ export function InlineMergeView({
             <UnfoldLessIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        {/* セマンティックトグルはソースモード専用（WYSIWYG は常に semantic） */}
-        {sourceMode && (
-          <>
-            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-            <Tooltip title={t("semanticDiff")}>
-              <IconButton
-                size="small"
-                onClick={() => setDiffOptions((prev) => ({ ...prev, semantic: !prev.semantic }))}
-                color={diffOptions.semantic ? "primary" : "default"}
-                aria-label={t("semanticDiff")}
-                aria-pressed={!!diffOptions.semantic}
-                sx={{ p: 0.5 }}
-              >
-                <AccountTreeOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </>
-        )}
+        {/* ソースモードは常にセマンティック比較 OFF（行単位の素の diff）。
+            WYSIWYG は常に semantic。トグルは提供しない。 */}
       </Box>
 
       {/* Content area: left = compare (read-only), right = editor (children) */}
