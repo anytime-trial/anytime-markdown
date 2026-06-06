@@ -13,6 +13,7 @@ import { createElement, createRef, memo } from 'react'
 
 import type { EditorWithContentComponent } from './Editor'
 import { ReactRenderer } from './ReactRenderer'
+import { safeGetPos } from './safeGetPos'
 import type { ReactNodeViewProps } from './types'
 import type { ReactNodeViewContextProps } from './useReactNodeView'
 import { ReactNodeViewContext } from './useReactNodeView'
@@ -139,7 +140,7 @@ export class ReactNodeView<
       selected: false,
       extension: this.extensionWithSyncedStorage,
       HTMLAttributes: this.HTMLAttributes,
-      getPos: () => this.getPos(),
+      getPos: safeGetPos(() => this.getPos()),
       updateAttributes: (attributes = {}) => this.updateAttributes(attributes),
       deleteNode: () => this.deleteNode(),
       ref: createRef<T>(),
@@ -238,7 +239,7 @@ export class ReactNodeView<
     this.selectionRafId = requestAnimationFrame(() => {
       this.selectionRafId = null
       const { from, to } = this.editor.state.selection
-      const pos = this.getPos()
+      const pos = safeGetPos(() => this.getPos())()
       if (typeof pos !== 'number') {
         return
       }
