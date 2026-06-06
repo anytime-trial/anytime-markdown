@@ -142,6 +142,8 @@ export function applyEditorThemeCssVars(
   root.style.setProperty("--am-color-action-hover", getActionHover(isDark));
   root.style.setProperty("--am-color-action-selected", getActionSelected(isDark));
   root.style.setProperty("--am-color-action-active", getActionActive(isDark));
+  // MUI Skeleton 既定の地色 = alpha(text.primary, light 0.11 / dark 0.13)。
+  root.style.setProperty("--am-color-skeleton-bg", alpha(getTextPrimary(isDark), isDark ? 0.13 : 0.11));
   root.style.setProperty("--am-color-primary-main", getPrimaryMain(isDark));
   root.style.setProperty("--am-color-primary-contrast", getPrimaryContrast(isDark));
   root.style.setProperty("--am-color-error-main", getErrorMain(isDark));

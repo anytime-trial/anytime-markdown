@@ -18,7 +18,9 @@ if (typeof window !== "undefined" && !(console as { _tiptapFlushSyncPatched?: bo
   };
 }
 
-import { CircularProgress, useMediaQuery, useTheme } from "@mui/material";
+import { useMediaQuery, useTheme } from "@mui/material";
+
+import { Spinner } from "./ui/Spinner";
 import styles from "./MarkdownEditorPage.module.css";
 import { useEditor } from "@anytime-markdown/markdown-react";
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -577,7 +579,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
   ]);
 
   if (loading) {
-    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><CircularProgress /></div>;
+    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><Spinner /></div>;
   }
 
   const isRestrictedMode = readonlyMode || reviewMode;

@@ -1,9 +1,9 @@
 import {
   Alert,
   Backdrop,
-  CircularProgress,
   Snackbar,
 } from "@mui/material";
+import { Spinner } from "../ui/Spinner";
 import { Text } from "../ui/Text";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { EditorContent } from "@anytime-markdown/markdown-react";
@@ -158,7 +158,7 @@ export function EditorFooterOverlays({
       />
 
       <Backdrop open={pdfExporting} sx={{ zIndex: (theme) => theme.zIndex.modal + 1, flexDirection: "column", gap: 2, "@media print": { display: "none" } }}>
-        <CircularProgress color="inherit" />
+        <Spinner color="inherit" />
         <Text variant="body2" style={{ color: "inherit" }}>{t("pdfPreparing")}</Text>
       </Backdrop>
 

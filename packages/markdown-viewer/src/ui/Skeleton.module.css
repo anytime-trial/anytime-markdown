@@ -1,0 +1,41 @@
+/* MUI Skeleton 相当。bg=alpha(text.primary, 0.11/0.13)（seam 注入）、pulse 2s。 */
+.root {
+  display: block;
+  background-color: var(--am-color-skeleton-bg);
+  animation: skeleton-pulse 2s ease-in-out 0.5s infinite;
+}
+
+/* text variant は MUI 既定で行高に合わせた角丸 + 上下マージン。現状未使用だが API として用意。 */
+.text {
+  height: auto;
+  margin-top: 0;
+  margin-bottom: 0;
+  border-radius: 4px 4px 4px 4px / 6.7px 6.7px 6.7px 6.7px;
+  transform: scale(1, 0.6);
+}
+
+.rectangular {
+  border-radius: 0;
+}
+
+.circular {
+  border-radius: 50%;
+}
+
+@keyframes skeleton-pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    animation: none;
+  }
+}

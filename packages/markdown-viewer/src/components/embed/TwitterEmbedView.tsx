@@ -1,4 +1,6 @@
-import { Skeleton, useTheme } from "@mui/material";
+import { useTheme } from "@mui/material";
+
+import { Skeleton } from "../../ui/Skeleton";
 import { useEffect, useRef } from "react";
 
 import { Stack } from "../../ui/Stack";
@@ -91,7 +93,7 @@ export function TwitterEmbedView({ url, variant, providers, widthOverride }: Rea
             <Skeleton
                 variant="rectangular"
                 height={variant === "compact" ? 40 : 180}
-                sx={{ maxWidth: 720 }}
+                style={{ maxWidth: 720 }}
             />
         );
     }

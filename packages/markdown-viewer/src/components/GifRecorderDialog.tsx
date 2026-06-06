@@ -7,7 +7,9 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
 import ScreenShareIcon from "@mui/icons-material/ScreenShare";
 import StopIcon from "@mui/icons-material/Stop";
-import { LinearProgress, TextField } from "@mui/material";
+import { TextField } from "@mui/material";
+
+import { ProgressBar } from "../ui/ProgressBar";
 
 import { Button } from "../ui/Button";
 import { useTheme } from "@mui/material/styles";
@@ -362,7 +364,7 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
           {phase === "encoding" && (
             <Stack direction="column" alignItems="center" style={{ gap: 16, color: "rgb(189, 189, 189)", width: "60%" }}>
               <Text variant="body2">Encoding GIF...</Text>
-              <LinearProgress variant="determinate" value={progress * 100} sx={{ width: "100%" }} />
+              <ProgressBar variant="determinate" value={progress * 100} style={{ width: "100%" }} />
               <Text variant="caption">{Math.round(progress * 100)}%</Text>
             </Stack>
           )}

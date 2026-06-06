@@ -1,6 +1,7 @@
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
-import { CircularProgress } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
+
+import { Spinner } from "../ui/Spinner";
 import type React from "react";
 import { Suspense, useEffect } from "react";
 
@@ -105,7 +106,7 @@ export function EditorMergeContent({
   const settings = useEditorSettingsContext();
 
   return (
-    <Suspense fallback={<CircularProgress size={32} sx={{ m: "auto" }} />}>
+    <Suspense fallback={<Spinner size={32} style={{ margin: "auto" }} />}>
     <InlineMergeView
       rightEditor={editor}
       codeBlockExtension={codeBlockExtension}
