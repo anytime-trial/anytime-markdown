@@ -1,10 +1,14 @@
 import {
+  alpha,
+  DEFAULT_DARK_BG,
+  DEFAULT_LIGHT_BG,
   getActionHover,
   getBgPaper,
   getDivider,
   getErrorMain,
   getPrimaryContrast,
   getPrimaryMain,
+  getSuccessMain,
   getTextPrimary,
   getTextSecondary,
 } from "../constants/colors";
@@ -139,6 +143,11 @@ export function applyEditorThemeCssVars(
   root.style.setProperty("--am-color-error-main", getErrorMain(isDark));
   root.style.setProperty("--am-color-tooltip-bg", isDark ? "rgba(50,50,50,0.95)" : "rgba(40,40,40,0.92)");
   root.style.setProperty("--am-color-tooltip-text", "rgba(255,255,255,0.95)");
+  // エディタ背景（既定）と差分インラインハイライト（removed=error / added=success、alpha 0.35）。
+  // 旧 LinePreviewPanel の useTheme + @mui/material/styles alpha を排除するための seam。
+  root.style.setProperty("--am-color-bg-default", isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG);
+  root.style.setProperty("--am-color-diff-removed-bg", alpha(getErrorMain(isDark), 0.35));
+  root.style.setProperty("--am-color-diff-added-bg", alpha(getSuccessMain(isDark), 0.35));
 
   // chrome 寸法トークン（モード非依存・spec/12.design 準拠）。
   // Next.js のグローバル CSS import 制約を避けるため CSS ファイルではなく JS で注入する。
