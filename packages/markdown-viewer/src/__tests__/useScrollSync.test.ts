@@ -46,7 +46,7 @@ describe("useScrollSync", () => {
     const leftRef = { current: leftEl };
     const rightRef = { current: rightEl };
 
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
 
     // 左パネル内のスクロールイベントをシミュレート
     Object.defineProperty(leftEl, "scrollTop", { value: 250, configurable: true }); // 50% スクロール
@@ -71,7 +71,7 @@ describe("useScrollSync", () => {
     const leftRef = { current: leftEl };
     const rightRef = { current: rightEl };
 
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
 
     // 右パネルを 50% スクロール
     Object.defineProperty(rightEl, "scrollTop", { value: 750, configurable: true });
@@ -100,7 +100,7 @@ describe("useScrollSync", () => {
     const leftRef = { current: leftEl };
     const rightRef = { current: rightEl };
 
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
 
     // 対向ペインは途中までスクロール済み
     rightEl.scrollTop = 300;
@@ -117,7 +117,7 @@ describe("useScrollSync", () => {
     const rightRef = { current: null };
 
     // エラーが出なければ OK
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
   });
 
   it("クリーンアップでイベントリスナーが解除される", () => {
@@ -130,7 +130,7 @@ describe("useScrollSync", () => {
     const leftRef = { current: leftEl };
     const rightRef = { current: rightEl };
 
-    const { unmount } = renderHook(() => useScrollSync(leftRef, rightRef));
+    const { unmount } = renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
 
     unmount();
 

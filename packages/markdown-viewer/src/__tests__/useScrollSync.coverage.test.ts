@@ -31,7 +31,7 @@ describe("useScrollSync", () => {
     const leftRef = { current: leftContainer };
     const rightRef = { current: rightScroll };
 
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
 
     // Create a scrollable child inside leftContainer
     const scrollChild = document.createElement("div");
@@ -70,7 +70,7 @@ describe("useScrollSync", () => {
     const leftRef = { current: leftContainer };
     const rightRef = { current: rightScroll };
 
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
 
     // Simulate scroll on right
     rightScroll.dispatchEvent(new Event("scroll"));
@@ -84,7 +84,7 @@ describe("useScrollSync", () => {
     const leftRef = { current: null };
     const rightRef = { current: rightScroll };
 
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
     // No crash
   });
 
@@ -93,7 +93,7 @@ describe("useScrollSync", () => {
     const leftRef = { current: leftContainer };
     const rightRef = { current: null };
 
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
     // No crash
   });
 
@@ -106,7 +106,7 @@ describe("useScrollSync", () => {
     const leftRef = { current: leftContainer };
     const rightRef = { current: rightScroll };
 
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
 
     // Dispatch scroll with target not inside container
     const outsideEl = document.createElement("div");
@@ -132,7 +132,7 @@ describe("useScrollSync", () => {
     const leftContainer = document.createElement("div");
     leftRef.current = leftContainer;
 
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
 
     // Now set left to null before dispatching
     leftRef.current = null;
@@ -158,7 +158,7 @@ describe("useScrollSync", () => {
     const leftRef = { current: leftContainer };
     const rightRef = { current: rightScroll };
 
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
 
     // Trigger right scroll - findScrollableChild returns null
     rightScroll.dispatchEvent(new Event("scroll"));
@@ -191,7 +191,7 @@ describe("useScrollSync", () => {
     const leftRef = { current: leftContainer };
     const rightRef = { current: rightScroll };
 
-    renderHook(() => useScrollSync(leftRef, rightRef));
+    renderHook(() => useScrollSync(leftRef, rightRef, null, null, false));
 
     rightScroll.dispatchEvent(new Event("scroll"));
 
