@@ -180,11 +180,12 @@ function TableCompareView({
   isDark: boolean;
   t: (key: string) => string;
 }>) {
+  const selectedCellBg = getActionSelected(isDark);
   return (
     <div className={styles.compareOuter}>
       <div
         className={`${styles.comparePane} ${styles.comparePaneLeft}`}
-        style={{ "--table-width": tableWidth, "--table-selected-cell-bg": getActionSelected(isDark) } as React.CSSProperties}
+        style={{ "--table-width": tableWidth, "--table-selected-cell-bg": selectedCellBg } as React.CSSProperties}
       >
         <Text
           variant="caption"
@@ -196,7 +197,7 @@ function TableCompareView({
       </div>
       <div
         className={styles.comparePane}
-        style={{ "--table-width": tableWidth, "--table-selected-cell-bg": getActionSelected(isDark) } as React.CSSProperties}
+        style={{ "--table-width": tableWidth, "--table-selected-cell-bg": selectedCellBg } as React.CSSProperties}
       >
         <Text
           variant="caption"
@@ -210,6 +211,8 @@ function TableCompareView({
   );
 }
 
+const EMPTY_PAPER_STYLE: React.CSSProperties = {};
+
 /** Paper の スタイルを構築する */
 function buildPaperStyle(editOpen: boolean, isDark: boolean): React.CSSProperties {
   if (editOpen) {
@@ -220,7 +223,7 @@ function buildPaperStyle(editOpen: boolean, isDark: boolean): React.CSSPropertie
       backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
     };
   }
-  return {};
+  return EMPTY_PAPER_STYLE;
 }
 
 /** Paper の className を構築する */

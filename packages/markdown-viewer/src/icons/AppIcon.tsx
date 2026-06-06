@@ -1,5 +1,3 @@
-import styles from "./AppIcon.module.css";
-
 interface AppIconProps {
   fontSize?: "small" | "medium" | "large";
   src?: string;
@@ -12,7 +10,7 @@ export default function AppIcon({ fontSize = "small", src = "/icons/icon-192x192
   const size = SIZE_MAP[fontSize];
   return (
     <img
-      className={styles.appIcon}
+      style={{ display: "block" }}
       src={src}
       alt="Anytime Markdown"
       width={size}
