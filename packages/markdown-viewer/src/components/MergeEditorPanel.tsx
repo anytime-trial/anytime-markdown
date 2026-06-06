@@ -455,7 +455,8 @@ function SourceModePanel({
   const digits = String(totalRealLines).length;
 
   const paperSxArray = [
-    { flex: 1, overflow: autoResize ? "auto" : "hidden", borderRadius: 0, border: 0, ...hideScrollbarSx },
+    // 通常エディタ（EditorContentArea の variant="outlined"）と同じ枠線を比較モードでも表示する。
+    { flex: 1, overflow: autoResize ? "auto" : "hidden", borderRadius: 0, ...hideScrollbarSx },
     ...normalizeSx(paperSx),
   ];
 
@@ -592,10 +593,10 @@ export function MergeEditorPanel({
       ref={scrollRef}
       sx={[
         {
+          // 通常エディタと同じ枠線を比較モード（WYSIWYG）でも表示する（variant="outlined"）。
           flex: 1,
           overflow: "auto",
           borderRadius: 0,
-          border: 0,
           ...tiptapStyles,
           ...hideScrollbarSx,
         },
