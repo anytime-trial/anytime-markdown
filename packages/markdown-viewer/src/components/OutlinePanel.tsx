@@ -14,10 +14,10 @@ import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import {
   ButtonBase,
   Collapse,
-  IconButton,
   Tooltip,
   useTheme,
 } from "@mui/material";
+import { IconButton } from "../ui/IconButton";
 import React, { useCallback, useMemo,useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getPrimaryMain, getTextDisabled, getTextPrimary, getTextSecondary } from "../constants/colors";
@@ -79,7 +79,8 @@ const HeadingFoldButton = React.memo(function HeadingFoldButton({
       onClick={(e) => { e.stopPropagation(); toggleFold(headingIndex); }}
       aria-expanded={!isFolded}
       aria-label={`${isFolded ? t("expandSection") : t("collapseSection")} ${text || "(empty)"}`}
-      sx={{ p: 0.5, mr: 0.25, color: getTextSecondary(isDark), flexShrink: 0 }}
+      className={styles.foldBtn}
+      style={{ color: getTextSecondary(isDark) }}
     >
       <KeyboardArrowDownIcon sx={{ fontSize: 16, transition: "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, transform: isFolded ? "rotate(-90deg)" : "rotate(0deg)" }} />
     </IconButton>
@@ -183,7 +184,7 @@ const OutlineItem = React.memo(function OutlineItem({
               size="small"
               onClick={(e) => { e.stopPropagation(); onOutlineDelete(h.pos, h.kind); }}
               aria-label={`${t("delete")} ${h.text || ""}`}
-              sx={{ p: 0.5 }}
+              className={styles.iconBtnPadding}
             >
               <DeleteOutlineIcon sx={{ fontSize: 14 }} />
             </IconButton>
@@ -407,7 +408,7 @@ export function OutlinePanel({
                     aria-label={t("insertSectionNumbers")}
                     size="small"
                     onClick={onInsertSectionNumbers}
-                    sx={{ p: 0.5 }}
+                    className={styles.iconBtnPadding}
                   >
                     <FormatListNumberedIcon sx={{ fontSize: 16 }} />
                   </IconButton>
@@ -419,7 +420,7 @@ export function OutlinePanel({
                     aria-label={t("removeSectionNumbers")}
                     size="small"
                     onClick={onRemoveSectionNumbers}
-                    sx={{ p: 0.5 }}
+                    className={styles.iconBtnPadding}
                   >
                     <FormatListBulletedIcon sx={{ fontSize: 16 }} />
                   </IconButton>
@@ -431,7 +432,8 @@ export function OutlinePanel({
                   aria-pressed={showBlocks}
                   size="small"
                   onClick={() => setShowBlocks((v) => !v)}
-                  sx={{ p: 0.5, color: showBlocks ? getPrimaryMain(isDark) : getTextSecondary(isDark) }}
+                  className={styles.iconBtnPadding}
+                  style={{ color: showBlocks ? getPrimaryMain(isDark) : getTextSecondary(isDark) }}
                 >
                   <CategoryIcon sx={{ fontSize: 16 }} />
                 </IconButton>
@@ -442,7 +444,7 @@ export function OutlinePanel({
                     aria-label={foldedIndices.size > 0 ? t("unfoldAll") : t("foldAll")}
                     size="small"
                     onClick={foldedIndices.size > 0 ? unfoldAll : foldAll}
-                    sx={{ p: 0.5 }}
+                    className={styles.iconBtnPadding}
                   >
                     {foldedIndices.size > 0 ? <UnfoldMoreIcon sx={{ fontSize: 16 }} /> : <UnfoldLessIcon sx={{ fontSize: 16 }} />}
                   </IconButton>

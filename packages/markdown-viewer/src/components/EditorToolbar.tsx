@@ -11,9 +11,6 @@ import UndoIcon from "@mui/icons-material/Undo";
 import ViewStreamIcon from "@mui/icons-material/ViewStream";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import {
-  IconButton,
-  ToggleButton,
-  ToggleButtonGroup,
   Tooltip,
   useTheme,
 } from "@mui/material";
@@ -21,8 +18,8 @@ import type { Editor } from "@anytime-markdown/markdown-react";
 import { useEditorState } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT, getActionHover, getActionSelected, getBgPaper, getDivider, getTextPrimary, getTextSecondary } from "../constants/colors";
-import { SIDE_TOOLBAR_WIDTH, TOOLBAR_FONT_SIZE } from "../constants/dimensions";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT, getDivider } from "../constants/colors";
+import { SIDE_TOOLBAR_WIDTH } from "../constants/dimensions";
 import { modKey } from "../constants/shortcuts";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import { DEFAULT_AGGREGATE, getDiagramAggregate, isDiagramLanguage } from "../extensions/diagramAggregateExtension";
@@ -33,7 +30,10 @@ import type { MergeUndoRedo } from "./InlineMergeView";
 import { ToolbarFileActions } from "./ToolbarFileActions";
 import { ToolbarMobileMenu } from "./ToolbarMobileMenu";
 import { Divider } from "../ui/Divider";
+import { IconButton } from "../ui/IconButton";
 import { Paper } from "../ui/Paper";
+import { ToggleButton } from "../ui/ToggleButton";
+import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
 import styles from "./EditorToolbar.module.css";
 
 /** WAI-ARIA Toolbar パターン: 矢印キーでフォーカス移動 */
@@ -73,37 +73,6 @@ function tip(t: TranslationFn, key: string): string {
   return shortcut ? `${t(key)}  (${shortcut})` : t(key);
 }
 
-/** モード切替・比較切替の pill 型トグル共通スタイル */
-function getPillToggleSx(isDark: boolean) {
-  return {
-    height: 34,
-    borderRadius: "20px",
-    bgcolor: getActionHover(isDark),
-    p: 0.25,
-    "& .MuiToggleButton-root": {
-      border: "none",
-      borderRadius: "20px !important",
-      px: 2,
-      py: 0,
-      gap: 0.5,
-      fontSize: TOOLBAR_FONT_SIZE,
-      textTransform: "none",
-      lineHeight: 1,
-    },
-    "& .Mui-selected": {
-      bgcolor: `${getBgPaper(isDark)} !important`,
-      color: `${getTextPrimary(isDark)} !important`,
-      boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-    },
-    "& .MuiToggleButton-root:not(.Mui-selected)": {
-      bgcolor: "transparent",
-      color: getTextSecondary(isDark),
-      "&:hover": {
-        bgcolor: getActionSelected(isDark),
-      },
-    },
-  } as const;
-}
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -246,7 +215,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
               size="small"
               onClick={onHomeClick}
               aria-label={t("home")}
-              sx={{ p: 0.25 }}
+              style={{ padding: "2px" }}
             >
               <AppIcon fontSize="small" />
             </IconButton>
@@ -271,13 +240,13 @@ export const EditorToolbar = React.memo(function EditorToolbar({
 
       {/* Undo/Redo */}
       {!hideUndoRedo && (
-        <ToggleButtonGroup size="small" aria-label={`${t("undo")} / ${t("redo")}`} sx={{ height: 30 }}>
+        <ToggleButtonGroup size="small" aria-label={`${t("undo")} / ${t("redo")}`} style={{ height: 30 }}>
           <ToggleButton
             value="undo"
             aria-label={t("undo")}
             onClick={() => mergeUndoRedo ? mergeUndoRedo.undo() : editor?.chain().focus().undo().run()}
             disabled={readonlyMode || reviewMode || (mergeUndoRedo ? !mergeUndoRedo.canUndo : !editorState?.canUndo)}
-            sx={{ px: 0.75, py: 0.25 }}
+            className={styles.toggleBtnPad}
           >
             <Tooltip title={tip(t, "undo")}>
               <span style={{ display: "inline-flex" }}><UndoIcon fontSize="small" /></span>
@@ -288,7 +257,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             aria-label={t("redo")}
             onClick={() => mergeUndoRedo ? mergeUndoRedo.redo() : editor?.chain().focus().redo().run()}
             disabled={readonlyMode || reviewMode || (mergeUndoRedo ? !mergeUndoRedo.canRedo : !editorState?.canRedo)}
-            sx={{ px: 0.75, py: 0.25 }}
+            className={styles.toggleBtnPad}
           >
             <Tooltip title={tip(t, "redo")}>
               <span style={{ display: "inline-flex" }}><RedoIcon fontSize="small" /></span>
@@ -299,21 +268,21 @@ export const EditorToolbar = React.memo(function EditorToolbar({
 
       {/* Outline, Comments - hidden on mobile */}
       <div className={styles.desktopContents}>
-      <ToggleButtonGroup size="small" aria-label={t("view")} sx={{ height: 30 }}>
+      <ToggleButtonGroup size="small" aria-label={t("view")} style={{ height: 30 }}>
         {!hideExplorer && onToggleExplorer && (
-          <ToggleButton value="explorer" selected={!!explorerOpen} onClick={onToggleExplorer} aria-label={t("explorer")} sx={{ px: 0.75, py: 0.25 }}>
+          <ToggleButton value="explorer" selected={!!explorerOpen} onClick={onToggleExplorer} aria-label={t("explorer")} className={styles.toggleBtnPad}>
             <Tooltip title={t("explorer")}>
               <span style={{ display: "inline-flex" }}><GitHubIcon fontSize="small" /></span>
             </Tooltip>
           </ToggleButton>
         )}
-        {!hideOutline && <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={sourceMode} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
+        {!hideOutline && <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={sourceMode} aria-label={t("outline")} className={styles.toggleBtnPad}>
           <Tooltip title={tip(t, "outline")}>
             <span style={{ display: "inline-flex" }}><ListAltIcon fontSize="small" /></span>
           </Tooltip>
         </ToggleButton>}
         {!hideComments && onToggleComments && (
-          <ToggleButton value="comments" selected={commentOpen} onClick={onToggleComments} disabled={sourceMode} aria-label={t("commentPanel") || "Comments"} sx={{ px: 0.75, py: 0.25 }}>
+          <ToggleButton value="comments" selected={commentOpen} onClick={onToggleComments} disabled={sourceMode} aria-label={t("commentPanel") || "Comments"} className={styles.toggleBtnPad}>
             <Tooltip title={t("commentPanel") || "Comments"}>
               <span style={{ display: "inline-flex" }}><ChatBubbleOutlineIcon fontSize="small" /></span>
             </Tooltip>
@@ -329,8 +298,8 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         value={currentMode}
         exclusive
         size="small"
+        variant="pill"
         aria-label={t("editMode")}
-        sx={getPillToggleSx(isDark)}
       >
         {!hideReadonlyToggle && (
           <ToggleButton value="readonly" aria-label={t("readonly")} onClick={onSwitchToReadonly}>
@@ -353,32 +322,36 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       </ToggleButtonGroup>}
 
       {/* Compare toggle (md 以上のみ表示) */}
-      {!hideModeToggle && !hideCompareToggle && <ToggleButtonGroup
-        value={inlineMergeOpen ? "compare" : "edit"}
-        exclusive
-        size="small"
-        aria-label={t("compareMode")}
-        sx={{ ...getPillToggleSx(isDark), display: { xs: "none", md: "inline-flex" } }}
-      >
-        <ToggleButton
-          value="edit"
-          aria-label={t("normalMode")}
-          disabled={readonlyMode}
-          onClick={() => { if (inlineMergeOpen) onMerge(); }}
-        >
-          <EditNoteIcon sx={{ fontSize: "1rem" }} />
-          {t("normalMode")}
-        </ToggleButton>
-        <ToggleButton
-          value="compare"
-          aria-label={t("compare")}
-          disabled={readonlyMode}
-          onClick={() => { if (!inlineMergeOpen) onMerge(); }}
-        >
-          <ViewStreamIcon sx={{ fontSize: "1rem", transform: "rotate(90deg)" }} />
-          {t("compare")}
-        </ToggleButton>
-      </ToggleButtonGroup>}
+      {!hideModeToggle && !hideCompareToggle && (
+        <div className={styles.compareToggleWrapper}>
+          <ToggleButtonGroup
+            value={inlineMergeOpen ? "compare" : "edit"}
+            exclusive
+            size="small"
+            variant="pill"
+            aria-label={t("compareMode")}
+          >
+            <ToggleButton
+              value="edit"
+              aria-label={t("normalMode")}
+              disabled={readonlyMode}
+              onClick={() => { if (inlineMergeOpen) onMerge(); }}
+            >
+              <EditNoteIcon sx={{ fontSize: "1rem" }} />
+              {t("normalMode")}
+            </ToggleButton>
+            <ToggleButton
+              value="compare"
+              aria-label={t("compare")}
+              disabled={readonlyMode}
+              onClick={() => { if (!inlineMergeOpen) onMerge(); }}
+            >
+              <ViewStreamIcon sx={{ fontSize: "1rem", transform: "rotate(90deg)" }} />
+              {t("compare")}
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </div>
+      )}
 
       {/* More menu */}
       {!hideMoreMenu && (
@@ -391,7 +364,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
               <IconButton aria-label={t("more")}
                 size="small"
                 onClick={(e) => onSetHelpAnchor(e.currentTarget)}
-                sx={{ p: 0 }}
+                style={{ padding: 0 }}
               >
                 <MenuIcon fontSize="small" />
               </IconButton>
@@ -403,7 +376,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
               aria-label={t("more")}
               size="small"
               onClick={(e) => setMobileMenuAnchorEl(e.currentTarget)}
-              sx={{ p: 0 }}
+              style={{ padding: 0 }}
             >
               <MenuIcon fontSize="small" />
             </IconButton>

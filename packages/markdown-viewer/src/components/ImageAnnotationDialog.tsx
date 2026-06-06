@@ -7,7 +7,10 @@ import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
 import RectangleOutlinedIcon from "@mui/icons-material/RectangleOutlined";
-import { IconButton, TextField, ToggleButton, ToggleButtonGroup, Tooltip } from "@mui/material";
+import { TextField, Tooltip } from "@mui/material";
+import { IconButton } from "../ui/IconButton";
+import { ToggleButton } from "../ui/ToggleButton";
+import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useRef, useState } from "react";
 
@@ -202,12 +205,10 @@ export function ImageAnnotationDialog({
               size="small"
               onClick={() => setColor(c.value)}
               aria-label={c.label}
-              sx={{
-                width: 24, height: 24, p: 0,
-                bgcolor: c.value,
-                border: 2,
+              className={styles.colorSwatch}
+              style={{
+                backgroundColor: c.value,
                 borderColor: color === c.value ? getPrimaryMain(isDark) : getDivider(isDark),
-                "&:hover": { borderColor: getPrimaryMain(isDark) },
               }}
             />
           ))}
@@ -312,8 +313,8 @@ export function ImageAnnotationDialog({
                     {annotationLabel}
                   </Text>
                   <div style={{ flex: 1 }} />
-                  <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => { e.stopPropagation(); handleDeleteItem(a.id); }}>
-                    <DeleteOutlineIcon sx={{ fontSize: 14 }} />
+                  <IconButton size="small" className={styles.deleteIconButton} onClick={(e) => { e.stopPropagation(); handleDeleteItem(a.id); }}>
+                    <DeleteOutlineIcon style={{ fontSize: 14 }} />
                   </IconButton>
                 </div>
                 <TextField

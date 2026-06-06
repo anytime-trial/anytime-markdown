@@ -3,14 +3,16 @@
 import DrawIcon from "@mui/icons-material/Draw";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
-import { IconButton, Tooltip } from "@mui/material";
+import { Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
 import { getTextSecondary } from "../constants/colors";
 import type { ThemePresetName } from "../constants/themePresets";
 import type { TranslationFn } from "../types";
 import { Divider } from "../ui/Divider";
+import { IconButton } from "../ui/IconButton";
 import { Text } from "../ui/Text";
+import styles from "./ReadonlyToolbar.module.css";
 
 interface FontSizeOption {
   value: number;
@@ -48,11 +50,10 @@ export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFont
         <IconButton
           size="small"
           onClick={onToggleOutline}
-          sx={{
-            width: 28,
-            height: 28,
-            color: outlineOpen ? "primary.main" : getTextSecondary(isDark),
-            bgcolor: outlineOpen ? activeBg : "transparent",
+          className={styles.iconBtn}
+          style={{
+            color: outlineOpen ? "var(--am-color-primary-main)" : getTextSecondary(isDark),
+            background: outlineOpen ? activeBg : "transparent",
           }}
           aria-label={t("outline")}
           aria-pressed={outlineOpen}
@@ -68,11 +69,10 @@ export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFont
               <IconButton
                 size="small"
                 onClick={() => onFontSizeChange(value)}
-                sx={{
-                  width: 28,
-                  height: 28,
-                  color: isActive ? "primary.main" : getTextSecondary(isDark),
-                  bgcolor: isActive ? activeBg : "transparent",
+                className={styles.iconBtn}
+                style={{
+                  color: isActive ? "var(--am-color-primary-main)" : getTextSecondary(isDark),
+                  background: isActive ? activeBg : "transparent",
                 }}
                 aria-label={t(label)}
                 aria-pressed={isActive}
@@ -89,9 +89,8 @@ export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFont
               <IconButton
                 size="small"
                 onClick={() => onPresetChange(presetName === "handwritten" ? "professional" : "handwritten")}
-                sx={{
-                  width: 28,
-                  height: 28,
+                className={styles.iconBtn}
+                style={{
                   color: getTextSecondary(isDark),
                 }}
                 aria-label={t("settingThemePreset")}

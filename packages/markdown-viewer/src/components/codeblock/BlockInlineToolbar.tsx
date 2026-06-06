@@ -5,7 +5,8 @@ import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditIcon from "@mui/icons-material/Edit";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ImageIcon from "@mui/icons-material/Image";
-import { IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip } from "@mui/material";
+import { ListItemIcon, ListItemText, Menu, MenuItem, Tooltip } from "@mui/material";
+import { IconButton } from "../../ui/IconButton";
 import { useTheme } from "@mui/material/styles";
 import React, { useRef, useState } from "react";
 
@@ -46,7 +47,7 @@ export function BlockInlineToolbar({
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const anchorRef = useRef<HTMLButtonElement>(null);
+  const anchorRef = useRef<HTMLSpanElement>(null);
 
   if (labelOnly) {
     return (
@@ -92,7 +93,7 @@ export function BlockInlineToolbar({
       )}
       {onEdit && !collapsed && (
         <Tooltip title={t("edit")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={onEdit} aria-label={t("edit")}>
+          <IconButton size="small" className={styles.iconButtonCompact} onClick={onEdit} aria-label={t("edit")}>
             <EditIcon sx={iconSx} />
           </IconButton>
         </Tooltip>
@@ -101,9 +102,11 @@ export function BlockInlineToolbar({
       <div style={{ flex: 1 }} />
       {hasMenu && !collapsed && (<>
         <Tooltip title={t("capture")} placement="top">
-          <IconButton ref={anchorRef} size="small" sx={{ p: 0.25 }} onClick={() => setMenuOpen(true)} aria-label={t("capture")} aria-haspopup="true">
-            <FileDownloadIcon sx={iconSx} />
-          </IconButton>
+          <span ref={anchorRef}>
+            <IconButton size="small" className={styles.iconButtonCompact} onClick={() => setMenuOpen(true)} aria-label={t("capture")} aria-haspopup="true">
+              <FileDownloadIcon sx={iconSx} />
+            </IconButton>
+          </span>
         </Tooltip>
         <Menu
           anchorEl={anchorRef.current}
@@ -125,7 +128,7 @@ export function BlockInlineToolbar({
       </>)}
       {onExport && !hasMenu && !collapsed && (
         <Tooltip title={t("capture")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={onExport} aria-label={t("capture")}>
+          <IconButton size="small" className={styles.iconButtonCompact} onClick={onExport} aria-label={t("capture")}>
             <FileDownloadIcon sx={iconSx} />
           </IconButton>
         </Tooltip>
@@ -133,7 +136,7 @@ export function BlockInlineToolbar({
       {onDelete && !collapsed && (<>
         <Divider orientation="vertical" flexItem style={{ margin: "0 2px" }} />
         <Tooltip title={t("delete")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={onDelete} aria-label={t("delete")}>
+          <IconButton size="small" className={styles.iconButtonCompact} onClick={onDelete} aria-label={t("delete")}>
             <DeleteOutlineIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>

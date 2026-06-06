@@ -3,12 +3,13 @@ import { EditorContent } from "@anytime-markdown/markdown-react";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
-import { IconButton, Tooltip } from "@mui/material";
+import { Tooltip } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
 import { useTheme } from "@mui/material/styles";
 import React, { useEffect, useRef, useState } from "react";
 
 import { alpha, getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { IconButton } from "../ui/IconButton";
 import { useMarkdownT } from "../i18n/context";
 import paperStyles from "../ui/Paper.module.css";
 import { useEditorSettingsContext } from "../useEditorSettings";
@@ -145,7 +146,7 @@ function MergeGutterCell({
       {blockId != null && (
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Tooltip title={label} placement={panelSide === "left" ? "left" : "right"}>
-            <IconButton size="small" aria-label={label} onClick={() => onMerge(blockId, direction)} sx={{ p: 0 }}>
+            <IconButton size="small" aria-label={label} onClick={() => onMerge(blockId, direction)} style={{ padding: 0 }}>
               {panelSide === "left" ? <ChevronRightIcon sx={{ fontSize: 16 }} /> : <ChevronLeftIcon sx={{ fontSize: 16 }} />}
             </IconButton>
           </Tooltip>

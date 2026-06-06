@@ -11,3 +11,10 @@
     display: flex;
   }
 }
+
+/** Status bar inline button (line-ending / encoding selectors) */
+.statusBtn {
+  min-width: 0;
+  padding: 0 4px;
+  line-height: 1.43;
+}

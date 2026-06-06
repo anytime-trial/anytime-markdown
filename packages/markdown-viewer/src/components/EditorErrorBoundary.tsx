@@ -1,9 +1,9 @@
 "use client";
 
-import { Button } from "@mui/material";
 import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
 
+import { Button } from "../ui/Button";
 import { Text } from "../ui/Text";
 import styles from "./EditorErrorBoundary.module.css";
 

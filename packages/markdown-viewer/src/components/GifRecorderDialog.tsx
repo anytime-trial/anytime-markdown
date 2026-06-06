@@ -7,7 +7,9 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
 import ScreenShareIcon from "@mui/icons-material/ScreenShare";
 import StopIcon from "@mui/icons-material/Stop";
-import { Button, LinearProgress, TextField } from "@mui/material";
+import { LinearProgress, TextField } from "@mui/material";
+
+import { Button } from "../ui/Button";
 import { useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
 

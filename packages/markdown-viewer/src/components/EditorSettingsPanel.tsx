@@ -3,19 +3,21 @@
 import CloseIcon from "@mui/icons-material/Close";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import {
-  Button,
   Drawer,
   FormControl,
-  IconButton,
   MenuItem,
   Select,
   Slider,
   Switch,
-  ToggleButton,
-  ToggleButtonGroup,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
+
+import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
+import { ToggleButton } from "../ui/ToggleButton";
+import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
+import styles from "./EditorSettingsPanel.module.css";
 
 import useConfirm from "@/hooks/useConfirm";
 
@@ -126,7 +128,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
               exclusive
               onChange={handleLocaleChange}
               size="small"
-              fullWidth
+              className={styles.fullWidth}
               aria-label={t("languageSelect")}
             >
               <ToggleButton value="ja">日本語</ToggleButton>
@@ -194,7 +196,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
           exclusive
           onChange={(_, v) => { if (v) updateSettings({ tableWidth: v }); }}
           size="small"
-          fullWidth
+          className={styles.fullWidth}
           aria-label={t("tableWidthSelect")}
         >
           <ToggleButton value="auto">{t("settingTableAuto")}</ToggleButton>
@@ -212,7 +214,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
           exclusive
           onChange={(_, v) => { if (v) updateSettings({ blockAlign: v }); }}
           size="small"
-          fullWidth
+          className={styles.fullWidth}
           aria-label={t("settingBlockAlign")}
         >
           <ToggleButton value="left">{t("settingAlignLeft")}</ToggleButton>
@@ -277,7 +279,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
           exclusive
           onChange={(_, v) => { if (v) updateSettings({ wordBreak: v }); }}
           size="small"
-          fullWidth
+          className={styles.fullWidth}
           aria-label={t("settingWordBreak")}
         >
           <ToggleButton value="normal">{t("settingWordBreakNormal")}</ToggleButton>
@@ -308,7 +310,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
         size="small"
         startIcon={<RestartAltIcon />}
         onClick={handleReset}
-        fullWidth
+        className={styles.fullWidth}
       >
         {t("settingReset")}
       </Button>

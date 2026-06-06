@@ -1,7 +1,8 @@
 "use client";
 
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-import { Button, Menu, MenuItem, Tooltip } from "@mui/material";
+import { Menu, MenuItem, Tooltip } from "@mui/material";
+import { Button } from "../ui/Button";
 import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -161,7 +162,8 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
             <Button
               size="small"
               onClick={(e) => setLineEndingAnchor(e.currentTarget)}
-              sx={{ color: getTextSecondary(isDark), textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: STATUSBAR_FONT_SIZE, lineHeight: 1.43 }}
+              className={styles.statusBtn}
+              style={{ color: getTextSecondary(isDark), fontSize: STATUSBAR_FONT_SIZE }}
             >
               {lineEnding}
             </Button>
@@ -194,7 +196,8 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
             <Button
               size="small"
               onClick={(e) => setEncodingAnchor(e.currentTarget)}
-              sx={{ color: getTextSecondary(isDark), textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: STATUSBAR_FONT_SIZE, lineHeight: 1.43 }}
+              className={styles.statusBtn}
+              style={{ color: getTextSecondary(isDark), fontSize: STATUSBAR_FONT_SIZE }}
             >
               {encoding ?? "UTF-8"}
             </Button>

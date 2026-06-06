@@ -3,7 +3,6 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  padding: var(--am-space-1);
   border: none;
   border-radius: 50%;
   background: transparent;
@@ -26,12 +25,13 @@
   outline-offset: 1px;
 }
 
+/* MUI IconButton と同じくパディングでサイズが決まる（アイコン寸法は icon 側 fontSize が決定）。
+   既定アイコン（fontSize="small"=20px）で small=30px / medium=40px となり従来の固定値と一致。
+   sx={{ p: 0 }} 等のパディング上書きは呼び出し側の style/className で正しく反映される。 */
 .small {
-  width: 30px;
-  height: 30px;
+  padding: 5px;
 }
 
 .medium {
-  width: 40px;
-  height: 40px;
+  padding: 8px;
 }

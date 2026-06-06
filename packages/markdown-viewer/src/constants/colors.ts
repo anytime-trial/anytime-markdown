@@ -146,6 +146,9 @@ export const DARK_ACTION_SELECTED = "rgba(255,255,255,0.16)";
 export const LIGHT_ACTION_SELECTED = "rgba(31,30,28,0.08)";
 export const DARK_DIVIDER = "rgba(255,255,255,0.12)";
 export const LIGHT_DIVIDER = "rgba(31,30,28,0.12)";
+// MUI palette.action.active（テーマ未上書き＝MUI デフォルト）。ToggleButton standard の非選択色。
+export const DARK_ACTION_ACTIVE = "#fff";
+export const LIGHT_ACTION_ACTIVE = "rgba(0,0,0,0.54)";
 
 /** ダーク/ライトモードに応じた UI 背景色を返すヘルパー */
 export function getBgPaper(isDark: boolean): string {
@@ -159,6 +162,9 @@ export function getActionSelected(isDark: boolean): string {
 }
 export function getDivider(isDark: boolean): string {
   return isDark ? DARK_DIVIDER : LIGHT_DIVIDER;
+}
+export function getActionActive(isDark: boolean): string {
+  return isDark ? DARK_ACTION_ACTIVE : LIGHT_ACTION_ACTIVE;
 }
 
 // ── UI アクセント色（MUI テーマ準拠） ──

@@ -8,7 +8,8 @@ import ImageIcon from "@mui/icons-material/Image";
 import LinkIcon from "@mui/icons-material/Link";
 import ScreenshotMonitorIcon from "@mui/icons-material/ScreenshotMonitor";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { IconButton, Tooltip, useTheme } from "@mui/material";
+import { Tooltip, useTheme } from "@mui/material";
+import { IconButton } from "./ui/IconButton";
 import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 import { NodeViewWrapper } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -136,20 +137,20 @@ function ImageToolbarExtra({
           <Divider orientation="vertical" flexItem style={{ marginLeft: 2, marginRight: 2 }} />
           {onEdit && (
             <Tooltip title={t("edit")} placement="top">
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={onEdit} aria-label={t("edit")}>
+              <IconButton size="small" className={styles.iconBtnP025} onClick={onEdit} aria-label={t("edit")}>
                 <EditIcon sx={iconSx} />
               </IconButton>
             </Tooltip>
           )}
           {onEditUrl && (
             <Tooltip title={t("imageUrl")} placement="top">
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={onEditUrl} aria-label={t("imageUrl")}>
+              <IconButton size="small" className={styles.iconBtnP025} onClick={onEditUrl} aria-label={t("imageUrl")}>
                 <LinkIcon sx={iconSx} />
               </IconButton>
             </Tooltip>
           )}
           <Tooltip title={t("annotate")} placement="top">
-            <IconButton size="small" sx={{ p: 0.25 }} onClick={onAnnotationOpen} aria-label={t("annotate")}>
+            <IconButton size="small" className={styles.iconBtnP025} onClick={onAnnotationOpen} aria-label={t("annotate")}>
               <ChatBubbleOutlineIcon sx={{ fontSize: 16, color: annotations.length > 0 ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
             </IconButton>
           </Tooltip>
@@ -264,14 +265,14 @@ function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop
       <div style={{ display: "flex", alignItems: "center", paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 4, borderTop: `1px solid ${getDivider(isDark)}`, gap: 4 }}>
         {onScreenCapture && (
           <Tooltip title={t("screenCapture")} placement="top">
-            <IconButton size="small" sx={{ p: 0.5 }} onClick={onScreenCapture} aria-label={t("screenCapture")}>
+            <IconButton size="small" className={styles.iconBtnP05} onClick={onScreenCapture} aria-label={t("screenCapture")}>
               <ScreenshotMonitorIcon sx={iconSx} />
             </IconButton>
           </Tooltip>
         )}
         {onExport && (
           <Tooltip title={t("capture")} placement="top">
-            <IconButton size="small" sx={{ p: 0.5 }} onClick={onExport} aria-label={t("capture")}>
+            <IconButton size="small" className={styles.iconBtnP05} onClick={onExport} aria-label={t("capture")}>
               <FileDownloadIcon sx={iconSx} />
             </IconButton>
           </Tooltip>

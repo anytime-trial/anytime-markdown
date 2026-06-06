@@ -5,3 +5,16 @@
 .annotationItem:hover {
   background-color: var(--hover-bg);
 }
+
+.colorSwatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-style: solid;
+  border-width: 2px;
+  border-radius: 50%;
+}
+
+.deleteIconButton {
+  padding: 2px;
+}

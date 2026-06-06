@@ -44,3 +44,12 @@
   outline: 2px solid;
   outline-offset: 1px;
 }
+
+/* IconButton padding overrides (MUI sx p: 0.25 → 2px, p: 0.5 → 4px) */
+.iconBtnP025 {
+  padding: 2px;
+}
+
+.iconBtnP05 {
+  padding: 4px;
+}

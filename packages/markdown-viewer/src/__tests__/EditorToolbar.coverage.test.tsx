@@ -102,7 +102,7 @@ describe("EditorToolbar - coverage", () => {
     });
     render(<EditorToolbar {...props} />);
     const readonlyBtn = screen.getByRole("button", { name: "readonly" });
-    expect(readonlyBtn.classList.toString()).toContain("Mui-selected");
+    expect(readonlyBtn.getAttribute("aria-pressed")).toBe("true");
   });
 
   test("reviewMode=true で review モードが選択される", () => {
@@ -114,7 +114,7 @@ describe("EditorToolbar - coverage", () => {
     });
     render(<EditorToolbar {...props} />);
     const reviewBtn = screen.getByRole("button", { name: "review" });
-    expect(reviewBtn.classList.toString()).toContain("Mui-selected");
+    expect(reviewBtn.getAttribute("aria-pressed")).toBe("true");
   });
 
   test("sourceMode=true で source モードが選択される", () => {
@@ -126,7 +126,7 @@ describe("EditorToolbar - coverage", () => {
     });
     render(<EditorToolbar {...props} />);
     const sourceBtn = screen.getByRole("button", { name: "source" });
-    expect(sourceBtn.classList.toString()).toContain("Mui-selected");
+    expect(sourceBtn.getAttribute("aria-pressed")).toBe("true");
   });
 
   // --- Undo/Redo with mergeUndoRedo ---

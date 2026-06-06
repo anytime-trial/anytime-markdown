@@ -2,8 +2,9 @@
 
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
-import { IconButton, Tooltip } from "@mui/material";
+import { Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
+import { IconButton } from "../ui/IconButton";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useRef } from "react";
 
@@ -64,7 +65,7 @@ export function MarkdownMinimap({
             disabled={!hasChanges}
             onClick={goToPrev}
             aria-label="前の変更へ"
-            sx={{ width: BTN_SIZE, height: BTN_SIZE, p: 0 }}
+            style={{ width: BTN_SIZE, height: BTN_SIZE, padding: 0 }}
           >
             <KeyboardArrowUpIcon sx={{ fontSize: 14 }} />
           </IconButton>
@@ -108,7 +109,7 @@ export function MarkdownMinimap({
             disabled={!hasChanges}
             onClick={goToNext}
             aria-label="次の変更へ"
-            sx={{ width: BTN_SIZE, height: BTN_SIZE, p: 0 }}
+            style={{ width: BTN_SIZE, height: BTN_SIZE, padding: 0 }}
           >
             <KeyboardArrowDownIcon sx={{ fontSize: 14 }} />
           </IconButton>

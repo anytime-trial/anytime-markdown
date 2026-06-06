@@ -2,3 +2,23 @@
   background-color: var(--am-color-action-hover);
   border-radius: 2px;
 }
+
+/* Filter ToggleButtonGroup: full-width */
+.filterGroup {
+  width: 100%;
+}
+
+/* Filter ToggleButton: compact vertical padding + font-size from PANEL_BUTTON_FONT_SIZE */
+.filterButton {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-size: 12px;
+  flex: 1;
+}
+
+/* Action Button (resolve/delete): no min-width, compact horizontal padding */
+.actionButton {
+  min-width: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}

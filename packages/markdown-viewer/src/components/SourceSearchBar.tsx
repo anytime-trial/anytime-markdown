@@ -9,13 +9,13 @@ import FindReplaceIcon from "@mui/icons-material/FindReplace";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import {
-  IconButton,
   Tooltip,
   useTheme,
 } from "@mui/material";
+import { IconButton } from "../ui/IconButton";
 import React, { useCallback, useState } from "react";
 
-import { getActionHover, getErrorMain, getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { getErrorMain, getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { SEARCH_COUNTER_FONT_SIZE, SEARCH_INPUT_FONT_SIZE } from "../constants/dimensions";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
@@ -70,23 +70,13 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
     [onClose],
   );
 
-  const toggleBtnSx = (active: boolean) => {
+  const toggleBtnStyle = (active: boolean): React.CSSProperties => {
     const activeBg = isDark ? getPrimaryDark(isDark) : getPrimaryLight(isDark);
     return {
-      p: 0.25,
-      borderRadius: 0.5,
-      minWidth: 28,
-      minHeight: 28,
       fontSize: SEARCH_COUNTER_FONT_SIZE,
-      fontWeight: 700,
-      fontFamily: "monospace",
-      bgcolor: active ? activeBg : "transparent",
+      backgroundColor: active ? activeBg : "transparent",
       color: active ? getPrimaryContrast(isDark) : "inherit",
-      border: 1,
       borderColor: active ? getPrimaryMain(isDark) : "transparent",
-      "&:hover": {
-        bgcolor: active ? activeBg : getActionHover(isDark),
-      },
     };
   };
 
@@ -123,7 +113,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
             aria-label={t("replace")}
             aria-pressed={showReplace}
             onClick={() => setShowReplace((v) => !v)}
-            sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+            className={styles.iconBtnSmall24}
           >
             {showReplace ? (
               <ExpandMoreIcon sx={{ fontSize: 16 }} />
@@ -157,7 +147,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
               search.setSearchTerm("");
               search.searchInputRef.current?.focus();
             }}
-            sx={{ p: 0.125, ml: -0.5 }}
+            className={styles.iconBtnClear}
           >
             <ClearIcon sx={{ fontSize: 14 }} />
           </IconButton>
@@ -193,7 +183,8 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
             aria-label={t("caseSensitive")}
             aria-pressed={search.caseSensitive}
             onClick={search.toggleCaseSensitive}
-            sx={toggleBtnSx(search.caseSensitive)}
+            className={styles.iconBtnToggle}
+            style={toggleBtnStyle(search.caseSensitive)}
           >
             Aa
           </IconButton>
@@ -207,7 +198,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
               aria-label={t("prevMatch")}
               onClick={search.goToPrev}
               disabled={resultCount === 0}
-              sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+              className={styles.iconBtnSmall24}
             >
               <KeyboardArrowUpIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -220,7 +211,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
               aria-label={t("nextMatch")}
               onClick={search.goToNext}
               disabled={resultCount === 0}
-              sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+              className={styles.iconBtnSmall24}
             >
               <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -233,7 +224,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
             size="small"
             aria-label={t("close")}
             onClick={onClose}
-            sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+            className={styles.iconBtnSmall24}
           >
             <CloseIcon sx={{ fontSize: 16 }} />
           </IconButton>
@@ -269,7 +260,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
                 aria-label={t("replace")}
                 onClick={search.replaceCurrent}
                 disabled={resultCount === 0}
-                sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+                className={styles.iconBtnSmall24}
               >
                 <FindReplaceIcon sx={{ fontSize: 16 }} />
               </IconButton>
@@ -282,7 +273,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
                 aria-label={t("replaceAll")}
                 onClick={search.replaceAll}
                 disabled={resultCount === 0}
-                sx={{ p: 0.25, minWidth: 24, minHeight: 24 }}
+                className={styles.iconBtnSmall24}
               >
                 <DoneAllIcon sx={{ fontSize: 16 }} />
               </IconButton>

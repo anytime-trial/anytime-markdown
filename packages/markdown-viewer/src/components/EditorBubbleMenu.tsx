@@ -6,8 +6,10 @@ import FormatItalicIcon from "@mui/icons-material/FormatItalic";
 import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
 import InsertLinkIcon from "@mui/icons-material/InsertLink";
 import StrikethroughSIcon from "@mui/icons-material/StrikethroughS";
-import { IconButton, Tooltip } from "@mui/material";
+import { Tooltip } from "@mui/material";
+import { IconButton } from "../ui/IconButton";
 import { Paper } from "../ui/Paper";
+import styles from "./EditorBubbleMenu.module.css";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { BubbleMenu } from "@anytime-markdown/markdown-react/menus";
 import React from "react";
@@ -96,8 +98,8 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-label={t("bold")}
                 aria-pressed={editor.isActive("bold")}
                 onClick={() => editor.chain().focus().toggleBold().run()}
-                color={editor.isActive("bold") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
+                className={styles.iconBtn}
+                style={{ color: editor.isActive("bold") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <FormatBoldIcon sx={{ fontSize: 18 }} />
               </IconButton>
@@ -108,8 +110,8 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-label={t("italic")}
                 aria-pressed={editor.isActive("italic")}
                 onClick={() => editor.chain().focus().toggleItalic().run()}
-                color={editor.isActive("italic") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
+                className={styles.iconBtn}
+                style={{ color: editor.isActive("italic") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <FormatItalicIcon sx={{ fontSize: 18 }} />
               </IconButton>
@@ -120,8 +122,8 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-label={t("underline")}
                 aria-pressed={editor.isActive("underline")}
                 onClick={() => editor.chain().focus().toggleUnderline().run()}
-                color={editor.isActive("underline") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
+                className={styles.iconBtn}
+                style={{ color: editor.isActive("underline") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <FormatUnderlinedIcon sx={{ fontSize: 18 }} />
               </IconButton>
@@ -132,8 +134,8 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-label={t("strikethrough")}
                 aria-pressed={editor.isActive("strike")}
                 onClick={() => editor.chain().focus().toggleStrike().run()}
-                color={editor.isActive("strike") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
+                className={styles.iconBtn}
+                style={{ color: editor.isActive("strike") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <StrikethroughSIcon sx={{ fontSize: 18 }} />
               </IconButton>
@@ -144,8 +146,8 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-label={t("highlight")}
                 aria-pressed={editor.isActive("highlight")}
                 onClick={() => editor.chain().focus().toggleHighlight().run()}
-                color={editor.isActive("highlight") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
+                className={styles.iconBtn}
+                style={{ color: editor.isActive("highlight") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <BorderColorIcon sx={{ fontSize: 18 }} />
               </IconButton>
@@ -156,8 +158,8 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-label={t("code")}
                 aria-pressed={editor.isActive("code")}
                 onClick={() => editor.chain().focus().toggleCode().run()}
-                color={editor.isActive("code") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
+                className={styles.iconBtn}
+                style={{ color: editor.isActive("code") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <CodeIcon sx={{ fontSize: 18 }} />
               </IconButton>
@@ -167,8 +169,8 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 size="small"
                 aria-label={t("link")}
                 onClick={onLink}
-                color={editor.isActive("link") ? "primary" : "default"}
-                sx={{ p: 0.5 }}
+                className={styles.iconBtn}
+                style={{ color: editor.isActive("link") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <InsertLinkIcon sx={{ fontSize: 18 }} />
               </IconButton>
@@ -192,8 +194,8 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                   openComment();
                 }
               }}
-              color={editor.isActive("commentHighlight") ? "primary" : "default"}
-              sx={{ p: 0.5 }}
+              className={styles.iconBtn}
+              style={{ color: editor.isActive("commentHighlight") ? "var(--am-color-primary-main)" : undefined }}
             >
               <ChatBubbleOutlineIcon sx={{ fontSize: 18 }} />
             </IconButton>

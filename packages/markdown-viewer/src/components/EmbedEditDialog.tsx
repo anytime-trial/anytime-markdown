@@ -1,7 +1,6 @@
 "use client";
 
 import {
-    Button,
     Dialog,
     DialogActions,
     DialogContent,
@@ -11,6 +10,8 @@ import {
     RadioGroup,
     TextField,
 } from "@mui/material";
+
+import { Button } from "../ui/Button";
 import { useEffect, useState } from "react";
 
 import { useOptionalEmbedProviders } from "../contexts/EmbedProvidersContext";

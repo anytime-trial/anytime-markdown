@@ -2,14 +2,14 @@
 import CloseIcon from "@mui/icons-material/Close";
 import ImageIcon from "@mui/icons-material/Image";
 import {
-  Button,
   ButtonBase,
-  IconButton,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   useTheme,
 } from "@mui/material";
+import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
+import { ToggleButton } from "../ui/ToggleButton";
+import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useEditorState } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
@@ -249,24 +249,24 @@ export const CommentPanel = React.memo(function CommentPanel({
             if (v) setFilter(v);
           }}
           size="small"
-          fullWidth
+          className={styles.filterGroup}
           aria-label={t("commentPanel")}
         >
           <ToggleButton
             value="all"
-            sx={{ py: 0.25, fontSize: PANEL_BUTTON_FONT_SIZE }}
+            className={styles.filterButton}
           >
             {t("commentFilterAll") || "All"}
           </ToggleButton>
           <ToggleButton
             value="open"
-            sx={{ py: 0.25, fontSize: PANEL_BUTTON_FONT_SIZE }}
+            className={styles.filterButton}
           >
             {t("commentFilterOpen") || "Open"}
           </ToggleButton>
           <ToggleButton
             value="resolved"
-            sx={{ py: 0.25, fontSize: PANEL_BUTTON_FONT_SIZE }}
+            className={styles.filterButton}
           >
             {t("commentFilterResolved") || "Resolved"}
           </ToggleButton>
@@ -370,7 +370,8 @@ export const CommentPanel = React.memo(function CommentPanel({
                 <Button
                   size="small"
                   variant="text"
-                  sx={{ fontSize: SMALL_BUTTON_FONT_SIZE, minWidth: 0, px: 0.5 }}
+                  className={styles.actionButton}
+                  style={{ fontSize: SMALL_BUTTON_FONT_SIZE }}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (comment.resolved) {
@@ -389,7 +390,8 @@ export const CommentPanel = React.memo(function CommentPanel({
                   size="small"
                   variant="text"
                   color="error"
-                  sx={{ fontSize: SMALL_BUTTON_FONT_SIZE, minWidth: 0, px: 0.5 }}
+                  className={styles.actionButton}
+                  style={{ fontSize: SMALL_BUTTON_FONT_SIZE }}
                   onClick={(e) => {
                     e.stopPropagation();
                     editor.commands.removeComment(comment.id);
@@ -475,7 +477,8 @@ export const CommentPanel = React.memo(function CommentPanel({
                       <Button
                         size="small"
                         variant="text"
-                        sx={{ fontSize: SMALL_BUTTON_FONT_SIZE, minWidth: 0, px: 0.5 }}
+                        className={styles.actionButton}
+                        style={{ fontSize: SMALL_BUTTON_FONT_SIZE }}
                         onClick={() => toggleAnnotationResolved(img.pos, a.id)}
                       >
                         {a.resolved
@@ -486,7 +489,8 @@ export const CommentPanel = React.memo(function CommentPanel({
                         size="small"
                         variant="text"
                         color="error"
-                        sx={{ fontSize: SMALL_BUTTON_FONT_SIZE, minWidth: 0, px: 0.5 }}
+                        className={styles.actionButton}
+                        style={{ fontSize: SMALL_BUTTON_FONT_SIZE }}
                         onClick={() => deleteAnnotation(img.pos, a.id)}
                       >
                         {t("commentDelete") || "Delete"}

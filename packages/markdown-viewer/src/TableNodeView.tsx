@@ -9,7 +9,10 @@ import MoveUpIcon from "@mui/icons-material/MoveUp";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import TableRowsIcon from "@mui/icons-material/TableRows";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
-import { Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, ToggleButton, ToggleButtonGroup, Tooltip, useTheme } from "@mui/material";
+import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Tooltip, useTheme } from "@mui/material";
+import { Button } from "./ui/Button";
+import { ToggleButton } from "./ui/ToggleButton";
+import { ToggleButtonGroup } from "./ui/ToggleButtonGroup";
 import type { Fragment } from "@anytime-markdown/markdown-pm/model";
 import type { Editor, NodeViewProps } from "@anytime-markdown/markdown-react";
 import { NodeViewContent, NodeViewWrapper } from "@anytime-markdown/markdown-react";
@@ -73,8 +76,8 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
   return (
     <div className={styles.opsToolbar}>
       {/* Column add/remove */}
-      <ToggleButtonGroup size="small" sx={{ height: 24 }}>
-        <ToggleButton value="addCol" aria-label={t("addColumn")} sx={{ px: 0.5, py: 0.125 }} onClick={() => editor.chain().focus().addColumnAfter().run()}>
+      <ToggleButtonGroup size="small" className={styles.toggleGroup24}>
+        <ToggleButton value="addCol" aria-label={t("addColumn")} className={styles.toggleBtnCompact} onClick={() => editor.chain().focus().addColumnAfter().run()}>
           <Tooltip title={t("addColumn")} placement="top">
             <span className={styles.iconBadgeWrapper}>
               <ViewColumnIcon sx={iconSx} />
@@ -82,7 +85,7 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
             </span>
           </Tooltip>
         </ToggleButton>
-        <ToggleButton value="removeCol" aria-label={t("removeColumn")} sx={{ px: 0.5, py: 0.125 }} onClick={() => editor.chain().focus().deleteColumn().run()}>
+        <ToggleButton value="removeCol" aria-label={t("removeColumn")} className={styles.toggleBtnCompact} onClick={() => editor.chain().focus().deleteColumn().run()}>
           <Tooltip title={t("removeColumn")} placement="top">
             <span className={styles.iconBadgeWrapper}>
               <ViewColumnIcon sx={iconSx} />
@@ -93,8 +96,8 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
       </ToggleButtonGroup>
 
       {/* Row add/remove */}
-      <ToggleButtonGroup size="small" sx={{ height: 24 }}>
-        <ToggleButton value="addRow" aria-label={t("addRow")} sx={{ px: 0.5, py: 0.125 }} onClick={() => editor.chain().focus().addRowAfter().run()}>
+      <ToggleButtonGroup size="small" className={styles.toggleGroup24}>
+        <ToggleButton value="addRow" aria-label={t("addRow")} className={styles.toggleBtnCompact} onClick={() => editor.chain().focus().addRowAfter().run()}>
           <Tooltip title={t("addRow")} placement="top">
             <span className={styles.iconBadgeWrapper}>
               <TableRowsIcon sx={iconSx} />
@@ -102,7 +105,7 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
             </span>
           </Tooltip>
         </ToggleButton>
-        <ToggleButton value="removeRow" aria-label={t("removeRow")} sx={{ px: 0.5, py: 0.125 }} onClick={() => editor.chain().focus().deleteRow().run()}>
+        <ToggleButton value="removeRow" aria-label={t("removeRow")} className={styles.toggleBtnCompact} onClick={() => editor.chain().focus().deleteRow().run()}>
           <Tooltip title={t("removeRow")} placement="top">
             <span className={styles.iconBadgeWrapper}>
               <TableRowsIcon sx={iconSx} />
@@ -116,20 +119,20 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
       <ToggleButtonGroup
         exclusive
         size="small"
-        sx={{ height: 24 }}
+        className={styles.toggleGroup24}
         onChange={(_e, val) => { if (val) editor.chain().focus().setCellAttribute("textAlign", val).run(); }}
       >
-        <ToggleButton value="left" aria-label={t("alignLeft")} sx={{ px: 0.5, py: 0.125 }}>
+        <ToggleButton value="left" aria-label={t("alignLeft")} className={styles.toggleBtnCompact}>
           <Tooltip title={t("alignLeft")} placement="top">
             <FormatAlignLeftIcon sx={iconSx} />
           </Tooltip>
         </ToggleButton>
-        <ToggleButton value="center" aria-label={t("alignCenter")} sx={{ px: 0.5, py: 0.125 }}>
+        <ToggleButton value="center" aria-label={t("alignCenter")} className={styles.toggleBtnCompact}>
           <Tooltip title={t("alignCenter")} placement="top">
             <FormatAlignCenterIcon sx={iconSx} />
           </Tooltip>
         </ToggleButton>
-        <ToggleButton value="right" aria-label={t("alignRight")} sx={{ px: 0.5, py: 0.125 }}>
+        <ToggleButton value="right" aria-label={t("alignRight")} className={styles.toggleBtnCompact}>
           <Tooltip title={t("alignRight")} placement="top">
             <FormatAlignRightIcon sx={iconSx} />
           </Tooltip>
@@ -137,13 +140,13 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
       </ToggleButtonGroup>
 
       {/* Move row */}
-      <ToggleButtonGroup size="small" sx={{ height: 24 }}>
-        <ToggleButton value="rowUp" aria-label={t("moveRowUp")} sx={{ px: 0.5, py: 0.125 }} onClick={() => moveTableRow(editor, "up")}>
+      <ToggleButtonGroup size="small" className={styles.toggleGroup24}>
+        <ToggleButton value="rowUp" aria-label={t("moveRowUp")} className={styles.toggleBtnCompact} onClick={() => moveTableRow(editor, "up")}>
           <Tooltip title={t("moveRowUp")} placement="top">
             <MoveUpIcon sx={iconSx} />
           </Tooltip>
         </ToggleButton>
-        <ToggleButton value="rowDown" aria-label={t("moveRowDown")} sx={{ px: 0.5, py: 0.125 }} onClick={() => moveTableRow(editor, "down")}>
+        <ToggleButton value="rowDown" aria-label={t("moveRowDown")} className={styles.toggleBtnCompact} onClick={() => moveTableRow(editor, "down")}>
           <Tooltip title={t("moveRowDown")} placement="top">
             <MoveDownIcon sx={iconSx} />
           </Tooltip>
@@ -151,13 +154,13 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
       </ToggleButtonGroup>
 
       {/* Move column */}
-      <ToggleButtonGroup size="small" sx={{ height: 24 }}>
-        <ToggleButton value="colLeft" aria-label={t("moveColLeft")} sx={{ px: 0.5, py: 0.125 }} onClick={() => moveTableColumn(editor, "left")}>
+      <ToggleButtonGroup size="small" className={styles.toggleGroup24}>
+        <ToggleButton value="colLeft" aria-label={t("moveColLeft")} className={styles.toggleBtnCompact} onClick={() => moveTableColumn(editor, "left")}>
           <Tooltip title={t("moveColLeft")} placement="top">
             <MoveUpIcon sx={{ ...iconSx, transform: "rotate(-90deg)" }} />
           </Tooltip>
         </ToggleButton>
-        <ToggleButton value="colRight" aria-label={t("moveColRight")} sx={{ px: 0.5, py: 0.125 }} onClick={() => moveTableColumn(editor, "right")}>
+        <ToggleButton value="colRight" aria-label={t("moveColRight")} className={styles.toggleBtnCompact} onClick={() => moveTableColumn(editor, "right")}>
           <Tooltip title={t("moveColRight")} placement="top">
             <MoveDownIcon sx={{ ...iconSx, transform: "rotate(-90deg)" }} />
           </Tooltip>

@@ -1,5 +1,10 @@
+import React from "react";
+
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-import { IconButton, Tooltip } from "@mui/material";
+import { Tooltip, useTheme } from "@mui/material";
+
+import { IconButton } from "../../ui/IconButton";
+import styles from "./EmbedUpdateBadge.module.css";
 
 interface Props {
     visible: boolean;
@@ -8,6 +13,7 @@ interface Props {
 }
 
 export function EmbedUpdateBadge({ visible, newTitle, onClick }: Readonly<Props>) {
+    const theme = useTheme();
     if (!visible) return null;
     const title = newTitle ? `更新あり: ${newTitle}` : "前回確認後に更新されました";
     return (
@@ -20,16 +26,12 @@ export function EmbedUpdateBadge({ visible, newTitle, onClick }: Readonly<Props>
                     onClick();
                 }}
                 aria-label="embed 更新あり"
-                sx={{
-                    position: "absolute",
-                    top: 4,
-                    right: 4,
-                    color: (theme) => theme.palette.primary.main,
-                    backgroundColor: (theme) => theme.palette.background.paper,
-                    "&:hover": {
-                        backgroundColor: (theme) => theme.palette.action.hover,
-                    },
-                }}
+                className={styles.badge}
+                style={{
+                    "--badge-color": theme.palette.primary.main,
+                    "--badge-bg": theme.palette.background.paper,
+                    "--badge-hover-bg": theme.palette.action.hover,
+                } as React.CSSProperties}
             >
                 <FiberManualRecordIcon fontSize="small" />
             </IconButton>
