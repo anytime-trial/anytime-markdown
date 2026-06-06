@@ -34,6 +34,19 @@
   }
 }
 
+/* ── IconButton padding overrides ────────────────────────────── */
+/* p:0.5 = 0.5×8px = 4px */
+.iconBtnPadding {
+  padding: 4px !important;
+}
+
+/* HeadingFoldButton: p:0.5 + mr:0.25 (2px) + flex-shrink:0 */
+.foldBtn {
+  padding: 4px !important;
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+
 /* ── Resize handle ───────────────────────────────────────────── */
 .resizeHandle {
   width: 6px;

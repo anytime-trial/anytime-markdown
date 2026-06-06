@@ -6,9 +6,13 @@ import CropIcon from "@mui/icons-material/Crop";
 import GridOnIcon from "@mui/icons-material/GridOn";
 import PhotoSizeSelectLargeIcon from "@mui/icons-material/PhotoSizeSelectLarge";
 import StraightenIcon from "@mui/icons-material/Straighten";
-import { Button, Chip, IconButton, Tooltip } from "@mui/material";
+import { Chip, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+
+import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
+import styles from "./ImageCropTool.module.css";
 
 import { getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
 import { CHIP_FONT_SIZE, PANEL_BUTTON_FONT_SIZE, STATUSBAR_FONT_SIZE } from "../constants/dimensions";
@@ -127,7 +131,8 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
                 variant="contained"
                 startIcon={<CheckIcon sx={{ fontSize: 14 }} />}
                 onClick={handleApplyCrop}
-                sx={{ textTransform: "none", fontSize: PANEL_BUTTON_FONT_SIZE, py: 0.25 }}
+                className={styles.applyBtn}
+                style={{ fontSize: PANEL_BUTTON_FONT_SIZE }}
               >
                 {t("imageCropApply")}
               </Button>
@@ -161,7 +166,7 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
                 <IconButton
                   size="small"
                   onClick={() => setShowRuler(v => !v)}
-                  color={showRuler ? "primary" : "default"}
+                  className={showRuler ? styles.activeIcon : undefined}
                   aria-label={t("imageRuler")}
                   aria-pressed={showRuler}
                 >
@@ -172,7 +177,7 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
                 <IconButton
                   size="small"
                   onClick={() => setShowGrid(v => !v)}
-                  color={showGrid ? "primary" : "default"}
+                  className={showGrid ? styles.activeIcon : undefined}
                   aria-label={t("imageGrid")}
                   aria-pressed={showGrid}
                 >

@@ -3,9 +3,10 @@
 import CameraAltIcon from "@mui/icons-material/CameraAlt";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import ScreenshotMonitorIcon from "@mui/icons-material/ScreenshotMonitor";
-import { Button } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { Button } from "../ui/Button";
 
 import { getDivider } from "../constants/colors";
 import { Text } from "../ui/Text";

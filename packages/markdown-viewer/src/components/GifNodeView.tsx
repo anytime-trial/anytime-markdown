@@ -4,7 +4,8 @@ import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import GifIcon from "@mui/icons-material/Gif";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { IconButton, Tooltip, useTheme } from "@mui/material";
+import { Tooltip, useTheme } from "@mui/material";
+import { IconButton } from "../ui/IconButton";
 import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 import { NodeViewWrapper } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -193,7 +194,7 @@ function GifPlaybackImage({
             paddingRight: 4,
           }}
         >
-          <IconButton size="small" onClick={onToggle} sx={{ color: "white", p: 0.25 }} aria-label={playing ? "Pause" : "Play"}>
+          <IconButton size="small" onClick={onToggle} className={styles.playbackIconButton} aria-label={playing ? "Pause" : "Play"}>
             {playing ? <PauseIcon sx={{ fontSize: 18 }} /> : <PlayArrowIcon sx={{ fontSize: 18 }} />}
           </IconButton>
         </div>
@@ -314,7 +315,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
                   <>
                     <Divider orientation="vertical" flexItem style={{ marginLeft: 2, marginRight: 2 }} />
                     <Tooltip title="Record GIF" placement="top">
-                      <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setRecorderOpen(true)} aria-label="Record GIF">
+                      <IconButton size="small" className={styles.recordIconButton} onClick={() => setRecorderOpen(true)} aria-label="Record GIF">
                         <FiberManualRecordIcon sx={{ fontSize: 16, color: getErrorMain(isDark) }} />
                       </IconButton>
                     </Tooltip>

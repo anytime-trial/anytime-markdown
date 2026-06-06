@@ -3,16 +3,17 @@
 import GifIcon from "@mui/icons-material/Gif";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { ToggleButton, ToggleButtonGroup } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { useCallback, useRef, useState } from "react";
 
 import { getDivider, getTextSecondary } from "../constants/colors";
-import { PANEL_BUTTON_FONT_SIZE } from "../constants/dimensions";
 import type { GifSettings } from "../utils/gifEncoder";
+import { ToggleButton } from "../ui/ToggleButton";
+import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
 import { Text } from "../ui/Text";
 import { EditDialogHeader } from "./EditDialogHeader";
 import { EditDialogWrapper } from "./EditDialogWrapper";
+import styles from "./GifPlayerDialog.module.css";
 
 interface GifPlayerDialogProps {
   open: boolean;
@@ -107,10 +108,10 @@ export function GifPlayerDialog({ open, onClose, src, settings }: Readonly<GifPl
           <ToggleButton
             value="playPause"
             selected={false}
-            onChange={togglePlayback}
+            onClick={togglePlayback}
             size="small"
             aria-label={playing ? "Pause" : "Play"}
-            sx={{ border: 1, borderColor: getDivider(isDark) }}
+            style={{ border: `1px solid ${getDivider(isDark)}` }}
           >
             {playing ? <PauseIcon sx={{ fontSize: 20 }} /> : <PlayArrowIcon sx={{ fontSize: 20 }} />}
           </ToggleButton>
@@ -122,13 +123,13 @@ export function GifPlayerDialog({ open, onClose, src, settings }: Readonly<GifPl
             size="small"
             aria-label="Playback speed"
           >
-            <ToggleButton value="0.5" sx={{ px: 1.5, fontSize: PANEL_BUTTON_FONT_SIZE }}>
+            <ToggleButton value="0.5" className={styles.speedBtn}>
               0.5x
             </ToggleButton>
-            <ToggleButton value="1" sx={{ px: 1.5, fontSize: PANEL_BUTTON_FONT_SIZE }}>
+            <ToggleButton value="1" className={styles.speedBtn}>
               1x
             </ToggleButton>
-            <ToggleButton value="2" sx={{ px: 1.5, fontSize: PANEL_BUTTON_FONT_SIZE }}>
+            <ToggleButton value="2" className={styles.speedBtn}>
               2x
             </ToggleButton>
           </ToggleButtonGroup>

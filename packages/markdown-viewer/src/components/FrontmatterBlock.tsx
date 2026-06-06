@@ -1,6 +1,8 @@
 "use client";
 
-import { IconButton, useTheme } from "@mui/material";
+import { useTheme } from "@mui/material";
+
+import { IconButton } from "../ui/IconButton";
 import { useCallback, useRef, useState } from "react";
 
 import useConfirm from "@/hooks/useConfirm";
@@ -93,7 +95,7 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, defaultColla
               }
               onChange(null);
             }}
-            sx={{ p: 0.25 }}
+            className={styles.deleteBtn}
           >
             <Text variant="caption" style={{ fontSize: SMALL_CAPTION_FONT_SIZE, color: getTextSecondary(isDark) }}>
               ✕

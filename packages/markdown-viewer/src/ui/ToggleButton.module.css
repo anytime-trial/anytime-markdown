@@ -4,6 +4,10 @@
   justify-content: center;
   box-sizing: border-box;
   font: inherit;
+  /* MUI ToggleButton は ...theme.typography.button を適用（weight 500 / letter-spacing 0.02857em）。
+     textTransform は消費側の sx で none 指定だったため none を維持。 */
+  font-weight: 500;
+  letter-spacing: 0.02857em;
   text-transform: none;
   cursor: pointer;
   background: transparent;
@@ -25,7 +29,7 @@
 /* ---- standard variant（連結ボーダー） ---- */
 .standard {
   border: 1px solid var(--am-color-divider);
-  color: var(--am-color-text-primary);
+  color: var(--am-color-action-active); /* MUI ToggleButton 非選択色 = palette.action.active */
   margin-left: -1px;
 }
 
@@ -46,6 +50,7 @@
 
 .standard.selected {
   background-color: var(--am-color-action-selected);
+  color: var(--am-color-text-primary); /* MUI ToggleButton 選択色 = palette.text.primary */
 }
 
 /* ---- pill variant（EditorToolbar の getPillToggleSx 由来） ---- */
@@ -58,6 +63,11 @@
   line-height: 1;
   font-size: 0.8125rem; /* TOOLBAR_FONT_SIZE */
   color: var(--am-color-text-secondary);
+  margin-left: -1px; /* MUI grouped の firstButton/middleButton 重なり再現 */
+}
+
+.pill:first-of-type {
+  margin-left: 0;
 }
 
 .pill:hover:not(:disabled):not(.selected) {

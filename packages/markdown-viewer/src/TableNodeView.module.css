@@ -142,3 +142,16 @@
 .comparePane .selectedCell {
   background-color: var(--table-selected-cell-bg);
 }
+
+/* ToggleButtonGroup height override for ops toolbar (24px groups) */
+.toggleGroup24 {
+  height: 24px;
+}
+
+/* ToggleButton compact padding for ops toolbar (px=4px, py=1px) */
+.toggleBtnCompact {
+  padding-top: 1px;
+  padding-bottom: 1px;
+  padding-left: 4px;
+  padding-right: 4px;
+}

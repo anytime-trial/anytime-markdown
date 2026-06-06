@@ -3,7 +3,6 @@
 import HelpCenterIcon from "@mui/icons-material/HelpCenter";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -14,6 +13,7 @@ import { useTheme } from "@mui/material/styles";
 import React from "react";
 
 import { getActionHover, getActionSelected, getDivider, getTextSecondary } from "../constants/colors";
+import { Button } from "../ui/Button";
 import { SHORTCUT_HINT_FONT_SIZE } from "../constants/dimensions";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
 import type { TranslationFn } from "../types";

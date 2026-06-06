@@ -8,7 +8,6 @@ import ListAltIcon from "@mui/icons-material/ListAlt";
 import SchemaIcon from "@mui/icons-material/Schema";
 import SettingsIcon from "@mui/icons-material/Settings";
 import {
-  IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -16,6 +15,8 @@ import {
   Tooltip,
   useTheme,
 } from "@mui/material";
+import { IconButton } from "../ui/IconButton";
+import styles from "./EditorMenuPopovers.module.css";
 import { Divider } from "../ui/Divider";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useMemo } from "react";
@@ -178,6 +179,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               size="small"
               role="menuitem"
               aria-label={t("mermaid")}
+              className={styles.diagramIconButton}
               onClick={() => {
                 if (sourceMode) {
                   onSourceInsertMermaid?.();
@@ -187,7 +189,6 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                 }
                 setDiagramAnchorEl(null);
               }}
-              sx={{ minWidth: 32, minHeight: 32 }}
             >
               <MermaidIcon fontSize="small" />
             </IconButton>
@@ -197,6 +198,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               size="small"
               role="menuitem"
               aria-label={t("plantuml")}
+              className={styles.diagramIconButton}
               onClick={() => {
                 if (sourceMode) {
                   onSourceInsertPlantUml?.();
@@ -205,7 +207,6 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                 }
                 setDiagramAnchorEl(null);
               }}
-              sx={{ minWidth: 32, minHeight: 32 }}
             >
               <SchemaIcon fontSize="small" />
             </IconButton>
@@ -232,6 +233,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                   size="small"
                   role="menuitem"
                   aria-label={t(sample.i18nKey)}
+                  className={styles.diagramIconButton}
                   onClick={() => {
                     if (!editor) return;
                     const { $from } = editor.state.selection;
@@ -252,7 +254,6 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                     }
                     setSampleAnchorEl(null);
                   }}
-                  sx={{ minWidth: 32, minHeight: 32 }}
                 >
                   <span aria-hidden="true" style={{ fontSize: 9, fontFamily: "monospace", fontWeight: 700, lineHeight: 1, border: "1px solid", borderColor: getDivider(isDark), borderRadius: 2, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>{sample.icon}</span>
                 </IconButton>

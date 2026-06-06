@@ -73,3 +73,20 @@
     display: none;
   }
 }
+
+/* Compare toggle ラッパー: xs では非表示、md 以上で表示。
+   primitive の display:inline-flex に負けないよう div ラッパーで制御する。 */
+.compareToggleWrapper {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .compareToggleWrapper {
+    display: inline-flex;
+  }
+}
+
+/* ToggleButton の padding: sx={{ px: 0.75, py: 0.25 }} 相当 (6px / 2px) */
+.toggleBtnPad {
+  padding: 2px 6px;
+}

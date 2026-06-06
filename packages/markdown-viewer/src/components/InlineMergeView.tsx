@@ -4,9 +4,9 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import {
-  IconButton,
   Tooltip,
 } from "@mui/material";
+import { IconButton } from "../ui/IconButton";
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -344,7 +344,7 @@ export function InlineMergeView({
               onClick={goToPrevBlock}
               disabled={totalBlocks === 0}
               aria-label={t("mergeNav.prev")}
-              sx={{ p: 0.5 }}
+              className={styles.iconButtonSm}
             >
               <KeyboardArrowUpIcon fontSize="small" />
             </IconButton>
@@ -364,7 +364,7 @@ export function InlineMergeView({
               onClick={goToNextBlock}
               disabled={totalBlocks === 0}
               aria-label={t("mergeNav.next")}
-              sx={{ p: 0.5 }}
+              className={styles.iconButtonSm}
             >
               <KeyboardArrowDownIcon fontSize="small" />
             </IconButton>
@@ -375,10 +375,10 @@ export function InlineMergeView({
           <IconButton
             size="small"
             onClick={handleToggleCollapse}
-            color={collapseEnabled ? "primary" : "default"}
             aria-label={t("collapseUnchanged")}
             aria-pressed={collapseEnabled}
-            sx={{ p: 0.5 }}
+            className={styles.iconButtonSm}
+            style={collapseEnabled ? { color: "var(--am-color-primary-main)" } : undefined}
           >
             <UnfoldLessIcon fontSize="small" />
           </IconButton>
