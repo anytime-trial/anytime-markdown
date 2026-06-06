@@ -8,7 +8,8 @@ declare global {
     | { type: "overwriteImage"; path: string; dataUrl: string }
     | { type: "readClipboard" }
     | { type: "readClipboardForCodeBlock" }
-    | { type: "writeClipboard"; text: string };
+    | { type: "writeClipboard"; text: string }
+    | { type: "editorError"; message: string; stack: string; componentStack: string };
 
   /** VS Code Webview API type stub */
   interface VsCodeApi {

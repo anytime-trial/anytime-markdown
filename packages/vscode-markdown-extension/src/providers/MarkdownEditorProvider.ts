@@ -103,8 +103,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
-  public static register(context: vscode.ExtensionContext): vscode.Disposable {
-    const provider = new MarkdownEditorProvider(context);
+  public static register(
+    context: vscode.ExtensionContext,
+    logLine?: (line: string) => void,
+  ): vscode.Disposable {
+    const provider = new MarkdownEditorProvider(context, logLine);
     MarkdownEditorProvider.instance = provider;
     return vscode.window.registerCustomEditorProvider(
       MarkdownEditorProvider.viewType,
@@ -113,7 +116,21 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     );
   }
 
-  private constructor(private readonly context: vscode.ExtensionContext) {}
+  private constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly logLine?: (line: string) => void,
+  ) {}
+
+  /** webview のエディタエラーバウンダリから転送された描画エラーを Output へ記録する */
+  private handleEditorError(message: { [key: string]: unknown }): void {
+    const ts = new Date().toISOString();
+    const msg = typeof message.message === 'string' ? message.message : '';
+    const stack = typeof message.stack === 'string' ? message.stack : '';
+    const componentStack = typeof message.componentStack === 'string' ? message.componentStack : '';
+    this.logLine?.(
+      `[${ts}] [ERROR] [Editor] ${msg}\n${stack}\nComponent stack:${componentStack}`
+    );
+  }
 
   public async resolveCustomTextEditor(
     document: vscode.TextDocument,
@@ -759,6 +776,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel.webview.onDidReceiveMessage(async (message: { type: string; [key: string]: unknown }) => {
       switch (message.type) {
         case 'ready': handleReady(message); break;
+        case 'editorError': this.handleEditorError(message); break;
         case 'scrollChanged': handleScrollChanged(message); break;
         case 'compareModeChanged': handleCompareModeChanged(message); break;
         case 'headingsChanged': handleHeadingsChanged(message); break;
