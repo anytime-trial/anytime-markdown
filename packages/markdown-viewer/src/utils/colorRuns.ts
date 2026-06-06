@@ -23,9 +23,31 @@ export function buildColorRuns(colors: (string | null)[]): ColorRun[] {
 }
 
 /**
+ * diff 行種別 1 件に対応する背景色を返す。
+ * 追加/変更後=緑、削除/変更前=赤、それ以外（equal / padding 等）=透明。
+ * 折り返し対応の行単位背景レイヤー（SourceSegment のミラー）で各行 div に適用する。
+ */
+export function diffLineBgColor(type: string, isDark: boolean): string {
+  switch (type) {
+    case "added":
+    case "modified-new":
+      return alpha(getSuccessMain(isDark), 0.18);
+    case "removed":
+    case "modified-old":
+      return alpha(getErrorMain(isDark), 0.18);
+    default:
+      return "transparent";
+  }
+}
+
+/**
  * diff 行種別の配列から、ソースモード textarea 用の縦方向背景グラデーションを組み立てる。
  * useDiffBackground（パネル全体）と SourceSegment（折りたたみ時のスライス単位）で共有する純粋関数。
  * 追加/変更後=緑、削除/変更前=赤、それ以外=透明。padding 行も空行として含める。
+ *
+ * NOTE: 固定 lineHeight でストップ位置を計算するため、行が折り返す（white-space: pre-wrap）
+ * 環境では実テキストと色帯がずれる。折り返しを伴うソースモードでは行単位背景
+ * （diffLineBgColor + ミラー div）を使うこと。本関数は折り返さない用途向けに残す。
  */
 export function buildDiffGradient(
   lines: ReadonlyArray<{ type: string }>,
