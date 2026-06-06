@@ -1,6 +1,6 @@
 "use client";
 
-import { CircularProgress } from '@mui/material';
+import { Spinner } from '../../ui/Spinner';
 
 import { useMarkdownT } from '../../i18n/context';
 import { Text } from '../../ui/Text';
@@ -24,7 +24,7 @@ const FullPageLoader: React.FC<FullPageLoaderProps> = ({ minHeight = '60vh', ari
         gap: '16px',
       }}
     >
-      <CircularProgress aria-label={ariaLabel ?? t('loading')} />
+      <Spinner aria-label={ariaLabel ?? t('loading')} />
       <Text variant="body2" style={{ color: 'var(--am-color-text-secondary)', fontWeight: 600, letterSpacing: '0.02em' }}>
         Anytime Markdown
       </Text>

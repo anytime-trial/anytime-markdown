@@ -1,5 +1,7 @@
 import LinkIcon from "@mui/icons-material/Link";
-import { Skeleton, useTheme } from "@mui/material";
+import { useTheme } from "@mui/material";
+
+import { Skeleton } from "../../ui/Skeleton";
 import { type CSSProperties } from "react";
 
 import { useEmbedUpdateCheck, useOgpData } from "../../hooks/useEmbedData";
@@ -57,9 +59,9 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
 
     if (loading) {
         if (variant === "compact") {
-            return <Skeleton variant="rectangular" height={40} sx={{ maxWidth: 720 }} />;
+            return <Skeleton variant="rectangular" height={40} style={{ maxWidth: 720 }} />;
         }
-        return <Skeleton variant="rectangular" height={140} sx={cardWidthStyle} />;
+        return <Skeleton variant="rectangular" height={140} style={cardWidthStyle} />;
     }
 
     const domain = getDomain(data?.url ?? url);
