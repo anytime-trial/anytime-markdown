@@ -276,7 +276,7 @@ export function InlineMergeView({
   // WYSIWYG 比較で対応ブロックの上端を揃える（改行差によるドリフト解消）
   useBlockAlignment(sourceMode, rightEditor, leftEditor, !sourceMode);
 
-  useScrollSync(leftContainerRef, rightScrollRef);
+  useScrollSync(leftContainerRef, rightScrollRef, leftEditor, rightEditor, sourceMode);
 
   const rightFrontmatter = useMemo(() => preprocessMarkdown(compareText).frontmatter, [compareText]);
 
