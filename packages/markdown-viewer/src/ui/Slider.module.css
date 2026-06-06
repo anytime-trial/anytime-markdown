@@ -1,0 +1,71 @@
+/* MUI Slider（単一つまみ）相当。track=primary、rail=primary 38%、thumb=primary 円。 */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+  /* つまみが上下にはみ出す分の余白（MUI root padding 相当） */
+  padding: 11px 0;
+}
+
+.slider:focus {
+  outline: none;
+}
+
+/* ---- track（runnable track）に rail + fill のグラデーション ---- */
+.slider::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(
+    to right,
+    var(--am-color-primary-main) var(--slider-fill, 0%),
+    var(--am-color-slider-rail) var(--slider-fill, 0%)
+  );
+}
+
+.slider::-moz-range-track {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--am-color-slider-rail);
+}
+
+.slider::-moz-range-progress {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--am-color-primary-main);
+}
+
+/* ---- thumb ---- */
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--am-color-primary-main);
+  /* (track 2px - thumb 12px) / 2 = -5px で track 中央に揃える */
+  margin-top: -5px;
+  transition: box-shadow var(--am-duration-fast) var(--am-ease-standard);
+}
+
+.slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--am-color-primary-main);
+  transition: box-shadow var(--am-duration-fast) var(--am-ease-standard);
+}
+
+.slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--am-color-primary-main) 16%, transparent);
+}
+
+.slider:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--am-color-primary-main) 16%, transparent);
+}
+
+/* size クラスは将来の差別化用フック（現状 small/medium 同寸、consumer は small のみ）。 */

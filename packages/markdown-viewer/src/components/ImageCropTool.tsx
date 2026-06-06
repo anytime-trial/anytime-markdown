@@ -6,11 +6,12 @@ import CropIcon from "@mui/icons-material/Crop";
 import GridOnIcon from "@mui/icons-material/GridOn";
 import PhotoSizeSelectLargeIcon from "@mui/icons-material/PhotoSizeSelectLarge";
 import StraightenIcon from "@mui/icons-material/Straighten";
-import { Chip, Tooltip } from "@mui/material";
+import { Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "../ui/Button";
+import { Chip } from "../ui/Chip";
 import { IconButton } from "../ui/IconButton";
 import styles from "./ImageCropTool.module.css";
 
@@ -158,7 +159,7 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
                 size="small"
                 variant="outlined"
                 onClick={() => handleResize(s)}
-                sx={{ height: 22, fontSize: CHIP_FONT_SIZE, cursor: "pointer" }}
+                style={{ height: 22, fontSize: CHIP_FONT_SIZE }}
               />
             ))}
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>

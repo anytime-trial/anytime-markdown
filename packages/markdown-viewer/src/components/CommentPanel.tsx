@@ -3,10 +3,10 @@ import CloseIcon from "@mui/icons-material/Close";
 import ImageIcon from "@mui/icons-material/Image";
 import {
   ButtonBase,
-  TextField,
   useTheme,
 } from "@mui/material";
 import { Button } from "../ui/Button";
+import { TextField } from "../ui/TextField";
 import { IconButton } from "../ui/IconButton";
 import { ToggleButton } from "../ui/ToggleButton";
 import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
@@ -349,7 +349,12 @@ export const CommentPanel = React.memo(function CommentPanel({
                   multiline
                   size="small"
                   fullWidth
-                  sx={{ mb: 0.5, "& .MuiInputBase-input": { fontSize: COMMENT_INPUT_FONT_SIZE, p: 0.75 } }}
+                  style={{
+                    marginBottom: 4,
+                    ["--tf-input-font-size" as string]: COMMENT_INPUT_FONT_SIZE,
+                    ["--tf-input-pad-y" as string]: "6px",
+                    ["--tf-input-pad-x" as string]: "6px",
+                  }}
                 />
               ) : (
                 <Text

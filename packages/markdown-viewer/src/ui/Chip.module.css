@@ -1,0 +1,49 @@
+/* MUI Chip 相当。pill 形・outlined/filled。 */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  border-radius: 16px;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  color: var(--am-color-text-primary);
+  background-color: transparent;
+  transition: background-color var(--am-duration-fast) var(--am-ease-standard);
+}
+
+.small {
+  height: 24px;
+  font-size: 0.75rem;
+}
+
+.medium {
+  height: 32px;
+}
+
+.outlined {
+  border: 1px solid var(--am-color-divider);
+}
+
+.filled {
+  border: none;
+  background-color: var(--am-color-action-selected);
+}
+
+.label {
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  background-color: var(--am-color-action-hover);
+}
+
+.clickable:focus-visible {
+  outline: 2px solid var(--am-color-primary-main);
+  outline-offset: 1px;
+}
