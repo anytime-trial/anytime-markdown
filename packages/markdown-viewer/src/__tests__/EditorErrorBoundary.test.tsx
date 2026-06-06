@@ -95,4 +95,21 @@ describe("EditorErrorBoundary", () => {
       expect.anything(),
     );
   });
+
+  it("VS Code 拡張へ editorError を postMessage する", () => {
+    const postMessage = jest.fn();
+    (window as unknown as { __vscode?: { postMessage: jest.Mock } }).__vscode = { postMessage };
+    try {
+      render(
+        <EditorErrorBoundary>
+          <ThrowError shouldThrow={true} />
+        </EditorErrorBoundary>,
+      );
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "editorError", message: "Test error" }),
+      );
+    } finally {
+      delete (window as unknown as { __vscode?: unknown }).__vscode;
+    }
+  });
 });

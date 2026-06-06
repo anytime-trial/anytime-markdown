@@ -34,6 +34,15 @@ export class EditorErrorBoundary extends Component<Props, State> {
     const ts = new Date().toISOString();
     // eslint-disable-next-line no-console
     console.error(`[${ts}] [EditorErrorBoundary] エディタの描画でエラーが発生`, error, errorInfo.componentStack ?? "");
+    // VS Code 拡張では webview の console が見えないため、拡張の Output チャネルへ転送する
+    if (typeof window !== "undefined") {
+      window.__vscode?.postMessage({
+        type: "editorError",
+        message: error.message,
+        stack: error.stack ?? "",
+        componentStack: errorInfo.componentStack ?? "",
+      });
+    }
     this.props.onError?.(error, errorInfo);
   }
 
