@@ -72,4 +72,27 @@ describe("EditorErrorBoundary", () => {
     );
     expect(onError).toHaveBeenCalledWith(expect.any(Error), expect.any(Object));
   });
+
+  it("componentStack を画面に表示する（再現時の原因特定用）", () => {
+    render(
+      <EditorErrorBoundary>
+        <ThrowError shouldThrow={true} />
+      </EditorErrorBoundary>,
+    );
+    // React の componentStack には throw したコンポーネント名が含まれる
+    expect(screen.getByText(/ThrowError/)).toBeTruthy();
+  });
+
+  it("console.error に stack 付きで出力する（silent 破棄しない）", () => {
+    render(
+      <EditorErrorBoundary>
+        <ThrowError shouldThrow={true} />
+      </EditorErrorBoundary>,
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("[EditorErrorBoundary]"),
+      expect.any(Error),
+      expect.anything(),
+    );
+  });
 });
