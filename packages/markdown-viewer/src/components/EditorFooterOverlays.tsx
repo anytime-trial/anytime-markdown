@@ -3,8 +3,8 @@ import {
   Backdrop,
   CircularProgress,
   Snackbar,
-  Typography,
 } from "@mui/material";
+import { Text } from "../ui/Text";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { EditorContent } from "@anytime-markdown/markdown-react";
 import { createPortal } from "react-dom";
@@ -159,7 +159,7 @@ export function EditorFooterOverlays({
 
       <Backdrop open={pdfExporting} sx={{ zIndex: (theme) => theme.zIndex.modal + 1, flexDirection: "column", gap: 2, "@media print": { display: "none" } }}>
         <CircularProgress color="inherit" />
-        <Typography variant="body2" color="inherit">{t("pdfPreparing")}</Typography>
+        <Text variant="body2" style={{ color: "inherit" }}>{t("pdfPreparing")}</Text>
       </Backdrop>
 
       <Snackbar

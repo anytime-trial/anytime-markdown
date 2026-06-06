@@ -11,10 +11,7 @@ import UndoIcon from "@mui/icons-material/Undo";
 import ViewStreamIcon from "@mui/icons-material/ViewStream";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import {
-  Box,
-  Divider,
   IconButton,
-  Paper,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
@@ -35,6 +32,9 @@ import type { ToolbarFileCapabilities, ToolbarFileHandlers, ToolbarModeHandlers,
 import type { MergeUndoRedo } from "./InlineMergeView";
 import { ToolbarFileActions } from "./ToolbarFileActions";
 import { ToolbarMobileMenu } from "./ToolbarMobileMenu";
+import { Divider } from "../ui/Divider";
+import { Paper } from "../ui/Paper";
+import styles from "./EditorToolbar.module.css";
 
 /** WAI-ARIA Toolbar パターン: 矢印キーでフォーカス移動 */
 const FOCUSABLE_SELECTOR = 'button:not([disabled]), [role="button"]:not([disabled]), input:not([disabled])';
@@ -225,30 +225,18 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     <>
     <Paper
       id="md-editor-toolbar"
-      ref={toolbarRefCallback}
       variant="outlined"
       role="toolbar"
       aria-label={t("editorToolbar")}
       onKeyDown={handleToolbarKeyDown}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        flexWrap: "wrap",
-        gap: 0.5,
-        py: 0.5,
-        pr: 0,
-        pl: "2px",
-        minHeight: 44,
-        maxHeight: 44,
-        borderBottomLeftRadius: 0,
-        borderBottomRightRadius: 0,
+      className={styles.toolbar}
+      style={{
         borderBottom: inlineMergeOpen ? undefined : "none",
-        position: "sticky",
-        top: 0,
         zIndex: Z_TOOLBAR,
-        bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+        backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
         color: isDark ? undefined : DEFAULT_LIGHT_TEXT,
       }}
+      {...{ ref: toolbarRefCallback }}
     >
       {/* Home logo */}
       {onHomeClick && (
@@ -263,7 +251,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
               <AppIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          <Divider orientation="vertical" flexItem style={{ margin: "0 2px" }} />
         </>
       )}
 
@@ -310,7 +298,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       )}
 
       {/* Outline, Comments - hidden on mobile */}
-      <Box sx={{ display: { xs: "none", md: "contents" } }}>
+      <div className={styles.desktopContents}>
       <ToggleButtonGroup size="small" aria-label={t("view")} sx={{ height: 30 }}>
         {!hideExplorer && onToggleExplorer && (
           <ToggleButton value="explorer" selected={!!explorerOpen} onClick={onToggleExplorer} aria-label={t("explorer")} sx={{ px: 0.75, py: 0.25 }}>
@@ -332,9 +320,9 @@ export const EditorToolbar = React.memo(function EditorToolbar({
           </ToggleButton>
         )}
       </ToggleButtonGroup>
-      </Box>
+      </div>
 
-      <Box sx={{ flexGrow: 1 }} />
+      <div className={styles.spacer} />
 
       {/* Source / Edit / Review toggle */}
       {!hideModeToggle && <ToggleButtonGroup
@@ -347,20 +335,20 @@ export const EditorToolbar = React.memo(function EditorToolbar({
         {!hideReadonlyToggle && (
           <ToggleButton value="readonly" aria-label={t("readonly")} onClick={onSwitchToReadonly}>
             <LockOutlinedIcon sx={{ fontSize: "1rem" }} />
-            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("readonly")}</Box>
+            <span className={styles.modeLabel}>{t("readonly")}</span>
           </ToggleButton>
         )}
         <ToggleButton value="review" aria-label={t("review")} onClick={onSwitchToReview}>
           <VisibilityOutlinedIcon sx={{ fontSize: "1rem" }} />
-          <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("review")}</Box>
+          <span className={styles.modeLabel}>{t("review")}</span>
         </ToggleButton>
         <ToggleButton value="wysiwyg" aria-label={t("wysiwyg")} onClick={onSwitchToWysiwyg}>
           <EditOutlinedIcon sx={{ fontSize: "1rem" }} />
-          <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("wysiwyg")}</Box>
+          <span className={styles.modeLabel}>{t("wysiwyg")}</span>
         </ToggleButton>
         <ToggleButton value="source" aria-label={t("source")} onClick={onSwitchToSource}>
           <CodeOutlinedIcon sx={{ fontSize: "1rem" }} />
-          <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("source")}</Box>
+          <span className={styles.modeLabel}>{t("source")}</span>
         </ToggleButton>
       </ToggleButtonGroup>}
 
@@ -395,7 +383,10 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       {/* More menu */}
       {!hideMoreMenu && (
         <>
-          <Box sx={{ display: { xs: "none", md: "flex" }, width: SIDE_TOOLBAR_WIDTH, justifyContent: "center", alignItems: "center", flexShrink: 0, ml: "auto", borderLeft: 1, borderColor: getDivider(isDark) }}>
+          <div
+            className={styles.moreMenuDesktop}
+            style={{ width: SIDE_TOOLBAR_WIDTH, borderColor: getDivider(isDark) }}
+          >
             <Tooltip title={t("more")}>
               <IconButton aria-label={t("more")}
                 size="small"
@@ -405,13 +396,13 @@ export const EditorToolbar = React.memo(function EditorToolbar({
                 <MenuIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-          </Box>
+          </div>
           <IconButton
             ref={mobileMoreRef}
             aria-label={t("more")}
             size="small"
             onClick={(e) => setMobileMenuAnchorEl(e.currentTarget)}
-            sx={{ display: { xs: "inline-flex", md: "none" }, mr: 0, p: 0 }}
+            className={styles.moreMenuMobile}
           >
             <MenuIcon fontSize="small" />
           </IconButton>

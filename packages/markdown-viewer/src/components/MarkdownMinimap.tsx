@@ -2,7 +2,7 @@
 
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
-import { Box, IconButton, Tooltip } from "@mui/material";
+import { IconButton, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useRef } from "react";
@@ -45,8 +45,8 @@ export function MarkdownMinimap({
   const markerMinHeight = Math.max(3, barHeight * 0.03);
 
   return (
-    <Box
-      sx={{
+    <div
+      style={{
         width: BAR_WIDTH,
         height: editorHeight,
         flexShrink: 0,
@@ -71,35 +71,35 @@ export function MarkdownMinimap({
         </span>
       </Tooltip>
 
-      <Box
+      <div
         ref={barRef}
         onClick={handleClick}
-        sx={{
+        style={{
           flex: 1,
           width: "100%",
           position: "relative",
           cursor: "pointer",
-          bgcolor: barBg,
+          backgroundColor: barBg,
           borderLeft: `1px solid ${theme.palette.divider}`,
           overflow: "hidden",
         }}
       >
         {markerRatios.map((ratio) => (
-          <Box
+          <div
             key={`marker-${ratio}`}
-            sx={{
+            style={{
               position: "absolute",
               left: 0,
               right: 0,
               top: `${ratio * 100}%`,
               height: markerMinHeight,
-              bgcolor: markerColor,
+              backgroundColor: markerColor,
               borderRadius: "1px",
               pointerEvents: "none",
             }}
           />
         ))}
-      </Box>
+      </div>
 
       <Tooltip title="次の変更へ" placement="left">
         <span>
@@ -114,6 +114,6 @@ export function MarkdownMinimap({
           </IconButton>
         </span>
       </Tooltip>
-    </Box>
+    </div>
   );
 }

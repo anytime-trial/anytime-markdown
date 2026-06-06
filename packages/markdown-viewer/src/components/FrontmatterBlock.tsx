@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, IconButton, Typography, useTheme } from "@mui/material";
+import { IconButton, useTheme } from "@mui/material";
 import { useCallback, useRef, useState } from "react";
 
 import useConfirm from "@/hooks/useConfirm";
@@ -8,6 +8,8 @@ import useConfirm from "@/hooks/useConfirm";
 import { DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_CODE_BG, getActionHover, getDivider, getTextSecondary } from "../constants/colors";
 import { FRONTMATTER_CODE_FONT_SIZE, SMALL_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import { useEditorSettingsContext } from "../useEditorSettings";
+import { Text } from "../ui/Text";
+import styles from "./FrontmatterBlock.module.css";
 
 interface FrontmatterBlockProps {
   frontmatter: string | null;
@@ -36,33 +38,34 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, defaultColla
   if (frontmatter === null) return null;
 
   return (
-    <Box
-      sx={{
-        border: 1,
-        borderColor: getDivider(isDark),
-        borderRadius: 1,
+    <div
+      className={styles.root}
+      style={{
+        border: `1px solid ${getDivider(isDark)}`,
+        borderRadius: 4,
         overflow: "hidden",
-        mb: 1,
-        "@media print": { display: "none" },
+        marginBottom: 8,
       }}
     >
       {/* Toolbar */}
-      <Box
-        sx={{
+      <div
+        style={{
           display: "flex",
           alignItems: "center",
-          gap: 0.5,
-          px: 0.75,
-          py: 0.25,
-          bgcolor: getActionHover(isDark),
+          gap: 4,
+          paddingLeft: 6,
+          paddingRight: 6,
+          paddingTop: 2,
+          paddingBottom: 2,
+          backgroundColor: getActionHover(isDark),
           cursor: "pointer",
           userSelect: "none",
         }}
         onClick={() => setCollapsed((prev) => !prev)}
       >
-        <Typography
+        <Text
           variant="caption"
-          sx={{
+          style={{
             fontFamily: "monospace",
             fontWeight: 600,
             color: getTextSecondary(isDark),
@@ -70,8 +73,8 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, defaultColla
           }}
         >
           {collapsed ? "▶" : "▼"} Frontmatter
-        </Typography>
-        <Box sx={{ flex: 1 }} />
+        </Text>
+        <div style={{ flex: 1 }} />
         {!readOnly && (
           <IconButton
             size="small"
@@ -92,17 +95,16 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, defaultColla
             }}
             sx={{ p: 0.25 }}
           >
-            <Typography variant="caption" sx={{ fontSize: SMALL_CAPTION_FONT_SIZE, color: getTextSecondary(isDark) }}>
+            <Text variant="caption" style={{ fontSize: SMALL_CAPTION_FONT_SIZE, color: getTextSecondary(isDark) }}>
               ✕
-            </Typography>
+            </Text>
           </IconButton>
         )}
-      </Box>
+      </div>
 
       {/* Code editor area */}
       {!collapsed && (
-        <Box
-          component="textarea"
+        <textarea
           ref={textareaRef}
           data-frontmatter-editor=""
           value={frontmatter}
@@ -115,27 +117,27 @@ export function FrontmatterBlock({ frontmatter, onChange, readOnly, defaultColla
           } : undefined}
           rows={(frontmatter?.split("\n").length ?? 1) + 1}
           spellCheck={false}
-          sx={{
+          className={styles.textarea}
+          style={{
             display: "block",
             width: "100%",
             boxSizing: "border-box",
-            m: 0,
-            p: 1.5,
+            margin: 0,
+            padding: 12,
             border: "none",
             outline: "none",
-            "&:focus": { outline: "none" },
             cursor: "text",
             resize: "vertical",
             fontFamily: "monospace",
             fontSize: `${settings.fontSize}px`,
             lineHeight: settings.lineHeight,
-            bgcolor: isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG,
-            color: isDark ? "grey.100" : "grey.900",
+            backgroundColor: isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG,
+            color: isDark ? "#f5f5f5" : "#212121",
             maxHeight: 300,
             overflow: "auto",
           }}
         />
       )}
-    </Box>
+    </div>
   );
 }

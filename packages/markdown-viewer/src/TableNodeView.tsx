@@ -9,7 +9,7 @@ import MoveUpIcon from "@mui/icons-material/MoveUp";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import TableRowsIcon from "@mui/icons-material/TableRows";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Divider, Paper, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme } from "@mui/material";
+import { Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, ToggleButton, ToggleButtonGroup, Tooltip, useTheme } from "@mui/material";
 import type { Fragment } from "@anytime-markdown/markdown-pm/model";
 import type { Editor, NodeViewProps } from "@anytime-markdown/markdown-react";
 import { NodeViewContent, NodeViewWrapper } from "@anytime-markdown/markdown-react";
@@ -19,15 +19,19 @@ import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./components/codeblock/DeleteBlockDialog";
 import { EditDialogHeader } from "./components/EditDialogHeader";
 import { SearchReplaceBar } from "./components/SearchReplaceBar";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getActionSelected, getBgPaper, getDivider, getErrorMain, getTextSecondary } from "./constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionSelected, getErrorMain, getTextSecondary } from "./constants/colors";
 import { SMALL_CAPTION_FONT_SIZE } from "./constants/dimensions";
 import { Z_FULLSCREEN } from "./constants/zIndex";
 import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEditorsContext";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useMarkdownT } from "./i18n/context";
 import { createTiptapSheetAdapter } from "./spreadsheet/TiptapSheetAdapter";
+import { Divider } from "./ui/Divider";
+import { Paper } from "./ui/Paper";
+import { Text } from "./ui/Text";
 import { useEditorSettingsContext } from "./useEditorSettings";
-import { moveTableColumn,moveTableRow } from "./utils/tableHelpers";
+import { moveTableColumn, moveTableRow } from "./utils/tableHelpers";
+import styles from "./TableNodeView.module.css";
 
 const iconSx = { fontSize: 16 };
 
@@ -67,23 +71,23 @@ function buildHighlightedCompareHtml(
 // --- Extracted sub-component: Table operations toolbar ---
 function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor; isDark: boolean; t: (key: string) => string }>) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, gap: 0.5, flexWrap: "wrap" }}>
+    <div className={styles.opsToolbar}>
       {/* Column add/remove */}
       <ToggleButtonGroup size="small" sx={{ height: 24 }}>
         <ToggleButton value="addCol" aria-label={t("addColumn")} sx={{ px: 0.5, py: 0.125 }} onClick={() => editor.chain().focus().addColumnAfter().run()}>
           <Tooltip title={t("addColumn")} placement="top">
-            <Box sx={{ position: "relative", display: "inline-flex" }}>
+            <span className={styles.iconBadgeWrapper}>
               <ViewColumnIcon sx={iconSx} />
-              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1 }}>+</Box>
-            </Box>
+              <span className={styles.iconBadge}>+</span>
+            </span>
           </Tooltip>
         </ToggleButton>
         <ToggleButton value="removeCol" aria-label={t("removeColumn")} sx={{ px: 0.5, py: 0.125 }} onClick={() => editor.chain().focus().deleteColumn().run()}>
           <Tooltip title={t("removeColumn")} placement="top">
-            <Box sx={{ position: "relative", display: "inline-flex" }}>
+            <span className={styles.iconBadgeWrapper}>
               <ViewColumnIcon sx={iconSx} />
-              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1, color: getErrorMain(isDark) }}>x</Box>
-            </Box>
+              <span className={styles.iconBadge} style={{ color: getErrorMain(isDark) }}>x</span>
+            </span>
           </Tooltip>
         </ToggleButton>
       </ToggleButtonGroup>
@@ -92,18 +96,18 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
       <ToggleButtonGroup size="small" sx={{ height: 24 }}>
         <ToggleButton value="addRow" aria-label={t("addRow")} sx={{ px: 0.5, py: 0.125 }} onClick={() => editor.chain().focus().addRowAfter().run()}>
           <Tooltip title={t("addRow")} placement="top">
-            <Box sx={{ position: "relative", display: "inline-flex" }}>
+            <span className={styles.iconBadgeWrapper}>
               <TableRowsIcon sx={iconSx} />
-              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1 }}>+</Box>
-            </Box>
+              <span className={styles.iconBadge}>+</span>
+            </span>
           </Tooltip>
         </ToggleButton>
         <ToggleButton value="removeRow" aria-label={t("removeRow")} sx={{ px: 0.5, py: 0.125 }} onClick={() => editor.chain().focus().deleteRow().run()}>
           <Tooltip title={t("removeRow")} placement="top">
-            <Box sx={{ position: "relative", display: "inline-flex" }}>
+            <span className={styles.iconBadgeWrapper}>
               <TableRowsIcon sx={iconSx} />
-              <Box component="span" sx={{ position: "absolute", right: -4, top: -4, fontSize: 10, fontWeight: "bold", lineHeight: 1, color: getErrorMain(isDark) }}>x</Box>
-            </Box>
+              <span className={styles.iconBadge} style={{ color: getErrorMain(isDark) }}>x</span>
+            </span>
           </Tooltip>
         </ToggleButton>
       </ToggleButtonGroup>
@@ -160,78 +164,87 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
         </ToggleButton>
       </ToggleButtonGroup>
 
-      <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+      <Divider orientation="vertical" flexItem style={{ margin: "0 2px" }} />
 
       {editor.storage.searchReplace && <SearchReplaceBar editor={editor} t={t} />}
-    </Box>
+    </div>
   );
 }
 
 // --- Extracted sub-component: Compare mode side-by-side view ---
 function TableCompareView({
-  highlightedCompareHtml, tableSx, isDark, t,
+  highlightedCompareHtml, tableWidth, isDark, t,
 }: Readonly<{
   highlightedCompareHtml: string;
-  tableSx: Record<string, unknown>;
+  tableWidth: string;
   isDark: boolean;
   t: (key: string) => string;
 }>) {
   return (
-    <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
-      <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, borderRight: 1, borderColor: getDivider(isDark) }}>
-        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE, mb: 1, display: "block" }}>{t("compare")}</Typography>
-        <Box
-          dangerouslySetInnerHTML={{ __html: highlightedCompareHtml }}
-          sx={{ "& table": tableSx }}
-        />
-      </Box>
-      <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2, "& table": tableSx }}>
-        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE, mb: 1, display: "block" }}>{t("compare")} - {t("edit")}</Typography>
+    <div className={styles.compareOuter}>
+      <div
+        className={`${styles.comparePane} ${styles.comparePaneLeft}`}
+        style={{ "--table-width": tableWidth, "--table-selected-cell-bg": getActionSelected(isDark) } as React.CSSProperties}
+      >
+        <Text
+          variant="caption"
+          component="span"
+          className={styles.compareCaption}
+          style={{ fontSize: SMALL_CAPTION_FONT_SIZE, color: getTextSecondary(isDark) }}
+        >{t("compare")}</Text>
+        <div dangerouslySetInnerHTML={{ __html: highlightedCompareHtml }} />
+      </div>
+      <div
+        className={styles.comparePane}
+        style={{ "--table-width": tableWidth, "--table-selected-cell-bg": getActionSelected(isDark) } as React.CSSProperties}
+      >
+        <Text
+          variant="caption"
+          component="span"
+          className={styles.compareCaption}
+          style={{ fontSize: SMALL_CAPTION_FONT_SIZE, color: getTextSecondary(isDark) }}
+        >{t("compare")} - {t("edit")}</Text>
         <NodeViewContent<"table"> as="table" />
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }
 
-/** Paper の sx スタイルを構築する */
-function buildPaperSx(editOpen: boolean, isEditable: boolean, isDark: boolean, showToolbar: boolean) {
-  const base = {
-    border: editOpen ? 0 : 1,
-    borderColor: isEditable ? getDivider(isDark) : "transparent",
-    borderRadius: editOpen ? 0 : 1,
-    overflow: "hidden",
-    my: editOpen ? 0 : 1,
-  };
-  const editClosedSx = editOpen ? {} : { bgcolor: "transparent" };
-  const editOpenSx = editOpen ? {
-    position: "fixed" as const,
-    inset: 0,
-    zIndex: Z_FULLSCREEN,
-    display: "flex",
-    flexDirection: "column" as const,
-    bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-  } : {};
-  const hiddenToolbarSx = showToolbar ? {} : {
-    borderColor: "transparent",
-    "& > [data-block-toolbar]": {
-      maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
-    },
-  };
-  return { ...base, ...editClosedSx, ...editOpenSx, ...hiddenToolbarSx };
+/** Paper の スタイルを構築する */
+function buildPaperStyle(editOpen: boolean, isDark: boolean): React.CSSProperties {
+  if (editOpen) {
+    return {
+      position: "fixed",
+      inset: 0,
+      zIndex: Z_FULLSCREEN,
+      backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+    };
+  }
+  return {};
 }
 
-/** テーブル本体の sx スタイルを構築する */
-function buildTableBodySx(collapsed: boolean, editOpen: boolean, isDark: boolean, tableSx: Record<string, unknown>) {
-  if (collapsed) return { height: 0, overflow: "hidden" };
-  return {
-    overflow: "auto",
-    ...(editOpen && {
-      flex: 1,
-      bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-      p: 2,
-      "& table": tableSx,
-    }),
-  };
+/** Paper の className を構築する */
+function buildPaperClassName(editOpen: boolean, isEditable: boolean, showToolbar: boolean): string {
+  const classes = [styles.paperRoot];
+  if (editOpen) {
+    classes.push(styles.paperEdit);
+  } else {
+    classes.push(styles.paperNormal);
+    if (!isEditable) {
+      classes.push(styles.paperTransparentBorder);
+    }
+  }
+  if (!showToolbar) {
+    classes.push(styles.paperHiddenToolbar);
+  }
+  return classes.join(" ");
+}
+
+/** テーブル本体 className を構築する */
+function buildTableBodyClassName(collapsed: boolean, editOpen: boolean): string {
+  if (collapsed) return styles.tableBodyCollapsed;
+  if (editOpen) return styles.tableBodyEdit;
+  return styles.tableBody;
 }
 
 /** 編集ヘッダーツールバー */
@@ -240,7 +253,7 @@ function TableEditHeader({ editor, isDark, isEditable, isSpreadsheet, onClose, t
   onClose: () => void; t: (key: string) => string;
 }>) {
   return (
-    <Box contentEditable={false}>
+    <div contentEditable={false}>
       <EditDialogHeader
         label={t("tableLabel")}
         onClose={onClose}
@@ -248,7 +261,7 @@ function TableEditHeader({ editor, isDark, isEditable, isSpreadsheet, onClose, t
         t={t}
       />
       {isEditable && !isSpreadsheet && <TableOperationsToolbar editor={editor} isDark={isDark} t={t} />}
-    </Box>
+    </div>
   );
 }
 
@@ -265,17 +278,6 @@ function getCompareTableHtml(
   const isRight = !!editor.view?.dom?.dataset?.reviewMode;
   const otherEditor = isRight ? mergeEditors.rightEditor : mergeEditors.leftEditor;
   return findCounterpartTableHtml(editor, otherEditor, pos);
-}
-
-/** Build table cell styles (extracted to reduce cognitive complexity). */
-function buildTableSx(isDark: boolean, tableWidth: string) {
-  return {
-    borderCollapse: "collapse",
-    width: tableWidth,
-    "& th, & td": { border: 1, borderColor: getDivider(isDark), px: 1, py: 0.5, textAlign: "left", minWidth: 80, bgcolor: getBgPaper(isDark) },
-    "& th": { bgcolor: getActionHover(isDark), fontWeight: 600 },
-    "& .selectedCell": { bgcolor: getActionSelected(isDark) },
-  };
 }
 
 /** Get table grid options from editor extensions (extracted to reduce cognitive complexity). */
@@ -330,21 +332,21 @@ function SpreadsheetEditContent({ editor, getPos, isDark, onDirtyChange, onClose
         onRedo={handleRedo}
       />
       {/* ProseMirror table hidden but kept in DOM for sync */}
-      <Box sx={{ display: "none" }}>
+      <div style={{ display: "none" }}>
         <NodeViewContent<"table"> as="table" />
-      </Box>
+      </div>
     </SpreadsheetI18nProvider>
   );
 }
 
 /** Table content area dispatcher: compare view, spreadsheet edit, or inline table (extracted to reduce cognitive complexity). */
-function TableContentArea({ showCompare, editOpen, collapsed, highlightedCompareHtml, tableSx, editor, getPos, isDark, onDirtyChange, onSpreadsheetClose, onTableDoubleClick, t }: Readonly<{
+function TableContentArea({ showCompare, editOpen, collapsed, highlightedCompareHtml, tableWidth, isDark, editor, getPos, onDirtyChange, onSpreadsheetClose, onTableDoubleClick, t }: Readonly<{
   showCompare: boolean; editOpen: boolean; collapsed: boolean;
   highlightedCompareHtml: string | null;
-  tableSx: Record<string, unknown>;
+  tableWidth: string;
+  isDark: boolean;
   editor: Editor;
   getPos: NodeViewProps["getPos"];
-  isDark: boolean;
   onDirtyChange: (dirty: boolean) => void;
   onSpreadsheetClose: () => void;
   onTableDoubleClick: (() => void) | undefined;
@@ -354,7 +356,7 @@ function TableContentArea({ showCompare, editOpen, collapsed, highlightedCompare
     return (
       <TableCompareView
         highlightedCompareHtml={highlightedCompareHtml ?? ''}
-        tableSx={tableSx}
+        tableWidth={tableWidth}
         isDark={isDark}
         t={t}
       />
@@ -372,12 +374,12 @@ function TableContentArea({ showCompare, editOpen, collapsed, highlightedCompare
     );
   }
   return (
-    <Box
-      sx={buildTableBodySx(collapsed, editOpen, isDark, tableSx)}
+    <div
+      className={buildTableBodyClassName(collapsed, editOpen)}
       onDoubleClick={onTableDoubleClick}
     >
       <NodeViewContent<"table"> as="table" />
-    </Box>
+    </div>
   );
 }
 
@@ -461,10 +463,6 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
     return buildHighlightedCompareHtml(compareTableHtml, node.content, settings.tableWidth);
   }, [compareTableHtml, node.content, settings.tableWidth]);
 
-  // NodeView は editor state 更新ごとに再レンダリングされるため、毎回 sx を再生成すると
-  // Emotion が毎回スタイル再計算する。依存が変わらない限りキャッシュする。
-  const tableSx = useMemo(() => buildTableSx(isDark, settings.tableWidth), [isDark, settings.tableWidth]);
-
   const showCompare = editOpen && isCompareMode && !!highlightedCompareHtml;
   const canInteract = !collapsed && !isCompareLeft;
   const showInlineToolbar = !editOpen && isEditable;
@@ -508,11 +506,10 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
   return (
     <NodeViewWrapper className="block-node-wrapper">
       <Paper
-        component={editOpen ? "div" : Box}
-        elevation={editOpen ? 24 : 0}
         {...dialogProps}
         tabIndex={editOpen ? -1 : undefined}
-        sx={buildPaperSx(editOpen, isEditable, isDark, showToolbar)}
+        className={buildPaperClassName(editOpen, isEditable, showToolbar)}
+        style={buildPaperStyle(editOpen, isDark)}
       >
         {editOpen && <TableEditHeader editor={editor} isDark={isDark} isEditable={isEditable} isSpreadsheet={!showCompare} onClose={tryCloseEdit} t={t} />}
 
@@ -532,10 +529,10 @@ export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>)
           editOpen={editOpen}
           collapsed={collapsed}
           highlightedCompareHtml={highlightedCompareHtml}
-          tableSx={tableSx}
+          tableWidth={settings.tableWidth}
+          isDark={isDark}
           editor={editor}
           getPos={getPos}
-          isDark={isDark}
           onDirtyChange={handleDirtyChange}
           onSpreadsheetClose={handleSpreadsheetClose}
           onTableDoubleClick={tableActions.onTableDoubleClick}

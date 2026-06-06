@@ -1,0 +1,144 @@
+/* TableNodeView.module.css */
+
+/* TableOperationsToolbar — wrapper */
+.opsToolbar {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--am-color-divider);
+  padding: 2px 8px;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Icon badge wrapper (position:relative container for +/x badge) */
+.iconBadgeWrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+/* +/x badge positioned top-right of icon */
+.iconBadge {
+  position: absolute;
+  right: -4px;
+  top: -4px;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* Compare view — outer container */
+.compareOuter {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Compare view — each pane */
+.comparePane {
+  flex: 1;
+  overflow: auto;
+  background-color: var(--am-color-bg-default);
+  padding: 16px;
+}
+
+/* Compare view — left pane has right border */
+.comparePaneLeft {
+  border-right: 1px solid var(--am-color-divider);
+}
+
+/* Compare caption label */
+.compareCaption {
+  color: var(--am-color-text-secondary);
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* Table styles applied inside compare/edit panes.
+   --table-width is set via inline style on the wrapper element. */
+.comparePane table,
+.tableBody table,
+.tableBodyEdit table {
+  border-collapse: collapse;
+  width: var(--table-width, 100%);
+}
+
+.comparePane table th,
+.comparePane table td,
+.tableBody table th,
+.tableBody table td,
+.tableBodyEdit table th,
+.tableBodyEdit table td {
+  border: 1px solid var(--am-color-divider);
+  padding: 4px 8px;
+  text-align: left;
+  min-width: 80px;
+  background-color: var(--am-color-bg-paper);
+}
+
+.comparePane table th,
+.tableBody table th,
+.tableBodyEdit table th {
+  background-color: var(--am-color-action-hover);
+  font-weight: 600;
+}
+
+/* Table body area (non-compare, non-spreadsheet) */
+.tableBody {
+  overflow: auto;
+}
+
+/* Table body in edit (fullscreen) mode */
+.tableBodyEdit {
+  overflow: auto;
+  flex: 1;
+  background-color: var(--am-color-bg-default);
+  padding: 16px;
+}
+
+/* Collapsed state: hide content */
+.tableBodyCollapsed {
+  height: 0;
+  overflow: hidden;
+}
+
+/* Paper root — base */
+.paperRoot {
+  overflow: hidden;
+}
+
+/* Paper — normal (non-edit) state */
+.paperNormal {
+  border-radius: 4px; /* borderRadius:1 = 4px */
+  margin-top: 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--am-color-divider);
+}
+
+/* Paper — transparent border when not editable */
+.paperTransparentBorder {
+  border-color: transparent;
+}
+
+/* Paper — edit (fullscreen) state */
+.paperEdit {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Paper — toolbar hidden state */
+.paperHiddenToolbar > [data-block-toolbar] {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+/* selectedCell — bg color fed via CSS custom property set on wrapper element */
+.tableBody .selectedCell,
+.tableBodyEdit .selectedCell,
+.comparePane .selectedCell {
+  background-color: var(--table-selected-cell-bg);
+}

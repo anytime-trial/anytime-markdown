@@ -1,10 +1,11 @@
 "use client";
 
-import { Box, Button, Typography } from "@mui/material";
+import { Button } from "@mui/material";
 import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
 
-import { getTextSecondary } from "../constants/colors";
+import { Text } from "../ui/Text";
+import styles from "./EditorErrorBoundary.module.css";
 
 interface Props {
   children: ReactNode;
@@ -57,56 +58,46 @@ export class EditorErrorBoundary extends Component<Props, State> {
         .filter(Boolean)
         .join("\n\n");
       return (
-        <Box
+        <div
           role="alert"
-          sx={{
+          style={{
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             minHeight: "40vh",
-            gap: 2,
-            p: 4,
+            gap: 16,
+            padding: 32,
           }}
         >
-          <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
+          <Text variant="h6" component="h2" style={{ fontWeight: 700 }}>
             エディタでエラーが発生しました
-          </Typography>
-          <Typography variant="body2" sx={{ maxWidth: 480, textAlign: "center", color: (theme) => getTextSecondary(theme.palette.mode === "dark") }}>
+          </Text>
+          <Text
+            variant="body2"
+            style={{
+              maxWidth: 480,
+              textAlign: "center",
+              color: "var(--am-color-text-secondary)",
+            }}
+          >
             {error?.message}
-          </Typography>
+          </Text>
           {details && (
-            <Box
-              component="details"
-              sx={{
+            <details
+              style={{
                 width: "100%",
                 maxWidth: 720,
-                color: (theme) => getTextSecondary(theme.palette.mode === "dark"),
+                color: "var(--am-color-text-secondary)",
               }}
             >
-              <Box component="summary" sx={{ cursor: "pointer", fontSize: "0.8125rem", mb: 1 }}>
+              <summary style={{ cursor: "pointer", fontSize: "0.8125rem", marginBottom: 8 }}>
                 詳細 (開発者向け)
-              </Box>
-              <Box
-                component="pre"
-                sx={{
-                  textAlign: "left",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  fontSize: "0.75rem",
-                  maxHeight: 280,
-                  overflow: "auto",
-                  m: 0,
-                  p: 1.5,
-                  borderRadius: 1,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  bgcolor: (theme) => (theme.palette.mode === "dark" ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)"),
-                }}
-              >
+              </summary>
+              <pre className={styles.preBlock}>
                 {details}
-              </Box>
-            </Box>
+              </pre>
+            </details>
           )}
           <Button
             variant="contained"
@@ -115,7 +106,7 @@ export class EditorErrorBoundary extends Component<Props, State> {
           >
             再読み込み
           </Button>
-        </Box>
+        </div>
       );
     }
     return this.props.children;

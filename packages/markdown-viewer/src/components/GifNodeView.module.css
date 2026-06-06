@@ -1,0 +1,20 @@
+/* GifNodeView — co-located CSS Module for sx props that require pseudo-class or child selectors */
+
+/* メイン外枠の子セレクタ（ツールバー非表示時） */
+.rootHideToolbar > [data-block-toolbar] {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+/* GifPlaceholder の hover 状態（isEditable=true かつ isDark=true） */
+.placeholderHoverDark:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+/* GifPlaceholder の hover 状態（isEditable=true かつ isDark=false） */
+.placeholderHoverLight:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+}

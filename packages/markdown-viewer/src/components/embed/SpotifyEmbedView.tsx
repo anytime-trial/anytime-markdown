@@ -1,5 +1,8 @@
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
-import { Box, Stack, Typography, useTheme } from "@mui/material";
+import { useTheme } from "@mui/material";
+
+import { Stack } from "../../ui/Stack";
+import { Text } from "../../ui/Text";
 
 interface Props {
     spotifyType: string;
@@ -30,18 +33,19 @@ export function SpotifyEmbedView({ spotifyType, spotifyId, variant, widthOverrid
                     direction="row"
                     spacing={1}
                     alignItems="center"
-                    sx={{
+                    style={{
                         border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
+                        borderRadius: 4,
                         backgroundColor: theme.palette.background.paper,
                         maxWidth: 720,
                         height: 40,
-                        px: 1.5,
+                        paddingLeft: 12,
+                        paddingRight: 12,
                     }}
                 >
                     <MusicNoteIcon sx={{ fontSize: 16, color: "#1DB954", flexShrink: 0 }} />
-                    <Typography
-                        sx={{
+                    <Text
+                        style={{
                             color: theme.palette.text.primary,
                             fontSize: 14,
                             whiteSpace: "nowrap",
@@ -51,7 +55,7 @@ export function SpotifyEmbedView({ spotifyType, spotifyId, variant, widthOverrid
                         }}
                     >
                         Spotify: {spotifyId}
-                    </Typography>
+                    </Text>
                 </Stack>
             </a>
         );
@@ -61,23 +65,22 @@ export function SpotifyEmbedView({ spotifyType, spotifyId, variant, widthOverrid
     const embedSrc = `https://open.spotify.com/embed/${encodeURIComponent(spotifyType)}/${encodeURIComponent(spotifyId)}`;
 
     return (
-        <Box
-            sx={{
+        <div
+            style={{
                 width: widthOverride ?? "100%",
                 maxWidth: widthOverride ?? 720,
-                borderRadius: 1,
+                borderRadius: 4,
                 overflow: "hidden",
             }}
         >
-            <Box
-                component="iframe"
+            <iframe
                 src={embedSrc}
                 title={`Spotify ${spotifyType}: ${spotifyId}`}
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                 referrerPolicy="strict-origin-when-cross-origin"
                 loading="lazy"
-                sx={{ width: "100%", height, border: 0 }}
+                style={{ width: "100%", height, border: 0 }}
             />
-        </Box>
+        </div>
     );
 }

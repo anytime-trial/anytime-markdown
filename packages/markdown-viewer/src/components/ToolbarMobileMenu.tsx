@@ -7,13 +7,14 @@ import SaveIcon from "@mui/icons-material/Save";
 import SaveAsIcon from "@mui/icons-material/SaveAs";
 import SettingsIcon from "@mui/icons-material/Settings";
 import {
-  Divider,
   ListItemIcon,
   ListItemText,
   Menu,
   MenuItem,
 } from "@mui/material";
 import React from "react";
+
+import { Divider } from "../ui/Divider";
 
 import type { TranslationFn } from "../types";
 import type { ToolbarFileCapabilities, ToolbarFileHandlers } from "../types/toolbar";

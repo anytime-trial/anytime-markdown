@@ -4,17 +4,14 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import {
-  Box,
-  Divider,
   IconButton,
   Tooltip,
-  Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildEditorExtensions } from "../buildEditorExtensions";
-import { FILE_DROP_OVERLAY_COLOR, getDivider, getEditorBg, getTextDisabled } from "../constants/colors";
+import { getEditorBg, getDivider, getTextDisabled } from "../constants/colors";
 import { MERGE_INFO_FONT_SIZE } from "../constants/dimensions";
 import { setMergeEditors } from "../contexts/MergeEditorsContext";
 import { useBlockAlignment } from "../hooks/useBlockAlignment";
@@ -27,9 +24,12 @@ import { useScrollSync } from "../hooks/useScrollSync";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { type DiffLine } from "../utils/diffEngine";
 import { preprocessMarkdown } from "../utils/frontmatterHelpers";
+import { Divider } from "../ui/Divider";
+import { Text } from "../ui/Text";
 import { FrontmatterBlock } from "./FrontmatterBlock";
 import { LinePreviewPanel } from "./LinePreviewPanel";
 import { MergeEditorPanel } from "./MergeEditorPanel";
+import styles from "./InlineMergeView.module.css";
 
 /** 折りたたみ時に変更箇所の前後に残すコンテキスト量。
  *  ソースモードは行単位（3 行）、WYSIWYG はブロック単位（1 ブロック）で粒度が異なる。 */
@@ -224,7 +224,7 @@ export function InlineMergeView({
     immediatelyRender: false,
     editorProps: {
       handleDOMEvents: {
-        // Skip ProseMirror drop handling; let event bubble to parent Box handler
+        // Skip ProseMirror drop handling; let event bubble to parent div handler
         drop: () => true,
       },
       handleClickOn: (_view, _pos, node, _nodePos, event) => {
@@ -286,7 +286,7 @@ export function InlineMergeView({
   }, [rightEditor, leftEditor]);
 
   return (
-    <Box onKeyDown={handleMergeNavKeyDown} sx={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden" }}>
+    <div onKeyDown={handleMergeNavKeyDown} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden" }}>
       {/* Hidden file input for right panel */}
       <input
         ref={fileInputRightRef}
@@ -299,14 +299,14 @@ export function InlineMergeView({
 
       {/* Frontmatter comparison row */}
       {!sourceMode && (leftFrontmatter != null || rightFrontmatter != null) && (
-        <Box sx={{ display: "flex", gap: 0, flexShrink: 0, alignItems: "stretch" }}>
-          <Box sx={{ flex: 1, minWidth: 0, px: 1, pt: 1 }}>
+        <div style={{ display: "flex", gap: 0, flexShrink: 0, alignItems: "stretch" }}>
+          <div style={{ flex: 1, minWidth: 0, paddingLeft: 8, paddingRight: 8, paddingTop: 8 }}>
             {rightFrontmatter == null ? (
-              <Box sx={{ border: 1, borderColor: getDivider(isDark), borderRadius: 1, mb: 1, opacity: 0.4, p: 1, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
-                <Typography variant="caption" sx={{ fontFamily: "monospace", color: getTextDisabled(isDark), fontSize: MERGE_INFO_FONT_SIZE }}>
+              <div style={{ border: "1px solid " + getDivider(isDark), borderRadius: 4, marginBottom: 8, opacity: 0.4, padding: 8, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
+                <Text variant="caption" style={{ fontFamily: "monospace", color: getTextDisabled(isDark), fontSize: MERGE_INFO_FONT_SIZE }}>
                   No Frontmatter
-                </Typography>
-              </Box>
+                </Text>
+              </div>
             ) : (
               <FrontmatterBlock
                 frontmatter={rightFrontmatter}
@@ -315,15 +315,15 @@ export function InlineMergeView({
                 t={t}
               />
             )}
-          </Box>
+          </div>
           <Divider orientation="vertical" flexItem />
-          <Box sx={{ flex: 1, minWidth: 0, px: 1, pt: 1 }}>
+          <div style={{ flex: 1, minWidth: 0, paddingLeft: 8, paddingRight: 8, paddingTop: 8 }}>
             {leftFrontmatter == null ? (
-              <Box sx={{ border: 1, borderColor: getDivider(isDark), borderRadius: 1, mb: 1, opacity: 0.4, p: 1, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
-                <Typography variant="caption" sx={{ fontFamily: "monospace", color: getTextDisabled(isDark), fontSize: MERGE_INFO_FONT_SIZE }}>
+              <div style={{ border: "1px solid " + getDivider(isDark), borderRadius: 4, marginBottom: 8, opacity: 0.4, padding: 8, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
+                <Text variant="caption" style={{ fontFamily: "monospace", color: getTextDisabled(isDark), fontSize: MERGE_INFO_FONT_SIZE }}>
                   No Frontmatter
-                </Typography>
-              </Box>
+                </Text>
+              </div>
             ) : (
               <FrontmatterBlock
                 frontmatter={leftFrontmatter}
@@ -331,12 +331,12 @@ export function InlineMergeView({
                 t={t}
               />
             )}
-          </Box>
-        </Box>
+          </div>
+        </div>
       )}
 
       {/* Diff navigation + semantic diff toggle */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.5, px: 1, py: 0.5, flexShrink: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4, flexShrink: 0 }}>
         <Tooltip title={t("mergeNav.prev")}>
           <span>
             <IconButton
@@ -350,13 +350,13 @@ export function InlineMergeView({
             </IconButton>
           </span>
         </Tooltip>
-        <Typography
+        <Text
           variant="caption"
           aria-live="polite"
-          sx={{ minWidth: "3.5em", textAlign: "center", fontVariantNumeric: "tabular-nums", color: getTextDisabled(isDark) }}
+          style={{ minWidth: "3.5em", textAlign: "center", fontVariantNumeric: "tabular-nums", color: getTextDisabled(isDark) }}
         >
           {totalBlocks === 0 ? "0 / 0" : `${currentBlockIndex + 1} / ${totalBlocks}`}
-        </Typography>
+        </Text>
         <Tooltip title={t("mergeNav.next")}>
           <span>
             <IconButton
@@ -370,7 +370,7 @@ export function InlineMergeView({
             </IconButton>
           </span>
         </Tooltip>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+        <Divider orientation="vertical" flexItem style={{ marginLeft: 4, marginRight: 4 }} />
         <Tooltip title={t("collapseUnchanged")}>
           <IconButton
             size="small"
@@ -385,19 +385,13 @@ export function InlineMergeView({
         </Tooltip>
         {/* ソースモードは常にセマンティック比較 OFF（行単位の素の diff）。
             WYSIWYG は常に semantic。トグルは提供しない。 */}
-      </Box>
+      </div>
 
       {/* Content area: left = compare (read-only), right = editor (children) */}
-      <Box sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Left: compare (read-only) + DiffMap */}
-        <Box
-          sx={{
-            flex: 1, minWidth: 0, display: "flex", overflow: "hidden",
-            position: "relative",
-            ...(rightDragOver && {
-              "&::after": { content: '""', position: "absolute", inset: 0, bgcolor: FILE_DROP_OVERLAY_COLOR, pointerEvents: "none", zIndex: 1 },
-            }),
-          }}
+        <div
+          className={rightDragOver ? `${styles.dropTarget} ${styles.dropTargetActive}` : styles.dropTarget}
           onDragOver={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -425,7 +419,7 @@ export function InlineMergeView({
             }
           }}
         >
-          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <MergeEditorPanel
               sourceMode={sourceMode}
               sourceText={compareText}
@@ -444,24 +438,24 @@ export function InlineMergeView({
               {...collapseProps}
               paperSx={{ bgcolor: getEditorBg(isDark, settings), '& input[type="checkbox"]': { pointerEvents: "none" } }}
             />
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         <Divider orientation="vertical" flexItem />
 
         {/* Right: editor (children) */}
-        <Box
+        <div
           ref={leftContainerRef}
-          sx={{
+          style={{
             flex: 1,
             minWidth: 0,
             overflow: "hidden",
           }}
         >
           {children(leftBgGradient, diffResult?.leftLines, flippedMergeBlock, handleHoverLine, collapseProps)}
-        </Box>
+        </div>
         {commentSlot}
-      </Box>
+      </div>
 
       {/* Line preview: hovered line text with inline diff highlight (source mode only) */}
       <LinePreviewPanel
@@ -471,6 +465,6 @@ export function InlineMergeView({
       />
 
 
-    </Box>
+    </div>
   );
 }

@@ -1,0 +1,61 @@
+/* OutlinePanel – co-located CSS Module for pseudo-class / pseudo-element / child selectors */
+
+/* ── OutlineItem row ─────────────────────────────────────────── */
+.outlineItem {
+  display: flex;
+  align-items: center;
+  border-radius: 2px; /* borderRadius:0.5 = 0.5×4px = 2px */
+}
+
+.outlineItem:hover {
+  background-color: var(--am-color-action-hover);
+}
+
+/* Hide move-buttons by default; show on hover or focus-within */
+.outlineItem .outlineMoveBtns {
+  opacity: 0;
+}
+
+.outlineItem:hover .outlineMoveBtns,
+.outlineItem .outlineMoveBtns:focus-within {
+  opacity: 1;
+}
+
+/* ── Move-buttons container ──────────────────────────────────── */
+.outlineMoveBtns {
+  display: flex;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .outlineMoveBtns {
+    transition: none;
+  }
+}
+
+/* ── Resize handle ───────────────────────────────────────────── */
+.resizeHandle {
+  width: 6px;
+  cursor: col-resize;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resizeHandle:hover {
+  background-color: var(--am-color-action-hover);
+}
+
+.resizeHandle:focus-visible {
+  outline: 2px solid var(--am-color-primary-main);
+}
+
+.resizeHandle::after {
+  content: "";
+  width: 2px;
+  height: 32px;
+  border-radius: 4px; /* borderRadius:1 = 1×4px = 4px */
+  background-color: var(--am-color-divider);
+}

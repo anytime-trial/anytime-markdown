@@ -1,6 +1,8 @@
-import { Box, Skeleton, Stack, Typography, useTheme } from "@mui/material";
+import { Skeleton, useTheme } from "@mui/material";
 import { useEffect, useRef } from "react";
 
+import { Stack } from "../../ui/Stack";
+import { Text } from "../../ui/Text";
 import { useOembedData } from "../../hooks/useEmbedData";
 import type { EmbedProviders } from "../../types/embedProvider";
 import { sanitizeTweetHtml } from "../../utils/tweetSanitize";
@@ -121,20 +123,21 @@ export function TwitterEmbedView({ url, variant, providers, widthOverride }: Rea
                     direction="row"
                     spacing={1}
                     alignItems="center"
-                    sx={{
+                    style={{
                         border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
+                        borderRadius: 4,
                         backgroundColor: theme.palette.background.paper,
                         maxWidth: 720,
                         height: 40,
-                        px: 1.5,
+                        paddingLeft: 12,
+                        paddingRight: 12,
                     }}
                 >
-                    <Typography sx={{ fontSize: 14, color: theme.palette.text.primary, fontWeight: 600 }}>
+                    <Text style={{ fontSize: 14, color: theme.palette.text.primary, fontWeight: 600 }}>
                         @{author}
-                    </Typography>
-                    <Typography
-                        sx={{
+                    </Text>
+                    <Text
+                        style={{
                             fontSize: 13,
                             color: theme.palette.text.secondary,
                             whiteSpace: "nowrap",
@@ -144,16 +147,16 @@ export function TwitterEmbedView({ url, variant, providers, widthOverride }: Rea
                         }}
                     >
                         · {excerpt}
-                    </Typography>
+                    </Text>
                 </Stack>
             </a>
         );
     }
 
     return (
-        <Box
+        <div
             ref={containerRef}
-            sx={{ width: widthOverride ?? "100%", maxWidth: widthOverride ?? 720 }}
+            style={{ width: widthOverride ?? "100%", maxWidth: widthOverride ?? 720 }}
             dangerouslySetInnerHTML={{ __html: sanitizeTweetHtml(data.html) }}
         />
     );

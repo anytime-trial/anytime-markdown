@@ -1,0 +1,7 @@
+.annotationItem {
+  cursor: pointer;
+}
+
+.annotationItem:hover {
+  background-color: var(--hover-bg);
+}

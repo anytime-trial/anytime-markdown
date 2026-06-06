@@ -1,5 +1,8 @@
 import HexagonOutlinedIcon from "@mui/icons-material/HexagonOutlined";
-import { Box, Stack, Typography, useTheme } from "@mui/material";
+import { useTheme } from "@mui/material";
+
+import { Stack } from "../../ui/Stack";
+import { Text } from "../../ui/Text";
 
 interface Props {
     path: string;
@@ -28,20 +31,22 @@ export function FigmaEmbedView({ path, variant, widthOverride }: Readonly<Props>
                     direction="row"
                     spacing={1}
                     alignItems="center"
-                    sx={{
+                    style={{
                         border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
+                        borderRadius: 4,
                         backgroundColor: theme.palette.background.paper,
                         maxWidth: 720,
                         height: 40,
-                        px: 1.5,
+                        paddingLeft: 12,
+                        paddingRight: 12,
                     }}
                 >
                     <HexagonOutlinedIcon
                         sx={{ fontSize: 16, color: theme.palette.text.secondary, flexShrink: 0 }}
                     />
-                    <Typography
-                        sx={{
+                    <Text
+                        component="span"
+                        style={{
                             color: theme.palette.text.primary,
                             fontSize: 14,
                             whiteSpace: "nowrap",
@@ -51,7 +56,7 @@ export function FigmaEmbedView({ path, variant, widthOverride }: Readonly<Props>
                         }}
                     >
                         {extractFileName(path)}
-                    </Typography>
+                    </Text>
                 </Stack>
             </a>
         );
@@ -60,25 +65,24 @@ export function FigmaEmbedView({ path, variant, widthOverride }: Readonly<Props>
     const embedSrc = `https://www.figma.com/embed?embed_host=anytime-markdown&url=${encodeURIComponent(canonical)}`;
 
     return (
-        <Box
-            sx={{
+        <div
+            style={{
                 position: "relative",
                 width: widthOverride ?? "100%",
                 maxWidth: widthOverride ?? 720,
                 paddingTop: "75%",
-                borderRadius: 1,
+                borderRadius: 4,
                 overflow: "hidden",
                 border: `1px solid ${theme.palette.divider}`,
             }}
         >
-            <Box
-                component="iframe"
+            <iframe
                 src={embedSrc}
                 title={`Figma: ${extractFileName(path)}`}
                 allowFullScreen
                 referrerPolicy="strict-origin-when-cross-origin"
                 loading="lazy"
-                sx={{
+                style={{
                     position: "absolute",
                     inset: 0,
                     width: "100%",
@@ -86,6 +90,6 @@ export function FigmaEmbedView({ path, variant, widthOverride }: Readonly<Props>
                     border: 0,
                 }}
             />
-        </Box>
+        </div>
     );
 }

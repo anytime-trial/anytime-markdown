@@ -1,5 +1,7 @@
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { Box, Stack, Typography, useTheme } from "@mui/material";
+
+import { Stack } from "../../ui/Stack";
+import { Text } from "../../ui/Text";
 
 interface Props {
     videoId: string;
@@ -8,7 +10,6 @@ interface Props {
 }
 
 export function YouTubeEmbedView({ videoId, variant, widthOverride }: Readonly<Props>) {
-    const theme = useTheme();
     const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
     if (variant === "compact") {
@@ -23,20 +24,21 @@ export function YouTubeEmbedView({ videoId, variant, widthOverride }: Readonly<P
                     direction="row"
                     spacing={1}
                     alignItems="center"
-                    sx={{
-                        border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
-                        backgroundColor: theme.palette.background.paper,
+                    style={{
+                        border: "1px solid var(--am-color-divider)",
+                        borderRadius: 4,
+                        backgroundColor: "var(--am-color-bg-paper)",
                         maxWidth: 720,
                         height: 40,
-                        px: 1.5,
+                        paddingLeft: 12,
+                        paddingRight: 12,
                         overflow: "hidden",
                     }}
                 >
                     <PlayArrowIcon sx={{ fontSize: 20, color: "#FF0000", flexShrink: 0 }} />
-                    <Typography
-                        sx={{
-                            color: theme.palette.text.primary,
+                    <Text
+                        style={{
+                            color: "var(--am-color-text-primary)",
                             fontSize: 14,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
@@ -45,33 +47,32 @@ export function YouTubeEmbedView({ videoId, variant, widthOverride }: Readonly<P
                         }}
                     >
                         YouTube: {videoId}
-                    </Typography>
+                    </Text>
                 </Stack>
             </a>
         );
     }
 
     return (
-        <Box
-            sx={{
+        <div
+            style={{
                 position: "relative",
                 width: widthOverride ?? "100%",
                 maxWidth: widthOverride ?? 720,
                 paddingTop: "56.25%",
-                borderRadius: 1,
+                borderRadius: 4,
                 overflow: "hidden",
-                backgroundColor: theme.palette.background.paper,
+                backgroundColor: "var(--am-color-bg-paper)",
             }}
         >
-            <Box
-                component="iframe"
+            <iframe
                 src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}`}
                 title={`YouTube: ${videoId}`}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
                 referrerPolicy="strict-origin-when-cross-origin"
                 loading="lazy"
-                sx={{
+                style={{
                     position: "absolute",
                     inset: 0,
                     width: "100%",
@@ -79,6 +80,6 @@ export function YouTubeEmbedView({ videoId, variant, widthOverride }: Readonly<P
                     border: 0,
                 }}
             />
-        </Box>
+        </div>
     );
 }

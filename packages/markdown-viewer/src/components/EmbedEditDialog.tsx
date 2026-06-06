@@ -1,7 +1,6 @@
 "use client";
 
 import {
-    Box,
     Button,
     Dialog,
     DialogActions,
@@ -10,14 +9,13 @@ import {
     FormControlLabel,
     Radio,
     RadioGroup,
-    Stack,
     TextField,
-    Typography,
-    useTheme,
 } from "@mui/material";
 import { useEffect, useState } from "react";
 
 import { useOptionalEmbedProviders } from "../contexts/EmbedProvidersContext";
+import { Stack } from "../ui/Stack";
+import { Text } from "../ui/Text";
 import type { EmbedVariant } from "../utils/embedInfoString";
 import { EmbedNodeView } from "./EmbedNodeView";
 
@@ -38,7 +36,6 @@ export function EmbedEditDialog({
     onApply,
     t,
 }: Readonly<Props>) {
-    const theme = useTheme();
     const providers = useOptionalEmbedProviders();
     const [url, setUrl] = useState(initialUrl);
     const [variant, setVariant] = useState<EmbedVariant>(initialVariant);
@@ -70,10 +67,10 @@ export function EmbedEditDialog({
                         size="small"
                         placeholder="https://..."
                     />
-                    <Box>
-                        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                    <div>
+                        <Text variant="subtitle2" style={{ marginBottom: 4 }}>
                             {t("embedVariantLabel")}
-                        </Typography>
+                        </Text>
                         <RadioGroup
                             row
                             value={variant}
@@ -90,16 +87,16 @@ export function EmbedEditDialog({
                                 label={t("embedVariantCompact")}
                             />
                         </RadioGroup>
-                    </Box>
-                    <Box
-                        sx={{
-                            borderTop: `1px solid ${theme.palette.divider}`,
-                            pt: 2,
+                    </div>
+                    <div
+                        style={{
+                            borderTop: "1px solid var(--am-color-divider)",
+                            paddingTop: 16,
                         }}
                     >
-                        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        <Text variant="subtitle2" style={{ marginBottom: 8 }}>
                             {t("embedPreviewLabel")}
-                        </Typography>
+                        </Text>
                         {url.trim() ? (
                             <EmbedNodeView
                                 language={previewLang}
@@ -107,11 +104,11 @@ export function EmbedEditDialog({
                                 providers={providers}
                             />
                         ) : (
-                            <Typography variant="body2" color="text.secondary">
+                            <Text variant="body2" style={{ color: "var(--am-color-text-secondary)" }}>
                                 {t("embedPreviewEmpty")}
-                            </Typography>
+                            </Text>
                         )}
-                    </Box>
+                    </div>
                 </Stack>
             </DialogContent>
             <DialogActions>

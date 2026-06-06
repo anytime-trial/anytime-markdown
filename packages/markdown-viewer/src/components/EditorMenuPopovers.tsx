@@ -8,17 +8,15 @@ import ListAltIcon from "@mui/icons-material/ListAlt";
 import SchemaIcon from "@mui/icons-material/Schema";
 import SettingsIcon from "@mui/icons-material/Settings";
 import {
-  Box,
-  Divider,
   IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
   Popover,
   Tooltip,
-  Typography,
   useTheme,
 } from "@mui/material";
+import { Divider } from "../ui/Divider";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useMemo } from "react";
 
@@ -121,7 +119,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         transformOrigin={{ vertical: "top", horizontal: "left" }}
         slotProps={{ paper: { role: "menu", "aria-label": t("helpMenu") } }}
       >
-        <Box sx={{ py: 0.5, minWidth: 160 }}>
+        <div style={{ paddingTop: 4, paddingBottom: 4, minWidth: 160 }}>
           {onToggleOutline && (
             <MenuItem
               onClick={() => { onToggleOutline(); setHelpAnchorEl(null); }}
@@ -161,7 +159,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               <ListItemText>{t("versionInfo")}</ListItemText>
             </MenuItem>
           )}
-        </Box>
+        </div>
       </Popover>
 
       {/* 図挿入選択 popover */}
@@ -173,7 +171,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         transformOrigin={{ vertical: "top", horizontal: "left" }}
         slotProps={{ paper: { role: "menu", "aria-label": t("diagramMenu") } }}
       >
-        <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
+        <div style={{ display: "flex", flexDirection: "column", padding: 4 }}>
           <Tooltip title={t("mermaid")} placement="right">
             <IconButton
               autoFocus
@@ -212,8 +210,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               <SchemaIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-
-        </Box>
+        </div>
       </Popover>
 
       {/* PlantUML サンプル選択 popover */}
@@ -225,7 +222,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         transformOrigin={{ vertical: "top", horizontal: "left" }}
         slotProps={{ paper: { role: "menu", "aria-label": t("plantumlSampleMenu") } }}
       >
-        <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
+        <div style={{ display: "flex", flexDirection: "column", padding: 4 }}>
           {PLANTUML_SAMPLES.filter((s) => s.enabled).map((sample, idx) => {
             const code = sample.code;
             return (
@@ -257,12 +254,12 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                   }}
                   sx={{ minWidth: 32, minHeight: 32 }}
                 >
-                  <Typography aria-hidden="true" sx={{ fontSize: 9, fontFamily: "monospace", fontWeight: 700, lineHeight: 1, border: 1, borderColor: getDivider(isDark), borderRadius: 0.5, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>{sample.icon}</Typography>
+                  <span aria-hidden="true" style={{ fontSize: 9, fontFamily: "monospace", fontWeight: 700, lineHeight: 1, border: "1px solid", borderColor: getDivider(isDark), borderRadius: 2, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>{sample.icon}</span>
                 </IconButton>
               </Tooltip>
             );
           })}
-        </Box>
+        </div>
       </Popover>
 
       {/* Template selection popover */}
@@ -274,7 +271,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         transformOrigin={{ vertical: "top", horizontal: "left" }}
         slotProps={{ paper: { role: "menu", "aria-label": t("templateMenu") } }}
       >
-        <Box sx={{ py: 0.5, minWidth: 180 }}>
+        <div style={{ paddingTop: 4, paddingBottom: 4, minWidth: 180 }}>
           {builtinTemplates.map((tmpl) => (
             <MenuItem
               key={tmpl.id}
@@ -284,9 +281,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               {t(tmpl.name)}
             </MenuItem>
           ))}
-
-
-        </Box>
+        </div>
       </Popover>
 
       {/* Heading level change popover */}
@@ -298,7 +293,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         transformOrigin={{ vertical: "top", horizontal: "left" }}
         slotProps={{ paper: { role: "menu", "aria-label": t("headingMenu") } }}
       >
-        <Box sx={{ py: 0.5 }}>
+        <div style={{ paddingTop: 4, paddingBottom: 4 }}>
           {[
             { level: 0, label: "Paragraph" },
             { level: 1, label: "H1" },
@@ -323,7 +318,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               {label}
             </MenuItem>
           ))}
-          <Divider sx={{ my: 0.5 }} />
+          <Divider style={{ marginTop: 4, marginBottom: 4 }} />
           <MenuItem
             onClick={() => {
               if (!editor || !headingMenu) return;
@@ -360,7 +355,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
             <CheckBoxIcon sx={{ fontSize: 18 }} />
             {t("taskList")}
           </MenuItem>
-          <Divider sx={{ my: 0.5 }} />
+          <Divider style={{ marginTop: 4, marginBottom: 4 }} />
           <MenuItem
             onClick={() => {
               if (!editor || !headingMenu) return;
@@ -373,7 +368,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
             <FormatQuoteIcon sx={{ fontSize: 18 }} />
             {t("blockquote")}
           </MenuItem>
-        </Box>
+        </div>
       </Popover>
     </>
   );

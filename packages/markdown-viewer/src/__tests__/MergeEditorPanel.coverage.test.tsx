@@ -24,6 +24,7 @@ jest.mock("next-intl", () => ({
 }));
 
 jest.mock("../constants/colors", () => ({
+  ...jest.requireActual("../constants/colors"),
   getActionHover: () => "rgba(0,0,0,0.04)",
   getErrorMain: () => "#f00",
   getSuccessMain: () => "#0f0",

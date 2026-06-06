@@ -58,6 +58,7 @@ jest.mock("../styles/editorStyles", () => ({
 }));
 
 jest.mock("../constants/colors", () => ({
+  ...jest.requireActual("../constants/colors"),
   getBgPaper: () => "#fff",
   getDivider: () => "#ccc",
   getTextSecondary: () => "#666",

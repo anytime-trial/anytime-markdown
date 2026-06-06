@@ -1,0 +1,13 @@
+.preBlock {
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.75rem;
+  max-height: 280px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--am-color-divider);
+  background-color: rgba(128, 128, 128, 0.04);
+}

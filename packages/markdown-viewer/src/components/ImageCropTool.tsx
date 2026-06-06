@@ -6,7 +6,7 @@ import CropIcon from "@mui/icons-material/Crop";
 import GridOnIcon from "@mui/icons-material/GridOn";
 import PhotoSizeSelectLargeIcon from "@mui/icons-material/PhotoSizeSelectLarge";
 import StraightenIcon from "@mui/icons-material/Straighten";
-import { Box, Button, Chip, IconButton, Tooltip, Typography } from "@mui/material";
+import { Button, Chip, IconButton, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
@@ -14,6 +14,7 @@ import { getDivider, getTextDisabled, getTextSecondary } from "../constants/colo
 import { CHIP_FONT_SIZE, PANEL_BUTTON_FONT_SIZE, STATUSBAR_FONT_SIZE } from "../constants/dimensions";
 import { useCropEstimate } from "../hooks/useCropEstimate";
 import { useCropInteraction } from "../hooks/useCropInteraction";
+import { Text } from "../ui/Text";
 import { SCALE_PRESETS } from "../utils/cropGeometry";
 
 interface ImageCropToolProps {
@@ -106,20 +107,20 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
   }, [cropping, handleCancelCrop]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
       {/* Crop toolbar */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, borderBottom: 1, borderColor: getDivider(isDark), minHeight: 32 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4, borderBottom: `1px solid ${getDivider(isDark)}`, minHeight: 32 }}>
         {cropping ? (
           <>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
+            <Text variant="caption" style={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
               {t("imageCropSelect")}
-            </Typography>
+            </Text>
             {cropEstimate && (
-              <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
+              <Text variant="caption" style={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
                 {cropEstimate}
-              </Typography>
+              </Text>
             )}
-            <Box sx={{ flex: 1 }} />
+            <div style={{ flex: 1 }} />
             {cropRect && cropRect.width > 0.01 && cropRect.height > 0.01 && (
               <Button
                 size="small"
@@ -155,7 +156,7 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
                 sx={{ height: 22, fontSize: CHIP_FONT_SIZE, cursor: "pointer" }}
               />
             ))}
-            <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.5 }}>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
               <Tooltip title={t("imageRuler")}>
                 <IconButton
                   size="small"
@@ -178,21 +179,21 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
                   <GridOnIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>
-            </Box>
+            </div>
           </>
         )}
-      </Box>
+      </div>
 
       {/* Image + crop overlay */}
-      <Box
+      <div
         ref={containerRef}
-        sx={{
+        style={{
           flex: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           overflow: "auto",
-          p: 2,
+          padding: 16,
           position: "relative",
           cursor: cropping ? hoverCursor : "default",
         }}
@@ -200,7 +201,7 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
       >
-        <Box sx={{ position: "relative", display: "inline-block" }}>
+        <div style={{ position: "relative", display: "inline-block" }}>
           <img
             ref={imgRef}
             src={src}
@@ -307,8 +308,8 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
               />
             </div>
           )}
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }

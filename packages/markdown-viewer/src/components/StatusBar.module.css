@@ -1,0 +1,13 @@
+/* StatusBar – co-located CSS Module for responsive utilities */
+
+/** Only visible from sm (≥600px). Flex container. */
+.smFlex {
+  display: none;
+  align-items: center;
+}
+
+@media (min-width: 600px) {
+  .smFlex {
+    display: flex;
+  }
+}

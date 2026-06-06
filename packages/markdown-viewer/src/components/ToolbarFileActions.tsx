@@ -3,13 +3,14 @@ import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import SaveIcon from "@mui/icons-material/Save";
 import SaveAsIcon from "@mui/icons-material/SaveAs";
 import {
-  Box,
-  Divider,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
 } from "@mui/material";
 import React from "react";
+
+import { Divider } from "../ui/Divider";
+import styles from "./ToolbarFileActions.module.css";
 
 import type { TranslationFn } from "../types";
 import type { ToolbarFileCapabilities, ToolbarFileHandlers } from "../types/toolbar";
@@ -50,7 +51,7 @@ export const ToolbarFileActions = React.memo(function ToolbarFileActions({
   return (
     <>
       {/* Desktop: individual file buttons */}
-      <Box sx={{ display: { xs: "none", md: "contents" } }}>
+      <div className={styles.desktopContents}>
         <ToggleButtonGroup size="small" aria-label={t("fileActions")} sx={{ height: 30 }}>
         {externalSaveOnly ? ([
           <ToggleButton key="save" value="save" onClick={onSaveFile} disabled={readonlyMode || !hasFileHandle} aria-label={t("saveFile")} sx={{ px: 0.75, py: 0.25 }}>
@@ -98,7 +99,7 @@ export const ToolbarFileActions = React.memo(function ToolbarFileActions({
         </ToggleButtonGroup>
         {inlineMergeOpen && (
           <>
-            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+            <Divider orientation="vertical" flexItem style={{ marginLeft: "4px", marginRight: "4px" }} />
             <ToggleButtonGroup size="small" aria-label={t("mergeRight")} sx={{ height: 30 }}>
               <ToggleButton value="open" onClick={onLoadRightFile} aria-label={t("loadCompareFile")} sx={{ px: 0.75, py: 0.25 }}>
                 <Tooltip title={t("mergeLoadFileRight")}>
@@ -108,7 +109,7 @@ export const ToolbarFileActions = React.memo(function ToolbarFileActions({
             </ToggleButtonGroup>
           </>
         )}
-      </Box>
+      </div>
     </>
   );
 });

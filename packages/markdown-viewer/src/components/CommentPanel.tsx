@@ -2,16 +2,12 @@
 import CloseIcon from "@mui/icons-material/Close";
 import ImageIcon from "@mui/icons-material/Image";
 import {
-  Box,
   Button,
   ButtonBase,
-  Divider,
   IconButton,
-  Paper,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
-  Typography,
   useTheme,
 } from "@mui/material";
 import type { Editor } from "@anytime-markdown/markdown-react";
@@ -25,6 +21,10 @@ import type { TranslationFn } from "../types";
 import type { ImageAnnotation } from "../types/imageAnnotation";
 import { parseAnnotations, serializeAnnotations } from "../types/imageAnnotation";
 import type { InlineComment } from "../utils/commentHelpers";
+import { Divider } from "../ui/Divider";
+import { Paper } from "../ui/Paper";
+import { Text } from "../ui/Text";
+import styles from "./CommentPanel.module.css";
 
 interface CommentPanelProps {
   editor: Editor;
@@ -205,33 +205,32 @@ export const CommentPanel = React.memo(function CommentPanel({
   return (
     <Paper
       variant="outlined"
-      sx={{
+      style={{
         width: COMMENT_PANEL_WIDTH,
         minWidth: COMMENT_PANEL_WIDTH,
         flex: 1,
-        borderLeft: 1,
-        borderColor: getDivider(isDark),
+        borderLeft: `1px solid ${getDivider(isDark)}`,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+        backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
       }}
     >
       {/* Header */}
-      <Box
-        sx={{
+      <div
+        style={{
           display: "flex",
           alignItems: "center",
-          px: 1,
+          paddingLeft: 8,
+          paddingRight: 8,
           minHeight: PANEL_HEADER_MIN_HEIGHT,
-          borderBottom: 1,
-          borderColor: getDivider(isDark),
+          borderBottom: `1px solid ${getDivider(isDark)}`,
         }}
       >
-        <Typography variant="subtitle2" aria-live="polite" aria-atomic="true" sx={{ flex: 1, fontWeight: 700 }}>
+        <Text variant="subtitle2" aria-live="polite" aria-atomic="true" style={{ flex: 1, fontWeight: 700 }}>
           {t("commentPanel") || "Comments"} ({unresolvedCount + unresolvedImageAnnotations}/
           {allComments.length + totalImageAnnotations})
-        </Typography>
+        </Text>
         <IconButton
           size="small"
           onClick={onClose}
@@ -239,10 +238,10 @@ export const CommentPanel = React.memo(function CommentPanel({
         >
           <CloseIcon sx={{ fontSize: 18 }} />
         </IconButton>
-      </Box>
+      </div>
 
       {/* Filter */}
-      <Box sx={{ px: 1, py: 0.5 }}>
+      <div style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4 }}>
         <ToggleButtonGroup
           value={filter}
           exclusive
@@ -272,17 +271,17 @@ export const CommentPanel = React.memo(function CommentPanel({
             {t("commentFilterResolved") || "Resolved"}
           </ToggleButton>
         </ToggleButtonGroup>
-      </Box>
+      </div>
 
       {/* Comment list */}
-      <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
+      <div style={{ flex: 1, overflow: "auto", padding: 8 }}>
         {filtered.length === 0 && (
-          <Typography
+          <Text
             variant="body2"
-            sx={{ textAlign: "center", mt: 2, color: getTextSecondary(isDark) }}
+            style={{ textAlign: "center", marginTop: 16, color: getTextSecondary(isDark) }}
           >
             {emptyMessage}
-          </Typography>
+          </Text>
         )}
         {filtered.map((comment) => {
           const found = findCommentInDoc(editor, comment.id);
@@ -308,30 +307,31 @@ export const CommentPanel = React.memo(function CommentPanel({
             >
               {/* Target text */}
               {found && !found.isPoint && found.text && (
-                <Typography
+                <Text
                   variant="caption"
-                  sx={{
+                  component="span"
+                  style={{
                     display: "block",
-                    mb: 0.5,
+                    marginBottom: 4,
                     fontStyle: "italic",
                     color: getTextSecondary(isDark),
-                    borderLeft: 2,
-                    borderColor: getDivider(isDark),
-                    pl: 1,
+                    borderLeft: `2px solid ${getDivider(isDark)}`,
+                    paddingLeft: 8,
                     maxHeight: "2.8em",
                     overflow: "hidden",
                   }}
                 >
                   &ldquo;{found.text}&rdquo;
-                </Typography>
+                </Text>
               )}
               {found?.isPoint && (
-                <Typography
+                <Text
                   variant="caption"
-                  sx={{ display: "block", mb: 0.5, color: getTextSecondary(isDark) }}
+                  component="span"
+                  style={{ display: "block", marginBottom: 4, color: getTextSecondary(isDark) }}
                 >
                   {t("commentPointLabel") || "Point comment"}
-                </Typography>
+                </Text>
               )}
               {/* Comment text */}
               {editingId === comment.id ? (
@@ -352,21 +352,21 @@ export const CommentPanel = React.memo(function CommentPanel({
                   sx={{ mb: 0.5, "& .MuiInputBase-input": { fontSize: COMMENT_INPUT_FONT_SIZE, p: 0.75 } }}
                 />
               ) : (
-                <Typography
+                <Text
                   variant="body2"
                   onClick={(e) => startEdit(comment, e)}
-                  sx={{
-                    mb: 0.5,
+                  className={styles.commentBodyHover}
+                  style={{
+                    marginBottom: 4,
                     cursor: "text",
                     minHeight: "1.4em",
-                    "&:hover": { bgcolor: getActionHover(isDark), borderRadius: 0.5 },
                   }}
                 >
-                  {comment.text || <Box component="span" sx={{ color: getTextDisabled(isDark), fontStyle: "italic" }}>{t("commentPlaceholder") || "Add comment..."}</Box>}
-                </Typography>
+                  {comment.text || <span style={{ color: getTextDisabled(isDark), fontStyle: "italic" }}>{t("commentPlaceholder") || "Add comment..."}</span>}
+                </Text>
               )}
               {/* Actions */}
-              <Box sx={{ display: "flex", gap: 0.5 }}>
+              <div style={{ display: "flex", gap: 4 }}>
                 <Button
                   size="small"
                   variant="text"
@@ -397,7 +397,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                 >
                   {t("commentDelete") || "Delete"}
                 </Button>
-              </Box>
+              </div>
             </ButtonBase>
           );
         })}
@@ -405,11 +405,22 @@ export const CommentPanel = React.memo(function CommentPanel({
         {/* 画像アノテーションコメント */}
         {imageAnnotations.length > 0 && (
           <>
-            <Divider sx={{ my: 1 }} />
-            <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.5, color: getTextSecondary(isDark), fontWeight: 700, mb: 0.5 }}>
+            <Divider style={{ marginTop: 8, marginBottom: 8 }} />
+            <Text
+              variant="caption"
+              component="span"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                color: getTextSecondary(isDark),
+                fontWeight: 700,
+                marginBottom: 4,
+              }}
+            >
               <ImageIcon sx={{ fontSize: 14 }} />
               {t("annotate")} ({unresolvedImageAnnotations}/{totalImageAnnotations})
-            </Typography>
+            </Text>
             {imageAnnotations.map((img) => {
               const filteredAnnotations = img.annotations.filter((a) => {
                 if (filter === "open") return !a.resolved;
@@ -418,20 +429,20 @@ export const CommentPanel = React.memo(function CommentPanel({
               });
               if (filteredAnnotations.length === 0) return null;
               return (
-              <Box key={img.pos}>
+              <div key={img.pos}>
                 {filteredAnnotations.map((a, i) => {
                   let annotationLabel: string;
                   if (a.type === "rect") annotationLabel = t("annotationRect");
                   else if (a.type === "circle") annotationLabel = t("annotationCircle");
                   else annotationLabel = t("annotationLine");
                   return (
-                  <Box
+                  <div
                     key={a.id}
-                    sx={{
-                      mb: 0.5, p: 0.75,
-                      border: 1,
-                      borderColor: getDivider(isDark),
-                      borderRadius: 1,
+                    style={{
+                      marginBottom: 4,
+                      padding: 6,
+                      border: `1px solid ${getDivider(isDark)}`,
+                      borderRadius: 4,
                       opacity: a.resolved ? 0.5 : 1,
                     }}
                   >
@@ -445,22 +456,22 @@ export const CommentPanel = React.memo(function CommentPanel({
                       }}
                       sx={{ display: "block", textAlign: "left", width: "100%", cursor: "pointer" }}
                     >
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.25 }}>
-                        <Box sx={{
-                          width: 16, height: 16, borderRadius: "50%", bgcolor: a.color,
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                        <div style={{
+                          width: 16, height: 16, borderRadius: "50%", backgroundColor: a.color,
                           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                         }}>
-                          <Typography variant="caption" sx={{ color: "white", fontSize: BADGE_NUMBER_FONT_SIZE, fontWeight: 700 }}>{i + 1}</Typography>
-                        </Box>
-                        <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE }}>
+                          <Text variant="caption" component="span" style={{ color: "white", fontSize: BADGE_NUMBER_FONT_SIZE, fontWeight: 700 }}>{i + 1}</Text>
+                        </div>
+                        <Text variant="caption" component="span" style={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE }}>
                           {annotationLabel}
-                        </Typography>
-                      </Box>
-                      <Typography variant="body2" sx={{ fontSize: COMMENT_BODY_FONT_SIZE, mb: 0.5 }}>
+                        </Text>
+                      </div>
+                      <Text variant="body2" style={{ fontSize: COMMENT_BODY_FONT_SIZE, marginBottom: 4 }}>
                         {a.comment}
-                      </Typography>
+                      </Text>
                     </ButtonBase>
-                    <Box sx={{ display: "flex", gap: 0.5 }}>
+                    <div style={{ display: "flex", gap: 4 }}>
                       <Button
                         size="small"
                         variant="text"
@@ -480,16 +491,16 @@ export const CommentPanel = React.memo(function CommentPanel({
                       >
                         {t("commentDelete") || "Delete"}
                       </Button>
-                    </Box>
-                  </Box>
+                    </div>
+                  </div>
                   );
                 })}
-              </Box>
+              </div>
               );
             })}
           </>
         )}
-      </Box>
+      </div>
     </Paper>
   );
 });

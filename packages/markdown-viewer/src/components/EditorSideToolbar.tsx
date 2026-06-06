@@ -2,12 +2,13 @@ import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { Box, IconButton, Tooltip } from "@mui/material";
+import { IconButton, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
 import { getDivider } from "../constants/colors";
 import { SIDE_TOOLBAR_ICON_SIZE, SIDE_TOOLBAR_WIDTH } from "../constants/dimensions";
+import styles from "./EditorSideToolbar.module.css";
 
 interface EditorSideToolbarProps {
   sourceMode: boolean;
@@ -34,21 +35,11 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
 }: EditorSideToolbarProps) {
   const isDark = useTheme().palette.mode === "dark";
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
+    <div
+      className={styles.root}
+      style={{
         width: SIDE_TOOLBAR_WIDTH,
-        height: "100%",
-        py: 1,
-        gap: 0.5,
-        border: 1,
-        borderColor: getDivider(isDark),
-        flexShrink: 0,
-        "@media (max-width: 900px)": {
-          display: "none",
-        },
+        border: `1px solid ${getDivider(isDark)}`,
       }}
     >
       <Tooltip title={t("outline")} placement="left">
@@ -65,7 +56,7 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
           }}
           disabled={sourceMode}
           color={outlineOpen ? "primary" : "default"}
-          sx={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
+          style={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
         >
           <ListAltIcon fontSize="small" />
         </IconButton>
@@ -84,7 +75,7 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
           }}
           disabled={sourceMode}
           color={commentOpen ? "primary" : "default"}
-          sx={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
+          style={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
         >
           <ChatBubbleOutlineIcon fontSize="small" />
         </IconButton>
@@ -103,7 +94,7 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
               }
             }}
             color={explorerOpen ? "primary" : "default"}
-            sx={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
+            style={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
           >
             <GitHubIcon fontSize="small" />
           </IconButton>
@@ -114,12 +105,12 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
           <IconButton
             size="small"
             onClick={onOpenSettings}
-            sx={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
+            style={{ width: SIDE_TOOLBAR_ICON_SIZE, height: SIDE_TOOLBAR_ICON_SIZE }}
           >
             <SettingsIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       )}
-    </Box>
+    </div>
   );
 });

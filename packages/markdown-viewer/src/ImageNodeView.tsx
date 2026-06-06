@@ -8,7 +8,7 @@ import ImageIcon from "@mui/icons-material/Image";
 import LinkIcon from "@mui/icons-material/Link";
 import ScreenshotMonitorIcon from "@mui/icons-material/ScreenshotMonitor";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
+import { IconButton, Tooltip, useTheme } from "@mui/material";
 import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 import { NodeViewWrapper } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -29,6 +29,9 @@ import { useBlockResize } from "./hooks/useBlockResize";
 import { useMarkdownT } from "./i18n/context";
 import { getEditorStorage } from "./types";
 import { type ImageAnnotation, parseAnnotations, serializeAnnotations } from "./types/imageAnnotation";
+import styles from "./ImageNodeView.module.css";
+import { Divider } from "./ui/Divider";
+import { Text } from "./ui/Text";
 
 const MIN_WIDTH = 50;
 
@@ -114,7 +117,7 @@ function ImageToolbarExtra({
     <>
       {!alt && (
         <>
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          <Divider orientation="vertical" flexItem style={{ marginLeft: 2, marginRight: 2 }} />
           <Tooltip title={t("imageNoAltWarning")} placement="top">
             <WarningAmberIcon sx={{ fontSize: 14, color: getWarningMain(isDark) }} />
           </Tooltip>
@@ -122,7 +125,7 @@ function ImageToolbarExtra({
       )}
       {imgError && (
         <>
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          <Divider orientation="vertical" flexItem style={{ marginLeft: 2, marginRight: 2 }} />
           <Tooltip title={t("imageNotFound")} placement="top">
             <ErrorOutlineIcon sx={{ fontSize: 14, color: getErrorMain(isDark) }} />
           </Tooltip>
@@ -130,7 +133,7 @@ function ImageToolbarExtra({
       )}
       {!isCompareLeft && isEditable && !collapsed && (
         <>
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          <Divider orientation="vertical" flexItem style={{ marginLeft: 2, marginRight: 2 }} />
           {onEdit && (
             <Tooltip title={t("edit")} placement="top">
               <IconButton size="small" sx={{ p: 0.25 }} onClick={onEdit} aria-label={t("edit")}>
@@ -178,10 +181,10 @@ function ImageWithResize({
   width: string; isDark: boolean; t: (key: string) => string;
 }>) {
   return (
-    <Box
+    <div
       ref={imgContainerRef}
       contentEditable={false}
-      sx={{ lineHeight: 0, position: "relative", display: "inline-block" }}
+      style={{ lineHeight: 0, position: "relative", display: "inline-block" }}
       onPointerMove={handleResizePointerMove}
       onPointerUp={handleResizePointerUp}
       onPointerCancel={handleResizePointerCancel}
@@ -196,7 +199,7 @@ function ImageWithResize({
       />
       <AnnotationOverlay annotations={annotations} />
       {isSelected && isEditable && (
-        <Box
+        <div
           role="slider"
           tabIndex={0}
           aria-label={t("resizeImage")}
@@ -205,41 +208,34 @@ function ImageWithResize({
           aria-valuenow={width ? Number.parseInt(width, 10) || undefined : undefined}
           onPointerDown={handleResizePointerDown}
           onKeyDown={handleResizeKeyDown}
-          sx={{
-            position: "absolute",
-            right: 0,
-            bottom: 0,
-            width: 16,
-            height: 16,
-            cursor: "nwse-resize",
-            bgcolor: getPrimaryMain(isDark),
-            opacity: 0.7,
-            borderTopLeftRadius: 4,
-            "&:hover": { opacity: 1 },
-            "&:focus-visible": { opacity: 1, outline: "2px solid", outlineColor: getPrimaryMain(isDark), outlineOffset: 1 },
-            clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
+          className={styles.resizeHandle}
+          style={{
+            backgroundColor: getPrimaryMain(isDark),
+            outlineColor: getPrimaryMain(isDark),
           }}
         />
       )}
       {resizing && resizeWidth !== null && (
-        <Box sx={{
+        <div style={{
           position: "absolute",
           bottom: 4,
           left: "50%",
           transform: "translateX(-50%)",
-          bgcolor: "rgba(0,0,0,0.7)",
+          backgroundColor: "rgba(0,0,0,0.7)",
           color: "white",
-          px: 1,
-          py: 0.25,
-          borderRadius: 1,
+          paddingLeft: 8,
+          paddingRight: 8,
+          paddingTop: 2,
+          paddingBottom: 2,
+          borderRadius: 4,
           fontSize: SMALL_CAPTION_FONT_SIZE,
           fontFamily: "monospace",
           pointerEvents: "none",
         }}>
           {resizeWidth}px
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }
 
@@ -260,12 +256,12 @@ function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop
         icon={<ImageIcon sx={{ fontSize: 18 }} />}
         t={t}
       />
-      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG }}>
         {src && !imgError && (
           <ImageCropTool src={src} onCrop={onCrop} t={t} />
         )}
-      </Box>
-      <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 0.5, borderTop: 1, borderColor: getDivider(isDark), gap: 0.5 }}>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 4, borderTop: `1px solid ${getDivider(isDark)}`, gap: 4 }}>
         {onScreenCapture && (
           <Tooltip title={t("screenCapture")} placement="top">
             <IconButton size="small" sx={{ p: 0.5 }} onClick={onScreenCapture} aria-label={t("screenCapture")}>
@@ -280,11 +276,11 @@ function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop
             </IconButton>
           </Tooltip>
         )}
-        <Box sx={{ flex: 1 }} />
-        <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
+        <div style={{ flex: 1 }} />
+        <Text variant="caption" style={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
           {imgSize ? `${imgSize.nw}x${imgSize.nh}` : ""}{imgSize && src?.startsWith("data:") ? " / " : ""}{src?.startsWith("data:") ? formatDataUrlSize(src) : ""}
-        </Typography>
-      </Box>
+        </Text>
+      </div>
     </EditDialogWrapper>
   );
 }
@@ -333,7 +329,7 @@ function computeImageInteractionFlags(collapsed: boolean, isCompareLeft: boolean
   return { canInteract, hasScreenCapture, showBorder, showBlockToolbar };
 }
 
-/** Build the wrapper Box sx style (extracted to reduce cognitive complexity). */
+/** Build the image wrapper sx object (kept for test compatibility; logic unchanged). */
 export function buildImageWrapperSx(showBorder: boolean, isDark: boolean, insideImageRow: boolean) {
   const borderColor = showBorder ? getDivider(isDark) : "transparent";
   // imageRow 内では常に hover / selected 時のみツールバー表示
@@ -352,6 +348,16 @@ export function buildImageWrapperSx(showBorder: boolean, isDark: boolean, inside
   // 画像サイズに合わせて border フレームを縮める（単独・imageRow 両方）
   const widthSx = { width: "fit-content", maxWidth: "100%" };
   return { border: 1, borderRadius: 1, overflow: "hidden", my: 1, borderColor, ...widthSx, ...hiddenToolbarSx };
+}
+
+/** Translate buildImageWrapperSx output to plain className + style for DOM rendering (no MUI Box). */
+function buildImageWrapperProps(showBorder: boolean, isDark: boolean, insideImageRow: boolean) {
+  const borderColor = showBorder ? getDivider(isDark) : "transparent";
+  const hideToolbar = !showBorder || insideImageRow;
+  return {
+    className: [styles.imageWrapper, hideToolbar ? styles.imageWrapperHideToolbar : null].filter(Boolean).join(" "),
+    style: { borderColor },
+  };
 }
 
 /** Determine whether the image's parent node is imageRow. */
@@ -391,7 +397,12 @@ function ImageContentArea({
 }>) {
   if (collapsed) return null;
   if (imgError) {
-    return <Box contentEditable={false} sx={{ height: "2em", borderTop: 1, borderColor: getDivider(isDark), bgcolor: getActionHover(isDark) }} />;
+    return (
+      <div
+        contentEditable={false}
+        style={{ height: "2em", borderTop: `1px solid ${getDivider(isDark)}`, backgroundColor: getActionHover(isDark) }}
+      />
+    );
   }
   return (
     <ImageWithResize
@@ -501,6 +512,8 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
   const insideImageRow = isInsideImageRow(editor, getPos);
   const showToolbarRow = showBlockToolbar && !(insideImageRow && !isSelected);
 
+  const wrapperProps = buildImageWrapperProps(showBorder, isDark, insideImageRow);
+
   return (
     <NodeViewWrapper
       className="image-node-wrapper"
@@ -520,7 +533,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
         isDark={isDark}
         t={t}
       />
-      <Box sx={buildImageWrapperSx(showBorder, isDark, insideImageRow)}>
+      <div className={wrapperProps.className} style={wrapperProps.style}>
         {showToolbarRow && (
           <BlockInlineToolbar
             label={t("image")}
@@ -569,7 +582,7 @@ export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readon
           isDark={isDark}
           t={t}
         />
-      </Box>
+      </div>
       <DeleteBlockDialog
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}

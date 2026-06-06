@@ -122,7 +122,8 @@ describe("StatusBar", () => {
 
     // ファイル名に対応する要素がないことを確認
     // cursorLine, chars, lines, lineEnding, encoding の5つのbody2のみ
-    const body2s = statusBar.querySelectorAll(".MuiTypography-body2");
+    // （MUI Typography → 自前 Text プリミティブ移行後は body2 クラスで識別）
+    const body2s = statusBar.querySelectorAll(".body2");
     expect(body2s).toHaveLength(5);
   });
 

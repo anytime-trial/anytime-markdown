@@ -12,13 +12,10 @@ import SchemaIcon from "@mui/icons-material/Schema";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import {
-  Box,
   ButtonBase,
   Collapse,
   IconButton,
-  Paper,
   Tooltip,
-  Typography,
   useTheme,
 } from "@mui/material";
 import React, { useCallback, useMemo,useState } from "react";
@@ -27,6 +24,9 @@ import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getPrima
 import { OUTLINE_FONT_SIZE, PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
 import MermaidIcon from "../icons/MermaidIcon";
 import type { HeadingItem, OutlineKind, TranslationFn } from "../types";
+import { Paper } from "../ui/Paper";
+import { Text } from "../ui/Text";
+import styles from "./OutlinePanel.module.css";
 
 const blockIcon: Record<Exclude<OutlineKind, "heading">, React.ReactElement> = {
   codeBlock: <CodeIcon sx={{ fontSize: 14 }} />,
@@ -89,9 +89,9 @@ const HeadingFoldButton = React.memo(function HeadingFoldButton({
 /** Block element icon indicator */
 function BlockIconIndicator({ kind, isDark }: Readonly<{ kind: string; isDark: boolean }>) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", mr: 0.5, color: getTextDisabled(isDark), flexShrink: 0 }}>
+    <div style={{ display: "flex", alignItems: "center", marginRight: 4, color: getTextDisabled(isDark), flexShrink: 0 }}>
       {blockIcon[kind as keyof typeof blockIcon]}
-    </Box>
+    </div>
   );
 }
 
@@ -141,21 +141,18 @@ const OutlineItem = React.memo(function OutlineItem({
 }) {
   const dragProps = buildDragProps(isHeading, onHeadingDragEnd, idx, handleDragStart, handleDragOver, handleDrop, handleDragEnd);
   const isDraggable = isHeading && !!onHeadingDragEnd;
+  const plValue = isHeading ? (h.level - 1) * 1.5 * 8 : blockPl * 8;
 
   return (
-    <Box
+    <div
       {...dragProps}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        pl: isHeading ? (h.level - 1) * 1.5 : blockPl,
-        py: 0.25,
-        borderRadius: 0.5,
+      className={styles.outlineItem}
+      style={{
+        paddingLeft: plValue,
+        paddingTop: 2,   /* py:0.25 = 0.25×8px = 2px */
+        paddingBottom: 2,
         opacity: isDragging ? 0.4 : 1,
         borderTop: isDropTarget ? `2px solid ${getPrimaryMain(isDark)}` : "2px solid transparent",
-        "&:hover": { bgcolor: getActionHover(isDark) },
-        "& .outline-move-btns": { opacity: 0 },
-        "&:hover .outline-move-btns, & .outline-move-btns:focus-within": { opacity: 1 },
         cursor: isDraggable ? "grab" : undefined,
       }}
     >
@@ -179,7 +176,7 @@ const OutlineItem = React.memo(function OutlineItem({
       >
         {h.text || "(empty)"}
       </ButtonBase>
-      <Box className="outline-move-btns" sx={{ display: "flex", flexShrink: 0, transition: "opacity 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" } }}>
+      <div className={styles.outlineMoveBtns}>
         {onOutlineDelete && (
           <Tooltip title={t("delete")} placement="top">
             <IconButton
@@ -192,8 +189,8 @@ const OutlineItem = React.memo(function OutlineItem({
             </IconButton>
           </Tooltip>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 });
 
@@ -249,11 +246,11 @@ const OutlineItemList = React.memo(function OutlineItemList({
         );
       })}
       {/* 末尾ドロップゾーン */}
-      <Box
+      <div
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
         onDragLeave={() => { /* handled by parent */ }}
         onDrop={(e) => handleDrop(e, -1)}
-        sx={{
+        style={{
           height: 16,
           borderTop: dropIdx === -1 && dragIdx !== null ? `2px solid ${getPrimaryMain(isDark)}` : "2px solid transparent",
         }}
@@ -377,7 +374,7 @@ export function OutlinePanel({
         variant="outlined"
         role="navigation"
         aria-label={t("outlineNavigation")}
-        sx={{
+        style={{
           width: outlineWidth,
           minWidth: outlineWidth,
           maxWidth: outlineWidth,
@@ -387,23 +384,23 @@ export function OutlinePanel({
           borderRight: "none",
           overflow: "auto",
           maxHeight: editorHeight,
-          bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+          backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
         }}
       >
-        <Box>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, minHeight: PANEL_HEADER_MIN_HEIGHT, borderBottom: 1, borderColor: getDivider(isDark) }}>
-            <Typography
+        <div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 8, paddingRight: 8, minHeight: PANEL_HEADER_MIN_HEIGHT, borderBottom: `1px solid ${getDivider(isDark)}` }}>
+            <Text
               id="outline-panel-title"
               variant="subtitle2"
               component="h2"
-              sx={{
+              style={{
                 fontWeight: 700,
                 flex: 1,
               }}
             >
               {t("outline")}
-            </Typography>
-            <Box sx={{ display: "flex", gap: 0.25 }}>
+            </Text>
+            <div style={{ display: "flex", gap: 2 }}>
               {onInsertSectionNumbers && (
                 <Tooltip title={t("insertSectionNumbers")}>
                   <IconButton
@@ -451,13 +448,13 @@ export function OutlinePanel({
                   </IconButton>
                 </Tooltip>
               )}
-            </Box>
-          </Box>
-          <Box sx={{ p: 1 }}>
+            </div>
+          </div>
+          <div style={{ padding: 8 }}>
           {headings.length === 0 ? (
-            <Typography variant="body2" sx={{ color: getTextDisabled(isDark), fontSize: OUTLINE_FONT_SIZE }}>
+            <Text variant="body2" style={{ color: getTextDisabled(isDark), fontSize: OUTLINE_FONT_SIZE }}>
               {t("noHeadings")}
-            </Typography>
+            </Text>
           ) : (
             <OutlineItemList
               headings={headings} foldedIndices={foldedIndices} hiddenByFold={hiddenByFold}
@@ -469,11 +466,11 @@ export function OutlinePanel({
               dragIdx={dragIdx} dropIdx={dropIdx} t={t}
             />
           )}
-          </Box>
-        </Box>
+          </div>
+        </div>
       </Paper>
       {/* Resize handle */}
-      {!hideResize && <Box
+      {!hideResize && <div
         role="separator"
         tabIndex={0}
         aria-orientation="vertical"
@@ -486,23 +483,7 @@ export function OutlinePanel({
           if (e.key === "ArrowRight") { e.preventDefault(); setOutlineWidth((w) => Math.min(500, w + 20)); }
           if (e.key === "ArrowLeft") { e.preventDefault(); setOutlineWidth((w) => Math.max(150, w - 20)); }
         }}
-        sx={{
-          width: 6,
-          cursor: "col-resize",
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          "&:hover": { bgcolor: getActionHover(isDark) },
-          "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark) },
-          "&::after": {
-            content: '""',
-            width: 2,
-            height: 32,
-            borderRadius: 1,
-            bgcolor: getDivider(isDark),
-          },
-        }}
+        className={styles.resizeHandle}
       />}
     </>
   );

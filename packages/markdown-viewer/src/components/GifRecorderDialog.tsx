@@ -7,11 +7,13 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
 import ScreenShareIcon from "@mui/icons-material/ScreenShare";
 import StopIcon from "@mui/icons-material/Stop";
-import { Box, Button, LinearProgress, TextField, Typography } from "@mui/material";
+import { Button, LinearProgress, TextField } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDivider, getTextSecondary } from "../constants/colors";
+import { Stack } from "../ui/Stack";
+import { Text } from "../ui/Text";
 import {
   type CropRect,
   encodeGif,
@@ -317,9 +319,9 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
         icon={<GifIcon sx={{ fontSize: 18 }} />}
         t={t}
       />
-      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {/* Video + Canvas overlay area */}
-        <Box sx={{ flex: 1, position: "relative", overflow: "hidden", bgcolor: "black", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ flex: 1, position: "relative", overflow: "hidden", backgroundColor: "black", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <video
             ref={videoRef}
             muted
@@ -347,25 +349,25 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
             />
           )}
           {phase === "idle" && (
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, color: "grey.400" }}>
+            <Stack direction="column" alignItems="center" style={{ gap: 16, color: "rgb(189, 189, 189)" }}>
               <ScreenShareIcon sx={{ fontSize: 48 }} />
-              <Typography variant="body2">Select a screen to start</Typography>
-            </Box>
+              <Text variant="body2">Select a screen to start</Text>
+            </Stack>
           )}
           {phase === "done" && resultUrl && (
             <img src={resultUrl} alt="GIF preview" style={{ maxWidth: "100%", maxHeight: "100%" }} />
           )}
           {phase === "encoding" && (
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, color: "grey.400", width: "60%" }}>
-              <Typography variant="body2">Encoding GIF...</Typography>
+            <Stack direction="column" alignItems="center" style={{ gap: 16, color: "rgb(189, 189, 189)", width: "60%" }}>
+              <Text variant="body2">Encoding GIF...</Text>
               <LinearProgress variant="determinate" value={progress * 100} sx={{ width: "100%" }} />
-              <Typography variant="caption">{Math.round(progress * 100)}%</Typography>
-            </Box>
+              <Text variant="caption">{Math.round(progress * 100)}%</Text>
+            </Stack>
           )}
-        </Box>
+        </div>
 
         {/* Bottom bar */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, borderTop: 1, borderColor: getDivider(isDark) }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderTop: `1px solid ${getDivider(isDark)}` }}>
           {phase === "idle" && (
             <Button size="small" variant="outlined" startIcon={<ScreenShareIcon />} onClick={handleSelectScreen}>
               Select Screen
@@ -376,9 +378,9 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
               <Button size="small" variant="outlined" startIcon={<CropFreeIcon />} disabled>
                 Select Area
               </Button>
-              <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>
+              <Text variant="caption" style={{ color: getTextSecondary(isDark) }}>
                 Drag on the preview to select recording area
-              </Typography>
+              </Text>
             </>
           )}
           {phase === "ready" && (
@@ -396,9 +398,9 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
               <Button size="small" variant="contained" color="error" startIcon={<StopIcon />} onClick={handleStopRecording}>
                 Stop
               </Button>
-              <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+              <Text variant="body2" style={{ fontFamily: "monospace" }}>
                 {formatTime(elapsed)} / {formatTime(MAX_DURATION)}
-              </Typography>
+              </Text>
             </>
           )}
           {phase === "done" && (
@@ -418,8 +420,8 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
               </Button>
             </>
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
     </EditDialogWrapper>
   );
 }
