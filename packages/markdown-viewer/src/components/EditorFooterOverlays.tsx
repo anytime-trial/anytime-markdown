@@ -171,7 +171,6 @@ export function EditorFooterOverlays({
         <Alert
           onClose={() => setNotification(null)}
           severity={notification?.endsWith("Error") ? "error" : "success"}
-          variant="filled"
           style={{ width: "100%" }}
         >
           {notification && t(notification)}

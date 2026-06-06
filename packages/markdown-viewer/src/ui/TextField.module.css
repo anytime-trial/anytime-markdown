@@ -1,4 +1,5 @@
-/* MUI TextField(outlined) 相当。inputWrap のボーダーを label が paper 地で切り欠く。 */
+/* MUI TextField(outlined) 相当。inputWrap のボーダーを label が paper 地で切り欠く。
+   フォーカス状態は :focus-within で扱う（JS state レス）。 */
 .root {
   display: inline-flex;
   flex-direction: column;
@@ -11,6 +12,10 @@
 .fullWidth {
   display: flex;
   width: 100%;
+}
+
+.medium {
+  --tf-input-pad-y: 16.5px;
 }
 
 .inputWrap {
@@ -31,16 +36,13 @@
   border-radius: var(--am-radius-md);
   padding: var(--tf-input-pad-y) var(--tf-input-pad-x);
   outline: none;
-  transition: border-color var(--am-duration-fast) var(--am-ease-standard);
+  transition:
+    border-color var(--am-duration-fast) var(--am-ease-standard),
+    box-shadow var(--am-duration-fast) var(--am-ease-standard);
+}
+
+textarea.input {
   resize: vertical;
-}
-
-.small {
-  --tf-input-pad-y: 8.5px;
-}
-
-.medium {
-  --tf-input-pad-y: 16.5px;
 }
 
 .input::placeholder {
@@ -52,16 +54,19 @@
   border-color: var(--am-color-text-primary);
 }
 
-.focused .input {
+/* focus: border-width を変えず box-shadow inset で 2px 相当のリング（reflow 回避） */
+.inputWrap:focus-within .input {
   border-color: var(--am-color-primary-main);
-  border-width: 2px;
-  /* border-width 増加分の padding 補正（レイアウトずれ防止） */
-  padding: calc(var(--tf-input-pad-y) - 1px) calc(var(--tf-input-pad-x) - 1px);
+  box-shadow: inset 0 0 0 1px var(--am-color-primary-main);
 }
 
-.error .input,
-.error.focused .input {
+.error .input {
   border-color: var(--am-color-error-main);
+}
+
+.error .inputWrap:focus-within .input {
+  border-color: var(--am-color-error-main);
+  box-shadow: inset 0 0 0 1px var(--am-color-error-main);
 }
 
 .disabled .input {
@@ -88,8 +93,9 @@
   white-space: nowrap;
 }
 
-/* shrink: 上端へ移動し、paper 地でボーダーを切り欠く */
-.label[data-shrink="true"] {
+/* shrink: 値/placeholder あり、またはフォーカス時。上端へ移動し paper 地でボーダーを切り欠く。 */
+.label[data-shrink="true"],
+.inputWrap:focus-within .label {
   top: 0;
   transform: translateY(-50%) scale(0.75);
   padding: 0 4px;
@@ -97,11 +103,15 @@
   max-width: calc((100% - 16px) / 0.75);
 }
 
-.focused .label[data-shrink="true"] {
+.inputWrap:focus-within .label {
   color: var(--am-color-primary-main);
 }
 
 .error .label {
+  color: var(--am-color-error-main);
+}
+
+.error .inputWrap:focus-within .label {
   color: var(--am-color-error-main);
 }
 

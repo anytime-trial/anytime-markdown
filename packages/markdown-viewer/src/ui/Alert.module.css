@@ -1,4 +1,4 @@
-/* MUI Alert 相当。filled（塗り）/ standard（薄地）。 */
+/* MUI Alert(filled) 相当。severity 色地・白文字。 */
 .root {
   display: flex;
   align-items: flex-start;
@@ -7,6 +7,15 @@
   border-radius: var(--am-radius-md);
   font-size: 0.875rem;
   line-height: 1.43;
+  color: #fff;
+}
+
+.success {
+  background-color: var(--am-color-success-main);
+}
+
+.error {
+  background-color: var(--am-color-error-main);
 }
 
 .icon {
@@ -23,60 +32,7 @@
 }
 
 .close {
-  display: flex;
-  align-items: flex-start;
-  padding: 4px 0;
   margin-left: auto;
-  padding-left: 16px;
-  border: none;
-  background: transparent;
+  align-self: flex-start;
   color: inherit;
-  cursor: pointer;
-  opacity: 0.9;
-}
-
-.close:hover {
-  opacity: 1;
-}
-
-/* ---- filled variant（severity 色地・白文字） ---- */
-.filled {
-  color: #fff;
-}
-
-.filled.success {
-  background-color: var(--am-color-success-main);
-}
-
-.filled.error {
-  background-color: var(--am-color-error-main);
-}
-
-.filled.warning {
-  background-color: var(--am-color-error-main);
-}
-
-.filled.info {
-  background-color: var(--am-color-primary-main);
-}
-
-/* ---- standard variant（薄地・severity 文字色） ---- */
-.standard.success {
-  color: var(--am-color-success-main);
-  background-color: var(--am-color-action-hover);
-}
-
-.standard.error {
-  color: var(--am-color-error-main);
-  background-color: var(--am-color-action-hover);
-}
-
-.standard.warning {
-  color: var(--am-color-error-main);
-  background-color: var(--am-color-action-hover);
-}
-
-.standard.info {
-  color: var(--am-color-primary-main);
-  background-color: var(--am-color-action-hover);
 }

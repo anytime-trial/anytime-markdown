@@ -109,7 +109,6 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             error={touched.has("comment") && !commentText.trim()}
             helperText={touched.has("comment") && !commentText.trim() ? t("requiredField") : undefined}
             helperTextId="comment-helper"
-            aria-describedby={touched.has("comment") && !commentText.trim() ? "comment-helper" : undefined}
             fullWidth
             size="small"
             style={{ marginTop: 8 }}
@@ -144,7 +143,6 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             error={touched.has("linkUrl") && !linkUrl.trim()}
             helperText={touched.has("linkUrl") && !linkUrl.trim() ? t("requiredField") : undefined}
             helperTextId="link-url-helper"
-            aria-describedby={touched.has("linkUrl") && !linkUrl.trim() ? "link-url-helper" : undefined}
             fullWidth
             size="small"
             style={{ marginTop: 8 }}
@@ -179,7 +177,6 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             helperText={touched.has("imageUrl") && !imageUrl.trim() ? t("requiredField") : undefined}
             disabled={imageUrl.startsWith("data:")}
             helperTextId="image-url-helper"
-            aria-describedby={touched.has("imageUrl") && !imageUrl.trim() ? "image-url-helper" : undefined}
             fullWidth
             size="small"
             style={{ marginTop: 8 }}

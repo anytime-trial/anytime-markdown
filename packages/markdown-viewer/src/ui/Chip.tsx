@@ -1,4 +1,4 @@
-import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from "react";
+import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 
 import styles from "./Chip.module.css";
 
@@ -6,7 +6,7 @@ export interface ChipProps {
   label: ReactNode;
   size?: "small" | "medium";
   variant?: "outlined" | "filled";
-  onClick?: (event: MouseEvent<HTMLDivElement>) => void;
+  onClick?: () => void;
   className?: string;
   style?: CSSProperties;
 }
@@ -34,7 +34,7 @@ export function Chip({
     ? (e: KeyboardEvent<HTMLDivElement>) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onClick?.(e as unknown as MouseEvent<HTMLDivElement>);
+          onClick?.();
         }
       }
     : undefined;

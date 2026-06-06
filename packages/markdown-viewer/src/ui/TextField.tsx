@@ -1,5 +1,6 @@
-import { useId, useState } from "react";
+import { useId } from "react";
 import type {
+  ChangeEvent,
   CSSProperties,
   FocusEvent,
   KeyboardEvent,
@@ -13,10 +14,8 @@ import styles from "./TextField.module.css";
 export interface TextFieldProps {
   label?: ReactNode;
   value?: string;
-  defaultValue?: string;
-  onChange?: (event: { target: { value: string } }) => void;
+  onChange?: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onBlur?: (event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  onFocus?: (event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onClick?: (event: MouseEvent) => void;
   placeholder?: string;
@@ -40,14 +39,16 @@ export interface TextFieldProps {
   "aria-describedby"?: string;
 }
 
-/** MUI TextField(outlined) の置換。フローティングラベルは paper 地でボーダーを切り欠いて再現。 */
+// MUI TextField のデフォルト line-height（maxRows の高さ算出に使用）。
+const LINE_HEIGHT = 1.4375;
+
+/** MUI TextField(outlined) の置換。フローティングラベルは paper 地でボーダーを切り欠いて再現。
+ *  フォーカス状態は CSS `:focus-within` で扱う（state レス）。 */
 export function TextField({
   label,
   value,
-  defaultValue,
   onChange,
   onBlur,
-  onFocus,
   onKeyDown,
   onClick,
   placeholder,
@@ -69,17 +70,14 @@ export function TextField({
   style,
   "aria-describedby": ariaDescribedBy,
 }: Readonly<TextFieldProps>) {
-  const [focused, setFocused] = useState(false);
-  const reactId = useId();
-  const inputId = `tf-${reactId}`;
-  const hasValue = value !== undefined ? value.length > 0 : undefined;
-  const shrink = focused || !!placeholder || (hasValue ?? false);
+  const inputId = `tf-${useId()}`;
+  // 値・placeholder があるときは常に shrink。フォーカス時の shrink は CSS が担う。
+  const shrink = !!placeholder || (value !== undefined && value.length > 0);
 
   const rootClasses = [
     styles.root,
     size === "small" ? styles.small : styles.medium,
     fullWidth ? styles.fullWidth : null,
-    focused ? styles.focused : null,
     error ? styles.error : null,
     disabled ? styles.disabled : null,
     className,
@@ -87,29 +85,18 @@ export function TextField({
     .filter(Boolean)
     .join(" ");
 
-  const handleFocus = (e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFocused(true);
-    onFocus?.(e);
-  };
-  const handleBlur = (e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFocused(false);
-    onBlur?.(e);
-  };
-
   const shared = {
     id: inputId,
     className: styles.input,
     value,
-    defaultValue,
     placeholder,
     disabled,
     required,
     autoFocus,
     "aria-invalid": error || undefined,
     "aria-describedby": ariaDescribedBy ?? (helperText ? helperTextId : undefined),
-    onChange: onChange as never,
-    onFocus: handleFocus,
-    onBlur: handleBlur,
+    onChange,
+    onBlur,
     onKeyDown,
     onClick,
     ...inputProps,
@@ -119,11 +106,7 @@ export function TextField({
     <div className={rootClasses} style={style}>
       <div className={styles.inputWrap}>
         {label && (
-          <label
-            htmlFor={inputId}
-            className={styles.label}
-            data-shrink={shrink}
-          >
+          <label htmlFor={inputId} className={styles.label} data-shrink={shrink}>
             {label}
             {required && <span aria-hidden="true">&nbsp;*</span>}
           </label>
@@ -132,11 +115,11 @@ export function TextField({
           <textarea
             ref={inputRef as Ref<HTMLTextAreaElement>}
             rows={minRows}
-            style={maxRows ? { maxHeight: `${maxRows * 1.4375}em` } : undefined}
+            style={maxRows ? { maxHeight: `${maxRows * LINE_HEIGHT}em` } : undefined}
             {...shared}
           />
         ) : (
-          <input ref={inputRef as Ref<HTMLInputElement>} type={type} {...shared} />
+          <input ref={inputRef} type={type} {...shared} />
         )}
       </div>
       {helperText && (

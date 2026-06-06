@@ -57,9 +57,14 @@
   border: none;
   border-radius: 50%;
   background: var(--am-color-primary-main);
+  transition: box-shadow var(--am-duration-fast) var(--am-ease-standard);
 }
 
 .slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--am-color-primary-main) 16%, transparent);
+}
+
+.slider:focus-visible::-moz-range-thumb {
   box-shadow: 0 0 0 8px color-mix(in srgb, var(--am-color-primary-main) 16%, transparent);
 }
 
