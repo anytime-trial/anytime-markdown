@@ -242,14 +242,13 @@ describe("InlineMergeView - coverage tests", () => {
     fireEvent.click(getByTestId("hover-btn"));
   });
 
-  // --- semantic diff toggle (lines 421-433) ---
-  it("toggles semantic diff option when button clicked", () => {
-    // セマンティックトグルはソースモード専用（WYSIWYG は常に semantic）
+  // --- semantic diff toggle removed: source mode is always non-semantic ---
+  it("does not expose semantic diff toggle in source mode", () => {
+    // ソースモードは常にセマンティック比較 OFF。トグルは提供しない。
     const { container } = renderMergeView({ sourceMode: true });
     const btn = container.querySelector('[aria-label="semanticDiff"]');
-    expect(btn).toBeTruthy();
-    fireEvent.click(btn!);
-    expect(mockSetDiffOptions).toHaveBeenCalled();
+    expect(btn).toBeNull();
+    expect(mockSetDiffOptions).not.toHaveBeenCalled();
   });
 
   // --- frontmatter rendering branches (lines 382-416) ---

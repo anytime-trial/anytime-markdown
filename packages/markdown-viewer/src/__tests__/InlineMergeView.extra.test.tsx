@@ -138,8 +138,8 @@ describe("InlineMergeView - additional tests", () => {
     expect(container).toBeTruthy();
   });
 
-  it("renders semantic diff toggle button", () => {
-    // セマンティックトグルはソースモード専用（WYSIWYG は常に semantic）
+  it("does not render semantic diff toggle in source mode", () => {
+    // ソースモードは常にセマンティック比較 OFF。トグルは提供しない。
     const { container } = render(
       <ThemeProvider theme={theme}>
         <InlineMergeView
@@ -153,7 +153,7 @@ describe("InlineMergeView - additional tests", () => {
       </ThemeProvider>,
     );
     const semanticBtn = container.querySelector('[aria-label="semanticDiff"]');
-    expect(semanticBtn).toBeTruthy();
+    expect(semanticBtn).toBeNull();
   });
 
   it("renders with externalRightContent", () => {
