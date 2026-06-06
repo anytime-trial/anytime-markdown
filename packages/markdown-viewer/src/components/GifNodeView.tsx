@@ -4,7 +4,7 @@ import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import GifIcon from "@mui/icons-material/Gif";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
+import { IconButton, Tooltip, useTheme } from "@mui/material";
 import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 import { NodeViewWrapper } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,10 +15,13 @@ import { saveBlob,useBlockCapture } from "../hooks/useBlockCapture";
 import { useBlockNodeState } from "../hooks/useBlockNodeState";
 import { useMarkdownT } from "../i18n/context";
 import type { GifSettings } from "../utils/gifEncoder";
+import { Divider } from "../ui/Divider";
+import { Text } from "../ui/Text";
 import { BlockInlineToolbar } from "./codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./codeblock/DeleteBlockDialog";
 import { GifPlayerDialog } from "./GifPlayerDialog";
 import { GifRecorderDialog } from "./GifRecorderDialog";
+import styles from "./GifNodeView.module.css";
 
 // --- Extracted helper: capture GIF blob from ref or fetch ---
 async function captureGifBlob(
@@ -127,22 +130,32 @@ function onRecordComplete(
 
 // --- Extracted sub-component: GIF placeholder ---
 function GifPlaceholder({ isEditable, isDark, onClick }: Readonly<{ isEditable: boolean; isDark: boolean; onClick: () => void }>) {
+  const hoverClass = isEditable
+    ? isDark
+      ? styles.placeholderHoverDark
+      : styles.placeholderHoverLight
+    : undefined;
   return (
-    <Box
+    <div
       onClick={onClick}
-      sx={{
-        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        py: 4, cursor: isEditable ? "pointer" : "default",
-        bgcolor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
-        borderTop: 1, borderColor: getDivider(isDark),
-        "&:hover": isEditable ? { bgcolor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" } : {},
+      className={hoverClass}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingTop: 32,
+        paddingBottom: 32,
+        cursor: isEditable ? "pointer" : "default",
+        backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
+        borderTop: `1px solid ${getDivider(isDark)}`,
       }}
     >
       <GifIcon sx={{ fontSize: 36, color: getTextDisabled(isDark), mb: 0.5 }} />
-      <Typography variant="caption" sx={{ color: getTextDisabled(isDark) }}>
+      <Text variant="caption" style={{ color: getTextDisabled(isDark) }}>
         Click to record GIF
-      </Typography>
-    </Box>
+      </Text>
+    </div>
   );
 }
 
@@ -167,16 +180,23 @@ function GifPlaybackImage({
         style={{ width: width || undefined, maxWidth: "100%", height: "auto", display: "block" }}
       />
       {isSelected && (
-        <Box
-          sx={{
-            position: "absolute", bottom: 8, right: 8,
-            display: "flex", gap: 0.5, bgcolor: "rgba(0,0,0,0.6)", borderRadius: 1, px: 0.5,
+        <div
+          style={{
+            position: "absolute",
+            bottom: 8,
+            right: 8,
+            display: "flex",
+            gap: 4,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            borderRadius: 4,
+            paddingLeft: 4,
+            paddingRight: 4,
           }}
         >
           <IconButton size="small" onClick={onToggle} sx={{ color: "white", p: 0.25 }} aria-label={playing ? "Pause" : "Play"}>
             {playing ? <PauseIcon sx={{ fontSize: 18 }} /> : <PlayArrowIcon sx={{ fontSize: 18 }} />}
           </IconButton>
-        </Box>
+        </div>
       )}
     </>
   );
@@ -265,18 +285,19 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
     else setRecorderOpen(true);
   }, [src]);
 
+  const showBorder = showToolbar || (isCompareLeftEditable && isSelected);
+
   return (
     <NodeViewWrapper data-drag-handle className="image-node-wrapper">
       {/* Inline view */}
-      <Box
-        sx={{
-          border: 1, borderRadius: 1, overflow: "hidden", my: 1,
-          borderColor: (showToolbar || (isCompareLeftEditable && isSelected)) ? getDivider(isDark) : "transparent",
-          ...(!(showToolbar || (isCompareLeftEditable && isSelected)) && {
-            "& > [data-block-toolbar]": {
-              maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
-            },
-          }),
+      <div
+        className={!showBorder ? styles.rootHideToolbar : undefined}
+        style={{
+          border: `1px solid ${showBorder ? getDivider(isDark) : "transparent"}`,
+          borderRadius: 4,
+          overflow: "hidden",
+          marginTop: 8,
+          marginBottom: 8,
         }}
       >
         {(isEditable || isCompareLeftEditable) && (
@@ -291,7 +312,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
               <>
                 {!isCompareLeft && isEditable && !collapsed && (
                   <>
-                    <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+                    <Divider orientation="vertical" flexItem style={{ marginLeft: 2, marginRight: 2 }} />
                     <Tooltip title="Record GIF" placement="top">
                       <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setRecorderOpen(true)} aria-label="Record GIF">
                         <FiberManualRecordIcon sx={{ fontSize: 16, color: getErrorMain(isDark) }} />
@@ -301,10 +322,10 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
                 )}
                 {src && (
                   <>
-                    <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-                    <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                    <Divider orientation="vertical" flexItem style={{ marginLeft: 2, marginRight: 2 }} />
+                    <Text variant="caption" style={{ color: getTextDisabled(isDark), fontSize: HANDLEBAR_CAPTION_FONT_SIZE, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                       {src.startsWith("data:") || src.startsWith("blob:") ? "(embedded)" : `(${src})`}
-                    </Typography>
+                    </Text>
                   </>
                 )}
               </>
@@ -314,7 +335,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
         )}
         {/* Content area */}
         {!collapsed && (
-          <Box contentEditable={false} sx={{ position: "relative", lineHeight: 0 }}>
+          <div contentEditable={false} style={{ position: "relative", lineHeight: 0 }}>
             {src ? (
               <GifPlaybackImage
                 imgRef={imgRef}
@@ -328,9 +349,9 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
             ) : (
               <GifPlaceholder isEditable={isEditable} isDark={isDark} onClick={handlePlaceholderClick} />
             )}
-          </Box>
+          </div>
         )}
-      </Box>
+      </div>
 
       {/* Dialogs */}
       <DeleteBlockDialog

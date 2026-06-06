@@ -3,12 +3,14 @@
 import DrawIcon from "@mui/icons-material/Draw";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
-import { Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
+import { IconButton, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
 import { getTextSecondary } from "../constants/colors";
 import type { ThemePresetName } from "../constants/themePresets";
 import type { TranslationFn } from "../types";
+import { Divider } from "../ui/Divider";
+import { Text } from "../ui/Text";
 
 interface FontSizeOption {
   value: number;
@@ -41,7 +43,7 @@ export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFont
   const activeBg = getActiveBgColor(isDark);
 
   return (
-    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
       <Tooltip title={t("outline")}>
         <IconButton
           size="small"
@@ -58,7 +60,7 @@ export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFont
           <ListAltIcon sx={{ fontSize: 16 }} />
         </IconButton>
       </Tooltip>
-      <Box sx={{ display: "flex", gap: 0.5 }}>
+      <div style={{ display: "flex", gap: 4 }}>
         {FONT_SIZE_OPTIONS.map(({ value, iconSize, label }) => {
           const isActive = fontSize === value;
           return (
@@ -75,14 +77,14 @@ export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFont
                 aria-label={t(label)}
                 aria-pressed={isActive}
               >
-                <Typography sx={{ fontSize: iconSize, fontWeight: 700, lineHeight: 1 }}>A</Typography>
+                <Text component="span" style={{ fontSize: iconSize, fontWeight: 700, lineHeight: 1 }}>A</Text>
               </IconButton>
             </Tooltip>
           );
         })}
         {onPresetChange && (
           <>
-            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+            <Divider orientation="vertical" flexItem style={{ marginLeft: 4, marginRight: 4 }} />
             <Tooltip title={t("settingThemePreset")}>
               <IconButton
                 size="small"
@@ -100,7 +102,7 @@ export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFont
             </Tooltip>
           </>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

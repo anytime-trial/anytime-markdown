@@ -25,6 +25,7 @@ import {
   DARK_INFO_MAIN, LIGHT_INFO_MAIN,
   DARK_ERROR_BG, LIGHT_ERROR_BG, DARK_WARNING_BG, LIGHT_WARNING_BG,
   DARK_SUCCESS_BG, LIGHT_SUCCESS_BG, DARK_INFO_BG, LIGHT_INFO_BG,
+  alpha,
 } from "../constants/colors";
 
 describe("colors helper functions", () => {
@@ -188,5 +189,31 @@ describe("colors helper functions", () => {
   describe("getInfoBg", () => {
     it("dark", () => expect(getInfoBg(true)).toBe(DARK_INFO_BG));
     it("light", () => expect(getInfoBg(false)).toBe(LIGHT_INFO_BG));
+  });
+});
+
+describe("alpha", () => {
+  it("converts 6-digit hex to rgba (matches MUI alpha output)", () => {
+    expect(alpha("#f44336", 0.35)).toBe("rgba(244, 67, 54, 0.35)");
+    expect(alpha("#6B2A20", 0.35)).toBe("rgba(107, 42, 32, 0.35)");
+  });
+  it("expands 3-digit hex", () => {
+    expect(alpha("#abc", 0.5)).toBe("rgba(170, 187, 204, 0.5)");
+  });
+  it("multiplies existing alpha of 8-digit hex", () => {
+    expect(alpha("#ffffff80", 0.5)).toBe("rgba(255, 255, 255, 0.251)");
+  });
+  it("multiplies existing alpha of rgba() input", () => {
+    expect(alpha("rgba(10, 20, 30, 0.8)", 0.5)).toBe("rgba(10, 20, 30, 0.4)");
+  });
+  it("applies opacity to rgb() input", () => {
+    expect(alpha("rgb(10, 20, 30)", 0.25)).toBe("rgba(10, 20, 30, 0.25)");
+  });
+  it("clamps opacity to [0,1]", () => {
+    expect(alpha("#000000", 2)).toBe("rgba(0, 0, 0, 1)");
+    expect(alpha("#000000", -1)).toBe("rgba(0, 0, 0, 0)");
+  });
+  it("returns input unchanged when uninterpretable", () => {
+    expect(alpha("currentColor", 0.5)).toBe("currentColor");
   });
 });

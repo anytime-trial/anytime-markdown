@@ -1,0 +1,8 @@
+.root {
+  background-color: var(--am-color-bg-paper);
+  color: var(--am-color-text-primary);
+}
+
+.outlined {
+  border: 1px solid var(--am-color-divider);
+}

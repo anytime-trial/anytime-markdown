@@ -1,5 +1,5 @@
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
-import { Box, CircularProgress } from "@mui/material";
+import { CircularProgress } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type React from "react";
 import { Suspense, useEffect } from "react";
@@ -123,10 +123,10 @@ export function EditorMergeContent({
       commentSlot={sideToolbar ? undefined : commentSlot}
     >
       {(leftBgGradient, leftDiffLines, _onMerge, onHoverLine, collapseProps) => (
-      <Box component="main" sx={{ display: "flex", gap: 0, height: "100%", position: "relative" }} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
-        {fileDragOver && <Box sx={{ position: "absolute", inset: 0, bgcolor: FILE_DROP_OVERLAY_COLOR, zIndex: 10, pointerEvents: "none" }} />}
+      <main style={{ display: "flex", gap: 0, height: "100%", position: "relative" }} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+        {fileDragOver && <div style={{ position: "absolute", inset: 0, backgroundColor: FILE_DROP_OVERLAY_COLOR, zIndex: 10, pointerEvents: "none" }} />}
         {!sideToolbar && <EditorOutlineSection {...outlineProps} />}
-        <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <MergeEditorPanel
             sourceMode={sourceMode}
             sourceText={sourceText}
@@ -146,8 +146,8 @@ export function EditorMergeContent({
               bgcolor: getEditorBg(theme.palette.mode === "dark", settings),
             }}
           />
-        </Box>
-      </Box>
+        </div>
+      </main>
       )}
     </InlineMergeView>
     </Suspense>

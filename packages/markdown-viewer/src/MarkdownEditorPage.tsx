@@ -18,7 +18,8 @@ if (typeof window !== "undefined" && !(console as { _tiptapFlushSyncPatched?: bo
   };
 }
 
-import { Box, CircularProgress, useMediaQuery, useTheme } from "@mui/material";
+import { CircularProgress, useMediaQuery, useTheme } from "@mui/material";
+import styles from "./MarkdownEditorPage.module.css";
 import { useEditor } from "@anytime-markdown/markdown-react";
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -576,7 +577,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
   ]);
 
   if (loading) {
-    return <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><CircularProgress /></Box>;
+    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><CircularProgress /></div>;
   }
 
   const isRestrictedMode = readonlyMode || reviewMode;
@@ -605,7 +606,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
     <EditorFeaturesContext.Provider value={editorFeaturesValue}>
     <PlantUmlToolbarContext.Provider value={plantUmlToolbarCtx}>
     <PrintStyles />
-    <Box id="main-content" component="main" sx={{ p: { xs: 2, sm: 3 } }}>
+    <main id="main-content" className={styles.mainContent}>
       <EditorToolbarSection
         editor={editor} isInDiagramBlock={isInDiagramBlock} handleToggleAllBlocks={handleToggleAllBlocks}
         fileHandlers={{
@@ -722,7 +723,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
         onOpenSettings={onOpenSettingsHandler}
         pdfExporting={pdfExporting} notification={notification} setNotification={setNotification} t={t}
       />
-    </Box>
+    </main>
     </PlantUmlToolbarContext.Provider>
     </EditorFeaturesContext.Provider>
     </EditorSettingsContext.Provider>

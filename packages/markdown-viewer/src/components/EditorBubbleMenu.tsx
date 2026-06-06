@@ -6,7 +6,8 @@ import FormatItalicIcon from "@mui/icons-material/FormatItalic";
 import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
 import InsertLinkIcon from "@mui/icons-material/InsertLink";
 import StrikethroughSIcon from "@mui/icons-material/StrikethroughS";
-import { IconButton, Paper, Tooltip } from "@mui/material";
+import { IconButton, Tooltip } from "@mui/material";
+import { Paper } from "../ui/Paper";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { BubbleMenu } from "@anytime-markdown/markdown-react/menus";
 import React from "react";
@@ -75,14 +76,16 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
         role="toolbar"
         aria-label={t("textFormatMenu")}
         onKeyDown={handleKeyDown}
-        elevation={8}
-        sx={{
+        style={{
           display: "flex",
           alignItems: "center",
-          gap: 0.25,
-          px: 0.5,
-          py: 0.25,
-          borderRadius: 1,
+          gap: "2px",
+          paddingLeft: "4px",
+          paddingRight: "4px",
+          paddingTop: "2px",
+          paddingBottom: "2px",
+          borderRadius: "4px",
+          boxShadow: "var(--am-elevation-3)",
         }}
       >
         {!readonlyMode && !reviewMode && (

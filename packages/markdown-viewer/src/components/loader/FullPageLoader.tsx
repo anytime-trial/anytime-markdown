@@ -1,8 +1,9 @@
 "use client";
 
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { CircularProgress } from '@mui/material';
 
 import { useMarkdownT } from '../../i18n/context';
+import { Text } from '../../ui/Text';
 
 type FullPageLoaderProps = {
   minHeight?: string;
@@ -12,12 +13,22 @@ type FullPageLoaderProps = {
 const FullPageLoader: React.FC<FullPageLoaderProps> = ({ minHeight = '60vh', ariaLabel }) => {
   const t = useMarkdownT('Common');
   return (
-    <Box role="status" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight, gap: 2 }}>
+    <div
+      role="status"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight,
+        gap: '16px',
+      }}
+    >
       <CircularProgress aria-label={ariaLabel ?? t('loading')} />
-      <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.02em' }}>
+      <Text variant="body2" style={{ color: 'var(--am-color-text-secondary)', fontWeight: 600, letterSpacing: '0.02em' }}>
         Anytime Markdown
-      </Typography>
-    </Box>
+      </Text>
+    </div>
   );
 };
 

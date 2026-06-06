@@ -1,8 +1,9 @@
 import LinkOffIcon from "@mui/icons-material/LinkOff";
-import { Box, Stack, Typography, useTheme } from "@mui/material";
 
 import { useOptionalEmbedProviders } from "../contexts/EmbedProvidersContext";
 import type { EmbedProviders } from "../types/embedProvider";
+import { Stack } from "../ui/Stack";
+import { Text } from "../ui/Text";
 import { classifyEmbedUrl } from "../utils/embedClassifier";
 import { type EmbedBaseline,parseEmbedInfoString } from "../utils/embedInfoString";
 import { DrawioEmbedView } from "./embed/DrawioEmbedView";
@@ -31,25 +32,26 @@ function extractUrl(body: string): string | null {
 }
 
 function PlaceholderBox({ message }: Readonly<{ message: string }>) {
-    const theme = useTheme();
     return (
         <Stack
             direction="row"
             spacing={1}
             alignItems="center"
-            sx={{
-                border: `1px dashed ${theme.palette.divider}`,
-                borderRadius: 1,
-                backgroundColor: theme.palette.action.hover,
+            style={{
+                border: "1px dashed var(--am-color-divider)",
+                borderRadius: 4,
+                backgroundColor: "var(--am-color-action-hover)",
                 maxWidth: 720,
-                px: 1.5,
-                py: 1,
+                paddingLeft: 12,
+                paddingRight: 12,
+                paddingTop: 8,
+                paddingBottom: 8,
             }}
         >
-            <LinkOffIcon sx={{ fontSize: 16, color: theme.palette.text.secondary }} />
-            <Typography sx={{ color: theme.palette.text.secondary, fontSize: 13 }}>
+            <LinkOffIcon style={{ fontSize: 16, color: "var(--am-color-text-secondary)" }} />
+            <Text style={{ color: "var(--am-color-text-secondary)", fontSize: 13 }}>
                 {message}
-            </Typography>
+            </Text>
         </Stack>
     );
 }
@@ -111,9 +113,9 @@ export function EmbedNodeView({ language, body, providers, widthOverride, baseli
 
     if (!effectiveProviders) {
         return (
-            <Box>
+            <div>
                 <PlaceholderBox message="埋め込みプロバイダが未設定です" />
-            </Box>
+            </div>
         );
     }
 

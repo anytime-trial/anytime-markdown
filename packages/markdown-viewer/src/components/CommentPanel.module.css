@@ -1,0 +1,4 @@
+.commentBodyHover:hover {
+  background-color: var(--am-color-action-hover);
+  border-radius: 2px;
+}

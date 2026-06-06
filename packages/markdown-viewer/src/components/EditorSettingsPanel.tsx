@@ -3,9 +3,7 @@
 import CloseIcon from "@mui/icons-material/Close";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import {
-  Box,
   Button,
-  Divider,
   Drawer,
   FormControl,
   IconButton,
@@ -15,7 +13,6 @@ import {
   Switch,
   ToggleButton,
   ToggleButtonGroup,
-  Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
@@ -29,6 +26,8 @@ import { PRESET_NAMES, THEME_PRESETS } from "../constants/themePresets";
 import { useMarkdownLocale } from "../i18n/context";
 import type { TranslationFn } from "../types";
 import type { EditorSettings } from "../useEditorSettings";
+import { Divider } from "../ui/Divider";
+import { Text } from "../ui/Text";
 
 interface EditorSettingsPanelProps {
   open: boolean;
@@ -93,35 +92,35 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
       slotProps={{ paper: { sx: { width: 320, p: 2 } } }}
       aria-labelledby="settings-panel-title"
     >
-      <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-        <Typography variant="subtitle1" id="settings-panel-title" sx={{ fontWeight: 700, flex: 1 }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
+        <Text variant="subtitle1" id="settings-panel-title" style={{ fontWeight: 700, flex: 1 }}>
           {t("editorSettings")}
-        </Typography>
+        </Text>
         <IconButton size="small" onClick={onClose} aria-label={t("close")}>
           <CloseIcon sx={{ fontSize: 20 }} />
         </IconButton>
-      </Box>
+      </div>
 
       {/* Dark Mode */}
       {themeMode !== undefined && onThemeModeChange && (
         <>
-          <Box sx={{ mb: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
+          <div style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Text variant="caption" style={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
               {t("settingDarkMode")}
-            </Typography>
+            </Text>
             <Switch
               checked={themeMode === 'dark'}
               onChange={(e) => onThemeModeChange(e.target.checked ? 'dark' : 'light')}
               size="small"
               slotProps={{ input: { role: "switch", "aria-label": t("settingDarkMode") } }}
             />
-          </Box>
+          </div>
 
           {/* Language */}
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
+          <div style={{ marginBottom: 24 }}>
+            <Text variant="caption" component="span" style={{ fontWeight: 600, color: getTextSecondary(isDark), marginBottom: 4, display: "block" }}>
               {t("settingLanguage")}
-            </Typography>
+            </Text>
             <ToggleButtonGroup
               value={currentLocale}
               exclusive
@@ -133,14 +132,14 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
               <ToggleButton value="ja">日本語</ToggleButton>
               <ToggleButton value="en">English</ToggleButton>
             </ToggleButtonGroup>
-          </Box>
+          </div>
 
           {/* Theme Preset */}
           {presetName !== undefined && onPresetChange && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
+            <div style={{ marginBottom: 16 }}>
+              <Text variant="caption" component="span" style={{ fontWeight: 600, color: getTextSecondary(isDark), marginBottom: 4, display: "block" }}>
                 {t("settingThemePreset")}
-              </Typography>
+              </Text>
               <FormControl size="small" fullWidth>
                 <Select
                   value={presetName}
@@ -154,19 +153,19 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
                   ))}
                 </Select>
               </FormControl>
-            </Box>
+            </div>
           )}
 
-          <Divider sx={{ mb: 2 }} />
+          <Divider style={{ marginBottom: 16 }} />
         </>
       )}
 
       {/* Font Size */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
+      <div style={{ marginBottom: 24 }}>
+        <Text variant="caption" style={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
           {t("settingFontSize")}
-        </Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
+        </Text>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
           <Slider
             value={settings.fontSize}
             onChange={(_, v) => updateSettings({ fontSize: v })}
@@ -177,19 +176,19 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
             aria-label={t("settingFontSize")}
             aria-valuetext={`${settings.fontSize}px`}
           />
-          <Typography variant="body2" sx={{ minWidth: 40, textAlign: "right", fontFamily: "monospace" }}>
+          <Text variant="body2" style={{ minWidth: 40, textAlign: "right", fontFamily: "monospace" }}>
             {settings.fontSize}px
-          </Typography>
-        </Box>
-      </Box>
+          </Text>
+        </div>
+      </div>
 
-      <Divider sx={{ mb: 2 }} />
+      <Divider style={{ marginBottom: 16 }} />
 
       {/* Table Width */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
+      <div style={{ marginBottom: 24 }}>
+        <Text variant="caption" component="span" style={{ fontWeight: 600, color: getTextSecondary(isDark), marginBottom: 4, display: "block" }}>
           {t("settingTableWidth")}
-        </Typography>
+        </Text>
         <ToggleButtonGroup
           value={settings.tableWidth}
           exclusive
@@ -201,13 +200,13 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
           <ToggleButton value="auto">{t("settingTableAuto")}</ToggleButton>
           <ToggleButton value="100%">{t("settingTableFull")}</ToggleButton>
         </ToggleButtonGroup>
-      </Box>
+      </div>
 
       {/* Block Align */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
+      <div style={{ marginBottom: 24 }}>
+        <Text variant="caption" component="span" style={{ fontWeight: 600, color: getTextSecondary(isDark), marginBottom: 4, display: "block" }}>
           {t("settingBlockAlign")}
-        </Typography>
+        </Text>
         <ToggleButtonGroup
           value={settings.blockAlign}
           exclusive
@@ -220,13 +219,13 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
           <ToggleButton value="center">{t("settingAlignCenter")}</ToggleButton>
           <ToggleButton value="right">{t("settingAlignRight")}</ToggleButton>
         </ToggleButtonGroup>
-      </Box>
+      </div>
 
       {/* Paper Size */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
+      <div style={{ marginBottom: 24 }}>
+        <Text variant="caption" component="span" style={{ fontWeight: 600, color: getTextSecondary(isDark), marginBottom: 4, display: "block" }}>
           {t("settingPaperSize")}
-        </Typography>
+        </Text>
         <FormControl size="small" fullWidth>
           <Select
             value={settings.paperSize}
@@ -240,15 +239,15 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
             ))}
           </Select>
         </FormControl>
-      </Box>
+      </div>
 
       {/* Paper Margin */}
       {settings.paperSize !== "off" && (
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
+        <div style={{ marginBottom: 24 }}>
+          <Text variant="caption" style={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
             {t("settingPaperMargin")}
-          </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
+          </Text>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
             <Slider
               value={settings.paperMargin}
               onChange={(_, v) => updateSettings({ paperMargin: v })}
@@ -259,20 +258,20 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
               aria-label={t("settingPaperMargin")}
               aria-valuetext={`${settings.paperMargin}mm`}
             />
-            <Typography variant="body2" sx={{ minWidth: 48, textAlign: "right", fontFamily: "monospace" }}>
+            <Text variant="body2" style={{ minWidth: 48, textAlign: "right", fontFamily: "monospace" }}>
               {settings.paperMargin}mm
-            </Typography>
-          </Box>
-        </Box>
+            </Text>
+          </div>
+        </div>
       )}
 
-      <Divider sx={{ mb: 2 }} />
+      <Divider style={{ marginBottom: 16 }} />
 
       {/* Word Break */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), mb: 0.5, display: "block" }}>
+      <div style={{ marginBottom: 24 }}>
+        <Text variant="caption" component="span" style={{ fontWeight: 600, color: getTextSecondary(isDark), marginBottom: 4, display: "block" }}>
           {t("settingWordBreak")}
-        </Typography>
+        </Text>
         <ToggleButtonGroup
           value={settings.wordBreak}
           exclusive
@@ -284,24 +283,24 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
           <ToggleButton value="normal">{t("settingWordBreakNormal")}</ToggleButton>
           <ToggleButton value="keep-all">{t("settingWordBreakKeepAll")}</ToggleButton>
         </ToggleButtonGroup>
-      </Box>
+      </div>
 
-      <Divider sx={{ mb: 2 }} />
+      <Divider style={{ marginBottom: 16 }} />
 
       {/* Spell Check */}
-      <Box sx={{ mb: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Text variant="caption" style={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
           {t("settingSpellCheck")}
-        </Typography>
+        </Text>
         <Switch
           checked={settings.spellCheck}
           onChange={(e) => updateSettings({ spellCheck: e.target.checked })}
           size="small"
           slotProps={{ input: { "aria-label": t("settingSpellCheck") } }}
         />
-      </Box>
+      </div>
 
-      <Divider sx={{ mb: 2 }} />
+      <Divider style={{ marginBottom: 16 }} />
 
       {/* Reset */}
       <Button

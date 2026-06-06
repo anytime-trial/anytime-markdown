@@ -9,19 +9,19 @@ import FindReplaceIcon from "@mui/icons-material/FindReplace";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import {
-  Box,
   IconButton,
-  Paper,
   Tooltip,
-  Typography,
   useTheme,
 } from "@mui/material";
 import React, { useCallback, useState } from "react";
 
-import { getActionHover, getDivider, getErrorMain, getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { getActionHover, getErrorMain, getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { SEARCH_COUNTER_FONT_SIZE, SEARCH_INPUT_FONT_SIZE } from "../constants/dimensions";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
+import { Paper } from "../ui/Paper";
+import { Text } from "../ui/Text";
+import styles from "./SourceSearchBar.module.css";
 
 interface SourceSearchBarProps {
   search: TextareaSearchState;
@@ -90,41 +90,32 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
     };
   };
 
-  const inputSx = {
-    minHeight: 24,
-    px: 0.75,
-    border: 1,
-    borderColor: getDivider(isDark),
-    borderRadius: 0.5,
+  const inputStyle: React.CSSProperties = {
     fontSize: SEARCH_INPUT_FONT_SIZE,
-    outline: "none",
-    bgcolor: "transparent",
     color: getTextPrimary(isDark),
-    fontFamily: "inherit",
-    "&:focus": {
-      borderColor: getPrimaryMain(isDark),
-    },
   };
 
   return (
     <Paper
-      elevation={3}
       role="search"
-      sx={{
+      style={{
         position: "absolute",
         top: 0,
         right: 16,
         zIndex: Z_TOOLBAR,
-        borderRadius: 1,
-        px: 1.5,
-        py: 0.5,
+        borderRadius: 4,
+        paddingLeft: 12,
+        paddingRight: 12,
+        paddingTop: 4,
+        paddingBottom: 4,
         display: "flex",
         flexDirection: "column",
-        gap: 0.5,
+        gap: 4,
+        boxShadow: "var(--am-elevation-3)",
       }}
     >
       {/* Search row */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
         {/* Replace toggle */}
         <Tooltip title={t("replace")}>
           <IconButton
@@ -143,8 +134,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
         </Tooltip>
 
         {/* Search input */}
-        <Box
-          component="input"
+        <input
           ref={search.searchInputRef}
           aria-label={t("searchPlaceholder")}
           autoComplete="off"
@@ -154,7 +144,8 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
           }
           onKeyDown={handleSearchKeyDown}
           placeholder={t("searchPlaceholder")}
-          sx={{ ...inputSx, width: 120, maxWidth: 180, flex: "0 1 auto" }}
+          className={styles.searchInput}
+          style={{ ...inputStyle, width: 120, maxWidth: 180, flex: "0 1 auto" }}
         />
 
         {/* Clear search */}
@@ -174,15 +165,16 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
 
         {/* Match count */}
         {search.searchTerm && (
-          <Typography
+          <Text
             variant="caption"
             aria-live="polite"
             aria-atomic="true"
-            sx={{
+            style={{
               whiteSpace: "nowrap",
               fontSize: SEARCH_COUNTER_FONT_SIZE,
               color: resultCount === 0 ? getErrorMain(isDark) : getTextSecondary(isDark),
-              mx: 0.25,
+              marginLeft: 2,
+              marginRight: 2,
             }}
           >
             {resultCount > 0
@@ -191,7 +183,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
                   total: String(resultCount),
                 })
               : t("noResults")}
-          </Typography>
+          </Text>
         )}
 
         {/* Case sensitive toggle */}
@@ -246,20 +238,19 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
             <CloseIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-      </Box>
+      </div>
 
       {/* Replace row */}
       {showReplace && (
-        <Box
-          sx={{
+        <div
+          style={{
             display: "flex",
             alignItems: "center",
-            gap: 0.5,
-            pl: 4,
+            gap: 4,
+            paddingLeft: 32,
           }}
         >
-          <Box
-            component="input"
+          <input
             aria-label={t("replacePlaceholder")}
             autoComplete="off"
             value={search.replaceTerm}
@@ -268,7 +259,8 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
             }
             onKeyDown={handleReplaceKeyDown}
             placeholder={t("replacePlaceholder")}
-            sx={{ ...inputSx, width: 120, maxWidth: 180, flex: "0 1 auto" }}
+            className={styles.searchInput}
+            style={{ ...inputStyle, width: 120, maxWidth: 180, flex: "0 1 auto" }}
           />
           <Tooltip title={t("replace")}>
             <span>
@@ -296,7 +288,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
               </IconButton>
             </span>
           </Tooltip>
-        </Box>
+        </div>
       )}
     </Paper>
   );

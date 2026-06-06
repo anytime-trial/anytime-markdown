@@ -3,13 +3,14 @@
 import GifIcon from "@mui/icons-material/Gif";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { Box, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { ToggleButton, ToggleButtonGroup } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { useCallback, useRef, useState } from "react";
 
 import { getDivider, getTextSecondary } from "../constants/colors";
 import { PANEL_BUTTON_FONT_SIZE } from "../constants/dimensions";
 import type { GifSettings } from "../utils/gifEncoder";
+import { Text } from "../ui/Text";
 import { EditDialogHeader } from "./EditDialogHeader";
 import { EditDialogWrapper } from "./EditDialogWrapper";
 
@@ -69,13 +70,13 @@ export function GifPlayerDialog({ open, onClose, src, settings }: Readonly<GifPl
       />
 
       {/* GIF preview area */}
-      <Box
-        sx={{
+      <div
+        style={{
           flex: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          bgcolor: "black",
+          backgroundColor: "black",
           overflow: "hidden",
           minHeight: 200,
         }}
@@ -86,22 +87,23 @@ export function GifPlayerDialog({ open, onClose, src, settings }: Readonly<GifPl
           alt="GIF"
           style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
         />
-      </Box>
+      </div>
 
       {/* Playback controls */}
-      <Box
-        sx={{
-          px: 2,
-          py: 1.5,
-          borderTop: 1,
-          borderColor: getDivider(isDark),
+      <div
+        style={{
+          paddingLeft: 16,
+          paddingRight: 16,
+          paddingTop: 12,
+          paddingBottom: 12,
+          borderTop: `1px solid ${getDivider(isDark)}`,
           display: "flex",
           flexDirection: "column",
-          gap: 1,
+          gap: 8,
         }}
       >
         {/* Control row */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <ToggleButton
             value="playPause"
             selected={false}
@@ -130,28 +132,28 @@ export function GifPlayerDialog({ open, onClose, src, settings }: Readonly<GifPl
               2x
             </ToggleButton>
           </ToggleButtonGroup>
-        </Box>
+        </div>
 
         {/* Info row */}
         {settings && (
-          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-            <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <Text variant="caption" style={{ color: getTextSecondary(isDark) }}>
               Duration: {settings.duration.toFixed(1)}s
-            </Typography>
+            </Text>
             {frames !== null && (
-              <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>
+              <Text variant="caption" style={{ color: getTextSecondary(isDark) }}>
                 Frames: {frames}
-              </Typography>
+              </Text>
             )}
-            <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>
+            <Text variant="caption" style={{ color: getTextSecondary(isDark) }}>
               {settings.fps} fps
-            </Typography>
-            <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>
+            </Text>
+            <Text variant="caption" style={{ color: getTextSecondary(isDark) }}>
               Width: {settings.width}px
-            </Typography>
-          </Box>
+            </Text>
+          </div>
         )}
-      </Box>
+      </div>
     </EditDialogWrapper>
   );
 }

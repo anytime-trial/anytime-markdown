@@ -3,26 +3,21 @@ import { EditorContent } from "@anytime-markdown/markdown-react";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
-import { Box, IconButton, Paper, Tooltip } from "@mui/material";
+import { IconButton, Tooltip } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
-import { alpha, useTheme } from "@mui/material/styles";
-import React, { useEffect, useRef } from "react";
+import { useTheme } from "@mui/material/styles";
+import React, { useEffect, useRef, useState } from "react";
 
-import { getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { alpha, getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { useMarkdownT } from "../i18n/context";
+import paperStyles from "../ui/Paper.module.css";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { diffLineBgColor } from "../utils/colorRuns";
 import { type CollapseRegion, computeCollapsedRegions, type DiffLine } from "../utils/diffEngine";
 import { getMergeTiptapStyles } from "./mergeTiptapStyles";
+import styles from "./MergeEditorPanel.module.css";
 
 export { getMergeTiptapStyles } from "./mergeTiptapStyles";
-
-/** Normalize optional SxProps into a spreadable array (avoids nested ternary). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- sx array type is complex; matches MUI's internal spread pattern
-function normalizeSx(sx: SxProps<Theme> | undefined): any[] {
-  if (!sx) return [];
-  return Array.isArray(sx) ? sx : [sx];
-}
 
 function _getLineBgColor(type: DiffLine["type"], theme: Theme) {
   const isDark = theme.palette.mode === "dark";
@@ -118,14 +113,17 @@ function MergeGutter({
   t: (key: string, vars?: Record<string, string | number>) => string;
 }>) {
   return (
-    <Box ref={mergeGutterRef} sx={{ width: 24, minWidth: 24, py: 2, m: 0, overflow: "hidden", flexShrink: 0 }}>
+    <div
+      ref={mergeGutterRef}
+      style={{ width: 24, minWidth: 24, paddingTop: 16, paddingBottom: 16, margin: 0, overflow: "hidden", flexShrink: 0 }}
+    >
       {Array.from({ length: alignedCount }, (_, i) => {
         const blockId = mergeButtonIndices.get(i);
         return (
           <MergeGutterCell key={i} blockId={blockId ?? null} panelSide={panelSide} fontSize={fontSize} lineHeight={lineHeight} onMerge={onMerge} t={t} />
         );
       })}
-    </Box>
+    </div>
   );
 }
 
@@ -142,18 +140,18 @@ function MergeGutterCell({
   const label = panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft");
   const direction = panelSide === "left" ? "left-to-right" as const : "right-to-left" as const;
   return (
-    <Box sx={{ position: "relative", fontFamily: "monospace", fontSize: `${fontSize}px`, lineHeight, textAlign: "center" }}>
-      {"\u00A0"}
+    <div style={{ position: "relative", fontFamily: "monospace", fontSize: `${fontSize}px`, lineHeight, textAlign: "center" }}>
+      {" "}
       {blockId != null && (
-        <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Tooltip title={label} placement={panelSide === "left" ? "left" : "right"}>
             <IconButton size="small" aria-label={label} onClick={() => onMerge(blockId, direction)} sx={{ p: 0 }}>
               {panelSide === "left" ? <ChevronRightIcon sx={{ fontSize: 16 }} /> : <ChevronLeftIcon sx={{ fontSize: 16 }} />}
             </IconButton>
           </Tooltip>
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }
 
@@ -197,8 +195,9 @@ function ExpanderRow({
   onClick: () => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
 }>) {
+  const [hovered, setHovered] = useState(false);
   return (
-    <Box
+    <div
       role="button"
       tabIndex={0}
       aria-label={t("expandLines", { count })}
@@ -209,27 +208,37 @@ function ExpanderRow({
           onClick();
         }
       }}
-      sx={{
-        display: "flex", alignItems: "center", gap: 1, cursor: "pointer",
-        px: 2, py: 0.5, fontFamily: "monospace", fontSize: `${fontSize}px`, lineHeight,
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        cursor: "pointer",
+        paddingLeft: 16,
+        paddingRight: 16,
+        paddingTop: 4,
+        paddingBottom: 4,
+        fontFamily: "monospace",
+        fontSize: `${fontSize}px`,
+        lineHeight,
         color: alpha(getTextSecondary(isDark), 0.8),
-        bgcolor: alpha(getActionHover(isDark), 0.04),
+        backgroundColor: hovered ? alpha(getActionHover(isDark), 0.1) : alpha(getActionHover(isDark), 0.04),
         borderTop: `1px dashed ${alpha(getTextSecondary(isDark), 0.25)}`,
         borderBottom: `1px dashed ${alpha(getTextSecondary(isDark), 0.25)}`,
         userSelect: "none",
-        "&:hover": { bgcolor: alpha(getActionHover(isDark), 0.1) },
       }}
     >
       <UnfoldMoreIcon sx={{ fontSize: 16 }} />
       {t("expandLines", { count })}
-    </Box>
+    </div>
   );
 }
 
 /** ソースモードの 1 セグメント（diffLines スライス）。ガター・ミラー・textarea・マージガターと行高さ同期を内包する自己完結ユニット。 */
 function SourceSegment({
   diffLines, baseAlignedIdx, side, readOnly, autoResize, textareaAriaLabel,
-  onSliceChange, onMerge, onHoverLine, isDark, editorSettings, digits, hideScrollbarSx, t, textareaRef,
+  onSliceChange, onMerge, onHoverLine, isDark, editorSettings, digits, hideScrollbar, t, textareaRef,
 }: Readonly<{
   diffLines: DiffLine[];
   baseAlignedIdx: number;
@@ -243,7 +252,7 @@ function SourceSegment({
   isDark: boolean;
   editorSettings: { fontSize: number; lineHeight: number };
   digits: number;
-  hideScrollbarSx: Record<string, unknown>;
+  hideScrollbar: boolean;
   t: (key: string, vars?: Record<string, string | number>) => string;
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }>) {
@@ -310,20 +319,37 @@ function SourceSegment({
     return () => ro.disconnect();
   }, [displayText, editorSettings.fontSize, editorSettings.lineHeight]);
 
+  const textareaClassName = [
+    styles.textareaField,
+    hideScrollbar ? styles.textareaHideScrollbar : null,
+    autoResize ? styles.textareaOverflowHidden : null,
+  ].filter(Boolean).join(" ");
+
   return (
-    <Box sx={{ display: "flex" }}>
+    <div style={{ display: "flex" }}>
       {side === "right" && hasMergeButtons && (
         <MergeGutter panelSide="right" alignedCount={alignedCount} mergeButtonIndices={mergeButtonIndices} fontSize={editorSettings.fontSize} lineHeight={editorSettings.lineHeight} mergeGutterRef={mergeGutterRef} onMerge={onMerge ?? (() => {})} t={t} />
       )}
 
-      <Box
+      <div
         ref={gutterRef}
-        sx={{
-          width: `${Math.max(3, digits + 1)}ch`, minWidth: `${Math.max(3, digits + 1)}ch`,
-          py: 2, px: 1, m: 0, textAlign: "right", fontFamily: "monospace",
-          fontSize: `${editorSettings.fontSize}px`, lineHeight: editorSettings.lineHeight,
-          color: alpha(getTextSecondary(isDark), 0.6), userSelect: "none",
-          overflow: "hidden", boxSizing: "border-box", flexShrink: 0,
+        style={{
+          width: `${Math.max(3, digits + 1)}ch`,
+          minWidth: `${Math.max(3, digits + 1)}ch`,
+          paddingTop: 16,
+          paddingBottom: 16,
+          paddingLeft: 8,
+          paddingRight: 8,
+          margin: 0,
+          textAlign: "right",
+          fontFamily: "monospace",
+          fontSize: `${editorSettings.fontSize}px`,
+          lineHeight: editorSettings.lineHeight,
+          color: alpha(getTextSecondary(isDark), 0.6),
+          userSelect: "none",
+          overflow: "hidden",
+          boxSizing: "border-box",
+          flexShrink: 0,
         }}
       >
         {lineNumbersArray.map((num, i) => {
@@ -338,24 +364,36 @@ function SourceSegment({
             </div>
           );
         })}
-      </Box>
+      </div>
 
-      <Box ref={textContainerRef} sx={{ flex: 1, minWidth: 0, position: "relative" }}>
+      <div ref={textContainerRef} style={{ flex: 1, minWidth: 0, position: "relative" }}>
         {/*
           ミラー兼・差分背景レイヤー。
           textarea と同一の折り返し（pre-wrap）でテキストを透明描画し、各行 div の
           背景色で diff を着色する。これにより行が折り返しても色帯が実テキスト行と
           一致する（固定位置グラデーションのズレを解消）。textarea の背後に置く。
         */}
-        <Box
+        <div
           ref={mirrorRef}
           aria-hidden="true"
-          sx={{
-            position: "absolute", top: 0, left: 0, right: 0, zIndex: 0, pointerEvents: "none",
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 0,
+            pointerEvents: "none",
             color: "transparent",
-            fontFamily: "monospace", fontSize: `${editorSettings.fontSize}px`, lineHeight: editorSettings.lineHeight,
-            whiteSpace: "pre-wrap", overflowWrap: "break-word", pt: 2, pb: 2,
-            pr: side === "left" && hasMergeButtons ? 0 : 2, pl: 1, boxSizing: "border-box",
+            fontFamily: "monospace",
+            fontSize: `${editorSettings.fontSize}px`,
+            lineHeight: editorSettings.lineHeight,
+            whiteSpace: "pre-wrap",
+            overflowWrap: "break-word",
+            paddingTop: 16,
+            paddingBottom: 16,
+            paddingRight: side === "left" && hasMergeButtons ? 0 : 16,
+            paddingLeft: 8,
+            boxSizing: "border-box",
           }}
         >
           {displayLines.map((line, i) => (
@@ -366,13 +404,22 @@ function SourceSegment({
               {line || " "}
             </div>
           ))}
-        </Box>
-        <Box
-          component="textarea"
+        </div>
+        <textarea
           ref={resolvedTextareaRef}
+          className={textareaClassName}
           aria-label={textareaAriaLabel}
           readOnly={readOnly}
           value={displayText}
+          style={{
+            paddingTop: 16,
+            paddingBottom: 16,
+            paddingRight: side === "left" && hasMergeButtons ? 0 : 16,
+            paddingLeft: 8,
+            fontSize: `${editorSettings.fontSize}px`,
+            lineHeight: editorSettings.lineHeight,
+            color: getTextPrimary(isDark),
+          }}
           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
             const newText = e.target.value;
             if (paddingIndices.size === 0) {
@@ -394,25 +441,13 @@ function SourceSegment({
             const lineIdx = (ta.value.slice(0, pos).match(/\n/g) || []).length;
             onHoverLine(lineIdx < diffLines.length ? baseAlignedIdx + lineIdx : null);
           }}
-          sx={{
-            position: "relative", zIndex: 1,
-            width: "100%", minHeight: "100%", pt: 2, pb: 2,
-            pr: side === "left" && hasMergeButtons ? 0 : 2, pl: 1,
-            border: "none", outline: "none", boxShadow: "none", resize: "none",
-            ...(autoResize ? { overflow: "hidden" } : {}),
-            ...hideScrollbarSx,
-            fontFamily: "monospace", fontSize: `${editorSettings.fontSize}px`,
-            lineHeight: editorSettings.lineHeight, color: getTextPrimary(isDark),
-            bgcolor: "transparent", boxSizing: "border-box",
-            "&:focus": { border: "none", outline: "none", boxShadow: "none" },
-          }}
         />
-      </Box>
+      </div>
 
       {side === "left" && hasMergeButtons && (
         <MergeGutter panelSide="left" alignedCount={alignedCount} mergeButtonIndices={mergeButtonIndices} fontSize={editorSettings.fontSize} lineHeight={editorSettings.lineHeight} mergeGutterRef={mergeGutterRef} onMerge={onMerge ?? (() => {})} t={t} />
       )}
-    </Box>
+    </div>
   );
 }
 
@@ -426,9 +461,10 @@ function realLineRanges(diffLines: DiffLine[], regions: CollapseRegion[]): { sta
   }
   return regions.map((r) => ({ start: prefix[r.startIdx], end: prefix[r.endIdx] }));
 }
+
 function SourceModePanel({
   sourceText, onSourceChange, resolvedTextareaRef, autoResize, textareaAriaLabel,
-  scrollRef, paperSx, hideScrollbarSx, diffLines, side, readOnly,
+  scrollRef, paperSx, hideScrollbar, diffLines, side, readOnly,
   onMerge, onHoverLine, isDark, editorSettings, t,
   collapse, contextLines, expandedStarts, onToggleExpand,
 }: Readonly<{
@@ -439,7 +475,7 @@ function SourceModePanel({
   textareaAriaLabel: string | undefined;
   scrollRef: React.RefObject<HTMLDivElement | null> | undefined;
   paperSx: SxProps<Theme> | undefined;
-  hideScrollbarSx: Record<string, unknown>;
+  hideScrollbar: boolean;
   diffLines: DiffLine[] | undefined;
   side: "left" | "right" | undefined;
   readOnly: boolean | undefined;
@@ -461,27 +497,32 @@ function SourceModePanel({
   const totalRealLines = rawText === "" ? 1 : rawText.split("\n").length;
   const digits = String(totalRealLines).length;
 
-  const paperSxArray = [
-    // 通常エディタ（EditorContentArea の variant="outlined"）と同じ枠線を比較モードでも表示する。
-    { flex: 1, overflow: autoResize ? "auto" : "hidden", borderRadius: 0, ...hideScrollbarSx },
-    ...normalizeSx(paperSx),
-  ];
+  // paperSx を static style にベストエフォートでマージ
+  // SxProps は MUI sx オブジェクトだが、呼び出し側が単純な CSS プロパティを渡す場合に対応
+  const paperExtraStyle = (paperSx && !Array.isArray(paperSx) ? paperSx : {}) as React.CSSProperties;
+  const paperStyle: React.CSSProperties = {
+    flex: 1,
+    overflow: autoResize ? "auto" : "hidden",
+    borderRadius: 0,
+    ...(hideScrollbar ? { scrollbarWidth: "none" as const, msOverflowStyle: "none" } : {}),
+    ...paperExtraStyle,
+  };
 
   // 折りたたみ OFF（または collapse 不可）: 1 セグメントで全体描画（従来挙動）
   if (!collapse) {
     return (
-      <Paper variant="outlined" ref={scrollRef} sx={paperSxArray}>
-        <Box sx={{ minHeight: "100%" }}>
+      <div ref={scrollRef} className={`${paperStyles.root} ${paperStyles.outlined}`} style={paperStyle}>
+        <div style={{ minHeight: "100%" }}>
           <SourceSegment
             diffLines={effectiveLines} baseAlignedIdx={0}
             side={side} readOnly={readOnly} autoResize={autoResize}
             textareaAriaLabel={textareaAriaLabel}
             onSliceChange={onSourceChange} onMerge={onMerge} onHoverLine={onHoverLine}
             isDark={isDark} editorSettings={editorSettings} digits={digits}
-            hideScrollbarSx={hideScrollbarSx} t={t} textareaRef={resolvedTextareaRef}
+            hideScrollbar={hideScrollbar} t={t} textareaRef={resolvedTextareaRef}
           />
-        </Box>
-      </Paper>
+        </div>
+      </div>
     );
   }
 
@@ -497,8 +538,8 @@ function SourceModePanel({
   };
 
   return (
-    <Paper variant="outlined" ref={scrollRef} sx={paperSxArray}>
-      <Box sx={{ minHeight: "100%" }}>
+    <div ref={scrollRef} className={`${paperStyles.root} ${paperStyles.outlined}`} style={paperStyle}>
+      <div style={{ minHeight: "100%" }}>
         {regions.map((region, ri) => {
           if (region.kind === "collapsed") {
             return (
@@ -525,13 +566,13 @@ function SourceModePanel({
               onSliceChange={(text) => handleSliceChange(range, text)}
               onMerge={onMerge} onHoverLine={onHoverLine}
               isDark={isDark} editorSettings={editorSettings} digits={digits}
-              hideScrollbarSx={hideScrollbarSx} t={t}
+              hideScrollbar={hideScrollbar} t={t}
               textareaRef={isFirst ? resolvedTextareaRef : undefined}
             />
           );
         })}
-      </Box>
-    </Paper>
+      </div>
+    </div>
   );
 }
 
@@ -567,13 +608,7 @@ export function MergeEditorPanel({
   const fallbackTextareaRef = useRef<HTMLTextAreaElement>(null);
   const resolvedTextareaRef = textareaRef || fallbackTextareaRef;
 
-  const hideScrollbarSx = hideScrollbar
-    ? {
-        scrollbarWidth: "none",
-        "&::-webkit-scrollbar": { display: "none" },
-        msOverflowStyle: "none",
-      }
-    : {};
+  const hideScrollbarBool = hideScrollbar ?? false;
 
   // ソースモードの行高さ同期・ガター・グラデーションは SourceSegment が自己完結で担う
   if (sourceMode) {
@@ -582,7 +617,7 @@ export function MergeEditorPanel({
         sourceText={sourceText} onSourceChange={onSourceChange}
         resolvedTextareaRef={resolvedTextareaRef} autoResize={autoResize}
         textareaAriaLabel={textareaAriaLabel} scrollRef={scrollRef}
-        paperSx={paperSx} hideScrollbarSx={hideScrollbarSx}
+        paperSx={paperSx} hideScrollbar={hideScrollbarBool}
         diffLines={diffLines} side={side} readOnly={readOnly}
         onMerge={onMerge} onHoverLine={onHoverLine}
         isDark={isDark} editorSettings={editorSettings} t={t}
@@ -594,35 +629,36 @@ export function MergeEditorPanel({
 
   const tiptapStyles = getMergeTiptapStyles(theme, editorSettings, { showHoverLabels });
 
+  // paperSx を static style にベストエフォートでマージ
+  const paperExtraStyle = (paperSx && !Array.isArray(paperSx) ? paperSx : {}) as React.CSSProperties;
+  const paperStyle: React.CSSProperties = {
+    flex: 1,
+    overflow: "auto",
+    borderRadius: 0,
+    ...tiptapStyles,
+    ...(hideScrollbarBool ? { scrollbarWidth: "none" as const, msOverflowStyle: "none" } : {}),
+    ...paperExtraStyle,
+  };
+
   const paperContent = (
-    <Paper
-      variant="outlined"
+    <div
+      className={`${paperStyles.root} ${paperStyles.outlined}`}
       ref={scrollRef}
-      sx={[
-        {
-          // 通常エディタと同じ枠線を比較モード（WYSIWYG）でも表示する（variant="outlined"）。
-          flex: 1,
-          overflow: "auto",
-          borderRadius: 0,
-          ...tiptapStyles,
-          ...hideScrollbarSx,
-        },
-        ...normalizeSx(paperSx),
-      ]}
+      style={paperStyle}
     >
       {editorMountRef
         ? <div ref={editorMountRef} style={{ display: "contents" }} />
         : <EditorContent editor={editor ?? null} />
       }
       {children}
-    </Paper>
+    </div>
   );
 
   if (editorWrapperRef) {
     return (
-      <Box ref={editorWrapperRef} sx={{ position: "relative", flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
+      <div ref={editorWrapperRef} style={{ position: "relative", flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
         {paperContent}
-      </Box>
+      </div>
     );
   }
 

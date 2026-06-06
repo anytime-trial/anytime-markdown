@@ -142,14 +142,14 @@ describe("GifNodeView - placeholder interactions", () => {
   it("clicking placeholder opens recorder when editable", () => {
     renderGifNodeView({}, { isEditable: true });
     const placeholder = screen.getByText("Click to record GIF");
-    fireEvent.click(placeholder.closest("[class*='MuiBox']")!);
+    fireEvent.click(placeholder.closest("div")!);
     expect(screen.getByTestId("gif-recorder-dialog")).toBeTruthy();
   });
 
   it("clicking placeholder does nothing when not editable", () => {
     renderGifNodeView({}, { isEditable: false });
     const placeholder = screen.getByText("Click to record GIF");
-    fireEvent.click(placeholder.closest("[class*='MuiBox']")!);
+    fireEvent.click(placeholder.closest("div")!);
     expect(screen.queryByTestId("gif-recorder-dialog")).toBeNull();
   });
 });
@@ -236,7 +236,7 @@ describe("GifNodeView - record complete", () => {
 
     // Open recorder
     const placeholder = screen.getByText("Click to record GIF");
-    fireEvent.click(placeholder.closest("[class*='MuiBox']")!);
+    fireEvent.click(placeholder.closest("div")!);
 
     // Complete recording
     const completeBtn = screen.getByTestId("complete-record");
@@ -263,7 +263,7 @@ describe("GifNodeView - record complete", () => {
 
     // Open recorder
     const placeholder = screen.getByText("Click to record GIF");
-    fireEvent.click(placeholder.closest("[class*='MuiBox']")!);
+    fireEvent.click(placeholder.closest("div")!);
 
     // Complete recording
     const completeBtn = screen.getByTestId("complete-record");
@@ -392,7 +392,7 @@ describe("GifNodeView - message handler", () => {
     (globalThis as any).FileReader = jest.fn(() => ({ readAsDataURL: jest.fn(), onload: null }));
     const view = renderGifNodeView();
     const placeholder = screen.getByText("Click to record GIF");
-    fireEvent.click(placeholder.closest("[class*='MuiBox']")!);
+    fireEvent.click(placeholder.closest("div")!);
     act(() => {
       fireEvent.click(screen.getByTestId("complete-record"));
     });

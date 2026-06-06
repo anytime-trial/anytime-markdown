@@ -5,11 +5,14 @@ import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditIcon from "@mui/icons-material/Edit";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ImageIcon from "@mui/icons-material/Image";
-import { Box, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip, Typography } from "@mui/material";
+import { IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React, { useRef, useState } from "react";
 
 import { getActionHover, getPrimaryMain, getTextSecondary } from "../../constants/colors";
+import { Divider } from "../../ui/Divider";
+import { Text } from "../../ui/Text";
+import styles from "./BlockInlineToolbar.module.css";
 
 export interface BlockInlineToolbarProps {
   /** Block label (e.g. "Mermaid", "Math", "Table") */
@@ -47,44 +50,45 @@ export function BlockInlineToolbar({
 
   if (labelOnly) {
     return (
-      <Box
+      <div
         data-block-toolbar=""
         aria-label={label}
-        sx={{ bgcolor: getActionHover(isDark), px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
+        style={{ backgroundColor: getActionHover(isDark), padding: "2px 6px", display: "flex", alignItems: "center", gap: 2 }}
         contentEditable={false}
       >
-        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
+        <Text variant="caption" style={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
           {label}
-        </Typography>
-      </Box>
+        </Text>
+      </div>
     );
   }
 
   const hasMenu = onExport && onExportSource;
 
   return (
-    <Box
+    <div
       data-block-toolbar=""
       role="toolbar"
       aria-label={label}
-      sx={{ bgcolor: getActionHover(isDark), px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
+      style={{ backgroundColor: getActionHover(isDark), padding: "2px 6px", display: "flex", alignItems: "center", gap: 2 }}
       contentEditable={false}
     >
-      <Box
+      <div
         data-drag-handle=""
         role="button"
         tabIndex={0}
         aria-roledescription="draggable item"
         aria-label={t("dragHandle")}
-        sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), borderRadius: 0.5 } }}
+        className={styles.dragHandle}
+        style={{ "--drag-handle-outline-color": getPrimaryMain(isDark) } as React.CSSProperties}
       >
         <DragIndicatorIcon sx={iconSx} />
-      </Box>
-      <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
+      </div>
+      <Text variant="caption" style={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
         {label}
-      </Typography>
+      </Text>
       {labelDivider && onEdit && !collapsed && (
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+        <Divider orientation="vertical" flexItem style={{ margin: "0 2px" }} />
       )}
       {onEdit && !collapsed && (
         <Tooltip title={t("edit")} placement="top">
@@ -94,7 +98,7 @@ export function BlockInlineToolbar({
         </Tooltip>
       )}
       {extra}
-      <Box sx={{ flex: 1 }} />
+      <div style={{ flex: 1 }} />
       {hasMenu && !collapsed && (<>
         <Tooltip title={t("capture")} placement="top">
           <IconButton ref={anchorRef} size="small" sx={{ p: 0.25 }} onClick={() => setMenuOpen(true)} aria-label={t("capture")} aria-haspopup="true">
@@ -127,13 +131,13 @@ export function BlockInlineToolbar({
         </Tooltip>
       )}
       {onDelete && !collapsed && (<>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+        <Divider orientation="vertical" flexItem style={{ margin: "0 2px" }} />
         <Tooltip title={t("delete")} placement="top">
           <IconButton size="small" sx={{ p: 0.25 }} onClick={onDelete} aria-label={t("delete")}>
             <DeleteOutlineIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
       </>)}
-    </Box>
+    </div>
   );
 }

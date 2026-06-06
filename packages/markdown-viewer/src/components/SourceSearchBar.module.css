@@ -1,0 +1,15 @@
+.searchInput {
+  min-height: 24px;
+  padding-left: 6px;
+  padding-right: 6px;
+  border: 1px solid var(--am-color-divider);
+  border-radius: 2px;
+  font-size: inherit;
+  outline: none;
+  background-color: transparent;
+  font-family: inherit;
+}
+
+.searchInput:focus {
+  border-color: var(--am-color-primary-main);
+}

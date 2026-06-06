@@ -1,0 +1,35 @@
+/* MergeEditorPanel – co-located CSS module for pseudo-class styles that cannot be expressed as inline style */
+
+/* SourceSegment textarea: reset focus styles */
+.textareaField {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 100%;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  resize: none;
+  font-family: monospace;
+  box-sizing: border-box;
+  background-color: transparent;
+}
+
+.textareaField:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.textareaHideScrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.textareaHideScrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.textareaOverflowHidden {
+  overflow: hidden;
+}

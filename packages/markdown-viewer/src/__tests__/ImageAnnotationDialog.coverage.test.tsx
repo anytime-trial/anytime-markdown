@@ -248,7 +248,8 @@ describe("ImageAnnotationDialog - annotation interactions", () => {
   it("selects an annotation by clicking in comment panel", () => {
     const { container } = renderDialog({ annotations: preAnnotations });
     // Comment panel items have onClick to select
-    const panelItems = container.querySelectorAll("[class*='MuiBox-root']");
+    // （MUI Box → div + CSS Module 移行後は annotationItem クラスで識別）
+    const panelItems = container.querySelectorAll("[class*='annotationItem']");
     expect(panelItems.length).toBeGreaterThan(0);
   });
 

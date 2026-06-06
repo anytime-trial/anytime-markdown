@@ -1,0 +1,75 @@
+/* EditorToolbar レイアウト置換 CSS Module */
+
+/* メインツールバーコンテナ */
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px; /* 0.5 * 8px */
+  padding-top: 4px; /* 0.5 * 8px */
+  padding-bottom: 4px;
+  padding-right: 0;
+  padding-left: 2px;
+  min-height: 44px;
+  max-height: 44px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  position: sticky;
+  top: 0;
+}
+
+/* md 以上で表示、xs では非表示（flex-level contents 代替は display:contents で対応） */
+.desktopContents {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .desktopContents {
+    display: contents;
+  }
+}
+
+/* フレキシブルスペーサー */
+.spacer {
+  flex-grow: 1;
+}
+
+/* mode toggle 内のラベルテキスト: xs は非表示、sm 以上で表示 */
+.modeLabel {
+  display: none;
+}
+
+@media (min-width: 600px) {
+  .modeLabel {
+    display: inline;
+  }
+}
+
+/* More menu: md 以上で表示 */
+.moreMenuDesktop {
+  display: none;
+  flex-shrink: 0;
+  margin-left: auto;
+  border-left: 1px solid; /* color は inline style で上書き */
+}
+
+@media (min-width: 900px) {
+  .moreMenuDesktop {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+}
+
+/* More menu: xs のみ表示（mobile）。MUI IconButton 自身の display:inline-flex に
+   CSS Module が負けるため、プレーン div ラッパーで表示を制御する。 */
+.moreMenuMobile {
+  display: inline-flex;
+  margin-right: 0;
+}
+
+@media (min-width: 900px) {
+  .moreMenuMobile {
+    display: none;
+  }
+}

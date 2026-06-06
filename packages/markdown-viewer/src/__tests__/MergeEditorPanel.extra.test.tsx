@@ -22,6 +22,7 @@ jest.mock("@anytime-markdown/markdown-react", () => ({
 }));
 
 jest.mock("../constants/colors", () => ({
+  ...jest.requireActual("../constants/colors"),
   getEditorBg: () => "#fff",
   getDivider: () => "#ccc",
   getTextPrimary: () => "#000",

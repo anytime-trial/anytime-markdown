@@ -3,14 +3,12 @@
 import HelpCenterIcon from "@mui/icons-material/HelpCenter";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {
-  Box,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   TextField,
-  Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
@@ -19,7 +17,9 @@ import { getActionHover, getActionSelected, getDivider, getTextSecondary } from 
 import { SHORTCUT_HINT_FONT_SIZE } from "../constants/dimensions";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
 import type { TranslationFn } from "../types";
+import { Text } from "../ui/Text";
 import { APP_VERSION } from "../version";
+import styles from "./EditorDialogs.module.css";
 
 interface EditorDialogsProps {
   commentDialogOpen: boolean;
@@ -112,7 +112,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             aria-describedby={touched.has("comment") && !commentText.trim() ? "comment-helper" : undefined}
             fullWidth
             size="small"
-            sx={{ mt: 1 }}
+            style={{ marginTop: 8 }}
           />
         </DialogContent>
         <DialogActions>
@@ -147,7 +147,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             aria-describedby={touched.has("linkUrl") && !linkUrl.trim() ? "link-url-helper" : undefined}
             fullWidth
             size="small"
-            sx={{ mt: 1 }}
+            style={{ marginTop: 8 }}
           />
         </DialogContent>
         <DialogActions>
@@ -182,7 +182,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             aria-describedby={touched.has("imageUrl") && !imageUrl.trim() ? "image-url-helper" : undefined}
             fullWidth
             size="small"
-            sx={{ mt: 1 }}
+            style={{ marginTop: 8 }}
           />
           <TextField
             label={t("altText")}
@@ -193,7 +193,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
             onKeyDown={(e) => { if (e.key === "Enter") handleImageInsert(); }}
             fullWidth
             size="small"
-            sx={{ mt: 2 }}
+            style={{ marginTop: 16 }}
           />
         </DialogContent>
         <DialogActions>
@@ -212,69 +212,79 @@ export const EditorDialogs = React.memo(function EditorDialogs({
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle id="shortcuts-dialog-title" sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
-          <HelpCenterIcon aria-hidden="true" sx={{ color: getTextSecondary(isDark) }} />
-          {t("shortcuts")}
+        <DialogTitle id="shortcuts-dialog-title">
+          <div className={styles.dialogTitleRow}>
+            <HelpCenterIcon aria-hidden="true" style={{ color: getTextSecondary(isDark) }} />
+            {t("shortcuts")}
+          </div>
         </DialogTitle>
         <DialogContent dividers>
           {KEYBOARD_SHORTCUTS.map((group) => (
-            <Box key={group.categoryKey} sx={{ mb: 2, "&:last-child": { mb: 0 } }}>
-              <Typography variant="subtitle2" sx={{ color: getTextSecondary(isDark), mb: 0.5 }}>
+            <div key={group.categoryKey} className={styles.shortcutGroup}>
+              <Text variant="subtitle2" style={{ color: getTextSecondary(isDark), marginBottom: 4 }}>
                 {t(group.categoryKey)}
-              </Typography>
+              </Text>
               {group.items.map((item) => (
-                <Box
+                <div
                   key={item.keys}
-                  sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 0.5, px: 1, borderRadius: 0.5, "&:hover": { bgcolor: getActionHover(isDark) } }}
+                  className={styles.shortcutItemRow}
+                  style={{ "--_shortcut-hover": getActionHover(isDark) } as React.CSSProperties}
                 >
-                  <Typography variant="body2">{t(item.descKey)}</Typography>
-                  <Box sx={{ display: "flex", gap: 0.5 }}>
+                  <Text variant="body2">{t(item.descKey)}</Text>
+                  <div className={styles.shortcutKeysBox}>
                     {item.keys.split("+").map((key) => (
-                      <Typography
+                      <Text
                         key={key}
                         variant="caption"
-                        sx={{
-                          px: 0.75,
-                          py: 0.25,
+                        style={{
+                          paddingLeft: 6,
+                          paddingRight: 6,
+                          paddingTop: 2,
+                          paddingBottom: 2,
                           minWidth: 28,
                           textAlign: "center",
-                          bgcolor: getActionSelected(isDark),
-                          borderRadius: 0.5,
+                          backgroundColor: getActionSelected(isDark),
+                          borderRadius: 2,
                           fontFamily: "monospace",
                           fontSize: SHORTCUT_HINT_FONT_SIZE,
                           fontWeight: 600,
-                          border: 1,
-                          borderColor: getDivider(isDark),
+                          border: `1px solid ${getDivider(isDark)}`,
                           lineHeight: 1.4,
                         }}
                       >
                         {key}
-                      </Typography>
+                      </Text>
                     ))}
-                  </Box>
-                </Box>
+                  </div>
+                </div>
               ))}
-            </Box>
+            </div>
           ))}
         </DialogContent>
       </Dialog>
 
       {/* Version info dialog */}
       <Dialog open={versionDialogOpen} onClose={() => setVersionDialogOpen(false)} aria-labelledby="version-dialog-title" maxWidth="xs" fullWidth>
-        <DialogTitle id="version-dialog-title" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <InfoOutlinedIcon sx={{ color: getTextSecondary(isDark) }} />
-          {t("versionInfo")}
+        <DialogTitle id="version-dialog-title">
+          <div className={styles.dialogTitleRow}>
+            <InfoOutlinedIcon style={{ color: getTextSecondary(isDark) }} />
+            {t("versionInfo")}
+          </div>
         </DialogTitle>
         <DialogContent dividers>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Box component="img" src={(globalThis as unknown as Record<string, unknown>).__LOGO_URI__ as string || "/images/anytime-markdown-128.png"} alt="Anytime Markdown" sx={{ width: 40, height: 40 }} />
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>{t("versionName")}</Typography>
-          </Box>
-          <Typography variant="caption" sx={{ color: getTextSecondary(isDark) }}>v{APP_VERSION}</Typography>
-          <Typography variant="body2" sx={{ mt: 2 }}>{t("versionDescription")}</Typography>
-          <Typography variant="caption" sx={{ display: "block", mt: 2, color: getTextSecondary(isDark) }}>{t("versionTech")}</Typography>
-          <Typography variant="caption" sx={{ display: "block", mt: 1, color: getTextSecondary(isDark) }}>{t("versionCopyright")}</Typography>
-          <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: getTextSecondary(isDark) }}>{t("versionLicense")}</Typography>
+          <div className={styles.versionHeaderRow}>
+            <img
+              src={(globalThis as unknown as Record<string, unknown>).__LOGO_URI__ as string || "/images/anytime-markdown-128.png"}
+              alt="Anytime Markdown"
+              style={{ width: 40, height: 40 }}
+            />
+            <Text variant="h6" style={{ fontWeight: 700 }}>{t("versionName")}</Text>
+          </div>
+          <Text variant="caption" style={{ color: getTextSecondary(isDark) }}>v{APP_VERSION}</Text>
+          <Text variant="body2" style={{ marginTop: 16 }}>{t("versionDescription")}</Text>
+          <Text variant="caption" component="span" style={{ display: "block", marginTop: 16, color: getTextSecondary(isDark) }}>{t("versionTech")}</Text>
+          <Text variant="caption" component="span" style={{ display: "block", marginTop: 8, color: getTextSecondary(isDark) }}>{t("versionCopyright")}</Text>
+          <Text variant="caption" component="span" style={{ display: "block", marginTop: 4, color: getTextSecondary(isDark) }}>{t("versionLicense")}</Text>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setVersionDialogOpen(false)} color="inherit">{t("close")}</Button>

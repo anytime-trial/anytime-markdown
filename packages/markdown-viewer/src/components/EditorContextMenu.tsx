@@ -7,13 +7,15 @@ import ContentCutIcon from "@mui/icons-material/ContentCut";
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
-import { Divider, ListItemIcon, ListItemText, Menu, MenuItem, Typography } from "@mui/material";
+import { ListItemIcon, ListItemText, Menu, MenuItem } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { getBgPaper, getDivider, getTextSecondary } from "../constants/colors";
+import { Divider } from "../ui/Divider";
+import { Text } from "../ui/Text";
 import { CONTEXT_MENU_FONT_SIZE, SHORTCUT_HINT_FONT_SIZE } from "../constants/dimensions";
 import { findBlockNode, getCopiedBlockNode, performBlockCopy } from "../utils/blockClipboard";
 import { boxTableToMarkdown, containsBoxTable } from "../utils/boxTableToMarkdown";
@@ -362,9 +364,9 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
         {t("cut")}
       </ListItemText>
-      <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
+      <Text variant="body2" style={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, marginLeft: "16px" }}>
         Ctrl+X
-      </Typography>
+      </Text>
     </MenuItem>,
     <MenuItem key="copy" onClick={handleCopy} disabled={!canCopy}>
       <ListItemIcon>
@@ -373,9 +375,9 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
         {t("copy")}
       </ListItemText>
-      <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
+      <Text variant="body2" style={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, marginLeft: "16px" }}>
         Ctrl+C
-      </Typography>
+      </Text>
     </MenuItem>,
     <MenuItem key="paste" onClick={handlePaste} disabled={!!readOnly}>
       <ListItemIcon>
@@ -384,15 +386,15 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
         {t("paste")}
       </ListItemText>
-      <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
+      <Text variant="body2" style={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, marginLeft: "16px" }}>
         Ctrl+V
-      </Typography>
+      </Text>
     </MenuItem>,
   ];
 
   if (currentMode !== "source") {
     menuItems.push(
-      <Divider key="d-paste" sx={{ my: 0.5 }} />,
+      <Divider key="d-paste" style={{ margin: "4px 0" }} />,
       <MenuItem key="pasteAsMarkdown" onClick={handlePasteAsMarkdown} disabled={!!readOnly}>
         <ListItemIcon>
           <ContentPasteIcon sx={{ fontSize: 16 }} />
@@ -400,9 +402,9 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
         <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
           {t("pasteAsMarkdown")}
         </ListItemText>
-        <Typography variant="body2" sx={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, ml: 2 }}>
+        <Text variant="body2" style={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, marginLeft: "16px" }}>
           Ctrl+Shift+V
-        </Typography>
+        </Text>
       </MenuItem>,
       <MenuItem key="pasteAsCodeBlock" onClick={handlePasteAsCodeBlock} disabled={!!readOnly}>
         <ListItemIcon>
@@ -416,7 +418,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
   }
 
   menuItems.push(
-    <Divider key="d-clear" sx={{ my: 0.5 }} />,
+    <Divider key="d-clear" style={{ margin: "4px 0" }} />,
     <MenuItem key="clearScreen" onClick={handleClearScreen} disabled={!!readOnly}>
       <ListItemIcon>
         <ClearAllIcon sx={{ fontSize: 16 }} />
@@ -429,7 +431,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
 
   if (onSwitchToReview) {
     menuItems.push(
-      <Divider key="d-mode" sx={{ my: 0.5 }} />,
+      <Divider key="d-mode" style={{ margin: "4px 0" }} />,
       <MenuItem key="review" onClick={handleSwitchToReview} disabled={currentMode === "review"}>
         <ListItemIcon>
           <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />

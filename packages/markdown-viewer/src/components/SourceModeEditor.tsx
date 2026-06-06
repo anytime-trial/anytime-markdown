@@ -1,12 +1,12 @@
-import { Box, Paper, useTheme } from "@mui/material";
-import { alpha } from "@mui/material/styles";
+import { useTheme } from "@mui/material";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { ACCENT_COLOR, ACCENT_COLOR_ALPHA, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { ACCENT_COLOR, ACCENT_COLOR_ALPHA, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, alpha, getTextPrimary, getTextSecondary } from "../constants/colors";
 import type { TextareaSearchMatch } from "../hooks/useTextareaSearch";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { Base64TokenSpan } from "../utils/base64Collapse";
 import { collapseBase64, restoreBase64 } from "../utils/base64Collapse";
+import styles from "./SourceModeEditor.module.css";
 
 interface SourceModeEditorProps {
   sourceText: string;
@@ -207,7 +207,7 @@ export function SourceModeEditor({
     return () => ro.disconnect();
   }, [displayText, settings.fontSize, settings.lineHeight]);
 
-  const sharedTextSx = {
+  const sharedTextStyle: React.CSSProperties = {
     fontFamily: "monospace",
     fontSize: `${settings.fontSize}px`,
     lineHeight: settings.lineHeight,
@@ -215,38 +215,38 @@ export function SourceModeEditor({
     tabSize: 4,
   };
 
-  const sharedPaddingSx = {
-    py: 2,
-    pr: 2,
-    pl: 1,
-    m: 0,
-    boxSizing: "border-box" as const,
+  const sharedPaddingStyle: React.CSSProperties = {
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingRight: 16,
+    paddingLeft: 8,
+    margin: 0,
+    boxSizing: "border-box",
   };
 
   return (
-    <Paper
+    <div
       ref={scrollContainerRef}
-      variant="outlined"
-      sx={{
+      className={styles.scrollContainer}
+      style={{
         borderTopLeftRadius: 0,
         borderTopRightRadius: 0,
         maxHeight: editorHeight,
         overflow: "auto",
-        bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-        "&:focus-within": {
-          outline: "none",
-        },
+        backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
       }}
     >
-      <Box sx={{ display: "flex", minHeight: "100%" }}>
-        <Box
+      <div style={{ display: "flex", minHeight: "100%" }}>
+        <div
           ref={gutterRef}
-          sx={{
+          style={{
             width: `${Math.max(3, digits + 1)}ch`,
             minWidth: `${Math.max(3, digits + 1)}ch`,
-            py: 2,
-            px: 1,
-            m: 0,
+            paddingTop: 16,
+            paddingBottom: 16,
+            paddingLeft: 8,
+            paddingRight: 8,
+            margin: 0,
             textAlign: "right",
             fontFamily: "monospace",
             fontSize: `${settings.fontSize}px`,
@@ -261,39 +261,39 @@ export function SourceModeEditor({
           {Array.from({ length: lineCount }, (_, i) => (
             <div key={i}>{i + 1}</div>
           ))}
-        </Box>
-        <Box ref={textContainerRef} sx={{ flex: 1, minWidth: 0, position: "relative" }}>
+        </div>
+        <div ref={textContainerRef} style={{ flex: 1, minWidth: 0, position: "relative" }}>
           {/* ミラー: textarea と同じ幅・フォントで描画し、折り返し後の各行高さを計測 */}
-          <Box
+          <div
             ref={mirrorRef}
             aria-hidden="true"
-            sx={{
+            style={{
               position: "absolute",
               top: 0,
               left: 0,
               right: 0,
               visibility: "hidden",
               pointerEvents: "none",
-              ...sharedTextSx,
+              ...sharedTextStyle,
               whiteSpace: "pre-wrap",
               overflowWrap: "break-word",
-              ...sharedPaddingSx,
+              ...sharedPaddingStyle,
             }}
           >
             {displayLines.map((line, i) => (
-              <div key={`mirror-${i}-${line.slice(0, 16)}`}>{line || "\u00A0"}</div>
+              <div key={`mirror-${i}-${line.slice(0, 16)}`}>{line || " "}</div>
             ))}
-          </Box>
+          </div>
           {/* Base64 token badge layer */}
           {hasBase64Tokens && (
-            <Box
+            <div
               ref={base64OverlayRef}
               aria-hidden
-              sx={{
+              style={{
                 position: "absolute",
                 inset: 0,
-                ...sharedPaddingSx,
-                ...sharedTextSx,
+                ...sharedPaddingStyle,
+                ...sharedTextStyle,
                 whiteSpace: "pre-wrap",
                 overflowWrap: "break-word",
                 overflow: "hidden",
@@ -302,18 +302,18 @@ export function SourceModeEditor({
               }}
             >
               {buildBase64Segments(displayText, tokenSpans, isDark)}
-            </Box>
+            </div>
           )}
           {/* Highlight layer behind textarea */}
           {hasMatches && (
-            <Box
+            <div
               ref={highlightRef}
               aria-hidden
-              sx={{
+              style={{
                 position: "absolute",
                 inset: 0,
-                ...sharedPaddingSx,
-                ...sharedTextSx,
+                ...sharedPaddingStyle,
+                ...sharedTextStyle,
                 whiteSpace: "pre-wrap",
                 overflowWrap: "break-word",
                 overflow: "hidden",
@@ -322,10 +322,9 @@ export function SourceModeEditor({
               }}
             >
               {buildHighlightSegments(displayText, searchMatches, searchCurrentIndex ?? 0)}
-            </Box>
+            </div>
           )}
-          <Box
-            component="textarea"
+          <textarea
             ref={setTextareaRef}
             aria-label={ariaLabel}
             value={displayText}
@@ -360,28 +359,24 @@ export function SourceModeEditor({
                 }
               }
             }}
-            sx={{
+            className={styles.textarea}
+            style={{
               position: "relative",
               width: "100%",
-              ...sharedPaddingSx,
+              ...sharedPaddingStyle,
               border: "none",
               outline: "none",
               boxShadow: "none",
               resize: "none",
               overflow: "hidden",
-              ...sharedTextSx,
+              ...sharedTextStyle,
               color: getTextPrimary(isDark),
-              bgcolor: "transparent",
+              backgroundColor: "transparent",
               caretColor: getTextPrimary(isDark),
-              "&:focus": {
-                border: "none",
-                outline: "none",
-                boxShadow: "none",
-              },
             }}
           />
-        </Box>
-      </Box>
-    </Paper>
+        </div>
+      </div>
+    </div>
   );
 }

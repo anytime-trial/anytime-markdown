@@ -3,9 +3,7 @@ import {
   ListItemText,
   MenuItem,
   MenuList,
-  Paper,
   Popper,
-  Typography,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type { VirtualElement } from "@popperjs/core";
@@ -21,6 +19,8 @@ import {
   slashCommandItems,
 } from "../extensions/slashCommandItems";
 import type { TranslationFn } from "../types";
+import { Paper } from "../ui/Paper";
+import { Text } from "../ui/Text";
 
 interface SlashCommandMenuProps {
   editor: Editor;
@@ -175,24 +175,23 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
       ]}
     >
       <Paper
-        elevation={8}
-        sx={{ maxHeight: 300, overflow: "auto", minWidth: 200, maxWidth: 280 }}
+        style={{ maxHeight: 300, overflow: "auto", minWidth: 200, maxWidth: 280, boxShadow: "var(--am-elevation-3)" }}
       >
         {/* Always render status for screen readers */}
-        <Typography
+        <Text
           role="status"
           aria-live="polite"
           aria-atomic="true"
           variant="body2"
-          sx={filteredItems.length > 0
-            ? { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }
-            : { px: 2, py: 1.5, color: getTextSecondary(isDark), fontSize: SLASH_COMMAND_FONT_SIZE, textAlign: "center" }
+          style={filteredItems.length > 0
+            ? { position: "absolute", width: "100%", height: "100%", overflow: "hidden", clip: "rect(0,0,0,0)" }
+            : { padding: "12px 16px", color: getTextSecondary(isDark), fontSize: SLASH_COMMAND_FONT_SIZE, textAlign: "center" }
           }
         >
           {filteredItems.length > 0
             ? `${filteredItems.length} items`
             : t("slashCommandNoResults")}
-        </Typography>
+        </Text>
         {filteredItems.length > 0 && (
         <MenuList ref={menuListRef} dense>
           {filteredItems.map((item, i) => (
