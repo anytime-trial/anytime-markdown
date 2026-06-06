@@ -397,15 +397,17 @@ export const EditorToolbar = React.memo(function EditorToolbar({
               </IconButton>
             </Tooltip>
           </div>
-          <IconButton
-            ref={mobileMoreRef}
-            aria-label={t("more")}
-            size="small"
-            onClick={(e) => setMobileMenuAnchorEl(e.currentTarget)}
-            className={styles.moreMenuMobile}
-          >
-            <MenuIcon fontSize="small" />
-          </IconButton>
+          <div className={styles.moreMenuMobile}>
+            <IconButton
+              ref={mobileMoreRef}
+              aria-label={t("more")}
+              size="small"
+              onClick={(e) => setMobileMenuAnchorEl(e.currentTarget)}
+              sx={{ p: 0 }}
+            >
+              <MenuIcon fontSize="small" />
+            </IconButton>
+          </div>
         </>
       )}
     </Paper>

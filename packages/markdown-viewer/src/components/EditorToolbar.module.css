@@ -61,11 +61,11 @@
   }
 }
 
-/* More menu: xs のみ表示（mobile） */
+/* More menu: xs のみ表示（mobile）。MUI IconButton 自身の display:inline-flex に
+   CSS Module が負けるため、プレーン div ラッパーで表示を制御する。 */
 .moreMenuMobile {
   display: inline-flex;
   margin-right: 0;
-  padding: 0;
 }
 
 @media (min-width: 900px) {
