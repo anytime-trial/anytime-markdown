@@ -94,7 +94,17 @@ const webviewConfig = {
           {
             loader: 'css-loader',
             // *.module.css は CSS Modules、それ以外はグローバル CSS として扱う。
-            options: { modules: { auto: true, localIdentName: '[name]__[local]__[hash:base64:5]' } },
+            // css-loader v7 は namedExport が既定 true のため `import styles from "./x.module.css"`
+            // が undefined になり `styles.foo` で実行時クラッシュする。default export を復活させ、
+            // クラス名はソース表記のまま（as-is）参照できるようにする。
+            options: {
+              modules: {
+                auto: true,
+                namedExport: false,
+                exportLocalsConvention: 'as-is',
+                localIdentName: '[name]__[local]__[hash:base64:5]',
+              },
+            },
           },
         ],
       },
