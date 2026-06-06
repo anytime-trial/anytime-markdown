@@ -47,7 +47,7 @@ export function BlockInlineToolbar({
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const anchorRef = useRef<HTMLSpanElement>(null);
+  const anchorRef = useRef<HTMLButtonElement>(null);
 
   if (labelOnly) {
     return (
@@ -93,7 +93,7 @@ export function BlockInlineToolbar({
       )}
       {onEdit && !collapsed && (
         <Tooltip title={t("edit")} placement="top">
-          <IconButton size="small" className={styles.iconButtonCompact} onClick={onEdit} aria-label={t("edit")}>
+          <IconButton size="xs" onClick={onEdit} aria-label={t("edit")}>
             <EditIcon sx={iconSx} />
           </IconButton>
         </Tooltip>
@@ -102,11 +102,9 @@ export function BlockInlineToolbar({
       <div style={{ flex: 1 }} />
       {hasMenu && !collapsed && (<>
         <Tooltip title={t("capture")} placement="top">
-          <span ref={anchorRef}>
-            <IconButton size="small" className={styles.iconButtonCompact} onClick={() => setMenuOpen(true)} aria-label={t("capture")} aria-haspopup="true">
-              <FileDownloadIcon sx={iconSx} />
-            </IconButton>
-          </span>
+          <IconButton ref={anchorRef} size="xs" onClick={() => setMenuOpen(true)} aria-label={t("capture")} aria-haspopup="true">
+            <FileDownloadIcon sx={iconSx} />
+          </IconButton>
         </Tooltip>
         <Menu
           anchorEl={anchorRef.current}
@@ -128,7 +126,7 @@ export function BlockInlineToolbar({
       </>)}
       {onExport && !hasMenu && !collapsed && (
         <Tooltip title={t("capture")} placement="top">
-          <IconButton size="small" className={styles.iconButtonCompact} onClick={onExport} aria-label={t("capture")}>
+          <IconButton size="xs" onClick={onExport} aria-label={t("capture")}>
             <FileDownloadIcon sx={iconSx} />
           </IconButton>
         </Tooltip>
@@ -136,7 +134,7 @@ export function BlockInlineToolbar({
       {onDelete && !collapsed && (<>
         <Divider orientation="vertical" flexItem style={{ margin: "0 2px" }} />
         <Tooltip title={t("delete")} placement="top">
-          <IconButton size="small" className={styles.iconButtonCompact} onClick={onDelete} aria-label={t("delete")}>
+          <IconButton size="xs" onClick={onDelete} aria-label={t("delete")}>
             <DeleteOutlineIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>

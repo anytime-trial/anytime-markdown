@@ -9,7 +9,6 @@ import StrikethroughSIcon from "@mui/icons-material/StrikethroughS";
 import { Tooltip } from "@mui/material";
 import { IconButton } from "../ui/IconButton";
 import { Paper } from "../ui/Paper";
-import styles from "./EditorBubbleMenu.module.css";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { BubbleMenu } from "@anytime-markdown/markdown-react/menus";
 import React from "react";
@@ -94,83 +93,69 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
           <>
             <Tooltip title={tip(t, "bold")}>
               <IconButton
-                size="small"
+                size="compact"
                 aria-label={t("bold")}
                 aria-pressed={editor.isActive("bold")}
-                onClick={() => editor.chain().focus().toggleBold().run()}
-                className={styles.iconBtn}
-                style={{ color: editor.isActive("bold") ? "var(--am-color-primary-main)" : undefined }}
+                onClick={() => editor.chain().focus().toggleBold().run()}                style={{ color: editor.isActive("bold") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <FormatBoldIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "italic")}>
               <IconButton
-                size="small"
+                size="compact"
                 aria-label={t("italic")}
                 aria-pressed={editor.isActive("italic")}
-                onClick={() => editor.chain().focus().toggleItalic().run()}
-                className={styles.iconBtn}
-                style={{ color: editor.isActive("italic") ? "var(--am-color-primary-main)" : undefined }}
+                onClick={() => editor.chain().focus().toggleItalic().run()}                style={{ color: editor.isActive("italic") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <FormatItalicIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "underline")}>
               <IconButton
-                size="small"
+                size="compact"
                 aria-label={t("underline")}
                 aria-pressed={editor.isActive("underline")}
-                onClick={() => editor.chain().focus().toggleUnderline().run()}
-                className={styles.iconBtn}
-                style={{ color: editor.isActive("underline") ? "var(--am-color-primary-main)" : undefined }}
+                onClick={() => editor.chain().focus().toggleUnderline().run()}                style={{ color: editor.isActive("underline") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <FormatUnderlinedIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "strikethrough")}>
               <IconButton
-                size="small"
+                size="compact"
                 aria-label={t("strikethrough")}
                 aria-pressed={editor.isActive("strike")}
-                onClick={() => editor.chain().focus().toggleStrike().run()}
-                className={styles.iconBtn}
-                style={{ color: editor.isActive("strike") ? "var(--am-color-primary-main)" : undefined }}
+                onClick={() => editor.chain().focus().toggleStrike().run()}                style={{ color: editor.isActive("strike") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <StrikethroughSIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "highlight")}>
               <IconButton
-                size="small"
+                size="compact"
                 aria-label={t("highlight")}
                 aria-pressed={editor.isActive("highlight")}
-                onClick={() => editor.chain().focus().toggleHighlight().run()}
-                className={styles.iconBtn}
-                style={{ color: editor.isActive("highlight") ? "var(--am-color-primary-main)" : undefined }}
+                onClick={() => editor.chain().focus().toggleHighlight().run()}                style={{ color: editor.isActive("highlight") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <BorderColorIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "code")}>
               <IconButton
-                size="small"
+                size="compact"
                 aria-label={t("code")}
                 aria-pressed={editor.isActive("code")}
-                onClick={() => editor.chain().focus().toggleCode().run()}
-                className={styles.iconBtn}
-                style={{ color: editor.isActive("code") ? "var(--am-color-primary-main)" : undefined }}
+                onClick={() => editor.chain().focus().toggleCode().run()}                style={{ color: editor.isActive("code") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <CodeIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "link")}>
               <IconButton
-                size="small"
+                size="compact"
                 aria-label={t("link")}
-                onClick={onLink}
-                className={styles.iconBtn}
-                style={{ color: editor.isActive("link") ? "var(--am-color-primary-main)" : undefined }}
+                onClick={onLink}                style={{ color: editor.isActive("link") ? "var(--am-color-primary-main)" : undefined }}
               >
                 <InsertLinkIcon sx={{ fontSize: 18 }} />
               </IconButton>
@@ -180,7 +165,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
         {!readonlyMode && (
           <Tooltip title={tip(t, "comment")}>
             <IconButton
-              size="small"
+              size="compact"
               aria-label={t("comment")}
               onClick={() => {
                 const openComment = () => {
@@ -193,9 +178,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 } else {
                   openComment();
                 }
-              }}
-              className={styles.iconBtn}
-              style={{ color: editor.isActive("commentHighlight") ? "var(--am-color-primary-main)" : undefined }}
+              }}              style={{ color: editor.isActive("commentHighlight") ? "var(--am-color-primary-main)" : undefined }}
             >
               <ChatBubbleOutlineIcon sx={{ fontSize: 18 }} />
             </IconButton>

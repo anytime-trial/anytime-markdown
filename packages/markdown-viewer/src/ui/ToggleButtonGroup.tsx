@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 import type { HTMLAttributes, MouseEvent, ReactNode } from "react";
 
 import styles from "./ToggleButtonGroup.module.css";
@@ -46,15 +46,13 @@ export function ToggleButtonGroup<T = unknown>({
   ...rest
 }: Readonly<ToggleButtonGroupProps<T>>) {
   const classes = [styles.group, styles[variant], className].filter(Boolean).join(" ");
+  // value/onChange が変わらない限り子 ToggleButton の無条件再描画を避ける。
+  const ctx = useMemo<ToggleGroupContextValue>(
+    () => ({ variant, size, value, onChange: onChange as ToggleGroupContextValue["onChange"] }),
+    [variant, size, value, onChange],
+  );
   return (
-    <ToggleGroupContext.Provider
-      value={{
-        variant,
-        size,
-        value,
-        onChange: onChange as ToggleGroupContextValue["onChange"],
-      }}
-    >
+    <ToggleGroupContext.Provider value={ctx}>
       <div role="group" className={classes} {...rest}>
         {children}
       </div>

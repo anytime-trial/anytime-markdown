@@ -75,7 +75,7 @@ const HeadingFoldButton = React.memo(function HeadingFoldButton({
 }) {
   return (
     <IconButton
-      size="small"
+      size="compact"
       onClick={(e) => { e.stopPropagation(); toggleFold(headingIndex); }}
       aria-expanded={!isFolded}
       aria-label={`${isFolded ? t("expandSection") : t("collapseSection")} ${text || "(empty)"}`}
@@ -181,10 +181,9 @@ const OutlineItem = React.memo(function OutlineItem({
         {onOutlineDelete && (
           <Tooltip title={t("delete")} placement="top">
             <IconButton
-              size="small"
+              size="compact"
               onClick={(e) => { e.stopPropagation(); onOutlineDelete(h.pos, h.kind); }}
               aria-label={`${t("delete")} ${h.text || ""}`}
-              className={styles.iconBtnPadding}
             >
               <DeleteOutlineIcon sx={{ fontSize: 14 }} />
             </IconButton>
@@ -406,9 +405,8 @@ export function OutlinePanel({
                 <Tooltip title={t("insertSectionNumbers")}>
                   <IconButton
                     aria-label={t("insertSectionNumbers")}
-                    size="small"
+                    size="compact"
                     onClick={onInsertSectionNumbers}
-                    className={styles.iconBtnPadding}
                   >
                     <FormatListNumberedIcon sx={{ fontSize: 16 }} />
                   </IconButton>
@@ -418,9 +416,8 @@ export function OutlinePanel({
                 <Tooltip title={t("removeSectionNumbers")}>
                   <IconButton
                     aria-label={t("removeSectionNumbers")}
-                    size="small"
+                    size="compact"
                     onClick={onRemoveSectionNumbers}
-                    className={styles.iconBtnPadding}
                   >
                     <FormatListBulletedIcon sx={{ fontSize: 16 }} />
                   </IconButton>
@@ -430,9 +427,8 @@ export function OutlinePanel({
                 <IconButton
                   aria-label={t("outlineShowBlocks")}
                   aria-pressed={showBlocks}
-                  size="small"
+                  size="compact"
                   onClick={() => setShowBlocks((v) => !v)}
-                  className={styles.iconBtnPadding}
                   style={{ color: showBlocks ? getPrimaryMain(isDark) : getTextSecondary(isDark) }}
                 >
                   <CategoryIcon sx={{ fontSize: 16 }} />
@@ -442,9 +438,8 @@ export function OutlinePanel({
                 <Tooltip title={foldedIndices.size > 0 ? t("unfoldAll") : t("foldAll")}>
                   <IconButton
                     aria-label={foldedIndices.size > 0 ? t("unfoldAll") : t("foldAll")}
-                    size="small"
+                    size="compact"
                     onClick={foldedIndices.size > 0 ? unfoldAll : foldAll}
-                    className={styles.iconBtnPadding}
                   >
                     {foldedIndices.size > 0 ? <UnfoldMoreIcon sx={{ fontSize: 16 }} /> : <UnfoldLessIcon sx={{ fontSize: 16 }} />}
                   </IconButton>
