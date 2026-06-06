@@ -18,9 +18,10 @@ if (typeof window !== "undefined" && !(console as { _tiptapFlushSyncPatched?: bo
   };
 }
 
-import { useMediaQuery, useTheme } from "@mui/material";
+import { useTheme } from "@mui/material";
 
 import { Spinner } from "./ui/Spinner";
+import { useMediaQuery } from "./ui/useMediaQuery";
 import styles from "./MarkdownEditorPage.module.css";
 import { useEditor } from "@anytime-markdown/markdown-react";
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -341,8 +342,9 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
   const t = useMarkdownT("MarkdownEditor");
   const locale = useMarkdownLocale();
   const muiTheme = useTheme();
-  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
-  const isMd = useMediaQuery(muiTheme.breakpoints.up("md"));
+  // MUI breakpoints: down("sm")=max-width:599.95px / up("md")=min-width:900px
+  const isMobile = useMediaQuery("(max-width:599.95px)");
+  const isMd = useMediaQuery("(min-width:900px)");
   const isDark = muiTheme.palette.mode === "dark";
   const noopSave = useCallback(() => {}, []);
   const {
