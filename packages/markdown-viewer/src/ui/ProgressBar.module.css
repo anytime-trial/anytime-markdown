@@ -34,3 +34,9 @@
     transform: translateX(100%);
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .indeterminate {
+    animation-duration: 6s;
+  }
+}

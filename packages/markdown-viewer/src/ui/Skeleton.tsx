@@ -12,7 +12,7 @@ export interface SkeletonProps {
 
 /** MUI Skeleton の置換（pulse アニメーション）。 */
 export function Skeleton({
-  variant = "text",
+  variant = "rectangular",
   width,
   height,
   className,

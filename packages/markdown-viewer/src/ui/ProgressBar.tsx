@@ -32,9 +32,7 @@ export function ProgressBar({
       style={style}
     >
       <span
-        className={[styles.bar, determinate ? styles.determinate : styles.indeterminate]
-          .filter(Boolean)
-          .join(" ")}
+        className={`${styles.bar} ${determinate ? styles.determinate : styles.indeterminate}`}
         style={determinate ? { transform: `translateX(${value - 100}%)` } : undefined}
       />
     </span>

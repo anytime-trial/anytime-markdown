@@ -12,10 +12,12 @@ export interface SpinnerProps {
   "aria-label"?: string;
 }
 
-// MUI CircularProgress と同じ viewBox/thickness。
-const VIEWBOX = "22 22 44 44";
+// MUI CircularProgress と同じ viewBox/thickness。viewBox "22 22 44 44" の中心は 22 + 44/2 = 44。
+const SIZE = 44;
+const VIEWBOX = `${SIZE / 2} ${SIZE / 2} ${SIZE} ${SIZE}`;
+const CENTER = SIZE / 2 + SIZE / 2; // 44
 const THICKNESS = 3.6;
-const RADIUS = (44 - THICKNESS) / 2; // 20.2
+const RADIUS = (SIZE - THICKNESS) / 2; // 20.2
 
 /** MUI CircularProgress の置換（indeterminate）。SVG 円弧 + CSS keyframes で同じ見た目を再現。 */
 export function Spinner({
@@ -38,8 +40,8 @@ export function Spinner({
       <svg className={styles.svg} viewBox={VIEWBOX}>
         <circle
           className={styles.circle}
-          cx="44"
-          cy="44"
+          cx={CENTER}
+          cy={CENTER}
           r={RADIUS}
           fill="none"
           strokeWidth={THICKNESS}

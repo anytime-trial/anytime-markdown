@@ -5,12 +5,10 @@
   animation: skeleton-pulse 2s ease-in-out 0.5s infinite;
 }
 
-/* text variant は MUI 既定で行高に合わせた角丸 + 上下マージン。現状未使用だが API として用意。 */
+/* text variant は MUI 既定で行高に合わせた角丸。現状 consumer 未使用だが API として用意。 */
 .text {
   height: auto;
-  margin-top: 0;
-  margin-bottom: 0;
-  border-radius: 4px 4px 4px 4px / 6.7px 6.7px 6.7px 6.7px;
+  border-radius: 4px / 6.7px;
   transform: scale(1, 0.6);
 }
 
