@@ -1,0 +1,52 @@
+/* MUI Snackbar の置換。anchorOrigin に応じた固定配置 + フェード/スライド。
+   コンテンツ（Alert 等）は children。 */
+.root {
+  position: fixed;
+  z-index: 1400;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity var(--snackbar-duration, 225ms) var(--am-ease-standard, ease),
+    transform var(--snackbar-duration, 225ms) var(--am-ease-standard, ease);
+}
+
+/* 子はクリック可能に戻す。 */
+.root > * {
+  pointer-events: auto;
+}
+
+.bottom {
+  bottom: 24px;
+  transform: translateY(16px);
+}
+
+.top {
+  top: 24px;
+  transform: translateY(-16px);
+}
+
+.left {
+  justify-content: flex-start;
+}
+
+.center {
+  justify-content: center;
+}
+
+.right {
+  justify-content: flex-end;
+}
+
+.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    transition: none;
+  }
+}

@@ -1,0 +1,23 @@
+/* MUI Collapse の置換（縦方向）。grid-template-rows 0fr→1fr の遷移で
+   JS による高さ計測なしに auto 高さをアニメーションする。 */
+.root {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--collapse-duration, 150ms) var(--am-ease-standard, ease);
+}
+
+.open {
+  grid-template-rows: 1fr;
+}
+
+/* grid アイテムは min-height:0 + overflow:hidden で 0fr 時に潰れる。 */
+.inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    transition: none;
+  }
+}
