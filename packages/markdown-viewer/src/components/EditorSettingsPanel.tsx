@@ -3,7 +3,6 @@
 import CloseIcon from "@mui/icons-material/Close";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import {
-  Drawer,
   FormControl,
   MenuItem,
   Select,
@@ -29,6 +28,7 @@ import { useMarkdownLocale } from "../i18n/context";
 import type { TranslationFn } from "../types";
 import type { EditorSettings } from "../useEditorSettings";
 import { Divider } from "../ui/Divider";
+import { Drawer } from "../ui/Drawer";
 import { Text } from "../ui/Text";
 
 interface EditorSettingsPanelProps {
@@ -91,7 +91,8 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
       anchor="right"
       open={open}
       onClose={onClose}
-      slotProps={{ paper: { sx: { width: 320, p: 2 } } }}
+      width={320}
+      paperStyle={{ padding: 16 }}
       aria-labelledby="settings-panel-title"
     >
       <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>

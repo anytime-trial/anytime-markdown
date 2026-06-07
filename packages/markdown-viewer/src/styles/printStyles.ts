@@ -85,10 +85,8 @@ export const PrintStyles: React.FC = () =>
         "#md-editor-statusbar": {
           display: "none !important",
         },
-        /* サイドパネル（コメント、アウトライン、エクスプローラ、サイドツールバー）を非表示 */
-        ".MuiDrawer-root": {
-          display: "none !important",
-        },
+        /* サイドパネル（コメント、アウトライン、エクスプローラ、サイドツールバー）を非表示。
+           オーバーレイ系（ui/Drawer 等）は data-print-hide で隠す。 */
         "[data-print-hide]": {
           display: "none !important",
         },

@@ -139,6 +139,16 @@ export function applyEditorThemeCssVars(
   root.style.setProperty("--am-color-text-primary", getTextPrimary(isDark));
   root.style.setProperty("--am-color-text-secondary", getTextSecondary(isDark));
   root.style.setProperty("--am-color-bg-paper", getBgPaper(isDark));
+  // MUI ダークモードの elevation overlay。Paper を elevation に応じて白で持ち上げる挙動の
+  // elevation 16 相当（temporary Drawer 既定）。light では overlay なし。
+  // 値 0.145 は実行中テーマの MUI Drawer paper を getComputedStyle で実測した値
+  // （MUI の getOverlayAlpha(16) 公式は 0.15。MUI を上げたら再実測すること）。
+  // TODO: Dialog（elevation 24 ≒ 0.16）/ Menu（elevation 8 ≒ 0.12）は現状 overlay 非適用
+  //   （VR 非対象のため flat 据え置き）。これらの dark VR を追加する際は同様の overlay が要る。
+  root.style.setProperty(
+    "--am-overlay-elevation-16",
+    isDark ? "linear-gradient(rgba(255,255,255,0.145), rgba(255,255,255,0.145))" : "none",
+  );
   root.style.setProperty("--am-color-action-hover", getActionHover(isDark));
   root.style.setProperty("--am-color-action-selected", getActionSelected(isDark));
   root.style.setProperty("--am-color-action-active", getActionActive(isDark));

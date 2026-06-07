@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useId, useRef } from "react";
+import { useId, useRef } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import styles from "./Dialog.module.css";
+import { useModalFocusTrap } from "./useModalFocusTrap";
 
 export interface DialogProps {
   open: boolean;
@@ -12,48 +13,10 @@ export interface DialogProps {
   labelledBy?: string;
 }
 
-const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
 /** MUI Dialog の置換（PoC）。Portal + backdrop + ESC + 最小フォーカストラップ + aria-modal。 */
 export function Dialog({ open, onClose, children, labelledBy, ...rest }: Readonly<DialogProps>) {
   const paperRef = useRef<HTMLDivElement>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    restoreRef.current = document.activeElement as HTMLElement | null;
-    const paper = paperRef.current;
-    // フォーカス可能要素がなければ paper 自体（tabIndex=-1）へ退避する。
-    const first = paper?.querySelector<HTMLElement>(FOCUSABLE);
-    (first ?? paper)?.focus();
-    // 背景スクロールをロックし、閉じたら元の overflow へ戻す。
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      restoreRef.current?.focus?.();
-    };
-  }, [open]);
-
-  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      onClose();
-      return;
-    }
-    if (e.key !== "Tab") return;
-    const nodes = paperRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
-    if (!nodes || nodes.length === 0) return;
-    const first = nodes[0];
-    const last = nodes[nodes.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }, [onClose]);
+  const onKeyDown = useModalFocusTrap(open, paperRef, onClose);
 
   if (!open || typeof document === "undefined") return null;
 
