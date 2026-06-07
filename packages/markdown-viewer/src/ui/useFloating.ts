@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/dom";
-import type { Placement } from "@floating-ui/dom";
+import type { Placement, ReferenceElement } from "@floating-ui/dom";
 
 /**
  * オーバーレイ配置の共有フック。MUI/Popper を使わず、既にバンドル内にある
@@ -24,7 +24,8 @@ export interface UseFloatingOptions {
 }
 
 export interface UseFloatingResult {
-  referenceRef: React.MutableRefObject<HTMLElement | null>;
+  /** アンカー要素。実 DOM（Element）でも virtual element でも可（@floating-ui の ReferenceElement）。 */
+  referenceRef: React.MutableRefObject<ReferenceElement | null>;
   floatingRef: React.MutableRefObject<HTMLElement | null>;
   /** floating 要素の left(px)。 */
   x: number;
@@ -42,7 +43,7 @@ export function useFloating({
   offsetPx = 6,
   padding = 8,
 }: UseFloatingOptions): UseFloatingResult {
-  const referenceRef = useRef<HTMLElement | null>(null);
+  const referenceRef = useRef<ReferenceElement | null>(null);
   const floatingRef = useRef<HTMLElement | null>(null);
   const [state, setState] = useState<{ x: number; y: number; resolvedPlacement: Placement; ready: boolean }>({
     x: 0,
