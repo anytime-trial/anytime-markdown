@@ -154,6 +154,11 @@ export function applyEditorThemeCssVars(
   root.style.setProperty("--am-color-action-active", getActionActive(isDark));
   // MUI outlined input/select の枠線色（divider 0.12 ではなく 0.23）。ui/Select の VR 忠実性に必要。
   root.style.setProperty("--am-color-input-border", isDark ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)");
+  // MUI Switch(small) の off 状態（実測）。thumb=light #fff/dark #e0e0e0、track 地色=light #000/dark #fff、
+  // track 不透明度=light 0.38/dark 0.3。on 状態は primary-main + track opacity 0.5。
+  root.style.setProperty("--am-color-switch-thumb-off", isDark ? "#e0e0e0" : "#fff");
+  root.style.setProperty("--am-color-switch-track-off", isDark ? "#fff" : "#000");
+  root.style.setProperty("--am-switch-track-opacity-off", isDark ? "0.3" : "0.38");
   // MUI Skeleton 既定の地色 = alpha(text.primary, light 0.11 / dark 0.13)。
   root.style.setProperty("--am-color-skeleton-bg", alpha(getTextPrimary(isDark), isDark ? 0.13 : 0.11));
   root.style.setProperty("--am-color-primary-main", getPrimaryMain(isDark));

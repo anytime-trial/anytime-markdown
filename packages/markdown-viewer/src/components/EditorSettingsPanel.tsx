@@ -2,7 +2,6 @@
 
 import CloseIcon from "@mui/icons-material/Close";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import { Switch } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
@@ -25,6 +24,7 @@ import type { EditorSettings } from "../useEditorSettings";
 import { Divider } from "../ui/Divider";
 import { Drawer } from "../ui/Drawer";
 import { Select } from "../ui/Select";
+import { Switch } from "../ui/Switch";
 import { Text } from "../ui/Text";
 
 interface EditorSettingsPanelProps {
@@ -110,8 +110,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
             <Switch
               checked={themeMode === 'dark'}
               onChange={(e) => onThemeModeChange(e.target.checked ? 'dark' : 'light')}
-              size="small"
-              slotProps={{ input: { role: "switch", "aria-label": t("settingDarkMode") } }}
+              inputProps={{ role: "switch", "aria-label": t("settingDarkMode") }}
             />
           </div>
 
@@ -280,8 +279,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
         <Switch
           checked={settings.spellCheck}
           onChange={(e) => updateSettings({ spellCheck: e.target.checked })}
-          size="small"
-          slotProps={{ input: { "aria-label": t("settingSpellCheck") } }}
+          inputProps={{ "aria-label": t("settingSpellCheck") }}
         />
       </div>
 
