@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getDivider: () => "#ccc",
@@ -26,7 +25,6 @@ jest.mock("../constants/dimensions", () => ({
 
 import { OutlinePanel } from "../components/OutlinePanel";
 
-const theme = createTheme();
 
 function createProps(overrides?: Partial<any>) {
   return {
@@ -53,18 +51,14 @@ describe("OutlinePanel - additional tests", () => {
       { kind: "heading" as const, text: "Details", level: 2, pos: 50 },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <OutlinePanel {...createProps({ headings })} />
-      </ThemeProvider>,
+        <OutlinePanel {...createProps({ headings })} />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders empty state when no headings", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <OutlinePanel {...createProps()} />
-      </ThemeProvider>,
+        <OutlinePanel {...createProps()} />,
     );
     expect(container).toBeTruthy();
   });
@@ -75,18 +69,14 @@ describe("OutlinePanel - additional tests", () => {
       { kind: "heading" as const, text: "H2", level: 2, pos: 10 },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <OutlinePanel {...createProps({ headings, foldedIndices: new Set([0]) })} />
-      </ThemeProvider>,
+        <OutlinePanel {...createProps({ headings, foldedIndices: new Set([0]) })} />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with hideResize", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <OutlinePanel {...createProps({ hideResize: true })} />
-      </ThemeProvider>,
+        <OutlinePanel {...createProps({ hideResize: true })} />,
     );
     expect(container).toBeTruthy();
   });

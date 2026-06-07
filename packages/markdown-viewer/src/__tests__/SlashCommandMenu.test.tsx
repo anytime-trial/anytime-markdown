@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getTextSecondary: () => "#666",
@@ -24,7 +23,6 @@ jest.mock("../extensions/slashCommandItems", () => ({
 
 import { SlashCommandMenu } from "../components/SlashCommandMenu";
 
-const theme = createTheme();
 
 describe("SlashCommandMenu", () => {
   const t = (key: string) => key;
@@ -46,13 +44,13 @@ describe("SlashCommandMenu", () => {
   it("renders without crashing", () => {
     const callbackRef = { current: jest.fn() };
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <SlashCommandMenu
           editor={mockEditor}
           t={t}
           slashCommandCallbackRef={callbackRef as any}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });

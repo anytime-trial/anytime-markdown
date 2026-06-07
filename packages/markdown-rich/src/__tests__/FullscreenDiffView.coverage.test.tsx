@@ -11,7 +11,6 @@ global.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Use real diffEngine for integration tests
 import { FullscreenDiffView } from "../components/FullscreenDiffView";
@@ -32,21 +31,17 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     }),
 }));
 
-const theme = createTheme();
-
 describe("FullscreenDiffView coverage", () => {
   const t = (key: string) => key;
 
   it("renders diff with added/removed lines and merge buttons", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="line1\nold\nline3"
-          initialRightCode="line1\nnew\nline3"
-          onMergeApply={jest.fn()}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="line1\nold\nline3"
+        initialRightCode="line1\nnew\nline3"
+        onMergeApply={jest.fn()}
+        t={t}
+      />,
     );
     // Should render textarea elements
     const textareas = container.querySelectorAll("textarea");
@@ -55,14 +50,12 @@ describe("FullscreenDiffView coverage", () => {
 
   it("renders with empty content", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode=""
-          initialRightCode=""
-          onMergeApply={jest.fn()}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode=""
+        initialRightCode=""
+        onMergeApply={jest.fn()}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });
@@ -73,14 +66,12 @@ describe("FullscreenDiffView coverage", () => {
       i === 5 ? "modified line 6" : i === 10 ? "modified line 11" : `line ${i + 1}`,
     ).join("\n");
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode={left}
-          initialRightCode={right}
-          onMergeApply={jest.fn()}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode={left}
+        initialRightCode={right}
+        onMergeApply={jest.fn()}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });
@@ -88,14 +79,12 @@ describe("FullscreenDiffView coverage", () => {
   it("calls onMergeApply when merge button clicked", () => {
     const onMergeApply = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="same\nold\nsame"
-          initialRightCode="same\nnew\nsame"
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="same\nold\nsame"
+        initialRightCode="same\nnew\nsame"
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
     // Find merge buttons
     const mergeButtons = container.querySelectorAll('[aria-label="mergeLeftToRight"], [aria-label="mergeRightToLeft"]');
@@ -108,14 +97,12 @@ describe("FullscreenDiffView coverage", () => {
   it("handles textarea change in editable panel", () => {
     const onMergeApply = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="hello\nworld"
-          initialRightCode="hello\nearth"
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="hello\nworld"
+        initialRightCode="hello\nearth"
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
     // Find the non-readonly textarea (right panel = editable)
     const textareas = container.querySelectorAll("textarea");
@@ -128,28 +115,24 @@ describe("FullscreenDiffView coverage", () => {
 
   it("renders with only additions (left empty)", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode=""
-          initialRightCode="new line 1\nnew line 2"
-          onMergeApply={jest.fn()}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode=""
+        initialRightCode="new line 1\nnew line 2"
+        onMergeApply={jest.fn()}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with only deletions (right empty)", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="old line 1\nold line 2"
-          initialRightCode=""
-          onMergeApply={jest.fn()}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="old line 1\nold line 2"
+        initialRightCode=""
+        onMergeApply={jest.fn()}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });

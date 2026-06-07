@@ -6,7 +6,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 global.ResizeObserver = class ResizeObserver {
   observe() {}
@@ -115,7 +114,6 @@ jest.mock("../components/ZoomToolbar", () => ({
 
 import { PlantUmlEditDialog } from "../components/PlantUmlEditDialog";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 function createDefaultProps(overrides: any = {}) {
@@ -161,9 +159,7 @@ describe("PlantUmlEditDialog - coverage", () => {
   it("handleCodeTabChange updates body text and merges config", () => {
     const onFsTextChange = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps({ onFsTextChange })} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps({ onFsTextChange })} />,
     );
     // Code tab should be active by default
     const codeTextarea = screen.getByTestId("textarea-input-code");
@@ -175,9 +171,7 @@ describe("PlantUmlEditDialog - coverage", () => {
   it("handleConfigChange updates config and merges with body", () => {
     const onFsTextChange = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps({ onFsTextChange })} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps({ onFsTextChange })} />,
     );
     // Switch to config tab
     const configTab = screen.getByText("configTab");
@@ -192,9 +186,7 @@ describe("PlantUmlEditDialog - coverage", () => {
   it("handleInsertSample sets body text and switches to code tab", () => {
     const onFsTextChange = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps({ onFsTextChange })} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps({ onFsTextChange })} />,
     );
     // Click sample button
     const sampleBtn = screen.getByTestId("sample-0");
@@ -205,9 +197,7 @@ describe("PlantUmlEditDialog - coverage", () => {
   // --- Lines 127-160: tab switching and config textarea rendering ---
   it("switches between code and config tabs", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps()} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps()} />,
     );
     // Initially on code tab
     expect(screen.getByTestId("textarea-input-code")).toBeTruthy();
@@ -224,14 +214,12 @@ describe("PlantUmlEditDialog - coverage", () => {
   // --- Compare view rendering ---
   it("renders FullscreenDiffView in compare mode", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps({
-          isCompareMode: true,
-          compareCode: "compare code",
-          thisCode: "this code",
-          onMergeApply: jest.fn(),
-        })} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps({
+        isCompareMode: true,
+        compareCode: "compare code",
+        thisCode: "this code",
+        onMergeApply: jest.fn(),
+      })} />,
     );
     expect(screen.getByTestId("fullscreen-diff-view")).toBeTruthy();
     expect(screen.getByTestId("compare-indicator")).toBeTruthy();
@@ -240,12 +228,10 @@ describe("PlantUmlEditDialog - coverage", () => {
   // --- Compare view with no onMergeApply ---
   it("renders compare view with default onMergeApply", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps({
-          isCompareMode: true,
-          compareCode: "compare code",
-        })} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps({
+        isCompareMode: true,
+        compareCode: "compare code",
+      })} />,
     );
     expect(screen.getByTestId("fullscreen-diff-view")).toBeTruthy();
   });
@@ -254,9 +240,7 @@ describe("PlantUmlEditDialog - coverage", () => {
   it("calls onClose when close button clicked", () => {
     const onClose = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps({ onClose })} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps({ onClose })} />,
     );
     fireEvent.click(screen.getByTestId("close-btn"));
     expect(onClose).toHaveBeenCalled();
@@ -265,11 +249,9 @@ describe("PlantUmlEditDialog - coverage", () => {
   // --- With config in fsCode ---
   it("extracts config from fsCode on open", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps({
-          fsCode: "skinparam backgroundColor #FFF\n\n@startuml\nA->B\n@enduml",
-        })} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps({
+        fsCode: "skinparam backgroundColor #FFF\n\n@startuml\nA->B\n@enduml",
+      })} />,
     );
     // The code textarea should show body only
     expect(screen.getByTestId("textarea-input-code")).toBeTruthy();
@@ -278,9 +260,7 @@ describe("PlantUmlEditDialog - coverage", () => {
   // --- readOnly mode ---
   it("passes readOnly to textarea", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps({ readOnly: true })} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps({ readOnly: true })} />,
     );
     const textarea = screen.getByTestId("textarea-input-code");
     expect(textarea.getAttribute("readonly")).toBeDefined();
@@ -289,9 +269,7 @@ describe("PlantUmlEditDialog - coverage", () => {
   // --- Preview rendering with plantUmlUrl ---
   it("renders preview image when plantUmlUrl is provided", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps()} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps()} />,
     );
     expect(screen.getByTestId("zoomable-preview")).toBeTruthy();
   });
@@ -299,23 +277,17 @@ describe("PlantUmlEditDialog - coverage", () => {
   // --- Reset to code tab on reopen ---
   it("resets to code tab when dialog reopens", () => {
     const { rerender } = render(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps()} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps()} />,
     );
     // Switch to config tab
     fireEvent.click(screen.getByText("configTab"));
     // Close the dialog
     rerender(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps({ open: false })} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps({ open: false })} />,
     );
     // Reopen
     rerender(
-      <ThemeProvider theme={theme}>
-        <PlantUmlEditDialog {...createDefaultProps({ open: true })} />
-      </ThemeProvider>,
+      <PlantUmlEditDialog {...createDefaultProps({ open: true })} />,
     );
     // Should be on code tab
     expect(screen.getByTestId("textarea-input-code")).toBeTruthy();

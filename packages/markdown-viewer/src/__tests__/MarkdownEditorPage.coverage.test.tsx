@@ -5,7 +5,6 @@
  */
 import React from "react";
 import { render, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- mocks ---
 
@@ -307,14 +306,10 @@ jest.mock("../extensions/slashCommandExtension", () => ({
 
 import MarkdownEditorPage from "../MarkdownEditorPage";
 
-const theme = createTheme();
-const darkTheme = createTheme({ palette: { mode: "dark" } });
 
 function renderPage(props: Record<string, any> = {}, useDark = false) {
   return render(
-    <ThemeProvider theme={useDark ? darkTheme : theme}>
-      <MarkdownEditorPage {...props} />
-    </ThemeProvider>,
+      <MarkdownEditorPage {...props} />,
   );
 }
 

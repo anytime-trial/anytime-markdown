@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("@anytime-markdown/markdown-react/menus", () => ({
   BubbleMenu: ({ children }: any) => <div data-testid="bubble-menu">{children}</div>,
@@ -21,7 +20,6 @@ jest.mock("../types", () => ({
 
 import { EditorBubbleMenu } from "../components/EditorBubbleMenu";
 
-const theme = createTheme();
 
 describe("EditorBubbleMenu", () => {
   const t = (key: string) => key;
@@ -50,13 +48,13 @@ describe("EditorBubbleMenu", () => {
 
   it("renders without crashing", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorBubbleMenu
           editor={mockEditor}
           onLink={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
     expect(container.querySelector("[data-testid='bubble-menu']")).toBeTruthy();
@@ -64,21 +62,21 @@ describe("EditorBubbleMenu", () => {
 
   it("renders with readonlyMode", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorBubbleMenu
           editor={mockEditor}
           onLink={jest.fn()}
           readonlyMode
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with reviewMode", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorBubbleMenu
           editor={mockEditor}
           onLink={jest.fn()}
@@ -86,7 +84,7 @@ describe("EditorBubbleMenu", () => {
           executeInReviewMode={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });

@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { Graph3DView } from "../components/codeblock/Graph3DView";
 
@@ -13,9 +12,6 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     DEFAULT_LIGHT_BG: "#E8E6E1",
     getTextSecondary: (isDark: boolean) => isDark ? "#aaa" : "#666",
 }));
-
-const lightTheme = createTheme({ palette: { mode: "light" } });
-const darkTheme = createTheme({ palette: { mode: "dark" } });
 
 const mockPlotly = {
   react: jest.fn().mockResolvedValue(undefined),
@@ -37,9 +33,7 @@ function renderGraph3D(props: Partial<React.ComponentProps<typeof Graph3DView>> 
     height: 400,
   };
   return render(
-    <ThemeProvider theme={dark ? darkTheme : lightTheme}>
-      <Graph3DView {...defaultProps} {...props} />
-    </ThemeProvider>
+    <Graph3DView {...defaultProps} {...props} />
   );
 }
 

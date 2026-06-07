@@ -9,7 +9,6 @@
 
 import React from "react";
 import { render, fireEvent, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getDivider: () => "#ccc",
@@ -25,7 +24,6 @@ jest.mock("../constants/dimensions", () => ({
 
 import { ImageCropTool } from "../components/ImageCropTool";
 
-const theme = createTheme();
 
 const testSrc =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
@@ -38,9 +36,7 @@ function renderCropTool(props?: Partial<{ src: string; onCrop: jest.Mock; t: (k:
     ...props,
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <ImageCropTool {...defaultProps} />
-    </ThemeProvider>,
+      <ImageCropTool {...defaultProps} />,
   );
 }
 

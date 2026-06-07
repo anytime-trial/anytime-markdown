@@ -5,7 +5,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // jsdom does not implement scrollIntoView
 Element.prototype.scrollIntoView = jest.fn();
@@ -39,7 +38,6 @@ jest.mock("../extensions/slashCommandItems", () => ({
 
 import { SlashCommandMenu } from "../components/SlashCommandMenu";
 
-const theme = createTheme();
 
 describe("SlashCommandMenu - coverage tests", () => {
   const t = (key: string) => key;
@@ -65,9 +63,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const callbackRef: { current: ((state: any) => void) } = { current: () => {} };
 
     render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     act(() => {
@@ -86,9 +82,7 @@ describe("SlashCommandMenu - coverage tests", () => {
 
     // Override filterSlashItems to return empty for "zzz"
     render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     act(() => {
@@ -103,9 +97,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const callbackRef: { current: ((state: any) => void) } = { current: () => {} };
 
     render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     // First activate
@@ -128,9 +120,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const callbackRef: { current: ((state: any) => void) } = { current: () => {} };
 
     render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     act(() => {
@@ -158,9 +148,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const callbackRef: { current: ((state: any) => void) } = { current: () => {} };
 
     render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     act(() => {
@@ -181,9 +169,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const callbackRef: { current: ((state: any) => void) } = { current: () => {} };
 
     render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     act(() => {
@@ -206,9 +192,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const callbackRef: { current: ((state: any) => void) } = { current: () => {} };
 
     render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     // Activate menu
@@ -235,9 +219,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const callbackRef: { current: ((state: any) => void) } = { current: () => {} };
 
     render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     // Activate
@@ -260,9 +242,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const callbackRef: { current: ((state: any) => void) } = { current: () => {} };
 
     render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     // Activate
@@ -287,9 +267,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const consoleSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
 
     render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     act(() => {
@@ -306,9 +284,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const callbackRef: { current: ((state: any) => void) } = { current: () => {} };
 
     const { unmount } = render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     // Activate first to set callback
@@ -327,9 +303,7 @@ describe("SlashCommandMenu - coverage tests", () => {
     const callbackRef: { current: ((state: any) => void) } = { current: () => {} };
 
     render(
-      <ThemeProvider theme={theme}>
-        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />
-      </ThemeProvider>,
+        <SlashCommandMenu editor={editor} t={t} slashCommandCallbackRef={callbackRef as any} />,
     );
 
     // Activate and navigate down

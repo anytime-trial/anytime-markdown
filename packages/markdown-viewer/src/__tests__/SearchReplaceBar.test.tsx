@@ -1,17 +1,6 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { SearchReplaceBar } from "../components/SearchReplaceBar";
 
-// MUI useTheme モック
-jest.mock("@mui/material", () => {
-  const actual = jest.requireActual("@mui/material");
-  return {
-    ...actual,
-    useTheme: () => ({
-      palette: { mode: "light" },
-    }),
-  };
-});
-
 const t = (key: string, values?: Record<string, string | number>) => {
   if (values) {
     return `${key}:${JSON.stringify(values)}`;

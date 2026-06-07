@@ -6,7 +6,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- Mocks ---
 let mockEditOpen = false;
@@ -117,8 +116,6 @@ jest.mock("@anytime-markdown/spreadsheet-viewer", () => ({
 
 import { TableNodeView } from "../TableNodeView";
 
-const theme = createTheme();
-const darkTheme = createTheme({ palette: { mode: "dark" } });
 
 function createMockEditor(overrides?: Record<string, any>) {
   const run = jest.fn();
@@ -204,7 +201,7 @@ function renderTable(options?: {
 
   return {
     ...render(
-      <ThemeProvider theme={options?.useDark ? darkTheme : theme}>
+        <>
         <TableNodeView
           editor={editor as any}
           node={node as any}
@@ -218,7 +215,7 @@ function renderTable(options?: {
           HTMLAttributes={{}}
           view={{} as any}
         />
-      </ThemeProvider>,
+        </>,
     ),
     editor,
   };
@@ -406,7 +403,7 @@ describe("TableNodeView - coverage2", () => {
       const node = createMockNode();
 
       render(
-        <ThemeProvider theme={theme}>
+          <>
           <TableNodeView
             editor={editor as any}
             node={node as any}
@@ -420,7 +417,7 @@ describe("TableNodeView - coverage2", () => {
             HTMLAttributes={{}}
             view={{} as any}
           />
-        </ThemeProvider>,
+          </>,
       );
 
       // Should not render compare view since pos is null

@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { MarkdownMinimap } from "../components/MarkdownMinimap";
 
 // useMarkdownMinimap をモック
@@ -23,11 +22,7 @@ jest.mock("../hooks/useMarkdownMinimap", () => ({
 }));
 
 function Wrapper({ children }: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <ThemeProvider theme={createTheme({ palette: { mode: "light" } })}>
-      {children}
-    </ThemeProvider>
-  );
+  return <>{children}</>;
 }
 
 describe("MarkdownMinimap", () => {

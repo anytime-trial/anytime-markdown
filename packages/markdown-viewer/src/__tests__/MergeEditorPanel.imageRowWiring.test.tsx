@@ -23,7 +23,6 @@ global.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { DEFAULT_SETTINGS } from "../useEditorSettings";
 
@@ -42,7 +41,6 @@ jest.mock("../useEditorSettings", () => ({
 
 import { MergeEditorPanel } from "../components/MergeEditorPanel";
 
-const theme = createTheme();
 
 function injectedGlobalCss(): string {
   return Array.from(document.head.querySelectorAll("style[data-anytime-global]"))
@@ -58,14 +56,14 @@ describe("MergeEditorPanel WYSIWYG imageRow wiring (regression)", () => {
   it("injects [data-image-row] flex layout as real CSS via GlobalStyle", () => {
     expect(DEFAULT_SETTINGS).toBeDefined();
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={false}
           editor={null}
           side="left"
           showHoverLabels
         />
-      </ThemeProvider>,
+        </>,
     );
 
     const css = injectedGlobalCss();
@@ -78,12 +76,12 @@ describe("MergeEditorPanel WYSIWYG imageRow wiring (regression)", () => {
 
   it("scopes left / right panels separately to avoid cross-contamination", () => {
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <>
           <MergeEditorPanel sourceMode={false} editor={null} side="left" />
           <MergeEditorPanel sourceMode={false} editor={null} side="right" showHoverLabels />
         </>
-      </ThemeProvider>,
+        </>,
     );
 
     const css = injectedGlobalCss();

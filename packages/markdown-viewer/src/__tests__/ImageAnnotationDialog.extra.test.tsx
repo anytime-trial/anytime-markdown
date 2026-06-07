@@ -4,7 +4,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getActionHover: () => "rgba(0,0,0,0.04)",
@@ -27,7 +26,6 @@ jest.mock("../types/imageAnnotation", () => ({
 
 import { ImageAnnotationDialog } from "../components/ImageAnnotationDialog";
 
-const theme = createTheme();
 const testSrc =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
 
@@ -41,7 +39,7 @@ describe("ImageAnnotationDialog - additional tests", () => {
     ];
 
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <ImageAnnotationDialog
           open={true}
           onClose={jest.fn()}
@@ -50,7 +48,7 @@ describe("ImageAnnotationDialog - additional tests", () => {
           onSave={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -61,7 +59,7 @@ describe("ImageAnnotationDialog - additional tests", () => {
     ];
 
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <ImageAnnotationDialog
           open={true}
           onClose={jest.fn()}
@@ -70,14 +68,14 @@ describe("ImageAnnotationDialog - additional tests", () => {
           onSave={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders tool toggle buttons", () => {
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <ImageAnnotationDialog
           open={true}
           onClose={jest.fn()}
@@ -86,7 +84,7 @@ describe("ImageAnnotationDialog - additional tests", () => {
           onSave={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     // Look for toggle button group
     const toggleButtons = screen.queryAllByRole("button");
@@ -96,7 +94,7 @@ describe("ImageAnnotationDialog - additional tests", () => {
   it("does not crash when onSave is called", () => {
     const onSave = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <ImageAnnotationDialog
           open={true}
           onClose={jest.fn()}
@@ -105,7 +103,7 @@ describe("ImageAnnotationDialog - additional tests", () => {
           onSave={onSave}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     // Verify onSave is provided but not immediately called
     expect(onSave).not.toHaveBeenCalled();
@@ -114,7 +112,7 @@ describe("ImageAnnotationDialog - additional tests", () => {
   it("renders close button", () => {
     const onClose = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <ImageAnnotationDialog
           open={true}
           onClose={onClose}
@@ -123,7 +121,7 @@ describe("ImageAnnotationDialog - additional tests", () => {
           onSave={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     const closeBtn = screen.queryByLabelText("close");
     if (closeBtn) {

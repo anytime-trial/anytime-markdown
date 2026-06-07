@@ -4,7 +4,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { EditorMenuPopovers } from "../components/EditorMenuPopovers";
 
 jest.mock("next-intl", () => ({
@@ -38,7 +37,6 @@ jest.mock("../icons/MermaidIcon", () => {
   };
 });
 
-const theme = createTheme();
 
 describe("EditorMenuPopovers - additional tests", () => {
   const t = (key: string) => key;
@@ -67,9 +65,7 @@ describe("EditorMenuPopovers - additional tests", () => {
     const helpAnchor = document.createElement("button");
     document.body.appendChild(helpAnchor);
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...defaultProps} helpAnchorEl={helpAnchor} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...defaultProps} helpAnchorEl={helpAnchor} />,
     );
     expect(container).toBeTruthy();
     document.body.removeChild(helpAnchor);
@@ -79,9 +75,7 @@ describe("EditorMenuPopovers - additional tests", () => {
     const anchor = document.createElement("button");
     document.body.appendChild(anchor);
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...defaultProps} diagramAnchorEl={anchor} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...defaultProps} diagramAnchorEl={anchor} />,
     );
     expect(container).toBeTruthy();
     document.body.removeChild(anchor);
@@ -91,9 +85,7 @@ describe("EditorMenuPopovers - additional tests", () => {
     const anchor = document.createElement("button");
     document.body.appendChild(anchor);
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...defaultProps} templateAnchorEl={anchor} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...defaultProps} templateAnchorEl={anchor} />,
     );
     expect(container).toBeTruthy();
     document.body.removeChild(anchor);
@@ -103,9 +95,7 @@ describe("EditorMenuPopovers - additional tests", () => {
     const anchor = document.createElement("button");
     document.body.appendChild(anchor);
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...defaultProps} sampleAnchorEl={anchor} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...defaultProps} sampleAnchorEl={anchor} />,
     );
     expect(container).toBeTruthy();
     document.body.removeChild(anchor);
@@ -115,12 +105,12 @@ describe("EditorMenuPopovers - additional tests", () => {
     const anchor = document.createElement("h1");
     document.body.appendChild(anchor);
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorMenuPopovers
           {...defaultProps}
           headingMenu={{ anchorEl: anchor, pos: 5, currentLevel: 2 }}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
     document.body.removeChild(anchor);

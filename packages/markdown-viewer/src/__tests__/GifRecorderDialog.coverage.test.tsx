@@ -9,7 +9,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getDivider: () => "#ccc",
@@ -72,7 +71,6 @@ if (typeof URL.revokeObjectURL !== "function") {
 
 import { GifRecorderDialog } from "../components/GifRecorderDialog";
 
-const theme = createTheme();
 
 function renderDialog(props?: Partial<{ open: boolean; onClose: jest.Mock; onComplete: jest.Mock }>) {
   const defaultProps = {
@@ -83,9 +81,7 @@ function renderDialog(props?: Partial<{ open: boolean; onClose: jest.Mock; onCom
   };
   return {
     ...render(
-      <ThemeProvider theme={theme}>
-        <GifRecorderDialog {...defaultProps} />
-      </ThemeProvider>,
+        <GifRecorderDialog {...defaultProps} />,
     ),
     ...defaultProps,
   };
@@ -157,9 +153,7 @@ describe("GifRecorderDialog coverage - cleanup function", () => {
     const { rerender } = renderDialog({ onClose });
 
     rerender(
-      <ThemeProvider theme={theme}>
-        <GifRecorderDialog open={false} onClose={onClose} onComplete={jest.fn()} />
-      </ThemeProvider>,
+        <GifRecorderDialog open={false} onClose={onClose} onComplete={jest.fn()} />,
     );
   });
 });
@@ -493,9 +487,7 @@ describe("GifRecorderDialog coverage - save and retry", () => {
     getDisplayMediaMock.mockResolvedValue(mockStream);
 
     const result = render(
-      <ThemeProvider theme={theme}>
-        <GifRecorderDialog open={true} onClose={jest.fn()} onComplete={onComplete} />
-      </ThemeProvider>,
+        <GifRecorderDialog open={true} onClose={jest.fn()} onComplete={onComplete} />,
     );
 
     await act(async () => {
@@ -553,9 +545,7 @@ describe("GifRecorderDialog coverage - save and retry", () => {
     getDisplayMediaMock.mockResolvedValue(mockStream);
 
     const { rerender } = render(
-      <ThemeProvider theme={theme}>
-        <GifRecorderDialog open={true} onClose={jest.fn()} onComplete={onComplete} />
-      </ThemeProvider>,
+        <GifRecorderDialog open={true} onClose={jest.fn()} onComplete={onComplete} />,
     );
 
     await act(async () => {
@@ -564,9 +554,7 @@ describe("GifRecorderDialog coverage - save and retry", () => {
 
     // Close dialog
     rerender(
-      <ThemeProvider theme={theme}>
-        <GifRecorderDialog open={false} onClose={jest.fn()} onComplete={onComplete} />
-      </ThemeProvider>,
+        <GifRecorderDialog open={false} onClose={jest.fn()} onComplete={onComplete} />,
     );
     // Should not crash
   });

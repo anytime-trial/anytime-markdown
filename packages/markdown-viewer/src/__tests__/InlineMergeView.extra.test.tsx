@@ -4,7 +4,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditor: () => null,
@@ -116,14 +115,13 @@ jest.mock("../components/MergeEditorPanel", () => ({
 
 import { InlineMergeView } from "../components/InlineMergeView";
 
-const theme = createTheme();
 
 describe("InlineMergeView - additional tests", () => {
   const t = (key: string) => key;
 
   it("renders with leftFrontmatter", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent=""
           sourceMode={false}
@@ -133,7 +131,7 @@ describe("InlineMergeView - additional tests", () => {
         >
           {(bg) => <div>{bg}</div>}
         </InlineMergeView>
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -141,7 +139,7 @@ describe("InlineMergeView - additional tests", () => {
   it("does not render semantic diff toggle in source mode", () => {
     // ソースモードは常にセマンティック比較 OFF。トグルは提供しない。
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent=""
           sourceMode={true}
@@ -150,7 +148,7 @@ describe("InlineMergeView - additional tests", () => {
         >
           {(bg) => <div>{bg}</div>}
         </InlineMergeView>
-      </ThemeProvider>,
+        </>,
     );
     const semanticBtn = container.querySelector('[aria-label="semanticDiff"]');
     expect(semanticBtn).toBeNull();
@@ -159,7 +157,7 @@ describe("InlineMergeView - additional tests", () => {
   it("renders with externalRightContent", () => {
     const onConsumed = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent=""
           sourceMode={false}
@@ -170,7 +168,7 @@ describe("InlineMergeView - additional tests", () => {
         >
           {(bg) => <div>{bg}</div>}
         </InlineMergeView>
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
     expect(mockSetCompareText).toHaveBeenCalledWith("# External");
@@ -180,7 +178,7 @@ describe("InlineMergeView - additional tests", () => {
   it("renders with onUndoRedoReady callback", () => {
     const onReady = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent=""
           sourceMode={false}
@@ -190,7 +188,7 @@ describe("InlineMergeView - additional tests", () => {
         >
           {(bg) => <div>{bg}</div>}
         </InlineMergeView>
-      </ThemeProvider>,
+        </>,
     );
     expect(onReady).toHaveBeenCalledWith(
       expect.objectContaining({ undo: expect.any(Function), redo: expect.any(Function) }),
@@ -199,7 +197,7 @@ describe("InlineMergeView - additional tests", () => {
 
   it("renders with commentSlot", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent=""
           sourceMode={false}
@@ -209,14 +207,14 @@ describe("InlineMergeView - additional tests", () => {
         >
           {(bg) => <div>{bg}</div>}
         </InlineMergeView>
-      </ThemeProvider>,
+        </>,
     );
     expect(container.querySelector('[data-testid="comment-slot"]')).toBeTruthy();
   });
 
   it("renders file input for right panel", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent=""
           sourceMode={false}
@@ -225,7 +223,7 @@ describe("InlineMergeView - additional tests", () => {
         >
           {(bg) => <div>{bg}</div>}
         </InlineMergeView>
-      </ThemeProvider>,
+        </>,
     );
     const fileInput = container.querySelector('input[type="file"]');
     expect(fileInput).toBeTruthy();

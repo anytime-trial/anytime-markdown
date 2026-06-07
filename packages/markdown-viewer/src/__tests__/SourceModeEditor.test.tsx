@@ -1,6 +1,5 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material";
 import { SourceModeEditor } from "../components/SourceModeEditor";
 
 jest.mock("next-intl", () => ({
@@ -22,10 +21,9 @@ beforeAll(() => {
   }));
 });
 
-const theme = createTheme();
 
 function renderWithTheme(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+  return render(ui);
 }
 
 function createDefaultProps(overrides: Partial<Parameters<typeof SourceModeEditor>[0]> = {}) {

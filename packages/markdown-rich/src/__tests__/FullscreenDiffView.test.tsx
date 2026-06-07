@@ -11,7 +11,6 @@ global.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { FullscreenDiffView } from "../components/FullscreenDiffView";
 
@@ -33,35 +32,29 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     applyMerge: jest.fn().mockReturnValue({ newLeftText: "", newRightText: "" }),
 }));
 
-const theme = createTheme();
-
 describe("FullscreenDiffView", () => {
   const t = (key: string) => key;
 
   it("renders without crashing with empty code", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode=""
-          initialRightCode=""
-          onMergeApply={jest.fn()}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode=""
+        initialRightCode=""
+        onMergeApply={jest.fn()}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with different left and right code", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="line1\nline2"
-          initialRightCode="line1\nline3"
-          onMergeApply={jest.fn()}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="line1\nline2"
+        initialRightCode="line1\nline3"
+        onMergeApply={jest.fn()}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });

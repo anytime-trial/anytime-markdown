@@ -7,7 +7,6 @@
 
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 global.ResizeObserver = class ResizeObserver {
   observe() {}
@@ -121,7 +120,6 @@ jest.mock("../components/SamplePanel", () => ({
 
 import { CodeBlockEditDialog } from "../components/CodeBlockEditDialog";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 const baseProps = {
@@ -173,15 +171,13 @@ beforeEach(() => {
 describe("CodeBlockEditDialog - compare mode", () => {
   it("比較モードで FullscreenDiffView を表示する", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog
-          {...baseProps}
-          isCompareMode={true}
-          compareCode="const y = 2;"
-          thisCode="const x = 1;"
-          onMergeApply={jest.fn()}
-        />
-      </ThemeProvider>,
+      <CodeBlockEditDialog
+        {...baseProps}
+        isCompareMode={true}
+        compareCode="const y = 2;"
+        thisCode="const x = 1;"
+        onMergeApply={jest.fn()}
+      />,
     );
     expect(screen.getByTestId("fullscreen-diff-view")).toBeTruthy();
     expect(screen.getByTestId("compare-indicator")).toBeTruthy();
@@ -189,13 +185,11 @@ describe("CodeBlockEditDialog - compare mode", () => {
 
   it("compareCode が null の場合は通常モード", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog
-          {...baseProps}
-          isCompareMode={true}
-          compareCode={null}
-        />
-      </ThemeProvider>,
+      <CodeBlockEditDialog
+        {...baseProps}
+        isCompareMode={true}
+        compareCode={null}
+      />,
     );
     expect(screen.queryByTestId("fullscreen-diff-view")).toBeNull();
     expect(screen.getByTestId("left-panel")).toBeTruthy();
@@ -205,12 +199,10 @@ describe("CodeBlockEditDialog - compare mode", () => {
 describe("CodeBlockEditDialog - custom preview", () => {
   it("renderPreview が指定されている場合はカスタムプレビューを表示する", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog
-          {...baseProps}
-          renderPreview={(code) => <div data-testid="custom-preview">{code}</div>}
-        />
-      </ThemeProvider>,
+      <CodeBlockEditDialog
+        {...baseProps}
+        renderPreview={(code) => <div data-testid="custom-preview">{code}</div>}
+      />,
     );
     expect(screen.getByTestId("custom-preview")).toBeTruthy();
     expect(screen.getByTestId("custom-preview").textContent).toBe("const x = 1;");
@@ -223,12 +215,10 @@ describe("CodeBlockEditDialog - custom samples", () => {
       { label: "Custom 1", i18nKey: "custom1", code: "// custom code" },
     ];
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog
-          {...baseProps}
-          customSamples={customSamples}
-        />
-      </ThemeProvider>,
+      <CodeBlockEditDialog
+        {...baseProps}
+        customSamples={customSamples}
+      />,
     );
     expect(screen.getByTestId("sample-panel")).toBeTruthy();
     expect(screen.getByText("Custom 1")).toBeTruthy();
@@ -240,13 +230,11 @@ describe("CodeBlockEditDialog - custom samples", () => {
       { label: "Template", i18nKey: "tpl", code: "template code" },
     ];
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog
-          {...baseProps}
-          customSamples={customSamples}
-          onFsTextChange={onFsTextChange}
-        />
-      </ThemeProvider>,
+      <CodeBlockEditDialog
+        {...baseProps}
+        customSamples={customSamples}
+        onFsTextChange={onFsTextChange}
+      />,
     );
     fireEvent.click(screen.getByText("Template"));
     expect(onFsTextChange).toHaveBeenCalledWith("template code");
@@ -256,9 +244,7 @@ describe("CodeBlockEditDialog - custom samples", () => {
 describe("CodeBlockEditDialog - readOnly", () => {
   it("readOnly の場合はサンプルパネルを表示しない", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog {...baseProps} readOnly={true} />
-      </ThemeProvider>,
+      <CodeBlockEditDialog {...baseProps} readOnly={true} />,
     );
     // BuiltInSamplePanel should not render (builtInPanel is null when readOnly)
     expect(screen.queryByText("sampleContent")).toBeNull();
@@ -269,9 +255,7 @@ describe("CodeBlockEditDialog - syntax highlight", () => {
   it("未知の言語はプレーンテキストとしてエスケープする", () => {
     mockListLanguages.mockReturnValue([]); // no known languages
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog {...baseProps} language="unknown-lang" />
-      </ThemeProvider>,
+      <CodeBlockEditDialog {...baseProps} language="unknown-lang" />,
     );
     // highlightAuto is no longer used; unknown languages are HTML-escaped plaintext
     expect(mockHighlightAuto).not.toHaveBeenCalled();
@@ -280,9 +264,7 @@ describe("CodeBlockEditDialog - syntax highlight", () => {
   it("既知の言語は highlight を使用する", () => {
     mockListLanguages.mockReturnValue(["javascript"]);
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog {...baseProps} language="javascript" />
-      </ThemeProvider>,
+      <CodeBlockEditDialog {...baseProps} language="javascript" />,
     );
     expect(mockHighlight).toHaveBeenCalledWith("javascript", "const x = 1;");
   });
@@ -291,9 +273,7 @@ describe("CodeBlockEditDialog - syntax highlight", () => {
     mockHighlight.mockClear();
     mockHighlightAuto.mockClear();
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog {...baseProps} fsCode="" language="javascript" />
-      </ThemeProvider>,
+      <CodeBlockEditDialog {...baseProps} fsCode="" language="javascript" />,
     );
     // Empty code should skip highlighting entirely (highlightedHtml returns "")
     expect(mockHighlight).not.toHaveBeenCalled();
@@ -306,9 +286,7 @@ describe("CodeBlockEditDialog - syntax highlight", () => {
       throw new Error("highlight error");
     });
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog {...baseProps} fsCode="<script>alert('xss')</script>" />
-      </ThemeProvider>,
+      <CodeBlockEditDialog {...baseProps} fsCode="<script>alert('xss')</script>" />,
     );
     // Should show escaped code instead of crashing
     expect(screen.getByTestId("edit-dialog-wrapper")).toBeTruthy();
@@ -318,12 +296,10 @@ describe("CodeBlockEditDialog - syntax highlight", () => {
 describe("CodeBlockEditDialog - toolbarExtra", () => {
   it("toolbarExtra がレンダリングされる", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog
-          {...baseProps}
-          toolbarExtra={<span data-testid="toolbar-extra">Extra</span>}
-        />
-      </ThemeProvider>,
+      <CodeBlockEditDialog
+        {...baseProps}
+        toolbarExtra={<span data-testid="toolbar-extra">Extra</span>}
+      />,
     );
     expect(screen.getByTestId("toolbar-extra")).toBeTruthy();
   });
@@ -332,9 +308,7 @@ describe("CodeBlockEditDialog - toolbarExtra", () => {
 describe("CodeBlockEditDialog - BuiltInSamplePanel", () => {
   it("サンプルコンテンツのヘッダーをクリックで展開する", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog {...baseProps} />
-      </ThemeProvider>,
+      <CodeBlockEditDialog {...baseProps} />,
     );
     const sampleHeader = screen.getByText("sampleContent");
     fireEvent.click(sampleHeader);

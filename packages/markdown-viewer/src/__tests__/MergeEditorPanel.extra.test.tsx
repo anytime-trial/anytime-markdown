@@ -11,7 +11,6 @@ global.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -56,26 +55,25 @@ jest.mock("../useEditorSettings", () => ({
 
 import { MergeEditorPanel } from "../components/MergeEditorPanel";
 
-const theme = createTheme();
 
 describe("MergeEditorPanel - additional tests", () => {
   it("renders in source mode", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="# Source"
           onSourceChange={jest.fn()}
           side="left"
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders in WYSIWYG mode with editor", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={false}
           sourceText=""
@@ -83,14 +81,14 @@ describe("MergeEditorPanel - additional tests", () => {
           editor={null}
           side="right"
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with readOnly", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="# Read Only"
@@ -98,14 +96,14 @@ describe("MergeEditorPanel - additional tests", () => {
           readOnly
           side="left"
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with bgGradient", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="# Gradient"
@@ -113,7 +111,7 @@ describe("MergeEditorPanel - additional tests", () => {
           bgGradient="linear-gradient(red, blue)"
           side="left"
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -124,7 +122,7 @@ describe("MergeEditorPanel - additional tests", () => {
       { type: "added" as const, text: "new line", blockId: null, lineNumber: 2 },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="line1\nnew line"
@@ -132,7 +130,7 @@ describe("MergeEditorPanel - additional tests", () => {
           diffLines={diffLines}
           side="right"
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });

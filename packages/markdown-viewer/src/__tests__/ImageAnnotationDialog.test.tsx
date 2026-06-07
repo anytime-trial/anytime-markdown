@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getActionHover: () => "rgba(0,0,0,0.04)",
@@ -26,7 +25,6 @@ jest.mock("../types/imageAnnotation", () => ({
 
 import { ImageAnnotationDialog } from "../components/ImageAnnotationDialog";
 
-const theme = createTheme();
 
 describe("ImageAnnotationDialog", () => {
   const t = (key: string) => key;
@@ -34,7 +32,7 @@ describe("ImageAnnotationDialog", () => {
 
   it("does not render when closed", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <ImageAnnotationDialog
           open={false}
           onClose={jest.fn()}
@@ -43,14 +41,14 @@ describe("ImageAnnotationDialog", () => {
           onSave={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders when open with empty annotations", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <ImageAnnotationDialog
           open={true}
           onClose={jest.fn()}
@@ -59,7 +57,7 @@ describe("ImageAnnotationDialog", () => {
           onSave={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -69,7 +67,7 @@ describe("ImageAnnotationDialog", () => {
       { id: "a1", type: "rect" as const, x1: 10, y1: 10, x2: 60, y2: 40, color: "#f00", comment: "test" },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <ImageAnnotationDialog
           open={true}
           onClose={jest.fn()}
@@ -78,7 +76,7 @@ describe("ImageAnnotationDialog", () => {
           onSave={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });

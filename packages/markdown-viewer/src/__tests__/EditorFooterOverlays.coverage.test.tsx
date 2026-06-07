@@ -5,7 +5,6 @@
  */
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("next-intl", () => ({
   useLocale: () => "en",
@@ -55,7 +54,6 @@ jest.mock("../contexts/EditorModeContext", () => ({
 
 import { EditorFooterOverlays } from "../components/EditorFooterOverlays";
 
-const theme = createTheme();
 const t = (key: string) => key;
 const noop = jest.fn();
 
@@ -110,9 +108,7 @@ describe("EditorFooterOverlays coverage", () => {
 
   it("renders with editor and sourceMode=false shows bubble menu and slash command", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} editor={mockEditor} />
-      </ThemeProvider>,
+        <EditorFooterOverlays {...baseProps} editor={mockEditor} />,
     );
     expect(screen.getByTestId("bubble-menu")).toBeTruthy();
     expect(screen.getByTestId("slash-command-menu")).toBeTruthy();
@@ -122,9 +118,7 @@ describe("EditorFooterOverlays coverage", () => {
   it("renders with sourceMode=true hides bubble menu and slash command", () => {
     mockEditorMode.sourceMode = true;
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} editor={mockEditor} />
-      </ThemeProvider>,
+        <EditorFooterOverlays {...baseProps} editor={mockEditor} />,
     );
     expect(screen.queryByTestId("bubble-menu")).toBeNull();
     expect(screen.queryByTestId("slash-command-menu")).toBeNull();
@@ -134,9 +128,7 @@ describe("EditorFooterOverlays coverage", () => {
   it("renders with readonlyMode=true hides slash command but shows bubble menu", () => {
     mockEditorMode.readonlyMode = true;
     render(
-      <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} editor={mockEditor} />
-      </ThemeProvider>,
+        <EditorFooterOverlays {...baseProps} editor={mockEditor} />,
     );
     expect(screen.getByTestId("bubble-menu")).toBeTruthy();
     expect(screen.queryByTestId("slash-command-menu")).toBeNull();
@@ -145,9 +137,7 @@ describe("EditorFooterOverlays coverage", () => {
   it("renders with reviewMode=true hides slash command but shows bubble menu", () => {
     mockEditorMode.reviewMode = true;
     render(
-      <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} editor={mockEditor} />
-      </ThemeProvider>,
+        <EditorFooterOverlays {...baseProps} editor={mockEditor} />,
     );
     expect(screen.getByTestId("bubble-menu")).toBeTruthy();
     expect(screen.queryByTestId("slash-command-menu")).toBeNull();
@@ -155,9 +145,7 @@ describe("EditorFooterOverlays coverage", () => {
 
   it("renders notification with error severity when notification ends with Error", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} notification={"saveError" as any} />
-      </ThemeProvider>,
+        <EditorFooterOverlays {...baseProps} notification={"saveError" as any} />,
     );
     // Notification text should be rendered
     expect(screen.getByText("saveError")).toBeTruthy();
@@ -165,9 +153,7 @@ describe("EditorFooterOverlays coverage", () => {
 
   it("renders notification with success severity when notification does not end with Error", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} notification={"saved" as any} />
-      </ThemeProvider>,
+        <EditorFooterOverlays {...baseProps} notification={"saved" as any} />,
     );
     expect(screen.getByText("saved")).toBeTruthy();
   });
@@ -179,9 +165,7 @@ describe("EditorFooterOverlays coverage", () => {
     document.body.appendChild(portalTarget);
     try {
       render(
-        <ThemeProvider theme={theme}>
-          <EditorFooterOverlays {...baseProps} editor={null} editorPortalTarget={portalTarget} />
-        </ThemeProvider>,
+          <EditorFooterOverlays {...baseProps} editor={null} editorPortalTarget={portalTarget} />,
       );
     } finally {
       document.body.removeChild(portalTarget);
@@ -190,9 +174,7 @@ describe("EditorFooterOverlays coverage", () => {
 
   it("renders with hideStatusBar=true", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} editor={mockEditor} hideStatusBar={true} />
-      </ThemeProvider>,
+        <EditorFooterOverlays {...baseProps} editor={mockEditor} hideStatusBar={true} />,
     );
     const statusBar = screen.getByTestId("status-bar");
     expect(statusBar.getAttribute("data-hidden")).toBe("true");
@@ -201,9 +183,7 @@ describe("EditorFooterOverlays coverage", () => {
   it("renders with inlineMergeOpen=true", () => {
     mockEditorMode.inlineMergeOpen = true;
     render(
-      <ThemeProvider theme={theme}>
-        <EditorFooterOverlays {...baseProps} editor={mockEditor} />
-      </ThemeProvider>,
+        <EditorFooterOverlays {...baseProps} editor={mockEditor} />,
     );
     expect(screen.getByTestId("menu-popovers")).toBeTruthy();
   });

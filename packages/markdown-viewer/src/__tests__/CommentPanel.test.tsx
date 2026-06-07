@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditorState: ({ selector }: any) => {
@@ -44,7 +43,6 @@ jest.mock("../types/imageAnnotation", () => ({
 
 import { CommentPanel } from "../components/CommentPanel";
 
-const theme = createTheme();
 
 describe("CommentPanel", () => {
   const t = (key: string) => key;
@@ -66,28 +64,28 @@ describe("CommentPanel", () => {
 
   it("renders without crashing when closed", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <CommentPanel
           editor={mockEditor}
           open={false}
           onClose={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders without crashing when open", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <CommentPanel
           editor={mockEditor}
           open={true}
           onClose={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });

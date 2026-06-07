@@ -5,7 +5,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Mock dependencies before importing component
 jest.mock("@anytime-markdown/markdown-react", () => ({
@@ -75,7 +74,6 @@ jest.mock("../utils/gifEncoder", () => ({}));
 
 import { GifNodeView } from "../components/GifNodeView";
 
-const theme = createTheme();
 
 function defaultBlockNodeState(overrides: Record<string, unknown> = {}) {
   return {
@@ -109,7 +107,7 @@ function renderGifNodeView(nodeAttrs: Record<string, unknown> = {}, stateOverrid
   const updateAttributes = jest.fn();
 
   const result = render(
-    <ThemeProvider theme={theme}>
+      <>
       <GifNodeView
         editor={mockEditor as any}
         node={mockNode as any}
@@ -123,7 +121,7 @@ function renderGifNodeView(nodeAttrs: Record<string, unknown> = {}, stateOverrid
         HTMLAttributes={{}}
         view={{} as any}
       />
-    </ThemeProvider>,
+      </>,
   );
 
   return { ...result, updateAttributes, state };

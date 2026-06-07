@@ -10,12 +10,6 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     SMALL_CAPTION_FONT_SIZE: 10,
 }));
 
-jest.mock("@mui/material/styles", () => ({
-  ...jest.requireActual("@mui/material/styles"),
-  useTheme: () => ({
-    palette: { mode: "light" },
-  }),
-}));
 
 import { ZoomToolbar } from "../components/ZoomToolbar";
 

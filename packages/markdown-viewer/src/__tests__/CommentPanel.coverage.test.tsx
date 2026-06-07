@@ -5,7 +5,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import type { InlineComment } from "../utils/commentHelpers";
 import type { ImageAnnotation } from "../types/imageAnnotation";
@@ -94,7 +93,6 @@ jest.mock("../types/imageAnnotation", () => ({
 
 import { CommentPanel } from "../components/CommentPanel";
 
-const theme = createTheme();
 
 function createMockEditor(overrides: any = {}) {
   const docDescendants = jest.fn((cb: any) => {
@@ -175,9 +173,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     // Click the comment card
@@ -204,9 +200,7 @@ describe("CommentPanel - coverage tests", () => {
     });
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     // Should show "commentPointLabel"
@@ -220,9 +214,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     // Click "Open" filter
@@ -240,9 +232,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const resolvedBtn = screen.getByText("commentFilterResolved");
@@ -259,9 +249,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} onSave={onSave} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} onSave={onSave} t={t} />,
     );
 
     const resolveBtn = screen.getByText("commentResolve");
@@ -275,9 +263,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const reopenBtn = screen.getByText("commentUnresolve");
@@ -291,9 +277,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const deleteBtn = screen.getByText("commentDelete");
@@ -307,9 +291,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     // Click on the text to start editing
@@ -323,9 +305,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} onSave={onSave} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} onSave={onSave} t={t} />,
     );
 
     // Click to start editing
@@ -347,9 +327,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const text = screen.getByText("cancel me");
@@ -368,9 +346,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} onSave={onSave} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} onSave={onSave} t={t} />,
     );
 
     const text = screen.getByText("blur me");
@@ -389,9 +365,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     expect(screen.getByText("commentPlaceholder")).toBeTruthy();
@@ -403,9 +377,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const openBtn = screen.getByText("commentFilterOpen");
@@ -417,9 +389,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const resolvedBtn = screen.getByText("commentFilterResolved");
@@ -433,9 +403,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={onClose} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={onClose} t={t} />,
     );
 
     const closeBtn = screen.getByLabelText("close");
@@ -450,9 +418,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     // Should show "commentPanel (1/2)" - 1 unresolved out of 2 total
@@ -471,9 +437,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     expect(screen.getByText("rect note")).toBeTruthy();
@@ -492,9 +456,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     expect(screen.getByText("annotationLine")).toBeTruthy();
@@ -511,9 +473,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} onSave={onSave} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} onSave={onSave} t={t} />,
     );
 
     // Find the resolve button in the annotation section
@@ -534,9 +494,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const deleteButtons = screen.getAllByText("commentDelete");
@@ -555,9 +513,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const openBtn = screen.getByText("commentFilterOpen");
@@ -577,9 +533,7 @@ describe("CommentPanel - coverage tests", () => {
     const editor = createMockEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const annotText = screen.getByText("click me");
@@ -603,9 +557,7 @@ describe("CommentPanel - coverage tests", () => {
     editor.state.doc.nodeAt = jest.fn().mockReturnValue(null);
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const resolveButtons = screen.getAllByText("commentResolve");
@@ -627,9 +579,7 @@ describe("CommentPanel - coverage tests", () => {
     // This tests the `domAtPos.node.parentElement` branch
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const card = screen.getByText("scroll target").closest("div[role='button']");

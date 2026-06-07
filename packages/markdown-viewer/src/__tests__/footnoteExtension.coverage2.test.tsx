@@ -6,7 +6,6 @@
 
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Mock for getPrimaryMain
 jest.mock("../constants/colors", () => ({
@@ -30,7 +29,6 @@ import { FootnoteRef } from "../extensions/footnoteExtension";
 import { Editor } from "@anytime-markdown/markdown-core";
 import StarterKit from "@anytime-markdown/markdown-starter-kit";
 
-const theme = createTheme();
 
 describe("FootnoteRef Extension coverage2", () => {
   // --- Lines 21-25: FootnoteRefView rendering ---
@@ -46,7 +44,7 @@ describe("FootnoteRef Extension coverage2", () => {
       expect(FootnoteRefView).toBeTruthy();
 
       render(
-        <ThemeProvider theme={theme}>
+          <>
           <FootnoteRefView
             node={{ attrs: { noteId: "42" } }}
             selected={false}
@@ -58,7 +56,7 @@ describe("FootnoteRef Extension coverage2", () => {
             extension={null}
             HTMLAttributes={{}}
           />
-        </ThemeProvider>,
+          </>,
       );
 
       expect(screen.getByText("[42]")).toBeTruthy();
@@ -74,7 +72,7 @@ describe("FootnoteRef Extension coverage2", () => {
       const FootnoteRefView = (global as any).__FootnoteRefView;
 
       render(
-        <ThemeProvider theme={theme}>
+          <>
           <FootnoteRefView
             node={{ attrs: { noteId: "note1" } }}
             selected={true}
@@ -86,7 +84,7 @@ describe("FootnoteRef Extension coverage2", () => {
             extension={null}
             HTMLAttributes={{}}
           />
-        </ThemeProvider>,
+          </>,
       );
 
       expect(screen.getByText("[note1]")).toBeTruthy();

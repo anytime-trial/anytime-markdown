@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { DraggableSplitLayout } from "../components/DraggableSplitLayout";
 
@@ -16,19 +15,16 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     getSplitterSx: () => ({}),
 }));
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 describe("DraggableSplitLayout", () => {
   it("renders left and right panels", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <DraggableSplitLayout
-          left={<div>Left</div>}
-          right={<div>Right</div>}
-          t={t}
-        />
-      </ThemeProvider>,
+      <DraggableSplitLayout
+        left={<div>Left</div>}
+        right={<div>Right</div>}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
     expect(container.textContent).toContain("Left");

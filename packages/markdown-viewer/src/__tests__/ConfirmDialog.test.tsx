@@ -3,11 +3,9 @@
  */
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import ConfirmDialog from "../providers/ConfirmDialog";
 
-const theme = createTheme();
 
 describe("ConfirmDialog", () => {
   const defaultProps = {
@@ -23,18 +21,14 @@ describe("ConfirmDialog", () => {
 
   it("renders nothing when closed", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <ConfirmDialog {...defaultProps} />
-      </ThemeProvider>,
+        <ConfirmDialog {...defaultProps} />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders dialog when open", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <ConfirmDialog {...defaultProps} open={true} />
-      </ThemeProvider>,
+        <ConfirmDialog {...defaultProps} open={true} />,
     );
     expect(screen.getByText("Confirm")).toBeTruthy();
     expect(screen.getByText("Are you sure?")).toBeTruthy();
@@ -42,36 +36,28 @@ describe("ConfirmDialog", () => {
 
   it("renders with alert icon", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <ConfirmDialog {...defaultProps} open={true} icon="alert" />
-      </ThemeProvider>,
+        <ConfirmDialog {...defaultProps} open={true} icon="alert" />,
     );
     expect(screen.getByText("Confirm")).toBeTruthy();
   });
 
   it("renders with info icon", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <ConfirmDialog {...defaultProps} open={true} icon="info" />
-      </ThemeProvider>,
+        <ConfirmDialog {...defaultProps} open={true} icon="info" />,
     );
     expect(screen.getByText("Confirm")).toBeTruthy();
   });
 
   it("renders with warning icon", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <ConfirmDialog {...defaultProps} open={true} icon="warn" />
-      </ThemeProvider>,
+        <ConfirmDialog {...defaultProps} open={true} icon="warn" />,
     );
     expect(screen.getByText("Confirm")).toBeTruthy();
   });
 
   it("renders alert mode (single button)", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <ConfirmDialog {...defaultProps} open={true} alert={true} />
-      </ThemeProvider>,
+        <ConfirmDialog {...defaultProps} open={true} alert={true} />,
     );
     expect(screen.getByText("OK")).toBeTruthy();
   });

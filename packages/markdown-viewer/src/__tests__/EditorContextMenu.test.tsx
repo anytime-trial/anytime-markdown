@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { EditorContextMenu } from "../components/EditorContextMenu";
 
 // モック
@@ -39,10 +38,9 @@ jest.mock("../utils/editorImageHandlers", () => ({
   saveClipboardImageViaVscode: jest.fn(),
 }));
 
-const theme = createTheme();
 
 function renderWithTheme(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+  return render(ui);
 }
 
 describe("EditorContextMenu", () => {

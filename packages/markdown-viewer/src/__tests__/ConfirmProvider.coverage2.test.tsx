@@ -4,7 +4,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -12,7 +11,6 @@ jest.mock("next-intl", () => ({
 
 import { ConfirmProvider, ConfirmContext } from "../providers/ConfirmProvider";
 
-const theme = createTheme();
 
 function TestConsumer({ alertMode = false }: { alertMode?: boolean }) {
   const { confirm } = React.useContext(ConfirmContext);
@@ -48,11 +46,11 @@ function TestConsumer({ alertMode = false }: { alertMode?: boolean }) {
 describe("ConfirmProvider coverage2", () => {
   it("resolves promise on confirm button click (lines 65-68)", async () => {
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <ConfirmProvider>
           <TestConsumer />
         </ConfirmProvider>
-      </ThemeProvider>,
+        </>,
     );
 
     await act(async () => {
@@ -77,11 +75,11 @@ describe("ConfirmProvider coverage2", () => {
 
   it("rejects promise on cancel button click (lines 58-61)", async () => {
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <ConfirmProvider>
           <TestConsumer />
         </ConfirmProvider>
-      </ThemeProvider>,
+        </>,
     );
 
     await act(async () => {
@@ -105,11 +103,11 @@ describe("ConfirmProvider coverage2", () => {
 
   it("closes dialog on close handler (lines 53-54)", async () => {
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <ConfirmProvider>
           <TestConsumer />
         </ConfirmProvider>
-      </ThemeProvider>,
+        </>,
     );
 
     await act(async () => {
@@ -133,11 +131,11 @@ describe("ConfirmProvider coverage2", () => {
 
   it("handles multiple confirm/cancel cycles", async () => {
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <ConfirmProvider>
           <TestConsumer />
         </ConfirmProvider>
-      </ThemeProvider>,
+        </>,
     );
 
     // First: confirm

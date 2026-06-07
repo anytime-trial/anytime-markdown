@@ -9,7 +9,6 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 } as any;
 
-import { createTheme,ThemeProvider } from "@mui/material/styles";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 
@@ -39,7 +38,6 @@ jest.mock("../i18n/context", () => ({
 import { MergeEditorPanel } from "../components/MergeEditorPanel";
 import type { DiffLine } from "../utils/diffEngine";
 
-const theme = createTheme();
 
 // 6 equal + 1 changed + 6 equal の整列済み配列（計 13 行、全行 lineNumber あり）
 function buildLines(): DiffLine[] {
@@ -61,7 +59,7 @@ const sourceText = Array.from({ length: 13 }, (_, i) => `line${i}`).join("\n");
 describe("MergeEditorPanel - context collapse", () => {
   it("collapse=false では展開ボタンを表示しない", () => {
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode
           sourceText={sourceText}
@@ -71,14 +69,14 @@ describe("MergeEditorPanel - context collapse", () => {
           collapse={false}
           contextLines={2}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(screen.queryByRole("button", { name: /expandLines/i })).toBeNull();
   });
 
   it("collapse=true で未変更ランの展開ボタンを表示する", () => {
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode
           sourceText={sourceText}
@@ -88,7 +86,7 @@ describe("MergeEditorPanel - context collapse", () => {
           collapse
           contextLines={2}
         />
-      </ThemeProvider>,
+        </>,
     );
     // 変更前後 2 行を残し、先頭側と末尾側の未変更ランが畳まれる → 展開ボタン 2 個
     const buttons = screen.getAllByRole("button", { name: /expandLines/i });
@@ -98,7 +96,7 @@ describe("MergeEditorPanel - context collapse", () => {
   it("展開ボタンのクリックで onToggleExpand が呼ばれる", () => {
     const onToggleExpand = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode
           sourceText={sourceText}
@@ -109,7 +107,7 @@ describe("MergeEditorPanel - context collapse", () => {
           contextLines={2}
           onToggleExpand={onToggleExpand}
         />
-      </ThemeProvider>,
+        </>,
     );
     const buttons = screen.getAllByRole("button", { name: /expandLines/i });
     fireEvent.click(buttons[0]);
@@ -118,7 +116,7 @@ describe("MergeEditorPanel - context collapse", () => {
 
   it("expandedStarts 指定で該当ランが展開され展開ボタンが減る", () => {
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode
           sourceText={sourceText}
@@ -129,7 +127,7 @@ describe("MergeEditorPanel - context collapse", () => {
           contextLines={2}
           expandedStarts={new Set([0])}
         />
-      </ThemeProvider>,
+        </>,
     );
     // 先頭ランが展開されるので展開ボタンは末尾側の 1 個のみ
     const buttons = screen.getAllByRole("button", { name: /expandLines/i });

@@ -11,7 +11,6 @@ global.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("@anytime-markdown/markdown-react", () => ({
   EditorContent: () => <div data-testid="editor-content" />,
@@ -47,7 +46,6 @@ jest.mock("../components/mergeTiptapStyles", () => ({
 import { MergeEditorPanel } from "../components/MergeEditorPanel";
 import type { DiffLine } from "../utils/diffEngine";
 
-const theme = createTheme();
 
 describe("MergeEditorPanel - coverage2", () => {
   it("renders with readOnly in source mode", () => {
@@ -56,7 +54,7 @@ describe("MergeEditorPanel - coverage2", () => {
       { type: "added", text: "line2", blockId: 1, lineNumber: 2 },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="line1\nline2"
@@ -64,7 +62,7 @@ describe("MergeEditorPanel - coverage2", () => {
           side="left"
           readOnly
         />
-      </ThemeProvider>,
+        </>,
     );
     const textarea = container.querySelector("textarea");
     expect(textarea?.readOnly).toBe(true);
@@ -72,23 +70,23 @@ describe("MergeEditorPanel - coverage2", () => {
 
   it("auto-resize effect runs on sourceText change", () => {
     const { rerender, container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="line1"
           autoResize
         />
-      </ThemeProvider>,
+        </>,
     );
 
     rerender(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="line1\nline2\nline3"
           autoResize
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -96,13 +94,13 @@ describe("MergeEditorPanel - coverage2", () => {
   it("renders with textareaRef prop", () => {
     const ref = React.createRef<HTMLTextAreaElement>();
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="test"
           textareaRef={ref}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(ref.current).toBeInstanceOf(HTMLTextAreaElement);
     expect(container).toBeTruthy();
@@ -110,13 +108,13 @@ describe("MergeEditorPanel - coverage2", () => {
 
   it("renders with textareaAriaLabel", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="test"
           textareaAriaLabel="Source editor"
         />
-      </ThemeProvider>,
+        </>,
     );
     const textarea = container.querySelector('textarea[aria-label="Source editor"]');
     expect(textarea).toBeTruthy();
@@ -132,28 +130,28 @@ describe("MergeEditorPanel - coverage2", () => {
       { type: "padding", text: "", blockId: 3, lineNumber: null },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="same\nadded\nold"
           diffLines={diffLines}
           side="left"
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders non-source mode with editor", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={false}
           sourceText=""
           editor={null}
           side="left"
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -161,13 +159,13 @@ describe("MergeEditorPanel - coverage2", () => {
   it("renders with onSourceChange in source mode", () => {
     const onSourceChange = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="test"
           onSourceChange={onSourceChange}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container.querySelector("textarea")).toBeTruthy();
   });
@@ -177,7 +175,7 @@ describe("MergeEditorPanel - coverage2", () => {
       { type: "removed", text: "removed line", blockId: 0, lineNumber: 1 },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="removed line"
@@ -185,7 +183,7 @@ describe("MergeEditorPanel - coverage2", () => {
           side="left"
           onMerge={jest.fn()}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -196,7 +194,7 @@ describe("MergeEditorPanel - coverage2", () => {
       { type: "added", text: "new", blockId: 0, lineNumber: 2 },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="same\nnew"
@@ -204,7 +202,7 @@ describe("MergeEditorPanel - coverage2", () => {
           side="right"
           onMerge={jest.fn()}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container.querySelector("textarea")).toBeTruthy();
   });

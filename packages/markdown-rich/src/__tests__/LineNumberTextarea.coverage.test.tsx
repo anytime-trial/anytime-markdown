@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { LineNumberTextarea } from "../components/LineNumberTextarea";
 
@@ -16,8 +15,6 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     getTextPrimary: () => "#000",
 }));
 
-const theme = createTheme();
-
 function renderTextarea(props: Partial<React.ComponentProps<typeof LineNumberTextarea>> = {}) {
   const defaultProps = {
     value: "line 1\nline 2\nline 3",
@@ -28,9 +25,7 @@ function renderTextarea(props: Partial<React.ComponentProps<typeof LineNumberTex
     ...props,
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <LineNumberTextarea {...defaultProps} />
-    </ThemeProvider>,
+    <LineNumberTextarea {...defaultProps} />,
   );
 }
 
