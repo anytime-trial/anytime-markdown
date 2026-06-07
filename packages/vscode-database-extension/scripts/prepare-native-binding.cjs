@@ -11,6 +11,7 @@
 //   「VS Code 用 binary は `prebuilt-vscode/` に並行配置」する戦略を採る。
 // - webpack CopyPlugin が prebuilt-vscode/better_sqlite3.node を
 //   dist/node_modules/better-sqlite3/build/Release/ にコピーすることで両立する。
+// （vscode-trail-extension と同一の方式。両拡張で揃える。）
 
 const fs = require('node:fs');
 const path = require('node:path');
