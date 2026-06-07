@@ -47,7 +47,6 @@ function muiCss(styles: StyleObject): string {
   render(<MuiGlobalStyles styles={styles} />);
   const result = norm(collectRules());
   cleanup();
-  clearHead();
   return result;
 }
 
@@ -58,7 +57,6 @@ function ownCss(styles: StyleObject): string {
   document.head.appendChild(el);
   const result = norm(collectRules());
   el.remove();
-  clearHead();
   return result;
 }
 

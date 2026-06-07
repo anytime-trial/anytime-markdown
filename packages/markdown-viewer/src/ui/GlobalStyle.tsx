@@ -20,7 +20,7 @@ import { compile, middleware, prefixer, serialize, stringify } from "stylis";
  * @emotion/unitless 0.10.0 のキー(camelCase)。
  * これらのプロパティは数値をそのまま出力し px を付与しない。
  */
-const UNITLESS_KEYS = new Set<string>([
+const UNITLESS_KEYS = new Set([
   "animationIterationCount", "aspectRatio", "borderImageOutset", "borderImageSlice",
   "borderImageWidth", "boxFlex", "boxFlexGroup", "boxOrdinalGroup", "columnCount",
   "columns", "flex", "flexGrow", "flexPositive", "flexShrink", "flexNegative",
@@ -39,9 +39,8 @@ function hyphenate(prop: string): string {
 
 /** プロパティ値を CSS 値へ変換する（数値→px、ただし 0 と unitless は除外）。 */
 function valueToCss(camelProp: string, value: string | number): string {
-  if (typeof value === "number") {
-    if (value === 0) return "0";
-    if (UNITLESS_KEYS.has(camelProp)) return String(value);
+  // emotion 準拠: number かつ 0 でなく unitless でなければ px を付与（0 は String(0)="0"）。
+  if (typeof value === "number" && value !== 0 && !UNITLESS_KEYS.has(camelProp)) {
     return `${value}px`;
   }
   return String(value);
@@ -59,16 +58,15 @@ function objectToRawCss(obj: StyleObject): string {
   for (const key of Object.keys(obj)) {
     const value = obj[key];
     if (value == null || typeof value === "boolean") continue;
-    if (Array.isArray(value)) {
-      // 配列値は CSS フォールバックとして同一プロパティを複数宣言する（emotion 準拠）。
-      for (const item of value) {
-        if (item == null || typeof item === "boolean") continue;
-        out += `${hyphenate(key)}:${valueToCss(key, item as string | number)};`;
-      }
-    } else if (typeof value === "object") {
+    if (typeof value === "object" && !Array.isArray(value)) {
       out += `${key}{${objectToRawCss(value as StyleObject)}}`;
-    } else {
-      out += `${hyphenate(key)}:${valueToCss(key, value as string | number)};`;
+      continue;
+    }
+    // scalar は単一値、配列は CSS フォールバックとして同一プロパティを複数宣言（emotion 準拠）。
+    const items = Array.isArray(value) ? value : [value];
+    for (const item of items) {
+      if (item == null || typeof item === "boolean") continue;
+      out += `${hyphenate(key)}:${valueToCss(key, item as string | number)};`;
     }
   }
   return out;
@@ -94,8 +92,8 @@ export interface GlobalStyleProps {
  */
 export function GlobalStyle({ styles }: GlobalStyleProps): null {
   const css = serializeGlobalStyles(styles);
+  // useInsertionEffect は SSR では実行されないため、注入はクライアントのみで起きる。
   useInsertionEffect(() => {
-    if (typeof document === "undefined") return undefined;
     const el = document.createElement("style");
     el.setAttribute("data-anytime-global", "");
     el.textContent = css;

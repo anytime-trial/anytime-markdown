@@ -137,8 +137,8 @@ export const printStyles: StyleObject = {
     /* === 改ページ制御 === */
     pre: {
       pageBreakInside: "avoid",
-      whiteSpace: "pre-wrap !important" as string,
-      overflowWrap: "break-word !important" as string,
+      whiteSpace: "pre-wrap !important",
+      overflowWrap: "break-word !important",
     },
     img: {
       pageBreakInside: "avoid",
