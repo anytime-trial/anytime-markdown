@@ -1,23 +1,9 @@
 "use client";
 
-import { SpreadsheetGrid, SpreadsheetI18nProvider } from "@anytime-markdown/spreadsheet-viewer";
-import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@mui/material";
-import {
-  FormatAlignCenterIcon,
-  FormatAlignLeftIcon,
-  FormatAlignRightIcon,
-  MoveDownIcon,
-  MoveUpIcon,
-  TableChartIcon,
-  TableRowsIcon,
-  ViewColumnIcon,
-} from "./ui/icons";
-import { Button } from "./ui/Button";
-import { ToggleButton } from "./ui/ToggleButton";
-import { ToggleButtonGroup } from "./ui/ToggleButtonGroup";
 import type { Fragment } from "@anytime-markdown/markdown-pm/model";
 import type { Editor, NodeViewProps } from "@anytime-markdown/markdown-react";
 import { NodeViewContent, NodeViewWrapper } from "@anytime-markdown/markdown-react";
+import { SpreadsheetGrid, SpreadsheetI18nProvider } from "@anytime-markdown/spreadsheet-viewer";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { BlockInlineToolbar } from "./components/codeblock/BlockInlineToolbar";
@@ -32,13 +18,27 @@ import { useIsDark } from "./contexts/ThemeModeContext";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useMarkdownT } from "./i18n/context";
 import { createTiptapSheetAdapter } from "./spreadsheet/TiptapSheetAdapter";
-import { Tooltip } from "./ui/Tooltip";
+import styles from "./TableNodeView.module.css";
+import { Button } from "./ui/Button";
+import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "./ui/Dialog";
 import { Divider } from "./ui/Divider";
+import {
+  FormatAlignCenterIcon,
+  FormatAlignLeftIcon,
+  FormatAlignRightIcon,
+  MoveDownIcon,
+  MoveUpIcon,
+  TableChartIcon,
+  TableRowsIcon,
+  ViewColumnIcon,
+} from "./ui/icons";
 import { Paper } from "./ui/Paper";
 import { Text } from "./ui/Text";
+import { ToggleButton } from "./ui/ToggleButton";
+import { ToggleButtonGroup } from "./ui/ToggleButtonGroup";
+import { Tooltip } from "./ui/Tooltip";
 import { useEditorSettingsContext } from "./useEditorSettings";
 import { moveTableColumn, moveTableRow } from "./utils/tableHelpers";
-import styles from "./TableNodeView.module.css";
 
 const iconSx = { fontSize: 16 };
 

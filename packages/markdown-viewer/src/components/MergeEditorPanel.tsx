@@ -1,22 +1,28 @@
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { EditorContent } from "@anytime-markdown/markdown-react";
-import { ChevronLeftIcon, ChevronRightIcon, UnfoldMoreIcon } from "../ui/icons";
-import { Tooltip } from "../ui/Tooltip";
-import type { SxProps, Theme } from "@mui/material/styles";
 import React, { useEffect, useRef, useState } from "react";
 
-import { useIsDark } from "../contexts/ThemeModeContext";
 import { alpha, getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
-import { IconButton } from "../ui/IconButton";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { useMarkdownT } from "../i18n/context";
+import { IconButton } from "../ui/IconButton";
+import { ChevronLeftIcon, ChevronRightIcon, UnfoldMoreIcon } from "../ui/icons";
 import paperStyles from "../ui/Paper.module.css";
+import { Tooltip } from "../ui/Tooltip";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { diffLineBgColor } from "../utils/colorRuns";
 import { type CollapseRegion, computeCollapsedRegions, type DiffLine } from "../utils/diffEngine";
-import { getMergeTiptapStyles } from "./mergeTiptapStyles";
 import styles from "./MergeEditorPanel.module.css";
+import { getMergeTiptapStyles } from "./mergeTiptapStyles";
 
 export { getMergeTiptapStyles } from "./mergeTiptapStyles";
+
+/**
+ * paper へ重ねる CSS ライクなスタイル（旧 MUI SxProps の置換）。
+ * 単一オブジェクト or 配列を受け、実体は React.CSSProperties としてベストエフォートでマージされる
+ * （bgcolor 等の sx ショートハンド・ネストセレクタは no-op）。
+ */
+type PaperSx = Record<string, unknown> | ReadonlyArray<Record<string, unknown>>;
 
 function _getLineBgColor(type: DiffLine["type"], isDark: boolean) {
   switch (type) {
@@ -46,7 +52,7 @@ interface MergeEditorPanelProps {
   children?: React.ReactNode;
   scrollRef?: React.RefObject<HTMLDivElement | null>;
   bgGradient?: string;
-  paperSx?: SxProps<Theme>;
+  paperSx?: PaperSx;
   hideScrollbar?: boolean;
   diffLines?: DiffLine[];
   side?: "left" | "right";
@@ -472,7 +478,7 @@ function SourceModePanel({
   autoResize: boolean | undefined;
   textareaAriaLabel: string | undefined;
   scrollRef: React.RefObject<HTMLDivElement | null> | undefined;
-  paperSx: SxProps<Theme> | undefined;
+  paperSx: PaperSx | undefined;
   hideScrollbar: boolean;
   diffLines: DiffLine[] | undefined;
   side: "left" | "right" | undefined;
