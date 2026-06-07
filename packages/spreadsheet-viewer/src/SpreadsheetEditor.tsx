@@ -2,12 +2,10 @@
 
 import type { SheetAdapter, SheetSnapshot, WorkbookAdapter } from "@anytime-markdown/spreadsheet-core";
 import { createInMemorySheetAdapter, parseCsv, serializeCsv } from "@anytime-markdown/spreadsheet-core";
-import DownloadIcon from "@mui/icons-material/Download";
-import UploadIcon from "@mui/icons-material/Upload";
-import { Box, Button, Stack } from "@mui/material";
 import React, { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { SpreadsheetI18nProvider, useSpreadsheetT } from "./i18n/context";
+import { Box, Button, DownloadIcon, Stack, themeCssVars, UploadIcon } from "./ui";
 import { PaginationBar, type PaginationProps } from "./PaginationBar";
 import { SheetTabs } from "./SheetTabs";
 import { SpreadsheetGrid } from "./SpreadsheetGrid";
@@ -133,9 +131,19 @@ function SpreadsheetEditorInner({
 
     const showHeader = showImportExport || headerRight !== undefined;
     return (
-        <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+        <Box
+            className="sv-root"
+            style={{
+                ...themeCssVars(isDark),
+                display: "flex",
+                flexDirection: "column",
+                height: "100%",
+                overflow: "hidden",
+                background: "var(--sv-color-bg-paper)",
+            }}
+        >
             {showHeader ? (
-                <Stack direction="row" spacing={1} sx={{ p: 1, flexShrink: 0 }}>
+                <Stack direction="row" spacing={1} style={{ padding: 8, flexShrink: 0 }}>
                     {showImportExport ? (
                         <>
                             <Button size="small" startIcon={<UploadIcon />} onClick={() => handleImportClick("csv")}>
@@ -162,7 +170,7 @@ function SpreadsheetEditorInner({
                     />
                 </Stack>
             ) : null}
-            <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <Box style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                 <SpreadsheetGrid
                     adapter={effectiveAdapter}
                     isDark={isDark}

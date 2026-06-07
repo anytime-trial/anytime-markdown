@@ -1,20 +1,19 @@
 "use client";
 
-import FirstPageIcon from "@mui/icons-material/FirstPage";
-import KeyboardArrowLeftIcon from "@mui/icons-material/KeyboardArrowLeft";
-import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
-import LastPageIcon from "@mui/icons-material/LastPage";
-import {
-    Box,
-    IconButton,
-    MenuItem,
-    Select,
-    Stack,
-    Typography,
-} from "@mui/material";
 import React from "react";
 
 import { useSpreadsheetT } from "./i18n/context";
+import {
+    Box,
+    FirstPageIcon,
+    IconButton,
+    KeyboardArrowLeftIcon,
+    KeyboardArrowRightIcon,
+    LastPageIcon,
+    Select,
+    Stack,
+    Text,
+} from "./ui";
 
 export interface PaginationProps {
     readonly page: number;
@@ -47,13 +46,14 @@ export const PaginationBar: React.FC<Readonly<PaginationProps>> = ({
             direction="row"
             alignItems="center"
             spacing={1}
-            sx={{
-                px: 1,
-                py: 0.5,
-                borderTop: 1,
-                borderColor: "divider",
+            style={{
+                paddingLeft: 8,
+                paddingRight: 8,
+                paddingTop: 4,
+                paddingBottom: 4,
+                borderTop: "1px solid var(--sv-color-divider)",
                 flexShrink: 0,
-                bgcolor: "background.paper",
+                background: "var(--sv-color-bg-paper)",
             }}
         >
             <IconButton size="small" disabled={disabled || clampedPage <= 1} onClick={() => goto(1)} aria-label={t("first")}>
@@ -62,29 +62,27 @@ export const PaginationBar: React.FC<Readonly<PaginationProps>> = ({
             <IconButton size="small" disabled={disabled || clampedPage <= 1} onClick={() => goto(clampedPage - 1)} aria-label={t("prev")}>
                 <KeyboardArrowLeftIcon fontSize="small" />
             </IconButton>
-            <Typography variant="caption" sx={{ minWidth: 110, textAlign: "center" }}>
+            <Text style={{ minWidth: 110, textAlign: "center" }}>
                 {t("pageOfTotal", { page: clampedPage, total: totalPages })}
-            </Typography>
+            </Text>
             <IconButton size="small" disabled={disabled || clampedPage >= totalPages} onClick={() => goto(clampedPage + 1)} aria-label={t("next")}>
                 <KeyboardArrowRightIcon fontSize="small" />
             </IconButton>
             <IconButton size="small" disabled={disabled || clampedPage >= totalPages} onClick={() => goto(totalPages)} aria-label={t("last")}>
                 <LastPageIcon fontSize="small" />
             </IconButton>
-            <Box sx={{ flexGrow: 1 }} />
-            <Typography variant="caption">{t("pageSize")}:</Typography>
+            <Box style={{ flexGrow: 1 }} />
+            <Text>{t("pageSize")}:</Text>
             <Select
                 size="small"
                 value={pageSize}
                 disabled={disabled}
-                onChange={(e) => onChange({ page: 1, pageSize: Number(e.target.value) })}
-                sx={{ minWidth: 72 }}
-            >
-                {availablePageSizes.map((s) => (
-                    <MenuItem key={s} value={s}>{s}</MenuItem>
-                ))}
-            </Select>
-            <Typography variant="caption">{t("totalRows", { count: totalRows })}</Typography>
+                onChange={(v) => onChange({ page: 1, pageSize: Number(v) })}
+                style={{ minWidth: 72 }}
+                aria-label={t("pageSize")}
+                options={availablePageSizes.map((s) => ({ value: s, label: s }))}
+            />
+            <Text>{t("totalRows", { count: totalRows })}</Text>
         </Stack>
     );
 };

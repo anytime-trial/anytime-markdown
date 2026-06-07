@@ -1,10 +1,9 @@
 "use client";
 
-import AddIcon from "@mui/icons-material/Add";
-import { Box, IconButton, Menu, MenuItem, Typography } from "@mui/material";
 import React, { useCallback, useRef, useState } from "react";
 
 import { useSpreadsheetT } from "./i18n/context";
+import { AddIcon, Box, IconButton, Menu, MenuItem, Text } from "./ui";
 
 interface SheetTabsProps {
   readonly sheets: readonly string[];
@@ -79,12 +78,11 @@ export function SheetTabs({
 
   return (
     <Box
-      sx={{
+      style={{
         display: "flex",
         alignItems: "center",
-        borderTop: 1,
-        borderColor: "divider",
-        bgcolor: "background.paper",
+        borderTop: "1px solid var(--sv-color-divider)",
+        background: "var(--sv-color-bg-paper)",
         overflowX: "auto",
         flexShrink: 0,
         minHeight: 32,
@@ -93,6 +91,7 @@ export function SheetTabs({
       {sheets.map((name, index) => (
         <Box
           key={index}
+          className="sv-hoverable"
           draggable
           onClick={() => onSelect(index)}
           onDoubleClick={() => startRename(index)}
@@ -100,15 +99,18 @@ export function SheetTabs({
           onDragStart={() => handleDragStart(index)}
           onDragOver={(e) => e.preventDefault()}
           onDrop={() => handleDrop(index)}
-          sx={{
-            px: 1.5,
-            py: 0.5,
+          style={{
+            paddingLeft: 12,
+            paddingRight: 12,
+            paddingTop: 4,
+            paddingBottom: 4,
             cursor: "pointer",
-            borderBottom: activeSheet === index ? 2 : 0,
-            borderColor: activeSheet === index ? "primary.main" : "transparent",
+            borderBottom:
+              activeSheet === index
+                ? "2px solid var(--sv-color-primary-main)"
+                : "2px solid transparent",
             userSelect: "none",
             whiteSpace: "nowrap",
-            "&:hover": { bgcolor: "action.hover" },
           }}
         >
           {renamingIndex === index ? (
@@ -121,7 +123,7 @@ export function SheetTabs({
               style={{ width: Math.max(60, renameValue.length * 8), fontSize: "inherit" }}
             />
           ) : (
-            <Typography variant="caption">{name}</Typography>
+            <Text>{name}</Text>
           )}
         </Box>
       ))}
@@ -130,7 +132,7 @@ export function SheetTabs({
         size="small"
         aria-label={t("sheetAdd")}
         onClick={onAdd}
-        sx={{ mx: 0.5 }}
+        style={{ marginLeft: 4, marginRight: 4 }}
       >
         <AddIcon fontSize="small" />
       </IconButton>
@@ -142,11 +144,7 @@ export function SheetTabs({
         anchorOrigin={{ vertical: "top", horizontal: "left" }}
         transformOrigin={{ vertical: "bottom", horizontal: "left" }}
       >
-        <MenuItem
-          onClick={handleDeleteClick}
-          disabled={sheets.length <= 1}
-          aria-disabled={sheets.length <= 1}
-        >
+        <MenuItem onClick={handleDeleteClick} disabled={sheets.length <= 1}>
           {t("sheetDelete")}
         </MenuItem>
       </Menu>
