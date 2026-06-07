@@ -1,0 +1,8 @@
+/* MUI ListItemIcon 相当（MenuItem 内）。minWidth 36・action.active 色。 */
+.root {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 36px;
+  color: var(--am-color-action-active);
+}

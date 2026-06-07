@@ -1,0 +1,8 @@
+/* MUI ListItemText 相当（MenuItem 内）。flex 伸長・余白 0・font は親から継承。 */
+.root {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

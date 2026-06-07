@@ -1,10 +1,4 @@
-import {
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
-  MenuList,
-  Popper,
-} from "@mui/material";
+import { Popper } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import type { VirtualElement } from "@popperjs/core";
 import type { Editor } from "@anytime-markdown/markdown-react";
@@ -19,6 +13,10 @@ import {
   slashCommandItems,
 } from "../extensions/slashCommandItems";
 import type { TranslationFn } from "../types";
+import { ListItemIcon } from "../ui/ListItemIcon";
+import { ListItemText } from "../ui/ListItemText";
+import { MenuItem } from "../ui/MenuItem";
+import { MenuList } from "../ui/MenuList";
 import { Paper } from "../ui/Paper";
 import { Text } from "../ui/Text";
 
@@ -201,7 +199,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
               selected={i === selectedIndex}
               aria-current={i === selectedIndex || undefined}
               onClick={() => executeCommand(i)}
-              sx={{ fontSize: SLASH_COMMAND_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: SLASH_COMMAND_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText>{t(item.labelKey)}</ListItemText>

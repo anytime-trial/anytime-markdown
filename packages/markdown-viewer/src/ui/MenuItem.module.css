@@ -1,0 +1,51 @@
+/* MUI MenuItem 相当。gutters(16px) / hover / selected。 */
+.menuItem {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 6px 16px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  color: var(--am-color-text-primary);
+  font-size: 1rem;
+  background-color: transparent;
+  transition: background-color var(--am-duration-fast) var(--am-ease-standard);
+}
+
+/* dense: minHeight 32 / padding 4px / body2。アイコンは 1.25rem。 */
+.dense {
+  min-height: 32px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 0.875rem;
+}
+
+/* dense メニュー内のアイコンは 1.25rem（MUI 同等）。 */
+.dense svg {
+  font-size: 1.25rem;
+}
+
+.menuItem:hover:not(.disabled) {
+  background-color: var(--am-color-action-hover);
+}
+
+.selected {
+  background-color: var(--am-color-action-selected);
+}
+
+.selected:hover:not(.disabled) {
+  background-color: var(--am-color-action-selected);
+}
+
+.disabled {
+  opacity: 0.38;
+  cursor: default;
+  pointer-events: none;
+}
+
+.menuItem:focus-visible {
+  outline: none;
+  background-color: var(--am-color-action-hover);
+}
