@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { alpha, getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { useIsDark } from "../contexts/ThemeModeContext";
 import { useMarkdownT } from "../i18n/context";
+import { GlobalStyle } from "../ui/GlobalStyle";
 import { IconButton } from "../ui/IconButton";
 import { ChevronLeftIcon, ChevronRightIcon, UnfoldMoreIcon } from "../ui/icons";
 import paperStyles from "../ui/Paper.module.css";
@@ -630,7 +631,14 @@ export function MergeEditorPanel({
     );
   }
 
+  // getMergeTiptapStyles は { "& .tiptap": {...ネストセレクタ} } 形式の sx オブジェクト。
+  // インライン style はネストセレクタ（& [data-image-row] の flex 等）を解釈できないため、
+  // 通常エディタ (EditorContentArea) と同様に GlobalStyle 経由で実 CSS として注入する。
+  // これを怠ると比較モードで imageRow の flex が効かずバッジが縦並びになる（回帰）。
   const tiptapStyles = getMergeTiptapStyles(isDark, editorSettings, { showHoverLabels });
+  const tiptapInner = tiptapStyles["& .tiptap"] as Record<string, unknown> | undefined;
+  // 左右パネルで showHoverLabels が異なるため、side ごとにスコープを分け混線を防ぐ。
+  const scopeClass = `am-merge-content-${side ?? "default"}`;
 
   // paperSx を static style にベストエフォートでマージ
   const paperExtraStyle = (paperSx && !Array.isArray(paperSx) ? paperSx : {}) as React.CSSProperties;
@@ -638,17 +646,19 @@ export function MergeEditorPanel({
     flex: 1,
     overflow: "auto",
     borderRadius: 0,
-    ...tiptapStyles,
     ...(hideScrollbarBool ? { scrollbarWidth: "none" as const, msOverflowStyle: "none" } : {}),
     ...paperExtraStyle,
   };
 
   const paperContent = (
     <div
-      className={`${paperStyles.root} ${paperStyles.outlined}`}
+      className={`${paperStyles.root} ${paperStyles.outlined} ${scopeClass}`}
       ref={scrollRef}
       style={paperStyle}
     >
+      {tiptapInner && (
+        <GlobalStyle styles={{ [`.${scopeClass} .tiptap`]: tiptapInner }} />
+      )}
       {editorMountRef
         ? <div ref={editorMountRef} style={{ display: "contents" }} />
         : <EditorContent editor={editor ?? null} />
