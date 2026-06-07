@@ -36,7 +36,7 @@ export function Select<T extends string>({
   const [activeIndex, setActiveIndex] = useState(-1);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const baseId = useId();
-  const { referenceRef, floatingRef, x, y, ready } = useFloating({ open, placement: "bottom-start", offsetPx: 4 });
+  const { referenceRef, floatingRef, floatingStyle } = useFloating({ open, placement: "bottom-start", offsetPx: 4 });
 
   referenceRef.current = buttonRef.current;
 
@@ -119,13 +119,7 @@ export function Select<T extends string>({
             aria-activedescendant={activeIndex >= 0 ? `${baseId}-opt-${activeIndex}` : undefined}
             tabIndex={-1}
             className={styles.listbox}
-            style={{
-              left: x,
-              top: y,
-              minWidth: buttonRef.current?.offsetWidth,
-              opacity: ready ? 1 : 0,
-              pointerEvents: ready ? undefined : "none",
-            }}
+            style={{ ...floatingStyle, minWidth: buttonRef.current?.offsetWidth }}
             onKeyDown={onListKeyDown}
           >
             {options.map((o, i) => (

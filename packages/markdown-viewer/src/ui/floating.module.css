@@ -1,0 +1,19 @@
+/* オーバーレイ基盤の共有クラス。Menu / Popover / Select が composes で取り込む。
+   position / left / top / opacity は useFloating の floatingStyle（インライン）が付与する。 */
+
+/* click-away 用の透明 backdrop。 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+}
+
+/* 浮遊する elevated paper の見た目（位置は floatingStyle 側）。 */
+.floatingPaper {
+  z-index: 1300;
+  outline: none;
+  box-sizing: border-box;
+  background-color: var(--am-color-bg-paper);
+  border-radius: var(--am-radius-md);
+  box-shadow: var(--am-elevation-3);
+}

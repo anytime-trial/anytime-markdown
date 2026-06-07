@@ -157,7 +157,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
   }, [active, from, editor?.view]);
 
   // MUI Popper → useFloating（@floating-ui/dom 直叩き）。offset 4 / flip / shift(padding 8)。
-  const { referenceRef, floatingRef, x, y, ready } = useFloating({
+  const { referenceRef, floatingRef, floatingStyle } = useFloating({
     open: active,
     placement: "bottom-start",
     offsetPx: 4,
@@ -173,16 +173,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
       ref={(node) => { floatingRef.current = node; }}
       role="menu"
       aria-label={t("slashCommandPlaceholder")}
-      style={{
-        position: "fixed",
-        left: x,
-        top: y,
-        zIndex: Z_FULLSCREEN,
-        // 位置確定前は opacity で不可視化（visibility:hidden は a11y ツリーから外れ
-        // getByRole が拾えなくなるため）。Menu primitive と同方式。
-        opacity: ready ? 1 : 0,
-        pointerEvents: ready ? undefined : "none",
-      }}
+      style={{ ...floatingStyle, zIndex: Z_FULLSCREEN }}
     >
       <Paper
         style={{ maxHeight: 300, overflow: "auto", minWidth: 200, maxWidth: 280, boxShadow: "var(--am-elevation-3)" }}
