@@ -1,13 +1,7 @@
 "use client";
 
-import {
-    Dialog,
-    DialogActions,
-    DialogContent,
-    DialogTitle,
-} from "@mui/material";
-
 import { Button } from "../ui/Button";
+import { Dialog, DialogActions, DialogContent, DialogTitle, useDialogTitleId } from "../ui/Dialog";
 import { FormControlLabel } from "../ui/FormControlLabel";
 import { Radio } from "../ui/Radio";
 import { RadioGroup } from "../ui/RadioGroup";
@@ -38,6 +32,7 @@ export function EmbedEditDialog({
     t,
 }: Readonly<Props>) {
     const providers = useOptionalEmbedProviders();
+    const titleId = useDialogTitleId();
     const [url, setUrl] = useState(initialUrl);
     const [variant, setVariant] = useState<EmbedVariant>(initialVariant);
 
@@ -55,8 +50,8 @@ export function EmbedEditDialog({
     const previewLang = variant === "compact" ? "embed compact" : "embed";
 
     return (
-        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-            <DialogTitle>{t("embedEditTitle")}</DialogTitle>
+        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth labelledBy={titleId}>
+            <DialogTitle id={titleId}>{t("embedEditTitle")}</DialogTitle>
             <DialogContent dividers>
                 <Stack spacing={2}>
                     <TextField

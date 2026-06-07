@@ -2,17 +2,12 @@
 
 import HelpCenterIcon from "@mui/icons-material/HelpCenter";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import {
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-} from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
 import { getActionHover, getActionSelected, getDivider, getTextSecondary } from "../constants/colors";
 import { Button } from "../ui/Button";
+import { Dialog, DialogActions, DialogContent, DialogTitle } from "../ui/Dialog";
 import { TextField } from "../ui/TextField";
 import { SHORTCUT_HINT_FONT_SIZE } from "../constants/dimensions";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
@@ -89,7 +84,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
       <Dialog
         open={commentDialogOpen}
         onClose={() => setCommentDialogOpen(false)}
-        aria-labelledby="comment-dialog-title"
+        labelledBy="comment-dialog-title"
         fullWidth
         maxWidth="sm"
       >
@@ -126,7 +121,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
       <Dialog
         open={linkDialogOpen}
         onClose={() => setLinkDialogOpen(false)}
-        aria-labelledby="link-dialog-title"
+        labelledBy="link-dialog-title"
         fullWidth
         maxWidth="sm"
       >
@@ -160,7 +155,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
       <Dialog
         open={imageDialogOpen}
         onClose={() => setImageDialogOpen(false)}
-        aria-labelledby="image-dialog-title"
+        labelledBy="image-dialog-title"
         fullWidth
         maxWidth="sm"
       >
@@ -205,7 +200,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
       <Dialog
         open={shortcutDialogOpen}
         onClose={() => setShortcutDialogOpen(false)}
-        aria-labelledby="shortcuts-dialog-title"
+        labelledBy="shortcuts-dialog-title"
         maxWidth="sm"
         fullWidth
       >
@@ -261,7 +256,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
       </Dialog>
 
       {/* Version info dialog */}
-      <Dialog open={versionDialogOpen} onClose={() => setVersionDialogOpen(false)} aria-labelledby="version-dialog-title" maxWidth="xs" fullWidth>
+      <Dialog open={versionDialogOpen} onClose={() => setVersionDialogOpen(false)} labelledBy="version-dialog-title" maxWidth="xs" fullWidth>
         <DialogTitle id="version-dialog-title">
           <div className={styles.dialogTitleRow}>
             <InfoOutlinedIcon style={{ color: getTextSecondary(isDark) }} />

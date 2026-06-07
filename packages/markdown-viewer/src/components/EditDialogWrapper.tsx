@@ -1,7 +1,8 @@
-import { Dialog, useTheme } from "@mui/material";
+import { useTheme } from "@mui/material";
 import React from "react";
 
 import { getEditDialogBg } from "../constants/colors";
+import { Dialog } from "../ui/Dialog";
 import { useEditorSettingsContext } from "../useEditorSettings";
 
 interface EditDialogWrapperProps {
@@ -22,8 +23,8 @@ export function EditDialogWrapper({ open, onClose, ariaLabelledBy, children }: R
       open={open}
       onClose={onClose}
       fullScreen
-      aria-labelledby={ariaLabelledBy}
-      slotProps={{ paper: { sx: { bgcolor: getEditDialogBg(isDark, settings), display: "flex", flexDirection: "column" } } }}
+      labelledBy={ariaLabelledBy}
+      paperStyle={{ backgroundColor: getEditDialogBg(isDark, settings) }}
     >
       {children}
     </Dialog>
