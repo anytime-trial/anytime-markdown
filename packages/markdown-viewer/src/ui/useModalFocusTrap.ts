@@ -11,6 +11,8 @@ export const FOCUSABLE =
  *   paper 自体）へフォーカスを移す。
  * - 背景スクロールを `document.body.style.overflow = "hidden"` でロックし、
  *   閉じたら元の overflow とフォーカスへ戻す。
+ * - 背景（モーダルの body 直下祖先以外の body 直下要素）に `aria-hidden="true"` を付け、
+ *   閉じたら戻す（MUI Modal 同挙動。支援技術から背景を隠す）。
  * - 返り値の `onKeyDown` は ESC で `onClose`、Tab で paper 内の最小フォーカストラップ。
  */
 export function useModalFocusTrap(
@@ -30,8 +32,21 @@ export function useModalFocusTrap(
     // 背景スクロールをロックし、閉じたら元の overflow へ戻す。
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // 背景を a11y ツリーから隠す。paper の body 直下祖先（Portal ルート）を特定し、
+    // それ以外の body 直下要素に aria-hidden を付ける。既に true のものは触らない。
+    const portalRoot = paper?.closest("body > *") ?? null;
+    const hidden: Element[] = [];
+    if (portalRoot) {
+      for (const el of document.body.children) {
+        if (el !== portalRoot && el.getAttribute("aria-hidden") !== "true") {
+          el.setAttribute("aria-hidden", "true");
+          hidden.push(el);
+        }
+      }
+    }
     return () => {
       document.body.style.overflow = prevOverflow;
+      for (const el of hidden) el.removeAttribute("aria-hidden");
       restoreRef.current?.focus?.();
     };
   }, [open, paperRef]);
