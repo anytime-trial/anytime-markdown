@@ -80,6 +80,7 @@ export function DocEditorModal({ open, title, content, onSave, onClose, themeMod
         {/* Editor */}
         <Box style={{ flex: 1, overflow: 'hidden' }}>
           <textarea
+            className="gv-doc-textarea"
             value={editorContent}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditorContent(e.target.value)}
             style={{

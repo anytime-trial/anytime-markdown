@@ -52,7 +52,8 @@ export function getPalette(isDark: boolean): GraphPalette {
     actionHover: c.hoverBg,
     actionSelected: c.hoverBg,
     primaryMain: c.accentColor,
-    primaryContrast: isDark ? '#0D1117' : '#FBF9F3',
+    // primaryMain（accentColor）上に乗るテキスト色。modalBg と同値のため単一ソース化。
+    primaryContrast: c.modalBg,
     errorMain: isDark ? '#F44336' : '#6B2A20',
   };
 }

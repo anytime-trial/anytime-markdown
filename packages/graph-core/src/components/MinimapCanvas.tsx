@@ -48,6 +48,16 @@ function computeBounds(nodes: readonly GraphNode[]) {
  * graph-core は graph-viewer（自前 UI キット）を参照できない（循環依存）ため、
  * このコンポーネント内で自己完結させる。
  */
+const MINI_BTN_BASE_STYLE: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  cursor: 'pointer',
+  fontSize: '0.9rem',
+  lineHeight: 0,
+};
+
 function MiniIconButton({
   onClick,
   ariaLabel,
@@ -64,16 +74,7 @@ function MiniIconButton({
       type="button"
       onClick={onClick}
       aria-label={ariaLabel}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        border: 'none',
-        cursor: 'pointer',
-        fontSize: '0.9rem',
-        lineHeight: 0,
-        ...style,
-      }}
+      style={{ ...MINI_BTN_BASE_STYLE, ...style }}
     >
       {children}
     </button>

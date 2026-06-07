@@ -3,16 +3,16 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
 import { injectGraphUiStyles } from './injectStyles';
+import {
+  anchorPoint,
+  axisPercent,
+  DEFAULT_ANCHOR_ORIGIN,
+  DEFAULT_TRANSFORM_ORIGIN,
+  type MenuOrigin,
+  type MenuPosition,
+} from './positioning';
 
-export interface MenuOrigin {
-  readonly vertical: 'top' | 'center' | 'bottom';
-  readonly horizontal: 'left' | 'center' | 'right';
-}
-
-export interface MenuPosition {
-  readonly top: number;
-  readonly left: number;
-}
+export type { MenuOrigin, MenuPosition } from './positioning';
 
 export interface MenuProps {
   readonly open: boolean;
@@ -25,24 +25,6 @@ export interface MenuProps {
   readonly anchorPosition?: MenuPosition;
   readonly anchorOrigin?: MenuOrigin;
   readonly transformOrigin?: MenuOrigin;
-}
-
-const DEFAULT_ANCHOR_ORIGIN: MenuOrigin = { vertical: 'bottom', horizontal: 'left' };
-const DEFAULT_TRANSFORM_ORIGIN: MenuOrigin = { vertical: 'top', horizontal: 'left' };
-
-function axisPercent(value: 'top' | 'center' | 'bottom' | 'left' | 'right'): string {
-  if (value === 'center') return '-50%';
-  if (value === 'bottom' || value === 'right') return '-100%';
-  return '0';
-}
-
-function anchorPoint(el: HTMLElement, origin: MenuOrigin): MenuPosition {
-  const r = el.getBoundingClientRect();
-  const left =
-    origin.horizontal === 'left' ? r.left : origin.horizontal === 'right' ? r.right : r.left + r.width / 2;
-  const top =
-    origin.vertical === 'top' ? r.top : origin.vertical === 'bottom' ? r.bottom : r.top + r.height / 2;
-  return { top, left };
 }
 
 /**

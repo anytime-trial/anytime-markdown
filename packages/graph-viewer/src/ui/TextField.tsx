@@ -19,8 +19,6 @@ export interface TextFieldProps
   readonly fullWidth?: boolean;
   /** MUI 互換: native `<select>` として描画する。 */
   readonly select?: boolean;
-  /** MUI 互換（native select 想定）。本実装では常に native のため無視する。 */
-  readonly SelectProps?: { readonly native?: boolean };
   /** select モードの `<option>` 子要素。 */
   readonly children?: ReactNode;
   /** MUI 互換: htmlInput 属性（min/max 等）。 */
@@ -35,7 +33,6 @@ export function TextField({
   size,
   fullWidth,
   select,
-  SelectProps: _SelectProps,
   children,
   slotProps,
   disabled,

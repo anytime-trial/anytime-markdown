@@ -1,8 +1,14 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
-import type { MenuOrigin } from './Menu';
 import { injectGraphUiStyles } from './injectStyles';
+import {
+  anchorPoint,
+  axisPercent,
+  DEFAULT_ANCHOR_ORIGIN,
+  DEFAULT_TRANSFORM_ORIGIN,
+  type MenuOrigin,
+} from './positioning';
 
 export interface PopoverProps {
   readonly open: boolean;
@@ -13,24 +19,6 @@ export interface PopoverProps {
   /** paper 要素へ適用する style（MUI slotProps.paper.sx 相当）。 */
   readonly paperStyle?: CSSProperties;
   readonly children: ReactNode;
-}
-
-const DEFAULT_ANCHOR_ORIGIN: MenuOrigin = { vertical: 'bottom', horizontal: 'left' };
-const DEFAULT_TRANSFORM_ORIGIN: MenuOrigin = { vertical: 'top', horizontal: 'left' };
-
-function axisPercent(value: 'top' | 'center' | 'bottom' | 'left' | 'right'): string {
-  if (value === 'center') return '-50%';
-  if (value === 'bottom' || value === 'right') return '-100%';
-  return '0';
-}
-
-function anchorPoint(el: HTMLElement, origin: MenuOrigin): { top: number; left: number } {
-  const r = el.getBoundingClientRect();
-  const left =
-    origin.horizontal === 'left' ? r.left : origin.horizontal === 'right' ? r.right : r.left + r.width / 2;
-  const top =
-    origin.vertical === 'top' ? r.top : origin.vertical === 'bottom' ? r.bottom : r.top + r.height / 2;
-  return { top, left };
 }
 
 /**

@@ -18,6 +18,11 @@ const CSS = `
 .gv-text-subtitle2 { font-size: 0.875rem; font-weight: 600; line-height: 1.57; }
 .gv-text-secondary { color: var(--gv-color-text-secondary); }
 .gv-text-error { color: var(--gv-color-error-main); }
+.gv-link { cursor: pointer; }
+.gv-link:hover { text-decoration: underline; }
+
+/* ---- テーマ対応 textarea（DocEditorModal） ---- */
+.gv-doc-textarea::placeholder { color: var(--gv-color-text-secondary); }
 
 /* ---- Button ---- */
 .gv-btn {
@@ -365,13 +370,16 @@ const CSS = `
 .gv-scroll::-webkit-scrollbar-thumb:hover { background: var(--gv-color-text-secondary); }
 `;
 
+let injected = false;
+
 /**
  * UI スタイルを `document.head` へ冪等注入する。SSR/非 DOM 環境では何もしない。
- * 複数の GraphEditor がマウントされても 1 度だけ注入される。
+ * 各 UI primitive が render ごとに呼ぶため、2 回目以降はモジュールスコープの
+ * boolean フラグで O(1) に短絡する（DOM 走査を避ける）。
  */
 export function injectGraphUiStyles(): void {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(STYLE_ELEMENT_ID)) return;
+  if (injected || typeof document === 'undefined') return;
+  injected = true;
   const style = document.createElement('style');
   style.id = STYLE_ELEMENT_ID;
   style.textContent = CSS;

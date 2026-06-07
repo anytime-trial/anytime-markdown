@@ -101,6 +101,16 @@ interface ToolBarProps {
 }
 
 const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'parallelogram', 'cylinder'] as const;
+type ShapeToolType = typeof SHAPE_TOOLS[number];
+
+// 静的なアイコン要素。render ごとに再生成しないようモジュールスコープに置く。
+const SHAPE_ICON_MAP: Record<ShapeToolType, React.ReactElement> = {
+  rect: <RectIcon fontSize="small" />,
+  ellipse: <EllipseIcon fontSize="small" />,
+  diamond: <DiamondIcon fontSize="small" />,
+  parallelogram: <ParallelogramIcon fontSize="small" />,
+  cylinder: <CylinderIcon fontSize="small" />,
+};
 
 export function GraphToolBar({
   tool, onToolChange, onUndo, onRedo, canUndo, canRedo,
@@ -124,7 +134,6 @@ export function GraphToolBar({
   const saveTooltip = saveStatus === 'saved' ? t('saved') : saveStatusLabel;
 
   // Shape group: long press to show dropdown, click to activate last shape
-  type ShapeToolType = typeof SHAPE_TOOLS[number];
   const [lastShape, setLastShape] = useState<ShapeToolType>('rect');
   const [shapeAnchor, setShapeAnchor] = useState<null | HTMLElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,14 +149,6 @@ export function GraphToolBar({
       setLastShape(tool as ShapeToolType);
     }
   }, [tool, isShapeTool]);
-
-  const shapeIconMap: Record<ShapeToolType, React.ReactElement> = {
-    rect: <RectIcon fontSize="small" />,
-    ellipse: <EllipseIcon fontSize="small" />,
-    diamond: <DiamondIcon fontSize="small" />,
-    parallelogram: <ParallelogramIcon fontSize="small" />,
-    cylinder: <CylinderIcon fontSize="small" />,
-  };
 
   const handleShapeMouseDown = useCallback((e: React.MouseEvent<HTMLElement>) => {
     const target = e.currentTarget;
@@ -218,7 +219,7 @@ export function GraphToolBar({
           >
             <Tooltip title={`${t(lastShape)} (${t('longPressForMore')})`}>
               <Box style={{ display: 'flex', alignItems: 'center' }}>
-                {shapeIconMap[lastShape]}
+                {SHAPE_ICON_MAP[lastShape]}
                 <ArrowDropDownIcon fontSize={14} style={{ position: 'absolute', right: 2, bottom: 2, opacity: 0.6 }} />
               </Box>
             </Tooltip>
@@ -268,7 +269,7 @@ export function GraphToolBar({
               }}
             >
               <Tooltip title={t(shape)} placement="right">
-                {shapeIconMap[shape]}
+                {SHAPE_ICON_MAP[shape]}
               </Tooltip>
             </IconButton>
           ))}
@@ -341,8 +342,8 @@ export function GraphToolBar({
             onClick={() => onToggleCollision?.(!collisionEnabled)}
             size="small"
             style={{
-              color: collisionEnabled ? '#90caf9' : 'inherit',
-              backgroundColor: collisionEnabled ? 'rgba(144,202,249,0.16)' : 'transparent',
+              color: collisionEnabled ? colors.accentColor : 'inherit',
+              backgroundColor: collisionEnabled ? `${colors.accentColor}1F` : 'transparent',
               borderRadius: 4,
             }}
           >
@@ -387,7 +388,7 @@ export function GraphToolBar({
           <Box style={{ display: 'flex', alignItems: 'center', marginLeft: 4 }}>
             {saveStatus === 'saved' && <CloudDoneIcon fontSize="small" color={colors.textSecondary} />}
             {saveStatus === 'saving' && <CloudSyncIcon fontSize="small" color={colors.textSecondary} />}
-            {saveStatus === 'error' && <CloudOffIcon fontSize="small" color="#f44336" />}
+            {saveStatus === 'error' && <CloudOffIcon fontSize="small" color="error" />}
           </Box>
         </Tooltip>
 
@@ -399,7 +400,7 @@ export function GraphToolBar({
           </IconButton>
         </Tooltip>
         <Tooltip title="Filter">
-          <IconButton onClick={onToggleFilter} size="small" style={{ color: filterActive ? '#2196f3' : undefined }}>
+          <IconButton onClick={onToggleFilter} size="small" style={{ color: filterActive ? colors.accentColor : undefined }}>
             <FilterListIcon fontSize="small" />
           </IconButton>
         </Tooltip>
