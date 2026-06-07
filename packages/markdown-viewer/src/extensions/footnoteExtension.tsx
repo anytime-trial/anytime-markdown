@@ -11,7 +11,6 @@
  * - ホバーで脚注定義テキストをツールチップ表示
  * - クリックで定義内のURLを新しいタブで開く
  */
-import { useTheme } from "@mui/material";
 import { Tooltip } from "../ui/Tooltip";
 import { InputRule,Node } from "@anytime-markdown/markdown-core";
 import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
@@ -19,6 +18,7 @@ import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 import { NodeViewWrapper,ReactNodeViewRenderer } from "@anytime-markdown/markdown-react";
 import { useCallback } from "react";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { getPrimaryMain } from "../constants/colors";
 
 /** ProseMirror ドキュメントから脚注定義テキスト（[^id]: 以降）を検索 */
@@ -56,8 +56,7 @@ export function extractUrlFromText(text: string): string | null {
 
 /** FootnoteRef NodeView コンポーネント */
 function FootnoteRefView({ node, selected, editor }: Readonly<NodeViewProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const noteId = node.attrs.noteId as string;
 
   // MUI Tooltip は handleEnter 内で title が空文字なら開かないため、

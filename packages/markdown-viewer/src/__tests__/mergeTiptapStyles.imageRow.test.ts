@@ -6,17 +6,11 @@
  * admonition 欠落・シンタックスハイライト欠落などが生じていた。
  * 共有スタイル関数の合成へ移行したことで通常モードと一致することを保証する。
  */
-import { createTheme } from "@mui/material/styles";
-
 import { getMergeTiptapStyles } from "../components/mergeTiptapStyles";
 import { DEFAULT_SETTINGS } from "../useEditorSettings";
 
-const lightTheme = createTheme({ palette: { mode: "light" } });
-const darkTheme = createTheme({ palette: { mode: "dark" } });
-
 function tiptapOf(isDark: boolean) {
-  const theme = isDark ? darkTheme : lightTheme;
-  return getMergeTiptapStyles(theme, DEFAULT_SETTINGS, { showHoverLabels: true })["& .tiptap"] as Record<string, any>;
+  return getMergeTiptapStyles(isDark, DEFAULT_SETTINGS, { showHoverLabels: true })["& .tiptap"] as Record<string, any>;
 }
 
 describe("getMergeTiptapStyles parity (regression)", () => {

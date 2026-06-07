@@ -1,5 +1,4 @@
 "use client";
-import { useTheme } from "@mui/material";
 import { CloseIcon, ImageIcon } from "../ui/icons";
 import { ButtonBase } from "../ui/ButtonBase";
 import { Button } from "../ui/Button";
@@ -12,6 +11,7 @@ import { useEditorState } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { BADGE_NUMBER_FONT_SIZE, COMMENT_BODY_FONT_SIZE, COMMENT_INPUT_FONT_SIZE, COMMENT_PANEL_WIDTH, PANEL_BUTTON_FONT_SIZE, PANEL_HEADER_MIN_HEIGHT, SMALL_BUTTON_FONT_SIZE, SMALL_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import { commentDataPluginKey } from "../extensions/commentExtension";
 import type { TranslationFn } from "../types";
@@ -72,8 +72,7 @@ export const CommentPanel = React.memo(function CommentPanel({
   onSave,
   t,
 }: CommentPanelProps) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const [filter, setFilter] = useState<"all" | "open" | "resolved">("all");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");

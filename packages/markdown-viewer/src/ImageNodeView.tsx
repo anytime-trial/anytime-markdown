@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "@mui/material";
 import { ChatBubbleOutlineIcon, EditIcon, ErrorOutlineIcon, FileDownloadIcon, ImageIcon, LinkIcon, ScreenshotMonitorIcon, WarningAmberIcon } from "./ui/icons";
 import { IconButton } from "./ui/IconButton";
 import { Tooltip } from "./ui/Tooltip";
@@ -21,6 +20,7 @@ import { SMALL_CAPTION_FONT_SIZE, STATUSBAR_FONT_SIZE } from "./constants/dimens
 import { useBlockCapture } from "./hooks/useBlockCapture";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useBlockResize } from "./hooks/useBlockResize";
+import { useIsDark } from "./contexts/ThemeModeContext";
 import { useMarkdownT } from "./i18n/context";
 import { getEditorStorage } from "./types";
 import { type ImageAnnotation, parseAnnotations, serializeAnnotations } from "./types/imageAnnotation";
@@ -458,8 +458,7 @@ function buildImageActions(
 
 export function ImageNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
   const t = useMarkdownT("MarkdownEditor");
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const {
     deleteDialogOpen, setDeleteDialogOpen, editOpen, setEditOpen,
     collapsed, isEditable, isSelected, handleDeleteBlock, showToolbar, isCompareLeft, isCompareLeftEditable,

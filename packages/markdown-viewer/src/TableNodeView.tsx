@@ -1,7 +1,7 @@
 "use client";
 
 import { SpreadsheetGrid, SpreadsheetI18nProvider } from "@anytime-markdown/spreadsheet-viewer";
-import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, useTheme } from "@mui/material";
+import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@mui/material";
 import {
   FormatAlignCenterIcon,
   FormatAlignLeftIcon,
@@ -28,6 +28,7 @@ import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionSelected, getErrorMain, get
 import { SMALL_CAPTION_FONT_SIZE } from "./constants/dimensions";
 import { Z_FULLSCREEN } from "./constants/zIndex";
 import { findCounterpartTableHtml, getMergeEditors } from "./contexts/MergeEditorsContext";
+import { useIsDark } from "./contexts/ThemeModeContext";
 import { useBlockNodeState } from "./hooks/useBlockNodeState";
 import { useMarkdownT } from "./i18n/context";
 import { createTiptapSheetAdapter } from "./spreadsheet/TiptapSheetAdapter";
@@ -452,7 +453,7 @@ function buildDialogPaperProps(
 
 export function TableNodeView({ editor, node, getPos }: Readonly<NodeViewProps>) {
   const t = useMarkdownT("MarkdownEditor");
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
   const {
     deleteDialogOpen, setDeleteDialogOpen, editOpen, setEditOpen,

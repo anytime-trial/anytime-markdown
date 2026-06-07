@@ -1,5 +1,5 @@
-import { useTheme } from "@mui/material";
-
+import { useIsDark } from "../../contexts/ThemeModeContext";
+import { getBgPaper, getTextPrimary, getTextSecondary } from "../../constants/colors";
 import { HexagonOutlinedIcon } from "../../ui/icons";
 import { Stack } from "../../ui/Stack";
 import { Text } from "../../ui/Text";
@@ -16,7 +16,7 @@ function extractFileName(path: string): string {
 }
 
 export function FigmaEmbedView({ path, variant, widthOverride }: Readonly<Props>) {
-    const theme = useTheme();
+    const isDark = useIsDark();
     const canonical = `https://www.figma.com${path}`;
 
     if (variant === "compact") {
@@ -32,9 +32,9 @@ export function FigmaEmbedView({ path, variant, widthOverride }: Readonly<Props>
                     spacing={1}
                     alignItems="center"
                     style={{
-                        border: `1px solid ${theme.palette.divider}`,
+                        border: `1px solid var(--am-color-divider)`,
                         borderRadius: 4,
-                        backgroundColor: theme.palette.background.paper,
+                        backgroundColor: getBgPaper(isDark),
                         maxWidth: 720,
                         height: 40,
                         paddingLeft: 12,
@@ -43,13 +43,13 @@ export function FigmaEmbedView({ path, variant, widthOverride }: Readonly<Props>
                 >
                     <HexagonOutlinedIcon
                         fontSize={16}
-                        color={theme.palette.text.secondary}
+                        color={getTextSecondary(isDark)}
                         style={{ flexShrink: 0 }}
                     />
                     <Text
                         component="span"
                         style={{
-                            color: theme.palette.text.primary,
+                            color: getTextPrimary(isDark),
                             fontSize: 14,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
@@ -75,7 +75,7 @@ export function FigmaEmbedView({ path, variant, widthOverride }: Readonly<Props>
                 paddingTop: "75%",
                 borderRadius: 4,
                 overflow: "hidden",
-                border: `1px solid ${theme.palette.divider}`,
+                border: `1px solid var(--am-color-divider)`,
             }}
         >
             <iframe

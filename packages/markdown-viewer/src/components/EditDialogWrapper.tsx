@@ -1,7 +1,7 @@
-import { useTheme } from "@mui/material";
 import React from "react";
 
 import { getEditDialogBg } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { Dialog } from "../ui/Dialog";
 import { useEditorSettingsContext } from "../useEditorSettings";
 
@@ -14,8 +14,7 @@ interface EditDialogWrapperProps {
 
 /** ブロック要素編集ダイアログの共通ラッパー */
 export function EditDialogWrapper({ open, onClose, ariaLabelledBy, children }: Readonly<EditDialogWrapperProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
 
   return (

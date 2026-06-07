@@ -13,9 +13,9 @@ import { ProgressBar } from "../ui/ProgressBar";
 import { TextField } from "../ui/TextField";
 
 import { Button } from "../ui/Button";
-import { useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { getDivider, getTextSecondary } from "../constants/colors";
 import { Stack } from "../ui/Stack";
 import { Text } from "../ui/Text";
@@ -51,7 +51,7 @@ function defaultFileName(): string {
 }
 
 export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRecorderDialogProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [phase, setPhase] = useState<RecordingPhase>("idle");
   const [cropRect, setCropRect] = useState<CropRect | null>(null);
   const [elapsed, setElapsed] = useState(0);

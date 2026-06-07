@@ -5,10 +5,10 @@ import { Menu } from "../ui/Menu";
 import { MenuItem } from "../ui/MenuItem";
 import { Tooltip } from "../ui/Tooltip";
 import { Button } from "../ui/Button";
-import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { getBgPaper, getDivider, getTextSecondary, getWarningMain } from "../constants/colors";
 import { STATUSBAR_FONT_SIZE } from "../constants/dimensions";
 import useConfirm from "../hooks/useConfirm";
@@ -40,7 +40,7 @@ interface StatusBarProps {
 }
 
 export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty, onLineEndingChange, encoding, onEncodingChange, onStatusChange, hidden }: StatusBarProps) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const confirm = useConfirm();
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);

@@ -1,9 +1,6 @@
 "use client";
 
 import {
-  useTheme,
-} from "@mui/material";
-import {
   ChevronRightIcon,
   ClearIcon,
   CloseIcon,
@@ -21,6 +18,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { getErrorMain, getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain, getTextSecondary } from "../constants/colors";
 import { SEARCH_COUNTER_FONT_SIZE, SEARCH_INPUT_FONT_SIZE } from "../constants/dimensions";
 import { Z_TOOLBAR } from "../constants/zIndex";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import type { TranslationFn } from "../types";
 import { Paper } from "../ui/Paper";
 import { Text } from "../ui/Text";
@@ -33,8 +31,7 @@ interface SearchReplaceBarProps {
 }
 
 export const SearchReplaceBar = React.memo(function SearchReplaceBar({ editor, t }: SearchReplaceBarProps) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const storage = editor.storage.searchReplace;
 
   const [isVisible, setIsVisible] = useState(false);

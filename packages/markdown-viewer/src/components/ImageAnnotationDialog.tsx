@@ -6,9 +6,9 @@ import { TextField } from "../ui/TextField";
 import { Tooltip } from "../ui/Tooltip";
 import { ToggleButton } from "../ui/ToggleButton";
 import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
-import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useRef, useState } from "react";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { getActionHover, getBgPaper, getDivider, getPrimaryMain, getTextSecondary } from "../constants/colors";
 import { BADGE_NUMBER_FONT_SIZE, PANEL_INPUT_FONT_SIZE, SMALL_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import type { AnnotationTool,ImageAnnotation } from "../types/imageAnnotation";
@@ -88,7 +88,7 @@ function renderAnnotation(
 export function ImageAnnotationDialog({
   open, onClose, src, annotations, onSave, t,
 }: Readonly<ImageAnnotationDialogProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [tool, setTool] = useState<AnnotationTool>("rect");
   const [color, setColor] = useState<string>(ANNOTATION_COLORS[0].value);
   const [items, setItems] = useState<ImageAnnotation[]>(annotations);

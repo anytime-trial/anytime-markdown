@@ -1,8 +1,6 @@
-import type { SxProps,Theme } from "@mui/material/styles";
-import { alpha } from "@mui/material/styles";
-
 import {
   ADMONITION_CAUTION, ADMONITION_IMPORTANT, ADMONITION_NOTE, ADMONITION_TIP, ADMONITION_WARNING,
+  alpha,
   DEFAULT_DARK_TABLE_CELL_BG, DEFAULT_DARK_TABLE_HEADER_BG, DEFAULT_LIGHT_TABLE_CELL_BG, DEFAULT_LIGHT_TABLE_HEADER_BG,
   getActionSelected, getDivider, getPrimaryMain, getTextPrimary, getTextSecondary,
 } from "../constants/colors";
@@ -11,8 +9,7 @@ import type { EditorSettings } from "../useEditorSettings";
 import { getImageRowStyles } from "./imageRowStyles";
 
 /** blockquote・admonition・table・list・taskList・hr・img スタイル */
-export function getBlockStyles(theme: Theme, settings: EditorSettings): SxProps<Theme> {
-  const isDark = theme.palette.mode === "dark";
+export function getBlockStyles(isDark: boolean, settings: EditorSettings): Record<string, unknown> {
   return {
     "& ul, & ol": { pl: 3, mb: 1 },
     "@media (max-width: 900px)": {

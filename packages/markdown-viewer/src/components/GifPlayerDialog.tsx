@@ -1,9 +1,9 @@
 "use client";
 
-import { useTheme } from "@mui/material/styles";
 import { useCallback, useRef, useState } from "react";
 
 import { getDivider, getTextSecondary } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import type { GifSettings } from "../utils/gifEncoder";
 import { GifIcon, PauseIcon, PlayArrowIcon } from "../ui/icons";
 import { ToggleButton } from "../ui/ToggleButton";
@@ -22,7 +22,7 @@ interface GifPlayerDialogProps {
 
 /** GIF 再生・情報表示ダイアログ */
 export function GifPlayerDialog({ open, onClose, src, settings }: Readonly<GifPlayerDialogProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const t = (key: string) => key;
 
   const imgRef = useRef<HTMLImageElement>(null);

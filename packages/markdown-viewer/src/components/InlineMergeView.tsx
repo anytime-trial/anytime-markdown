@@ -3,13 +3,13 @@ import { useEditor } from "@anytime-markdown/markdown-react";
 import { IconButton } from "../ui/IconButton";
 import { KeyboardArrowDownIcon, KeyboardArrowUpIcon, UnfoldLessIcon } from "../ui/icons";
 import { Tooltip } from "../ui/Tooltip";
-import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildEditorExtensions } from "../buildEditorExtensions";
 import { getEditorBg, getDivider, getTextDisabled } from "../constants/colors";
 import { MERGE_INFO_FONT_SIZE } from "../constants/dimensions";
 import { setMergeEditors } from "../contexts/MergeEditorsContext";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { useBlockAlignment } from "../hooks/useBlockAlignment";
 import { useDiffBackground } from "../hooks/useDiffBackground";
 import { useDiffHighlight } from "../hooks/useDiffHighlight";
@@ -100,8 +100,7 @@ export function InlineMergeView({
   commentSlot,
   children,
 }: Readonly<InlineMergeViewProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
   const {
     compareText,

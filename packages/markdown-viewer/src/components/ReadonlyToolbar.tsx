@@ -2,9 +2,9 @@
 
 import { DrawIcon, ListAltIcon, WorkspacePremiumIcon } from "../ui/icons";
 import { Tooltip } from "../ui/Tooltip";
-import { useTheme } from "@mui/material/styles";
 
 import { getTextSecondary } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import type { ThemePresetName } from "../constants/themePresets";
 import type { TranslationFn } from "../types";
 import { Divider } from "../ui/Divider";
@@ -39,7 +39,7 @@ function getActiveBgColor(isDark: boolean): string {
 }
 
 export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFontSizeChange, presetName, onPresetChange, t }: ReadonlyToolbarProps) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const activeBg = getActiveBgColor(isDark);
 
   return (

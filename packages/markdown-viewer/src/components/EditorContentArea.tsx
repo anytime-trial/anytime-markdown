@@ -1,10 +1,10 @@
 import GlobalStyles from "@mui/material/GlobalStyles";
-import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { useEditorMode } from "../contexts/EditorModeContext";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { getEditorBg } from "../constants/colors";
 import { getEditorPaperSx } from "../styles/editorStyles";
@@ -52,7 +52,7 @@ export function EditorContentArea({
     sourceMode, readonlyMode, reviewMode, noScroll,
     onSwitchToReview, onSwitchToWysiwyg, onSwitchToSource,
   } = useEditorMode();
-  const theme = useTheme();
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
 
   const sourceContainerRef = useRef<HTMLDivElement>(null);
@@ -73,14 +73,13 @@ export function EditorContentArea({
   }, [frontmatterText, sourceMode]);
   const adjustedEditorHeight = editorHeight - frontmatterHeight;
 
-  const isDark = theme.palette.mode === "dark";
   const editorBg = getEditorBg(isDark, settings);
   const hasPaper = settings.paperSize !== "off";
   const paperBg = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)";
   const outerBg = hasPaper ? paperBg : editorBg;
 
   // getEditorPaperSx の & .tiptap スタイルを GlobalStyles 経由で注入する
-  const paperSxObj = getEditorPaperSx(theme, settings, adjustedEditorHeight, { readonlyMode, noScroll }) as Record<string, unknown>;
+  const paperSxObj = getEditorPaperSx(isDark, settings, adjustedEditorHeight, { readonlyMode, noScroll }) as Record<string, unknown>;
   const tiptapStyles = paperSxObj["& .tiptap"] as Record<string, unknown> | undefined;
 
   if (sourceMode) {

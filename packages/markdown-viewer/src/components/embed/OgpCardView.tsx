@@ -1,5 +1,6 @@
-import { useTheme } from "@mui/material";
 import { LinkIcon } from "../../ui/icons";
+import { useIsDark } from "../../contexts/ThemeModeContext";
+import { getDivider, getBgPaper, getTextPrimary, getTextSecondary, getWarningMain } from "../../constants/colors";
 
 import { Skeleton } from "../../ui/Skeleton";
 import { type CSSProperties } from "react";
@@ -33,7 +34,7 @@ function getDomain(url: string): string {
 
 export function OgpCardView({ url, variant, providers, widthOverride, baseline, onBaselineWrite }: Readonly<Props>) {
     const { loading, data, error } = useOgpData(url, providers);
-    const theme = useTheme();
+    const isDark = useIsDark();
 
     const effectiveBaseline = baseline ?? DEFAULT_EMBED_BASELINE;
     const updateCheck = useEmbedUpdateCheck({
@@ -48,10 +49,10 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
         if (updateCheck.fingerprint) markEmbedSeen(url, updateCheck.fingerprint);
     };
 
-    const borderColor = theme.palette.divider;
-    const bg = theme.palette.background.paper;
-    const textPrimary = theme.palette.text.primary;
-    const textSecondary = theme.palette.text.secondary;
+    const borderColor = getDivider(isDark);
+    const bg = getBgPaper(isDark);
+    const textPrimary = getTextPrimary(isDark);
+    const textSecondary = getTextSecondary(isDark);
 
     const cardWidthStyle: CSSProperties = widthOverride
         ? { width: widthOverride }
@@ -210,7 +211,7 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
                         {error && (
                             <Text
                                 component="span"
-                                style={{ color: theme.palette.warning.main, fontSize: 12 }}
+                                style={{ color: getWarningMain(isDark), fontSize: 12 }}
                             >
                                 ⚠ {error}
                             </Text>

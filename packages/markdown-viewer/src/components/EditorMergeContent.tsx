@@ -1,5 +1,4 @@
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
-import { useTheme } from "@mui/material/styles";
 
 import { Spinner } from "../ui/Spinner";
 import type React from "react";
@@ -7,6 +6,7 @@ import { Suspense, useEffect } from "react";
 
 import { FILE_DROP_OVERLAY_COLOR, getEditorBg } from "../constants/colors";
 import { getMergeEditors, setMergeEditors } from "../contexts/MergeEditorsContext";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { DiffLine } from "../utils/diffEngine";
 import type { OutlineProps } from "./EditorMainContent";
@@ -94,7 +94,7 @@ export function EditorMergeContent({
   onDrop,
   t,
 }: Readonly<EditorMergeContentProps>) {
-  const theme = useTheme();
+  const isDark = useIsDark();
 
   // reviewMode を MergeEditorsContext に反映
   useEffect(() => {
@@ -144,7 +144,7 @@ export function EditorMergeContent({
             onHoverLine={onHoverLine}
             {...(collapseProps ?? {})}
             paperSx={{
-              bgcolor: getEditorBg(theme.palette.mode === "dark", settings),
+              bgcolor: getEditorBg(isDark, settings),
             }}
           />
         </div>

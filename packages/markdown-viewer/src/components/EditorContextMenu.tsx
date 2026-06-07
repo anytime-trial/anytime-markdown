@@ -5,7 +5,7 @@ import { ListItemIcon } from "../ui/ListItemIcon";
 import { ListItemText } from "../ui/ListItemText";
 import { Menu } from "../ui/Menu";
 import { MenuItem } from "../ui/MenuItem";
-import { useTheme } from "@mui/material/styles";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useState } from "react";
@@ -158,7 +158,7 @@ async function pasteClipboardHtml(
 }
 
 export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchToReview, onSwitchToWysiwyg, onSwitchToSource, extraContainerRef, sourceTextareaRef }: Readonly<EditorContextMenuProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
 
   const openMenu = useCallback((event: MouseEvent) => {

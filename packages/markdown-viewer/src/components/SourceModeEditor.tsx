@@ -1,7 +1,7 @@
-import { useTheme } from "@mui/material";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { ACCENT_COLOR, ACCENT_COLOR_ALPHA, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, alpha, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import type { TextareaSearchMatch } from "../hooks/useTextareaSearch";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import type { Base64TokenSpan } from "../utils/base64Collapse";
@@ -103,8 +103,7 @@ export function SourceModeEditor({
   searchCurrentIndex,
 }: Readonly<SourceModeEditorProps>) {
   const settings = useEditorSettingsContext();
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const highlightRef = useRef<HTMLDivElement>(null);
   const base64OverlayRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);

@@ -7,6 +7,7 @@ import {
 getPreset, getPrimaryContrast,
 getPrimaryDark, getPrimaryLight,   getPrimaryMain, getSuccessMain, getTextDisabled,
 getTextPrimary, getTextSecondary, getWarningLight, getWarningMain, isPresetName,
+  ThemeModeProvider as EditorThemeModeProvider,
   type ThemePresetName,
 } from '@anytime-markdown/markdown-viewer';
 import { Capacitor } from '@capacitor/core';
@@ -137,9 +138,11 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
     <PresetContext.Provider value={presetValue}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <ConfirmProvider>
-          {children}
-        </ConfirmProvider>
+        <EditorThemeModeProvider mode={themeMode}>
+          <ConfirmProvider>
+            {children}
+          </ConfirmProvider>
+        </EditorThemeModeProvider>
       </ThemeProvider>
     </PresetContext.Provider>
     </ThemeModeContext.Provider>

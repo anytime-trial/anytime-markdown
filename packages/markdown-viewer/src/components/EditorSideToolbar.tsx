@@ -1,7 +1,7 @@
-import { useTheme } from "@mui/material/styles";
 import React from "react";
 
 import { getDivider } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { SIDE_TOOLBAR_ICON_SIZE, SIDE_TOOLBAR_WIDTH } from "../constants/dimensions";
 import {
   ChatBubbleOutlineIcon,
@@ -36,7 +36,7 @@ export const EditorSideToolbar = React.memo(function EditorSideToolbar({
   onOpenSettings,
   t,
 }: EditorSideToolbarProps) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   return (
     <div
       className={styles.root}

@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "@mui/material";
 import { CategoryIcon, CodeIcon, DeleteOutlineIcon, FormatListBulletedIcon, FormatListNumberedIcon, GridOnIcon, ImageIcon, KeyboardArrowDownIcon, SchemaIcon, UnfoldLessIcon, UnfoldMoreIcon } from "../ui/icons";
 import { ButtonBase } from "../ui/ButtonBase";
 import { Collapse } from "../ui/Collapse";
@@ -9,6 +8,7 @@ import { Tooltip } from "../ui/Tooltip";
 import React, { useCallback, useMemo,useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getPrimaryMain, getTextDisabled, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { OUTLINE_FONT_SIZE, PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
 import MermaidIcon from "../icons/MermaidIcon";
 import type { HeadingItem, OutlineKind, TranslationFn } from "../types";
@@ -284,8 +284,7 @@ export function OutlinePanel({
   onRemoveSectionNumbers,
   t,
 }: Readonly<OutlinePanelProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const [showBlocks, setShowBlocks] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);

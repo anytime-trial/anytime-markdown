@@ -1,13 +1,12 @@
 "use client";
 
-import { useTheme } from "@mui/material";
-
 import { IconButton } from "../ui/IconButton";
 import { useCallback, useRef, useState } from "react";
 
 import useConfirm from "@/hooks/useConfirm";
 
 import { DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_CODE_BG, getActionHover, getDivider, getTextSecondary } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { FRONTMATTER_CODE_FONT_SIZE, SMALL_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { Text } from "../ui/Text";
@@ -22,8 +21,7 @@ interface FrontmatterBlockProps {
 }
 
 export function FrontmatterBlock({ frontmatter, onChange, readOnly, defaultCollapsed, t }: Readonly<FrontmatterBlockProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
   const [collapsed, setCollapsed] = useState(defaultCollapsed ?? false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

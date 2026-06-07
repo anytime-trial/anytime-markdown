@@ -1,4 +1,3 @@
-import { useTheme } from "@mui/material/styles";
 import {
   ChatBubbleOutlineIcon,
   CheckBoxIcon,
@@ -22,6 +21,7 @@ import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useMemo } from "react";
 
 import { getDivider } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { MENU_ITEM_FONT_SIZE } from "../constants/dimensions";
 import { PLANTUML_SAMPLES } from "../constants/samples";
 import { getBuiltinTemplates, type MarkdownTemplate } from "../constants/templates";
@@ -106,7 +106,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
   t,
 }: EditorMenuPopoversProps) {
   const locale = useMarkdownLocale();
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const builtinTemplates = useMemo(() => getBuiltinTemplates(locale), [locale]);
 
   return (

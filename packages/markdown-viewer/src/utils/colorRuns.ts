@@ -1,6 +1,4 @@
-import { alpha } from "@mui/material/styles";
-
-import { getErrorMain, getSuccessMain } from "../constants/colors";
+import { alpha, getErrorMain, getSuccessMain } from "../constants/colors";
 
 export interface ColorRun {
   color: string;
