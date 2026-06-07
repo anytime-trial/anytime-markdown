@@ -7,14 +7,12 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import SchemaIcon from "@mui/icons-material/Schema";
 import SettingsIcon from "@mui/icons-material/Settings";
-import {
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
-  Popover,
-  useTheme,
-} from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { IconButton } from "../ui/IconButton";
+import { ListItemIcon } from "../ui/ListItemIcon";
+import { ListItemText } from "../ui/ListItemText";
+import { MenuItem } from "../ui/MenuItem";
+import { Popover } from "../ui/Popover";
 import { Tooltip } from "../ui/Tooltip";
 import styles from "./EditorMenuPopovers.module.css";
 import { Divider } from "../ui/Divider";
@@ -116,16 +114,15 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         open={!!helpAnchorEl}
         anchorEl={helpAnchorEl}
         onClose={() => setHelpAnchorEl(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu", "aria-label": t("helpMenu") } }}
+        paperRole="menu"
+        aria-label={t("helpMenu")}
       >
         <div style={{ paddingTop: 4, paddingBottom: 4, minWidth: 160 }}>
           {onToggleOutline && (
             <MenuItem
               onClick={() => { onToggleOutline(); setHelpAnchorEl(null); }}
               disabled={sourceMode}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon><ListAltIcon fontSize="small" color={outlineOpen ? "primary" : "inherit"} /></ListItemIcon>
               <ListItemText>{t("outline")}</ListItemText>
@@ -135,7 +132,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
             <MenuItem
               onClick={() => { onToggleComments(); setHelpAnchorEl(null); }}
               disabled={sourceMode}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon><ChatBubbleOutlineIcon fontSize="small" color={commentOpen ? "primary" : "inherit"} /></ListItemIcon>
               <ListItemText>{t("commentPanel")}</ListItemText>
@@ -144,7 +141,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
           {onOpenSettings && (
             <MenuItem
               onClick={() => { onOpenSettings(); setHelpAnchorEl(null); }}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
               <ListItemText>{t("editorSettings")}</ListItemText>
@@ -154,7 +151,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
           {!hideVersionInfo && (
             <MenuItem
               onClick={() => { setVersionDialogOpen(true); setHelpAnchorEl(null); }}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
               <ListItemText>{t("versionInfo")}</ListItemText>
@@ -168,9 +165,8 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         open={!!diagramAnchorEl}
         anchorEl={diagramAnchorEl}
         onClose={() => setDiagramAnchorEl(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu", "aria-label": t("diagramMenu") } }}
+        paperRole="menu"
+        aria-label={t("diagramMenu")}
       >
         <div style={{ display: "flex", flexDirection: "column", padding: 4 }}>
           <Tooltip title={t("mermaid")} placement="right">
@@ -219,9 +215,8 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         open={!!sampleAnchorEl}
         anchorEl={sampleAnchorEl}
         onClose={() => setSampleAnchorEl(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu", "aria-label": t("plantumlSampleMenu") } }}
+        paperRole="menu"
+        aria-label={t("plantumlSampleMenu")}
       >
         <div style={{ display: "flex", flexDirection: "column", padding: 4 }}>
           {PLANTUML_SAMPLES.filter((s) => s.enabled).map((sample, idx) => {
@@ -268,16 +263,15 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         open={!!templateAnchorEl}
         anchorEl={templateAnchorEl}
         onClose={() => setTemplateAnchorEl(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu", "aria-label": t("templateMenu") } }}
+        paperRole="menu"
+        aria-label={t("templateMenu")}
       >
         <div style={{ paddingTop: 4, paddingBottom: 4, minWidth: 180 }}>
           {builtinTemplates.map((tmpl) => (
             <MenuItem
               key={tmpl.id}
               onClick={() => { onInsertTemplate(tmpl); setTemplateAnchorEl(null); }}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               {t(tmpl.name)}
             </MenuItem>
@@ -288,11 +282,10 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
       {/* Heading level change popover */}
       <Popover
         open={!!headingMenu}
-        anchorEl={headingMenu?.anchorEl}
+        anchorEl={headingMenu?.anchorEl ?? null}
         onClose={() => setHeadingMenu(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu", "aria-label": t("headingMenu") } }}
+        paperRole="menu"
+        aria-label={t("headingMenu")}
       >
         <div style={{ paddingTop: 4, paddingBottom: 4 }}>
           {[
@@ -314,7 +307,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                 applyHeadingLevel(editor, headingMenu, level);
                 setHeadingMenu(null);
               }}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               {label}
             </MenuItem>
@@ -327,7 +320,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("bulletList")}
-            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
+            style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
             <FormatListBulletedIcon sx={{ fontSize: 18 }} />
             {t("bulletList")}
@@ -339,7 +332,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("orderedList")}
-            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
+            style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
             <FormatListNumberedIcon sx={{ fontSize: 18 }} />
             {t("orderedList")}
@@ -351,7 +344,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("taskList")}
-            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
+            style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
             <CheckBoxIcon sx={{ fontSize: 18 }} />
             {t("taskList")}
@@ -364,7 +357,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("blockquote")}
-            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
+            style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
             <FormatQuoteIcon sx={{ fontSize: 18 }} />
             {t("blockquote")}
