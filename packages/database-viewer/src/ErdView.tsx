@@ -1,9 +1,14 @@
 "use client";
 
-import { Box, IconButton, Stack, Tooltip } from "@mui/material";
-import CenterFocusStrongIcon from "@mui/icons-material/CenterFocusStrong";
-import ZoomInIcon from "@mui/icons-material/ZoomIn";
-import ZoomOutIcon from "@mui/icons-material/ZoomOut";
+import {
+  Box,
+  CenterFocusStrongIcon,
+  IconButton,
+  Stack,
+  Tooltip,
+  ZoomInIcon,
+  ZoomOutIcon,
+} from "./ui";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphEdge, GraphNode } from "@anytime-markdown/graph-core";
 import { engine } from "@anytime-markdown/graph-core";
@@ -464,16 +469,15 @@ function Minimap({ cards, viewport, viewSize, worldBounds, onChange, isDark }: R
 
   return (
     <Box
-      sx={{
+      style={{
         position: "absolute",
         right: 16,
         bottom: 16,
         width: MINIMAP_W,
         height: MINIMAP_H,
-        borderRadius: 1,
+        borderRadius: 4,
         overflow: "hidden",
-        border: 1,
-        borderColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)",
+        border: `1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}`,
         background: isDark ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.85)",
         backdropFilter: "blur(2px)",
       }}
@@ -789,7 +793,7 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
   return (
     <Box
       ref={containerRef}
-      sx={{
+      style={{
         flexGrow: 1,
         minHeight: 0,
         position: "relative",
@@ -886,13 +890,13 @@ export const ErdView: React.FC<Readonly<ErdViewProps>> = ({ schema, themeMode = 
       <Stack
         direction="row"
         spacing={0.5}
-        sx={{
+        style={{
           position: "absolute",
           left: 16,
           top: 16,
           background: isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.85)",
-          borderRadius: 1,
-          p: 0.5,
+          borderRadius: 4,
+          padding: 4,
           backdropFilter: "blur(2px)",
         }}
       >
