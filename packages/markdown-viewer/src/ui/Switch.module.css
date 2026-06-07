@@ -58,6 +58,13 @@
     0 1px 3px 0 rgba(0, 0, 0, 0.12);
 }
 
+/* キーボードフォーカス時の halo（MUI Mui-focusVisible 相当）。input は opacity:0 で
+   ネイティブリングが見えないため switchBase に円形背景を出す。resting では無表示＝VR 不変。 */
+.root:has(.input:focus-visible) .switchBase {
+  border-radius: 50%;
+  background-color: var(--am-color-action-hover);
+}
+
 /* root 全体を覆う透明チェックボックス（クリックターゲット）。 */
 .input {
   position: absolute;
