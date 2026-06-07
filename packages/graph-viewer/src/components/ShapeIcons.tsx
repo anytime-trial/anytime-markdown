@@ -1,7 +1,6 @@
-import SvgIcon, { SvgIconProps } from '@mui/material/SvgIcon';
-import React from 'react';
+import { SvgIcon, type IconProps } from '../ui';
 
-export function DiamondShapeIcon(props: SvgIconProps) {
+export function DiamondShapeIcon(props: IconProps) {
   return (
     <SvgIcon {...props}>
       <path d="M12 2 L22 12 L12 22 L2 12 Z" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -9,7 +8,7 @@ export function DiamondShapeIcon(props: SvgIconProps) {
   );
 }
 
-export function ParallelogramShapeIcon(props: SvgIconProps) {
+export function ParallelogramShapeIcon(props: IconProps) {
   return (
     <SvgIcon {...props}>
       <path d="M6 4 L22 4 L18 20 L2 20 Z" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -17,7 +16,7 @@ export function ParallelogramShapeIcon(props: SvgIconProps) {
   );
 }
 
-export function StickyNoteShapeIcon(props: SvgIconProps) {
+export function StickyNoteShapeIcon(props: IconProps) {
   return (
     <SvgIcon {...props}>
       <path d="M3 3 L3 21 L15 21 L21 15 L21 3 Z" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -26,7 +25,7 @@ export function StickyNoteShapeIcon(props: SvgIconProps) {
   );
 }
 
-export function CylinderShapeIcon(props: SvgIconProps) {
+export function CylinderShapeIcon(props: IconProps) {
   return (
     <SvgIcon {...props}>
       <ellipse cx="12" cy="5" rx="9" ry="3" fill="none" stroke="currentColor" strokeWidth="2" />

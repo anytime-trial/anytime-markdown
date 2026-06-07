@@ -3,49 +3,53 @@
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import type { LayoutAlgorithm } from '@anytime-markdown/graph-core/engine';
 import {
-  // DiamondOutlined replaced by custom SVG diamond icon below
-  // ParallelogramIcon, CylinderIcon replaced by custom SVG icons below
-  AccountTree as AccountTreeIcon,
-  AlignHorizontalCenter as AlignHorizontalCenterIcon,
-  AlignHorizontalLeft as AlignHorizontalLeftIcon,
-  AlignHorizontalRight as AlignHorizontalRightIcon,
-  AlignVerticalBottom as AlignVerticalBottomIcon,
-  AlignVerticalCenter as AlignVerticalCenterIcon,
-  AlignVerticalTop as AlignVerticalTopIcon,
-  ArrowDropDown as ArrowDropDownIcon,
-  CircleOutlined as EllipseIcon,
-  CloudDone as CloudDoneIcon,
-  CloudOff as CloudOffIcon,
-  CloudSync as CloudSyncIcon,
-  CropSquare as RectIcon,
-  Dashboard as FrameIcon,
-  Description as DocIcon,
-  FileDownload as ExportIcon,
-  FileUpload as ImportIcon,
-  FilterList as FilterListIcon,
-  FitScreen as FitIcon,
-  GridOn as GridIcon,
-  Layers as LayersIcon,
-  LayersClear as ClearAllIcon,
-  NearMe as SelectIcon,
-  PanTool as PanIcon,
-  Redo as RedoIcon,
-  Remove as LineIcon,
-  TableRows as TableRowsIcon,
-  // StickyNote2Outlined replaced by custom StickyNoteShapeIcon
-  TextFields as TextIcon,
-  Undo as UndoIcon,
-  UnfoldMore as SpreadIcon,
-  ViewColumn as ViewColumnIcon,
-  ZoomIn as ZoomInIcon,
-  ZoomOut as ZoomOutIcon,
-} from '@mui/icons-material';
-import {
-  AppBar, Box,   CircularProgress,
-Divider,   IconButton,   ListItemIcon, ListItemText, Menu, MenuItem,
-Popover, ToggleButton, ToggleButtonGroup,
-Toolbar, Tooltip, Typography,
-} from '@mui/material';
+  AccountTreeIcon,
+  AlignHorizontalCenterIcon,
+  AlignHorizontalLeftIcon,
+  AlignHorizontalRightIcon,
+  AlignVerticalBottomIcon,
+  AlignVerticalCenterIcon,
+  AlignVerticalTopIcon,
+  ArrowDropDownIcon,
+  Box,
+  CircleOutlinedIcon as EllipseIcon,
+  CircularProgress,
+  CloudDoneIcon,
+  CloudOffIcon,
+  CloudSyncIcon,
+  CropSquareIcon as RectIcon,
+  DashboardIcon as FrameIcon,
+  DescriptionIcon as DocIcon,
+  Divider,
+  FileDownloadIcon as ExportIcon,
+  FileUploadIcon as ImportIcon,
+  FilterListIcon,
+  FitScreenIcon as FitIcon,
+  GridOnIcon as GridIcon,
+  IconButton,
+  LayersClearIcon as ClearAllIcon,
+  LayersIcon,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
+  NearMeIcon as SelectIcon,
+  PanToolIcon as PanIcon,
+  Popover,
+  RedoIcon,
+  RemoveIcon as LineIcon,
+  TableRowsIcon,
+  Text,
+  TextFieldsIcon as TextIcon,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  UndoIcon,
+  UnfoldMoreIcon as SpreadIcon,
+  ViewColumnIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
+} from '../ui';
 import { useGraphT } from '../i18n/context';
 import React, { useCallback,useRef, useState } from 'react';
 
@@ -177,18 +181,15 @@ export function GraphToolBar({
     setShapeAnchor(null);
   }, [onToolChange]);
   return (
-    <AppBar
-      position="static"
-      color="default"
-      elevation={1}
-      sx={{
+    <header
+      style={{
         backgroundColor: colors.panelBg,
         borderBottom: `1px solid ${colors.panelBorder}`,
         backdropFilter: 'blur(12px)',
         zIndex: 10,
       }}
     >
-      <Toolbar variant="dense" sx={{ gap: 1, minHeight: 48, '& .MuiIconButton-root': { color: colors.textSecondary }, '& .MuiDivider-root': { borderColor: colors.panelBorder } }}>
+      <Box style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, padding: '0 12px', color: colors.textSecondary }}>
         <ToggleButtonGroup
           value={isShapeSelected ? lastShape : tool}
           exclusive
@@ -196,10 +197,9 @@ export function GraphToolBar({
             if (!val) return;
             // Shape button handles its own click/long-press logic
             if (isShapeTool(val as ToolType)) return;
-            onToolChange(val);
+            onToolChange(val as ToolType);
           }}
           size="small"
-          sx={{ '& .MuiToggleButton-root': { color: colors.textSecondary, '&.Mui-selected': { color: colors.accentColor, backgroundColor: `${colors.accentColor}1F` } } }}
         >
           <ToggleButton value="select" aria-label={t('select')}>
             <Tooltip title={`${t('select')} (V)`}><SelectIcon fontSize="small" /></Tooltip>
@@ -214,12 +214,12 @@ export function GraphToolBar({
             onMouseDown={handleShapeMouseDown}
             onMouseUp={handleShapeMouseUp}
             onMouseLeave={handleShapeMouseLeave}
-            sx={{ position: 'relative', pr: 2.5 }}
+            style={{ position: 'relative', paddingRight: 20 }}
           >
             <Tooltip title={`${t(lastShape)} (${t('longPressForMore')})`}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box style={{ display: 'flex', alignItems: 'center' }}>
                 {shapeIconMap[lastShape]}
-                <ArrowDropDownIcon sx={{ fontSize: 14, position: 'absolute', right: 2, bottom: 2, opacity: 0.6 }} />
+                <ArrowDropDownIcon fontSize={14} style={{ position: 'absolute', right: 2, bottom: 2, opacity: 0.6 }} />
               </Box>
             </Tooltip>
           </ToggleButton>
@@ -246,28 +246,25 @@ export function GraphToolBar({
           onClose={() => setShapeAnchor(null)}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
           transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-          slotProps={{ paper: {
-            sx: {
-              backgroundColor: colors.panelBg,
-              border: `1px solid ${colors.panelBorder}`,
-              backdropFilter: 'blur(12px)',
-              display: 'flex',
-              flexDirection: 'column',
-              p: 0.5,
-              gap: 0.25,
-            },
-          } }}
+          paperStyle={{
+            backgroundColor: colors.panelBg,
+            border: `1px solid ${colors.panelBorder}`,
+            backdropFilter: 'blur(12px)',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: 4,
+            gap: 2,
+          }}
         >
           {SHAPE_TOOLS.map((shape) => (
             <IconButton
               key={shape}
               size="small"
               onClick={() => handleShapeSelect(shape)}
-              sx={{
+              style={{
                 color: tool === shape ? colors.accentColor : colors.textSecondary,
                 backgroundColor: tool === shape ? `${colors.accentColor}1F` : 'transparent',
-                '&:hover': { backgroundColor: colors.hoverBg },
-                borderRadius: 1,
+                borderRadius: 4,
               }}
             >
               <Tooltip title={t(shape)} placement="right">
@@ -334,19 +331,19 @@ export function GraphToolBar({
             size="small"
             disabled={layoutRunning}
           >
-            <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 'bold', lineHeight: 1 }}>
+            <Text variant="caption" style={{ fontSize: 10, fontWeight: 'bold', lineHeight: 1 }}>
               {{ 'eades': 'EA', 'fruchterman-reingold': 'FR', 'eades-vpsc': 'EA+V', 'fruchterman-reingold-vpsc': 'FR+V', 'hierarchical': 'HI' }[layoutAlgorithm]}
-            </Typography>
+            </Text>
           </IconButton>
         </Tooltip>
         <Tooltip title={t('collisionDetection')}>
           <IconButton
             onClick={() => onToggleCollision?.(!collisionEnabled)}
             size="small"
-            sx={{
+            style={{
               color: collisionEnabled ? '#90caf9' : 'inherit',
               backgroundColor: collisionEnabled ? 'rgba(144,202,249,0.16)' : 'transparent',
-              borderRadius: 1,
+              borderRadius: 4,
             }}
           >
             <LayersIcon fontSize="small" />
@@ -361,14 +358,14 @@ export function GraphToolBar({
           </IconButton>
         </Tooltip>
 
-        <Box sx={{ flex: 1 }} />
+        <Box style={{ flex: 1 }} />
 
         <Tooltip title={t('zoomOut')}>
           <IconButton size="small" onClick={onZoomOut}><ZoomOutIcon fontSize="small" /></IconButton>
         </Tooltip>
         <Box
           onClick={(e) => setZoomAnchor(e.currentTarget)}
-          sx={{ minWidth: 48, textAlign: 'center', fontSize: '0.75rem', color: 'text.secondary', cursor: 'pointer', '&:hover': { bgcolor: colors.hoverBg }, borderRadius: 1, px: 0.5 }}
+          style={{ minWidth: 48, textAlign: 'center', fontSize: '0.75rem', color: colors.textSecondary, cursor: 'pointer', borderRadius: 4, padding: '0 4px' }}
         >
           {Math.round(scale * 100)}%
         </Box>
@@ -387,22 +384,22 @@ export function GraphToolBar({
         </Tooltip>
 
         <Tooltip title={saveTooltip}>
-          <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
-            {saveStatus === 'saved' && <CloudDoneIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
-            {saveStatus === 'saving' && <CloudSyncIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
-            {saveStatus === 'error' && <CloudOffIcon fontSize="small" sx={{ color: '#f44336' }} />}
+          <Box style={{ display: 'flex', alignItems: 'center', marginLeft: 4 }}>
+            {saveStatus === 'saved' && <CloudDoneIcon fontSize="small" color={colors.textSecondary} />}
+            {saveStatus === 'saving' && <CloudSyncIcon fontSize="small" color={colors.textSecondary} />}
+            {saveStatus === 'error' && <CloudOffIcon fontSize="small" color="#f44336" />}
           </Box>
         </Tooltip>
 
         <Divider orientation="vertical" flexItem />
 
         <Tooltip title={t('grid')}>
-          <IconButton size="small" onClick={onToggleGrid} color={showGrid ? 'primary' : 'default'}>
+          <IconButton size="small" onClick={onToggleGrid} style={{ color: showGrid ? colors.accentColor : undefined }}>
             <GridIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         <Tooltip title="Filter">
-          <IconButton onClick={onToggleFilter} size="small" sx={{ color: filterActive ? '#2196f3' : undefined }}>
+          <IconButton onClick={onToggleFilter} size="small" style={{ color: filterActive ? '#2196f3' : undefined }}>
             <FilterListIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -430,7 +427,7 @@ export function GraphToolBar({
           <MenuItem onClick={() => { onImportMermaid(); setImportAnchor(null); }}><ListItemText>{t('importMermaid')}</ListItemText></MenuItem>
         </Menu>
 
-      </Toolbar>
-    </AppBar>
+      </Box>
+    </header>
   );
 }

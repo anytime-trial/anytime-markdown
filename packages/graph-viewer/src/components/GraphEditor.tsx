@@ -3,7 +3,18 @@
 import { exportToDrawio, exportToSvg, importFromDrawio, importFromMermaid, layoutWithSubgroups, MinimapCanvas } from '@anytime-markdown/graph-core';
 import type { LayoutAlgorithm } from '@anytime-markdown/graph-core/engine';
 import { clearImageCache, physics,ViewportAnimation } from '@anytime-markdown/graph-core/engine';
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Typography } from '@mui/material';
+import {
+  applyGraphUiThemeVars,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  injectGraphUiStyles,
+  Text,
+} from '../ui';
 import { GraphI18nProvider, useGraphT } from '../i18n/context';
 import React, { useCallback, useEffect, useMemo,useRef, useState } from 'react';
 
@@ -95,6 +106,12 @@ function GraphEditorInner({
   containerHeight = '100vh',
 }: Readonly<GraphEditorProps> = {}) {
   const isDark = themeMode === 'dark';
+  // 自前 UI キットの CSS 注入とテーマトークン（--gv-*）を documentElement へ適用する。
+  // Menu / Dialog / Tooltip は body へポータルされるため documentElement に置く必要がある。
+  useEffect(() => {
+    injectGraphUiStyles();
+    applyGraphUiThemeVars(isDark);
+  }, [isDark]);
   const [tool, setTool] = useState<ToolType>('select');
   const [showGrid, setShowGrid] = useState(true);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
@@ -600,7 +617,7 @@ function GraphEditorInner({
   }, [setHoverTargetId]);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: containerHeight, width: '100vw', overflow: 'hidden' }}>
+    <Box style={{ display: 'flex', flexDirection: 'column', height: containerHeight, width: '100vw', overflow: 'hidden' }}>
       <GraphToolBar
         tool={tool}
         onToolChange={setTool}
@@ -638,8 +655,8 @@ function GraphEditorInner({
         filterActive={filterConfig.rangeFilters.length > 0 || filterConfig.textFilters.length > 0}
         themeMode={themeMode}
       />
-      <Box sx={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
-      <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <Box style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
+      <Box style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <GraphCanvas
           nodes={displayNodes}
           edges={displayEdges}
@@ -678,7 +695,7 @@ function GraphEditorInner({
           isDark={isDark}
         />
         {state.document.nodes.length === 0 && (
-          <Box sx={{
+          <Box style={{
             position: 'absolute',
             top: '50%',
             left: '50%',
@@ -688,8 +705,8 @@ function GraphEditorInner({
             pointerEvents: 'none',
             zIndex: 10,
           }}>
-            <Typography variant="h6" sx={{ mb: 1, fontWeight: 300 }}>{t('emptyCanvasTitle')}</Typography>
-            <Typography variant="body2">{t('emptyCanvasHint')}</Typography>
+            <Text style={{ display: 'block', marginBottom: 8, fontWeight: 300, fontSize: '1.25rem' }}>{t('emptyCanvasTitle')}</Text>
+            <Text style={{ display: 'block' }}>{t('emptyCanvasHint')}</Text>
           </Box>
         )}
         {selectedNode && !editingNodeId && !docEditNodeId && !isDragging && (
@@ -790,7 +807,7 @@ function GraphEditorInner({
               confirmDialog.onConfirm();
               closeConfirmDialog();
             }}
-            color="error"
+            style={{ color: 'var(--gv-color-error-main)' }}
             autoFocus
           >
             {t('confirm')}
