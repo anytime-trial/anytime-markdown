@@ -34,7 +34,11 @@ export interface UseFloatingResult {
   y: number;
   /** flip 適用後の実配置。 */
   resolvedPlacement: Placement;
-  /** 初回計算が完了したか。完了まで visibility:hidden で表示するとちらつかない。 */
+  /**
+   * 初回計算が完了したか。位置確定までの不可視化は通常 `floatingStyle`（opacity:0）に任せる。
+   * 生の x/y/ready を自前 style で使うのは、a11y ツリーから外してよい Tooltip 等で
+   * visibility:hidden を採りたい場合のみ（getByRole で拾う必要がある要素では opacity を使う）。
+   */
   ready: boolean;
   /**
    * floating 要素にそのまま spread できる位置スタイル（position:fixed + left/top +
