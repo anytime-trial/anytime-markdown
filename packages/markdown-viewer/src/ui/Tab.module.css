@@ -1,0 +1,33 @@
+/*
+ * MUI Tab の置換。サイズ・余白・字種は markdown-rich edit ダイアログの旧 sx 値と一致させる
+ * （視覚等価のため）: min-height = FS_TOOLBAR_HEIGHT(32px), font-size = FS_TAB_FONT_SIZE(0.75rem),
+ * padding = py 0.5(4px) / px 2(16px), text-transform: none。min-width(90px) は MUI 既定。
+ * 選択中の下線は border-bottom を inline style の色で点灯させる（レイアウトシフト回避のため常時 2px 確保）。
+ */
+.tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  min-width: 90px;
+  padding: 4px 16px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: 0.02857em;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.tab:disabled {
+  cursor: default;
+  opacity: 0.38;
+}

@@ -1,0 +1,6 @@
+/* MUI Tabs の置換。tablist は横並び flex。下線インジケータは選択中 Tab が own border で描く。 */
+.tabs {
+  display: flex;
+  align-items: center;
+  min-height: var(--am-tabs-min-height, 32px);
+}
