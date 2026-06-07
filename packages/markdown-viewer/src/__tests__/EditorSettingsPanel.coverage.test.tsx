@@ -93,10 +93,10 @@ describe("EditorSettingsPanel coverage", () => {
       presetName: "professional",
       onPresetChange,
     });
+    // ui/Select: combobox を開いて listbox の option をクリック
     const select = screen.getByLabelText("settingThemePreset");
-    // MUI Select の内部 input に change イベントを発火
-    const input = select.querySelector("input") ?? select;
-    fireEvent.change(input, { target: { value: "handwritten" } });
+    fireEvent.mouseDown(select);
+    fireEvent.click(screen.getByText("Handwritten"));
     expect(onPresetChange).toHaveBeenCalledWith("handwritten");
   });
 

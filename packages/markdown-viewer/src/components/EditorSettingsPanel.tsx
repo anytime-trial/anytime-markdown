@@ -2,12 +2,7 @@
 
 import CloseIcon from "@mui/icons-material/Close";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import {
-  FormControl,
-  MenuItem,
-  Select,
-  Switch,
-} from "@mui/material";
+import { Switch } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
@@ -29,6 +24,7 @@ import type { TranslationFn } from "../types";
 import type { EditorSettings } from "../useEditorSettings";
 import { Divider } from "../ui/Divider";
 import { Drawer } from "../ui/Drawer";
+import { Select } from "../ui/Select";
 import { Text } from "../ui/Text";
 
 interface EditorSettingsPanelProps {
@@ -143,19 +139,12 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
               <Text variant="caption" component="span" style={{ fontWeight: 600, color: getTextSecondary(isDark), marginBottom: 4, display: "block" }}>
                 {t("settingThemePreset")}
               </Text>
-              <FormControl size="small" fullWidth>
-                <Select
-                  value={presetName}
-                  onChange={(e) => onPresetChange(e.target.value)}
-                  aria-label={t("settingThemePreset")}
-                >
-                  {PRESET_NAMES.map((name) => (
-                    <MenuItem key={name} value={name}>
-                      {THEME_PRESETS[name].label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Select
+                value={presetName}
+                onChange={onPresetChange}
+                aria-label={t("settingThemePreset")}
+                options={PRESET_NAMES.map((name) => ({ value: name, label: THEME_PRESETS[name].label }))}
+              />
             </div>
           )}
 
@@ -229,19 +218,12 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
         <Text variant="caption" component="span" style={{ fontWeight: 600, color: getTextSecondary(isDark), marginBottom: 4, display: "block" }}>
           {t("settingPaperSize")}
         </Text>
-        <FormControl size="small" fullWidth>
-          <Select
-            value={settings.paperSize}
-            onChange={(e) => updateSettings({ paperSize: e.target.value })}
-            aria-label={t("settingPaperSize")}
-          >
-            {PAPER_SIZE_OPTIONS.map((size) => (
-              <MenuItem key={size} value={size}>
-                {size === "off" ? t("settingPaperSizeOff") : size}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <Select
+          value={settings.paperSize}
+          onChange={(paperSize) => updateSettings({ paperSize })}
+          aria-label={t("settingPaperSize")}
+          options={PAPER_SIZE_OPTIONS.map((size) => ({ value: size, label: size === "off" ? t("settingPaperSizeOff") : size }))}
+        />
       </div>
 
       {/* Paper Margin */}
