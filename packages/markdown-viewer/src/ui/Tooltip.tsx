@@ -1,8 +1,9 @@
 import { cloneElement, isValidElement, useCallback, useId, useState } from "react";
-import type { ReactElement, ReactNode, Ref } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { Placement } from "@floating-ui/dom";
 
+import { assignRef, type ChildWithRef } from "./refs";
 import { useFloating } from "./useFloating";
 import styles from "./Tooltip.module.css";
 
@@ -10,16 +11,7 @@ export interface TooltipProps {
   title: ReactNode;
   placement?: Placement;
   children: ReactElement;
-}
-
-type ChildWithRef = ReactElement<Record<string, unknown>> & { ref?: Ref<HTMLElement> };
-
-function assignRef(ref: Ref<HTMLElement> | undefined, node: HTMLElement | null): void {
-  if (typeof ref === "function") {
-    ref(node);
-  } else if (ref) {
-    (ref as React.MutableRefObject<HTMLElement | null>).current = node;
-  }
+  /** 注: arrow は現状非対応（必要なら @floating-ui の arrow middleware で実装可能）。 */
 }
 
 /**

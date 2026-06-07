@@ -1,18 +1,12 @@
 import { cloneElement, isValidElement, useEffect, useRef } from "react";
-import type { ReactElement, Ref } from "react";
+import type { ReactElement } from "react";
+
+import { assignRef, type ChildWithRef } from "./refs";
 
 export interface ClickAwayListenerProps {
   onClickAway: (event: MouseEvent | TouchEvent) => void;
   /** ref を受け取れる単一の要素。 */
   children: ReactElement;
-}
-
-function assignRef(ref: Ref<HTMLElement> | undefined, node: HTMLElement | null): void {
-  if (typeof ref === "function") {
-    ref(node);
-  } else if (ref) {
-    (ref as React.MutableRefObject<HTMLElement | null>).current = node;
-  }
 }
 
 /**
@@ -32,7 +26,7 @@ export function ClickAwayListener({ onClickAway, children }: Readonly<ClickAwayL
       }
     };
     document.addEventListener("click", handler);
-    document.addEventListener("touchend", handler);
+    document.addEventListener("touchend", handler, { passive: true });
     return () => {
       document.removeEventListener("click", handler);
       document.removeEventListener("touchend", handler);
@@ -40,7 +34,7 @@ export function ClickAwayListener({ onClickAway, children }: Readonly<ClickAwayL
   }, []);
 
   if (!isValidElement(children)) return children;
-  const child = children as ReactElement<{ ref?: Ref<HTMLElement> }> & { ref?: Ref<HTMLElement> };
+  const child = children as ChildWithRef;
   const childRef = child.ref;
   return cloneElement(child, {
     ref: (node: HTMLElement | null) => {
