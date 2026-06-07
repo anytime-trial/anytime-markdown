@@ -1,0 +1,25 @@
+/* MUI FormControlLabel の置換。control + ラベルを横並び。MUI 既定の負マージン
+   （control の padding ぶんを相殺して左端を揃える）と右マージンを再現。 */
+.root {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-left: -11px;
+  margin-right: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.label {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--am-color-text-primary);
+}
+
+.disabled {
+  cursor: default;
+}
+
+.disabled .label {
+  opacity: 0.38;
+}
