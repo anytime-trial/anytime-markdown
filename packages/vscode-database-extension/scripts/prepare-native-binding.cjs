@@ -31,6 +31,11 @@ const betterSqlite3Root = path.join(repoRoot, 'node_modules', 'better-sqlite3');
 const sourceBinding = path.join(betterSqlite3Root, 'build', 'Release', 'better_sqlite3.node');
 const prebuiltDir = path.resolve(__dirname, '..', 'prebuilt-vscode');
 const prebuiltBinding = path.join(prebuiltDir, 'better_sqlite3.node');
+// reuse 判定用に「どの VSCODE_NODE_TARGET でビルドした binary か」を記録する。
+// マーカーが無い/不一致なら stale とみなし再取得する。
+// (これが無いと VSCODE_NODE_TARGET を変えても古いキャッシュを使い回し、
+//  ターゲット変更が dist に反映されない。)
+const targetMarker = path.join(prebuiltDir, '.node-target');
 
 function nodeModuleVersion(binaryPath) {
   if (!fs.existsSync(binaryPath)) return null;
@@ -89,16 +94,30 @@ function downloadVscodeBinding() {
   }
   fs.mkdirSync(prebuiltDir, { recursive: true });
   fs.copyFileSync(sourceBinding, prebuiltBinding);
-  log(`copied vscode binding → ${prebuiltBinding}`);
+  fs.writeFileSync(targetMarker, `${VSCODE_NODE_TARGET}\n`);
+  log(`copied vscode binding → ${prebuiltBinding} (target v${VSCODE_NODE_TARGET})`);
 }
 
 function main() {
   // 既存 prebuilt-vscode/ binding が VS Code Node 互換ならスキップ。
   // ただし TARGET_ARCH / TARGET_PLATFORM が指定された場合はクロスビルドの可能性が
   // あり、キャッシュされた binary は別アーキの可能性があるため再ダウンロードする。
-  if (fs.existsSync(prebuiltBinding) && !TARGET_ARCH && !TARGET_PLATFORM) {
-    log(`reusing existing ${prebuiltBinding}`);
+  const cachedTarget = fs.existsSync(targetMarker)
+    ? fs.readFileSync(targetMarker, 'utf8').trim()
+    : null;
+  if (
+    fs.existsSync(prebuiltBinding) &&
+    cachedTarget === VSCODE_NODE_TARGET &&
+    !TARGET_ARCH &&
+    !TARGET_PLATFORM
+  ) {
+    log(`reusing existing ${prebuiltBinding} (target v${VSCODE_NODE_TARGET})`);
     return;
+  }
+  if (fs.existsSync(prebuiltBinding)) {
+    log(
+      `cached binding target=${cachedTarget ?? 'unknown'} != requested v${VSCODE_NODE_TARGET}; re-downloading`,
+    );
   }
   const hostBackup = backupHostBinding();
   try {
