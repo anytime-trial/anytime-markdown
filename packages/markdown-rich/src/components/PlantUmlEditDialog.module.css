@@ -1,0 +1,6 @@
+/* MUI Box(sx) 置換。border-bottom 色は inline（getDivider）。 */
+.tabsRow {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid;
+}

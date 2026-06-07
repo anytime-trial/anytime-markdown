@@ -1,0 +1,18 @@
+/*
+ * MUI Box(sx) 置換。数値は旧 sx と一致（pt:0 px:2 pb:2 → padding 0 16px 16px）。
+ * bg・border-top 色/幅・maxHeight・width はテーマ/状態依存のため inline style。
+ */
+.mathContainer {
+  padding: 0 16px 16px;
+  overflow: auto;
+  display: flex;
+  justify-content: flex-start;
+  cursor: pointer;
+  position: relative;
+  max-width: 100%;
+  border-top: 1px solid;
+}
+
+.mathInner {
+  pointer-events: none;
+}

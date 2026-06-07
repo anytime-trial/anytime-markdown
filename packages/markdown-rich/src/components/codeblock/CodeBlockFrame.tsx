@@ -1,10 +1,11 @@
 "use client";
 
-import type { SxProps, Theme } from "@mui/material";
-import { Box } from "@mui/material";
+import type { CSSProperties } from "react";
 import { NodeViewContent, NodeViewWrapper } from "@anytime-markdown/markdown-react";
 
 import { DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_CODE_BG, getDivider, useEditorSettingsContext, DeleteBlockDialog } from "@anytime-markdown/markdown-viewer";
+
+import styles from "./CodeBlockFrame.module.css";
 
 interface CodeBlockFrameProps {
   /** Toolbar row rendered above the code editor */
@@ -48,47 +49,37 @@ export function CodeBlockFrame({
   const hasCodeCollapse = codeCollapsed !== undefined;
   const maxH = codeMaxHeight ?? (hasCodeCollapse ? 200 : 400);
 
-  const hiddenSx = { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" } as const;
   const codeBg = isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG;
-  const baseSx = { m: 0, p: 1.5, fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, bgcolor: codeBg, overflow: "auto", maxHeight: maxH };
-  let preSx: SxProps<Theme>;
-  if (hasCodeCollapse && codeCollapsed) {
-    preSx = { ...hiddenSx, m: 0 };
-  } else if (hasCodeCollapse) {
-    preSx = {
-      ...baseSx,
-      transition: "max-height 0.2s, padding 0.2s, opacity 0.15s",
-      "@media (prefers-reduced-motion: reduce)": { transition: "none" },
-    };
-  } else {
-    preSx = baseSx;
-  }
+  const isHidden = hasCodeCollapse && codeCollapsed;
+  const preClassName = isHidden
+    ? styles.hidden
+    : [styles.pre, hasCodeCollapse ? styles.preAnimated : undefined].filter(Boolean).join(" ");
+  const preStyle: CSSProperties | undefined = isHidden
+    ? undefined
+    : { fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight, backgroundColor: codeBg, maxHeight: maxH };
 
   const preElement = (
-    <Box component="pre" spellCheck={false} sx={preSx}>
+    <pre className={preClassName} style={preStyle} spellCheck={false}>
       {/* @ts-expect-error Tiptap NodeViewContent as prop type is too restrictive */}
       <NodeViewContent as="code" />
-    </Box>
+    </pre>
   );
+
+  const frameClassName = [styles.frame, !showBorder ? styles.frameNoBorder : undefined].filter(Boolean).join(" ");
 
   return (
     <NodeViewWrapper className="block-node-wrapper">
-      <Box sx={{
-        border: 1, borderRadius: 1, overflow: "hidden", my: 1,
-        borderColor: showBorder ? getDivider(isDark) : "transparent",
-        ...(!showBorder && {
-          "& > [data-block-toolbar]": {
-            maxHeight: 0, opacity: 0, py: 0, overflow: "hidden",
-          },
-        }),
-      }}>
+      <div
+        className={frameClassName}
+        style={{ borderColor: showBorder ? getDivider(isDark) : "transparent" }}
+      >
         {toolbar}
         {isDiagramLayout
-          ? <Box sx={codeCollapsed ? { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" } : {}}>{preElement}</Box>
+          ? <div className={codeCollapsed ? styles.hidden : undefined}>{preElement}</div>
           : preElement
         }
         {children}
-      </Box>
+      </div>
       {afterFrame}
       <DeleteBlockDialog
         open={deleteDialogOpen}

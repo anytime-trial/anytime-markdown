@@ -1,14 +1,17 @@
-import FileDownloadIcon from "@mui/icons-material/FileDownload";
-import ImageIcon from "@mui/icons-material/Image";
-import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import ZoomInIcon from "@mui/icons-material/ZoomIn";
-import ZoomOutIcon from "@mui/icons-material/ZoomOut";
-import { Box, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip, Typography } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import React, { useRef, useState } from "react";
 
-import { getDivider, getTextSecondary, FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH, SMALL_CAPTION_FONT_SIZE } from "@anytime-markdown/markdown-viewer";
+import { getDivider, getTextSecondary, FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH, SMALL_CAPTION_FONT_SIZE, useIsDark } from "@anytime-markdown/markdown-viewer";
+import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
+import { ListItemIcon } from "@anytime-markdown/markdown-viewer/src/ui/ListItemIcon";
+import { ListItemText } from "@anytime-markdown/markdown-viewer/src/ui/ListItemText";
+import { Menu } from "@anytime-markdown/markdown-viewer/src/ui/Menu";
+import { MenuItem } from "@anytime-markdown/markdown-viewer/src/ui/MenuItem";
+import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
+import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
+import { FileDownloadIcon, ImageIcon, RestartAltIcon, ZoomInIcon, ZoomOutIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
+
+import styles from "./ZoomToolbar.module.css";
 
 interface ZoomToolbarProps {
   fsZP: UseZoomPanReturn;
@@ -23,8 +26,8 @@ interface ZoomToolbarProps {
 
 /** プレビュー側のズーム・パン操作ツールバー */
 export function ZoomToolbar({ fsZP, onExport, onExportSource, exportSourceKey, t }: Readonly<ZoomToolbarProps>) {
-  const isDark = useTheme().palette.mode === "dark";
-  const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
+  const isDark = useIsDark();
+  const iconColor = getTextSecondary(isDark);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
@@ -32,20 +35,29 @@ export function ZoomToolbar({ fsZP, onExport, onExportSource, exportSourceKey, t
   const hasMenu = onExport && onExportSource;
 
   return (
-    <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
+    <div
+      className={styles.toolbar}
+      style={{ borderColor: getDivider(isDark), minHeight: FS_TOOLBAR_HEIGHT }}
+    >
       {hasMenu && (<>
         <Tooltip title={t("capture")} placement="bottom">
-          <IconButton ref={anchorRef} size="small" sx={{ p: 0.25, mr: 0.5 }} onClick={() => setMenuOpen(true)} aria-label={t("capture")} aria-haspopup="true">
-            <FileDownloadIcon sx={iconSx} />
+          <IconButton
+            ref={anchorRef}
+            size="small"
+            className={[styles.iconBtn, styles.iconBtnMr].join(" ")}
+            onClick={() => setMenuOpen(true)}
+            aria-label={t("capture")}
+            aria-haspopup="true"
+          >
+            <FileDownloadIcon fontSize={16} color={iconColor} />
           </IconButton>
         </Tooltip>
         <Menu
           anchorEl={anchorRef.current}
           open={menuOpen}
           onClose={() => setMenuOpen(false)}
-          anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-          transformOrigin={{ vertical: "top", horizontal: "left" }}
-          slotProps={{ paper: { sx: { minWidth: 180 } } }}
+          placement="bottom-start"
+          minWidth={180}
         >
           <MenuItem onClick={() => { setMenuOpen(false); onExport(); }}>
             <ListItemIcon><ImageIcon fontSize="small" /></ListItemIcon>
@@ -59,31 +71,39 @@ export function ZoomToolbar({ fsZP, onExport, onExportSource, exportSourceKey, t
       </>)}
       {onExport && !hasMenu && (
         <Tooltip title={t("capture")} placement="bottom">
-          <IconButton size="small" sx={{ p: 0.25, mr: 0.5 }} onClick={onExport} aria-label={t("capture")}>
-            <FileDownloadIcon sx={iconSx} />
+          <IconButton
+            size="small"
+            className={[styles.iconBtn, styles.iconBtnMr].join(" ")}
+            onClick={onExport}
+            aria-label={t("capture")}
+          >
+            <FileDownloadIcon fontSize={16} color={iconColor} />
           </IconButton>
         </Tooltip>
       )}
       <Tooltip title={t("zoomOut")} placement="bottom">
-        <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.zoomOut} aria-label={t("zoomOut")}>
-          <ZoomOutIcon sx={iconSx} />
+        <IconButton size="small" className={styles.iconBtn} onClick={fsZP.zoomOut} aria-label={t("zoomOut")}>
+          <ZoomOutIcon fontSize={16} color={iconColor} />
         </IconButton>
       </Tooltip>
       <Tooltip title={t("zoomIn")} placement="bottom">
-        <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.zoomIn} aria-label={t("zoomIn")}>
-          <ZoomInIcon sx={iconSx} />
+        <IconButton size="small" className={styles.iconBtn} onClick={fsZP.zoomIn} aria-label={t("zoomIn")}>
+          <ZoomInIcon fontSize={16} color={iconColor} />
         </IconButton>
       </Tooltip>
       {fsZP.isDirty && (
         <Tooltip title={t("zoomReset")} placement="bottom">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={fsZP.reset} aria-label={t("zoomReset")}>
-            <RestartAltIcon sx={iconSx} />
+          <IconButton size="small" className={styles.iconBtn} onClick={fsZP.reset} aria-label={t("zoomReset")}>
+            <RestartAltIcon fontSize={16} color={iconColor} />
           </IconButton>
         </Tooltip>
       )}
-      <Typography variant="caption" sx={{ minWidth: FS_ZOOM_LABEL_WIDTH, textAlign: "center", fontSize: SMALL_CAPTION_FONT_SIZE }}>
+      <Text
+        variant="caption"
+        style={{ minWidth: FS_ZOOM_LABEL_WIDTH, textAlign: "center", fontSize: SMALL_CAPTION_FONT_SIZE }}
+      >
         {Math.round(fsZP.zoom * 100)}%
-      </Typography>
-    </Box>
+      </Text>
+    </div>
   );
 }

@@ -1,9 +1,12 @@
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import { alpha, Box, IconButton, type Theme,Tooltip, useTheme } from "@mui/material";
 import React, { useCallback, useEffect,useMemo, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary, useEditorSettingsContext, buildColorRuns, applyMerge, computeDiff, type DiffLine } from "@anytime-markdown/markdown-viewer";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary, useEditorSettingsContext, buildColorRuns, applyMerge, computeDiff, useIsDark, type DiffLine } from "@anytime-markdown/markdown-viewer";
+import { alpha } from "@anytime-markdown/markdown-viewer/src/constants/colors";
+import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
+import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
+import { ChevronLeftIcon, ChevronRightIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
+
+import styles from "./FullscreenDiffView.module.css";
 
 interface FullscreenDiffViewProps {
   initialLeftCode: string;
@@ -101,8 +104,7 @@ export function FullscreenDiffView({
   onMergeApply,
   t,
 }: Readonly<FullscreenDiffViewProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
   const { fontSize, lineHeight } = settings;
 
@@ -179,7 +181,7 @@ export function FullscreenDiffView({
   );
 
   return (
-    <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
+    <div className={styles.diffRoot}>
       {/* Left panel (read-only, compare) */}
       <DiffPanel
         diffLines={diffResult.rightLines}
@@ -192,7 +194,7 @@ export function FullscreenDiffView({
         onMerge={handleMergeBlock}
         fontSize={fontSize}
         lineHeight={lineHeight}
-        theme={theme}
+        isDark={isDark}
         t={t}
       />
 
@@ -209,10 +211,10 @@ export function FullscreenDiffView({
         onMerge={handleMergeBlock}
         fontSize={fontSize}
         lineHeight={lineHeight}
-        theme={theme}
+        isDark={isDark}
         t={t}
       />
-    </Box>
+    </div>
   );
 }
 
@@ -230,7 +232,7 @@ interface DiffPanelProps {
   onMerge: (blockId: number, direction: "left-to-right" | "right-to-left") => void;
   fontSize: number;
   lineHeight: number;
-  theme: Theme;
+  isDark: boolean;
   t: (key: string) => string;
 }
 
@@ -246,7 +248,7 @@ function DiffPanel({
   onMerge,
   fontSize,
   lineHeight,
-  theme,
+  isDark,
   t,
 }: Readonly<DiffPanelProps>) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -306,45 +308,28 @@ function DiffPanel({
     return () => ro.disconnect();
   }, [displayText, fontSize, lineHeight]);
 
+  const noPadRight = side === "left" && hasMergeButtons;
+
   const renderMergeGutter = (panelSide: "left" | "right") => (
-    <Box
+    <div
       ref={mergeGutterRef}
-      sx={{
-        width: 24,
-        minWidth: 24,
-        py: 2,
-        m: 0,
-        overflow: "hidden",
-        flexShrink: 0,
-      }}
+      className={styles.mergeGutter}
     >
       {Array.from({ length: alignedCount }, (_, i) => {
         const blockId = mergeButtonIndices.get(i);
         return (
-          <Box
+          <div
             key={i}
-            sx={{
-              position: "relative",
+            className={styles.mergeGutterRow}
+            style={{
               fontFamily: "monospace",
               fontSize: `${fontSize}px`,
               lineHeight,
-              textAlign: "center",
             }}
           >
-            {"\u00A0"}
+            {" "}
             {blockId != null && (
-              <Box
-                sx={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
+              <div className={styles.mergeGutterOverlay}>
                 <Tooltip
                   title={panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft")}
                   placement={panelSide === "left" ? "right" : "left"}
@@ -353,130 +338,87 @@ function DiffPanel({
                     size="small"
                     aria-label={panelSide === "left" ? t("mergeLeftToRight") : t("mergeRightToLeft")}
                     onClick={() => onMerge(blockId, panelSide === "left" ? "left-to-right" : "right-to-left")}
-                    sx={{ p: 0 }}
+                    style={{ padding: 0 }}
                   >
                     {panelSide === "left"
-                      ? <ChevronRightIcon sx={{ fontSize: 16 }} />
-                      : <ChevronLeftIcon sx={{ fontSize: 16 }} />}
+                      ? <ChevronRightIcon fontSize={16} />
+                      : <ChevronLeftIcon fontSize={16} />}
                   </IconButton>
                 </Tooltip>
-              </Box>
+              </div>
             )}
-          </Box>
+          </div>
         );
       })}
-    </Box>
+    </div>
   );
 
-  const isDark = theme.palette.mode === "dark";
-
   return (
-    <Box
-      sx={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        minWidth: 0,
-        borderLeft: side === "right" ? 1 : 0,
+    <div
+      className={[styles.panel, side === "right" ? styles.panelRight : undefined].filter(Boolean).join(" ")}
+      style={{
         borderColor: getDivider(isDark),
-        bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+        backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
       }}
     >
-      <Box sx={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
+      <div className={styles.panelInner}>
         {/* 右パネル: マージガター（←）を行番号の左に配置 */}
         {side === "right" && hasMergeButtons && renderMergeGutter("right")}
 
         {/* 行番号ガター */}
-        <Box
+        <div
           ref={gutterRef}
-          sx={{
+          className={styles.gutter}
+          style={{
             width: `${digits}ch`,
             minWidth: `${digits}ch`,
-            py: 2,
-            px: 1,
-            m: 0,
-            textAlign: "right",
-            fontFamily: "monospace",
             fontSize: `${fontSize}px`,
             lineHeight,
             color: alpha(getTextSecondary(isDark), 0.6),
-            userSelect: "none",
-            overflow: "hidden",
-            boxSizing: "border-box",
-            flexShrink: 0,
           }}
         >
           {lineNumbers.map((num, i) => (
-            <div key={`ln-${num ?? "empty"}-${i}`}>{num || "\u00A0"}</div>
+            <div key={`ln-${num ?? "empty"}-${i}`}>{num || " "}</div>
           ))}
-        </Box>
+        </div>
 
         {/* Textarea + mirror */}
-        <Box ref={textContainerRef} sx={{ flex: 1, minWidth: 0, position: "relative" }}>
+        <div ref={textContainerRef} className={styles.textContainer}>
           {/* ミラー: 折り返し高さ計測用 */}
-          <Box
+          <div
             ref={mirrorRef}
             aria-hidden="true"
-            sx={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              visibility: "hidden",
-              pointerEvents: "none",
-              fontFamily: "monospace",
+            className={[styles.mirror, noPadRight ? styles.mirrorNoPadRight : undefined].filter(Boolean).join(" ")}
+            style={{
               fontSize: `${fontSize}px`,
               lineHeight,
-              whiteSpace: "pre-wrap",
-              overflowWrap: "break-word",
-              py: 2,
-              pr: side === "left" && hasMergeButtons ? 0 : 2,
-              pl: 1,
-              boxSizing: "border-box",
             }}
           >
             {displayLines.map((line, i) => (
-              <div key={`mirror-${i}-${line.slice(0, 16)}`}>{line || "\u00A0"}</div>
+              <div key={`mirror-${i}-${line.slice(0, 16)}`}>{line || " "}</div>
             ))}
-          </Box>
+          </div>
 
-          <Box
-            component="textarea"
+          <textarea
             ref={textareaRef}
             value={displayText}
             onChange={onChange}
             readOnly={readOnly}
             spellCheck={false}
-            style={gradientStyle}
-            sx={{
-              width: "100%",
-              minHeight: "100%",
-              py: 2,
-              pr: side === "left" && hasMergeButtons ? 0 : 2,
-              pl: 1,
-              border: "none",
-              outline: "none",
-              boxShadow: "none",
-              resize: "none",
-              fontFamily: "monospace",
+            className={[styles.diffTextarea, noPadRight ? styles.diffTextareaNoPadRight : undefined].filter(Boolean).join(" ")}
+            style={{
+              ...gradientStyle,
               fontSize: `${fontSize}px`,
               lineHeight,
               color: getTextPrimary(isDark),
-              bgcolor: "transparent",
-              boxSizing: "border-box",
-              "&:focus": {
-                border: "none",
-                outline: "none",
-                boxShadow: "none",
-              },
             }}
           />
-        </Box>
+        </div>
 
         {/* 左パネル: マージガター（→）をテキストの右に配置 */}
         {side === "left" && hasMergeButtons && renderMergeGutter("left")}
 
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

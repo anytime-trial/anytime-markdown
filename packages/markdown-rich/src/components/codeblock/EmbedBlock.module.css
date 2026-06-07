@@ -1,0 +1,9 @@
+/* EmbedBlock — 旧 Box sx からの移設 */
+
+/* コンテナ。静的なレイアウト属性のみ。幅・cursor は動的なので inline style で渡す。 */
+.container {
+  padding: 12px; /* p:1.5 = 1.5×8px = 12px */
+  overflow: hidden;
+  position: relative;
+  display: block;
+}

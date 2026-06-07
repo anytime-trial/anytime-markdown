@@ -1,0 +1,24 @@
+/* MUI Box(sx) 置換。構造・余白・擬似クラスは CSS、テーマ依存色/動的値は inline style。 */
+
+/* renderPreview 内の img 最大幅制限。MUI sx={{ "& img": { maxWidth: "100%" } }} 相当。 */
+.renderPreviewBox img {
+  max-width: 100%;
+}
+
+/* HTML プレビューコンテナ。旧 sx の px:2(16px)/pb:2(16px)/pt:0 + img 制限。 */
+.htmlContainer {
+  padding: 0 16px 16px 16px;
+  overflow: auto;
+  cursor: pointer;
+  position: relative;
+  max-width: 100%;
+}
+
+.htmlContainer img {
+  max-width: 100%;
+}
+
+/* 内部コンテンツ div。旧 sx={{ pointerEvents: "none" }} 相当。 */
+.htmlInner {
+  pointer-events: none;
+}

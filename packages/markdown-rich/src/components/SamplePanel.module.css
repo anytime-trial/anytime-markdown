@@ -1,0 +1,29 @@
+/* SamplePanel — Box(sx) → div + CSS Module */
+
+.root {
+  /* borderTop: 1 solid — color set inline */
+  border-top: 1px solid;
+  flex-shrink: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  /* px: 1.5 = 12px, py: 0.5 = 4px */
+  padding: 4px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.header:hover {
+  /* background-color set inline via CSS variable */
+  background-color: var(--am-sample-header-hover-bg);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  /* gap: 0.75 = 6px, px: 1.5 = 12px, pb: 1.5 = 12px */
+  gap: 6px;
+  padding: 0 12px 12px;
+}

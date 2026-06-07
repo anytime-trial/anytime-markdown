@@ -1,0 +1,50 @@
+/*
+ * MUI Box(sx) 置換。数値は旧 sx と一致: p:1.5(12px)/my:1(8px 上下マージン)/border:1(1px)/borderRadius:1(4px)。
+ * テーマ依存色（codeBg, borderColor, fontSize, lineHeight, maxHeight）は inline style。
+ */
+
+/* code 表示の <pre>。bg/font/maxHeight は inline。 */
+.pre {
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+}
+
+/* code 折りたたみブロック（preview 系）のアニメーション。@media は CSS でしか書けない。 */
+.preAnimated {
+  transition: max-height 0.2s, padding 0.2s, opacity 0.15s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preAnimated {
+    transition: none;
+  }
+}
+
+/* 視覚的に隠す（折りたたみ時）。 */
+.hidden {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  margin: 0;
+}
+
+/* 外枠フレーム。border-color は inline（showBorder で divider / transparent 切替）。 */
+.frame {
+  border: 1px solid;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+/* showBorder=false 時、ツールバー行を畳む（旧 sx の "& > [data-block-toolbar]" 相当）。 */
+.frameNoBorder > [data-block-toolbar] {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
