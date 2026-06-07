@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import styles from "./Drawer.module.css";
+import { useModalFocusTrap } from "./useModalFocusTrap";
 
 export interface DrawerProps {
   open: boolean;
@@ -17,8 +18,6 @@ export interface DrawerProps {
   "aria-label"?: string;
   children: ReactNode;
 }
-
-const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 /**
  * MUI の temporary Drawer 置換。Portal + backdrop + ESC + slide transition +
@@ -39,7 +38,9 @@ export function Drawer({
   children,
 }: Readonly<DrawerProps>) {
   const paperRef = useRef<HTMLDivElement>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
+  const onKeyDown = useModalFocusTrap(open, paperRef, onClose);
+  // open ごとに closed 位置から slide させるため、フレームを 1 つ挟んで entered を立てる。
+  // consumer は Drawer を常時マウントするので、閉じたら次回のために entered をリセットする。
   const [entered, setEntered] = useState(false);
 
   useEffect(() => {
@@ -47,47 +48,19 @@ export function Drawer({
       setEntered(false);
       return;
     }
-    restoreRef.current = document.activeElement as HTMLElement | null;
-    const paper = paperRef.current;
-    // フォーカス可能要素がなければ paper 自体（tabIndex=-1）へ退避する。
-    const first = paper?.querySelector<HTMLElement>(FOCUSABLE);
-    (first ?? paper)?.focus();
-    // 背景スクロールをロックし、閉じたら元の overflow へ戻す。
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    // 次フレームで entered を立て、slide / fade のトランジションを発火させる。
     const id = requestAnimationFrame(() => setEntered(true));
-    return () => {
-      cancelAnimationFrame(id);
-      document.body.style.overflow = prevOverflow;
-      restoreRef.current?.focus?.();
-    };
+    return () => cancelAnimationFrame(id);
   }, [open]);
-
-  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      onClose();
-      return;
-    }
-    if (e.key !== "Tab") return;
-    const nodes = paperRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
-    if (!nodes || nodes.length === 0) return;
-    const firstNode = nodes[0];
-    const lastNode = nodes[nodes.length - 1];
-    if (e.shiftKey && document.activeElement === firstNode) {
-      e.preventDefault();
-      lastNode.focus();
-    } else if (!e.shiftKey && document.activeElement === lastNode) {
-      e.preventDefault();
-      firstNode.focus();
-    }
-  }, [onClose]);
 
   if (!open || typeof document === "undefined") return null;
 
   const anchorClass = anchor === "right" ? styles.right : styles.left;
-  const enteredClass = entered ? ` ${styles.entered}` : "";
+  const paperClassName = [styles.paper, anchorClass, entered && styles.entered]
+    .filter(Boolean)
+    .join(" ");
+  const backdropClassName = [styles.backdrop, entered && styles.entered]
+    .filter(Boolean)
+    .join(" ");
 
   return createPortal(
     <div
@@ -97,7 +70,7 @@ export function Drawer({
       data-print-hide=""
     >
       <div
-        className={`${styles.backdrop}${enteredClass}`}
+        className={backdropClassName}
         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       />
       <div
@@ -105,7 +78,7 @@ export function Drawer({
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
-        className={`${styles.paper} ${anchorClass}${enteredClass}`}
+        className={paperClassName}
         style={{ width, ...paperStyle }}
         tabIndex={-1}
         onKeyDown={onKeyDown}
