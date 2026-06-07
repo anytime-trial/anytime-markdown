@@ -1,8 +1,7 @@
-import { Popper } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import type { VirtualElement } from "@popperjs/core";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { getTextSecondary } from "../constants/colors";
 import { SLASH_COMMAND_FONT_SIZE } from "../constants/dimensions";
@@ -19,6 +18,7 @@ import { MenuItem } from "../ui/MenuItem";
 import { MenuList } from "../ui/MenuList";
 import { Paper } from "../ui/Paper";
 import { Text } from "../ui/Text";
+import { useFloating } from "../ui/useFloating";
 
 interface SlashCommandMenuProps {
   editor: Editor;
@@ -156,21 +156,32 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
     }
   }, [active, from, editor?.view]);
 
+  // MUI Popper → useFloating（@floating-ui/dom 直叩き）。offset 4 / flip / shift(padding 8)。
+  const { referenceRef, floatingRef, x, y, ready } = useFloating({
+    open: active,
+    placement: "bottom-start",
+    offsetPx: 4,
+  });
+  // useFloating の open エフェクトより前に reference を確定させるため render 中に代入する。
+  referenceRef.current = virtualAnchor as unknown as HTMLElement | null;
+
   if (!active || !virtualAnchor) return null;
 
-  return (
-    <Popper
-      open
-      anchorEl={virtualAnchor}
-      placement="bottom-start"
+  return createPortal(
+    <div
+      ref={(node) => { floatingRef.current = node; }}
       role="menu"
       aria-label={t("slashCommandPlaceholder")}
-      style={{ zIndex: Z_FULLSCREEN }}
-      modifiers={[
-        { name: "offset", options: { offset: [0, 4] } },
-        { name: "flip", enabled: true },
-        { name: "preventOverflow", enabled: true, options: { padding: 8 } },
-      ]}
+      style={{
+        position: "fixed",
+        left: x,
+        top: y,
+        zIndex: Z_FULLSCREEN,
+        // 位置確定前は opacity で不可視化（visibility:hidden は a11y ツリーから外れ
+        // getByRole が拾えなくなるため）。Menu primitive と同方式。
+        opacity: ready ? 1 : 0,
+        pointerEvents: ready ? undefined : "none",
+      }}
     >
       <Paper
         style={{ maxHeight: 300, overflow: "auto", minWidth: 200, maxWidth: 280, boxShadow: "var(--am-elevation-3)" }}
@@ -208,6 +219,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
         </MenuList>
         )}
       </Paper>
-    </Popper>
+    </div>,
+    document.body,
   );
 });
