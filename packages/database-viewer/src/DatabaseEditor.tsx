@@ -1,17 +1,18 @@
 "use client";
 
-import AddIcon from "@mui/icons-material/Add";
-import CloseIcon from "@mui/icons-material/Close";
 import {
+  AddIcon,
+  applyDatabaseUiThemeVars,
   Box,
   Chip,
+  CloseIcon,
   IconButton,
   Stack,
   Tab,
   Tabs,
+  Text,
   Tooltip,
-  Typography,
-} from "@mui/material";
+} from "./ui";
 import { DatabaseI18nProvider, useDatabaseT } from "./i18n/context";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
@@ -94,6 +95,13 @@ const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
       void adapter.listSchema().then(setSchema);
     }
   }, [schema, adapter]);
+
+  // 自前 UI キットのテーマ変数 (--dbv-color-*) を documentElement へ適用する。
+  // ResultGrid (SpreadsheetEditor) 非表示時 (ERD タブ等) やポータル先 (Menu/Tooltip) にも
+  // 色が届くように、ルートで themeMode に追従して設定する。
+  useEffect(() => {
+    applyDatabaseUiThemeVars(themeMode === "dark");
+  }, [themeMode]);
 
   const activeTab = tabs.find((x) => x.id === activeTabId) ?? null;
 
@@ -385,26 +393,25 @@ const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
         />
         {activeTab.kind === "table" ? (
           <Box
-            sx={{
-              borderBottom: 1,
-              borderColor: "divider",
+            style={{
+              borderBottom: "1px solid var(--dbv-color-divider)",
               flexShrink: 0,
             }}
           >
             <Tabs
               value={activeTab.view}
-              onChange={(_, v) => setActiveTabView(v as "data" | "schema")}
-              sx={{ minHeight: 32 }}
+              onChange={(v) => setActiveTabView(v as "data" | "schema")}
+              style={{ minHeight: 32 }}
             >
               <Tab
                 value="data"
                 label={t("viewData")}
-                sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
+                style={{ minHeight: 32, paddingTop: 2, paddingBottom: 2 }}
               />
               <Tab
                 value="schema"
                 label={t("viewSchema")}
-                sx={{ textTransform: "none", minHeight: 32, py: 0.25 }}
+                style={{ minHeight: 32, paddingTop: 2, paddingBottom: 2 }}
               />
             </Tabs>
           </Box>
@@ -420,28 +427,27 @@ const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
     )
   ) : (
     <Stack
-      sx={{ flexGrow: 1, minHeight: 0, overflow: "auto", p: 2 }}
       spacing={2}
+      style={{ flexGrow: 1, minHeight: 0, overflow: "auto", padding: 16 }}
     >
       <SqlEditorPanel
         onRun={handleRun}
         readOnly={adapter.capabilities.readOnly}
         disabled
       />
-      <Typography color="text.secondary" sx={{ textAlign: "center" }}>
+      <Text color="text.secondary" style={{ textAlign: "center", display: "block" }}>
         {t("selectTablePrompt")}
-      </Typography>
+      </Text>
     </Stack>
   );
 
   return (
-    <Stack direction="row" sx={{ height: "100%", overflow: "hidden" }}>
+    <Stack direction="row" style={{ height: "100%", overflow: "hidden" }}>
       <Box
-        sx={{
+        style={{
           width: 280,
           flexShrink: 0,
-          borderRight: 1,
-          borderColor: "divider",
+          borderRight: "1px solid var(--dbv-color-divider)",
           display: "flex",
           flexDirection: "column",
           minHeight: 0,
@@ -456,17 +462,21 @@ const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
           databaseName={databaseName}
         />
       </Box>
-      <Stack sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ p: 1, flexShrink: 0 }}>
+      <Stack style={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={1}
+          style={{ padding: 8, flexShrink: 0 }}
+        >
           {adapter.capabilities.readOnly ? (
-            <Chip size="small" color="default" label="read-only" />
+            <Chip size="small" label="read-only" />
           ) : null}
         </Stack>
         {tabs.length > 0 ? (
           <Box
-            sx={{
-              borderBottom: 1,
-              borderColor: "divider",
+            style={{
+              borderBottom: "1px solid var(--dbv-color-divider)",
               flexShrink: 0,
               display: "flex",
               alignItems: "center",
@@ -474,9 +484,7 @@ const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
           >
             <Tabs
               value={activeTabId ?? false}
-              onChange={(_, v) => setActiveTabId(v as string)}
-              variant="scrollable"
-              scrollButtons="auto"
+              onChange={(v) => setActiveTabId(v)}
             >
               {tabs.map((tab) => (
                 <Tab
@@ -492,13 +500,13 @@ const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
                           e.stopPropagation();
                           closeTab(tab.id);
                         }}
-                        sx={{ p: 0.25 }}
+                        style={{ padding: 2 }}
                       >
-                        <CloseIcon sx={{ fontSize: 14 }} />
+                        <CloseIcon fontSize={14} />
                       </IconButton>
                     </Stack>
                   }
-                  sx={{ textTransform: "none", minHeight: 36, py: 0.5 }}
+                  style={{ minHeight: 36, paddingTop: 4, paddingBottom: 4 }}
                 />
               ))}
             </Tabs>
@@ -507,7 +515,7 @@ const DatabaseEditorInner: React.FC<Readonly<InnerProps>> = ({
                 size="small"
                 onClick={handleAddQueryTab}
                 aria-label={t("tabAddQuery")}
-                sx={{ mx: 0.5 }}
+                style={{ marginLeft: 4, marginRight: 4 }}
               >
                 <AddIcon fontSize="small" />
               </IconButton>

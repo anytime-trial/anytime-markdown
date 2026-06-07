@@ -8,21 +8,14 @@
  * - sqlStatusRows / sqlStatusTime labels after successful run
  */
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import React, { createRef } from 'react';
 
 import { DatabaseI18nProvider } from '../i18n/context';
 import { SqlEditorPanel } from '../SqlEditorPanel';
 import type { SqlEditorPanelHandle } from '../SqlEditorPanel';
 
-const theme = createTheme({ palette: { mode: 'light' } });
-
 function wrap(ui: React.ReactNode) {
-  return render(
-    <DatabaseI18nProvider locale="ja">
-      <ThemeProvider theme={theme}>{ui}</ThemeProvider>
-    </DatabaseI18nProvider>,
-  );
+  return render(<DatabaseI18nProvider locale="ja">{ui}</DatabaseI18nProvider>);
 }
 
 const noopRun = async () => ({ columns: [], rows: [], executionTimeMs: 0, truncated: false });
@@ -102,9 +95,7 @@ describe('SqlEditorPanel — extended', () => {
     });
     const { getByText } = render(
       <DatabaseI18nProvider locale="ja">
-        <ThemeProvider theme={theme}>
-          <SqlEditorPanel onRun={onRun} />
-        </ThemeProvider>
+        <SqlEditorPanel onRun={onRun} />
       </DatabaseI18nProvider>,
     );
     const textarea = document.querySelector('textarea') as HTMLTextAreaElement;

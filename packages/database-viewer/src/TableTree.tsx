@@ -1,11 +1,10 @@
 "use client";
 
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import StorageIcon from "@mui/icons-material/Storage";
 import {
   Box,
   Collapse,
+  ExpandLessIcon,
+  ExpandMoreIcon,
   List,
   ListItemButton,
   ListItemIcon,
@@ -13,9 +12,10 @@ import {
   Menu,
   MenuItem,
   Stack,
+  StorageIcon,
+  Text,
   TextField,
-  Typography,
-} from "@mui/material";
+} from "./ui";
 import { useDatabaseT } from "./i18n/context";
 import React, { useMemo, useState } from "react";
 import type { SchemaInfo } from "@anytime-markdown/database-core";
@@ -60,68 +60,57 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
     };
   }, [schema, filter]);
 
-  if (!schema) return <Typography>{t("treeLoading")}</Typography>;
+  if (!schema) return <Text>{t("treeLoading")}</Text>;
 
   const empty = filtered?.tables.length === 0 && filtered.views.length === 0;
 
   return (
-    <Stack sx={{ p: 1, flex: 1, minHeight: 0, overflow: "hidden" }}>
+    <Stack style={{ padding: 8, flex: 1, minHeight: 0, overflow: "hidden" }}>
       <TextField
         size="small"
         placeholder={t("treeSearchPlaceholder")}
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        sx={{ mb: 1, flexShrink: 0 }}
+        style={{ marginBottom: 8, flexShrink: 0 }}
       />
       <Box
-        sx={{
-          overflow: "auto",
-          flexGrow: 1,
-          minHeight: 0,
-          // VS Code WebView でも視認できる太さ・コントラストの scrollbar を明示
-          scrollbarWidth: "auto",
-          scrollbarColor:
-            "rgba(255,255,255,0.55) rgba(255,255,255,0.05)",
-          "&::-webkit-scrollbar": { width: 12, height: 12 },
-          "&::-webkit-scrollbar-track": {
-            background: "rgba(255,255,255,0.05)",
-          },
-          "&::-webkit-scrollbar-thumb": {
-            background: "rgba(255,255,255,0.45)",
-            borderRadius: 3,
-          },
-          "&::-webkit-scrollbar-thumb:hover": {
-            background: "rgba(255,255,255,0.6)",
-          },
-        }}
+        className="dbv-scroll"
+        style={{ overflow: "auto", flexGrow: 1, minHeight: 0 }}
       >
-        <List dense disablePadding>
+        <List>
           <ListItemButton
             onClick={() => setDbExpanded((v) => !v)}
             onContextMenu={(e) => {
               e.preventDefault();
               setMenu({ anchorX: e.clientX, anchorY: e.clientY, target: { type: "db" } });
             }}
-            sx={{ py: 0.5 }}
           >
-            <ListItemIcon sx={{ minWidth: 28 }}>
+            <ListItemIcon>
               <StorageIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText
               primary={databaseName ?? t("databaseLabel")}
-              slotProps={{ primary: { fontWeight: 600 } }}
+              primaryStyle={{ fontWeight: 600 }}
             />
             {dbExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
           </ListItemButton>
-          <Collapse in={dbExpanded} timeout="auto" unmountOnExit>
-            <Box sx={{ pl: 2 }}>
-              {empty ? <Typography sx={{ pl: 1, py: 0.5 }}>{t("treeEmpty")}</Typography> : null}
+          <Collapse in={dbExpanded} unmountOnExit>
+            <Box style={{ paddingLeft: 16 }}>
+              {empty ? (
+                <Text style={{ display: "block", paddingLeft: 8, paddingTop: 4, paddingBottom: 4 }}>
+                  {t("treeEmpty")}
+                </Text>
+              ) : null}
               {filtered && filtered.tables.length > 0 ? (
                 <>
-                  <Typography variant="caption" sx={{ pl: 1, color: "text.secondary" }}>
+                  <Text
+                    variant="caption"
+                    color="text.secondary"
+                    style={{ display: "block", paddingLeft: 8 }}
+                  >
                     {t("treeTablesGroup")}
-                  </Typography>
-                  <List dense disablePadding>
+                  </Text>
+                  <List>
                     {filtered.tables.map((tab) => (
                       <ListItemButton
                         key={tab.name}
@@ -131,7 +120,7 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
                           e.preventDefault();
                           setMenu({ anchorX: e.clientX, anchorY: e.clientY, target: { type: "table", name: tab.name } });
                         }}
-                        sx={{ pl: 2 }}
+                        style={{ paddingLeft: 16 }}
                       >
                         <ListItemText primary={tab.name} />
                       </ListItemButton>
@@ -141,10 +130,14 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
               ) : null}
               {filtered && filtered.views.length > 0 ? (
                 <>
-                  <Typography variant="caption" sx={{ pl: 1, color: "text.secondary" }}>
+                  <Text
+                    variant="caption"
+                    color="text.secondary"
+                    style={{ display: "block", paddingLeft: 8 }}
+                  >
                     {t("treeViewsGroup")}
-                  </Typography>
-                  <List dense disablePadding>
+                  </Text>
+                  <List>
                     {filtered.views.map((v) => (
                       <ListItemButton
                         key={v.name}
@@ -154,7 +147,7 @@ export const TableTree: React.FC<Readonly<TableTreeProps>> = ({
                           e.preventDefault();
                           setMenu({ anchorX: e.clientX, anchorY: e.clientY, target: { type: "table", name: v.name } });
                         }}
-                        sx={{ pl: 2 }}
+                        style={{ paddingLeft: 16 }}
                       >
                         <ListItemText primary={v.name} />
                       </ListItemButton>
