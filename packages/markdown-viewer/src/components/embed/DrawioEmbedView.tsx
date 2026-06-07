@@ -1,5 +1,6 @@
-import { useTheme } from "@mui/material";
+import { useIsDark } from "../../contexts/ThemeModeContext";
 
+import { getBgPaper, getDivider, getTextPrimary, getTextSecondary } from "../../constants/colors";
 import { HexagonOutlinedIcon } from "../../ui/icons";
 import { Stack } from "../../ui/Stack";
 import { Text } from "../../ui/Text";
@@ -21,7 +22,7 @@ function extractFileName(url: string): string {
 }
 
 export function DrawioEmbedView({ url, variant, widthOverride }: Readonly<Props>) {
-    const theme = useTheme();
+    const isDark = useIsDark();
 
     if (variant === "compact") {
         return (
@@ -36,9 +37,9 @@ export function DrawioEmbedView({ url, variant, widthOverride }: Readonly<Props>
                     spacing={1}
                     alignItems="center"
                     style={{
-                        border: `1px solid ${theme.palette.divider}`,
+                        border: `1px solid ${getDivider(isDark)}`,
                         borderRadius: 4,
-                        backgroundColor: theme.palette.background.paper,
+                        backgroundColor: getBgPaper(isDark),
                         maxWidth: 720,
                         height: 40,
                         paddingLeft: 12,
@@ -47,12 +48,12 @@ export function DrawioEmbedView({ url, variant, widthOverride }: Readonly<Props>
                 >
                     <HexagonOutlinedIcon
                         fontSize={16}
-                        color={theme.palette.text.secondary}
+                        color={getTextSecondary(isDark)}
                         style={{ flexShrink: 0 }}
                     />
                     <Text
                         style={{
-                            color: theme.palette.text.primary,
+                            color: getTextPrimary(isDark),
                             fontSize: 14,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
@@ -78,7 +79,7 @@ export function DrawioEmbedView({ url, variant, widthOverride }: Readonly<Props>
                 paddingTop: "75%",
                 borderRadius: 4,
                 overflow: "hidden",
-                border: `1px solid ${theme.palette.divider}`,
+                border: `1px solid ${getDivider(isDark)}`,
             }}
         >
             <iframe

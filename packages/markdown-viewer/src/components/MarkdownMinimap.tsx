@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "@mui/material/styles";
 import { KeyboardArrowDownIcon, KeyboardArrowUpIcon } from "../ui/icons";
 import { IconButton } from "../ui/IconButton";
 import { Tooltip } from "../ui/Tooltip";
@@ -8,6 +7,7 @@ import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useRef } from "react";
 
 import { useMarkdownMinimap } from "../hooks/useMarkdownMinimap";
+import { useIsDark } from "../contexts/ThemeModeContext";
 
 const BAR_WIDTH = 16;
 const BTN_SIZE = 20;
@@ -21,8 +21,7 @@ export function MarkdownMinimap({
   editor,
   editorHeight,
 }: Readonly<MarkdownMinimapProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const barRef = useRef<HTMLDivElement | null>(null);
 
   const { markerRatios, hasChanges, handleBarClick, goToNext, goToPrev } =
@@ -80,7 +79,7 @@ export function MarkdownMinimap({
           position: "relative",
           cursor: "pointer",
           backgroundColor: barBg,
-          borderLeft: `1px solid ${theme.palette.divider}`,
+          borderLeft: `1px solid var(--am-color-divider)`,
           overflow: "hidden",
         }}
       >

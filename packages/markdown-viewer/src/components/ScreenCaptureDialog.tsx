@@ -1,11 +1,11 @@
 "use client";
 
-import { useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "../ui/Button";
 import { CameraAltIcon, RefreshIcon, ScreenshotMonitorIcon } from "../ui/icons";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { getDivider } from "../constants/colors";
 import { Text } from "../ui/Text";
 import { EditDialogHeader } from "./EditDialogHeader";
@@ -22,7 +22,7 @@ interface ScreenCaptureDialogProps {
 }
 
 export function ScreenCaptureDialog({ open, onClose, onCapture, t }: Readonly<ScreenCaptureDialogProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [phase, setPhase] = useState<CapturePhase>("idle");
   const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
 

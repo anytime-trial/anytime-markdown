@@ -1,7 +1,6 @@
 "use client";
 
 import { CheckIcon, CloseIcon, CropIcon, GridOnIcon, PhotoSizeSelectLargeIcon, StraightenIcon } from "../ui/icons";
-import { useTheme } from "@mui/material/styles";
 import { Tooltip } from "../ui/Tooltip";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
@@ -10,6 +9,7 @@ import { Chip } from "../ui/Chip";
 import { IconButton } from "../ui/IconButton";
 import styles from "./ImageCropTool.module.css";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
 import { CHIP_FONT_SIZE, PANEL_BUTTON_FONT_SIZE, STATUSBAR_FONT_SIZE } from "../constants/dimensions";
 import { useCropEstimate } from "../hooks/useCropEstimate";
@@ -24,7 +24,7 @@ interface ImageCropToolProps {
 }
 
 export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [cropping, setCropping] = useState(false);
   const [showRuler, setShowRuler] = useState(false);
   const [showGrid, setShowGrid] = useState(false);

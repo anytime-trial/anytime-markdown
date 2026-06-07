@@ -1,5 +1,3 @@
-import type { SxProps,Theme } from "@mui/material/styles";
-
 import { getEditorBg, getEditorText } from "../constants/colors";
 import type { PaperSize } from "../constants/dimensions";
 import { calcPaperContentWidth, EDITOR_PADDING_BORDER,EDITOR_PADDING_TOP } from "../constants/dimensions";
@@ -7,16 +5,16 @@ import type { EditorSettings } from "../useEditorSettings";
 import { getSharedContentStyles } from "./sharedContentStyles";
 
 /**
- * WYSIWYG エディタ Paper の sx スタイルを生成する。
+ * WYSIWYG エディタ Paper のスタイルオブジェクトを生成する。
  * MarkdownEditorPage から切り出し（M-09 リファクタリング）。
+ * isDark は ThemeModeContext（useIsDark）から渡す（旧 MUI Theme 依存を排除）。
  */
 export function getEditorPaperSx(
-  theme: Theme,
+  isDark: boolean,
   settings: EditorSettings,
   editorHeight: number,
   options?: { readonlyMode?: boolean; noScroll?: boolean },
-): SxProps<Theme> {
-  const isDark = theme.palette.mode === "dark";
+): Record<string, unknown> {
   const editorBg = getEditorBg(isDark, settings);
   const hasPaper = settings.paperSize !== "off";
   // 用紙サイズ有効時: 外側を少し暗く/明るくして用紙境界を示す
@@ -51,12 +49,12 @@ export function getEditorPaperSx(
       fontFamily: "var(--editor-content-font-family, sans-serif)",
       fontSize: `${settings.fontSize}px`,
       lineHeight: settings.lineHeight,
-      color: getEditorText(theme.palette.mode === "dark", settings),
+      color: getEditorText(isDark, settings),
       WebkitFontSmoothing: isDark ? "antialiased" : "auto",
       MozOsxFontSmoothing: isDark ? "grayscale" : "auto",
       wordBreak: settings.wordBreak === "keep-all" ? "keep-all" : "normal",
       overflowWrap: "break-word",
-      ...getSharedContentStyles(theme, settings, options),
+      ...getSharedContentStyles(isDark, settings, options),
       // blockAlign: 全ブロック要素を統一パターンで配置
       // NodeViewWrapper に text-align を設定し、直下の子要素を inline-block にして幅をコンテンツに合わせる
       ...(settings.blockAlign !== "left" && {

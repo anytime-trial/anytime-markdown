@@ -1,7 +1,7 @@
-import { useTheme } from "@mui/material";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useState } from "react";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { PRINT_DELAY } from "../constants/timing";
 import type { NotificationKey } from "./useNotification";
 
@@ -52,8 +52,7 @@ interface UsePdfExportParams {
 
 export function usePdfExport({ editor, showNotification, prepareDarkDiagrams }: UsePdfExportParams) {
   const [pdfExporting, setPdfExporting] = useState(false);
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
 
   const handleExportPdf = useCallback(async () => {
     if (typeof globalThis === "undefined" || !editor) {

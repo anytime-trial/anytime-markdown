@@ -1,11 +1,9 @@
-import {
-  useTheme,
-} from "@mui/material";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useEditorState } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT, getDivider } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { SIDE_TOOLBAR_WIDTH } from "../constants/dimensions";
 import { modKey } from "../constants/shortcuts";
 import { Z_TOOLBAR } from "../constants/zIndex";
@@ -143,7 +141,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   } = hide;
   const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen, explorerOpen } = modeState;
   const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge, onToggleExplorer } = modeHandlers;
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
 
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);
   const mobileMoreRef = useRef<HTMLButtonElement>(null);

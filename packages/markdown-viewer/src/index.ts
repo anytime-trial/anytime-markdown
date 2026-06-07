@@ -187,6 +187,8 @@ export { EditorModeContext, useEditorMode } from './contexts/EditorModeContext';
 export type { EditorFeatures } from './contexts/EditorFeaturesContext';
 export { useEditorFeaturesContext } from './contexts/EditorFeaturesContext';
 export { findCodeBlockByIndex, findCounterpartCode, getCodeBlockIndex, getMergeEditors } from './contexts/MergeEditorsContext';
+export type { ThemeMode } from './contexts/ThemeModeContext';
+export { ThemeModeProvider, useIsDark, useThemeMode } from './contexts/ThemeModeContext';
 
 // Providers
 export { ConfirmContext,ConfirmProvider } from './providers/ConfirmProvider';

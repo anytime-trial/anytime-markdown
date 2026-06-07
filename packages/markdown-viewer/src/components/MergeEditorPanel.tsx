@@ -3,9 +3,9 @@ import { EditorContent } from "@anytime-markdown/markdown-react";
 import { ChevronLeftIcon, ChevronRightIcon, UnfoldMoreIcon } from "../ui/icons";
 import { Tooltip } from "../ui/Tooltip";
 import type { SxProps, Theme } from "@mui/material/styles";
-import { useTheme } from "@mui/material/styles";
 import React, { useEffect, useRef, useState } from "react";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { alpha, getActionHover, getErrorMain, getSuccessMain, getTextPrimary, getTextSecondary } from "../constants/colors";
 import { IconButton } from "../ui/IconButton";
 import { useMarkdownT } from "../i18n/context";
@@ -18,8 +18,7 @@ import styles from "./MergeEditorPanel.module.css";
 
 export { getMergeTiptapStyles } from "./mergeTiptapStyles";
 
-function _getLineBgColor(type: DiffLine["type"], theme: Theme) {
-  const isDark = theme.palette.mode === "dark";
+function _getLineBgColor(type: DiffLine["type"], isDark: boolean) {
   switch (type) {
     case "added":
     case "modified-new":
@@ -600,8 +599,7 @@ export function MergeEditorPanel({
   expandedStarts,
   onToggleExpand,
 }: Readonly<MergeEditorPanelProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const t = useMarkdownT("MarkdownEditor");
   const editorSettings = useEditorSettingsContext();
   const fallbackTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -626,7 +624,7 @@ export function MergeEditorPanel({
     );
   }
 
-  const tiptapStyles = getMergeTiptapStyles(theme, editorSettings, { showHoverLabels });
+  const tiptapStyles = getMergeTiptapStyles(isDark, editorSettings, { showHoverLabels });
 
   // paperSx を static style にベストエフォートでマージ
   const paperExtraStyle = (paperSx && !Array.isArray(paperSx) ? paperSx : {}) as React.CSSProperties;

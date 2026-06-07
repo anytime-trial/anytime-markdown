@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "@mui/material";
 import { FiberManualRecordIcon, GifIcon, PauseIcon, PlayArrowIcon } from "../ui/icons";
 import { IconButton } from "../ui/IconButton";
 import { Tooltip } from "../ui/Tooltip";
@@ -8,6 +7,7 @@ import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 import { NodeViewWrapper } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { getDivider, getErrorMain, getTextDisabled } from "../constants/colors";
 import { HANDLEBAR_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import { saveBlob,useBlockCapture } from "../hooks/useBlockCapture";
@@ -203,8 +203,7 @@ function GifPlaybackImage({
 
 export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
   const t = useMarkdownT("MarkdownEditor");
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const {
     deleteDialogOpen, setDeleteDialogOpen,
     editOpen: _editOpen, setEditOpen: _setEditOpen,

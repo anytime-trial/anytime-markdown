@@ -1,9 +1,6 @@
 "use client";
 
 import {
-  useTheme,
-} from "@mui/material";
-import {
   ChevronRightIcon,
   ClearIcon,
   CloseIcon,
@@ -18,6 +15,7 @@ import { Tooltip } from "../ui/Tooltip";
 import React, { useCallback, useState } from "react";
 
 import { getErrorMain, getPrimaryContrast, getPrimaryDark, getPrimaryLight, getPrimaryMain, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { SEARCH_COUNTER_FONT_SIZE, SEARCH_INPUT_FONT_SIZE } from "../constants/dimensions";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
@@ -36,8 +34,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
   onClose,
   t,
 }: SourceSearchBarProps) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const [showReplace, setShowReplace] = useState(false);
 
   const resultCount = search.matches.length;

@@ -7,9 +7,9 @@ import { ListItemIcon } from "../../ui/ListItemIcon";
 import { ListItemText } from "../../ui/ListItemText";
 import { Menu } from "../../ui/Menu";
 import { MenuItem } from "../../ui/MenuItem";
-import { useTheme } from "@mui/material/styles";
 import React, { useRef, useState } from "react";
 
+import { useIsDark } from "../../contexts/ThemeModeContext";
 import { getActionHover, getPrimaryMain, getTextSecondary } from "../../constants/colors";
 import { Divider } from "../../ui/Divider";
 import { Text } from "../../ui/Text";
@@ -43,7 +43,7 @@ export interface BlockInlineToolbarProps {
 export function BlockInlineToolbar({
   label, onEdit, onDelete, onExport, onExportSource, exportSourceKey, collapsed, extra, labelDivider, labelOnly, t,
 }: Readonly<BlockInlineToolbarProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
 
   const [menuOpen, setMenuOpen] = useState(false);

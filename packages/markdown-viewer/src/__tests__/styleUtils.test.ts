@@ -1,4 +1,3 @@
-import { createTheme } from "@mui/material";
 import { getBaseStyles } from "../styles/baseStyles";
 import { getBlockStyles } from "../styles/blockStyles";
 import { getCodeStyles } from "../styles/codeStyles";
@@ -6,9 +5,6 @@ import { getHeadingStyles } from "../styles/headingStyles";
 import { getInlineStyles } from "../styles/inlineStyles";
 import { getEditorPaperSx } from "../styles/editorStyles";
 import type { EditorSettings } from "../useEditorSettings";
-
-const lightTheme = createTheme({ palette: { mode: "light" } });
-const darkTheme = createTheme({ palette: { mode: "dark" } });
 
 const defaultSettings: EditorSettings = {
   fontSize: 16,
@@ -28,19 +24,19 @@ const defaultSettings: EditorSettings = {
 
 describe("getBaseStyles", () => {
   test("ライトテーマでオブジェクトを返す", () => {
-    const result = getBaseStyles(lightTheme);
+    const result = getBaseStyles(false);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("ダークテーマでオブジェクトを返す", () => {
-    const result = getBaseStyles(darkTheme);
+    const result = getBaseStyles(true);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("readonlyModeオプションを受け付ける", () => {
-    const result = getBaseStyles(lightTheme, { readonlyMode: true });
+    const result = getBaseStyles(false, { readonlyMode: true });
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
@@ -48,19 +44,19 @@ describe("getBaseStyles", () => {
 
 describe("getBlockStyles", () => {
   test("ライトテーマでオブジェクトを返す", () => {
-    const result = getBlockStyles(lightTheme, defaultSettings);
+    const result = getBlockStyles(false, defaultSettings);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("ダークテーマでオブジェクトを返す", () => {
-    const result = getBlockStyles(darkTheme, defaultSettings);
+    const result = getBlockStyles(true, defaultSettings);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("テーブルとイメージのスタイルを含む", () => {
-    const result = getBlockStyles(lightTheme, defaultSettings) as Record<string, unknown>;
+    const result = getBlockStyles(false, defaultSettings) as Record<string, unknown>;
     expect(result).toHaveProperty("& table");
     expect(result).toHaveProperty("& img");
   });
@@ -68,19 +64,19 @@ describe("getBlockStyles", () => {
 
 describe("getCodeStyles", () => {
   test("ライトテーマでオブジェクトを返す", () => {
-    const result = getCodeStyles(lightTheme);
+    const result = getCodeStyles(false);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("ダークテーマでオブジェクトを返す", () => {
-    const result = getCodeStyles(darkTheme);
+    const result = getCodeStyles(true);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("codeとpreのスタイルを含む", () => {
-    const result = getCodeStyles(lightTheme) as Record<string, unknown>;
+    const result = getCodeStyles(false) as Record<string, unknown>;
     expect(result).toHaveProperty("& code");
     expect(result).toHaveProperty("& pre");
   });
@@ -88,19 +84,19 @@ describe("getCodeStyles", () => {
 
 describe("getHeadingStyles", () => {
   test("ライトテーマでオブジェクトを返す", () => {
-    const result = getHeadingStyles(lightTheme);
+    const result = getHeadingStyles(false);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("ダークテーマでオブジェクトを返す", () => {
-    const result = getHeadingStyles(darkTheme);
+    const result = getHeadingStyles(true);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("h1〜h3のスタイルを含む", () => {
-    const result = getHeadingStyles(lightTheme) as Record<string, unknown>;
+    const result = getHeadingStyles(false) as Record<string, unknown>;
     expect(result).toHaveProperty("& h1");
     expect(result).toHaveProperty("& h2");
     expect(result).toHaveProperty("& h3");
@@ -109,56 +105,56 @@ describe("getHeadingStyles", () => {
 
 describe("getInlineStyles", () => {
   test("ライトテーマでオブジェクトを返す", () => {
-    const result = getInlineStyles(lightTheme);
+    const result = getInlineStyles(false);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("ダークテーマでオブジェクトを返す", () => {
-    const result = getInlineStyles(darkTheme);
+    const result = getInlineStyles(true);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("リンクのスタイルを含む", () => {
-    const result = getInlineStyles(lightTheme) as Record<string, unknown>;
+    const result = getInlineStyles(false) as Record<string, unknown>;
     expect(result).toHaveProperty("& a");
   });
 });
 
 describe("getEditorPaperSx", () => {
   test("ライトテーマでオブジェクトを返す", () => {
-    const result = getEditorPaperSx(lightTheme, defaultSettings, 600);
+    const result = getEditorPaperSx(false, defaultSettings, 600);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("ダークテーマでオブジェクトを返す", () => {
-    const result = getEditorPaperSx(darkTheme, defaultSettings, 600);
+    const result = getEditorPaperSx(true, defaultSettings, 600);
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("paperSize A4でmaxWidthを含む", () => {
     const a4Settings = { ...defaultSettings, paperSize: "A4" as const };
-    const result = getEditorPaperSx(lightTheme, a4Settings, 600) as Record<string, Record<string, unknown>>;
+    const result = getEditorPaperSx(false, a4Settings, 600) as Record<string, Record<string, unknown>>;
     expect(result["& .tiptap"]).toHaveProperty("maxWidth");
   });
 
   test("readonlyModeオプションを受け付ける", () => {
-    const result = getEditorPaperSx(lightTheme, defaultSettings, 600, { readonlyMode: true });
+    const result = getEditorPaperSx(false, defaultSettings, 600, { readonlyMode: true });
     expect(result).toBeDefined();
     expect(typeof result).toBe("object");
   });
 
   test("noScrollオプションでoverflowYがvisibleになる", () => {
-    const result = getEditorPaperSx(lightTheme, defaultSettings, 600, { noScroll: true }) as Record<string, Record<string, unknown>>;
+    const result = getEditorPaperSx(false, defaultSettings, 600, { noScroll: true }) as Record<string, Record<string, unknown>>;
     expect(result["& .tiptap"]).toHaveProperty("overflowY", "visible");
   });
 
   test("blockAlign center で textAlign スタイルが含まれる", () => {
     const centerSettings = { ...defaultSettings, blockAlign: "center" as const };
-    const result = getEditorPaperSx(lightTheme, centerSettings, 600) as Record<string, Record<string, unknown>>;
+    const result = getEditorPaperSx(false, centerSettings, 600) as Record<string, Record<string, unknown>>;
     const tiptap = result["& .tiptap"] as Record<string, unknown>;
     // blockAlign !== 'left' adds image/block wrapper styles
     const key = Object.keys(tiptap).find(k => k.includes("image-node-wrapper"));
@@ -167,7 +163,7 @@ describe("getEditorPaperSx", () => {
 
   test("ダークテーマ + paperSize A4 で用紙スタイルが含まれる", () => {
     const a4Settings = { ...defaultSettings, paperSize: "A4" as const };
-    const result = getEditorPaperSx(darkTheme, a4Settings, 600) as Record<string, Record<string, unknown>>;
+    const result = getEditorPaperSx(true, a4Settings, 600) as Record<string, Record<string, unknown>>;
     expect(result["& .tiptap"]).toHaveProperty("mx", "auto");
   });
 });

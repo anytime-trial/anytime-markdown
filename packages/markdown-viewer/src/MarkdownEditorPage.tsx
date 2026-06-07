@@ -18,8 +18,6 @@ if (typeof window !== "undefined" && !(console as { _tiptapFlushSyncPatched?: bo
   };
 }
 
-import { useTheme } from "@mui/material";
-
 import { Spinner } from "./ui/Spinner";
 import { useMediaQuery } from "./ui/useMediaQuery";
 import styles from "./MarkdownEditorPage.module.css";
@@ -38,6 +36,7 @@ import { STATUSBAR_HEIGHT } from "./constants/dimensions";
 import type { ThemePresetName } from "./constants/themePresets";
 import { EditorFeaturesContext } from "./contexts/EditorFeaturesContext";
 import { EditorModeContext, type EditorModeContextValue } from "./contexts/EditorModeContext";
+import { useIsDark } from "./contexts/ThemeModeContext";
 import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
 import { MarkdownCoreI18nProvider, useMarkdownLocale, useMarkdownT } from "./i18n/context";
@@ -341,11 +340,10 @@ type InnerProps = Omit<MarkdownEditorPageProps, "locale">;
 function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, codeBlockExtension, prepareDarkDiagrams, onHomeClick }: InnerProps = {}) {
   const t = useMarkdownT("MarkdownEditor");
   const locale = useMarkdownLocale();
-  const muiTheme = useTheme();
   // MUI breakpoints: down("sm")=max-width:599.95px / up("md")=min-width:900px
   const isMobile = useMediaQuery("(max-width:599.95px)");
   const isMd = useMediaQuery("(min-width:900px)");
-  const isDark = muiTheme.palette.mode === "dark";
+  const isDark = useIsDark();
   const noopSave = useCallback(() => {}, []);
   const {
     initialContent, loading, saveContent: _saveContent, downloadMarkdown, clearContent, frontmatterRef, initialTrailingNewline,

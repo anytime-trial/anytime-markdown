@@ -1,4 +1,3 @@
-import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -6,6 +5,7 @@ import { createPortal } from "react-dom";
 import { getTextSecondary } from "../constants/colors";
 import { SLASH_COMMAND_FONT_SIZE } from "../constants/dimensions";
 import { Z_FULLSCREEN } from "../constants/zIndex";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import {
   filterSlashItems,
@@ -31,7 +31,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
   t,
   slashCommandCallbackRef,
 }: SlashCommandMenuProps) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [active, setActive] = useState(false);
   const [query, setQuery] = useState("");
   const [from, setFrom] = useState(0);

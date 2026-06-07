@@ -1,9 +1,9 @@
 "use client";
 
-import { useTheme } from "@mui/material/styles";
 import React from "react";
 
 import { getActionHover, getActionSelected, getDivider, getTextSecondary } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { Button } from "../ui/Button";
 import { HelpCenterIcon, InfoOutlinedIcon } from "../ui/icons";
 import { Dialog, DialogActions, DialogContent, DialogTitle } from "../ui/Dialog";
@@ -68,7 +68,7 @@ export const EditorDialogs = React.memo(function EditorDialogs({
   locale: _locale,
   t,
 }: EditorDialogsProps) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [touched, setTouched] = React.useState<Set<string>>(new Set());
   const markTouched = React.useCallback((field: string) => setTouched((prev) => new Set(prev).add(field)), []);
 

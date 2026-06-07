@@ -3,7 +3,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import type { PaletteMode } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
 import { getVsCodeApi } from './vscodeApi';
-import { ACCENT_COLOR, applyEditorThemeCssVars, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getPreset, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS, type ThemePresetName } from '@anytime-markdown/markdown-viewer';
+import { ACCENT_COLOR, applyEditorThemeCssVars, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getPreset, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS, ThemeModeProvider, type ThemePresetName } from '@anytime-markdown/markdown-viewer';
 import { EmbedProvidersProvider } from '@anytime-markdown/markdown-viewer/src/contexts/EmbedProvidersContext';
 // rich の codeblock 描画拡張を注入する RichMarkdownEditorPage を使う (B-8)
 import MarkdownEditorPage from '@anytime-markdown/markdown-rich/src/RichMarkdownEditorPage';
@@ -436,6 +436,7 @@ export function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      <ThemeModeProvider mode={themeMode}>
       <ConfirmProvider>
         <EmbedProvidersProvider value={embedProviders}>
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -467,6 +468,7 @@ export function App() {
         </div>
         </EmbedProvidersProvider>
       </ConfirmProvider>
+      </ThemeModeProvider>
     </ThemeProvider>
   );
 }

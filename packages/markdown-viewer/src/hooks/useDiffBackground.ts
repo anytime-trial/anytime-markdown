@@ -1,6 +1,6 @@
-import { useTheme } from "@mui/material/styles";
 import { useCallback, useMemo } from "react";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { buildDiffGradient } from "../utils/colorRuns";
 import type { DiffResult } from "../utils/diffEngine";
@@ -9,8 +9,7 @@ export function useDiffBackground(
   diffResult: DiffResult | null,
   sourceMode: boolean,
 ): { leftBgGradient: string; rightBgGradient: string } {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
 
   // Build a CSS gradient from diff lines for source-mode textarea coloring

@@ -1,10 +1,16 @@
-import { useTheme } from "@mui/material";
-
 import { Skeleton } from "../../ui/Skeleton";
 import { useEffect, useRef } from "react";
 
 import { Stack } from "../../ui/Stack";
 import { Text } from "../../ui/Text";
+import { useIsDark } from "../../contexts/ThemeModeContext";
+import {
+    getBgPaper,
+    getDivider,
+    getTextPrimary,
+    getTextSecondary,
+    getWarningMain,
+} from "../../constants/colors";
 import { useOembedData } from "../../hooks/useEmbedData";
 import type { EmbedProviders } from "../../types/embedProvider";
 import { sanitizeTweetHtml } from "../../utils/tweetSanitize";
@@ -76,7 +82,7 @@ function extractTextExcerpt(html: string): string {
 
 export function TwitterEmbedView({ url, variant, providers, widthOverride }: Readonly<Props>) {
     const { loading, data, error } = useOembedData(url, providers);
-    const theme = useTheme();
+    const isDark = useIsDark();
     const containerRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
@@ -104,7 +110,7 @@ export function TwitterEmbedView({ url, variant, providers, widthOverride }: Rea
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: theme.palette.warning.main }}
+                style={{ color: getWarningMain(isDark) }}
             >
                 ⚠ {url}
             </a>
@@ -126,22 +132,22 @@ export function TwitterEmbedView({ url, variant, providers, widthOverride }: Rea
                     spacing={1}
                     alignItems="center"
                     style={{
-                        border: `1px solid ${theme.palette.divider}`,
+                        border: `1px solid ${getDivider(isDark)}`,
                         borderRadius: 4,
-                        backgroundColor: theme.palette.background.paper,
+                        backgroundColor: getBgPaper(isDark),
                         maxWidth: 720,
                         height: 40,
                         paddingLeft: 12,
                         paddingRight: 12,
                     }}
                 >
-                    <Text style={{ fontSize: 14, color: theme.palette.text.primary, fontWeight: 600 }}>
+                    <Text style={{ fontSize: 14, color: getTextPrimary(isDark), fontWeight: 600 }}>
                         @{author}
                     </Text>
                     <Text
                         style={{
                             fontSize: 13,
-                            color: theme.palette.text.secondary,
+                            color: getTextSecondary(isDark),
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",

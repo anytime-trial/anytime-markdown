@@ -1,5 +1,3 @@
-import type { SxProps,Theme } from "@mui/material/styles";
-
 import {
   DEFAULT_DARK_BG, DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_CODE_BG,
   DEFAULT_LIGHT_INLINE_CODE,
@@ -29,8 +27,7 @@ export function getHljsStyles(isDark: boolean) {
 }
 
 /** インラインコード・コードブロック・シンタックスハイライトスタイル */
-export function getCodeStyles(theme: Theme): SxProps<Theme> {
-  const isDark = theme.palette.mode === "dark";
+export function getCodeStyles(isDark: boolean): Record<string, unknown> {
   return {
     "& code": {
       bgcolor: isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG,
