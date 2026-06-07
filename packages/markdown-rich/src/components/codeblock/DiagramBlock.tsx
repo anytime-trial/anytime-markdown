@@ -1,12 +1,17 @@
 "use client";
 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Tooltip, Typography } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useMemo, useRef } from "react";
+import type { CSSProperties } from "react";
 
-import { getEditorBg, getErrorMain, getTextSecondary, useBlockResize, useEditorSettingsContext, BlockInlineToolbar } from "@anytime-markdown/markdown-viewer";
+import { getEditorBg, getErrorMain, getTextSecondary, getWarningMain, useBlockResize, useEditorSettingsContext, useIsDark, BlockInlineToolbar } from "@anytime-markdown/markdown-viewer";
+import { Button } from "@anytime-markdown/markdown-viewer/src/ui/Button";
+import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@anytime-markdown/markdown-viewer/src/ui/Dialog";
+import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
+import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
+import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
+import { ContentCopyIcon, WarningAmberIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
+import { InlineAlert } from "../InlineAlert";
+import styles from "./DiagramBlock.module.css";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { useDiagramCapture } from "../../hooks/useDiagramCapture";
 import { useMermaidRender } from "../../hooks/useMermaidRender";
@@ -36,11 +41,11 @@ type DiagramBlockProps = Pick<
 
 /** Copy-code button shared between Mermaid and PlantUML edit dialogs */
 function CopyCodeButton({ handleCopyCode, t }: Readonly<{ handleCopyCode: () => void; t: DiagramBlockProps["t"] }>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   return (
     <Tooltip title={t("copyCode")} placement="bottom">
-      <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
-        <ContentCopyIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
+      <IconButton size="xs" onClick={handleCopyCode} aria-label={t("copyCode")}>
+        <ContentCopyIcon fontSize={16} color={getTextSecondary(isDark)} />
       </IconButton>
     </Tooltip>
   );
@@ -48,7 +53,7 @@ function CopyCodeButton({ handleCopyCode, t }: Readonly<{ handleCopyCode: () => 
 
 /** Renders the diagram preview container (shared between mermaid SVG and PlantUML img) */
 function DiagramPreviewContainer({
-  containerRef, code, language, diagramContainerSx,
+  containerRef, code, language, diagramContainerStyle,
   selectNode, handleDoubleClickFullscreen,
   handleResizePointerMove, handleResizePointerUp,
   isSelected, isEditable, resizing, resizeWidth, handleResizePointerDown,
@@ -57,7 +62,7 @@ function DiagramPreviewContainer({
   containerRef: React.RefObject<HTMLDivElement | null>;
   code: string;
   language: "mermaid" | "plantuml";
-  diagramContainerSx: object;
+  diagramContainerStyle: CSSProperties;
   selectNode: () => void;
   handleDoubleClickFullscreen: () => void;
   handleResizePointerMove: (e: React.PointerEvent) => void;
@@ -70,11 +75,12 @@ function DiagramPreviewContainer({
   children: React.ReactNode;
 }>) {
   return (
-    <Box
+    <div
       ref={containerRef}
       role="img"
       aria-label={extractDiagramAltText(code, language)}
-      sx={diagramContainerSx}
+      className={styles.diagramContainer}
+      style={diagramContainerStyle}
       contentEditable={false}
       onClick={selectNode}
       onDoubleClick={handleDoubleClickFullscreen}
@@ -83,7 +89,7 @@ function DiagramPreviewContainer({
     >
       {children}
       <ResizeGrip visible={isSelected && isEditable} resizing={resizing} resizeWidth={resizeWidth} onPointerDown={handleResizePointerDown} />
-    </Box>
+    </div>
   );
 }
 
@@ -96,23 +102,24 @@ function PlantUmlConsentAlert({
   handlePlantUmlAccept: () => void;
   t: DiagramBlockProps["t"];
 }>) {
+  const isDark = useIsDark();
   return (
-    <Alert
+    <InlineAlert
       severity="warning"
-      icon={<WarningAmberIcon />}
+      icon={<WarningAmberIcon fontSize={22} />}
       contentEditable={false}
-      sx={{ m: 1 }}
+      style={{ margin: 8 }}
       action={
         plantUmlConsent === "pending" ? (
-          <Box sx={{ display: "flex", gap: 1 }}>
+          <div className={styles.consentActions}>
             <Button size="small" color="inherit" onClick={handlePlantUmlReject}>{t("plantumlReject")}</Button>
-            <Button size="small" variant="contained" color="warning" onClick={handlePlantUmlAccept}>{t("plantumlAccept")}</Button>
-          </Box>
+            <Button size="small" variant="contained" onClick={handlePlantUmlAccept} style={{ backgroundColor: getWarningMain(isDark), color: "#fff" }}>{t("plantumlAccept")}</Button>
+          </div>
         ) : undefined
       }
     >
       {t("plantumlExternalWarning")}
-    </Alert>
+    </InlineAlert>
   );
 }
 
@@ -127,8 +134,8 @@ function DiagramContent({ isMermaid, isPlantUml, svg, displaySvg, plantUmlUrl, p
     <>
       {isMermaid && svg && displaySvg && (
         <DiagramPreviewContainer {...sharedContainerProps} language="mermaid">
-          <Box
-            sx={{ pt: 0, px: 2, pb: 2, display: "flex", justifyContent: "flex-start", pointerEvents: "none" }}
+          <div
+            className={styles.svgInner}
             dangerouslySetInnerHTML={{ __html: displaySvg }}
           />
         </DiagramPreviewContainer>
@@ -143,15 +150,15 @@ function DiagramContent({ isMermaid, isPlantUml, svg, displaySvg, plantUmlUrl, p
       )}
       {isPlantUml && plantUmlUrl && (
         <DiagramPreviewContainer {...sharedContainerProps} language="plantuml">
-          <Box sx={{ pt: 0, px: 2, pb: 2, display: "flex", justifyContent: "flex-start", pointerEvents: "none" }}>
+          <div className={styles.svgInner}>
             <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "100%", height: "auto" }} />
-          </Box>
+          </div>
         </DiagramPreviewContainer>
       )}
       {error && (
-        <Typography variant="caption" sx={{ p: 1.5, color: getErrorMain(isDark), display: "block" }} contentEditable={false}>
+        <Text variant="caption" className={styles.errorText} style={{ color: getErrorMain(isDark) }} contentEditable={false}>
           {error}
-        </Typography>
+        </Text>
       )}
     </>
   );
@@ -219,17 +226,11 @@ function scaleSvgForFontSize(svg: string | undefined, fontSize: number): string 
     .replace(/max-width:\s*[\d.]+px/, `max-width: 100%`);
 }
 
-/** Build diagram container sx styles (extracted to reduce cognitive complexity). */
-function buildDiagramContainerSx(displayWidth: string | undefined, editorBg: string) {
+/** Build diagram container inline style (theme-dependent only; static layout + @media は CSS module）。 */
+function buildDiagramContainerStyle(displayWidth: string | undefined, editorBg: string): CSSProperties {
   return {
-    overflow: "hidden", bgcolor: editorBg, position: "relative",
-    width: displayWidth || "fit-content", maxWidth: "100%",
-    cursor: "pointer",
-    "@media (max-width: 899px)": {
-      overflowX: "auto",
-      "& > div": { minWidth: "max-content" },
-      "& svg": { maxWidth: "none !important" },
-    },
+    backgroundColor: editorBg,
+    width: displayWidth || "fit-content",
   };
 }
 
@@ -297,7 +298,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
   const { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp } = useBlockResize({ containerRef, updateAttributes, currentWidth: node.attrs.width });
 
   const editorBg = getEditorBg(isDark, settings);
-  const diagramContainerSx = buildDiagramContainerSx(displayWidth, editorBg);
+  const diagramContainerStyle = buildDiagramContainerStyle(displayWidth, editorBg);
 
   const handleDoubleClickFullscreen = useCallback(() => {
     if (hasDiagramOutput) {
@@ -310,7 +311,7 @@ export function DiagramBlock(props: DiagramBlockProps) {
   const handleCloseDialog = useCallback(() => { fsSearch.reset(); tryCloseEdit(); }, [fsSearch, tryCloseEdit]);
 
   const sharedContainerProps = {
-    containerRef, code, diagramContainerSx, selectNode, handleDoubleClickFullscreen,
+    containerRef, code, diagramContainerStyle, selectNode, handleDoubleClickFullscreen,
     handleResizePointerMove, handleResizePointerUp,
     isSelected, isEditable, resizing, resizeWidth, handleResizePointerDown,
   };

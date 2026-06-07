@@ -1,7 +1,10 @@
-import { Box, Divider, useMediaQuery, useTheme } from "@mui/material";
 import React, { useEffect, useRef, useState } from "react";
 
-import { FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH, getSplitterSx } from "@anytime-markdown/markdown-viewer";
+import { FS_CODE_INITIAL_WIDTH, FS_CODE_MIN_WIDTH, getDivider, getPrimaryMain, useIsDark } from "@anytime-markdown/markdown-viewer";
+import { Divider } from "@anytime-markdown/markdown-viewer/src/ui/Divider";
+import { useMediaQuery } from "@anytime-markdown/markdown-viewer/src/ui/useMediaQuery";
+
+import styles from "./DraggableSplitLayout.module.css";
 
 interface DraggableSplitLayoutProps {
   /** Initial code panel width in px (default: FS_CODE_INITIAL_WIDTH) */
@@ -28,9 +31,8 @@ interface DraggableSplitLayoutProps {
 export function DraggableSplitLayout({
   initialWidth, initialPercent, left, right, onPointerMove, onPointerUp, onPointerCancel, t,
 }: Readonly<DraggableSplitLayoutProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const isDark = useIsDark();
+  const isMobile = useMediaQuery("(max-width:899.95px)");
 
   const [splitPx, setSplitPx] = useState(initialWidth ?? FS_CODE_INITIAL_WIDTH);
   const [dragging, setDragging] = useState(false);
@@ -47,10 +49,13 @@ export function DraggableSplitLayout({
     });
   }, [initialPercent]);
 
+  const primaryColor = getPrimaryMain(isDark);
+  const dividerColor = getDivider(isDark);
+
   return (
-    <Box
+    <div
       ref={containerRef}
-      sx={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden", position: "relative" }}
+      className={[styles.container, isMobile ? styles.containerColumn : styles.containerRow].join(" ")}
       onPointerMove={(e: React.PointerEvent) => {
         if (dragging && containerRef.current) {
           const rect = containerRef.current.getBoundingClientRect();
@@ -77,11 +82,21 @@ export function DraggableSplitLayout({
       }}
     >
       {/* Left panel (code) */}
-      <Box sx={{ width: isMobile ? "100%" : `${splitPx}px`, height: isMobile ? "40%" : "auto", minWidth: isMobile ? undefined : FS_CODE_MIN_WIDTH, display: "flex", flexDirection: "column", pointerEvents: dragging ? "none" : "auto" }}>
+      <div
+        className={[
+          styles.leftPanel,
+          isMobile ? styles.leftPanelMobile : undefined,
+          dragging ? styles.noPointerEvents : undefined,
+        ].filter(Boolean).join(" ")}
+        style={isMobile ? undefined : {
+          width: `${splitPx}px`,
+          minWidth: FS_CODE_MIN_WIDTH,
+        }}
+      >
         {left}
-      </Box>
+      </div>
       {/* Draggable divider (desktop only) */}
-      <Box
+      <div
         role="separator"
         aria-orientation="vertical"
         aria-label={t("resizeSplitter")}
@@ -103,14 +118,23 @@ export function DraggableSplitLayout({
           (e.target as HTMLElement).setPointerCapture(e.pointerId);
           e.preventDefault();
         }}
-        sx={{ display: isMobile ? "none" : "block", ...getSplitterSx(isDark) }}
+        className={[
+          styles.splitter,
+          isMobile ? styles.splitterHidden : styles.splitterVisible,
+        ].join(" ")}
+        style={{
+          backgroundColor: dividerColor,
+          // CSS variable for hover/focus-visible pseudo-class color
+          ["--am-splitter-hover-bg" as string]: primaryColor,
+        }}
       />
-      {/* Horizontal divider (mobile only) */}
-      <Divider sx={{ display: isMobile ? "block" : "none" }} />
+      {/* Horizontal divider (mobile only) — desktop では DOM から外す（旧 sx display:none 相当・
+          splitter と role="separator" が重複しないようにするため） */}
+      {isMobile && <Divider />}
       {/* Right panel (preview) */}
-      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div className={styles.rightPanel}>
         {right}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

@@ -1,0 +1,8 @@
+/* tabsRow は dialogPanels.module.css に共通化。 */
+
+/* プレビュー画像。scale のみ動的（fontSize 連動）。 */
+.previewImg {
+  max-width: 90vw;
+  max-height: 85vh;
+  transform-origin: center center;
+}

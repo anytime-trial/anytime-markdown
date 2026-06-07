@@ -1,12 +1,16 @@
 "use client";
 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import ShowChartIcon from "@mui/icons-material/ShowChart";
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Tooltip } from "@mui/material";
 import DOMPurify from "dompurify";
 import { useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getPrimaryMain, getTextSecondary, PREVIEW_MAX_HEIGHT, useEditorFeaturesContext, useBlockResize, BlockInlineToolbar } from "@anytime-markdown/markdown-viewer";
+import { Button } from "@anytime-markdown/markdown-viewer/src/ui/Button";
+import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@anytime-markdown/markdown-viewer/src/ui/Dialog";
+import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
+import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
+import { ContentCopyIcon, ShowChartIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
+import { InlineAlert } from "../InlineAlert";
+import styles from "./MathBlock.module.css";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { MATH_SANITIZE_CONFIG,useKatexRender } from "../../hooks/useKatexRender";
 import { MathEditDialog } from "../MathEditDialog";
@@ -36,12 +40,11 @@ function GraphToggleButton({ graphEnabled, onToggle, isDark, t }: Readonly<{
   return (
     <Tooltip title={graphEnabled ? t("hideGraph") : t("showGraph")} placement="top">
       <IconButton
-        size="small"
-        sx={{ p: 0.25 }}
+        size="xs"
         onClick={onToggle}
         aria-label={graphEnabled ? t("hideGraph") : t("showGraph")}
       >
-        <ShowChartIcon sx={{ fontSize: 16, color: graphEnabled ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
+        <ShowChartIcon fontSize={16} color={graphEnabled ? getPrimaryMain(isDark) : getTextSecondary(isDark)} />
       </IconButton>
     </Tooltip>
   );
@@ -53,8 +56,8 @@ function MathCopyCodeButton({ handleCopyCode, isDark, t }: Readonly<{
 }>) {
   return (
     <Tooltip title={t("copyCode")} placement="bottom">
-      <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
-        <ContentCopyIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
+      <IconButton size="xs" onClick={handleCopyCode} aria-label={t("copyCode")}>
+        <ContentCopyIcon fontSize={16} color={getTextSecondary(isDark)} />
       </IconButton>
     </Tooltip>
   );
@@ -93,23 +96,30 @@ function MathPreview({
   setEditOpen: (v: boolean) => void; t: (key: string) => string;
 }>) {
   return (
-    <Box
+    <div
       ref={mathContainerRef}
       contentEditable={false}
       role="img"
       aria-label={`${t("mathFormula")}: ${code}`}
+      className={styles.mathContainer}
       onClick={() => { selectNode(); if (!codeCollapsed) updateAttributes({ codeCollapsed: true }); }}
       onDoubleClick={() => setEditOpen(true)}
       onPointerMove={handleResizePointerMove}
       onPointerUp={handleResizePointerUp}
-      sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: getDivider(isDark), overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, display: "flex", justifyContent: "flex-start", cursor: "pointer", position: "relative", width: displayWidth || "fit-content", maxWidth: "100%" }}
+      style={{
+        backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+        borderTopWidth: codeCollapsed ? 0 : 1,
+        borderTopColor: getDivider(isDark),
+        maxHeight: PREVIEW_MAX_HEIGHT,
+        width: displayWidth || "fit-content",
+      }}
     >
-      <Box
+      <div
+        className={styles.mathInner}
         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}
-        sx={{ pointerEvents: "none" }}
       />
       <ResizeGrip visible={isSelected && isEditable} resizing={resizing} resizeWidth={resizeWidth} onPointerDown={handleResizePointerDown} />
-    </Box>
+    </div>
   );
 }
 
@@ -193,7 +203,7 @@ export function MathBlock(props: MathBlockProps) {
       }
     >
       {mathError && (
-        <Alert severity="warning" sx={{ borderRadius: 0 }}>{mathError}</Alert>
+        <InlineAlert severity="warning" style={{ borderRadius: 0 }}>{mathError}</InlineAlert>
       )}
       {mathHtml && (
         <MathPreview

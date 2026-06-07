@@ -1,12 +1,15 @@
 "use client";
 
-import PauseIcon from "@mui/icons-material/Pause";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { Box, IconButton, Slider, Tooltip, Typography } from "@mui/material";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextSecondary } from "@anytime-markdown/markdown-viewer";
+import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
+import { Slider } from "@anytime-markdown/markdown-viewer/src/ui/Slider";
+import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
+import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
+import { PauseIcon, PlayArrowIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
 import type { GraphExpr } from "../../utils/latexToExpr";
+import styles from "./graphControls.module.css";
 
 /** グリッドサイズ */
 const GRID_SIZE = 50;
@@ -287,8 +290,10 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
     };
   }, []);
 
+  const textSecondary = getTextSecondary(isDark);
+
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+    <div className={styles.root}>
       {/* 3Dグラフ描画エリア */}
       <div
         ref={containerRef}
@@ -297,37 +302,38 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
 
       {/* パラメータスライダー */}
       {graphExpr.parameters.length > 0 && (
-        <Box sx={{ px: 1, display: "flex", flexDirection: "column", gap: 1 }}>
+        <div className={styles.sliderList}>
           {graphExpr.parameters.map((param) => (
-            <Box key={param} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography variant="caption" sx={{ minWidth: 24, color: getTextSecondary(isDark) }}>
+            <div key={param} className={styles.sliderRow}>
+              <Text variant="caption" className={styles.paramLabel} style={{ color: textSecondary }}>
                 {param}
-              </Typography>
-              <Slider
-                size="small"
-                min={PARAM_DEFAULT_RANGE[0]}
-                max={PARAM_DEFAULT_RANGE[1]}
-                step={PARAM_STEP}
-                value={paramValues[param] ?? 1}
-                onChange={(_e, v) => handleParamChange(param, v)}
-                sx={{ flex: 1 }}
-                aria-label={`パラメータ ${param}`}
-              />
-              <Typography variant="caption" sx={{ minWidth: 32, textAlign: "right", color: getTextSecondary(isDark) }}>
+              </Text>
+              <div className={styles.sliderFlex}>
+                <Slider
+                  size="small"
+                  min={PARAM_DEFAULT_RANGE[0]}
+                  max={PARAM_DEFAULT_RANGE[1]}
+                  step={PARAM_STEP}
+                  value={paramValues[param] ?? 1}
+                  onChange={(_e, v) => handleParamChange(param, v)}
+                  aria-label={`パラメータ ${param}`}
+                />
+              </div>
+              <Text variant="caption" className={styles.paramValue} style={{ color: textSecondary }}>
                 {(paramValues[param] ?? 1).toFixed(1)}
-              </Typography>
+              </Text>
               <Tooltip title={animating[param] ? "停止" : "再生"}>
                 <IconButton size="small" onClick={() => toggleAnimation(param)} aria-label={animating[param] ? `${param} 停止` : `${param} 再生`}>
                   {animating[param]
-                    ? <PauseIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
-                    : <PlayArrowIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
+                    ? <PauseIcon fontSize={16} color={textSecondary} />
+                    : <PlayArrowIcon fontSize={16} color={textSecondary} />
                   }
                 </IconButton>
               </Tooltip>
-            </Box>
+            </div>
           ))}
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }

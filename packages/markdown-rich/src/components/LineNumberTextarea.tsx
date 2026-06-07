@@ -1,7 +1,8 @@
-import { Box } from "@mui/material";
 import React, { useCallback, useRef } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextDisabled, getTextPrimary } from "@anytime-markdown/markdown-viewer";
+
+import styles from "./LineNumberTextarea.module.css";
 
 interface LineNumberTextareaProps {
   value: string;
@@ -56,40 +57,31 @@ export function LineNumberTextarea({
   const lineHeightPx = fontSize * lineHeight;
 
   return (
-    <Box sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
+    <div className={styles.root}>
       {/* Line number gutter */}
-      <Box
+      <div
         ref={gutterRef}
-        sx={{
-          overflow: "hidden",
-          userSelect: "none",
-          textAlign: "right",
-          fontFamily: "monospace",
+        className={styles.gutter}
+        style={{
           fontSize: `${fontSize}px`,
           lineHeight,
           color: getTextDisabled(isDark),
-          bgcolor: bg,
-          pt: 2,
-          pr: 0.5,
-          pl: 1,
+          backgroundColor: bg,
           width: `${gutterWidth}ch`,
           minWidth: `${gutterWidth}ch`,
-          boxSizing: "border-box",
-          borderRight: 1,
-          borderColor: getDivider(isDark),
-          flexShrink: 0,
+          borderRightColor: getDivider(isDark),
         }}
       >
         {Array.from({ length: lineCount }, (_, i) => (
-          <Box key={i} sx={{ height: `${lineHeightPx}px` }}>
+          <div key={i} style={{ height: `${lineHeightPx}px` }}>
             {i + 1}
-          </Box>
+          </div>
         ))}
-      </Box>
+      </div>
       {/* Textarea */}
-      <Box
-        component="textarea"
+      <textarea
         ref={ref}
+        className={styles.textarea}
         value={value}
         onChange={onChange}
         onScroll={handleScroll}
@@ -97,25 +89,13 @@ export function LineNumberTextarea({
         readOnly={readOnly}
         spellCheck={spellCheck}
         placeholder={placeholder}
-        sx={{
-          flex: 1,
-          width: "100%",
-          border: "none",
-          outline: "none",
-          "&:focus-visible": { outline: "none" },
-          resize: "none",
-          fontFamily: "monospace",
+        style={{
           fontSize: `${fontSize}px`,
           lineHeight,
-          py: 2,
-          pl: 1,
-          pr: 2,
           color: getTextPrimary(isDark),
-          bgcolor: bg,
-          boxSizing: "border-box",
-          overflow: "auto",
+          backgroundColor: bg,
         }}
       />
-    </Box>
+    </div>
   );
 }

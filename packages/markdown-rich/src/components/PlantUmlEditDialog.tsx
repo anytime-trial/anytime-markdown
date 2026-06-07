@@ -1,8 +1,11 @@
-import AccountTreeIcon from "@mui/icons-material/AccountTree";
-import { Box, Tab, Tabs, useTheme } from "@mui/material";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { getDivider, FS_TAB_FONT_SIZE, FS_TOOLBAR_HEIGHT, PLANTUML_SAMPLES, useEditorSettingsContext, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
+import { getDivider, PLANTUML_SAMPLES, useEditorSettingsContext, useIsDark, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
+import { AccountTreeIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
+import { Tabs } from "@anytime-markdown/markdown-viewer/src/ui/Tabs";
+import { Tab } from "@anytime-markdown/markdown-viewer/src/ui/Tab";
+import styles from "./PlantUmlEditDialog.module.css";
+import panels from "./dialogPanels.module.css";
 import type { TextareaSearchState } from "@anytime-markdown/markdown-viewer";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 import { extractDiagramAltText } from "../utils/diagramAltText";
@@ -47,8 +50,7 @@ export function PlantUmlEditDialog({
   isCompareMode, compareCode, onMergeApply, thisCode, onExport, onExportSource, exportSourceKey, toolbarExtra,
   onApply, dirty, t,
 }: Readonly<PlantUmlEditDialogProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
 
   // --- Code / Config tab state ---
@@ -101,7 +103,7 @@ export function PlantUmlEditDialog({
 
   return (
     <EditDialogWrapper open={open} onClose={onClose} ariaLabelledBy="plantuml-edit-title">
-      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<AccountTreeIcon sx={{ fontSize: 18 }} />} onApply={onApply} dirty={dirty} t={t} />
+      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<AccountTreeIcon fontSize={18} />} onApply={onApply} dirty={dirty} t={t} />
 
       {/* Compare view */}
       {showCompareView ? (
@@ -121,17 +123,17 @@ export function PlantUmlEditDialog({
           left={
             <>
               {/* Tabs */}
-              <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark) }}>
+              <div className={panels.tabsRow} style={{ borderBottomColor: getDivider(isDark) }}>
                 <Tabs
                   value={activeTab}
-                  onChange={(_, v) => setActiveTab(v)}
-                  sx={{ minHeight: FS_TOOLBAR_HEIGHT, flex: 1, "& .MuiTab-root": { minHeight: FS_TOOLBAR_HEIGHT, py: 0.5, px: 2, fontSize: FS_TAB_FONT_SIZE, textTransform: "none" } }}
+                  onChange={(_, v) => setActiveTab(v as "code" | "config")}
+                  style={{ flex: 1 }}
                 >
                   <Tab value="code" label={t("codeTab")} />
                   <Tab value="config" label={t("configTab")} />
                 </Tabs>
                 {toolbarExtra}
-              </Box>
+              </div>
               {/* Code textarea */}
               {activeTab === "code" && (
                 <LineNumberTextarea
@@ -165,7 +167,7 @@ export function PlantUmlEditDialog({
               <ZoomToolbar fsZP={fsZP} onExport={onExport} onExportSource={onExportSource} exportSourceKey={exportSourceKey} t={t} />
               <ZoomablePreview fsZP={fsZP}>
                 {plantUmlUrl && (
-                  <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "90vw", maxHeight: "85vh", transform: `scale(${settings.fontSize / 16})`, transformOrigin: "center center" }} />
+                  <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" className={styles.previewImg} style={{ transform: `scale(${settings.fontSize / 16})` }} />
                 )}
               </ZoomablePreview>
             </>

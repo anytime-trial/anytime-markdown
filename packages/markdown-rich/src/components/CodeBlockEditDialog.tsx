@@ -1,11 +1,15 @@
-import CodeIcon from "@mui/icons-material/Code";
-import { Box, Chip, Typography, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import { common, createLowlight } from "lowlight";
 import React, { useCallback, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getTextPrimary, HLJS_DARK, HLJS_LIGHT, CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT, getHljsStyles, useEditorSettingsContext, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getHljsCssVars, getPrimaryMain, getTextPrimary, CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, useEditorSettingsContext, useIsDark, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
+import { Chip } from "@anytime-markdown/markdown-viewer/src/ui/Chip";
+import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
+import { CodeIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
+import styles from "./CodeBlockEditDialog.module.css";
+import panels from "./dialogPanels.module.css";
 import type { TextareaSearchState } from "@anytime-markdown/markdown-viewer";
 import { useZoomPan } from "../hooks/useZoomPan";
 import { DraggableSplitLayout } from "./DraggableSplitLayout";
@@ -74,25 +78,25 @@ function BuiltInSamplePanel({
   const currentLangSample = CODE_HELLO_SAMPLES[language];
   const sampleEntries = Object.entries(CODE_HELLO_SAMPLES);
   return (
-    <Box sx={{ borderTop: 1, borderColor: getDivider(isDark), flexShrink: 0 }}>
-      <Box
+    <div className={styles.samplePanelRoot} style={{ borderTopColor: getDivider(isDark) }}>
+      <div
         onClick={() => setSamplesOpen((v) => !v)}
-        sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: getActionHover(isDark) } }}
+        className={styles.sampleHeader}
+        style={{ ["--am-sample-hover-bg"]: getActionHover(isDark) } as CSSProperties}
       >
-        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}>
+        <Text variant="caption" className={panels.panelHeaderText} style={{ fontSize: FS_PANEL_HEADER_FONT_SIZE }}>
           {t("sampleContent")}
-        </Typography>
-      </Box>
+        </Text>
+      </div>
       {samplesOpen && (
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, px: 1.5, pb: 1.5 }}>
+        <div className={styles.chipsWrap}>
           {currentLangSample && (
             <Chip
               label={`${language} (Hello World)`}
               size="small"
-              color="primary"
               variant="outlined"
               onClick={() => handleInsertSample(currentLangSample)}
-              sx={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
+              style={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT, color: getPrimaryMain(isDark), borderColor: getPrimaryMain(isDark) }}
             />
           )}
           {sampleEntries
@@ -103,12 +107,12 @@ function BuiltInSamplePanel({
                 label={lang}
                 size="small"
                 onClick={() => handleInsertSample(code)}
-                sx={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
+                style={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
               />
             ))}
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }
 
@@ -127,30 +131,25 @@ function SyntaxPreviewPanel({
     return (
       <>
         <ZoomToolbar fsZP={fsZP} t={() => ""} />
-        <Box sx={{ flex: 1, overflow: "auto", bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, p: 2 }}>
+        <div className={styles.previewPane} style={{ backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG }}>
           {renderPreview(fsCode)}
-        </Box>
+        </div>
       </>
     );
   }
+  const hljsVars: CSSProperties = {
+    fontSize: `${settings.fontSize}px`,
+    lineHeight: settings.lineHeight,
+    color: getTextPrimary(isDark),
+    ...getHljsCssVars(isDark),
+  };
   return (
     <>
       <ZoomToolbar fsZP={fsZP} t={() => ""} />
       <ZoomablePreview fsZP={fsZP} origin="top-left">
-        <Box
-          component="pre"
-          sx={{
-            fontFamily: "monospace",
-            fontSize: `${settings.fontSize}px`,
-            lineHeight: settings.lineHeight,
-            p: 2,
-            m: 0,
-            whiteSpace: "pre-wrap",
-            overflowWrap: "break-word",
-            color: getTextPrimary(isDark),
-            ...getHljsStyles(isDark),
-            "& .hljs-property, & .hljs-name": { color: isDark ? HLJS_DARK.number : HLJS_LIGHT.number },
-          }}
+        <pre
+          className={styles.hljsPre}
+          style={hljsVars}
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlightedHtml, { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] }) }}
         />
       </ZoomablePreview>
@@ -163,7 +162,7 @@ export function CodeBlockEditDialog({
   readOnly, isCompareMode, compareCode, onMergeApply, thisCode, toolbarExtra, customSamples, renderPreview,
   onApply, dirty, t,
 }: Readonly<CodeBlockEditDialogProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
   const fsZP = useZoomPan();
 
@@ -198,12 +197,12 @@ export function CodeBlockEditDialog({
 
   const codePanel = (
     <>
-      <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}>
+      <div className={panels.codeHeader} style={{ borderBottomColor: getDivider(isDark) }}>
+        <Text variant="caption" className={panels.panelHeaderText} style={{ fontSize: FS_PANEL_HEADER_FONT_SIZE }}>
           {t("codeTab")}
-        </Typography>
+        </Text>
         {toolbarExtra}
-      </Box>
+      </div>
       <LineNumberTextarea
         textareaRef={fsTextareaRef}
         value={fsCode}
@@ -223,7 +222,7 @@ export function CodeBlockEditDialog({
 
   return (
     <EditDialogWrapper open={open} onClose={onClose} ariaLabelledBy="codeblock-edit-title">
-      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<CodeIcon sx={{ fontSize: 18 }} />} onApply={onApply} dirty={dirty} t={t} />
+      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<CodeIcon fontSize={18} />} onApply={onApply} dirty={dirty} t={t} />
 
       {showCompareView ? (
         <FullscreenDiffView

@@ -25,6 +25,11 @@ const config = {
     // barrel は core の index.ts (MarkdownEditorPage / templates.md など重量ツリーを eager ロード)
     // ではなく、rich が使う葉モジュールだけを再 export する軽量 shim に差し替える。
     // requireActual も moduleNameMapper を通るため、テストの barrel mock の base もこの shim になる。
+    // Phase3b（脱 @mui）: rich が markdown-viewer の ui/ プリミティブ・icons・color helper を
+    // サブパス（/src/ui/*, /src/constants/*, /src/contexts/*）で import するため、node_modules
+    // シンボリックリンク経由（transformIgnorePatterns で除外され未トランスパイル＝undefined になる）
+    // ではなく実ソースへ解決する。barrel($) より先に置き subpath を確実に捕捉する。
+    "^@anytime-markdown/markdown-viewer/src/(.*)$": "<rootDir>/../markdown-viewer/src/$1",
     "^@anytime-markdown/markdown-viewer$": "<rootDir>/jest-shims/markdown-core.ts",
     // markdown-rich のソース/テストは @/ を使わない。shim 経由でロードされる markdown-core
     // ソースの @/ を core/src へ解決するためのマッピング。

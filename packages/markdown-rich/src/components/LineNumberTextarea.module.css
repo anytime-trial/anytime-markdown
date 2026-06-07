@@ -1,0 +1,35 @@
+/* MUI Box(sx) 置換。構造・余白・擬似クラスは CSS、テーマ依存色/フォントは inline style。 */
+.root {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 行番号ガター。padding は旧 sx の pt:2(16px)/pr:0.5(4px)/pl:1(8px) と一致。 */
+.gutter {
+  overflow: hidden;
+  user-select: none;
+  text-align: right;
+  font-family: monospace;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  padding: 16px 4px 0 8px;
+  border-right: 1px solid;
+}
+
+/* textarea。padding は旧 sx の py:2(16px)/pl:1(8px)/pr:2(16px) と一致。 */
+.textarea {
+  flex: 1;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: monospace;
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 16px 16px 16px 8px;
+}
+
+.textarea:focus-visible {
+  outline: none;
+}
