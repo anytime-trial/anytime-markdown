@@ -163,7 +163,8 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
     offsetPx: 4,
   });
   // useFloating の open エフェクトより前に reference を確定させるため render 中に代入する。
-  referenceRef.current = virtualAnchor as unknown as HTMLElement | null;
+  // virtualAnchor は getBoundingClientRect を持つ virtual element（ReferenceElement）。
+  referenceRef.current = virtualAnchor;
 
   if (!active || !virtualAnchor) return null;
 

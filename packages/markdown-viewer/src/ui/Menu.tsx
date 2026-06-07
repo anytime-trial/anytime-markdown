@@ -51,7 +51,7 @@ export function Menu({
   }, [anchorReference, anchorPosition?.top, anchorPosition?.left]);
 
   // useFloating の open エフェクトより前に reference を確定させるため render 中に代入する。
-  referenceRef.current = (anchorReference === "anchorPosition" ? virtual : anchorEl ?? null) as HTMLElement | null;
+  referenceRef.current = anchorReference === "anchorPosition" ? virtual : anchorEl ?? null;
 
   // open 時に最初の項目へフォーカス。
   useEffect(() => {
