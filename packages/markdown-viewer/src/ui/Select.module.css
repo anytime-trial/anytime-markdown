@@ -1,0 +1,72 @@
+/* MUI outlined Select(size="small") の closed 表示と listbox popup。 */
+.select {
+  box-sizing: border-box;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  /* MUI .MuiSelect-select small: padding 8.5px 32px 8.5px 14px を flex 中央寄せで等価表現。 */
+  padding: 0 32px 0 14px;
+  border: 1px solid var(--am-color-input-border);
+  border-radius: var(--am-radius-md);
+  background: transparent;
+  color: var(--am-color-text-primary);
+  font-size: 1rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--am-duration-fast) var(--am-ease-standard);
+}
+
+.fullWidth {
+  display: flex;
+  width: 100%;
+}
+
+.select:hover {
+  border-color: var(--am-color-text-primary);
+}
+
+.select:focus-visible {
+  outline: none;
+  border-color: var(--am-color-primary-main);
+  box-shadow: inset 0 0 0 1px var(--am-color-primary-main);
+}
+
+.value {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon {
+  position: absolute;
+  right: 7px;
+  top: calc(50% - 12px);
+  width: 24px;
+  height: 24px;
+  color: var(--am-color-action-active);
+  pointer-events: none;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+}
+
+.listbox {
+  position: fixed;
+  z-index: 1300;
+  margin: 0;
+  padding: 8px 0;
+  list-style: none;
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+  outline: none;
+  box-sizing: border-box;
+  background-color: var(--am-color-bg-paper);
+  border-radius: var(--am-radius-md);
+  box-shadow: var(--am-elevation-3);
+}
