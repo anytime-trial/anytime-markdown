@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
+import { useMemo } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import styles from "./Collapse.module.css";
+import { useTransitionMount } from "./useTransitionMount";
 
 export interface CollapseProps {
   /** 展開状態。 */
@@ -25,31 +26,18 @@ export function Collapse({
   children,
   className,
 }: Readonly<CollapseProps>) {
-  // open=遷移用の grid 状態。mounted=unmountOnExit 用の DOM 存在状態。
-  const [open, setOpen] = useState(inProp);
-  const [mounted, setMounted] = useState(inProp);
-
-  useEffect(() => {
-    if (inProp) {
-      setMounted(true);
-      // mount 直後の同一フレームで 1fr にすると遷移しないため次フレームへ送る。
-      const id = requestAnimationFrame(() => setOpen(true));
-      return () => cancelAnimationFrame(id);
-    }
-    setOpen(false);
-    if (unmountOnExit) {
-      const id = setTimeout(() => setMounted(false), timeout);
-      return () => clearTimeout(id);
-    }
-    return undefined;
-  }, [inProp, unmountOnExit, timeout]);
+  const { mounted, visible } = useTransitionMount(inProp, timeout, unmountOnExit);
+  const style = useMemo<CSSProperties>(
+    () => ({ ["--collapse-duration" as string]: `${timeout}ms` }),
+    [timeout],
+  );
 
   if (unmountOnExit && !mounted) return null;
 
-  const rootClass = [styles.root, open && styles.open, className].filter(Boolean).join(" ");
+  const rootClass = [styles.root, visible && styles.open, className].filter(Boolean).join(" ");
 
   return (
-    <div className={rootClass} style={{ ["--collapse-duration" as string]: `${timeout}ms` }}>
+    <div className={rootClass} style={style}>
       <div className={styles.inner}>{children}</div>
     </div>
   );

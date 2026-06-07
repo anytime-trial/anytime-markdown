@@ -21,18 +21,17 @@ export const ButtonBase = forwardRef<HTMLElement, ButtonBaseProps>(function Butt
 ) {
   const isNativeButton = Component === "button";
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    onKeyDown?.(event);
-    if (
-      !isNativeButton &&
-      !disabled &&
-      !event.defaultPrevented &&
-      (event.key === "Enter" || event.key === " ")
-    ) {
-      event.preventDefault();
-      (event.currentTarget as HTMLElement).click();
-    }
-  };
+  // ネイティブ button は Enter/Space を自前で click 発火するため onKeyDown をそのまま渡す。
+  // 非 button のみ、欠けるキーボード起動を補う。
+  const handleKeyDown = isNativeButton
+    ? onKeyDown
+    : (event: KeyboardEvent<HTMLElement>) => {
+        onKeyDown?.(event);
+        if (!disabled && !event.defaultPrevented && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          (event.currentTarget as HTMLElement).click();
+        }
+      };
 
   const a11yProps = isNativeButton
     ? { disabled }

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useMemo } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import styles from "./Snackbar.module.css";
+import { useTransitionMount } from "./useTransitionMount";
 
 export interface SnackbarAnchorOrigin {
   vertical: "top" | "bottom";
@@ -32,19 +33,11 @@ export function Snackbar({
   timeout = 225,
   children,
 }: Readonly<SnackbarProps>) {
-  const [mounted, setMounted] = useState(open);
-  const [visible, setVisible] = useState(open);
-
-  useEffect(() => {
-    if (open) {
-      setMounted(true);
-      const id = requestAnimationFrame(() => setVisible(true));
-      return () => cancelAnimationFrame(id);
-    }
-    setVisible(false);
-    const id = setTimeout(() => setMounted(false), timeout);
-    return () => clearTimeout(id);
-  }, [open, timeout]);
+  const { mounted, visible } = useTransitionMount(open, timeout);
+  const style = useMemo<CSSProperties>(
+    () => ({ ["--snackbar-duration" as string]: `${timeout}ms` }),
+    [timeout],
+  );
 
   useEffect(() => {
     if (!open || autoHideDuration == null) return undefined;
@@ -64,7 +57,7 @@ export function Snackbar({
     .join(" ");
 
   return createPortal(
-    <div className={rootClass} style={{ ["--snackbar-duration" as string]: `${timeout}ms` }}>
+    <div className={rootClass} style={style}>
       {children}
     </div>,
     document.body,

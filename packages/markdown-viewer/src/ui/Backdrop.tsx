@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import styles from "./Backdrop.module.css";
+import { useTransitionMount } from "./useTransitionMount";
 
 export interface BackdropProps {
   open: boolean;
@@ -18,26 +19,18 @@ export interface BackdropProps {
  * 閉じた後はフェード完了を待ってアンマウントする。
  */
 export function Backdrop({ open, className, style, children, timeout = 225 }: Readonly<BackdropProps>) {
-  const [mounted, setMounted] = useState(open);
-  const [visible, setVisible] = useState(open);
-
-  useEffect(() => {
-    if (open) {
-      setMounted(true);
-      const id = requestAnimationFrame(() => setVisible(true));
-      return () => cancelAnimationFrame(id);
-    }
-    setVisible(false);
-    const id = setTimeout(() => setMounted(false), timeout);
-    return () => clearTimeout(id);
-  }, [open, timeout]);
+  const { mounted, visible } = useTransitionMount(open, timeout);
+  const mergedStyle = useMemo<CSSProperties>(
+    () => ({ ["--backdrop-duration" as string]: `${timeout}ms`, ...style }),
+    [timeout, style],
+  );
 
   if (!mounted || typeof document === "undefined") return null;
 
   const rootClass = [styles.root, visible && styles.visible, className].filter(Boolean).join(" ");
 
   return createPortal(
-    <div className={rootClass} style={{ ["--backdrop-duration" as string]: `${timeout}ms`, ...style }}>
+    <div className={rootClass} style={mergedStyle}>
       {children}
     </div>,
     document.body,
