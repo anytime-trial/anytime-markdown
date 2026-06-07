@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /* eslint-disable @typescript-eslint/no-require-imports */
-// VS Code Extension Host が使う Node のバージョン (現状 v22) 向けの
+// VS Code Extension Host が使う Node のバージョン (1.123 / Electron 42 以降は v24) 向けの
 // better-sqlite3 prebuilt binary を `prebuilt-vscode/` にダウンロードする。
 //
 // なぜ手動で配置するか:
-// - `npm rebuild better-sqlite3` だとホストの Node バージョン (例: v24) 用に
+// - `npm rebuild better-sqlite3` だとホストの Node バージョン用に
 //   binary が上書きされ、VS Code 内では `NODE_MODULE_VERSION mismatch` エラーになる。
 // - 一方ホスト側 jest テストではホスト Node 互換の binary が必要。
 // - そこで「ホスト用 binary は `node_modules/better-sqlite3/build/Release/` のまま」
@@ -16,7 +16,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const VSCODE_NODE_TARGET = process.env.VSCODE_NODE_TARGET || '22.18.0';
+// VS Code 1.123 (Electron 42) で Extension Host の Node が v24.15.0 (NODE_MODULE_VERSION 137)
+// に上がった。ここを下回るターゲットでビルドすると VS Code 内で ABI 不一致になる。
+const VSCODE_NODE_TARGET = process.env.VSCODE_NODE_TARGET || '24.15.0';
 // matrix CI で他プラットフォーム/アーキ向け binary をダウンロードしたい場合に
 // TARGET_ARCH / TARGET_PLATFORM を指定する (例: ubuntu-x64 runner で linux-arm64
 // 用 binary を取得する)。未指定ならホスト値を使う (= 既存のローカル開発挙動)。
