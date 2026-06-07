@@ -1,7 +1,8 @@
 "use client";
 
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-import { Menu, MenuItem } from "@mui/material";
+import { Menu } from "../ui/Menu";
+import { MenuItem } from "../ui/MenuItem";
 import { Tooltip } from "../ui/Tooltip";
 import { Button } from "../ui/Button";
 import { useTheme } from "@mui/material/styles";

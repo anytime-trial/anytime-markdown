@@ -1,0 +1,22 @@
+/* MUI Menu の paper + backdrop 相当。 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+}
+
+.paper {
+  position: fixed;
+  z-index: 1300;
+  margin: 0;
+  padding: 8px 0;
+  list-style: none;
+  min-width: 112px;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  outline: none;
+  box-sizing: border-box;
+  background-color: var(--am-color-bg-paper);
+  border-radius: var(--am-radius-md);
+  box-shadow: var(--am-elevation-3);
+}

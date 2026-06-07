@@ -5,9 +5,12 @@ import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditIcon from "@mui/icons-material/Edit";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ImageIcon from "@mui/icons-material/Image";
-import { ListItemIcon, ListItemText, Menu, MenuItem } from "@mui/material";
 import { Tooltip } from "../../ui/Tooltip";
 import { IconButton } from "../../ui/IconButton";
+import { ListItemIcon } from "../../ui/ListItemIcon";
+import { ListItemText } from "../../ui/ListItemText";
+import { Menu } from "../../ui/Menu";
+import { MenuItem } from "../../ui/MenuItem";
 import { useTheme } from "@mui/material/styles";
 import React, { useRef, useState } from "react";
 
@@ -111,9 +114,8 @@ export function BlockInlineToolbar({
           anchorEl={anchorRef.current}
           open={menuOpen}
           onClose={() => setMenuOpen(false)}
-          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-          transformOrigin={{ vertical: "top", horizontal: "right" }}
-          slotProps={{ paper: { sx: { minWidth: 180 } } }}
+          placement="bottom-end"
+          minWidth={180}
         >
           <MenuItem onClick={() => { setMenuOpen(false); onExport(); }}>
             <ListItemIcon><ImageIcon fontSize="small" /></ListItemIcon>
