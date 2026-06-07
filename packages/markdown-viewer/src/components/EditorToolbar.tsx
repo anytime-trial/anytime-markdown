@@ -11,7 +11,6 @@ import UndoIcon from "@mui/icons-material/Undo";
 import ViewStreamIcon from "@mui/icons-material/ViewStream";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import {
-  Tooltip,
   useTheme,
 } from "@mui/material";
 import type { Editor } from "@anytime-markdown/markdown-react";
@@ -30,6 +29,7 @@ import type { MergeUndoRedo } from "./InlineMergeView";
 import { ToolbarFileActions } from "./ToolbarFileActions";
 import { ToolbarMobileMenu } from "./ToolbarMobileMenu";
 import { Divider } from "../ui/Divider";
+import { Tooltip } from "../ui/Tooltip";
 import { IconButton } from "../ui/IconButton";
 import { Paper } from "../ui/Paper";
 import { ToggleButton } from "../ui/ToggleButton";

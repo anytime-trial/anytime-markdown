@@ -6,8 +6,8 @@ import CropIcon from "@mui/icons-material/Crop";
 import GridOnIcon from "@mui/icons-material/GridOn";
 import PhotoSizeSelectLargeIcon from "@mui/icons-material/PhotoSizeSelectLarge";
 import StraightenIcon from "@mui/icons-material/Straighten";
-import { Tooltip } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
+import { Tooltip } from "../ui/Tooltip";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "../ui/Button";

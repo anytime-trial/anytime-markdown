@@ -12,10 +12,10 @@ import {
   ListItemText,
   MenuItem,
   Popover,
-  Tooltip,
   useTheme,
 } from "@mui/material";
 import { IconButton } from "../ui/IconButton";
+import { Tooltip } from "../ui/Tooltip";
 import styles from "./EditorMenuPopovers.module.css";
 import { Divider } from "../ui/Divider";
 import type { Editor } from "@anytime-markdown/markdown-react";

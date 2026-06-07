@@ -3,7 +3,7 @@ import { EditorContent } from "@anytime-markdown/markdown-react";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
-import { Tooltip } from "@mui/material";
+import { Tooltip } from "../ui/Tooltip";
 import type { SxProps, Theme } from "@mui/material/styles";
 import { useTheme } from "@mui/material/styles";
 import React, { useEffect, useRef, useState } from "react";
