@@ -39,7 +39,7 @@ export function Popover({
   paperStyle,
   children,
 }: Readonly<PopoverProps>) {
-  const { referenceRef, floatingRef, x, y, ready } = useFloating({ open, placement, offsetPx: 4 });
+  const { referenceRef, floatingRef, floatingStyle } = useFloating({ open, placement, offsetPx: 4 });
   const restoreRef = useRef<HTMLElement | null>(null);
 
   // useFloating の open エフェクトより前に reference を確定させるため render 中に代入する。
@@ -70,15 +70,7 @@ export function Popover({
         aria-label={ariaLabel}
         tabIndex={-1}
         className={styles.paper}
-        style={{
-          left: x,
-          top: y,
-          // 位置確定前は opacity で不可視化（visibility:hidden は a11y ツリーから外れ
-          // getByRole が拾えなくなるため）。
-          opacity: ready ? 1 : 0,
-          pointerEvents: ready ? undefined : "none",
-          ...paperStyle,
-        }}
+        style={{ ...floatingStyle, ...paperStyle }}
         onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } }}
       >
         {children}

@@ -37,7 +37,7 @@ export function Menu({
   "aria-label": ariaLabel,
   children,
 }: Readonly<MenuProps>) {
-  const { referenceRef, floatingRef, x, y, ready } = useFloating({ open, placement, offsetPx: 2 });
+  const { referenceRef, floatingRef, floatingStyle } = useFloating({ open, placement, offsetPx: 2 });
 
   // anchorPosition 用の仮想アンカー（座標が変わらなければ安定）。
   const virtual = useMemo(() => {
@@ -107,16 +107,7 @@ export function Menu({
         aria-label={ariaLabel}
         tabIndex={-1}
         className={styles.paper}
-        style={{
-          left: x,
-          top: y,
-          minWidth,
-          // 位置確定前は opacity で不可視化（visibility:hidden は a11y ツリーから外れ
-          // getByRole が拾えなくなるため）。
-          opacity: ready ? 1 : 0,
-          pointerEvents: ready ? undefined : "none",
-          ...paperStyle,
-        }}
+        style={{ ...floatingStyle, minWidth, ...paperStyle }}
         onKeyDown={handleKeyDown}
       >
         {children}

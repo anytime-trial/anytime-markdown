@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/dom";
 import type { Placement, ReferenceElement } from "@floating-ui/dom";
 
@@ -35,6 +36,14 @@ export interface UseFloatingResult {
   resolvedPlacement: Placement;
   /** 初回計算が完了したか。完了まで visibility:hidden で表示するとちらつかない。 */
   ready: boolean;
+  /**
+   * floating 要素にそのまま spread できる位置スタイル（position:fixed + left/top +
+   * 位置確定前の opacity/pointer-events ガード）。Menu / Popover / Select /
+   * SlashCommandMenu が共通利用し、各自は zIndex / minWidth / paperStyle を足す。
+   * 位置確定前を visibility:hidden でなく opacity:0 にするのは a11y ツリーから外さず
+   * getByRole で拾えるようにするため。
+   */
+  floatingStyle: CSSProperties;
 }
 
 export function useFloating({
@@ -87,5 +96,13 @@ export function useFloating({
     return autoUpdate(reference, floating, update);
   }, [open, update]);
 
-  return { referenceRef, floatingRef, ...state };
+  const floatingStyle: CSSProperties = {
+    position: "fixed",
+    left: state.x,
+    top: state.y,
+    opacity: state.ready ? 1 : 0,
+    pointerEvents: state.ready ? undefined : "none",
+  };
+
+  return { referenceRef, floatingRef, ...state, floatingStyle };
 }
