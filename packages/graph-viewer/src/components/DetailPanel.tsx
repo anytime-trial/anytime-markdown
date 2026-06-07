@@ -61,12 +61,12 @@ export function DetailPanel({ node, onClose }: Readonly<DetailPanelProps>) {
               URL
             </Text>
             <Text
+              className="gv-link"
               style={{
                 display: 'block',
                 marginBottom: 8,
                 wordBreak: 'break-all',
                 color: 'var(--gv-color-primary-main)',
-                cursor: 'pointer',
               }}
               onClick={() => globalThis.open(node.url, '_blank', 'noopener')}
             >
