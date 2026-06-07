@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 
-import { getDivider, getTextSecondary, FS_TOOLBAR_HEIGHT, FS_ZOOM_LABEL_WIDTH, SMALL_CAPTION_FONT_SIZE, useIsDark } from "@anytime-markdown/markdown-viewer";
+import { getDivider, getTextSecondary, FS_ZOOM_LABEL_WIDTH, SMALL_CAPTION_FONT_SIZE, useIsDark } from "@anytime-markdown/markdown-viewer";
 import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
 import { ListItemIcon } from "@anytime-markdown/markdown-viewer/src/ui/ListItemIcon";
 import { ListItemText } from "@anytime-markdown/markdown-viewer/src/ui/ListItemText";
@@ -37,7 +37,7 @@ export function ZoomToolbar({ fsZP, onExport, onExportSource, exportSourceKey, t
   return (
     <div
       className={styles.toolbar}
-      style={{ borderColor: getDivider(isDark), minHeight: FS_TOOLBAR_HEIGHT }}
+      style={{ borderColor: getDivider(isDark) }}
     >
       {hasMenu && (<>
         <Tooltip title={t("capture")} placement="bottom">

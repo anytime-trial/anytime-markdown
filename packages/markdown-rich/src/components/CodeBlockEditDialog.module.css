@@ -3,20 +3,7 @@
  * gap:0.75=6px, FS_TOOLBAR_HEIGHT=32px）。テーマ依存色は inline style（CSS 変数経由含む）。
  */
 
-/* code パネルヘッダ（border-bottom 色は inline）。 */
-.codeHeader {
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid;
-  padding: 2px 8px;
-  min-height: 32px;
-}
-
-/* パネル見出しの Typography(caption) 相当。font-size はトークンを inline。 */
-.panelHeaderText {
-  font-weight: 600;
-  flex: 1;
-}
+/* code パネルヘッダ・見出しは dialogPanels.module.css に共通化。 */
 
 /* サンプルパネル外枠（border-top 色は inline）。 */
 .samplePanelRoot {

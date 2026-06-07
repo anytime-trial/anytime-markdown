@@ -5,6 +5,7 @@ import { AccountTreeIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons"
 import { Tabs } from "@anytime-markdown/markdown-viewer/src/ui/Tabs";
 import { Tab } from "@anytime-markdown/markdown-viewer/src/ui/Tab";
 import styles from "./MermaidEditDialog.module.css";
+import panels from "./dialogPanels.module.css";
 import type { TextareaSearchState } from "@anytime-markdown/markdown-viewer";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 import { extractDiagramAltText } from "../utils/diagramAltText";
@@ -139,7 +140,7 @@ export function MermaidEditDialog({
           left={
             <>
               {/* Tabs + toolbar */}
-              <div className={styles.tabsRow} style={{ borderBottomColor: getDivider(isDark) }}>
+              <div className={panels.tabsRow} style={{ borderBottomColor: getDivider(isDark) }}>
                 <Tabs
                   value={activeTab}
                   onChange={(_, v) => setActiveTab(v as "code" | "config")}

@@ -5,6 +5,7 @@ import { AccountTreeIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons"
 import { Tabs } from "@anytime-markdown/markdown-viewer/src/ui/Tabs";
 import { Tab } from "@anytime-markdown/markdown-viewer/src/ui/Tab";
 import styles from "./PlantUmlEditDialog.module.css";
+import panels from "./dialogPanels.module.css";
 import type { TextareaSearchState } from "@anytime-markdown/markdown-viewer";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 import { extractDiagramAltText } from "../utils/diagramAltText";
@@ -122,7 +123,7 @@ export function PlantUmlEditDialog({
           left={
             <>
               {/* Tabs */}
-              <div className={styles.tabsRow} style={{ borderBottomColor: getDivider(isDark) }}>
+              <div className={panels.tabsRow} style={{ borderBottomColor: getDivider(isDark) }}>
                 <Tabs
                   value={activeTab}
                   onChange={(_, v) => setActiveTab(v as "code" | "config")}
@@ -166,7 +167,7 @@ export function PlantUmlEditDialog({
               <ZoomToolbar fsZP={fsZP} onExport={onExport} onExportSource={onExportSource} exportSourceKey={exportSourceKey} t={t} />
               <ZoomablePreview fsZP={fsZP}>
                 {plantUmlUrl && (
-                  <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" style={{ maxWidth: "90vw", maxHeight: "85vh", transform: `scale(${settings.fontSize / 16})`, transformOrigin: "center center" }} />
+                  <img src={plantUmlUrl} alt={extractDiagramAltText(code, "plantuml")} referrerPolicy="no-referrer" className={styles.previewImg} style={{ transform: `scale(${settings.fontSize / 16})` }} />
                 )}
               </ZoomablePreview>
             </>

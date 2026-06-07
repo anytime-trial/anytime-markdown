@@ -27,3 +27,8 @@
   gap: 6px;
   padding: 0 12px 12px;
 }
+
+.headerText {
+  font-weight: 600;
+  flex: 1;
+}

@@ -1,4 +1,4 @@
-/* Graph2DView — MUI Box(sx) 置換。構造・余白は CSS、テーマ依存色/動的値は inline style。 */
+/* Graph2DView / Graph3DView 共有。MUI Box(sx) 置換。構造・余白は CSS、テーマ依存色/動的値は inline style。 */
 
 .root {
   display: flex;
@@ -9,7 +9,7 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 4px; /* gap:0.5 → 4px */
+  gap: 4px; /* gap:0.5 → 4px（Graph2DView のみ使用） */
 }
 
 .sliderList {

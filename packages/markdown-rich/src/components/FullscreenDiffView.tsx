@@ -310,6 +310,9 @@ function DiffPanel({
 
   const noPadRight = side === "left" && hasMergeButtons;
 
+  // font-family は .mergeGutterRow（CSS）側。動的値のみを 1 オブジェクトに集約し map 内の再生成を避ける。
+  const mergeGutterRowStyle: React.CSSProperties = { fontSize: `${fontSize}px`, lineHeight };
+
   const renderMergeGutter = (panelSide: "left" | "right") => (
     <div
       ref={mergeGutterRef}
@@ -321,11 +324,7 @@ function DiffPanel({
           <div
             key={i}
             className={styles.mergeGutterRow}
-            style={{
-              fontFamily: "monospace",
-              fontSize: `${fontSize}px`,
-              lineHeight,
-            }}
+            style={mergeGutterRowStyle}
           >
             {" "}
             {blockId != null && (

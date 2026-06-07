@@ -41,7 +41,8 @@ export function SamplePanel({ samples, onInsert, readOnly, t }: Readonly<SampleP
       >
         <Text
           variant="caption"
-          style={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}
+          className={styles.headerText}
+          style={{ fontSize: FS_PANEL_HEADER_FONT_SIZE }}
         >
           {t("sampleContent")}
         </Text>

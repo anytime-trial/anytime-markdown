@@ -9,7 +9,7 @@ import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
 import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
 import { HomeIcon, PauseIcon, PlayArrowIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
 import type { GraphExpr } from "../../utils/latexToExpr";
-import styles from "./Graph2DView.module.css";
+import styles from "./graphControls.module.css";
 
 /** デフォルト表示範囲 */
 const DEFAULT_BBOX: [number, number, number, number] = [-10, 10, 10, -10];

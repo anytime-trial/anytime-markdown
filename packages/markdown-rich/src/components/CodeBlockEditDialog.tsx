@@ -4,11 +4,12 @@ import React, { useCallback, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getPrimaryMain, getTextPrimary, HLJS_DARK, HLJS_LIGHT, CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, useEditorSettingsContext, useIsDark, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getHljsCssVars, getPrimaryMain, getTextPrimary, CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, useEditorSettingsContext, useIsDark, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
 import { Chip } from "@anytime-markdown/markdown-viewer/src/ui/Chip";
 import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
 import { CodeIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
 import styles from "./CodeBlockEditDialog.module.css";
+import panels from "./dialogPanels.module.css";
 import type { TextareaSearchState } from "@anytime-markdown/markdown-viewer";
 import { useZoomPan } from "../hooks/useZoomPan";
 import { DraggableSplitLayout } from "./DraggableSplitLayout";
@@ -83,7 +84,7 @@ function BuiltInSamplePanel({
         className={styles.sampleHeader}
         style={{ ["--am-sample-hover-bg"]: getActionHover(isDark) } as CSSProperties}
       >
-        <Text variant="caption" className={styles.panelHeaderText} style={{ fontSize: FS_PANEL_HEADER_FONT_SIZE }}>
+        <Text variant="caption" className={panels.panelHeaderText} style={{ fontSize: FS_PANEL_HEADER_FONT_SIZE }}>
           {t("sampleContent")}
         </Text>
       </div>
@@ -136,23 +137,12 @@ function SyntaxPreviewPanel({
       </>
     );
   }
-  const h = isDark ? HLJS_DARK : HLJS_LIGHT;
   const hljsVars: CSSProperties = {
     fontSize: `${settings.fontSize}px`,
     lineHeight: settings.lineHeight,
     color: getTextPrimary(isDark),
-    ["--hljs-keyword"]: h.keyword,
-    ["--hljs-string"]: h.string,
-    ["--hljs-comment"]: h.comment,
-    ["--hljs-number"]: h.number,
-    ["--hljs-title"]: h.title,
-    ["--hljs-params"]: h.params,
-    ["--hljs-meta"]: h.meta,
-    ["--hljs-addition"]: h.addition,
-    ["--hljs-addition-bg"]: h.additionBg,
-    ["--hljs-deletion"]: h.deletion,
-    ["--hljs-deletion-bg"]: h.deletionBg,
-  } as CSSProperties;
+    ...getHljsCssVars(isDark),
+  };
   return (
     <>
       <ZoomToolbar fsZP={fsZP} t={() => ""} />
@@ -207,8 +197,8 @@ export function CodeBlockEditDialog({
 
   const codePanel = (
     <>
-      <div className={styles.codeHeader} style={{ borderBottomColor: getDivider(isDark) }}>
-        <Text variant="caption" className={styles.panelHeaderText} style={{ fontSize: FS_PANEL_HEADER_FONT_SIZE }}>
+      <div className={panels.codeHeader} style={{ borderBottomColor: getDivider(isDark) }}>
+        <Text variant="caption" className={panels.panelHeaderText} style={{ fontSize: FS_PANEL_HEADER_FONT_SIZE }}>
           {t("codeTab")}
         </Text>
         {toolbarExtra}

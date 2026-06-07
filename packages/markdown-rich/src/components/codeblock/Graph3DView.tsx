@@ -9,7 +9,7 @@ import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
 import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
 import { PauseIcon, PlayArrowIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
 import type { GraphExpr } from "../../utils/latexToExpr";
-import styles from "./Graph3DView.module.css";
+import styles from "./graphControls.module.css";
 
 /** グリッドサイズ */
 const GRID_SIZE = 50;

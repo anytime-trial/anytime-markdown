@@ -85,7 +85,7 @@ export function DraggableSplitLayout({
       <div
         className={[
           styles.leftPanel,
-          isMobile ? styles.leftPanelMobile : styles.leftPanelDesktop,
+          isMobile ? styles.leftPanelMobile : undefined,
           dragging ? styles.noPointerEvents : undefined,
         ].filter(Boolean).join(" ")}
         style={isMobile ? undefined : {
@@ -130,7 +130,7 @@ export function DraggableSplitLayout({
       />
       {/* Horizontal divider (mobile only) — desktop では DOM から外す（旧 sx display:none 相当・
           splitter と role="separator" が重複しないようにするため） */}
-      {isMobile && <Divider className={styles.dividerVisible} />}
+      {isMobile && <Divider />}
       {/* Right panel (preview) */}
       <div className={styles.rightPanel}>
         {right}

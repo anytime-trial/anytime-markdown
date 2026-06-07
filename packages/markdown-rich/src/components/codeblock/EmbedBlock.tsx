@@ -173,7 +173,6 @@ export function EmbedBlock(props: EmbedBlockProps) {
                 onPointerUp={handleResizePointerUp}
                 className={styles.container}
                 style={{
-                    cursor: "pointer",
                     width: widthOverride ?? "100%",
                     maxWidth: widthOverride ?? 720,
                 }}

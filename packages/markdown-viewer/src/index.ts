@@ -175,7 +175,7 @@ export type { MarkdownItLike } from './utils/embedFenceRenderer';
 export { EMBED_DATA_ATTR, installEmbedFenceRenderer } from './utils/embedFenceRenderer';
 
 // Styles
-export { getHljsStyles } from './styles/codeStyles';
+export { getHljsCssVars, getHljsStyles } from './styles/codeStyles';
 
 // Icons
 export { default as MarkdownIcon } from './icons/MarkdownIcon';

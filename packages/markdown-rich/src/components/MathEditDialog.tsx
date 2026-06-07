@@ -7,6 +7,7 @@ import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
 import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
 import { FunctionsIcon, ShowChartIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
 import styles from "./MathEditDialog.module.css";
+import panels from "./dialogPanels.module.css";
 import type { TextareaSearchState } from "@anytime-markdown/markdown-viewer";
 import { MATH_SANITIZE_CONFIG, useKatexRender } from "../hooks/useKatexRender";
 import { useZoomPan } from "../hooks/useZoomPan";
@@ -81,8 +82,8 @@ export function MathEditDialog({
           left={
             <>
               {/* Code toolbar */}
-              <div className={styles.codeHeader} style={{ borderBottomColor: getDivider(isDark) }}>
-                <Text variant="caption" className={styles.panelHeaderText} style={{ fontSize: FS_PANEL_HEADER_FONT_SIZE }}>
+              <div className={panels.codeHeader} style={{ borderBottomColor: getDivider(isDark) }}>
+                <Text variant="caption" className={panels.panelHeaderText} style={{ fontSize: FS_PANEL_HEADER_FONT_SIZE }}>
                   {t("codeTab")}
                 </Text>
                 {toolbarExtra}

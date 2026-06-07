@@ -7,6 +7,8 @@
   padding: 2px 8px;
   /* borderBottom: 1 — borderColor set inline */
   border-bottom: 1px solid;
+  /* minHeight: FS_TOOLBAR_HEIGHT = 32px */
+  min-height: 32px;
 }
 
 /* IconButton padding overrides — p: 0.25 = 2px */

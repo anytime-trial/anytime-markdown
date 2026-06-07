@@ -1,6 +1,8 @@
-/* MUI Box(sx) 置換。border-bottom 色は inline（getDivider）。 */
-.tabsRow {
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid;
+/* tabsRow は dialogPanels.module.css に共通化。 */
+
+/* プレビュー画像。scale のみ動的（fontSize 連動）。 */
+.previewImg {
+  max-width: 90vw;
+  max-height: 85vh;
+  transform-origin: center center;
 }
