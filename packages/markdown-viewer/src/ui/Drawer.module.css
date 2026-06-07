@@ -1,0 +1,60 @@
+/* MUI temporary Drawer の置換。presentation ルート + backdrop + slide する paper。 */
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity var(--am-duration-fast) var(--am-ease-standard);
+}
+
+.backdrop.entered {
+  opacity: 1;
+}
+
+.paper {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 100%;
+  overflow-y: auto;
+  outline: none;
+  box-sizing: border-box;
+  /* MUI 同様、ダークモードでは elevation overlay で paper を持ち上げる（light では none）。 */
+  background-color: var(--am-color-bg-paper);
+  background-image: var(--am-overlay-elevation-16, none);
+  color: var(--am-color-text-primary);
+  /* --am-elevation-3 の値は MUI shadows[16]（Drawer 既定 elevation）と一致。 */
+  box-shadow: var(--am-elevation-3);
+  transition: transform var(--am-duration-fast) var(--am-ease-standard);
+}
+
+.left {
+  left: 0;
+  transform: translateX(-100%);
+}
+
+.right {
+  right: 0;
+  transform: translateX(100%);
+}
+
+.left.entered,
+.right.entered {
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .paper {
+    transition: none;
+  }
+}

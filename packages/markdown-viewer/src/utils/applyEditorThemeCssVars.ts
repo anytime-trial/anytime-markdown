@@ -139,6 +139,13 @@ export function applyEditorThemeCssVars(
   root.style.setProperty("--am-color-text-primary", getTextPrimary(isDark));
   root.style.setProperty("--am-color-text-secondary", getTextSecondary(isDark));
   root.style.setProperty("--am-color-bg-paper", getBgPaper(isDark));
+  // MUI ダークモードの elevation overlay。Paper を elevation に応じて白で持ち上げる挙動の
+  // elevation 16 相当（temporary Drawer 既定）。light では overlay なし。
+  // 値は MUI 実測（getComputedStyle）の rgba(255,255,255,0.145) に一致させている。
+  root.style.setProperty(
+    "--am-overlay-elevation-16",
+    isDark ? "linear-gradient(rgba(255,255,255,0.145), rgba(255,255,255,0.145))" : "none",
+  );
   root.style.setProperty("--am-color-action-hover", getActionHover(isDark));
   root.style.setProperty("--am-color-action-selected", getActionSelected(isDark));
   root.style.setProperty("--am-color-action-active", getActionActive(isDark));
