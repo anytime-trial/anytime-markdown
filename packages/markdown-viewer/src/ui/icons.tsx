@@ -25,6 +25,21 @@ export interface IconComponent {
   displayName?: string;
 }
 
+/** MUI SvgIcon の semantic color 名 → CSS 値（am トークン）。生の CSS 色はそのまま通す。 */
+const SEMANTIC_COLORS: Record<string, string> = {
+  primary: "var(--am-color-primary-main)",
+  secondary: "var(--am-color-text-secondary)",
+  error: "var(--am-color-error-main)",
+  success: "var(--am-color-success-main)",
+  action: "var(--am-color-action-active)",
+  inherit: "inherit",
+};
+
+function resolveColor(color?: string): string | undefined {
+  if (color == null) return undefined;
+  return SEMANTIC_COLORS[color] ?? color;
+}
+
 function resolveFontSize(fontSize?: IconFontSize): string {
   if (fontSize == null) return "1.5rem";
   if (typeof fontSize === "number") return `${fontSize}px`;
@@ -56,7 +71,7 @@ export function createIcon(body: ReactNode, name: string, viewBox = "0 0 24 24")
         aria-hidden="true"
         data-testid={`${name}Icon`}
         className={className}
-        style={{ fontSize: resolveFontSize(fontSize), color, ...style }}
+        style={{ fontSize: resolveFontSize(fontSize), color: resolveColor(color), ...style }}
         {...props}
       >
         {body}

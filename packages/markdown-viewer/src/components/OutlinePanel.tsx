@@ -70,7 +70,7 @@ const HeadingFoldButton = React.memo(function HeadingFoldButton({
       className={styles.foldBtn}
       style={{ color: getTextSecondary(isDark) }}
     >
-      <KeyboardArrowDownIcon fontSize={16} style={{ transition: "transform 0.15s", transform: isFolded ? "rotate(-90deg)" : "rotate(0deg)" }} />
+      <KeyboardArrowDownIcon fontSize={16} className={styles.foldIcon} style={{ transform: isFolded ? "rotate(-90deg)" : "rotate(0deg)" }} />
     </IconButton>
   );
 });
