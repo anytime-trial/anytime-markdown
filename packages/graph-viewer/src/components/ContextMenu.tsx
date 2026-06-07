@@ -1,16 +1,16 @@
 'use client';
 
 import {
-  ContentCopy as CopyIcon,
-  ContentPaste as PasteIcon,
-  Deblur as UngroupIcon,
-  Delete as DeleteIcon,
-  FlipToBack as BackIcon,
-  FlipToFront as FrontIcon,
-  GroupWork as GroupIcon,
-  SelectAll as SelectAllIcon,
-} from '@mui/icons-material';
-import { Divider,ListItemIcon, ListItemText, Menu, MenuItem } from '@mui/material';
+  ContentCopyIcon as CopyIcon,
+  ContentPasteIcon as PasteIcon,
+  DeblurIcon as UngroupIcon,
+  DeleteIcon,
+  FlipToBackIcon as BackIcon,
+  FlipToFrontIcon as FrontIcon,
+  GroupWorkIcon as GroupIcon,
+  SelectAllIcon,
+  Divider, ListItemIcon, ListItemText, Menu, MenuItem,
+} from '../ui';
 import { useGraphT } from '../i18n/context';
 import React from 'react';
 
