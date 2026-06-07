@@ -6,15 +6,13 @@ import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import SaveIcon from "@mui/icons-material/Save";
 import SaveAsIcon from "@mui/icons-material/SaveAs";
 import SettingsIcon from "@mui/icons-material/Settings";
-import {
-  ListItemIcon,
-  ListItemText,
-  Menu,
-  MenuItem,
-} from "@mui/material";
 import React from "react";
 
 import { Divider } from "../ui/Divider";
+import { ListItemIcon } from "../ui/ListItemIcon";
+import { ListItemText } from "../ui/ListItemText";
+import { Menu } from "../ui/Menu";
+import { MenuItem } from "../ui/MenuItem";
 
 import type { TranslationFn } from "../types";
 import type { ToolbarFileCapabilities, ToolbarFileHandlers } from "../types/toolbar";

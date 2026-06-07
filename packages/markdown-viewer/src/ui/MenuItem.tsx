@@ -24,6 +24,7 @@ export function MenuItem({
   style,
   children,
   role = "menuitem",
+  tabIndex = -1,
   ...rest
 }: Readonly<MenuItemProps>) {
   const groupDense = useMenuDense();
@@ -40,10 +41,11 @@ export function MenuItem({
   return (
     <li
       role={role}
+      tabIndex={tabIndex}
       aria-disabled={disabled || undefined}
       className={classes}
       style={style}
-      onClick={disabled ? undefined : onClick}
+      onClick={onClick}
       {...rest}
     >
       {children}

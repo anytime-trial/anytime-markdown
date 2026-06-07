@@ -1,25 +1,26 @@
-/* MUI MenuItem 相当。gutters(16px) / hover / selected。 */
+/* MUI MenuItem 相当。gutters(16px) / hover / selected。
+   寸法・フォントは CSS 変数で受け、Menu の paper レベル上書き（MUI の & .MuiMenuItem-root sx 相当）を
+   ancestor 継承で反映できる。consumer の style（fontSize/minHeight 等）はインラインで最優先。 */
 .menuItem {
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  min-height: 48px;
-  padding: 6px 16px;
+  min-height: var(--am-menu-item-minh, 48px);
+  padding: var(--am-menu-item-pad-y, 6px) var(--am-menu-item-pad-x, 16px);
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
   color: var(--am-color-text-primary);
-  font-size: 1rem;
+  font-size: var(--am-menu-item-font, 1rem);
   background-color: transparent;
   transition: background-color var(--am-duration-fast) var(--am-ease-standard);
 }
 
 /* dense: minHeight 32 / padding 4px / body2。アイコンは 1.25rem。 */
 .dense {
-  min-height: 32px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  font-size: 0.875rem;
+  --am-menu-item-minh: 32px;
+  --am-menu-item-pad-y: 4px;
+  --am-menu-item-font: 0.875rem;
 }
 
 /* dense メニュー内のアイコンは 1.25rem（MUI 同等）。 */

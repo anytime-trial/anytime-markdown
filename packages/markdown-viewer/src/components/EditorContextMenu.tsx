@@ -7,7 +7,10 @@ import ContentCutIcon from "@mui/icons-material/ContentCut";
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
-import { ListItemIcon, ListItemText, Menu, MenuItem } from "@mui/material";
+import { ListItemIcon } from "../ui/ListItemIcon";
+import { ListItemText } from "../ui/ListItemText";
+import { Menu } from "../ui/Menu";
+import { MenuItem } from "../ui/MenuItem";
 import { useTheme } from "@mui/material/styles";
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 import type { Editor } from "@anytime-markdown/markdown-react";
@@ -50,24 +53,22 @@ function insertMarkdownText(editor: Editor, text: string): void {
   editor.chain().focus().insertContent(md).run();
 }
 
-function getMenuPaperSx(isDark: boolean) { return {
-  minWidth: 180,
-  bgcolor: getBgPaper(isDark),
-  border: 1,
-  borderColor: getDivider(isDark),
-  borderRadius: 1,
-  boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
-  py: 0.5,
-  "& .MuiMenuItem-root": {
-    fontSize: CONTEXT_MENU_FONT_SIZE,
-    minHeight: 28,
-    px: 2,
-    py: 0.25,
-  },
-  "& .MuiListItemIcon-root": {
-    minWidth: 28,
-  },
-} as const; }
+function getMenuPaperStyle(isDark: boolean): React.CSSProperties {
+  return {
+    minWidth: 180,
+    backgroundColor: getBgPaper(isDark),
+    border: `1px solid ${getDivider(isDark)}`,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+    paddingTop: 4,
+    paddingBottom: 4,
+    // 旧 sx の & .MuiMenuItem-root / & .MuiListItemIcon-root をプリミティブの CSS 変数で反映。
+    ["--am-menu-item-font" as string]: CONTEXT_MENU_FONT_SIZE,
+    ["--am-menu-item-minh" as string]: "28px",
+    ["--am-menu-item-pad-y" as string]: "2px",
+    ["--am-menu-item-pad-x" as string]: "16px",
+    ["--am-menu-icon-minw" as string]: "28px",
+  };
+}
 
 /** ソースモード時のテキスト貼り付け */
 async function pasteIntoSource(
@@ -361,7 +362,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       <ListItemIcon>
         <ContentCutIcon sx={{ fontSize: 16 }} />
       </ListItemIcon>
-      <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
+      <ListItemText>
         {t("cut")}
       </ListItemText>
       <Text variant="body2" style={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, marginLeft: "16px" }}>
@@ -372,7 +373,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       <ListItemIcon>
         <ContentCopyIcon sx={{ fontSize: 16 }} />
       </ListItemIcon>
-      <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
+      <ListItemText>
         {t("copy")}
       </ListItemText>
       <Text variant="body2" style={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, marginLeft: "16px" }}>
@@ -383,7 +384,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       <ListItemIcon>
         <ContentPasteIcon sx={{ fontSize: 16 }} />
       </ListItemIcon>
-      <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
+      <ListItemText>
         {t("paste")}
       </ListItemText>
       <Text variant="body2" style={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, marginLeft: "16px" }}>
@@ -399,7 +400,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
         <ListItemIcon>
           <ContentPasteIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
-        <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
+        <ListItemText>
           {t("pasteAsMarkdown")}
         </ListItemText>
         <Text variant="body2" style={{ color: getTextSecondary(isDark), fontSize: SHORTCUT_HINT_FONT_SIZE, marginLeft: "16px" }}>
@@ -410,7 +411,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
         <ListItemIcon>
           <CodeIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
-        <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
+        <ListItemText>
           {t("pasteAsCodeBlock")}
         </ListItemText>
       </MenuItem>,
@@ -423,7 +424,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       <ListItemIcon>
         <ClearAllIcon sx={{ fontSize: 16 }} />
       </ListItemIcon>
-      <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
+      <ListItemText>
         {t("clearScreen")}
       </ListItemText>
     </MenuItem>,
@@ -436,7 +437,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
         <ListItemIcon>
           <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
-        <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
+        <ListItemText>
           {t("review")}
         </ListItemText>
       </MenuItem>,
@@ -444,7 +445,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
         <ListItemIcon>
           <EditOutlinedIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
-        <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
+        <ListItemText>
           {t("wysiwyg")}
         </ListItemText>
       </MenuItem>,
@@ -452,7 +453,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
         <ListItemIcon>
           <CodeIcon sx={{ fontSize: 16 }} />
         </ListItemIcon>
-        <ListItemText slotProps={{ primary: { fontSize: CONTEXT_MENU_FONT_SIZE } }}>
+        <ListItemText>
           {t("source")}
         </ListItemText>
       </MenuItem>,
@@ -469,7 +470,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
           ? undefined
           : { top: menuPos.mouseY, left: menuPos.mouseX }
       }
-      slotProps={{ paper: { sx: getMenuPaperSx(isDark) } }}
+      paperStyle={getMenuPaperStyle(isDark)}
     >
       {menuItems}
     </Menu>
