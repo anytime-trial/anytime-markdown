@@ -1,0 +1,7 @@
+/* 確認ダイアログのタイトル行: アイコン + テキストを primary 色で横並び（旧 MUI sx 等価）。 */
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--am-color-primary-main);
+}

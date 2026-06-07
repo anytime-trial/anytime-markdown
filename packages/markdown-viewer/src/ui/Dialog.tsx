@@ -1,5 +1,5 @@
-import { useId, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { useId, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import styles from "./Dialog.module.css";
@@ -20,6 +20,8 @@ export interface DialogProps {
   children: ReactNode;
   "aria-label"?: string;
   labelledBy?: string;
+  /** aria-describedby に渡す説明要素の id。 */
+  describedBy?: string;
   /** 最大幅。false で上限なし。既定 "sm"（MUI 既定と同値）。 */
   maxWidth?: "xs" | "sm" | "md" | "lg" | "xl" | false;
   /** maxWidth まで横いっぱいに広げる。 */
@@ -41,6 +43,7 @@ export function Dialog({
   onClose,
   children,
   labelledBy,
+  describedBy,
   maxWidth = "sm",
   fullWidth,
   fullScreen,
@@ -78,6 +81,7 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
         aria-label={rest["aria-label"]}
         className={paperClass}
         style={computedPaperStyle}
@@ -105,6 +109,15 @@ export function DialogContent({
 
 export function DialogActions({ children }: Readonly<{ children: ReactNode }>) {
   return <div className={styles.actions}>{children}</div>;
+}
+
+/** MUI DialogContentText の置換（body1 / text.secondary）。pre-line 等は style で上書きする。 */
+export function DialogContentText({
+  children,
+  id,
+  style,
+}: Readonly<{ children: ReactNode; id?: string; style?: CSSProperties }>) {
+  return <p id={id} className={styles.contentText} style={style}>{children}</p>;
 }
 
 /** title を id 連携するための補助フック。 */

@@ -94,6 +94,7 @@
     ".next/types/**/*.ts",
     "../markdown-viewer/src/md.d.ts",
     "../markdown-viewer/src/types/vscode.d.ts",
+    "../markdown-viewer/src/types/stylis.d.ts",
     "../markdown-viewer/src/plotly-gl3d.d.ts"
   ],
   "exclude": [
