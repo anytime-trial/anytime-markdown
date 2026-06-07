@@ -40,6 +40,27 @@
   flex-shrink: 0;
 }
 
+/* Heading row clickable label (ButtonBase component="div")。fontSize/color は inline 上書き
+   （color は折りたたみ状態で動的）。display:inline-flex は MUI ButtonBase 既定の再現。 */
+.headingButton {
+  display: inline-flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 2px;
+  justify-content: flex-start;
+  cursor: pointer;
+}
+
+.headingButton:focus-visible {
+  outline: 2px solid var(--am-color-primary-main);
+  outline-offset: 1px;
+}
+
 /* ── Resize handle ───────────────────────────────────────────── */
 .resizeHandle {
   width: 6px;

@@ -22,3 +22,33 @@
   padding-left: 4px;
   padding-right: 4px;
 }
+
+/* Comment card (ButtonBase component="div")。opacity は resolved 状態で inline 上書き。 */
+.commentCard {
+  display: block;
+  text-align: left;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid var(--am-color-divider);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.commentCard:hover,
+.commentCard:focus-visible {
+  background-color: var(--am-color-action-hover);
+}
+
+.commentCard:focus-visible {
+  outline: 2px solid var(--am-color-primary-main);
+  outline-offset: -2px;
+}
+
+/* Image annotation card (ButtonBase component="div")。 */
+.annotationCard {
+  display: block;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}

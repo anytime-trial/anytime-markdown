@@ -12,10 +12,10 @@ import SchemaIcon from "@mui/icons-material/Schema";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import {
-  ButtonBase,
   Collapse,
   useTheme,
 } from "@mui/material";
+import { ButtonBase } from "../ui/ButtonBase";
 import { IconButton } from "../ui/IconButton";
 import { Tooltip } from "../ui/Tooltip";
 import React, { useCallback, useMemo,useState } from "react";
@@ -167,12 +167,10 @@ const OutlineItem = React.memo(function OutlineItem({
         onClick={() => handleOutlineClick(h.pos)}
         {...(isDraggable ? { "aria-roledescription": t("draggableHeading") } : {})}
         onKeyDown={(e: React.KeyboardEvent) => handleHeadingKeyDown(e, isHeading, onHeadingDragEnd, hoIdx, headingOnlyIndices)}
-        sx={{
-          cursor: "pointer", fontSize: OUTLINE_FONT_SIZE, fontWeight: 400,
+        className={styles.headingButton}
+        style={{
+          fontSize: OUTLINE_FONT_SIZE,
           color: isFolded ? getTextDisabled(isDark) : getTextPrimary(isDark),
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          flex: 1, minWidth: 0, borderRadius: 0.5, justifyContent: "flex-start",
-          "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), outlineOffset: 1 },
         }}
       >
         {h.text || "(empty)"}
