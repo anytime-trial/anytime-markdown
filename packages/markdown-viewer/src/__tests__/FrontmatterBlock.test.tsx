@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -21,56 +20,53 @@ jest.mock("../constants/dimensions", () => ({
 
 import { FrontmatterBlock } from "../components/FrontmatterBlock";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 describe("FrontmatterBlock", () => {
   it("renders without crashing with null frontmatter", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FrontmatterBlock frontmatter={null} onChange={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <FrontmatterBlock frontmatter={null} onChange={jest.fn()} t={t} />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with frontmatter text", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <FrontmatterBlock
           frontmatter="title: Test\nauthor: Me"
           onChange={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders in readOnly mode", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <FrontmatterBlock
           frontmatter="title: Test"
           onChange={jest.fn()}
           readOnly
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with defaultCollapsed", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <FrontmatterBlock
           frontmatter="title: Test"
           onChange={jest.fn()}
           defaultCollapsed
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });

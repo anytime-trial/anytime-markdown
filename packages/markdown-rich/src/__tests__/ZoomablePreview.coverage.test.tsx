@@ -4,7 +4,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { ZoomablePreview } from "../components/ZoomablePreview";
 
@@ -15,9 +14,6 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     REDUCED_MOTION_SX: {},
     DURATION_FAST: "0.15s",
 }));
-
-const lightTheme = createTheme({ palette: { mode: "light" } });
-const darkTheme = createTheme({ palette: { mode: "dark" } });
 
 const baseFsZP = {
   zoom: 1,
@@ -34,33 +30,27 @@ const baseFsZP = {
 describe("ZoomablePreview", () => {
   it("renders with default origin (center) in light theme", () => {
     const { container } = render(
-      <ThemeProvider theme={lightTheme}>
-        <ZoomablePreview fsZP={baseFsZP as any}>
-          <div>child</div>
-        </ZoomablePreview>
-      </ThemeProvider>,
+      <ZoomablePreview fsZP={baseFsZP as any}>
+        <div>child</div>
+      </ZoomablePreview>,
     );
     expect(container.textContent).toContain("child");
   });
 
   it("renders with origin='top-left' in dark theme", () => {
     const { container } = render(
-      <ThemeProvider theme={darkTheme}>
-        <ZoomablePreview fsZP={baseFsZP as any} origin="top-left">
-          <div>child</div>
-        </ZoomablePreview>
-      </ThemeProvider>,
+      <ZoomablePreview fsZP={baseFsZP as any} origin="top-left">
+        <div>child</div>
+      </ZoomablePreview>,
     );
     expect(container.textContent).toContain("child");
   });
 
   it("renders with origin='center' explicitly", () => {
     const { container } = render(
-      <ThemeProvider theme={lightTheme}>
-        <ZoomablePreview fsZP={baseFsZP as any} origin="center">
-          <div>child</div>
-        </ZoomablePreview>
-      </ThemeProvider>,
+      <ZoomablePreview fsZP={baseFsZP as any} origin="center">
+        <div>child</div>
+      </ZoomablePreview>,
     );
     expect(container.textContent).toContain("child");
   });
@@ -71,11 +61,9 @@ describe("ZoomablePreview", () => {
       isPanningRef: { current: true },
     };
     const { container } = render(
-      <ThemeProvider theme={lightTheme}>
-        <ZoomablePreview fsZP={panningFsZP as any}>
-          <div>panning</div>
-        </ZoomablePreview>
-      </ThemeProvider>,
+      <ZoomablePreview fsZP={panningFsZP as any}>
+        <div>panning</div>
+      </ZoomablePreview>,
     );
     expect(container.textContent).toContain("panning");
   });

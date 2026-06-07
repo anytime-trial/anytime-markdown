@@ -15,7 +15,6 @@ global.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("@anytime-markdown/markdown-react", () => ({
   NodeViewWrapper: ({ children, ...props }: any) => <div data-testid="node-view-wrapper" {...props}>{children}</div>,
@@ -117,7 +116,6 @@ jest.mock("../components/ScreenCaptureDialog", () => ({
 
 import { ImageNodeView } from "../ImageNodeView";
 
-const theme = createTheme();
 
 function defaultState(overrides: Record<string, unknown> = {}) {
   return {
@@ -151,7 +149,7 @@ function renderImageNode(nodeAttrs: Record<string, unknown> = {}, stateOverrides
   const updateAttributes = jest.fn();
 
   const result = render(
-    <ThemeProvider theme={theme}>
+      <>
       <ImageNodeView
         editor={mockEditor as any}
         node={mockNode as any}
@@ -165,7 +163,7 @@ function renderImageNode(nodeAttrs: Record<string, unknown> = {}, stateOverrides
         HTMLAttributes={{}}
         view={{} as any}
       />
-    </ThemeProvider>,
+      </>,
   );
 
   return { ...result, updateAttributes, state };

@@ -11,7 +11,6 @@ global.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("@anytime-markdown/markdown-react", () => ({
   EditorContent: () => <div data-testid="editor-content" />,
@@ -46,37 +45,36 @@ jest.mock("../components/mergeTiptapStyles", () => ({
 
 import { MergeEditorPanel } from "../components/MergeEditorPanel";
 
-const theme = createTheme();
 
 describe("MergeEditorPanel", () => {
   it("renders in sourceMode without crashing", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="# Left"
           onSourceChange={jest.fn()}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders in editor mode without editor", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={false}
           editor={null}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with diffLines", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="line1\nline2"
@@ -85,7 +83,7 @@ describe("MergeEditorPanel", () => {
             { type: "added", text: "line2", blockId: null, lineNumber: 2 },
           ]}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });

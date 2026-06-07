@@ -6,7 +6,6 @@
 
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getDivider: () => "#ccc",
@@ -33,27 +32,24 @@ jest.mock("../components/EditDialogWrapper", () => ({
 
 import { GifPlayerDialog } from "../components/GifPlayerDialog";
 
-const theme = createTheme();
 
 function renderDialog(props?: Partial<React.ComponentProps<typeof GifPlayerDialog>>) {
   return render(
-    <ThemeProvider theme={theme}>
+      <>
       <GifPlayerDialog
         open={true}
         onClose={jest.fn()}
         src="test.gif"
         {...props}
       />
-    </ThemeProvider>,
+      </>,
   );
 }
 
 describe("GifPlayerDialog", () => {
   it("open=false の場合はレンダリングしない", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <GifPlayerDialog open={false} onClose={jest.fn()} src="test.gif" />
-      </ThemeProvider>,
+        <GifPlayerDialog open={false} onClose={jest.fn()} src="test.gif" />,
     );
     expect(container.querySelector("[data-testid='edit-dialog-wrapper']")).toBeNull();
   });

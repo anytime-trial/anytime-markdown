@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Mock all complex dependencies
 
@@ -82,25 +81,22 @@ jest.mock("../components/ZoomToolbar", () => ({
 
 import { MathEditDialog } from "../components/MathEditDialog";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 describe("MathEditDialog coverage", () => {
   it("renders normal view with code and preview", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <MathEditDialog
-          open={true}
-          onClose={jest.fn()}
-          label="Math"
-          fsCode="E=mc^2"
-          onFsCodeChange={jest.fn()}
-          onFsTextChange={jest.fn()}
-          fsTextareaRef={{ current: null }}
-          fsSearch={{} as any}
-          t={t}
-        />
-      </ThemeProvider>,
+      <MathEditDialog
+        open={true}
+        onClose={jest.fn()}
+        label="Math"
+        fsCode="E=mc^2"
+        onFsCodeChange={jest.fn()}
+        onFsTextChange={jest.fn()}
+        fsTextareaRef={{ current: null }}
+        fsSearch={{} as any}
+        t={t}
+      />,
     );
     expect(screen.getByTestId("wrapper")).toBeTruthy();
     expect(screen.getByTestId("code-textarea")).toBeTruthy();
@@ -109,61 +105,55 @@ describe("MathEditDialog coverage", () => {
 
   it("renders compare view when isCompareMode and compareCode provided", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <MathEditDialog
-          open={true}
-          onClose={jest.fn()}
-          label="Math"
-          fsCode="E=mc^2"
-          onFsCodeChange={jest.fn()}
-          onFsTextChange={jest.fn()}
-          fsTextareaRef={{ current: null }}
-          fsSearch={{} as any}
-          isCompareMode
-          compareCode="a^2+b^2=c^2"
-          thisCode="E=mc^2"
-          t={t}
-        />
-      </ThemeProvider>,
+      <MathEditDialog
+        open={true}
+        onClose={jest.fn()}
+        label="Math"
+        fsCode="E=mc^2"
+        onFsCodeChange={jest.fn()}
+        onFsTextChange={jest.fn()}
+        fsTextareaRef={{ current: null }}
+        fsSearch={{} as any}
+        isCompareMode
+        compareCode="a^2+b^2=c^2"
+        thisCode="E=mc^2"
+        t={t}
+      />,
     );
     expect(screen.getByTestId("diff-view")).toBeTruthy();
   });
 
   it("renders nothing when open is false", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <MathEditDialog
-          open={false}
-          onClose={jest.fn()}
-          label="Math"
-          fsCode=""
-          onFsCodeChange={jest.fn()}
-          onFsTextChange={jest.fn()}
-          fsTextareaRef={{ current: null }}
-          fsSearch={{} as any}
-          t={t}
-        />
-      </ThemeProvider>,
+      <MathEditDialog
+        open={false}
+        onClose={jest.fn()}
+        label="Math"
+        fsCode=""
+        onFsCodeChange={jest.fn()}
+        onFsTextChange={jest.fn()}
+        fsTextareaRef={{ current: null }}
+        fsSearch={{} as any}
+        t={t}
+      />,
     );
     expect(screen.queryByTestId("wrapper")).toBeNull();
   });
 
   it("renders with readOnly mode", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <MathEditDialog
-          open={true}
-          onClose={jest.fn()}
-          label="Math"
-          fsCode="x^2"
-          onFsCodeChange={jest.fn()}
-          onFsTextChange={jest.fn()}
-          fsTextareaRef={{ current: null }}
-          fsSearch={{} as any}
-          readOnly
-          t={t}
-        />
-      </ThemeProvider>,
+      <MathEditDialog
+        open={true}
+        onClose={jest.fn()}
+        label="Math"
+        fsCode="x^2"
+        onFsCodeChange={jest.fn()}
+        onFsTextChange={jest.fn()}
+        fsTextareaRef={{ current: null }}
+        fsSearch={{} as any}
+        readOnly
+        t={t}
+      />,
     );
     expect(screen.getByTestId("wrapper")).toBeTruthy();
   });
@@ -176,19 +166,17 @@ describe("MathEditDialog coverage", () => {
     });
 
     render(
-      <ThemeProvider theme={theme}>
-        <MathEditDialog
-          open={true}
-          onClose={jest.fn()}
-          label="Math"
-          fsCode="\\invalid"
-          onFsCodeChange={jest.fn()}
-          onFsTextChange={jest.fn()}
-          fsTextareaRef={{ current: null }}
-          fsSearch={{} as any}
-          t={t}
-        />
-      </ThemeProvider>,
+      <MathEditDialog
+        open={true}
+        onClose={jest.fn()}
+        label="Math"
+        fsCode="\\invalid"
+        onFsCodeChange={jest.fn()}
+        onFsTextChange={jest.fn()}
+        fsTextareaRef={{ current: null }}
+        fsSearch={{} as any}
+        t={t}
+      />,
     );
     expect(screen.getByText("Parse error")).toBeTruthy();
   });

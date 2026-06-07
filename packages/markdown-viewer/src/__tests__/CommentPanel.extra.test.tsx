@@ -4,7 +4,6 @@
  */
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditorState: ({ selector }: any) => {
@@ -44,7 +43,6 @@ jest.mock("../types/imageAnnotation", () => ({
 
 import { CommentPanel } from "../components/CommentPanel";
 
-const theme = createTheme();
 
 describe("CommentPanel - additional tests", () => {
   const t = (key: string) => key;
@@ -66,9 +64,7 @@ describe("CommentPanel - additional tests", () => {
 
   it("renders close button when open", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={mockEditor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={mockEditor} open={true} onClose={jest.fn()} t={t} />,
     );
     // Panel should have a close button
     const closeButton = screen.queryByLabelText("close") ?? screen.queryByLabelText("closePanel");
@@ -77,9 +73,7 @@ describe("CommentPanel - additional tests", () => {
 
   it("onSave callback is optional", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={mockEditor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={mockEditor} open={true} onClose={jest.fn()} t={t} />,
     );
     expect(container).toBeTruthy();
   });
@@ -87,18 +81,14 @@ describe("CommentPanel - additional tests", () => {
   it("onSave callback is provided", () => {
     const onSave = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={mockEditor} open={true} onClose={jest.fn()} onSave={onSave} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={mockEditor} open={true} onClose={jest.fn()} onSave={onSave} t={t} />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders empty state when no comments", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={mockEditor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={mockEditor} open={true} onClose={jest.fn()} t={t} />,
     );
     // Should render without crashing when there are no comments
     expect(container.querySelector("div")).toBeTruthy();
@@ -106,9 +96,7 @@ describe("CommentPanel - additional tests", () => {
 
   it("panel is hidden when open=false", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={mockEditor} open={false} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={mockEditor} open={false} onClose={jest.fn()} t={t} />,
     );
     // When closed, the panel should still render but be visually hidden
     expect(container).toBeTruthy();

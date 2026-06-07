@@ -6,7 +6,6 @@
  */
 import React from "react";
 import { render, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- mock functions ---
 const mockSetCompareText = jest.fn();
@@ -140,7 +139,6 @@ jest.mock("../components/MergeEditorPanel", () => ({
 
 import { InlineMergeView } from "../components/InlineMergeView";
 
-const theme = createTheme();
 
 function renderMergeView(props: Partial<React.ComponentProps<typeof InlineMergeView>> = {}) {
   const defaultProps = {
@@ -157,9 +155,7 @@ function renderMergeView(props: Partial<React.ComponentProps<typeof InlineMergeV
     ),
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <InlineMergeView {...defaultProps} {...props} />
-    </ThemeProvider>,
+      <InlineMergeView {...defaultProps} {...props} />,
   );
 }
 
@@ -313,7 +309,7 @@ describe("InlineMergeView - coverage2 tests", () => {
   it("applies content when switching from source to WYSIWYG mode", () => {
     const rafSpy = jest.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => { cb(0); return 0; });
     const { rerender } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent=""
           sourceMode={true}
@@ -321,12 +317,12 @@ describe("InlineMergeView - coverage2 tests", () => {
           t={(key: string) => key}
           children={() => <div />}
         />
-      </ThemeProvider>,
+        </>,
     );
 
     // Switch to WYSIWYG
     rerender(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent=""
           sourceMode={false}
@@ -334,7 +330,7 @@ describe("InlineMergeView - coverage2 tests", () => {
           t={(key: string) => key}
           children={() => <div />}
         />
-      </ThemeProvider>,
+        </>,
     );
     // applyMarkdownToEditor should be called during mode switch
     expect(mockApplyMarkdownToEditor).toHaveBeenCalled();

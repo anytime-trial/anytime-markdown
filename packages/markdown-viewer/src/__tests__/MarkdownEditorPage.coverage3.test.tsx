@@ -4,7 +4,6 @@
  */
 import React from "react";
 import { render, act, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("next/dynamic", () => {
   return function dynamic(loader: any, opts?: any) {
@@ -253,13 +252,10 @@ jest.mock("../extensions/slashCommandExtension", () => ({
 
 import MarkdownEditorPage from "../MarkdownEditorPage";
 
-const theme = createTheme();
 
 function renderPage(props: Record<string, any> = {}) {
   return render(
-    <ThemeProvider theme={theme}>
-      <MarkdownEditorPage {...props} />
-    </ThemeProvider>,
+      <MarkdownEditorPage {...props} />,
   );
 }
 

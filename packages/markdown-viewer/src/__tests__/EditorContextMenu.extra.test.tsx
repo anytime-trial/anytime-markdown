@@ -6,7 +6,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { EditorContextMenu } from "../components/EditorContextMenu";
 
 // --- mocks ---
@@ -49,10 +48,9 @@ jest.mock("../utils/clipboardHelpers", () => ({
   readTextFromClipboard: () => mockReadTextFromClipboard(),
 }));
 
-const theme = createTheme();
 
 function renderWithTheme(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+  return render(ui);
 }
 
 // Minimal mock editor

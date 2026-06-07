@@ -11,7 +11,6 @@ global.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { render, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { FullscreenDiffView } from "../components/FullscreenDiffView";
 
@@ -30,21 +29,18 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     }),
 }));
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 describe("FullscreenDiffView coverage3", () => {
   it("strips padding lines from edited text when paddingIndices is non-empty (lines 177-183)", () => {
     const onMergeApply = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode={"line1\nline2"}
-          initialRightCode={"line1\ninserted\nline2"}
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode={"line1\nline2"}
+        initialRightCode={"line1\ninserted\nline2"}
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
     const textareas = container.querySelectorAll("textarea");
     const editableTextarea = Array.from(textareas).find((ta) => !ta.readOnly);
@@ -62,14 +58,12 @@ describe("FullscreenDiffView coverage3", () => {
   it("handles textarea change with no padding lines (line 174)", () => {
     const onMergeApply = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode={"same\ntext"}
-          initialRightCode={"same\ntext"}
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode={"same\ntext"}
+        initialRightCode={"same\ntext"}
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
     const textareas = container.querySelectorAll("textarea");
     const editableTextarea = Array.from(textareas).find((ta) => !ta.readOnly);
@@ -82,14 +76,12 @@ describe("FullscreenDiffView coverage3", () => {
   it("syncs gutter scroll with textarea scroll (lines 285-286)", () => {
     const onMergeApply = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode={"line1\nline2\nline3\nline4\nline5"}
-          initialRightCode={"line1\nmodified\nline3\nline4\nline5"}
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode={"line1\nline2\nline3\nline4\nline5"}
+        initialRightCode={"line1\nmodified\nline3\nline4\nline5"}
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
     const textareas = container.querySelectorAll("textarea");
     for (const ta of textareas) {
@@ -102,14 +94,12 @@ describe("FullscreenDiffView coverage3", () => {
   it("keeps non-empty padding lines during edit (line 180 branch)", () => {
     const onMergeApply = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode={"aaa\nbbb"}
-          initialRightCode={"aaa\nxxx\nbbb"}
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode={"aaa\nbbb"}
+        initialRightCode={"aaa\nxxx\nbbb"}
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
     const textareas = container.querySelectorAll("textarea");
     const editableTextarea = Array.from(textareas).find((ta) => !ta.readOnly);
@@ -132,14 +122,12 @@ describe("FullscreenDiffView coverage3", () => {
   it("handles multiple padding lines correctly", () => {
     const onMergeApply = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode={"first\nlast"}
-          initialRightCode={"first\nadded1\nadded2\nadded3\nlast"}
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode={"first\nlast"}
+        initialRightCode={"first\nadded1\nadded2\nadded3\nlast"}
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
     const textareas = container.querySelectorAll("textarea");
     // Verify component renders textareas

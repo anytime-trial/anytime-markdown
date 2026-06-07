@@ -21,24 +21,6 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock("@mui/material/styles", () => ({
-  ...jest.requireActual("@mui/material/styles"),
-  useTheme: () => ({
-    palette: {
-      mode: "light",
-      success: { main: "#4caf50" },
-      error: { main: "#f44336" },
-      warning: { main: "#ff9800" },
-      primary: { main: "#1976d2" },
-      divider: "#e0e0e0",
-      text: { secondary: "#666", disabled: "#999" },
-      action: { hover: "#f5f5f5", selected: "#eee" },
-      background: { paper: "#fff" },
-      grey: { 900: "#212121", 50: "#fafafa" },
-    },
-    spacing: (n: number) => `${n * 8}px`,
-  }),
-}));
 
 jest.mock("../../hooks/useKatexRender", () => ({
   useKatexRender: () => ({ html: "<span>rendered</span>", error: null }),

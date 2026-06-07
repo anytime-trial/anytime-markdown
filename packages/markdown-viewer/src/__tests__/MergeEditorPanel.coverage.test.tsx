@@ -13,7 +13,6 @@ global.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("@anytime-markdown/markdown-react", () => ({
   EditorContent: () => <div data-testid="editor-content" />,
@@ -49,7 +48,6 @@ jest.mock("../components/mergeTiptapStyles", () => ({
 import { MergeEditorPanel } from "../components/MergeEditorPanel";
 import type { DiffLine } from "../utils/diffEngine";
 
-const theme = createTheme();
 
 describe("MergeEditorPanel - coverage", () => {
   // --- buildDisplayText: padding lines ---
@@ -60,14 +58,14 @@ describe("MergeEditorPanel - coverage", () => {
       { type: "added", text: "line3", blockId: 1, lineNumber: 2 },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="line1\nline3"
           diffLines={diffLines}
           side="left"
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -78,14 +76,14 @@ describe("MergeEditorPanel - coverage", () => {
       { type: "equal", text: "line1", blockId: null, lineNumber: 1 },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText={"line1\n"}
           diffLines={diffLines}
           side="left"
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -101,7 +99,7 @@ describe("MergeEditorPanel - coverage", () => {
       { type: "modified-old", text: "mod", blockId: 3, lineNumber: null },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="line1\nnew1\nnew2"
@@ -109,7 +107,7 @@ describe("MergeEditorPanel - coverage", () => {
           side="left"
           onMerge={onMerge}
         />
-      </ThemeProvider>,
+        </>,
     );
     // Should have merge buttons
     const mergeButtons = screen.getAllByRole("button");
@@ -127,7 +125,7 @@ describe("MergeEditorPanel - coverage", () => {
       { type: "modified-new", text: "changed", blockId: 1, lineNumber: 2 },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="line1\nchanged"
@@ -135,7 +133,7 @@ describe("MergeEditorPanel - coverage", () => {
           side="right"
           onMerge={onMerge}
         />
-      </ThemeProvider>,
+        </>,
     );
     const mergeButtons = screen.getAllByRole("button");
     expect(mergeButtons.length).toBeGreaterThan(0);
@@ -146,13 +144,13 @@ describe("MergeEditorPanel - coverage", () => {
   // --- normalizeSx: array sx ---
   it("renders with array paperSx (normalizeSx coverage)", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="test"
           paperSx={[{ background: "red" }, { color: "blue" }]}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -160,13 +158,13 @@ describe("MergeEditorPanel - coverage", () => {
   // --- normalizeSx: single object sx ---
   it("renders with single object paperSx", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="test"
           paperSx={{ background: "green" }}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -174,9 +172,7 @@ describe("MergeEditorPanel - coverage", () => {
   // --- normalizeSx: undefined sx ---
   it("renders with undefined paperSx", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <MergeEditorPanel sourceMode={true} sourceText="test" />
-      </ThemeProvider>,
+        <MergeEditorPanel sourceMode={true} sourceText="test" />,
     );
     expect(container).toBeTruthy();
   });
@@ -190,7 +186,7 @@ describe("MergeEditorPanel - coverage", () => {
       { type: "added", text: "line3", blockId: 1, lineNumber: 2 },
     ];
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="line1\nline3"
@@ -198,7 +194,7 @@ describe("MergeEditorPanel - coverage", () => {
           diffLines={diffLines}
           side="left"
         />
-      </ThemeProvider>,
+        </>,
     );
     const textarea = document.querySelector("textarea")!;
     expect(textarea).toBeTruthy();
@@ -214,13 +210,13 @@ describe("MergeEditorPanel - coverage", () => {
   it("textarea onChange passes through without padding", () => {
     const onSourceChange = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="hello"
           onSourceChange={onSourceChange}
         />
-      </ThemeProvider>,
+        </>,
     );
     const textarea = document.querySelector("textarea")!;
     fireEvent.change(textarea, { target: { value: "hello world" } });
@@ -235,7 +231,7 @@ describe("MergeEditorPanel - coverage", () => {
       { type: "added", text: "line2", blockId: 1, lineNumber: 2 },
     ];
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="line1\nline2"
@@ -243,7 +239,7 @@ describe("MergeEditorPanel - coverage", () => {
           side="left"
           onHoverLine={onHoverLine}
         />
-      </ThemeProvider>,
+        </>,
     );
     const textarea = document.querySelector("textarea")!;
     // Set selectionStart to position inside line 2
@@ -259,7 +255,7 @@ describe("MergeEditorPanel - coverage", () => {
       { type: "equal", text: "line1", blockId: null, lineNumber: 1 },
     ];
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="line1"
@@ -267,7 +263,7 @@ describe("MergeEditorPanel - coverage", () => {
           side="left"
           onHoverLine={onHoverLine}
         />
-      </ThemeProvider>,
+        </>,
     );
     const textarea = document.querySelector("textarea")!;
     // position past all lines
@@ -282,13 +278,13 @@ describe("MergeEditorPanel - coverage", () => {
   it("renders editor mode with editorWrapperRef", () => {
     const wrapperRef = React.createRef<HTMLDivElement>();
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={false}
           editor={null}
           editorWrapperRef={wrapperRef}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(wrapperRef.current).toBeTruthy();
     expect(container).toBeTruthy();
@@ -297,9 +293,7 @@ describe("MergeEditorPanel - coverage", () => {
   // --- editor mode without editorWrapperRef ---
   it("renders editor mode without editorWrapperRef", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <MergeEditorPanel sourceMode={false} editor={null} />
-      </ThemeProvider>,
+        <MergeEditorPanel sourceMode={false} editor={null} />,
     );
     expect(container).toBeTruthy();
   });
@@ -308,13 +302,13 @@ describe("MergeEditorPanel - coverage", () => {
   it("renders editor mode with editorMountRef", () => {
     const mountRef = React.createRef<HTMLDivElement>();
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={false}
           editor={null}
           editorMountRef={mountRef}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -322,13 +316,13 @@ describe("MergeEditorPanel - coverage", () => {
   // --- hideScrollbar ---
   it("renders with hideScrollbar", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="test"
           hideScrollbar
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -336,13 +330,13 @@ describe("MergeEditorPanel - coverage", () => {
   // --- bgGradient = "none" ---
   it("renders with bgGradient none", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="test"
           bgGradient="none"
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -350,13 +344,13 @@ describe("MergeEditorPanel - coverage", () => {
   // --- bgGradient with actual gradient ---
   it("renders with actual bgGradient", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="test"
           bgGradient="linear-gradient(to bottom, #fff, #000)"
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -364,12 +358,12 @@ describe("MergeEditorPanel - coverage", () => {
   // --- empty sourceText ---
   it("renders with empty sourceText", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText=""
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -377,13 +371,13 @@ describe("MergeEditorPanel - coverage", () => {
   // --- editor mode with paperSx (normalizeSx in non-source mode) ---
   it("renders editor mode with paperSx", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={false}
           editor={null}
           paperSx={{ background: "red" }}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -391,13 +385,13 @@ describe("MergeEditorPanel - coverage", () => {
   // --- showHoverLabels ---
   it("renders editor mode with showHoverLabels", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={false}
           editor={null}
           showHoverLabels
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -413,7 +407,7 @@ describe("MergeEditorPanel - coverage", () => {
       { type: "padding", text: "", blockId: null, lineNumber: null },
     ];
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="same\nadd\nnew"
@@ -421,7 +415,7 @@ describe("MergeEditorPanel - coverage", () => {
           side="left"
           onMerge={jest.fn()}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -429,13 +423,13 @@ describe("MergeEditorPanel - coverage", () => {
   // --- autoResize ---
   it("renders with autoResize in source mode", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode={true}
           sourceText="test\nline2"
           autoResize
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -443,11 +437,11 @@ describe("MergeEditorPanel - coverage", () => {
   // --- children in editor mode ---
   it("renders children in editor mode", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel sourceMode={false} editor={null}>
           <div data-testid="child-element">child</div>
         </MergeEditorPanel>
-      </ThemeProvider>,
+        </>,
     );
     expect(screen.getByTestId("child-element")).toBeTruthy();
   });

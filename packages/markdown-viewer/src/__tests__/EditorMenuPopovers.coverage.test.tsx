@@ -4,7 +4,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, within, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { EditorMenuPopovers } from "../components/EditorMenuPopovers";
 
 jest.mock("next-intl", () => ({
@@ -40,7 +39,6 @@ jest.mock("../icons/MermaidIcon", () => {
   };
 });
 
-const theme = createTheme();
 
 function createAnchor(tag = "button"): HTMLElement {
   const el = document.createElement(tag);
@@ -108,9 +106,7 @@ describe("EditorMenuPopovers - coverage", () => {
     const anchor = createAnchor();
     const props = makeProps({ helpAnchorEl: anchor });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...props} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...props} />,
     );
     const menuItem = screen.getByText("versionInfo");
     fireEvent.click(menuItem);
@@ -125,9 +121,7 @@ describe("EditorMenuPopovers - coverage", () => {
     const editor = mockEditor();
     const props = makeProps({ diagramAnchorEl: anchor, editor });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...props} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...props} />,
     );
     const mermaidBtn = screen.getByRole("menuitem", { name: "mermaid" });
     fireEvent.click(mermaidBtn);
@@ -146,9 +140,7 @@ describe("EditorMenuPopovers - coverage", () => {
       onSourceInsertMermaid,
     });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...props} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...props} />,
     );
     const mermaidBtn = screen.getByRole("menuitem", { name: "mermaid" });
     fireEvent.click(mermaidBtn);
@@ -163,9 +155,7 @@ describe("EditorMenuPopovers - coverage", () => {
     const editor = mockEditor();
     const props = makeProps({ diagramAnchorEl: anchor, editor });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...props} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...props} />,
     );
     const plantumlBtn = screen.getByRole("menuitem", { name: "plantuml" });
     fireEvent.click(plantumlBtn);
@@ -184,9 +174,7 @@ describe("EditorMenuPopovers - coverage", () => {
       onSourceInsertPlantUml,
     });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...props} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...props} />,
     );
     const plantumlBtn = screen.getByRole("menuitem", { name: "plantuml" });
     fireEvent.click(plantumlBtn);
@@ -200,9 +188,7 @@ describe("EditorMenuPopovers - coverage", () => {
     const anchor = createAnchor();
     const props = makeProps({ templateAnchorEl: anchor });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...props} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...props} />,
     );
     const items = screen.getAllByRole("menuitem");
     // template items show translated name
@@ -234,9 +220,7 @@ describe("EditorMenuPopovers - coverage", () => {
     });
     const props = makeProps({ sampleAnchorEl: anchor, editor });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...props} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...props} />,
     );
     // There should be sample buttons
     const sampleButtons = screen.getAllByRole("menuitem");
@@ -268,9 +252,7 @@ describe("EditorMenuPopovers - coverage", () => {
     });
     const props = makeProps({ sampleAnchorEl: anchor, editor });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...props} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...props} />,
     );
     const sampleButtons = screen.getAllByRole("menuitem");
     fireEvent.click(sampleButtons[0]);
@@ -288,9 +270,7 @@ describe("EditorMenuPopovers - coverage", () => {
         headingMenu: { anchorEl: anchor, pos: 5, currentLevel },
       });
       const result = render(
-        <ThemeProvider theme={theme}>
-          <EditorMenuPopovers {...props} />
-        </ThemeProvider>,
+          <EditorMenuPopovers {...props} />,
       );
       return { ...result, props, anchor };
     }
@@ -375,9 +355,7 @@ describe("EditorMenuPopovers - coverage", () => {
         headingMenu: { anchorEl: anchor, pos: 5, currentLevel: 0 },
       });
       render(
-        <ThemeProvider theme={theme}>
-          <EditorMenuPopovers {...props} />
-        </ThemeProvider>,
+          <EditorMenuPopovers {...props} />,
       );
       const h1Item = screen.getByText("H1");
       fireEvent.click(h1Item);
@@ -401,9 +379,7 @@ describe("EditorMenuPopovers - coverage", () => {
         headingMenu: { anchorEl: anchor, pos: 5, currentLevel: 1 },
       });
       render(
-        <ThemeProvider theme={theme}>
-          <EditorMenuPopovers {...props} />
-        </ThemeProvider>,
+          <EditorMenuPopovers {...props} />,
       );
       const h2Item = screen.getByText("H2");
       fireEvent.click(h2Item);
@@ -424,9 +400,7 @@ describe("EditorMenuPopovers - coverage", () => {
         headingMenu: { anchorEl: li, pos: 5, currentLevel: 1 },
       });
       render(
-        <ThemeProvider theme={theme}>
-          <EditorMenuPopovers {...props} />
-        </ThemeProvider>,
+          <EditorMenuPopovers {...props} />,
       );
       const h1Item = screen.getByText("H1");
       fireEvent.click(h1Item);
@@ -447,9 +421,7 @@ describe("EditorMenuPopovers - coverage", () => {
         headingMenu: { anchorEl: li, pos: 5, currentLevel: 2 },
       });
       render(
-        <ThemeProvider theme={theme}>
-          <EditorMenuPopovers {...props} />
-        </ThemeProvider>,
+          <EditorMenuPopovers {...props} />,
       );
       const paragraphItem = screen.getByText("Paragraph");
       fireEvent.click(paragraphItem);
@@ -471,9 +443,7 @@ describe("EditorMenuPopovers - coverage", () => {
         headingMenu: { anchorEl: li, pos: 5, currentLevel: 1 },
       });
       render(
-        <ThemeProvider theme={theme}>
-          <EditorMenuPopovers {...props} />
-        </ThemeProvider>,
+          <EditorMenuPopovers {...props} />,
       );
       const h1Item = screen.getByText("H1");
       fireEvent.click(h1Item);
@@ -490,9 +460,7 @@ describe("EditorMenuPopovers - coverage", () => {
         headingMenu: { anchorEl: anchor, pos: 5, currentLevel: 1 },
       });
       render(
-        <ThemeProvider theme={theme}>
-          <EditorMenuPopovers {...props} />
-        </ThemeProvider>,
+          <EditorMenuPopovers {...props} />,
       );
       const paragraphItem = screen.getByText("Paragraph");
       fireEvent.click(paragraphItem);
@@ -511,9 +479,7 @@ describe("EditorMenuPopovers - coverage", () => {
         headingMenu: { anchorEl: blockquote, pos: 5, currentLevel: 1 },
       });
       render(
-        <ThemeProvider theme={theme}>
-          <EditorMenuPopovers {...props} />
-        </ThemeProvider>,
+          <EditorMenuPopovers {...props} />,
       );
       const paragraphItem = screen.getByText("Paragraph");
       fireEvent.click(paragraphItem);

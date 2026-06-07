@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- mocks ---
 
@@ -213,32 +212,25 @@ jest.mock("../extensions/slashCommandExtension", () => ({
 
 import MarkdownEditorPage from "../MarkdownEditorPage";
 
-const theme = createTheme();
 
 describe("MarkdownEditorPage", () => {
   it("renders without crashing with default props", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <MarkdownEditorPage />
-      </ThemeProvider>,
+        <MarkdownEditorPage />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders without crashing with readOnly", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <MarkdownEditorPage readOnly />
-      </ThemeProvider>,
+        <MarkdownEditorPage readOnly />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders without crashing with hideToolbar", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <MarkdownEditorPage hideToolbar />
-      </ThemeProvider>,
+        <MarkdownEditorPage hideToolbar />,
     );
     expect(container).toBeTruthy();
   });

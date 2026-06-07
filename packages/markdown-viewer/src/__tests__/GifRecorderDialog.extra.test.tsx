@@ -4,7 +4,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getDivider: () => "#ccc",
@@ -35,41 +34,32 @@ jest.mock("../components/EditDialogWrapper", () => ({
 
 import { GifRecorderDialog } from "../components/GifRecorderDialog";
 
-const theme = createTheme();
 
 describe("GifRecorderDialog - additional tests", () => {
   it("renders header with 'GIF Recorder' label when open", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <GifRecorderDialog open={true} onClose={jest.fn()} onComplete={jest.fn()} />
-      </ThemeProvider>,
+        <GifRecorderDialog open={true} onClose={jest.fn()} onComplete={jest.fn()} />,
     );
     expect(screen.getByText("GIF Recorder")).toBeTruthy();
   });
 
   it("shows 'Select Screen' button in idle phase", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <GifRecorderDialog open={true} onClose={jest.fn()} onComplete={jest.fn()} />
-      </ThemeProvider>,
+        <GifRecorderDialog open={true} onClose={jest.fn()} onComplete={jest.fn()} />,
     );
     expect(screen.getByText("Select Screen")).toBeTruthy();
   });
 
   it("shows 'Select a screen to start' message in idle phase", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <GifRecorderDialog open={true} onClose={jest.fn()} onComplete={jest.fn()} />
-      </ThemeProvider>,
+        <GifRecorderDialog open={true} onClose={jest.fn()} onComplete={jest.fn()} />,
     );
     expect(screen.getByText("Select a screen to start")).toBeTruthy();
   });
 
   it("does not render when closed", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <GifRecorderDialog open={false} onClose={jest.fn()} onComplete={jest.fn()} />
-      </ThemeProvider>,
+        <GifRecorderDialog open={false} onClose={jest.fn()} onComplete={jest.fn()} />,
     );
     expect(screen.queryByTestId("edit-dialog-wrapper")).toBeNull();
   });
@@ -77,15 +67,11 @@ describe("GifRecorderDialog - additional tests", () => {
   it("calls onClose when closed", () => {
     const onClose = jest.fn();
     const { rerender } = render(
-      <ThemeProvider theme={theme}>
-        <GifRecorderDialog open={true} onClose={onClose} onComplete={jest.fn()} />
-      </ThemeProvider>,
+        <GifRecorderDialog open={true} onClose={onClose} onComplete={jest.fn()} />,
     );
     // Re-render with open=false triggers cleanup
     rerender(
-      <ThemeProvider theme={theme}>
-        <GifRecorderDialog open={false} onClose={onClose} onComplete={jest.fn()} />
-      </ThemeProvider>,
+        <GifRecorderDialog open={false} onClose={onClose} onComplete={jest.fn()} />,
     );
     // Should not crash during cleanup
   });

@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Mock colors
 
@@ -13,9 +12,6 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     ...jest.requireActual("@anytime-markdown/markdown-viewer"),
     getTextSecondary: (isDark: boolean) => isDark ? "#aaa" : "#666",
 }));
-
-const lightTheme = createTheme({ palette: { mode: "light" } });
-const darkTheme = createTheme({ palette: { mode: "dark" } });
 
 const mockBoard = {
   create: jest.fn(),
@@ -45,9 +41,7 @@ function renderGraph(props: Partial<React.ComponentProps<typeof Graph2DView>> = 
     height: 400,
   };
   return render(
-    <ThemeProvider theme={dark ? darkTheme : lightTheme}>
-      <Graph2DView {...defaultProps} {...props} />
-    </ThemeProvider>
+    <Graph2DView {...defaultProps} {...props} />
   );
 }
 

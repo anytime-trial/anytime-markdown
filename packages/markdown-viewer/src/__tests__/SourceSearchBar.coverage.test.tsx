@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getActionHover: () => "rgba(0,0,0,0.04)",
@@ -28,7 +27,6 @@ jest.mock("../constants/zIndex", () => ({
 
 import { SourceSearchBar } from "../components/SourceSearchBar";
 
-const theme = createTheme();
 const t = (key: string, values?: Record<string, string | number>) => {
   if (values) return `${key}: ${JSON.stringify(values)}`;
   return key;
@@ -61,9 +59,7 @@ function renderBar(props: Partial<{ search: any; onClose: jest.Mock }> = {}) {
     ...props,
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <SourceSearchBar {...defaultProps} />
-    </ThemeProvider>,
+      <SourceSearchBar {...defaultProps} />,
   );
 }
 

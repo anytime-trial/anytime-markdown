@@ -5,7 +5,6 @@
  */
 import React from "react";
 import { render, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- mock functions we need to inspect ---
 const mockSetCompareText = jest.fn();
@@ -131,7 +130,6 @@ jest.mock("../components/MergeEditorPanel", () => ({
 
 import { InlineMergeView } from "../components/InlineMergeView";
 
-const theme = createTheme();
 
 function renderMergeView(props: Partial<React.ComponentProps<typeof InlineMergeView>> = {}) {
   const defaultProps = {
@@ -153,9 +151,7 @@ function renderMergeView(props: Partial<React.ComponentProps<typeof InlineMergeV
     ),
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <InlineMergeView {...defaultProps} {...props} />
-    </ThemeProvider>,
+      <InlineMergeView {...defaultProps} {...props} />,
   );
 }
 

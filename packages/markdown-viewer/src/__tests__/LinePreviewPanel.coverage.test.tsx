@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../useEditorSettings", () => ({
   useEditorSettingsContext: () => ({ fontSize: 14 }),
@@ -33,8 +32,6 @@ jest.mock("../utils/diffEngine", () => ({
 
 import { LinePreviewPanel } from "../components/LinePreviewPanel";
 
-const lightTheme = createTheme({ palette: { mode: "light" } });
-const darkTheme = createTheme({ palette: { mode: "dark" } });
 
 function renderPanel(props: Partial<{
   diffResult: any;
@@ -42,15 +39,14 @@ function renderPanel(props: Partial<{
   isDark: boolean;
 }> = {}) {
   const hoverSetterRef = { current: null as ((v: number | null) => void) | null };
-  const theme = props.isDark ? darkTheme : lightTheme;
   const result = render(
-    <ThemeProvider theme={theme}>
+      <>
       <LinePreviewPanel
         diffResult={props.diffResult ?? null}
         sourceMode={props.sourceMode ?? true}
         hoverSetterRef={hoverSetterRef as any}
       />
-    </ThemeProvider>
+      </>
   );
   return { ...result, hoverSetterRef };
 }

@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getDivider: () => "#ccc",
@@ -40,7 +39,6 @@ jest.mock("../components/ImageCropTool", () => ({
 
 import { ScreenCaptureDialog } from "../components/ScreenCaptureDialog";
 
-const theme = createTheme();
 
 // Mock getDisplayMedia
 const mockGetDisplayMedia = jest.fn();
@@ -64,9 +62,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof ScreenCaptureDi
     ...props,
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <ScreenCaptureDialog {...defaultProps} />
-    </ThemeProvider>,
+      <ScreenCaptureDialog {...defaultProps} />,
   );
 }
 

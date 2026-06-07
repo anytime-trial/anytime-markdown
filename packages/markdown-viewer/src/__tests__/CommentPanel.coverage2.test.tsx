@@ -14,7 +14,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import type { InlineComment } from "../utils/commentHelpers";
 import type { ImageAnnotation } from "../types/imageAnnotation";
 
@@ -88,7 +87,6 @@ jest.mock("../types/imageAnnotation", () => ({
 
 import { CommentPanel } from "../components/CommentPanel";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 function createEditor(overrides: Record<string, any> = {}) {
@@ -147,9 +145,7 @@ describe("CommentPanel coverage2", () => {
   it("returns null when open=false", () => {
     const editor = createEditor();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={false} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={false} onClose={jest.fn()} t={t} />,
     );
     expect(container.firstChild).toBeNull();
   });
@@ -161,9 +157,7 @@ describe("CommentPanel coverage2", () => {
     editor.state.doc.descendants = jest.fn();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const card = screen.getByText("orphan").closest("div[role='button']");
@@ -181,9 +175,7 @@ describe("CommentPanel coverage2", () => {
     editor.view.domAtPos = jest.fn().mockReturnValue({ node: el });
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const card = screen.getByText("scroll html").closest("div[role='button']");
@@ -203,9 +195,7 @@ describe("CommentPanel coverage2", () => {
     editor.view.domAtPos = jest.fn().mockReturnValue({ node: textNode });
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const card = screen.getByText("text node scroll").closest("div[role='button']");
@@ -218,9 +208,7 @@ describe("CommentPanel coverage2", () => {
     const editor = createEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     // Click "All" which is already selected - this triggers onChange with null value
@@ -241,9 +229,7 @@ describe("CommentPanel coverage2", () => {
     editor.state.doc.nodeAt = jest.fn().mockReturnValue(null);
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const deleteButtons = screen.getAllByText("commentDelete");
@@ -261,9 +247,7 @@ describe("CommentPanel coverage2", () => {
     const editor = createEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     expect(screen.getByText("commentUnresolve")).toBeTruthy();
@@ -276,9 +260,7 @@ describe("CommentPanel coverage2", () => {
     const editor = createEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     // 2 unresolved / 3 total
@@ -295,9 +277,7 @@ describe("CommentPanel coverage2", () => {
     const editor = createEditor();
 
     render(
-      <ThemeProvider theme={theme}>
-        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />
-      </ThemeProvider>,
+        <CommentPanel editor={editor} open={true} onClose={jest.fn()} t={t} />,
     );
 
     const resolvedBtn = screen.getByText("commentFilterResolved");

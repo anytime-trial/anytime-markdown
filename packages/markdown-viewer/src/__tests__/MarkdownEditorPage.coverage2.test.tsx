@@ -7,7 +7,6 @@
  */
 import React from "react";
 import { render, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- mocks ---
 
@@ -305,13 +304,10 @@ jest.mock("../extensions/slashCommandExtension", () => ({
 
 import MarkdownEditorPage from "../MarkdownEditorPage";
 
-const theme = createTheme();
 
 function renderPage(props: Record<string, any> = {}) {
   return render(
-    <ThemeProvider theme={theme}>
-      <MarkdownEditorPage {...props} />
-    </ThemeProvider>,
+      <MarkdownEditorPage {...props} />,
   );
 }
 
@@ -420,16 +416,12 @@ describe("MarkdownEditorPage - coverage2", () => {
   // --- Lines 314-315: prevSourceMode switching ---
   it("handles sourceMode change", () => {
     const { rerender } = render(
-      <ThemeProvider theme={theme}>
-        <MarkdownEditorPage />
-      </ThemeProvider>,
+        <MarkdownEditorPage />,
     );
 
     mockSourceMode.sourceMode = true;
     rerender(
-      <ThemeProvider theme={theme}>
-        <MarkdownEditorPage />
-      </ThemeProvider>,
+        <MarkdownEditorPage />,
     );
   });
 

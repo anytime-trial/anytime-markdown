@@ -9,7 +9,6 @@ global.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { FullscreenDiffView } from "../components/FullscreenDiffView";
 
@@ -43,35 +42,29 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     applyMerge: jest.fn().mockReturnValue({ newLeftText: "merged left", newRightText: "merged right" }),
 }));
 
-const theme = createTheme();
-
 describe("FullscreenDiffView - additional tests", () => {
   const t = (key: string) => key;
 
   it("renders with different content showing diff", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="line1\nold line\nline3"
-          initialRightCode="line1\nnew line\nline3"
-          onMergeApply={jest.fn()}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="line1\nold line\nline3"
+        initialRightCode="line1\nnew line\nline3"
+        onMergeApply={jest.fn()}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with identical content (no diff)", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="same content"
-          initialRightCode="same content"
-          onMergeApply={jest.fn()}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="same content"
+        initialRightCode="same content"
+        onMergeApply={jest.fn()}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });
@@ -80,14 +73,12 @@ describe("FullscreenDiffView - additional tests", () => {
     const leftCode = "line1\nline2\nline3\nline4\nline5";
     const rightCode = "line1\nmodified\nline3\nextra\nline5";
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode={leftCode}
-          initialRightCode={rightCode}
-          onMergeApply={jest.fn()}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode={leftCode}
+        initialRightCode={rightCode}
+        onMergeApply={jest.fn()}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });

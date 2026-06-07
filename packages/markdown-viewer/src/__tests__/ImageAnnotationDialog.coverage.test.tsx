@@ -7,7 +7,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getActionHover: () => "rgba(0,0,0,0.04)",
@@ -34,7 +33,6 @@ jest.mock("../types/imageAnnotation", () => ({
 
 import { ImageAnnotationDialog } from "../components/ImageAnnotationDialog";
 
-const theme = createTheme();
 const testSrc = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
 
 function renderDialog(props: Partial<React.ComponentProps<typeof ImageAnnotationDialog>> = {}) {
@@ -47,9 +45,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof ImageAnnotation
     t: (key: string) => key,
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <ImageAnnotationDialog {...defaultProps} {...props} />
-    </ThemeProvider>,
+      <ImageAnnotationDialog {...defaultProps} {...props} />,
   );
 }
 

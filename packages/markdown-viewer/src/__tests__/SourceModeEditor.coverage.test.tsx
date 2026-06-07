@@ -6,7 +6,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material";
 import { SourceModeEditor } from "../components/SourceModeEditor";
 
 jest.mock("next-intl", () => ({
@@ -48,11 +47,9 @@ beforeEach(() => {
   mockRestoreBase64.mockImplementation((text: string) => text);
 });
 
-const lightTheme = createTheme({ palette: { mode: "light" } });
-const darkTheme = createTheme({ palette: { mode: "dark" } });
 
-function renderWithTheme(ui: React.ReactElement, theme = lightTheme) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+function renderWithTheme(ui: React.ReactElement, _theme?: unknown) {
+  return render(ui);
 }
 
 function defaultProps(overrides: Partial<Parameters<typeof SourceModeEditor>[0]> = {}) {
@@ -133,7 +130,6 @@ describe("SourceModeEditor - coverage tests", () => {
 
       const { container } = renderWithTheme(
         <SourceModeEditor {...defaultProps({ sourceText: text })} />,
-        lightTheme,
       );
       // There should be a mark with b64 key
       const marks = container.querySelectorAll("mark");
@@ -150,7 +146,6 @@ describe("SourceModeEditor - coverage tests", () => {
 
       const { container } = renderWithTheme(
         <SourceModeEditor {...defaultProps({ sourceText: text })} />,
-        darkTheme,
       );
       const marks = container.querySelectorAll("mark");
       expect(marks.length).toBeGreaterThan(0);

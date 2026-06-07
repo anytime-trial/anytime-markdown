@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getDivider: () => "#ccc",
@@ -19,7 +18,6 @@ jest.mock("../constants/dimensions", () => ({
 
 import { ImageCropTool } from "../components/ImageCropTool";
 
-const theme = createTheme();
 
 describe("ImageCropTool", () => {
   const t = (key: string) => key;
@@ -28,26 +26,26 @@ describe("ImageCropTool", () => {
 
   it("renders without crashing", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <ImageCropTool
           src={testSrc}
           onCrop={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders scale preset chips", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <ImageCropTool
           src={testSrc}
           onCrop={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     // Scale presets: 25, 50, 75, 100, 150, 200
     expect(container.textContent).toContain("100%");

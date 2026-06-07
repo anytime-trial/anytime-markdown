@@ -12,7 +12,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material";
 import { OutlinePanel } from "../components/OutlinePanel";
 import type { HeadingItem } from "../types";
 
@@ -20,7 +19,6 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 function createDefaultProps(overrides: Partial<Parameters<typeof OutlinePanel>[0]> = {}) {
@@ -42,7 +40,7 @@ function createDefaultProps(overrides: Partial<Parameters<typeof OutlinePanel>[0
 }
 
 function renderWithTheme(ui: React.ReactElement) {
-  return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+  return render(ui);
 }
 
 describe("OutlinePanel - coverage", () => {

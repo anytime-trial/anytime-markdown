@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { EditorMenuPopovers } from "../components/EditorMenuPopovers";
 
 jest.mock("next-intl", () => ({
@@ -37,7 +36,6 @@ jest.mock("../icons/MermaidIcon", () => {
   };
 });
 
-const theme = createTheme();
 
 describe("EditorMenuPopovers", () => {
   const t = (key: string) => key;
@@ -64,27 +62,21 @@ describe("EditorMenuPopovers", () => {
 
   it("renders without crashing when all anchors are null", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...defaultProps} />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...defaultProps} />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders without crashing with sourceMode", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...defaultProps} sourceMode />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...defaultProps} sourceMode />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with hideVersionInfo", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorMenuPopovers {...defaultProps} hideVersionInfo />
-      </ThemeProvider>,
+        <EditorMenuPopovers {...defaultProps} hideVersionInfo />,
     );
     expect(container).toBeTruthy();
   });

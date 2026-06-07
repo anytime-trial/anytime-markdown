@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Mock useGraphRender
 const mockUseGraphRender = jest.fn();
@@ -26,15 +25,8 @@ class MockResizeObserver {
 
 import { GraphView } from "../components/codeblock/GraphView";
 
-const darkTheme = createTheme({ palette: { mode: "dark" } });
-const lightTheme = createTheme({ palette: { mode: "light" } });
-
-function renderWithTheme(ui: React.ReactElement, dark = false) {
-  return render(
-    <ThemeProvider theme={dark ? darkTheme : lightTheme}>
-      {ui}
-    </ThemeProvider>
-  );
+function renderWithTheme(ui: React.ReactElement, _dark = false) {
+  return render(ui);
 }
 
 describe("GraphView", () => {

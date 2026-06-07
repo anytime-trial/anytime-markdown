@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- mocks ---
 
@@ -113,14 +112,13 @@ jest.mock("../components/MergeEditorPanel", () => ({
 
 import { InlineMergeView } from "../components/InlineMergeView";
 
-const theme = createTheme();
 
 describe("InlineMergeView", () => {
   const t = (key: string) => key;
 
   it("renders without crashing", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent=""
           sourceMode={false}
@@ -129,14 +127,14 @@ describe("InlineMergeView", () => {
         >
           {(leftBgGradient) => <div data-testid="child">{leftBgGradient}</div>}
         </InlineMergeView>
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with sourceMode", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent="# Test"
           sourceMode={true}
@@ -145,7 +143,7 @@ describe("InlineMergeView", () => {
         >
           {(leftBgGradient) => <div>{leftBgGradient}</div>}
         </InlineMergeView>
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });

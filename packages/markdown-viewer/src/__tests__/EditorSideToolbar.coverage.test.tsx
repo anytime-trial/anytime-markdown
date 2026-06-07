@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getDivider: () => "#ccc",
@@ -16,7 +15,6 @@ jest.mock("../constants/dimensions", () => ({
 
 import { EditorSideToolbar } from "../components/EditorSideToolbar";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 function renderToolbar(props: Partial<React.ComponentProps<typeof EditorSideToolbar>> = {}) {
@@ -29,9 +27,7 @@ function renderToolbar(props: Partial<React.ComponentProps<typeof EditorSideTool
     ...props,
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <EditorSideToolbar {...defaultProps} />
-    </ThemeProvider>,
+      <EditorSideToolbar {...defaultProps} />,
   );
 }
 

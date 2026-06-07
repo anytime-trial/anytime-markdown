@@ -17,7 +17,6 @@ global.ResizeObserver = class ResizeObserver {
 } as unknown as typeof ResizeObserver;
 
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { MergeEditorPanel } from "../components/MergeEditorPanel";
 import { diffLineBgColor } from "../utils/colorRuns";
@@ -31,7 +30,6 @@ jest.mock("../useEditorSettings", () => ({
   useEditorSettingsContext: () => ({ fontSize: 14, lineHeight: 1.6 }),
 }));
 
-const theme = createTheme();
 
 const DIFF_LINES: DiffLine[] = [
   { text: "equal line one", type: "equal", blockId: null, lineNumber: 1 },
@@ -42,7 +40,7 @@ const DIFF_LINES: DiffLine[] = [
 describe("ソースモード比較: 行単位の差分背景", () => {
   it("equal 行は透明、added 行のみ着色される（折り返し非依存）", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <MergeEditorPanel
           sourceMode
           sourceText={DIFF_LINES.map((d) => d.text).join("\n")}
@@ -52,7 +50,7 @@ describe("ソースモード比較: 行単位の差分背景", () => {
           readOnly
           autoResize
         />
-      </ThemeProvider>,
+        </>,
     );
 
     // ミラー兼背景レイヤー（aria-hidden）の行 div を取得

@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getActionHover: () => "rgba(0,0,0,0.04)",
@@ -27,7 +26,6 @@ jest.mock("../version", () => ({
 // EditorDialogs is a default export
 const { EditorDialogs } = jest.requireActual("../components/EditorDialogs") as any;
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 describe("EditorDialogs", () => {
@@ -59,9 +57,7 @@ describe("EditorDialogs", () => {
 
   it("renders without crashing with all dialogs closed", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...defaultProps} />
-      </ThemeProvider>,
+        <EditorDialogs {...defaultProps} />,
     );
     expect(container).toBeTruthy();
   });

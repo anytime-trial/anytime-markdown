@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getActionHover: () => "rgba(0,0,0,0.04)",
@@ -28,7 +27,6 @@ jest.mock("../constants/zIndex", () => ({
 
 import { SourceSearchBar } from "../components/SourceSearchBar";
 
-const theme = createTheme();
 
 describe("SourceSearchBar", () => {
   const t = (key: string) => key;
@@ -53,13 +51,13 @@ describe("SourceSearchBar", () => {
 
   it("renders without crashing", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <SourceSearchBar
           search={mockSearch as any}
           onClose={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
@@ -72,13 +70,13 @@ describe("SourceSearchBar", () => {
       currentIndex: 0,
     };
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <SourceSearchBar
           search={searchWithMatches as any}
           onClose={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });

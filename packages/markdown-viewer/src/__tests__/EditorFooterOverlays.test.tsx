@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("next-intl", () => ({
   useLocale: () => "en",
@@ -52,14 +51,13 @@ jest.mock("../contexts/EditorModeContext", () => ({
 
 import { EditorFooterOverlays } from "../components/EditorFooterOverlays";
 
-const theme = createTheme();
 const t = (key: string) => key;
 const noop = jest.fn();
 
 describe("EditorFooterOverlays", () => {
   it("renders without crashing with null editor", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorFooterOverlays
           editor={null}
           editorPortalTarget={null}
@@ -89,7 +87,7 @@ describe("EditorFooterOverlays", () => {
           setNotification={noop}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
