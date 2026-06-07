@@ -1,10 +1,8 @@
 "use client";
 import CloseIcon from "@mui/icons-material/Close";
 import ImageIcon from "@mui/icons-material/Image";
-import {
-  ButtonBase,
-  useTheme,
-} from "@mui/material";
+import { useTheme } from "@mui/material";
+import { ButtonBase } from "../ui/ButtonBase";
 import { Button } from "../ui/Button";
 import { TextField } from "../ui/TextField";
 import { IconButton } from "../ui/IconButton";
@@ -14,7 +12,7 @@ import type { Editor } from "@anytime-markdown/markdown-react";
 import { useEditorState } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getPrimaryMain, getTextDisabled, getTextSecondary } from "../constants/colors";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
 import { BADGE_NUMBER_FONT_SIZE, COMMENT_BODY_FONT_SIZE, COMMENT_INPUT_FONT_SIZE, COMMENT_PANEL_WIDTH, PANEL_BUTTON_FONT_SIZE, PANEL_HEADER_MIN_HEIGHT, SMALL_BUTTON_FONT_SIZE, SMALL_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import { commentDataPluginKey } from "../extensions/commentExtension";
 import type { TranslationFn } from "../types";
@@ -290,20 +288,8 @@ export const CommentPanel = React.memo(function CommentPanel({
               key={comment.id}
               component="div"
               onClick={() => handleClick(comment.id)}
-              sx={{
-                display: "block",
-                textAlign: "left",
-                width: "100%",
-                mb: 1,
-                p: 1,
-                border: 1,
-                borderColor: getDivider(isDark),
-                borderRadius: 1,
-                cursor: "pointer",
-                opacity: comment.resolved ? 0.5 : 1,
-                "&:hover, &:focus-visible": { bgcolor: getActionHover(isDark) },
-                "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), outlineOffset: -2 },
-              }}
+              className={styles.commentCard}
+              style={{ opacity: comment.resolved ? 0.5 : 1 }}
             >
               {/* Target text */}
               {found && !found.isPoint && found.text && (
@@ -461,7 +447,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                         const el = domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;
                         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
                       }}
-                      sx={{ display: "block", textAlign: "left", width: "100%", cursor: "pointer" }}
+                      className={styles.annotationCard}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
                         <div style={{

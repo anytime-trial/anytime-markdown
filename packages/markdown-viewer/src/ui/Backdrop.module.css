@@ -1,0 +1,24 @@
+/* MUI Backdrop の置換。全画面固定オーバーレイ + フェード。z-index/レイアウトの上書きは
+   消費側 className が行う（既定は中央寄せ flex・半透明黒）。 */
+.root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  opacity: 0;
+  transition: opacity var(--backdrop-duration, 225ms) var(--am-ease-standard, ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    transition: none;
+  }
+}

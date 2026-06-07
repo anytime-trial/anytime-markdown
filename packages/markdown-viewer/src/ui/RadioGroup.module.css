@@ -1,0 +1,10 @@
+/* MUI RadioGroup の置換。既定は縦並び、row で横並び。 */
+.root {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  flex-direction: row;
+  flex-wrap: wrap;
+}

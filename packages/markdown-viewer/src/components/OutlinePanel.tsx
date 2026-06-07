@@ -11,11 +11,9 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import SchemaIcon from "@mui/icons-material/Schema";
 import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
-import {
-  ButtonBase,
-  Collapse,
-  useTheme,
-} from "@mui/material";
+import { useTheme } from "@mui/material";
+import { ButtonBase } from "../ui/ButtonBase";
+import { Collapse } from "../ui/Collapse";
 import { IconButton } from "../ui/IconButton";
 import { Tooltip } from "../ui/Tooltip";
 import React, { useCallback, useMemo,useState } from "react";
@@ -167,12 +165,10 @@ const OutlineItem = React.memo(function OutlineItem({
         onClick={() => handleOutlineClick(h.pos)}
         {...(isDraggable ? { "aria-roledescription": t("draggableHeading") } : {})}
         onKeyDown={(e: React.KeyboardEvent) => handleHeadingKeyDown(e, isHeading, onHeadingDragEnd, hoIdx, headingOnlyIndices)}
-        sx={{
-          cursor: "pointer", fontSize: OUTLINE_FONT_SIZE, fontWeight: 400,
+        className={styles.headingButton}
+        style={{
+          fontSize: OUTLINE_FONT_SIZE,
           color: isFolded ? getTextDisabled(isDark) : getTextPrimary(isDark),
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          flex: 1, minWidth: 0, borderRadius: 0.5, justifyContent: "flex-start",
-          "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), outlineOffset: 1 },
         }}
       >
         {h.text || "(empty)"}
@@ -231,7 +227,7 @@ const OutlineItemList = React.memo(function OutlineItemList({
         const isDropTarget = isHeading && hoIdx === dropIdx && hoIdx !== dragIdx;
         const blockPl = isHeading ? 0 : computeBlockPadding(idx, headings);
         return (
-          <Collapse key={`${h.pos}-${idx}`} in={!isHidden} unmountOnExit timeout={150} sx={{ "@media (prefers-reduced-motion: reduce)": { transition: "none !important" } }}>
+          <Collapse key={`${h.pos}-${idx}`} in={!isHidden} unmountOnExit timeout={150}>
             <OutlineItem
               h={h} idx={idx} isHeading={isHeading} isFolded={isFolded}
               hoIdx={hoIdx} isDragging={isDragging} isDropTarget={isDropTarget}

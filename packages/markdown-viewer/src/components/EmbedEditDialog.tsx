@@ -5,12 +5,12 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
-    FormControlLabel,
-    Radio,
-    RadioGroup,
 } from "@mui/material";
 
 import { Button } from "../ui/Button";
+import { FormControlLabel } from "../ui/FormControlLabel";
+import { Radio } from "../ui/Radio";
+import { RadioGroup } from "../ui/RadioGroup";
 import { TextField } from "../ui/TextField";
 import { useEffect, useState } from "react";
 
