@@ -1,12 +1,6 @@
 "use client";
 
-import ClearAllIcon from "@mui/icons-material/ClearAll";
-import CodeIcon from "@mui/icons-material/Code";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import ContentCutIcon from "@mui/icons-material/ContentCut";
-import ContentPasteIcon from "@mui/icons-material/ContentPaste";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import { ClearAllIcon, CodeIcon, ContentCopyIcon, ContentCutIcon, ContentPasteIcon, EditOutlinedIcon, VisibilityOutlinedIcon } from "../ui/icons";
 import { ListItemIcon } from "../ui/ListItemIcon";
 import { ListItemText } from "../ui/ListItemText";
 import { Menu } from "../ui/Menu";
@@ -360,7 +354,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
   const menuItems: React.ReactNode[] = [
     <MenuItem key="cut" onClick={handleCut} disabled={!!readOnly || !canCopy}>
       <ListItemIcon>
-        <ContentCutIcon sx={{ fontSize: 16 }} />
+        <ContentCutIcon fontSize={16} />
       </ListItemIcon>
       <ListItemText>
         {t("cut")}
@@ -371,7 +365,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
     </MenuItem>,
     <MenuItem key="copy" onClick={handleCopy} disabled={!canCopy}>
       <ListItemIcon>
-        <ContentCopyIcon sx={{ fontSize: 16 }} />
+        <ContentCopyIcon fontSize={16} />
       </ListItemIcon>
       <ListItemText>
         {t("copy")}
@@ -382,7 +376,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
     </MenuItem>,
     <MenuItem key="paste" onClick={handlePaste} disabled={!!readOnly}>
       <ListItemIcon>
-        <ContentPasteIcon sx={{ fontSize: 16 }} />
+        <ContentPasteIcon fontSize={16} />
       </ListItemIcon>
       <ListItemText>
         {t("paste")}
@@ -398,7 +392,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       <Divider key="d-paste" style={{ margin: "4px 0" }} />,
       <MenuItem key="pasteAsMarkdown" onClick={handlePasteAsMarkdown} disabled={!!readOnly}>
         <ListItemIcon>
-          <ContentPasteIcon sx={{ fontSize: 16 }} />
+          <ContentPasteIcon fontSize={16} />
         </ListItemIcon>
         <ListItemText>
           {t("pasteAsMarkdown")}
@@ -409,7 +403,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       </MenuItem>,
       <MenuItem key="pasteAsCodeBlock" onClick={handlePasteAsCodeBlock} disabled={!!readOnly}>
         <ListItemIcon>
-          <CodeIcon sx={{ fontSize: 16 }} />
+          <CodeIcon fontSize={16} />
         </ListItemIcon>
         <ListItemText>
           {t("pasteAsCodeBlock")}
@@ -422,7 +416,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
     <Divider key="d-clear" style={{ margin: "4px 0" }} />,
     <MenuItem key="clearScreen" onClick={handleClearScreen} disabled={!!readOnly}>
       <ListItemIcon>
-        <ClearAllIcon sx={{ fontSize: 16 }} />
+        <ClearAllIcon fontSize={16} />
       </ListItemIcon>
       <ListItemText>
         {t("clearScreen")}
@@ -435,7 +429,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       <Divider key="d-mode" style={{ margin: "4px 0" }} />,
       <MenuItem key="review" onClick={handleSwitchToReview} disabled={currentMode === "review"}>
         <ListItemIcon>
-          <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />
+          <VisibilityOutlinedIcon fontSize={16} />
         </ListItemIcon>
         <ListItemText>
           {t("review")}
@@ -443,7 +437,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       </MenuItem>,
       <MenuItem key="wysiwyg" onClick={handleSwitchToWysiwyg} disabled={currentMode === "wysiwyg"}>
         <ListItemIcon>
-          <EditOutlinedIcon sx={{ fontSize: 16 }} />
+          <EditOutlinedIcon fontSize={16} />
         </ListItemIcon>
         <ListItemText>
           {t("wysiwyg")}
@@ -451,7 +445,7 @@ export function EditorContextMenu({ editor, readOnly, t, currentMode, onSwitchTo
       </MenuItem>,
       <MenuItem key="source" onClick={handleSwitchToSource} disabled={currentMode === "source"}>
         <ListItemIcon>
-          <CodeIcon sx={{ fontSize: 16 }} />
+          <CodeIcon fontSize={16} />
         </ListItemIcon>
         <ListItemText>
           {t("source")}

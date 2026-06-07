@@ -1,11 +1,13 @@
-import BorderColorIcon from "@mui/icons-material/BorderColor";
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import CodeIcon from "@mui/icons-material/Code";
-import FormatBoldIcon from "@mui/icons-material/FormatBold";
-import FormatItalicIcon from "@mui/icons-material/FormatItalic";
-import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
-import InsertLinkIcon from "@mui/icons-material/InsertLink";
-import StrikethroughSIcon from "@mui/icons-material/StrikethroughS";
+import {
+  BorderColorIcon,
+  ChatBubbleOutlineIcon,
+  CodeIcon,
+  FormatBoldIcon,
+  FormatItalicIcon,
+  FormatUnderlinedIcon,
+  InsertLinkIcon,
+  StrikethroughSIcon,
+} from "../ui/icons";
 import { IconButton } from "../ui/IconButton";
 import { Tooltip } from "../ui/Tooltip";
 import { Paper } from "../ui/Paper";
@@ -98,7 +100,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-pressed={editor.isActive("bold")}
                 onClick={() => editor.chain().focus().toggleBold().run()}                style={{ color: editor.isActive("bold") ? "var(--am-color-primary-main)" : undefined }}
               >
-                <FormatBoldIcon sx={{ fontSize: 18 }} />
+                <FormatBoldIcon fontSize={18} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "italic")}>
@@ -108,7 +110,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-pressed={editor.isActive("italic")}
                 onClick={() => editor.chain().focus().toggleItalic().run()}                style={{ color: editor.isActive("italic") ? "var(--am-color-primary-main)" : undefined }}
               >
-                <FormatItalicIcon sx={{ fontSize: 18 }} />
+                <FormatItalicIcon fontSize={18} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "underline")}>
@@ -118,7 +120,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-pressed={editor.isActive("underline")}
                 onClick={() => editor.chain().focus().toggleUnderline().run()}                style={{ color: editor.isActive("underline") ? "var(--am-color-primary-main)" : undefined }}
               >
-                <FormatUnderlinedIcon sx={{ fontSize: 18 }} />
+                <FormatUnderlinedIcon fontSize={18} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "strikethrough")}>
@@ -128,7 +130,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-pressed={editor.isActive("strike")}
                 onClick={() => editor.chain().focus().toggleStrike().run()}                style={{ color: editor.isActive("strike") ? "var(--am-color-primary-main)" : undefined }}
               >
-                <StrikethroughSIcon sx={{ fontSize: 18 }} />
+                <StrikethroughSIcon fontSize={18} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "highlight")}>
@@ -138,7 +140,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-pressed={editor.isActive("highlight")}
                 onClick={() => editor.chain().focus().toggleHighlight().run()}                style={{ color: editor.isActive("highlight") ? "var(--am-color-primary-main)" : undefined }}
               >
-                <BorderColorIcon sx={{ fontSize: 18 }} />
+                <BorderColorIcon fontSize={18} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "code")}>
@@ -148,7 +150,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-pressed={editor.isActive("code")}
                 onClick={() => editor.chain().focus().toggleCode().run()}                style={{ color: editor.isActive("code") ? "var(--am-color-primary-main)" : undefined }}
               >
-                <CodeIcon sx={{ fontSize: 18 }} />
+                <CodeIcon fontSize={18} />
               </IconButton>
             </Tooltip>
             <Tooltip title={tip(t, "link")}>
@@ -157,7 +159,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 aria-label={t("link")}
                 onClick={onLink}                style={{ color: editor.isActive("link") ? "var(--am-color-primary-main)" : undefined }}
               >
-                <InsertLinkIcon sx={{ fontSize: 18 }} />
+                <InsertLinkIcon fontSize={18} />
               </IconButton>
             </Tooltip>
           </>
@@ -180,7 +182,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
                 }
               }}              style={{ color: editor.isActive("commentHighlight") ? "var(--am-color-primary-main)" : undefined }}
             >
-              <ChatBubbleOutlineIcon sx={{ fontSize: 18 }} />
+              <ChatBubbleOutlineIcon fontSize={18} />
             </IconButton>
           </Tooltip>
         )}

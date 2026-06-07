@@ -1,13 +1,11 @@
 "use client";
 
-import GifIcon from "@mui/icons-material/Gif";
-import PauseIcon from "@mui/icons-material/Pause";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { useTheme } from "@mui/material/styles";
 import { useCallback, useRef, useState } from "react";
 
 import { getDivider, getTextSecondary } from "../constants/colors";
 import type { GifSettings } from "../utils/gifEncoder";
+import { GifIcon, PauseIcon, PlayArrowIcon } from "../ui/icons";
 import { ToggleButton } from "../ui/ToggleButton";
 import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
 import { Text } from "../ui/Text";
@@ -66,7 +64,7 @@ export function GifPlayerDialog({ open, onClose, src, settings }: Readonly<GifPl
       <EditDialogHeader
         label="GIF Player"
         onClose={onClose}
-        icon={<GifIcon sx={{ fontSize: 18 }} />}
+        icon={<GifIcon fontSize={18} />}
         t={t}
       />
 
@@ -113,7 +111,7 @@ export function GifPlayerDialog({ open, onClose, src, settings }: Readonly<GifPl
             aria-label={playing ? "Pause" : "Play"}
             style={{ border: `1px solid ${getDivider(isDark)}` }}
           >
-            {playing ? <PauseIcon sx={{ fontSize: 20 }} /> : <PlayArrowIcon sx={{ fontSize: 20 }} />}
+            {playing ? <PauseIcon fontSize={20} /> : <PlayArrowIcon fontSize={20} />}
           </ToggleButton>
 
           <ToggleButtonGroup

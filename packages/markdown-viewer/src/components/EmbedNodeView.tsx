@@ -1,7 +1,6 @@
-import LinkOffIcon from "@mui/icons-material/LinkOff";
-
 import { useOptionalEmbedProviders } from "../contexts/EmbedProvidersContext";
 import type { EmbedProviders } from "../types/embedProvider";
+import { LinkOffIcon } from "../ui/icons";
 import { Stack } from "../ui/Stack";
 import { Text } from "../ui/Text";
 import { classifyEmbedUrl } from "../utils/embedClassifier";

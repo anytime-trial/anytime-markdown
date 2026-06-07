@@ -1,12 +1,6 @@
 "use client";
 
-import AutoFixOffIcon from "@mui/icons-material/AutoFixOff";
-import CancelIcon from "@mui/icons-material/Cancel";
-import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
-import CloseIcon from "@mui/icons-material/Close";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
-import RectangleOutlinedIcon from "@mui/icons-material/RectangleOutlined";
+import { AutoFixOffIcon, CancelIcon, CircleOutlinedIcon, CloseIcon, DeleteOutlineIcon, HorizontalRuleIcon, RectangleOutlinedIcon } from "../ui/icons";
 import { IconButton } from "../ui/IconButton";
 import { TextField } from "../ui/TextField";
 import { Tooltip } from "../ui/Tooltip";

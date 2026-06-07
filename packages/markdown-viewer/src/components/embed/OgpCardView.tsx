@@ -1,5 +1,5 @@
-import LinkIcon from "@mui/icons-material/Link";
 import { useTheme } from "@mui/material";
+import { LinkIcon } from "../../ui/icons";
 
 import { Skeleton } from "../../ui/Skeleton";
 import { type CSSProperties } from "react";
@@ -107,7 +107,7 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
                             style={{ width: 16, height: 16, flexShrink: 0 }}
                         />
                     ) : (
-                        <LinkIcon sx={{ fontSize: 16, color: textSecondary, flexShrink: 0 }} />
+                        <LinkIcon fontSize={16} color={textSecondary} style={{ flexShrink: 0 }} />
                     )}
                     <Text
                         component="span"
@@ -199,7 +199,7 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
                                 style={{ width: 14, height: 14 }}
                             />
                         ) : (
-                            <LinkIcon sx={{ fontSize: 14, color: textSecondary }} />
+                            <LinkIcon fontSize={14} color={textSecondary} />
                         )}
                         <Text
                             component="span"

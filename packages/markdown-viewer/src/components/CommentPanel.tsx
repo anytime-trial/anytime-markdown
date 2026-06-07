@@ -1,7 +1,6 @@
 "use client";
-import CloseIcon from "@mui/icons-material/Close";
-import ImageIcon from "@mui/icons-material/Image";
 import { useTheme } from "@mui/material";
+import { CloseIcon, ImageIcon } from "../ui/icons";
 import { ButtonBase } from "../ui/ButtonBase";
 import { Button } from "../ui/Button";
 import { TextField } from "../ui/TextField";
@@ -234,7 +233,7 @@ export const CommentPanel = React.memo(function CommentPanel({
           onClick={onClose}
           aria-label={t("close") || "Close"}
         >
-          <CloseIcon sx={{ fontSize: 18 }} />
+          <CloseIcon fontSize={18} />
         </IconButton>
       </div>
 
@@ -411,7 +410,7 @@ export const CommentPanel = React.memo(function CommentPanel({
                 marginBottom: 4,
               }}
             >
-              <ImageIcon sx={{ fontSize: 14 }} />
+              <ImageIcon fontSize={14} />
               {t("annotate")} ({unresolvedImageAnnotations}/{totalImageAnnotations})
             </Text>
             {imageAnnotations.map((img) => {

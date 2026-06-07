@@ -1,6 +1,6 @@
 "use client";
 
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
+import { FiberManualRecordIcon } from "../ui/icons";
 import { Menu } from "../ui/Menu";
 import { MenuItem } from "../ui/MenuItem";
 import { Tooltip } from "../ui/Tooltip";
@@ -152,7 +152,7 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
           {fileName}
           {isDirty && (
             <Tooltip title={t("unsavedChanges")}>
-              <FiberManualRecordIcon sx={{ fontSize: 8, color: getWarningMain(isDark), ml: 0.5 }} />
+              <FiberManualRecordIcon fontSize={8} color={getWarningMain(isDark)} style={{ marginLeft: 4 }} />
             </Tooltip>
           )}
         </Text>

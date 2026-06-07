@@ -1,10 +1,6 @@
 "use client";
 
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
-import EditIcon from "@mui/icons-material/Edit";
-import FileDownloadIcon from "@mui/icons-material/FileDownload";
-import ImageIcon from "@mui/icons-material/Image";
+import { DeleteOutlineIcon, DragIndicatorIcon, EditIcon, FileDownloadIcon, ImageIcon } from "../../ui/icons";
 import { Tooltip } from "../../ui/Tooltip";
 import { IconButton } from "../../ui/IconButton";
 import { ListItemIcon } from "../../ui/ListItemIcon";
@@ -87,7 +83,7 @@ export function BlockInlineToolbar({
         className={styles.dragHandle}
         style={{ "--drag-handle-outline-color": getPrimaryMain(isDark) } as React.CSSProperties}
       >
-        <DragIndicatorIcon sx={iconSx} />
+        <DragIndicatorIcon {...iconSx} />
       </div>
       <Text variant="caption" style={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
         {label}
@@ -98,7 +94,7 @@ export function BlockInlineToolbar({
       {onEdit && !collapsed && (
         <Tooltip title={t("edit")} placement="top">
           <IconButton size="xs" onClick={onEdit} aria-label={t("edit")}>
-            <EditIcon sx={iconSx} />
+            <EditIcon {...iconSx} />
           </IconButton>
         </Tooltip>
       )}
@@ -107,7 +103,7 @@ export function BlockInlineToolbar({
       {hasMenu && !collapsed && (<>
         <Tooltip title={t("capture")} placement="top">
           <IconButton ref={anchorRef} size="xs" onClick={() => setMenuOpen(true)} aria-label={t("capture")} aria-haspopup="true">
-            <FileDownloadIcon sx={iconSx} />
+            <FileDownloadIcon {...iconSx} />
           </IconButton>
         </Tooltip>
         <Menu
@@ -130,7 +126,7 @@ export function BlockInlineToolbar({
       {onExport && !hasMenu && !collapsed && (
         <Tooltip title={t("capture")} placement="top">
           <IconButton size="xs" onClick={onExport} aria-label={t("capture")}>
-            <FileDownloadIcon sx={iconSx} />
+            <FileDownloadIcon {...iconSx} />
           </IconButton>
         </Tooltip>
       )}
@@ -138,7 +134,7 @@ export function BlockInlineToolbar({
         <Divider orientation="vertical" flexItem style={{ margin: "0 2px" }} />
         <Tooltip title={t("delete")} placement="top">
           <IconButton size="xs" onClick={onDelete} aria-label={t("delete")}>
-            <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+            <DeleteOutlineIcon fontSize={16} />
           </IconButton>
         </Tooltip>
       </>)}

@@ -1,14 +1,7 @@
 "use client";
 
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import EditIcon from "@mui/icons-material/Edit";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import FileDownloadIcon from "@mui/icons-material/FileDownload";
-import ImageIcon from "@mui/icons-material/Image";
-import LinkIcon from "@mui/icons-material/Link";
-import ScreenshotMonitorIcon from "@mui/icons-material/ScreenshotMonitor";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useTheme } from "@mui/material";
+import { ChatBubbleOutlineIcon, EditIcon, ErrorOutlineIcon, FileDownloadIcon, ImageIcon, LinkIcon, ScreenshotMonitorIcon, WarningAmberIcon } from "./ui/icons";
 import { IconButton } from "./ui/IconButton";
 import { Tooltip } from "./ui/Tooltip";
 import type { NodeViewProps } from "@anytime-markdown/markdown-react";
@@ -121,7 +114,7 @@ function ImageToolbarExtra({
         <>
           <Divider orientation="vertical" flexItem style={{ marginLeft: 2, marginRight: 2 }} />
           <Tooltip title={t("imageNoAltWarning")} placement="top">
-            <WarningAmberIcon sx={{ fontSize: 14, color: getWarningMain(isDark) }} />
+            <WarningAmberIcon fontSize={14} color={getWarningMain(isDark)} />
           </Tooltip>
         </>
       )}
@@ -129,7 +122,7 @@ function ImageToolbarExtra({
         <>
           <Divider orientation="vertical" flexItem style={{ marginLeft: 2, marginRight: 2 }} />
           <Tooltip title={t("imageNotFound")} placement="top">
-            <ErrorOutlineIcon sx={{ fontSize: 14, color: getErrorMain(isDark) }} />
+            <ErrorOutlineIcon fontSize={14} color={getErrorMain(isDark)} />
           </Tooltip>
         </>
       )}
@@ -139,20 +132,20 @@ function ImageToolbarExtra({
           {onEdit && (
             <Tooltip title={t("edit")} placement="top">
               <IconButton size="xs" onClick={onEdit} aria-label={t("edit")}>
-                <EditIcon sx={iconSx} />
+                <EditIcon {...iconSx} />
               </IconButton>
             </Tooltip>
           )}
           {onEditUrl && (
             <Tooltip title={t("imageUrl")} placement="top">
               <IconButton size="xs" onClick={onEditUrl} aria-label={t("imageUrl")}>
-                <LinkIcon sx={iconSx} />
+                <LinkIcon {...iconSx} />
               </IconButton>
             </Tooltip>
           )}
           <Tooltip title={t("annotate")} placement="top">
             <IconButton size="xs" onClick={onAnnotationOpen} aria-label={t("annotate")}>
-              <ChatBubbleOutlineIcon sx={{ fontSize: 16, color: annotations.length > 0 ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
+              <ChatBubbleOutlineIcon fontSize={16} color={annotations.length > 0 ? getPrimaryMain(isDark) : getTextSecondary(isDark)} />
             </IconButton>
           </Tooltip>
         </>
@@ -255,7 +248,7 @@ function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop
       <EditDialogHeader
         label={t("image")}
         onClose={() => setEditOpen(false)}
-        icon={<ImageIcon sx={{ fontSize: 18 }} />}
+        icon={<ImageIcon fontSize={18} />}
         t={t}
       />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG }}>
@@ -267,14 +260,14 @@ function ImageEditDialog({ editOpen, setEditOpen, src, imgError, imgSize, onCrop
         {onScreenCapture && (
           <Tooltip title={t("screenCapture")} placement="top">
             <IconButton size="compact" onClick={onScreenCapture} aria-label={t("screenCapture")}>
-              <ScreenshotMonitorIcon sx={iconSx} />
+              <ScreenshotMonitorIcon {...iconSx} />
             </IconButton>
           </Tooltip>
         )}
         {onExport && (
           <Tooltip title={t("capture")} placement="top">
             <IconButton size="compact" onClick={onExport} aria-label={t("capture")}>
-              <FileDownloadIcon sx={iconSx} />
+              <FileDownloadIcon {...iconSx} />
             </IconButton>
           </Tooltip>
         )}

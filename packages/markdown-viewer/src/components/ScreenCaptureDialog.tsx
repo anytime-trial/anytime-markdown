@@ -1,12 +1,10 @@
 "use client";
 
-import CameraAltIcon from "@mui/icons-material/CameraAlt";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import ScreenshotMonitorIcon from "@mui/icons-material/ScreenshotMonitor";
 import { useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "../ui/Button";
+import { CameraAltIcon, RefreshIcon, ScreenshotMonitorIcon } from "../ui/icons";
 
 import { getDivider } from "../constants/colors";
 import { Text } from "../ui/Text";
@@ -115,7 +113,7 @@ export function ScreenCaptureDialog({ open, onClose, onCapture, t }: Readonly<Sc
       <EditDialogHeader
         label={t("screenCapture")}
         onClose={onClose}
-        icon={<ScreenshotMonitorIcon sx={{ fontSize: 18 }} />}
+        icon={<ScreenshotMonitorIcon fontSize={18} />}
         t={t}
       />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -144,7 +142,7 @@ export function ScreenCaptureDialog({ open, onClose, onCapture, t }: Readonly<Sc
             />
             {phase === "idle" && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, color: "#9e9e9e" }}>
-                <ScreenshotMonitorIcon sx={{ fontSize: 48 }} />
+                <ScreenshotMonitorIcon fontSize={48} />
                 <Text variant="body2">{t("screenCaptureSelect")}</Text>
               </div>
             )}

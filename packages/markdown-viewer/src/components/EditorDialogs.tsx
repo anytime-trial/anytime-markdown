@@ -1,12 +1,11 @@
 "use client";
 
-import HelpCenterIcon from "@mui/icons-material/HelpCenter";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
 import { getActionHover, getActionSelected, getDivider, getTextSecondary } from "../constants/colors";
 import { Button } from "../ui/Button";
+import { HelpCenterIcon, InfoOutlinedIcon } from "../ui/icons";
 import { Dialog, DialogActions, DialogContent, DialogTitle } from "../ui/Dialog";
 import { TextField } from "../ui/TextField";
 import { SHORTCUT_HINT_FONT_SIZE } from "../constants/dimensions";

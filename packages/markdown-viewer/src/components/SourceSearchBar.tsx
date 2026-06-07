@@ -1,16 +1,18 @@
 "use client";
 
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import ClearIcon from "@mui/icons-material/Clear";
-import CloseIcon from "@mui/icons-material/Close";
-import DoneAllIcon from "@mui/icons-material/DoneAll";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import FindReplaceIcon from "@mui/icons-material/FindReplace";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import {
   useTheme,
 } from "@mui/material";
+import {
+  ChevronRightIcon,
+  ClearIcon,
+  CloseIcon,
+  DoneAllIcon,
+  ExpandMoreIcon,
+  FindReplaceIcon,
+  KeyboardArrowDownIcon,
+  KeyboardArrowUpIcon,
+} from "../ui/icons";
 import { IconButton } from "../ui/IconButton";
 import { Tooltip } from "../ui/Tooltip";
 import React, { useCallback, useState } from "react";
@@ -116,9 +118,9 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
             className={styles.iconBtnSmall24}
           >
             {showReplace ? (
-              <ExpandMoreIcon sx={{ fontSize: 16 }} />
+              <ExpandMoreIcon fontSize={16} />
             ) : (
-              <ChevronRightIcon sx={{ fontSize: 16 }} />
+              <ChevronRightIcon fontSize={16} />
             )}
           </IconButton>
         </Tooltip>
@@ -149,7 +151,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
             }}
             className={styles.iconBtnClear}
           >
-            <ClearIcon sx={{ fontSize: 14 }} />
+            <ClearIcon fontSize={14} />
           </IconButton>
         )}
 
@@ -200,7 +202,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
               disabled={resultCount === 0}
               className={styles.iconBtnSmall24}
             >
-              <KeyboardArrowUpIcon sx={{ fontSize: 16 }} />
+              <KeyboardArrowUpIcon fontSize={16} />
             </IconButton>
           </span>
         </Tooltip>
@@ -213,7 +215,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
               disabled={resultCount === 0}
               className={styles.iconBtnSmall24}
             >
-              <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
+              <KeyboardArrowDownIcon fontSize={16} />
             </IconButton>
           </span>
         </Tooltip>
@@ -226,7 +228,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
             onClick={onClose}
             className={styles.iconBtnSmall24}
           >
-            <CloseIcon sx={{ fontSize: 16 }} />
+            <CloseIcon fontSize={16} />
           </IconButton>
         </Tooltip>
       </div>
@@ -262,7 +264,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
                 disabled={resultCount === 0}
                 className={styles.iconBtnSmall24}
               >
-                <FindReplaceIcon sx={{ fontSize: 16 }} />
+                <FindReplaceIcon fontSize={16} />
               </IconButton>
             </span>
           </Tooltip>
@@ -275,7 +277,7 @@ export const SourceSearchBar = React.memo(function SourceSearchBar({
                 disabled={resultCount === 0}
                 className={styles.iconBtnSmall24}
               >
-                <DoneAllIcon sx={{ fontSize: 16 }} />
+                <DoneAllIcon fontSize={16} />
               </IconButton>
             </span>
           </Tooltip>

@@ -1,10 +1,7 @@
 "use client";
 
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-import GifIcon from "@mui/icons-material/Gif";
-import PauseIcon from "@mui/icons-material/Pause";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { useTheme } from "@mui/material";
+import { FiberManualRecordIcon, GifIcon, PauseIcon, PlayArrowIcon } from "../ui/icons";
 import { IconButton } from "../ui/IconButton";
 import { Tooltip } from "../ui/Tooltip";
 import type { NodeViewProps } from "@anytime-markdown/markdown-react";
@@ -153,7 +150,7 @@ function GifPlaceholder({ isEditable, isDark, onClick }: Readonly<{ isEditable: 
         borderTop: `1px solid ${getDivider(isDark)}`,
       }}
     >
-      <GifIcon sx={{ fontSize: 36, color: getTextDisabled(isDark), mb: 0.5 }} />
+      <GifIcon fontSize={36} color={getTextDisabled(isDark)} style={{ marginBottom: 4 }} />
       <Text variant="caption" style={{ color: getTextDisabled(isDark) }}>
         Click to record GIF
       </Text>
@@ -196,7 +193,7 @@ function GifPlaybackImage({
           }}
         >
           <IconButton size="xs" onClick={onToggle} className={styles.playbackIconButton} aria-label={playing ? "Pause" : "Play"}>
-            {playing ? <PauseIcon sx={{ fontSize: 18 }} /> : <PlayArrowIcon sx={{ fontSize: 18 }} />}
+            {playing ? <PauseIcon fontSize={18} /> : <PlayArrowIcon fontSize={18} />}
           </IconButton>
         </div>
       )}
@@ -317,7 +314,7 @@ export function GifNodeView({ editor, node, updateAttributes, getPos }: Readonly
                     <Divider orientation="vertical" flexItem style={{ marginLeft: 2, marginRight: 2 }} />
                     <Tooltip title="Record GIF" placement="top">
                       <IconButton size="xs" onClick={() => setRecorderOpen(true)} aria-label="Record GIF">
-                        <FiberManualRecordIcon sx={{ fontSize: 16, color: getErrorMain(isDark) }} />
+                        <FiberManualRecordIcon fontSize={16} color={getErrorMain(isDark)} />
                       </IconButton>
                     </Tooltip>
                   </>

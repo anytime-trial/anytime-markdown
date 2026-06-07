@@ -1,5 +1,4 @@
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-
+import { PlayArrowIcon } from "../../ui/icons";
 import { Stack } from "../../ui/Stack";
 import { Text } from "../../ui/Text";
 
@@ -35,7 +34,7 @@ export function YouTubeEmbedView({ videoId, variant, widthOverride }: Readonly<P
                         overflow: "hidden",
                     }}
                 >
-                    <PlayArrowIcon sx={{ fontSize: 20, color: "#FF0000", flexShrink: 0 }} />
+                    <PlayArrowIcon fontSize={20} color="#FF0000" style={{ flexShrink: 0 }} />
                     <Text
                         style={{
                             color: "var(--am-color-text-primary)",

@@ -1,6 +1,6 @@
-import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import { useTheme } from "@mui/material";
 
+import { MusicNoteIcon } from "../../ui/icons";
 import { Stack } from "../../ui/Stack";
 import { Text } from "../../ui/Text";
 
@@ -43,7 +43,7 @@ export function SpotifyEmbedView({ spotifyType, spotifyId, variant, widthOverrid
                         paddingRight: 12,
                     }}
                 >
-                    <MusicNoteIcon sx={{ fontSize: 16, color: "#1DB954", flexShrink: 0 }} />
+                    <MusicNoteIcon fontSize={16} color="#1DB954" style={{ flexShrink: 0 }} />
                     <Text
                         style={{
                             color: theme.palette.text.primary,

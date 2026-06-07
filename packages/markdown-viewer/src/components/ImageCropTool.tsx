@@ -1,11 +1,6 @@
 "use client";
 
-import CheckIcon from "@mui/icons-material/Check";
-import CloseIcon from "@mui/icons-material/Close";
-import CropIcon from "@mui/icons-material/Crop";
-import GridOnIcon from "@mui/icons-material/GridOn";
-import PhotoSizeSelectLargeIcon from "@mui/icons-material/PhotoSizeSelectLarge";
-import StraightenIcon from "@mui/icons-material/Straighten";
+import { CheckIcon, CloseIcon, CropIcon, GridOnIcon, PhotoSizeSelectLargeIcon, StraightenIcon } from "../ui/icons";
 import { useTheme } from "@mui/material/styles";
 import { Tooltip } from "../ui/Tooltip";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -130,7 +125,7 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
               <Button
                 size="small"
                 variant="contained"
-                startIcon={<CheckIcon sx={{ fontSize: 14 }} />}
+                startIcon={<CheckIcon fontSize={14} />}
                 onClick={handleApplyCrop}
                 className={styles.applyBtn}
                 style={{ fontSize: PANEL_BUTTON_FONT_SIZE }}
@@ -139,18 +134,18 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
               </Button>
             )}
             <IconButton size="small" onClick={handleCancelCrop} aria-label={t("close")}>
-              <CloseIcon sx={{ fontSize: 16 }} />
+              <CloseIcon fontSize={16} />
             </IconButton>
           </>
         ) : (
           <>
             <Tooltip title={t("imageCrop")}>
               <IconButton size="small" onClick={() => setCropping(true)} aria-label={t("imageCrop")}>
-                <CropIcon sx={{ fontSize: 18 }} />
+                <CropIcon fontSize={18} />
               </IconButton>
             </Tooltip>
             <Tooltip title={t("imageResize")}>
-              <PhotoSizeSelectLargeIcon sx={{ fontSize: 16, color: getTextSecondary(isDark), ml: 0.5 }} />
+              <PhotoSizeSelectLargeIcon fontSize={16} color={getTextSecondary(isDark)} style={{ marginLeft: 4 }} />
             </Tooltip>
             {SCALE_PRESETS.map(s => (
               <Chip
@@ -171,7 +166,7 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
                   aria-label={t("imageRuler")}
                   aria-pressed={showRuler}
                 >
-                  <StraightenIcon sx={{ fontSize: 16 }} />
+                  <StraightenIcon fontSize={16} />
                 </IconButton>
               </Tooltip>
               <Tooltip title={t("imageGrid")}>
@@ -182,7 +177,7 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
                   aria-label={t("imageGrid")}
                   aria-pressed={showGrid}
                 >
-                  <GridOnIcon sx={{ fontSize: 16 }} />
+                  <GridOnIcon fontSize={16} />
                 </IconButton>
               </Tooltip>
             </div>

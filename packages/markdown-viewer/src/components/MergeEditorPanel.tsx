@@ -1,8 +1,6 @@
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { EditorContent } from "@anytime-markdown/markdown-react";
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
+import { ChevronLeftIcon, ChevronRightIcon, UnfoldMoreIcon } from "../ui/icons";
 import { Tooltip } from "../ui/Tooltip";
 import type { SxProps, Theme } from "@mui/material/styles";
 import { useTheme } from "@mui/material/styles";
@@ -147,7 +145,7 @@ function MergeGutterCell({
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Tooltip title={label} placement={panelSide === "left" ? "left" : "right"}>
             <IconButton size="small" aria-label={label} onClick={() => onMerge(blockId, direction)} style={{ padding: 0 }}>
-              {panelSide === "left" ? <ChevronRightIcon sx={{ fontSize: 16 }} /> : <ChevronLeftIcon sx={{ fontSize: 16 }} />}
+              {panelSide === "left" ? <ChevronRightIcon fontSize={16} /> : <ChevronLeftIcon fontSize={16} />}
             </IconButton>
           </Tooltip>
         </div>
@@ -230,7 +228,7 @@ function ExpanderRow({
         userSelect: "none",
       }}
     >
-      <UnfoldMoreIcon sx={{ fontSize: 16 }} />
+      <UnfoldMoreIcon fontSize={16} />
       {t("expandLines", { count })}
     </div>
   );

@@ -40,7 +40,7 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(function Alert(
       <span className={styles.message}>{children}</span>
       {onClose && (
         <IconButton className={styles.close} size="compact" aria-label="Close" onClick={onClose}>
-          <CloseIcon size={20} />
+          <CloseIcon fontSize={20} />
         </IconButton>
       )}
     </div>

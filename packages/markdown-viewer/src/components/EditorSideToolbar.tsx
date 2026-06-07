@@ -1,12 +1,14 @@
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import GitHubIcon from "@mui/icons-material/GitHub";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import SettingsIcon from "@mui/icons-material/Settings";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
 import { getDivider } from "../constants/colors";
 import { SIDE_TOOLBAR_ICON_SIZE, SIDE_TOOLBAR_WIDTH } from "../constants/dimensions";
+import {
+  ChatBubbleOutlineIcon,
+  GitHubIcon,
+  ListAltIcon,
+  SettingsIcon,
+} from "../ui/icons";
 import { IconButton } from "../ui/IconButton";
 import { Tooltip } from "../ui/Tooltip";
 import styles from "./EditorSideToolbar.module.css";

@@ -1,17 +1,7 @@
 "use client";
 
-import CategoryIcon from "@mui/icons-material/Category";
-import CodeIcon from "@mui/icons-material/Code";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
-import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
-import GridOnIcon from "@mui/icons-material/GridOn";
-import ImageIcon from "@mui/icons-material/Image";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import SchemaIcon from "@mui/icons-material/Schema";
-import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
-import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import { useTheme } from "@mui/material";
+import { CategoryIcon, CodeIcon, DeleteOutlineIcon, FormatListBulletedIcon, FormatListNumberedIcon, GridOnIcon, ImageIcon, KeyboardArrowDownIcon, SchemaIcon, UnfoldLessIcon, UnfoldMoreIcon } from "../ui/icons";
 import { ButtonBase } from "../ui/ButtonBase";
 import { Collapse } from "../ui/Collapse";
 import { IconButton } from "../ui/IconButton";
@@ -27,11 +17,11 @@ import { Text } from "../ui/Text";
 import styles from "./OutlinePanel.module.css";
 
 const blockIcon: Record<Exclude<OutlineKind, "heading">, React.ReactElement> = {
-  codeBlock: <CodeIcon sx={{ fontSize: 14 }} />,
-  table: <GridOnIcon sx={{ fontSize: 14 }} />,
-  image: <ImageIcon sx={{ fontSize: 14 }} />,
-  plantuml: <SchemaIcon sx={{ fontSize: 14 }} />,
-  mermaid: <MermaidIcon sx={{ fontSize: 14 }} />,
+  codeBlock: <CodeIcon fontSize={14} />,
+  table: <GridOnIcon fontSize={14} />,
+  image: <ImageIcon fontSize={14} />,
+  plantuml: <SchemaIcon fontSize={14} />,
+  mermaid: <MermaidIcon fontSize={14} />,
 };
 
 /** Compute left padding for block (non-heading) items based on nearest preceding heading */
@@ -80,7 +70,7 @@ const HeadingFoldButton = React.memo(function HeadingFoldButton({
       className={styles.foldBtn}
       style={{ color: getTextSecondary(isDark) }}
     >
-      <KeyboardArrowDownIcon sx={{ fontSize: 16, transition: "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, transform: isFolded ? "rotate(-90deg)" : "rotate(0deg)" }} />
+      <KeyboardArrowDownIcon fontSize={16} style={{ transition: "transform 0.15s", transform: isFolded ? "rotate(-90deg)" : "rotate(0deg)" }} />
     </IconButton>
   );
 });
@@ -181,7 +171,7 @@ const OutlineItem = React.memo(function OutlineItem({
               onClick={(e) => { e.stopPropagation(); onOutlineDelete(h.pos, h.kind); }}
               aria-label={`${t("delete")} ${h.text || ""}`}
             >
-              <DeleteOutlineIcon sx={{ fontSize: 14 }} />
+              <DeleteOutlineIcon fontSize={14} />
             </IconButton>
           </Tooltip>
         )}
@@ -404,7 +394,7 @@ export function OutlinePanel({
                     size="compact"
                     onClick={onInsertSectionNumbers}
                   >
-                    <FormatListNumberedIcon sx={{ fontSize: 16 }} />
+                    <FormatListNumberedIcon fontSize={16} />
                   </IconButton>
                 </Tooltip>
               )}
@@ -415,7 +405,7 @@ export function OutlinePanel({
                     size="compact"
                     onClick={onRemoveSectionNumbers}
                   >
-                    <FormatListBulletedIcon sx={{ fontSize: 16 }} />
+                    <FormatListBulletedIcon fontSize={16} />
                   </IconButton>
                 </Tooltip>
               )}
@@ -427,7 +417,7 @@ export function OutlinePanel({
                   onClick={() => setShowBlocks((v) => !v)}
                   style={{ color: showBlocks ? getPrimaryMain(isDark) : getTextSecondary(isDark) }}
                 >
-                  <CategoryIcon sx={{ fontSize: 16 }} />
+                  <CategoryIcon fontSize={16} />
                 </IconButton>
               </Tooltip>
               {headingOnlyIndices.length > 0 && (
@@ -437,7 +427,7 @@ export function OutlinePanel({
                     size="compact"
                     onClick={foldedIndices.size > 0 ? unfoldAll : foldAll}
                   >
-                    {foldedIndices.size > 0 ? <UnfoldMoreIcon sx={{ fontSize: 16 }} /> : <UnfoldLessIcon sx={{ fontSize: 16 }} />}
+                    {foldedIndices.size > 0 ? <UnfoldMoreIcon fontSize={16} /> : <UnfoldLessIcon fontSize={16} />}
                   </IconButton>
                 </Tooltip>
               )}

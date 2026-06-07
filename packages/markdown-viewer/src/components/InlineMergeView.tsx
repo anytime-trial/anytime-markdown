@@ -1,9 +1,7 @@
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
 import { useEditor } from "@anytime-markdown/markdown-react";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
-import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import { IconButton } from "../ui/IconButton";
+import { KeyboardArrowDownIcon, KeyboardArrowUpIcon, UnfoldLessIcon } from "../ui/icons";
 import { Tooltip } from "../ui/Tooltip";
 import { useTheme } from "@mui/material/styles";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
