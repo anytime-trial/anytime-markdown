@@ -23,5 +23,5 @@ export function useThemeMode(): ThemeMode {
 
 /** `useThemeMode() === "dark"` のショートハンド。旧 `useTheme().palette.mode === "dark"` の置換。 */
 export function useIsDark(): boolean {
-  return useContext(ThemeModeContext) === "dark";
+  return useThemeMode() === "dark";
 }

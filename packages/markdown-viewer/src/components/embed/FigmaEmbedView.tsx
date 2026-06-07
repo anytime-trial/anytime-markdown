@@ -1,5 +1,5 @@
 import { useIsDark } from "../../contexts/ThemeModeContext";
-import { getBgPaper, getTextPrimary, getTextSecondary } from "../../constants/colors";
+import { getBgPaper, getDivider, getTextPrimary, getTextSecondary } from "../../constants/colors";
 import { HexagonOutlinedIcon } from "../../ui/icons";
 import { Stack } from "../../ui/Stack";
 import { Text } from "../../ui/Text";
@@ -32,7 +32,7 @@ export function FigmaEmbedView({ path, variant, widthOverride }: Readonly<Props>
                     spacing={1}
                     alignItems="center"
                     style={{
-                        border: `1px solid var(--am-color-divider)`,
+                        border: `1px solid ${getDivider(isDark)}`,
                         borderRadius: 4,
                         backgroundColor: getBgPaper(isDark),
                         maxWidth: 720,
@@ -75,7 +75,7 @@ export function FigmaEmbedView({ path, variant, widthOverride }: Readonly<Props>
                 paddingTop: "75%",
                 borderRadius: 4,
                 overflow: "hidden",
-                border: `1px solid var(--am-color-divider)`,
+                border: `1px solid ${getDivider(isDark)}`,
             }}
         >
             <iframe

@@ -79,7 +79,7 @@ export function EditorContentArea({
   const outerBg = hasPaper ? paperBg : editorBg;
 
   // getEditorPaperSx の & .tiptap スタイルを GlobalStyles 経由で注入する
-  const paperSxObj = getEditorPaperSx(isDark, settings, adjustedEditorHeight, { readonlyMode, noScroll }) as Record<string, unknown>;
+  const paperSxObj = getEditorPaperSx(isDark, settings, adjustedEditorHeight, { readonlyMode, noScroll });
   const tiptapStyles = paperSxObj["& .tiptap"] as Record<string, unknown> | undefined;
 
   if (sourceMode) {

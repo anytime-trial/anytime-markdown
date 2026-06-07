@@ -18,10 +18,10 @@ export function getSharedContentStyles(
   options?: { readonlyMode?: boolean },
 ): Record<string, unknown> {
   return {
-    ...(getBaseStyles(isDark, options) as Record<string, unknown>),
-    ...(getHeadingStyles(isDark) as Record<string, unknown>),
-    ...(getCodeStyles(isDark) as Record<string, unknown>),
-    ...(getBlockStyles(isDark, settings) as Record<string, unknown>),
-    ...(getInlineStyles(isDark) as Record<string, unknown>),
+    ...getBaseStyles(isDark, options),
+    ...getHeadingStyles(isDark),
+    ...getCodeStyles(isDark),
+    ...getBlockStyles(isDark, settings),
+    ...getInlineStyles(isDark),
   };
 }
