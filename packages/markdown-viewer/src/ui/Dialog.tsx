@@ -53,12 +53,11 @@ export function Dialog({
 
   if (!open || typeof document === "undefined") return null;
 
-  const computedPaperStyle: CSSProperties = {
-    ...(fullScreen || maxWidth === false
-      ? {}
-      : { maxWidth: `min(${MAX_WIDTH_PX[maxWidth]}px, calc(100vw - 64px))` }),
-    ...paperStyle,
-  };
+  const maxWidthValue =
+    fullScreen || maxWidth === false
+      ? undefined
+      : `min(${MAX_WIDTH_PX[maxWidth]}px, calc(100vw - 64px))`;
+  const computedPaperStyle: CSSProperties = { maxWidth: maxWidthValue, ...paperStyle };
 
   const paperClass = [
     styles.paper,

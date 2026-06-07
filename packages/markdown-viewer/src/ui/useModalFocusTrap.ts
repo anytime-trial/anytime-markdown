@@ -34,13 +34,10 @@ export function useModalFocusTrap(
     document.body.style.overflow = "hidden";
     // 背景を a11y ツリーから隠す。paper の body 直下祖先（Portal ルート）を特定し、
     // それ以外の body 直下要素に aria-hidden を付ける。既に true のものは触らない。
-    let portalRoot: HTMLElement | null = paper;
-    while (portalRoot?.parentElement && portalRoot.parentElement !== document.body) {
-      portalRoot = portalRoot.parentElement;
-    }
+    const portalRoot = paper?.closest("body > *") ?? null;
     const hidden: Element[] = [];
     if (portalRoot) {
-      for (const el of Array.from(document.body.children)) {
+      for (const el of document.body.children) {
         if (el !== portalRoot && el.getAttribute("aria-hidden") !== "true") {
           el.setAttribute("aria-hidden", "true");
           hidden.push(el);
