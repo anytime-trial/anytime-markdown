@@ -27,7 +27,7 @@ export function EditDialogHeader({ label, onClose, showCompareView, icon, extra,
     <div className={styles.header}>
       <Tooltip title={t("close")} placement="bottom">
         <IconButton size="small" onClick={onClose} className={styles.closeBtn} aria-label={t("close")}>
-          <CloseIcon size={20} />
+          <CloseIcon fontSize={20} />
         </IconButton>
       </Tooltip>
       {icon && <span className={styles.iconSlot}>{icon}</span>}
@@ -41,7 +41,7 @@ export function EditDialogHeader({ label, onClose, showCompareView, icon, extra,
             size="small"
             variant={dirty ? "contained" : "outlined"}
             color={dirty ? "primary" : "inherit"}
-            startIcon={<CheckIcon size={14} />}
+            startIcon={<CheckIcon fontSize={14} />}
             onClick={onApply}
             className={styles.applyBtn}
           >

@@ -1,14 +1,16 @@
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
-import SaveIcon from "@mui/icons-material/Save";
-import SaveAsIcon from "@mui/icons-material/SaveAs";
-import SettingsIcon from "@mui/icons-material/Settings";
 import React from "react";
 
 import { Divider } from "../ui/Divider";
+import {
+  ChatBubbleOutlineIcon,
+  FolderOpenIcon,
+  InfoOutlinedIcon,
+  ListAltIcon,
+  PictureAsPdfIcon,
+  SaveAsIcon,
+  SaveIcon,
+  SettingsIcon,
+} from "../ui/icons";
 import { ListItemIcon } from "../ui/ListItemIcon";
 import { ListItemText } from "../ui/ListItemText";
 import { Menu } from "../ui/Menu";

@@ -1,10 +1,9 @@
 "use client";
 
-import CloseIcon from "@mui/icons-material/Close";
-import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { useTheme } from "@mui/material/styles";
 import React from "react";
 
+import { CloseIcon, RestartAltIcon } from "../ui/icons";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { Slider } from "../ui/Slider";
@@ -96,7 +95,7 @@ export const EditorSettingsPanel = React.memo(function EditorSettingsPanel({
           {t("editorSettings")}
         </Text>
         <IconButton size="small" onClick={onClose} aria-label={t("close")}>
-          <CloseIcon sx={{ fontSize: 20 }} />
+          <CloseIcon fontSize={20} />
         </IconButton>
       </div>
 

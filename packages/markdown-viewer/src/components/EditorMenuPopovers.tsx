@@ -1,13 +1,15 @@
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import CheckBoxIcon from "@mui/icons-material/CheckBox";
-import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
-import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
-import FormatQuoteIcon from "@mui/icons-material/FormatQuote";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import SchemaIcon from "@mui/icons-material/Schema";
-import SettingsIcon from "@mui/icons-material/Settings";
 import { useTheme } from "@mui/material/styles";
+import {
+  ChatBubbleOutlineIcon,
+  CheckBoxIcon,
+  FormatListBulletedIcon,
+  FormatListNumberedIcon,
+  FormatQuoteIcon,
+  InfoOutlinedIcon,
+  ListAltIcon,
+  SchemaIcon,
+  SettingsIcon,
+} from "../ui/icons";
 import { IconButton } from "../ui/IconButton";
 import { ListItemIcon } from "../ui/ListItemIcon";
 import { ListItemText } from "../ui/ListItemText";
@@ -322,7 +324,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
             selected={editor?.isActive("bulletList")}
             style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
-            <FormatListBulletedIcon sx={{ fontSize: 18 }} />
+            <FormatListBulletedIcon fontSize={18} />
             {t("bulletList")}
           </MenuItem>
           <MenuItem
@@ -334,7 +336,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
             selected={editor?.isActive("orderedList")}
             style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
-            <FormatListNumberedIcon sx={{ fontSize: 18 }} />
+            <FormatListNumberedIcon fontSize={18} />
             {t("orderedList")}
           </MenuItem>
           <MenuItem
@@ -346,7 +348,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
             selected={editor?.isActive("taskList")}
             style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
-            <CheckBoxIcon sx={{ fontSize: 18 }} />
+            <CheckBoxIcon fontSize={18} />
             {t("taskList")}
           </MenuItem>
           <Divider style={{ marginTop: 4, marginBottom: 4 }} />
@@ -359,7 +361,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
             selected={editor?.isActive("blockquote")}
             style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
-            <FormatQuoteIcon sx={{ fontSize: 18 }} />
+            <FormatQuoteIcon fontSize={18} />
             {t("blockquote")}
           </MenuItem>
         </div>

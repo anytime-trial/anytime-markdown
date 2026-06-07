@@ -1,7 +1,4 @@
-import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
-import SaveIcon from "@mui/icons-material/Save";
-import SaveAsIcon from "@mui/icons-material/SaveAs";
+import { FolderOpenIcon, PictureAsPdfIcon, SaveAsIcon, SaveIcon } from "../ui/icons";
 import { Tooltip } from "../ui/Tooltip";
 import React from "react";
 

@@ -1,6 +1,3 @@
-import ErrorIcon from '@mui/icons-material/Error';
-import InfoIcon from '@mui/icons-material/Info';
-import WarningIcon from '@mui/icons-material/Warning';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
@@ -9,6 +6,7 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import React from 'react';
 
+import { ErrorIcon, InfoIcon, WarningIcon } from '../ui/icons';
 import { DialogOptions } from './types';
 
 interface ConfirmProps extends DialogOptions {

@@ -1,15 +1,3 @@
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import CodeOutlinedIcon from "@mui/icons-material/CodeOutlined";
-import EditNoteIcon from "@mui/icons-material/EditNote";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import GitHubIcon from "@mui/icons-material/GitHub";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import MenuIcon from "@mui/icons-material/Menu";
-import RedoIcon from "@mui/icons-material/Redo";
-import UndoIcon from "@mui/icons-material/Undo";
-import ViewStreamIcon from "@mui/icons-material/ViewStream";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import {
   useTheme,
 } from "@mui/material";
@@ -28,6 +16,20 @@ import type { ToolbarFileCapabilities, ToolbarFileHandlers, ToolbarModeHandlers,
 import type { MergeUndoRedo } from "./InlineMergeView";
 import { ToolbarFileActions } from "./ToolbarFileActions";
 import { ToolbarMobileMenu } from "./ToolbarMobileMenu";
+import {
+  ChatBubbleOutlineIcon,
+  CodeOutlinedIcon,
+  EditNoteIcon,
+  EditOutlinedIcon,
+  GitHubIcon,
+  ListAltIcon,
+  LockOutlinedIcon,
+  MenuIcon,
+  RedoIcon,
+  UndoIcon,
+  ViewStreamIcon,
+  VisibilityOutlinedIcon,
+} from "../ui/icons";
 import { Divider } from "../ui/Divider";
 import { Tooltip } from "../ui/Tooltip";
 import { IconButton } from "../ui/IconButton";
@@ -303,20 +305,20 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       >
         {!hideReadonlyToggle && (
           <ToggleButton value="readonly" aria-label={t("readonly")} onClick={onSwitchToReadonly}>
-            <LockOutlinedIcon sx={{ fontSize: "1rem" }} />
+            <LockOutlinedIcon fontSize="1rem" />
             <span className={styles.modeLabel}>{t("readonly")}</span>
           </ToggleButton>
         )}
         <ToggleButton value="review" aria-label={t("review")} onClick={onSwitchToReview}>
-          <VisibilityOutlinedIcon sx={{ fontSize: "1rem" }} />
+          <VisibilityOutlinedIcon fontSize="1rem" />
           <span className={styles.modeLabel}>{t("review")}</span>
         </ToggleButton>
         <ToggleButton value="wysiwyg" aria-label={t("wysiwyg")} onClick={onSwitchToWysiwyg}>
-          <EditOutlinedIcon sx={{ fontSize: "1rem" }} />
+          <EditOutlinedIcon fontSize="1rem" />
           <span className={styles.modeLabel}>{t("wysiwyg")}</span>
         </ToggleButton>
         <ToggleButton value="source" aria-label={t("source")} onClick={onSwitchToSource}>
-          <CodeOutlinedIcon sx={{ fontSize: "1rem" }} />
+          <CodeOutlinedIcon fontSize="1rem" />
           <span className={styles.modeLabel}>{t("source")}</span>
         </ToggleButton>
       </ToggleButtonGroup>}
@@ -337,7 +339,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
               disabled={readonlyMode}
               onClick={() => { if (inlineMergeOpen) onMerge(); }}
             >
-              <EditNoteIcon sx={{ fontSize: "1rem" }} />
+              <EditNoteIcon fontSize="1rem" />
               {t("normalMode")}
             </ToggleButton>
             <ToggleButton
@@ -346,7 +348,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
               disabled={readonlyMode}
               onClick={() => { if (!inlineMergeOpen) onMerge(); }}
             >
-              <ViewStreamIcon sx={{ fontSize: "1rem", transform: "rotate(90deg)" }} />
+              <ViewStreamIcon fontSize="1rem" style={{ transform: "rotate(90deg)" }} />
               {t("compare")}
             </ToggleButton>
           </ToggleButtonGroup>

@@ -1,8 +1,6 @@
 "use client";
 
-import DrawIcon from "@mui/icons-material/Draw";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
+import { DrawIcon, ListAltIcon, WorkspacePremiumIcon } from "../ui/icons";
 import { Tooltip } from "../ui/Tooltip";
 import { useTheme } from "@mui/material/styles";
 
@@ -58,7 +56,7 @@ export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFont
           aria-label={t("outline")}
           aria-pressed={outlineOpen}
         >
-          <ListAltIcon sx={{ fontSize: 16 }} />
+          <ListAltIcon fontSize={16} />
         </IconButton>
       </Tooltip>
       <div style={{ display: "flex", gap: 4 }}>
@@ -96,7 +94,7 @@ export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFont
                 aria-label={t("settingThemePreset")}
                 aria-pressed={presetName === "handwritten"}
               >
-                {presetName === "handwritten" ? <DrawIcon sx={{ fontSize: 16 }} /> : <WorkspacePremiumIcon sx={{ fontSize: 16 }} />}
+                {presetName === "handwritten" ? <DrawIcon fontSize={16} /> : <WorkspacePremiumIcon fontSize={16} />}
               </IconButton>
             </Tooltip>
           </>

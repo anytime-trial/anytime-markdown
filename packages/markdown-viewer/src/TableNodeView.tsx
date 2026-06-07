@@ -1,15 +1,17 @@
 "use client";
 
 import { SpreadsheetGrid, SpreadsheetI18nProvider } from "@anytime-markdown/spreadsheet-viewer";
-import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
-import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
-import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
-import MoveDownIcon from "@mui/icons-material/MoveDown";
-import MoveUpIcon from "@mui/icons-material/MoveUp";
-import TableChartIcon from "@mui/icons-material/TableChart";
-import TableRowsIcon from "@mui/icons-material/TableRows";
-import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, useTheme } from "@mui/material";
+import {
+  FormatAlignCenterIcon,
+  FormatAlignLeftIcon,
+  FormatAlignRightIcon,
+  MoveDownIcon,
+  MoveUpIcon,
+  TableChartIcon,
+  TableRowsIcon,
+  ViewColumnIcon,
+} from "./ui/icons";
 import { Button } from "./ui/Button";
 import { ToggleButton } from "./ui/ToggleButton";
 import { ToggleButtonGroup } from "./ui/ToggleButtonGroup";
@@ -81,7 +83,7 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
         <ToggleButton value="addCol" aria-label={t("addColumn")} className={styles.toggleBtnCompact} onClick={() => editor.chain().focus().addColumnAfter().run()}>
           <Tooltip title={t("addColumn")} placement="top">
             <span className={styles.iconBadgeWrapper}>
-              <ViewColumnIcon sx={iconSx} />
+              <ViewColumnIcon {...iconSx} />
               <span className={styles.iconBadge}>+</span>
             </span>
           </Tooltip>
@@ -89,7 +91,7 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
         <ToggleButton value="removeCol" aria-label={t("removeColumn")} className={styles.toggleBtnCompact} onClick={() => editor.chain().focus().deleteColumn().run()}>
           <Tooltip title={t("removeColumn")} placement="top">
             <span className={styles.iconBadgeWrapper}>
-              <ViewColumnIcon sx={iconSx} />
+              <ViewColumnIcon {...iconSx} />
               <span className={styles.iconBadge} style={{ color: getErrorMain(isDark) }}>x</span>
             </span>
           </Tooltip>
@@ -101,7 +103,7 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
         <ToggleButton value="addRow" aria-label={t("addRow")} className={styles.toggleBtnCompact} onClick={() => editor.chain().focus().addRowAfter().run()}>
           <Tooltip title={t("addRow")} placement="top">
             <span className={styles.iconBadgeWrapper}>
-              <TableRowsIcon sx={iconSx} />
+              <TableRowsIcon {...iconSx} />
               <span className={styles.iconBadge}>+</span>
             </span>
           </Tooltip>
@@ -109,7 +111,7 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
         <ToggleButton value="removeRow" aria-label={t("removeRow")} className={styles.toggleBtnCompact} onClick={() => editor.chain().focus().deleteRow().run()}>
           <Tooltip title={t("removeRow")} placement="top">
             <span className={styles.iconBadgeWrapper}>
-              <TableRowsIcon sx={iconSx} />
+              <TableRowsIcon {...iconSx} />
               <span className={styles.iconBadge} style={{ color: getErrorMain(isDark) }}>x</span>
             </span>
           </Tooltip>
@@ -125,17 +127,17 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
       >
         <ToggleButton value="left" aria-label={t("alignLeft")} className={styles.toggleBtnCompact}>
           <Tooltip title={t("alignLeft")} placement="top">
-            <FormatAlignLeftIcon sx={iconSx} />
+            <FormatAlignLeftIcon {...iconSx} />
           </Tooltip>
         </ToggleButton>
         <ToggleButton value="center" aria-label={t("alignCenter")} className={styles.toggleBtnCompact}>
           <Tooltip title={t("alignCenter")} placement="top">
-            <FormatAlignCenterIcon sx={iconSx} />
+            <FormatAlignCenterIcon {...iconSx} />
           </Tooltip>
         </ToggleButton>
         <ToggleButton value="right" aria-label={t("alignRight")} className={styles.toggleBtnCompact}>
           <Tooltip title={t("alignRight")} placement="top">
-            <FormatAlignRightIcon sx={iconSx} />
+            <FormatAlignRightIcon {...iconSx} />
           </Tooltip>
         </ToggleButton>
       </ToggleButtonGroup>
@@ -144,12 +146,12 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
       <ToggleButtonGroup size="small" className={styles.toggleGroup24}>
         <ToggleButton value="rowUp" aria-label={t("moveRowUp")} className={styles.toggleBtnCompact} onClick={() => moveTableRow(editor, "up")}>
           <Tooltip title={t("moveRowUp")} placement="top">
-            <MoveUpIcon sx={iconSx} />
+            <MoveUpIcon {...iconSx} />
           </Tooltip>
         </ToggleButton>
         <ToggleButton value="rowDown" aria-label={t("moveRowDown")} className={styles.toggleBtnCompact} onClick={() => moveTableRow(editor, "down")}>
           <Tooltip title={t("moveRowDown")} placement="top">
-            <MoveDownIcon sx={iconSx} />
+            <MoveDownIcon {...iconSx} />
           </Tooltip>
         </ToggleButton>
       </ToggleButtonGroup>
@@ -158,12 +160,12 @@ function TableOperationsToolbar({ editor, isDark, t }: Readonly<{ editor: Editor
       <ToggleButtonGroup size="small" className={styles.toggleGroup24}>
         <ToggleButton value="colLeft" aria-label={t("moveColLeft")} className={styles.toggleBtnCompact} onClick={() => moveTableColumn(editor, "left")}>
           <Tooltip title={t("moveColLeft")} placement="top">
-            <MoveUpIcon sx={{ ...iconSx, transform: "rotate(-90deg)" }} />
+            <MoveUpIcon {...iconSx} style={{ transform: "rotate(-90deg)" }} />
           </Tooltip>
         </ToggleButton>
         <ToggleButton value="colRight" aria-label={t("moveColRight")} className={styles.toggleBtnCompact} onClick={() => moveTableColumn(editor, "right")}>
           <Tooltip title={t("moveColRight")} placement="top">
-            <MoveDownIcon sx={{ ...iconSx, transform: "rotate(-90deg)" }} />
+            <MoveDownIcon {...iconSx} style={{ transform: "rotate(-90deg)" }} />
           </Tooltip>
         </ToggleButton>
       </ToggleButtonGroup>
@@ -264,7 +266,7 @@ function TableEditHeader({ editor, isDark, isEditable, isSpreadsheet, onClose, t
       <EditDialogHeader
         label={t("tableLabel")}
         onClose={onClose}
-        icon={<TableChartIcon sx={{ fontSize: 18 }} />}
+        icon={<TableChartIcon fontSize={18} />}
         t={t}
       />
       {isEditable && !isSpreadsheet && <TableOperationsToolbar editor={editor} isDark={isDark} t={t} />}

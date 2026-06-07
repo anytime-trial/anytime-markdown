@@ -1,12 +1,14 @@
 "use client";
 
-import CropFreeIcon from "@mui/icons-material/CropFree";
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-import GifIcon from "@mui/icons-material/Gif";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import SaveIcon from "@mui/icons-material/Save";
-import ScreenShareIcon from "@mui/icons-material/ScreenShare";
-import StopIcon from "@mui/icons-material/Stop";
+import {
+  CropFreeIcon,
+  FiberManualRecordIcon,
+  GifIcon,
+  RefreshIcon,
+  SaveIcon,
+  ScreenShareIcon,
+  StopIcon,
+} from "../ui/icons";
 import { ProgressBar } from "../ui/ProgressBar";
 import { TextField } from "../ui/TextField";
 
@@ -319,7 +321,7 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
       <EditDialogHeader
         label="GIF Recorder"
         onClose={onClose}
-        icon={<GifIcon sx={{ fontSize: 18 }} />}
+        icon={<GifIcon fontSize={18} />}
         t={t}
       />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -353,7 +355,7 @@ export function GifRecorderDialog({ open, onClose, onComplete }: Readonly<GifRec
           )}
           {phase === "idle" && (
             <Stack direction="column" alignItems="center" style={{ gap: 16, color: "rgb(189, 189, 189)" }}>
-              <ScreenShareIcon sx={{ fontSize: 48 }} />
+              <ScreenShareIcon fontSize={48} />
               <Text variant="body2">Select a screen to start</Text>
             </Stack>
           )}

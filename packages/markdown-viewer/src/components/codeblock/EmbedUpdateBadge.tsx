@@ -1,5 +1,4 @@
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-
+import { FiberManualRecordIcon } from "../../ui/icons";
 import { IconButton } from "../../ui/IconButton";
 import { Tooltip } from "../../ui/Tooltip";
 import styles from "./EmbedUpdateBadge.module.css";

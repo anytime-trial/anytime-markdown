@@ -1,6 +1,6 @@
-import HexagonOutlinedIcon from "@mui/icons-material/HexagonOutlined";
 import { useTheme } from "@mui/material";
 
+import { HexagonOutlinedIcon } from "../../ui/icons";
 import { Stack } from "../../ui/Stack";
 import { Text } from "../../ui/Text";
 
@@ -46,7 +46,9 @@ export function DrawioEmbedView({ url, variant, widthOverride }: Readonly<Props>
                     }}
                 >
                     <HexagonOutlinedIcon
-                        sx={{ fontSize: 16, color: theme.palette.text.secondary, flexShrink: 0 }}
+                        fontSize={16}
+                        color={theme.palette.text.secondary}
+                        style={{ flexShrink: 0 }}
                     />
                     <Text
                         style={{
