@@ -34,3 +34,5 @@ export const CheckIcon = createIcon(
   "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
   "CheckIcon",
 );
+
+export const ArrowDropDownIcon = createIcon("M7 10l5 5 5-5z", "ArrowDropDownIcon");

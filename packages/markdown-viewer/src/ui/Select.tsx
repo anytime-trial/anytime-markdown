@@ -1,7 +1,7 @@
-import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { ArrowDropDownIcon } from "./icons";
 import { MenuItem } from "./MenuItem";
 import styles from "./Select.module.css";
 import { useFloating } from "./useFloating";
@@ -40,8 +40,8 @@ export function Select<T extends string>({
 
   referenceRef.current = buttonRef.current;
 
-  const selected = options.find((o) => o.value === value);
   const selectedIndex = options.findIndex((o) => o.value === value);
+  const selected = options[selectedIndex];
 
   // open 時に選択中 option をアクティブ化し、listbox へフォーカスする。
   useEffect(() => {
@@ -102,7 +102,7 @@ export function Select<T extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
-        className={fullWidth ? `${styles.select} ${styles.fullWidth}` : styles.select}
+        className={[styles.select, fullWidth && styles.fullWidth].filter(Boolean).join(" ")}
         onMouseDown={() => setOpen(true)}
         onKeyDown={onButtonKeyDown}
       >
@@ -129,6 +129,7 @@ export function Select<T extends string>({
             onKeyDown={onListKeyDown}
           >
             {options.map((o, i) => (
+              // aria-selected=確定値の一致 / selected(CSS ハイライト)=キーボードカーソル位置。
               <MenuItem
                 key={o.value}
                 id={`${baseId}-opt-${i}`}
