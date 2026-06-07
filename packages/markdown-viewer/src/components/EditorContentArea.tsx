@@ -1,15 +1,15 @@
-import GlobalStyles from "@mui/material/GlobalStyles";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 
+import { getEditorBg } from "../constants/colors";
 import { useEditorMode } from "../contexts/EditorModeContext";
 import { useIsDark } from "../contexts/ThemeModeContext";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
-import { getEditorBg } from "../constants/colors";
 import { getEditorPaperSx } from "../styles/editorStyles";
-import { useEditorSettingsContext } from "../useEditorSettings";
+import { GlobalStyle } from "../ui/GlobalStyle";
 import { Paper } from "../ui/Paper";
+import { useEditorSettingsContext } from "../useEditorSettings";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { FrontmatterBlock } from "./FrontmatterBlock";
 import { MarkdownMinimap } from "./MarkdownMinimap";
@@ -78,7 +78,7 @@ export function EditorContentArea({
   const paperBg = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)";
   const outerBg = hasPaper ? paperBg : editorBg;
 
-  // getEditorPaperSx の & .tiptap スタイルを GlobalStyles 経由で注入する
+  // getEditorPaperSx の & .tiptap スタイルを ui/GlobalStyle 経由で注入する
   const paperSxObj = getEditorPaperSx(isDark, settings, adjustedEditorHeight, { readonlyMode, noScroll });
   const tiptapStyles = paperSxObj["& .tiptap"] as Record<string, unknown> | undefined;
 
@@ -128,7 +128,7 @@ export function EditorContentArea({
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
       {tiptapStyles && (
-        <GlobalStyles styles={{ "#md-editor-content .tiptap": tiptapStyles }} />
+        <GlobalStyle styles={{ "#md-editor-content .tiptap": tiptapStyles }} />
       )}
       <div
         ref={editorWrapperRef}
