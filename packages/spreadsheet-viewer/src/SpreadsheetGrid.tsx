@@ -1,15 +1,3 @@
-import CheckIcon from "@mui/icons-material/Check";
-import FilterListIcon from "@mui/icons-material/FilterList";
-import FilterListOffIcon from "@mui/icons-material/FilterListOff";
-import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
-import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
-import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
-import SettingsIcon from "@mui/icons-material/Settings";
-import {
-  Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
-  FormControl, FormControlLabel, FormLabel, IconButton,
-  Radio, RadioGroup, TextField, ToggleButton, ToggleButtonGroup, Tooltip,
-} from "@mui/material";
 import type {
   CellAlign,
   CellEditState,
@@ -31,7 +19,35 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSpreadsheetT } from "./i18n/context";
 
 import { SpreadsheetContextMenu } from "./SpreadsheetContextMenu";
-import { getDivider } from "./styles";
+import {
+  Box,
+  Button,
+  CheckIcon,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FilterListIcon,
+  FilterListOffIcon,
+  FormatAlignCenterIcon,
+  FormatAlignLeftIcon,
+  FormatAlignRightIcon,
+  FormControl,
+  FormControlLabel,
+  FormLabel,
+  getDivider,
+  getPalette,
+  IconButton,
+  Radio,
+  RadioGroup,
+  SettingsIcon,
+  applySpreadsheetThemeVars,
+  themeCssVars,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+} from "./ui";
 import { useSpreadsheetState } from "./hooks/useSpreadsheetState";
 
 /* ------------------------------------------------------------------ */
@@ -337,13 +353,21 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
   /*  Theme colors                                                     */
   /* ---------------------------------------------------------------- */
 
-  const primaryColor = isDark ? "#90CAF9" : "#1976D2";
-  const headerBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)";
-  const selectedBg = isDark ? "rgba(144,202,249,0.16)" : "rgba(25,118,210,0.08)";
-  const borderColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
-  const bgColor = isDark ? "#121212" : "#FFFFFF";
-  const textColor = isDark ? "rgba(255,255,255,0.87)" : "rgba(0,0,0,0.87)";
-  const headerTextColor = isDark ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)";
+  // ブランドパレット（design.md §2.2/2.3）。ダークは旧値=ブランド一致で不変、ライトは水墨画パレット。
+  const palette = getPalette(isDark);
+  const primaryColor = palette.primaryMain;
+  const headerBg = palette.headerBg;
+  const selectedBg = palette.cellSelectedBg;
+  const borderColor = palette.divider;
+  const bgColor = palette.bgPaper;
+  const textColor = palette.textPrimary;
+  const headerTextColor = palette.textSecondary;
+
+  // Menu / Dialog / Tooltip は document.body へポータルされるため、ルート inline の CSS 変数が
+  // 届かない。documentElement へも適用してポータル先まで行き渡らせる。
+  useEffect(() => {
+    applySpreadsheetThemeVars(isDark);
+  }, [isDark]);
 
   /* ---------------------------------------------------------------- */
   /*  Column filter state                                              */
@@ -1894,58 +1918,56 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
     onClose?.();
   }, [adapter, grid, dataRange, alignments, onDirtyChange, onClose, readOnly]);
 
-  const iconSx = { fontSize: 16 };
-
   /* ---------------------------------------------------------------- */
   /*  Render                                                           */
   /* ---------------------------------------------------------------- */
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
-      {showToolbar && <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, gap: 0.5, flexShrink: 0 }}>
-        <ToggleButtonGroup exclusive size="small" sx={{ height: 24 }} onChange={handleAlignChange} disabled={readOnly}>
-          <ToggleButton value="left" aria-label={t("alignLeft")} sx={{ px: 0.5, py: 0.125 }}>
-            <Tooltip title={t("alignLeft")} placement="top"><FormatAlignLeftIcon sx={iconSx} /></Tooltip>
+    <Box className="sv-root" style={{ ...themeCssVars(isDark), display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
+      {showToolbar && <Box style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${getDivider(isDark)}`, paddingLeft: 8, paddingRight: 8, paddingTop: 2, paddingBottom: 2, gap: 4, flexShrink: 0 }}>
+        <ToggleButtonGroup exclusive size="small" onChange={handleAlignChange} disabled={readOnly}>
+          <ToggleButton value="left" aria-label={t("alignLeft")}>
+            <Tooltip title={t("alignLeft")} placement="top"><FormatAlignLeftIcon fontSize={16} /></Tooltip>
           </ToggleButton>
-          <ToggleButton value="center" aria-label={t("alignCenter")} sx={{ px: 0.5, py: 0.125 }}>
-            <Tooltip title={t("alignCenter")} placement="top"><FormatAlignCenterIcon sx={iconSx} /></Tooltip>
+          <ToggleButton value="center" aria-label={t("alignCenter")}>
+            <Tooltip title={t("alignCenter")} placement="top"><FormatAlignCenterIcon fontSize={16} /></Tooltip>
           </ToggleButton>
-          <ToggleButton value="right" aria-label={t("alignRight")} sx={{ px: 0.5, py: 0.125 }}>
-            <Tooltip title={t("alignRight")} placement="top"><FormatAlignRightIcon sx={iconSx} /></Tooltip>
+          <ToggleButton value="right" aria-label={t("alignRight")}>
+            <Tooltip title={t("alignRight")} placement="top"><FormatAlignRightIcon fontSize={16} /></Tooltip>
           </ToggleButton>
         </ToggleButtonGroup>
         <Tooltip title={t("spreadsheetFilter")} placement="top">
           <IconButton
             size="small"
             onClick={() => setFilterRowVisible((prev) => !prev)}
-            sx={{ ml: 0.5, color: (filterRowVisible || hasActiveFilters) ? "primary.main" : undefined }}
+            style={{ marginLeft: 4, color: (filterRowVisible || hasActiveFilters) ? "var(--sv-color-primary-main)" : undefined }}
           >
-            <FilterListIcon sx={{ fontSize: 16 }} />
+            <FilterListIcon fontSize={16} />
           </IconButton>
         </Tooltip>
         {hasActiveFilters && (
           <Tooltip title={t("spreadsheetFilterClear")} placement="top">
-            <IconButton size="small" onClick={() => { setFilters(new Map()); setFilterRowVisible(false); }} sx={{ ml: 0.25 }}>
-              <FilterListOffIcon sx={{ fontSize: 16 }} />
+            <IconButton size="small" onClick={() => { setFilters(new Map()); setFilterRowVisible(false); }} style={{ marginLeft: 2 }}>
+              <FilterListOffIcon fontSize={16} />
             </IconButton>
           </Tooltip>
         )}
         <Tooltip title={t("spreadsheetCellSettings")} placement="top">
-          <IconButton size="small" onClick={() => { setSettingsDraft(settings); setSettingsOpen(true); }} sx={{ ml: 0.5 }}>
-            <SettingsIcon sx={{ fontSize: 16 }} />
+          <IconButton size="small" onClick={() => { setSettingsDraft(settings); setSettingsOpen(true); }} style={{ marginLeft: 4 }}>
+            <SettingsIcon fontSize={16} />
           </IconButton>
         </Tooltip>
-        <Box sx={{ flex: 1 }} />
+        <Box style={{ flex: 1 }} />
         {showApply && (
           <Tooltip title={t("spreadsheetApply")} placement="top">
             <Button
               size="small"
               variant={dirty ? "contained" : "outlined"}
               color={dirty ? "primary" : "inherit"}
-              startIcon={<CheckIcon sx={{ fontSize: 14 }} />}
+              startIcon={<CheckIcon fontSize={14} />}
               onClick={handleApply}
               disabled={readOnly}
-              sx={{ textTransform: "none", fontSize: 12, height: 24, px: 1.5 }}
+              style={{ fontSize: 12, minHeight: 24, paddingLeft: 12, paddingRight: 12 }}
             >
               {t("spreadsheetApply")}
             </Button>
@@ -1953,12 +1975,12 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
         )}
       </Box>}
 
-      <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)}>
         <DialogTitle>{t("spreadsheetCellSettings")}</DialogTitle>
-        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
+        <DialogContent style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 8 }}>
           <FormControl>
             <FormLabel>{t("spreadsheetHeightMode")}</FormLabel>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <RadioGroup
                 row
                 value={settingsDraft.heightMode}
@@ -1974,14 +1996,14 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
                 onChange={(e) => setSettingsDraft((prev) => ({ ...prev, fixedHeight: Math.max(20, Number.parseInt(e.target.value, 10) || 20) }))}
                 disabled={settingsDraft.heightMode === "auto"}
                 slotProps={{ htmlInput: { min: 20, max: 200 } }}
-                sx={{ width: 80 }}
+                style={{ width: 80 }}
               />
               <span>px</span>
             </Box>
           </FormControl>
           <FormControl>
             <FormLabel>{t("spreadsheetWidthMode")}</FormLabel>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <RadioGroup
                 row
                 value={settingsDraft.widthMode}
@@ -1997,7 +2019,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
                 onChange={(e) => setSettingsDraft((prev) => ({ ...prev, fixedWidth: Math.max(40, Number.parseInt(e.target.value, 10) || 40) }))}
                 disabled={settingsDraft.widthMode === "auto"}
                 slotProps={{ htmlInput: { min: 40, max: 500 } }}
-                sx={{ width: 80 }}
+                style={{ width: 80 }}
               />
               <span>px</span>
             </Box>
@@ -2011,25 +2033,18 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
 
       <Box
         ref={containerRef}
+        className="sv-grid-scroll"
         onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); }}
-        sx={{
+        style={{
           overflow: "auto",
           flex: 1,
           minHeight: 0,
           position: "relative",
           fontSize: 13,
           lineHeight: "24px",
-          scrollbarWidth: "auto",
-          scrollbarColor: isDark ? "rgba(255,255,255,0.55) rgba(255,255,255,0.05)" : "rgba(0,0,0,0.5) rgba(0,0,0,0.05)",
-          "&::-webkit-scrollbar": { width: 12, height: 12 },
-          "&::-webkit-scrollbar-track": { background: "transparent" },
-          "&::-webkit-scrollbar-thumb": {
-            background: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)",
-            borderRadius: 3,
-          },
-          "&::-webkit-scrollbar-thumb:hover": {
-            background: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)",
-          },
+          ["--sv-sb-color" as string]: isDark ? "rgba(255,255,255,0.55) rgba(255,255,255,0.05)" : "rgba(0,0,0,0.5) rgba(0,0,0,0.05)",
+          ["--sv-sb-thumb" as string]: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)",
+          ["--sv-sb-thumb-hover" as string]: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)",
         }}
       >
       <canvas
@@ -2057,7 +2072,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
             width: totalWidth,
           }}
         >
-          <Box sx={{ minWidth: ROW_NUM_WIDTH, flexShrink: 0, background: bgColor }} />
+          <Box style={{ minWidth: ROW_NUM_WIDTH, flexShrink: 0, background: bgColor }} />
           {Array.from({ length: dataRange.cols }, (_, c) => {
             const uniqueVals = columnUniqueValues.get(c) ?? [];
             const currentFilter = filters.get(c);
@@ -2066,7 +2081,7 @@ export const SpreadsheetGrid: React.FC<Readonly<SpreadsheetGridProps>> = ({
               ? Array.from(currentFilter!.selectedValues!)[0]
               : "__all__";
             return (
-              <Box key={c} sx={{ minWidth: getColWidth(c), maxWidth: getColWidth(c), flexShrink: 0, px: 0.25, background: bgColor }}>
+              <Box key={c} style={{ minWidth: getColWidth(c), maxWidth: getColWidth(c), flexShrink: 0, paddingLeft: 2, paddingRight: 2, background: bgColor }}>
                 <select
                   value={selectedValue}
                   onChange={(e) => {
