@@ -46,9 +46,7 @@ export { EditDialogWrapper } from './components/EditDialogWrapper';
 export { EmbedEditDialog } from './components/EmbedEditDialog';
 export { EmbedNodeView } from './components/EmbedNodeView';
 
-// NodeView components
-export { ImageNodeView } from './ImageNodeView';
-export { TableNodeView } from './TableNodeView';
+// NodeView chrome は各ブロックの選択駆動オーバーレイ（*BlockOverlay）が提供する。
 
 // Extensions
 // CodeBlockWithMermaid / CodeBlockNodeView は markdown-rich へ物理移動済み (B-3+B-4)。

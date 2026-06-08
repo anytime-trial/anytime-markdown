@@ -11,10 +11,9 @@ jest.mock("@anytime-markdown/markdown-react", () => ({
   ReactNodeViewRenderer: jest.fn(() => jest.fn()),
 }));
 
-// NodeView コンポーネントモック
-jest.mock("../TableNodeView", () => ({ TableNodeView: () => null }));
+// NodeView コンポーネントモック（table は基底 native TableView を使い JS コンポーネント無し）
 jest.mock("../components/GifBlockContent", () => ({ createGifBlockNodeView: () => ({ dom: null }) }));
-jest.mock("../ImageNodeView", () => ({ ImageNodeView: () => null }));
+jest.mock("../components/ImageBlockContent", () => ({ createImageBlockNodeView: () => ({ dom: null }) }));
 
 import { CustomTable } from "../tableExtension";
 import { GifBlock } from "../extensions/gifExtension";
@@ -47,8 +46,8 @@ describe("CustomTable (tableExtension)", () => {
     expect(attrs.collapsed).toEqual({ default: false, rendered: false });
   });
 
-  it("defines addNodeView", () => {
-    expect(CustomTable.config.addNodeView).toBeDefined();
+  it("does not override addNodeView (uses the base native TableView; chrome is in TableBlockOverlay)", () => {
+    expect(CustomTable.config.addNodeView).toBeUndefined();
   });
 
   describe("markdown serializer", () => {

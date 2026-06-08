@@ -1,7 +1,6 @@
 import Image from "@anytime-markdown/markdown-extension-image";
-import { ReactNodeViewRenderer } from "@anytime-markdown/markdown-react";
 
-import { ImageNodeView } from "./ImageNodeView";
+import { createImageBlockNodeView } from "./components/ImageBlockContent";
 import { imageMarkdownSpec } from "./markdownItRules/imageSerializer";
 
 export const CustomImage = Image.extend({
@@ -38,6 +37,6 @@ export const CustomImage = Image.extend({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(ImageNodeView);
+    return (props) => createImageBlockNodeView(props);
   },
 });
