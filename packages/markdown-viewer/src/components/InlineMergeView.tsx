@@ -332,13 +332,13 @@ export function InlineMergeView({
 
       {/* Diff navigation + semantic diff toggle */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4, flexShrink: 0 }}>
-        <Tooltip title={t("mergeNav.prev")}>
+        <Tooltip title={t("mergeNavPrev")}>
           <span>
             <IconButton
               size="compact"
               onClick={goToPrevBlock}
               disabled={totalBlocks === 0}
-              aria-label={t("mergeNav.prev")}
+              aria-label={t("mergeNavPrev")}
             >
               <KeyboardArrowUpIcon fontSize="small" />
             </IconButton>
@@ -351,13 +351,13 @@ export function InlineMergeView({
         >
           {totalBlocks === 0 ? "0 / 0" : `${currentBlockIndex + 1} / ${totalBlocks}`}
         </Text>
-        <Tooltip title={t("mergeNav.next")}>
+        <Tooltip title={t("mergeNavNext")}>
           <span>
             <IconButton
               size="compact"
               onClick={goToNextBlock}
               disabled={totalBlocks === 0}
-              aria-label={t("mergeNav.next")}
+              aria-label={t("mergeNavNext")}
             >
               <KeyboardArrowDownIcon fontSize="small" />
             </IconButton>
