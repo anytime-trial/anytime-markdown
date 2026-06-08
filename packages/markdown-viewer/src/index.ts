@@ -47,7 +47,6 @@ export { EmbedEditDialog } from './components/EmbedEditDialog';
 export { EmbedNodeView } from './components/EmbedNodeView';
 
 // NodeView components
-export { ImageNodeView } from './ImageNodeView';
 export { TableNodeView } from './TableNodeView';
 
 // Extensions

@@ -14,7 +14,7 @@ jest.mock("@anytime-markdown/markdown-react", () => ({
 // NodeView コンポーネントモック
 jest.mock("../TableNodeView", () => ({ TableNodeView: () => null }));
 jest.mock("../components/GifBlockContent", () => ({ createGifBlockNodeView: () => ({ dom: null }) }));
-jest.mock("../ImageNodeView", () => ({ ImageNodeView: () => null }));
+jest.mock("../components/ImageBlockContent", () => ({ createImageBlockNodeView: () => ({ dom: null }) }));
 
 import { CustomTable } from "../tableExtension";
 import { GifBlock } from "../extensions/gifExtension";
