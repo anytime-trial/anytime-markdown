@@ -1,12 +1,12 @@
 "use client";
 
 import type { Editor } from "@anytime-markdown/markdown-react";
-import { useEditorState } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { useMarkdownT } from "../i18n/context";
+import { useSelectedBlock } from "../hooks/useSelectedBlock";
 import type { GifSettings } from "../utils/gifEncoder";
+import { BlockChromeAnchor } from "./BlockChromeAnchor";
 import { BlockInlineToolbar } from "./codeblock/BlockInlineToolbar";
 import { DeleteBlockDialog } from "./codeblock/DeleteBlockDialog";
 import { GifPlayerDialog } from "./GifPlayerDialog";
@@ -18,97 +18,29 @@ import { GIF_RECORD_INTENT_EVENT } from "./GifBlockContent";
  *
  * framework-decoupling Phase 2「反転」設計の chrome 側。content は native
  * {@link createGifBlockNodeView}（React 非依存）が描画し、本コンポーネントが
- * 選択中の gifBlock に対しツールバー＋ダイアログを供給する。
+ * 選択中の gifBlock に対しツールバー＋ダイアログを供給する。選択検出・位置計測・
+ * 属性更新・削除の汎用部分は {@link useSelectedBlock} / {@link BlockChromeAnchor}
+ * に委譲し、ここには gif 固有の chrome（録画 / 再生 / VS Code 保存フロー）のみ残す。
  *
  * PoC スコープ: 単一エディタ・編集モード。compare/merge モードと collapsed の
  * 細部は横展開時に補完する（TODO）。
  */
 export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>) {
   const t = useMarkdownT("MarkdownEditor");
+  const { pos, node, rect, updateAttrs, deleteBlock } = useSelectedBlock(
+    editor,
+    "gifBlock",
+  );
   const [recorderOpen, setRecorderOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [rect, setRect] = useState<DOMRect | null>(null);
   const pendingSaveIdRef = useRef<string | null>(null);
-
-  // 選択中の gifBlock の pos（NodeSelection のみ。なければ -1）。
-  const selectedPos = useEditorState({
-    editor,
-    selector: (ctx) => {
-      const ed = ctx.editor;
-      if (!ed) return -1;
-      const sel = ed.state.selection as { node?: { type: { name: string } }; from: number };
-      return sel?.node?.type?.name === "gifBlock" ? sel.from : -1;
-    },
-  }) ?? -1;
-
-  const node =
-    editor && selectedPos >= 0 ? editor.state.doc.nodeAt(selectedPos) : null;
   const src = (node?.attrs.src as string) ?? "";
 
-  // 選択中ブロックの画面位置をツールバー配置のため計測する。
-  const measure = useCallback(() => {
-    if (!editor || selectedPos < 0) {
-      setRect(null);
-      return;
-    }
-    const dom = editor.view.nodeDOM(selectedPos) as HTMLElement | null;
-    const next = dom ? dom.getBoundingClientRect() : null;
-    // 同一矩形なら参照を据え置き、scroll 毎の無駄な再レンダーを避ける。
-    setRect((prev) =>
-      prev &&
-      next &&
-      prev.top === next.top &&
-      prev.left === next.left &&
-      prev.width === next.width &&
-      prev.height === next.height
-        ? prev
-        : next,
-    );
-  }, [editor, selectedPos]);
-
-  useEffect(() => {
-    measure();
-    if (selectedPos < 0) return;
-    globalThis.addEventListener("scroll", measure, true);
-    globalThis.addEventListener("resize", measure);
-    return () => {
-      globalThis.removeEventListener("scroll", measure, true);
-      globalThis.removeEventListener("resize", measure);
-    };
-  }, [measure, selectedPos]);
-
-  /** 選択中 gifBlock の属性を更新する（per-NodeView updateAttributes の代替）。 */
-  const updateNodeAttrs = useCallback(
-    (attrs: Record<string, unknown>) => {
-      if (!editor || selectedPos < 0) return;
-      editor
-        .chain()
-        .command(({ tr }) => {
-          for (const [k, v] of Object.entries(attrs)) {
-            tr.setNodeAttribute(selectedPos, k, v);
-          }
-          return true;
-        })
-        .run();
-    },
-    [editor, selectedPos],
-  );
-
   const handleDelete = useCallback(() => {
-    if (!editor || selectedPos < 0) return;
-    editor
-      .chain()
-      .focus()
-      .command(({ tr, state }) => {
-        const n = state.doc.nodeAt(selectedPos);
-        if (!n) return false;
-        tr.delete(selectedPos, selectedPos + n.nodeSize);
-        return true;
-      })
-      .run();
+    deleteBlock();
     setDeleteOpen(false);
-  }, [editor, selectedPos]);
+  }, [deleteBlock]);
 
   const handleEdit = useCallback(() => {
     if (src) setPlayerOpen(true);
@@ -134,10 +66,10 @@ export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>)
           });
         };
         reader.readAsDataURL(blob);
-        updateNodeAttrs({ gifSettings: JSON.stringify(settings) });
+        updateAttrs({ gifSettings: JSON.stringify(settings) });
       } else {
         reader.onload = () => {
-          updateNodeAttrs({
+          updateAttrs({
             src: reader.result,
             alt: fileName,
             gifSettings: JSON.stringify(settings),
@@ -146,7 +78,7 @@ export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>)
         reader.readAsDataURL(blob);
       }
     },
-    [updateNodeAttrs],
+    [updateAttrs],
   );
 
   // native NodeView（placeholder クリック）からの録画意図を購読する。
@@ -179,46 +111,36 @@ export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>)
         data.path
       ) {
         pendingSaveIdRef.current = null;
-        updateNodeAttrs({ src: data.path });
+        updateAttrs({ src: data.path });
       }
     };
     globalThis.addEventListener("message", handler);
     return () => globalThis.removeEventListener("message", handler);
-  }, [updateNodeAttrs]);
+  }, [updateAttrs]);
 
   // autoEditOpen: スラッシュコマンド作成直後にレコーダを開く。
   useEffect(() => {
     if (node?.attrs.autoEditOpen && editor?.isEditable) {
-      updateNodeAttrs({ autoEditOpen: false });
+      updateAttrs({ autoEditOpen: false });
       setRecorderOpen(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPos]);
+  }, [pos]);
 
   const showToolbar = !!editor && !!node && editor.isEditable;
 
   return (
     <>
-      {showToolbar &&
-        rect &&
-        createPortal(
-          <div
-            style={{
-              position: "fixed",
-              top: rect.top,
-              left: rect.left,
-              zIndex: 20,
-            }}
-          >
-            <BlockInlineToolbar
-              label="GIF"
-              onEdit={handleEdit}
-              onDelete={() => setDeleteOpen(true)}
-              t={t}
-            />
-          </div>,
-          document.body,
-        )}
+      {showToolbar && (
+        <BlockChromeAnchor rect={rect}>
+          <BlockInlineToolbar
+            label="GIF"
+            onEdit={handleEdit}
+            onDelete={() => setDeleteOpen(true)}
+            t={t}
+          />
+        </BlockChromeAnchor>
+      )}
 
       <DeleteBlockDialog
         open={deleteOpen}
