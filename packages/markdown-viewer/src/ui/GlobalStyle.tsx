@@ -34,16 +34,15 @@ const SPACING_ALIASES: Record<string, readonly string[]> = {
   px: ["paddingLeft", "paddingRight"], py: ["paddingTop", "paddingBottom"],
 };
 
-/** longhand のまま値だけ spacing 変換するプロパティ(camelCase)。 */
-const SPACING_PROPS = new Set([
-  "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
-  "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+/** longhand のまま値だけ spacing 変換するプロパティ(camelCase)。alias の展開先 + gap 系。 */
+const SPACING_PROPS = new Set<string>([
+  ...Object.values(SPACING_ALIASES).flat(),
   "gap", "rowGap", "columnGap",
 ]);
 
-/** spacing 値を変換する。数値は ×SPACING_UNIT(後段で px 付与)、文字列はそのまま。 */
-function spacingValue(value: string | number): string | number {
-  return typeof value === "number" ? value * SPACING_UNIT : value;
+/** 数値のみ factor 倍する(MUI styleFunctionSx 準拠・後段で px 付与)。文字列はそのまま。 */
+function scaleIfNumber(value: string | number, factor: number): string | number {
+  return typeof value === "number" ? value * factor : value;
 }
 
 /**
@@ -51,14 +50,14 @@ function spacingValue(value: string | number): string | number {
  * ショートハンドでないプロパティはそのまま 1 件返す。
  */
 function resolveSxDeclaration(prop: string, value: string | number): Array<[string, string | number]> {
-  const spacingAlias = SPACING_ALIASES[prop];
-  if (spacingAlias) {
-    const v = spacingValue(value);
-    return spacingAlias.map((real) => [real, v]);
+  // alias は longhand 群へ展開、longhand spacing は自身へ。いずれも spacing 変換する。
+  const spacingTargets = SPACING_ALIASES[prop] ?? (SPACING_PROPS.has(prop) ? [prop] : null);
+  if (spacingTargets) {
+    const v = scaleIfNumber(value, SPACING_UNIT);
+    return spacingTargets.map((real) => [real, v]);
   }
-  if (SPACING_PROPS.has(prop)) return [[prop, spacingValue(value)]];
   if (prop === "borderRadius") {
-    return [[prop, typeof value === "number" ? value * SHAPE_BORDER_RADIUS : value]];
+    return [[prop, scaleIfNumber(value, SHAPE_BORDER_RADIUS)]];
   }
   if (prop === "border") {
     // sx: border に数値を渡すと `Npx solid` になる(色は currentColor/別途 borderColor)。
