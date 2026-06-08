@@ -17,7 +17,7 @@ import {
 import { getErrorMain } from "../constants/colors";
 import { useIsDark } from "../contexts/ThemeModeContext";
 import { useMarkdownT } from "../i18n/context";
-import { useSelectedBlock } from "../hooks/useSelectedBlock";
+import { useBlockChrome } from "../hooks/useBlockChrome";
 import { createTiptapSheetAdapter } from "../spreadsheet/TiptapSheetAdapter";
 import { moveTableColumn, moveTableRow } from "../utils/tableHelpers";
 import { Button } from "../ui/Button";
@@ -112,10 +112,14 @@ function SpreadsheetEditContent({ editor, pos, isDark, onDirtyChange, onClose }:
   editor: Editor; pos: number; isDark: boolean;
   onDirtyChange: (dirty: boolean) => void; onClose: () => void;
 }>) {
-  const { gridRows, gridCols } = getTableGridOptions(editor);
-  const adapter = useMemo(
-    () =>
-      createTiptapSheetAdapter(
+  // grid オプション取得（extensionManager 走査）とアダプタ生成を 1 つの useMemo に集約し、
+  // dirty 再レンダー毎の extensions.find を避ける。
+  const { gridRows, gridCols, adapter } = useMemo(() => {
+    const opts = getTableGridOptions(editor);
+    return {
+      gridRows: opts.gridRows,
+      gridCols: opts.gridCols,
+      adapter: createTiptapSheetAdapter(
         editor,
         () => {
           const node = editor.state.doc.nodeAt(pos);
@@ -123,8 +127,8 @@ function SpreadsheetEditContent({ editor, pos, isDark, onDirtyChange, onClose }:
         },
         { readOnly: !editor.isEditable },
       ),
-    [editor, pos],
-  );
+    };
+  }, [editor, pos]);
   const handleUndo = useCallback(() => { editor.chain().undo().run(); }, [editor]);
   const handleRedo = useCallback(() => { editor.chain().redo().run(); }, [editor]);
   return (
@@ -160,16 +164,11 @@ function SpreadsheetEditContent({ editor, pos, isDark, onDirtyChange, onClose }:
 export function TableBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>) {
   const t = useMarkdownT("MarkdownEditor");
   const isDark = useIsDark();
-  const { pos, node, rect, deleteBlock } = useSelectedBlock(editor, "table");
+  const { pos, rect, deleteOpen, setDeleteOpen, handleDelete, showToolbar: baseShowToolbar } =
+    useBlockChrome(editor, "table");
   const [editOpen, setEditOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const dirtyRef = useRef(false);
-
-  const handleDelete = useCallback(() => {
-    deleteBlock();
-    setDeleteOpen(false);
-  }, [deleteBlock]);
 
   const handleDirtyChange = useCallback((dirty: boolean) => {
     dirtyRef.current = dirty;
@@ -186,7 +185,8 @@ export function TableBlockOverlay({ editor }: Readonly<{ editor: Editor | null }
     setEditOpen(false);
   }, []);
 
-  const showToolbar = !!editor && !!node && editor.isEditable && !editOpen;
+  // スプレッドシート編集中は浮動ツールバーを抑制する（table 固有の表示制御）。
+  const showToolbar = baseShowToolbar && !editOpen;
 
   return (
     <>
