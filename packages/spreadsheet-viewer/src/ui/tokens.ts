@@ -1,7 +1,6 @@
 /**
  * spreadsheet-viewer 自前 UI キットのテーマトークン。
  *
- * @mui/material のテーマ（`sx` の `"divider"` / `"primary.main"` 等）への依存を断つため、
  * `themeMode`（light/dark）から CSS カスタムプロパティ（`--sv-color-*`）と
  * グリッド描画用の色オブジェクトを単一ソースで導出する。
  *
