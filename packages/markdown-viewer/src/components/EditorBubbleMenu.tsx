@@ -13,9 +13,10 @@ import { Tooltip } from "../ui/Tooltip";
 import { Paper } from "../ui/Paper";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { BubbleMenu } from "@anytime-markdown/markdown-react/menus";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 
 import { modKey } from "../constants/shortcuts";
+import { Z_BUBBLE_MENU } from "../constants/zIndex";
 import { getEditorStorage, type TranslationFn } from "../types";
 
 /** ツールチップキー → ショートカットキー表示マッピング */
@@ -46,6 +47,14 @@ interface EditorBubbleMenuProps {
 }
 
 export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, onLink, readonlyMode, reviewMode, executeInReviewMode, t }: EditorBubbleMenuProps) {
+  // フローティング要素（BubbleMenu の portal ルート）は z-index 未設定で生成されるため、
+  // sticky エディタツールバー（Z_TOOLBAR）に覆われてクリックが奪われる。明示的に前面化する。
+  const bubbleMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = bubbleMenuRef.current;
+    if (el) el.style.zIndex = String(Z_BUBBLE_MENU);
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
@@ -64,6 +73,7 @@ export const EditorBubbleMenu = React.memo(function EditorBubbleMenu({ editor, o
 
   return (
     <BubbleMenu
+      ref={bubbleMenuRef}
       editor={editor}
       shouldShow={({ editor: e, state }) => {
         if (readonlyMode) return false;
