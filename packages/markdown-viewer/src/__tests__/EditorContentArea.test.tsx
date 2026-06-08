@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 global.ResizeObserver = class ResizeObserver {
   observe() {}
@@ -37,6 +36,7 @@ jest.mock("../styles/editorStyles", () => ({
 }));
 
 jest.mock("../constants/colors", () => ({
+  ...jest.requireActual("../constants/colors"),
   getBgPaper: () => "#fff",
   getDivider: () => "#ccc",
   getTextSecondary: () => "#666",
@@ -83,7 +83,6 @@ jest.mock("../contexts/EditorModeContext", () => ({
 
 import { EditorContentArea } from "../components/EditorContentArea";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 describe("EditorContentArea", () => {
@@ -111,9 +110,7 @@ describe("EditorContentArea", () => {
 
   it("renders in WYSIWYG mode without crashing", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorContentArea {...defaultProps} />
-      </ThemeProvider>,
+        <EditorContentArea {...defaultProps} />,
     );
     expect(container).toBeTruthy();
   });
@@ -121,9 +118,7 @@ describe("EditorContentArea", () => {
   it("renders in source mode without crashing", () => {
     mockEditorMode.sourceMode = true;
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <EditorContentArea {...defaultProps} />
-      </ThemeProvider>,
+        <EditorContentArea {...defaultProps} />,
     );
     expect(container).toBeTruthy();
   });

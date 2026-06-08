@@ -4,18 +4,24 @@ import {
   getCanvasColors,
 } from '@anytime-markdown/graph-core';
 import {
-  ArrowDownward as DownIcon,
-  ArrowUpward as UpIcon,
-  Close as CloseIcon,
-  Lock as LockIcon,
-  LockOpen as LockOpenIcon,
-  VerticalAlignBottom as BottomIcon,
-  VerticalAlignTop as TopIcon,
-} from '@mui/icons-material';
-import {
-  Box, Divider, FormControlLabel,
-IconButton, Slider,   Switch, TextField, ToggleButton, ToggleButtonGroup,
-Typography, } from '@mui/material';
+  ArrowDownwardIcon as DownIcon,
+  ArrowUpwardIcon as UpIcon,
+  Box,
+  CloseIcon,
+  Divider,
+  FormControlLabel,
+  IconButton,
+  LockIcon,
+  LockOpenIcon,
+  Slider,
+  Switch,
+  Text,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  VerticalAlignBottomIcon as BottomIcon,
+  VerticalAlignTopIcon as TopIcon,
+} from '../ui';
 import { useGraphT } from '../i18n/context';
 import React from 'react';
 
@@ -64,27 +70,24 @@ function ColorPalette({
   };
 
   return (
-    <Box role="radiogroup" aria-label={label} sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
+    <Box role="radiogroup" aria-label={label} style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 16 }}>
       {colors.map((c, i) => (
         <Box
           key={c}
+          className="gv-color-swatch"
           role="radio"
           aria-checked={selectedColor === c}
           aria-label={c}
           tabIndex={selectedColor === c ? 0 : -1}
           onClick={() => onSelect(c)}
           onKeyDown={(e) => handleKeyDown(e, i)}
-          sx={{
+          style={{
             width: 24,
             height: 24,
             backgroundColor: c,
             borderRadius: '4px',
             cursor: 'pointer',
             border: selectedColor === c ? `2px solid ${themeColors.accentColor}` : `1px solid ${themeColors.panelBorder}`,
-            '&:focus-visible': {
-              outline: `2px solid ${themeColors.accentColor}`,
-              outlineOffset: '2px',
-            },
           }}
         />
       ))}
@@ -110,49 +113,50 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
 
   return (
     <Box
-      sx={{
+      className="gv-scroll"
+      style={{
         position: 'absolute', right: 0, top: 0, bottom: 0,
         width: 240, backgroundColor: colors.panelBg,
         borderLeft: `1px solid ${colors.panelBorder}`,
-        p: 2, overflowY: 'auto', zIndex: 20,
+        padding: 16, overflowY: 'auto', zIndex: 20,
       }}
     >
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-        <Typography variant="subtitle2" sx={{ color: colors.textPrimary }}>{t('properties')}</Typography>
-        <IconButton size="small" onClick={onClose} sx={{ color: colors.textSecondary }}><CloseIcon fontSize="small" /></IconButton>
+      <Box style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Text variant="subtitle2" style={{ color: colors.textPrimary }}>{t('properties')}</Text>
+        <IconButton size="small" onClick={onClose} style={{ color: colors.textSecondary }}><CloseIcon fontSize="small" /></IconButton>
       </Box>
-      <Divider sx={{ mb: 2 }} />
+      <Divider style={{ marginBottom: 16 }} />
 
       {selectedNode && (
         <>
           {/* ロック & レイヤー */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 2 }}>
+          <Box style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 16 }}>
             <IconButton
               size="small"
               onClick={() => onUpdateNode(selectedNode.id, { locked: !selectedNode.locked })}
               aria-label={selectedNode.locked ? t('unlock') : t('lock')}
-              sx={{ color: selectedNode.locked ? colors.accentColor : colors.textSecondary }}
+              style={{ color: selectedNode.locked ? colors.accentColor : colors.textSecondary }}
             >
               {selectedNode.locked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />}
             </IconButton>
-            <Typography variant="caption" sx={{ color: colors.textSecondary, flex: 1 }}>
+            <Text variant="caption" style={{ color: colors.textSecondary, flex: 1 }}>
               {selectedNode.locked ? t('locked') : t('unlocked')}
-            </Typography>
-            <IconButton size="small" onClick={() => onLayerAction?.('top')} aria-label={t('layerTop')} sx={{ color: colors.textSecondary }}>
+            </Text>
+            <IconButton size="small" onClick={() => onLayerAction?.('top')} aria-label={t('layerTop')} style={{ color: colors.textSecondary }}>
               <TopIcon fontSize="small" />
             </IconButton>
-            <IconButton size="small" onClick={() => onLayerAction?.('up')} aria-label={t('layerUp')} sx={{ color: colors.textSecondary }}>
+            <IconButton size="small" onClick={() => onLayerAction?.('up')} aria-label={t('layerUp')} style={{ color: colors.textSecondary }}>
               <UpIcon fontSize="small" />
             </IconButton>
-            <IconButton size="small" onClick={() => onLayerAction?.('down')} aria-label={t('layerDown')} sx={{ color: colors.textSecondary }}>
+            <IconButton size="small" onClick={() => onLayerAction?.('down')} aria-label={t('layerDown')} style={{ color: colors.textSecondary }}>
               <DownIcon fontSize="small" />
             </IconButton>
-            <IconButton size="small" onClick={() => onLayerAction?.('bottom')} aria-label={t('layerBottom')} sx={{ color: colors.textSecondary }}>
+            <IconButton size="small" onClick={() => onLayerAction?.('bottom')} aria-label={t('layerBottom')} style={{ color: colors.textSecondary }}>
               <BottomIcon fontSize="small" />
             </IconButton>
           </Box>
 
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('fillColor')}</Typography>
+          <Text variant="caption" style={{ color: colors.textSecondary }}>{t('fillColor')}</Text>
           <ColorPalette
             colors={COLORS}
             selectedColor={selectedNode.style.fill}
@@ -161,7 +165,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             themeMode={themeMode}
           />
 
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('strokeColor')}</Typography>
+          <Text variant="caption" style={{ color: colors.textSecondary }}>{t('strokeColor')}</Text>
           <ColorPalette
             colors={COLORS}
             selectedColor={selectedNode.style.stroke}
@@ -170,34 +174,34 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             themeMode={themeMode}
           />
 
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('strokeWidth')}</Typography>
+          <Text variant="caption" style={{ color: colors.textSecondary }}>{t('strokeWidth')}</Text>
           <Slider
             value={selectedNode.style.strokeWidth}
             min={0} max={10} step={0.5}
             onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, strokeWidth: v as number } })}
             size="small"
             aria-label={t('strokeWidth')}
-            sx={{ mb: 2, color: colors.accentColor }}
+            style={{ marginBottom: 16 }}
           />
 
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('fontSize')}</Typography>
+          <Text variant="caption" style={{ color: colors.textSecondary }}>{t('fontSize')}</Text>
           <Slider
             value={selectedNode.style.fontSize}
             min={8} max={48} step={1}
             onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, fontSize: v as number } })}
             size="small"
             aria-label={t('fontSize')}
-            sx={{ mb: 2, color: colors.accentColor }}
+            style={{ marginBottom: 16 }}
           />
 
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('borderRadius')}</Typography>
+          <Text variant="caption" style={{ color: colors.textSecondary }}>{t('borderRadius')}</Text>
           <Slider
             value={selectedNode.style.borderRadius ?? 0}
             min={0} max={30} step={1}
             onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, borderRadius: v as number } })}
             size="small"
             aria-label={t('borderRadius')}
-            sx={{ mb: 2, color: colors.accentColor }}
+            style={{ marginBottom: 16 }}
           />
 
           <FormControlLabel
@@ -206,18 +210,17 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
                 checked={selectedNode.style.shadow ?? false}
                 onChange={(_, v) => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, shadow: v } })}
                 size="small"
-                sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: colors.accentColor }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: colors.accentColor } }}
               />
             }
-            label={<Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('shadow')}</Typography>}
-            sx={{ mb: 1 }}
+            label={<Text variant="caption" style={{ color: colors.textSecondary }}>{t('shadow')}</Text>}
+            style={{ marginBottom: 8 }}
           />
 
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('gradientTo')}</Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+          <Text variant="caption" style={{ color: colors.textSecondary, display: 'block' }}>{t('gradientTo')}</Text>
+          <Box style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
             <Box
               onClick={() => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, gradientTo: undefined } })}
-              sx={{
+              style={{
                 width: 24, height: 24, borderRadius: '4px', cursor: 'pointer',
                 background: 'linear-gradient(135deg, #666 25%, transparent 25%, transparent 75%, #666 75%)',
                 backgroundSize: '8px 8px',
@@ -228,7 +231,7 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
               <Box
                 key={c}
                 onClick={() => onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, gradientTo: c } })}
-                sx={{
+                style={{
                   width: 24, height: 24, backgroundColor: c, borderRadius: '4px', cursor: 'pointer',
                   border: selectedNode.style.gradientTo === c ? `2px solid ${colors.accentColor}` : `1px solid ${colors.panelBorder}`,
                 }}
@@ -238,13 +241,14 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
 
           {selectedNode.style.gradientTo && (
             <>
-              <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('gradientDirection')}</Typography>
+              <Text variant="caption" style={{ color: colors.textSecondary, display: 'block' }}>{t('gradientDirection')}</Text>
               <ToggleButtonGroup
                 value={selectedNode.style.gradientDirection ?? 'vertical'}
                 exclusive
-                onChange={(_, v) => v && onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, gradientDirection: v } })}
+                onChange={(_, v) => v && onUpdateNode(selectedNode.id, { style: { ...selectedNode.style, gradientDirection: v as 'vertical' | 'horizontal' | 'diagonal' } })}
                 size="small"
-                sx={{ mb: 2, display: 'flex', '& .MuiToggleButton-root': { flex: 1, fontSize: '0.65rem', py: 0.3, color: colors.textSecondary, borderColor: colors.panelBorder, '&.Mui-selected': { color: colors.accentColor, backgroundColor: `${colors.accentColor}1F` } } }}
+                fullWidth
+                style={{ marginBottom: 16 }}
               >
                 <ToggleButton value="vertical" aria-label={t('gradientVertical')}>↕</ToggleButton>
                 <ToggleButton value="horizontal" aria-label={t('gradientHorizontal')}>↔</ToggleButton>
@@ -254,27 +258,23 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
           )}
 
           {/* URL */}
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('url')}</Typography>
+          <Text variant="caption" style={{ color: colors.textSecondary, display: 'block' }}>{t('url')}</Text>
           <TextField
             value={selectedNode.url ?? ''}
             onChange={(e) => onUpdateNode(selectedNode.id, { url: e.target.value || undefined })}
             size="small"
             fullWidth
             placeholder="https://..."
-            sx={{
-              mb: 2,
-              '& .MuiInputBase-input': { color: colors.textPrimary, fontSize: '0.8rem', py: 0.5 },
-              '& .MuiOutlinedInput-notchedOutline': { borderColor: colors.panelBorder },
-            }}
+            style={{ marginBottom: 16 }}
           />
 
           {/* 接続点 */}
-          <Divider sx={{ my: 1 }} />
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('connectionPoints')}</Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-            <Typography variant="caption" sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}>
+          <Divider style={{ margin: '8px 0' }} />
+          <Text variant="caption" style={{ color: colors.textSecondary, display: 'block' }}>{t('connectionPoints')}</Text>
+          <Box style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <Text variant="caption" style={{ color: colors.textSecondary, fontSize: '0.65rem' }}>
               {4 + (selectedNode.extraConnectionPoints?.length ?? 0)} {t('points')}
-            </Typography>
+            </Text>
             <IconButton
               size="small"
               onClick={() => {
@@ -288,18 +288,18 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
                 onUpdateNode(selectedNode.id, { extraConnectionPoints: [...current, ...newPoints] });
               }}
               aria-label={t('addConnectionPoints')}
-              sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}
+              style={{ color: colors.textSecondary, fontSize: '0.7rem' }}
             >
-              <Typography variant="caption">+8</Typography>
+              <Text variant="caption">+8</Text>
             </IconButton>
             {(selectedNode.extraConnectionPoints?.length ?? 0) > 0 && (
               <IconButton
                 size="small"
                 onClick={() => onUpdateNode(selectedNode.id, { extraConnectionPoints: undefined })}
                 aria-label={t('resetConnectionPoints')}
-                sx={{ color: colors.textSecondary, fontSize: '0.7rem' }}
+                style={{ color: colors.textSecondary, fontSize: '0.7rem' }}
               >
-                <Typography variant="caption">{t('reset')}</Typography>
+                <Text variant="caption">{t('reset')}</Text>
               </IconButton>
             )}
           </Box>
@@ -308,13 +308,13 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
 
       {selectedEdge && (
         <>
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('strokeColor')}</Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
+          <Text variant="caption" style={{ color: colors.textSecondary }}>{t('strokeColor')}</Text>
+          <Box style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 16 }}>
             {COLORS.map(c => (
               <Box
                 key={c}
                 onClick={() => onUpdateEdge(selectedEdge.id, { style: { ...selectedEdge.style, stroke: c } })}
-                sx={{
+                style={{
                   width: 24, height: 24, backgroundColor: c, borderRadius: '4px', cursor: 'pointer',
                   border: selectedEdge.style.stroke === c ? `2px solid ${colors.accentColor}` : `1px solid ${colors.panelBorder}`,
                 }}
@@ -322,23 +322,24 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             ))}
           </Box>
 
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('strokeWidth')}</Typography>
+          <Text variant="caption" style={{ color: colors.textSecondary }}>{t('strokeWidth')}</Text>
           <Slider
             value={selectedEdge.style.strokeWidth}
             min={1} max={10} step={0.5}
             onChange={(_, v) => onUpdateEdge(selectedEdge.id, { style: { ...selectedEdge.style, strokeWidth: v as number } })}
             size="small"
             aria-label={t('strokeWidth')}
-            sx={{ mb: 2, color: colors.accentColor }}
+            style={{ marginBottom: 16 }}
           />
 
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('startShape')}</Typography>
+          <Text variant="caption" style={{ color: colors.textSecondary, display: 'block' }}>{t('startShape')}</Text>
           <ToggleButtonGroup
             value={selectedEdge.style.startShape ?? 'none'}
             exclusive
             onChange={(_, v) => v && onUpdateEdge(selectedEdge.id, { style: { ...selectedEdge.style, startShape: v as EndpointShape } })}
             size="small"
-            sx={{ mb: 2, display: 'flex', '& .MuiToggleButton-root': { flex: 1, fontSize: '0.65rem', py: 0.3, color: colors.textSecondary, borderColor: colors.panelBorder, '&.Mui-selected': { color: colors.accentColor, backgroundColor: `${colors.accentColor}1F` } } }}
+            fullWidth
+            style={{ marginBottom: 16 }}
           >
             <ToggleButton value="none">{t('shapeNone')}</ToggleButton>
             <ToggleButton value="arrow">{t('shapeArrow')}</ToggleButton>
@@ -347,13 +348,14 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
             <ToggleButton value="bar">{t('shapeBar')}</ToggleButton>
           </ToggleButtonGroup>
 
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('endShape')}</Typography>
+          <Text variant="caption" style={{ color: colors.textSecondary, display: 'block' }}>{t('endShape')}</Text>
           <ToggleButtonGroup
             value={selectedEdge.style.endShape ?? (selectedEdge.type === 'connector' ? 'arrow' : 'none')}
             exclusive
             onChange={(_, v) => v && onUpdateEdge(selectedEdge.id, { style: { ...selectedEdge.style, endShape: v as EndpointShape } })}
             size="small"
-            sx={{ mb: 2, display: 'flex', '& .MuiToggleButton-root': { flex: 1, fontSize: '0.65rem', py: 0.3, color: colors.textSecondary, borderColor: colors.panelBorder, '&.Mui-selected': { color: colors.accentColor, backgroundColor: `${colors.accentColor}1F` } } }}
+            fullWidth
+            style={{ marginBottom: 16 }}
           >
             <ToggleButton value="none">{t('shapeNone')}</ToggleButton>
             <ToggleButton value="arrow">{t('shapeArrow')}</ToggleButton>
@@ -363,30 +365,27 @@ export function PropertyPanel({ selectedNode, selectedEdge, onUpdateNode, onUpda
           </ToggleButtonGroup>
 
           {/* ラベル */}
-          <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('edgeLabel')}</Typography>
+          <Text variant="caption" style={{ color: colors.textSecondary, display: 'block' }}>{t('edgeLabel')}</Text>
           <TextField
             value={selectedEdge.label ?? ''}
             onChange={(e) => onUpdateEdge(selectedEdge.id, { label: e.target.value || undefined })}
             size="small"
             fullWidth
             placeholder="Label"
-            sx={{
-              mb: 2,
-              '& .MuiInputBase-input': { color: colors.textPrimary, fontSize: '0.8rem', py: 0.5 },
-              '& .MuiOutlinedInput-notchedOutline': { borderColor: colors.panelBorder },
-            }}
+            style={{ marginBottom: 16 }}
           />
 
           {/* ルーティングモード（connector タイプのみ） */}
           {selectedEdge.type === 'connector' && (
             <>
-              <Typography variant="caption" sx={{ color: colors.textSecondary }}>{t('routing')}</Typography>
+              <Text variant="caption" style={{ color: colors.textSecondary, display: 'block' }}>{t('routing')}</Text>
               <ToggleButtonGroup
                 value={selectedEdge.style.routing ?? 'orthogonal'}
                 exclusive
-                onChange={(_, v) => v && onUpdateEdge(selectedEdge.id, { style: { ...selectedEdge.style, routing: v } })}
+                onChange={(_, v) => v && onUpdateEdge(selectedEdge.id, { style: { ...selectedEdge.style, routing: v as 'orthogonal' | 'bezier' | 'straight' } })}
                 size="small"
-                sx={{ mb: 2, display: 'flex', '& .MuiToggleButton-root': { flex: 1, fontSize: '0.65rem', py: 0.3, color: colors.textSecondary, borderColor: colors.panelBorder, '&.Mui-selected': { color: colors.accentColor, backgroundColor: `${colors.accentColor}1F` } } }}
+                fullWidth
+                style={{ marginBottom: 16 }}
               >
                 <ToggleButton value="orthogonal">{t('routingOrthogonal')}</ToggleButton>
                 <ToggleButton value="bezier">{t('routingBezier')}</ToggleButton>

@@ -1,0 +1,28 @@
+/* ZoomablePreview — 旧 Box sx からの移設 */
+
+/* 外側コンテナ。テーマ依存の bgcolor は inline style で渡す。 */
+.outer {
+  flex: 1;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.outer:active {
+  cursor: grabbing;
+}
+
+/* 内側コンテナ。transform/transition は動的なので inline style で渡す。 */
+.inner {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  pointer-events: none;
+  /* justifyContent / alignItems / transform / transformOrigin / transition は inline style */
+}
+
+/* prefers-reduced-motion: REDUCED_MOTION_SX の等価 */
+@media (prefers-reduced-motion: reduce) {
+  .inner {
+    transition: none !important;
+  }
+}

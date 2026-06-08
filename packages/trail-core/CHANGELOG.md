@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-06-08
+
+### Changed
+
+- Version bump to keep the trail lineage in sync; no functional changes to the core.
+
 ## [0.26.0] - 2026-06-03
 
 ### Fixed

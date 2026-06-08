@@ -5,7 +5,6 @@
  */
 import React from "react";
 import { render, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- mock functions we need to inspect ---
 const mockSetCompareText = jest.fn();
@@ -36,8 +35,8 @@ jest.mock("../useEditorSettings", () => ({
   }),
 }));
 
-jest.mock("../editorExtensions", () => ({
-  getBaseExtensions: () => [],
+jest.mock("../buildEditorExtensions", () => ({
+  buildEditorExtensions: () => [],
 }));
 
 jest.mock("../extensions/customHardBreak", () => ({
@@ -53,6 +52,7 @@ jest.mock("../hooks/useDiffBackground", () => ({
   useDiffBackground: () => ({ leftBgGradient: "linear-gradient(red,blue)", rightBgGradient: "linear-gradient(green,yellow)" }),
 }));
 
+jest.mock("../hooks/useBlockAlignment", () => ({ useBlockAlignment: () => {} }));
 jest.mock("../hooks/useDiffHighlight", () => ({
   useDiffHighlight: () => {},
 }));
@@ -66,6 +66,7 @@ jest.mock("../hooks/useMergeDiff", () => ({
     diffOptions: { semantic: false },
     setDiffOptions: mockSetDiffOptions,
     mergeBlock: mockMergeBlock,
+    currentBlockIndex: 0, totalBlocks: 0, goToNextBlock: jest.fn(), goToPrevBlock: jest.fn(),
     undo: jest.fn(),
     redo: jest.fn(),
     canUndo: true,
@@ -129,7 +130,6 @@ jest.mock("../components/MergeEditorPanel", () => ({
 
 import { InlineMergeView } from "../components/InlineMergeView";
 
-const theme = createTheme();
 
 function renderMergeView(props: Partial<React.ComponentProps<typeof InlineMergeView>> = {}) {
   const defaultProps = {
@@ -151,9 +151,7 @@ function renderMergeView(props: Partial<React.ComponentProps<typeof InlineMergeV
     ),
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <InlineMergeView {...defaultProps} {...props} />
-    </ThemeProvider>,
+      <InlineMergeView {...defaultProps} {...props} />,
   );
 }
 
@@ -240,13 +238,13 @@ describe("InlineMergeView - coverage tests", () => {
     fireEvent.click(getByTestId("hover-btn"));
   });
 
-  // --- semantic diff toggle (lines 421-433) ---
-  it("toggles semantic diff option when button clicked", () => {
-    const { container } = renderMergeView();
+  // --- semantic diff toggle removed: source mode is always non-semantic ---
+  it("does not expose semantic diff toggle in source mode", () => {
+    // ソースモードは常にセマンティック比較 OFF。トグルは提供しない。
+    const { container } = renderMergeView({ sourceMode: true });
     const btn = container.querySelector('[aria-label="semanticDiff"]');
-    expect(btn).toBeTruthy();
-    fireEvent.click(btn!);
-    expect(mockSetDiffOptions).toHaveBeenCalled();
+    expect(btn).toBeNull();
+    expect(mockSetDiffOptions).not.toHaveBeenCalled();
   });
 
   // --- frontmatter rendering branches (lines 382-416) ---
@@ -260,6 +258,7 @@ describe("InlineMergeView - coverage tests", () => {
       diffOptions: { semantic: false },
       setDiffOptions: mockSetDiffOptions,
       mergeBlock: mockMergeBlock,
+    currentBlockIndex: 0, totalBlocks: 0, goToNextBlock: jest.fn(), goToPrevBlock: jest.fn(),
       undo: jest.fn(),
       redo: jest.fn(),
       canUndo: false,
@@ -281,6 +280,7 @@ describe("InlineMergeView - coverage tests", () => {
       diffOptions: { semantic: false },
       setDiffOptions: mockSetDiffOptions,
       mergeBlock: mockMergeBlock,
+    currentBlockIndex: 0, totalBlocks: 0, goToNextBlock: jest.fn(), goToPrevBlock: jest.fn(),
       undo: jest.fn(),
       redo: jest.fn(),
       canUndo: false,
@@ -304,6 +304,7 @@ describe("InlineMergeView - coverage tests", () => {
       diffOptions: { semantic: false },
       setDiffOptions: mockSetDiffOptions,
       mergeBlock: mockMergeBlock,
+    currentBlockIndex: 0, totalBlocks: 0, goToNextBlock: jest.fn(), goToPrevBlock: jest.fn(),
       undo: jest.fn(),
       redo: jest.fn(),
       canUndo: false,
@@ -415,6 +416,7 @@ describe("InlineMergeView - coverage tests", () => {
       diffOptions: { semantic: false },
       setDiffOptions: mockSetDiffOptions,
       mergeBlock: mockMergeBlock,
+    currentBlockIndex: 0, totalBlocks: 0, goToNextBlock: jest.fn(), goToPrevBlock: jest.fn(),
       undo: jest.fn(),
       redo: jest.fn(),
       canUndo: false,

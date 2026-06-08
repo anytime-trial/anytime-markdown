@@ -7,7 +7,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getActionHover: () => "rgba(0,0,0,0.04)",
@@ -34,7 +33,6 @@ jest.mock("../types/imageAnnotation", () => ({
 
 import { ImageAnnotationDialog } from "../components/ImageAnnotationDialog";
 
-const theme = createTheme();
 const testSrc = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
 
 function renderDialog(props: Partial<React.ComponentProps<typeof ImageAnnotationDialog>> = {}) {
@@ -47,9 +45,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof ImageAnnotation
     t: (key: string) => key,
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <ImageAnnotationDialog {...defaultProps} {...props} />
-    </ThemeProvider>,
+      <ImageAnnotationDialog {...defaultProps} {...props} />,
   );
 }
 
@@ -248,7 +244,8 @@ describe("ImageAnnotationDialog - annotation interactions", () => {
   it("selects an annotation by clicking in comment panel", () => {
     const { container } = renderDialog({ annotations: preAnnotations });
     // Comment panel items have onClick to select
-    const panelItems = container.querySelectorAll("[class*='MuiBox-root']");
+    // （MUI Box → div + CSS Module 移行後は annotationItem クラスで識別）
+    const panelItems = container.querySelectorAll("[class*='annotationItem']");
     expect(panelItems.length).toBeGreaterThan(0);
   });
 

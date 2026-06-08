@@ -57,8 +57,8 @@ const STYLE_BASE: GraphNode['style'] = {
 describe('currentColors getter/setter', () => {
   test('setCurrentColors changes value returned by getCurrentColors', () => {
     const before = getCurrentColors();
-    setCurrentColors({ ...before, background: '#aaa' } as unknown as ReturnType<typeof getCurrentColors>);
-    expect(getCurrentColors().background).toBe('#aaa');
+    setCurrentColors({ ...before, canvasBg: '#aaa' } as unknown as ReturnType<typeof getCurrentColors>);
+    expect(getCurrentColors().canvasBg).toBe('#aaa');
     // restore
     setCurrentColors(before);
   });

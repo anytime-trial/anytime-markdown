@@ -1,5 +1,3 @@
-import type { Theme } from "@mui/material/styles";
-
 import type { EditorSettings } from "../useEditorSettings";
 import { getBaseStyles } from "./baseStyles";
 import { getBlockStyles } from "./blockStyles";
@@ -15,15 +13,15 @@ import { getInlineStyles } from "./inlineStyles";
  * 片方にだけスタイルが追加される drift を防ぐ単一の合成点とする。
  */
 export function getSharedContentStyles(
-  theme: Theme,
+  isDark: boolean,
   settings: EditorSettings,
   options?: { readonlyMode?: boolean },
 ): Record<string, unknown> {
   return {
-    ...(getBaseStyles(theme, options) as Record<string, unknown>),
-    ...(getHeadingStyles(theme) as Record<string, unknown>),
-    ...(getCodeStyles(theme) as Record<string, unknown>),
-    ...(getBlockStyles(theme, settings) as Record<string, unknown>),
-    ...(getInlineStyles(theme) as Record<string, unknown>),
+    ...getBaseStyles(isDark, options),
+    ...getHeadingStyles(isDark),
+    ...getCodeStyles(isDark),
+    ...getBlockStyles(isDark, settings),
+    ...getInlineStyles(isDark),
   };
 }

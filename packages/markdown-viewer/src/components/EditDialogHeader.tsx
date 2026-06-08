@@ -1,11 +1,10 @@
-import CheckIcon from "@mui/icons-material/Check";
-import CloseIcon from "@mui/icons-material/Close";
-import { Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import React from "react";
 
-import { getDivider, getTextSecondary } from "../constants/colors";
-import { DIALOG_HEADER_FONT_SIZE } from "../constants/dimensions";
+import { Button } from "../ui/Button";
+import { CheckIcon, CloseIcon } from "../ui/icons";
+import { IconButton } from "../ui/IconButton";
+import { Tooltip } from "../ui/Tooltip";
+import styles from "./EditDialogHeader.module.css";
 
 interface EditDialogHeaderProps {
   label: string;
@@ -24,34 +23,33 @@ interface EditDialogHeaderProps {
 
 /** ブロック要素編集ダイアログの共通ヘッダー */
 export function EditDialogHeader({ label, onClose, showCompareView, icon, extra, onApply, dirty, t }: Readonly<EditDialogHeaderProps>) {
-  const isDark = useTheme().palette.mode === "dark";
   return (
-    <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: getDivider(isDark) }}>
+    <div className={styles.header}>
       <Tooltip title={t("close")} placement="bottom">
-        <IconButton size="small" onClick={onClose} sx={{ mr: 1 }} aria-label={t("close")}>
-          <CloseIcon sx={{ fontSize: 20 }} />
+        <IconButton size="small" onClick={onClose} className={styles.closeBtn} aria-label={t("close")}>
+          <CloseIcon fontSize={20} />
         </IconButton>
       </Tooltip>
-      {icon && <Box sx={{ display: "flex", alignItems: "center", mr: 0.75, color: getTextSecondary(isDark) }}>{icon}</Box>}
-      <Typography variant="subtitle2" sx={{ p: 0, fontSize: DIALOG_HEADER_FONT_SIZE, fontWeight: 600, mr: 1 }}>
+      {icon && <span className={styles.iconSlot}>{icon}</span>}
+      <span className={styles.label}>
         {label}{showCompareView ? ` - ${t("compare")}` : ""}
-      </Typography>
-      <Box sx={{ flex: 1 }} />
+      </span>
+      <span className={styles.spacer} />
       {onApply && (
-        <Tooltip title={t("spreadsheetApply")} placement="bottom">
+        <Tooltip title={t("apply")} placement="bottom">
           <Button
             size="small"
             variant={dirty ? "contained" : "outlined"}
             color={dirty ? "primary" : "inherit"}
-            startIcon={<CheckIcon sx={{ fontSize: 14 }} />}
+            startIcon={<CheckIcon fontSize={14} />}
             onClick={onApply}
-            sx={{ textTransform: "none", fontSize: 12, height: 26, px: 1.5, mr: 1 }}
+            className={styles.applyBtn}
           >
-            {t("spreadsheetApply")}
+            {t("apply")}
           </Button>
         </Tooltip>
       )}
       {extra}
-    </Box>
+    </div>
   );
 }

@@ -103,8 +103,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
-  public static register(context: vscode.ExtensionContext): vscode.Disposable {
-    const provider = new MarkdownEditorProvider(context);
+  public static register(
+    context: vscode.ExtensionContext,
+    logLine?: (line: string) => void,
+  ): vscode.Disposable {
+    const provider = new MarkdownEditorProvider(context, logLine);
     MarkdownEditorProvider.instance = provider;
     return vscode.window.registerCustomEditorProvider(
       MarkdownEditorProvider.viewType,
@@ -113,7 +116,21 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     );
   }
 
-  private constructor(private readonly context: vscode.ExtensionContext) {}
+  private constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly logLine?: (line: string) => void,
+  ) {}
+
+  /** webview のエディタエラーバウンダリから転送された描画エラーを Output へ記録する */
+  private handleEditorError(message: { [key: string]: unknown }): void {
+    const ts = new Date().toISOString();
+    const msg = typeof message.message === 'string' ? message.message : '';
+    const stack = typeof message.stack === 'string' ? message.stack : '';
+    const componentStack = typeof message.componentStack === 'string' ? message.componentStack : '';
+    this.logLine?.(
+      `[${ts}] [ERROR] [Editor] ${msg}\n${stack}\nComponent stack:${componentStack}`
+    );
+  }
 
   public async resolveCustomTextEditor(
     document: vscode.TextDocument,
@@ -418,11 +435,13 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       const delay = ctx.isLargeFile() ? 800 : 300;
       debounceTimer = setTimeout(async () => {
         if (ctx.getDisposed()) { return; }
-        if (newContent === ctx.document.getText()) { return; }
+        // getText() はバッファ全体をコピーするため、同一同期コンテキストで1回だけ取得し再利用する
+        const currentText = ctx.document.getText();
+        if (newContent === currentText) { return; }
         const edit = new vscode.WorkspaceEdit();
         const fullRange = new vscode.Range(
           ctx.document.positionAt(0),
-          ctx.document.positionAt(ctx.document.getText().length)
+          ctx.document.positionAt(currentText.length)
         );
         edit.replace(ctx.document.uri, fullRange, newContent);
         lastApplyTime = Date.now();
@@ -460,6 +479,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     const handleSaveClipboardImage = (message: Record<string, unknown>) => {
       const imgData = typeof message.dataUrl === 'string' ? message.dataUrl : '';
       const imgFileName = typeof message.fileName === 'string' ? message.fileName : '';
+      // 保存結果(imageSaved)を発信元ノードに紐付けるための任意 ID（GIF ノード等が使用）
+      const requestId = typeof message.requestId === 'string' ? message.requestId : undefined;
       if (!imgData || !imgFileName) return;
       if (imgFileName.includes('/') || imgFileName.includes('\\') || imgFileName.startsWith('.')) {
         vscode.window.showErrorMessage('Invalid filename');
@@ -482,7 +503,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         fs.writeFileSync(filePath, buffer);
         const relativePath = `images/${imgFileName}`;
         const webviewUri = ctx.webviewPanel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString();
-        ctx.webviewPanel.webview.postMessage({ type: 'imageSaved', path: relativePath, webviewUri });
+        ctx.webviewPanel.webview.postMessage({ type: 'imageSaved', path: relativePath, webviewUri, requestId });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         vscode.window.showErrorMessage(`Image save failed: ${msg}`);
@@ -564,8 +585,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         // パス走査防止: 解決後のパスが imagesDir 内であることを検証
         if (!path.resolve(filePath).startsWith(path.resolve(imagesDir))) return;
 
+        // ファストパス: Content-Length で 10MB 超を全読み込み前に弾く（ヒープ圧迫の軽減）
+        const declaredLen = Number(res.headers.get('content-length'));
+        if (Number.isFinite(declaredLen) && declaredLen > 10 * 1024 * 1024) return;
         const arrayBuf = await res.arrayBuffer();
-        // サイズ上限: 10MB
+        // サイズ上限: 10MB（Content-Length が無い/偽の場合の保険）
         if (arrayBuf.byteLength > 10 * 1024 * 1024) return;
         fs.writeFileSync(filePath, Buffer.from(arrayBuf));
 
@@ -681,6 +705,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         if (!res.ok) throw new Error(`upstream-${res.status}`);
         const ct = res.headers.get('content-type') ?? '';
         if (!ct.includes('html')) throw new Error('unsupported-content');
+        // ファストパス: Content-Length で 2MB 超を全読み込み前に弾く
+        const declaredLen = Number(res.headers.get('content-length'));
+        if (Number.isFinite(declaredLen) && declaredLen > 2 * 1024 * 1024) throw new Error('too-large');
         const buf = await res.arrayBuffer();
         if (buf.byteLength > 2 * 1024 * 1024) throw new Error('too-large');
         const html = new TextDecoder().decode(Buffer.from(buf));
@@ -749,6 +776,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel.webview.onDidReceiveMessage(async (message: { type: string; [key: string]: unknown }) => {
       switch (message.type) {
         case 'ready': handleReady(message); break;
+        case 'editorError': this.handleEditorError(message); break;
         case 'scrollChanged': handleScrollChanged(message); break;
         case 'compareModeChanged': handleCompareModeChanged(message); break;
         case 'headingsChanged': handleHeadingsChanged(message); break;

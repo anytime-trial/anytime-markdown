@@ -1,4 +1,3 @@
-import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { DatabaseEditor } from "@anytime-markdown/database-viewer";
@@ -18,8 +17,6 @@ const vscode = acquireVsCodeApi();
 
 const isDark =
   typeof document !== "undefined" && document.body.classList.contains("vscode-dark");
-
-const theme = createTheme({ palette: { mode: isDark ? "dark" : "light" } });
 
 function makeTransport(): MessageTransport {
   const listeners = new Set<(m: ExtToWvMessage | WvToExtMessage) => void>();
@@ -86,10 +83,5 @@ const App: React.FC = () => {
 
 const rootEl = document.getElementById("root");
 if (rootEl) {
-  createRoot(rootEl).render(
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <App />
-    </ThemeProvider>,
-  );
+  createRoot(rootEl).render(<App />);
 }

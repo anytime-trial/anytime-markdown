@@ -1,10 +1,13 @@
-import FunctionsIcon from "@mui/icons-material/Functions";
-import ShowChartIcon from "@mui/icons-material/ShowChart";
-import { Box, IconButton, Tooltip, Typography, useTheme } from "@mui/material";
 import DOMPurify from "dompurify";
 import React, { useCallback, useState } from "react";
 
-import { getDivider, getPrimaryMain, getTextSecondary, FS_PANEL_HEADER_FONT_SIZE, FS_TOOLBAR_HEIGHT, MENU_ITEM_FONT_SIZE, MATH_SAMPLES, useEditorFeaturesContext, useEditorSettingsContext, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
+import { getDivider, getErrorMain, getPrimaryMain, getTextSecondary, FS_PANEL_HEADER_FONT_SIZE, MENU_ITEM_FONT_SIZE, MATH_SAMPLES, useEditorFeaturesContext, useEditorSettingsContext, useIsDark, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
+import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
+import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
+import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
+import { FunctionsIcon, ShowChartIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
+import styles from "./MathEditDialog.module.css";
+import panels from "./dialogPanels.module.css";
 import type { TextareaSearchState } from "@anytime-markdown/markdown-viewer";
 import { MATH_SANITIZE_CONFIG, useKatexRender } from "../hooks/useKatexRender";
 import { useZoomPan } from "../hooks/useZoomPan";
@@ -42,8 +45,7 @@ export function MathEditDialog({
   readOnly, isCompareMode, compareCode, onMergeApply, thisCode, toolbarExtra,
   onApply, dirty, t,
 }: Readonly<MathEditDialogProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
   const { hideGraph } = useEditorFeaturesContext();
   const [graphEnabled, setGraphEnabled] = useState(false);
@@ -63,7 +65,7 @@ export function MathEditDialog({
 
   return (
     <EditDialogWrapper open={open} onClose={onClose} ariaLabelledBy="math-edit-title">
-      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<FunctionsIcon sx={{ fontSize: 18 }} />} onApply={onApply} dirty={dirty} t={t} />
+      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<FunctionsIcon fontSize={18} />} onApply={onApply} dirty={dirty} t={t} />
 
       {/* Compare view */}
       {showCompareView ? (
@@ -80,12 +82,12 @@ export function MathEditDialog({
           left={
             <>
               {/* Code toolbar */}
-              <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark), px: 1, py: 0.25, minHeight: FS_TOOLBAR_HEIGHT }}>
-                <Typography variant="caption" sx={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}>
+              <div className={panels.codeHeader} style={{ borderBottomColor: getDivider(isDark) }}>
+                <Text variant="caption" className={panels.panelHeaderText} style={{ fontSize: FS_PANEL_HEADER_FONT_SIZE }}>
                   {t("codeTab")}
-                </Typography>
+                </Text>
                 {toolbarExtra}
-              </Box>
+              </div>
               <LineNumberTextarea
                 textareaRef={fsTextareaRef}
                 value={fsCode}
@@ -99,46 +101,46 @@ export function MathEditDialog({
             </>
           }
           right={
-            <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <Box sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-                <Box sx={{ flex: 1 }}>
+            <div className={styles.rightCol}>
+              <div className={styles.toolbarRow}>
+                <div className={styles.flex1}>
                   <ZoomToolbar fsZP={fsZP} t={t} />
-                </Box>
+                </div>
                 {!hideGraph && (
                 <Tooltip title={graphEnabled ? t("hideGraph") : t("showGraph")} placement="bottom">
                   <IconButton
-                    size="small"
-                    sx={{ p: 0.25, mr: 1 }}
+                    size="xs"
+                    style={{ marginRight: 8 }}
                     onClick={() => setGraphEnabled(prev => !prev)}
                     aria-label={graphEnabled ? t("hideGraph") : t("showGraph")}
                   >
-                    <ShowChartIcon sx={{ fontSize: 16, color: graphEnabled ? getPrimaryMain(isDark) : getTextSecondary(isDark) }} />
+                    <ShowChartIcon fontSize={16} color={graphEnabled ? getPrimaryMain(isDark) : getTextSecondary(isDark)} />
                   </IconButton>
                 </Tooltip>
                 )}
-              </Box>
+              </div>
               {!hideGraph && graphEnabled ? (
-                <Box sx={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
+                <div className={styles.graphPane}>
                   <GraphView code={fsCode} enabled={graphEnabled} isDark={isDark} fill />
-                </Box>
+                </div>
               ) : (
                 <ZoomablePreview fsZP={fsZP}>
                   {mathError && (
-                    <Typography color="error" sx={{ fontFamily: "monospace", fontSize: MENU_ITEM_FONT_SIZE }}>
+                    <Text style={{ color: getErrorMain(isDark), fontFamily: "monospace", fontSize: MENU_ITEM_FONT_SIZE }}>
                       {mathError}
-                    </Typography>
+                    </Text>
                   )}
                   {mathHtml && (
-                    <Box
+                    <div
+                      className={styles.katexBox}
                       role="img"
                       aria-label={`${t("mathFormula")}: ${fsCode}`}
                       dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(mathHtml, MATH_SANITIZE_CONFIG) }}
-                      sx={{ "& .katex": { fontSize: "1.5em" } }}
                     />
                   )}
                 </ZoomablePreview>
               )}
-            </Box>
+            </div>
           }
         />
       )}

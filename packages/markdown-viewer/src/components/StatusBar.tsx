@@ -1,15 +1,20 @@
 "use client";
 
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-import { Box, Button, Menu, MenuItem, Tooltip, Typography } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { FiberManualRecordIcon } from "../ui/icons";
+import { Menu } from "../ui/Menu";
+import { MenuItem } from "../ui/MenuItem";
+import { Tooltip } from "../ui/Tooltip";
+import { Button } from "../ui/Button";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { getBgPaper, getDivider, getTextSecondary, getWarningMain } from "../constants/colors";
 import { STATUSBAR_FONT_SIZE } from "../constants/dimensions";
 import useConfirm from "../hooks/useConfirm";
 import type { EncodingLabel, TranslationFn } from "../types";
+import { Text } from "../ui/Text";
+import styles from "./StatusBar.module.css";
 
 export interface StatusInfo {
   line: number;
@@ -35,7 +40,7 @@ interface StatusBarProps {
 }
 
 export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sourceText, t, fileName, isDirty, onLineEndingChange, encoding, onEncodingChange, onStatusChange, hidden }: StatusBarProps) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const confirm = useConfirm();
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
@@ -100,36 +105,67 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
   if (hidden) return null;
 
   return (
-    <Box id="md-editor-statusbar" role="region" aria-label={t("statusBar")} sx={{ display: "flex", alignItems: "center", gap: 2, px: 1.5, height: 33, minHeight: 33, maxHeight: 33, borderTop: 1, borderColor: getDivider(isDark), overflow: "hidden", flexShrink: 0, position: "fixed", bottom: 0, left: 0, right: 0, bgcolor: getBgPaper(isDark), zIndex: 1 }} contentEditable={false}>
-      <Box aria-live="polite" aria-atomic="true" sx={{ display: "contents" }}>
-        <Typography variant="body2" sx={{ color: getTextSecondary(isDark) }}>
+    <div
+      id="md-editor-statusbar"
+      role="region"
+      aria-label={t("statusBar")}
+      contentEditable={false}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        paddingLeft: 12,
+        paddingRight: 12,
+        height: 33,
+        minHeight: 33,
+        maxHeight: 33,
+        borderTop: `1px solid ${getDivider(isDark)}`,
+        overflow: "hidden",
+        flexShrink: 0,
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: getBgPaper(isDark),
+        zIndex: 1,
+      }}
+    >
+      <div aria-live="polite" aria-atomic="true" style={{ display: "contents" }}>
+        <Text variant="body2" style={{ color: getTextSecondary(isDark) }}>
           {t("cursorLine")} {displayLine} {t("cursorCol")} {displayCol}
-        </Typography>
-        <Typography variant="body2" sx={{ color: getTextSecondary(isDark) }}>
+        </Text>
+        <Text variant="body2" style={{ color: getTextSecondary(isDark) }}>
           {charCount.toLocaleString()} {t("chars")}
-        </Typography>
-        <Typography variant="body2" sx={{ color: getTextSecondary(isDark) }}>
+        </Text>
+        <Text variant="body2" style={{ color: getTextSecondary(isDark) }}>
           {lineCount.toLocaleString()} {t("lines")}
-        </Typography>
-      </Box>
+        </Text>
+      </div>
       {fileName && (
-        <Typography variant="body2" sx={{ ml: 1, color: getTextSecondary(isDark), display: { xs: "none", sm: "flex" }, alignItems: "center" }} aria-label={isDirty ? `${fileName} (${t("unsavedChanges")})` : fileName}>
+        <Text
+          variant="body2"
+          component="span"
+          className={styles.smFlex}
+          style={{ marginLeft: 8, color: getTextSecondary(isDark) }}
+          aria-label={isDirty ? `${fileName} (${t("unsavedChanges")})` : fileName}
+        >
           {fileName}
           {isDirty && (
             <Tooltip title={t("unsavedChanges")}>
-              <FiberManualRecordIcon sx={{ fontSize: 8, color: getWarningMain(isDark), ml: 0.5 }} />
+              <FiberManualRecordIcon fontSize={8} color={getWarningMain(isDark)} style={{ marginLeft: 4 }} />
             </Tooltip>
           )}
-        </Typography>
+        </Text>
       )}
-      <Box sx={{ flex: 1 }} />
-      <Box sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center", gap: 2 }}>
+      <div style={{ flex: 1 }} />
+      <div className={styles.smFlex} style={{ gap: 16 }}>
         {onLineEndingChange ? (
           <>
             <Button
               size="small"
               onClick={(e) => setLineEndingAnchor(e.currentTarget)}
-              sx={{ color: getTextSecondary(isDark), textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: STATUSBAR_FONT_SIZE, lineHeight: 1.43 }}
+              className={styles.statusBtn}
+              style={{ color: getTextSecondary(isDark), fontSize: STATUSBAR_FONT_SIZE }}
             >
               {lineEnding}
             </Button>
@@ -153,16 +189,17 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
             </Menu>
           </>
         ) : (
-          <Typography variant="body2" sx={{ color: getTextSecondary(isDark) }}>
+          <Text variant="body2" style={{ color: getTextSecondary(isDark) }}>
             {lineEnding}
-          </Typography>
+          </Text>
         )}
         {onEncodingChange ? (
           <>
             <Button
               size="small"
               onClick={(e) => setEncodingAnchor(e.currentTarget)}
-              sx={{ color: getTextSecondary(isDark), textTransform: "none", minWidth: 0, px: 0.5, py: 0, fontSize: STATUSBAR_FONT_SIZE, lineHeight: 1.43 }}
+              className={styles.statusBtn}
+              style={{ color: getTextSecondary(isDark), fontSize: STATUSBAR_FONT_SIZE }}
             >
               {encoding ?? "UTF-8"}
             </Button>
@@ -193,11 +230,11 @@ export const StatusBar = React.memo(function StatusBar({ editor, sourceMode, sou
             </Menu>
           </>
         ) : (
-          <Typography variant="body2" sx={{ color: getTextSecondary(isDark) }}>
+          <Text variant="body2" style={{ color: getTextSecondary(isDark) }}>
             {encoding ?? "UTF-8"}
-          </Typography>
+          </Text>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 });

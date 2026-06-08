@@ -1,13 +1,13 @@
 "use client";
 
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
-import { Box, IconButton, Tooltip } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { KeyboardArrowDownIcon, KeyboardArrowUpIcon } from "../ui/icons";
+import { IconButton } from "../ui/IconButton";
+import { Tooltip } from "../ui/Tooltip";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useRef } from "react";
 
 import { useMarkdownMinimap } from "../hooks/useMarkdownMinimap";
+import { useIsDark } from "../contexts/ThemeModeContext";
 
 const BAR_WIDTH = 16;
 const BTN_SIZE = 20;
@@ -21,8 +21,7 @@ export function MarkdownMinimap({
   editor,
   editorHeight,
 }: Readonly<MarkdownMinimapProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const barRef = useRef<HTMLDivElement | null>(null);
 
   const { markerRatios, hasChanges, handleBarClick, goToNext, goToPrev } =
@@ -45,8 +44,8 @@ export function MarkdownMinimap({
   const markerMinHeight = Math.max(3, barHeight * 0.03);
 
   return (
-    <Box
-      sx={{
+    <div
+      style={{
         width: BAR_WIDTH,
         height: editorHeight,
         flexShrink: 0,
@@ -64,42 +63,42 @@ export function MarkdownMinimap({
             disabled={!hasChanges}
             onClick={goToPrev}
             aria-label="前の変更へ"
-            sx={{ width: BTN_SIZE, height: BTN_SIZE, p: 0 }}
+            style={{ width: BTN_SIZE, height: BTN_SIZE, padding: 0 }}
           >
-            <KeyboardArrowUpIcon sx={{ fontSize: 14 }} />
+            <KeyboardArrowUpIcon fontSize={14} />
           </IconButton>
         </span>
       </Tooltip>
 
-      <Box
+      <div
         ref={barRef}
         onClick={handleClick}
-        sx={{
+        style={{
           flex: 1,
           width: "100%",
           position: "relative",
           cursor: "pointer",
-          bgcolor: barBg,
-          borderLeft: `1px solid ${theme.palette.divider}`,
+          backgroundColor: barBg,
+          borderLeft: `1px solid var(--am-color-divider)`,
           overflow: "hidden",
         }}
       >
         {markerRatios.map((ratio) => (
-          <Box
+          <div
             key={`marker-${ratio}`}
-            sx={{
+            style={{
               position: "absolute",
               left: 0,
               right: 0,
               top: `${ratio * 100}%`,
               height: markerMinHeight,
-              bgcolor: markerColor,
+              backgroundColor: markerColor,
               borderRadius: "1px",
               pointerEvents: "none",
             }}
           />
         ))}
-      </Box>
+      </div>
 
       <Tooltip title="次の変更へ" placement="left">
         <span>
@@ -108,12 +107,12 @@ export function MarkdownMinimap({
             disabled={!hasChanges}
             onClick={goToNext}
             aria-label="次の変更へ"
-            sx={{ width: BTN_SIZE, height: BTN_SIZE, p: 0 }}
+            style={{ width: BTN_SIZE, height: BTN_SIZE, padding: 0 }}
           >
-            <KeyboardArrowDownIcon sx={{ fontSize: 14 }} />
+            <KeyboardArrowDownIcon fontSize={14} />
           </IconButton>
         </span>
       </Tooltip>
-    </Box>
+    </div>
   );
 }

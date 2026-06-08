@@ -1,0 +1,86 @@
+/* MUI Switch(size="small") の置換。実測幾何: root 40x24 / track 26x10 inset7 radius7 /
+   switchBase 24x24 top:0 padding4 / thumb 16x16 / checked translateX 16。 */
+.root {
+  display: inline-flex;
+  position: relative;
+  width: 40px;
+  height: 24px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.track {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  width: 26px;
+  height: 10px;
+  border-radius: 7px;
+  background-color: var(--am-color-switch-track-off);
+  opacity: var(--am-switch-track-opacity-off);
+  transition:
+    opacity var(--am-duration-fast) var(--am-ease-standard),
+    background-color var(--am-duration-fast) var(--am-ease-standard);
+}
+
+.switchBase {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 4px;
+  z-index: 1;
+  color: var(--am-color-switch-thumb-off);
+  transition: transform var(--am-duration-fast) var(--am-ease-standard);
+}
+
+.checked {
+  transform: translateX(16px);
+  color: var(--am-color-primary-main);
+}
+
+/* on 状態の track（switchBase の後続 sibling）。 */
+.checked ~ .track {
+  background-color: var(--am-color-primary-main);
+  opacity: 0.5;
+}
+
+.thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: currentColor;
+  /* MUI elevation 1。 */
+  box-shadow:
+    0 2px 1px -1px rgba(0, 0, 0, 0.2),
+    0 1px 1px 0 rgba(0, 0, 0, 0.14),
+    0 1px 3px 0 rgba(0, 0, 0, 0.12);
+}
+
+/* キーボードフォーカス時の halo（MUI Mui-focusVisible 相当）。input は opacity:0 で
+   ネイティブリングが見えないため switchBase に円形背景を出す。resting では無表示＝VR 不変。 */
+.root:has(.input:focus-visible) .switchBase {
+  border-radius: 50%;
+  background-color: var(--am-color-action-hover);
+}
+
+/* root 全体を覆う透明チェックボックス（クリックターゲット）。 */
+.input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track,
+  .switchBase {
+    transition: none;
+  }
+}

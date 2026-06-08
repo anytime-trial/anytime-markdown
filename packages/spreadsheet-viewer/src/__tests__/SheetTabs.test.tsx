@@ -1,18 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { SpreadsheetI18nProvider } from "../i18n/context";
 import { SheetTabs } from "../SheetTabs";
 
-const theme = createTheme({ palette: { mode: "light" } });
-
 function wrap(ui: React.ReactElement) {
-  return render(
-    <SpreadsheetI18nProvider locale="ja">
-      <ThemeProvider theme={theme}>{ui}</ThemeProvider>
-    </SpreadsheetI18nProvider>,
-  );
+  return render(<SpreadsheetI18nProvider locale="ja">{ui}</SpreadsheetI18nProvider>);
 }
 
 describe("SheetTabs", () => {
@@ -101,7 +94,7 @@ describe("SheetTabs", () => {
       />,
     );
     fireEvent.contextMenu(screen.getByText("Sheet1"));
-    const deleteBtn = screen.getByText("シートを削除");
-    expect(deleteBtn.closest("li")?.getAttribute("aria-disabled")).toBe("true");
+    const deleteItem = screen.getByText("シートを削除").closest('[role="menuitem"]');
+    expect(deleteItem?.getAttribute("aria-disabled")).toBe("true");
   });
 });

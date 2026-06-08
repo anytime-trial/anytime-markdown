@@ -1,26 +1,24 @@
-import {
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
-  MenuList,
-  Paper,
-  Popper,
-  Typography,
-} from "@mui/material";
-import { useTheme } from "@mui/material/styles";
-import type { VirtualElement } from "@popperjs/core";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { getTextSecondary } from "../constants/colors";
 import { SLASH_COMMAND_FONT_SIZE } from "../constants/dimensions";
 import { Z_FULLSCREEN } from "../constants/zIndex";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import {
   filterSlashItems,
   slashCommandItems,
 } from "../extensions/slashCommandItems";
 import type { TranslationFn } from "../types";
+import { ListItemIcon } from "../ui/ListItemIcon";
+import { ListItemText } from "../ui/ListItemText";
+import { MenuItem } from "../ui/MenuItem";
+import { MenuList } from "../ui/MenuList";
+import { Paper } from "../ui/Paper";
+import { Text } from "../ui/Text";
+import { useFloating } from "../ui/useFloating";
 
 interface SlashCommandMenuProps {
   editor: Editor;
@@ -33,7 +31,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
   t,
   slashCommandCallbackRef,
 }: SlashCommandMenuProps) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [active, setActive] = useState(false);
   const [query, setQuery] = useState("");
   const [from, setFrom] = useState(0);
@@ -158,41 +156,43 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
     }
   }, [active, from, editor?.view]);
 
+  // MUI Popper → useFloating（@floating-ui/dom 直叩き）。offset 4 / flip / shift(padding 8)。
+  const { referenceRef, floatingRef, floatingStyle } = useFloating({
+    open: active,
+    placement: "bottom-start",
+    offsetPx: 4,
+  });
+  // useFloating の open エフェクトより前に reference を確定させるため render 中に代入する。
+  // virtualAnchor は getBoundingClientRect を持つ virtual element（ReferenceElement）。
+  referenceRef.current = virtualAnchor;
+
   if (!active || !virtualAnchor) return null;
 
-  return (
-    <Popper
-      open
-      anchorEl={virtualAnchor}
-      placement="bottom-start"
+  return createPortal(
+    <div
+      ref={(node) => { floatingRef.current = node; }}
       role="menu"
       aria-label={t("slashCommandPlaceholder")}
-      style={{ zIndex: Z_FULLSCREEN }}
-      modifiers={[
-        { name: "offset", options: { offset: [0, 4] } },
-        { name: "flip", enabled: true },
-        { name: "preventOverflow", enabled: true, options: { padding: 8 } },
-      ]}
+      style={{ ...floatingStyle, zIndex: Z_FULLSCREEN }}
     >
       <Paper
-        elevation={8}
-        sx={{ maxHeight: 300, overflow: "auto", minWidth: 200, maxWidth: 280 }}
+        style={{ maxHeight: 300, overflow: "auto", minWidth: 200, maxWidth: 280, boxShadow: "var(--am-elevation-3)" }}
       >
         {/* Always render status for screen readers */}
-        <Typography
+        <Text
           role="status"
           aria-live="polite"
           aria-atomic="true"
           variant="body2"
-          sx={filteredItems.length > 0
-            ? { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }
-            : { px: 2, py: 1.5, color: getTextSecondary(isDark), fontSize: SLASH_COMMAND_FONT_SIZE, textAlign: "center" }
+          style={filteredItems.length > 0
+            ? { position: "absolute", width: "100%", height: "100%", overflow: "hidden", clip: "rect(0,0,0,0)" }
+            : { padding: "12px 16px", color: getTextSecondary(isDark), fontSize: SLASH_COMMAND_FONT_SIZE, textAlign: "center" }
           }
         >
           {filteredItems.length > 0
             ? `${filteredItems.length} items`
             : t("slashCommandNoResults")}
-        </Typography>
+        </Text>
         {filteredItems.length > 0 && (
         <MenuList ref={menuListRef} dense>
           {filteredItems.map((item, i) => (
@@ -202,7 +202,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
               selected={i === selectedIndex}
               aria-current={i === selectedIndex || undefined}
               onClick={() => executeCommand(i)}
-              sx={{ fontSize: SLASH_COMMAND_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: SLASH_COMMAND_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText>{t(item.labelKey)}</ListItemText>
@@ -211,6 +211,7 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
         </MenuList>
         )}
       </Paper>
-    </Popper>
+    </div>,
+    document.body,
   );
 });

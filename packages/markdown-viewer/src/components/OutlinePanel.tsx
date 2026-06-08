@@ -1,39 +1,27 @@
 "use client";
 
-import CategoryIcon from "@mui/icons-material/Category";
-import CodeIcon from "@mui/icons-material/Code";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
-import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
-import GridOnIcon from "@mui/icons-material/GridOn";
-import ImageIcon from "@mui/icons-material/Image";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import SchemaIcon from "@mui/icons-material/Schema";
-import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
-import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
-import {
-  Box,
-  ButtonBase,
-  Collapse,
-  IconButton,
-  Paper,
-  Tooltip,
-  Typography,
-  useTheme,
-} from "@mui/material";
+import { CategoryIcon, CodeIcon, DeleteOutlineIcon, FormatListBulletedIcon, FormatListNumberedIcon, GridOnIcon, ImageIcon, KeyboardArrowDownIcon, SchemaIcon, UnfoldLessIcon, UnfoldMoreIcon } from "../ui/icons";
+import { ButtonBase } from "../ui/ButtonBase";
+import { Collapse } from "../ui/Collapse";
+import { IconButton } from "../ui/IconButton";
+import { Tooltip } from "../ui/Tooltip";
 import React, { useCallback, useMemo,useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getActionHover, getDivider, getPrimaryMain, getTextDisabled, getTextPrimary, getTextSecondary } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { OUTLINE_FONT_SIZE, PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
 import MermaidIcon from "../icons/MermaidIcon";
 import type { HeadingItem, OutlineKind, TranslationFn } from "../types";
+import { Paper } from "../ui/Paper";
+import { Text } from "../ui/Text";
+import styles from "./OutlinePanel.module.css";
 
 const blockIcon: Record<Exclude<OutlineKind, "heading">, React.ReactElement> = {
-  codeBlock: <CodeIcon sx={{ fontSize: 14 }} />,
-  table: <GridOnIcon sx={{ fontSize: 14 }} />,
-  image: <ImageIcon sx={{ fontSize: 14 }} />,
-  plantuml: <SchemaIcon sx={{ fontSize: 14 }} />,
-  mermaid: <MermaidIcon sx={{ fontSize: 14 }} />,
+  codeBlock: <CodeIcon fontSize={14} />,
+  table: <GridOnIcon fontSize={14} />,
+  image: <ImageIcon fontSize={14} />,
+  plantuml: <SchemaIcon fontSize={14} />,
+  mermaid: <MermaidIcon fontSize={14} />,
 };
 
 /** Compute left padding for block (non-heading) items based on nearest preceding heading */
@@ -75,13 +63,14 @@ const HeadingFoldButton = React.memo(function HeadingFoldButton({
 }) {
   return (
     <IconButton
-      size="small"
+      size="compact"
       onClick={(e) => { e.stopPropagation(); toggleFold(headingIndex); }}
       aria-expanded={!isFolded}
       aria-label={`${isFolded ? t("expandSection") : t("collapseSection")} ${text || "(empty)"}`}
-      sx={{ p: 0.5, mr: 0.25, color: getTextSecondary(isDark), flexShrink: 0 }}
+      className={styles.foldBtn}
+      style={{ color: getTextSecondary(isDark) }}
     >
-      <KeyboardArrowDownIcon sx={{ fontSize: 16, transition: "transform 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" }, transform: isFolded ? "rotate(-90deg)" : "rotate(0deg)" }} />
+      <KeyboardArrowDownIcon fontSize={16} className={styles.foldIcon} style={{ transform: isFolded ? "rotate(-90deg)" : "rotate(0deg)" }} />
     </IconButton>
   );
 });
@@ -89,9 +78,9 @@ const HeadingFoldButton = React.memo(function HeadingFoldButton({
 /** Block element icon indicator */
 function BlockIconIndicator({ kind, isDark }: Readonly<{ kind: string; isDark: boolean }>) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", mr: 0.5, color: getTextDisabled(isDark), flexShrink: 0 }}>
+    <div style={{ display: "flex", alignItems: "center", marginRight: 4, color: getTextDisabled(isDark), flexShrink: 0 }}>
       {blockIcon[kind as keyof typeof blockIcon]}
-    </Box>
+    </div>
   );
 }
 
@@ -141,21 +130,18 @@ const OutlineItem = React.memo(function OutlineItem({
 }) {
   const dragProps = buildDragProps(isHeading, onHeadingDragEnd, idx, handleDragStart, handleDragOver, handleDrop, handleDragEnd);
   const isDraggable = isHeading && !!onHeadingDragEnd;
+  const plValue = isHeading ? (h.level - 1) * 1.5 * 8 : blockPl * 8;
 
   return (
-    <Box
+    <div
       {...dragProps}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        pl: isHeading ? (h.level - 1) * 1.5 : blockPl,
-        py: 0.25,
-        borderRadius: 0.5,
+      className={styles.outlineItem}
+      style={{
+        paddingLeft: plValue,
+        paddingTop: 2,   /* py:0.25 = 0.25×8px = 2px */
+        paddingBottom: 2,
         opacity: isDragging ? 0.4 : 1,
         borderTop: isDropTarget ? `2px solid ${getPrimaryMain(isDark)}` : "2px solid transparent",
-        "&:hover": { bgcolor: getActionHover(isDark) },
-        "& .outline-move-btns": { opacity: 0 },
-        "&:hover .outline-move-btns, & .outline-move-btns:focus-within": { opacity: 1 },
         cursor: isDraggable ? "grab" : undefined,
       }}
     >
@@ -169,31 +155,28 @@ const OutlineItem = React.memo(function OutlineItem({
         onClick={() => handleOutlineClick(h.pos)}
         {...(isDraggable ? { "aria-roledescription": t("draggableHeading") } : {})}
         onKeyDown={(e: React.KeyboardEvent) => handleHeadingKeyDown(e, isHeading, onHeadingDragEnd, hoIdx, headingOnlyIndices)}
-        sx={{
-          cursor: "pointer", fontSize: OUTLINE_FONT_SIZE, fontWeight: 400,
+        className={styles.headingButton}
+        style={{
+          fontSize: OUTLINE_FONT_SIZE,
           color: isFolded ? getTextDisabled(isDark) : getTextPrimary(isDark),
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          flex: 1, minWidth: 0, borderRadius: 0.5, justifyContent: "flex-start",
-          "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), outlineOffset: 1 },
         }}
       >
         {h.text || "(empty)"}
       </ButtonBase>
-      <Box className="outline-move-btns" sx={{ display: "flex", flexShrink: 0, transition: "opacity 0.15s", "@media (prefers-reduced-motion: reduce)": { transition: "none" } }}>
+      <div className={styles.outlineMoveBtns}>
         {onOutlineDelete && (
           <Tooltip title={t("delete")} placement="top">
             <IconButton
-              size="small"
+              size="compact"
               onClick={(e) => { e.stopPropagation(); onOutlineDelete(h.pos, h.kind); }}
               aria-label={`${t("delete")} ${h.text || ""}`}
-              sx={{ p: 0.5 }}
             >
-              <DeleteOutlineIcon sx={{ fontSize: 14 }} />
+              <DeleteOutlineIcon fontSize={14} />
             </IconButton>
           </Tooltip>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 });
 
@@ -234,7 +217,7 @@ const OutlineItemList = React.memo(function OutlineItemList({
         const isDropTarget = isHeading && hoIdx === dropIdx && hoIdx !== dragIdx;
         const blockPl = isHeading ? 0 : computeBlockPadding(idx, headings);
         return (
-          <Collapse key={`${h.pos}-${idx}`} in={!isHidden} unmountOnExit timeout={150} sx={{ "@media (prefers-reduced-motion: reduce)": { transition: "none !important" } }}>
+          <Collapse key={`${h.pos}-${idx}`} in={!isHidden} unmountOnExit timeout={150}>
             <OutlineItem
               h={h} idx={idx} isHeading={isHeading} isFolded={isFolded}
               hoIdx={hoIdx} isDragging={isDragging} isDropTarget={isDropTarget}
@@ -249,11 +232,11 @@ const OutlineItemList = React.memo(function OutlineItemList({
         );
       })}
       {/* 末尾ドロップゾーン */}
-      <Box
+      <div
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
         onDragLeave={() => { /* handled by parent */ }}
         onDrop={(e) => handleDrop(e, -1)}
-        sx={{
+        style={{
           height: 16,
           borderTop: dropIdx === -1 && dragIdx !== null ? `2px solid ${getPrimaryMain(isDark)}` : "2px solid transparent",
         }}
@@ -301,8 +284,7 @@ export function OutlinePanel({
   onRemoveSectionNumbers,
   t,
 }: Readonly<OutlinePanelProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const [showBlocks, setShowBlocks] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
@@ -313,9 +295,18 @@ export function OutlinePanel({
     [headings]
   );
 
+  // arrIdx → headingOnly idx の O(1) 逆引きマップ。
+  // toHeadingOnlyIdx はレンダリングの headings.map 内で N 回呼ばれるため、
+  // 配列 indexOf(O(M)) だと O(N×M) になる。Map で O(1) にする。
+  const headingOnlyIndexMap = useMemo(() => {
+    const map = new Map<number, number>();
+    headingOnlyIndices.forEach((arrIdx, hoIdx) => map.set(arrIdx, hoIdx));
+    return map;
+  }, [headingOnlyIndices]);
+
   const toHeadingOnlyIdx = useCallback(
-    (arrIdx: number) => headingOnlyIndices.indexOf(arrIdx),
-    [headingOnlyIndices]
+    (arrIdx: number) => headingOnlyIndexMap.get(arrIdx) ?? -1,
+    [headingOnlyIndexMap]
   );
 
 
@@ -368,7 +359,7 @@ export function OutlinePanel({
         variant="outlined"
         role="navigation"
         aria-label={t("outlineNavigation")}
-        sx={{
+        style={{
           width: outlineWidth,
           minWidth: outlineWidth,
           maxWidth: outlineWidth,
@@ -378,32 +369,31 @@ export function OutlinePanel({
           borderRight: "none",
           overflow: "auto",
           maxHeight: editorHeight,
-          bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+          backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
         }}
       >
-        <Box>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, minHeight: PANEL_HEADER_MIN_HEIGHT, borderBottom: 1, borderColor: getDivider(isDark) }}>
-            <Typography
+        <div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 8, paddingRight: 8, minHeight: PANEL_HEADER_MIN_HEIGHT, borderBottom: `1px solid ${getDivider(isDark)}` }}>
+            <Text
               id="outline-panel-title"
               variant="subtitle2"
               component="h2"
-              sx={{
+              style={{
                 fontWeight: 700,
                 flex: 1,
               }}
             >
               {t("outline")}
-            </Typography>
-            <Box sx={{ display: "flex", gap: 0.25 }}>
+            </Text>
+            <div style={{ display: "flex", gap: 2 }}>
               {onInsertSectionNumbers && (
                 <Tooltip title={t("insertSectionNumbers")}>
                   <IconButton
                     aria-label={t("insertSectionNumbers")}
-                    size="small"
+                    size="compact"
                     onClick={onInsertSectionNumbers}
-                    sx={{ p: 0.5 }}
                   >
-                    <FormatListNumberedIcon sx={{ fontSize: 16 }} />
+                    <FormatListNumberedIcon fontSize={16} />
                   </IconButton>
                 </Tooltip>
               )}
@@ -411,11 +401,10 @@ export function OutlinePanel({
                 <Tooltip title={t("removeSectionNumbers")}>
                   <IconButton
                     aria-label={t("removeSectionNumbers")}
-                    size="small"
+                    size="compact"
                     onClick={onRemoveSectionNumbers}
-                    sx={{ p: 0.5 }}
                   >
-                    <FormatListBulletedIcon sx={{ fontSize: 16 }} />
+                    <FormatListBulletedIcon fontSize={16} />
                   </IconButton>
                 </Tooltip>
               )}
@@ -423,32 +412,31 @@ export function OutlinePanel({
                 <IconButton
                   aria-label={t("outlineShowBlocks")}
                   aria-pressed={showBlocks}
-                  size="small"
+                  size="compact"
                   onClick={() => setShowBlocks((v) => !v)}
-                  sx={{ p: 0.5, color: showBlocks ? getPrimaryMain(isDark) : getTextSecondary(isDark) }}
+                  style={{ color: showBlocks ? getPrimaryMain(isDark) : getTextSecondary(isDark) }}
                 >
-                  <CategoryIcon sx={{ fontSize: 16 }} />
+                  <CategoryIcon fontSize={16} />
                 </IconButton>
               </Tooltip>
               {headingOnlyIndices.length > 0 && (
                 <Tooltip title={foldedIndices.size > 0 ? t("unfoldAll") : t("foldAll")}>
                   <IconButton
                     aria-label={foldedIndices.size > 0 ? t("unfoldAll") : t("foldAll")}
-                    size="small"
+                    size="compact"
                     onClick={foldedIndices.size > 0 ? unfoldAll : foldAll}
-                    sx={{ p: 0.5 }}
                   >
-                    {foldedIndices.size > 0 ? <UnfoldMoreIcon sx={{ fontSize: 16 }} /> : <UnfoldLessIcon sx={{ fontSize: 16 }} />}
+                    {foldedIndices.size > 0 ? <UnfoldMoreIcon fontSize={16} /> : <UnfoldLessIcon fontSize={16} />}
                   </IconButton>
                 </Tooltip>
               )}
-            </Box>
-          </Box>
-          <Box sx={{ p: 1 }}>
+            </div>
+          </div>
+          <div style={{ padding: 8 }}>
           {headings.length === 0 ? (
-            <Typography variant="body2" sx={{ color: getTextDisabled(isDark), fontSize: OUTLINE_FONT_SIZE }}>
+            <Text variant="body2" style={{ color: getTextDisabled(isDark), fontSize: OUTLINE_FONT_SIZE }}>
               {t("noHeadings")}
-            </Typography>
+            </Text>
           ) : (
             <OutlineItemList
               headings={headings} foldedIndices={foldedIndices} hiddenByFold={hiddenByFold}
@@ -460,11 +448,11 @@ export function OutlinePanel({
               dragIdx={dragIdx} dropIdx={dropIdx} t={t}
             />
           )}
-          </Box>
-        </Box>
+          </div>
+        </div>
       </Paper>
       {/* Resize handle */}
-      {!hideResize && <Box
+      {!hideResize && <div
         role="separator"
         tabIndex={0}
         aria-orientation="vertical"
@@ -477,23 +465,7 @@ export function OutlinePanel({
           if (e.key === "ArrowRight") { e.preventDefault(); setOutlineWidth((w) => Math.min(500, w + 20)); }
           if (e.key === "ArrowLeft") { e.preventDefault(); setOutlineWidth((w) => Math.max(150, w - 20)); }
         }}
-        sx={{
-          width: 6,
-          cursor: "col-resize",
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          "&:hover": { bgcolor: getActionHover(isDark) },
-          "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark) },
-          "&::after": {
-            content: '""',
-            width: 2,
-            height: 32,
-            borderRadius: 1,
-            bgcolor: getDivider(isDark),
-          },
-        }}
+        className={styles.resizeHandle}
       />}
     </>
   );

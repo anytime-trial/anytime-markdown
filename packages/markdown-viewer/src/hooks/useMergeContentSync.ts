@@ -5,6 +5,8 @@ import { useEffect, useRef } from "react";
 
 import { reviewModeStorage } from "../extensions/reviewModeExtension";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
+import { prependFrontmatter } from "../utils/frontmatterHelpers";
+import { getMarkdownFromEditor } from "../utils/markdownSerializer";
 
 interface UseMergeContentSyncParams {
   sourceMode: boolean;
@@ -17,6 +19,17 @@ interface UseMergeContentSyncParams {
 }
 
 const SYNC_TARGET_TYPES = new Set(["codeBlock", "table", "image"]);
+
+/**
+ * 比較（左）テキストを比較用エディタで Tiptap 往復し、編集（右）側と同一の
+ * 正規化レベルに揃える。ソースモードでは左パネルが生テキスト表示のため、
+ * これを通さないと computeDiff が「見た目は同一なのに modified」と判定する
+ * 偽差分（phantom diff）を出す。冪等: 正規化済みを再度通しても結果は変わらない。
+ */
+export function normalizeCompareMarkdown(editor: Editor, raw: string): string {
+  const { frontmatter } = applyMarkdownToEditor(editor, raw);
+  return prependFrontmatter(getMarkdownFromEditor(editor), frontmatter);
+}
 
 interface CollapsedState {
   type: string;
@@ -85,7 +98,7 @@ export function useMergeContentSync({
   editorContent,
   compareText,
   setEditText,
-  setCompareText: _setCompareText,
+  setCompareText,
 }: Readonly<UseMergeContentSyncParams>): void {
   // ReviewMode 有効化
   useEffect(() => {
@@ -98,6 +111,21 @@ export function useMergeContentSync({
   useEffect(() => {
     setEditText(editorContent);
   }, [editorContent, setEditText]);
+
+  // ソースモード: 比較（左）テキストも Tiptap 往復で正規化し、編集（右）側と
+  // 同一正規化レベルで diff を取る（偽差分防止）。左パネルが生テキスト表示の
+  // ソースモード専用。WYSIWYG は doc ベース diff のため下の effect 側で対応。
+  useEffect(() => {
+    if (!leftEditor || !sourceMode || compareText === "") return;
+    const id = requestAnimationFrame(() => {
+      if (leftEditor.isDestroyed) return;
+      reviewModeStorage(leftEditor).enabled = false;
+      const normalized = normalizeCompareMarkdown(leftEditor, compareText);
+      reviewModeStorage(leftEditor).enabled = true;
+      if (normalized !== compareText) setCompareText(normalized);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [compareText, leftEditor, sourceMode, setCompareText]);
 
   // compareText -> right tiptap editor sync
   useEffect(() => {

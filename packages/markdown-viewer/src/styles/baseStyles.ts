@@ -1,5 +1,3 @@
-import type { SxProps,Theme } from "@mui/material/styles";
-
 import { getTextDisabled } from "../constants/colors";
 
 /** ブロックラベル(H1/H2/.../P/Quote/UL/OL/Task)の ::before セレクタ群。
@@ -9,10 +7,9 @@ export const HOVER_LABEL_SELECTORS =
 
 /** readonly/レビューモード制御・プレースホルダー・基本設定スタイル */
 export function getBaseStyles(
-  theme: Theme,
+  isDark: boolean,
   options?: { readonlyMode?: boolean },
-): SxProps<Theme> {
-  const isDark = theme.palette.mode === "dark";
+): Record<string, unknown> {
   return {
     // readonly/レビューモード時はホバーラベルを非表示
     '&[contenteditable="false"], &[data-review-mode="true"], &[data-readonly-mode="true"]': {

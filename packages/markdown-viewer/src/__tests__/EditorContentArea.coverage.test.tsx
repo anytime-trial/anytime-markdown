@@ -7,7 +7,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 let resizeObserverCallback: ((entries: any[]) => void) | null = null;
 global.ResizeObserver = jest.fn().mockImplementation((cb: any) => {
@@ -58,6 +57,7 @@ jest.mock("../styles/editorStyles", () => ({
 }));
 
 jest.mock("../constants/colors", () => ({
+  ...jest.requireActual("../constants/colors"),
   getBgPaper: () => "#fff",
   getDivider: () => "#ccc",
   getTextSecondary: () => "#666",
@@ -99,7 +99,6 @@ jest.mock("../components/SourceSearchBar", () => ({
 
 import { EditorContentArea } from "../components/EditorContentArea";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 function createDefaultProps(overrides?: Partial<React.ComponentProps<typeof EditorContentArea>>) {
@@ -141,9 +140,7 @@ describe("EditorContentArea - coverage", () => {
   // --- ResizeObserver for frontmatter (lines 65-66) ---
   test("ResizeObserver updates frontmatter height using borderBoxSize", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <EditorContentArea {...createDefaultProps({ frontmatterText: "---\ntitle: test\n---" })} />
-      </ThemeProvider>,
+        <EditorContentArea {...createDefaultProps({ frontmatterText: "---\ntitle: test\n---" })} />,
     );
 
     // Trigger ResizeObserver callback
@@ -158,9 +155,7 @@ describe("EditorContentArea - coverage", () => {
 
   test("ResizeObserver falls back to contentRect when borderBoxSize missing", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <EditorContentArea {...createDefaultProps({ frontmatterText: "---\ntitle: test\n---" })} />
-      </ThemeProvider>,
+        <EditorContentArea {...createDefaultProps({ frontmatterText: "---\ntitle: test\n---" })} />,
     );
 
     act(() => {
@@ -179,7 +174,7 @@ describe("EditorContentArea - coverage", () => {
     mockEditorMode.sourceMode = true;
 
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorContentArea
           {...createDefaultProps({
             setSourceSearchOpen,
@@ -189,7 +184,7 @@ describe("EditorContentArea - coverage", () => {
             } as any,
           })}
         />
-      </ThemeProvider>,
+        </>,
     );
 
     // Find the source mode wrapper and fire Ctrl+F
@@ -213,13 +208,13 @@ describe("EditorContentArea - coverage", () => {
     mockEditorMode.sourceMode = true;
 
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorContentArea
           {...createDefaultProps({
             setSourceSearchOpen,
           })}
         />
-      </ThemeProvider>,
+        </>,
     );
 
     const wrapper = screen.getByTestId("source-mode-editor").parentElement!;
@@ -236,7 +231,7 @@ describe("EditorContentArea - coverage", () => {
     mockEditorMode.sourceMode = true;
 
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorContentArea
           {...createDefaultProps({
             sourceSearchOpen: true,
@@ -247,7 +242,7 @@ describe("EditorContentArea - coverage", () => {
             } as any,
           })}
         />
-      </ThemeProvider>,
+        </>,
     );
 
     const wrapper = screen.getByTestId("source-search-bar").parentElement!;
@@ -264,7 +259,7 @@ describe("EditorContentArea - coverage", () => {
     mockEditorMode.sourceMode = true;
 
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorContentArea
           {...createDefaultProps({
             sourceSearchOpen: true,
@@ -275,7 +270,7 @@ describe("EditorContentArea - coverage", () => {
             } as any,
           })}
         />
-      </ThemeProvider>,
+        </>,
     );
 
     // Call the onClose prop captured from SourceSearchBar
@@ -298,13 +293,13 @@ describe("EditorContentArea - coverage", () => {
     } as any;
 
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorContentArea
           {...createDefaultProps({
             editor: mockEditor,
           })}
         />
-      </ThemeProvider>,
+        </>,
     );
 
     const wrapper = screen.getByTestId("frontmatter-block").parentElement!;
@@ -323,13 +318,13 @@ describe("EditorContentArea - coverage", () => {
     } as any;
 
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorContentArea
           {...createDefaultProps({
             editor: mockEditor,
           })}
         />
-      </ThemeProvider>,
+        </>,
     );
 
     const wrapper = screen.getByTestId("frontmatter-block").parentElement!;
@@ -343,7 +338,7 @@ describe("EditorContentArea - coverage", () => {
     mockEditorMode.sourceMode = true;
     const matches = [{ start: 0, end: 5 }];
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorContentArea
           {...createDefaultProps({
             sourceSearchOpen: true,
@@ -354,7 +349,7 @@ describe("EditorContentArea - coverage", () => {
             } as any,
           })}
         />
-      </ThemeProvider>,
+        </>,
     );
 
     expect(capturedSourceProps.searchMatches).toBe(matches);
@@ -364,13 +359,13 @@ describe("EditorContentArea - coverage", () => {
   test("source search matches are undefined when search is closed", () => {
     mockEditorMode.sourceMode = true;
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorContentArea
           {...createDefaultProps({
             sourceSearchOpen: false,
           })}
         />
-      </ThemeProvider>,
+        </>,
     );
 
     expect(capturedSourceProps.searchMatches).toBeUndefined();

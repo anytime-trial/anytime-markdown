@@ -1,9 +1,18 @@
 'use client';
 
-import AddIcon from '@mui/icons-material/Add';
-import CloseIcon from '@mui/icons-material/Close';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { Box, Button, Chip,Divider, IconButton, Slider, TextField, Typography } from '@mui/material';
+import {
+  AddIcon,
+  Box,
+  Button,
+  Chip,
+  CloseIcon,
+  DeleteIcon,
+  Divider,
+  IconButton,
+  Slider,
+  Text,
+  TextField,
+} from '../ui';
 import { useCallback,useState } from 'react';
 
 import type { NodeFilterConfig, RangeFilter, TextFilter } from '../types/nodeFilter';
@@ -81,15 +90,15 @@ export function FilterPanel({
   const textKeys = availableKeys.filter(k => !keyRanges.has(k));
 
   return (
-    <Box sx={{
+    <Box className="gv-scroll" style={{
       position: 'absolute', left: 0, top: 0, bottom: 0, width: 280,
-      bgcolor: 'background.paper', borderRight: 1, borderColor: 'divider',
+      backgroundColor: 'var(--gv-color-bg-paper)', borderRight: '1px solid var(--gv-color-divider)',
       overflowY: 'auto', zIndex: 10, display: 'flex', flexDirection: 'column',
     }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5, gap: 1 }}>
-        <Typography variant="subtitle2" sx={{ flex: 1, fontWeight: 600 }}>
+      <Box style={{ display: 'flex', alignItems: 'center', padding: 12, gap: 8 }}>
+        <Text variant="subtitle2" style={{ flex: 1, fontWeight: 600 }}>
           Filter
-        </Typography>
+        </Text>
         <IconButton size="small" onClick={onClose} aria-label="Close filter panel">
           <CloseIcon fontSize="small" />
         </IconButton>
@@ -98,17 +107,17 @@ export function FilterPanel({
       <Divider />
 
       {/* 数値範囲フィルタ */}
-      <Box sx={{ p: 1.5 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+      <Box style={{ padding: 12 }}>
+        <Text variant="caption" color="text.secondary" style={{ marginBottom: 4, display: 'block' }}>
           Range Filters
-        </Typography>
+        </Text>
         {config.rangeFilters.map((rf, i) => {
           const range = keyRanges.get(rf.key);
           const min = range?.[0] ?? 0;
           const max = range?.[1] ?? 100;
           return (
-            <Box key={`${rf.key}-${i}`} sx={{ mb: 1.5 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box key={`${rf.key}-${i}`} style={{ marginBottom: 12 }}>
+              <Box style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Chip label={rf.key} size="small" />
                 <IconButton size="small" onClick={() => removeRangeFilter(i)}>
                   <DeleteIcon fontSize="small" />
@@ -122,22 +131,20 @@ export function FilterPanel({
                   const [lo, hi] = value as number[];
                   updateRangeFilter(i, { min: lo, max: hi });
                 }}
-                valueLabelDisplay="auto"
                 size="small"
-                sx={{ mt: 0.5 }}
+                style={{ marginTop: 4 }}
               />
             </Box>
           );
         })}
         {numericKeys.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Box style={{ display: 'flex', gap: 4 }}>
             <TextField
               select
               size="small"
               value={newRangeKey}
               onChange={e => setNewRangeKey(e.target.value)}
-              SelectProps={{ native: true }}
-              sx={{ flex: 1 }}
+              fullWidth
             >
               <option value="">Select key</option>
               {numericKeys
@@ -154,19 +161,19 @@ export function FilterPanel({
       <Divider />
 
       {/* テキストフィルタ */}
-      <Box sx={{ p: 1.5 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+      <Box style={{ padding: 12 }}>
+        <Text variant="caption" color="text.secondary" style={{ marginBottom: 4, display: 'block' }}>
           Text Filters
-        </Typography>
+        </Text>
         {config.textFilters.map((tf, i) => (
-          <Box key={`${tf.key}-${i}`} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+          <Box key={`${tf.key}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
             <Chip label={tf.key} size="small" />
             <TextField
               size="small"
               value={tf.value}
               onChange={e => updateTextFilter(i, e.target.value)}
               placeholder="Search..."
-              sx={{ flex: 1 }}
+              fullWidth
             />
             <IconButton size="small" onClick={() => removeTextFilter(i)}>
               <DeleteIcon fontSize="small" />
@@ -174,14 +181,13 @@ export function FilterPanel({
           </Box>
         ))}
         {textKeys.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Box style={{ display: 'flex', gap: 4 }}>
             <TextField
               select
               size="small"
               value={newTextKey}
               onChange={e => setNewTextKey(e.target.value)}
-              SelectProps={{ native: true }}
-              sx={{ flex: 1 }}
+              fullWidth
             >
               <option value="">Select key</option>
               {textKeys
@@ -198,11 +204,11 @@ export function FilterPanel({
       <Divider />
 
       {/* リセット */}
-      <Box sx={{ p: 1.5 }}>
+      <Box style={{ padding: 12 }}>
         <Button
           size="small"
           variant="outlined"
-          fullWidth
+          style={{ width: '100%' }}
           onClick={() => onConfigChange({ rangeFilters: [], textFilters: [] })}
           disabled={config.rangeFilters.length === 0 && config.textFilters.length === 0}
         >

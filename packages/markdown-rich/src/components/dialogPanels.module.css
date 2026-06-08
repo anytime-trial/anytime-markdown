@@ -1,0 +1,26 @@
+/*
+ * edit ダイアログ共有のパネルヘッダ。CodeBlockEditDialog / MathEditDialog / MermaidEditDialog /
+ * PlantUmlEditDialog で共有（旧 sx 値の単一ソース）。border-bottom 色は各呼び出し側 inline。
+ */
+
+/* code パネルヘッダ。px:1=8px / py:0.25=2px / FS_TOOLBAR_HEIGHT=32px。 */
+.codeHeader {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid;
+  padding: 2px 8px;
+  min-height: 32px;
+}
+
+/* パネル見出しの Typography(caption) 相当。font-size はトークンを inline。 */
+.panelHeaderText {
+  font-weight: 600;
+  flex: 1;
+}
+
+/* Tabs + toolbar の行（codeHeader と違い padding/min-height なし）。 */
+.tabsRow {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid;
+}

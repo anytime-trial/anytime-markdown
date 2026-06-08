@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-06-08
+
+### 修正
+
+- `VSCODE_NODE_TARGET` を 24.15.0 へ更新し、Node 24 ABI 向けの `better-sqlite3` を同梱。`prepare-native` の reuse をターゲット一致時のみに限定。
+
+### Trail Core (trail-server / memory-core)
+
+- trail-server: `computeImportance` の CodeQL tainted-format-string・log-injection を解消し、`openReadOnly` の未 await async attach を修正。
+- memory-core: 埋め込み用正規表現を堅牢化（S5850 / S5868）し、embedding ヘルパに Stryker ミューテーションテストを追加。
+
 ## [0.26.0] - 2026-06-03
 
 ### 修正

@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-08
+
+### Changed
+
+- Removed the redundant MUI wrapper now that `database-viewer` is self-themed.
+
+### Fixed
+
+- Bundle `better-sqlite3` built for the VS Code Node 24 target (Node 24 ABI) and limit `prepare-native` reuse to matching targets.
+
+### Database Core (database-core / database-viewer)
+
+- `database-viewer` fully dropped `@mui` in favor of an in-house `ui/` kit (MUI reduction Phase 3d).
+
 ## [0.2.5] - 2026-05-27
 
 ### Database Core (database-core / database-viewer)

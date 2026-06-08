@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "@mui/material";
 import type { NodeViewProps } from "@anytime-markdown/markdown-react";
 import { useEditorState } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,12 +9,11 @@ import { EmbedBlock } from "./components/codeblock/EmbedBlock";
 import { HtmlPreviewBlock } from "./components/codeblock/HtmlPreviewBlock";
 import { MathBlock } from "./components/codeblock/MathBlock";
 import { RegularCodeBlock } from "./components/codeblock/RegularCodeBlock";
-import { getMergeEditors, useBlockCapture, useDeleteBlock, useNodeSelected, useTextareaSearch, useMarkdownT } from "@anytime-markdown/markdown-viewer";
+import { getMergeEditors, useBlockCapture, useDeleteBlock, useNodeSelected, useTextareaSearch, useMarkdownT, useIsDark } from "@anytime-markdown/markdown-viewer";
 
 export function CodeBlockNodeView({ editor, node, updateAttributes, getPos }: Readonly<NodeViewProps>) {
-  const theme = useTheme();
+  const isDark = useIsDark();
   const t = useMarkdownT("MarkdownEditor");
-  const isDark = theme.palette.mode === "dark";
   const language = node.attrs.language;
   const isMath = language === "math";
   const isHtml = language === "html";

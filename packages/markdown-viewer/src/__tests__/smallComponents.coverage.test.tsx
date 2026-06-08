@@ -4,15 +4,13 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-const theme = createTheme();
 
 describe("AppIcon", () => {
   it("renders with default props", () => {
     const AppIcon = require("../icons/AppIcon").default;
     const { container } = render(
-      <ThemeProvider theme={theme}><AppIcon /></ThemeProvider>
+      <AppIcon />
     );
     const img = container.querySelector("img");
     expect(img).toBeTruthy();
@@ -21,7 +19,7 @@ describe("AppIcon", () => {
   it("renders with large fontSize", () => {
     const AppIcon = require("../icons/AppIcon").default;
     const { container } = render(
-      <ThemeProvider theme={theme}><AppIcon fontSize="large" /></ThemeProvider>
+      <AppIcon fontSize="large" />
     );
     expect(container.querySelector("img")).toBeTruthy();
   });
@@ -29,7 +27,7 @@ describe("AppIcon", () => {
   it("renders with medium fontSize", () => {
     const AppIcon = require("../icons/AppIcon").default;
     const { container } = render(
-      <ThemeProvider theme={theme}><AppIcon fontSize="medium" /></ThemeProvider>
+      <AppIcon fontSize="medium" />
     );
     expect(container.querySelector("img")).toBeTruthy();
   });
@@ -37,7 +35,7 @@ describe("AppIcon", () => {
   it("renders with custom src", () => {
     const AppIcon = require("../icons/AppIcon").default;
     const { container } = render(
-      <ThemeProvider theme={theme}><AppIcon src="/custom.png" /></ThemeProvider>
+      <AppIcon src="/custom.png" />
     );
     const img = container.querySelector("img");
     expect(img?.getAttribute("src")).toBe("/custom.png");

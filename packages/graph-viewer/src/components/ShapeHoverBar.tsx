@@ -2,10 +2,12 @@
 
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import {
-  CircleOutlined as EllipseIcon,
-  CropSquare as RectIcon,
-} from '@mui/icons-material';
-import { Box, IconButton, Tooltip } from '@mui/material';
+  Box,
+  CircleOutlinedIcon as EllipseIcon,
+  CropSquareIcon as RectIcon,
+  IconButton,
+  Tooltip,
+} from '../ui';
 import { useGraphT } from '../i18n/context';
 import React from 'react';
 
@@ -18,11 +20,11 @@ import {
 } from './ShapeIcons';
 
 const SHAPES: { type: NodeType; icon: React.ReactNode; i18nKey: string }[] = [
-  { type: 'rect', icon: <RectIcon sx={{ fontSize: 18 }} />, i18nKey: 'rect' },
-  { type: 'ellipse', icon: <EllipseIcon sx={{ fontSize: 18 }} />, i18nKey: 'ellipse' },
-  { type: 'diamond', icon: <DiamondIcon sx={{ fontSize: 18 }} />, i18nKey: 'diamond' },
-  { type: 'parallelogram', icon: <ParallelogramIcon sx={{ fontSize: 18 }} />, i18nKey: 'parallelogram' },
-  { type: 'cylinder', icon: <CylinderIcon sx={{ fontSize: 18 }} />, i18nKey: 'cylinder' },
+  { type: 'rect', icon: <RectIcon fontSize={18} />, i18nKey: 'rect' },
+  { type: 'ellipse', icon: <EllipseIcon fontSize={18} />, i18nKey: 'ellipse' },
+  { type: 'diamond', icon: <DiamondIcon fontSize={18} />, i18nKey: 'diamond' },
+  { type: 'parallelogram', icon: <ParallelogramIcon fontSize={18} />, i18nKey: 'parallelogram' },
+  { type: 'cylinder', icon: <CylinderIcon fontSize={18} />, i18nKey: 'cylinder' },
 ];
 
 interface ShapeHoverBarProps {
@@ -47,7 +49,8 @@ export function ShapeHoverBar({ node, viewport, onChangeType, themeMode = 'dark'
 
   return (
     <Box
-      sx={{
+      className="gv-shape-bar"
+      style={{
         position: 'absolute',
         left: screen.x - barWidth / 2,
         top: screen.y - 44,
@@ -56,21 +59,10 @@ export function ShapeHoverBar({ node, viewport, onChangeType, themeMode = 'dark'
         backgroundColor: colors.panelBg,
         border: `1px solid ${colors.panelBorder}`,
         borderRadius: '8px',
-        px: 1,
-        py: 0.5,
+        padding: '4px 8px',
         zIndex: 25,
         boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
         pointerEvents: 'auto',
-        opacity: 0,
-        animation: 'shapeBarFadeIn 300ms cubic-bezier(0, 0, 0.2, 1) 400ms forwards',
-        '@keyframes shapeBarFadeIn': {
-          from: { opacity: 0, transform: 'translateY(6px)' },
-          to: { opacity: 1, transform: 'translateY(0)' },
-        },
-        '@media (prefers-reduced-motion: reduce)': {
-          animation: 'none',
-          opacity: 1,
-        },
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -79,16 +71,12 @@ export function ShapeHoverBar({ node, viewport, onChangeType, themeMode = 'dark'
           <IconButton
             size="small"
             onClick={() => onChangeType(node.id, s.type)}
-            sx={{
+            style={{
               width: 28,
               height: 28,
               color: node.type === s.type ? colors.accentColor : colors.textSecondary,
               backgroundColor: node.type === s.type ? `${colors.accentColor}1F` : 'transparent',
               borderRadius: '6px',
-              '&:hover': {
-                backgroundColor: colors.hoverBg,
-                color: colors.textPrimary,
-              },
             }}
           >
             {s.icon}

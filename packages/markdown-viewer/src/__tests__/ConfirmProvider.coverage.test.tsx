@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -11,7 +10,6 @@ jest.mock("next-intl", () => ({
 
 import { ConfirmProvider, ConfirmContext } from "../providers/ConfirmProvider";
 
-const theme = createTheme();
 
 function TestConsumer() {
   const { confirm } = React.useContext(ConfirmContext);
@@ -47,22 +45,22 @@ function TestConsumer() {
 describe("ConfirmProvider", () => {
   it("renders children", () => {
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <ConfirmProvider>
           <div data-testid="child">child</div>
         </ConfirmProvider>
-      </ThemeProvider>,
+        </>,
     );
     expect(screen.getByTestId("child")).toBeTruthy();
   });
 
   it("shows confirm dialog when confirm is called", async () => {
     render(
-      <ThemeProvider theme={theme}>
+        <>
         <ConfirmProvider>
           <TestConsumer />
         </ConfirmProvider>
-      </ThemeProvider>,
+        </>,
     );
 
     await act(async () => {

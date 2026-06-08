@@ -3,7 +3,9 @@
 // Tiptap の ReactRenderer が componentDidMount 内で flushSync を呼ぶ問題を抑制
 // @see https://github.com/ueberdosis/tiptap/issues/3764
 // TODO: tiptap v3 で修正される見込み。アップグレード時にこのパッチが不要か確認し除去する。
-if (typeof window !== "undefined") {
+// HMR でこのモジュールが再評価されてもラッパーが累積しないよう、1 度だけ適用する
+if (typeof window !== "undefined" && !(console as { _tiptapFlushSyncPatched?: boolean })._tiptapFlushSyncPatched) {
+  (console as { _tiptapFlushSyncPatched?: boolean })._tiptapFlushSyncPatched = true;
   const origError = console.error;
   console.error = (...args: unknown[]) => {
     if (
@@ -16,7 +18,9 @@ if (typeof window !== "undefined") {
   };
 }
 
-import { Box, CircularProgress, useMediaQuery, useTheme } from "@mui/material";
+import { Spinner } from "./ui/Spinner";
+import { useMediaQuery } from "./ui/useMediaQuery";
+import styles from "./MarkdownEditorPage.module.css";
 import { useEditor } from "@anytime-markdown/markdown-react";
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -32,6 +36,7 @@ import { STATUSBAR_HEIGHT } from "./constants/dimensions";
 import type { ThemePresetName } from "./constants/themePresets";
 import { EditorFeaturesContext } from "./contexts/EditorFeaturesContext";
 import { EditorModeContext, type EditorModeContextValue } from "./contexts/EditorModeContext";
+import { useIsDark } from "./contexts/ThemeModeContext";
 import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import { useTextareaSearch } from "./hooks/useTextareaSearch";
 import { MarkdownCoreI18nProvider, useMarkdownLocale, useMarkdownT } from "./i18n/context";
@@ -335,10 +340,10 @@ type InnerProps = Omit<MarkdownEditorPageProps, "locale">;
 function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, codeBlockExtension, prepareDarkDiagrams, onHomeClick }: InnerProps = {}) {
   const t = useMarkdownT("MarkdownEditor");
   const locale = useMarkdownLocale();
-  const muiTheme = useTheme();
-  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
-  const isMd = useMediaQuery(muiTheme.breakpoints.up("md"));
-  const isDark = muiTheme.palette.mode === "dark";
+  // MUI breakpoints: down("sm")=max-width:599.95px / up("md")=min-width:900px
+  const isMobile = useMediaQuery("(max-width:599.95px)");
+  const isMd = useMediaQuery("(min-width:900px)");
+  const isDark = useIsDark();
   const noopSave = useCallback(() => {}, []);
   const {
     initialContent, loading, saveContent: _saveContent, downloadMarkdown, clearContent, frontmatterRef, initialTrailingNewline,
@@ -574,7 +579,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
   ]);
 
   if (loading) {
-    return <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><CircularProgress /></Box>;
+    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><Spinner /></div>;
   }
 
   const isRestrictedMode = readonlyMode || reviewMode;
@@ -603,7 +608,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
     <EditorFeaturesContext.Provider value={editorFeaturesValue}>
     <PlantUmlToolbarContext.Provider value={plantUmlToolbarCtx}>
     <PrintStyles />
-    <Box id="main-content" component="main" sx={{ p: { xs: 2, sm: 3 } }}>
+    <main id="main-content" className={styles.mainContent}>
       <EditorToolbarSection
         editor={editor} isInDiagramBlock={isInDiagramBlock} handleToggleAllBlocks={handleToggleAllBlocks}
         fileHandlers={{
@@ -678,6 +683,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
       <EditorMainContent
         InlineMergeView={InlineMergeView}
         editor={editor}
+        codeBlockExtension={codeBlockExtension}
         editorHeight={editorHeight} editorContainerRef={editorContainerRef}
         editorWrapperRef={editorWrapperRef} editorMountCallback={editorMountCallback}
         sourceText={sourceText} handleSourceChange={handleSourceChange}
@@ -719,7 +725,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
         onOpenSettings={onOpenSettingsHandler}
         pdfExporting={pdfExporting} notification={notification} setNotification={setNotification} t={t}
       />
-    </Box>
+    </main>
     </PlantUmlToolbarContext.Provider>
     </EditorFeaturesContext.Provider>
     </EditorSettingsContext.Provider>

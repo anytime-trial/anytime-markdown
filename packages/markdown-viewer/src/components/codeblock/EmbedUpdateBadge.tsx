@@ -1,5 +1,7 @@
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-import { IconButton, Tooltip } from "@mui/material";
+import { FiberManualRecordIcon } from "../../ui/icons";
+import { IconButton } from "../../ui/IconButton";
+import { Tooltip } from "../../ui/Tooltip";
+import styles from "./EmbedUpdateBadge.module.css";
 
 interface Props {
     visible: boolean;
@@ -20,16 +22,7 @@ export function EmbedUpdateBadge({ visible, newTitle, onClick }: Readonly<Props>
                     onClick();
                 }}
                 aria-label="embed 更新あり"
-                sx={{
-                    position: "absolute",
-                    top: 4,
-                    right: 4,
-                    color: (theme) => theme.palette.primary.main,
-                    backgroundColor: (theme) => theme.palette.background.paper,
-                    "&:hover": {
-                        backgroundColor: (theme) => theme.palette.action.hover,
-                    },
-                }}
+                className={styles.badge}
             >
                 <FiberManualRecordIcon fontSize="small" />
             </IconButton>

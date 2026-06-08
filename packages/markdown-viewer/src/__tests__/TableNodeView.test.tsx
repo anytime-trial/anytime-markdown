@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // NodeView wrappers mock
 jest.mock("@anytime-markdown/markdown-react", () => ({
@@ -81,7 +80,6 @@ jest.mock("../utils/tableHelpers", () => ({
 
 import { TableNodeView } from "../TableNodeView";
 
-const theme = createTheme();
 
 describe("TableNodeView", () => {
   const mockNode = {
@@ -102,7 +100,7 @@ describe("TableNodeView", () => {
 
   it("renders without crashing", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <TableNodeView
           editor={mockEditor as any}
           node={mockNode as any}
@@ -116,7 +114,7 @@ describe("TableNodeView", () => {
           HTMLAttributes={{}}
           view={{} as any}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container.querySelector("[data-testid='node-view-wrapper']")).toBeTruthy();
   });

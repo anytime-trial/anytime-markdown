@@ -12,16 +12,6 @@ import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { SearchReplaceBar } from "../components/SearchReplaceBar";
 
-jest.mock("@mui/material", () => {
-  const actual = jest.requireActual("@mui/material");
-  return {
-    ...actual,
-    useTheme: () => ({
-      palette: { mode: "dark" },
-    }),
-  };
-});
-
 const t = (key: string, values?: Record<string, string | number>) => {
   if (values) return `${key}:${JSON.stringify(values)}`;
   return key;

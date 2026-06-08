@@ -13,7 +13,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- Mocks ---
 let mockEditOpen = false;
@@ -96,7 +95,6 @@ jest.mock("@anytime-markdown/spreadsheet-viewer", () => ({
 
 import { TableNodeView } from "../TableNodeView";
 
-const theme = createTheme();
 
 function createMockEditor(overrides?: Record<string, any>) {
   const run = jest.fn();
@@ -167,7 +165,7 @@ function renderTable(options?: {
   const node = createMockNode();
 
   return render(
-    <ThemeProvider theme={theme}>
+      <>
       <TableNodeView
         editor={editor as any}
         node={node as any}
@@ -181,7 +179,7 @@ function renderTable(options?: {
         HTMLAttributes={{}}
         view={{} as any}
       />
-    </ThemeProvider>,
+      </>,
   );
 }
 

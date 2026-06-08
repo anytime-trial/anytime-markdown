@@ -3,7 +3,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import type { PaletteMode } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
 import { getVsCodeApi } from './vscodeApi';
-import { ACCENT_COLOR, applyEditorThemeCssVars, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getPreset, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS, type ThemePresetName } from '@anytime-markdown/markdown-viewer';
+import { ACCENT_COLOR, applyEditorThemeCssVars, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getPreset, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS, ThemeModeProvider, type ThemePresetName } from '@anytime-markdown/markdown-viewer';
 import { EmbedProvidersProvider } from '@anytime-markdown/markdown-viewer/src/contexts/EmbedProvidersContext';
 // rich の codeblock 描画拡張を注入する RichMarkdownEditorPage を使う (B-8)
 import MarkdownEditorPage from '@anytime-markdown/markdown-rich/src/RichMarkdownEditorPage';
@@ -116,7 +116,7 @@ function dispatchCustomEvent(eventName: string, detail: unknown) {
 }
 
 interface MessageState {
-  ready: boolean;
+  readyRef: React.MutableRefObject<boolean>;
   setLanding: (v: boolean) => void;
   setThemeMode: (v: PaletteMode) => void;
   setPresetName: (v: ThemePresetName) => void;
@@ -131,12 +131,13 @@ function handleSetContent(
   message: { content: string; compareContent?: string },
   state: MessageState,
 ) {
-  const isInitial = !state.ready;
+  const isInitial = !state.readyRef.current;
   currentContent = message.content;
   if (isInitial) {
     if (typeof message.compareContent === 'string') {
       state.setCompareContent(message.compareContent);
     }
+    state.readyRef.current = true;
     state.setReady(true);
   } else {
     dispatchCustomEvent('vscode-set-content', message.content);
@@ -197,10 +198,17 @@ export function App() {
 
   const latestContentRef = useRef<string | null>(null);
   const historicalContentRef = useRef<string | null>(null);
+  // ready の現在値をメッセージハンドラから参照するための ref。
+  // useEffect の依存に ready を入れるとハンドラ再登録 → ready 再送 → setContent 再送で
+  // コンテンツが二重ロードされるため、依存を空にして ref で現在値を読む。
+  const readyRef = useRef(false);
+  useEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
 
   useEffect(() => {
     const msgState: MessageState = {
-      ready,
+      readyRef,
       setLanding,
       setThemeMode,
       setPresetName,
@@ -279,6 +287,9 @@ export function App() {
           if (typeof message.baseUri === 'string') handleSetBaseUri(message);
           return;
         case 'imageSaved':
+          // requestId 付きの保存は発信元ノード（GIF ノード等）が直接受け取るため、
+          // グローバルの画像挿入（カーソル位置へ挿入）は行わない。二重挿入の防止。
+          if (typeof message.requestId === 'string') return;
           if (typeof message.path === 'string') dispatchCustomEvent('vscode-image-saved', message.path);
           return;
         case 'imageDownloaded':
@@ -316,7 +327,9 @@ export function App() {
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('vscode-save-compare-file', handleSaveCompare);
     };
-  }, [ready]);
+    // 初回マウント時に一度だけ登録する。ready は readyRef 経由で参照する（上のコメント参照）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleCompareModeChange = useCallback((active: boolean) => {
     vscode.postMessage({ type: 'compareModeChanged', active });
@@ -371,11 +384,19 @@ export function App() {
       if (currentEl) currentEl.addEventListener('scroll', handler, { passive: true });
     };
     attach();
-    // DOM 変更時にリスナーを再アタッチ（モード切替等）
-    const observer = new MutationObserver(attach);
+    // DOM 変更時にリスナーを再アタッチ（モード切替等）。
+    // TipTap は 1 打鍵で多数のミューテーションを発生させるため、rAF で 1 フレーム 1 回に間引いて
+    // querySelector の多発（大規模ドキュメントでの DOM スキャン）を抑える。
+    let rafId = 0;
+    const scheduleAttach = () => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => { rafId = 0; attach(); });
+    };
+    const observer = new MutationObserver(scheduleAttach);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => {
       observer.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
       if (currentEl) currentEl.removeEventListener('scroll', handler);
     };
   }, []);
@@ -415,6 +436,7 @@ export function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      <ThemeModeProvider mode={themeMode}>
       <ConfirmProvider>
         <EmbedProvidersProvider value={embedProviders}>
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -446,6 +468,7 @@ export function App() {
         </div>
         </EmbedProvidersProvider>
       </ConfirmProvider>
+      </ThemeModeProvider>
     </ThemeProvider>
   );
 }

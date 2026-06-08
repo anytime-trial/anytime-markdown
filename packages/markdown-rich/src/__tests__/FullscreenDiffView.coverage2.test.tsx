@@ -11,7 +11,6 @@ global.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { render, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { FullscreenDiffView } from "../components/FullscreenDiffView";
 
@@ -30,21 +29,18 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
     }),
 }));
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 describe("FullscreenDiffView coverage2", () => {
   it("handles textarea change that strips padding lines (lines 177-183)", () => {
     const onMergeApply = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="line1\nline2\nline3"
-          initialRightCode="line1\nnewline\nline3\nextra"
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="line1\nline2\nline3"
+        initialRightCode="line1\nnewline\nline3\nextra"
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
 
     // Find editable textarea
@@ -59,14 +55,12 @@ describe("FullscreenDiffView coverage2", () => {
   it("merge button click calls handleMergeBlock (lines 139-151)", () => {
     const onMergeApply = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="same\nold line\nsame"
-          initialRightCode="same\nnew line\nsame"
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="same\nold line\nsame"
+        initialRightCode="same\nnew line\nsame"
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
 
     const mergeButtons = container.querySelectorAll('[aria-label="mergeLeftToRight"]');
@@ -79,26 +73,22 @@ describe("FullscreenDiffView coverage2", () => {
   it("re-syncs when initialLeftCode/initialRightCode props change (lines 126-129)", () => {
     const onMergeApply = jest.fn();
     const { rerender, container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="first"
-          initialRightCode="second"
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="first"
+        initialRightCode="second"
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
 
     // Re-render with new props
     rerender(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="updated left"
-          initialRightCode="updated right"
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="updated left"
+        initialRightCode="updated right"
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
 
     // Verify textarea has updated content
@@ -110,16 +100,13 @@ describe("FullscreenDiffView coverage2", () => {
   });
 
   it("renders dark theme correctly", () => {
-    const darkTheme = createTheme({ palette: { mode: "dark" } });
     const { container } = render(
-      <ThemeProvider theme={darkTheme}>
-        <FullscreenDiffView
-          initialLeftCode="line1"
-          initialRightCode="line2"
-          onMergeApply={jest.fn()}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="line1"
+        initialRightCode="line2"
+        onMergeApply={jest.fn()}
+        t={t}
+      />,
     );
     expect(container.querySelector("textarea")).toBeTruthy();
   });
@@ -127,14 +114,12 @@ describe("FullscreenDiffView coverage2", () => {
   it("handleMergeBlock does nothing for invalid block", () => {
     const onMergeApply = jest.fn();
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullscreenDiffView
-          initialLeftCode="same"
-          initialRightCode="same"
-          onMergeApply={onMergeApply}
-          t={t}
-        />
-      </ThemeProvider>,
+      <FullscreenDiffView
+        initialLeftCode="same"
+        initialRightCode="same"
+        onMergeApply={onMergeApply}
+        t={t}
+      />,
     );
     // No merge buttons since texts are identical
     const mergeButtons = container.querySelectorAll('[aria-label="mergeLeftToRight"]');

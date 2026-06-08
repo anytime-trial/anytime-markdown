@@ -9,9 +9,9 @@ import { renderHook, act } from "@testing-library/react";
 import type { Editor } from "@anytime-markdown/markdown-react";
 
 let themeMode: "dark" | "light" = "dark";
-jest.mock("@mui/material", () => ({
-  ...jest.requireActual("@mui/material"),
-  useTheme: () => ({ palette: { mode: themeMode } }),
+// usePdfExport は useIsDark()（ThemeModeContext）で dark 判定する。
+jest.mock("../contexts/ThemeModeContext", () => ({
+  useIsDark: () => themeMode === "dark",
 }));
 
 import { usePdfExport } from "../hooks/usePdfExport";

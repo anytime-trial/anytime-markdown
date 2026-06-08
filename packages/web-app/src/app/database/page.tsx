@@ -2,7 +2,7 @@
 
 import type { DatabaseAdapter } from "@anytime-markdown/database-core";
 import { DatabaseEditor } from "@anytime-markdown/database-viewer";
-import { Box, Button, Stack } from "@mui/material";
+import { Box, Button, Stack, useTheme } from "@mui/material";
 import React, { Suspense, useEffect, useState } from "react";
 
 import { DatabaseFilePicker } from "./DatabaseFilePicker";
@@ -13,6 +13,9 @@ export default function DatabasePage(): React.ReactElement {
   const [adapter, setAdapter] = useState<DatabaseAdapter | null>(null);
   const [modified, setModified] = useState(false);
   const [queryMaxRows, setQueryMaxRows] = useState(QUERY_MAX_ROWS_DEFAULT);
+  // database-viewer は自前 UI キットへ移行し MUI テーマを継承しないため、
+  // web-app の現在のモードを themeMode で明示的に渡す（ダーク/ライト整合）。
+  const theme = useTheme();
 
   useEffect(() => {
     const stored = globalThis.localStorage?.getItem("anytime-database.queryMaxRows");
@@ -62,6 +65,7 @@ export default function DatabasePage(): React.ReactElement {
             <DatabaseEditor
               adapter={adapter}
               queryMaxRows={queryMaxRows}
+              themeMode={theme.palette.mode}
               onMutationExecuted={() => setModified(true)}
             />
           </Suspense>

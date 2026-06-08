@@ -1,16 +1,18 @@
-import AddIcon from "@mui/icons-material/Add";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import ContentCutIcon from "@mui/icons-material/ContentCut";
-import ContentPasteIcon from "@mui/icons-material/ContentPaste";
-import DeleteIcon from "@mui/icons-material/Delete";
-import FilterListIcon from "@mui/icons-material/FilterList";
-import Divider from "@mui/material/Divider";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
+import {
+  AddIcon,
+  ArrowDownwardIcon,
+  ArrowUpwardIcon,
+  ContentCopyIcon,
+  ContentCutIcon,
+  ContentPasteIcon,
+  DeleteIcon,
+  Divider,
+  FilterListIcon,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
+} from "./ui";
 import type {
   CellAlign,
   ContextMenuState,
@@ -510,7 +512,7 @@ export const SpreadsheetContextMenu = React.memo(
           disabled={target.index === 0}
         >
           <ListItemIcon>
-            <ArrowUpwardIcon fontSize="small" sx={rotatedIconSx} />
+            <ArrowUpwardIcon fontSize="small" style={rotatedIconSx} />
           </ListItemIcon>
           <ListItemText>{t("spreadsheetMoveColLeft")}</ListItemText>
         </MenuItem>
@@ -519,7 +521,7 @@ export const SpreadsheetContextMenu = React.memo(
           disabled={target.index >= maxColIndex}
         >
           <ListItemIcon>
-            <ArrowDownwardIcon fontSize="small" sx={rotatedIconSx} />
+            <ArrowDownwardIcon fontSize="small" style={rotatedIconSx} />
           </ListItemIcon>
           <ListItemText>{t("spreadsheetMoveColRight")}</ListItemText>
         </MenuItem>

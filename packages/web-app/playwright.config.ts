@@ -21,7 +21,16 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { browserName: "chromium" },
+      use: {
+        browserName: "chromium",
+        // 環境により Playwright の pinned リビジョンとインストール済みブラウザが
+        // ズレる場合の回避。PW_CHROMIUM_EXECUTABLE_PATH 設定時のみ指定ブラウザを
+        // 使う（未設定なら Playwright 既定の解決動作）。VR 基準は本 seam 経由で
+        // 生成している（詳細は e2e/visual-baseline.spec.ts のヘッダ参照）。
+        ...(process.env.PW_CHROMIUM_EXECUTABLE_PATH
+          ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_EXECUTABLE_PATH } }
+          : {}),
+      },
     },
     ...(process.env.CI
       ? [

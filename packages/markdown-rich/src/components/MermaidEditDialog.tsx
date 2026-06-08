@@ -1,8 +1,11 @@
-import AccountTreeIcon from "@mui/icons-material/AccountTree";
-import { Box, Tab, Tabs, useTheme } from "@mui/material";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { getDivider, FS_TAB_FONT_SIZE, FS_TOOLBAR_HEIGHT, MERMAID_SAMPLES, useEditorSettingsContext, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
+import { getDivider, MERMAID_SAMPLES, useEditorSettingsContext, useIsDark, EditDialogHeader, EditDialogWrapper } from "@anytime-markdown/markdown-viewer";
+import { AccountTreeIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
+import { Tabs } from "@anytime-markdown/markdown-viewer/src/ui/Tabs";
+import { Tab } from "@anytime-markdown/markdown-viewer/src/ui/Tab";
+import styles from "./MermaidEditDialog.module.css";
+import panels from "./dialogPanels.module.css";
 import type { TextareaSearchState } from "@anytime-markdown/markdown-viewer";
 import type { UseZoomPanReturn } from "../hooks/useZoomPan";
 import { extractDiagramAltText } from "../utils/diagramAltText";
@@ -48,8 +51,7 @@ export function MermaidEditDialog({
   isCompareMode, compareCode, onMergeApply, thisCode, onExport, onExportSource, exportSourceKey, toolbarExtra,
   onApply, dirty, t,
 }: Readonly<MermaidEditDialogProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
 
   // --- Code / Config tab state ---
@@ -118,7 +120,7 @@ export function MermaidEditDialog({
 
   return (
     <EditDialogWrapper open={open} onClose={onClose} ariaLabelledBy="mermaid-edit-title">
-      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<AccountTreeIcon sx={{ fontSize: 18 }} />} onApply={onApply} dirty={dirty} t={t} />
+      <EditDialogHeader label={label} onClose={onClose} showCompareView={showCompareView} icon={<AccountTreeIcon fontSize={18} />} onApply={onApply} dirty={dirty} t={t} />
 
       {/* Compare view */}
       {showCompareView ? (
@@ -133,21 +135,22 @@ export function MermaidEditDialog({
         <DraggableSplitLayout
           onPointerMove={fsZP.handlePointerMove}
           onPointerUp={fsZP.handlePointerUp}
+          onPointerCancel={fsZP.handlePointerCancel}
           t={t}
           left={
             <>
               {/* Tabs + toolbar */}
-              <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: getDivider(isDark) }}>
+              <div className={panels.tabsRow} style={{ borderBottomColor: getDivider(isDark) }}>
                 <Tabs
                   value={activeTab}
-                  onChange={(_, v) => setActiveTab(v)}
-                  sx={{ minHeight: FS_TOOLBAR_HEIGHT, flex: 1, "& .MuiTab-root": { minHeight: FS_TOOLBAR_HEIGHT, py: 0.5, px: 2, fontSize: FS_TAB_FONT_SIZE, textTransform: "none" } }}
+                  onChange={(_, v) => setActiveTab(v as "code" | "config")}
+                  style={{ flex: 1 }}
                 >
                   <Tab value="code" label={t("codeTab")} />
                   <Tab value="config" label={t("configTab")} />
                 </Tabs>
                 {toolbarExtra}
-              </Box>
+              </div>
               {/* Code textarea */}
               {activeTab === "code" && (
                 <LineNumberTextarea
@@ -181,7 +184,7 @@ export function MermaidEditDialog({
               <ZoomToolbar fsZP={fsZP} onExport={onExport} onExportSource={onExportSource} exportSourceKey={exportSourceKey} t={t} />
               <ZoomablePreview fsZP={fsZP}>
                 {displaySvg && (
-                  <Box role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: displaySvg }} sx={{ "& svg": { maxWidth: "100%", height: "auto" } }} />
+                  <div className={styles.svg} role="img" aria-label={extractDiagramAltText(code, "mermaid")} dangerouslySetInnerHTML={{ __html: displaySvg }} />
                 )}
               </ZoomablePreview>
             </>

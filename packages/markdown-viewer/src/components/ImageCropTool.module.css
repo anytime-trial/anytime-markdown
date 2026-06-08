@@ -1,0 +1,10 @@
+/* Apply button: override vertical padding to match MUI sx py: 0.25 (2px) */
+.applyBtn {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+/* IconButton active state: color="primary" equivalent */
+.activeIcon {
+  color: var(--am-color-primary-main);
+}

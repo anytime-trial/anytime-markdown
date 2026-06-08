@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/database-viewer",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -19,8 +19,6 @@
     "@anytime-markdown/spreadsheet-viewer": "*"
   },
   "peerDependencies": {
-    "@mui/icons-material": ">=7",
-    "@mui/material": ">=7",
     "next-intl": ">=4",
     "react": ">=19",
     "react-dom": ">=19"

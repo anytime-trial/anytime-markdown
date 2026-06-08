@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getDivider: () => "#ccc",
@@ -17,13 +16,12 @@ jest.mock("../constants/dimensions", () => ({
 
 import { EditorSideToolbar } from "../components/EditorSideToolbar";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 describe("EditorSideToolbar", () => {
   it("renders without crashing", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorSideToolbar
           sourceMode={false}
           outlineOpen={false}
@@ -31,14 +29,14 @@ describe("EditorSideToolbar", () => {
           onToggleComment={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders with all options enabled", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <EditorSideToolbar
           sourceMode={true}
           outlineOpen={true}
@@ -50,7 +48,7 @@ describe("EditorSideToolbar", () => {
           onOpenSettings={jest.fn()}
           t={t}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container).toBeTruthy();
   });

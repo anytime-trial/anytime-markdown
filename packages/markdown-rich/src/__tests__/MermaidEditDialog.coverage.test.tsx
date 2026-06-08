@@ -9,7 +9,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 global.ResizeObserver = class ResizeObserver {
   observe() {}
@@ -122,8 +121,6 @@ jest.mock("../components/ZoomToolbar", () => ({
 
 import { MermaidEditDialog } from "../components/MermaidEditDialog";
 
-const theme = createTheme();
-
 function createDefaultProps(overrides?: Partial<React.ComponentProps<typeof MermaidEditDialog>>) {
   const t = (key: string) => key;
   return {
@@ -167,9 +164,7 @@ describe("MermaidEditDialog - coverage", () => {
   test("editing in code tab calls onFsTextChange with merged code", () => {
     const onFsTextChange = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog {...createDefaultProps({ onFsTextChange })} />
-      </ThemeProvider>,
+      <MermaidEditDialog {...createDefaultProps({ onFsTextChange })} />,
     );
 
     // Code tab is active by default, find the textarea
@@ -182,9 +177,7 @@ describe("MermaidEditDialog - coverage", () => {
   // --- Tab switching to config (line 146-179) ---
   test("switching to config tab shows config textarea", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog {...createDefaultProps()} />
-      </ThemeProvider>,
+      <MermaidEditDialog {...createDefaultProps()} />,
     );
 
     // Switch to config tab
@@ -200,9 +193,7 @@ describe("MermaidEditDialog - coverage", () => {
   test("editing in config tab calls onFsTextChange with merged config+body", () => {
     const onFsTextChange = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog {...createDefaultProps({ onFsTextChange })} />
-      </ThemeProvider>,
+      <MermaidEditDialog {...createDefaultProps({ onFsTextChange })} />,
     );
 
     // Switch to config tab
@@ -217,9 +208,7 @@ describe("MermaidEditDialog - coverage", () => {
   test("inserting sample updates code and switches to code tab", () => {
     const onFsTextChange = jest.fn();
     render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog {...createDefaultProps({ onFsTextChange })} />
-      </ThemeProvider>,
+      <MermaidEditDialog {...createDefaultProps({ onFsTextChange })} />,
     );
 
     // Click insert sample button
@@ -231,9 +220,7 @@ describe("MermaidEditDialog - coverage", () => {
   // --- displaySvg scaling (lines 113-115) ---
   test("SVG is scaled based on editor font size", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog {...createDefaultProps()} />
-      </ThemeProvider>,
+      <MermaidEditDialog {...createDefaultProps()} />,
     );
 
     // The preview should contain the SVG
@@ -244,9 +231,7 @@ describe("MermaidEditDialog - coverage", () => {
 
   test("empty SVG is passed through unchanged", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog {...createDefaultProps({ svg: "" })} />
-      </ThemeProvider>,
+      <MermaidEditDialog {...createDefaultProps({ svg: "" })} />,
     );
 
     const preview = screen.getByTestId("zoomable-preview");
@@ -256,9 +241,7 @@ describe("MermaidEditDialog - coverage", () => {
 
   test("SVG without viewBox is passed through unchanged", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog {...createDefaultProps({ svg: "<svg><rect/></svg>" })} />
-      </ThemeProvider>,
+      <MermaidEditDialog {...createDefaultProps({ svg: "<svg><rect/></svg>" })} />,
     );
 
     const preview = screen.getByTestId("zoomable-preview");
@@ -268,16 +251,14 @@ describe("MermaidEditDialog - coverage", () => {
   // --- Compare mode (lines 120, 127-133) ---
   test("compare mode renders FullscreenDiffView", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog
-          {...createDefaultProps({
-            isCompareMode: true,
-            compareCode: "graph TD; X-->Y",
-            onMergeApply: jest.fn(),
-            thisCode: "graph TD; A-->B",
-          })}
-        />
-      </ThemeProvider>,
+      <MermaidEditDialog
+        {...createDefaultProps({
+          isCompareMode: true,
+          compareCode: "graph TD; X-->Y",
+          onMergeApply: jest.fn(),
+          thisCode: "graph TD; A-->B",
+        })}
+      />,
     );
 
     expect(screen.getByTestId("fullscreen-diff-view")).toBeTruthy();
@@ -287,9 +268,7 @@ describe("MermaidEditDialog - coverage", () => {
   test("resets to code tab when dialog re-opens", () => {
     const props = createDefaultProps();
     const { rerender } = render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog {...props} />
-      </ThemeProvider>,
+      <MermaidEditDialog {...props} />,
     );
 
     // Switch to config tab
@@ -297,16 +276,12 @@ describe("MermaidEditDialog - coverage", () => {
 
     // Close dialog
     rerender(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog {...props} open={false} />
-      </ThemeProvider>,
+      <MermaidEditDialog {...props} open={false} />,
     );
 
     // Re-open
     rerender(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog {...props} open={true} fsCode="graph TD; A-->B" />
-      </ThemeProvider>,
+      <MermaidEditDialog {...props} open={true} fsCode="graph TD; A-->B" />,
     );
 
     // Should be back on code tab
@@ -317,9 +292,7 @@ describe("MermaidEditDialog - coverage", () => {
   // --- toolbarExtra rendering ---
   test("renders toolbarExtra when provided", () => {
     render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog {...createDefaultProps({ toolbarExtra: <span data-testid="extra">Extra</span> })} />
-      </ThemeProvider>,
+      <MermaidEditDialog {...createDefaultProps({ toolbarExtra: <span data-testid="extra">Extra</span> })} />,
     );
 
     expect(screen.getByTestId("extra")).toBeTruthy();

@@ -1,11 +1,15 @@
 "use client";
 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Tooltip } from "@mui/material";
 import DOMPurify from "dompurify";
 import { useRef } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getDivider, getTextSecondary, PREVIEW_MAX_HEIGHT, useBlockResize, BlockInlineToolbar } from "@anytime-markdown/markdown-viewer";
+import { Button } from "@anytime-markdown/markdown-viewer/src/ui/Button";
+import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@anytime-markdown/markdown-viewer/src/ui/Dialog";
+import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
+import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
+import { ContentCopyIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
+import styles from "./HtmlPreviewBlock.module.css";
 import htmlSamples from "../../constants/htmlSamples.json";
 import { useBlockMergeCompare } from "../../hooks/useBlockMergeCompare";
 import { CodeBlockEditDialog } from "../CodeBlockEditDialog";
@@ -89,15 +93,15 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
           thisCode={thisCode}
           customSamples={htmlSamples.filter((s) => s.enabled)}
           renderPreview={(code) => (
-            <Box
+            <div
+              className={styles.renderPreviewBox}
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(code, HTML_SANITIZE_CONFIG) }}
-              sx={{ "& img": { maxWidth: "100%" } }}
             />
           )}
           toolbarExtra={
             <Tooltip title={t("copyCode")} placement="bottom">
-              <IconButton size="small" sx={{ p: 0.25 }} onClick={handleCopyCode} aria-label={t("copyCode")}>
-                <ContentCopyIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
+              <IconButton size="xs" onClick={handleCopyCode} aria-label={t("copyCode")}>
+                <ContentCopyIcon fontSize={16} color={getTextSecondary(isDark)} />
               </IconButton>
             </Tooltip>
           }
@@ -111,10 +115,11 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
             <Button onClick={props.handleDiscardConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
           </DialogActions>
         </Dialog>
+
         </>
       }
     >
-      <Box
+      <div
           ref={htmlContainerRef}
           role="document"
           aria-label={t("htmlPreview")}
@@ -123,14 +128,21 @@ export function HtmlPreviewBlock(props: HtmlPreviewBlockProps) {
           onDoubleClick={() => setEditOpen(true)}
           onPointerMove={handleResizePointerMove}
           onPointerUp={handleResizePointerUp}
-          sx={{ pt: 0, px: 2, pb: 2, bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG, borderTop: codeCollapsed ? 0 : 1, borderColor: getDivider(isDark), overflow: "auto", maxHeight: PREVIEW_MAX_HEIGHT, cursor: "pointer", position: "relative", width: displayWidth || "fit-content", maxWidth: "100%", "& img": { maxWidth: "100%" } }}
+          className={styles.htmlContainer}
+          style={{
+            backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+            borderTop: codeCollapsed ? 0 : "1px solid",
+            borderTopColor: getDivider(isDark),
+            maxHeight: PREVIEW_MAX_HEIGHT,
+            width: displayWidth || "fit-content",
+          }}
         >
-          <Box
+          <div
+            className={styles.htmlInner}
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(code, HTML_SANITIZE_CONFIG) }}
-            sx={{ pointerEvents: "none" }}
           />
           <ResizeGrip visible={isSelected && props.isEditable} resizing={resizing} resizeWidth={resizeWidth} onPointerDown={handleResizePointerDown} />
-        </Box>
+        </div>
     </CodeBlockFrame>
   );
 }

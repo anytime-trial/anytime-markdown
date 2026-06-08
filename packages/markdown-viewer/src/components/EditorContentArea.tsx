@@ -1,12 +1,14 @@
-import { Box, Paper } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 
+import { getEditorBg } from "../constants/colors";
 import { useEditorMode } from "../contexts/EditorModeContext";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
 import { getEditorPaperSx } from "../styles/editorStyles";
+import { GlobalStyle } from "../ui/GlobalStyle";
+import { Paper } from "../ui/Paper";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { FrontmatterBlock } from "./FrontmatterBlock";
@@ -50,7 +52,7 @@ export function EditorContentArea({
     sourceMode, readonlyMode, reviewMode, noScroll,
     onSwitchToReview, onSwitchToWysiwyg, onSwitchToSource,
   } = useEditorMode();
-  const theme = useTheme();
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
 
   const sourceContainerRef = useRef<HTMLDivElement>(null);
@@ -71,16 +73,25 @@ export function EditorContentArea({
   }, [frontmatterText, sourceMode]);
   const adjustedEditorHeight = editorHeight - frontmatterHeight;
 
+  const editorBg = getEditorBg(isDark, settings);
+  const hasPaper = settings.paperSize !== "off";
+  const paperBg = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)";
+  const outerBg = hasPaper ? paperBg : editorBg;
+
+  // getEditorPaperSx の & .tiptap スタイルを ui/GlobalStyle 経由で注入する
+  const paperSxObj = getEditorPaperSx(isDark, settings, adjustedEditorHeight, { readonlyMode, noScroll });
+  const tiptapStyles = paperSxObj["& .tiptap"] as Record<string, unknown> | undefined;
+
   if (sourceMode) {
     return (
-      <Box sx={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <EditorContextMenu editor={editor} readOnly={false} t={t}
           currentMode="source" extraContainerRef={sourceContainerRef} sourceTextareaRef={sourceTextareaRef}
           onSwitchToReview={onSwitchToReview} onSwitchToWysiwyg={onSwitchToWysiwyg} onSwitchToSource={onSwitchToSource}
         />
-        <Box
+        <div
           ref={sourceContainerRef}
-          sx={{ position: "relative" }}
+          style={{ position: "relative" }}
           onKeyDown={(e: React.KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key === "f") {
               e.preventDefault();
@@ -109,14 +120,17 @@ export function EditorContentArea({
             searchMatches={sourceSearchOpen ? sourceSearch.matches : undefined}
             searchCurrentIndex={sourceSearchOpen ? sourceSearch.currentIndex : undefined}
           />
-        </Box>
-      </Box>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Box sx={{ flex: 1, minWidth: 0 }}>
-      <Box
+    <div style={{ flex: 1, minWidth: 0 }}>
+      {tiptapStyles && (
+        <GlobalStyle styles={{ "#md-editor-content .tiptap": tiptapStyles }} />
+      )}
+      <div
         ref={editorWrapperRef}
         onKeyDown={(readonlyMode || reviewMode) ? (e: React.KeyboardEvent) => {
           if ((e.ctrlKey || e.metaKey) && e.key === "f") {
@@ -124,7 +138,7 @@ export function EditorContentArea({
             editor?.commands.openSearch();
           }
         } : undefined}
-        sx={{ position: "relative", outline: "none" }}
+        style={{ position: "relative", outline: "none" }}
       >
         {editor && <SearchReplaceBar editor={editor} t={t} />}
         {editor && <EditorContextMenu editor={editor} readOnly={readonlyMode || reviewMode} t={t}
@@ -134,12 +148,15 @@ export function EditorContentArea({
         <div ref={frontmatterRef}>
           <FrontmatterBlock frontmatter={frontmatterText} onChange={handleFrontmatterChange} readOnly={readonlyMode || reviewMode} defaultCollapsed={true} t={t} />
         </div>
-        <Box sx={{ display: "flex", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", alignItems: "flex-start" }}>
           <Paper
             id="md-editor-content"
             variant="outlined"
-            sx={{
-              ...getEditorPaperSx(theme, settings, adjustedEditorHeight, { readonlyMode, noScroll }),
+            style={{
+              borderTopLeftRadius: 0,
+              borderTopRightRadius: 0,
+              overflow: "hidden",
+              backgroundColor: outerBg,
               flex: 1,
               minWidth: 0,
             }}
@@ -149,8 +166,8 @@ export function EditorContentArea({
           {!sourceMode && editor && (
             <MarkdownMinimap editor={editor} editorHeight={adjustedEditorHeight} />
           )}
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -8,8 +8,7 @@
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
     "lint": "eslint packages/markdown-viewer/src packages/web-app/src",
     "lint:fix": "eslint --fix packages/markdown-viewer/src packages/web-app/src",
-    "prepare": "husky",
-    "import-coverage": "node scripts/import-coverage.js"
+    "prepare": "husky"
   },
   "workspaces": [
     "packages/markdown-viewer",
@@ -35,7 +34,6 @@
     "packages/vscode-history-extension",
     "packages/vscode-extension-pack",
     "packages/web-app",
-    "packages/mobile-app",
     "packages/trail-server",
     "packages/code-analysis-core",
     "packages/code-analysis-typescript",
@@ -82,6 +80,8 @@
   },
   "dependencies": {
     "@auth/core": "0.41.1",
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.0",
     "@xmldom/xmldom": "0.9.10",
     "ignore": "7.0.5",
     "next": "16.2.6"

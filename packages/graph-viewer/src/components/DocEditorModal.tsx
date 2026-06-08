@@ -1,8 +1,7 @@
 'use client';
 
 import { getCanvasColors } from '@anytime-markdown/graph-core';
-import { Close as CloseIcon } from '@mui/icons-material';
-import { Box, IconButton, Typography } from '@mui/material';
+import { Box, CloseIcon, IconButton, Text } from '../ui';
 import { useGraphT } from '../i18n/context';
 import React, { useEffect,useState } from 'react';
 
@@ -34,7 +33,7 @@ export function DocEditorModal({ open, title, content, onSave, onClose, themeMod
 
   return (
     <Box
-      sx={{
+      style={{
         position: 'fixed',
         inset: 0,
         zIndex: 1200,
@@ -46,8 +45,8 @@ export function DocEditorModal({ open, title, content, onSave, onClose, themeMod
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <Box
-        sx={{
-          m: 'auto',
+        style={{
+          margin: 'auto',
           width: '90vw',
           maxWidth: 1000,
           height: '85vh',
@@ -61,45 +60,42 @@ export function DocEditorModal({ open, title, content, onSave, onClose, themeMod
       >
         {/* Header */}
         <Box
-          sx={{
+          style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            px: 2,
-            py: 1,
+            padding: '8px 16px',
             borderBottom: `1px solid ${colors.panelBorder}`,
             backgroundColor: colors.panelBg,
           }}
         >
-          <Typography variant="subtitle1" sx={{ color: colors.textPrimary, fontWeight: 600 }}>
+          <Text style={{ color: colors.textPrimary, fontWeight: 600, fontSize: '1rem' }}>
             {title || t('untitledDocument')}
-          </Typography>
-          <IconButton size="small" onClick={handleClose} sx={{ color: colors.textSecondary }}>
-            <CloseIcon />
+          </Text>
+          <IconButton size="small" onClick={handleClose} style={{ color: colors.textSecondary }}>
+            <CloseIcon fontSize="small" />
           </IconButton>
         </Box>
 
         {/* Editor */}
-        <Box sx={{ flex: 1, overflow: 'hidden' }}>
-          <Box
-            component="textarea"
+        <Box style={{ flex: 1, overflow: 'hidden' }}>
+          <textarea
+            className="gv-doc-textarea"
             value={editorContent}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditorContent(e.target.value)}
-            sx={{
+            style={{
               width: '100%',
               height: '100%',
+              boxSizing: 'border-box',
               backgroundColor: colors.modalBg,
               color: colors.textPrimary,
               border: 'none',
               outline: 'none',
               resize: 'none',
-              p: 3,
+              padding: 24,
               fontSize: '14px',
               fontFamily: 'Roboto Mono, monospace',
               lineHeight: 1.6,
-              '&::placeholder': {
-                color: colors.textSecondary,
-              },
             }}
             placeholder={t('writePlaceholder')}
           />

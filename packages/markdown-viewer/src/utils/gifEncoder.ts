@@ -588,6 +588,10 @@ export async function encodeGif(
 
     writeFrameData({ parts, frame, rgb, nq, colorTab, width, height, delay, isFirst: i === 0, writeBytes, writeShort });
 
+    // 処理済みフレームを解放してエンコード中のメモリ消費を抑える
+    // （全フレーム同時保持で数百 MB になり得るため、順次 GC に返す）
+    (frames as (ImageData | null)[])[i] = null;
+
     onProgress?.((i + 1) / frames.length);
 
     // yield to UI thread every 5 frames

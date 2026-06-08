@@ -107,7 +107,7 @@ describe('removeNode', () => {
 
     // manually add an edge
     const doc = await readGraph({ path: 'test.graph' }, tmpDir);
-    const edge = createEdge('arrow', { nodeId: n1.id, x: 0, y: 0 }, { nodeId: n2.id, x: 0, y: 0 });
+    const edge = createEdge('line', { nodeId: n1.id, x: 0, y: 0 }, { nodeId: n2.id, x: 0, y: 0 });
     doc.edges.push(edge);
     await fs.writeFile(path.join(tmpDir, 'test.graph'), JSON.stringify(doc, null, 2));
 
@@ -123,7 +123,7 @@ describe('removeNode', () => {
     const n2 = await addNode({ path: 'test.graph', type: 'rect', x: 200, y: 0, text: 'B' }, tmpDir);
 
     const doc = await readGraph({ path: 'test.graph' }, tmpDir);
-    const edge = createEdge('arrow', { nodeId: n1.id, x: 0, y: 0 }, { nodeId: n2.id, x: 0, y: 0 });
+    const edge = createEdge('line', { nodeId: n1.id, x: 0, y: 0 }, { nodeId: n2.id, x: 0, y: 0 });
     doc.edges.push(edge);
     await fs.writeFile(path.join(tmpDir, 'test.graph'), JSON.stringify(doc, null, 2));
 

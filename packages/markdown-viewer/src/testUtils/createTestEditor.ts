@@ -80,12 +80,15 @@ interface CreateTestEditorOptions {
   content?: string;
   withTable?: boolean;
   withMarkdown?: boolean;
+  /** 追加で組み込む拡張（例: ReviewModeExtension）。既存テストに影響しないよう既定は空。 */
+  extraExtensions?: Extensions;
 }
 
 export function createTestEditor({
   content = "",
   withTable = false,
   withMarkdown = false,
+  extraExtensions = [],
 }: CreateTestEditorOptions = {}): Editor {
   const extensions: Extensions = [
     StarterKit.configure({
@@ -113,6 +116,10 @@ export function createTestEditor({
       ListTextCleanup,
       ImagePasteTest,
     );
+  }
+
+  if (extraExtensions.length > 0) {
+    extensions.push(...extraExtensions);
   }
 
   return new Editor({ extensions, content });

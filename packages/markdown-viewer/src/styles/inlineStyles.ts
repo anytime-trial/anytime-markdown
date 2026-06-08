@@ -1,13 +1,9 @@
-import type { SxProps,Theme } from "@mui/material/styles";
-import { alpha } from "@mui/material/styles";
-
-import { ACCENT_COLOR, COMMON_WHITE, getGrey, getPrimaryMain, getWarningLight, getWarningMain } from "../constants/colors";
+import { ACCENT_COLOR, alpha, COMMON_WHITE, getGrey, getPrimaryMain, getWarningLight, getWarningMain } from "../constants/colors";
 import { TOOLTIP_FONT_SIZE } from "../constants/dimensions";
 import { Z_LINK_TOOLTIP } from "../constants/zIndex";
 
 /** リンク・コメント・検索マッチ・脚注スタイル */
-export function getInlineStyles(theme: Theme): SxProps<Theme> {
-  const isDark = theme.palette.mode === "dark";
+export function getInlineStyles(isDark: boolean): Record<string, unknown> {
   return {
     "& a": {
       color: getPrimaryMain(isDark),

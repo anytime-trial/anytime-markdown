@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("@anytime-markdown/markdown-react", () => ({
   NodeViewWrapper: ({ children, ...props }: any) => <div data-testid="node-view-wrapper" {...props}>{children}</div>,
@@ -62,7 +61,6 @@ jest.mock("../components/GifRecorderDialog", () => ({
 
 import { GifNodeView } from "../components/GifNodeView";
 
-const theme = createTheme();
 
 describe("GifNodeView", () => {
   const mockNode = {
@@ -77,7 +75,7 @@ describe("GifNodeView", () => {
 
   it("renders placeholder when no src", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <GifNodeView
           editor={mockEditor as any}
           node={mockNode as any}
@@ -91,7 +89,7 @@ describe("GifNodeView", () => {
           HTMLAttributes={{}}
           view={{} as any}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(container.querySelector("[data-testid='node-view-wrapper']")).toBeTruthy();
   });
@@ -101,7 +99,7 @@ describe("GifNodeView", () => {
       attrs: { src: "test.gif", alt: "test", width: "100px", gifSettings: null },
     };
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <GifNodeView
           editor={mockEditor as any}
           node={nodeWithSrc as any}
@@ -115,7 +113,7 @@ describe("GifNodeView", () => {
           HTMLAttributes={{}}
           view={{} as any}
         />
-      </ThemeProvider>,
+        </>,
     );
     const img = container.querySelector("img");
     expect(img).toBeTruthy();

@@ -1,13 +1,15 @@
 "use client";
 
-import HomeIcon from "@mui/icons-material/Home";
-import PauseIcon from "@mui/icons-material/Pause";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { Box, IconButton, Slider, Tooltip, Typography } from "@mui/material";
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { getTextSecondary } from "@anytime-markdown/markdown-viewer";
+import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
+import { Slider } from "@anytime-markdown/markdown-viewer/src/ui/Slider";
+import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
+import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
+import { HomeIcon, PauseIcon, PlayArrowIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
 import type { GraphExpr } from "../../utils/latexToExpr";
+import styles from "./graphControls.module.css";
 
 /** デフォルト表示範囲 */
 const DEFAULT_BBOX: [number, number, number, number] = [-10, 10, 10, -10];
@@ -87,14 +89,19 @@ export function Graph2DView({ graphExpr, jsxGraph, isDark, width = 500, height =
           break;
         }
         case "polar": {
-          const xFn = (theta: number) => {
-            const r = evalFn({ ...paramValuesRef.current, theta }) as number;
-            return r * Math.cos(theta);
+          // JSXGraph は同じ theta に対し xFn→yFn を連続で呼ぶため、
+          // 直前の theta の評価結果を再利用して evalFn 呼び出しを半減させる
+          let lastTheta: number | undefined;
+          let lastR = 0;
+          const evalR = (theta: number) => {
+            if (theta !== lastTheta) {
+              lastR = evalFn({ ...paramValuesRef.current, theta }) as number;
+              lastTheta = theta;
+            }
+            return lastR;
           };
-          const yFn = (theta: number) => {
-            const r = evalFn({ ...paramValuesRef.current, theta }) as number;
-            return r * Math.sin(theta);
-          };
+          const xFn = (theta: number) => evalR(theta) * Math.cos(theta);
+          const yFn = (theta: number) => evalR(theta) * Math.sin(theta);
           const polarAttrs: JXG.CurveAttributes = {
             curveType: "parameter",
             strokeColor,
@@ -106,12 +113,22 @@ export function Graph2DView({ graphExpr, jsxGraph, isDark, width = 500, height =
         case "parametric2d": {
           const tMin = -10;
           const tMax = 10;
+          // 同じ t に対する xParam→yParam の重複評価を直前結果の再利用で半減させる
+          let lastT: number | undefined;
+          let lastRes: ReturnType<typeof evalFn>;
+          const evalP = (t: number) => {
+            if (t !== lastT) {
+              lastRes = evalFn({ ...paramValuesRef.current, t });
+              lastT = t;
+            }
+            return lastRes;
+          };
           const xParam = (t: number) => {
-            const result = evalFn({ ...paramValuesRef.current, t });
+            const result = evalP(t);
             return typeof result === "object" && result !== null ? result.x : 0;
           };
           const yParam = (t: number) => {
-            const result = evalFn({ ...paramValuesRef.current, t });
+            const result = evalP(t);
             return typeof result === "object" && result !== null ? result.y : 0;
           };
           const paramAttrs: JXG.CurveAttributes = {
@@ -197,16 +214,18 @@ export function Graph2DView({ graphExpr, jsxGraph, isDark, width = 500, height =
     };
   }, []);
 
+  const textSecondary = getTextSecondary(isDark);
+
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+    <div className={styles.root}>
       {/* ツールバー */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+      <div className={styles.toolbar}>
         <Tooltip title="表示範囲をリセット">
           <IconButton size="small" onClick={handleReset} aria-label="表示範囲をリセット">
-            <HomeIcon sx={{ fontSize: 18, color: getTextSecondary(isDark) }} />
+            <HomeIcon fontSize={18} color={textSecondary} />
           </IconButton>
         </Tooltip>
-      </Box>
+      </div>
 
       {/* グラフ描画エリア */}
       <div
@@ -217,37 +236,38 @@ export function Graph2DView({ graphExpr, jsxGraph, isDark, width = 500, height =
 
       {/* パラメータスライダー */}
       {graphExpr.parameters.length > 0 && (
-        <Box sx={{ px: 1, display: "flex", flexDirection: "column", gap: 1 }}>
+        <div className={styles.sliderList}>
           {graphExpr.parameters.map((param) => (
-            <Box key={param} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography variant="caption" sx={{ minWidth: 24, color: getTextSecondary(isDark) }}>
+            <div key={param} className={styles.sliderRow}>
+              <Text variant="caption" className={styles.paramLabel} style={{ color: textSecondary }}>
                 {param}
-              </Typography>
-              <Slider
-                size="small"
-                min={PARAM_DEFAULT_RANGE[0]}
-                max={PARAM_DEFAULT_RANGE[1]}
-                step={PARAM_STEP}
-                value={paramValues[param] ?? 1}
-                onChange={(_e, v) => handleParamChange(param, v)}
-                sx={{ flex: 1 }}
-                aria-label={`パラメータ ${param}`}
-              />
-              <Typography variant="caption" sx={{ minWidth: 32, textAlign: "right", color: getTextSecondary(isDark) }}>
+              </Text>
+              <div className={styles.sliderFlex}>
+                <Slider
+                  size="small"
+                  min={PARAM_DEFAULT_RANGE[0]}
+                  max={PARAM_DEFAULT_RANGE[1]}
+                  step={PARAM_STEP}
+                  value={paramValues[param] ?? 1}
+                  onChange={(_e, v) => handleParamChange(param, v)}
+                  aria-label={`パラメータ ${param}`}
+                />
+              </div>
+              <Text variant="caption" className={styles.paramValue} style={{ color: textSecondary }}>
                 {(paramValues[param] ?? 1).toFixed(1)}
-              </Typography>
+              </Text>
               <Tooltip title={animating[param] ? "停止" : "再生"}>
                 <IconButton size="small" onClick={() => toggleAnimation(param)} aria-label={animating[param] ? `${param} 停止` : `${param} 再生`}>
                   {animating[param]
-                    ? <PauseIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
-                    : <PlayArrowIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
+                    ? <PauseIcon fontSize={16} color={textSecondary} />
+                    : <PlayArrowIcon fontSize={16} color={textSecondary} />
                   }
                 </IconButton>
               </Tooltip>
-            </Box>
+            </div>
           ))}
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }

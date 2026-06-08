@@ -1,0 +1,21 @@
+.root {
+  border: 0;
+  margin: 0;
+  flex-shrink: 0;
+  background-color: var(--am-color-divider);
+}
+
+.horizontal {
+  height: 1px;
+  width: 100%;
+}
+
+.vertical {
+  width: 1px;
+  align-self: stretch;
+  height: auto;
+}
+
+.flexItem {
+  align-self: stretch;
+}

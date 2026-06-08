@@ -1,0 +1,111 @@
+/*
+ * MUI Box(sx) 置換。数値は旧 sx と一致（p:2=16px, px:1.5=12px, py:0.5=4px, px:1=8px, py:0.25=2px,
+ * gap:0.75=6px, FS_TOOLBAR_HEIGHT=32px）。テーマ依存色は inline style（CSS 変数経由含む）。
+ */
+
+/* code パネルヘッダ・見出しは dialogPanels.module.css に共通化。 */
+
+/* サンプルパネル外枠（border-top 色は inline）。 */
+.samplePanelRoot {
+  border-top: 1px solid;
+  flex-shrink: 0;
+}
+
+/* サンプル見出し行。hover 背景はテーマ依存のため CSS 変数で受ける。 */
+.sampleHeader {
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.sampleHeader:hover {
+  background-color: var(--am-sample-hover-bg);
+}
+
+/* Chip 群のラップ（gap:0.75=6px / px:1.5=12px / pb:1.5=12px）。 */
+.chipsWrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+
+/* renderPreview の枠（bg は inline）。 */
+.previewPane {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+/*
+ * シンタックスハイライト <pre>。font-size/line-height/color と hljs トークン色は inline 変数で受ける。
+ * 旧 getHljsStyles(isDark) の "& .hljs-*" ネスト selector を CSS 変数版に移植。
+ */
+.hljsPre {
+  font-family: monospace;
+  padding: 16px;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+/* hljs-* / katex は dangerouslySetInnerHTML で注入される外部クラスのため :global で scope を抜く。 */
+.hljsPre :global(.hljs-keyword),
+.hljsPre :global(.hljs-selector-tag),
+.hljsPre :global(.hljs-built_in),
+.hljsPre :global(.hljs-type) {
+  color: var(--hljs-keyword);
+}
+.hljsPre :global(.hljs-string),
+.hljsPre :global(.hljs-attr),
+.hljsPre :global(.hljs-template-tag),
+.hljsPre :global(.hljs-template-variable) {
+  color: var(--hljs-string);
+}
+.hljsPre :global(.hljs-comment),
+.hljsPre :global(.hljs-doctag) {
+  color: var(--hljs-comment);
+}
+.hljsPre :global(.hljs-number),
+.hljsPre :global(.hljs-literal),
+.hljsPre :global(.hljs-variable),
+.hljsPre :global(.hljs-regexp) {
+  color: var(--hljs-number);
+}
+.hljsPre :global(.hljs-title),
+.hljsPre :global(.hljs-title\.class_),
+.hljsPre :global(.hljs-title\.function_) {
+  color: var(--hljs-title);
+}
+.hljsPre :global(.hljs-params) {
+  color: var(--hljs-params);
+}
+.hljsPre :global(.hljs-meta),
+.hljsPre :global(.hljs-meta) keyword {
+  color: var(--hljs-meta);
+}
+.hljsPre :global(.hljs-symbol),
+.hljsPre :global(.hljs-bullet) {
+  color: var(--hljs-meta);
+}
+.hljsPre :global(.hljs-addition) {
+  color: var(--hljs-addition);
+  background-color: var(--hljs-addition-bg);
+}
+.hljsPre :global(.hljs-addition)::before {
+  content: "+ ";
+  font-weight: 700;
+}
+.hljsPre :global(.hljs-deletion) {
+  color: var(--hljs-deletion);
+  background-color: var(--hljs-deletion-bg);
+}
+.hljsPre :global(.hljs-deletion)::before {
+  content: "- ";
+  font-weight: 700;
+}
+/* 旧 sx の明示上書き: property/name → number 色。 */
+.hljsPre :global(.hljs-property),
+.hljsPre :global(.hljs-name) {
+  color: var(--hljs-number);
+}

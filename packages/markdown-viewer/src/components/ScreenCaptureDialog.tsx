@@ -1,13 +1,13 @@
 "use client";
 
-import CameraAltIcon from "@mui/icons-material/CameraAlt";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import ScreenshotMonitorIcon from "@mui/icons-material/ScreenshotMonitor";
-import { Box, Button, Typography } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { Button } from "../ui/Button";
+import { CameraAltIcon, RefreshIcon, ScreenshotMonitorIcon } from "../ui/icons";
+
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { getDivider } from "../constants/colors";
+import { Text } from "../ui/Text";
 import { EditDialogHeader } from "./EditDialogHeader";
 import { EditDialogWrapper } from "./EditDialogWrapper";
 import { ImageCropTool } from "./ImageCropTool";
@@ -22,7 +22,7 @@ interface ScreenCaptureDialogProps {
 }
 
 export function ScreenCaptureDialog({ open, onClose, onCapture, t }: Readonly<ScreenCaptureDialogProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [phase, setPhase] = useState<CapturePhase>("idle");
   const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
 
@@ -113,18 +113,18 @@ export function ScreenCaptureDialog({ open, onClose, onCapture, t }: Readonly<Sc
       <EditDialogHeader
         label={t("screenCapture")}
         onClose={onClose}
-        icon={<ScreenshotMonitorIcon sx={{ fontSize: 18 }} />}
+        icon={<ScreenshotMonitorIcon fontSize={18} />}
         t={t}
       />
-      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {/* Preview / Capture area */}
         {phase !== "captured" && (
-          <Box
-            sx={{
+          <div
+            style={{
               flex: 1,
               position: "relative",
               overflow: "hidden",
-              bgcolor: "black",
+              backgroundColor: "black",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -141,12 +141,12 @@ export function ScreenCaptureDialog({ open, onClose, onCapture, t }: Readonly<Sc
               }}
             />
             {phase === "idle" && (
-              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, color: "grey.400" }}>
-                <ScreenshotMonitorIcon sx={{ fontSize: 48 }} />
-                <Typography variant="body2">{t("screenCaptureSelect")}</Typography>
-              </Box>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, color: "#9e9e9e" }}>
+                <ScreenshotMonitorIcon fontSize={48} />
+                <Text variant="body2">{t("screenCaptureSelect")}</Text>
+              </div>
             )}
-          </Box>
+          </div>
         )}
 
         {/* Captured phase: ImageCropTool */}
@@ -155,7 +155,7 @@ export function ScreenCaptureDialog({ open, onClose, onCapture, t }: Readonly<Sc
         )}
 
         {/* Bottom bar */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, borderTop: 1, borderColor: getDivider(isDark) }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderTop: `1px solid ${getDivider(isDark)}` }}>
           {phase === "previewing" && (
             <>
               <Button size="small" variant="contained" startIcon={<CameraAltIcon />} onClick={handleCapture}>
@@ -171,8 +171,8 @@ export function ScreenCaptureDialog({ open, onClose, onCapture, t }: Readonly<Sc
               {t("screenCaptureRetry")}
             </Button>
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
     </EditDialogWrapper>
   );
 }

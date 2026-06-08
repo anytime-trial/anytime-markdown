@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
 import { SpreadsheetEditor } from '@anytime-markdown/spreadsheet-viewer';
 import type { WorkbookSnapshot } from '@anytime-markdown/spreadsheet-viewer';
 import { useThemeMode } from './shims/providers';
@@ -16,7 +14,6 @@ function detectLocale(): string {
 
 export function App() {
   const { themeMode } = useThemeMode();
-  const theme = useMemo(() => createTheme({ palette: { mode: themeMode } }), [themeMode]);
   const [format, setFormat] = useState<SheetFormat>('sheet');
   const [locale, setLocale] = useState<string>(detectLocale);
 
@@ -59,22 +56,17 @@ export function App() {
 
   const csvSheetAdapter = format === 'tsv' ? tsvAdapter : csvAdapter;
 
-  return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      {format === 'sheet' ? (
-        <SpreadsheetEditor
-          locale={locale}
-          themeMode={themeMode}
-          workbookAdapter={workbookAdapter}
-        />
-      ) : (
-        <SpreadsheetEditor
-          locale={locale}
-          themeMode={themeMode}
-          adapter={csvSheetAdapter}
-        />
-      )}
-    </ThemeProvider>
+  return format === 'sheet' ? (
+    <SpreadsheetEditor
+      locale={locale}
+      themeMode={themeMode}
+      workbookAdapter={workbookAdapter}
+    />
+  ) : (
+    <SpreadsheetEditor
+      locale={locale}
+      themeMode={themeMode}
+      adapter={csvSheetAdapter}
+    />
   );
 }

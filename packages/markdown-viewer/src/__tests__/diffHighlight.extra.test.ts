@@ -126,6 +126,39 @@ describe("computeBlockDiff - additional cases", () => {
     expect(result.left.changedBlocks.has(4)).toBe(false);
   });
 
+  it("semantic mode: 見出しがほぼ対応しない場合は flat にフォールバックしプレースホルダを作らない", () => {
+    const leftNodes = [
+      mockNode("Alpha", "heading", { level: 1 }),
+      mockNode("a1", "paragraph"),
+      mockNode("a2", "paragraph"),
+    ];
+    const rightNodes = [
+      mockNode("Zulu", "heading", { level: 1 }),
+      mockNode("z1", "paragraph"),
+      mockNode("z2", "paragraph"),
+    ];
+    const result = computeBlockDiff(mockDoc(leftNodes), mockDoc(rightNodes), { semantic: true });
+    // 対応セクション 0 → flat フォールバック。巨大プレースホルダは作られない。
+    expect(result.left.placeholderPositions).toHaveLength(0);
+    expect(result.right.placeholderPositions).toHaveLength(0);
+  });
+
+  it("semantic mode: 見出しが十分対応する場合は semantic を維持し片側セクションにプレースホルダを置く", () => {
+    const leftNodes = [
+      mockNode("Common", "heading", { level: 1 }),
+      mockNode("c1", "paragraph"),
+      mockNode("Removed", "heading", { level: 1 }),
+      mockNode("r1", "paragraph"),
+    ];
+    const rightNodes = [
+      mockNode("Common", "heading", { level: 1 }),
+      mockNode("c1", "paragraph"),
+    ];
+    const result = computeBlockDiff(mockDoc(leftNodes), mockDoc(rightNodes), { semantic: true });
+    // "Common" が対応するため semantic 維持 → 右側に "Removed" セクションのプレースホルダ
+    expect(result.right.placeholderPositions.length).toBeGreaterThan(0);
+  });
+
   it("table with extra row on one side", () => {
     const makeCell = (text: string) => ({
       textContent: text,

@@ -1,4 +1,4 @@
-import type { SxProps,Theme } from "@mui/material/styles";
+import type { CSSProperties } from "react";
 
 import {
   DEFAULT_DARK_BG, DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_CODE_BG,
@@ -28,9 +28,30 @@ export function getHljsStyles(isDark: boolean) {
   return hljsStyles(isDark ? HLJS_DARK : HLJS_LIGHT);
 }
 
+/**
+ * hljs トークン色を CSS 変数（`--hljs-*`）の形で返す。CSS Module 側で `.x :global(.hljs-*)`
+ * を CSS 変数参照にして、テーマ依存色を inline style で受けるための対。`getHljsStyles` の
+ * CSS-Module 版。
+ */
+export function getHljsCssVars(isDark: boolean): CSSProperties {
+  const h = isDark ? HLJS_DARK : HLJS_LIGHT;
+  return {
+    "--hljs-keyword": h.keyword,
+    "--hljs-string": h.string,
+    "--hljs-comment": h.comment,
+    "--hljs-number": h.number,
+    "--hljs-title": h.title,
+    "--hljs-params": h.params,
+    "--hljs-meta": h.meta,
+    "--hljs-addition": h.addition,
+    "--hljs-addition-bg": h.additionBg,
+    "--hljs-deletion": h.deletion,
+    "--hljs-deletion-bg": h.deletionBg,
+  } as CSSProperties;
+}
+
 /** インラインコード・コードブロック・シンタックスハイライトスタイル */
-export function getCodeStyles(theme: Theme): SxProps<Theme> {
-  const isDark = theme.palette.mode === "dark";
+export function getCodeStyles(isDark: boolean): Record<string, unknown> {
   return {
     "& code": {
       bgcolor: isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG,

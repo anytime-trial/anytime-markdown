@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-06-08
+
+### Fixed
+
+- Update `VSCODE_NODE_TARGET` to 24.15.0 and bundle `better-sqlite3` for the Node 24 ABI; limit `prepare-native` reuse to matching targets.
+
+### Trail Core (trail-server / memory-core)
+
+- trail-server: resolved CodeQL tainted-format-string & log-injection in `computeImportance` and fixed an unawaited async attach in `openReadOnly`.
+- memory-core: hardened embedding regex patterns (S5850 / S5868) and added Stryker mutation-test coverage for embedding helpers.
+
 ## [0.26.0] - 2026-06-03
 
 ### Fixed

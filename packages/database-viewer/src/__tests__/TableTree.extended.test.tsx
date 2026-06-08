@@ -10,7 +10,6 @@
  * - views list rendering
  */
 import { fireEvent, render, screen } from '@testing-library/react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import React from 'react';
 
 import { DatabaseI18nProvider } from '../i18n/context';
@@ -18,13 +17,10 @@ import { TableTree } from '../TableTree';
 import type { TableTreeProps } from '../TableTree';
 import type { SchemaInfo } from '@anytime-markdown/database-core';
 
-const theme = createTheme({ palette: { mode: 'light' } });
 function wrap(props: Partial<TableTreeProps> & { schema: SchemaInfo | null; selected: string | null; onSelect: TableTreeProps['onSelect'] }) {
   return render(
     <DatabaseI18nProvider locale="ja">
-      <ThemeProvider theme={theme}>
-        <TableTree {...props} />
-      </ThemeProvider>
+      <TableTree {...props} />
     </DatabaseI18nProvider>,
   );
 }
@@ -95,9 +91,8 @@ describe('TableTree — extended', () => {
     const onShowErd = jest.fn();
     wrap({ schema: baseSchema, selected: null, onSelect: jest.fn(), onShowErd });
     // Right-click on the DB root list item (first ListItemButton)
-    const listItems = document.querySelectorAll('li[role="option"], [class*="MuiListItemButton"]');
     // The DB root button comes first
-    const dbBtn = document.querySelectorAll('div[class*="MuiListItemButton"]')[0] ?? document.querySelectorAll('li')[0];
+    const dbBtn = document.querySelector('.dbv-list-item-button') ?? document.querySelectorAll('li')[0];
     if (dbBtn) {
       fireEvent.contextMenu(dbBtn);
     } else {
@@ -119,7 +114,7 @@ describe('TableTree — extended', () => {
     expect(screen.getByText('users')).toBeTruthy();
 
     // Click the DB-level ListItemButton (first clickable in list)
-    const firstListBtn = document.querySelector('[class*="MuiListItemButton"]') as HTMLElement;
+    const firstListBtn = document.querySelector('.dbv-list-item-button') as HTMLElement;
     fireEvent.click(firstListBtn);
     // After collapse aria / visibility changes — test that re-click restores
     fireEvent.click(firstListBtn);

@@ -1,22 +1,16 @@
-import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
-import {
-  Box,
-  Divider,
-  IconButton,
-  Tooltip,
-  Typography,
-} from "@mui/material";
-import { useTheme } from "@mui/material/styles";
-import type { Editor } from "@anytime-markdown/markdown-react";
+import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
 import { useEditor } from "@anytime-markdown/markdown-react";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { IconButton } from "../ui/IconButton";
+import { KeyboardArrowDownIcon, KeyboardArrowUpIcon, UnfoldLessIcon } from "../ui/icons";
+import { Tooltip } from "../ui/Tooltip";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { FILE_DROP_OVERLAY_COLOR, getDivider, getEditorBg, getTextDisabled } from "../constants/colors";
+import { buildEditorExtensions } from "../buildEditorExtensions";
+import { getEditorBg, getDivider, getTextDisabled } from "../constants/colors";
 import { MERGE_INFO_FONT_SIZE } from "../constants/dimensions";
 import { setMergeEditors } from "../contexts/MergeEditorsContext";
-import { getBaseExtensions } from "../editorExtensions";
-import { CustomHardBreak } from "../extensions/customHardBreak";
-import { ReviewModeExtension } from "../extensions/reviewModeExtension";
+import { useIsDark } from "../contexts/ThemeModeContext";
+import { useBlockAlignment } from "../hooks/useBlockAlignment";
 import { useDiffBackground } from "../hooks/useDiffBackground";
 import { useDiffHighlight } from "../hooks/useDiffHighlight";
 import { useMergeContentSync } from "../hooks/useMergeContentSync";
@@ -26,9 +20,17 @@ import { useScrollSync } from "../hooks/useScrollSync";
 import { useEditorSettingsContext } from "../useEditorSettings";
 import { type DiffLine } from "../utils/diffEngine";
 import { preprocessMarkdown } from "../utils/frontmatterHelpers";
+import { Divider } from "../ui/Divider";
+import { Text } from "../ui/Text";
 import { FrontmatterBlock } from "./FrontmatterBlock";
 import { LinePreviewPanel } from "./LinePreviewPanel";
 import { MergeEditorPanel } from "./MergeEditorPanel";
+import styles from "./InlineMergeView.module.css";
+
+/** 折りたたみ時に変更箇所の前後に残すコンテキスト量。
+ *  ソースモードは行単位（3 行）、WYSIWYG はブロック単位（1 ブロック）で粒度が異なる。 */
+const MERGE_COLLAPSE_CONTEXT_LINES = 3;
+const MERGE_COLLAPSE_CONTEXT_BLOCKS = 1;
 
 export interface MergeUndoRedo {
   undo: () => void;
@@ -37,8 +39,17 @@ export interface MergeUndoRedo {
   canRedo: boolean;
 }
 
+export interface MergeCollapseProps {
+  collapse: boolean;
+  contextLines: number;
+  expandedStarts: Set<number>;
+  onToggleExpand: (startIdx: number) => void;
+}
+
 interface InlineMergeViewProps {
   rightEditor?: Editor | null;
+  /** codeBlock 拡張 (rich の CodeBlockWithMermaid)。左パネルの mermaid/plantuml/math/html/embed 描画に必須 */
+  codeBlockExtension?: AnyExtension;
   editorContent: string;
   sourceMode: boolean;
   editorHeight: number;
@@ -56,6 +67,7 @@ interface InlineMergeViewProps {
     leftDiffLines?: DiffLine[],
     onMerge?: (blockId: number, direction: "left-to-right" | "right-to-left") => void,
     onHoverLine?: (lineIndex: number | null) => void,
+    collapseProps?: MergeCollapseProps,
   ) => React.ReactNode;
 }
 
@@ -73,6 +85,7 @@ function downloadText(text: string, filename: string) {
 
 export function InlineMergeView({
   rightEditor,
+  codeBlockExtension,
   editorContent,
   sourceMode,
   editorHeight: _editorHeight,
@@ -87,17 +100,18 @@ export function InlineMergeView({
   commentSlot,
   children,
 }: Readonly<InlineMergeViewProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
   const {
     compareText,
     setEditText,
     setCompareText,
     diffResult,
-    diffOptions,
-    setDiffOptions,
     mergeBlock,
+    currentBlockIndex,
+    totalBlocks,
+    goToNextBlock,
+    goToPrevBlock,
     undo,
     redo,
     canUndo,
@@ -118,6 +132,32 @@ export function InlineMergeView({
     onUndoRedoReady?.({ undo, redo, canUndo, canRedo });
   }, [onUndoRedoReady, undo, redo, canUndo, canRedo]);
 
+  // 未変更セクション折りたたみ（変更箇所のみ表示）
+  const [collapseEnabled, setCollapseEnabled] = useState(false);
+  const [expandedStarts, setExpandedStarts] = useState<Set<number>>(() => new Set());
+  const handleToggleCollapse = useCallback(() => {
+    setCollapseEnabled((prev) => !prev);
+    setExpandedStarts(new Set()); // 切り替え時は手動展開をリセット
+  }, []);
+  const handleToggleExpand = useCallback((startIdx: number) => {
+    setExpandedStarts((prev) => {
+      const next = new Set(prev);
+      if (next.has(startIdx)) next.delete(startIdx);
+      else next.add(startIdx);
+      return next;
+    });
+  }, []);
+  const collapseProps = useMemo(
+    () => ({
+      collapse: collapseEnabled,
+      contextLines: MERGE_COLLAPSE_CONTEXT_LINES,
+      expandedStarts,
+      onToggleExpand: handleToggleExpand,
+    }),
+    [collapseEnabled, expandedStarts, handleToggleExpand],
+  );
+  const expandBlocksLabel = useMemo(() => t("expandBlocks"), [t]);
+
   const {
     rightDragOver, setRightDragOver,
     fileInputRightRef,
@@ -134,6 +174,39 @@ export function InlineMergeView({
   const rightScrollRef = useRef<HTMLDivElement>(null);
   const compareTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // 差分ナビゲーション: 選択中ブロックへ自動スクロール
+  const diffResultRef = useRef(diffResult);
+  diffResultRef.current = diffResult;
+  useEffect(() => {
+    const block = diffResultRef.current?.blocks?.[currentBlockIndex];
+    if (!block) return;
+    const raf = requestAnimationFrame(() => {
+      for (const container of [rightScrollRef.current, leftContainerRef.current]) {
+        if (!container) continue;
+        // ソースモード: ブロック ID で厳密に特定。WYSIWYG モード: doc ベース diff の出現順で best-effort
+        const anchor =
+          container.querySelector(`[data-diff-block-id="${block.id}"]`) ??
+          container.querySelectorAll("[data-diff-block]")[currentBlockIndex] ??
+          null;
+        if (anchor) {
+          anchor.scrollIntoView({ block: "center", behavior: "smooth" });
+          break;
+        }
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [currentBlockIndex]);
+
+  const handleMergeNavKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key !== "F8") return;
+      e.preventDefault();
+      if (e.shiftKey) goToPrevBlock();
+      else goToNextBlock();
+    },
+    [goToNextBlock, goToPrevBlock],
+  );
+
   const hoverSetterRef = useRef<((v: number | null) => void) | null>(null);
   const handleHoverLine = useCallback((idx: number | null) => {
     hoverSetterRef.current?.(idx);
@@ -141,12 +214,12 @@ export function InlineMergeView({
 
   // Right tiptap editor (for WYSIWYG mode) – readonly (cursor visible)
   const leftEditor = useEditor({
-    extensions: [...getBaseExtensions({ disableComments: true, disableCheckboxToggle: true }), CustomHardBreak, ReviewModeExtension],
+    extensions: buildEditorExtensions({ mode: "compare", codeBlockExtension }),
     content: "",
     immediatelyRender: false,
     editorProps: {
       handleDOMEvents: {
-        // Skip ProseMirror drop handling; let event bubble to parent Box handler
+        // Skip ProseMirror drop handling; let event bubble to parent div handler
         drop: () => true,
       },
       handleClickOn: (_view, _pos, node, _nodePos, event) => {
@@ -188,9 +261,14 @@ export function InlineMergeView({
     };
   }, [leftEditor]);
 
-  useDiffHighlight(sourceMode, rightEditor, leftEditor, diffOptions.semantic);
+  // WYSIWYG 比較モードは常に semantic で差分を取る（左右がセクション単位で揃い、
+  // 片側のみの追加/削除セクションも整合する）。セマンティックトグルはソースモード専用。
+  useDiffHighlight(sourceMode, rightEditor, leftEditor, true, collapseEnabled, MERGE_COLLAPSE_CONTEXT_BLOCKS, expandBlocksLabel);
 
-  useScrollSync(leftContainerRef, rightScrollRef);
+  // WYSIWYG 比較で対応ブロックの上端を揃える（改行差によるドリフト解消）
+  useBlockAlignment(sourceMode, rightEditor, leftEditor, !sourceMode);
+
+  useScrollSync(leftContainerRef, rightScrollRef, leftEditor, rightEditor, sourceMode);
 
   const rightFrontmatter = useMemo(() => preprocessMarkdown(compareText).frontmatter, [compareText]);
 
@@ -203,7 +281,7 @@ export function InlineMergeView({
   }, [rightEditor, leftEditor]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden" }}>
+    <div onKeyDown={handleMergeNavKeyDown} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden" }}>
       {/* Hidden file input for right panel */}
       <input
         ref={fileInputRightRef}
@@ -216,14 +294,14 @@ export function InlineMergeView({
 
       {/* Frontmatter comparison row */}
       {!sourceMode && (leftFrontmatter != null || rightFrontmatter != null) && (
-        <Box sx={{ display: "flex", gap: 0, flexShrink: 0, alignItems: "stretch" }}>
-          <Box sx={{ flex: 1, minWidth: 0, px: 1, pt: 1 }}>
+        <div style={{ display: "flex", gap: 0, flexShrink: 0, alignItems: "stretch" }}>
+          <div style={{ flex: 1, minWidth: 0, paddingLeft: 8, paddingRight: 8, paddingTop: 8 }}>
             {rightFrontmatter == null ? (
-              <Box sx={{ border: 1, borderColor: getDivider(isDark), borderRadius: 1, mb: 1, opacity: 0.4, p: 1, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
-                <Typography variant="caption" sx={{ fontFamily: "monospace", color: getTextDisabled(isDark), fontSize: MERGE_INFO_FONT_SIZE }}>
+              <div style={{ border: "1px solid " + getDivider(isDark), borderRadius: 4, marginBottom: 8, opacity: 0.4, padding: 8, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
+                <Text variant="caption" style={{ fontFamily: "monospace", color: getTextDisabled(isDark), fontSize: MERGE_INFO_FONT_SIZE }}>
                   No Frontmatter
-                </Typography>
-              </Box>
+                </Text>
+              </div>
             ) : (
               <FrontmatterBlock
                 frontmatter={rightFrontmatter}
@@ -232,15 +310,15 @@ export function InlineMergeView({
                 t={t}
               />
             )}
-          </Box>
+          </div>
           <Divider orientation="vertical" flexItem />
-          <Box sx={{ flex: 1, minWidth: 0, px: 1, pt: 1 }}>
+          <div style={{ flex: 1, minWidth: 0, paddingLeft: 8, paddingRight: 8, paddingTop: 8 }}>
             {leftFrontmatter == null ? (
-              <Box sx={{ border: 1, borderColor: getDivider(isDark), borderRadius: 1, mb: 1, opacity: 0.4, p: 1, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
-                <Typography variant="caption" sx={{ fontFamily: "monospace", color: getTextDisabled(isDark), fontSize: MERGE_INFO_FONT_SIZE }}>
+              <div style={{ border: "1px solid " + getDivider(isDark), borderRadius: 4, marginBottom: 8, opacity: 0.4, padding: 8, height: "calc(100% - 8px)", boxSizing: "border-box" }}>
+                <Text variant="caption" style={{ fontFamily: "monospace", color: getTextDisabled(isDark), fontSize: MERGE_INFO_FONT_SIZE }}>
                   No Frontmatter
-                </Typography>
-              </Box>
+                </Text>
+              </div>
             ) : (
               <FrontmatterBlock
                 frontmatter={leftFrontmatter}
@@ -248,37 +326,64 @@ export function InlineMergeView({
                 t={t}
               />
             )}
-          </Box>
-        </Box>
+          </div>
+        </div>
       )}
 
-      {/* Semantic diff toggle */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", px: 1, py: 0.5, flexShrink: 0 }}>
-        <Tooltip title={t("semanticDiff")}>
+      {/* Diff navigation + semantic diff toggle */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4, flexShrink: 0 }}>
+        <Tooltip title={t("mergeNavPrev")}>
+          <span>
+            <IconButton
+              size="compact"
+              onClick={goToPrevBlock}
+              disabled={totalBlocks === 0}
+              aria-label={t("mergeNavPrev")}
+            >
+              <KeyboardArrowUpIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Text
+          variant="caption"
+          aria-live="polite"
+          style={{ minWidth: "3.5em", textAlign: "center", fontVariantNumeric: "tabular-nums", color: getTextDisabled(isDark) }}
+        >
+          {totalBlocks === 0 ? "0 / 0" : `${currentBlockIndex + 1} / ${totalBlocks}`}
+        </Text>
+        <Tooltip title={t("mergeNavNext")}>
+          <span>
+            <IconButton
+              size="compact"
+              onClick={goToNextBlock}
+              disabled={totalBlocks === 0}
+              aria-label={t("mergeNavNext")}
+            >
+              <KeyboardArrowDownIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Divider orientation="vertical" flexItem style={{ marginLeft: 4, marginRight: 4 }} />
+        <Tooltip title={t("collapseUnchanged")}>
           <IconButton
-            size="small"
-            onClick={() => setDiffOptions((prev) => ({ ...prev, semantic: !prev.semantic }))}
-            color={diffOptions.semantic ? "primary" : "default"}
-            aria-label={t("semanticDiff")}
-            aria-pressed={!!diffOptions.semantic}
-            sx={{ p: 0.5 }}
+            size="compact"
+            onClick={handleToggleCollapse}
+            aria-label={t("collapseUnchanged")}
+            aria-pressed={collapseEnabled}
+            style={collapseEnabled ? { color: "var(--am-color-primary-main)" } : undefined}
           >
-            <AccountTreeOutlinedIcon fontSize="small" />
+            <UnfoldLessIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-      </Box>
+        {/* ソースモードは常にセマンティック比較 OFF（行単位の素の diff）。
+            WYSIWYG は常に semantic。トグルは提供しない。 */}
+      </div>
 
       {/* Content area: left = compare (read-only), right = editor (children) */}
-      <Box sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Left: compare (read-only) + DiffMap */}
-        <Box
-          sx={{
-            flex: 1, minWidth: 0, display: "flex", overflow: "hidden",
-            position: "relative",
-            ...(rightDragOver && {
-              "&::after": { content: '""', position: "absolute", inset: 0, bgcolor: FILE_DROP_OVERLAY_COLOR, pointerEvents: "none", zIndex: 1 },
-            }),
-          }}
+        <div
+          className={rightDragOver ? `${styles.dropTarget} ${styles.dropTargetActive}` : styles.dropTarget}
           onDragOver={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -306,7 +411,7 @@ export function InlineMergeView({
             }
           }}
         >
-          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <MergeEditorPanel
               sourceMode={sourceMode}
               sourceText={compareText}
@@ -322,26 +427,27 @@ export function InlineMergeView({
               hideScrollbar
               onMerge={flippedMergeBlock}
               onHoverLine={handleHoverLine}
+              {...collapseProps}
               paperSx={{ bgcolor: getEditorBg(isDark, settings), '& input[type="checkbox"]': { pointerEvents: "none" } }}
             />
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         <Divider orientation="vertical" flexItem />
 
         {/* Right: editor (children) */}
-        <Box
+        <div
           ref={leftContainerRef}
-          sx={{
+          style={{
             flex: 1,
             minWidth: 0,
             overflow: "hidden",
           }}
         >
-          {children(leftBgGradient, diffResult?.leftLines, flippedMergeBlock, handleHoverLine)}
-        </Box>
+          {children(leftBgGradient, diffResult?.leftLines, flippedMergeBlock, handleHoverLine, collapseProps)}
+        </div>
         {commentSlot}
-      </Box>
+      </div>
 
       {/* Line preview: hovered line text with inline diff highlight (source mode only) */}
       <LinePreviewPanel
@@ -351,6 +457,6 @@ export function InlineMergeView({
       />
 
 
-    </Box>
+    </div>
   );
 }

@@ -7,7 +7,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- Common mocks ---
 
@@ -78,7 +77,6 @@ jest.mock("../constants/zIndex", () => ({
   Z_TOOLBAR: 1100,
 }));
 
-const theme = createTheme();
 
 // --- MarkdownIcon ---
 
@@ -87,9 +85,7 @@ describe("MarkdownIcon", () => {
     const mod = await import("../icons/MarkdownIcon");
     const MarkdownIcon = mod.default;
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <MarkdownIcon />
-      </ThemeProvider>,
+        <MarkdownIcon />,
     );
     expect(container.querySelector("svg")).toBeTruthy();
   });
@@ -102,9 +98,7 @@ describe("FullPageLoader", () => {
     const mod = await import("../components/loader/FullPageLoader");
     const FullPageLoader = mod.default;
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FullPageLoader />
-      </ThemeProvider>,
+        <FullPageLoader />,
     );
     expect(container).toBeTruthy();
   });

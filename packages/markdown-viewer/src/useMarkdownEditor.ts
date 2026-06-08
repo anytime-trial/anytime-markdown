@@ -48,12 +48,18 @@ export function useMarkdownEditor(defaultContent: string, skipLocalStorage = fal
   // skipLocalStorage が true の場合（externalContent 表示中）は localStorage に書き込まない
   const onContentChangeRef = useRef(onContentChange);
   onContentChangeRef.current = onContentChange;
+  // タイマー発火時点の最新の skipLocalStorage を参照するための ref。
+  // タイマー設定後に externalContent 注入で skipLocalStorage=true になっても localStorage を汚染しない。
+  const skipLocalStorageRef = useRef(skipLocalStorage);
+  skipLocalStorageRef.current = skipLocalStorage;
 
   const saveContent = useCallback((markdown: string | (() => string | null), withFrontmatter = true) => {
     if (skipLocalStorage) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       try {
+        // タイマー設定後に skipLocalStorage が true に変わった場合は書き込まない
+        if (skipLocalStorageRef.current) return;
         // プロデューサ関数の場合は debounce 経過後に1回だけ解決する。
         // 打鍵中のフルシリアライズ（getMarkdownFromEditor）を回避するための遅延ポイント。
         const resolved = typeof markdown === "function" ? markdown() : markdown;

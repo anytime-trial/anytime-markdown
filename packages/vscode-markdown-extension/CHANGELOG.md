@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-06-08
+
+### Changed
+
+- Bundled the rewritten editor core that fully drops MUI in favor of an in-house UI primitive kit (no extension-facing behavior change).
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Removed all `@mui/material` / `@mui/icons-material` usage from the editor chrome and `markdown-rich`, replacing it with an in-house `ui/` primitive kit and vendored icons (MUI reduction Phase 3a/3b).
+- Replaced MUI `GlobalStyles` / `useTheme` / `useMediaQuery` with a stylis-based `ui/GlobalStyle`, `ThemeModeContext` (`useIsDark`), and an in-house media-query hook; dropped `@mui/*` and `@emotion/*` from peer dependencies.
+- Fixed compare-mode imageRow badge layout.
+
 ## [0.17.0] - 2026-06-03
 
 ### Added

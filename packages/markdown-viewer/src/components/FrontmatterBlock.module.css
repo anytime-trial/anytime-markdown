@@ -1,0 +1,9 @@
+.root {
+  @media print {
+    display: none;
+  }
+}
+
+.textarea:focus {
+  outline: none;
+}

@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 global.ResizeObserver = class ResizeObserver {
   observe() {}
@@ -58,7 +57,6 @@ jest.mock("../components/ZoomablePreview", () => ({
 
 import { CodeBlockEditDialog } from "../components/CodeBlockEditDialog";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 describe("CodeBlockEditDialog", () => {
@@ -77,40 +75,36 @@ describe("CodeBlockEditDialog", () => {
 
   it("does not render when closed", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog
-          open={false}
-          onClose={jest.fn()}
-          label="Code"
-          language="javascript"
-          fsCode=""
-          onFsCodeChange={jest.fn()}
-          onFsTextChange={jest.fn()}
-          fsTextareaRef={{ current: null }}
-          fsSearch={{ query: "", setQuery: jest.fn(), replaceText: "", setReplaceText: jest.fn(), matches: [], currentIndex: 0, goToNext: jest.fn(), goToPrev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn(), caseSensitive: false, toggleCaseSensitive: jest.fn(), wholeWord: false, toggleWholeWord: jest.fn(), useRegex: false, toggleUseRegex: jest.fn() } as any}
-          t={t}
-        />
-      </ThemeProvider>,
+      <CodeBlockEditDialog
+        open={false}
+        onClose={jest.fn()}
+        label="Code"
+        language="javascript"
+        fsCode=""
+        onFsCodeChange={jest.fn()}
+        onFsTextChange={jest.fn()}
+        fsTextareaRef={{ current: null }}
+        fsSearch={{ query: "", setQuery: jest.fn(), replaceText: "", setReplaceText: jest.fn(), matches: [], currentIndex: 0, goToNext: jest.fn(), goToPrev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn(), caseSensitive: false, toggleCaseSensitive: jest.fn(), wholeWord: false, toggleWholeWord: jest.fn(), useRegex: false, toggleUseRegex: jest.fn() } as any}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders when open", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <CodeBlockEditDialog
-          open={true}
-          onClose={jest.fn()}
-          label="Code"
-          language="javascript"
-          fsCode="const x = 1;"
-          onFsCodeChange={jest.fn()}
-          onFsTextChange={jest.fn()}
-          fsTextareaRef={{ current: null }}
-          fsSearch={{ query: "", setQuery: jest.fn(), replaceText: "", setReplaceText: jest.fn(), matches: [], currentIndex: 0, goToNext: jest.fn(), goToPrev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn(), caseSensitive: false, toggleCaseSensitive: jest.fn(), wholeWord: false, toggleWholeWord: jest.fn(), useRegex: false, toggleUseRegex: jest.fn() } as any}
-          t={t}
-        />
-      </ThemeProvider>,
+      <CodeBlockEditDialog
+        open={true}
+        onClose={jest.fn()}
+        label="Code"
+        language="javascript"
+        fsCode="const x = 1;"
+        onFsCodeChange={jest.fn()}
+        onFsTextChange={jest.fn()}
+        fsTextareaRef={{ current: null }}
+        fsSearch={{ query: "", setQuery: jest.fn(), replaceText: "", setReplaceText: jest.fn(), matches: [], currentIndex: 0, goToNext: jest.fn(), goToPrev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn(), caseSensitive: false, toggleCaseSensitive: jest.fn(), wholeWord: false, toggleWholeWord: jest.fn(), useRegex: false, toggleUseRegex: jest.fn() } as any}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });

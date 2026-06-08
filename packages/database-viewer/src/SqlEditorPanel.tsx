@@ -1,17 +1,17 @@
 "use client";
 
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import {
   Alert,
   Box,
   Button,
   Collapse,
+  ExpandLessIcon,
+  ExpandMoreIcon,
   IconButton,
   Stack,
+  Text,
   TextareaAutosize,
-  Typography,
-} from "@mui/material";
+} from "./ui";
 import { useDatabaseT } from "./i18n/context";
 import React, { forwardRef, useImperativeHandle, useRef, useState } from "react";
 
@@ -99,19 +99,23 @@ export const SqlEditorPanel = forwardRef<SqlEditorPanelHandle, SqlEditorPanelPro
   };
 
   const sqlStatusLabel = last ? (
-    <Typography variant="caption">
+    <Text variant="caption">
       {t("sqlStatusRows", { count: last.rows.length })} ·{" "}
       {t("sqlStatusTime", { ms: Math.round(last.executionTimeMs) })}
-    </Typography>
+    </Text>
   ) : (
-    <Typography variant="caption">
+    <Text variant="caption">
       {running ? t("sqlStatusRunning") : t("sqlStatusIdle")}
-    </Typography>
+    </Text>
   );
 
   return (
-    <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-      <Stack direction="row" alignItems="center" sx={{ px: 1, py: 0.5 }}>
+    <Box style={{ borderBottom: "1px solid var(--dbv-color-divider)" }}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4 }}
+      >
         <IconButton
           size="small"
           onClick={() => setExpanded((v) => !v)}
@@ -119,18 +123,18 @@ export const SqlEditorPanel = forwardRef<SqlEditorPanelHandle, SqlEditorPanelPro
         >
           {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
         </IconButton>
-        <Typography variant="subtitle2">SQL</Typography>
-        <Box sx={{ flexGrow: 1 }} />
+        <Text variant="subtitle2">SQL</Text>
+        <Box style={{ flexGrow: 1 }} />
         {last?.error ? (
-          <Typography variant="caption" color="error">
+          <Text variant="caption" color="error">
             {t("sqlStatusError")}: {last.error}
-          </Typography>
+          </Text>
         ) : (
           sqlStatusLabel
         )}
       </Stack>
       <Collapse in={expanded}>
-        <Stack sx={{ p: 1 }} spacing={1}>
+        <Stack spacing={1} style={{ padding: 8 }}>
           <TextareaAutosize
             ref={textareaRef}
             minRows={4}

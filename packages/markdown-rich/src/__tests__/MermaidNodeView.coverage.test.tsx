@@ -35,18 +35,6 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock("@mui/material", () => ({
-  useTheme: () => ({
-    palette: {
-      mode: "light",
-      primary: { main: "#1976d2" },
-      divider: "#e0e0e0",
-      text: { secondary: "#666", disabled: "#999", primary: "#000" },
-      action: { hover: "#f5f5f5", selected: "#eee" },
-      background: { paper: "#fff" },
-    },
-  }),
-}));
 
 // Mock the block sub-components
 const mockDiagramBlock = jest.fn((_props: any) => <div data-testid="diagram-block" />);

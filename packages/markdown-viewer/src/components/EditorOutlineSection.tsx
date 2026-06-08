@@ -1,6 +1,5 @@
-import { Drawer } from "@mui/material";
-
 import { COMMENT_PANEL_WIDTH } from "../constants/dimensions";
+import { Drawer } from "../ui/Drawer";
 import type { HeadingItem, TranslationFn } from "../types";
 import OutlinePanel from "./OutlinePanel";
 
@@ -80,7 +79,7 @@ export function EditorOutlineSection({
       anchor="left"
       open={outlineOpen}
       onClose={handleToggleOutline}
-      slotProps={{ paper: { sx: { width: COMMENT_PANEL_WIDTH } } }}
+      width={COMMENT_PANEL_WIDTH}
       aria-labelledby="outline-panel-title"
     >
       <OutlinePanel

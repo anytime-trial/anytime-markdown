@@ -1,5 +1,8 @@
-import MusicNoteIcon from "@mui/icons-material/MusicNote";
-import { Box, Stack, Typography, useTheme } from "@mui/material";
+import { getBgPaper, getDivider, getTextPrimary } from "../../constants/colors";
+import { useIsDark } from "../../contexts/ThemeModeContext";
+import { MusicNoteIcon } from "../../ui/icons";
+import { Stack } from "../../ui/Stack";
+import { Text } from "../../ui/Text";
 
 interface Props {
     spotifyType: string;
@@ -15,7 +18,7 @@ function iframeHeightFor(type: string): number {
 }
 
 export function SpotifyEmbedView({ spotifyType, spotifyId, variant, widthOverride }: Readonly<Props>) {
-    const theme = useTheme();
+    const isDark = useIsDark();
     const pageUrl = `https://open.spotify.com/${spotifyType}/${spotifyId}`;
 
     if (variant === "compact") {
@@ -30,19 +33,20 @@ export function SpotifyEmbedView({ spotifyType, spotifyId, variant, widthOverrid
                     direction="row"
                     spacing={1}
                     alignItems="center"
-                    sx={{
-                        border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
-                        backgroundColor: theme.palette.background.paper,
+                    style={{
+                        border: `1px solid ${getDivider(isDark)}`,
+                        borderRadius: 4,
+                        backgroundColor: getBgPaper(isDark),
                         maxWidth: 720,
                         height: 40,
-                        px: 1.5,
+                        paddingLeft: 12,
+                        paddingRight: 12,
                     }}
                 >
-                    <MusicNoteIcon sx={{ fontSize: 16, color: "#1DB954", flexShrink: 0 }} />
-                    <Typography
-                        sx={{
-                            color: theme.palette.text.primary,
+                    <MusicNoteIcon fontSize={16} color="#1DB954" style={{ flexShrink: 0 }} />
+                    <Text
+                        style={{
+                            color: getTextPrimary(isDark),
                             fontSize: 14,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
@@ -51,7 +55,7 @@ export function SpotifyEmbedView({ spotifyType, spotifyId, variant, widthOverrid
                         }}
                     >
                         Spotify: {spotifyId}
-                    </Typography>
+                    </Text>
                 </Stack>
             </a>
         );
@@ -61,23 +65,22 @@ export function SpotifyEmbedView({ spotifyType, spotifyId, variant, widthOverrid
     const embedSrc = `https://open.spotify.com/embed/${encodeURIComponent(spotifyType)}/${encodeURIComponent(spotifyId)}`;
 
     return (
-        <Box
-            sx={{
+        <div
+            style={{
                 width: widthOverride ?? "100%",
                 maxWidth: widthOverride ?? 720,
-                borderRadius: 1,
+                borderRadius: 4,
                 overflow: "hidden",
             }}
         >
-            <Box
-                component="iframe"
+            <iframe
                 src={embedSrc}
                 title={`Spotify ${spotifyType}: ${spotifyId}`}
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                 referrerPolicy="strict-origin-when-cross-origin"
                 loading="lazy"
-                sx={{ width: "100%", height, border: 0 }}
+                style={{ width: "100%", height, border: 0 }}
             />
-        </Box>
+        </div>
     );
 }

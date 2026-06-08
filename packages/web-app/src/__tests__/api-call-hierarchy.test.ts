@@ -3,6 +3,8 @@
  * 外部依存 (supabase, trail-core) をすべてモックして境界値を検証する。
  */
 
+export {}; // tsc -b: module 化して top-level 宣言の global 衝突(TS2451/TS2393)を防ぐ
+
 const mockBuildIndex = jest.fn();
 const mockTraverse = jest.fn();
 const mockBuildNodeFilter = jest.fn();

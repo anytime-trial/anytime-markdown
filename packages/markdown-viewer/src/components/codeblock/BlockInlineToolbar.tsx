@@ -1,15 +1,19 @@
 "use client";
 
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
-import EditIcon from "@mui/icons-material/Edit";
-import FileDownloadIcon from "@mui/icons-material/FileDownload";
-import ImageIcon from "@mui/icons-material/Image";
-import { Box, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip, Typography } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { DeleteOutlineIcon, DragIndicatorIcon, EditIcon, FileDownloadIcon, ImageIcon } from "../../ui/icons";
+import { Tooltip } from "../../ui/Tooltip";
+import { IconButton } from "../../ui/IconButton";
+import { ListItemIcon } from "../../ui/ListItemIcon";
+import { ListItemText } from "../../ui/ListItemText";
+import { Menu } from "../../ui/Menu";
+import { MenuItem } from "../../ui/MenuItem";
 import React, { useRef, useState } from "react";
 
+import { useIsDark } from "../../contexts/ThemeModeContext";
 import { getActionHover, getPrimaryMain, getTextSecondary } from "../../constants/colors";
+import { Divider } from "../../ui/Divider";
+import { Text } from "../../ui/Text";
+import styles from "./BlockInlineToolbar.module.css";
 
 export interface BlockInlineToolbarProps {
   /** Block label (e.g. "Mermaid", "Math", "Table") */
@@ -39,7 +43,7 @@ export interface BlockInlineToolbarProps {
 export function BlockInlineToolbar({
   label, onEdit, onDelete, onExport, onExportSource, exportSourceKey, collapsed, extra, labelDivider, labelOnly, t,
 }: Readonly<BlockInlineToolbarProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const iconSx = { fontSize: 16, color: getTextSecondary(isDark) };
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -47,67 +51,67 @@ export function BlockInlineToolbar({
 
   if (labelOnly) {
     return (
-      <Box
+      <div
         data-block-toolbar=""
         aria-label={label}
-        sx={{ bgcolor: getActionHover(isDark), px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
+        style={{ backgroundColor: getActionHover(isDark), padding: "2px 6px", display: "flex", alignItems: "center", gap: 2 }}
         contentEditable={false}
       >
-        <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
+        <Text variant="caption" style={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
           {label}
-        </Typography>
-      </Box>
+        </Text>
+      </div>
     );
   }
 
   const hasMenu = onExport && onExportSource;
 
   return (
-    <Box
+    <div
       data-block-toolbar=""
       role="toolbar"
       aria-label={label}
-      sx={{ bgcolor: getActionHover(isDark), px: 0.75, py: 0.25, display: "flex", alignItems: "center", gap: 0.25 }}
+      style={{ backgroundColor: getActionHover(isDark), padding: "2px 6px", display: "flex", alignItems: "center", gap: 2 }}
       contentEditable={false}
     >
-      <Box
+      <div
         data-drag-handle=""
         role="button"
         tabIndex={0}
         aria-roledescription="draggable item"
         aria-label={t("dragHandle")}
-        sx={{ cursor: "grab", display: "flex", alignItems: "center", opacity: 0.7, "&:hover, &:focus-visible": { opacity: 1 }, "&:focus-visible": { outline: "2px solid", outlineColor: getPrimaryMain(isDark), borderRadius: 0.5 } }}
+        className={styles.dragHandle}
+        style={{ "--drag-handle-outline-color": getPrimaryMain(isDark) } as React.CSSProperties}
       >
-        <DragIndicatorIcon sx={iconSx} />
-      </Box>
-      <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
+        <DragIndicatorIcon {...iconSx} />
+      </div>
+      <Text variant="caption" style={{ fontWeight: 600, color: getTextSecondary(isDark), flexShrink: 0 }}>
         {label}
-      </Typography>
+      </Text>
       {labelDivider && onEdit && !collapsed && (
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+        <Divider orientation="vertical" flexItem style={{ margin: "0 2px" }} />
       )}
       {onEdit && !collapsed && (
         <Tooltip title={t("edit")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={onEdit} aria-label={t("edit")}>
-            <EditIcon sx={iconSx} />
+          <IconButton size="xs" onClick={onEdit} aria-label={t("edit")}>
+            <EditIcon {...iconSx} />
           </IconButton>
         </Tooltip>
       )}
       {extra}
-      <Box sx={{ flex: 1 }} />
+      <div style={{ flex: 1 }} />
       {hasMenu && !collapsed && (<>
         <Tooltip title={t("capture")} placement="top">
-          <IconButton ref={anchorRef} size="small" sx={{ p: 0.25 }} onClick={() => setMenuOpen(true)} aria-label={t("capture")} aria-haspopup="true">
-            <FileDownloadIcon sx={iconSx} />
+          <IconButton ref={anchorRef} size="xs" onClick={() => setMenuOpen(true)} aria-label={t("capture")} aria-haspopup="true">
+            <FileDownloadIcon {...iconSx} />
           </IconButton>
         </Tooltip>
         <Menu
           anchorEl={anchorRef.current}
           open={menuOpen}
           onClose={() => setMenuOpen(false)}
-          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-          transformOrigin={{ vertical: "top", horizontal: "right" }}
-          slotProps={{ paper: { sx: { minWidth: 180 } } }}
+          placement="bottom-end"
+          minWidth={180}
         >
           <MenuItem onClick={() => { setMenuOpen(false); onExport(); }}>
             <ListItemIcon><ImageIcon fontSize="small" /></ListItemIcon>
@@ -121,19 +125,19 @@ export function BlockInlineToolbar({
       </>)}
       {onExport && !hasMenu && !collapsed && (
         <Tooltip title={t("capture")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={onExport} aria-label={t("capture")}>
-            <FileDownloadIcon sx={iconSx} />
+          <IconButton size="xs" onClick={onExport} aria-label={t("capture")}>
+            <FileDownloadIcon {...iconSx} />
           </IconButton>
         </Tooltip>
       )}
       {onDelete && !collapsed && (<>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+        <Divider orientation="vertical" flexItem style={{ margin: "0 2px" }} />
         <Tooltip title={t("delete")} placement="top">
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={onDelete} aria-label={t("delete")}>
-            <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+          <IconButton size="xs" onClick={onDelete} aria-label={t("delete")}>
+            <DeleteOutlineIcon fontSize={16} />
           </IconButton>
         </Tooltip>
       </>)}
-    </Box>
+    </div>
   );
 }

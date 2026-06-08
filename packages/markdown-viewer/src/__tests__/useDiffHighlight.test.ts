@@ -29,6 +29,7 @@ function createMockEditor(overrides?: Record<string, unknown>): Editor {
     commands: {
       setDiffHighlight: jest.fn(),
       clearDiffHighlight: jest.fn(),
+      setCollapsePlan: jest.fn(),
     },
     on: jest.fn(),
     off: jest.fn(),

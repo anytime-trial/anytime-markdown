@@ -1,6 +1,16 @@
-import { Box, Skeleton, Stack, Typography, useTheme } from "@mui/material";
+import { Skeleton } from "../../ui/Skeleton";
 import { useEffect, useRef } from "react";
 
+import { Stack } from "../../ui/Stack";
+import { Text } from "../../ui/Text";
+import { useIsDark } from "../../contexts/ThemeModeContext";
+import {
+    getBgPaper,
+    getDivider,
+    getTextPrimary,
+    getTextSecondary,
+    getWarningMain,
+} from "../../constants/colors";
 import { useOembedData } from "../../hooks/useEmbedData";
 import type { EmbedProviders } from "../../types/embedProvider";
 import { sanitizeTweetHtml } from "../../utils/tweetSanitize";
@@ -72,7 +82,7 @@ function extractTextExcerpt(html: string): string {
 
 export function TwitterEmbedView({ url, variant, providers, widthOverride }: Readonly<Props>) {
     const { loading, data, error } = useOembedData(url, providers);
-    const theme = useTheme();
+    const isDark = useIsDark();
     const containerRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
@@ -89,7 +99,7 @@ export function TwitterEmbedView({ url, variant, providers, widthOverride }: Rea
             <Skeleton
                 variant="rectangular"
                 height={variant === "compact" ? 40 : 180}
-                sx={{ maxWidth: 720 }}
+                style={{ maxWidth: 720 }}
             />
         );
     }
@@ -100,7 +110,7 @@ export function TwitterEmbedView({ url, variant, providers, widthOverride }: Rea
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: theme.palette.warning.main }}
+                style={{ color: getWarningMain(isDark) }}
             >
                 ⚠ {url}
             </a>
@@ -121,22 +131,23 @@ export function TwitterEmbedView({ url, variant, providers, widthOverride }: Rea
                     direction="row"
                     spacing={1}
                     alignItems="center"
-                    sx={{
-                        border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
-                        backgroundColor: theme.palette.background.paper,
+                    style={{
+                        border: `1px solid ${getDivider(isDark)}`,
+                        borderRadius: 4,
+                        backgroundColor: getBgPaper(isDark),
                         maxWidth: 720,
                         height: 40,
-                        px: 1.5,
+                        paddingLeft: 12,
+                        paddingRight: 12,
                     }}
                 >
-                    <Typography sx={{ fontSize: 14, color: theme.palette.text.primary, fontWeight: 600 }}>
+                    <Text style={{ fontSize: 14, color: getTextPrimary(isDark), fontWeight: 600 }}>
                         @{author}
-                    </Typography>
-                    <Typography
-                        sx={{
+                    </Text>
+                    <Text
+                        style={{
                             fontSize: 13,
-                            color: theme.palette.text.secondary,
+                            color: getTextSecondary(isDark),
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -144,16 +155,16 @@ export function TwitterEmbedView({ url, variant, providers, widthOverride }: Rea
                         }}
                     >
                         · {excerpt}
-                    </Typography>
+                    </Text>
                 </Stack>
             </a>
         );
     }
 
     return (
-        <Box
+        <div
             ref={containerRef}
-            sx={{ width: widthOverride ?? "100%", maxWidth: widthOverride ?? 720 }}
+            style={{ width: widthOverride ?? "100%", maxWidth: widthOverride ?? 720 }}
             dangerouslySetInnerHTML={{ __html: sanitizeTweetHtml(data.html) }}
         />
     );

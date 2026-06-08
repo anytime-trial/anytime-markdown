@@ -3,11 +3,9 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import { ToolbarFileActions } from "../components/ToolbarFileActions";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 function createHandlers(overrides: Partial<Record<string, jest.Mock>> = {}) {
@@ -34,9 +32,7 @@ function renderComponent(props: Partial<React.ComponentProps<typeof ToolbarFileA
     ...props,
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <ToolbarFileActions {...defaultProps} />
-    </ThemeProvider>,
+      <ToolbarFileActions {...defaultProps} />,
   );
 }
 

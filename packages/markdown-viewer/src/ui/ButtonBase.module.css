@@ -1,0 +1,27 @@
+/* MUI ButtonBase の置換（最小リセット）。レイアウト（display 等）は消費側 className が
+   全責任を持つ。display を root に置かないのは、消費側クラスとの CSS 優先度衝突
+   （単一クラス同士で出力順依存になる）を避けるため。 */
+.root {
+  position: relative;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  vertical-align: middle;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.root:disabled,
+.root[aria-disabled="true"] {
+  cursor: default;
+  pointer-events: none;
+}

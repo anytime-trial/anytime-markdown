@@ -1,8 +1,16 @@
 'use client';
 
 import { getCanvasColors } from '@anytime-markdown/graph-core';
-import { Close as CloseIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon } from '@mui/icons-material';
-import { Box, IconButton, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import {
+  Box,
+  CloseIcon,
+  DarkModeIcon,
+  IconButton,
+  LightModeIcon,
+  Text,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '../ui';
 import { useGraphT } from '../i18n/context';
 import React from 'react';
 
@@ -23,57 +31,44 @@ export function SettingsPanel({ open, width, onClose, themeMode = 'dark', onThem
 
   if (!open) return null;
 
-  const toggleSx = {
-    '& .MuiToggleButton-root': {
-      px: 1.5, py: 0.5, fontSize: '0.75rem',
-      color: colors.textSecondary,
-      borderColor: colors.panelBorder,
-      '&.Mui-selected': {
-        color: colors.accentColor,
-        backgroundColor: `${colors.accentColor}1F`,
-      },
-    },
-  };
-
   return (
     <Box
-      sx={{
+      style={{
         width,
         flexShrink: 0,
-        bgcolor: colors.panelBg,
+        backgroundColor: colors.panelBg,
         borderLeft: `1px solid ${colors.panelBorder}`,
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5, borderBottom: `1px solid ${colors.panelBorder}` }}>
-        <Typography variant="subtitle2" sx={{ color: colors.textPrimary, fontWeight: 700 }}>
+      <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${colors.panelBorder}` }}>
+        <Text variant="subtitle2" style={{ color: colors.textPrimary, fontWeight: 700 }}>
           {t('settings')}
-        </Typography>
-        <IconButton size="small" onClick={onClose} sx={{ color: colors.textSecondary }}>
+        </Text>
+        <IconButton size="small" onClick={onClose} style={{ color: colors.textSecondary }}>
           <CloseIcon fontSize="small" />
         </IconButton>
       </Box>
 
-      <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      <Box style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
         <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Box style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             {isDark
-              ? <DarkModeIcon fontSize="small" sx={{ color: colors.textSecondary }} />
-              : <LightModeIcon fontSize="small" sx={{ color: colors.textSecondary }} />
+              ? <DarkModeIcon fontSize="small" color={colors.textSecondary} />
+              : <LightModeIcon fontSize="small" color={colors.textSecondary} />
             }
-            <Typography variant="body2" sx={{ color: colors.textPrimary, fontWeight: 600 }}>
+            <Text style={{ color: colors.textPrimary, fontWeight: 600 }}>
               {t('themeMode')}
-            </Typography>
+            </Text>
           </Box>
           <ToggleButtonGroup
             value={themeMode}
             exclusive
-            onChange={(_, v) => v && onThemeModeChange?.(v)}
+            onChange={(_, v) => v && onThemeModeChange?.(v as 'light' | 'dark')}
             size="small"
             fullWidth
-            sx={toggleSx}
           >
             <ToggleButton value="light">Light</ToggleButton>
             <ToggleButton value="dark">Dark</ToggleButton>
@@ -81,16 +76,15 @@ export function SettingsPanel({ open, width, onClose, themeMode = 'dark', onThem
         </Box>
 
         <Box>
-          <Typography variant="body2" sx={{ color: colors.textPrimary, fontWeight: 600, mb: 1 }}>
+          <Text style={{ color: colors.textPrimary, fontWeight: 600, marginBottom: 8, display: 'block' }}>
             {t('language')}
-          </Typography>
+          </Text>
           <ToggleButtonGroup
             value={locale}
             exclusive
             onChange={(_, v) => v && onLocaleChange?.(v)}
             size="small"
             fullWidth
-            sx={toggleSx}
           >
             <ToggleButton value="en">English</ToggleButton>
             <ToggleButton value="ja">Japanese</ToggleButton>

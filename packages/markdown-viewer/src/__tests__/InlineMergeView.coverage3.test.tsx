@@ -10,7 +10,6 @@
  */
 import React from "react";
 import { render, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- mock functions ---
 const mockSetCompareText = jest.fn();
@@ -68,7 +67,7 @@ jest.mock("../useEditorSettings", () => ({
   }),
 }));
 
-jest.mock("../editorExtensions", () => ({ getBaseExtensions: () => [] }));
+jest.mock("../buildEditorExtensions", () => ({ buildEditorExtensions: () => [] }));
 jest.mock("../extensions/customHardBreak", () => ({ CustomHardBreak: {} }));
 jest.mock("../extensions/reviewModeExtension", () => ({
   ReviewModeExtension: { name: "reviewMode" },
@@ -79,6 +78,7 @@ jest.mock("../hooks/useDiffBackground", () => ({
   useDiffBackground: () => ({ leftBgGradient: "lg1", rightBgGradient: "lg2" }),
 }));
 
+jest.mock("../hooks/useBlockAlignment", () => ({ useBlockAlignment: () => {} }));
 jest.mock("../hooks/useDiffHighlight", () => ({ useDiffHighlight: () => {} }));
 
 jest.mock("../hooks/useMergeDiff", () => ({
@@ -90,6 +90,7 @@ jest.mock("../hooks/useMergeDiff", () => ({
     diffOptions: { semantic: false },
     setDiffOptions: mockSetDiffOptions,
     mergeBlock: mockMergeBlock,
+    currentBlockIndex: 0, totalBlocks: 0, goToNextBlock: jest.fn(), goToPrevBlock: jest.fn(),
     undo: jest.fn(), redo: jest.fn(), canUndo: false, canRedo: false,
   }),
 }));
@@ -129,7 +130,6 @@ jest.mock("../components/MergeEditorPanel", () => ({
 
 import { InlineMergeView } from "../components/InlineMergeView";
 
-const theme = createTheme();
 
 function renderMergeView(props: Partial<React.ComponentProps<typeof InlineMergeView>> = {}) {
   const defaultProps = {
@@ -142,9 +142,7 @@ function renderMergeView(props: Partial<React.ComponentProps<typeof InlineMergeV
     ),
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <InlineMergeView {...defaultProps} {...props} />
-    </ThemeProvider>,
+      <InlineMergeView {...defaultProps} {...props} />,
   );
 }
 

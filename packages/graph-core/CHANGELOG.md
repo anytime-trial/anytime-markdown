@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-08
+
+### Changed
+
+- Removed `@mui` from `MinimapCanvas`, deriving canvas colors from the in-house color system (MUI reduction Phase 3e).
+
 ## [0.4.1] - 2026-05-27
 
 ### Changed

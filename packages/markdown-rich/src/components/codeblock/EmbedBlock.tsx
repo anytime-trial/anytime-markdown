@@ -1,6 +1,5 @@
 "use client";
 
-import { Box } from "@mui/material";
 import { useCallback, useMemo, useRef } from "react";
 
 import { useBlockResize, buildEmbedInfoString, DEFAULT_EMBED_BASELINE, type EmbedBaseline, type EmbedVariant, parseEmbedInfoString, EmbedEditDialog, EmbedNodeView, BlockInlineToolbar } from "@anytime-markdown/markdown-viewer";
@@ -8,6 +7,7 @@ import { CodeBlockFrame } from "./CodeBlockFrame";
 import { shouldShowBorder } from "./compareHelpers";
 import { ResizeGrip } from "./ResizeGrip";
 import type { CodeBlockSharedProps } from "./types";
+import styles from "./EmbedBlock.module.css";
 
 type EmbedBlockProps = Pick<
     CodeBlockSharedProps,
@@ -164,19 +164,15 @@ export function EmbedBlock(props: EmbedBlockProps) {
                 />
             }
         >
-            <Box
+            <div
                 ref={containerRef}
                 contentEditable={false}
                 onClick={selectNode}
                 onDoubleClick={() => setEditOpen(true)}
                 onPointerMove={handleResizePointerMove}
                 onPointerUp={handleResizePointerUp}
-                sx={{
-                    p: 1.5,
-                    cursor: "pointer",
-                    overflow: "hidden",
-                    position: "relative",
-                    display: "block",
+                className={styles.container}
+                style={{
                     width: widthOverride ?? "100%",
                     maxWidth: widthOverride ?? 720,
                 }}
@@ -196,7 +192,7 @@ export function EmbedBlock(props: EmbedBlockProps) {
                         onPointerDown={handleResizePointerDown}
                     />
                 )}
-            </Box>
+            </div>
         </CodeBlockFrame>
     );
 }

@@ -15,6 +15,7 @@ interface UseBlockResizeReturn {
   handleResizePointerDown: (e: React.PointerEvent) => void;
   handleResizePointerMove: (e: React.PointerEvent) => void;
   handleResizePointerUp: () => void;
+  handleResizePointerCancel: () => void;
 }
 
 /**
@@ -56,7 +57,15 @@ export function useBlockResize({
     setResizeWidth(null);
   }, [resizing, resizeWidth, updateAttributes]);
 
+  // pointercancel（タッチ中断・入力横取り）でリサイズ状態が固着しないよう中断扱いでリセットする。
+  // pointerup と異なり幅はコミットしない（ジェスチャ中断のため）。
+  const handleResizePointerCancel = useCallback(() => {
+    if (!resizing) return;
+    setResizing(false);
+    setResizeWidth(null);
+  }, [resizing]);
+
   const displayWidth = resizeWidth === null ? currentWidth || undefined : `${resizeWidth}px`;
 
-  return { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp };
+  return { resizing, resizeWidth, displayWidth, handleResizePointerDown, handleResizePointerMove, handleResizePointerUp, handleResizePointerCancel };
 }

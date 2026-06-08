@@ -28,6 +28,26 @@ describe('encodeEmbedding / decodeEmbedding', () => {
     expect(decoded[0]).toBe(1.0); // encoded copy must not reflect the mutation
   });
 
+  it('decodeEmbedding honors a non-zero byteOffset sub-view (must not read the whole underlying buffer)', () => {
+    // Embed a known vector, then place its bytes in the middle of a larger
+    // ArrayBuffer so the decoded view has byteOffset > 0 and byteLength <
+    // buffer length. Values are exactly representable in float32.
+    const original = new Float32Array([1.5, -2.5, 3.5]); // 12 bytes
+    const payload = encodeEmbedding(original);
+
+    const backing = new Uint8Array(4 + payload.byteLength + 4); // 4-byte junk pad on each side
+    backing.set([0xaa, 0xbb, 0xcc, 0xdd], 0);
+    backing.set(payload, 4);
+    const subView = backing.subarray(4, 4 + payload.byteLength); // byteOffset = 4, byteLength = 12
+
+    const decoded = decodeEmbedding(subView);
+
+    expect(decoded.length).toBe(original.length); // not 5 (the full backing buffer)
+    expect(decoded[0]).toBe(1.5); // not the 0xaabbccdd junk prefix
+    expect(decoded[1]).toBe(-2.5);
+    expect(decoded[2]).toBe(3.5);
+  });
+
   it('decodeEmbedding throws "embedding_blob_corrupted" when byteLength % 4 !== 0', () => {
     const corrupted = new Uint8Array([0x00, 0x01, 0x02]); // 3 bytes — not divisible by 4
     expect(() => decodeEmbedding(corrupted)).toThrow('embedding_blob_corrupted');

@@ -3,6 +3,8 @@ import { useCallback } from "react";
 
 import { CAPTURE_BG, FETCH_TIMEOUT, saveBlob, buildPlantUmlUrl } from "@anytime-markdown/markdown-viewer";
 
+import { enqueueRender } from "./useMermaidRender";
+
 interface UseDiagramCaptureParams {
   isMermaid: boolean;
   isPlantUml: boolean;
@@ -101,21 +103,25 @@ async function downloadSvgAsPng(svgText: string, fileName = "diagram.png") {
 async function renderMermaidLight(code: string): Promise<string> {
   const mod = await import("mermaid");
   const mermaid = mod.default;
-  mermaid.initialize({ startOnLoad: false, suppressErrorRendering: true, theme: "default" });
-  const id = `mermaid-capture-${Date.now()}`;
-  const container = document.createElement("div");
-  container.id = `d${id}`;
-  container.style.position = "absolute";
-  container.style.left = "-9999px";
-  container.style.top = "-9999px";
-  document.body.appendChild(container);
-  try {
-    const { svg } = await mermaid.render(id, code, container);
-    return svg;
-  } finally {
-    container.remove();
-    document.querySelectorAll(`[id^="dmermaid-capture-"]`).forEach((el) => el.remove());
-  }
+  // useMermaidRender と同じキューで直列化する。直接 initialize/render すると
+  // 進行中の通常レンダリングの theme 設定を上書きし出力が壊れる/エラーになる。
+  return enqueueRender(async () => {
+    mermaid.initialize({ startOnLoad: false, suppressErrorRendering: true, theme: "default" });
+    const id = `mermaid-capture-${Date.now()}`;
+    const container = document.createElement("div");
+    container.id = `d${id}`;
+    container.style.position = "absolute";
+    container.style.left = "-9999px";
+    container.style.top = "-9999px";
+    document.body.appendChild(container);
+    try {
+      const { svg } = await mermaid.render(id, code, container);
+      return svg;
+    } finally {
+      container.remove();
+      document.querySelectorAll(`[id^="dmermaid-capture-"]`).forEach((el) => el.remove());
+    }
+  });
 }
 
 /** Build light-mode PlantUML SVG URL */

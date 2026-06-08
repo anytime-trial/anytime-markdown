@@ -4,7 +4,7 @@ export { SpreadsheetContextMenu } from "./SpreadsheetContextMenu";
 export { PaginationBar } from "./PaginationBar";
 export type { PaginationProps } from "./PaginationBar";
 export { useSpreadsheetState } from "./hooks/useSpreadsheetState";
-export { getDivider } from "./styles";
+export { getDivider } from "./ui/tokens";
 export { enMessages as spreadsheetViewerEnMessages, jaMessages as spreadsheetViewerJaMessages } from "./i18n";
 export type { SpreadsheetViewerMessages } from "./i18n";
 export { SpreadsheetI18nProvider } from "./i18n/context";

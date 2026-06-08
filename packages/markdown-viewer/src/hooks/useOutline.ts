@@ -18,6 +18,8 @@ export function useOutline({ editor, sourceMode, defaultOutlineOpen }: UseOutlin
   const [foldedIndices, setFoldedIndices] = useState<Set<number>>(new Set());
   const [outlineWidth, setOutlineWidth] = useState(OUTLINE_WIDTH_DEFAULT);
   const isResizingOutline = useRef(false);
+  // リサイズ中アンマウントで mousemove/mouseup リスナーが残留するのを防ぐためのクリーンアップ参照
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
 
   const handleToggleOutline = useCallback(() => {
     setOutlineOpen((v) => !v);
@@ -84,6 +86,8 @@ export function useOutline({ editor, sourceMode, defaultOutlineOpen }: UseOutlin
       }
       // focus() が付与する scrollIntoView を先に処理させてからセンタリングする
       requestAnimationFrame(() => {
+        // rAF 実行前にエディタが破棄された場合 view へのアクセスで例外になるためガードする
+        if (editor.isDestroyed) return;
         const dom = editor.view.nodeDOM(pos);
         const node = dom instanceof HTMLElement ? dom : dom?.parentElement;
         node?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -166,20 +170,32 @@ export function useOutline({ editor, sourceMode, defaultOutlineOpen }: UseOutlin
         const newWidth = Math.max(OUTLINE_WIDTH_MIN, Math.min(OUTLINE_WIDTH_MAX, startWidth + ev.clientX - startX));
         setOutlineWidth(newWidth);
       };
-      const onMouseUp = () => {
+      const cleanup = () => {
         isResizingOutline.current = false;
         document.removeEventListener("mousemove", onMouseMove);
         document.removeEventListener("mouseup", onMouseUp);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
+        resizeCleanupRef.current = null;
+      };
+      const onMouseUp = () => {
+        cleanup();
       };
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
+      resizeCleanupRef.current = cleanup;
     },
     [outlineWidth],
   );
+
+  // アンマウント時にリサイズ操作中のリスナー残留を解消する
+  useEffect(() => {
+    return () => {
+      resizeCleanupRef.current?.();
+    };
+  }, []);
 
   return {
     outlineOpen,

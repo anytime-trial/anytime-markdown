@@ -1,0 +1,14 @@
+/* MUI Menu の paper + backdrop 相当。共通部は floating.module.css へ集約。 */
+.backdrop {
+  composes: backdrop from "./floating.module.css";
+}
+
+.paper {
+  composes: floatingPaper from "./floating.module.css";
+  margin: 0;
+  padding: 8px 0;
+  list-style: none;
+  min-width: 112px;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}

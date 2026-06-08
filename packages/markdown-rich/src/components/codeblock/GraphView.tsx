@@ -1,12 +1,16 @@
 "use client";
 
-import { Alert, Box, CircularProgress, Typography } from "@mui/material";
 import React, { useEffect, useRef, useState } from "react";
 
+import { getTextSecondary } from "@anytime-markdown/markdown-viewer";
+import { Spinner } from "@anytime-markdown/markdown-viewer/src/ui/Spinner";
+import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
+import { InlineAlert } from "../InlineAlert";
 import { useGraphRender } from "../../hooks/useGraphRender";
 import type { GraphExpr } from "../../utils/latexToExpr";
 import { Graph2DView } from "./Graph2DView";
 import { Graph3DView } from "./Graph3DView";
+import styles from "./GraphView.module.css";
 
 interface GraphContentProps {
   loading: boolean;
@@ -33,15 +37,19 @@ function GraphContent({
 }: Readonly<GraphContentProps>): React.ReactNode {
   if (loading) {
     return (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: fill ? "center" : undefined, gap: 1, height: fill ? "100%" : undefined, p: fill ? undefined : 2 }}>
-        <CircularProgress size={20} />
-        <Typography variant="body2" color="text.secondary">グラフライブラリを読み込み中...</Typography>
-      </Box>
+      <div className={fill ? styles.loadingRowFill : styles.loadingRowPadded}>
+        <Spinner size={20} />
+        <Text variant="body2" style={{ color: getTextSecondary(isDark) }}>グラフライブラリを読み込み中...</Text>
+      </div>
     );
   }
 
   if (error) {
-    return <Alert severity="info" sx={{ mx: 1, my: 0.5 }}>{error}</Alert>;
+    return (
+      <div className={styles.alertWrap}>
+        <InlineAlert severity="info">{error}</InlineAlert>
+      </div>
+    );
   }
 
   if (!graphExpr) return null;
@@ -94,7 +102,7 @@ export function GraphView({ code, enabled, isDark, width, height, fill }: Readon
 
   if (fill) {
     return (
-      <Box ref={fillRef} sx={{ width: "100%", height: "100%", minHeight: 200 }}>
+      <div ref={fillRef} className={styles.fillContainer}>
         <GraphContent
           loading={loading}
           error={error}
@@ -106,7 +114,7 @@ export function GraphView({ code, enabled, isDark, width, height, fill }: Readon
           height={fillSize?.height}
           fill
         />
-      </Box>
+      </div>
     );
   }
 

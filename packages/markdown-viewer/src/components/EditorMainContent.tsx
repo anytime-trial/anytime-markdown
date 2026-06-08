@@ -1,9 +1,10 @@
-import { Box, ClickAwayListener, useMediaQuery } from "@mui/material";
-import type { Editor } from "@anytime-markdown/markdown-react";
+import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
 import type React from "react";
 import { useCallback } from "react";
 
 import { FILE_DROP_OVERLAY_COLOR } from "../constants/colors";
+import { ClickAwayListener } from "../ui/ClickAwayListener";
+import { useMediaQuery } from "../ui/useMediaQuery";
 import { COMMENT_PANEL_WIDTH } from "../constants/dimensions";
 import { useEditorMode } from "../contexts/EditorModeContext";
 import type { TextareaSearchState } from "../hooks/useTextareaSearch";
@@ -19,6 +20,7 @@ import { OutlinePanel } from "./OutlinePanel";
 // InlineMergeView は dynamic import のため親から渡す
 type InlineMergeViewComponent = React.ComponentType<{
   rightEditor?: Editor | null;
+  codeBlockExtension?: AnyExtension;
   editorContent: string;
   sourceMode: boolean;
   editorHeight: number;
@@ -65,6 +67,7 @@ export interface OutlineProps {
 interface EditorMainContentProps {
   InlineMergeView: InlineMergeViewComponent;
   editor: Editor | null;
+  codeBlockExtension?: AnyExtension;
   editorHeight: number;
   editorContainerRef: React.RefObject<HTMLDivElement | null>;
   editorWrapperRef: React.RefObject<HTMLDivElement | null>;
@@ -99,6 +102,7 @@ interface EditorMainContentProps {
 export function EditorMainContent({
   InlineMergeView,
   editor,
+  codeBlockExtension,
   editorHeight,
   editorContainerRef,
   editorWrapperRef,
@@ -213,11 +217,12 @@ export function EditorMainContent({
   // --- 比較モード ---
   if (inlineMergeOpen) {
     return (
-      <Box ref={editorContainerRef} sx={{ display: "flex", flexDirection: "row", height: editorHeight, position: "relative" }}>
-      <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+      <div ref={editorContainerRef} style={{ display: "flex", flexDirection: "row", height: editorHeight, position: "relative" }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         <EditorMergeContent
           InlineMergeView={InlineMergeView}
           editor={editor}
+          codeBlockExtension={codeBlockExtension}
           sourceMode={sourceMode}
           reviewMode={readonlyMode || reviewMode}
           editorHeight={editorHeight}
@@ -241,42 +246,42 @@ export function EditorMainContent({
           onDrop={handleContainerDrop}
           t={t}
         />
-      </Box>
+      </div>
       {isNarrow ? (
         <>
           {sideToolbar && commentSlot && (
             <ClickAwayListener onClickAway={() => setCommentOpen(false)}>
-              <Box data-print-hide="" sx={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
+              <div data-print-hide="" style={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
                 {commentSlot}
-              </Box>
+              </div>
             </ClickAwayListener>
           )}
           {sideOutlineSlot && (
             <ClickAwayListener onClickAway={outlineProps.handleToggleOutline}>
-              <Box data-print-hide="" sx={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
+              <div data-print-hide="" style={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
                 {sideOutlineSlot}
-              </Box>
+              </div>
             </ClickAwayListener>
           )}
         </>
       ) : (
         <>
-          <Box data-print-hide="" sx={{ display: "flex" }}>{sideToolbar && commentSlot}</Box>
-          <Box data-print-hide="" sx={{ display: "flex" }}>{sideOutlineSlot}</Box>
+          <div data-print-hide="" style={{ display: "flex" }}>{sideToolbar && commentSlot}</div>
+          <div data-print-hide="" style={{ display: "flex" }}>{sideOutlineSlot}</div>
         </>
       )}
-      <Box data-print-hide="">{sideToolbar && explorerOpen && explorerSlot}</Box>
-      <Box data-print-hide="">{sideToolbarNode}</Box>
-      </Box>
+      <div data-print-hide="">{sideToolbar && explorerOpen && explorerSlot}</div>
+      <div data-print-hide="">{sideToolbarNode}</div>
+      </div>
     );
   }
 
   // --- 通常モード ---
   return (
-    <Box component="main" ref={editorContainerRef} sx={{ display: "flex", flexDirection: "row", position: "relative" }} onDragOver={handleContainerDragOver} onDragLeave={handleContainerDragLeave} onDrop={handleContainerDrop}>
-      <Box sx={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, minHeight: 0 }}>
-      <Box sx={{ display: "flex", gap: 0, flex: 1, minHeight: 0 }}>
-      {fileDragOver && <Box sx={{ position: "absolute", inset: 0, bgcolor: FILE_DROP_OVERLAY_COLOR, zIndex: 10, pointerEvents: "none" }} />}
+    <main ref={editorContainerRef} style={{ display: "flex", flexDirection: "row", position: "relative" }} onDragOver={handleContainerDragOver} onDragLeave={handleContainerDragLeave} onDrop={handleContainerDrop}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, minHeight: 0 }}>
+      <div style={{ display: "flex", gap: 0, flex: 1, minHeight: 0 }}>
+      {fileDragOver && <div style={{ position: "absolute", inset: 0, backgroundColor: FILE_DROP_OVERLAY_COLOR, zIndex: 10, pointerEvents: "none" }} />}
       {!sourceMode && !sideToolbar && <EditorOutlineSection {...outlineProps} />}
 
       <EditorContentArea
@@ -300,30 +305,30 @@ export function EditorMainContent({
         <>
           {commentSlot && (
             <ClickAwayListener onClickAway={() => setCommentOpen(false)}>
-              <Box data-print-hide="" sx={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
+              <div data-print-hide="" style={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
                 {commentSlot}
-              </Box>
+              </div>
             </ClickAwayListener>
           )}
           {sideOutlineSlot && (
             <ClickAwayListener onClickAway={outlineProps.handleToggleOutline}>
-              <Box data-print-hide="" sx={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
+              <div data-print-hide="" style={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, display: "flex" }}>
                 {sideOutlineSlot}
-              </Box>
+              </div>
             </ClickAwayListener>
           )}
         </>
       ) : (
         /* 900px以上: 通常のサイドパネル */
         <>
-          <Box data-print-hide="" sx={{ display: "flex" }}>{commentSlot}</Box>
-          <Box data-print-hide="" sx={{ display: "flex" }}>{sideOutlineSlot}</Box>
+          <div data-print-hide="" style={{ display: "flex" }}>{commentSlot}</div>
+          <div data-print-hide="" style={{ display: "flex" }}>{sideOutlineSlot}</div>
         </>
       )}
-      <Box data-print-hide="">{sideToolbar && explorerOpen && explorerSlot}</Box>
-      </Box>
-      </Box>
-      <Box data-print-hide="">{sideToolbarNode}</Box>
-    </Box>
+      <div data-print-hide="">{sideToolbar && explorerOpen && explorerSlot}</div>
+      </div>
+      </div>
+      <div data-print-hide="">{sideToolbarNode}</div>
+    </main>
   );
 }

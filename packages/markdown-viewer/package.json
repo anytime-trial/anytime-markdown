@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/markdown-viewer",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -20,15 +20,13 @@
   "dependencies": {
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
+    "@floating-ui/dom": "1.7.6",
     "@xmldom/xmldom": "0.9.10",
     "encoding-japanese": "2.2.0",
-    "lowlight": "3.3.0"
+    "lowlight": "3.3.0",
+    "stylis": "4.2.0"
   },
   "peerDependencies": {
-    "@emotion/react": "^11.0.0",
-    "@emotion/styled": "^11.0.0",
-    "@mui/icons-material": "^6.0.0 || ^7.0.0",
-    "@mui/material": "^6.0.0 || ^7.0.0",
     "diff": "^8.0.3",
     "dompurify": "^3.0.0",
     "react": "^18.0.0 || ^19.0.0",

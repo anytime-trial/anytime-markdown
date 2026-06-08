@@ -8,7 +8,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getDivider: () => "#ccc",
@@ -46,7 +45,6 @@ jest.mock("../components/ImageCropTool", () => ({
 
 import { ScreenCaptureDialog } from "../components/ScreenCaptureDialog";
 
-const theme = createTheme();
 const mockGetDisplayMedia = jest.fn();
 let trackEndedCallback: (() => void) | null = null;
 const mockTrackStop = jest.fn();
@@ -79,9 +77,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof ScreenCaptureDi
     ...props,
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <ScreenCaptureDialog {...defaultProps} />
-    </ThemeProvider>,
+      <ScreenCaptureDialog {...defaultProps} />,
   );
 }
 
@@ -271,9 +267,7 @@ describe("ScreenCaptureDialog - coverage2", () => {
     // Close dialog
     await act(async () => {
       rerender(
-        <ThemeProvider theme={theme}>
-          <ScreenCaptureDialog open={false} onClose={jest.fn()} onCapture={jest.fn()} t={(key: string) => key} />
-        </ThemeProvider>,
+          <ScreenCaptureDialog open={false} onClose={jest.fn()} onCapture={jest.fn()} t={(key: string) => key} />,
       );
     });
 

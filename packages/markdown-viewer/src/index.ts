@@ -175,7 +175,7 @@ export type { MarkdownItLike } from './utils/embedFenceRenderer';
 export { EMBED_DATA_ATTR, installEmbedFenceRenderer } from './utils/embedFenceRenderer';
 
 // Styles
-export { getHljsStyles } from './styles/codeStyles';
+export { getHljsCssVars, getHljsStyles } from './styles/codeStyles';
 
 // Icons
 export { default as MarkdownIcon } from './icons/MarkdownIcon';
@@ -187,6 +187,8 @@ export { EditorModeContext, useEditorMode } from './contexts/EditorModeContext';
 export type { EditorFeatures } from './contexts/EditorFeaturesContext';
 export { useEditorFeaturesContext } from './contexts/EditorFeaturesContext';
 export { findCodeBlockByIndex, findCounterpartCode, getCodeBlockIndex, getMergeEditors } from './contexts/MergeEditorsContext';
+export type { ThemeMode } from './contexts/ThemeModeContext';
+export { ThemeModeProvider, useIsDark, useThemeMode } from './contexts/ThemeModeContext';
 
 // Providers
 export { ConfirmContext,ConfirmProvider } from './providers/ConfirmProvider';

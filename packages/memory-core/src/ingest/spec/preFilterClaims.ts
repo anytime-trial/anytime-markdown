@@ -17,8 +17,9 @@ const FORBIDDEN_PATTERN =
 
 // 'すること' is mandatory only when followed by punctuation or end of string
 // to avoid matching 'することを推奨' (recommended context)
+// すること系は (?:[。\s]|$) でグループ化し、$ アンカーがどの交替に係るか明示する (S5850)。
 const MANDATORY_PATTERN =
-  /\b(must|shall|MUST|SHALL|required)\b|必須|しなければならない|すること[。\s]|すること$/;
+  /\b(?:must|shall|MUST|SHALL|required)\b|必須|しなければならない|すること(?:[。\s]|$)/;
 
 const RECOMMENDED_PATTERN =
   /\b(should|SHOULD|recommended)\b|推奨|望ましい/;

@@ -1,17 +1,10 @@
-import Placeholder from "@anytime-markdown/markdown-extension-placeholder";
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-react";
 import type { RefObject } from "react";
 import { useEffect } from "react";
 
+import { buildEditorExtensions } from "../buildEditorExtensions";
 import { DEBOUNCE_MEDIUM } from "../constants/timing";
-import { getBaseExtensions } from "../editorExtensions";
-import { ChangeGutterExtension } from "../extensions/changeGutterExtension";
-import { CustomHardBreak } from "../extensions/customHardBreak";
-import { DeleteLineExtension } from "../extensions/deleteLineExtension";
-import { ReviewModeExtension } from "../extensions/reviewModeExtension";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
-import { SlashCommandExtension } from "../extensions/slashCommandExtension";
-import { SearchReplaceExtension } from "../searchReplaceExtension";
 import {
   extractHeadings,
   getMarkdownFromEditor,
@@ -94,18 +87,14 @@ export function useEditorConfig({
   });
 
   return {
-    extensions: [
-      ...getBaseExtensions({ gridRows, gridCols, codeBlockExtension }),
-      CustomHardBreak,
-      DeleteLineExtension,
-      SearchReplaceExtension,
-      Placeholder.configure({ placeholder: t("placeholder") }),
-      SlashCommandExtension.configure({
-        onStateChange: (state: SlashCommandState) => slashCommandCallbackRef.current(state),
-      }),
-      ReviewModeExtension,
-      ChangeGutterExtension,
-    ],
+    extensions: buildEditorExtensions({
+      mode: "main",
+      gridRows,
+      gridCols,
+      codeBlockExtension,
+      placeholder: t("placeholder"),
+      onSlashStateChange: (state: SlashCommandState) => slashCommandCallbackRef.current(state),
+    }),
     editorProps,
     content: initialContent ?? "",
     autofocus: "start" as const,

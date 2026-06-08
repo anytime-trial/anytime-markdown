@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-06-08
+
+### Changed
+
+- Dropped the unused `@mui/material` peer dependency from the bundled `trace-viewer`.
+
 ## [0.2.3] - 2026-05-20
 
 ### Security

@@ -6,15 +6,15 @@ import { ClaudeStatusWatcher, TimelineProvider, TimelineItem } from '@anytime-ma
 import { WorkerStatusSource } from './claude/WorkerStatusSource';
 
 export function activate(context: vscode.ExtensionContext) {
+	// 拡張全体のログ出力先（webview からのエディタエラー転送・Timeline 等で共有）
+	const timelineOutput = vscode.window.createOutputChannel('Anytime Markdown');
+	context.subscriptions.push(timelineOutput);
+
 	context.subscriptions.push(
-		MarkdownEditorProvider.register(context),
+		MarkdownEditorProvider.register(context, (line) => timelineOutput.appendLine(line)),
 		// リンク検証（壊れたリンクの波線警告）
 		new LinkValidationProvider(),
 	);
-
-	// Timeline view: アクティブな markdown ファイルの git 履歴を表示
-	const timelineOutput = vscode.window.createOutputChannel('Anytime Markdown');
-	context.subscriptions.push(timelineOutput);
 	const timelineProvider = new TimelineProvider(
 		'anytime-markdown.compareWithCommit',
 		(msg, err) => {
@@ -215,7 +215,9 @@ export function activate(context: vscode.ExtensionContext) {
 	const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	const claudeSubscriptions: vscode.Disposable[] = [];
 	if (wsRoot) {
-		const watcher = new ClaudeStatusWatcher(new WorkerStatusSource(wsRoot));
+		const watcher = new ClaudeStatusWatcher(
+			new WorkerStatusSource(wsRoot, undefined, (msg) => timelineOutput.appendLine(msg)),
+		);
 		watcher.onStatusChange((editing, filePath) => {
 			const p = MarkdownEditorProvider.getInstance();
 			if (!p) return;

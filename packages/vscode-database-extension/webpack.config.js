@@ -57,7 +57,29 @@ const extensionConfig = {
         {
           from: path.resolve(__dirname, '../../node_modules/better-sqlite3'),
           to: path.resolve(__dirname, 'dist/node_modules/better-sqlite3'),
+          // ビルド時専用のファイルは dist (= VSIX) に含めない。
+          // - .node: ホスト Node 用にビルドされ VS Code Node (v24) と不一致に
+          //   なりやすいため除外し、prebuilt-vscode/ から別途上書きコピーする。
+          // - deps/ (sqlite amalgamation C) / src/ (C++ addon source) /
+          //   binding.gyp: ランタイムは lib/ + .node のみ使用するため不要。
+          // globOptions.ignore は copy-webpack-plugin v14 で効かないことがあるため
+          // filter() で確実に除外する (vscode-trail-extension と同方式)。
           globOptions: { ignore: ['**/src/**', '**/deps/**', '**/binding.gyp'] },
+          filter: (resourcePath) => {
+            const p = resourcePath.replace(/\\/g, '/');
+            if (p.endsWith('.node')) return false;
+            if (p.includes('/deps/')) return false;
+            if (p.includes('/src/')) return false;
+            if (p.endsWith('/binding.gyp')) return false;
+            return true;
+          },
+        },
+        {
+          // VS Code Node (v24 / ABI 137) 向けにダウンロードした prebuilt を上書き配置する。
+          // prepare-native-binding.cjs が prebuilt-vscode/ に用意する。
+          from: path.resolve(__dirname, 'prebuilt-vscode/better_sqlite3.node'),
+          to: path.resolve(__dirname, 'dist/node_modules/better-sqlite3/build/Release/better_sqlite3.node'),
+          force: true,
         },
         {
           from: path.resolve(__dirname, '../../node_modules/bindings'),

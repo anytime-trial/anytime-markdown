@@ -1,17 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import React from "react";
 
 import { SpreadsheetI18nProvider } from "../i18n/context";
 import { PaginationBar } from "../PaginationBar";
 
-const theme = createTheme({ palette: { mode: "light" } });
 const wrap = (ui: React.ReactElement) =>
-  render(
-    <SpreadsheetI18nProvider locale="ja">
-      <ThemeProvider theme={theme}>{ui}</ThemeProvider>
-    </SpreadsheetI18nProvider>,
-  );
+  render(<SpreadsheetI18nProvider locale="ja">{ui}</SpreadsheetI18nProvider>);
 
 describe("PaginationBar", () => {
   it("renders page indicator and total rows", () => {

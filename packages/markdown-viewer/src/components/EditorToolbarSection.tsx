@@ -1,14 +1,10 @@
-import { Box } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import type React from "react";
 
-import { getBgPaper, getPrimaryMain } from "../constants/colors";
-import { SKIP_LINK_FONT_SIZE } from "../constants/dimensions";
-import { Z_SKIP_LINK } from "../constants/zIndex";
 import { useEditorMode } from "../contexts/EditorModeContext";
 import type { ToolbarVisibility } from "../types/toolbar";
 import { EditorToolbar } from "./EditorToolbar";
+import styles from "./EditorToolbarSection.module.css";
 import type { MergeUndoRedo } from "./InlineMergeView";
 
 interface EditorToolbarSectionProps {
@@ -82,34 +78,16 @@ export function EditorToolbarSection({
     sourceMode, readonlyMode, reviewMode, explorerOpen, inlineMergeOpen,
     onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview,
   } = useEditorMode();
-  const isDark = useTheme().palette.mode === "dark";
   return (
     <>
       {/* Skip link (WCAG 2.4.1) */}
-      <Box
-        component="a"
-        href="#md-editor-content"
-        sx={{
-          position: "absolute",
-          left: -9999,
-          "&:focus": {
-            left: 16, top: 16, zIndex: Z_SKIP_LINK, bgcolor: getBgPaper(isDark),
-            color: getPrimaryMain(isDark), px: 2, py: 1, borderRadius: 1, boxShadow: 3,
-            fontWeight: 600, fontSize: SKIP_LINK_FONT_SIZE, textDecoration: "none",
-          },
-        }}
-      >
+      <a href="#md-editor-content" className={styles.skipLink}>
         {t("skipToEditor")}
-      </Box>
+      </a>
       {/* Live region for mode switch announcements (WCAG 4.1.3) */}
-      <Box
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        sx={{ position: "absolute", width: "1px", height: "1px", margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap" }}
-      >
+      <div role="status" aria-live="polite" aria-atomic="true" className={styles.srOnly}>
         {liveMessage}
-      </Box>
+      </div>
 
       {!hide?.toolbar && <EditorToolbar
         editor={editor}

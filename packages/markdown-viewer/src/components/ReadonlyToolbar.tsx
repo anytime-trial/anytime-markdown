@@ -1,14 +1,16 @@
 "use client";
 
-import DrawIcon from "@mui/icons-material/Draw";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
-import { Box, Divider, IconButton, Tooltip, Typography } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { DrawIcon, ListAltIcon, WorkspacePremiumIcon } from "../ui/icons";
+import { Tooltip } from "../ui/Tooltip";
 
 import { getTextSecondary } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import type { ThemePresetName } from "../constants/themePresets";
 import type { TranslationFn } from "../types";
+import { Divider } from "../ui/Divider";
+import { IconButton } from "../ui/IconButton";
+import { Text } from "../ui/Text";
+import styles from "./ReadonlyToolbar.module.css";
 
 interface FontSizeOption {
   value: number;
@@ -37,28 +39,27 @@ function getActiveBgColor(isDark: boolean): string {
 }
 
 export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFontSizeChange, presetName, onPresetChange, t }: ReadonlyToolbarProps) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const activeBg = getActiveBgColor(isDark);
 
   return (
-    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
       <Tooltip title={t("outline")}>
         <IconButton
           size="small"
           onClick={onToggleOutline}
-          sx={{
-            width: 28,
-            height: 28,
-            color: outlineOpen ? "primary.main" : getTextSecondary(isDark),
-            bgcolor: outlineOpen ? activeBg : "transparent",
+          className={styles.iconBtn}
+          style={{
+            color: outlineOpen ? "var(--am-color-primary-main)" : getTextSecondary(isDark),
+            background: outlineOpen ? activeBg : "transparent",
           }}
           aria-label={t("outline")}
           aria-pressed={outlineOpen}
         >
-          <ListAltIcon sx={{ fontSize: 16 }} />
+          <ListAltIcon fontSize={16} />
         </IconButton>
       </Tooltip>
-      <Box sx={{ display: "flex", gap: 0.5 }}>
+      <div style={{ display: "flex", gap: 4 }}>
         {FONT_SIZE_OPTIONS.map(({ value, iconSize, label }) => {
           const isActive = fontSize === value;
           return (
@@ -66,41 +67,39 @@ export function ReadonlyToolbar({ outlineOpen, onToggleOutline, fontSize, onFont
               <IconButton
                 size="small"
                 onClick={() => onFontSizeChange(value)}
-                sx={{
-                  width: 28,
-                  height: 28,
-                  color: isActive ? "primary.main" : getTextSecondary(isDark),
-                  bgcolor: isActive ? activeBg : "transparent",
+                className={styles.iconBtn}
+                style={{
+                  color: isActive ? "var(--am-color-primary-main)" : getTextSecondary(isDark),
+                  background: isActive ? activeBg : "transparent",
                 }}
                 aria-label={t(label)}
                 aria-pressed={isActive}
               >
-                <Typography sx={{ fontSize: iconSize, fontWeight: 700, lineHeight: 1 }}>A</Typography>
+                <Text component="span" style={{ fontSize: iconSize, fontWeight: 700, lineHeight: 1 }}>A</Text>
               </IconButton>
             </Tooltip>
           );
         })}
         {onPresetChange && (
           <>
-            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+            <Divider orientation="vertical" flexItem style={{ marginLeft: 4, marginRight: 4 }} />
             <Tooltip title={t("settingThemePreset")}>
               <IconButton
                 size="small"
                 onClick={() => onPresetChange(presetName === "handwritten" ? "professional" : "handwritten")}
-                sx={{
-                  width: 28,
-                  height: 28,
+                className={styles.iconBtn}
+                style={{
                   color: getTextSecondary(isDark),
                 }}
                 aria-label={t("settingThemePreset")}
                 aria-pressed={presetName === "handwritten"}
               >
-                {presetName === "handwritten" ? <DrawIcon sx={{ fontSize: 16 }} /> : <WorkspacePremiumIcon sx={{ fontSize: 16 }} />}
+                {presetName === "handwritten" ? <DrawIcon fontSize={16} /> : <WorkspacePremiumIcon fontSize={16} />}
               </IconButton>
             </Tooltip>
           </>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

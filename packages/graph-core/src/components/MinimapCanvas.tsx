@@ -2,11 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import FitScreenIcon from '@mui/icons-material/FitScreen';
-import ZoomInIcon from '@mui/icons-material/ZoomIn';
-import ZoomOutIcon from '@mui/icons-material/ZoomOut';
-import IconButton from '@mui/material/IconButton';
-
 import { fitToContent, screenToWorld, zoom } from '../engine/viewport';
 import { getCanvasColors } from '../theme';
 import type { GraphNode, Viewport } from '../types';
@@ -47,6 +42,59 @@ function computeBounds(nodes: readonly GraphNode[]) {
   }
   return { minX: minX - PAD, minY: minY - PAD, maxX: maxX + PAD, maxY: maxY + PAD };
 }
+
+/**
+ * MUI IconButton/icons への依存を避けるための最小アイコンボタン。
+ * graph-core は graph-viewer（自前 UI キット）を参照できない（循環依存）ため、
+ * このコンポーネント内で自己完結させる。
+ */
+const MINI_BTN_BASE_STYLE: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  cursor: 'pointer',
+  fontSize: '0.9rem',
+  lineHeight: 0,
+};
+
+function MiniIconButton({
+  onClick,
+  ariaLabel,
+  style,
+  children,
+}: Readonly<{
+  onClick: () => void;
+  ariaLabel: string;
+  style?: React.CSSProperties;
+  children: React.ReactNode;
+}>) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      style={{ ...MINI_BTN_BASE_STYLE, ...style }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MiniIcon({ d }: Readonly<{ d: string }>) {
+  return (
+    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+      <path d={d} />
+    </svg>
+  );
+}
+
+const ZOOM_OUT_PATH =
+  'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14M7 9h5v1H7z';
+const ZOOM_IN_PATH =
+  'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14m.5-7H9v2H7v1h2v2h1v-2h2V9h-2z';
+const FIT_SCREEN_PATH =
+  'M17 4h3c1.1 0 2 .9 2 2v2h-2V6h-3zM4 8V6h3V4H4c-1.1 0-2 .9-2 2v2zm16 8v2h-3v2h3c1.1 0 2-.9 2-2v-2zM7 18H4v-2H2v2c0 1.1.9 2 2 2h3zM18 8H6v8h12z';
 
 export function MinimapCanvas({
   nodes,
@@ -292,34 +340,28 @@ export function MinimapCanvas({
         onMouseLeave={() => setDrag(null)}
         aria-label="Minimap: click to pan, drag viewport rect to pan, drag outside to zoom to selection"
       />
-      <IconButton
-        size="small"
+      <MiniIconButton
         onClick={handleZoomOut}
-        aria-label="Zoom out"
+        ariaLabel="Zoom out"
         style={{ ...btnStyle, right: onFit ? 50 : 26 }}
-        sx={{ fontSize: '0.9rem' }}
       >
-        <ZoomOutIcon fontSize="inherit" />
-      </IconButton>
-      <IconButton
-        size="small"
+        <MiniIcon d={ZOOM_OUT_PATH} />
+      </MiniIconButton>
+      <MiniIconButton
         onClick={handleZoomIn}
-        aria-label="Zoom in"
+        ariaLabel="Zoom in"
         style={{ ...btnStyle, right: onFit ? 26 : 2 }}
-        sx={{ fontSize: '0.9rem' }}
       >
-        <ZoomInIcon fontSize="inherit" />
-      </IconButton>
+        <MiniIcon d={ZOOM_IN_PATH} />
+      </MiniIconButton>
       {onFit && (
-        <IconButton
-          size="small"
+        <MiniIconButton
           onClick={onFit}
-          aria-label="Fit"
+          ariaLabel="Fit"
           style={{ ...btnStyle, right: 2 }}
-          sx={{ fontSize: '0.9rem' }}
         >
-          <FitScreenIcon fontSize="inherit" />
-        </IconButton>
+          <MiniIcon d={FIT_SCREEN_PATH} />
+        </MiniIconButton>
       )}
     </div>
   );

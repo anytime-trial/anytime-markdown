@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-08
+
+### Changed
+
+- Removed all `@mui` usage; introduced an in-house `ui/` kit (tokens, `injectStyles`, primitives, icons) and replaced 5 components (MUI reduction Phase 3d).
+- Dropped `@mui` from peer dependencies and removed the MUI `ThemeProvider` test wrapper.
+
 ## [0.2.5] - 2026-05-27
 
 ### Changed

@@ -7,6 +7,18 @@
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-06-08
+
+### 変更
+
+- エディタ chrome から `@mui/material`・`@mui/icons-material` を全廃し、自前 `ui/` プリミティブキット（レイアウト・ボタン・フォーム・フィードバック・オーバーレイ・Dialog・Tooltip・Menu・Drawer・Popover・Select）と vendored アイコンへ置換（MUI 削減 Phase3a/3b）。
+- MUI `GlobalStyles` を stylis ベースの `ui/GlobalStyle` へ、`useTheme`・`useMediaQuery` を自前 `ThemeModeContext`（`useIsDark`）・メディアクエリフックへ置換。
+- peerDependencies から `@mui/*`・`@emotion/*` を削除し、テストからも `@mui` 依存を除去。
+
+### 修正
+
+- 比較モードで imageRow バッジが縦並びになる不具合を修正。
+
 ## [0.17.0] - 2026-06-03
 
 ### 変更

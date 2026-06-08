@@ -85,7 +85,7 @@ export {
   REDUCED_MOTION_SX,
 } from "../../markdown-viewer/src/constants/uiPatterns";
 
-export { getHljsStyles } from "../../markdown-viewer/src/styles/codeStyles";
+export { getHljsCssVars, getHljsStyles } from "../../markdown-viewer/src/styles/codeStyles";
 
 // 注: `appLowlight` は意図的に再 export しない。唯一の利用者 RichMarkdownEditorPage は
 // どのテストからもロードされず、ここで export すると ESM の lowlight が全テストに
@@ -123,3 +123,17 @@ export { EmbedNodeView } from "../../markdown-viewer/src/components/EmbedNodeVie
 export { BlockInlineToolbar } from "../../markdown-viewer/src/components/codeblock/BlockInlineToolbar";
 export type { BlockInlineToolbarProps } from "../../markdown-viewer/src/components/codeblock/BlockInlineToolbar";
 export { DeleteBlockDialog } from "../../markdown-viewer/src/components/codeblock/DeleteBlockDialog";
+
+// Phase3b（脱 @mui）: InlineAlert / DiagramBlock 等が使う追加 color helper。
+export {
+  getErrorBg,
+  getInfoBg,
+  getInfoMain,
+  getSuccessBg,
+  getWarningBg,
+  getWarningMain,
+} from "../../markdown-viewer/src/constants/colors";
+
+// Phase3b（脱 @mui）: useTheme 置換用テーマ context。
+export type { ThemeMode } from "../../markdown-viewer/src/contexts/ThemeModeContext";
+export { ThemeModeProvider, useIsDark, useThemeMode } from "../../markdown-viewer/src/contexts/ThemeModeContext";

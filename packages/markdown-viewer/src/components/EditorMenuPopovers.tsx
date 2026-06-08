@@ -1,28 +1,27 @@
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import CheckBoxIcon from "@mui/icons-material/CheckBox";
-import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
-import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
-import FormatQuoteIcon from "@mui/icons-material/FormatQuote";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import SchemaIcon from "@mui/icons-material/Schema";
-import SettingsIcon from "@mui/icons-material/Settings";
 import {
-  Box,
-  Divider,
-  IconButton,
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
-  Popover,
-  Tooltip,
-  Typography,
-  useTheme,
-} from "@mui/material";
+  ChatBubbleOutlineIcon,
+  CheckBoxIcon,
+  FormatListBulletedIcon,
+  FormatListNumberedIcon,
+  FormatQuoteIcon,
+  InfoOutlinedIcon,
+  ListAltIcon,
+  SchemaIcon,
+  SettingsIcon,
+} from "../ui/icons";
+import { IconButton } from "../ui/IconButton";
+import { ListItemIcon } from "../ui/ListItemIcon";
+import { ListItemText } from "../ui/ListItemText";
+import { MenuItem } from "../ui/MenuItem";
+import { Popover } from "../ui/Popover";
+import { Tooltip } from "../ui/Tooltip";
+import styles from "./EditorMenuPopovers.module.css";
+import { Divider } from "../ui/Divider";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import React, { useMemo } from "react";
 
 import { getDivider } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { MENU_ITEM_FONT_SIZE } from "../constants/dimensions";
 import { PLANTUML_SAMPLES } from "../constants/samples";
 import { getBuiltinTemplates, type MarkdownTemplate } from "../constants/templates";
@@ -107,7 +106,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
   t,
 }: EditorMenuPopoversProps) {
   const locale = useMarkdownLocale();
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const builtinTemplates = useMemo(() => getBuiltinTemplates(locale), [locale]);
 
   return (
@@ -117,16 +116,15 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         open={!!helpAnchorEl}
         anchorEl={helpAnchorEl}
         onClose={() => setHelpAnchorEl(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu", "aria-label": t("helpMenu") } }}
+        paperRole="menu"
+        aria-label={t("helpMenu")}
       >
-        <Box sx={{ py: 0.5, minWidth: 160 }}>
+        <div style={{ paddingTop: 4, paddingBottom: 4, minWidth: 160 }}>
           {onToggleOutline && (
             <MenuItem
               onClick={() => { onToggleOutline(); setHelpAnchorEl(null); }}
               disabled={sourceMode}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon><ListAltIcon fontSize="small" color={outlineOpen ? "primary" : "inherit"} /></ListItemIcon>
               <ListItemText>{t("outline")}</ListItemText>
@@ -136,7 +134,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
             <MenuItem
               onClick={() => { onToggleComments(); setHelpAnchorEl(null); }}
               disabled={sourceMode}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon><ChatBubbleOutlineIcon fontSize="small" color={commentOpen ? "primary" : "inherit"} /></ListItemIcon>
               <ListItemText>{t("commentPanel")}</ListItemText>
@@ -145,7 +143,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
           {onOpenSettings && (
             <MenuItem
               onClick={() => { onOpenSettings(); setHelpAnchorEl(null); }}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
               <ListItemText>{t("editorSettings")}</ListItemText>
@@ -155,13 +153,13 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
           {!hideVersionInfo && (
             <MenuItem
               onClick={() => { setVersionDialogOpen(true); setHelpAnchorEl(null); }}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               <ListItemIcon><InfoOutlinedIcon fontSize="small" /></ListItemIcon>
               <ListItemText>{t("versionInfo")}</ListItemText>
             </MenuItem>
           )}
-        </Box>
+        </div>
       </Popover>
 
       {/* 図挿入選択 popover */}
@@ -169,17 +167,17 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         open={!!diagramAnchorEl}
         anchorEl={diagramAnchorEl}
         onClose={() => setDiagramAnchorEl(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu", "aria-label": t("diagramMenu") } }}
+        paperRole="menu"
+        aria-label={t("diagramMenu")}
       >
-        <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
+        <div style={{ display: "flex", flexDirection: "column", padding: 4 }}>
           <Tooltip title={t("mermaid")} placement="right">
             <IconButton
               autoFocus
               size="small"
               role="menuitem"
               aria-label={t("mermaid")}
+              className={styles.diagramIconButton}
               onClick={() => {
                 if (sourceMode) {
                   onSourceInsertMermaid?.();
@@ -189,7 +187,6 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                 }
                 setDiagramAnchorEl(null);
               }}
-              sx={{ minWidth: 32, minHeight: 32 }}
             >
               <MermaidIcon fontSize="small" />
             </IconButton>
@@ -199,6 +196,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               size="small"
               role="menuitem"
               aria-label={t("plantuml")}
+              className={styles.diagramIconButton}
               onClick={() => {
                 if (sourceMode) {
                   onSourceInsertPlantUml?.();
@@ -207,13 +205,11 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                 }
                 setDiagramAnchorEl(null);
               }}
-              sx={{ minWidth: 32, minHeight: 32 }}
             >
               <SchemaIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-
-        </Box>
+        </div>
       </Popover>
 
       {/* PlantUML サンプル選択 popover */}
@@ -221,11 +217,10 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         open={!!sampleAnchorEl}
         anchorEl={sampleAnchorEl}
         onClose={() => setSampleAnchorEl(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu", "aria-label": t("plantumlSampleMenu") } }}
+        paperRole="menu"
+        aria-label={t("plantumlSampleMenu")}
       >
-        <Box sx={{ display: "flex", flexDirection: "column", p: 0.5 }}>
+        <div style={{ display: "flex", flexDirection: "column", padding: 4 }}>
           {PLANTUML_SAMPLES.filter((s) => s.enabled).map((sample, idx) => {
             const code = sample.code;
             return (
@@ -235,6 +230,7 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                   size="small"
                   role="menuitem"
                   aria-label={t(sample.i18nKey)}
+                  className={styles.diagramIconButton}
                   onClick={() => {
                     if (!editor) return;
                     const { $from } = editor.state.selection;
@@ -255,14 +251,13 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                     }
                     setSampleAnchorEl(null);
                   }}
-                  sx={{ minWidth: 32, minHeight: 32 }}
                 >
-                  <Typography aria-hidden="true" sx={{ fontSize: 9, fontFamily: "monospace", fontWeight: 700, lineHeight: 1, border: 1, borderColor: getDivider(isDark), borderRadius: 0.5, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>{sample.icon}</Typography>
+                  <span aria-hidden="true" style={{ fontSize: 9, fontFamily: "monospace", fontWeight: 700, lineHeight: 1, border: "1px solid", borderColor: getDivider(isDark), borderRadius: 2, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>{sample.icon}</span>
                 </IconButton>
               </Tooltip>
             );
           })}
-        </Box>
+        </div>
       </Popover>
 
       {/* Template selection popover */}
@@ -270,35 +265,31 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
         open={!!templateAnchorEl}
         anchorEl={templateAnchorEl}
         onClose={() => setTemplateAnchorEl(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu", "aria-label": t("templateMenu") } }}
+        paperRole="menu"
+        aria-label={t("templateMenu")}
       >
-        <Box sx={{ py: 0.5, minWidth: 180 }}>
+        <div style={{ paddingTop: 4, paddingBottom: 4, minWidth: 180 }}>
           {builtinTemplates.map((tmpl) => (
             <MenuItem
               key={tmpl.id}
               onClick={() => { onInsertTemplate(tmpl); setTemplateAnchorEl(null); }}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               {t(tmpl.name)}
             </MenuItem>
           ))}
-
-
-        </Box>
+        </div>
       </Popover>
 
       {/* Heading level change popover */}
       <Popover
         open={!!headingMenu}
-        anchorEl={headingMenu?.anchorEl}
+        anchorEl={headingMenu?.anchorEl ?? null}
         onClose={() => setHeadingMenu(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { role: "menu", "aria-label": t("headingMenu") } }}
+        paperRole="menu"
+        aria-label={t("headingMenu")}
       >
-        <Box sx={{ py: 0.5 }}>
+        <div style={{ paddingTop: 4, paddingBottom: 4 }}>
           {[
             { level: 0, label: "Paragraph" },
             { level: 1, label: "H1" },
@@ -318,12 +309,12 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
                 applyHeadingLevel(editor, headingMenu, level);
                 setHeadingMenu(null);
               }}
-              sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
+              style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36 }}
             >
               {label}
             </MenuItem>
           ))}
-          <Divider sx={{ my: 0.5 }} />
+          <Divider style={{ marginTop: 4, marginBottom: 4 }} />
           <MenuItem
             onClick={() => {
               if (!editor || !headingMenu) return;
@@ -331,9 +322,9 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("bulletList")}
-            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
+            style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
-            <FormatListBulletedIcon sx={{ fontSize: 18 }} />
+            <FormatListBulletedIcon fontSize={18} />
             {t("bulletList")}
           </MenuItem>
           <MenuItem
@@ -343,9 +334,9 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("orderedList")}
-            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
+            style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
-            <FormatListNumberedIcon sx={{ fontSize: 18 }} />
+            <FormatListNumberedIcon fontSize={18} />
             {t("orderedList")}
           </MenuItem>
           <MenuItem
@@ -355,12 +346,12 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("taskList")}
-            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
+            style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
-            <CheckBoxIcon sx={{ fontSize: 18 }} />
+            <CheckBoxIcon fontSize={18} />
             {t("taskList")}
           </MenuItem>
-          <Divider sx={{ my: 0.5 }} />
+          <Divider style={{ marginTop: 4, marginBottom: 4 }} />
           <MenuItem
             onClick={() => {
               if (!editor || !headingMenu) return;
@@ -368,12 +359,12 @@ export const EditorMenuPopovers = React.memo(function EditorMenuPopovers({
               setHeadingMenu(null);
             }}
             selected={editor?.isActive("blockquote")}
-            sx={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 1 }}
+            style={{ fontSize: MENU_ITEM_FONT_SIZE, minHeight: 36, gap: 8 }}
           >
-            <FormatQuoteIcon sx={{ fontSize: 18 }} />
+            <FormatQuoteIcon fontSize={18} />
             {t("blockquote")}
           </MenuItem>
-        </Box>
+        </div>
       </Popover>
     </>
   );

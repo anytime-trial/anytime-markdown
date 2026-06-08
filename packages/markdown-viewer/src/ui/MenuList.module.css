@@ -1,0 +1,7 @@
+/* MUI List(MenuList) 相当。padding 8px 0。 */
+.menuList {
+  margin: 0;
+  padding: 8px 0;
+  list-style: none;
+  outline: none;
+}

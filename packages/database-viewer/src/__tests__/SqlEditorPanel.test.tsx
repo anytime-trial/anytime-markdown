@@ -1,17 +1,11 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import React from "react";
 
 import { DatabaseI18nProvider } from "../i18n/context";
 import { SqlEditorPanel } from "../SqlEditorPanel";
 
-const theme = createTheme({ palette: { mode: "light" } });
 const wrap = (ui: React.ReactNode) =>
-  render(
-    <DatabaseI18nProvider locale="ja">
-      <ThemeProvider theme={theme}>{ui}</ThemeProvider>
-    </DatabaseI18nProvider>,
-  );
+  render(<DatabaseI18nProvider locale="ja">{ui}</DatabaseI18nProvider>);
 
 describe("SqlEditorPanel", () => {
   it("calls onRun with the entered SQL", async () => {

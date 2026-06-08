@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getDivider: () => "#ccc",
@@ -26,31 +25,30 @@ jest.mock("../components/EditDialogWrapper", () => ({
 
 import { GifRecorderDialog } from "../components/GifRecorderDialog";
 
-const theme = createTheme();
 
 describe("GifRecorderDialog", () => {
   it("does not render when closed", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <GifRecorderDialog
           open={false}
           onClose={jest.fn()}
           onComplete={jest.fn()}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(screen.queryByTestId("edit-dialog-wrapper")).toBeNull();
   });
 
   it("renders when open", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <GifRecorderDialog
           open={true}
           onClose={jest.fn()}
           onComplete={jest.fn()}
         />
-      </ThemeProvider>,
+        </>,
     );
     expect(screen.queryByTestId("edit-dialog-wrapper")).toBeTruthy();
   });

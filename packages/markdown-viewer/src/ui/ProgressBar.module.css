@@ -1,0 +1,42 @@
+/* MUI LinearProgress 相当。height 4px・トラック地に bar を重ねる。 */
+.root {
+  position: relative;
+  overflow: hidden;
+  display: block;
+  height: 4px;
+  background-color: var(--am-color-divider);
+}
+
+.bar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  transform-origin: left;
+  background-color: var(--am-color-primary-main);
+}
+
+.determinate {
+  transition: transform 0.4s linear;
+}
+
+.indeterminate {
+  animation: progress-indeterminate 2.1s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  60% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indeterminate {
+    animation-duration: 6s;
+  }
+}

@@ -5,7 +5,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 jest.mock("../constants/colors", () => ({
   getActionHover: () => "rgba(0,0,0,0.04)",
@@ -36,7 +35,6 @@ jest.mock("../version", () => ({
 
 import { EditorDialogs } from "../components/EditorDialogs";
 
-const theme = createTheme();
 const t = (key: string) => key;
 
 function defaultProps(overrides: Partial<Record<string, any>> = {}) {
@@ -72,9 +70,7 @@ describe("EditorDialogs - comment dialog", () => {
   it("renders comment dialog when open", () => {
     const props = defaultProps({ commentDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     expect(screen.getByText("comment")).toBeTruthy();
@@ -84,9 +80,7 @@ describe("EditorDialogs - comment dialog", () => {
   it("calls setCommentText on input change", () => {
     const props = defaultProps({ commentDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const textField = screen.getByLabelText(/commentPrompt/);
@@ -97,9 +91,7 @@ describe("EditorDialogs - comment dialog", () => {
   it("shows error when comment is empty and touched", () => {
     const props = defaultProps({ commentDialogOpen: true, commentText: "" });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const textField = screen.getByLabelText(/commentPrompt/);
@@ -111,9 +103,7 @@ describe("EditorDialogs - comment dialog", () => {
   it("calls handleCommentInsert on Ctrl+Enter", () => {
     const props = defaultProps({ commentDialogOpen: true, commentText: "test" });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const textField = screen.getByLabelText(/commentPrompt/);
@@ -124,9 +114,7 @@ describe("EditorDialogs - comment dialog", () => {
   it("calls handleCommentInsert on Meta+Enter", () => {
     const props = defaultProps({ commentDialogOpen: true, commentText: "test" });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const textField = screen.getByLabelText(/commentPrompt/);
@@ -137,9 +125,7 @@ describe("EditorDialogs - comment dialog", () => {
   it("disables insert button when comment is empty", () => {
     const props = defaultProps({ commentDialogOpen: true, commentText: "" });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const insertBtn = screen.getByText("insert").closest("button");
@@ -149,9 +135,7 @@ describe("EditorDialogs - comment dialog", () => {
   it("enables insert button when comment has text", () => {
     const props = defaultProps({ commentDialogOpen: true, commentText: "some text" });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const insertBtn = screen.getByText("insert").closest("button");
@@ -161,9 +145,7 @@ describe("EditorDialogs - comment dialog", () => {
   it("calls setCommentDialogOpen(false) when cancel clicked", () => {
     const props = defaultProps({ commentDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     fireEvent.click(screen.getByText("cancel"));
@@ -175,9 +157,7 @@ describe("EditorDialogs - link dialog", () => {
   it("renders link dialog when open", () => {
     const props = defaultProps({ linkDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     expect(screen.getByText("link")).toBeTruthy();
@@ -187,9 +167,7 @@ describe("EditorDialogs - link dialog", () => {
   it("calls handleLinkInsert on Enter", () => {
     const props = defaultProps({ linkDialogOpen: true, linkUrl: "https://example.com" });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const urlField = screen.getByLabelText(/linkUrl/);
@@ -200,9 +178,7 @@ describe("EditorDialogs - link dialog", () => {
   it("shows validation error when link URL is empty and blurred", () => {
     const props = defaultProps({ linkDialogOpen: true, linkUrl: "" });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const urlField = screen.getByLabelText(/linkUrl/);
@@ -213,9 +189,7 @@ describe("EditorDialogs - link dialog", () => {
   it("calls setLinkDialogOpen(false) on cancel", () => {
     const props = defaultProps({ linkDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     fireEvent.click(screen.getByText("cancel"));
@@ -225,9 +199,7 @@ describe("EditorDialogs - link dialog", () => {
   it("calls setLinkUrl on change", () => {
     const props = defaultProps({ linkDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const urlField = screen.getByLabelText(/linkUrl/);
@@ -240,9 +212,7 @@ describe("EditorDialogs - image dialog", () => {
   it("renders image dialog with URL input", () => {
     const props = defaultProps({ imageDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     expect(screen.getByText("image")).toBeTruthy();
@@ -251,9 +221,7 @@ describe("EditorDialogs - image dialog", () => {
   it("shows (base64) and disables URL input for data: URLs", () => {
     const props = defaultProps({ imageDialogOpen: true, imageUrl: "data:image/png;base64,abc" });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     // The URL input should show "(base64)" and be disabled
@@ -266,9 +234,7 @@ describe("EditorDialogs - image dialog", () => {
   it("shows validation error when imageUrl is empty and blurred", () => {
     const props = defaultProps({ imageDialogOpen: true, imageUrl: "" });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const urlField = screen.getByLabelText(/imageUrl/);
@@ -279,9 +245,7 @@ describe("EditorDialogs - image dialog", () => {
   it("calls handleImageInsert on Enter in alt text field", () => {
     const props = defaultProps({ imageDialogOpen: true, imageUrl: "https://img.png" });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const altField = screen.getByLabelText(/altText$/);
@@ -292,9 +256,7 @@ describe("EditorDialogs - image dialog", () => {
   it("shows 'apply' button text in edit mode", () => {
     const props = defaultProps({ imageDialogOpen: true, imageUrl: "https://img.png", imageEditMode: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     expect(screen.getByText("apply")).toBeTruthy();
@@ -303,9 +265,7 @@ describe("EditorDialogs - image dialog", () => {
   it("shows 'insert' button text in non-edit mode", () => {
     const props = defaultProps({ imageDialogOpen: true, imageUrl: "https://img.png", imageEditMode: false });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     // The insert button inside the dialog
@@ -316,9 +276,7 @@ describe("EditorDialogs - image dialog", () => {
   it("calls setImageUrl and setImageAlt on change", () => {
     const props = defaultProps({ imageDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     const urlField = screen.getByLabelText(/imageUrl/);
@@ -333,9 +291,7 @@ describe("EditorDialogs - image dialog", () => {
   it("calls setImageDialogOpen(false) on cancel", () => {
     const props = defaultProps({ imageDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     fireEvent.click(screen.getByText("cancel"));
@@ -347,9 +303,7 @@ describe("EditorDialogs - shortcut dialog", () => {
   it("renders keyboard shortcuts when dialog is open", () => {
     const props = defaultProps({ shortcutDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     expect(screen.getByText("shortcuts")).toBeTruthy();
@@ -364,9 +318,7 @@ describe("EditorDialogs - shortcut dialog", () => {
   it("calls setShortcutDialogOpen(false) on close", () => {
     const props = defaultProps({ shortcutDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     // Close the dialog by pressing Escape (onClose handler)
@@ -380,9 +332,7 @@ describe("EditorDialogs - version dialog", () => {
   it("renders version info when dialog is open", () => {
     const props = defaultProps({ versionDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     expect(screen.getByText("versionInfo")).toBeTruthy();
@@ -397,9 +347,7 @@ describe("EditorDialogs - version dialog", () => {
   it("calls setVersionDialogOpen(false) on close button click", () => {
     const props = defaultProps({ versionDialogOpen: true });
     render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     fireEvent.click(screen.getByText("close"));
@@ -411,17 +359,13 @@ describe("EditorDialogs - touched state reset on dialog open", () => {
   it("resets touched state when comment dialog opens", () => {
     const props = defaultProps({ commentDialogOpen: false, commentText: "" });
     const { rerender } = render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     // Open dialog
     const openProps = { ...props, commentDialogOpen: true };
     rerender(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...openProps} />
-      </ThemeProvider>,
+        <EditorDialogs {...openProps} />,
     );
 
     // Touch and blur
@@ -432,16 +376,12 @@ describe("EditorDialogs - touched state reset on dialog open", () => {
     // Close and reopen should reset touched
     const closeProps = { ...props, commentDialogOpen: false };
     rerender(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...closeProps} />
-      </ThemeProvider>,
+        <EditorDialogs {...closeProps} />,
     );
 
     const reopenProps = { ...props, commentDialogOpen: true };
     rerender(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...reopenProps} />
-      </ThemeProvider>,
+        <EditorDialogs {...reopenProps} />,
     );
 
     // Error should not be shown since touched was reset
@@ -451,16 +391,12 @@ describe("EditorDialogs - touched state reset on dialog open", () => {
   it("resets touched state when link dialog opens", () => {
     const props = defaultProps({ linkDialogOpen: false });
     const { rerender } = render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     // Open, touch, close, reopen
     rerender(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...{ ...props, linkDialogOpen: true }} />
-      </ThemeProvider>,
+        <EditorDialogs {...{ ...props, linkDialogOpen: true }} />,
     );
 
     const urlField = screen.getByLabelText(/linkUrl/);
@@ -468,14 +404,10 @@ describe("EditorDialogs - touched state reset on dialog open", () => {
     expect(screen.getByText("requiredField")).toBeTruthy();
 
     rerender(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...{ ...props, linkDialogOpen: false }} />
-      </ThemeProvider>,
+        <EditorDialogs {...{ ...props, linkDialogOpen: false }} />,
     );
     rerender(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...{ ...props, linkDialogOpen: true }} />
-      </ThemeProvider>,
+        <EditorDialogs {...{ ...props, linkDialogOpen: true }} />,
     );
 
     expect(screen.queryByText("requiredField")).toBeNull();
@@ -484,15 +416,11 @@ describe("EditorDialogs - touched state reset on dialog open", () => {
   it("resets touched state when image dialog opens", () => {
     const props = defaultProps({ imageDialogOpen: false });
     const { rerender } = render(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...props} />
-      </ThemeProvider>,
+        <EditorDialogs {...props} />,
     );
 
     rerender(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...{ ...props, imageDialogOpen: true }} />
-      </ThemeProvider>,
+        <EditorDialogs {...{ ...props, imageDialogOpen: true }} />,
     );
 
     const urlField = screen.getByLabelText(/imageUrl/);
@@ -500,14 +428,10 @@ describe("EditorDialogs - touched state reset on dialog open", () => {
     expect(screen.getByText("requiredField")).toBeTruthy();
 
     rerender(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...{ ...props, imageDialogOpen: false }} />
-      </ThemeProvider>,
+        <EditorDialogs {...{ ...props, imageDialogOpen: false }} />,
     );
     rerender(
-      <ThemeProvider theme={theme}>
-        <EditorDialogs {...{ ...props, imageDialogOpen: true }} />
-      </ThemeProvider>,
+        <EditorDialogs {...{ ...props, imageDialogOpen: true }} />,
     );
 
     expect(screen.queryByText("requiredField")).toBeNull();

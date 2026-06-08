@@ -13,8 +13,6 @@
     "@anytime-markdown/graph-core": "*"
   },
   "peerDependencies": {
-    "@mui/icons-material": ">=7",
-    "@mui/material": ">=7",
     "next-intl": ">=4",
     "react": ">=19",
     "react-dom": ">=19"

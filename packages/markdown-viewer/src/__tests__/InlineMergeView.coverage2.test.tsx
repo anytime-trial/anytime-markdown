@@ -6,7 +6,6 @@
  */
 import React from "react";
 import { render, fireEvent, act } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // --- mock functions ---
 const mockSetCompareText = jest.fn();
@@ -66,7 +65,7 @@ jest.mock("../useEditorSettings", () => ({
   }),
 }));
 
-jest.mock("../editorExtensions", () => ({ getBaseExtensions: () => [] }));
+jest.mock("../buildEditorExtensions", () => ({ buildEditorExtensions: () => [] }));
 jest.mock("../extensions/customHardBreak", () => ({ CustomHardBreak: {} }));
 jest.mock("../extensions/reviewModeExtension", () => ({
   ReviewModeExtension: { name: "reviewMode" },
@@ -77,6 +76,7 @@ jest.mock("../hooks/useDiffBackground", () => ({
   useDiffBackground: () => ({ leftBgGradient: "lg1", rightBgGradient: "lg2" }),
 }));
 
+jest.mock("../hooks/useBlockAlignment", () => ({ useBlockAlignment: () => {} }));
 jest.mock("../hooks/useDiffHighlight", () => ({ useDiffHighlight: () => {} }));
 
 jest.mock("../hooks/useMergeDiff", () => ({
@@ -88,6 +88,7 @@ jest.mock("../hooks/useMergeDiff", () => ({
     diffOptions: { semantic: false },
     setDiffOptions: mockSetDiffOptions,
     mergeBlock: mockMergeBlock,
+    currentBlockIndex: 0, totalBlocks: 0, goToNextBlock: jest.fn(), goToPrevBlock: jest.fn(),
     undo: jest.fn(), redo: jest.fn(), canUndo: true, canRedo: false,
   }),
 }));
@@ -101,6 +102,13 @@ jest.mock("../utils/frontmatterHelpers", () => ({
     frontmatter: md.includes("---") ? "title: test" : null,
     body: md,
   }),
+  prependFrontmatter: (body: string) => body,
+}));
+// 比較テキスト正規化（normalizeCompareMarkdown）が使う serializer。
+// getMarkdownFromEditor が compareText と同値を返すよう固定し、
+// 正規化が冪等（setCompareText を誘発しない）になるようにする。
+jest.mock("../utils/markdownSerializer", () => ({
+  getMarkdownFromEditor: () => "# Compare",
 }));
 
 jest.mock("../constants/colors", () => ({
@@ -131,7 +139,6 @@ jest.mock("../components/MergeEditorPanel", () => ({
 
 import { InlineMergeView } from "../components/InlineMergeView";
 
-const theme = createTheme();
 
 function renderMergeView(props: Partial<React.ComponentProps<typeof InlineMergeView>> = {}) {
   const defaultProps = {
@@ -148,15 +155,14 @@ function renderMergeView(props: Partial<React.ComponentProps<typeof InlineMergeV
     ),
   };
   return render(
-    <ThemeProvider theme={theme}>
-      <InlineMergeView {...defaultProps} {...props} />
-    </ThemeProvider>,
+      <InlineMergeView {...defaultProps} {...props} />,
   );
 }
 
 describe("InlineMergeView - coverage2 tests", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockApplyMarkdownToEditor.mockReturnValue({ frontmatter: null });
     capturedMergeEditorProps = {};
     mockLeftEditorInstance = null;
     mockReviewModeStorageObj.enabled = false;
@@ -223,10 +229,12 @@ describe("InlineMergeView - coverage2 tests", () => {
     (window.requestAnimationFrame as jest.Mock).mockRestore();
   });
 
-  it("skips editor sync when sourceMode is true", () => {
+  it("normalizes compareText via leftEditor in source mode", () => {
+    const rafSpy = jest.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => { cb(0); return 0; });
     renderMergeView({ sourceMode: true });
-    // applyMarkdownToEditor should NOT be called in source mode
-    expect(mockApplyMarkdownToEditor).not.toHaveBeenCalled();
+    // ソースモードでは比較テキストを Tiptap 往復で正規化するため applyMarkdownToEditor が呼ばれる
+    expect(mockApplyMarkdownToEditor).toHaveBeenCalled();
+    rafSpy.mockRestore();
   });
 
   // --- Lines 206: exportFile timestamp formatting ---
@@ -301,7 +309,7 @@ describe("InlineMergeView - coverage2 tests", () => {
   it("applies content when switching from source to WYSIWYG mode", () => {
     const rafSpy = jest.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => { cb(0); return 0; });
     const { rerender } = render(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent=""
           sourceMode={true}
@@ -309,12 +317,12 @@ describe("InlineMergeView - coverage2 tests", () => {
           t={(key: string) => key}
           children={() => <div />}
         />
-      </ThemeProvider>,
+        </>,
     );
 
     // Switch to WYSIWYG
     rerender(
-      <ThemeProvider theme={theme}>
+        <>
         <InlineMergeView
           editorContent=""
           sourceMode={false}
@@ -322,7 +330,7 @@ describe("InlineMergeView - coverage2 tests", () => {
           t={(key: string) => key}
           children={() => <div />}
         />
-      </ThemeProvider>,
+        </>,
     );
     // applyMarkdownToEditor should be called during mode switch
     expect(mockApplyMarkdownToEditor).toHaveBeenCalled();

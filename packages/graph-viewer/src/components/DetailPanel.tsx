@@ -1,7 +1,6 @@
 'use client';
 
-import { Close as CloseIcon } from '@mui/icons-material';
-import { Box, Divider, IconButton,Typography } from '@mui/material';
+import { Box, CloseIcon, Divider, IconButton, Text } from '../ui';
 
 import type { GraphNode } from '../types';
 
@@ -17,15 +16,15 @@ export function DetailPanel({ node, onClose }: Readonly<DetailPanelProps>) {
 
   return (
     <Box
-      sx={{
+      className="gv-scroll"
+      style={{
         position: 'absolute',
         right: 0,
         top: 0,
         bottom: 0,
         width: 280,
-        bgcolor: 'background.paper',
-        borderLeft: 1,
-        borderColor: 'divider',
+        backgroundColor: 'var(--gv-color-bg-paper)',
+        borderLeft: '1px solid var(--gv-color-divider)',
         overflowY: 'auto',
         zIndex: 10,
         display: 'flex',
@@ -33,10 +32,13 @@ export function DetailPanel({ node, onClose }: Readonly<DetailPanelProps>) {
       }}
     >
       {/* ヘッダー */}
-      <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5, gap: 1 }}>
-        <Typography variant="subtitle2" sx={{ flex: 1, fontWeight: 600 }} noWrap>
+      <Box style={{ display: 'flex', alignItems: 'center', padding: 12, gap: 8 }}>
+        <Text
+          variant="subtitle2"
+          style={{ flex: 1, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+        >
           {node.text || '(Untitled)'}
-        </Typography>
+        </Text>
         <IconButton size="small" onClick={onClose} aria-label="Close detail panel">
           <CloseIcon fontSize="small" />
         </IconButton>
@@ -45,43 +47,42 @@ export function DetailPanel({ node, onClose }: Readonly<DetailPanelProps>) {
       <Divider />
 
       {/* ノード基本情報 */}
-      <Box sx={{ p: 1.5 }}>
-        <Typography variant="caption" color="text.secondary">
+      <Box style={{ padding: 12 }}>
+        <Text variant="caption" color="text.secondary">
           Type
-        </Typography>
-        <Typography variant="body2" sx={{ mb: 1 }}>
+        </Text>
+        <Text style={{ display: 'block', marginBottom: 8 }}>
           {node.type}
-        </Typography>
+        </Text>
 
         {node.url && (
           <>
-            <Typography variant="caption" color="text.secondary">
+            <Text variant="caption" color="text.secondary">
               URL
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                mb: 1,
+            </Text>
+            <Text
+              className="gv-link"
+              style={{
+                display: 'block',
+                marginBottom: 8,
                 wordBreak: 'break-all',
-                color: 'primary.main',
-                cursor: 'pointer',
-                '&:hover': { textDecoration: 'underline' },
+                color: 'var(--gv-color-primary-main)',
               }}
               onClick={() => globalThis.open(node.url, '_blank', 'noopener')}
             >
               {node.url}
-            </Typography>
+            </Text>
           </>
         )}
 
         {node.label && (
           <>
-            <Typography variant="caption" color="text.secondary">
+            <Text variant="caption" color="text.secondary">
               Label
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 1 }}>
+            </Text>
+            <Text style={{ display: 'block', marginBottom: 8 }}>
               {node.label}
-            </Typography>
+            </Text>
           </>
         )}
       </Box>
@@ -90,18 +91,18 @@ export function DetailPanel({ node, onClose }: Readonly<DetailPanelProps>) {
       {entries.length > 0 && (
         <>
           <Divider />
-          <Box sx={{ p: 1.5 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+          <Box style={{ padding: 12 }}>
+            <Text variant="caption" color="text.secondary" style={{ marginBottom: 4, display: 'block' }}>
               Metadata
-            </Typography>
+            </Text>
             {entries.map(([key, value]) => (
-              <Box key={key} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
-                <Typography variant="body2" color="text.secondary">
+              <Box key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                <Text color="text.secondary">
                   {key}
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                </Text>
+                <Text style={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                   {typeof value === 'number' ? value.toLocaleString() : String(value)}
-                </Typography>
+                </Text>
               </Box>
             ))}
           </Box>

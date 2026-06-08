@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/spreadsheet-core",
-  "version": "0.4.6",
+  "version": "0.5.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",

@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-08
+
+### 変更
+
+- `spreadsheet-viewer` の自前テーマ化に追随し、冗長な MUI ラッパを除去。
+
+### Spreadsheet Core (spreadsheet-viewer)
+
+- `spreadsheet-viewer` の `@mui` を全廃し自前 `ui/` キットへ置換（MUI 削減 Phase3c）。
+
 ## [0.4.6] - 2026-05-21
 
 ### 変更

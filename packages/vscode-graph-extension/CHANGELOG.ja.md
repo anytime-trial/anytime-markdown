@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-08
+
+### 変更
+
+- `ThemeProvider` を撤去し、`@mui`・`@emotion` 依存を削除。
+
+### Graph Core (graph-core / graph-viewer)
+
+- `graph-viewer`・`graph-core`（`MinimapCanvas`）の `@mui` を自前 `ui/` キットへ置換（MUI 削減 Phase3e）。
+
 ## [0.4.1] - 2026-05-27
 
 ### Graph Core (graph-core)

@@ -1,7 +1,8 @@
-import { Dialog, useTheme } from "@mui/material";
 import React from "react";
 
 import { getEditDialogBg } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
+import { Dialog } from "../ui/Dialog";
 import { useEditorSettingsContext } from "../useEditorSettings";
 
 interface EditDialogWrapperProps {
@@ -13,8 +14,7 @@ interface EditDialogWrapperProps {
 
 /** ブロック要素編集ダイアログの共通ラッパー */
 export function EditDialogWrapper({ open, onClose, ariaLabelledBy, children }: Readonly<EditDialogWrapperProps>) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = useIsDark();
   const settings = useEditorSettingsContext();
 
   return (
@@ -22,8 +22,8 @@ export function EditDialogWrapper({ open, onClose, ariaLabelledBy, children }: R
       open={open}
       onClose={onClose}
       fullScreen
-      aria-labelledby={ariaLabelledBy}
-      slotProps={{ paper: { sx: { bgcolor: getEditDialogBg(isDark, settings), display: "flex", flexDirection: "column" } } }}
+      labelledBy={ariaLabelledBy}
+      paperStyle={{ backgroundColor: getEditDialogBg(isDark, settings) }}
     >
       {children}
     </Dialog>

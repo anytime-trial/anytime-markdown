@@ -1,12 +1,15 @@
 "use client";
 
-import PauseIcon from "@mui/icons-material/Pause";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { Box, IconButton, Slider, Tooltip, Typography } from "@mui/material";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getTextSecondary } from "@anytime-markdown/markdown-viewer";
+import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
+import { Slider } from "@anytime-markdown/markdown-viewer/src/ui/Slider";
+import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
+import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
+import { PauseIcon, PlayArrowIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
 import type { GraphExpr } from "../../utils/latexToExpr";
+import styles from "./graphControls.module.css";
 
 /** グリッドサイズ */
 const GRID_SIZE = 50;
@@ -17,6 +20,8 @@ const DEFAULT_RANGE: [number, number] = [-5, 5];
 /** パラメータスライダーのデフォルト範囲・ステップ */
 const PARAM_DEFAULT_RANGE: [number, number] = [-5, 5];
 const PARAM_STEP = 0.1;
+/** アニメーション中の WebGL 再描画間隔(ms)。60fps の plotly.react を ~20fps に間引く */
+const ANIM_INTERVAL_MS = 50;
 
 type EvalFn = GraphExpr["evaluate"];
 
@@ -148,6 +153,8 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
   /** アニメーション中のパラメータ */
   const [animating, setAnimating] = useState<Record<string, boolean>>({});
   const animFrameRef = useRef<Record<string, number>>({});
+  /** アニメーションの最終ステップ時刻（param ごと）。WebGL 再描画を間引くため */
+  const animLastTsRef = useRef<Record<string, number>>({});
 
   /** paramValuesRef: renderPlot内でクロージャ経由で最新値を参照 */
   const paramValuesRef = useRef(paramValues);
@@ -228,7 +235,10 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
     } catch {
       // 評価エラーは無視
     }
-  }, [paramValues, buildPlotData, plotly, plotLayout, plotConfig]);
+    // paramValues のみを契機に軽量再描画する。buildPlotData/plotLayout を deps に含めると
+    // isDark 変更時に初期化用 effect と二重に plotly.react が走るため意図的に除外する。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramValues]);
 
   /** パラメータ値の更新 */
   const handleParamChange = useCallback((param: string, value: number) => {
@@ -237,13 +247,19 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
 
   /** アニメーション開始/停止 */
   const toggleAnimation = useCallback((param: string) => {
-    const step = () => {
-      setParamValues((pv) => {
-        const current = pv[param] ?? PARAM_DEFAULT_RANGE[0];
-        let next = current + PARAM_STEP;
-        if (next > PARAM_DEFAULT_RANGE[1]) next = PARAM_DEFAULT_RANGE[0];
-        return { ...pv, [param]: Math.round(next * 10) / 10 };
-      });
+    const step = (ts: number) => {
+      // rAF は ~60fps で発火するが、plotly.react(WebGL) は重いので
+      // ANIM_INTERVAL_MS ごとにのみ paramValues を進めて再描画頻度を抑える
+      const last = animLastTsRef.current[param] ?? 0;
+      if (ts - last >= ANIM_INTERVAL_MS) {
+        animLastTsRef.current[param] = ts;
+        setParamValues((pv) => {
+          const current = pv[param] ?? PARAM_DEFAULT_RANGE[0];
+          let next = current + PARAM_STEP;
+          if (next > PARAM_DEFAULT_RANGE[1]) next = PARAM_DEFAULT_RANGE[0];
+          return { ...pv, [param]: Math.round(next * 10) / 10 };
+        });
+      }
       animFrameRef.current[param] = requestAnimationFrame(step);
     };
     setAnimating((prev) => {
@@ -274,8 +290,10 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
     };
   }, []);
 
+  const textSecondary = getTextSecondary(isDark);
+
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+    <div className={styles.root}>
       {/* 3Dグラフ描画エリア */}
       <div
         ref={containerRef}
@@ -284,37 +302,38 @@ export function Graph3DView({ graphExpr, plotly, isDark, width = 500, height = 4
 
       {/* パラメータスライダー */}
       {graphExpr.parameters.length > 0 && (
-        <Box sx={{ px: 1, display: "flex", flexDirection: "column", gap: 1 }}>
+        <div className={styles.sliderList}>
           {graphExpr.parameters.map((param) => (
-            <Box key={param} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography variant="caption" sx={{ minWidth: 24, color: getTextSecondary(isDark) }}>
+            <div key={param} className={styles.sliderRow}>
+              <Text variant="caption" className={styles.paramLabel} style={{ color: textSecondary }}>
                 {param}
-              </Typography>
-              <Slider
-                size="small"
-                min={PARAM_DEFAULT_RANGE[0]}
-                max={PARAM_DEFAULT_RANGE[1]}
-                step={PARAM_STEP}
-                value={paramValues[param] ?? 1}
-                onChange={(_e, v) => handleParamChange(param, v)}
-                sx={{ flex: 1 }}
-                aria-label={`パラメータ ${param}`}
-              />
-              <Typography variant="caption" sx={{ minWidth: 32, textAlign: "right", color: getTextSecondary(isDark) }}>
+              </Text>
+              <div className={styles.sliderFlex}>
+                <Slider
+                  size="small"
+                  min={PARAM_DEFAULT_RANGE[0]}
+                  max={PARAM_DEFAULT_RANGE[1]}
+                  step={PARAM_STEP}
+                  value={paramValues[param] ?? 1}
+                  onChange={(_e, v) => handleParamChange(param, v)}
+                  aria-label={`パラメータ ${param}`}
+                />
+              </div>
+              <Text variant="caption" className={styles.paramValue} style={{ color: textSecondary }}>
                 {(paramValues[param] ?? 1).toFixed(1)}
-              </Typography>
+              </Text>
               <Tooltip title={animating[param] ? "停止" : "再生"}>
                 <IconButton size="small" onClick={() => toggleAnimation(param)} aria-label={animating[param] ? `${param} 停止` : `${param} 再生`}>
                   {animating[param]
-                    ? <PauseIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
-                    : <PlayArrowIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />
+                    ? <PauseIcon fontSize={16} color={textSecondary} />
+                    : <PlayArrowIcon fontSize={16} color={textSecondary} />
                   }
                 </IconButton>
               </Tooltip>
-            </Box>
+            </div>
           ))}
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }

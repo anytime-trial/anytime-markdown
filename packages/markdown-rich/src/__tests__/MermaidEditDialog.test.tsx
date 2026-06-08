@@ -3,7 +3,6 @@
  */
 import React from "react";
 import { render } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // ResizeObserver polyfill for jsdom
 global.ResizeObserver = class ResizeObserver {
@@ -72,8 +71,6 @@ jest.mock("../components/ZoomToolbar", () => ({
 
 import { MermaidEditDialog } from "../components/MermaidEditDialog";
 
-const theme = createTheme();
-
 describe("MermaidEditDialog", () => {
   const t = (key: string) => key;
   const fsZP = {
@@ -91,44 +88,40 @@ describe("MermaidEditDialog", () => {
 
   it("does not render when closed", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog
-          open={false}
-          onClose={jest.fn()}
-          label="Test"
-          svg=""
-          code=""
-          fsCode=""
-          onFsCodeChange={jest.fn()}
-          onFsTextChange={jest.fn()}
-          fsTextareaRef={{ current: null }}
-          fsSearch={{ query: "", setQuery: jest.fn(), replaceText: "", setReplaceText: jest.fn(), matches: [], currentIndex: 0, goToNext: jest.fn(), goToPrev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn(), caseSensitive: false, toggleCaseSensitive: jest.fn(), wholeWord: false, toggleWholeWord: jest.fn(), useRegex: false, toggleUseRegex: jest.fn() } as any}
-          fsZP={fsZP as any}
-          t={t}
-        />
-      </ThemeProvider>,
+      <MermaidEditDialog
+        open={false}
+        onClose={jest.fn()}
+        label="Test"
+        svg=""
+        code=""
+        fsCode=""
+        onFsCodeChange={jest.fn()}
+        onFsTextChange={jest.fn()}
+        fsTextareaRef={{ current: null }}
+        fsSearch={{ query: "", setQuery: jest.fn(), replaceText: "", setReplaceText: jest.fn(), matches: [], currentIndex: 0, goToNext: jest.fn(), goToPrev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn(), caseSensitive: false, toggleCaseSensitive: jest.fn(), wholeWord: false, toggleWholeWord: jest.fn(), useRegex: false, toggleUseRegex: jest.fn() } as any}
+        fsZP={fsZP as any}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });
 
   it("renders when open", () => {
     const { container } = render(
-      <ThemeProvider theme={theme}>
-        <MermaidEditDialog
-          open={true}
-          onClose={jest.fn()}
-          label="Test Diagram"
-          svg="<svg></svg>"
-          code="graph TD; A-->B"
-          fsCode="graph TD; A-->B"
-          onFsCodeChange={jest.fn()}
-          onFsTextChange={jest.fn()}
-          fsTextareaRef={{ current: null }}
-          fsSearch={{ query: "", setQuery: jest.fn(), replaceText: "", setReplaceText: jest.fn(), matches: [], currentIndex: 0, goToNext: jest.fn(), goToPrev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn(), caseSensitive: false, toggleCaseSensitive: jest.fn(), wholeWord: false, toggleWholeWord: jest.fn(), useRegex: false, toggleUseRegex: jest.fn() } as any}
-          fsZP={fsZP as any}
-          t={t}
-        />
-      </ThemeProvider>,
+      <MermaidEditDialog
+        open={true}
+        onClose={jest.fn()}
+        label="Test Diagram"
+        svg="<svg></svg>"
+        code="graph TD; A-->B"
+        fsCode="graph TD; A-->B"
+        onFsCodeChange={jest.fn()}
+        onFsTextChange={jest.fn()}
+        fsTextareaRef={{ current: null }}
+        fsSearch={{ query: "", setQuery: jest.fn(), replaceText: "", setReplaceText: jest.fn(), matches: [], currentIndex: 0, goToNext: jest.fn(), goToPrev: jest.fn(), replace: jest.fn(), replaceAll: jest.fn(), caseSensitive: false, toggleCaseSensitive: jest.fn(), wholeWord: false, toggleWholeWord: jest.fn(), useRegex: false, toggleUseRegex: jest.fn() } as any}
+        fsZP={fsZP as any}
+        t={t}
+      />,
     );
     expect(container).toBeTruthy();
   });

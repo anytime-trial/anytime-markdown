@@ -1,11 +1,32 @@
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 
+import { markContextVisible, MIN_COLLAPSE_RUN } from "./diffEngine";
+
 // --- Block diff computation ---
 
 interface BlockInfo {
   text: string;
   typeName: string;
   level?: number;
+}
+
+/** 折りたたみ run（左右で共有する runId 付き） */
+export interface CollapseRun {
+  /** 左右共有 ID（アライン slot 開始 index） */
+  runId: number;
+  /** この side で非表示にするトップレベルブロック index 群 */
+  hideIndices: number[];
+  /** 展開ウィジェットを置くブロック index（hideIndices の先頭） */
+  anchorIndex: number;
+  /** 畳む slot 数（左右で同一） */
+  count: number;
+}
+
+export interface BlockCollapsePlan {
+  /** docA（第1引数）用の run 一覧 */
+  aRuns: CollapseRun[];
+  /** docB（第2引数）用の run 一覧 */
+  bRuns: CollapseRun[];
 }
 
 export function getTopLevelBlocks(doc: PMNode): BlockInfo[] {
@@ -178,28 +199,34 @@ function getBlockSections(blocks: BlockInfo[]): { preSections: number[]; section
 function computeLcsPairs(leftTexts: string[], rightTexts: string[]): [number, number][] {
   const n = leftTexts.length;
   const m = rightTexts.length;
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  // 連続メモリの Int32Array(フルテーブル) で確保し GC 断片化を抑える。dp[i*W+j] でアクセス。
+  const W = m + 1;
+  const dp = new Int32Array((n + 1) * W);
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
-      dp[i][j] = leftTexts[i - 1] === rightTexts[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+      dp[i * W + j] = leftTexts[i - 1] === rightTexts[j - 1]
+        ? dp[(i - 1) * W + (j - 1)] + 1
+        : Math.max(dp[(i - 1) * W + j], dp[i * W + (j - 1)]);
     }
   }
   const pairs: [number, number][] = [];
   let li = n, ri = m;
   while (li > 0 && ri > 0) {
     if (leftTexts[li - 1] === rightTexts[ri - 1]) { pairs.push([li - 1, ri - 1]); li--; ri--; }
-    else if (dp[li - 1][ri] >= dp[li][ri - 1]) { li--; }
+    else if (dp[(li - 1) * W + ri] >= dp[li * W + (ri - 1)]) { li--; }
     else { ri--; }
   }
   pairs.reverse();
   return pairs;
 }
 
-/** 指定 Set に含まれないアイテムを収集する */
-function collectUnmatched<T>(items: T[], from: number, to: number, matchedSet: Set<number>, out: T[]): void {
-  for (let i = from; i < to; i++) {
-    if (!matchedSet.has(i)) out.push(items[i]);
-  }
+/**
+ * 指定範囲 [from, to) のアイテムをそのまま収集する。
+ * classifyByPairs では LCS の単調性により範囲内に matched インデックスが含まれないため、
+ * 旧実装の Set.has() チェック（常に false）と Set 構築は不要。
+ */
+function collectRange<T>(items: T[], from: number, to: number, out: T[]): void {
+  for (let i = from; i < to; i++) out.push(items[i]);
 }
 
 /** LCS ペアからマッチ/左のみ/右のみに分類する */
@@ -209,19 +236,17 @@ function classifyByPairs<T>(
   const matched: [T, T][] = [];
   const leftOnly: T[] = [];
   const rightOnly: T[] = [];
-  const matchedLeftSet = new Set(pairs.map(p => p[0]));
-  const matchedRightSet = new Set(pairs.map(p => p[1]));
 
   let lp = 0, rp = 0;
   for (const [lIdx, rIdx] of pairs) {
-    collectUnmatched(leftItems, lp, lIdx, matchedLeftSet, leftOnly);
-    collectUnmatched(rightItems, rp, rIdx, matchedRightSet, rightOnly);
+    collectRange(leftItems, lp, lIdx, leftOnly);
+    collectRange(rightItems, rp, rIdx, rightOnly);
     matched.push([leftItems[lIdx], rightItems[rIdx]]);
     lp = lIdx + 1;
     rp = rIdx + 1;
   }
-  collectUnmatched(leftItems, lp, leftItems.length, matchedLeftSet, leftOnly);
-  collectUnmatched(rightItems, rp, rightItems.length, matchedRightSet, rightOnly);
+  collectRange(leftItems, lp, leftItems.length, leftOnly);
+  collectRange(rightItems, rp, rightItems.length, rightOnly);
 
   return { matched, leftOnly, rightOnly };
 }
@@ -254,6 +279,9 @@ function markUnmatchedSections(
   }
 }
 
+/** セクション対応率がこれ未満なら semantic を諦め flat 差分にフォールバックする閾値 */
+const SEMANTIC_MATCH_MIN_COVERAGE = 0.4;
+
 /** セマンティック（見出しベース）ブロック差分 */
 function computeSemanticBlockDiff(
   leftDoc: PMNode, rightDoc: PMNode,
@@ -282,6 +310,15 @@ function computeSemanticBlockDiff(
 
   // セクション LCS マッチング
   const { matched, leftOnly, rightOnly } = matchBlockSections(leftSec.sections, rightSec.sections);
+
+  // マッチ品質が低い（見出しがほとんど対応しない）場合は flat にフォールバックする。
+  // semantic を貫くと未マッチセクションの巨大プレースホルダで上部が空白だらけになるため。
+  const sectionBlocks = (secs: BlockSection[]) => secs.reduce((sum, s) => sum + (s.endIndex - s.startIndex), 0);
+  const totalSectionBlocks = sectionBlocks(leftSec.sections) + sectionBlocks(rightSec.sections);
+  const matchedSectionBlocks = matched.reduce((sum, [ls, rs]) => sum + (ls.endIndex - ls.startIndex) + (rs.endIndex - rs.startIndex), 0);
+  if (totalSectionBlocks > 0 && matchedSectionBlocks / totalSectionBlocks < SEMANTIC_MATCH_MIN_COVERAGE) {
+    return computeFlatBlockDiff(leftDoc, rightDoc);
+  }
 
   // マッチしたセクション: セクション内ブロックを diff
   for (const [ls, rs] of matched) {
@@ -325,13 +362,15 @@ function findInsertPosition(
 function computeBlockLcsPairs(lb: BlockInfo[], rb: BlockInfo[]): [number, number][] {
   const n = lb.length;
   const m = rb.length;
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  // 連続メモリの Int32Array(フルテーブル) で確保し GC 断片化を抑える。dp[i*W+j] でアクセス。
+  const W = m + 1;
+  const dp = new Int32Array((n + 1) * W);
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
       if (lb[i - 1].text === rb[j - 1].text && lb[i - 1].typeName === rb[j - 1].typeName) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
+        dp[i * W + j] = dp[(i - 1) * W + (j - 1)] + 1;
       } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+        dp[i * W + j] = Math.max(dp[(i - 1) * W + j], dp[i * W + (j - 1)]);
       }
     }
   }
@@ -340,7 +379,7 @@ function computeBlockLcsPairs(lb: BlockInfo[], rb: BlockInfo[]): [number, number
   while (i > 0 && j > 0) {
     if (lb[i - 1].text === rb[j - 1].text && lb[i - 1].typeName === rb[j - 1].typeName) {
       pairs.unshift([i - 1, j - 1]); i--; j--;
-    } else if (dp[i - 1][j] > dp[i][j - 1]) { i--; } else { j--; }
+    } else if (dp[(i - 1) * W + j] > dp[i * W + (j - 1)]) { i--; } else { j--; }
   }
   return pairs;
 }
@@ -439,4 +478,82 @@ function computeFlatBlockDiff(
   diffBlockRange({ leftBlocks, rightBlocks, leftNodes, rightNodes, leftIndices: allLeft, rightIndices: allRight, leftResult, rightResult });
 
   return { left: leftResult, right: rightResult };
+}
+
+
+/**
+ * 左右ドキュメントのトップレベルブロックを LCS で整合し、未変更ブロックの折りたたみ計画を返す。
+ * WYSIWYG 比較の「変更箇所のみ表示」で左右を厳密に同じ単位で畳む/展開するために使う。
+ * - aRuns[k] と bRuns[k] は同一 runId を共有し、同じ論理範囲を指す。
+ * - 折りたたみ run は未変更（LCS マッチ）slot のみで構成されるため、各 run は左右両方の index を持つ。
+ */
+/** 左右ブロックの整合 slot（equal=LCS マッチ、それ以外は片側のみ=変更） */
+export interface AlignedSlot {
+  a: number | null;
+  b: number | null;
+  equal: boolean;
+}
+
+/**
+ * 左右ブロック列を LCS で整合した slot 列を組み立てる（collapse と縦整合で共有）。
+ * マッチしない区間（gap）では左右ブロックを位置でペアリング（zip）し、変更ブロックを
+ * 同一行（a/b 両方を持つ equal=false slot）に揃える。余剰のみ片側 slot にする。
+ * これにより「同じ見出し/段落の変更版」が左右で同じ行に並び、縦ずれを防ぐ。
+ */
+function buildAlignedSlots(aBlocks: BlockInfo[], bBlocks: BlockInfo[]): AlignedSlot[] {
+  const pairs = computeBlockLcsPairs(aBlocks, bBlocks);
+  const slots: AlignedSlot[] = [];
+  let pa = 0;
+  let pb = 0;
+  const emitGap = (aEnd: number, bEnd: number) => {
+    const aCount = aEnd - pa;
+    const bCount = bEnd - pb;
+    const paired = Math.min(aCount, bCount);
+    for (let k = 0; k < paired; k++) slots.push({ a: pa + k, b: pb + k, equal: false });
+    for (let k = paired; k < aCount; k++) slots.push({ a: pa + k, b: null, equal: false });
+    for (let k = paired; k < bCount; k++) slots.push({ a: null, b: pb + k, equal: false });
+    pa = aEnd;
+    pb = bEnd;
+  };
+  for (const [ai, bi] of pairs) {
+    emitGap(ai, bi);
+    slots.push({ a: ai, b: bi, equal: true });
+    pa = ai + 1;
+    pb = bi + 1;
+  }
+  emitGap(aBlocks.length, bBlocks.length);
+  return slots;
+}
+
+/** 左右ドキュメントのトップレベルブロックを LCS 整合した slot 列を返す（縦整合に使用） */
+export function computeBlockAlignment(docA: PMNode, docB: PMNode): AlignedSlot[] {
+  return buildAlignedSlots(getTopLevelBlocks(docA), getTopLevelBlocks(docB));
+}
+
+export function computeBlockCollapsePlan(docA: PMNode, docB: PMNode, context: number): BlockCollapsePlan {
+  const slots = computeBlockAlignment(docA, docB);
+  const visible = markContextVisible(slots.length, (i) => !slots[i].equal, context);
+
+  const aRuns: CollapseRun[] = [];
+  const bRuns: CollapseRun[] = [];
+  let i = 0;
+  while (i < slots.length) {
+    if (visible[i]) { i++; continue; }
+    let j = i;
+    while (j < slots.length && !visible[j]) j++;
+    const len = j - i;
+    if (len >= MIN_COLLAPSE_RUN) {
+      const runId = i;
+      const aIdx: number[] = [];
+      const bIdx: number[] = [];
+      for (let k = i; k < j; k++) {
+        if (slots[k].a !== null) aIdx.push(slots[k].a as number);
+        if (slots[k].b !== null) bIdx.push(slots[k].b as number);
+      }
+      if (aIdx.length > 0) aRuns.push({ runId, hideIndices: aIdx, anchorIndex: aIdx[0], count: len });
+      if (bIdx.length > 0) bRuns.push({ runId, hideIndices: bIdx, anchorIndex: bIdx[0], count: len });
+    }
+    i = j;
+  }
+  return { aRuns, bRuns };
 }

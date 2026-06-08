@@ -3,24 +3,15 @@ import { useDiffBackground } from "../hooks/useDiffBackground";
 import type { DiffResult } from "../utils/diffEngine";
 
 // --- Mocks ---
-jest.mock("@mui/material/styles", () => ({
-  useTheme: () => ({
-    palette: {
-      mode: "light",
-      success: { main: "#4caf50" },
-      error: { main: "#f44336" },
-    },
-  }),
-  alpha: (color: string, value: number) => `rgba(${color},${value})`,
-}));
-
+// useDiffBackground は useIsDark()（既定 light=false）を使う。color は constants/colors の
+// 実 alpha で計算される（getSuccessMain(false)=#4B5A3E / getErrorMain(false)=#6B2A20）。
 jest.mock("../useEditorSettings", () => ({
   useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.5 }),
 }));
 
 // --- Helpers ---
-const GREEN = "rgba(#4B5A3E,0.18)";
-const RED = "rgba(#6B2A20,0.18)";
+const GREEN = "rgba(75, 90, 62, 0.18)"; // alpha(#4B5A3E, 0.18)
+const RED = "rgba(107, 42, 32, 0.18)"; // alpha(#6B2A20, 0.18)
 const LINE_H = 16 * 1.5; // 24
 const PAD = 16;
 

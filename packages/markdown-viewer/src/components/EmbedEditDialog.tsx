@@ -1,23 +1,16 @@
 "use client";
 
-import {
-    Box,
-    Button,
-    Dialog,
-    DialogActions,
-    DialogContent,
-    DialogTitle,
-    FormControlLabel,
-    Radio,
-    RadioGroup,
-    Stack,
-    TextField,
-    Typography,
-    useTheme,
-} from "@mui/material";
+import { Button } from "../ui/Button";
+import { Dialog, DialogActions, DialogContent, DialogTitle, useDialogTitleId } from "../ui/Dialog";
+import { FormControlLabel } from "../ui/FormControlLabel";
+import { Radio } from "../ui/Radio";
+import { RadioGroup } from "../ui/RadioGroup";
+import { TextField } from "../ui/TextField";
 import { useEffect, useState } from "react";
 
 import { useOptionalEmbedProviders } from "../contexts/EmbedProvidersContext";
+import { Stack } from "../ui/Stack";
+import { Text } from "../ui/Text";
 import type { EmbedVariant } from "../utils/embedInfoString";
 import { EmbedNodeView } from "./EmbedNodeView";
 
@@ -38,8 +31,8 @@ export function EmbedEditDialog({
     onApply,
     t,
 }: Readonly<Props>) {
-    const theme = useTheme();
     const providers = useOptionalEmbedProviders();
+    const titleId = useDialogTitleId();
     const [url, setUrl] = useState(initialUrl);
     const [variant, setVariant] = useState<EmbedVariant>(initialVariant);
 
@@ -57,8 +50,8 @@ export function EmbedEditDialog({
     const previewLang = variant === "compact" ? "embed compact" : "embed";
 
     return (
-        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-            <DialogTitle>{t("embedEditTitle")}</DialogTitle>
+        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth labelledBy={titleId}>
+            <DialogTitle id={titleId}>{t("embedEditTitle")}</DialogTitle>
             <DialogContent dividers>
                 <Stack spacing={2}>
                     <TextField
@@ -70,10 +63,10 @@ export function EmbedEditDialog({
                         size="small"
                         placeholder="https://..."
                     />
-                    <Box>
-                        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                    <div>
+                        <Text variant="subtitle2" style={{ marginBottom: 4 }}>
                             {t("embedVariantLabel")}
-                        </Typography>
+                        </Text>
                         <RadioGroup
                             row
                             value={variant}
@@ -90,16 +83,16 @@ export function EmbedEditDialog({
                                 label={t("embedVariantCompact")}
                             />
                         </RadioGroup>
-                    </Box>
-                    <Box
-                        sx={{
-                            borderTop: `1px solid ${theme.palette.divider}`,
-                            pt: 2,
+                    </div>
+                    <div
+                        style={{
+                            borderTop: "1px solid var(--am-color-divider)",
+                            paddingTop: 16,
                         }}
                     >
-                        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        <Text variant="subtitle2" style={{ marginBottom: 8 }}>
                             {t("embedPreviewLabel")}
-                        </Typography>
+                        </Text>
                         {url.trim() ? (
                             <EmbedNodeView
                                 language={previewLang}
@@ -107,11 +100,11 @@ export function EmbedEditDialog({
                                 providers={providers}
                             />
                         ) : (
-                            <Typography variant="body2" color="text.secondary">
+                            <Text variant="body2" style={{ color: "var(--am-color-text-secondary)" }}>
                                 {t("embedPreviewEmpty")}
-                            </Typography>
+                            </Text>
                         )}
-                    </Box>
+                    </div>
                 </Stack>
             </DialogContent>
             <DialogActions>

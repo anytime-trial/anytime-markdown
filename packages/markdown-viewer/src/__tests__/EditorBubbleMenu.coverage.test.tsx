@@ -5,7 +5,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 let mockShouldShow: any = null;
 
@@ -29,7 +28,6 @@ jest.mock("../types", () => ({
 
 import { EditorBubbleMenu } from "../components/EditorBubbleMenu";
 
-const theme = createTheme();
 
 describe("EditorBubbleMenu - coverage tests", () => {
   const t = (key: string) => key;
@@ -61,9 +59,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("returns false when readonlyMode is true", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} readonlyMode t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} readonlyMode t={t} />,
       );
 
       const result = mockShouldShow({
@@ -76,9 +72,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("returns false when selection is empty", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       const result = mockShouldShow({
@@ -96,9 +90,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
       };
 
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       const result = mockShouldShow({
@@ -111,9 +103,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("returns true for normal text selection", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       const result = mockShouldShow({
@@ -128,9 +118,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("ArrowRight moves focus to next button", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       const toolbar = screen.getByRole("toolbar");
@@ -148,9 +136,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("ArrowLeft moves focus to previous button", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       const toolbar = screen.getByRole("toolbar");
@@ -160,9 +146,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("non-arrow keys are ignored", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       const toolbar = screen.getByRole("toolbar");
@@ -176,9 +160,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("bold button toggles bold", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       const boldBtn = screen.getByLabelText("bold");
@@ -189,9 +171,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("italic button toggles italic", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       fireEvent.click(screen.getByLabelText("italic"));
@@ -201,9 +181,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("underline button toggles underline", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       fireEvent.click(screen.getByLabelText("underline"));
@@ -213,9 +191,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("strikethrough button toggles strike", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       fireEvent.click(screen.getByLabelText("strikethrough"));
@@ -225,9 +201,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("highlight button toggles highlight", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       fireEvent.click(screen.getByLabelText("highlight"));
@@ -237,9 +211,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("code button toggles code", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       fireEvent.click(screen.getByLabelText("code"));
@@ -250,9 +222,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
       const editor = createEditor();
       const onLink = jest.fn();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={onLink} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={onLink} t={t} />,
       );
 
       fireEvent.click(screen.getByLabelText("link"));
@@ -266,9 +236,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
       mockOpenDialog.mockClear();
 
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       fireEvent.click(screen.getByLabelText("comment"));
@@ -281,7 +249,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
       mockOpenDialog.mockClear();
 
       render(
-        <ThemeProvider theme={theme}>
+          <>
           <EditorBubbleMenu
             editor={editor}
             onLink={jest.fn()}
@@ -289,7 +257,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
             executeInReviewMode={executeInReviewMode}
             t={t}
           />
-        </ThemeProvider>,
+          </>,
       );
 
       fireEvent.click(screen.getByLabelText("comment"));
@@ -300,9 +268,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("comment button not rendered in readonlyMode", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} readonlyMode t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} readonlyMode t={t} />,
       );
 
       expect(screen.queryByLabelText("comment")).toBeNull();
@@ -318,9 +284,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
       });
 
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       const boldBtn = screen.getByLabelText("bold");
@@ -332,7 +296,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("hides bold/italic/etc but shows comment in reviewMode", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
+          <>
           <EditorBubbleMenu
             editor={editor}
             onLink={jest.fn()}
@@ -340,7 +304,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
             executeInReviewMode={jest.fn()}
             t={t}
           />
-        </ThemeProvider>,
+          </>,
       );
 
       expect(screen.queryByLabelText("bold")).toBeNull();
@@ -354,9 +318,7 @@ describe("EditorBubbleMenu - coverage tests", () => {
     it("shows shortcut in tooltip for known keys", () => {
       const editor = createEditor();
       render(
-        <ThemeProvider theme={theme}>
-          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />
-        </ThemeProvider>,
+          <EditorBubbleMenu editor={editor} onLink={jest.fn()} t={t} />,
       );
 
       // Tooltips are rendered but may not be visible. Check that buttons exist with correct labels.

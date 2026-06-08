@@ -1,11 +1,16 @@
-import LinkIcon from "@mui/icons-material/Link";
-import { Box, Skeleton, Stack, Typography, useTheme } from "@mui/material";
+import { LinkIcon } from "../../ui/icons";
+import { useIsDark } from "../../contexts/ThemeModeContext";
+import { getDivider, getBgPaper, getTextPrimary, getTextSecondary, getWarningMain } from "../../constants/colors";
+
+import { Skeleton } from "../../ui/Skeleton";
 import { type CSSProperties } from "react";
 
 import { useEmbedUpdateCheck, useOgpData } from "../../hooks/useEmbedData";
 import type { EmbedProviders } from "../../types/embedProvider";
 import { DEFAULT_EMBED_BASELINE, type EmbedBaseline } from "../../utils/embedInfoString";
 import { markEmbedSeen } from "../../utils/embedSeenStore";
+import { Stack } from "../../ui/Stack";
+import { Text } from "../../ui/Text";
 import { EmbedUpdateBadge } from "../codeblock/EmbedUpdateBadge";
 
 interface Props {
@@ -29,7 +34,7 @@ function getDomain(url: string): string {
 
 export function OgpCardView({ url, variant, providers, widthOverride, baseline, onBaselineWrite }: Readonly<Props>) {
     const { loading, data, error } = useOgpData(url, providers);
-    const theme = useTheme();
+    const isDark = useIsDark();
 
     const effectiveBaseline = baseline ?? DEFAULT_EMBED_BASELINE;
     const updateCheck = useEmbedUpdateCheck({
@@ -44,18 +49,20 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
         if (updateCheck.fingerprint) markEmbedSeen(url, updateCheck.fingerprint);
     };
 
-    const borderColor = theme.palette.divider;
-    const bg = theme.palette.background.paper;
-    const textPrimary = theme.palette.text.primary;
-    const textSecondary = theme.palette.text.secondary;
+    const borderColor = getDivider(isDark);
+    const bg = getBgPaper(isDark);
+    const textPrimary = getTextPrimary(isDark);
+    const textSecondary = getTextSecondary(isDark);
 
-    const cardWidthSx = widthOverride ? { width: widthOverride } : { width: "100%", maxWidth: 720 };
+    const cardWidthStyle: CSSProperties = widthOverride
+        ? { width: widthOverride }
+        : { width: "100%", maxWidth: 720 };
 
     if (loading) {
         if (variant === "compact") {
-            return <Skeleton variant="rectangular" height={40} sx={{ maxWidth: 720 }} />;
+            return <Skeleton variant="rectangular" height={40} style={{ maxWidth: 720 }} />;
         }
-        return <Skeleton variant="rectangular" height={140} sx={cardWidthSx} />;
+        return <Skeleton variant="rectangular" height={140} style={cardWidthStyle} />;
     }
 
     const domain = getDomain(data?.url ?? url);
@@ -78,33 +85,34 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
                 rel="noopener noreferrer"
                 style={linkStyle}
             >
-                <Box
-                    sx={{
+                <div
+                    style={{
                         border: `1px solid ${borderColor}`,
-                        borderRadius: 1,
+                        borderRadius: 4,
                         backgroundColor: bg,
                         maxWidth: 720,
                         height: 40,
                         display: "flex",
                         alignItems: "center",
-                        gap: 1,
-                        px: 1.5,
+                        gap: 8,
+                        paddingLeft: 12,
+                        paddingRight: 12,
                         overflow: "hidden",
                     }}
                 >
                     {favicon ? (
-                        <Box
-                            component="img"
+                        <img
                             src={favicon}
                             alt=""
                             loading="lazy"
-                            sx={{ width: 16, height: 16, flexShrink: 0 }}
+                            style={{ width: 16, height: 16, flexShrink: 0 }}
                         />
                     ) : (
-                        <LinkIcon sx={{ fontSize: 16, color: textSecondary, flexShrink: 0 }} />
+                        <LinkIcon fontSize={16} color={textSecondary} style={{ flexShrink: 0 }} />
                     )}
-                    <Typography
-                        sx={{
+                    <Text
+                        component="span"
+                        style={{
                             color: textPrimary,
                             fontSize: 14,
                             whiteSpace: "nowrap",
@@ -115,29 +123,30 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
                         }}
                     >
                         {title}
-                    </Typography>
-                    <Typography
-                        sx={{
+                    </Text>
+                    <Text
+                        component="span"
+                        style={{
                             color: textSecondary,
                             fontSize: 12,
                             flexShrink: 0,
                         }}
                     >
                         {domain}
-                    </Typography>
-                </Box>
+                    </Text>
+                </div>
             </a>
         );
     }
 
     return (
         <a href={url} target="_blank" rel="noopener noreferrer" style={linkStyle}>
-            <Box
-                sx={{
+            <div
+                style={{
                     border: `1px solid ${borderColor}`,
-                    borderRadius: 1,
+                    borderRadius: 4,
                     backgroundColor: bg,
-                    ...cardWidthSx,
+                    ...cardWidthStyle,
                     height: 140,
                     display: "flex",
                     overflow: "hidden",
@@ -149,10 +158,11 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
                     newTitle={updateCheck.newTitle}
                     onClick={handleBadgeClick}
                 />
-                <Stack sx={{ flex: 1, minWidth: 0, p: 1.5, justifyContent: "space-between" }}>
-                    <Box sx={{ minHeight: 0, overflow: "hidden" }}>
-                        <Typography
-                            sx={{
+                <Stack style={{ flex: 1, minWidth: 0, padding: 12, justifyContent: "space-between" }}>
+                    <div style={{ minHeight: 0, overflow: "hidden" }}>
+                        <Text
+                            component="span"
+                            style={{
                                 color: textPrimary,
                                 fontSize: 15,
                                 fontWeight: 600,
@@ -163,13 +173,14 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
                             }}
                         >
                             {title}
-                        </Typography>
+                        </Text>
                         {description && (
-                            <Typography
-                                sx={{
+                            <Text
+                                component="span"
+                                style={{
                                     color: textSecondary,
                                     fontSize: 13,
-                                    mt: 0.5,
+                                    marginTop: 4,
                                     display: "-webkit-box",
                                     WebkitLineClamp: 2,
                                     WebkitBoxOrient: "vertical",
@@ -177,40 +188,42 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
                                 }}
                             >
                                 {description}
-                            </Typography>
+                            </Text>
                         )}
-                    </Box>
+                    </div>
                     <Stack direction="row" spacing={1} alignItems="center">
                         {favicon ? (
-                            <Box
-                                component="img"
+                            <img
                                 src={favicon}
                                 alt=""
                                 loading="lazy"
-                                sx={{ width: 14, height: 14 }}
+                                style={{ width: 14, height: 14 }}
                             />
                         ) : (
-                            <LinkIcon sx={{ fontSize: 14, color: textSecondary }} />
+                            <LinkIcon fontSize={14} color={textSecondary} />
                         )}
-                        <Typography
-                            sx={{ color: textSecondary, fontSize: 12 }}
+                        <Text
+                            component="span"
+                            style={{ color: textSecondary, fontSize: 12 }}
                         >
                             {domain}
-                        </Typography>
+                        </Text>
                         {error && (
-                            <Typography sx={{ color: theme.palette.warning.main, fontSize: 12 }}>
+                            <Text
+                                component="span"
+                                style={{ color: getWarningMain(isDark), fontSize: 12 }}
+                            >
                                 ⚠ {error}
-                            </Typography>
+                            </Text>
                         )}
                     </Stack>
                 </Stack>
                 {image && (
-                    <Box
-                        component="img"
+                    <img
                         src={image}
                         alt=""
                         loading="lazy"
-                        sx={{
+                        style={{
                             width: 180,
                             height: "100%",
                             objectFit: "cover",
@@ -218,7 +231,7 @@ export function OgpCardView({ url, variant, providers, widthOverride, baseline, 
                         }}
                     />
                 )}
-            </Box>
+            </div>
         </a>
     );
 }

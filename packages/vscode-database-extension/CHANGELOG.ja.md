@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-08
+
+### 変更
+
+- `database-viewer` の自前テーマ化に追随し、冗長な MUI ラッパを除去。
+
+### 修正
+
+- VS Code Node 24 ターゲット（Node 24 ABI）向けにビルドした `better-sqlite3` を同梱し、`prepare-native` の reuse をターゲット一致時のみに限定。
+
+### Database Core (database-core / database-viewer)
+
+- `database-viewer` の `@mui` を全廃し自前 `ui/` キットへ置換（MUI 削減 Phase3d）。
+
 ## [0.2.5] - 2026-05-27
 
 ### Database Core (database-core / database-viewer)

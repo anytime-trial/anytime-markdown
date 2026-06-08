@@ -1,0 +1,90 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  font: inherit;
+  /* MUI ToggleButton は ...theme.typography.button を適用（weight 500 / letter-spacing 0.02857em）。
+     textTransform は消費側の sx で none 指定だったため none を維持。 */
+  font-weight: 500;
+  letter-spacing: 0.02857em;
+  text-transform: none;
+  cursor: pointer;
+  background: transparent;
+  transition:
+    background-color var(--am-duration-fast) var(--am-ease-standard),
+    color var(--am-duration-fast) var(--am-ease-standard);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--am-color-primary-main);
+  outline-offset: -1px;
+}
+
+/* ---- standard variant（連結ボーダー） ---- */
+.standard {
+  border: 1px solid var(--am-color-divider);
+  color: var(--am-color-action-active); /* MUI ToggleButton 非選択色 = palette.action.active */
+  margin-left: -1px;
+}
+
+.standard:first-of-type {
+  margin-left: 0;
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.standard:last-of-type {
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+.standard:hover:not(:disabled):not(.selected) {
+  background-color: var(--am-color-action-hover);
+}
+
+.standard.selected {
+  background-color: var(--am-color-action-selected);
+  color: var(--am-color-text-primary); /* MUI ToggleButton 選択色 = palette.text.primary */
+}
+
+/* ---- pill variant（EditorToolbar の getPillToggleSx 由来） ---- */
+.pill {
+  border: none;
+  border-radius: 20px;
+  padding: 0 16px;
+  gap: 4px;
+  height: 100%;
+  line-height: 1;
+  font-size: 0.8125rem; /* TOOLBAR_FONT_SIZE */
+  color: var(--am-color-text-secondary);
+  margin-left: -1px; /* MUI grouped の firstButton/middleButton 重なり再現 */
+}
+
+.pill:first-of-type {
+  margin-left: 0;
+}
+
+.pill:hover:not(:disabled):not(.selected) {
+  background-color: var(--am-color-action-selected);
+}
+
+.pill.selected {
+  background-color: var(--am-color-bg-paper);
+  color: var(--am-color-text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* ---- size（standard 用の最小高さ。sx 由来の padding/height 上書きは呼び出し側 style が優先） ---- */
+.small {
+  min-height: 30px;
+}
+
+.medium {
+  min-height: 36px;
+}

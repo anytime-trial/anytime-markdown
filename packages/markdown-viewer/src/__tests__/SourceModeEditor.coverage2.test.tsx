@@ -12,7 +12,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material";
 import { SourceModeEditor } from "../components/SourceModeEditor";
 
 jest.mock("next-intl", () => ({
@@ -52,7 +51,6 @@ beforeEach(() => {
   mockRestoreBase64.mockImplementation((...args: unknown[]) => args[0] as string);
 });
 
-const lightTheme = createTheme({ palette: { mode: "light" } });
 
 function renderEditor(overrides: Partial<Parameters<typeof SourceModeEditor>[0]> = {}) {
   const props = {
@@ -63,9 +61,7 @@ function renderEditor(overrides: Partial<Parameters<typeof SourceModeEditor>[0]>
     ...overrides,
   };
   return render(
-    <ThemeProvider theme={lightTheme}>
-      <SourceModeEditor {...props} />
-    </ThemeProvider>,
+      <SourceModeEditor {...props} />,
   );
 }
 

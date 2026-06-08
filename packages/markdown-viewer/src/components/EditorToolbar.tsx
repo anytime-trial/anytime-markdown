@@ -1,31 +1,10 @@
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import CodeOutlinedIcon from "@mui/icons-material/CodeOutlined";
-import EditNoteIcon from "@mui/icons-material/EditNote";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import GitHubIcon from "@mui/icons-material/GitHub";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import MenuIcon from "@mui/icons-material/Menu";
-import RedoIcon from "@mui/icons-material/Redo";
-import UndoIcon from "@mui/icons-material/Undo";
-import ViewStreamIcon from "@mui/icons-material/ViewStream";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
-import {
-  Box,
-  Divider,
-  IconButton,
-  Paper,
-  ToggleButton,
-  ToggleButtonGroup,
-  Tooltip,
-  useTheme,
-} from "@mui/material";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useEditorState } from "@anytime-markdown/markdown-react";
 import React, { useCallback, useRef, useState } from "react";
 
-import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT, getActionHover, getActionSelected, getBgPaper, getDivider, getTextPrimary, getTextSecondary } from "../constants/colors";
-import { SIDE_TOOLBAR_WIDTH, TOOLBAR_FONT_SIZE } from "../constants/dimensions";
+import { DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_TEXT, getDivider } from "../constants/colors";
+import { useIsDark } from "../contexts/ThemeModeContext";
+import { SIDE_TOOLBAR_WIDTH } from "../constants/dimensions";
 import { modKey } from "../constants/shortcuts";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import { DEFAULT_AGGREGATE, getDiagramAggregate, isDiagramLanguage } from "../extensions/diagramAggregateExtension";
@@ -35,6 +14,27 @@ import type { ToolbarFileCapabilities, ToolbarFileHandlers, ToolbarModeHandlers,
 import type { MergeUndoRedo } from "./InlineMergeView";
 import { ToolbarFileActions } from "./ToolbarFileActions";
 import { ToolbarMobileMenu } from "./ToolbarMobileMenu";
+import {
+  ChatBubbleOutlineIcon,
+  CodeOutlinedIcon,
+  EditNoteIcon,
+  EditOutlinedIcon,
+  GitHubIcon,
+  ListAltIcon,
+  LockOutlinedIcon,
+  MenuIcon,
+  RedoIcon,
+  UndoIcon,
+  ViewStreamIcon,
+  VisibilityOutlinedIcon,
+} from "../ui/icons";
+import { Divider } from "../ui/Divider";
+import { Tooltip } from "../ui/Tooltip";
+import { IconButton } from "../ui/IconButton";
+import { Paper } from "../ui/Paper";
+import { ToggleButton } from "../ui/ToggleButton";
+import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
+import styles from "./EditorToolbar.module.css";
 
 /** WAI-ARIA Toolbar パターン: 矢印キーでフォーカス移動 */
 const FOCUSABLE_SELECTOR = 'button:not([disabled]), [role="button"]:not([disabled]), input:not([disabled])';
@@ -73,37 +73,6 @@ function tip(t: TranslationFn, key: string): string {
   return shortcut ? `${t(key)}  (${shortcut})` : t(key);
 }
 
-/** モード切替・比較切替の pill 型トグル共通スタイル */
-function getPillToggleSx(isDark: boolean) {
-  return {
-    height: 34,
-    borderRadius: "20px",
-    bgcolor: getActionHover(isDark),
-    p: 0.25,
-    "& .MuiToggleButton-root": {
-      border: "none",
-      borderRadius: "20px !important",
-      px: 2,
-      py: 0,
-      gap: 0.5,
-      fontSize: TOOLBAR_FONT_SIZE,
-      textTransform: "none",
-      lineHeight: 1,
-    },
-    "& .Mui-selected": {
-      bgcolor: `${getBgPaper(isDark)} !important`,
-      color: `${getTextPrimary(isDark)} !important`,
-      boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-    },
-    "& .MuiToggleButton-root:not(.Mui-selected)": {
-      bgcolor: "transparent",
-      color: getTextSecondary(isDark),
-      "&:hover": {
-        bgcolor: getActionSelected(isDark),
-      },
-    },
-  } as const;
-}
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -172,7 +141,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
   } = hide;
   const { sourceMode, readonlyMode, reviewMode, outlineOpen, inlineMergeOpen, commentOpen, explorerOpen } = modeState;
   const { onSwitchToSource, onSwitchToWysiwyg, onSwitchToReview, onSwitchToReadonly, onToggleOutline, onToggleComments, onMerge, onToggleExplorer } = modeHandlers;
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
 
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<HTMLElement | null>(null);
   const mobileMoreRef = useRef<HTMLButtonElement>(null);
@@ -225,30 +194,18 @@ export const EditorToolbar = React.memo(function EditorToolbar({
     <>
     <Paper
       id="md-editor-toolbar"
-      ref={toolbarRefCallback}
       variant="outlined"
       role="toolbar"
       aria-label={t("editorToolbar")}
       onKeyDown={handleToolbarKeyDown}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        flexWrap: "wrap",
-        gap: 0.5,
-        py: 0.5,
-        pr: 0,
-        pl: "2px",
-        minHeight: 44,
-        maxHeight: 44,
-        borderBottomLeftRadius: 0,
-        borderBottomRightRadius: 0,
+      className={styles.toolbar}
+      style={{
         borderBottom: inlineMergeOpen ? undefined : "none",
-        position: "sticky",
-        top: 0,
         zIndex: Z_TOOLBAR,
-        bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+        backgroundColor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
         color: isDark ? undefined : DEFAULT_LIGHT_TEXT,
       }}
+      {...{ ref: toolbarRefCallback }}
     >
       {/* Home logo */}
       {onHomeClick && (
@@ -258,12 +215,12 @@ export const EditorToolbar = React.memo(function EditorToolbar({
               size="small"
               onClick={onHomeClick}
               aria-label={t("home")}
-              sx={{ p: 0.25 }}
+              style={{ padding: "2px" }}
             >
               <AppIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+          <Divider orientation="vertical" flexItem style={{ margin: "0 2px" }} />
         </>
       )}
 
@@ -283,13 +240,13 @@ export const EditorToolbar = React.memo(function EditorToolbar({
 
       {/* Undo/Redo */}
       {!hideUndoRedo && (
-        <ToggleButtonGroup size="small" aria-label={`${t("undo")} / ${t("redo")}`} sx={{ height: 30 }}>
+        <ToggleButtonGroup size="small" aria-label={`${t("undo")} / ${t("redo")}`} style={{ height: 30 }}>
           <ToggleButton
             value="undo"
             aria-label={t("undo")}
             onClick={() => mergeUndoRedo ? mergeUndoRedo.undo() : editor?.chain().focus().undo().run()}
             disabled={readonlyMode || reviewMode || (mergeUndoRedo ? !mergeUndoRedo.canUndo : !editorState?.canUndo)}
-            sx={{ px: 0.75, py: 0.25 }}
+            className={styles.toggleBtnPad}
           >
             <Tooltip title={tip(t, "undo")}>
               <span style={{ display: "inline-flex" }}><UndoIcon fontSize="small" /></span>
@@ -300,7 +257,7 @@ export const EditorToolbar = React.memo(function EditorToolbar({
             aria-label={t("redo")}
             onClick={() => mergeUndoRedo ? mergeUndoRedo.redo() : editor?.chain().focus().redo().run()}
             disabled={readonlyMode || reviewMode || (mergeUndoRedo ? !mergeUndoRedo.canRedo : !editorState?.canRedo)}
-            sx={{ px: 0.75, py: 0.25 }}
+            className={styles.toggleBtnPad}
           >
             <Tooltip title={tip(t, "redo")}>
               <span style={{ display: "inline-flex" }}><RedoIcon fontSize="small" /></span>
@@ -310,111 +267,120 @@ export const EditorToolbar = React.memo(function EditorToolbar({
       )}
 
       {/* Outline, Comments - hidden on mobile */}
-      <Box sx={{ display: { xs: "none", md: "contents" } }}>
-      <ToggleButtonGroup size="small" aria-label={t("view")} sx={{ height: 30 }}>
+      <div className={styles.desktopContents}>
+      <ToggleButtonGroup size="small" aria-label={t("view")} style={{ height: 30 }}>
         {!hideExplorer && onToggleExplorer && (
-          <ToggleButton value="explorer" selected={!!explorerOpen} onClick={onToggleExplorer} aria-label={t("explorer")} sx={{ px: 0.75, py: 0.25 }}>
+          <ToggleButton value="explorer" selected={!!explorerOpen} onClick={onToggleExplorer} aria-label={t("explorer")} className={styles.toggleBtnPad}>
             <Tooltip title={t("explorer")}>
               <span style={{ display: "inline-flex" }}><GitHubIcon fontSize="small" /></span>
             </Tooltip>
           </ToggleButton>
         )}
-        {!hideOutline && <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={sourceMode} aria-label={t("outline")} sx={{ px: 0.75, py: 0.25 }}>
+        {!hideOutline && <ToggleButton value="outline" selected={outlineOpen} onClick={onToggleOutline} disabled={sourceMode} aria-label={t("outline")} className={styles.toggleBtnPad}>
           <Tooltip title={tip(t, "outline")}>
             <span style={{ display: "inline-flex" }}><ListAltIcon fontSize="small" /></span>
           </Tooltip>
         </ToggleButton>}
         {!hideComments && onToggleComments && (
-          <ToggleButton value="comments" selected={commentOpen} onClick={onToggleComments} disabled={sourceMode} aria-label={t("commentPanel") || "Comments"} sx={{ px: 0.75, py: 0.25 }}>
+          <ToggleButton value="comments" selected={commentOpen} onClick={onToggleComments} disabled={sourceMode} aria-label={t("commentPanel") || "Comments"} className={styles.toggleBtnPad}>
             <Tooltip title={t("commentPanel") || "Comments"}>
               <span style={{ display: "inline-flex" }}><ChatBubbleOutlineIcon fontSize="small" /></span>
             </Tooltip>
           </ToggleButton>
         )}
       </ToggleButtonGroup>
-      </Box>
+      </div>
 
-      <Box sx={{ flexGrow: 1 }} />
+      <div className={styles.spacer} />
 
       {/* Source / Edit / Review toggle */}
       {!hideModeToggle && <ToggleButtonGroup
         value={currentMode}
         exclusive
         size="small"
+        variant="pill"
         aria-label={t("editMode")}
-        sx={getPillToggleSx(isDark)}
       >
         {!hideReadonlyToggle && (
           <ToggleButton value="readonly" aria-label={t("readonly")} onClick={onSwitchToReadonly}>
-            <LockOutlinedIcon sx={{ fontSize: "1rem" }} />
-            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("readonly")}</Box>
+            <LockOutlinedIcon fontSize="1rem" />
+            <span className={styles.modeLabel}>{t("readonly")}</span>
           </ToggleButton>
         )}
         <ToggleButton value="review" aria-label={t("review")} onClick={onSwitchToReview}>
-          <VisibilityOutlinedIcon sx={{ fontSize: "1rem" }} />
-          <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("review")}</Box>
+          <VisibilityOutlinedIcon fontSize="1rem" />
+          <span className={styles.modeLabel}>{t("review")}</span>
         </ToggleButton>
         <ToggleButton value="wysiwyg" aria-label={t("wysiwyg")} onClick={onSwitchToWysiwyg}>
-          <EditOutlinedIcon sx={{ fontSize: "1rem" }} />
-          <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("wysiwyg")}</Box>
+          <EditOutlinedIcon fontSize="1rem" />
+          <span className={styles.modeLabel}>{t("wysiwyg")}</span>
         </ToggleButton>
         <ToggleButton value="source" aria-label={t("source")} onClick={onSwitchToSource}>
-          <CodeOutlinedIcon sx={{ fontSize: "1rem" }} />
-          <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t("source")}</Box>
+          <CodeOutlinedIcon fontSize="1rem" />
+          <span className={styles.modeLabel}>{t("source")}</span>
         </ToggleButton>
       </ToggleButtonGroup>}
 
       {/* Compare toggle (md 以上のみ表示) */}
-      {!hideModeToggle && !hideCompareToggle && <ToggleButtonGroup
-        value={inlineMergeOpen ? "compare" : "edit"}
-        exclusive
-        size="small"
-        aria-label={t("compareMode")}
-        sx={{ ...getPillToggleSx(isDark), display: { xs: "none", md: "inline-flex" } }}
-      >
-        <ToggleButton
-          value="edit"
-          aria-label={t("normalMode")}
-          disabled={readonlyMode}
-          onClick={() => { if (inlineMergeOpen) onMerge(); }}
-        >
-          <EditNoteIcon sx={{ fontSize: "1rem" }} />
-          {t("normalMode")}
-        </ToggleButton>
-        <ToggleButton
-          value="compare"
-          aria-label={t("compare")}
-          disabled={readonlyMode}
-          onClick={() => { if (!inlineMergeOpen) onMerge(); }}
-        >
-          <ViewStreamIcon sx={{ fontSize: "1rem", transform: "rotate(90deg)" }} />
-          {t("compare")}
-        </ToggleButton>
-      </ToggleButtonGroup>}
+      {!hideModeToggle && !hideCompareToggle && (
+        <div className={styles.compareToggleWrapper}>
+          <ToggleButtonGroup
+            value={inlineMergeOpen ? "compare" : "edit"}
+            exclusive
+            size="small"
+            variant="pill"
+            aria-label={t("compareMode")}
+          >
+            <ToggleButton
+              value="edit"
+              aria-label={t("normalMode")}
+              disabled={readonlyMode}
+              onClick={() => { if (inlineMergeOpen) onMerge(); }}
+            >
+              <EditNoteIcon fontSize="1rem" />
+              {t("normalMode")}
+            </ToggleButton>
+            <ToggleButton
+              value="compare"
+              aria-label={t("compare")}
+              disabled={readonlyMode}
+              onClick={() => { if (!inlineMergeOpen) onMerge(); }}
+            >
+              <ViewStreamIcon fontSize="1rem" style={{ transform: "rotate(90deg)" }} />
+              {t("compare")}
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </div>
+      )}
 
       {/* More menu */}
       {!hideMoreMenu && (
         <>
-          <Box sx={{ display: { xs: "none", md: "flex" }, width: SIDE_TOOLBAR_WIDTH, justifyContent: "center", alignItems: "center", flexShrink: 0, ml: "auto", borderLeft: 1, borderColor: getDivider(isDark) }}>
+          <div
+            className={styles.moreMenuDesktop}
+            style={{ width: SIDE_TOOLBAR_WIDTH, borderColor: getDivider(isDark) }}
+          >
             <Tooltip title={t("more")}>
               <IconButton aria-label={t("more")}
                 size="small"
                 onClick={(e) => onSetHelpAnchor(e.currentTarget)}
-                sx={{ p: 0 }}
+                style={{ padding: 0 }}
               >
                 <MenuIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-          </Box>
-          <IconButton
-            ref={mobileMoreRef}
-            aria-label={t("more")}
-            size="small"
-            onClick={(e) => setMobileMenuAnchorEl(e.currentTarget)}
-            sx={{ display: { xs: "inline-flex", md: "none" }, mr: 0, p: 0 }}
-          >
-            <MenuIcon fontSize="small" />
-          </IconButton>
+          </div>
+          <div className={styles.moreMenuMobile}>
+            <IconButton
+              ref={mobileMoreRef}
+              aria-label={t("more")}
+              size="small"
+              onClick={(e) => setMobileMenuAnchorEl(e.currentTarget)}
+              style={{ padding: 0 }}
+            >
+              <MenuIcon fontSize="small" />
+            </IconButton>
+          </div>
         </>
       )}
     </Paper>

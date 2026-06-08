@@ -1,6 +1,6 @@
 "use client";
 
-import { Box } from "@mui/material";
+import { Box } from "./ui";
 import React, { useSyncExternalStore } from "react";
 import type { SheetAdapter } from "@anytime-markdown/spreadsheet-core";
 import {
@@ -31,7 +31,7 @@ export const ResultGrid: React.FC<Readonly<ResultGridProps>> = ({
     () => 0,
   );
   return (
-    <Box sx={{ flexGrow: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <Box style={{ flexGrow: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <SpreadsheetEditor
         adapter={adapter}
         pagination={pagination}

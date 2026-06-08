@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-08
+
+### Changed
+
+- Version bump to keep the database lineage in sync; no functional changes to the adapter layer.
+
 ## [0.2.5] - 2026-05-27
 
 ### Changed

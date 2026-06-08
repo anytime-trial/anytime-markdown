@@ -4,11 +4,7 @@
  */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { SamplePanel } from "../components/SamplePanel";
-
-const lightTheme = createTheme({ palette: { mode: "light" } });
-const darkTheme = createTheme({ palette: { mode: "dark" } });
 
 const samples = [
   { label: "heading", i18nKey: "sampleHeading", code: "# Heading" },
@@ -17,12 +13,8 @@ const samples = [
 
 const t = (key: string) => key;
 
-function renderWithTheme(ui: React.ReactElement, dark = false) {
-  return render(
-    <ThemeProvider theme={dark ? darkTheme : lightTheme}>
-      {ui}
-    </ThemeProvider>
-  );
+function renderWithTheme(ui: React.ReactElement, _dark = false) {
+  return render(ui);
 }
 
 describe("SamplePanel coverage", () => {

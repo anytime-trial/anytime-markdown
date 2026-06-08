@@ -146,6 +146,9 @@ export const DARK_ACTION_SELECTED = "rgba(255,255,255,0.16)";
 export const LIGHT_ACTION_SELECTED = "rgba(31,30,28,0.08)";
 export const DARK_DIVIDER = "rgba(255,255,255,0.12)";
 export const LIGHT_DIVIDER = "rgba(31,30,28,0.12)";
+// MUI palette.action.active（テーマ未上書き＝MUI デフォルト）。ToggleButton standard の非選択色。
+export const DARK_ACTION_ACTIVE = "#fff";
+export const LIGHT_ACTION_ACTIVE = "rgba(0,0,0,0.54)";
 
 /** ダーク/ライトモードに応じた UI 背景色を返すヘルパー */
 export function getBgPaper(isDark: boolean): string {
@@ -159,6 +162,9 @@ export function getActionSelected(isDark: boolean): string {
 }
 export function getDivider(isDark: boolean): string {
   return isDark ? DARK_DIVIDER : LIGHT_DIVIDER;
+}
+export function getActionActive(isDark: boolean): string {
+  return isDark ? DARK_ACTION_ACTIVE : LIGHT_ACTION_ACTIVE;
 }
 
 // ── UI アクセント色（MUI テーマ準拠） ──
@@ -246,4 +252,42 @@ export function getSuccessBg(isDark: boolean): string {
 }
 export function getInfoBg(isDark: boolean): string {
   return isDark ? DARK_INFO_BG : LIGHT_INFO_BG;
+}
+
+/**
+ * 色に不透明度を適用して `rgba()` 文字列を返す（MUI `@mui/material/styles` の
+ * `alpha` 代替・非 MUI）。chrome の MUI/emotion 依存を除去するための seam で使用する。
+ *
+ * 受け付ける入力: `#rgb` / `#rgba` / `#rrggbb` / `#rrggbbaa` / `rgb(...)` / `rgba(...)`。
+ * 既存のアルファ（8 桁 hex / rgba）がある場合は乗算する。解釈できない入力はそのまま返す。
+ */
+export function alpha(color: string, opacity: number): string {
+  const o = Math.max(0, Math.min(1, opacity));
+  const trimmed = color.trim();
+  const round = (n: number): number => Math.round(n * 1000) / 1000;
+
+  const hexMatch = /^#([0-9a-fA-F]{3,8})$/.exec(trimmed);
+  if (hexMatch) {
+    let h = hexMatch[1];
+    if (h.length === 3 || h.length === 4) {
+      h = h
+        .split("")
+        .map((c) => c + c)
+        .join("");
+    }
+    const r = Number.parseInt(h.slice(0, 2), 16);
+    const g = Number.parseInt(h.slice(2, 4), 16);
+    const b = Number.parseInt(h.slice(4, 6), 16);
+    const baseA = h.length >= 8 ? Number.parseInt(h.slice(6, 8), 16) / 255 : 1;
+    return `rgba(${r}, ${g}, ${b}, ${round(baseA * o)})`;
+  }
+
+  const rgbMatch = /^rgba?\(([^)]+)\)$/.exec(trimmed);
+  if (rgbMatch) {
+    const parts = rgbMatch[1].split(",").map((p) => p.trim());
+    const baseA = parts.length >= 4 ? Number(parts[3]) : 1;
+    return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${round(baseA * o)})`;
+  }
+
+  return color;
 }

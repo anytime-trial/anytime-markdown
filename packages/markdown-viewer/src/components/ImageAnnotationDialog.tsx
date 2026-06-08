@@ -1,20 +1,20 @@
 "use client";
 
-import AutoFixOffIcon from "@mui/icons-material/AutoFixOff";
-import CancelIcon from "@mui/icons-material/Cancel";
-import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
-import CloseIcon from "@mui/icons-material/Close";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
-import RectangleOutlinedIcon from "@mui/icons-material/RectangleOutlined";
-import { Box, IconButton, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { AutoFixOffIcon, CancelIcon, CircleOutlinedIcon, CloseIcon, DeleteOutlineIcon, HorizontalRuleIcon, RectangleOutlinedIcon } from "../ui/icons";
+import { IconButton } from "../ui/IconButton";
+import { TextField } from "../ui/TextField";
+import { Tooltip } from "../ui/Tooltip";
+import { ToggleButton } from "../ui/ToggleButton";
+import { ToggleButtonGroup } from "../ui/ToggleButtonGroup";
 import React, { useCallback, useRef, useState } from "react";
 
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { getActionHover, getBgPaper, getDivider, getPrimaryMain, getTextSecondary } from "../constants/colors";
 import { BADGE_NUMBER_FONT_SIZE, PANEL_INPUT_FONT_SIZE, SMALL_CAPTION_FONT_SIZE } from "../constants/dimensions";
 import type { AnnotationTool,ImageAnnotation } from "../types/imageAnnotation";
 import { ANNOTATION_COLORS, generateAnnotationId } from "../types/imageAnnotation";
+import { Text } from "../ui/Text";
+import styles from "./ImageAnnotationDialog.module.css";
 
 interface ImageAnnotationDialogProps {
   open: boolean;
@@ -88,7 +88,7 @@ function renderAnnotation(
 export function ImageAnnotationDialog({
   open, onClose, src, annotations, onSave, t,
 }: Readonly<ImageAnnotationDialogProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [tool, setTool] = useState<AnnotationTool>("rect");
   const [color, setColor] = useState<string>(ANNOTATION_COLORS[0].value);
   const [items, setItems] = useState<ImageAnnotation[]>(annotations);
@@ -166,18 +166,18 @@ export function ImageAnnotationDialog({
   } : null;
 
   return (
-    <Box
-      sx={{
+    <div
+      style={{
         position: "fixed",
         inset: 0,
         zIndex: 1300,
         display: "flex",
         flexDirection: "column",
-        bgcolor: getBgPaper(isDark),
+        backgroundColor: getBgPaper(isDark),
       }}
     >
       {/* Toolbar */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, borderBottom: 1, borderColor: getDivider(isDark), flexShrink: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: `1px solid ${getDivider(isDark)}`, flexShrink: 0 }}>
         <ToggleButtonGroup value={tool} exclusive onChange={(_, v) => { if (v) setTool(v); }} size="small">
           <ToggleButton value="rect" aria-label={t("annotationRect")}>
             <Tooltip title={t("annotationRect")}><RectangleOutlinedIcon fontSize="small" /></Tooltip>
@@ -193,25 +193,23 @@ export function ImageAnnotationDialog({
           </ToggleButton>
         </ToggleButtonGroup>
 
-        <Box sx={{ display: "flex", gap: 0.5, ml: 1 }}>
+        <div style={{ display: "flex", gap: 4, marginLeft: 8 }}>
           {ANNOTATION_COLORS.map(c => (
             <IconButton
               key={c.value}
               size="small"
               onClick={() => setColor(c.value)}
               aria-label={c.label}
-              sx={{
-                width: 24, height: 24, p: 0,
-                bgcolor: c.value,
-                border: 2,
+              className={styles.colorSwatch}
+              style={{
+                backgroundColor: c.value,
                 borderColor: color === c.value ? getPrimaryMain(isDark) : getDivider(isDark),
-                "&:hover": { borderColor: getPrimaryMain(isDark) },
               }}
             />
           ))}
-        </Box>
+        </div>
 
-        <Box sx={{ flex: 1 }} />
+        <div style={{ flex: 1 }} />
 
         <Tooltip title={t("undo")}>
           <span>
@@ -224,23 +222,23 @@ export function ImageAnnotationDialog({
         <IconButton size="small" onClick={handleClose} aria-label={t("close")}>
           <CloseIcon />
         </IconButton>
-      </Box>
+      </div>
 
       {/* Main: Canvas + Comment Panel */}
-      <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Canvas */}
-        <Box
-          sx={{
+        <div
+          style={{
             flex: 1,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             overflow: "hidden",
-            p: 2,
+            padding: 16,
             cursor: "crosshair",
           }}
         >
-          <Box sx={{ position: "relative", maxWidth: "100%", maxHeight: "100%" }}>
+          <div style={{ position: "relative", maxWidth: "100%", maxHeight: "100%" }}>
             <img
               src={src}
               alt=""
@@ -259,31 +257,30 @@ export function ImageAnnotationDialog({
               {items.map((a, i) => renderAnnotation(a, i, a.id === selectedId, handleShapeClick))}
               {previewAnnotation && renderAnnotation(previewAnnotation, items.length, false)}
             </svg>
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         {/* Comment Panel */}
-        <Box
-          sx={{
+        <div
+          style={{
             width: 280,
-            borderLeft: 1,
-            borderColor: getDivider(isDark),
+            borderLeft: `1px solid ${getDivider(isDark)}`,
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
             flexShrink: 0,
           }}
         >
-          <Box sx={{ px: 1.5, py: 1, borderBottom: 1, borderColor: getDivider(isDark) }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${getDivider(isDark)}` }}>
+            <Text variant="subtitle2" style={{ fontWeight: 700 }}>
               {t("commentPanel")} ({items.length})
-            </Typography>
-          </Box>
-          <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
+            </Text>
+          </div>
+          <div style={{ flex: 1, overflow: "auto", padding: 8 }}>
             {items.length === 0 && (
-              <Typography variant="caption" sx={{ color: getTextSecondary(isDark), display: "block", textAlign: "center", py: 4 }}>
+              <Text variant="caption" style={{ color: getTextSecondary(isDark), display: "block", textAlign: "center", padding: "32px 0" }}>
                 {t("annotate")}
-              </Typography>
+              </Text>
             )}
             {items.map((a, i) => {
               let annotationLabel: string;
@@ -291,30 +288,30 @@ export function ImageAnnotationDialog({
               else if (a.type === "circle") annotationLabel = t("annotationCircle");
               else annotationLabel = t("annotationLine");
               return (
-              <Box
+              <div
                 key={a.id}
                 onClick={() => setSelectedId(a.id)}
-                sx={{
-                  mb: 1, p: 1,
-                  border: 1,
-                  borderColor: a.id === selectedId ? getPrimaryMain(isDark) : getDivider(isDark),
-                  borderRadius: 1,
-                  cursor: "pointer",
-                  "&:hover": { bgcolor: getActionHover(isDark) },
+                className={styles.annotationItem}
+                style={{
+                  marginBottom: 8,
+                  padding: 8,
+                  border: `1px solid ${a.id === selectedId ? getPrimaryMain(isDark) : getDivider(isDark)}`,
+                  borderRadius: 4,
+                  ["--hover-bg" as string]: getActionHover(isDark),
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
-                  <Box sx={{ width: 18, height: 18, borderRadius: "50%", bgcolor: a.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Typography variant="caption" sx={{ color: "white", fontSize: BADGE_NUMBER_FONT_SIZE, fontWeight: 700 }}>{i + 1}</Typography>
-                  </Box>
-                  <Typography variant="caption" sx={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                  <div style={{ width: 18, height: 18, borderRadius: "50%", backgroundColor: a.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Text variant="caption" style={{ color: "white", fontSize: BADGE_NUMBER_FONT_SIZE, fontWeight: 700 }}>{i + 1}</Text>
+                  </div>
+                  <Text variant="caption" style={{ color: getTextSecondary(isDark), fontSize: SMALL_CAPTION_FONT_SIZE }}>
                     {annotationLabel}
-                  </Typography>
-                  <Box sx={{ flex: 1 }} />
-                  <IconButton size="small" sx={{ p: 0.25 }} onClick={(e) => { e.stopPropagation(); handleDeleteItem(a.id); }}>
-                    <DeleteOutlineIcon sx={{ fontSize: 14 }} />
+                  </Text>
+                  <div style={{ flex: 1 }} />
+                  <IconButton size="xs" onClick={(e) => { e.stopPropagation(); handleDeleteItem(a.id); }}>
+                    <DeleteOutlineIcon style={{ fontSize: 14 }} />
                   </IconButton>
-                </Box>
+                </div>
                 <TextField
                   size="small"
                   multiline
@@ -325,14 +322,17 @@ export function ImageAnnotationDialog({
                   value={a.comment ?? ""}
                   onChange={(e) => handleCommentChange(a.id, e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  sx={{ "& .MuiInputBase-input": { fontSize: PANEL_INPUT_FONT_SIZE, py: 0.5 } }}
+                  style={{
+                    ["--tf-input-font-size" as string]: PANEL_INPUT_FONT_SIZE,
+                    ["--tf-input-pad-y" as string]: "4px",
+                  }}
                 />
-              </Box>
+              </div>
               );
             })}
-          </Box>
-        </Box>
-      </Box>
-    </Box>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

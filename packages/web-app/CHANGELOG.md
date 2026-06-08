@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.27.4] - 2026-06-08
+
+### Changed
+
+- Adopt the editor core's MUI-free theming seam (`ThemeModeContext` / `ui/GlobalStyle`).
+- Bump `@playwright/test` 1.58.2 → 1.60.0 and refresh the visual-regression baselines.
+
+### Fixed
+
+- Pass `themeMode` through to `DatabaseEditor` on the database page.
+
 ## [0.27.3] - 2026-06-03
 
 ### Changed

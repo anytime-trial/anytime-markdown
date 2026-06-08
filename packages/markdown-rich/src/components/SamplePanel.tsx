@@ -1,10 +1,11 @@
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { Box, Chip, Typography } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import React, { useState } from "react";
 
-import { getActionHover, getDivider, getTextSecondary, CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE } from "@anytime-markdown/markdown-viewer";
+import { getActionHover, getDivider, getTextSecondary, CHIP_FONT_SIZE, FS_CHIP_HEIGHT, FS_PANEL_HEADER_FONT_SIZE, useIsDark } from "@anytime-markdown/markdown-viewer";
+import { Chip } from "@anytime-markdown/markdown-viewer/src/ui/Chip";
+import { Text } from "@anytime-markdown/markdown-viewer/src/ui/Text";
+import { ExpandLessIcon, ExpandMoreIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
+
+import styles from "./SamplePanel.module.css";
 
 interface SampleItem {
   label: string;
@@ -21,35 +22,48 @@ interface SamplePanelProps {
 
 /** 折りたたみ式サンプル挿入チップパネル */
 export function SamplePanel({ samples, onInsert, readOnly, t }: Readonly<SamplePanelProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [open, setOpen] = useState(false);
 
   if (readOnly || samples.length === 0) return null;
 
+  const iconColor = getTextSecondary(isDark);
+
   return (
-    <Box sx={{ borderTop: 1, borderColor: getDivider(isDark), flexShrink: 0 }}>
-      <Box
+    <div
+      className={styles.root}
+      style={{ borderColor: getDivider(isDark) }}
+    >
+      <div
         onClick={() => setOpen((v) => !v)}
-        sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer", userSelect: "none", "&:hover": { bgcolor: getActionHover(isDark) } }}
+        className={styles.header}
+        style={{ ["--am-sample-header-hover-bg" as string]: getActionHover(isDark) }}
       >
-        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: FS_PANEL_HEADER_FONT_SIZE, flex: 1 }}>
+        <Text
+          variant="caption"
+          className={styles.headerText}
+          style={{ fontSize: FS_PANEL_HEADER_FONT_SIZE }}
+        >
           {t("sampleContent")}
-        </Typography>
-        {open ? <ExpandLessIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} /> : <ExpandMoreIcon sx={{ fontSize: 16, color: getTextSecondary(isDark) }} />}
-      </Box>
+        </Text>
+        {open
+          ? <ExpandLessIcon fontSize={16} color={iconColor} />
+          : <ExpandMoreIcon fontSize={16} color={iconColor} />
+        }
+      </div>
       {open && (
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, px: 1.5, pb: 1.5 }}>
+        <div className={styles.chips}>
           {samples.map((sample) => (
             <Chip
               key={sample.label}
               label={t(sample.i18nKey)}
               size="small"
               onClick={() => onInsert(sample.code)}
-              sx={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
+              style={{ fontSize: CHIP_FONT_SIZE, height: FS_CHIP_HEIGHT }}
             />
           ))}
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }

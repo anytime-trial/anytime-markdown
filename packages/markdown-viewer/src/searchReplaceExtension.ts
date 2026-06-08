@@ -317,14 +317,14 @@ export const SearchReplaceExtension = Extension.create<Record<string, never>, Se
               const regex = getRegex(storage);
               if (!regex) return;
               const newResults = findMatches(view.state.doc, regex);
-              const oldLen = storage.results.length;
               storage.results = newResults;
-              if (newResults.length !== oldLen) {
-                if (storage.currentIndex >= newResults.length) {
-                  storage.currentIndex = 0;
-                }
-                storage.onSearchStateChange?.();
+              if (storage.currentIndex >= newResults.length) {
+                storage.currentIndex = 0;
               }
+              // doc 変更でマッチ位置が変わったため装飾を再構築する。
+              // updateDecorations は setMeta のみの tr を dispatch するため docChanged=false となり、
+              // 次の update は doc.eq ガード（上）で早期 return し無限ループにならない。
+              updateDecorations(this.editor);
             },
           };
         },

@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-06-08
+
+### 変更
+
+- MUI を全廃し自前 UI プリミティブキットへ書き換えたエディタコアを同梱（拡張からの挙動変化なし）。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- エディタ chrome と `markdown-rich` から `@mui/material`・`@mui/icons-material` を全廃し、自前 `ui/` プリミティブキットと vendored アイコンへ置換（MUI 削減 Phase3a/3b）。
+- MUI `GlobalStyles`・`useTheme`・`useMediaQuery` を stylis ベース `ui/GlobalStyle`・`ThemeModeContext`（`useIsDark`）・自前メディアクエリフックへ置換。peerDependencies から `@mui/*`・`@emotion/*` を削除。
+- 比較モードの imageRow バッジレイアウトを修正。
+
 ## [0.17.0] - 2026-06-03
 
 ### 追加

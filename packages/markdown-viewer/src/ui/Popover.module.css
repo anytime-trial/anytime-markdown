@@ -1,0 +1,8 @@
+/* MUI Popover の paper + 透明 backdrop 相当。共通部は floating.module.css へ集約。 */
+.backdrop {
+  composes: backdrop from "./floating.module.css";
+}
+
+.paper {
+  composes: floatingPaper from "./floating.module.css";
+}

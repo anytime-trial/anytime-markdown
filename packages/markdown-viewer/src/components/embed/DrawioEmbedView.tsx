@@ -1,5 +1,9 @@
-import HexagonOutlinedIcon from "@mui/icons-material/HexagonOutlined";
-import { Box, Stack, Typography, useTheme } from "@mui/material";
+import { useIsDark } from "../../contexts/ThemeModeContext";
+
+import { getBgPaper, getDivider, getTextPrimary, getTextSecondary } from "../../constants/colors";
+import { HexagonOutlinedIcon } from "../../ui/icons";
+import { Stack } from "../../ui/Stack";
+import { Text } from "../../ui/Text";
 
 interface Props {
     url: string;
@@ -18,7 +22,7 @@ function extractFileName(url: string): string {
 }
 
 export function DrawioEmbedView({ url, variant, widthOverride }: Readonly<Props>) {
-    const theme = useTheme();
+    const isDark = useIsDark();
 
     if (variant === "compact") {
         return (
@@ -32,21 +36,24 @@ export function DrawioEmbedView({ url, variant, widthOverride }: Readonly<Props>
                     direction="row"
                     spacing={1}
                     alignItems="center"
-                    sx={{
-                        border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
-                        backgroundColor: theme.palette.background.paper,
+                    style={{
+                        border: `1px solid ${getDivider(isDark)}`,
+                        borderRadius: 4,
+                        backgroundColor: getBgPaper(isDark),
                         maxWidth: 720,
                         height: 40,
-                        px: 1.5,
+                        paddingLeft: 12,
+                        paddingRight: 12,
                     }}
                 >
                     <HexagonOutlinedIcon
-                        sx={{ fontSize: 16, color: theme.palette.text.secondary, flexShrink: 0 }}
+                        fontSize={16}
+                        color={getTextSecondary(isDark)}
+                        style={{ flexShrink: 0 }}
                     />
-                    <Typography
-                        sx={{
-                            color: theme.palette.text.primary,
+                    <Text
+                        style={{
+                            color: getTextPrimary(isDark),
                             fontSize: 14,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
@@ -55,7 +62,7 @@ export function DrawioEmbedView({ url, variant, widthOverride }: Readonly<Props>
                         }}
                     >
                         {extractFileName(url)}
-                    </Typography>
+                    </Text>
                 </Stack>
             </a>
         );
@@ -64,24 +71,23 @@ export function DrawioEmbedView({ url, variant, widthOverride }: Readonly<Props>
     const embedSrc = `https://viewer.diagrams.net/?embed=1&ui=min&lightbox=0#U${encodeURIComponent(url)}`;
 
     return (
-        <Box
-            sx={{
+        <div
+            style={{
                 position: "relative",
                 width: widthOverride ?? "100%",
                 maxWidth: widthOverride ?? 720,
                 paddingTop: "75%",
-                borderRadius: 1,
+                borderRadius: 4,
                 overflow: "hidden",
-                border: `1px solid ${theme.palette.divider}`,
+                border: `1px solid ${getDivider(isDark)}`,
             }}
         >
-            <Box
-                component="iframe"
+            <iframe
                 src={embedSrc}
                 title={`Draw.io: ${extractFileName(url)}`}
                 referrerPolicy="strict-origin-when-cross-origin"
                 loading="lazy"
-                sx={{
+                style={{
                     position: "absolute",
                     inset: 0,
                     width: "100%",
@@ -89,6 +95,6 @@ export function DrawioEmbedView({ url, variant, widthOverride }: Readonly<Props>
                     border: 0,
                 }}
             />
-        </Box>
+        </div>
     );
 }

@@ -1,19 +1,20 @@
 "use client";
 
-import CheckIcon from "@mui/icons-material/Check";
-import CloseIcon from "@mui/icons-material/Close";
-import CropIcon from "@mui/icons-material/Crop";
-import GridOnIcon from "@mui/icons-material/GridOn";
-import PhotoSizeSelectLargeIcon from "@mui/icons-material/PhotoSizeSelectLarge";
-import StraightenIcon from "@mui/icons-material/Straighten";
-import { Box, Button, Chip, IconButton, Tooltip, Typography } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { CheckIcon, CloseIcon, CropIcon, GridOnIcon, PhotoSizeSelectLargeIcon, StraightenIcon } from "../ui/icons";
+import { Tooltip } from "../ui/Tooltip";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { Button } from "../ui/Button";
+import { Chip } from "../ui/Chip";
+import { IconButton } from "../ui/IconButton";
+import styles from "./ImageCropTool.module.css";
+
+import { useIsDark } from "../contexts/ThemeModeContext";
 import { getDivider, getTextDisabled, getTextSecondary } from "../constants/colors";
 import { CHIP_FONT_SIZE, PANEL_BUTTON_FONT_SIZE, STATUSBAR_FONT_SIZE } from "../constants/dimensions";
 import { useCropEstimate } from "../hooks/useCropEstimate";
 import { useCropInteraction } from "../hooks/useCropInteraction";
+import { Text } from "../ui/Text";
 import { SCALE_PRESETS } from "../utils/cropGeometry";
 
 interface ImageCropToolProps {
@@ -23,7 +24,7 @@ interface ImageCropToolProps {
 }
 
 export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) {
-  const isDark = useTheme().palette.mode === "dark";
+  const isDark = useIsDark();
   const [cropping, setCropping] = useState(false);
   const [showRuler, setShowRuler] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
@@ -106,44 +107,45 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
   }, [cropping, handleCancelCrop]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
       {/* Crop toolbar */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, borderBottom: 1, borderColor: getDivider(isDark), minHeight: 32 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4, borderBottom: `1px solid ${getDivider(isDark)}`, minHeight: 32 }}>
         {cropping ? (
           <>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
+            <Text variant="caption" style={{ fontWeight: 600, color: getTextSecondary(isDark) }}>
               {t("imageCropSelect")}
-            </Typography>
+            </Text>
             {cropEstimate && (
-              <Typography variant="caption" sx={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
+              <Text variant="caption" style={{ color: getTextDisabled(isDark), fontSize: STATUSBAR_FONT_SIZE, fontFamily: "monospace", whiteSpace: "nowrap" }}>
                 {cropEstimate}
-              </Typography>
+              </Text>
             )}
-            <Box sx={{ flex: 1 }} />
+            <div style={{ flex: 1 }} />
             {cropRect && cropRect.width > 0.01 && cropRect.height > 0.01 && (
               <Button
                 size="small"
                 variant="contained"
-                startIcon={<CheckIcon sx={{ fontSize: 14 }} />}
+                startIcon={<CheckIcon fontSize={14} />}
                 onClick={handleApplyCrop}
-                sx={{ textTransform: "none", fontSize: PANEL_BUTTON_FONT_SIZE, py: 0.25 }}
+                className={styles.applyBtn}
+                style={{ fontSize: PANEL_BUTTON_FONT_SIZE }}
               >
                 {t("imageCropApply")}
               </Button>
             )}
             <IconButton size="small" onClick={handleCancelCrop} aria-label={t("close")}>
-              <CloseIcon sx={{ fontSize: 16 }} />
+              <CloseIcon fontSize={16} />
             </IconButton>
           </>
         ) : (
           <>
             <Tooltip title={t("imageCrop")}>
               <IconButton size="small" onClick={() => setCropping(true)} aria-label={t("imageCrop")}>
-                <CropIcon sx={{ fontSize: 18 }} />
+                <CropIcon fontSize={18} />
               </IconButton>
             </Tooltip>
             <Tooltip title={t("imageResize")}>
-              <PhotoSizeSelectLargeIcon sx={{ fontSize: 16, color: getTextSecondary(isDark), ml: 0.5 }} />
+              <PhotoSizeSelectLargeIcon fontSize={16} color={getTextSecondary(isDark)} style={{ marginLeft: 4 }} />
             </Tooltip>
             {SCALE_PRESETS.map(s => (
               <Chip
@@ -152,47 +154,47 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
                 size="small"
                 variant="outlined"
                 onClick={() => handleResize(s)}
-                sx={{ height: 22, fontSize: CHIP_FONT_SIZE, cursor: "pointer" }}
+                style={{ height: 22, fontSize: CHIP_FONT_SIZE }}
               />
             ))}
-            <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.5 }}>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
               <Tooltip title={t("imageRuler")}>
                 <IconButton
                   size="small"
                   onClick={() => setShowRuler(v => !v)}
-                  color={showRuler ? "primary" : "default"}
+                  className={showRuler ? styles.activeIcon : undefined}
                   aria-label={t("imageRuler")}
                   aria-pressed={showRuler}
                 >
-                  <StraightenIcon sx={{ fontSize: 16 }} />
+                  <StraightenIcon fontSize={16} />
                 </IconButton>
               </Tooltip>
               <Tooltip title={t("imageGrid")}>
                 <IconButton
                   size="small"
                   onClick={() => setShowGrid(v => !v)}
-                  color={showGrid ? "primary" : "default"}
+                  className={showGrid ? styles.activeIcon : undefined}
                   aria-label={t("imageGrid")}
                   aria-pressed={showGrid}
                 >
-                  <GridOnIcon sx={{ fontSize: 16 }} />
+                  <GridOnIcon fontSize={16} />
                 </IconButton>
               </Tooltip>
-            </Box>
+            </div>
           </>
         )}
-      </Box>
+      </div>
 
       {/* Image + crop overlay */}
-      <Box
+      <div
         ref={containerRef}
-        sx={{
+        style={{
           flex: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           overflow: "auto",
-          p: 2,
+          padding: 16,
           position: "relative",
           cursor: cropping ? hoverCursor : "default",
         }}
@@ -200,7 +202,7 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
       >
-        <Box sx={{ position: "relative", display: "inline-block" }}>
+        <div style={{ position: "relative", display: "inline-block" }}>
           <img
             ref={imgRef}
             src={src}
@@ -307,8 +309,8 @@ export function ImageCropTool({ src, onCrop, t }: Readonly<ImageCropToolProps>) 
               />
             </div>
           )}
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }

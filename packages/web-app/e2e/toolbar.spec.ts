@@ -67,7 +67,8 @@ test.describe("Toolbar", () => {
     const menu = page.getByRole("menu", { name: "Type to filter..." });
     await expect(menu).toBeVisible();
     await menu.getByRole("menuitem", { name: /Mermaid/i }).click();
-    // Mermaid コードブロックが挿入される（NodeView 内）
-    await expect(editor.locator("pre")).toBeVisible();
+    // Mermaid コードブロックが挿入される（NodeView 内）。
+    // 図ブロックは codeCollapsed=true が既定でソース pre は折りたたまれるため存在で検証する。
+    await expect(editor.locator("pre")).toBeAttached();
   });
 });

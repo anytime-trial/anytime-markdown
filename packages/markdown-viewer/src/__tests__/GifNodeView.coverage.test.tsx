@@ -5,7 +5,6 @@
  */
 import React from "react";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 // Mock dependencies before importing component
 jest.mock("@anytime-markdown/markdown-react", () => ({
@@ -75,7 +74,6 @@ jest.mock("../utils/gifEncoder", () => ({}));
 
 import { GifNodeView } from "../components/GifNodeView";
 
-const theme = createTheme();
 
 function defaultBlockNodeState(overrides: Record<string, unknown> = {}) {
   return {
@@ -109,7 +107,7 @@ function renderGifNodeView(nodeAttrs: Record<string, unknown> = {}, stateOverrid
   const updateAttributes = jest.fn();
 
   const result = render(
-    <ThemeProvider theme={theme}>
+      <>
       <GifNodeView
         editor={mockEditor as any}
         node={mockNode as any}
@@ -123,7 +121,7 @@ function renderGifNodeView(nodeAttrs: Record<string, unknown> = {}, stateOverrid
         HTMLAttributes={{}}
         view={{} as any}
       />
-    </ThemeProvider>,
+      </>,
   );
 
   return { ...result, updateAttributes, state };
@@ -142,14 +140,14 @@ describe("GifNodeView - placeholder interactions", () => {
   it("clicking placeholder opens recorder when editable", () => {
     renderGifNodeView({}, { isEditable: true });
     const placeholder = screen.getByText("Click to record GIF");
-    fireEvent.click(placeholder.closest("[class*='MuiBox']")!);
+    fireEvent.click(placeholder.closest("div")!);
     expect(screen.getByTestId("gif-recorder-dialog")).toBeTruthy();
   });
 
   it("clicking placeholder does nothing when not editable", () => {
     renderGifNodeView({}, { isEditable: false });
     const placeholder = screen.getByText("Click to record GIF");
-    fireEvent.click(placeholder.closest("[class*='MuiBox']")!);
+    fireEvent.click(placeholder.closest("div")!);
     expect(screen.queryByTestId("gif-recorder-dialog")).toBeNull();
   });
 });
@@ -236,7 +234,7 @@ describe("GifNodeView - record complete", () => {
 
     // Open recorder
     const placeholder = screen.getByText("Click to record GIF");
-    fireEvent.click(placeholder.closest("[class*='MuiBox']")!);
+    fireEvent.click(placeholder.closest("div")!);
 
     // Complete recording
     const completeBtn = screen.getByTestId("complete-record");
@@ -263,7 +261,7 @@ describe("GifNodeView - record complete", () => {
 
     // Open recorder
     const placeholder = screen.getByText("Click to record GIF");
-    fireEvent.click(placeholder.closest("[class*='MuiBox']")!);
+    fireEvent.click(placeholder.closest("div")!);
 
     // Complete recording
     const completeBtn = screen.getByTestId("complete-record");
@@ -380,32 +378,68 @@ describe("GifNodeView - export/capture", () => {
 });
 
 describe("GifNodeView - message handler", () => {
-  it("updates src when imageSaved message is received", () => {
-    const { updateAttributes } = renderGifNodeView({ src: "test.gif" });
+  // 録画を実行して pendingSaveId を既知の requestId に設定するヘルパー。
+  // その requestId 付き imageSaved を受けたときだけ src が更新されることを検証する。
+  function recordWithFixedRequestId(requestId: string) {
+    const uuidSpy = jest
+      .spyOn(globalThis.crypto, "randomUUID")
+      .mockReturnValue(requestId as `${string}-${string}-${string}-${string}-${string}`);
+    (window as any).__vscode = { postMessage: jest.fn() };
+    const origFileReader = globalThis.FileReader;
+    // saveClipboardImage 送信は副作用不要なので onload を発火させない
+    (globalThis as any).FileReader = jest.fn(() => ({ readAsDataURL: jest.fn(), onload: null }));
+    const view = renderGifNodeView();
+    const placeholder = screen.getByText("Click to record GIF");
+    fireEvent.click(placeholder.closest("div")!);
+    act(() => {
+      fireEvent.click(screen.getByTestId("complete-record"));
+    });
+    const cleanup = () => {
+      uuidSpy.mockRestore();
+      globalThis.FileReader = origFileReader;
+      delete (window as any).__vscode;
+    };
+    return { ...view, cleanup };
+  }
 
+  it("requestId が一致する imageSaved のときだけ src を path に更新する", () => {
+    const { updateAttributes, cleanup } = recordWithFixedRequestId("fixed-req-id");
     act(() => {
       window.dispatchEvent(
         new MessageEvent("message", {
-          data: { type: "imageSaved", fileName: "saved.gif", path: "/images/saved.gif" },
+          data: { type: "imageSaved", requestId: "fixed-req-id", path: "images/saved.gif" },
         }),
       );
     });
-
-    expect(updateAttributes).toHaveBeenCalledWith({ src: "/images/saved.gif" });
+    expect(updateAttributes).toHaveBeenCalledWith({ src: "images/saved.gif" });
+    cleanup();
   });
 
-  it("uses fileName when path is not present", () => {
+  it("requestId のない imageSaved は無視する（グローバル挿入との二重処理防止）", () => {
     const { updateAttributes } = renderGifNodeView({ src: "test.gif" });
-
     act(() => {
       window.dispatchEvent(
         new MessageEvent("message", {
-          data: { type: "imageSaved", fileName: "saved.gif" },
+          data: { type: "imageSaved", path: "images/saved.gif" },
         }),
       );
     });
+    expect(updateAttributes).not.toHaveBeenCalledWith(
+      expect.objectContaining({ src: "images/saved.gif" }),
+    );
+  });
 
-    expect(updateAttributes).toHaveBeenCalledWith({ src: "saved.gif" });
+  it("requestId が一致しない imageSaved は無視する", () => {
+    const { updateAttributes, cleanup } = recordWithFixedRequestId("fixed-req-id");
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: { type: "imageSaved", requestId: "other-id", path: "images/saved.gif" },
+        }),
+      );
+    });
+    expect(updateAttributes).not.toHaveBeenCalledWith({ src: "images/saved.gif" });
+    cleanup();
   });
 
   it("ignores unrelated messages", () => {

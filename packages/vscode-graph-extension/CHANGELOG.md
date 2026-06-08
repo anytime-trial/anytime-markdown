@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-08
+
+### Changed
+
+- Removed the `ThemeProvider` and dropped the `@mui` / `@emotion` dependencies.
+
+### Graph Core (graph-core / graph-viewer)
+
+- Replaced `@mui` across `graph-viewer` and `graph-core` (`MinimapCanvas`) with an in-house `ui/` kit (MUI reduction Phase 3e).
+
 ## [0.4.1] - 2026-05-27
 
 ### Graph Core (graph-core)
