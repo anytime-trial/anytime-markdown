@@ -24,7 +24,9 @@ test.describe("Slash Commands - Extended", () => {
     const menu = page.getByRole("menu", { name: "Type to filter..." });
     await expect(menu).toBeVisible();
     await menu.getByRole("menuitem", { name: /PlantUML/i }).click();
-    await expect(editor.locator("pre")).toBeVisible();
+    // 図ブロックは codeCollapsed=true が既定でソース pre は折りたたまれる（図をレンダリング表示）。
+    // 挿入されたこと自体は DOM 上の存在で検証する。
+    await expect(editor.locator("pre")).toBeAttached();
   });
 
   test("/math inserts math code block", async ({ page }) => {
@@ -34,7 +36,8 @@ test.describe("Slash Commands - Extended", () => {
     const menu = page.getByRole("menu", { name: "Type to filter..." });
     await expect(menu).toBeVisible();
     await menu.getByRole("menuitem", { name: /Math Equation/i }).click();
-    await expect(editor.locator("pre")).toBeVisible();
+    // 図ブロックは codeCollapsed=true が既定でソース pre は折りたたまれる。存在で検証する。
+    await expect(editor.locator("pre")).toBeAttached();
   });
 
   test("/toc inserts table of contents", async ({ page }) => {
