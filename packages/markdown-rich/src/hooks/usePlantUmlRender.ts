@@ -37,6 +37,30 @@ function buildPlantUmlSource(code: string, isDark: boolean): string {
   return `@startuml\n${skinParams}\n${handwritten}\n${code}\n@enduml`;
 }
 
+/**
+ * PlantUML ソースを encode し、レンダリングサーバの画像 URL を構築する（React 非依存・同期）。
+ * モジュールキャッシュを内包する。encode 失敗時は例外を投げるため呼び出し側で捕捉する。
+ * hook（{@link usePlantUmlRender}）と native NodeView の双方から利用する seam。
+ */
+export function buildPlantUmlImageUrl(code: string, isDark: boolean): string {
+  if (!code.trim()) return "";
+  const key = cacheKey(code, isDark);
+  const cached = urlCache.get(key);
+  if (cached) return cached;
+  const src = buildPlantUmlSource(code, isDark);
+  const encoded = plantumlEncoder.encode(src);
+  const url = buildPlantUmlUrl(encoded);
+  urlCache.set(key, url);
+  return url;
+}
+
+/** sessionStorage から PlantUML 同意状態を読み出す（SSR 安全）。 */
+export function getPlantUmlConsent(): "pending" | "accepted" | "rejected" {
+  if (typeof sessionStorage === "undefined") return "pending";
+  const v = sessionStorage.getItem(PLANTUML_CONSENT_KEY);
+  return v === "accepted" || v === "rejected" ? v : "pending";
+}
+
 interface UsePlantUmlRenderParams {
   code: string;
   isPlantUml: boolean;
@@ -49,12 +73,7 @@ export function usePlantUmlRender({ code, isPlantUml, isDark }: UsePlantUmlRende
     return urlCache.get(cacheKey(code, isDark)) ?? "";
   });
   const [error, setError] = useState("");
-  const [plantUmlConsent, setPlantUmlConsent] = useState<"pending" | "accepted" | "rejected">(() => {
-    // SSR では sessionStorage が未定義。globalThis は常に定義済みでガードにならない
-    if (typeof sessionStorage === "undefined") return "pending";
-    const v = sessionStorage.getItem(PLANTUML_CONSENT_KEY);
-    return v === "accepted" || v === "rejected" ? v : "pending";
-  });
+  const [plantUmlConsent, setPlantUmlConsent] = useState<"pending" | "accepted" | "rejected">(getPlantUmlConsent);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -69,8 +88,7 @@ export function usePlantUmlRender({ code, isPlantUml, isDark }: UsePlantUmlRende
     }
 
     // キャッシュから即座に復元
-    const key = cacheKey(code, isDark);
-    const cached = urlCache.get(key);
+    const cached = urlCache.get(cacheKey(code, isDark));
     if (cached) {
       setPlantUmlUrl(cached);
       setError("");
@@ -79,10 +97,7 @@ export function usePlantUmlRender({ code, isPlantUml, isDark }: UsePlantUmlRende
 
     const timer = setTimeout(() => {
       try {
-        const src = buildPlantUmlSource(code, isDark);
-        const encoded = plantumlEncoder.encode(src);
-        const url = buildPlantUmlUrl(encoded);
-        urlCache.set(key, url);
+        const url = buildPlantUmlImageUrl(code, isDark);
         if (mountedRef.current) {
           setPlantUmlUrl(url);
           setError("");

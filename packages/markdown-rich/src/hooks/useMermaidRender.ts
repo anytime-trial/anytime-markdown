@@ -65,13 +65,28 @@ function cacheKey(code: string, isDark: boolean, handDrawn: boolean = isHandwrit
 }
 
 /**
+ * キャッシュ済み Mermaid SVG を同期取得する（未キャッシュは空文字）。
+ * native NodeView がマウント直後に SVG を即時表示するための seam。
+ */
+export function getCachedMermaidSvg(code: string, isDark: boolean): string {
+  if (!code.trim()) return "";
+  return svgCache.get(cacheKey(code, isDark)) ?? "";
+}
+
+/**
  * モジュールレベルのレンダリング管理。
  * コンポーネントのライフサイクルに依存せず、レンダリングを最後まで完了させる。
  * 結果はキャッシュに保存され、コールバックで通知する。
  */
 const pendingRenders = new Map<string, { callbacks: Set<(svg: string, error: string) => void> }>();
 
-function requestMermaidRender(code: string, isDark: boolean, callback: (svg: string, error: string) => void): () => void {
+/**
+ * Mermaid を SVG へレンダリングし、結果をコールバックで通知する。
+ * モジュールレベルのキャッシュ・直列化キュー・500ms デバウンスを内包し、
+ * React に依存しない。戻り値はキャンセル関数。
+ * hook（{@link useMermaidRender}）と native NodeView の双方から利用する seam。
+ */
+export function requestMermaidRender(code: string, isDark: boolean, callback: (svg: string, error: string) => void): () => void {
   const key = cacheKey(code, isDark);
 
   // キャッシュにあれば即座に返す
