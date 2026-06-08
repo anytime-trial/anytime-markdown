@@ -27,6 +27,7 @@ import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorDialogsSection } from "./components/EditorDialogsSection";
 import { EditorErrorBoundary } from "./components/EditorErrorBoundary";
 import { EditorFooterOverlays } from "./components/EditorFooterOverlays";
+import { GifBlockOverlay } from "./components/GifBlockOverlay";
 import { EditorMainContent } from "./components/EditorMainContent";
 import { EditorToolbarSection } from "./components/EditorToolbarSection";
 import { ReadonlyToolbar } from "./components/ReadonlyToolbar";
@@ -701,6 +702,8 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
         onOpenSettings={onOpenSettingsHandler}
         explorerSlot={explorerSlot}
       />
+
+      <GifBlockOverlay editor={editor} />
 
       <EditorFooterOverlays
         editor={editor} editorPortalTarget={editorPortalTarget}

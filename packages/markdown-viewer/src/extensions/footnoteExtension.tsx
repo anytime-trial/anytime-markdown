@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Footnote Reference Extension
  *
@@ -10,16 +8,14 @@
  * - serialize: [^id] を出力
  * - ホバーで脚注定義テキストをツールチップ表示
  * - クリックで定義内のURLを新しいタブで開く
+ *
+ * NodeView は native ProseMirror NodeView（React 非依存）。テーマ色は CSS 変数
+ * `--am-color-primary-main`（applyEditorThemeCssVars 注入）を参照する。
  */
-import { Tooltip } from "../ui/Tooltip";
-import { InputRule,Node } from "@anytime-markdown/markdown-core";
+import { InputRule, Node } from "@anytime-markdown/markdown-core";
+import type { NodeViewRendererProps } from "@anytime-markdown/markdown-core";
 import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
-import type { NodeViewProps } from "@anytime-markdown/markdown-react";
-import { NodeViewWrapper,ReactNodeViewRenderer } from "@anytime-markdown/markdown-react";
-import { useCallback } from "react";
-
-import { useIsDark } from "../contexts/ThemeModeContext";
-import { getPrimaryMain } from "../constants/colors";
+import type { NodeView } from "@anytime-markdown/markdown-pm/view";
 
 /** ProseMirror ドキュメントから脚注定義テキスト（[^id]: 以降）を検索 */
 export function findFootnoteDefinition(
@@ -54,58 +50,83 @@ export function extractUrlFromText(text: string): string | null {
   return match ? match[0] : null;
 }
 
-/** FootnoteRef NodeView コンポーネント */
-function FootnoteRefView({ node, selected, editor }: Readonly<NodeViewProps>) {
-  const isDark = useIsDark();
-  const noteId = node.attrs.noteId as string;
+/** FootnoteRef の inline スタイルを native DOM 要素へ適用する */
+function applyFootnoteRefStyle(el: HTMLElement): void {
+  el.style.display = "inline";
+  el.style.fontSize = "0.75em";
+  el.style.verticalAlign = "super";
+  el.style.lineHeight = "1";
+  el.style.color = "var(--am-color-primary-main)";
+  el.style.fontWeight = "600";
+  el.style.borderRadius = "2px";
+  el.style.paddingLeft = "2px";
+  el.style.paddingRight = "2px";
+}
 
-  // MUI Tooltip は handleEnter 内で title が空文字なら開かないため、
-  // useState + onMouseEnter だと非同期の setState が間に合わない。
-  // レンダー時に同期的に計算して title に渡す。
-  const defText = findFootnoteDefinition(editor.state.doc, noteId) ?? "";
-  const defUrl = defText ? extractUrlFromText(defText) : null;
+/**
+ * FootnoteRef の native ProseMirror NodeView。
+ *
+ * React（ReactNodeViewRenderer）を使わず DOM を直接構築する。脚注定義テキストは
+ * クリック・ホバー時に毎回 `editor.state.doc` から再計算するため、定義の編集にも追従する。
+ * ツールチップは native `title` 属性で表示する。
+ */
+function createFootnoteRefNodeView({
+  node,
+  editor,
+}: Pick<NodeViewRendererProps, "node" | "editor">): NodeView {
+  const dom = document.createElement("span");
+  let noteId = node.attrs.noteId as string;
+  applyFootnoteRefStyle(dom);
+  dom.setAttribute("data-footnote-ref", noteId);
+  dom.textContent = `[${noteId}]`;
 
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      const def = findFootnoteDefinition(editor.state.doc, noteId);
-      if (!def) return;
-      const url = extractUrlFromText(def);
-      if (url) {
-        e.preventDefault();
-        e.stopPropagation();
-        window.open(url, "_blank", "noopener,noreferrer");
+  const refreshTooltip = (): void => {
+    const def = findFootnoteDefinition(editor.state.doc, noteId) ?? "";
+    dom.title = def;
+    dom.style.cursor = def && extractUrlFromText(def) ? "pointer" : "default";
+  };
+  refreshTooltip();
+
+  const handleClick = (e: MouseEvent): void => {
+    const def = findFootnoteDefinition(editor.state.doc, noteId);
+    if (!def) return;
+    const url = extractUrlFromText(def);
+    if (!url) return;
+    e.preventDefault();
+    e.stopPropagation();
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+  dom.addEventListener("click", handleClick);
+  dom.addEventListener("pointerenter", refreshTooltip);
+
+  return {
+    dom,
+    update(updatedNode) {
+      if (updatedNode.type.name !== "footnoteRef") return false;
+      const newId = updatedNode.attrs.noteId as string;
+      // noteId が変わらない transaction（近傍編集・選択変更）では doc 走査を伴う
+      // refreshTooltip を呼ばない。定義テキストの鮮度は pointerenter で担保する。
+      if (newId !== noteId) {
+        noteId = newId;
+        dom.setAttribute("data-footnote-ref", noteId);
+        dom.textContent = `[${noteId}]`;
+        refreshTooltip();
       }
+      return true;
     },
-    [editor, noteId],
-  );
-
-  return (
-    <NodeViewWrapper as="span" style={{ display: "inline" }}>
-      <Tooltip title={defText} placement="top">
-        <span
-          onClick={handleClick}
-          style={{
-            display: "inline",
-            cursor: defUrl ? "pointer" : "default",
-            fontSize: "0.75em",
-            verticalAlign: "super",
-            lineHeight: 1,
-            color: getPrimaryMain(isDark),
-            fontWeight: 600,
-            borderRadius: "2px",
-            paddingLeft: "2px",
-            paddingRight: "2px",
-            ...(selected && {
-              outline: `2px solid ${getPrimaryMain(isDark)}`,
-              outlineOffset: 1,
-            }),
-          }}
-        >
-          [{noteId}]
-        </span>
-      </Tooltip>
-    </NodeViewWrapper>
-  );
+    selectNode() {
+      dom.style.outline = "2px solid var(--am-color-primary-main)";
+      dom.style.outlineOffset = "1px";
+    },
+    deselectNode() {
+      dom.style.outline = "";
+      dom.style.outlineOffset = "";
+    },
+    destroy() {
+      dom.removeEventListener("click", handleClick);
+      dom.removeEventListener("pointerenter", refreshTooltip);
+    },
+  };
 }
 
 export const FootnoteRef = Node.create({
@@ -137,7 +158,7 @@ export const FootnoteRef = Node.create({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(FootnoteRefView);
+    return (props) => createFootnoteRefNodeView(props);
   },
 
   addInputRules() {
