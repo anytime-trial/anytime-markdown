@@ -11,10 +11,62 @@ import { compile, middleware, prefixer, serialize, stringify } from "stylis";
  * 直接用いることで、emotion と「ほぼバイト等価」な CSS を生成する（ベンダー
  * プレフィックス・ネスト解決・数値→px 変換の挙動を一致させる）。
  *
- * 重要: MUI sx ショートハンド(py / pl / bgcolor 等)は emotion でも展開されず
- * 無効プロパティとして出力されるため、本シリアライザでも展開しない。これにより
- * 旧 GlobalStyles 経路と出力 CSS が一致し、見た目のピクセル等価が保証される。
+ * 重要: 本シリアライザに渡るスタイルオブジェクト(getEditorPaperSx / getHeadingStyles
+ * など)は元々 MUI の sx prop 経由で消費され、styleFunctionSx により sx ショートハンド
+ * (pl / py / px / m* / bgcolor / borderRadius / border 等)が実 CSS へ展開されていた。
+ * 注入経路を sx prop から GlobalStyles/本シリアライザへ移した際にこの展開が失われ、
+ * `pl:2px` のような無効プロパティが出力されて .tiptap の左パディングが消失し、左 gutter
+ * に置かれる hover ラベル(H1/H2 バッジ)が overflow:hidden にクリップされ不可視になる
+ * 回帰が生じた。これを防ぐため、本シリアライザは styleFunctionSx と同じ規則
+ * (spacing×8 / shape.borderRadius×4 / bgcolor→background-color 等)で展開する。
  */
+
+/** MUI デフォルトテーマの spacing 単位(px)。spacing 系プロパティの数値に乗算する。 */
+const SPACING_UNIT = 8;
+/** MUI デフォルトテーマの shape.borderRadius(px)。borderRadius の数値に乗算する。 */
+const SHAPE_BORDER_RADIUS = 4;
+
+/** sx spacing ショートハンド → longhand CSS プロパティ(camelCase)。値は spacing 変換対象。 */
+const SPACING_ALIASES: Record<string, readonly string[]> = {
+  m: ["margin"], mt: ["marginTop"], mr: ["marginRight"], mb: ["marginBottom"], ml: ["marginLeft"],
+  mx: ["marginLeft", "marginRight"], my: ["marginTop", "marginBottom"],
+  p: ["padding"], pt: ["paddingTop"], pr: ["paddingRight"], pb: ["paddingBottom"], pl: ["paddingLeft"],
+  px: ["paddingLeft", "paddingRight"], py: ["paddingTop", "paddingBottom"],
+};
+
+/** longhand のまま値だけ spacing 変換するプロパティ(camelCase)。 */
+const SPACING_PROPS = new Set([
+  "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
+  "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+  "gap", "rowGap", "columnGap",
+]);
+
+/** spacing 値を変換する。数値は ×SPACING_UNIT(後段で px 付与)、文字列はそのまま。 */
+function spacingValue(value: string | number): string | number {
+  return typeof value === "number" ? value * SPACING_UNIT : value;
+}
+
+/**
+ * sx 宣言 (camelCase プロパティ, 値) を実 CSS の宣言ペア配列へ展開する。
+ * ショートハンドでないプロパティはそのまま 1 件返す。
+ */
+function resolveSxDeclaration(prop: string, value: string | number): Array<[string, string | number]> {
+  const spacingAlias = SPACING_ALIASES[prop];
+  if (spacingAlias) {
+    const v = spacingValue(value);
+    return spacingAlias.map((real) => [real, v]);
+  }
+  if (SPACING_PROPS.has(prop)) return [[prop, spacingValue(value)]];
+  if (prop === "borderRadius") {
+    return [[prop, typeof value === "number" ? value * SHAPE_BORDER_RADIUS : value]];
+  }
+  if (prop === "border") {
+    // sx: border に数値を渡すと `Npx solid` になる(色は currentColor/別途 borderColor)。
+    return [[prop, typeof value === "number" ? `${value}px solid` : value]];
+  }
+  if (prop === "bgcolor") return [["backgroundColor", value]];
+  return [[prop, value]];
+}
 
 /**
  * @emotion/unitless 0.10.0 のキー(camelCase)。
@@ -66,7 +118,10 @@ function objectToRawCss(obj: StyleObject): string {
     const items = Array.isArray(value) ? value : [value];
     for (const item of items) {
       if (item == null || typeof item === "boolean") continue;
-      out += `${hyphenate(key)}:${valueToCss(key, item as string | number)};`;
+      // sx ショートハンド(pl/py/bgcolor/borderRadius 等)を実 CSS の宣言へ展開する。
+      for (const [cssProp, cssValue] of resolveSxDeclaration(key, item as string | number)) {
+        out += `${hyphenate(cssProp)}:${valueToCss(cssProp, cssValue)};`;
+      }
     }
   }
   return out;
