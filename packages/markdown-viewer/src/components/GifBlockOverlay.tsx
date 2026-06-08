@@ -4,7 +4,7 @@ import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useMarkdownT } from "../i18n/context";
-import { useSelectedBlock } from "../hooks/useSelectedBlock";
+import { useBlockChrome } from "../hooks/useBlockChrome";
 import type { GifSettings } from "../utils/gifEncoder";
 import { BlockChromeAnchor } from "./BlockChromeAnchor";
 import { BlockInlineToolbar } from "./codeblock/BlockInlineToolbar";
@@ -19,28 +19,21 @@ import { GIF_RECORD_INTENT_EVENT } from "./GifBlockContent";
  * framework-decoupling Phase 2「反転」設計の chrome 側。content は native
  * {@link createGifBlockNodeView}（React 非依存）が描画し、本コンポーネントが
  * 選択中の gifBlock に対しツールバー＋ダイアログを供給する。選択検出・位置計測・
- * 属性更新・削除の汎用部分は {@link useSelectedBlock} / {@link BlockChromeAnchor}
- * に委譲し、ここには gif 固有の chrome（録画 / 再生 / VS Code 保存フロー）のみ残す。
+ * 属性更新・削除・ツールバー表示判定の共通シェルは {@link useBlockChrome} /
+ * {@link BlockChromeAnchor} に委譲し、ここには gif 固有の chrome（録画 / 再生 /
+ * VS Code 保存フロー）のみ残す。
  *
  * PoC スコープ: 単一エディタ・編集モード。compare/merge モードと collapsed の
  * 細部は横展開時に補完する（TODO）。
  */
 export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>) {
   const t = useMarkdownT("MarkdownEditor");
-  const { pos, node, rect, updateAttrs, deleteBlock } = useSelectedBlock(
-    editor,
-    "gifBlock",
-  );
+  const { pos, node, rect, updateAttrs, deleteOpen, setDeleteOpen, handleDelete, showToolbar } =
+    useBlockChrome(editor, "gifBlock");
   const [recorderOpen, setRecorderOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const pendingSaveIdRef = useRef<string | null>(null);
   const src = (node?.attrs.src as string) ?? "";
-
-  const handleDelete = useCallback(() => {
-    deleteBlock();
-    setDeleteOpen(false);
-  }, [deleteBlock]);
 
   const handleEdit = useCallback(() => {
     if (src) setPlayerOpen(true);
@@ -126,8 +119,6 @@ export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos]);
-
-  const showToolbar = !!editor && !!node && editor.isEditable;
 
   return (
     <>

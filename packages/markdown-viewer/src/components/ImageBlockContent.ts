@@ -158,11 +158,16 @@ export function createImageBlockNodeView({
       if (updatedNode.type.name !== node.type.name) return false;
       const prev = attrs;
       attrs = updatedNode.attrs;
-      if (attrs.src !== prev.src) {
+      // 画像系属性が変わった時だけ img を書き換える（annotation のみ変更で
+      // img.src を再設定して再デコードが走るのを避ける）。
+      if (
+        attrs.src !== prev.src ||
+        attrs.alt !== prev.alt ||
+        attrs.title !== prev.title ||
+        attrs.width !== prev.width
+      ) {
         applyImage();
-        if (isError) showError(false);
-      } else {
-        applyImage();
+        if (isError && attrs.src !== prev.src) showError(false);
       }
       if (!isError && attrs.annotations !== prev.annotations) renderAnnotations();
       return true;

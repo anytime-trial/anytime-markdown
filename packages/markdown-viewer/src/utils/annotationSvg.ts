@@ -43,8 +43,7 @@ function buildShape(a: ImageAnnotation): SVGElement | null {
       y1: String(a.y1),
       x2: String(a.x2),
       y2: String(a.y2),
-      stroke: a.color,
-      "stroke-width": STROKE_WIDTH,
+      ...base,
     });
   }
   return null;

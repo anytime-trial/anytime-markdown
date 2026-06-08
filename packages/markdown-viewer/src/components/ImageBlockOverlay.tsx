@@ -24,7 +24,7 @@ import {
 } from "../constants/colors";
 import { useIsDark } from "../contexts/ThemeModeContext";
 import { useMarkdownT } from "../i18n/context";
-import { useSelectedBlock } from "../hooks/useSelectedBlock";
+import { useBlockChrome } from "../hooks/useBlockChrome";
 import { getEditorStorage } from "../types";
 import {
   parseAnnotations,
@@ -45,7 +45,8 @@ import { ScreenCaptureDialog } from "./ScreenCaptureDialog";
  * framework-decoupling Phase 2「反転」設計の chrome 側。content は native
  * {@link createImageBlockNodeView}（React 非依存）が描画し、本コンポーネントが
  * 選択中の image に対しツールバー＋編集ダイアログ（crop / annotation / screen capture）
- * を供給する。選択検出・位置計測・属性更新・削除は {@link useSelectedBlock} に委譲する。
+ * を供給する。選択検出・位置計測・属性更新・削除・ツールバー表示判定の共通シェルは
+ * {@link useBlockChrome} に委譲する。
  *
  * PoC スコープ: 単一エディタ・編集モード。compare/merge モード・collapsed・サイズ
  * バッジ・PNG エクスポートは横展開時に補完する（TODO）。URL 編集ダイアログは既存の
@@ -54,25 +55,17 @@ import { ScreenCaptureDialog } from "./ScreenCaptureDialog";
 export function ImageBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>) {
   const t = useMarkdownT("MarkdownEditor");
   const isDark = useIsDark();
-  const { pos, node, rect, updateAttrs, deleteBlock } = useSelectedBlock(
-    editor,
-    "image",
-  );
+  const { pos, node, rect, updateAttrs, deleteOpen, setDeleteOpen, handleDelete, showToolbar } =
+    useBlockChrome(editor, "image");
   const [editOpen, setEditOpen] = useState(false);
   const [annotationOpen, setAnnotationOpen] = useState(false);
   const [screenCaptureOpen, setScreenCaptureOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const src = (node?.attrs.src as string) ?? "";
   const alt = (node?.attrs.alt as string) ?? "";
   const annotations = parseAnnotations(
     (node?.attrs.annotations as string | null) ?? null,
   );
-
-  const handleDelete = useCallback(() => {
-    deleteBlock();
-    setDeleteOpen(false);
-  }, [deleteBlock]);
 
   const handleEditUrl = useCallback(() => {
     if (!editor || pos < 0) return;
@@ -98,7 +91,6 @@ export function ImageBlockOverlay({ editor }: Readonly<{ editor: Editor | null }
     [src, updateAttrs],
   );
 
-  const showToolbar = !!editor && !!node && editor.isEditable;
   const iconColor = getTextSecondary(isDark);
 
   return (
