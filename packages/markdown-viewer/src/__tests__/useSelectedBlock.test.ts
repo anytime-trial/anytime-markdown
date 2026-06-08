@@ -91,4 +91,26 @@ describe("useSelectedBlock", () => {
     sink[sink.length - 1]({ tr, state: editor.state });
     expect(tr.delete).toHaveBeenCalledWith(5, 6);
   });
+
+  it("detects a container block (table) that contains a cell TextSelection", () => {
+    const tableNode = { type: { name: "table" }, nodeSize: 12, attrs: {} };
+    const $from = {
+      depth: 2,
+      node: (d: number) =>
+        d === 1 ? { type: { name: "table" } } : { type: { name: "tableCell" } },
+      before: (d: number) => (d === 1 ? 7 : 9),
+    };
+    const editor = {
+      isEditable: true,
+      state: {
+        selection: { $from }, // TextSelection（node プロパティ無し）
+        doc: { nodeAt: (p: number) => (p === 7 ? tableNode : null) },
+      },
+      view: { nodeDOM: () => null },
+    } as any;
+
+    const { result } = renderHook(() => useSelectedBlock(editor, "table"));
+    expect(result.current.pos).toBe(7);
+    expect(result.current.node).toBe(tableNode);
+  });
 });

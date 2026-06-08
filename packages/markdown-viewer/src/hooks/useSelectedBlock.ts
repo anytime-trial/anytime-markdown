@@ -36,11 +36,17 @@ export function useSelectedBlock(
       selector: (ctx) => {
         const ed = ctx.editor;
         if (!ed) return -1;
-        const sel = ed.state.selection as {
-          node?: { type: { name: string } };
-          from: number;
-        };
-        return sel?.node?.type?.name === nodeTypeName ? sel.from : -1;
+        const sel = ed.state.selection;
+        // atom ブロック（gif / image 等）: NodeSelection が対象型ならその pos。
+        const nodeSel = sel as { node?: { type: { name: string } }; from: number };
+        if (nodeSel.node?.type?.name === nodeTypeName) return nodeSel.from;
+        // コンテナブロック（table 等）: セル内 TextSelection を内包する、対象型の祖先ノードの pos。
+        const $from = sel.$from;
+        if (!$from) return -1;
+        for (let d = $from.depth; d > 0; d--) {
+          if ($from.node(d).type.name === nodeTypeName) return $from.before(d);
+        }
+        return -1;
       },
     }) ?? -1;
 
