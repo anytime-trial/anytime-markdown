@@ -54,6 +54,7 @@ const mockEditor = {
 };
 
 jest.mock("@anytime-markdown/markdown-react", () => ({
+  useEditorState: () => -1,
   useEditor: () => mockEditor,
   EditorContent: () => <div data-testid="editor-content" />,
   ReactNodeViewRenderer: () => () => null,
