@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode, SVGProps } from "react";
 
 /**
  * vendored Material Design アイコン（Apache-2.0）。
- * @mui/icons-material 依存を切るため、spreadsheet-viewer が使うアイコンの SVG 要素のみ自前化する。
+ * spreadsheet-viewer が使うアイコンの SVG 要素を自前定義する。
  * 出典: Material Symbols / Material Icons (https://fonts.google.com/icons), Apache License 2.0
  *
  * API は MUI SvgIcon の fontSize モデルを踏襲: svg は width/height=1em で、
