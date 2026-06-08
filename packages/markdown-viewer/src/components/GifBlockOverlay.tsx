@@ -29,7 +29,6 @@ export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>)
   const [playerOpen, setPlayerOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [rect, setRect] = useState<DOMRect | null>(null);
-  const gifBlobRef = useRef<Blob | null>(null);
   const pendingSaveIdRef = useRef<string | null>(null);
 
   // 選択中の gifBlock の pos（NodeSelection のみ。なければ -1）。
@@ -54,7 +53,18 @@ export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>)
       return;
     }
     const dom = editor.view.nodeDOM(selectedPos) as HTMLElement | null;
-    setRect(dom ? dom.getBoundingClientRect() : null);
+    const next = dom ? dom.getBoundingClientRect() : null;
+    // 同一矩形なら参照を据え置き、scroll 毎の無駄な再レンダーを避ける。
+    setRect((prev) =>
+      prev &&
+      next &&
+      prev.top === next.top &&
+      prev.left === next.left &&
+      prev.width === next.width &&
+      prev.height === next.height
+        ? prev
+        : next,
+    );
   }, [editor, selectedPos]);
 
   useEffect(() => {
@@ -108,7 +118,6 @@ export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>)
   const handleRecordComplete = useCallback(
     (blob: Blob, fileName: string, settings: GifSettings) => {
       setRecorderOpen(false);
-      gifBlobRef.current = blob;
       const requestId =
         globalThis.crypto?.randomUUID?.() ?? `gif-${fileName}-${performance.now()}`;
       pendingSaveIdRef.current = requestId;
@@ -142,8 +151,8 @@ export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>)
 
   // native NodeView（placeholder クリック）からの録画意図を購読する。
   useEffect(() => {
-    const root = editor?.view?.dom as HTMLElement | undefined;
-    if (!root || typeof root.addEventListener !== "function") return;
+    const root = editor?.view?.dom;
+    if (!root) return;
     const handler = () => setRecorderOpen(true);
     root.addEventListener(GIF_RECORD_INTENT_EVENT, handler as EventListener);
     return () =>
@@ -151,7 +160,9 @@ export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>)
   }, [editor]);
 
   // VS Code 保存結果（imageSaved）を requestId 一致で取り込む（録画フロー）。
+  // web（__vscode 不在）では到達不能なのでリスナを張らない。
   useEffect(() => {
+    if (typeof window === "undefined" || !window.__vscode) return;
     const handler = (event: MessageEvent) => {
       if (
         event.origin &&
@@ -184,7 +195,7 @@ export function GifBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPos]);
 
-  const showToolbar = !!editor && !!node && editor.isEditable && !!rect;
+  const showToolbar = !!editor && !!node && editor.isEditable;
 
   return (
     <>

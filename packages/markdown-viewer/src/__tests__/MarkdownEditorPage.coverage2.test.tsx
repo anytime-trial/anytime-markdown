@@ -44,7 +44,7 @@ const mockEditor = {
   commands: mockEditorCommands,
   isDestroyed: false,
   isEmpty: true,
-  view: { dom: { scrollTop: 0 } },
+  view: { dom: document.createElement("div") },
   storage: {
     markdown: {
       getMarkdown: jest.fn(() => ""),

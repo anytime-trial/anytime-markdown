@@ -29,11 +29,10 @@ function togglePlayback(
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
     const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.drawImage(img, 0, 0);
-      pausedSrcRef.current = canvas.toDataURL("image/png");
-      img.src = pausedSrcRef.current;
-    }
+    if (!ctx) return playing; // canvas 不可: 一時停止できないので状態は変えない
+    ctx.drawImage(img, 0, 0);
+    pausedSrcRef.current = canvas.toDataURL("image/png");
+    img.src = pausedSrcRef.current;
     return false;
   }
   img.src = src.startsWith("blob:")
@@ -53,6 +52,7 @@ export function createGifBlockNodeView({
 }: Pick<NodeViewRendererProps, "node" | "editor" | "getPos">): NodeView {
   let attrs = node.attrs;
   let playing = true;
+  let mode: "src" | "placeholder" | null = null;
   const pausedSrcRef: { current: string | null } = { current: null };
 
   const dom = document.createElement("div");
@@ -113,17 +113,17 @@ export function createGifBlockNodeView({
 
   const renderContent = (): void => {
     const src = (attrs.src as string) ?? "";
-    const alt = (attrs.alt as string) ?? "";
-    const width = attrs.width as string | null;
     if (src) {
       img.src = src;
-      img.alt = alt || "GIF";
-      img.style.width = width || "";
-      if (!img.isConnected) {
+      img.alt = (attrs.alt as string) || "GIF";
+      img.style.width = (attrs.width as string) || "";
+      if (mode !== "src") {
         dom.replaceChildren(img, toggleBtn);
+        mode = "src";
       }
-    } else if (!placeholder.isConnected) {
+    } else if (mode !== "placeholder") {
       dom.replaceChildren(placeholder);
+      mode = "placeholder";
     }
   };
   renderContent();

@@ -96,18 +96,22 @@ function createFootnoteRefNodeView({
     e.stopPropagation();
     window.open(url, "_blank", "noopener,noreferrer");
   };
-  const handleEnter = (): void => refreshTooltip();
   dom.addEventListener("click", handleClick);
-  dom.addEventListener("pointerenter", handleEnter);
+  dom.addEventListener("pointerenter", refreshTooltip);
 
   return {
     dom,
     update(updatedNode) {
       if (updatedNode.type.name !== "footnoteRef") return false;
-      noteId = updatedNode.attrs.noteId as string;
-      dom.setAttribute("data-footnote-ref", noteId);
-      dom.textContent = `[${noteId}]`;
-      refreshTooltip();
+      const newId = updatedNode.attrs.noteId as string;
+      // noteId が変わらない transaction（近傍編集・選択変更）では doc 走査を伴う
+      // refreshTooltip を呼ばない。定義テキストの鮮度は pointerenter で担保する。
+      if (newId !== noteId) {
+        noteId = newId;
+        dom.setAttribute("data-footnote-ref", noteId);
+        dom.textContent = `[${noteId}]`;
+        refreshTooltip();
+      }
       return true;
     },
     selectNode() {
@@ -120,7 +124,7 @@ function createFootnoteRefNodeView({
     },
     destroy() {
       dom.removeEventListener("click", handleClick);
-      dom.removeEventListener("pointerenter", handleEnter);
+      dom.removeEventListener("pointerenter", refreshTooltip);
     },
   };
 }

@@ -41,7 +41,7 @@ const mockEditor = {
   chain: jest.fn(() => mockEditorChain),
   commands: mockEditorCommands,
   isDestroyed: false,
-  view: { dom: { scrollTop: 0 } },
+  view: { dom: document.createElement("div") },
 };
 
 jest.mock("@anytime-markdown/markdown-react", () => ({
