@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-08
+
+### Changed
+
+- Removed the redundant MUI wrapper now that `spreadsheet-viewer` is self-themed.
+
+### Spreadsheet Core (spreadsheet-viewer)
+
+- `spreadsheet-viewer` fully dropped `@mui` in favor of an in-house `ui/` kit (MUI reduction Phase 3c).
+
 ## [0.4.6] - 2026-05-21
 
 ### Changed

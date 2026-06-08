@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.27.4] - 2026-06-08
+
+### 変更
+
+- エディタコアの MUI 非依存テーマシーム（`ThemeModeContext` / `ui/GlobalStyle`）へ追随。
+- `@playwright/test` を 1.58.2 → 1.60.0 へ更新し、ビジュアルリグレッションの基準を再整備。
+
+### 修正
+
+- database ページで `themeMode` を `DatabaseEditor` へ受け渡すよう修正。
+
 ## [0.27.3] - 2026-06-03
 
 ### 変更

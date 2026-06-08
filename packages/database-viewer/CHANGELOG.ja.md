@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-08
+
+### 変更
+
+- `@mui` を全廃し、自前 `ui/` キット（tokens・`injectStyles`・primitives・icons）を新設して 5 コンポーネントを置換（MUI 削減 Phase3d）。
+- peerDependencies から `@mui` を削除し、テストの MUI `ThemeProvider` ラッパを除去。
+
 ## [0.2.5] - 2026-05-27
 
 ### 変更

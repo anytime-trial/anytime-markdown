@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-08
+
+### Changed
+
+- Removed all `@mui` usage; introduced an in-house `ui/` kit with runtime style injection and replaced the entire UI (MUI reduction Phase 3c).
+
 ## [0.4.6] - 2026-05-21
 
 ### Changed

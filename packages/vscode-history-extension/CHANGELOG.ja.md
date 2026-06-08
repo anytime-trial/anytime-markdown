@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-06-08
+
+### 変更
+
+- 同梱する `trace-viewer` から未使用の `@mui/material` peerDependency を除去。
+
 ## [0.2.3] - 2026-05-20
 
 ### セキュリティ

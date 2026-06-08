@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-06-08
+
+### Changed
+
+- Removed all `@mui/material` and `@mui/icons-material` usage from the editor chrome, replacing it with an in-house `ui/` primitive kit (layout, buttons, forms, feedback, overlays, dialogs, tooltips, menus, drawers, popovers, selects) and vendored icons (MUI reduction Phase 3a/3b).
+- Replaced MUI `GlobalStyles` with a stylis-based `ui/GlobalStyle`, and `useTheme` / `useMediaQuery` with an in-house `ThemeModeContext` (`useIsDark`) and media-query hook.
+- Dropped `@mui/*` and `@emotion/*` from peer dependencies and removed `@mui` from the test suites.
+
+### Fixed
+
+- Fixed compare mode rendering the imageRow badge as a vertical stack.
+
 ## [0.17.0] - 2026-06-03
 
 ### Changed
