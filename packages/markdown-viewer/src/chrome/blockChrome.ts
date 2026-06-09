@@ -38,6 +38,7 @@ export function selectedBlockPos(editor: Editor, nodeTypeName: string): number {
   if (nodeSel.node?.type?.name === nodeTypeName) return sel.from;
   // コンテナ/テキスト内の TextSelection: 対象型の祖先ノードの before pos。
   const { $from } = sel;
+  if (!$from) return -1;
   for (let d = $from.depth; d > 0; d--) {
     if ($from.node(d).type.name === nodeTypeName) return $from.before(d);
   }

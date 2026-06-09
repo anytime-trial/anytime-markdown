@@ -6,8 +6,9 @@ import type { NodeView } from "@anytime-markdown/markdown-pm/view";
  *
  * framework-decoupling Phase 2「反転」設計: NodeView はドキュメント内容
  * （GIF 画像 / プレースホルダ / 再生切替）のみを vanilla DOM で描画する。
- * 編集 chrome（ツールバー・録画/再生/削除ダイアログ）はページ層の
- * `GifBlockOverlay`（React）が選択中ノードに対して提供する。
+ * 編集 chrome は脱React の {@link createGifBlockChrome}（選択追従 + 素 DOM
+ * ツールバー）が供給し、録画/再生/削除ダイアログのみページ層 `GifDialogHost`
+ * （React host）が intent を受けて提供する。
  *
  * テーマ色は CSS 変数（applyEditorThemeCssVars 注入）を参照し、ダーク/ライトは
  * ホスト側の変数切替で追従する。
