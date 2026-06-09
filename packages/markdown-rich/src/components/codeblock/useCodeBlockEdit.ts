@@ -8,7 +8,7 @@ import { type TextareaSearchState, useTextareaSearch } from "@anytime-markdown/m
 
 /**
  * codeBlock の全画面編集状態（fsCode / dirty / 検索置換 / apply / discard）を
- * 選択中ブロックに対して管理するフック。反転オーバーレイ（`CodeBlockOverlay`）が
+ * 選択中ブロックに対して管理するフック。ダイアログ host（`CodeDialogHost`）が
  * 旧 `CodeBlockNodeView`（MermaidNodeView）から移設したロジックを保持する。
  *
  * apply は選択中ブロックの `pos` を使い、コードテキストを一括 replaceWith する

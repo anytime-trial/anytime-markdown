@@ -1,6 +1,6 @@
 /**
  * CodeBlockBlockContent.ts — content-only native NodeView のテスト（S2a 骨格）。
- * 編集 chrome は CodeBlockOverlay 側で検証する（S3）。
+ * 編集 chrome は codeBlockChrome / CodeDialogHost 側で検証する。
  */
 const mockEmbedRender = jest.fn();
 const mockEmbedDestroy = jest.fn();

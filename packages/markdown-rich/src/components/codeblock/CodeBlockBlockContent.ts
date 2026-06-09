@@ -20,8 +20,8 @@ import type { EmbedBaseline } from "@anytime-markdown/markdown-viewer";
  * framework-decoupling Phase 2「反転」設計: NodeView はドキュメント内容
  * （編集可能なコードテキスト = contentDOM + language 別プレビュー + リサイズ）を
  * vanilla DOM で描画する。編集 chrome（ツールバー・全画面編集ダイアログ・
- * 削除/破棄ダイアログ・図のズーム/グラフ操作）はページ層の `CodeBlockOverlay`
- * （React）が選択中ノードに対して提供する。
+ * 削除/破棄ダイアログ・図のズーム/グラフ操作）は脱React の createCodeBlockChrome
+ * （ツールバー）とページ層 `CodeDialogHost`（編集ダイアログ・React host）が提供する。
  *
  * テーマ色は CSS 変数（applyEditorThemeCssVars 注入）を参照する。`codeCollapsed`
  * （折畳み）と dark/font-size（`--am-editor-dark` / `--am-code-font-size`）は

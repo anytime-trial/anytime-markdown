@@ -4,7 +4,7 @@ import { appLowlight, MarkdownEditorPage } from "@anytime-markdown/markdown-view
 import type { ComponentProps } from "react";
 
 import { CodeBlockWithMermaid } from "./codeBlockWithMermaid";
-import { CodeBlockOverlay } from "./components/CodeBlockOverlay";
+import { CodeDialogHost } from "./components/CodeDialogHost";
 import { prepareDarkDiagramsForPrint } from "./pdf/prepareDarkDiagramsForPrint";
 
 /**
@@ -31,7 +31,7 @@ export default function RichMarkdownEditorPage(props: Readonly<RichMarkdownEdito
   return (
     <MarkdownEditorPage
       codeBlockExtension={richCodeBlockExtension}
-      codeBlockOverlay={(editor) => <CodeBlockOverlay editor={editor} />}
+      codeBlockOverlay={(editor) => <CodeDialogHost editor={editor} />}
       prepareDarkDiagrams={prepareDarkDiagramsForPrint}
       {...props}
     />

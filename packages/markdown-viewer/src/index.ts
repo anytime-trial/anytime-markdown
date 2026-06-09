@@ -26,6 +26,25 @@ export type { SelectedBlock } from './hooks/useSelectedBlock';
 export { useSelectedBlock } from './hooks/useSelectedBlock';
 export type { BlockChrome } from './hooks/useBlockChrome';
 export { useBlockChrome } from './hooks/useBlockChrome';
+// Vanilla chrome primitives（脱React・Phase3 ホスト隔離）。他 viewer（rich 等）が共有する。
+export type { SelectedBlockSnapshot, BlockChromeAnchorHandle } from './chrome/blockChrome';
+export {
+  createBlockChromeAnchor,
+  createSelectedBlockTracker,
+  deleteBlockAt,
+  selectedBlockPos,
+  setBlockAttrs,
+} from './chrome/blockChrome';
+export {
+  createToolbarContainer,
+  ICON,
+  mkDivider,
+  mkDragHandle,
+  mkIconButton,
+  mkLabel,
+  mkSpacer,
+  svgIcon,
+} from './chrome/vanillaToolbar';
 export type { NotificationKey } from './hooks/useNotification';
 export { useNotification } from './hooks/useNotification';
 export type { DarkDiagramPrintPreparer } from './hooks/usePdfExport';

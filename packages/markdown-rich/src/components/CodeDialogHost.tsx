@@ -2,19 +2,17 @@
 
 import DOMPurify from "dompurify";
 import type { Editor } from "@anytime-markdown/markdown-react";
+import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  BlockChromeAnchor,
-  BlockInlineToolbar,
   buildEmbedInfoString,
+  deleteBlockAt,
   DeleteBlockDialog,
   EmbedEditDialog,
   type EmbedVariant,
-  getPrimaryMain,
-  getTextSecondary,
   parseEmbedInfoString,
-  useBlockChrome,
+  setBlockAttrs,
   useEditorFeaturesContext,
   useEditorSettingsContext,
   useIsDark,
@@ -22,12 +20,10 @@ import {
 } from "@anytime-markdown/markdown-viewer";
 import { Button } from "@anytime-markdown/markdown-viewer/src/ui/Button";
 import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@anytime-markdown/markdown-viewer/src/ui/Dialog";
-import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
-import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
-import { ShowChartIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
 
-import { classifyCodeBlock, CODE_BLOCK_EDIT_INTENT_EVENT } from "./codeblock/CodeBlockBlockContent";
-import { applySelectionCollapse, codeBlockToolbarLabel, firstNonEmptyLine } from "./codeblock/codeBlockOverlayHelpers";
+import { classifyCodeBlock } from "./codeblock/CodeBlockBlockContent";
+import { createCodeBlockChrome } from "./codeblock/codeBlockChrome";
+import { codeBlockToolbarLabel, firstNonEmptyLine } from "./codeblock/codeBlockOverlayHelpers";
 import { parseBaseline } from "./codeblock/embedPreviewMount";
 import { applyCodeBlockText, useCodeBlockEdit } from "./codeblock/useCodeBlockEdit";
 import { HTML_SANITIZE_CONFIG } from "./codeblock/types";
@@ -40,30 +36,6 @@ import { useDiagramCapture } from "../hooks/useDiagramCapture";
 import { useMermaidRender } from "../hooks/useMermaidRender";
 import { usePlantUmlRender } from "../hooks/usePlantUmlRender";
 import { useZoomPan } from "../hooks/useZoomPan";
-
-/**
- * codeBlock（CodeBlockWithMermaid）の編集 chrome をページ層で提供する選択駆動
- * オーバーレイ（React）。content は native {@link createCodeBlockNodeView} が描画し、
- * 本コンポーネントが選択中の codeBlock に対しツールバー＋全画面編集ダイアログ＋
- * 削除/破棄を供給する（旧 `CodeBlockNodeView`=MermaidNodeView の chrome を移設）。
- *
- * 旧 React NodeView との二重描画を避けるため、マウント＋登録差替えは S5（flip）。
- * S3b スコープ: 全画面編集 5 種ダイアログ + apply/discard。compare/merge と
- * inline graph/zoom は S4/TODO。
- */
-
-/** math ブロックのグラフ表示トグル（旧 MathBlock の GraphToggleButton と等価）。 */
-function GraphToggleButton({ enabled, onToggle, isDark, t }: Readonly<{
-  enabled: boolean; onToggle: () => void; isDark: boolean; t: (key: string) => string;
-}>) {
-  return (
-    <Tooltip title={enabled ? t("hideGraph") : t("showGraph")} placement="top">
-      <IconButton size="xs" onClick={onToggle} aria-label={enabled ? t("hideGraph") : t("showGraph")}>
-        <ShowChartIcon fontSize={16} color={enabled ? getPrimaryMain(isDark) : getTextSecondary(isDark)} />
-      </IconButton>
-    </Tooltip>
-  );
-}
 
 function DiscardDialog({ open, onClose, onConfirm, t }: Readonly<{
   open: boolean; onClose: () => void; onConfirm: () => void; t: (key: string) => string;
@@ -80,27 +52,45 @@ function DiscardDialog({ open, onClose, onConfirm, t }: Readonly<{
   );
 }
 
-export function CodeBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>) {
+/**
+ * codeBlock のダイアログ host（Phase 3 / ホスト隔離・E 横展開）。
+ *
+ * 選択追従・ツールバー・折畳み・autoEditOpen は React なしの {@link createCodeBlockChrome}
+ * が担い、本コンポーネントは図描画（mermaid/plantuml・zoom・capture）と全画面編集ダイアログ群
+ * （React フックに深く結合）のみを host 側 React として提供する。chrome の `onSelect` で
+ * 選択中ブロックの pos/node を受け取り、`onEdit`/`onExport`/`onExportSource`/`onDelete`
+ * intent でダイアログ・エクスポートを駆動する。
+ */
+export function CodeDialogHost({ editor }: Readonly<{ editor: Editor | null }>) {
   const t = useMarkdownT("MarkdownEditor");
   const isDark = useIsDark();
   const settings = useEditorSettingsContext();
   const { hideGraph } = useEditorFeaturesContext();
-  const { pos, node, rect, updateAttrs, deleteOpen, setDeleteOpen, handleDelete, showToolbar } =
-    useBlockChrome(editor, "codeBlock");
+
+  const [pos, setPos] = useState(-1);
+  const [node, setNode] = useState<PMNode | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const language = (node?.attrs.language as string) ?? "";
   const kind = classifyCodeBlock(language);
-  const [editOpen, setEditOpen] = useState(false);
 
   const edit = useCodeBlockEdit(editor, pos, node, editOpen, setEditOpen);
 
-  // diagram プレビュー（コミット済みコードの svg/url）と dialog ズーム・エクスポート。
   const isMermaid = language === "mermaid";
   const isPlantUml = language === "plantuml";
   const { svg } = useMermaidRender({ code: edit.code, isMermaid, isDark });
   const { plantUmlUrl } = usePlantUmlRender({ code: edit.code, isPlantUml, isDark });
   const fsZP = useZoomPan();
   const { handleCapture, handleExportSource } = useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl, code: edit.code, isDark });
+
+  // intent から呼ぶ最新の capture ハンドラ（フック値に依存するため ref で最新化）。
+  const captureRef = useRef(handleCapture);
+  captureRef.current = handleCapture;
+  const exportSourceRef = useRef(handleExportSource);
+  exportSourceRef.current = handleExportSource;
+  const hideGraphRef = useRef(hideGraph);
+  hideGraphRef.current = hideGraph;
 
   // native content が読む実行時 CSS 変数（dark / code フォント）。
   useEffect(() => {
@@ -111,50 +101,39 @@ export function CodeBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>
     root.style.setProperty("--am-code-line-height", `${settings.lineHeight}`);
   }, [isDark, settings.fontSize, settings.lineHeight]);
 
-  // 選択駆動の折畳み（展開/再折畳）。
-  const prevPosRef = useRef(-1);
+  // vanilla chrome（選択追従・ツールバー・折畳み・autoEditOpen）を生成し intent を購読。
   useEffect(() => {
     if (!editor) return;
-    if (pos === prevPosRef.current) return;
-    const prev = prevPosRef.current;
-    prevPosRef.current = pos;
-    applySelectionCollapse(editor, prev, pos);
-  }, [pos, editor]);
+    const destroy = createCodeBlockChrome(editor, {
+      t,
+      isGraphHidden: () => hideGraphRef.current,
+      onSelect: (p, n) => {
+        setPos(p);
+        setNode(n);
+      },
+      onEdit: () => setEditOpen(true),
+      onExport: () => captureRef.current?.(),
+      onExportSource: () => exportSourceRef.current?.(),
+      onDelete: () => setDeleteOpen(true),
+    });
+    return destroy;
+  }, [editor, t]);
 
-  // native NodeView（ダブルクリック）からの編集意図を購読する。
-  useEffect(() => {
-    const root = editor?.view?.dom;
-    if (!root) return;
-    const handler = () => setEditOpen(true);
-    root.addEventListener(CODE_BLOCK_EDIT_INTENT_EVENT, handler as EventListener);
-    return () => root.removeEventListener(CODE_BLOCK_EDIT_INTENT_EVENT, handler as EventListener);
-  }, [editor]);
-
-  // autoEditOpen: スラッシュコマンド作成直後に全画面編集を開く（preview 種別のみ）。
-  useEffect(() => {
-    if (node?.attrs.autoEditOpen && editor?.isEditable && kind !== "regular") {
-      updateAttrs({ autoEditOpen: false });
-      setEditOpen(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pos]);
-
-  const handleEdit = useCallback(() => setEditOpen(true), []);
-  const readOnly = !editor?.isEditable;
-  const graphEnabled = !!node?.attrs.graphEnabled;
-  const showGraphToggle = kind === "math" && !hideGraph;
-  const graphToggle = showGraphToggle
-    ? <GraphToggleButton enabled={graphEnabled} onToggle={() => updateAttrs({ graphEnabled: !graphEnabled })} isDark={isDark} t={t} />
-    : undefined;
+  const handleDelete = useCallback(() => {
+    if (editor) deleteBlockAt(editor, pos);
+    setDeleteOpen(false);
+  }, [editor, pos]);
 
   // embed: variant 切替を保持しつつ url を本文へ反映する（旧 EmbedBlock.handleApply 等価）。
   const handleEmbedApply = useCallback((url: string, nextVariant: EmbedVariant) => {
+    if (!editor) return;
     const width = parseEmbedInfoString(language)?.width ?? null;
-    updateAttrs({ language: buildEmbedInfoString(nextVariant, width, parseBaseline(language)) });
-    if (editor && pos >= 0 && node) applyCodeBlockText(editor, pos, node.content.size, url);
+    setBlockAttrs(editor, pos, { language: buildEmbedInfoString(nextVariant, width, parseBaseline(language)) });
+    if (pos >= 0 && node) applyCodeBlockText(editor, pos, node.content.size, url);
     setEditOpen(false);
-  }, [editor, pos, node, language, updateAttrs]);
+  }, [editor, pos, node, language]);
 
+  const readOnly = !editor?.isEditable;
   const commonDialog = {
     open: editOpen,
     onClose: () => { edit.fsSearch.reset(); edit.tryCloseEdit(); },
@@ -168,27 +147,10 @@ export function CodeBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>
     readOnly,
     t,
   };
-
   const diagramExportSourceKey = isMermaid ? "exportMmd" : "exportPuml";
 
   return (
     <>
-      {showToolbar && (
-        <BlockChromeAnchor rect={rect}>
-          <BlockInlineToolbar
-            label={codeBlockToolbarLabel(kind, language, t)}
-            onEdit={handleEdit}
-            onDelete={() => setDeleteOpen(true)}
-            onExport={kind === "diagram" ? handleCapture : undefined}
-            onExportSource={kind === "diagram" ? handleExportSource : undefined}
-            exportSourceKey={kind === "diagram" ? diagramExportSourceKey : undefined}
-            extra={graphToggle}
-            labelDivider
-            t={t}
-          />
-        </BlockChromeAnchor>
-      )}
-
       <DeleteBlockDialog open={deleteOpen} onClose={() => setDeleteOpen(false)} onDelete={handleDelete} t={t} />
 
       {editOpen && kind === "regular" && (
