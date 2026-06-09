@@ -131,6 +131,39 @@ export function createSelectedBlockTracker(
   };
 }
 
+/** 指定 pos のブロック属性を更新する（React useSelectedBlock.updateAttrs の vanilla 版）。 */
+export function setBlockAttrs(
+  editor: Editor,
+  pos: number,
+  attrs: Record<string, unknown>,
+): void {
+  if (pos < 0) return;
+  editor
+    .chain()
+    .command(({ tr }) => {
+      for (const [k, v] of Object.entries(attrs)) {
+        tr.setNodeAttribute(pos, k, v);
+      }
+      return true;
+    })
+    .run();
+}
+
+/** 指定 pos のブロックを削除する（React useSelectedBlock.deleteBlock の vanilla 版）。 */
+export function deleteBlockAt(editor: Editor, pos: number): void {
+  if (pos < 0) return;
+  editor
+    .chain()
+    .focus()
+    .command(({ tr, state }) => {
+      const n = state.doc.nodeAt(pos);
+      if (!n) return false;
+      tr.delete(pos, pos + n.nodeSize);
+      return true;
+    })
+    .run();
+}
+
 export interface BlockChromeAnchorHandle {
   /** chrome（ツールバー等）を append する fixed コンテナ。 */
   readonly el: HTMLElement;

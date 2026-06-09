@@ -8,6 +8,9 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 
 jest.mock("../chrome/gifBlockChrome", () => ({
   createGifBlockChrome: jest.fn(() => jest.fn()),
+}));
+
+jest.mock("../chrome/blockChrome", () => ({
   deleteBlockAt: jest.fn(),
   setBlockAttrs: jest.fn(),
 }));
@@ -30,7 +33,8 @@ jest.mock("../components/GifPlayerDialog", () => ({
 }));
 
 import { GifDialogHost } from "../components/GifDialogHost";
-import { createGifBlockChrome, deleteBlockAt } from "../chrome/gifBlockChrome";
+import { createGifBlockChrome } from "../chrome/gifBlockChrome";
+import { deleteBlockAt } from "../chrome/blockChrome";
 
 const mockEditor = { isEditable: true } as any;
 

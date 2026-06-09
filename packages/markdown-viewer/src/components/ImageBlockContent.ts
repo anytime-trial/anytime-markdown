@@ -9,7 +9,8 @@ import { buildAnnotationSvg } from "../utils/annotationSvg";
  *
  * framework-decoupling Phase 2「反転」設計: NodeView はドキュメント内容
  * （画像 / アノテーション表示 / リサイズハンドル / エラー表示）のみを vanilla DOM
- * で描画する。ツールバー・各種編集ダイアログはページ層 `ImageBlockOverlay` が供給する。
+ * で描画する。ツールバーは脱React の {@link createImageBlockChrome}、各種編集
+ * ダイアログはページ層 `ImageDialogHost`（React host）が intent を受けて供給する。
  *
  * リサイズは選択時のみハンドルを表示し、editor.command で width を直接コミットする
  * （self-contained。chrome 越しの cross-component drag を避ける）。ダブルクリックは

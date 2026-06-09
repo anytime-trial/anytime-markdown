@@ -4,7 +4,8 @@ import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useMarkdownT } from "../i18n/context";
-import { createGifBlockChrome, deleteBlockAt, setBlockAttrs } from "../chrome/gifBlockChrome";
+import { deleteBlockAt, setBlockAttrs } from "../chrome/blockChrome";
+import { createGifBlockChrome } from "../chrome/gifBlockChrome";
 import type { GifSettings } from "../utils/gifEncoder";
 import { DeleteBlockDialog } from "./codeblock/DeleteBlockDialog";
 import { GifPlayerDialog } from "./GifPlayerDialog";

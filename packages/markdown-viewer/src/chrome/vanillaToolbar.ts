@@ -1,0 +1,107 @@
+/**
+ * 脱React の block chrome 用 vanilla ツールバー・プリミティブ（Phase 3 / ホスト隔離）。
+ *
+ * 各 overlay の vanilla chrome（gif / image / …）が共有する素 DOM 部品。テーマ色は
+ * CSS 変数（`--am-color-*`・applyEditorThemeCssVars 注入）で追従し、React テーマ API
+ * （useIsDark 等）に依存しない。アイコンは ui/icons と同一の Material SVG path を
+ * currentColor で inline 描画する。
+ */
+
+/** Material アイコン SVG path（24x24・ui/icons と同一）。warning のみ複数 path。 */
+export const ICON = {
+  drag: "M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2m-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2",
+  edit: "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z",
+  delete: "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6zM8 9h8v10H8zm7.5-5-1-1h-5l-1 1H5v2h14V4z",
+  link: "M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1M8 13h8v-2H8zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5",
+  annotate: "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m0 14H6l-2 2V4h16z",
+  warning: ["M12 5.99 19.53 19H4.47zM12 2 1 21h22z", "M13 16h-2v2h2zm0-6h-2v5h2z"],
+} as const;
+
+/** currentColor で描く inline SVG。複数 path（fragment 相当）にも対応。 */
+export function svgIcon(path: string | readonly string[], size = 16): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", String(size));
+  svg.setAttribute("height", String(size));
+  svg.setAttribute("fill", "currentColor");
+  svg.setAttribute("aria-hidden", "true");
+  for (const d of Array.isArray(path) ? path : [path]) {
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", d as string);
+    svg.appendChild(p);
+  }
+  return svg;
+}
+
+/**
+ * ツールバーの外枠コンテナ（`data-block-toolbar` / role=toolbar / CSS 変数背景）。
+ * ツールバー操作で editor の選択を失わないよう mousedown を抑止する。
+ */
+export function createToolbarContainer(ariaLabel: string): HTMLElement {
+  const el = document.createElement("div");
+  el.setAttribute("data-block-toolbar", "");
+  el.setAttribute("role", "toolbar");
+  el.setAttribute("aria-label", ariaLabel);
+  el.style.cssText =
+    "background-color:var(--am-color-action-hover);padding:2px 6px;" +
+    "display:flex;align-items:center;gap:2px;border-radius:4px;";
+  el.addEventListener("mousedown", (e) => e.preventDefault());
+  return el;
+}
+
+/** ドラッグハンドル（`data-drag-handle`）。 */
+export function mkDragHandle(label: string): HTMLElement {
+  const el = document.createElement("div");
+  el.setAttribute("data-drag-handle", "");
+  el.setAttribute("role", "button");
+  el.tabIndex = 0;
+  el.setAttribute("aria-roledescription", "draggable item");
+  el.setAttribute("aria-label", label);
+  el.style.cssText =
+    "display:inline-flex;align-items:center;cursor:grab;color:var(--am-color-text-secondary);";
+  el.appendChild(svgIcon(ICON.drag));
+  return el;
+}
+
+/** ブロック種別ラベル（"GIF" / "Image" など）。 */
+export function mkLabel(text: string): HTMLSpanElement {
+  const el = document.createElement("span");
+  el.textContent = text;
+  el.style.cssText =
+    "font-weight:600;font-size:0.75rem;flex-shrink:0;color:var(--am-color-text-secondary);";
+  return el;
+}
+
+/** アイコンボタン。色は currentColor（既定 text-secondary）。`btn.style.color` で上書き可。 */
+export function mkIconButton(
+  label: string,
+  iconPath: string | readonly string[],
+  onClick: () => void,
+): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.setAttribute("aria-label", label);
+  b.title = label;
+  b.style.cssText =
+    "display:inline-flex;align-items:center;justify-content:center;padding:2px;" +
+    "border:none;background:transparent;cursor:pointer;border-radius:4px;" +
+    "color:var(--am-color-text-secondary);";
+  b.appendChild(svgIcon(iconPath));
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+/** 縦区切り線。 */
+export function mkDivider(): HTMLElement {
+  const el = document.createElement("div");
+  el.style.cssText =
+    "width:1px;align-self:stretch;background-color:var(--am-color-divider);margin:0 2px;";
+  return el;
+}
+
+/** 可変スペーサ（右寄せ用）。 */
+export function mkSpacer(): HTMLElement {
+  const el = document.createElement("div");
+  el.style.flex = "1";
+  return el;
+}
