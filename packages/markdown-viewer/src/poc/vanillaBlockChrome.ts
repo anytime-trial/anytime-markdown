@@ -30,14 +30,13 @@ export interface SelectedBlockSnapshot {
  * NodeSelection（atom）と、セル/テキスト内 TextSelection を内包するコンテナブロックの両対応。
  */
 export function selectedBlockPos(editor: Editor, nodeTypeName: string): number {
-  const sel = editor.state.selection as unknown as {
-    node?: { type: { name: string } };
-    from: number;
-    $from?: { depth: number; node: (d: number) => { type: { name: string } }; before: (d: number) => number };
-  };
-  if (sel.node?.type?.name === nodeTypeName) return sel.from;
-  const $from = sel.$from;
-  if (!$from) return -1;
+  const sel = editor.state.selection;
+  // atom ブロック（gif / image 等）: NodeSelection が対象型ならその from。
+  // `.node` は NodeSelection 固有のため軽くキャストで参照する。
+  const nodeSel = sel as typeof sel & { node?: { type: { name: string } } };
+  if (nodeSel.node?.type?.name === nodeTypeName) return sel.from;
+  // コンテナ/テキスト内の TextSelection: 対象型の祖先ノードの before pos。
+  const { $from } = sel;
   for (let d = $from.depth; d > 0; d--) {
     if ($from.node(d).type.name === nodeTypeName) return $from.before(d);
   }
@@ -64,7 +63,7 @@ export function createSelectedBlockTracker(
   nodeTypeName: string,
   onChange: (snap: SelectedBlockSnapshot) => void,
 ): () => void {
-  let lastPos = -2;
+  let lastPos = -2; // -1 は「未選択」として valid な emit 値なので初期 sentinel は -2。
   const emit = (): void => {
     const pos = selectedBlockPos(editor, nodeTypeName);
     if (pos === lastPos) return;
