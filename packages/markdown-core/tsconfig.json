@@ -16,8 +16,6 @@
 		"paths": {
 			"@anytime-markdown/markdown-core": ["./core/src/index.ts"],
 			"@anytime-markdown/markdown-core/*": ["./core/src/*"],
-			"@anytime-markdown/markdown-react": ["./react/src/index.ts"],
-			"@anytime-markdown/markdown-react/*": ["./react/src/*"],
 			"@anytime-markdown/markdown-pm/*": ["./pm/*/index.ts"],
 			"@anytime-markdown/markdown-starter-kit": ["./starter-kit/src/index.ts"],
 			"@anytime-markdown/markdown-extensions": ["./extensions/src/index.ts"],
@@ -29,7 +27,6 @@
 	},
 	"include": [
 		"core/src/**/*",
-		"react/src/**/*",
 		"pm/**/*.ts",
 		"extension-*/src/**/*",
 		"extensions/src/**/*",

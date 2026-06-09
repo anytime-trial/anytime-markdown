@@ -24,8 +24,9 @@ function computeAliasEntries(vendorDir) {
 	// JSX automatic runtime（pragma @jsxImportSource @anytime-markdown/markdown-core）。jsx-runtime.ts は jsx/jsxs/jsxDEV/Fragment を全て export
 	add("@anytime-markdown/markdown-core/jsx-runtime", "core/src/jsx-runtime.ts");
 	add("@anytime-markdown/markdown-core/jsx-dev-runtime", "core/src/jsx-runtime.ts");
-	add("@anytime-markdown/markdown-react", "react/src/index.ts");
-	add("@anytime-markdown/markdown-react/menus", "react/src/menus/index.ts");
+	// react binding は markdown-core から sibling パッケージ markdown-react へ切り出し済み。
+	add("@anytime-markdown/markdown-react", "../markdown-react/src/index.ts");
+	add("@anytime-markdown/markdown-react/menus", "../markdown-react/src/menus/index.ts");
 	add("@anytime-markdown/markdown-starter-kit", "starter-kit/src/index.ts");
 	// extensions umbrella（starter-kit が Dropcursor/Gapcursor/TrailingNode/UndoRedo を値 import）
 	add("@anytime-markdown/markdown-extensions", "extensions/src/index.ts");
