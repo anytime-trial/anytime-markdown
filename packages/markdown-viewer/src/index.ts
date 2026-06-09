@@ -38,6 +38,7 @@ export {
 export {
   createToolbarContainer,
   ICON,
+  mkButtonGroup,
   mkDivider,
   mkDragHandle,
   mkIconButton,
@@ -45,6 +46,9 @@ export {
   mkSpacer,
   svgIcon,
 } from './chrome/vanillaToolbar';
+// Vanilla host seam（G・脱React で editor を mount）。
+export type { VanillaEditorHostHandle, VanillaEditorHostOptions } from './host/vanillaEditorHost';
+export { createVanillaEditorHost } from './host/vanillaEditorHost';
 export type { NotificationKey } from './hooks/useNotification';
 export { useNotification } from './hooks/useNotification';
 export type { DarkDiagramPrintPreparer } from './hooks/usePdfExport';
