@@ -1,9 +1,10 @@
 /**
- * framework-decoupling Phase 3 PoC（D）テスト。
+ * framework-decoupling Phase 3（ホスト隔離）chrome エンジンのテスト。
  *
  * (1) `new Editor()`（core Editor）が React なしで生成・操作できること、
  * (2) chrome seam（選択追従 tracker / 配置 anchor / chrome shell）が
- *     `editor.on('transaction')` 購読のみで React なしに機能すること
+ *     `editor.on('transaction')` 購読のみで React なしに機能すること、
+ * (3) pos 選択中は scroll / resize を購読し、解除時にリスナを外すこと
  * を real editor で実証する。
  */
 import { Editor } from "@anytime-markdown/markdown-core";
@@ -15,7 +16,7 @@ import {
   createVanillaBlockChrome,
   type SelectedBlockSnapshot,
   selectedBlockPos,
-} from "../poc/vanillaBlockChrome";
+} from "../chrome/blockChrome";
 
 function makeEditor(): Editor {
   return new Editor({
@@ -32,7 +33,7 @@ function findCodeBlockPos(editor: Editor): number {
   return found;
 }
 
-describe("PoC: vanilla editor 生成（React 非依存）", () => {
+describe("vanilla editor 生成（React 非依存）", () => {
   it("new Editor() で生成・操作できコードブロックを含む", () => {
     const editor = makeEditor();
     expect(editor).toBeInstanceOf(Editor);
@@ -69,6 +70,37 @@ describe("createSelectedBlockTracker", () => {
     stop();
     editor.commands.setTextSelection(cbPos + 1);
     expect(snaps.length).toBe(countBeforeStop); // 解除後は増えない
+    editor.destroy();
+  });
+
+  it("pos 選択中のみ scroll / resize を購読し、解除でリスナを外す", () => {
+    const editor = makeEditor();
+    const cbPos = findCodeBlockPos(editor);
+    const added = new Set<string>();
+    const removed = new Set<string>();
+    const addSpy = jest
+      .spyOn(globalThis, "addEventListener")
+      .mockImplementation(((type: string) => { added.add(type); }) as typeof globalThis.addEventListener);
+    const removeSpy = jest
+      .spyOn(globalThis, "removeEventListener")
+      .mockImplementation(((type: string) => { removed.add(type); }) as typeof globalThis.removeEventListener);
+
+    const stop = createSelectedBlockTracker(editor, "codeBlock", () => {});
+
+    // 初期は未選択 → scroll/resize 未購読
+    expect(added.has("scroll")).toBe(false);
+
+    editor.commands.setTextSelection(cbPos + 1); // codeBlock 選択 → 購読開始
+    expect(added.has("scroll")).toBe(true);
+    expect(added.has("resize")).toBe(true);
+
+    editor.commands.setTextSelection(1); // 選択外 → 解除
+    expect(removed.has("scroll")).toBe(true);
+    expect(removed.has("resize")).toBe(true);
+
+    stop();
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
     editor.destroy();
   });
 });

@@ -2,18 +2,19 @@ import type { Editor } from "@anytime-markdown/markdown-core";
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 
 /**
- * framework-decoupling Phase 3 PoC（D）: 脱React の chrome seam。
+ * framework-decoupling Phase 3（ホスト隔離ゴール）の chrome エンジン。
  *
- * 反転アーキテクチャで content は既に native（React 非依存）。残る chrome（overlay）は
- * React の `useBlockChrome`/`useSelectedBlock`/`BlockChromeAnchor` に依存している。
- * 本 PoC はそれらを **React なし**（`editor.on('transaction')` 購読 + 素 DOM portal）で
- * 再現し、Phase 3（overlay の脱React/WC 化）が成立することを実証する。
+ * 反転アーキテクチャで content は既に native（React 非依存）。残る chrome（block
+ * overlay の選択追従・配置・インラインツールバー）を **React なし**
+ * （`editor.on('transaction')` 購読 + 素 DOM portal）で提供する。これにより
+ * React は host（page shell + dialogs / ui kit）へ隔離でき、editor + chrome は
+ * React-free になる。
+ *
+ * 元 PoC（`poc/vanillaBlockChrome.ts`）を正式昇格したもの。PoC が積み残していた
+ * rect の scroll / resize 再計測を {@link useSelectedBlock} 相当に補完した。
  *
  * editor 自体も `new Editor()`（`@anytime-markdown/markdown-core` の core Editor）で
- * React 外から生成できる（test 参照）。よって React は差し替え可能な host の一例に降格できる。
- *
- * PoC スコープ: pos 単位の選択追従 + rect 配置 + 最小ツールバー（edit/delete）。
- * rect の scroll/resize 再計測・全ダイアログ移植・compare 等は横展開時に補完する。
+ * React 外から生成できる（test 参照）。React は差し替え可能な host の一例に降格する。
  */
 
 export interface SelectedBlockSnapshot {
@@ -54,9 +55,27 @@ function measureRect(editor: Editor, pos: number): DOMRect | null {
   }
 }
 
+/** rect の値同値判定（参照ではなく top/left/width/height で比較）。 */
+function sameRect(a: DOMRect | null, b: DOMRect | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.top === b.top &&
+    a.left === b.left &&
+    a.width === b.width &&
+    a.height === b.height
+  );
+}
+
 /**
  * 選択中ブロックを追跡し、変化時に snapshot を通知する（vanilla useSelectedBlock）。
- * `editor.on('transaction')` を購読する。戻り値は購読解除関数。
+ *
+ * - `editor.on('transaction')` で pos 変化を検出する。
+ * - pos が選択中（>= 0）の間は `scroll`（capture）/ `resize` を購読し、rect 変化も
+ *   再通知する（React 版 useSelectedBlock の measure useEffect 相当）。
+ * - pos / rect いずれも同値なら通知しない（無駄な再配置を抑制）。
+ *
+ * 戻り値は購読解除関数。
  */
 export function createSelectedBlockTracker(
   editor: Editor,
@@ -64,16 +83,51 @@ export function createSelectedBlockTracker(
   onChange: (snap: SelectedBlockSnapshot) => void,
 ): () => void {
   let lastPos = -2; // -1 は「未選択」として valid な emit 値なので初期 sentinel は -2。
-  const emit = (): void => {
-    const pos = selectedBlockPos(editor, nodeTypeName);
-    if (pos === lastPos) return;
+  let lastRect: DOMRect | null = null;
+  let scrollResizeBound = false;
+
+  const fire = (pos: number, rect: DOMRect | null): void => {
     lastPos = pos;
+    lastRect = rect;
     const node = pos >= 0 ? editor.state.doc.nodeAt(pos) : null;
-    onChange({ pos, node, rect: measureRect(editor, pos) });
+    onChange({ pos, node, rect });
   };
-  editor.on("transaction", emit);
-  emit();
-  return () => { editor.off("transaction", emit); };
+
+  // scroll / resize: pos は不変、rect のみ再計測する。
+  const onScrollResize = (): void => {
+    if (lastPos < 0) return;
+    const rect = measureRect(editor, lastPos);
+    if (sameRect(rect, lastRect)) return;
+    fire(lastPos, rect);
+  };
+
+  const bindScrollResize = (on: boolean): void => {
+    if (on === scrollResizeBound) return;
+    if (on) {
+      globalThis.addEventListener("scroll", onScrollResize, true);
+      globalThis.addEventListener("resize", onScrollResize);
+    } else {
+      globalThis.removeEventListener("scroll", onScrollResize, true);
+      globalThis.removeEventListener("resize", onScrollResize);
+    }
+    scrollResizeBound = on;
+  };
+
+  // transaction: pos 再判定 + rect 再計測。pos / rect いずれか変化で通知。
+  const onTransaction = (): void => {
+    const pos = selectedBlockPos(editor, nodeTypeName);
+    const rect = measureRect(editor, pos);
+    const changed = pos !== lastPos || !sameRect(rect, lastRect);
+    if (changed) fire(pos, rect);
+    bindScrollResize(pos >= 0);
+  };
+
+  editor.on("transaction", onTransaction);
+  onTransaction();
+  return () => {
+    editor.off("transaction", onTransaction);
+    bindScrollResize(false);
+  };
 }
 
 export interface BlockChromeAnchorHandle {
@@ -120,8 +174,8 @@ export interface VanillaBlockChromeOptions {
 
 /**
  * tracker + anchor + 最小ツールバー（edit/delete）を結線した vanilla chrome shell。
- * React overlay（*BlockOverlay）の脱React 版の最小形。Phase 3 で各 overlay の固有
- * ツールバー/ダイアログを素 DOM で足していく土台になる。戻り値は破棄関数。
+ * React overlay（*BlockOverlay）の脱React 版の最小形。各 overlay の固有ツールバー /
+ * ダイアログを素 DOM で足していく土台になる。戻り値は破棄関数。
  */
 export function createVanillaBlockChrome(
   editor: Editor,
