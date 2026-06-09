@@ -11,6 +11,7 @@ import {
   isEmbedResizable,
   mountEmbedPreview,
 } from "./embedPreviewMount";
+import { type GraphMountHandle, mountGraphPreview } from "./graphPreviewMount";
 import type { EmbedBaseline } from "@anytime-markdown/markdown-viewer";
 
 /**
@@ -84,6 +85,7 @@ export function createCodeBlockNodeView(
   let previewCancel: () => void = () => {};
   let renderedKey = "";
   let embedMount: EmbedMountHandle | null = null;
+  let graphMount: GraphMountHandle | null = null;
 
   // resize 状態
   let resizing = false;
@@ -137,6 +139,13 @@ export function createCodeBlockNodeView(
 
   frame.appendChild(previewEl);
 
+  // math グラフ（GraphView を createRoot でマウント）。graphEnabled 属性で表示切替。
+  const graphEl = document.createElement("div");
+  graphEl.className = "rich-codeblock-graph";
+  graphEl.contentEditable = "false";
+  graphEl.style.display = "none";
+  frame.appendChild(graphEl);
+
   const setCodeLanguageClass = (language: unknown): void => {
     const first = typeof language === "string" && language ? language.split(/\s+/)[0] : "";
     code.className = first ? `language-${first}` : "";
@@ -170,6 +179,22 @@ export function createCodeBlockNodeView(
 
   const disposeEmbed = (): void => {
     if (embedMount) { embedMount.destroy(); embedMount = null; }
+  };
+
+  const disposeGraph = (): void => {
+    if (graphMount) { graphMount.destroy(); graphMount = null; }
+  };
+
+  // math グラフの mount/unmount を graphEnabled 属性から駆動する。
+  const applyGraph = (): void => {
+    if (kind === "math" && !!currentNode.attrs.graphEnabled) {
+      if (!graphMount) graphMount = mountGraphPreview(graphEl);
+      graphMount.render(currentNode.textContent, true, isEditorDark());
+      graphEl.style.display = "";
+    } else {
+      disposeGraph();
+      graphEl.style.display = "none";
+    }
   };
 
   const requestRerender = (): void => { renderedKey = ""; renderPreview(); };
@@ -277,6 +302,7 @@ export function createCodeBlockNodeView(
 
   applyChrome();
   renderPreview();
+  applyGraph();
 
   return {
     dom,
@@ -291,6 +317,7 @@ export function createCodeBlockNodeView(
       }
       applyChrome();
       renderPreview();
+      applyGraph();
       return true;
     },
     ignoreMutation(mutation) {
@@ -300,6 +327,7 @@ export function createCodeBlockNodeView(
     destroy() {
       previewCancel();
       disposeEmbed();
+      disposeGraph();
       previewEl.removeEventListener("click", onPreviewClick);
       dom.removeEventListener("dblclick", onDoubleClick);
       resizeGrip.removeEventListener("pointerdown", onGripPointerDown);

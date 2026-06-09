@@ -13,6 +13,13 @@ jest.mock("../components/codeblock/embedPreviewMount", () => ({
   buildEmbedBaselineLanguage: jest.fn((lang: string) => lang),
 }));
 
+const mockGraphRender = jest.fn();
+const mockGraphDestroy = jest.fn();
+const mockMountGraphPreview = jest.fn(() => ({ render: mockGraphRender, destroy: mockGraphDestroy }));
+jest.mock("../components/codeblock/graphPreviewMount", () => ({
+  mountGraphPreview: (...args: unknown[]) => mockMountGraphPreview(...(args as [])),
+}));
+
 import {
   classifyCodeBlock,
   createCodeBlockNodeView,
@@ -223,6 +230,32 @@ describe("createCodeBlockNodeView (native content NodeView)", () => {
       const view = makeView({ language: "embed card", codeCollapsed: false, text: "https://x" });
       view.destroy();
       expect(mockEmbedDestroy).toHaveBeenCalled();
+    });
+  });
+
+  describe("math graph", () => {
+    beforeEach(() => {
+      mockGraphRender.mockClear();
+      mockGraphDestroy.mockClear();
+      mockMountGraphPreview.mockClear();
+    });
+
+    it("graphEnabled=true で GraphView をマウントして描画する", () => {
+      makeView({ language: "math", codeCollapsed: false, graphEnabled: true, text: "y=x^2" });
+      expect(mockMountGraphPreview).toHaveBeenCalledTimes(1);
+      expect(mockGraphRender).toHaveBeenCalledWith("y=x^2", true, false);
+    });
+
+    it("graphEnabled=false ではマウントしない", () => {
+      makeView({ language: "math", codeCollapsed: false, graphEnabled: false, text: "y=x^2" });
+      expect(mockMountGraphPreview).not.toHaveBeenCalled();
+    });
+
+    it("update で graphEnabled が false になると graph root を解放する", () => {
+      const view = makeView({ language: "math", codeCollapsed: false, graphEnabled: true, text: "y=x^2" });
+      expect(mockMountGraphPreview).toHaveBeenCalledTimes(1);
+      view.update({ type: { name: "codeBlock" }, attrs: { language: "math", codeCollapsed: false, graphEnabled: false }, textContent: "y=x^2" } as never);
+      expect(mockGraphDestroy).toHaveBeenCalled();
     });
   });
 });

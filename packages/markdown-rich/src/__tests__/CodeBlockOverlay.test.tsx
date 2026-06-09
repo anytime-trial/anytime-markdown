@@ -8,6 +8,7 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
   ...jest.requireActual("@anytime-markdown/markdown-viewer"),
   useIsDark: () => false,
   useEditorSettingsContext: () => ({ fontSize: 16, lineHeight: 1.6 }),
+  useEditorFeaturesContext: () => ({ hideGraph: false }),
   useMarkdownT: () => (k: string) => k,
   useBlockChrome: () => mockChrome,
 }));
@@ -67,5 +68,17 @@ describe("CodeBlockOverlay", () => {
     };
     render(<CodeBlockOverlay editor={fakeEditor()} />);
     expect(screen.getByText("Code (typescript)")).toBeTruthy();
+  });
+
+  it("math 選択でグラフトグルを表示する", () => {
+    mockChrome = {
+      ...noChrome,
+      pos: 5,
+      node: { attrs: { language: "math", graphEnabled: false }, textContent: "y=x^2", content: { size: 5 } },
+      rect: { top: 10, left: 20 } as DOMRect,
+      showToolbar: true,
+    };
+    render(<CodeBlockOverlay editor={fakeEditor()} />);
+    expect(screen.getByLabelText("showGraph")).toBeTruthy();
   });
 });

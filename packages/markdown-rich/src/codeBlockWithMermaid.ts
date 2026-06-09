@@ -49,6 +49,9 @@ export const CodeBlockWithMermaid = CodeBlockLowlight.extend({
       codeCollapsed: { default: true, rendered: false },
       width: { default: null, rendered: false },
       autoEditOpen: { default: false, rendered: false },
+      // 反転アーキテクチャ: math グラフ表示の ON/OFF。overlay のトグルが書き、
+      // native content が GraphView の mount/unmount を駆動する（旧 React 経路は未使用）。
+      graphEnabled: { default: false, rendered: false },
     };
   },
 

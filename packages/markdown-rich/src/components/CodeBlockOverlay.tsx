@@ -12,14 +12,20 @@ import {
   DeleteBlockDialog,
   EmbedEditDialog,
   type EmbedVariant,
+  getPrimaryMain,
+  getTextSecondary,
   parseEmbedInfoString,
   useBlockChrome,
+  useEditorFeaturesContext,
   useEditorSettingsContext,
   useIsDark,
   useMarkdownT,
 } from "@anytime-markdown/markdown-viewer";
 import { Button } from "@anytime-markdown/markdown-viewer/src/ui/Button";
 import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@anytime-markdown/markdown-viewer/src/ui/Dialog";
+import { IconButton } from "@anytime-markdown/markdown-viewer/src/ui/IconButton";
+import { Tooltip } from "@anytime-markdown/markdown-viewer/src/ui/Tooltip";
+import { ShowChartIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
 
 import { classifyCodeBlock, CODE_BLOCK_EDIT_INTENT_EVENT } from "./codeblock/CodeBlockBlockContent";
 import { applySelectionCollapse, codeBlockToolbarLabel, firstNonEmptyLine } from "./codeblock/codeBlockOverlayHelpers";
@@ -46,6 +52,19 @@ import { useZoomPan } from "../hooks/useZoomPan";
  * inline graph/zoom は S4/TODO。
  */
 
+/** math ブロックのグラフ表示トグル（旧 MathBlock の GraphToggleButton と等価）。 */
+function GraphToggleButton({ enabled, onToggle, isDark, t }: Readonly<{
+  enabled: boolean; onToggle: () => void; isDark: boolean; t: (key: string) => string;
+}>) {
+  return (
+    <Tooltip title={enabled ? t("hideGraph") : t("showGraph")} placement="top">
+      <IconButton size="xs" onClick={onToggle} aria-label={enabled ? t("hideGraph") : t("showGraph")}>
+        <ShowChartIcon fontSize={16} color={enabled ? getPrimaryMain(isDark) : getTextSecondary(isDark)} />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
 function DiscardDialog({ open, onClose, onConfirm, t }: Readonly<{
   open: boolean; onClose: () => void; onConfirm: () => void; t: (key: string) => string;
 }>) {
@@ -65,6 +84,7 @@ export function CodeBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>
   const t = useMarkdownT("MarkdownEditor");
   const isDark = useIsDark();
   const settings = useEditorSettingsContext();
+  const { hideGraph } = useEditorFeaturesContext();
   const { pos, node, rect, updateAttrs, deleteOpen, setDeleteOpen, handleDelete, showToolbar } =
     useBlockChrome(editor, "codeBlock");
 
@@ -121,6 +141,11 @@ export function CodeBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>
 
   const handleEdit = useCallback(() => setEditOpen(true), []);
   const readOnly = !editor?.isEditable;
+  const graphEnabled = !!node?.attrs.graphEnabled;
+  const showGraphToggle = kind === "math" && !hideGraph;
+  const graphToggle = showGraphToggle
+    ? <GraphToggleButton enabled={graphEnabled} onToggle={() => updateAttrs({ graphEnabled: !graphEnabled })} isDark={isDark} t={t} />
+    : undefined;
 
   // embed: variant 切替を保持しつつ url を本文へ反映する（旧 EmbedBlock.handleApply 等価）。
   const handleEmbedApply = useCallback((url: string, nextVariant: EmbedVariant) => {
@@ -160,6 +185,7 @@ export function CodeBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>
             onExport={kind === "diagram" ? handleCapture : undefined}
             onExportSource={kind === "diagram" ? handleExportSource : undefined}
             exportSourceKey={kind === "diagram" ? diagramExportSourceKey : undefined}
+            extra={graphToggle}
             labelDivider
             t={t}
           />
