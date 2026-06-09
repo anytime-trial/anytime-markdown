@@ -7,6 +7,11 @@
  * currentColor で inline 描画する。
  */
 
+import { svgIcon } from "../ui-vanilla/dom";
+
+// svgIcon は ui-vanilla/dom が唯一の定義元。既存 import 互換のため re-export する。
+export { svgIcon } from "../ui-vanilla/dom";
+
 /** Material アイコン SVG path（24x24・ui/icons と同一）。warning のみ複数 path。 */
 export const ICON = {
   drag: "M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2m-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2",
@@ -26,22 +31,6 @@ export const ICON = {
   image: "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2M8.5 13.5l2.5 3.01L14.5 12l4.5 6H5z",
   showChart: "m3.5 18.49 6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z",
 } as const;
-
-/** currentColor で描く inline SVG。複数 path（fragment 相当）にも対応。 */
-export function svgIcon(path: string | readonly string[], size = 16): SVGSVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("width", String(size));
-  svg.setAttribute("height", String(size));
-  svg.setAttribute("fill", "currentColor");
-  svg.setAttribute("aria-hidden", "true");
-  for (const d of Array.isArray(path) ? path : [path]) {
-    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    p.setAttribute("d", d as string);
-    svg.appendChild(p);
-  }
-  return svg;
-}
 
 /**
  * ツールバーの外枠コンテナ（`data-block-toolbar` / role=toolbar / CSS 変数背景）。

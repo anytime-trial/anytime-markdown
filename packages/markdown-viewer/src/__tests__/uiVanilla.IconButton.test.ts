@@ -98,11 +98,14 @@ describe("createIconButton", () => {
     expect(resolved).toBe("rgba(0,0,0,0.04)");
   });
 
-  it("hover / focus / disabled 用の scoped style ルールを注入する", () => {
+  it("hover / focus / disabled 用の共有 style を document.head へ 1 度注入する", () => {
     handle = createIconButton({});
-    const styleEl = handle.el.querySelector("style");
-    expect(styleEl).not.toBeNull();
-    const css = styleEl?.textContent ?? "";
+    // per-instance の <style> は持たず、共有ルール 1 本で全インスタンスをカバーする。
+    expect(handle.el.querySelector("style")).toBeNull();
+    expect(handle.el.dataset.uiIconButton).toBe("");
+    const shared = document.getElementById("am-ui-icon-button-styles");
+    expect(shared).not.toBeNull();
+    const css = shared?.textContent ?? "";
     expect(css).toContain("var(--am-color-action-hover)");
     expect(css).toContain("var(--am-color-primary-main)");
     expect(css).toContain(":focus-visible");
@@ -132,15 +135,11 @@ describe("createIconButton", () => {
     expect(handle.el.style.padding).toBe("8px");
   });
 
-  it("update で children を入れ替え、scoped style は維持する", () => {
+  it("update で children を入れ替える", () => {
     handle = createIconButton({ children: "old" });
-    const styleBefore = handle.el.querySelector("style");
     handle.update({ children: "new" });
     expect(handle.el.querySelector("span")?.textContent).toBe("new");
-    // 旧 span は除去され、style 要素は残存する。
-    const spans = handle.el.querySelectorAll("span");
-    expect(spans.length).toBe(1);
-    expect(handle.el.querySelector("style")).toBe(styleBefore);
+    expect(handle.el.querySelectorAll("span").length).toBe(1);
   });
 
   it("destroy 後はクリックしても onClick が呼ばれない", () => {
@@ -154,10 +153,10 @@ describe("createIconButton", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("destroy で scoped style 要素を除去する", () => {
+  it("共有 style は複数インスタンス生成でも document.head に 1 つだけ", () => {
+    createIconButton({});
+    createIconButton({});
     handle = createIconButton({});
-    expect(handle.el.querySelector("style")).not.toBeNull();
-    handle.destroy();
-    expect(handle.el.querySelector("style")).toBeNull();
+    expect(document.querySelectorAll("#am-ui-icon-button-styles").length).toBe(1);
   });
 });

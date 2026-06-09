@@ -5,9 +5,12 @@
  * focus リング・サイズ別パディングを CSS 変数（`--am-color-*` / applyEditorThemeCssVars 注入）
  * で再現し、useIsDark 等の React テーマ API に依存しない。
  *
- * `chrome/vanillaToolbar.ts` のパターン（cssText + CSS 変数 + addEventListener）に従う。
- * SVG アイコンは `svgIcon()` ヘルパを利用して inline 埋め込みできる。
+ * hover / focus-visible / disabled の pseudo-class は inline style で書けないため、`document.head`
+ * へ 1 度だけ注入する共有ルール（`button[data-ui-icon-button]`）で表現する（インスタンス毎の
+ * `<style>` 注入はしない）。SVG アイコンは `svgIcon()`（./dom）で inline 埋め込みできる。
  */
+
+import { appendContent, type VanillaContent } from "./dom";
 
 /** IconButton のサイズ。パディングでサイズが決まる（アイコン寸法は children 側が決定）。 */
 export type IconButtonSize = "xs" | "compact" | "small" | "medium";
@@ -22,6 +25,20 @@ const SIZE_PADDING: Record<IconButtonSize, string> = {
 
 const TRANSITION =
   "background-color var(--am-duration-fast) var(--am-ease-standard)";
+
+/** hover / focus-visible / disabled の共有ルールを document.head へ 1 度だけ注入する。 */
+const SHARED_STYLE_ID = "am-ui-icon-button-styles";
+function ensureIconButtonStyles(): void {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(SHARED_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = SHARED_STYLE_ID;
+  style.textContent =
+    "button[data-ui-icon-button]:hover:not(:disabled){background:var(--am-color-action-hover);}" +
+    "button[data-ui-icon-button]:disabled{opacity:0.5;cursor:default;}" +
+    "button[data-ui-icon-button]:focus-visible{outline:2px solid var(--am-color-primary-main);outline-offset:1px;}";
+  document.head.appendChild(style);
+}
 
 /** 円形 IconButton のオプション。 */
 export interface CreateIconButtonOptions {
@@ -40,15 +57,9 @@ export interface CreateIconButtonOptions {
   /** data-testid 属性。 */
   testId?: string;
   /** 中身。string は span でラップ、Node はそのまま追加、配列は順に追加。 */
-  children?: string | Node | readonly (string | Node)[];
+  children?: VanillaContent;
   /** クリックハンドラ。 */
   onClick?: (e: MouseEvent) => void;
-}
-
-interface ListenerEntry {
-  type: string;
-  handler: EventListener;
-  options?: AddEventListenerOptions | boolean;
 }
 
 /** IconButton ファクトリの戻り値。 */
@@ -57,26 +68,8 @@ export interface IconButtonHandle {
   el: HTMLButtonElement;
   /** 可変プロパティ（disabled / ariaLabel / title / size / children）の更新。 */
   update: (opts: Partial<CreateIconButtonOptions>) => void;
-  /** event listener 削除・children クリア。 */
+  /** event listener 削除。 */
   destroy: () => void;
-}
-
-function appendChildren(
-  el: HTMLElement,
-  children: string | Node | readonly (string | Node)[],
-): void {
-  const list = Array.isArray(children)
-    ? children
-    : [children as string | Node];
-  for (const child of list) {
-    if (typeof child === "string") {
-      const span = document.createElement("span");
-      span.textContent = child;
-      el.appendChild(span);
-    } else {
-      el.appendChild(child as Node);
-    }
-  }
 }
 
 function applySize(el: HTMLButtonElement, size: IconButtonSize): void {
@@ -90,15 +83,14 @@ function applySize(el: HTMLButtonElement, size: IconButtonSize): void {
 export function createIconButton(
   opts: CreateIconButtonOptions = {},
 ): IconButtonHandle {
+  ensureIconButtonStyles();
   const el = document.createElement("button");
   const size: IconButtonSize = opts.size ?? "medium";
-  const type = opts.type ?? "button";
 
-  el.type = type;
+  el.type = opts.type ?? "button";
   el.dataset.uiIconButton = "";
 
-  // 基本スタイル（ui/IconButton.module.css 相当）。hover / focus-visible / disabled は
-  // CSS 変数を参照する一つの <style> ルールで表現する（pseudo-class は cssText 不可のため）。
+  // 基本スタイル（ui/IconButton.module.css 相当）。pseudo-class は共有 <style> 側で再現。
   el.style.cssText =
     "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;" +
     "border:none;border-radius:50%;background:transparent;color:inherit;cursor:pointer;" +
@@ -110,58 +102,33 @@ export function createIconButton(
   if (opts.title !== undefined) el.title = opts.title;
   if (opts.testId !== undefined) el.setAttribute("data-testid", opts.testId);
   if (opts.disabled) el.disabled = true;
-  if (opts.children !== undefined) appendChildren(el, opts.children);
+  if (opts.children !== undefined) appendContent(el, opts.children);
 
-  // hover / focus-visible / disabled の見た目を CSS 変数で再現する。
-  // pseudo-class は inline style で書けないため、ボタン自身に紐づく <style> を注入する。
-  const styleEl = document.createElement("style");
-  const scopeAttr = "data-ui-icon-button-scope";
-  const scopeId = `am-iconbtn-${Math.random().toString(36).slice(2)}`;
-  el.setAttribute(scopeAttr, scopeId);
-  styleEl.textContent =
-    `button[${scopeAttr}="${scopeId}"]:hover:not(:disabled){background:var(--am-color-action-hover);}` +
-    `button[${scopeAttr}="${scopeId}"]:disabled{opacity:0.5;cursor:default;}` +
-    `button[${scopeAttr}="${scopeId}"]:focus-visible{outline:2px solid var(--am-color-primary-main);outline-offset:1px;}`;
-  el.appendChild(styleEl);
-
-  const listeners: ListenerEntry[] = [];
-  function on(
-    eventType: string,
-    handler: EventListener,
-    options?: AddEventListenerOptions | boolean,
-  ): void {
-    el.addEventListener(eventType, handler, options);
-    listeners.push({ type: eventType, handler, options });
-  }
-
-  if (opts.onClick) {
-    on("click", opts.onClick as EventListener);
-  }
+  let clickHandler = opts.onClick;
+  if (clickHandler) el.addEventListener("click", clickHandler as EventListener);
 
   function update(next: Partial<CreateIconButtonOptions>): void {
     if (next.disabled !== undefined) el.disabled = next.disabled;
     if (next.ariaLabel !== undefined) el.setAttribute("aria-label", next.ariaLabel);
     if (next.title !== undefined) el.title = next.title;
     if (next.size !== undefined) applySize(el, next.size);
-    if (next.className !== undefined) {
-      el.className = next.className;
-      el.setAttribute(scopeAttr, scopeId);
-    }
+    if (next.className !== undefined) el.className = next.className;
     if (next.children !== undefined) {
-      // 既存 children（style 要素を除く）を除去して入れ替える。
-      for (const node of [...el.childNodes]) {
-        if (node !== styleEl) el.removeChild(node);
-      }
-      appendChildren(el, next.children);
+      el.replaceChildren();
+      appendContent(el, next.children);
+    }
+    if (next.onClick !== undefined) {
+      if (clickHandler) el.removeEventListener("click", clickHandler as EventListener);
+      clickHandler = next.onClick;
+      if (clickHandler) el.addEventListener("click", clickHandler as EventListener);
     }
   }
 
   function destroy(): void {
-    for (const { type: t, handler, options } of listeners) {
-      el.removeEventListener(t, handler, options);
+    if (clickHandler) {
+      el.removeEventListener("click", clickHandler as EventListener);
+      clickHandler = undefined;
     }
-    listeners.length = 0;
-    styleEl.remove();
   }
 
   return { el, update, destroy };

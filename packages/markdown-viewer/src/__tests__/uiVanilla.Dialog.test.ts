@@ -11,7 +11,7 @@ import {
   createDialogContent,
   createDialogContentText,
   createDialogTitle,
-  useDialogTitleId,
+  nextDialogTitleId,
 } from "../ui-vanilla/Dialog";
 
 describe("ui-vanilla/Dialog", () => {
@@ -290,17 +290,17 @@ describe("ui-vanilla/Dialog", () => {
     });
   });
 
-  describe("useDialogTitleId", () => {
+  describe("nextDialogTitleId", () => {
     it("呼ぶたびに一意の id 文字列を返す", () => {
-      const a = useDialogTitleId();
-      const b = useDialogTitleId();
+      const a = nextDialogTitleId();
+      const b = nextDialogTitleId();
       expect(typeof a).toBe("string");
       expect(a).not.toBe("");
       expect(a).not.toBe(b);
     });
 
     it("生成した id を title / dialog の aria-labelledby 連携に使える", () => {
-      const id = useDialogTitleId();
+      const id = nextDialogTitleId();
       const { el: titleEl } = createDialogTitle({ id, children: "見出し" });
       const { paper, destroy } = createDialog({ onClose: () => {}, labelledBy: id });
       expect(titleEl.id).toBe(id);

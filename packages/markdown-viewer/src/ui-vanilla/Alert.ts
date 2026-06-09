@@ -11,7 +11,7 @@
  * addEventListener パターンに揃える。
  */
 
-import { svgIcon } from "../chrome/vanillaToolbar";
+import { appendContent, svgIcon, type VanillaContent } from "./dom";
 
 export type AlertSeverity = "success" | "error";
 
@@ -56,8 +56,8 @@ const CLOSE_CSS =
 export interface CreateAlertOptions {
   /** 通知種別。既定 "success"。背景色（success/error-main）を決める。 */
   severity?: AlertSeverity;
-  /** メッセージ本文。string は textContent、Node はそのまま、配列は順に追加。 */
-  children?: string | Node | readonly (string | Node)[];
+  /** メッセージ本文。string は span、Node はそのまま、配列は順に追加。 */
+  children?: VanillaContent;
   /** close ボタンのハンドラ。指定時のみ close ボタンを描画する。 */
   onClose?: () => void;
   /** 追加クラス名（root に付与）。 */
@@ -76,21 +76,6 @@ export interface AlertHandle {
   destroy: () => void;
 }
 
-function appendChildren(
-  el: HTMLElement,
-  children: string | Node | readonly (string | Node)[],
-): void {
-  const list = Array.isArray(children)
-    ? children
-    : [children as string | Node];
-  for (const child of list) {
-    if (typeof child === "string") {
-      el.appendChild(document.createTextNode(child));
-    } else {
-      el.appendChild(child as Node);
-    }
-  }
-}
 
 /**
  * MUI Alert(filled) の置換（vanilla）。snackbar 通知用に severity 色地・白文字。
@@ -127,7 +112,7 @@ export function createAlert(opts: CreateAlertOptions = {}): AlertHandle {
   // メッセージ枠（.message）。
   const messageEl = document.createElement("span");
   messageEl.style.cssText = MESSAGE_CSS;
-  if (opts.children !== undefined) appendChildren(messageEl, opts.children);
+  if (opts.children !== undefined) appendContent(messageEl, opts.children);
   el.appendChild(messageEl);
 
   // close ボタン（.close）。onClose 指定時のみ描画する。
@@ -152,7 +137,7 @@ export function createAlert(opts: CreateAlertOptions = {}): AlertHandle {
     if (next.className !== undefined) el.className = next.className;
     if (next.children !== undefined) {
       for (const node of [...messageEl.childNodes]) messageEl.removeChild(node);
-      appendChildren(messageEl, next.children);
+      appendContent(messageEl, next.children);
     }
   }
 

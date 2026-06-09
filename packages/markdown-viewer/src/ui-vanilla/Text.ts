@@ -9,6 +9,8 @@
  * vanillaToolbar.ts のパターン（cssText + addEventListener + attribute API）に整合させる。
  */
 
+import { appendContent } from "./dom";
+
 /** Text の variant（MUI Typography scale のサブセット）。 */
 export type TextVariant =
   | "h6"
@@ -86,21 +88,12 @@ export interface TextHandle {
   destroy: () => void;
 }
 
-/** children を root へ展開して追加する。string は textNode、Node はそのまま append。 */
+/** children を root へ展開（共有 {@link appendContent}（./dom）へ委譲）。 */
 function appendChildren(
   el: HTMLElement,
   children: TextChild | readonly TextChild[],
 ): void {
-  const list: readonly TextChild[] = Array.isArray(children)
-    ? children
-    : [children];
-  for (const child of list) {
-    if (typeof child === "string") {
-      el.appendChild(document.createTextNode(child));
-    } else {
-      el.appendChild(child);
-    }
-  }
+  appendContent(el, children);
 }
 
 /** variant / gutterBottom / noWrap / 追加 style から cssText を組み立てる。 */

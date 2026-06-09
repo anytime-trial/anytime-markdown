@@ -5,6 +5,14 @@
  */
 
 export {
+  appendContent,
+  applyStyle,
+  FOCUSABLE,
+  svgIcon,
+  type VanillaContent,
+} from "./dom";
+
+export {
   createButton,
   type ButtonColor,
   type ButtonSize,
@@ -47,11 +55,9 @@ export {
   createDialogContentText,
   createDialogTitle,
   nextDialogTitleId,
-  useDialogTitleId,
   type CreateDialogActionsOptions,
   type CreateDialogContentOptions,
   type CreateDialogContentTextOptions,
   type CreateDialogOptions,
   type CreateDialogTitleOptions,
-  type VanillaContent,
 } from "./Dialog";

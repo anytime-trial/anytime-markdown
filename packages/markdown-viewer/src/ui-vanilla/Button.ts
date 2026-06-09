@@ -8,6 +8,8 @@
  * パターンに揃える。
  */
 
+import { appendContent, type VanillaContent } from "./dom";
+
 export type ButtonVariant = "text" | "outlined" | "contained";
 export type ButtonColor = "primary" | "error" | "inherit";
 export type ButtonSize = "small" | "medium";
@@ -17,7 +19,7 @@ export interface CreateButtonOptions {
   /** ボタン内のテキスト。children と併用する場合は startIcon → label の順に並ぶ。 */
   label?: string;
   /** 任意のコンテンツ。string は span、Node はそのまま、配列は順に追加する。 */
-  children?: string | Node | readonly (string | Node)[];
+  children?: VanillaContent;
   /** 先頭アイコン（label / children の前に配置）。 */
   startIcon?: Node;
   variant?: ButtonVariant;
@@ -67,12 +69,11 @@ function variantColorCss(variant: ButtonVariant, color: ButtonColor): string {
     );
   }
   if (variant === "outlined") {
+    // inherit と primary は同じ text-primary 色（error のみ別）。
     const c =
       color === "error"
         ? "color:var(--am-color-error-main);"
-        : color === "inherit"
-          ? "color:var(--am-color-text-primary);"
-          : "color:var(--am-color-text-primary);";
+        : "color:var(--am-color-text-primary);";
     return (
       "background:transparent;border-color:var(--am-color-divider);" + c
     );
@@ -85,24 +86,6 @@ function variantColorCss(variant: ButtonVariant, color: ButtonColor): string {
     return "background:transparent;color:var(--am-color-text-primary);";
   }
   return "background:transparent;color:var(--am-color-primary-main);";
-}
-
-function appendChildren(
-  el: HTMLElement,
-  children: string | Node | readonly (string | Node)[],
-): void {
-  const list = Array.isArray(children)
-    ? children
-    : [children as string | Node];
-  for (const child of list) {
-    if (typeof child === "string") {
-      const span = document.createElement("span");
-      span.textContent = child;
-      el.appendChild(span);
-    } else {
-      el.appendChild(child as Node);
-    }
-  }
 }
 
 /**
@@ -122,10 +105,10 @@ export function createButton(opts: CreateButtonOptions = {}): {
   const el = document.createElement("button");
   el.type = opts.buttonType ?? "button";
 
-  const applyStyle = (v: ButtonVariant, c: ButtonColor, s: ButtonSize) => {
+  const applyVariant = (v: ButtonVariant, c: ButtonColor, s: ButtonSize) => {
     el.style.cssText = BASE_CSS + SIZE_CSS[s] + variantColorCss(v, c);
   };
-  applyStyle(variant, color, size);
+  applyVariant(variant, color, size);
   el.setAttribute("data-variant", variant);
   el.setAttribute("data-color", color);
   el.setAttribute("data-size", size);
@@ -143,7 +126,7 @@ export function createButton(opts: CreateButtonOptions = {}): {
     span.textContent = opts.label;
     el.appendChild(span);
   }
-  if (opts.children) appendChildren(el, opts.children);
+  if (opts.children) appendContent(el, opts.children);
 
   let clickHandler = opts.onClick;
   if (clickHandler) el.addEventListener("click", clickHandler);
@@ -159,7 +142,7 @@ export function createButton(opts: CreateButtonOptions = {}): {
         next.color !== undefined ||
         next.size !== undefined
       ) {
-        applyStyle(v, c, s);
+        applyVariant(v, c, s);
         el.setAttribute("data-variant", v);
         el.setAttribute("data-color", c);
         el.setAttribute("data-size", s);
