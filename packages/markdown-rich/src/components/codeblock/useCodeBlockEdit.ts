@@ -72,16 +72,15 @@ export function useCodeBlockEdit(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editOpen]);
 
-  const onFsCodeChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const v = e.target.value;
-    setFsCode(v);
-    setFsDirty(v !== originalCodeRef.current);
-  }, []);
-
   const onFsTextChange = useCallback((v: string) => {
     setFsCode(v);
     setFsDirty(v !== originalCodeRef.current);
   }, []);
+
+  const onFsCodeChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => onFsTextChange(e.target.value),
+    [onFsTextChange],
+  );
 
   const onApply = useCallback(() => {
     if (!editor || pos < 0 || !node) return;

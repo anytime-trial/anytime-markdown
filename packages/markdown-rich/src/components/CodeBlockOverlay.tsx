@@ -8,7 +8,6 @@ import {
   BlockChromeAnchor,
   BlockInlineToolbar,
   buildEmbedInfoString,
-  DEFAULT_EMBED_BASELINE,
   DeleteBlockDialog,
   EmbedEditDialog,
   type EmbedVariant,
@@ -29,6 +28,7 @@ import { ShowChartIcon } from "@anytime-markdown/markdown-viewer/src/ui/icons";
 
 import { classifyCodeBlock, CODE_BLOCK_EDIT_INTENT_EVENT } from "./codeblock/CodeBlockBlockContent";
 import { applySelectionCollapse, codeBlockToolbarLabel, firstNonEmptyLine } from "./codeblock/codeBlockOverlayHelpers";
+import { parseBaseline } from "./codeblock/embedPreviewMount";
 import { applyCodeBlockText, useCodeBlockEdit } from "./codeblock/useCodeBlockEdit";
 import { HTML_SANITIZE_CONFIG } from "./codeblock/types";
 import { CodeBlockEditDialog } from "./CodeBlockEditDialog";
@@ -149,11 +149,8 @@ export function CodeBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>
 
   // embed: variant 切替を保持しつつ url を本文へ反映する（旧 EmbedBlock.handleApply 等価）。
   const handleEmbedApply = useCallback((url: string, nextVariant: EmbedVariant) => {
-    const parsed = parseEmbedInfoString(language);
-    const baseline = parsed
-      ? { rssFeedUrl: parsed.rssFeedUrl, baselineRssGuid: parsed.baselineRssGuid, baselineOgpHash: parsed.baselineOgpHash, rssChecked: parsed.rssChecked }
-      : { ...DEFAULT_EMBED_BASELINE };
-    updateAttrs({ language: buildEmbedInfoString(nextVariant, parsed?.width ?? null, baseline) });
+    const width = parseEmbedInfoString(language)?.width ?? null;
+    updateAttrs({ language: buildEmbedInfoString(nextVariant, width, parseBaseline(language)) });
     if (editor && pos >= 0 && node) applyCodeBlockText(editor, pos, node.content.size, url);
     setEditOpen(false);
   }, [editor, pos, node, language, updateAttrs]);

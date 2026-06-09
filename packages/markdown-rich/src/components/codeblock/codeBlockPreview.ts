@@ -18,7 +18,7 @@ import { extractDiagramAltText } from "../../utils/diagramAltText";
  * を呼んで再描画させる。
  */
 
-export interface PreviewRenderContext {
+interface PreviewRenderContext {
   isDark: boolean;
   /** SVG フォントスケール用のエディタフォントサイズ(px)。 */
   fontSize: number;
@@ -132,25 +132,24 @@ export function renderCodeBlockPreview(
     innerEl.replaceChildren();
     return () => {};
   }
-  if (language === "html") {
-    renderHtml(innerEl, code);
-    innerEl.setAttribute("aria-label", "HTML preview");
-    return () => {};
+  switch (language) {
+    case "html":
+      renderHtml(innerEl, code);
+      innerEl.setAttribute("aria-label", "HTML preview");
+      return () => {};
+    case "math":
+      innerEl.setAttribute("aria-label", `Math: ${code}`);
+      return renderMath(innerEl, code);
+    case "mermaid":
+      innerEl.setAttribute("role", "img");
+      innerEl.setAttribute("aria-label", extractDiagramAltText(code, "mermaid"));
+      return renderMermaid(innerEl, code, ctx);
+    case "plantuml":
+      innerEl.setAttribute("role", "img");
+      renderPlantUml(innerEl, code, ctx, requestRerender);
+      return () => {};
+    default:
+      innerEl.replaceChildren();
+      return () => {};
   }
-  if (language === "math") {
-    innerEl.setAttribute("aria-label", `Math: ${code}`);
-    return renderMath(innerEl, code);
-  }
-  if (language === "mermaid") {
-    innerEl.setAttribute("role", "img");
-    innerEl.setAttribute("aria-label", extractDiagramAltText(code, "mermaid"));
-    return renderMermaid(innerEl, code, ctx);
-  }
-  if (language === "plantuml") {
-    innerEl.setAttribute("role", "img");
-    renderPlantUml(innerEl, code, ctx, requestRerender);
-    return () => {};
-  }
-  innerEl.replaceChildren();
-  return () => {};
 }

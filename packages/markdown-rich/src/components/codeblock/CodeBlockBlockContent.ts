@@ -77,6 +77,7 @@ export function createCodeBlockNodeView(
   let kind = classifyCodeBlock(node.attrs.language);
   let previewCancel: () => void = () => {};
   let renderedKey = "";
+  let graphKey = "";
   let embedMount: EmbedMountHandle | null = null;
   let graphMount: GraphMountHandle | null = null;
 
@@ -179,15 +180,20 @@ export function createCodeBlockNodeView(
   };
 
   // math グラフの mount/unmount を graphEnabled 属性から駆動する。
+  // code 変化時のみ再 render する（update 毎の不要な React reconcile・getComputedStyle を回避）。
   const applyGraph = (): void => {
-    if (kind === "math" && !!currentNode.attrs.graphEnabled) {
-      if (!graphMount) graphMount = mountGraphPreview(graphEl);
-      graphMount.render(currentNode.textContent, true, isEditorDark());
-      graphEl.style.display = "";
-    } else {
+    if (kind !== "math" || !currentNode.attrs.graphEnabled) {
       disposeGraph();
       graphEl.style.display = "none";
+      graphKey = "";
+      return;
     }
+    const codeText = currentNode.textContent;
+    if (graphMount && graphKey === codeText) return;
+    graphKey = codeText;
+    if (!graphMount) graphMount = mountGraphPreview(graphEl);
+    graphMount.render(codeText, true, isEditorDark());
+    graphEl.style.display = "";
   };
 
   const requestRerender = (): void => { renderedKey = ""; renderPreview(); };
@@ -220,12 +226,11 @@ export function createCodeBlockNodeView(
   }
 
   // --- 幅・折畳み・枠線の反映 ---
-  const storedWidth = (): string => {
-    if (kind === "embed") return getEmbedStoredWidth(String(currentNode.attrs.language ?? "")) ?? "";
-    return (currentNode.attrs.width as string | null) || "";
-  };
   const applyWidth = (): void => {
-    const w = draftWidth != null ? `${draftWidth}px` : storedWidth();
+    const stored = kind === "embed"
+      ? getEmbedStoredWidth(String(currentNode.attrs.language ?? "")) ?? ""
+      : (currentNode.attrs.width as string | null) || "";
+    const w = draftWidth != null ? `${draftWidth}px` : stored;
     previewEl.style.width = w || "fit-content";
   };
 

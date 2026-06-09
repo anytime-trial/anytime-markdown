@@ -26,7 +26,8 @@ export interface EmbedMountHandle {
   destroy(): void;
 }
 
-function parseBaseline(language: string): EmbedBaseline {
+/** language(info string) から EmbedBaseline を取り出す（未解析は既定）。 */
+export function parseBaseline(language: string): EmbedBaseline {
   const parsed = parseEmbedInfoString(language);
   if (!parsed) return { ...DEFAULT_EMBED_BASELINE };
   return {
