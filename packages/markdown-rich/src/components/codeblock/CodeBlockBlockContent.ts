@@ -3,6 +3,15 @@ import type { NodeView } from "@anytime-markdown/markdown-pm/view";
 import { PREVIEW_MAX_HEIGHT } from "@anytime-markdown/markdown-viewer";
 
 import { renderCodeBlockPreview } from "./codeBlockPreview";
+import {
+  buildEmbedBaselineLanguage,
+  buildEmbedWidthLanguage,
+  type EmbedMountHandle,
+  getEmbedStoredWidth,
+  isEmbedResizable,
+  mountEmbedPreview,
+} from "./embedPreviewMount";
+import type { EmbedBaseline } from "@anytime-markdown/markdown-viewer";
 
 /**
  * codeBlock（CodeBlockWithMermaid）の content-only native NodeView（React 非依存）。
@@ -74,6 +83,7 @@ export function createCodeBlockNodeView(
   let kind = classifyCodeBlock(node.attrs.language);
   let previewCancel: () => void = () => {};
   let renderedKey = "";
+  let embedMount: EmbedMountHandle | null = null;
 
   // resize 状態
   let resizing = false;
@@ -151,9 +161,21 @@ export function createCodeBlockNodeView(
   dom.addEventListener("dblclick", onDoubleClick);
 
   // --- プレビュー描画 ---
+  const onBaselineWrite = (baseline: EmbedBaseline): void => {
+    const pos = safeGetPos(getPos);
+    if (pos == null || !editor) return;
+    const nextLang = buildEmbedBaselineLanguage(String(currentNode.attrs.language ?? ""), baseline);
+    editor.chain().command(({ tr }) => { tr.setNodeAttribute(pos, "language", nextLang); return true; }).run();
+  };
+
+  const disposeEmbed = (): void => {
+    if (embedMount) { embedMount.destroy(); embedMount = null; }
+  };
+
   const requestRerender = (): void => { renderedKey = ""; renderPreview(); };
   function renderPreview(): void {
-    if (kind === "regular" || kind === "embed") {
+    if (kind === "regular") {
+      disposeEmbed();
       previewInner.replaceChildren();
       return;
     }
@@ -163,6 +185,15 @@ export function createCodeBlockNodeView(
     if (key === renderedKey) return;
     renderedKey = key;
     previewCancel();
+    previewCancel = () => {};
+
+    if (kind === "embed") {
+      if (!embedMount) embedMount = mountEmbedPreview(previewInner);
+      embedMount.render(lang, codeText, getEmbedStoredWidth(lang) ?? undefined, onBaselineWrite);
+      return;
+    }
+    // 他種別へ切替わったら embed の React root を解放する。
+    disposeEmbed();
     previewCancel = renderCodeBlockPreview(
       previewInner, lang, codeText,
       { isDark: isEditorDark(), fontSize: getEditorFontSize(), t },
@@ -171,8 +202,12 @@ export function createCodeBlockNodeView(
   }
 
   // --- 幅・折畳み・枠線の反映 ---
+  const storedWidth = (): string => {
+    if (kind === "embed") return getEmbedStoredWidth(String(currentNode.attrs.language ?? "")) ?? "";
+    return (currentNode.attrs.width as string | null) || "";
+  };
   const applyWidth = (): void => {
-    const w = draftWidth != null ? `${draftWidth}px` : ((currentNode.attrs.width as string | null) || "");
+    const w = draftWidth != null ? `${draftWidth}px` : storedWidth();
     previewEl.style.width = w || "fit-content";
   };
 
@@ -184,7 +219,8 @@ export function createCodeBlockNodeView(
     frame.style.borderColor = collapsed ? "transparent" : "var(--am-color-divider)";
     previewEl.style.display = isPreview ? "" : "none";
     previewEl.style.borderTop = isPreview && !collapsed ? "1px solid var(--am-color-divider)" : "none";
-    const canResize = isPreview && kind !== "embed" && !collapsed && !!editor?.isEditable;
+    const resizableKind = kind === "embed" ? isEmbedResizable(String(currentNode.attrs.language ?? "")) : true;
+    const canResize = isPreview && resizableKind && !collapsed && !!editor?.isEditable;
     resizeGrip.style.display = canResize ? "block" : "none";
     applyWidth();
   };
@@ -193,6 +229,11 @@ export function createCodeBlockNodeView(
   const commitWidth = (w: number): void => {
     const pos = safeGetPos(getPos);
     if (pos == null || !editor) return;
+    if (kind === "embed") {
+      const nextLang = buildEmbedWidthLanguage(String(currentNode.attrs.language ?? ""), `${w}px`);
+      editor.chain().command(({ tr }) => { tr.setNodeAttribute(pos, "language", nextLang); return true; }).run();
+      return;
+    }
     editor.chain().command(({ tr }) => { tr.setNodeAttribute(pos, "width", `${w}px`); return true; }).run();
   };
   const updateBadge = (): void => {
@@ -258,6 +299,7 @@ export function createCodeBlockNodeView(
     },
     destroy() {
       previewCancel();
+      disposeEmbed();
       previewEl.removeEventListener("click", onPreviewClick);
       dom.removeEventListener("dblclick", onDoubleClick);
       resizeGrip.removeEventListener("pointerdown", onGripPointerDown);

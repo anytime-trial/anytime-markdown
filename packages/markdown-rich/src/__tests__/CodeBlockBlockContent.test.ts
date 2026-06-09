@@ -2,6 +2,17 @@
  * CodeBlockBlockContent.ts — content-only native NodeView のテスト（S2a 骨格）。
  * 編集 chrome は CodeBlockOverlay 側で検証する（S3）。
  */
+const mockEmbedRender = jest.fn();
+const mockEmbedDestroy = jest.fn();
+const mockMountEmbedPreview = jest.fn(() => ({ render: mockEmbedRender, destroy: mockEmbedDestroy }));
+jest.mock("../components/codeblock/embedPreviewMount", () => ({
+  mountEmbedPreview: (...args: unknown[]) => mockMountEmbedPreview(...(args as [])),
+  isEmbedResizable: jest.fn(() => true),
+  getEmbedStoredWidth: jest.fn(() => null),
+  buildEmbedWidthLanguage: jest.fn((_lang: string, w: string) => `embed card ${w}`),
+  buildEmbedBaselineLanguage: jest.fn((lang: string) => lang),
+}));
+
 import {
   classifyCodeBlock,
   createCodeBlockNodeView,
@@ -179,5 +190,39 @@ describe("createCodeBlockNodeView (native content NodeView)", () => {
     grip.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 120 }));
     grip.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
     expect(view.__setNodeAttribute).toHaveBeenCalledWith(4, "width", "120px");
+  });
+
+  describe("embed", () => {
+    beforeEach(() => {
+      mockEmbedRender.mockClear();
+      mockEmbedDestroy.mockClear();
+      mockMountEmbedPreview.mockClear();
+    });
+
+    it("EmbedNodeView をマウントして描画する", () => {
+      makeView({ language: "embed card", codeCollapsed: false, text: "https://x" });
+      expect(mockMountEmbedPreview).toHaveBeenCalledTimes(1);
+      expect(mockEmbedRender).toHaveBeenCalledTimes(1);
+      const [lang, body, width, onWrite] = mockEmbedRender.mock.calls[0];
+      expect(lang).toBe("embed card");
+      expect(body).toBe("https://x");
+      expect(width).toBeUndefined();
+      expect(typeof onWrite).toBe("function");
+    });
+
+    it("リサイズは language へ width を書き戻す", () => {
+      const view = makeView({ language: "embed card", codeCollapsed: false, text: "https://x" }, { isEditable: true, pos: 7 });
+      const grip = gripOf(view);
+      grip.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 0 }));
+      grip.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 90 }));
+      grip.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+      expect(view.__setNodeAttribute).toHaveBeenCalledWith(7, "language", "embed card 90px");
+    });
+
+    it("destroy で embed root を解放する", () => {
+      const view = makeView({ language: "embed card", codeCollapsed: false, text: "https://x" });
+      view.destroy();
+      expect(mockEmbedDestroy).toHaveBeenCalled();
+    });
   });
 });
