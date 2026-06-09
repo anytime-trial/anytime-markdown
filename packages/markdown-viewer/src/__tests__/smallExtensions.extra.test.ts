@@ -46,7 +46,7 @@ describe("CustomTable (tableExtension)", () => {
     expect(attrs.collapsed).toEqual({ default: false, rendered: false });
   });
 
-  it("does not override addNodeView (uses the base native TableView; chrome is in TableBlockOverlay)", () => {
+  it("does not override addNodeView (uses the base native TableView; chrome is in tableBlockChrome/TableDialogHost)", () => {
     expect(CustomTable.config.addNodeView).toBeUndefined();
   });
 

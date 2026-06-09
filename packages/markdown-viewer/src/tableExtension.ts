@@ -32,7 +32,8 @@ export const CustomTable = Table.extend<CustomTableOptions>({
 
   // addNodeView は上書きしない。基底 tiptap Table の native TableView
   // （columnResizing 経由）が content（セル編集・列リサイズ）を描画する。
-  // 編集 chrome（ツールバー・スプレッドシート編集）は TableBlockOverlay が供給する。
+  // 編集 chrome は脱React の createTableBlockChrome（ツールバー）と TableDialogHost
+  // （スプレッドシート編集ダイアログ・React host）が供給する。
 
   addProseMirrorPlugins() {
     const parentPlugins = this.parent?.() ?? [];

@@ -29,7 +29,7 @@ import { EditorErrorBoundary } from "./components/EditorErrorBoundary";
 import { EditorFooterOverlays } from "./components/EditorFooterOverlays";
 import { GifDialogHost } from "./components/GifDialogHost";
 import { ImageDialogHost } from "./components/ImageDialogHost";
-import { TableBlockOverlay } from "./components/TableBlockOverlay";
+import { TableDialogHost } from "./components/TableDialogHost";
 import { EditorMainContent } from "./components/EditorMainContent";
 import { EditorToolbarSection } from "./components/EditorToolbarSection";
 import { ReadonlyToolbar } from "./components/ReadonlyToolbar";
@@ -712,7 +712,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
 
       <GifDialogHost editor={editor} />
       <ImageDialogHost editor={editor} />
-      <TableBlockOverlay editor={editor} />
+      <TableDialogHost editor={editor} />
       {codeBlockOverlay?.(editor)}
 
       <EditorFooterOverlays
