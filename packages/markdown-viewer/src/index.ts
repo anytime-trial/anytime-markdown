@@ -65,6 +65,7 @@ export type { BlockInlineToolbarProps } from './components/codeblock/BlockInline
 export { BlockInlineToolbar } from './components/codeblock/BlockInlineToolbar';
 export { BlockChromeAnchor } from './components/BlockChromeAnchor';
 export { DeleteBlockDialog } from './components/codeblock/DeleteBlockDialog';
+export { DiscardDialog } from './components/codeblock/DiscardDialog';
 export { EditDialogHeader } from './components/EditDialogHeader';
 export { EditDialogWrapper } from './components/EditDialogWrapper';
 export { EmbedEditDialog } from './components/EmbedEditDialog';

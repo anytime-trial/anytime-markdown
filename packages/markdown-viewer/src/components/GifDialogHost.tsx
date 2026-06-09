@@ -32,12 +32,15 @@ export function GifDialogHost({ editor }: Readonly<{ editor: Editor | null }>) {
   const targetPosRef = useRef(-1);
   // VS Code 保存の待機（requestId と保存先 pos の対）。
   const pendingSaveRef = useRef<{ id: string; pos: number } | null>(null);
+  // useMarkdownT は毎レンダー新しい関数を返すため、chrome 再生成を避けるよう ref で最新化する。
+  const tRef = useRef(t);
+  tRef.current = t;
 
   // --- vanilla chrome（選択追従 + ツールバー）を生成し intent を購読 ---
   useEffect(() => {
     if (!editor) return;
     const destroy = createGifBlockChrome(editor, {
-      t,
+      t: (k) => tRef.current(k),
       onEdit: (pos, { src, settings }) => {
         targetPosRef.current = pos;
         if (src) {
@@ -58,7 +61,7 @@ export function GifDialogHost({ editor }: Readonly<{ editor: Editor | null }>) {
       },
     });
     return destroy;
-  }, [editor, t]);
+  }, [editor]);
 
   const handleDelete = useCallback(() => {
     if (editor) deleteBlockAt(editor, targetPosRef.current);

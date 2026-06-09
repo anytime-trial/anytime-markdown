@@ -5,11 +5,11 @@ import { createBlockChromeAnchor, createSelectedBlockTracker } from "./blockChro
 import {
   ICON,
   createToolbarContainer,
+  mkButtonGroup,
   mkDragHandle,
   mkIconButton,
   mkLabel,
   mkSpacer,
-  svgIcon,
 } from "./vanillaToolbar";
 
 /**
@@ -22,73 +22,31 @@ import {
  * 受けて表示する。スプレッドシート編集中はツールバーを抑制する（`setEditing(true)`）。
  */
 
-/** 操作ボタン（任意でバッジ・回転）。色は currentColor（text-secondary）。 */
-function opButton(
-  label: string,
-  iconPath: string,
-  onClick: () => void,
-  opts: { badge?: string; badgeError?: boolean; rotate?: number } = {},
-): HTMLButtonElement {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.setAttribute("aria-label", label);
-  b.title = label;
-  b.style.cssText =
-    "display:inline-flex;align-items:center;justify-content:center;padding:3px;" +
-    "border:none;background:transparent;cursor:pointer;color:var(--am-color-text-secondary);";
-  const wrap = document.createElement("span");
-  wrap.style.cssText = "position:relative;display:inline-flex;line-height:0;";
-  const icon = svgIcon(iconPath);
-  if (opts.rotate) icon.style.transform = `rotate(${opts.rotate}deg)`;
-  wrap.appendChild(icon);
-  if (opts.badge) {
-    const badge = document.createElement("span");
-    badge.textContent = opts.badge;
-    badge.style.cssText =
-      "position:absolute;top:-4px;right:-4px;font-size:9px;font-weight:700;line-height:1;" +
-      (opts.badgeError ? "color:var(--am-color-error-main);" : "color:var(--am-color-text-secondary);");
-    wrap.appendChild(badge);
-  }
-  b.appendChild(wrap);
-  b.addEventListener("click", onClick);
-  return b;
-}
-
-/** ToggleButtonGroup 相当のグルーピング枠。 */
-function mkGroup(...buttons: HTMLElement[]): HTMLElement {
-  const g = document.createElement("div");
-  g.style.cssText =
-    "display:inline-flex;align-items:center;border:1px solid var(--am-color-divider);" +
-    "border-radius:4px;overflow:hidden;";
-  g.append(...buttons);
-  return g;
-}
-
 /** 列/行操作・整列・移動の vanilla ops ツールバー（旧 React TableOperationsToolbar 等価）。 */
 function buildOpsToolbar(editor: Editor, t: (k: string) => string): HTMLElement {
   const ops = document.createElement("div");
   ops.style.cssText = "display:inline-flex;align-items:center;gap:4px;";
 
-  const cols = mkGroup(
-    opButton(t("addColumn"), ICON.viewColumn, () => editor.chain().focus().addColumnAfter().run(), { badge: "+" }),
-    opButton(t("removeColumn"), ICON.viewColumn, () => editor.chain().focus().deleteColumn().run(), { badge: "x", badgeError: true }),
+  const cols = mkButtonGroup(
+    mkIconButton(t("addColumn"), ICON.viewColumn, () => editor.chain().focus().addColumnAfter().run(), { badge: "+" }),
+    mkIconButton(t("removeColumn"), ICON.viewColumn, () => editor.chain().focus().deleteColumn().run(), { badge: "x", badgeError: true }),
   );
-  const rows = mkGroup(
-    opButton(t("addRow"), ICON.tableRows, () => editor.chain().focus().addRowAfter().run(), { badge: "+" }),
-    opButton(t("removeRow"), ICON.tableRows, () => editor.chain().focus().deleteRow().run(), { badge: "x", badgeError: true }),
+  const rows = mkButtonGroup(
+    mkIconButton(t("addRow"), ICON.tableRows, () => editor.chain().focus().addRowAfter().run(), { badge: "+" }),
+    mkIconButton(t("removeRow"), ICON.tableRows, () => editor.chain().focus().deleteRow().run(), { badge: "x", badgeError: true }),
   );
-  const align = mkGroup(
-    opButton(t("alignLeft"), ICON.alignLeft, () => editor.chain().focus().setCellAttribute("textAlign", "left").run()),
-    opButton(t("alignCenter"), ICON.alignCenter, () => editor.chain().focus().setCellAttribute("textAlign", "center").run()),
-    opButton(t("alignRight"), ICON.alignRight, () => editor.chain().focus().setCellAttribute("textAlign", "right").run()),
+  const align = mkButtonGroup(
+    mkIconButton(t("alignLeft"), ICON.alignLeft, () => editor.chain().focus().setCellAttribute("textAlign", "left").run()),
+    mkIconButton(t("alignCenter"), ICON.alignCenter, () => editor.chain().focus().setCellAttribute("textAlign", "center").run()),
+    mkIconButton(t("alignRight"), ICON.alignRight, () => editor.chain().focus().setCellAttribute("textAlign", "right").run()),
   );
-  const moveRow = mkGroup(
-    opButton(t("moveRowUp"), ICON.moveUp, () => moveTableRow(editor, "up")),
-    opButton(t("moveRowDown"), ICON.moveDown, () => moveTableRow(editor, "down")),
+  const moveRow = mkButtonGroup(
+    mkIconButton(t("moveRowUp"), ICON.moveUp, () => moveTableRow(editor, "up")),
+    mkIconButton(t("moveRowDown"), ICON.moveDown, () => moveTableRow(editor, "down")),
   );
-  const moveCol = mkGroup(
-    opButton(t("moveColLeft"), ICON.moveUp, () => moveTableColumn(editor, "left"), { rotate: -90 }),
-    opButton(t("moveColRight"), ICON.moveDown, () => moveTableColumn(editor, "right"), { rotate: -90 }),
+  const moveCol = mkButtonGroup(
+    mkIconButton(t("moveColLeft"), ICON.moveUp, () => moveTableColumn(editor, "left"), { rotate: -90 }),
+    mkIconButton(t("moveColRight"), ICON.moveDown, () => moveTableColumn(editor, "right"), { rotate: -90 }),
   );
 
   ops.append(cols, rows, align, moveRow, moveCol);

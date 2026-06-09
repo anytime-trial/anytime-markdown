@@ -12,7 +12,7 @@ import {
   setBlockAttrs,
 } from "@anytime-markdown/markdown-viewer";
 
-import { classifyCodeBlock, CODE_BLOCK_EDIT_INTENT_EVENT } from "./CodeBlockBlockContent";
+import { classifyCodeBlock, type CodeBlockKind, CODE_BLOCK_EDIT_INTENT_EVENT } from "./CodeBlockBlockContent";
 import { applySelectionCollapse, codeBlockToolbarLabel } from "./codeBlockOverlayHelpers";
 
 /**
@@ -62,8 +62,17 @@ export function createCodeBlockChrome(
   toolbar.append(mkDragHandle(cb.t("dragHandle")), labelEl, actions);
   anchor.el.appendChild(toolbar);
 
-  const rebuildActions = (language: string): void => {
+  // ツールバー内容は language / kind / graphEnabled / hideGraph のみで決まる（どのブロックかには
+  // 依存しない）。同一キーなら DOM 再構築をスキップし、scroll 由来の onChange での無駄な churn を防ぐ。
+  let lastKey = "";
+  const rebuildActions = (language: string, node: PMNode | null): CodeBlockKind => {
     const kind = classifyCodeBlock(language);
+    const enabled = !!node?.attrs.graphEnabled;
+    const hidden = cb.isGraphHidden();
+    const key = `${language}|${kind}|${enabled}|${hidden}`;
+    if (key === lastKey) return kind;
+    lastKey = key;
+
     labelEl.textContent = codeBlockToolbarLabel(kind, language, cb.t);
     actions.replaceChildren();
 
@@ -74,9 +83,7 @@ export function createCodeBlockChrome(
     );
 
     // math: グラフ表示トグル（hideGraph でない時のみ）。属性を直接更新する。
-    if (kind === "math" && !cb.isGraphHidden()) {
-      const node = currentPos >= 0 ? editor.state.doc.nodeAt(currentPos) : null;
-      const enabled = !!node?.attrs.graphEnabled;
+    if (kind === "math" && !hidden) {
       const graphBtn = mkIconButton(
         enabled ? cb.t("hideGraph") : cb.t("showGraph"),
         ICON.showChart,
@@ -110,6 +117,7 @@ export function createCodeBlockChrome(
         if (currentPos >= 0) cb.onDelete(currentPos);
       }),
     );
+    return kind;
   };
 
   // 編集 intent（native NodeView のダブルクリック）。
@@ -128,9 +136,8 @@ export function createCodeBlockChrome(
     }
     cb.onSelect(pos, node);
     if (pos >= 0) {
-      rebuildActions((node?.attrs.language as string) ?? "");
+      const kind = rebuildActions((node?.attrs.language as string) ?? "", node);
       // autoEditOpen: スラッシュコマンド作成直後に全画面編集（preview 種別のみ）。
-      const kind = classifyCodeBlock((node?.attrs.language as string) ?? "");
       if (node?.attrs.autoEditOpen && editor.isEditable && kind !== "regular") {
         setBlockAttrs(editor, pos, { autoEditOpen: false });
         cb.onEdit(pos);

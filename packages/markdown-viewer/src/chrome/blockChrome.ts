@@ -114,12 +114,12 @@ export function createSelectedBlockTracker(
     scrollResizeBound = on;
   };
 
-  // transaction: pos 再判定 + rect 再計測。pos / rect いずれか変化で通知。
+  // transaction: pos が変わった時だけ rect 計測 + 通知（React useSelectedBlock と同じく
+  // 選択変化が契機）。同一 pos 中の rect ドリフトは scroll/resize で拾う。毎 transaction の
+  // getBoundingClientRect（レイアウト強制）を避ける。
   const onTransaction = (): void => {
     const pos = selectedBlockPos(editor, nodeTypeName);
-    const rect = measureRect(editor, pos);
-    const changed = pos !== lastPos || !sameRect(rect, lastRect);
-    if (changed) fire(pos, rect);
+    if (pos !== lastPos) fire(pos, measureRect(editor, pos));
     bindScrollResize(pos >= 0);
   };
 
@@ -195,57 +195,5 @@ export function createBlockChromeAnchor(zIndex = 20): BlockChromeAnchorHandle {
     destroy() {
       el.remove();
     },
-  };
-}
-
-export interface VanillaBlockChromeOptions {
-  /** 「編集」アクション（選択中ブロックの pos を受け取る）。 */
-  onEdit?: (pos: number) => void;
-  /** 「削除」アクション（選択中ブロックの pos を受け取る）。 */
-  onDelete?: (pos: number) => void;
-  label?: string;
-}
-
-/**
- * tracker + anchor + 最小ツールバー（edit/delete）を結線した vanilla chrome shell。
- * React overlay（*BlockOverlay）の脱React 版の最小形。各 overlay の固有ツールバー /
- * ダイアログを素 DOM で足していく土台になる。戻り値は破棄関数。
- */
-export function createVanillaBlockChrome(
-  editor: Editor,
-  nodeTypeName: string,
-  options: VanillaBlockChromeOptions = {},
-): () => void {
-  const anchor = createBlockChromeAnchor();
-  let currentPos = -1;
-
-  const mkBtn = (text: string, onClick: () => void): HTMLButtonElement => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = text;
-    b.addEventListener("click", onClick);
-    return b;
-  };
-  const toolbar = document.createElement("div");
-  toolbar.setAttribute("data-vanilla-toolbar", "");
-  if (options.label) {
-    const lbl = document.createElement("span");
-    lbl.textContent = options.label;
-    toolbar.appendChild(lbl);
-  }
-  toolbar.append(
-    mkBtn("Edit", () => { if (currentPos >= 0) options.onEdit?.(currentPos); }),
-    mkBtn("Delete", () => { if (currentPos >= 0) options.onDelete?.(currentPos); }),
-  );
-  anchor.el.appendChild(toolbar);
-
-  const stop = createSelectedBlockTracker(editor, nodeTypeName, ({ pos, rect }) => {
-    currentPos = pos;
-    anchor.setRect(editor.isEditable && pos >= 0 ? rect : null);
-  });
-
-  return () => {
-    stop();
-    anchor.destroy();
   };
 }

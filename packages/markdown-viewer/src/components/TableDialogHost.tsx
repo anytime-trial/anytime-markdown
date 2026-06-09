@@ -5,14 +5,13 @@ import { SpreadsheetGrid, SpreadsheetI18nProvider } from "@anytime-markdown/spre
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { TableChartIcon } from "../ui/icons";
-import { Button } from "../ui/Button";
-import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "../ui/Dialog";
 import { useIsDark } from "../contexts/ThemeModeContext";
 import { useMarkdownT } from "../i18n/context";
 import { deleteBlockAt } from "../chrome/blockChrome";
 import { createTableBlockChrome, type TableBlockChromeHandle } from "../chrome/tableBlockChrome";
 import { createTiptapSheetAdapter } from "../spreadsheet/TiptapSheetAdapter";
 import { DeleteBlockDialog } from "./codeblock/DeleteBlockDialog";
+import { DiscardDialog } from "./codeblock/DiscardDialog";
 import { EditDialogHeader } from "./EditDialogHeader";
 import { EditDialogWrapper } from "./EditDialogWrapper";
 
@@ -83,6 +82,10 @@ export function TableDialogHost({ editor }: Readonly<{ editor: Editor | null }>)
   const deletePosRef = useRef(-1);
   const dirtyRef = useRef(false);
   const chromeRef = useRef<TableBlockChromeHandle | null>(null);
+  // useMarkdownT は毎レンダー新しい関数を返すため、chrome 再生成（= setEditing 抑制の喪失）を
+  // 避けるよう ref で最新化する。
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const closeEdit = useCallback(() => {
     setEditOpen(false);
@@ -98,7 +101,7 @@ export function TableDialogHost({ editor }: Readonly<{ editor: Editor | null }>)
   useEffect(() => {
     if (!editor) return;
     const handle = createTableBlockChrome(editor, {
-      t,
+      t: (k) => tRef.current(k),
       onEdit: (pos) => {
         setEditPos(pos);
         setEditOpen(true);
@@ -114,7 +117,7 @@ export function TableDialogHost({ editor }: Readonly<{ editor: Editor | null }>)
       chromeRef.current = null;
       handle.destroy();
     };
-  }, [editor, t]);
+  }, [editor]);
 
   const handleDirtyChange = useCallback((dirty: boolean) => {
     dirtyRef.current = dirty;
@@ -159,18 +162,12 @@ export function TableDialogHost({ editor }: Readonly<{ editor: Editor | null }>)
         t={t}
       />
 
-      {discardOpen && (
-        <Dialog open={discardOpen} onClose={() => setDiscardOpen(false)}>
-          <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
-          <DialogContent>
-            <DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDiscardOpen(false)}>{t("cancel")}</Button>
-            <Button onClick={confirmDiscard} color="error">{t("discard")}</Button>
-          </DialogActions>
-        </Dialog>
-      )}
+      <DiscardDialog
+        open={discardOpen}
+        onClose={() => setDiscardOpen(false)}
+        onConfirm={confirmDiscard}
+        t={t}
+      />
     </>
   );
 }

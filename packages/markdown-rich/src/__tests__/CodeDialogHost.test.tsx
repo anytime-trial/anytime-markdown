@@ -20,6 +20,7 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
   useMarkdownT: () => (k: string) => k,
   DeleteBlockDialog: ({ open, onDelete }: any) =>
     open ? <button data-testid="confirm-delete" onClick={onDelete}>confirm</button> : null,
+  DiscardDialog: ({ open }: any) => (open ? <div data-testid="discard" /> : null),
   EmbedEditDialog: ({ open }: any) => (open ? <div data-testid="embed-dialog" /> : null),
 }));
 jest.mock("@anytime-markdown/markdown-viewer/src/ui/Button", () => ({ Button: (p: any) => <button {...p} /> }));
@@ -76,7 +77,7 @@ const mockEditor = { isEditable: true } as any;
 const codeNode = { attrs: { language: "js" }, content: { size: 0 } } as any;
 
 function cb() {
-  const calls = createCodeBlockChrome.mock.calls;
+  const calls = createCodeBlockChrome.mock.calls as any[];
   return calls[calls.length - 1][1] as {
     onSelect: (pos: number, node: any) => void;
     onEdit: (pos: number) => void;

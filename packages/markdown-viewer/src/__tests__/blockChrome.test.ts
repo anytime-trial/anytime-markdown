@@ -13,7 +13,6 @@ import StarterKit from "@anytime-markdown/markdown-starter-kit";
 import {
   createBlockChromeAnchor,
   createSelectedBlockTracker,
-  createVanillaBlockChrome,
   type SelectedBlockSnapshot,
   selectedBlockPos,
 } from "../chrome/blockChrome";
@@ -117,31 +116,5 @@ describe("createBlockChromeAnchor", () => {
     expect(anchor.el.style.display).toBe("none");
     anchor.destroy();
     expect(document.body.contains(anchor.el)).toBe(false);
-  });
-});
-
-describe("createVanillaBlockChrome", () => {
-  it("選択中ブロックの edit/delete を pos 付きで発火する（React なし）", () => {
-    const editor = makeEditor();
-    const cbPos = findCodeBlockPos(editor);
-    const edits: number[] = [];
-    const deletes: number[] = [];
-    const destroy = createVanillaBlockChrome(editor, "codeBlock", {
-      label: "Code",
-      onEdit: (p) => edits.push(p),
-      onDelete: (p) => deletes.push(p),
-    });
-
-    editor.commands.setTextSelection(cbPos + 1);
-    const toolbar = document.querySelector("[data-vanilla-toolbar]") as HTMLElement;
-    const [editBtn, delBtn] = Array.from(toolbar.querySelectorAll("button")) as HTMLButtonElement[];
-    editBtn.click();
-    delBtn.click();
-    expect(edits).toEqual([cbPos]);
-    expect(deletes).toEqual([cbPos]);
-
-    destroy();
-    expect(document.querySelector("[data-vanilla-toolbar]")).toBeNull();
-    editor.destroy();
   });
 });

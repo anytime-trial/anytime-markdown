@@ -103,12 +103,20 @@ export function createImageBlockChrome(
   anchor.el.appendChild(toolbar);
 
   // node.attrs に応じてツールバーの動的部分（警告表示・注釈アクティブ色）を更新する。
+  // alt / annotations が変わらない限りスキップし、scroll 由来の onChange での JSON.parse を避ける。
+  let lastAlt: string | undefined;
+  let lastAnnStr: string | null | undefined;
   const syncDynamic = (node: ReturnType<typeof readNode>): void => {
     const alt = (node?.attrs.alt as string) ?? "";
+    const annStr = (node?.attrs.annotations as string | null) ?? null;
+    if (alt === lastAlt && annStr === lastAnnStr) return;
+    lastAlt = alt;
+    lastAnnStr = annStr;
     warningWrap.style.display = alt ? "none" : "inline-flex";
-    const annotations = parseAnnotations((node?.attrs.annotations as string | null) ?? null);
     annotateBtn.style.color =
-      annotations.length > 0 ? "var(--am-color-primary-main)" : "var(--am-color-text-secondary)";
+      parseAnnotations(annStr).length > 0
+        ? "var(--am-color-primary-main)"
+        : "var(--am-color-text-secondary)";
   };
 
   const stop = createSelectedBlockTracker(editor, "image", ({ pos, node, rect }) => {

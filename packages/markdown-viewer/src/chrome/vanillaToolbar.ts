@@ -82,11 +82,24 @@ export function mkLabel(text: string): HTMLSpanElement {
   return el;
 }
 
-/** アイコンボタン。色は currentColor（既定 text-secondary）。`btn.style.color` で上書き可。 */
+export interface IconButtonOptions {
+  /** アイコン右上に重ねるバッジ文字（"+" / "x" など）。 */
+  badge?: string;
+  /** バッジを error 色にする（削除系）。 */
+  badgeError?: boolean;
+  /** アイコンの回転角（度）。列移動など。 */
+  rotate?: number;
+}
+
+/**
+ * アイコンボタン。色は currentColor（既定 text-secondary）。`btn.style.color` で上書き可。
+ * `opts.badge` / `opts.rotate` でバッジ・回転付きボタン（table の列行操作等）も作れる。
+ */
 export function mkIconButton(
   label: string,
   iconPath: string | readonly string[],
   onClick: () => void,
+  opts: IconButtonOptions = {},
 ): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
@@ -96,9 +109,34 @@ export function mkIconButton(
     "display:inline-flex;align-items:center;justify-content:center;padding:2px;" +
     "border:none;background:transparent;cursor:pointer;border-radius:4px;" +
     "color:var(--am-color-text-secondary);";
-  b.appendChild(svgIcon(iconPath));
+  const icon = svgIcon(iconPath);
+  if (opts.rotate) icon.style.transform = `rotate(${opts.rotate}deg)`;
+  if (opts.badge) {
+    const wrap = document.createElement("span");
+    wrap.style.cssText = "position:relative;display:inline-flex;line-height:0;";
+    wrap.appendChild(icon);
+    const badge = document.createElement("span");
+    badge.textContent = opts.badge;
+    badge.style.cssText =
+      "position:absolute;top:-4px;right:-4px;font-size:9px;font-weight:700;line-height:1;" +
+      (opts.badgeError ? "color:var(--am-color-error-main);" : "color:var(--am-color-text-secondary);");
+    wrap.appendChild(badge);
+    b.appendChild(wrap);
+  } else {
+    b.appendChild(icon);
+  }
   b.addEventListener("click", onClick);
   return b;
+}
+
+/** ToggleButtonGroup 相当のボタン群（枠付き）。 */
+export function mkButtonGroup(...buttons: HTMLElement[]): HTMLElement {
+  const g = document.createElement("div");
+  g.style.cssText =
+    "display:inline-flex;align-items:center;border:1px solid var(--am-color-divider);" +
+    "border-radius:4px;overflow:hidden;";
+  g.append(...buttons);
+  return g;
 }
 
 /** 縦区切り線。 */

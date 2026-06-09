@@ -9,6 +9,7 @@ import {
   buildEmbedInfoString,
   deleteBlockAt,
   DeleteBlockDialog,
+  DiscardDialog,
   EmbedEditDialog,
   type EmbedVariant,
   parseEmbedInfoString,
@@ -18,8 +19,6 @@ import {
   useIsDark,
   useMarkdownT,
 } from "@anytime-markdown/markdown-viewer";
-import { Button } from "@anytime-markdown/markdown-viewer/src/ui/Button";
-import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@anytime-markdown/markdown-viewer/src/ui/Dialog";
 
 import { classifyCodeBlock } from "./codeblock/CodeBlockBlockContent";
 import { createCodeBlockChrome } from "./codeblock/codeBlockChrome";
@@ -36,21 +35,6 @@ import { useDiagramCapture } from "../hooks/useDiagramCapture";
 import { useMermaidRender } from "../hooks/useMermaidRender";
 import { usePlantUmlRender } from "../hooks/usePlantUmlRender";
 import { useZoomPan } from "../hooks/useZoomPan";
-
-function DiscardDialog({ open, onClose, onConfirm, t }: Readonly<{
-  open: boolean; onClose: () => void; onConfirm: () => void; t: (key: string) => string;
-}>) {
-  return (
-    <Dialog open={open} onClose={onClose}>
-      <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
-      <DialogContent><DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText></DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>{t("spreadsheetDiscardCancel")}</Button>
-        <Button onClick={onConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
 
 /**
  * codeBlock のダイアログ host（Phase 3 / ホスト隔離・E 横展開）。
@@ -91,6 +75,9 @@ export function CodeDialogHost({ editor }: Readonly<{ editor: Editor | null }>) 
   exportSourceRef.current = handleExportSource;
   const hideGraphRef = useRef(hideGraph);
   hideGraphRef.current = hideGraph;
+  // useMarkdownT は毎レンダー新しい関数を返すため、chrome 再生成を避けるよう ref で最新化する。
+  const tRef = useRef(t);
+  tRef.current = t;
 
   // native content が読む実行時 CSS 変数（dark / code フォント）。
   useEffect(() => {
@@ -105,7 +92,7 @@ export function CodeDialogHost({ editor }: Readonly<{ editor: Editor | null }>) 
   useEffect(() => {
     if (!editor) return;
     const destroy = createCodeBlockChrome(editor, {
-      t,
+      t: (k) => tRef.current(k),
       isGraphHidden: () => hideGraphRef.current,
       onSelect: (p, n) => {
         setPos(p);
@@ -117,7 +104,7 @@ export function CodeDialogHost({ editor }: Readonly<{ editor: Editor | null }>) 
       onDelete: () => setDeleteOpen(true),
     });
     return destroy;
-  }, [editor, t]);
+  }, [editor]);
 
   const handleDelete = useCallback(() => {
     if (editor) deleteBlockAt(editor, pos);

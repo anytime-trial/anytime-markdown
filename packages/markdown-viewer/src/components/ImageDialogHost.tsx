@@ -45,11 +45,14 @@ export function ImageDialogHost({ editor }: Readonly<{ editor: Editor | null }>)
   const [src, setSrc] = useState("");
   const [annotationsStr, setAnnotationsStr] = useState<string | null>(null);
   const targetPosRef = useRef(-1);
+  // useMarkdownT は毎レンダー新しい関数を返すため、chrome 再生成を避けるよう ref で最新化する。
+  const tRef = useRef(t);
+  tRef.current = t;
 
   useEffect(() => {
     if (!editor) return;
     const destroy = createImageBlockChrome(editor, {
-      t,
+      t: (k) => tRef.current(k),
       onEditCrop: (pos, ctx) => {
         targetPosRef.current = pos;
         setSrc(ctx.src);
@@ -67,7 +70,7 @@ export function ImageDialogHost({ editor }: Readonly<{ editor: Editor | null }>)
       },
     });
     return destroy;
-  }, [editor, t]);
+  }, [editor]);
 
   const handleCrop = useCallback(
     (croppedDataUrl: string) => {
