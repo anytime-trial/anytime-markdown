@@ -70,16 +70,9 @@ function getEditorFontSize(): number {
   return Number.isFinite(v) && v > 0 ? v : 16;
 }
 
-export interface CodeBlockNodeViewOptions {
-  /** 翻訳関数（plantuml consent ラベル等）。省略時はキーをそのまま返す。 */
-  t?: (key: string) => string;
-}
-
 export function createCodeBlockNodeView(
   { node, editor, getPos }: Pick<NodeViewRendererProps, "node" | "editor" | "getPos">,
-  options: CodeBlockNodeViewOptions = {},
 ): NodeView {
-  const t = options.t ?? ((k: string) => k);
   let currentNode = node;
   let kind = classifyCodeBlock(node.attrs.language);
   let previewCancel: () => void = () => {};
@@ -221,7 +214,7 @@ export function createCodeBlockNodeView(
     disposeEmbed();
     previewCancel = renderCodeBlockPreview(
       previewInner, lang, codeText,
-      { isDark: isEditorDark(), fontSize: getEditorFontSize(), t },
+      { isDark: isEditorDark(), fontSize: getEditorFontSize() },
       requestRerender,
     );
   }

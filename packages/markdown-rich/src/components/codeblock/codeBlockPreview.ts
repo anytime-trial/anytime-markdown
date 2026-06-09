@@ -22,8 +22,6 @@ export interface PreviewRenderContext {
   isDark: boolean;
   /** SVG フォントスケール用のエディタフォントサイズ(px)。 */
   fontSize: number;
-  /** 翻訳関数（plantuml consent ラベル等）。 */
-  t: (key: string) => string;
 }
 
 /** SVG width を editor フォントサイズに応じてスケールする（DiagramBlock から移植）。 */
@@ -64,15 +62,19 @@ function renderMermaid(innerEl: HTMLElement, code: string, ctx: PreviewRenderCon
   });
 }
 
-/** plantuml 同意ボタンを native 描画する。 */
-function buildConsentAlert(ctx: PreviewRenderContext, requestRerender: () => void): HTMLElement {
+/**
+ * plantuml 同意ボタンを native 描画する。
+ * native content は i18n context を読めないため、ラベルは英語固定
+ * （GifBlockContent と同方針。UX downgrade はユーザー許容済）。
+ */
+function buildConsentAlert(requestRerender: () => void): HTMLElement {
   const alert = document.createElement("div");
   alert.setAttribute("role", "alert");
   alert.style.cssText =
     "margin:8px;padding:8px 12px;border-radius:4px;font-size:0.8125rem;" +
     "border:1px solid var(--am-color-divider);color:var(--am-color-text-secondary);";
   const msg = document.createElement("div");
-  msg.textContent = ctx.t("plantumlExternalWarning");
+  msg.textContent = "This diagram is rendered via an external PlantUML server. Allow loading?";
   alert.appendChild(msg);
 
   const actions = document.createElement("div");
@@ -92,14 +94,14 @@ function buildConsentAlert(ctx: PreviewRenderContext, requestRerender: () => voi
     });
     return b;
   };
-  actions.append(mkBtn(ctx.t("plantumlReject"), "rejected"), mkBtn(ctx.t("plantumlAccept"), "accepted"));
+  actions.append(mkBtn("Decline", "rejected"), mkBtn("Allow", "accepted"));
   alert.appendChild(actions);
   return alert;
 }
 
 function renderPlantUml(innerEl: HTMLElement, code: string, ctx: PreviewRenderContext, requestRerender: () => void): void {
   if (getPlantUmlConsent() !== "accepted") {
-    innerEl.replaceChildren(buildConsentAlert(ctx, requestRerender));
+    innerEl.replaceChildren(buildConsentAlert(requestRerender));
     return;
   }
   try {
