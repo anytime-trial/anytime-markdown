@@ -1,80 +1,64 @@
 "use client";
 
+import DOMPurify from "dompurify";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   BlockChromeAnchor,
   BlockInlineToolbar,
+  buildEmbedInfoString,
+  DEFAULT_EMBED_BASELINE,
   DeleteBlockDialog,
+  EmbedEditDialog,
+  type EmbedVariant,
+  parseEmbedInfoString,
   useBlockChrome,
   useEditorSettingsContext,
   useIsDark,
   useMarkdownT,
 } from "@anytime-markdown/markdown-viewer";
+import { Button } from "@anytime-markdown/markdown-viewer/src/ui/Button";
+import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@anytime-markdown/markdown-viewer/src/ui/Dialog";
 
-import { classifyCodeBlock, type CodeBlockKind, CODE_BLOCK_EDIT_INTENT_EVENT } from "./codeblock/CodeBlockBlockContent";
+import { classifyCodeBlock, CODE_BLOCK_EDIT_INTENT_EVENT } from "./codeblock/CodeBlockBlockContent";
+import { applySelectionCollapse, codeBlockToolbarLabel, firstNonEmptyLine } from "./codeblock/codeBlockOverlayHelpers";
+import { applyCodeBlockText, useCodeBlockEdit } from "./codeblock/useCodeBlockEdit";
+import { HTML_SANITIZE_CONFIG } from "./codeblock/types";
+import { CodeBlockEditDialog } from "./CodeBlockEditDialog";
+import { MathEditDialog } from "./MathEditDialog";
+import { MermaidEditDialog } from "./MermaidEditDialog";
+import { PlantUmlEditDialog } from "./PlantUmlEditDialog";
+import htmlSamples from "../constants/htmlSamples.json";
+import { useDiagramCapture } from "../hooks/useDiagramCapture";
+import { useMermaidRender } from "../hooks/useMermaidRender";
+import { usePlantUmlRender } from "../hooks/usePlantUmlRender";
+import { useZoomPan } from "../hooks/useZoomPan";
 
 /**
  * codeBlock（CodeBlockWithMermaid）の編集 chrome をページ層で提供する選択駆動
- * オーバーレイ（React）。
+ * オーバーレイ（React）。content は native {@link createCodeBlockNodeView} が描画し、
+ * 本コンポーネントが選択中の codeBlock に対しツールバー＋全画面編集ダイアログ＋
+ * 削除/破棄を供給する（旧 `CodeBlockNodeView`=MermaidNodeView の chrome を移設）。
  *
- * framework-decoupling Phase 2「反転」設計の chrome 側。content は native
- * {@link createCodeBlockNodeView}（React 非依存）が描画し、本コンポーネントが
- * 選択中の codeBlock に対しツールバー＋全画面編集ダイアログ＋削除/破棄を供給する。
- * 選択検出・位置計測・属性更新・削除・ツールバー表示判定は {@link useBlockChrome} /
- * {@link BlockChromeAnchor} に委譲する。
- *
- * 本コンポーネントは `RichMarkdownEditorPage` にマウントするが、旧 React NodeView
- * との二重描画を避けるため、マウント＋登録差替えは S5（flip）で同時に行う。
- *
- * 段階導入: S3a=骨格（選択折畳み・CSS 変数・編集インテント・削除・ツールバー）、
- * S3b=全画面編集ダイアログ、S4=graph/zoom。
+ * 旧 React NodeView との二重描画を避けるため、マウント＋登録差替えは S5（flip）。
+ * S3b スコープ: 全画面編集 5 種ダイアログ + apply/discard。compare/merge と
+ * inline graph/zoom は S4/TODO。
  */
 
-/** ブロック種別とラベル文言を解決する（MermaidNodeView の各 label と一致）。 */
-export function codeBlockToolbarLabel(
-  kind: CodeBlockKind,
-  language: string,
-  t: (key: string) => string,
-): string {
-  switch (kind) {
-    case "math": return "Math";
-    case "html": return t("htmlPreview");
-    case "diagram": return language === "mermaid" ? t("mermaid") : t("plantuml");
-    case "embed": return "Embed";
-    default: return language ? `Code (${language})` : "Code";
-  }
-}
-
-/**
- * 選択移動に応じて「前ブロックを折畳み・新ブロックを展開」する transaction を適用する。
- * native NodeView は selection 変化で update されないため、overlay が codeCollapsed を駆動する。
- * 属性が実際に変わるときだけ dispatch する（無変化なら command が false を返し no-op）。
- */
-export function applySelectionCollapse(editor: Editor, prevPos: number, curPos: number): void {
-  const { doc } = editor.state;
-  editor
-    .chain()
-    .command(({ tr }) => {
-      let changed = false;
-      if (prevPos >= 0 && prevPos < doc.content.size) {
-        const pn = doc.nodeAt(prevPos);
-        if (pn?.type.name === "codeBlock" && !pn.attrs.codeCollapsed) {
-          tr.setNodeAttribute(prevPos, "codeCollapsed", true);
-          changed = true;
-        }
-      }
-      if (curPos >= 0) {
-        const cn = doc.nodeAt(curPos);
-        if (cn?.type.name === "codeBlock" && cn.attrs.codeCollapsed) {
-          tr.setNodeAttribute(curPos, "codeCollapsed", false);
-          changed = true;
-        }
-      }
-      return changed;
-    })
-    .run();
+function DiscardDialog({ open, onClose, onConfirm, t }: Readonly<{
+  open: boolean; onClose: () => void; onConfirm: () => void; t: (key: string) => string;
+}>) {
+  return (
+    <Dialog open={open} onClose={onClose}>
+      <DialogTitle>{t("spreadsheetDiscardTitle")}</DialogTitle>
+      <DialogContent><DialogContentText>{t("spreadsheetDiscardMessage")}</DialogContentText></DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{t("spreadsheetDiscardCancel")}</Button>
+        <Button onClick={onConfirm} color="error">{t("spreadsheetDiscardConfirm")}</Button>
+      </DialogActions>
+    </Dialog>
+  );
 }
 
 export function CodeBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>) {
@@ -88,7 +72,17 @@ export function CodeBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>
   const kind = classifyCodeBlock(language);
   const [editOpen, setEditOpen] = useState(false);
 
-  // native content が読む実行時 CSS 変数を供給する（dark / code フォント）。
+  const edit = useCodeBlockEdit(editor, pos, node, editOpen, setEditOpen);
+
+  // diagram プレビュー（コミット済みコードの svg/url）と dialog ズーム・エクスポート。
+  const isMermaid = language === "mermaid";
+  const isPlantUml = language === "plantuml";
+  const { svg } = useMermaidRender({ code: edit.code, isMermaid, isDark });
+  const { plantUmlUrl } = usePlantUmlRender({ code: edit.code, isPlantUml, isDark });
+  const fsZP = useZoomPan();
+  const { handleCapture, handleExportSource } = useDiagramCapture({ isMermaid, isPlantUml, svg, plantUmlUrl, code: edit.code, isDark });
+
+  // native content が読む実行時 CSS 変数（dark / code フォント）。
   useEffect(() => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
@@ -126,6 +120,34 @@ export function CodeBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>
   }, [pos]);
 
   const handleEdit = useCallback(() => setEditOpen(true), []);
+  const readOnly = !editor?.isEditable;
+
+  // embed: variant 切替を保持しつつ url を本文へ反映する（旧 EmbedBlock.handleApply 等価）。
+  const handleEmbedApply = useCallback((url: string, nextVariant: EmbedVariant) => {
+    const parsed = parseEmbedInfoString(language);
+    const baseline = parsed
+      ? { rssFeedUrl: parsed.rssFeedUrl, baselineRssGuid: parsed.baselineRssGuid, baselineOgpHash: parsed.baselineOgpHash, rssChecked: parsed.rssChecked }
+      : { ...DEFAULT_EMBED_BASELINE };
+    updateAttrs({ language: buildEmbedInfoString(nextVariant, parsed?.width ?? null, baseline) });
+    if (editor && pos >= 0 && node) applyCodeBlockText(editor, pos, node.content.size, url);
+    setEditOpen(false);
+  }, [editor, pos, node, language, updateAttrs]);
+
+  const commonDialog = {
+    open: editOpen,
+    onClose: () => { edit.fsSearch.reset(); edit.tryCloseEdit(); },
+    fsCode: edit.fsCode,
+    onFsCodeChange: edit.onFsCodeChange,
+    onFsTextChange: edit.onFsTextChange,
+    fsTextareaRef: edit.fsTextareaRef,
+    fsSearch: edit.fsSearch,
+    onApply: edit.onApply,
+    dirty: edit.fsDirty,
+    readOnly,
+    t,
+  };
+
+  const diagramExportSourceKey = isMermaid ? "exportMmd" : "exportPuml";
 
   return (
     <>
@@ -135,19 +157,68 @@ export function CodeBlockOverlay({ editor }: Readonly<{ editor: Editor | null }>
             label={codeBlockToolbarLabel(kind, language, t)}
             onEdit={handleEdit}
             onDelete={() => setDeleteOpen(true)}
+            onExport={kind === "diagram" ? handleCapture : undefined}
+            onExportSource={kind === "diagram" ? handleExportSource : undefined}
+            exportSourceKey={kind === "diagram" ? diagramExportSourceKey : undefined}
             labelDivider
             t={t}
           />
         </BlockChromeAnchor>
       )}
 
-      <DeleteBlockDialog
-        open={deleteOpen}
-        onClose={() => setDeleteOpen(false)}
-        onDelete={handleDelete}
-        t={t}
-      />
-      {/* S3b: editOpen に応じた種別別の全画面編集ダイアログをここへ追加する。 */}
+      <DeleteBlockDialog open={deleteOpen} onClose={() => setDeleteOpen(false)} onDelete={handleDelete} t={t} />
+
+      {editOpen && kind === "regular" && (
+        <CodeBlockEditDialog {...commonDialog} label={codeBlockToolbarLabel(kind, language, t)} language={language || "plaintext"} />
+      )}
+      {editOpen && kind === "html" && (
+        <CodeBlockEditDialog
+          {...commonDialog}
+          label={t("htmlPreview")}
+          language="html"
+          customSamples={htmlSamples.filter((s) => s.enabled)}
+          renderPreview={(c) => <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(c, HTML_SANITIZE_CONFIG) }} />}
+        />
+      )}
+      {editOpen && kind === "math" && (
+        <MathEditDialog {...commonDialog} label="Math" />
+      )}
+      {editOpen && kind === "diagram" && isMermaid && (
+        <MermaidEditDialog
+          {...commonDialog}
+          label={t("mermaid")}
+          svg={svg}
+          code={edit.code}
+          fsZP={fsZP}
+          onExport={handleCapture}
+          onExportSource={handleExportSource}
+          exportSourceKey={diagramExportSourceKey}
+        />
+      )}
+      {editOpen && kind === "diagram" && isPlantUml && (
+        <PlantUmlEditDialog
+          {...commonDialog}
+          label={t("plantuml")}
+          plantUmlUrl={plantUmlUrl}
+          code={edit.code}
+          fsZP={fsZP}
+          onExport={handleCapture}
+          onExportSource={handleExportSource}
+          exportSourceKey={diagramExportSourceKey}
+        />
+      )}
+      {editOpen && kind === "embed" && (
+        <EmbedEditDialog
+          open={editOpen}
+          initialUrl={firstNonEmptyLine(edit.code)}
+          initialVariant={(parseEmbedInfoString(language)?.variant ?? "card") as EmbedVariant}
+          onClose={() => setEditOpen(false)}
+          onApply={handleEmbedApply}
+          t={t}
+        />
+      )}
+
+      <DiscardDialog open={edit.discardOpen} onClose={() => edit.setDiscardOpen(false)} onConfirm={edit.handleDiscardConfirm} t={t} />
     </>
   );
 }

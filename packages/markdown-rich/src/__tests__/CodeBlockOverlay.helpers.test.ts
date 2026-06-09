@@ -2,7 +2,7 @@
  * CodeBlockOverlay.tsx の純関数 helper（ラベル解決・選択折畳み transaction）テスト。
  * overlay の React レンダリングは S3b（ダイアログ追加時）でまとめて検証する。
  */
-import { applySelectionCollapse, codeBlockToolbarLabel } from "../components/CodeBlockOverlay";
+import { applySelectionCollapse, codeBlockToolbarLabel } from "../components/codeblock/codeBlockOverlayHelpers";
 
 const t = (k: string) => k;
 
