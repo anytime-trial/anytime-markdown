@@ -1,6 +1,6 @@
 /**
  * GifBlockContent.ts — content-only native NodeView のテスト
- * （編集 chrome は GifBlockOverlay 側で検証する）
+ * （編集 chrome は gifBlockChrome / GifDialogHost 側で検証する）
  */
 import {
   createGifBlockNodeView,

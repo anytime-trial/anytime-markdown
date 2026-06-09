@@ -15,6 +15,7 @@ import {
   getSuccessMain,
   getTextPrimary,
   getTextSecondary,
+  getWarningMain,
 } from "../constants/colors";
 import { getPreset, type ThemePresetName } from "../constants/themePresets";
 
@@ -167,6 +168,7 @@ export function applyEditorThemeCssVars(
   root.style.setProperty("--am-color-primary-contrast", getPrimaryContrast(isDark));
   root.style.setProperty("--am-color-error-main", getErrorMain(isDark));
   root.style.setProperty("--am-color-success-main", getSuccessMain(isDark));
+  root.style.setProperty("--am-color-warning-main", getWarningMain(isDark));
   // MUI Slider の rail 色 = primary.main の opacity 0.38。
   root.style.setProperty("--am-color-slider-rail", alpha(getPrimaryMain(isDark), 0.38));
   root.style.setProperty("--am-color-tooltip-bg", isDark ? "rgba(50,50,50,0.95)" : "rgba(40,40,40,0.92)");

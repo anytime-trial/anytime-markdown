@@ -1,6 +1,6 @@
 /**
  * ImageBlockContent.ts — content-only native NodeView のテスト。
- * （編集 chrome は ImageBlockOverlay で検証する）
+ * （編集 chrome は imageBlockChrome / ImageDialogHost で検証する）
  */
 import { createImageBlockNodeView } from "../components/ImageBlockContent";
 

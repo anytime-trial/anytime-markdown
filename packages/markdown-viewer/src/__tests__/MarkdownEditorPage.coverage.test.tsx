@@ -44,6 +44,9 @@ const mockEditor = {
   view: { dom: document.createElement("div") },
 };
 
+jest.mock("../components/GifDialogHost", () => ({ GifDialogHost: () => null }));
+jest.mock("../components/ImageDialogHost", () => ({ ImageDialogHost: () => null }));
+jest.mock("../components/TableDialogHost", () => ({ TableDialogHost: () => null }));
 jest.mock("@anytime-markdown/markdown-react", () => ({
   useEditorState: () => -1,
   useEditor: () => mockEditor,

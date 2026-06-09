@@ -27,9 +27,9 @@ import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorDialogsSection } from "./components/EditorDialogsSection";
 import { EditorErrorBoundary } from "./components/EditorErrorBoundary";
 import { EditorFooterOverlays } from "./components/EditorFooterOverlays";
-import { GifBlockOverlay } from "./components/GifBlockOverlay";
-import { ImageBlockOverlay } from "./components/ImageBlockOverlay";
-import { TableBlockOverlay } from "./components/TableBlockOverlay";
+import { GifDialogHost } from "./components/GifDialogHost";
+import { ImageDialogHost } from "./components/ImageDialogHost";
+import { TableDialogHost } from "./components/TableDialogHost";
 import { EditorMainContent } from "./components/EditorMainContent";
 import { EditorToolbarSection } from "./components/EditorToolbarSection";
 import { ReadonlyToolbar } from "./components/ReadonlyToolbar";
@@ -710,9 +710,9 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
         explorerSlot={explorerSlot}
       />
 
-      <GifBlockOverlay editor={editor} />
-      <ImageBlockOverlay editor={editor} />
-      <TableBlockOverlay editor={editor} />
+      <GifDialogHost editor={editor} />
+      <ImageDialogHost editor={editor} />
+      <TableDialogHost editor={editor} />
       {codeBlockOverlay?.(editor)}
 
       <EditorFooterOverlays

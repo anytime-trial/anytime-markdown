@@ -56,7 +56,8 @@ export const CodeBlockWithMermaid = CodeBlockLowlight.extend({
 
   addNodeView() {
     // 反転アーキテクチャ: content-only native NodeView（React 非依存）。
-    // 編集 chrome は RichMarkdownEditorPage がマウントする CodeBlockOverlay が供給する。
+    // 編集 chrome は脱React の createCodeBlockChrome（ツールバー）と、RichMarkdownEditorPage
+    // がマウントする CodeDialogHost（編集ダイアログ・React host）が供給する。
     return (props) => createCodeBlockNodeView(props);
   },
 
