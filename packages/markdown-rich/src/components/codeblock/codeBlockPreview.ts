@@ -1,0 +1,154 @@
+import DOMPurify from "dompurify";
+
+import { HTML_SANITIZE_CONFIG } from "./types";
+import { MATH_SANITIZE_CONFIG, renderKatexHtml } from "../../hooks/useKatexRender";
+import { getCachedMermaidSvg, requestMermaidRender } from "../../hooks/useMermaidRender";
+import { buildPlantUmlImageUrl, getPlantUmlConsent } from "../../hooks/usePlantUmlRender";
+import { PLANTUML_CONSENT_KEY } from "@anytime-markdown/markdown-viewer";
+import { extractDiagramAltText } from "../../utils/diagramAltText";
+
+/**
+ * codeblock の content-only native NodeView（反転）が language 別プレビューを
+ * 命令的に描画するためのオーケストレータ。React 非依存。
+ *
+ * mermaid / plantuml / katex / html はいずれも S1 で抽出した純関数 seam
+ * （`requestMermaidRender` / `renderKatexHtml` / `buildPlantUmlImageUrl`）を用い、
+ * 結果文字列を `innerEl.innerHTML` / `img.src` へ命令的に反映する。
+ * plantuml の同意取得 UI は native ボタンで描画し、同意変更時に `requestRerender`
+ * を呼んで再描画させる。
+ */
+
+export interface PreviewRenderContext {
+  isDark: boolean;
+  /** SVG フォントスケール用のエディタフォントサイズ(px)。 */
+  fontSize: number;
+  /** 翻訳関数（plantuml consent ラベル等）。 */
+  t: (key: string) => string;
+}
+
+/** SVG width を editor フォントサイズに応じてスケールする（DiagramBlock から移植）。 */
+function scaleSvgForFontSize(svg: string, fontSize: number): string {
+  const viewBoxMatch = /viewBox="-?[\d.]+ -?[\d.]+ ([\d.]+) [\d.]+"/.exec(svg);
+  if (!viewBoxMatch) return svg;
+  const viewBoxWidth = Number.parseFloat(viewBoxMatch[1]);
+  const targetWidth = (fontSize / 16) * viewBoxWidth;
+  return svg
+    .replace(/width="100%"/, `width="${targetWidth}"`)
+    .replace(/max-width:\s*[\d.]+px/, "max-width: 100%");
+}
+
+function renderHtml(innerEl: HTMLElement, code: string): void {
+  innerEl.innerHTML = DOMPurify.sanitize(code, HTML_SANITIZE_CONFIG);
+}
+
+function renderMath(innerEl: HTMLElement, code: string): () => void {
+  let cancelled = false;
+  void renderKatexHtml(code).then(({ html, error }) => {
+    if (cancelled) return;
+    if (error) {
+      innerEl.textContent = error;
+      return;
+    }
+    innerEl.innerHTML = DOMPurify.sanitize(html, MATH_SANITIZE_CONFIG);
+  });
+  return () => { cancelled = true; };
+}
+
+function renderMermaid(innerEl: HTMLElement, code: string, ctx: PreviewRenderContext): () => void {
+  const apply = (svg: string): void => { innerEl.innerHTML = scaleSvgForFontSize(svg, ctx.fontSize); };
+  const cached = getCachedMermaidSvg(code, ctx.isDark);
+  if (cached) apply(cached);
+  return requestMermaidRender(code, ctx.isDark, (svg, error) => {
+    if (error) { innerEl.textContent = error; return; }
+    apply(svg);
+  });
+}
+
+/** plantuml 同意ボタンを native 描画する。 */
+function buildConsentAlert(ctx: PreviewRenderContext, requestRerender: () => void): HTMLElement {
+  const alert = document.createElement("div");
+  alert.setAttribute("role", "alert");
+  alert.style.cssText =
+    "margin:8px;padding:8px 12px;border-radius:4px;font-size:0.8125rem;" +
+    "border:1px solid var(--am-color-divider);color:var(--am-color-text-secondary);";
+  const msg = document.createElement("div");
+  msg.textContent = ctx.t("plantumlExternalWarning");
+  alert.appendChild(msg);
+
+  const actions = document.createElement("div");
+  actions.style.cssText = "display:flex;gap:8px;margin-top:8px;";
+  const mkBtn = (label: string, value: "accepted" | "rejected"): HTMLButtonElement => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.style.cssText = "cursor:pointer;padding:2px 10px;border-radius:4px;border:1px solid var(--am-color-divider);background:transparent;color:inherit;";
+    b.addEventListener("click", () => {
+      try {
+        sessionStorage.setItem(PLANTUML_CONSENT_KEY, value);
+      } catch {
+        // sessionStorage 不可（プライベートモード等）。同意は一時的に効かないが致命ではない。
+      }
+      requestRerender();
+    });
+    return b;
+  };
+  actions.append(mkBtn(ctx.t("plantumlReject"), "rejected"), mkBtn(ctx.t("plantumlAccept"), "accepted"));
+  alert.appendChild(actions);
+  return alert;
+}
+
+function renderPlantUml(innerEl: HTMLElement, code: string, ctx: PreviewRenderContext, requestRerender: () => void): void {
+  if (getPlantUmlConsent() !== "accepted") {
+    innerEl.replaceChildren(buildConsentAlert(ctx, requestRerender));
+    return;
+  }
+  try {
+    const url = buildPlantUmlImageUrl(code, ctx.isDark);
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = extractDiagramAltText(code, "plantuml");
+    img.referrerPolicy = "no-referrer";
+    img.style.cssText = "max-width:100%;height:auto;";
+    innerEl.replaceChildren(img);
+  } catch (err) {
+    innerEl.textContent = `PlantUML: ${err instanceof Error ? err.message : "encode error"}`;
+  }
+}
+
+/**
+ * previewEl 内の inner 要素を language 別プレビューで更新する。
+ * 戻り値は非同期/購読のキャンセル関数（次回再描画・破棄時に呼ぶ）。
+ */
+export function renderCodeBlockPreview(
+  innerEl: HTMLElement,
+  language: string,
+  code: string,
+  ctx: PreviewRenderContext,
+  requestRerender: () => void,
+): () => void {
+  if (!code.trim()) {
+    innerEl.replaceChildren();
+    return () => {};
+  }
+  if (language === "html") {
+    renderHtml(innerEl, code);
+    innerEl.setAttribute("aria-label", "HTML preview");
+    return () => {};
+  }
+  if (language === "math") {
+    innerEl.setAttribute("aria-label", `Math: ${code}`);
+    return renderMath(innerEl, code);
+  }
+  if (language === "mermaid") {
+    innerEl.setAttribute("role", "img");
+    innerEl.setAttribute("aria-label", extractDiagramAltText(code, "mermaid"));
+    return renderMermaid(innerEl, code, ctx);
+  }
+  if (language === "plantuml") {
+    innerEl.setAttribute("role", "img");
+    renderPlantUml(innerEl, code, ctx, requestRerender);
+    return () => {};
+  }
+  innerEl.replaceChildren();
+  return () => {};
+}

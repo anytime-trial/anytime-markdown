@@ -1,21 +1,24 @@
 import type { NodeViewRendererProps } from "@anytime-markdown/markdown-core";
 import type { NodeView } from "@anytime-markdown/markdown-pm/view";
+import { PREVIEW_MAX_HEIGHT } from "@anytime-markdown/markdown-viewer";
+
+import { renderCodeBlockPreview } from "./codeBlockPreview";
 
 /**
  * codeBlock（CodeBlockWithMermaid）の content-only native NodeView（React 非依存）。
  *
  * framework-decoupling Phase 2「反転」設計: NodeView はドキュメント内容
- * （編集可能なコードテキスト = contentDOM + language 別プレビュー）のみを
+ * （編集可能なコードテキスト = contentDOM + language 別プレビュー + リサイズ）を
  * vanilla DOM で描画する。編集 chrome（ツールバー・全画面編集ダイアログ・
  * 削除/破棄ダイアログ・図のズーム/グラフ操作）はページ層の `CodeBlockOverlay`
  * （React）が選択中ノードに対して提供する。
  *
- * テーマ色は CSS 変数（applyEditorThemeCssVars 注入）を参照し、ダーク/ライトは
- * ホスト側の変数切替で追従する。`codeCollapsed`（折畳み）は overlay が選択検出に
- * 応じて node 属性へ書き込み、本 NodeView は属性を読むだけ。
+ * テーマ色は CSS 変数（applyEditorThemeCssVars 注入）を参照する。`codeCollapsed`
+ * （折畳み）と dark/font-size（`--am-editor-dark` / `--am-code-font-size`）は
+ * overlay が選択検出・設定に応じて書き込み、本 NodeView は読むだけ。
  *
- * 本ファイルは段階導入: S2a=骨格 + contentDOM + 折畳み + regular code、
- * S2b=string プレビュー（html/math/mermaid/plantuml）+ リサイズ、S2c=embed。
+ * 段階導入: S2a=骨格、S2b=string プレビュー(html/math/mermaid/plantuml)+リサイズ
+ * （本コミット）、S2c=embed、S4=graph/zoom。
  */
 
 /** ダブルクリック等の「全画面編集を開きたい」意図を overlay へ伝える DOM イベント名 */
@@ -31,6 +34,8 @@ export function classifyCodeBlock(language: unknown): CodeBlockKind {
   return "regular";
 }
 
+const MIN_RESIZE_WIDTH = 50;
+
 /** getPos を安全に取得する（detached ノードでは throw するため try/catch）。 */
 function safeGetPos(getPos: (() => number | undefined) | boolean | undefined): number | null {
   if (typeof getPos !== "function") return null;
@@ -42,11 +47,39 @@ function safeGetPos(getPos: (() => number | undefined) | boolean | undefined): n
   }
 }
 
+/** エディタの dark/light を CSS 変数から読む（overlay が `--am-editor-dark` を書く）。 */
+function isEditorDark(): boolean {
+  if (typeof document === "undefined") return false;
+  return getComputedStyle(document.documentElement).getPropertyValue("--am-editor-dark").trim() === "1";
+}
+
+/** エディタのコードフォントサイズ(px)を CSS 変数から読む（既定 16）。 */
+function getEditorFontSize(): number {
+  if (typeof document === "undefined") return 16;
+  const v = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--am-code-font-size"));
+  return Number.isFinite(v) && v > 0 ? v : 16;
+}
+
+export interface CodeBlockNodeViewOptions {
+  /** 翻訳関数（plantuml consent ラベル等）。省略時はキーをそのまま返す。 */
+  t?: (key: string) => string;
+}
+
 export function createCodeBlockNodeView(
   { node, editor, getPos }: Pick<NodeViewRendererProps, "node" | "editor" | "getPos">,
+  options: CodeBlockNodeViewOptions = {},
 ): NodeView {
+  const t = options.t ?? ((k: string) => k);
   let currentNode = node;
   let kind = classifyCodeBlock(node.attrs.language);
+  let previewCancel: () => void = () => {};
+  let renderedKey = "";
+
+  // resize 状態
+  let resizing = false;
+  let startX = 0;
+  let startWidth = 0;
+  let draftWidth: number | null = null;
 
   // --- DOM 構築 ---
   const dom = document.createElement("div");
@@ -55,11 +88,9 @@ export function createCodeBlockNodeView(
 
   const frame = document.createElement("div");
   frame.className = "rich-codeblock-frame";
-  frame.style.cssText =
-    "border:1px solid transparent;border-radius:4px;overflow:hidden;margin:8px 0;";
+  frame.style.cssText = "border:1px solid transparent;border-radius:4px;overflow:hidden;margin:8px 0;";
   dom.appendChild(frame);
 
-  // コード表示エリア（contentDOM を内包）。折畳み対象。
   const preWrap = document.createElement("div");
   const pre = document.createElement("pre");
   pre.spellcheck = false;
@@ -72,10 +103,28 @@ export function createCodeBlockNodeView(
   preWrap.appendChild(pre);
   frame.appendChild(preWrap);
 
-  // プレビュー領域（S2b 以降で language 別に描画）。regular は空。
+  // プレビュー領域（container = previewEl, 実体 = previewInner, 右下 = resizeGrip）。
   const previewEl = document.createElement("div");
   previewEl.className = "rich-codeblock-preview";
   previewEl.contentEditable = "false";
+  previewEl.style.cssText =
+    "position:relative;overflow:auto;background:var(--am-color-bg-default);" +
+    `max-height:${PREVIEW_MAX_HEIGHT}px;`;
+  const previewInner = document.createElement("div");
+  previewEl.appendChild(previewInner);
+
+  const resizeGrip = document.createElement("div");
+  resizeGrip.style.cssText =
+    "position:absolute;right:2px;bottom:2px;width:12px;height:12px;cursor:nwse-resize;" +
+    "border-radius:2px;background:var(--am-color-primary-main);display:none;";
+  previewEl.appendChild(resizeGrip);
+
+  const sizeBadge = document.createElement("div");
+  sizeBadge.style.cssText =
+    "position:absolute;right:16px;bottom:2px;padding:1px 6px;border-radius:3px;" +
+    "background:rgba(0,0,0,0.7);color:#fff;font-size:0.6875rem;display:none;";
+  previewEl.appendChild(sizeBadge);
+
   frame.appendChild(previewEl);
 
   const setCodeLanguageClass = (language: unknown): void => {
@@ -84,7 +133,6 @@ export function createCodeBlockNodeView(
   };
   setCodeLanguageClass(node.attrs.language);
 
-  // クリックでコードへ選択を移し overlay に選択を認識させる（プレビュークリック時）。
   const focusBlock = (): void => {
     const pos = safeGetPos(getPos);
     if (pos == null || !editor) return;
@@ -93,9 +141,8 @@ export function createCodeBlockNodeView(
   const onPreviewClick = (): void => { focusBlock(); };
   previewEl.addEventListener("click", onPreviewClick);
 
-  // ダブルクリックで全画面編集の意図を overlay へ通知。
   const onDoubleClick = (e: MouseEvent): void => {
-    if (kind === "regular") return; // regular はプレビューが無く dblclick 編集の対象外
+    if (kind === "regular") return;
     const pos = safeGetPos(getPos);
     if (pos == null) return;
     e.preventDefault();
@@ -103,19 +150,92 @@ export function createCodeBlockNodeView(
   };
   dom.addEventListener("dblclick", onDoubleClick);
 
-  /** 折畳み・枠線・プレビュー表示を属性から反映する。 */
-  const applyChrome = (n = currentNode): void => {
-    const collapsed = !!n.attrs.codeCollapsed;
+  // --- プレビュー描画 ---
+  const requestRerender = (): void => { renderedKey = ""; renderPreview(); };
+  function renderPreview(): void {
+    if (kind === "regular" || kind === "embed") {
+      previewInner.replaceChildren();
+      return;
+    }
+    const lang = String(currentNode.attrs.language ?? "");
+    const codeText = currentNode.textContent;
+    const key = `${lang}\0${codeText}`;
+    if (key === renderedKey) return;
+    renderedKey = key;
+    previewCancel();
+    previewCancel = renderCodeBlockPreview(
+      previewInner, lang, codeText,
+      { isDark: isEditorDark(), fontSize: getEditorFontSize(), t },
+      requestRerender,
+    );
+  }
+
+  // --- 幅・折畳み・枠線の反映 ---
+  const applyWidth = (): void => {
+    const w = draftWidth != null ? `${draftWidth}px` : ((currentNode.attrs.width as string | null) || "");
+    previewEl.style.width = w || "fit-content";
+  };
+
+  const applyChrome = (): void => {
+    const collapsed = !!currentNode.attrs.codeCollapsed;
     const isPreview = kind !== "regular";
-    // preview ブロックは collapsed のときコードを隠す。regular は常時表示。
-    const hideCode = isPreview && collapsed;
-    preWrap.style.display = hideCode ? "none" : "";
+    preWrap.style.display = isPreview && collapsed ? "none" : "";
     pre.style.maxHeight = isPreview ? "200px" : "400px";
-    // 枠線は「展開中（= 選択中）」に表示。overlay が選択検出で codeCollapsed を切替える。
     frame.style.borderColor = collapsed ? "transparent" : "var(--am-color-divider)";
     previewEl.style.display = isPreview ? "" : "none";
+    previewEl.style.borderTop = isPreview && !collapsed ? "1px solid var(--am-color-divider)" : "none";
+    const canResize = isPreview && kind !== "embed" && !collapsed && !!editor?.isEditable;
+    resizeGrip.style.display = canResize ? "block" : "none";
+    applyWidth();
   };
+
+  // --- リサイズ ---
+  const commitWidth = (w: number): void => {
+    const pos = safeGetPos(getPos);
+    if (pos == null || !editor) return;
+    editor.chain().command(({ tr }) => { tr.setNodeAttribute(pos, "width", `${w}px`); return true; }).run();
+  };
+  const updateBadge = (): void => {
+    if (resizing && draftWidth != null) {
+      sizeBadge.textContent = `${draftWidth}px`;
+      sizeBadge.style.display = "block";
+    } else {
+      sizeBadge.style.display = "none";
+    }
+  };
+  const onGripPointerDown = (e: PointerEvent): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    startX = e.clientX;
+    startWidth = previewEl.getBoundingClientRect().width;
+    resizing = true;
+    draftWidth = Math.round(startWidth);
+    try { resizeGrip.setPointerCapture(e.pointerId); } catch { /* jsdom 等で未対応 */ }
+    updateBadge();
+  };
+  const onGripPointerMove = (e: PointerEvent): void => {
+    if (!resizing) return;
+    draftWidth = Math.max(MIN_RESIZE_WIDTH, Math.round(startWidth + (e.clientX - startX)));
+    applyWidth();
+    updateBadge();
+  };
+  const endResize = (commit: boolean): void => {
+    if (!resizing) return;
+    resizing = false;
+    if (commit && draftWidth != null) commitWidth(draftWidth);
+    draftWidth = null;
+    applyWidth();
+    updateBadge();
+  };
+  const onGripPointerUp = (): void => endResize(true);
+  const onGripPointerCancel = (): void => endResize(false);
+  resizeGrip.addEventListener("pointerdown", onGripPointerDown);
+  resizeGrip.addEventListener("pointermove", onGripPointerMove);
+  resizeGrip.addEventListener("pointerup", onGripPointerUp);
+  resizeGrip.addEventListener("pointercancel", onGripPointerCancel);
+
   applyChrome();
+  renderPreview();
 
   return {
     dom,
@@ -128,18 +248,22 @@ export function createCodeBlockNodeView(
         kind = classifyCodeBlock(updatedNode.attrs.language);
         setCodeLanguageClass(updatedNode.attrs.language);
       }
-      applyChrome(updatedNode);
+      applyChrome();
+      renderPreview();
       return true;
     },
     ignoreMutation(mutation) {
-      // contentDOM（コードテキスト）内の変化は ProseMirror に処理させる。
-      // それ以外（プレビュー領域などの命令的更新）は無視させる。
       if (mutation.type === "selection") return false;
       return !code.contains(mutation.target as Node);
     },
     destroy() {
+      previewCancel();
       previewEl.removeEventListener("click", onPreviewClick);
       dom.removeEventListener("dblclick", onDoubleClick);
+      resizeGrip.removeEventListener("pointerdown", onGripPointerDown);
+      resizeGrip.removeEventListener("pointermove", onGripPointerMove);
+      resizeGrip.removeEventListener("pointerup", onGripPointerUp);
+      resizeGrip.removeEventListener("pointercancel", onGripPointerCancel);
     },
   };
 }

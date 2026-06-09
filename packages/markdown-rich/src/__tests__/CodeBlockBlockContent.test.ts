@@ -9,10 +9,26 @@ import {
 } from "../components/codeblock/CodeBlockBlockContent";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function makeView(attrs: Record<string, unknown>, opts: { pos?: number } = {}): any {
-  const editor = { commands: { setTextSelection: jest.fn() } } as any;
+function makeView(
+  attrs: Record<string, unknown>,
+  opts: { pos?: number; isEditable?: boolean; onSetWidth?: (cmd: unknown) => void } = {},
+): any {
+  const setNodeAttribute = jest.fn();
+  const chain = () => ({
+    command: (fn: (ctx: { tr: { setNodeAttribute: typeof setNodeAttribute } }) => boolean) => {
+      fn({ tr: { setNodeAttribute } });
+      return { run: jest.fn() };
+    },
+  });
+  const editor = {
+    isEditable: opts.isEditable ?? true,
+    commands: { setTextSelection: jest.fn() },
+    chain,
+  } as any;
   const node = { attrs, type: { name: "codeBlock" }, textContent: attrs.text ?? "" } as any;
-  return createCodeBlockNodeView({ node, editor, getPos: () => opts.pos ?? 3 });
+  const view = createCodeBlockNodeView({ node, editor, getPos: () => opts.pos ?? 3 });
+  view.__setNodeAttribute = setNodeAttribute;
+  return view;
 }
 
 describe("classifyCodeBlock", () => {
@@ -125,5 +141,43 @@ describe("createCodeBlockNodeView (native content NodeView)", () => {
     const preview = (view.dom as HTMLElement).querySelector(".rich-codeblock-preview") as HTMLElement;
     preview.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(editorSpy).toHaveBeenCalledWith(6); // pos + 1
+  });
+
+  it("html プレビューを sanitize して描画する", () => {
+    const view = makeView({ language: "html", codeCollapsed: false, text: "<b>hi</b><script>alert(1)</script>" });
+    const inner = (view.dom as HTMLElement).querySelector(".rich-codeblock-preview > div") as HTMLElement;
+    expect(inner.innerHTML).toContain("<b>hi</b>");
+    expect(inner.innerHTML).not.toContain("<script>");
+  });
+
+  it("regular はプレビュー inner を空にする", () => {
+    const view = makeView({ language: "typescript", text: "const x = 1" });
+    const inner = (view.dom as HTMLElement).querySelector(".rich-codeblock-preview > div") as HTMLElement;
+    expect(inner.childNodes.length).toBe(0);
+  });
+
+  // previewEl 直下の div: [0]=previewInner [1]=resizeGrip [2]=sizeBadge
+  const gripOf = (view: { dom: HTMLElement }): HTMLElement =>
+    (view.dom.querySelectorAll(".rich-codeblock-preview > div")[1]) as HTMLElement;
+
+  it("展開中かつ編集可能でリサイズグリップを表示する", () => {
+    const expanded = makeView({ language: "mermaid", codeCollapsed: false }, { isEditable: true });
+    expect(gripOf(expanded).style.display).toBe("block");
+
+    const collapsed = makeView({ language: "mermaid", codeCollapsed: true }, { isEditable: true });
+    expect(gripOf(collapsed).style.display).toBe("none");
+
+    const readOnly = makeView({ language: "mermaid", codeCollapsed: false }, { isEditable: false });
+    expect(gripOf(readOnly).style.display).toBe("none");
+  });
+
+  it("リサイズドラッグで width を editor へコミットする", () => {
+    // jsdom には PointerEvent が無いため MouseEvent（type=pointer*）で代用する。
+    const view = makeView({ language: "mermaid", codeCollapsed: false }, { isEditable: true, pos: 4 });
+    const grip = gripOf(view);
+    grip.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 0 }));
+    grip.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 120 }));
+    grip.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+    expect(view.__setNodeAttribute).toHaveBeenCalledWith(4, "width", "120px");
   });
 });
