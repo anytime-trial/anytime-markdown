@@ -12,6 +12,8 @@
 			"@/*": ["./src/*"],
 			"@anytime-markdown/markdown-viewer": ["../markdown-viewer/src/index.ts"],
 			"@anytime-markdown/markdown-viewer/src/*": ["../markdown-viewer/src/*"],
+			"@anytime-markdown/markdown-engine": ["../markdown-engine/src/index.ts"],
+			"@anytime-markdown/markdown-engine/*": ["../markdown-engine/src/*"],
 			"@anytime-markdown/markdown-core": ["../markdown-core/core/src/index.ts"],
 			"@anytime-markdown/markdown-core/*": ["../markdown-core/core/src/*"],
 			"@anytime-markdown/markdown-react": ["../markdown-core/react/src/index.ts"],

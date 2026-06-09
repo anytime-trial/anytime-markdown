@@ -191,6 +191,11 @@ interface MarkdownEditorPageProps {
   gridCols?: number;
   /** codeBlock 拡張の注入 (rich の CodeBlockWithMermaid)。未注入時は素の CodeBlockLowlight (B-5) */
   codeBlockExtension?: AnyExtension;
+  /** codeBlock の編集 chrome オーバーレイの注入 (rich の CodeBlockOverlay)。editor を受け取る render prop。
+   * 反転アーキテクチャ: native NodeView が描画する content の chrome をページ層で供給する。
+   * gif/image/table overlay は viewer 内にあるため固定マウントだが、codeblock chrome は
+   * markdown-rich 側 (viewer に依存) にあり viewer から import できないため render prop で注入する。 */
+  codeBlockOverlay?: (editor: Editor | null) => React.ReactNode;
   /** ダークモード PDF 出力時の図ライト化戦略の注入 (rich の prepareDarkDiagramsForPrint)。未注入時はスキップ (B-5) */
   prepareDarkDiagrams?: DarkDiagramPrintPreparer;
   /** ホームリンクのクリックハンドラ（ツールバー左端のロゴ） */
@@ -340,7 +345,7 @@ function buildEditorPortalTarget(): HTMLDivElement | null {
 
 type InnerProps = Omit<MarkdownEditorPageProps, "locale">;
 
-function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, codeBlockExtension, prepareDarkDiagrams, onHomeClick }: InnerProps = {}) {
+function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hideVersionInfo, onCompareModeChange, onHeadingsChange, onCommentsChange, themeMode, onThemeModeChange, presetName, onPresetChange, onLocaleChange, fileSystemProvider, externalContent, externalFileName, externalFilePath: _externalFilePath, onExternalSave, readOnly, hideToolbar, hideOutline, hideComments, hideTemplates, hideFoldAll, hideStatusBar, onStatusChange, autoReload, onModeChange, defaultSourceMode, showReadonlyMode, externalCompareContent, explorerOpen, onToggleExplorer, sideToolbar, hideCompareToggle, hideGraph, explorerSlot, noScroll, defaultOutlineOpen, fixedEditorHeight, defaultFontSize, initialFontSize, defaultBlockAlign, onContentChange, showFrontmatter, bottomOffset: extraBottomOffset, gridRows, gridCols, codeBlockExtension, codeBlockOverlay, prepareDarkDiagrams, onHomeClick }: InnerProps = {}) {
   const t = useMarkdownT("MarkdownEditor");
   const locale = useMarkdownLocale();
   // MUI breakpoints: down("sm")=max-width:599.95px / up("md")=min-width:900px
@@ -708,6 +713,7 @@ function MarkdownEditorPageInner({ hideFileOps, hideUndoRedo, hideSettings, hide
       <GifBlockOverlay editor={editor} />
       <ImageBlockOverlay editor={editor} />
       <TableBlockOverlay editor={editor} />
+      {codeBlockOverlay?.(editor)}
 
       <EditorFooterOverlays
         editor={editor} editorPortalTarget={editorPortalTarget}

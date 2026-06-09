@@ -12,7 +12,6 @@
 // codeblock 描画ツリー本体 (B-3+B-4 で markdown-core から物理移動)
 // RichMarkdownEditorPage (B-7) が getBaseExtensions の codeBlockExtension に注入する拡張。
 export { CodeBlockWithMermaid } from "./codeBlockWithMermaid";
-export { CodeBlockNodeView } from "./MermaidNodeView";
 
 // PDF 出力時のダークモード図ライト化戦略 (B-5: usePdfExport から注入される)
 export { prepareDarkDiagramsForPrint } from "./pdf/prepareDarkDiagramsForPrint";

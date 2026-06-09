@@ -1,7 +1,9 @@
 import {
   alpha,
   DEFAULT_DARK_BG,
+  DEFAULT_DARK_CODE_BG,
   DEFAULT_LIGHT_BG,
+  DEFAULT_LIGHT_CODE_BG,
   getActionActive,
   getActionHover,
   getActionSelected,
@@ -172,6 +174,9 @@ export function applyEditorThemeCssVars(
   // エディタ背景（既定）と差分インラインハイライト（removed=error / added=success、alpha 0.35）。
   // 旧 LinePreviewPanel の useTheme + @mui/material/styles alpha を排除するための seam。
   root.style.setProperty("--am-color-bg-default", isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG);
+  // コードブロックの <pre> 背景。markdown-rich の native codeblock NodeView（反転）が
+  // React context（useIsDark）を読めないため CSS 変数化する。
+  root.style.setProperty("--am-color-code-bg", isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG);
   root.style.setProperty("--am-color-diff-removed-bg", alpha(getErrorMain(isDark), 0.35));
   root.style.setProperty("--am-color-diff-added-bg", alpha(getSuccessMain(isDark), 0.35));
 
