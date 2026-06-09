@@ -49,6 +49,8 @@ export {
 // Vanilla host seam（G・脱React で editor を mount）。
 export type { VanillaEditorHostHandle, VanillaEditorHostOptions } from './host/vanillaEditorHost';
 export { createVanillaEditorHost } from './host/vanillaEditorHost';
+// Vanilla ui プリミティブ（F・脱React ui kit。chrome/host が消費する素 DOM 部品）。
+export * from './ui-vanilla';
 export type { NotificationKey } from './hooks/useNotification';
 export { useNotification } from './hooks/useNotification';
 export type { DarkDiagramPrintPreparer } from './hooks/usePdfExport';
