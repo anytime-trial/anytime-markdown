@@ -17,7 +17,7 @@
  * 依存しない。`Button.ts` / `Dialog.ts` の cssText + addEventListener パターンに揃える。
  */
 
-import { svgIcon } from "./dom";
+import { svgIcon, TRANSPARENT_BACKDROP_CSS } from "./dom";
 import { createFloating } from "./floating";
 import { createMenuItem } from "./MenuItem";
 import { createMenuList } from "./MenuList";
@@ -69,7 +69,6 @@ const ICON_CSS =
   "color:var(--am-color-action-active);pointer-events:none;";
 
 // .backdrop（floating.module.css .backdrop 相当）。透明 click-away。z-index 1300。
-const BACKDROP_CSS = "position:fixed;inset:0;z-index:1300;";
 
 // .listbox（floating.module.css .floatingPaper + Select.module.css .listbox）。
 const LISTBOX_CSS =
@@ -173,7 +172,7 @@ export function createSelect<T extends string>(opts: CreateSelectOptions<T>): {
     // backdrop（透明 click-away）。
     const backdrop = document.createElement("div");
     backdrop.setAttribute("data-am-select-backdrop", "");
-    backdrop.style.cssText = BACKDROP_CSS;
+    backdrop.style.cssText = TRANSPARENT_BACKDROP_CSS;
 
     // listbox 項目（role="option"）。aria-selected=確定値の一致 / selected(CSS)=後で active 同期。
     const selectedIndex = options.findIndex((o) => o.value === value);

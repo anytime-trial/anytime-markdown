@@ -55,3 +55,27 @@ export function svgIcon(path: string | readonly string[], size = 16): SVGSVGElem
   }
   return svg;
 }
+
+/**
+ * 指定 id の `<style>` を `document.head` へ 1 度だけ注入する（pseudo-class / keyframe 用）。
+ * 各 ui-vanilla ファクトリの `ensureXxxStyles()` ボイラープレートを集約する。SSR 安全。
+ */
+export function ensureStyle(id: string, css: string): void {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(id)) return;
+  const style = document.createElement("style");
+  style.id = id;
+  style.textContent = css;
+  document.head.appendChild(style);
+}
+
+let _idSeq = 0;
+
+/** 一意な id を採番する（aria 連携等）。React useId 相当の vanilla 版。決定論的（テスト再現可）。 */
+export function nextId(prefix: string): string {
+  _idSeq += 1;
+  return `${prefix}-${_idSeq}`;
+}
+
+/** 透明な click-away バックドロップの cssText（fixed 全面・z-index 1300）。overlay 共有。 */
+export const TRANSPARENT_BACKDROP_CSS = "position:fixed;inset:0;z-index:1300;";

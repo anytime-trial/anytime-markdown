@@ -158,15 +158,13 @@ export function createSnackbar(opts: CreateSnackbarOptions = {}): {
     update(next) {
       if (next.anchorOrigin !== undefined) {
         anchor = next.anchorOrigin;
-        const { mounted, visible } = tm.getState();
+        const { visible } = tm.getState();
         applyLayout();
         // 現在の visible 状態に応じて transform/opacity を再適用（applyLayout で初期化されるため）。
         if (visible) {
           el.style.opacity = "1";
           el.style.transform = "translateY(0)";
         }
-        // mounted=false（DOM 未付与）でも cssText だけは更新済み。
-        void mounted;
       }
       if (next.onClose !== undefined) onClose = next.onClose;
       if (next.autoHideDuration !== undefined) {

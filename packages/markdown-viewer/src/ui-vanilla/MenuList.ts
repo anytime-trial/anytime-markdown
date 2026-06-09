@@ -11,7 +11,7 @@
  * API に依存しない。`Button.ts` / `Dialog.ts` の cssText + addEventListener パターンに揃える。
  */
 
-import { applyStyle } from "./dom";
+import { applyStyle, nextId } from "./dom";
 
 /** menuitem として扱うセレクタ（createMenuItem の li / 一般の role=menuitem 双方）。 */
 const MENUITEM_SELECTOR = '[role="menuitem"], [role="option"]';
@@ -118,7 +118,7 @@ export function createMenuList(opts: CreateMenuListOptions = {}): {
     items.forEach((item, i) => {
       item.tabIndex = i === activeIndex ? 0 : -1;
       if (i === activeIndex) {
-        if (!item.id) item.id = `am-menuitem-${Math.random().toString(36).slice(2, 9)}`;
+        if (!item.id) item.id = nextId("am-menuitem");
         el.setAttribute("aria-activedescendant", item.id);
       }
     });

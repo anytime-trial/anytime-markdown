@@ -12,7 +12,7 @@
  * `document.head` へ一度だけ注入する（冪等）。
  */
 
-import { applyStyle } from "./dom";
+import { applyStyle, ensureStyle } from "./dom";
 
 /** 注入済みフラグ用の style 要素 id（冪等注入のため）。 */
 const STYLE_ID = "am-vanilla-slider-styles";
@@ -27,10 +27,6 @@ const MEDIUM_CLASS = "am-vanilla-slider-medium";
  * ui/Slider.module.css の .slider / 擬似要素を一字一句相当で再現する。
  */
 function ensureStyles(): void {
-  if (typeof document === "undefined") return;
-  if (document.getElementById(STYLE_ID)) return;
-  const style = document.createElement("style");
-  style.id = STYLE_ID;
   const FILL = "var(--slider-fill, 0%)";
   const FOCUS_RING =
     "box-shadow:0 0 0 8px color-mix(in srgb, var(--am-color-primary-main) 16%, transparent);";
@@ -38,7 +34,7 @@ function ensureStyles(): void {
     "width:12px;height:12px;border:none;border-radius:50%;" +
     "background:var(--am-color-primary-main);" +
     "transition:box-shadow var(--am-duration-fast) var(--am-ease-standard);";
-  style.textContent = [
+  ensureStyle(STYLE_ID, [
     // .slider（root）。つまみが上下にはみ出す分の padding を含む。
     `.${ROOT_CLASS}{-webkit-appearance:none;appearance:none;width:100%;`,
     `background:transparent;cursor:pointer;margin:0;padding:11px 0;}`,
@@ -61,8 +57,7 @@ function ensureStyles(): void {
     // focus-visible リング。
     `.${ROOT_CLASS}:focus-visible::-webkit-slider-thumb{${FOCUS_RING}}`,
     `.${ROOT_CLASS}:focus-visible::-moz-range-thumb{${FOCUS_RING}}`,
-  ].join("");
-  document.head.appendChild(style);
+  ].join(""));
 }
 
 export type SliderSize = "small" | "medium";

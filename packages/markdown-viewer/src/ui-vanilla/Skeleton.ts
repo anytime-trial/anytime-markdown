@@ -11,6 +11,8 @@
  * `document.head` へ一度だけ注入する（冪等。Spinner.ts と同パターン）。
  */
 
+import { applyStyle, ensureStyle } from "./dom";
+
 /** 注入済みフラグ用の style 要素 id（冪等注入のため）。 */
 const STYLE_ID = "am-vanilla-skeleton-keyframes";
 
@@ -32,11 +34,7 @@ export type SkeletonVariant = "text" | "rectangular" | "circular";
  * ui/Skeleton.module.css と同一の skeleton-pulse / variant スタイルを再現する。
  */
 function ensureKeyframes(): void {
-  if (typeof document === "undefined") return;
-  if (document.getElementById(STYLE_ID)) return;
-  const style = document.createElement("style");
-  style.id = STYLE_ID;
-  style.textContent = [
+  ensureStyle(STYLE_ID, [
     // .root（pulse 2s ease-in-out 0.5s infinite）。
     `.${ROOT_CLASS}{display:block;`,
     `background-color:var(--am-color-skeleton-bg);`,
@@ -50,8 +48,7 @@ function ensureKeyframes(): void {
     `0%{opacity:1;}50%{opacity:0.4;}100%{opacity:1;}}`,
     `@media (prefers-reduced-motion:reduce){`,
     `.${ROOT_CLASS}{animation:none;}}`,
-  ].join("");
-  document.head.appendChild(style);
+  ].join(""));
 }
 
 /** length 値（number は px 化、string はそのまま）を CSS 長さ文字列に正規化する。 */
@@ -100,7 +97,7 @@ export function createSkeleton(opts: CreateSkeletonOptions = {}): {
   applyClass(variant, className);
   applySize(opts.width, opts.height);
   // style は size 適用後に重ねる（width/height を上書き可能にするため、React の {width,height,...style} 順に一致）。
-  if (opts.style) Object.assign(el.style, opts.style);
+  applyStyle(el, opts.style);
 
   return {
     el,
@@ -115,7 +112,7 @@ export function createSkeleton(opts: CreateSkeletonOptions = {}): {
       }
       if (next.width !== undefined) el.style.width = toLength(next.width);
       if (next.height !== undefined) el.style.height = toLength(next.height);
-      if (next.style) Object.assign(el.style, next.style);
+      applyStyle(el, next.style);
     },
   };
 }

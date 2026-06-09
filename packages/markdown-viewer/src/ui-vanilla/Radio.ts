@@ -322,6 +322,8 @@ export interface RadioGroupChild {
   el: HTMLElement;
   register: (reg: RadioGroupRegistration) => void;
   setGroupValue: (groupValue: string | undefined) => void;
+  /** listener 等の解放（RadioGroup.destroy から連鎖呼び出しされる）。 */
+  destroy: () => void;
 }
 
 /** vanilla RadioGroup のオプション。React `RadioGroupProps` のうち vanilla で再現する範囲。 */
@@ -400,6 +402,8 @@ export function createRadioGroup(opts: CreateRadioGroupOptions = {}): {
     },
     destroy() {
       changeHandler = undefined;
+      // 所有する子（FormControlLabel）の listener も解放する（ToggleButtonGroup と整合）。
+      for (const child of children) child.destroy();
     },
   };
 }

@@ -25,7 +25,7 @@
 
 import type { ReferenceElement } from "@floating-ui/dom";
 
-import { appendContent, applyStyle, type VanillaContent } from "./dom";
+import { appendContent, applyStyle, TRANSPARENT_BACKDROP_CSS, type VanillaContent } from "./dom";
 import { createFloating, createVirtualAnchor } from "./floating";
 import type { Placement } from "./floating";
 import { createFocusTrap } from "./focusTrap";
@@ -33,8 +33,6 @@ import { createMenuList } from "./MenuList";
 
 export type { Placement } from "./floating";
 
-/** click-away 用の透明 backdrop（floating.module.css .backdrop 相当）。z-index 1300。 */
-const BACKDROP_CSS = "position:fixed;inset:0;z-index:1300;";
 
 /**
  * ul(role=menu) 専用 paper cssText（Menu.module.css .paper = floatingPaper + 寸法）。
@@ -47,8 +45,6 @@ const MENU_PAPER_CSS =
   "box-shadow:var(--am-elevation-3);" +
   "min-width:112px;max-height:calc(100vh - 32px);overflow:auto;";
 
-/** role=menuitem かつ無効化されていない項目のセレクタ（Menu.tsx MENU_ITEM_SELECTOR と同一）。 */
-const MENU_ITEM_SELECTOR = '[role="menuitem"]:not([aria-disabled="true"])';
 
 /** {@link createMenu} のオプション。MUI Menu（ui/Menu.tsx）置換。 */
 export interface CreateMenuOptions {
@@ -119,7 +115,7 @@ export function createMenu(opts: CreateMenuOptions): {
 
   const backdrop = document.createElement("div");
   backdrop.setAttribute("data-am-menu-backdrop", "");
-  backdrop.style.cssText = BACKDROP_CSS;
+  backdrop.style.cssText = TRANSPARENT_BACKDROP_CSS;
 
   // MenuList を再利用して ul(role=menu) + キーボード state machine を構築する。
   // 矢印キーで動いたアクティブ項目を DOM フォーカスへ反映（React Menu 同様 focus ベース）、
@@ -195,12 +191,11 @@ export function createMenu(opts: CreateMenuOptions): {
   // open 時に最初の menuitem を active にし、onActiveChange 経由で DOM フォーカスを移す。
   // el は既に document へ接続済みのため focus が有効（detached focus は no-op）。focusTrap の
   // restore 捕捉後に行うことで、focusTrap が active 項目ではなく open 前要素を復帰対象にする。
-  const firstItem = menu.querySelector<HTMLElement>(MENU_ITEM_SELECTOR);
-  if (firstItem) {
-    const items = [...menu.querySelectorAll<HTMLElement>('[role="menuitem"], [role="option"]')];
-    const idx = items.indexOf(firstItem);
-    if (idx >= 0) list.setActiveIndex(idx);
-  }
+  // 最初の「有効な」menuitem の index へ active を移す（setActiveIndex は disabled をスキップ
+   // しないため、ここで enabled の index を求める）。DOM スキャンは 1 回に抑える。
+  const items = [...menu.querySelectorAll<HTMLElement>('[role="menuitem"], [role="option"]')];
+  const idx = items.findIndex((it) => it.getAttribute("aria-disabled") !== "true");
+  if (idx >= 0) list.setActiveIndex(idx);
 
   let destroyed = false;
   return {

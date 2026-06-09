@@ -9,8 +9,11 @@
 export {
   appendContent,
   applyStyle,
+  ensureStyle,
   FOCUSABLE,
+  nextId,
   svgIcon,
+  TRANSPARENT_BACKDROP_CSS,
   type VanillaContent,
 } from "./dom";
 export {

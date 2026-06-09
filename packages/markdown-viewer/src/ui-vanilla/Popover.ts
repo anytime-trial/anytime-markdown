@@ -21,15 +21,13 @@
 
 import type { ReferenceElement } from "@floating-ui/dom";
 
-import { appendContent, applyStyle, type VanillaContent } from "./dom";
+import { appendContent, applyStyle, TRANSPARENT_BACKDROP_CSS, type VanillaContent } from "./dom";
 import { createFloating } from "./floating";
 import type { Placement } from "./floating";
 import { createFocusTrap } from "./focusTrap";
 
 export type { Placement } from "./floating";
 
-/** click-away 用の透明 backdrop（floating.module.css .backdrop 相当）。z-index 1300。 */
-const BACKDROP_CSS = "position:fixed;inset:0;z-index:1300;";
 
 /** 浮遊する elevated paper（floating.module.css .floatingPaper 相当）。位置は createFloating が付与。 */
 const FLOATING_PAPER_CSS =
@@ -79,7 +77,7 @@ export function createPopover(opts: CreatePopoverOptions): {
 
   const backdrop = document.createElement("div");
   backdrop.setAttribute("data-am-popover-backdrop", "");
-  backdrop.style.cssText = BACKDROP_CSS;
+  backdrop.style.cssText = TRANSPARENT_BACKDROP_CSS;
 
   const paper = document.createElement("div");
   paper.setAttribute("data-am-popover-paper", "");

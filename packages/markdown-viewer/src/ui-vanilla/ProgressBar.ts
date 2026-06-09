@@ -14,6 +14,8 @@
  * `document.head` へ一度だけ注入する（冪等）。
  */
 
+import { applyStyle, ensureStyle } from "./dom";
+
 /** 注入済みフラグ用の style 要素 id（冪等注入のため）。 */
 const STYLE_ID = "am-vanilla-progressbar-keyframes";
 
@@ -28,11 +30,7 @@ const INDETERMINATE_CLASS = "am-vanilla-progressbar-indeterminate";
  * ui/ProgressBar.module.css と同一の .root / .bar / keyframes を再現する。
  */
 function ensureKeyframes(): void {
-  if (typeof document === "undefined") return;
-  if (document.getElementById(STYLE_ID)) return;
-  const style = document.createElement("style");
-  style.id = STYLE_ID;
-  style.textContent = [
+  ensureStyle(STYLE_ID, [
     // .root（MUI LinearProgress 相当。height 4px・トラック地に bar を重ねる）。
     `.${ROOT_CLASS}{position:relative;overflow:hidden;display:block;height:4px;`,
     `background-color:var(--am-color-divider);}`,
@@ -50,8 +48,7 @@ function ensureKeyframes(): void {
     `100%{transform:translateX(100%);}}`,
     `@media (prefers-reduced-motion:reduce){`,
     `.${INDETERMINATE_CLASS}{animation-duration:6s;}}`,
-  ].join("");
-  document.head.appendChild(style);
+  ].join(""));
 }
 
 export type ProgressBarVariant = "determinate" | "indeterminate";
@@ -122,7 +119,7 @@ export function createProgressBar(opts: CreateProgressBarOptions = {}): Progress
   };
 
   applyClass(opts.className);
-  if (opts.style) Object.assign(el.style, opts.style);
+  applyStyle(el, opts.style);
   applyVariant(variant, value);
 
   el.appendChild(bar);
@@ -136,7 +133,7 @@ export function createProgressBar(opts: CreateProgressBarOptions = {}): Progress
       if (next.value !== undefined) value = next.value;
       if (variantChanged || valueChanged) applyVariant(variant, value);
       if (next.className !== undefined) applyClass(next.className);
-      if (next.style !== undefined) Object.assign(el.style, next.style);
+      applyStyle(el, next.style);
       if (next.ariaLabel !== undefined) el.setAttribute("aria-label", next.ariaLabel);
     },
   };

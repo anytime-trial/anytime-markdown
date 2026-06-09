@@ -209,9 +209,9 @@ export function createTabs(opts: CreateTabsOptions): {
     el,
     update(next: Partial<CreateTabsOptions>) {
       if (next.onChange !== undefined) {
+        // 各 Tab の onClick は外側の `onChange` let を参照するため、ここを差し替えるだけで反映される
+        // （Tab ごとに onClick を再配線する必要はない）。
         onChange = next.onChange;
-        // 既存 Tab の onClick が参照する onChange を差し替える。
-        for (const tab of tabs) tab.update({ onClick: (v) => onChange?.(v) });
       }
       if (next.className !== undefined) el.className = next.className;
       if (next.ariaLabel !== undefined) el.setAttribute("aria-label", next.ariaLabel);

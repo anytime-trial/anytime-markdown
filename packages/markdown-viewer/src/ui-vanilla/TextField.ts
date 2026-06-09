@@ -13,7 +13,7 @@
  * （createXxx(opts) => { el, update?, destroy? }）と `ui-vanilla/Alert.ts` の cssText パターンに揃える。
  */
 
-import { appendContent, type VanillaContent } from "./dom";
+import { appendContent, applyStyle, ensureStyle, type VanillaContent } from "./dom";
 
 export type TextFieldSize = "small" | "medium";
 
@@ -99,11 +99,7 @@ const STYLE_ELEMENT_ID = "am-vanilla-textfield-style";
  * TextField.module.css の擬似クラスルールに一字一句対応させる。
  */
 function ensureStyleInjected(): void {
-  if (typeof document === "undefined") return;
-  if (document.getElementById(STYLE_ELEMENT_ID)) return;
-  const style = document.createElement("style");
-  style.id = STYLE_ELEMENT_ID;
-  style.textContent = `
+  ensureStyle(STYLE_ELEMENT_ID, `
 [data-am-tf-input]::placeholder { color: var(--am-color-text-secondary); opacity: 1; }
 [data-am-tf-input]:hover { border-color: var(--am-color-text-primary); }
 [data-am-tf-wrap]:focus-within [data-am-tf-input] {
@@ -135,8 +131,7 @@ function ensureStyleInjected(): void {
 [data-am-tf-root][data-error="true"] [data-am-tf-wrap]:focus-within [data-am-tf-label] {
   color: var(--am-color-error-main);
 }
-`.trim();
-  document.head.appendChild(style);
+`.trim());
 }
 
 // root（.root / .medium）の static スタイル。size は --tf-input-pad-y を切り替える。
@@ -211,7 +206,7 @@ export function createTextField(opts: CreateTextFieldOptions = {}): TextFieldHan
   el.setAttribute("data-disabled", String(!!opts.disabled));
   if (opts.className) el.className = opts.className;
   if (opts.testId !== undefined) el.setAttribute("data-testid", opts.testId);
-  if (opts.style) Object.assign(el.style, opts.style);
+  applyStyle(el, opts.style);
 
   // ---- inputWrap ----
   const wrap = document.createElement("div");

@@ -133,17 +133,6 @@ export function createFloating(opts: CreateFloatingOptions): {
   };
 }
 
-// --- 共有: backdrop / paper ベース cssText -----------------------------------
-
-/** click-away 用の透明 backdrop（floating.module.css .backdrop 相当）。z-index 1300。 */
-const BACKDROP_CSS = "position:fixed;inset:0;z-index:1300;";
-
-/** 浮遊する elevated paper（floating.module.css .floatingPaper 相当）。位置は createFloating が付与。 */
-const FLOATING_PAPER_CSS =
-  "z-index:1300;outline:none;box-sizing:border-box;" +
-  "background-color:var(--am-color-bg-paper);border-radius:var(--am-radius-md);" +
-  "box-shadow:var(--am-elevation-3);";
-
 // --- createPopover（Popover.tsx 置換） ---------------------------------------
 
 /**
