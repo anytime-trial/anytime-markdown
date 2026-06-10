@@ -19,7 +19,7 @@ FROM base AS local
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git openssh-client sudo tmux sqlite3 && \
+    git openssh-client sudo tmux sqlite3 jq && \
     groupmod -n user node && \
     usermod -l user -d /home/user -m node && \
     echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
