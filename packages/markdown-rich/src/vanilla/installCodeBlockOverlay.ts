@@ -19,6 +19,7 @@ import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 
 import {
   buildEmbedInfoString,
+  confirmWithDialog,
   createButton,
   createDialog,
   createDialogActions,
@@ -82,38 +83,13 @@ export interface InstallCodeBlockOverlayOptions {
 
 const DEFAULT_STYLE: CodeOverlayStyle = { editorBg: "white", fontSize: 16, lineHeight: 1.6 };
 
-/** vanilla 確認ダイアログ（installBlockOverlays.confirmDelete と同パターン）。 */
+/** vanilla 確認ダイアログ（ui-vanilla confirmWithDialog へ集約）。 */
 function confirmVanilla(t: (key: string) => string, message: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const titleId = nextDialogTitleId();
-    const finish = (ok: boolean): void => {
-      if (settled) return;
-      settled = true;
-      cancelBtn.destroy();
-      okBtn.destroy();
-      dialog.destroy();
-      resolve(ok);
-    };
-    const cancelBtn = createButton({ label: t("cancel"), onClick: () => finish(false) });
-    const okBtn = createButton({
-      label: t("delete"),
-      color: "error",
-      variant: "contained",
-      onClick: () => finish(true),
-    });
-    const messageEl = document.createElement("div");
-    messageEl.textContent = message;
-    const dialog = createDialog({
-      onClose: () => finish(false),
-      labelledBy: titleId,
-      maxWidth: "xs",
-      children: [
-        createDialogTitle({ id: titleId, children: t("delete") }).el,
-        createDialogContent({ children: messageEl }).el,
-        createDialogActions({ children: [cancelBtn.el, okBtn.el] }).el,
-      ],
-    });
+  return confirmWithDialog({
+    title: t("delete"),
+    message,
+    confirmLabel: t("delete"),
+    cancelLabel: t("cancel"),
   });
 }
 
@@ -359,10 +335,11 @@ export function installCodeBlockOverlay(
       return;
     }
     if (kind === "math") {
+      // グラフ表示トグル（GraphView）は未移植（installer 冒頭の差分注記参照）。表示制御は
+      // chrome 側 isGraphHidden が担うため、dialog へのフラグ受け渡しは行わない。
       const handle = createMathEditDialog({
         ...common,
         label: "Math",
-        hideGraph: opts.getHideGraph?.() ?? false,
       });
       activeDialog = handle;
       return;

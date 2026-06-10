@@ -40,7 +40,7 @@ import {
 import type { ThemePresetName } from "../constants/themePresets";
 import { PRESET_NAMES, THEME_PRESETS } from "../constants/themePresets";
 import type { TranslationFn } from "../types";
-import type { EditorSettings } from "../useEditorSettings";
+import type { EditorSettings } from "../editorSettings";
 
 // ui/icons.tsx と同一の Material SVG path（Close / RestartAlt）。
 const ICON_CLOSE =

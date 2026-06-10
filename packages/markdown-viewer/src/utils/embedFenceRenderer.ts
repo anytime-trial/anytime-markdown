@@ -1,3 +1,5 @@
+import { escapeHtml } from "./escapeHtml";
+
 const EMBED_INFO_PREFIX = "embed";
 export const EMBED_DATA_ATTR = "data-embed-info";
 
@@ -22,13 +24,6 @@ function escapeAttr(value: string): string {
     return value
         .replaceAll("&", "&amp;")
         .replaceAll('"', "&quot;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;");
-}
-
-function escapeHtml(value: string): string {
-    return value
-        .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;");
 }

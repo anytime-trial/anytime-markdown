@@ -27,27 +27,12 @@ jest.mock("@floating-ui/dom", () => ({
   shift: jest.fn(() => ({})),
 }));
 
-import {
-  VanillaMarkdownEditorMount,
-  isVanillaEditorEnabled,
-} from "../VanillaMarkdownEditorMount";
+import { VanillaMarkdownEditorMount } from "../VanillaMarkdownEditorMount";
 
 const t = (key: string): string => key;
 
 afterEach(() => {
   cleanup();
-  delete (globalThis as unknown as Record<string, unknown>).__AM_VANILLA_EDITOR__;
-});
-
-describe("isVanillaEditorEnabled", () => {
-  it("既定は false（旧 React 経路）", () => {
-    expect(isVanillaEditorEnabled()).toBe(false);
-  });
-
-  it("グローバル明示フラグ __AM_VANILLA_EDITOR__=true で true", () => {
-    (globalThis as unknown as Record<string, unknown>).__AM_VANILLA_EDITOR__ = true;
-    expect(isVanillaEditorEnabled()).toBe(true);
-  });
 });
 
 describe("VanillaMarkdownEditorMount", () => {

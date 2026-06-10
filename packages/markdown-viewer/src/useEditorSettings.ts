@@ -3,40 +3,12 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { STORAGE_KEY_SETTINGS } from "./constants/storageKeys";
+import { DEFAULT_SETTINGS, type EditorSettings } from "./editorSettings";
 import { safeRemoveItem, safeSetItem } from "./utils/storage";
 const SETTINGS_VERSION = 9; // wordBreak を追加
 
-export interface EditorSettings {
-  lineHeight: number;
-  fontSize: number;
-  tableWidth: "auto" | "100%";
-  editorBg: "white" | "grey";
-  lightBgColor: string;    // ライトモード背景色（空文字 = テーマデフォルト）
-  lightTextColor: string;  // ライトモード文字色（空文字 = テーマデフォルト）
-  darkBgColor: string;     // ダークモード背景色（空文字 = テーマデフォルト）
-  darkTextColor: string;   // ダークモード文字色（空文字 = テーマデフォルト）
-  spellCheck: boolean;
-  paperSize: "off" | "A3" | "A4" | "B4" | "B5";
-  paperMargin: number; // mm単位、10-40
-  blockAlign: "left" | "center" | "right";
-  wordBreak: "normal" | "keep-all";
-}
-
-export const DEFAULT_SETTINGS: EditorSettings = {
-  lineHeight: 1.6,
-  fontSize: 16,
-  tableWidth: "auto",
-  editorBg: "white",
-  lightBgColor: "",
-  lightTextColor: "",
-  darkBgColor: "",
-  darkTextColor: "",
-  spellCheck: false,
-  paperSize: "off",
-  paperMargin: 20,
-  blockAlign: "left",
-  wordBreak: "keep-all",
-};
+// 型と既定値は React 非依存の単一ソース（./editorSettings）から再 export（互換維持）。
+export { DEFAULT_SETTINGS, type EditorSettings };
 
 export interface UseEditorSettingsReturn {
   settings: EditorSettings;

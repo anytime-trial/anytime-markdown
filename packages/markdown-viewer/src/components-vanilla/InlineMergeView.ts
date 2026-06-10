@@ -707,8 +707,20 @@ export function createInlineMergeView(
   let aMap: BlockOffset[] = [];
   let bMap: BlockOffset[] = [];
   let scrollStale = true;
-  const getRightScroller = (): HTMLElement => findScrollableChild(rightPaneWrap) ?? rightPaneWrap;
-  const getLeftScroller = (): HTMLElement => findScrollableChild(leftPaneInner) ?? leftPaneInner;
+  // スクローラ探索（findScrollableChild の BFS）は scroll イベントごとに走ると O(DOM) の
+  // 無駄が大きいためキャッシュする。パネル再構築で detach されたら（isConnected=false）
+  // 再探索し、markScrollStale でも明示的に無効化する。fallback はキャッシュしない
+  // （スクローラ未生成の初期状態に固定されるのを防ぐ）。
+  let rightScrollerCache: HTMLElement | null = null;
+  let leftScrollerCache: HTMLElement | null = null;
+  const getRightScroller = (): HTMLElement => {
+    if (!rightScrollerCache?.isConnected) rightScrollerCache = findScrollableChild(rightPaneWrap);
+    return rightScrollerCache ?? rightPaneWrap;
+  };
+  const getLeftScroller = (): HTMLElement => {
+    if (!leftScrollerCache?.isConnected) leftScrollerCache = findScrollableChild(leftPaneInner);
+    return leftScrollerCache ?? leftPaneInner;
+  };
   const rebuildScroll = (): void => {
     const rightEditor = state.editor;
     if (state.sourceMode || !rightEditor || rightEditor.isDestroyed || leftEditor.isDestroyed) return;
@@ -765,6 +777,8 @@ export function createInlineMergeView(
   });
   const markScrollStale = (): void => {
     scrollStale = true;
+    rightScrollerCache = null;
+    leftScrollerCache = null;
   };
 
   // === エディタ update 購読（diff ハイライト・アライン・スクロール再計測・collapsed 同期） ===

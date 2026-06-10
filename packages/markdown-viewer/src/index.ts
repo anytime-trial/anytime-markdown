@@ -9,7 +9,6 @@ export {
 } from './host/vanillaMarkdownEditor';
 export {
   VanillaMarkdownEditorMount,
-  isVanillaEditorEnabled,
   type VanillaMarkdownEditorMountProps,
 } from './VanillaMarkdownEditorMount';
 
@@ -17,9 +16,9 @@ export {
 export { useMergeDiff } from './hooks/useMergeDiff';
 export type { TextareaSearchMatch, TextareaSearchState } from './hooks/useTextareaSearch';
 export { useTextareaSearch } from './hooks/useTextareaSearch';
-export type { EditorSettings } from './useEditorSettings';
+export type { EditorSettings } from './editorSettings';
+export { DEFAULT_SETTINGS } from './editorSettings';
 export {
-  DEFAULT_SETTINGS,
   EditorSettingsContext,
   useEditorSettings,
   useEditorSettingsContext,

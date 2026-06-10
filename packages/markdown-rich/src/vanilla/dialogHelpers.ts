@@ -24,6 +24,9 @@ import { createButton } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/B
 import { createIconButton } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/IconButton";
 import { createMenu } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Menu";
 import { createMenuItem } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/MenuItem";
+import { ensureStyle } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/dom";
+import { createMediaQuery } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/mediaQuery";
+import { escapeHtml } from "@anytime-markdown/markdown-viewer/src/utils/escapeHtml";
 import type { ZoomPanController } from "./zoomPanState";
 
 /** サンプルパネルに表示するサンプル項目。 */
@@ -53,16 +56,12 @@ export function applyEditorBg(el: HTMLElement, isDark: boolean, editorBg: string
 const LINE_TEXTAREA_STYLE_ID = "am-vanilla-line-textarea";
 
 function ensureLineTextareaStyle(): void {
-  if (document.getElementById(LINE_TEXTAREA_STYLE_ID)) return;
-  const s = document.createElement("style");
-  s.id = LINE_TEXTAREA_STYLE_ID;
-  s.textContent = `
+  ensureStyle(LINE_TEXTAREA_STYLE_ID, `
 .am-lnt-root{display:flex;flex:1 1 auto;overflow:hidden;min-height:0;}
 .am-lnt-gutter{overflow-y:hidden;user-select:none;text-align:right;padding:4px 8px 4px 4px;box-sizing:border-box;border-right:1px solid var(--am-color-divider);}
 .am-lnt-gutter-line{display:block;white-space:pre;}
 .am-lnt-textarea{flex:1;resize:none;border:none;outline:none;padding:4px 8px;box-sizing:border-box;font-family:monospace;overflow-y:auto;}
-`;
-  document.head.appendChild(s);
+`);
 }
 
 export interface LineNumberTextareaHandle {
@@ -101,6 +100,11 @@ export function createLineNumberTextarea(opts: {
   let lineHeight = opts.lineHeight;
   let isDark = opts.isDark;
 
+  // 描画済み行数/行高さ（差分更新用）。行番号 span をキーストロークごとに全再生成すると
+  // 大きなコードブロックでフリッカー/レイアウトスラッシングを起こすため、末尾差分のみ反映する。
+  let renderedLineCount = 0;
+  let renderedLineHeightPx = 0;
+
   function updateGutter(): void {
     const lineCount = (value.match(/\n/g)?.length ?? 0) + 1;
     const gutterWidth = Math.max(3, String(lineCount).length + 1);
@@ -111,14 +115,28 @@ export function createLineNumberTextarea(opts: {
     gutter.style.color = getTextDisabled(isDark);
     gutter.style.backgroundColor = isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG;
 
-    while (gutter.firstChild) gutter.removeChild(gutter.firstChild);
     const lineHeightPx = fontSize * lineHeight;
-    for (let i = 0; i < lineCount; i++) {
-      const span = document.createElement("span");
-      span.className = "am-lnt-gutter-line";
-      span.style.height = `${lineHeightPx}px`;
-      span.textContent = String(i + 1);
-      gutter.appendChild(span);
+    if (lineHeightPx !== renderedLineHeightPx) {
+      // 行高さが変わったときのみ全再構築（span の height が陳腐化するため）。
+      while (gutter.firstChild) gutter.removeChild(gutter.firstChild);
+      renderedLineCount = 0;
+      renderedLineHeightPx = lineHeightPx;
+    }
+    while (renderedLineCount > lineCount) {
+      gutter.lastChild?.remove();
+      renderedLineCount--;
+    }
+    if (renderedLineCount < lineCount) {
+      const frag = document.createDocumentFragment();
+      for (let i = renderedLineCount; i < lineCount; i++) {
+        const span = document.createElement("span");
+        span.className = "am-lnt-gutter-line";
+        span.style.height = `${lineHeightPx}px`;
+        span.textContent = String(i + 1);
+        frag.appendChild(span);
+      }
+      gutter.appendChild(frag);
+      renderedLineCount = lineCount;
     }
   }
 
@@ -184,10 +202,7 @@ export function createLineNumberTextarea(opts: {
 const SAMPLE_PANEL_STYLE_ID = "am-vanilla-sample-panel";
 
 function ensureSamplePanelStyle(): void {
-  if (document.getElementById(SAMPLE_PANEL_STYLE_ID)) return;
-  const s = document.createElement("style");
-  s.id = SAMPLE_PANEL_STYLE_ID;
-  s.textContent = `
+  ensureStyle(SAMPLE_PANEL_STYLE_ID, `
 .am-sp-root{border-top:1px solid var(--am-color-divider);flex-shrink:0;}
 .am-sp-header{display:flex;align-items:center;padding:4px 8px;cursor:pointer;user-select:none;}
 .am-sp-header:hover{background:var(--am-sp-hover-bg);}
@@ -195,8 +210,7 @@ function ensureSamplePanelStyle(): void {
 .am-sp-chips{display:flex;flex-wrap:wrap;gap:4px;padding:4px 8px 8px;}
 .am-sp-chip{font-size:${CHIP_FONT_SIZE};height:${FS_CHIP_HEIGHT}px;padding:0 8px;border-radius:12px;border:1px solid var(--am-color-divider);cursor:pointer;background:transparent;color:inherit;}
 .am-sp-chip:hover{background:var(--am-sp-hover-bg);}
-`;
-  document.head.appendChild(s);
+`);
 }
 
 export interface SamplePanelHandle {
@@ -267,16 +281,12 @@ export function createSamplePanel(opts: {
 const ZOOM_TOOLBAR_STYLE_ID = "am-vanilla-zoom-toolbar";
 
 function ensureZoomToolbarStyle(): void {
-  if (document.getElementById(ZOOM_TOOLBAR_STYLE_ID)) return;
-  const s = document.createElement("style");
-  s.id = ZOOM_TOOLBAR_STYLE_ID;
-  s.textContent = `
+  ensureStyle(ZOOM_TOOLBAR_STYLE_ID, `
 .am-zt-toolbar{display:flex;align-items:center;gap:2px;padding:2px 8px;border-bottom:1px solid var(--am-color-divider);flex-shrink:0;}
 .am-zt-label{min-width:${FS_ZOOM_LABEL_WIDTH}px;text-align:center;font-size:${SMALL_CAPTION_FONT_SIZE};color:inherit;}
 .am-zt-btn{background:none;border:none;cursor:pointer;padding:2px 4px;color:inherit;border-radius:4px;display:flex;align-items:center;}
 .am-zt-btn:hover{background:var(--am-color-action-hover);}
-`;
-  document.head.appendChild(s);
+`);
 }
 
 export interface ZoomToolbarHandle {
@@ -387,15 +397,11 @@ export function createZoomToolbar(opts: {
 const ZOOM_PREVIEW_STYLE_ID = "am-vanilla-zoom-preview";
 
 function ensureZoomPreviewStyle(): void {
-  if (document.getElementById(ZOOM_PREVIEW_STYLE_ID)) return;
-  const s = document.createElement("style");
-  s.id = ZOOM_PREVIEW_STYLE_ID;
-  s.textContent = `
+  ensureStyle(ZOOM_PREVIEW_STYLE_ID, `
 .am-zp-outer{flex:1;overflow:hidden;position:relative;cursor:grab;}
 .am-zp-outer.panning{cursor:grabbing;}
 .am-zp-inner{display:flex;justify-content:center;align-items:center;min-width:100%;min-height:100%;}
-`;
-  document.head.appendChild(s);
+`);
 }
 
 export interface ZoomablePreviewHandle {
@@ -457,10 +463,7 @@ export function createZoomablePreview(opts: {
 const SPLIT_STYLE_ID = "am-vanilla-split";
 
 function ensureSplitStyle(): void {
-  if (document.getElementById(SPLIT_STYLE_ID)) return;
-  const s = document.createElement("style");
-  s.id = SPLIT_STYLE_ID;
-  s.textContent = `
+  ensureStyle(SPLIT_STYLE_ID, `
 .am-split-container{display:flex;flex:1 1 auto;overflow:hidden;min-height:0;}
 .am-split-container.row{flex-direction:row;}
 .am-split-container.col{flex-direction:column;}
@@ -468,8 +471,7 @@ function ensureSplitStyle(): void {
 .am-split-divider{width:5px;cursor:col-resize;background:var(--am-color-divider);flex-shrink:0;}
 .am-split-divider:hover,.am-split-divider:focus{background:var(--am-color-primary-main);}
 .am-split-right{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
-`;
-  document.head.appendChild(s);
+`);
 }
 
 export interface SplitLayoutHandle {
@@ -571,15 +573,15 @@ export function createDraggableSplitLayout(opts: {
     divider.style.display = mobile ? "none" : "";
   }
   updateLayout();
-  const mq = globalThis.matchMedia?.("(max-width:899.95px)");
-  mq?.addEventListener("change", updateLayout);
+  const mq = createMediaQuery("(max-width:899.95px)");
+  mq.subscribe(() => updateLayout());
 
   return {
     el: container,
     left: leftPanel,
     right: rightPanel,
     destroy() {
-      mq?.removeEventListener("change", updateLayout);
+      mq.destroy();
     },
   };
 }
@@ -591,10 +593,7 @@ export function createDraggableSplitLayout(opts: {
 const DIALOG_HEADER_STYLE_ID = "am-vanilla-dialog-header";
 
 function ensureDialogHeaderStyle(): void {
-  if (document.getElementById(DIALOG_HEADER_STYLE_ID)) return;
-  const s = document.createElement("style");
-  s.id = DIALOG_HEADER_STYLE_ID;
-  s.textContent = `
+  ensureStyle(DIALOG_HEADER_STYLE_ID, `
 .am-dh-header{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--am-color-divider);flex-shrink:0;}
 .am-dh-close{background:none;border:none;cursor:pointer;padding:4px;color:inherit;border-radius:4px;font-size:18px;line-height:1;}
 .am-dh-close:hover{background:var(--am-color-action-hover);}
@@ -602,8 +601,7 @@ function ensureDialogHeaderStyle(): void {
 .am-dh-apply-btn{padding:4px 12px;border-radius:4px;cursor:pointer;font-size:13px;border:1px solid;}
 .am-dh-apply-btn.clean{border-color:var(--am-color-divider);background:transparent;color:inherit;}
 .am-dh-apply-btn.dirty{border-color:var(--am-color-primary-main);background:var(--am-color-primary-main);color:#fff;}
-`;
-  document.head.appendChild(s);
+`);
 }
 
 export interface DialogHeaderHandle {
@@ -672,13 +670,8 @@ export function createDialogHeader(opts: {
 // インラインスタイル注入ヘルパー
 // -------------------------
 
-export function ensureStyle(id: string, css: string): void {
-  if (document.getElementById(id)) return;
-  const s = document.createElement("style");
-  s.id = id;
-  s.textContent = css;
-  document.head.appendChild(s);
-}
+// 実体は ui-vanilla/dom の ensureStyle（SSR ガード付き）。互換のため再 export する。
+export { ensureStyle };
 
 // -------------------------
 // ハイライト (lowlight) ヘルパー
@@ -701,10 +694,6 @@ export function hastToHtmlString(tree: { children: unknown[] }): string {
     return `<${tag}${attrStr}>${children.map(nodeToHtml).join("")}</${tag}>`;
   }
   return tree.children.map(nodeToHtml).join("");
-}
-
-function escapeHtml(s: string): string {
-  return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
 export { DOMPurify };

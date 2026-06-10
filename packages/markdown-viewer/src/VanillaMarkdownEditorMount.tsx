@@ -25,8 +25,6 @@ import {
   type MountVanillaMarkdownEditorOptions,
   type VanillaMarkdownEditorHandle,
 } from "./host/vanillaMarkdownEditor";
-import { isVanillaEditorEnabled } from "./vanillaEditorFlag";
-
 /** {@link VanillaMarkdownEditorMount} の props（orchestrator options + コンテナ装飾）。 */
 export interface VanillaMarkdownEditorMountProps extends MountVanillaMarkdownEditorOptions {
   className?: string;
@@ -158,6 +156,3 @@ export function VanillaMarkdownEditorMount({
 
   return <div ref={containerRef} className={className} style={{ height: "100%", ...style }} />;
 }
-
-// フラグ判定は重量依存のない単独モジュール（./vanillaEditorFlag）へ分離。再 export で互換維持。
-export { isVanillaEditorEnabled };

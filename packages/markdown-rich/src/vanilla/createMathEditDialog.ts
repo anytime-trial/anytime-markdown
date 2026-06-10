@@ -36,8 +36,6 @@ export interface CreateMathEditDialogOptions {
   fontSize: number;
   lineHeight: number;
   readOnly?: boolean;
-  /** true のときグラフ表示ボタンを非表示（hideGraph 相当）。現時点ではどちらも表示しない */
-  hideGraph?: boolean;
   state: CodeEditState;
   t: (key: string) => string;
   onClose: () => void;
