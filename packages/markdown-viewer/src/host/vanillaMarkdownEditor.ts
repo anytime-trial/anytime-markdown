@@ -36,6 +36,7 @@ import type {
   ToolbarVisibility,
 } from "../types/toolbar";
 import { createVanillaEditorHost } from "./vanillaEditorHost";
+import { installBlockOverlays } from "../chrome/installBlockOverlays";
 import { createEditorBubbleMenu } from "../components-vanilla/EditorBubbleMenu";
 import { createStatusBar } from "../components-vanilla/StatusBar";
 import {
@@ -102,6 +103,16 @@ export interface MountVanillaMarkdownEditorOptions {
   onLocaleChange?: (locale: string) => void;
   /** mode（source/readonly/review/outline/comment）変更通知。 */
   onModeChange?: (state: ToolbarModeState) => void;
+  /**
+   * VS Code postMessage ブリッジ（block overlay の保存フロー）。未指定時は `window.__vscode`、
+   * `null` 明示で web 経路。
+   */
+  vscodeApi?: VsCodeApi | null;
+  /**
+   * table のグリッド編集 intent（vanilla スプレッドシート未提供のため React consumer が
+   * SpreadsheetGrid を開く）。未指定時は inline ops のみ（列/行/整列/移動）でグリッド編集 no-op。
+   */
+  onTableEdit?: (args: { pos: number; setEditing: (editing: boolean) => void }) => void;
 }
 
 /** {@link mountVanillaMarkdownEditor} の戻り値。 */
@@ -441,11 +452,21 @@ export function mountVanillaMarkdownEditor(
       editor.view.dom.addEventListener("keydown", onShortcutKeyDown);
       disposers.push(() => editor.view.dom.removeEventListener("keydown", onShortcutKeyDown));
 
+      // === block overlay（gif/image/table の DialogHost 3 を vanilla 配線） =====
+      // 選択追従ツールバー（vanilla chrome）+ 重量ダイアログ（録画/再生/crop/注釈/削除）+ VS Code
+      // 保存フローを installBlockOverlays に集約。table のグリッド編集は React 専用のため onTableEdit
+      // へ委譲（未指定時は inline ops のみ）。
+      const blockOverlays = installBlockOverlays(editor, {
+        t,
+        confirm: options.confirm,
+        vscodeApi: options.vscodeApi,
+        onTableEdit: options.onTableEdit,
+      });
+      disposers.push(() => blockOverlays.destroy());
+
       // === 残 TODO seam（consumer データ依存 / 別大型 seam） =====================
       // - MergeEditorPanel（inlineMergeOpen + onMerge）: 比較対象コンテンツ（externalCompareContent）
       //   と merge state（useMergeMode 相当）を要するため consumer 統合時に配線する。
-      // - DialogHost 3（gif/image/table overlay）: block 選択 → overlay/ダイアログの橋渡し。
-      //   block chrome（chrome/gifBlockChrome 等）の installer を別途用意して合成する。
       // - editorProps（paste/import/drop の DOM handlers・createEditorDOMHandlers 相当）: editor 生成時
       //   オプションのため、editorRef/setHeadingMenu の closure ref パターンで別途配線する。
 
