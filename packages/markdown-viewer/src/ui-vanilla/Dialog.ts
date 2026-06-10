@@ -136,14 +136,17 @@ export interface CreateDialogOptions {
   paperClassName?: string;
   /** paper への追加スタイル（背景色上書き等）。 */
   paperStyle?: Partial<CSSStyleDeclaration>;
+  /** マウント先（ポータル）。既定 document.body。Menu/Popover/Select と統一した self-append。 */
+  portalTarget?: HTMLElement;
 }
 
 /**
  * MUI Dialog の置換（素 DOM）。backdrop + paper(role=dialog) + ESC + Tab フォーカストラップ +
  * 背景スクロールロック + aria-modal を実装する。
  *
- * 返り値の `el`（backdrop ルート）を `document.body` 等へ append すると開く。`destroy()` で
- * listener 解除・背景 a11y / overflow 復元・直前フォーカス復帰・el の取り外しを行う。
+ * 生成時に `portalTarget`（既定 `document.body`）へ自前マウントして開く（呼び元は append 不要）。
+ * 返り値の `el` は参照用。`destroy()` で listener 解除・overflow 復元・直前フォーカス復帰・
+ * el の取り外しを行う。
  *
  * - 背景（backdrop 自身）の mousedown で `onClose`（paper 内クリックは無視）。
  * - paper 内 keydown: ESC → `onClose`、Tab → 先頭/末尾の循環トラップ。
@@ -220,6 +223,10 @@ export function createDialog(opts: CreateDialogOptions): {
     }
   };
   paper.addEventListener("keydown", onKeyDown);
+
+  // ポータルとして自前マウントする（Menu/Popover/Select と統一）。focus は接続後に行う必要が
+  // ある（detached 要素への focus はブラウザ/jsdom 共に no-op）。
+  (opts.portalTarget ?? document.body).appendChild(el);
 
   // open 時のフォーカス退避・背景スクロールロック。
   const restore = document.activeElement as HTMLElement | null;

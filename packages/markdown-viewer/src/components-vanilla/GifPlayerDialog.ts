@@ -1,13 +1,13 @@
 /**
  * 脱React の vanilla DOM「GifPlayerDialog」ファクトリ
- * （framework-decoupling Phase 3 / ホスト隔離・F 系列 caller-mount chrome）。
+ * （framework-decoupling Phase 3 / ホスト隔離）。
  *
  * React 原版 `components/GifPlayerDialog.tsx` を素 DOM へ移植したもの。GIF を全画面
  * ダイアログで再生し、再生 / 一時停止トグル・再生速度トグル・GIF メタ情報を表示する。
  *
  * 変換規約:
  * - React props → ファクトリ options（`t` / `src` / `settings` / `onClose` を opts で受ける）。
- * - 戻り値は `{ el, destroy }`。`el`（Dialog backdrop ルート）を呼び元が append する（caller-mount）。
+ * - 戻り値は `{ el, destroy }`。createDialog が portalTarget（既定 document.body）へ自前マウントするため呼び元の append は不要（el は参照用）。
  * - `useIsDark` は不要（ui-vanilla は `--am-color-*` CSS 変数でテーマ追従する）。`useMarkdownT`
  *   → `t` を opts で受ける。
  * - 状態（playing / speed / pausedSrc）は closure 変数。listener / Dialog の cleanup は `destroy()`。
@@ -49,14 +49,14 @@ export interface CreateGifPlayerDialogOptions {
 
 /** {@link createGifPlayerDialog} の戻り値。 */
 export interface GifPlayerDialogHandle {
-  /** Dialog backdrop ルート。呼び元が `document.body` 等へ append する（caller-mount）。 */
+  /** Dialog backdrop ルート（createDialog が自前マウント済み・参照用）。 */
   el: HTMLElement;
   /** listener 解除・Dialog cleanup（背景 overflow 復元・フォーカス復帰・el 取り外し）。 */
   destroy: () => void;
 }
 
 /**
- * vanilla GifPlayerDialog を生成する。`el` を呼び元が append すると開く。
+ * vanilla GifPlayerDialog を生成する。createDialog が自前マウントするため生成時点で開く。
  *
  * - 再生 / 一時停止トグル: playing 時は canvas で現フレームを静止画化して `img.src` に差し込み、
  *   再開時は cache-bust クエリで GIF を再ロードする（React 版 `togglePlayback` と同一）。
@@ -210,7 +210,7 @@ export function createGifPlayerDialog(
 
   header.append(closeBtn.el, headerIcon, headerLabel);
 
-  // --- Dialog（fullScreen / caller-mount） ---
+  // --- Dialog（fullScreen / 自前マウント） ---
   const dialog = createDialog({
     onClose,
     fullScreen: true,

@@ -51,14 +51,16 @@ export interface CreatePopoverOptions {
   ariaLabel?: string;
   /** paper への追加スタイル。 */
   paperStyle?: Partial<CSSStyleDeclaration>;
+  /** マウント先（ポータル）。既定 document.body。Menu/Dialog/Select と統一した self-append。 */
+  portalTarget?: HTMLElement;
 }
 
 /**
  * MUI Popover の置換（素 DOM）。anchor にアンカーした floating paper（createFloating）+
  * 透明 backdrop（click-away）+ Escape で閉じる + 初期 / 復帰フォーカス（createFocusTrap）。
  *
- * 返り値の `el`（backdrop + paper を内包する wrapper・createPortal フラグメント相当）を
- * `document.body` 等へ append すると開く。`destroy()` で listener 解除・autoUpdate 解除・
+ * 生成時に `portalTarget`（既定 `document.body`）へ自前マウントして開く（呼び元は append 不要）。
+ * 返り値の `el` は参照用。`destroy()` で listener 解除・autoUpdate 解除・
  * focusTrap release（直前フォーカス復帰）・el の取り外しを行う。
  *
  * append 後（focusTrap attach 時）に paper 内の最初の focusable（無ければ paper 自体）へ
@@ -94,6 +96,10 @@ export function createPopover(opts: CreatePopoverOptions): {
   // 背景クリックで閉じる（Popover.tsx backdrop onMouseDown 相当）。
   const onBackdropMouseDown = (): void => onClose();
   backdrop.addEventListener("mousedown", onBackdropMouseDown);
+
+  // ポータルとして自前マウントする（Menu/Dialog/Select と統一）。createFloating の配置計算と
+  // focusTrap の初期フォーカスは接続後に行う必要がある（detached focus は no-op）。
+  (opts.portalTarget ?? document.body).appendChild(el);
 
   // floating 配置（offsetPx 4 = Popover.tsx useFloating）。
   const floating = createFloating({

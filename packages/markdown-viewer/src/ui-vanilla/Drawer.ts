@@ -13,8 +13,9 @@
  * - backdrop 自身の mousedown で `onClose`（paper 内クリックは無視）。
  * - ESC / Tab フォーカストラップ・背景スクロールロック・直前フォーカス復帰は `createFocusTrap` に委譲する。
  *
- * 返り値の `el`（presentation ルート）を `document.body` 等へ append すると開く。`destroy()` で
- * listener 解除・rAF 解除・scroll lock 解除（focusTrap.release 経由）・直前フォーカス復帰・el の取り外しを行う。
+ * 生成時に `portalTarget`（既定 `document.body`）へ自前マウントして開く（呼び元は append 不要）。
+ * 返り値の `el` は参照用。`destroy()` で listener 解除・rAF 解除・scroll lock 解除
+ * （focusTrap.release 経由）・直前フォーカス復帰・el の取り外しを行う。
  */
 
 import { appendContent, applyStyle, type VanillaContent } from "./dom";
@@ -35,6 +36,8 @@ export interface CreateDrawerOptions {
   paperStyle?: Partial<CSSStyleDeclaration>;
   /** paper（role=dialog）内に入れる中身。 */
   children?: VanillaContent;
+  /** マウント先（ポータル）。既定 document.body。Menu/Dialog/Popover/Select と統一した self-append。 */
+  portalTarget?: HTMLElement;
   /** aria-labelledby に渡す title 要素の id（presentation ルートに付与）。 */
   labelledBy?: string;
   /** aria-label（paper に付与）。 */
@@ -117,6 +120,10 @@ export function createDrawer(opts: CreateDrawerOptions): {
     if (e.target === e.currentTarget) onClose();
   };
   backdrop.addEventListener("mousedown", onBackdropMouseDown);
+
+  // ポータルとして自前マウントする（Menu/Dialog/Popover/Select と統一）。focusTrap の初期フォーカスは
+  // 接続後に行う必要がある（detached focus は no-op）。
+  (opts.portalTarget ?? document.body).appendChild(el);
 
   // ESC / Tab フォーカストラップ + 初期フォーカス + 背景スクロールロック + 直前フォーカス復帰。
   const focusTrap = createFocusTrap({ container: paper, onClose });

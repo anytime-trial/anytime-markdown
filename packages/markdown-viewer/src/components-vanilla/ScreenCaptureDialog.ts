@@ -10,7 +10,7 @@
  * `useIsDark` / `getDivider` 分岐は不要（CSS 変数 `--am-color-divider` を直接参照）。`useMarkdownT`
  * は opts.t で受ける。stream / video / listener / dialog は必ず `destroy()` で解放する。
  *
- * 戻り値は `{ el, destroy() }`。`el`（backdrop ルート）を `document.body` 等へ append すると開く。
+ * 戻り値は `{ el, destroy() }`。createDialog が portalTarget（既定 document.body）へ自前マウントするため生成時点で開く（el は参照用）。
  */
 
 import {
@@ -71,7 +71,7 @@ export interface CreateScreenCaptureDialogOptions {
 
 /** {@link createScreenCaptureDialog} の戻り値。 */
 export interface ScreenCaptureDialogHandle {
-  /** backdrop ルート（append で開く）。 */
+  /** backdrop ルート（createDialog が自前マウント済み・参照用）。 */
   el: HTMLElement;
   /** stream / video / listener / dialog の解放。閉じる時に必ず呼ぶ。 */
   destroy: () => void;
