@@ -1,6 +1,7 @@
 'use client';
 
-import { createMarkdownT } from '@anytime-markdown/markdown-viewer';
+// barrel ではなく i18n モジュールを deep import（jest が viewer barrel の CSS module を解析しないように）。
+import { createMarkdownT } from '@anytime-markdown/markdown-viewer/src/i18n/context';
 import { Alert, Box, Button, CircularProgress } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';

@@ -22,6 +22,7 @@ import {
   type MountVanillaMarkdownEditorOptions,
   type VanillaMarkdownEditorHandle,
 } from "./host/vanillaMarkdownEditor";
+import { isVanillaEditorEnabled } from "./vanillaEditorFlag";
 
 /** {@link VanillaMarkdownEditorMount} の props（orchestrator options + コンテナ装飾）。 */
 export interface VanillaMarkdownEditorMountProps extends MountVanillaMarkdownEditorOptions {
@@ -123,27 +124,5 @@ export function MaybeVanillaMarkdownEditor({
   return useVanilla ? <VanillaMarkdownEditorMount {...vanilla} /> : legacy;
 }
 
-/**
- * vanilla editor 経路を有効化するかのフラグ（並走切替用）。既定は false（旧 React 経路）。
- *
- * 優先順: グローバル明示フラグ `__AM_VANILLA_EDITOR__` → 環境変数 `NEXT_PUBLIC_VANILLA_EDITOR` →
- * URL クエリ `?vanilla=1`（ブラウザ時のみ）。consumer 側で独自判定したい場合は本関数を使わず
- * 直接条件分岐してよい。
- */
-export function isVanillaEditorEnabled(): boolean {
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (typeof g.__AM_VANILLA_EDITOR__ === "boolean") return g.__AM_VANILLA_EDITOR__;
-  const env =
-    typeof process !== "undefined"
-      ? (process as { env?: Record<string, string | undefined> }).env?.NEXT_PUBLIC_VANILLA_EDITOR
-      : undefined;
-  if (env === "1" || env === "true") return true;
-  if (typeof window !== "undefined") {
-    try {
-      return new URLSearchParams(window.location.search).get("vanilla") === "1";
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
+// フラグ判定は重量依存のない単独モジュール（./vanillaEditorFlag）へ分離。再 export で互換維持。
+export { isVanillaEditorEnabled };

@@ -8,7 +8,8 @@
  * マウント後に評価して切り替える（フラグ既定 OFF の並走 draft 用途なので許容）。
  */
 
-import { isVanillaEditorEnabled } from '@anytime-markdown/markdown-viewer';
+// barrel ではなく軽量モジュールを deep import（jest / バンドルに重量依存を引き込まない）。
+import { isVanillaEditorEnabled } from '@anytime-markdown/markdown-viewer/src/vanillaEditorFlag';
 import { useEffect, useState } from 'react';
 
 export function useVanillaEditorFlag(): boolean {
