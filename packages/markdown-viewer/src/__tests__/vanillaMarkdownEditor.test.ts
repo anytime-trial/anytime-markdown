@@ -80,6 +80,37 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     handle.destroy();
   });
 
+  it("ショートカット mod+K でリンクダイアログを開く", () => {
+    const handle = mountVanillaMarkdownEditor(container, { t });
+    handle.editor.view.dom.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true }),
+    );
+    expect(document.body.querySelector('[role="dialog"]')).toBeTruthy();
+    handle.destroy();
+    document.body.querySelectorAll('[role="dialog"]').forEach((d) => d.remove());
+  });
+
+  it("ショートカット mod+S で保存ハンドラ（onSaveFile）を呼ぶ", () => {
+    let saved = 0;
+    const handle = mountVanillaMarkdownEditor(container, {
+      t,
+      fileHandlers: { onSaveFile: () => { saved += 1; } },
+    });
+    handle.editor.view.dom.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true, cancelable: true }),
+    );
+    expect(saved).toBe(1);
+    handle.destroy();
+  });
+
+  it("sidebar slot は初期は空（outline/comment 未toggle）", () => {
+    const handle = mountVanillaMarkdownEditor(container, { t });
+    const sidebar = container.querySelector("[data-am-sidebar-slot]") as HTMLElement;
+    expect(sidebar).toBeTruthy();
+    expect(sidebar.children.length).toBe(0);
+    handle.destroy();
+  });
+
   it("destroy で editor を破棄し root を container から除去する", () => {
     const handle = mountVanillaMarkdownEditor(container, { t });
     const editor = handle.editor;

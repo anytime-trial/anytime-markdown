@@ -48,6 +48,8 @@ import {
 } from "../components-vanilla/EditorToolbar";
 import { createEditorDialogs } from "../components-vanilla/EditorDialogs";
 import { createEditorSettingsPanel } from "../components-vanilla/EditorSettingsPanel";
+import { createOutlinePanel } from "../components-vanilla/OutlinePanel";
+import { createCommentPanel } from "../components-vanilla/CommentPanel";
 
 /** React 結合の useEditorSettings を import せず inline する既定設定（DEFAULT_SETTINGS と同値）。 */
 const DEFAULT_SETTINGS: EditorSettings = {
@@ -111,6 +113,7 @@ function buildLayout(): {
   root: HTMLElement;
   toolbarSlot: HTMLElement;
   contentEl: HTMLElement;
+  sidebarSlot: HTMLElement;
   statusBarSlot: HTMLElement;
 } {
   const root = document.createElement("div");
@@ -121,16 +124,28 @@ function buildLayout(): {
   toolbarSlot.setAttribute("data-am-toolbar-slot", "");
   toolbarSlot.style.flexShrink = "0";
 
+  // content + sidebar を横並びにする行。
+  const mainRow = document.createElement("div");
+  mainRow.setAttribute("data-am-main-row", "");
+  mainRow.style.cssText = "display:flex;flex:1 1 auto;min-height:0;";
+
   const contentEl = document.createElement("div");
   contentEl.setAttribute("data-am-content", "");
   contentEl.style.cssText = "flex:1 1 auto;min-height:0;overflow:auto;";
+
+  // Outline / Comment パネルのマウント先（toggle で表示）。
+  const sidebarSlot = document.createElement("div");
+  sidebarSlot.setAttribute("data-am-sidebar-slot", "");
+  sidebarSlot.style.cssText = "flex-shrink:0;display:flex;min-height:0;";
+
+  mainRow.append(contentEl, sidebarSlot);
 
   const statusBarSlot = document.createElement("div");
   statusBarSlot.setAttribute("data-am-statusbar-slot", "");
   statusBarSlot.style.flexShrink = "0";
 
-  root.append(toolbarSlot, contentEl, statusBarSlot);
-  return { root, toolbarSlot, contentEl, statusBarSlot };
+  root.append(toolbarSlot, mainRow, statusBarSlot);
+  return { root, toolbarSlot, contentEl, sidebarSlot, statusBarSlot };
 }
 
 /**
@@ -146,8 +161,14 @@ function applyEditorSettings(
 ): void {
   editor.view.dom.setAttribute("spellcheck", String(settings.spellCheck));
   editor.setEditable(!readonlyMode);
+  // editor DOM が参照する CSS 変数 / data 属性へ反映（exact なセレクタ連携は本番 CSS と合わせる）。
   root.style.setProperty("--am-editor-font-size", `${settings.fontSize}px`);
+  root.style.setProperty("--am-editor-line-height", String(settings.lineHeight));
   root.style.setProperty("--am-editor-word-break", settings.wordBreak);
+  root.style.setProperty("--am-editor-table-width", settings.tableWidth);
+  root.dataset.blockAlign = settings.blockAlign;
+  root.dataset.paperSize = settings.paperSize;
+  root.style.setProperty("--am-paper-margin", `${settings.paperMargin}mm`);
 }
 
 /**
@@ -161,7 +182,7 @@ export function mountVanillaMarkdownEditor(
   options: MountVanillaMarkdownEditorOptions,
 ): VanillaMarkdownEditorHandle {
   const { t, readOnly = false } = options;
-  const { root, toolbarSlot, contentEl, statusBarSlot } = buildLayout();
+  const { root, toolbarSlot, contentEl, sidebarSlot, statusBarSlot } = buildLayout();
   container.appendChild(root);
 
   // SlashCommand: editor 拡張の onSlashStateChange → SlashCommandMenu の setCallback で受けた cb へ。
@@ -270,10 +291,48 @@ export function mountVanillaMarkdownEditor(
         onExportRightFile: options.fileHandlers?.onExportRightFile,
       };
 
+      // === sidebar パネル（Outline / Comment）の toggle マウント ===============
+      const OUTLINE_WIDTH = 240;
+      let outlinePanel: { el: HTMLElement; destroy: () => void } | null = null;
+      let commentPanel: { el: HTMLElement; destroy: () => void } | null = null;
+      const syncOutlinePanel = (): void => {
+        if (modeState.outlineOpen && !outlinePanel) {
+          outlinePanel = createOutlinePanel({
+            editor,
+            t,
+            outlineWidth: OUTLINE_WIDTH,
+            editorHeight: contentEl.clientHeight || 600,
+            onOutlineClick: (pos) => editor.chain().focus().setTextSelection(pos).run(),
+            hideResize: true,
+          });
+          sidebarSlot.appendChild(outlinePanel.el);
+        } else if (!modeState.outlineOpen && outlinePanel) {
+          outlinePanel.destroy();
+          outlinePanel.el.remove();
+          outlinePanel = null;
+        }
+      };
+      const syncCommentPanel = (): void => {
+        if (modeState.commentOpen && !commentPanel) {
+          commentPanel = createCommentPanel({ editor, t });
+          sidebarSlot.appendChild(commentPanel.el);
+        } else if (!modeState.commentOpen && commentPanel) {
+          commentPanel.destroy();
+          commentPanel.el.remove();
+          commentPanel = null;
+        }
+      };
+      disposers.push(() => {
+        outlinePanel?.destroy();
+        commentPanel?.destroy();
+      });
+
       // === mode handlers（closure 状態を更新し toolbar を再描画） ===============
       let toolbar: ReturnType<typeof createEditorToolbar> | null = null;
       const refreshToolbarMode = (): void => {
         toolbar?.update({ modeState: { ...modeState } });
+        syncOutlinePanel();
+        syncCommentPanel();
         notifyMode();
       };
       const modeHandlers: ToolbarModeHandlers = {
@@ -360,10 +419,32 @@ export function mountVanillaMarkdownEditor(
         disposers.push(() => editor.off("update", onUpdate));
       }
 
-      // === TODO seam（次増分） =================================================
-      // OutlinePanel / CommentPanel（modeState.outlineOpen / commentOpen でレイアウト挿入）/
-      // MergeEditorPanel（inlineMergeOpen + onMerge）/ DialogHost 3（gif/image/table overlay）/
-      // editorProps（paste/import/drop の DOM handlers）/ shortcuts（editor.view.dom keydown）。
+      // === shortcuts（editor.view.dom への keydown → intent） ===================
+      // React useEditorShortcuts のコア部分。mod+S=保存 / mod+K=リンク / mod+Alt+O=outline。
+      const onShortcutKeyDown = (e: KeyboardEvent): void => {
+        const mod = e.metaKey || e.ctrlKey;
+        if (!mod) return;
+        if (e.key === "s" || e.key === "S") {
+          e.preventDefault();
+          (fileHandlers.onSaveFile ?? fileHandlers.onDownload)();
+        } else if (e.key === "k" || e.key === "K") {
+          e.preventDefault();
+          dialogs.openLink();
+        } else if (e.altKey && (e.key === "o" || e.key === "O")) {
+          e.preventDefault();
+          modeHandlers.onToggleOutline();
+        }
+      };
+      editor.view.dom.addEventListener("keydown", onShortcutKeyDown);
+      disposers.push(() => editor.view.dom.removeEventListener("keydown", onShortcutKeyDown));
+
+      // === 残 TODO seam（consumer データ依存 / 別大型 seam） =====================
+      // - MergeEditorPanel（inlineMergeOpen + onMerge）: 比較対象コンテンツ（externalCompareContent）
+      //   と merge state（useMergeMode 相当）を要するため consumer 統合時に配線する。
+      // - DialogHost 3（gif/image/table overlay）: block 選択 → overlay/ダイアログの橋渡し。
+      //   block chrome（chrome/gifBlockChrome 等）の installer を別途用意して合成する。
+      // - editorProps（paste/import/drop の DOM handlers・createEditorDOMHandlers 相当）: editor 生成時
+      //   オプションのため、editorRef/setHeadingMenu の closure ref パターンで別途配線する。
 
       return disposers;
     },
