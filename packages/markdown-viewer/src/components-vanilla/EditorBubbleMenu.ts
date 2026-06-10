@@ -28,6 +28,7 @@ import { BubbleMenuPlugin } from "@anytime-markdown/markdown-extension-bubble-me
 
 import { svgIcon } from "../ui-vanilla/dom";
 import { createIconButton } from "../ui-vanilla";
+import { ICON } from "../chrome/vanillaToolbar";
 import { createPaper } from "../ui-vanilla/Paper";
 import { createTooltip } from "../ui-vanilla/Tooltip";
 import { modKey } from "../constants/shortcuts";
@@ -45,10 +46,6 @@ const ICON_STRIKETHROUGH =
 const ICON_HIGHLIGHT =
   "M22 24H2v-4h20zM13.06 5.19l3.75 3.75L7.75 18H4v-3.75zm4.82 2.68-3.75-3.75 1.83-1.83c.39-.39 1.02-.39 1.41 0l2.34 2.34c.39.39.39 1.02 0 1.41z";
 const ICON_CODE = "M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6z";
-const ICON_LINK =
-  "M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1M8 13h8v-2H8zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5";
-const ICON_COMMENT =
-  "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m0 14H6l-2 2V4h16z";
 
 /** ツールチップキー → ショートカットキー表示マッピング（React 版と同一）。 */
 const TOOLTIP_SHORTCUTS: Record<string, string> = {
@@ -86,7 +83,10 @@ export interface CreateEditorBubbleMenuOptions {
 
 /** {@link createEditorBubbleMenu} の戻り値。 */
 export interface EditorBubbleMenuHandle {
-  /** フローティングツールバーのルート要素（BubbleMenuPlugin が表示制御する）。 */
+  /**
+   * フローティングツールバーのルート要素。**呼び元は append しないこと** — BubbleMenuPlugin が
+   * show 時に親へ自動 append し配置・表示を制御する（手動 append すると配置が壊れる）。
+   */
   el: HTMLDivElement;
   /** editor plugin 登録解除・tooltip / transaction listener 解放・el 取り外し。 */
   destroy: () => void;
@@ -228,7 +228,7 @@ export function createEditorBubbleMenu(
     },
     {
       key: "link",
-      icon: ICON_LINK,
+      icon: ICON.link,
       isActive: () => editor.isActive("link"),
       onClick: onLink,
     },
@@ -236,7 +236,7 @@ export function createEditorBubbleMenu(
 
   const commentSpec: ButtonSpec = {
     key: "comment",
-    icon: ICON_COMMENT,
+    icon: ICON.annotate,
     isActive: () => editor.isActive("commentHighlight"),
     onClick: () => {
       if (reviewMode && executeInReviewMode) {

@@ -36,14 +36,17 @@ describe("createGifPlayerDialog", () => {
     expect(root).toBeTruthy();
     const paper = root.querySelector('[role="dialog"]') as HTMLElement;
     expect(paper).toBeTruthy();
-    expect(paper.getAttribute("aria-labelledby")).toBe("gif-player-title");
+    // title id は nextDialogTitleId() で動的採番されるため、aria-labelledby が title 要素を
+    // 正しく指していることを relational に検証する（固定値ではなく id 一致を確認）。
+    const titleId = paper.getAttribute("aria-labelledby");
+    expect(titleId).toBeTruthy();
 
     const img = root.querySelector("img") as HTMLImageElement;
     expect(img).toBeTruthy();
     expect(img.getAttribute("src")).toBe("a.gif");
     expect(img.getAttribute("alt")).toBe("GIF");
 
-    const title = root.querySelector("#gif-player-title") as HTMLElement;
+    const title = root.querySelector(`#${titleId}`) as HTMLElement;
     expect(title.textContent).toBe("GIF Player");
 
     handle.destroy();

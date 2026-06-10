@@ -213,7 +213,7 @@ export function createEditorSideToolbar(
     addItem({
       label: t("editorSettings"),
       iconPath: ICON.settings,
-      onClick: () => opts.onOpenSettings?.(),
+      onClick: opts.onOpenSettings,
     });
   }
 

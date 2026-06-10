@@ -158,7 +158,7 @@ export function createScreenCaptureDialog(
   // idle プレースホルダ（アイコン + 案内テキスト）。
   const idlePlaceholder = document.createElement("div");
   idlePlaceholder.style.cssText =
-    "display:flex;flex-direction:column;align-items:center;gap:16px;color:#9e9e9e;";
+    "display:flex;flex-direction:column;align-items:center;gap:16px;color:var(--am-color-text-secondary);";
   idlePlaceholder.appendChild(svgIcon(SCREENSHOT_MONITOR_PATHS, 48));
   const idleText = createText({ variant: "body2", text: t("screenCaptureSelect") });
   idlePlaceholder.appendChild(idleText.el);
@@ -321,6 +321,8 @@ export function createScreenCaptureDialog(
       destroyed = true;
       stopStream();
       video.srcObject = null;
+      // 大きな PNG dataURL を保持し続けないよう参照を切る（呼び元が handle を保持しても早期 GC 可）。
+      capturedDataUrl = null;
       closeBtn.destroy();
       shootBtn.destroy();
       retryBtnPreview.destroy();

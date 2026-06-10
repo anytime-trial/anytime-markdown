@@ -19,13 +19,8 @@
  * 本 vanilla 版では more ボタン（intent 発火）までを担い、メニュー本体は移植しない（partial）。
  */
 
-import type { Editor } from "@anytime-markdown/markdown-react";
+import type { Editor } from "@anytime-markdown/markdown-core";
 
-import {
-  DEFAULT_AGGREGATE,
-  getDiagramAggregate,
-  isDiagramLanguage,
-} from "../extensions/diagramAggregateExtension";
 import { modKey } from "../constants/shortcuts";
 import { Z_TOOLBAR } from "../constants/zIndex";
 import { SIDE_TOOLBAR_WIDTH } from "../constants/dimensions";
@@ -117,12 +112,6 @@ function tip(t: TranslationFn, key: string): string {
   return shortcut ? `${t(key)}  (${shortcut})` : t(key);
 }
 
-/** ToolbarFileActions と同一の tip（shortcuts 引数版）。 */
-function tipWith(t: TranslationFn, key: string, shortcuts: Record<string, string>): string {
-  const shortcut = shortcuts[key];
-  return shortcut ? `${t(key)}  (${shortcut})` : t(key);
-}
-
 /** merge ビューの undo/redo ハンドル（React 原版 InlineMergeView.MergeUndoRedo と同形）。 */
 export interface MergeUndoRedo {
   undo: () => void;
@@ -163,25 +152,17 @@ export interface EditorToolbarHandle {
 interface ToolbarEditorState {
   canUndo: boolean;
   canRedo: boolean;
-  isCodeBlock: boolean;
-  isInDiagramCode: boolean;
-  allDiagramCodeCollapsed: boolean;
-  hasDiagrams: boolean;
 }
 
-/** editor から派生 state を計算（React 原版 selectToolbarEditorState と同一ロジック）。 */
+/**
+ * editor から undo/redo 可否を計算する。transaction（=キーストロック）ごとに呼ばれるため、
+ * 実際に消費する canUndo / canRedo のみを評価する（React 原版が持っていた diagram 派生は
+ * 本 vanilla 版では未消費のため計算しない）。
+ */
 function selectToolbarEditorState(editor: Editor | null): ToolbarEditorState {
-  const diagram = editor ? getDiagramAggregate(editor.state) : DEFAULT_AGGREGATE;
-  const activeLang = (editor?.getAttributes("codeBlock")?.language || "").toLowerCase();
-  const isInDiagramCode =
-    (editor?.isActive("codeBlock") ?? false) && isDiagramLanguage(activeLang);
   return {
     canUndo: editor?.can().undo() ?? false,
     canRedo: editor?.can().redo() ?? false,
-    isCodeBlock: editor?.isActive("codeBlock") ?? false,
-    isInDiagramCode,
-    allDiagramCodeCollapsed: diagram.hasDiagrams && diagram.allDiagramCodeCollapsed,
-    hasDiagrams: diagram.hasDiagrams,
   };
 }
 
@@ -679,7 +660,8 @@ export function createEditorToolbar(
       }
       if (next.modeState !== undefined) modeState = next.modeState;
       if (next.mergeUndoRedo !== undefined) mergeUndoRedo = next.mergeUndoRedo ?? null;
-      if (next.fileCapabilities !== undefined) fileCapabilities = next.fileCapabilities;
+      // 注: fileCapabilities は構築時のみ反映（buildFileActions は一度だけ）。動的更新が必要に
+      //   なったら buildFileActions の再生成・差し替えを実装する。ここでは no-op を避けるため握り潰さない。
 
       // モード／compare の選択値を group へ反映。
       modeGroup?.setValue(currentMode());
@@ -701,4 +683,4 @@ export function createEditorToolbar(
 }
 
 // re-export（host から TOOLTIP_SHORTCUTS を参照したい場合のため）。
-export { TOOLTIP_SHORTCUTS, tipWith };
+export { TOOLTIP_SHORTCUTS };

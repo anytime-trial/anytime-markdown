@@ -23,6 +23,7 @@ import {
   createText,
   createToggleButton,
   createToggleButtonGroup,
+  nextDialogTitleId,
 } from "../ui-vanilla";
 import type { GifSettings } from "../utils/gifEncoder";
 
@@ -143,7 +144,6 @@ export function createGifPlayerDialog(
   handles.push(speedGroup);
   for (const v of ["0.5", "1", "2"] as const) {
     const btn = createToggleButton({ value: v, children: `${v}x` });
-    handles.push(btn);
     speedGroup.register(btn);
   }
 
@@ -203,8 +203,9 @@ export function createGifPlayerDialog(
   headerIcon.appendChild(svgIcon(ICON_GIF, 18));
 
   const headerLabel = document.createElement("span");
+  const titleId = nextDialogTitleId();
   headerLabel.textContent = "GIF Player";
-  headerLabel.id = "gif-player-title";
+  headerLabel.id = titleId;
   headerLabel.style.cssText = "font-weight:600;";
 
   header.append(closeBtn.el, headerIcon, headerLabel);
@@ -213,7 +214,7 @@ export function createGifPlayerDialog(
   const dialog = createDialog({
     onClose,
     fullScreen: true,
-    labelledBy: "gif-player-title",
+    labelledBy: titleId,
     children: [header, preview, controls],
   });
 
