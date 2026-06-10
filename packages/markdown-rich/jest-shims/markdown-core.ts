@@ -15,19 +15,9 @@ export {
   getCodeBlockIndex,
   getMergeEditors,
 } from "../../markdown-viewer/src/contexts/MergeEditorsContext";
-export { useEditorFeaturesContext } from "../../markdown-viewer/src/contexts/EditorFeaturesContext";
-export type { EditorFeatures } from "../../markdown-viewer/src/contexts/EditorFeaturesContext";
 
 export { useMarkdownT } from "../../markdown-viewer/src/i18n/context";
 
-export { useBlockCapture } from "../../markdown-viewer/src/hooks/useBlockCapture";
-export { useBlockResize } from "../../markdown-viewer/src/hooks/useBlockResize";
-export { useDeleteBlock } from "../../markdown-viewer/src/hooks/useDeleteBlock";
-export { useNodeSelected } from "../../markdown-viewer/src/hooks/useNodeSelected";
-export { useSelectedBlock } from "../../markdown-viewer/src/hooks/useSelectedBlock";
-export type { SelectedBlock } from "../../markdown-viewer/src/hooks/useSelectedBlock";
-export { useBlockChrome } from "../../markdown-viewer/src/hooks/useBlockChrome";
-export type { BlockChrome } from "../../markdown-viewer/src/hooks/useBlockChrome";
 export { useTextareaSearch } from "../../markdown-viewer/src/hooks/useTextareaSearch";
 export type {
   TextareaSearchMatch,
@@ -120,14 +110,7 @@ export type {
   EmbedVariant,
 } from "../../markdown-viewer/src/utils/embedInfoString";
 
-export { EditDialogHeader } from "../../markdown-viewer/src/components/EditDialogHeader";
-export { EditDialogWrapper } from "../../markdown-viewer/src/components/EditDialogWrapper";
-export { EmbedEditDialog } from "../../markdown-viewer/src/components/EmbedEditDialog";
 export { EmbedNodeView } from "../../markdown-viewer/src/components/EmbedNodeView";
-export { BlockInlineToolbar } from "../../markdown-viewer/src/components/codeblock/BlockInlineToolbar";
-export type { BlockInlineToolbarProps } from "../../markdown-viewer/src/components/codeblock/BlockInlineToolbar";
-export { BlockChromeAnchor } from "../../markdown-viewer/src/components/BlockChromeAnchor";
-export { DeleteBlockDialog } from "../../markdown-viewer/src/components/codeblock/DeleteBlockDialog";
 
 // Phase3b（脱 @mui）: InlineAlert / DiagramBlock 等が使う追加 color helper。
 export {

@@ -6,11 +6,6 @@
  * - CustomTableCell / CustomTableHeader (extensions/customTableCells.ts)
  */
 
-// React / ReactNodeViewRenderer モック
-jest.mock("@anytime-markdown/markdown-react", () => ({
-  ReactNodeViewRenderer: jest.fn(() => jest.fn()),
-}));
-
 // NodeView コンポーネントモック（table は基底 native TableView を使い JS コンポーネント無し）
 jest.mock("../components/GifBlockContent", () => ({ createGifBlockNodeView: () => ({ dom: null }) }));
 jest.mock("../components/ImageBlockContent", () => ({ createImageBlockNodeView: () => ({ dom: null }) }));

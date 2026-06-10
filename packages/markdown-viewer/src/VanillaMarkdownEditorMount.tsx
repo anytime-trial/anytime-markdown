@@ -94,35 +94,5 @@ export function VanillaMarkdownEditorMount({
   return <div ref={containerRef} className={className} style={{ height: "100%", ...style }} />;
 }
 
-/** {@link MaybeVanillaMarkdownEditor} の props。 */
-export interface MaybeVanillaMarkdownEditorProps {
-  /** 旧 React 経路の要素（例: `<MarkdownEditorPage {...props} />` / RichMarkdownEditorPage）。 */
-  legacy: React.ReactElement;
-  /** フラグ ON 時に mount する vanilla orchestrator の props。 */
-  vanilla: VanillaMarkdownEditorMountProps;
-  /** 明示フラグ（省略時は {@link isVanillaEditorEnabled} で判定）。 */
-  enabled?: boolean;
-}
-
-/**
- * 並走スイッチ（G3-2 の consumer 配線中核）。フラグに応じて旧 React 経路（`legacy`）と vanilla 経路
- * （{@link VanillaMarkdownEditorMount}）を切り替える。consumer は既存の editor 要素を `legacy` に渡し、
- * 同じ値から導いた orchestrator props を `vanilla` に渡すだけで、既定 OFF のまま安全に並走させられる。
- *
- * @example
- * <MaybeVanillaMarkdownEditor
- *   legacy={<MarkdownEditorPage {...pageProps} />}
- *   vanilla={{ t, initialContent: content, readOnly, themeMode, presetName, locale, onContentChange }}
- * />
- */
-export function MaybeVanillaMarkdownEditor({
-  legacy,
-  vanilla,
-  enabled,
-}: Readonly<MaybeVanillaMarkdownEditorProps>): React.ReactElement {
-  const useVanilla = enabled ?? isVanillaEditorEnabled();
-  return useVanilla ? <VanillaMarkdownEditorMount {...vanilla} /> : legacy;
-}
-
 // フラグ判定は重量依存のない単独モジュール（./vanillaEditorFlag）へ分離。再 export で互換維持。
 export { isVanillaEditorEnabled };

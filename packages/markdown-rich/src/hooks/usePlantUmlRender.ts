@@ -1,5 +1,4 @@
 import plantumlEncoder from "plantuml-encoder";
-import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BoundedMap } from "../utils/BoundedMap";
 import { buildPlantUmlUrl, PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS, PLANTUML_LIGHT_SKINPARAMS } from "@anytime-markdown/markdown-viewer";
@@ -40,7 +39,7 @@ function buildPlantUmlSource(code: string, isDark: boolean): string {
 /**
  * PlantUML ソースを encode し、レンダリングサーバの画像 URL を構築する（React 非依存・同期）。
  * モジュールキャッシュを内包する。encode 失敗時は例外を投げるため呼び出し側で捕捉する。
- * hook（{@link usePlantUmlRender}）と native NodeView の双方から利用する seam。
+ * native NodeView（installCodeBlockOverlay）と vanilla dialog の双方から利用する seam。
  */
 export function buildPlantUmlImageUrl(code: string, isDark: boolean): string {
   if (!code.trim()) return "";
@@ -59,69 +58,4 @@ export function getPlantUmlConsent(): "pending" | "accepted" | "rejected" {
   if (typeof sessionStorage === "undefined") return "pending";
   const v = sessionStorage.getItem(PLANTUML_CONSENT_KEY);
   return v === "accepted" || v === "rejected" ? v : "pending";
-}
-
-interface UsePlantUmlRenderParams {
-  code: string;
-  isPlantUml: boolean;
-  isDark: boolean;
-}
-
-export function usePlantUmlRender({ code, isPlantUml, isDark }: UsePlantUmlRenderParams) {
-  const [plantUmlUrl, setPlantUmlUrl] = useState(() => {
-    if (!isPlantUml || !code.trim()) return "";
-    return urlCache.get(cacheKey(code, isDark)) ?? "";
-  });
-  const [error, setError] = useState("");
-  const [plantUmlConsent, setPlantUmlConsent] = useState<"pending" | "accepted" | "rejected">(getPlantUmlConsent);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
-
-  useEffect(() => {
-    if (!isPlantUml || !code.trim() || plantUmlConsent !== "accepted") {
-      if (isPlantUml) { setPlantUmlUrl(""); setError(""); }
-      return;
-    }
-
-    // キャッシュから即座に復元
-    const cached = urlCache.get(cacheKey(code, isDark));
-    if (cached) {
-      setPlantUmlUrl(cached);
-      setError("");
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      try {
-        const url = buildPlantUmlImageUrl(code, isDark);
-        if (mountedRef.current) {
-          setPlantUmlUrl(url);
-          setError("");
-        }
-      } catch (err) {
-        if (mountedRef.current) {
-          setError(`PlantUML: ${err instanceof Error ? err.message : "encode error"}`);
-          setPlantUmlUrl("");
-        }
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [code, isPlantUml, isDark, plantUmlConsent]);
-
-  const handlePlantUmlAccept = useCallback(() => {
-    sessionStorage.setItem(PLANTUML_CONSENT_KEY, "accepted");
-    setPlantUmlConsent("accepted");
-  }, []);
-
-  const handlePlantUmlReject = useCallback(() => {
-    sessionStorage.setItem(PLANTUML_CONSENT_KEY, "rejected");
-    setPlantUmlConsent("rejected");
-  }, []);
-
-  return { plantUmlUrl, error, plantUmlConsent, handlePlantUmlAccept, handlePlantUmlReject, setError };
 }

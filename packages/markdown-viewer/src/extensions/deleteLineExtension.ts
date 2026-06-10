@@ -1,4 +1,4 @@
-import { Extension } from "@anytime-markdown/markdown-react";
+import { Extension } from "@anytime-markdown/markdown-core";
 
 /** Ctrl+Shift+K でカーソル行を削除 */
 export const DeleteLineExtension = Extension.create({

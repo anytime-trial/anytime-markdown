@@ -3,11 +3,9 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import type { PaletteMode } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
 import { getVsCodeApi } from './vscodeApi';
-import { ACCENT_COLOR, applyEditorThemeCssVars, ConfirmProvider, createMarkdownT, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getPreset, MaybeVanillaMarkdownEditor, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS, ThemeModeProvider, type ThemePresetName } from '@anytime-markdown/markdown-viewer';
+import { ACCENT_COLOR, applyEditorThemeCssVars, ConfirmProvider, createMarkdownT, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getPreset, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS, ThemeModeProvider, VanillaMarkdownEditorMount, type ThemePresetName } from '@anytime-markdown/markdown-viewer';
 import { EmbedProvidersProvider } from '@anytime-markdown/markdown-viewer/src/contexts/EmbedProvidersContext';
-// rich の codeblock 描画拡張を注入する RichMarkdownEditorPage を使う (B-8)
-import MarkdownEditorPage from '@anytime-markdown/markdown-rich/src/RichMarkdownEditorPage';
-// 脱React G3-2: フラグ並走用の vanilla orchestrator（rich codeblock 注入版）
+// 脱React G4: vanilla orchestrator（rich codeblock 注入版）へ一本化
 import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/src/vanilla/mountVanillaRichMarkdownEditor';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
 
@@ -452,32 +450,29 @@ export function App() {
       <ConfirmProvider>
         <EmbedProvidersProvider value={embedProviders}>
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-          <MaybeVanillaMarkdownEditor
+          <VanillaMarkdownEditorMount
             key={editorKey}
-            legacy={<MarkdownEditorPage key={editorKey} locale={locale} hideToolbar sideToolbar hideSettings hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} showFrontmatter />}
-            vanilla={{
-              // 脱React G3-2 並走: 既定 OFF（__AM_VANILLA_EDITOR__ / ?vanilla=1 で有効化）。
-              // content は localStorage ブリッジ（STORAGE_KEY_CONTENT）経由のため persistDraft で整合する。
-              mount: mountVanillaRichMarkdownEditor,
-              t: createMarkdownT('MarkdownEditor', locale),
-              locale,
-              hideToolbar: true,
-              sideToolbar: true,
-              hide: { settings: true },
-              hideStatusBar: true,
-              readOnly: claudeEditing,
-              externalCompareContent: compareContent,
-              onCompareModeChange: handleCompareModeChange,
-              onHeadingsChange: handleHeadingsChange,
-              onCommentsChange: handleCommentsChange,
-              onStatusChange: handleStatusChange,
-              autoReload,
-              onModeChange: handleVanillaModeChange,
-              themeMode,
-              presetName,
-              showFrontmatter: true,
-              persistDraft: true,
-            }}
+            // 脱React G4: vanilla 経路へ一本化。content は localStorage ブリッジ
+            // （STORAGE_KEY_CONTENT）経由のため persistDraft で整合する。
+            mount={mountVanillaRichMarkdownEditor}
+            t={createMarkdownT('MarkdownEditor', locale)}
+            locale={locale}
+            hideToolbar
+            sideToolbar
+            hide={{ settings: true }}
+            hideStatusBar
+            readOnly={claudeEditing}
+            externalCompareContent={compareContent}
+            onCompareModeChange={handleCompareModeChange}
+            onHeadingsChange={handleHeadingsChange}
+            onCommentsChange={handleCommentsChange}
+            onStatusChange={handleStatusChange}
+            autoReload={autoReload}
+            onModeChange={handleVanillaModeChange}
+            themeMode={themeMode}
+            presetName={presetName}
+            showFrontmatter
+            persistDraft
           />
           {claudeEditing && (
             <div style={{

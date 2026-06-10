@@ -39,6 +39,8 @@ import type {
 import type { CommentInfo } from "../utils/commentNotifications";
 import { installCommentNotifications } from "../utils/commentNotifications";
 import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
+import type { FileSystemProvider } from "../types/fileSystem";
+import { createFileOpsController } from "./fileOpsController";
 import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { setTrailingNewline } from "../utils/editorContentLoader";
 import { createVanillaEditorHost } from "./vanillaEditorHost";
@@ -124,9 +126,13 @@ export interface MountVanillaMarkdownEditorOptions {
   onSettingsReset?: () => void;
   /** リセット確認（SettingsPanel）。未指定時は確認なし。 */
   confirm?: (message: string) => Promise<boolean>;
-  /** ファイル操作（部分指定。未指定分は editor/blob ベースの既定実装）。 */
+  /** ファイル操作（部分指定。未指定分は fileSystemProvider / editor / blob ベースの既定実装）。 */
   fileHandlers?: Partial<ToolbarFileHandlers>;
   fileCapabilities?: ToolbarFileCapabilities;
+  /** ローカル FS provider（React 経路の fileSystemProvider 相当・open/save/saveAs を既定配線）。 */
+  fileSystemProvider?: FileSystemProvider | null;
+  /** 外部保存（GitHub SSO 等）。指定時は保存がこちらを優先する。 */
+  onExternalSave?: (content: string) => void;
   /** ツールバーの表示制御。 */
   hide?: ToolbarVisibility;
   /** ツールバー全体を描画しない（VS Code の hideToolbar 相当）。 */
@@ -519,30 +525,76 @@ export function mountVanillaMarkdownEditor(
       };
       disposers.push(closeSettings);
 
-      // === file handlers（opts 優先・未指定は editor/blob ベースの既定） =========
+      // === file ops（fileSystemProvider / onExternalSave / import / clear・React useFileSystem
+      //     + useEditorFileOps の plain 版） ========================================
+      const fileOps = createFileOpsController({
+        editor,
+        t,
+        provider: current.fileSystemProvider,
+        onExternalSave: current.onExternalSave
+          ? (content) => current.onExternalSave?.(content)
+          : undefined,
+        confirm: current.confirm,
+        getFrontmatter: () => frontmatter,
+        setFrontmatter,
+        getSourceMode: () => modeState.sourceMode === true,
+        getSourceText: () => sourceController?.getSourceText() ?? "",
+        setSourceText: (text) => sourceController?.setSourceText(text),
+        onFileStateChange: ({ fileName, isDirty }) =>
+          statusBar?.update({ fileName: fileName ?? current.fileName, isDirty }),
+        notify: (key) => {
+          layout.liveRegion.textContent = t(key);
+        },
+      });
+      const onDirtyUpdate = (): void => fileOps.markDirty();
+      editor.on("update", onDirtyUpdate);
+      disposers.push(() => editor.off("update", onDirtyUpdate));
+
+      // === file handlers（opts 優先・未指定は fileOps / editor / blob ベースの既定） =
       const defaultDownload = (): void => {
-        const md = getMarkdownFromEditor(editor);
+        const md = fileOps.getFullMarkdown();
         const blob = new Blob([md], { type: "text/markdown" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "untitled.md";
+        a.download = fileOps.getFileName() ?? "untitled.md";
         a.click();
         URL.revokeObjectURL(url);
       };
-      const defaultClear = (): void => {
-        editor.chain().focus().clearContent(true).run();
+      // toolbar の import ボタン（引数なし）: ファイルピッカー → 確認付き取り込み。
+      const defaultImportClick = (): void => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".md,.markdown,text/markdown,text/plain";
+        input.addEventListener("change", () => {
+          const file = input.files?.[0];
+          if (file) void fileOps.selectFile(file);
+        });
+        input.click();
       };
       const fileHandlers: ToolbarFileHandlers = {
         onDownload: current.fileHandlers?.onDownload ?? defaultDownload,
-        onImport: current.fileHandlers?.onImport ?? (() => {}),
-        onClear: current.fileHandlers?.onClear ?? defaultClear,
-        onOpenFile: current.fileHandlers?.onOpenFile,
-        onSaveFile: current.fileHandlers?.onSaveFile,
-        onSaveAsFile: current.fileHandlers?.onSaveAsFile,
+        onImport: current.fileHandlers?.onImport ?? defaultImportClick,
+        onClear: current.fileHandlers?.onClear ?? (() => void fileOps.clearAll()),
+        onOpenFile:
+          current.fileHandlers?.onOpenFile ??
+          (current.fileSystemProvider ? () => void fileOps.openFile() : undefined),
+        onSaveFile:
+          current.fileHandlers?.onSaveFile ??
+          (current.fileSystemProvider || current.onExternalSave
+            ? () => void fileOps.saveFile()
+            : undefined),
+        onSaveAsFile:
+          current.fileHandlers?.onSaveAsFile ??
+          (current.fileSystemProvider ? () => void fileOps.saveAsFile() : undefined),
         onExportPdf: current.fileHandlers?.onExportPdf,
         onLoadRightFile: current.fileHandlers?.onLoadRightFile,
         onExportRightFile: current.fileHandlers?.onExportRightFile,
+      };
+      const fileCapabilities: ToolbarFileCapabilities = current.fileCapabilities ?? {
+        hasFileHandle: fileOps.hasFileHandle(),
+        supportsDirectAccess: current.fileSystemProvider?.supportsDirectAccess ?? false,
+        externalSaveOnly: !current.fileSystemProvider && !!current.onExternalSave,
       };
 
       // === sidebar パネル（Outline / Comment）の toggle マウント ===============
@@ -720,7 +772,7 @@ export function mountVanillaMarkdownEditor(
           modeState,
           modeHandlers,
           fileHandlers,
-          fileCapabilities: current.fileCapabilities,
+          fileCapabilities,
           hide: {
             ...current.hide,
             readonlyToggle:
@@ -772,7 +824,7 @@ export function mountVanillaMarkdownEditor(
       statusBar = createStatusBar({
         editor,
         t,
-        fileName: current.fileName,
+        fileName: current.fileName ?? fileOps.getFileName(),
         onStatusChange: current.onStatusChange,
         hidden: current.hideStatusBar,
       });
@@ -867,7 +919,11 @@ export function mountVanillaMarkdownEditor(
       });
       disposers.push(() => menuPopovers.destroy());
       const editorPlainRef = { current: editor as Editor | null };
-      const importPlainRef = { current: fileHandlers.onImport };
+      // .md ドロップ時の取り込み（React handleImportRef.current = handleFileSelected 相当）。
+      const importPlainRef = {
+        current: (file: File, nativeHandle?: FileSystemFileHandle) =>
+          void fileOps.selectFile(file, nativeHandle),
+      };
       const fileDragOverPlainRef = {
         current: (over: boolean): void => {
           if (over) {

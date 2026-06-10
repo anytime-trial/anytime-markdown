@@ -1,8 +1,0 @@
-/* GifPlayerDialog — co-located CSS Module */
-
-/* Speed toggle button: px:1.5 (12px) + fontSize:PANEL_BUTTON_FONT_SIZE (0.75rem) */
-.speedBtn {
-  padding-left: 12px;
-  padding-right: 12px;
-  font-size: 0.75rem;
-}

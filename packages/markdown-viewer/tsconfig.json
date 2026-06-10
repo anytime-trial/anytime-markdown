@@ -13,8 +13,6 @@
 			"@anytime-markdown/markdown-core": ["../markdown-core/core/src/index.ts"],
 			"@anytime-markdown/markdown-engine": ["../markdown-engine/src/index.ts"],
 			"@anytime-markdown/markdown-core/*": ["../markdown-core/core/src/*"],
-			"@anytime-markdown/markdown-react": ["../markdown-react/src/index.ts"],
-			"@anytime-markdown/markdown-react/*": ["../markdown-react/src/*"],
 			"@anytime-markdown/markdown-pm/*": ["../markdown-core/pm/*/index.ts"],
 			"@anytime-markdown/markdown-starter-kit": ["../markdown-core/starter-kit/src/index.ts"],
 			"@anytime-markdown/markdown-extensions": ["../markdown-core/extensions/src/index.ts"],
@@ -25,6 +23,6 @@
 			"@anytime-markdown/markdown-md": ["../markdown-core/tiptap-markdown"]
 		}
 	},
-	"references": [{ "path": "../markdown-core" }, { "path": "../markdown-react" }, { "path": "../markdown-engine" }],
+	"references": [{ "path": "../markdown-core" }, { "path": "../markdown-engine" }],
 	"include": ["src/**/*", "src/**/*.json"]
 }

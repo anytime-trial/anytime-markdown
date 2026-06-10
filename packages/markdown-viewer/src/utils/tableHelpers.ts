@@ -1,5 +1,5 @@
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
-import type { Editor } from "@anytime-markdown/markdown-react";
+import type { Editor } from "@anytime-markdown/markdown-core";
 
 /** テーブルの行を上下に移動するヘルパー */
 export function moveTableRow(editor: Editor, direction: "up" | "down") {

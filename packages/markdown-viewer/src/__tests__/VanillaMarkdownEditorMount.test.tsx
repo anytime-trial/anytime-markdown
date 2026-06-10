@@ -29,7 +29,6 @@ jest.mock("@floating-ui/dom", () => ({
 
 import {
   VanillaMarkdownEditorMount,
-  MaybeVanillaMarkdownEditor,
   isVanillaEditorEnabled,
 } from "../VanillaMarkdownEditorMount";
 
@@ -60,31 +59,5 @@ describe("VanillaMarkdownEditorMount", () => {
     unmount();
     // unmount で destroy → root が外れる。
     expect(container.querySelector("[data-am-editor-root]")).toBeNull();
-  });
-});
-
-describe("MaybeVanillaMarkdownEditor", () => {
-  it("enabled=false では legacy 要素を描画する", () => {
-    const { container } = render(
-      <MaybeVanillaMarkdownEditor
-        enabled={false}
-        legacy={<div data-testid="legacy">legacy editor</div>}
-        vanilla={{ t }}
-      />,
-    );
-    expect(container.querySelector('[data-testid="legacy"]')).toBeTruthy();
-    expect(container.querySelector("[data-am-editor-root]")).toBeNull();
-  });
-
-  it("enabled=true では vanilla orchestrator を mount する", () => {
-    const { container } = render(
-      <MaybeVanillaMarkdownEditor
-        enabled
-        legacy={<div data-testid="legacy">legacy editor</div>}
-        vanilla={{ t, initialContent: "x" }}
-      />,
-    );
-    expect(container.querySelector('[data-testid="legacy"]')).toBeNull();
-    expect(container.querySelector("[data-am-editor-root]")).toBeTruthy();
   });
 });

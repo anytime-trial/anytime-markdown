@@ -1,4 +1,4 @@
-import type { Editor } from "@anytime-markdown/markdown-react";
+import type { Editor } from "@anytime-markdown/markdown-core";
 import { useCallback, useState } from "react";
 
 import { useIsDark } from "../contexts/ThemeModeContext";

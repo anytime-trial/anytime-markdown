@@ -1,5 +1,5 @@
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
-import type { Editor } from "@anytime-markdown/markdown-react";
+import type { Editor } from "@anytime-markdown/markdown-core";
 
 import type { HeadingItem } from "../types";
 

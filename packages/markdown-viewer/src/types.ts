@@ -1,5 +1,5 @@
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
-import type { Editor } from "@anytime-markdown/markdown-react";
+import type { Editor } from "@anytime-markdown/markdown-core";
 import { createContext, useContext } from "react";
 
 export type EncodingLabel = "UTF-8" | "Shift_JIS" | "EUC-JP";

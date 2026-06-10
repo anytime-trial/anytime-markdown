@@ -15,11 +15,6 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock("@anytime-markdown/markdown-react", () => ({
-  EditorContent: () => <div data-testid="editor-content" />,
-  useEditor: () => null,
-}));
-
 jest.mock("../useEditorSettings", () => ({
   EditorSettingsContext: React.createContext({}),
   useEditorSettingsContext: () => ({
@@ -77,19 +72,6 @@ jest.mock("../constants/zIndex", () => ({
   Z_TOOLBAR: 1100,
 }));
 
-
-// --- MarkdownIcon ---
-
-describe("MarkdownIcon", () => {
-  it("renders without crashing", async () => {
-    const mod = await import("../icons/MarkdownIcon");
-    const MarkdownIcon = mod.default;
-    const { container } = render(
-        <MarkdownIcon />,
-    );
-    expect(container.querySelector("svg")).toBeTruthy();
-  });
-});
 
 // --- FullPageLoader ---
 
