@@ -1,15 +1,18 @@
 'use client';
 
+// barrel ではなく i18n モジュールを deep import（jest が viewer barrel の CSS module を解析しないように）。
+import { createMarkdownT } from '@anytime-markdown/markdown-viewer/src/i18n/context';
 import { Alert, Box, Button, CircularProgress } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
 import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
+import { useVanillaEditorFlag } from './useVanillaEditorFlag';
 
 // rich の codeblock 描画拡張を注入する RichMarkdownEditorPage を使う (B-8)
 const MarkdownEditorPage = dynamic(
@@ -23,6 +26,16 @@ const MarkdownEditorPage = dynamic(
     ),
   }
 );
+
+// 脱React G3-2: vanilla 並走経路（既定 OFF・?vanilla=1 / NEXT_PUBLIC_VANILLA_EDITOR で有効化）
+const VanillaRichMarkdownEditor = dynamic(() => import('./VanillaRichMarkdownEditor'), {
+  ssr: false,
+  loading: () => (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+      <CircularProgress aria-label="Loading viewer" />
+    </Box>
+  ),
+});
 
 interface MarkdownViewerProps {
   /** S3 ドキュメントキー（デコード済み、例: "docs/markdownAll/markdownAll.ja.md"） */
@@ -52,6 +65,8 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
   const { locale, setLocale } = useLocaleSwitch();
   const muiTheme = useTheme();
   const isBelowMd = useMediaQuery(muiTheme.breakpoints.down('md'));
+  const vanillaEditor = useVanillaEditorFlag();
+  const vanillaT = useMemo(() => createMarkdownT('MarkdownEditor', locale), [locale]);
 
   // ロケールに応じた docKey を決定
   const resolvedDocKey = docKeyByLocale?.[locale] ?? docKey;
@@ -120,6 +135,27 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
   return (
     <Box sx={{ minHeight, overflow: 'hidden' }}>
       <EmbedProvidersBoundary>
+      {vanillaEditor ? (
+        // 脱React G3-2 並走: bottomOffset は vanilla 未対応（fixedEditorHeight で代替）。
+        <VanillaRichMarkdownEditor
+          key={editorKeyRef.current}
+          t={vanillaT}
+          locale={locale}
+          initialContent={content}
+          readOnly
+          hideStatusBar
+          noScroll={noScroll}
+          fixedEditorHeight={editorHeight}
+          initialFontSize={isBelowMd ? 14 : undefined}
+          defaultBlockAlign="left"
+          themeMode={themeMode}
+          onThemeModeChange={setThemeMode}
+          presetName={presetName}
+          onPresetChange={setPresetName}
+          onLocaleChange={setLocale}
+          showFrontmatter={showFrontmatter}
+        />
+      ) : (
       <MarkdownEditorPage
         key={editorKeyRef.current}
         externalContent={content}
@@ -137,6 +173,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
         showFrontmatter={showFrontmatter}
         bottomOffset={bottomOffset}
       />
+      )}
       </EmbedProvidersBoundary>
     </Box>
   );

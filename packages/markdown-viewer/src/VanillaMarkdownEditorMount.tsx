@@ -9,8 +9,10 @@
  * 素 DOM の orchestrator を container へ mount し、unmount 時に `destroy()` する **だけ**の薄い殻。
  * G4 で旧 React 経路を削除したのち、consumer が orchestrator を直接 mount すれば本ラッパも不要になる。
  *
- * 注意（draft の制約）: 現状 orchestrator は **mount 時 1 回**で props の live update を持たない
- * （`handle.update` 未実装）。props 変更時の再構築は follow-up（mount-once として運用）。
+ * live props（readOnly / themeMode / presetName / autoReload / externalCompareContent /
+ * settings / fileName）は `handle.update` で反映する。生成時オプション（initialContent /
+ * codeBlockExtension / locale 等）の変更は consumer が `key` を変えて remount する
+ * （React 経路の editorKey remount と同じ契約）。
  */
 
 import { useEffect, useRef } from "react";
@@ -20,11 +22,20 @@ import {
   type MountVanillaMarkdownEditorOptions,
   type VanillaMarkdownEditorHandle,
 } from "./host/vanillaMarkdownEditor";
+import { isVanillaEditorEnabled } from "./vanillaEditorFlag";
 
 /** {@link VanillaMarkdownEditorMount} の props（orchestrator options + コンテナ装飾）。 */
 export interface VanillaMarkdownEditorMountProps extends MountVanillaMarkdownEditorOptions {
   className?: string;
   style?: React.CSSProperties;
+  /**
+   * orchestrator の差し替え（既定は {@link mountVanillaMarkdownEditor}）。
+   * rich 注入版（markdown-rich の `mountVanillaRichMarkdownEditor`）を渡す consumer 用。
+   */
+  mount?: (
+    container: HTMLElement,
+    options: MountVanillaMarkdownEditorOptions,
+  ) => VanillaMarkdownEditorHandle;
 }
 
 /**
@@ -34,26 +45,51 @@ export interface VanillaMarkdownEditorMountProps extends MountVanillaMarkdownEdi
 export function VanillaMarkdownEditorMount({
   className,
   style,
+  mount,
   ...options
 }: Readonly<VanillaMarkdownEditorMountProps>): React.ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const handleRef = useRef<VanillaMarkdownEditorHandle | null>(null);
 
   useEffect(() => {
     // mount は 1 回のみ。effect は初回 commit 後に走るため、ここで参照する options は mount 時点の
-    // props と一致する（live update は orchestrator.handle.update 実装後の follow-up）。
+    // props と一致する（live props は下の update effect で反映）。
     const container = containerRef.current;
     if (!container) return undefined;
-    let handle: VanillaMarkdownEditorHandle | null = null;
     try {
-      handle = mountVanillaMarkdownEditor(container, options);
+      handleRef.current = (mount ?? mountVanillaMarkdownEditor)(container, options);
     } catch (error) {
       // mount 失敗は致命的でないが原因追跡のため握り潰さず出力する（seam の疎通診断）。
       console.error("[VanillaMarkdownEditorMount] mount failed", error);
     }
-    return () => handle?.destroy();
-    // mount-once（props live update は orchestrator.handle.update 実装後に対応）。
+    return () => {
+      handleRef.current?.destroy();
+      handleRef.current = null;
+    };
+    // 生成時オプションの変更は consumer の key remount で扱う（mount-once）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // live props の反映（orchestrator.handle.update）。
+  useEffect(() => {
+    handleRef.current?.update({
+      readOnly: options.readOnly,
+      themeMode: options.themeMode,
+      presetName: options.presetName,
+      autoReload: options.autoReload,
+      externalCompareContent: options.externalCompareContent,
+      settings: options.settings,
+      fileName: options.fileName,
+    });
+  }, [
+    options.readOnly,
+    options.themeMode,
+    options.presetName,
+    options.autoReload,
+    options.externalCompareContent,
+    options.settings,
+    options.fileName,
+  ]);
 
   return <div ref={containerRef} className={className} style={{ height: "100%", ...style }} />;
 }
@@ -88,27 +124,5 @@ export function MaybeVanillaMarkdownEditor({
   return useVanilla ? <VanillaMarkdownEditorMount {...vanilla} /> : legacy;
 }
 
-/**
- * vanilla editor 経路を有効化するかのフラグ（並走切替用）。既定は false（旧 React 経路）。
- *
- * 優先順: グローバル明示フラグ `__AM_VANILLA_EDITOR__` → 環境変数 `NEXT_PUBLIC_VANILLA_EDITOR` →
- * URL クエリ `?vanilla=1`（ブラウザ時のみ）。consumer 側で独自判定したい場合は本関数を使わず
- * 直接条件分岐してよい。
- */
-export function isVanillaEditorEnabled(): boolean {
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (typeof g.__AM_VANILLA_EDITOR__ === "boolean") return g.__AM_VANILLA_EDITOR__;
-  const env =
-    typeof process !== "undefined"
-      ? (process as { env?: Record<string, string | undefined> }).env?.NEXT_PUBLIC_VANILLA_EDITOR
-      : undefined;
-  if (env === "1" || env === "true") return true;
-  if (typeof window !== "undefined") {
-    try {
-      return new URLSearchParams(window.location.search).get("vanilla") === "1";
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
+// フラグ判定は重量依存のない単独モジュール（./vanillaEditorFlag）へ分離。再 export で互換維持。
+export { isVanillaEditorEnabled };

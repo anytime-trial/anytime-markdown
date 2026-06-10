@@ -1,12 +1,16 @@
-import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
-import type { Transaction } from "@anytime-markdown/markdown-pm/state";
 import type { Editor } from "@anytime-markdown/markdown-react";
 import { useEffect, useRef } from "react";
 
 import { reviewModeStorage } from "../extensions/reviewModeExtension";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
-import { prependFrontmatter } from "../utils/frontmatterHelpers";
-import { getMarkdownFromEditor } from "../utils/markdownSerializer";
+import {
+  applyCollapsedStates,
+  collectCollapsedStates,
+  normalizeCompareMarkdown,
+} from "../utils/mergeContentSync";
+
+// 既存の consumer（テスト含む）の import 互換のため re-export する。
+export { normalizeCompareMarkdown };
 
 interface UseMergeContentSyncParams {
   sourceMode: boolean;
@@ -16,79 +20,6 @@ interface UseMergeContentSyncParams {
   compareText: string;
   setEditText: (text: string) => void;
   setCompareText: (text: string) => void;
-}
-
-const SYNC_TARGET_TYPES = new Set(["codeBlock", "table", "image"]);
-
-/**
- * 比較（左）テキストを比較用エディタで Tiptap 往復し、編集（右）側と同一の
- * 正規化レベルに揃える。ソースモードでは左パネルが生テキスト表示のため、
- * これを通さないと computeDiff が「見た目は同一なのに modified」と判定する
- * 偽差分（phantom diff）を出す。冪等: 正規化済みを再度通しても結果は変わらない。
- */
-export function normalizeCompareMarkdown(editor: Editor, raw: string): string {
-  const { frontmatter } = applyMarkdownToEditor(editor, raw);
-  return prependFrontmatter(getMarkdownFromEditor(editor), frontmatter);
-}
-
-interface CollapsedState {
-  type: string;
-  index: number;
-  collapsed?: boolean;
-  codeCollapsed?: boolean;
-}
-
-/** Collect collapsed/codeCollapsed states from a ProseMirror doc */
-function collectCollapsedStates(doc: ProseMirrorNode): CollapsedState[] {
-  const states: CollapsedState[] = [];
-  const counters: Record<string, number> = {};
-  doc.descendants((node) => {
-    if (SYNC_TARGET_TYPES.has(node.type.name)) {
-      const key = node.type.name;
-      counters[key] = (counters[key] || 0) + 1;
-      states.push({
-        type: key,
-        index: counters[key] - 1,
-        collapsed: node.attrs.collapsed,
-        codeCollapsed: node.attrs.codeCollapsed,
-      });
-    }
-  });
-  return states;
-}
-
-/** Apply collected collapsed states to a target doc via transaction */
-function applyCollapsedStates(
-  doc: ProseMirrorNode,
-  tr: Transaction,
-  sourceStates: CollapsedState[],
-): boolean {
-  const counters: Record<string, number> = {};
-  let changed = false;
-  doc.descendants((node, pos) => {
-    if (SYNC_TARGET_TYPES.has(node.type.name)) {
-      const key = node.type.name;
-      counters[key] = (counters[key] || 0) + 1;
-      const idx = counters[key] - 1;
-      const srcState = sourceStates.find(s => s.type === key && s.index === idx);
-      if (!srcState) return;
-      let nodeChanged = false;
-      const newAttrs: Record<string, unknown> = { ...node.attrs };
-      if (srcState.collapsed !== undefined && node.attrs.collapsed !== srcState.collapsed) {
-        newAttrs.collapsed = srcState.collapsed;
-        nodeChanged = true;
-      }
-      if (srcState.codeCollapsed !== undefined && node.attrs.codeCollapsed !== srcState.codeCollapsed) {
-        newAttrs.codeCollapsed = srcState.codeCollapsed;
-        nodeChanged = true;
-      }
-      if (nodeChanged) {
-        tr.setNodeMarkup(pos, undefined, newAttrs);
-        changed = true;
-      }
-    }
-  });
-  return changed;
 }
 
 export function useMergeContentSync({

@@ -15,6 +15,22 @@ jest.mock("../buildEditorExtensions", () => ({
   buildEditorExtensions: () => [StarterKit],
 }));
 
+// constants/templates は raw .md を import するため jest が解析できない（EditorMenuPopovers 経由）。
+jest.mock("../constants/templates", () => ({
+  getBuiltinTemplates: () => [],
+}));
+
+// @floating-ui/dom をモック（ContextMenu / MenuPopovers の配置計算は本テストの対象外）。
+jest.mock("@floating-ui/dom", () => ({
+  computePosition: jest.fn(() =>
+    Promise.resolve({ x: 0, y: 0, placement: "bottom-start", middlewareData: {} }),
+  ),
+  autoUpdate: jest.fn(() => () => {}),
+  offset: jest.fn(() => ({})),
+  flip: jest.fn(() => ({})),
+  shift: jest.fn(() => ({})),
+}));
+
 import { mountVanillaMarkdownEditor } from "../host/vanillaMarkdownEditor";
 
 const t = (key: string): string => key;
