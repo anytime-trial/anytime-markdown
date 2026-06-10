@@ -349,7 +349,20 @@ export function createInlineMergeView(
       },
     },
   });
-  reviewModeStorage(leftEditor).enabled = true;
+  // reviewMode 拡張未登録の構成（テスト用 StarterKit 等）では no-op（警告は初回のみ）。
+  let reviewStorageWarned = false;
+  const setLeftReviewEnabled = (enabled: boolean): void => {
+    const storage = reviewModeStorage(leftEditor) as { enabled: boolean } | undefined;
+    if (!storage) {
+      if (!reviewStorageWarned) {
+        reviewStorageWarned = true;
+        console.warn("[InlineMergeView] reviewMode storage unavailable (extension not loaded)");
+      }
+      return;
+    }
+    storage.enabled = enabled;
+  };
+  setLeftReviewEnabled(true);
 
   // 左エディタのチェックボックスクリックをキャプチャフェーズでブロック。
   const leftDom = leftEditor.view.dom;
@@ -375,6 +388,7 @@ export function createInlineMergeView(
 
   // === DOM 構築 =============================================================
   const root = document.createElement("div");
+  root.setAttribute("data-am-inline-merge", "");
   root.style.cssText =
     "display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;overflow:hidden;";
 
@@ -760,9 +774,9 @@ export function createInlineMergeView(
       const tr = leftEditor.state.tr;
       const changed = applyCollapsedStates(leftEditor.state.doc, tr, sourceStates);
       if (changed) {
-        reviewModeStorage(leftEditor).enabled = false;
+        setLeftReviewEnabled(false);
         leftEditor.view.dispatch(tr);
-        reviewModeStorage(leftEditor).enabled = true;
+        setLeftReviewEnabled(true);
       }
     });
   };
@@ -811,12 +825,12 @@ export function createInlineMergeView(
     leftPopulateRaf = requestAnimationFrame(() => {
       if (leftEditor.isDestroyed) return;
       try {
-        reviewModeStorage(leftEditor).enabled = false;
+        setLeftReviewEnabled(false);
         applyMarkdownToEditor(leftEditor, store.getCompareText());
       } catch (e: unknown) {
         console.error("[InlineMergeView] 左エディタへの compareText 反映に失敗:", e);
       } finally {
-        if (!leftEditor.isDestroyed) reviewModeStorage(leftEditor).enabled = true;
+        if (!leftEditor.isDestroyed) setLeftReviewEnabled(true);
       }
     });
   };
@@ -828,12 +842,12 @@ export function createInlineMergeView(
       if (leftEditor.isDestroyed) return;
       let normalized: string | null = null;
       try {
-        reviewModeStorage(leftEditor).enabled = false;
+        setLeftReviewEnabled(false);
         normalized = normalizeCompareMarkdown(leftEditor, compareText);
       } catch (e: unknown) {
         console.error("[InlineMergeView] compareText の正規化に失敗:", e);
       } finally {
-        if (!leftEditor.isDestroyed) reviewModeStorage(leftEditor).enabled = true;
+        if (!leftEditor.isDestroyed) setLeftReviewEnabled(true);
       }
       if (normalized !== null && normalized !== compareText) store.setCompareText(normalized);
     });

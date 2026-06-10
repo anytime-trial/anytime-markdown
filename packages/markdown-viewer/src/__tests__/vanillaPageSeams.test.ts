@@ -224,6 +224,36 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
     handle.destroy();
   });
 
+  it("externalCompareContent: mount 時に merge ビューが開き onCompareModeChange が発火する", () => {
+    const onCompareModeChange = jest.fn();
+    const handle = mountVanillaMarkdownEditor(container, {
+      t,
+      initialContent: "# Hello",
+      externalCompareContent: "# Compare",
+      onCompareModeChange,
+    });
+    expect(onCompareModeChange).toHaveBeenCalledWith(true);
+    expect(handle.root.querySelector("[data-am-inline-merge]")).not.toBeNull();
+    // 終了イベントで閉じて通常表示へ復帰する
+    globalThis.dispatchEvent(new CustomEvent("vscode-exit-compare-mode"));
+    expect(onCompareModeChange).toHaveBeenLastCalledWith(false);
+    expect(handle.root.querySelector("[data-am-inline-merge]")).toBeNull();
+    handle.destroy();
+  });
+
+  it("codeBlockOverlayInstaller が editor を受けて install され destroy で解放される", () => {
+    const dispose = jest.fn();
+    const installer = jest.fn(() => dispose);
+    const handle = mountVanillaMarkdownEditor(container, {
+      t,
+      initialContent: "# Hello",
+      codeBlockOverlayInstaller: installer,
+    });
+    expect(installer).toHaveBeenCalledWith(handle.editor);
+    handle.destroy();
+    expect(dispose).toHaveBeenCalled();
+  });
+
   it("persistDraft: 保存済み下書きを initialContent より優先する", () => {
     localStorage.setItem("markdown-editor-content", "# Draft");
     const handle = mountVanillaMarkdownEditor(container, {

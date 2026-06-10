@@ -67,6 +67,10 @@ import {
   type CreateEditorToolbarOptions,
 } from "../components-vanilla/EditorToolbar";
 import { createEditorContextMenu } from "../components-vanilla/EditorContextMenu";
+import {
+  createInlineMergeView,
+  type InlineMergeViewHandle,
+} from "../components-vanilla/InlineMergeView";
 import { createEditorDialogs } from "../components-vanilla/EditorDialogs";
 import { createEditorMenuPopovers } from "../components-vanilla/EditorMenuPopovers";
 import { createEditorSettingsPanel } from "../components-vanilla/EditorSettingsPanel";
@@ -222,6 +226,7 @@ interface VanillaLayout {
   toolbarSlot: HTMLElement;
   frontmatterEl: HTMLElement;
   contentEl: HTMLElement;
+  editorMountEl: HTMLElement;
   mainRow: HTMLElement;
   sidebarSlot: HTMLElement;
   sideToolbarSlot: HTMLElement;
@@ -255,6 +260,13 @@ function buildLayout(): VanillaLayout {
   contentEl.setAttribute("data-am-content", "");
   contentEl.style.cssText = "flex:1 1 auto;min-height:0;overflow:auto;";
 
+  // editor の実マウント先（React buildEditorPortalTarget 相当・display:contents）。
+  // merge ビューの右パネルが editor.options.element ごと移設できるよう contentEl と分離する。
+  const editorMountEl = document.createElement("div");
+  editorMountEl.setAttribute("data-am-editor-mount", "");
+  editorMountEl.style.display = "contents";
+  contentEl.appendChild(editorMountEl);
+
   // Outline / Comment パネルのマウント先（toggle で表示）。
   const sidebarSlot = document.createElement("div");
   sidebarSlot.setAttribute("data-am-sidebar-slot", "");
@@ -283,6 +295,7 @@ function buildLayout(): VanillaLayout {
     toolbarSlot,
     frontmatterEl,
     contentEl,
+    editorMountEl,
     mainRow,
     sidebarSlot,
     sideToolbarSlot,
@@ -336,8 +349,16 @@ export function mountVanillaMarkdownEditor(
   const current: MountVanillaMarkdownEditorOptions = { ...options };
   const { t } = current;
   const layout = buildLayout();
-  const { root, toolbarSlot, frontmatterEl, contentEl, sidebarSlot, sideToolbarSlot, statusBarSlot } =
-    layout;
+  const {
+    root,
+    toolbarSlot,
+    frontmatterEl,
+    contentEl,
+    editorMountEl,
+    sidebarSlot,
+    sideToolbarSlot,
+    statusBarSlot,
+  } = layout;
   if (current.noScroll) contentEl.style.overflow = "visible";
   if (current.fixedEditorHeight) {
     contentEl.style.flex = "0 0 auto";
@@ -380,7 +401,7 @@ export function mountVanillaMarkdownEditor(
   let applyLivePatch: ((patch: VanillaMarkdownEditorUpdatePatch) => void) | null = null;
 
   const host = createVanillaEditorHost({
-    element: contentEl,
+    element: editorMountEl,
     extensions,
     content: pre.body,
     autofocus: "start",
@@ -409,7 +430,19 @@ export function mountVanillaMarkdownEditor(
       };
       const readonlyNow = (): boolean => (current.readOnly ?? false) || modeState.readonlyMode === true;
       const notifyMode = (): void => current.onModeChange?.({ ...modeState });
-      applyEditorSettings(editor, root, effectiveSettings(), readonlyNow());
+      /** rich codeblock（native content / vanilla dialogs）が読む実行時 CSS 変数（CodeDialogHost 相当）。 */
+      const applyCodeCssVars = (): void => {
+        if (typeof document === "undefined") return;
+        const docRoot = document.documentElement;
+        docRoot.style.setProperty("--am-editor-dark", current.themeMode === "dark" ? "1" : "0");
+        docRoot.style.setProperty("--am-code-font-size", `${effectiveSettings().fontSize}px`);
+        docRoot.style.setProperty("--am-code-line-height", `${effectiveSettings().lineHeight}`);
+      };
+      const applyAllSettings = (): void => {
+        applyEditorSettings(editor, root, effectiveSettings(), readonlyNow());
+        applyCodeCssVars();
+      };
+      applyAllSettings();
       setTrailingNewline(editor, initialTrailingNewline);
       if (pre.comments.size > 0) {
         editor.commands.initComments(pre.comments);
@@ -472,12 +505,12 @@ export function mountVanillaMarkdownEditor(
           onClose: closeSettings,
           onUpdate: (patch) => {
             settings = { ...settings, ...patch };
-            applyEditorSettings(editor, root, effectiveSettings(), readonlyNow());
+            applyAllSettings();
             current.onSettingsChange?.(settings);
           },
           onReset: () => {
             settings = { ...DEFAULT_SETTINGS };
-            applyEditorSettings(editor, root, effectiveSettings(), readonlyNow());
+            applyAllSettings();
             current.onSettingsReset?.();
             current.onSettingsChange?.(settings);
             closeSettings();
@@ -554,8 +587,9 @@ export function mountVanillaMarkdownEditor(
       let clearDiffTimer: ReturnType<typeof setTimeout> | null = null;
       const notifyCompareMode = (): void =>
         current.onCompareModeChange?.(modeState.inlineMergeOpen === true);
-      // merge ビュー本体（InlineMergeView vanilla）の配線。
+      // merge ビュー本体（InlineMergeView vanilla）の配線（実体は toolbar 構築後に代入）。
       let syncMergeView: () => void = () => {};
+      let mergeView: InlineMergeViewHandle | null = null;
       const setInlineMergeOpen = (open: boolean): void => {
         if (modeState.inlineMergeOpen === open) return;
         modeState.inlineMergeOpen = open;
@@ -759,6 +793,66 @@ export function mountVanillaMarkdownEditor(
         slash.destroy();
       });
 
+      // === merge ビュー実体（InlineMergeView vanilla・syncMergeView へ代入） =====
+      const mergeEditorContent = (): string =>
+        modeState.sourceMode
+          ? (sourceController?.getSourceText() ?? "")
+          : editorMarkdown;
+      syncMergeView = (): void => {
+        if (modeState.inlineMergeOpen && !mergeView) {
+          // WYSIWYG では右パネルが editorMountEl（editor.options.element）ごと自分の中へ移設する。
+          // source モードは textarea diff のため textarea を隠すのみ。
+          const sourceTa = sourceController?.getTextarea();
+          if (sourceTa) sourceTa.style.display = "none";
+          mergeView = createInlineMergeView({
+            editor,
+            t,
+            settings: {
+              fontSize: effectiveSettings().fontSize,
+              lineHeight: effectiveSettings().lineHeight,
+            },
+            sourceMode: modeState.sourceMode === true,
+            editorContent: mergeEditorContent(),
+            codeBlockExtension: current.codeBlockExtension,
+            compareContent: compareFileContent,
+            onCompareContentConsumed: () => {
+              compareFileContent = null;
+            },
+            onEditTextChange: (text) => {
+              if (modeState.sourceMode) sourceController?.setSourceText(text);
+              saveContent(() => text, false);
+            },
+            onUndoRedoChange: (handle) => toolbar?.update({ mergeUndoRedo: handle }),
+          });
+          contentEl.appendChild(mergeView.el);
+        } else if (modeState.inlineMergeOpen && mergeView) {
+          mergeView.update({
+            sourceMode: modeState.sourceMode === true,
+            editorContent: mergeEditorContent(),
+            compareContent: compareFileContent,
+          });
+        } else if (!modeState.inlineMergeOpen && mergeView) {
+          mergeView.destroy();
+          mergeView.el.remove();
+          mergeView = null;
+          toolbar?.update({ mergeUndoRedo: null });
+          // editorMountEl は merge 右パネル内に移設されている場合があるため contentEl へ戻す。
+          if (editorMountEl.parentElement !== contentEl) {
+            contentEl.appendChild(editorMountEl);
+          }
+          // source モードなら textarea を復帰する。
+          const sourceTa = sourceController?.getTextarea();
+          if (modeState.sourceMode && sourceTa) {
+            sourceTa.style.display = "";
+          }
+        }
+      };
+      disposers.push(() => {
+        mergeView?.destroy();
+        mergeView?.el.remove();
+        mergeView = null;
+      });
+
       // === editorProps（paste/drop/click/clipboard + heading menu） =============
       // React の useRef を plain { current } で置換（構造的互換）。
       const menuPopovers = createEditorMenuPopovers({
@@ -901,7 +995,7 @@ export function mountVanillaMarkdownEditor(
         }
         if (patch.settings) {
           settings = { ...settings, ...patch.settings };
-          applyEditorSettings(editor, root, effectiveSettings(), readonlyNow());
+          applyAllSettings();
         }
         if (patch.fileName !== undefined) {
           statusBar?.update({ fileName: patch.fileName });

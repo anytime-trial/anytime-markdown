@@ -20,3 +20,13 @@ export { prepareDarkDiagramsForPrint } from "./pdf/prepareDarkDiagramsForPrint";
 // consumer (web-app / vscode-markdown-extension) はこれを MarkdownEditorPage の代わりに使う。
 export type { RichMarkdownEditorPageProps } from "./RichMarkdownEditorPage";
 export { default as RichMarkdownEditorPage } from "./RichMarkdownEditorPage";
+
+// vanilla 経路（脱React G3）: rich codeblock 注入済み orchestrator + overlay installer。
+export {
+  mountVanillaRichMarkdownEditor,
+  type MountVanillaRichMarkdownEditorOptions,
+} from "./vanilla/mountVanillaRichMarkdownEditor";
+export {
+  installCodeBlockOverlay,
+  type InstallCodeBlockOverlayOptions,
+} from "./vanilla/installCodeBlockOverlay";
