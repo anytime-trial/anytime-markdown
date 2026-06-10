@@ -1,7 +1,0 @@
-/* tabsRow は dialogPanels.module.css に共通化。 */
-
-/* dangerouslySetInnerHTML の SVG プレビュー。旧 sx の "& svg" ネスト selector を移植。 */
-.svg svg {
-  max-width: 100%;
-  height: auto;
-}

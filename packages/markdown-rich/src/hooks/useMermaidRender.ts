@@ -1,6 +1,5 @@
 import DOMPurify from "dompurify";
 import type mermaidAPI from "mermaid";
-import { useEffect, useRef, useState } from "react";
 
 import { BoundedMap } from "../utils/BoundedMap";
 
@@ -84,7 +83,7 @@ const pendingRenders = new Map<string, { callbacks: Set<(svg: string, error: str
  * Mermaid を SVG へレンダリングし、結果をコールバックで通知する。
  * モジュールレベルのキャッシュ・直列化キュー・500ms デバウンスを内包し、
  * React に依存しない。戻り値はキャンセル関数。
- * hook（{@link useMermaidRender}）と native NodeView の双方から利用する seam。
+ * native NodeView（installCodeBlockOverlay）と vanilla dialog の双方から利用する seam。
  */
 export function requestMermaidRender(code: string, isDark: boolean, callback: (svg: string, error: string) => void): () => void {
   const key = cacheKey(code, isDark);
@@ -185,56 +184,4 @@ export function requestMermaidRender(code: string, isDark: boolean, callback: (s
       pendingRenders.delete(key);
     }
   };
-}
-
-interface UseMermaidRenderParams {
-  code: string;
-  isMermaid: boolean;
-  isDark: boolean;
-}
-
-export function useMermaidRender({ code, isMermaid, isDark }: UseMermaidRenderParams) {
-  // キャッシュから初期値を復元（マウント直後にSVGを表示）
-  const [svg, setSvg] = useState(() => {
-    if (!isMermaid || !code.trim()) return "";
-    return svgCache.get(cacheKey(code, isDark)) ?? "";
-  });
-  const [error, setError] = useState("");
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
-
-  useEffect(() => {
-    if (!isMermaid || !code.trim()) {
-      if (isMermaid) { setSvg(""); setError(""); }
-      return;
-    }
-
-    // キャッシュから即座に復元
-    const cached = svgCache.get(cacheKey(code, isDark));
-    if (cached) {
-      setSvg(cached);
-      setError("");
-      return;
-    }
-
-    // キャッシュミス: 古いテーマの SVG をクリアして再レンダリングを待つ
-    setSvg("");
-    setError("");
-
-    // モジュールレベルのレンダリングをリクエスト
-    const cancel = requestMermaidRender(code, isDark, (renderedSvg, renderedError) => {
-      if (mountedRef.current) {
-        setSvg(renderedSvg);
-        setError(renderedError);
-      }
-    });
-
-    return cancel;
-  }, [code, isMermaid, isDark]);
-
-  return { svg, error, setError };
 }
