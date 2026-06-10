@@ -2,6 +2,20 @@
 export { MarkdownCoreI18nProvider, useMarkdownT } from './i18n/context';
 export { default as MarkdownEditorPage } from './MarkdownEditorPage';
 
+// 脱React G3: vanilla orchestrator + 並走用の React ラッパ（draft・consumer 切替で使用）
+export {
+  mountVanillaMarkdownEditor,
+  type MountVanillaMarkdownEditorOptions,
+  type VanillaMarkdownEditorHandle,
+} from './host/vanillaMarkdownEditor';
+export {
+  VanillaMarkdownEditorMount,
+  MaybeVanillaMarkdownEditor,
+  isVanillaEditorEnabled,
+  type VanillaMarkdownEditorMountProps,
+  type MaybeVanillaMarkdownEditorProps,
+} from './VanillaMarkdownEditorMount';
+
 // Hooks
 export { useEditorDialogs } from './hooks/useEditorDialogs';
 export { useEditorFileOps } from './hooks/useEditorFileOps';
