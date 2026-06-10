@@ -14,7 +14,6 @@
     "packages/markdown-viewer",
     "packages/markdown-rich",
     "packages/markdown-core",
-    "packages/markdown-react",
     "packages/spreadsheet-core",
     "packages/spreadsheet-viewer",
     "packages/database-core",
