@@ -27,10 +27,21 @@ export function appendContent(root: HTMLElement, content: VanillaContent | undef
   }
 }
 
-/** `Partial<CSSStyleDeclaration>` を要素へ適用する（null/undefined は no-op）。 */
+/**
+ * `Partial<CSSStyleDeclaration>` を要素へ適用する（null/undefined は no-op）。
+ * `--x` 形式の CSS カスタムプロパティは `Object.assign` では設定できない（ブラウザ/jsdom 共通）ため
+ * `setProperty` 経由で適用する。通常プロパティは従来どおり代入する。
+ */
 export function applyStyle(el: HTMLElement, style: Partial<CSSStyleDeclaration> | undefined): void {
   if (!style) return;
-  Object.assign(el.style, style);
+  for (const [key, value] of Object.entries(style)) {
+    if (value == null) continue;
+    if (key.startsWith("--")) {
+      el.style.setProperty(key, String(value));
+    } else {
+      (el.style as unknown as Record<string, string>)[key] = String(value);
+    }
+  }
 }
 
 /** Dialog / Drawer 共有のフォーカス可能要素セレクタ（ui/useModalFocusTrap と同一）。 */
