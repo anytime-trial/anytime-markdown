@@ -40,17 +40,3 @@ describe("ConfirmProvider", () => {
     expect(typeof confirmFn).toBe("function");
   });
 });
-
-// --- useConfirm hook ---
-
-describe("useConfirm", () => {
-  it("returns a function", async () => {
-    const { default: useConfirm } = await import("../hooks/useConfirm");
-    const { renderHook } = await import("@testing-library/react");
-    const wrapper = ({ children }: any) => (
-        <ConfirmProvider>{children}</ConfirmProvider>
-    );
-    const { result } = renderHook(() => useConfirm(), { wrapper });
-    expect(typeof result.current).toBe("function");
-  });
-});

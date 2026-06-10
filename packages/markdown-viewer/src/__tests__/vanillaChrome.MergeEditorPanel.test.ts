@@ -250,7 +250,7 @@ describe("createMergeEditorPanel", () => {
   it("WYSIWYG モード: editor のマウント要素を root へ移設し scope クラスを付与する", () => {
     const mount = document.createElement("div");
     mount.className = "tiptap";
-    const fakeEditor = { options: { element: mount } } as unknown as import("@anytime-markdown/markdown-react").Editor;
+    const fakeEditor = { options: { element: mount } } as unknown as import("@anytime-markdown/markdown-core").Editor;
     handle = createMergeEditorPanel(mkOpts({
       sourceMode: false,
       side: "left",

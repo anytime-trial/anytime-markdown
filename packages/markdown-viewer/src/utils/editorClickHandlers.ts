@@ -1,5 +1,5 @@
 import type { EditorView } from "@anytime-markdown/markdown-pm/view";
-import type { Editor } from "@anytime-markdown/markdown-react";
+import type { Editor } from "@anytime-markdown/markdown-core";
 import type { RefObject } from "react";
 
 import { reviewModeStorage } from "../extensions/reviewModeExtension";

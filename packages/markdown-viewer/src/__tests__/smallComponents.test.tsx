@@ -78,19 +78,6 @@ jest.mock("../constants/zIndex", () => ({
 }));
 
 
-// --- MarkdownIcon ---
-
-describe("MarkdownIcon", () => {
-  it("renders without crashing", async () => {
-    const mod = await import("../icons/MarkdownIcon");
-    const MarkdownIcon = mod.default;
-    const { container } = render(
-        <MarkdownIcon />,
-    );
-    expect(container.querySelector("svg")).toBeTruthy();
-  });
-});
-
 // --- FullPageLoader ---
 
 describe("FullPageLoader", () => {

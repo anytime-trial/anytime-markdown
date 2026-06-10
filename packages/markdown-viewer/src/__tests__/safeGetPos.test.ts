@@ -1,4 +1,4 @@
-import { safeGetPos } from "@anytime-markdown/markdown-react";
+import { safeGetPos } from "../utils/safeGetPos";
 
 /**
  * vendored tiptap の getPos 安全ラッパのリグレッションテスト。
