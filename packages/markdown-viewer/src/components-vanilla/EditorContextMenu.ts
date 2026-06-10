@@ -74,6 +74,11 @@ export interface CreateEditorContextMenuOptions {
   extraContainer?: HTMLElement | null;
   /** ソースモードの textarea（Cut/Copy/Paste 操作用）。 */
   sourceTextarea?: HTMLTextAreaElement | null;
+  /**
+   * VS Code postMessage ブリッジ（クリップボード貼り付けフロー）。
+   * 未指定時は `window.__vscode` へフォールバック（他 chrome の vscodeApi 注入規約と同一）。
+   */
+  vscodeApi?: VsCodeApi | null;
 }
 
 /** {@link createEditorContextMenu} の戻り値。 */
@@ -272,6 +277,9 @@ export function createEditorContextMenu(
   let extraContainer = opts.extraContainer ?? null;
   let sourceTextarea = opts.sourceTextarea ?? null;
   const { onSwitchToReview, onSwitchToWysiwyg, onSwitchToSource } = opts;
+  /** 注入された VS Code ブリッジ（未指定時は window.__vscode へフォールバック）。 */
+  const vscodeApi = (): VsCodeApi | undefined =>
+    opts.vscodeApi === null ? undefined : (opts.vscodeApi ?? window.__vscode);
 
   /** 現在開いているメニュー handle（無ければ null）。 */
   let openHandle: { destroy: () => void } | null = null;
@@ -357,7 +365,7 @@ export function createEditorContextMenu(
       pasteCopiedBlock(editor, copied, handleClose);
       return;
     }
-    await pasteFromClipboardAPI(editor, window.__vscode, handleClose);
+    await pasteFromClipboardAPI(editor, vscodeApi(), handleClose);
   };
 
   const handlePasteAsMarkdown = async (): Promise<void> => {
@@ -372,9 +380,7 @@ export function createEditorContextMenu(
       return;
     }
     // VS Code 環境: 拡張側にクリップボード読み取りを依頼
-    if (window.__vscode) {
-      window.__vscode.postMessage({ type: "readClipboard" });
-    }
+    vscodeApi()?.postMessage({ type: "readClipboard" });
     handleClose();
   };
 
@@ -398,9 +404,7 @@ export function createEditorContextMenu(
       return;
     }
     // VS Code 環境: vscode-paste-codeblock イベントで処理
-    if (window.__vscode) {
-      window.__vscode.postMessage({ type: "readClipboardForCodeBlock" });
-    }
+    vscodeApi()?.postMessage({ type: "readClipboardForCodeBlock" });
     handleClose();
   };
 

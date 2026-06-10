@@ -26,3 +26,9 @@ export type { CreatePlantUmlEditDialogOptions, PlantUmlEditDialogHandle } from "
 
 export { createMathEditDialog } from "./createMathEditDialog";
 export type { CreateMathEditDialogOptions, MathEditDialogHandle } from "./createMathEditDialog";
+
+export { createFullscreenDiffDialog } from "./createFullscreenDiffDialog";
+export type {
+  CreateFullscreenDiffDialogOptions,
+  FullscreenDiffDialogHandle,
+} from "./createFullscreenDiffDialog";

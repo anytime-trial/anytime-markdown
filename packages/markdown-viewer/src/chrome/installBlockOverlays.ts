@@ -31,6 +31,7 @@ import { createImageAnnotationDialog } from "../components-vanilla/ImageAnnotati
 import { createScreenCaptureDialog } from "../components-vanilla/ScreenCaptureDialog";
 import { createEditorDialogs } from "../components-vanilla/EditorDialogs";
 import {
+  confirmWithDialog,
   createButton,
   createDialog,
   createDialogActions,
@@ -87,39 +88,14 @@ function parseGifSettings(raw: string | null): GifSettings | undefined {
 
 /**
  * vanilla の削除確認ダイアログ（React `DeleteBlockDialog` 相当）。`true`=削除確定 / `false`=取消。
- * createDialog の self-append（ESC/backdrop で onClose）に乗せ、解決時に自前で破棄する。
+ * 実体は ui-vanilla の {@link confirmWithDialog} に集約。
  */
 function confirmDelete(t: TranslationFn): Promise<boolean> {
-  return new Promise<boolean>((resolve) => {
-    let settled = false;
-    const titleId = nextDialogTitleId();
-    const finish = (ok: boolean): void => {
-      if (settled) return;
-      settled = true;
-      cancelBtn.destroy();
-      deleteBtn.destroy();
-      dialog.destroy();
-      resolve(ok);
-    };
-    const cancelBtn = createButton({ label: t("cancel"), onClick: () => finish(false) });
-    const deleteBtn = createButton({
-      label: t("delete"),
-      color: "error",
-      variant: "contained",
-      onClick: () => finish(true),
-    });
-    const message = document.createElement("div");
-    message.textContent = t("clearConfirm");
-    const dialog = createDialog({
-      onClose: () => finish(false),
-      labelledBy: titleId,
-      maxWidth: "xs",
-      children: [
-        createDialogTitle({ id: titleId, children: t("delete") }).el,
-        createDialogContent({ children: message }).el,
-        createDialogActions({ children: [cancelBtn.el, deleteBtn.el] }).el,
-      ],
-    });
+  return confirmWithDialog({
+    title: t("delete"),
+    message: t("clearConfirm"),
+    confirmLabel: t("delete"),
+    cancelLabel: t("cancel"),
   });
 }
 

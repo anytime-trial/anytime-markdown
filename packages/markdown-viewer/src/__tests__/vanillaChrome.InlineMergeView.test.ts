@@ -247,4 +247,27 @@ describe("createInlineMergeView", () => {
     handle.el.dispatchEvent(new KeyboardEvent("keydown", { key: "F8", bubbles: true }));
     expect(counter?.textContent).toBe("2 / 2");
   });
+
+  // 2026-06-10 レビュー補足（潜在バグ A）: compareContent の consume 契約の固定。
+  // null は「新しい外部コンテンツなし」（消費パターン）であり比較テキストを保持する。
+  // クリアは空文字 "" を明示的に渡す。
+  describe("compareContent の consume 契約（レビュー補足 A）", () => {
+    it('update({compareContent: ""}) で比較テキストがクリアされる', () => {
+      ({ handle, rightEditor } = mkView({ editorContent: "alpha", compareContent: "COMPARE" }));
+      document.body.appendChild(handle.el);
+      expect(textareas(handle.el).some((ta) => ta.value.includes("COMPARE"))).toBe(true);
+
+      handle.update({ compareContent: "" });
+      expect(textareas(handle.el).some((ta) => ta.value.includes("COMPARE"))).toBe(false);
+    });
+
+    it("update({compareContent: null}) は比較テキストを保持する（消費パターンの no-op）", () => {
+      ({ handle, rightEditor } = mkView({ editorContent: "alpha", compareContent: "COMPARE" }));
+      document.body.appendChild(handle.el);
+
+      // orchestrator は消費後 null を渡し続ける（syncMergeView）。null でクリアしてはいけない。
+      handle.update({ compareContent: null });
+      expect(textareas(handle.el).some((ta) => ta.value.includes("COMPARE"))).toBe(true);
+    });
+  });
 });

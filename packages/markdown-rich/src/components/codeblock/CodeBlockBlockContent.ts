@@ -1,6 +1,7 @@
 import type { NodeViewRendererProps } from "@anytime-markdown/markdown-core";
 import type { NodeView } from "@anytime-markdown/markdown-pm/view";
 import { PREVIEW_MAX_HEIGHT } from "@anytime-markdown/markdown-viewer";
+import { safeGetPos as wrapGetPos } from "@anytime-markdown/markdown-viewer/src/utils/safeGetPos";
 
 import { renderCodeBlockPreview } from "./codeBlockPreview";
 import {
@@ -46,27 +47,29 @@ export function classifyCodeBlock(language: unknown): CodeBlockKind {
 
 const MIN_RESIZE_WIDTH = 50;
 
-/** getPos を安全に取得する（detached ノードでは throw するため try/catch）。 */
+/**
+ * getPos を安全に解決する（detached ノードでは throw するため共有 safeGetPos でラップ）。
+ * NodeViewRendererProps の getPos は boolean を取り得るため関数ガードを足した薄いアダプタ。
+ */
 function safeGetPos(getPos: (() => number | undefined) | boolean | undefined): number | null {
   if (typeof getPos !== "function") return null;
-  try {
-    const pos = getPos();
-    return pos == null ? null : pos;
-  } catch {
-    return null;
-  }
+  return wrapGetPos(getPos)() ?? null;
 }
 
-/** エディタの dark/light を CSS 変数から読む（overlay が `--am-editor-dark` を書く）。 */
-function isEditorDark(): boolean {
+/**
+ * エディタの dark/light を CSS 変数から読む（host が editor root へ `--am-editor-dark` を書く）。
+ * 複数エディタ共存時に他インスタンスの設定を拾わないよう、自身の NodeView 要素の
+ * computed style（カスタムプロパティ継承）から解決する。
+ */
+function isEditorDark(el: Element): boolean {
   if (typeof document === "undefined") return false;
-  return getComputedStyle(document.documentElement).getPropertyValue("--am-editor-dark").trim() === "1";
+  return getComputedStyle(el).getPropertyValue("--am-editor-dark").trim() === "1";
 }
 
 /** エディタのコードフォントサイズ(px)を CSS 変数から読む（既定 16）。 */
-function getEditorFontSize(): number {
+function getEditorFontSize(el: Element): number {
   if (typeof document === "undefined") return 16;
-  const v = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--am-code-font-size"));
+  const v = Number.parseFloat(getComputedStyle(el).getPropertyValue("--am-code-font-size"));
   return Number.isFinite(v) && v > 0 ? v : 16;
 }
 
@@ -192,7 +195,7 @@ export function createCodeBlockNodeView(
     if (graphMount && graphKey === codeText) return;
     graphKey = codeText;
     if (!graphMount) graphMount = mountGraphPreview(graphEl);
-    graphMount.render(codeText, true, isEditorDark());
+    graphMount.render(codeText, true, isEditorDark(dom));
     graphEl.style.display = "";
   };
 
@@ -220,7 +223,7 @@ export function createCodeBlockNodeView(
     disposeEmbed();
     previewCancel = renderCodeBlockPreview(
       previewInner, lang, codeText,
-      { isDark: isEditorDark(), fontSize: getEditorFontSize() },
+      { isDark: isEditorDark(dom), fontSize: getEditorFontSize(dom) },
       requestRerender,
     );
   }

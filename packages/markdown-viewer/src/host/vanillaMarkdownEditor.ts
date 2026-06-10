@@ -16,8 +16,8 @@
  * live update（`handle.update`）。
  *
  * 依存方向: host → ui-vanilla / components-vanilla / markdown-core。React / markdown-react を
- * 一切 import しない（型含め core を使う・DEFAULT_SETTINGS は React 結合の useEditorSettings から
- * 引かず inline）。
+ * 一切 import しない（型含め core を使う・EditorSettings / DEFAULT_SETTINGS は React 非依存の
+ * ../editorSettings から引く）。
  */
 
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-core";
@@ -26,8 +26,8 @@ import { buildEditorExtensions } from "../buildEditorExtensions";
 import { STORAGE_KEY_CONTENT } from "../constants/storageKeys";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import { createEditorDOMHandlers } from "../hooks/useEditorDOMEvents";
-import { getMarkdownFromEditor, type HeadingItem, type TranslationFn } from "../types";
-import type { EditorSettings } from "../useEditorSettings";
+import { getEditorStorage, getMarkdownFromEditor, type HeadingItem, type TranslationFn } from "../types";
+import { DEFAULT_SETTINGS, type EditorSettings } from "../editorSettings";
 import type { ThemePresetName } from "../constants/themePresets";
 import type {
   ToolbarFileCapabilities,
@@ -79,23 +79,6 @@ import { createEditorSettingsPanel } from "../components-vanilla/EditorSettingsP
 import { createEditorSideToolbar } from "../components-vanilla/EditorSideToolbar";
 import { createOutlinePanel } from "../components-vanilla/OutlinePanel";
 import { createCommentPanel } from "../components-vanilla/CommentPanel";
-
-/** React 結合の useEditorSettings を import せず inline する既定設定（DEFAULT_SETTINGS と同値）。 */
-const DEFAULT_SETTINGS: EditorSettings = {
-  lineHeight: 1.6,
-  fontSize: 16,
-  tableWidth: "auto",
-  editorBg: "white",
-  lightBgColor: "",
-  lightTextColor: "",
-  darkBgColor: "",
-  darkTextColor: "",
-  spellCheck: false,
-  paperSize: "off",
-  paperMargin: 20,
-  blockAlign: "left",
-  wordBreak: "keep-all",
-};
 
 /** 保存（onContentChange / localStorage）デバウンス（React useMarkdownEditor と同値）。 */
 const SAVE_DEBOUNCE_MS = 500;
@@ -436,13 +419,15 @@ export function mountVanillaMarkdownEditor(
       };
       const readonlyNow = (): boolean => (current.readOnly ?? false) || modeState.readonlyMode === true;
       const notifyMode = (): void => current.onModeChange?.({ ...modeState });
-      /** rich codeblock（native content / vanilla dialogs）が読む実行時 CSS 変数（CodeDialogHost 相当）。 */
+      /**
+       * rich codeblock（native content）が読む実行時 CSS 変数（CodeDialogHost 相当）。
+       * documentElement でなく editor root へ書き、複数インスタンス間の後勝ち上書きを防ぐ
+       * （カスタムプロパティは継承するため、NodeView は自身の要素の computed style から読める）。
+       */
       const applyCodeCssVars = (): void => {
-        if (typeof document === "undefined") return;
-        const docRoot = document.documentElement;
-        docRoot.style.setProperty("--am-editor-dark", current.themeMode === "dark" ? "1" : "0");
-        docRoot.style.setProperty("--am-code-font-size", `${effectiveSettings().fontSize}px`);
-        docRoot.style.setProperty("--am-code-line-height", `${effectiveSettings().lineHeight}`);
+        root.style.setProperty("--am-editor-dark", current.themeMode === "dark" ? "1" : "0");
+        root.style.setProperty("--am-code-font-size", `${effectiveSettings().fontSize}px`);
+        root.style.setProperty("--am-code-line-height", `${effectiveSettings().lineHeight}`);
       };
       const applyAllSettings = (): void => {
         applyEditorSettings(editor, root, effectiveSettings(), readonlyNow());
@@ -460,6 +445,8 @@ export function mountVanillaMarkdownEditor(
         if (current.readOnly) return;
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
+          // enqueue 後（debounce 中）に readOnly 化された保存は破棄する。
+          if (current.readOnly) return;
           const resolved = produce();
           if (resolved == null) return;
           const toSave = withFrontmatter ? prependFrontmatter(resolved, frontmatter) : resolved;
@@ -489,6 +476,15 @@ export function mountVanillaMarkdownEditor(
         onImageInsert: (src, alt) => editor.chain().focus().setImage({ src: src.trim(), alt }).run(),
       });
       disposers.push(() => dialogs.destroy());
+
+      // BubbleMenu / SlashCommand が storage.commentDialog.open 経由でコメントダイアログを
+      // 開く（React useEditorDialogs 相当の配線）。
+      const editorStorage = getEditorStorage(editor);
+      editorStorage.commentDialog ??= {};
+      editorStorage.commentDialog.open = () => dialogs.openComment();
+      disposers.push(() => {
+        if (editorStorage.commentDialog) editorStorage.commentDialog.open = null;
+      });
 
       // === settings panel（intent で開閉。onUpdate→store+apply+notify） =========
       let settingsPanel: { destroy: () => void } | null = null;
@@ -549,6 +545,13 @@ export function mountVanillaMarkdownEditor(
       const onDirtyUpdate = (): void => fileOps.markDirty();
       editor.on("update", onDirtyUpdate);
       disposers.push(() => editor.off("update", onDirtyUpdate));
+
+      // H-03: 未保存変更の beforeunload 警告（React useEditorSideEffects 相当）。
+      const onBeforeUnload = (e: BeforeUnloadEvent): void => {
+        if (fileOps.isDirty()) e.preventDefault();
+      };
+      globalThis.addEventListener("beforeunload", onBeforeUnload);
+      disposers.push(() => globalThis.removeEventListener("beforeunload", onBeforeUnload));
 
       // === file handlers（opts 優先・未指定は fileOps / editor / blob ベースの既定） =
       const defaultDownload = (): void => {
@@ -635,6 +638,8 @@ export function mountVanillaMarkdownEditor(
 
       // === merge（比較）モード state（useMergeMode 相当・パネルは syncMergeView） ==
       let compareFileContent: string | null = null;
+      // update() 経由で最後に適用した externalCompareContent（遷移検知用。null=外部比較なし）。
+      let lastExternalCompareContent: string | null = null;
       let editorMarkdown = "";
       let clearDiffTimer: ReturnType<typeof setTimeout> | null = null;
       const notifyCompareMode = (): void =>
@@ -778,8 +783,9 @@ export function mountVanillaMarkdownEditor(
             readonlyToggle:
               current.hide?.readonlyToggle ?? !(current.showReadonlyMode ?? false),
           },
-          // help（version/shortcut/settings）は settings パネルを開く intent に暫定接続。
-          onSetHelpAnchor: () => openSettings(),
+          // help ボタンはヘルプポップオーバー（outline/comment/settings/version メニュー）を開く。
+          // menuPopovers は後段で生成されるが、クリック時には初期化済み（TDZ は実行順で解消）。
+          onSetHelpAnchor: (el) => menuPopovers.openHelp(el),
         };
         toolbar = createEditorToolbar(toolbarOptions);
         toolbarSlot.appendChild(toolbar.el);
@@ -827,6 +833,7 @@ export function mountVanillaMarkdownEditor(
         fileName: current.fileName ?? fileOps.getFileName(),
         onStatusChange: current.onStatusChange,
         hidden: current.hideStatusBar,
+        getSourceTextarea: () => sourceController?.getTextarea() ?? null,
       });
       statusBarSlot.appendChild(statusBar.el);
       disposers.push(() => statusBar?.destroy());
@@ -956,6 +963,7 @@ export function mountVanillaMarkdownEditor(
         onSwitchToSource: modeHandlers.onSwitchToSource,
         extraContainer: contentEl,
         sourceTextarea: sourceController.getTextarea(),
+        vscodeApi: current.vscodeApi,
       });
       disposers.push(() => contextMenu?.destroy());
 
@@ -1023,6 +1031,65 @@ export function mountVanillaMarkdownEditor(
       editor.view.dom.addEventListener("keydown", onShortcutKeyDown);
       disposers.push(() => editor.view.dom.removeEventListener("keydown", onShortcutKeyDown));
 
+      // === shortcuts（document への keydown・旧 useEditorShortcuts のファイル/モード系） ===
+      // source モード（editor.view.dom 非表示）でも効かせるため document へ装着する。
+      // mod+Shift+S=名前を付けて保存 / mod+Shift+C=全文コピー / mod+O=開く /
+      // mod+Alt+S=4モード循環 / mod+Alt+M=merge 切替 / mod+Alt+N=クリア。
+      const copyAllMarkdown = (): void => {
+        const md = fileOps.getFullMarkdown();
+        void navigator.clipboard?.writeText(md).then(() => {
+          layout.liveRegion.textContent = t("copiedToClipboard");
+        });
+      };
+      const onGlobalShortcutKeyDown = (e: KeyboardEvent): void => {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        const key = e.key.toLowerCase();
+        // mod+Shift 系（Alt なし）。
+        if (e.shiftKey && !e.altKey) {
+          if (key === "s") {
+            e.preventDefault();
+            fileHandlers.onSaveAsFile?.();
+          } else if (key === "c") {
+            e.preventDefault();
+            copyAllMarkdown();
+          }
+          return;
+        }
+        // mod+Alt 系（Shift なし）。
+        if (e.altKey && !e.shiftKey) {
+          if (key === "s") {
+            // 4 モード循環: Readonly → Review → Edit → Source → Readonly
+            // （旧実装と同一。Review/Readonly 切替が未配線なら Wysiwyg へフォールバック）。
+            e.preventDefault();
+            if (modeState.readonlyMode) {
+              (modeHandlers.onSwitchToReview ?? modeHandlers.onSwitchToWysiwyg)();
+            } else if (modeState.reviewMode) {
+              modeHandlers.onSwitchToWysiwyg();
+            } else if (modeState.sourceMode) {
+              (modeHandlers.onSwitchToReadonly ?? modeHandlers.onSwitchToWysiwyg)();
+            } else {
+              modeHandlers.onSwitchToSource();
+            }
+          } else if (modeState.readonlyMode || modeState.reviewMode) {
+            // readonly / review では編集系（merge / clear）を無効化（旧実装と同一）。
+          } else if (key === "m") {
+            e.preventDefault();
+            modeHandlers.onMerge();
+          } else if (key === "n") {
+            e.preventDefault();
+            fileHandlers.onClear();
+          }
+          return;
+        }
+        // mod 単独系（Alt / Shift なし）。mod+S / mod+K は editor.view.dom 側で処理する。
+        if (!e.altKey && key === "o") {
+          e.preventDefault();
+          fileHandlers.onOpenFile?.();
+        }
+      };
+      document.addEventListener("keydown", onGlobalShortcutKeyDown);
+      disposers.push(() => document.removeEventListener("keydown", onGlobalShortcutKeyDown));
+
       // === block overlay（gif/image/table の DialogHost 3 を vanilla 配線） =====
       const blockOverlays = installBlockOverlays(editor, {
         t,
@@ -1056,8 +1123,19 @@ export function mountVanillaMarkdownEditor(
         if (patch.fileName !== undefined) {
           statusBar?.update({ fileName: patch.fileName });
         }
-        if (patch.externalCompareContent != null) {
-          applyExternalCompareContent(patch.externalCompareContent);
+        // externalCompareContent は遷移（値の変化）でのみ反映する。Mount ラッパは live patch の
+        // たびに現値（null 含む）を相乗りさせるため、無変化の null で閉じたり同値を再適用しない。
+        // 非 null → null の遷移は「compare モードを閉じる」信号として扱う。
+        if (
+          patch.externalCompareContent !== undefined &&
+          patch.externalCompareContent !== lastExternalCompareContent
+        ) {
+          lastExternalCompareContent = patch.externalCompareContent;
+          if (patch.externalCompareContent === null) {
+            setInlineMergeOpen(false);
+          } else {
+            applyExternalCompareContent(patch.externalCompareContent);
+          }
         }
         // themeMode / presetName は SettingsPanel open 時に current から読むため保持のみ。
       };
@@ -1066,6 +1144,7 @@ export function mountVanillaMarkdownEditor(
       });
 
       // 初期 externalCompareContent（mount 直後に比較モードを開く）。
+      lastExternalCompareContent = current.externalCompareContent ?? null;
       if (current.externalCompareContent != null) {
         applyExternalCompareContent(current.externalCompareContent);
       }

@@ -227,11 +227,18 @@ describe("components-vanilla/StatusBar", () => {
   });
 
   describe("ソースモード", () => {
-    it("sourceMode 時に textarea の selectionStart から行/列を算出する", () => {
+    /** sourceModeController の textarea 相当（data-am-source-textarea 属性付き）。 */
+    function mkSourceTextarea(value: string): HTMLTextAreaElement {
       const ta = document.createElement("textarea");
+      ta.setAttribute("data-am-source-textarea", "");
       ta.setAttribute("aria-label", "source");
-      ta.value = "line1\nline2\nXcursor";
+      ta.value = value;
       document.body.appendChild(ta);
+      return ta;
+    }
+
+    it("sourceMode 時に textarea の selectionStart から行/列を算出する", () => {
+      const ta = mkSourceTextarea("line1\nline2\nXcursor");
       // "line1\nline2\n" = 12 文字。X の位置（pos=12）で line=3, col=1。
       ta.selectionStart = 12;
 
@@ -243,10 +250,7 @@ describe("components-vanilla/StatusBar", () => {
     });
 
     it("sourceMode 時は document の click/keyup/select でカーソルを更新する", () => {
-      const ta = document.createElement("textarea");
-      ta.setAttribute("aria-label", "source");
-      ta.value = "abc\ndef";
-      document.body.appendChild(ta);
+      const ta = mkSourceTextarea("abc\ndef");
       ta.selectionStart = 0;
       const handle = createStatusBar(baseOpts({ sourceMode: true, sourceText: ta.value }));
 
@@ -258,16 +262,48 @@ describe("components-vanilla/StatusBar", () => {
     });
 
     it("destroy / sourceMode 解除で document listener を解除する", () => {
-      const ta = document.createElement("textarea");
-      ta.setAttribute("aria-label", "source");
-      ta.value = "abc";
-      document.body.appendChild(ta);
+      const ta = mkSourceTextarea("abc");
       ta.selectionStart = 0;
       const handle = createStatusBar(baseOpts({ sourceMode: true, sourceText: ta.value }));
 
       handle.update({ sourceMode: false });
       // 解除後はイベントを発火してもクラッシュしない（listener が無い）。
       expect(() => document.dispatchEvent(new Event("keyup"))).not.toThrow();
+      handle.destroy();
+    });
+
+    // 2026-06-10 レビュー指摘 8: textarea[aria-label] の document 全域検索は merge ビュー等の
+    // 無関係な textarea に誤マッチする。data-am-source-textarea / getter で特定する。
+    it("aria-label 付きの無関係な textarea（ダイアログ等）には誤マッチしない", () => {
+      // 先に DOM へ置かれた decoy（merge パネルの textarea 相当・aria-label のみ）。
+      const decoy = document.createElement("textarea");
+      decoy.setAttribute("aria-label", "sourceEditor");
+      decoy.value = "x";
+      decoy.selectionStart = 0; // decoy なら line=1
+      document.body.appendChild(decoy);
+
+      const ta = mkSourceTextarea("line1\nline2\nXcursor");
+      ta.selectionStart = 12; // 本物なら line=3
+
+      const handle = createStatusBar(baseOpts({ sourceMode: true, sourceText: ta.value }));
+      const cursor = handle.el.querySelector('[aria-live="polite"]')!.children[0];
+      expect(cursor.textContent).toContain("3");
+      handle.destroy();
+    });
+
+    it("getSourceTextarea 指定時は DOM 検索より getter を優先する", () => {
+      // data 属性付きの別 textarea が DOM にあっても getter の textarea を使う。
+      mkSourceTextarea("other");
+      const ta = document.createElement("textarea");
+      ta.value = "a\nb\nc\nX";
+      ta.selectionStart = 6; // line=4 の 1 文字目
+      document.body.appendChild(ta);
+
+      const handle = createStatusBar(
+        baseOpts({ sourceMode: true, sourceText: ta.value, getSourceTextarea: () => ta }),
+      );
+      const cursor = handle.el.querySelector('[aria-live="polite"]')!.children[0];
+      expect(cursor.textContent).toContain("4");
       handle.destroy();
     });
   });

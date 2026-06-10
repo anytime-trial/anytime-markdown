@@ -169,3 +169,4 @@ export {
   type SelectOption,
 } from "./Select";
 export { createDrawer, type CreateDrawerOptions, type DrawerAnchor } from "./Drawer";
+export { confirmWithDialog, type ConfirmWithDialogOptions } from "./confirmDialog";

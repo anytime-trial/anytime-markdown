@@ -59,6 +59,12 @@ export interface CreateStatusBarOptions {
   sourceMode?: boolean;
   /** ソースモード時の生テキスト（文字数 / 行数 / 行末判定に使う）。 */
   sourceText?: string;
+  /**
+   * ソースモードの textarea への参照（カーソル行/列の算出元）。
+   * 未指定時は `textarea[data-am-source-textarea]` を document から検索する
+   * （merge ビュー等の aria-label 付き無関係 textarea への誤マッチ防止）。
+   */
+  getSourceTextarea?: () => HTMLTextAreaElement | null;
   /** i18n。 */
   t: TranslationFn;
   /** 表示ファイル名（null/undefined なら非表示）。 */
@@ -396,7 +402,9 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
   const SOURCE_EVENTS = ["click", "keyup", "select"] as const;
   let sourceListenersBound = false;
   const handleSourceCursor = (): void => {
-    const textarea = document.querySelector<HTMLTextAreaElement>("textarea[aria-label]");
+    const textarea =
+      opts.getSourceTextarea?.() ??
+      document.querySelector<HTMLTextAreaElement>("textarea[data-am-source-textarea]");
     if (!textarea) return;
     const pos = textarea.selectionStart ?? 0;
     const before = textarea.value.substring(0, pos);

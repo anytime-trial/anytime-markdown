@@ -164,6 +164,11 @@ export function App() {
   const [themeMode, setThemeMode] = useState<PaletteMode>('dark');
   const [presetName, setPresetName] = useState<ThemePresetName>('handwritten');
   const [locale, setLocale] = useState<string>(detectLocale);
+  // locale の現在値（メッセージハンドラは依存空の useEffect 内のため ref で参照する）。
+  const localeRef = useRef(locale);
+  useEffect(() => {
+    localeRef.current = locale;
+  }, [locale]);
   const [editorKey, setEditorKey] = useState(0);
   const [compareContent, setCompareContent] = useState<string | null>(null);
   const preset = useMemo(() => getPreset(presetName), [presetName]);
@@ -246,7 +251,13 @@ export function App() {
             }
             if (s.language === 'en' || s.language === 'ja') {
               document.documentElement.lang = s.language;
-              setLocale(s.language);
+              if (localeRef.current !== s.language) {
+                localeRef.current = s.language;
+                setLocale(s.language);
+                // locale / t は vanilla orchestrator の mount 時固定（live patch 対象外）の
+                // ため、言語変更時は editorKey を更新して remount で反映する。
+                msgState.setEditorKey((k) => k + 1);
+              }
             }
           }
           return;

@@ -362,6 +362,12 @@ interface SourceSegmentHandle {
 
 function createSourceSegment(opts: {
   diffLines: DiffLine[];
+  /**
+   * セグメントが表す実ソーステキスト。buildDisplayText の末尾改行補償
+   * （diff 側で pop された "\n" 終端の復元）に使う。collapse 分割セグメントでは
+   * 部分テキストに改行を付加してはいけないため空文字を渡す。
+   */
+  rawText: string;
   baseAlignedIdx: number;
   side: "left" | "right" | undefined;
   readOnly: boolean | undefined;
@@ -377,11 +383,10 @@ function createSourceSegment(opts: {
   t: TranslationFn;
 }): SourceSegmentHandle {
   const {
-    diffLines, baseAlignedIdx, side, readOnly, autoResize, textareaAriaLabel,
+    diffLines, rawText, baseAlignedIdx, side, readOnly, autoResize, textareaAriaLabel,
     onSliceChange, onMerge, onHoverLine, fontSize, lineHeight, digits, hideScrollbar, t,
   } = opts;
 
-  const rawText = "";
   const { displayText, paddingIndices } = buildDisplayText(diffLines, rawText);
   const alignedCount = diffLines.length;
   const lineNumbersArray = diffLines.map((dl) => (dl.lineNumber == null ? "" : String(dl.lineNumber)));
@@ -627,9 +632,11 @@ export function createMergeEditorPanel(
       lines: DiffLine[],
       baseIdx: number,
       onSliceChange: ((value: string) => void) | undefined,
+      segmentRawText = "",
     ): SourceSegmentHandle => {
       const seg = createSourceSegment({
         diffLines: lines,
+        rawText: segmentRawText,
         baseAlignedIdx: baseIdx,
         side: state.side,
         readOnly: state.readOnly,
@@ -648,9 +655,10 @@ export function createMergeEditorPanel(
       return seg;
     };
 
-    // 折りたたみ OFF: 1 セグメントで全体描画（従来挙動）。
+    // 折りたたみ OFF: 1 セグメントで全体描画（従来挙動）。全文を表すセグメントのため
+    // rawText を渡し、diff 側で pop された "\n" 終端を表示テキストへ復元する。
     if (!state.collapse) {
-      const seg = mkSegment(effectiveLines, 0, state.onSourceChange);
+      const seg = mkSegment(effectiveLines, 0, state.onSourceChange, rawText);
       inner.appendChild(seg.el);
       return;
     }
