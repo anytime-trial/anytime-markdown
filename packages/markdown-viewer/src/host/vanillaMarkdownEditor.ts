@@ -21,7 +21,7 @@
  * 引かず inline）。
  */
 
-import type { Editor } from "@anytime-markdown/markdown-core";
+import type { AnyExtension, Editor } from "@anytime-markdown/markdown-core";
 
 import { buildEditorExtensions } from "../buildEditorExtensions";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
@@ -79,6 +79,8 @@ export interface MountVanillaMarkdownEditorOptions {
   slashItems?: readonly VanillaSlashCommandItem[];
   gridRows?: number;
   gridCols?: number;
+  /** rich codeblock 等の描画拡張（RichMarkdownEditorPage 相当の parity 用）。 */
+  codeBlockExtension?: AnyExtension;
   /** 初期設定（未指定時は DEFAULT_SETTINGS）。 */
   settings?: EditorSettings;
   /** 設定変更通知。 */
@@ -193,6 +195,7 @@ export function mountVanillaMarkdownEditor(
     placeholder: options.placeholder ?? t("placeholder"),
     gridRows: options.gridRows,
     gridCols: options.gridCols,
+    codeBlockExtension: options.codeBlockExtension,
     onSlashStateChange: (state: SlashCommandState) => slashCb?.(state),
   });
 
