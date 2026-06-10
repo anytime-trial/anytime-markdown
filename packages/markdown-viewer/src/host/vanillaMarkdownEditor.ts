@@ -26,7 +26,7 @@ import { buildEditorExtensions } from "../buildEditorExtensions";
 import { STORAGE_KEY_CONTENT } from "../constants/storageKeys";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import { createEditorDOMHandlers } from "../hooks/useEditorDOMEvents";
-import { getMarkdownFromEditor, type HeadingItem, type TranslationFn } from "../types";
+import { getEditorStorage, getMarkdownFromEditor, type HeadingItem, type TranslationFn } from "../types";
 import type { EditorSettings } from "../useEditorSettings";
 import type { ThemePresetName } from "../constants/themePresets";
 import type {
@@ -460,6 +460,8 @@ export function mountVanillaMarkdownEditor(
         if (current.readOnly) return;
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
+          // enqueue 後（debounce 中）に readOnly 化された保存は破棄する。
+          if (current.readOnly) return;
           const resolved = produce();
           if (resolved == null) return;
           const toSave = withFrontmatter ? prependFrontmatter(resolved, frontmatter) : resolved;
@@ -489,6 +491,15 @@ export function mountVanillaMarkdownEditor(
         onImageInsert: (src, alt) => editor.chain().focus().setImage({ src: src.trim(), alt }).run(),
       });
       disposers.push(() => dialogs.destroy());
+
+      // BubbleMenu / SlashCommand が storage.commentDialog.open 経由でコメントダイアログを
+      // 開く（React useEditorDialogs 相当の配線）。
+      const editorStorage = getEditorStorage(editor);
+      editorStorage.commentDialog ??= {};
+      editorStorage.commentDialog.open = () => dialogs.openComment();
+      disposers.push(() => {
+        if (editorStorage.commentDialog) editorStorage.commentDialog.open = null;
+      });
 
       // === settings panel（intent で開閉。onUpdate→store+apply+notify） =========
       let settingsPanel: { destroy: () => void } | null = null;
@@ -549,6 +560,13 @@ export function mountVanillaMarkdownEditor(
       const onDirtyUpdate = (): void => fileOps.markDirty();
       editor.on("update", onDirtyUpdate);
       disposers.push(() => editor.off("update", onDirtyUpdate));
+
+      // H-03: 未保存変更の beforeunload 警告（React useEditorSideEffects 相当）。
+      const onBeforeUnload = (e: BeforeUnloadEvent): void => {
+        if (fileOps.isDirty()) e.preventDefault();
+      };
+      globalThis.addEventListener("beforeunload", onBeforeUnload);
+      disposers.push(() => globalThis.removeEventListener("beforeunload", onBeforeUnload));
 
       // === file handlers（opts 優先・未指定は fileOps / editor / blob ベースの既定） =
       const defaultDownload = (): void => {
