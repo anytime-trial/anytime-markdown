@@ -60,6 +60,12 @@ export {
   mkSpacer,
   svgIcon,
 } from './chrome/vanillaToolbar';
+// Vanilla block overlay installer（G3・gif/image/table の DialogHost 3 を vanilla 配線）。
+export type {
+  BlockOverlaysHandle,
+  InstallBlockOverlaysOptions,
+} from './chrome/installBlockOverlays';
+export { installBlockOverlays } from './chrome/installBlockOverlays';
 // Vanilla host seam（G・脱React で editor を mount）。
 export type { VanillaEditorHostHandle, VanillaEditorHostOptions } from './host/vanillaEditorHost';
 export { createVanillaEditorHost } from './host/vanillaEditorHost';
