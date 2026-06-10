@@ -1,18 +1,24 @@
 /**
- * 脱React の vanilla markdown editor オーケストレーター（G3-1 draft・追加のみ・本番未配線）。
+ * 脱React の vanilla markdown editor オーケストレーター（G3-1 / 追加のみ・本番未配線）。
  *
  * React の `MarkdownEditorPage.tsx`（756 行・15 hooks + useEditor + EditorContent + React chrome
- * sections）に対応する **vanilla 版の骨格**。`createVanillaEditorHost` で editor を mount し、
+ * sections）に対応する **vanilla 版**。`createVanillaEditorHost` で editor を mount し、
  * `installChrome` 内で `components-vanilla/*` のファクトリを合成して素 DOM で chrome を構築する。
  *
- * 本ファイルは G3 計画（plan/20260610-g3-app-root-flip-spec.ja.md）の段階的 seam 戦略に基づく
- * **draft**であり、consumer（web-app / vscode webview）にはまだ配線しない。core chrome
- * （BubbleMenu / StatusBar / SlashCommand）を実配線し、重量系（Toolbar の file/mode 配線・
- * SettingsPanel + settings store・Dialogs・Outline/Comment/Merge・DialogHost 3）は **TODO seam**
- * として明示する。React 完全除去の成立（本番組み替え）は G3-2 以降でユーザーの手動疎通を伴う。
+ * G3 計画（plan/20260610-g3-app-root-flip-spec.ja.md）の段階的 seam 戦略に基づく。consumer
+ * （web-app / vscode webview）にはまだ配線しない。React フックの責務は **plain 関数 + closure 状態**
+ * へ移している。
+ *
+ * 配線済み: editor mount / BubbleMenu / StatusBar / SlashCommand / **EditorToolbar（mode 状態 +
+ * file ops + dialog/settings intent）/ EditorDialogs（comment/link/image insert）/ settings store +
+ * EditorSettingsPanel**。
+ * 未配線（TODO seam・次増分）: OutlinePanel / CommentPanel / MergeEditorPanel（データパネル・
+ * レイアウト拡張）/ DialogHost 3（gif/image/table の overlay）/ editorProps（paste/drop）/
+ * shortcuts。
  *
  * 依存方向: host → ui-vanilla / components-vanilla / markdown-core。React / markdown-react を
- * 一切 import しない（型含め core を使う）。
+ * 一切 import しない（型含め core を使う・DEFAULT_SETTINGS は React 結合の useEditorSettings から
+ * 引かず inline）。
  */
 
 import type { Editor } from "@anytime-markdown/markdown-core";
@@ -20,6 +26,15 @@ import type { Editor } from "@anytime-markdown/markdown-core";
 import { buildEditorExtensions } from "../buildEditorExtensions";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import { getMarkdownFromEditor, type TranslationFn } from "../types";
+import type { EditorSettings } from "../useEditorSettings";
+import type { ThemePresetName } from "../constants/themePresets";
+import type {
+  ToolbarFileCapabilities,
+  ToolbarFileHandlers,
+  ToolbarModeHandlers,
+  ToolbarModeState,
+  ToolbarVisibility,
+} from "../types/toolbar";
 import { createVanillaEditorHost } from "./vanillaEditorHost";
 import { createEditorBubbleMenu } from "../components-vanilla/EditorBubbleMenu";
 import { createStatusBar } from "../components-vanilla/StatusBar";
@@ -27,41 +42,71 @@ import {
   createSlashCommandMenu,
   type VanillaSlashCommandItem,
 } from "../components-vanilla/SlashCommandMenu";
+import {
+  createEditorToolbar,
+  type CreateEditorToolbarOptions,
+} from "../components-vanilla/EditorToolbar";
+import { createEditorDialogs } from "../components-vanilla/EditorDialogs";
+import { createEditorSettingsPanel } from "../components-vanilla/EditorSettingsPanel";
+
+/** React 結合の useEditorSettings を import せず inline する既定設定（DEFAULT_SETTINGS と同値）。 */
+const DEFAULT_SETTINGS: EditorSettings = {
+  lineHeight: 1.6,
+  fontSize: 16,
+  tableWidth: "auto",
+  editorBg: "white",
+  lightBgColor: "",
+  lightTextColor: "",
+  darkBgColor: "",
+  darkTextColor: "",
+  spellCheck: false,
+  paperSize: "off",
+  paperMargin: 20,
+  blockAlign: "left",
+  wordBreak: "keep-all",
+};
 
 /** {@link mountVanillaMarkdownEditor} のオプション（MarkdownEditorPage props の vanilla サブセット）。 */
 export interface MountVanillaMarkdownEditorOptions {
-  /** i18n 翻訳関数。 */
   t: TranslationFn;
-  /** 現在ロケール（SettingsPanel 等の TODO seam で使用）。 */
   locale?: string;
-  /** 初期 markdown。 */
   initialContent?: string;
-  /** 読み取り専用。 */
   readOnly?: boolean;
-  /** プレースホルダ（未指定時は t("placeholder")）。 */
   placeholder?: string;
-  /** 内容変更通知（editor.on("update") 由来）。 */
   onContentChange?: (markdown: string) => void;
-  /** SlashCommand 項目（未指定時は空＝メニューは出るが項目なし。items 供給は TODO seam）。 */
   slashItems?: readonly VanillaSlashCommandItem[];
-  /** リンク挿入 intent（BubbleMenu の link ボタン。ダイアログ配線は TODO seam）。 */
-  onLink?: () => void;
-  /** grid 拡張（table 既定行列）。 */
   gridRows?: number;
   gridCols?: number;
+  /** 初期設定（未指定時は DEFAULT_SETTINGS）。 */
+  settings?: EditorSettings;
+  /** 設定変更通知。 */
+  onSettingsChange?: (settings: EditorSettings) => void;
+  /** 設定リセット要求（未指定時は DEFAULT_SETTINGS に戻す）。 */
+  onSettingsReset?: () => void;
+  /** リセット確認（SettingsPanel）。未指定時は確認なし。 */
+  confirm?: (message: string) => Promise<boolean>;
+  /** ファイル操作（部分指定。未指定分は editor/blob ベースの既定実装）。 */
+  fileHandlers?: Partial<ToolbarFileHandlers>;
+  fileCapabilities?: ToolbarFileCapabilities;
+  /** ツールバーの表示制御。 */
+  hide?: ToolbarVisibility;
+  /** テーマ（SettingsPanel のダークモード/プリセット/言語）。 */
+  themeMode?: "light" | "dark";
+  onThemeModeChange?: (mode: "light" | "dark") => void;
+  presetName?: ThemePresetName;
+  onPresetChange?: (name: ThemePresetName) => void;
+  onLocaleChange?: (locale: string) => void;
+  /** mode（source/readonly/review/outline/comment）変更通知。 */
+  onModeChange?: (state: ToolbarModeState) => void;
 }
 
 /** {@link mountVanillaMarkdownEditor} の戻り値。 */
 export interface VanillaMarkdownEditorHandle {
-  /** mount 済み core Editor。 */
   readonly editor: Editor;
-  /** ルート要素（container に append 済み）。 */
   readonly root: HTMLElement;
-  /** editor + 全 chrome を破棄する。 */
   destroy(): void;
 }
 
-/** root レイアウト（toolbar / content / statusbar の縦積み）を組む。 */
 function buildLayout(): {
   root: HTMLElement;
   toolbarSlot: HTMLElement;
@@ -89,11 +134,27 @@ function buildLayout(): {
 }
 
 /**
+ * settings を editor / root へ適用する（React useEditorSettingsSync 相当の素 DOM 版）。
+ * 明確に正しい部分（spellcheck / editable / font-size CSS 変数）を反映する。paperSize/margin/
+ * blockAlign/tableWidth の精密な反映は CSS 変数名の確定が要るため次増分で拡張する。
+ */
+function applyEditorSettings(
+  editor: Editor,
+  root: HTMLElement,
+  settings: EditorSettings,
+  readonlyMode: boolean,
+): void {
+  editor.view.dom.setAttribute("spellcheck", String(settings.spellCheck));
+  editor.setEditable(!readonlyMode);
+  root.style.setProperty("--am-editor-font-size", `${settings.fontSize}px`);
+  root.style.setProperty("--am-editor-word-break", settings.wordBreak);
+}
+
+/**
  * vanilla で markdown editor + chrome を mount する。
  *
  * @param container エディタを描画する DOM 要素（呼び元が用意）。
- * @param options 初期内容・i18n・コールバック等。
- * @returns `editor` / `root` / `destroy`。consumer は `destroy()` を unmount 時に呼ぶ。
+ * @returns `editor` / `root` / `destroy`。consumer は unmount 時に `destroy()` を呼ぶ。
  */
 export function mountVanillaMarkdownEditor(
   container: HTMLElement,
@@ -103,7 +164,7 @@ export function mountVanillaMarkdownEditor(
   const { root, toolbarSlot, contentEl, statusBarSlot } = buildLayout();
   container.appendChild(root);
 
-  // SlashCommand: editor 拡張の onSlashStateChange → SlashCommandMenu の setCallback で受けた cb へ橋渡し。
+  // SlashCommand: editor 拡張の onSlashStateChange → SlashCommandMenu の setCallback で受けた cb へ。
   let slashCb: ((state: SlashCommandState) => void) | null = null;
 
   const extensions = buildEditorExtensions({
@@ -123,22 +184,162 @@ export function mountVanillaMarkdownEditor(
     installChrome: (editor) => {
       const disposers: Array<() => void> = [];
 
-      // --- core chrome（最小依存で実配線） ----------------------------------
+      // === 状態（closure・React hooks の置換） =================================
+      let settings: EditorSettings = options.settings ?? DEFAULT_SETTINGS;
+      const modeState: ToolbarModeState = {
+        sourceMode: false,
+        readonlyMode: readOnly,
+        reviewMode: false,
+        outlineOpen: false,
+        inlineMergeOpen: false,
+        commentOpen: false,
+        explorerOpen: false,
+      };
+      const readonlyNow = (): boolean => modeState.readonlyMode ?? readOnly;
+      const notifyMode = (): void => options.onModeChange?.({ ...modeState });
+      applyEditorSettings(editor, root, settings, readonlyNow());
 
-      // BubbleMenu（tiptap core BubbleMenuPlugin を registerPlugin。destroy で unregister）。
+      // === EditorDialogs（comment/link/image insert → editor コマンド） =========
+      const dialogs = createEditorDialogs({
+        t,
+        onCommentInsert: (text) => editor.chain().focus().addComment(text.trim()).run(),
+        onLinkInsert: (url) =>
+          editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run(),
+        onImageInsert: (src, alt) => editor.chain().focus().setImage({ src: src.trim(), alt }).run(),
+      });
+      disposers.push(() => dialogs.destroy());
+
+      // === settings panel（intent で開閉。onUpdate→store+apply+notify） =========
+      let settingsPanel: { destroy: () => void } | null = null;
+      const closeSettings = (): void => {
+        settingsPanel?.destroy();
+        settingsPanel = null;
+      };
+      const openSettings = (): void => {
+        closeSettings();
+        settingsPanel = createEditorSettingsPanel({
+          t,
+          settings,
+          locale: options.locale ?? "ja",
+          confirm: options.confirm,
+          themeMode: options.themeMode,
+          onThemeModeChange: options.onThemeModeChange,
+          presetName: options.presetName,
+          onPresetChange: options.onPresetChange,
+          onLocaleChange: options.onLocaleChange,
+          onClose: closeSettings,
+          onUpdate: (patch) => {
+            settings = { ...settings, ...patch };
+            applyEditorSettings(editor, root, settings, readonlyNow());
+            options.onSettingsChange?.(settings);
+          },
+          onReset: () => {
+            settings = { ...DEFAULT_SETTINGS };
+            applyEditorSettings(editor, root, settings, readonlyNow());
+            options.onSettingsReset?.();
+            options.onSettingsChange?.(settings);
+            closeSettings();
+          },
+        });
+      };
+      disposers.push(closeSettings);
+
+      // === file handlers（opts 優先・未指定は editor/blob ベースの既定） =========
+      const defaultDownload = (): void => {
+        const md = getMarkdownFromEditor(editor);
+        const blob = new Blob([md], { type: "text/markdown" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "untitled.md";
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+      const defaultClear = (): void => {
+        editor.chain().focus().clearContent(true).run();
+      };
+      const fileHandlers: ToolbarFileHandlers = {
+        onDownload: options.fileHandlers?.onDownload ?? defaultDownload,
+        onImport: options.fileHandlers?.onImport ?? (() => {}),
+        onClear: options.fileHandlers?.onClear ?? defaultClear,
+        onOpenFile: options.fileHandlers?.onOpenFile,
+        onSaveFile: options.fileHandlers?.onSaveFile,
+        onSaveAsFile: options.fileHandlers?.onSaveAsFile,
+        onExportPdf: options.fileHandlers?.onExportPdf,
+        onLoadRightFile: options.fileHandlers?.onLoadRightFile,
+        onExportRightFile: options.fileHandlers?.onExportRightFile,
+      };
+
+      // === mode handlers（closure 状態を更新し toolbar を再描画） ===============
+      let toolbar: ReturnType<typeof createEditorToolbar> | null = null;
+      const refreshToolbarMode = (): void => {
+        toolbar?.update({ modeState: { ...modeState } });
+        notifyMode();
+      };
+      const modeHandlers: ToolbarModeHandlers = {
+        onSwitchToSource: () => {
+          modeState.sourceMode = true;
+          refreshToolbarMode();
+        },
+        onSwitchToWysiwyg: () => {
+          modeState.sourceMode = false;
+          refreshToolbarMode();
+        },
+        onSwitchToReview: () => {
+          modeState.reviewMode = !modeState.reviewMode;
+          refreshToolbarMode();
+        },
+        onSwitchToReadonly: () => {
+          modeState.readonlyMode = !readonlyNow();
+          editor.setEditable(!modeState.readonlyMode);
+          refreshToolbarMode();
+        },
+        onToggleOutline: () => {
+          modeState.outlineOpen = !modeState.outlineOpen;
+          refreshToolbarMode();
+        },
+        onToggleComments: () => {
+          modeState.commentOpen = !modeState.commentOpen;
+          refreshToolbarMode();
+        },
+        onToggleExplorer: () => {
+          modeState.explorerOpen = !modeState.explorerOpen;
+          refreshToolbarMode();
+        },
+        // merge トグルは MergeEditorPanel 配線（次増分）まで no-op。
+        onMerge: () => {},
+      };
+
+      // === EditorToolbar（toolbarSlot へ） =====================================
+      const toolbarOptions: CreateEditorToolbarOptions = {
+        editor,
+        t,
+        modeState,
+        modeHandlers,
+        fileHandlers,
+        fileCapabilities: options.fileCapabilities,
+        hide: options.hide,
+        // help（version/shortcut/settings）は settings パネルを開く intent に暫定接続。
+        onSetHelpAnchor: () => openSettings(),
+      };
+      toolbar = createEditorToolbar(toolbarOptions);
+      toolbarSlot.appendChild(toolbar.el);
+      disposers.push(() => toolbar?.destroy());
+
+      // === BubbleMenu（onLink → dialog） =======================================
       const bubble = createEditorBubbleMenu(editor, {
         t,
-        onLink: options.onLink ?? (() => {}),
-        readonlyMode: readOnly,
+        onLink: () => dialogs.openLink(),
+        readonlyMode: readonlyNow(),
       });
       disposers.push(() => bubble.destroy());
 
-      // StatusBar（行列/文字数/行末/エンコード）。statusBarSlot へ配置。
+      // === StatusBar ===========================================================
       const statusBar = createStatusBar({ editor, t });
       statusBarSlot.appendChild(statusBar.el);
       disposers.push(() => statusBar.destroy());
 
-      // SlashCommand（suggestion 駆動）。setCallback で受け取った cb を slashCb に保持。
+      // === SlashCommand ========================================================
       const slash = createSlashCommandMenu({
         editor,
         t,
@@ -152,25 +353,17 @@ export function mountVanillaMarkdownEditor(
         slash.destroy();
       });
 
-      // 内容変更通知（editor.on("update")）。
+      // === 内容変更通知 =========================================================
       if (options.onContentChange) {
         const onUpdate = (): void => options.onContentChange?.(getMarkdownFromEditor(editor));
         editor.on("update", onUpdate);
         disposers.push(() => editor.off("update", onUpdate));
       }
 
-      // --- TODO seam（G3-2 以降でユーザー疎通を伴い配線） --------------------
-      // 以下は file ops / mode state / settings store / ダイアログ群に依存するため、
-      // React hooks（useEditorFileOps / useEditorMenuState / useEditorSettings 等）の責務を
-      // plain 関数・closure store へ移したうえで配線する（plan §5 マッピング参照）。
-      //
-      //   - EditorToolbar: createEditorToolbar({ editor, fileHandlers, modeState, modeHandlers, t, ... })
-      //       → toolbarSlot へ。file ops（open/save/import/download）と mode 切替の配線が前提。
-      //   - EditorSettingsPanel: settings store（plain object + subscribe）と onUpdate→editor 反映。
-      //   - EditorDialogs / GifDialogHost / ImageDialogHost / TableDialogHost: intent → open*。
-      //   - OutlinePanel / CommentPanel / MergeEditorPanel: editor 購読 + パネル配置（レイアウト拡張）。
-      //   - editorProps（paste/import/drop の DOM handlers・createEditorDOMHandlers 相当）。
-      //   - useEditorShortcuts / useEditorSideEffects: editor.view.dom への listener（disposer 返却）。
+      // === TODO seam（次増分） =================================================
+      // OutlinePanel / CommentPanel（modeState.outlineOpen / commentOpen でレイアウト挿入）/
+      // MergeEditorPanel（inlineMergeOpen + onMerge）/ DialogHost 3（gif/image/table overlay）/
+      // editorProps（paste/import/drop の DOM handlers）/ shortcuts（editor.view.dom keydown）。
 
       return disposers;
     },

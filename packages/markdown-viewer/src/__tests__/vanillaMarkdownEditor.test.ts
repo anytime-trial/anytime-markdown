@@ -55,6 +55,31 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     handle.destroy();
   });
 
+  it("EditorToolbar が toolbar slot に配線される（role=toolbar）", () => {
+    const handle = mountVanillaMarkdownEditor(container, { t });
+    const slot = container.querySelector("[data-am-toolbar-slot]") as HTMLElement;
+    expect(slot.children.length).toBeGreaterThan(0);
+    // EditorToolbar の root は role="toolbar"（WAI-ARIA Toolbar パターン）。
+    expect(slot.querySelector('[role="toolbar"]')).toBeTruthy();
+    handle.destroy();
+  });
+
+  it("settings 適用: spellCheck が editor DOM へ反映される", () => {
+    const handle = mountVanillaMarkdownEditor(container, {
+      t,
+      settings: {
+        lineHeight: 1.6, fontSize: 18, tableWidth: "auto", editorBg: "white",
+        lightBgColor: "", lightTextColor: "", darkBgColor: "", darkTextColor: "",
+        spellCheck: true, paperSize: "off", paperMargin: 20, blockAlign: "left", wordBreak: "normal",
+      },
+    });
+    expect(handle.editor.view.dom.getAttribute("spellcheck")).toBe("true");
+    // font-size が root の CSS 変数へ反映される。
+    const root = container.querySelector("[data-am-editor-root]") as HTMLElement;
+    expect(root.style.getPropertyValue("--am-editor-font-size")).toBe("18px");
+    handle.destroy();
+  });
+
   it("destroy で editor を破棄し root を container から除去する", () => {
     const handle = mountVanillaMarkdownEditor(container, { t });
     const editor = handle.editor;
