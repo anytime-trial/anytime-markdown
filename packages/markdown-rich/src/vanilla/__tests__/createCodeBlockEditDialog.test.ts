@@ -1,0 +1,123 @@
+/**
+ * createCodeBlockEditDialog のユニットテスト
+ * jsdom 上でダイアログ DOM が正しく生成・破棄されることを検証。
+ */
+
+jest.mock("@anytime-markdown/markdown-viewer", () => ({
+  ...jest.requireActual("@anytime-markdown/markdown-viewer"),
+  useTextareaSearch: () => ({ reset: jest.fn() }),
+  getDivider: () => "#ccc",
+  getHljsCssVars: () => ({}),
+  getEditDialogBg: () => "#fff",
+  getTextDisabled: () => "#888",
+  getTextPrimary: () => "#000",
+  getTextSecondary: () => "#555",
+  getActionHover: () => "rgba(0,0,0,0.04)",
+  DEFAULT_DARK_BG: "#1e1e1e",
+  DEFAULT_LIGHT_BG: "#ffffff",
+  CODE_HELLO_SAMPLES: [],
+  FS_CODE_INITIAL_WIDTH: 500,
+  FS_CODE_MIN_WIDTH: 120,
+  FS_PANEL_HEADER_FONT_SIZE: "0.75rem",
+  CHIP_FONT_SIZE: "0.75rem",
+  FS_CHIP_HEIGHT: 26,
+  FS_ZOOM_LABEL_WIDTH: 36,
+  SMALL_CAPTION_FONT_SIZE: "0.75rem",
+}));
+
+jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Dialog", () => ({
+  createDialog: ({ onClose }: { onClose: () => void }) => {
+    const el = document.createElement("div");
+    const paper = document.createElement("div");
+    el.appendChild(paper);
+    document.body.appendChild(el);
+    return { el, paper, destroy: jest.fn(() => el.remove()) };
+  },
+}));
+
+jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Tabs", () => ({
+  createTabs: () => ({ el: document.createElement("div"), update: jest.fn(), destroy: jest.fn() }),
+}));
+
+jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Button", () => ({
+  createButton: () => ({ el: document.createElement("button"), destroy: jest.fn() }),
+}));
+
+jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/IconButton", () => ({
+  createIconButton: () => ({ el: document.createElement("button"), destroy: jest.fn() }),
+}));
+
+jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Menu", () => ({
+  createMenu: () => ({ el: document.createElement("div"), destroy: jest.fn() }),
+}));
+
+jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/MenuItem", () => ({
+  createMenuItem: () => ({ el: document.createElement("div"), destroy: jest.fn() }),
+}));
+
+import { createCodeEditState } from "../codeEditState";
+import { createCodeBlockEditDialog } from "../createCodeBlockEditDialog";
+
+function makeNode(text: string) {
+  return { textContent: text, content: { size: text.length } } as unknown as import("@anytime-markdown/markdown-pm/model").Node;
+}
+
+function makeEditor() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const editor = {
+    schema: { text: (s: string) => ({ text: s }) },
+    chain: () => ({ command: (fn: (ctx: { tr: { replaceWith: jest.Mock; delete: jest.Mock } }) => boolean) => {
+      fn({ tr: { replaceWith: jest.fn(), delete: jest.fn() } });
+      return { run: jest.fn() };
+    } }),
+  } as unknown as import("@anytime-markdown/markdown-core").Editor;
+  return editor;
+}
+
+const t = (key: string) => key;
+
+describe("createCodeBlockEditDialog", () => {
+  beforeEach(() => { document.body.innerHTML = ""; });
+
+  it("生成時に dialog が document.body に append される", () => {
+    const editor = makeEditor();
+    const node = makeNode("const x = 1;");
+    const state = createCodeEditState({ editor, pos: 5, node, onClose: jest.fn() });
+
+    const handle = createCodeBlockEditDialog({
+      label: "Edit Code",
+      language: "javascript",
+      isDark: false,
+      editorBg: "#fff",
+      fontSize: 16,
+      lineHeight: 1.5,
+      state,
+      t,
+      onClose: jest.fn(),
+    });
+
+    expect(document.body.contains(handle.el)).toBe(true);
+    handle.destroy();
+  });
+
+  it("destroy で dialog が DOM から削除される", () => {
+    const editor = makeEditor();
+    const node = makeNode("abc");
+    const state = createCodeEditState({ editor, pos: 0, node, onClose: jest.fn() });
+
+    const handle = createCodeBlockEditDialog({
+      label: "Edit",
+      language: "plaintext",
+      isDark: false,
+      editorBg: "#fff",
+      fontSize: 16,
+      lineHeight: 1.5,
+      state,
+      t,
+      onClose: jest.fn(),
+    });
+
+    handle.destroy();
+    expect(document.body.contains(handle.el)).toBe(false);
+  });
+});
