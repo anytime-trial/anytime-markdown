@@ -37,16 +37,15 @@ export function VanillaMarkdownEditorMount({
   ...options
 }: Readonly<VanillaMarkdownEditorMountProps>): React.ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  // mount は 1 回だが、最新 options を参照できるよう ref に退避する（live update は follow-up）。
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
 
   useEffect(() => {
+    // mount は 1 回のみ。effect は初回 commit 後に走るため、ここで参照する options は mount 時点の
+    // props と一致する（live update は orchestrator.handle.update 実装後の follow-up）。
     const container = containerRef.current;
     if (!container) return undefined;
     let handle: VanillaMarkdownEditorHandle | null = null;
     try {
-      handle = mountVanillaMarkdownEditor(container, optionsRef.current);
+      handle = mountVanillaMarkdownEditor(container, options);
     } catch (error) {
       // mount 失敗は致命的でないが原因追跡のため握り潰さず出力する（seam の疎通診断）。
       console.error("[VanillaMarkdownEditorMount] mount failed", error);
