@@ -290,4 +290,46 @@ describe("createMergeEditorPanel", () => {
     handle.update({ sourceText: "b" });
     expect(handle.el.children.length).toBe(0);
   });
+
+  // 2026-06-10 レビュー指摘 5: createSourceSegment の rawText="" ハードコードで
+  // 末尾改行保存（buildDisplayText の rawText.endsWith("\n") 補償）が常に死んでいた。
+  // computeDiff 系の diffLines は末尾空行を pop するため、補償が効かないと
+  // "\n" 終端ファイルの末尾改行が表示・編集経路から欠落する。
+  describe("末尾改行の保存（レビュー指摘 5）", () => {
+    // "a\nb\n" を diff した結果相当（splitLines が末尾空行を pop した形）。
+    const diffLinesWithoutTrailingEmpty: DiffLine[] = [
+      { text: "a", type: "equal", blockId: null, lineNumber: 1 },
+      { text: "b", type: "equal", blockId: null, lineNumber: 2 },
+    ];
+
+    it('"\\n" 終端の sourceText では表示テキストも "\\n" 終端になる', () => {
+      handle = createMergeEditorPanel(mkOpts({
+        sourceText: "a\nb\n",
+        diffLines: diffLinesWithoutTrailingEmpty,
+      }));
+      expect(textareas(handle.el)[0].value).toBe("a\nb\n");
+    });
+
+    it("編集しても末尾改行が onSourceChange へ保存される", () => {
+      const changes: string[] = [];
+      handle = createMergeEditorPanel(mkOpts({
+        sourceText: "a\nb\n",
+        diffLines: diffLinesWithoutTrailingEmpty,
+        onSourceChange: (v) => changes.push(v),
+      }));
+      const ta = textareas(handle.el)[0];
+      // 1 行目を編集（末尾改行は textarea 値に保持されている前提）。
+      ta.value = "x\nb\n";
+      ta.dispatchEvent(new Event("input"));
+      expect(changes).toEqual(["x\nb\n"]);
+    });
+
+    it('"\\n" 終端でない sourceText には改行を付加しない', () => {
+      handle = createMergeEditorPanel(mkOpts({
+        sourceText: "a\nb",
+        diffLines: diffLinesWithoutTrailingEmpty,
+      }));
+      expect(textareas(handle.el)[0].value).toBe("a\nb");
+    });
+  });
 });
