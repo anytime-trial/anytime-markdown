@@ -30,6 +30,12 @@ import {
   parseEmbedInfoString,
   setBlockAttrs,
 } from "@anytime-markdown/markdown-viewer";
+import {
+  findCodeBlockByIndex,
+  findCounterpartCode,
+  getCodeBlockIndex,
+  getMergeEditors,
+} from "@anytime-markdown/markdown-viewer/src/contexts/MergeEditorsContext";
 
 import {
   classifyCodeBlock,
@@ -48,6 +54,7 @@ import { buildPlantUmlImageUrl } from "../hooks/usePlantUmlRender";
 import { createCodeEditState } from "./codeEditState";
 import { captureDiagramPng, exportDiagramSource } from "./diagramCapture";
 import { createCodeBlockEditDialog } from "./createCodeBlockEditDialog";
+import { createFullscreenDiffDialog } from "./createFullscreenDiffDialog";
 import { createMathEditDialog } from "./createMathEditDialog";
 import { createMermaidEditDialog } from "./createMermaidEditDialog";
 import { createPlantUmlEditDialog } from "./createPlantUmlEditDialog";
@@ -265,11 +272,73 @@ export function installCodeBlockOverlay(
     };
   };
 
+  /**
+   * compare（merge）モード時: 通常の編集ダイアログの代わりにブロック単位マージダイアログを
+   * 開き、結果を両エディタへ適用する（旧 useBlockMergeCompare + FullscreenDiffView 相当）。
+   * merge ビューが閉じている / counterpart が見つからない場合は false を返し、
+   * 呼び元が通常の編集ダイアログへフォールバックする。
+   */
+  const tryOpenCompareEdit = (label: string): boolean => {
+    const mergeEditors = getMergeEditors();
+    if (!mergeEditors || !node) return false;
+    // helpers は node.attrs.language を raw 値（null 含む）で比較するため、languageOf() の
+    // "" 既定ではなく raw を渡す（言語なしブロック同士も一致させる）。
+    const language = node.attrs.language as string;
+    const code = node.textContent ?? "";
+    // 比較エディタ（左）から開いた場合は this/compare を入れ替える（旧 useBlockMergeCompare と同一）。
+    const isCompareEditor = editor === mergeEditors.leftEditor;
+    const otherEditor = isCompareEditor ? mergeEditors.rightEditor : mergeEditors.leftEditor;
+    if (!otherEditor) return false;
+    const counterpartCode = findCounterpartCode(editor, otherEditor, language, code);
+    if (counterpartCode == null) return false;
+    const blockIndex = getCodeBlockIndex(editor, language, code);
+    if (blockIndex === -1) return false;
+
+    const thisEditor = isCompareEditor ? otherEditor : editor;
+    const compareEditor = isCompareEditor ? editor : otherEditor;
+    const thisCode = isCompareEditor ? counterpartCode : code;
+    const compareCode = isCompareEditor ? code : counterpartCode;
+
+    const applyTo = (target: Editor, newCode: string): void => {
+      const block = findCodeBlockByIndex(target, language, blockIndex);
+      if (!block) return;
+      target
+        .chain()
+        .command(({ tr }) => {
+          const from = block.pos + 1;
+          const to = from + block.size;
+          if (newCode) tr.replaceWith(from, to, target.schema.text(newCode));
+          else tr.delete(from, to);
+          return true;
+        })
+        .run();
+    };
+
+    const { editorBg, fontSize, lineHeight } = style();
+    activeDialog = createFullscreenDiffDialog({
+      label,
+      isDark: isDark(),
+      editorBg,
+      fontSize,
+      lineHeight,
+      thisCode,
+      compareCode,
+      onMergeApply: (newThisCode, newCompareCode) => {
+        applyTo(thisEditor, newThisCode);
+        applyTo(compareEditor, newCompareCode);
+      },
+      t,
+      onClose: () => closeDialog(),
+    });
+    return true;
+  };
+
   const openEdit = (): void => {
     if (!node || pos < 0) return;
     closeDialog();
     const language = languageOf();
     const kind: CodeBlockKind = classifyCodeBlock(language);
+    if (tryOpenCompareEdit(codeBlockToolbarLabel(kind, language, t))) return;
     editState.update({ editor, pos, node });
     editState.onOpen();
     unsubscribeState = editState.subscribe(watchDiscard);
