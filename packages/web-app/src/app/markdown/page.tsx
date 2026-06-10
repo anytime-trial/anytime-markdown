@@ -1,12 +1,14 @@
 'use client';
 
-import { COMMENT_PANEL_WIDTH } from '@anytime-markdown/markdown-viewer';
+import { COMMENT_PANEL_WIDTH, createMarkdownT, getDefaultContent } from '@anytime-markdown/markdown-viewer';
 import { Alert, Box, CircularProgress, Snackbar } from '@mui/material';
 import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { useMemo } from 'react';
 
 import LandingHeader from '../components/LandingHeader';
+import { useVanillaEditorFlag } from '../components/useVanillaEditorFlag';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
 import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
@@ -32,6 +34,12 @@ const ExplorerPanel = dynamic(
   { ssr: false },
 );
 
+// 脱React G3-2: vanilla 並走経路（既定 OFF・?vanilla=1 / NEXT_PUBLIC_VANILLA_EDITOR で有効化）
+const VanillaRichMarkdownEditor = dynamic(
+  () => import('../components/VanillaRichMarkdownEditor'),
+  { ssr: false, loading: () => <EditorLoading /> },
+);
+
 export default function Page() {
   const t = useTranslations('Common');
 
@@ -52,6 +60,10 @@ export default function Page() {
     handleContentChange, setSsoSnackbar, setSaveSnackbar, fileSystemProvider,
   } = useEditorPage({ isGitHubLoggedIn, session, t });
 
+  const locale = useLocale();
+  const vanillaEditor = useVanillaEditorFlag();
+  const vanillaT = useMemo(() => createMarkdownT('MarkdownEditor', locale), [locale]);
+
   const explorerSlotNode = enableGitHub ? (
     <ExplorerPanel
       open={explorerOpen}
@@ -70,6 +82,31 @@ export default function Page() {
       <Box id="md-page-wrapper" sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
       <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         <EmbedProvidersBoundary>
+        {vanillaEditor ? (
+          // 脱React G3-2 並走: 既知の制限 = GitHub explorer / onExternalSave /
+          // fileSystemProvider 連携は未配線（フラグ ON 時はローカル下書きモード）。
+          <VanillaRichMarkdownEditor
+            key={editorKey}
+            t={vanillaT}
+            locale={locale}
+            themeMode={themeMode}
+            onThemeModeChange={setThemeMode}
+            presetName={showThemePreset ? presetName : undefined}
+            onPresetChange={showThemePreset ? setPresetName : undefined}
+            onLocaleChange={setLocale}
+            onCompareModeChange={handleCompareModeChange}
+            externalCompareContent={externalCompareContent}
+            initialContent={externalContent ?? getDefaultContent(locale)}
+            persistDraft={externalContent === undefined}
+            fileName={externalFileName}
+            readOnly={externalContent !== undefined}
+            showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
+            sideToolbar
+            onContentChange={handleContentChange}
+            gridRows={process.env.NEXT_PUBLIC_GRID_ROWS ? Number(process.env.NEXT_PUBLIC_GRID_ROWS) : undefined}
+            gridCols={process.env.NEXT_PUBLIC_GRID_COLS ? Number(process.env.NEXT_PUBLIC_GRID_COLS) : undefined}
+          />
+        ) : (
         <MarkdownEditorPage
           key={editorKey}
           themeMode={themeMode}
@@ -94,6 +131,7 @@ export default function Page() {
           gridRows={process.env.NEXT_PUBLIC_GRID_ROWS ? Number(process.env.NEXT_PUBLIC_GRID_ROWS) : undefined}
           gridCols={process.env.NEXT_PUBLIC_GRID_COLS ? Number(process.env.NEXT_PUBLIC_GRID_COLS) : undefined}
         />
+        )}
         </EmbedProvidersBoundary>
       </Box>
       <Snackbar

@@ -1,5 +1,5 @@
 // Main page component
-export { MarkdownCoreI18nProvider, useMarkdownT } from './i18n/context';
+export { createMarkdownT, MarkdownCoreI18nProvider, useMarkdownT } from './i18n/context';
 export { default as MarkdownEditorPage } from './MarkdownEditorPage';
 
 // 脱React G3: vanilla orchestrator + 並走用の React ラッパ（draft・consumer 切替で使用）
@@ -246,3 +246,6 @@ export type { DialogOptions } from './providers/types';
 // i18n messages
 export type { MarkdownMessages } from './i18n';
 export { enMessages as messagesEn, jaMessages as messagesJa } from './i18n';
+
+// 脱React G3: vanilla consumer 配線用（初期コンテンツ）
+export { getDefaultContent } from './constants/defaultContent';

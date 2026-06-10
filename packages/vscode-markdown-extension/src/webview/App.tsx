@@ -3,10 +3,12 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import type { PaletteMode } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
 import { getVsCodeApi } from './vscodeApi';
-import { ACCENT_COLOR, applyEditorThemeCssVars, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getPreset, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS, ThemeModeProvider, type ThemePresetName } from '@anytime-markdown/markdown-viewer';
+import { ACCENT_COLOR, applyEditorThemeCssVars, ConfirmProvider, createMarkdownT, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getPreset, MaybeVanillaMarkdownEditor, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS, ThemeModeProvider, type ThemePresetName } from '@anytime-markdown/markdown-viewer';
 import { EmbedProvidersProvider } from '@anytime-markdown/markdown-viewer/src/contexts/EmbedProvidersContext';
 // rich の codeblock 描画拡張を注入する RichMarkdownEditorPage を使う (B-8)
 import MarkdownEditorPage from '@anytime-markdown/markdown-rich/src/RichMarkdownEditorPage';
+// 脱React G3-2: フラグ並走用の vanilla orchestrator（rich codeblock 注入版）
+import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/src/vanilla/mountVanillaRichMarkdownEditor';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
 
 const vscode = getVsCodeApi();
@@ -366,6 +368,16 @@ export function App() {
     vscode.postMessage({ type: 'modeChanged', mode });
   }, []);
 
+  // 脱React G3-2: vanilla orchestrator の onModeChange（ToolbarModeState）を React 経路の
+  // mode 文字列通知へ変換する。
+  const handleVanillaModeChange = useCallback((state: { sourceMode?: boolean; reviewMode?: boolean; readonlyMode?: boolean }) => {
+    let mode = 'wysiwyg';
+    if (state.sourceMode) mode = 'source';
+    else if (state.reviewMode) mode = 'review';
+    else if (state.readonlyMode) mode = 'readonly';
+    handleModeChange(mode);
+  }, [handleModeChange]);
+
   // スクロール同期: スクロール位置を extension host に送信
   useEffect(() => {
     let currentEl: Element | null = null;
@@ -440,7 +452,33 @@ export function App() {
       <ConfirmProvider>
         <EmbedProvidersProvider value={embedProviders}>
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-          <MarkdownEditorPage key={editorKey} locale={locale} hideToolbar sideToolbar hideSettings hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} showFrontmatter />
+          <MaybeVanillaMarkdownEditor
+            key={editorKey}
+            legacy={<MarkdownEditorPage key={editorKey} locale={locale} hideToolbar sideToolbar hideSettings hideStatusBar readOnly={claudeEditing} externalCompareContent={compareContent} onCompareModeChange={handleCompareModeChange} onHeadingsChange={handleHeadingsChange} onCommentsChange={handleCommentsChange} onStatusChange={handleStatusChange} autoReload={autoReload} onModeChange={handleModeChange} themeMode={themeMode} presetName={presetName} showFrontmatter />}
+            vanilla={{
+              // 脱React G3-2 並走: 既定 OFF（__AM_VANILLA_EDITOR__ / ?vanilla=1 で有効化）。
+              // content は localStorage ブリッジ（STORAGE_KEY_CONTENT）経由のため persistDraft で整合する。
+              mount: mountVanillaRichMarkdownEditor,
+              t: createMarkdownT('MarkdownEditor', locale),
+              locale,
+              hideToolbar: true,
+              sideToolbar: true,
+              hide: { settings: true },
+              hideStatusBar: true,
+              readOnly: claudeEditing,
+              externalCompareContent: compareContent,
+              onCompareModeChange: handleCompareModeChange,
+              onHeadingsChange: handleHeadingsChange,
+              onCommentsChange: handleCommentsChange,
+              onStatusChange: handleStatusChange,
+              autoReload,
+              onModeChange: handleVanillaModeChange,
+              themeMode,
+              presetName,
+              showFrontmatter: true,
+              persistDraft: true,
+            }}
+          />
           {claudeEditing && (
             <div style={{
               position: 'absolute',

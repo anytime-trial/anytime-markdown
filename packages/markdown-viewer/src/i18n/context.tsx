@@ -38,15 +38,26 @@ export function MarkdownCoreI18nProvider({ locale, children }: Readonly<Markdown
   );
 }
 
-export function useMarkdownT(namespace: Namespace) {
-  const locale = useContext(MarkdownCoreLocaleContext) ?? detectLocale();
-  const ns = messagesByLocale[locale][namespace] as unknown as NsMessages;
+/**
+ * React 非依存の translator（vanilla orchestrator / consumer 配線用）。
+ * `useMarkdownT` と同一の解決ロジック（ja フォールバック + `{var}` 置換）。
+ *
+ * @param locale 省略時はブラウザ言語から検出する。
+ */
+export function createMarkdownT(namespace: Namespace, locale?: string) {
+  const resolved = locale ? resolveLocale(locale) : detectLocale();
+  const ns = messagesByLocale[resolved][namespace] as unknown as NsMessages;
   const fallbackNs = messagesByLocale['ja'][namespace] as unknown as NsMessages;
   return function t(key: string, vars?: Record<string, string | number>): string {
     const template = ns?.[key] ?? fallbackNs?.[key] ?? key;
     if (!vars) return template;
     return Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{${k}}`, String(v)), template);
   };
+}
+
+export function useMarkdownT(namespace: Namespace) {
+  const locale = useContext(MarkdownCoreLocaleContext) ?? detectLocale();
+  return createMarkdownT(namespace, locale);
 }
 
 export function useMarkdownLocale(): SupportedLocale {

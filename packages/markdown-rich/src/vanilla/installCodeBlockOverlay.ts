@@ -78,39 +78,35 @@ const DEFAULT_STYLE: CodeOverlayStyle = { editorBg: "white", fontSize: 16, lineH
 /** vanilla 確認ダイアログ（installBlockOverlays.confirmDelete と同パターン）。 */
 function confirmVanilla(t: (key: string) => string, message: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const titleId = nextDialogTitleId();
     let settled = false;
-    const settle = (result: boolean, close: () => void): void => {
-      if (!settled) {
-        settled = true;
-        resolve(result);
-      }
-      close();
+    const titleId = nextDialogTitleId();
+    const finish = (ok: boolean): void => {
+      if (settled) return;
+      settled = true;
+      cancelBtn.destroy();
+      okBtn.destroy();
+      dialog.destroy();
+      resolve(ok);
     };
-    const dialog = createDialog({
-      titleId,
-      onClose: () => {
-        if (!settled) {
-          settled = true;
-          resolve(false);
-        }
-        dialog.destroy();
-      },
-    });
-    const title = createDialogTitle({ id: titleId, text: t("delete") });
-    const content = createDialogContent({ text: message });
-    const cancelBtn = createButton({
-      text: t("cancel"),
-      onClick: () => settle(false, () => dialog.destroy()),
-    });
+    const cancelBtn = createButton({ label: t("cancel"), onClick: () => finish(false) });
     const okBtn = createButton({
-      text: t("delete"),
+      label: t("delete"),
       color: "error",
       variant: "contained",
-      onClick: () => settle(true, () => dialog.destroy()),
+      onClick: () => finish(true),
     });
-    const actions = createDialogActions({ children: [cancelBtn.el, okBtn.el] });
-    dialog.panel.append(title.el, content.el, actions.el);
+    const messageEl = document.createElement("div");
+    messageEl.textContent = message;
+    const dialog = createDialog({
+      onClose: () => finish(false),
+      labelledBy: titleId,
+      maxWidth: "xs",
+      children: [
+        createDialogTitle({ id: titleId, children: t("delete") }).el,
+        createDialogContent({ children: messageEl }).el,
+        createDialogActions({ children: [cancelBtn.el, okBtn.el] }).el,
+      ],
+    });
   });
 }
 
@@ -226,20 +222,17 @@ export function installCodeBlockOverlay(
   const openEmbedEdit = (): void => {
     const language = languageOf();
     const titleId = nextDialogTitleId();
-    const dialog = createDialog({ titleId, onClose: () => closeDialog() });
-    const title = createDialogTitle({ id: titleId, text: t("embed") });
     const field = createTextField({
       label: "URL",
       value: firstNonEmptyLine(node?.textContent ?? ""),
       fullWidth: true,
     });
-    const content = createDialogContent({ children: [field.el] });
-    const cancelBtn = createButton({ text: t("cancel"), onClick: () => closeDialog() });
+    const cancelBtn = createButton({ label: t("cancel"), onClick: () => closeDialog() });
     const applyBtn = createButton({
-      text: t("apply"),
+      label: t("apply"),
       variant: "contained",
       onClick: () => {
-        const url = field.getValue().trim();
+        const url = field.input.value.trim();
         if (url && pos >= 0 && node) {
           const variant = parseEmbedInfoString(language)?.variant ?? "card";
           const width = parseEmbedInfoString(language)?.width ?? null;
@@ -251,9 +244,25 @@ export function installCodeBlockOverlay(
         closeDialog();
       },
     });
-    const actions = createDialogActions({ children: [cancelBtn.el, applyBtn.el] });
-    dialog.panel.append(title.el, content.el, actions.el);
-    activeDialog = { el: dialog.panel, destroy: () => dialog.destroy() };
+    const dialog = createDialog({
+      onClose: () => closeDialog(),
+      labelledBy: titleId,
+      maxWidth: "sm",
+      children: [
+        createDialogTitle({ id: titleId, children: t("embed") }).el,
+        createDialogContent({ children: field.el }).el,
+        createDialogActions({ children: [cancelBtn.el, applyBtn.el] }).el,
+      ],
+    });
+    activeDialog = {
+      el: dialog.el,
+      destroy: () => {
+        field.destroy();
+        cancelBtn.destroy();
+        applyBtn.destroy();
+        dialog.destroy();
+      },
+    };
   };
 
   const openEdit = (): void => {

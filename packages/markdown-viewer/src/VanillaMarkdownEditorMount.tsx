@@ -27,6 +27,14 @@ import {
 export interface VanillaMarkdownEditorMountProps extends MountVanillaMarkdownEditorOptions {
   className?: string;
   style?: React.CSSProperties;
+  /**
+   * orchestrator の差し替え（既定は {@link mountVanillaMarkdownEditor}）。
+   * rich 注入版（markdown-rich の `mountVanillaRichMarkdownEditor`）を渡す consumer 用。
+   */
+  mount?: (
+    container: HTMLElement,
+    options: MountVanillaMarkdownEditorOptions,
+  ) => VanillaMarkdownEditorHandle;
 }
 
 /**
@@ -36,6 +44,7 @@ export interface VanillaMarkdownEditorMountProps extends MountVanillaMarkdownEdi
 export function VanillaMarkdownEditorMount({
   className,
   style,
+  mount,
   ...options
 }: Readonly<VanillaMarkdownEditorMountProps>): React.ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -47,7 +56,7 @@ export function VanillaMarkdownEditorMount({
     const container = containerRef.current;
     if (!container) return undefined;
     try {
-      handleRef.current = mountVanillaMarkdownEditor(container, options);
+      handleRef.current = (mount ?? mountVanillaMarkdownEditor)(container, options);
     } catch (error) {
       // mount 失敗は致命的でないが原因追跡のため握り潰さず出力する（seam の疎通診断）。
       console.error("[VanillaMarkdownEditorMount] mount failed", error);
