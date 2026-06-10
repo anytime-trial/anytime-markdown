@@ -5,7 +5,7 @@
  */
 
 import { StarterKit } from "@anytime-markdown/markdown-starter-kit";
-import { render, cleanup } from "@testing-library/react";
+import { render, cleanup, fireEvent } from "@testing-library/react";
 
 jest.mock("../buildEditorExtensions", () => ({
   buildEditorExtensions: () => [StarterKit],
@@ -59,5 +59,66 @@ describe("VanillaMarkdownEditorMount", () => {
     unmount();
     // unmount で destroy → root が外れる。
     expect(container.querySelector("[data-am-editor-root]")).toBeNull();
+  });
+
+  // 2026-06-10 レビュー指摘 9: EditorErrorBoundary 相当（フォールバック UI + VS Code Output 転送）の復元。
+  describe("mount エラーフォールバック（指摘 9）", () => {
+    const failingMount = (): never => {
+      throw new Error("boom");
+    };
+
+    afterEach(() => {
+      delete (globalThis as { __vscode?: unknown }).__vscode;
+    });
+
+    it("mount 失敗時に role=alert のフォールバック UI を表示する", () => {
+      const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+      const { getByRole } = render(<VanillaMarkdownEditorMount t={t} mount={failingMount} />);
+      expect(getByRole("alert")).toBeTruthy();
+      expect(getByRole("alert").textContent).toContain("エディタでエラーが発生しました");
+      consoleSpy.mockRestore();
+    });
+
+    it("mount 失敗を window.__vscode へ editorError として転送し onError を呼ぶ", () => {
+      const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+      const postMessage = jest.fn();
+      (globalThis as { __vscode?: unknown }).__vscode = { postMessage };
+      const onError = jest.fn();
+      render(<VanillaMarkdownEditorMount t={t} mount={failingMount} onError={onError} />);
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "editorError", message: "boom" }),
+      );
+      expect(onError).toHaveBeenCalledWith(expect.any(Error));
+      consoleSpy.mockRestore();
+    });
+
+    it("再読み込みボタンで mount を再試行し、成功すればフォールバックが消える", () => {
+      const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+      let calls = 0;
+      const mountOnceFailing = (containerEl: HTMLElement) => {
+        calls++;
+        if (calls === 1) throw new Error("boom");
+        const root = document.createElement("div");
+        root.setAttribute("data-am-editor-root", "");
+        containerEl.appendChild(root);
+        return {
+          editor: {} as never,
+          root,
+          update: jest.fn(),
+          destroy: jest.fn(),
+        };
+      };
+      const { getByRole, queryByRole, container } = render(
+        <VanillaMarkdownEditorMount t={t} mount={mountOnceFailing} />,
+      );
+      expect(getByRole("alert")).toBeTruthy();
+
+      fireEvent.click(getByRole("button"));
+
+      expect(queryByRole("alert")).toBeNull();
+      expect(container.querySelector("[data-am-editor-root]")).toBeTruthy();
+      expect(calls).toBe(2);
+      consoleSpy.mockRestore();
+    });
   });
 });

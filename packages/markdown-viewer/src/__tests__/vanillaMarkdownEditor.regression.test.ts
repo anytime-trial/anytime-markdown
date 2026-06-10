@@ -132,6 +132,92 @@ describe("mountVanillaMarkdownEditor regression（レビュー指摘 1/2/4）", 
     });
   });
 
+  describe("旧 useEditorShortcuts のファイル/モード系ショートカット（指摘 6）", () => {
+    it("Ctrl+O で onOpenFile が呼ばれる", () => {
+      const onOpenFile = jest.fn();
+      const handle = mountVanillaMarkdownEditor(container, { t, fileHandlers: { onOpenFile } });
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", ctrlKey: true, bubbles: true, cancelable: true }));
+      expect(onOpenFile).toHaveBeenCalled();
+      handle.destroy();
+    });
+
+    it("Ctrl+Shift+S で onSaveAsFile が呼ばれる", () => {
+      const onSaveAsFile = jest.fn();
+      const handle = mountVanillaMarkdownEditor(container, { t, fileHandlers: { onSaveAsFile } });
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "S", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }),
+      );
+      expect(onSaveAsFile).toHaveBeenCalled();
+      handle.destroy();
+    });
+
+    it("Ctrl+Shift+C で全文がクリップボードへコピーされる", async () => {
+      const writeText = jest.fn(() => Promise.resolve());
+      Object.defineProperty(globalThis.navigator, "clipboard", {
+        value: { writeText },
+        configurable: true,
+      });
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "C", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }),
+      );
+      expect(writeText).toHaveBeenCalledWith("MD");
+      handle.destroy();
+    });
+
+    it("Ctrl+Alt+N で onClear が呼ばれる", () => {
+      const onClear = jest.fn();
+      const handle = mountVanillaMarkdownEditor(container, { t, fileHandlers: { onClear } });
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "n", ctrlKey: true, altKey: true, bubbles: true, cancelable: true }),
+      );
+      expect(onClear).toHaveBeenCalled();
+      handle.destroy();
+    });
+
+    it("readOnly では Ctrl+Alt+N（編集系）が無効化される", () => {
+      const onClear = jest.fn();
+      const handle = mountVanillaMarkdownEditor(container, { t, readOnly: true, fileHandlers: { onClear } });
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "n", ctrlKey: true, altKey: true, bubbles: true, cancelable: true }),
+      );
+      expect(onClear).not.toHaveBeenCalled();
+      handle.destroy();
+    });
+
+    it("Ctrl+Alt+S で WYSIWYG → Source へモード循環する", () => {
+      const onModeChange = jest.fn();
+      const handle = mountVanillaMarkdownEditor(container, { t, onModeChange });
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "s", ctrlKey: true, altKey: true, bubbles: true, cancelable: true }),
+      );
+      expect(onModeChange).toHaveBeenCalledWith(expect.objectContaining({ sourceMode: true }));
+      handle.destroy();
+    });
+
+    it("destroy で document リスナーが解除される", () => {
+      const onOpenFile = jest.fn();
+      const handle = mountVanillaMarkdownEditor(container, { t, fileHandlers: { onOpenFile } });
+      handle.destroy();
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", ctrlKey: true, bubbles: true, cancelable: true }));
+      expect(onOpenFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("ツールバーのヘルプボタン（指摘 7）", () => {
+    it("ヘルプボタンでヘルプポップオーバー（versionInfo 項目）が開く", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      const helpBtn = container.querySelector<HTMLButtonElement>("[data-more-desktop] button");
+      expect(helpBtn).toBeTruthy();
+      helpBtn?.click();
+      // EditorMenuPopovers.openHelp はバージョン情報項目（t("versionInfo")）を含むメニューを開く。
+      expect(document.body.textContent).toContain("versionInfo");
+      // 設定パネル（EditorSettingsPanel）は開かない（旧暫定接続の回帰防止）。
+      expect(document.body.textContent).not.toContain("settingDarkMode");
+      handle.destroy();
+    });
+  });
+
   describe("debounce 保存の readOnly 再チェック（指摘 4）", () => {
     afterEach(() => {
       jest.useRealTimers();

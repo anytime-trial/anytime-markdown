@@ -796,8 +796,9 @@ export function mountVanillaMarkdownEditor(
             readonlyToggle:
               current.hide?.readonlyToggle ?? !(current.showReadonlyMode ?? false),
           },
-          // help（version/shortcut/settings）は settings パネルを開く intent に暫定接続。
-          onSetHelpAnchor: () => openSettings(),
+          // help ボタンはヘルプポップオーバー（outline/comment/settings/version メニュー）を開く。
+          // menuPopovers は後段で生成されるが、クリック時には初期化済み（TDZ は実行順で解消）。
+          onSetHelpAnchor: (el) => menuPopovers.openHelp(el),
         };
         toolbar = createEditorToolbar(toolbarOptions);
         toolbarSlot.appendChild(toolbar.el);
@@ -845,6 +846,7 @@ export function mountVanillaMarkdownEditor(
         fileName: current.fileName ?? fileOps.getFileName(),
         onStatusChange: current.onStatusChange,
         hidden: current.hideStatusBar,
+        getSourceTextarea: () => sourceController?.getTextarea() ?? null,
       });
       statusBarSlot.appendChild(statusBar.el);
       disposers.push(() => statusBar?.destroy());
@@ -1040,6 +1042,59 @@ export function mountVanillaMarkdownEditor(
       };
       editor.view.dom.addEventListener("keydown", onShortcutKeyDown);
       disposers.push(() => editor.view.dom.removeEventListener("keydown", onShortcutKeyDown));
+
+      // === shortcuts（document への keydown・旧 useEditorShortcuts のファイル/モード系） ===
+      // source モード（editor.view.dom 非表示）でも効かせるため document へ装着する。
+      // mod+Shift+S=名前を付けて保存 / mod+Shift+C=全文コピー / mod+O=開く /
+      // mod+Alt+S=4モード循環 / mod+Alt+M=merge 切替 / mod+Alt+N=クリア。
+      const copyAllMarkdown = (): void => {
+        const md = fileOps.getFullMarkdown();
+        void navigator.clipboard?.writeText(md).then(() => {
+          layout.liveRegion.textContent = t("copiedToClipboard");
+        });
+      };
+      const onGlobalShortcutKeyDown = (e: KeyboardEvent): void => {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        const key = e.key.toLowerCase();
+        // mod+Shift 系（Alt なし）。
+        if (e.shiftKey && !e.altKey) {
+          if (key === "s") {
+            e.preventDefault();
+            fileHandlers.onSaveAsFile?.();
+          } else if (key === "c") {
+            e.preventDefault();
+            copyAllMarkdown();
+          }
+          return;
+        }
+        // mod+Alt 系（Shift なし）。
+        if (e.altKey && !e.shiftKey) {
+          if (key === "s") {
+            // 4 モード循環: Readonly → Review → Edit → Source → Readonly（旧実装と同一）。
+            e.preventDefault();
+            if (modeState.readonlyMode) modeHandlers.onSwitchToReview();
+            else if (modeState.reviewMode) modeHandlers.onSwitchToWysiwyg();
+            else if (modeState.sourceMode) modeHandlers.onSwitchToReadonly();
+            else modeHandlers.onSwitchToSource();
+          } else if (modeState.readonlyMode || modeState.reviewMode) {
+            // readonly / review では編集系（merge / clear）を無効化（旧実装と同一）。
+          } else if (key === "m") {
+            e.preventDefault();
+            modeHandlers.onMerge();
+          } else if (key === "n") {
+            e.preventDefault();
+            fileHandlers.onClear();
+          }
+          return;
+        }
+        // mod 単独系（Alt / Shift なし）。mod+S / mod+K は editor.view.dom 側で処理する。
+        if (!e.altKey && key === "o") {
+          e.preventDefault();
+          fileHandlers.onOpenFile?.();
+        }
+      };
+      document.addEventListener("keydown", onGlobalShortcutKeyDown);
+      disposers.push(() => document.removeEventListener("keydown", onGlobalShortcutKeyDown));
 
       // === block overlay（gif/image/table の DialogHost 3 を vanilla 配線） =====
       const blockOverlays = installBlockOverlays(editor, {
