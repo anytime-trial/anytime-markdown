@@ -653,6 +653,8 @@ export function mountVanillaMarkdownEditor(
 
       // === merge（比較）モード state（useMergeMode 相当・パネルは syncMergeView） ==
       let compareFileContent: string | null = null;
+      // update() 経由で最後に適用した externalCompareContent（遷移検知用。null=外部比較なし）。
+      let lastExternalCompareContent: string | null = null;
       let editorMarkdown = "";
       let clearDiffTimer: ReturnType<typeof setTimeout> | null = null;
       const notifyCompareMode = (): void =>
@@ -1129,8 +1131,19 @@ export function mountVanillaMarkdownEditor(
         if (patch.fileName !== undefined) {
           statusBar?.update({ fileName: patch.fileName });
         }
-        if (patch.externalCompareContent != null) {
-          applyExternalCompareContent(patch.externalCompareContent);
+        // externalCompareContent は遷移（値の変化）でのみ反映する。Mount ラッパは live patch の
+        // たびに現値（null 含む）を相乗りさせるため、無変化の null で閉じたり同値を再適用しない。
+        // 非 null → null の遷移は「compare モードを閉じる」信号として扱う。
+        if (
+          patch.externalCompareContent !== undefined &&
+          patch.externalCompareContent !== lastExternalCompareContent
+        ) {
+          lastExternalCompareContent = patch.externalCompareContent;
+          if (patch.externalCompareContent === null) {
+            setInlineMergeOpen(false);
+          } else {
+            applyExternalCompareContent(patch.externalCompareContent);
+          }
         }
         // themeMode / presetName は SettingsPanel open 時に current から読むため保持のみ。
       };
@@ -1139,6 +1152,7 @@ export function mountVanillaMarkdownEditor(
       });
 
       // 初期 externalCompareContent（mount 直後に比較モードを開く）。
+      lastExternalCompareContent = current.externalCompareContent ?? null;
       if (current.externalCompareContent != null) {
         applyExternalCompareContent(current.externalCompareContent);
       }

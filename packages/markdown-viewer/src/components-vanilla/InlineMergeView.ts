@@ -101,7 +101,13 @@ export interface CreateInlineMergeViewOptions {
    * （rich の CodeBlockWithMermaid）。
    */
   codeBlockExtension?: AnyExtension;
-  /** 外部から渡す比較コンテンツ（VS Code 拡張のファイル読込）。consumed 後に onCompareContentConsumed。 */
+  /**
+   * 外部から渡す比較コンテンツ（VS Code 拡張のファイル読込）。consumed 後に onCompareContentConsumed。
+   *
+   * consume 契約: `null` は「新しい外部コンテンツなし」を意味する no-op（orchestrator は消費後
+   * null を渡し続けるため、null でのクリアは行わない）。比較テキストを空にするには
+   * 空文字 `""` を明示的に渡す。
+   */
   compareContent?: string | null;
   /** compareContent を消費したことを親へ通知する（1 回限り反映用）。 */
   onCompareContentConsumed?: () => void;
