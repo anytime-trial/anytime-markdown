@@ -32,3 +32,7 @@ export type {
   CreateFullscreenDiffDialogOptions,
   FullscreenDiffDialogHandle,
 } from "./createFullscreenDiffDialog";
+
+export { createGraphPreview } from "./createGraphPreview";
+export { parseGraphCode } from "./graphRender";
+export type { GraphRenderState, GraphRenderHandle, GraphRenderCallback } from "./graphRender";

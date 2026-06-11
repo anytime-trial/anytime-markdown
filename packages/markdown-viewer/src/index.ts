@@ -187,3 +187,7 @@ export { enMessages as messagesEn, jaMessages as messagesJa } from './i18n';
 
 // 脱React G3: vanilla consumer 配線用（初期コンテンツ）
 export { getDefaultContent } from './constants/defaultContent';
+
+// Embed プレビュー vanilla 実装（T2: webview 脱 React — embed プレビュー vanilla 化）
+export { setEmbedProviders, getEmbedProviders } from './embedProviders';
+export { createEmbedPreview } from './components-vanilla/embed/createEmbedPreview';
