@@ -20,6 +20,8 @@
       "@/*": ["../markdown-viewer/src/*"],
       "@anytime-markdown/markdown-viewer/src/*": ["../markdown-viewer/src/*"],
       "@anytime-markdown/markdown-viewer": ["../markdown-viewer/src/index.ts"],
+      "@anytime-markdown/markdown-react-islands/src/*": ["../markdown-react-islands/src/*"],
+      "@anytime-markdown/markdown-react-islands": ["../markdown-react-islands/src/index.ts"],
       "@anytime-markdown/markdown-engine": ["../markdown-engine/src/index.ts"],
       "@anytime-markdown/markdown-rich/src/*": ["../markdown-rich/src/*"],
       "@anytime-markdown/markdown-rich": ["../markdown-rich/src/index.ts"],
