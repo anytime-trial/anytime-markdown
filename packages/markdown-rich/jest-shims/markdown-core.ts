@@ -16,8 +16,6 @@ export {
   getMergeEditors,
 } from "../../markdown-viewer/src/contexts/MergeEditorsContext";
 
-export { createMarkdownT } from "../../markdown-viewer/src/i18n/createMarkdownT";
-
 export { DEFAULT_SETTINGS } from "../../markdown-viewer/src/editorSettings";
 export type { EditorSettings } from "../../markdown-viewer/src/editorSettings";
 
@@ -61,12 +59,6 @@ export {
 } from "../../markdown-viewer/src/constants/samples";
 
 export { FETCH_TIMEOUT } from "../../markdown-viewer/src/constants/timing";
-
-export {
-  DURATION_FAST,
-  getSplitterSx,
-  REDUCED_MOTION_SX,
-} from "../../markdown-viewer/src/constants/uiPatterns";
 
 export { getHljsCssVars, getHljsStyles } from "../../markdown-viewer/src/styles/codeStyles";
 

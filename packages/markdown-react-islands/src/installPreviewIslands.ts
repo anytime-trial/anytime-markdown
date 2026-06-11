@@ -8,16 +8,20 @@
  * consumer は、embed / graph プレビューを表示するために本関数を一度呼ぶこと。
  */
 
-import { registerPreviewIslands } from "@anytime-markdown/markdown-rich/src/components/codeblock/previewIslands";
+import {
+  getPreviewIslands,
+  registerPreviewIslands,
+} from "@anytime-markdown/markdown-rich/src/components/codeblock/previewIslands";
 
 import { mountEmbedPreview } from "./rich/embedPreviewMount";
 import { mountGraphPreview } from "./rich/graphPreviewMount";
 
-let installed = false;
-
-/** PreviewIslands を登録する（冪等）。 */
+/**
+ * PreviewIslands を登録する（冪等）。
+ * 冪等判定はレジストリ自身の状態で行う（自前フラグだとテスト teardown の
+ * `registerPreviewIslands(null)` 後に再登録できなくなるため）。
+ */
 export function installPreviewIslands(): void {
-  if (installed) return;
-  installed = true;
+  if (getPreviewIslands()) return;
   registerPreviewIslands({ mountEmbedPreview, mountGraphPreview });
 }

@@ -29,6 +29,3 @@ export { default as FullPageLoader } from "./components/loader/FullPageLoader";
 
 // embed / graph プレビュー island の手動登録（orchestrator 直接 mount の consumer 用）
 export { installPreviewIslands } from "./installPreviewIslands";
-
-// embed NodeView（embedPreviewMount 経由で使用。直接利用は想定しない）
-export { EmbedNodeView } from "./components/EmbedNodeView";

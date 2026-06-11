@@ -1,6 +1,6 @@
 'use client';
 
-import { EmbedProvidersProvider } from '@anytime-markdown/markdown-react-islands';
+import { EmbedProvidersProvider } from '@anytime-markdown/markdown-react-islands/src/contexts/EmbedProvidersContext';
 import type {
   EmbedProviders,
   OembedData,

@@ -1,9 +1,9 @@
 import { render } from "@testing-library/react";
 import React from "react";
 
-jest.mock("@anytime-markdown/markdown-react-islands", () => ({
+jest.mock("@anytime-markdown/markdown-react-islands/src/components/loader/FullPageLoader", () => ({
   __esModule: true,
-  FullPageLoader: () => <div data-testid="loader">Loading...</div>,
+  default: () => <div data-testid="loader">Loading...</div>,
 }));
 
 import Loading from "../app/loading";

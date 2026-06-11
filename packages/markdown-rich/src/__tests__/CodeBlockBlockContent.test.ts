@@ -25,7 +25,6 @@ import {
 } from "../components/codeblock/CodeBlockBlockContent";
 import {
   registerPreviewIslands,
-  resetPreviewIslands,
 } from "../components/codeblock/previewIslands";
 
 // React island（embed/graph マウント）はレジストリへスタブを登録して検証する。
@@ -37,7 +36,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  resetPreviewIslands();
+  registerPreviewIslands(null);
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -34,7 +34,6 @@ export {
 export {
   registerPreviewIslands,
   getPreviewIslands,
-  resetPreviewIslands,
   type PreviewIslands,
 } from "./components/codeblock/previewIslands";
 export type { EmbedMountHandle, GraphMountHandle } from "./components/codeblock/previewContracts";

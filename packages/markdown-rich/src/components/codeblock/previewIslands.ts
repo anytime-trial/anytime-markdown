@@ -30,7 +30,7 @@ let _islands: PreviewIslands | null = null;
 /**
  * React island 実装を登録する。
  * `markdown-react-islands` パッケージの初期化時に呼び出す。
- * `null` を渡すと未登録状態にリセットする（テスト用）。
+ * `null` を渡すと未登録状態に戻す（テスト teardown 用）。
  */
 export function registerPreviewIslands(impl: PreviewIslands | null): void {
   _islands = impl;
@@ -42,12 +42,4 @@ export function registerPreviewIslands(impl: PreviewIslands | null): void {
  */
 export function getPreviewIslands(): PreviewIslands | null {
   return _islands;
-}
-
-/**
- * テスト用: 登録状態を null にリセットする。
- * プロダクションコードでは使用しないこと。
- */
-export function resetPreviewIslands(): void {
-  _islands = null;
 }

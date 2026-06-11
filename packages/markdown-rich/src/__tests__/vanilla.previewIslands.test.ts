@@ -8,11 +8,10 @@ import type { EmbedMountHandle, GraphMountHandle } from "../components/codeblock
 import {
   getPreviewIslands,
   registerPreviewIslands,
-  resetPreviewIslands,
 } from "../components/codeblock/previewIslands";
 
 afterEach(() => {
-  resetPreviewIslands();
+  registerPreviewIslands(null);
 });
 
 describe("previewIslands レジストリ", () => {
@@ -24,7 +23,7 @@ describe("previewIslands レジストリ", () => {
     expect(getPreviewIslands()).toBeNull();
     registerPreviewIslands(impl);
     expect(getPreviewIslands()).toBe(impl);
-    resetPreviewIslands();
+    registerPreviewIslands(null);
     expect(getPreviewIslands()).toBeNull();
   });
 
