@@ -58,6 +58,9 @@ import {
   type VanillaEditorMode,
 } from "./sourceModeController";
 import { installBlockOverlays } from "../chrome/installBlockOverlays";
+import { injectEditorContentCss } from "../styles/editorContentCss";
+import { getEditorBg, getEditorText } from "../constants/colors";
+import { calcPaperContentWidth } from "../constants/dimensions";
 import { createEditorBubbleMenu } from "../components-vanilla/EditorBubbleMenu";
 import { createStatusBar, type StatusInfo } from "../components-vanilla/StatusBar";
 import {
@@ -310,6 +313,7 @@ function applyEditorSettings(
   root.style.setProperty("--am-editor-table-width", settings.tableWidth);
   root.dataset.blockAlign = settings.blockAlign;
   root.dataset.paperSize = settings.paperSize;
+  root.dataset.tableWidth = settings.tableWidth;
   root.style.setProperty("--am-paper-margin", `${settings.paperMargin}mm`);
 }
 
@@ -429,9 +433,31 @@ export function mountVanillaMarkdownEditor(
         root.style.setProperty("--am-code-font-size", `${effectiveSettings().fontSize}px`);
         root.style.setProperty("--am-code-line-height", `${effectiveSettings().lineHeight}`);
       };
+      /**
+       * コンテンツ装飾 CSS（styles/editorContentCss・旧 GlobalStyle 注入の置換）と、
+       * その CSS が参照するテーマ × 設定依存の CSS 変数（背景・文字色・用紙幅）を適用する。
+       */
+      const applyContentCssVars = (): void => {
+        const isDark = current.themeMode === "dark";
+        const s = effectiveSettings();
+        injectEditorContentCss(isDark);
+        root.style.setProperty("--am-editor-text", getEditorText(isDark, s));
+        const editorBg = getEditorBg(isDark, s);
+        root.style.setProperty("--am-editor-bg", editorBg);
+        // 用紙サイズ有効時は外側を少し暗く/明るくして用紙境界を示す（旧 getEditorPaperSx と同値）
+        const paperBg = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)";
+        root.style.setProperty("--am-editor-outer-bg", s.paperSize === "off" ? editorBg : paperBg);
+        if (s.paperSize !== "off") {
+          root.style.setProperty(
+            "--am-paper-max-width",
+            `${calcPaperContentWidth(s.paperSize, s.paperMargin)}px`,
+          );
+        }
+      };
       const applyAllSettings = (): void => {
         applyEditorSettings(editor, root, effectiveSettings(), readonlyNow());
         applyCodeCssVars();
+        applyContentCssVars();
       };
       applyAllSettings();
       setTrailingNewline(editor, initialTrailingNewline);
@@ -1118,6 +1144,9 @@ export function mountVanillaMarkdownEditor(
         }
         if (patch.settings) {
           settings = { ...settings, ...patch.settings };
+        }
+        // themeMode はコンテンツ CSS（ダーク/ライト埋め込み色）と背景・文字色変数に影響する。
+        if (patch.settings || patch.themeMode !== undefined) {
           applyAllSettings();
         }
         if (patch.fileName !== undefined) {
