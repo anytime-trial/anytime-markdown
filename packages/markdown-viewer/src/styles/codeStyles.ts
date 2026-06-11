@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react";
-
 import {
   DEFAULT_DARK_BG, DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_CODE_BG,
   DEFAULT_LIGHT_INLINE_CODE,
@@ -33,7 +31,7 @@ export function getHljsStyles(isDark: boolean) {
  * を CSS 変数参照にして、テーマ依存色を inline style で受けるための対。`getHljsStyles` の
  * CSS-Module 版。
  */
-export function getHljsCssVars(isDark: boolean): CSSProperties {
+export function getHljsCssVars(isDark: boolean): Record<string, string> {
   const h = isDark ? HLJS_DARK : HLJS_LIGHT;
   return {
     "--hljs-keyword": h.keyword,
@@ -47,7 +45,7 @@ export function getHljsCssVars(isDark: boolean): CSSProperties {
     "--hljs-addition-bg": h.additionBg,
     "--hljs-deletion": h.deletion,
     "--hljs-deletion-bg": h.deletionBg,
-  } as CSSProperties;
+  };
 }
 
 /** インラインコード・コードブロック・シンタックスハイライトスタイル */

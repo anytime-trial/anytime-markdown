@@ -16,21 +16,10 @@ export {
   getMergeEditors,
 } from "../../markdown-viewer/src/contexts/MergeEditorsContext";
 
-export { useMarkdownT } from "../../markdown-viewer/src/i18n/context";
+export { createMarkdownT } from "../../markdown-viewer/src/i18n/createMarkdownT";
 
-export { useTextareaSearch } from "../../markdown-viewer/src/hooks/useTextareaSearch";
-export type {
-  TextareaSearchMatch,
-  TextareaSearchState,
-} from "../../markdown-viewer/src/hooks/useTextareaSearch";
-
-export {
-  DEFAULT_SETTINGS,
-  EditorSettingsContext,
-  useEditorSettings,
-  useEditorSettingsContext,
-} from "../../markdown-viewer/src/useEditorSettings";
-export type { EditorSettings } from "../../markdown-viewer/src/useEditorSettings";
+export { DEFAULT_SETTINGS } from "../../markdown-viewer/src/editorSettings";
+export type { EditorSettings } from "../../markdown-viewer/src/editorSettings";
 
 export {
   CAPTURE_BG,

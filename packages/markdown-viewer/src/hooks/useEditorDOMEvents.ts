@@ -1,7 +1,7 @@
 import type { Slice } from "@anytime-markdown/markdown-pm/model";
 import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 import type { Editor } from "@anytime-markdown/markdown-core";
-import type { RefObject } from "react";
+import type { MutableRefLike } from "../types";
 
 import { getCopiedBlockNode, handleBlockClipboardEvent, performBlockCopy, setHandledByKeydown } from "../utils/blockClipboard";
 import { handleAnchorLinkClick, handleBlockContextMenu,handleReviewCheckboxClick } from "../utils/editorClickHandlers";
@@ -14,9 +14,9 @@ interface HeadingMenuArg {
 }
 
 interface EditorDOMHandlersParams {
-  editorRef: RefObject<Editor | null>;
-  handleImportRef: RefObject<(file: File, nativeHandle?: FileSystemFileHandle) => void | Promise<void>>;
-  onFileDragOverRef: RefObject<(over: boolean) => void>;
+  editorRef: MutableRefLike<Editor | null>;
+  handleImportRef: MutableRefLike<(file: File, nativeHandle?: FileSystemFileHandle) => void | Promise<void>>;
+  onFileDragOverRef: MutableRefLike<(over: boolean) => void>;
   saveContent: (md: string) => void;
   setHeadingMenu: (menu: HeadingMenuArg) => void;
 }

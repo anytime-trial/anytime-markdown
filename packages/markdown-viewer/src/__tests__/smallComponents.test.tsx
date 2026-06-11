@@ -15,22 +15,6 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock("../useEditorSettings", () => ({
-  EditorSettingsContext: React.createContext({}),
-  useEditorSettingsContext: () => ({
-    fontSize: 14,
-    lineHeight: 1.6,
-    fontFamily: "sans-serif",
-    blockAlign: "left",
-    tableWidth: "100%",
-  }),
-  useEditorSettings: () => ({
-    settings: { fontSize: 14 },
-    updateSettings: jest.fn(),
-    resetSettings: jest.fn(),
-  }),
-}));
-
 jest.mock("../constants/colors", () => ({
   DEFAULT_DARK_BG: "#1e1e1e",
   DEFAULT_LIGHT_BG: "#fff",

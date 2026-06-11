@@ -1,22 +1,17 @@
 import type { ReactNode } from 'react';
 import { createContext, useContext, useMemo } from 'react';
 
-import enMessages from './en.json';
-import jaMessages from './ja.json';
+import {
+  createMarkdownT,
+  detectLocale,
+  type MarkdownNamespace,
+  resolveLocale,
+  type SupportedLocale,
+} from './createMarkdownT';
 
-type SupportedLocale = 'ja' | 'en';
-type Namespace = 'MarkdownEditor' | 'Common' | 'Landing' | 'VsCode' | 'Privacy';
-type NsMessages = Record<string, string>;
-
-const messagesByLocale: Record<SupportedLocale, typeof jaMessages> = { ja: jaMessages, en: enMessages };
-
-function resolveLocale(locale: string): SupportedLocale {
-  return locale.startsWith('ja') ? 'ja' : 'en';
-}
-
-function detectLocale(): SupportedLocale {
-  return typeof navigator !== 'undefined' && navigator.language.startsWith('ja') ? 'ja' : 'en';
-}
+// 純粋ロジック（locale 解決 + translator 生成）は ./createMarkdownT が単一ソース。
+// 本ファイルは React context 結合部のみ（island 移設対象）。
+export { createMarkdownT };
 
 const MarkdownCoreLocaleContext = createContext<SupportedLocale | null>(null);
 
@@ -38,24 +33,7 @@ export function MarkdownCoreI18nProvider({ locale, children }: Readonly<Markdown
   );
 }
 
-/**
- * React 非依存の translator（vanilla orchestrator / consumer 配線用）。
- * `useMarkdownT` と同一の解決ロジック（ja フォールバック + `{var}` 置換）。
- *
- * @param locale 省略時はブラウザ言語から検出する。
- */
-export function createMarkdownT(namespace: Namespace, locale?: string) {
-  const resolved = locale ? resolveLocale(locale) : detectLocale();
-  const ns = messagesByLocale[resolved][namespace] as unknown as NsMessages;
-  const fallbackNs = messagesByLocale['ja'][namespace] as unknown as NsMessages;
-  return function t(key: string, vars?: Record<string, string | number>): string {
-    const template = ns?.[key] ?? fallbackNs?.[key] ?? key;
-    if (!vars) return template;
-    return Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{${k}}`, String(v)), template);
-  };
-}
-
-export function useMarkdownT(namespace: Namespace) {
+export function useMarkdownT(namespace: MarkdownNamespace) {
   const locale = useContext(MarkdownCoreLocaleContext) ?? detectLocale();
   return createMarkdownT(namespace, locale);
 }

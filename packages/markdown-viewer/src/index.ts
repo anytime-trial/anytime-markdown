@@ -1,5 +1,6 @@
 // Main page component
-export { createMarkdownT, MarkdownCoreI18nProvider, useMarkdownT } from './i18n/context';
+export { createMarkdownT } from './i18n/createMarkdownT';
+export { MarkdownCoreI18nProvider, useMarkdownT } from './i18n/context';
 
 // 脱React G3: vanilla orchestrator + mount 用の React ラッパ（consumer が editor を mount する）
 export {
@@ -12,17 +13,9 @@ export {
   type VanillaMarkdownEditorMountProps,
 } from './VanillaMarkdownEditorMount';
 
-// Hooks
-export { useMergeDiff } from './hooks/useMergeDiff';
-export type { TextareaSearchMatch, TextareaSearchState } from './hooks/useTextareaSearch';
-export { useTextareaSearch } from './hooks/useTextareaSearch';
+// Editor settings（React 非依存の単一ソース）
 export type { EditorSettings } from './editorSettings';
 export { DEFAULT_SETTINGS } from './editorSettings';
-export {
-  EditorSettingsContext,
-  useEditorSettings,
-  useEditorSettingsContext,
-} from './useEditorSettings';
 // Vanilla chrome primitives（脱React・Phase3 ホスト隔離）。他 viewer（rich 等）が共有する。
 export type { SelectedBlockSnapshot, BlockChromeAnchorHandle } from './chrome/blockChrome';
 export {
@@ -54,7 +47,7 @@ export type { VanillaEditorHostHandle, VanillaEditorHostOptions } from './host/v
 export { createVanillaEditorHost } from './host/vanillaEditorHost';
 // Vanilla ui プリミティブ（F・脱React ui kit。chrome/host が消費する素 DOM 部品）。
 export * from './ui-vanilla';
-export type { DarkDiagramPrintPreparer } from './hooks/usePdfExport';
+export type { DarkDiagramPrintPreparer } from './types/pdf';
 
 // Components（rich の embed プレビューが消費する NodeView のみ残存）
 export { EmbedNodeView } from './components/EmbedNodeView';
@@ -83,16 +76,14 @@ export type {
   HeadingItem,
   MarkdownStorage,
   MdSerializerState,
+  MutableRefLike,
   OutlineKind,
-  PlantUmlToolbarContextValue,
 } from './types';
 export {
   extractHeadings,
   getEditorStorage,
   getMarkdownFromEditor,
   getMarkdownStorage,
-  PlantUmlToolbarContext,
-  usePlantUmlToolbar,
 } from './types';
 export type { FileHandle, FileOpenResult, FileSystemProvider } from './types/fileSystem';
 export type {
@@ -191,7 +182,6 @@ export { EMBED_DATA_ATTR, installEmbedFenceRenderer } from './utils/embedFenceRe
 export { getHljsCssVars, getHljsStyles } from './styles/codeStyles';
 
 // Icons
-export { default as MermaidIcon } from './icons/MermaidIcon';
 
 // Contexts
 export { findCodeBlockByIndex, findCounterpartCode, getCodeBlockIndex, getMergeEditors } from './contexts/MergeEditorsContext';

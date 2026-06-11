@@ -1,6 +1,6 @@
 import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 import type { Editor } from "@anytime-markdown/markdown-core";
-import type { RefObject } from "react";
+import type { MutableRefLike } from "../types";
 
 import { reviewModeStorage } from "../extensions/reviewModeExtension";
 import {
@@ -18,7 +18,7 @@ interface HeadingMenuArg {
 /** レビューモード時のチェックボックス操作を ProseMirror ドキュメントに反映 */
 export function handleReviewCheckboxClick(
   target: HTMLElement,
-  editorRef: RefObject<Editor | null>,
+  editorRef: MutableRefLike<Editor | null>,
   saveContent: (md: string) => void,
 ): boolean {
   const isFilterActive = editorRef.current ? reviewModeStorage(editorRef.current).enabled : false;
@@ -75,7 +75,7 @@ export function jumpToAnchorHeading(editor: Editor, anchorEl: HTMLAnchorElement)
 export function handleAnchorLinkClick(
   target: HTMLElement,
   event: MouseEvent,
-  editorRef: RefObject<Editor | null>,
+  editorRef: MutableRefLike<Editor | null>,
 ): boolean {
   const anchorEl = target.closest("a[href^='#']") as HTMLAnchorElement | null;
   if (!anchorEl) return false;
@@ -107,7 +107,7 @@ export function handleBlockContextMenu(
   target: HTMLElement,
   event: MouseEvent,
   view: EditorView,
-  editorRef: RefObject<Editor | null>,
+  editorRef: MutableRefLike<Editor | null>,
   setHeadingMenu: (menu: HeadingMenuArg) => void,
 ): boolean {
   const headingEl = target.closest("h1, h2, h3, h4, h5") as HTMLElement | null;
