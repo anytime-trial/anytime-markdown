@@ -7,6 +7,16 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
+jest.mock("@anytime-markdown/markdown-react-islands", () => ({
+  ConfirmProvider: ({ children }: { children: unknown }) => children,
+  ThemeModeProvider: ({ children }: { children: unknown }) => children,
+  MarkdownCoreI18nProvider: ({ children }: { children: unknown }) => children,
+  EmbedProvidersProvider: ({ children }: { children: unknown }) => children,
+  VanillaMarkdownEditorMount: () => null,
+  FullPageLoader: () => null,
+  installPreviewIslands: jest.fn(),
+}));
+
 jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));

@@ -1,4 +1,4 @@
-import FullPageLoader from '@anytime-markdown/markdown-viewer/src/components/loader/FullPageLoader';
+import { FullPageLoader } from '@anytime-markdown/markdown-react-islands';
 
 export default function Loading() {
   return <FullPageLoader />;

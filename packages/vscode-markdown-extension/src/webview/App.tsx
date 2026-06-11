@@ -3,8 +3,8 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import type { PaletteMode } from '@mui/material';
 import CssBaseline from '@mui/material/CssBaseline';
 import { getVsCodeApi } from './vscodeApi';
-import { ACCENT_COLOR, applyEditorThemeCssVars, ConfirmProvider, createMarkdownT, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getPreset, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS, ThemeModeProvider, VanillaMarkdownEditorMount, type ThemePresetName } from '@anytime-markdown/markdown-viewer';
-import { EmbedProvidersProvider } from '@anytime-markdown/markdown-viewer/src/contexts/EmbedProvidersContext';
+import { ACCENT_COLOR, applyEditorThemeCssVars, createMarkdownT, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG, getPreset, STORAGE_KEY_CONTENT, STORAGE_KEY_SETTINGS, type ThemePresetName } from '@anytime-markdown/markdown-viewer';
+import { ConfirmProvider, EmbedProvidersProvider, ThemeModeProvider, VanillaMarkdownEditorMount } from '@anytime-markdown/markdown-react-islands';
 // 脱React G4: vanilla orchestrator（rich codeblock 注入版）へ一本化
 import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/src/vanilla/mountVanillaRichMarkdownEditor';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
