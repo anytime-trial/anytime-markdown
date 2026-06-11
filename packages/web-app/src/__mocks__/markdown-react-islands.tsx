@@ -14,4 +14,3 @@ export const ThemeModeProvider = passthrough;
 export const MarkdownCoreI18nProvider = passthrough;
 export const VanillaMarkdownEditorMount = (): null => null;
 export const FullPageLoader = (): null => null;
-export const installPreviewIslands = jest.fn();
