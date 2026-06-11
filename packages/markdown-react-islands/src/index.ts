@@ -8,7 +8,7 @@
  * 本パッケージへ隔離している。consumer（web-app / vscode webview）はここから import する。
  */
 
-// エディタ mount の React ラッパ（mount 前に PreviewIslands を自動登録する）
+// エディタ mount の React ラッパ
 export {
   VanillaMarkdownEditorMount,
   type VanillaMarkdownEditorMountProps,
@@ -18,14 +18,7 @@ export {
 export { ConfirmContext, ConfirmProvider } from "./providers/ConfirmProvider";
 export type { ThemeMode } from "./contexts/ThemeModeContext";
 export { ThemeModeProvider, useIsDark, useThemeMode } from "./contexts/ThemeModeContext";
-export {
-  EmbedProvidersProvider,
-  useOptionalEmbedProviders,
-} from "./contexts/EmbedProvidersContext";
 export { MarkdownCoreI18nProvider, useMarkdownLocale, useMarkdownT } from "./i18n/context";
 
 // ローディング画面（web-app の loading.tsx が使用）
 export { default as FullPageLoader } from "./components/loader/FullPageLoader";
-
-// embed / graph プレビュー island の手動登録（orchestrator 直接 mount の consumer 用）
-export { installPreviewIslands } from "./installPreviewIslands";

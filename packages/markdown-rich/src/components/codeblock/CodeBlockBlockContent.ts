@@ -3,6 +3,8 @@ import type { NodeView } from "@anytime-markdown/markdown-pm/view";
 import { PREVIEW_MAX_HEIGHT } from "@anytime-markdown/markdown-viewer";
 import { safeGetPos as wrapGetPos } from "@anytime-markdown/markdown-viewer/src/utils/safeGetPos";
 
+import { createEmbedPreview } from "@anytime-markdown/markdown-viewer/src/components-vanilla/embed/createEmbedPreview";
+
 import { renderCodeBlockPreview } from "./codeBlockPreview";
 import {
   buildEmbedBaselineLanguage,
@@ -12,7 +14,7 @@ import {
   isEmbedResizable,
 } from "./previewContracts";
 import type { GraphMountHandle } from "./previewContracts";
-import { getPreviewIslands } from "./previewIslands";
+import { createGraphPreview } from "../../vanilla/createGraphPreview";
 import type { EmbedBaseline } from "@anytime-markdown/markdown-viewer";
 
 /**
@@ -31,8 +33,8 @@ import type { EmbedBaseline } from "@anytime-markdown/markdown-viewer";
  * 段階導入: S2a=骨格、S2b=string プレビュー(html/math/mermaid/plantuml)+リサイズ
  * （本コミット）、S2c=embed、S4=graph/zoom。
  *
- * embed / graph のプレビューは `PreviewIslands`（React island）経由でマウントする。
- * `registerPreviewIslands` 未呼び出し時はプレビューなしで劣化動作する。
+ * embed / graph のプレビューは vanilla 実装（viewer `createEmbedPreview` / rich `createGraphPreview`）を
+ * 直接マウントする。embed の外部 fetch は `setEmbedProviders`（viewer）で consumer が注入する。
  */
 
 /** ダブルクリック等の「全画面編集を開きたい」意図を overlay へ伝える DOM イベント名 */
@@ -74,21 +76,6 @@ function getEditorFontSize(el: Element): number {
   if (typeof document === "undefined") return 16;
   const v = Number.parseFloat(getComputedStyle(el).getPropertyValue("--am-code-font-size"));
   return Number.isFinite(v) && v > 0 ? v : 16;
-}
-
-/** PreviewIslands 未登録を一度だけ警告するためのフラグ（モジュールスコープ）。 */
-let _warnedIslandsUnregistered = false;
-
-/** PreviewIslands が未登録の場合に一度だけ console.warn を出す。 */
-function warnIslandsUnregistered(): void {
-  if (_warnedIslandsUnregistered) return;
-  _warnedIslandsUnregistered = true;
-  // eslint-disable-next-line no-console
-  console.warn(
-    `[${new Date().toISOString()}] [markdown-rich] PreviewIslands が未登録です。` +
-    " embed / graph プレビューは表示されません。" +
-    " registerPreviewIslands() を呼び出してください。",
-  );
 }
 
 export function createCodeBlockNodeView(
@@ -213,15 +200,9 @@ export function createCodeBlockNodeView(
     if (graphMount && graphKey === codeText) return;
     graphKey = codeText;
 
-    // PreviewIslands 経由でマウント（未登録時はグラフ非表示で劣化動作）
+    // vanilla graph プレビューを直接マウント（jsxgraph / plotly は内部で遅延 import）。
     if (!graphMount) {
-      const islands = getPreviewIslands();
-      if (!islands) {
-        warnIslandsUnregistered();
-        graphEl.style.display = "none";
-        return;
-      }
-      graphMount = islands.mountGraphPreview(graphEl);
+      graphMount = createGraphPreview(graphEl);
     }
     graphMount.render(codeText, true, isEditorDark(dom));
     graphEl.style.display = "";
@@ -243,15 +224,9 @@ export function createCodeBlockNodeView(
     previewCancel = () => {};
 
     if (kind === "embed") {
-      // PreviewIslands 経由でマウント（未登録時はプレビュー空のまま劣化動作）
+      // vanilla embed プレビューを直接マウント（providers は setEmbedProviders で注入）。
       if (!embedMount) {
-        const islands = getPreviewIslands();
-        if (!islands) {
-          warnIslandsUnregistered();
-          previewInner.replaceChildren();
-          return;
-        }
-        embedMount = islands.mountEmbedPreview(previewInner);
+        embedMount = createEmbedPreview(previewInner);
       }
       embedMount.render(lang, codeText, getEmbedStoredWidth(lang) ?? undefined, onBaselineWrite);
       return;

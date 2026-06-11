@@ -616,11 +616,12 @@ function buildParametric3dData(
  *
  * @returns GraphMountHandle — render(code, enabled, isDark) と destroy() を持つ。
  */
-export function createGraphPreview(): GraphMountHandle {
+export function createGraphPreview(container: HTMLElement): GraphMountHandle {
   ensureGraphStyles();
 
   const wrapper = document.createElement("div");
   wrapper.style.display = "contents";
+  container.appendChild(wrapper);
 
   let currentHandle: Graph2DHandle | Graph3DHandle | null = null;
   let renderCancel: (() => void) | null = null;
@@ -735,6 +736,7 @@ export function createGraphPreview(): GraphMountHandle {
       renderCancel?.();
       renderCancel = null;
       clearContent();
+      wrapper.remove();
     },
   };
 }

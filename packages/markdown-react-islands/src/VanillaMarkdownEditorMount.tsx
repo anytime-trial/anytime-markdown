@@ -26,8 +26,6 @@ import {
   type VanillaMarkdownEditorHandle,
 } from "@anytime-markdown/markdown-viewer/src/host/vanillaMarkdownEditor";
 
-import { installPreviewIslands } from "./installPreviewIslands";
-
 /** {@link VanillaMarkdownEditorMount} の props（orchestrator options + コンテナ装飾）。 */
 export interface VanillaMarkdownEditorMountProps extends MountVanillaMarkdownEditorOptions {
   className?: string;
@@ -114,8 +112,6 @@ export function VanillaMarkdownEditorMount({
     const container = containerRef.current;
     if (!container) return undefined;
     try {
-      // embed / graph プレビュー island を rich のレジストリへ登録（冪等）。
-      installPreviewIslands();
       handleRef.current = (mount ?? mountVanillaMarkdownEditor)(container, options);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
