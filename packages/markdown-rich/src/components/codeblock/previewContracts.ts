@@ -14,7 +14,7 @@ import {
   DEFAULT_EMBED_BASELINE,
   type EmbedBaseline,
   parseEmbedInfoString,
-} from "@anytime-markdown/markdown-viewer";
+} from "@anytime-markdown/markdown-viewer/src/utils/embedInfoString";
 
 // ===== インタフェース =====
 

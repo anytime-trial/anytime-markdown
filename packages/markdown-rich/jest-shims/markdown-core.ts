@@ -99,7 +99,6 @@ export type {
   EmbedVariant,
 } from "../../markdown-viewer/src/utils/embedInfoString";
 
-export { EmbedNodeView } from "../../markdown-viewer/src/components/EmbedNodeView";
 
 // Phase3b（脱 @mui）: InlineAlert / DiagramBlock 等が使う追加 color helper。
 export {
@@ -112,5 +111,3 @@ export {
 } from "../../markdown-viewer/src/constants/colors";
 
 // Phase3b（脱 @mui）: useTheme 置換用テーマ context。
-export type { ThemeMode } from "../../markdown-viewer/src/contexts/ThemeModeContext";
-export { ThemeModeProvider, useIsDark, useThemeMode } from "../../markdown-viewer/src/contexts/ThemeModeContext";
