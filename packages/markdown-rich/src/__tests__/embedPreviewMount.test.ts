@@ -17,13 +17,13 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
   DEFAULT_EMBED_BASELINE: { rssFeedUrl: null, baselineRssGuid: null, baselineOgpHash: null, rssChecked: false },
 }));
 
+import { mountEmbedPreview } from "../components/codeblock/embedPreviewMount";
 import {
   buildEmbedBaselineLanguage,
   buildEmbedWidthLanguage,
   getEmbedStoredWidth,
   isEmbedResizable,
-  mountEmbedPreview,
-} from "../components/codeblock/embedPreviewMount";
+} from "../components/codeblock/previewContracts";
 import { parseEmbedInfoString } from "@anytime-markdown/markdown-viewer";
 
 const parse = parseEmbedInfoString as jest.Mock;

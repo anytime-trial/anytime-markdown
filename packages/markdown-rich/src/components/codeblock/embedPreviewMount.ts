@@ -2,12 +2,13 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 import {
-  buildEmbedInfoString,
-  DEFAULT_EMBED_BASELINE,
-  type EmbedBaseline,
   EmbedNodeView,
-  parseEmbedInfoString,
 } from "@anytime-markdown/markdown-viewer";
+
+import {
+  type EmbedMountHandle,
+  parseBaseline,
+} from "./previewContracts";
 
 /**
  * embed プレビューの React マウント（反転アーキテクチャの限定許容）。
@@ -18,25 +19,12 @@ import {
  * React 依存をこのファイルへ隔離し、`CodeBlockBlockContent` 本体は embed 以外を
  * 完全 native のまま保つ。`ReactNodeViewRenderer` / `NodeViewWrapper` /
  * `NodeViewContent` は一切使わない。
+ *
+ * Pure ヘルパー（parseBaseline / isEmbedResizable 等）と型定義は
+ * `previewContracts.ts` に集約されている。
  */
 
-export interface EmbedMountHandle {
-  /** language(info string) / body / 幅 を反映して再描画する。 */
-  render(language: string, body: string, widthOverride: string | undefined, onBaselineWrite: (b: EmbedBaseline) => void): void;
-  destroy(): void;
-}
-
-/** language(info string) から EmbedBaseline を取り出す（未解析は既定）。 */
-export function parseBaseline(language: string): EmbedBaseline {
-  const parsed = parseEmbedInfoString(language);
-  if (!parsed) return { ...DEFAULT_EMBED_BASELINE };
-  return {
-    rssFeedUrl: parsed.rssFeedUrl,
-    baselineRssGuid: parsed.baselineRssGuid,
-    baselineOgpHash: parsed.baselineOgpHash,
-    rssChecked: parsed.rssChecked,
-  };
-}
+export type { EmbedMountHandle } from "./previewContracts";
 
 export function mountEmbedPreview(container: HTMLElement): EmbedMountHandle {
   const root: Root = createRoot(container);
@@ -56,27 +44,4 @@ export function mountEmbedPreview(container: HTMLElement): EmbedMountHandle {
       root.unmount();
     },
   };
-}
-
-/** embed の card variant のみリサイズ可能。 */
-export function isEmbedResizable(language: string): boolean {
-  return (parseEmbedInfoString(language)?.variant ?? "card") === "card";
-}
-
-/** language(info string) に格納された幅を返す（未設定は null）。 */
-export function getEmbedStoredWidth(language: string): string | null {
-  return parseEmbedInfoString(language)?.width ?? null;
-}
-
-/** 新しい幅を info string へ書き戻した language を返す（variant / baseline は保持）。 */
-export function buildEmbedWidthLanguage(language: string, widthPx: string): string {
-  const parsed = parseEmbedInfoString(language);
-  const variant = parsed?.variant ?? "card";
-  return buildEmbedInfoString(variant, widthPx, parseBaseline(language));
-}
-
-/** 新しい baseline を info string へ書き戻した language を返す（variant / width は保持）。 */
-export function buildEmbedBaselineLanguage(language: string, baseline: EmbedBaseline): string {
-  const parsed = parseEmbedInfoString(language);
-  return buildEmbedInfoString(parsed?.variant ?? "card", parsed?.width ?? null, baseline);
 }
