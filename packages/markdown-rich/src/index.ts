@@ -29,11 +29,5 @@ export {
   type InstallCodeBlockOverlayOptions,
 } from "./vanilla/installCodeBlockOverlay";
 
-// React island（embed / graph プレビュー）のレジストリ。markdown-react-islands が登録する。
-// 未登録時はプレビューなしで劣化動作（rich 本体は React 非依存）。
-export {
-  registerPreviewIslands,
-  getPreviewIslands,
-  type PreviewIslands,
-} from "./components/codeblock/previewIslands";
+// embed / graph プレビューの mount 契約型（実装は vanilla: viewer createEmbedPreview / rich createGraphPreview）。
 export type { EmbedMountHandle, GraphMountHandle } from "./components/codeblock/previewContracts";

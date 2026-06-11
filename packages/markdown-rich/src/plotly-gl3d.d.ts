@@ -3,7 +3,7 @@ declare module "plotly.js-gl3d-dist-min" {
     type: string;
     x?: number[] | number[][];
     y?: number[] | number[][];
-    z?: number[][] | number[][][];
+    z?: number[] | number[][] | number[][][];
     colorscale?: string;
     showscale?: boolean;
     [key: string]: unknown;

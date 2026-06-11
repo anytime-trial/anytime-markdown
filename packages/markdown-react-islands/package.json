@@ -2,7 +2,7 @@
   "name": "@anytime-markdown/markdown-react-islands",
   "version": "0.1.0",
   "private": true,
-  "description": "markdown エディタの意図的 React island（Mount ラッパ・provider 群・embed/graph プレビュー）。markdown-viewer / markdown-rich 本体は React-free。",
+  "description": "markdown エディタの意図的 React island（web-app 用 Mount ラッパ・provider 群・ローダー）。markdown-viewer / markdown-rich 本体は React-free。",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
@@ -10,12 +10,9 @@
   },
   "dependencies": {
     "@anytime-markdown/markdown-core": "*",
-    "@anytime-markdown/markdown-rich": "*",
     "@anytime-markdown/markdown-viewer": "*"
   },
   "peerDependencies": {
-    "jsxgraph": "^1.0.0",
-    "plotly.js-gl3d-dist-min": "^3.0.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
   },

@@ -1,13 +1,13 @@
 'use client';
 
-import { EmbedProvidersProvider } from '@anytime-markdown/markdown-react-islands/src/contexts/EmbedProvidersContext';
+import { setEmbedProviders } from '@anytime-markdown/markdown-viewer/src/embedProviders';
 import type {
   EmbedProviders,
   OembedData,
   OgpData,
   RssLatestData,
 } from '@anytime-markdown/markdown-viewer/src/types/embedProvider';
-import { type ReactNode,useMemo } from 'react';
+import { type ReactNode } from 'react';
 
 async function fetchOgp(url: string): Promise<OgpData> {
   const res = await fetch(`/api/ogp?url=${encodeURIComponent(url)}`);
@@ -27,7 +27,10 @@ async function fetchRss(feedUrl: string): Promise<RssLatestData> {
   return (await res.json()) as RssLatestData;
 }
 
+// embed プレビュー（vanilla）へ Next API 経由の fetcher を注入する（モジュール初期化時に一度）。
+const providers: EmbedProviders = { fetchOgp, fetchOembed, fetchRss };
+setEmbedProviders(providers);
+
 export function EmbedProvidersBoundary({ children }: Readonly<{ children: ReactNode }>) {
-  const providers = useMemo<EmbedProviders>(() => ({ fetchOgp, fetchOembed, fetchRss }), []);
-  return <EmbedProvidersProvider value={providers}>{children}</EmbedProvidersProvider>;
+  return children;
 }

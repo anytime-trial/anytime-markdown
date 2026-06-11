@@ -187,3 +187,7 @@ export { enMessages as messagesEn, jaMessages as messagesJa } from './i18n';
 
 // 脱React G3: vanilla consumer 配線用（初期コンテンツ）
 export { getDefaultContent } from './constants/defaultContent';
+
+// Embed プレビューの外部 fetch 注入（consumer が起動時に設定。実装 createEmbedPreview は
+// rich の CodeBlockBlockContent が deep import する内部 API のため barrel 非公開）
+export { setEmbedProviders, getEmbedProviders } from './embedProviders';

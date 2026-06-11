@@ -294,8 +294,6 @@
     "@types/mocha": "10.0.10",
     "@types/node": "22.x",
     "@types/plantuml-encoder": "1.4.2",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
     "@types/vscode": "1.109.0",
     "@vscode/test-electron": "2.5.2",
     "css-loader": "7.1.4",
@@ -310,12 +308,9 @@
   "dependencies": {
     "@anytime-markdown/markdown-viewer": "*",
     "@anytime-markdown/markdown-rich": "*",
-    "@anytime-markdown/markdown-react-islands": "*",
     "@anytime-markdown/vscode-common": "*",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",
-    "@mui/icons-material": "7.3.7",
-    "@mui/material": "7.3.7",
     "@xmldom/xmldom": "0.9.10",
     "diff": "8.0.3",
     "dompurify": "3.4.0",
@@ -324,8 +319,6 @@
     "mathjs": "15.2.0",
     "mermaid": "11.15.0",
     "plantuml-encoder": "1.4.0",
-    "plotly.js-gl3d-dist-min": "3.4.0",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "plotly.js-gl3d-dist-min": "3.4.0"
   }
 }
