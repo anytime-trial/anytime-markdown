@@ -16,21 +16,8 @@ export {
   getMergeEditors,
 } from "../../markdown-viewer/src/contexts/MergeEditorsContext";
 
-export { useMarkdownT } from "../../markdown-viewer/src/i18n/context";
-
-export { useTextareaSearch } from "../../markdown-viewer/src/hooks/useTextareaSearch";
-export type {
-  TextareaSearchMatch,
-  TextareaSearchState,
-} from "../../markdown-viewer/src/hooks/useTextareaSearch";
-
-export {
-  DEFAULT_SETTINGS,
-  EditorSettingsContext,
-  useEditorSettings,
-  useEditorSettingsContext,
-} from "../../markdown-viewer/src/useEditorSettings";
-export type { EditorSettings } from "../../markdown-viewer/src/useEditorSettings";
+export { DEFAULT_SETTINGS } from "../../markdown-viewer/src/editorSettings";
+export type { EditorSettings } from "../../markdown-viewer/src/editorSettings";
 
 export {
   CAPTURE_BG,
@@ -73,12 +60,6 @@ export {
 
 export { FETCH_TIMEOUT } from "../../markdown-viewer/src/constants/timing";
 
-export {
-  DURATION_FAST,
-  getSplitterSx,
-  REDUCED_MOTION_SX,
-} from "../../markdown-viewer/src/constants/uiPatterns";
-
 export { getHljsCssVars, getHljsStyles } from "../../markdown-viewer/src/styles/codeStyles";
 
 // 注: `appLowlight` は意図的に再 export しない。唯一の利用者 RichMarkdownEditorPage は
@@ -110,7 +91,6 @@ export type {
   EmbedVariant,
 } from "../../markdown-viewer/src/utils/embedInfoString";
 
-export { EmbedNodeView } from "../../markdown-viewer/src/components/EmbedNodeView";
 
 // Phase3b（脱 @mui）: InlineAlert / DiagramBlock 等が使う追加 color helper。
 export {
@@ -123,5 +103,3 @@ export {
 } from "../../markdown-viewer/src/constants/colors";
 
 // Phase3b（脱 @mui）: useTheme 置換用テーマ context。
-export type { ThemeMode } from "../../markdown-viewer/src/contexts/ThemeModeContext";
-export { ThemeModeProvider, useIsDark, useThemeMode } from "../../markdown-viewer/src/contexts/ThemeModeContext";

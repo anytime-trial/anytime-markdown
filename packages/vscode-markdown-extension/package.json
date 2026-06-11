@@ -310,6 +310,7 @@
   "dependencies": {
     "@anytime-markdown/markdown-viewer": "*",
     "@anytime-markdown/markdown-rich": "*",
+    "@anytime-markdown/markdown-react-islands": "*",
     "@anytime-markdown/vscode-common": "*",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",

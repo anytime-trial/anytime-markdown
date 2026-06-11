@@ -25,6 +25,7 @@ const nextConfig: NextConfig = {
     '@anytime-markdown/database-core',
     '@anytime-markdown/database-viewer',
     '@anytime-markdown/markdown-viewer',
+    '@anytime-markdown/markdown-react-islands',
     '@anytime-markdown/markdown-engine',
     '@anytime-markdown/spreadsheet-core',
     '@anytime-markdown/spreadsheet-viewer',

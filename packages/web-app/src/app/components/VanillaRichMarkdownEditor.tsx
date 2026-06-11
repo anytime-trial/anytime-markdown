@@ -11,7 +11,7 @@ import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/
 import {
   VanillaMarkdownEditorMount,
   type VanillaMarkdownEditorMountProps,
-} from '@anytime-markdown/markdown-viewer';
+} from '@anytime-markdown/markdown-react-islands';
 
 export default function VanillaRichMarkdownEditor(
   props: Readonly<Omit<VanillaMarkdownEditorMountProps, 'mount'>>,

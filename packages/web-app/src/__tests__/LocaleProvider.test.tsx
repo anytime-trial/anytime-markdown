@@ -7,7 +7,7 @@ jest.mock("next-intl", () => ({
 }));
 
 // 自己完結 i18n プロバイダを mock し、markdown-core の重い依存（ESM ライブラリ等）を巻き込まないようにする
-jest.mock("@anytime-markdown/markdown-viewer", () => ({
+jest.mock("@anytime-markdown/markdown-react-islands", () => ({
   MarkdownCoreI18nProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock("@anytime-markdown/markdown-viewer/src/i18n/en.json", () => ({}), { virtual: true });

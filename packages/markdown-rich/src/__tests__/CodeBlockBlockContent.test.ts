@@ -5,8 +5,9 @@
 const mockEmbedRender = jest.fn();
 const mockEmbedDestroy = jest.fn();
 const mockMountEmbedPreview = jest.fn(() => ({ render: mockEmbedRender, destroy: mockEmbedDestroy }));
-jest.mock("../components/codeblock/embedPreviewMount", () => ({
-  mountEmbedPreview: (...args: unknown[]) => mockMountEmbedPreview(...(args as [])),
+// 純粋ヘルパーは previewContracts へ分離済み（React マウントは PreviewIslands レジストリ経由）。
+jest.mock("../components/codeblock/previewContracts", () => ({
+  ...jest.requireActual("../components/codeblock/previewContracts"),
   isEmbedResizable: jest.fn(() => true),
   getEmbedStoredWidth: jest.fn(() => null),
   buildEmbedWidthLanguage: jest.fn((_lang: string, w: string) => `embed card ${w}`),
@@ -16,15 +17,27 @@ jest.mock("../components/codeblock/embedPreviewMount", () => ({
 const mockGraphRender = jest.fn();
 const mockGraphDestroy = jest.fn();
 const mockMountGraphPreview = jest.fn(() => ({ render: mockGraphRender, destroy: mockGraphDestroy }));
-jest.mock("../components/codeblock/graphPreviewMount", () => ({
-  mountGraphPreview: (...args: unknown[]) => mockMountGraphPreview(...(args as [])),
-}));
 
 import {
   classifyCodeBlock,
   createCodeBlockNodeView,
   CODE_BLOCK_EDIT_INTENT_EVENT,
 } from "../components/codeblock/CodeBlockBlockContent";
+import {
+  registerPreviewIslands,
+} from "../components/codeblock/previewIslands";
+
+// React island（embed/graph マウント）はレジストリへスタブを登録して検証する。
+beforeEach(() => {
+  registerPreviewIslands({
+    mountEmbedPreview: ((...args: unknown[]) => mockMountEmbedPreview(...(args as []))) as never,
+    mountGraphPreview: ((...args: unknown[]) => mockMountGraphPreview(...(args as []))) as never,
+  });
+});
+
+afterEach(() => {
+  registerPreviewIslands(null);
+});
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function makeView(

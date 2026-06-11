@@ -1,15 +1,18 @@
 'use client';
 
 import {
-  ACCENT_COLOR, applyEditorThemeCssVars, ConfirmProvider, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG,
+  ACCENT_COLOR, applyEditorThemeCssVars, DEFAULT_DARK_BG, DEFAULT_LIGHT_BG,
   DEFAULT_PRESET_NAME,   getActionHover, getActionSelected,
   getBgPaper, getDivider,   getErrorMain, getInfoMain,
 getPreset, getPrimaryContrast,
 getPrimaryDark, getPrimaryLight,   getPrimaryMain, getSuccessMain, getTextDisabled,
 getTextPrimary, getTextSecondary, getWarningLight, getWarningMain, isPresetName,
-  ThemeModeProvider as EditorThemeModeProvider,
   type ThemePresetName,
 } from '@anytime-markdown/markdown-viewer';
+import {
+  ConfirmProvider,
+  ThemeModeProvider as EditorThemeModeProvider,
+} from '@anytime-markdown/markdown-react-islands';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import CssBaseline from '@mui/material/CssBaseline';

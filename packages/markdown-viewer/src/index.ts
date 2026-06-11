@@ -1,28 +1,17 @@
-// Main page component
-export { createMarkdownT, MarkdownCoreI18nProvider, useMarkdownT } from './i18n/context';
+// i18n（React 非依存 translator。React Provider/useMarkdownT は markdown-react-islands へ移設）
+export { createMarkdownT } from './i18n/createMarkdownT';
 
-// 脱React G3: vanilla orchestrator + mount 用の React ラッパ（consumer が editor を mount する）
+// 脱React G3: vanilla orchestrator（React ラッパ VanillaMarkdownEditorMount は
+// markdown-react-islands へ移設。consumer はそちらを import する）
 export {
   mountVanillaMarkdownEditor,
   type MountVanillaMarkdownEditorOptions,
   type VanillaMarkdownEditorHandle,
 } from './host/vanillaMarkdownEditor';
-export {
-  VanillaMarkdownEditorMount,
-  type VanillaMarkdownEditorMountProps,
-} from './VanillaMarkdownEditorMount';
 
-// Hooks
-export { useMergeDiff } from './hooks/useMergeDiff';
-export type { TextareaSearchMatch, TextareaSearchState } from './hooks/useTextareaSearch';
-export { useTextareaSearch } from './hooks/useTextareaSearch';
+// Editor settings（React 非依存の単一ソース）
 export type { EditorSettings } from './editorSettings';
 export { DEFAULT_SETTINGS } from './editorSettings';
-export {
-  EditorSettingsContext,
-  useEditorSettings,
-  useEditorSettingsContext,
-} from './useEditorSettings';
 // Vanilla chrome primitives（脱React・Phase3 ホスト隔離）。他 viewer（rich 等）が共有する。
 export type { SelectedBlockSnapshot, BlockChromeAnchorHandle } from './chrome/blockChrome';
 export {
@@ -54,12 +43,10 @@ export type { VanillaEditorHostHandle, VanillaEditorHostOptions } from './host/v
 export { createVanillaEditorHost } from './host/vanillaEditorHost';
 // Vanilla ui プリミティブ（F・脱React ui kit。chrome/host が消費する素 DOM 部品）。
 export * from './ui-vanilla';
-export type { DarkDiagramPrintPreparer } from './hooks/usePdfExport';
-
-// Components（rich の embed プレビューが消費する NodeView のみ残存）
-export { EmbedNodeView } from './components/EmbedNodeView';
+export type { DarkDiagramPrintPreparer } from './types/pdf';
 
 // NodeView chrome は各ブロックの選択駆動オーバーレイ（*BlockOverlay）が提供する。
+// EmbedNodeView（React island）は markdown-react-islands へ移設。
 
 // Extensions
 // CodeBlockWithMermaid / CodeBlockNodeView は markdown-rich へ物理移動済み (B-3+B-4)。
@@ -83,16 +70,14 @@ export type {
   HeadingItem,
   MarkdownStorage,
   MdSerializerState,
+  MutableRefLike,
   OutlineKind,
-  PlantUmlToolbarContextValue,
 } from './types';
 export {
   extractHeadings,
   getEditorStorage,
   getMarkdownFromEditor,
   getMarkdownStorage,
-  PlantUmlToolbarContext,
-  usePlantUmlToolbar,
 } from './types';
 export type { FileHandle, FileOpenResult, FileSystemProvider } from './types/fileSystem';
 export type {
@@ -191,15 +176,9 @@ export { EMBED_DATA_ATTR, installEmbedFenceRenderer } from './utils/embedFenceRe
 export { getHljsCssVars, getHljsStyles } from './styles/codeStyles';
 
 // Icons
-export { default as MermaidIcon } from './icons/MermaidIcon';
 
-// Contexts
+// Contexts（ThemeModeContext / ConfirmProvider 等の React provider は markdown-react-islands へ移設）
 export { findCodeBlockByIndex, findCounterpartCode, getCodeBlockIndex, getMergeEditors } from './contexts/MergeEditorsContext';
-export type { ThemeMode } from './contexts/ThemeModeContext';
-export { ThemeModeProvider, useIsDark, useThemeMode } from './contexts/ThemeModeContext';
-
-// Providers
-export { ConfirmContext,ConfirmProvider } from './providers/ConfirmProvider';
 export type { DialogOptions } from './providers/types';
 
 // i18n messages

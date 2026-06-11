@@ -2,7 +2,7 @@
 
 import { DatabaseI18nProvider } from '@anytime-markdown/database-viewer';
 import { GraphI18nProvider } from '@anytime-markdown/graph-viewer';
-import { MarkdownCoreI18nProvider } from '@anytime-markdown/markdown-viewer';
+import { MarkdownCoreI18nProvider } from '@anytime-markdown/markdown-react-islands';
 import markdownCoreEnMessages from '@anytime-markdown/markdown-viewer/src/i18n/en.json';
 import markdownCoreJaMessages from '@anytime-markdown/markdown-viewer/src/i18n/ja.json';
 import { SpreadsheetI18nProvider } from '@anytime-markdown/spreadsheet-viewer';

@@ -47,7 +47,7 @@ import {
   codeBlockToolbarLabel,
   firstNonEmptyLine,
 } from "../components/codeblock/codeBlockOverlayHelpers";
-import { parseBaseline } from "../components/codeblock/embedPreviewMount";
+import { parseBaseline } from "../components/codeblock/previewContracts";
 import { applyCodeBlockText } from "../components/codeblock/useCodeBlockEdit";
 import htmlSamples from "../constants/htmlSamples.json";
 import { getCachedMermaidSvg, requestMermaidRender } from "../hooks/useMermaidRender";

@@ -13,7 +13,7 @@ import {
   type CreateEditorSettingsPanelOptions,
   type EditorSettingsPanelHandle,
 } from "../components-vanilla/EditorSettingsPanel";
-import type { EditorSettings } from "../useEditorSettings";
+import type { EditorSettings } from "../editorSettings";
 
 const t = (key: string): string => key;
 

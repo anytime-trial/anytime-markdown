@@ -17,7 +17,6 @@ const config = {
     "\\.module\\.css$": "<rootDir>/__mocks__/cssModuleProxy.js",
     "^@/(.*)$": "<rootDir>/src/$1",
     "^next-intl$": "<rootDir>/__mocks__/next-intl.ts",
-    "^.+/i18n/context$": "<rootDir>/__mocks__/markdown-i18n-context.ts",
   },
   maxWorkers: 2,
   collectCoverageFrom: [

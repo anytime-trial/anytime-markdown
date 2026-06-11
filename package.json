@@ -13,6 +13,7 @@
   "workspaces": [
     "packages/markdown-viewer",
     "packages/markdown-rich",
+    "packages/markdown-react-islands",
     "packages/markdown-core",
     "packages/spreadsheet-core",
     "packages/spreadsheet-viewer",
