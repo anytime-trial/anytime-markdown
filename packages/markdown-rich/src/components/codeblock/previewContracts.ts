@@ -2,11 +2,8 @@
  * previewContracts.ts — embed / graph プレビューの pure ヘルパーと型定義。
  *
  * React に依存しない純粋な関数・型をここに集約する。
- * `embedPreviewMount.ts` / `graphPreviewMount.ts`（React マウント実装）や
- * `CodeBlockBlockContent.ts`（vanilla NodeView）はここから import する。
- *
- * 型 `EmbedMountHandle` / `GraphMountHandle` は後続タスクで `markdown-react-islands`
- * へ移動する際のインタフェース境界として機能する。
+ * `CodeBlockBlockContent.ts`（vanilla NodeView）と vanilla プレビュー実装
+ * （viewer `createEmbedPreview` / rich `createGraphPreview`）の契約境界。
  */
 
 import {
@@ -18,19 +15,10 @@ import {
 
 // ===== インタフェース =====
 
-/** embed プレビュー React マウントのハンドル。 */
-export interface EmbedMountHandle {
-  /** language(info string) / body / 幅 を反映して再描画する。 */
-  render(
-    language: string,
-    body: string,
-    widthOverride: string | undefined,
-    onBaselineWrite: (b: EmbedBaseline) => void,
-  ): void;
-  destroy(): void;
-}
+// EmbedMountHandle は実装ホームの viewer（components-vanilla/embed/createEmbedPreview）が正規定義。
+export type { EmbedMountHandle } from "@anytime-markdown/markdown-viewer/src/components-vanilla/embed/createEmbedPreview";
 
-/** math グラフ React マウントのハンドル。 */
+/** math グラフ vanilla マウントのハンドル。 */
 export interface GraphMountHandle {
   render(code: string, enabled: boolean, isDark: boolean): void;
   destroy(): void;
@@ -38,17 +26,8 @@ export interface GraphMountHandle {
 
 // ===== Pure ヘルパー（React 不使用） =====
 
-/** language(info string) から EmbedBaseline を取り出す（未解析は既定）。 */
-export function parseBaseline(language: string): EmbedBaseline {
-  const parsed = parseEmbedInfoString(language);
-  if (!parsed) return { ...DEFAULT_EMBED_BASELINE };
-  return {
-    rssFeedUrl: parsed.rssFeedUrl,
-    baselineRssGuid: parsed.baselineRssGuid,
-    baselineOgpHash: parsed.baselineOgpHash,
-    rssChecked: parsed.rssChecked,
-  };
-}
+// parseBaseline は実装ホームの viewer（utils/embedInfoString）へ正規化。互換のため再 export する。
+export { parseBaseline } from "@anytime-markdown/markdown-viewer/src/utils/embedInfoString";
 
 /** embed の card variant のみリサイズ可能。 */
 export function isEmbedResizable(language: string): boolean {

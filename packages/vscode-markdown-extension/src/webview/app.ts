@@ -22,6 +22,7 @@ import {
   STORAGE_KEY_SETTINGS,
   type ThemePresetName,
 } from '@anytime-markdown/markdown-viewer';
+import { detectLocale } from '@anytime-markdown/markdown-viewer/src/i18n/createMarkdownT';
 import { setEmbedProviders } from '@anytime-markdown/markdown-viewer/src/embedProviders';
 import type { VanillaMarkdownEditorHandle } from '@anytime-markdown/markdown-viewer/src/host/vanillaMarkdownEditor';
 import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/src/vanilla/mountVanillaRichMarkdownEditor';
@@ -33,9 +34,6 @@ const vscode = getVsCodeApi();
 // markdown-core の EditorContextMenu 等から VS Code API にアクセスするため公開
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (window as any).__vscode = vscode;
-
-// embed プレビュー（vanilla）の外部 fetch を拡張ホスト経由に注入
-setEmbedProviders(createVsCodeEmbedProviders());
 
 // スクロール同期の無限ループ防止フラグ
 let isSyncingScroll = false;
@@ -137,10 +135,6 @@ function dispatchCustomEvent(eventName: string, detail: unknown) {
   window.dispatchEvent(new CustomEvent(eventName, { detail }));
 }
 
-function detectLocale(): string {
-  return typeof navigator !== 'undefined' && navigator.language.startsWith('ja') ? 'ja' : 'en';
-}
-
 // --- アプリ状態（React useState 相当の closure 変数） ---
 
 interface AppState {
@@ -201,7 +195,7 @@ function syncClaudeBanner(container: HTMLElement): void {
   if (bannerEl) return;
   ensureClaudeBannerStyle();
   const isDark = state.themeMode === 'dark';
-  const isJa = (document.documentElement.lang || '').startsWith('ja');
+  const isJa = state.locale.startsWith('ja');
   const banner = document.createElement('div');
   banner.style.cssText =
     'position:absolute;top:0;left:0;right:0;z-index:9999;display:flex;align-items:center;' +
@@ -224,7 +218,7 @@ function syncClaudeBanner(container: HTMLElement): void {
 function renderLanding(container: HTMLElement): void {
   const isDark = state.themeMode === 'dark';
   const logoUri = (window as unknown as { __LOGO_URI__?: string }).__LOGO_URI__;
-  const isJa = (document.documentElement.lang || navigator.language || '').startsWith('ja');
+  const isJa = state.locale.startsWith('ja');
 
   const wrap = document.createElement('div');
   wrap.style.cssText =
@@ -523,8 +517,6 @@ function handleMessage(event: MessageEvent): void {
     case 'pasteCodeBlock':
       if (typeof message.text === 'string') dispatchCustomEvent('vscode-paste-codeblock', message.text);
       return;
-    case 'claudeLock':
-      return;
     case 'setAutoReload':
       if (typeof message.enabled === 'boolean') {
         state.autoReload = message.enabled;
@@ -597,6 +589,8 @@ function installLinkInterception(): void {
 /** webview アプリを起動する（旧 createRoot(container).render(<App/>) の置換）。 */
 export function startApp(container: HTMLElement): void {
   rootEl = container;
+  // embed プレビュー（vanilla）の外部 fetch を拡張ホスト経由に注入（起動時に一度）
+  setEmbedProviders(createVsCodeEmbedProviders());
   applyTheme();
   window.addEventListener('message', handleMessage);
   window.addEventListener('vscode-save-compare-file', (e: Event) => {

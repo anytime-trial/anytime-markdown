@@ -11,8 +11,8 @@
  */
 
 import {
-  DEFAULT_EMBED_BASELINE,
   type EmbedBaseline,
+  parseBaseline,
   parseEmbedInfoString,
 } from "../../utils/embedInfoString";
 import { classifyEmbedUrl } from "../../utils/embedClassifier";
@@ -30,9 +30,9 @@ import {
 // ===== 型定義 =====
 
 /**
- * embed プレビューのマウントハンドル型。
- * `@anytime-markdown/markdown-rich/src/components/codeblock/previewContracts` の
- * `EmbedMountHandle` と完全一致する（viewer は rich に依存しないためローカル定義）。
+ * embed プレビューのマウントハンドル型（正規ホーム）。
+ * rich の `previewContracts` はここから再 export して消費する（viewer は rich に依存しないため
+ * 実装側＝viewer に置く）。
  */
 export interface EmbedMountHandle {
   /** language(info string) / body / 幅 を反映して再描画する。 */
@@ -55,23 +55,14 @@ function extractUrl(body: string): string | null {
   return null;
 }
 
-/** 現在の DOM が isDark かを CSS 変数から判定する（--am-color-mode が "dark" なら true）。 */
-function detectIsDark(): boolean {
+/**
+ * container の computed style から dark テーマかを判定する。
+ * host（vanillaMarkdownEditor の applyCodeCssVars）が editor root へ書く `--am-editor-dark`
+ * （"1"/"0"）をカスタムプロパティ継承で読む（CodeBlockBlockContent.isEditorDark と同一機構）。
+ */
+function detectIsDark(el: Element): boolean {
   if (typeof document === "undefined") return false;
-  const v = getComputedStyle(document.documentElement).getPropertyValue("--am-color-mode").trim();
-  return v === "dark";
-}
-
-/** language info string から EmbedBaseline を取り出す（未解析は既定）。 */
-function parseBaseline(language: string): EmbedBaseline {
-  const parsed = parseEmbedInfoString(language);
-  if (!parsed) return { ...DEFAULT_EMBED_BASELINE };
-  return {
-    rssFeedUrl: parsed.rssFeedUrl,
-    baselineRssGuid: parsed.baselineRssGuid,
-    baselineOgpHash: parsed.baselineOgpHash,
-    rssChecked: parsed.rssChecked,
-  };
+  return getComputedStyle(el).getPropertyValue("--am-editor-dark").trim() === "1";
 }
 
 // ===== 内部状態型 =====
@@ -137,7 +128,7 @@ export function createEmbedPreview(container: HTMLElement): EmbedMountHandle {
         return;
       }
 
-      const isDark = detectIsDark();
+      const isDark = detectIsDark(container);
 
       if (classified.kind === "youtube") {
         const key = `youtube:${classified.videoId}:${variant}:${effectiveWidth ?? ""}:${String(isDark)}`;

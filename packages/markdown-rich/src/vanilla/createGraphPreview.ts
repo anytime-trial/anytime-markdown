@@ -16,6 +16,7 @@ import {
 import {
   appendContent,
   ensureStyle,
+  nextId,
   svgIcon,
 } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/dom";
 import {
@@ -133,8 +134,8 @@ function createGraph2DControls(
   const animFrames: Record<string, number> = {};
   const animating: Record<string, boolean> = {};
 
-  // ユニーク ID（SSR でないため Date.now() + random で十分）
-  const stableId = `am-graph2d-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  // ユニーク ID（共有 nextId で決定論的に採番・テスト再現可）
+  const stableId = nextId("am-graph2d");
 
   // ツールバー
   const toolbar = document.createElement("div");
@@ -328,7 +329,6 @@ function createGraph2DControls(
         if (animFrames[param]) cancelAnimationFrame(animFrames[param]);
         slider.destroy();
         playBtn.destroy();
-        resetTooltip.destroy();
         playTooltip.destroy();
       });
     }

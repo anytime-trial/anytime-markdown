@@ -17,8 +17,6 @@ const config = {
     "^@anytime-markdown/markdown-engine$": "<rootDir>/../markdown-engine/src/index.ts",
     "^@anytime-markdown/markdown-viewer/src/(.*)$": "<rootDir>/../markdown-viewer/src/$1",
     "^@anytime-markdown/markdown-viewer$": "<rootDir>/../markdown-viewer/src/index.ts",
-    "^@anytime-markdown/markdown-rich/src/(.*)$": "<rootDir>/../markdown-rich/src/$1",
-    "^@anytime-markdown/markdown-rich$": "<rootDir>/../markdown-rich/src/index.ts",
     "\\.module\\.css$": "<rootDir>/../markdown-viewer/__mocks__/cssModuleProxy.js",
     "^@/(.*)$": "<rootDir>/src/$1",
   },

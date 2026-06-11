@@ -84,3 +84,15 @@ export function buildEmbedInfoString(
     if (baseline?.baselineOgpHash) parts.push(`ogpHash=${baseline.baselineOgpHash}`);
     return parts.join(" ");
 }
+
+/** language(info string) から EmbedBaseline を取り出す（未解析は既定）。 */
+export function parseBaseline(language: string): EmbedBaseline {
+  const parsed = parseEmbedInfoString(language);
+  if (!parsed) return { ...DEFAULT_EMBED_BASELINE };
+  return {
+    rssFeedUrl: parsed.rssFeedUrl,
+    baselineRssGuid: parsed.baselineRssGuid,
+    baselineOgpHash: parsed.baselineOgpHash,
+    rssChecked: parsed.rssChecked,
+  };
+}
