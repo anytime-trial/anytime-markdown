@@ -55,8 +55,8 @@ function buildOpsToolbar(editor: Editor, t: (k: string) => string): HTMLElement 
 
 export interface TableBlockChromeCallbacks {
   t: (key: string) => string;
-  /** スプレッドシート編集 intent（host がダイアログを開く）。 */
-  onEdit: (pos: number) => void;
+  /** スプレッドシート編集 intent（host がダイアログを開く）。未指定時は編集ボタン自体を出さない。 */
+  onEdit?: (pos: number) => void;
   /** 削除 intent（host が確認ダイアログを開く）。 */
   onDelete: (pos: number) => void;
 }
@@ -84,16 +84,20 @@ export function createTableBlockChrome(
   };
 
   const toolbar = createToolbarContainer(cb.t("tableLabel"));
-  const editBtn = mkIconButton(cb.t("edit"), ICON.edit, () => {
-    if (currentPos >= 0) cb.onEdit(currentPos);
-  });
+  const onEdit = cb.onEdit;
+  // 編集ハンドラ未提供時は「押しても何も起きないボタン」を出さない（G4 回帰の再発防止）。
+  const editBtn = onEdit
+    ? mkIconButton(cb.t("edit"), ICON.edit, () => {
+        if (currentPos >= 0) onEdit(currentPos);
+      })
+    : null;
   const deleteBtn = mkIconButton(cb.t("delete"), ICON.delete, () => {
     if (currentPos >= 0) cb.onDelete(currentPos);
   });
   toolbar.append(
     mkDragHandle(cb.t("dragHandle")),
     mkLabel(cb.t("tableLabel")),
-    editBtn,
+    ...(editBtn ? [editBtn] : []),
     buildOpsToolbar(editor, cb.t),
     mkSpacer(),
     deleteBtn,

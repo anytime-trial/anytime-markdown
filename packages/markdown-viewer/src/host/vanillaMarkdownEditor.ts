@@ -59,8 +59,12 @@ import {
 } from "./sourceModeController";
 import { installBlockOverlays } from "../chrome/installBlockOverlays";
 import { injectEditorContentCss } from "../styles/editorContentCss";
-import { getEditorBg, getEditorText } from "../constants/colors";
+import { getEditDialogBg, getEditorBg, getEditorText } from "../constants/colors";
 import { calcPaperContentWidth } from "../constants/dimensions";
+import {
+  openTableEditDialog,
+  type TableEditDialogHandle,
+} from "../components-vanilla/TableEditDialog";
 import { createEditorBubbleMenu } from "../components-vanilla/EditorBubbleMenu";
 import { createStatusBar, type StatusInfo } from "../components-vanilla/StatusBar";
 import {
@@ -1117,11 +1121,31 @@ export function mountVanillaMarkdownEditor(
       disposers.push(() => document.removeEventListener("keydown", onGlobalShortcutKeyDown));
 
       // === block overlay（gif/image/table の DialogHost 3 を vanilla 配線） =====
+      // 表の全画面編集は consumer 上書き（onTableEdit）が無ければ内蔵ダイアログ
+      // （TableEditDialog = 旧 React TableDialogHost の vanilla 版）で自己完結する。
+      let tableEditDialog: TableEditDialogHandle | null = null;
+      const openBuiltinTableEdit: NonNullable<typeof current.onTableEdit> = ({ pos, setEditing }) => {
+        const isDark = current.themeMode === "dark";
+        tableEditDialog?.destroy();
+        tableEditDialog = openTableEditDialog({
+          editor,
+          pos,
+          isDark,
+          t,
+          locale: current.locale,
+          paperBg: getEditDialogBg(isDark, effectiveSettings()),
+          onClosed: () => {
+            tableEditDialog = null;
+            setEditing(false);
+          },
+        });
+      };
+      disposers.push(() => tableEditDialog?.destroy());
       const blockOverlays = installBlockOverlays(editor, {
         t,
         confirm: current.confirm,
         vscodeApi: current.vscodeApi,
-        onTableEdit: current.onTableEdit,
+        onTableEdit: current.onTableEdit ?? openBuiltinTableEdit,
       });
       disposers.push(() => blockOverlays.destroy());
 
