@@ -59,9 +59,7 @@ export function createSearchReplaceBar(
   opts: CreateSearchReplaceBarOptions,
 ): SearchReplaceBarHandle {
   const { editor, t } = opts;
-  const storage = (editor.storage as Record<string, unknown>).searchReplace as
-    | SearchReplaceStorage
-    | undefined;
+  const storage = (editor.storage as { searchReplace?: SearchReplaceStorage }).searchReplace;
   if (!storage) {
     // SearchReplaceExtension 未搭載（最小構成 embed・テスト等）ではバーを無効化する。
     console.warn(
