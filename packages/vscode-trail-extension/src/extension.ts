@@ -780,7 +780,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			// VS Code の Disposable は async dispose を await しないため fire-and-forget。
 			// 通常時は deactivate() 側で trailDaemonHost.dispose() を await するので、
 			// ここはセーフティネット。trailDaemonHost.dispose() が child process を kill する。
-			trailDaemonHost?.dispose();
+			// async dispose だが Disposable は await できないため明示的に fire-and-forget。
+			void trailDaemonHost?.dispose();
 			trailDb?.close();
 		},
 	});
@@ -963,7 +964,8 @@ export async function deactivate(): Promise<void> {
 		TrailLogger.error('Failed to dispose analyze-all runner client', err);
 	}
 	try {
-		trailDaemonHost?.dispose();
+		// SIGTERM → (未終了なら) SIGKILL のエスカレーションを待ち、child の孤児化を防ぐ。
+		await trailDaemonHost?.dispose();
 	} catch (err) {
 		TrailLogger.error('Failed to dispose trail-daemon host', err);
 	}
