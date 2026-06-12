@@ -85,6 +85,7 @@ import { createEditorDialogs } from "../components-vanilla/EditorDialogs";
 import { createEditorMenuPopovers } from "../components-vanilla/EditorMenuPopovers";
 import { createEditorSettingsPanel } from "../components-vanilla/EditorSettingsPanel";
 import { createEditorSideToolbar } from "../components-vanilla/EditorSideToolbar";
+import { createSearchReplaceBar } from "../components-vanilla/SearchReplaceBar";
 import { createOutlinePanel } from "../components-vanilla/OutlinePanel";
 import { createCommentPanel } from "../components-vanilla/CommentPanel";
 
@@ -255,7 +256,8 @@ function buildLayout(): VanillaLayout {
 
   const contentEl = document.createElement("div");
   contentEl.setAttribute("data-am-content", "");
-  contentEl.style.cssText = "flex:1 1 auto;min-height:0;overflow:auto;";
+  // position:relative は SearchReplaceBar（absolute・右上）配置の基準。
+  contentEl.style.cssText = "flex:1 1 auto;min-height:0;overflow:auto;position:relative;";
 
   // editor の実マウント先（React buildEditorPortalTarget 相当・display:contents）。
   // merge ビューの右パネルが editor.options.element ごと移設できるよう contentEl と分離する。
@@ -814,6 +816,9 @@ export function mountVanillaMarkdownEditor(
             readonlyToggle:
               current.hide?.readonlyToggle ?? !(current.showReadonlyMode ?? false),
           },
+          // sideToolbar 併用時、md+ では toolbar 側の outline/comments/explorer を CSS で隠す
+          // （旧 React Page parity・aria-label 重複の防止）。
+          sideToolbar: current.sideToolbar ?? false,
           // help ボタンはヘルプポップオーバー（outline/comment/settings/version メニュー）を開く。
           // menuPopovers は後段で生成されるが、クリック時には初期化済み（TDZ は実行順で解消）。
           onSetHelpAnchor: (el) => menuPopovers.openHelp(el),
@@ -868,6 +873,11 @@ export function mountVanillaMarkdownEditor(
       });
       statusBarSlot.appendChild(statusBar.el);
       disposers.push(() => statusBar?.destroy());
+
+      // === SearchReplaceBar（Mod-f / openSearch コマンドで表示） ================
+      const searchBar = createSearchReplaceBar({ editor, t });
+      contentEl.appendChild(searchBar.el);
+      disposers.push(() => searchBar.destroy());
 
       // === SlashCommand ========================================================
       const slash = createSlashCommandMenu({

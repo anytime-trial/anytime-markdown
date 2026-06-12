@@ -174,6 +174,8 @@ export function createEditorSettingsPanel(
     const darkSwitch = createSwitch({
       checked: opts.themeMode === "dark",
       ariaLabel: t("settingDarkMode"),
+      // 旧 React 版 parity: inputProps={{ role: "switch" }}（a11y・e2e の getByRole("switch")）。
+      role: "switch",
       onChange: (checked) => onThemeModeChange(checked ? "dark" : "light"),
     });
     handles.push(darkSwitch);

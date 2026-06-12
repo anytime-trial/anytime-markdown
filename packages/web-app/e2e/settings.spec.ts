@@ -56,7 +56,12 @@ test.describe("Settings", () => {
     await expect(jaButton).toBeVisible();
     await jaButton.click();
 
-    // ロケール切替後、設定パネル内のラベルが日本語に変わることを確認
+    // vanilla エディタはロケール変更を remount で反映する（設計上の確定挙動）。
+    // remount で設定パネルは一旦閉じるため、日本語ラベルの設定ボタンで開き直す。
+    const jaSettingsBtn = page.getByRole("button", { name: "エディタ設定" });
+    await expect(jaSettingsBtn).toBeVisible({ timeout: 10000 });
+    await jaSettingsBtn.click();
+
     // 「Editor Settings」→「エディタ設定」
     await expect(page.locator("#settings-panel-title")).toHaveText("エディタ設定", { timeout: 10000 });
 

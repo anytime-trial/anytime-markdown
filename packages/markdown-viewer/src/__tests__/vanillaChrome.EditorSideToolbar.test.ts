@@ -256,3 +256,15 @@ describe("createEditorSideToolbar", () => {
     });
   });
 });
+
+describe("createEditorSideToolbar — レスポンシブ（旧 module.css parity）", () => {
+  it("root にレスポンシブクラスが付き max-width:900px で隠すスタイルが注入される", () => {
+    // 旧 EditorSideToolbar.module.css: @media (max-width:900px) { .root { display:none } }
+    const handle = createEditorSideToolbar({ t: (k: string) => k, onToggleComment: () => {} });
+    expect(handle.el.classList.contains("am-side-toolbar")).toBe(true);
+    const style = document.getElementById("am-side-toolbar-style");
+    expect(style?.textContent).toContain("max-width: 900px");
+    expect(style?.textContent).toContain(".am-side-toolbar");
+    handle.destroy();
+  });
+});

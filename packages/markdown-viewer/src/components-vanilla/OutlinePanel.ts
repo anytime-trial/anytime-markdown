@@ -172,6 +172,15 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
   let dropIdx: number | null = null; // heading-only index（末尾ゾーンは -1）
   const foldedIndices = new Set<number>(); // 折り畳まれた headingIndex の集合
 
+  /**
+   * fold 状態をエディタへ同期する（旧 useOutline の useEffect 相当）。
+   * headingFoldExtension が decoration（.heading-folded / 配下 display:none）を適用する。
+   */
+  const syncFoldToEditor = (): void => {
+    (editor.commands as { setFoldedHeadings?: (s: Set<number>) => boolean })
+      .setFoldedHeadings?.(new Set(foldedIndices));
+  };
+
   // 各再描画で再生成する子コントロール群（次回再描画 / destroy 前に解放）。
   let listHandles: Array<{ destroy: () => void }> = [];
 
@@ -304,7 +313,18 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
     children: svgIcon(ICON_UNFOLD_LESS, 16),
     onClick: () => {
       if (foldedIndices.size > 0) {
-        foldedIndices.clear();
+        // 段階展開（旧 useOutline unfoldAll parity）: 折り畳み中の最小レベルのみ解除する。
+        const folded = currentHeadings.filter(
+          (h) => h.kind === "heading" && foldedIndices.has(h.headingIndex ?? -1),
+        );
+        if (folded.length > 0) {
+          const minLevel = Math.min(...folded.map((h) => h.level));
+          for (const h of folded) {
+            if (h.level === minLevel) foldedIndices.delete(h.headingIndex ?? -1);
+          }
+        } else {
+          foldedIndices.clear();
+        }
       } else {
         for (const h of currentHeadings) {
           if (h.kind === "heading" && h.headingIndex !== undefined) {
@@ -312,6 +332,7 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
           }
         }
       }
+      syncFoldToEditor();
       render();
     },
   });
@@ -464,6 +485,7 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
           e.stopPropagation();
           if (foldedIndices.has(headingIndex)) foldedIndices.delete(headingIndex);
           else foldedIndices.add(headingIndex);
+          syncFoldToEditor();
           render();
         },
       });
@@ -626,9 +648,15 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
     for (const h of currentHeadings) {
       if (h.kind === "heading" && h.headingIndex !== undefined) validIndices.add(h.headingIndex);
     }
+    let pruned = false;
     for (const fi of [...foldedIndices]) {
-      if (!validIndices.has(fi)) foldedIndices.delete(fi);
+      if (!validIndices.has(fi)) {
+        foldedIndices.delete(fi);
+        pruned = true;
+      }
     }
+    // 見出し削除等で fold 集合が変わったら editor 側の decoration へも反映する。
+    if (pruned) syncFoldToEditor();
     render();
   };
   editor.on("update", refresh);

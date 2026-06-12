@@ -38,6 +38,7 @@ import {
   createToggleButton,
   createToggleButtonGroup,
   createTooltip,
+  ensureStyle,
   svgIcon,
 } from "../ui-vanilla";
 import {
@@ -130,6 +131,12 @@ export interface CreateEditorToolbarOptions {
   modeHandlers: ToolbarModeHandlers;
   mergeUndoRedo?: MergeUndoRedo | null;
   hide?: ToolbarVisibility;
+  /**
+   * 右端サイドツールバー（EditorSideToolbar）併用時 true。md+（min-width:900px）では
+   * outline/comments/explorer トグルを CSS で隠す（旧 React Page の
+   * hide.outline = sideToolbarVisibleEditable 相当・aria-label 重複の防止）。
+   */
+  sideToolbar?: boolean;
   /** more メニュー（ヘルプ / ハンバーガー）クリックの intent。anchor 要素を渡す。 */
   onSetHelpAnchor?: (el: HTMLElement) => void;
   /** モバイル more メニュー（ハンバーガー）クリックの intent（host 側 React Menu へ委譲）。 */
@@ -193,6 +200,32 @@ export function createEditorToolbar(
   let mergeUndoRedo = opts.mergeUndoRedo ?? null;
   const fileCapabilities = opts.fileCapabilities;
   const hide = opts.hide ?? {};
+  // 旧 EditorToolbar.module.css parity: ビュー群/compare/More(desktop) は md 未満で非表示、
+  // More(mobile) は md 以上で非表示。display は本スタイルが所有する（inline に置かない）。
+  ensureStyle(
+    "am-toolbar-responsive-style",
+    "#md-editor-toolbar [data-desktop-contents] { display: none; }\n" +
+      "#md-editor-toolbar [data-compare-toggle] { display: none; }\n" +
+      "#md-editor-toolbar [data-more-desktop] { display: none; }\n" +
+      "#md-editor-toolbar [data-more-mobile] { display: inline-flex; }\n" +
+      "@media (min-width: 900px) {\n" +
+      "  #md-editor-toolbar [data-desktop-contents] { display: contents; }\n" +
+      "  #md-editor-toolbar [data-compare-toggle] { display: inline-flex; }\n" +
+      "  #md-editor-toolbar [data-more-desktop] { display: flex; justify-content: center; align-items: center; }\n" +
+      "  #md-editor-toolbar [data-more-mobile] { display: none; }\n" +
+      "}",
+  );
+  // sideToolbar 併用時は md+ で outline/comments/explorer を CSS で隠す（旧 Page parity）。
+  const sideCoupled = opts.sideToolbar ?? false;
+  if (sideCoupled) {
+    ensureStyle(
+      "am-toolbar-side-coupled-style",
+      "@media (min-width: 900px) { [data-am-side-coupled] { display: none !important; } }",
+    );
+  }
+  const markSideCoupled = (el: HTMLElement): void => {
+    if (sideCoupled) el.setAttribute("data-am-side-coupled", "");
+  };
   const fileHandlers = opts.fileHandlers;
 
   let editorState = selectToolbarEditorState(editor);
@@ -441,6 +474,7 @@ export function createEditorToolbar(
         onClick: () => modeHandlers.onToggleExplorer?.(),
       });
       btn.el.style.padding = "2px 6px";
+      markSideCoupled(btn.el);
       withTooltip(span, t("explorer"));
       group.register(btn);
     }
@@ -455,6 +489,7 @@ export function createEditorToolbar(
         onClick: () => modeHandlers.onToggleOutline(),
       });
       btn.el.style.padding = "2px 6px";
+      markSideCoupled(btn.el);
       withTooltip(span, tip(t, "outline"));
       group.register(btn);
     }
@@ -470,6 +505,7 @@ export function createEditorToolbar(
         onClick: () => modeHandlers.onToggleComments?.(),
       });
       btn.el.style.padding = "2px 6px";
+      markSideCoupled(btn.el);
       withTooltip(span, label);
       group.register(btn);
     }
@@ -540,7 +576,6 @@ export function createEditorToolbar(
   if (!hide.modeToggle && !hide.compareToggle) {
     const wrapper = document.createElement("div");
     wrapper.setAttribute("data-compare-toggle", "");
-    wrapper.style.cssText = "display:inline-flex;";
     compareGroup = createToggleButtonGroup({
       variant: "pill",
       size: "small",
@@ -588,7 +623,6 @@ export function createEditorToolbar(
     desktopWrap.setAttribute("data-more-desktop", "");
     desktopWrap.style.cssText =
       `width:${SIDE_TOOLBAR_WIDTH}px;flex-shrink:0;margin-left:auto;` +
-      "display:flex;justify-content:center;align-items:center;" +
       "border-left:1px solid var(--am-color-divider);";
     const helpBtn = createIconButton({
       size: "small",
@@ -604,7 +638,6 @@ export function createEditorToolbar(
     // mobile: ハンバーガー（host 側 React Menu へ intent）。
     const mobileWrap = document.createElement("div");
     mobileWrap.setAttribute("data-more-mobile", "");
-    mobileWrap.style.cssText = "display:inline-flex;";
     const mobileBtn = createIconButton({
       size: "small",
       ariaLabel: t("more"),

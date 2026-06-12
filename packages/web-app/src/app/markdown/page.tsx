@@ -69,7 +69,7 @@ export default function Page() {
       <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         <EmbedProvidersBoundary>
         <VanillaRichMarkdownEditor
-          key={editorKey}
+          key={`${editorKey}-${locale}`}
           t={vanillaT}
           locale={locale}
           themeMode={themeMode}
