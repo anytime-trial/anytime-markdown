@@ -5,7 +5,11 @@ const config = {
   ...base,
   testEnvironment: "jsdom",
   setupFiles: ["<rootDir>/jest.setup.ts"],
-  transform: buildJestTransform(),
+  transform: {
+    ...buildJestTransform(),
+    // raw .md import はファイル実体の文字列へ（webpack asset/source 相当）
+    "^.+\\.md$": "<rootDir>/__mocks__/mdTransformer.js",
+  },
   testMatch: ["<rootDir>/src/__tests__/**/*.test.ts", "<rootDir>/src/__tests__/**/*.test.tsx"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {

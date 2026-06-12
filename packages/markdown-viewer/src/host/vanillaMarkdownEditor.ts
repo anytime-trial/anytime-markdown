@@ -71,6 +71,7 @@ import {
   createSlashCommandMenu,
   type VanillaSlashCommandItem,
 } from "../components-vanilla/SlashCommandMenu";
+import { DEFAULT_SLASH_ITEMS } from "../components-vanilla/slashCommandItems";
 import {
   createEditorToolbar,
   type CreateEditorToolbarOptions,
@@ -872,7 +873,7 @@ export function mountVanillaMarkdownEditor(
       const slash = createSlashCommandMenu({
         editor,
         t,
-        items: current.slashItems ?? [],
+        items: current.slashItems ?? DEFAULT_SLASH_ITEMS,
         setCallback: (cb: (state: SlashCommandState) => void) => {
           slashCb = cb;
         },
