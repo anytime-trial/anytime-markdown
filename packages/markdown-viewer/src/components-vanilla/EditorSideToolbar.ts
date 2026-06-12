@@ -18,7 +18,7 @@ import {
   SIDE_TOOLBAR_ICON_SIZE,
   SIDE_TOOLBAR_WIDTH,
 } from "../constants/dimensions";
-import { svgIcon } from "../ui-vanilla/dom";
+import { ensureStyle, svgIcon } from "../ui-vanilla/dom";
 import { createIconButton, type IconButtonHandle } from "../ui-vanilla/IconButton";
 import { createTooltip } from "../ui-vanilla/Tooltip";
 
@@ -120,10 +120,16 @@ export function createEditorSideToolbar(
   };
 
   const root = document.createElement("div");
+  root.className = "am-side-toolbar";
   root.style.cssText =
     "display:flex;flex-direction:column;align-items:center;height:100%;" +
     "padding-top:8px;padding-bottom:8px;gap:4px;flex-shrink:0;" +
     `width:${SIDE_TOOLBAR_WIDTH}px;border:1px solid var(--am-color-divider);`;
+  // 旧 EditorSideToolbar.module.css parity: md 未満では非表示（インライン display を打ち消すため !important）。
+  ensureStyle(
+    "am-side-toolbar-style",
+    "@media (max-width: 900px) { .am-side-toolbar { display: none !important; } }",
+  );
 
   const items: ToolbarItem[] = [];
 

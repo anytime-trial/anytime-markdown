@@ -457,3 +457,51 @@ describe("createEditorToolbar — destroy クリーンアップ", () => {
     expect(b.listenerCount("transaction")).toBe(0);
   });
 });
+
+describe("createEditorToolbar — sideToolbar 連動（旧 Page parity）", () => {
+  // 旧 React Page は sideToolbar 表示中（md+）にトップツールバーの outline/comments/explorer
+  // を隠していた（hide.outline = hideOutline || sideToolbarVisibleEditable）。vanilla では
+  // CSS メディアクエリ駆動（data-am-side-coupled + min-width:900px）で同等にする。
+  it("sideToolbar:true で outline/comments/explorer に data-am-side-coupled が付く", () => {
+    const { handle } = mount({ sideToolbar: true });
+    for (const label of ["outline", "commentPanel", "explorer"]) {
+      const btn = handle.el.querySelector(`button[aria-label="${label}"]`);
+      expect(btn).toBeTruthy();
+      expect(btn?.hasAttribute("data-am-side-coupled")).toBe(true);
+    }
+    handle.destroy();
+  });
+
+  it("sideToolbar 未指定では data-am-side-coupled が付かない", () => {
+    const { handle } = mount();
+    expect(handle.el.querySelector("[data-am-side-coupled]")).toBeNull();
+    handle.destroy();
+  });
+
+  it("min-width:900px で隠すスタイルが注入される", () => {
+    const { handle } = mount({ sideToolbar: true });
+    const style = document.getElementById("am-toolbar-side-coupled-style");
+    expect(style?.textContent).toContain("min-width: 900px");
+    expect(style?.textContent).toContain("data-am-side-coupled");
+    handle.destroy();
+  });
+});
+
+describe("createEditorToolbar — レスポンシブ（旧 EditorToolbar.module.css parity）", () => {
+  // 旧 module.css: desktopContents/compareToggle/moreMenuDesktop は md 未満で非表示、
+  // moreMenuMobile は md 以上で非表示（=デスクトップで More が 2 個出る退行の防止）。
+  it("レスポンシブスタイルが注入され各ラッパは inline display を持たない", () => {
+    const { handle } = mount();
+    const style = document.getElementById("am-toolbar-responsive-style");
+    expect(style?.textContent).toContain("min-width: 900px");
+    expect(style?.textContent).toContain("data-more-mobile");
+    expect(style?.textContent).toContain("data-desktop-contents");
+    for (const sel of ["[data-compare-toggle]", "[data-more-desktop]", "[data-more-mobile]"]) {
+      const el = handle.el.querySelector(sel) as HTMLElement | null;
+      expect(el).toBeTruthy();
+      // display は注入 CSS が所有する（inline にあると media 切替が効かない）。
+      expect(el?.style.display).toBe("");
+    }
+    handle.destroy();
+  });
+});

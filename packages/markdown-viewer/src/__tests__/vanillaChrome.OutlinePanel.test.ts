@@ -42,6 +42,7 @@ function toPmNode(n: MockNode): any {
 function makeEditor(initNodes: MockNode[] = []) {
   const listeners: Record<string, Array<() => void>> = {};
   let nodes = initNodes;
+  const setFoldedHeadings = jest.fn(() => true);
   const editor: any = {
     state: {
       doc: {
@@ -52,6 +53,7 @@ function makeEditor(initNodes: MockNode[] = []) {
         },
       },
     },
+    commands: { setFoldedHeadings },
     on(evt: string, fn: () => void) {
       (listeners[evt] ??= []).push(fn);
     },
@@ -61,6 +63,7 @@ function makeEditor(initNodes: MockNode[] = []) {
   };
   return {
     editor,
+    setFoldedHeadings,
     setNodes: (next: MockNode[]) => {
       nodes = next;
     },
@@ -238,7 +241,10 @@ describe("createOutlinePanel", () => {
       foldAll.click();
       // fold-all 後はラベルが unfoldAll に変わる。
       expect(handle.el.querySelector('[aria-label="unfoldAll"]')).toBeTruthy();
-      // 再度押すと foldAll へ戻る。
+      // unfold は段階展開（旧 useOutline parity）: 1 回目で H1 のみ解除 → まだ unfoldAll。
+      (handle.el.querySelector('[aria-label="unfoldAll"]') as HTMLButtonElement).click();
+      expect(handle.el.querySelector('[aria-label="unfoldAll"]')).toBeTruthy();
+      // 2 回目で H2 も解除され foldAll へ戻る。
       (handle.el.querySelector('[aria-label="unfoldAll"]') as HTMLButtonElement).click();
       expect(handle.el.querySelector('[aria-label="foldAll"]')).toBeTruthy();
       handle.destroy();
@@ -386,5 +392,52 @@ describe("createOutlinePanel", () => {
       handle.destroy();
       expect(() => handle.destroy()).not.toThrow();
     });
+  });
+});
+
+describe("fold の editor 同期（headingFoldExtension 連携・旧 useOutline parity）", () => {
+  // 旧 React useOutline は foldedIndices 変更のたびに editor.commands.setFoldedHeadings を
+  // 呼び decoration（.heading-folded）を適用していた。vanilla 版の同期リグレッション。
+  const MIXED_LEVELS: MockNode[] = [
+    { typeName: "heading", level: 1, text: "Intro" },
+    { typeName: "heading", level: 2, text: "Background" },
+    { typeName: "heading", level: 2, text: "Method" },
+  ];
+
+  function clickFoldAll(el: HTMLElement, label: string): void {
+    (el.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement).click();
+  }
+
+  it("fold-all クリックで setFoldedHeadings(全 heading index) を発火する", () => {
+    const m = makeEditor(MIXED_LEVELS);
+    const handle = createOutlinePanel(baseOpts({ editor: m.editor }));
+    clickFoldAll(handle.el, "foldAll");
+    expect(m.setFoldedHeadings).toHaveBeenCalledWith(new Set([0, 1, 2]));
+    handle.destroy();
+  });
+
+  it("unfold は段階展開（最小レベルのみ解除）し setFoldedHeadings を発火する", () => {
+    const m = makeEditor(MIXED_LEVELS);
+    const handle = createOutlinePanel(baseOpts({ editor: m.editor }));
+    clickFoldAll(handle.el, "foldAll"); // {0,1,2}
+    m.setFoldedHeadings.mockClear();
+    clickFoldAll(handle.el, "unfoldAll"); // H1(idx0) のみ展開 → {1,2}
+    expect(m.setFoldedHeadings).toHaveBeenCalledWith(new Set([1, 2]));
+    m.setFoldedHeadings.mockClear();
+    clickFoldAll(handle.el, "unfoldAll"); // H2 展開 → {}
+    expect(m.setFoldedHeadings).toHaveBeenCalledWith(new Set());
+    handle.destroy();
+  });
+
+  it("個別 heading の折り畳みトグルでも setFoldedHeadings を発火する", () => {
+    const m = makeEditor(MIXED_LEVELS);
+    const handle = createOutlinePanel(baseOpts({ editor: m.editor }));
+    const itemFoldBtn = handle.el.querySelector(
+      'button[aria-label^="collapseSection"]',
+    ) as HTMLButtonElement;
+    expect(itemFoldBtn).toBeTruthy();
+    itemFoldBtn.click();
+    expect(m.setFoldedHeadings).toHaveBeenCalledWith(new Set([0]));
+    handle.destroy();
   });
 });
