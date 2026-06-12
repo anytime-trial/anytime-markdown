@@ -173,13 +173,27 @@ export interface BlockChromeAnchorHandle {
 }
 
 /**
+ * ツールバーをブロック上端から持ち上げる余白（px）。
+ * `translateY(-100%)` でツールバー自身の高さぶん持ち上げた上に、さらにこの値だけ
+ * 上へずらすことで、ツールバーの下端とブロック本体の間に小さな隙間を作る。
+ */
+const ABOVE_GAP_PX = 6;
+
+/**
  * 選択中ブロックの画面矩形に追従して chrome を `document.body` 直下へ
  * `position: fixed` 配置する素 DOM portal（vanilla BlockChromeAnchor）。
+ *
+ * ツールバーはブロックの**上側**に配置する（`transform: translateY(-100%)` で
+ * ツールバー自身の高さぶん持ち上げ、`top` を `rect.top - ABOVE_GAP_PX` に置く）。
+ * 反転アーキテクチャ以降 content は native レンダリングのため、ツールバーを
+ * `rect.top`（ブロック左上角）にそのまま置くとテーブルのヘッダ行などブロック本体に
+ * 重なる。上側配置で重なりを回避する（table/image/gif/code 全 overlay 共通）。
  */
 export function createBlockChromeAnchor(zIndex = 20): BlockChromeAnchorHandle {
   const el = document.createElement("div");
   el.setAttribute("data-vanilla-block-chrome", "");
-  el.style.cssText = `position:fixed;z-index:${zIndex};display:none;`;
+  el.style.cssText =
+    `position:fixed;z-index:${zIndex};display:none;transform:translateY(-100%);`;
   document.body.appendChild(el);
   return {
     el,
@@ -189,7 +203,7 @@ export function createBlockChromeAnchor(zIndex = 20): BlockChromeAnchorHandle {
         return;
       }
       el.style.display = "";
-      el.style.top = `${rect.top}px`;
+      el.style.top = `${rect.top - ABOVE_GAP_PX}px`;
       el.style.left = `${rect.left}px`;
     },
     destroy() {

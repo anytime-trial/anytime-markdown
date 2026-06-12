@@ -41,9 +41,14 @@ export function createToolbarContainer(ariaLabel: string): HTMLElement {
   el.setAttribute("data-block-toolbar", "");
   el.setAttribute("role", "toolbar");
   el.setAttribute("aria-label", ariaLabel);
+  // 背景は不透明（bg-paper）+ 枠線 + 影。ツールバーはブロック上側にフロート配置され
+  // 直前ブロックに重なり得るため、半透明だと背後のテキストが透けて二重に見える。
+  // 不透明にして「明確に手前のフローティングツールバー」として読めるようにする。
   el.style.cssText =
-    "background-color:var(--am-color-action-hover);padding:2px 6px;" +
-    "display:flex;align-items:center;gap:2px;border-radius:4px;";
+    "background-color:var(--am-color-bg-paper);padding:2px 6px;" +
+    "display:flex;align-items:center;gap:2px;border-radius:4px;" +
+    "border:1px solid var(--am-color-divider);" +
+    "box-shadow:0 2px 8px rgba(0,0,0,0.18);";
   el.addEventListener("mousedown", (e) => e.preventDefault());
   return el;
 }
