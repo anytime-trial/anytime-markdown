@@ -113,6 +113,8 @@ export function createCodeBlockNodeView(
     "background:var(--am-color-code-bg);" +
     "font-size:var(--am-code-font-size,16px);line-height:var(--am-code-line-height,1.6);";
   const code = document.createElement("code");
+  // inline のままだと空ブロック（trailingBreak のみ）で幅 0 になり不可視扱いになるため block 化。
+  code.style.display = "block";
   pre.appendChild(code);
   preWrap.appendChild(pre);
   frame.appendChild(preWrap);
