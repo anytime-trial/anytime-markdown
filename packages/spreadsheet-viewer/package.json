@@ -12,13 +12,7 @@
   "dependencies": {
     "@anytime-markdown/spreadsheet-core": "*"
   },
-  "peerDependencies": {
-    "next-intl": ">=4",
-    "react": ">=19",
-    "react-dom": ">=19"
-  },
   "devDependencies": {
-    "@testing-library/react": "16.3.2",
     "@types/jest": "30.0.0",
     "jest": "30.2.0",
     "jest-environment-jsdom": "30.2.0",

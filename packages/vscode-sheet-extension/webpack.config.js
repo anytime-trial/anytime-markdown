@@ -45,17 +45,13 @@ const extensionConfig = {
 const webviewConfig = {
   target: 'web',
   mode: 'none',
-  entry: './src/webview/index.tsx',
+  entry: './src/webview/index.ts',
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'webview.js',
   },
   resolve: {
-    extensions: ['.tsx', '.ts', '.js', '.json'],
-    alias: {
-      'next-intl': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),
-      'next-intl/server': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),
-    },
+    extensions: ['.ts', '.js', '.json'],
   },
   module: {
     rules: [

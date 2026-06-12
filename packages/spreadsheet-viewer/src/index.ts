@@ -1,17 +1,30 @@
-export { SpreadsheetGrid } from "./SpreadsheetGrid";
-export { SpreadsheetEditor } from "./SpreadsheetEditor";
-export { SpreadsheetContextMenu } from "./SpreadsheetContextMenu";
-export { PaginationBar } from "./PaginationBar";
-export type { PaginationProps } from "./PaginationBar";
-export { useSpreadsheetState } from "./hooks/useSpreadsheetState";
-export { getDivider } from "./ui/tokens";
+export { mountSpreadsheetGrid } from "./vanilla/spreadsheetGrid";
+export type { SpreadsheetGridHandle, SpreadsheetGridOptions } from "./vanilla/spreadsheetGrid";
+export { mountSpreadsheetEditor } from "./vanilla/spreadsheetEditor";
+export type {
+  SpreadsheetEditorHandle,
+  SpreadsheetEditorOptions,
+  SpreadsheetEditorUpdatePatch,
+} from "./vanilla/spreadsheetEditor";
+export { createPaginationBar } from "./vanilla/paginationBar";
+export type { PaginationBarHandle, PaginationProps } from "./vanilla/paginationBar";
+export { createSheetTabs } from "./vanilla/sheetTabs";
+export type { SheetTabsCallbacks, SheetTabsHandle } from "./vanilla/sheetTabs";
+export { openSpreadsheetContextMenu } from "./vanilla/contextMenu";
+export type {
+  SpreadsheetContextMenuCallbacks,
+  SpreadsheetContextMenuHandle,
+} from "./vanilla/contextMenu";
+
+export { createSpreadsheetT } from "./i18n/createSpreadsheetT";
+export type { SpreadsheetNamespace, SpreadsheetT } from "./i18n/createSpreadsheetT";
 export { enMessages as spreadsheetViewerEnMessages, jaMessages as spreadsheetViewerJaMessages } from "./i18n";
 export type { SpreadsheetViewerMessages } from "./i18n";
-export { SpreadsheetI18nProvider } from "./i18n/context";
 
-export { SheetTabs } from "./SheetTabs";
+export { getDivider } from "./ui/tokens";
+export type { SpreadsheetPalette, SpreadsheetThemeMode } from "./ui/tokens";
 
 export type { SheetAdapter, SheetSnapshot } from "@anytime-markdown/spreadsheet-core";
 export { createInMemorySheetAdapter, parseCsv, serializeCsv, parseMarkdownTable, serializeMarkdownTable } from "@anytime-markdown/spreadsheet-core";
-export type { WorkbookAdapter, WorkbookSnapshot, SheetData, CellAlign } from "@anytime-markdown/spreadsheet-core";
+export type { CellAlign, SheetData, WorkbookAdapter, WorkbookSnapshot } from "@anytime-markdown/spreadsheet-core";
 export { createInMemoryWorkbookAdapter } from "@anytime-markdown/spreadsheet-core";

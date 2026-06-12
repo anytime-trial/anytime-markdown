@@ -27,7 +27,10 @@ export interface GraphMountHandle {
 // ===== Pure ヘルパー（React 不使用） =====
 
 // parseBaseline は実装ホームの viewer（utils/embedInfoString）へ正規化。互換のため再 export する。
-export { parseBaseline } from "@anytime-markdown/markdown-viewer/src/utils/embedInfoString";
+// `export { X } from` はモジュールスコープへ取り込まないため、本ファイル内の使用向けに import も行う。
+import { parseBaseline } from "@anytime-markdown/markdown-viewer/src/utils/embedInfoString";
+
+export { parseBaseline };
 
 /** embed の card variant のみリサイズ可能。 */
 export function isEmbedResizable(language: string): boolean {

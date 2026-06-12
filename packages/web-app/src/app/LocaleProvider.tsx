@@ -5,7 +5,6 @@ import { GraphI18nProvider } from '@anytime-markdown/graph-viewer';
 import { MarkdownCoreI18nProvider } from '@anytime-markdown/markdown-react-islands';
 import markdownCoreEnMessages from '@anytime-markdown/markdown-viewer/src/i18n/en.json';
 import markdownCoreJaMessages from '@anytime-markdown/markdown-viewer/src/i18n/ja.json';
-import { SpreadsheetI18nProvider } from '@anytime-markdown/spreadsheet-viewer';
 import { NextIntlClientProvider } from 'next-intl';
 import { createContext, useCallback, useContext, useEffect, useMemo,useState } from 'react';
 
@@ -81,15 +80,13 @@ export function LocaleProvider({ serverLocale, children }: Readonly<LocaleProvid
   return (
     <LocaleContext.Provider value={ctx}>
       <MarkdownCoreI18nProvider locale={locale}>
-        <SpreadsheetI18nProvider locale={locale}>
-          <GraphI18nProvider locale={locale}>
-            <DatabaseI18nProvider locale={locale}>
-              <NextIntlClientProvider locale={locale} messages={messages[locale]} timeZone="UTC">
-                {children}
-              </NextIntlClientProvider>
-            </DatabaseI18nProvider>
-          </GraphI18nProvider>
-        </SpreadsheetI18nProvider>
+        <GraphI18nProvider locale={locale}>
+          <DatabaseI18nProvider locale={locale}>
+            <NextIntlClientProvider locale={locale} messages={messages[locale]} timeZone="UTC">
+              {children}
+            </NextIntlClientProvider>
+          </DatabaseI18nProvider>
+        </GraphI18nProvider>
       </MarkdownCoreI18nProvider>
     </LocaleContext.Provider>
   );

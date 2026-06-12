@@ -282,11 +282,11 @@ describe("installBlockOverlays — 削除確認", () => {
 });
 
 describe("installBlockOverlays — table", () => {
-  it("onTableEdit 指定時は setEditing(true) + 委譲、未指定時はグリッド編集 no-op", () => {
+  it("onTableEdit 指定時は setEditing(true) + 委譲、未指定時は onEdit 自体を渡さない（ボタン非表示）", () => {
     const { editor } = makeEditor();
     const onTableEdit = jest.fn();
     installBlockOverlays(editor, { t, vscodeApi: null, onTableEdit });
-    mockTableCb!.onEdit(12);
+    mockTableCb!.onEdit?.(12);
     expect(mockTableHandle.setEditing).toHaveBeenCalledWith(true);
     expect(onTableEdit).toHaveBeenCalledWith(
       expect.objectContaining({ pos: 12, setEditing: expect.any(Function) }),
@@ -296,7 +296,8 @@ describe("installBlockOverlays — table", () => {
     onTableEdit.mockClear();
     const { editor: editor2 } = makeEditor();
     installBlockOverlays(editor2, { t, vscodeApi: null });
-    mockTableCb!.onEdit(13);
+    // 未提供時は chrome に onEdit を渡さない = 編集ボタンが描画されない
+    expect(mockTableCb!.onEdit).toBeUndefined();
     expect(mockTableHandle.setEditing).not.toHaveBeenCalled();
   });
 });
