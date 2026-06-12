@@ -13,6 +13,13 @@ const SCOPE = 'bug_history_incremental';
 const DEFAULT_SINCE = '1970-01-01T00:00:00.000Z';
 const MAX_CONSECUTIVE_FAILURES = 5;
 const PROGRESS_LOG_INTERVAL = 50;
+/**
+ * 同期 commit 処理を何件ごとに event loop へ yield するか。
+ * 大量 commit を同期で回し続けると daemon のイベントループがブロックされ、
+ * SIGTERM/disconnect ハンドラが走れず Extension Host 終了時に child が孤児化する。
+ * 一定間隔で yield して graceful shutdown ハンドラが割り込めるようにする。
+ */
+const YIELD_INTERVAL = 100;
 
 export interface BugHistoryIncrementalResult {
   status: 'success' | 'partial' | 'error';
@@ -175,6 +182,12 @@ export async function runBugHistoryIncremental(opts: {
       logger.info(`[anytime-memory] runBugHistoryIncremental: quarantine threshold reached`);
       hasPartialFailure = true;
       break;
+    }
+
+    // 孤児化対策: 一定間隔で event loop に yield し、daemon の SIGTERM/disconnect
+    // ハンドラが同期スイープの隙間で割り込めるようにする (graceful shutdown 成立)。
+    if (commitProcessed % YIELD_INTERVAL === 0) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
     }
 
     const subject = row.commit_message.split('\n')[0] ?? '';
