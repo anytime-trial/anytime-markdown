@@ -32,11 +32,14 @@ test.describe("File Operations", () => {
   });
 
   test("upload markdown file", async ({ page }) => {
-    // hidden file input にファイルをセット
-    const fileInput = page.locator('input[type="file"][accept*=".md"]');
+    // vanilla chrome は Open クリック時に file input を動的生成する（常設 hidden input は無い）ため、
+    // filechooser イベント経由でアップロードする
+    const fileChooserPromise = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: /^open$/i }).click();
+    const fileChooser = await fileChooserPromise;
 
     // テスト用の .md ファイルをアップロード
-    await fileInput.setInputFiles({
+    await fileChooser.setFiles({
       name: "test-upload.md",
       mimeType: "text/markdown",
       buffer: Buffer.from("# Uploaded Heading\n\nUploaded paragraph content"),
