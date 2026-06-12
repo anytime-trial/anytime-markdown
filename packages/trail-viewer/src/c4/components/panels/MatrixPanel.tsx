@@ -4,6 +4,7 @@ import type { CellAlign, HeaderSpan } from '@anytime-markdown/spreadsheet-core';
 import {
   createInMemorySheetAdapter,
   mountSpreadsheetGrid,
+  type SpreadsheetGridHandle,
   type SpreadsheetGridOptions,
 } from '@anytime-markdown/spreadsheet-viewer';
 import Box from '@mui/material/Box';
@@ -107,15 +108,29 @@ function makeSheetResult(sheet: { cells: string[][]; alignments: CellAlign[][]; 
  * spreadsheet-viewer の脱 React に伴う vanilla grid の mount ラッパ。
  * options 変更（レベル切替・adapter 差し替え等）で grid を作り直す
  * （旧 React 版の key={`coverage-${level}`} による remount と同じ運用）。
+ * テーマ切替は handle.update({ isDark }) で反映し、再 mount を避ける。
  */
-function VanillaSpreadsheetGridMount({ options }: Readonly<{ options: SpreadsheetGridOptions }>) {
+function VanillaSpreadsheetGridMount({
+  options,
+  isDark,
+}: Readonly<{ options: Omit<SpreadsheetGridOptions, 'isDark'>; isDark: boolean }>) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const handleRef = useRef<SpreadsheetGridHandle | null>(null);
+  const isDarkRef = useRef(isDark);
+  isDarkRef.current = isDark;
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const handle = mountSpreadsheetGrid(container, options);
-    return () => handle.destroy();
+    const handle = mountSpreadsheetGrid(container, { ...options, isDark: isDarkRef.current });
+    handleRef.current = handle;
+    return () => {
+      handleRef.current = null;
+      handle.destroy();
+    };
   }, [options]);
+  useEffect(() => {
+    handleRef.current?.update({ isDark });
+  }, [isDark]);
   return (
     <div
       ref={containerRef}
@@ -281,11 +296,10 @@ export function MatrixPanel({
     };
   }, [coverageMatrix]);
 
-  const gridOptions = useMemo<SpreadsheetGridOptions | null>(() => {
+  const gridOptions = useMemo<Omit<SpreadsheetGridOptions, 'isDark'> | null>(() => {
     if (!activeAdapter) return null;
     return {
       adapter: activeAdapter,
-      isDark,
       showApply: false,
       showRange: false,
       showToolbar: false,
@@ -302,7 +316,7 @@ export function MatrixPanel({
       getRowHeaderBackground: isCommunityColor ? coverageRowHeaderBackground : undefined,
     };
   }, [
-    activeAdapter, isDark, activeColHeaders, activeRowHeaders, level,
+    activeAdapter, activeColHeaders, activeRowHeaders, level,
     coverageRowHeaderGroups, gridDimensions, coverageCellBackground,
     isCommunityColor, coverageRowHeaderBackground,
   ]);
@@ -340,7 +354,7 @@ export function MatrixPanel({
       {/* Sheet */}
       <Box sx={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {gridOptions ? (
-          <VanillaSpreadsheetGridMount options={gridOptions} />
+          <VanillaSpreadsheetGridMount options={gridOptions} isDark={isDark} />
         ) : (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Typography variant="body2" sx={{ color: colors.textSecondary }}>

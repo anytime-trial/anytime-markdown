@@ -238,7 +238,9 @@ export function mountSpreadsheetEditor(
   };
   mountGrid();
 
-  /* ---- 列ヘッダー変更の監視（ResultGrid のクエリ切替等） ---- */
+  /* ---- 列ヘッダー変更の監視（ResultGrid のクエリ切替等） ----
+   * workbook モードでは buildSheetAdapter の wrapper が getColumnHeaders を持たず、
+   * remount は workbook subscribe 側（activeSheet 切替）に一元化するため購読しない。 */
   const headersChanged = (): boolean => {
     const next = effectiveAdapter.getColumnHeaders?.();
     if (next === currentColumnHeaders) return false;
@@ -246,10 +248,12 @@ export function mountSpreadsheetEditor(
     if (next.length !== currentColumnHeaders.length) return true;
     return next.some((v, i) => v !== currentColumnHeaders?.[i]);
   };
-  const unsubscribeHeaders = effectiveAdapter.subscribe(() => {
-    if (destroyed) return;
-    if (headersChanged()) mountGrid();
-  });
+  const unsubscribeHeaders = workbookAdapter
+    ? null
+    : effectiveAdapter.subscribe(() => {
+        if (destroyed) return;
+        if (headersChanged()) mountGrid();
+      });
 
   /* ---- workbook: SheetTabs + activeSheet 切替で grid 再 mount ---- */
   let sheetTabs: SheetTabsHandle | null = null;
@@ -323,7 +327,7 @@ export function mountSpreadsheetEditor(
     },
     destroy() {
       destroyed = true;
-      unsubscribeHeaders();
+      unsubscribeHeaders?.();
       unsubscribeWorkbook?.();
       sheetTabs?.destroy();
       grid?.destroy();

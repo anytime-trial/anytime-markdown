@@ -55,6 +55,12 @@ const AUTO_WIDTH_MAX = 300;
 const AUTO_WIDTH_CHAR_PX = 8;
 const AUTO_WIDTH_PADDING = 12;
 const DRAG_THRESHOLD = 5;
+const CELL_DRAG_THRESHOLD = 3;
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, sans-serif";
+const FONT_CELL = `13px ${FONT_FAMILY}`;
+const FONT_CELL_BOLD = `600 13px ${FONT_FAMILY}`;
+const FONT_HEADER = `600 12px ${FONT_FAMILY}`;
+const FONT_GROUP = `600 11px ${FONT_FAMILY}`;
 
 interface CellSizeSettings {
   heightMode: "fixed" | "auto";
@@ -184,6 +190,17 @@ function nextSelectionForCellClick(
   return { type: "cell", row: cell.row, col: cell.col };
 }
 
+/** セル文字列の整列から canvas textAlign と描画 X を解決する（通常セル / sticky 行で共用）。 */
+function resolveCellTextLayout(
+  colAlign: CellAlign | null,
+  cellLeft: number,
+  cellWidth: number,
+): { textAlign: CanvasTextAlign; textX: number } {
+  if (colAlign === "center") return { textAlign: "center", textX: cellLeft + cellWidth / 2 };
+  if (colAlign === "right") return { textAlign: "right", textX: cellLeft + cellWidth - 6 };
+  return { textAlign: "left", textX: cellLeft + 6 };
+}
+
 export function mountSpreadsheetGrid(
   container: HTMLElement,
   options: SpreadsheetGridOptions,
@@ -243,6 +260,8 @@ export function mountSpreadsheetGrid(
   let destroyed = false;
   let rafId = 0;
   let contextMenuHandle: SpreadsheetContextMenuHandle | null = null;
+  /** 直近 drawGrid のレイアウト。mousemove（カーソル形状のみ）での再計算を避けるキャッシュ。 */
+  let lastLayout: GridLayout | null = null;
   let settingsDialog: SvDialogHandle | null = null;
   const disposers: Array<() => void> = [];
 
@@ -753,6 +772,7 @@ export function mountSpreadsheetGrid(
     if (!ctx) return;
 
     const lay = computeLayout();
+    lastLayout = lay;
     const { topOffset, totalWidth, totalHeight, visibleRows, rowYs, hiddenRows } = lay;
     const selection = state.selection;
     const grid = state.grid;
@@ -906,7 +926,7 @@ export function mountSpreadsheetGrid(
     }
 
     ctx.fillStyle = textColor;
-    ctx.font = "13px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.font = FONT_CELL;
     ctx.textBaseline = "middle";
 
     for (let vi = startVi; vi < endVi; vi++) {
@@ -936,30 +956,19 @@ export function mountSpreadsheetGrid(
         if (!displayValue) continue;
 
         const cellY = cellTop + rh / 2;
-        const colAlign = alignments[r]?.[c] ?? null;
-
-        let textX: number;
-        if (colAlign === "center") {
-          ctx.textAlign = "center";
-          textX = cellLeft + cw / 2;
-        } else if (colAlign === "right") {
-          ctx.textAlign = "right";
-          textX = cellLeft + cw - 6;
-        } else {
-          ctx.textAlign = "left";
-          textX = cellLeft + 6;
-        }
+        const { textAlign, textX } = resolveCellTextLayout(alignments[r]?.[c] ?? null, cellLeft, cw);
+        ctx.textAlign = textAlign;
 
         ctx.save();
         ctx.beginPath();
         ctx.rect(cellLeft, cellTop, cw, rh);
         ctx.clip();
         if (r === 0) {
-          ctx.font = "600 13px -apple-system, BlinkMacSystemFont, sans-serif";
+          ctx.font = FONT_CELL_BOLD;
         }
         ctx.fillText(displayValue, textX, cellY);
         if (r === 0) {
-          ctx.font = "13px -apple-system, BlinkMacSystemFont, sans-serif";
+          ctx.font = FONT_CELL;
         }
         ctx.restore();
       }
@@ -983,7 +992,7 @@ export function mountSpreadsheetGrid(
       ctx.fillStyle = headerBg;
       ctx.fillRect(scrollLeft, stickyRowY, ROW_NUM_WIDTH, stickyRh);
       ctx.fillStyle = headerTextColor;
-      ctx.font = "600 12px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.font = FONT_HEADER;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("H", scrollLeft + ROW_NUM_WIDTH / 2, stickyRowY + stickyRh / 2);
@@ -995,7 +1004,7 @@ export function mountSpreadsheetGrid(
       ctx.stroke();
 
       ctx.fillStyle = textColor;
-      ctx.font = "600 13px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.font = FONT_CELL_BOLD;
       ctx.textBaseline = "middle";
       for (let c = startCol; c < endCol; c++) {
         const value = grid[0]?.[c];
@@ -1003,19 +1012,8 @@ export function mountSpreadsheetGrid(
         const cw = getColWidth(c);
         const cellLeft = getColX(c);
         const cellY = stickyRowY + stickyRh / 2;
-        const colAlign = alignments[0]?.[c] ?? null;
-
-        let textX: number;
-        if (colAlign === "center") {
-          ctx.textAlign = "center";
-          textX = cellLeft + cw / 2;
-        } else if (colAlign === "right") {
-          ctx.textAlign = "right";
-          textX = cellLeft + cw - 6;
-        } else {
-          ctx.textAlign = "left";
-          textX = cellLeft + 6;
-        }
+        const { textAlign, textX } = resolveCellTextLayout(alignments[0]?.[c] ?? null, cellLeft, cw);
+        ctx.textAlign = textAlign;
 
         ctx.save();
         ctx.beginPath();
@@ -1059,7 +1057,7 @@ export function mountSpreadsheetGrid(
             const y0 = topOffset + rowYs[startVi2];
             const spanH = rowYs[endVi2 + 1] - rowYs[startVi2];
             ctx.fillStyle = headerTextColor;
-            ctx.font = "600 11px -apple-system, BlinkMacSystemFont, sans-serif";
+            ctx.font = FONT_GROUP;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.save();
@@ -1081,7 +1079,7 @@ export function mountSpreadsheetGrid(
     }
 
     ctx.fillStyle = headerTextColor;
-    ctx.font = "600 12px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.font = FONT_HEADER;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -1147,7 +1145,7 @@ export function mountSpreadsheetGrid(
           }
           if (spanWidth > 0 && spanItem.label) {
             ctx.fillStyle = headerTextColor;
-            ctx.font = "600 11px -apple-system, BlinkMacSystemFont, sans-serif";
+            ctx.font = FONT_GROUP;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.save();
@@ -1170,7 +1168,7 @@ export function mountSpreadsheetGrid(
 
     const colHeaderY = scrollTop + colGroupHeight;
     ctx.fillStyle = headerTextColor;
-    ctx.font = "600 12px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.font = FONT_HEADER;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -1639,6 +1637,58 @@ export function mountSpreadsheetGrid(
     activeDragCleanups.add(cleanup);
   };
 
+  /** 行/列ヘッダの並べ替えドラッグ（軸差分のみパラメータ化した row/col 共通実装）。 */
+  const startReorderDrag = (
+    e: MouseEvent,
+    lay: GridLayout,
+    axis: "row" | "col",
+    sourceIndex: number,
+  ): void => {
+    const startCoord = axis === "row" ? e.clientY : e.clientX;
+    let dragStarted = false;
+    trackDrag(
+      (ev) => {
+        const coord = axis === "row" ? ev.clientY : ev.clientX;
+        if (!dragStarted && Math.abs(coord - startCoord) >= DRAG_THRESHOLD) {
+          dragStarted = true;
+          reorderDrag = { type: axis, sourceIndex, targetIndex: null };
+        }
+        if (dragStarted) {
+          const rect = canvas.getBoundingClientRect();
+          let targetIndex: number;
+          if (axis === "row") {
+            const my = ev.clientY - rect.top;
+            const targetVi = Math.max(0, Math.min(lay.visibleRows.length, getViAtY(lay, my - lay.topOffset)));
+            targetIndex = targetVi < lay.visibleRows.length ? lay.visibleRows[targetVi] : GRID_ROWS;
+          } else {
+            targetIndex = Math.max(0, Math.min(GRID_COLS, getColAtX(ev.clientX - rect.left)));
+          }
+          reorderDrag = reorderDrag ? { ...reorderDrag, targetIndex } : null;
+          scheduleDraw();
+        }
+      },
+      () => {
+        if (!dragStarted) return;
+        if (reorderDrag?.targetIndex != null && reorderDrag.targetIndex !== reorderDrag.sourceIndex) {
+          const from = reorderDrag.sourceIndex;
+          const to = reorderDrag.targetIndex > from ? reorderDrag.targetIndex - 1 : reorderDrag.targetIndex;
+          if (from !== to) {
+            if (axis === "row") {
+              state.swapRows(from, to);
+              state.setSelection({ type: "row", start: to, end: to });
+            } else {
+              state.swapCols(from, to);
+              state.setSelection({ type: "col", start: to, end: to });
+            }
+          }
+        }
+        reorderDrag = null;
+        suppressClick = true;
+        scheduleDraw();
+      },
+    );
+  };
+
   const onCanvasMouseDown = (e: MouseEvent): void => {
     const lay = computeLayout();
     const { x, y } = getCanvasCoords(e);
@@ -1725,39 +1775,7 @@ export function mountSpreadsheetGrid(
       const srcVi = getViAtY(lay, y - lay.topOffset);
       const srcRow = srcVi >= 0 && srcVi < lay.visibleRows.length ? lay.visibleRows[srcVi] : -1;
       if (srcRow >= 0 && srcRow < GRID_ROWS) {
-        const startY = e.clientY;
-        let dragStarted = false;
-        trackDrag(
-          (ev) => {
-            if (!dragStarted && Math.abs(ev.clientY - startY) >= DRAG_THRESHOLD) {
-              dragStarted = true;
-              reorderDrag = { type: "row", sourceIndex: srcRow, targetIndex: null };
-            }
-            if (dragStarted) {
-              const rect = canvas.getBoundingClientRect();
-              const my = ev.clientY - rect.top;
-              const targetVi = Math.max(0, Math.min(lay.visibleRows.length, getViAtY(lay, my - lay.topOffset)));
-              const targetRow = targetVi < lay.visibleRows.length ? lay.visibleRows[targetVi] : GRID_ROWS;
-              reorderDrag = reorderDrag ? { ...reorderDrag, targetIndex: targetRow } : null;
-              scheduleDraw();
-            }
-          },
-          () => {
-            if (dragStarted) {
-              if (reorderDrag?.targetIndex != null && reorderDrag.targetIndex !== reorderDrag.sourceIndex) {
-                const from = reorderDrag.sourceIndex;
-                const to = reorderDrag.targetIndex > from ? reorderDrag.targetIndex - 1 : reorderDrag.targetIndex;
-                if (from !== to) {
-                  state.swapRows(from, to);
-                  state.setSelection({ type: "row", start: to, end: to });
-                }
-              }
-              reorderDrag = null;
-              suppressClick = true;
-              scheduleDraw();
-            }
-          },
-        );
+        startReorderDrag(e, lay, "row", srcRow);
         return;
       }
     }
@@ -1766,38 +1784,7 @@ export function mountSpreadsheetGrid(
     if (y < lay.topOffset && x >= ROW_NUM_WIDTH) {
       const srcCol = getColAtX(x);
       if (srcCol >= 0 && srcCol < GRID_COLS) {
-        const startX = e.clientX;
-        let dragStarted = false;
-        trackDrag(
-          (ev) => {
-            if (!dragStarted && Math.abs(ev.clientX - startX) >= DRAG_THRESHOLD) {
-              dragStarted = true;
-              reorderDrag = { type: "col", sourceIndex: srcCol, targetIndex: null };
-            }
-            if (dragStarted) {
-              const rect = canvas.getBoundingClientRect();
-              const mx = ev.clientX - rect.left;
-              const targetCol = Math.max(0, Math.min(GRID_COLS, getColAtX(mx)));
-              reorderDrag = reorderDrag ? { ...reorderDrag, targetIndex: targetCol } : null;
-              scheduleDraw();
-            }
-          },
-          () => {
-            if (dragStarted) {
-              if (reorderDrag?.targetIndex != null && reorderDrag.targetIndex !== reorderDrag.sourceIndex) {
-                const from = reorderDrag.sourceIndex;
-                const to = reorderDrag.targetIndex > from ? reorderDrag.targetIndex - 1 : reorderDrag.targetIndex;
-                if (from !== to) {
-                  state.swapCols(from, to);
-                  state.setSelection({ type: "col", start: to, end: to });
-                }
-              }
-              reorderDrag = null;
-              suppressClick = true;
-              scheduleDraw();
-            }
-          },
-        );
+        startReorderDrag(e, lay, "col", srcCol);
         return;
       }
     }
@@ -1809,13 +1796,12 @@ export function mountSpreadsheetGrid(
       const startCol = getColAtX(x);
       if (startRow >= 0 && startCol >= 0) {
         let dragStarted = false;
-        const DRAG_THRESHOLD_INNER = 3;
         trackDrag(
           (ev) => {
             const rect = canvas.getBoundingClientRect();
             const mx = ev.clientX - rect.left;
             const my = ev.clientY - rect.top;
-            if (!dragStarted && (Math.abs(mx - x) >= DRAG_THRESHOLD_INNER || Math.abs(my - y) >= DRAG_THRESHOLD_INNER)) {
+            if (!dragStarted && (Math.abs(mx - x) >= CELL_DRAG_THRESHOLD || Math.abs(my - y) >= CELL_DRAG_THRESHOLD)) {
               dragStarted = true;
             }
             if (dragStarted) {
@@ -1834,7 +1820,8 @@ export function mountSpreadsheetGrid(
   };
 
   const onCanvasMouseMove = (e: MouseEvent): void => {
-    const lay = computeLayout();
+    // カーソル形状の判定のみ。レイアウト変化は必ず drawGrid を経由するため直近描画のキャッシュで足りる。
+    const lay = lastLayout ?? computeLayout();
     const { x, y } = getCanvasCoords(e);
 
     const nearRight = showRange && isNearRightEdge(x);

@@ -323,19 +323,17 @@ export function installBlockOverlays(
   });
 
   // === Table: inline ops（chrome 内で vanilla 直発火）+ グリッド編集委譲 + 削除 ===============
-  // onTableEdit 未提供時は編集ボタン自体を出さない（chrome 側で非表示・騙しボタン排除）。
+  // onTableEdit 未提供時は onEdit ごと undefined を渡し、編集ボタンの非表示判定は chrome 側に一元化する。
   // 通常は vanillaMarkdownEditor が内蔵 TableEditDialog をフォールバック提供する。
   const onTableEdit = opts.onTableEdit;
   const tableHandle = createTableBlockChrome(editor, {
     t,
-    ...(onTableEdit
-      ? {
-          onEdit: (pos: number) => {
-            tableHandle.setEditing(true);
-            onTableEdit({ pos, setEditing: (editing) => tableHandle.setEditing(editing) });
-          },
+    onEdit: onTableEdit
+      ? (pos: number) => {
+          tableHandle.setEditing(true);
+          onTableEdit({ pos, setEditing: (editing) => tableHandle.setEditing(editing) });
         }
-      : {}),
+      : undefined,
     onDelete: (pos) => askDelete(pos),
   });
 

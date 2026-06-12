@@ -1,6 +1,7 @@
 import {
   mountSpreadsheetEditor,
   type SpreadsheetEditorHandle,
+  type SpreadsheetThemeMode,
   type WorkbookSnapshot,
 } from '@anytime-markdown/spreadsheet-viewer';
 import { createVSCodeSheetAdapter } from './adapters/VSCodeSheetAdapter';
@@ -13,20 +14,16 @@ import { getVscodeApi } from './adapters/vscodeApi';
  */
 
 type SheetFormat = 'sheet' | 'csv' | 'tsv';
-type ThemeMode = 'light' | 'dark';
 
-function detectLocale(): string {
-  return typeof navigator !== 'undefined' && navigator.language.startsWith('ja') ? 'ja' : 'en';
-}
-
-function readBodyTheme(): ThemeMode {
+function readBodyTheme(): SpreadsheetThemeMode {
   const kind = document.body.getAttribute('data-vscode-theme-kind');
   return kind === 'vscode-light' || kind === 'vscode-high-contrast-light' ? 'light' : 'dark';
 }
 
 export function startApp(container: HTMLElement): void {
   let format: SheetFormat = 'sheet';
-  let locale = detectLocale();
+  // locale 未受信時は undefined のまま渡し、spreadsheet-viewer 側の自動検出（navigator.language）に委ねる。
+  let locale: string | undefined;
   let themeMode = readBodyTheme();
   let editor: SpreadsheetEditorHandle | null = null;
 
@@ -84,8 +81,7 @@ export function startApp(container: HTMLElement): void {
         if (formatChanged) mountEditor();
         break;
       }
-      case 'theme':
-        break;
+      // テーマ変更は body の data-vscode-theme-kind を MutationObserver で追従する（message 経路なし）。
     }
   });
 
