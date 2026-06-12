@@ -191,7 +191,7 @@ export function createEditorToolbar(
   let modeState = opts.modeState;
   const modeHandlers = opts.modeHandlers;
   let mergeUndoRedo = opts.mergeUndoRedo ?? null;
-  let fileCapabilities = opts.fileCapabilities;
+  const fileCapabilities = opts.fileCapabilities;
   const hide = opts.hide ?? {};
   const fileHandlers = opts.fileHandlers;
 
