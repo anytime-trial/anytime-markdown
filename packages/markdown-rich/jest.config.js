@@ -35,7 +35,6 @@ const config = {
     // ソースの @/ を core/src へ解決するためのマッピング。
     "^@/(.*)$": "<rootDir>/../markdown-viewer/src/$1",
     "^next-intl$": "<rootDir>/__mocks__/next-intl.ts",
-    "^.+/i18n/context$": "<rootDir>/__mocks__/markdown-i18n-context.ts",
   },
   maxWorkers: 2,
   collectCoverageFrom: [

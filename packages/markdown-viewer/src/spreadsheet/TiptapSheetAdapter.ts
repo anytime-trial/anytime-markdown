@@ -4,7 +4,13 @@ import type {
   SheetSnapshot,
 } from "@anytime-markdown/spreadsheet-viewer";
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
-import type { Editor } from "@anytime-markdown/markdown-react";
+import type { Editor } from "@anytime-markdown/markdown-core";
+
+/**
+ * SheetAdapter の tiptap 実装（旧 React 期 spreadsheet/TiptapSheetAdapter.ts の復元）。
+ * G4 で TableDialogHost と共に削除されたが、本体に React 依存はないため
+ * import 先（markdown-react → markdown-core）のみ変更して復帰させた。
+ */
 
 const EMPTY_SNAPSHOT: SheetSnapshot = {
   cells: [],
@@ -41,9 +47,8 @@ function extractSnapshot(tableNode: PMNode): SheetSnapshot {
  * 複数 table を含む文書でも個別 table に Adapter を割り当てられる。
  * subscribe は該当 table の変更だけを listener に通知する最適化を含む。
  *
- * useSyncExternalStore 要件: getSnapshot は table の内容が変わらない限り
- * 同じ参照を返す必要がある。内部でシグネチャ（node.toString()）ベースで
- * キャッシュする。
+ * getSnapshot は table の内容が変わらない限り同じ参照を返す
+ * （シグネチャ = node.toString() ベースのキャッシュ）。
  */
 export function createTiptapSheetAdapter(
   editor: Editor,
@@ -52,17 +57,27 @@ export function createTiptapSheetAdapter(
 ): SheetAdapter {
   const readOnly = options?.readOnly ?? false;
 
-  /** useSyncExternalStore 用の参照安定キャッシュ */
+  /** 参照安定キャッシュ */
   let cachedSignature: string | null = null;
   let cachedSnapshot: SheetSnapshot = EMPTY_SNAPSHOT;
+  let detachWarned = false;
+
+  /** getTable は detached ノード参照時に throw し得るため空扱いへ落とす（初回のみ通知）。 */
+  const safeGetTable = (): { node: PMNode; pos: number } | null => {
+    try {
+      return getTable();
+    } catch (error) {
+      if (!detachWarned) {
+        detachWarned = true;
+        console.warn("[TiptapSheetAdapter] getTable failed (detached node?); treating as empty", error);
+      }
+      return null;
+    }
+  };
 
   const currentSignature = (): string => {
-    try {
-      const target = getTable();
-      return target ? target.node.toString() : "";
-    } catch {
-      return "";
-    }
+    const target = safeGetTable();
+    return target ? target.node.toString() : "";
   };
 
   const getSnapshot = (): SheetSnapshot => {
@@ -70,12 +85,7 @@ export function createTiptapSheetAdapter(
     if (cachedSignature === sig) {
       return cachedSnapshot;
     }
-    let target: { node: PMNode; pos: number } | null = null;
-    try {
-      target = getTable();
-    } catch {
-      target = null;
-    }
+    const target = safeGetTable();
     cachedSignature = sig;
     cachedSnapshot = target ? extractSnapshot(target.node) : EMPTY_SNAPSHOT;
     return cachedSnapshot;
@@ -83,7 +93,7 @@ export function createTiptapSheetAdapter(
 
   const rebuild = (next: SheetSnapshot): void => {
     if (readOnly) return;
-    const target = getTable();
+    const target = safeGetTable();
     if (!target) return;
 
     const { node: tableNode, pos: tablePos } = target;
@@ -121,7 +131,7 @@ export function createTiptapSheetAdapter(
     subscribe(listener) {
       // 各 subscriber が独立した lastSignature を持つ（listener 毎に判定）
       let lastSignature = currentSignature();
-      const cb = () => {
+      const cb = (): void => {
         const sig = currentSignature();
         if (sig !== lastSignature) {
           lastSignature = sig;
@@ -135,7 +145,7 @@ export function createTiptapSheetAdapter(
     },
     setCell(row, col, value) {
       if (readOnly) return;
-      const target = getTable();
+      const target = safeGetTable();
       if (!target) return;
       const snap = extractSnapshot(target.node);
       const cells = snap.cells.map((r) => [...r]);

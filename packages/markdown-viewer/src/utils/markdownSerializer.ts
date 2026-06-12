@@ -1,4 +1,4 @@
-import type { Editor } from "@anytime-markdown/markdown-react";
+import type { Editor } from "@anytime-markdown/markdown-core";
 
 import { commentDataPluginKey } from "../extensions/commentExtension";
 import { getMarkdownStorage } from "../types";
@@ -124,4 +124,18 @@ export function getMarkdownFromEditor(editor: Editor): string {
     md += "\n";
   }
   return md;
+}
+
+/**
+ * {@link getMarkdownFromEditor} の安全版。markdown 拡張未登録（テスト用 StarterKit 構成等）や
+ * 破棄済み editor では throw せず null を返す（呼び元は保存/同期をスキップする）。
+ */
+export function getMarkdownFromEditorSafe(editor: Editor): string | null {
+  if (editor.isDestroyed) return null;
+  try {
+    return getMarkdownFromEditor(editor);
+  } catch (error) {
+    console.warn("[markdownSerializer] getMarkdownFromEditor failed", error);
+    return null;
+  }
 }

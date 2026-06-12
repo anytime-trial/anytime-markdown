@@ -1,12 +1,17 @@
 import type { C4Element, C4ElementType, C4Model, ComplexityMatrix, CoverageMatrix } from '@anytime-markdown/trail-core/c4';
 import { buildC4ElementById, collectDescendantIds, computeCommunityOverlay, mapFileToC4Elements } from '@anytime-markdown/trail-core/c4';
 import type { CellAlign, HeaderSpan } from '@anytime-markdown/spreadsheet-core';
-import { SpreadsheetGrid, createInMemorySheetAdapter } from '@anytime-markdown/spreadsheet-viewer';
+import {
+  createInMemorySheetAdapter,
+  mountSpreadsheetGrid,
+  type SpreadsheetGridHandle,
+  type SpreadsheetGridOptions,
+} from '@anytime-markdown/spreadsheet-viewer';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import Typography from '@mui/material/Typography';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { getC4Colors } from '../../../theme/c4Tokens';
 import { getCoverageColor } from '../../c4MetricColors';
@@ -98,6 +103,41 @@ function makeSheetResult(sheet: { cells: string[][]; alignments: CellAlign[][]; 
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * spreadsheet-viewer の脱 React に伴う vanilla grid の mount ラッパ。
+ * options 変更（レベル切替・adapter 差し替え等）で grid を作り直す
+ * （旧 React 版の key={`coverage-${level}`} による remount と同じ運用）。
+ * テーマ切替は handle.update({ isDark }) で反映し、再 mount を避ける。
+ */
+function VanillaSpreadsheetGridMount({
+  options,
+  isDark,
+}: Readonly<{ options: Omit<SpreadsheetGridOptions, 'isDark'>; isDark: boolean }>) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const handleRef = useRef<SpreadsheetGridHandle | null>(null);
+  const isDarkRef = useRef(isDark);
+  isDarkRef.current = isDark;
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const handle = mountSpreadsheetGrid(container, { ...options, isDark: isDarkRef.current });
+    handleRef.current = handle;
+    return () => {
+      handleRef.current = null;
+      handle.destroy();
+    };
+  }, [options]);
+  useEffect(() => {
+    handleRef.current?.update({ isDark });
+  }, [isDark]);
+  return (
+    <div
+      ref={containerRef}
+      style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+    />
+  );
+}
 
 export interface MatrixPanelProps {
   readonly coverageMatrix: CoverageMatrix | null;
@@ -256,6 +296,31 @@ export function MatrixPanel({
     };
   }, [coverageMatrix]);
 
+  const gridOptions = useMemo<Omit<SpreadsheetGridOptions, 'isDark'> | null>(() => {
+    if (!activeAdapter) return null;
+    return {
+      adapter: activeAdapter,
+      showApply: false,
+      showRange: false,
+      showToolbar: false,
+      columnHeaders: activeColHeaders,
+      rowHeaders: activeRowHeaders,
+      rowHeaderWidth:
+        level === 'code'      ? 280 :
+        level === 'component' ? 200 :
+        120,
+      rowHeaderGroups: coverageRowHeaderGroups,
+      gridRows: gridDimensions.rows,
+      gridCols: gridDimensions.cols,
+      getCellBackground: coverageCellBackground,
+      getRowHeaderBackground: isCommunityColor ? coverageRowHeaderBackground : undefined,
+    };
+  }, [
+    activeAdapter, activeColHeaders, activeRowHeaders, level,
+    coverageRowHeaderGroups, gridDimensions, coverageCellBackground,
+    isCommunityColor, coverageRowHeaderBackground,
+  ]);
+
   const toolbarButtonSx = {
     textTransform: 'none' as const,
     color: colors.accent,
@@ -288,27 +353,8 @@ export function MatrixPanel({
 
       {/* Sheet */}
       <Box sx={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        {activeAdapter ? (
-          <SpreadsheetGrid
-            key={`coverage-${level}`}
-            adapter={activeAdapter}
-            isDark={isDark}
-            showApply={false}
-            showRange={false}
-            showToolbar={false}
-            columnHeaders={activeColHeaders}
-            rowHeaders={activeRowHeaders}
-            rowHeaderWidth={
-              level === 'code'      ? 280 :
-              level === 'component' ? 200 :
-              120
-            }
-            rowHeaderGroups={coverageRowHeaderGroups}
-            gridRows={gridDimensions.rows}
-            gridCols={gridDimensions.cols}
-            getCellBackground={coverageCellBackground}
-            getRowHeaderBackground={isCommunityColor ? coverageRowHeaderBackground : undefined}
-          />
+        {gridOptions ? (
+          <VanillaSpreadsheetGridMount options={gridOptions} isDark={isDark} />
         ) : (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Typography variant="body2" sx={{ color: colors.textSecondary }}>

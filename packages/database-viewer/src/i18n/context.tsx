@@ -37,6 +37,11 @@ export function DatabaseI18nProvider({ locale, children }: Readonly<DatabaseI18n
   );
 }
 
+/** 解決済みロケールを返す（vanilla mount へ locale を引き渡す用途）。 */
+export function useDatabaseLocale(): SupportedLocale {
+  return useContext(DatabaseLocaleContext) ?? detectLocale();
+}
+
 export function useDatabaseT(namespace: Namespace) {
   const locale = useContext(DatabaseLocaleContext) ?? detectLocale();
   const ns = messagesByLocale[locale][namespace] as unknown as NsMessages;

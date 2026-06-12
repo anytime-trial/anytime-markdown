@@ -79,10 +79,9 @@ test.describe("Slash Commands - Extended", () => {
     const menu = page.getByRole("menu", { name: "Type to filter..." });
     await expect(menu).toBeVisible();
     await menu.getByRole("menuitem", { name: /Footnote/i }).click();
-    // footnoteRef NodeView が挿入される
-    // NodeViewWrapper は span[data-node-view-wrapper] としてレンダリングされる
+    // footnoteRef の native NodeView（React 非依存）は span[data-footnote-ref] を出力する
     await expect(
-      editor.locator("span[data-node-view-wrapper]").first(),
+      editor.locator("span[data-footnote-ref]").first(),
     ).toBeVisible();
     // 脚注番号のテキスト（[数字]形式）が表示されることを確認
     await expect(editor).toContainText(/\[\d+\]/);

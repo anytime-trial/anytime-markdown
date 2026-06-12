@@ -15,28 +15,9 @@ export {
   getCodeBlockIndex,
   getMergeEditors,
 } from "../../markdown-viewer/src/contexts/MergeEditorsContext";
-export { useEditorFeaturesContext } from "../../markdown-viewer/src/contexts/EditorFeaturesContext";
-export type { EditorFeatures } from "../../markdown-viewer/src/contexts/EditorFeaturesContext";
 
-export { useMarkdownT } from "../../markdown-viewer/src/i18n/context";
-
-export { useBlockCapture } from "../../markdown-viewer/src/hooks/useBlockCapture";
-export { useBlockResize } from "../../markdown-viewer/src/hooks/useBlockResize";
-export { useDeleteBlock } from "../../markdown-viewer/src/hooks/useDeleteBlock";
-export { useNodeSelected } from "../../markdown-viewer/src/hooks/useNodeSelected";
-export { useTextareaSearch } from "../../markdown-viewer/src/hooks/useTextareaSearch";
-export type {
-  TextareaSearchMatch,
-  TextareaSearchState,
-} from "../../markdown-viewer/src/hooks/useTextareaSearch";
-
-export {
-  DEFAULT_SETTINGS,
-  EditorSettingsContext,
-  useEditorSettings,
-  useEditorSettingsContext,
-} from "../../markdown-viewer/src/useEditorSettings";
-export type { EditorSettings } from "../../markdown-viewer/src/useEditorSettings";
+export { DEFAULT_SETTINGS } from "../../markdown-viewer/src/editorSettings";
+export type { EditorSettings } from "../../markdown-viewer/src/editorSettings";
 
 export {
   CAPTURE_BG,
@@ -79,12 +60,6 @@ export {
 
 export { FETCH_TIMEOUT } from "../../markdown-viewer/src/constants/timing";
 
-export {
-  DURATION_FAST,
-  getSplitterSx,
-  REDUCED_MOTION_SX,
-} from "../../markdown-viewer/src/constants/uiPatterns";
-
 export { getHljsCssVars, getHljsStyles } from "../../markdown-viewer/src/styles/codeStyles";
 
 // 注: `appLowlight` は意図的に再 export しない。唯一の利用者 RichMarkdownEditorPage は
@@ -116,13 +91,6 @@ export type {
   EmbedVariant,
 } from "../../markdown-viewer/src/utils/embedInfoString";
 
-export { EditDialogHeader } from "../../markdown-viewer/src/components/EditDialogHeader";
-export { EditDialogWrapper } from "../../markdown-viewer/src/components/EditDialogWrapper";
-export { EmbedEditDialog } from "../../markdown-viewer/src/components/EmbedEditDialog";
-export { EmbedNodeView } from "../../markdown-viewer/src/components/EmbedNodeView";
-export { BlockInlineToolbar } from "../../markdown-viewer/src/components/codeblock/BlockInlineToolbar";
-export type { BlockInlineToolbarProps } from "../../markdown-viewer/src/components/codeblock/BlockInlineToolbar";
-export { DeleteBlockDialog } from "../../markdown-viewer/src/components/codeblock/DeleteBlockDialog";
 
 // Phase3b（脱 @mui）: InlineAlert / DiagramBlock 等が使う追加 color helper。
 export {
@@ -135,5 +103,3 @@ export {
 } from "../../markdown-viewer/src/constants/colors";
 
 // Phase3b（脱 @mui）: useTheme 置換用テーマ context。
-export type { ThemeMode } from "../../markdown-viewer/src/contexts/ThemeModeContext";
-export { ThemeModeProvider, useIsDark, useThemeMode } from "../../markdown-viewer/src/contexts/ThemeModeContext";

@@ -4,20 +4,30 @@
 // plotly / mathjs / plantuml) を使うリッチ描画部品」を提供するパッケージ。
 //
 // tiptap エディタ本体 (MarkdownEditorPage) は markdown-core に残り、本パッケージは
-// codeblock 描画ツリー (NodeView / 各 Block / 編集ダイアログ / レンダリング hooks) と
-// それらを注入する RichMarkdownEditorPage を提供する。
+// native codeblock 描画ツリー (NodeView / 各 Block / レンダリング seam) と、それを
+// 注入する vanilla orchestrator (mountVanillaRichMarkdownEditor) を提供する。
+// 旧 React 経路 (RichMarkdownEditorPage / 各編集ダイアログ) は G4 で削除済み。
 //
 // 実体の移動は段階的に行う (plan: 20260530-markdown-rich-split-design)。
 
 // codeblock 描画ツリー本体 (B-3+B-4 で markdown-core から物理移動)
-// RichMarkdownEditorPage (B-7) が getBaseExtensions の codeBlockExtension に注入する拡張。
+// vanilla orchestrator が getBaseExtensions の codeBlockExtension に注入する拡張。
 export { CodeBlockWithMermaid } from "./codeBlockWithMermaid";
-export { CodeBlockNodeView } from "./MermaidNodeView";
 
 // PDF 出力時のダークモード図ライト化戦略 (B-5: usePdfExport から注入される)
 export { prepareDarkDiagramsForPrint } from "./pdf/prepareDarkDiagramsForPrint";
 
-// MarkdownEditorPage に rich の codeblock 拡張を注入する薄ラッパー (B-7)。
-// consumer (web-app / vscode-markdown-extension) はこれを MarkdownEditorPage の代わりに使う。
-export type { RichMarkdownEditorPageProps } from "./RichMarkdownEditorPage";
-export { default as RichMarkdownEditorPage } from "./RichMarkdownEditorPage";
+// vanilla 経路（脱React G3）: rich codeblock 注入済み orchestrator + overlay installer。
+// 旧 React 経路（RichMarkdownEditorPage）は G4 で削除済み。consumer は
+// mountVanillaRichMarkdownEditor へ一本化済み。
+export {
+  mountVanillaRichMarkdownEditor,
+  type MountVanillaRichMarkdownEditorOptions,
+} from "./vanilla/mountVanillaRichMarkdownEditor";
+export {
+  installCodeBlockOverlay,
+  type InstallCodeBlockOverlayOptions,
+} from "./vanilla/installCodeBlockOverlay";
+
+// embed / graph プレビューの mount 契約型（実装は vanilla: viewer createEmbedPreview / rich createGraphPreview）。
+export type { EmbedMountHandle, GraphMountHandle } from "./components/codeblock/previewContracts";

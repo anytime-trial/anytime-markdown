@@ -5,7 +5,11 @@ const config = {
   ...base,
   testEnvironment: "jsdom",
   setupFiles: ["<rootDir>/jest.setup.ts"],
-  transform: buildJestTransform(),
+  transform: {
+    ...buildJestTransform(),
+    // raw .md import はファイル実体の文字列へ（webpack asset/source 相当）
+    "^.+\\.md$": "<rootDir>/__mocks__/mdTransformer.js",
+  },
   testMatch: ["<rootDir>/src/__tests__/**/*.test.ts", "<rootDir>/src/__tests__/**/*.test.tsx"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {
@@ -17,7 +21,6 @@ const config = {
     "\\.module\\.css$": "<rootDir>/__mocks__/cssModuleProxy.js",
     "^@/(.*)$": "<rootDir>/src/$1",
     "^next-intl$": "<rootDir>/__mocks__/next-intl.ts",
-    "^.+/i18n/context$": "<rootDir>/__mocks__/markdown-i18n-context.ts",
   },
   maxWorkers: 2,
   collectCoverageFrom: [

@@ -1,54 +1,52 @@
-// Main page component
-export { MarkdownCoreI18nProvider, useMarkdownT } from './i18n/context';
-export { default as MarkdownEditorPage } from './MarkdownEditorPage';
+// i18n（React 非依存 translator。React Provider/useMarkdownT は markdown-react-islands へ移設）
+export { createMarkdownT } from './i18n/createMarkdownT';
 
-// Hooks
-export { useEditorDialogs } from './hooks/useEditorDialogs';
-export { useEditorFileOps } from './hooks/useEditorFileOps';
-export { useMergeDiff } from './hooks/useMergeDiff';
-export { useOutline } from './hooks/useOutline';
-export { useSourceMode } from './hooks/useSourceMode';
-export type { TextareaSearchMatch, TextareaSearchState } from './hooks/useTextareaSearch';
-export { useTextareaSearch } from './hooks/useTextareaSearch';
-export type { EditorSettings } from './useEditorSettings';
+// 脱React G3: vanilla orchestrator（React ラッパ VanillaMarkdownEditorMount は
+// markdown-react-islands へ移設。consumer はそちらを import する）
 export {
-  DEFAULT_SETTINGS,
-  EditorSettingsContext,
-  useEditorSettings,
-  useEditorSettingsContext,
-} from './useEditorSettings';
-export { useMarkdownEditor } from './useMarkdownEditor';
-export { useBlockCapture } from './hooks/useBlockCapture';
-export { useBlockResize } from './hooks/useBlockResize';
-export { useDeleteBlock } from './hooks/useDeleteBlock';
-export { useNodeSelected } from './hooks/useNodeSelected';
-export type { NotificationKey } from './hooks/useNotification';
-export { useNotification } from './hooks/useNotification';
-export type { DarkDiagramPrintPreparer } from './hooks/usePdfExport';
+  mountVanillaMarkdownEditor,
+  type MountVanillaMarkdownEditorOptions,
+  type VanillaMarkdownEditorHandle,
+} from './host/vanillaMarkdownEditor';
 
-// Components
-export { EditorBubbleMenu } from './components/EditorBubbleMenu';
-export { EditorDialogs } from './components/EditorDialogs';
-export { EditorMenuPopovers } from './components/EditorMenuPopovers';
-export { EditorSettingsPanel } from './components/EditorSettingsPanel';
-export { EditorToolbar } from './components/EditorToolbar';
-export type { MergeUndoRedo } from './components/InlineMergeView';
-export { InlineMergeView } from './components/InlineMergeView';
-export { getMergeTiptapStyles,MergeEditorPanel } from './components/MergeEditorPanel';
-export { OutlinePanel } from './components/OutlinePanel';
-export { SearchReplaceBar } from './components/SearchReplaceBar';
-export { StatusBar } from './components/StatusBar';
-export type { BlockInlineToolbarProps } from './components/codeblock/BlockInlineToolbar';
-export { BlockInlineToolbar } from './components/codeblock/BlockInlineToolbar';
-export { DeleteBlockDialog } from './components/codeblock/DeleteBlockDialog';
-export { EditDialogHeader } from './components/EditDialogHeader';
-export { EditDialogWrapper } from './components/EditDialogWrapper';
-export { EmbedEditDialog } from './components/EmbedEditDialog';
-export { EmbedNodeView } from './components/EmbedNodeView';
+// Editor settings（React 非依存の単一ソース）
+export type { EditorSettings } from './editorSettings';
+export { DEFAULT_SETTINGS } from './editorSettings';
+// Vanilla chrome primitives（脱React・Phase3 ホスト隔離）。他 viewer（rich 等）が共有する。
+export type { SelectedBlockSnapshot, BlockChromeAnchorHandle } from './chrome/blockChrome';
+export {
+  createBlockChromeAnchor,
+  createSelectedBlockTracker,
+  deleteBlockAt,
+  selectedBlockPos,
+  setBlockAttrs,
+} from './chrome/blockChrome';
+export {
+  createToolbarContainer,
+  ICON,
+  mkButtonGroup,
+  mkDivider,
+  mkDragHandle,
+  mkIconButton,
+  mkLabel,
+  mkSpacer,
+  svgIcon,
+} from './chrome/vanillaToolbar';
+// Vanilla block overlay installer（G3・gif/image/table の DialogHost 3 を vanilla 配線）。
+export type {
+  BlockOverlaysHandle,
+  InstallBlockOverlaysOptions,
+} from './chrome/installBlockOverlays';
+export { installBlockOverlays } from './chrome/installBlockOverlays';
+// Vanilla host seam（G・脱React で editor を mount）。
+export type { VanillaEditorHostHandle, VanillaEditorHostOptions } from './host/vanillaEditorHost';
+export { createVanillaEditorHost } from './host/vanillaEditorHost';
+// Vanilla ui プリミティブ（F・脱React ui kit。chrome/host が消費する素 DOM 部品）。
+export * from './ui-vanilla';
+export type { DarkDiagramPrintPreparer } from './types/pdf';
 
-// NodeView components
-export { ImageNodeView } from './ImageNodeView';
-export { TableNodeView } from './TableNodeView';
+// NodeView chrome は各ブロックの選択駆動オーバーレイ（*BlockOverlay）が提供する。
+// EmbedNodeView（React island）は markdown-react-islands へ移設。
 
 // Extensions
 // CodeBlockWithMermaid / CodeBlockNodeView は markdown-rich へ物理移動済み (B-3+B-4)。
@@ -72,16 +70,14 @@ export type {
   HeadingItem,
   MarkdownStorage,
   MdSerializerState,
+  MutableRefLike,
   OutlineKind,
-  PlantUmlToolbarContextValue,
 } from './types';
 export {
   extractHeadings,
   getEditorStorage,
   getMarkdownFromEditor,
   getMarkdownStorage,
-  PlantUmlToolbarContext,
-  usePlantUmlToolbar,
 } from './types';
 export type { FileHandle, FileOpenResult, FileSystemProvider } from './types/fileSystem';
 export type {
@@ -171,6 +167,8 @@ export { applyEditorThemeCssVars } from './utils/applyEditorThemeCssVars';
 export { getSectionRange, moveHeadingSection } from './utils/sectionHelpers';
 export { moveTableColumn,moveTableRow } from './utils/tableHelpers';
 export { saveBlob } from './utils/clipboardHelpers';
+// vendored tiptap getPos の安全ラッパ（detached ノードで throw → undefined）。
+export { safeGetPos } from './utils/safeGetPos';
 export type { MarkdownItLike } from './utils/embedFenceRenderer';
 export { EMBED_DATA_ATTR, installEmbedFenceRenderer } from './utils/embedFenceRenderer';
 
@@ -178,22 +176,18 @@ export { EMBED_DATA_ATTR, installEmbedFenceRenderer } from './utils/embedFenceRe
 export { getHljsCssVars, getHljsStyles } from './styles/codeStyles';
 
 // Icons
-export { default as MarkdownIcon } from './icons/MarkdownIcon';
-export { default as MermaidIcon } from './icons/MermaidIcon';
 
-// Contexts
-export type { EditorModeContextValue, EditorModeState } from './contexts/EditorModeContext';
-export { EditorModeContext, useEditorMode } from './contexts/EditorModeContext';
-export type { EditorFeatures } from './contexts/EditorFeaturesContext';
-export { useEditorFeaturesContext } from './contexts/EditorFeaturesContext';
+// Contexts（ThemeModeContext / ConfirmProvider 等の React provider は markdown-react-islands へ移設）
 export { findCodeBlockByIndex, findCounterpartCode, getCodeBlockIndex, getMergeEditors } from './contexts/MergeEditorsContext';
-export type { ThemeMode } from './contexts/ThemeModeContext';
-export { ThemeModeProvider, useIsDark, useThemeMode } from './contexts/ThemeModeContext';
-
-// Providers
-export { ConfirmContext,ConfirmProvider } from './providers/ConfirmProvider';
 export type { DialogOptions } from './providers/types';
 
 // i18n messages
 export type { MarkdownMessages } from './i18n';
 export { enMessages as messagesEn, jaMessages as messagesJa } from './i18n';
+
+// 脱React G3: vanilla consumer 配線用（初期コンテンツ）
+export { getDefaultContent } from './constants/defaultContent';
+
+// Embed プレビューの外部 fetch 注入（consumer が起動時に設定。実装 createEmbedPreview は
+// rich の CodeBlockBlockContent が deep import する内部 API のため barrel 非公開）
+export { setEmbedProviders, getEmbedProviders } from './embedProviders';

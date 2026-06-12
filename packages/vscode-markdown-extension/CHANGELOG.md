@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-12
+
+### Changed
+
+- Bundled the React-free editor core. The webview now boots from a vanilla bootstrap with React fully removed from the extension bundle, reducing bundle size.
+- Reflect VS Code language changes via an `editorKey` remount.
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Fully removed React from the editor core: all NodeViews and chrome are now native/vanilla. The legacy React implementation (136 src / 27 css / 148 tests) and the `markdown-react` package were removed.
+- React islands (embed/graph previews) split into the separate `markdown-react-islands` package; viewer/rich cores are React-free.
+- Numerous regression fixes (content CSS, shortcuts, beforeunload, merge mode, compare-mode codeblock editing, status bar).
+
 ## [0.18.0] - 2026-06-08
 
 ### Changed

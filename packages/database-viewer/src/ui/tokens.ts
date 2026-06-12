@@ -1,7 +1,6 @@
 /**
  * database-viewer 自前 UI キットのテーマトークン。
  *
- * `@mui/material` のテーマ（`sx` の `"divider"` / `"text.secondary"` 等）への依存を断つため、
  * `themeMode`（light/dark）から CSS カスタムプロパティ（`--dbv-color-*`）を単一ソースで導出する。
  *
  * 色は Anytime Markdown デザインシステム（design.md §2.1 共通 / §2.2 ダーク / §2.3 ライト=水墨画）に準拠する。

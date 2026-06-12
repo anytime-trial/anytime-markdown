@@ -37,8 +37,6 @@
       "@anytime-markdown/markdown-core": ["../markdown-core/core/src/index.ts"],
       "@anytime-markdown/markdown-core/jsx-runtime": ["../markdown-core/core/src/jsx-runtime.ts"],
       "@anytime-markdown/markdown-core/jsx-dev-runtime": ["../markdown-core/core/src/jsx-runtime.ts"],
-      "@anytime-markdown/markdown-react": ["../markdown-core/react/src/index.ts"],
-      "@anytime-markdown/markdown-react/menus": ["../markdown-core/react/src/menus/index.ts"],
       "@anytime-markdown/markdown-starter-kit": ["../markdown-core/starter-kit/src/index.ts"],
       "@anytime-markdown/markdown-extensions": ["../markdown-core/extensions/src/index.ts"],
       "@anytime-markdown/markdown-md": ["../markdown-core/tiptap-markdown/index.js"],
@@ -95,7 +93,7 @@
     "../markdown-viewer/src/md.d.ts",
     "../markdown-viewer/src/types/vscode.d.ts",
     "../markdown-viewer/src/types/stylis.d.ts",
-    "../markdown-viewer/src/plotly-gl3d.d.ts"
+    "../markdown-rich/src/plotly-gl3d.d.ts"
   ],
   "exclude": [
     "node_modules",

@@ -1,0 +1,507 @@
+/**
+ * components-vanilla/EditorToolbar.ts — 脱React メインツールバー（vanilla）のテスト。
+ *
+ * 生成 / 属性 / イベント発火（editor コマンド・コールバック）/ roving tabindex の
+ * キーボードナビゲーション / destroy クリーンアップを検証する。重い editor は
+ * mock（chain/can/on/off スタブ）でスタブ化する。
+ *
+ * jsdom の罠を回避: getComputedStyle で継承 CSS カスタムプロパティを検証せず、
+ * el.style.cssText が `var(--am-...)` を含むことを見る。opacity:var() / currentColor は検証しない。
+ */
+import { createEditorToolbar } from "../components-vanilla/EditorToolbar";
+import type {
+  ToolbarFileHandlers,
+  ToolbarModeHandlers,
+  ToolbarModeState,
+} from "../types/toolbar";
+
+// --- mock editor（transaction emitter + chain/can スタブ） ---
+function makeEditor() {
+  const listeners: Record<string, Array<() => void>> = {};
+  const ran: string[] = [];
+  let canUndo = true;
+  let canRedo = false;
+
+  const chain = () => {
+    const c: any = {
+      focus: () => c,
+      undo: () => {
+        ran.push("undo");
+        return c;
+      },
+      redo: () => {
+        ran.push("redo");
+        return c;
+      },
+      run: () => true,
+    };
+    return c;
+  };
+
+  const editor: any = {
+    isEditable: true,
+    state: {},
+    getAttributes: () => ({}),
+    isActive: () => false,
+    can: () => ({ undo: () => canUndo, redo: () => canRedo }),
+    chain,
+    on(evt: string, fn: () => void) {
+      (listeners[evt] ??= []).push(fn);
+    },
+    off(evt: string, fn: () => void) {
+      listeners[evt] = (listeners[evt] ?? []).filter((f) => f !== fn);
+    },
+  };
+
+  return {
+    editor,
+    ran,
+    emit: (evt: string) => (listeners[evt] ?? []).forEach((f) => f()),
+    listenerCount: (evt: string) => (listeners[evt] ?? []).length,
+    setCan: (u: boolean, r: boolean) => {
+      canUndo = u;
+      canRedo = r;
+    },
+  };
+}
+
+function defaultModeState(over: Partial<ToolbarModeState> = {}): ToolbarModeState {
+  return {
+    sourceMode: false,
+    readonlyMode: false,
+    reviewMode: false,
+    outlineOpen: false,
+    inlineMergeOpen: false,
+    commentOpen: false,
+    explorerOpen: false,
+    ...over,
+  };
+}
+
+function defaultModeHandlers(): ToolbarModeHandlers {
+  return {
+    onSwitchToSource: jest.fn(),
+    onSwitchToWysiwyg: jest.fn(),
+    onSwitchToReview: jest.fn(),
+    onSwitchToReadonly: jest.fn(),
+    onToggleOutline: jest.fn(),
+    onToggleComments: jest.fn(),
+    onMerge: jest.fn(),
+    onToggleExplorer: jest.fn(),
+  };
+}
+
+function defaultFileHandlers(): ToolbarFileHandlers {
+  return {
+    onDownload: jest.fn(),
+    onImport: jest.fn(),
+    onClear: jest.fn(),
+    onOpenFile: jest.fn(),
+    onSaveFile: jest.fn(),
+    onSaveAsFile: jest.fn(),
+    onExportPdf: jest.fn(),
+    onLoadRightFile: jest.fn(),
+  };
+}
+
+function mount(over: Partial<Parameters<typeof createEditorToolbar>[0]> = {}) {
+  const m = makeEditor();
+  const modeHandlers = defaultModeHandlers();
+  const fileHandlers = defaultFileHandlers();
+  const handle = createEditorToolbar({
+    editor: m.editor,
+    fileHandlers,
+    modeState: defaultModeState(),
+    modeHandlers,
+    t: (k: string) => k,
+    ...over,
+  });
+  document.body.appendChild(handle.el);
+  return { ...m, handle, modeHandlers, fileHandlers };
+}
+
+afterEach(() => {
+  document.body.replaceChildren();
+  document.querySelectorAll("[data-am-tooltip]").forEach((el) => el.remove());
+});
+
+describe("createEditorToolbar — 生成と属性", () => {
+  it("role=toolbar / aria-label / id を持つ Paper を生成する", () => {
+    const { handle } = mount();
+    expect(handle.el.getAttribute("role")).toBe("toolbar");
+    expect(handle.el.getAttribute("aria-label")).toBe("editorToolbar");
+    expect(handle.el.id).toBe("md-editor-toolbar");
+    expect(handle.el.getAttribute("data-variant")).toBe("outlined");
+    handle.destroy();
+  });
+
+  it("sticky / z-index / 背景は CSS 変数（var(--am-...)）で表現する", () => {
+    const { handle } = mount();
+    const css = handle.el.style.cssText;
+    expect(css).toContain("position: sticky");
+    expect(css).toContain("var(--am-color-bg-paper)");
+    expect(handle.el.style.zIndex).toBe("10");
+    handle.destroy();
+  });
+
+  it("root は sticky 配置で生成される", () => {
+    // 注: border-bottom の有無は jsdom が border shorthand/longhand を round-trip しないため検証不可。
+    // 代わりに root レイアウト（position:sticky）が cssText から適用されることを確認する。
+    const { handle } = mount();
+    expect(handle.el.style.position).toBe("sticky");
+    handle.destroy();
+  });
+
+  it("Undo / Redo ボタンを生成する", () => {
+    const { handle } = mount();
+    expect(handle.el.querySelector('button[aria-label="undo"]')).toBeTruthy();
+    expect(handle.el.querySelector('button[aria-label="redo"]')).toBeTruthy();
+    handle.destroy();
+  });
+
+  it("モード切替の 4 ボタン（readonly/review/wysiwyg/source）を生成する", () => {
+    const { handle } = mount();
+    for (const v of ["readonly", "review", "wysiwyg", "source"]) {
+      expect(handle.el.querySelector(`button[aria-label="${v}"]`)).toBeTruthy();
+    }
+    handle.destroy();
+  });
+
+  it("Home ロゴは onHomeClick 指定時のみ生成する", () => {
+    const onHomeClick = jest.fn();
+    const { handle } = mount({ onHomeClick });
+    const homeBtn = handle.el.querySelector('button[aria-label="home"]');
+    expect(homeBtn).toBeTruthy();
+    handle.destroy();
+  });
+
+  it("hide フラグで該当セクションを抑止する", () => {
+    const { handle } = mount({
+      hide: { undoRedo: true, modeToggle: true, moreMenu: true },
+    });
+    expect(handle.el.querySelector('button[aria-label="undo"]')).toBeNull();
+    expect(handle.el.querySelector('button[aria-label="wysiwyg"]')).toBeNull();
+    expect(handle.el.querySelector("[data-more-desktop]")).toBeNull();
+    handle.destroy();
+  });
+});
+
+describe("createEditorToolbar — ファイル操作", () => {
+  it("supportsDirectAccess で open/save/saveAs を生成し、クリックでハンドラを呼ぶ", () => {
+    const { handle, fileHandlers } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+    });
+    (handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement).click();
+    (handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement).click();
+    (handle.el.querySelector('button[aria-label="saveAsFile"]') as HTMLButtonElement).click();
+    expect(fileHandlers.onOpenFile).toHaveBeenCalled();
+    expect(fileHandlers.onSaveFile).toHaveBeenCalled();
+    expect(fileHandlers.onSaveAsFile).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("非 direct access では open=onImport / saveAs=onDownload にフォールバックする", () => {
+    const { handle, fileHandlers } = mount();
+    (handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement).click();
+    (handle.el.querySelector('button[aria-label="saveAsFile"]') as HTMLButtonElement).click();
+    expect(fileHandlers.onImport).toHaveBeenCalled();
+    expect(fileHandlers.onDownload).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("externalSaveOnly では save のみ生成し hasFileHandle 無しで disabled", () => {
+    const { handle } = mount({
+      fileCapabilities: { externalSaveOnly: true, hasFileHandle: false },
+    });
+    expect(handle.el.querySelector('button[aria-label="openFile"]')).toBeNull();
+    const save = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
+    expect(save).toBeTruthy();
+    expect(save.disabled).toBe(true);
+    handle.destroy();
+  });
+
+  it("exportPdf は onExportPdf 指定時のみ生成する", () => {
+    const fileHandlers = { ...defaultFileHandlers(), onExportPdf: undefined };
+    const { handle } = mount({ fileHandlers });
+    expect(handle.el.querySelector('button[aria-label="exportPdf"]')).toBeNull();
+    handle.destroy();
+  });
+});
+
+describe("createEditorToolbar — editor コマンド発火", () => {
+  it("undo クリックで editor.chain().focus().undo().run() を実行する", () => {
+    const { handle, ran } = mount();
+    (handle.el.querySelector('button[aria-label="undo"]') as HTMLButtonElement).click();
+    expect(ran).toContain("undo");
+    handle.destroy();
+  });
+
+  it("redo クリックで editor.chain().focus().redo().run() を実行する", () => {
+    const { handle, ran, setCan, emit } = mount();
+    setCan(true, true);
+    emit("transaction"); // redo を有効化
+    (handle.el.querySelector('button[aria-label="redo"]') as HTMLButtonElement).click();
+    expect(ran).toContain("redo");
+    handle.destroy();
+  });
+
+  it("mergeUndoRedo 指定時は editor ではなく merge の undo/redo を呼ぶ", () => {
+    const mergeUndoRedo = {
+      undo: jest.fn(),
+      redo: jest.fn(),
+      canUndo: true,
+      canRedo: true,
+    };
+    const { handle, ran } = mount({ mergeUndoRedo });
+    (handle.el.querySelector('button[aria-label="undo"]') as HTMLButtonElement).click();
+    (handle.el.querySelector('button[aria-label="redo"]') as HTMLButtonElement).click();
+    expect(mergeUndoRedo.undo).toHaveBeenCalled();
+    expect(mergeUndoRedo.redo).toHaveBeenCalled();
+    expect(ran).toHaveLength(0); // editor 側は呼ばれない
+    handle.destroy();
+  });
+});
+
+describe("createEditorToolbar — モード / ビュー切替", () => {
+  it("モードボタンのクリックで対応ハンドラを呼ぶ", () => {
+    const { handle, modeHandlers } = mount();
+    (handle.el.querySelector('button[aria-label="source"]') as HTMLButtonElement).click();
+    (handle.el.querySelector('button[aria-label="wysiwyg"]') as HTMLButtonElement).click();
+    (handle.el.querySelector('button[aria-label="review"]') as HTMLButtonElement).click();
+    (handle.el.querySelector('button[aria-label="readonly"]') as HTMLButtonElement).click();
+    expect(modeHandlers.onSwitchToSource).toHaveBeenCalled();
+    expect(modeHandlers.onSwitchToWysiwyg).toHaveBeenCalled();
+    expect(modeHandlers.onSwitchToReview).toHaveBeenCalled();
+    expect(modeHandlers.onSwitchToReadonly).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("outline / comments / explorer のトグルでハンドラを呼ぶ", () => {
+    const { handle, modeHandlers } = mount();
+    (handle.el.querySelector('button[aria-label="outline"]') as HTMLButtonElement).click();
+    (handle.el.querySelector('button[aria-label="commentPanel"]') as HTMLButtonElement).click();
+    (handle.el.querySelector('button[aria-label="explorer"]') as HTMLButtonElement).click();
+    expect(modeHandlers.onToggleOutline).toHaveBeenCalled();
+    expect(modeHandlers.onToggleComments).toHaveBeenCalled();
+    expect(modeHandlers.onToggleExplorer).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("compare トグル: inlineMergeOpen=false で compare クリックすると onMerge を呼ぶ", () => {
+    const { handle, modeHandlers } = mount();
+    (handle.el.querySelector('button[aria-label="compare"]') as HTMLButtonElement).click();
+    expect(modeHandlers.onMerge).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("compare トグル: inlineMergeOpen=true で edit クリックすると onMerge を呼ぶ", () => {
+    const { handle, modeHandlers } = mount({
+      modeState: defaultModeState({ inlineMergeOpen: true }),
+    });
+    (handle.el.querySelector('button[aria-label="normalMode"]') as HTMLButtonElement).click();
+    expect(modeHandlers.onMerge).toHaveBeenCalled();
+    handle.destroy();
+  });
+});
+
+describe("createEditorToolbar — more メニュー intent", () => {
+  it("desktop more クリックで onSetHelpAnchor を anchor 付きで呼ぶ", () => {
+    const onSetHelpAnchor = jest.fn();
+    const { handle } = mount({ onSetHelpAnchor });
+    const btn = handle.el.querySelector(
+      '[data-more-desktop] button[aria-label="more"]',
+    ) as HTMLButtonElement;
+    btn.click();
+    expect(onSetHelpAnchor).toHaveBeenCalledWith(btn);
+    handle.destroy();
+  });
+
+  it("mobile more クリックで onOpenMobileMenu を anchor 付きで呼ぶ", () => {
+    const onOpenMobileMenu = jest.fn();
+    const { handle } = mount({ onOpenMobileMenu });
+    const btn = handle.el.querySelector(
+      '[data-more-mobile] button[aria-label="more"]',
+    ) as HTMLButtonElement;
+    btn.click();
+    expect(onOpenMobileMenu).toHaveBeenCalledWith(btn);
+    handle.destroy();
+  });
+});
+
+describe("createEditorToolbar — roving tabindex キーボードナビ", () => {
+  function focusables(root: HTMLElement): HTMLElement[] {
+    return Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [role="button"]:not([disabled]), input:not([disabled])',
+      ),
+    );
+  }
+
+  it("初期は先頭のみ tabindex=0、他は -1", () => {
+    const { handle } = mount();
+    const items = focusables(handle.el);
+    expect(items[0].getAttribute("tabindex")).toBe("0");
+    expect(items[1].getAttribute("tabindex")).toBe("-1");
+    handle.destroy();
+  });
+
+  it("ArrowRight で次の要素へ roving が移動する", () => {
+    const { handle } = mount();
+    const items = focusables(handle.el);
+    items[0].focus();
+    handle.el.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
+    expect(items[0].getAttribute("tabindex")).toBe("-1");
+    expect(items[1].getAttribute("tabindex")).toBe("0");
+    expect(document.activeElement).toBe(items[1]);
+    handle.destroy();
+  });
+
+  it("ArrowRight は末尾で先頭へラップする", () => {
+    const { handle } = mount();
+    const items = focusables(handle.el);
+    items.at(-1)!.focus();
+    handle.el.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
+    expect(items[0].getAttribute("tabindex")).toBe("0");
+    expect(document.activeElement).toBe(items[0]);
+    handle.destroy();
+  });
+
+  it("ArrowLeft は先頭で末尾へラップする", () => {
+    const { handle } = mount();
+    const items = focusables(handle.el);
+    items[0].focus();
+    handle.el.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+    );
+    expect(items.at(-1)!.getAttribute("tabindex")).toBe("0");
+    expect(document.activeElement).toBe(items.at(-1));
+    handle.destroy();
+  });
+
+  it("Home / End で先頭・末尾へジャンプする", () => {
+    const { handle } = mount();
+    const items = focusables(handle.el);
+    items[2].focus();
+    handle.el.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+    expect(document.activeElement).toBe(items.at(-1));
+    handle.el.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+    expect(document.activeElement).toBe(items[0]);
+    handle.destroy();
+  });
+
+  it("未対応キーは無視する（focus は移動しない）", () => {
+    const { handle } = mount();
+    const items = focusables(handle.el);
+    items[0].focus();
+    handle.el.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+    expect(document.activeElement).toBe(items[0]);
+    handle.destroy();
+  });
+});
+
+describe("createEditorToolbar — editor 派生 state 購読", () => {
+  it("transaction で canUndo=false になると undo が disabled になる", () => {
+    const { handle, setCan, emit } = mount();
+    const undo = handle.el.querySelector('button[aria-label="undo"]') as HTMLButtonElement;
+    expect(undo.disabled).toBe(false); // 初期 canUndo=true
+    setCan(false, false);
+    emit("transaction");
+    expect(undo.disabled).toBe(true);
+    handle.destroy();
+  });
+
+  it("update({ modeState }) で readonly に切替えると undo が disabled になる", () => {
+    const { handle } = mount();
+    const undo = handle.el.querySelector('button[aria-label="undo"]') as HTMLButtonElement;
+    expect(undo.disabled).toBe(false);
+    handle.update({ modeState: defaultModeState({ readonlyMode: true }) });
+    expect(undo.disabled).toBe(true);
+    handle.destroy();
+  });
+});
+
+describe("createEditorToolbar — destroy クリーンアップ", () => {
+  it("destroy で editor の transaction listener を解除する", () => {
+    const { handle, listenerCount } = mount();
+    expect(listenerCount("transaction")).toBe(1);
+    handle.destroy();
+    expect(listenerCount("transaction")).toBe(0);
+  });
+
+  it("destroy 後は transaction を emit してもエラーにならない（listener 解除済み）", () => {
+    const { handle, emit, setCan } = mount();
+    handle.destroy();
+    setCan(false, false);
+    expect(() => emit("transaction")).not.toThrow();
+  });
+
+  it("update({ editor }) で旧 editor の listener を外し新 editor へ張り替える", () => {
+    const a = makeEditor();
+    const b = makeEditor();
+    const handle = createEditorToolbar({
+      editor: a.editor,
+      fileHandlers: defaultFileHandlers(),
+      modeState: defaultModeState(),
+      modeHandlers: defaultModeHandlers(),
+      t: (k) => k,
+    });
+    expect(a.listenerCount("transaction")).toBe(1);
+    handle.update({ editor: b.editor });
+    expect(a.listenerCount("transaction")).toBe(0);
+    expect(b.listenerCount("transaction")).toBe(1);
+    handle.destroy();
+    expect(b.listenerCount("transaction")).toBe(0);
+  });
+});
+
+describe("createEditorToolbar — sideToolbar 連動（旧 Page parity）", () => {
+  // 旧 React Page は sideToolbar 表示中（md+）にトップツールバーの outline/comments/explorer
+  // を隠していた（hide.outline = hideOutline || sideToolbarVisibleEditable）。vanilla では
+  // CSS メディアクエリ駆動（data-am-side-coupled + min-width:900px）で同等にする。
+  it("sideToolbar:true で outline/comments/explorer に data-am-side-coupled が付く", () => {
+    const { handle } = mount({ sideToolbar: true });
+    for (const label of ["outline", "commentPanel", "explorer"]) {
+      const btn = handle.el.querySelector(`button[aria-label="${label}"]`);
+      expect(btn).toBeTruthy();
+      expect(btn?.hasAttribute("data-am-side-coupled")).toBe(true);
+    }
+    handle.destroy();
+  });
+
+  it("sideToolbar 未指定では data-am-side-coupled が付かない", () => {
+    const { handle } = mount();
+    expect(handle.el.querySelector("[data-am-side-coupled]")).toBeNull();
+    handle.destroy();
+  });
+
+  it("min-width:900px で隠すスタイルが注入される", () => {
+    const { handle } = mount({ sideToolbar: true });
+    const style = document.getElementById("am-toolbar-side-coupled-style");
+    expect(style?.textContent).toContain("min-width: 900px");
+    expect(style?.textContent).toContain("data-am-side-coupled");
+    handle.destroy();
+  });
+});
+
+describe("createEditorToolbar — レスポンシブ（旧 EditorToolbar.module.css parity）", () => {
+  // 旧 module.css: desktopContents/compareToggle/moreMenuDesktop は md 未満で非表示、
+  // moreMenuMobile は md 以上で非表示（=デスクトップで More が 2 個出る退行の防止）。
+  it("レスポンシブスタイルが注入され各ラッパは inline display を持たない", () => {
+    const { handle } = mount();
+    const style = document.getElementById("am-toolbar-responsive-style");
+    expect(style?.textContent).toContain("min-width: 900px");
+    expect(style?.textContent).toContain("data-more-mobile");
+    expect(style?.textContent).toContain("data-desktop-contents");
+    for (const sel of ["[data-compare-toggle]", "[data-more-desktop]", "[data-more-mobile]"]) {
+      const el = handle.el.querySelector(sel) as HTMLElement | null;
+      expect(el).toBeTruthy();
+      // display は注入 CSS が所有する（inline にあると media 切替が効かない）。
+      expect(el?.style.display).toBe("");
+    }
+    handle.destroy();
+  });
+});

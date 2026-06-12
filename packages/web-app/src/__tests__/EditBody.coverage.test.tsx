@@ -7,6 +7,8 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
+jest.mock("@anytime-markdown/markdown-react-islands", () => require("../__mocks__/markdown-react-islands"));
+
 jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));

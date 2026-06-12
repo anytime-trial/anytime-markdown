@@ -1,10 +1,11 @@
 'use client';
 
-import { COMMENT_PANEL_WIDTH } from '@anytime-markdown/markdown-viewer';
+import { COMMENT_PANEL_WIDTH, createMarkdownT, getDefaultContent } from '@anytime-markdown/markdown-viewer';
 import { Alert, Box, CircularProgress, Snackbar } from '@mui/material';
 import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { useCallback, useMemo, useState } from 'react';
 
 import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
@@ -21,15 +22,15 @@ function EditorLoading() {
   );
 }
 
-// rich の codeblock 描画拡張を注入する RichMarkdownEditorPage を使う (B-8)
-const MarkdownEditorPage = dynamic(
-  () => import('@anytime-markdown/markdown-rich/src/RichMarkdownEditorPage'),
-  { ssr: false, loading: () => <EditorLoading /> },
-);
-
 const ExplorerPanel = dynamic(
   () => import('../../components/ExplorerPanel').then((m) => ({ default: m.ExplorerPanel })),
   { ssr: false },
+);
+
+// 脱React G4: vanilla orchestrator（rich codeblock 注入版）へ一本化
+const VanillaRichMarkdownEditor = dynamic(
+  () => import('../components/VanillaRichMarkdownEditor'),
+  { ssr: false, loading: () => <EditorLoading /> },
 );
 
 export default function Page() {
@@ -44,25 +45,22 @@ export default function Page() {
   const isGitHubLoggedIn = enableGitHub && !!session;
 
   const {
-    explorerOpen, externalContent, externalFileName, externalFilePath,
+    externalContent, externalFileName,
     externalCompareContent, editorKey, isDirty, newCommit,
     saveSnackbar, ssoSnackbar,
-    handleToggleExplorer, handleExplorerSelectFile, handleExternalSave,
+    handleExplorerSelectFile, handleExternalSave,
     handleCompareModeChange, handleExplorerSelectCommit, handleSelectCurrent,
     handleContentChange, setSsoSnackbar, setSaveSnackbar, fileSystemProvider,
   } = useEditorPage({ isGitHubLoggedIn, session, t });
 
-  const explorerSlotNode = enableGitHub ? (
-    <ExplorerPanel
-      open={explorerOpen}
-      width={COMMENT_PANEL_WIDTH}
-      onSelectFile={handleExplorerSelectFile}
-      onSelectCommit={handleExplorerSelectCommit}
-      onSelectCurrent={handleSelectCurrent}
-      isDirty={isDirty}
-      newCommit={newCommit}
-    />
-  ) : undefined;
+  const locale = useLocale();
+  const vanillaT = useMemo(() => createMarkdownT('MarkdownEditor', locale), [locale]);
+  // explorer 開閉は orchestrator の mode 状態（onModeChange）から同期する（脱React G4）。
+  const [explorerOpenV, setExplorerOpenV] = useState(false);
+  const handleVanillaModeChange = useCallback(
+    (state: { explorerOpen?: boolean }) => setExplorerOpenV(state.explorerOpen === true),
+    [],
+  );
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100vh" }}>
@@ -70,8 +68,10 @@ export default function Page() {
       <Box id="md-page-wrapper" sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
       <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         <EmbedProvidersBoundary>
-        <MarkdownEditorPage
-          key={editorKey}
+        <VanillaRichMarkdownEditor
+          key={`${editorKey}-${locale}`}
+          t={vanillaT}
+          locale={locale}
           themeMode={themeMode}
           onThemeModeChange={setThemeMode}
           presetName={showThemePreset ? presetName : undefined}
@@ -80,22 +80,32 @@ export default function Page() {
           fileSystemProvider={fileSystemProvider}
           onCompareModeChange={handleCompareModeChange}
           externalCompareContent={externalCompareContent}
-          explorerOpen={enableGitHub ? explorerOpen : false}
-          onToggleExplorer={enableGitHub ? handleToggleExplorer : undefined}
-          externalContent={externalContent}
-          externalFileName={externalFileName}
-          externalFilePath={externalFilePath}
+          initialContent={externalContent ?? getDefaultContent(locale)}
+          persistDraft={externalContent === undefined}
+          fileName={externalFileName}
           onExternalSave={isGitHubLoggedIn ? handleExternalSave : undefined}
           readOnly={externalContent !== undefined}
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
           sideToolbar
-          explorerSlot={explorerSlotNode}
+          hide={{ explorer: !enableGitHub }}
+          onModeChange={handleVanillaModeChange}
           onContentChange={handleContentChange}
           gridRows={process.env.NEXT_PUBLIC_GRID_ROWS ? Number(process.env.NEXT_PUBLIC_GRID_ROWS) : undefined}
           gridCols={process.env.NEXT_PUBLIC_GRID_COLS ? Number(process.env.NEXT_PUBLIC_GRID_COLS) : undefined}
         />
         </EmbedProvidersBoundary>
       </Box>
+      {enableGitHub && (
+        <ExplorerPanel
+          open={explorerOpenV}
+          width={COMMENT_PANEL_WIDTH}
+          onSelectFile={handleExplorerSelectFile}
+          onSelectCommit={handleExplorerSelectCommit}
+          onSelectCurrent={handleSelectCurrent}
+          isDirty={isDirty}
+          newCommit={newCommit}
+        />
+      )}
       <Snackbar
         open={!!ssoSnackbar}
         autoHideDuration={4000}

@@ -1,6 +1,12 @@
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
-import type { Editor } from "@anytime-markdown/markdown-react";
-import { createContext, useContext } from "react";
+import type { Editor } from "@anytime-markdown/markdown-core";
+
+/**
+ * React 19 の `RefObject<T>`（`{ current: T }`）相当の構造型（React 非依存）。
+ * vanilla orchestrator と DOM handlers が plain object の `{ current }` を受け渡すために使う。
+ * null を取り得る参照は `MutableRefLike<T | null>` と明示する。
+ */
+export type MutableRefLike<T> = { current: T };
 
 export type EncodingLabel = "UTF-8" | "Shift_JIS" | "EUC-JP";
 
@@ -88,18 +94,4 @@ export function extractHeadings(editor: Editor): HeadingItem[] {
     }
   });
   return items;
-}
-
-/** PlantUML ツールバー用 Context（NodeView からサンプル選択ポップオーバーを開くため） */
-export interface PlantUmlToolbarContextValue {
-  setSampleAnchorEl: (el: HTMLElement | null) => void;
-}
-
-const noop = () => {};
-export const PlantUmlToolbarContext = createContext<PlantUmlToolbarContextValue>({
-  setSampleAnchorEl: noop,
-});
-
-export function usePlantUmlToolbar() {
-  return useContext(PlantUmlToolbarContext);
 }

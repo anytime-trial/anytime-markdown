@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-12
+
+### Changed
+
+- **Fully removed React from the editor core.** All NodeViews (footnote, gif, image, table) and the editor chrome (overlays, dialogs, settings panel, UI primitives) are now native/vanilla implementations with no React dependency; the editor and `markdown-rich` packages are React-free.
+- Rebuilt the block-edit overlays on a shared vanilla scaffolding (`useBlockChrome` shell, unified portal self-append contract) and promoted the chrome seam to a first-class vanilla host installer/orchestrator.
+- Introduced a vanilla UI primitive kit (30+ components) replacing the former React wrappers across all three consumers.
+- Inverted the `markdown-rich` codeblock architecture to a native content NodeView with string/embed/math-graph previews and a full-screen edit dialog.
+- Extracted React islands (embed/graph previews) into the separate `markdown-react-islands` package injected via a registry, keeping the viewer/rich cores React-free.
+
+### Removed
+
+- Deleted the legacy React editor implementation (136 source files, 27 CSS files, 148 tests) and retired the `markdown-react` package.
+
+### Fixed
+
+- Restored `.tiptap` content CSS on the vanilla path (heading decorations were missing).
+- Restored the slash command menu (34 commands incl. templates), the search & replace bar (Mod+F), outline fold synchronization with progressive unfold, and the side-toolbar/top-toolbar view-toggle exclusivity on the vanilla path.
+- Made empty code blocks visible and clickable again (block-level contentDOM) and restored `role="switch"` on the dark mode toggle.
+- Restored the beforeunload guard, comment dialog wiring, and read-only re-check on the vanilla host.
+- Fixed the trailing-newline loss in merge source mode and restored compare-mode codeblock editing across both editors.
+- Restored keyboard shortcuts, the help entry point, status-bar targeting, and a mount error fallback on the vanilla path.
+- Fixed `update(externalCompareContent)` null close and transition detection.
+- Expanded MUI `sx` shorthands in `ui/GlobalStyle`, fixing the heading hover label regression.
+
 ## [0.18.0] - 2026-06-08
 
 ### Changed

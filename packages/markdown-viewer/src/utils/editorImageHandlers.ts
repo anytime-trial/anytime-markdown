@@ -1,6 +1,6 @@
 import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 import DOMPurify from "dompurify";
-import type { RefObject } from "react";
+import type { MutableRefLike } from "../types";
 
 /** Generate a timestamp string for file naming */
 export function generateTimestamp(): string {
@@ -78,7 +78,7 @@ export function requestExternalImageDownloads(
 export function tryImportDroppedMdFile(
   mdFile: File,
   event: DragEvent,
-  handleImportRef: RefObject<(file: File, nativeHandle?: FileSystemFileHandle) => void | Promise<void>>,
+  handleImportRef: MutableRefLike<(file: File, nativeHandle?: FileSystemFileHandle) => void | Promise<void>>,
 ): void {
   const items = event.dataTransfer?.items;
   const mdItem = items ? Array.from(items).find((item) => item.kind === "file" && (mdFile.name.endsWith(".md") || mdFile.name.endsWith(".markdown"))) : null;

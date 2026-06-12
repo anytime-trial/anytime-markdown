@@ -1,4 +1,4 @@
-import type { EditorSettings } from "../useEditorSettings";
+import type { EditorSettings } from "../editorSettings";
 
 // ── エディタ背景色 ──
 export const DEFAULT_DARK_BG = "#0D1117";

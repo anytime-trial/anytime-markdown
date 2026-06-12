@@ -1,93 +1,108 @@
 /**
  * footnoteExtension.tsx coverage2 tests
- * Targets uncovered lines: 21-25 (FootnoteRefView component), 88-91 (InputRule handler)
- * Focus: FootnoteRefView rendering via NodeView, InputRule direct handler test
+ * Focus: native ProseMirror NodeView rendering, InputRule direct handler, parseHTML
  */
-
-import React from "react";
-import { render, screen } from "@testing-library/react";
-
-// Mock for getPrimaryMain
-jest.mock("../constants/colors", () => ({
-  getPrimaryMain: (isDark: boolean) => isDark ? "#90caf9" : "#1976d2",
-}));
-
-// We need to test the FootnoteRefView component directly
-// Since it's not exported, we test it through the extension's NodeView
-
-jest.mock("@anytime-markdown/markdown-react", () => ({
-  ...jest.requireActual("@anytime-markdown/markdown-react"),
-  NodeViewWrapper: ({ children, as, style }: any) => <span data-testid="node-view-wrapper" style={style}>{children}</span>,
-  ReactNodeViewRenderer: jest.fn((Component: any) => {
-    // Store the component for direct testing
-    (global as any).__FootnoteRefView = Component;
-    return () => ({});
-  }),
-}));
 
 import { FootnoteRef } from "../extensions/footnoteExtension";
 import { Editor } from "@anytime-markdown/markdown-core";
 import StarterKit from "@anytime-markdown/markdown-starter-kit";
 
+/** addNodeView を呼び出して native NodeView を生成するヘルパー */
+function makeFootnoteNodeView(editor: Editor, noteId: string) {
+  const renderer = (FootnoteRef.config as any).addNodeView.call({
+    name: "footnoteRef",
+    options: {},
+    storage: {},
+    editor,
+    type: editor.schema.nodes.footnoteRef,
+    parent: null,
+  });
+  return renderer({ node: { attrs: { noteId } }, editor });
+}
+
 
 describe("FootnoteRef Extension coverage2", () => {
-  // --- Lines 21-25: FootnoteRefView rendering ---
-  describe("FootnoteRefView component", () => {
-    it("renders footnote reference with noteId", () => {
-      // Initialize the extension to trigger ReactNodeViewRenderer call
+  // --- native NodeView rendering ---
+  describe("native FootnoteRef NodeView", () => {
+    it("renders a span with the footnote reference text and data attribute", () => {
       const editor = new Editor({
         extensions: [StarterKit, FootnoteRef],
         content: "",
       });
 
-      const FootnoteRefView = (global as any).__FootnoteRefView;
-      expect(FootnoteRefView).toBeTruthy();
+      const view = makeFootnoteNodeView(editor, "42");
+      const dom = view.dom as HTMLElement;
+      expect(dom).toBeInstanceOf(HTMLElement);
+      expect(dom.textContent).toBe("[42]");
+      expect(dom.getAttribute("data-footnote-ref")).toBe("42");
 
-      render(
-          <>
-          <FootnoteRefView
-            node={{ attrs: { noteId: "42" } }}
-            selected={false}
-            editor={editor}
-            getPos={() => 0}
-            updateAttributes={jest.fn()}
-            deleteNode={jest.fn()}
-            decorations={[]}
-            extension={null}
-            HTMLAttributes={{}}
-          />
-          </>,
-      );
-
-      expect(screen.getByText("[42]")).toBeTruthy();
+      view.destroy?.();
       editor.destroy();
     });
 
-    it("renders with selected state", () => {
+    it("reflects the new noteId on update()", () => {
       const editor = new Editor({
         extensions: [StarterKit, FootnoteRef],
         content: "",
       });
 
-      const FootnoteRefView = (global as any).__FootnoteRefView;
-
-      render(
-          <>
-          <FootnoteRefView
-            node={{ attrs: { noteId: "note1" } }}
-            selected={true}
-            editor={editor}
-            getPos={() => 0}
-            updateAttributes={jest.fn()}
-            deleteNode={jest.fn()}
-            decorations={[]}
-            extension={null}
-            HTMLAttributes={{}}
-          />
-          </>,
+      const view = makeFootnoteNodeView(editor, "note1");
+      const handled = view.update?.(
+        { type: { name: "footnoteRef" }, attrs: { noteId: "note2" } } as any,
+        [],
+        null as any,
       );
 
-      expect(screen.getByText("[note1]")).toBeTruthy();
+      expect(handled).toBe(true);
+      expect((view.dom as HTMLElement).textContent).toBe("[note2]");
+
+      view.destroy?.();
+      editor.destroy();
+    });
+
+    it("toggles the selection outline via selectNode / deselectNode", () => {
+      const editor = new Editor({
+        extensions: [StarterKit, FootnoteRef],
+        content: "",
+      });
+
+      const view = makeFootnoteNodeView(editor, "x");
+      const dom = view.dom as HTMLElement;
+
+      view.selectNode?.();
+      expect(dom.style.outline).toContain("var(--am-color-primary-main)");
+      view.deselectNode?.();
+      expect(dom.style.outline).toBe("");
+
+      view.destroy?.();
+      editor.destroy();
+    });
+
+    it("sets the tooltip title from the footnote definition and opens its url on click", () => {
+      const editor = new Editor({
+        extensions: [StarterKit, FootnoteRef],
+        content: "<p>[^1]: see https://example.com here</p>",
+      });
+
+      const view = makeFootnoteNodeView(editor, "1");
+      const dom = view.dom as HTMLElement;
+
+      dom.dispatchEvent(new Event("pointerenter"));
+      expect(dom.title).toContain("https://example.com");
+      expect(dom.style.cursor).toBe("pointer");
+
+      const openSpy = jest
+        .spyOn(window, "open")
+        .mockImplementation(() => null);
+      dom.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(openSpy).toHaveBeenCalledWith(
+        "https://example.com",
+        "_blank",
+        "noopener,noreferrer",
+      );
+
+      openSpy.mockRestore();
+      view.destroy?.();
       editor.destroy();
     });
   });

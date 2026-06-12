@@ -1,15 +1,11 @@
 /**
  * footnoteExtension.tsx - coverage tests
- * Targets: lines 21-25 (FootnoteRefView component), lines 88-91 (InputRule handler)
+ * Targets: renderHTML / parseHTML / InputRule handler（native NodeView は coverage2 で検証）
  */
 
 import { Editor } from "@anytime-markdown/markdown-core";
 import StarterKit from "@anytime-markdown/markdown-starter-kit";
 import { FootnoteRef } from "../extensions/footnoteExtension";
-
-jest.mock("../constants/colors", () => ({
-  getPrimaryMain: () => "#1976d2",
-}));
 
 
 describe("FootnoteRef Extension coverage", () => {

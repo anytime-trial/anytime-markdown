@@ -1,8 +1,7 @@
 import { CodeBlockLowlight } from "@anytime-markdown/markdown-extension-code-block-lowlight";
 import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
-import { ReactNodeViewRenderer } from "@anytime-markdown/markdown-react";
 
-import { CodeBlockNodeView } from "./MermaidNodeView";
+import { createCodeBlockNodeView } from "./components/codeblock/CodeBlockBlockContent";
 import {
   EMBED_DATA_ATTR,
   installEmbedFenceRenderer,
@@ -49,11 +48,17 @@ export const CodeBlockWithMermaid = CodeBlockLowlight.extend({
       codeCollapsed: { default: true, rendered: false },
       width: { default: null, rendered: false },
       autoEditOpen: { default: false, rendered: false },
+      // 反転アーキテクチャ: math グラフ表示の ON/OFF。overlay のトグルが書き、
+      // native content が GraphView の mount/unmount を駆動する（旧 React 経路は未使用）。
+      graphEnabled: { default: false, rendered: false },
     };
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(CodeBlockNodeView);
+    // 反転アーキテクチャ: content-only native NodeView（React 非依存）。
+    // 編集 chrome は脱React の createCodeBlockChrome（ツールバー）と、RichMarkdownEditorPage
+    // がマウントする CodeDialogHost（編集ダイアログ・React host）が供給する。
+    return (props) => createCodeBlockNodeView(props);
   },
 
   addStorage() {

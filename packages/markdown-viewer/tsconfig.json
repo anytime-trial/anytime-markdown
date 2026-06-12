@@ -13,8 +13,6 @@
 			"@anytime-markdown/markdown-core": ["../markdown-core/core/src/index.ts"],
 			"@anytime-markdown/markdown-engine": ["../markdown-engine/src/index.ts"],
 			"@anytime-markdown/markdown-core/*": ["../markdown-core/core/src/*"],
-			"@anytime-markdown/markdown-react": ["../markdown-core/react/src/index.ts"],
-			"@anytime-markdown/markdown-react/*": ["../markdown-core/react/src/*"],
 			"@anytime-markdown/markdown-pm/*": ["../markdown-core/pm/*/index.ts"],
 			"@anytime-markdown/markdown-starter-kit": ["../markdown-core/starter-kit/src/index.ts"],
 			"@anytime-markdown/markdown-extensions": ["../markdown-core/extensions/src/index.ts"],

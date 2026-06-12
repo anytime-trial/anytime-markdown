@@ -5,11 +5,6 @@
  * codeBlockWithMermaid は markdown-rich へ物理移動したため、その拡張テストも rich へ移設する。
  */
 
-// React / ReactNodeViewRenderer モック
-jest.mock("@anytime-markdown/markdown-react", () => ({
-  ReactNodeViewRenderer: jest.fn(() => jest.fn()),
-}));
-
 // lowlight モック（CodeBlockLowlight が依存）
 jest.mock("lowlight", () => ({
   createLowlight: () => ({
@@ -18,8 +13,10 @@ jest.mock("lowlight", () => ({
   common: {},
 }));
 
-// NodeView コンポーネントモック
-jest.mock("../MermaidNodeView", () => ({ CodeBlockNodeView: () => null }));
+// 反転 native factory をスタブ（graph/embed の重量ツリー読込を回避）。
+jest.mock("../components/codeblock/CodeBlockBlockContent", () => ({
+  createCodeBlockNodeView: jest.fn(() => ({})),
+}));
 
 import { CodeBlockWithMermaid } from "../codeBlockWithMermaid";
 import {
@@ -50,6 +47,11 @@ describe("CodeBlockWithMermaid (codeBlockWithMermaid)", () => {
   it("adds width attribute (default null)", () => {
     const attrs = getAttributes(CodeBlockWithMermaid);
     expect(attrs.width).toEqual({ default: null, rendered: false });
+  });
+
+  it("adds graphEnabled attribute (default false)", () => {
+    const attrs = getAttributes(CodeBlockWithMermaid);
+    expect(attrs.graphEnabled).toEqual({ default: false, rendered: false });
   });
 
   it("defines addNodeView", () => {

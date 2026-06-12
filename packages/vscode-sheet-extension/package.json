@@ -2,14 +2,26 @@
   "name": "anytime-sheet",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "license": "MIT",
   "publisher": "anytime-trial",
-  "repository": { "type": "git", "url": "https://github.com/anytime-trial/anytime-markdown.git" },
-  "engines": { "vscode": "^1.109.0" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anytime-trial/anytime-markdown.git"
+  },
+  "engines": {
+    "vscode": "^1.109.0"
+  },
   "icon": "images/anytime-sheet-128.png",
-  "categories": ["Visualization"],
-  "keywords": ["spreadsheet", "csv", "tsv", "sheet"],
+  "categories": [
+    "Visualization"
+  ],
+  "keywords": [
+    "spreadsheet",
+    "csv",
+    "tsv",
+    "sheet"
+  ],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
@@ -17,20 +29,33 @@
       {
         "viewType": "anytimeSheet",
         "displayName": "%customEditor.displayName%",
-        "selector": [{ "filenamePattern": "*.sheet" }],
+        "selector": [
+          {
+            "filenamePattern": "*.sheet"
+          }
+        ],
         "priority": "default"
       },
       {
         "viewType": "anytimeSheet.csv",
         "displayName": "%customEditor.displayName%",
         "selector": [
-          { "filenamePattern": "*.csv" },
-          { "filenamePattern": "*.tsv" }
+          {
+            "filenamePattern": "*.csv"
+          },
+          {
+            "filenamePattern": "*.tsv"
+          }
         ],
         "priority": "option"
       }
     ],
-    "commands": [{ "command": "anytime-sheet.newSheet", "title": "%command.newSheet%" }]
+    "commands": [
+      {
+        "command": "anytime-sheet.newSheet",
+        "title": "%command.newSheet%"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
@@ -41,8 +66,6 @@
   "devDependencies": {
     "@types/node": "22.x",
     "@types/vscode": "1.109.0",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
     "ts-loader": "9.5.4",
     "typescript": "5.9.3",
     "webpack": "5.104.1",
@@ -51,9 +74,6 @@
   "dependencies": {
     "@anytime-markdown/spreadsheet-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
-    "@anytime-markdown/vscode-common": "*",
-    "next-intl": "4.12.0",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "@anytime-markdown/vscode-common": "*"
   }
 }

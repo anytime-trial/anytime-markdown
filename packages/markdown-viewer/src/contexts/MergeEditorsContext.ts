@@ -1,5 +1,5 @@
 import { DOMSerializer } from "@anytime-markdown/markdown-pm/model";
-import type { Editor } from "@anytime-markdown/markdown-react";
+import type { Editor } from "@anytime-markdown/markdown-core";
 
 interface MergeEditorsValue {
   rightEditor: Editor | null;

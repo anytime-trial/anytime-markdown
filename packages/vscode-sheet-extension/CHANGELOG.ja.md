@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-12
+
+### 変更
+
+- webview を vanilla bootstrap 化し、拡張バンドルから React を除去。
+
+### Spreadsheet Core (spreadsheet-viewer)
+
+- `spreadsheet-viewer` を React 非依存の vanilla 実装へ全面変換。`react` / `react-dom` / `next-intl` の peerDependencies を除去し、Markdown 表の全画面スプレッドシート編集を復元。
+
 ## [0.5.0] - 2026-06-08
 
 ### 変更

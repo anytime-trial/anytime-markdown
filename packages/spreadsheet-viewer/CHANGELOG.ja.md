@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-12
+
+### 変更
+
+- **spreadsheet viewer を React 非依存の vanilla 実装へ全面変換。** `createSpreadsheetT`・vanilla UI ファクトリ群・vanilla `SpreadsheetGrid` / `ContextMenu` を新設し、React 実装を置換。
+
+### 削除
+
+- React 版 spreadsheet 実装を削除し、peerDependencies から `react` / `react-dom` / `next-intl` を除去。
+
 ## [0.5.0] - 2026-06-08
 
 ### 変更

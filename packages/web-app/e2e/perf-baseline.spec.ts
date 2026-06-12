@@ -22,7 +22,9 @@ function tabByNames(page: Page, names: readonly string[]): Locator {
 
 async function openTrail(page: Page): Promise<void> {
   await page.goto(TRAIL_URL);
-  await expect(tabByNames(page, ['Activity', 'Analytics'])).toBeVisible();
+  // TrailViewer は dynamic(ssr:false) + WASM sql.js 初期化 + データ取得で初回マウントが重く、
+  // 既定 expect timeout(5s) を超えることがある。タブ出現は明示的に長めに待つ（perf 計測本体は別途）。
+  await expect(tabByNames(page, ['Activity', 'Analytics'])).toBeVisible({ timeout: 30_000 });
 }
 
 async function selectTab(page: Page, names: readonly string[]): Promise<string | null> {

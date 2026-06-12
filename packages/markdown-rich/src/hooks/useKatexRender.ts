@@ -1,5 +1,4 @@
 import type katexType from "katex";
-import { useEffect, useState } from "react";
 
 /** Lazy-load KaTeX only when needed */
 let katexInstance: typeof katexType | null = null;
@@ -40,42 +39,21 @@ export const MATH_SANITIZE_CONFIG = {
   ALLOW_DATA_ATTR: false,
 };
 
-interface UseKatexRenderParams {
-  code: string;
-  isMath: boolean;
-}
-
-export function useKatexRender({ code, isMath }: UseKatexRenderParams) {
-  const [html, setHtml] = useState("");
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!isMath || !code.trim()) {
-      if (isMath) { setHtml(""); setError(""); }
-      return;
-    }
-
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      if (cancelled) return;
-      try {
-        const katex = await getKatex();
-        if (cancelled) return;
-        const rendered = katex.renderToString(code, {
-          displayMode: true,
-          throwOnError: false,
-        });
-        if (!cancelled) { setHtml(rendered); setError(""); }
-      } catch (err) {
-        if (!cancelled) {
-          setError(`KaTeX: ${err instanceof Error ? err.message : "render error"}`);
-          setHtml("");
-        }
-      }
-    }, 500);
-
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [code, isMath]);
-
-  return { html, error };
+/**
+ * 数式コードを KaTeX で HTML 文字列へレンダリングする（React 非依存）。
+ * KaTeX は遅延ロードされ、`throwOnError: false` のため通常は error を返さない。
+ * native NodeView（codeBlockPreview）と vanilla dialog の双方から利用する seam。
+ */
+export async function renderKatexHtml(code: string): Promise<{ html: string; error: string }> {
+  if (!code.trim()) return { html: "", error: "" };
+  try {
+    const katex = await getKatex();
+    const html = katex.renderToString(code, {
+      displayMode: true,
+      throwOnError: false,
+    });
+    return { html, error: "" };
+  } catch (err) {
+    return { html: "", error: `KaTeX: ${err instanceof Error ? err.message : "render error"}` };
+  }
 }
