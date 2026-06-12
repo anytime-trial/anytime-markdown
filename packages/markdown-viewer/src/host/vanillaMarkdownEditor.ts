@@ -43,6 +43,7 @@ import type { FileSystemProvider } from "../types/fileSystem";
 import { createFileOpsController } from "./fileOpsController";
 import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { setTrailingNewline } from "../utils/editorContentLoader";
+import { EDITOR_CODE_VARS_CHANGED_EVENT } from "../utils/editorCodeCssVars";
 import { createVanillaEditorHost } from "./vanillaEditorHost";
 import {
   createAutoReloadController,
@@ -439,6 +440,9 @@ export function mountVanillaMarkdownEditor(
         root.style.setProperty("--am-editor-dark", current.themeMode === "dark" ? "1" : "0");
         root.style.setProperty("--am-code-font-size", `${effectiveSettings().fontSize}px`);
         root.style.setProperty("--am-code-line-height", `${effectiveSettings().lineHeight}`);
+        // NodeView（rich codeblock）は構築時に変数を読めない（dom 未接続・本適用前）ため、
+        // 適用完了を通知して isDark / fontSize 変化を再描画させる（mermaid ダーク色の回帰防止）。
+        document.dispatchEvent(new CustomEvent(EDITOR_CODE_VARS_CHANGED_EVENT));
       };
       /**
        * コンテンツ装飾 CSS（styles/editorContentCss・旧 GlobalStyle 注入の置換）と、
