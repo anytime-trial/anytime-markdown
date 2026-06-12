@@ -78,6 +78,13 @@ describe("createCodeBlockNodeView (native content NodeView)", () => {
     expect((view.contentDOM as HTMLElement).className).toBe("language-typescript");
   });
 
+  it("contentDOM(code) は display:block（空ブロックでも幅を持ち可視になる）", () => {
+    // 旧 React 版同等の可視性: inline のままだと空 codeBlock（中身が trailingBreak のみ）で
+    // 幅 0 になり、Playwright の toBeVisible / クリック対象として不可視扱いになる退行があった。
+    const view = makeView({ language: "typescript" });
+    expect((view.contentDOM as HTMLElement).style.display).toBe("block");
+  });
+
   it("regular はコード常時表示・プレビュー非表示・maxHeight 400", () => {
     const view = makeView({ language: "typescript", codeCollapsed: true });
     const dom = view.dom as HTMLElement;
