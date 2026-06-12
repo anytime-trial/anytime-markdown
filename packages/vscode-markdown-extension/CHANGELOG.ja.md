@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-12
+
+### 変更
+
+- React-free 化したエディタコアを同梱。webview を vanilla bootstrap 化し、拡張バンドルから React を完全除去（バンドル軽量化）。
+- VS Code の言語変更を `editorKey` の remount で反映。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- エディタコアから React を完全排除。全 NodeView と chrome を native/vanilla 化し、旧 React 実装（136 src / 27 css / 148 テスト）と `markdown-react` パッケージを撤去。
+- React island（embed/graph プレビュー）を別パッケージ `markdown-react-islands` へ分離。viewer/rich コアは React-free。
+- 多数の回帰修正（コンテンツ CSS・ショートカット・beforeunload・merge モード・compare コードブロック編集・StatusBar）。
+
 ## [0.18.0] - 2026-06-08
 
 ### 変更

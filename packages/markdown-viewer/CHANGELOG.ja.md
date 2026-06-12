@@ -7,6 +7,31 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-12
+
+### 変更
+
+- **エディタコアから React を完全排除。** 全 NodeView（footnote・gif・image・table）とエディタ chrome（オーバーレイ・Dialog・設定パネル・UI プリミティブ）を React 非依存の native/vanilla 実装へ移行。エディタ本体と `markdown-rich` は React-free。
+- ブロック編集オーバーレイを共通 vanilla scaffolding（`useBlockChrome` シェル・ポータル self-append 契約の統一）で再構築し、chrome シームを正式な vanilla host インストーラ/オーケストレータへ昇格。
+- 自前 vanilla UI プリミティブキット（30 種超）を新設し、3 consumer の旧 React ラッパを全置換。
+- `markdown-rich` のコードブロックを反転アーキテクチャの native content NodeView 化（string/embed/math-graph プレビュー + 全画面編集ダイアログ）。
+- React island（embed/graph プレビュー）をレジストリ注入で別パッケージ `markdown-react-islands` へ分離し、viewer/rich コアを React-free 化。
+
+### 削除
+
+- 旧 React エディタ実装（136 ソース・27 CSS・148 テスト）を削除し、`markdown-react` パッケージを撤去。
+
+### 修正
+
+- vanilla 経路に `.tiptap` コンテンツ CSS を移植し、見出し装飾の消失を修正。
+- vanilla 経路のスラッシュコマンドメニュー（テンプレート含む34コマンド）・検索/置換バー（Mod+F）・アウトライン折りたたみの editor 同期（段階展開）・サイド/トップツールバーのビュー切替排他を復元。
+- 空コードブロックの可視性（block 化 contentDOM）とダークモードトグルの `role="switch"` を復元。
+- vanilla host の beforeunload 警告・comment ダイアログ配線・readOnly 再チェックを復元。
+- merge ソースモードの末尾改行欠落を修正し、compare モードのコードブロック編集を両エディタへ復元。
+- ショートカット・ヘルプ導線・StatusBar 特定・mount エラーフォールバックを vanilla 経路で復元。
+- `update(externalCompareContent)` の null クローズと遷移検知を修正。
+- `ui/GlobalStyle` で MUI `sx` ショートハンドを展開し、見出し hover ラベル消失の回帰を修正。
+
 ## [0.18.0] - 2026-06-08
 
 ### 変更

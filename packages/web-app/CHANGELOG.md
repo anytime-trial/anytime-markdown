@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-06-12
+
+### Changed
+
+- Picked up the React-free editor core (markdown-viewer / markdown-rich) and the vanilla spreadsheet viewer.
+- Synced `next-env.d.ts` to the Next-generated types path.
+- Added `jq` to the local Docker image.
+
+### Fixed
+
+- Language switching in the editor settings now takes effect (the editor remounts with a locale-coupled key).
+- Updated the footnote e2e to the current vanilla selectors.
+- Extended the perf-baseline TrailViewer tab wait to 30s.
+
 ## [0.27.4] - 2026-06-08
 
 ### Changed

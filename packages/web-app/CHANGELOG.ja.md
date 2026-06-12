@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-06-12
+
+### 変更
+
+- React-free 化したエディタコア（markdown-viewer / markdown-rich）と vanilla 版 spreadsheet viewer を取り込み。
+- `next-env.d.ts` を Next 生成の types パスへ同期。
+- ローカル Docker イメージに `jq` を追加。
+
+### 修正
+
+- エディタ設定の言語切替が反映されない問題を修正（locale 連動キーで remount）。
+- footnote e2e を現行 vanilla セレクタへ更新。
+- perf-baseline の TrailViewer タブ待機を 30s へ延長。
+
 ## [0.27.4] - 2026-06-08
 
 ### 変更

@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-12
+
+### Changed
+
+- **Fully converted the spreadsheet viewer to a React-free vanilla implementation.** Added `createSpreadsheetT`, a vanilla UI factory kit, and vanilla `SpreadsheetGrid` / `ContextMenu` to replace the React implementation.
+
+### Removed
+
+- Removed the React spreadsheet implementation and dropped `react` / `react-dom` / `next-intl` from peer dependencies.
+
 ## [0.5.0] - 2026-06-08
 
 ### Changed
