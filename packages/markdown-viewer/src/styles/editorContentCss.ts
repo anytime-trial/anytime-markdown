@@ -84,12 +84,40 @@ ${pre(".hljs-deletion")}::before { content: '- '; font-weight: 700; }
 `;
 }
 
-/** admonition 1 種ぶんの CSS（border 色 + 背景 + ラベル）。 */
+/**
+ * admonition のラベルアイコン（Material Symbols 由来の単色 SVG）を CSS mask 用 data URI へ。
+ * 仕様8章「絵文字は使用しない」に従い、Unicode 絵文字様記号を SVG アイコンへ置換する。
+ * fill は mask のアルファのみ利用するため任意。`background-color` でテーマ色に着色する。
+ */
+function admonitionIcon(path: string): string {
+  const svg =
+    `%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E` +
+    `%3Cpath d='${path}'/%3E%3C/svg%3E`;
+  return `url("data:image/svg+xml,${svg}") no-repeat center / contain`;
+}
+
+/** admonition 種別ごとのアイコンパス（24x24 viewBox）。 */
+const ADMONITION_ICON_PATHS: Record<string, string> = {
+  // info（ⓘ の置換）
+  note: "M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8",
+  // lightbulb（☘ の置換）
+  tip: "M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7",
+  // priority_high（✉ の置換 — 感嘆符）
+  important: "M14 19a2 2 0 1 1-4 0 2 2 0 0 1 4 0M14 5v8a2 2 0 1 1-4 0V5a2 2 0 1 1 4 0",
+  // warning triangle
+  warning: "M1 21h22L12 2zm12-3h-2v-2h2zm0-4h-2v-4h2z",
+  // block（⊙ の置換 — 進入禁止）
+  caution: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2M4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.9 7.9 0 0 1 4 12m8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1A7.9 7.9 0 0 1 20 12c0 4.42-3.58 8-8 8",
+};
+
+/** admonition 1 種ぶんの CSS（border 色 + 背景 + アイコン + ラベル）。 */
 function admonitionCss(type: string, color: string, label: string): string {
   const sel = tiptap(`blockquote[data-admonition-type='${type}']`);
+  const icon = admonitionIcon(ADMONITION_ICON_PATHS[type]);
   return `
 ${sel} { border-left-color: ${color}; background: var(--editor-admonition-bg-${type}, ${alpha(color, 0.06)}); }
-${sel}::before { content: "${label}"; color: ${color}; }
+${sel}::before { background-color: ${color}; -webkit-mask: ${icon}; mask: ${icon}; }
+${sel}::after { content: "${label}"; color: ${color}; }
 `;
 }
 
@@ -109,8 +137,11 @@ export function buildEditorContentCss(isDark: boolean): string {
   const textSecondary = getTextSecondary(isDark);
   const textDisabled = getTextDisabled(isDark);
   const primaryMain = getPrimaryMain(isDark);
-  const scrollThumb = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)";
-  const scrollThumbHover = isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)";
+  // スクロールバー: 仕様6章。ダーク=アンバーレール / ライト=墨線（border-radius 0）。
+  const scrollThumb = isDark ? alpha(ACCENT_COLOR, 0.5) : "rgba(31,30,28,0.40)";
+  const scrollThumbHover = isDark ? alpha(ACCENT_COLOR, 0.8) : "rgba(31,30,28,0.60)";
+  const scrollThumbActive = isDark ? ACCENT_COLOR : "rgba(31,30,28,0.80)";
+  const scrollRadius = isDark ? "2px" : "0";
 
   const hoverShowSelectors = HOVER_LABEL_TARGETS.flatMap((target) => [
     `${SCOPE} .tiptap ${target}:hover::before`,
@@ -124,17 +155,21 @@ ${SCOPE} [data-am-content] {
   scrollbar-width: thin;
   scrollbar-color: ${scrollThumb} transparent;
 }
-${SCOPE} [data-am-content]::-webkit-scrollbar { width: 6px; }
+${SCOPE} [data-am-content]::-webkit-scrollbar { width: 4px; height: 4px; }
 ${SCOPE} [data-am-content]::-webkit-scrollbar-track { background: transparent; }
-${SCOPE} [data-am-content]::-webkit-scrollbar-thumb { background: ${scrollThumb}; border-radius: 3px; }
-${SCOPE} [data-am-content]::-webkit-scrollbar-thumb:hover { background: ${scrollThumbHover}; }
+${SCOPE} [data-am-content]::-webkit-scrollbar-thumb { background: ${scrollThumb}; border-radius: ${scrollRadius}; }
+${SCOPE} [data-am-content]::-webkit-scrollbar-thumb:hover { background: ${scrollThumbHover};${isDark ? " box-shadow: 0 0 6px rgba(232,160,18,0.35);" : ""} }
+${SCOPE} [data-am-content]::-webkit-scrollbar-thumb:active { background: ${scrollThumbActive}; }
 ${SCOPE} .tiptap {
   position: relative;
-  padding: 16px;
+  max-width: var(--am-editor-measure, 760px);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 24px clamp(16px, 4vw, 48px);
   outline: none;
   font-family: var(--editor-content-font-family, sans-serif);
   font-size: var(--am-editor-font-size, 16px);
-  line-height: var(--am-editor-line-height, 1.6);
+  line-height: var(--am-editor-line-height, 1.7);
   color: var(--am-editor-text, ${getEditorText(isDark)});
   -webkit-font-smoothing: ${isDark ? "antialiased" : "auto"};
   -moz-osx-font-smoothing: ${isDark ? "grayscale" : "auto"};
@@ -297,8 +332,14 @@ ${tiptap("h5")} {
   margin-top: 6px;
   margin-bottom: 4px;
 }
-${tiptap("p")} { margin-bottom: 8px; }
+${tiptap("p")} { margin-bottom: 12px; }
 ${tiptap("li")} { margin-bottom: 2px; }
+/* モバイル: 見出しスケールを縮小（仕様3.2）。本文左右余白は .tiptap の clamp で自動追従 */
+@media (max-width: 600px) {
+  ${tiptap("h1")} { font-size: 1.6em; }
+  ${tiptap("h2")} { font-size: 1.3em; }
+  ${tiptap("h3")} { font-size: 1.15em; }
+}
 
 /* === コード（旧 codeStyles） ===================================================== */
 ${tiptap("code")} {
@@ -356,19 +397,29 @@ ${tiptap("blockquote[data-admonition-type]")} {
   position: relative;
   filter: var(--editor-heading-filter, none);
 }
+/* ラベルアイコン（::before = SVG マスク箱） */
 ${tiptap("blockquote[data-admonition-type]")}::before {
+  content: "";
   position: absolute;
   top: 8px;
   left: 16px;
+  width: 16px;
+  height: 16px;
+}
+/* ラベルテキスト（::after） */
+${tiptap("blockquote[data-admonition-type]")}::after {
+  position: absolute;
+  top: 8px;
+  left: 38px;
   font-size: ${BLOCK_STYLE_FONT_SIZE};
   font-weight: 700;
-  line-height: 1;
+  line-height: 16px;
 }
-${admonitionCss("note", ADMONITION_NOTE, String.raw`\24D8  Note`)}
-${admonitionCss("tip", ADMONITION_TIP, String.raw`\2618  Tip`)}
-${admonitionCss("important", ADMONITION_IMPORTANT, String.raw`\2709  Important`)}
-${admonitionCss("warning", ADMONITION_WARNING, String.raw`\26A0  Warning`)}
-${admonitionCss("caution", ADMONITION_CAUTION, String.raw`\2299  Caution`)}
+${admonitionCss("note", ADMONITION_NOTE, "Note")}
+${admonitionCss("tip", ADMONITION_TIP, "Tip")}
+${admonitionCss("important", ADMONITION_IMPORTANT, "Important")}
+${admonitionCss("warning", ADMONITION_WARNING, "Warning")}
+${admonitionCss("caution", ADMONITION_CAUTION, "Caution")}
 ${tiptap("table")} {
   border-collapse: collapse;
   width: var(--am-editor-table-width, auto);

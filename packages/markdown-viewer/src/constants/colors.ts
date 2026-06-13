@@ -77,7 +77,8 @@ export const DEFAULT_LIGHT_TABLE_HEADER_BG = "#DDD9CE";
 
 // ── インラインコード色 ──
 export const DEFAULT_DARK_INLINE_CODE = undefined; // getGrey で動的取得
-export const DEFAULT_LIGHT_INLINE_CODE = "#c62828";
+// 水墨パレットの焦墨（朱墨の影）。明るい Material 赤を廃し「差し色はアンバーのみ」哲学へ整合。
+export const DEFAULT_LIGHT_INLINE_CODE = "#6B2A20";
 
 // ── Admonition（GitHub 準拠） ──
 export const ADMONITION_NOTE = "#1f6feb";

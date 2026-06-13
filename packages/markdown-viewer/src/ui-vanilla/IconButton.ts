@@ -36,7 +36,9 @@ function ensureIconButtonStyles(): void {
   style.textContent =
     "button[data-ui-icon-button]:hover:not(:disabled){background:var(--am-color-action-hover);}" +
     "button[data-ui-icon-button]:disabled{opacity:0.5;cursor:default;}" +
-    "button[data-ui-icon-button]:focus-visible{outline:2px solid var(--am-color-primary-main);outline-offset:1px;}";
+    "button[data-ui-icon-button]:focus-visible{outline:2px solid var(--am-color-primary-main);outline-offset:1px;}" +
+    // タッチ環境では視覚サイズを保ったまま当たり判定を 44px へ（仕様8章 タップターゲット）。
+    "@media (pointer:coarse){button[data-ui-icon-button]{min-width:44px;min-height:44px;}}";
   document.head.appendChild(style);
 }
 
