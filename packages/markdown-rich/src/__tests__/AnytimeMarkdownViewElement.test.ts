@@ -1,8 +1,8 @@
 /**
- * `<anytime-markdown-view>`（read-only・chromeless 表示）の検証。
+ * `<anytime-markdown-view>`（read-only 表示）の検証。
  *
  * rich と同様に重量 mount をモックし、view 要素が mount オプションへ
- * readOnly / hideToolbar / hideStatusBar を強制（記事表示にツールバー不要）することを確認する。
+ * readOnly / viewerToolbar（font/theme のみの最小ツールバー）/ hideStatusBar を強制することを確認する。
  */
 
 const mountSpy = jest.fn();
@@ -57,18 +57,21 @@ describe("AnytimeMarkdownViewElement", () => {
     expect(customElements.get("anytime-markdown-view")).toBe(AnytimeMarkdownViewElement);
   });
 
-  it("read-only・chromeless（toolbar/statusbar 非表示）を mount オプションへ強制する", () => {
+  it("read-only + viewerToolbar（font/theme のみ）+ statusbar 非表示 を強制する", () => {
     const el = document.createElement("anytime-markdown-view");
     document.body.appendChild(el);
     expect(mountSpy).toHaveBeenCalledTimes(1);
     const options = mountSpy.mock.calls[0][1] as {
       readOnly?: boolean;
-      hideToolbar?: boolean;
+      viewerToolbar?: boolean;
       hideStatusBar?: boolean;
+      hideToolbar?: boolean;
     };
     expect(options.readOnly).toBe(true);
-    expect(options.hideToolbar).toBe(true);
+    expect(options.viewerToolbar).toBe(true);
     expect(options.hideStatusBar).toBe(true);
+    // 編集ツールバー抑止は viewerToolbar 側で行うため hideToolbar は強制しない。
+    expect(options.hideToolbar).toBeUndefined();
   });
 
   it("consumer が渡したスクロール等の表示オプションはそのまま尊重する", () => {
