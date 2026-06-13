@@ -12,7 +12,7 @@
   "engines": {
     "vscode": "^1.109.0"
   },
-  "icon": "images/anytime-agent-128.png",
+  "icon": "images/camel_face.png",
   "categories": [
     "Other"
   ],
@@ -35,7 +35,7 @@
         {
           "id": "anytimeAgent",
           "title": "%viewsContainer.title%",
-          "icon": "images/agent-activitybar.svg"
+          "icon": "images/camel-activitybar.svg"
         }
       ]
     },

@@ -406,7 +406,7 @@ export default function VsCodeBody() {
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: { xs: 6, md: 8 } }}>
             <Box
               component="img"
-              src="/images/anytime-markdown-128.png"
+              src="/images/camel_markdown.png"
               alt="Anytime Markdown icon"
               sx={{ width: 48, height: 48, borderRadius: 2 }}
             />
