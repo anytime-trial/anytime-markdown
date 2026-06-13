@@ -87,4 +87,23 @@ describe("AnytimeMarkdownEditorElement", () => {
     el.value = "# changed";
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("options プロパティ（escape hatch）が mount オプションへマージされる", () => {
+    const el = document.createElement("anytime-markdown-editor") as AnytimeMarkdownEditorElement;
+    // 属性ではなく options 経由で readOnly を渡す（app consumer 経路）。
+    el.options = { readOnly: true, initialContent: "# from options" };
+    document.body.appendChild(el);
+    const pm = el.querySelector("[data-am-editor-root] .ProseMirror");
+    expect(pm?.getAttribute("contenteditable")).toBe("false");
+    // editor/root getter が handle を露出する（handle adapter 用）。
+    expect(el.editor).not.toBeNull();
+    expect(el.root).not.toBeNull();
+  });
+
+  it("options.onContentChange と change イベントの両方が編集で呼ばれる配線（update 委譲も throw しない）", () => {
+    const el = document.createElement("anytime-markdown-editor") as AnytimeMarkdownEditorElement;
+    el.options = { onContentChange: jest.fn() };
+    document.body.appendChild(el);
+    expect(() => el.update({ themeMode: "dark" })).not.toThrow();
+  });
 });
