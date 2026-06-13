@@ -12,7 +12,7 @@
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import type { LayoutAlgorithm } from '@anytime-markdown/graph-core/engine';
 import type { AlignType, ToolType } from '../types';
-import { SaveStatus } from '../hooks/useAutoSave';
+import type { SaveStatus } from '../types/persistence';
 import type { GraphT } from '../i18n/createGraphT';
 
 import { createIconButton } from '../ui-vanilla/IconButton';

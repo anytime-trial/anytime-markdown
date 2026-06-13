@@ -9,7 +9,7 @@ import {
 import type { ResizeHandle, GuideLine } from '@anytime-markdown/graph-core/engine';
 import { createEdge, createNode, GraphEdge, GraphNode, SelectionState, ToolType, Viewport } from '../types';
 import type { NodeType } from '../types';
-import type { Action } from '../hooks/useGraphState';
+import type { Action } from '@anytime-markdown/graph-core/state';
 
 // ─── 型定義 ────────────────────────────────────────────────────────────────
 

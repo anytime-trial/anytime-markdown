@@ -11,10 +11,5 @@
   },
   "dependencies": {
     "@anytime-markdown/graph-core": "*"
-  },
-  "peerDependencies": {
-    "next-intl": ">=4",
-    "react": ">=19",
-    "react-dom": ">=19"
   }
 }

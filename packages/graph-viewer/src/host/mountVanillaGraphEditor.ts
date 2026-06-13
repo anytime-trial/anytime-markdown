@@ -28,7 +28,8 @@ import {
 } from '@anytime-markdown/graph-core/engine';
 
 import { createGraphT } from '../i18n/createGraphT';
-import { applyGraphUiThemeVars, injectGraphUiStyles } from '../ui';
+import { applyGraphUiThemeVars } from '../ui/tokens';
+import { injectGraphUiStyles } from '../ui/injectStyles';
 import { createAutoSave } from '../hooks-vanilla/createAutoSave';
 import { createCanvasInteraction } from '../hooks-vanilla/createCanvasInteraction';
 import { createGraphStore } from '../hooks-vanilla/createGraphStore';
