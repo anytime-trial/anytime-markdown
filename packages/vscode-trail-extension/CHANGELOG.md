@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-06-13
+
+### Fixed
+
+- Upgrade TypeScript to 6.0.3 (build toolchain update).
+
+### Trail Core (trail-core / trail-server / memory-core)
+
+- Escalate daemon `dispose` to SIGKILL to prevent daemon orphaning on Extension Host crash.
+- Yield to the event loop periodically in `bug_history` sweep to reduce blocking on large data sets (perf).
+- Fix unawaited `ChatBridge.dispose` (S4822).
+- Resolve SonarCloud findings in trail-core / memory-core.
+
 ## [0.27.0] - 2026-06-08
 
 ### Fixed

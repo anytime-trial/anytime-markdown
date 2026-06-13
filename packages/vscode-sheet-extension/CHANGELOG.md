@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-13
+
+### Changed
+
+- Upgraded to TypeScript 6.0.3 (monorepo-wide build toolchain update).
+
 ## [0.6.0] - 2026-06-12
 
 ### Changed

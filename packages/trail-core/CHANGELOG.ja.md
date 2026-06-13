@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-06-13
+
+### 変更
+
+- TypeScript 6.0.3 へアップグレード。
+- 認知的複雑度の削減と SonarCloud 指摘を解消（memory-core: `streamTurn` / `runOnce` の複雑度低減、S3776 / S1874 / S1854 / S7735）。
+
+### 修正
+
+- `globalThis.window` を `undefined` と直接比較するよう修正（SonarCloud S7741）。
+- CFG の if ノードの `then` プロパティを `thenBlock` へリネーム（予約語回避、S7739）。
+- `aggregateGhostEdgesToC4` の no-op 式文を削除（S905）。
+
 ## [0.27.0] - 2026-06-08
 
 ### 変更

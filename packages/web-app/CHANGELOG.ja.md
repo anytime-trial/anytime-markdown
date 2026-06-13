@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [0.28.1] - 2026-06-13
+
+### 変更
+
+- TypeScript を 6.0.3 へアップグレード。
+- SonarCloud 指摘を解消（S2004 / S6478 / S4325）。
+- vendored tsconfig の `paths` を `alias.cjs` 由来へ同期し `next build` を安定化。
+- CI (Sonar): SQLite DDL の PL/SQL 誤検知を避けるため `.sql` ファイルを解析対象から除外。
+- Docker: npm global を user 配下へ移し CLI の自動更新を可能化。
+
+### 修正
+
+- C4 モデル route で unknown 型の DB 値を安全に文字列化するよう修正（SonarCloud S6551）。
+- CI: daily-build の markdown-core テスト参照をパッケージ改名後の `viewer`/`rich` へ更新（回帰修正）。
+
 ## [0.28.0] - 2026-06-12
 
 ### 変更

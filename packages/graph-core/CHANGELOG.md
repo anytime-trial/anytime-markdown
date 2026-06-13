@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-06-13
+
+### Changed
+
+- Upgraded to TypeScript 6.0.3 (monorepo-wide build toolchain update).
+- Bundled `drawEdgePreview` coordinates into a single parameter object (SonarCloud S107).
+
 ## [0.5.0] - 2026-06-08
 
 ### Changed
