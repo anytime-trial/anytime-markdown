@@ -43,6 +43,12 @@ describe("createEditorSideToolbar", () => {
       expect(handle.el.style.cssText).toContain("var(--am-color-divider)");
     });
 
+    it("アイコンが currentColor で消えないよう root にテーマ連動 color を設定する（ダークモード可視性の回帰）", () => {
+      handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
+      // 未指定だと継承色（canvastext）に落ちダークでアイコンが埋もれるため text-secondary を明示。
+      expect(handle.el.style.color).toBe("var(--am-color-text-secondary)");
+    });
+
     it("explorer / settings 無しなら outline / comment の 2 ボタンのみ描画する", () => {
       handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
       const btns = buttons(handle);
