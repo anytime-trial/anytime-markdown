@@ -216,7 +216,7 @@
     "graphology-shortest-path": "2.1.0",
     "ignore": "7.0.5",
     "pg": "8.20.0",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "ws": "8.20.1",
     "zod": "3.25.76"
   },
@@ -238,8 +238,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "style-loader": "4.0.0",
-    "ts-jest": "29.3.4",
-    "ts-loader": "9.5.4",
+    "ts-jest": "29.4.11",
+    "ts-loader": "9.6.0",
     "webpack": "5.104.1",
     "webpack-bundle-analyzer": "5.3.0",
     "webpack-cli": "6.0.1"
