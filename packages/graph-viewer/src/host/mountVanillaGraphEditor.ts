@@ -141,11 +141,6 @@ export function mountVanillaGraphEditor(
   let filterConfig: NodeFilterConfig = EMPTY_FILTER;
   let showFilter = false;
   let docEditNodeId: string | null = null;
-  let liveMessage = '';
-  let confirmDialogOpen = false;
-  let confirmDialogTitle = '';
-  let confirmDialogMessage = '';
-  let confirmDialogOnConfirm: () => void = () => {};
 
   let saveStatus: SaveStatus = 'saved';
 
@@ -292,10 +287,10 @@ export function mountVanillaGraphEditor(
     viewportAnimRef,
     velocityRef,
     ariaLabel: `${t('graphCanvas')}: ${st0.document.nodes.length} nodes, ${st0.document.edges.length} edges`,
-    onMouseDown: (e) => {
+    onMouseDown: () => {
+      // 実ドラッグ処理は canvasInteraction が canvas へ自前 attach したリスナで行う。
+      // ここでは shapeHoverBar 抑止用に isDragging のみ立てる。
       isDragging = true;
-      canvasInteraction.drag; // access to trigger getter side-effects
-      // canvasInteraction は後で attach するためコールバックはラップ形式
     },
     onMouseUp: (_e) => {
       isDragging = false;
@@ -511,12 +506,8 @@ export function mountVanillaGraphEditor(
       return;
     }
 
-    if (shapeHoverBarHandle) {
-      shapeHoverBarHandle.el.remove();
-      shapeHoverBarHandle.destroy();
-      shapeHoverBarHandle = null;
-    }
-
+    // shouldShow=true は selectedNode!==null を含意するため handle ありは上で return 済み。
+    // 残りは「handle なし」のみ。selectedNode ガードは TS narrowing 用に維持する。
     if (selectedNode) {
       shapeHoverBarHandle = createShapeHoverBar({
         node: selectedNode,
@@ -615,7 +606,6 @@ export function mountVanillaGraphEditor(
   canvasWrapper.appendChild(ariaLive);
 
   function setLiveMessage(msg: string): void {
-    liveMessage = msg;
     ariaLive.textContent = msg;
   }
 
@@ -706,28 +696,17 @@ export function mountVanillaGraphEditor(
 
   // ── Confirm dialog ────────────────────────────────────────────────────────
 
-  function openConfirmDialog(title: string, message: string, onConfirm: () => void): void {
-    confirmDialogOpen = true;
-    confirmDialogTitle = title;
-    confirmDialogMessage = message;
-    confirmDialogOnConfirm = onConfirm;
-    renderConfirmDialog();
-  }
+  let confirmDialogEl: HTMLDivElement | null = null;
 
   function closeConfirmDialog(): void {
-    confirmDialogOpen = false;
     confirmDialogEl?.remove();
     confirmDialogEl = null;
   }
 
-  let confirmDialogEl: HTMLDivElement | null = null;
-
-  function renderConfirmDialog(): void {
-    if (confirmDialogEl) {
-      confirmDialogEl.remove();
-      confirmDialogEl = null;
-    }
-    if (!confirmDialogOpen) return;
+  function openConfirmDialog(title: string, message: string, onConfirm: () => void): void {
+    // 状態は引数で完結するため closure 変数に保持しない（既存ダイアログがあれば置換）。
+    confirmDialogEl?.remove();
+    confirmDialogEl = null;
 
     const backdrop = document.createElement('div');
     backdrop.style.cssText = [
@@ -747,11 +726,11 @@ export function mountVanillaGraphEditor(
 
     const titleEl = document.createElement('h2');
     titleEl.style.cssText = 'margin:0 0 16px;font-size:1.125rem;font-weight:600';
-    titleEl.textContent = confirmDialogTitle;
+    titleEl.textContent = title;
 
     const msgEl = document.createElement('p');
     msgEl.style.cssText = 'margin:0 0 24px;font-size:0.875rem;color:var(--gv-color-text-secondary)';
-    msgEl.textContent = confirmDialogMessage;
+    msgEl.textContent = message;
 
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px';
@@ -767,7 +746,7 @@ export function mountVanillaGraphEditor(
     confirmBtn.textContent = t('confirm');
     confirmBtn.setAttribute('autofocus', '');
     confirmBtn.addEventListener('click', () => {
-      confirmDialogOnConfirm();
+      onConfirm();
       closeConfirmDialog();
     });
 

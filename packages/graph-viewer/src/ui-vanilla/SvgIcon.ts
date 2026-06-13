@@ -117,36 +117,9 @@ export function createIcon(
   viewBox = '0 0 24 24',
 ): (opts?: Readonly<IconOptions>) => SVGSVGElement {
   return function iconFactory(opts: Readonly<IconOptions> = {}): SVGSVGElement {
-    const { fontSize, color, className } = opts;
-    const svg = document.createElementNS(SVG_NS, 'svg');
-    svg.setAttribute('width', '1em');
-    svg.setAttribute('height', '1em');
-    svg.setAttribute('viewBox', viewBox);
-    svg.setAttribute('fill', 'currentColor');
-    svg.setAttribute('focusable', 'false');
-    svg.setAttribute('aria-hidden', 'true');
+    // createSvgIcon と同一構築のため委譲し、名前付きアイコン固有の data-testid のみ付与する。
+    const svg = createSvgIcon(children, opts, viewBox);
     svg.setAttribute('data-testid', `${name}Icon`);
-    if (className) {
-      svg.setAttribute('class', className);
-    }
-    svg.style.fontSize = resolveFontSize(fontSize);
-    const resolvedColor = resolveColor(color);
-    if (resolvedColor != null) {
-      svg.style.color = resolvedColor;
-    }
-    for (const child of children) {
-      if (child.tag === 'path') {
-        const el = document.createElementNS(SVG_NS, 'path');
-        el.setAttribute('d', child.d);
-        svg.appendChild(el);
-      } else {
-        const el = document.createElementNS(SVG_NS, 'circle');
-        el.setAttribute('cx', String(child.cx));
-        el.setAttribute('cy', String(child.cy));
-        el.setAttribute('r', String(child.r));
-        svg.appendChild(el);
-      }
-    }
     return svg;
   };
 }
