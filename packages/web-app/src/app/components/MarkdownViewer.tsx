@@ -13,14 +13,22 @@ import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
 import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
 
+const viewerLoading = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+    <CircularProgress aria-label="Loading viewer" />
+  </Box>
+);
+
 // 脱React G4: vanilla orchestrator（rich codeblock 注入版）へ一本化
 const VanillaRichMarkdownEditor = dynamic(() => import('./VanillaRichMarkdownEditor'), {
   ssr: false,
-  loading: () => (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-      <CircularProgress aria-label="Loading viewer" />
-    </Box>
-  ),
+  loading: viewerLoading,
+});
+
+// read-only・最小（chromeless）表示用の Web Component ラッパ（minimal 指定時に使用）。
+const VanillaMarkdownView = dynamic(() => import('./VanillaMarkdownView'), {
+  ssr: false,
+  loading: viewerLoading,
 });
 
 interface MarkdownViewerProps {
@@ -42,9 +50,11 @@ interface MarkdownViewerProps {
   bottomOffset?: number;
   /** ロケール別キーが見つからない場合のフォールバックキー（言語サフィックスなしファイル等） */
   fallbackDocKey?: string;
+  /** read-only・最小（ツールバー/ステータスバー非表示）の Web Component 表示にする（report 記事等）。 */
+  minimal?: boolean;
 }
 
-export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, contentApiPath = '/api/docs/content', showFrontmatter, bottomOffset: _bottomOffset, fallbackDocKey }: Readonly<MarkdownViewerProps>) {
+export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, contentApiPath = '/api/docs/content', showFrontmatter, bottomOffset: _bottomOffset, fallbackDocKey, minimal }: Readonly<MarkdownViewerProps>) {
   const t = useTranslations('Landing');
   const { themeMode, setThemeMode } = useThemeMode();
   const { presetName, setPresetName } = usePreset();
@@ -117,11 +127,14 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
     );
   }
 
+  // minimal 時は read-only・chromeless の `<anytime-markdown-view>` 経由（report 記事等）。
+  const EditorComponent = minimal ? VanillaMarkdownView : VanillaRichMarkdownEditor;
+
   return (
     <Box sx={{ minHeight, overflow: 'hidden' }}>
       <EmbedProvidersBoundary>
       {/* 脱React G4: bottomOffset は vanilla 未対応（fixedEditorHeight で代替）。 */}
-      <VanillaRichMarkdownEditor
+      <EditorComponent
         key={editorKeyRef.current}
         t={vanillaT}
         locale={locale}

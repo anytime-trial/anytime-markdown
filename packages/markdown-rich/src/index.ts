@@ -32,5 +32,6 @@ export {
 // embed / graph プレビューの mount 契約型（実装は vanilla: viewer createEmbedPreview / rich createGraphPreview）。
 export type { EmbedMountHandle, GraphMountHandle } from "./components/codeblock/previewContracts";
 
-// Web Component（クラスのみ。customElements.define の副作用は "./element" 側に置く）
+// Web Component（クラスのみ。customElements.define の副作用は "./element" / "./view-element" 側に置く）
 export { AnytimeMarkdownRichEditorElement } from "./AnytimeMarkdownRichEditorElement";
+export { AnytimeMarkdownViewElement } from "./AnytimeMarkdownViewElement";

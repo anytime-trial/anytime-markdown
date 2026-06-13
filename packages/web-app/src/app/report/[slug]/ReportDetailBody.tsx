@@ -125,6 +125,7 @@ export default function ReportDetailBody({ report }: Readonly<ReportDetailBodyPr
           docKey={meta.key}
           contentApiPath="/api/reports/content"
           noScroll
+          minimal
         />
       </Container>
     </Box>
