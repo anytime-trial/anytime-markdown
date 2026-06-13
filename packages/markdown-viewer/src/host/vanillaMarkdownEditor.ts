@@ -268,7 +268,10 @@ function buildLayout(): VanillaLayout {
   const contentEl = document.createElement("div");
   contentEl.setAttribute("data-am-content", "");
   // position:relative は SearchReplaceBar（absolute・右上）配置の基準。
-  contentEl.style.cssText = "flex:1 1 auto;min-height:0;overflow:auto;position:relative;";
+  // min-width:0 は flex item の自動最小サイズ（min-width:auto）を無効化し、狭幅でも flex
+  // コンテナ幅まで縮小可能にする。これがないと noScroll（overflow:visible）時に本文が
+  // 折り返されず横にはみ出す（scroll モードは overflow:auto で自動最小サイズが 0 のため不要）。
+  contentEl.style.cssText = "flex:1 1 auto;min-width:0;min-height:0;overflow:auto;position:relative;";
 
   // editor の実マウント先（React buildEditorPortalTarget 相当・display:contents）。
   // merge ビューの右パネルが editor.options.element ごと移設できるよう contentEl と分離する。
