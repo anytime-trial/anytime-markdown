@@ -162,7 +162,7 @@ ${SCOPE} [data-am-content]::-webkit-scrollbar-thumb:hover { background: ${scroll
 ${SCOPE} [data-am-content]::-webkit-scrollbar-thumb:active { background: ${scrollThumbActive}; }
 ${SCOPE} .tiptap {
   position: relative;
-  max-width: var(--am-editor-measure, 760px);
+  max-width: var(--am-editor-measure, 1000px);
   margin-left: auto;
   margin-right: auto;
   padding: 24px clamp(16px, 4vw, 48px);
