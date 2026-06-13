@@ -1,8 +1,8 @@
 /**
- * `<anytime-markdown-view>`（read-only 表示）の検証。
+ * `<anytime-markdown-view>`（read-only・chromeless 表示）の検証。
  *
- * rich と同様に重量 mount をモックし、view 要素が mount オプションへ readOnly を強制し、
- * かつ hideToolbar を強制しない（React 除去前と同じ表示＝ツールバーは表示）ことを確認する。
+ * rich と同様に重量 mount をモックし、view 要素が mount オプションへ
+ * readOnly / hideToolbar / hideStatusBar を強制（記事表示にツールバー不要）することを確認する。
  */
 
 const mountSpy = jest.fn();
@@ -57,31 +57,27 @@ describe("AnytimeMarkdownViewElement", () => {
     expect(customElements.get("anytime-markdown-view")).toBe(AnytimeMarkdownViewElement);
   });
 
-  it("readOnly を強制し、hideToolbar は強制しない（React 除去前と同じ表示）", () => {
+  it("read-only・chromeless（toolbar/statusbar 非表示）を mount オプションへ強制する", () => {
     const el = document.createElement("anytime-markdown-view");
     document.body.appendChild(el);
     expect(mountSpy).toHaveBeenCalledTimes(1);
     const options = mountSpy.mock.calls[0][1] as {
       readOnly?: boolean;
       hideToolbar?: boolean;
+      hideStatusBar?: boolean;
     };
     expect(options.readOnly).toBe(true);
-    // ツールバーは React 除去前と同様に表示（強制非表示にしない）。
-    expect(options.hideToolbar).toBeUndefined();
+    expect(options.hideToolbar).toBe(true);
+    expect(options.hideStatusBar).toBe(true);
   });
 
-  it("consumer が渡した hideStatusBar 等の表示オプションはそのまま尊重する", () => {
+  it("consumer が渡したスクロール等の表示オプションはそのまま尊重する", () => {
     const el = document.createElement("anytime-markdown-view") as InstanceType<
       typeof AnytimeMarkdownViewElement
     >;
-    el.options = { hideStatusBar: true, noScroll: true };
+    el.options = { noScroll: true };
     document.body.appendChild(el);
-    const options = mountSpy.mock.calls[0][1] as {
-      hideStatusBar?: boolean;
-      noScroll?: boolean;
-      readOnly?: boolean;
-    };
-    expect(options.hideStatusBar).toBe(true);
+    const options = mountSpy.mock.calls[0][1] as { noScroll?: boolean; readOnly?: boolean };
     expect(options.noScroll).toBe(true);
     expect(options.readOnly).toBe(true);
   });
