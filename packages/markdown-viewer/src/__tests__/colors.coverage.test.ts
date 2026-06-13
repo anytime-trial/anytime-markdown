@@ -7,7 +7,7 @@
  *              getInfoMain, getErrorBg, getWarningBg, getSuccessBg, getInfoBg
  */
 import {
-  getEditorBg, getEditDialogBg, getEditorText,
+  getEditorBg, getEditDialogBg, getEditDialogBgColor, getEditorText,
   getTextPrimary, getTextSecondary, getTextDisabled,
   getBgPaper, getActionHover, getActionSelected, getDivider,
   getPrimaryMain, getPrimaryDark, getPrimaryLight, getPrimaryContrast,
@@ -45,6 +45,22 @@ describe("colors helper functions", () => {
     it("falls back when settings have empty string", () => {
       expect(getEditorBg(true, { darkBgColor: "", lightBgColor: "" })).toBe(DEFAULT_DARK_BG);
       expect(getEditorBg(false, { darkBgColor: "", lightBgColor: "" })).toBe(DEFAULT_LIGHT_BG);
+    });
+  });
+
+  // 回帰: vanilla ダイアログが settings キー("white")を CSS 色として paper に適用し
+  // ダークモードで白背景になった。設定キー → 具体的 CSS 色の解決はこの関数に集約する。
+  describe("getEditDialogBgColor", () => {
+    it("dark では editorBg 設定によらず paper のダーク色を返す", () => {
+      expect(getEditDialogBgColor(true, "white")).toBe(getBgPaper(true));
+      expect(getEditDialogBgColor(true, "grey")).toBe(getBgPaper(true));
+    });
+    it("light + grey は grey.50 相当の #fafafa を返す", () => {
+      expect(getEditDialogBgColor(false, "grey")).toBe("#fafafa");
+    });
+    it("light + white / 未指定は paper のライト色を返す", () => {
+      expect(getEditDialogBgColor(false, "white")).toBe(getBgPaper(false));
+      expect(getEditDialogBgColor(false, undefined)).toBe(getBgPaper(false));
     });
   });
 
