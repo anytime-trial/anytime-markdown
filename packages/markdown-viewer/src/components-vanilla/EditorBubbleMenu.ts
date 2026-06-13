@@ -278,7 +278,9 @@ export function createEditorBubbleMenu(
     // active 色更新（React 版の style={{ color: isActive ? primary : undefined }} 相当）。
     const updateActive = (): void => {
       const active = spec.isActive?.() ?? false;
-      btn.el.style.color = active ? "var(--am-color-primary-main)" : "";
+      // 非アクティブを "" にすると IconButton の color:inherit ごと削除され、<button> が
+      // UA 既定色（黒）に戻りダークでアイコンが消える。"inherit" で Paper の色を継承させる。
+      btn.el.style.color = active ? "var(--am-color-primary-main)" : "inherit";
       if (spec.pressed) {
         btn.el.setAttribute("aria-pressed", String(active));
       }

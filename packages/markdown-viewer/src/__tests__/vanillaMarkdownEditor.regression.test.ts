@@ -216,6 +216,21 @@ describe("mountVanillaMarkdownEditor regression（レビュー指摘 1/2/4）", 
       expect(document.body.textContent).not.toContain("settingDarkMode");
       handle.destroy();
     });
+
+    it("バージョン情報項目クリックでバージョンダイアログが開く（onOpenVersionDialog 配線漏れ回帰）", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      container.querySelector<HTMLButtonElement>("[data-more-desktop] button")?.click();
+      const versionItem = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+        (el) => el.textContent?.includes("versionInfo"),
+      );
+      expect(versionItem).toBeTruthy();
+      versionItem?.click();
+      // バージョンダイアログ（role=dialog）が開き v<version> を表示する（未配線だと開かない）。
+      const dialog = document.querySelector('[role="dialog"]');
+      expect(dialog).toBeTruthy();
+      expect(dialog?.textContent).toMatch(/v\d+\.\d+\.\d+/);
+      handle.destroy();
+    });
   });
 
   describe("debounce 保存の readOnly 再チェック（指摘 4）", () => {

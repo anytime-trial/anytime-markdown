@@ -20,6 +20,24 @@ import { appendContent, applyStyle, type VanillaContent } from "./dom";
 export type ToggleVariant = "standard" | "pill";
 export type ToggleSize = "small" | "medium";
 
+/**
+ * focus-visible / タップターゲットの共有ルールを document.head へ 1 度だけ注入する。
+ * inline cssText（applyState）では pseudo-class と @media を表現できないため共有 `<style>` で補う。
+ * focus 色は IconButton と同じ `--am-color-primary-main` に統一する（エディタ chrome の一貫性）。
+ */
+const TOGGLE_STYLE_ID = "am-ui-toggle-button-styles";
+function ensureToggleButtonStyles(): void {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(TOGGLE_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = TOGGLE_STYLE_ID;
+  style.textContent =
+    "button[aria-pressed]:focus-visible{outline:2px solid var(--am-color-primary-main);outline-offset:-1px;}" +
+    // タッチ環境では当たり判定を 44px へ（仕様8章 タップターゲット）。inline min-height を上書きする。
+    "@media (pointer:coarse){button[aria-pressed]{min-height:44px !important;}}";
+  document.head.appendChild(style);
+}
+
 // --- ToggleButton ------------------------------------------------------------
 
 /**
@@ -134,6 +152,7 @@ export function createToggleButton(opts: CreateToggleButtonOptions = {}): {
   /** group.notify() からの再評価要求（選択状態のみ反映）。 */
   syncFromGroup: () => void;
 } {
+  ensureToggleButtonStyles();
   const value = opts.value;
   let variant: ToggleVariant = opts.variant ?? "standard";
   let size: ToggleSize = opts.size ?? "small";

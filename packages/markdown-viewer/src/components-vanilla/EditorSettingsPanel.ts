@@ -233,7 +233,7 @@ export function createEditorSettingsPanel(
   const fontSlider = createSlider({
     value: settings.fontSize,
     min: 12,
-    max: 20,
+    max: 24,
     step: 1,
     size: "small",
     ariaLabel: t("settingFontSize"),

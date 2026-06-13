@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.28.1] - 2026-06-13
+
+### Changed
+
+- Upgrade TypeScript to 6.0.3.
+- Resolve SonarCloud findings: S2004, S6478, S4325.
+- Sync vendored tsconfig `paths` from `alias.cjs` to stabilise `next build`.
+- CI (Sonar): exclude `.sql` files from analysis to avoid false PL/SQL detections on SQLite DDL.
+- Docker: install npm globals under the user directory to allow CLI self-updates.
+
+### Fixed
+
+- C4 model route: safely stringify unknown-typed DB values (SonarCloud S6551).
+- CI: fix daily-build markdown-core test reference — update to `viewer`/`rich` after package rename regression.
+
 ## [0.28.0] - 2026-06-12
 
 ### Changed

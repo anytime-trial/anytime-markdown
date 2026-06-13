@@ -23,7 +23,7 @@ export type CfgStmt =
       readonly kind: 'if';
       readonly line: number;
       readonly condition: string;
-      readonly then: CfgBlock;
+      readonly thenBlock: CfgBlock;
       readonly else?: CfgBlock;
     }
   | {

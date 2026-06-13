@@ -5,12 +5,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /anytime-markdown /anytime-markdown-docs 
 WORKDIR /anytime-markdown/
-WORKDIR /anytime-markdown-docs/
-WORKDIR /prompt/
 
-COPY ./package.json ./
-RUN npm install
+COPY package.json package-lock.json* ./
+RUN npm ci
 
 # 開発用ステージ
 FROM base AS local
@@ -32,30 +31,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get update -qq && apt-get install -y -qq gh && \
     rm -rf /var/lib/apt/lists/*
 
-# Claude Code CLI のインストール
-RUN npm install -g @anthropic-ai/claude-code
-
-# OpenAI Codex CLI のインストール
-RUN npm install -g @openai/codex
-
-# Gemini CLI のインストール
-RUN npm install -g @google/gemini-cli
-
 # Playwright のシステム依存パッケージのインストール（root で実行）
 RUN npx playwright install-deps
 
-ENV PATH="/home/user/.local/bin:${PATH}"
+# --- 【追加・修正】npm global の設定と環境変数 PATH の設定 ---
+ENV NPM_CONFIG_PREFIX=/home/user/.npm-global
+ENV PATH="/home/user/.npm-global/bin:/home/user/.local/bin:${PATH}"
 
 # user ユーザーのホームディレクトリを準備
-RUN mkdir -p /home/user/.ssh /home/user/.claude && \
-    chown -R user:user /home/user
-
-# 作業ディレクトリの権限を user ユーザーに変更
-RUN chown -R user:user /anytime-markdown
-RUN chown -R user:user /anytime-markdown-docs
-RUN chown -R user:user /prompt
+# (.npm-global フォルダもあらかじめ root 権限で作って所有者を user に変えておきます)
+RUN mkdir -p /home/user/.ssh /home/user/.claude /home/user/.npm-global && \
+    chown -R user:user /home/user /anytime-markdown /anytime-markdown-docs
 
 USER user
+
+# --- 【移動】USER user に切り替えた後に npm install -g を実行 ---
+# これにより、/home/user/.npm-global 配下に sudo なしでインストールされ、Claude の自動更新が可能になります
+RUN npm install -g \
+        @anthropic-ai/claude-code \
+        @openai/codex \
+        @google/gemini-cli
 
 # Playwright ブラウザのインストール（user ユーザーで実行）
 RUN npx playwright install

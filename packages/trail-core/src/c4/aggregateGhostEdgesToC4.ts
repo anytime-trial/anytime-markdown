@@ -161,9 +161,8 @@ export function aggregateGhostEdgesToC4(
   edges: ReadonlyArray<CouplingEdge>,
   c4Model: C4Model,
   level: C4LevelNum,
-  selectedRepo: string | null,
+  _selectedRepo: string | null,
 ): C4GhostEdge[] {
-  selectedRepo;
   if (level !== 3 && level !== 4) return [];
   if (edges.length === 0) return [];
 

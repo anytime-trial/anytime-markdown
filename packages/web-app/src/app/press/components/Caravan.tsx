@@ -41,15 +41,17 @@ export function Caravan() {
     let showTimer: ReturnType<typeof setTimeout>;
     let hideTimer: ReturnType<typeof setTimeout>;
 
+    const hide = () => {
+      setOasisVisible(false);
+      // Next appearance: random 40-60 min after hide
+      scheduleShow(2_400_000 + Math.random() * 1_200_000);
+    };
+    const show = () => {
+      setOasisVisible(true);
+      hideTimer = setTimeout(hide, SHOW_MS);
+    };
     function scheduleShow(delayMs: number) {
-      showTimer = setTimeout(() => {
-        setOasisVisible(true);
-        hideTimer = setTimeout(() => {
-          setOasisVisible(false);
-          // Next appearance: random 40-60 min after hide
-          scheduleShow(2_400_000 + Math.random() * 1_200_000);
-        }, SHOW_MS);
-      }, delayMs);
+      showTimer = setTimeout(show, delayMs);
     }
 
     // First appearance: random within the first hour

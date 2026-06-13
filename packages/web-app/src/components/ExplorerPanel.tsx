@@ -147,7 +147,7 @@ export const ExplorerPanel: FC<ExplorerPanelProps> = ({
     selectedBranch: repoSelectionRef.current.selectedBranch,
     selectedFilePath,
     setSelectedFilePath,
-    setCommits: setCommits as unknown as (commits: []) => void,
+    setCommits,
     setSelectedSha,
     rootEntries,
     setRootEntries,

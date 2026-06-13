@@ -18,6 +18,26 @@ interface PendingResolver {
 
 type EventListener = (payload: unknown) => void;
 
+/** SIGTERM 後に child が終了するまで待つデフォルト猶予 (ms)。 */
+const DEFAULT_TERM_GRACE_MS = 3000;
+/** SIGKILL 送出後に OS が child を reap するのを待つ猶予 (ms)。 */
+const KILL_REAP_GRACE_MS = 500;
+
+/**
+ * `p` が `ms` 以内に解決すれば false、タイムアウトが先なら true を返す。
+ * 待機用タイマーは unref して、これ単独でプロセスを生かし続けないようにする。
+ */
+function raceTimeout(p: Promise<void>, ms: number): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => resolve(true), ms);
+    if (typeof timer.unref === 'function') timer.unref();
+    void p.then(() => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+}
+
 export class TrailDaemonHost {
   private child: ChildProcess | null = null;
   private readonly pending = new Map<string, PendingResolver>();
@@ -68,10 +88,37 @@ export class TrailDaemonHost {
     };
   }
 
-  /** child を kill し pending リクエストを reject する。 */
-  dispose(): void {
-    if (this.child) {
-      this.child.kill();
+  /**
+   * child を kill する (pending リクエストは start() の 'exit' ハンドラが reject する)。
+   *
+   * SIGTERM を送り、`timeoutMs` 以内に終了しなければ SIGKILL にエスカレーションする。
+   * daemon は同期 better-sqlite3 (重い bug_history スイープ等) でイベントループを
+   * ブロックすると SIGTERM/disconnect ハンドラを走らせられず、親 Extension Host が
+   * 先に exit すると child が PPID=1 へ reparent されて孤児化する。孤児は trail.db の
+   * FD を掴んだまま生き残り、次回リロードで新 daemon 起動を code=1 で阻害する。
+   * エスカレーションにより、ブロック中でも child を確実に終了させ孤児化を防ぐ。
+   */
+  async dispose(timeoutMs = DEFAULT_TERM_GRACE_MS): Promise<void> {
+    const child = this.child;
+    if (!child) return;
+
+    const waitExit = new Promise<void>((resolve) => {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        resolve();
+        return;
+      }
+      child.once('exit', () => resolve());
+    });
+
+    child.kill('SIGTERM');
+
+    const timedOut = await raceTimeout(waitExit, timeoutMs);
+    if (timedOut && child.exitCode === null && child.signalCode === null) {
+      // SIGTERM が無視された (イベントループブロック等)。SIGKILL は捕捉不能。
+      // trail.db は WAL モードでクラッシュセーフのため、書き込み中の KILL でも
+      // 次回 open 時に自動リカバリされる。
+      child.kill('SIGKILL');
+      await raceTimeout(waitExit, KILL_REAP_GRACE_MS);
     }
   }
 

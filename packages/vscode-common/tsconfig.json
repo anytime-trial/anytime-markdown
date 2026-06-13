@@ -4,6 +4,7 @@
     "module": "Node16",
     "moduleResolution": "node16",
     "outDir": "out",
+    "rootDir": "src",
     "lib": ["ES2023"],
     "types": ["node"],
     "declaration": true,

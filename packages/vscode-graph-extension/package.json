@@ -2,7 +2,7 @@
   "name": "anytime-graph",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -64,8 +64,8 @@
     "@types/vscode": "1.109.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "ts-loader": "9.5.4",
-    "typescript": "5.9.3",
+    "ts-loader": "9.6.0",
+    "typescript": "6.0.3",
     "webpack": "5.104.1",
     "webpack-cli": "6.0.1"
   },

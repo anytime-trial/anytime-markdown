@@ -43,6 +43,21 @@ describe("createEditorSideToolbar", () => {
       expect(handle.el.style.cssText).toContain("var(--am-color-divider)");
     });
 
+    it("アイコンが currentColor で消えないよう root にテーマ連動 color を設定する（ダークモード可視性の回帰）", () => {
+      handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
+      // 未指定だと継承色（canvastext）に落ちダークでアイコンが埋もれるため text-secondary を明示。
+      expect(handle.el.style.color).toBe("var(--am-color-text-secondary)");
+    });
+
+    it("非アクティブボタンの color は inherit（空文字だと <button> が UA 黒に戻りダークで不可視の回帰）", () => {
+      handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
+      const buttons = [...handle.el.querySelectorAll("button[data-ui-icon-button]")];
+      // 生成直後は全 inactive → color:inherit で root のテーマ色を継承する（"" だと UA 既定色に落ちる）。
+      for (const btn of buttons) {
+        expect((btn as HTMLElement).style.color).toBe("inherit");
+      }
+    });
+
     it("explorer / settings 無しなら outline / comment の 2 ボタンのみ描画する", () => {
       handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
       const btns = buttons(handle);
@@ -191,10 +206,11 @@ describe("createEditorSideToolbar", () => {
 
       handle.update({ outlineOpen: true });
       expect(outline.style.color).toContain("var(--am-color-primary-main)");
-      expect(comment.style.color).toBe("");
+      // 非アクティブは "inherit"（"" だと UA 黒に戻りダークで不可視になる回帰）。
+      expect(comment.style.color).toBe("inherit");
 
       handle.update({ outlineOpen: false, commentOpen: true, explorerOpen: true });
-      expect(outline.style.color).toBe("");
+      expect(outline.style.color).toBe("inherit");
       expect(comment.style.color).toContain("var(--am-color-primary-main)");
       expect(explorer.style.color).toContain("var(--am-color-primary-main)");
     });

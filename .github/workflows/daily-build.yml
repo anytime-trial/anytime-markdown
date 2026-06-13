@@ -32,9 +32,13 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Run markdown-core tests
+      - name: Run markdown-viewer tests
         run: npm test
-        working-directory: packages/markdown-core
+        working-directory: packages/markdown-viewer
+
+      - name: Run markdown-rich tests
+        run: npm test
+        working-directory: packages/markdown-rich
 
       - name: Run mcp-markdown tests
         run: npx jest --maxWorkers=1
@@ -206,9 +210,13 @@ jobs:
         run: npm ci
 
       # メモリの重い 3 パッケージは個別の worker 設定を維持する。
-      - name: Run markdown-core tests with coverage
+      - name: Run markdown-viewer tests with coverage
         run: npx jest --coverage --coverageReporters=lcov
-        working-directory: packages/markdown-core
+        working-directory: packages/markdown-viewer
+
+      - name: Run markdown-rich tests with coverage
+        run: npx jest --coverage --coverageReporters=lcov
+        working-directory: packages/markdown-rich
 
       - name: Run web-app tests with coverage
         run: npx jest --coverage --coverageReporters=lcov
@@ -220,8 +228,8 @@ jobs:
 
       # 残りの計測対象パッケージはループで lcov を生成する（canonical な
       # パッケージリストと --experimental-vm-modules フラグは coverage-remaining
-      # action に集約。markdown-core / web-app / graph-core は上で個別に coverage
-      # 済みでリストにも含まれないため exclude は不要）。
+      # action に集約。markdown-viewer / markdown-rich / web-app / graph-core は
+      # 上で個別に coverage 済みでリストにも含まれないため exclude は不要）。
       # ここで lcov を作らないパッケージは sonar.sources に載っていても
       # 全行 uncovered (0%) として計上されるため、計測対象は漏れなく実行する。
       - name: Run remaining package tests with coverage

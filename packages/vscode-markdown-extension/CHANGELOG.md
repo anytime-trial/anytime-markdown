@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-13
+
+### Changed
+
+- Upgraded TypeScript to 6.0.3 (build toolchain update).
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Aligned editor body design with the design-system spec; changed the default body measure to 1000 px.
+- Accessibility improvements: 44 px touch targets, unified focus rings, extended font-size cap.
+- Fixed dark-mode regressions: side-toolbar icon disappearance, block-toolbar overlap, Mermaid preview colors, and figure-block dialog background/tab layout.
+
 ## [1.0.0] - 2026-06-12
 
 ### Changed

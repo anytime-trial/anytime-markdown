@@ -45,7 +45,7 @@ export function flowGraphFromCfg(cfg: CfgFunction): FlowGraph {
         const tId = nextId('process');
         nodes.push({ id: tId, label: 'then', kind: 'process' });
         edges.push({ from: dId, to: tId, label: 'true' });
-        const thenOut = visitBlock(stmt.then, [tId]);
+        const thenOut = visitBlock(stmt.thenBlock, [tId]);
 
         if (!stmt.else) return [...thenOut, dId];
 

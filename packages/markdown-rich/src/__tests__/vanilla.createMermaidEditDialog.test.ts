@@ -135,4 +135,21 @@ describe("createMermaidEditDialog", () => {
     handle.destroy();
     expect(document.body.contains(handle.el)).toBe(false);
   });
+
+  // 回帰: tabsRow 自体に flex:1 1 auto が付くと行が縦に成長し、タブが中央へ浮き
+  // textarea が押し下げられてレイアウトが崩れた（React 版は行内の Tabs に flex:1）。
+  it("タブ行は縦に成長せず、行内の Tabs が水平方向に伸びる", () => {
+    const state = createCodeEditState({ editor: makeEditor(), pos: 0, node: makeNode("graph"), onClose: jest.fn() });
+    const handle = createMermaidEditDialog({
+      label: "Mermaid", code: "graph", svg: undefined,
+      isDark: false, editorBg: "#fff", fontSize: 16, lineHeight: 1.5,
+      state, t, onClose: jest.fn(),
+    });
+    const tabsRow = handle.el.querySelector(".am-med-tabs-row") as HTMLElement;
+    expect(tabsRow).not.toBeNull();
+    expect(tabsRow.style.flex).toBe(""); // 行は CSS（flex-shrink:0）に任せて成長させない
+    const tabsEl = tabsRow.firstElementChild as HTMLElement;
+    expect(tabsEl.style.flex).toBe("1 1 auto"); // React 版 Tabs style={{flex:1}} 相当
+    handle.destroy();
+  });
 });

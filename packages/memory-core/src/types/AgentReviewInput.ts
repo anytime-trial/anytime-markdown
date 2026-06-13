@@ -14,19 +14,19 @@ export const AgentReviewFindingSchema = z.object({
 });
 
 export const AgentReviewInputSchema = z.object({
-  run_id: z.string().uuid(),
+  run_id: z.uuid(),
   trigger_kind: z.enum(['cron', 'hook', 'manual', 'mcp']),
   target_kind: z.enum(['spec', 'code', 'package', 'mixed']),
   target_refs: z.array(z.string()),
   model: z.string(),
   prompt_kind: z.enum(['a11y', 'security', 'perf', 'spec_drift', 'naming', 'logic', 'multi']),
   prompt_hash: z.string(),
-  started_at: z.string().datetime(),
-  finished_at: z.string().datetime(),
+  started_at: z.iso.datetime(),
+  finished_at: z.iso.datetime(),
   input_tokens: z.number().int().nonnegative(),
   output_tokens: z.number().int().nonnegative(),
   gpu_used: z.string(),
-  ollama_endpoint: z.string().url(),
+  ollama_endpoint: z.url(),
   findings: z.array(AgentReviewFindingSchema),
 });
 

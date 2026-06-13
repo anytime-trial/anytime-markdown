@@ -281,7 +281,8 @@ describe("createEditorBubbleMenu", () => {
     // 初期: bold は active。
     expect(bold.style.color).toContain("var(--am-color-primary-main)");
     expect(bold.getAttribute("aria-pressed")).toBe("true");
-    expect(italic.style.color).toBe("");
+    // 非アクティブは "inherit"（"" だと <button> が UA 黒に戻りダークで不可視の回帰）。
+    expect(italic.style.color).toBe("inherit");
     expect(italic.getAttribute("aria-pressed")).toBe("false");
 
     // italic を active 化し transaction を発火 → 色 / aria-pressed が更新される。
@@ -293,7 +294,7 @@ describe("createEditorBubbleMenu", () => {
     // bold を非 active 化し transaction を発火 → 色が外れる。
     m.setActive("bold", false);
     m.fireTransaction();
-    expect(bold.style.color).toBe("");
+    expect(bold.style.color).toBe("inherit");
     expect(bold.getAttribute("aria-pressed")).toBe("false");
   });
 

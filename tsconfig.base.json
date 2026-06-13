@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "ignoreDeprecations": "6.0",
+    "rootDir": ".",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "jest"],
     "useDefineForClassFields": false,
     "jsx": "react-jsx",
     "esModuleInterop": true,

@@ -83,10 +83,35 @@ describe("buildEditorContentCss", () => {
 
   it("設定値は CSS 変数（--am-editor-*）経由で参照する", () => {
     expect(light).toContain("var(--am-editor-font-size, 16px)");
-    expect(light).toContain("var(--am-editor-line-height, 1.6)");
+    expect(light).toContain("var(--am-editor-line-height, 1.7)");
     expect(light).toContain("var(--am-editor-word-break, normal)");
     expect(light).toContain("var(--am-editor-bg");
     expect(light).toContain("var(--am-editor-text");
+  });
+
+  it("本文に measure（最大行長）上限と中央寄せを既定で与える", () => {
+    expect(light).toMatch(/\.tiptap\s*\{[^}]*max-width:\s*var\(--am-editor-measure, 1000px\)/);
+    expect(light).toMatch(/\.tiptap\s*\{[^}]*margin-left:\s*auto/);
+  });
+
+  it("スクロールバーは仕様6章（幅4px・ダーク=アンバー / ライト=墨線）に準拠する", () => {
+    expect(dark).toMatch(/::-webkit-scrollbar\s*\{\s*width:\s*4px/);
+    expect(dark).toContain("rgba(232, 160, 18, 0.5)");
+    expect(light).toMatch(/scrollbar-thumb\s*\{\s*background:\s*rgba\(31,30,28,0\.40\);\s*border-radius:\s*0/);
+  });
+
+  it("admonition は絵文字様記号を使わず SVG マスクアイコン + テキストラベルで表現する", () => {
+    // 旧 Unicode 記号（ⓘ ☘ ✉ ⚠ ⊙）を含まない
+    for (const glyph of ["ⓘ", "☘", "✉", "⚠", "⊙"]) {
+      expect(light).not.toContain(glyph);
+    }
+    expect(light).toContain("data:image/svg+xml");
+    expect(light).toMatch(/admonition-type='note'\]::before\s*\{[^}]*mask:/);
+    expect(light).toMatch(/admonition-type='note'\]::after\s*\{[^}]*content:\s*"Note"/);
+  });
+
+  it("ライトのインラインコードは水墨パレットの焦墨（#6B2A20）を用いる", () => {
+    expect(light).toMatch(/\.tiptap code[^{]*\{[^}]*color:\s*#6B2A20/);
   });
 
   it("ダーク/ライトでテーマ依存色が切り替わる", () => {

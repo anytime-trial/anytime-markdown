@@ -16,6 +16,7 @@ import {
   type SelectedBlockSnapshot,
   selectedBlockPos,
 } from "../chrome/blockChrome";
+import { createToolbarContainer } from "../chrome/vanillaToolbar";
 
 function makeEditor(): Editor {
   return new Editor({
@@ -110,11 +111,37 @@ describe("createBlockChromeAnchor", () => {
     expect(document.body.contains(anchor.el)).toBe(true);
     anchor.setRect({ top: 10, left: 20 } as DOMRect);
     expect(anchor.el.style.display).toBe("");
-    expect(anchor.el.style.top).toBe("10px");
+    // ツールバーはブロック上側へ配置する（top は上ギャップぶん持ち上げる）。
+    expect(anchor.el.style.top).toBe("4px"); // 10 - ABOVE_GAP_PX(6)
     expect(anchor.el.style.left).toBe("20px");
     anchor.setRect(null);
     expect(anchor.el.style.display).toBe("none");
     anchor.destroy();
     expect(document.body.contains(anchor.el)).toBe(false);
+  });
+
+  // 回帰: 反転アーキテクチャ以降、ツールバーを rect.top にそのまま置くとテーブルの
+  // ヘッダ行などブロック本体に重なる。ツールバー自身の高さぶん持ち上げて上側に逃がす。
+  it("ツールバーをブロック上側へ逃がす（translateY(-100%) でブロック本体と重ならない）", () => {
+    const anchor = createBlockChromeAnchor();
+    expect(anchor.el.style.transform).toBe("translateY(-100%)");
+    anchor.setRect({ top: 100, left: 50 } as DOMRect);
+    // translateY(-100%) でツールバー高さぶん上に出る + top は上ギャップで rect.top より上。
+    expect(anchor.el.style.transform).toBe("translateY(-100%)");
+    expect(Number.parseInt(anchor.el.style.top, 10)).toBeLessThan(100);
+    anchor.destroy();
+  });
+});
+
+describe("createToolbarContainer", () => {
+  // 回帰: ツールバーは上側フロート配置で直前ブロックに重なり得る。半透明だと背後の
+  // テキストが透けて二重に見えるため、不透明背景（bg-paper）+ 枠線 + 影で手前に見せる。
+  it("不透明背景（bg-paper）+ 枠線 + 影を持つ", () => {
+    const el = createToolbarContainer("table");
+    const css = el.style.cssText;
+    expect(css).toContain("var(--am-color-bg-paper)");
+    expect(css).not.toContain("var(--am-color-action-hover)");
+    expect(css).toContain("border");
+    expect(css).toContain("box-shadow");
   });
 });

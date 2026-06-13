@@ -135,10 +135,11 @@ CREATE TABLE IF NOT EXISTS trail_commit_files (
 CREATE TABLE IF NOT EXISTS trail_session_costs (
     session_id TEXT NOT NULL REFERENCES trail_sessions(id) ON DELETE CASCADE,
     model TEXT NOT NULL,
-    input_tokens INTEGER NOT NULL DEFAULT 0,
-    output_tokens INTEGER NOT NULL DEFAULT 0,
-    cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-    cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+    -- トークン合計は int4 (最大約 21 億) を超えるため bigint を使用する
+    input_tokens BIGINT NOT NULL DEFAULT 0,
+    output_tokens BIGINT NOT NULL DEFAULT 0,
+    cache_read_tokens BIGINT NOT NULL DEFAULT 0,
+    cache_creation_tokens BIGINT NOT NULL DEFAULT 0,
     estimated_cost_usd REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (session_id, model)
 );
@@ -148,12 +149,13 @@ CREATE TABLE IF NOT EXISTS trail_daily_counts (
     kind                TEXT NOT NULL,
     key                 TEXT NOT NULL,
     count               INTEGER NOT NULL DEFAULT 0,
-    tokens              INTEGER NOT NULL DEFAULT 0,
-    input_tokens        INTEGER NOT NULL DEFAULT 0,
-    output_tokens       INTEGER NOT NULL DEFAULT 0,
-    cache_read_tokens   INTEGER NOT NULL DEFAULT 0,
-    cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
-    duration_ms         INTEGER NOT NULL DEFAULT 0,
+    -- 日次のトークン合計・累計時間は int4 (最大約 21 億) を超えるため bigint を使用する
+    tokens              BIGINT NOT NULL DEFAULT 0,
+    input_tokens        BIGINT NOT NULL DEFAULT 0,
+    output_tokens       BIGINT NOT NULL DEFAULT 0,
+    cache_read_tokens   BIGINT NOT NULL DEFAULT 0,
+    cache_creation_tokens BIGINT NOT NULL DEFAULT 0,
+    duration_ms         BIGINT NOT NULL DEFAULT 0,
     estimated_cost_usd  REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (date, kind, key)
 );

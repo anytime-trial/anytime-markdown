@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-06-13
+
+### Changed
+
+- Upgrade TypeScript to 6.0.3.
+- Reduce cognitive complexity and resolve SonarCloud findings (memory-core: `streamTurn` / `runOnce` complexity reduction, S3776 / S1874 / S1854 / S7735).
+
+### Fixed
+
+- Compare `globalThis.window` against `undefined` explicitly (SonarCloud S7741).
+- Rename `then` property of CFG if-nodes to `thenBlock` to avoid reserved-word clash (S7739).
+- Remove no-op expression statement in `aggregateGhostEdgesToC4` (S905).
+
 ## [0.27.0] - 2026-06-08
 
 ### Changed

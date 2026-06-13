@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-13
+
+### Added
+
+- Aligned editor body design with the design-system spec (spacing, measure, scrollbar styling, unified focus rings).
+- Changed the default body measure (line wrap width) to 1000 px.
+
+### Changed
+
+- Upgraded TypeScript to 6.0.3 across the monorepo (toolchain update and bundle-config deduplication).
+
+### Fixed
+
+- Accessibility: raised touch targets to 44 px minimum, unified focus rings, and extended the maximum font-size cap (a11y).
+- Fixed a dark-mode regression where right-side toolbar icons disappeared (the root cause was that resetting `style.color` to `""` reverted to the UA default black; applied `"inherit"` in three icon-color reset sites).
+- Fixed a regression where the block-edit toolbar overlapped the block body instead of floating above it.
+- Fixed a dark-mode regression in `markdown-rich` where Mermaid previews rendered with light-mode colors.
+- Fixed the figure-block edit dialog showing a white background and a broken tab-row layout in dark mode.
+- Fixed the "About" entry in the more menu not opening its dialog (missing event wiring).
+
 ## [1.0.0] - 2026-06-12
 
 ### Changed

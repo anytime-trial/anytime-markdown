@@ -77,7 +77,8 @@ export const DEFAULT_LIGHT_TABLE_HEADER_BG = "#DDD9CE";
 
 // ── インラインコード色 ──
 export const DEFAULT_DARK_INLINE_CODE = undefined; // getGrey で動的取得
-export const DEFAULT_LIGHT_INLINE_CODE = "#c62828";
+// 水墨パレットの焦墨（朱墨の影）。明るい Material 赤を廃し「差し色はアンバーのみ」哲学へ整合。
+export const DEFAULT_LIGHT_INLINE_CODE = "#6B2A20";
 
 // ── Admonition（GitHub 準拠） ──
 export const ADMONITION_NOTE = "#1f6feb";
@@ -117,6 +118,23 @@ export function getEditorBg(isDark: boolean, settings?: Pick<EditorSettings, "da
 /** ブロック要素編集ダイアログの Paper 背景色を返す */
 export function getEditDialogBg(isDark: boolean, settings?: Pick<EditorSettings, "editorBg">): string | undefined {
   return settings?.editorBg === "grey" && !isDark ? "grey.50" : undefined;
+}
+
+/**
+ * ブロック要素編集ダイアログ（vanilla）の Paper 背景の**具体的な CSS 色**を返す。
+ *
+ * {@link getEditDialogBg}（MUI トークン "grey.50" / undefined を返す React 版）の
+ * vanilla 等価。設定キー（`settings.editorBg` の "white" | "grey"）を CSS 色として
+ * そのまま paper に適用するとダークモードで白背景になる回帰があったため、
+ * キー → 色の解決を本関数へ集約する。
+ */
+export function getEditDialogBgColor(
+  isDark: boolean,
+  editorBg?: EditorSettings["editorBg"],
+): string {
+  // MUI grey.50 相当。light + grey 設定のみ紙面をわずかに沈める（React 版と同値）。
+  if (!isDark && editorBg === "grey") return "#fafafa";
+  return getBgPaper(isDark);
 }
 
 /** ユーザー設定を考慮したエディタ文字色を返す */

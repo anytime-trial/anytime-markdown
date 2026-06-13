@@ -9,6 +9,11 @@ import { resolveSupabaseEnv } from "../../../../lib/supabase-env";
 
 export const dynamic = 'force-dynamic';
 
+/** unknown 値を安全に文字列化する。オブジェクトは [object Object] ではなく JSON 化する (S6551)。 */
+function asText(v: unknown): string {
+  return typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v);
+}
+
 /**
  * GET /api/c4/model?release=...&repo=...
  *
@@ -44,24 +49,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           id: String(row.element_id),
           type: String(row.type) as ManualElement['type'],
           name: String(row.name),
-          description: row.description == null ? undefined : String(row.description),
+          description: row.description == null ? undefined : asText(row.description),
           external: Boolean(row.external),
-          parentId: row.parent_id == null ? null : String(row.parent_id),
+          parentId: row.parent_id == null ? null : asText(row.parent_id),
           updatedAt: String(row.updated_at),
         }));
         const manualRels: ManualRelationship[] = (rels ?? []).map((row: Record<string, unknown>) => ({
           id: String(row.rel_id),
           fromId: String(row.from_id),
           toId: String(row.to_id),
-          label: row.label == null ? undefined : String(row.label),
-          technology: row.technology == null ? undefined : String(row.technology),
+          label: row.label == null ? undefined : asText(row.label),
+          technology: row.technology == null ? undefined : asText(row.technology),
           updatedAt: String(row.updated_at),
         }));
         const communityRows: CommunityRow[] = (communities ?? []).map((c: Record<string, unknown>) => ({
           community_id: Number(c.community_id ?? 0),
-          name: String(c.name ?? ''),
-          label: String(c.label ?? ''),
-          mappings_json: c.mappings_json == null ? null : String(c.mappings_json),
+          name: asText(c.name ?? ''),
+          label: asText(c.label ?? ''),
+          mappings_json: c.mappings_json == null ? null : asText(c.mappings_json),
         }));
         const featureMatrix = buildFeatureMatrixFromCommunities(communityRows);
         const mergedModel = mergeManualIntoC4Model(payload.model, manualElements, manualRels);

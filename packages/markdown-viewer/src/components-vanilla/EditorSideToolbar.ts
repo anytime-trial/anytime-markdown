@@ -124,6 +124,10 @@ export function createEditorSideToolbar(
   root.style.cssText =
     "display:flex;flex-direction:column;align-items:center;height:100%;" +
     "padding-top:8px;padding-bottom:8px;gap:4px;flex-shrink:0;" +
+    // アイコンは svgIcon の currentColor で描画されるため、テーマ連動色を明示する。
+    // 未指定だと継承色（既定 canvastext）に落ち、ダークモードでアイコンが背景に埋もれる。
+    // active 時は setActive が --am-color-primary-main で上書きする。
+    "color:var(--am-color-text-secondary);" +
     `width:${SIDE_TOOLBAR_WIDTH}px;border:1px solid var(--am-color-divider);`;
   // 旧 EditorSideToolbar.module.css parity: md 未満では非表示（インライン display を打ち消すため !important）。
   ensureStyle(
@@ -158,7 +162,10 @@ export function createEditorSideToolbar(
     root.appendChild(button.el);
 
     const setActive = (active: boolean): void => {
-      button.el.style.color = active ? "var(--am-color-primary-main)" : "";
+      // 非アクティブを "" にすると IconButton cssText の color:inherit ごと削除され、
+      // <button>（フォーム要素）は UA 既定色（黒）に戻る＝ダークでアイコンが消える。
+      // "inherit" を明示し、root の --am-color-text-secondary を継承させる。
+      button.el.style.color = active ? "var(--am-color-primary-main)" : "inherit";
     };
 
     const item: ToolbarItem = { button, tooltip, setActive };

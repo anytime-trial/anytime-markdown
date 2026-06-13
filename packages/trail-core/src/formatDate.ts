@@ -5,7 +5,7 @@
  *   process.env.TZ → Intl 解決値（UTC でない場合）→ Asia/Tokyo の順で優先
  */
 export function resolveLocalTimeZone(): string {
-  if (typeof globalThis.window !== 'undefined') {
+  if (globalThis.window !== undefined) {
     return new Intl.DateTimeFormat().resolvedOptions().timeZone;
   }
   if (typeof process !== 'undefined' && process.env?.TZ) return process.env.TZ;

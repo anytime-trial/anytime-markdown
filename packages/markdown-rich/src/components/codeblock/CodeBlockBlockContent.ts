@@ -4,6 +4,7 @@ import { PREVIEW_MAX_HEIGHT } from "@anytime-markdown/markdown-viewer";
 import { safeGetPos as wrapGetPos } from "@anytime-markdown/markdown-viewer/src/utils/safeGetPos";
 
 import { createEmbedPreview } from "@anytime-markdown/markdown-viewer/src/components-vanilla/embed/createEmbedPreview";
+import { EDITOR_CODE_VARS_CHANGED_EVENT } from "@anytime-markdown/markdown-viewer/src/utils/editorCodeCssVars";
 
 import { renderCodeBlockPreview } from "./codeBlockPreview";
 import {
@@ -199,8 +200,10 @@ export function createCodeBlockNodeView(
       return;
     }
     const codeText = currentNode.textContent;
-    if (graphMount && graphKey === codeText) return;
-    graphKey = codeText;
+    // isDark もキーに含め、テーマ変化（CSS 変数適用イベント）で再 render する。
+    const graphRenderKey = `${codeText}\0${isEditorDark(dom)}`;
+    if (graphMount && graphKey === graphRenderKey) return;
+    graphKey = graphRenderKey;
 
     // vanilla graph プレビューを直接マウント（jsxgraph / plotly は内部で遅延 import）。
     if (!graphMount) {
@@ -219,7 +222,11 @@ export function createCodeBlockNodeView(
     }
     const lang = String(currentNode.attrs.language ?? "");
     const codeText = currentNode.textContent;
-    const key = `${lang}\0${codeText}`;
+    // isDark / fontSize もキーに含め、ホストの CSS 変数適用イベントで変化時のみ再描画する。
+    // 構築時は dom 未接続 + 変数書込み前で isDark=false になる（後続イベント/microtask で補正）。
+    const isDark = isEditorDark(dom);
+    const fontSize = getEditorFontSize(dom);
+    const key = `${lang}\0${codeText}\0${isDark}\0${fontSize}`;
     if (key === renderedKey) return;
     renderedKey = key;
     previewCancel();
@@ -237,7 +244,7 @@ export function createCodeBlockNodeView(
     disposeEmbed();
     previewCancel = renderCodeBlockPreview(
       previewInner, lang, codeText,
-      { isDark: isEditorDark(dom), fontSize: getEditorFontSize(dom) },
+      { isDark, fontSize },
       requestRerender,
     );
   }
@@ -319,6 +326,24 @@ export function createCodeBlockNodeView(
   renderPreview();
   applyGraph();
 
+  // --- ダーク/フォント変数の追従（React useIsDark 再レンダーの vanilla 置換） ---
+  // 構築時は dom が document 未接続かつホストの applyCodeCssVars 前のため
+  // isDark=false で初回描画される。ホストの CSS 変数適用イベントで再評価し、
+  // renderedKey / graphKey の isDark 差分で必要時のみ再描画する。
+  let destroyed = false;
+  const onCodeVarsChanged = (): void => {
+    if (destroyed) return;
+    renderPreview();
+    applyGraph();
+  };
+  document.addEventListener(EDITOR_CODE_VARS_CHANGED_EVENT, onCodeVarsChanged);
+  // 編集中に新規挿入されたブロックはイベントが来ないため、attach 後の microtask で一度補正する。
+  if (!dom.isConnected) {
+    queueMicrotask(() => {
+      if (!destroyed && dom.isConnected) onCodeVarsChanged();
+    });
+  }
+
   return {
     dom,
     contentDOM: code,
@@ -340,6 +365,8 @@ export function createCodeBlockNodeView(
       return !code.contains(mutation.target as Node);
     },
     destroy() {
+      destroyed = true;
+      document.removeEventListener(EDITOR_CODE_VARS_CHANGED_EVENT, onCodeVarsChanged);
       previewCancel();
       disposeEmbed();
       disposeGraph();

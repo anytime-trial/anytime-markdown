@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-06-13
+
+### 修正
+
+- TypeScript 6.0.3 へアップグレード（ビルドツールチェーン更新）。
+
+### Trail Core (trail-core / trail-server / memory-core)
+
+- daemon の dispose を SIGKILL エスカレーション化し、Extension Host クラッシュ時の daemon 孤児化を防止。
+- `bug_history` スイープを event loop へ定期 yield し、大量データ時のブロッキングを緩和（perf）。
+- `ChatBridge.dispose` の await 漏れを修正（S4822）。
+- trail-core / memory-core の SonarCloud 指摘を解消。
+
 ## [0.27.0] - 2026-06-08
 
 ### 修正

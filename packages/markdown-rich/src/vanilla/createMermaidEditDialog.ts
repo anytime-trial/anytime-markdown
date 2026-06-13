@@ -120,8 +120,10 @@ export function createMermaidEditDialog(opts: CreateMermaidEditDialogOptions): M
       lntConfig.el.style.display = val === "config" ? "flex" : "none";
     },
   });
+  // flex は行（tabsRow）ではなく行内の Tabs に付ける（React 版 Tabs style={{flex:1}} 相当）。
+  // 行自体に付けると縦に成長してタブが中央へ浮き textarea が潰れる（回帰修正）。
+  tabs.el.style.flex = "1 1 auto";
   tabsRow.appendChild(tabs.el);
-  tabsRow.style.flex = "1 1 auto";
 
   const lntCode = createLineNumberTextarea({
     value: bodyText,
