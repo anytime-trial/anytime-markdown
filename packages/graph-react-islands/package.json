@@ -1,0 +1,30 @@
+{
+  "name": "@anytime-markdown/graph-react-islands",
+  "version": "0.1.0",
+  "private": true,
+  "description": "graph-core の意図的 React island（useCanvasBase フック・MinimapCanvas コンポーネント）。graph-core 本体は React-free。",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*"
+  },
+  "scripts": {
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@anytime-markdown/graph-core": "*"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "30.0.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "jest": "30.2.0",
+    "jest-environment-jsdom": "30.2.0",
+    "ts-jest": "29.4.11"
+  }
+}

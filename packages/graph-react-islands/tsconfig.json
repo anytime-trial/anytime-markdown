@@ -12,11 +12,7 @@
       "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
       "@anytime-markdown/graph-core/engine": ["../graph-core/src/engine/index.ts"],
       "@anytime-markdown/graph-core/state": ["../graph-core/src/state/index.ts"],
-      "@anytime-markdown/graph-react-islands": ["../graph-react-islands/src/index.ts"],
-      "@anytime-markdown/trail-core/c4": ["../trail-core/src/c4/index.ts"],
-      "@anytime-markdown/trail-core/c4/services": ["../trail-core/src/c4/services/catalog.ts"],
-      "@anytime-markdown/trail-core/domain/metrics": ["../trail-core/src/domain/metrics/index.ts"],
-      "@anytime-markdown/trace-core/c4Sequence": ["../trace-core/src/c4Sequence.ts"]
+      "@anytime-markdown/graph-core/types": ["../graph-core/src/types.ts"]
     }
   },
   "include": ["src/**/*"]

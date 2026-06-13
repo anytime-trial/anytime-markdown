@@ -1,8 +1,8 @@
 /**
  * useCanvasBase — characterization test for extracted helper
  */
-import { deleteGroupsContainingSelection } from '../hooks/useCanvasBase';
-import type { GraphGroup } from '../types';
+import { deleteGroupsContainingSelection } from '../useCanvasBase';
+import type { GraphGroup } from '@anytime-markdown/graph-core/types';
 
 function makeGroup(id: string, memberIds: string[]): GraphGroup {
   return { id, memberIds, label: id };

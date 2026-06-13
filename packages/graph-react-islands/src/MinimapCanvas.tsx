@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { fitToContent, screenToWorld, zoom } from '../engine/viewport';
-import { getCanvasColors } from '../theme';
-import type { GraphNode, Viewport } from '../types';
+import { fitToContent, screenToWorld, zoom } from '@anytime-markdown/graph-core/engine';
+import { getCanvasColors } from '@anytime-markdown/graph-core';
+import type { GraphNode, Viewport } from '@anytime-markdown/graph-core/types';
 
 export interface MinimapCanvasProps {
   readonly nodes: readonly GraphNode[];

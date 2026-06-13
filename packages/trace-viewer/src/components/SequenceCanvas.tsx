@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useCanvasBase } from '@anytime-markdown/graph-core';
+import { useCanvasBase } from '@anytime-markdown/graph-react-islands';
 import { engine } from '@anytime-markdown/graph-core';
 import type { GraphNode, Viewport, SelectionState } from '@anytime-markdown/graph-core';
 import type { SequenceLayout } from '../engine/layout';

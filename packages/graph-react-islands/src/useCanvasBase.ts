@@ -6,8 +6,8 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import {
   pan, zoom, screenToWorld, hitTestNode, hitTestFrameBody, drawSelectionRect,
-} from '../engine/index';
-import type { GraphNode, GraphGroup, Viewport, SelectionState } from '../types';
+} from '@anytime-markdown/graph-core/engine';
+import type { GraphNode, GraphGroup, Viewport, SelectionState } from '@anytime-markdown/graph-core/types';
 
 // ---------------------------------------------------------------------------
 //  Types

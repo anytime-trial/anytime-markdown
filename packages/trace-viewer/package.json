@@ -13,6 +13,7 @@
     },
     "peerDependencies": {
         "@anytime-markdown/graph-core": "*",
+        "@anytime-markdown/graph-react-islands": "*",
         "react": ">=19",
         "react-dom": ">=19"
     },
