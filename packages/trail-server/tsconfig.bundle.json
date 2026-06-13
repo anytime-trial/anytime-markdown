@@ -4,8 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ES2023",
-    "lib": ["ES2023"],
-    "types": ["node", "jest"]
+    "lib": ["ES2023"]
   },
   "include": ["src/**/*"]
 }

@@ -9,6 +9,22 @@ const CopyPlugin = require('copy-webpack-plugin');
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
 /**
+ * trail-server のソースを束ねる Node バンドル用の ts-loader rule。
+ * cross-package ソースを repo-root rootDir でトランスパイルするため、
+ * trail-server が持つ共有 tsconfig.bundle.json を参照する（mcp-trail-server /
+ * analyze-child / trail-daemon の 3 バンドルで共通）。
+ */
+const nodeBundleTsLoaderRule = {
+  loader: 'ts-loader',
+  options: {
+    configFile: path.resolve(__dirname, '../trail-server/tsconfig.bundle.json'),
+    onlyCompileBundledFiles: true,
+    allowTsInNodeModules: true,
+    transpileOnly: true,
+  },
+};
+
+/**
  * ANALYZE=1 のときに webpack-bundle-analyzer の static report を生成する plugin を返す。
  * 通常ビルドでは空配列を返し、bundle に影響しない。
  * 出力: dist/bundle-report-{name}.html
@@ -279,15 +295,7 @@ const mcpTrailServerConfig = {
       {
         test: /\.ts$/,
         exclude: /node_modules[\\/](?!@anytime-markdown[\\/]mcp-trail)/,
-        use: [{
-          loader: 'ts-loader',
-          options: {
-            configFile: path.resolve(__dirname, 'tsconfig.node-bundle.json'),
-            onlyCompileBundledFiles: true,
-            allowTsInNodeModules: true,
-            transpileOnly: true,
-          },
-        }],
+        use: [nodeBundleTsLoaderRule],
       },
     ],
   },
@@ -335,17 +343,7 @@ const analyzeChildConfig = {
       {
         test: /\.ts$/,
         exclude: /node_modules[\\/](?!@anytime-markdown[\\/])/,
-        use: [
-          {
-            loader: 'ts-loader',
-            options: {
-              configFile: path.resolve(__dirname, 'tsconfig.node-bundle.json'),
-              onlyCompileBundledFiles: true,
-              allowTsInNodeModules: true,
-              transpileOnly: true,
-            },
-          },
-        ],
+        use: [nodeBundleTsLoaderRule],
       },
     ],
   },
@@ -391,17 +389,7 @@ const trailDaemonConfig = {
       {
         test: /\.ts$/,
         exclude: /node_modules[\\/](?!@anytime-markdown[\\/])/,
-        use: [
-          {
-            loader: 'ts-loader',
-            options: {
-              configFile: path.resolve(__dirname, 'tsconfig.node-bundle.json'),
-              onlyCompileBundledFiles: true,
-              allowTsInNodeModules: true,
-              transpileOnly: true,
-            },
-          },
-        ],
+        use: [nodeBundleTsLoaderRule],
       },
     ],
   },
