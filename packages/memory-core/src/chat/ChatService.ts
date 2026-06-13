@@ -119,7 +119,8 @@ export class ChatService {
     }
 
     const totalMs = Date.now() - t0;
-    if (process.env.MEMORY_CHAT_PERF_LOG !== '0') {
+    const perfLogEnabled = process.env.MEMORY_CHAT_PERF_LOG !== '0';
+    if (perfLogEnabled) {
       log('INFO', 'streamTurn perf', {
         retrieval_ms: retrievalMs,
         prompt_build_ms: promptBuildMs,
