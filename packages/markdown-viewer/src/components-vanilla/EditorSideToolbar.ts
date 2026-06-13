@@ -162,7 +162,10 @@ export function createEditorSideToolbar(
     root.appendChild(button.el);
 
     const setActive = (active: boolean): void => {
-      button.el.style.color = active ? "var(--am-color-primary-main)" : "";
+      // 非アクティブを "" にすると IconButton cssText の color:inherit ごと削除され、
+      // <button>（フォーム要素）は UA 既定色（黒）に戻る＝ダークでアイコンが消える。
+      // "inherit" を明示し、root の --am-color-text-secondary を継承させる。
+      button.el.style.color = active ? "var(--am-color-primary-main)" : "inherit";
     };
 
     const item: ToolbarItem = { button, tooltip, setActive };
