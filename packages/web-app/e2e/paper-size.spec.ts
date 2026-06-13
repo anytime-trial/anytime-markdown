@@ -18,7 +18,7 @@ test.describe("Paper Size", () => {
   });
 
   test("change paper size to A4 applies max-width", async ({ page }) => {
-    // 初期状態では max-width が設定されていないことを確認
+    // 初期状態の max-width（本文 measure 既定 1000px）を記録
     const initialMaxWidth = await page.locator(".tiptap").evaluate(el =>
       window.getComputedStyle(el).maxWidth
     );
@@ -47,19 +47,22 @@ test.describe("Paper Size", () => {
     }).not.toBe("none");
   });
 
-  test("paper size OFF removes max-width", async ({ page }) => {
+  test("paper size OFF falls back to the body measure (1000px)", async ({ page }) => {
     // まず A4 に設定
     await openSettingsPanel(page);
     const paperSizeSelect = page.getByLabel("Paper Size");
     await paperSizeSelect.click();
     await page.getByRole("option", { name: "A4" }).click();
 
-    // A4 が適用されたことを確認
+    // A4 が適用されたことを確認（本文 measure とは異なる紙幅になる）
+    let a4MaxWidth = "none";
     await expect.poll(async () => {
-      return page.locator(".tiptap").evaluate(el =>
+      a4MaxWidth = await page.locator(".tiptap").evaluate(el =>
         window.getComputedStyle(el).maxWidth
       );
+      return a4MaxWidth;
     }).not.toBe("none");
+    expect(a4MaxWidth).not.toBe("1000px");
 
     // OFF に戻す
     await paperSizeSelect.click();
@@ -68,11 +71,11 @@ test.describe("Paper Size", () => {
     // 設定パネルを閉じる
     await page.getByRole("button", { name: "Close" }).click({ force: true });
 
-    // max-width が none に戻ることを確認
+    // 紙サイズの上書きが外れ、本文 measure（既定 1000px）へフォールバックすることを確認
     await expect.poll(async () => {
       return page.locator(".tiptap").evaluate(el =>
         window.getComputedStyle(el).maxWidth
       );
-    }).toBe("none");
+    }).toBe("1000px");
   });
 });
