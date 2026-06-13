@@ -52,6 +52,25 @@ export class LepOrchestrator {
     this.logger = logger ?? noopLogger;
   }
 
+  /** 指定 tier の全 analyzer のライフサイクルフックを順次実行し、例外を errors に集約する。 */
+  private async runTierHook(
+    tier: Tier,
+    hook: 'onRunStart' | 'onRunEnd',
+    ctx: AnalyzerContext,
+    errors: Map<string, Error>,
+  ): Promise<void> {
+    for (const a of this.analyzers) {
+      if (a.tier !== tier) continue;
+      const fn = a[hook];
+      if (!fn) continue;
+      try {
+        await fn.call(a, ctx);
+      } catch (err) {
+        errors.set(a.id, toError(err));
+      }
+    }
+  }
+
   async runOnce(opts: LepRunOnceOptions): Promise<LepRunOnceResult> {
     const errors = new Map<string, Error>();
     const ctx: AnalyzerContext = {
@@ -75,14 +94,7 @@ export class LepOrchestrator {
       // 未初期化のまま onEvent を受けて取りこぼす事故を防ぐ。
       for (const [tier] of WAVES) {
         if (!tiersToRun.has(tier)) continue;
-        for (const a of this.analyzers) {
-          if (a.tier !== tier || !a.onRunStart) continue;
-          try {
-            await a.onRunStart(ctx);
-          } catch (err) {
-            errors.set(a.id, toError(err));
-          }
-        }
+        await this.runTierHook(tier, 'onRunStart', ctx, errors);
       }
 
       // Pass 2: Wave 実行ループ。各 Wave で `wave_start` → 当該 tier の `onRunEnd` → `wave_complete`。
@@ -96,14 +108,7 @@ export class LepOrchestrator {
         await this.bus.publish({ kind: 'wave_start', wave });
         await this.bus.drain();
 
-        for (const a of this.analyzers) {
-          if (a.tier !== tier || !a.onRunEnd) continue;
-          try {
-            await a.onRunEnd(ctx);
-          } catch (err) {
-            errors.set(a.id, toError(err));
-          }
-        }
+        await this.runTierHook(tier, 'onRunEnd', ctx, errors);
         // analyzer が emit した event の伝播完了を待ち、Wave barrier を出す
         await this.bus.drain();
         await this.bus.publish({ kind: 'wave_complete', wave });

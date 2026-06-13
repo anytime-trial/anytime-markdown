@@ -247,12 +247,12 @@ function drawEndpointShape(
 /** ドラッグ中のエッジプレビュー線を描画 */
 export function drawEdgePreview(
   ctx: CanvasRenderingContext2D,
-  fromX: number, fromY: number,
-  toX: number, toY: number,
+  coords: { fromX: number; fromY: number; toX: number; toY: number },
   edgeType: 'line' | 'connector',
   isValid: boolean = true,
   colors?: CanvasColors,
 ): void {
+  const { fromX, fromY, toX, toY } = coords;
   const c = colors ?? getCanvasColors(true);
   const color = isValid ? c.canvasSelection : c.invalidTarget;
   ctx.save();

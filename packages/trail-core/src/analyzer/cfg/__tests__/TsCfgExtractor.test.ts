@@ -18,7 +18,7 @@ describe('extractCfg', () => {
     expect(ifStmt.kind).toBe('if');
     if (ifStmt.kind === 'if') {
       expect(ifStmt.condition).toBe('x > 0');
-      expect(ifStmt.then.stmts[0].kind).toBe('expr');
+      expect(ifStmt.thenBlock.stmts[0].kind).toBe('expr');
       expect(ifStmt.else?.stmts[0].kind).toBe('expr');
     }
   });

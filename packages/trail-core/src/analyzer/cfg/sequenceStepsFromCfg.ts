@@ -76,7 +76,7 @@ export function sequenceStepsFromCfg(block: CfgBlock, opts: SeqWalkOptions): Seq
   const visitIf = (stmt: Extract<CfgStmt, { kind: 'if' }>, out: SequenceStep[]): void => {
     const condition = truncate(stmt.condition);
     const thenSteps: SequenceStep[] = [];
-    visitBlock(stmt.then, thenSteps);
+    visitBlock(stmt.thenBlock, thenSteps);
 
     if (!stmt.else) {
       if (thenSteps.length > 0) {
@@ -93,7 +93,7 @@ export function sequenceStepsFromCfg(block: CfgBlock, opts: SeqWalkOptions): Seq
     while (elseBlock?.stmts.length === 1 && elseBlock.stmts[0].kind === 'if') {
       const elif = elseBlock.stmts[0] as Extract<CfgStmt, { kind: 'if' }>;
       const branchSteps: SequenceStep[] = [];
-      visitBlock(elif.then, branchSteps);
+      visitBlock(elif.thenBlock, branchSteps);
       if (branchSteps.length > 0) branches.push({ condition: truncate(elif.condition), steps: branchSteps });
       elseBlock = elif.else;
     }

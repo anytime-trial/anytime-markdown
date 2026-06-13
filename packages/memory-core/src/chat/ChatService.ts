@@ -25,8 +25,34 @@ function log(level: string, message: string, ctx?: Record<string, unknown>): voi
   console.log(`[${TS()}] [${level}] ChatService ${message}${ctxStr}`);
 }
 
+/** abort 由来のエラー (signal 中断) かを判定する。 */
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === 'AbortError' || /aborted/i.test(error.message))
+  );
+}
+
 export class ChatService {
   constructor(private readonly opts: ChatServiceOptions) {}
+
+  /** hybridSearchMemory に渡す検索入力を構築する。 */
+  private buildRetrievalInput(
+    input: ChatTurnInput,
+    retrieveLimit: number,
+  ): Parameters<typeof hybridSearchMemory>[0]['input'] {
+    return {
+      query: input.query,
+      entity_types: input.filters?.entity_types
+        ? [...input.filters.entity_types]
+        : undefined,
+      final_limit: retrieveLimit,
+      hops: 0,
+      ...(this.opts.bm25Limit !== undefined && { bm25_limit: this.opts.bm25Limit }),
+      ...(this.opts.vecLimit !== undefined && { vec_limit: this.opts.vecLimit }),
+      ...(this.opts.rrfK !== undefined && { rrf_k: this.opts.rrfK }),
+    };
+  }
 
   async *streamTurn(input: ChatTurnInput): AsyncGenerator<ChatChunk> {
     const t0 = Date.now();
@@ -38,17 +64,7 @@ export class ChatService {
       db: this.opts.db,
       ollama: this.opts.ollama,
       embedModel: this.opts.embedModel,
-      input: {
-        query: input.query,
-        entity_types: input.filters?.entity_types
-          ? [...input.filters.entity_types]
-          : undefined,
-        final_limit: retrieveLimit,
-        hops: 0,
-        ...(this.opts.bm25Limit !== undefined && { bm25_limit: this.opts.bm25Limit }),
-        ...(this.opts.vecLimit !== undefined && { vec_limit: this.opts.vecLimit }),
-        ...(this.opts.rrfK !== undefined && { rrf_k: this.opts.rrfK }),
-      },
+      input: this.buildRetrievalInput(input, retrieveLimit),
     });
 
     const sources: PromptSource[] = search.entities.map((e) => ({
@@ -102,7 +118,7 @@ export class ChatService {
         if (ch.done) break;
       }
     } catch (error) {
-      if (error instanceof Error && (error.name === 'AbortError' || /aborted/i.test(error.message))) {
+      if (isAbortError(error)) {
         interrupted = true;
       } else {
         const msg = error instanceof Error ? error.message : String(error);
@@ -119,7 +135,8 @@ export class ChatService {
     }
 
     const totalMs = Date.now() - t0;
-    if (process.env.MEMORY_CHAT_PERF_LOG !== '0') {
+    const perfLogEnabled = process.env.MEMORY_CHAT_PERF_LOG !== '0';
+    if (perfLogEnabled) {
       log('INFO', 'streamTurn perf', {
         retrieval_ms: retrievalMs,
         prompt_build_ms: promptBuildMs,

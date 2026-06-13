@@ -104,7 +104,7 @@ function drawDragPreview(
       if (snapNode) drawSnapHighlight(ctx, snapNode, colors);
     }
     const isValidTarget = !!preview.snapNodeId;
-    drawEdgePreview(ctx, preview.fromX, preview.fromY, preview.toX, preview.toY, preview.edgeType, isValidTarget, colors);
+    drawEdgePreview(ctx, { fromX: preview.fromX, fromY: preview.fromY, toX: preview.toX, toY: preview.toY }, preview.edgeType, isValidTarget, colors);
   } else if (preview.type === 'shape' && preview.shapeType) {
     drawShapePreview(ctx, preview.fromX, preview.fromY, preview.toX, preview.toY, preview.shapeType, colors);
   } else if (preview.type === 'select-rect') {

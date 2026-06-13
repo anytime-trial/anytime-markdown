@@ -10,6 +10,19 @@ function vermilion(chunks: React.ReactNode) {
   return <Vermilion>{chunks}</Vermilion>;
 }
 
+function githubLink(chunks: React.ReactNode) {
+  return (
+    <a
+      href="https://github.com/anytime-trial/anytime-markdown"
+      target="_blank"
+      rel="noopener noreferrer"
+      className={styles.dispatchLink}
+    >
+      {chunks}
+    </a>
+  );
+}
+
 export function Dispatch() {
   const tDispatch = useTranslations('press.dispatch');
   return (
@@ -37,16 +50,7 @@ export function Dispatch() {
           <p>
             {tDispatch.rich('editorBody', {
               vermilion,
-              github: (chunks) => (
-                <a
-                  href="https://github.com/anytime-trial/anytime-markdown"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.dispatchLink}
-                >
-                  {chunks}
-                </a>
-              ),
+              github: githubLink,
             })}
           </p>
         </div>

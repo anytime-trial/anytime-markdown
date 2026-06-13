@@ -88,7 +88,7 @@ function extractStmt(stmt: ts.Statement, sf: ts.SourceFile): CfgStmt {
       kind: 'if',
       line,
       condition: stmt.expression.getText(sf),
-      then: blockOf(stmt.thenStatement, sf),
+      thenBlock: blockOf(stmt.thenStatement, sf),
       ...(stmt.elseStatement ? { else: blockOf(stmt.elseStatement, sf) } : {}),
     };
   }

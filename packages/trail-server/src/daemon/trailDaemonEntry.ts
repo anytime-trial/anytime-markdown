@@ -543,7 +543,8 @@ async function disposeAll(): Promise<void> {
   }
   if (httpChatBridge) {
     try {
-      httpChatBridge.dispose();
+      // dispose() は async。await しないと try/catch が reject を捕捉できない (S4822)。
+      await httpChatBridge.dispose();
     } catch (err) {
       daemonLogger.error(`[daemon] ChatBridge dispose error: ${formatError(err)}`);
     }

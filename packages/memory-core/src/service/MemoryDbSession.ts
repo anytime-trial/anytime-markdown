@@ -252,7 +252,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
     const repoName = this.repoName;
 
     this.status?.start('code_incremental');
-    let codeEntityIds = new Set<string>();
+    let codeEntityIds: Set<string>;
     let codeWasSkipped = false;
     let processed = 0;
     try {
