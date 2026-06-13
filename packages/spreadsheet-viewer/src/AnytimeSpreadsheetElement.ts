@@ -34,7 +34,17 @@ export interface SpreadsheetChangeDetail {
   value: string;
 }
 
-export class AnytimeSpreadsheetElement extends HTMLElement {
+/**
+ * SSR/Node 安全化: `HTMLElement` 未定義環境（Next の SSR・Node ビルド・barrel 経由の
+ * サーバ評価）でも class 定義時に ReferenceError を投げないようダミー基底へフォールバックする。
+ * 実際の登録（customElements.define）と動作はブラウザ（HTMLElement 定義済み）でのみ行う。
+ */
+const HTMLElementBase: typeof HTMLElement =
+  typeof HTMLElement !== "undefined"
+    ? HTMLElement
+    : (class {} as unknown as typeof HTMLElement);
+
+export class AnytimeSpreadsheetElement extends HTMLElementBase {
   static get observedAttributes(): string[] {
     return ["theme", "read-only", "locale", "format"];
   }

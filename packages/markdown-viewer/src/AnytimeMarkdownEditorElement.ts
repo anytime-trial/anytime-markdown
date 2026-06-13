@@ -30,12 +30,21 @@ import { getMarkdownFromEditorSafe } from "./utils/markdownSerializer";
 /** handle から導出する editor 型（markdown-core への直接 import を避ける）。 */
 type EditorInstance = VanillaMarkdownEditorHandle["editor"];
 
+/**
+ * SSR/Node 安全化: `HTMLElement` 未定義環境でも class 定義時に ReferenceError を投げないよう
+ * ダミー基底へフォールバックする（rich / view サブクラスもこの基底を継承するため一括で安全）。
+ */
+const HTMLElementBase: typeof HTMLElement =
+  typeof HTMLElement !== "undefined"
+    ? HTMLElement
+    : (class {} as unknown as typeof HTMLElement);
+
 /** `detail` が `{ value }` の `change` イベント。 */
 export interface MarkdownChangeDetail {
   value: string;
 }
 
-export class AnytimeMarkdownEditorElement extends HTMLElement {
+export class AnytimeMarkdownEditorElement extends HTMLElementBase {
   static get observedAttributes(): string[] {
     return ["theme", "read-only", "locale", "placeholder"];
   }

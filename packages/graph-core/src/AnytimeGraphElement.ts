@@ -21,7 +21,16 @@ export interface GraphNodeClickDetail {
   id: string;
 }
 
-export class AnytimeGraphElement extends HTMLElement {
+/**
+ * SSR/Node 安全化: `HTMLElement` 未定義環境でも class 定義時に ReferenceError を投げないよう
+ * ダミー基底へフォールバックする。実際の登録・動作はブラウザでのみ行う。
+ */
+const HTMLElementBase: typeof HTMLElement =
+  typeof HTMLElement !== "undefined"
+    ? HTMLElement
+    : (class {} as unknown as typeof HTMLElement);
+
+export class AnytimeGraphElement extends HTMLElementBase {
   static get observedAttributes(): string[] {
     return ["theme", "movable-nodes", "collapsible", "minimap"];
   }
