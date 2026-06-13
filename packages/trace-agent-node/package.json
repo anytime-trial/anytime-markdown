@@ -34,7 +34,7 @@
         "@types/jest": "30.0.0",
         "@types/node": "22.15.17",
         "jest": "30.2.0",
-        "ts-jest": "29.4.6",
-        "typescript": "5.9.3"
+        "ts-jest": "29.4.11",
+        "typescript": "6.0.3"
     }
 }

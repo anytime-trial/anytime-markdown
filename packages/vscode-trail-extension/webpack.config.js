@@ -282,6 +282,8 @@ const mcpTrailServerConfig = {
         use: [{
           loader: 'ts-loader',
           options: {
+            configFile: path.resolve(__dirname, 'tsconfig.node-bundle.json'),
+            onlyCompileBundledFiles: true,
             allowTsInNodeModules: true,
             transpileOnly: true,
           },
@@ -337,6 +339,8 @@ const analyzeChildConfig = {
           {
             loader: 'ts-loader',
             options: {
+              configFile: path.resolve(__dirname, 'tsconfig.node-bundle.json'),
+              onlyCompileBundledFiles: true,
               allowTsInNodeModules: true,
               transpileOnly: true,
             },
@@ -391,6 +395,8 @@ const trailDaemonConfig = {
           {
             loader: 'ts-loader',
             options: {
+              configFile: path.resolve(__dirname, 'tsconfig.node-bundle.json'),
+              onlyCompileBundledFiles: true,
               allowTsInNodeModules: true,
               transpileOnly: true,
             },

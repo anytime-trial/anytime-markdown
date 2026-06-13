@@ -24,7 +24,12 @@ const baseNodeConfig = {
         exclude: /node_modules[\\/](?!@anytime-markdown[\\/])/,
         use: [{
           loader: 'ts-loader',
-          options: { allowTsInNodeModules: true, transpileOnly: true },
+          options: {
+            configFile: path.resolve(__dirname, 'tsconfig.bundle.json'),
+            onlyCompileBundledFiles: true,
+            allowTsInNodeModules: true,
+            transpileOnly: true,
+          },
         }],
       },
     ],
