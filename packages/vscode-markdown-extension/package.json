@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -26,7 +26,7 @@
     "onLanguage:markdown",
     "onView:anytimeMarkdown.timeline"
   ],
-  "icon": "images/anytime-markdown-128.png",
+  "icon": "images/camel_markdown.png",
   "main": "./dist/extension.js",
   "contributes": {
     "submenus": [

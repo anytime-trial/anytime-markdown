@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-13
+
+### Spreadsheet Core (spreadsheet-viewer)
+
+- 新しい `anytime-spreadsheet` Web Component（React 非依存埋め込み）をバンドルに同梱。
+
 ## [0.6.1] - 2026-06-13
 
 ### 変更

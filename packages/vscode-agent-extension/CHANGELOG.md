@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-06-13
+
+### Changed
+
+- Switched the extension icon and activity-bar icon to the new camel branding.
+
 ## [0.3.1] - 2026-06-13
 
 ### Changed

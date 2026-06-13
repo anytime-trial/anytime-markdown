@@ -127,6 +127,24 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     handle.destroy();
   });
 
+  it("data-am-content は min-width:0 で flex 縮小可能（狭幅で本文が折り返される）", () => {
+    // 回帰: noScroll（overflow:visible）時、flex item の自動最小サイズ（min-width:auto）が
+    // 効くと狭幅でコンテンツが flex コンテナ幅まで縮まず横にはみ出し、本文が折り返されない。
+    // min-width:0 を常時付与し、overflow モードに依らず縮小可能にする。
+    const handle = mountVanillaMarkdownEditor(container, { t, noScroll: true });
+    const content = container.querySelector("[data-am-content]") as HTMLElement;
+    expect(content.style.minWidth).toBe("0");
+    expect(content.style.overflow).toBe("visible");
+    handle.destroy();
+  });
+
+  it("通常（スクロール）モードでも data-am-content は min-width:0", () => {
+    const handle = mountVanillaMarkdownEditor(container, { t });
+    const content = container.querySelector("[data-am-content]") as HTMLElement;
+    expect(content.style.minWidth).toBe("0");
+    handle.destroy();
+  });
+
   it("destroy で editor を破棄し root を container から除去する", () => {
     const handle = mountVanillaMarkdownEditor(container, { t });
     const editor = handle.editor;

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-13
+
+### Added
+
+- Added the `anytime-spreadsheet` Web Component for React-free embedding.
+
 ## [0.6.1] - 2026-06-13
 
 ### Changed

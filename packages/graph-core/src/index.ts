@@ -4,7 +4,5 @@ export * as engine from './engine/index';
 export * as state from './state/index';
 export * from './theme';
 export * from './io/index';
-export { useCanvasBase } from './hooks/useCanvasBase';
-export type { UseCanvasBaseOptions, UseCanvasBaseReturn, DragMode, SelectRect } from './hooks/useCanvasBase';
-export { MinimapCanvas } from './components/MinimapCanvas';
-export type { MinimapCanvasProps } from './components/MinimapCanvas';
+// React 依存の canvas ラッパー（useCanvasBase / MinimapCanvas）は
+// @anytime-markdown/graph-react-islands へ分離。graph-core 本体は React-free。

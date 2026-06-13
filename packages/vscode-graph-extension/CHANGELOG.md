@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-13
+
+### Graph Core (graph-core / graph-viewer)
+
+- Fully removed React from the graph editor: hooks, toolbar, canvas, panels, and overlays are now vanilla; the webview bundle no longer ships React.
+- Added the `anytime-graph` Web Component (React-free distribution) and removed the graph-core React peer dependency.
+
 ## [0.5.1] - 2026-06-13
 
 ### Changed

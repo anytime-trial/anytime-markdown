@@ -28,3 +28,7 @@ export type { SheetAdapter, SheetSnapshot } from "@anytime-markdown/spreadsheet-
 export { createInMemorySheetAdapter, parseCsv, serializeCsv, parseMarkdownTable, serializeMarkdownTable } from "@anytime-markdown/spreadsheet-core";
 export type { CellAlign, SheetData, WorkbookAdapter, WorkbookSnapshot } from "@anytime-markdown/spreadsheet-core";
 export { createInMemoryWorkbookAdapter } from "@anytime-markdown/spreadsheet-core";
+
+// Web Component（クラスのみ。customElements.define の副作用は "./element" 側に置く）
+export { AnytimeSpreadsheetElement } from "./AnytimeSpreadsheetElement";
+export type { SpreadsheetChangeDetail } from "./AnytimeSpreadsheetElement";

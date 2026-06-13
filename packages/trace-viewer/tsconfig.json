@@ -7,7 +7,14 @@
         "noEmit": true,
         "isolatedModules": true,
         "declaration": true,
-        "jsx": "react-jsx"
+        "jsx": "react-jsx",
+        "paths": {
+            "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
+            "@anytime-markdown/graph-core/engine": ["../graph-core/src/engine/index.ts"],
+            "@anytime-markdown/graph-core/state": ["../graph-core/src/state/index.ts"],
+            "@anytime-markdown/graph-core/types": ["../graph-core/src/types.ts"],
+            "@anytime-markdown/graph-react-islands": ["../graph-react-islands/src/index.ts"]
+        }
     },
     "include": ["src/**/*"]
 }

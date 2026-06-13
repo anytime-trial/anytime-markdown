@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.27.2] - 2026-06-13
+
+### Trail Core (trail-core / trail-viewer)
+
+- Updated the bundled C4 viewer to import React-coupled canvas helpers (`useCanvasBase`, `MinimapCanvas`) from `graph-react-islands`, following the graph-core React peer-dependency removal.
+
 ## [0.27.1] - 2026-06-13
 
 ### Fixed

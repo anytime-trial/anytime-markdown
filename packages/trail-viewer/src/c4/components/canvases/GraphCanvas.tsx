@@ -1,7 +1,7 @@
 import type { GraphDocument, GraphGroup, GraphNode, SelectionState, Viewport } from '@anytime-markdown/graph-core';
 import { render, nodeIntersection, hitTestGroup, hitTestNode, screenToWorld } from '@anytime-markdown/graph-core/engine';
 import type { Action } from '@anytime-markdown/graph-core/state';
-import { useCanvasBase } from '@anytime-markdown/graph-core';
+import { useCanvasBase } from '@anytime-markdown/graph-react-islands';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { GHOST_EDGE_COMMIT_DARK, GHOST_EDGE_COMMIT_LIGHT, GHOST_EDGE_SESSION_DARK, GHOST_EDGE_SESSION_LIGHT, GHOST_EDGE_SUBAGENT_DARK, GHOST_EDGE_SUBAGENT_LIGHT } from '../../ghostEdgeColors';

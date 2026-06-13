@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-13
+
+### Added
+
+- Added the `anytime-markdown-view` Web Component — a React-free custom element for embedding the read-only markdown view (used by web-app `/report`).
+- Added an inline font/theme toolbar (`viewerToolbar`) placed directly in the read-only view.
+
+### Changed
+
+- Hardened the Web Component base class for SSR/Node environments (guards against `HTMLElement` being undefined so the class definition no longer throws).
+- Switched the default editor logo to the new camel branding (`camel_markdown.png`).
+
+### Fixed
+
+- Fixed body text not wrapping at narrow widths in the read-only view.
+- Restored `anytime-markdown-view` to a chromeless (toolbar-hidden), read-only appearance matching the pre-React-removal behavior.
+
 ## [1.1.0] - 2026-06-13
 
 ### Added

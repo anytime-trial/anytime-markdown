@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-06-13
+
+### Added
+
+- Added a read-only minimal Web Component path for `/report` document rendering (`anytime-markdown-view`).
+
+### Changed
+
+- Switched the markdown rendering to the `anytime-markdown-view` Web Component.
+- Switched the landing / VS Code page logo to the new camel branding.
+
 ## [0.28.1] - 2026-06-13
 
 ### Changed

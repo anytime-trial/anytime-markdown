@@ -5,7 +5,6 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /anytime-markdown /anytime-markdown-docs 
 WORKDIR /anytime-markdown/
 
 COPY package.json package-lock.json* ./
@@ -41,7 +40,7 @@ ENV PATH="/home/user/.npm-global/bin:/home/user/.local/bin:${PATH}"
 # user ユーザーのホームディレクトリを準備
 # (.npm-global フォルダもあらかじめ root 権限で作って所有者を user に変えておきます)
 RUN mkdir -p /home/user/.ssh /home/user/.claude /home/user/.npm-global && \
-    chown -R user:user /home/user /anytime-markdown /anytime-markdown-docs
+    chown -R user:user /home/user /anytime-markdown
 
 USER user
 

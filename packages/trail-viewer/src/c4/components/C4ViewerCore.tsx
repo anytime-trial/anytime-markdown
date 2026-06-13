@@ -1,6 +1,7 @@
 import type { GraphDocument, GraphNode, Viewport } from '@anytime-markdown/graph-core';
 import { DEFAULT_VIEWPORT } from '@anytime-markdown/graph-core';
-import { engine, layoutWithSubgroups, MinimapCanvas, state as graphState } from '@anytime-markdown/graph-core';
+import { engine, layoutWithSubgroups, state as graphState } from '@anytime-markdown/graph-core';
+import { MinimapCanvas } from '@anytime-markdown/graph-react-islands';
 import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, CommunityOverlayEntry, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix, HotspotMap, ImportanceMatrix, ManualGroup, MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, aggregateHotspotToC4, buildArchitectureMatrix, buildC4ElementById, buildCommunityTree, buildElementTree, buildLevelView, buildSizeMatrix, c4ToGraphDocument, collectDescendantIds, computeColorMap, computeCommunityOverlay, computeFileHotspot, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, mapFileToC4Elements, resolveSelectedElementCommunity, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
 import type { ArchitectureFileEntry, ArchitectureMatrix, RoleMatrix, SizeMatrix } from '@anytime-markdown/trail-core/c4';

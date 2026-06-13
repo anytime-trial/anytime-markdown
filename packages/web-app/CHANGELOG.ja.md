@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-06-13
+
+### 追加
+
+- `/report` ドキュメント表示向けに read-only 最小 Web Component（`anytime-markdown-view`）経路を追加。
+
+### 変更
+
+- markdown レンダリングを `anytime-markdown-view` Web Component 経由に切替。
+- ランディング / VS Code ページのロゴを camel ブランディングに変更。
+
 ## [0.28.1] - 2026-06-13
 
 ### 変更

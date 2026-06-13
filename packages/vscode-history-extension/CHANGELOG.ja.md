@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-06-13
+
+### 変更
+
+- graph-core の React peer 依存除去に伴い、バンドルされた trace ビューア（`SequenceCanvas`）が `useCanvasBase` を `graph-react-islands` から import するよう更新。
+
 ## [0.2.5] - 2026-06-13
 
 ### 変更

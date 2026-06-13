@@ -70,7 +70,7 @@ export interface EditorDialogsHandle {
 /** ロゴ URI（グローバル注入があれば優先、なければ既定パス）。React 版と同一。 */
 function logoUri(): string {
   const injected = (globalThis as unknown as Record<string, unknown>).__LOGO_URI__;
-  return typeof injected === "string" && injected ? injected : "/images/anytime-markdown-128.png";
+  return typeof injected === "string" && injected ? injected : "/images/camel_markdown.png";
 }
 
 /**

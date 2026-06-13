@@ -77,6 +77,10 @@ import {
   createEditorToolbar,
   type CreateEditorToolbarOptions,
 } from "../components-vanilla/EditorToolbar";
+import {
+  createViewerToolbar,
+  type ViewerToolbarHandle,
+} from "../components-vanilla/ViewerToolbar";
 import { createEditorContextMenu } from "../components-vanilla/EditorContextMenu";
 import {
   createInlineMergeView,
@@ -130,6 +134,12 @@ export interface MountVanillaMarkdownEditorOptions {
   hide?: ToolbarVisibility;
   /** ツールバー全体を描画しない（VS Code の hideToolbar 相当）。 */
   hideToolbar?: boolean;
+  /**
+   * 編集ツールバーの代わりに read-only ビュー用の最小ツールバー
+   * （フォントサイズ −/＋ + dark/light 切替のみ）を描画する。`hideToolbar` より優先。
+   * report 等の閲覧専用ビュー（anytime-markdown-view）向け。
+   */
+  viewerToolbar?: boolean;
   /** ステータスバーを描画しない（onStatusChange 通知は継続する）。 */
   hideStatusBar?: boolean;
   /** 右端の縦サイドツールバー（outline/comment/settings トグル）。 */
@@ -258,7 +268,10 @@ function buildLayout(): VanillaLayout {
   const contentEl = document.createElement("div");
   contentEl.setAttribute("data-am-content", "");
   // position:relative は SearchReplaceBar（absolute・右上）配置の基準。
-  contentEl.style.cssText = "flex:1 1 auto;min-height:0;overflow:auto;position:relative;";
+  // min-width:0 は flex item の自動最小サイズ（min-width:auto）を無効化し、狭幅でも flex
+  // コンテナ幅まで縮小可能にする。これがないと noScroll（overflow:visible）時に本文が
+  // 折り返されず横にはみ出す（scroll モードは overflow:auto で自動最小サイズが 0 のため不要）。
+  contentEl.style.cssText = "flex:1 1 auto;min-width:0;min-height:0;overflow:auto;position:relative;";
 
   // editor の実マウント先（React buildEditorPortalTarget 相当・display:contents）。
   // merge ビューの右パネルが editor.options.element ごと移設できるよう contentEl と分離する。
@@ -726,6 +739,7 @@ export function mountVanillaMarkdownEditor(
 
       // === mode handlers（sourceModeController + closure 状態 + toolbar 再描画） ==
       let toolbar: ReturnType<typeof createEditorToolbar> | null = null;
+      let viewerToolbar: ViewerToolbarHandle | null = null;
       let sideToolbarHandle: ReturnType<typeof createEditorSideToolbar> | null = null;
       let contextMenu: ReturnType<typeof createEditorContextMenu> | null = null;
       let statusBar: ReturnType<typeof createStatusBar> | null = null;
@@ -806,8 +820,31 @@ export function mountVanillaMarkdownEditor(
         },
       };
 
-      // === EditorToolbar（toolbarSlot へ・hideToolbar で抑止） ==================
-      if (!current.hideToolbar) {
+      // === ViewerToolbar（read-only ビュー用・編集ツールバーより優先） ==========
+      if (current.viewerToolbar) {
+        // フォントサイズは settings.fontSize（既存 settings 配線を再利用）。bounds は
+        // SettingsPanel スライダーと同一（12〜24）。テーマは onThemeModeChange へ委譲。
+        const FONT_MIN = 12;
+        const FONT_MAX = 24;
+        viewerToolbar = createViewerToolbar({
+          t,
+          themeMode: current.themeMode ?? "light",
+          onFontDelta: (delta) => {
+            const next = Math.min(FONT_MAX, Math.max(FONT_MIN, effectiveSettings().fontSize + delta));
+            if (next === settings.fontSize) return;
+            settings = { ...settings, fontSize: next };
+            applyAllSettings();
+            current.onSettingsChange?.(settings);
+          },
+          onToggleTheme: () =>
+            current.onThemeModeChange?.(current.themeMode === "dark" ? "light" : "dark"),
+        });
+        toolbarSlot.appendChild(viewerToolbar.el);
+        disposers.push(() => viewerToolbar?.destroy());
+      }
+
+      // === EditorToolbar（toolbarSlot へ・hideToolbar / viewerToolbar で抑止） ====
+      else if (!current.hideToolbar) {
         const toolbarOptions: CreateEditorToolbarOptions = {
           editor,
           t,
@@ -1190,6 +1227,9 @@ export function mountVanillaMarkdownEditor(
         // themeMode はコンテンツ CSS（ダーク/ライト埋め込み色）と背景・文字色変数に影響する。
         if (patch.settings || patch.themeMode !== undefined) {
           applyAllSettings();
+        }
+        if (patch.themeMode !== undefined) {
+          viewerToolbar?.syncTheme(current.themeMode ?? "light");
         }
         if (patch.fileName !== undefined) {
           statusBar?.update({ fileName: patch.fileName });

@@ -12,9 +12,6 @@ jest.mock("@anytime-markdown/markdown-react-islands", () => ({
 }));
 jest.mock("@anytime-markdown/markdown-viewer/src/i18n/en.json", () => ({}), { virtual: true });
 jest.mock("@anytime-markdown/markdown-viewer/src/i18n/ja.json", () => ({}), { virtual: true });
-jest.mock("@anytime-markdown/graph-viewer", () => ({
-  GraphI18nProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
 jest.mock("@anytime-markdown/spreadsheet-viewer", () => ({
   SpreadsheetI18nProvider: ({ children }: { children: React.ReactNode }) => children,
 }));

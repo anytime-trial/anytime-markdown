@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-06-13
+
+### Changed
+
+- Updated the bundled trace viewer (`SequenceCanvas`) to import `useCanvasBase` from `graph-react-islands`, following the graph-core React peer-dependency removal.
+
 ## [0.2.5] - 2026-06-13
 
 ### Changed

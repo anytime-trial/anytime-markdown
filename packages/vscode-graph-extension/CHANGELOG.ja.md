@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-13
+
+### Graph Core (graph-core / graph-viewer)
+
+- グラフエディタから React を完全除去：hooks・ツールバー・キャンバス・パネル・オーバーレイをすべて vanilla 化し、webview バンドルから React を排除。
+- `anytime-graph` Web Component（React 非依存配布）を追加し、graph-core の React peer 依存を除去。
+
 ## [0.5.1] - 2026-06-13
 
 ### 変更
