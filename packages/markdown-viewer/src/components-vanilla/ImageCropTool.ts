@@ -504,7 +504,8 @@ export function createImageCropTool(
   /** トグルアイコンの active 状態（color="primary" 相当）と aria-pressed を反映する。 */
   function applyToggleState(btn: IconButtonHandle, active: boolean): void {
     btn.el.setAttribute("aria-pressed", active ? "true" : "false");
-    btn.el.style.color = active ? "var(--am-color-primary-main)" : "";
+    // 非アクティブを "" にすると IconButton の color:inherit が消え <button> が UA 黒に戻る。
+    btn.el.style.color = active ? "var(--am-color-primary-main)" : "inherit";
   }
 
   // ===== オーバーレイ再描画（ruler/grid SVG・crop SVG・crop プレビュー） =====

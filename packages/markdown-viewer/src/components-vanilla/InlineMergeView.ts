@@ -882,7 +882,8 @@ export function createInlineMergeView(
     prevBtn.el.toggleAttribute("disabled", total === 0);
     nextBtn.el.toggleAttribute("disabled", total === 0);
     collapseBtn.el.setAttribute("aria-pressed", String(collapseEnabled));
-    collapseBtn.el.style.color = collapseEnabled ? "var(--am-color-primary-main)" : "";
+    // 非アクティブを "" にすると IconButton の color:inherit が消え <button> が UA 黒に戻る。
+    collapseBtn.el.style.color = collapseEnabled ? "var(--am-color-primary-main)" : "inherit";
   };
 
   const notifyUndoRedo = (): void => {
