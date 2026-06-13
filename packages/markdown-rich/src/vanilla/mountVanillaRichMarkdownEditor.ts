@@ -10,7 +10,7 @@
  * PDF export を consumer 委譲（`fileHandlers.onExportPdf`）するため注入対象が無く未配線。
  */
 
-import { appLowlight } from "@anytime-markdown/markdown-viewer";
+import { appLowlight, getEditDialogBgColor } from "@anytime-markdown/markdown-viewer";
 import {
   mountVanillaMarkdownEditor,
   type MountVanillaMarkdownEditorOptions,
@@ -51,7 +51,12 @@ export function mountVanillaRichMarkdownEditor(
         getIsDark: () => current.themeMode === "dark",
         getHideGraph: () => current.hideGraph ?? false,
         getStyle: () => ({
-          editorBg: current.settings?.editorBg ?? "white",
+          // editorBg は設定キー("white"|"grey")のまま渡さず CSS 色へ解決する
+          // （キーのままだとダークモードでダイアログ paper が literal "white" になる回帰）。
+          editorBg: getEditDialogBgColor(
+            current.themeMode === "dark",
+            current.settings?.editorBg,
+          ),
           fontSize: current.settings?.fontSize ?? 16,
           lineHeight: current.settings?.lineHeight ?? 1.6,
         }),

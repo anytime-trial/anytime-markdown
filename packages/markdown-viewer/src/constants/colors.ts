@@ -119,6 +119,23 @@ export function getEditDialogBg(isDark: boolean, settings?: Pick<EditorSettings,
   return settings?.editorBg === "grey" && !isDark ? "grey.50" : undefined;
 }
 
+/**
+ * ブロック要素編集ダイアログ（vanilla）の Paper 背景の**具体的な CSS 色**を返す。
+ *
+ * {@link getEditDialogBg}（MUI トークン "grey.50" / undefined を返す React 版）の
+ * vanilla 等価。設定キー（`settings.editorBg` の "white" | "grey"）を CSS 色として
+ * そのまま paper に適用するとダークモードで白背景になる回帰があったため、
+ * キー → 色の解決を本関数へ集約する。
+ */
+export function getEditDialogBgColor(
+  isDark: boolean,
+  editorBg?: EditorSettings["editorBg"],
+): string {
+  // MUI grey.50 相当。light + grey 設定のみ紙面をわずかに沈める（React 版と同値）。
+  if (!isDark && editorBg === "grey") return "#fafafa";
+  return getBgPaper(isDark);
+}
+
 /** ユーザー設定を考慮したエディタ文字色を返す */
 export function getEditorText(isDark: boolean, settings?: Pick<EditorSettings, "darkTextColor" | "lightTextColor">): string {
   return isDark

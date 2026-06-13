@@ -62,6 +62,11 @@ import { createPlantUmlEditDialog } from "./createPlantUmlEditDialog";
 
 /** ダイアログ外観（live 取得用）。 */
 export interface CodeOverlayStyle {
+  /**
+   * ダイアログ Paper の背景 **CSS 色**（`getEditDialogBgColor` で解決済みの値）。
+   * 設定キー（"white" | "grey"）をそのまま渡さないこと（ダークモードで literal
+   * "white" が適用される回帰の原因）。
+   */
   editorBg: string;
   fontSize: number;
   lineHeight: number;
