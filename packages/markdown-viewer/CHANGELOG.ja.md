@@ -7,6 +7,23 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-13
+
+### 追加
+
+- `anytime-markdown-view` Web Component を追加（read-only markdown ビューを埋め込む React 非依存のカスタム要素。web-app `/report` で使用）。
+- read-only ビューに font/theme 直置きツールバー（`viewerToolbar`）を追加。
+
+### 変更
+
+- Web Component 基底クラスを SSR/Node 環境向けに安全化（`HTMLElement` 未定義時に class 定義が throw しないようガード）。
+- 既定のエディタロゴを camel ブランディング（`camel_markdown.png`）に変更。
+
+### 修正
+
+- read-only ビューで狭幅時に本文が折り返されない不具合を修正。
+- `anytime-markdown-view` を chromeless（ツールバー非表示）の read-only 表示に戻し、React 除去前と同一の見た目に修正。
+
 ## [1.1.0] - 2026-06-13
 
 ### 追加

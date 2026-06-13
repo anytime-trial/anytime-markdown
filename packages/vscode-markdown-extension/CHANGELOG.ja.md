@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-13
+
+### 変更
+
+- 拡張機能のアイコンを camel ブランディングに変更。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- `anytime-markdown-view` Web Component（React 非依存の read-only カスタム要素）と read-only ビューの font/theme 直置きツールバーを追加。
+- Web Component 基底クラスを SSR/Node 安全化。
+- read-only 狭幅折り返しの修正と chromeless read-only 表示の復元。
+
 ## [1.1.0] - 2026-06-13
 
 ### 変更

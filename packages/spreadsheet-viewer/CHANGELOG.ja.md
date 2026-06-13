@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-13
+
+### 追加
+
+- React 非依存で埋め込める `anytime-spreadsheet` Web Component を追加。
+
 ## [0.6.1] - 2026-06-13
 
 ### 変更

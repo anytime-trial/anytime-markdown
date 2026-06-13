@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-13
+
+### Added
+
+- Added the `anytime-graph` Web Component for React-free distribution.
+
+### Changed
+
+- **Breaking:** Fully removed the React peer dependency. React-coupled helpers (`useCanvasBase`, `MinimapCanvas`) moved to the new `@anytime-markdown/graph-react-islands` package. Consumers using these must now import them from `graph-react-islands`.
+
 ## [0.5.1] - 2026-06-13
 
 ### Changed

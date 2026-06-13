@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-13
+
+### Changed
+
+- Switched the extension icon to the new camel branding.
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Added the `anytime-markdown-view` Web Component (React-free read-only custom element) and an inline font/theme `viewerToolbar` in the read-only view.
+- Hardened the Web Component base class for SSR/Node safety.
+- Fixed read-only narrow-width wrapping and restored chromeless read-only parity.
+
 ## [1.1.0] - 2026-06-13
 
 ### Changed

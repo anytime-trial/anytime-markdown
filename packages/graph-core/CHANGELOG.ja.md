@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-13
+
+### 追加
+
+- React 非依存配布のための `anytime-graph` Web Component を追加。
+
+### 変更
+
+- **破壊的変更:** React peer 依存を完全に除去。React 結合ヘルパー（`useCanvasBase`・`MinimapCanvas`）を新パッケージ `@anytime-markdown/graph-react-islands` へ分離。これらを利用する側は `graph-react-islands` から import する必要がある。
+
 ## [0.5.1] - 2026-06-13
 
 ### 変更

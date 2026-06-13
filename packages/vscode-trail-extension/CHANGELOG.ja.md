@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.27.2] - 2026-06-13
+
+### Trail Core (trail-core / trail-viewer)
+
+- バンドルされた C4 ビューアが React 結合のキャンバスヘルパー（`useCanvasBase`・`MinimapCanvas`）を `graph-react-islands` から import するよう更新（graph-core の React peer 依存除去に追従）。
+
 ## [0.27.1] - 2026-06-13
 
 ### 修正
