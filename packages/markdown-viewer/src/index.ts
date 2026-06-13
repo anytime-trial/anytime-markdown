@@ -191,3 +191,7 @@ export { getDefaultContent } from './constants/defaultContent';
 // Embed プレビューの外部 fetch 注入（consumer が起動時に設定。実装 createEmbedPreview は
 // rich の CodeBlockBlockContent が deep import する内部 API のため barrel 非公開）
 export { setEmbedProviders, getEmbedProviders } from './embedProviders';
+
+// Web Component（クラスのみ。customElements.define の副作用は "./element" 側に置く）
+export { AnytimeMarkdownEditorElement } from './AnytimeMarkdownEditorElement';
+export type { MarkdownChangeDetail } from './AnytimeMarkdownEditorElement';
