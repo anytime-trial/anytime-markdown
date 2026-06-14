@@ -83,6 +83,7 @@ export function buildDoubleDiamond(spec: DoubleDiamondSpec, isDark: boolean): Gr
         fontColor: pal.text,
         fontSize: 13,
         borderRadius: 6,
+        metadata: { path: phase.key },
       } satisfies NodeOpts),
     );
   });

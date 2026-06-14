@@ -36,6 +36,7 @@ export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument 
       fontColor: pal.text,
       fontSize: 16,
       fontStyle: 1,
+      metadata: { path: 'root' },
     } satisfies NodeOpts),
   );
 
@@ -49,6 +50,7 @@ export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument 
     outward: Point,
     depth: number,
     branchColor: string,
+    parentPath: string,
   ): void => {
     const children = node.children ?? [];
     if (children.length === 0) return;
@@ -59,6 +61,7 @@ export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument 
       const cx = center.x + outward.x * RADIUS_STEP + perp.x * offset;
       const cy = center.y + outward.y * RADIUS_STEP + perp.y * offset;
       const id = nextId();
+      const childPath = `${parentPath}.children.${idx}`;
       nodes.push(
         mkNode(id, 'rect', { x: cx - NODE_W / 2, y: cy - NODE_H / 2, width: NODE_W, height: NODE_H }, child.label, {
           fill: withAlpha(branchColor, isDark ? 0.14 : 0.1),
@@ -67,12 +70,13 @@ export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument 
           fontColor: pal.text,
           fontSize: 13,
           borderRadius: 6,
+          metadata: { path: childPath },
         } satisfies NodeOpts),
       );
       edges.push(
         lineEdge(`${parentId}->${id}`, center, { x: cx, y: cy }, { stroke: branchColor, strokeWidth: 1.5 }),
       );
-      placeSubtree(child, id, { x: cx, y: cy }, outward, depth + 1, branchColor);
+      placeSubtree(child, id, { x: cx, y: cy }, outward, depth + 1, branchColor, childPath);
     });
   };
 
@@ -89,10 +93,11 @@ export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument 
         fontSize: 14,
         fontStyle: 1,
         borderRadius: 8,
+        metadata: { path: `branches.${i}` },
       } satisfies NodeOpts),
     );
     edges.push(lineEdge(`${centerId}->${id}`, { x: 0, y: 0 }, geo.base, { stroke: color, strokeWidth: 2 }));
-    placeSubtree(branch, id, geo.base, geo.outward, 1, color);
+    placeSubtree(branch, id, geo.base, geo.outward, 1, color, `branches.${i}`);
   });
 
   return mkDoc(spec.root || 'mindmap', nodes, edges);

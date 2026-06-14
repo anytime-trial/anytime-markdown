@@ -41,6 +41,7 @@ export function buildPyramid(spec: PyramidSpec, isDark: boolean): GraphDocument 
       fontColor: pal.text,
       fontSize: 15,
       borderRadius: 4,
+      metadata: { path: `tiers.${i}` },
     } satisfies NodeOpts);
   });
 

@@ -53,6 +53,7 @@ export function buildFishbone(spec: FishboneSpec, isDark: boolean): GraphDocumen
       fontSize: 16,
       fontStyle: 1,
       borderRadius: 8,
+      metadata: { path: 'problem' },
     } satisfies NodeOpts),
   );
 
@@ -81,6 +82,7 @@ export function buildFishbone(spec: FishboneSpec, isDark: boolean): GraphDocumen
         fontColor: pal.text,
         fontSize: 13,
         borderRadius: 6,
+        metadata: { path: `categories.${i}` },
       } satisfies NodeOpts),
     );
   });

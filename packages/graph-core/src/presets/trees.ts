@@ -30,6 +30,8 @@ interface FlatNode {
   id: string;
   label: string;
   depth: number;
+  /** spec 内位置（root スカラは 'root'、子は 'children.0.children.1' 形式）。 */
+  path: string;
 }
 
 /** TreeNodeSpec ツリーに決定的 id を振り、レイアウト用 TreeInput・ノード・エッジへ展開する。 */
@@ -43,18 +45,20 @@ function flatten(rootLabel: string, children: TreeNodeSpec[]): {
   let counter = 0;
   const nextId = (): string => `n${counter++}`;
 
-  const walk = (label: string, kids: TreeNodeSpec[] | undefined, depth: number): TreeInput => {
+  const walk = (label: string, kids: TreeNodeSpec[] | undefined, depth: number, path: string): TreeInput => {
     const id = nextId();
-    flat.push({ id, label, depth });
-    const childInputs = (kids ?? []).map((c) => {
-      const childInput = walk(c.label, c.children, depth + 1);
+    flat.push({ id, label, depth, path });
+    // root（depth 0）の子は spec.children 直下なので 'children.*'、それ以降は 'path.children.*'。
+    const childBase = depth === 0 ? 'children' : `${path}.children`;
+    const childInputs = (kids ?? []).map((c, idx) => {
+      const childInput = walk(c.label, c.children, depth + 1, `${childBase}.${idx}`);
       edges.push([id, childInput.id]);
       return childInput;
     });
     return { id, children: childInputs };
   };
 
-  const input = walk(rootLabel, children, 0);
+  const input = walk(rootLabel, children, 0, 'root');
   return { input, flat, edges };
 }
 
@@ -81,6 +85,7 @@ export function buildLogicTree(spec: LogicTreeSpec, isDark: boolean): GraphDocum
       fontSize: isRoot ? 15 : 14,
       fontStyle: isRoot ? 1 : 0,
       borderRadius: 6,
+      metadata: { path: fn.path },
     } satisfies NodeOpts);
   });
 
@@ -112,6 +117,7 @@ export function buildWhyChain(spec: WhyChainSpec, isDark: boolean): GraphDocumen
       fontSize: isProblem ? 15 : 14,
       fontStyle: isProblem ? 1 : 0,
       borderRadius: 8,
+      metadata: { path: isProblem ? 'problem' : `steps.${i - 1}` },
     } satisfies NodeOpts);
   });
 

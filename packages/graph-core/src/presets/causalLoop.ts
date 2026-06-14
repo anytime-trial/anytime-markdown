@@ -66,6 +66,7 @@ export function buildCausalLoop(spec: CausalLoopSpec, isDark: boolean): GraphDoc
       fontColor: pal.text,
       fontSize: 14,
       borderRadius: 28,
+      metadata: { path: `variables.${i}` },
     } satisfies NodeOpts);
   });
 

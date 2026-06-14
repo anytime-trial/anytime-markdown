@@ -41,6 +41,7 @@ export function buildSwot(spec: SwotSpec, isDark: boolean): GraphDocument {
       fontColor: pal.text,
       fontSize: 13,
       borderRadius: 8,
+      metadata: { path: q.key },
     } satisfies NodeOpts);
   });
   return mkDoc('swot', nodes, []);
@@ -81,6 +82,7 @@ export function buildMorphBox(spec: MorphBoxSpec, isDark: boolean): GraphDocumen
         fontSize: 14,
         fontStyle: 1,
         borderRadius: 4,
+        metadata: { path: `parameters.${r}` },
       } satisfies NodeOpts),
     );
     // 選択肢セル（右側に並ぶ）
@@ -94,6 +96,7 @@ export function buildMorphBox(spec: MorphBoxSpec, isDark: boolean): GraphDocumen
           fontColor: pal.text,
           fontSize: 13,
           borderRadius: 4,
+          metadata: { path: `parameters.${r}.options.${c}` },
         } satisfies NodeOpts),
       );
     });
@@ -145,6 +148,7 @@ export function buildAffinity(spec: AffinitySpec, isDark: boolean): GraphDocumen
         fontSize: 14,
         fontStyle: 1,
         borderRadius: 6,
+        metadata: { path: `groups.${i}` },
       } satisfies NodeOpts),
     );
     y += HEADER_H + 10;
@@ -158,6 +162,7 @@ export function buildAffinity(spec: AffinitySpec, isDark: boolean): GraphDocumen
           strokeWidth: 1,
           fontColor: pal.text,
           fontSize: 12,
+          metadata: { path: `groups.${i}.notes.${n}` },
         } satisfies NodeOpts),
       );
       y += NOTE_H + 8;
