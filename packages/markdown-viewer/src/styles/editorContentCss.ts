@@ -152,14 +152,25 @@ export function buildEditorContentCss(isDark: boolean): string {
 /* === 基本（旧 editorStyles.getEditorPaperSx） =================================== */
 ${SCOPE} [data-am-content] {
   background: var(--am-editor-outer-bg, ${getEditorBg(isDark)});
+}
+/* スクロールバー（仕様6章）: 外側コンテナ [data-am-content] と .tiptap 配下の全スクロール容器
+   （コードブロック pre・図/数式プレビュー・テーブル等）で幅 4px に統一し、箇所により不揃いに
+   しない。.tiptap 外の意図的非表示（MergeEditor 等）には影響させない。 */
+${SCOPE} [data-am-content],
+${SCOPE} .tiptap * {
   scrollbar-width: thin;
   scrollbar-color: ${scrollThumb} transparent;
 }
-${SCOPE} [data-am-content]::-webkit-scrollbar { width: 4px; height: 4px; }
-${SCOPE} [data-am-content]::-webkit-scrollbar-track { background: transparent; }
-${SCOPE} [data-am-content]::-webkit-scrollbar-thumb { background: ${scrollThumb}; border-radius: ${scrollRadius}; }
-${SCOPE} [data-am-content]::-webkit-scrollbar-thumb:hover { background: ${scrollThumbHover};${isDark ? " box-shadow: 0 0 6px rgba(232,160,18,0.35);" : ""} }
-${SCOPE} [data-am-content]::-webkit-scrollbar-thumb:active { background: ${scrollThumbActive}; }
+${SCOPE} [data-am-content]::-webkit-scrollbar,
+${SCOPE} .tiptap *::-webkit-scrollbar { width: 4px; height: 4px; }
+${SCOPE} [data-am-content]::-webkit-scrollbar-track,
+${SCOPE} .tiptap *::-webkit-scrollbar-track { background: transparent; }
+${SCOPE} [data-am-content]::-webkit-scrollbar-thumb,
+${SCOPE} .tiptap *::-webkit-scrollbar-thumb { background: ${scrollThumb}; border-radius: ${scrollRadius}; }
+${SCOPE} [data-am-content]::-webkit-scrollbar-thumb:hover,
+${SCOPE} .tiptap *::-webkit-scrollbar-thumb:hover { background: ${scrollThumbHover};${isDark ? " box-shadow: 0 0 6px rgba(232,160,18,0.35);" : ""} }
+${SCOPE} [data-am-content]::-webkit-scrollbar-thumb:active,
+${SCOPE} .tiptap *::-webkit-scrollbar-thumb:active { background: ${scrollThumbActive}; }
 ${SCOPE} .tiptap {
   position: relative;
   max-width: var(--am-editor-measure, 1000px);
