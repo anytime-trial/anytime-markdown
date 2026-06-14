@@ -45,6 +45,12 @@ export interface CreateCodeBlockEditDialogOptions {
    * テーマ依存の描画に対応できるよう isDark を渡す。
    */
   renderPreviewHtml?: (code: string, isDark: boolean) => string;
+  /**
+   * renderPreview = true 時、プレビュー HTML 設定直後に呼ばれる汎用フック。
+   * 描画済みプレビュー要素へ操作層（WYSIWYG ハンドラ等）を装着するために使う。
+   * 戻り値のクリーンアップ関数は次回 render 前・dialog 破棄時に呼ばれる。
+   */
+  onPreviewRendered?: (previewEl: HTMLElement, isDark: boolean) => (() => void) | void;
   state: CodeEditState;
   t: (key: string) => string;
   onClose: () => void;
@@ -176,13 +182,20 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
   split.el.style.flex = "1 1 auto";
 
   // ---- 状態同期 ----
+  let previewCleanup: (() => void) | void;
   function render(): void {
     lnt.update({ value: state.getFsCode(), isDark, fontSize, lineHeight });
     header.update({ dirty: state.isFsDirty() });
     if (previewEl) {
+      // 前回装着した操作層を破棄してから再描画する（ハンドラ・ポップオーバーの宙吊り防止）。
+      if (previewCleanup) {
+        previewCleanup();
+        previewCleanup = undefined;
+      }
       previewEl.innerHTML = opts.renderPreviewHtml
         ? opts.renderPreviewHtml(state.getFsCode(), isDark)
         : buildHighlightHtml(state.getFsCode(), language);
+      previewCleanup = opts.onPreviewRendered?.(previewEl, isDark);
     }
   }
 
@@ -194,6 +207,10 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
   return {
     el: dlg.el,
     destroy() {
+      if (previewCleanup) {
+        previewCleanup();
+        previewCleanup = undefined;
+      }
       unsub();
       split.destroy();
       dlg.destroy();

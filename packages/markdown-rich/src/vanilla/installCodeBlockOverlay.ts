@@ -56,6 +56,7 @@ import { buildPlantUmlImageUrl } from "../hooks/usePlantUmlRender";
 import DOMPurify from "dompurify";
 import { GRAPH_SVG_SANITIZE_CONFIG } from "../utils/graphSvgSanitize";
 import { renderAnytimeGraphPreviewHtml } from "./anytimeGraphPreview";
+import { attachAnytimeGraphInteractions } from "./anytimeGraphInteract";
 import { createCodeEditState } from "./codeEditState";
 import { captureDiagramPng, exportDiagramSource } from "./diagramCapture";
 import { createCodeBlockEditDialog } from "./createCodeBlockEditDialog";
@@ -415,6 +416,17 @@ export function installCodeBlockOverlay(
           renderAnytimeGraphPreviewHtml(code, dark, hint, (svg) =>
             DOMPurify.sanitize(svg, GRAPH_SVG_SANITIZE_CONFIG),
           ),
+        // 編集可能時のみプレビュー上で WYSIWYG 操作（ラベル編集・追加/削除）を有効化する。
+        onPreviewRendered: editor.isEditable
+          ? (previewEl, dark) =>
+              attachAnytimeGraphInteractions({
+                previewEl,
+                getCode: () => editState.getFsCode(),
+                setCode: (dsl) => editState.onFsTextChange(dsl),
+                isDark: dark,
+                t,
+              })
+          : undefined,
         // mermaid と同形式で全10図種をサンプル選択できるようにする。
         customSamples: ANYTIME_GRAPH_SAMPLES,
       });

@@ -18,6 +18,10 @@ const config = {
     // markdown-engine（フレームワーク非依存層）は alias.cjs(vendored)外のため明示マップ。
     // shim 経由でロードされる markdown-viewer の diffEngine が再 export する。
     "^@anytime-markdown/markdown-engine$": "<rootDir>/../markdown-engine/src/index.ts",
+    // graph-core（思考法ダイアグラム）は src を直接公開。node_modules シンボリックリンク経由だと
+    // worktree ではなくメインの packages/graph-core を指すため、兄弟ソースへ明示マップする。
+    "^@anytime-markdown/graph-core$": "<rootDir>/../graph-core/src/index.ts",
+    "^@anytime-markdown/graph-core/(.*)$": "<rootDir>/../graph-core/src/$1",
     // CSS Modules（*.module.css）はクラス名そのものを返す Proxy へ。
     // shim 経由でロードされる markdown-viewer の UI コンポーネント（EditDialogHeader → Button 等）が
     // import するため、markdown-viewer の既存 proxy を共用する。

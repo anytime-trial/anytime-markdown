@@ -7,6 +7,8 @@
  */
 export const GRAPH_SVG_SANITIZE_CONFIG = {
   USE_PROFILES: { svg: true, svgFilters: true },
-  ADD_ATTR: ["xmlns", "style", "class", "viewBox", "font-family", "paint-order", "stroke-width"] as string[],
+  // data-metadata は WYSIWYG 操作層がノードの spec 内位置（path）を読むために保持する。
+  // DOMPurify は既定で data-* を許容するが、設定の明示化のため ADD_ATTR にも含める。
+  ADD_ATTR: ["xmlns", "style", "class", "viewBox", "font-family", "paint-order", "stroke-width", "data-metadata"] as string[],
   FORBID_TAGS: ["script", "iframe", "object", "embed", "foreignObject"] as string[],
 };
