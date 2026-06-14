@@ -110,7 +110,10 @@ function prerenderAnytimeGraphLight(): MermaidReplacement[] {
     const codeEl = wrapper.querySelector("code");
     const code = codeEl?.textContent?.trim();
     if (!code) continue;
-    // language クラスがあれば anytime-graph 以外を除外（無ければ DSL 解析の成否で判定）
+    // language クラスがあれば anytime-graph 以外を早期除外する。
+    // ここに到達するのは role=img かつ <svg> を持つブロックのみ（= mermaid か anytime-graph）。
+    // plantuml は <img> なので対象外、通常コードブロックは preview SVG を持たない。
+    // language クラスが無い場合は DSL 解析の成否で判定する（mermaid コードは type: 行が無く弾かれる）。
     const lang = /language-([\w-]+)/.exec(codeEl?.className ?? "")?.[1];
     if (lang && lang !== "anytime-graph") continue;
     try {
@@ -121,8 +124,13 @@ function prerenderAnytimeGraphLight(): MermaidReplacement[] {
       );
       // imgBox 直下を丸ごと差し替える（innerDiv=imgBox）
       replacements.push({ innerDiv: imgBox, lightHtml: lightSvg, originalHTML: imgBox.innerHTML, imgBox });
-    } catch {
-      // anytime-graph 以外、または不正な DSL はスキップ
+    } catch (err) {
+      // anytime-graph 以外（mermaid 等）または不正な DSL はスキップする。
+      // silent catch 禁止: 不正 DSL のデバッグ手がかりを残す（Web アプリの印刷経路のため console で許容）。
+      console.warn(
+        "[prepareDarkDiagramsForPrint] anytime-graph のライト化をスキップ:",
+        err instanceof Error ? err.message : String(err),
+      );
     }
   }
   return replacements;

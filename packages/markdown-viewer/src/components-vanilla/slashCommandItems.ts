@@ -148,6 +148,9 @@ function insertThinkingDiagram(editor: Editor, template: string): void {
     .run();
 }
 
+// 主要6図種のみスラッシュメニューに掲載しメニュー肥大化を避ける。
+// 残り4図種（double-diamond / why-chain / morph-box / affinity）はパーサ・レンダラ・
+// i18n ラベルともに実装済みで、フェンス本文に DSL を手書きすれば利用できる。
 const THINKING_DIAGRAM_ITEMS: readonly VanillaSlashCommandItem[] = [
   {
     id: "think-fishbone",

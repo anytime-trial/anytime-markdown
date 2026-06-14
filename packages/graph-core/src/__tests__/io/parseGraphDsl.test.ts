@@ -104,6 +104,14 @@ describe('parseGraphDsl', () => {
     it('mindmap で root 欠落', () => {
       expect(() => parseGraphDsl('type: mindmap\n- a')).toThrow(/root/);
     });
+    it('causal-loop の自己参照は明示エラー', () => {
+      expect(() => parseGraphDsl('type: causal-loop\n在庫 -> 在庫: +')).toThrow(/自己参照/);
+    });
+  });
+
+  it('図種名のスペース表記も解決する（causal loop / mind map）', () => {
+    expect(parseGraphDsl('type: causal loop\na -> b: +').type).toBe('causal-loop');
+    expect(parseGraphDsl('type: mind map\nroot: r\n- a').type).toBe('mindmap');
   });
 });
 

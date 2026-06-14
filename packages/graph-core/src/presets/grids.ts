@@ -64,7 +64,8 @@ export function buildMorphBox(spec: MorphBoxSpec, isDark: boolean): GraphDocumen
   const labelW = 180;
   const optW = 150;
   const cellH = 60;
-  const gap = 0;
+  const labelGap = 14; // 見出し列と選択肢列の間隔(px)
+  const optGap = 8; // 選択肢セル間の間隔(px)
   const nodes: GraphNode[] = [];
 
   spec.parameters.forEach((param, r) => {
@@ -84,7 +85,7 @@ export function buildMorphBox(spec: MorphBoxSpec, isDark: boolean): GraphDocumen
     );
     // 選択肢セル（右側に並ぶ）
     param.options.forEach((opt, c) => {
-      const x = labelW + 14 + c * (optW + gap + 8);
+      const x = labelW + labelGap + c * (optW + optGap);
       nodes.push(
         mkNode(`opt-${r}-${c}`, 'rect', { x, y, width: optW, height: cellH }, opt, {
           fill: pal.surface,

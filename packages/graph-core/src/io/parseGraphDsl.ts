@@ -123,9 +123,14 @@ function parseIndentTree(lines: string[]): TreeNodeSpec[] {
   return roots;
 }
 
+/** スペース・ハイフンを無視した正規化キーで図種エイリアスを引く。 */
+const NORMALIZED_TYPE_ALIASES: Map<string, ThinkingDiagramType> = new Map(
+  Object.entries(TYPE_ALIASES).map(([k, v]) => [k.replace(/[\s-]+/g, ''), v]),
+);
+
 function normalizeType(rawType: string): ThinkingDiagramType {
-  const key = rawType.toLowerCase().replace(/\s+/g, '');
-  const direct = TYPE_ALIASES[rawType.toLowerCase()] ?? TYPE_ALIASES[key];
+  const key = rawType.toLowerCase().replace(/[\s-]+/g, '');
+  const direct = NORMALIZED_TYPE_ALIASES.get(key);
   if (!direct) {
     const known = Array.from(new Set(Object.values(TYPE_ALIASES))).join(', ');
     throw new GraphDslError(`未知の図種 "${rawType}" です。利用可能: ${known}`);
@@ -176,7 +181,12 @@ export function parseGraphDsl(text: string): ThinkingDiagramSpec {
         if (!m) {
           throw new GraphDslError(`リンク行を解釈できません: "${t}"（例: "在庫 -> 出荷: +"）`);
         }
-        links.push({ from: m[1].trim(), to: m[2].trim(), polarity: polarityMap[m[3]] });
+        const from = m[1].trim();
+        const to = m[2].trim();
+        if (from === to) {
+          throw new GraphDslError(`自己参照リンクは未対応です: "${t}"（異なる変数を指定してください）`);
+        }
+        links.push({ from, to, polarity: polarityMap[m[3]] });
       }
       if (links.length === 0) {
         throw new GraphDslError('causal-loop には "A -> B: +" 形式のリンクを1つ以上記述してください');
