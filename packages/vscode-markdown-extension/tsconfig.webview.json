@@ -13,6 +13,7 @@
 			"@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"],
 			"@anytime-markdown/markdown-core": ["../markdown-core/core/src/index.ts"],
 			"@anytime-markdown/markdown-engine": ["../markdown-engine/src/index.ts"],
+			"@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
 			"@anytime-markdown/markdown-core/*": ["../markdown-core/core/src/*"],
 			"@anytime-markdown/markdown-pm/*": ["../markdown-core/pm/*/index.ts"],
 			"@anytime-markdown/markdown-starter-kit": ["../markdown-core/starter-kit/src/index.ts"],

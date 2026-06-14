@@ -52,6 +52,20 @@
         "title": "%command.openEditorWithFile%"
       },
       {
+        "command": "anytime-markdown.selectNoteGraphRepository",
+        "title": "%command.selectNoteGraphRepository%",
+        "icon": "$(repo)"
+      },
+      {
+        "command": "anytime-markdown.refreshNoteGraph",
+        "title": "%command.refreshNoteGraph%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "anytime-markdown.addRelatedDoc",
+        "title": "%command.addRelatedDoc%"
+      },
+      {
         "command": "anytime-markdown.compareWithMarkdownEditor",
         "title": "%command.compareWithMarkdownEditor%",
         "enablement": "activeCustomEditorId == anytimeMarkdown"
@@ -93,6 +107,11 @@
         {
           "id": "anytimeMarkdown.timeline",
           "name": "Timeline"
+        },
+        {
+          "id": "anytimeMarkdown.noteGraph",
+          "name": "%view.noteGraph.name%",
+          "type": "webview"
         }
       ]
     },
@@ -181,6 +200,11 @@
           "type": "string",
           "default": "",
           "description": "%configuration.claudeStatus.directory.description%"
+        },
+        "anytimeMarkdown.noteGraph.repositoryPath": {
+          "type": "string",
+          "default": "",
+          "description": "%configuration.noteGraph.repositoryPath.description%"
         }
       }
     },
@@ -306,6 +330,7 @@
     "webpack-cli": "6.0.1"
   },
   "dependencies": {
+    "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/markdown-viewer": "*",
     "@anytime-markdown/markdown-rich": "*",
     "@anytime-markdown/vscode-common": "*",
