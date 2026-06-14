@@ -3,6 +3,8 @@ import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { resolveLocale } from '@anytime-markdown/vscode-common';
+import { resolveRepositoryRoot, scanRepository, resolveDocPath } from '../noteGraph/scan';
+import { addRelatedEntry } from '../noteGraph/frontmatter';
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
 
@@ -773,6 +775,64 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
+    // === ノート網パネル（エディタ右パネル）の host 配線 ======================
+    const noteGraphRoot = (): string | null => {
+      const configPath =
+        vscode.workspace.getConfiguration('anytimeMarkdown').get<string>('noteGraph.repositoryPath', '') ?? '';
+      return resolveRepositoryRoot(configPath, path.dirname(document.uri.fsPath));
+    };
+    const ngLog = (line: string): void => this.logLine?.(line);
+    const sendNoteGraphDocs = async (): Promise<void> => {
+      const root = noteGraphRoot();
+      if (!root) return;
+      try {
+        const docs = await scanRepository(root, ngLog);
+        webviewPanel.webview.postMessage({ type: 'setNoteGraphDocs', docs });
+      } catch (err) {
+        ngLog(`[${new Date().toISOString()}] [ERROR] [noteGraph] scan failed: ${String(err)}`);
+      }
+    };
+    const openNoteGraphDoc = async (relPath: string): Promise<void> => {
+      const root = noteGraphRoot();
+      if (!root) return;
+      let uri: vscode.Uri;
+      try {
+        uri = vscode.Uri.file(resolveDocPath(root, relPath));
+      } catch (err) {
+        ngLog(`[noteGraph] openDoc rejected: ${relPath} ${String(err)}`);
+        return;
+      }
+      try {
+        await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType);
+      } catch (err) {
+        ngLog(`[noteGraph] openWith failed (falling back): ${relPath} ${String(err)}`);
+        await vscode.window.showTextDocument(uri).then(undefined, (e) =>
+          ngLog(`[noteGraph] openDoc failed: ${relPath} ${String(e)}`),
+        );
+      }
+    };
+    const connectNoteGraph = async (from: string, to: string): Promise<void> => {
+      if (from === to) return;
+      const root = noteGraphRoot();
+      if (!root) return;
+      let fromPath: string;
+      try {
+        fromPath = resolveDocPath(root, from);
+      } catch (err) {
+        ngLog(`[noteGraph] connect rejected: ${from} ${String(err)}`);
+        return;
+      }
+      try {
+        const content = await fs.promises.readFile(fromPath, 'utf8');
+        const next = addRelatedEntry(content, to);
+        if (next !== content) await fs.promises.writeFile(fromPath, next, 'utf8');
+        await sendNoteGraphDocs();
+      } catch (err) {
+        ngLog(`[noteGraph] connect failed: ${from} -> ${to} ${String(err)}`);
+        void vscode.window.showErrorMessage(`関連付けに失敗しました: ${from}`);
+      }
+    };
+
     webviewPanel.webview.onDidReceiveMessage(async (message: { type: string; [key: string]: unknown }) => {
       switch (message.type) {
         case 'ready': handleReady(message); break;
@@ -806,6 +866,15 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         case 'fetchOgp': await handleFetchOgp(message); break;
         case 'fetchOembed': await handleFetchOembed(message); break;
         case 'fetchRss': await handleFetchRss(message); break;
+        case 'requestNoteGraphDocs': await sendNoteGraphDocs(); break;
+        case 'noteGraphOpenDoc':
+          if (typeof message.path === 'string') await openNoteGraphDoc(message.path);
+          break;
+        case 'noteGraphConnect':
+          if (typeof message.from === 'string' && typeof message.to === 'string') {
+            await connectNoteGraph(message.from, message.to);
+          }
+          break;
       }
     });
 

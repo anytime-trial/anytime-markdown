@@ -27,11 +27,6 @@ const extensionConfig = {
     extensions: ['.ts', '.js'],
     // TypeScript Node16 mode uses .js extensions in imports; resolve them as .ts first.
     extensionAlias: { '.js': ['.ts', '.js'] },
-    alias: {
-      // 型のみ参照（import type）だが、worktree の node_modules symlink が main checkout を
-      // 指すため、当該 worktree の graph-core src へ alias で固定する。
-      '@anytime-markdown/graph-core': path.resolve(__dirname, '../graph-core/src/index.ts'),
-    },
   },
   module: {
     rules: [
@@ -135,18 +130,4 @@ const webviewConfig = {
   devtool: 'nosources-source-map',
 };
 
-/**
- * ノート網ビューア用の独立 webview バンドル（graph-core 描画のみ・軽量）。
- * markdown エディタ webview と resolve/module/plugins を共有する。
- * @type WebpackConfig
- */
-const noteGraphWebviewConfig = {
-  ...webviewConfig,
-  entry: './src/webview/noteGraph/index.ts',
-  output: {
-    path: path.resolve(__dirname, 'dist'),
-    filename: 'noteGraph.js',
-  },
-};
-
-module.exports = [extensionConfig, webviewConfig, noteGraphWebviewConfig];
+module.exports = [extensionConfig, webviewConfig];

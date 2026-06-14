@@ -29,6 +29,7 @@ import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/
 
 import { getVsCodeApi } from './vscodeApi';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
+import { createNoteGraphPanel, type NoteGraphPanelHandle } from './noteGraph/panel';
 
 const vscode = getVsCodeApi();
 // markdown-core の EditorContextMenu 等から VS Code API にアクセスするため公開
@@ -284,6 +285,20 @@ function handleCompareModeChange(active: boolean): void {
   }
 }
 
+// ノート網パネル（エディタ右パネル・ホスト所有）。remount をまたいで再利用する。
+let noteGraphPanel: NoteGraphPanelHandle | null = null;
+function getNoteGraphPanel(): NoteGraphPanelHandle {
+  if (!noteGraphPanel) {
+    noteGraphPanel = createNoteGraphPanel({
+      t: createMarkdownT('MarkdownEditor', state.locale),
+      onOpenDoc: (path) => vscode.postMessage({ type: 'noteGraphOpenDoc', path }),
+      onConnect: (from, to) => vscode.postMessage({ type: 'noteGraphConnect', from, to }),
+      onRefresh: () => vscode.postMessage({ type: 'requestNoteGraphDocs' }),
+    });
+  }
+  return noteGraphPanel;
+}
+
 /** orchestrator の mount オプション（旧 VanillaMarkdownEditorMount の JSX props 相当）。 */
 function buildMountOptions() {
   return {
@@ -291,6 +306,10 @@ function buildMountOptions() {
     locale: state.locale,
     hideToolbar: true,
     sideToolbar: true,
+    noteGraph: {
+      element: getNoteGraphPanel().element,
+      onOpen: () => vscode.postMessage({ type: 'requestNoteGraphDocs' }),
+    },
     hide: { settings: true },
     hideStatusBar: true,
     readOnly: state.claudeEditing,
@@ -528,6 +547,11 @@ function handleMessage(event: MessageEvent): void {
       return;
     case 'setContent':
       if (typeof message.content === 'string') handleSetContent(message);
+      return;
+    case 'setNoteGraphDocs':
+      if (Array.isArray(message.docs)) {
+        getNoteGraphPanel().setDocs({ docs: message.docs, isDark: state.themeMode === 'dark' });
+      }
       return;
   }
 }
