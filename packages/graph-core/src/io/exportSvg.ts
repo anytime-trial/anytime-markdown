@@ -7,7 +7,36 @@ import {
 } from '../theme';
 import { escapeXml } from './utils';
 
-function renderNodeSvg(node: GraphNode, gradFill?: string): string {
+/**
+ * SVG テキストをノード幅に合わせて行に折り返す（純粋・文字幅推定ベース）。
+ * 明示的な改行を尊重し、空白を含む英文は単語単位、CJK 等は文字単位で折り返す。
+ */
+function wrapSvgText(text: string, width: number, fontSize: number): string[] {
+  const explicit = text.split('\n');
+  const maxChars = Math.max(1, Math.floor((width - 16) / (fontSize * 0.62)));
+  const out: string[] = [];
+  for (const seg of explicit) {
+    if (seg.length <= maxChars) { out.push(seg); continue; }
+    const hasSpaces = /\s/.test(seg.trim());
+    if (hasSpaces) {
+      let line = '';
+      for (const word of seg.split(/(\s+)/)) {
+        if ((line + word).trim().length > maxChars && line.trim()) {
+          out.push(line.trim());
+          line = word;
+        } else {
+          line += word;
+        }
+      }
+      if (line.trim()) out.push(line.trim());
+    } else {
+      for (let i = 0; i < seg.length; i += maxChars) out.push(seg.slice(i, i + maxChars));
+    }
+  }
+  return out.length ? out : [''];
+}
+
+function renderNodeSvg(node: GraphNode, gradFill?: string, textColor: string = COLOR_TEXT_PRIMARY): string {
   const { id, type, x, y, width: w, height: h, text, style } = node;
   const lines: string[] = [];
   const fill = gradFill ?? escapeXml(style.fill);
@@ -51,7 +80,16 @@ function renderNodeSvg(node: GraphNode, gradFill?: string): string {
   }
 
   if (text) {
-    lines.push(`<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" fill="${COLOR_TEXT_PRIMARY}" font-size="${style.fontSize}" font-family="${FONT_FAMILY}">${escapeXml(text)}</text>`);
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const fontColor = escapeXml(style.fontColor ?? textColor);
+    const lineHeight = style.fontSize * 1.25;
+    const wrapped = wrapSvgText(text, w, style.fontSize);
+    const startY = cy - ((wrapped.length - 1) * lineHeight) / 2;
+    const tspans = wrapped
+      .map((ln, i) => `<tspan x="${cx}" y="${startY + i * lineHeight}">${escapeXml(ln)}</tspan>`)
+      .join('');
+    lines.push(`<text text-anchor="middle" dominant-baseline="central" fill="${fontColor}" font-size="${style.fontSize}" font-family="${FONT_FAMILY}">${tspans}</text>`);
   }
 
   lines.push('</g>');
@@ -102,10 +140,11 @@ function renderArrowMarker(
   lines.push(`<polygon points="${last.x},${last.y} ${x1},${y1} ${x2},${y2}" fill="${stroke}"/>`);
 }
 
-function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[]): string {
+function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[], textColor: string = COLOR_TEXT_PRIMARY): string {
   const { id, style } = edge;
   const stroke = escapeXml(style.stroke);
   const sw = style.strokeWidth;
+  const dashAttr = style.dashed ? ' stroke-dasharray="6 4"' : '';
   const lines: string[] = [];
   lines.push(`<g id="${escapeXml(id)}">`);
 
@@ -113,18 +152,38 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[]): string {
 
   if (points.length >= 2) {
     const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-    lines.push(`<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${sw}"/>`);
+    lines.push(`<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${sw}"${dashAttr}/>`);
   } else {
-    lines.push(`<line x1="${edge.from.x}" y1="${edge.from.y}" x2="${edge.to.x}" y2="${edge.to.y}" stroke="${stroke}" stroke-width="${sw}"/>`);
+    lines.push(`<line x1="${edge.from.x}" y1="${edge.from.y}" x2="${edge.to.x}" y2="${edge.to.y}" stroke="${stroke}" stroke-width="${sw}"${dashAttr}/>`);
   }
 
   renderArrowMarker(lines, points, edge, stroke);
+
+  if (edge.label) {
+    let mx: number, my: number;
+    if (points.length >= 2) {
+      const mid = points[Math.floor(points.length / 2)];
+      mx = mid.x;
+      my = mid.y;
+    } else {
+      mx = (edge.from.x + edge.to.x) / 2;
+      my = (edge.from.y + edge.to.y) / 2;
+    }
+    lines.push(
+      `<text x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central" fill="${escapeXml(textColor)}" font-size="13" font-family="${FONT_FAMILY}" paint-order="stroke" stroke="${escapeXml(textColor)}" stroke-width="0">${escapeXml(edge.label)}</text>`,
+    );
+  }
 
   lines.push('</g>');
   return lines.join('\n');
 }
 
-export function exportToSvg(doc: GraphDocument): string {
+export function exportToSvg(
+  doc: GraphDocument,
+  opts: { background?: string; textColor?: string } = {},
+): string {
+  const background = opts.background ?? CANVAS_BG;
+  const textColor = opts.textColor ?? COLOR_TEXT_PRIMARY;
   const nodes = doc.nodes;
   const edges = doc.edges;
 
@@ -135,6 +194,14 @@ export function exportToSvg(doc: GraphDocument): string {
     minY = Math.min(minY, n.y);
     maxX = Math.max(maxX, n.x + n.width);
     maxY = Math.max(maxY, n.y + n.height);
+  }
+  // ノードを跨がない線分エッジ（fishbone の骨など）も範囲に含める
+  for (const e of edges) {
+    if (e.from.nodeId && e.to.nodeId) continue;
+    minX = Math.min(minX, e.from.x, e.to.x);
+    minY = Math.min(minY, e.from.y, e.to.y);
+    maxX = Math.max(maxX, e.from.x, e.to.x);
+    maxY = Math.max(maxY, e.from.y, e.to.y);
   }
   if (!Number.isFinite(minX)) { minX = 0; minY = 0; maxX = 800; maxY = 600; }
   const pad = 40;
@@ -172,10 +239,12 @@ export function exportToSvg(doc: GraphDocument): string {
   if (defs.length > 0) {
     parts.push(`<defs>${defs.join('')}</defs>`);
   }
-  parts.push(`<rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="${CANVAS_BG}"/>`);
+  if (background !== 'transparent') {
+    parts.push(`<rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="${escapeXml(background)}"/>`);
+  }
 
-  edges.forEach(e => parts.push(renderEdgeSvg(e, nodes)));
-  nodes.forEach(n => parts.push(renderNodeSvg(n, gradFills.get(n.id))));
+  edges.forEach(e => parts.push(renderEdgeSvg(e, nodes, textColor)));
+  nodes.forEach(n => parts.push(renderNodeSvg(n, gradFills.get(n.id), textColor)));
 
   parts.push('</svg>');
   return parts.join('\n');

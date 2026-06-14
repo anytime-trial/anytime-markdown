@@ -11,6 +11,7 @@ jest.mock("../hooks/useMermaidRender", () => ({
   getCachedMermaidSvg: jest.fn(() => ""),
   requestMermaidRender: jest.fn(),
   detectMermaidType: jest.fn(() => "diagramGeneric"),
+  SVG_SANITIZE_CONFIG: { USE_PROFILES: { svg: true, svgFilters: true, html: true } },
 }));
 jest.mock("../hooks/usePlantUmlRender", () => ({
   buildPlantUmlImageUrl: jest.fn(() => "https://plantuml.example/svg/X"),
@@ -123,5 +124,22 @@ describe("renderCodeBlockPreview", () => {
     el.innerHTML = "old";
     renderCodeBlockPreview(el, "typescript", "const x = 1", ctx, () => {});
     expect(el.childNodes.length).toBe(0);
+  });
+
+  it("anytime-graph は SVG を描画し role=img を付ける", () => {
+    const el = inner();
+    renderCodeBlockPreview(el, "anytime-graph", "type: pyramid\n- 理念\n- 戦略", ctx, () => {});
+    expect(el.getAttribute("role")).toBe("img");
+    expect(el.querySelector("svg")).not.toBeNull();
+    expect(el.innerHTML).toContain("理念");
+  });
+
+  it("anytime-graph の不正 DSL はエラーメッセージを表示する（silent でない）", () => {
+    const el = inner();
+    renderCodeBlockPreview(el, "anytime-graph", "type: fishbone", ctx, () => {});
+    const pre = el.querySelector("pre.anytime-graph-error");
+    expect(pre).not.toBeNull();
+    expect(pre!.textContent).toContain("anytime-graph");
+    expect(el.querySelector("svg")).toBeNull();
   });
 });

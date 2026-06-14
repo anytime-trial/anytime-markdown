@@ -101,7 +101,8 @@ export function createCodeBlockChrome(
 
     // diagram: PNG / ソースのエクスポート（旧 Menu を 2 ボタンに分解）。
     if (kind === "diagram") {
-      const sourceKey = language === "mermaid" ? "exportMmd" : "exportPuml";
+      const sourceKey =
+        language === "mermaid" ? "exportMmd" : language === "anytime-graph" ? "exportGraphSrc" : "exportPuml";
       actions.append(
         mkIconButton(cb.t("exportPng"), ICON.image, () => {
           if (currentPos >= 0) cb.onExport(currentPos);
