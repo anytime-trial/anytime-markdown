@@ -148,74 +148,48 @@ function insertThinkingDiagram(editor: Editor, template: string): void {
     .run();
 }
 
-// 主要6図種のみスラッシュメニューに掲載しメニュー肥大化を避ける。
-// 残り4図種（double-diamond / why-chain / morph-box / affinity）はパーサ・レンダラ・
-// i18n ラベルともに実装済みで、フェンス本文に DSL を手書きすれば利用できる。
+// 思考法ダイアグラムは総称1項目に集約する。図種のバリエーションは挿入後の編集
+// ダイアログ「サンプル」パネルから選択する（mermaid と同じ流儀）。
+// 挿入直後は型未指定スケルトンを置き、autoEditOpen で編集ダイアログが自動で開く。
+const THINKING_DIAGRAM_SKELETON =
+  "# 思考法ダイアグラム — 右のサンプルから図種を選んでください（例: type: fishbone）";
+
 const THINKING_DIAGRAM_ITEMS: readonly VanillaSlashCommandItem[] = [
   {
-    id: "think-fishbone",
-    labelKey: "slashThinkFishbone",
+    id: "anytime-graph",
+    labelKey: "anytimeGraph",
     iconPath: PATH.accountTree,
-    keywords: ["fishbone", "ishikawa", "特性要因図", "なぜ", "原因", "thinking"],
+    keywords: [
+      "anytime-graph",
+      "思考法",
+      "ダイアグラム",
+      "diagram",
+      "thinking",
+      "fishbone",
+      "ishikawa",
+      "特性要因図",
+      "causal",
+      "loop",
+      "因果ループ",
+      "pyramid",
+      "ピラミッド",
+      "mindmap",
+      "マインドマップ",
+      "double-diamond",
+      "logic-tree",
+      "ロジックツリー",
+      "論点",
+      "why",
+      "なぜなぜ",
+      "swot",
+      "morph",
+      "形態分析",
+      "affinity",
+      "親和図",
+      "kj",
+    ],
     action: (editor) => {
-      insertThinkingDiagram(
-        editor,
-        "type: fishbone\nproblem: 問題を記述\n- 人: 要因A, 要因B\n- 方法: 要因C\n- 設備: 要因D\n- 材料: 要因E",
-      );
-    },
-  },
-  {
-    id: "think-causal-loop",
-    labelKey: "slashThinkCausalLoop",
-    iconPath: PATH.schema,
-    keywords: ["causal", "loop", "cld", "因果ループ", "システム思考", "thinking"],
-    action: (editor) => {
-      insertThinkingDiagram(editor, "type: causal-loop\nA -> B: +\nB -> C: -\nC -> A: +");
-    },
-  },
-  {
-    id: "think-pyramid",
-    labelKey: "slashThinkPyramid",
-    iconPath: PATH.accountTree,
-    keywords: ["pyramid", "抽象度", "ピラミッド", "メタ思考", "thinking"],
-    action: (editor) => {
-      insertThinkingDiagram(editor, "type: pyramid\n- 理念\n- 戦略\n- 戦術\n- 実行");
-    },
-  },
-  {
-    id: "think-mindmap",
-    labelKey: "slashThinkMindmap",
-    iconPath: PATH.accountTree,
-    keywords: ["mindmap", "マインドマップ", "放射", "ラテラル", "thinking"],
-    action: (editor) => {
-      insertThinkingDiagram(
-        editor,
-        "type: mindmap\nroot: 中心テーマ\n- ブランチ1\n  - 子1\n  - 子2\n- ブランチ2\n- ブランチ3",
-      );
-    },
-  },
-  {
-    id: "think-logic-tree",
-    labelKey: "slashThinkLogicTree",
-    iconPath: PATH.accountTree,
-    keywords: ["logic", "issue", "tree", "ロジックツリー", "論点", "thinking"],
-    action: (editor) => {
-      insertThinkingDiagram(
-        editor,
-        "type: logic-tree\nroot: 論点\n- 要素A\n  - 詳細A1\n  - 詳細A2\n- 要素B",
-      );
-    },
-  },
-  {
-    id: "think-swot",
-    labelKey: "slashThinkSwot",
-    iconPath: PATH.schema,
-    keywords: ["swot", "強み", "弱み", "機会", "脅威", "thinking"],
-    action: (editor) => {
-      insertThinkingDiagram(
-        editor,
-        "type: swot\nstrengths: 強み1, 強み2\nweaknesses: 弱み1\nopportunities: 機会1\nthreats: 脅威1",
-      );
+      insertThinkingDiagram(editor, THINKING_DIAGRAM_SKELETON);
     },
   },
 ];

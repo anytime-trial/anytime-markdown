@@ -30,6 +30,7 @@ import {
   nextDialogTitleId,
   parseEmbedInfoString,
   setBlockAttrs,
+  ANYTIME_GRAPH_SAMPLES,
 } from "@anytime-markdown/markdown-viewer";
 import {
   findCodeBlockByIndex,
@@ -53,8 +54,8 @@ import htmlSamples from "../constants/htmlSamples.json";
 import { getCachedMermaidSvg, requestMermaidRender } from "../hooks/useMermaidRender";
 import { buildPlantUmlImageUrl } from "../hooks/usePlantUmlRender";
 import DOMPurify from "dompurify";
-import { renderThinkingDiagramSvg, GraphDslError } from "@anytime-markdown/graph-core";
 import { GRAPH_SVG_SANITIZE_CONFIG } from "../utils/graphSvgSanitize";
+import { renderAnytimeGraphPreviewHtml } from "./anytimeGraphPreview";
 import { createCodeEditState } from "./codeEditState";
 import { captureDiagramPng, exportDiagramSource } from "./diagramCapture";
 import { createCodeBlockEditDialog } from "./createCodeBlockEditDialog";
@@ -404,31 +405,18 @@ export function installCodeBlockOverlay(
       return;
     }
     if (kind === "diagram" && language === "anytime-graph") {
-      const renderGraphPreview = (code: string, dark: boolean): string => {
-        try {
-          let svg = renderThinkingDiagramSvg(code, dark);
-          svg = svg.replace(
-            /(<svg\b[^>]*?)\swidth="[\d.]+"\sheight="[\d.]+"/,
-            '$1 width="100%" style="max-width:100%;height:auto"',
-          );
-          return DOMPurify.sanitize(svg, GRAPH_SVG_SANITIZE_CONFIG);
-        } catch (err) {
-          const msg =
-            err instanceof GraphDslError
-              ? err.message
-              : `anytime-graph: ${err instanceof Error ? err.message : String(err)}`;
-          const escaped = msg.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-          return `<pre class="anytime-graph-error" style="white-space:pre-wrap;color:var(--am-color-text-secondary, #888);font-family:monospace;">${escaped}</pre>`;
-        }
-      };
+      const hint = t("anytimeGraphHint");
       const handle = createCodeBlockEditDialog({
         ...common,
         label: t("anytimeGraph"),
         language: "anytime-graph",
         renderPreview: true,
-        renderPreviewHtml: renderGraphPreview,
-        // 思考法ダイアグラムに無関係な「hello world」コードサンプルを抑制する。
-        customSamples: [],
+        renderPreviewHtml: (code, dark) =>
+          renderAnytimeGraphPreviewHtml(code, dark, hint, (svg) =>
+            DOMPurify.sanitize(svg, GRAPH_SVG_SANITIZE_CONFIG),
+          ),
+        // mermaid と同形式で全10図種をサンプル選択できるようにする。
+        customSamples: ANYTIME_GRAPH_SAMPLES,
       });
       activeDialog = handle;
       return;

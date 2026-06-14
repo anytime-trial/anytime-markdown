@@ -56,6 +56,7 @@ export {
   MATH_SAMPLES,
   MERMAID_SAMPLES,
   PLANTUML_SAMPLES,
+  ANYTIME_GRAPH_SAMPLES,
 } from "../../markdown-viewer/src/constants/samples";
 
 export { FETCH_TIMEOUT } from "../../markdown-viewer/src/constants/timing";
