@@ -69,6 +69,10 @@ import {
 import { createEditorBubbleMenu } from "../components-vanilla/EditorBubbleMenu";
 import { createStatusBar, type StatusInfo } from "../components-vanilla/StatusBar";
 import {
+  createFrontmatterBlock,
+  type FrontmatterBlockHandle,
+} from "../components-vanilla/FrontmatterBlock";
+import {
   createSlashCommandMenu,
   type VanillaSlashCommandItem,
 } from "../components-vanilla/SlashCommandMenu";
@@ -252,13 +256,11 @@ function buildLayout(): VanillaLayout {
   toolbarSlot.setAttribute("data-am-toolbar-slot", "");
   toolbarSlot.style.flexShrink = "0";
 
-  // フロントマター表示ブロック（showFrontmatter 時のみ表示）。
-  const frontmatterEl = document.createElement("pre");
-  frontmatterEl.setAttribute("data-am-frontmatter", "");
-  frontmatterEl.style.cssText =
-    "display:none;flex-shrink:0;margin:0;padding:8px 16px;overflow:auto;max-height:160px;" +
-    "font-size:12px;color:var(--am-color-text-secondary);" +
-    "border-bottom:1px solid var(--am-color-divider);white-space:pre-wrap;";
+  // フロントマターブロックのマウントスロット（showFrontmatter 時のみ表示）。
+  // 折りたたみ/編集/削除可能な FrontmatterBlock を後段でこの中へ append する。
+  const frontmatterEl = document.createElement("div");
+  frontmatterEl.setAttribute("data-am-frontmatter-slot", "");
+  frontmatterEl.style.cssText = "display:none;flex-shrink:0;padding:8px 16px 0;";
 
   // content + sidebar を横並びにする行。
   const mainRow = document.createElement("div");
@@ -387,15 +389,16 @@ export function mountVanillaMarkdownEditor(
   const initialTrailingNewline = raw.endsWith("\n");
   const pre = preprocessMarkdown(raw);
   let frontmatter: string | null = pre.frontmatter;
+  // FrontmatterBlock は editor 構築後に生成・マウントされる（onChange が保存を要するため）。
+  let frontmatterBlock: FrontmatterBlockHandle | null = null;
 
+  // スロット自体の表示は showFrontmatter で制御し、ブロックは frontmatter==null で自己非表示。
   const syncFrontmatterView = (): void => {
-    const visible = current.showFrontmatter === true && frontmatter != null;
-    frontmatterEl.style.display = visible ? "" : "none";
-    if (visible) frontmatterEl.textContent = frontmatter;
+    frontmatterEl.style.display = current.showFrontmatter === true ? "" : "none";
   };
   const setFrontmatter = (value: string | null): void => {
     frontmatter = value;
-    syncFrontmatterView();
+    frontmatterBlock?.setValue(value);
   };
   syncFrontmatterView();
 
@@ -596,6 +599,28 @@ export function mountVanillaMarkdownEditor(
       editor.on("update", onDirtyUpdate);
       disposers.push(() => editor.off("update", onDirtyUpdate));
 
+      // === FrontmatterBlock（折りたたみ/編集/削除可能・React FrontmatterBlock 相当） =====
+      frontmatterBlock = createFrontmatterBlock({
+        initial: frontmatter,
+        readOnly: readonlyNow() || modeState.reviewMode === true,
+        defaultCollapsed: true,
+        t,
+        confirm: current.confirm,
+        onChange: (value) => {
+          // ユーザー入力で textarea 側は既に更新済み。var を同期し本文と一緒に保存する
+          // （prependFrontmatter は最新の frontmatter var を参照する）。block.setValue は
+          // 呼ばない（入力ループ回避）。
+          frontmatter = value;
+          fileOps.markDirty();
+          saveContent(() => getMarkdownFromEditorSafe(editor));
+        },
+      });
+      layout.frontmatterEl.appendChild(frontmatterBlock.el);
+      disposers.push(() => {
+        frontmatterBlock?.destroy();
+        frontmatterBlock = null;
+      });
+
       // H-03: 未保存変更の beforeunload 警告（React useEditorSideEffects 相当）。
       const onBeforeUnload = (e: BeforeUnloadEvent): void => {
         if (fileOps.isDirty()) e.preventDefault();
@@ -766,6 +791,7 @@ export function mountVanillaMarkdownEditor(
           sourceMode: modeState.sourceMode,
           sourceText: sourceController?.getSourceText(),
         });
+        frontmatterBlock?.setReadOnly(readonlyNow() || modeState.reviewMode === true);
         syncOutlinePanel();
         syncCommentPanel();
         notifyMode();
@@ -1064,6 +1090,14 @@ export function mountVanillaMarkdownEditor(
         );
       }
       disposers.push(installFrontmatterStorage(editor, () => frontmatter, setFrontmatter));
+      // スラッシュコマンド（/frontmatter）が折りたたみ状態でも展開してフォーカスできるよう、
+      // storage.frontmatter に focusEditor を生やす（installFrontmatterStorage の get/set に追加）。
+      {
+        const fmStorage = editorStorage.frontmatter as
+          | { focusEditor?: () => void }
+          | undefined;
+        if (fmStorage) fmStorage.focusEditor = () => frontmatterBlock?.expandAndFocus();
+      }
 
       // === autoReload（変更 gutter baseline + Alt+F5 ナビ） =====================
       const autoReloadController = createAutoReloadController(editor);

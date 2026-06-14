@@ -129,9 +129,15 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
       initialContent: "---\ntitle: Test\n---\n\n# Body",
       showFrontmatter: true,
     });
+    const slot = handle.root.querySelector<HTMLElement>("[data-am-frontmatter-slot]");
+    expect(slot?.style.display).not.toBe("none");
     const fm = handle.root.querySelector<HTMLElement>("[data-am-frontmatter]");
-    expect(fm?.style.display).not.toBe("none");
-    expect(fm?.textContent).toContain("title: Test");
+    expect(fm).not.toBeNull();
+    // 折りたたみ既定: ヘッダのみ表示。クリックで展開して textarea に生フロントマターが入る。
+    expect(handle.root.querySelector("[data-frontmatter-editor]")).toBeNull();
+    fm?.querySelector<HTMLElement>("div")?.click();
+    const ta = handle.root.querySelector<HTMLTextAreaElement>("[data-frontmatter-editor]");
+    expect(ta?.value).toContain("title: Test");
     expect(handle.editor.getText()).not.toContain("title: Test");
     handle.destroy();
   });

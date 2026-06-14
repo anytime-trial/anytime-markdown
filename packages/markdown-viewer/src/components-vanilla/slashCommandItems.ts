@@ -422,21 +422,32 @@ export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
     keywords: ["frontmatter", "yaml", "metadata", "メタデータ", "フロントマター"],
     action: (editor) => {
       const storage = getEditorStorage(editor);
-      const fm = storage.frontmatter as { get: () => string | null; set: (v: string | null) => void } | null;
+      const fm = storage.frontmatter as
+        | {
+            get: () => string | null;
+            set: (v: string | null) => void;
+            focusEditor?: () => void;
+          }
+        | null;
       if (!fm) return;
+      // focusEditor は FrontmatterBlock を展開してから textarea へフォーカスする
+      // （折りたたみ時は textarea が DOM に存在しないため document 直 query では効かない）。
+      const focusEditor = (): void => {
+        if (fm.focusEditor) {
+          fm.focusEditor();
+          return;
+        }
+        document.querySelector<HTMLTextAreaElement>("[data-frontmatter-editor]")?.focus();
+      };
       const current = fm.get();
       if (current !== null) {
-        // 既存のフロントマターがある場合は FrontmatterBlock にフォーカス
-        const el = document.querySelector<HTMLTextAreaElement>("[data-frontmatter-editor]");
-        el?.focus();
+        // 既存のフロントマターがある場合は FrontmatterBlock を展開してフォーカス
+        focusEditor();
         return;
       }
       // 空のフロントマターを作成し、テキストエリアにフォーカス
       fm.set("title: ");
-      requestAnimationFrame(() => {
-        const el = document.querySelector<HTMLTextAreaElement>("[data-frontmatter-editor]");
-        el?.focus();
-      });
+      requestAnimationFrame(focusEditor);
     },
   },
   {
