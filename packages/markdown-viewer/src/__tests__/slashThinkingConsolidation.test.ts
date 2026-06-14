@@ -37,7 +37,7 @@ describe("anytime-graph スラッシュ集約", () => {
     }
   });
 
-  it("action は anytime-graph codeBlock を autoEditOpen:true で insertContent する", () => {
+  it("action は anytime-thinking-model codeBlock を autoEditOpen:true で insertContent する", () => {
     const item = DEFAULT_SLASH_ITEMS.find((i) => i.id === "anytime-graph");
     expect(item).toBeDefined();
     const { editor, calls } = createChainEditor();
