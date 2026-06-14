@@ -24,9 +24,5 @@
   "viewsContainer.title": "Anytime Markdown",
   "viewsWelcome.timeline": "履歴を見るには Markdown ファイルを開いてください。",
   "command.compareWithCommit": "このコミットと比較",
-  "view.noteGraph.name": "ノート網",
-  "command.selectNoteGraphRepository": "ノート網: 対象リポジトリを選択",
-  "command.refreshNoteGraph": "ノート網: 再読み込み",
-  "command.addRelatedDoc": "ノート網: 関連ドキュメントを追加",
-  "configuration.noteGraph.repositoryPath.description": "ドキュメント関係グラフの対象 git リポジトリ。絶対パスで指定。空の場合は現在の workspace のリポジトリを使用します（例: ドキュメント用リポジトリのパスを指定）。"
+  "configuration.noteGraph.repositoryPath.description": "ノート網パネルの対象 git リポジトリ。絶対パスで指定。空の場合は現在のドキュメントが属する git リポジトリを使用します（例: ドキュメント用リポジトリのパスを指定）。"
 }

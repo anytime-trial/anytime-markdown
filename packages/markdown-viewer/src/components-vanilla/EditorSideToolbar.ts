@@ -36,6 +36,9 @@ const ICON = {
   // SettingsIcon（設定）
   settings:
     "M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6",
+  // AccountTreeIcon（ノート網 — ドキュメント関係グラフ）
+  accountTree:
+    "M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z",
 } as const;
 
 /** サイドツールバー内アイコンの実寸（px）。SvgIcon fontSize="small"（20px）相当。 */
@@ -59,6 +62,10 @@ export interface CreateEditorSideToolbarOptions {
   onToggleComment: (open: boolean) => void;
   /** エクスプローラトグル。未指定ならボタン自体を描画しない（React 版と同一）。 */
   onToggleExplorer?: () => void;
+  /** ノート網トグル。未指定ならボタン自体を描画しない（ホスト所有パネル提供時のみ）。 */
+  onToggleNoteGraph?: () => void;
+  /** 初期: ノート網パネル開状態。 */
+  noteGraphOpen?: boolean;
   /** 設定オープン。未指定ならボタン自体を描画しない（React 版と同一）。 */
   onOpenSettings?: () => void;
 }
@@ -69,6 +76,7 @@ export interface EditorSideToolbarState {
   outlineOpen?: boolean;
   commentOpen?: boolean;
   explorerOpen?: boolean;
+  noteGraphOpen?: boolean;
 }
 
 /** {@link createEditorSideToolbar} の戻り値。 */
@@ -110,13 +118,14 @@ export function createEditorSideToolbar(
   const state: Required<
     Pick<
       EditorSideToolbarState,
-      "sourceMode" | "outlineOpen" | "commentOpen" | "explorerOpen"
+      "sourceMode" | "outlineOpen" | "commentOpen" | "explorerOpen" | "noteGraphOpen"
     >
   > = {
     sourceMode: opts.sourceMode ?? false,
     outlineOpen: opts.outlineOpen ?? false,
     commentOpen: opts.commentOpen ?? false,
     explorerOpen: opts.explorerOpen ?? false,
+    noteGraphOpen: opts.noteGraphOpen ?? false,
   };
 
   const root = document.createElement("div");
@@ -183,6 +192,7 @@ export function createEditorSideToolbar(
       } else {
         opts.onToggleComment(false);
         if (state.explorerOpen) opts.onToggleExplorer?.();
+        if (state.noteGraphOpen) opts.onToggleNoteGraph?.();
         opts.onToggleOutline?.();
       }
     },
@@ -198,6 +208,7 @@ export function createEditorSideToolbar(
       } else {
         if (state.outlineOpen) opts.onToggleOutline?.();
         if (state.explorerOpen) opts.onToggleExplorer?.();
+        if (state.noteGraphOpen) opts.onToggleNoteGraph?.();
         opts.onToggleComment(true);
       }
     },
@@ -215,7 +226,27 @@ export function createEditorSideToolbar(
         } else {
           if (state.outlineOpen) opts.onToggleOutline?.();
           opts.onToggleComment(false);
+          if (state.noteGraphOpen) opts.onToggleNoteGraph?.();
           opts.onToggleExplorer?.();
+        }
+      },
+    });
+  }
+
+  // --- ノート網（callback 未指定なら描画しない＝ホスト所有パネル提供時のみ） ---
+  let noteGraphItem: ToolbarItem | undefined;
+  if (opts.onToggleNoteGraph) {
+    noteGraphItem = addItem({
+      label: t("noteGraph"),
+      iconPath: ICON.accountTree,
+      onClick: () => {
+        if (state.noteGraphOpen) {
+          opts.onToggleNoteGraph?.();
+        } else {
+          if (state.outlineOpen) opts.onToggleOutline?.();
+          opts.onToggleComment(false);
+          if (state.explorerOpen) opts.onToggleExplorer?.();
+          opts.onToggleNoteGraph?.();
         }
       },
     });
@@ -238,6 +269,7 @@ export function createEditorSideToolbar(
     outlineItem.setActive(state.outlineOpen);
     commentItem.setActive(state.commentOpen);
     explorerItem?.setActive(state.explorerOpen);
+    noteGraphItem?.setActive(state.noteGraphOpen);
     // 設定ボタンは active / disabled の概念なし（常時操作可）。
   }
 
@@ -248,6 +280,7 @@ export function createEditorSideToolbar(
     if (next.outlineOpen !== undefined) state.outlineOpen = next.outlineOpen;
     if (next.commentOpen !== undefined) state.commentOpen = next.commentOpen;
     if (next.explorerOpen !== undefined) state.explorerOpen = next.explorerOpen;
+    if (next.noteGraphOpen !== undefined) state.noteGraphOpen = next.noteGraphOpen;
     applyState();
   }
 

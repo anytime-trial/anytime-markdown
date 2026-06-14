@@ -101,6 +101,19 @@ import { createCommentPanel } from "../components-vanilla/CommentPanel";
 /** 保存（onContentChange / localStorage）デバウンス（React useMarkdownEditor と同値）。 */
 const SAVE_DEBOUNCE_MS = 500;
 
+/**
+ * ノート網パネルのスロット。ホストが所有する DOM 要素を右サイドバーに
+ * 出し入れするだけのインターフェース。markdown-viewer は中身に関知しない。
+ */
+export interface NoteGraphSlot {
+  /** サイドバーに差し込む、ホスト所有のパネル要素。 */
+  element: HTMLElement;
+  /** パネルが開いたとき（初回スキャン要求等に使う）。 */
+  onOpen?: () => void;
+  /** パネルが閉じたとき。 */
+  onClose?: () => void;
+}
+
 /** {@link mountVanillaMarkdownEditor} のオプション（MarkdownEditorPage props の vanilla 対応）。 */
 export interface MountVanillaMarkdownEditorOptions {
   t: TranslationFn;
@@ -148,6 +161,13 @@ export interface MountVanillaMarkdownEditorOptions {
   hideStatusBar?: boolean;
   /** 右端の縦サイドツールバー（outline/comment/settings トグル）。 */
   sideToolbar?: boolean;
+  /**
+   * ノート網パネル（ホスト所有の右パネル）。指定時のみサイドツールバーに
+   * ノート網アイコンが出る。markdown-viewer は描画内容を関知せず、`element`
+   * をサイドバーにスロット表示し、開閉で `onOpen` / `onClose` を呼ぶだけ。
+   * graph 描画・データ供給はホスト（VS Code 拡張 webview 等）が担う。
+   */
+  noteGraph?: NoteGraphSlot;
   /** readonly トグルをツールバーに表示する（React showReadonlyMode 相当・既定 false）。 */
   showReadonlyMode?: boolean;
   /** フロントマターブロックをエディタ上部に表示する。 */
@@ -444,6 +464,7 @@ export function mountVanillaMarkdownEditor(
         inlineMergeOpen: false,
         commentOpen: false,
         explorerOpen: false,
+        noteGraphOpen: false,
       };
       const readonlyNow = (): boolean => (current.readOnly ?? false) || modeState.readonlyMode === true;
       const notifyMode = (): void => current.onModeChange?.({ ...modeState });
@@ -706,9 +727,28 @@ export function mountVanillaMarkdownEditor(
           commentPanel = null;
         }
       };
+      // ノート網パネル（ホスト所有 element のスロット表示。中身は関知しない）。
+      let noteGraphMounted = false;
+      const syncNoteGraphPanel = (): void => {
+        const slot = current.noteGraph;
+        if (!slot) return;
+        if (modeState.noteGraphOpen && !noteGraphMounted) {
+          sidebarSlot.appendChild(slot.element);
+          noteGraphMounted = true;
+          slot.onOpen?.();
+        } else if (!modeState.noteGraphOpen && noteGraphMounted) {
+          slot.element.remove();
+          noteGraphMounted = false;
+          slot.onClose?.();
+        }
+      };
       disposers.push(() => {
         outlinePanel?.destroy();
         commentPanel?.destroy();
+        if (noteGraphMounted) {
+          current.noteGraph?.element.remove();
+          current.noteGraph?.onClose?.();
+        }
       });
 
       // === merge（比較）モード state（useMergeMode 相当・パネルは syncMergeView） ==
@@ -781,6 +821,7 @@ export function mountVanillaMarkdownEditor(
           outlineOpen: modeState.outlineOpen,
           commentOpen: modeState.commentOpen,
           explorerOpen: modeState.explorerOpen,
+          noteGraphOpen: modeState.noteGraphOpen,
         });
         contextMenu?.update({
           readOnly: readonlyNow() || modeState.reviewMode === true,
@@ -794,6 +835,7 @@ export function mountVanillaMarkdownEditor(
         frontmatterBlock?.setReadOnly(readonlyNow() || modeState.reviewMode === true);
         syncOutlinePanel();
         syncCommentPanel();
+        syncNoteGraphPanel();
         notifyMode();
       };
 
@@ -827,15 +869,30 @@ export function mountVanillaMarkdownEditor(
         onSwitchToReadonly: () =>
           sourceController?.switchTo(modeState.readonlyMode ? "wysiwyg" : "readonly"),
         onToggleOutline: () => {
+          // 排他: 開くときノート網パネルを閉じる（キーボード経路でも一貫させる）
+          if (!modeState.outlineOpen) modeState.noteGraphOpen = false;
           modeState.outlineOpen = !modeState.outlineOpen;
           refreshToolbarMode();
         },
         onToggleComments: () => {
+          if (!modeState.commentOpen) modeState.noteGraphOpen = false;
           modeState.commentOpen = !modeState.commentOpen;
           refreshToolbarMode();
         },
         onToggleExplorer: () => {
+          if (!modeState.explorerOpen) modeState.noteGraphOpen = false;
           modeState.explorerOpen = !modeState.explorerOpen;
+          refreshToolbarMode();
+        },
+        onToggleNoteGraph: () => {
+          const opening = !modeState.noteGraphOpen;
+          modeState.noteGraphOpen = opening;
+          // 排他: 開くとき他のサイドバーパネルを閉じる
+          if (opening) {
+            modeState.outlineOpen = false;
+            modeState.commentOpen = false;
+            modeState.explorerOpen = false;
+          }
           refreshToolbarMode();
         },
         onMerge: () => {
@@ -902,11 +959,14 @@ export function mountVanillaMarkdownEditor(
           sourceMode: modeState.sourceMode,
           outlineOpen: modeState.outlineOpen,
           commentOpen: modeState.commentOpen,
+          noteGraphOpen: modeState.noteGraphOpen,
           onToggleOutline: modeHandlers.onToggleOutline,
           onToggleComment: (open) => {
             modeState.commentOpen = open;
             refreshToolbarMode();
           },
+          // ノート網パネルが提供されている場合のみアイコンを出す
+          onToggleNoteGraph: current.noteGraph ? modeHandlers.onToggleNoteGraph : undefined,
           onOpenSettings: current.hide?.settings ? undefined : openSettings,
         });
         sideToolbarSlot.appendChild(sideToolbarHandle.el);

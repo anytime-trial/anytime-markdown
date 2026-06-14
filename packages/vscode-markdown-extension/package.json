@@ -52,20 +52,6 @@
         "title": "%command.openEditorWithFile%"
       },
       {
-        "command": "anytime-markdown.selectNoteGraphRepository",
-        "title": "%command.selectNoteGraphRepository%",
-        "icon": "$(repo)"
-      },
-      {
-        "command": "anytime-markdown.refreshNoteGraph",
-        "title": "%command.refreshNoteGraph%",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "anytime-markdown.addRelatedDoc",
-        "title": "%command.addRelatedDoc%"
-      },
-      {
         "command": "anytime-markdown.compareWithMarkdownEditor",
         "title": "%command.compareWithMarkdownEditor%",
         "enablement": "activeCustomEditorId == anytimeMarkdown"
@@ -107,11 +93,6 @@
         {
           "id": "anytimeMarkdown.timeline",
           "name": "Timeline"
-        },
-        {
-          "id": "anytimeMarkdown.noteGraph",
-          "name": "%view.noteGraph.name%",
-          "type": "webview"
         }
       ]
     },
