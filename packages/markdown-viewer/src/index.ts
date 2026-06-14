@@ -138,7 +138,7 @@ SPACING_3XS, SPACING_LG, SPACING_MD, SPACING_SM, SPACING_XL, SPACING_XS, SPACING
 STATUSBAR_HEIGHT,
 } from './constants/dimensions';
 export type { DiagramSample } from './constants/samples';
-export { MATH_SAMPLES, MERMAID_SAMPLES, PLANTUML_SAMPLES } from './constants/samples';
+export { MATH_SAMPLES, MERMAID_SAMPLES, PLANTUML_SAMPLES, ANYTIME_GRAPH_SAMPLES } from './constants/samples';
 export { isMac, KEYBOARD_SHORTCUTS, modKey } from './constants/shortcuts';
 export {
 STORAGE_KEY_CONTENT, STORAGE_KEY_EDITOR_MODE,
