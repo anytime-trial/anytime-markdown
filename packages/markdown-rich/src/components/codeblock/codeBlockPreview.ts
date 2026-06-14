@@ -5,6 +5,11 @@ import { MATH_SANITIZE_CONFIG, renderKatexHtml } from "../../hooks/useKatexRende
 import { getCachedMermaidSvg, requestMermaidRender } from "../../hooks/useMermaidRender";
 import { renderThinkingDiagramSvg, GraphDslError } from "@anytime-markdown/graph-core";
 import { GRAPH_SVG_SANITIZE_CONFIG } from "../../utils/graphSvgSanitize";
+import {
+  isAnytimeGraphPlaceholder,
+  createAnytimeGraphHintElement,
+  ANYTIME_GRAPH_PLACEHOLDER_HINT_JA,
+} from "../../utils/anytimeGraphPlaceholder";
 import { buildPlantUmlImageUrl, getPlantUmlConsent } from "../../hooks/usePlantUmlRender";
 import { PLANTUML_CONSENT_KEY } from "@anytime-markdown/markdown-viewer";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
@@ -126,6 +131,11 @@ function renderPlantUml(innerEl: HTMLElement, code: string, ctx: PreviewRenderCo
  * 不正な DSL は黙殺せず、原因メッセージを表示する（silent catch 禁止）。
  */
 function renderAnytimeGraph(innerEl: HTMLElement, code: string, ctx: PreviewRenderContext): void {
+  // 型未指定スケルトンはエラーではなく友好的ヒントを表示する。
+  if (isAnytimeGraphPlaceholder(code)) {
+    innerEl.replaceChildren(createAnytimeGraphHintElement(ANYTIME_GRAPH_PLACEHOLDER_HINT_JA));
+    return;
+  }
   try {
     let svg = renderThinkingDiagramSvg(code, ctx.isDark);
     // 固定 width/height をレスポンシブ指定へ置換（viewBox は維持）
