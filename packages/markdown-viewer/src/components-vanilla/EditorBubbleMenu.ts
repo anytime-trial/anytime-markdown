@@ -142,6 +142,8 @@ export interface BubbleMenuVisibilityParams {
  *
  * 加えてエディタ未フォーカス時・読み取り専用時・コードブロック／脚注参照アクティブ時も
  * 非表示にする（書式適用が無意味なため）。
+ *
+ * なおホワイトスペースのみの選択はテキスト長 &gt; 0 として表示する（デフォルト実装と同一挙動）。
  */
 export function shouldShowTextFormatBubbleMenu({
   editor,

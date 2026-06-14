@@ -16,6 +16,7 @@ import {
   type BubbleMenuVisibilityParams,
 } from "../components-vanilla/EditorBubbleMenu";
 import type { Editor } from "@anytime-markdown/markdown-core";
+import type { SelectionRange } from "@anytime-markdown/markdown-pm/state";
 
 /** 実 selection から plugin と同じ from/to を計算し、判定パラメータを組む。 */
 function paramsFor(
@@ -24,8 +25,8 @@ function paramsFor(
 ): BubbleMenuVisibilityParams {
   const { state } = editor;
   const { ranges } = state.selection;
-  const from = Math.min(...ranges.map((r) => r.$from.pos));
-  const to = Math.max(...ranges.map((r) => r.$to.pos));
+  const from = Math.min(...ranges.map((r: SelectionRange) => r.$from.pos));
+  const to = Math.max(...ranges.map((r: SelectionRange) => r.$to.pos));
   // jsdom では本物のフォーカスを作れないため view.hasFocus を明示制御する。
   (editor.view as unknown as { hasFocus: () => boolean }).hasFocus = () =>
     opts.focused ?? true;
@@ -97,6 +98,18 @@ describe("shouldShowTextFormatBubbleMenu", () => {
     expect(
       shouldShowTextFormatBubbleMenu(paramsFor(editor, { readonlyMode: true })),
     ).toBe(false);
+  });
+
+  it("脚注参照（footnoteRef）アクティブ時は表示しない", () => {
+    // createTestEditor に footnote 拡張は無いため isActive を stub して再現する。
+    editor = createTestEditor({ withMarkdown: true });
+    editor.commands.setContent("hello world");
+    editor.commands.selectAll();
+    const origIsActive = editor.isActive.bind(editor);
+    (editor as unknown as { isActive: (name: string) => boolean }).isActive = (
+      name: string,
+    ) => (name === "footnoteRef" ? true : origIsActive(name));
+    expect(shouldShowTextFormatBubbleMenu(paramsFor(editor))).toBe(false);
   });
 
   it("コードブロック内のテキスト選択では表示しない", () => {
