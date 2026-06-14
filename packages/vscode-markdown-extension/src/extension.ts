@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { LinkValidationProvider } from './providers/LinkValidationProvider';
+import { NoteGraphProvider } from './providers/NoteGraphProvider';
+import { registerNoteGraphCommands } from './noteGraph/commands';
 import { ClaudeStatusWatcher, TimelineProvider, TimelineItem } from '@anytime-markdown/vscode-common';
 import { WorkerStatusSource } from './claude/WorkerStatusSource';
 
@@ -28,6 +30,13 @@ export function activate(context: vscode.ExtensionContext) {
 	const timelineTreeView = vscode.window.createTreeView('anytimeMarkdown.timeline', {
 		treeDataProvider: timelineProvider,
 	});
+
+	// ノート網ビューア（ドキュメント関係グラフ・フロントマター由来・DB 非依存）
+	const noteGraphProvider = new NoteGraphProvider(context, (line) => timelineOutput.appendLine(line));
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(NoteGraphProvider.viewType, noteGraphProvider),
+	);
+	registerNoteGraphCommands(context, noteGraphProvider, (line) => timelineOutput.appendLine(line));
 
 	const updateTimelineForUri = (uri: vscode.Uri | null) => {
 		timelineProvider.refresh(uri);

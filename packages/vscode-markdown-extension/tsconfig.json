@@ -11,6 +11,7 @@
 		"src/**/*"
 	],
 	"exclude": [
-		"src/webview/**/*"
+		"src/webview/**/*",
+		"src/noteGraph/__tests__/**/*"
 	]
 }
