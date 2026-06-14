@@ -115,7 +115,7 @@ function prerenderAnytimeGraphLight(): MermaidReplacement[] {
     // plantuml は <img> なので対象外、通常コードブロックは preview SVG を持たない。
     // language クラスが無い場合は DSL 解析の成否で判定する（mermaid コードは type: 行が無く弾かれる）。
     const lang = /language-([\w-]+)/.exec(codeEl?.className ?? "")?.[1];
-    if (lang && lang !== "anytime-graph") continue;
+    if (lang && lang !== "anytime-thinking-model") continue;
     try {
       let lightSvg = renderThinkingDiagramSvg(code, false);
       lightSvg = lightSvg.replace(
