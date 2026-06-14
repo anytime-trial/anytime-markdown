@@ -238,6 +238,73 @@ describe('parseReviewSessions', () => {
     trailDb.close();
   }, 30000);
 
+  // Test 5b: plugin-namespaced code-reviewer (pr-review-toolkit:code-reviewer 等) も捕捉する。
+  // プラグイン由来の agent は meta.json の agentType が `<plugin>:code-reviewer` 形式で
+  // 記録されるため、bare 'code-reviewer' / 'superpowers:code-reviewer' だけでは取りこぼす。
+  test('captures plugin-namespaced code-reviewer subagent_type (e.g. pr-review-toolkit)', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    insertMsg(trailDb, {
+      uuid: 'plugin-rev-1',
+      session_id: 'sess-plugin-pr',
+      type: 'assistant',
+      timestamp: '2026-03-08T10:00:00.000Z',
+      text_content: 'レビュー結果です',
+      subagent_type: 'pr-review-toolkit:code-reviewer',
+    });
+    insertMsg(trailDb, {
+      uuid: 'plugin-rev-2',
+      session_id: 'sess-plugin-fd',
+      type: 'assistant',
+      timestamp: '2026-03-08T11:00:00.000Z',
+      text_content: 'レビュー結果です',
+      subagent_type: 'feature-dev:code-reviewer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    const sessionIds = results.map((r) => r.session_id).sort();
+    expect(sessionIds).toEqual(['sess-plugin-fd', 'sess-plugin-pr']);
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  // Test 5c: code-reviewer を含むが別語尾の agent は誤捕捉しない（過剰マッチ防止）。
+  test('does not capture unrelated agents whose name merely contains code-review', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    insertMsg(trailDb, {
+      uuid: 'unrelated-1',
+      session_id: 'sess-unrelated',
+      type: 'assistant',
+      timestamp: '2026-03-09T10:00:00.000Z',
+      text_content: '無関係',
+      subagent_type: 'code-review-summarizer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results).toEqual([]);
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
   // Test 6: messages with skill='superpowers:requesting-code-review' are captured
   test('captures messages with skill=superpowers:requesting-code-review', async () => {
     const mainDb = makeMainDb();
