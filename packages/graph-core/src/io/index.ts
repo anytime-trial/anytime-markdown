@@ -3,3 +3,5 @@ export { exportToDrawio } from './exportDrawio';
 export { importFromDrawio } from './importDrawio';
 export { importFromMermaid, layoutWithSubgroups } from './importMermaid';
 export type { MermaidImportResult } from './importMermaid';
+export { parseGraphDsl, GraphDslError } from './parseGraphDsl';
+export { renderThinkingDiagramSvg } from './renderThinkingDiagram';
