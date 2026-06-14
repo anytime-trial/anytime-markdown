@@ -18,6 +18,8 @@ export interface NodeOpts {
   fontStyle?: number;
   dashed?: boolean;
   borderRadius?: number;
+  /** spec 内位置などのデータ駆動メタデータ（SVG では data-metadata 属性として出力される）。 */
+  metadata?: Record<string, string | number>;
 }
 
 const DEFAULT_FONT_SIZE = 14;
@@ -49,6 +51,7 @@ export function mkNode(
     height: rect.height,
     text,
     style,
+    ...(opts.metadata ? { metadata: opts.metadata } : {}),
   };
 }
 
