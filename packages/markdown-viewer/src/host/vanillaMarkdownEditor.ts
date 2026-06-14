@@ -745,7 +745,10 @@ export function mountVanillaMarkdownEditor(
       disposers.push(() => {
         outlinePanel?.destroy();
         commentPanel?.destroy();
-        if (noteGraphMounted) current.noteGraph?.element.remove();
+        if (noteGraphMounted) {
+          current.noteGraph?.element.remove();
+          current.noteGraph?.onClose?.();
+        }
       });
 
       // === merge（比較）モード state（useMergeMode 相当・パネルは syncMergeView） ==
@@ -866,14 +869,18 @@ export function mountVanillaMarkdownEditor(
         onSwitchToReadonly: () =>
           sourceController?.switchTo(modeState.readonlyMode ? "wysiwyg" : "readonly"),
         onToggleOutline: () => {
+          // 排他: 開くときノート網パネルを閉じる（キーボード経路でも一貫させる）
+          if (!modeState.outlineOpen) modeState.noteGraphOpen = false;
           modeState.outlineOpen = !modeState.outlineOpen;
           refreshToolbarMode();
         },
         onToggleComments: () => {
+          if (!modeState.commentOpen) modeState.noteGraphOpen = false;
           modeState.commentOpen = !modeState.commentOpen;
           refreshToolbarMode();
         },
         onToggleExplorer: () => {
+          if (!modeState.explorerOpen) modeState.noteGraphOpen = false;
           modeState.explorerOpen = !modeState.explorerOpen;
           refreshToolbarMode();
         },

@@ -26,6 +26,8 @@ export interface NoteGraphPanelOptions {
 export interface NoteGraphPanelHandle {
   element: HTMLElement;
   setDocs(input: { docs: NoteGraphDocInput[]; isDark: boolean }): void;
+  /** パネルを閉じたときに接続モード等の一時状態を解除する。 */
+  resetInteraction(): void;
   destroy(): void;
 }
 
@@ -76,7 +78,7 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
     const doc = buildNoteGraph(state.docs, { isDark: state.isDark, edges: state.layers });
     view.setDocument(doc);
     view.fitToContent();
-    setStatus(`${state.docs.length} ${opts.t('noteGraph')} / ${doc.edges.length}`);
+    setStatus(`${state.docs.length} / ${doc.edges.length}`);
   };
 
   view.on('nodeClick', (id: string) => {
@@ -119,6 +121,12 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
         view.setTheme(state.isDark ? 'dark' : 'light');
       }
       rebuild();
+    },
+    resetInteraction(): void {
+      state.connectMode = false;
+      state.pendingSource = null;
+      connectBtn.classList.remove('active');
+      setStatus('');
     },
     destroy(): void {
       view.destroy();

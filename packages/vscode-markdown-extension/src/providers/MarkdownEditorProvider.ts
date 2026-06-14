@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { resolveLocale } from '@anytime-markdown/vscode-common';
 import { resolveRepositoryRoot, scanRepository, resolveDocPath } from '../noteGraph/scan';
-import { addRelatedEntry } from '../noteGraph/frontmatter';
+import { addRelatedEntry, isSafeRelPath } from '../noteGraph/frontmatter';
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
 
@@ -813,6 +813,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     };
     const connectNoteGraph = async (from: string, to: string): Promise<void> => {
       if (from === to) return;
+      // `to` は frontmatter に書き込むため、リポジトリ外/不正パス（YAML 破壊・traversal）を拒否
+      if (!isSafeRelPath(to)) {
+        ngLog(`[noteGraph] connect rejected (invalid to): ${to}`);
+        return;
+      }
       const root = noteGraphRoot();
       if (!root) return;
       let fromPath: string;
@@ -829,7 +834,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         await sendNoteGraphDocs();
       } catch (err) {
         ngLog(`[noteGraph] connect failed: ${from} -> ${to} ${String(err)}`);
-        void vscode.window.showErrorMessage(`関連付けに失敗しました: ${from}`);
+        void vscode.window.showErrorMessage(`Note Graph: failed to link ${from}`);
       }
     };
 

@@ -309,6 +309,7 @@ function buildMountOptions() {
     noteGraph: {
       element: getNoteGraphPanel().element,
       onOpen: () => vscode.postMessage({ type: 'requestNoteGraphDocs' }),
+      onClose: () => noteGraphPanel?.resetInteraction(),
     },
     hide: { settings: true },
     hideStatusBar: true,
