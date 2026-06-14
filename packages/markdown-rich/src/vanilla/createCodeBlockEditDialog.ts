@@ -42,8 +42,9 @@ export interface CreateCodeBlockEditDialogOptions {
   /**
    * renderPreview = true 時、プレビュー HTML を独自生成する（図のレンダリング等）。
    * 未指定なら構文ハイライトを表示する。戻り値は呼び出し側でサニタイズ済みであること。
+   * テーマ依存の描画に対応できるよう isDark を渡す。
    */
-  renderPreviewHtml?: (code: string) => string;
+  renderPreviewHtml?: (code: string, isDark: boolean) => string;
   state: CodeEditState;
   t: (key: string) => string;
   onClose: () => void;
@@ -65,6 +66,7 @@ function ensureDialogStyle(): void {
 .am-cbed-preview pre{margin:0;}
 .am-cbed-preview code{display:block;white-space:pre-wrap;word-break:break-word;}
 .am-cbed-preview svg{max-width:100%;height:auto;display:block;margin:0 auto;}
+.am-cbed-preview .anytime-graph-error{white-space:pre-wrap;color:var(--am-color-text-secondary, #888);font-family:monospace;margin:0;}
 `);
 }
 
@@ -179,7 +181,7 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
     header.update({ dirty: state.isFsDirty() });
     if (previewEl) {
       previewEl.innerHTML = opts.renderPreviewHtml
-        ? opts.renderPreviewHtml(state.getFsCode())
+        ? opts.renderPreviewHtml(state.getFsCode(), isDark)
         : buildHighlightHtml(state.getFsCode(), language);
     }
   }
