@@ -266,6 +266,9 @@ export function createCodeBlockNodeView(
     frame.style.borderColor = collapsed ? "transparent" : "var(--am-color-divider)";
     previewEl.style.display = isPreview ? "" : "none";
     previewEl.style.borderTop = isPreview && !collapsed ? "1px solid var(--am-color-divider)" : "none";
+    // 図（mermaid / plantuml / anytime-thinking-model）は縦に長くても全体を表示する
+    // （縦スクロールさせない）。html/math/embed はプレビュー枠を 400px に保ち縦スクロールする。
+    previewEl.style.maxHeight = kind === "diagram" ? "none" : `${PREVIEW_MAX_HEIGHT}px`;
     const resizableKind = kind === "embed" ? isEmbedResizable(String(currentNode.attrs.language ?? "")) : true;
     const canResize = isPreview && resizableKind && !collapsed && !!editor?.isEditable;
     resizeGrip.style.display = canResize ? "block" : "none";
