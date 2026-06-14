@@ -13,6 +13,6 @@ import { common, createLowlight } from "lowlight";
 export const appLowlight = createLowlight(common);
 
 const noopGrammar = () => ({ name: "noop", contains: [] as never[] });
-for (const lang of ["math", "mermaid", "plantuml", "anytime-graph"]) {
+for (const lang of ["math", "mermaid", "plantuml", "anytime-thinking-model"]) {
   appLowlight.register(lang, noopGrammar);
 }

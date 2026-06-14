@@ -189,9 +189,9 @@ export function renderCodeBlockPreview(
       innerEl.setAttribute("role", "img");
       renderPlantUml(innerEl, code, ctx, requestRerender);
       return () => {};
-    case "anytime-graph":
+    case "anytime-thinking-model":
       innerEl.setAttribute("role", "img");
-      innerEl.setAttribute("aria-label", extractDiagramAltText(code, "anytime-graph"));
+      innerEl.setAttribute("aria-label", extractDiagramAltText(code, "anytime-thinking-model"));
       renderAnytimeGraph(innerEl, code, ctx);
       return () => {};
     default:

@@ -50,7 +50,7 @@ describe("anytime-graph スラッシュ集約", () => {
       attrs: { language: string; autoEditOpen: boolean };
     };
     expect(arg.type).toBe("codeBlock");
-    expect(arg.attrs.language).toBe("anytime-graph");
+    expect(arg.attrs.language).toBe("anytime-thinking-model");
     expect(arg.attrs.autoEditOpen).toBe(true);
   });
 });

@@ -404,12 +404,12 @@ export function installCodeBlockOverlay(
       };
       return;
     }
-    if (kind === "diagram" && language === "anytime-graph") {
+    if (kind === "diagram" && language === "anytime-thinking-model") {
       const hint = t("anytimeGraphHint");
       const handle = createCodeBlockEditDialog({
         ...common,
         label: t("anytimeGraph"),
-        language: "anytime-graph",
+        language: "anytime-thinking-model",
         renderPreview: true,
         renderPreviewHtml: (code, dark) =>
           renderAnytimeGraphPreviewHtml(code, dark, hint, (svg) =>

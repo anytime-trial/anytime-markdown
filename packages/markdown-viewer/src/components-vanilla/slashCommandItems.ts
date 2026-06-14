@@ -142,7 +142,7 @@ function insertThinkingDiagram(editor: Editor, template: string): void {
     .focus()
     .insertContent({
       type: "codeBlock",
-      attrs: { language: "anytime-graph", autoEditOpen: true },
+      attrs: { language: "anytime-thinking-model", autoEditOpen: true },
       content: [{ type: "text", text: template }],
     })
     .run();

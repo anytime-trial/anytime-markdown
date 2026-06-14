@@ -128,7 +128,7 @@ describe("renderCodeBlockPreview", () => {
 
   it("anytime-graph は SVG を描画し role=img を付ける", () => {
     const el = inner();
-    renderCodeBlockPreview(el, "anytime-graph", "type: pyramid\n- 理念\n- 戦略", ctx, () => {});
+    renderCodeBlockPreview(el, "anytime-thinking-model", "type: pyramid\n- 理念\n- 戦略", ctx, () => {});
     expect(el.getAttribute("role")).toBe("img");
     expect(el.querySelector("svg")).not.toBeNull();
     expect(el.innerHTML).toContain("理念");
@@ -136,7 +136,7 @@ describe("renderCodeBlockPreview", () => {
 
   it("anytime-graph の不正 DSL はエラーメッセージを表示する（silent でない）", () => {
     const el = inner();
-    renderCodeBlockPreview(el, "anytime-graph", "type: fishbone", ctx, () => {});
+    renderCodeBlockPreview(el, "anytime-thinking-model", "type: fishbone", ctx, () => {});
     const pre = el.querySelector("pre.anytime-graph-error");
     expect(pre).not.toBeNull();
     expect(pre!.textContent).toContain("anytime-graph");

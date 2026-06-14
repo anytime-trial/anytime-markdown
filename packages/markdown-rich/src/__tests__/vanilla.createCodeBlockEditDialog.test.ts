@@ -115,7 +115,7 @@ describe("createCodeBlockEditDialog", () => {
 
     const handle = createCodeBlockEditDialog({
       label: "思考法ダイアグラム",
-      language: "anytime-graph",
+      language: "anytime-thinking-model",
       isDark: true,
       editorBg: "#fff",
       fontSize: 16,
@@ -141,7 +141,7 @@ describe("createCodeBlockEditDialog", () => {
 
     const handle = createCodeBlockEditDialog({
       label: "思考法ダイアグラム",
-      language: "anytime-graph",
+      language: "anytime-thinking-model",
       isDark: false,
       editorBg: "#fff",
       fontSize: 16,
