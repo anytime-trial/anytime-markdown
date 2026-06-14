@@ -1,5 +1,10 @@
 import { renderThinkingDiagramSvg, GraphDslError } from "@anytime-markdown/graph-core";
-import { isAnytimeGraphPlaceholder, anytimeGraphHintHtml } from "../utils/anytimeGraphPlaceholder";
+import { isAnytimeGraphPlaceholder } from "../utils/anytimeGraphPlaceholder";
+
+/** ヒントを示す HTML 文字列を生成する。message は呼び出し前に esc 済みであること（内部利用専用）。 */
+function anytimeGraphHintHtml(messageEscaped: string): string {
+  return `<pre class="anytime-graph-hint" style="white-space:pre-wrap;color:var(--am-color-text-secondary, #888);font-family:inherit;">${messageEscaped}</pre>`;
+}
 
 /**
  * anytime-graph 編集ダイアログのプレビュー HTML を生成する。

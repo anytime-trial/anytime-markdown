@@ -27,8 +27,3 @@ export function createAnytimeGraphHintElement(message: string): HTMLElement {
   pre.textContent = message;
   return pre;
 }
-
-/** ヒントを示す HTML 文字列を生成する（編集ダイアログ用）。message は呼び出し側でエスケープ済みのこと。 */
-export function anytimeGraphHintHtml(messageEscaped: string): string {
-  return `<pre class="anytime-graph-hint" style="white-space:pre-wrap;color:var(--am-color-text-secondary, #888);font-family:inherit;">${messageEscaped}</pre>`;
-}
