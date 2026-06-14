@@ -25,6 +25,8 @@
 
 import type { Editor } from "@anytime-markdown/markdown-core";
 import { BubbleMenuPlugin } from "@anytime-markdown/markdown-extension-bubble-menu";
+import type { EditorState } from "@anytime-markdown/markdown-pm/state";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
 import { svgIcon } from "../ui-vanilla/dom";
 import { createIconButton } from "../ui-vanilla";
@@ -109,11 +111,76 @@ interface ButtonSpec {
   pressed?: boolean;
 }
 
+/** {@link shouldShowTextFormatBubbleMenu} の判定パラメータ（BubbleMenuPlugin が渡す値の部分集合）。 */
+export interface BubbleMenuVisibilityParams {
+  /** 対象 editor。`isEditable` / `isActive` の判定に使う。 */
+  editor: Editor;
+  /** ProseMirror view。フォーカス判定（`hasFocus`）に使う。 */
+  view: EditorView;
+  /** 現在の editor state。選択・文書を参照する。 */
+  state: EditorState;
+  /** バブルメニューのルート要素。メニュー内ボタンへのフォーカスを保持表示に使う。 */
+  element: HTMLElement;
+  /** 選択範囲（CellSelection 対応で plugin が ranges から計算した値）の開始位置。 */
+  from: number;
+  /** 選択範囲の終了位置。 */
+  to: number;
+  /** 読み取り専用モードか。 */
+  readonlyMode: boolean;
+}
+
+/**
+ * 書式バブルメニューを表示すべきか判定する純関数。
+ *
+ * `selection.empty` だけでは不十分なため、`from`〜`to` 間の**実テキスト長**でも判定する。
+ * これにより「選択範囲はあるが実テキストが無い」次のケースで誤表示しない:
+ *
+ * - 画像など atom ノードの `NodeSelection`（例: 画像のみ文書を開いた直後。`empty=false`／
+ *   `textBetween=""`）。tiptap デフォルトの `isEmptyTextBlock` は `isTextSelection` 限定の
+ *   ため NodeSelection を取りこぼすが、本判定は選択型に依らずテキスト空なら非表示にする。
+ * - 空段落・ほぼ空文書の `AllSelection`（`empty=false`／`textBetween=""`）。
+ *
+ * 加えてエディタ未フォーカス時・読み取り専用時・コードブロック／脚注参照アクティブ時も
+ * 非表示にする（書式適用が無意味なため）。
+ *
+ * なおホワイトスペースのみの選択はテキスト長 &gt; 0 として表示する（デフォルト実装と同一挙動）。
+ */
+export function shouldShowTextFormatBubbleMenu({
+  editor,
+  view,
+  state,
+  element,
+  from,
+  to,
+  readonlyMode,
+}: BubbleMenuVisibilityParams): boolean {
+  if (readonlyMode || !editor.isEditable) return false;
+
+  const { doc, selection } = state;
+  if (selection.empty) return false;
+
+  // 書式ツールバーはテキスト用。選択範囲があっても実テキストが空（画像など atom の
+  // NodeSelection・空段落・ほぼ空文書の AllSelection）なら出さない。leafText を渡さず
+  // atom ノードはテキスト長 0 として扱う。
+  if (doc.textBetween(from, to).length === 0) return false;
+
+  // メニュー内ボタンへフォーカスが移った場合はエディタの一部として扱い表示を維持する。
+  const hasEditorFocus = view.hasFocus() || element.contains(document.activeElement);
+  if (!hasEditorFocus) return false;
+
+  if (editor.isActive("codeBlock")) return false;
+  // 脚注参照（atom ノード）選択時はバブルメニューを表示しない。
+  if (editor.isActive("footnoteRef")) return false;
+
+  return true;
+}
+
 /**
  * vanilla EditorBubbleMenu を生成する。tiptap CORE の `BubbleMenuPlugin` を editor へ装着し、
  * 選択時に素 DOM ツールバーを表示する。
  *
- * - `shouldShow` は React 版と同一（readonly / 空選択 / codeBlock / footnoteRef を除外）。
+ * - `shouldShow` は {@link shouldShowTextFormatBubbleMenu} に委譲（readonly / 空選択 /
+ *   実テキスト空 / 未フォーカス / codeBlock / footnoteRef を除外）。
  * - active 状態の色は editor の `transaction` 購読で更新する（React の再レンダー相当）。
  * - 左右矢印キーでボタン間フォーカス移動（React 版 handleKeyDown と同一）。
  *
@@ -309,15 +376,16 @@ export function createEditorBubbleMenu(
     pluginKey,
     editor,
     element: root,
-    shouldShow: ({ editor: e, state }) => {
-      if (readonlyMode) return false;
-      const { selection } = state;
-      if (selection.empty) return false;
-      if (e.isActive("codeBlock")) return false;
-      // 脚注参照（atom ノード）選択時はバブルメニューを表示しない。
-      if (e.isActive("footnoteRef")) return false;
-      return true;
-    },
+    shouldShow: ({ editor: e, view, state, element, from, to }) =>
+      shouldShowTextFormatBubbleMenu({
+        editor: e,
+        view,
+        state,
+        element,
+        from,
+        to,
+        readonlyMode: readonlyMode ?? false,
+      }),
   });
   editor.registerPlugin(plugin);
 
