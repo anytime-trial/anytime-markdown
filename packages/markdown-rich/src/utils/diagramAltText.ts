@@ -193,7 +193,7 @@ function extractPlantUmlNames(code: string): string[] {
  */
 export function extractDiagramAltText(
   code: string,
-  language: "mermaid" | "plantuml" | "html" | "math"
+  language: "mermaid" | "plantuml" | "html" | "math" | "anytime-graph"
 ): string {
   if (!code.trim()) return "Diagram";
 
@@ -201,6 +201,11 @@ export function extractDiagramAltText(
   const safeCode = code.slice(0, MAX_INPUT_LENGTH);
 
   if (language === "html") return "HTML block";
+
+  if (language === "anytime-graph") {
+    const m = /type\s*[:：]\s*([\w-]+)/.exec(safeCode);
+    return m ? `Thinking diagram: ${m[1]}` : "Thinking diagram";
+  }
 
   if (language === "math") {
     const trimmed = code.trim();

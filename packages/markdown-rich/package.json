@@ -17,6 +17,7 @@
   "dependencies": {
     "@anytime-markdown/markdown-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
+    "@anytime-markdown/graph-core": "*",
     "lowlight": "3.3.0"
   },
   "peerDependencies": {

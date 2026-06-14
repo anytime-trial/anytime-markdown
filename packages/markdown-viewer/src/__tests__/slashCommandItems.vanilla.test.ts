@@ -54,9 +54,9 @@ function createChainEditor() {
 }
 
 describe("DEFAULT_SLASH_ITEMS", () => {
-  it("全コマンド分（34 件）が定義されている", () => {
+  it("全コマンド分（40 件）が定義されている", () => {
     expect(Array.isArray(DEFAULT_SLASH_ITEMS)).toBe(true);
-    expect(DEFAULT_SLASH_ITEMS.length).toBe(34);
+    expect(DEFAULT_SLASH_ITEMS.length).toBe(40);
   });
 
   it("必須プロパティが揃い id が一意である", () => {

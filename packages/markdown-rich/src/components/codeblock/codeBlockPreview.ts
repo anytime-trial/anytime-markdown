@@ -2,7 +2,8 @@ import DOMPurify from "dompurify";
 
 import { HTML_SANITIZE_CONFIG } from "./types";
 import { MATH_SANITIZE_CONFIG, renderKatexHtml } from "../../hooks/useKatexRender";
-import { getCachedMermaidSvg, requestMermaidRender } from "../../hooks/useMermaidRender";
+import { getCachedMermaidSvg, requestMermaidRender, SVG_SANITIZE_CONFIG } from "../../hooks/useMermaidRender";
+import { renderThinkingDiagramSvg, GraphDslError } from "@anytime-markdown/graph-core";
 import { buildPlantUmlImageUrl, getPlantUmlConsent } from "../../hooks/usePlantUmlRender";
 import { PLANTUML_CONSENT_KEY } from "@anytime-markdown/markdown-viewer";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
@@ -118,6 +119,35 @@ function renderPlantUml(innerEl: HTMLElement, code: string, ctx: PreviewRenderCo
 }
 
 /**
+ * anytime-graph フェンス（思考法ダイアグラム）を SVG プレビューとして描画する。
+ * graph-core の `renderThinkingDiagramSvg` で DSL → 透過 SVG を生成し、
+ * 埋め込み向けにレスポンシブ化・サニタイズしてから挿入する。
+ * 不正な DSL は黙殺せず、原因メッセージを表示する（silent catch 禁止）。
+ */
+function renderAnytimeGraph(innerEl: HTMLElement, code: string, ctx: PreviewRenderContext): void {
+  try {
+    let svg = renderThinkingDiagramSvg(code, ctx.isDark);
+    // 固定 width/height をレスポンシブ指定へ置換（viewBox は維持）
+    svg = svg.replace(
+      /(<svg\b[^>]*?)\swidth="[\d.]+"\sheight="[\d.]+"/,
+      '$1 width="100%" style="max-width:100%;height:auto"',
+    );
+    const sanitized = DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG);
+    innerEl.innerHTML = scaleSvgForFontSize(sanitized, ctx.fontSize);
+  } catch (err) {
+    const message =
+      err instanceof GraphDslError
+        ? err.message
+        : `anytime-graph: 描画に失敗しました (${err instanceof Error ? err.message : String(err)})`;
+    const pre = document.createElement("pre");
+    pre.className = "anytime-graph-error";
+    pre.style.cssText = "margin:8px;padding:8px 12px;white-space:pre-wrap;color:var(--am-color-text-secondary);font-size:0.8125rem;";
+    pre.textContent = message;
+    innerEl.replaceChildren(pre);
+  }
+}
+
+/**
  * previewEl 内の inner 要素を language 別プレビューで更新する。
  * 戻り値は非同期/購読のキャンセル関数（次回再描画・破棄時に呼ぶ）。
  */
@@ -147,6 +177,11 @@ export function renderCodeBlockPreview(
     case "plantuml":
       innerEl.setAttribute("role", "img");
       renderPlantUml(innerEl, code, ctx, requestRerender);
+      return () => {};
+    case "anytime-graph":
+      innerEl.setAttribute("role", "img");
+      innerEl.setAttribute("aria-label", extractDiagramAltText(code, "anytime-graph"));
+      renderAnytimeGraph(innerEl, code, ctx);
       return () => {};
     default:
       innerEl.replaceChildren();

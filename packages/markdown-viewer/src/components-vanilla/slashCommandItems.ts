@@ -135,6 +135,88 @@ function insertTemplateContent(editor: Editor, content: string | null): void {
   insertTemplate(editor, body);
 }
 
+/** anytime-graph フェンス（思考法ダイアグラム）を DSL テンプレートつきで挿入する。 */
+function insertThinkingDiagram(editor: Editor, template: string): void {
+  editor
+    .chain()
+    .focus()
+    .insertContent({
+      type: "codeBlock",
+      attrs: { language: "anytime-graph", autoEditOpen: true },
+      content: [{ type: "text", text: template }],
+    })
+    .run();
+}
+
+const THINKING_DIAGRAM_ITEMS: readonly VanillaSlashCommandItem[] = [
+  {
+    id: "think-fishbone",
+    labelKey: "slashThinkFishbone",
+    iconPath: PATH.accountTree,
+    keywords: ["fishbone", "ishikawa", "特性要因図", "なぜ", "原因", "thinking"],
+    action: (editor) => {
+      insertThinkingDiagram(
+        editor,
+        "type: fishbone\nproblem: 問題を記述\n- 人: 要因A, 要因B\n- 方法: 要因C\n- 設備: 要因D\n- 材料: 要因E",
+      );
+    },
+  },
+  {
+    id: "think-causal-loop",
+    labelKey: "slashThinkCausalLoop",
+    iconPath: PATH.schema,
+    keywords: ["causal", "loop", "cld", "因果ループ", "システム思考", "thinking"],
+    action: (editor) => {
+      insertThinkingDiagram(editor, "type: causal-loop\nA -> B: +\nB -> C: -\nC -> A: +");
+    },
+  },
+  {
+    id: "think-pyramid",
+    labelKey: "slashThinkPyramid",
+    iconPath: PATH.accountTree,
+    keywords: ["pyramid", "抽象度", "ピラミッド", "メタ思考", "thinking"],
+    action: (editor) => {
+      insertThinkingDiagram(editor, "type: pyramid\n- 理念\n- 戦略\n- 戦術\n- 実行");
+    },
+  },
+  {
+    id: "think-mindmap",
+    labelKey: "slashThinkMindmap",
+    iconPath: PATH.accountTree,
+    keywords: ["mindmap", "マインドマップ", "放射", "ラテラル", "thinking"],
+    action: (editor) => {
+      insertThinkingDiagram(
+        editor,
+        "type: mindmap\nroot: 中心テーマ\n- ブランチ1\n  - 子1\n  - 子2\n- ブランチ2\n- ブランチ3",
+      );
+    },
+  },
+  {
+    id: "think-logic-tree",
+    labelKey: "slashThinkLogicTree",
+    iconPath: PATH.accountTree,
+    keywords: ["logic", "issue", "tree", "ロジックツリー", "論点", "thinking"],
+    action: (editor) => {
+      insertThinkingDiagram(
+        editor,
+        "type: logic-tree\nroot: 論点\n- 要素A\n  - 詳細A1\n  - 詳細A2\n- 要素B",
+      );
+    },
+  },
+  {
+    id: "think-swot",
+    labelKey: "slashThinkSwot",
+    iconPath: PATH.schema,
+    keywords: ["swot", "強み", "弱み", "機会", "脅威", "thinking"],
+    action: (editor) => {
+      insertThinkingDiagram(
+        editor,
+        "type: swot\nstrengths: 強み1, 強み2\nweaknesses: 弱み1\nopportunities: 機会1\nthreats: 脅威1",
+      );
+    },
+  },
+];
+
 export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
   {
     id: "heading1",
@@ -271,6 +353,7 @@ export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
       editor.chain().focus().setCodeBlock({ language: "plantuml" }).updateAttributes("codeBlock", { autoEditOpen: true }).run();
     },
   },
+  ...THINKING_DIAGRAM_ITEMS,
   {
     id: "math",
     labelKey: "slashMath",
