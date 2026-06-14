@@ -82,3 +82,11 @@ export type {
   AffinitySpec,
   TreeNodeSpec,
 };
+
+// ノート網（ドキュメント関係グラフ）プリセット
+export { buildNoteGraph } from './noteGraph';
+export type {
+  NoteGraphDocInput,
+  NoteGraphOptions,
+  NoteGraphEdgeLayers,
+} from './noteGraph';
