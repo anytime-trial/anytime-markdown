@@ -9,7 +9,7 @@
 | 対象 | パス・トリガー |
 | --- | --- |
 | レビュードキュメント | `/Shared/anytime-markdown-docs/review/<date>-<topic>.<lang>.md` |
-| code-reviewer subagent 出力 | `subagent_type IN ('code-reviewer', 'superpowers:code-reviewer')` のメッセージ全文 |
+| code-reviewer subagent 出力 | `subagent_type = 'code-reviewer'` または `subagent_type LIKE '%:code-reviewer'`（`pr-review-toolkit:code-reviewer` 等のプラグイン名前空間付きを含む）のメッセージ全文 |
 | requesting-code-review skill 出力 | `skill='superpowers:requesting-code-review'` の subagent 呼び出し結果 |
 | security-review / code-review-checklist | `skill IN ('security-review', 'code-review-checklist')` |
 
