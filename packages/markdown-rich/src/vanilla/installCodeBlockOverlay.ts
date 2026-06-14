@@ -50,8 +50,10 @@ import {
 import { parseBaseline } from "../components/codeblock/previewContracts";
 import { applyCodeBlockText } from "../components/codeblock/useCodeBlockEdit";
 import htmlSamples from "../constants/htmlSamples.json";
-import { getCachedMermaidSvg, requestMermaidRender } from "../hooks/useMermaidRender";
+import { getCachedMermaidSvg, requestMermaidRender, SVG_SANITIZE_CONFIG } from "../hooks/useMermaidRender";
 import { buildPlantUmlImageUrl } from "../hooks/usePlantUmlRender";
+import DOMPurify from "dompurify";
+import { renderThinkingDiagramSvg, GraphDslError } from "@anytime-markdown/graph-core";
 import { createCodeEditState } from "./codeEditState";
 import { captureDiagramPng, exportDiagramSource } from "./diagramCapture";
 import { createCodeBlockEditDialog } from "./createCodeBlockEditDialog";
@@ -398,6 +400,36 @@ export function installCodeBlockOverlay(
         baseUnsub?.();
         renderUnsub();
       };
+      return;
+    }
+    if (kind === "diagram" && language === "anytime-graph") {
+      const renderGraphPreview = (code: string): string => {
+        try {
+          let svg = renderThinkingDiagramSvg(code, isDark());
+          svg = svg.replace(
+            /(<svg\b[^>]*?)\swidth="[\d.]+"\sheight="[\d.]+"/,
+            '$1 width="100%" style="max-width:100%;height:auto"',
+          );
+          return DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG);
+        } catch (err) {
+          const msg =
+            err instanceof GraphDslError
+              ? err.message
+              : `anytime-graph: ${err instanceof Error ? err.message : String(err)}`;
+          const escaped = msg.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+          return `<pre class="anytime-graph-error" style="white-space:pre-wrap;color:var(--am-color-text-secondary);font-family:monospace;">${escaped}</pre>`;
+        }
+      };
+      const handle = createCodeBlockEditDialog({
+        ...common,
+        label: t("anytimeGraph"),
+        language: "anytime-graph",
+        renderPreview: true,
+        renderPreviewHtml: renderGraphPreview,
+        // 思考法ダイアグラムに無関係な「hello world」コードサンプルを抑制する。
+        customSamples: [],
+      });
+      activeDialog = handle;
       return;
     }
     // regular / html / その他 unknown kind はコード編集ダイアログ。

@@ -108,6 +108,31 @@ describe("createCodeBlockEditDialog", () => {
     handle.destroy();
   });
 
+  it("renderPreviewHtml 指定時は構文ハイライトでなくその HTML をプレビューに描画する", () => {
+    const editor = makeEditor();
+    const node = makeNode("type: pyramid\n- 理念");
+    const state = createCodeEditState({ editor, pos: 0, node, onClose: jest.fn() });
+
+    const handle = createCodeBlockEditDialog({
+      label: "思考法ダイアグラム",
+      language: "anytime-graph",
+      isDark: true,
+      editorBg: "#fff",
+      fontSize: 16,
+      lineHeight: 1.5,
+      renderPreview: true,
+      renderPreviewHtml: () => '<svg data-marker="graph"><rect/></svg>',
+      customSamples: [],
+      state,
+      t,
+      onClose: jest.fn(),
+    });
+
+    const preview = handle.el.querySelector(".am-cbed-preview");
+    expect(preview?.querySelector('svg[data-marker="graph"]')).not.toBeNull();
+    handle.destroy();
+  });
+
   it("destroy で dialog が DOM から削除される", () => {
     const editor = makeEditor();
     const node = makeNode("abc");
