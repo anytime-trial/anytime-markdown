@@ -133,6 +133,33 @@ describe("createCodeBlockEditDialog", () => {
     handle.destroy();
   });
 
+  it("state 更新時に renderPreviewHtml が再呼ばれライブ再描画される", () => {
+    const editor = makeEditor();
+    const node = makeNode("type: pyramid\n- a");
+    const state = createCodeEditState({ editor, pos: 0, node, onClose: jest.fn() });
+    const mockFn = jest.fn((_code: string, _isDark: boolean) => '<svg data-marker="live"/>');
+
+    const handle = createCodeBlockEditDialog({
+      label: "思考法ダイアグラム",
+      language: "anytime-graph",
+      isDark: false,
+      editorBg: "#fff",
+      fontSize: 16,
+      lineHeight: 1.5,
+      renderPreview: true,
+      renderPreviewHtml: mockFn,
+      customSamples: [],
+      state,
+      t,
+      onClose: jest.fn(),
+    });
+
+    expect(mockFn).toHaveBeenCalledTimes(1); // 初回 render
+    state.onFsTextChange("type: pyramid\n- b\n- c");
+    expect(mockFn.mock.calls.length).toBeGreaterThanOrEqual(2); // subscribe 経由で再 render
+    handle.destroy();
+  });
+
   it("destroy で dialog が DOM から削除される", () => {
     const editor = makeEditor();
     const node = makeNode("abc");

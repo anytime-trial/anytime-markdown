@@ -2,8 +2,9 @@ import DOMPurify from "dompurify";
 
 import { HTML_SANITIZE_CONFIG } from "./types";
 import { MATH_SANITIZE_CONFIG, renderKatexHtml } from "../../hooks/useKatexRender";
-import { getCachedMermaidSvg, requestMermaidRender, SVG_SANITIZE_CONFIG } from "../../hooks/useMermaidRender";
+import { getCachedMermaidSvg, requestMermaidRender } from "../../hooks/useMermaidRender";
 import { renderThinkingDiagramSvg, GraphDslError } from "@anytime-markdown/graph-core";
+import { GRAPH_SVG_SANITIZE_CONFIG } from "../../utils/graphSvgSanitize";
 import { buildPlantUmlImageUrl, getPlantUmlConsent } from "../../hooks/usePlantUmlRender";
 import { PLANTUML_CONSENT_KEY } from "@anytime-markdown/markdown-viewer";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
@@ -132,7 +133,7 @@ function renderAnytimeGraph(innerEl: HTMLElement, code: string, ctx: PreviewRend
       /(<svg\b[^>]*?)\swidth="[\d.]+"\sheight="[\d.]+"/,
       '$1 width="100%" style="max-width:100%;height:auto"',
     );
-    const sanitized = DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG);
+    const sanitized = DOMPurify.sanitize(svg, GRAPH_SVG_SANITIZE_CONFIG);
     innerEl.innerHTML = scaleSvgForFontSize(sanitized, ctx.fontSize);
   } catch (err) {
     const message =
@@ -141,7 +142,7 @@ function renderAnytimeGraph(innerEl: HTMLElement, code: string, ctx: PreviewRend
         : `anytime-graph: 描画に失敗しました (${err instanceof Error ? err.message : String(err)})`;
     const pre = document.createElement("pre");
     pre.className = "anytime-graph-error";
-    pre.style.cssText = "margin:8px;padding:8px 12px;white-space:pre-wrap;color:var(--am-color-text-secondary);font-size:0.8125rem;";
+    pre.style.cssText = "margin:8px;padding:8px 12px;white-space:pre-wrap;color:var(--am-color-text-secondary, #888);font-size:0.8125rem;";
     pre.textContent = message;
     innerEl.replaceChildren(pre);
   }
