@@ -44,7 +44,14 @@ export class NoteGraphProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage((msg) => this.handleMessage(msg), undefined, this.context.subscriptions);
-    webviewView.onDidDispose(() => this.disposeWatcher(), undefined, this.context.subscriptions);
+    webviewView.onDidDispose(
+      () => {
+        this.disposeWatcher();
+        this.view = undefined;
+      },
+      undefined,
+      this.context.subscriptions,
+    );
 
     // テーマ変更で配色を更新
     this.context.subscriptions.push(
@@ -73,7 +80,7 @@ export class NoteGraphProvider implements vscode.WebviewViewProvider {
       return;
     }
     try {
-      const docs = await scanRepository(root);
+      const docs = await scanRepository(root, this.log);
       this.ensureWatcher(root);
       void this.view.webview.postMessage({ type: 'docs', docs, isDark: this.isDark(), root });
       this.log(`[noteGraph] scanned ${docs.length} docs in ${root}`);
@@ -110,13 +117,21 @@ export class NoteGraphProvider implements vscode.WebviewViewProvider {
   private async openDoc(relPath: string): Promise<void> {
     const root = this.repositoryRoot();
     if (!root) return;
-    const uri = vscode.Uri.file(resolveDocPath(root, relPath));
+    let uri: vscode.Uri;
+    try {
+      uri = vscode.Uri.file(resolveDocPath(root, relPath));
+    } catch (err) {
+      // パストラバーサル等でルート外を指す参照はここで弾く
+      this.log(`[noteGraph] openDoc rejected: ${relPath} ${String(err)}`);
+      return;
+    }
     try {
       await vscode.commands.executeCommand('vscode.openWith', uri, 'anytimeMarkdown');
-    } catch {
+    } catch (err) {
       // カスタムエディタで開けない場合は通常エディタへフォールバック
-      await vscode.window.showTextDocument(uri).then(undefined, (err) => {
-        this.log(`[noteGraph] openDoc failed: ${relPath} ${String(err)}`);
+      this.log(`[noteGraph] openWith failed (falling back): ${relPath} ${String(err)}`);
+      await vscode.window.showTextDocument(uri).then(undefined, (e) => {
+        this.log(`[noteGraph] openDoc failed: ${relPath} ${String(e)}`);
       });
     }
   }
@@ -155,6 +170,10 @@ export class NoteGraphProvider implements vscode.WebviewViewProvider {
   }
 
   private disposeWatcher(): void {
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = undefined;
+    }
     this.watcher?.dispose();
     this.watcher = undefined;
   }

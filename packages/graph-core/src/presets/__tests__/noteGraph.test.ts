@@ -117,6 +117,25 @@ describe('buildNoteGraph', () => {
     expect(design?.memberIds.sort()).toEqual([A, B].sort());
   });
 
+  it('deduplicates repeated related references (no duplicate edge ids)', () => {
+    const docs: NoteGraphDocInput[] = [
+      { path: A, title: 'Doc A', related: [B, B] },
+      { path: B, title: 'Doc B' },
+    ];
+    const doc = buildNoteGraph(docs);
+
+    const ab = doc.edges.filter((e) => e.from.nodeId === A && e.to.nodeId === B);
+    expect(ab).toHaveLength(1);
+    const ids = doc.edges.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('ignores self-references', () => {
+    const docs: NoteGraphDocInput[] = [{ path: A, title: 'Doc A', related: [A] }];
+    const doc = buildNoteGraph(docs);
+    expect(doc.edges.some((e) => e.from.nodeId === A && e.to.nodeId === A)).toBe(false);
+  });
+
   it('produces a stable, valid GraphDocument shape', () => {
     const docs: NoteGraphDocInput[] = [{ path: A, title: 'Doc A' }];
     const doc = buildNoteGraph(docs);

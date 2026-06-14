@@ -161,10 +161,16 @@ export function buildNoteGraph(
 
   // ── 主エッジ: related（解決 or プレースホルダ） ──────────────────
   const placeholders = new Map<string, GraphNode>();
+  const relatedSeen = new Set<string>();
   if (relatedEnabled) {
     let phIndex = 0;
     for (const d of docs) {
       for (const target of d.related ?? []) {
+        // 自己参照と重複エッジ（ID 衝突）を除外する
+        if (target === d.path) continue;
+        const edgeKey = `${d.path}->${target}`;
+        if (relatedSeen.has(edgeKey)) continue;
+        relatedSeen.add(edgeKey);
         if (!known.has(target) && !placeholders.has(target)) {
           // 未解決参照はプレースホルダノード（グレー・破線）として可視化
           const angle = -Math.PI / 2 + phIndex * 0.7;

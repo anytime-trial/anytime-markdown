@@ -46,8 +46,23 @@ describe('extractNoteDoc', () => {
     expect(extractNoteDoc('x.md', '# just markdown')).toBeNull();
   });
 
-  it('excludes documents with graph: false', () => {
+  it('excludes documents with graph: false / no / off', () => {
     expect(extractNoteDoc('x.md', FM('title: X\ngraph: false'))).toBeNull();
+    expect(extractNoteDoc('x.md', FM('title: X\ngraph: no'))).toBeNull();
+    expect(extractNoteDoc('x.md', FM('title: X\ngraph: off'))).toBeNull();
+  });
+
+  it('drops unsafe related references (traversal / absolute paths)', () => {
+    const doc = extractNoteDoc(
+      'spec/a.md',
+      FM('title: A\nrelated:\n  - "../../etc/passwd"\n  - "/abs/x.md"\n  - "spec/b.md"'),
+    );
+    expect(doc?.related).toEqual(['spec/b.md']);
+  });
+
+  it('sets related to undefined when all references are unsafe', () => {
+    const doc = extractNoteDoc('spec/a.md', FM('title: A\nrelated:\n  - "../x.md"'));
+    expect(doc?.related).toBeUndefined();
   });
 });
 
@@ -85,5 +100,22 @@ describe('addRelatedEntry', () => {
     const { arrays } = parseFrontmatter(after);
     expect(arrays.get('related')).toEqual(['spec/c.md']);
     expect(after).toContain('# just markdown');
+  });
+
+  it('preserves CRLF line endings when appending', () => {
+    const before = '---\r\ntitle: A\r\ntype: spec\r\n---\r\n\r\n# Body\r\n';
+    const after = addRelatedEntry(before, 'spec/c.md');
+    // 裸の LF（\r を伴わない \n）が混入していないこと
+    expect(/[^\r]\n/.test(after)).toBe(false);
+    const { arrays } = parseFrontmatter(after);
+    expect(arrays.get('related')).toEqual(['spec/c.md']);
+  });
+
+  it('does not corrupt body when a target contains a dollar sign', () => {
+    const before = FM('title: A');
+    const after = addRelatedEntry(before, 'spec/$weird.md');
+    const { arrays } = parseFrontmatter(after);
+    expect(arrays.get('related')).toEqual(['spec/$weird.md']);
+    expect(after).toContain('# Heading');
   });
 });

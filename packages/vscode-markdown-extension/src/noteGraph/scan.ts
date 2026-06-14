@@ -8,7 +8,13 @@ import * as path from 'path';
 import type { NoteDocInput } from './types';
 import { extractNoteDoc } from './frontmatter';
 
+type Log = (line: string) => void;
+
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'build', '.next', '.claude', '.worktrees', 'coverage']);
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
 
 /** ディレクトリを上方探索して `.git` を持つリポジトリルートを返す。 */
 export function findGitRoot(startDir: string): string | null {
@@ -47,7 +53,7 @@ function toPosixRel(root: string, abs: string): string {
  * リポジトリ配下の `.md` を走査し、参加条件を満たすノードを返す。
  * frontmatter が無い / title が無い / `graph: false` のファイルは除外される。
  */
-export async function scanRepository(root: string): Promise<NoteDocInput[]> {
+export async function scanRepository(root: string, log?: Log): Promise<NoteDocInput[]> {
   const docs: NoteDocInput[] = [];
 
   async function walk(dir: string): Promise<void> {
@@ -55,7 +61,7 @@ export async function scanRepository(root: string): Promise<NoteDocInput[]> {
     try {
       entries = await fsp.readdir(dir, { withFileTypes: true });
     } catch (err) {
-      console.error(`[noteGraph] readdir failed: ${dir}`, err);
+      log?.(`[${nowIso()}] [ERROR] [noteGraph] readdir failed: ${dir} ${String(err)}`);
       return;
     }
     for (const entry of entries) {
@@ -69,7 +75,7 @@ export async function scanRepository(root: string): Promise<NoteDocInput[]> {
           const doc = extractNoteDoc(toPosixRel(root, full), content);
           if (doc) docs.push(doc);
         } catch (err) {
-          console.error(`[noteGraph] read failed: ${full}`, err);
+          log?.(`[${nowIso()}] [ERROR] [noteGraph] read failed: ${full} ${String(err)}`);
         }
       }
     }
@@ -82,8 +88,17 @@ export async function scanRepository(root: string): Promise<NoteDocInput[]> {
 }
 
 /**
- * `related` 追記対象の絶対パスを返す（リポジトリルート相対パスから解決）。
+ * リポジトリルート相対パスから絶対パスを解決する。
+ *
+ * リポジトリルート外を指すパス（`..` トラバーサル・絶対パス）は拒否して例外を投げる。
+ * webview 由来のパスをファイル読み書きに使う前の境界チェック（多層防御の最終段）。
  */
 export function resolveDocPath(root: string, relPath: string): string {
-  return path.join(root, ...relPath.split('/'));
+  const rootResolved = path.resolve(root);
+  const resolved = path.resolve(rootResolved, ...relPath.split('/'));
+  const rootNorm = rootResolved.endsWith(path.sep) ? rootResolved : rootResolved + path.sep;
+  if (resolved !== rootResolved && !resolved.startsWith(rootNorm)) {
+    throw new Error(`[noteGraph] path traversal rejected: ${relPath}`);
+  }
+  return resolved;
 }

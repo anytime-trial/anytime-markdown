@@ -62,7 +62,7 @@ export function registerNoteGraphCommands(
 
       let docs;
       try {
-        docs = await scanRepository(root);
+        docs = await scanRepository(root, log);
       } catch (err) {
         log(`[noteGraph] addRelatedDoc scan failed: ${String(err)}`);
         void vscode.window.showErrorMessage('ドキュメントの走査に失敗しました。');

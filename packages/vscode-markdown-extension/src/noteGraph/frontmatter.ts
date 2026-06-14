@@ -87,22 +87,41 @@ export function parseFrontmatter(content: string): ParsedFrontmatter {
  * @param content ファイル本文
  * @returns 参加条件を満たさない場合 null（frontmatter なし / title なし / graph:false）
  */
+/** YAML 偽値（graph 除外フラグ）。 */
+const GRAPH_FALSE_VALUES = new Set(['false', 'no', 'off', '0']);
+
+/**
+ * リポジトリルート相対の安全なパスか判定する。
+ * 絶対パス・ドライブレター・`..` セグメントを含むものはリポジトリ外を指しうるため拒否する。
+ * （`related` 経由のパストラバーサルに対する第一防御）
+ */
+export function isSafeRelPath(p: string): boolean {
+  if (!p) return false;
+  if (p.includes('\0')) return false;
+  if (p.startsWith('/') || p.startsWith('\\')) return false;
+  if (/^[A-Za-z]:[\\/]/.test(p)) return false;
+  return !p.split(/[\\/]/).includes('..');
+}
+
 export function extractNoteDoc(relPath: string, content: string): NoteDocInput | null {
   const { scalars, arrays } = parseFrontmatter(content);
 
   const title = scalars.get('title');
   if (!title) return null;
 
-  // graph: false で明示除外
+  // graph: false / no / off で明示除外
   const graphFlag = scalars.get('graph');
-  if (graphFlag === 'false') return null;
+  if (graphFlag && GRAPH_FALSE_VALUES.has(graphFlag.toLowerCase())) return null;
+
+  // related はリポジトリ外を指しうる値（絶対パス・`..`）を除外する
+  const related = arrays.get('related')?.filter(isSafeRelPath);
 
   return {
     path: relPath,
     title,
     type: scalars.get('type'),
     category: scalars.get('category'),
-    related: arrays.get('related'),
+    related: related && related.length > 0 ? related : undefined,
     tags: arrays.get('tags'),
     c4Scope: arrays.get('c4Scope'),
   };
@@ -118,12 +137,14 @@ export function extractNoteDoc(relPath: string, content: string): NoteDocInput |
  */
 export function addRelatedEntry(content: string, target: string): string {
   const m = FRONTMATTER_RE.exec(content);
+  // 元ファイルの行末を保存する（CRLF/LF 混在による差分汚染を防ぐ）
+  const eol = content.includes('\r\n') ? '\r\n' : '\n';
   const indent = '  ';
   const entry = `${indent}- "${target}"`;
 
   if (!m) {
     // フロントマターなし → 新規作成
-    return `---\nrelated:\n${entry}\n---\n\n${content}`;
+    return `---${eol}related:${eol}${entry}${eol}---${eol}${eol}${content}`;
   }
 
   const block = m[1];
@@ -138,27 +159,26 @@ export function addRelatedEntry(content: string, target: string): string {
   let newBlock: string;
   if (relatedIdx === -1) {
     // related キーなし → ブロック末尾に追加
-    newBlock = `${block}\nrelated:\n${entry}`;
+    newBlock = [...blockLines, 'related:', entry].join(eol);
   } else {
     // related キーの直後（既存リスト項目の後）に挿入
     let insertAt = relatedIdx + 1;
     while (insertAt < blockLines.length && /^\s*-\s+/.test(blockLines[insertAt])) {
       insertAt += 1;
     }
-    // インライン配列だった場合はリスト形式へは触らず、末尾に新規 related ブロックを足さず
-    // 既存キー行を YAML リストへ変換する
+    // インライン配列の場合は YAML リスト形式へ変換しつつ追記する
     if (/^related:\s*\[/.test(blockLines[relatedIdx])) {
       const existing = parseInlineArray(blockLines[relatedIdx].replace(/^related:\s*/, ''));
       const merged = [...existing, target];
       const listLines = merged.map((v) => `${indent}- "${v}"`);
       blockLines.splice(relatedIdx, 1, 'related:', ...listLines);
-      newBlock = blockLines.join('\n');
     } else {
       blockLines.splice(insertAt, 0, entry);
-      newBlock = blockLines.join('\n');
     }
+    newBlock = blockLines.join(eol);
   }
 
-  const rebuilt = `---\n${newBlock}\n---\n`;
-  return content.replace(FRONTMATTER_RE, rebuilt + (m[0].endsWith('\n') ? '' : ''));
+  const rebuilt = `---${eol}${newBlock}${eol}---${eol}`;
+  // 置換文字列に含まれる `$` を特別扱いさせないため関数リプレーサを使う
+  return content.replace(FRONTMATTER_RE, () => rebuilt);
 }
