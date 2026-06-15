@@ -202,8 +202,10 @@ export function createFileOpsController(
       const result = await provider.open();
       if (!result) return;
       setHandle(result.handle);
-      setDirty(false);
+      // content 適用は transaction を発行し markDirty を誘発するため、適用後に dirty をリセットする
+      // （適用前にリセットすると開いた直後に dirty 表示になる）。
       applyMarkdownContent(result.content);
+      setDirty(false);
     },
     async saveFile(): Promise<void> {
       const md = withTrailingNewline(getFullMarkdown());
