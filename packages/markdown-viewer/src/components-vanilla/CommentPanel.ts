@@ -49,6 +49,7 @@ import {
   SMALL_CAPTION_FONT_SIZE,
 } from "../constants/dimensions";
 import { commentDataPluginKey } from "../extensions/commentExtension";
+import { REVIEW_MODE_ALLOW_META } from "../extensions/reviewModeExtension";
 import type { Editor } from "@anytime-markdown/markdown-core";
 import type { TranslationFn } from "../types";
 import type { ImageAnnotation } from "../types/imageAnnotation";
@@ -265,6 +266,8 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
       ...node.attrs,
       annotations: serializeAnnotations(updated),
     });
+    // レビューモードでもアノテーション操作を通す（doc 変更だが許可対象）。
+    tr.setMeta(REVIEW_MODE_ALLOW_META, true);
     editor.view.dispatch(tr);
     onSave();
   };
@@ -280,6 +283,8 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
       ...node.attrs,
       annotations: serializeAnnotations(updated),
     });
+    // レビューモードでもアノテーション削除を通す（doc 変更だが許可対象）。
+    tr.setMeta(REVIEW_MODE_ALLOW_META, true);
     editor.view.dispatch(tr);
     onSave();
   };

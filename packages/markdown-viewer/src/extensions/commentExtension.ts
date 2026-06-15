@@ -10,6 +10,7 @@ import { Extension,Mark, Node } from "@anytime-markdown/markdown-core";
 import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
 
 import type { InlineComment } from "../utils/commentHelpers";
+import { REVIEW_MODE_ALLOW_META } from "./reviewModeExtension";
 
 // ============================================================
 // ID 生成
@@ -218,6 +219,8 @@ export const CommentDataPlugin = Extension.create({
           };
           const action: CommentAction = { type: "add", comment };
           tr.setMeta(commentDataPluginKey, action);
+          // コメント追加はマーク付与/ノード挿入で doc を変更するため、レビューモードでも通す。
+          tr.setMeta(REVIEW_MODE_ALLOW_META, true);
           dispatch(tr);
           return true;
         },
@@ -263,6 +266,8 @@ export const CommentDataPlugin = Extension.create({
 
           const action: CommentAction = { type: "remove", id };
           tr.setMeta(commentDataPluginKey, action);
+          // コメント削除はマーク除去/ノード削除で doc を変更するため、レビューモードでも通す。
+          tr.setMeta(REVIEW_MODE_ALLOW_META, true);
           dispatch(tr);
           return true;
         },
