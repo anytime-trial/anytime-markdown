@@ -21,7 +21,12 @@ import type { SelectionRange } from "@anytime-markdown/markdown-pm/state";
 /** 実 selection から plugin と同じ from/to を計算し、判定パラメータを組む。 */
 function paramsFor(
   editor: Editor,
-  opts: { focused?: boolean; readonlyMode?: boolean; element?: HTMLElement } = {},
+  opts: {
+    focused?: boolean;
+    readonlyMode?: boolean;
+    reviewMode?: boolean;
+    element?: HTMLElement;
+  } = {},
 ): BubbleMenuVisibilityParams {
   const { state } = editor;
   const { ranges } = state.selection;
@@ -38,6 +43,7 @@ function paramsFor(
     from,
     to,
     readonlyMode: opts.readonlyMode ?? false,
+    reviewMode: opts.reviewMode ?? false,
   };
 }
 
@@ -88,6 +94,32 @@ describe("shouldShowTextFormatBubbleMenu", () => {
     editor.commands.selectAll();
     expect(
       shouldShowTextFormatBubbleMenu(paramsFor(editor, { focused: false })),
+    ).toBe(false);
+  });
+
+  it("レビューモードでは editable=false でもテキスト選択中は表示する（コメント追加のため）", () => {
+    editor = createTestEditor({ withMarkdown: true });
+    editor.commands.setContent("hello world");
+    editor.commands.selectAll();
+    editor.setEditable(false); // レビューモード相当（host が setEditable(false)）
+    expect(editor.isEditable).toBe(false);
+    // reviewMode 無しでは isEditable=false で非表示（従来挙動）。
+    expect(shouldShowTextFormatBubbleMenu(paramsFor(editor))).toBe(false);
+    // reviewMode 有りなら表示する。
+    expect(
+      shouldShowTextFormatBubbleMenu(paramsFor(editor, { reviewMode: true })),
+    ).toBe(true);
+  });
+
+  it("レビューモードでも readonlyMode が優先され表示しない", () => {
+    editor = createTestEditor({ withMarkdown: true });
+    editor.commands.setContent("hello world");
+    editor.commands.selectAll();
+    editor.setEditable(false);
+    expect(
+      shouldShowTextFormatBubbleMenu(
+        paramsFor(editor, { reviewMode: true, readonlyMode: true }),
+      ),
     ).toBe(false);
   });
 

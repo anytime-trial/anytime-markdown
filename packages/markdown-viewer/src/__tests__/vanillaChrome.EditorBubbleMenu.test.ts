@@ -248,24 +248,29 @@ describe("createEditorBubbleMenu", () => {
         fn();
       },
     });
-    // review モードでは書式系は出ず、コメント1つのみ。
-    const buttons = Array.from(handle.el.querySelectorAll("button"));
-    expect(buttons.length).toBe(1);
-    expect(buttons[0].getAttribute("aria-label")).toBe("comment");
+    // review モードでは書式系は display:none で隠れ、可視はコメント1つのみ。
+    const visible = (
+      Array.from(handle.el.querySelectorAll("button")) as HTMLElement[]
+    ).filter((b) => b.style.display !== "none");
+    expect(visible.length).toBe(1);
+    expect(visible[0].getAttribute("aria-label")).toBe("comment");
 
-    buttons[0].click();
+    visible[0].click();
     expect(opened).toBe(1);
     expect(order).toEqual(["wrap", "open"]);
   });
 
-  it("readonlyMode ではボタンを 1 つも生成しない", () => {
+  it("readonlyMode では可視ボタンが 0（全ボタンを display:none で隠す）", () => {
     const m = createMockEditor();
     handle = createEditorBubbleMenu(m.editor, {
       t,
       onLink: () => {},
       readonlyMode: true,
     });
-    expect(handle.el.querySelectorAll("button").length).toBe(0);
+    const visible = (
+      Array.from(handle.el.querySelectorAll("button")) as HTMLElement[]
+    ).filter((b) => b.style.display !== "none");
+    expect(visible.length).toBe(0);
   });
 
   it("active な書式は primary 色 + aria-pressed=true になり、transaction で更新される", () => {

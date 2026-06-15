@@ -984,18 +984,19 @@ export function mountVanillaMarkdownEditor(
       }
 
       // === BubbleMenu（onLink → dialog・readOnly 変更時は remake） ==============
-      let bubble = createEditorBubbleMenu(editor, {
+      // readonlyMode / reviewMode は getter で渡し、モード切替に追従させる（show 毎に評価される）。
+      // レビューモードでは editable=false でもコメント追加バブルメニューを表示する。
+      const bubbleMenuOpts = (): Parameters<typeof createEditorBubbleMenu>[1] => ({
         t,
         onLink: () => dialogs.openLink(),
-        readonlyMode: readonlyNow(),
+        readonlyMode: () => readonlyNow(),
+        reviewMode: () => modeState.reviewMode === true,
+        executeInReviewMode: (fn) => sourceController?.executeInReviewMode(fn),
       });
+      let bubble = createEditorBubbleMenu(editor, bubbleMenuOpts());
       const remakeBubble = (): void => {
         bubble.destroy();
-        bubble = createEditorBubbleMenu(editor, {
-          t,
-          onLink: () => dialogs.openLink(),
-          readonlyMode: readonlyNow(),
-        });
+        bubble = createEditorBubbleMenu(editor, bubbleMenuOpts());
       };
       disposers.push(() => bubble.destroy());
 
