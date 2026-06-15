@@ -29,6 +29,7 @@ import { CONTEXT_MENU_FONT_SIZE, SHORTCUT_HINT_FONT_SIZE } from "../constants/di
 import type { TranslationFn } from "../types";
 import { findBlockNode, getCopiedBlockNode, performBlockCopy } from "../utils/blockClipboard";
 import { boxTableToMarkdown, containsBoxTable } from "../utils/boxTableToMarkdown";
+import { clearDocumentAndComments } from "../utils/clearEditor";
 import { copyTextToClipboard, readTextFromClipboard } from "../utils/clipboardHelpers";
 import { requestExternalImageDownloads, saveClipboardImageViaVscode } from "../utils/editorImageHandlers";
 import {
@@ -419,12 +420,8 @@ export function createEditorContextMenu(
       handleClose();
       return;
     }
-    editor.chain().focus().clearContent().run();
-    // clearContent は doc を空にするがコメント plugin state（Map）は残るため、
-    // 画面クリア時はコメントも全消去する（fileOpsController.clearAll と同じ扱い）。
-    if (typeof editor.commands?.initComments === "function") {
-      editor.commands.initComments(new Map());
-    }
+    // 本文＋コメント状態を一括クリア（共有ヘルパー H2）。
+    clearDocumentAndComments(editor);
     handleClose();
   };
 

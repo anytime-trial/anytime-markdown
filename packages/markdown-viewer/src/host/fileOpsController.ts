@@ -15,6 +15,7 @@ import type { Editor } from "@anytime-markdown/markdown-core";
 import { STORAGE_KEY_FILENAME } from "../constants/storageKeys";
 import type { TranslationFn } from "../types";
 import type { FileHandle, FileSystemProvider } from "../types/fileSystem";
+import { clearDocumentAndComments } from "../utils/clearEditor";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
 import { clearNativeHandle, loadNativeHandle, saveNativeHandle } from "../utils/fileHandleStore";
 import { readFileAsText } from "../utils/fileReading";
@@ -245,10 +246,8 @@ export function createFileOpsController(
       if (options.getSourceMode()) {
         options.setSourceText("");
       } else {
-        editor.commands.clearContent();
-        if (typeof editor.commands.initComments === "function") {
-          editor.commands.initComments(new Map());
-        }
+        // 本文＋コメント状態を一括クリア（共有ヘルパー H2）。
+        clearDocumentAndComments(editor);
       }
       options.setFrontmatter(null);
       setHandle(null);

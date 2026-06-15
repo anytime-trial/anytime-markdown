@@ -38,6 +38,7 @@ import type {
 } from "../types/toolbar";
 import type { CommentInfo } from "../utils/commentNotifications";
 import { installCommentNotifications } from "../utils/commentNotifications";
+import { onCommentStateChange } from "../utils/commentStateSubscription";
 import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
 import type { FileSystemProvider } from "../types/fileSystem";
 import { createFileOpsController } from "./fileOpsController";
@@ -623,9 +624,11 @@ export function mountVanillaMarkdownEditor(
           layout.liveRegion.textContent = t(key);
         },
       });
-      const onDirtyUpdate = (): void => fileOps.markDirty();
-      editor.on("update", onDirtyUpdate);
-      disposers.push(() => editor.off("update", onDirtyUpdate));
+      // dirty 追跡（A1）。doc 変更だけでなくコメントの resolve / 本文編集（meta のみ・doc 非変更）も
+      // serialize 出力（コメントデータブロック）を変えるため dirty 化する必要がある。共有プリミティブで
+      // コメント状態または doc の変化を一括して拾う（`editor.on("update")` は meta のみを取りこぼす）。
+      const disposeDirty = onCommentStateChange(editor, () => fileOps.markDirty());
+      disposers.push(disposeDirty);
 
       // === FrontmatterBlock（折りたたみ/編集/削除可能・React FrontmatterBlock 相当） =====
       frontmatterBlock = createFrontmatterBlock({
