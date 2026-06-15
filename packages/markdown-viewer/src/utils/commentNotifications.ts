@@ -11,6 +11,7 @@ import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 import { DEBOUNCE_MEDIUM } from "../constants/timing";
 import { commentDataPluginKey } from "../extensions/commentExtension";
 import type { InlineComment } from "./commentHelpers";
+import { onCommentStateChange } from "./commentStateSubscription";
 
 /** onCommentsChange へ渡すコメント情報（VS Code 拡張のコメントパネルが消費する形）。 */
 export type CommentInfo = {
@@ -74,27 +75,13 @@ export function extractEditorComments(editor: Editor): CommentInfo[] {
   return result;
 }
 
-/** comment plugin state の描画/通知に影響する状態シグネチャ（id / resolved / text）。 */
-function commentSignature(editor: Editor): string {
-  const pluginState = commentDataPluginKey.getState(editor.state) as
-    | { comments: Map<string, InlineComment> }
-    | undefined;
-  const comments = pluginState?.comments;
-  if (!comments) return "";
-  return Array.from(comments.values())
-    .map((c) => `${c.id}:${c.resolved ? 1 : 0}:${c.text}`)
-    .join("|");
-}
-
 /**
  * コメント変更をデバウンス付きで通知する購読を張る（初回即時通知あり）。
  *
- * `update` ではなく `transaction` を購読する。resolve / unresolve / updateText や、
- * doc にマークが残っていない orphan コメントの削除は doc 非変更（meta のみ）のトランザクション
- * となり、vendored tiptap は `update` を emit しない（`Editor.ts` の docChanged ガード）。
- * その結果、VS Code 拡張のネイティブコメント UI を駆動する `onCommentsChange` が発火せず、
- * 拡張側でコメントの解決・削除が反映されない。コメント状態シグネチャか docChanged が
- * 変化したときだけ通知する（選択移動など無関係な更新では通知しない）。
+ * 購読は共有プリミティブ {@link onCommentStateChange}（`transaction` 購読＋コメント状態／
+ * docChanged 差分ガード）に一本化する。本関数は固有処理（debounce・初回通知）のみ担う。
+ * resolve / unresolve / updateText や orphan コメント削除は doc 非変更（meta のみ）で
+ * `update` が発火しないが、プリミティブが `transaction` を見るため取りこぼさない。
  *
  * @returns 購読解除関数。
  */
@@ -107,24 +94,11 @@ export function installCommentNotifications(
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => onCommentsChange(extractEditorComments(editor)), DEBOUNCE_MEDIUM);
   };
-  let lastSignature = commentSignature(editor);
-  const handler = (props?: {
-    transaction?: { docChanged?: boolean };
-    appendedTransactions?: Array<{ docChanged?: boolean }>;
-  }): void => {
-    const signature = commentSignature(editor);
-    const docChanged =
-      (props?.transaction?.docChanged ?? false) ||
-      (props?.appendedTransactions?.some((tr) => tr.docChanged) ?? false);
-    if (signature === lastSignature && !docChanged) return;
-    lastSignature = signature;
-    schedule();
-  };
   // 初回送信（デバウンス経由・React 版と同一タイミング）
   schedule();
-  editor.on("transaction", handler);
+  const unsubscribe = onCommentStateChange(editor, schedule);
   return () => {
-    editor.off("transaction", handler);
+    unsubscribe();
     if (timer) clearTimeout(timer);
   };
 }

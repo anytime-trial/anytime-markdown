@@ -55,6 +55,7 @@ import type { TranslationFn } from "../types";
 import type { ImageAnnotation } from "../types/imageAnnotation";
 import { parseAnnotations, serializeAnnotations } from "../types/imageAnnotation";
 import type { InlineComment } from "../utils/commentHelpers";
+import { onCommentStateChange } from "../utils/commentStateSubscription";
 
 // ui/icons.tsx と同一の Material SVG path（Close / Image）。
 const ICON_CLOSE =
@@ -642,33 +643,13 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     }
   }
 
-  // コメント一覧の描画に影響する状態（id / resolved / text）のシグネチャ。
-  // resolve / unresolve / updateText は doc を変更しない meta のみのトランザクションのため、
-  // vendored tiptap は `update` イベントを emit しない（docChanged 時のみ emit）。
-  // そこで全トランザクションを拾う `transaction` を購読し、コメント状態または doc が
-  // 変化したときだけ再描画する（選択移動など無関係な更新では再描画しない）。
-  const commentSignature = (): string =>
-    readComments(editor)
-      .map((c) => `${c.id}:${c.resolved ? 1 : 0}:${c.text}`)
-      .join("|");
-
   // 初回描画。
   render();
-  let lastSignature = commentSignature();
 
-  const onEditorTransaction = (props?: {
-    transaction?: { docChanged?: boolean };
-    appendedTransactions?: Array<{ docChanged?: boolean }>;
-  }): void => {
-    const signature = commentSignature();
-    // tiptap 本体の update 判定（transactions.some(tr => tr.docChanged)）に合わせ、
-    // appendTransaction 由来の doc 変更も拾う。
-    const docChanged =
-      (props?.transaction?.docChanged ?? false) ||
-      (props?.appendedTransactions?.some((tr) => tr.docChanged) ?? false);
-    // コメント状態も doc も変わっていなければ何もしない（選択移動等での無駄な再描画を防ぐ）。
-    if (signature === lastSignature && !docChanged) return;
-    lastSignature = signature;
+  // コメント状態または doc の変化を共有プリミティブで購読する（H1）。resolve 等の
+  // doc 非変更（meta のみ）の更新も `transaction` 経由で拾う。再描画の固有判定（編集中ガード）は
+  // 本コールバックに残す（プリミティブは「変化したか」だけを判定する）。
+  const unsubscribe = onCommentStateChange(editor, () => {
     // 編集中は再描画すると編集 TextField が破棄されフォーカスを失うため、
     // editingId が無いとき（または編集対象が消えたとき）のみ再描画する。
     if (editingId) {
@@ -680,8 +661,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
       editingId = null;
     }
     render();
-  };
-  editor.on("transaction", onEditorTransaction);
+  });
 
   let destroyed = false;
   return {
@@ -689,7 +669,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     destroy() {
       if (destroyed) return;
       destroyed = true;
-      editor.off("transaction", onEditorTransaction);
+      unsubscribe();
       for (const h of bodyHandles) h.destroy();
       bodyHandles = [];
       closeBtn.destroy();
