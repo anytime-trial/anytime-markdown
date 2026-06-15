@@ -192,7 +192,7 @@ export function createEditorSideToolbar(
       } else {
         opts.onToggleComment(false);
         if (state.explorerOpen) opts.onToggleExplorer?.();
-        if (state.noteGraphOpen) opts.onToggleNoteGraph?.();
+        // ノート網との排他は onToggleOutline ハンドラ側でピン留め考慮のうえ処理する
         opts.onToggleOutline?.();
       }
     },
@@ -208,7 +208,6 @@ export function createEditorSideToolbar(
       } else {
         if (state.outlineOpen) opts.onToggleOutline?.();
         if (state.explorerOpen) opts.onToggleExplorer?.();
-        if (state.noteGraphOpen) opts.onToggleNoteGraph?.();
         opts.onToggleComment(true);
       }
     },
@@ -226,7 +225,6 @@ export function createEditorSideToolbar(
         } else {
           if (state.outlineOpen) opts.onToggleOutline?.();
           opts.onToggleComment(false);
-          if (state.noteGraphOpen) opts.onToggleNoteGraph?.();
           opts.onToggleExplorer?.();
         }
       },
@@ -234,21 +232,14 @@ export function createEditorSideToolbar(
   }
 
   // --- ノート網（callback 未指定なら描画しない＝ホスト所有パネル提供時のみ） ---
+  // 他パネルとの排他（ピン留め考慮）は onToggleNoteGraph ハンドラ側で処理するため、
+  // ここでは単にトグルを呼ぶ。
   let noteGraphItem: ToolbarItem | undefined;
   if (opts.onToggleNoteGraph) {
     noteGraphItem = addItem({
       label: t("noteGraph"),
       iconPath: ICON.accountTree,
-      onClick: () => {
-        if (state.noteGraphOpen) {
-          opts.onToggleNoteGraph?.();
-        } else {
-          if (state.outlineOpen) opts.onToggleOutline?.();
-          opts.onToggleComment(false);
-          if (state.explorerOpen) opts.onToggleExplorer?.();
-          opts.onToggleNoteGraph?.();
-        }
-      },
+      onClick: () => opts.onToggleNoteGraph?.(),
     });
   }
 
