@@ -12,6 +12,7 @@ export {
   buildThinkingDiagram,
   THINKING_DIAGRAM_TYPES,
   buildNoteGraph,
+  buildNoteNeighborhood,
 } from './presets/index';
 export type {
   ThinkingDiagramSpec,
@@ -30,6 +31,7 @@ export type {
   NoteGraphDocInput,
   NoteGraphOptions,
   NoteGraphEdgeLayers,
+  NoteNeighborhoodOptions,
 } from './presets/index';
 // React 依存の canvas ラッパー（useCanvasBase / MinimapCanvas）は
 // @anytime-markdown/graph-react-islands へ分離。graph-core 本体は React-free。

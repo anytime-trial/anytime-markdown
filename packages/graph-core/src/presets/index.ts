@@ -84,9 +84,10 @@ export type {
 };
 
 // ノート網（ドキュメント関係グラフ）プリセット
-export { buildNoteGraph } from './noteGraph';
+export { buildNoteGraph, buildNoteNeighborhood } from './noteGraph';
 export type {
   NoteGraphDocInput,
   NoteGraphOptions,
   NoteGraphEdgeLayers,
+  NoteNeighborhoodOptions,
 } from './noteGraph';

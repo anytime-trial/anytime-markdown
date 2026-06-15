@@ -8,6 +8,7 @@
 
 import {
   buildNoteGraph,
+  buildNoteNeighborhood,
   GraphView,
   type NoteGraphDocInput,
   type NoteGraphEdgeLayers,
@@ -25,7 +26,7 @@ export interface NoteGraphPanelOptions {
 
 export interface NoteGraphPanelHandle {
   element: HTMLElement;
-  setDocs(input: { docs: NoteGraphDocInput[]; isDark: boolean }): void;
+  setDocs(input: { docs: NoteGraphDocInput[]; isDark: boolean; currentPath?: string }): void;
   /** パネルを閉じたときに接続モード等の一時状態を解除する。 */
   resetInteraction(): void;
   /** ピン留め中か（他パネルを開いても自動で閉じない）。 */
@@ -123,6 +124,12 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
     connectMode: false,
     pendingSource: null as string | null,
     pinned: loadPinned(),
+    // 表示モード: 中心表示（現在 doc 中心の近傍）/ 全体表示（リポジトリ全体）
+    mode: 'neighborhood' as 'neighborhood' | 'global',
+    includeBodyLinks: true,
+    currentPath: undefined as string | undefined,
+    // 再センタリング時の中心 override（クリックで隣接 doc を中心に）
+    centerOverride: null as string | null,
   };
 
   const view = new GraphView(canvas, { theme: state.isDark ? 'dark' : 'light', movableNodes: true });
@@ -176,7 +183,19 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
     status.textContent = text;
   };
 
+  const activeCenter = (): string | undefined => state.centerOverride ?? state.currentPath;
+
   const rebuild = (): void => {
+    if (state.mode === 'neighborhood' && activeCenter()) {
+      const doc = buildNoteNeighborhood(state.docs, activeCenter() as string, {
+        isDark: state.isDark,
+        includeBodyLinks: state.includeBodyLinks,
+      });
+      view.setDocument(doc);
+      view.fitToContent();
+      setStatus(`${shortName(activeCenter() as string)} · ${doc.nodes.length - 1}`);
+      return;
+    }
     const doc = buildNoteGraph(state.docs, { isDark: state.isDark, edges: state.layers });
     view.setDocument(doc);
     view.fitToContent();
@@ -184,22 +203,40 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
   };
 
   view.on('nodeClick', (id: string) => {
-    if (!state.connectMode) {
-      opts.onOpenDoc(id);
+    if (state.connectMode) {
+      if (!state.pendingSource) {
+        state.pendingSource = id;
+        setStatus(`→ ${shortName(id)}`);
+        return;
+      }
+      if (state.pendingSource !== id) {
+        opts.onConnect(state.pendingSource, id);
+        setStatus(`${shortName(state.pendingSource)} → ${shortName(id)}`);
+      }
+      state.pendingSource = null;
       return;
     }
-    if (!state.pendingSource) {
-      state.pendingSource = id;
-      setStatus(`→ ${shortName(id)}`);
+    // 中心表示: クリックで再センタリング。既に中心のノードを再クリックで開く。
+    if (state.mode === 'neighborhood') {
+      if (id === activeCenter()) {
+        opts.onOpenDoc(id);
+      } else {
+        state.centerOverride = id;
+        rebuild();
+      }
       return;
     }
-    if (state.pendingSource !== id) {
-      opts.onConnect(state.pendingSource, id);
-      setStatus(`${shortName(state.pendingSource)} → ${shortName(id)}`);
-    }
-    state.pendingSource = null;
+    // 全体表示: クリックで開く
+    opts.onOpenDoc(id);
   });
 
+  // 全体表示トグル（active=全体 / 非active=中心表示）
+  const globalBtn = button(opts.t('noteGraphGlobalView'), () => {
+    state.mode = state.mode === 'global' ? 'neighborhood' : 'global';
+    state.centerOverride = null;
+    globalBtn.classList.toggle('active', state.mode === 'global');
+    rebuild();
+  });
   const refreshBtn = button(opts.t('noteGraphRefresh'), () => opts.onRefresh());
   const connectBtn = button(opts.t('noteGraphConnect'), () => {
     state.connectMode = !state.connectMode;
@@ -207,10 +244,11 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
     connectBtn.classList.toggle('active', state.connectMode);
     setStatus(state.connectMode ? 'A → B' : '');
   });
-  const tagsToggle = layerToggle(opts.t('noteGraphTags'), (on) => {
-    state.layers.tags = on;
+  const bodyToggle = layerToggle(opts.t('noteGraphBodyLinks'), (on) => {
+    state.includeBodyLinks = on;
     rebuild();
   });
+  bodyToggle.querySelector('input')!.checked = state.includeBodyLinks;
   // ピン: 有効時は他パネル（Outline 等）を開いてもノート網が自動で閉じない
   const pinBtn = iconButton(ICON_PIN, opts.t('noteGraphPin'), () => {
     state.pinned = !state.pinned;
@@ -219,12 +257,18 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
   });
   pinBtn.classList.toggle('active', state.pinned);
 
-  toolbar.append(refreshBtn, connectBtn, tagsToggle, pinBtn);
+  toolbar.append(globalBtn, refreshBtn, connectBtn, bodyToggle, pinBtn);
 
   return {
     element: root,
     setDocs(input): void {
       state.docs = input.docs;
+      // 別ドキュメントを開いたときだけ再センタリングをリセットする。
+      // 同一ドキュメントの再スキャン（Refresh 等）では再センタリング状態を維持する。
+      if (input.currentPath !== undefined && input.currentPath !== state.currentPath) {
+        state.currentPath = input.currentPath;
+        state.centerOverride = null;
+      }
       if (state.isDark !== input.isDark) {
         state.isDark = input.isDark;
         view.setTheme(state.isDark ? 'dark' : 'light');
