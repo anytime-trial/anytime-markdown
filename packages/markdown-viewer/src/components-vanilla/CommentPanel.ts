@@ -635,24 +635,39 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     }
   }
 
+  // コメント一覧の描画に影響する状態（id / resolved / text）のシグネチャ。
+  // resolve / unresolve / updateText は doc を変更しない meta のみのトランザクションのため、
+  // vendored tiptap は `update` イベントを emit しない（docChanged 時のみ emit）。
+  // そこで全トランザクションを拾う `transaction` を購読し、コメント状態または doc が
+  // 変化したときだけ再描画する（選択移動など無関係な更新では再描画しない）。
+  const commentSignature = (): string =>
+    readComments(editor)
+      .map((c) => `${c.id}:${c.resolved ? 1 : 0}:${c.text}`)
+      .join("|");
+
   // 初回描画。
   render();
+  let lastSignature = commentSignature();
 
-  // editor update を購読し再描画する（React useEditorState 相当）。
-  const onEditorUpdate = (): void => {
+  const onEditorTransaction = (props?: { transaction?: { docChanged?: boolean } }): void => {
+    const signature = commentSignature();
+    const docChanged = props?.transaction?.docChanged ?? false;
+    // コメント状態も doc も変わっていなければ何もしない（選択移動等での無駄な再描画を防ぐ）。
+    if (signature === lastSignature && !docChanged) return;
+    lastSignature = signature;
     // 編集中は再描画すると編集 TextField が破棄されフォーカスを失うため、
     // editingId が無いとき（または編集対象が消えたとき）のみ再描画する。
     if (editingId) {
       const stillExists = readComments(editor).some((c) => c.id === editingId);
       if (stillExists) {
-        // 編集中のコメントが残っている間はヘッダーカウントのみ更新（一覧は維持）。
+        // 編集中のコメントが残っている間は一覧を維持する。
         return;
       }
       editingId = null;
     }
     render();
   };
-  editor.on("update", onEditorUpdate);
+  editor.on("transaction", onEditorTransaction);
 
   let destroyed = false;
   return {
@@ -660,7 +675,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     destroy() {
       if (destroyed) return;
       destroyed = true;
-      editor.off("update", onEditorUpdate);
+      editor.off("transaction", onEditorTransaction);
       for (const h of bodyHandles) h.destroy();
       bodyHandles = [];
       closeBtn.destroy();
