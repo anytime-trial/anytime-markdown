@@ -100,6 +100,22 @@ const STYLE_ELEMENT_ID = "am-vanilla-textfield-style";
  */
 function ensureStyleInjected(): void {
   ensureStyle(STYLE_ELEMENT_ID, `
+[data-am-tf-label] {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  transform-origin: left top;
+  color: var(--am-color-text-secondary);
+  font-size: var(--tf-input-font-size);
+  pointer-events: none;
+  transition: transform var(--am-duration-fast) var(--am-ease-standard),
+    color var(--am-duration-fast) var(--am-ease-standard);
+  max-width: calc(100% - 28px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 [data-am-tf-input]::placeholder { color: var(--am-color-text-secondary); opacity: 1; }
 [data-am-tf-input]:hover { border-color: var(--am-color-text-primary); }
 [data-am-tf-wrap]:focus-within [data-am-tf-input] {
@@ -163,14 +179,8 @@ const INPUT_CSS =
 // textarea 専用（resize:vertical）。
 const TEXTAREA_EXTRA_CSS = "resize:vertical;";
 
-// label（.label）の static スタイル。shrink / focus-within は <style> 側。
-const LABEL_CSS =
-  "position:absolute;left:14px;top:50%;transform:translateY(-50%);" +
-  "transform-origin:left top;color:var(--am-color-text-secondary);" +
-  "font-size:var(--tf-input-font-size);pointer-events:none;" +
-  "transition:transform var(--am-duration-fast) var(--am-ease-standard)," +
-  "color var(--am-duration-fast) var(--am-ease-standard);" +
-  "max-width:calc(100% - 28px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+// label（.label）の static スタイル・shrink・focus-within はすべて <style> 側で扱う
+// （インライン style にすると詳細度でスタイルシートの shrink ルールを上書きしてしまうため）。
 
 // helper text（.helper）の static スタイル。error は <style> 側。
 const HELPER_CSS =
@@ -220,7 +230,9 @@ export function createTextField(opts: CreateTextFieldOptions = {}): TextFieldHan
     labelEl = document.createElement("label");
     labelEl.setAttribute("data-am-tf-label", "");
     labelEl.htmlFor = inputId;
-    labelEl.style.cssText = LABEL_CSS;
+    // 位置・shrink・focus スタイルはすべて注入スタイルシート側で扱う。
+    // インライン style で top/transform を与えると、より高い詳細度でスタイルシートの
+    // shrink/:focus-within ルールを上書きしてしまい、ラベルが縮小しない（中央に残る）。
     labelEl.setAttribute("data-shrink", String(computeShrink(opts.value, opts.placeholder)));
     appendContent(labelEl, opts.label);
     if (opts.required) {

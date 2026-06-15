@@ -123,6 +123,27 @@ describe("createTextField", () => {
       expect(onChange).toHaveBeenCalledTimes(1);
       expect(el.querySelector("[data-am-tf-label]")?.getAttribute("data-shrink")).toBe("true");
     });
+
+    // ラベル位置はスタイルシート側で扱う。インライン style に top/transform を持たせると
+    // 詳細度で shrink ルールを上書きし、ラベルが縮小せず入力欄中央に残る（実バグの再現防止）。
+    it("label の位置スタイルはインラインで持たず、スタイルシートで shrink が効く", () => {
+      const { el } = createTextField({ label: "名前" });
+      const label = el.querySelector("[data-am-tf-label]") as HTMLElement;
+      // インライン top/transform を持たないこと（持つと shrink を上書きしてしまう）。
+      expect(label.style.top).toBe("");
+      expect(label.style.transform).toBe("");
+      // 非 shrink 時は中央。
+      expect(getComputedStyle(label).top).toBe("50%");
+    });
+
+    it("data-shrink=true で label が実際に上端へ縮小する（computed top が 0）", () => {
+      const { el, input } = createTextField({ label: "名前" });
+      const label = el.querySelector("[data-am-tf-label]") as HTMLElement;
+      input.value = "入力済";
+      input.dispatchEvent(new Event("input"));
+      // スタイルシートの [data-shrink="true"] が詳細度勝ちして適用される。
+      expect(getComputedStyle(label).top).toBe("0px");
+    });
   });
 
   describe("multiline / maxRows", () => {
