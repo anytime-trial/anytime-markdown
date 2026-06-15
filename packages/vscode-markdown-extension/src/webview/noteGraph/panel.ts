@@ -28,6 +28,8 @@ export interface NoteGraphPanelHandle {
   setDocs(input: { docs: NoteGraphDocInput[]; isDark: boolean }): void;
   /** パネルを閉じたときに接続モード等の一時状態を解除する。 */
   resetInteraction(): void;
+  /** ピン留め中か（他パネルを開いても自動で閉じない）。 */
+  isPinned(): boolean;
   destroy(): void;
 }
 
@@ -54,6 +56,30 @@ function saveWidth(width: number): void {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn('[noteGraph] panel width persist unavailable', err);
+  }
+}
+
+const PIN_STORAGE_KEY = 'anytime.noteGraph.pinned';
+// PushPinIcon（Material）
+const ICON_PIN =
+  'M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z';
+
+function loadPinned(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(PIN_STORAGE_KEY) === '1';
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[noteGraph] pin state restore unavailable', err);
+    return false;
+  }
+}
+
+function savePinned(pinned: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(PIN_STORAGE_KEY, pinned ? '1' : '0');
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[noteGraph] pin state persist unavailable', err);
   }
 }
 
@@ -96,6 +122,7 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
     layers: { related: true, tags: false, category: false, c4Scope: false } as NoteGraphEdgeLayers,
     connectMode: false,
     pendingSource: null as string | null,
+    pinned: loadPinned(),
   };
 
   const view = new GraphView(canvas, { theme: state.isDark ? 'dark' : 'light', movableNodes: true });
@@ -184,8 +211,15 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
     state.layers.tags = on;
     rebuild();
   });
+  // ピン: 有効時は他パネル（Outline 等）を開いてもノート網が自動で閉じない
+  const pinBtn = iconButton(ICON_PIN, opts.t('noteGraphPin'), () => {
+    state.pinned = !state.pinned;
+    savePinned(state.pinned);
+    pinBtn.classList.toggle('active', state.pinned);
+  });
+  pinBtn.classList.toggle('active', state.pinned);
 
-  toolbar.append(refreshBtn, connectBtn, tagsToggle);
+  toolbar.append(refreshBtn, connectBtn, tagsToggle, pinBtn);
 
   return {
     element: root,
@@ -203,6 +237,9 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
       connectBtn.classList.remove('active');
       setStatus('');
     },
+    isPinned(): boolean {
+      return state.pinned;
+    },
     destroy(): void {
       resizeObserver.disconnect();
       view.destroy();
@@ -213,6 +250,24 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
 
 function button(label: string, onClick: () => void): HTMLButtonElement {
   const b = el('button', { className: 'ng-btn', textContent: label });
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function iconButton(svgPath: string, label: string, onClick: () => void): HTMLButtonElement {
+  const b = el('button', { className: 'ng-btn ng-icon-btn', title: label });
+  b.setAttribute('aria-label', label);
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '14');
+  svg.setAttribute('height', '14');
+  svg.setAttribute('fill', 'currentColor');
+  svg.setAttribute('aria-hidden', 'true');
+  const pathEl = document.createElementNS(ns, 'path');
+  pathEl.setAttribute('d', svgPath);
+  svg.append(pathEl);
+  b.append(svg);
   b.addEventListener('click', onClick);
   return b;
 }
@@ -240,6 +295,7 @@ function injectStyles(): void {
     .ng-panel .ng-btn { background: transparent; color: inherit; border: 1px solid var(--vscode-button-border, var(--am-color-divider, var(--vscode-panel-border))); border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
     .ng-panel .ng-btn:hover { background: var(--vscode-toolbar-hoverBackground); }
     .ng-panel .ng-btn.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+    .ng-panel .ng-icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 3px 5px; }
     .ng-panel .ng-toggle { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; user-select: none; }
   `;
   document.head.append(style);

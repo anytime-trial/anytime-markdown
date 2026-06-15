@@ -112,6 +112,11 @@ export interface NoteGraphSlot {
   onOpen?: () => void;
   /** パネルが閉じたとき。 */
   onClose?: () => void;
+  /**
+   * ピン留め中か。true の間は他パネル（Outline/comment/explorer）を開いても
+   * ノート網を自動で閉じず、共存表示する。
+   */
+  isPinned?: () => boolean;
 }
 
 /** {@link mountVanillaMarkdownEditor} のオプション（MarkdownEditorPage props の vanilla 対応）。 */
@@ -861,6 +866,8 @@ export function mountVanillaMarkdownEditor(
       });
       disposers.push(() => sourceController?.destroy());
 
+      const noteGraphPinned = (): boolean => current.noteGraph?.isPinned?.() ?? false;
+
       const modeHandlers: ToolbarModeHandlers = {
         onSwitchToSource: () => sourceController?.switchTo("source"),
         onSwitchToWysiwyg: () => sourceController?.switchTo("wysiwyg"),
@@ -869,26 +876,27 @@ export function mountVanillaMarkdownEditor(
         onSwitchToReadonly: () =>
           sourceController?.switchTo(modeState.readonlyMode ? "wysiwyg" : "readonly"),
         onToggleOutline: () => {
-          // 排他: 開くときノート網パネルを閉じる（キーボード経路でも一貫させる）
-          if (!modeState.outlineOpen) modeState.noteGraphOpen = false;
+          // 排他: 開くときノート網パネルを閉じる（キーボード経路でも一貫）。
+          // ただしピン留め中は閉じず共存させる。
+          if (!modeState.outlineOpen && !noteGraphPinned()) modeState.noteGraphOpen = false;
           modeState.outlineOpen = !modeState.outlineOpen;
           refreshToolbarMode();
         },
         onToggleComments: () => {
-          if (!modeState.commentOpen) modeState.noteGraphOpen = false;
+          if (!modeState.commentOpen && !noteGraphPinned()) modeState.noteGraphOpen = false;
           modeState.commentOpen = !modeState.commentOpen;
           refreshToolbarMode();
         },
         onToggleExplorer: () => {
-          if (!modeState.explorerOpen) modeState.noteGraphOpen = false;
+          if (!modeState.explorerOpen && !noteGraphPinned()) modeState.noteGraphOpen = false;
           modeState.explorerOpen = !modeState.explorerOpen;
           refreshToolbarMode();
         },
         onToggleNoteGraph: () => {
           const opening = !modeState.noteGraphOpen;
           modeState.noteGraphOpen = opening;
-          // 排他: 開くとき他のサイドバーパネルを閉じる
-          if (opening) {
+          // 排他: 開くとき他のサイドバーパネルを閉じる（ピン留め中は共存させる）
+          if (opening && !noteGraphPinned()) {
             modeState.outlineOpen = false;
             modeState.commentOpen = false;
             modeState.explorerOpen = false;
