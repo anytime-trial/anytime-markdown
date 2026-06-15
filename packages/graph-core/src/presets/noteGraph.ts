@@ -324,13 +324,14 @@ export function buildNoteNeighborhood(
   const typeColor = buildTypeColorMap(docs, isDark);
   const byPath = new Map(docs.map((d) => [d.path, d]));
 
-  // 全有向エッジ（related 優先で kind を集約）
-  const edgeKind = new Map<string, EdgeKind>();
+  // 全有向エッジ（related 優先で kind を集約）。from/to はパスを分割せず値で保持する
+  // （パスにセパレータ文字が含まれても壊れないようにするため）。改行はパスに現れない。
+  const edgeMap = new Map<string, { from: string; to: string; kind: EdgeKind }>();
   const addEdge = (from: string, to: string, kind: EdgeKind): void => {
     if (from === to) return;
-    const key = `${from}->${to}`;
-    if (edgeKind.get(key) === 'related') return;
-    edgeKind.set(key, kind);
+    const key = `${from}\n${to}`;
+    if (edgeMap.get(key)?.kind === 'related') return;
+    edgeMap.set(key, { from, to, kind });
   };
   for (const d of docs) {
     for (const t of d.related ?? []) addEdge(d.path, t, 'related');
@@ -344,8 +345,7 @@ export function buildNoteNeighborhood(
     set.add(b);
     adj.set(a, set);
   };
-  for (const key of edgeKind.keys()) {
-    const [from, to] = key.split('->');
+  for (const { from, to } of edgeMap.values()) {
     linkAdj(from, to);
     linkAdj(to, from);
   }
@@ -388,12 +388,12 @@ export function buildNoteNeighborhood(
 
   // included 内のエッジのみ
   const edges: GraphEdge[] = [];
-  for (const [key, kind] of edgeKind) {
-    const [from, to] = key.split('->');
+  let edgeIndex = 0;
+  for (const { from, to, kind } of edgeMap.values()) {
     if (!included.has(from) || !included.has(to)) continue;
     const stroke = kind === 'related' ? withAlpha(pal.accent, 0.85) : withAlpha(pal.text, 0.45);
     edges.push(
-      connectorEdge(`${kind}:${key}`, from, to, {
+      connectorEdge(`nbEdge${edgeIndex++}`, from, to, {
         stroke,
         strokeWidth: kind === 'related' ? 2 : 1.3,
         endShape: 'arrow',

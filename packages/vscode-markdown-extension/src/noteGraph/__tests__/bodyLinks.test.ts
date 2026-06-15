@@ -31,6 +31,11 @@ describe('extractBodyLinks', () => {
     expect(extractBodyLinks(md)).toEqual(['spec/a.md']);
   });
 
+  it('ignores links inside long (4+) backtick fences', () => {
+    const md = ['Real [A](spec/a.md).', '````js', '[B](spec/b.md)', '````'].join('\n');
+    expect(extractBodyLinks(md)).toEqual(['spec/a.md']);
+  });
+
   it('handles link titles and angle-bracket targets', () => {
     expect(extractBodyLinks('[a](spec/a.md "title")')).toEqual(['spec/a.md']);
     expect(extractBodyLinks('[a](<spec/a.md>)')).toEqual(['spec/a.md']);

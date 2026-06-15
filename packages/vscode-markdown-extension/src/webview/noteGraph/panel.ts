@@ -263,7 +263,8 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
     element: root,
     setDocs(input): void {
       state.docs = input.docs;
-      // 新しいドキュメントを開いたら再センタリングをリセット
+      // 別ドキュメントを開いたときだけ再センタリングをリセットする。
+      // 同一ドキュメントの再スキャン（Refresh 等）では再センタリング状態を維持する。
       if (input.currentPath !== undefined && input.currentPath !== state.currentPath) {
         state.currentPath = input.currentPath;
         state.centerOverride = null;
