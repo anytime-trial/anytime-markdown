@@ -110,6 +110,9 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
     );
     expect(sourceBtn).not.toBeNull();
 
+    const contentEl = handle.root.querySelector<HTMLElement>("[data-am-content]");
+    const overflowBefore = contentEl?.style.overflow;
+
     // ToolbarModeHandlers 経由の切替を直接シミュレートできないため、vscode-set-mode を使う
     globalThis.dispatchEvent(new CustomEvent("vscode-set-mode", { detail: "source" }));
     const textarea = handle.root.querySelector<HTMLTextAreaElement>(
@@ -117,9 +120,14 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
     );
     expect(textarea).not.toBeNull();
     expect(textarea?.value).toContain("Hello");
+    // source 中は contentEl の overflow を hidden にし、textarea を唯一のスクローラにする
+    // （スクロールバー二重表示の防止）。
+    expect(contentEl?.style.overflow).toBe("hidden");
 
     globalThis.dispatchEvent(new CustomEvent("vscode-set-mode", { detail: "wysiwyg" }));
     expect(handle.root.querySelector("[data-am-source-textarea]")).toBeNull();
+    // 退出時に元の overflow を復元する。
+    expect(contentEl?.style.overflow).toBe(overflowBefore);
     handle.destroy();
   });
 

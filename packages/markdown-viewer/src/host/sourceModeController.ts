@@ -82,6 +82,8 @@ export function createSourceModeController(
   let mode: VanillaEditorMode = "wysiwyg";
   let sourceText = "";
   let textarea: HTMLTextAreaElement | null = null;
+  // source モード中に退避する contentEl の overflow（textarea を唯一のスクローラにするため）。
+  let prevContentOverflow: string | null = null;
 
   const persist = (next: VanillaEditorMode): void => {
     if (!persistMode || typeof localStorage === "undefined") return;
@@ -126,6 +128,11 @@ export function createSourceModeController(
       options.onSourceSave?.(sourceText);
     });
     editor.view.dom.style.display = "none";
+    // textarea（height:100%）が自前のスクロールを持つため、contentEl 側もスクロールすると
+    // スクロールバーが二重に出る。source 中は contentEl の overflow を hidden にして
+    // textarea を唯一のスクローラにする（退出時に元の overflow を復元する）。
+    prevContentOverflow = contentEl.style.overflow;
+    contentEl.style.overflow = "hidden";
     contentEl.appendChild(textarea);
   };
 
@@ -133,6 +140,10 @@ export function createSourceModeController(
     textarea?.remove();
     textarea = null;
     editor.view.dom.style.display = "";
+    if (prevContentOverflow !== null) {
+      contentEl.style.overflow = prevContentOverflow;
+      prevContentOverflow = null;
+    }
   };
 
   /** source テキストをエディタへ反映して source モードを抜ける際の同期。 */
