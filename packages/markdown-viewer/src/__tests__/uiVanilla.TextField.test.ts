@@ -96,6 +96,33 @@ describe("createTextField", () => {
       const label = el.querySelector("[data-am-tf-label]");
       expect(label?.getAttribute("data-shrink")).toBe("true");
     });
+
+    it("input イベントで値が入ると label が shrink を維持する（blur 後にラベルが重ならない）", () => {
+      const { el, input } = createTextField({ label: "名前" });
+      const label = el.querySelector("[data-am-tf-label]");
+      expect(label?.getAttribute("data-shrink")).toBe("false");
+      input.value = "入力済";
+      input.dispatchEvent(new Event("input"));
+      expect(label?.getAttribute("data-shrink")).toBe("true");
+    });
+
+    it("input で値が空に戻ると label の shrink が解除される", () => {
+      const { el, input } = createTextField({ label: "名前", value: "x" });
+      const label = el.querySelector("[data-am-tf-label]");
+      expect(label?.getAttribute("data-shrink")).toBe("true");
+      input.value = "";
+      input.dispatchEvent(new Event("input"));
+      expect(label?.getAttribute("data-shrink")).toBe("false");
+    });
+
+    it("ユーザー onChange と同期 shrink は併存する（onChange 未指定でも shrink 同期する）", () => {
+      const onChange = jest.fn();
+      const { el, input } = createTextField({ label: "名前", onChange });
+      input.value = "abc";
+      input.dispatchEvent(new Event("input"));
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(el.querySelector("[data-am-tf-label]")?.getAttribute("data-shrink")).toBe("true");
+    });
   });
 
   describe("multiline / maxRows", () => {

@@ -278,7 +278,22 @@ export function createTextField(opts: CreateTextFieldOptions = {}): TextFieldHan
     el.appendChild(helperEl);
   }
 
+  function syncLabelShrink(): void {
+    if (labelEl) {
+      labelEl.setAttribute(
+        "data-shrink",
+        String(computeShrink(input.value || undefined, input.placeholder || undefined)),
+      );
+    }
+  }
+
   // ---- イベント listener ----
+  // ユーザー onChange とは独立に、キー入力ごとにラベルの shrink を value へ追従させる。
+  // これが無いと、入力後 blur で `:focus-within` が外れた際にラベルが入力欄中央へ戻り、
+  // 入力済みテキストに重なる（フローティングラベルが「残る」ように見える）。
+  const onInputSyncShrink = (): void => syncLabelShrink();
+  input.addEventListener("input", onInputSyncShrink);
+
   let onChange = opts.onChange;
   let onBlur = opts.onBlur;
   let onKeyDown = opts.onKeyDown;
@@ -293,15 +308,6 @@ export function createTextField(opts: CreateTextFieldOptions = {}): TextFieldHan
     queueMicrotask(() => {
       if (input.isConnected) input.focus();
     });
-  }
-
-  function syncLabelShrink(): void {
-    if (labelEl) {
-      labelEl.setAttribute(
-        "data-shrink",
-        String(computeShrink(input.value || undefined, input.placeholder || undefined)),
-      );
-    }
   }
 
   function update(next: Partial<CreateTextFieldOptions>): void {
@@ -351,6 +357,7 @@ export function createTextField(opts: CreateTextFieldOptions = {}): TextFieldHan
   }
 
   function destroy(): void {
+    input.removeEventListener("input", onInputSyncShrink);
     if (onChange) input.removeEventListener("input", onChange);
     if (onBlur) input.removeEventListener("blur", onBlur as EventListener);
     if (onKeyDown) input.removeEventListener("keydown", onKeyDown as EventListener);
