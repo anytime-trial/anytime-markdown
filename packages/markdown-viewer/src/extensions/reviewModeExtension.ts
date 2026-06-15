@@ -26,8 +26,12 @@ const reviewModePluginKey = new PluginKey("reviewMode");
  * editable (cursor visible, text selectable).
  *
  * Enable/disable via `editor.storage.reviewMode.enabled`.
- * To allow specific transactions (e.g. comment, checkbox), temporarily
- * set `enabled = false` before dispatching.
+ * To allow a specific document-changing transaction (e.g. comment add/remove,
+ * image-annotation toggle) while review mode is on, set
+ * `tr.setMeta(REVIEW_MODE_ALLOW_META, true)` on that transaction. Do NOT rely on
+ * temporarily toggling `enabled` around an `editor.commands.*` call: the vendored
+ * CommandManager defers the real `view.dispatch` until after the command returns
+ * (its `dispatch` prop is a no-op), so the toggle is already restored by then.
  */
 export const ReviewModeExtension = Extension.create({
   name: "reviewMode",
