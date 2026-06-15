@@ -31,7 +31,31 @@ export interface NoteGraphPanelHandle {
   destroy(): void;
 }
 
-const PANEL_WIDTH = 300;
+const DEFAULT_WIDTH = 300;
+const MIN_WIDTH = 200;
+const MAX_WIDTH = 720;
+const WIDTH_STORAGE_KEY = 'anytime.noteGraph.panelWidth';
+
+function loadWidth(): number {
+  try {
+    const raw = globalThis.localStorage?.getItem(WIDTH_STORAGE_KEY);
+    const n = raw ? Number.parseInt(raw, 10) : Number.NaN;
+    if (Number.isFinite(n)) return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n));
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[noteGraph] panel width restore unavailable', err);
+  }
+  return DEFAULT_WIDTH;
+}
+
+function saveWidth(width: number): void {
+  try {
+    globalThis.localStorage?.setItem(WIDTH_STORAGE_KEY, String(width));
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[noteGraph] panel width persist unavailable', err);
+  }
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -52,13 +76,19 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
   injectStyles();
 
   const root = el('div', { className: 'ng-panel' });
-  root.style.width = `${PANEL_WIDTH}px`;
+  // 左端のドラッグハンドル（パネルは右側に出るため左移動で広がる）
+  const resizeHandle = el('div', { className: 'ng-resize' });
+  const inner = el('div', { className: 'ng-inner' });
   const toolbar = el('div', { className: 'ng-toolbar' });
   const canvasWrap = el('div', { className: 'ng-canvas' });
   const canvas = document.createElement('canvas');
   canvasWrap.append(canvas);
   const status = el('div', { className: 'ng-status' });
-  root.append(toolbar, canvasWrap, status);
+  inner.append(toolbar, canvasWrap, status);
+  root.append(resizeHandle, inner);
+
+  let panelWidth = loadWidth();
+  root.style.width = `${panelWidth}px`;
 
   const state = {
     docs: [] as NoteGraphDocInput[],
@@ -69,6 +99,51 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
   };
 
   const view = new GraphView(canvas, { theme: state.isDark ? 'dark' : 'light', movableNodes: true });
+
+  // キャンバス backing store を表示サイズ×dpr に同期して再描画（DPR 補正）。
+  // 幅ドラッグ・ウィンドウリサイズ・パネル開閉の全てを ResizeObserver が拾う。
+  const syncCanvasSize = (): void => {
+    const rect = canvasWrap.getBoundingClientRect();
+    const dpr = globalThis.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(rect.width * dpr));
+    const h = Math.max(1, Math.round(rect.height * dpr));
+    canvas.width = w;
+    canvas.height = h;
+    canvas.style.width = `${w / dpr}px`;
+    canvas.style.height = `${h / dpr}px`;
+    view.resize();
+  };
+  const resizeObserver = new ResizeObserver(() => syncCanvasSize());
+  resizeObserver.observe(canvasWrap);
+
+  // 左端ハンドルのドラッグで幅を変更（min/max でクランプ・localStorage に保存）。
+  let dragStartX = 0;
+  let dragStartW = 0;
+  let dragging = false;
+  resizeHandle.addEventListener('pointerdown', (e: PointerEvent) => {
+    dragging = true;
+    dragStartX = e.clientX;
+    dragStartW = panelWidth;
+    resizeHandle.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  resizeHandle.addEventListener('pointermove', (e: PointerEvent) => {
+    if (!dragging) return;
+    panelWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragStartW + (dragStartX - e.clientX)));
+    root.style.width = `${panelWidth}px`;
+  });
+  const endDrag = (e: PointerEvent): void => {
+    if (!dragging) return;
+    dragging = false;
+    try {
+      resizeHandle.releasePointerCapture(e.pointerId);
+    } catch {
+      // pointer capture 未確立時は無視（同一 pointerId のみ対象のため実害なし）
+    }
+    saveWidth(panelWidth);
+  };
+  resizeHandle.addEventListener('pointerup', endDrag);
+  resizeHandle.addEventListener('pointercancel', endDrag);
 
   const setStatus = (text: string): void => {
     status.textContent = text;
@@ -129,6 +204,7 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
       setStatus('');
     },
     destroy(): void {
+      resizeObserver.disconnect();
       view.destroy();
       root.remove();
     },
@@ -153,7 +229,10 @@ function injectStyles(): void {
   stylesInjected = true;
   const style = document.createElement('style');
   style.textContent = `
-    .ng-panel { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--am-color-divider, var(--vscode-panel-border)); color: var(--am-color-text-primary, var(--vscode-foreground)); font-size: 12px; }
+    .ng-panel { display: flex; flex-direction: row; min-height: 0; border-left: 1px solid var(--am-color-divider, var(--vscode-panel-border)); color: var(--am-color-text-primary, var(--vscode-foreground)); font-size: 12px; flex-shrink: 0; }
+    .ng-panel .ng-resize { flex: 0 0 6px; align-self: stretch; cursor: col-resize; background: transparent; touch-action: none; }
+    .ng-panel .ng-resize:hover { background: var(--am-color-primary-main, var(--vscode-focusBorder)); opacity: 0.6; }
+    .ng-panel .ng-inner { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1 1 auto; }
     .ng-panel .ng-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px 6px; border-bottom: 1px solid var(--am-color-divider, var(--vscode-panel-border)); }
     .ng-panel .ng-canvas { position: relative; flex: 1 1 auto; min-height: 0; }
     .ng-panel .ng-canvas canvas { display: block; width: 100%; height: 100%; }
