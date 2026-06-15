@@ -10,7 +10,11 @@ jest.mock("lowlight", () => ({
   common: {},
 }));
 
-import { ReviewModeExtension, reviewModeStorage } from "../extensions/reviewModeExtension";
+import {
+  ReviewModeExtension,
+  reviewModeStorage,
+  REVIEW_MODE_ALLOW_META,
+} from "../extensions/reviewModeExtension";
 import { Editor } from "@anytime-markdown/markdown-core";
 import StarterKit from "@anytime-markdown/markdown-starter-kit";
 
@@ -54,5 +58,23 @@ describe("ReviewModeExtension", () => {
     // Selection changes should still work
     editor.commands.focus("end");
     expect(editor.state.selection.from).toBeGreaterThan(0);
+  });
+
+  it("allows doc changes carrying REVIEW_MODE_ALLOW_META when enabled", () => {
+    reviewModeStorage(editor).enabled = true;
+    const before = editor.getText();
+    const tr = editor.state.tr.insertText("X", 1);
+    tr.setMeta(REVIEW_MODE_ALLOW_META, true);
+    editor.view.dispatch(tr);
+    // 許可 meta 付きの doc 変更は通る（コメント/アノテーション操作に相当）。
+    expect(editor.getText()).not.toBe(before);
+  });
+
+  it("blocks doc changes without the meta when enabled", () => {
+    reviewModeStorage(editor).enabled = true;
+    const before = editor.getText();
+    const tr = editor.state.tr.insertText("X", 1);
+    editor.view.dispatch(tr);
+    expect(editor.getText()).toBe(before);
   });
 });
