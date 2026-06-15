@@ -73,8 +73,15 @@ function createMockEditor(opts: MockEditorOptions = {}) {
   const from = opts.selectionFrom ?? 1;
   const to = opts.selectionTo ?? 1;
 
+  const initCommentsCalls: unknown[] = [];
   const editor = {
     isEditable: opts.isEditable ?? true,
+    commands: {
+      initComments: (m: unknown) => {
+        initCommentsCalls.push(m);
+        return true;
+      },
+    },
     state: {
       selection: {
         from,
@@ -91,7 +98,7 @@ function createMockEditor(opts: MockEditorOptions = {}) {
     chain: () => createChainRecorder(commands, lastArgs),
   };
 
-  return { editor: editor as never, commands, lastArgs, dispatched, dom };
+  return { editor: editor as never, commands, lastArgs, dispatched, dom, initCommentsCalls };
 }
 
 const t = (key: string) => key;
@@ -285,7 +292,27 @@ describe("createEditorContextMenu", () => {
 
     expect(m.commands).toContain("clearContent");
     expect(m.commands).toContain("run");
+    // 画面クリア時はコメント plugin state も空 Map で初期化する。
+    expect(m.initCommentsCalls.length).toBe(1);
+    expect(m.initCommentsCalls[0]).toBeInstanceOf(Map);
+    expect((m.initCommentsCalls[0] as Map<string, unknown>).size).toBe(0);
     expect(queryMenu()).toBeNull(); // 閉じている
+  });
+
+  it("source モードの clearScreen ではコメント初期化を呼ばない", () => {
+    const m = createMockEditor();
+    const ta = document.createElement("textarea");
+    document.body.appendChild(ta);
+    handle = createEditorContextMenu({
+      editor: m.editor,
+      t,
+      currentMode: "source",
+      extraContainer: ta,
+      sourceTextarea: ta,
+    });
+    fireContextMenu(ta);
+    clickItemByLabel("clearScreen");
+    expect(m.initCommentsCalls.length).toBe(0);
   });
 
   it("source モードの clearScreen は textarea を空にし input を発火する", () => {

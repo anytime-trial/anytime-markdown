@@ -420,6 +420,11 @@ export function createEditorContextMenu(
       return;
     }
     editor.chain().focus().clearContent().run();
+    // clearContent は doc を空にするがコメント plugin state（Map）は残るため、
+    // 画面クリア時はコメントも全消去する（fileOpsController.clearAll と同じ扱い）。
+    if (typeof editor.commands?.initComments === "function") {
+      editor.commands.initComments(new Map());
+    }
     handleClose();
   };
 
