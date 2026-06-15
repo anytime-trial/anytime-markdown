@@ -344,7 +344,6 @@ export function createEditorBubbleMenu(
     ...formatSpecs.map((spec) => ({ spec, group: "format" as const })),
     { spec: commentSpec, group: "comment" as const },
   ];
-  const specs = groupedSpecs.map((g) => g.spec);
   /** 現在のモードでこのボタングループを表示するか。 */
   const isGroupVisible = (group: SpecGroup): boolean => {
     if (isReadonly()) return false;
