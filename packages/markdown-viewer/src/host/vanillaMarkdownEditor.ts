@@ -191,6 +191,8 @@ export interface MountVanillaMarkdownEditorOptions {
   defaultSourceMode?: boolean;
   /** アウトラインパネルの初期表示。 */
   defaultOutlineOpen?: boolean;
+  /** ノート網パネルの初期表示（ピン留め時に別ファイルでも開いた状態にする等）。 */
+  defaultNoteGraphOpen?: boolean;
   /**
    * 下書きの localStorage 永続化（React useMarkdownEditor 相当・web-app 単独エディタ用）。
    * true 時は mount 時に保存済み下書きを initialContent より優先して読み込む。
@@ -469,7 +471,7 @@ export function mountVanillaMarkdownEditor(
         inlineMergeOpen: false,
         commentOpen: false,
         explorerOpen: false,
-        noteGraphOpen: false,
+        noteGraphOpen: current.defaultNoteGraphOpen ?? false,
       };
       const readonlyNow = (): boolean => (current.readOnly ?? false) || modeState.readonlyMode === true;
       const notifyMode = (): void => current.onModeChange?.({ ...modeState });

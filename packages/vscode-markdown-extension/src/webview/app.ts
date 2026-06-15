@@ -306,6 +306,8 @@ function buildMountOptions() {
     locale: state.locale,
     hideToolbar: true,
     sideToolbar: true,
+    // ピン留め中は別ファイルを開いた初期表示でもパネルを開いた状態にする
+    defaultNoteGraphOpen: getNoteGraphPanel().isPinned(),
     noteGraph: {
       element: getNoteGraphPanel().element,
       onOpen: () => vscode.postMessage({ type: 'requestNoteGraphDocs' }),
