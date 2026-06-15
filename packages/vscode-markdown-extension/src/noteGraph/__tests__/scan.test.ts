@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { resolveDocPath } from '../scan';
+import { resolveDocPath, resolveBodyLinkTarget } from '../scan';
 
 describe('resolveDocPath', () => {
   const root = path.resolve('/tmp/note-graph-repo');
@@ -18,5 +18,21 @@ describe('resolveDocPath', () => {
 
   it('allows internal ".." that stays within the root', () => {
     expect(resolveDocPath(root, 'spec/sub/../a.md')).toBe(path.join(root, 'spec', 'a.md'));
+  });
+});
+
+describe('resolveBodyLinkTarget', () => {
+  const known = new Set(['spec/a/a.ja.md', 'spec/b/b.ja.md', 'tech/c.ja.md']);
+
+  it('resolves a root-relative target (corpus convention)', () => {
+    expect(resolveBodyLinkTarget('spec/a/a.ja.md', 'spec/b/b.ja.md', known)).toBe('spec/b/b.ja.md');
+  });
+
+  it('resolves a file-relative target (markdown spec)', () => {
+    expect(resolveBodyLinkTarget('spec/a/a.ja.md', '../b/b.ja.md', known)).toBe('spec/b/b.ja.md');
+  });
+
+  it('falls back to file-relative form when unresolved (placeholder)', () => {
+    expect(resolveBodyLinkTarget('spec/a/a.ja.md', '../missing/x.md', known)).toBe('spec/missing/x.md');
   });
 });

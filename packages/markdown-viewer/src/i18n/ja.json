@@ -29,6 +29,8 @@
     "noteGraphRefresh": "再読み込み",
     "noteGraphConnect": "接続",
     "noteGraphTags": "タグ",
+    "noteGraphBodyLinks": "本文リンク",
+    "noteGraphGlobalView": "全体表示",
     "noteGraphPin": "ピン留め（自動で閉じない）",
     "fontSmall": "小",
     "fontMedium": "中",

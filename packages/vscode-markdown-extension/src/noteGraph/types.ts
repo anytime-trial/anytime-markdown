@@ -15,6 +15,8 @@ export interface NoteDocInput {
   category?: string;
   /** 明示リンク（frontmatter `related`・ルート相対パス）。 */
   related?: string[];
+  /** 本文の標準 markdown `.md` リンク（scan で root 相対へ解決済み）。 */
+  bodyLinks?: string[];
   /** 共有クラスタ用タグ（frontmatter `tags`）。 */
   tags?: string[];
   /** C4 アンカー（frontmatter `c4Scope`）。 */

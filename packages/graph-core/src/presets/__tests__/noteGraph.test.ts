@@ -1,4 +1,4 @@
-import { buildNoteGraph, type NoteGraphDocInput } from '../noteGraph';
+import { buildNoteGraph, buildNoteNeighborhood, type NoteGraphDocInput } from '../noteGraph';
 import type { GraphEdge } from '../../types';
 
 /** related エッジ（from→to の nodeId ペア）を抽出するヘルパー。 */
@@ -143,5 +143,85 @@ describe('buildNoteGraph', () => {
     expect(doc.nodes[0].width).toBeGreaterThan(0);
     expect(doc.nodes[0].height).toBeGreaterThan(0);
     expect(doc.viewport).toEqual({ offsetX: 0, offsetY: 0, scale: 1 });
+  });
+});
+
+describe('buildNoteNeighborhood', () => {
+  const nodeIds = (doc: ReturnType<typeof buildNoteNeighborhood>): string[] => doc.nodes.map((n) => n.id).sort();
+  const center = (doc: ReturnType<typeof buildNoteNeighborhood>) =>
+    doc.nodes.find((n) => n.metadata?.center === 1);
+
+  it('marks the center node and places it at the origin', () => {
+    const docs: NoteGraphDocInput[] = [
+      { path: A, title: 'Doc A', related: [B] },
+      { path: B, title: 'Doc B' },
+    ];
+    const doc = buildNoteNeighborhood(docs, A);
+    const c = center(doc);
+    expect(c).toBeDefined();
+    expect(c!.x + c!.width / 2).toBe(0);
+    expect(c!.y + c!.height / 2).toBe(0);
+    expect(c!.id).toBe(A);
+  });
+
+  it('includes outgoing links (related + body) of the center', () => {
+    const docs: NoteGraphDocInput[] = [
+      { path: A, title: 'Doc A', related: [B], bodyLinks: [C] },
+      { path: B, title: 'Doc B' },
+      { path: C, title: 'Doc C' },
+    ];
+    const doc = buildNoteNeighborhood(docs, A);
+    expect(nodeIds(doc)).toEqual([A, B, C].sort());
+    expect(hasEdge(doc.edges, A, B)).toBe(true);
+    expect(hasEdge(doc.edges, A, C)).toBe(true);
+  });
+
+  it('includes backlinks (incoming) to the center', () => {
+    const docs: NoteGraphDocInput[] = [
+      { path: A, title: 'Doc A' },
+      { path: B, title: 'Doc B', related: [A] },
+      { path: C, title: 'Doc C', bodyLinks: [A] },
+    ];
+    const doc = buildNoteNeighborhood(docs, A);
+    expect(nodeIds(doc)).toEqual([A, B, C].sort());
+    expect(hasEdge(doc.edges, B, A)).toBe(true);
+    expect(hasEdge(doc.edges, C, A)).toBe(true);
+  });
+
+  it('limits to the requested hop count', () => {
+    const docs: NoteGraphDocInput[] = [
+      { path: A, title: 'A', related: [B] },
+      { path: B, title: 'B', related: [C] },
+      { path: C, title: 'C' },
+    ];
+    const oneHop = buildNoteNeighborhood(docs, A, { hops: 1 });
+    expect(nodeIds(oneHop)).toEqual([A, B].sort());
+    const twoHop = buildNoteNeighborhood(docs, A, { hops: 2 });
+    expect(nodeIds(twoHop)).toEqual([A, B, C].sort());
+  });
+
+  it('excludes body links when includeBodyLinks is false', () => {
+    const docs: NoteGraphDocInput[] = [
+      { path: A, title: 'A', related: [B], bodyLinks: [C] },
+      { path: B, title: 'B' },
+      { path: C, title: 'C' },
+    ];
+    const doc = buildNoteNeighborhood(docs, A, { includeBodyLinks: false });
+    expect(nodeIds(doc)).toEqual([A, B].sort());
+  });
+
+  it('renders an unresolved link target as a placeholder node', () => {
+    const docs: NoteGraphDocInput[] = [{ path: A, title: 'A', related: ['spec/missing.md'] }];
+    const doc = buildNoteNeighborhood(docs, A);
+    const ph = doc.nodes.find((n) => n.id === 'spec/missing.md');
+    expect(ph?.metadata?.placeholder).toBe(1);
+  });
+
+  it('synthesizes a center node even if the current doc is not a scanned node', () => {
+    const docs: NoteGraphDocInput[] = [{ path: B, title: 'B', related: [A] }];
+    const doc = buildNoteNeighborhood(docs, A);
+    // A はノード化されていないが、中心として合成し B からのバックリンクを示す
+    expect(center(doc)?.id).toBe(A);
+    expect(hasEdge(doc.edges, B, A)).toBe(true);
   });
 });

@@ -9,6 +9,7 @@
  */
 
 import type { NoteDocInput } from './types';
+import { extractBodyLinks } from './bodyLinks';
 
 const FRONTMATTER_RE = /^﻿?---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
@@ -116,12 +117,16 @@ export function extractNoteDoc(relPath: string, content: string): NoteDocInput |
   // related はリポジトリ外を指しうる値（絶対パス・`..`）を除外する
   const related = arrays.get('related')?.filter(isSafeRelPath);
 
+  // 本文の .md リンク（生 target。解決は scan 側で既知ノード集合を使って行う）
+  const bodyLinks = extractBodyLinks(content);
+
   return {
     path: relPath,
     title,
     type: scalars.get('type'),
     category: scalars.get('category'),
     related: related && related.length > 0 ? related : undefined,
+    bodyLinks: bodyLinks.length > 0 ? bodyLinks : undefined,
     tags: arrays.get('tags'),
     c4Scope: arrays.get('c4Scope'),
   };

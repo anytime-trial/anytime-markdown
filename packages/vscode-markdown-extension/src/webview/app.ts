@@ -554,7 +554,11 @@ function handleMessage(event: MessageEvent): void {
       return;
     case 'setNoteGraphDocs':
       if (Array.isArray(message.docs)) {
-        getNoteGraphPanel().setDocs({ docs: message.docs, isDark: state.themeMode === 'dark' });
+        getNoteGraphPanel().setDocs({
+          docs: message.docs,
+          isDark: state.themeMode === 'dark',
+          currentPath: typeof message.currentPath === 'string' ? message.currentPath : undefined,
+        });
       }
       return;
   }

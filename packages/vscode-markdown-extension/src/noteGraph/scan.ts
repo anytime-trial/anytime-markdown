@@ -82,9 +82,36 @@ export async function scanRepository(root: string, log?: Log): Promise<NoteDocIn
   }
 
   await walk(root);
+
+  // 本文リンクの target を既知ノード集合に対して解決する（ファイル相対 / root 相対の両対応）。
+  const known = new Set(docs.map((d) => d.path));
+  for (const d of docs) {
+    if (!d.bodyLinks || d.bodyLinks.length === 0) continue;
+    const resolved = d.bodyLinks
+      .map((t) => resolveBodyLinkTarget(d.path, t, known))
+      .filter((t) => t !== d.path); // 自己参照は除外
+    d.bodyLinks = resolved.length > 0 ? [...new Set(resolved)] : undefined;
+  }
+
   // 安定した順序（パス昇順）で返す。グラフの初期配置を決定的にする。
   docs.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   return docs;
+}
+
+/**
+ * 本文リンク target を root 相対パスへ解決する。
+ *
+ * ファイル相対（markdown 仕様）と root 相対（本コーパスの慣習）の両候補を試し、
+ * 既知ノードに一致した方を返す。どちらも未知ならファイル相対解決形（プレースホルダ用）。
+ */
+export function resolveBodyLinkTarget(docRelPath: string, rawTarget: string, known: Set<string>): string {
+  const dir = path.posix.dirname(docRelPath);
+  const stripped = rawTarget.replace(/^\.?\//, '');
+  const fileRel = path.posix.normalize(path.posix.join(dir, rawTarget)).replace(/^\.\//, '');
+  if (known.has(fileRel)) return fileRel;
+  const rootRel = path.posix.normalize(stripped);
+  if (known.has(rootRel)) return rootRel;
+  return fileRel;
 }
 
 /**

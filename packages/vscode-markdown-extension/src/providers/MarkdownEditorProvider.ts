@@ -787,7 +787,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       if (!root) return;
       try {
         const docs = await scanRepository(root, ngLog);
-        webviewPanel.webview.postMessage({ type: 'setNoteGraphDocs', docs });
+        // 中心表示用に現在のドキュメントの root 相対パスを渡す
+        const currentPath = path.relative(root, document.uri.fsPath).split(path.sep).join('/');
+        webviewPanel.webview.postMessage({ type: 'setNoteGraphDocs', docs, currentPath });
       } catch (err) {
         ngLog(`[${new Date().toISOString()}] [ERROR] [noteGraph] scan failed: ${String(err)}`);
       }
