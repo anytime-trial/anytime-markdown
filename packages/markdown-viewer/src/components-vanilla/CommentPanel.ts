@@ -18,8 +18,10 @@
  *   editor.commands を直接呼ぶ既定実装にフォールバックする。
  * - `useIsDark` は不要（ui-vanilla は `--am-color-*` CSS 変数でテーマ追従する）。
  *   `getDivider` / `getTextSecondary` / `getTextDisabled` は対応する `--am-color-*` を直接参照する。
- * - `useEditorState`（コメント Map / 画像アノテーション）→ `editor.on("update")` 購読 + 手続き的
- *   再描画（destroy で off）。
+ * - `useEditorState`（コメント Map / 画像アノテーション）→ `editor.on("transaction")` 購読 +
+ *   手続き的再描画（destroy で off）。`update` ではなく `transaction` を購読するのは、resolve/
+ *   updateText が doc 非変更（meta のみ）のトランザクションで `update` を発火しないため。
+ *   コメント状態シグネチャか docChanged が変化したときだけ再描画する。
  * - useState（filter / editingId / editText）/ useRef（isCommittingRef）→ closure 変数。
  *   Ctrl+Enter → commitEdit と onBlur → commitEdit の二重実行抑止フラグも closure（React 版
  *   isCommittingRef と同一ロジック）。
@@ -172,8 +174,8 @@ function readImageAnnotations(editor: Editor): AnnotatedImage[] {
 }
 
 /**
- * vanilla CommentPanel を生成する。`el`（Paper ルート）を呼び元が配置する。editor の update を
- * 購読してコメント一覧/画像アノテーションを手続き的に再描画する。`destroy()` で購読解除する。
+ * vanilla CommentPanel を生成する。`el`（Paper ルート）を呼び元が配置する。editor の transaction
+ * を購読してコメント一覧/画像アノテーションを手続き的に再描画する。`destroy()` で購読解除する。
  */
 export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPanelHandle {
   ensureStyleInjected();
@@ -635,24 +637,46 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     }
   }
 
+  // コメント一覧の描画に影響する状態（id / resolved / text）のシグネチャ。
+  // resolve / unresolve / updateText は doc を変更しない meta のみのトランザクションのため、
+  // vendored tiptap は `update` イベントを emit しない（docChanged 時のみ emit）。
+  // そこで全トランザクションを拾う `transaction` を購読し、コメント状態または doc が
+  // 変化したときだけ再描画する（選択移動など無関係な更新では再描画しない）。
+  const commentSignature = (): string =>
+    readComments(editor)
+      .map((c) => `${c.id}:${c.resolved ? 1 : 0}:${c.text}`)
+      .join("|");
+
   // 初回描画。
   render();
+  let lastSignature = commentSignature();
 
-  // editor update を購読し再描画する（React useEditorState 相当）。
-  const onEditorUpdate = (): void => {
+  const onEditorTransaction = (props?: {
+    transaction?: { docChanged?: boolean };
+    appendedTransactions?: Array<{ docChanged?: boolean }>;
+  }): void => {
+    const signature = commentSignature();
+    // tiptap 本体の update 判定（transactions.some(tr => tr.docChanged)）に合わせ、
+    // appendTransaction 由来の doc 変更も拾う。
+    const docChanged =
+      (props?.transaction?.docChanged ?? false) ||
+      (props?.appendedTransactions?.some((tr) => tr.docChanged) ?? false);
+    // コメント状態も doc も変わっていなければ何もしない（選択移動等での無駄な再描画を防ぐ）。
+    if (signature === lastSignature && !docChanged) return;
+    lastSignature = signature;
     // 編集中は再描画すると編集 TextField が破棄されフォーカスを失うため、
     // editingId が無いとき（または編集対象が消えたとき）のみ再描画する。
     if (editingId) {
       const stillExists = readComments(editor).some((c) => c.id === editingId);
       if (stillExists) {
-        // 編集中のコメントが残っている間はヘッダーカウントのみ更新（一覧は維持）。
+        // 編集中のコメントが残っている間は一覧を維持する。
         return;
       }
       editingId = null;
     }
     render();
   };
-  editor.on("update", onEditorUpdate);
+  editor.on("transaction", onEditorTransaction);
 
   let destroyed = false;
   return {
@@ -660,7 +684,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     destroy() {
       if (destroyed) return;
       destroyed = true;
-      editor.off("update", onEditorUpdate);
+      editor.off("transaction", onEditorTransaction);
       for (const h of bodyHandles) h.destroy();
       bodyHandles = [];
       closeBtn.destroy();
