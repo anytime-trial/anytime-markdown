@@ -18,8 +18,10 @@
  *   editor.commands を直接呼ぶ既定実装にフォールバックする。
  * - `useIsDark` は不要（ui-vanilla は `--am-color-*` CSS 変数でテーマ追従する）。
  *   `getDivider` / `getTextSecondary` / `getTextDisabled` は対応する `--am-color-*` を直接参照する。
- * - `useEditorState`（コメント Map / 画像アノテーション）→ `editor.on("update")` 購読 + 手続き的
- *   再描画（destroy で off）。
+ * - `useEditorState`（コメント Map / 画像アノテーション）→ `editor.on("transaction")` 購読 +
+ *   手続き的再描画（destroy で off）。`update` ではなく `transaction` を購読するのは、resolve/
+ *   updateText が doc 非変更（meta のみ）のトランザクションで `update` を発火しないため。
+ *   コメント状態シグネチャか docChanged が変化したときだけ再描画する。
  * - useState（filter / editingId / editText）/ useRef（isCommittingRef）→ closure 変数。
  *   Ctrl+Enter → commitEdit と onBlur → commitEdit の二重実行抑止フラグも closure（React 版
  *   isCommittingRef と同一ロジック）。
@@ -172,8 +174,8 @@ function readImageAnnotations(editor: Editor): AnnotatedImage[] {
 }
 
 /**
- * vanilla CommentPanel を生成する。`el`（Paper ルート）を呼び元が配置する。editor の update を
- * 購読してコメント一覧/画像アノテーションを手続き的に再描画する。`destroy()` で購読解除する。
+ * vanilla CommentPanel を生成する。`el`（Paper ルート）を呼び元が配置する。editor の transaction
+ * を購読してコメント一覧/画像アノテーションを手続き的に再描画する。`destroy()` で購読解除する。
  */
 export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPanelHandle {
   ensureStyleInjected();
@@ -649,9 +651,16 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
   render();
   let lastSignature = commentSignature();
 
-  const onEditorTransaction = (props?: { transaction?: { docChanged?: boolean } }): void => {
+  const onEditorTransaction = (props?: {
+    transaction?: { docChanged?: boolean };
+    appendedTransactions?: Array<{ docChanged?: boolean }>;
+  }): void => {
     const signature = commentSignature();
-    const docChanged = props?.transaction?.docChanged ?? false;
+    // tiptap 本体の update 判定（transactions.some(tr => tr.docChanged)）に合わせ、
+    // appendTransaction 由来の doc 変更も拾う。
+    const docChanged =
+      (props?.transaction?.docChanged ?? false) ||
+      (props?.appendedTransactions?.some((tr) => tr.docChanged) ?? false);
     // コメント状態も doc も変わっていなければ何もしない（選択移動等での無駄な再描画を防ぐ）。
     if (signature === lastSignature && !docChanged) return;
     lastSignature = signature;

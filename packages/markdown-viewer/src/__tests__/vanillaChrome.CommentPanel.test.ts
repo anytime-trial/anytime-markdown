@@ -25,7 +25,10 @@ interface MockEditor {
   updateListeners: Array<(props?: unknown) => void>;
   subscribedEvents: string[];
   commandCalls: Array<{ name: string; args: unknown[] }>;
-  emitUpdate: (props?: { transaction?: { docChanged?: boolean } }) => void;
+  emitUpdate: (props?: {
+    transaction?: { docChanged?: boolean };
+    appendedTransactions?: Array<{ docChanged?: boolean }>;
+  }) => void;
   // CommentPanel が触る最小 API。
   state: unknown;
   view: unknown;
@@ -90,8 +93,10 @@ function makeEditor(initial: InlineComment[] = []): MockEditor {
     updateListeners,
     subscribedEvents,
     commandCalls,
-    emitUpdate: (props?: { transaction?: { docChanged?: boolean } }) =>
-      updateListeners.forEach((fn) => fn(props)),
+    emitUpdate: (props?: {
+      transaction?: { docChanged?: boolean };
+      appendedTransactions?: Array<{ docChanged?: boolean }>;
+    }) => updateListeners.forEach((fn) => fn(props)),
     state,
     view: { domAtPos: () => ({ node: document.createElement("div") }), dispatch: () => {} },
     commands: {
@@ -381,6 +386,18 @@ describe("createCommentPanel", () => {
     editor.emitUpdate({ transaction: { docChanged: false } });
     // 同一ノードのまま（listBody.replaceChildren による再構築が起きていない）。
     expect(root.querySelector("[data-am-comment-card]")).toBe(card);
+    handle.destroy();
+  });
+
+  it("appendedTransactions の docChanged でも再描画する（tiptap 本体の判定に整合）", () => {
+    const { handle, editor, root } = mount({}, [comment({ id: "x" })]);
+    const card = root.querySelector("[data-am-comment-card]");
+    editor.emitUpdate({
+      transaction: { docChanged: false },
+      appendedTransactions: [{ docChanged: true }],
+    });
+    // 再描画され別ノードに作り直されている。
+    expect(root.querySelector("[data-am-comment-card]")).not.toBe(card);
     handle.destroy();
   });
 
