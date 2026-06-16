@@ -988,6 +988,8 @@ export function mountVanillaMarkdownEditor(
           // ノート網パネルが提供されている場合のみアイコンを出す
           onToggleNoteGraph: current.noteGraph ? modeHandlers.onToggleNoteGraph : undefined,
           onOpenSettings: current.hide?.settings ? undefined : openSettings,
+          // ハンバーガー（その他メニュー）の versionInfo と同じダイアログを最下部に鏡写しする。
+          onOpenVersionDialog: current.hide?.versionInfo ? undefined : () => dialogs.openVersion(),
         });
         sideToolbarSlot.appendChild(sideToolbarHandle.el);
         disposers.push(() => sideToolbarHandle?.destroy());
