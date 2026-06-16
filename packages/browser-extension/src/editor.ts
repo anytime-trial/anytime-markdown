@@ -12,6 +12,7 @@
  * sideToolbar / hide 等を一度の mount で反映するため）。
  */
 import "@anytime-markdown/markdown-rich/element";
+import { WebFileSystemProvider } from "@anytime-markdown/markdown-viewer/fs/web-file-system-provider";
 
 /**
  * 本拡張で WC に渡す最小オプション型（このファイルは esbuild トランスパイルのみで
@@ -21,6 +22,7 @@ interface RichEditorElement extends HTMLElement {
   options: {
     sideToolbar?: boolean;
     hide?: { explorer?: boolean };
+    fileSystemProvider?: WebFileSystemProvider;
   };
   value: string;
 }
@@ -83,7 +85,14 @@ function createEditor(initialContent: string): void {
   // hide.explorer は上部ツールバーの explorer トグル（fileSystemProvider 未配線で無意味）を
   // 抑止する（web-app の `hide={{ explorer: !enableGitHub }}` 相当）。サイドツールバー側の
   // explorer ボタンは onToggleExplorer 未配線のため元々描画されない。
-  el.options = { sideToolbar: true, hide: { explorer: true } };
+  // File System Access API で .md を開く / 上書き保存 / 名前を付けて保存を有効化する
+  // （拡張ページは secure context のため showOpenFilePicker / createWritable が使える）。
+  // これにより toolbar の 開く / 保存 / 別名保存 アイコンが有効になる。
+  el.options = {
+    sideToolbar: true,
+    hide: { explorer: true },
+    fileSystemProvider: new WebFileSystemProvider(),
+  };
   if (initialContent) el.value = initialContent;
 
   el.addEventListener("change", (event) => {
