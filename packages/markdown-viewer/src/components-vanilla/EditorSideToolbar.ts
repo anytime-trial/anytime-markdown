@@ -261,11 +261,12 @@ export function createEditorSideToolbar(
   }
 
   // --- バージョン情報（callback 未指定なら描画しない） ---
-  // 最下部に配置するため、直前に margin-top:auto の区切り線（スペーサ）を挟む。
+  // 設定の直下に区切り線を挟んで配置する（承認デザイン準拠）。
+  // margin-top:auto で最下部へ押し下げると全高サイドバーでは画面外に出て見落とされるため使わない。
   if (opts.onOpenVersionDialog) {
     const divider = document.createElement("div");
     divider.style.cssText =
-      "margin-top:auto;width:60%;height:1px;flex-shrink:0;background:var(--am-color-divider);";
+      "width:60%;height:1px;flex-shrink:0;background:var(--am-color-divider);margin:2px 0;";
     root.appendChild(divider);
     addItem({
       label: t("versionInfo"),

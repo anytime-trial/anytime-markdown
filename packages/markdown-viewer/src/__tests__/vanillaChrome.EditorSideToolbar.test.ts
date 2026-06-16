@@ -104,6 +104,20 @@ describe("createEditorSideToolbar", () => {
       expect(onOpenVersionDialog).toHaveBeenCalledTimes(1);
     });
 
+    it("バージョン情報は設定の直下に置き margin-top:auto で最下部へ押し下げない（画面外回帰防止）", () => {
+      handle = createEditorSideToolbar({
+        t,
+        onToggleComment: () => {},
+        onOpenSettings: () => {},
+        onOpenVersionDialog: () => {},
+      });
+      // 全高サイドバーで margin-top:auto を使うと version が画面外へ押し下げられ見落とされる。
+      const pushedToBottom = [...handle.el.querySelectorAll<HTMLElement>("div")].some((d) =>
+        d.style.cssText.includes("margin-top: auto"),
+      );
+      expect(pushedToBottom).toBe(false);
+    });
+
     it("onOpenVersionDialog 未指定ならバージョン情報ボタンを描画しない", () => {
       handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
       const hasVersion = buttons(handle).some(

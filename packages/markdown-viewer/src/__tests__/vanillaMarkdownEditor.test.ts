@@ -65,6 +65,15 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     handle.destroy();
   });
 
+  it("sideToolbar 指定でサイドツールバーにバージョン情報ボタンを配線する（host→side toolbar 統合）", () => {
+    const handle = mountVanillaMarkdownEditor(container, { t, sideToolbar: true });
+    const slot = container.querySelector("[data-am-side-toolbar-slot]") as HTMLElement;
+    expect(slot).toBeTruthy();
+    const versionBtn = slot.querySelector('button[aria-label="versionInfo"]');
+    expect(versionBtn).toBeTruthy();
+    handle.destroy();
+  });
+
   it("readOnly では editor が editable=false で mount される", () => {
     const handle = mountVanillaMarkdownEditor(container, { t, readOnly: true });
     expect(handle.editor.isEditable).toBe(false);
