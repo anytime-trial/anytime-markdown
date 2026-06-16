@@ -1,0 +1,21 @@
+{
+  "name": "@anytime-markdown/browser-extension",
+  "version": "0.1.0",
+  "description": "Chrome / Edge (Manifest V3) extension that opens the anytime-markdown editor (<anytime-markdown-editor> Web Component) in a full-page tab.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "build:icons": "node scripts/generate-icons.mjs",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@anytime-markdown/markdown-viewer": "*",
+    "diff": "8.0.3",
+    "dompurify": "3.4.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.27.3"
+  }
+}
