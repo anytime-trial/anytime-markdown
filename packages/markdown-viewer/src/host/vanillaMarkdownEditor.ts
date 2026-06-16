@@ -421,8 +421,12 @@ export function mountVanillaMarkdownEditor(
   let frontmatterBlock: FrontmatterBlockHandle | null = null;
 
   // スロット自体の表示は showFrontmatter で制御し、ブロックは frontmatter==null で自己非表示。
+  // 比較モード中はホストの単一バーを隠し、InlineMergeView 内蔵の frontmatter 比較行に委ねる
+  // （二重表示の防止）。フラグは setInlineMergeOpen から更新する。
+  let compareModeActive = false;
   const syncFrontmatterView = (): void => {
-    frontmatterEl.style.display = current.showFrontmatter === true ? "" : "none";
+    frontmatterEl.style.display =
+      current.showFrontmatter === true && !compareModeActive ? "" : "none";
   };
   const setFrontmatter = (value: string | null): void => {
     frontmatter = value;
@@ -775,6 +779,9 @@ export function mountVanillaMarkdownEditor(
       const setInlineMergeOpen = (open: boolean): void => {
         if (modeState.inlineMergeOpen === open) return;
         modeState.inlineMergeOpen = open;
+        // 比較中はホストの単一 frontmatter バーを隠す（InlineMergeView 内蔵の比較行に委ねる）。
+        compareModeActive = open;
+        syncFrontmatterView();
         if (!open) {
           if (clearDiffTimer) clearTimeout(clearDiffTimer);
           clearDiffTimer = setTimeout(() => {
@@ -1054,6 +1061,7 @@ export function mountVanillaMarkdownEditor(
             },
             sourceMode: modeState.sourceMode === true,
             editorContent: mergeEditorContent(),
+            frontmatter,
             codeBlockExtension: current.codeBlockExtension,
             compareContent: compareFileContent,
             onCompareContentConsumed: () => {
@@ -1070,6 +1078,7 @@ export function mountVanillaMarkdownEditor(
           mergeView.update({
             sourceMode: modeState.sourceMode === true,
             editorContent: mergeEditorContent(),
+            frontmatter,
             compareContent: compareFileContent,
           });
         } else if (!modeState.inlineMergeOpen && mergeView) {

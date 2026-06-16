@@ -43,11 +43,16 @@ import {
 } from "../utils/blockDiffComputation";
 import { computeFollowerScrollTop, type BlockOffset } from "../utils/blockScrollMap";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
+import { parseFrontmatter } from "../utils/frontmatterHelpers";
 import {
   applyCollapsedStates,
   collectCollapsedStates,
   normalizeCompareMarkdown,
 } from "../utils/mergeContentSync";
+import {
+  createFrontmatterCompareRow,
+  type FrontmatterCompareRowHandle,
+} from "./FrontmatterCompareRow";
 import {
   createMergeEditorPanel,
   type MergeEditorPanelHandle,
@@ -96,6 +101,12 @@ export interface CreateInlineMergeViewOptions {
   sourceMode: boolean;
   /** 編集（右）側の現在コンテンツ。ソースモードは sourceText、WYSIWYG は editorMarkdown を渡す。 */
   editorContent: string;
+  /**
+   * 本ファイル（右）の frontmatter。WYSIWYG では body から切り離されるため、frontmatter は
+   * body diff に含まれない。比較ファイル側は compareText から都度パースし、両者を比較行で並置する。
+   * null/未指定は frontmatter 無し。ソースモードでは frontmatter はテキスト diff に含まれるため未使用。
+   */
+  frontmatter?: string | null;
   /**
    * 左パネルの mermaid/plantuml/math/html/embed 描画に必須の codeBlock 拡張
    * （rich の CodeBlockWithMermaid）。
@@ -404,6 +415,29 @@ export function createInlineMergeView(
   fileInput.accept = ".md,text/markdown,text/plain";
   fileInput.hidden = true;
   root.appendChild(fileInput);
+
+  // --- frontmatter 比較行（WYSIWYG のみ。左=比較 / 右=本文） ---
+  // 比較ファイルの frontmatter は compareText から都度パースする（body diff には含まれないため）。
+  const compareFrontmatter = (): string | null =>
+    parseFrontmatter(store.getCompareText()).frontmatter;
+  const frontmatterRow: FrontmatterCompareRowHandle = createFrontmatterCompareRow({
+    t: state.t,
+    compareFrontmatter: compareFrontmatter(),
+    mainFrontmatter: state.frontmatter ?? null,
+  });
+  root.appendChild(frontmatterRow.el);
+  disposers.push(() => frontmatterRow.destroy());
+  const syncFrontmatterRow = (): void => {
+    // ソースモードでは frontmatter がテキスト diff に含まれるため比較行は隠す。
+    if (state.sourceMode) {
+      frontmatterRow.el.style.display = "none";
+      return;
+    }
+    frontmatterRow.update({
+      compareFrontmatter: compareFrontmatter(),
+      mainFrontmatter: state.frontmatter ?? null,
+    });
+  };
 
   // --- diff ナビゲーション + 折りたたみトグル ---
   const navBar = document.createElement("div");
@@ -927,6 +961,7 @@ export function createInlineMergeView(
     notifyUndoRedo();
     normalizeCompareSource();
     if (!state.sourceMode) populateLeftEditor();
+    syncFrontmatterRow();
     runDiffHighlight();
     runBlockAlignment();
   };

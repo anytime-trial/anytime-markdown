@@ -248,6 +248,47 @@ describe("createInlineMergeView", () => {
     expect(counter?.textContent).toBe("2 / 2");
   });
 
+  // 2026-06-16: WYSIWYG 比較モードで frontmatter も比較対象に含める（差分表示を内蔵）。
+  describe("frontmatter 比較行", () => {
+    it("WYSIWYG: 本ファイル/比較ファイルの frontmatter を比較行に並置する", () => {
+      ({ handle, rightEditor } = mkView({
+        sourceMode: false,
+        editorContent: "body",
+        frontmatter: "title: Main",
+        compareContent: "---\ntitle: Compare\n---\nbody",
+      }));
+      document.body.appendChild(handle.el);
+      const row = handle.el.querySelector<HTMLElement>("[data-am-frontmatter-compare]");
+      expect(row).not.toBeNull();
+      expect(row!.style.display).not.toBe("none");
+      expect(row!.textContent).toContain("title: Main");
+      expect(row!.textContent).toContain("title: Compare");
+    });
+
+    it("ソースモードでは frontmatter 比較行を隠す（テキスト diff に含まれるため）", () => {
+      ({ handle, rightEditor } = mkView({
+        sourceMode: true,
+        editorContent: "body",
+        frontmatter: "title: Main",
+        compareContent: "---\ntitle: Compare\n---\nbody",
+      }));
+      document.body.appendChild(handle.el);
+      const row = handle.el.querySelector<HTMLElement>("[data-am-frontmatter-compare]");
+      expect(row?.style.display).toBe("none");
+    });
+
+    it("両ファイルとも frontmatter が無ければ比較行は非表示", () => {
+      ({ handle, rightEditor } = mkView({
+        sourceMode: false,
+        editorContent: "body",
+        compareContent: "body",
+      }));
+      document.body.appendChild(handle.el);
+      const row = handle.el.querySelector<HTMLElement>("[data-am-frontmatter-compare]");
+      expect(row?.style.display).toBe("none");
+    });
+  });
+
   // 2026-06-10 レビュー補足（潜在バグ A）: compareContent の consume 契約の固定。
   // null は「新しい外部コンテンツなし」（消費パターン）であり比較テキストを保持する。
   // クリアは空文字 "" を明示的に渡す。
