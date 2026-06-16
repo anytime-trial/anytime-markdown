@@ -65,6 +65,22 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     handle.destroy();
   });
 
+  it("サイドツールバーを全高レール（本文カラムの兄弟）として配置する（上から表示）", () => {
+    const handle = mountVanillaMarkdownEditor(container, { t, sideToolbar: true });
+    const bodyRow = container.querySelector("[data-am-editor-body-row]");
+    const mainColumn = container.querySelector("[data-am-editor-main-column]");
+    const railSlot = container.querySelector("[data-am-side-toolbar-slot]");
+    expect(bodyRow).toBeTruthy();
+    // レールは本文カラムの兄弟＝ツールバー横から最下部まで全高で並ぶ。
+    expect(railSlot?.parentElement).toBe(bodyRow);
+    expect(mainColumn?.parentElement).toBe(bodyRow);
+    // ツールバーは本文カラム内（レールの左）に入る。
+    expect(mainColumn?.querySelector("[data-am-toolbar-slot]")).toBeTruthy();
+    // 旧構成（mainRow 内にレール＝ツールバーの下から開始）に戻っていないこと。
+    expect(container.querySelector("[data-am-main-row] [data-am-side-toolbar-slot]")).toBeNull();
+    handle.destroy();
+  });
+
   it("sideToolbar 指定でサイドツールバーにバージョン情報ボタンを配線する（host→side toolbar 統合）", () => {
     const handle = mountVanillaMarkdownEditor(container, { t, sideToolbar: true });
     const slot = container.querySelector("[data-am-side-toolbar-slot]") as HTMLElement;
