@@ -331,7 +331,6 @@
     "versionInfo": "Version Info",
     "versionName": "Anytime Markdown",
     "versionDescription": "A markdown editor with real-time preview, diagram (Mermaid / PlantUML) and math (KaTeX) support, and rich editing features.",
-    "versionTech": "Built with TipTap (ProseMirror), Mermaid, PlantUML, KaTeX",
     "versionCopyright": "Copyright © Kiyotaka Ueda featuring Claude Code",
     "versionLicense": "MIT License",
     "cursorLine": "Ln",

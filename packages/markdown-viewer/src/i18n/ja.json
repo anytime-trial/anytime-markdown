@@ -331,7 +331,6 @@
     "versionInfo": "バージョン情報",
     "versionName": "Anytime Markdown",
     "versionDescription": "リアルタイムプレビュー、ダイアグラム（Mermaid / PlantUML）・数式（KaTeX）対応、豊富な編集機能を備えたマークダウンエディタ",
-    "versionTech": "TipTap (ProseMirror), Mermaid, PlantUML, KaTeX で構築",
     "versionCopyright": "Copyright © Kiyotaka Ueda featuring Claude Code",
     "versionLicense": "MIT License",
     "cursorLine": "行",

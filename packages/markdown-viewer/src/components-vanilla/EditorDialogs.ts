@@ -384,10 +384,9 @@ export function createEditorDialogs(opts: CreateEditorDialogsOptions): EditorDia
       const secondary = "color:var(--am-color-text-secondary);";
       const version = createText({ variant: "caption", text: `v${APP_VERSION}`, style: secondary });
       const desc = createText({ variant: "body2", text: t("versionDescription"), style: "margin-top:16px;" });
-      const tech = createText({ variant: "caption", text: t("versionTech"), style: `display:block;margin-top:16px;${secondary}` });
-      const copyright = createText({ variant: "caption", text: t("versionCopyright"), style: `display:block;margin-top:8px;${secondary}` });
+      const copyright = createText({ variant: "caption", text: t("versionCopyright"), style: `display:block;margin-top:16px;${secondary}` });
       const license = createText({ variant: "caption", text: t("versionLicense"), style: `display:block;margin-top:4px;${secondary}` });
-      body.append(version.el, desc.el, tech.el, copyright.el, license.el);
+      body.append(version.el, desc.el, copyright.el, license.el);
 
       const content = createDialogContent({ children: body, dividers: true }).el;
       const closeBtn = createButton({ label: t("close"), color: "inherit", onClick: close });
