@@ -135,6 +135,75 @@ export function applyEditorThemeCssVars(
 
   root.style.setProperty("--editor-content-font-family", preset.fontFamily);
 
+  // chrome（ツールバー / ドロワー / メニュー / ダイアログ）が参照する `--am-*` トークン群。
+  // 単独利用（WC 自給）でも再利用できるよう applyChromeTokens に切り出している。
+  applyChromeTokens(root, isDark);
+
+  if (presetName === "handwritten") {
+    const lineColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+    const baseColor = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)";
+    root.style.setProperty(
+      "--editor-heading-hatch",
+      `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${lineColor} 4px, ${lineColor} 5px), ${baseColor}`,
+    );
+    root.style.setProperty(
+      "--editor-heading-font-family",
+      '"Nunito", "Klee One", sans-serif',
+    );
+
+    const borders = isDark ? HEADING_BORDER_DARK : headingBorderLight;
+    root.style.setProperty("--editor-heading-border-h1", borders[0]);
+    root.style.setProperty("--editor-heading-border-h2", borders[1]);
+    root.style.setProperty("--editor-heading-border-h3", borders[2]);
+
+    root.style.setProperty("--editor-heading-radius-h1", "12px 8px 10px 6px");
+    root.style.setProperty("--editor-heading-radius-h2", "8px 10px 6px 12px");
+    root.style.setProperty("--editor-heading-radius-h3", "6px 8px 10px 4px");
+
+    ensureRoughenFilter();
+    root.style.setProperty("--editor-heading-filter", "url(#roughen)");
+
+    const hatch = (color: string) =>
+      `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${color} 4px, ${color} 5px), ${isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)"}`;
+    root.style.setProperty("--editor-admonition-radius", "10px 6px 8px 12px");
+    root.style.setProperty(
+      "--editor-admonition-bg-note",
+      hatch("rgba(31,111,235,0.08)"),
+    );
+    root.style.setProperty(
+      "--editor-admonition-bg-tip",
+      hatch("rgba(35,134,54,0.08)"),
+    );
+    root.style.setProperty(
+      "--editor-admonition-bg-important",
+      hatch("rgba(137,87,229,0.08)"),
+    );
+    root.style.setProperty(
+      "--editor-admonition-bg-warning",
+      hatch("rgba(210,153,34,0.08)"),
+    );
+    root.style.setProperty(
+      "--editor-admonition-bg-caution",
+      hatch("rgba(218,54,51,0.08)"),
+    );
+  } else {
+    for (const cssVar of HANDWRITTEN_VARS) {
+      root.style.removeProperty(cssVar);
+    }
+  }
+
+  if (loadGoogleFonts) {
+    loadPresetGoogleFonts(preset.fontFamily, preset.displayFont);
+  }
+}
+
+/**
+ * chrome（ツールバー / 設定ドロワー / メニュー / ダイアログ）が参照する `--am-*` トークンのみを
+ * `root` に設定する。フォント preset（`--editor-*`）や Google Fonts 読込は含まない。
+ * {@link applyEditorThemeCssVars} の内部実装であり、WC 単体利用時の自給（{@link ensureChromeTokens}）
+ * からも再利用する。
+ */
+export function applyChromeTokens(root: HTMLElement, isDark: boolean): void {
   // chrome UI トークン（--am-color-*）。モード別の値を直接設定する（[data-theme] 非依存）。
   // 既存の color getter を単一箇所で CSS 変数化し、chrome コンポーネントから JS の
   // isDark 判定（useTheme 依存）を排除するための seam。
@@ -197,61 +266,27 @@ export function applyEditorThemeCssVars(
   root.style.setProperty("--am-duration-fast", "150ms");
   root.style.setProperty("--am-ease-standard", "cubic-bezier(0.4, 0, 0.2, 1)");
   root.style.setProperty("--am-font-size-dialog-header", "0.875rem");
+}
 
-  if (presetName === "handwritten") {
-    const lineColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
-    const baseColor = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)";
-    root.style.setProperty(
-      "--editor-heading-hatch",
-      `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${lineColor} 4px, ${lineColor} 5px), ${baseColor}`,
-    );
-    root.style.setProperty(
-      "--editor-heading-font-family",
-      '"Nunito", "Klee One", sans-serif',
-    );
-
-    const borders = isDark ? HEADING_BORDER_DARK : headingBorderLight;
-    root.style.setProperty("--editor-heading-border-h1", borders[0]);
-    root.style.setProperty("--editor-heading-border-h2", borders[1]);
-    root.style.setProperty("--editor-heading-border-h3", borders[2]);
-
-    root.style.setProperty("--editor-heading-radius-h1", "12px 8px 10px 6px");
-    root.style.setProperty("--editor-heading-radius-h2", "8px 10px 6px 12px");
-    root.style.setProperty("--editor-heading-radius-h3", "6px 8px 10px 4px");
-
-    ensureRoughenFilter();
-    root.style.setProperty("--editor-heading-filter", "url(#roughen)");
-
-    const hatch = (color: string) =>
-      `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${color} 4px, ${color} 5px), ${isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)"}`;
-    root.style.setProperty("--editor-admonition-radius", "10px 6px 8px 12px");
-    root.style.setProperty(
-      "--editor-admonition-bg-note",
-      hatch("rgba(31,111,235,0.08)"),
-    );
-    root.style.setProperty(
-      "--editor-admonition-bg-tip",
-      hatch("rgba(35,134,54,0.08)"),
-    );
-    root.style.setProperty(
-      "--editor-admonition-bg-important",
-      hatch("rgba(137,87,229,0.08)"),
-    );
-    root.style.setProperty(
-      "--editor-admonition-bg-warning",
-      hatch("rgba(210,153,34,0.08)"),
-    );
-    root.style.setProperty(
-      "--editor-admonition-bg-caution",
-      hatch("rgba(218,54,51,0.08)"),
-    );
-  } else {
-    for (const cssVar of HANDWRITTEN_VARS) {
-      root.style.removeProperty(cssVar);
-    }
-  }
-
-  if (loadGoogleFonts) {
-    loadPresetGoogleFonts(preset.fontFamily, preset.displayFont);
-  }
+/**
+ * WC（`<anytime-markdown-editor>` 等）が、`applyEditorThemeCssVars` を呼ばない素の consumer
+ * （ブラウザ拡張 / CDN）でも chrome 背景を不透明に保つための自給ヘルパ。
+ *
+ * host が既に `applyEditorThemeCssVars` で `document.documentElement` にトークンを注入済みなら
+ * 何もしない（fill-if-missing）。これにより web-app（独自 preset / themeMode を注入）の
+ * 値を上書きしない。`force` は自給した要素の theme 切替で再適用するために使う。
+ *
+ * @returns 実際にトークンを適用したら true（＝この要素がトークンを所有する）
+ */
+export function ensureChromeTokens(
+  themeMode: "light" | "dark",
+  options?: { readonly force?: boolean },
+): boolean {
+  if (typeof document === "undefined") return false;
+  const root = document.documentElement;
+  const alreadyInjected =
+    root.style.getPropertyValue("--am-color-bg-paper").trim() !== "";
+  if (!options?.force && alreadyInjected) return false;
+  applyChromeTokens(root, themeMode === "dark");
+  return true;
 }

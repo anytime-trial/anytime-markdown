@@ -1,0 +1,6 @@
+dist/
+*.zip
+
+# 暫定アイコンは build 時に generate-icons.mjs が再生成するためコミットしない。
+# 正式アイコンに差し替えたら、この行を消して public/icons/ をコミットする。
+public/icons/
