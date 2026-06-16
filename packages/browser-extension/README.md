@@ -17,7 +17,7 @@ math / graph 対応）をそのまま利用する。
 packages/browser-extension/
   public/
     manifest.json        ← MV3。action(onClicked) → editor.html を新規タブで開く
-    editor.html          ← <anytime-markdown-editor> を1個配置
+    editor.html          ← <anytime-markdown-rich-editor> を1個配置
     icons/               ← build 時に自動生成（暫定プレースホルダ）
   src/
     editor.ts            ← rich WC 登録 import + chrome.storage 自動保存サンプル
