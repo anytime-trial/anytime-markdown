@@ -42,7 +42,18 @@ const ICON = {
   // InfoOutlinedIcon（バージョン情報）
   infoOutlined:
     "M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8",
+  // LightModeIcon（太陽・dark 時に表示しクリックで light へ）。MUI Brightness7 相当。
+  lightMode:
+    "M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z",
+  // DarkModeIcon（月・light 時に表示しクリックで dark へ）。MUI Brightness4/DarkMode 相当。
+  darkMode:
+    "M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z",
 } as const;
+
+/** dark なら太陽（→light）、light なら月（→dark）の path を返す。 */
+function themeIconPath(mode: "light" | "dark"): string {
+  return mode === "dark" ? ICON.lightMode : ICON.darkMode;
+}
 
 /** サイドツールバー内アイコンの実寸（px）。SvgIcon fontSize="small"（20px）相当。 */
 const ICON_PX = 20;
@@ -76,6 +87,10 @@ export interface CreateEditorSideToolbarOptions {
    * ハンバーガー（その他メニュー）の versionInfo 項目と同じダイアログを最下部に鏡写しにする。
    */
   onOpenVersionDialog?: () => void;
+  /** light/dark テーマ切替。未指定ならボタン自体を描画しない（host が onThemeModeChange を呼ぶ）。 */
+  onToggleTheme?: () => void;
+  /** 現在のテーマモード（テーマ切替アイコンの太陽/月の決定に使用）。 */
+  themeMode?: "light" | "dark";
 }
 
 /** 外部から流し込む可変状態（開閉 / ソースモード）。 */
@@ -85,6 +100,7 @@ export interface EditorSideToolbarState {
   commentOpen?: boolean;
   explorerOpen?: boolean;
   noteGraphOpen?: boolean;
+  themeMode?: "light" | "dark";
 }
 
 /** {@link createEditorSideToolbar} の戻り値。 */
@@ -126,7 +142,7 @@ export function createEditorSideToolbar(
   const state: Required<
     Pick<
       EditorSideToolbarState,
-      "sourceMode" | "outlineOpen" | "commentOpen" | "explorerOpen" | "noteGraphOpen"
+      "sourceMode" | "outlineOpen" | "commentOpen" | "explorerOpen" | "noteGraphOpen" | "themeMode"
     >
   > = {
     sourceMode: opts.sourceMode ?? false,
@@ -134,6 +150,7 @@ export function createEditorSideToolbar(
     commentOpen: opts.commentOpen ?? false,
     explorerOpen: opts.explorerOpen ?? false,
     noteGraphOpen: opts.noteGraphOpen ?? false,
+    themeMode: opts.themeMode ?? "light",
   };
 
   const root = document.createElement("div");
@@ -260,6 +277,18 @@ export function createEditorSideToolbar(
     });
   }
 
+  // --- light/dark テーマ切替（callback 未指定なら描画しない） ---
+  // 現在モードに応じて太陽/月アイコンを出し、update(themeMode) で同期する
+  // （web-app グローバルナビの light/dark トグルをサイドバーにも提供する）。
+  let themeItem: ToolbarItem | undefined;
+  if (opts.onToggleTheme) {
+    themeItem = addItem({
+      label: t("settingDarkMode"),
+      iconPath: themeIconPath(state.themeMode),
+      onClick: opts.onToggleTheme,
+    });
+  }
+
   // --- バージョン情報（callback 未指定なら描画しない） ---
   // 設定の直下に区切り線を挟んで配置する（承認デザイン準拠）。
   // margin-top:auto で最下部へ押し下げると全高サイドバーでは画面外に出て見落とされるため使わない。
@@ -295,6 +324,11 @@ export function createEditorSideToolbar(
     if (next.commentOpen !== undefined) state.commentOpen = next.commentOpen;
     if (next.explorerOpen !== undefined) state.explorerOpen = next.explorerOpen;
     if (next.noteGraphOpen !== undefined) state.noteGraphOpen = next.noteGraphOpen;
+    if (next.themeMode !== undefined && next.themeMode !== state.themeMode) {
+      state.themeMode = next.themeMode;
+      // テーマ変更をアイコン（太陽/月）へ反映する。
+      themeItem?.button.el.replaceChildren(makeIcon(themeIconPath(state.themeMode)));
+    }
     applyState();
   }
 
