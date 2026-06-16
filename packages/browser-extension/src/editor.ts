@@ -1,13 +1,18 @@
 /**
  * 拡張ページ（editor.html）のエントリ。
  *
- * `@anytime-markdown/markdown-viewer/element` を import するだけで
- * `<anytime-markdown-editor>` Custom Element が登録される（副作用 import）。
+ * `@anytime-markdown/markdown-rich/element` を import すると
+ * `<anytime-markdown-rich-editor>` Custom Element が登録される（副作用 import）。
+ * mermaid / katex / plantuml / math / graph に対応する rich 版。
  *
- * mermaid / katex / plantuml も使いたい場合は markdown-rich の
- * `AnytimeMarkdownRichEditorElement`（`<anytime-markdown-rich-editor>`）に差し替える。
+ * 軽量なプレーン版に戻す場合は `@anytime-markdown/markdown-viewer/element`
+ * （`<anytime-markdown-editor>`）に差し替える。
+ *
+ * 重量モジュール（mermaid / plotly / jsxgraph 等）は動的 import で遅延ロードされ、
+ * esbuild の code splitting でチャンク分割される。katex の CSS / フォントは
+ * dist/editor.css（+ フォントファイル）として出力され editor.html が link する。
  */
-import "@anytime-markdown/markdown-viewer/element";
+import "@anytime-markdown/markdown-rich/element";
 
 /**
  * 編集内容を chrome.storage.local に自動保存し、再起動後に復元する最小サンプル。
@@ -17,7 +22,7 @@ import "@anytime-markdown/markdown-viewer/element";
 const STORAGE_KEY = "anytime-markdown:last-document";
 
 function setupAutosave(): void {
-  const el = document.querySelector("anytime-markdown-editor");
+  const el = document.querySelector("anytime-markdown-rich-editor");
   if (!el) return;
 
   const storage = globalThis.chrome?.storage?.local;
