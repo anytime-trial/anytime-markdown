@@ -54,8 +54,11 @@ export class WebFileSystemProvider implements FileSystemProvider {
       const file: File = await nativeHandle.getFile();
       const content = await file.text();
       return { handle: { name: file.name, nativeHandle }, content };
-    } catch {
-      // ユーザーキャンセル（AbortError）含め、開けなければ null（呼び元で no-op）。
+    } catch (e) {
+      // ユーザーキャンセル（AbortError）は正常系として無視。それ以外（権限/IO 等）は
+      // 最低限ログ出力する（silent catch 禁止。browser ページで動くため console は可視）。
+      if (e instanceof DOMException && e.name === "AbortError") return null;
+      console.error("[WebFileSystemProvider] open failed", e);
       return null;
     }
   }
@@ -77,7 +80,9 @@ export class WebFileSystemProvider implements FileSystemProvider {
       await writable.write(content);
       await writable.close();
       return { name: nativeHandle.name, nativeHandle };
-    } catch {
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return null;
+      console.error("[WebFileSystemProvider] saveAs failed", e);
       return null;
     }
   }
