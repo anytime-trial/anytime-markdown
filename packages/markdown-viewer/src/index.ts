@@ -80,6 +80,7 @@ export {
   getMarkdownStorage,
 } from './types';
 export type { FileHandle, FileOpenResult, FileSystemProvider } from './types/fileSystem';
+export { WebFileSystemProvider } from './fs/webFileSystemProvider';
 export type {
 ToolbarFileCapabilities,
 ToolbarFileHandlers, ToolbarModeHandlers,
