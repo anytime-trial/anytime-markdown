@@ -8,42 +8,108 @@
  * 軽量なプレーン版に戻す場合は `@anytime-markdown/markdown-viewer/element`
  * （`<anytime-markdown-editor>`）に差し替える。
  *
- * 重量モジュール（mermaid / plotly / jsxgraph 等）は動的 import で遅延ロードされ、
- * esbuild の code splitting でチャンク分割される。katex の CSS / フォントは
- * dist/editor.css（+ フォントファイル）として出力され editor.html が link する。
+ * 要素は `options` を connect 前に渡すため JS で生成する（属性で表現できない
+ * sideToolbar / hide 等を一度の mount で反映するため）。
  */
 import "@anytime-markdown/markdown-rich/element";
 
 /**
- * 編集内容を chrome.storage.local に自動保存し、再起動後に復元する最小サンプル。
- * 不要なら削除してよい。File System Access API（showOpenFilePicker / showSaveFilePicker）は
- * 拡張ページが secure context のため追加パーミッションなしで利用できる。
+ * 本拡張で WC に渡す最小オプション型（このファイルは esbuild トランスパイルのみで
+ * 型検査を受けないため、必要な口だけを局所定義する）。
  */
+interface RichEditorElement extends HTMLElement {
+  options: {
+    sideToolbar?: boolean;
+    hide?: { explorer?: boolean };
+  };
+  value: string;
+}
+
+/** 使用する chrome.storage.local の口だけを構造的に表す（@types/chrome 非依存）。 */
+interface StorageArea {
+  get(key: string, callback: (items: Record<string, unknown>) => void): void;
+  set(items: Record<string, unknown>, callback?: () => void): void;
+}
+
 const STORAGE_KEY = "anytime-markdown:last-document";
+/** 自動保存のデバウンス。chrome.storage の書込みスロットリング回避。 */
+const SAVE_DEBOUNCE_MS = 500;
 
-function setupAutosave(): void {
-  const el = document.querySelector("anytime-markdown-rich-editor");
-  if (!el) return;
+/** chrome.storage.local（拡張コンテキスト外では undefined）。 */
+function getStorage(): StorageArea | undefined {
+  return (globalThis as { chrome?: { storage?: { local?: StorageArea } } }).chrome
+    ?.storage?.local;
+}
 
-  const storage = globalThis.chrome?.storage?.local;
+/** chrome.runtime.lastError（保存失敗の検出用。拡張コンテキスト外では undefined）。 */
+function getRuntimeError(): { message?: string } | undefined {
+  return (globalThis as { chrome?: { runtime?: { lastError?: { message?: string } } } })
+    .chrome?.runtime?.lastError;
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * 編集内容を debounce して chrome.storage.local に保存する。
+ * storage.set のコールバックで lastError を観測し、silent failure を避ける。
+ */
+function scheduleSave(value: string): void {
+  const storage = getStorage();
   if (!storage) return;
+  if (saveTimer !== undefined) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    storage.set({ [STORAGE_KEY]: value }, () => {
+      const err = getRuntimeError();
+      if (err) {
+        // ブラウザ拡張ページのため console は DevTools で可視（VS Code 拡張ではない）。
+        console.warn(`[anytime-markdown] 自動保存に失敗しました: ${err.message ?? "unknown error"}`);
+      }
+    });
+  }, SAVE_DEBOUNCE_MS);
+}
 
-  storage.get(STORAGE_KEY, (items) => {
-    const saved = items?.[STORAGE_KEY];
-    if (typeof saved === "string" && saved.length > 0) {
-      (el as unknown as { value: string }).value = saved;
-    }
-  });
+/**
+ * rich エディタ要素を生成して #editor-root にマウントする。
+ * 編集内容は chrome.storage.local に自動保存し、再起動後に復元する。
+ */
+function createEditor(initialContent: string): void {
+  const root = document.getElementById("editor-root");
+  if (!root) return;
+
+  const el = document.createElement("anytime-markdown-rich-editor") as RichEditorElement;
+  el.setAttribute("theme", "light");
+  el.setAttribute("locale", "ja");
+  // web-app と同様に右端の縦サイドツールバー（アウトライン / コメント / 設定）を表示する。
+  // hide.explorer は上部ツールバーの explorer トグル（fileSystemProvider 未配線で無意味）を
+  // 抑止する（web-app の `hide={{ explorer: !enableGitHub }}` 相当）。サイドツールバー側の
+  // explorer ボタンは onToggleExplorer 未配線のため元々描画されない。
+  el.options = { sideToolbar: true, hide: { explorer: true } };
+  if (initialContent) el.value = initialContent;
 
   el.addEventListener("change", (event) => {
     const detail = (event as CustomEvent<{ value: string }>).detail;
     if (detail?.value === undefined) return;
-    storage.set({ [STORAGE_KEY]: detail.value });
+    scheduleSave(detail.value);
+  });
+
+  // options / value を connect 前に確定させてから append（単一 mount）。
+  root.appendChild(el);
+}
+
+function init(): void {
+  const storage = getStorage();
+  if (!storage) {
+    createEditor("");
+    return;
+  }
+  storage.get(STORAGE_KEY, (items) => {
+    const saved = items?.[STORAGE_KEY];
+    createEditor(typeof saved === "string" ? saved : "");
   });
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", setupAutosave, { once: true });
+  document.addEventListener("DOMContentLoaded", init, { once: true });
 } else {
-  setupAutosave();
+  init();
 }

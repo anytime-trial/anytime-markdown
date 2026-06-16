@@ -20,7 +20,7 @@ packages/browser-extension/
     editor.html          ← <anytime-markdown-rich-editor> を1個配置
     icons/               ← build 時に自動生成（暫定プレースホルダ）
   src/
-    editor.ts            ← rich WC 登録 import + chrome.storage 自動保存サンプル
+    editor.ts            ← rich WC を生成・mount（sideToolbar 表示）+ chrome.storage 自動保存
     background.js         ← MV3 service worker（タブを開く）
   scripts/
     generate-icons.mjs   ← 依存なしの PNG 生成（16/32/48/128）
@@ -60,6 +60,10 @@ npm run build -w @anytime-markdown/browser-extension
   に、`public/editor.html` のタグを `<anytime-markdown-editor>` に差し替える（mermaid/katex 等は無効）
 - グラフ機能（jsxgraph/plotly）を隠してバンドルを軽くする: `<anytime-markdown-rich-editor>` に
   `hide-graph` 属性を付ける
+- サイドバー（右端の縦ツールバー: アウトライン / コメント / 設定）: `editor.ts` で
+  `el.options = { sideToolbar: true, hide: { explorer: true } }` を渡して表示している
+  （web-app と同等）。ローカル `.md` のファイルエクスプローラを使いたい場合は
+  `fileSystemProvider`（File System Access API ベース）を実装して `hide.explorer` を外す
 - 初期テーマ / locale: `public/editor.html` の `<anytime-markdown-rich-editor>` 属性を編集
 - 既存エディタタブの再利用（重複タブ抑止）: `manifest.json` に `tabs` パーミッションを足し、
   `src/background.js` で `chrome.tabs.query({ url })` する実装に拡張する

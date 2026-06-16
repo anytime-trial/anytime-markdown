@@ -12,23 +12,24 @@
         margin: 0;
         height: 100%;
       }
-      /* エディタを全画面に広げる。テーマ CSS 変数は WC 側が editor root に注入する。 */
+      /* エディタを全画面に広げる。テーマ CSS 変数は WC 側が注入する。 */
+      #editor-root {
+        height: 100vh;
+        width: 100%;
+      }
       anytime-markdown-rich-editor {
         display: block;
-        height: 100vh;
+        height: 100%;
         width: 100%;
       }
     </style>
   </head>
   <body>
     <!--
-      theme: light | dark（省略時は WC 既定）
-      locale: ja | en
-      read-only: 属性が存在すると読み取り専用
-      hide-graph: jsxgraph/plotly のグラフ機能を隠す（バンドル削減用）
-      初期 Markdown は value プロパティ（editor.js）または slot で渡す
+      要素は editor.js で生成し options（sideToolbar 等）を connect 前に渡す。
+      theme / locale / 初期 Markdown / サイドバー表示は editor.js を参照。
     -->
-    <anytime-markdown-rich-editor theme="light" locale="ja"></anytime-markdown-rich-editor>
+    <main id="editor-root"></main>
     <script type="module" src="./editor.js"></script>
   </body>
 </html>
