@@ -320,7 +320,7 @@ function buildLayout(): VanillaLayout {
   sideToolbarSlot.setAttribute("data-am-side-toolbar-slot", "");
   sideToolbarSlot.style.cssText = "flex-shrink:0;display:flex;min-height:0;";
 
-  mainRow.append(contentEl, sidebarSlot, sideToolbarSlot);
+  mainRow.append(contentEl, sidebarSlot);
 
   const statusBarSlot = document.createElement("div");
   statusBarSlot.setAttribute("data-am-statusbar-slot", "");
@@ -332,7 +332,21 @@ function buildLayout(): VanillaLayout {
   liveRegion.style.cssText =
     "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;";
 
-  root.append(toolbarSlot, frontmatterEl, mainRow, statusBarSlot, liveRegion);
+  // 右端サイドツールバーを編集領域の最上部から最下部まで届く「全高レール」にする。
+  // toolbar / frontmatter / 本文 / statusbar を左カラムにまとめ、その右にレールを縦置きする
+  // （旧構成では sideToolbar が mainRow 内＝ツールバーの下から始まり上部に届かなかった）。
+  const mainColumn = document.createElement("div");
+  mainColumn.setAttribute("data-am-editor-main-column", "");
+  mainColumn.style.cssText =
+    "display:flex;flex-direction:column;flex:1 1 auto;min-width:0;min-height:0;";
+  mainColumn.append(toolbarSlot, frontmatterEl, mainRow, statusBarSlot);
+
+  const bodyRow = document.createElement("div");
+  bodyRow.setAttribute("data-am-editor-body-row", "");
+  bodyRow.style.cssText = "display:flex;flex:1 1 auto;min-height:0;";
+  bodyRow.append(mainColumn, sideToolbarSlot);
+
+  root.append(bodyRow, liveRegion);
   return {
     root,
     toolbarSlot,
