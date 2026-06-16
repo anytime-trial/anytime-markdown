@@ -39,6 +39,9 @@ const ICON = {
   // AccountTreeIcon（ノート網 — ドキュメント関係グラフ）
   accountTree:
     "M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z",
+  // InfoOutlinedIcon（バージョン情報）
+  infoOutlined:
+    "M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8",
 } as const;
 
 /** サイドツールバー内アイコンの実寸（px）。SvgIcon fontSize="small"（20px）相当。 */
@@ -68,6 +71,11 @@ export interface CreateEditorSideToolbarOptions {
   noteGraphOpen?: boolean;
   /** 設定オープン。未指定ならボタン自体を描画しない（React 版と同一）。 */
   onOpenSettings?: () => void;
+  /**
+   * バージョン情報ダイアログを開く。未指定ならボタン自体を描画しない。
+   * ハンバーガー（その他メニュー）の versionInfo 項目と同じダイアログを最下部に鏡写しにする。
+   */
+  onOpenVersionDialog?: () => void;
 }
 
 /** 外部から流し込む可変状態（開閉 / ソースモード）。 */
@@ -249,6 +257,20 @@ export function createEditorSideToolbar(
       label: t("editorSettings"),
       iconPath: ICON.settings,
       onClick: opts.onOpenSettings,
+    });
+  }
+
+  // --- バージョン情報（callback 未指定なら描画しない） ---
+  // 最下部に配置するため、直前に margin-top:auto の区切り線（スペーサ）を挟む。
+  if (opts.onOpenVersionDialog) {
+    const divider = document.createElement("div");
+    divider.style.cssText =
+      "margin-top:auto;width:60%;height:1px;flex-shrink:0;background:var(--am-color-divider);";
+    root.appendChild(divider);
+    addItem({
+      label: t("versionInfo"),
+      iconPath: ICON.infoOutlined,
+      onClick: opts.onOpenVersionDialog,
     });
   }
 

@@ -79,6 +79,39 @@ describe("createEditorSideToolbar", () => {
       expect(btns[3].getAttribute("aria-label")).toBe("editorSettings");
     });
 
+    it("onOpenVersionDialog 指定でバージョン情報ボタンを最後に描画する", () => {
+      handle = createEditorSideToolbar({
+        t,
+        onToggleComment: () => {},
+        onOpenSettings: () => {},
+        onOpenVersionDialog: () => {},
+      });
+      const btns = buttons(handle);
+      expect(btns[btns.length - 1].getAttribute("aria-label")).toBe("versionInfo");
+    });
+
+    it("バージョン情報ボタンのクリックで onOpenVersionDialog を呼ぶ", () => {
+      const onOpenVersionDialog = jest.fn();
+      handle = createEditorSideToolbar({
+        t,
+        onToggleComment: () => {},
+        onOpenVersionDialog,
+      });
+      const versionBtn = buttons(handle).find(
+        (b) => b.getAttribute("aria-label") === "versionInfo",
+      );
+      versionBtn?.click();
+      expect(onOpenVersionDialog).toHaveBeenCalledTimes(1);
+    });
+
+    it("onOpenVersionDialog 未指定ならバージョン情報ボタンを描画しない", () => {
+      handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
+      const hasVersion = buttons(handle).some(
+        (b) => b.getAttribute("aria-label") === "versionInfo",
+      );
+      expect(hasVersion).toBe(false);
+    });
+
     it("各ボタンに inline svg アイコンを内包し SIDE_TOOLBAR_ICON_SIZE 寸法を持つ", () => {
       handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
       const btns = buttons(handle);
