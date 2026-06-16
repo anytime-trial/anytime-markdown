@@ -28,15 +28,44 @@ interface RichEditorElement extends HTMLElement {
 /** 使用する chrome.storage.local の口だけを構造的に表す（@types/chrome 非依存）。 */
 interface StorageArea {
   get(key: string, callback: (items: Record<string, unknown>) => void): void;
-  set(items: Record<string, unknown>): void;
+  set(items: Record<string, unknown>, callback?: () => void): void;
 }
 
 const STORAGE_KEY = "anytime-markdown:last-document";
+/** 自動保存のデバウンス。chrome.storage の書込みスロットリング回避。 */
+const SAVE_DEBOUNCE_MS = 500;
 
 /** chrome.storage.local（拡張コンテキスト外では undefined）。 */
 function getStorage(): StorageArea | undefined {
   return (globalThis as { chrome?: { storage?: { local?: StorageArea } } }).chrome
     ?.storage?.local;
+}
+
+/** chrome.runtime.lastError（保存失敗の検出用。拡張コンテキスト外では undefined）。 */
+function getRuntimeError(): { message?: string } | undefined {
+  return (globalThis as { chrome?: { runtime?: { lastError?: { message?: string } } } })
+    .chrome?.runtime?.lastError;
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * 編集内容を debounce して chrome.storage.local に保存する。
+ * storage.set のコールバックで lastError を観測し、silent failure を避ける。
+ */
+function scheduleSave(value: string): void {
+  const storage = getStorage();
+  if (!storage) return;
+  if (saveTimer !== undefined) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    storage.set({ [STORAGE_KEY]: value }, () => {
+      const err = getRuntimeError();
+      if (err) {
+        // ブラウザ拡張ページのため console は DevTools で可視（VS Code 拡張ではない）。
+        console.warn(`[anytime-markdown] 自動保存に失敗しました: ${err.message ?? "unknown error"}`);
+      }
+    });
+  }, SAVE_DEBOUNCE_MS);
 }
 
 /**
@@ -51,15 +80,16 @@ function createEditor(initialContent: string): void {
   el.setAttribute("theme", "light");
   el.setAttribute("locale", "ja");
   // web-app と同様に右端の縦サイドツールバー（アウトライン / コメント / 設定）を表示する。
-  // explorer（ファイルエクスプローラ）は GitHub / fileSystemProvider 未配線のため隠す
-  // （web-app の `hide={{ explorer: !enableGitHub }}` 相当）。
+  // hide.explorer は上部ツールバーの explorer トグル（fileSystemProvider 未配線で無意味）を
+  // 抑止する（web-app の `hide={{ explorer: !enableGitHub }}` 相当）。サイドツールバー側の
+  // explorer ボタンは onToggleExplorer 未配線のため元々描画されない。
   el.options = { sideToolbar: true, hide: { explorer: true } };
   if (initialContent) el.value = initialContent;
 
   el.addEventListener("change", (event) => {
     const detail = (event as CustomEvent<{ value: string }>).detail;
     if (detail?.value === undefined) return;
-    getStorage()?.set({ [STORAGE_KEY]: detail.value });
+    scheduleSave(detail.value);
   });
 
   // options / value を connect 前に確定させてから append（単一 mount）。
