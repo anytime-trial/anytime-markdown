@@ -1116,6 +1116,8 @@ export function mountVanillaMarkdownEditor(
         onOpenSettings: current.hide?.settings ? undefined : openSettings,
         // バージョン情報メニュー項目 → バージョンダイアログ起動（vanilla 移植時の配線漏れ修正。
         // 未接続だと項目は出るがクリックしても onOpenVersionDialog が undefined で何も起きない）。
+        // hide.versionInfo はサイドツールバーと挙動を揃える（片方だけ残るのを防ぐ）。
+        hideVersionInfo: current.hide?.versionInfo ?? false,
         onOpenVersionDialog: () => dialogs.openVersion(),
         outlineOpen: modeState.outlineOpen,
         commentOpen: modeState.commentOpen,
