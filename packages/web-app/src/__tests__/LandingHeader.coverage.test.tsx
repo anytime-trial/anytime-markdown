@@ -20,96 +20,42 @@ jest.mock("../app/providers", () => ({
 
 import LandingHeader from "../app/components/LandingHeader";
 
-beforeAll(() => {
-  process.env.NEXT_PUBLIC_SHOW_GRAPH = "1";
-});
-
-afterAll(() => {
-  delete process.env.NEXT_PUBLIC_SHOW_GRAPH;
-});
-
-describe("LandingHeader mobile drawer", () => {
-  it("opens drawer when menu button clicked", () => {
+// ハンバーガー / モバイルドロワーは撤去し、言語・テーマ切替を狭幅でも常時表示する。
+describe("LandingHeader nav (no hamburger)", () => {
+  it("ハンバーガーメニュー（ariaMenu）を描画しない", () => {
     render(<LandingHeader />);
-    const menuButton = screen.getByLabelText("ariaMenu");
-    fireEvent.click(menuButton);
-    // Drawer should show locale and theme toggles
-    expect(screen.getAllByText("EN").length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByLabelText("ariaMenu")).toBeNull();
   });
 
-  it("closes drawer when locale button in drawer is clicked", () => {
+  it("言語切替を常時1つだけ描画する（ドロワー複製なし）", () => {
     render(<LandingHeader />);
-    const menuButton = screen.getByLabelText("ariaMenu");
-    fireEvent.click(menuButton);
-    const enButtons = screen.getAllByText("EN");
-    if (enButtons.length > 1) {
-      fireEvent.click(enButtons[enButtons.length - 1]);
-    }
+    expect(screen.getAllByText("EN")).toHaveLength(1);
   });
 
-  it("renders locale toggle in desktop nav", () => {
+  it("テーマ切替を常時1つだけ描画する（ドロワー複製なし）", () => {
     render(<LandingHeader />);
-    expect(screen.getAllByText("EN").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByLabelText("ariaTheme")).toHaveLength(1);
   });
 
-  it("renders mobile language toggle in drawer", () => {
+  it("言語切替クリックで setLocale が呼ばれる", () => {
+    const setLocale = jest.fn();
+    jest
+      .spyOn(require("../app/LocaleProvider"), "useLocaleSwitch")
+      .mockReturnValue({ locale: "en", setLocale });
+
     render(<LandingHeader />);
-    const menuButton = screen.getByLabelText("ariaMenu");
-    fireEvent.click(menuButton);
-    // Drawer should have language toggle
-    const enButtons = screen.getAllByText("EN");
-    expect(enButtons.length).toBeGreaterThanOrEqual(2); // desktop + mobile
+    fireEvent.click(screen.getByText("EN"));
+    expect(setLocale).toHaveBeenCalledWith("ja");
   });
 
-  it("handles desktop language toggle change", () => {
-    const mockSetLocale = jest.fn();
-    jest.spyOn(require("../app/LocaleProvider"), "useLocaleSwitch").mockReturnValue({ locale: "en", setLocale: mockSetLocale });
+  it("テーマ切替クリックで setThemeMode が呼ばれる", () => {
+    const setThemeMode = jest.fn();
+    jest
+      .spyOn(require("../app/providers"), "useThemeMode")
+      .mockReturnValue({ themeMode: "light", setThemeMode });
 
     render(<LandingHeader />);
-    const jaButtons = screen.queryAllByText("JA");
-    if (jaButtons.length > 0) {
-      fireEvent.click(jaButtons[0]);
-    }
-  });
-
-  it("handles mobile language toggle change in drawer", () => {
-    render(<LandingHeader />);
-    const menuButton = screen.getByLabelText("ariaMenu");
-    fireEvent.click(menuButton);
-    const jaButtons = screen.queryAllByText("JA");
-    // Click last JA button (mobile one in drawer)
-    if (jaButtons.length > 1) {
-      fireEvent.click(jaButtons[jaButtons.length - 1]);
-    }
-  });
-
-  it("closes drawer by clicking theme toggle in drawer", () => {
-    render(<LandingHeader />);
-    const menuButton = screen.getByLabelText("ariaMenu");
-    fireEvent.click(menuButton);
-    const themeButtons = screen.getAllByLabelText("ariaTheme");
-    if (themeButtons.length > 1) {
-      fireEvent.click(themeButtons[themeButtons.length - 1]);
-    }
-  });
-
-  it("handles clicking already-selected language (null val)", () => {
-    render(<LandingHeader />);
-    // Click EN when already selected (locale is "en") - onChange fires with null val
-    const enButtons = screen.getAllByText("EN");
-    if (enButtons.length > 0) {
-      fireEvent.click(enButtons[0]);
-    }
-  });
-
-  it("handles clicking already-selected language in mobile drawer", () => {
-    render(<LandingHeader />);
-    const menuButton = screen.getByLabelText("ariaMenu");
-    fireEvent.click(menuButton);
-    // Click EN in drawer when already selected
-    const enButtons = screen.getAllByText("EN");
-    if (enButtons.length > 1) {
-      fireEvent.click(enButtons[enButtons.length - 1]);
-    }
+    fireEvent.click(screen.getByLabelText("ariaTheme"));
+    expect(setThemeMode).toHaveBeenCalledWith("dark");
   });
 });
