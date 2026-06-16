@@ -208,11 +208,14 @@ export function createEditorToolbar(
       "#md-editor-toolbar [data-compare-toggle] { display: none; }\n" +
       "#md-editor-toolbar [data-more-desktop] { display: none; }\n" +
       "#md-editor-toolbar [data-more-mobile] { display: inline-flex; }\n" +
+      // 狭幅（ハンバーガー表示時）はモード切替をアイコンのみにする（ラベル非表示）。
+      "#md-editor-toolbar [data-mode-label] { display: none; }\n" +
       "@media (min-width: 900px) {\n" +
       "  #md-editor-toolbar [data-desktop-contents] { display: contents; }\n" +
       "  #md-editor-toolbar [data-compare-toggle] { display: inline-flex; }\n" +
       "  #md-editor-toolbar [data-more-desktop] { display: flex; justify-content: center; align-items: center; }\n" +
       "  #md-editor-toolbar [data-more-mobile] { display: none; }\n" +
+      "  #md-editor-toolbar [data-mode-label] { display: inline; }\n" +
       "}",
   );
   // sideToolbar 併用時は md+ で outline/comments/explorer を CSS で隠す（旧 Page parity）。
@@ -535,8 +538,9 @@ export function createEditorToolbar(
     ): void => {
       const labelSpan = document.createElement("span");
       labelSpan.textContent = ariaLabel;
-      // .modeLabel: xs 非表示・sm 以上で表示は CSS Module 依存だったため、vanilla 版では常時表示。
-      labelSpan.style.cssText = "display:inline;";
+      // 旧 .modeLabel parity: 狭幅（<900px・ハンバーガー表示時）はアイコンのみにするため、
+      // ラベルの表示制御を responsive スタイルシートに委ねる（インライン display は置かない）。
+      labelSpan.setAttribute("data-mode-label", "");
       const iconEl = svgIcon(icon, 16);
       const btn = createToggleButton({
         value,

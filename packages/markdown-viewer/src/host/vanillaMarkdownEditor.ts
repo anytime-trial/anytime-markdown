@@ -980,6 +980,9 @@ export function mountVanillaMarkdownEditor(
           // help ボタンはヘルプポップオーバー（outline/comment/settings/version メニュー）を開く。
           // menuPopovers は後段で生成されるが、クリック時には初期化済み（TDZ は実行順で解消）。
           onSetHelpAnchor: (el) => menuPopovers.openHelp(el),
+          // モバイルハンバーガー（<900px・サイドバー非表示時）も同じ help メニューを開く。
+          // 脱React 時に未配線（partial 移植）で死にボタンになっていた回帰の修正。
+          onOpenMobileMenu: (el) => menuPopovers.openHelp(el),
         };
         toolbar = createEditorToolbar(toolbarOptions);
         toolbarSlot.appendChild(toolbar.el);

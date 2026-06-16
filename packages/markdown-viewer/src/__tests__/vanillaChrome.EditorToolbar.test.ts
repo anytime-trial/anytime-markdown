@@ -202,6 +202,25 @@ describe("createEditorToolbar — 生成と属性", () => {
     expect(desktopMore?.hasAttribute("data-am-side-coupled")).toBe(false);
     handle.destroy();
   });
+
+  it("モードボタンのラベルは data-mode-label を持ち inline display を持たない（表示制御をシートに委ねる）", () => {
+    const { handle } = mount();
+    const reviewBtn = handle.el.querySelector('button[aria-label="review"]') as HTMLElement;
+    const label = reviewBtn.querySelector("[data-mode-label]") as HTMLElement;
+    expect(label).toBeTruthy();
+    expect(label.textContent).toBe("review");
+    // 表示制御は注入スタイルシートが所有する（インライン display を置かない）。
+    expect(label.style.display).toBe("");
+    handle.destroy();
+  });
+
+  it("responsive スタイルは狭幅でモードラベルを隠し ≥900px で表示する（ハンバーガー表示時アイコンのみ）", () => {
+    const { handle } = mount();
+    const style = document.getElementById("am-toolbar-responsive-style");
+    expect(style?.textContent).toContain("[data-mode-label] { display: none; }");
+    expect(style?.textContent).toContain("[data-mode-label] { display: inline; }");
+    handle.destroy();
+  });
 });
 
 describe("createEditorToolbar — ファイル操作", () => {

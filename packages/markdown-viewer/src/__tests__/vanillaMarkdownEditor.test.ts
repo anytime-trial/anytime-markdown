@@ -65,6 +65,18 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     handle.destroy();
   });
 
+  it("モバイルハンバーガー（<900px・サイドバー非表示時）を押すと more メニューが開く（配線漏れ回帰）", () => {
+    const handle = mountVanillaMarkdownEditor(container, { t, sideToolbar: true });
+    const mobileMore = container.querySelector<HTMLButtonElement>("[data-more-mobile] button");
+    expect(mobileMore).toBeTruthy();
+    mobileMore?.click();
+    // help popover（outline/comment/settings/version）が document.body に開く。
+    const menu = document.querySelector('[role="menu"]');
+    expect(menu).toBeTruthy();
+    expect(menu?.textContent ?? "").toContain("versionInfo");
+    handle.destroy();
+  });
+
   it("サイドツールバーを全高レール（本文カラムの兄弟）として配置する（上から表示）", () => {
     const handle = mountVanillaMarkdownEditor(container, { t, sideToolbar: true });
     const bodyRow = container.querySelector("[data-am-editor-body-row]");
