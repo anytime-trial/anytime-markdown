@@ -184,6 +184,24 @@ describe("createEditorToolbar — 生成と属性", () => {
     expect(handle.el.querySelector("[data-more-desktop]")).toBeNull();
     handle.destroy();
   });
+
+  it("sideToolbar 併用時は desktop more（ハンバーガー）を side-coupled で隠す（≥900px でサイドバーと重複）", () => {
+    const { handle } = mount({ sideToolbar: true });
+    const desktopMore = handle.el.querySelector("[data-more-desktop]");
+    expect(desktopMore).toBeTruthy();
+    expect(desktopMore?.hasAttribute("data-am-side-coupled")).toBe(true);
+    // mobile more（<900px・サイドバー非表示時の唯一の導線）は隠さない。
+    const mobileMore = handle.el.querySelector("[data-more-mobile]");
+    expect(mobileMore?.hasAttribute("data-am-side-coupled")).toBe(false);
+    handle.destroy();
+  });
+
+  it("sideToolbar なしでは desktop more に side-coupled を付けない", () => {
+    const { handle } = mount();
+    const desktopMore = handle.el.querySelector("[data-more-desktop]");
+    expect(desktopMore?.hasAttribute("data-am-side-coupled")).toBe(false);
+    handle.destroy();
+  });
 });
 
 describe("createEditorToolbar — ファイル操作", () => {

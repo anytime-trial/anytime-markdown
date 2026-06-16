@@ -633,6 +633,9 @@ export function createEditorToolbar(
     helpBtn.el.style.padding = "0";
     withTooltip(helpBtn.el, t("more"));
     desktopWrap.appendChild(helpBtn.el);
+    // サイドツールバー併用時（≥900px）はサイドバーが outline/comment/settings/version を
+    // 担い、desktop more（help popover）は全項目が重複するため隠す（mobile more は維持）。
+    markSideCoupled(desktopWrap);
     root.appendChild(desktopWrap);
 
     // mobile: ハンバーガー（host 側 React Menu へ intent）。
