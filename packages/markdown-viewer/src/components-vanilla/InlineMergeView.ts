@@ -428,12 +428,9 @@ export function createInlineMergeView(
   root.appendChild(frontmatterRow.el);
   disposers.push(() => frontmatterRow.destroy());
   const syncFrontmatterRow = (): void => {
-    // ソースモードでは frontmatter がテキスト diff に含まれるため比較行は隠す。
-    if (state.sourceMode) {
-      frontmatterRow.el.style.display = "none";
-      return;
-    }
+    // ソースモードでは frontmatter がテキスト diff に含まれるため比較行を隠す（hidden で内部一元管理）。
     frontmatterRow.update({
+      hidden: state.sourceMode,
       compareFrontmatter: compareFrontmatter(),
       mainFrontmatter: state.frontmatter ?? null,
     });

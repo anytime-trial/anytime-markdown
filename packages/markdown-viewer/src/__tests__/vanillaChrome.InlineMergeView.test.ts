@@ -277,6 +277,22 @@ describe("createInlineMergeView", () => {
       expect(row?.style.display).toBe("none");
     });
 
+    it("update で frontmatter 変更が比較行に反映される", () => {
+      ({ handle, rightEditor } = mkView({
+        sourceMode: false,
+        editorContent: "body",
+        frontmatter: "title: Old",
+        compareContent: "---\ntitle: Compare\n---\nbody",
+      }));
+      document.body.appendChild(handle.el);
+      const row = (): HTMLElement =>
+        handle!.el.querySelector<HTMLElement>("[data-am-frontmatter-compare]")!;
+      expect(row().textContent).toContain("title: Old");
+      handle.update({ frontmatter: "title: New" });
+      expect(row().textContent).toContain("title: New");
+      expect(row().textContent).not.toContain("title: Old");
+    });
+
     it("両ファイルとも frontmatter が無ければ比較行は非表示", () => {
       ({ handle, rightEditor } = mkView({
         sourceMode: false,
