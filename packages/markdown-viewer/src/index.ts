@@ -163,7 +163,7 @@ export { buildEmbedInfoString, DEFAULT_EMBED_BASELINE, parseEmbedInfoString } fr
 export { buildPlantUmlUrl,PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS, PLANTUML_LIGHT_SKINPARAMS, PLANTUML_SERVER } from './utils/plantumlHelpers';
 export { preserveBlankLines, restoreBlankLines, sanitizeMarkdown, splitByCodeBlocks } from './utils/sanitizeMarkdown';
 export type { ApplyEditorThemeCssVarsOptions } from './utils/applyEditorThemeCssVars';
-export { applyEditorThemeCssVars } from './utils/applyEditorThemeCssVars';
+export { applyChromeTokens, applyEditorThemeCssVars, ensureChromeTokens } from './utils/applyEditorThemeCssVars';
 export { getSectionRange, moveHeadingSection } from './utils/sectionHelpers';
 export { moveTableColumn,moveTableRow } from './utils/tableHelpers';
 export { saveBlob } from './utils/clipboardHelpers';
