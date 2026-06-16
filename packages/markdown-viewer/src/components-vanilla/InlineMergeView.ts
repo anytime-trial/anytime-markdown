@@ -418,6 +418,8 @@ export function createInlineMergeView(
 
   // --- frontmatter 比較行（WYSIWYG のみ。左=比較 / 右=本文） ---
   // 比較ファイルの frontmatter は compareText から都度パースする（body diff には含まれないため）。
+  // DOM への append は nav バー（不一致数・変更箇所のみ表示トグル）の後に行い、frontmatter 行を
+  // nav バーの下に配置する。
   const compareFrontmatter = (): string | null =>
     parseFrontmatter(store.getCompareText()).frontmatter;
   const frontmatterRow: FrontmatterCompareRowHandle = createFrontmatterCompareRow({
@@ -425,7 +427,6 @@ export function createInlineMergeView(
     compareFrontmatter: compareFrontmatter(),
     mainFrontmatter: state.frontmatter ?? null,
   });
-  root.appendChild(frontmatterRow.el);
   disposers.push(() => frontmatterRow.destroy());
   const syncFrontmatterRow = (): void => {
     // ソースモードでは frontmatter がテキスト diff に含まれるため比較行を隠す（hidden で内部一元管理）。
@@ -483,6 +484,8 @@ export function createInlineMergeView(
 
   navBar.append(prevBtn.el, counter, nextBtn.el, navDivider, collapseBtn.el);
   root.appendChild(navBar);
+  // frontmatter 比較行は nav バーの下に配置する（不一致数・変更箇所のみ表示アイコンを上側に）。
+  root.appendChild(frontmatterRow.el);
   disposers.push(() => {
     prevTip.destroy();
     nextTip.destroy();

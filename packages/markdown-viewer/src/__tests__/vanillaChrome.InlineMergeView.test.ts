@@ -277,6 +277,20 @@ describe("createInlineMergeView", () => {
       expect(row?.style.display).toBe("none");
     });
 
+    it("nav バー（不一致数・変更箇所のみ表示アイコン）が frontmatter 比較行の上に位置する", () => {
+      ({ handle, rightEditor } = mkView({
+        sourceMode: false,
+        editorContent: "body",
+        frontmatter: "title: Main",
+        compareContent: "---\ntitle: Compare\n---\nbody",
+      }));
+      document.body.appendChild(handle.el);
+      const counter = handle.el.querySelector('[aria-live="polite"]')!; // nav バー内の不一致数
+      const row = handle.el.querySelector("[data-am-frontmatter-compare]")!;
+      // row が counter より後（DOM 順で下）にある = nav バーが上。
+      expect(counter.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     it("update で frontmatter 変更が比較行に反映される", () => {
       ({ handle, rightEditor } = mkView({
         sourceMode: false,
