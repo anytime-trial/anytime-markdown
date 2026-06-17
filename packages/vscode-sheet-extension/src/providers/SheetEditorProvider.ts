@@ -3,6 +3,14 @@ import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import { resolveLocale } from '@anytime-markdown/vscode-common';
 
+/** チャート定義の型（spreadsheet-viewer との共有型。ビルド時のみ使用）。 */
+interface ChartDefinition {
+  readonly id: string;
+  readonly kind: string;
+  readonly range: unknown;
+  readonly options?: unknown;
+}
+
 type SheetFormat = 'sheet' | 'csv' | 'tsv';
 
 function formatOf(uri: vscode.Uri): SheetFormat {
@@ -58,21 +66,60 @@ export class SheetEditorProvider implements vscode.CustomTextEditorProvider {
 			activeSheet: 0,
 		};
 
-		const sendSnapshot = () => {
+		/** チャート定義の sidecar ファイルパス（`<docPath>.charts.json`）。 */
+		const chartsUri = vscode.Uri.file(document.uri.fsPath + '.charts.json');
+
+		/** sidecar から ChartDefinition[] を読む。ファイルがなければ [] を返す。 */
+		const readCharts = async (): Promise<ChartDefinition[]> => {
+			try {
+				const bytes = await vscode.workspace.fs.readFile(chartsUri);
+				const text = Buffer.from(bytes).toString('utf8');
+				const parsed = JSON.parse(text) as unknown;
+				if (Array.isArray(parsed)) return parsed as ChartDefinition[];
+				return [];
+			} catch (err: unknown) {
+				// ファイル不存在（FileNotFound）は正常なので info ログは不要。それ以外はエラー報告。
+				const code = (err as { code?: string })?.code;
+				if (code !== 'FileNotFound' && code !== 'ENOENT') {
+					console.error(`[SheetEditorProvider] charts sidecar read failed: ${chartsUri.fsPath}`, err);
+				}
+				return [];
+			}
+		};
+
+		/** チャート定義を sidecar に書き込む。空配列の場合はファイルを削除する。 */
+		const writeCharts = async (charts: ChartDefinition[]): Promise<void> => {
+			try {
+				if (charts.length === 0) {
+					await vscode.workspace.fs.delete(chartsUri, { useTrash: false }).then(
+						() => undefined,
+						() => undefined, // ファイルが存在しなくてもエラーにしない
+					);
+				} else {
+					const content = Buffer.from(JSON.stringify(charts, null, 2), 'utf8');
+					await vscode.workspace.fs.writeFile(chartsUri, content);
+				}
+			} catch (err: unknown) {
+				console.error(`[SheetEditorProvider] charts sidecar write failed: ${chartsUri.fsPath}`, err);
+			}
+		};
+
+		const sendSnapshot = async () => {
+			const charts = await readCharts();
 			if (format !== 'sheet') {
-				webviewPanel.webview.postMessage({ type: 'init', format, text: document.getText() });
+				webviewPanel.webview.postMessage({ type: 'init', format, text: document.getText(), charts });
 				return;
 			}
 			try {
 				const text = document.getText();
 				const parsed = JSON.parse(text.length > 0 ? text : '{}') as Record<string, unknown>;
 				if (parsed.version === 2 && Array.isArray(parsed.sheets)) {
-					webviewPanel.webview.postMessage({ type: 'init', format, workbook: parsed });
+					webviewPanel.webview.postMessage({ type: 'init', format, workbook: parsed, charts });
 				} else {
-					webviewPanel.webview.postMessage({ type: 'init', format, workbook: EMPTY_WORKBOOK });
+					webviewPanel.webview.postMessage({ type: 'init', format, workbook: EMPTY_WORKBOOK, charts });
 				}
 			} catch {
-				webviewPanel.webview.postMessage({ type: 'init', format, workbook: EMPTY_WORKBOOK });
+				webviewPanel.webview.postMessage({ type: 'init', format, workbook: EMPTY_WORKBOOK, charts });
 			}
 		};
 
@@ -92,7 +139,7 @@ export class SheetEditorProvider implements vscode.CustomTextEditorProvider {
 			switch (message.type) {
 				case 'ready':
 					sendLocale();
-					sendSnapshot();
+					await sendSnapshot();
 					sendTheme();
 					break;
 				case 'edit': {
@@ -109,12 +156,17 @@ export class SheetEditorProvider implements vscode.CustomTextEditorProvider {
 					isWebviewEdit = false;
 					break;
 				}
+				case 'chartsChange': {
+					const charts = Array.isArray(message.charts) ? (message.charts as ChartDefinition[]) : [];
+					await writeCharts(charts);
+					break;
+				}
 			}
 		});
 
 		const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
 			if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0 && !isWebviewEdit) {
-				sendSnapshot();
+				void sendSnapshot();
 			}
 		});
 
