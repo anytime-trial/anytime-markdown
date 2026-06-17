@@ -227,6 +227,7 @@ describe("createEditorToolbar — ファイル操作", () => {
   it("supportsDirectAccess で open/save/saveAs を生成し、クリックでハンドラを呼ぶ", () => {
     const { handle, fileHandlers } = mount({
       fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      isDirty: true,
     });
     (handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement).click();
     (handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement).click();
@@ -253,6 +254,51 @@ describe("createEditorToolbar — ファイル操作", () => {
     expect(handle.el.querySelector('button[aria-label="openFile"]')).toBeNull();
     const save = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
     expect(save).toBeTruthy();
+    expect(save.disabled).toBe(true);
+    handle.destroy();
+  });
+
+  it("dirty ゲート: 未編集では save が disabled、編集ありで enabled、保存後に再び disabled", () => {
+    const { handle, fileHandlers } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      isDirty: false,
+    });
+    const save = (): HTMLButtonElement =>
+      handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
+    // 初期は未編集 → disabled（クリックしてもハンドラは発火しない）。
+    expect(save().disabled).toBe(true);
+    save().click();
+    expect(fileHandlers.onSaveFile).not.toHaveBeenCalled();
+    // 編集あり → enabled。
+    handle.update({ isDirty: true });
+    expect(save().disabled).toBe(false);
+    save().click();
+    expect(fileHandlers.onSaveFile).toHaveBeenCalledTimes(1);
+    // 保存して未編集に戻る → 再び disabled。
+    handle.update({ isDirty: false });
+    expect(save().disabled).toBe(true);
+    handle.destroy();
+  });
+
+  it("dirty ゲート: externalSaveOnly でも dirty のときだけ save を有効化する", () => {
+    const { handle } = mount({
+      fileCapabilities: { externalSaveOnly: true, hasFileHandle: true },
+      isDirty: false,
+    });
+    const save = (): HTMLButtonElement =>
+      handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
+    expect(save().disabled).toBe(true);
+    handle.update({ isDirty: true });
+    expect(save().disabled).toBe(false);
+    handle.destroy();
+  });
+
+  it("dirty ゲート: ハンドル無しなら dirty でも save は disabled のまま", () => {
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: false },
+      isDirty: true,
+    });
+    const save = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
     expect(save.disabled).toBe(true);
     handle.destroy();
   });
