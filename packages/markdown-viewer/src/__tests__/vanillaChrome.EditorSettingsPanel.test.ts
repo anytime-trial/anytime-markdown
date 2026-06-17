@@ -87,29 +87,26 @@ describe("createEditorSettingsPanel", () => {
     handle.destroy();
   });
 
-  it("table width のトグルクリックで onUpdate({tableWidth}) を呼ぶ", () => {
-    const { handle, updates } = mount();
-    const fullBtn = Array.from(paper().querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("settingTableFull"),
-    ) as HTMLButtonElement;
-    fullBtn.click();
-    expect(updates).toContainEqual({ tableWidth: "100%" });
-    handle.destroy();
-  });
-
-  it("dark mode Switch（themeMode 連携時）で onThemeModeChange を呼ぶ", () => {
-    const modes: string[] = [];
-    const { handle } = mount({ themeMode: "light", onThemeModeChange: (m) => modes.push(m) });
-    const sw = paper().querySelector('input[aria-label="settingDarkMode"]') as HTMLInputElement;
-    sw.checked = true;
-    sw.dispatchEvent(new Event("change"));
-    expect(modes).toEqual(["dark"]);
-    handle.destroy();
-  });
-
-  it("themeMode 非連携時はダークモード/言語セクションを描画しない", () => {
+  it("テーブル幅 / ブロック要素の配置セクションを描画しない（UI 撤去）", () => {
     const { handle } = mount();
+    const text = paper().textContent ?? "";
+    expect(text).not.toContain("settingTableWidth");
+    expect(text).not.toContain("settingTableFull");
+    expect(text).not.toContain("settingBlockAlign");
+    handle.destroy();
+  });
+
+  it("ダークモードスイッチは設定パネルに描画しない（サイドツールバーへ移設・言語/プリセットは残る）", () => {
+    const { handle } = mount({ themeMode: "light", onThemeModeChange: () => {} });
+    // themeMode 連携時でもダークモードスイッチは出さない。
     expect(paper().querySelector('input[aria-label="settingDarkMode"]')).toBeNull();
+    // 同セクションの言語トグルは引き続き描画される（移設の影響が言語へ波及しないこと）。
+    expect(paper().textContent).toContain("settingLanguage");
+    handle.destroy();
+  });
+
+  it("themeMode 非連携時は言語/プリセットセクションを描画しない", () => {
+    const { handle } = mount();
     expect(paper().textContent).not.toContain("settingLanguage");
     handle.destroy();
   });

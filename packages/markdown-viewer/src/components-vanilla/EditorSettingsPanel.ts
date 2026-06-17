@@ -162,26 +162,9 @@ export function createEditorSettingsPanel(
   header.append(title.el, closeBtn.el);
   body.appendChild(header);
 
-  // --- ダークモード / 言語 / テーマプリセット（themeMode 連携時のみ） ---
+  // --- 言語 / テーマプリセット（themeMode 連携時のみ） ---
+  // ダークモード切替はサイドツールバー（EditorSideToolbar）へ移設したため設定パネルでは扱わない。
   if (opts.themeMode !== undefined && opts.onThemeModeChange) {
-    const onThemeModeChange = opts.onThemeModeChange;
-
-    const darkRow = document.createElement("div");
-    darkRow.style.cssText =
-      "margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;";
-    const darkCaption = createText({ variant: "caption", text: t("settingDarkMode"), style: CAPTION_STYLE });
-    handles.push(darkCaption);
-    const darkSwitch = createSwitch({
-      checked: opts.themeMode === "dark",
-      ariaLabel: t("settingDarkMode"),
-      // 旧 React 版 parity: inputProps={{ role: "switch" }}（a11y・e2e の getByRole("switch")）。
-      role: "switch",
-      onChange: (checked) => onThemeModeChange(checked ? "dark" : "light"),
-    });
-    handles.push(darkSwitch);
-    darkRow.append(darkCaption.el, darkSwitch.el);
-    body.appendChild(darkRow);
-
     // 言語（ja / en）。現在ロケールと同値なら何もしない（React handleLocaleChange と同一）。
     const handleLocale = (next: string): void => {
       if (!next || next === locale) return;
@@ -253,20 +236,8 @@ export function createEditorSettingsPanel(
 
   body.appendChild(dividerEl());
 
-  // --- テーブル幅 / ブロック整列 ---
-  body.appendChild(
-    toggleSection("settingTableWidth", "tableWidthSelect", settings.tableWidth, [
-      { value: "auto", label: t("settingTableAuto") },
-      { value: "100%", label: t("settingTableFull") },
-    ], (v) => onUpdate({ tableWidth: v as EditorSettings["tableWidth"] })),
-  );
-  body.appendChild(
-    toggleSection("settingBlockAlign", "settingBlockAlign", settings.blockAlign, [
-      { value: "left", label: t("settingAlignLeft") },
-      { value: "center", label: t("settingAlignCenter") },
-      { value: "right", label: t("settingAlignRight") },
-    ], (v) => onUpdate({ blockAlign: v as EditorSettings["blockAlign"] })),
-  );
+  // テーブル幅（既定: auto）/ ブロック要素の配置（既定: left）の設定は UI から撤去した。
+  // 値は EditorSettings の既定（tableWidth:"auto" / blockAlign:"left"）に固定される。
 
   // --- 用紙サイズ（Select）+ 余白（Slider・paperSize !== off のときのみ表示） ---
   const paperSelect = createSelect<EditorSettings["paperSize"]>({
