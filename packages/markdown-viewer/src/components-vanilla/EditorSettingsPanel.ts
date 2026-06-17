@@ -162,9 +162,26 @@ export function createEditorSettingsPanel(
   header.append(title.el, closeBtn.el);
   body.appendChild(header);
 
-  // --- 言語 / テーマプリセット（themeMode 連携時のみ） ---
-  // ダークモード切替はサイドツールバー（EditorSideToolbar）へ移設したため設定パネルでは扱わない。
+  // --- ダークモード / 言語 / テーマプリセット（themeMode 連携時のみ） ---
   if (opts.themeMode !== undefined && opts.onThemeModeChange) {
+    const onThemeModeChange = opts.onThemeModeChange;
+
+    const darkRow = document.createElement("div");
+    darkRow.style.cssText =
+      "margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;";
+    const darkCaption = createText({ variant: "caption", text: t("settingDarkMode"), style: CAPTION_STYLE });
+    handles.push(darkCaption);
+    const darkSwitch = createSwitch({
+      checked: opts.themeMode === "dark",
+      ariaLabel: t("settingDarkMode"),
+      // 旧 React 版 parity: inputProps={{ role: "switch" }}（a11y・e2e の getByRole("switch")）。
+      role: "switch",
+      onChange: (checked) => onThemeModeChange(checked ? "dark" : "light"),
+    });
+    handles.push(darkSwitch);
+    darkRow.append(darkCaption.el, darkSwitch.el);
+    body.appendChild(darkRow);
+
     // 言語（ja / en）。現在ロケールと同値なら何もしない（React handleLocaleChange と同一）。
     const handleLocale = (next: string): void => {
       if (!next || next === locale) return;

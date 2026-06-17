@@ -97,17 +97,19 @@ describe("createEditorSettingsPanel", () => {
     handle.destroy();
   });
 
-  it("ダークモードスイッチは設定パネルに描画しない（サイドツールバーへ移設・言語/プリセットは残る）", () => {
-    const { handle } = mount({ themeMode: "light", onThemeModeChange: () => {} });
-    // themeMode 連携時でもダークモードスイッチは出さない。
-    expect(paper().querySelector('input[aria-label="settingDarkMode"]')).toBeNull();
-    // 同セクションの言語トグルは引き続き描画される（移設の影響が言語へ波及しないこと）。
-    expect(paper().textContent).toContain("settingLanguage");
+  it("dark mode Switch（themeMode 連携時）で onThemeModeChange を呼ぶ", () => {
+    const modes: string[] = [];
+    const { handle } = mount({ themeMode: "light", onThemeModeChange: (m) => modes.push(m) });
+    const sw = paper().querySelector('input[aria-label="settingDarkMode"]') as HTMLInputElement;
+    sw.checked = true;
+    sw.dispatchEvent(new Event("change"));
+    expect(modes).toEqual(["dark"]);
     handle.destroy();
   });
 
-  it("themeMode 非連携時は言語/プリセットセクションを描画しない", () => {
+  it("themeMode 非連携時はダークモード/言語セクションを描画しない", () => {
     const { handle } = mount();
+    expect(paper().querySelector('input[aria-label="settingDarkMode"]')).toBeNull();
     expect(paper().textContent).not.toContain("settingLanguage");
     handle.destroy();
   });
