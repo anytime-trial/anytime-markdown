@@ -2,20 +2,10 @@
 
 import { DatabaseI18nProvider } from '@anytime-markdown/database-viewer';
 import { MarkdownCoreI18nProvider } from '@anytime-markdown/markdown-react-islands';
-import markdownCoreEnMessages from '@anytime-markdown/markdown-viewer/src/i18n/en.json';
-import markdownCoreJaMessages from '@anytime-markdown/markdown-viewer/src/i18n/ja.json';
 import { NextIntlClientProvider } from 'next-intl';
 import { createContext, useCallback, useContext, useEffect, useMemo,useState } from 'react';
 
-import pressEnMessages from './press/i18n/en.json';
-import pressJaMessages from './press/i18n/ja.json';
-
-type Locale = 'ja' | 'en';
-
-const messages = {
-  ja: { ...markdownCoreJaMessages, press: pressJaMessages },
-  en: { ...markdownCoreEnMessages, press: pressEnMessages },
-} satisfies Record<Locale, Record<string, unknown>>;
+import { type Locale, messagesByLocale } from '../i18n/messages';
 
 interface LocaleContextValue {
   locale: Locale;
@@ -80,7 +70,7 @@ export function LocaleProvider({ serverLocale, children }: Readonly<LocaleProvid
     <LocaleContext.Provider value={ctx}>
       <MarkdownCoreI18nProvider locale={locale}>
         <DatabaseI18nProvider locale={locale}>
-          <NextIntlClientProvider locale={locale} messages={messages[locale]} timeZone="UTC">
+          <NextIntlClientProvider locale={locale} messages={messagesByLocale[locale]} timeZone="UTC">
             {children}
           </NextIntlClientProvider>
         </DatabaseI18nProvider>
