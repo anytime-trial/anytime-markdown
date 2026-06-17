@@ -1007,6 +1007,11 @@ export function mountVanillaMarkdownEditor(
           onOpenSettings: current.hide?.settings ? undefined : openSettings,
           // ハンバーガー（その他メニュー）の versionInfo と同じダイアログを最下部に鏡写しする。
           onOpenVersionDialog: current.hide?.versionInfo ? undefined : () => dialogs.openVersion(),
+          // light/dark テーマ切替（host が onThemeModeChange を持つ場合のみ＝web-app 等）。
+          themeMode: current.themeMode ?? "light",
+          onToggleTheme: current.onThemeModeChange
+            ? () => current.onThemeModeChange?.(current.themeMode === "dark" ? "light" : "dark")
+            : undefined,
         });
         sideToolbarSlot.appendChild(sideToolbarHandle.el);
         disposers.push(() => sideToolbarHandle?.destroy());
@@ -1368,6 +1373,7 @@ export function mountVanillaMarkdownEditor(
         }
         if (patch.themeMode !== undefined) {
           viewerToolbar?.syncTheme(current.themeMode ?? "light");
+          sideToolbarHandle?.update({ themeMode: current.themeMode ?? "light" });
         }
         if (patch.fileName !== undefined) {
           statusBar?.update({ fileName: patch.fileName });

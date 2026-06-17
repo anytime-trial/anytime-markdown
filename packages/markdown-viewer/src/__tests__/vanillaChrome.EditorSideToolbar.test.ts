@@ -126,6 +126,43 @@ describe("createEditorSideToolbar", () => {
       expect(hasVersion).toBe(false);
     });
 
+    it("onToggleTheme 指定でテーマ切替ボタンを描画しクリックで呼ぶ", () => {
+      const onToggleTheme = jest.fn();
+      handle = createEditorSideToolbar({
+        t,
+        onToggleComment: () => {},
+        onToggleTheme,
+        themeMode: "light",
+      });
+      const btn = handle.el.querySelector<HTMLButtonElement>(
+        'button[aria-label="settingDarkMode"]',
+      );
+      expect(btn).toBeTruthy();
+      btn?.click();
+      expect(onToggleTheme).toHaveBeenCalledTimes(1);
+    });
+
+    it("light は月・dark は太陽アイコンを表示し update(themeMode) で切り替わる", () => {
+      handle = createEditorSideToolbar({
+        t,
+        onToggleComment: () => {},
+        onToggleTheme: () => {},
+        themeMode: "light",
+      });
+      const iconD = () =>
+        handle!.el
+          .querySelector('button[aria-label="settingDarkMode"] svg path')
+          ?.getAttribute("d") ?? "";
+      expect(iconD().startsWith("M12 3c")).toBe(true); // 月（light 時）
+      handle.update({ themeMode: "dark" });
+      expect(iconD().startsWith("M12 7c")).toBe(true); // 太陽（dark 時）
+    });
+
+    it("onToggleTheme 未指定ならテーマ切替ボタンを描画しない", () => {
+      handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
+      expect(handle.el.querySelector('button[aria-label="settingDarkMode"]')).toBeNull();
+    });
+
     it("各ボタンに inline svg アイコンを内包し SIDE_TOOLBAR_ICON_SIZE 寸法を持つ", () => {
       handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
       const btns = buttons(handle);
