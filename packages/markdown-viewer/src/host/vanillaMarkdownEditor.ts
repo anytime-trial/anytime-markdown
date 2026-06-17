@@ -888,6 +888,12 @@ export function mountVanillaMarkdownEditor(
           modeState.reviewMode = mode === "review";
           modeState.readonlyMode = mode === "readonly" || (current.readOnly ?? false);
           editor.setEditable(!readonlyNow() && mode !== "review");
+          // 比較モード中はモード切替を比較ビューへ反映する（standalone DOM は出さない）。
+          // source→wysiwyg では右ペイン diff の基準となる editorMarkdown を最新化する。
+          if (modeState.inlineMergeOpen) {
+            if (!modeState.sourceMode) editorMarkdown = getMarkdownFromEditorSafe(editor) ?? "";
+            syncMergeView();
+          }
           refreshToolbarMode();
         },
         announce: (message) => {
@@ -895,6 +901,8 @@ export function mountVanillaMarkdownEditor(
         },
         defaultSourceMode: current.defaultSourceMode,
         persistMode: current.persistModeState,
+        // 比較モード中は表示を InlineMergeView が一元管理する（standalone source UI を抑止）。
+        isExternallyManaged: () => modeState.inlineMergeOpen === true,
       });
       disposers.push(() => sourceController?.destroy());
 
@@ -1074,9 +1082,10 @@ export function mountVanillaMarkdownEditor(
       syncMergeView = (): void => {
         if (modeState.inlineMergeOpen && !mergeView) {
           // WYSIWYG では右パネルが editorMountEl（editor.options.element）ごと自分の中へ移設する。
-          // source モードは textarea diff のため source wrapper（textarea + 行番号ガター）を隠す。
-          const sourceWrap = sourceController?.getSourceWrap();
-          if (sourceWrap) sourceWrap.style.display = "none";
+          // 比較 enter: standalone source UI を撤去し editor.view.dom の display を戻す
+          // （比較ビューが source/wysiwyg 表示を一元管理する。display:none 残留で右ペインが
+          // 不可視になる回帰を防ぐ）。
+          sourceController?.detachStandaloneUi();
           mergeView = createInlineMergeView({
             editor,
             t,
@@ -1115,11 +1124,8 @@ export function mountVanillaMarkdownEditor(
           if (editorMountEl.parentElement !== contentEl) {
             contentEl.appendChild(editorMountEl);
           }
-          // source モードなら source wrapper（textarea + 行番号ガター）を復帰する。
-          const sourceWrap = sourceController?.getSourceWrap();
-          if (modeState.sourceMode && sourceWrap) {
-            sourceWrap.style.display = "";
-          }
+          // 比較 exit: source モードなら standalone source UI を再生成して戻す。
+          sourceController?.attachStandaloneUi();
         }
       };
       disposers.push(() => {
