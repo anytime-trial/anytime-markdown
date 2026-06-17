@@ -51,6 +51,8 @@ export interface SourceModeController {
   switchTo(mode: VanillaEditorMode): void;
   /** source モード中のみ非 null。 */
   getTextarea(): HTMLTextAreaElement | null;
+  /** textarea + 行番号ガターを内包する wrapper（source モード中のみ非 null）。 */
+  getSourceWrap(): HTMLElement | null;
   /** コメント操作用: 一時的にレビューフィルタを解除してコマンドを実行する。 */
   executeInReviewMode(fn: () => void): void;
   destroy(): void;
@@ -68,11 +70,28 @@ function readStoredMode(): VanillaEditorMode | null {
   }
 }
 
-const TEXTAREA_CSS =
-  "width:100%;height:100%;box-sizing:border-box;border:none;outline:none;resize:none;" +
+// 行番号ガターと textarea で共有するフォント/行高（1 行の高さを一致させる）。
+const SOURCE_FONT_CSS =
   "font-family:var(--am-source-font-family, ui-monospace, monospace);" +
-  "font-size:var(--am-editor-font-size, 16px);line-height:var(--am-editor-line-height, 1.6);" +
-  "background:transparent;color:inherit;padding:16px;";
+  "font-size:var(--am-editor-font-size, 16px);line-height:var(--am-editor-line-height, 1.6);";
+
+const TEXTAREA_CSS =
+  "flex:1 1 auto;height:100%;box-sizing:border-box;border:none;outline:none;resize:none;" +
+  SOURCE_FONT_CSS +
+  "background:transparent;color:inherit;padding:16px;" +
+  // 行番号と 1:1 で対応させるため折り返さず横スクロールにする（コードエディタ流）。
+  "white-space:pre;overflow:auto;";
+
+// textarea + 左端行番号ガターを横並びにする wrapper（textarea が唯一のスクローラ）。
+const SOURCE_WRAP_CSS = "display:flex;width:100%;height:100%;overflow:hidden;";
+
+// 左端の行番号ガター。textarea と同じ行高・上 padding で行位置を揃え、縦スクロールは
+// textarea の scroll に追従させる（自身は overflow:hidden で独自スクロールバーを出さない）。
+const GUTTER_CSS =
+  "flex:0 0 auto;overflow:hidden;text-align:right;white-space:pre;user-select:none;" +
+  SOURCE_FONT_CSS +
+  "padding:16px 8px 16px 12px;color:var(--am-color-text-secondary);" +
+  "border-right:1px solid var(--am-color-divider);";
 
 /** editor mode の vanilla コントローラを生成する。 */
 export function createSourceModeController(
@@ -82,8 +101,25 @@ export function createSourceModeController(
   let mode: VanillaEditorMode = "wysiwyg";
   let sourceText = "";
   let textarea: HTMLTextAreaElement | null = null;
+  let sourceWrap: HTMLElement | null = null;
+  let gutter: HTMLElement | null = null;
+  let lastLineCount = 0;
   // source モード中に退避する contentEl の overflow（textarea を唯一のスクローラにするため）。
   let prevContentOverflow: string | null = null;
+
+  /** textarea の論理行数（空でも 1 行・末尾改行は +1 行＝textarea の表示挙動に合わせる）。 */
+  const lineCount = (text: string): number => (text.length === 0 ? 1 : text.split("\n").length);
+
+  /** 行番号ガターを現在の行数に再描画する（行数が変わらない入力では何もしない）。 */
+  const renderGutter = (): void => {
+    if (!gutter) return;
+    const n = lineCount(textarea?.value ?? sourceText);
+    if (n === lastLineCount) return;
+    lastLineCount = n;
+    const nums = new Array(n);
+    for (let i = 0; i < n; i++) nums[i] = String(i + 1);
+    gutter.textContent = nums.join("\n");
+  };
 
   const persist = (next: VanillaEditorMode): void => {
     if (!persistMode || typeof localStorage === "undefined") return;
@@ -117,6 +153,16 @@ export function createSourceModeController(
 
   const showTextarea = (): void => {
     if (textarea) return;
+    sourceWrap = document.createElement("div");
+    sourceWrap.setAttribute("data-am-source-wrap", "");
+    sourceWrap.style.cssText = SOURCE_WRAP_CSS;
+
+    // 左端の行番号ガター（VS Code markdown 拡張のソース表示に倣う）。
+    gutter = document.createElement("div");
+    gutter.setAttribute("data-am-source-gutter", "");
+    gutter.setAttribute("aria-hidden", "true");
+    gutter.style.cssText = GUTTER_CSS;
+
     textarea = document.createElement("textarea");
     textarea.setAttribute("data-am-source-textarea", "");
     textarea.setAttribute("aria-label", t("sourceMode"));
@@ -125,20 +171,32 @@ export function createSourceModeController(
     textarea.value = sourceText;
     textarea.addEventListener("input", () => {
       sourceText = textarea?.value ?? "";
+      renderGutter();
       options.onSourceSave?.(sourceText);
     });
+    // textarea の縦スクロールにガターを追従させる（ガターは自前スクロールバーを出さない）。
+    textarea.addEventListener("scroll", () => {
+      if (gutter && textarea) gutter.scrollTop = textarea.scrollTop;
+    });
+
+    sourceWrap.append(gutter, textarea);
     editor.view.dom.style.display = "none";
     // textarea（height:100%）が自前のスクロールを持つため、contentEl 側もスクロールすると
     // スクロールバーが二重に出る。source 中は contentEl の overflow を hidden にして
     // textarea を唯一のスクローラにする（退出時に元の overflow を復元する）。
     prevContentOverflow = contentEl.style.overflow;
     contentEl.style.overflow = "hidden";
-    contentEl.appendChild(textarea);
+    contentEl.appendChild(sourceWrap);
+    lastLineCount = 0;
+    renderGutter();
   };
 
   const hideTextarea = (): void => {
-    textarea?.remove();
+    sourceWrap?.remove();
+    sourceWrap = null;
+    gutter = null;
     textarea = null;
+    lastLineCount = 0;
     editor.view.dom.style.display = "";
     if (prevContentOverflow !== null) {
       contentEl.style.overflow = prevContentOverflow;
@@ -205,10 +263,14 @@ export function createSourceModeController(
     getSourceText: () => sourceText,
     setSourceText(text: string): void {
       sourceText = text;
-      if (textarea) textarea.value = text;
+      if (textarea) {
+        textarea.value = text;
+        renderGutter();
+      }
     },
     switchTo: applyMode,
     getTextarea: () => textarea,
+    getSourceWrap: () => sourceWrap,
     executeInReviewMode(fn: () => void): void {
       const storage = reviewStorage();
       if (storage) storage.enabled = false;
