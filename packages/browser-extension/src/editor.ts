@@ -23,17 +23,27 @@ interface RichEditorElement extends HTMLElement {
     sideToolbar?: boolean;
     hide?: { explorer?: boolean };
     fileSystemProvider?: WebFileSystemProvider;
+    /**
+     * light/dark テーマ切替コールバック。これを渡すとサイドツールバーに
+     * 太陽/月のテーマ切替アイコンが表示される（web-app と同じ仕組み）。
+     */
+    onThemeModeChange?: (mode: "light" | "dark") => void;
   };
   value: string;
 }
 
 /** 使用する chrome.storage.local の口だけを構造的に表す（@types/chrome 非依存）。 */
 interface StorageArea {
-  get(key: string, callback: (items: Record<string, unknown>) => void): void;
+  get(
+    keys: string | string[],
+    callback: (items: Record<string, unknown>) => void,
+  ): void;
   set(items: Record<string, unknown>, callback?: () => void): void;
 }
 
 const STORAGE_KEY = "anytime-markdown:last-document";
+/** 選択した light/dark テーマの保存先。再起動後に復元する。 */
+const THEME_KEY = "anytime-markdown:theme";
 /** 自動保存のデバウンス。chrome.storage の書込みスロットリング回避。 */
 const SAVE_DEBOUNCE_MS = 500;
 
@@ -71,15 +81,32 @@ function scheduleSave(value: string): void {
 }
 
 /**
- * rich エディタ要素を生成して #editor-root にマウントする。
- * 編集内容は chrome.storage.local に自動保存し、再起動後に復元する。
+ * 選択した light/dark テーマを chrome.storage.local に保存する。
+ * 切替は低頻度のため debounce せず即時保存する。
  */
-function createEditor(initialContent: string): void {
+function saveTheme(mode: "light" | "dark"): void {
+  const storage = getStorage();
+  if (!storage) return;
+  storage.set({ [THEME_KEY]: mode }, () => {
+    const err = getRuntimeError();
+    if (err) {
+      console.warn(
+        `[anytime-markdown] テーマの保存に失敗しました: ${err.message ?? "unknown error"}`,
+      );
+    }
+  });
+}
+
+/**
+ * rich エディタ要素を生成して #editor-root にマウントする。
+ * 編集内容・選択テーマは chrome.storage.local に自動保存し、再起動後に復元する。
+ */
+function createEditor(initialContent: string, initialTheme: "light" | "dark"): void {
   const root = document.getElementById("editor-root");
   if (!root) return;
 
   const el = document.createElement("anytime-markdown-rich-editor") as RichEditorElement;
-  el.setAttribute("theme", "light");
+  el.setAttribute("theme", initialTheme);
   el.setAttribute("locale", "ja");
   // web-app と同様に右端の縦サイドツールバー（アウトライン / コメント / 設定）を表示する。
   // hide.explorer は上部ツールバーの explorer トグル（fileSystemProvider 未配線で無意味）を
@@ -88,10 +115,19 @@ function createEditor(initialContent: string): void {
   // File System Access API で .md を開く / 上書き保存 / 名前を付けて保存を有効化する
   // （拡張ページは secure context のため showOpenFilePicker / createWritable が使える）。
   // これにより toolbar の 開く / 保存 / 別名保存 アイコンが有効になる。
+  // web-app と同じく onThemeModeChange を配線するとサイドツールバーに light/dark
+  // 切替アイコンが表示される。切替時は `theme` 属性を更新（WC が editor 本文・chrome
+  // トークン・アイコンを同期）し、選択を storage に永続化する。
+  // host の themeMode は callback 内で直接は更新せず、属性 set → attributeChangedCallback
+  // → handle.update({themeMode}) 経由で逆流同期される（次回トグルの基準値もこれで整う）。
   el.options = {
     sideToolbar: true,
     hide: { explorer: true },
     fileSystemProvider: new WebFileSystemProvider(),
+    onThemeModeChange: (mode) => {
+      el.setAttribute("theme", mode);
+      saveTheme(mode);
+    },
   };
   if (initialContent) el.value = initialContent;
 
@@ -105,15 +141,23 @@ function createEditor(initialContent: string): void {
   root.appendChild(el);
 }
 
+/** storage 値を light/dark に正規化する（不正値・未設定は light）。 */
+function normalizeTheme(value: unknown): "light" | "dark" {
+  return value === "dark" ? "dark" : "light";
+}
+
 function init(): void {
   const storage = getStorage();
   if (!storage) {
-    createEditor("");
+    createEditor("", "light");
     return;
   }
-  storage.get(STORAGE_KEY, (items) => {
+  storage.get([STORAGE_KEY, THEME_KEY], (items) => {
     const saved = items?.[STORAGE_KEY];
-    createEditor(typeof saved === "string" ? saved : "");
+    createEditor(
+      typeof saved === "string" ? saved : "",
+      normalizeTheme(items?.[THEME_KEY]),
+    );
   });
 }
 

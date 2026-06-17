@@ -78,7 +78,10 @@ const SOURCE_FONT_CSS =
 const TEXTAREA_CSS =
   "flex:1 1 auto;height:100%;box-sizing:border-box;border:none;outline:none;resize:none;" +
   SOURCE_FONT_CSS +
-  "background:transparent;color:inherit;padding:16px;" +
+  // textarea は .tiptap の兄弟（contentEl 直下）のため .tiptap の color を継承できない。
+  // host が root へ適用する --am-editor-text を直接参照してテーマ文字色に追従する
+  // （color:inherit だとテーマ非対応ページ＝拡張等でダーク時にページ既定の黒へ落ちる）。
+  "background:transparent;color:var(--am-editor-text, inherit);padding:16px;" +
   // 行番号と 1:1 で対応させるため折り返さず横スクロールにする（コードエディタ流）。
   "white-space:pre;overflow:auto;";
 
