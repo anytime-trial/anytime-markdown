@@ -51,10 +51,6 @@ const PATH = {
     "M19 2h-4.18C14.4.84 13.3 0 12 0S9.6.84 9.18 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1m7 18H5V4h2v3h10V4h2z",
   code: "M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6z",
   clearAll: "M5 13h14v-2H5zm-2 4h14v-2H3zM7 7v2h14V7z",
-  visibilityOutlined:
-    "M12 6c3.79 0 7.17 2.13 8.82 5.5C19.17 14.87 15.79 17 12 17s-7.17-2.13-8.82-5.5C4.83 8.13 8.21 6 12 6m0-2C7 4 2.73 7.11 1 11.5 2.73 15.89 7 19 12 19s9.27-3.11 11-7.5C21.27 7.11 17 4 12 4m0 5c1.38 0 2.5 1.12 2.5 2.5S13.38 14 12 14s-2.5-1.12-2.5-2.5S10.62 9 12 9m0-2c-2.48 0-4.5 2.02-4.5 4.5S9.52 16 12 16s4.5-2.02 4.5-4.5S14.48 7 12 7",
-  editOutlined:
-    "m14.06 9.02.92.92L5.92 19H5v-.92zM17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29m-3.6 3.19L3 17.25V21h3.75L17.81 9.94z",
 } as const;
 
 /** {@link createEditorContextMenu} のオプション（React `EditorContextMenuProps` の vanilla 再現）。 */
@@ -65,12 +61,8 @@ export interface CreateEditorContextMenuOptions {
   readOnly?: boolean;
   /** i18n。 */
   t: TranslationFn;
-  /** 現在のモード（review / wysiwyg / source）。 */
+  /** 現在のモード（review / wysiwyg / source）。貼り付け項目の出し分け等に使用する。 */
   currentMode?: "review" | "wysiwyg" | "source";
-  /** モード切替コールバック（指定時のみモード切替セクションを表示する）。 */
-  onSwitchToReview?: () => void;
-  onSwitchToWysiwyg?: () => void;
-  onSwitchToSource?: () => void;
   /** ソースモード等、editor.view.dom 以外でも contextmenu を出す追加要素。 */
   extraContainer?: HTMLElement | null;
   /** ソースモードの textarea（Cut/Copy/Paste 操作用）。 */
@@ -275,9 +267,9 @@ export function createEditorContextMenu(
   const t = opts.t;
   let readOnly = opts.readOnly;
   let currentMode = opts.currentMode;
+  // 注: モード切替（レビュー/編集/ソース）はツールバーに集約したため context menu からは撤去。
   let extraContainer = opts.extraContainer ?? null;
   let sourceTextarea = opts.sourceTextarea ?? null;
-  const { onSwitchToReview, onSwitchToWysiwyg, onSwitchToSource } = opts;
   /** 注入された VS Code ブリッジ（未指定時は window.__vscode へフォールバック）。 */
   const vscodeApi = (): VsCodeApi | undefined =>
     opts.vscodeApi === null ? undefined : (opts.vscodeApi ?? window.__vscode);
@@ -425,19 +417,6 @@ export function createEditorContextMenu(
     handleClose();
   };
 
-  const handleSwitchToReview = (): void => {
-    onSwitchToReview?.();
-    handleClose();
-  };
-  const handleSwitchToWysiwyg = (): void => {
-    onSwitchToWysiwyg?.();
-    handleClose();
-  };
-  const handleSwitchToSource = (): void => {
-    onSwitchToSource?.();
-    handleClose();
-  };
-
   /** メニュー項目（li 群）と Divider を組み立てる（React 原版 menuItems 構築と同条件）。 */
   const buildMenuChildren = (): HTMLElement[] => {
     const canCopy =
@@ -502,28 +481,6 @@ export function createEditorContextMenu(
       disabled: ro,
       onClick: handleClearScreen,
     });
-
-    if (onSwitchToReview) {
-      pushDivider();
-      push({
-        icon: PATH.visibilityOutlined,
-        label: t("review"),
-        disabled: currentMode === "review",
-        onClick: handleSwitchToReview,
-      });
-      push({
-        icon: PATH.editOutlined,
-        label: t("wysiwyg"),
-        disabled: currentMode === "wysiwyg",
-        onClick: handleSwitchToWysiwyg,
-      });
-      push({
-        icon: PATH.code,
-        label: t("source"),
-        disabled: currentMode === "source",
-        onClick: handleSwitchToSource,
-      });
-    }
 
     return children;
   };

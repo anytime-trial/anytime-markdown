@@ -209,26 +209,7 @@ describe("createEditorContextMenu", () => {
     expect(labels.some((l) => l.includes("clearScreen"))).toBe(true);
   });
 
-  it("onSwitchToReview を渡すとモード切替項目（review / wysiwyg / source）を追加する", () => {
-    const m = createMockEditor();
-    document.body.appendChild(m.dom);
-    handle = createEditorContextMenu({
-      editor: m.editor,
-      t,
-      currentMode: "wysiwyg",
-      onSwitchToReview: () => {},
-      onSwitchToWysiwyg: () => {},
-      onSwitchToSource: () => {},
-    });
-
-    fireContextMenu(m.dom);
-    const labels = itemLabels();
-    expect(labels.some((l) => l.includes("review"))).toBe(true);
-    expect(labels.some((l) => l.includes("wysiwyg"))).toBe(true);
-    expect(labels.some((l) => l.includes("source"))).toBe(true);
-  });
-
-  it("onSwitchToReview 未指定ならモード切替項目を表示しない", () => {
+  it("モード切替項目（review / wysiwyg / source）は表示しない（ツールバーへ集約）", () => {
     const m = createMockEditor();
     document.body.appendChild(m.dom);
     handle = createEditorContextMenu({ editor: m.editor, t, currentMode: "wysiwyg" });
@@ -236,6 +217,9 @@ describe("createEditorContextMenu", () => {
     fireContextMenu(m.dom);
     const labels = itemLabels();
     expect(labels.some((l) => l.includes("review"))).toBe(false);
+    expect(labels.some((l) => l.includes("wysiwyg"))).toBe(false);
+    // source 行は出ないこと（pasteAsMarkdown 等の通常項目は別途存在）。
+    expect(labels).not.toContain("source");
   });
 
   it("readOnly では cut/paste/clearScreen が disabled（aria-disabled=true）になる", () => {
@@ -252,24 +236,15 @@ describe("createEditorContextMenu", () => {
     expect(byLabel("clearScreen")?.getAttribute("aria-disabled")).toBe("true");
   });
 
-  it("選択もブロックも無いと copy が disabled、現在のモード切替項目も disabled", () => {
+  it("選択もブロックも無いと copy が disabled になる", () => {
     const m = createMockEditor({ selectionFrom: 1, selectionTo: 1 });
     document.body.appendChild(m.dom);
-    handle = createEditorContextMenu({
-      editor: m.editor,
-      t,
-      currentMode: "review",
-      onSwitchToReview: () => {},
-      onSwitchToWysiwyg: () => {},
-      onSwitchToSource: () => {},
-    });
+    handle = createEditorContextMenu({ editor: m.editor, t, currentMode: "review" });
 
     fireContextMenu(m.dom);
     const byLabel = (label: string) =>
       queryMenuItems().find((li) => (li.textContent ?? "").includes(label));
     expect(byLabel("copy")?.getAttribute("aria-disabled")).toBe("true");
-    // currentMode === "review" の review 項目は disabled。
-    expect(byLabel("review")?.getAttribute("aria-disabled")).toBe("true");
   });
 
   it("選択があると copy が有効になる", () => {
@@ -360,25 +335,6 @@ describe("createEditorContextMenu", () => {
     clickItemByLabel("copy");
 
     expect(writeText).toHaveBeenCalledWith("hello");
-  });
-
-  it("review 切替クリックで onSwitchToReview が呼ばれメニューが閉じる", () => {
-    const m = createMockEditor();
-    document.body.appendChild(m.dom);
-    let reviewCalled = 0;
-    handle = createEditorContextMenu({
-      editor: m.editor,
-      t,
-      currentMode: "wysiwyg",
-      onSwitchToReview: () => (reviewCalled += 1),
-      onSwitchToWysiwyg: () => {},
-      onSwitchToSource: () => {},
-    });
-
-    fireContextMenu(m.dom);
-    clickItemByLabel("review");
-    expect(reviewCalled).toBe(1);
-    expect(queryMenu()).toBeNull();
   });
 
   it("各メニュー項目に ListItemIcon(svg) と ListItemText を持つ", () => {
