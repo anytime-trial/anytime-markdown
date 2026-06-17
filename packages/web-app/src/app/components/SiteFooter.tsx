@@ -59,6 +59,14 @@ export default function SiteFooter() {
         >
           {t('footerPrivacy')}
         </MuiLink>
+        <MuiLink
+          component={NextLink}
+          href="/privacy/services"
+          underline="hover"
+          sx={{ color: 'text.secondary', fontSize: '0.85rem' }}
+        >
+          {t('footerPrivacyServices')}
+        </MuiLink>
         <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
           {t('footerRights')}
         </Typography>

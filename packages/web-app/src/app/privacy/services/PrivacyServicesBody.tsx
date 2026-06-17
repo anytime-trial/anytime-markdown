@@ -7,7 +7,7 @@ import Typography from '@mui/material/Typography';
 import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
 
-import LandingHeader from '../components/LandingHeader';
+import LandingHeader from '../../components/LandingHeader';
 
 function Section({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
@@ -30,6 +30,12 @@ function P({ children }: Readonly<{ children: React.ReactNode }>) {
 
 const richStrong = (chunks: React.ReactNode) => <strong>{chunks}</strong>;
 
+const richEditorPrivacyLink = (chunks: React.ReactNode) => (
+  <Link component={NextLink} href="/privacy">
+    {chunks}
+  </Link>
+);
+
 const richIssueLink = (chunks: React.ReactNode) => (
   <Link
     href="https://github.com/anytime-trial/anytime-markdown/issues"
@@ -40,15 +46,8 @@ const richIssueLink = (chunks: React.ReactNode) => (
   </Link>
 );
 
-const richServicesLink = (chunks: React.ReactNode) => (
-  <Link component={NextLink} href="/privacy/services">
-    {chunks}
-  </Link>
-);
-
-export default function PrivacyBody() {
-  const t = useTranslations('Privacy');
-  const tServices = useTranslations('PrivacyServices');
+export default function PrivacyServicesBody() {
+  const t = useTranslations('PrivacyServices');
 
   return (
     <Box sx={{ minHeight: '100vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -61,7 +60,7 @@ export default function PrivacyBody() {
           {t('lastUpdated')}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          {tServices.rich('crossLinkToServices', { link: richServicesLink })}
+          {t.rich('backToEditorPrivacy', { link: richEditorPrivacyLink })}
         </Typography>
 
         <Section title={t('section1Title')}>
@@ -69,7 +68,7 @@ export default function PrivacyBody() {
         </Section>
 
         <Section title={t('section2Title')}>
-          <P>{t.rich('section2Body', { strong: richStrong })}</P>
+          <P>{t('section2Body')}</P>
         </Section>
 
         <Section title={t('section3Title')}>
@@ -80,17 +79,19 @@ export default function PrivacyBody() {
           <P>{t('section4Intro')}</P>
           <Box component="ul" sx={{ pl: 3 }}>
             <li>
-              <P>{t.rich('section4Plantuml', { strong: richStrong })}</P>
+              <P>{t.rich('section4ExternalData', { strong: richStrong })}</P>
             </li>
             <li>
-              <P>{t.rich('section4Mermaid', { strong: richStrong })}</P>
+              <P>{t.rich('section4Embeds', { strong: richStrong })}</P>
+            </li>
+            <li>
+              <P>{t.rich('section4Plantuml', { strong: richStrong })}</P>
             </li>
           </Box>
         </Section>
 
         <Section title={t('section5Title')}>
-          <P>{t('section5Body1')}</P>
-          <P>{t('section5Body2')}</P>
+          <P>{t('section5Body')}</P>
         </Section>
 
         <Section title={t('section6Title')}>
@@ -102,11 +103,8 @@ export default function PrivacyBody() {
         </Section>
 
         <Section title={t('section8Title')}>
-          <P>
-            {t.rich('section8Body', { link: richIssueLink })}
-          </P>
+          <P>{t.rich('section8Body', { link: richIssueLink })}</P>
         </Section>
-
       </Container>
     </Box>
   );
