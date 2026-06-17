@@ -1178,6 +1178,10 @@ export function mountVanillaMarkdownEditor(
       // 短い文書の下など本文領域の空白に落とすと PM に届かず、ブラウザがファイルへ遷移して
       // アプリが失われる。contentEl で Files ドラッグを preventDefault してナビゲーションを
       // 抑止し、.md を fileOps.selectFile（importPlainRef 経由）で取り込む。
+      // モード非依存で「開く」に統一する: ソースモードでも .md は selectFile 経由で
+      // source テキストを置き換える（WYSIWYG と同一フロー）。.md 以外のファイルは
+      // preventDefault でブラウザ遷移だけ防ぎ、取り込みは行わず無視する（textarea への
+      // ネイティブ挿入も Files ドロップでは発生しないため挙動差はない）。
       const isMarkdownFile = (f: File): boolean =>
         f.name.endsWith(".md") || f.name.endsWith(".markdown") || f.type === "text/markdown";
       const onContentDragOver = (e: DragEvent): void => {
@@ -1192,17 +1196,15 @@ export function mountVanillaMarkdownEditor(
         }
       };
       const onContentDrop = (e: DragEvent): void => {
+        // drop が来たらドラッグオーバー状態は必ず解除する（PM 側 DOM ハンドラと同じ不変条件）。
+        delete root.dataset.fileDragOver;
         // .ProseMirror 内のドロップは PM の handleDrop が処理済み（preventDefault 済み）。
         // 二重取り込みを避けるため、既に処理済みなら何もしない。
-        if (e.defaultPrevented) {
-          delete root.dataset.fileDragOver;
-          return;
-        }
+        if (e.defaultPrevented) return;
         const files = e.dataTransfer?.files;
         if (!files?.length) return;
         // Files ドロップは常に preventDefault してブラウザのファイル遷移を防ぐ（.md 以外は無視）。
         e.preventDefault();
-        delete root.dataset.fileDragOver;
         const md = Array.from(files).find(isMarkdownFile);
         if (md) tryImportDroppedMdFile(md, e, importPlainRef);
       };
