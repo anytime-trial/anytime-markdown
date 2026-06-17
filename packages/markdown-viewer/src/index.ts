@@ -80,6 +80,7 @@ export {
   getMarkdownStorage,
 } from './types';
 export type { FileHandle, FileOpenResult, FileSystemProvider } from './types/fileSystem';
+export { WebFileSystemProvider } from './fs/webFileSystemProvider';
 export type {
 ToolbarFileCapabilities,
 ToolbarFileHandlers, ToolbarModeHandlers,
@@ -138,7 +139,7 @@ SPACING_3XS, SPACING_LG, SPACING_MD, SPACING_SM, SPACING_XL, SPACING_XS, SPACING
 STATUSBAR_HEIGHT,
 } from './constants/dimensions';
 export type { DiagramSample } from './constants/samples';
-export { MATH_SAMPLES, MERMAID_SAMPLES, PLANTUML_SAMPLES } from './constants/samples';
+export { MATH_SAMPLES, MERMAID_SAMPLES, PLANTUML_SAMPLES, ANYTIME_GRAPH_SAMPLES } from './constants/samples';
 export { isMac, KEYBOARD_SHORTCUTS, modKey } from './constants/shortcuts';
 export {
 STORAGE_KEY_CONTENT, STORAGE_KEY_EDITOR_MODE,
@@ -163,7 +164,7 @@ export { buildEmbedInfoString, DEFAULT_EMBED_BASELINE, parseEmbedInfoString } fr
 export { buildPlantUmlUrl,PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS, PLANTUML_LIGHT_SKINPARAMS, PLANTUML_SERVER } from './utils/plantumlHelpers';
 export { preserveBlankLines, restoreBlankLines, sanitizeMarkdown, splitByCodeBlocks } from './utils/sanitizeMarkdown';
 export type { ApplyEditorThemeCssVarsOptions } from './utils/applyEditorThemeCssVars';
-export { applyEditorThemeCssVars } from './utils/applyEditorThemeCssVars';
+export { applyChromeTokens, applyEditorThemeCssVars, ensureChromeTokens } from './utils/applyEditorThemeCssVars';
 export { getSectionRange, moveHeadingSection } from './utils/sectionHelpers';
 export { moveTableColumn,moveTableRow } from './utils/tableHelpers';
 export { saveBlob } from './utils/clipboardHelpers';

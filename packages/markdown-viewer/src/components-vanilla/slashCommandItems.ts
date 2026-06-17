@@ -135,6 +135,65 @@ function insertTemplateContent(editor: Editor, content: string | null): void {
   insertTemplate(editor, body);
 }
 
+/** anytime-graph フェンス（思考法ダイアグラム）を DSL テンプレートつきで挿入する。 */
+function insertThinkingDiagram(editor: Editor, template: string): void {
+  editor
+    .chain()
+    .focus()
+    .insertContent({
+      type: "codeBlock",
+      attrs: { language: "anytime-thinking-model", autoEditOpen: true },
+      content: [{ type: "text", text: template }],
+    })
+    .run();
+}
+
+// 思考法ダイアグラムは総称1項目に集約する。図種のバリエーションは挿入後の編集
+// ダイアログ「サンプル」パネルから選択する（mermaid と同じ流儀）。
+// 挿入直後は型未指定スケルトンを置き、autoEditOpen で編集ダイアログが自動で開く。
+const THINKING_DIAGRAM_SKELETON =
+  "# 思考法ダイアグラム — 右のサンプルから図種を選んでください（例: type: fishbone）";
+
+const THINKING_DIAGRAM_ITEMS: readonly VanillaSlashCommandItem[] = [
+  {
+    id: "anytime-graph",
+    labelKey: "anytimeGraph",
+    iconPath: PATH.accountTree,
+    keywords: [
+      "anytime-graph",
+      "思考法",
+      "ダイアグラム",
+      "diagram",
+      "thinking",
+      "fishbone",
+      "ishikawa",
+      "特性要因図",
+      "causal",
+      "loop",
+      "因果ループ",
+      "pyramid",
+      "ピラミッド",
+      "mindmap",
+      "マインドマップ",
+      "double-diamond",
+      "logic-tree",
+      "ロジックツリー",
+      "論点",
+      "why",
+      "なぜなぜ",
+      "swot",
+      "morph",
+      "形態分析",
+      "affinity",
+      "親和図",
+      "kj",
+    ],
+    action: (editor) => {
+      insertThinkingDiagram(editor, THINKING_DIAGRAM_SKELETON);
+    },
+  },
+];
+
 export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
   {
     id: "heading1",
@@ -271,6 +330,7 @@ export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
       editor.chain().focus().setCodeBlock({ language: "plantuml" }).updateAttributes("codeBlock", { autoEditOpen: true }).run();
     },
   },
+  ...THINKING_DIAGRAM_ITEMS,
   {
     id: "math",
     labelKey: "slashMath",
@@ -422,21 +482,32 @@ export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
     keywords: ["frontmatter", "yaml", "metadata", "メタデータ", "フロントマター"],
     action: (editor) => {
       const storage = getEditorStorage(editor);
-      const fm = storage.frontmatter as { get: () => string | null; set: (v: string | null) => void } | null;
+      const fm = storage.frontmatter as
+        | {
+            get: () => string | null;
+            set: (v: string | null) => void;
+            focusEditor?: () => void;
+          }
+        | null;
       if (!fm) return;
+      // focusEditor は FrontmatterBlock を展開してから textarea へフォーカスする
+      // （折りたたみ時は textarea が DOM に存在しないため document 直 query では効かない）。
+      const focusEditor = (): void => {
+        if (fm.focusEditor) {
+          fm.focusEditor();
+          return;
+        }
+        document.querySelector<HTMLTextAreaElement>("[data-frontmatter-editor]")?.focus();
+      };
       const current = fm.get();
       if (current !== null) {
-        // 既存のフロントマターがある場合は FrontmatterBlock にフォーカス
-        const el = document.querySelector<HTMLTextAreaElement>("[data-frontmatter-editor]");
-        el?.focus();
+        // 既存のフロントマターがある場合は FrontmatterBlock を展開してフォーカス
+        focusEditor();
         return;
       }
       // 空のフロントマターを作成し、テキストエリアにフォーカス
       fm.set("title: ");
-      requestAnimationFrame(() => {
-        const el = document.querySelector<HTMLTextAreaElement>("[data-frontmatter-editor]");
-        el?.focus();
-      });
+      requestAnimationFrame(focusEditor);
     },
   },
   {

@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-17
+
+### Graph Core (graph-core)
+
+- 思考法ダイアグラム対応を追加（10 図種のプリセット・DSL パーサ・SVG 描画）。
+- フロントマター由来のドキュメントノート網プリセット `buildNoteGraph`、spec→DSL シリアライザ、`node.metadata.path` を追加。
+
 ## [0.6.0] - 2026-06-13
 
 ### Graph Core (graph-core / graph-viewer)

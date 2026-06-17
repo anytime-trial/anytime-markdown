@@ -27,6 +27,7 @@ import {
   commentDataPluginKey,
   generateId,
 } from "../extensions/commentExtension";
+import { ReviewModeExtension, reviewModeStorage } from "../extensions/reviewModeExtension";
 import { getMarkdownStorage } from "../types";
 
 describe("parseCommentData", () => {
@@ -486,6 +487,64 @@ describe("CommentDataPlugin コマンド", () => {
       });
       expect(pointFound).toBe(false);
 
+      editor.destroy();
+    });
+  });
+
+  describe("レビューモード中のコメント操作", () => {
+    function createReviewEditor(md = ""): Editor {
+      return new Editor({
+        extensions: [
+          StarterKit,
+          CommentHighlight,
+          CommentPoint,
+          CommentDataPlugin,
+          ReviewModeExtension,
+          Markdown.configure({ html: true }),
+        ],
+        content: preprocessComments(md),
+      });
+    }
+
+    test("レビューモードでも removeComment でコメントと Mark を削除できる", () => {
+      const editor = createReviewEditor("Hello world.");
+      editor.commands.setTextSelection({ from: 7, to: 12 });
+      reviewModeStorage(editor).enabled = false;
+      editor.commands.addComment("To remove");
+      reviewModeStorage(editor).enabled = true; // レビューモード ON
+
+      const commentId = [...getCommentState(editor).comments.keys()][0];
+      expect(commentId).toBeTruthy();
+
+      // レビューモード中でも削除が doc 変更ブロックに阻まれず通る。
+      editor.commands.removeComment(commentId);
+
+      expect(getCommentState(editor).comments.size).toBe(0);
+      let markFound = false;
+      editor.state.doc.descendants((node) => {
+        if (node.isText && node.marks.some((m) => m.type.name === "commentHighlight")) {
+          markFound = true;
+        }
+      });
+      expect(markFound).toBe(false);
+      editor.destroy();
+    });
+
+    test("レビューモードでも addComment でコメントを追加できる", () => {
+      const editor = createReviewEditor("Hello world.");
+      reviewModeStorage(editor).enabled = true;
+      editor.commands.setTextSelection({ from: 7, to: 12 });
+      editor.commands.addComment("Added in review");
+      expect(getCommentState(editor).comments.size).toBe(1);
+      editor.destroy();
+    });
+
+    test("レビューモードでは許可 meta の無い通常編集は依然ブロックされる", () => {
+      const editor = createReviewEditor("Hello world.");
+      reviewModeStorage(editor).enabled = true;
+      const before = editor.getText();
+      editor.commands.insertContent("XYZ");
+      expect(editor.getText()).toBe(before);
       editor.destroy();
     });
   });

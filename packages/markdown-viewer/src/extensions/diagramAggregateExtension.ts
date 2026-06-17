@@ -26,7 +26,7 @@ export const DEFAULT_AGGREGATE: DiagramAggregate = {
 };
 
 /** diagram としてレンダリングされるコードブロックの言語集合（single source of truth） */
-export const DIAGRAM_LANGUAGES = new Set(["mermaid", "plantuml"]);
+export const DIAGRAM_LANGUAGES = new Set(["mermaid", "plantuml", "anytime-thinking-model"]);
 
 export const diagramAggregatePluginKey = new PluginKey<DiagramAggregate>("diagramAggregate");
 

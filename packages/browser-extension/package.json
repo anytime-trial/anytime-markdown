@@ -1,0 +1,28 @@
+{
+  "name": "@anytime-markdown/browser-extension",
+  "version": "0.1.0",
+  "description": "Chrome / Edge (Manifest V3) extension that opens the anytime-markdown rich editor (<anytime-markdown-rich-editor> Web Component, mermaid/katex/plantuml/math/graph) in a full-page tab.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "build:icons": "node scripts/generate-icons.mjs",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@anytime-markdown/markdown-rich": "*",
+    "@anytime-markdown/markdown-viewer": "*",
+    "diff": "8.0.3",
+    "dompurify": "3.4.0",
+    "jsxgraph": "1.12.2",
+    "katex": "0.16.38",
+    "mathjs": "15.2.0",
+    "mermaid": "11.15.0",
+    "plantuml-encoder": "1.4.0",
+    "plotly.js-gl3d-dist-min": "3.4.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.27.3"
+  }
+}

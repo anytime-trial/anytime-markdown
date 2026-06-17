@@ -34,16 +34,16 @@ describe("sitemap", () => {
     });
 
     const result = await sitemap();
-    // 6 static + 2 doc pages
-    expect(result.length).toBe(8);
-    expect(result[6].url).toContain("docs%2Ftest.md");
-    expect(result[7].url).toContain("docs%2Fguide.md");
+    // 7 static + 2 doc pages
+    expect(result.length).toBe(9);
+    expect(result[7].url).toContain("docs%2Ftest.md");
+    expect(result[8].url).toContain("docs%2Fguide.md");
   });
 
   it("returns only static pages on error", async () => {
     mockFetchLayoutData.mockRejectedValue(new Error("fail"));
 
     const result = await sitemap();
-    expect(result.length).toBe(6);
+    expect(result.length).toBe(7);
   });
 });

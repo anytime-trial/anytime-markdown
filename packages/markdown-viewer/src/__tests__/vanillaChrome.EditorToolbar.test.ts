@@ -184,12 +184,50 @@ describe("createEditorToolbar — 生成と属性", () => {
     expect(handle.el.querySelector("[data-more-desktop]")).toBeNull();
     handle.destroy();
   });
+
+  it("sideToolbar 併用時は desktop more（ハンバーガー）を side-coupled で隠す（≥900px でサイドバーと重複）", () => {
+    const { handle } = mount({ sideToolbar: true });
+    const desktopMore = handle.el.querySelector("[data-more-desktop]");
+    expect(desktopMore).toBeTruthy();
+    expect(desktopMore?.hasAttribute("data-am-side-coupled")).toBe(true);
+    // mobile more（<900px・サイドバー非表示時の唯一の導線）は隠さない。
+    const mobileMore = handle.el.querySelector("[data-more-mobile]");
+    expect(mobileMore?.hasAttribute("data-am-side-coupled")).toBe(false);
+    handle.destroy();
+  });
+
+  it("sideToolbar なしでは desktop more に side-coupled を付けない", () => {
+    const { handle } = mount();
+    const desktopMore = handle.el.querySelector("[data-more-desktop]");
+    expect(desktopMore?.hasAttribute("data-am-side-coupled")).toBe(false);
+    handle.destroy();
+  });
+
+  it("モードボタンのラベルは data-mode-label を持ち inline display を持たない（表示制御をシートに委ねる）", () => {
+    const { handle } = mount();
+    const reviewBtn = handle.el.querySelector('button[aria-label="review"]') as HTMLElement;
+    const label = reviewBtn.querySelector("[data-mode-label]") as HTMLElement;
+    expect(label).toBeTruthy();
+    expect(label.textContent).toBe("review");
+    // 表示制御は注入スタイルシートが所有する（インライン display を置かない）。
+    expect(label.style.display).toBe("");
+    handle.destroy();
+  });
+
+  it("responsive スタイルは狭幅でモードラベルを隠し ≥900px で表示する（ハンバーガー表示時アイコンのみ）", () => {
+    const { handle } = mount();
+    const style = document.getElementById("am-toolbar-responsive-style");
+    expect(style?.textContent).toContain("[data-mode-label] { display: none; }");
+    expect(style?.textContent).toContain("[data-mode-label] { display: inline; }");
+    handle.destroy();
+  });
 });
 
 describe("createEditorToolbar — ファイル操作", () => {
   it("supportsDirectAccess で open/save/saveAs を生成し、クリックでハンドラを呼ぶ", () => {
     const { handle, fileHandlers } = mount({
       fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      isDirty: true,
     });
     (handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement).click();
     (handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement).click();
@@ -216,6 +254,51 @@ describe("createEditorToolbar — ファイル操作", () => {
     expect(handle.el.querySelector('button[aria-label="openFile"]')).toBeNull();
     const save = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
     expect(save).toBeTruthy();
+    expect(save.disabled).toBe(true);
+    handle.destroy();
+  });
+
+  it("dirty ゲート: 未編集では save が disabled、編集ありで enabled、保存後に再び disabled", () => {
+    const { handle, fileHandlers } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      isDirty: false,
+    });
+    const save = (): HTMLButtonElement =>
+      handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
+    // 初期は未編集 → disabled（クリックしてもハンドラは発火しない）。
+    expect(save().disabled).toBe(true);
+    save().click();
+    expect(fileHandlers.onSaveFile).not.toHaveBeenCalled();
+    // 編集あり → enabled。
+    handle.update({ isDirty: true });
+    expect(save().disabled).toBe(false);
+    save().click();
+    expect(fileHandlers.onSaveFile).toHaveBeenCalledTimes(1);
+    // 保存して未編集に戻る → 再び disabled。
+    handle.update({ isDirty: false });
+    expect(save().disabled).toBe(true);
+    handle.destroy();
+  });
+
+  it("dirty ゲート: externalSaveOnly でも dirty のときだけ save を有効化する", () => {
+    const { handle } = mount({
+      fileCapabilities: { externalSaveOnly: true, hasFileHandle: true },
+      isDirty: false,
+    });
+    const save = (): HTMLButtonElement =>
+      handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
+    expect(save().disabled).toBe(true);
+    handle.update({ isDirty: true });
+    expect(save().disabled).toBe(false);
+    handle.destroy();
+  });
+
+  it("dirty ゲート: ハンドル無しなら dirty でも save は disabled のまま", () => {
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: false },
+      isDirty: true,
+    });
+    const save = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
     expect(save.disabled).toBe(true);
     handle.destroy();
   });

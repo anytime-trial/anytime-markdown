@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-17
+
+### Added
+
+- Added a note graph panel in the editor's right rail (Outline-style): document-centric view with backlinks, mouse-draggable width, and a pin (keep-open) option that opens the note graph on startup across files.
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Frontmatter-derived note graph viewer and in-preview WYSIWYG editing for thinking-method diagrams.
+- Source-mode line-number gutter; `.md` drop-to-open on the content area and compare-mode left pane.
+- Full-height right side rail; save icon enabled only when there are unsaved changes; design-spec alignment.
+- Dark-mode theme following for editor root background / source text and Web Component chrome tokens.
+
 ## [1.2.0] - 2026-06-13
 
 ### Changed

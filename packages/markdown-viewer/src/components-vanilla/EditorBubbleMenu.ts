@@ -25,6 +25,8 @@
 
 import type { Editor } from "@anytime-markdown/markdown-core";
 import { BubbleMenuPlugin } from "@anytime-markdown/markdown-extension-bubble-menu";
+import type { EditorState } from "@anytime-markdown/markdown-pm/state";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
 import { svgIcon } from "../ui-vanilla/dom";
 import { createIconButton } from "../ui-vanilla";
@@ -71,10 +73,17 @@ export interface CreateEditorBubbleMenuOptions {
   t: TranslationFn;
   /** リンク挿入 intent（ダイアログは host 側）。 */
   onLink: () => void;
-  /** 読み取り専用モード。true の間はバブルメニューを表示しない。 */
-  readonlyMode?: boolean;
-  /** レビューモード。書式系ボタンを隠し、コメントは executeInReviewMode 経由で実行する。 */
-  reviewMode?: boolean;
+  /**
+   * 読み取り専用モード。true の間はバブルメニューを表示しない。
+   * モード切替に追従させるため getter を渡せる（show 毎に評価する）。
+   */
+  readonlyMode?: boolean | (() => boolean);
+  /**
+   * レビューモード。書式系ボタンを隠しコメントのみ表示し、コメントは executeInReviewMode 経由で
+   * 実行する。レビューモードは editor が非編集（editable=false）でもコメント追加を許可する。
+   * モード切替に追従させるため getter を渡せる（show 毎に評価する）。
+   */
+  reviewMode?: boolean | (() => boolean);
   /** レビューモードでの実行ラッパ（編集の許可確認等を host 側で挟む）。 */
   executeInReviewMode?: (fn: () => void) => void;
   /** バブルメニューの pluginKey（既定 "bubbleMenu"）。 */
@@ -109,11 +118,84 @@ interface ButtonSpec {
   pressed?: boolean;
 }
 
+/** {@link shouldShowTextFormatBubbleMenu} の判定パラメータ（BubbleMenuPlugin が渡す値の部分集合）。 */
+export interface BubbleMenuVisibilityParams {
+  /** 対象 editor。`isEditable` / `isActive` の判定に使う。 */
+  editor: Editor;
+  /** ProseMirror view。フォーカス判定（`hasFocus`）に使う。 */
+  view: EditorView;
+  /** 現在の editor state。選択・文書を参照する。 */
+  state: EditorState;
+  /** バブルメニューのルート要素。メニュー内ボタンへのフォーカスを保持表示に使う。 */
+  element: HTMLElement;
+  /** 選択範囲（CellSelection 対応で plugin が ranges から計算した値）の開始位置。 */
+  from: number;
+  /** 選択範囲の終了位置。 */
+  to: number;
+  /** 読み取り専用モードか。 */
+  readonlyMode: boolean;
+  /**
+   * レビューモードか。レビューモードでは editor.isEditable が false でも、コメント追加のために
+   * バブルメニュー（コメントボタンのみ）を表示する。
+   */
+  reviewMode?: boolean;
+}
+
+/**
+ * 書式バブルメニューを表示すべきか判定する純関数。
+ *
+ * `selection.empty` だけでは不十分なため、`from`〜`to` 間の**実テキスト長**でも判定する。
+ * これにより「選択範囲はあるが実テキストが無い」次のケースで誤表示しない:
+ *
+ * - 画像など atom ノードの `NodeSelection`（例: 画像のみ文書を開いた直後。`empty=false`／
+ *   `textBetween=""`）。tiptap デフォルトの `isEmptyTextBlock` は `isTextSelection` 限定の
+ *   ため NodeSelection を取りこぼすが、本判定は選択型に依らずテキスト空なら非表示にする。
+ * - 空段落・ほぼ空文書の `AllSelection`（`empty=false`／`textBetween=""`）。
+ *
+ * 加えてエディタ未フォーカス時・読み取り専用時・コードブロック／脚注参照アクティブ時も
+ * 非表示にする（書式適用が無意味なため）。
+ *
+ * なおホワイトスペースのみの選択はテキスト長 &gt; 0 として表示する（デフォルト実装と同一挙動）。
+ */
+export function shouldShowTextFormatBubbleMenu({
+  editor,
+  view,
+  state,
+  element,
+  from,
+  to,
+  readonlyMode,
+  reviewMode,
+}: BubbleMenuVisibilityParams): boolean {
+  if (readonlyMode) return false;
+  // レビューモードは editable=false だが、コメント追加のためにメニューを表示する。
+  if (!editor.isEditable && !reviewMode) return false;
+
+  const { doc, selection } = state;
+  if (selection.empty) return false;
+
+  // 書式ツールバーはテキスト用。選択範囲があっても実テキストが空（画像など atom の
+  // NodeSelection・空段落・ほぼ空文書の AllSelection）なら出さない。leafText を渡さず
+  // atom ノードはテキスト長 0 として扱う。
+  if (doc.textBetween(from, to).length === 0) return false;
+
+  // メニュー内ボタンへフォーカスが移った場合はエディタの一部として扱い表示を維持する。
+  const hasEditorFocus = view.hasFocus() || element.contains(document.activeElement);
+  if (!hasEditorFocus) return false;
+
+  if (editor.isActive("codeBlock")) return false;
+  // 脚注参照（atom ノード）選択時はバブルメニューを表示しない。
+  if (editor.isActive("footnoteRef")) return false;
+
+  return true;
+}
+
 /**
  * vanilla EditorBubbleMenu を生成する。tiptap CORE の `BubbleMenuPlugin` を editor へ装着し、
  * 選択時に素 DOM ツールバーを表示する。
  *
- * - `shouldShow` は React 版と同一（readonly / 空選択 / codeBlock / footnoteRef を除外）。
+ * - `shouldShow` は {@link shouldShowTextFormatBubbleMenu} に委譲（readonly / 空選択 /
+ *   実テキスト空 / 未フォーカス / codeBlock / footnoteRef を除外）。
  * - active 状態の色は editor の `transaction` 購読で更新する（React の再レンダー相当）。
  * - 左右矢印キーでボタン間フォーカス移動（React 版 handleKeyDown と同一）。
  *
@@ -125,8 +207,14 @@ export function createEditorBubbleMenu(
   editor: Editor,
   opts: CreateEditorBubbleMenuOptions,
 ): EditorBubbleMenuHandle {
-  const { t, onLink, readonlyMode, reviewMode, executeInReviewMode } = opts;
+  const { t, onLink, executeInReviewMode } = opts;
   const pluginKey = opts.pluginKey ?? "bubbleMenu";
+
+  // readonlyMode / reviewMode は boolean か getter。モード切替に追従させるため評価は都度行う。
+  const resolveFlag = (v: boolean | (() => boolean) | undefined): boolean =>
+    typeof v === "function" ? v() : (v ?? false);
+  const isReadonly = (): boolean => resolveFlag(opts.readonlyMode);
+  const isReview = (): boolean => resolveFlag(opts.reviewMode);
 
   // --- ルート要素（BubbleMenuPlugin の element）。z-index は sticky ツールバーより前面化。 ---
   const root = document.createElement("div");
@@ -159,9 +247,9 @@ export function createEditorBubbleMenu(
   const handleKeyDown = (e: KeyboardEvent): void => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
-    const buttons = Array.from(
-      toolbar.querySelectorAll("button:not([disabled])"),
-    ) as HTMLElement[];
+    const buttons = (
+      Array.from(toolbar.querySelectorAll("button:not([disabled])")) as HTMLElement[]
+    ).filter((b) => b.style.display !== "none");
     const current = buttons.indexOf(document.activeElement as HTMLElement);
     const len = buttons.length;
     if (len === 0) return;
@@ -239,7 +327,7 @@ export function createEditorBubbleMenu(
     icon: ICON.annotate,
     isActive: () => editor.isActive("commentHighlight"),
     onClick: () => {
-      if (reviewMode && executeInReviewMode) {
+      if (isReview() && executeInReviewMode) {
         executeInReviewMode(openComment);
       } else {
         openComment();
@@ -247,25 +335,28 @@ export function createEditorBubbleMenu(
     },
   };
 
-  // モード別の表示ボタン集合（React 版の条件レンダーと同一）。
-  // - readonly: 何も出さない（コメントすら出さない）。
+  // ボタンは全て生成しておき、モード別の表示はボタンの display で都度切り替える（モード切替に追従）。
+  // - readonly: メニュー自体を出さない（shouldShow が false）。
   // - review: 書式系を隠し、コメントのみ。
   // - 通常: 書式系 + コメント。
-  let specs: ButtonSpec[];
-  if (readonlyMode) {
-    specs = [];
-  } else if (reviewMode) {
-    specs = [commentSpec];
-  } else {
-    specs = [...formatSpecs, commentSpec];
-  }
+  type SpecGroup = "format" | "comment";
+  const groupedSpecs: Array<{ spec: ButtonSpec; group: SpecGroup }> = [
+    ...formatSpecs.map((spec) => ({ spec, group: "format" as const })),
+    { spec: commentSpec, group: "comment" as const },
+  ];
+  /** 現在のモードでこのボタングループを表示するか。 */
+  const isGroupVisible = (group: SpecGroup): boolean => {
+    if (isReadonly()) return false;
+    if (isReview()) return group === "comment"; // レビューはコメントのみ
+    return true;
+  };
 
   // --- 各ボタンを生成し、active 更新のための closure を集める。 ---
   const tooltips: Array<{ destroy: () => void }> = [];
   const iconButtons: Array<{ el: HTMLButtonElement; destroy: () => void }> = [];
   const activeUpdaters: Array<() => void> = [];
 
-  for (const spec of specs) {
+  for (const { spec, group } of groupedSpecs) {
     const btn = createIconButton({
       size: "compact",
       ariaLabel: t(spec.key),
@@ -275,7 +366,8 @@ export function createEditorBubbleMenu(
     if (spec.pressed) {
       btn.el.setAttribute("aria-pressed", String(spec.isActive?.() ?? false));
     }
-    // active 色更新（React 版の style={{ color: isActive ? primary : undefined }} 相当）。
+    // active 色更新（React 版の style={{ color: isActive ? primary : undefined }} 相当）と
+    // モード別の表示切替（review では format グループを隠す）。
     const updateActive = (): void => {
       const active = spec.isActive?.() ?? false;
       // 非アクティブを "" にすると IconButton の color:inherit ごと削除され、<button> が
@@ -284,6 +376,7 @@ export function createEditorBubbleMenu(
       if (spec.pressed) {
         btn.el.setAttribute("aria-pressed", String(active));
       }
+      btn.el.style.display = isGroupVisible(group) ? "" : "none";
     };
     updateActive();
     activeUpdaters.push(updateActive);
@@ -298,7 +391,7 @@ export function createEditorBubbleMenu(
     tooltips.push(tooltip);
   }
 
-  // --- editor transaction 購読で active 状態を再描画（React の再レンダー相当）。 ---
+  // --- editor transaction 購読で active 状態 / モード別表示を再描画（React の再レンダー相当）。 ---
   const onTransaction = (): void => {
     for (const update of activeUpdaters) update();
   };
@@ -309,14 +402,19 @@ export function createEditorBubbleMenu(
     pluginKey,
     editor,
     element: root,
-    shouldShow: ({ editor: e, state }) => {
-      if (readonlyMode) return false;
-      const { selection } = state;
-      if (selection.empty) return false;
-      if (e.isActive("codeBlock")) return false;
-      // 脚注参照（atom ノード）選択時はバブルメニューを表示しない。
-      if (e.isActive("footnoteRef")) return false;
-      return true;
+    shouldShow: ({ editor: e, view, state, element, from, to }) => {
+      // show 直前に最新モードでボタン表示を更新する（モード切替直後でも整合させる）。
+      for (const update of activeUpdaters) update();
+      return shouldShowTextFormatBubbleMenu({
+        editor: e,
+        view,
+        state,
+        element,
+        from,
+        to,
+        readonlyMode: isReadonly(),
+        reviewMode: isReview(),
+      });
     },
   });
   editor.registerPlugin(plugin);

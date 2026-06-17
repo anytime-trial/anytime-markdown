@@ -79,6 +79,63 @@ describe("createEditorSideToolbar", () => {
       expect(btns[3].getAttribute("aria-label")).toBe("editorSettings");
     });
 
+    it("並び順は上から バージョン情報 / アウトライン / コメント / 設定", () => {
+      handle = createEditorSideToolbar({
+        t,
+        onToggleComment: () => {},
+        onOpenSettings: () => {},
+        onOpenVersionDialog: () => {},
+      });
+      const labels = buttons(handle).map((b) => b.getAttribute("aria-label"));
+      expect(labels).toEqual(["versionInfo", "outline", "commentPanel", "editorSettings"]);
+    });
+
+    it("バージョン情報ボタンのクリックで onOpenVersionDialog を呼ぶ", () => {
+      const onOpenVersionDialog = jest.fn();
+      handle = createEditorSideToolbar({
+        t,
+        onToggleComment: () => {},
+        onOpenVersionDialog,
+      });
+      const versionBtn = buttons(handle).find(
+        (b) => b.getAttribute("aria-label") === "versionInfo",
+      );
+      versionBtn?.click();
+      expect(onOpenVersionDialog).toHaveBeenCalledTimes(1);
+    });
+
+    it("バージョン情報は最上部に置き margin-top:auto で押し下げない（画面外回帰防止）", () => {
+      handle = createEditorSideToolbar({
+        t,
+        onToggleComment: () => {},
+        onOpenSettings: () => {},
+        onOpenVersionDialog: () => {},
+      });
+      // margin-top:auto を使うとレイアウト次第で version が画面外へ押し出され見落とされる。
+      const pushedToBottom = [...handle.el.querySelectorAll<HTMLElement>("div")].some((d) =>
+        d.style.cssText.includes("margin-top: auto"),
+      );
+      expect(pushedToBottom).toBe(false);
+    });
+
+    it("onOpenVersionDialog 未指定ならバージョン情報ボタンを描画しない", () => {
+      handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
+      const hasVersion = buttons(handle).some(
+        (b) => b.getAttribute("aria-label") === "versionInfo",
+      );
+      expect(hasVersion).toBe(false);
+    });
+
+    it("light/dark テーマ切替ボタンは描画しない（設定パネルへ移設）", () => {
+      handle = createEditorSideToolbar({
+        t,
+        onToggleComment: () => {},
+        onOpenSettings: () => {},
+        onOpenVersionDialog: () => {},
+      });
+      expect(handle.el.querySelector('button[aria-label="settingDarkMode"]')).toBeNull();
+    });
+
     it("各ボタンに inline svg アイコンを内包し SIDE_TOOLBAR_ICON_SIZE 寸法を持つ", () => {
       handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
       const btns = buttons(handle);

@@ -248,6 +248,77 @@ describe("createInlineMergeView", () => {
     expect(counter?.textContent).toBe("2 / 2");
   });
 
+  // 2026-06-16: WYSIWYG 比較モードで frontmatter も比較対象に含める（差分表示を内蔵）。
+  describe("frontmatter 比較行", () => {
+    it("WYSIWYG: 本ファイル/比較ファイルの frontmatter を比較行に並置する", () => {
+      ({ handle, rightEditor } = mkView({
+        sourceMode: false,
+        editorContent: "body",
+        frontmatter: "title: Main",
+        compareContent: "---\ntitle: Compare\n---\nbody",
+      }));
+      document.body.appendChild(handle.el);
+      const row = handle.el.querySelector<HTMLElement>("[data-am-frontmatter-compare]");
+      expect(row).not.toBeNull();
+      expect(row!.style.display).not.toBe("none");
+      expect(row!.textContent).toContain("title: Main");
+      expect(row!.textContent).toContain("title: Compare");
+    });
+
+    it("ソースモードでは frontmatter 比較行を隠す（テキスト diff に含まれるため）", () => {
+      ({ handle, rightEditor } = mkView({
+        sourceMode: true,
+        editorContent: "body",
+        frontmatter: "title: Main",
+        compareContent: "---\ntitle: Compare\n---\nbody",
+      }));
+      document.body.appendChild(handle.el);
+      const row = handle.el.querySelector<HTMLElement>("[data-am-frontmatter-compare]");
+      expect(row?.style.display).toBe("none");
+    });
+
+    it("nav バー（不一致数・変更箇所のみ表示アイコン）が frontmatter 比較行の上に位置する", () => {
+      ({ handle, rightEditor } = mkView({
+        sourceMode: false,
+        editorContent: "body",
+        frontmatter: "title: Main",
+        compareContent: "---\ntitle: Compare\n---\nbody",
+      }));
+      document.body.appendChild(handle.el);
+      const counter = handle.el.querySelector('[aria-live="polite"]')!; // nav バー内の不一致数
+      const row = handle.el.querySelector("[data-am-frontmatter-compare]")!;
+      // row が counter より後（DOM 順で下）にある = nav バーが上。
+      expect(counter.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("update で frontmatter 変更が比較行に反映される", () => {
+      ({ handle, rightEditor } = mkView({
+        sourceMode: false,
+        editorContent: "body",
+        frontmatter: "title: Old",
+        compareContent: "---\ntitle: Compare\n---\nbody",
+      }));
+      document.body.appendChild(handle.el);
+      const row = (): HTMLElement =>
+        handle!.el.querySelector<HTMLElement>("[data-am-frontmatter-compare]")!;
+      expect(row().textContent).toContain("title: Old");
+      handle.update({ frontmatter: "title: New" });
+      expect(row().textContent).toContain("title: New");
+      expect(row().textContent).not.toContain("title: Old");
+    });
+
+    it("両ファイルとも frontmatter が無ければ比較行は非表示", () => {
+      ({ handle, rightEditor } = mkView({
+        sourceMode: false,
+        editorContent: "body",
+        compareContent: "body",
+      }));
+      document.body.appendChild(handle.el);
+      const row = handle.el.querySelector<HTMLElement>("[data-am-frontmatter-compare]");
+      expect(row?.style.display).toBe("none");
+    });
+  });
+
   // 2026-06-10 レビュー補足（潜在バグ A）: compareContent の consume 契約の固定。
   // null は「新しい外部コンテンツなし」（消費パターン）であり比較テキストを保持する。
   // クリアは空文字 "" を明示的に渡す。
@@ -268,6 +339,39 @@ describe("createInlineMergeView", () => {
       // orchestrator は消費後 null を渡し続ける（syncMergeView）。null でクリアしてはいけない。
       handle.update({ compareContent: null });
       expect(textareas(handle.el).some((ta) => ta.value.includes("COMPARE"))).toBe(true);
+    });
+  });
+
+  describe("ドロッププレースホルダ（左ペイン）", () => {
+    const placeholder = (h: InlineMergeViewHandle): HTMLElement =>
+      h.el.querySelector("[data-am-merge-drop-placeholder]") as HTMLElement;
+
+    it("比較ファイル未ロード時は左ペインにプレースホルダを表示する（pointer-events:none）", () => {
+      ({ handle, rightEditor } = mkView({ editorContent: "本文" }));
+      document.body.appendChild(handle.el);
+      const ph = placeholder(handle);
+      expect(ph).toBeTruthy();
+      expect(ph.textContent).toBe("mergeDropPlaceholder");
+      expect(ph.style.display).not.toBe("none");
+      // 下のドロップ判定を阻害しないこと。
+      expect(ph.style.pointerEvents).toBe("none");
+      // 上端配置 + ソース textarea(z-index:1) より前面（z-index:2）で確実に視認できること。
+      expect(ph.style.alignItems).toBe("flex-start");
+      expect(ph.style.zIndex).toBe("2");
+    });
+
+    it("compareContent ロード後はプレースホルダを非表示にする", () => {
+      ({ handle, rightEditor } = mkView({ editorContent: "本文", compareContent: "比較" }));
+      document.body.appendChild(handle.el);
+      expect(placeholder(handle).style.display).toBe("none");
+    });
+
+    it("比較テキストをクリアするとプレースホルダが再表示される", () => {
+      ({ handle, rightEditor } = mkView({ editorContent: "本文", compareContent: "比較" }));
+      document.body.appendChild(handle.el);
+      expect(placeholder(handle).style.display).toBe("none");
+      handle.update({ compareContent: "" });
+      expect(placeholder(handle).style.display).not.toBe("none");
     });
   });
 });

@@ -23,5 +23,6 @@
   "configuration.claudeStatus.directory.description": "`claude-code-status.json` の保存ディレクトリ。絶対パスまたはワークスペースルートからの相対パス。空の場合は `.anytime/` を使用します。",
   "viewsContainer.title": "Anytime Markdown",
   "viewsWelcome.timeline": "履歴を見るには Markdown ファイルを開いてください。",
-  "command.compareWithCommit": "このコミットと比較"
+  "command.compareWithCommit": "このコミットと比較",
+  "configuration.noteGraph.repositoryPath.description": "ノート網パネルの対象 git リポジトリ。絶対パスで指定。空の場合は現在のドキュメントが属する git リポジトリを使用します（例: ドキュメント用リポジトリのパスを指定）。"
 }

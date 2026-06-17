@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Anytime Markdown</title>
+    <!-- katex 等のスタイルは esbuild が dist/editor.css に抽出する（フォントは同梱）。 -->
+    <link rel="stylesheet" href="./editor.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      /* エディタを全画面に広げる。テーマ CSS 変数は WC 側が注入する。 */
+      #editor-root {
+        height: 100vh;
+        width: 100%;
+      }
+      anytime-markdown-rich-editor {
+        display: block;
+        height: 100%;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      要素は editor.js で生成し options（sideToolbar 等）を connect 前に渡す。
+      theme / locale / 初期 Markdown / サイドバー表示は editor.js を参照。
+    -->
+    <main id="editor-root"></main>
+    <script type="module" src="./editor.js"></script>
+  </body>
+</html>

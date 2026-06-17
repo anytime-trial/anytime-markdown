@@ -110,6 +110,9 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
     );
     expect(sourceBtn).not.toBeNull();
 
+    const contentEl = handle.root.querySelector<HTMLElement>("[data-am-content]");
+    const overflowBefore = contentEl?.style.overflow;
+
     // ToolbarModeHandlers 経由の切替を直接シミュレートできないため、vscode-set-mode を使う
     globalThis.dispatchEvent(new CustomEvent("vscode-set-mode", { detail: "source" }));
     const textarea = handle.root.querySelector<HTMLTextAreaElement>(
@@ -117,9 +120,45 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
     );
     expect(textarea).not.toBeNull();
     expect(textarea?.value).toContain("Hello");
+    // source 中は contentEl の overflow を hidden にし、textarea を唯一のスクローラにする
+    // （スクロールバー二重表示の防止）。
+    expect(contentEl?.style.overflow).toBe("hidden");
 
     globalThis.dispatchEvent(new CustomEvent("vscode-set-mode", { detail: "wysiwyg" }));
     expect(handle.root.querySelector("[data-am-source-textarea]")).toBeNull();
+    // 退出時に元の overflow を復元する。
+    expect(contentEl?.style.overflow).toBe(overflowBefore);
+    handle.destroy();
+  });
+
+  it("source モードで左端に行番号ガターを表示し入力行数に追従する", () => {
+    const handle = mountVanillaMarkdownEditor(container, {
+      t,
+      initialContent: "# Hello",
+      persistModeState: false,
+    });
+    globalThis.dispatchEvent(new CustomEvent("vscode-set-mode", { detail: "source" }));
+    const gutter = handle.root.querySelector<HTMLElement>("[data-am-source-gutter]");
+    const textarea = handle.root.querySelector<HTMLTextAreaElement>(
+      "[data-am-source-textarea]",
+    );
+    expect(gutter).not.toBeNull();
+    // ガターと textarea は同一 wrapper 内（比較ビューは wrapper を隠すためガターも一緒に消える）。
+    const wrap = handle.root.querySelector<HTMLElement>("[data-am-source-wrap]");
+    expect(wrap?.contains(gutter!)).toBe(true);
+    expect(wrap?.contains(textarea!)).toBe(true);
+
+    textarea!.value = "a\nb\nc\nd";
+    textarea!.dispatchEvent(new Event("input"));
+    expect(gutter?.textContent).toBe("1\n2\n3\n4");
+
+    textarea!.value = "x";
+    textarea!.dispatchEvent(new Event("input"));
+    expect(gutter?.textContent).toBe("1");
+
+    // WYSIWYG 復帰でガターも消える。
+    globalThis.dispatchEvent(new CustomEvent("vscode-set-mode", { detail: "wysiwyg" }));
+    expect(handle.root.querySelector("[data-am-source-gutter]")).toBeNull();
     handle.destroy();
   });
 
@@ -129,9 +168,15 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
       initialContent: "---\ntitle: Test\n---\n\n# Body",
       showFrontmatter: true,
     });
+    const slot = handle.root.querySelector<HTMLElement>("[data-am-frontmatter-slot]");
+    expect(slot?.style.display).not.toBe("none");
     const fm = handle.root.querySelector<HTMLElement>("[data-am-frontmatter]");
-    expect(fm?.style.display).not.toBe("none");
-    expect(fm?.textContent).toContain("title: Test");
+    expect(fm).not.toBeNull();
+    // 折りたたみ既定: ヘッダのみ表示。クリックで展開して textarea に生フロントマターが入る。
+    expect(handle.root.querySelector("[data-frontmatter-editor]")).toBeNull();
+    fm?.querySelector<HTMLElement>("div")?.click();
+    const ta = handle.root.querySelector<HTMLTextAreaElement>("[data-frontmatter-editor]");
+    expect(ta?.value).toContain("title: Test");
     expect(handle.editor.getText()).not.toContain("title: Test");
     handle.destroy();
   });

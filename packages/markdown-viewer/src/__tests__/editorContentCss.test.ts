@@ -100,6 +100,17 @@ describe("buildEditorContentCss", () => {
     expect(light).toMatch(/scrollbar-thumb\s*\{\s*background:\s*rgba\(31,30,28,0\.40\);\s*border-radius:\s*0/);
   });
 
+  it("内側スクロール容器（コードブロック pre・図/数式プレビュー等）も外側と同じ 4px 幅に統一する", () => {
+    // 旧実装は [data-am-content]（外側）だけに 4px を当て、.tiptap 配下の overflow:auto 容器
+    // （CodeBlockBlockContent のプレビュー等）が OS 既定幅に戻り、箇所によりスクロールバー幅が
+    // 不揃いになる回帰（2026-06-14 報告）。.tiptap 配下も同一指定で統一する。
+    for (const css of [dark, light]) {
+      expect(css).toMatch(/\.tiptap \*::-webkit-scrollbar\s*\{\s*width:\s*4px;\s*height:\s*4px/);
+      expect(css).toMatch(/\.tiptap \*::-webkit-scrollbar-thumb\s*\{\s*background:/);
+      expect(css).toMatch(/\[data-am-editor-root\] \.tiptap \*\s*\{[^}]*scrollbar-width:\s*thin/);
+    }
+  });
+
   it("admonition は絵文字様記号を使わず SVG マスクアイコン + テキストラベルで表現する", () => {
     // 旧 Unicode 記号（ⓘ ☘ ✉ ⚠ ⊙）を含まない
     for (const glyph of ["ⓘ", "☘", "✉", "⚠", "⊙"]) {

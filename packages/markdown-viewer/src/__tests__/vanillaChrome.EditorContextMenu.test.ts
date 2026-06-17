@@ -36,6 +36,7 @@ import {
   createEditorContextMenu,
   type EditorContextMenuHandle,
 } from "../components-vanilla/EditorContextMenu";
+import { setMergeEditors } from "../contexts/MergeEditorsContext";
 
 /** chain() の呼び出しを記録する fluent proxy。run() まで全メソッドを記録する。 */
 function createChainRecorder(commands: string[], lastArgs: { value?: unknown }) {
@@ -61,6 +62,8 @@ interface MockEditorOptions {
   isEditable?: boolean;
   selectionFrom?: number;
   selectionTo?: number;
+  /** doc.textBetween の戻り値（選択コピー時にこの文字列がクリップボードへ渡る）。 */
+  copyText?: string;
 }
 
 function createMockEditor(opts: MockEditorOptions = {}) {
@@ -73,25 +76,41 @@ function createMockEditor(opts: MockEditorOptions = {}) {
   const from = opts.selectionFrom ?? 1;
   const to = opts.selectionTo ?? 1;
 
+  const initCommentsCalls: unknown[] = [];
+  // 実 ProseMirror では view.state === editor.state。performBlockCopy は view.state.selection を
+  // 読むため、同一の state オブジェクトを editor.state / view.state 双方へ割り当てる。
+  const state = {
+    selection: {
+      from,
+      to,
+      $from: { after: () => 2, depth: 1, node: () => ({ type: { name: "paragraph" } }), before: () => 0 },
+    },
+    doc: {
+      content: { size: 10 },
+      resolve: () => ({ nodeBefore: null }),
+      nodeAt: () => null,
+      textBetween: () => opts.copyText ?? "",
+    },
+    tr: { insert: () => ({ scrollIntoView: () => ({}) }), doc: { content: { size: 10 } } },
+  };
   const editor = {
     isEditable: opts.isEditable ?? true,
-    state: {
-      selection: {
-        from,
-        to,
-        $from: { after: () => 2, depth: 1, node: () => ({ type: { name: "paragraph" } }), before: () => 0 },
+    commands: {
+      initComments: (m: unknown) => {
+        initCommentsCalls.push(m);
+        return true;
       },
-      doc: { content: { size: 10 }, resolve: () => ({ nodeBefore: null }), nodeAt: () => null },
-      tr: { insert: () => ({ scrollIntoView: () => ({}) }), doc: { content: { size: 10 } } },
     },
+    state,
     view: {
       dom,
+      state,
       dispatch: (tr: unknown) => dispatched.push(tr),
     },
     chain: () => createChainRecorder(commands, lastArgs),
   };
 
-  return { editor: editor as never, commands, lastArgs, dispatched, dom };
+  return { editor: editor as never, commands, lastArgs, dispatched, dom, initCommentsCalls };
 }
 
 const t = (key: string) => key;
@@ -202,26 +221,7 @@ describe("createEditorContextMenu", () => {
     expect(labels.some((l) => l.includes("clearScreen"))).toBe(true);
   });
 
-  it("onSwitchToReview を渡すとモード切替項目（review / wysiwyg / source）を追加する", () => {
-    const m = createMockEditor();
-    document.body.appendChild(m.dom);
-    handle = createEditorContextMenu({
-      editor: m.editor,
-      t,
-      currentMode: "wysiwyg",
-      onSwitchToReview: () => {},
-      onSwitchToWysiwyg: () => {},
-      onSwitchToSource: () => {},
-    });
-
-    fireContextMenu(m.dom);
-    const labels = itemLabels();
-    expect(labels.some((l) => l.includes("review"))).toBe(true);
-    expect(labels.some((l) => l.includes("wysiwyg"))).toBe(true);
-    expect(labels.some((l) => l.includes("source"))).toBe(true);
-  });
-
-  it("onSwitchToReview 未指定ならモード切替項目を表示しない", () => {
+  it("モード切替項目（review / wysiwyg / source）は表示しない（ツールバーへ集約）", () => {
     const m = createMockEditor();
     document.body.appendChild(m.dom);
     handle = createEditorContextMenu({ editor: m.editor, t, currentMode: "wysiwyg" });
@@ -229,6 +229,77 @@ describe("createEditorContextMenu", () => {
     fireContextMenu(m.dom);
     const labels = itemLabels();
     expect(labels.some((l) => l.includes("review"))).toBe(false);
+    expect(labels.some((l) => l.includes("wysiwyg"))).toBe(false);
+    // source 行は出ないこと（pasteAsMarkdown 等の通常項目は別途存在）。
+    expect(labels).not.toContain("source");
+  });
+
+  describe("比較モード左ペインの readOnly オーバーライド", () => {
+    const ariaDisabled = (label: string): string | null =>
+      queryMenuItems().find((li) => (li.textContent ?? "").includes(label))
+        ?.getAttribute("aria-disabled") ?? null;
+
+    afterEach(() => setMergeEditors(null));
+
+    it("左ペイン右クリックでは編集モードでも paste/clearScreen が disabled（レビュー相当）", () => {
+      const main = createMockEditor(); // 編集可能な本文（右ペイン）
+      const left = createMockEditor(); // readOnly な比較（左ペイン）
+      const wrap = document.createElement("div");
+      wrap.append(main.dom, left.dom);
+      document.body.appendChild(wrap);
+      setMergeEditors({ rightEditor: main.editor, leftEditor: left.editor });
+      handle = createEditorContextMenu({ editor: main.editor, t, currentMode: "wysiwyg", extraContainer: wrap });
+
+      fireContextMenu(left.dom);
+      expect(ariaDisabled("paste")).toBe("true");
+      expect(ariaDisabled("clearScreen")).toBe("true");
+    });
+
+    it("右ペイン（本文）右クリックは従来どおり編集可能（paste 有効）", () => {
+      const main = createMockEditor();
+      const left = createMockEditor();
+      const wrap = document.createElement("div");
+      wrap.append(main.dom, left.dom);
+      document.body.appendChild(wrap);
+      setMergeEditors({ rightEditor: main.editor, leftEditor: left.editor });
+      handle = createEditorContextMenu({ editor: main.editor, t, currentMode: "wysiwyg", extraContainer: wrap });
+
+      fireContextMenu(main.dom);
+      expect(ariaDisabled("paste")).not.toBe("true");
+    });
+
+    it("左ペインの copy は左ペインのエディタ内容をコピーする（主エディタではない）", () => {
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      const main = createMockEditor({ selectionFrom: 1, selectionTo: 5, copyText: "MAIN_TEXT" });
+      const left = createMockEditor({ selectionFrom: 1, selectionTo: 5, copyText: "LEFT_TEXT" });
+      const wrap = document.createElement("div");
+      wrap.append(main.dom, left.dom);
+      document.body.appendChild(wrap);
+      setMergeEditors({ rightEditor: main.editor, leftEditor: left.editor });
+      handle = createEditorContextMenu({ editor: main.editor, t, currentMode: "wysiwyg", extraContainer: wrap });
+
+      fireContextMenu(left.dom);
+      clickItemByLabel("copy");
+      expect(writeText).toHaveBeenCalledWith("LEFT_TEXT");
+    });
+
+    it("左ペインで開閉した後は右ペインが編集可能に戻る（オーバーライド復元）", () => {
+      const main = createMockEditor();
+      const left = createMockEditor();
+      const wrap = document.createElement("div");
+      wrap.append(main.dom, left.dom);
+      document.body.appendChild(wrap);
+      setMergeEditors({ rightEditor: main.editor, leftEditor: left.editor });
+      handle = createEditorContextMenu({ editor: main.editor, t, currentMode: "wysiwyg", extraContainer: wrap });
+
+      // 左ペイン: readOnly（paste disabled）。
+      fireContextMenu(left.dom);
+      expect(ariaDisabled("paste")).toBe("true");
+      // 右ペインを開くと openMenu→handleClose で復元され、編集可能に戻る。
+      fireContextMenu(main.dom);
+      expect(ariaDisabled("paste")).not.toBe("true");
+    });
   });
 
   it("readOnly では cut/paste/clearScreen が disabled（aria-disabled=true）になる", () => {
@@ -245,24 +316,15 @@ describe("createEditorContextMenu", () => {
     expect(byLabel("clearScreen")?.getAttribute("aria-disabled")).toBe("true");
   });
 
-  it("選択もブロックも無いと copy が disabled、現在のモード切替項目も disabled", () => {
+  it("選択もブロックも無いと copy が disabled になる", () => {
     const m = createMockEditor({ selectionFrom: 1, selectionTo: 1 });
     document.body.appendChild(m.dom);
-    handle = createEditorContextMenu({
-      editor: m.editor,
-      t,
-      currentMode: "review",
-      onSwitchToReview: () => {},
-      onSwitchToWysiwyg: () => {},
-      onSwitchToSource: () => {},
-    });
+    handle = createEditorContextMenu({ editor: m.editor, t, currentMode: "review" });
 
     fireContextMenu(m.dom);
     const byLabel = (label: string) =>
       queryMenuItems().find((li) => (li.textContent ?? "").includes(label));
     expect(byLabel("copy")?.getAttribute("aria-disabled")).toBe("true");
-    // currentMode === "review" の review 項目は disabled。
-    expect(byLabel("review")?.getAttribute("aria-disabled")).toBe("true");
   });
 
   it("選択があると copy が有効になる", () => {
@@ -285,7 +347,27 @@ describe("createEditorContextMenu", () => {
 
     expect(m.commands).toContain("clearContent");
     expect(m.commands).toContain("run");
+    // 画面クリア時はコメント plugin state も空 Map で初期化する。
+    expect(m.initCommentsCalls.length).toBe(1);
+    expect(m.initCommentsCalls[0]).toBeInstanceOf(Map);
+    expect((m.initCommentsCalls[0] as Map<string, unknown>).size).toBe(0);
     expect(queryMenu()).toBeNull(); // 閉じている
+  });
+
+  it("source モードの clearScreen ではコメント初期化を呼ばない", () => {
+    const m = createMockEditor();
+    const ta = document.createElement("textarea");
+    document.body.appendChild(ta);
+    handle = createEditorContextMenu({
+      editor: m.editor,
+      t,
+      currentMode: "source",
+      extraContainer: ta,
+      sourceTextarea: ta,
+    });
+    fireContextMenu(ta);
+    clickItemByLabel("clearScreen");
+    expect(m.initCommentsCalls.length).toBe(0);
   });
 
   it("source モードの clearScreen は textarea を空にし input を発火する", () => {
@@ -333,25 +415,6 @@ describe("createEditorContextMenu", () => {
     clickItemByLabel("copy");
 
     expect(writeText).toHaveBeenCalledWith("hello");
-  });
-
-  it("review 切替クリックで onSwitchToReview が呼ばれメニューが閉じる", () => {
-    const m = createMockEditor();
-    document.body.appendChild(m.dom);
-    let reviewCalled = 0;
-    handle = createEditorContextMenu({
-      editor: m.editor,
-      t,
-      currentMode: "wysiwyg",
-      onSwitchToReview: () => (reviewCalled += 1),
-      onSwitchToWysiwyg: () => {},
-      onSwitchToSource: () => {},
-    });
-
-    fireContextMenu(m.dom);
-    clickItemByLabel("review");
-    expect(reviewCalled).toBe(1);
-    expect(queryMenu()).toBeNull();
   });
 
   it("各メニュー項目に ListItemIcon(svg) と ListItemText を持つ", () => {

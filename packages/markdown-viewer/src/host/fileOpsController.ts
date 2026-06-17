@@ -15,6 +15,7 @@ import type { Editor } from "@anytime-markdown/markdown-core";
 import { STORAGE_KEY_FILENAME } from "../constants/storageKeys";
 import type { TranslationFn } from "../types";
 import type { FileHandle, FileSystemProvider } from "../types/fileSystem";
+import { clearDocumentAndComments } from "../utils/clearEditor";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
 import { clearNativeHandle, loadNativeHandle, saveNativeHandle } from "../utils/fileHandleStore";
 import { readFileAsText } from "../utils/fileReading";
@@ -201,8 +202,10 @@ export function createFileOpsController(
       const result = await provider.open();
       if (!result) return;
       setHandle(result.handle);
-      setDirty(false);
+      // content 適用は transaction を発行し markDirty を誘発するため、適用後に dirty をリセットする
+      // （適用前にリセットすると開いた直後に dirty 表示になる）。
       applyMarkdownContent(result.content);
+      setDirty(false);
     },
     async saveFile(): Promise<void> {
       const md = withTrailingNewline(getFullMarkdown());
@@ -245,10 +248,8 @@ export function createFileOpsController(
       if (options.getSourceMode()) {
         options.setSourceText("");
       } else {
-        editor.commands.clearContent();
-        if (typeof editor.commands.initComments === "function") {
-          editor.commands.initComments(new Map());
-        }
+        // 本文＋コメント状態を一括クリア（共有ヘルパー H2）。
+        clearDocumentAndComments(editor);
       }
       options.setFrontmatter(null);
       setHandle(null);

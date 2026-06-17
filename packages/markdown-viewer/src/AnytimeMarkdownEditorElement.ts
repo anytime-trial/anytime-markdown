@@ -26,6 +26,7 @@ import {
   type VanillaMarkdownEditorUpdatePatch,
 } from "./host/vanillaMarkdownEditor";
 import { getMarkdownFromEditorSafe } from "./utils/markdownSerializer";
+import { ensureChromeTokens } from "./utils/applyEditorThemeCssVars";
 
 /** handle から導出する editor 型（markdown-core への直接 import を避ける）。 */
 type EditorInstance = VanillaMarkdownEditorHandle["editor"];
@@ -56,8 +57,17 @@ export class AnytimeMarkdownEditorElement extends HTMLElementBase {
   private lastEmitted = "";
   /** フル options（escape hatch）。属性由来の既定より優先される。 */
   private fullOptions: Partial<MountVanillaMarkdownEditorOptions> = {};
+  /**
+   * この要素が chrome テーマトークン（`--am-color-*` 等）を自給したか。
+   * host（web-app 等）が未注入の素の consumer（拡張 / CDN）でのみ true になり、
+   * theme 切替時に自分が所有するトークンだけを再適用する。
+   */
+  private ownsChromeTokens = false;
 
   connectedCallback(): void {
+    // host（applyEditorThemeCssVars 呼び出し元）が未注入の素の consumer でも chrome 背景が
+    // 透けないよう、未注入時のみテーマトークンを自給する（fill-if-missing）。
+    this.ownsChromeTokens = ensureChromeTokens(this.currentTheme());
     this.mount();
   }
 
@@ -69,6 +79,10 @@ export class AnytimeMarkdownEditorElement extends HTMLElementBase {
     if (oldValue === newValue || !this.handle) return;
     if (name === "theme") {
       this.handle.update({ themeMode: this.currentTheme() });
+      // 自給したトークンのみ再適用する（host 管理時は host が追従するため触らない）。
+      if (this.ownsChromeTokens) {
+        ensureChromeTokens(this.currentTheme(), { force: true });
+      }
       return;
     }
     if (name === "read-only") {

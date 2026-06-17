@@ -43,11 +43,16 @@ import {
 } from "../utils/blockDiffComputation";
 import { computeFollowerScrollTop, type BlockOffset } from "../utils/blockScrollMap";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
+import { parseFrontmatter } from "../utils/frontmatterHelpers";
 import {
   applyCollapsedStates,
   collectCollapsedStates,
   normalizeCompareMarkdown,
 } from "../utils/mergeContentSync";
+import {
+  createFrontmatterCompareRow,
+  type FrontmatterCompareRowHandle,
+} from "./FrontmatterCompareRow";
 import {
   createMergeEditorPanel,
   type MergeEditorPanelHandle,
@@ -96,6 +101,12 @@ export interface CreateInlineMergeViewOptions {
   sourceMode: boolean;
   /** 編集（右）側の現在コンテンツ。ソースモードは sourceText、WYSIWYG は editorMarkdown を渡す。 */
   editorContent: string;
+  /**
+   * 本ファイル（右）の frontmatter。WYSIWYG では body から切り離されるため、frontmatter は
+   * body diff に含まれない。比較ファイル側は compareText から都度パースし、両者を比較行で並置する。
+   * null/未指定は frontmatter 無し。ソースモードでは frontmatter はテキスト diff に含まれるため未使用。
+   */
+  frontmatter?: string | null;
   /**
    * 左パネルの mermaid/plantuml/math/html/embed 描画に必須の codeBlock 拡張
    * （rich の CodeBlockWithMermaid）。
@@ -405,6 +416,27 @@ export function createInlineMergeView(
   fileInput.hidden = true;
   root.appendChild(fileInput);
 
+  // --- frontmatter 比較行（WYSIWYG のみ。左=比較 / 右=本文） ---
+  // 比較ファイルの frontmatter は compareText から都度パースする（body diff には含まれないため）。
+  // DOM への append は nav バー（不一致数・変更箇所のみ表示トグル）の後に行い、frontmatter 行を
+  // nav バーの下に配置する。
+  const compareFrontmatter = (): string | null =>
+    parseFrontmatter(store.getCompareText()).frontmatter;
+  const frontmatterRow: FrontmatterCompareRowHandle = createFrontmatterCompareRow({
+    t: state.t,
+    compareFrontmatter: compareFrontmatter(),
+    mainFrontmatter: state.frontmatter ?? null,
+  });
+  disposers.push(() => frontmatterRow.destroy());
+  const syncFrontmatterRow = (): void => {
+    // ソースモードでは frontmatter がテキスト diff に含まれるため比較行を隠す（hidden で内部一元管理）。
+    frontmatterRow.update({
+      hidden: state.sourceMode,
+      compareFrontmatter: compareFrontmatter(),
+      mainFrontmatter: state.frontmatter ?? null,
+    });
+  };
+
   // --- diff ナビゲーション + 折りたたみトグル ---
   const navBar = document.createElement("div");
   navBar.style.cssText =
@@ -452,6 +484,8 @@ export function createInlineMergeView(
 
   navBar.append(prevBtn.el, counter, nextBtn.el, navDivider, collapseBtn.el);
   root.appendChild(navBar);
+  // frontmatter 比較行は nav バーの下に配置する（不一致数・変更箇所のみ表示アイコンを上側に）。
+  root.appendChild(frontmatterRow.el);
   disposers.push(() => {
     prevTip.destroy();
     nextTip.destroy();
@@ -472,6 +506,23 @@ export function createInlineMergeView(
   leftPaneInner.style.cssText =
     "flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;";
   leftPaneWrap.appendChild(leftPaneInner);
+
+  // 比較ファイル未ロード時のプレースホルダ（「マークダウンファイルをDropしてください。」）。
+  // leftPaneWrap（position:relative）に重ね、pointer-events:none で下のドロップ判定を阻害しない。
+  // compareText が空のときのみ表示し、ファイル読込で非表示にする（updateLeftPlaceholder）。
+  // 上端に配置する（中央だと縦長ペインで埋もれて視認しづらい）。z-index:2 で左パネルの
+  // ソース textarea（.am-merge-textarea が z-index:1）より前面に出し、確実に見えるようにする。
+  const leftPlaceholder = document.createElement("div");
+  leftPlaceholder.setAttribute("data-am-merge-drop-placeholder", "");
+  leftPlaceholder.textContent = state.t("mergeDropPlaceholder");
+  leftPlaceholder.style.cssText =
+    "position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:center;" +
+    "padding:24px 16px 16px;text-align:center;pointer-events:none;z-index:2;" +
+    `font-size:${MERGE_INFO_FONT_SIZE + 2}px;color:var(--am-color-text-secondary);`;
+  leftPaneWrap.appendChild(leftPlaceholder);
+  const updateLeftPlaceholder = (): void => {
+    leftPlaceholder.style.display = store.getCompareText() === "" ? "flex" : "none";
+  };
 
   const flippedMerge = (blockId: number, direction: MergeDirection): void => {
     // 画面上の左右とデータモデルの左右が逆なので direction を反転する。
@@ -927,6 +978,8 @@ export function createInlineMergeView(
     notifyUndoRedo();
     normalizeCompareSource();
     if (!state.sourceMode) populateLeftEditor();
+    updateLeftPlaceholder();
+    syncFrontmatterRow();
     runDiffHighlight();
     runBlockAlignment();
   };

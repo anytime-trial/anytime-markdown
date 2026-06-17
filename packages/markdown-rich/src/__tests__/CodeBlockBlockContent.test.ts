@@ -115,6 +115,32 @@ describe("createCodeBlockNodeView (native content NodeView)", () => {
     expect(frame.style.borderColor).toContain("--am-color-divider");
   });
 
+  it("diagram 種別は previewEl の縦上限を解除し全高表示にする", () => {
+    // mermaid / plantuml / anytime-thinking-model は図が縦に長くても全体を表示する
+    // （縦スクロールさせない）。横方向の保険として overflow:auto は残す。
+    for (const language of ["mermaid", "plantuml", "anytime-thinking-model"]) {
+      const view = makeView({ language, codeCollapsed: false });
+      const preview = (view.dom as HTMLElement).querySelector(".rich-codeblock-preview") as HTMLElement;
+      expect(preview.style.maxHeight).toBe("none");
+    }
+  });
+
+  it("diagram 以外の preview 種別は previewEl の縦上限 400px を維持する", () => {
+    for (const language of ["math", "html"]) {
+      const view = makeView({ language, codeCollapsed: false });
+      const preview = (view.dom as HTMLElement).querySelector(".rich-codeblock-preview") as HTMLElement;
+      expect(preview.style.maxHeight).toBe("400px");
+    }
+  });
+
+  it("update() で regular→diagram に変わると previewEl の縦上限を解除する", () => {
+    const view = makeView({ language: "typescript" });
+    const preview = (view.dom as HTMLElement).querySelector(".rich-codeblock-preview") as HTMLElement;
+    expect(preview.style.maxHeight).toBe("400px");
+    view.update({ type: { name: "codeBlock" }, attrs: { language: "mermaid", codeCollapsed: false }, textContent: "" } as never);
+    expect(preview.style.maxHeight).toBe("none");
+  });
+
   it("update() で language 変更時に種別と code class を更新する", () => {
     const view = makeView({ language: "typescript" });
     const handled = view.update(

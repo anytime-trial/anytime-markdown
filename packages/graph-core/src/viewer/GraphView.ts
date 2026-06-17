@@ -176,6 +176,8 @@ export class GraphView {
     this.canvas.removeEventListener('pointerleave', this.onPointerLeave);
     this.canvas.removeEventListener('wheel', this.onWheel);
     if (this.rafId) cancelAnimationFrame(this.rafId);
+    // 登録済みノードクリックハンドラを解放（destroy 後の再登録による二重発火を防ぐ）
+    this.nodeClickHandlers.length = 0;
   }
 
   private contentBounds(): { minX: number; minY: number; maxX: number; maxY: number } | null {

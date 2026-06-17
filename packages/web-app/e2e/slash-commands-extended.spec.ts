@@ -13,7 +13,10 @@ test.describe("Slash Commands - Extended", () => {
     const menu = page.getByRole("menu", { name: "Type to filter..." });
     await expect(menu).toBeVisible();
     await menu.getByRole("menuitem", { name: /Heading 2/i }).click();
-    await page.keyboard.type("Test H2");
+    // スラッシュメニュー閉→エディタ再フォーカスが整う前に高速タイプすると先頭キーが落ちるため、
+    // 短い settle 後に低速タイプする（人間の入力では発生しない e2e 固有の競合の安定化）。
+    await page.waitForTimeout(100);
+    await page.keyboard.type("Test H2", { delay: 25 });
     await expect(editor.locator("h2")).toContainText("Test H2");
   });
 
@@ -48,14 +51,17 @@ test.describe("Slash Commands - Extended", () => {
     const menu1 = page.getByRole("menu", { name: "Type to filter..." });
     await expect(menu1).toBeVisible();
     await menu1.getByRole("menuitem", { name: /Heading 1/i }).click();
-    await page.keyboard.type("First Heading");
+    // メニュー閉→再フォーカス待ち（先頭キー欠落の安定化）。
+    await page.waitForTimeout(100);
+    await page.keyboard.type("First Heading", { delay: 25 });
     await page.keyboard.press("Enter");
 
     await page.keyboard.type("/h2");
     const menu2 = page.getByRole("menu", { name: "Type to filter..." });
     await expect(menu2).toBeVisible();
     await menu2.getByRole("menuitem", { name: /Heading 2/i }).click();
-    await page.keyboard.type("Second Heading");
+    await page.waitForTimeout(100);
+    await page.keyboard.type("Second Heading", { delay: 25 });
     await page.keyboard.press("Enter");
 
     // TOC を挿入

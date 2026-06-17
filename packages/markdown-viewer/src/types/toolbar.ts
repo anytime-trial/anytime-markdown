@@ -46,6 +46,8 @@ export interface ToolbarModeState {
   inlineMergeOpen: boolean;
   commentOpen?: boolean;
   explorerOpen?: boolean;
+  /** ノート網パネル（ホスト所有の右パネル）の開状態。 */
+  noteGraphOpen?: boolean;
 }
 
 /** モード切替ハンドラ */
@@ -58,4 +60,6 @@ export interface ToolbarModeHandlers {
   onToggleComments?: () => void;
   onMerge: () => void;
   onToggleExplorer?: () => void;
+  /** ノート網パネルのトグル（ホスト所有パネル提供時のみ）。 */
+  onToggleNoteGraph?: () => void;
 }

@@ -30,6 +30,7 @@ import {
   nextDialogTitleId,
   parseEmbedInfoString,
   setBlockAttrs,
+  ANYTIME_GRAPH_SAMPLES,
 } from "@anytime-markdown/markdown-viewer";
 import {
   findCodeBlockByIndex,
@@ -52,6 +53,10 @@ import { applyCodeBlockText } from "../components/codeblock/useCodeBlockEdit";
 import htmlSamples from "../constants/htmlSamples.json";
 import { getCachedMermaidSvg, requestMermaidRender } from "../hooks/useMermaidRender";
 import { buildPlantUmlImageUrl } from "../hooks/usePlantUmlRender";
+import DOMPurify from "dompurify";
+import { GRAPH_SVG_SANITIZE_CONFIG } from "../utils/graphSvgSanitize";
+import { renderAnytimeGraphPreviewHtml } from "./anytimeGraphPreview";
+import { attachAnytimeGraphInteractions } from "./anytimeGraphInteract";
 import { createCodeEditState } from "./codeEditState";
 import { captureDiagramPng, exportDiagramSource } from "./diagramCapture";
 import { createCodeBlockEditDialog } from "./createCodeBlockEditDialog";
@@ -398,6 +403,34 @@ export function installCodeBlockOverlay(
         baseUnsub?.();
         renderUnsub();
       };
+      return;
+    }
+    if (kind === "diagram" && language === "anytime-thinking-model") {
+      const hint = t("anytimeGraphHint");
+      const handle = createCodeBlockEditDialog({
+        ...common,
+        label: t("anytimeGraph"),
+        language: "anytime-thinking-model",
+        renderPreview: true,
+        renderPreviewHtml: (code, dark) =>
+          renderAnytimeGraphPreviewHtml(code, dark, hint, (svg) =>
+            DOMPurify.sanitize(svg, GRAPH_SVG_SANITIZE_CONFIG),
+          ),
+        // 編集可能時のみプレビュー上で WYSIWYG 操作（ラベル編集・追加/削除）を有効化する。
+        onPreviewRendered: editor.isEditable
+          ? (previewEl, dark) =>
+              attachAnytimeGraphInteractions({
+                previewEl,
+                getCode: () => editState.getFsCode(),
+                setCode: (dsl) => editState.onFsTextChange(dsl),
+                isDark: dark,
+                t,
+              })
+          : undefined,
+        // mermaid と同形式で全10図種をサンプル選択できるようにする。
+        customSamples: ANYTIME_GRAPH_SAMPLES,
+      });
+      activeDialog = handle;
       return;
     }
     // regular / html / その他 unknown kind はコード編集ダイアログ。

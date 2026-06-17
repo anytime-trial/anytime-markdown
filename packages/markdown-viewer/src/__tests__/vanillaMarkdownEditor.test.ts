@@ -65,6 +65,52 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     handle.destroy();
   });
 
+  it("editor root にテーマ連動の背景色（--am-color-bg-default）を持つ（素ページのダーク追従回帰）", () => {
+    // サイドツールバーは bodyRow 直下・[data-am-content] の外にあり背景 transparent のため、
+    // editor root に themed 背景が無いとテーマ非対応ページ（拡張等）でダーク時も白帯が残る。
+    const handle = mountVanillaMarkdownEditor(container, { t, sideToolbar: true });
+    const root = container.querySelector("[data-am-editor-root]") as HTMLElement;
+    expect(root.style.cssText).toContain("var(--am-color-bg-default)");
+    handle.destroy();
+  });
+
+  it("モバイルハンバーガー（<900px・サイドバー非表示時）を押すと more メニューが開く（配線漏れ回帰）", () => {
+    const handle = mountVanillaMarkdownEditor(container, { t, sideToolbar: true });
+    const mobileMore = container.querySelector<HTMLButtonElement>("[data-more-mobile] button");
+    expect(mobileMore).toBeTruthy();
+    mobileMore?.click();
+    // help popover（outline/comment/settings/version）が document.body に開く。
+    const menu = document.querySelector('[role="menu"]');
+    expect(menu).toBeTruthy();
+    expect(menu?.textContent ?? "").toContain("versionInfo");
+    handle.destroy();
+  });
+
+  it("サイドツールバーを全高レール（本文カラムの兄弟）として配置する（上から表示）", () => {
+    const handle = mountVanillaMarkdownEditor(container, { t, sideToolbar: true });
+    const bodyRow = container.querySelector("[data-am-editor-body-row]");
+    const mainColumn = container.querySelector("[data-am-editor-main-column]");
+    const railSlot = container.querySelector("[data-am-side-toolbar-slot]");
+    expect(bodyRow).toBeTruthy();
+    // レールは本文カラムの兄弟＝ツールバー横から最下部まで全高で並ぶ。
+    expect(railSlot?.parentElement).toBe(bodyRow);
+    expect(mainColumn?.parentElement).toBe(bodyRow);
+    // ツールバーは本文カラム内（レールの左）に入る。
+    expect(mainColumn?.querySelector("[data-am-toolbar-slot]")).toBeTruthy();
+    // 旧構成（mainRow 内にレール＝ツールバーの下から開始）に戻っていないこと。
+    expect(container.querySelector("[data-am-main-row] [data-am-side-toolbar-slot]")).toBeNull();
+    handle.destroy();
+  });
+
+  it("sideToolbar 指定でサイドツールバーにバージョン情報ボタンを配線する（host→side toolbar 統合）", () => {
+    const handle = mountVanillaMarkdownEditor(container, { t, sideToolbar: true });
+    const slot = container.querySelector("[data-am-side-toolbar-slot]") as HTMLElement;
+    expect(slot).toBeTruthy();
+    const versionBtn = slot.querySelector('button[aria-label="versionInfo"]');
+    expect(versionBtn).toBeTruthy();
+    handle.destroy();
+  });
+
   it("readOnly では editor が editable=false で mount される", () => {
     const handle = mountVanillaMarkdownEditor(container, { t, readOnly: true });
     expect(handle.editor.isEditable).toBe(false);
@@ -143,6 +189,90 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     const content = container.querySelector("[data-am-content]") as HTMLElement;
     expect(content.style.minWidth).toBe("0");
     handle.destroy();
+  });
+
+  describe(".md ドロップでファイルオープン（本文領域全体）", () => {
+    /** dataTransfer を持つ drag/drop イベントを生成する（jsdom は DataTransfer 非対応）。 */
+    function dragEvent(type: string, dt: Partial<DataTransfer>): Event {
+      const ev = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(ev, "dataTransfer", { value: dt });
+      return ev;
+    }
+
+    it("dragover(Files) で preventDefault しブラウザのファイル遷移を防ぐ", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      const content = container.querySelector("[data-am-content]") as HTMLElement;
+      const root = container.querySelector("[data-am-editor-root]") as HTMLElement;
+      const ev = dragEvent("dragover", { types: ["Files"] as unknown as DataTransfer["types"] });
+      content.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(true);
+      expect(root.dataset.fileDragOver).toBe("true");
+      handle.destroy();
+    });
+
+    it(".md ファイルのドロップで preventDefault し取り込みを起動する", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      const content = container.querySelector("[data-am-content]") as HTMLElement;
+      const file = new File(["# Dropped"], "dropped.md", { type: "text/markdown" });
+      const ev = dragEvent("drop", {
+        files: [file] as unknown as FileList,
+        items: [] as unknown as DataTransferItemList,
+        types: ["Files"] as unknown as DataTransfer["types"],
+      });
+      content.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(true);
+      handle.destroy();
+    });
+
+    it("ファイル無しのドロップは preventDefault せず既定/PM に委ねる", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      const content = container.querySelector("[data-am-content]") as HTMLElement;
+      const ev = dragEvent("drop", {
+        files: [] as unknown as FileList,
+        types: [] as unknown as DataTransfer["types"],
+      });
+      content.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(false);
+      handle.destroy();
+    });
+
+    it("PM が処理済み（defaultPrevented）のドロップは二重取り込みしない", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      const content = container.querySelector("[data-am-content]") as HTMLElement;
+      const file = new File(["# X"], "x.md", { type: "text/markdown" });
+      const ev = dragEvent("drop", {
+        files: [file] as unknown as FileList,
+        types: ["Files"] as unknown as DataTransfer["types"],
+      });
+      ev.preventDefault(); // PM の handleDrop が既に preventDefault した状態を模す
+      expect(() => content.dispatchEvent(ev)).not.toThrow();
+      handle.destroy();
+    });
+
+    it("ソースモードでも .md ドロップは preventDefault し取り込みを起動する（開くに統一）", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t, defaultSourceMode: true });
+      const content = container.querySelector("[data-am-content]") as HTMLElement;
+      const file = new File(["# Src"], "src.md", { type: "text/markdown" });
+      const ev = dragEvent("drop", {
+        files: [file] as unknown as FileList,
+        items: [] as unknown as DataTransferItemList,
+        types: ["Files"] as unknown as DataTransfer["types"],
+      });
+      content.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(true);
+      handle.destroy();
+    });
+
+    it("dragover 後にファイル無しドロップが来てもインジケータを残さない", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      const content = container.querySelector("[data-am-content]") as HTMLElement;
+      const root = container.querySelector("[data-am-editor-root]") as HTMLElement;
+      content.dispatchEvent(dragEvent("dragover", { types: ["Files"] as unknown as DataTransfer["types"] }));
+      expect(root.dataset.fileDragOver).toBe("true");
+      content.dispatchEvent(dragEvent("drop", { files: [] as unknown as FileList, types: [] as unknown as DataTransfer["types"] }));
+      expect(root.dataset.fileDragOver).toBeUndefined();
+      handle.destroy();
+    });
   });
 
   it("destroy で editor を破棄し root を container から除去する", () => {

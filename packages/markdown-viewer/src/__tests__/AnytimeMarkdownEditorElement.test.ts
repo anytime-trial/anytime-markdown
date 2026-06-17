@@ -29,8 +29,12 @@ jest.mock("@floating-ui/dom", () => ({
 import "../element"; // customElements.define の副作用を発火
 import { AnytimeMarkdownEditorElement } from "../AnytimeMarkdownEditorElement";
 
+const CHROME_GUARD_VAR = "--am-color-bg-paper";
+
 afterEach(() => {
   document.body.innerHTML = "";
+  // chrome トークンの fill-if-missing ガードをリセット（テスト間汚染防止）。
+  document.documentElement.style.removeProperty(CHROME_GUARD_VAR);
 });
 
 describe("AnytimeMarkdownEditorElement", () => {
@@ -105,5 +109,55 @@ describe("AnytimeMarkdownEditorElement", () => {
     el.options = { onContentChange: jest.fn() };
     document.body.appendChild(el);
     expect(() => el.update({ themeMode: "dark" })).not.toThrow();
+  });
+
+  // 素の WC consumer（ブラウザ拡張 / CDN 等、applyEditorThemeCssVars を呼ばないホスト）で
+  // chrome（ツールバー / 設定ドロワー / メニュー）の背景が透ける回帰を防ぐ。
+  // 背景は var(--am-color-bg-paper) を参照するが、これは applyEditorThemeCssVars でしか
+  // 注入されないため、要素自身が未注入時に補完する（fill-if-missing）。
+  describe("chrome テーマトークンの自給 (fill-if-missing)", () => {
+    const read = () =>
+      document.documentElement.style.getPropertyValue(CHROME_GUARD_VAR).trim();
+
+    it("未注入時、connect で documentElement に chrome トークンを補完する", () => {
+      document.documentElement.style.removeProperty(CHROME_GUARD_VAR);
+      const el = document.createElement("anytime-markdown-editor") as AnytimeMarkdownEditorElement;
+      document.body.appendChild(el);
+      expect(read()).not.toBe("");
+    });
+
+    it("host が既に注入済み(inline)なら上書きしない", () => {
+      document.documentElement.style.setProperty(CHROME_GUARD_VAR, "rgb(1, 2, 3)");
+      const el = document.createElement("anytime-markdown-editor") as AnytimeMarkdownEditorElement;
+      document.body.appendChild(el);
+      expect(read()).toBe("rgb(1, 2, 3)");
+    });
+
+    it("theme 属性に応じて light / dark で異なる値を補完する", () => {
+      document.documentElement.style.removeProperty(CHROME_GUARD_VAR);
+      const light = document.createElement("anytime-markdown-editor") as AnytimeMarkdownEditorElement;
+      document.body.appendChild(light);
+      const lightValue = read();
+
+      document.body.innerHTML = "";
+      document.documentElement.style.removeProperty(CHROME_GUARD_VAR);
+      const dark = document.createElement("anytime-markdown-editor") as AnytimeMarkdownEditorElement;
+      dark.setAttribute("theme", "dark");
+      document.body.appendChild(dark);
+      const darkValue = read();
+
+      expect(lightValue).not.toBe("");
+      expect(darkValue).not.toBe("");
+      expect(darkValue).not.toBe(lightValue);
+    });
+
+    it("自給した要素は theme 切替で再適用する（owns 時）", () => {
+      document.documentElement.style.removeProperty(CHROME_GUARD_VAR);
+      const el = document.createElement("anytime-markdown-editor") as AnytimeMarkdownEditorElement;
+      document.body.appendChild(el);
+      const lightValue = read();
+      el.setAttribute("theme", "dark");
+      expect(read()).not.toBe(lightValue);
+    });
   });
 });

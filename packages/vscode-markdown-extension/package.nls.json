@@ -23,5 +23,6 @@
   "configuration.claudeStatus.directory.description": "Directory where `claude-code-status.json` is stored. Absolute path or relative to workspace root. Defaults to `.anytime/` when empty.",
   "viewsContainer.title": "Anytime Markdown",
   "viewsWelcome.timeline": "Open a markdown file to see its history.",
-  "command.compareWithCommit": "Compare with this commit"
+  "command.compareWithCommit": "Compare with this commit",
+  "configuration.noteGraph.repositoryPath.description": "Target git repository for the Note Graph panel. Absolute path. Defaults to the git repository of the current document when empty (e.g. point this at a docs repository)."
 }

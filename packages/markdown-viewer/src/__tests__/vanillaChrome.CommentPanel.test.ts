@@ -22,16 +22,20 @@ const t = (key: string): string => key;
 
 interface MockEditor {
   comments: Map<string, InlineComment>;
-  updateListeners: Array<() => void>;
+  updateListeners: Array<(props?: unknown) => void>;
+  subscribedEvents: string[];
   commandCalls: Array<{ name: string; args: unknown[] }>;
-  emitUpdate: () => void;
+  emitUpdate: (props?: {
+    transaction?: { docChanged?: boolean };
+    appendedTransactions?: Array<{ docChanged?: boolean }>;
+  }) => void;
   // CommentPanel が触る最小 API。
   state: unknown;
   view: unknown;
   commands: Record<string, (...args: unknown[]) => boolean>;
   chain: () => unknown;
-  on: (event: string, fn: () => void) => void;
-  off: (event: string, fn: () => void) => void;
+  on: (event: string, fn: (props?: unknown) => void) => void;
+  off: (event: string, fn: (props?: unknown) => void) => void;
 }
 
 /**
@@ -43,7 +47,8 @@ interface MockEditor {
 function makeEditor(initial: InlineComment[] = []): MockEditor {
   const comments = new Map<string, InlineComment>();
   for (const c of initial) comments.set(c.id, c);
-  const updateListeners: Array<() => void> = [];
+  const updateListeners: Array<(props?: unknown) => void> = [];
+  const subscribedEvents: string[] = [];
   const commandCalls: Array<{ name: string; args: unknown[] }> = [];
 
   // commentDataPluginKey.getState(state) は ProseMirror 内部で state.config.pluginsByKey を引く。
@@ -86,8 +91,12 @@ function makeEditor(initial: InlineComment[] = []): MockEditor {
   return {
     comments,
     updateListeners,
+    subscribedEvents,
     commandCalls,
-    emitUpdate: () => updateListeners.forEach((fn) => fn()),
+    emitUpdate: (props?: {
+      transaction?: { docChanged?: boolean };
+      appendedTransactions?: Array<{ docChanged?: boolean }>;
+    }) => updateListeners.forEach((fn) => fn(props)),
     state,
     view: { domAtPos: () => ({ node: document.createElement("div") }), dispatch: () => {} },
     commands: {
@@ -97,7 +106,10 @@ function makeEditor(initial: InlineComment[] = []): MockEditor {
       updateCommentText: cmd("updateCommentText"),
     },
     chain: chainProxy,
-    on: (_event, fn) => updateListeners.push(fn),
+    on: (event, fn) => {
+      subscribedEvents.push(event);
+      updateListeners.push(fn);
+    },
     off: (_event, fn) => {
       const i = updateListeners.indexOf(fn);
       if (i >= 0) updateListeners.splice(i, 1);
@@ -140,11 +152,12 @@ const comment = (over: Partial<InlineComment> = {}): InlineComment => ({
 });
 
 describe("createCommentPanel", () => {
-  it("Paper ルートを返しヘッダー（タイトル + close）とフィルタを描画する", () => {
+  it("Paper ルートを返しヘッダー（タイトル）とフィルタを描画する", () => {
     const { handle, root } = mount();
     expect(root.getAttribute("data-variant")).toBe("outlined");
     expect(root.textContent).toContain("commentPanel");
-    expect(root.querySelector('[aria-label="close"]')).toBeTruthy();
+    // ヘッダーの close(×) は撤去済み（開閉はサイドツールバーのコメントトグルで行う）。
+    expect(root.querySelector('[aria-label="close"]')).toBeNull();
     // フィルタ 3 ボタン。
     const toggleButtons = root.querySelectorAll('[role="group"] button');
     expect(toggleButtons.length).toBe(3);
@@ -301,13 +314,6 @@ describe("createCommentPanel", () => {
     handle.destroy();
   });
 
-  it("close ボタンで onClose を呼ぶ", () => {
-    let closed = 0;
-    const { handle, root } = mount({ onClose: () => { closed += 1; } });
-    (root.querySelector('[aria-label="close"]') as HTMLElement).click();
-    expect(closed).toBe(1);
-    handle.destroy();
-  });
 
   it("カードクリックで onNavigate を呼ぶ（found 時）", () => {
     // doc.descendants が commentHighlight を返すよう editor を細工。
@@ -345,6 +351,47 @@ describe("createCommentPanel", () => {
     editor.comments.set("new", comment({ id: "new", text: "added later" }));
     editor.emitUpdate();
     expect(root.textContent).toContain("added later");
+    handle.destroy();
+  });
+
+  // resolve / unresolve / updateText は doc 非変更（meta のみ）のため tiptap は `update` を
+  // 発火しない。`transaction` を購読しないと「解決」「削除」が無反応になる退行を防ぐ。
+  it("doc 非変更の更新も拾うため transaction イベントを購読する", () => {
+    const { handle, editor } = mount();
+    expect(editor.subscribedEvents).toContain("transaction");
+    expect(editor.subscribedEvents).not.toContain("update");
+    handle.destroy();
+  });
+
+  it("doc 非変更でもコメント状態が変わると再描画される（resolve 相当）", () => {
+    const { handle, editor, root } = mount({}, [comment({ id: "x", resolved: false })]);
+    expect(root.textContent).toContain("commentResolve");
+    // resolve をシミュレート（plugin state の resolved のみ変更・doc は不変）。
+    editor.comments.set("x", comment({ id: "x", resolved: true }));
+    editor.emitUpdate({ transaction: { docChanged: false } });
+    expect(root.textContent).toContain("commentUnresolve");
+    handle.destroy();
+  });
+
+  it("コメントも doc も不変の transaction では再描画しない（選択移動等）", () => {
+    const { handle, editor, root } = mount({}, [comment({ id: "x" })]);
+    const card = root.querySelector("[data-am-comment-card]");
+    expect(card).not.toBeNull();
+    editor.emitUpdate({ transaction: { docChanged: false } });
+    // 同一ノードのまま（listBody.replaceChildren による再構築が起きていない）。
+    expect(root.querySelector("[data-am-comment-card]")).toBe(card);
+    handle.destroy();
+  });
+
+  it("appendedTransactions の docChanged でも再描画する（tiptap 本体の判定に整合）", () => {
+    const { handle, editor, root } = mount({}, [comment({ id: "x" })]);
+    const card = root.querySelector("[data-am-comment-card]");
+    editor.emitUpdate({
+      transaction: { docChanged: false },
+      appendedTransactions: [{ docChanged: true }],
+    });
+    // 再描画され別ノードに作り直されている。
+    expect(root.querySelector("[data-am-comment-card]")).not.toBe(card);
     handle.destroy();
   });
 

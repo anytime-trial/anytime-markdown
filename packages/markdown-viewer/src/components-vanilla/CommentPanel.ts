@@ -18,8 +18,10 @@
  *   editor.commands を直接呼ぶ既定実装にフォールバックする。
  * - `useIsDark` は不要（ui-vanilla は `--am-color-*` CSS 変数でテーマ追従する）。
  *   `getDivider` / `getTextSecondary` / `getTextDisabled` は対応する `--am-color-*` を直接参照する。
- * - `useEditorState`（コメント Map / 画像アノテーション）→ `editor.on("update")` 購読 + 手続き的
- *   再描画（destroy で off）。
+ * - `useEditorState`（コメント Map / 画像アノテーション）→ `editor.on("transaction")` 購読 +
+ *   手続き的再描画（destroy で off）。`update` ではなく `transaction` を購読するのは、resolve/
+ *   updateText が doc 非変更（meta のみ）のトランザクションで `update` を発火しないため。
+ *   コメント状態シグネチャか docChanged が変化したときだけ再描画する。
  * - useState（filter / editingId / editText）/ useRef（isCommittingRef）→ closure 変数。
  *   Ctrl+Enter → commitEdit と onBlur → commitEdit の二重実行抑止フラグも closure（React 版
  *   isCommittingRef と同一ロジック）。
@@ -29,7 +31,6 @@
 import {
   createButton,
   createDivider,
-  createIconButton,
   createPaper,
   createTextField,
   createToggleButton,
@@ -47,15 +48,15 @@ import {
   SMALL_CAPTION_FONT_SIZE,
 } from "../constants/dimensions";
 import { commentDataPluginKey } from "../extensions/commentExtension";
+import { REVIEW_MODE_ALLOW_META } from "../extensions/reviewModeExtension";
 import type { Editor } from "@anytime-markdown/markdown-core";
 import type { TranslationFn } from "../types";
 import type { ImageAnnotation } from "../types/imageAnnotation";
 import { parseAnnotations, serializeAnnotations } from "../types/imageAnnotation";
 import type { InlineComment } from "../utils/commentHelpers";
+import { onCommentStateChange } from "../utils/commentStateSubscription";
 
-// ui/icons.tsx と同一の Material SVG path（Close / Image）。
-const ICON_CLOSE =
-  "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z";
+// ui/icons.tsx と同一の Material SVG path（Image）。
 const ICON_IMAGE =
   "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2M8.5 13.5l2.5 3.01L14.5 12l4.5 6H5z";
 
@@ -90,8 +91,6 @@ export interface CreateCommentPanelOptions {
   onUpdateText?: (commentId: string, text: string) => void;
   /** comment / 画像へジャンプする。未指定時は editor のカーソル移動 + scrollIntoView。 */
   onNavigate?: (pos: number) => void;
-  /** 閉じる要求（ヘッダーの close ボタン）。React `onClose` 相当。 */
-  onClose?: () => void;
 }
 
 /** {@link createCommentPanel} の戻り値（パネル系。呼び元が el を配置する）。 */
@@ -172,8 +171,8 @@ function readImageAnnotations(editor: Editor): AnnotatedImage[] {
 }
 
 /**
- * vanilla CommentPanel を生成する。`el`（Paper ルート）を呼び元が配置する。editor の update を
- * 購読してコメント一覧/画像アノテーションを手続き的に再描画する。`destroy()` で購読解除する。
+ * vanilla CommentPanel を生成する。`el`（Paper ルート）を呼び元が配置する。editor の transaction
+ * を購読してコメント一覧/画像アノテーションを手続き的に再描画する。`destroy()` で購読解除する。
  */
 export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPanelHandle {
   ensureStyleInjected();
@@ -263,6 +262,8 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
       ...node.attrs,
       annotations: serializeAnnotations(updated),
     });
+    // レビューモードでもアノテーション操作を通す（doc 変更だが許可対象）。
+    tr.setMeta(REVIEW_MODE_ALLOW_META, true);
     editor.view.dispatch(tr);
     onSave();
   };
@@ -278,6 +279,8 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
       ...node.attrs,
       annotations: serializeAnnotations(updated),
     });
+    // レビューモードでもアノテーション削除を通す（doc 変更だが許可対象）。
+    tr.setMeta(REVIEW_MODE_ALLOW_META, true);
     editor.view.dispatch(tr);
     onSave();
   };
@@ -297,7 +300,8 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     },
   }).el;
 
-  // --- ヘッダー（タイトル + close） ---
+  // --- ヘッダー（タイトル） ---
+  // パネルの開閉はサイドツールバーのコメントトグルで行うため、ヘッダーに close(×) は置かない。
   const header = document.createElement("div");
   header.style.cssText =
     "display:flex;align-items:center;padding-left:8px;padding-right:8px;" +
@@ -307,13 +311,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     "margin:0;flex:1;font-weight:700;font-size:0.875rem;line-height:1.57;letter-spacing:0.00714em;";
   headerTitle.setAttribute("aria-live", "polite");
   headerTitle.setAttribute("aria-atomic", "true");
-  const closeBtn = createIconButton({
-    size: "small",
-    ariaLabel: t("close") || "Close",
-    children: svgIcon(ICON_CLOSE, 18),
-    onClick: () => opts.onClose?.(),
-  });
-  header.append(headerTitle, closeBtn.el);
+  header.append(headerTitle);
   root.appendChild(header);
 
   // --- フィルタ（ToggleButtonGroup） ---
@@ -638,21 +636,22 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
   // 初回描画。
   render();
 
-  // editor update を購読し再描画する（React useEditorState 相当）。
-  const onEditorUpdate = (): void => {
+  // コメント状態または doc の変化を共有プリミティブで購読する（H1）。resolve 等の
+  // doc 非変更（meta のみ）の更新も `transaction` 経由で拾う。再描画の固有判定（編集中ガード）は
+  // 本コールバックに残す（プリミティブは「変化したか」だけを判定する）。
+  const unsubscribe = onCommentStateChange(editor, () => {
     // 編集中は再描画すると編集 TextField が破棄されフォーカスを失うため、
     // editingId が無いとき（または編集対象が消えたとき）のみ再描画する。
     if (editingId) {
       const stillExists = readComments(editor).some((c) => c.id === editingId);
       if (stillExists) {
-        // 編集中のコメントが残っている間はヘッダーカウントのみ更新（一覧は維持）。
+        // 編集中のコメントが残っている間は一覧を維持する。
         return;
       }
       editingId = null;
     }
     render();
-  };
-  editor.on("update", onEditorUpdate);
+  });
 
   let destroyed = false;
   return {
@@ -660,10 +659,9 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     destroy() {
       if (destroyed) return;
       destroyed = true;
-      editor.off("update", onEditorUpdate);
+      unsubscribe();
       for (const h of bodyHandles) h.destroy();
       bodyHandles = [];
-      closeBtn.destroy();
       filterGroup.destroy();
     },
   };

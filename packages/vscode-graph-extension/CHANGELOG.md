@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-17
+
+### Graph Core (graph-core)
+
+- Added thinking-method diagram support (presets, DSL parser, SVG rendering for 10 types).
+- Added the `buildNoteGraph` preset for frontmatter-derived document note graphs, plus a spec→DSL serializer and `node.metadata.path`.
+
 ## [0.6.0] - 2026-06-13
 
 ### Graph Core (graph-core / graph-viewer)

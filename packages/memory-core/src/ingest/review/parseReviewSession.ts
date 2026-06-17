@@ -282,7 +282,8 @@ export function parseReviewSessions(input: {
             m.tool_calls, m.subagent_type, m.skill
      FROM trail.messages m
      WHERE m.timestamp >= ?
-       AND (m.subagent_type IN ('code-reviewer', 'superpowers:code-reviewer')
+       AND (m.subagent_type = 'code-reviewer'
+         OR m.subagent_type LIKE '%:code-reviewer'
          OR m.skill IN ('superpowers:requesting-code-review', 'code-review-checklist', 'security-review'))
      ORDER BY m.session_id, m.timestamp`,
   );

@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-17
+
+### Added
+
+- Added a frontmatter-derived note graph viewer (document-centric view with backlinks) rendered via `graph-core`.
+- Added in-preview WYSIWYG editing for thinking-method diagrams (`anytime-thinking-model`).
+- Added a line-number gutter to source mode.
+- Added a `.md` drop affordance: dropping a markdown file onto the content area (and the compare-mode left pane) opens it.
+- Added a light/dark theme toggle to the side toolbar (later consolidated into the settings panel).
+
+### Changed
+
+- Reworked the side toolbar into a full-height right rail; reordered its actions and moved dark-mode switching into the settings panel.
+- Made the save toolbar icon enabled only when there are unsaved changes (dirty gate).
+- Removed mode-switch (review/edit/source) items from the right-click context menu; the compare-mode left pane now shows a read-only (review) menu.
+- Consolidated compare-mode source display into `InlineMergeView`.
+- Aligned editor spacing, scrollbars, focus, and font sizing with the design spec.
+
+### Fixed
+
+- Followed dark mode for the editor root background and source-mode text color.
+- Fixed a regression where entering compare mode from source mode briefly showed a single WYSIWYG view.
+- Self-supplied chrome theme tokens in the Web Component so backgrounds no longer show through for plain consumers.
+
 ## [1.2.0] - 2026-06-13
 
 ### Added

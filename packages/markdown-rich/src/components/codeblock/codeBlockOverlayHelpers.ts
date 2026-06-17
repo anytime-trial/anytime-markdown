@@ -16,7 +16,10 @@ export function codeBlockToolbarLabel(
   switch (kind) {
     case "math": return "Math";
     case "html": return t("htmlPreview");
-    case "diagram": return language === "mermaid" ? t("mermaid") : t("plantuml");
+    case "diagram":
+      if (language === "mermaid") return t("mermaid");
+      if (language === "anytime-thinking-model") return t("anytimeGraph");
+      return t("plantuml");
     case "embed": return "Embed";
     default: return language ? `Code (${language})` : "Code";
   }

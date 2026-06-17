@@ -64,6 +64,9 @@ const webviewConfig = {
       ...buildWebpackAlias(),
       '@': path.resolve(__dirname, '../markdown-viewer/src'),
       '@anytime-markdown/markdown-engine': path.resolve(__dirname, '../markdown-engine/src/index.ts'),
+      // graph-core はワークスペース src を直接解決する（worktree の node_modules
+      // symlink が main checkout を指すため、alias で当該 worktree の src に固定）。
+      '@anytime-markdown/graph-core': path.resolve(__dirname, '../graph-core/src/index.ts'),
     },
   },
   module: {

@@ -39,6 +39,18 @@ export interface CreateCodeBlockEditDialogOptions {
   customSamples?: SampleItem[];
   /** renderPreview = true のとき右ペインに syntax highlight プレビューを出す */
   renderPreview?: boolean;
+  /**
+   * renderPreview = true 時、プレビュー HTML を独自生成する（図のレンダリング等）。
+   * 未指定なら構文ハイライトを表示する。戻り値は呼び出し側でサニタイズ済みであること。
+   * テーマ依存の描画に対応できるよう isDark を渡す。
+   */
+  renderPreviewHtml?: (code: string, isDark: boolean) => string;
+  /**
+   * renderPreview = true 時、プレビュー HTML 設定直後に呼ばれる汎用フック。
+   * 描画済みプレビュー要素へ操作層（WYSIWYG ハンドラ等）を装着するために使う。
+   * 戻り値のクリーンアップ関数は次回 render 前・dialog 破棄時に呼ばれる。
+   */
+  onPreviewRendered?: (previewEl: HTMLElement, isDark: boolean) => (() => void) | void;
   state: CodeEditState;
   t: (key: string) => string;
   onClose: () => void;
@@ -59,6 +71,8 @@ function ensureDialogStyle(): void {
 .am-cbed-preview{flex:1;display:flex;flex-direction:column;overflow:auto;padding:12px;font-family:monospace;white-space:pre;}
 .am-cbed-preview pre{margin:0;}
 .am-cbed-preview code{display:block;white-space:pre-wrap;word-break:break-word;}
+.am-cbed-preview svg{max-width:100%;height:auto;display:block;margin:0 auto;}
+.am-cbed-preview .anytime-graph-error{white-space:pre-wrap;color:var(--am-color-text-secondary, #888);font-family:monospace;margin:0;}
 `);
 }
 
@@ -168,11 +182,20 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
   split.el.style.flex = "1 1 auto";
 
   // ---- 状態同期 ----
+  let previewCleanup: (() => void) | void;
   function render(): void {
     lnt.update({ value: state.getFsCode(), isDark, fontSize, lineHeight });
     header.update({ dirty: state.isFsDirty() });
     if (previewEl) {
-      previewEl.innerHTML = buildHighlightHtml(state.getFsCode(), language);
+      // 前回装着した操作層を破棄してから再描画する（ハンドラ・ポップオーバーの宙吊り防止）。
+      if (previewCleanup) {
+        previewCleanup();
+        previewCleanup = undefined;
+      }
+      previewEl.innerHTML = opts.renderPreviewHtml
+        ? opts.renderPreviewHtml(state.getFsCode(), isDark)
+        : buildHighlightHtml(state.getFsCode(), language);
+      previewCleanup = opts.onPreviewRendered?.(previewEl, isDark);
     }
   }
 
@@ -184,6 +207,10 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
   return {
     el: dlg.el,
     destroy() {
+      if (previewCleanup) {
+        previewCleanup();
+        previewCleanup = undefined;
+      }
       unsub();
       split.destroy();
       dlg.destroy();

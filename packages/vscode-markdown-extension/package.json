@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -181,6 +181,11 @@
           "type": "string",
           "default": "",
           "description": "%configuration.claudeStatus.directory.description%"
+        },
+        "anytimeMarkdown.noteGraph.repositoryPath": {
+          "type": "string",
+          "default": "",
+          "description": "%configuration.noteGraph.repositoryPath.description%"
         }
       }
     },
@@ -306,6 +311,7 @@
     "webpack-cli": "6.0.1"
   },
   "dependencies": {
+    "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/markdown-viewer": "*",
     "@anytime-markdown/markdown-rich": "*",
     "@anytime-markdown/vscode-common": "*",

@@ -1,18 +1,7 @@
-import markdownCoreEnMessages from '@anytime-markdown/markdown-viewer/src/i18n/en.json';
-import markdownCoreJaMessages from '@anytime-markdown/markdown-viewer/src/i18n/ja.json';
 import { cookies } from 'next/headers';
 import { getRequestConfig } from 'next-intl/server';
 
-import pressEnMessages from '../app/press/i18n/en.json';
-import pressJaMessages from '../app/press/i18n/ja.json';
-
-const supportedLocales = ['ja', 'en'] as const;
-type Locale = (typeof supportedLocales)[number];
-const defaultLocale: Locale = 'ja';
-
-const mergedJa = { ...markdownCoreJaMessages, press: pressJaMessages };
-const mergedEn = { ...markdownCoreEnMessages, press: pressEnMessages };
-const messagesByLocale: Record<Locale, typeof mergedJa> = { ja: mergedJa, en: mergedEn };
+import { defaultLocale, type Locale, messagesByLocale, supportedLocales } from './messages';
 
 export default getRequestConfig(async () => {
   let locale: Locale = defaultLocale;

@@ -4,6 +4,7 @@ import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
+import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
 
 import LandingHeader from '../components/LandingHeader';
@@ -39,8 +40,15 @@ const richIssueLink = (chunks: React.ReactNode) => (
   </Link>
 );
 
+const richServicesLink = (chunks: React.ReactNode) => (
+  <Link component={NextLink} href="/privacy/services">
+    {chunks}
+  </Link>
+);
+
 export default function PrivacyBody() {
   const t = useTranslations('Privacy');
+  const tServices = useTranslations('PrivacyServices');
 
   return (
     <Box sx={{ minHeight: '100vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -51,6 +59,9 @@ export default function PrivacyBody() {
         </Typography>
         <Typography variant="body2" color="text.secondary" gutterBottom>
           {t('lastUpdated')}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          {tServices.rich('crossLinkToServices', { link: richServicesLink })}
         </Typography>
 
         <Section title={t('section1Title')}>
