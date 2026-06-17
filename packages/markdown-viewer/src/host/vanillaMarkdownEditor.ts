@@ -278,7 +278,12 @@ interface VanillaLayout {
 function buildLayout(): VanillaLayout {
   const root = document.createElement("div");
   root.setAttribute("data-am-editor-root", "");
-  root.style.cssText = "display:flex;flex-direction:column;height:100%;min-height:0;";
+  // テーマ連動の背景色を root に持たせる。サイドツールバー（bodyRow 直下・[data-am-content] の外・
+  // 背景 transparent）はこの面に乗るため、themed 背景が無いとテーマ非対応ページ（拡張 / CDN）で
+  // ダーク時も白帯が残る。--am-color-bg-default は両ホストの applyEditorThemeCssVars と WC の
+  // ensureChromeTokens が供給し、テーマ切替で再適用される（未供給時は無効値で透明＝従来挙動へ縮退）。
+  root.style.cssText =
+    "display:flex;flex-direction:column;height:100%;min-height:0;background-color:var(--am-color-bg-default);";
 
   const toolbarSlot = document.createElement("div");
   toolbarSlot.setAttribute("data-am-toolbar-slot", "");

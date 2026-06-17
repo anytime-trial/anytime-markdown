@@ -65,6 +65,15 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     handle.destroy();
   });
 
+  it("editor root にテーマ連動の背景色（--am-color-bg-default）を持つ（素ページのダーク追従回帰）", () => {
+    // サイドツールバーは bodyRow 直下・[data-am-content] の外にあり背景 transparent のため、
+    // editor root に themed 背景が無いとテーマ非対応ページ（拡張等）でダーク時も白帯が残る。
+    const handle = mountVanillaMarkdownEditor(container, { t, sideToolbar: true });
+    const root = container.querySelector("[data-am-editor-root]") as HTMLElement;
+    expect(root.style.cssText).toContain("var(--am-color-bg-default)");
+    handle.destroy();
+  });
+
   it("モバイルハンバーガー（<900px・サイドバー非表示時）を押すと more メニューが開く（配線漏れ回帰）", () => {
     const handle = mountVanillaMarkdownEditor(container, { t, sideToolbar: true });
     const mobileMore = container.querySelector<HTMLButtonElement>("[data-more-mobile] button");
