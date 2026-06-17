@@ -434,6 +434,7 @@
     "semanticDiff": "Semantic comparison",
     "mergeNavPrev": "Previous change",
     "mergeNavNext": "Next change",
+    "mergeDropPlaceholder": "Drop a Markdown file here.",
     "collapseUnchanged": "Show changes only",
     "expandLines": "Show {count} unchanged lines",
     "expandBlocks": "Show {count} unchanged blocks",

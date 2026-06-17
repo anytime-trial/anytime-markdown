@@ -507,6 +507,21 @@ export function createInlineMergeView(
     "flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;";
   leftPaneWrap.appendChild(leftPaneInner);
 
+  // 比較ファイル未ロード時のプレースホルダ（「マークダウンファイルをDropしてください。」）。
+  // leftPaneWrap（position:relative）に重ね、pointer-events:none で下のドロップ判定を阻害しない。
+  // compareText が空のときのみ表示し、ファイル読込で非表示にする（updateLeftPlaceholder）。
+  const leftPlaceholder = document.createElement("div");
+  leftPlaceholder.setAttribute("data-am-merge-drop-placeholder", "");
+  leftPlaceholder.textContent = state.t("mergeDropPlaceholder");
+  leftPlaceholder.style.cssText =
+    "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;" +
+    "padding:16px;text-align:center;pointer-events:none;" +
+    `font-size:${MERGE_INFO_FONT_SIZE + 2}px;color:var(--am-color-text-secondary);`;
+  leftPaneWrap.appendChild(leftPlaceholder);
+  const updateLeftPlaceholder = (): void => {
+    leftPlaceholder.style.display = store.getCompareText() === "" ? "flex" : "none";
+  };
+
   const flippedMerge = (blockId: number, direction: MergeDirection): void => {
     // 画面上の左右とデータモデルの左右が逆なので direction を反転する。
     const flipped: MergeDirection = direction === "left-to-right" ? "right-to-left" : "left-to-right";
@@ -961,6 +976,7 @@ export function createInlineMergeView(
     notifyUndoRedo();
     normalizeCompareSource();
     if (!state.sourceMode) populateLeftEditor();
+    updateLeftPlaceholder();
     syncFrontmatterRow();
     runDiffHighlight();
     runBlockAlignment();
