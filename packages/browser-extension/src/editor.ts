@@ -118,6 +118,8 @@ function createEditor(initialContent: string, initialTheme: "light" | "dark"): v
   // web-app と同じく onThemeModeChange を配線するとサイドツールバーに light/dark
   // 切替アイコンが表示される。切替時は `theme` 属性を更新（WC が editor 本文・chrome
   // トークン・アイコンを同期）し、選択を storage に永続化する。
+  // host の themeMode は callback 内で直接は更新せず、属性 set → attributeChangedCallback
+  // → handle.update({themeMode}) 経由で逆流同期される（次回トグルの基準値もこれで整う）。
   el.options = {
     sideToolbar: true,
     hide: { explorer: true },
