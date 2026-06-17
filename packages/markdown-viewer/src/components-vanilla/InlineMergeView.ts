@@ -510,12 +510,14 @@ export function createInlineMergeView(
   // 比較ファイル未ロード時のプレースホルダ（「マークダウンファイルをDropしてください。」）。
   // leftPaneWrap（position:relative）に重ね、pointer-events:none で下のドロップ判定を阻害しない。
   // compareText が空のときのみ表示し、ファイル読込で非表示にする（updateLeftPlaceholder）。
+  // 上端に配置する（中央だと縦長ペインで埋もれて視認しづらい）。z-index:2 で左パネルの
+  // ソース textarea（.am-merge-textarea が z-index:1）より前面に出し、確実に見えるようにする。
   const leftPlaceholder = document.createElement("div");
   leftPlaceholder.setAttribute("data-am-merge-drop-placeholder", "");
   leftPlaceholder.textContent = state.t("mergeDropPlaceholder");
   leftPlaceholder.style.cssText =
-    "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;" +
-    "padding:16px;text-align:center;pointer-events:none;" +
+    "position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:center;" +
+    "padding:24px 16px 16px;text-align:center;pointer-events:none;z-index:2;" +
     `font-size:${MERGE_INFO_FONT_SIZE + 2}px;color:var(--am-color-text-secondary);`;
   leftPaneWrap.appendChild(leftPlaceholder);
   const updateLeftPlaceholder = (): void => {
