@@ -18,6 +18,7 @@
     "packages/markdown-core",
     "packages/spreadsheet-core",
     "packages/spreadsheet-viewer",
+    "packages/chart-core",
     "packages/graph-react-islands",
     "packages/database-core",
     "packages/database-viewer",
