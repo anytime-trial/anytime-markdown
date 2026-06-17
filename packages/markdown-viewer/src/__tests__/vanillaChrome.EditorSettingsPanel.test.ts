@@ -87,13 +87,13 @@ describe("createEditorSettingsPanel", () => {
     handle.destroy();
   });
 
-  it("table width のトグルクリックで onUpdate({tableWidth}) を呼ぶ", () => {
-    const { handle, updates } = mount();
-    const fullBtn = Array.from(paper().querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("settingTableFull"),
-    ) as HTMLButtonElement;
-    fullBtn.click();
-    expect(updates).toContainEqual({ tableWidth: "100%" });
+  it("テーブル幅 / ブロック要素の配置 / 単語の折り返しセクションを描画しない（UI 撤去）", () => {
+    const { handle } = mount();
+    const text = paper().textContent ?? "";
+    expect(text).not.toContain("settingTableWidth");
+    expect(text).not.toContain("settingTableFull");
+    expect(text).not.toContain("settingBlockAlign");
+    expect(text).not.toContain("settingWordBreak");
     handle.destroy();
   });
 

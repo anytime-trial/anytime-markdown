@@ -253,20 +253,8 @@ export function createEditorSettingsPanel(
 
   body.appendChild(dividerEl());
 
-  // --- テーブル幅 / ブロック整列 ---
-  body.appendChild(
-    toggleSection("settingTableWidth", "tableWidthSelect", settings.tableWidth, [
-      { value: "auto", label: t("settingTableAuto") },
-      { value: "100%", label: t("settingTableFull") },
-    ], (v) => onUpdate({ tableWidth: v as EditorSettings["tableWidth"] })),
-  );
-  body.appendChild(
-    toggleSection("settingBlockAlign", "settingBlockAlign", settings.blockAlign, [
-      { value: "left", label: t("settingAlignLeft") },
-      { value: "center", label: t("settingAlignCenter") },
-      { value: "right", label: t("settingAlignRight") },
-    ], (v) => onUpdate({ blockAlign: v as EditorSettings["blockAlign"] })),
-  );
+  // テーブル幅（既定: auto）/ ブロック要素の配置（既定: left）の設定は UI から撤去した。
+  // 値は EditorSettings の既定（tableWidth:"auto" / blockAlign:"left"）に固定される。
 
   // --- 用紙サイズ（Select）+ 余白（Slider・paperSize !== off のときのみ表示） ---
   const paperSelect = createSelect<EditorSettings["paperSize"]>({
@@ -317,15 +305,8 @@ export function createEditorSettingsPanel(
 
   body.appendChild(dividerEl());
 
-  // --- 改行 ---
-  body.appendChild(
-    toggleSection("settingWordBreak", "settingWordBreak", settings.wordBreak, [
-      { value: "normal", label: t("settingWordBreakNormal") },
-      { value: "keep-all", label: t("settingWordBreakKeepAll") },
-    ], (v) => onUpdate({ wordBreak: v as EditorSettings["wordBreak"] })),
-  );
-
-  body.appendChild(dividerEl());
+  // 単語の折り返し（既定: keep-all）の設定は UI から撤去した。
+  // 値は EditorSettings の既定（wordBreak:"keep-all"）に固定される。
 
   // --- スペルチェック ---
   const spellRow = document.createElement("div");

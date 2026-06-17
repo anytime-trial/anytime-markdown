@@ -79,15 +79,15 @@ describe("createEditorSideToolbar", () => {
       expect(btns[3].getAttribute("aria-label")).toBe("editorSettings");
     });
 
-    it("onOpenVersionDialog 指定でバージョン情報ボタンを最後に描画する", () => {
+    it("並び順は上から バージョン情報 / アウトライン / コメント / 設定", () => {
       handle = createEditorSideToolbar({
         t,
         onToggleComment: () => {},
         onOpenSettings: () => {},
         onOpenVersionDialog: () => {},
       });
-      const btns = buttons(handle);
-      expect(btns[btns.length - 1].getAttribute("aria-label")).toBe("versionInfo");
+      const labels = buttons(handle).map((b) => b.getAttribute("aria-label"));
+      expect(labels).toEqual(["versionInfo", "outline", "commentPanel", "editorSettings"]);
     });
 
     it("バージョン情報ボタンのクリックで onOpenVersionDialog を呼ぶ", () => {
@@ -104,14 +104,14 @@ describe("createEditorSideToolbar", () => {
       expect(onOpenVersionDialog).toHaveBeenCalledTimes(1);
     });
 
-    it("バージョン情報は設定の直下に置き margin-top:auto で最下部へ押し下げない（画面外回帰防止）", () => {
+    it("バージョン情報は最上部に置き margin-top:auto で押し下げない（画面外回帰防止）", () => {
       handle = createEditorSideToolbar({
         t,
         onToggleComment: () => {},
         onOpenSettings: () => {},
         onOpenVersionDialog: () => {},
       });
-      // 全高サイドバーで margin-top:auto を使うと version が画面外へ押し下げられ見落とされる。
+      // margin-top:auto を使うとレイアウト次第で version が画面外へ押し出され見落とされる。
       const pushedToBottom = [...handle.el.querySelectorAll<HTMLElement>("div")].some((d) =>
         d.style.cssText.includes("margin-top: auto"),
       );
@@ -126,40 +126,13 @@ describe("createEditorSideToolbar", () => {
       expect(hasVersion).toBe(false);
     });
 
-    it("onToggleTheme 指定でテーマ切替ボタンを描画しクリックで呼ぶ", () => {
-      const onToggleTheme = jest.fn();
+    it("light/dark テーマ切替ボタンは描画しない（設定パネルへ移設）", () => {
       handle = createEditorSideToolbar({
         t,
         onToggleComment: () => {},
-        onToggleTheme,
-        themeMode: "light",
+        onOpenSettings: () => {},
+        onOpenVersionDialog: () => {},
       });
-      const btn = handle.el.querySelector<HTMLButtonElement>(
-        'button[aria-label="settingDarkMode"]',
-      );
-      expect(btn).toBeTruthy();
-      btn?.click();
-      expect(onToggleTheme).toHaveBeenCalledTimes(1);
-    });
-
-    it("light は月・dark は太陽アイコンを表示し update(themeMode) で切り替わる", () => {
-      handle = createEditorSideToolbar({
-        t,
-        onToggleComment: () => {},
-        onToggleTheme: () => {},
-        themeMode: "light",
-      });
-      const iconD = () =>
-        handle!.el
-          .querySelector('button[aria-label="settingDarkMode"] svg path')
-          ?.getAttribute("d") ?? "";
-      expect(iconD().startsWith("M12 3c")).toBe(true); // 月（light 時）
-      handle.update({ themeMode: "dark" });
-      expect(iconD().startsWith("M12 7c")).toBe(true); // 太陽（dark 時）
-    });
-
-    it("onToggleTheme 未指定ならテーマ切替ボタンを描画しない", () => {
-      handle = createEditorSideToolbar({ t, onToggleComment: () => {} });
       expect(handle.el.querySelector('button[aria-label="settingDarkMode"]')).toBeNull();
     });
 
