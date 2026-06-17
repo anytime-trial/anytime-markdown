@@ -355,6 +355,9 @@ describe("createInlineMergeView", () => {
       expect(ph.style.display).not.toBe("none");
       // 下のドロップ判定を阻害しないこと。
       expect(ph.style.pointerEvents).toBe("none");
+      // 上端配置 + ソース textarea(z-index:1) より前面（z-index:2）で確実に視認できること。
+      expect(ph.style.alignItems).toBe("flex-start");
+      expect(ph.style.zIndex).toBe("2");
     });
 
     it("compareContent ロード後はプレースホルダを非表示にする", () => {
