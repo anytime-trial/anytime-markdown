@@ -40,6 +40,14 @@ export interface CreateSourceModeControllerOptions {
   defaultSourceMode?: boolean;
   /** mode を localStorage に永続化するか（既定 true・React 版と同一キー）。 */
   persistMode?: boolean;
+  /**
+   * 比較モード等、表示を外部（InlineMergeView）が一元管理する間 true を返す。
+   * true の間は source モードの standalone DOM（textarea / 行番号ガター / editor.view.dom の
+   * display 操作 / contentEl への append）を抑止し、mode/text のストアに徹する。
+   * 比較 enter/exit の受け渡しは {@link SourceModeController.detachStandaloneUi} /
+   * {@link SourceModeController.attachStandaloneUi} で明示的に行う。
+   */
+  isExternallyManaged?: () => boolean;
 }
 
 /** {@link createSourceModeController} の戻り値。 */
@@ -55,6 +63,10 @@ export interface SourceModeController {
   getSourceWrap(): HTMLElement | null;
   /** コメント操作用: 一時的にレビューフィルタを解除してコマンドを実行する。 */
   executeInReviewMode(fn: () => void): void;
+  /** 比較 enter 用: standalone source UI を撤去する（mode/text は保持）。 */
+  detachStandaloneUi(): void;
+  /** 比較 exit 用: source モードなら standalone source UI を再生成する。 */
+  attachStandaloneUi(): void;
   destroy(): void;
 }
 
@@ -154,7 +166,7 @@ export function createSourceModeController(
     delete editor.view.dom.dataset.readonlyMode;
   };
 
-  const showTextarea = (): void => {
+  const doShowTextarea = (): void => {
     if (textarea) return;
     sourceWrap = document.createElement("div");
     sourceWrap.setAttribute("data-am-source-wrap", "");
@@ -194,7 +206,7 @@ export function createSourceModeController(
     renderGutter();
   };
 
-  const hideTextarea = (): void => {
+  const doHideTextarea = (): void => {
     sourceWrap?.remove();
     sourceWrap = null;
     gutter = null;
@@ -205,6 +217,17 @@ export function createSourceModeController(
       contentEl.style.overflow = prevContentOverflow;
       prevContentOverflow = null;
     }
+  };
+
+  // 比較モード等で表示を外部が一元管理する間は standalone DOM を触らない
+  // （applyMode 内の sourceText 更新・syncSourceToEditor 等の内容同期は実行される）。
+  const showTextarea = (): void => {
+    if (options.isExternallyManaged?.()) return;
+    doShowTextarea();
+  };
+  const hideTextarea = (): void => {
+    if (options.isExternallyManaged?.()) return;
+    doHideTextarea();
   };
 
   /** source テキストをエディタへ反映して source モードを抜ける際の同期。 */
@@ -274,6 +297,15 @@ export function createSourceModeController(
     switchTo: applyMode,
     getTextarea: () => textarea,
     getSourceWrap: () => sourceWrap,
+    detachStandaloneUi(): void {
+      // 比較 enter: standalone source UI を撤去（mode/text は保持）。外部管理ガードに
+      // 関わらず DOM を片付けるため do* を直接呼ぶ。
+      doHideTextarea();
+    },
+    attachStandaloneUi(): void {
+      // 比較 exit: source モードのときだけ standalone textarea を再生成する。
+      if (mode === "source") doShowTextarea();
+    },
     executeInReviewMode(fn: () => void): void {
       const storage = reviewStorage();
       if (storage) storage.enabled = false;
