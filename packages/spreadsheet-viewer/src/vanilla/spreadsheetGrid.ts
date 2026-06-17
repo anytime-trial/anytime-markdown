@@ -8,6 +8,7 @@ import type {
   SheetAdapter,
   SpreadsheetSelection,
 } from "@anytime-markdown/spreadsheet-core";
+import type { TableRange } from "@anytime-markdown/chart-core";
 import {
   columnLabel,
   DEFAULT_GRID_COLS,
@@ -124,6 +125,8 @@ export interface SpreadsheetGridOptions {
   t?: SpreadsheetT;
   /** t 未指定時のロケール（未指定時は navigator.language） */
   locale?: string;
+  /** 選択範囲からチャート作成コールバック（未指定時はコンテキストメニュー非表示）。 */
+  onCreateChart?: (range: TableRange) => void;
 }
 
 export interface SpreadsheetGridHandle {
@@ -1595,6 +1598,7 @@ export function mountSpreadsheetGrid(
             updateToolbarState();
             scheduleDraw();
           },
+          onCreateChart: options.onCreateChart,
           t,
         },
       );

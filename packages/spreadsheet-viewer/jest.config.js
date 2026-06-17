@@ -14,6 +14,8 @@ const config = {
   maxWorkers: 1,
   moduleNameMapper: {
     "^@anytime-markdown/spreadsheet-core$": "<rootDir>/../spreadsheet-core/src/index.ts",
+    "^@anytime-markdown/chart-core/element$": "<rootDir>/../chart-core/src/element.ts",
+    "^@anytime-markdown/chart-core$": "<rootDir>/../chart-core/src/index.ts",
   },
 };
 module.exports = config;

@@ -43,6 +43,8 @@ function triggerDownload(filename: string, text: string, mime: string): void {
   URL.revokeObjectURL(url);
 }
 
+import type { TableRange } from "@anytime-markdown/chart-core";
+
 export interface SpreadsheetEditorOptions {
   locale?: string;
   t?: SpreadsheetT;
@@ -63,6 +65,8 @@ export interface SpreadsheetEditorOptions {
   onUndo?: () => void;
   onRedo?: () => void;
   pagination?: PaginationProps;
+  /** 選択範囲からチャート作成コールバック（未指定時はコンテキストメニュー非表示）。 */
+  onCreateChart?: (range: TableRange) => void;
 }
 
 export interface SpreadsheetEditorUpdatePatch {
@@ -233,6 +237,7 @@ export function mountSpreadsheetEditor(
       onClose: options.onClose,
       onUndo: options.onUndo,
       onRedo: options.onRedo,
+      onCreateChart: options.onCreateChart,
       t,
     });
   };
