@@ -127,6 +127,11 @@ export interface CreateEditorToolbarOptions {
   editor: Editor | null;
   fileHandlers: ToolbarFileHandlers;
   fileCapabilities?: ToolbarFileCapabilities;
+  /**
+   * 未保存変更の有無。save ボタンは「保存が必要なとき（dirty=true）のみ」有効化する。
+   * 既定 false（編集前は disabled）。dirty 変化のたびに {@link EditorToolbarHandle.update} で更新する。
+   */
+  isDirty?: boolean;
   modeState: ToolbarModeState;
   modeHandlers: ToolbarModeHandlers;
   mergeUndoRedo?: MergeUndoRedo | null;
@@ -198,7 +203,11 @@ export function createEditorToolbar(
   let modeState = opts.modeState;
   const modeHandlers = opts.modeHandlers;
   let mergeUndoRedo = opts.mergeUndoRedo ?? null;
-  const fileCapabilities = opts.fileCapabilities;
+  let fileCapabilities = opts.fileCapabilities;
+  // 未保存変更の有無（save ボタンの dirty ゲート）。update({ isDirty }) で追従する。
+  let isDirty = opts.isDirty ?? false;
+  // save ボタンの toggle ハンドル（dirty / fileCapabilities 変化で disabled を再評価するため保持）。
+  let saveBtn: ReturnType<typeof createToggleButton> | null = null;
   const hide = opts.hide ?? {};
   // 旧 EditorToolbar.module.css parity: ビュー群/compare/More(desktop) は md 未満で非表示、
   // More(mobile) は md 以上で非表示。display は本スタイルが所有する（inline に置かない）。
@@ -284,10 +293,16 @@ export function createEditorToolbar(
     root.appendChild(buildFileActions());
   }
 
+  // save ボタンの disabled 判定。readonly / ファイルハンドル無し / 未編集（dirty=false）のいずれかで無効。
+  // 「保存が必要なときのみ有効」を満たすため dirty ゲートを最後に AND する。
+  function saveDisabled(): boolean {
+    return Boolean(modeState.readonlyMode) || !fileCapabilities?.hasFileHandle || !isDirty;
+  }
+
   function buildFileActions(): HTMLElement {
     const wrap = document.createElement("div");
     wrap.style.cssText = "display:inline-flex;align-items:center;";
-    const { hasFileHandle, supportsDirectAccess, externalSaveOnly } = fileCapabilities ?? {};
+    const { supportsDirectAccess, externalSaveOnly } = fileCapabilities ?? {};
     const readonlyMode = modeState.readonlyMode;
 
     const group = createToggleButtonGroup({ size: "small", ariaLabel: t("fileActions") });
@@ -303,7 +318,7 @@ export function createEditorToolbar(
         disabled?: boolean;
         onClick: () => void;
       },
-    ): void => {
+    ): ReturnType<typeof createToggleButton> => {
       const span = iconSpan(opt.icon);
       const btn = createToggleButton({
         value: opt.value,
@@ -316,15 +331,16 @@ export function createEditorToolbar(
       btn.el.style.padding = "2px 6px";
       withTooltip(span, opt.tipTitle);
       group.register(btn);
+      return btn;
     };
 
     if (externalSaveOnly) {
-      addBtn({
+      saveBtn = addBtn({
         value: "save",
         ariaLabel: t("saveFile"),
         icon: PATH.save,
-        tipTitle: hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle"),
-        disabled: readonlyMode || !hasFileHandle,
+        tipTitle: fileCapabilities?.hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle"),
+        disabled: saveDisabled(),
         onClick: () => fileHandlers.onSaveFile?.(),
       });
     } else if (supportsDirectAccess) {
@@ -335,12 +351,12 @@ export function createEditorToolbar(
         tipTitle: tip(t, "openFile"),
         onClick: () => fileHandlers.onOpenFile?.(),
       });
-      addBtn({
+      saveBtn = addBtn({
         value: "save",
         ariaLabel: t("saveFile"),
         icon: PATH.save,
-        tipTitle: hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle"),
-        disabled: readonlyMode || !hasFileHandle,
+        tipTitle: fileCapabilities?.hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle"),
+        disabled: saveDisabled(),
         onClick: () => fileHandlers.onSaveFile?.(),
       });
       addBtn({
@@ -700,8 +716,12 @@ export function createEditorToolbar(
       }
       if (next.modeState !== undefined) modeState = next.modeState;
       if (next.mergeUndoRedo !== undefined) mergeUndoRedo = next.mergeUndoRedo ?? null;
-      // 注: fileCapabilities は構築時のみ反映（buildFileActions は一度だけ）。動的更新が必要に
-      //   なったら buildFileActions の再生成・差し替えを実装する。ここでは no-op を避けるため握り潰さない。
+      if (next.isDirty !== undefined) isDirty = next.isDirty;
+      // fileCapabilities の構造（externalSaveOnly / supportsDirectAccess）は構築時固定だが、
+      // hasFileHandle はファイルを開く/保存で変化するため最新値を保持し disabled 再評価に使う。
+      if (next.fileCapabilities !== undefined) fileCapabilities = next.fileCapabilities;
+      // save ボタンの dirty / handle / readonly ゲートを再評価（編集→保存要、保存後→不要）。
+      saveBtn?.update({ disabled: saveDisabled() });
 
       // モード／compare の選択値を group へ反映。
       modeGroup?.setValue(currentMode());

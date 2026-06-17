@@ -642,8 +642,15 @@ export function mountVanillaMarkdownEditor(
         getSourceMode: () => modeState.sourceMode === true,
         getSourceText: () => sourceController?.getSourceText() ?? "",
         setSourceText: (text) => sourceController?.setSourceText(text),
-        onFileStateChange: ({ fileName, isDirty }) =>
-          statusBar?.update({ fileName: fileName ?? current.fileName, isDirty }),
+        onFileStateChange: ({ fileName, isDirty }) => {
+          statusBar?.update({ fileName: fileName ?? current.fileName, isDirty });
+          // save ボタンの dirty ゲート（保存が必要なときのみ有効化）。ファイルを開く/保存で
+          // hasFileHandle も変わるため、最新ハンドル状態と合わせてツールバーへ反映する。
+          toolbar?.update({
+            isDirty,
+            fileCapabilities: { ...fileCapabilities, hasFileHandle: fileOps.hasFileHandle() },
+          });
+        },
         notify: (key) => {
           layout.liveRegion.textContent = t(key);
         },
@@ -983,6 +990,7 @@ export function mountVanillaMarkdownEditor(
           modeHandlers,
           fileHandlers,
           fileCapabilities,
+          isDirty: fileOps.isDirty(),
           hide: {
             ...current.hide,
             readonlyToggle:
