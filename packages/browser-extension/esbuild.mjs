@@ -28,9 +28,13 @@ const OUT_DIR = "dist";
 rmSync(OUT_DIR, { recursive: true, force: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
-// アイコン未生成なら生成する。
+// アイコンはコミット済みアセット（public/icons/）。欠落時は手動再生成を促す。
+// 自動生成（generate-icons.mjs）は sharp 依存のため通常ビルド経路では呼ばない。
 if (!existsSync("public/icons") || readdirSync("public/icons").length === 0) {
-  await import("./scripts/generate-icons.mjs");
+  throw new Error(
+    "[browser-extension] public/icons/ が空です。" +
+      "`node scripts/generate-icons.mjs` で再生成してください（要 sharp）。",
+  );
 }
 
 const fileLoaders = {
