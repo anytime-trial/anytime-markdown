@@ -1079,6 +1079,12 @@ export function mountVanillaMarkdownEditor(
         modeState.sourceMode
           ? (sourceController?.getSourceText() ?? "")
           : editorMarkdown;
+      // 比較中の editor.view.dom 表示制御: sourceMode は比較ビューが textarea で表示を担い、
+      // editor（editorMountEl）は contentEl 上の孤児になるため隠す。WYSIWYG は右ペインへ移設した
+      // editor を表示する（detachStandaloneUi の display 復帰や renderWysiwyg の非リセットを上書き）。
+      const applyCompareEditorVisibility = (): void => {
+        editor.view.dom.style.display = modeState.sourceMode ? "none" : "";
+      };
       syncMergeView = (): void => {
         if (modeState.inlineMergeOpen && !mergeView) {
           // WYSIWYG では右パネルが editorMountEl（editor.options.element）ごと自分の中へ移設する。
@@ -1108,6 +1114,7 @@ export function mountVanillaMarkdownEditor(
             onUndoRedoChange: (handle) => toolbar?.update({ mergeUndoRedo: handle }),
           });
           contentEl.appendChild(mergeView.el);
+          applyCompareEditorVisibility();
         } else if (modeState.inlineMergeOpen && mergeView) {
           mergeView.update({
             sourceMode: modeState.sourceMode === true,
@@ -1115,6 +1122,7 @@ export function mountVanillaMarkdownEditor(
             frontmatter,
             compareContent: compareFileContent,
           });
+          applyCompareEditorVisibility();
         } else if (!modeState.inlineMergeOpen && mergeView) {
           mergeView.destroy();
           mergeView.el.remove();
