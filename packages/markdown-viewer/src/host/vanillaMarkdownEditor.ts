@@ -26,6 +26,7 @@ import { buildEditorExtensions } from "../buildEditorExtensions";
 import { STORAGE_KEY_CONTENT } from "../constants/storageKeys";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import { createEditorDOMHandlers } from "../hooks/useEditorDOMEvents";
+import { tryImportDroppedMdFile } from "../utils/editorImageHandlers";
 import { getEditorStorage, getMarkdownFromEditor, type HeadingItem, type TranslationFn } from "../types";
 import { DEFAULT_SETTINGS, type EditorSettings } from "../editorSettings";
 import type { ThemePresetName } from "../constants/themePresets";
@@ -1170,6 +1171,48 @@ export function mountVanillaMarkdownEditor(
       editor.setOptions({ editorProps: domHandlers });
       disposers.push(() => {
         editorPlainRef.current = null;
+      });
+
+      // === 本文領域全体（[data-am-content]）への .md ドロップでファイルオープン ==========
+      // ProseMirror の handleDrop は .ProseMirror 上のドロップしか拾えないため、用紙余白や
+      // 短い文書の下など本文領域の空白に落とすと PM に届かず、ブラウザがファイルへ遷移して
+      // アプリが失われる。contentEl で Files ドラッグを preventDefault してナビゲーションを
+      // 抑止し、.md を fileOps.selectFile（importPlainRef 経由）で取り込む。
+      const isMarkdownFile = (f: File): boolean =>
+        f.name.endsWith(".md") || f.name.endsWith(".markdown") || f.type === "text/markdown";
+      const onContentDragOver = (e: DragEvent): void => {
+        if (!e.dataTransfer?.types?.includes("Files")) return;
+        // preventDefault しないと drop が発火せずブラウザが既定（ファイルを開く）を実行する。
+        e.preventDefault();
+        root.dataset.fileDragOver = "true";
+      };
+      const onContentDragLeave = (e: DragEvent): void => {
+        if (!contentEl.contains(e.relatedTarget as Node | null)) {
+          delete root.dataset.fileDragOver;
+        }
+      };
+      const onContentDrop = (e: DragEvent): void => {
+        // .ProseMirror 内のドロップは PM の handleDrop が処理済み（preventDefault 済み）。
+        // 二重取り込みを避けるため、既に処理済みなら何もしない。
+        if (e.defaultPrevented) {
+          delete root.dataset.fileDragOver;
+          return;
+        }
+        const files = e.dataTransfer?.files;
+        if (!files?.length) return;
+        // Files ドロップは常に preventDefault してブラウザのファイル遷移を防ぐ（.md 以外は無視）。
+        e.preventDefault();
+        delete root.dataset.fileDragOver;
+        const md = Array.from(files).find(isMarkdownFile);
+        if (md) tryImportDroppedMdFile(md, e, importPlainRef);
+      };
+      contentEl.addEventListener("dragover", onContentDragOver);
+      contentEl.addEventListener("dragleave", onContentDragLeave);
+      contentEl.addEventListener("drop", onContentDrop);
+      disposers.push(() => {
+        contentEl.removeEventListener("dragover", onContentDragOver);
+        contentEl.removeEventListener("dragleave", onContentDragLeave);
+        contentEl.removeEventListener("drop", onContentDrop);
       });
 
       // === ContextMenu（右クリック・mode 切替 / クリップボード） ================

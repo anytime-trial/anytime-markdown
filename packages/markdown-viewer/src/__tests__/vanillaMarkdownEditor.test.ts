@@ -191,6 +191,65 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     handle.destroy();
   });
 
+  describe(".md ドロップでファイルオープン（本文領域全体）", () => {
+    /** dataTransfer を持つ drag/drop イベントを生成する（jsdom は DataTransfer 非対応）。 */
+    function dragEvent(type: string, dt: Partial<DataTransfer>): Event {
+      const ev = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(ev, "dataTransfer", { value: dt });
+      return ev;
+    }
+
+    it("dragover(Files) で preventDefault しブラウザのファイル遷移を防ぐ", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      const content = container.querySelector("[data-am-content]") as HTMLElement;
+      const root = container.querySelector("[data-am-editor-root]") as HTMLElement;
+      const ev = dragEvent("dragover", { types: ["Files"] as unknown as DataTransfer["types"] });
+      content.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(true);
+      expect(root.dataset.fileDragOver).toBe("true");
+      handle.destroy();
+    });
+
+    it(".md ファイルのドロップで preventDefault し取り込みを起動する", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      const content = container.querySelector("[data-am-content]") as HTMLElement;
+      const file = new File(["# Dropped"], "dropped.md", { type: "text/markdown" });
+      const ev = dragEvent("drop", {
+        files: [file] as unknown as FileList,
+        items: [] as unknown as DataTransferItemList,
+        types: ["Files"] as unknown as DataTransfer["types"],
+      });
+      content.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(true);
+      handle.destroy();
+    });
+
+    it("ファイル無しのドロップは preventDefault せず既定/PM に委ねる", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      const content = container.querySelector("[data-am-content]") as HTMLElement;
+      const ev = dragEvent("drop", {
+        files: [] as unknown as FileList,
+        types: [] as unknown as DataTransfer["types"],
+      });
+      content.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(false);
+      handle.destroy();
+    });
+
+    it("PM が処理済み（defaultPrevented）のドロップは二重取り込みしない", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t });
+      const content = container.querySelector("[data-am-content]") as HTMLElement;
+      const file = new File(["# X"], "x.md", { type: "text/markdown" });
+      const ev = dragEvent("drop", {
+        files: [file] as unknown as FileList,
+        types: ["Files"] as unknown as DataTransfer["types"],
+      });
+      ev.preventDefault(); // PM の handleDrop が既に preventDefault した状態を模す
+      expect(() => content.dispatchEvent(ev)).not.toThrow();
+      handle.destroy();
+    });
+  });
+
   it("destroy で editor を破棄し root を container から除去する", () => {
     const handle = mountVanillaMarkdownEditor(container, { t });
     const editor = handle.editor;
