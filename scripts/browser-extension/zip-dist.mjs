@@ -1,9 +1,12 @@
 /**
  * dist ディレクトリの中身を Chrome Web Store / Edge Add-ons 提出用 zip にパックする。
  *
- * `zip` コマンドが無い環境（WSL 等）向けのフォールバック。jszip（monorepo ルートに導入済み）で
- * DEFLATE 圧縮しつつ、アーカイブのルートに manifest.json が来るよう dist 直下の相対パスで格納する
- * （`dist/` フォルダごと包むとストア審査で弾かれるため）。
+ * `zip` コマンドが無い環境（WSL 等）向けのフォールバック。DEFLATE 圧縮しつつ、アーカイブの
+ * ルートに manifest.json が来るよう dist 直下の相対パスで格納する（`dist/` フォルダごと包むと
+ * ストア審査で弾かれるため）。
+ *
+ * jszip は monorepo ルートの node_modules に推移的に存在するものを解決する（直接依存ではない）。
+ * 解決できない場合は明確なエラーで手動対応（`zip` のインストール or ルートで `npm install`）を促す。
  *
  * 使い方: `node scripts/browser-extension/zip-dist.mjs <distDir> <outZip>`
  */
@@ -12,7 +15,17 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 const require = createRequire(import.meta.url);
-const JSZip = require("jszip");
+let JSZip;
+try {
+  JSZip = require("jszip");
+} catch (error) {
+  console.error(
+    "[zip-dist] jszip を解決できませんでした（推移的依存のため未解決の可能性）。" +
+      "`zip` コマンドをインストールするか、リポジトリルートで `npm install` してください。\n" +
+      `  原因: ${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exit(1);
+}
 
 const [distDir, outZip] = process.argv.slice(2);
 if (!distDir || !outZip) {
