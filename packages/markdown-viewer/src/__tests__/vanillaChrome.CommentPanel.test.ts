@@ -152,11 +152,12 @@ const comment = (over: Partial<InlineComment> = {}): InlineComment => ({
 });
 
 describe("createCommentPanel", () => {
-  it("Paper ルートを返しヘッダー（タイトル + close）とフィルタを描画する", () => {
+  it("Paper ルートを返しヘッダー（タイトル）とフィルタを描画する", () => {
     const { handle, root } = mount();
     expect(root.getAttribute("data-variant")).toBe("outlined");
     expect(root.textContent).toContain("commentPanel");
-    expect(root.querySelector('[aria-label="close"]')).toBeTruthy();
+    // ヘッダーの close(×) は撤去済み（開閉はサイドツールバーのコメントトグルで行う）。
+    expect(root.querySelector('[aria-label="close"]')).toBeNull();
     // フィルタ 3 ボタン。
     const toggleButtons = root.querySelectorAll('[role="group"] button');
     expect(toggleButtons.length).toBe(3);
@@ -313,13 +314,6 @@ describe("createCommentPanel", () => {
     handle.destroy();
   });
 
-  it("close ボタンで onClose を呼ぶ", () => {
-    let closed = 0;
-    const { handle, root } = mount({ onClose: () => { closed += 1; } });
-    (root.querySelector('[aria-label="close"]') as HTMLElement).click();
-    expect(closed).toBe(1);
-    handle.destroy();
-  });
 
   it("カードクリックで onNavigate を呼ぶ（found 時）", () => {
     // doc.descendants が commentHighlight を返すよう editor を細工。

@@ -31,7 +31,6 @@
 import {
   createButton,
   createDivider,
-  createIconButton,
   createPaper,
   createTextField,
   createToggleButton,
@@ -57,9 +56,7 @@ import { parseAnnotations, serializeAnnotations } from "../types/imageAnnotation
 import type { InlineComment } from "../utils/commentHelpers";
 import { onCommentStateChange } from "../utils/commentStateSubscription";
 
-// ui/icons.tsx と同一の Material SVG path（Close / Image）。
-const ICON_CLOSE =
-  "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z";
+// ui/icons.tsx と同一の Material SVG path（Image）。
 const ICON_IMAGE =
   "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2M8.5 13.5l2.5 3.01L14.5 12l4.5 6H5z";
 
@@ -94,8 +91,6 @@ export interface CreateCommentPanelOptions {
   onUpdateText?: (commentId: string, text: string) => void;
   /** comment / 画像へジャンプする。未指定時は editor のカーソル移動 + scrollIntoView。 */
   onNavigate?: (pos: number) => void;
-  /** 閉じる要求（ヘッダーの close ボタン）。React `onClose` 相当。 */
-  onClose?: () => void;
 }
 
 /** {@link createCommentPanel} の戻り値（パネル系。呼び元が el を配置する）。 */
@@ -305,7 +300,8 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     },
   }).el;
 
-  // --- ヘッダー（タイトル + close） ---
+  // --- ヘッダー（タイトル） ---
+  // パネルの開閉はサイドツールバーのコメントトグルで行うため、ヘッダーに close(×) は置かない。
   const header = document.createElement("div");
   header.style.cssText =
     "display:flex;align-items:center;padding-left:8px;padding-right:8px;" +
@@ -315,13 +311,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     "margin:0;flex:1;font-weight:700;font-size:0.875rem;line-height:1.57;letter-spacing:0.00714em;";
   headerTitle.setAttribute("aria-live", "polite");
   headerTitle.setAttribute("aria-atomic", "true");
-  const closeBtn = createIconButton({
-    size: "small",
-    ariaLabel: t("close") || "Close",
-    children: svgIcon(ICON_CLOSE, 18),
-    onClick: () => opts.onClose?.(),
-  });
-  header.append(headerTitle, closeBtn.el);
+  header.append(headerTitle);
   root.appendChild(header);
 
   // --- フィルタ（ToggleButtonGroup） ---
@@ -672,7 +662,6 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
       unsubscribe();
       for (const h of bodyHandles) h.destroy();
       bodyHandles = [];
-      closeBtn.destroy();
       filterGroup.destroy();
     },
   };
