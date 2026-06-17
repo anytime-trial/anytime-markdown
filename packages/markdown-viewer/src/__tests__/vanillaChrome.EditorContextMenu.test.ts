@@ -62,6 +62,8 @@ interface MockEditorOptions {
   isEditable?: boolean;
   selectionFrom?: number;
   selectionTo?: number;
+  /** doc.textBetween の戻り値（選択コピー時にこの文字列がクリップボードへ渡る）。 */
+  copyText?: string;
 }
 
 function createMockEditor(opts: MockEditorOptions = {}) {
@@ -75,6 +77,22 @@ function createMockEditor(opts: MockEditorOptions = {}) {
   const to = opts.selectionTo ?? 1;
 
   const initCommentsCalls: unknown[] = [];
+  // 実 ProseMirror では view.state === editor.state。performBlockCopy は view.state.selection を
+  // 読むため、同一の state オブジェクトを editor.state / view.state 双方へ割り当てる。
+  const state = {
+    selection: {
+      from,
+      to,
+      $from: { after: () => 2, depth: 1, node: () => ({ type: { name: "paragraph" } }), before: () => 0 },
+    },
+    doc: {
+      content: { size: 10 },
+      resolve: () => ({ nodeBefore: null }),
+      nodeAt: () => null,
+      textBetween: () => opts.copyText ?? "",
+    },
+    tr: { insert: () => ({ scrollIntoView: () => ({}) }), doc: { content: { size: 10 } } },
+  };
   const editor = {
     isEditable: opts.isEditable ?? true,
     commands: {
@@ -83,17 +101,10 @@ function createMockEditor(opts: MockEditorOptions = {}) {
         return true;
       },
     },
-    state: {
-      selection: {
-        from,
-        to,
-        $from: { after: () => 2, depth: 1, node: () => ({ type: { name: "paragraph" } }), before: () => 0 },
-      },
-      doc: { content: { size: 10 }, resolve: () => ({ nodeBefore: null }), nodeAt: () => null },
-      tr: { insert: () => ({ scrollIntoView: () => ({}) }), doc: { content: { size: 10 } } },
-    },
+    state,
     view: {
       dom,
+      state,
       dispatch: (tr: unknown) => dispatched.push(tr),
     },
     chain: () => createChainRecorder(commands, lastArgs),
@@ -253,6 +264,39 @@ describe("createEditorContextMenu", () => {
       setMergeEditors({ rightEditor: main.editor, leftEditor: left.editor });
       handle = createEditorContextMenu({ editor: main.editor, t, currentMode: "wysiwyg", extraContainer: wrap });
 
+      fireContextMenu(main.dom);
+      expect(ariaDisabled("paste")).not.toBe("true");
+    });
+
+    it("左ペインの copy は左ペインのエディタ内容をコピーする（主エディタではない）", () => {
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      const main = createMockEditor({ selectionFrom: 1, selectionTo: 5, copyText: "MAIN_TEXT" });
+      const left = createMockEditor({ selectionFrom: 1, selectionTo: 5, copyText: "LEFT_TEXT" });
+      const wrap = document.createElement("div");
+      wrap.append(main.dom, left.dom);
+      document.body.appendChild(wrap);
+      setMergeEditors({ rightEditor: main.editor, leftEditor: left.editor });
+      handle = createEditorContextMenu({ editor: main.editor, t, currentMode: "wysiwyg", extraContainer: wrap });
+
+      fireContextMenu(left.dom);
+      clickItemByLabel("copy");
+      expect(writeText).toHaveBeenCalledWith("LEFT_TEXT");
+    });
+
+    it("左ペインで開閉した後は右ペインが編集可能に戻る（オーバーライド復元）", () => {
+      const main = createMockEditor();
+      const left = createMockEditor();
+      const wrap = document.createElement("div");
+      wrap.append(main.dom, left.dom);
+      document.body.appendChild(wrap);
+      setMergeEditors({ rightEditor: main.editor, leftEditor: left.editor });
+      handle = createEditorContextMenu({ editor: main.editor, t, currentMode: "wysiwyg", extraContainer: wrap });
+
+      // 左ペイン: readOnly（paste disabled）。
+      fireContextMenu(left.dom);
+      expect(ariaDisabled("paste")).toBe("true");
+      // 右ペインを開くと openMenu→handleClose で復元され、編集可能に戻る。
       fireContextMenu(main.dom);
       expect(ariaDisabled("paste")).not.toBe("true");
     });

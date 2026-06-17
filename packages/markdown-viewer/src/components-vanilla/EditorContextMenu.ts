@@ -583,9 +583,20 @@ export function createEditorContextMenu(
   let destroyed = false;
   return {
     update(next: Partial<CreateEditorContextMenuOptions>) {
-      if (next.editor !== undefined) editor = next.editor;
-      if (next.readOnly !== undefined) readOnly = next.readOnly;
-      if (next.currentMode !== undefined) currentMode = next.currentMode;
+      // 左ペインオーバーライド中（メニュー表示中）は、ライブ変数でなく退避側を更新する。
+      // そうしないと閉じる際の restorePaneOverride が host 側の更新（モード切替等）を取りこぼす。
+      if (next.editor !== undefined) {
+        if (paneOverride) paneOverride.editor = next.editor;
+        else editor = next.editor;
+      }
+      if (next.readOnly !== undefined) {
+        if (paneOverride) paneOverride.readOnly = next.readOnly;
+        else readOnly = next.readOnly;
+      }
+      if (next.currentMode !== undefined) {
+        if (paneOverride) paneOverride.currentMode = next.currentMode;
+        else currentMode = next.currentMode;
+      }
       if (next.extraContainer !== undefined) extraContainer = next.extraContainer ?? null;
       if (next.sourceTextarea !== undefined) sourceTextarea = next.sourceTextarea ?? null;
       // editor / extraContainer の差し替えで contextmenu の張り直しが要る。
