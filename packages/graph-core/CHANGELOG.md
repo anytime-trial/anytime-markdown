@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-17
+
+### Added
+
+- Added thinking-method diagram support: presets, a DSL parser, and SVG rendering for 10 diagram types.
+- Added the `buildNoteGraph` preset for constructing a frontmatter-derived document note graph.
+- Added a spec→DSL serializer and `node.metadata.path`.
+
+### Fixed
+
+- Addressed pre-merge review findings (reject self-references, normalize diagram-type names, and related fixes).
+
 ## [0.6.0] - 2026-06-13
 
 ### Added

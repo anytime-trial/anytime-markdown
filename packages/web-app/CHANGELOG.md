@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-06-17
+
+### Added
+
+- Split the privacy policy into an editor-scoped `/privacy` and a new `/privacy/services` (covering GitHub integration, Supabase, press/report external services, analytics). Added cross-links between them, a landing-footer link, and a sitemap entry.
+
+### Changed
+
+- Centralized next-intl message construction into a single source (`i18n/messages.ts`) referenced by both the server config and the client provider, preventing namespace drift.
+- Kept the global navigation always shown as icons (no hamburger collapse) at narrow widths.
+
+### Fixed
+
+- Fixed a regression where the `PrivacyServices` namespace was missing from client-side i18n messages, causing a runtime `MISSING_MESSAGE` on `/privacy` and `/privacy/services`.
+
 ## [0.29.0] - 2026-06-13
 
 ### Added

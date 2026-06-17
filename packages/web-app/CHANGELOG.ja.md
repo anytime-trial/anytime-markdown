@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-06-17
+
+### 追加
+
+- プライバシーポリシーをエディタ用 `/privacy` と新設 `/privacy/services`（GitHub 連携・Supabase・press/report 外部連携・アナリティクスを対象）に分離。両者の相互リンク、ランディングフッターのリンク、sitemap エントリを追加。
+
+### 変更
+
+- next-intl のメッセージ構築を単一源（`i18n/messages.ts`）に一元化し、サーバー設定とクライアント provider の双方が参照する形にして名前空間ドリフトを防止。
+- 狭幅でもグローバルナビをハンバーガーに畳まず常時アイコン表示に。
+
+### 修正
+
+- クライアント側 i18n に `PrivacyServices` 名前空間が欠落し、`/privacy`・`/privacy/services` でランタイム `MISSING_MESSAGE` になる回帰を修正。
+
 ## [0.29.0] - 2026-06-13
 
 ### 追加
