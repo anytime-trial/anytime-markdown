@@ -14,6 +14,8 @@ npm install --ignore-scripts 2>/dev/null || npm install
 
 echo "Building workspace dependencies..."
 node "$REPO_ROOT/scripts/vscode-extension/_build-workspace-deps.mjs" "$EXT_DIR"
+echo "Generating third-party notices..."
+node "$REPO_ROOT/scripts/generate-third-party-notices.mjs" "$EXT_DIR" "$EXT_DIR/THIRD-PARTY-NOTICES.md"
 
 # VS Code Extension Host は Node 22 系で動作するため、ホスト Node のバージョン
 # (24 等) 向け prebuild が node_modules に置かれている場合は VSIX で

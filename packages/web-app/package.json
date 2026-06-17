@@ -5,6 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "notices": "node ../../scripts/generate-third-party-notices.mjs packages/web-app packages/web-app/public/THIRD-PARTY-NOTICES.md",
+    "prebuild": "npm run notices",
     "build": "next build",
     "build:static": "CAPACITOR_BUILD=true next build",
     "start": "next start",

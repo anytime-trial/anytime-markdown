@@ -13,6 +13,7 @@
  * 注意: workspace パッケージの解決に node_modules の symlink が要るため、
  * ビルド前にリポジトリルートで `npm install` が必要。
  */
+import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
 import {
   cpSync,
@@ -76,5 +77,16 @@ await build({
 
 // 静的アセット（manifest / html / icons）をコピー。
 cpSync("public", OUT_DIR, { recursive: true });
+
+// 第三者ライセンス表記を dist へ生成（bundle 同梱 OSS の license 順守・常に最新）。
+execFileSync(
+  "node",
+  [
+    "../../scripts/generate-third-party-notices.mjs",
+    "packages/browser-extension",
+    `packages/browser-extension/${OUT_DIR}/THIRD-PARTY-NOTICES.md`,
+  ],
+  { stdio: "inherit" },
+);
 
 console.log(`[browser-extension] build done → ${OUT_DIR}/`);

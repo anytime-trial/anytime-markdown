@@ -40,3 +40,7 @@ supabase/.temp/
 
 # sql.js 撤去後は不要だが、過去にテスト実行で残ったゴミの再混入を防止
 packages/memory-core/dbfile_*
+
+# build 時生成の第三者ライセンス表記（配布物に同梱・コミットしない。markdown-core のは手書きでコミット）
+packages/vscode-*-extension/THIRD-PARTY-NOTICES.md
+packages/web-app/public/THIRD-PARTY-NOTICES.md

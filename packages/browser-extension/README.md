@@ -75,3 +75,6 @@ npm run build -w @anytime-markdown/browser-extension
 
 - `icons/` は暫定プレースホルダ（アクセント色 + "M"）。公開前に正式アイコンへ差し替える
 - MV3 の CSP（`script-src 'self'`）により外部 CDN からの script 読み込みは不可。依存は全て bundle 同梱する
+- **第三者ライセンス表記**: bundle 同梱 OSS のライセンスは build 時に
+  `dist/THIRD-PARTY-NOTICES.md` へ自動生成され配布物に同梱される
+  （`scripts/generate-third-party-notices.mjs`・vendored Tiptap / tiptap-markdown を含む）
