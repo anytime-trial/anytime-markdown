@@ -36,6 +36,7 @@ import {
   createEditorContextMenu,
   type EditorContextMenuHandle,
 } from "../components-vanilla/EditorContextMenu";
+import { setMergeEditors } from "../contexts/MergeEditorsContext";
 
 /** chain() の呼び出しを記録する fluent proxy。run() まで全メソッドを記録する。 */
 function createChainRecorder(commands: string[], lastArgs: { value?: unknown }) {
@@ -220,6 +221,41 @@ describe("createEditorContextMenu", () => {
     expect(labels.some((l) => l.includes("wysiwyg"))).toBe(false);
     // source 行は出ないこと（pasteAsMarkdown 等の通常項目は別途存在）。
     expect(labels).not.toContain("source");
+  });
+
+  describe("比較モード左ペインの readOnly オーバーライド", () => {
+    const ariaDisabled = (label: string): string | null =>
+      queryMenuItems().find((li) => (li.textContent ?? "").includes(label))
+        ?.getAttribute("aria-disabled") ?? null;
+
+    afterEach(() => setMergeEditors(null));
+
+    it("左ペイン右クリックでは編集モードでも paste/clearScreen が disabled（レビュー相当）", () => {
+      const main = createMockEditor(); // 編集可能な本文（右ペイン）
+      const left = createMockEditor(); // readOnly な比較（左ペイン）
+      const wrap = document.createElement("div");
+      wrap.append(main.dom, left.dom);
+      document.body.appendChild(wrap);
+      setMergeEditors({ rightEditor: main.editor, leftEditor: left.editor });
+      handle = createEditorContextMenu({ editor: main.editor, t, currentMode: "wysiwyg", extraContainer: wrap });
+
+      fireContextMenu(left.dom);
+      expect(ariaDisabled("paste")).toBe("true");
+      expect(ariaDisabled("clearScreen")).toBe("true");
+    });
+
+    it("右ペイン（本文）右クリックは従来どおり編集可能（paste 有効）", () => {
+      const main = createMockEditor();
+      const left = createMockEditor();
+      const wrap = document.createElement("div");
+      wrap.append(main.dom, left.dom);
+      document.body.appendChild(wrap);
+      setMergeEditors({ rightEditor: main.editor, leftEditor: left.editor });
+      handle = createEditorContextMenu({ editor: main.editor, t, currentMode: "wysiwyg", extraContainer: wrap });
+
+      fireContextMenu(main.dom);
+      expect(ariaDisabled("paste")).not.toBe("true");
+    });
   });
 
   it("readOnly では cut/paste/clearScreen が disabled（aria-disabled=true）になる", () => {

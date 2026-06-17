@@ -26,6 +26,7 @@ import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 import type { Editor } from "@anytime-markdown/markdown-core";
 
 import { CONTEXT_MENU_FONT_SIZE, SHORTCUT_HINT_FONT_SIZE } from "../constants/dimensions";
+import { getMergeEditors } from "../contexts/MergeEditorsContext";
 import type { TranslationFn } from "../types";
 import { findBlockNode, getCopiedBlockNode, performBlockCopy } from "../utils/blockClipboard";
 import { boxTableToMarkdown, containsBoxTable } from "../utils/boxTableToMarkdown";
@@ -278,6 +279,21 @@ export function createEditorContextMenu(
   let openHandle: { destroy: () => void } | null = null;
   /** 各 MenuItem の destroy を集約（メニュー閉時に listener 解放する）。 */
   let itemDestroys: Array<() => void> = [];
+  /**
+   * 比較モードの左ペイン（readOnly な比較エディタ）を右クリックした際、その open の間だけ
+   * editor / readOnly / currentMode を左ペイン用に差し替えるための退避。閉じる時に復元する。
+   * これにより左ペインでは編集モードでもレビューモードと同じ読み取り専用メニューを出し、
+   * copy も左ペインのエディタに対して動作させる。
+   */
+  let paneOverride: { editor: Editor | null; readOnly?: boolean; currentMode?: typeof currentMode } | null = null;
+
+  const restorePaneOverride = (): void => {
+    if (!paneOverride) return;
+    editor = paneOverride.editor;
+    readOnly = paneOverride.readOnly;
+    currentMode = paneOverride.currentMode;
+    paneOverride = null;
+  };
 
   const handleClose = (): void => {
     if (openHandle) {
@@ -286,6 +302,7 @@ export function createEditorContextMenu(
     }
     for (const d of itemDestroys) d();
     itemDestroys = [];
+    restorePaneOverride();
   };
 
   // --- 活性条件（React 原版と同一） ---
@@ -485,9 +502,19 @@ export function createEditorContextMenu(
     return children;
   };
 
-  /** クリック座標へアンカーしたメニューを開く（既存メニューがあれば閉じてから開き直す）。 */
-  const openMenu = (pos: MenuPosition): void => {
+  /**
+   * クリック座標へアンカーしたメニューを開く（既存メニューがあれば閉じてから開き直す）。
+   * overrideEditor 指定時は、その open の間だけ editor を差し替え readOnly メニューにする
+   * （比較モードの左ペイン用。閉じる時に handleClose が復元する）。
+   */
+  const openMenu = (pos: MenuPosition, overrideEditor?: Editor | null): void => {
     handleClose();
+    if (overrideEditor) {
+      paneOverride = { editor, readOnly, currentMode };
+      editor = overrideEditor;
+      readOnly = true; // 左ペインは読み取り専用 → レビューモードと同じメニュー
+      currentMode = "wysiwyg"; // source ではない（pasteAs* は ro で disabled 表示）
+    }
     const children = buildMenuChildren();
     openHandle = createMenu({
       anchorReference: "anchorPosition",
@@ -498,10 +525,21 @@ export function createEditorContextMenu(
     });
   };
 
+  /** 比較モードの左ペイン（readOnly な比較エディタ）内のターゲットなら、その editor を返す。 */
+  const compareLeftEditorFor = (target: EventTarget | null): Editor | null => {
+    const leftEditor = getMergeEditors()?.leftEditor ?? null;
+    if (!leftEditor || leftEditor.isDestroyed) return null;
+    const dom = leftEditor.view.dom as HTMLElement;
+    return dom.contains(target as Node | null) ? leftEditor : null;
+  };
+
   // --- contextmenu イベント購読（editor.view.dom + extraContainer） ---
   const onContextMenu = (event: MouseEvent): void => {
     event.preventDefault();
-    openMenu({ mouseX: event.clientX, mouseY: event.clientY });
+    openMenu(
+      { mouseX: event.clientX, mouseY: event.clientY },
+      compareLeftEditorFor(event.target),
+    );
   };
 
   let boundDom: HTMLElement | null = null;
