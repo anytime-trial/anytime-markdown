@@ -76,8 +76,14 @@ function authorString(pkg) {
 function resolvePackage(depName, fromDir) {
   const pkgDir = findPackageDir(depName, fromDir);
   if (!pkgDir) return null;
-  const pkg = readJson(path.join(pkgDir, "package.json"));
-  return { pkgDir, pkg };
+  try {
+    return { pkgDir, pkg: readJson(path.join(pkgDir, "package.json")) };
+  } catch (e) {
+    // 壊れた package.json（空 / BOM / JSON5 等）や一時 FS エラーで配布ビルド全体を
+    // 止めないよう、当該依存をスキップして継続する（識別子付きで通知＝silent catch 回避）。
+    console.warn(`[third-party-notices] skip ${depName} (${pkgDir}): ${e.message}`);
+    return null;
+  }
 }
 
 /**
