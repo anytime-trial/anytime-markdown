@@ -288,15 +288,8 @@ export function createEditorSettingsPanel(
 
   body.appendChild(dividerEl());
 
-  // --- 改行 ---
-  body.appendChild(
-    toggleSection("settingWordBreak", "settingWordBreak", settings.wordBreak, [
-      { value: "normal", label: t("settingWordBreakNormal") },
-      { value: "keep-all", label: t("settingWordBreakKeepAll") },
-    ], (v) => onUpdate({ wordBreak: v as EditorSettings["wordBreak"] })),
-  );
-
-  body.appendChild(dividerEl());
+  // 単語の折り返し（既定: keep-all）の設定は UI から撤去した。
+  // 値は EditorSettings の既定（wordBreak:"keep-all"）に固定される。
 
   // --- スペルチェック ---
   const spellRow = document.createElement("div");
