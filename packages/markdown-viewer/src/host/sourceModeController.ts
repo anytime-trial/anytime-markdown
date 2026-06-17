@@ -59,8 +59,6 @@ export interface SourceModeController {
   switchTo(mode: VanillaEditorMode): void;
   /** source モード中のみ非 null。 */
   getTextarea(): HTMLTextAreaElement | null;
-  /** textarea + 行番号ガターを内包する wrapper（source モード中のみ非 null）。 */
-  getSourceWrap(): HTMLElement | null;
   /** コメント操作用: 一時的にレビューフィルタを解除してコマンドを実行する。 */
   executeInReviewMode(fn: () => void): void;
   /** 比較 enter 用: standalone source UI を撤去する（mode/text は保持）。 */
@@ -296,7 +294,6 @@ export function createSourceModeController(
     },
     switchTo: applyMode,
     getTextarea: () => textarea,
-    getSourceWrap: () => sourceWrap,
     detachStandaloneUi(): void {
       // 比較 enter: standalone source UI を撤去（mode/text は保持）。外部管理ガードに
       // 関わらず DOM を片付けるため do* を直接呼ぶ。
