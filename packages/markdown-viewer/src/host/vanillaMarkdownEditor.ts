@@ -1073,9 +1073,9 @@ export function mountVanillaMarkdownEditor(
       syncMergeView = (): void => {
         if (modeState.inlineMergeOpen && !mergeView) {
           // WYSIWYG では右パネルが editorMountEl（editor.options.element）ごと自分の中へ移設する。
-          // source モードは textarea diff のため textarea を隠すのみ。
-          const sourceTa = sourceController?.getTextarea();
-          if (sourceTa) sourceTa.style.display = "none";
+          // source モードは textarea diff のため source wrapper（textarea + 行番号ガター）を隠す。
+          const sourceWrap = sourceController?.getSourceWrap();
+          if (sourceWrap) sourceWrap.style.display = "none";
           mergeView = createInlineMergeView({
             editor,
             t,
@@ -1114,10 +1114,10 @@ export function mountVanillaMarkdownEditor(
           if (editorMountEl.parentElement !== contentEl) {
             contentEl.appendChild(editorMountEl);
           }
-          // source モードなら textarea を復帰する。
-          const sourceTa = sourceController?.getTextarea();
-          if (modeState.sourceMode && sourceTa) {
-            sourceTa.style.display = "";
+          // source モードなら source wrapper（textarea + 行番号ガター）を復帰する。
+          const sourceWrap = sourceController?.getSourceWrap();
+          if (modeState.sourceMode && sourceWrap) {
+            sourceWrap.style.display = "";
           }
         }
       };

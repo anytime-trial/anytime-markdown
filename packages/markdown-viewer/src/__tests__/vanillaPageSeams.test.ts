@@ -131,6 +131,37 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
     handle.destroy();
   });
 
+  it("source モードで左端に行番号ガターを表示し入力行数に追従する", () => {
+    const handle = mountVanillaMarkdownEditor(container, {
+      t,
+      initialContent: "# Hello",
+      persistModeState: false,
+    });
+    globalThis.dispatchEvent(new CustomEvent("vscode-set-mode", { detail: "source" }));
+    const gutter = handle.root.querySelector<HTMLElement>("[data-am-source-gutter]");
+    const textarea = handle.root.querySelector<HTMLTextAreaElement>(
+      "[data-am-source-textarea]",
+    );
+    expect(gutter).not.toBeNull();
+    // ガターと textarea は同一 wrapper 内（比較ビューは wrapper を隠すためガターも一緒に消える）。
+    const wrap = handle.root.querySelector<HTMLElement>("[data-am-source-wrap]");
+    expect(wrap?.contains(gutter!)).toBe(true);
+    expect(wrap?.contains(textarea!)).toBe(true);
+
+    textarea!.value = "a\nb\nc\nd";
+    textarea!.dispatchEvent(new Event("input"));
+    expect(gutter?.textContent).toBe("1\n2\n3\n4");
+
+    textarea!.value = "x";
+    textarea!.dispatchEvent(new Event("input"));
+    expect(gutter?.textContent).toBe("1");
+
+    // WYSIWYG 復帰でガターも消える。
+    globalThis.dispatchEvent(new CustomEvent("vscode-set-mode", { detail: "wysiwyg" }));
+    expect(handle.root.querySelector("[data-am-source-gutter]")).toBeNull();
+    handle.destroy();
+  });
+
   it("showFrontmatter: フロントマターを表示し本文から除外する", () => {
     const handle = mountVanillaMarkdownEditor(container, {
       t,
