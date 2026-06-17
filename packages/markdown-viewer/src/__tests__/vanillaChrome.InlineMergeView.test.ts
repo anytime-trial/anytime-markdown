@@ -341,4 +341,34 @@ describe("createInlineMergeView", () => {
       expect(textareas(handle.el).some((ta) => ta.value.includes("COMPARE"))).toBe(true);
     });
   });
+
+  describe("ドロッププレースホルダ（左ペイン）", () => {
+    const placeholder = (h: InlineMergeViewHandle): HTMLElement =>
+      h.el.querySelector("[data-am-merge-drop-placeholder]") as HTMLElement;
+
+    it("比較ファイル未ロード時は左ペインにプレースホルダを表示する（pointer-events:none）", () => {
+      ({ handle, rightEditor } = mkView({ editorContent: "本文" }));
+      document.body.appendChild(handle.el);
+      const ph = placeholder(handle);
+      expect(ph).toBeTruthy();
+      expect(ph.textContent).toBe("mergeDropPlaceholder");
+      expect(ph.style.display).not.toBe("none");
+      // 下のドロップ判定を阻害しないこと。
+      expect(ph.style.pointerEvents).toBe("none");
+    });
+
+    it("compareContent ロード後はプレースホルダを非表示にする", () => {
+      ({ handle, rightEditor } = mkView({ editorContent: "本文", compareContent: "比較" }));
+      document.body.appendChild(handle.el);
+      expect(placeholder(handle).style.display).toBe("none");
+    });
+
+    it("比較テキストをクリアするとプレースホルダが再表示される", () => {
+      ({ handle, rightEditor } = mkView({ editorContent: "本文", compareContent: "比較" }));
+      document.body.appendChild(handle.el);
+      expect(placeholder(handle).style.display).toBe("none");
+      handle.update({ compareContent: "" });
+      expect(placeholder(handle).style.display).not.toBe("none");
+    });
+  });
 });
