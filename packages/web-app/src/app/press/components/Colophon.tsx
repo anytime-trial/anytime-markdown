@@ -24,6 +24,9 @@ export function Colophon() {
               <Link href="/privacy">{t('privacyPolicy')}</Link>
             </li>
             <li>
+              <Link href="/privacy/services">{t('privacyPolicyServices')}</Link>
+            </li>
+            <li>
               <a
                 href={GITHUB_REPO_URL}
                 target="_blank"
