@@ -10,9 +10,16 @@ import {
   createAnytimeGraphHintElement,
   ANYTIME_GRAPH_PLACEHOLDER_HINT_JA,
 } from "../../utils/anytimeGraphPlaceholder";
+import {
+  isAnytimeChartPlaceholder,
+  createAnytimeChartHintElement,
+  ANYTIME_CHART_PLACEHOLDER_HINT_JA,
+} from "../../utils/anytimeChartPlaceholder";
 import { buildPlantUmlImageUrl, getPlantUmlConsent } from "../../hooks/usePlantUmlRender";
 import { PLANTUML_CONSENT_KEY } from "@anytime-markdown/markdown-viewer";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
+import "@anytime-markdown/chart-core/element";
+import type { ChartSpec } from "@anytime-markdown/chart-core";
 
 /**
  * codeblock の content-only native NodeView（反転）が language 別プレビューを
@@ -159,6 +166,36 @@ function renderAnytimeGraph(innerEl: HTMLElement, code: string, ctx: PreviewRend
 }
 
 /**
+ * anytime-chart フェンス（JSON 形式の ChartSpec）を `<anytime-chart>` Web Component で描画する。
+ * プレースホルダはヒント要素を、不正 JSON は原因メッセージを表示する（silent catch 禁止）。
+ */
+function renderAnytimeChart(innerEl: HTMLElement, code: string, ctx: PreviewRenderContext): void {
+  // 本文未記述のプレースホルダは友好的ヒントを表示する。
+  if (isAnytimeChartPlaceholder(code)) {
+    innerEl.replaceChildren(createAnytimeChartHintElement(ANYTIME_CHART_PLACEHOLDER_HINT_JA));
+    return;
+  }
+  let parsed: ChartSpec;
+  try {
+    parsed = JSON.parse(code) as ChartSpec;
+  } catch (err) {
+    const message = `anytime-chart: JSON パースエラー (${err instanceof Error ? err.message : String(err)})`;
+    const pre = document.createElement("pre");
+    pre.className = "anytime-chart-error";
+    pre.style.cssText =
+      "margin:8px;padding:8px 12px;white-space:pre-wrap;color:var(--am-color-text-secondary, #888);font-size:0.8125rem;";
+    pre.textContent = message;
+    innerEl.replaceChildren(pre);
+    return;
+  }
+  const el = document.createElement("anytime-chart");
+  el.style.cssText = "display:block;width:100%;height:320px";
+  el.setAttribute("theme", ctx.isDark ? "dark" : "light");
+  (el as unknown as { spec: ChartSpec }).spec = parsed;
+  innerEl.replaceChildren(el);
+}
+
+/**
  * previewEl 内の inner 要素を language 別プレビューで更新する。
  * 戻り値は非同期/購読のキャンセル関数（次回再描画・破棄時に呼ぶ）。
  */
@@ -193,6 +230,11 @@ export function renderCodeBlockPreview(
       innerEl.setAttribute("role", "img");
       innerEl.setAttribute("aria-label", extractDiagramAltText(code, "anytime-thinking-model"));
       renderAnytimeGraph(innerEl, code, ctx);
+      return () => {};
+    case "anytime-chart":
+      innerEl.setAttribute("role", "img");
+      innerEl.setAttribute("aria-label", extractDiagramAltText(code, "anytime-chart"));
+      renderAnytimeChart(innerEl, code, ctx);
       return () => {};
     default:
       innerEl.replaceChildren();

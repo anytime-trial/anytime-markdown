@@ -18,6 +18,7 @@
     "@anytime-markdown/markdown-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/chart-core": "*",
     "lowlight": "3.3.0"
   },
   "peerDependencies": {

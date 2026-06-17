@@ -193,7 +193,7 @@ function extractPlantUmlNames(code: string): string[] {
  */
 export function extractDiagramAltText(
   code: string,
-  language: "mermaid" | "plantuml" | "html" | "math" | "anytime-thinking-model"
+  language: "mermaid" | "plantuml" | "html" | "math" | "anytime-thinking-model" | "anytime-chart"
 ): string {
   if (!code.trim()) return "Diagram";
 
@@ -205,6 +205,19 @@ export function extractDiagramAltText(
   if (language === "anytime-thinking-model") {
     const m = /type\s*[:：]\s*([\w-]+)/.exec(safeCode);
     return m ? `Thinking diagram: ${m[1]}` : "Thinking diagram";
+  }
+
+  if (language === "anytime-chart") {
+    try {
+      const parsed: unknown = JSON.parse(code.trim());
+      if (parsed !== null && typeof parsed === "object" && "title" in parsed) {
+        const title = (parsed as { title?: unknown }).title;
+        if (typeof title === "string" && title.length > 0) return title;
+      }
+    } catch {
+      // JSON パース失敗時はフォールバック
+    }
+    return "チャート";
   }
 
   if (language === "math") {
