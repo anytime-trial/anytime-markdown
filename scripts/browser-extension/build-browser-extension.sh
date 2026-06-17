@@ -6,7 +6,10 @@ set -euo pipefail
 # VS Code 拡張の build-*.sh と異なり workspace 依存の事前ビルド (_build-workspace-deps.mjs) は
 # 不要。出力は packages/browser-extension/dist/（未パッケージ拡張としてそのまま読み込む）。
 
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# スクリプト自身のディレクトリを絶対パスで確定する。後段で `cd "$REPO_ROOT"` した後も
+# 補助スクリプト（zip-dist.mjs）を正しく参照するため（相対 dirname "$0" は cd 後に壊れる）。
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 EXT_DIR="$REPO_ROOT/packages/browser-extension"
 DIST_DIR="$EXT_DIR/dist"
 
@@ -28,7 +31,7 @@ if command -v zip >/dev/null 2>&1; then
   ( cd "$DIST_DIR" && zip -qr "$ZIP_PATH" . )
   echo "Packaged: $ZIP_PATH"
 elif command -v node >/dev/null 2>&1; then
-  node "$(dirname "$0")/zip-dist.mjs" "$DIST_DIR" "$ZIP_PATH"
+  node "$SCRIPT_DIR/zip-dist.mjs" "$DIST_DIR" "$ZIP_PATH"
 else
   echo "WARN: zip も node も無いため zip を作成できません。手動でパックしてください。"
 fi
