@@ -49,6 +49,54 @@ export function drawAxes(
   }
 }
 
+/**
+ * 横棒グラフ用の軸とグリッドを描く（数量軸＝下/x、分類軸＝左/y）。
+ * 縦グリッド（値の目盛）＋下に値ラベル、左に分類ラベルを配置する。
+ */
+export function drawAxesHorizontal(
+  ctx: CanvasRenderingContext2D,
+  plot: Rect,
+  ticks: ReadonlyArray<number>,
+  xScale: (v: number) => number,
+  categoryLabels: ReadonlyArray<string>,
+  theme: ChartTheme,
+): void {
+  const { palette } = theme;
+
+  // 縦グリッド + 値ラベル（下）
+  ctx.save();
+  ctx.strokeStyle = palette.grid;
+  ctx.fillStyle = palette.label;
+  ctx.lineWidth = 1;
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (const t of ticks) {
+    const x = Math.round(xScale(t)) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x, plot.y);
+    ctx.lineTo(x, plot.y + plot.height);
+    ctx.stroke();
+    ctx.fillText(formatValue(t), x, plot.y + plot.height + 6);
+  }
+  ctx.restore();
+
+  // 分類ラベル（左・カテゴリ等間隔）
+  if (categoryLabels.length > 0) {
+    ctx.save();
+    ctx.fillStyle = palette.label;
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    const step = plot.height / categoryLabels.length;
+    categoryLabels.forEach((label, i) => {
+      const cy = plot.y + step * (i + 0.5);
+      ctx.fillText(label, plot.x - 8, cy);
+    });
+    ctx.restore();
+  }
+}
+
 /** タイトルを描く。 */
 export function drawTitle(ctx: CanvasRenderingContext2D, rect: Rect, title: string, theme: ChartTheme): void {
   ctx.save();
