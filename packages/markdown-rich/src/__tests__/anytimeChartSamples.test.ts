@@ -46,6 +46,14 @@ describe("ANYTIME_CHART_SAMPLES", () => {
     expect(specs.some((s) => s.kind === "combo")).toBe(true);
   });
 
+  it("左右2軸（right 系列を含む combo）サンプルを持つ", () => {
+    const hasDual = ANYTIME_CHART_SAMPLES.some((s) => {
+      const spec = JSON.parse(s.code) as ChartSpec;
+      return spec.kind === "combo" && spec.series.some((ser) => ser.axis === "right");
+    });
+    expect(hasDual).toBe(true);
+  });
+
   it("各サンプルは label / i18nKey / code を持つ", () => {
     for (const s of ANYTIME_CHART_SAMPLES) {
       expect(typeof s.label).toBe("string");

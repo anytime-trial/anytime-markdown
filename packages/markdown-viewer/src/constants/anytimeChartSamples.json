@@ -75,5 +75,12 @@
     "icon": "showChart",
     "enabled": true,
     "code": "{\n  \"kind\": \"combo\",\n  \"title\": \"売上と目標（複合）\",\n  \"categories\": [\"Jan\", \"Feb\", \"Mar\", \"Apr\", \"May\", \"Jun\", \"Jul\"],\n  \"series\": [\n    { \"name\": \"売上\", \"type\": \"bar\", \"values\": [6500, 8500, 6000, 11200, 10300, 12800, 9800] },\n    { \"name\": \"目標\", \"type\": \"line\", \"dashed\": true, \"values\": [8000, 8000, 8000, 10000, 10000, 12000, 12000] }\n  ]\n}"
+  },
+  {
+    "label": "Combo (dual axis)",
+    "i18nKey": "chartSampleComboDualAxis",
+    "icon": "showChart",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"combo\",\n  \"title\": \"売上（左軸）と達成率（右軸）\",\n  \"categories\": [\"Jan\", \"Feb\", \"Mar\", \"Apr\", \"May\", \"Jun\", \"Jul\"],\n  \"series\": [\n    { \"name\": \"売上\", \"type\": \"bar\", \"axis\": \"left\", \"values\": [6500, 8500, 6000, 11200, 10300, 12800, 9800] },\n    { \"name\": \"達成率(%)\", \"type\": \"line\", \"axis\": \"right\", \"values\": [65, 85, 60, 112, 103, 128, 98] }\n  ]\n}"
   }
 ]
