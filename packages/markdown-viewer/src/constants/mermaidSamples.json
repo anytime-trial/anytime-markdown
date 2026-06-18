@@ -152,5 +152,40 @@
     "icon": "xy",
     "enabled": true,
     "code": "xychart-beta\n    title \"Sales Revenue\"\n    x-axis [Jan, Feb, Mar, Apr, May, Jun]\n    y-axis \"Revenue (k$)\" 0 --> 120\n    bar [50, 60, 75, 80, 95, 110]\n    line [50, 60, 75, 80, 95, 110]"
+  },
+  {
+    "label": "Ishikawa",
+    "i18nKey": "sampleIshikawa",
+    "icon": "fish",
+    "enabled": true,
+    "code": "ishikawa\n    problem \"Low Product Quality\"\n    category \"People\"\n        cause \"Lack of training\"\n        cause \"Low morale\"\n    category \"Process\"\n        cause \"No code review\"\n        cause \"Unclear requirements\"\n    category \"Tools\"\n        cause \"Outdated CI\"\n    category \"Environment\"\n        cause \"Noisy office\""
+  },
+  {
+    "label": "Tree View",
+    "i18nKey": "sampleTreeView",
+    "icon": "tv",
+    "enabled": true,
+    "code": "treeView-beta\n    \"Project\"\n        \"Frontend\"\n            \"Components\"\n            \"Hooks\"\n        \"Backend\"\n            \"API\"\n            \"Database\"\n        \"Docs\""
+  },
+  {
+    "label": "Venn",
+    "i18nKey": "sampleVenn",
+    "icon": "venn",
+    "enabled": true,
+    "code": "venn-beta\n    title Skill Overlap\n    set fe [\"Frontend\"]\n    set be [\"Backend\"]\n    union fe, be [\"Fullstack\"]"
+  },
+  {
+    "label": "Wardley",
+    "i18nKey": "sampleWardley",
+    "icon": "wmap",
+    "enabled": true,
+    "code": "wardley-beta\n    title Tea Shop\n    anchor Customer [0.95, 0.63]\n    component Cup of Tea [0.79, 0.61]\n    component Cup [0.73, 0.78]\n    component Tea [0.63, 0.81]\n    component Hot Water [0.52, 0.80]\n    Customer -> Cup of Tea\n    Cup of Tea -> Cup\n    Cup of Tea -> Tea\n    Cup of Tea -> Hot Water"
+  },
+  {
+    "label": "Event Modeling",
+    "i18nKey": "sampleEventModeling",
+    "icon": "evm",
+    "enabled": true,
+    "code": "eventmodeling\n    timeframe 1\n    ui PlaceOrderScreen\n    timeframe 2\n    command PlaceOrder\n    timeframe 3\n    event OrderPlaced\n    timeframe 4\n    readmodel OrderList"
   }
 ]
