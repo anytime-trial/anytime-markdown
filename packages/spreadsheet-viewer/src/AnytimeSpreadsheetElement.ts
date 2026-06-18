@@ -26,10 +26,7 @@ import {
   mountSpreadsheetEditor,
   type SpreadsheetEditorHandle,
 } from "./vanilla/spreadsheetEditor";
-import { createChartLayer, type ChartLayer } from "./vanilla/chartLayer";
 import type { ChartDefinition } from "./vanilla/chartLayer.types";
-import { createChartPanel, type ChartPanelHandle } from "./ui-vanilla/chartPanel";
-import { createSpreadsheetT } from "./i18n/createSpreadsheetT";
 
 export type { ChartDefinition };
 
@@ -68,16 +65,8 @@ export class AnytimeSpreadsheetElement extends HTMLElementBase {
   /** プログラム的な値適用中は `change` を抑止する（プログラム set でのイベント発火を防ぐ）。 */
   private applying = false;
 
-  /** チャートレイヤー（connect 後に生成）。 */
-  private chartLayer: ChartLayer | null = null;
   /** connect 前に `charts` を set された場合の保留値。 */
   private pendingCharts: ChartDefinition[] | null = null;
-  /** プログラム的な charts set 中は `chartschange` を抑止する。 */
-  private applyingCharts = false;
-  /** chartLayer 変更購読の解除関数。 */
-  private unsubscribeCharts: (() => void) | null = null;
-  /** 表示中のチャートパネル（id → handle）。 */
-  private chartPanels = new Map<string, ChartPanelHandle>();
 
   connectedCallback(): void {
     this.mount();
@@ -123,22 +112,21 @@ export class AnytimeSpreadsheetElement extends HTMLElementBase {
     return this.serialize(snapshot);
   }
 
-  /** 現在のチャート定義一覧を返す / 設定する。 */
+  /**
+   * 現在のチャート定義一覧を返す / 設定する。状態は単一所有者である
+   * `mountSpreadsheetEditor` の handle（内部 chartLayer）へ委譲する。
+   */
   get charts(): ChartDefinition[] {
-    return this.chartLayer?.getCharts() ?? this.pendingCharts ?? [];
+    return this.handle?.getCharts() ?? this.pendingCharts ?? [];
   }
 
   set charts(defs: ChartDefinition[]) {
-    if (!this.chartLayer) {
+    if (!this.handle) {
       this.pendingCharts = [...defs];
       return;
     }
-    this.applyingCharts = true;
-    try {
-      this.chartLayer.setCharts(defs);
-    } finally {
-      this.applyingCharts = false;
-    }
+    // handle.setCharts は onChartsChange を発火しない（プログラム的復元）。
+    this.handle.setCharts(defs);
   }
 
   /**
@@ -146,10 +134,7 @@ export class AnytimeSpreadsheetElement extends HTMLElementBase {
    * id が不正な場合は空文字を返す。
    */
   exportChartFence(id: string): string {
-    if (!this.chartLayer) return "";
-    const spec = this.chartLayer.getSpec(id);
-    if (!spec) return "";
-    return `\`\`\`anytime-chart\n${JSON.stringify(spec, null, 2)}\n\`\`\``;
+    return this.handle?.exportChartFence(id) ?? "";
   }
 
   private mount(): void {
@@ -160,74 +145,20 @@ export class AnytimeSpreadsheetElement extends HTMLElementBase {
     this.adapter = adapter;
     this.unsubscribe = adapter.subscribe(() => this.emitChange());
 
-    // chartLayer 初期化（mountSpreadsheetEditor より先に生成して onCreateChart に渡す）
-    const layer = createChartLayer(adapter);
-    this.chartLayer = layer;
-
-    const t = createSpreadsheetT("Spreadsheet", this.getAttribute("locale") ?? undefined);
-
+    // チャート状態・パネルは mountSpreadsheetEditor が単一所有する。
+    // onChartsChange でユーザー操作起因の変更のみ chartschange に橋渡しする。
     this.handle = mountSpreadsheetEditor(this, {
       adapter,
       themeMode: this.currentTheme(),
       locale: this.getAttribute("locale") ?? undefined,
-      onCreateChart: (range) => {
-        const def = layer.addChart({ kind: "line", range });
-        this.openChartPanel(def.id, layer, t);
-      },
+      initialCharts: this.pendingCharts ?? undefined,
+      onChartsChange: () => this.emitChartsChange(),
     });
     this.pendingValue = null;
-
-    if (this.pendingCharts) {
-      this.applyingCharts = true;
-      try {
-        layer.setCharts(this.pendingCharts);
-      } finally {
-        this.applyingCharts = false;
-      }
-      this.pendingCharts = null;
-    }
-    this.unsubscribeCharts = layer.subscribe(() => this.emitChartsChange());
-  }
-
-  private openChartPanel(
-    id: string,
-    layer: ChartLayer,
-    t: (key: string) => string,
-  ): void {
-    // 同じ id のパネルが既に開いていれば再利用
-    if (this.chartPanels.has(id)) return;
-
-    const panel = createChartPanel({
-      isDark: () => this.currentTheme() === "dark",
-      getSpec: () => layer.getSpec(id),
-      kind: layer.getCharts().find((c) => c.id === id)?.kind ?? "line",
-      onKindChange: (kind) => {
-        const defs = layer.getCharts().map((c) =>
-          c.id === id ? { ...c, kind } : c,
-        );
-        layer.setCharts(defs);
-        panel.update();
-      },
-      onClose: () => {
-        panel.destroy();
-        this.chartPanels.delete(id);
-      },
-      t,
-    });
-
-    document.body.appendChild(panel.el);
-    this.chartPanels.set(id, panel);
+    this.pendingCharts = null;
   }
 
   private teardown(): void {
-    this.unsubscribeCharts?.();
-    this.unsubscribeCharts = null;
-    this.chartLayer?.destroy();
-    this.chartLayer = null;
-    for (const panel of this.chartPanels.values()) {
-      panel.destroy();
-    }
-    this.chartPanels.clear();
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.handle?.destroy();
@@ -269,7 +200,7 @@ export class AnytimeSpreadsheetElement extends HTMLElementBase {
   }
 
   private emitChartsChange(): void {
-    if (this.applyingCharts) return;
+    // handle.onChartsChange はユーザー操作起因の変更のみ呼ばれる（プログラム的 setCharts は抑止済み）。
     const detail: SpreadsheetChartsChangeDetail = { charts: this.charts };
     this.dispatchEvent(
       new CustomEvent<SpreadsheetChartsChangeDetail>("chartschange", {

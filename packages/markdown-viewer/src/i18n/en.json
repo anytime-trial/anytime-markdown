@@ -180,6 +180,7 @@
     "mermaid": "Mermaid",
     "plantuml": "PlantUML",
     "anytimeGraph": "Thinking Diagram",
+    "anytimeChart": "Chart",
     "anytimeGraphHint": "Open the editor and pick a diagram type from the samples on the right.",
     "anytimeGraphEditLabel": "Label",
     "anytimeGraphDesc": "Description",

@@ -102,6 +102,8 @@ export interface SpreadsheetEditorHandle {
    * この呼び出しは onChartsChange を発火しない（プログラム的な復元用）。
    */
   setCharts(defs: ChartDefinition[]): void;
+  /** 指定 id のチャートの現在の ChartSpec を ```anytime-chart フェンス文字列で返す。id 不正は空文字。 */
+  exportChartFence(id: string): string;
 }
 
 export function mountSpreadsheetEditor(
@@ -243,18 +245,19 @@ export function mountSpreadsheetEditor(
   let currentColumnHeaders: readonly string[] | undefined;
   // chartLayer はこの後で初期化するが、mountGrid の closure で参照するため前方宣言する。
   let chartLayer: ReturnType<typeof createChartLayer> | null = null;
+  // charts 機能が有効か（いずれかの charts オプション指定時）。コンテキストメニュー表示の可否に使う。
+  const chartsEnabled =
+    !!options.onCreateChart || !!options.onChartsChange || !!options.initialCharts;
 
   const mountGrid = (): void => {
     grid?.destroy();
     currentColumnHeaders = effectiveAdapter.getColumnHeaders?.();
-    // onCreateChart: chartLayer 有効時は addChart 経由で変更通知を一元化する。
-    // chartLayer がない場合は options.onCreateChart を直接渡す（従来の動作を維持）。
-    const onCreateChartForGrid = options.onCreateChart
+    // charts 有効時はチャート作成をメニューに出す。状態は単一の chartLayer に集約し、
+    // パネル表示は reconcileChartPanels が担う。options.onCreateChart は任意のホストフック。
+    const onCreateChartForGrid = chartsEnabled
       ? (range: import("@anytime-markdown/chart-core").TableRange) => {
-          if (chartLayer) {
-            chartLayer.addChart({ kind: "line", range });
-          }
-          options.onCreateChart!(range);
+          chartLayer?.addChart({ kind: "line", range });
+          options.onCreateChart?.(range);
         }
       : undefined;
     grid = mountSpreadsheetGrid(gridWrap, {
@@ -343,9 +346,7 @@ export function mountSpreadsheetEditor(
   setPagination(options.pagination);
 
   /* ---- chartLayer（charts 関連オプションがある場合に初期化） ---- */
-  const needsChartLayer =
-    !!options.onCreateChart || !!options.onChartsChange || !!options.initialCharts;
-  chartLayer = needsChartLayer ? createChartLayer(effectiveAdapter) : null;
+  chartLayer = chartsEnabled ? createChartLayer(effectiveAdapter) : null;
   let applyingCharts = false;
   let unsubscribeChartLayer: (() => void) | null = null;
 
@@ -457,6 +458,11 @@ export function mountSpreadsheetEditor(
       } finally {
         applyingCharts = false;
       }
+    },
+    exportChartFence(id) {
+      const spec = chartLayer?.getSpec(id);
+      if (!spec) return "";
+      return `\`\`\`anytime-chart\n${JSON.stringify(spec, null, 2)}\n\`\`\``;
     },
     destroy() {
       destroyed = true;

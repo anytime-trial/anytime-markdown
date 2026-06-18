@@ -17,15 +17,27 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-// jsdom に ResizeObserver がない場合モックを注入
+// jsdom には ResizeObserver も 2D context もない。チャートパネルが <anytime-chart> を
+// mount するため、例外を投げない no-op スタブを注入する（ChartView は ctx null で throw）。
 beforeAll(() => {
-  if (typeof globalThis.ResizeObserver === "undefined") {
-    globalThis.ResizeObserver = class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    } as unknown as typeof ResizeObserver;
-  }
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+  const ctxStub = new Proxy(
+    {},
+    {
+      get: (_t, p) => {
+        if (p === "measureText") return () => ({ width: 10 });
+        if (p === "canvas") return { width: 300, height: 200 };
+        return () => {};
+      },
+      set: () => true,
+    },
+  );
+  HTMLCanvasElement.prototype.getContext = (() =>
+    ctxStub) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 });
 
 describe("AnytimeSpreadsheetElement.charts", () => {
@@ -69,53 +81,22 @@ describe("AnytimeSpreadsheetElement.charts", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("addChart 経由のチャート追加で chartschange が発火する", () => {
-    const el = document.createElement("anytime-spreadsheet") as AnytimeSpreadsheetElement;
-    el.value = "月,売上\n1月,100";
-    document.body.appendChild(el);
-
-    const onChange = jest.fn();
-    el.addEventListener("chartschange", onChange);
-
-    // chartLayer の addChart を WC 内部から直接呼ぶ代わりに、
-    // テストでは charts プロパティを経由せず layer を直接操作する。
-    // WC の private chartLayer には直接アクセスできないため、
-    // el.charts = [] によるプログラム set → 変更なし（発火しない）を確認し、
-    // その後 importCharts を通じてユーザー操作相当の addChart を確認する。
-    //
-    // 実際のユーザー操作は contextMenu 経由だが、WC の chartschange 発火経路は
-    // chartLayer.subscribe → emitChartsChange のため、
-    // テストでは chartLayer をリフレクションで呼ぶ。
-    const wcAsAny = el as unknown as {
-      chartLayer: { addChart: (def: Omit<{id:string;kind:string;range:object},"id">) => unknown };
-    };
-    wcAsAny.chartLayer.addChart({
-      kind: "bar",
-      range: { startRow: 0, startCol: 0, endRow: 1, endCol: 1 },
-    });
-
-    expect(onChange).toHaveBeenCalledTimes(1);
-    const event = onChange.mock.calls[0][0] as CustomEvent<{ charts: unknown[] }>;
-    expect(event.detail.charts).toHaveLength(1);
-  });
+  // 注: ユーザー操作（コンテキストメニューのチャート作成）起因で onChartsChange→
+  // chartschange が発火することは spreadsheetEditor.charts.test.ts（onCreateChart→
+  // onChartsChange）で検証済み。WC はその onChartsChange を chartschange に転送するだけ。
+  // チャート状態は単一所有者である mountSpreadsheetEditor の handle に委譲する。
 
   it("exportChartFence が ```anytime-chart フェンスで始まり妥当 JSON を含む", () => {
     const el = document.createElement("anytime-spreadsheet") as AnytimeSpreadsheetElement;
     el.value = "月,売上\n1月,100\n2月,200";
     document.body.appendChild(el);
 
-    // chartLayer に直接 addChart してからフェンス生成
-    const wcAsAny = el as unknown as {
-      chartLayer: {
-        addChart: (def: object) => { id: string };
-      };
-    };
-    const def = wcAsAny.chartLayer.addChart({
-      kind: "line",
-      range: { startRow: 0, startCol: 0, endRow: 2, endCol: 1 },
-    });
+    // 公開 API（charts プロパティ）でチャートを設定してからフェンス生成
+    el.charts = [
+      { id: "chart-1", kind: "line", range: { startRow: 0, startCol: 0, endRow: 2, endCol: 1 } },
+    ];
 
-    const fence = el.exportChartFence(def.id);
+    const fence = el.exportChartFence("chart-1");
     expect(fence).toMatch(/^```anytime-chart\n/);
     expect(fence).toMatch(/```$/);
 

@@ -41,7 +41,8 @@ const DARK = {
  * dark では背景（暗）とのコントラストを保つため、彩度の高い中間〜淡色側を優先する。
  */
 export function getChartTheme(mode: "light" | "dark", key: PaletteKey = "blue"): ChartTheme {
-  const base = PALETTES[key];
+  // 未知キー（不正な palette 属性など）でも throw せず blue にフォールバックする。
+  const base = PALETTES[key] ?? PALETTES.blue;
   const series = mode === "dark" ? [...base].reverse() : [...base];
   const c = mode === "dark" ? DARK : LIGHT;
   return {

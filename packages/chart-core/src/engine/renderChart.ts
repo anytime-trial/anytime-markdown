@@ -66,7 +66,16 @@ export function renderChart(
   const yTop = ticks.at(-1) ?? 1;
   const yScale = linearScale([0, yTop], [plot.y + plot.height, plot.y]);
 
-  const xLabels = spec.kind === "scatter" ? [] : [...(spec.categories ?? [])];
+  // line/bar の x 軸分割数は「カテゴリ数」と「系列の最大値数」の大きい方に統一する。
+  // これによりカテゴリ数と値数が食い違っても x ラベルとデータ点の整列が崩れない。
+  const lineBarCount =
+    spec.kind === "scatter"
+      ? 0
+      : Math.max(spec.categories?.length ?? 0, ...spec.series.map((s) => (s.values ?? []).length), 1);
+  const xLabels =
+    spec.kind === "scatter"
+      ? []
+      : Array.from({ length: lineBarCount }, (_, i) => spec.categories?.[i] ?? "");
   drawAxes(ctx, plot, ticks, yScale, xLabels, theme);
 
   // 参照値帯
@@ -100,8 +109,7 @@ export function renderChart(
       pointsBySeries.push(sp);
     });
   } else {
-    const categoryCount = Math.max(1, ...spec.series.map((s) => (s.values ?? []).length));
-    const bandW = plot.width / categoryCount;
+    const bandW = plot.width / lineBarCount;
     const categoryX = (i: number) => plot.x + bandW * (i + 0.5);
     spec.series.forEach((series, si) => {
       const lp = drawLineSeries(ctx, plot, series, si, theme, yScale, categoryX);
