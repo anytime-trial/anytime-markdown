@@ -7,6 +7,7 @@ export { hitTest } from "./engine/hitTest";
 export { linearScale, niceTicks } from "./engine/scales";
 export { computePlotRect } from "./engine/layout";
 export { fromTable } from "./data/fromTable";
+export { chartSpecToCells, cellsToChartSpec } from "./data/tableSpec";
 export { ChartView } from "./viewer/ChartView";
 export type { ChartViewOptions } from "./viewer/ChartView";
 export { AnytimeChartElement } from "./AnytimeChartElement";
