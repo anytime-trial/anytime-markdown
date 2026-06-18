@@ -82,6 +82,16 @@ describe("renderChart", () => {
     expect(layout.points).toHaveLength(6);
   });
 
+  it("area の欠損(null)は点・マーカーに含めない（実測0と区別）", () => {
+    const spec: ChartSpec = {
+      kind: "area",
+      categories: ["Jan", "Feb", "Mar"],
+      series: [{ name: "A", values: [1, null, 3] }],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.points).toHaveLength(2);
+  });
+
   it("pie はスライスぶんの点を返し、0/負値スライスは除外する", () => {
     const spec: ChartSpec = {
       kind: "pie",

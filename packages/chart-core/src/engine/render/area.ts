@@ -28,12 +28,15 @@ export function drawAreaSeries(
     const color = seriesColor(si, series, theme);
     const shape = markerShape(si);
     const values = series.values ?? [];
-    const top: { cx: number; cy: number; baseY: number; value: number; i: number }[] = [];
+    const top: { cx: number; cy: number; baseY: number; value: number; i: number; missing: boolean }[] = [];
     for (let i = 0; i < categoryCount; i++) {
-      const v = val(values[i]);
+      const raw = values[i];
+      const missing = raw == null || !Number.isFinite(raw);
+      const v = val(raw);
       const base = options.stacked ? lower[i] : 0;
       const cx = categoryX(i);
-      top.push({ cx, cy: yScale(base + v), baseY: yScale(base), value: values[i] == null ? 0 : v, i });
+      // 塗りの連続性のため欠損は 0 として座標計算するが、マーカー/hit-test 点は生成しない。
+      top.push({ cx, cy: yScale(base + v), baseY: yScale(base), value: v, i, missing });
       if (options.stacked) lower[i] = base + v;
     }
     if (top.length === 0) return;
@@ -59,12 +62,16 @@ export function drawAreaSeries(
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // マーカー（四角）
+    // マーカー（欠損カテゴリには描かない）
     ctx.fillStyle = color;
-    for (const p of top) drawMarker(ctx, shape, p.cx, p.cy, 3.5);
+    for (const p of top) if (!p.missing) drawMarker(ctx, shape, p.cx, p.cy, 3.5);
     ctx.restore();
 
-    for (const p of top) points.push({ seriesIndex: si, dataIndex: p.i, cx: p.cx, cy: p.cy, value: p.value });
+    // hit-test 点も欠損を除外（line と同様、欠損を実測 0 として扱わない）。
+    for (const p of top) {
+      if (p.missing) continue;
+      points.push({ seriesIndex: si, dataIndex: p.i, cx: p.cx, cy: p.cy, value: p.value });
+    }
   });
 
   return points;
