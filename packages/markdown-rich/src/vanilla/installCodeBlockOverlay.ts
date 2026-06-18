@@ -60,6 +60,7 @@ import { attachAnytimeGraphInteractions } from "./anytimeGraphInteract";
 import { createCodeEditState } from "./codeEditState";
 import { captureDiagramPng, exportDiagramSource } from "./diagramCapture";
 import { createCodeBlockEditDialog } from "./createCodeBlockEditDialog";
+import { mountAnytimeChartPreview } from "../utils/anytimeChartPreview";
 import { createFullscreenDiffDialog } from "./createFullscreenDiffDialog";
 import { createMathEditDialog } from "./createMathEditDialog";
 import { createMermaidEditDialog } from "./createMermaidEditDialog";
@@ -429,6 +430,22 @@ export function installCodeBlockOverlay(
           : undefined,
         // mermaid と同形式で全10図種をサンプル選択できるようにする。
         customSamples: ANYTIME_GRAPH_SAMPLES,
+      });
+      activeDialog = handle;
+      return;
+    }
+    if (kind === "diagram" && language === "anytime-chart") {
+      // 右ペインは canvas WC（<anytime-chart>）を実体マウントする。HTML 文字列では
+      // .spec プロパティ駆動の WC を描画できないため renderPreviewHtml は空にし、
+      // onPreviewRendered で現在の JSON から spec をマウントする（入力ごとに再実行される）。
+      const handle = createCodeBlockEditDialog({
+        ...common,
+        label: t("anytimeChart"),
+        language: "anytime-chart",
+        renderPreview: true,
+        renderPreviewHtml: () => "",
+        onPreviewRendered: (previewEl, dark) =>
+          mountAnytimeChartPreview(previewEl, editState.getFsCode(), dark),
       });
       activeDialog = handle;
       return;
