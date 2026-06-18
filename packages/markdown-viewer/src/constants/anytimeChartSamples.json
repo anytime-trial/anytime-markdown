@@ -1,0 +1,30 @@
+[
+  {
+    "label": "Line",
+    "i18nKey": "chartSampleLine",
+    "icon": "showChart",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"line\",\n  \"title\": \"売上推移（月次）\",\n  \"categories\": [\"Jan\", \"Feb\", \"Mar\", \"Apr\", \"May\", \"Jun\", \"Jul\"],\n  \"series\": [\n    { \"name\": \"系列1\", \"values\": [6500, 8500, 6000, 11200, 10300, 12800, 9800] },\n    { \"name\": \"系列2\", \"values\": [2000, 5700, 3700, 8800, 4500, 2300, 5600] }\n  ]\n}"
+  },
+  {
+    "label": "Bar",
+    "i18nKey": "chartSampleBar",
+    "icon": "barChart",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"bar\",\n  \"title\": \"国別の人口\",\n  \"categories\": [\"United States\", \"Canada\", \"Germany\", \"France\", \"Mexico\", \"Japan\"],\n  \"series\": [\n    { \"name\": \"人口\", \"values\": [1900, 1250, 3750, 3450, 4300, 3250] }\n  ]\n}"
+  },
+  {
+    "label": "Bar (grouped)",
+    "i18nKey": "chartSampleBarGrouped",
+    "icon": "barChart",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"bar\",\n  \"title\": \"集合棒グラフ\",\n  \"categories\": [\"United States\", \"Canada\", \"Germany\", \"France\", \"Mexico\", \"Japan\"],\n  \"options\": { \"grouped\": true },\n  \"series\": [\n    { \"name\": \"系列1\", \"values\": [5700, 3750, 11200, 10300, 12800, 9800] },\n    { \"name\": \"系列2\", \"values\": [3400, 2200, 6900, 6500, 7800, 6000] }\n  ]\n}"
+  },
+  {
+    "label": "Scatter",
+    "i18nKey": "chartSampleScatter",
+    "icon": "schema",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"scatter\",\n  \"title\": \"相関（観測値）\",\n  \"series\": [\n    { \"name\": \"観測\", \"points\": [{ \"x\": 1, \"y\": 2 }, { \"x\": 3, \"y\": 5 }, { \"x\": 4, \"y\": 4 }, { \"x\": 6, \"y\": 7 }, { \"x\": 8, \"y\": 6 }, { \"x\": 9, \"y\": 9 }] }\n  ]\n}"
+  }
+]

@@ -31,6 +31,7 @@ import {
   parseEmbedInfoString,
   setBlockAttrs,
   ANYTIME_GRAPH_SAMPLES,
+  ANYTIME_CHART_SAMPLES,
 } from "@anytime-markdown/markdown-viewer";
 import {
   findCodeBlockByIndex,
@@ -446,6 +447,8 @@ export function installCodeBlockOverlay(
         renderPreviewHtml: () => "",
         onPreviewRendered: (previewEl, dark) =>
           mountAnytimeChartPreview(previewEl, editState.getFsCode(), dark),
+        // line / bar / scatter のサンプルを編集ダイアログから選べるようにする。
+        customSamples: ANYTIME_CHART_SAMPLES,
       });
       activeDialog = handle;
       return;
