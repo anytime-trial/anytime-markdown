@@ -45,6 +45,7 @@
     "chartKindArea": "面",
     "chartKindPie": "円",
     "chartKindScatter": "散布図",
+    "chartKindCombo": "複合",
     "chartClose": "チャートを閉じる"
   },
   "Pager": {

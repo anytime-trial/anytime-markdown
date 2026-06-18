@@ -47,5 +47,33 @@
     "icon": "schema",
     "enabled": true,
     "code": "{\n  \"kind\": \"pie\",\n  \"title\": \"構成比（ドーナツ）\",\n  \"categories\": [\"分類1\", \"分類2\", \"分類3\"],\n  \"options\": { \"donut\": true },\n  \"series\": [\n    { \"name\": \"構成\", \"values\": [1500, 750, 250] }\n  ]\n}"
+  },
+  {
+    "label": "Bar (stacked)",
+    "i18nKey": "chartSampleBarStacked",
+    "icon": "barChart",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"bar\",\n  \"title\": \"積み上げ棒グラフ\",\n  \"categories\": [\"United States\", \"Canada\", \"Germany\", \"France\", \"Mexico\", \"Japan\"],\n  \"options\": { \"stacked\": true },\n  \"series\": [\n    { \"name\": \"系列1\", \"values\": [1900, 1250, 3750, 3450, 4300, 3250] },\n    { \"name\": \"系列2\", \"values\": [900, 600, 2100, 1900, 2400, 1700] }\n  ]\n}"
+  },
+  {
+    "label": "Bar (horizontal)",
+    "i18nKey": "chartSampleBarH",
+    "icon": "barChart",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"bar\",\n  \"title\": \"横棒グラフ\",\n  \"categories\": [\"東京都\", \"大阪府\", \"福岡県\", \"愛知県\", \"北海道\"],\n  \"options\": { \"horizontal\": true },\n  \"series\": [\n    { \"name\": \"件数\", \"values\": [2800, 2400, 2200, 1800, 1500] }\n  ]\n}"
+  },
+  {
+    "label": "Bar (horizontal stacked)",
+    "i18nKey": "chartSampleBarHStacked",
+    "icon": "barChart",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"bar\",\n  \"title\": \"積み上げ横棒グラフ\",\n  \"categories\": [\"東京都\", \"大阪府\", \"福岡県\", \"愛知県\"],\n  \"options\": { \"horizontal\": true, \"stacked\": true },\n  \"series\": [\n    { \"name\": \"系列1\", \"values\": [2800, 2400, 2200, 1800] },\n    { \"name\": \"系列2\", \"values\": [1200, 900, 1000, 700] }\n  ]\n}"
+  },
+  {
+    "label": "Combo (bar + line)",
+    "i18nKey": "chartSampleCombo",
+    "icon": "showChart",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"combo\",\n  \"title\": \"売上と目標（複合）\",\n  \"categories\": [\"Jan\", \"Feb\", \"Mar\", \"Apr\", \"May\", \"Jun\", \"Jul\"],\n  \"series\": [\n    { \"name\": \"売上\", \"type\": \"bar\", \"values\": [6500, 8500, 6000, 11200, 10300, 12800, 9800] },\n    { \"name\": \"目標\", \"type\": \"line\", \"dashed\": true, \"values\": [8000, 8000, 8000, 10000, 10000, 12000, 12000] }\n  ]\n}"
   }
 ]

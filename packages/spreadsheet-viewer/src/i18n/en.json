@@ -45,6 +45,7 @@
     "chartKindArea": "Area",
     "chartKindPie": "Pie",
     "chartKindScatter": "Scatter",
+    "chartKindCombo": "Combo",
     "chartClose": "Close chart"
   },
   "Pager": {

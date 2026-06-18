@@ -38,6 +38,14 @@ describe("ANYTIME_CHART_SAMPLES", () => {
     expect(hasDonut).toBe(true);
   });
 
+  it("横棒・積み上げ横棒・積み上げ棒・複合のサンプルを持つ", () => {
+    const specs = ANYTIME_CHART_SAMPLES.map((s) => JSON.parse(s.code) as ChartSpec);
+    expect(specs.some((s) => s.kind === "bar" && s.options?.stacked && !s.options?.horizontal)).toBe(true);
+    expect(specs.some((s) => s.kind === "bar" && s.options?.horizontal && !s.options?.stacked)).toBe(true);
+    expect(specs.some((s) => s.kind === "bar" && s.options?.horizontal && s.options?.stacked)).toBe(true);
+    expect(specs.some((s) => s.kind === "combo")).toBe(true);
+  });
+
   it("各サンプルは label / i18nKey / code を持つ", () => {
     for (const s of ANYTIME_CHART_SAMPLES) {
       expect(typeof s.label).toBe("string");
