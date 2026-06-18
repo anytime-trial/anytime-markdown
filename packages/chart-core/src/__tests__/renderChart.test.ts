@@ -68,6 +68,51 @@ describe("renderChart", () => {
     expect(layout.points).toHaveLength(2);
   });
 
+  it("area は系列×カテゴリぶんの点を返す（積み上げ含む）", () => {
+    const spec: ChartSpec = {
+      kind: "area",
+      categories: ["Jan", "Feb", "Mar"],
+      series: [
+        { name: "A", values: [1, 2, 3] },
+        { name: "B", values: [4, 5, 6] },
+      ],
+      options: { stacked: true },
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.points).toHaveLength(6);
+  });
+
+  it("pie はスライスぶんの点を返し、0/負値スライスは除外する", () => {
+    const spec: ChartSpec = {
+      kind: "pie",
+      categories: ["A", "B", "C", "D"],
+      series: [{ name: "構成", values: [60, 30, 10, 0] }],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    // 0 のスライスは描画されない → 3 点
+    expect(layout.points).toHaveLength(3);
+  });
+
+  it("pie(donut) でも例外なく描画する", () => {
+    const spec: ChartSpec = {
+      kind: "pie",
+      categories: ["A", "B"],
+      series: [{ name: "構成", values: [70, 30] }],
+      options: { donut: true },
+    };
+    expect(() => renderChart(ctxStub(), rect, spec, theme)).not.toThrow();
+  });
+
+  it("pie で total<=0 でも例外を投げず点ゼロ", () => {
+    const spec: ChartSpec = {
+      kind: "pie",
+      categories: ["A", "B"],
+      series: [{ name: "x", values: [0, 0] }],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.points).toHaveLength(0);
+  });
+
   it("hitTest は近傍点を返し、遠ければ null", () => {
     const spec: ChartSpec = {
       kind: "line",

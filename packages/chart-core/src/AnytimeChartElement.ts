@@ -93,7 +93,14 @@ export class AnytimeChartElement extends HTMLElementBase {
   }
 
   private updateAriaLabel(spec: ChartSpec): void {
-    const kindLabel = spec.kind === "line" ? "折れ線" : spec.kind === "bar" ? "棒" : "散布図";
+    const KIND_LABELS: Record<ChartSpec["kind"], string> = {
+      line: "折れ線",
+      bar: "棒",
+      scatter: "散布図",
+      area: "面",
+      pie: "円",
+    };
+    const kindLabel = KIND_LABELS[spec.kind];
     const names = spec.series.map((s) => s.name).join(", ");
     this.setAttribute("aria-label", `${spec.title ?? kindLabel}グラフ。系列: ${names}`);
   }

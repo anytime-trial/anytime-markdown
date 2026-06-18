@@ -3,7 +3,7 @@
  * この定義を `import type` で参照する単一ソース。手書き再定義は禁止（ドリフト防止）。
  */
 
-export type ChartKind = "line" | "bar" | "scatter";
+export type ChartKind = "line" | "bar" | "scatter" | "area" | "pie";
 
 /** デジタル庁チャートパレットの系統キー。 */
 export type PaletteKey =
@@ -50,6 +50,8 @@ export interface AxisOptions {
 export interface ChartOptions {
   readonly stacked?: boolean;
   readonly grouped?: boolean;
+  /** pie のとき中心をくり抜きドーナツにする（中央に全体総量を表示）。 */
+  readonly donut?: boolean;
   /** 既定 "near-line"。 */
   readonly legend?: "near-line" | "adjacent" | "none";
   /** 既定 "auto"（コントラスト判定で併記/ホバーを決める）。 */
