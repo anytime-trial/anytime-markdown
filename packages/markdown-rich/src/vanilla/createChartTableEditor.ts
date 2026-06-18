@@ -60,6 +60,8 @@ export function createChartTableEditor(
     adapter,
     themeMode: ctx.isDark ? "dark" : "light",
     showImportExport: false,
+    // セル編集を Apply 不要で即 adapter へ反映し、プレビューをライブ更新する。
+    liveSync: true,
   });
 
   return () => {

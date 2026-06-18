@@ -87,6 +87,11 @@ export interface SpreadsheetGridOptions {
   onRedo?: () => void;
   /** 適用ボタンを表示するか（デフォルト: false） */
   showApply?: boolean;
+  /**
+   * 内容変更のたびに adapter へ即時同期するか（デフォルト: false）。
+   * true の場合、Apply を待たずセル編集等が adapter.subscribe へ伝播する（ライブプレビュー用）。
+   */
+  liveSync?: boolean;
   /** データ範囲の青枠とリサイズハンドルを表示するか（デフォルト: false） */
   showRange?: boolean;
   /** 1行目をヘッダー行（H）として表示するか（デフォルト: false） */
@@ -214,6 +219,7 @@ export function mountSpreadsheetGrid(
     gridRows: GRID_ROWS = DEFAULT_GRID_ROWS,
     gridCols: GRID_COLS = DEFAULT_GRID_COLS,
     showApply = false,
+    liveSync = false,
     showRange = false,
     showHeaderRow = false,
     columnHeaders,
@@ -288,6 +294,8 @@ export function mountSpreadsheetGrid(
     onContentChange: () => {
       markDirty();
       if (filterRowVisible) renderFilterRow();
+      // liveSync 時は Apply を待たず adapter へ即時反映（初期同期前は抑止）。
+      if (liveSync && initialized) syncToAdapter();
     },
   });
 
@@ -475,8 +483,8 @@ export function mountSpreadsheetGrid(
     }
   };
 
-  /** 適用ボタン: グリッド全体を adapter に一括反映（React handleApply と同一） */
-  const handleApply = (): void => {
+  /** グリッド全体（state）を adapter へ一括反映する。skipSyncCount で自身の再同期を抑止。 */
+  const syncToAdapter = (): void => {
     if (readOnly) return;
     const cells: string[][] = [];
     const aligns: CellAlign[][] = [];
@@ -492,6 +500,12 @@ export function mountSpreadsheetGrid(
     }
     skipSyncCount++;
     adapter.replaceAll({ cells, alignments: aligns, range: state.dataRange });
+  };
+
+  /** 適用ボタン: グリッド全体を adapter に一括反映（React handleApply と同一） */
+  const handleApply = (): void => {
+    if (readOnly) return;
+    syncToAdapter();
     if (dirty) {
       dirty = false;
       options.onDirtyChange?.(false);
