@@ -180,6 +180,7 @@
     "mermaid": "Mermaid",
     "plantuml": "PlantUML",
     "anytimeGraph": "思考法ダイアグラム",
+    "anytimeChart": "チャート",
     "anytimeGraphHint": "編集画面を開き、右のサンプルから図種を選択してください。",
     "anytimeGraphEditLabel": "ラベル",
     "anytimeGraphDesc": "説明",
