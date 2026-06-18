@@ -62,6 +62,7 @@ import { createCodeEditState } from "./codeEditState";
 import { captureDiagramPng, exportDiagramSource } from "./diagramCapture";
 import { createCodeBlockEditDialog } from "./createCodeBlockEditDialog";
 import { mountAnytimeChartPreview } from "../utils/anytimeChartPreview";
+import { createChartTableEditor } from "./createChartTableEditor";
 import { createFullscreenDiffDialog } from "./createFullscreenDiffDialog";
 import { createMathEditDialog } from "./createMathEditDialog";
 import { createMermaidEditDialog } from "./createMermaidEditDialog";
@@ -449,6 +450,8 @@ export function installCodeBlockOverlay(
           mountAnytimeChartPreview(previewEl, editState.getFsCode(), dark),
         // line / bar / scatter のサンプルを編集ダイアログから選べるようにする。
         customSamples: ANYTIME_CHART_SAMPLES,
+        // 左ペインで「スクリプト ⇄ 表」を切替し、表（spreadsheet グリッド）でも編集可能にする。
+        leftAuxTab: { labelKey: "tableTab", mount: createChartTableEditor },
       });
       activeDialog = handle;
       return;

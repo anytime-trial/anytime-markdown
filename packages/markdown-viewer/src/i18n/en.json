@@ -147,6 +147,8 @@
     "expandSection": "Expand section",
     "draggableHeading": "Draggable heading, use Alt+Arrow to reorder",
     "codeTab": "Code",
+    "scriptTab": "Script",
+    "tableTab": "Table",
     "configTab": "Config",
     "diagramFlowchart": "Flowchart",
     "diagramSequence": "Sequence diagram",

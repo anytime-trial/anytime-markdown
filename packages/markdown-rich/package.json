@@ -19,6 +19,8 @@
     "@anytime-markdown/markdown-core": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/chart-core": "*",
+    "@anytime-markdown/spreadsheet-core": "*",
+    "@anytime-markdown/spreadsheet-viewer": "*",
     "lowlight": "3.3.0"
   },
   "peerDependencies": {

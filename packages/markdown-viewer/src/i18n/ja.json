@@ -147,6 +147,8 @@
     "expandSection": "セクションを展開する",
     "draggableHeading": "ドラッグ可能な見出し、Alt+矢印キーで並び替え",
     "codeTab": "コード",
+    "scriptTab": "スクリプト",
+    "tableTab": "表",
     "configTab": "コンフィグ",
     "diagramFlowchart": "フローチャート",
     "diagramSequence": "シーケンス図",

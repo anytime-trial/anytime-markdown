@@ -1,7 +1,7 @@
 import type { ChartSpec, Series, TableMapping, TableRange } from "../types";
 
 /** "1,500" / " 100 " 等を数値化。不能なら null。 */
-function parseNum(raw: string | undefined): number | null {
+export function parseNum(raw: string | undefined): number | null {
   if (raw == null) return null;
   const cleaned = String(raw).replace(/[,\s]/g, "");
   if (cleaned === "") return null;
