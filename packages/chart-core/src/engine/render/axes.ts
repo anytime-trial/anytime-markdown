@@ -50,6 +50,27 @@ export function drawAxes(
 }
 
 /**
+ * 第2Y軸（右軸）の値ラベルを右端に描く。グリッドは左軸が担うため引かない。
+ */
+export function drawRightAxis(
+  ctx: CanvasRenderingContext2D,
+  plot: Rect,
+  ticks: ReadonlyArray<number>,
+  rightScale: (v: number) => number,
+  theme: ChartTheme,
+): void {
+  ctx.save();
+  ctx.fillStyle = theme.palette.label;
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  for (const t of ticks) {
+    ctx.fillText(formatValue(t), plot.x + plot.width + 6, Math.round(rightScale(t)));
+  }
+  ctx.restore();
+}
+
+/**
  * 横棒グラフ用の軸とグリッドを描く（数量軸＝下/x、分類軸＝左/y）。
  * 縦グリッド（値の目盛）＋下に値ラベル、左に分類ラベルを配置する。
  */
