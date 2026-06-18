@@ -21,6 +21,7 @@ import {
   createZoomablePreview,
   createDraggableSplitLayout,
   createDialogHeader,
+  createTabs,
   hastToHtmlString,
   ensureStyle,
 } from "./dialogHelpers";
@@ -51,6 +52,18 @@ export interface CreateCodeBlockEditDialogOptions {
    * 戻り値のクリーンアップ関数は次回 render 前・dialog 破棄時に呼ばれる。
    */
   onPreviewRendered?: (previewEl: HTMLElement, isDark: boolean) => (() => void) | void;
+  /**
+   * 指定時、左ペイン上部に「スクリプト ⇄ 補助エディタ」タブを表示する。
+   * `mount` は補助タブ活性化のたびに呼ばれ（前回 cleanup 後）、戻り値の cleanup は
+   * タブ切替・dialog 破棄時に呼ばれる。`getCode`/`setCode` は CodeEditState に橋渡しされる。
+   */
+  leftAuxTab?: {
+    labelKey: string;
+    mount: (
+      container: HTMLElement,
+      ctx: { getCode: () => string; setCode: (s: string) => void; isDark: boolean },
+    ) => () => void;
+  };
   state: CodeEditState;
   t: (key: string) => string;
   onClose: () => void;
@@ -129,7 +142,6 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
   const codeHeader = document.createElement("div");
   codeHeader.style.cssText = `display:flex;align-items:center;padding:4px 8px;border-bottom:1px solid ${getDivider(isDark)};flex-shrink:0;font-size:${FS_PANEL_HEADER_FONT_SIZE};`;
   codeHeader.textContent = t("codeTab");
-  split.left.appendChild(codeHeader);
 
   const lnt = createLineNumberTextarea({
     value: state.getFsCode(),
@@ -142,12 +154,12 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
     isDark,
     readOnly,
   });
-  split.left.appendChild(lnt.el);
   lnt.el.style.flex = "1 1 auto";
 
   const samples: SampleItem[] = opts.customSamples ?? Object.entries(CODE_HELLO_SAMPLES).map(
     ([lang, code]) => ({ label: lang, i18nKey: lang, code }),
   );
+  let samplePanelEl: HTMLElement | null = null;
   if (!readOnly && samples.length > 0) {
     const samplePanel = createSamplePanel({
       samples,
@@ -155,7 +167,54 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
       isDark,
       t,
     });
-    split.left.appendChild(samplePanel.el);
+    samplePanelEl = samplePanel.el;
+  }
+
+  // leftAuxTab 指定時はスクリプト ⇄ 補助エディタ（表など）のタブを出す。
+  let auxCleanup: (() => void) | undefined;
+  if (opts.leftAuxTab) {
+    const auxTab = opts.leftAuxTab;
+    const auxContainer = document.createElement("div");
+    auxContainer.style.cssText = "flex:1 1 auto;display:none;min-height:0;overflow:hidden;";
+    const mountAux = (): void => {
+      auxCleanup?.();
+      auxCleanup = undefined;
+      auxContainer.replaceChildren();
+      auxCleanup = auxTab.mount(auxContainer, {
+        getCode: () => state.getFsCode(),
+        setCode: (s) => state.onFsTextChange(s),
+        isDark,
+      });
+    };
+    const tabs = createTabs({
+      value: "script",
+      tabs: [
+        { value: "script", label: t("scriptTab") },
+        { value: "table", label: t(auxTab.labelKey) },
+      ],
+      onChange: (v) => {
+        if (v === "table") {
+          lnt.el.style.display = "none";
+          if (samplePanelEl) samplePanelEl.style.display = "none";
+          auxContainer.style.display = "block";
+          mountAux();
+        } else {
+          auxCleanup?.();
+          auxCleanup = undefined;
+          auxContainer.style.display = "none";
+          lnt.el.style.display = "";
+          if (samplePanelEl) samplePanelEl.style.display = "";
+        }
+      },
+    });
+    split.left.appendChild(tabs.el);
+    split.left.appendChild(lnt.el);
+    split.left.appendChild(auxContainer);
+    if (samplePanelEl) split.left.appendChild(samplePanelEl);
+  } else {
+    split.left.appendChild(codeHeader);
+    split.left.appendChild(lnt.el);
+    if (samplePanelEl) split.left.appendChild(samplePanelEl);
   }
 
   // ---- 右: ZoomToolbar + syntax preview ----
@@ -207,6 +266,10 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
   return {
     el: dlg.el,
     destroy() {
+      if (auxCleanup) {
+        auxCleanup();
+        auxCleanup = undefined;
+      }
       if (previewCleanup) {
         previewCleanup();
         previewCleanup = undefined;
