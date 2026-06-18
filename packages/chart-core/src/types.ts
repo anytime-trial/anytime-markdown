@@ -3,7 +3,7 @@
  * この定義を `import type` で参照する単一ソース。手書き再定義は禁止（ドリフト防止）。
  */
 
-export type ChartKind = "line" | "bar" | "scatter" | "area" | "pie";
+export type ChartKind = "line" | "bar" | "scatter" | "area" | "pie" | "combo";
 
 /** デジタル庁チャートパレットの系統キー。 */
 export type PaletteKey =
@@ -28,6 +28,8 @@ export interface Series {
   readonly dashed?: boolean;
   /** 強調しない（減色）系列は false。既定 true。 */
   readonly emphasized?: boolean;
+  /** combo グラフでの系列描画種別（既定 "bar"）。 */
+  readonly type?: "bar" | "line";
 }
 
 /** 参照値帯（shaded band）。 */
@@ -50,6 +52,8 @@ export interface AxisOptions {
 export interface ChartOptions {
   readonly stacked?: boolean;
   readonly grouped?: boolean;
+  /** bar のとき横棒にする（数量軸＝横/x、分類軸＝縦/y）。 */
+  readonly horizontal?: boolean;
   /** pie のとき中心をくり抜きドーナツにする（中央に全体総量を表示）。 */
   readonly donut?: boolean;
   /** 既定 "near-line"。 */

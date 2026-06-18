@@ -1,7 +1,7 @@
-import type { ChartLayout, ChartSpec, ChartTheme, PlottedPoint, Rect } from "../types";
+import type { ChartLayout, ChartSpec, ChartTheme, PlottedPoint, Rect, Series } from "../types";
 import { computePlotRect } from "./layout";
 import { linearScale, niceTicks } from "./scales";
-import { drawAxes, drawTitle } from "./render/axes";
+import { drawAxes, drawAxesHorizontal, drawTitle } from "./render/axes";
 import { drawLineSeries } from "./render/line";
 import { drawBars } from "./render/bar";
 import { drawScatterSeries } from "./render/scatter";
@@ -69,6 +69,28 @@ export function renderChart(
     return { spec, plotRect: plot, points: piePoints };
   }
 
+  // 横棒は数量軸＝x・分類軸＝y で軸が入れ替わるため専用分岐。
+  if (spec.kind === "bar" && spec.options?.horizontal) {
+    const hStacked = Boolean(spec.options?.stacked) && !spec.options?.grouped;
+    const xMaxData = hStacked ? stackedMax(spec) : Math.max(0, ...finiteValues(spec));
+    const hTicks = niceTicks(0, xMaxData, 5);
+    const xTop = hTicks.at(-1) ?? 1;
+    const xScale = linearScale([0, xTop], [plot.x, plot.x + plot.width]);
+    const catCount = Math.max(1, ...spec.series.map((s) => (s.values ?? []).length), spec.categories?.length ?? 0);
+    const catLabels = Array.from({ length: catCount }, (_, i) => spec.categories?.[i] ?? "");
+    drawAxesHorizontal(ctx, plot, hTicks, xScale, catLabels, theme);
+    const bp = drawBars(ctx, plot, spec.series, theme, xScale, {
+      stacked: spec.options?.stacked,
+      grouped: spec.options?.grouped,
+      horizontal: true,
+    });
+    if (legend === "adjacent" || spec.series.length > 1) {
+      drawAdjacentLegend(ctx, rect, plot, spec.series, theme);
+    }
+    if (spec.title) drawTitle(ctx, rect, spec.title, theme);
+    return { spec, plotRect: plot, points: bp };
+  }
+
   const stacked = Boolean(spec.options?.stacked) && (spec.kind === "bar" || spec.kind === "area");
   const yMaxData = stacked ? stackedMax(spec) : Math.max(0, ...finiteValues(spec));
   const ticks = niceTicks(0, yMaxData, 5);
@@ -117,6 +139,23 @@ export function renderChart(
       points.push(...sp);
       pointsBySeries.push(sp);
     });
+  } else if (spec.kind === "combo") {
+    // bar 系列（集合）を描いた上に line 系列を重ねる。色は元の系列インデックスで一貫させる。
+    const bandW = plot.width / lineBarCount;
+    const categoryX = (i: number) => plot.x + bandW * (i + 0.5);
+    const barEntries: { s: Series; i: number }[] = [];
+    const lineEntries: { s: Series; i: number }[] = [];
+    spec.series.forEach((s, i) => {
+      const colored: Series = s.color ? s : { ...s, color: theme.palette.series[i % theme.palette.series.length] };
+      if ((s.type ?? "bar") === "line") lineEntries.push({ s: colored, i });
+      else barEntries.push({ s: colored, i });
+    });
+    const bp = drawBars(ctx, plot, barEntries.map((e) => e.s), theme, yScale, { grouped: true });
+    for (const p of bp) points.push({ ...p, seriesIndex: barEntries[p.seriesIndex]?.i ?? p.seriesIndex });
+    for (const e of lineEntries) {
+      const lp = drawLineSeries(ctx, plot, e.s, e.i, theme, yScale, categoryX);
+      points.push(...lp);
+    }
   } else {
     const bandW = plot.width / lineBarCount;
     const categoryX = (i: number) => plot.x + bandW * (i + 0.5);
@@ -133,8 +172,10 @@ export function renderChart(
     }
   }
 
-  if (legend === "near-line") drawNearLineLabels(ctx, spec.series, pointsBySeries, theme);
-  else if (legend === "adjacent") drawAdjacentLegend(ctx, rect, plot, spec.series, theme);
+  // combo は bar+line 混在のため隣接凡例（near-line は line 端のみで bar を表せない）。
+  const legendMode = spec.kind === "combo" && legend !== "none" ? "adjacent" : legend;
+  if (legendMode === "near-line") drawNearLineLabels(ctx, spec.series, pointsBySeries, theme);
+  else if (legendMode === "adjacent") drawAdjacentLegend(ctx, rect, plot, spec.series, theme);
 
   if (spec.title) drawTitle(ctx, rect, spec.title, theme);
 

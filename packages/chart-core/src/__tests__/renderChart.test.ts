@@ -82,6 +82,47 @@ describe("renderChart", () => {
     expect(layout.points).toHaveLength(6);
   });
 
+  it("横棒 (bar + horizontal) は系列×カテゴリの点を返す", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B", "C"],
+      series: [{ name: "人口", values: [10, 20, 30] }],
+      options: { horizontal: true },
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.points).toHaveLength(3);
+  });
+
+  it("積み上げ横棒 (horizontal + stacked) でも例外なく描画する", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B"],
+      series: [
+        { name: "X", values: [1, 2] },
+        { name: "Y", values: [3, 4] },
+      ],
+      options: { horizontal: true, stacked: true },
+    };
+    expect(() => renderChart(ctxStub(), rect, spec, theme)).not.toThrow();
+  });
+
+  it("複合 (combo: bar + line) は両系列の点を返す", () => {
+    const spec: ChartSpec = {
+      kind: "combo",
+      categories: ["Jan", "Feb", "Mar"],
+      series: [
+        { name: "売上", type: "bar", values: [100, 120, 90] },
+        { name: "目標", type: "line", values: [110, 110, 110] },
+      ],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    // bar 3 点 + line 3 点
+    expect(layout.points).toHaveLength(6);
+    // hit-test で line 系列(原インデックス1)の点が正しく引ける
+    const linePt = layout.points.find((p) => p.seriesIndex === 1);
+    expect(linePt).toBeTruthy();
+  });
+
   it("area の欠損(null)は点・マーカーに含めない（実測0と区別）", () => {
     const spec: ChartSpec = {
       kind: "area",

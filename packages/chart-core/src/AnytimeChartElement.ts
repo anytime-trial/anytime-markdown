@@ -99,6 +99,7 @@ export class AnytimeChartElement extends HTMLElementBase {
       scatter: "散布図",
       area: "面",
       pie: "円",
+      combo: "複合",
     };
     const kindLabel = KIND_LABELS[spec.kind];
     const names = spec.series.map((s) => s.name).join(", ");
