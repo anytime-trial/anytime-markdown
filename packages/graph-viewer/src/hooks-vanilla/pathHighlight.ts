@@ -70,6 +70,10 @@ export function createPathHighlight(initialEdges: readonly GraphEdge[] = []): Pa
   }
 
   function updateEdges(nextEdges: readonly GraphEdge[]): void {
+    // 変化ガード（setOriginNodeId / setHoverTargetId と同じ防御）。
+    // 同一参照での再 push では通知しない。これにより updateEdges → notify →
+    // 購読者 → updateEdges(同一) という再帰が必ず停止する（defense-in-depth）。
+    if (edges === nextEdges) return;
     edges = nextEdges;
     notify();
   }

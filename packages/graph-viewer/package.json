@@ -9,6 +9,10 @@
     ".": "./src/index.ts",
     "./src/*": "./src/*"
   },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "jest"
+  },
   "dependencies": {
     "@anytime-markdown/graph-core": "*"
   }
