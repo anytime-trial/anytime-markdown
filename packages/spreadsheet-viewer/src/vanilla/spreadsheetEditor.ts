@@ -64,6 +64,8 @@ export interface SpreadsheetEditorOptions {
   showRange?: boolean;
   showImportExport?: boolean;
   showToolbar?: boolean;
+  /** 内容変更のたびに adapter へ即時同期するか（ライブプレビュー用・既定 false）。 */
+  liveSync?: boolean;
   onColumnHeaderDoubleClick?: (col: number) => void;
   onDirtyChange?: (dirty: boolean) => void;
   onClose?: () => void;
@@ -266,6 +268,7 @@ export function mountSpreadsheetEditor(
       gridRows,
       gridCols,
       showApply: options.showApply ?? false,
+      liveSync: options.liveSync ?? false,
       showRange: options.showRange ?? false,
       showToolbar: options.showToolbar ?? true,
       columnHeaders: currentColumnHeaders,

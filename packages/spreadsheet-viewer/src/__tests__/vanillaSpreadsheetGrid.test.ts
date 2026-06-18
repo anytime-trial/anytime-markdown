@@ -104,6 +104,46 @@ describe("mountSpreadsheetGrid", () => {
     handle.destroy();
   });
 
+  it("liveSync:true でセル編集が Apply 無しで adapter へ即時反映される", () => {
+    const { handle, container, adapter } = mount(
+      [{ cells: snapshot.cells.map((r) => [...r]), alignments: snapshot.alignments.map((r) => [...r]), range: { ...snapshot.range } }],
+      { liveSync: true },
+    );
+    // Apply ボタンは出さない（showApply 未指定）
+    const applyBtn = [...container.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes(t("spreadsheetApply")),
+    );
+    expect(applyBtn).toBeUndefined();
+
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+    const input = container.querySelector('input[type="text"]') as HTMLInputElement;
+    canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 50, clientY: 40 }));
+    canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+    expect(input.style.display).not.toBe("none"); // 編集開始
+    input.value = "edited";
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+    // Apply を押していないのに replaceAll が呼ばれている（liveSync）
+    expect(adapter.getCalls.some((c) => c.method === "replaceAll")).toBe(true);
+    handle.destroy();
+  });
+
+  it("liveSync 無し・Apply 無しではセル編集が adapter へ即時反映されない", () => {
+    const { handle, container, adapter } = mount([
+      { cells: snapshot.cells.map((r) => [...r]), alignments: snapshot.alignments.map((r) => [...r]), range: { ...snapshot.range } },
+    ]);
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+    const input = container.querySelector('input[type="text"]') as HTMLInputElement;
+    canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 50, clientY: 40 }));
+    canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+    if (input.style.display !== "none") {
+      input.value = "edited";
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    }
+    expect(adapter.getCalls.some((c) => c.method === "replaceAll")).toBe(false);
+    handle.destroy();
+  });
+
   it("外部からの adapter 更新で grid が再同期される（dirty にはならない）", () => {
     const onDirtyChange = jest.fn();
     const { handle, adapter } = mount(
