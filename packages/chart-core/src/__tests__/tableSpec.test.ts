@@ -31,6 +31,17 @@ describe("chartSpecToCells / cellsToChartSpec — line/bar", () => {
     expect(back.options).toEqual({ legend: "near-line" });
   });
 
+  it("combo は表生成時に既定の type を割り当てる（末尾=line, 他=bar）", () => {
+    const cells = [
+      ["", "売上", "目標"],
+      ["Jan", "100", "110"],
+      ["Feb", "120", "110"],
+    ];
+    const spec = cellsToChartSpec(cells, "combo");
+    expect(spec.kind).toBe("combo");
+    expect(spec.series.map((s) => s.type)).toEqual(["bar", "line"]);
+  });
+
   it("列を増やすと系列が増える（範囲リサイズでの系列追加に対応）", () => {
     const cells = [
       ["", "A", "B"],

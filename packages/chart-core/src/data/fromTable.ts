@@ -42,9 +42,16 @@ export function fromTable(
     return { kind: "scatter", series: [{ name, points }] };
   }
 
-  // line / bar
+  // line / bar / area / pie / combo（カテゴリ＋値列）
   const orientation = mapping.orientation ?? "columns";
   const categoryCol = mapping.categoryCol ?? 0;
+
+  // combo は表からの生成時に既定の描画種別を割り当てる（末尾系列を折れ線、他を棒）。
+  // 表は per-series type を持てないため、ここで妥当な複合の既定を与える。
+  const withComboTypes = (list: Series[]): Series[] =>
+    mapping.kind === "combo"
+      ? list.map((s, i) => ({ ...s, type: i === list.length - 1 && list.length > 1 ? "line" : "bar" }))
+      : list;
 
   if (orientation === "rows") {
     // 行 = 系列、列 = カテゴリ
@@ -55,7 +62,7 @@ export function fromTable(
       name: (row[0] ?? "").trim() || `series ${i + 1}`,
       values: row.slice(1).map(parseNum),
     }));
-    return { kind: mapping.kind, categories, series };
+    return { kind: mapping.kind, categories, series: withComboTypes(series) };
   }
 
   // columns: 列 = 系列、行 = カテゴリ
@@ -72,5 +79,5 @@ export function fromTable(
       values: body.map((row) => parseNum(row[c])),
     });
   }
-  return { kind: mapping.kind, categories, series };
+  return { kind: mapping.kind, categories, series: withComboTypes(series) };
 }
