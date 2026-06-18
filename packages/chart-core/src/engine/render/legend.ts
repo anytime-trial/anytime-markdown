@@ -33,12 +33,14 @@ export function drawAdjacentLegend(
   plot: Rect,
   seriesList: ReadonlyArray<Series>,
   theme: ChartTheme,
+  rightOffset = 0,
 ): void {
   ctx.save();
   ctx.font = "11px sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  const x = plot.x + plot.width + 12;
+  // rightOffset: 右軸ラベルぶん凡例を右へずらし重なりを避ける。
+  const x = plot.x + plot.width + 12 + rightOffset;
   const lineH = 18;
   const startY = plot.y + 4;
   seriesList.forEach((series, si) => {

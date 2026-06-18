@@ -20,7 +20,10 @@ export function computePlotRect(
 ): Rect {
   const top = rect.y + (o.hasTitle ? TITLE_H : TOP_PAD);
   const legendInset = o.legend === "none" ? RIGHT_PAD : LEGEND_RIGHT;
-  const rightInset = o.hasRightAxis ? Math.max(legendInset, RIGHT_AXIS) : legendInset;
+  // 右軸ありは軸ラベルぶんを加算（凡例と右軸ラベルが重ならないよう両方分を確保）。
+  const rightInset = o.hasRightAxis
+    ? (o.legend === "none" ? RIGHT_AXIS : legendInset + RIGHT_AXIS)
+    : legendInset;
   const left = rect.x + AXIS_LEFT;
   const right = rect.x + rect.width - rightInset;
   const bottom = rect.y + rect.height - AXIS_BOTTOM;

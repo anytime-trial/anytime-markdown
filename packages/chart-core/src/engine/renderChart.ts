@@ -54,11 +54,9 @@ export function renderChart(
 ): ChartLayout {
   const legend = spec.options?.legend ?? "near-line";
   const hasTitle = Boolean(spec.title);
-  // 第2Y軸: 値が y の縦向き kind（横棒/散布図/円は対象外）で right 系列があれば右軸を描く。
-  const isVerticalValueY =
-    (spec.kind === "line" || spec.kind === "bar" || spec.kind === "area" || spec.kind === "combo") &&
-    !(spec.kind === "bar" && spec.options?.horizontal);
-  const hasRight = isVerticalValueY && spec.series.some((s) => s.axis === "right");
+  // 第2Y軸: combo / line のみ対応（棒の積み上げ・面の積み上げと右軸の併用は破綻するため除外）。
+  const supportsDualAxis = spec.kind === "combo" || spec.kind === "line";
+  const hasRight = supportsDualAxis && spec.series.some((s) => s.axis === "right");
   const plot = computePlotRect(rect, { hasTitle, legend, hasRightAxis: hasRight });
 
   // 背景
@@ -166,7 +164,10 @@ export function renderChart(
       if ((s.type ?? "bar") === "line") lineEntries.push({ s: colored, i });
       else barEntries.push({ s: colored, i });
     });
-    const bp = drawBars(ctx, plot, barEntries.map((e) => e.s), theme, barScale, { grouped: true });
+    // 棒群は1スケールを共有。代表軸は棒系列の axis で判定（全 right なら右軸）。
+    const comboBarScale =
+      hasRight && barEntries.length > 0 && barEntries.every((e) => e.s.axis === "right") ? rightScale : leftScale;
+    const bp = drawBars(ctx, plot, barEntries.map((e) => e.s), theme, comboBarScale, { grouped: true });
     for (const p of bp) points.push({ ...p, seriesIndex: barEntries[p.seriesIndex]?.i ?? p.seriesIndex });
     for (const e of lineEntries) {
       const lp = drawLineSeries(ctx, plot, e.s, e.i, theme, scaleFor(e.s), categoryX);
@@ -192,7 +193,10 @@ export function renderChart(
   // combo は bar+line 混在のため隣接凡例（near-line は line 端のみで bar を表せない）。
   const legendMode = spec.kind === "combo" && legend !== "none" ? "adjacent" : legend;
   if (legendMode === "near-line") drawNearLineLabels(ctx, spec.series, pointsBySeries, theme);
-  else if (legendMode === "adjacent") drawAdjacentLegend(ctx, rect, plot, spec.series, theme);
+  else if (legendMode === "adjacent") {
+    // 右軸ありは凡例を右軸ラベルぶん右へずらす（重なり回避）。
+    drawAdjacentLegend(ctx, rect, plot, spec.series, theme, hasRight ? 44 : 0);
+  }
 
   if (spec.title) drawTitle(ctx, rect, spec.title, theme);
 
