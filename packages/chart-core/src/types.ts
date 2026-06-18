@@ -30,6 +30,8 @@ export interface Series {
   readonly emphasized?: boolean;
   /** combo グラフでの系列描画種別（既定 "bar"）。 */
   readonly type?: "bar" | "line";
+  /** 数量軸の左右割当（既定 "left"）。"right" 系列があれば第2Y軸を描く。 */
+  readonly axis?: "left" | "right";
 }
 
 /** 参照値帯（shaded band）。 */

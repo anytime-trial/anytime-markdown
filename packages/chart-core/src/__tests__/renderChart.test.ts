@@ -106,6 +106,35 @@ describe("renderChart", () => {
     expect(() => renderChart(ctxStub(), rect, spec, theme)).not.toThrow();
   });
 
+  it("左右2軸: right 系列は右スケール（左軸と別位置）で配置される", () => {
+    // 左系列は大きい値域、右系列は小さい値域 → 同じ値でも y 位置が異なる
+    const spec: ChartSpec = {
+      kind: "combo",
+      categories: ["Jan", "Feb"],
+      series: [
+        { name: "売上", type: "bar", axis: "left", values: [1000, 1000] },
+        { name: "達成率", type: "line", axis: "right", values: [50, 50] },
+      ],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    const leftPt = layout.points.find((p) => p.seriesIndex === 0);
+    const rightPt = layout.points.find((p) => p.seriesIndex === 1);
+    expect(leftPt && rightPt).toBeTruthy();
+    // 左軸 1000(max付近=上) と 右軸 50(右軸 max=50 付近=上) は別スケール。
+    // 右系列 50 は右軸の最大付近 → 上端寄り。左系列 1000 も左軸最大付近 → 上端寄り。
+    // ここでは「右系列の点 y が右スケール由来」を、右軸 max=50 のとき y≈plot top に来ることで確認。
+    expect(rightPt!.cy).toBeLessThan(rect.height / 2);
+  });
+
+  it("右軸系列なしなら従来の単一軸（例外なし）", () => {
+    const spec: ChartSpec = {
+      kind: "line",
+      categories: ["a", "b"],
+      series: [{ name: "A", values: [1, 2] }],
+    };
+    expect(() => renderChart(ctxStub(), rect, spec, theme)).not.toThrow();
+  });
+
   it("複合 (combo: bar + line) は両系列の点を返す", () => {
     const spec: ChartSpec = {
       kind: "combo",

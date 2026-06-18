@@ -194,6 +194,7 @@
     "chartSampleBarH": "Bar (horizontal)",
     "chartSampleBarHStacked": "Bar (horizontal stacked)",
     "chartSampleCombo": "Combo (bar + line)",
+    "chartSampleComboDualAxis": "Combo (dual axis)",
     "anytimeGraphHint": "Open the editor and pick a diagram type from the samples on the right.",
     "anytimeGraphEditLabel": "Label",
     "anytimeGraphDesc": "Description",
