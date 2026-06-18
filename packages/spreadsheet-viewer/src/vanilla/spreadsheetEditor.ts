@@ -62,6 +62,8 @@ export interface SpreadsheetEditorOptions {
   headerRight?: Node;
   showApply?: boolean;
   showRange?: boolean;
+  /** 1 行目をヘッダー行（H）として表示するか（既定 false）。 */
+  showHeaderRow?: boolean;
   showImportExport?: boolean;
   showToolbar?: boolean;
   /** 内容変更のたびに adapter へ即時同期するか（ライブプレビュー用・既定 false）。 */
@@ -270,6 +272,7 @@ export function mountSpreadsheetEditor(
       showApply: options.showApply ?? false,
       liveSync: options.liveSync ?? false,
       showRange: options.showRange ?? false,
+      showHeaderRow: options.showHeaderRow ?? false,
       showToolbar: options.showToolbar ?? true,
       columnHeaders: currentColumnHeaders,
       onColumnHeaderDoubleClick: options.onColumnHeaderDoubleClick,

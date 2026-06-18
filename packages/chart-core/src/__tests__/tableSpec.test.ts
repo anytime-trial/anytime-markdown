@@ -31,6 +31,40 @@ describe("chartSpecToCells / cellsToChartSpec — line/bar", () => {
     expect(back.options).toEqual({ legend: "near-line" });
   });
 
+  it("列を増やすと系列が増える（範囲リサイズでの系列追加に対応）", () => {
+    const cells = [
+      ["", "A", "B"],
+      ["Jan", "1", "2"],
+      ["Feb", "3", "4"],
+    ];
+    const spec = cellsToChartSpec(cells, "line");
+    expect(spec.series).toHaveLength(2);
+    expect(spec.series[0].values).toEqual([1, 3]);
+    expect(spec.series[1].values).toEqual([2, 4]);
+  });
+
+  it("リサイズで増えた空ヘッダ列は series N にフォールバックする", () => {
+    const cells = [
+      ["", "A", ""], // 3列目はリサイズ追加直後の空ヘッダ
+      ["Jan", "1", "9"],
+      ["Feb", "3", "8"],
+    ];
+    const spec = cellsToChartSpec(cells, "line");
+    expect(spec.series).toHaveLength(2);
+    expect(spec.series[1].name).toBe("series 3");
+  });
+
+  it("列を減らすと系列が減る（範囲リサイズでの系列削除に対応）", () => {
+    const cells = [
+      ["", "A"],
+      ["Jan", "1"],
+      ["Feb", "3"],
+    ];
+    const spec = cellsToChartSpec(cells, "line");
+    expect(spec.series).toHaveLength(1);
+    expect(spec.series[0].name).toBe("A");
+  });
+
   it("欠損(null)は空セル、空セルは null に戻る", () => {
     const withGap: ChartSpec = {
       kind: "bar",
