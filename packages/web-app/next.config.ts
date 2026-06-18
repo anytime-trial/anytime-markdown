@@ -29,6 +29,7 @@ const nextConfig: NextConfig = {
     '@anytime-markdown/markdown-engine',
     '@anytime-markdown/spreadsheet-core',
     '@anytime-markdown/spreadsheet-viewer',
+    '@anytime-markdown/chart-core',
     '@anytime-markdown/trace-core',
     '@anytime-markdown/trace-viewer',
     '@anytime-markdown/trail-viewer',
