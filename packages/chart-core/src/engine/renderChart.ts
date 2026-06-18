@@ -5,6 +5,8 @@ import { drawAxes, drawTitle } from "./render/axes";
 import { drawLineSeries } from "./render/line";
 import { drawBars } from "./render/bar";
 import { drawScatterSeries } from "./render/scatter";
+import { drawAreaSeries } from "./render/area";
+import { drawPie } from "./render/pie";
 import { drawAdjacentLegend, drawNearLineLabels } from "./render/legend";
 
 function finiteValues(spec: ChartSpec): number[] {
@@ -60,7 +62,14 @@ export function renderChart(
   ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
   ctx.restore();
 
-  const stacked = Boolean(spec.options?.stacked) && spec.kind === "bar";
+  // pie は直交軸を使わないため専用分岐（軸・スケールをスキップ）。
+  if (spec.kind === "pie") {
+    const piePoints = drawPie(ctx, plot, spec, theme, { donut: spec.options?.donut });
+    if (spec.title) drawTitle(ctx, rect, spec.title, theme);
+    return { spec, plotRect: plot, points: piePoints };
+  }
+
+  const stacked = Boolean(spec.options?.stacked) && (spec.kind === "bar" || spec.kind === "area");
   const yMaxData = stacked ? stackedMax(spec) : Math.max(0, ...finiteValues(spec));
   const ticks = niceTicks(0, yMaxData, 5);
   const yTop = ticks.at(-1) ?? 1;
@@ -111,11 +120,17 @@ export function renderChart(
   } else {
     const bandW = plot.width / lineBarCount;
     const categoryX = (i: number) => plot.x + bandW * (i + 0.5);
-    spec.series.forEach((series, si) => {
-      const lp = drawLineSeries(ctx, plot, series, si, theme, yScale, categoryX);
-      points.push(...lp);
-      pointsBySeries.push(lp);
-    });
+    if (spec.kind === "area") {
+      const ap = drawAreaSeries(ctx, plot, spec.series, theme, yScale, categoryX, { stacked });
+      points.push(...ap);
+      spec.series.forEach((_, si) => pointsBySeries.push(ap.filter((p) => p.seriesIndex === si)));
+    } else {
+      spec.series.forEach((series, si) => {
+        const lp = drawLineSeries(ctx, plot, series, si, theme, yScale, categoryX);
+        points.push(...lp);
+        pointsBySeries.push(lp);
+      });
+    }
   }
 
   if (legend === "near-line") drawNearLineLabels(ctx, spec.series, pointsBySeries, theme);

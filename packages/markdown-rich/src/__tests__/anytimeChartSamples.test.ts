@@ -20,12 +20,22 @@ function ctxStub(): CanvasRenderingContext2D {
 }
 
 describe("ANYTIME_CHART_SAMPLES", () => {
-  it("line / bar / scatter を含むサンプルを持つ", () => {
-    expect(ANYTIME_CHART_SAMPLES.length).toBeGreaterThanOrEqual(3);
+  it("line / bar / area / pie / scatter を含むサンプルを持つ", () => {
+    expect(ANYTIME_CHART_SAMPLES.length).toBeGreaterThanOrEqual(5);
     const kinds = ANYTIME_CHART_SAMPLES.map((s) => (JSON.parse(s.code) as ChartSpec).kind);
     expect(kinds).toContain("line");
     expect(kinds).toContain("bar");
+    expect(kinds).toContain("area");
+    expect(kinds).toContain("pie");
     expect(kinds).toContain("scatter");
+  });
+
+  it("ドーナツ（pie + options.donut）サンプルを持つ", () => {
+    const hasDonut = ANYTIME_CHART_SAMPLES.some((s) => {
+      const spec = JSON.parse(s.code) as ChartSpec;
+      return spec.kind === "pie" && spec.options?.donut === true;
+    });
+    expect(hasDonut).toBe(true);
   });
 
   it("各サンプルは label / i18nKey / code を持つ", () => {

@@ -26,5 +26,26 @@
     "icon": "schema",
     "enabled": true,
     "code": "{\n  \"kind\": \"scatter\",\n  \"title\": \"相関（観測値）\",\n  \"series\": [\n    { \"name\": \"観測\", \"points\": [{ \"x\": 1, \"y\": 2 }, { \"x\": 3, \"y\": 5 }, { \"x\": 4, \"y\": 4 }, { \"x\": 6, \"y\": 7 }, { \"x\": 8, \"y\": 6 }, { \"x\": 9, \"y\": 9 }] }\n  ]\n}"
+  },
+  {
+    "label": "Area (stacked)",
+    "i18nKey": "chartSampleArea",
+    "icon": "showChart",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"area\",\n  \"title\": \"構成比の推移（積み上げ面）\",\n  \"categories\": [\"Jan\", \"Feb\", \"Mar\", \"Apr\", \"May\", \"Jun\", \"Jul\"],\n  \"options\": { \"stacked\": true },\n  \"series\": [\n    { \"name\": \"系列1\", \"values\": [2000, 3000, 4500, 6200, 8000, 10200, 13000] },\n    { \"name\": \"系列2\", \"values\": [1500, 2000, 2600, 3500, 4500, 5600, 6800] }\n  ]\n}"
+  },
+  {
+    "label": "Pie",
+    "i18nKey": "chartSamplePie",
+    "icon": "schema",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"pie\",\n  \"title\": \"構成比\",\n  \"categories\": [\"分類1\", \"分類2\", \"分類3\"],\n  \"series\": [\n    { \"name\": \"構成\", \"values\": [60, 30, 10] }\n  ]\n}"
+  },
+  {
+    "label": "Doughnut",
+    "i18nKey": "chartSampleDonut",
+    "icon": "schema",
+    "enabled": true,
+    "code": "{\n  \"kind\": \"pie\",\n  \"title\": \"構成比（ドーナツ）\",\n  \"categories\": [\"分類1\", \"分類2\", \"分類3\"],\n  \"options\": { \"donut\": true },\n  \"series\": [\n    { \"name\": \"構成\", \"values\": [1500, 750, 250] }\n  ]\n}"
   }
 ]
