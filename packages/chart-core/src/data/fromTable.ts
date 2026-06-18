@@ -52,7 +52,7 @@ export function fromTable(
     const body = headerRow ? grid.slice(1) : grid;
     const categories = (headerCols ?? []).slice(1).map((c, i) => c ?? `#${i + 1}`);
     const series: Series[] = body.map((row, i) => ({
-      name: row[0] ?? `series ${i + 1}`,
+      name: (row[0] ?? "").trim() || `series ${i + 1}`,
       values: row.slice(1).map(parseNum),
     }));
     return { kind: mapping.kind, categories, series };
@@ -67,7 +67,8 @@ export function fromTable(
   for (let c = 0; c < colCount; c++) {
     if (c === categoryCol) continue;
     series.push({
-      name: header?.[c] ?? `series ${c + 1}`,
+      // 空/空白ヘッダ（範囲リサイズで増えた列など）は series N にフォールバック。
+      name: (header?.[c] ?? "").trim() || `series ${c + 1}`,
       values: body.map((row) => parseNum(row[c])),
     });
   }

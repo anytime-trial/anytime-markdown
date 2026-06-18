@@ -43,6 +43,17 @@ describe("chartSpecToCells / cellsToChartSpec — line/bar", () => {
     expect(spec.series[1].values).toEqual([2, 4]);
   });
 
+  it("リサイズで増えた空ヘッダ列は series N にフォールバックする", () => {
+    const cells = [
+      ["", "A", ""], // 3列目はリサイズ追加直後の空ヘッダ
+      ["Jan", "1", "9"],
+      ["Feb", "3", "8"],
+    ];
+    const spec = cellsToChartSpec(cells, "line");
+    expect(spec.series).toHaveLength(2);
+    expect(spec.series[1].name).toBe("series 3");
+  });
+
   it("列を減らすと系列が減る（範囲リサイズでの系列削除に対応）", () => {
     const cells = [
       ["", "A"],
