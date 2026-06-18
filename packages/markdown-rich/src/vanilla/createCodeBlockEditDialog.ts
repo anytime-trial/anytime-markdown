@@ -139,10 +139,6 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
   });
 
   // ---- 左: コードエリア + サンプルパネル ----
-  const codeHeader = document.createElement("div");
-  codeHeader.style.cssText = `display:flex;align-items:center;padding:4px 8px;border-bottom:1px solid ${getDivider(isDark)};flex-shrink:0;font-size:${FS_PANEL_HEADER_FONT_SIZE};`;
-  codeHeader.textContent = t("codeTab");
-
   const lnt = createLineNumberTextarea({
     value: state.getFsCode(),
     onChange: (e) => {
@@ -193,6 +189,7 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
         { value: "table", label: t(auxTab.labelKey) },
       ],
       onChange: (v) => {
+        tabs.update({ value: v }); // 選択状態（aria-selected / ハイライト）を反映
         if (v === "table") {
           lnt.el.style.display = "none";
           if (samplePanelEl) samplePanelEl.style.display = "none";
@@ -212,6 +209,9 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
     split.left.appendChild(auxContainer);
     if (samplePanelEl) split.left.appendChild(samplePanelEl);
   } else {
+    const codeHeader = document.createElement("div");
+    codeHeader.style.cssText = `display:flex;align-items:center;padding:4px 8px;border-bottom:1px solid ${getDivider(isDark)};flex-shrink:0;font-size:${FS_PANEL_HEADER_FONT_SIZE};`;
+    codeHeader.textContent = t("codeTab");
     split.left.appendChild(codeHeader);
     split.left.appendChild(lnt.el);
     if (samplePanelEl) split.left.appendChild(samplePanelEl);
