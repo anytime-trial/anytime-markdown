@@ -42,6 +42,8 @@
     "chartCreate": "Create chart from selection",
     "chartKindLine": "Line",
     "chartKindBar": "Bar",
+    "chartKindArea": "Area",
+    "chartKindPie": "Pie",
     "chartKindScatter": "Scatter",
     "chartClose": "Close chart"
   },

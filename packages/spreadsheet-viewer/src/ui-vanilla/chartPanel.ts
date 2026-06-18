@@ -107,10 +107,12 @@ export function createChartPanel(options: ChartPanelOptions): ChartPanelHandle {
   kindSelect.className = "sv-select";
   kindSelect.setAttribute("aria-label", options.t("chartCreate"));
 
-  const kinds: ChartKind[] = ["line", "bar", "scatter"];
+  const kinds: ChartKind[] = ["line", "bar", "area", "pie", "scatter"];
   const kindKeys: Record<ChartKind, string> = {
     line: "chartKindLine",
     bar: "chartKindBar",
+    area: "chartKindArea",
+    pie: "chartKindPie",
     scatter: "chartKindScatter",
   };
   for (const k of kinds) {
