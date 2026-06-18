@@ -155,7 +155,9 @@ export function mountVanillaGraphEditor(
   // ── Path highlight ────────────────────────────────────────────────────────
 
   const pathHighlight = createPathHighlight(store.getState().document.edges);
-  pathHighlight.subscribe(() => syncUI());
+  // 注: pathHighlight の購読は graphCanvasHandle 生成後に登録する（下方）。
+  // full syncUI ではなくハイライト装飾のみを部分更新することで、
+  // syncUI ↔ pathHighlight のフィードバック再帰を構造的に断つ。
 
   // ── AutoSave ─────────────────────────────────────────────────────────────
 
@@ -310,6 +312,18 @@ export function mountVanillaGraphEditor(
   });
 
   canvasWrapper.appendChild(graphCanvasHandle.el);
+
+  // pathHighlight 変更時はハイライト装飾のみを部分更新する（full syncUI を呼ばない）。
+  // これにより syncUI が updateEdges を呼び、その通知が syncUI を再実行する
+  // フィードバック再帰を構造的に断つ。ハイライトは canvas のオーバーレイのみに影響し、
+  // ツールバー・ミニマップ・プロパティパネルは依存しないため部分更新で十分。
+  pathHighlight.subscribe((state) => {
+    graphCanvasHandle.update({
+      highlightNodeIds: state.highlightNodeIds,
+      highlightEdgeIds: state.highlightEdgeIds,
+      originNodeId: state.originNodeId,
+    });
+  });
 
   // ── canvas インタラクション ──────────────────────────────────────────────
 
