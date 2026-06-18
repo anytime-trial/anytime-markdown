@@ -62,6 +62,10 @@ export function createChartTableEditor(
     showImportExport: false,
     // セル編集を Apply 不要で即 adapter へ反映し、プレビューをライブ更新する。
     liveSync: true,
+    // グラフ対象セル範囲を太枠で示し、右端ドラッグで系列を増減できるようにする
+    // （右端=列=系列 / 下端=行=カテゴリ/データ点）。1 行目は系列名のヘッダー。
+    showRange: true,
+    showHeaderRow: true,
   });
 
   return () => {
