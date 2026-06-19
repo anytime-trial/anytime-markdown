@@ -202,4 +202,83 @@ describe("createSpreadsheetState", () => {
       expect(state.grid[1][2]).toBe("D");
     });
   });
+
+  describe("undo / redo", () => {
+    it("setCellValue を undo すると直前の値に戻り、redo で再適用される", () => {
+      const { state } = setup();
+      state.setCellValue(0, 0, "A");
+      expect(state.undo()).toBe(true);
+      expect(state.grid[0][0]).toBe("");
+      expect(state.redo()).toBe(true);
+      expect(state.grid[0][0]).toBe("A");
+    });
+
+    it("複数編集を LIFO で undo できる", () => {
+      const { state } = setup();
+      state.setCellValue(0, 0, "A");
+      state.setCellValue(0, 1, "B");
+      state.undo();
+      expect(state.grid[0][1]).toBe("");
+      expect(state.grid[0][0]).toBe("A");
+      state.undo();
+      expect(state.grid[0][0]).toBe("");
+    });
+
+    it("transact は複数変更を 1 つの undo 単位にまとめる", () => {
+      const { state } = setup();
+      state.transact(() => {
+        state.setCellValue(0, 0, "A");
+        state.setCellValue(0, 1, "B");
+        state.setCellValue(0, 2, "C");
+      });
+      expect(state.undo()).toBe(true);
+      expect(state.grid[0][0]).toBe("");
+      expect(state.grid[0][1]).toBe("");
+      expect(state.grid[0][2]).toBe("");
+    });
+
+    it("undo 後に新たな編集をすると redo 履歴は破棄される", () => {
+      const { state } = setup();
+      state.setCellValue(0, 0, "A");
+      state.undo();
+      state.setCellValue(0, 0, "Z");
+      expect(state.redo()).toBe(false);
+      expect(state.grid[0][0]).toBe("Z");
+    });
+
+    it("dataRange / insertRow も undo できる", () => {
+      const { state } = setup();
+      state.setDataRange({ rows: 9, cols: 4 });
+      state.undo();
+      expect(state.dataRange).toEqual({ rows: DEFAULT_ROWS, cols: DEFAULT_COLS });
+
+      state.setCellValue(0, 0, "A");
+      state.insertRow(0);
+      expect(state.grid[0][0]).toBe("");
+      state.undo();
+      expect(state.grid[0][0]).toBe("A");
+    });
+
+    it("同じ値の setCellValue は履歴を作らない", () => {
+      const { state } = setup();
+      state.setCellValue(0, 0, "A");
+      state.setCellValue(0, 0, "A"); // no-op
+      state.undo();
+      expect(state.grid[0][0]).toBe(""); // 1 回の undo で初期状態へ
+    });
+
+    it("resetHistory で undo/redo が無効化される", () => {
+      const { state } = setup();
+      state.setCellValue(0, 0, "A");
+      state.resetHistory();
+      expect(state.undo()).toBe(false);
+      expect(state.grid[0][0]).toBe("A");
+    });
+
+    it("履歴が空のときの undo / redo は false を返す", () => {
+      const { state } = setup();
+      expect(state.undo()).toBe(false);
+      expect(state.redo()).toBe(false);
+    });
+  });
 });
