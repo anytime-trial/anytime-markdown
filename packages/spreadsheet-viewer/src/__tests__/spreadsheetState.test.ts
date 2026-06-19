@@ -300,4 +300,56 @@ describe("createSpreadsheetState", () => {
       expect(state.grid[0][0]).toBe("");
     });
   });
+
+  describe("setHistoryExtra / beginHistoryPoint / commitHistoryPoint", () => {
+    it("extra（state 外レイアウト）を含めて undo/redo で復元する", () => {
+      const { state } = setup();
+      let layout = { w: 100 };
+      state.setHistoryExtra(
+        () => ({ ...layout }),
+        (e) => {
+          layout = e as { w: number };
+        },
+      );
+      state.beginHistoryPoint();
+      layout = { w: 200 }; // ドラッグ相当の state 外変更
+      state.commitHistoryPoint(true);
+
+      expect(state.undo()).toBe(true);
+      expect(layout).toEqual({ w: 100 });
+      expect(state.redo()).toBe(true);
+      expect(layout).toEqual({ w: 200 });
+    });
+
+    it("commitHistoryPoint(false) は履歴を作らない", () => {
+      const { state } = setup();
+      state.setCellValue(0, 0, "A");
+      state.beginHistoryPoint();
+      state.commitHistoryPoint(false); // 変更なし扱い
+      expect(state.undo()).toBe(true);
+      expect(state.grid[0][0]).toBe(""); // セル編集まで一気に戻る
+      expect(state.undo()).toBe(false);
+    });
+
+    it("内容編集と extra 変更は独立した undo 単位になる", () => {
+      const { state } = setup();
+      let layout = { w: 100 };
+      state.setHistoryExtra(
+        () => ({ ...layout }),
+        (e) => {
+          layout = e as { w: number };
+        },
+      );
+      state.setCellValue(0, 0, "A"); // 内容エントリ
+      state.beginHistoryPoint();
+      layout = { w: 200 };
+      state.commitHistoryPoint(true); // extra エントリ
+
+      state.undo(); // extra のみ戻る
+      expect(layout).toEqual({ w: 100 });
+      expect(state.grid[0][0]).toBe("A");
+      state.undo(); // 内容が戻る
+      expect(state.grid[0][0]).toBe("");
+    });
+  });
 });

@@ -417,5 +417,33 @@ describe("mountSpreadsheetGrid", () => {
       expect(adapter.snapshot.cells.flat()).not.toContain("2");
       handle.destroy();
     });
+
+    it("列幅リサイズを Ctrl+Z で取り消せる（内容編集とは別の undo 単位）", () => {
+      const { handle, container, adapter } = mount(
+        [{ cells: [["1", "x"], ["", "y"], ["", "z"]], alignments: [[null, null], [null, null], [null, null]], range: { rows: 3, cols: 2 } }],
+        { liveSync: true },
+      );
+      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+      // 内容変更: (0,0) を下フィルで 2,3,4（undo 単位 1）。
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 70, clientY: 40 }));
+      canvas.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: 140, clientY: 56 }));
+      document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 70, clientY: 120 }));
+      document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: 70, clientY: 120 }));
+      expect(adapter.snapshot.cells.flat()).toContain("2");
+
+      // 列幅リサイズ: col0 右端(x=140, ヘッダ y=10)を掴んで広げる（undo 単位 2）。
+      canvas.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: 140, clientY: 10 }));
+      document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 190, clientY: 10 }));
+      document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: 190, clientY: 10 }));
+
+      // Ctrl+Z 1 回目: リサイズのみ取り消し → セル内容は保持される。
+      canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+      expect(adapter.snapshot.cells.flat()).toContain("2");
+
+      // Ctrl+Z 2 回目: フィルが取り消される。
+      canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+      expect(adapter.snapshot.cells.flat()).not.toContain("2");
+      handle.destroy();
+    });
   });
 });

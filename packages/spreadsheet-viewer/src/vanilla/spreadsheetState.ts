@@ -48,6 +48,12 @@ export interface SpreadsheetState {
   swapCols(a: number, b: number): void;
   /** 複数の変更を 1 つの undo 単位にまとめて実行する（ペースト・フィル・範囲クリア等）。 */
   transact(fn: () => void): void;
+  /** state 外で保持するレイアウト（行高/列幅等）を履歴に含めるためのフックを登録する。 */
+  setHistoryExtra(capture: () => unknown, restore: (extra: unknown) => void): void;
+  /** 非同期操作（ドラッグ等）の開始時に現在状態を退避する。 */
+  beginHistoryPoint(): void;
+  /** beginHistoryPoint の退避を、変更があった場合のみ 1 つの undo 単位として確定する。 */
+  commitHistoryPoint(changed: boolean): void;
   /** 直前の内容変更（grid / alignments / dataRange）を取り消す。取り消せたら true。 */
   undo(): boolean;
   /** undo を取り消す（やり直す）。やり直せたら true。 */
@@ -81,11 +87,13 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
   let dataRange: DataRange = { rows: params.initialRows, cols: params.initialCols };
   let selection: SpreadsheetSelection | null = null;
 
-  // ---- undo / redo 履歴（grid / alignments / dataRange のスナップショット） ----
+  // ---- undo / redo 履歴（grid / alignments / dataRange + 任意の extra のスナップショット） ----
   interface Snapshot {
     grid: string[][];
     alignments: CellAlign[][];
     dataRange: DataRange;
+    /** state 外で保持されるレイアウト等（行高/列幅など）。capture/restore フックで授受する。 */
+    extra?: unknown;
   }
   const HISTORY_LIMIT = 100;
   let past: Snapshot[] = [];
@@ -93,6 +101,11 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
   let batchDepth = 0;
   // batch 中、最初の実変更時にだけ退避するスナップショット（無変更 transact の phantom 履歴を防ぐ）。
   let pendingSnapshot: Snapshot | null = null;
+  // ドラッグ等の非同期操作用に begin で退避するスナップショット。
+  let manualSnapshot: Snapshot | null = null;
+  // state 外のレイアウト（行高/列幅）を履歴に含めるためのフック。
+  let captureExtra: (() => unknown) | null = null;
+  let restoreExtra: ((extra: unknown) => void) | null = null;
 
   const pushPast = (s: Snapshot): void => {
     past.push(s);
@@ -104,12 +117,14 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
     grid: grid.map((r) => [...r]),
     alignments: alignments.map((r) => [...r]),
     dataRange: { ...dataRange },
+    extra: captureExtra?.(),
   });
 
   const restore = (s: Snapshot): void => {
     grid = s.grid.map((r) => [...r]);
     alignments = s.alignments.map((r) => [...r]);
     dataRange = { ...s.dataRange };
+    restoreExtra?.(s.extra);
   };
 
   /** 実変更の直前に呼ぶ。batch 中はスナップショットを退避し、commit 時に 1 回だけ記録する。
@@ -238,6 +253,17 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
           pendingSnapshot = null;
         }
       }
+    },
+    setHistoryExtra(capture, restore) {
+      captureExtra = capture;
+      restoreExtra = restore;
+    },
+    beginHistoryPoint() {
+      manualSnapshot = snapshot();
+    },
+    commitHistoryPoint(changed) {
+      if (changed && manualSnapshot !== null) pushPast(manualSnapshot);
+      manualSnapshot = null;
     },
     undo() {
       const prev = past.pop();
