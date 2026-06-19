@@ -46,7 +46,7 @@
 
 ## プロジェクト固有ルール
 
-以下のスキルは `/anytime-markdown/.claude/skills/` に配置されており、description のトリガに応じて自動適用される（旧 `.claude/rules/` から移行し、常時 memory ロードを progressive disclosure 化）。
+以下のスキルは `/anytime-markdown/.claude/skills/` に配置されており、description のトリガに応じて該当作業時に Claude が参照する（旧 `.claude/rules/` から移行し、常時 memory ロードを progressive disclosure 化）。
 
 | スキル | 適用タイミング |
 | --- | --- |
