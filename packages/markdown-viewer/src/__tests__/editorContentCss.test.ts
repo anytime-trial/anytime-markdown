@@ -90,7 +90,7 @@ describe("buildEditorContentCss", () => {
   });
 
   it("本文に measure（最大行長）上限と中央寄せを既定で与える", () => {
-    expect(light).toMatch(/\.tiptap\s*\{[^}]*max-width:\s*var\(--am-editor-measure, 1000px\)/);
+    expect(light).toMatch(/\.tiptap\s*\{[^}]*max-width:\s*var\(--am-editor-measure, 46em\)/);
     expect(light).toMatch(/\.tiptap\s*\{[^}]*margin-left:\s*auto/);
   });
 

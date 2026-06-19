@@ -130,7 +130,7 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     const handle = mountVanillaMarkdownEditor(container, {
       t,
       settings: {
-        lineHeight: 1.6, fontSize: 18, tableWidth: "auto", editorBg: "white",
+        lineHeight: 1.6, fontSize: 18, measure: "standard", tableWidth: "auto", editorBg: "white",
         lightBgColor: "", lightTextColor: "", darkBgColor: "", darkTextColor: "",
         spellCheck: true, paperSize: "off", paperMargin: 20, blockAlign: "left", wordBreak: "normal",
       },
