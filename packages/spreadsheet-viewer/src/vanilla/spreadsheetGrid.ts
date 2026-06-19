@@ -320,7 +320,8 @@ export function mountSpreadsheetGrid(
         | undefined;
       rowHeightOverrides = new Map(e?.rowHeights ?? []);
       colWidthOverrides = new Map(e?.colWidths ?? []);
-      renderFilterRow();
+      // フィルタ行は列幅に追従するため、表示中のみ作り直す（非表示時の無駄な再生成を避ける）。
+      if (filterRowVisible) renderFilterRow();
     },
   );
 

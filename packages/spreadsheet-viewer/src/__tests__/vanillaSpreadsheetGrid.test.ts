@@ -445,5 +445,24 @@ describe("mountSpreadsheetGrid", () => {
       expect(adapter.snapshot.cells.flat()).not.toContain("2");
       handle.destroy();
     });
+
+    it("列幅リサイズの undo は dirty 化しない（view-only を維持）", () => {
+      const onDirtyChange = jest.fn();
+      const { handle, container } = mount(
+        [{ cells: [["1", "x"], ["", "y"]], alignments: [[null, null], [null, null]], range: { rows: 2, cols: 2 } }],
+        { onDirtyChange },
+      );
+      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+      // col0 右端をリサイズ。
+      canvas.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: 140, clientY: 10 }));
+      document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 190, clientY: 10 }));
+      document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: 190, clientY: 10 }));
+      // リサイズ undo。
+      canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+
+      // リサイズもその undo も view-only。dirty=true は発火しない。
+      expect(onDirtyChange).not.toHaveBeenCalledWith(true);
+      handle.destroy();
+    });
   });
 });

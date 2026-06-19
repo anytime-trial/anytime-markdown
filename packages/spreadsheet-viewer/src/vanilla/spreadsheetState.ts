@@ -94,6 +94,9 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
     dataRange: DataRange;
     /** state 外で保持されるレイアウト等（行高/列幅など）。capture/restore フックで授受する。 */
     extra?: unknown;
+    /** この履歴エントリが内容（grid/alignments/dataRange）変更か。false は extra のみ（リサイズ等）。
+     *  false の undo/redo では onContentChange を呼ばず再描画のみ行い、dirty 化・adapter 同期を避ける。 */
+    touchesContent: boolean;
   }
   const HISTORY_LIMIT = 100;
   let past: Snapshot[] = [];
@@ -113,11 +116,12 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
     futureStack = [];
   };
 
-  const snapshot = (): Snapshot => ({
+  const snap = (touchesContent: boolean): Snapshot => ({
     grid: grid.map((r) => [...r]),
     alignments: alignments.map((r) => [...r]),
     dataRange: { ...dataRange },
     extra: captureExtra?.(),
+    touchesContent,
   });
 
   const restore = (s: Snapshot): void => {
@@ -127,14 +131,20 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
     restoreExtra?.(s.extra);
   };
 
+  /** 履歴復元の通知。内容変更は contentChanged（dirty + adapter 同期）、extra のみは再描画だけ。 */
+  const notifyRestore = (touchesContent: boolean): void => {
+    if (touchesContent) contentChanged();
+    else params.onChange();
+  };
+
   /** 実変更の直前に呼ぶ。batch 中はスナップショットを退避し、commit 時に 1 回だけ記録する。
    *  無変更（同値 no-op で recordHistory に到達しない）の transact は履歴を作らない。 */
   const recordHistory = (): void => {
     if (batchDepth > 0) {
-      if (pendingSnapshot === null) pendingSnapshot = snapshot();
+      if (pendingSnapshot === null) pendingSnapshot = snap(true);
       return;
     }
-    pushPast(snapshot());
+    pushPast(snap(true));
   };
 
   const contentChanged = (): void => {
@@ -255,11 +265,12 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
       }
     },
     setHistoryExtra(capture, restore) {
+      // capture と restore は対で管理する（capture の返す形＝restore が受ける形）。
       captureExtra = capture;
       restoreExtra = restore;
     },
     beginHistoryPoint() {
-      manualSnapshot = snapshot();
+      manualSnapshot = snap(false); // extra のみの変更（リサイズ等）。内容は変えない。
     },
     commitHistoryPoint(changed) {
       if (changed && manualSnapshot !== null) pushPast(manualSnapshot);
@@ -268,17 +279,18 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
     undo() {
       const prev = past.pop();
       if (prev === undefined) return false;
-      futureStack.push(snapshot());
+      // 取り消す操作と同じ種別（内容/extra のみ）で redo 用エントリを積む。
+      futureStack.push(snap(prev.touchesContent));
       restore(prev);
-      contentChanged();
+      notifyRestore(prev.touchesContent);
       return true;
     },
     redo() {
       const next = futureStack.pop();
       if (next === undefined) return false;
-      past.push(snapshot());
+      past.push(snap(next.touchesContent));
       restore(next);
-      contentChanged();
+      notifyRestore(next.touchesContent);
       return true;
     },
     resetHistory() {
