@@ -8,6 +8,7 @@ import type {
 import type { TableRange } from "@anytime-markdown/chart-core";
 
 import type { SpreadsheetT } from "../i18n/createSpreadsheetT";
+import { readTsvFromClipboard, writeTsvToClipboard } from "./clipboard";
 import { createSvDivider } from "../ui-vanilla/controls";
 import { svIcon, type SvIconName } from "../ui-vanilla/icons";
 import { createSvMenuItem, openSvMenu, type SvMenuHandle } from "../ui-vanilla/overlay";
@@ -190,18 +191,14 @@ export function openSpreadsheetContextMenu(
   const handleCopy = (): void => {
     const range = getTargetCells();
     if (!range) return;
-    navigator.clipboard.writeText(rangesToTsv(range)).catch((err) => {
-      console.warn("[SpreadsheetContextMenu] copy failed", err);
-    });
+    void writeTsvToClipboard(rangesToTsv(range));
     cb.onClose();
   };
 
   const handleCut = (): void => {
     const range = getTargetCells();
     if (!range) return;
-    navigator.clipboard.writeText(rangesToTsv(range)).catch((err) => {
-      console.warn("[SpreadsheetContextMenu] cut copy failed", err);
-    });
+    void writeTsvToClipboard(rangesToTsv(range));
     for (let r = range.startRow; r <= range.endRow; r++) {
       for (let c = range.startCol; c <= range.endCol; c++) {
         cb.setCellValue(r, c, "");
@@ -213,24 +210,19 @@ export function openSpreadsheetContextMenu(
   const handlePaste = (): void => {
     const range = getTargetCells();
     if (!range) return;
-    navigator.clipboard
-      .readText()
-      .then((text) => {
-        if (!text) return;
-        const lines = text.split("\n").map((line) => line.split("\t"));
-        for (let r = 0; r < lines.length; r++) {
-          for (let c = 0; c < lines[r].length; c++) {
-            const row = range.startRow + r;
-            const col = range.startCol + c;
-            if (row < grid.length && col < grid[0].length) {
-              cb.setCellValue(row, col, lines[r][c]);
-            }
+    void readTsvFromClipboard().then((text) => {
+      if (!text) return;
+      const lines = text.split("\n").map((line) => line.split("\t"));
+      for (let r = 0; r < lines.length; r++) {
+        for (let c = 0; c < lines[r].length; c++) {
+          const row = range.startRow + r;
+          const col = range.startCol + c;
+          if (row < grid.length && col < grid[0].length) {
+            cb.setCellValue(row, col, lines[r][c]);
           }
         }
-      })
-      .catch((err) => {
-        console.warn("[SpreadsheetContextMenu] paste failed", err);
-      });
+      }
+    });
     cb.onClose();
   };
 

@@ -8,10 +8,13 @@
  */
 
 import { createSpreadsheetT } from "../i18n/createSpreadsheetT";
+import { getInternalClipboard, setInternalClipboard } from "../vanilla/clipboard";
 import { mountSpreadsheetGrid, type SpreadsheetGridHandle } from "../vanilla/spreadsheetGrid";
 import { createMockAdapter } from "./support/createMockAdapter";
 
 const t = createSpreadsheetT("Spreadsheet", "en");
+
+const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
 function mount(
   adapterArgs: Parameters<typeof createMockAdapter>,
@@ -26,6 +29,8 @@ function mount(
 
 afterEach(() => {
   document.body.innerHTML = "";
+  setInternalClipboard("");
+  delete (document as unknown as { execCommand?: unknown }).execCommand;
 });
 
 describe("mountSpreadsheetGrid", () => {
@@ -199,5 +204,95 @@ describe("mountSpreadsheetGrid", () => {
     const selects = container.querySelectorAll(".sv-grid-scroll select");
     expect(selects.length).toBe(2); // dataRange.cols ぶん
     handle.destroy();
+  });
+
+  // VS Code webview では navigator.clipboard が reject されるため、
+  // ショートカットのコピー/ペーストが効かなかった回帰（chart-core 表タブ等）を防ぐ。
+  describe("クリップボード（webview フォールバック）", () => {
+    const data = {
+      cells: [
+        ["c00", "c01"],
+        ["c10", "c11"],
+      ],
+      alignments: [
+        [null, null],
+        [null, null],
+      ],
+      range: { rows: 2, cols: 2 },
+    } as const;
+
+    it("Ctrl+C: navigator.clipboard.writeText が reject でも execCommand と内部バッファでコピーする", async () => {
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText: jest.fn().mockRejectedValue(new Error("NotAllowedError")) },
+        configurable: true,
+        writable: true,
+      });
+      const execCommand = jest.fn().mockReturnValue(true);
+      (document as unknown as { execCommand: unknown }).execCommand = execCommand;
+
+      const { handle, container } = mount([
+        { cells: data.cells.map((r) => [...r]), alignments: data.alignments.map((r) => [...r]), range: { ...data.range } },
+      ]);
+      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 50, clientY: 40 }));
+      canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true }));
+      await flush();
+
+      expect(execCommand).toHaveBeenCalledWith("copy");
+      expect(getInternalClipboard()).not.toBe("");
+      handle.destroy();
+    });
+
+    it("Ctrl+V: navigator.clipboard.readText が reject でも内部バッファからセルへ貼り付ける", async () => {
+      setInternalClipboard("PASTED");
+      Object.defineProperty(navigator, "clipboard", {
+        value: { readText: jest.fn().mockRejectedValue(new Error("NotAllowedError")) },
+        configurable: true,
+        writable: true,
+      });
+
+      const { handle, container, adapter } = mount(
+        [{ cells: data.cells.map((r) => [...r]), alignments: data.alignments.map((r) => [...r]), range: { ...data.range } }],
+        { liveSync: true },
+      );
+      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 50, clientY: 40 }));
+      canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "v", ctrlKey: true, bubbles: true }));
+      await flush();
+
+      // liveSync で adapter へ全体反映され、貼り付け値がいずれかのセルに入る。
+      expect(adapter.snapshot.cells.flat()).toContain("PASTED");
+      handle.destroy();
+    });
+
+    it("Ctrl+V: 外部クリップボード（paste-bin の paste イベント）の TSV をセルへ貼り付ける", async () => {
+      // webview 想定: readText は不可。外部貼り付けは paste イベントの clipboardData から取る。
+      Object.defineProperty(navigator, "clipboard", {
+        value: { readText: jest.fn().mockRejectedValue(new Error("NotAllowedError")) },
+        configurable: true,
+        writable: true,
+      });
+
+      const { handle, container, adapter } = mount(
+        [{ cells: data.cells.map((r) => [...r]), alignments: data.alignments.map((r) => [...r]), range: { ...data.range } }],
+        { liveSync: true },
+      );
+      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+      const pasteBin = container.querySelector("textarea") as HTMLTextAreaElement;
+      expect(pasteBin).toBeTruthy();
+
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 50, clientY: 40 }));
+      // Ctrl+V で paste-bin へフォーカスが移る（preventDefault せずネイティブ paste を待つ）。
+      canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "v", ctrlKey: true, bubbles: true }));
+
+      // jsdom は ClipboardEvent.clipboardData を埋めないため、paste イベントを手動で発火する。
+      const pasteEvent = new Event("paste", { bubbles: true }) as Event & { clipboardData: unknown };
+      pasteEvent.clipboardData = { getData: (type: string) => (type === "text/plain" ? "EXTERNAL\tFROM_EXCEL" : "") };
+      pasteBin.dispatchEvent(pasteEvent);
+      await flush();
+
+      expect(adapter.snapshot.cells.flat()).toContain("EXTERNAL");
+      handle.destroy();
+    });
   });
 });
