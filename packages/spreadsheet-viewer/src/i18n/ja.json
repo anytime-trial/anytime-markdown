@@ -23,6 +23,7 @@
     "spreadsheetCut": "切り取り",
     "spreadsheetCopy": "コピー",
     "spreadsheetPaste": "貼り付け",
+    "spreadsheetPasteArea": "貼り付け領域",
     "spreadsheetFilter": "フィルタ",
     "spreadsheetFilterClear": "フィルタ解除",
     "spreadsheetFilterColumn": "列でフィルタ",

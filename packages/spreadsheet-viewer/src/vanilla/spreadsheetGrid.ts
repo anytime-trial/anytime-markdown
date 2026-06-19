@@ -16,6 +16,12 @@ import {
 } from "@anytime-markdown/spreadsheet-core";
 
 import { createSpreadsheetT, type SpreadsheetT } from "../i18n/createSpreadsheetT";
+import {
+  getInternalClipboard,
+  parseClipboardTsv,
+  readTsvFromClipboard,
+  writeTsvToClipboard,
+} from "./clipboard";
 import { getDivider, getPalette, applySpreadsheetThemeVars, themeCssVars } from "../ui/tokens";
 import { injectSpreadsheetUiStyles } from "../ui/injectStyles";
 import {
@@ -761,7 +767,29 @@ export function mountSpreadsheetGrid(
   input.readOnly = readOnly;
   input.style.display = "none";
 
-  scrollEl.append(canvas, filterRowEl, input);
+  // 外部アプリ（Excel 等）からの貼り付け捕捉用の隠し編集要素（paste-bin）。
+  // VS Code webview では navigator.clipboard.readText が遮断され、かつ非編集の canvas には
+  // ネイティブ paste イベントが届かない。Ctrl+V 時にこの textarea へ一瞬フォーカスを移し、
+  // ここに発火する paste イベントの clipboardData を読むことで外部貼り付けを成立させる。
+  // tabIndex=-1 で Tab 順から外し、画面外・不可視にしてユーザーには見えないようにする。
+  const pasteBin = document.createElement("textarea");
+  pasteBin.tabIndex = -1;
+  // aria-hidden は付けない（focus を受ける要素に aria-hidden は ARIA 仕様違反のため）。
+  // 代わりにラベルを与え、SR には貼り付け領域として伝える。視覚的非表示は CSS で担保する。
+  pasteBin.setAttribute("aria-label", t("spreadsheetPasteArea"));
+  Object.assign(pasteBin.style, {
+    position: "fixed",
+    top: "0",
+    left: "0",
+    width: "1px",
+    height: "1px",
+    opacity: "0",
+    border: "0",
+    padding: "0",
+    resize: "none",
+  });
+
+  scrollEl.append(canvas, filterRowEl, input, pasteBin);
   root.appendChild(scrollEl);
   container.appendChild(root);
 
@@ -1913,6 +1941,41 @@ export function mountSpreadsheetGrid(
     if (editing) cancelEditing();
   };
 
+  // 貼り付け先の起点（選択範囲の左上）。paste-bin の paste イベント or バックストップで使う。
+  let pendingPasteAnchor: { minR: number; minC: number } | null = null;
+  let pasteHandledByBin = false;
+
+  /** TSV を anchor を起点にセルへ書き込む。CRLF を正規化し末尾の空行は無視する。 */
+  const applyPasteTsv = (anchor: { minR: number; minC: number }, text: string): void => {
+    if (readOnly || !text) return;
+    const lines = parseClipboardTsv(text);
+    const g = state.grid;
+    const cols = g[0]?.length ?? 0;
+    for (let r = 0; r < lines.length; r++) {
+      for (let c = 0; c < lines[r].length; c++) {
+        const targetRow = anchor.minR + r;
+        const targetCol = anchor.minC + c;
+        if (targetRow < g.length && targetCol < cols) {
+          state.setCellValue(targetRow, targetCol, lines[r][c]);
+        }
+      }
+    }
+  };
+
+  // paste-bin に発火したネイティブ paste を捕捉する（外部アプリ・システムクリップボード由来）。
+  const onPasteBinPaste = (e: ClipboardEvent): void => {
+    if (!pendingPasteAnchor) return;
+    e.preventDefault();
+    pasteHandledByBin = true;
+    const anchor = pendingPasteAnchor;
+    pendingPasteAnchor = null;
+    // clipboardData が空なら内部バッファ（直近のグリッド内コピー）にフォールバック。
+    const text = e.clipboardData?.getData("text/plain") || getInternalClipboard();
+    applyPasteTsv(anchor, text);
+    pasteBin.value = "";
+    canvas.focus();
+  };
+
   const onCanvasKeyDown = (e: KeyboardEvent): void => {
     if (editing) return;
     const { key, shiftKey, ctrlKey, metaKey, altKey } = e;
@@ -1959,9 +2022,9 @@ export function mountSpreadsheetGrid(
           for (let c = anchor.minC; c <= anchor.maxC; c++) cells.push(grid[r]?.[c] ?? "");
           lines.push(cells.join("\t"));
         }
-        navigator.clipboard.writeText(lines.join("\n")).catch((err) => {
-          console.warn("[SpreadsheetGrid] clipboard write failed", err);
-        });
+        // navigator.clipboard が使えない環境（VS Code webview 等）でも、内部バッファ +
+        // execCommand フォールバックでコピーを成立させる（writeTsvToClipboard 内で吸収）。
+        void writeTsvToClipboard(lines.join("\n"));
         if (key === "x" && !readOnly) {
           for (let r = anchor.minR; r <= anchor.maxR; r++) {
             for (let c = anchor.minC; c <= anchor.maxC; c++) {
@@ -1973,25 +2036,23 @@ export function mountSpreadsheetGrid(
       }
       if (key === "v") {
         if (readOnly) return;
-        e.preventDefault();
-        navigator.clipboard
-          .readText()
-          .then((text) => {
-            if (!text) return;
-            const lines = text.split("\n").map((line) => line.split("\t"));
-            for (let r = 0; r < lines.length; r++) {
-              for (let c = 0; c < lines[r].length; c++) {
-                const targetRow = anchor.minR + r;
-                const targetCol = anchor.minC + c;
-                if (targetRow < grid.length && targetCol < (grid[0]?.length ?? 0)) {
-                  state.setCellValue(targetRow, targetCol, lines[r][c]);
-                }
-              }
-            }
-          })
-          .catch((err) => {
-            console.warn("[SpreadsheetGrid] clipboard read failed", err);
+        // 外部アプリ（Excel 等）からの貼り付けを捕捉するため paste-bin へフォーカスを移し、
+        // ネイティブ paste イベント（clipboardData）を待つ。preventDefault しない（paste を発火させる）。
+        pendingPasteAnchor = { minR: anchor.minR, minC: anchor.minC };
+        pasteHandledByBin = false;
+        pasteBin.value = "";
+        pasteBin.focus();
+        // バックストップ: paste イベントが発火しない環境では、システムクリップボード読取 →
+        // 内部バッファ（VS Code webview 等で readText 不可時）で代替する。
+        setTimeout(() => {
+          if (destroyed || pasteHandledByBin || !pendingPasteAnchor) return;
+          const anchorTarget = pendingPasteAnchor;
+          pendingPasteAnchor = null;
+          void readTsvFromClipboard().then((text) => {
+            applyPasteTsv(anchorTarget, text);
+            canvas.focus();
           });
+        }, 0);
         return;
       }
     }
@@ -2068,6 +2129,7 @@ export function mountSpreadsheetGrid(
   canvas.addEventListener("mousedown", onCanvasMouseDown);
   canvas.addEventListener("mousemove", onCanvasMouseMove);
   canvas.addEventListener("keydown", onCanvasKeyDown);
+  pasteBin.addEventListener("paste", onPasteBinPaste);
   input.addEventListener("keydown", onInputKeyDown);
   input.addEventListener("blur", onInputBlur);
 
@@ -2131,6 +2193,7 @@ export function mountSpreadsheetGrid(
       for (const cleanup of [...activeDragCleanups]) cleanup();
       for (const dispose of disposers) dispose();
       scrollEl.removeEventListener("scroll", onScroll);
+      pasteBin.removeEventListener("paste", onPasteBinPaste);
       root.remove();
     },
   };

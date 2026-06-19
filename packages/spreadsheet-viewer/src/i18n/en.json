@@ -23,6 +23,7 @@
     "spreadsheetCut": "Cut",
     "spreadsheetCopy": "Copy",
     "spreadsheetPaste": "Paste",
+    "spreadsheetPasteArea": "Paste area",
     "spreadsheetFilter": "Filter",
     "spreadsheetFilterClear": "Clear Filter",
     "spreadsheetFilterColumn": "Filter Column",
