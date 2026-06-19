@@ -6,9 +6,13 @@
  * 混入するため、ここへ分離している。
  */
 
+import type { MeasurePreset } from "./utils/measurePreset";
+
 export interface EditorSettings {
   lineHeight: number;
   fontSize: number;
+  /** 本文カラム幅（行長）プリセット。em 基準でフォントに連動する。 */
+  measure: MeasurePreset;
   tableWidth: "auto" | "100%";
   editorBg: "white" | "grey";
   lightBgColor: string;    // ライトモード背景色（空文字 = テーマデフォルト）
@@ -24,7 +28,8 @@ export interface EditorSettings {
 
 export const DEFAULT_SETTINGS: EditorSettings = {
   lineHeight: 1.6,
-  fontSize: 16,
+  fontSize: 17,
+  measure: "standard",
   tableWidth: "auto",
   editorBg: "white",
   lightBgColor: "",

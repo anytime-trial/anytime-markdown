@@ -20,6 +20,7 @@ const t = (key: string): string => key;
 const baseSettings: EditorSettings = {
   lineHeight: 1.6,
   fontSize: 16,
+  measure: "standard",
   tableWidth: "auto",
   editorBg: "white",
   lightBgColor: "",
@@ -84,6 +85,18 @@ describe("createEditorSettingsPanel", () => {
     range.dispatchEvent(new Event("input"));
     expect(updates).toContainEqual({ fontSize: 18 });
     expect(paper().textContent).toContain("18px");
+    handle.destroy();
+  });
+
+  it("本文幅 Select（measure）を caption 付きで描画し現在値ラベルを表示する", () => {
+    const { handle } = mount();
+    expect(paper().textContent).toContain("settingMeasure");
+    const combo = paper().querySelector(
+      '[role="combobox"][aria-label="settingMeasure"]',
+    ) as HTMLButtonElement;
+    expect(combo).toBeTruthy();
+    // standard 既定の現在値ラベルが closed 表示に出る。
+    expect(combo.textContent).toContain("settingMeasureStandard");
     handle.destroy();
   });
 
