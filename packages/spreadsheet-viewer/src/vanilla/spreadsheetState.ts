@@ -91,6 +91,14 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
   let past: Snapshot[] = [];
   let futureStack: Snapshot[] = [];
   let batchDepth = 0;
+  // batch 中、最初の実変更時にだけ退避するスナップショット（無変更 transact の phantom 履歴を防ぐ）。
+  let pendingSnapshot: Snapshot | null = null;
+
+  const pushPast = (s: Snapshot): void => {
+    past.push(s);
+    if (past.length > HISTORY_LIMIT) past.shift();
+    futureStack = [];
+  };
 
   const snapshot = (): Snapshot => ({
     grid: grid.map((r) => [...r]),
@@ -104,12 +112,14 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
     dataRange = { ...s.dataRange };
   };
 
-  /** 変更の直前に呼ぶ。batch 中は最初の 1 回のみ記録する。新規変更で redo 履歴は破棄。 */
+  /** 実変更の直前に呼ぶ。batch 中はスナップショットを退避し、commit 時に 1 回だけ記録する。
+   *  無変更（同値 no-op で recordHistory に到達しない）の transact は履歴を作らない。 */
   const recordHistory = (): void => {
-    if (batchDepth > 0) return;
-    past.push(snapshot());
-    if (past.length > HISTORY_LIMIT) past.shift();
-    futureStack = [];
+    if (batchDepth > 0) {
+      if (pendingSnapshot === null) pendingSnapshot = snapshot();
+      return;
+    }
+    pushPast(snapshot());
   };
 
   const contentChanged = (): void => {
@@ -138,6 +148,7 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
       contentChanged();
     },
     setDataRange(range) {
+      if (dataRange.rows === range.rows && dataRange.cols === range.cols) return; // 無変更は no-op
       recordHistory();
       dataRange = range;
       contentChanged();
@@ -215,12 +226,17 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
     },
     transact(fn) {
       const outer = batchDepth === 0;
-      if (outer) recordHistory();
+      if (outer) pendingSnapshot = null;
       batchDepth++;
       try {
         fn();
       } finally {
         batchDepth--;
+        // 実変更があった場合のみ（pendingSnapshot が積まれた場合のみ）履歴に記録する。
+        if (outer && pendingSnapshot !== null) {
+          pushPast(pendingSnapshot);
+          pendingSnapshot = null;
+        }
       }
     },
     undo() {

@@ -280,5 +280,24 @@ describe("createSpreadsheetState", () => {
       expect(state.undo()).toBe(false);
       expect(state.redo()).toBe(false);
     });
+
+    it("全セル同値の transact は phantom 履歴を作らない", () => {
+      const { state } = setup();
+      state.setCellValue(0, 0, "A");
+      state.transact(() => {
+        state.setCellValue(0, 0, "A"); // 同値 no-op のみ
+      });
+      // phantom エントリが無いので 1 回の undo で初期状態へ戻る。
+      expect(state.undo()).toBe(true);
+      expect(state.grid[0][0]).toBe("");
+    });
+
+    it("同サイズの setDataRange は履歴を作らない", () => {
+      const { state } = setup();
+      state.setCellValue(0, 0, "A");
+      state.setDataRange({ rows: DEFAULT_ROWS, cols: DEFAULT_COLS }); // 無変更
+      expect(state.undo()).toBe(true);
+      expect(state.grid[0][0]).toBe("");
+    });
   });
 });
