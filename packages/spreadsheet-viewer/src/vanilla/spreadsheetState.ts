@@ -46,6 +46,14 @@ export interface SpreadsheetState {
   deleteCol(atIndex: number): void;
   swapRows(a: number, b: number): void;
   swapCols(a: number, b: number): void;
+  /** 複数の変更を 1 つの undo 単位にまとめて実行する（ペースト・フィル・範囲クリア等）。 */
+  transact(fn: () => void): void;
+  /** 直前の内容変更（grid / alignments / dataRange）を取り消す。取り消せたら true。 */
+  undo(): boolean;
+  /** undo を取り消す（やり直す）。やり直せたら true。 */
+  redo(): boolean;
+  /** undo/redo 履歴をクリアする（外部からの再シードなど baseline リセット時）。 */
+  resetHistory(): void;
 }
 
 export function createSpreadsheetState(params: SpreadsheetStateParams): SpreadsheetState {
@@ -73,6 +81,47 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
   let dataRange: DataRange = { rows: params.initialRows, cols: params.initialCols };
   let selection: SpreadsheetSelection | null = null;
 
+  // ---- undo / redo 履歴（grid / alignments / dataRange のスナップショット） ----
+  interface Snapshot {
+    grid: string[][];
+    alignments: CellAlign[][];
+    dataRange: DataRange;
+  }
+  const HISTORY_LIMIT = 100;
+  let past: Snapshot[] = [];
+  let futureStack: Snapshot[] = [];
+  let batchDepth = 0;
+  // batch 中、最初の実変更時にだけ退避するスナップショット（無変更 transact の phantom 履歴を防ぐ）。
+  let pendingSnapshot: Snapshot | null = null;
+
+  const pushPast = (s: Snapshot): void => {
+    past.push(s);
+    if (past.length > HISTORY_LIMIT) past.shift();
+    futureStack = [];
+  };
+
+  const snapshot = (): Snapshot => ({
+    grid: grid.map((r) => [...r]),
+    alignments: alignments.map((r) => [...r]),
+    dataRange: { ...dataRange },
+  });
+
+  const restore = (s: Snapshot): void => {
+    grid = s.grid.map((r) => [...r]);
+    alignments = s.alignments.map((r) => [...r]);
+    dataRange = { ...s.dataRange };
+  };
+
+  /** 実変更の直前に呼ぶ。batch 中はスナップショットを退避し、commit 時に 1 回だけ記録する。
+   *  無変更（同値 no-op で recordHistory に到達しない）の transact は履歴を作らない。 */
+  const recordHistory = (): void => {
+    if (batchDepth > 0) {
+      if (pendingSnapshot === null) pendingSnapshot = snapshot();
+      return;
+    }
+    pushPast(snapshot());
+  };
+
   const contentChanged = (): void => {
     params.onContentChange?.();
     params.onChange();
@@ -93,27 +142,35 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
     },
     setCellValue(row, col, value) {
       if (grid[row] === undefined || grid[row][col] === undefined) return;
+      if (grid[row][col] === value) return; // 同値は no-op（履歴も作らない）
+      recordHistory();
       grid[row][col] = value;
       contentChanged();
     },
     setDataRange(range) {
+      if (dataRange.rows === range.rows && dataRange.cols === range.cols) return; // 無変更は no-op
+      recordHistory();
       dataRange = range;
       contentChanged();
     },
     setSelection(sel) {
+      // 選択は内容ではないため履歴に積まない。
       selection = sel;
       params.onChange();
     },
     setCellAlign(row, col, align) {
       if (alignments[row] === undefined) return;
+      recordHistory();
       alignments[row][col] = align;
       contentChanged();
     },
     setAlignments(aligns) {
+      recordHistory();
       alignments = aligns;
       contentChanged();
     },
     initGrid(data) {
+      recordHistory();
       grid = createEmptyGrid(GRID_ROWS, GRID_COLS);
       for (let r = 0; r < data.length && r < GRID_ROWS; r++) {
         for (let c = 0; c < data[r].length && c < GRID_COLS; c++) {
@@ -123,16 +180,19 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
       contentChanged();
     },
     insertRow(atIndex) {
+      recordHistory();
       grid.splice(atIndex, 0, Array.from({ length: GRID_COLS }, () => ""));
       grid = grid.slice(0, GRID_ROWS);
       contentChanged();
     },
     deleteRow(atIndex) {
+      recordHistory();
       grid.splice(atIndex, 1);
       grid.push(Array.from({ length: GRID_COLS }, () => ""));
       contentChanged();
     },
     insertCol(atIndex) {
+      recordHistory();
       grid = grid.map((row) => {
         const next = [...row];
         next.splice(atIndex, 0, "");
@@ -141,6 +201,7 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
       contentChanged();
     },
     deleteCol(atIndex) {
+      recordHistory();
       grid = grid.map((row) => {
         const next = [...row];
         next.splice(atIndex, 1);
@@ -151,15 +212,52 @@ export function createSpreadsheetState(params: SpreadsheetStateParams): Spreadsh
     },
     swapRows(a, b) {
       if (grid[a] === undefined || grid[b] === undefined) return;
+      recordHistory();
       [grid[a], grid[b]] = [grid[b], grid[a]];
       contentChanged();
     },
     swapCols(a, b) {
+      recordHistory();
       for (const row of grid) {
         if (row[a] === undefined || row[b] === undefined) continue;
         [row[a], row[b]] = [row[b], row[a]];
       }
       contentChanged();
+    },
+    transact(fn) {
+      const outer = batchDepth === 0;
+      if (outer) pendingSnapshot = null;
+      batchDepth++;
+      try {
+        fn();
+      } finally {
+        batchDepth--;
+        // 実変更があった場合のみ（pendingSnapshot が積まれた場合のみ）履歴に記録する。
+        if (outer && pendingSnapshot !== null) {
+          pushPast(pendingSnapshot);
+          pendingSnapshot = null;
+        }
+      }
+    },
+    undo() {
+      const prev = past.pop();
+      if (prev === undefined) return false;
+      futureStack.push(snapshot());
+      restore(prev);
+      contentChanged();
+      return true;
+    },
+    redo() {
+      const next = futureStack.pop();
+      if (next === undefined) return false;
+      past.push(snapshot());
+      restore(next);
+      contentChanged();
+      return true;
+    },
+    resetHistory() {
+      past = [];
+      futureStack = [];
     },
   };
 }

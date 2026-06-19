@@ -1669,6 +1669,7 @@ export function mountSpreadsheetGrid(
           onSwapCols: state.swapCols,
           setDataRange: state.setDataRange,
           setCellValue: state.setCellValue,
+          transact: state.transact,
           onOpenFilter: () => {
             filterRowVisible = true;
             renderFilterRow();
@@ -1832,26 +1833,29 @@ export function mountSpreadsheetGrid(
       }
     }
 
-    // 補完先がデータ範囲を超える場合は範囲を拡張（永続・可視範囲に含める）。
-    const neededRows = Math.max(state.dataRange.rows, target.maxR + 1);
-    const neededCols = Math.max(state.dataRange.cols, target.maxC + 1);
-    if (neededRows !== state.dataRange.rows || neededCols !== state.dataRange.cols) {
-      state.setDataRange({ rows: neededRows, cols: neededCols });
-    }
+    // 範囲拡張 + 全書き込みを 1 つの undo 単位にまとめる。
+    state.transact(() => {
+      // 補完先がデータ範囲を超える場合は範囲を拡張（永続・可視範囲に含める）。
+      const neededRows = Math.max(state.dataRange.rows, target.maxR + 1);
+      const neededCols = Math.max(state.dataRange.cols, target.maxC + 1);
+      if (neededRows !== state.dataRange.rows || neededCols !== state.dataRange.cols) {
+        state.setDataRange({ rows: neededRows, cols: neededCols });
+      }
 
-    if (down) {
-      const count = target.maxR - src.maxR;
-      for (let ci = 0; ci < sources.length; ci++) {
-        const values = computeFillValues(sources[ci], count);
-        for (let i = 0; i < count; i++) state.setCellValue(src.maxR + 1 + i, src.minC + ci, values[i]);
+      if (down) {
+        const count = target.maxR - src.maxR;
+        for (let ci = 0; ci < sources.length; ci++) {
+          const values = computeFillValues(sources[ci], count);
+          for (let i = 0; i < count; i++) state.setCellValue(src.maxR + 1 + i, src.minC + ci, values[i]);
+        }
+      } else {
+        const count = target.maxC - src.maxC;
+        for (let ri = 0; ri < sources.length; ri++) {
+          const values = computeFillValues(sources[ri], count);
+          for (let i = 0; i < count; i++) state.setCellValue(src.minR + ri, src.maxC + 1 + i, values[i]);
+        }
       }
-    } else {
-      const count = target.maxC - src.maxC;
-      for (let ri = 0; ri < sources.length; ri++) {
-        const values = computeFillValues(sources[ri], count);
-        for (let i = 0; i < count; i++) state.setCellValue(src.minR + ri, src.maxC + 1 + i, values[i]);
-      }
-    }
+    });
 
     // 補完後の範囲を選択する（Excel 同様）。
     state.setSelection({
@@ -2117,15 +2121,17 @@ export function mountSpreadsheetGrid(
     const lines = parseClipboardTsv(text);
     const g = state.grid;
     const cols = g[0]?.length ?? 0;
-    for (let r = 0; r < lines.length; r++) {
-      for (let c = 0; c < lines[r].length; c++) {
-        const targetRow = anchor.minR + r;
-        const targetCol = anchor.minC + c;
-        if (targetRow < g.length && targetCol < cols) {
-          state.setCellValue(targetRow, targetCol, lines[r][c]);
+    state.transact(() => {
+      for (let r = 0; r < lines.length; r++) {
+        for (let c = 0; c < lines[r].length; c++) {
+          const targetRow = anchor.minR + r;
+          const targetCol = anchor.minC + c;
+          if (targetRow < g.length && targetCol < cols) {
+            state.setCellValue(targetRow, targetCol, lines[r][c]);
+          }
         }
       }
-    }
+    });
   };
 
   // paste-bin に発火したネイティブ paste を捕捉する（外部アプリ・システムクリップボード由来）。
@@ -2148,15 +2154,23 @@ export function mountSpreadsheetGrid(
     const selection = state.selection;
     const grid = state.grid;
 
+    // ホストが onUndo/onRedo を渡していればそれを優先し、無ければグリッド内部履歴を使う。
     if ((ctrlKey || metaKey) && key === "z") {
       e.preventDefault();
-      if (shiftKey) options.onRedo?.();
-      else options.onUndo?.();
+      if (shiftKey) {
+        if (options.onRedo) options.onRedo();
+        else state.redo();
+      } else if (options.onUndo) {
+        options.onUndo();
+      } else {
+        state.undo();
+      }
       return;
     }
     if ((ctrlKey || metaKey) && key === "y") {
       e.preventDefault();
-      options.onRedo?.();
+      if (options.onRedo) options.onRedo();
+      else state.redo();
       return;
     }
 
@@ -2192,11 +2206,13 @@ export function mountSpreadsheetGrid(
         // execCommand フォールバックでコピーを成立させる（writeTsvToClipboard 内で吸収）。
         void writeTsvToClipboard(lines.join("\n"));
         if (key === "x" && !readOnly) {
-          for (let r = anchor.minR; r <= anchor.maxR; r++) {
-            for (let c = anchor.minC; c <= anchor.maxC; c++) {
-              state.setCellValue(r, c, "");
+          state.transact(() => {
+            for (let r = anchor.minR; r <= anchor.maxR; r++) {
+              for (let c = anchor.minC; c <= anchor.maxC; c++) {
+                state.setCellValue(r, c, "");
+              }
             }
-          }
+          });
         }
         return;
       }
@@ -2245,11 +2261,13 @@ export function mountSpreadsheetGrid(
         const maxR = Math.max(selection.startRow, selection.endRow);
         const minC = Math.min(selection.startCol, selection.endCol);
         const maxC = Math.max(selection.startCol, selection.endCol);
-        for (let r = minR; r <= maxR; r++) {
-          for (let c = minC; c <= maxC; c++) {
-            state.setCellValue(r, c, "");
+        state.transact(() => {
+          for (let r = minR; r <= maxR; r++) {
+            for (let c = minC; c <= maxC; c++) {
+              state.setCellValue(r, c, "");
+            }
           }
-        }
+        });
       }
       return;
     }
@@ -2314,6 +2332,8 @@ export function mountSpreadsheetGrid(
       Array.from({ length: GRID_COLS }, (_, c) => snap.alignments[r]?.[c] ?? null),
     );
     state.setAlignments(fullAligns);
+    // 外部シード（初期・外部更新）は baseline。これを跨いで undo させない。
+    state.resetHistory();
   };
 
   // 初期同期は dirty 追跡を有効化する前に行う（mount 直後に dirty=true にならないように）。

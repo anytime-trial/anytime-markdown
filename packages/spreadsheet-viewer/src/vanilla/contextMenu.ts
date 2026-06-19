@@ -132,6 +132,8 @@ export interface SpreadsheetContextMenuCallbacks {
   onSwapCols: (a: number, b: number) => void;
   setDataRange: (range: DataRange) => void;
   setCellValue: (row: number, col: number, value: string) => void;
+  /** 複数セル変更（切り取り・貼り付け）を 1 つの undo 単位にまとめる。未指定なら逐次実行。 */
+  transact?: (fn: () => void) => void;
   onOpenFilter: () => void;
   /** 選択範囲からチャート作成コールバック（未指定時はメニュー項目を非表示）。 */
   onCreateChart?: (range: TableRange) => void;
@@ -188,6 +190,9 @@ export function openSpreadsheetContextMenu(
     return lines.join("\n");
   };
 
+  // 複数セル変更を 1 つの undo 単位にまとめる（transact 未指定なら逐次実行）。
+  const batch = cb.transact ?? ((fn: () => void) => fn());
+
   const handleCopy = (): void => {
     const range = getTargetCells();
     if (!range) return;
@@ -199,11 +204,13 @@ export function openSpreadsheetContextMenu(
     const range = getTargetCells();
     if (!range) return;
     void writeTsvToClipboard(rangesToTsv(range));
-    for (let r = range.startRow; r <= range.endRow; r++) {
-      for (let c = range.startCol; c <= range.endCol; c++) {
-        cb.setCellValue(r, c, "");
+    batch(() => {
+      for (let r = range.startRow; r <= range.endRow; r++) {
+        for (let c = range.startCol; c <= range.endCol; c++) {
+          cb.setCellValue(r, c, "");
+        }
       }
-    }
+    });
     cb.onClose();
   };
 
@@ -214,15 +221,17 @@ export function openSpreadsheetContextMenu(
       .then((text) => {
         if (!text) return;
         const lines = parseClipboardTsv(text);
-        for (let r = 0; r < lines.length; r++) {
-          for (let c = 0; c < lines[r].length; c++) {
-            const row = range.startRow + r;
-            const col = range.startCol + c;
-            if (row < grid.length && col < grid[0].length) {
-              cb.setCellValue(row, col, lines[r][c]);
+        batch(() => {
+          for (let r = 0; r < lines.length; r++) {
+            for (let c = 0; c < lines[r].length; c++) {
+              const row = range.startRow + r;
+              const col = range.startCol + c;
+              if (row < grid.length && col < grid[0].length) {
+                cb.setCellValue(row, col, lines[r][c]);
+              }
             }
           }
-        }
+        });
       })
       .catch((err) => {
         console.warn("[SpreadsheetContextMenu] paste failed", err);

@@ -372,4 +372,50 @@ describe("mountSpreadsheetGrid", () => {
       handle.destroy();
     });
   });
+
+  // Ctrl+Z / Ctrl+Y がグリッド内部履歴で動くこと（ホストの onUndo/onRedo 未指定時）。
+  describe("undo / redo（内部履歴）", () => {
+    it("Ctrl+Z でフィルを取り消し、Ctrl+Y でやり直す", () => {
+      const { handle, container, adapter } = mount(
+        [{ cells: [["1", "x"], ["", "y"], ["", "z"]], alignments: [[null, null], [null, null], [null, null]], range: { rows: 3, cols: 2 } }],
+        { liveSync: true },
+      );
+      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+      // セル(0,0)選択 → ハンドル(140,56)から row3 まで下フィル（1→2,3,4）。
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 70, clientY: 40 }));
+      canvas.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: 140, clientY: 56 }));
+      document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 70, clientY: 120 }));
+      document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: 70, clientY: 120 }));
+      expect(adapter.snapshot.cells.flat()).toContain("2");
+
+      // Ctrl+Z で取り消し。
+      canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+      expect(adapter.snapshot.cells.flat()).not.toContain("2");
+
+      // Ctrl+Y でやり直し。
+      canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "y", ctrlKey: true, bubbles: true }));
+      expect(adapter.snapshot.cells.flat()).toContain("2");
+      handle.destroy();
+    });
+
+    it("外部 adapter 更新（再シード）後は直前の編集を undo できない（履歴リセット）", () => {
+      const { handle, container, adapter } = mount(
+        [{ cells: [["1"], [""], [""]], alignments: [[null], [null], [null]], range: { rows: 3, cols: 1 } }],
+        { liveSync: true },
+      );
+      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 70, clientY: 40 }));
+      canvas.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: 140, clientY: 56 }));
+      document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 70, clientY: 120 }));
+      document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: 70, clientY: 120 }));
+      expect(adapter.snapshot.cells.flat()).toContain("2");
+
+      // 外部から adapter を置き換える（再シード → 履歴リセット）。
+      adapter.replaceAll({ cells: [["Z"]], alignments: [[null]], range: { rows: 1, cols: 1 } });
+      canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+      // 履歴がリセットされているため undo は効かず "2" は復活しない。
+      expect(adapter.snapshot.cells.flat()).not.toContain("2");
+      handle.destroy();
+    });
+  });
 });
