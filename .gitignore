@@ -7,6 +7,7 @@ prebuilt-vscode
 .clone
 .claude/*
 !.claude/rules/
+!.claude/skills/
 .next
 .playwright-mcp
 .serena

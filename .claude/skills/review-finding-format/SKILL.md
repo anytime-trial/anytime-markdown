@@ -1,3 +1,9 @@
+---
+name: review-finding-format
+effort: low
+description: コードレビュー結果を出力する際の Markdown 書式（memory-core ingest パーサ対応）。### N. タイトル＋重大度/カテゴリ/対象の3メタデータ＋行頭の問題:/提案: マーカーで指摘を構造化する。レビュードキュメント・code-reviewer subagent 出力・requesting-code-review/security-review の指摘を書く時に使用する。
+---
+
 # レビュー指摘の書式
 
 更新日: 2026-05-16
@@ -135,7 +141,7 @@ const name = reader.session.user.name;
 **提案:**
 
 `types.ts` / `ja.ts` / `en.ts` の 3 ファイルに同時追加。命名規則は
-`~/.claude/rules/i18n-naming.md` を参照。
+`i18n-naming` スキルを参照。
 ```
 
 ## 4. 悪い例（パーサで取りこぼされる）

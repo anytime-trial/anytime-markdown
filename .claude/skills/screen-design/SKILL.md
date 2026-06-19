@@ -1,3 +1,8 @@
+---
+name: screen-design
+description: anytime-markdown の UI / 画面コンポーネントを新規実装・修正する際のデザインシステム指針。design.md（/Shared/anytime-markdown-docs/spec/12.design/design.md）参照義務・トークン駆動・ダーク/ライト両モード対応・アクセシビリティを定義。新規ページ/コンポーネント作成・スタイル変更・レイアウト変更・アニメーション追加・a11y 対応の時に使用する。
+---
+
 # 画面デザイン指針
 
 更新日: 2026-04-18
