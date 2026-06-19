@@ -90,9 +90,12 @@ const CSS = `
 .sv-divider { height: 1px; border: none; background: var(--sv-color-divider); margin: 4px 0; }
 
 /* ---- Menu (anchorEl / anchorPosition) ---- */
-.sv-menu-backdrop { position: fixed; inset: 0; z-index: 1300; }
+/* z-index は app の最大ダイアログ（markdown 編集ダイアログ z-index:12000）より上にする。
+   chart 表タブのコンテキストメニューが全画面ダイアログの背後に隠れるのを防ぐ。 */
+.sv-menu-backdrop { position: fixed; inset: 0; z-index: 13000; }
 .sv-menu-paper {
   position: fixed;
+  z-index: 13001;
   box-sizing: border-box;
   min-width: 112px;
   max-height: calc(100vh - 32px);
