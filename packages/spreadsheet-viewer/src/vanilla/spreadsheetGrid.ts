@@ -311,6 +311,20 @@ export function mountSpreadsheetGrid(
     },
   });
 
+  // 行高/列幅は state 外（グリッドローカル）の Map なので、履歴 extra フックで undo 対象に含める。
+  state.setHistoryExtra(
+    () => ({ rowHeights: [...rowHeightOverrides], colWidths: [...colWidthOverrides] }),
+    (extra) => {
+      const e = extra as
+        | { rowHeights?: [number, number][]; colWidths?: [number, number][] }
+        | undefined;
+      rowHeightOverrides = new Map(e?.rowHeights ?? []);
+      colWidthOverrides = new Map(e?.colWidths ?? []);
+      // フィルタ行は列幅に追従するため、表示中のみ作り直す（非表示時の無駄な再生成を避ける）。
+      if (filterRowVisible) renderFilterRow();
+    },
+  );
+
   /* ---------------------------------------------------------------- */
   /*  Derived layout helpers                                           */
   /* ---------------------------------------------------------------- */
@@ -1913,6 +1927,7 @@ export function mountSpreadsheetGrid(
       e.preventDefault();
       const startClientX = e.clientX;
       const startWidth = getColWidth(colEdge);
+      state.beginHistoryPoint();
       trackDrag(
         (ev) => {
           const newWidth = Math.max(40, Math.min(800, startWidth + ev.clientX - startClientX));
@@ -1922,6 +1937,7 @@ export function mountSpreadsheetGrid(
         },
         () => {
           suppressClick = true;
+          state.commitHistoryPoint(getColWidth(colEdge) !== startWidth);
         },
       );
       return;
@@ -1934,6 +1950,7 @@ export function mountSpreadsheetGrid(
       const startClientY = e.clientY;
       const startHeight = getRowHeightByVi(lay, rowEdgeVi);
       const targetRow = lay.visibleRows[rowEdgeVi];
+      state.beginHistoryPoint();
       trackDrag(
         (ev) => {
           const newHeight = Math.max(16, Math.min(400, startHeight + ev.clientY - startClientY));
@@ -1942,6 +1959,7 @@ export function mountSpreadsheetGrid(
         },
         () => {
           suppressClick = true;
+          state.commitHistoryPoint((rowHeightOverrides.get(targetRow) ?? rowHeight()) !== startHeight);
         },
       );
       return;
