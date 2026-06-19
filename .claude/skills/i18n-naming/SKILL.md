@@ -1,3 +1,9 @@
+---
+name: i18n-naming
+effort: low
+description: anytime-markdown の i18n キー（packages/<viewer>/src/i18n/{ja,en}.ts、package.nls*.json）を追加・変更・リネームする際の命名規則。階層構造（2〜4段）・top namespace の選び方・サフィックス規則・単数/複数・命名スタイル・新規追加チェックリストを定義。i18n キーを追加/変更/リネームする時に使用する。
+---
+
 # i18n キー命名規則
 
 更新日: 2026-05-03

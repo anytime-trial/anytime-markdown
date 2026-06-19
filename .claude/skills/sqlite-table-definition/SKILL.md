@@ -1,3 +1,8 @@
+---
+name: sqlite-table-definition
+description: SQLite (better-sqlite3 / sql.js / libsql) でテーブルを定義・変更する際のルール。STRICT・CHECK（boolean/列挙/JSON/timestamp GLOB）・FK の ON DELETE 明示・主キー・インデックス命名・12-step テーブル再作成 migration を定義。CREATE TABLE 追加・列追加・制約追加・インデックス追加・マイグレーションスクリプト作成の時に使用する。
+---
+
 # SQLite テーブル定義ガイドライン
 
 更新日: 2026-05-07
