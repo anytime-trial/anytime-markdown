@@ -295,4 +295,81 @@ describe("mountSpreadsheetGrid", () => {
       handle.destroy();
     });
   });
+
+  // フィルハンドル（選択右下角ドラッグでの連続入力）。
+  // 既定レイアウト: ROW_NUM_WIDTH=40, HEADER_HEIGHT=28, 行高=28, 列幅=100(fixed)。
+  // セル(0,0)のハンドル中心は (40+100, 28+28) = (140, 56)。
+  describe("フィルハンドル", () => {
+    const down = (canvas: HTMLCanvasElement, fromX: number, fromY: number, toX: number, toY: number): void => {
+      canvas.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: fromX, clientY: fromY }));
+      document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: toX, clientY: toY }));
+      document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: toX, clientY: toY }));
+    };
+
+    it("単一数値セルを下方向ドラッグで +1 連番補完する", () => {
+      const { handle, container, adapter } = mount(
+        [{ cells: [["1", "x"], ["", "y"], ["", "z"]], alignments: [[null, null], [null, null], [null, null]], range: { rows: 3, cols: 2 } }],
+        { liveSync: true },
+      );
+      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+      // セル(0,0)を選択 → ハンドル(140,56)から row3 までドラッグ。
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 70, clientY: 40 }));
+      down(canvas, 140, 56, 70, 120);
+
+      const flat = adapter.snapshot.cells.flat();
+      expect(flat).toContain("2");
+      expect(flat).toContain("3");
+      expect(flat).toContain("4");
+      handle.destroy();
+    });
+
+    it("単一数値セルを右方向ドラッグで +1 連番補完する", () => {
+      const { handle, container, adapter } = mount(
+        [{ cells: [["1", "x"], ["", "y"], ["", "z"]], alignments: [[null, null], [null, null], [null, null]], range: { rows: 3, cols: 2 } }],
+        { liveSync: true },
+      );
+      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+      // セル(0,0)を選択 → ハンドル(140,56)から col3（x≈360）まで右へドラッグ（行は据え置き）。
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 70, clientY: 40 }));
+      down(canvas, 140, 56, 360, 40);
+
+      const flat = adapter.snapshot.cells.flat();
+      expect(flat).toContain("2");
+      expect(flat).toContain("3");
+      expect(flat).toContain("4");
+      handle.destroy();
+    });
+
+    it("複数セル選択を下方向ドラッグで等差延長する（2,4→6,8）", () => {
+      const { handle, container, adapter } = mount(
+        [{ cells: [["2"], ["4"], [""], [""]], alignments: [[null], [null], [null], [null]], range: { rows: 4, cols: 1 } }],
+        { liveSync: true },
+      );
+      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+      // (0,0)選択 → shift+クリックで(1,0)まで range 選択。
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 70, clientY: 40 }));
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 70, clientY: 68, shiftKey: true }));
+      // 選択(0..1,0)のハンドルは (140, 28+56)=(140,84)。row3 までドラッグ。
+      down(canvas, 140, 84, 70, 120);
+
+      const flat = adapter.snapshot.cells.flat();
+      expect(flat).toContain("6");
+      expect(flat).toContain("8");
+      handle.destroy();
+    });
+
+    it("readOnly ではフィルで値が変化しない", () => {
+      const { handle, container, adapter } = mount(
+        [{ cells: [["1"], [""], [""]], alignments: [[null], [null], [null]], range: { rows: 3, cols: 1 } }, { readOnly: true }],
+      );
+      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 70, clientY: 40 }));
+      down(canvas, 140, 56, 70, 120);
+
+      // readOnly: ハンドル非表示・フィル無効。setCell は呼ばれず snapshot 不変。
+      expect(adapter.getCalls.some((c) => c.method === "setCell")).toBe(false);
+      expect(adapter.snapshot.cells.flat().filter((v) => v === "2")).toHaveLength(0);
+      handle.destroy();
+    });
+  });
 });

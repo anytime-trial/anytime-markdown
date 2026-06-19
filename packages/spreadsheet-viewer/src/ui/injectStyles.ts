@@ -90,9 +90,14 @@ const CSS = `
 .sv-divider { height: 1px; border: none; background: var(--sv-color-divider); margin: 4px 0; }
 
 /* ---- Menu (anchorEl / anchorPosition) ---- */
-.sv-menu-backdrop { position: fixed; inset: 0; z-index: 1300; }
+/* spreadsheet-viewer のオーバーレイ帯は app の最大ダイアログ（markdown 編集ダイアログ
+   z-index:12000）より上にする。chart 表タブ（全画面ダイアログ内）でメニュー・設定
+   ダイアログ・ツールチップが背後に隠れるのを防ぐ。
+   内部の重なり順は dialog(12100) < tooltip(12300) < menu(12500) を維持する。 */
+.sv-menu-backdrop { position: fixed; inset: 0; z-index: 12500; }
 .sv-menu-paper {
   position: fixed;
+  z-index: 12501;
   box-sizing: border-box;
   min-width: 112px;
   max-height: calc(100vh - 32px);
@@ -159,7 +164,7 @@ const CSS = `
 .sv-dialog-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1300;
+  z-index: 12100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -224,7 +229,7 @@ const CSS = `
 /* ---- Tooltip ---- */
 .sv-tooltip {
   position: fixed;
-  z-index: 1500;
+  z-index: 12300;
   pointer-events: none;
   background: rgba(97,97,97,0.92);
   color: #fff;
