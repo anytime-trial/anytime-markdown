@@ -27,6 +27,19 @@ export function getInternalClipboard(): string {
   return internalClipboardBuffer;
 }
 
+/**
+ * クリップボードの TSV テキストを 2 次元配列へパースする。
+ * CRLF / CR を LF に正規化し、コピー時に付く末尾の空行（`[""]` の 1 行）は除去する。
+ * ショートカット経路（spreadsheetGrid）と右クリックメニュー経路（contextMenu）で共有する。
+ */
+export function parseClipboardTsv(text: string): string[][] {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n").map((line) => line.split("\t"));
+  if (lines.length > 1 && lines[lines.length - 1].length === 1 && lines[lines.length - 1][0] === "") {
+    lines.pop();
+  }
+  return lines;
+}
+
 /** 非表示 textarea + `execCommand("copy")` でシステムクリップボードへ書く。成否を返す。 */
 function writeViaExecCommand(tsv: string): boolean {
   if (typeof document === "undefined") return false;
@@ -77,8 +90,10 @@ export async function readTsvFromClipboard(): Promise<string> {
   try {
     const text = await navigator.clipboard.readText();
     if (text) return text;
-  } catch {
-    // navigator.clipboard.readText 不可 — 内部バッファにフォールバック
+  } catch (err) {
+    // navigator.clipboard.readText 不可（VS Code webview 等）— 内部バッファにフォールバック。
+    // バックストップ/右クリック貼り付けでのみ通る経路なので、原因把握のためログは残す。
+    console.warn("[SpreadsheetGrid] clipboard read failed; falling back to internal buffer", err);
   }
   return internalClipboardBuffer;
 }

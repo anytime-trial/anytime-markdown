@@ -9,6 +9,7 @@
 
 import {
   getInternalClipboard,
+  parseClipboardTsv,
   readTsvFromClipboard,
   setInternalClipboard,
   writeTsvToClipboard,
@@ -93,6 +94,26 @@ describe("readTsvFromClipboard", () => {
     setInternalClipboard("fallback\tval");
 
     await expect(readTsvFromClipboard()).resolves.toBe("fallback\tval");
+  });
+});
+
+describe("parseClipboardTsv", () => {
+  it("タブ/改行で 2 次元配列にパースする", () => {
+    expect(parseClipboardTsv("a\tb\nc\td")).toEqual([
+      ["a", "b"],
+      ["c", "d"],
+    ]);
+  });
+
+  it("CRLF（Excel/Windows 由来）を LF に正規化する", () => {
+    expect(parseClipboardTsv("a\tb\r\nc\td")).toEqual([
+      ["a", "b"],
+      ["c", "d"],
+    ]);
+  });
+
+  it("末尾の空行（コピー時の末尾改行）を除去する", () => {
+    expect(parseClipboardTsv("a\tb\r\n")).toEqual([["a", "b"]]);
   });
 });
 

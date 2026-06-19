@@ -16,7 +16,12 @@ import {
 } from "@anytime-markdown/spreadsheet-core";
 
 import { createSpreadsheetT, type SpreadsheetT } from "../i18n/createSpreadsheetT";
-import { getInternalClipboard, readTsvFromClipboard, writeTsvToClipboard } from "./clipboard";
+import {
+  getInternalClipboard,
+  parseClipboardTsv,
+  readTsvFromClipboard,
+  writeTsvToClipboard,
+} from "./clipboard";
 import { getDivider, getPalette, applySpreadsheetThemeVars, themeCssVars } from "../ui/tokens";
 import { injectSpreadsheetUiStyles } from "../ui/injectStyles";
 import {
@@ -769,7 +774,9 @@ export function mountSpreadsheetGrid(
   // tabIndex=-1 で Tab 順から外し、画面外・不可視にしてユーザーには見えないようにする。
   const pasteBin = document.createElement("textarea");
   pasteBin.tabIndex = -1;
-  pasteBin.setAttribute("aria-hidden", "true");
+  // aria-hidden は付けない（focus を受ける要素に aria-hidden は ARIA 仕様違反のため）。
+  // 代わりにラベルを与え、SR には貼り付け領域として伝える。視覚的非表示は CSS で担保する。
+  pasteBin.setAttribute("aria-label", t("spreadsheetPasteArea"));
   Object.assign(pasteBin.style, {
     position: "fixed",
     top: "0",
@@ -1941,11 +1948,7 @@ export function mountSpreadsheetGrid(
   /** TSV を anchor を起点にセルへ書き込む。CRLF を正規化し末尾の空行は無視する。 */
   const applyPasteTsv = (anchor: { minR: number; minC: number }, text: string): void => {
     if (readOnly || !text) return;
-    const lines = text.replace(/\r\n?/g, "\n").split("\n").map((line) => line.split("\t"));
-    // コピー時に付く末尾改行（[""] の 1 行）は無視する。
-    if (lines.length > 1 && lines[lines.length - 1].length === 1 && lines[lines.length - 1][0] === "") {
-      lines.pop();
-    }
+    const lines = parseClipboardTsv(text);
     const g = state.grid;
     const cols = g[0]?.length ?? 0;
     for (let r = 0; r < lines.length; r++) {
@@ -2042,7 +2045,7 @@ export function mountSpreadsheetGrid(
         // バックストップ: paste イベントが発火しない環境では、システムクリップボード読取 →
         // 内部バッファ（VS Code webview 等で readText 不可時）で代替する。
         setTimeout(() => {
-          if (pasteHandledByBin || !pendingPasteAnchor) return;
+          if (destroyed || pasteHandledByBin || !pendingPasteAnchor) return;
           const anchorTarget = pendingPasteAnchor;
           pendingPasteAnchor = null;
           void readTsvFromClipboard().then((text) => {
@@ -2190,6 +2193,7 @@ export function mountSpreadsheetGrid(
       for (const cleanup of [...activeDragCleanups]) cleanup();
       for (const dispose of disposers) dispose();
       scrollEl.removeEventListener("scroll", onScroll);
+      pasteBin.removeEventListener("paste", onPasteBinPaste);
       root.remove();
     },
   };
