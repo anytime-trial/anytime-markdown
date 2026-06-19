@@ -22,6 +22,7 @@ import {
   readTsvFromClipboard,
   writeTsvToClipboard,
 } from "./clipboard";
+import { computeFillValues } from "./fillSeries";
 import { getDivider, getPalette, applySpreadsheetThemeVars, themeCssVars } from "../ui/tokens";
 import { injectSpreadsheetUiStyles } from "../ui/injectStyles";
 import {
@@ -57,6 +58,9 @@ const FILTER_ROW_HEIGHT = 28;
 const RESIZE_HANDLE_THRESHOLD = 4;
 const MIN_RESIZE_ROWS = 2;
 const MIN_RESIZE_COLS = 1;
+// フィルハンドル（選択右下角）の描画サイズと当たり判定の許容半径（px）。
+const FILL_HANDLE_SIZE = 7;
+const FILL_HANDLE_HIT = 5;
 const AUTO_WIDTH_MIN = 60;
 const AUTO_WIDTH_MAX = 300;
 const AUTO_WIDTH_CHAR_PX = 8;
@@ -266,6 +270,8 @@ export function mountSpreadsheetGrid(
   let filters = new Map<number, ColumnFilterState>();
   let filterRowVisible = false;
   let previewRange: DataRange | null = null;
+  // フィルハンドルのドラッグ中の補完先プレビュー（選択 + 拡張ぶんの矩形）。
+  let fillPreview: { minR: number; minC: number; maxR: number; maxC: number } | null = null;
   let reorderDrag: { type: "row" | "col"; sourceIndex: number; targetIndex: number | null } | null =
     null;
   let suppressClick = false;
@@ -1317,6 +1323,35 @@ export function mountSpreadsheetGrid(
       ctx.fillRect(drRight - 5, drBottom - 5, 10, 10);
     }
 
+    // フィルドラッグ中のプレビュー（補完先を破線で示す）。
+    if (fillPreview) {
+      const pTopVi = gridRowToVisualIndex(lay, fillPreview.minR);
+      const pBotVi = gridRowToVisualIndex(lay, fillPreview.maxR);
+      if (pTopVi >= 0 && pBotVi >= 0) {
+        const px = getColX(fillPreview.minC);
+        const py = topOffset + rowYs[pTopVi];
+        let pw = 0;
+        for (let c = fillPreview.minC; c <= fillPreview.maxC; c++) pw += getColWidth(c);
+        const ph = rowYs[pBotVi + 1] - rowYs[pTopVi];
+        ctx.strokeStyle = primaryColor;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 2]);
+        ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
+        ctx.setLineDash([]);
+      }
+    }
+
+    // フィルハンドル（選択右下角の小さな四角）。readOnly 時や選択なしは描かれない。
+    const fillPos = getFillHandlePos(lay);
+    if (fillPos) {
+      const s = FILL_HANDLE_SIZE;
+      ctx.fillStyle = primaryColor;
+      ctx.fillRect(fillPos.x - s / 2, fillPos.y - s / 2, s, s);
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(fillPos.x - s / 2, fillPos.y - s / 2, s, s);
+    }
+
     if (reorderDrag?.targetIndex != null) {
       ctx.strokeStyle = primaryColor;
       ctx.lineWidth = 3;
@@ -1735,9 +1770,138 @@ export function mountSpreadsheetGrid(
     );
   };
 
+  /** cell / range 選択の矩形境界（grid 座標）。row/col ヘッダ選択や未選択は null。 */
+  const getCellRangeBounds = (
+    sel: SpreadsheetSelection | null,
+  ): { minR: number; minC: number; maxR: number; maxC: number } | null => {
+    if (sel?.type === "cell") return { minR: sel.row, minC: sel.col, maxR: sel.row, maxC: sel.col };
+    if (sel?.type === "range") {
+      return {
+        minR: Math.min(sel.startRow, sel.endRow),
+        minC: Math.min(sel.startCol, sel.endCol),
+        maxR: Math.max(sel.startRow, sel.endRow),
+        maxC: Math.max(sel.startCol, sel.endCol),
+      };
+    }
+    return null;
+  };
+
+  /** フィルハンドル（選択右下角）の中心ピクセル座標。非表示条件なら null。 */
+  const getFillHandlePos = (lay: GridLayout): { x: number; y: number } | null => {
+    if (readOnly) return null;
+    const b = getCellRangeBounds(state.selection);
+    if (!b) return null;
+    const bottomVi = gridRowToVisualIndex(lay, b.maxR);
+    if (bottomVi < 0) return null;
+    return {
+      x: getColX(b.maxC) + getColWidth(b.maxC),
+      y: lay.topOffset + lay.rowYs[bottomVi + 1],
+    };
+  };
+
+  /** (x,y) がフィルハンドルの当たり判定内か。 */
+  const isOnFillHandle = (x: number, y: number, lay: GridLayout): boolean => {
+    const pos = getFillHandlePos(lay);
+    if (!pos) return false;
+    return Math.abs(x - pos.x) <= FILL_HANDLE_HIT && Math.abs(y - pos.y) <= FILL_HANDLE_HIT;
+  };
+
+  /** フィル確定: src を起点に target まで下 or 右へ補完値を書き込む。 */
+  const applyFill = (
+    src: { minR: number; minC: number; maxR: number; maxC: number },
+    target: { minR: number; minC: number; maxR: number; maxC: number },
+  ): void => {
+    if (readOnly) return;
+    const down = target.maxR > src.maxR;
+    const right = target.maxC > src.maxC;
+    if (!down && !right) return;
+
+    // 補完元ベクトルを拡張前に読み取る。
+    const sources: string[][] = [];
+    if (down) {
+      for (let c = src.minC; c <= src.maxC; c++) {
+        const col: string[] = [];
+        for (let r = src.minR; r <= src.maxR; r++) col.push(state.grid[r]?.[c] ?? "");
+        sources.push(col);
+      }
+    } else {
+      for (let r = src.minR; r <= src.maxR; r++) {
+        const row: string[] = [];
+        for (let c = src.minC; c <= src.maxC; c++) row.push(state.grid[r]?.[c] ?? "");
+        sources.push(row);
+      }
+    }
+
+    // 補完先がデータ範囲を超える場合は範囲を拡張（永続・可視範囲に含める）。
+    const neededRows = Math.max(state.dataRange.rows, target.maxR + 1);
+    const neededCols = Math.max(state.dataRange.cols, target.maxC + 1);
+    if (neededRows !== state.dataRange.rows || neededCols !== state.dataRange.cols) {
+      state.setDataRange({ rows: neededRows, cols: neededCols });
+    }
+
+    if (down) {
+      const count = target.maxR - src.maxR;
+      for (let ci = 0; ci < sources.length; ci++) {
+        const values = computeFillValues(sources[ci], count);
+        for (let i = 0; i < count; i++) state.setCellValue(src.maxR + 1 + i, src.minC + ci, values[i]);
+      }
+    } else {
+      const count = target.maxC - src.maxC;
+      for (let ri = 0; ri < sources.length; ri++) {
+        const values = computeFillValues(sources[ri], count);
+        for (let i = 0; i < count; i++) state.setCellValue(src.minR + ri, src.maxC + 1 + i, values[i]);
+      }
+    }
+
+    // 補完後の範囲を選択する（Excel 同様）。
+    state.setSelection({
+      type: "range",
+      startRow: src.minR,
+      startCol: src.minC,
+      endRow: target.maxR,
+      endCol: target.maxC,
+    });
+  };
+
   const onCanvasMouseDown = (e: MouseEvent): void => {
     const lay = computeLayout();
     const { x, y } = getCanvasCoords(e);
+
+    // フィルハンドル（選択右下角）のドラッグ開始。showRange 端ドラッグより優先する。
+    if (isOnFillHandle(x, y, lay)) {
+      const src = getCellRangeBounds(state.selection);
+      if (src) {
+        e.preventDefault();
+        fillPreview = { ...src };
+        trackDrag(
+          (ev) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = ev.clientX - rect.left;
+            const my = ev.clientY - rect.top;
+            const col = getColAtX(mx);
+            const vi = getViAtY(lay, my - lay.topOffset);
+            const row = vi >= 0 && vi < lay.visibleRows.length ? lay.visibleRows[vi] : vi;
+            const downExt = Math.max(0, row - src.maxR);
+            const rightExt = Math.max(0, col - src.maxC);
+            if (downExt === 0 && rightExt === 0) {
+              fillPreview = { ...src };
+            } else if (downExt >= rightExt) {
+              fillPreview = { ...src, maxR: Math.min(row, GRID_ROWS - 1) };
+            } else {
+              fillPreview = { ...src, maxC: Math.min(col, GRID_COLS - 1) };
+            }
+            scheduleDraw();
+          },
+          () => {
+            if (fillPreview) applyFill(src, fillPreview);
+            fillPreview = null;
+            suppressClick = true;
+            scheduleDraw();
+          },
+        );
+      }
+      return;
+    }
 
     // 列ヘッダ右端ドラッグで個別列幅をリサイズ
     const colEdge = findColEdgeAtX(lay, x, y);
@@ -1875,7 +2039,9 @@ export function mountSpreadsheetGrid(
     const colEdge = findColEdgeAtX(lay, x, y);
     const rowEdgeVi = findRowEdgeAtY(lay, x, y);
 
-    if (colEdge !== null) {
+    if (isOnFillHandle(x, y, lay)) {
+      canvas.style.cursor = "crosshair";
+    } else if (colEdge !== null) {
       canvas.style.cursor = "col-resize";
     } else if (rowEdgeVi !== null) {
       canvas.style.cursor = "row-resize";
