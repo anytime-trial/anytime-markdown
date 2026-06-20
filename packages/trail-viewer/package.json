@@ -25,8 +25,6 @@
   "peerDependencies": {
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/graph-react-islands": "*",
-    "@mui/icons-material": ">=7",
-    "@mui/material": ">=7",
     "react": ">=19",
     "react-dom": ">=19"
   }
