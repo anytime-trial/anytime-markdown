@@ -1,24 +1,14 @@
 import { useMemo } from 'react';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import { BarPlot } from '@mui/x-charts/BarChart';
-import { AreaPlot, LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
-import { ChartsDataProvider } from '@mui/x-charts/ChartsDataProvider';
-import { ChartsSurface } from '@mui/x-charts/ChartsSurface';
-import { ChartsWrapper } from '@mui/x-charts/ChartsWrapper';
-import { ChartsXAxis } from '@mui/x-charts/ChartsXAxis';
-import { ChartsYAxis } from '@mui/x-charts/ChartsYAxis';
-import { ChartsTooltip } from '@mui/x-charts/ChartsTooltip';
-import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
-import { ChartsLegend } from '@mui/x-charts/ChartsLegend';
-import { ChartsAxisHighlight } from '@mui/x-charts/ChartsAxisHighlight';
+import type { ChartSpec, Series } from '@anytime-markdown/chart-core';
 import { useTrailTheme } from '../../../TrailThemeContext';
 import { useCommitCategory } from '../../../CommitCategoryContext';
-import { fmtTokens } from '../../../../domain/analytics/formatters';
 import { LEAD_TIME_LOC_COLOR } from '../../../../theme/designTokens';
 import type { CommitMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';
-import { makeAxisClick } from './axisInfo';
+import { makeCategoryClick } from './axisInfo';
+import { AnytimeChartView } from '../AnytimeChartView';
 
 export function buildCumulativeCommitDataset(args: Readonly<{
   commitPeriods: readonly string[];
@@ -137,131 +127,69 @@ export function CommitsCombinedChart({
     });
   }, [isCumulative, commitRows, commitPeriods, commitLabels, commitMetric, getCategory, categoryKeys]);
 
+  const showRate = commitMetric === 'count';
+
+  const spec = useMemo<ChartSpec>(() => {
+    const num = (row: Record<string, string | number | null>, key: string): number => {
+      const v = row[key];
+      return typeof v === 'number' ? v : 0;
+    };
+    if (isCumulative) {
+      const dataset = cumulativeDataset ?? [];
+      const areaSeries: Series[] = categoryKeys.map((cat) => ({
+        name: getCategoryLabel(cat),
+        type: 'area',
+        color: getCategoryColorByIndex(cat),
+        values: dataset.map((row) => num(row, `c${cat}`)),
+      }));
+      const fixRate: Series = {
+        name: 'fix 比率 (%)',
+        type: 'line',
+        axis: 'right',
+        color: LEAD_TIME_LOC_COLOR,
+        connectNulls: true,
+        values: dataset.map((row) => (typeof row.fixRate === 'number' ? row.fixRate : null)),
+      };
+      return {
+        kind: 'combo',
+        categories: dataset.map((row) => String(row.period)),
+        series: [...areaSeries, fixRate],
+        options: { stacked: true, yAxisRight: { label: '%' } },
+      };
+    }
+    const rateByPeriod = new Map<string, number | null>();
+    if (showRate) for (const r of aiRateRows) rateByPeriod.set(r.period, r.sampleSize > 0 ? r.rate : null);
+    const barSeries: Series[] = categoryKeys.map((cat) => ({
+      name: getCategoryLabel(cat),
+      type: 'bar',
+      color: getCategoryColorByIndex(cat),
+      values: commitDataset.map((row) => num(row, `c${cat}`)),
+    }));
+    const lineSeries: Series[] = showRate
+      ? [{
+          name: 'AI 1 発成功率 (%)',
+          type: 'line',
+          axis: 'right',
+          color: LEAD_TIME_LOC_COLOR,
+          connectNulls: true,
+          values: commitDataset.map((_row, i) => rateByPeriod.get(commitPeriods[i]) ?? null),
+        }]
+      : [];
+    return {
+      kind: 'combo',
+      categories: commitDataset.map((row) => String(row.period)),
+      series: [...barSeries, ...lineSeries],
+      options: { stacked: true, ...(showRate ? { yAxisRight: { label: '%' } } : {}) },
+    };
+  }, [isCumulative, cumulativeDataset, commitDataset, showRate, aiRateRows, commitPeriods, categoryKeys, getCategoryLabel, getCategoryColorByIndex]);
+
   if (commitPrefixes.length === 0 && (!isCumulative || (commitBaseline?.totalCount ?? 0) === 0)) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
   }
 
-  if (isCumulative) {
-    const dataset = cumulativeDataset ?? [];
-    const areaSeries = categoryKeys.map((cat) => ({
-      type: 'line' as const,
-      dataKey: `c${cat}`,
-      label: getCategoryLabel(cat),
-      stack: 'cumulative',
-      area: true,
-      showMark: false,
-      color: getCategoryColorByIndex(cat),
-      yAxisId: 'countAxis',
-    }));
-    const fixRateSeries = {
-      type: 'line' as const,
-      dataKey: 'fixRate',
-      label: 'fix 比率 (%)',
-      color: LEAD_TIME_LOC_COLOR,
-      yAxisId: 'rateAxis',
-      showMark: true,
-      connectNulls: true,
-      valueFormatter: (v: number | null) => v == null ? '-' : `${v.toFixed(2)}%`,
-    };
-    return (
-      <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-        <ChartsDataProvider
-          dataset={dataset}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          series={[...areaSeries, fixRateSeries] as any}
-          xAxis={[{ id: 'period', scaleType: 'point', dataKey: 'period' }]}
-          yAxis={[
-            { id: 'countAxis', valueFormatter: fmtTokens },
-            { id: 'rateAxis', min: 0, max: 100, position: 'right' as const, valueFormatter: (v: number) => `${v}%` },
-          ]}
-          height={260}
-          margin={{ left: 16, right: 48, top: 8, bottom: 40 }}
-          onAxisClick={makeAxisClick(commitPeriods, canDrill, onDateClick)}
-        >
-          <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
-            <ChartsLegend />
-            <ChartsSurface>
-              <ChartsGrid horizontal />
-              <AreaPlot />
-              <LinePlot />
-              <MarkPlot />
-              <ChartsAxisHighlight x="line" />
-              <ChartsXAxis axisId="period" />
-              <ChartsYAxis axisId="countAxis" />
-              <ChartsYAxis axisId="rateAxis" />
-            </ChartsSurface>
-            <ChartsTooltip />
-          </ChartsWrapper>
-        </ChartsDataProvider>
-      </Paper>
-    );
-  }
-
-  const showRate = commitMetric === 'count';
-  const rateByPeriod = new Map<string, number | null>();
-  if (showRate) {
-    for (const r of aiRateRows) {
-      rateByPeriod.set(r.period, r.sampleSize > 0 ? r.rate : null);
-    }
-  }
-  const augmentedDataset = commitDataset.map((row, i) => ({
-    ...row,
-    rate: showRate ? (rateByPeriod.get(commitPeriods[i]) ?? null) : null,
-  }));
-
-  const barSeries = categoryKeys.map((cat) => ({
-    type: 'bar' as const,
-    dataKey: `c${cat}`,
-    label: getCategoryLabel(cat),
-    stack: 'total',
-    color: getCategoryColorByIndex(cat),
-    yAxisId: 'countAxis',
-  }));
-  const lineSeries = showRate ? [{
-    type: 'line' as const,
-    dataKey: 'rate',
-    label: 'AI 1 発成功率 (%)',
-    color: LEAD_TIME_LOC_COLOR,
-    yAxisId: 'rateAxis',
-    showMark: true,
-    connectNulls: true,
-    valueFormatter: (v: number | null) => v == null ? '-' : `${v.toFixed(1)}%`,
-  }] : [];
-
-  const yAxisConfig = showRate
-    ? [
-        { id: 'countAxis', valueFormatter: fmtTokens },
-        { id: 'rateAxis', min: 0, max: 100, position: 'right' as const, valueFormatter: (v: number) => `${v}%` },
-      ]
-    : [{ id: 'countAxis', valueFormatter: fmtTokens }];
-
   return (
     <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      <ChartsDataProvider
-        dataset={augmentedDataset}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        series={[...barSeries, ...lineSeries] as any}
-        xAxis={[{ id: 'period', scaleType: 'band', dataKey: 'period' }]}
-        yAxis={yAxisConfig}
-        height={260}
-        margin={{ left: 16, right: showRate ? 48 : 8, top: 8, bottom: 40 }}
-        onAxisClick={makeAxisClick(commitPeriods, canDrill, onDateClick)}
-      >
-        <ChartsWrapper legendDirection="horizontal" legendPosition={{ vertical: 'bottom', horizontal: 'center' }}>
-          <ChartsLegend />
-          <ChartsSurface>
-            <ChartsGrid horizontal />
-            <BarPlot />
-            {showRate && <LinePlot />}
-            {showRate && <MarkPlot />}
-            <ChartsAxisHighlight x="band" />
-            <ChartsXAxis axisId="period" />
-            <ChartsYAxis axisId="countAxis" />
-            {showRate && <ChartsYAxis axisId="rateAxis" />}
-          </ChartsSurface>
-          <ChartsTooltip />
-        </ChartsWrapper>
-      </ChartsDataProvider>
+      <AnytimeChartView spec={spec} height={260} onCategoryClick={makeCategoryClick(commitPeriods, canDrill, onDateClick)} />
     </Paper>
   );
 }

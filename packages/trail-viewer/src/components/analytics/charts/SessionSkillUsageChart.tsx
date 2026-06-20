@@ -1,17 +1,15 @@
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import { PieChart } from '@mui/x-charts/PieChart';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 import type { ToolMetrics } from '../../../domain/parser/types';
 import { ChartTitle } from './shared/ChartTitle';
-import { PieCenterLabel } from './shared/PieCenterLabel';
-import { useSkillCategory } from '../../SkillCategoryContext';
+import { AnytimeChartView } from './AnytimeChartView';
+import { buildPieSpec } from './specs/buildPieSpec';
 
 export function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics | null }>) {
   const { colors, cardSx } = useTrailTheme();
-  const { getSkillCategoryColor } = useSkillCategory();
   const { t } = useTrailI18n();
   const usage = toolMetrics?.skillUsage;
   if (!usage || usage.length === 0) {
@@ -26,24 +24,12 @@ export function SessionSkillUsageChart({ toolMetrics }: Readonly<{ toolMetrics: 
   }
 
   const sorted = [...usage].sort((a, b) => b.count - a.count);
-  const pieData = sorted.map((e, i) => ({
-    id: i,
-    value: e.count,
-    label: `${e.skill} (${e.count})`,
-    color: getSkillCategoryColor(e.skill),
-  }));
+  const spec = buildPieSpec(sorted.map((e) => ({ label: `${e.skill} (${e.count})`, value: e.count })));
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
       <ChartTitle title={t('analytics.combined.skill')} description={t('analytics.combined.skill.description')} />
-      <PieChart
-        series={[{ data: pieData, innerRadius: 28, outerRadius: 52, paddingAngle: 2, cornerRadius: 3 }]}
-        height={130}
-        margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
-        slots={{ legend: () => null }}
-      >
-        <PieCenterLabel value={sorted.reduce((s, e) => s + e.count, 0)} color={colors.textPrimary} />
-      </PieChart>
+      <AnytimeChartView spec={spec} height={130} />
     </Paper>
   );
 }

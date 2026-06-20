@@ -4,11 +4,12 @@ import Paper from '@mui/material/Paper';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
-import { BarChart } from '@mui/x-charts/BarChart';
-import { PieChart } from '@mui/x-charts/PieChart';
 import type { CostOptimizationData } from '../domain/parser/types';
 import { useTrailI18n } from '../i18n';
-import { costChartColors, modelCostColors } from '../theme/designTokens';
+import { costChartColors } from '../theme/designTokens';
+import { AnytimeChartView } from './analytics/charts/AnytimeChartView';
+import { buildStackedBarSpec } from './analytics/charts/specs/buildStackedBarSpec';
+import { buildPieSpec } from './analytics/charts/specs/buildPieSpec';
 
 interface CostOptimizationSectionProps {
   readonly data: CostOptimizationData | null;
@@ -51,14 +52,10 @@ function aggregateByPeriod(
   return [...grouped.entries()].map(([label, v]) => ({ label, ...v }));
 }
 
-function distToSlices(dist: Readonly<Record<string, number>>): Array<{ id: number; value: number; label: string; color: string }> {
+function distToSlices(dist: Readonly<Record<string, number>>): Array<{ label: string; value: number }> {
   return Object.entries(dist)
     .filter(([, v]) => v > 0)
-    .map(([k, v], i) => {
-      const normalized = k.toLowerCase();
-      const color = (modelCostColors as unknown as Readonly<Record<string, string>>)[normalized] ?? `hsl(${i * 60}, 50%, 50%)`;
-      return { id: i, value: v, label: k, color };
-    });
+    .map(([k, v]) => ({ label: k, value: v }));
 }
 
 export function CostOptimizationSection({ data }: Readonly<CostOptimizationSectionProps>) {
@@ -125,13 +122,16 @@ export function CostOptimizationSection({ data }: Readonly<CostOptimizationSecti
           </ToggleButtonGroup>
         </Box>
         {chartData.length > 0 ? (
-          <BarChart
+          <AnytimeChartView
             height={250}
-            xAxis={[{ data: chartData.map((d) => d.label), scaleType: 'band' }]}
-            series={[
-              { data: chartData.map((d) => d.actualCost), label: t('cost.current'), color: costChartColors.actual },
-              { data: chartData.map((d) => d.skillCost), label: t('cost.optimized'), color: costChartColors.skill },
-            ]}
+            spec={buildStackedBarSpec({
+              categories: chartData.map((d) => d.label),
+              series: [
+                { name: t('cost.current'), values: chartData.map((d) => d.actualCost), color: costChartColors.actual },
+                { name: t('cost.optimized'), values: chartData.map((d) => d.skillCost), color: costChartColors.skill },
+              ],
+              stacked: false,
+            })}
           />
         ) : (
           <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
@@ -147,7 +147,9 @@ export function CostOptimizationSection({ data }: Readonly<CostOptimizationSecti
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="caption" color="text.secondary">{t('cost.current')}</Typography>
             {actualSlices.length > 0 ? (
-              <PieChart width={200} height={200} series={[{ data: actualSlices, innerRadius: 30 }]} />
+              <Box sx={{ width: 200, height: 200 }}>
+                <AnytimeChartView spec={buildPieSpec(actualSlices, undefined, { compact: false })} height={200} />
+              </Box>
             ) : (
               <Typography variant="body2" color="text.secondary">{t('cost.noDataShort')}</Typography>
             )}
@@ -155,7 +157,9 @@ export function CostOptimizationSection({ data }: Readonly<CostOptimizationSecti
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="caption" color="text.secondary">{t('cost.optimized')}</Typography>
             {recommendedSlices.length > 0 ? (
-              <PieChart width={200} height={200} series={[{ data: recommendedSlices, innerRadius: 30 }]} />
+              <Box sx={{ width: 200, height: 200 }}>
+                <AnytimeChartView spec={buildPieSpec(recommendedSlices, undefined, { compact: false })} height={200} />
+              </Box>
             ) : (
               <Typography variant="body2" color="text.secondary">{t('cost.noDataShort')}</Typography>
             )}

@@ -26,10 +26,12 @@ export interface Series {
   readonly color?: string;
   /** 目標値などを破線で描く場合 true。 */
   readonly dashed?: boolean;
+  /** line で欠損(null)を跨いで線を連結する（既定 false=欠損で線を切る）。 */
+  readonly connectNulls?: boolean;
   /** 強調しない（減色）系列は false。既定 true。 */
   readonly emphasized?: boolean;
   /** combo グラフでの系列描画種別（既定 "bar"）。 */
-  readonly type?: "bar" | "line";
+  readonly type?: "bar" | "line" | "area";
   /** 数量軸の左右割当（既定 "left"）。"right" 系列があれば第2Y軸を描く。 */
   readonly axis?: "left" | "right";
 }
@@ -39,6 +41,16 @@ export interface ReferenceBand {
   readonly from: number;
   readonly to: number;
   readonly label?: string;
+}
+
+/** 特定カテゴリ位置に重ねるイベント印（コミット・エラー等）。 */
+export interface ChartMarker {
+  /** categories のインデックス。 */
+  readonly xIndex: number;
+  readonly label?: string;
+  /** 既定 "line"（縦線）。"point" は上端の小ドット。 */
+  readonly style?: "point" | "line";
+  readonly color?: string;
 }
 
 export interface AxisOptions {
@@ -65,6 +77,8 @@ export interface ChartOptions {
   readonly referenceBand?: ReferenceBand;
   readonly xAxis?: AxisOptions;
   readonly yAxis?: AxisOptions;
+  /** 第2Y軸（右軸）の軸設定。ラベル描画に使う。 */
+  readonly yAxisRight?: AxisOptions;
   readonly meta?: {
     readonly source?: string;
     readonly updatedAt?: string;
@@ -80,6 +94,8 @@ export interface ChartSpec {
   readonly categories?: ReadonlyArray<string>;
   readonly series: ReadonlyArray<Series>;
   readonly options?: ChartOptions;
+  /** カテゴリ位置に重ねるイベント印（pie/横棒では無視）。 */
+  readonly markers?: ReadonlyArray<ChartMarker>;
 }
 
 export interface Rect {

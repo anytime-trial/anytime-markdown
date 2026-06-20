@@ -1,10 +1,11 @@
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import { BarChart } from '@mui/x-charts/BarChart';
 import type { ReleaseQualityBucket } from '@anytime-markdown/trail-core/domain/metrics';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 import { releaseColors } from '../../../theme/designTokens';
+import { AnytimeChartView } from './AnytimeChartView';
+import { buildStackedBarSpec } from './specs/buildStackedBarSpec';
 
 export function ReleasesBarChart({ timeSeries }: Readonly<{
   timeSeries: ReadonlyArray<ReleaseQualityBucket>;
@@ -21,24 +22,18 @@ export function ReleasesBarChart({ timeSeries }: Readonly<{
   }
 
   const fmt = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
-  const dataset = timeSeries.map((d) => ({
-    label: fmt.format(new Date(d.bucketStart)),
-    succeeded: d.succeeded,
-    failed: d.failed,
-  }));
+  const labels = timeSeries.map((d) => fmt.format(new Date(d.bucketStart)));
+  const spec = buildStackedBarSpec({
+    categories: labels,
+    series: [
+      { name: t('analytics.combined.releaseSucceeded'), values: timeSeries.map((d) => d.succeeded), color: releaseColors.succeeded },
+      { name: t('analytics.combined.releaseFailed'), values: timeSeries.map((d) => d.failed), color: releaseColors.failed },
+    ],
+  });
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      <BarChart
-        dataset={dataset}
-        xAxis={[{ scaleType: 'band', dataKey: 'label' }]}
-        series={[
-          { dataKey: 'succeeded', label: t('analytics.combined.releaseSucceeded'), color: releaseColors.succeeded, stack: 'releases' },
-          { dataKey: 'failed', label: t('analytics.combined.releaseFailed'), color: releaseColors.failed, stack: 'releases' },
-        ]}
-        height={240}
-        margin={{ left: 16, right: 8, top: 8, bottom: 40 }}
-      />
+      <AnytimeChartView spec={spec} height={240} />
     </Paper>
   );
 }

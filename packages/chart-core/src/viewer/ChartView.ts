@@ -1,12 +1,14 @@
 import type { ChartLayout, ChartSpec, PaletteKey } from "../types";
 import { getChartTheme } from "../theme";
 import { renderChart } from "../engine/renderChart";
-import { hitTest } from "../engine/hitTest";
+import { categoryIndexAt, hitTest } from "../engine/hitTest";
 import { formatValue } from "../engine/render/style";
 
 export interface ChartViewOptions {
   readonly theme?: "light" | "dark";
   readonly palette?: PaletteKey;
+  /** カテゴリ（分類軸バンド）クリック時のコールバック（日付ドリルダウン等）。 */
+  readonly onSelectCategory?: (dataIndex: number) => void;
 }
 
 /**
@@ -22,6 +24,8 @@ export class ChartView {
   private tooltip: HTMLDivElement | null = null;
   private readonly onMove: (e: MouseEvent) => void;
   private readonly onLeave: () => void;
+  private readonly onClick: (e: MouseEvent) => void;
+  private readonly onSelectCategory?: (dataIndex: number) => void;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -32,10 +36,13 @@ export class ChartView {
     this.ctx = ctx;
     this.mode = opts.theme ?? "light";
     this.palette = opts.palette ?? "blue";
+    this.onSelectCategory = opts.onSelectCategory;
     this.onMove = (e) => this.handleHover(e);
     this.onLeave = () => this.hideTooltip();
+    this.onClick = (e) => this.handleClick(e);
     canvas.addEventListener("mousemove", this.onMove);
     canvas.addEventListener("mouseleave", this.onLeave);
+    canvas.addEventListener("click", this.onClick);
   }
 
   setSpec(spec: ChartSpec): void {
@@ -64,6 +71,7 @@ export class ChartView {
   destroy(): void {
     this.canvas.removeEventListener("mousemove", this.onMove);
     this.canvas.removeEventListener("mouseleave", this.onLeave);
+    this.canvas.removeEventListener("click", this.onClick);
     this.tooltip?.remove();
     this.tooltip = null;
   }
@@ -96,6 +104,13 @@ export class ChartView {
     this.ctx.clearRect(0, 0, width, height);
     const theme = getChartTheme(this.mode, this.palette);
     this.layout = renderChart(this.ctx, { x: 0, y: 0, width, height }, this.spec, theme);
+  }
+
+  private handleClick(e: MouseEvent): void {
+    if (!this.layout || !this.onSelectCategory) return;
+    const r = this.canvas.getBoundingClientRect();
+    const idx = categoryIndexAt(this.layout, e.clientX - r.left);
+    if (idx != null) this.onSelectCategory(idx);
   }
 
   private handleHover(e: MouseEvent): void {

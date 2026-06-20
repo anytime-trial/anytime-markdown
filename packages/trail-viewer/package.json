@@ -12,10 +12,10 @@
     "./supabase": "./src/supabase/index.ts"
   },
   "dependencies": {
+    "@anytime-markdown/chart-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trace-viewer": "*",
-    "@mui/x-charts": "9.0.1",
     "dompurify": "3.4.0",
     "graphology": "0.26.0",
     "marked": "17.0.3",

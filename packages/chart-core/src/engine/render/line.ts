@@ -29,7 +29,8 @@ export function drawLineSeries(
   let started = false;
   values.forEach((v, i) => {
     if (v == null || !Number.isFinite(v)) {
-      started = false;
+      // connectNulls=true は欠損を跨いで前後の有効点を連結する（線を切らない）。
+      if (!series.connectNulls) started = false;
       return;
     }
     const cx = categoryX(i);

@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import { PieChart } from '@mui/x-charts/PieChart';
 import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain';
 import { useTrailTheme } from '../../TrailThemeContext';
-import { useCommitCategory } from '../../CommitCategoryContext';
 import { useTrailI18n } from '../../../i18n';
 import type { TrailSessionCommit } from '../../../domain/parser/types';
 import { ChartTitle } from './shared/ChartTitle';
-import { PieCenterLabel } from './shared/PieCenterLabel';
+import { AnytimeChartView } from './AnytimeChartView';
+import { buildPieSpec } from './specs/buildPieSpec';
 
 export function DayCommitPrefixChart({
   sessionIds,
@@ -19,7 +18,6 @@ export function DayCommitPrefixChart({
   fetchSessionCommits: (id: string) => Promise<readonly TrailSessionCommit[]>;
 }>) {
   const { colors, cardSx } = useTrailTheme();
-  const { getCategoryColor } = useCommitCategory();
   const { t } = useTrailI18n();
   const [commits, setCommits] = useState<readonly TrailSessionCommit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,24 +61,12 @@ export function DayCommitPrefixChart({
     prefixCounts.set(prefix, (prefixCounts.get(prefix) ?? 0) + 1);
   }
   const sorted = [...prefixCounts.entries()].sort(([, a], [, b]) => b - a);
-  const pieData = sorted.map(([prefix, count], i) => ({
-    id: i,
-    value: count,
-    label: `${prefix} (${count})`,
-    color: getCategoryColor(prefix),
-  }));
+  const spec = buildPieSpec(sorted.map(([prefix, count]) => ({ label: `${prefix} (${count})`, value: count })));
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
       <ChartTitle title={t('analytics.commitPrefixChartTitle')} description={t('analytics.commitPrefixChartTitle.description')} />
-      <PieChart
-        series={[{ data: pieData, innerRadius: 28, outerRadius: 52, paddingAngle: 2, cornerRadius: 3 }]}
-        height={130}
-        margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
-        slots={{ legend: () => null }}
-      >
-        <PieCenterLabel value={commits.length} color={colors.textPrimary} />
-      </PieChart>
+      <AnytimeChartView spec={spec} height={130} palette="green" />
     </Paper>
   );
 }

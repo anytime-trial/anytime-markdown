@@ -1,5 +1,5 @@
 import { renderChart } from "../engine/renderChart";
-import { hitTest } from "../engine/hitTest";
+import { categoryIndexAt, hitTest } from "../engine/hitTest";
 import { getChartTheme } from "../theme";
 import type { ChartSpec } from "../types";
 
@@ -43,6 +43,18 @@ describe("renderChart", () => {
     };
     const layout = renderChart(ctxStub(), rect, spec, theme);
     expect(layout.points).toHaveLength(2);
+  });
+
+  it("connectNulls=true でも欠損は点に含めない（線のみ連結）", () => {
+    const spec: ChartSpec = {
+      kind: "line",
+      categories: ["a", "b", "c"],
+      series: [{ name: "A", connectNulls: true, values: [1, null, 3] }],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    // 欠損カテゴリには点を打たない（描画は跨いで連結するが hit-test 点は2つ）
+    expect(layout.points).toHaveLength(2);
+    expect(layout.points.map((p) => p.dataIndex)).toEqual([0, 2]);
   });
 
   it("bar の集合グラフは系列×カテゴリぶんの点を返す", () => {
@@ -173,6 +185,17 @@ describe("renderChart", () => {
     expect(layout.points).toHaveLength(3);
   });
 
+  it("pie は軸マージンを使わず矩形幅いっぱいに中心配置する", () => {
+    const spec: ChartSpec = {
+      kind: "pie",
+      categories: ["A", "B"],
+      series: [{ name: "x", values: [1, 1] }],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    // 軸 plot（左56+右余白で width<320）ではなく、ほぼ全幅(400-16=384)を使う
+    expect(layout.plotRect.width).toBeGreaterThan(360);
+  });
+
   it("pie(donut) でも例外なく描画する", () => {
     const spec: ChartSpec = {
       kind: "pie",
@@ -209,5 +232,88 @@ describe("renderChart", () => {
   it("空 spec でも例外を投げない", () => {
     const layout = renderChart(ctxStub(), rect, { kind: "line", series: [] }, theme);
     expect(layout.points).toHaveLength(0);
+  });
+
+  it("categoryIndexAt はバンド位置からカテゴリ番号を返し、領域外/pie は null", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B", "C", "D"],
+      series: [{ name: "x", values: [1, 2, 3, 4] }],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    const { x, width } = layout.plotRect;
+    expect(categoryIndexAt(layout, x + width * 0.01)).toBe(0); // 左端 → 0
+    expect(categoryIndexAt(layout, x + width * 0.99)).toBe(3); // 右端 → 3
+    expect(categoryIndexAt(layout, x - 10)).toBeNull(); // プロット左外
+    const pie = renderChart(ctxStub(), rect, { kind: "pie", categories: ["A"], series: [{ name: "p", values: [1] }] }, theme);
+    expect(categoryIndexAt(pie, pie.plotRect.x + 1)).toBeNull();
+  });
+
+  it("yAxis.label / yAxisRight.label を spec に保持し例外を投げない", () => {
+    const spec: ChartSpec = {
+      kind: "line",
+      categories: ["A", "B"],
+      series: [
+        { name: "left", axis: "left", values: [1, 2] },
+        { name: "right", axis: "right", values: [10, 20] },
+      ],
+      options: { yAxis: { label: "件数" }, yAxisRight: { label: "%" } },
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.spec.options?.yAxis?.label).toBe("件数");
+    expect(layout.spec.options?.yAxisRight?.label).toBe("%");
+    // ラベルぶん左余白が広がる（プロット幅は素のときより狭い）
+    const bare = renderChart(ctxStub(), rect, { ...spec, options: {} }, theme);
+    expect(layout.plotRect.width).toBeLessThan(bare.plotRect.width);
+  });
+
+  it("combo + options.stacked は棒を積み上げ、line を重ねる", () => {
+    const spec: ChartSpec = {
+      kind: "combo",
+      categories: ["Jan", "Feb"],
+      series: [
+        { name: "A", type: "bar", values: [1, 2] },
+        { name: "B", type: "bar", values: [3, 4] },
+        { name: "C", type: "line", values: [5, 6] },
+      ],
+      options: { stacked: true },
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.points).toHaveLength(6); // bar 2系列×2カテゴリ(4) + line 2
+    // 積み上げ: 同カテゴリの2棒は別 y（B が A の上に乗る）
+    const a0 = layout.points.find((p) => p.seriesIndex === 0 && p.dataIndex === 0)!;
+    const b0 = layout.points.find((p) => p.seriesIndex === 1 && p.dataIndex === 0)!;
+    expect(b0.cy).toBeLessThan(a0.cy); // B(上)の top は A(下)の top より上
+  });
+
+  it("combo は bar + area + line の3系列を描く", () => {
+    const spec: ChartSpec = {
+      kind: "combo",
+      categories: ["A", "B"],
+      series: [
+        { name: "Sales", type: "bar", values: [10, 20] },
+        { name: "Cum", type: "area", values: [5, 8] },
+        { name: "Target", type: "line", values: [15, 25] },
+      ],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.points).toHaveLength(6); // 2 bar + 2 area + 2 line
+    // area 系列の点は元インデックス1で引ける
+    expect(layout.points.some((p) => p.seriesIndex === 1)).toBe(true);
+  });
+
+  it("markers を spec に保持し、描画でクラッシュしない", () => {
+    const spec: ChartSpec = {
+      kind: "line",
+      categories: ["Jan", "Feb", "Mar"],
+      series: [{ name: "A", values: [1, 2, 3] }],
+      markers: [
+        { xIndex: 1, label: "v1.0", style: "line", color: "#f00" },
+        { xIndex: 2, style: "point" },
+      ],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.spec.markers).toHaveLength(2);
+    expect(layout.points).toHaveLength(3); // マーカーは系列点に影響しない
   });
 });

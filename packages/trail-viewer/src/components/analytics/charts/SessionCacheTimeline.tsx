@@ -6,15 +6,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { BarPlot } from '@mui/x-charts/BarChart';
-import { LinePlot } from '@mui/x-charts/LineChart';
-import { ChartsDataProvider } from '@mui/x-charts/ChartsDataProvider';
-import { ChartsSurface } from '@mui/x-charts/ChartsSurface';
-import { ChartsWrapper } from '@mui/x-charts/ChartsWrapper';
-import { ChartsYAxis } from '@mui/x-charts/ChartsYAxis';
-import { ChartsTooltip } from '@mui/x-charts/ChartsTooltip';
-import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
-import { ChartsAxisHighlight } from '@mui/x-charts/ChartsAxisHighlight';
+import type { ChartSpec, Series } from '@anytime-markdown/chart-core';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 import type { TrailMessage, TrailSession } from '../../../domain/parser/types';
@@ -24,13 +16,11 @@ import {
   extractPrefixWithScope,
   parseCommitSubject,
 } from '../../../domain/analytics/calculators';
-import { fmtDurationShort, fmtTokens } from '../../../domain/analytics/formatters';
 import { getMainAgentLabel } from '../helpers';
 import type { CommitMarkerData, ErrorMarkerData } from '../types';
-import { CommitMarkers } from './shared/CommitMarkers';
-import { ErrorMarkers } from './shared/ErrorMarkers';
 import { StackedReferenceLines } from './shared/StackedReferenceLines';
 import { TurnLaneChart, TurnLaneChartLegend } from './TurnLaneChart';
+import { AnytimeChartView } from './AnytimeChartView';
 
 export function SessionCacheTimeline({
   messages,
@@ -130,6 +120,37 @@ export function SessionCacheTimeline({
     : totalTurns <= 1000 ? 200
     : 500;
 
+  // ターン番号は tickStep 間隔のみ表示（空文字で間引き、棒位置は維持）。
+  const tokensSpec = useMemo<ChartSpec>(() => {
+    const cats = dataset.map((d) => (d.turn % tickStep === 0 ? String(d.turn) : ''));
+    const bar: Series = mode === 'tool'
+      ? { name: t('analytics.chartToolUsageTokens'), type: 'bar', axis: 'right', color: chartColors.toolExec, values: dataset.map((d) => d.toolUsageTokens) }
+      : { name: t('analytics.chartSkillUsageTokens'), type: 'bar', axis: 'right', color: chartColors.skill, values: dataset.map((d) => d.skillUsageTokens) };
+    const lines: Series[] = [
+      { name: t('analytics.chartInput'), type: 'line', color: chartColors.input, values: dataset.map((d) => d.inputTokens) },
+      { name: t('analytics.chartOutput'), type: 'line', color: chartColors.output, values: dataset.map((d) => d.outputTokens) },
+      { name: t('analytics.chartCacheRead'), type: 'line', color: chartColors.cacheRead, values: dataset.map((d) => d.cacheReadTokens) },
+      { name: t('analytics.chartCacheWrite'), type: 'line', color: chartColors.cacheWrite, values: dataset.map((d) => d.cacheCreationTokens) },
+    ];
+    return { kind: 'combo', categories: cats, series: [bar, ...lines], options: {} };
+  }, [dataset, mode, chartColors, t, tickStep]);
+
+  const timingSpec = useMemo<ChartSpec>(() => {
+    const cats = dataset.map((d) => (d.turn % tickStep === 0 ? String(d.turn) : ''));
+    const cumLine: Series = { name: t('analytics.chartCumulativeInferenceTime'), type: 'line', axis: 'right', color: chartColors.cumulativeTime, values: dataset.map((d) => d.cumulativeMs) };
+    const series: Series[] = mode === 'tool'
+      ? [
+          { name: t('analytics.chartApiInferenceTime'), type: 'bar', color: chartColors.apiInference, values: dataset.map((d) => d.apiInferenceMs) },
+          { name: t('analytics.chartToolExecTime'), type: 'bar', color: chartColors.toolExec, values: dataset.map((d) => d.toolExecMs) },
+          cumLine,
+        ]
+      : [
+          { name: t('analytics.chartSkillExecTime'), type: 'bar', color: chartColors.skill, values: dataset.map((d) => d.skillExecMs) },
+          cumLine,
+        ];
+    return { kind: 'combo', categories: cats, series, options: { stacked: mode === 'tool' } };
+  }, [dataset, mode, chartColors, t, tickStep]);
+
   return (
     <Paper elevation={0} sx={{ ...cardSx, mt: 1, p: 1.5 }}>
       <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -166,71 +187,8 @@ export function SessionCacheTimeline({
       {hasData ? (
         <>
         <Box sx={{ position: 'relative' }}>
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          <ChartsDataProvider
-            dataset={dataset as any}
-            series={[
-              mode === 'tool'
-                ? { type: 'bar' as const, dataKey: 'toolUsageTokens', label: t('analytics.chartToolUsageTokens'), color: chartColors.toolExec, yAxisId: 'toolTokens', valueFormatter: (v: number | null) => (v == null ? '' : fmtTokens(v)) }
-                : { type: 'bar' as const, dataKey: 'skillUsageTokens', label: t('analytics.chartSkillUsageTokens'), color: chartColors.skill, yAxisId: 'toolTokens', valueFormatter: (v: number | null) => (v == null ? '' : fmtTokens(v)) },
-              { type: 'line', dataKey: 'inputTokens', label: t('analytics.chartInput'), color: chartColors.input, showMark: false, yAxisId: 'tokens' },
-              { type: 'line', dataKey: 'outputTokens', label: t('analytics.chartOutput'), color: chartColors.output, showMark: false, yAxisId: 'tokens' },
-              { type: 'line', dataKey: 'cacheReadTokens', label: t('analytics.chartCacheRead'), color: chartColors.cacheRead, showMark: false, yAxisId: 'tokens' },
-              { type: 'line', dataKey: 'cacheCreationTokens', label: t('analytics.chartCacheWrite'), color: chartColors.cacheWrite, showMark: false, yAxisId: 'tokens' },
-            ]}
-            xAxis={[{ id: 'x', dataKey: 'turn', scaleType: 'band', tickInterval: (value: number) => value % tickStep === 0 }]}
-            yAxis={[
-              { id: 'tokens', valueFormatter: fmtTokens, width: 50 },
-              { id: 'toolTokens', position: 'right', valueFormatter: fmtTokens, width: 50 },
-            ]}
-            height={200}
-            margin={{ left: 10, right: 10, top: 16, bottom: 0 }}
-          >
-            <ChartsWrapper>
-              <ChartsSurface>
-                <ChartsGrid horizontal />
-                <BarPlot />
-                <LinePlot />
-                <ChartsAxisHighlight x="band" />
-                <ChartsYAxis axisId="tokens" />
-                <ChartsYAxis axisId="toolTokens" />
-                <CommitMarkers markers={commitMarkers} />
-                <ErrorMarkers markers={errorMarkers} />
-              </ChartsSurface>
-              <ChartsTooltip />
-            </ChartsWrapper>
-          </ChartsDataProvider>
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          <ChartsDataProvider
-            dataset={dataset as any}
-            series={mode === 'tool' ? [
-              { type: 'bar' as const, dataKey: 'apiInferenceMs', label: t('analytics.chartApiInferenceTime'), color: chartColors.apiInference, stack: 'timing', yAxisId: 'perTurn', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
-              { type: 'bar' as const, dataKey: 'toolExecMs', label: t('analytics.chartToolExecTime'), color: chartColors.toolExec, stack: 'timing', yAxisId: 'perTurn', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
-              { type: 'line' as const, dataKey: 'cumulativeMs', label: t('analytics.chartCumulativeInferenceTime'), color: chartColors.cumulativeTime, showMark: false, yAxisId: 'cumTime', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
-            ] : [
-              { type: 'bar' as const, dataKey: 'skillExecMs', label: t('analytics.chartSkillExecTime'), color: chartColors.skill, yAxisId: 'perTurn', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
-              { type: 'line' as const, dataKey: 'cumulativeMs', label: t('analytics.chartCumulativeInferenceTime'), color: chartColors.cumulativeTime, showMark: false, yAxisId: 'cumTime', valueFormatter: (v: number | null) => (v == null ? '' : fmtDurationShort(v)) },
-            ]}
-            xAxis={[{ id: 'x', dataKey: 'turn', scaleType: 'band', tickInterval: (value: number) => value % tickStep === 0 }]}
-            yAxis={[
-              { id: 'perTurn', valueFormatter: fmtDurationShort, width: 50 },
-              { id: 'cumTime', position: 'right', valueFormatter: fmtDurationShort, width: 50 },
-            ]}
-            height={140}
-            margin={{ left: 10, right: 10, top: 0, bottom: 0 }}
-          >
-            <ChartsWrapper>
-              <ChartsSurface>
-                <ChartsGrid horizontal />
-                <BarPlot />
-                <LinePlot />
-                <ChartsAxisHighlight x="band" />
-                <ChartsYAxis axisId="perTurn" />
-                <ChartsYAxis axisId="cumTime" />
-              </ChartsSurface>
-              <ChartsTooltip />
-            </ChartsWrapper>
-          </ChartsDataProvider>
+          <AnytimeChartView spec={tokensSpec} height={200} />
+          <AnytimeChartView spec={timingSpec} height={140} />
           <TurnLaneChart
             assistantMsgs={assistantMsgs}
             tickStep={tickStep}

@@ -4,6 +4,19 @@ import type { ChartHit, ChartLayout } from "../types";
 const HIT_RADIUS = 14;
 
 /**
+ * x 座標が属するカテゴリ（分類軸バンド）のインデックスを返す。プロット領域外/pie/カテゴリ無しは null。
+ * 棒・折れ線・複合の「カテゴリ単位クリック」（日付ドリルダウン等）に使う。
+ */
+export function categoryIndexAt(layout: ChartLayout, x: number): number | null {
+  const cats = layout.spec.categories?.length ?? 0;
+  if (cats <= 0 || layout.spec.kind === "pie" || layout.spec.kind === "scatter") return null;
+  const { x: px, width } = layout.plotRect;
+  if (x < px || x > px + width) return null;
+  const i = Math.floor((x - px) / (width / cats));
+  return Math.min(cats - 1, Math.max(0, i));
+}
+
+/**
  * 座標 (x,y) に最も近い描画済みデータ点を返す。しきい値外なら null。
  * ツールチップ・フォーカス時の数値表示に使う。
  */
