@@ -1,6 +1,7 @@
-import type { ReactNode, SyntheticEvent } from "react";
+import type { CSSProperties, ReactNode, SyntheticEvent } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface ToggleButtonProps {
   readonly value: string;
@@ -11,6 +12,8 @@ export interface ToggleButtonProps {
   /** ToggleButtonGroup から注入される（直接指定不要）。 */
   readonly selected?: boolean;
   readonly onChange?: (e: SyntheticEvent, value: string) => void;
+  readonly sx?: Record<string, unknown>;
+  readonly style?: CSSProperties;
 }
 
 /** MUI ToggleButton の置換。 */
@@ -22,6 +25,8 @@ export function ToggleButton({
   className,
   selected,
   onChange,
+  sx,
+  style,
 }: Readonly<ToggleButtonProps>) {
   injectTrailUiStyles();
   const classes = [
@@ -38,6 +43,7 @@ export function ToggleButton({
       className={classes}
       disabled={disabled}
       aria-pressed={selected}
+      style={{ ...sxToStyle(sx), ...style }}
       onClick={(e) => !disabled && onChange?.(e, value)}
     >
       {children}

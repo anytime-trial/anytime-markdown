@@ -1,11 +1,5 @@
 import { useMemo, useState } from 'react';
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import Paper from '@mui/material/Paper';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import Tooltip from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
+import { Box, Chip, Paper, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '../../../ui';
 import type { ChartSpec, Series } from '@anytime-markdown/chart-core';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
@@ -174,8 +168,8 @@ export function SessionCacheTimeline({
           size="small"
           exclusive
           value={mode}
-          onChange={(_, v: 'tool' | 'skill' | null) => { if (v) setMode(v); }}
-          sx={{ '& .MuiToggleButton-root': { py: 0.25, px: 1, fontSize: '0.7rem' } }}
+          onChange={(_, v) => { const m = v as 'tool' | 'skill' | null; if (m) setMode(m); }}
+          // TODO(mui-removal): dropped pseudo-selector sx '& .MuiToggleButton-root': { py, px, fontSize }
         >
           <Tooltip title={t('analytics.modeTool.description')} arrow placement="top">
             <ToggleButton value="tool">{t('analytics.modeTool')}</ToggleButton>

@@ -3,16 +3,19 @@ import { Children, cloneElement, isValidElement } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
 import type { ToggleButtonProps } from "./ToggleButton";
+import { sxToStyle } from "./sx";
 
 export interface ToggleButtonGroupProps {
   readonly value?: string | string[] | null;
-  readonly onChange?: (e: SyntheticEvent, value: string | string[] | null) => void;
+  // accepted for MUI compatibility; consumers may pass a narrower value type
+  readonly onChange?: (e: SyntheticEvent, value: unknown) => void;
   readonly exclusive?: boolean;
   readonly children?: ReactNode;
   readonly size?: "small" | "medium" | "large";
   readonly orientation?: "horizontal" | "vertical";
   readonly style?: CSSProperties;
   readonly className?: string;
+  readonly sx?: Record<string, unknown>;
 }
 
 /** MUI ToggleButtonGroup の置換。exclusive / multiple 選択対応。 */
@@ -25,6 +28,7 @@ export function ToggleButtonGroup({
   orientation: _orientation,
   style,
   className,
+  sx,
 }: Readonly<ToggleButtonGroupProps>) {
   injectTrailUiStyles();
   const classes = ["trv-toggle-group", className].filter(Boolean).join(" ");
@@ -48,7 +52,7 @@ export function ToggleButtonGroup({
   };
 
   return (
-    <div className={classes} role="group" style={style}>
+    <div className={classes} role="group" style={{ ...sxToStyle(sx), ...style }}>
       {Children.map(children, (child) => {
         if (!isValidElement(child)) return child;
         const el = child as ReactElement<ToggleButtonProps>;

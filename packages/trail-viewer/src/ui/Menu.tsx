@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface MenuPosition {
   readonly top: number;
@@ -18,6 +19,8 @@ export interface MenuProps {
   readonly anchorPosition?: MenuPosition;
   /** MUI 互換: anchorEl が指定された場合、その下に表示する。 */
   readonly anchorEl?: HTMLElement | null;
+  readonly sx?: Record<string, unknown>;
+  readonly style?: CSSProperties;
 }
 
 /**
@@ -30,6 +33,8 @@ export function Menu({
   children,
   anchorPosition,
   anchorEl,
+  sx,
+  style,
 }: Readonly<MenuProps>) {
   injectTrailUiStyles();
   const paperRef = useRef<HTMLDivElement>(null);
@@ -64,7 +69,7 @@ export function Menu({
         role="menu"
         tabIndex={-1}
         onKeyDown={handleKeyDown}
-        style={{ top: pos.top, left: pos.left }}
+        style={{ ...sxToStyle(sx), top: pos.top, left: pos.left, ...style }}
       >
         {children}
       </div>

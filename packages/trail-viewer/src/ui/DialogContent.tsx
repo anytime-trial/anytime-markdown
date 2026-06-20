@@ -1,12 +1,14 @@
 import type { CSSProperties, ReactNode } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface DialogContentProps {
   readonly children?: ReactNode;
   readonly dividers?: boolean;
   readonly style?: CSSProperties;
   readonly className?: string;
+  readonly sx?: Record<string, unknown>;
 }
 
 /** MUI DialogContent の置換。 */
@@ -15,6 +17,7 @@ export function DialogContent({
   dividers,
   style,
   className,
+  sx,
 }: Readonly<DialogContentProps>) {
   injectTrailUiStyles();
   const classes = [
@@ -25,7 +28,7 @@ export function DialogContent({
     .filter(Boolean)
     .join(" ");
   return (
-    <div className={classes} style={style}>
+    <div className={classes} style={{ ...sxToStyle(sx), ...style }}>
       {children}
     </div>
   );

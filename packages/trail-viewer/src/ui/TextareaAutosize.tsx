@@ -2,6 +2,7 @@ import type { ChangeEvent, CSSProperties, TextareaHTMLAttributes } from "react";
 import { forwardRef, useCallback, useLayoutEffect, useRef } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface TextareaAutosizeProps
   extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange" | "rows"> {
@@ -10,6 +11,7 @@ export interface TextareaAutosizeProps
   readonly minRows?: number;
   readonly maxRows?: number;
   readonly style?: CSSProperties;
+  readonly sx?: Record<string, unknown>;
 }
 
 /**
@@ -18,7 +20,7 @@ export interface TextareaAutosizeProps
  */
 export const TextareaAutosize = forwardRef<HTMLTextAreaElement, Readonly<TextareaAutosizeProps>>(
   function TextareaAutosize(
-    { value, onChange, minRows = 1, maxRows, style, className, ...rest },
+    { value, onChange, minRows = 1, maxRows, style, className, sx, ...rest },
     ref,
   ) {
     injectTrailUiStyles();
@@ -65,7 +67,7 @@ export const TextareaAutosize = forwardRef<HTMLTextAreaElement, Readonly<Textare
         value={value}
         onChange={onChange}
         rows={minRows}
-        style={style}
+        style={{ ...sxToStyle(sx), ...style }}
         {...rest}
       />
     );

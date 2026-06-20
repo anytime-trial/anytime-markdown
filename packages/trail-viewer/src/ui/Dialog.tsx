@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface DialogProps {
   readonly open: boolean;
@@ -14,6 +15,7 @@ export interface DialogProps {
   readonly className?: string;
   /** Escape キーで閉じる（既定 true）。 */
   readonly disableEscapeKeyDown?: boolean;
+  readonly sx?: Record<string, unknown>;
 }
 
 const MAX_WIDTH_MAP: Record<string, string> = {
@@ -34,6 +36,7 @@ export function Dialog({
   style,
   className,
   disableEscapeKeyDown,
+  sx,
 }: Readonly<DialogProps>) {
   injectTrailUiStyles();
   const paperRef = useRef<HTMLDivElement>(null);
@@ -57,6 +60,7 @@ export function Dialog({
 
   const maxWidthPx = maxWidth !== false ? MAX_WIDTH_MAP[maxWidth] : undefined;
   const paperStyle: CSSProperties = {
+    ...sxToStyle(sx),
     ...(maxWidthPx ? { maxWidth: maxWidthPx } : {}),
     ...(fullWidth ? { width: "100%" } : {}),
     ...style,

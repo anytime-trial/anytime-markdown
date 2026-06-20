@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface CircularProgressProps {
   readonly size?: number;
@@ -8,6 +9,7 @@ export interface CircularProgressProps {
   readonly color?: "primary" | "inherit";
   readonly style?: CSSProperties;
   readonly className?: string;
+  readonly sx?: Record<string, unknown>;
 }
 
 /** MUI CircularProgress の置換。SVG ベースの CSS スピナー。 */
@@ -17,6 +19,7 @@ export function CircularProgress({
   color: _color,
   style,
   className,
+  sx,
 }: Readonly<CircularProgressProps>) {
   injectTrailUiStyles();
   const classes = ["trv-circular-progress", className].filter(Boolean).join(" ");
@@ -25,7 +28,7 @@ export function CircularProgress({
   const dashOffset = circumference * 0.75; // ~75% arc
 
   return (
-    <span className={classes} style={{ width: size, height: size, ...style }}>
+    <span className={classes} style={{ ...sxToStyle(sx), width: size, height: size, ...style }}>
       <svg viewBox={`${size / 2} ${size / 2} ${size} ${size}`} width={size} height={size}>
         <circle
           cx={size}

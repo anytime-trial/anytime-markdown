@@ -1,9 +1,5 @@
 import { useMemo, useState } from 'react';
-import Box from '@mui/material/Box';
-import Paper from '@mui/material/Paper';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import Typography from '@mui/material/Typography';
+import { Box, Paper, ToggleButton, ToggleButtonGroup, Typography } from '../ui';
 import type { CostOptimizationData } from '../domain/parser/types';
 import { useTrailI18n } from '../i18n';
 import { costChartColors } from '../theme/designTokens';
@@ -114,7 +110,7 @@ export function CostOptimizationSection({ data }: Readonly<CostOptimizationSecti
             size="small"
             value={periodMode}
             exclusive
-            onChange={(_, v: PeriodMode | null) => { if (v) setPeriodMode(v); }}
+            onChange={(_, v) => { const mode = v as PeriodMode | null; if (mode) setPeriodMode(mode); }}
           >
             <ToggleButton value="day">{t('cost.day')}</ToggleButton>
             <ToggleButton value="week">{t('cost.week')}</ToggleButton>

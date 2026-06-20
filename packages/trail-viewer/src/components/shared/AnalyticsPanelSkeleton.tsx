@@ -1,4 +1,4 @@
-import { Box, Skeleton, Stack } from '@mui/material';
+import { Box, Skeleton, Stack } from '../../ui';
 
 export function AnalyticsPanelSkeleton() {
     return (

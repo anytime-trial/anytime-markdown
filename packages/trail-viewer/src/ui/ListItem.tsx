@@ -1,6 +1,7 @@
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface ListItemProps extends HTMLAttributes<HTMLLIElement> {
   readonly children?: ReactNode;
@@ -8,6 +9,7 @@ export interface ListItemProps extends HTMLAttributes<HTMLLIElement> {
   readonly secondaryAction?: ReactNode;
   readonly style?: CSSProperties;
   readonly className?: string;
+  readonly sx?: Record<string, unknown>;
 }
 
 /** MUI ListItem の置換（静的リスト行）。 */
@@ -17,6 +19,7 @@ export function ListItem({
   secondaryAction,
   style,
   className,
+  sx,
   ...rest
 }: Readonly<ListItemProps>) {
   injectTrailUiStyles();
@@ -28,7 +31,7 @@ export function ListItem({
     .filter(Boolean)
     .join(" ");
   return (
-    <li className={classes} style={style} {...rest}>
+    <li className={classes} style={{ ...sxToStyle(sx), ...style }} {...rest}>
       {children}
       {secondaryAction && (
         <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center" }}>

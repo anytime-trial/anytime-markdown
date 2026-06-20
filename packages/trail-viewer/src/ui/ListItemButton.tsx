@@ -1,6 +1,7 @@
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface ListItemButtonProps {
   readonly children?: ReactNode;
@@ -10,6 +11,7 @@ export interface ListItemButtonProps {
   readonly style?: CSSProperties;
   readonly className?: string;
   readonly disabled?: boolean;
+  readonly sx?: Record<string, unknown>;
 }
 
 /** MUI ListItemButton の置換（クリック可能なリスト行）。`<li role="button">` で構成。 */
@@ -21,6 +23,7 @@ export function ListItemButton({
   style,
   className,
   disabled,
+  sx,
 }: Readonly<ListItemButtonProps>) {
   injectTrailUiStyles();
   const classes = [
@@ -37,7 +40,7 @@ export function ListItemButton({
       aria-selected={selected}
       aria-disabled={disabled}
       className={classes}
-      style={style}
+      style={{ ...sxToStyle(sx), ...style }}
       onClick={disabled ? undefined : onClick}
       onContextMenu={onContextMenu}
       onKeyDown={(e) => {

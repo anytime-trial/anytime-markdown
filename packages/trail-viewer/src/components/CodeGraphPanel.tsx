@@ -1,10 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
+import { Alert, Box, Button, CircularProgress, TextField, Typography } from '../ui';
 import type { CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import { CodeGraphCanvas, type CodeGraphGhostEdge } from './CodeGraphCanvas';
 import { useCodeGraph } from '../hooks/useCodeGraph';
@@ -202,8 +197,7 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
           }}
           sx={{
             minWidth: 200,
-            '& .MuiOutlinedInput-root': { fontSize: '0.75rem' },
-            '& .MuiOutlinedInput-input': { py: 0.5 },
+            // TODO(mui-removal): dropped pseudo sx — '& .MuiOutlinedInput-root' and '& .MuiOutlinedInput-input' target MUI-internal classes no longer present in the kit
           }}
         />
         <Button

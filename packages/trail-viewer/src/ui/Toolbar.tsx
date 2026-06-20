@@ -1,6 +1,7 @@
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
   readonly variant?: "regular" | "dense";
@@ -8,6 +9,7 @@ export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
   readonly children?: ReactNode;
   readonly style?: CSSProperties;
   readonly className?: string;
+  readonly sx?: Record<string, unknown>;
 }
 
 /** MUI Toolbar の置換。水平フレックスコンテナ。 */
@@ -17,6 +19,7 @@ export function Toolbar({
   children,
   style,
   className,
+  sx,
   ...rest
 }: Readonly<ToolbarProps>) {
   injectTrailUiStyles();
@@ -29,7 +32,7 @@ export function Toolbar({
     .filter(Boolean)
     .join(" ");
   return (
-    <div className={classes} style={style} {...rest}>
+    <div className={classes} style={{ ...sxToStyle(sx), ...style }} {...rest}>
       {children}
     </div>
   );

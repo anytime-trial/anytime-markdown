@@ -1,13 +1,5 @@
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import IconButton from '@mui/material/IconButton';
-import List from '@mui/material/List';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemText from '@mui/material/ListItemText';
-import Tooltip from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { useCallback, useState } from 'react';
+import { Box, Chip, ContentCopy as ContentCopyIcon, IconButton, List, ListItemButton, ListItemText, Tooltip, Typography } from '../ui';
 
 import { formatLocalDateTime } from '@anytime-markdown/trail-core/formatDate';
 import type { TrailSession } from '../domain/parser/types';
@@ -72,9 +64,7 @@ export function SessionList({ sessions, selectedId, onSelect }: Readonly<Session
           sx={{
             alignItems: 'flex-start',
             pr: 1,
-            '&.Mui-selected': { bgcolor: colors.iceBlueBg },
-            '&.Mui-selected:hover': { bgcolor: colors.iceBlueSubtle },
-            '&:hover': { bgcolor: colors.hoverBg },
+            // TODO(mui-removal): dropped pseudo sx — '&.Mui-selected', '&.Mui-selected:hover', '&:hover' are pseudo-selector keys not expressible as inline style
           }}
         >
           <ListItemText
@@ -87,10 +77,10 @@ export function SessionList({ sessions, selectedId, onSelect }: Readonly<Session
                   <IconButton
                     size="small"
                     onClick={handleCopyId(session.id)}
-                    sx={{ p: 0.5, color: colors.textSecondary, '&:hover': { color: colors.iceBlue } }}
+                    sx={{ p: 0.5, color: colors.textSecondary /* TODO(mui-removal): dropped pseudo sx — '&:hover' is a pseudo-selector key */ }}
                     aria-label={t('sessionList.copyId')}
                   >
-                    <ContentCopyIcon sx={{ fontSize: 14 }} />
+                    <ContentCopyIcon fontSize={14} />
                   </IconButton>
                 </Tooltip>
               </Box>

@@ -1,5 +1,4 @@
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
+import { Paper, Typography } from '../../../ui';
 import type { ChartSpec } from '@anytime-markdown/chart-core';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailTheme } from '../../TrailThemeContext';

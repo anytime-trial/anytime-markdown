@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface SkeletonProps {
   readonly variant?: "text" | "circular" | "rectangular" | "rounded";
@@ -9,6 +10,7 @@ export interface SkeletonProps {
   readonly animation?: "pulse" | "wave" | false;
   readonly style?: CSSProperties;
   readonly className?: string;
+  readonly sx?: Record<string, unknown>;
 }
 
 /** MUI Skeleton の置換。ローディングプレースホルダー。 */
@@ -19,6 +21,7 @@ export function Skeleton({
   animation = "pulse",
   style,
   className,
+  sx,
 }: Readonly<SkeletonProps>) {
   injectTrailUiStyles();
   const classes = [
@@ -32,6 +35,7 @@ export function Skeleton({
     .filter(Boolean)
     .join(" ");
   const composed: CSSProperties = {
+    ...sxToStyle(sx),
     width: width !== undefined ? width : "100%",
     height: height !== undefined ? height : undefined,
     ...style,

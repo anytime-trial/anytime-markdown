@@ -1,12 +1,5 @@
-import ClearIcon from '@mui/icons-material/Clear';
-import SearchIcon from '@mui/icons-material/Search';
-import Box from '@mui/material/Box';
-import IconButton from '@mui/material/IconButton';
-import InputAdornment from '@mui/material/InputAdornment';
-import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
-import Toolbar from '@mui/material/Toolbar';
 import { useCallback, useMemo } from 'react';
+import { Box, Clear, IconButton, InputAdornment, MenuItem, Search, TextField, Toolbar } from '../ui';
 
 import type { TrailFilter, TrailSession } from '../domain/parser/types';
 import { useTrailI18n } from '../i18n';
@@ -71,7 +64,7 @@ export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProp
           input: {
             startAdornment: (
               <InputAdornment position="start">
-                <SearchIcon sx={{ fontSize: 16, color: colors.textSecondary }} />
+                <Search fontSize={16} color={colors.textSecondary} />
               </InputAdornment>
             ),
             endAdornment: filter.searchText ? (
@@ -82,7 +75,7 @@ export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProp
                   onClick={handleSearchClear}
                   sx={{ p: 0.25, color: colors.textSecondary }}
                 >
-                  <ClearIcon sx={{ fontSize: 14 }} />
+                  <Clear fontSize={14} />
                 </IconButton>
               </InputAdornment>
             ) : undefined,
@@ -91,16 +84,7 @@ export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProp
         }}
         sx={{
           minWidth: 200,
-          '& .MuiOutlinedInput-root': {
-            fontSize: '0.75rem',
-            borderRadius: radius.md,
-            '& fieldset': { borderColor: colors.border },
-            '&:hover fieldset': { borderColor: colors.textSecondary },
-            '&.Mui-focused fieldset': { borderColor: colors.iceBlue },
-          },
-          '& .MuiOutlinedInput-input': { py: 0.5 },
-          '& .MuiInputLabel-root': { color: colors.textSecondary },
-          '& .MuiInputLabel-root.Mui-focused': { color: colors.iceBlue },
+          // TODO(mui-removal): dropped pseudo sx — '& .MuiOutlinedInput-root', '& .MuiOutlinedInput-input', '& .MuiInputLabel-root' and Mui-focused/fieldset variants target MUI-internal classes no longer present in the kit
         }}
       />
       <Box sx={{ display: 'flex', gap: 1 }}>
@@ -113,8 +97,7 @@ export function FilterBar({ filter, sessions, onChange }: Readonly<FilterBarProp
           slotProps={{ inputLabel: { sx: { fontSize: '0.75rem' } } }}
           sx={{
             minWidth: 200,
-            '& .MuiOutlinedInput-root': { fontSize: '0.75rem', height: 30 },
-            '& .MuiSelect-select': { py: '3px' },
+            // TODO(mui-removal): dropped pseudo sx — '& .MuiOutlinedInput-root' and '& .MuiSelect-select' target MUI-internal classes no longer present in the kit
           }}
         >
           <MenuItem value="" sx={{ fontSize: '0.75rem' }}>

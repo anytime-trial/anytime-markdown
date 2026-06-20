@@ -1,11 +1,14 @@
-import type { LabelHTMLAttributes, ReactNode } from "react";
+import type { CSSProperties, LabelHTMLAttributes, ReactNode } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface FormLabelProps extends LabelHTMLAttributes<HTMLLabelElement> {
   readonly error?: boolean;
   readonly children?: ReactNode;
   readonly className?: string;
+  readonly sx?: Record<string, unknown>;
+  readonly style?: CSSProperties;
 }
 
 /** MUI FormLabel の置換。 */
@@ -13,6 +16,8 @@ export function FormLabel({
   error,
   children,
   className,
+  sx,
+  style,
   ...rest
 }: Readonly<FormLabelProps>) {
   injectTrailUiStyles();
@@ -24,7 +29,7 @@ export function FormLabel({
     .filter(Boolean)
     .join(" ");
   return (
-    <label className={classes} {...rest}>
+    <label className={classes} style={{ ...sxToStyle(sx), ...style }} {...rest}>
       {children}
     </label>
   );

@@ -1,22 +1,6 @@
 import { useState, useCallback } from 'react';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
-import FormControl from '@mui/material/FormControl';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import Switch from '@mui/material/Switch';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import Tooltip from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import type { SelectChangeEvent } from '@mui/material/Select';
+import { Box, Button, Chip, FormControl, FormControlLabel, InputLabel, MenuItem, Select, Switch, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography, HelpOutline as HelpOutlineIcon } from '../../ui';
+import type { SelectChangeEvent } from '../../ui';
 import { useTrailI18n } from '../../i18n';
 import type { TrailI18n } from '../../i18n';
 import { useTrailTheme } from '../TrailThemeContext';
@@ -152,14 +136,15 @@ export function DriftPanel({ rows, onResolve, onLoadDetail }: Readonly<DriftPane
               <TableCell sx={{ color: colors.textSecondary, fontSize: '0.7rem', bgcolor: colors.charcoal }}>
                 <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                   <span>Type</span>
+                  {/* TODO(mui-removal): dropped arrow + slotProps (kit Tooltip unsupported) */}
                   <Tooltip
                     title={typeHelpContent}
-                    arrow
                     placement="top"
-                    slotProps={{ tooltip: { sx: { maxWidth: 'none' } } }}
                   >
                     <HelpOutlineIcon
-                      sx={{ fontSize: 12, color: 'text.disabled', cursor: 'help', flexShrink: 0 }}
+                      fontSize={12}
+                      color="text.disabled"
+                      style={{ cursor: 'help', flexShrink: 0 }}
                     />
                   </Tooltip>
                 </Box>

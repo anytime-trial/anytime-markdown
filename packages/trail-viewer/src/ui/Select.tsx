@@ -3,6 +3,7 @@ import { Children, isValidElement } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
 import type { MenuItemProps } from "./MenuItem";
+import { sxToStyle } from "./sx";
 
 /** MUI SelectChangeEvent 互換型。 */
 export interface SelectChangeEvent<T = string> {
@@ -25,6 +26,9 @@ export interface SelectProps<T extends string = string> {
   readonly style?: CSSProperties;
   readonly className?: string;
   readonly displayEmpty?: boolean;
+  /** MUI 互換: FormControl の labelId を受け取るが視覚的には未配線。 */
+  readonly labelId?: string;
+  readonly sx?: Record<string, unknown>;
 }
 
 /**
@@ -39,10 +43,12 @@ export function Select<T extends string = string>({
   size,
   fullWidth,
   label: _label,
+  labelId: _labelId, // accepted for MUI compatibility; not visually wired
   name,
   multiple,
   style,
   className,
+  sx,
 }: Readonly<SelectProps<T>>) {
   injectTrailUiStyles();
   const classes = [
@@ -69,6 +75,12 @@ export function Select<T extends string = string>({
       );
     });
 
+  const composed: CSSProperties = {
+    ...sxToStyle(sx),
+    ...(fullWidth ? { width: "100%" } : {}),
+    ...style,
+  };
+
   return (
     <select
       className={classes}
@@ -77,7 +89,7 @@ export function Select<T extends string = string>({
       disabled={disabled}
       name={name}
       multiple={multiple}
-      style={fullWidth ? { width: "100%", ...style } : style}
+      style={composed}
     >
       {options}
     </select>

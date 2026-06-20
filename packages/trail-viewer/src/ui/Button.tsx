@@ -1,19 +1,22 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 type Variant = "text" | "outlined" | "contained";
 type Size = "small" | "medium" | "large";
-type Color = "primary" | "error" | "inherit";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly variant?: Variant;
   readonly size?: Size;
-  readonly color?: Color;
+  readonly color?: string;
   readonly startIcon?: ReactNode;
   readonly endIcon?: ReactNode;
   readonly fullWidth?: boolean;
   readonly children?: ReactNode;
+  readonly href?: string;
+  readonly sx?: Record<string, unknown>;
+  readonly style?: CSSProperties;
 }
 
 /** MUI Button の置換。text / outlined / contained。 */
@@ -27,6 +30,9 @@ export function Button({
   className,
   children,
   type = "button",
+  href: _href,
+  sx,
+  style,
   ...rest
 }: Readonly<ButtonProps>) {
   injectTrailUiStyles();
@@ -40,8 +46,16 @@ export function Button({
   ]
     .filter(Boolean)
     .join(" ");
+  const composed: CSSProperties = {
+    ...sxToStyle(sx),
+    ...(fullWidth ? { width: "100%" } : {}),
+    ...(color && color !== "primary" && color !== "error" && color !== "inherit"
+      ? { color }
+      : {}),
+    ...style,
+  };
   return (
-    <button type={type} className={classes} {...rest}>
+    <button type={type} className={classes} style={composed} {...rest}>
       {startIcon}
       {children}
       {endIcon}

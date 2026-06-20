@@ -1,9 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import Box from '@mui/material/Box';
-import IconButton from '@mui/material/IconButton';
-import TextField from '@mui/material/TextField';
-import SendIcon from '@mui/icons-material/Send';
-import StopIcon from '@mui/icons-material/Stop';
+import { Box, IconButton, TextField, Send as SendIcon, Stop as StopIcon } from '../../ui';
 import { useTrailI18n } from '../../i18n';
 import { chatReducer, initialChatState, type ChatUiSource } from './chatReducer';
 import { MessageBubble } from './MessageBubble';

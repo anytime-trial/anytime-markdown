@@ -1,7 +1,8 @@
-import type { ChangeEvent, InputHTMLAttributes } from "react";
+import type { ChangeEvent, CSSProperties, InputHTMLAttributes } from "react";
 import { useId } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface SwitchProps {
   readonly checked?: boolean;
@@ -12,6 +13,8 @@ export interface SwitchProps {
   readonly name?: string;
   readonly value?: string;
   readonly inputProps?: InputHTMLAttributes<HTMLInputElement>;
+  readonly sx?: Record<string, unknown>;
+  readonly style?: CSSProperties;
 }
 
 /** MUI Switch の置換。トグルスイッチ。 */
@@ -24,6 +27,8 @@ export function Switch({
   name,
   value,
   inputProps,
+  sx,
+  style,
 }: Readonly<SwitchProps>) {
   injectTrailUiStyles();
   const autoId = useId();
@@ -36,7 +41,7 @@ export function Switch({
     .filter(Boolean)
     .join(" ");
   return (
-    <label className={classes} htmlFor={inputId}>
+    <label className={classes} htmlFor={inputId} style={{ ...sxToStyle(sx), ...style }}>
       <input
         id={inputId}
         type="checkbox"

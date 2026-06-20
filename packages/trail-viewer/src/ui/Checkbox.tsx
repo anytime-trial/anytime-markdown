@@ -1,7 +1,8 @@
-import type { ChangeEvent, InputHTMLAttributes } from "react";
+import type { ChangeEvent, CSSProperties, InputHTMLAttributes } from "react";
 import { useId } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface CheckboxProps {
   readonly checked?: boolean;
@@ -13,6 +14,8 @@ export interface CheckboxProps {
   readonly name?: string;
   readonly value?: string;
   readonly inputProps?: InputHTMLAttributes<HTMLInputElement>;
+  readonly sx?: Record<string, unknown>;
+  readonly style?: CSSProperties;
 }
 
 const ICON_UNCHECKED = (
@@ -42,6 +45,8 @@ export function Checkbox({
   name,
   value,
   inputProps,
+  sx,
+  style,
 }: Readonly<CheckboxProps>) {
   injectTrailUiStyles();
   const autoId = useId();
@@ -55,7 +60,7 @@ export function Checkbox({
     .filter(Boolean)
     .join(" ");
   return (
-    <span className={classes}>
+    <span className={classes} style={{ ...sxToStyle(sx), ...style }}>
       <input
         id={inputId}
         type="checkbox"

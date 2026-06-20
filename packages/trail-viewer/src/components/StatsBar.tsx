@@ -1,9 +1,4 @@
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import Typography from '@mui/material/Typography';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import CachedIcon from '@mui/icons-material/Cached';
+import { ArrowDownward as ArrowDownwardIcon, ArrowUpward as ArrowUpwardIcon, Box, Cached as CachedIcon, Chip, Typography } from '../ui';
 
 import type { TrailMessage, TrailSession } from '../domain/parser/types';
 import { useTrailI18n } from '../i18n';

@@ -1,12 +1,5 @@
 import { useEffect, useState } from 'react';
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import Typography from '@mui/material/Typography';
+import { Box, Chip, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '../../ui';
 import { useTrailI18n } from '../../i18n';
 import { useTrailTheme } from '../TrailThemeContext';
 import { PipelineRunsTimeline } from './PipelineRunsTimeline';
@@ -76,7 +69,7 @@ export function PipelineRunsPanel({ reader }: Readonly<PipelineRunsPanelProps>) 
           {t('memory.runs.invalidations')}
         </Typography>
         {invalidations.length === 0 ? (
-          <Typography variant="caption" display="block" sx={{ color: colors.textSecondary, mt: 0.5 }}>—</Typography>
+          <Typography variant="caption" sx={{ display: 'block', color: colors.textSecondary, mt: 0.5 }}>—</Typography>
         ) : (
           <Box sx={{ maxHeight: 280, overflow: 'auto', mt: 0.5, ...scrollbarSx }}>
             <Table size="small" stickyHeader>
@@ -111,7 +104,7 @@ export function PipelineRunsPanel({ reader }: Readonly<PipelineRunsPanelProps>) 
           {t('memory.runs.failedItems')}
         </Typography>
         {failedItems.length === 0 ? (
-          <Typography variant="caption" display="block" sx={{ color: colors.textSecondary, mt: 0.5 }}>—</Typography>
+          <Typography variant="caption" sx={{ display: 'block', color: colors.textSecondary, mt: 0.5 }}>—</Typography>
         ) : (
           <Box sx={{ maxHeight: 280, overflow: 'auto', mt: 0.5, ...scrollbarSx }}>
             <Table size="small" stickyHeader>

@@ -2,9 +2,10 @@ import type { CSSProperties, SyntheticEvent } from "react";
 import { useState } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface RatingProps {
-  readonly value: number;
+  readonly value: number | null;
   readonly onChange?: (e: SyntheticEvent, value: number | null) => void;
   readonly max?: number;
   readonly readOnly?: boolean;
@@ -13,6 +14,7 @@ export interface RatingProps {
   readonly precision?: number;
   readonly style?: CSSProperties;
   readonly className?: string;
+  readonly sx?: Record<string, unknown>;
 }
 
 /** MUI Rating の置換。星評価コンポーネント。 */
@@ -26,6 +28,7 @@ export function Rating({
   precision: _precision,
   style,
   className,
+  sx,
 }: Readonly<RatingProps>) {
   injectTrailUiStyles();
   const [hover, setHover] = useState(-1);
@@ -40,10 +43,10 @@ export function Rating({
     .filter(Boolean)
     .join(" ");
 
-  const displayValue = hover > 0 ? hover : value;
+  const displayValue = hover > 0 ? hover : (value ?? 0);
 
   return (
-    <span className={classes} style={style} aria-label={`${value} stars`}>
+    <span className={classes} style={{ ...sxToStyle(sx), ...style }} aria-label={`${value ?? 0} stars`}>
       {Array.from({ length: max }, (_, i) => {
         const starValue = i + 1;
         const filled = starValue <= displayValue;

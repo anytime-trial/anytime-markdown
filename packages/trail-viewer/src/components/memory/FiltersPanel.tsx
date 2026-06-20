@@ -1,9 +1,4 @@
-import Box from '@mui/material/Box';
-import FormControl from '@mui/material/FormControl';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Radio from '@mui/material/Radio';
-import RadioGroup from '@mui/material/RadioGroup';
-import Typography from '@mui/material/Typography';
+import { Box, FormControl, FormControlLabel, Radio, RadioGroup, Typography } from '../../ui';
 import { useTrailI18n } from '../../i18n';
 
 export type RepoScope = 'all' | 'current';
@@ -33,7 +28,7 @@ export function FiltersPanel({
       <FormControl>
         <RadioGroup
           value={repoScope}
-          onChange={(_, v) => onRepoScopeChange(v as RepoScope)}
+          onChange={(e) => onRepoScopeChange(e.target.value as RepoScope)}
         >
           <FormControlLabel
             value="all"

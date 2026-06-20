@@ -1,8 +1,9 @@
-import type { ChangeEvent, ReactElement, ReactNode } from "react";
+import type { ChangeEvent, CSSProperties, ReactElement, ReactNode } from "react";
 import { Children, cloneElement, isValidElement } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
 import type { RadioProps } from "./Radio";
+import { sxToStyle } from "./sx";
 
 export interface RadioGroupProps {
   readonly name?: string;
@@ -10,6 +11,8 @@ export interface RadioGroupProps {
   readonly onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
   readonly children?: ReactNode;
   readonly row?: boolean;
+  readonly sx?: Record<string, unknown>;
+  readonly style?: CSSProperties;
 }
 
 /** MUI RadioGroup の置換。子の Radio に checked/name を注入する。 */
@@ -19,12 +22,20 @@ export function RadioGroup({
   onChange,
   children,
   row,
+  sx,
+  style,
 }: Readonly<RadioGroupProps>) {
   injectTrailUiStyles();
   return (
     <div
       role="radiogroup"
-      style={{ display: "flex", flexDirection: row ? "row" : "column", gap: "8px" }}
+      style={{
+        ...sxToStyle(sx),
+        display: "flex",
+        flexDirection: row ? "row" : "column",
+        gap: "8px",
+        ...style,
+      }}
     >
       {Children.map(children, (child) => {
         if (!isValidElement(child)) return child;

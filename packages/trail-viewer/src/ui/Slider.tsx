@@ -1,6 +1,7 @@
 import type { ChangeEvent, CSSProperties } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import { sxToStyle } from "./sx";
 
 export interface SliderProps {
   readonly value: number;
@@ -13,6 +14,7 @@ export interface SliderProps {
   readonly style?: CSSProperties;
   readonly className?: string;
   readonly name?: string;
+  readonly sx?: Record<string, unknown>;
 }
 
 /** MUI Slider の置換。input[type=range] ベース。 */
@@ -27,6 +29,7 @@ export function Slider({
   style,
   className,
   name,
+  sx,
 }: Readonly<SliderProps>) {
   injectTrailUiStyles();
   const classes = ["trv-slider", className].filter(Boolean).join(" ");
@@ -40,7 +43,7 @@ export function Slider({
       step={step}
       disabled={disabled}
       name={name}
-      style={style}
+      style={{ ...sxToStyle(sx), ...style }}
       onChange={(e) => onChange(e, Number(e.target.value))}
     />
   );
