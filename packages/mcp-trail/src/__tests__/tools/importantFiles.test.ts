@@ -60,4 +60,22 @@ describe('selectImportantFiles', () => {
     const out = selectImportantFiles(rows, { limit: 10, filter: 'barrel' });
     expect(out.map((r) => r.filePath)).toEqual(['index.ts']);
   });
+
+  test("filter='central' は centralityScore 降順", () => {
+    const rows = [
+      entry({ filePath: 'low.ts', centralityScore: 1 }),
+      entry({ filePath: 'high.ts', centralityScore: 9 }),
+    ];
+    const out = selectImportantFiles(rows, { limit: 1, filter: 'central' });
+    expect(out[0].filePath).toBe('high.ts');
+  });
+
+  test("filter='risky' は cognitiveComplexityMax 降順", () => {
+    const rows = [
+      entry({ filePath: 'simple.ts', cognitiveComplexityMax: 1 }),
+      entry({ filePath: 'complex.ts', cognitiveComplexityMax: 15 }),
+    ];
+    const out = selectImportantFiles(rows, { limit: 1, filter: 'risky' });
+    expect(out[0].filePath).toBe('complex.ts');
+  });
 });

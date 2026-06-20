@@ -47,22 +47,14 @@ const DISCOVERY_TOOLS = new Set([
   'get_important_files',
 ]);
 
+const HTTP_ONLY_TOOLS = new Set([...ANALYZE_TOOLS, ...DISCOVERY_TOOLS]);
+
 export async function route(
   toolName: string,
   args: Record<string, unknown>,
   opts: RouteOpts,
 ): Promise<unknown> {
-  if (ANALYZE_TOOLS.has(toolName)) {
-    const alive = opts.forceDirect ? false : await probeServerAlive(opts.serverUrl);
-    if (!alive) {
-      throw new Error(
-        'TrailDataServer not running. Start "Anytime Trail" sidebar in VS Code or run "Anytime Trail: コード解析" command first.',
-      );
-    }
-    return invokeHttp(toolName, args, opts);
-  }
-
-  if (DISCOVERY_TOOLS.has(toolName)) {
+  if (HTTP_ONLY_TOOLS.has(toolName)) {
     const alive = opts.forceDirect ? false : await probeServerAlive(opts.serverUrl);
     if (!alive) {
       throw new Error(

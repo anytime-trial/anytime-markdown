@@ -629,7 +629,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
       const raw = (await route('get_important_files', {}, opts)) as { entries: FileAnalysisEntry[] };
       const rows = selectImportantFiles(raw.entries ?? [], {
-        limit: limit ?? 10,
+        limit,
         ...(filter ? { filter: filter as ImportantFilesFilter } : {}),
       });
       return { content: [{ type: 'text' as const, text: JSON.stringify(rows, null, 2) }] };

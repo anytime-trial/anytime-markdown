@@ -37,6 +37,8 @@ function sortKey(filter: ImportantFilesFilter | undefined): (e: FileAnalysisEntr
       return (e) => e.deadCodeScore;
     case 'risky':
       return (e) => e.cognitiveComplexityMax;
+    case 'barrel':
+      return (e) => e.importanceScore; // barrel フィルタ後は overall importance で順位付け
     default:
       return (e) => e.importanceScore;
   }
