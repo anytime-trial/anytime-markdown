@@ -173,11 +173,11 @@ claude mcp add --scope project mcp-trail -- node "$SERVER_PATH"
 ### 0-1: コミュニティメタ一覧
 
 ```text
-ツール: mcp__mcp-trail__list_communities
+ツール: mcp__mcp-trail__list_communities（includeMappings=true を指定すること）
 返り値の利用カラム: communityId, label, name, summary, mappings_json
 ```
 
-`name` が空の行はスキップ（ガード 3 で検出済みだが念のため）。`mappings_json` は文字列なので `JSON.parse` する（パース失敗は警告ログを出して該当コミュニティをスキップ）。
+`name` が空の行はスキップ（ガード 3 で検出済みだが念のため）。`mappings_json` は文字列なので `JSON.parse` する（パース失敗は警告ログを出して該当コミュニティをスキップ）。`includeMappings=true` を省略すると `mappings_json` が返らず後続処理が壊れるため必ず指定する。
 
 ### 0-2: コードグラフ読み取り（sqlite3 CLI 読み取り専用）
 
