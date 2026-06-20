@@ -1,10 +1,11 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "license": "MIT",
   "private": true,
   "scripts": {
     "version:sync": "npm version --no-git-tag-version --workspaces",
+    "spec:index": "node scripts/gen-spec-index.mjs",
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
     "lint": "eslint packages/markdown-viewer/src packages/web-app/src",
     "lint:fix": "eslint --fix packages/markdown-viewer/src packages/web-app/src",
@@ -18,6 +19,7 @@
     "packages/markdown-core",
     "packages/spreadsheet-core",
     "packages/spreadsheet-viewer",
+    "packages/chart-core",
     "packages/graph-react-islands",
     "packages/database-core",
     "packages/database-viewer",
@@ -51,6 +53,7 @@
     "packages/trace-agent-node",
     "packages/trace-viewer",
     "packages/memory-core",
+    "packages/doc-core",
     "packages/llm-core",
     "packages/ollama-core",
     "packages/agent-core",

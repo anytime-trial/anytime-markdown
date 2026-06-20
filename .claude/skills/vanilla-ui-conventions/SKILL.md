@@ -1,3 +1,8 @@
+---
+name: vanilla-ui-conventions
+description: packages/markdown-viewer（脱React の vanilla DOM エディタ）の ui-vanilla/components-vanilla を実装・修正する時、editor.on 購読を張る時、コメント状態を変更・クリアする時に使用する。規約: コメント状態購読は onCommentStateChange・クリアは clearDocumentAndComments・状態スタイルは data-* とスタイルシート・モードフラグは getter 評価・統合の新規テストは実 Editor。
+---
+
 # 脱React vanilla UI / エディタ状態購読の規約
 
 更新日: 2026-06-15

@@ -88,7 +88,7 @@
     "i18nKey": "samplePacket",
     "icon": "pkt",
     "enabled": true,
-    "code": "packet-beta\n    0-15: \"Source Port\"\n    16-31: \"Destination Port\"\n    32-63: \"Sequence Number\"\n    64-95: \"Acknowledgment Number\"\n    96-99: \"Data Offset\"\n    100-105: \"Reserved\"\n    106-111: \"Flags\"\n    112-127: \"Window Size\""
+    "code": "packet\n    0-15: \"Source Port\"\n    16-31: \"Destination Port\"\n    32-63: \"Sequence Number\"\n    64-95: \"Acknowledgment Number\"\n    96-99: \"Data Offset\"\n    100-105: \"Reserved\"\n    106-111: \"Flags\"\n    112-127: \"Window Size\""
   },
   {
     "label": "Pie",
@@ -109,7 +109,7 @@
     "i18nKey": "sampleRadar",
     "icon": "rdr",
     "enabled": true,
-    "code": "radar-beta\n    title Skills\n    axis1 \"Frontend\"\n    axis2 \"Backend\"\n    axis3 \"DevOps\"\n    axis4 \"Design\"\n    axis5 \"Testing\"\n    \"Alice\" : [4, 5, 3, 2, 4]\n    \"Bob\" : [3, 3, 5, 4, 3]"
+    "code": "radar-beta\n    title Skills\n    axis fe[\"Frontend\"], be[\"Backend\"], ops[\"DevOps\"], des[\"Design\"], qa[\"Testing\"]\n    curve alice[\"Alice\"]{4, 5, 3, 2, 4}\n    curve bob[\"Bob\"]{3, 3, 5, 4, 3}\n    max 5\n    min 0"
   },
   {
     "label": "Requirement",
@@ -137,7 +137,7 @@
     "i18nKey": "sampleTreemap",
     "icon": "tree",
     "enabled": true,
-    "code": "treemap-beta\n    root\n        A::100\n            A1::40\n            A2::60\n        B::80\n            B1::30\n            B2::50\n        C::50"
+    "code": "treemap\n    \"Products\"\n        \"Electronics\"\n            \"Phones\": 50\n            \"Laptops\": 40\n        \"Clothing\"\n            \"Shirts\": 30\n            \"Shoes\": 20\n    \"Services\": 25"
   },
   {
     "label": "User Journey",
@@ -154,10 +154,38 @@
     "code": "xychart-beta\n    title \"Sales Revenue\"\n    x-axis [Jan, Feb, Mar, Apr, May, Jun]\n    y-axis \"Revenue (k$)\" 0 --> 120\n    bar [50, 60, 75, 80, 95, 110]\n    line [50, 60, 75, 80, 95, 110]"
   },
   {
-    "label": "ZenUML",
-    "i18nKey": "sampleZenUML",
-    "icon": "zen",
+    "label": "Ishikawa",
+    "i18nKey": "sampleIshikawa",
+    "icon": "fish",
     "enabled": true,
-    "code": "zenuml\n    title Order Service\n    Client->OrderService.create(order) {\n      OrderService->DB.save(order)\n      OrderService->PaymentService.charge(order) {\n        PaymentService->Gateway.process(payment)\n        return result\n      }\n      return confirmation\n    }"
+    "code": "ishikawa\n    problem \"Low Product Quality\"\n    category \"People\"\n        cause \"Lack of training\"\n        cause \"Low morale\"\n    category \"Process\"\n        cause \"No code review\"\n        cause \"Unclear requirements\"\n    category \"Tools\"\n        cause \"Outdated CI\"\n    category \"Environment\"\n        cause \"Noisy office\""
+  },
+  {
+    "label": "Tree View",
+    "i18nKey": "sampleTreeView",
+    "icon": "tv",
+    "enabled": true,
+    "code": "treeView-beta\n    \"Project\"\n        \"Frontend\"\n            \"Components\"\n            \"Hooks\"\n        \"Backend\"\n            \"API\"\n            \"Database\"\n        \"Docs\""
+  },
+  {
+    "label": "Venn",
+    "i18nKey": "sampleVenn",
+    "icon": "venn",
+    "enabled": true,
+    "code": "venn-beta\n    title Skill Overlap\n    set fe [\"Frontend\"]\n    set be [\"Backend\"]\n    union fe, be [\"Fullstack\"]"
+  },
+  {
+    "label": "Wardley",
+    "i18nKey": "sampleWardley",
+    "icon": "wmap",
+    "enabled": true,
+    "code": "wardley-beta\n    title Tea Shop\n    anchor Customer [0.95, 0.63]\n    component Cup of Tea [0.79, 0.61]\n    component Cup [0.73, 0.78]\n    component Tea [0.63, 0.81]\n    component Hot Water [0.52, 0.80]\n    Customer -> Cup of Tea\n    Cup of Tea -> Cup\n    Cup of Tea -> Tea\n    Cup of Tea -> Hot Water"
+  },
+  {
+    "label": "Event Modeling",
+    "i18nKey": "sampleEventModeling",
+    "icon": "evm",
+    "enabled": true,
+    "code": "eventmodeling\n    timeframe 1\n    ui PlaceOrderScreen\n    timeframe 2\n    command PlaceOrder\n    timeframe 3\n    event OrderPlaced\n    timeframe 4\n    readmodel OrderList"
   }
 ]

@@ -5,6 +5,7 @@ export type {
   SpreadsheetEditorHandle,
   SpreadsheetEditorOptions,
   SpreadsheetEditorUpdatePatch,
+  ChartDefinition,
 } from "./vanilla/spreadsheetEditor";
 export { createPaginationBar } from "./vanilla/paginationBar";
 export type { PaginationBarHandle, PaginationProps } from "./vanilla/paginationBar";

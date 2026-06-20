@@ -23,6 +23,7 @@
     "spreadsheetCut": "切り取り",
     "spreadsheetCopy": "コピー",
     "spreadsheetPaste": "貼り付け",
+    "spreadsheetPasteArea": "貼り付け領域",
     "spreadsheetFilter": "フィルタ",
     "spreadsheetFilterClear": "フィルタ解除",
     "spreadsheetFilterColumn": "列でフィルタ",
@@ -38,7 +39,15 @@
     "invalidJson": "ファイルを読み込めませんでした",
     "sheetAdd": "シートを追加",
     "sheetDelete": "シートを削除",
-    "sheetRename": "シート名を変更"
+    "sheetRename": "シート名を変更",
+    "chartCreate": "選択範囲からチャート作成",
+    "chartKindLine": "折れ線",
+    "chartKindBar": "棒",
+    "chartKindArea": "面",
+    "chartKindPie": "円",
+    "chartKindScatter": "散布図",
+    "chartKindCombo": "複合",
+    "chartClose": "チャートを閉じる"
   },
   "Pager": {
     "first": "« 先頭",

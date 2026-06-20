@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-06-20
+
+### Trail Core (trail-core / trail-server / mcp-trail / memory-core)
+
+- Added `doc-core` package: document search with structural index, FTS5 keyword search, and embedding-based semantic search in a single `doc-core.db` (trigram tokenizer for Japanese).
+- Added `search_docs` tool to `mcp-trail` for cross-document search via `doc-core.db`.
+- Wired `doc-core` into the `trail-server` daemon; document root is now sourced from `lep.json` `sources.docs.root` (legacy `DOC_CORE_DOCS_ROOT` env removed).
+- Fixed `memory-core` episode summary persistence: added missing `summary` column to the ollama INSERT and introduced `summarizeSpecDoc` for whole-document spec summarization.
+
 ## [0.27.2] - 2026-06-13
 
 ### Trail Core (trail-core / trail-viewer)

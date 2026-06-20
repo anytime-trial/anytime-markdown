@@ -8,6 +8,7 @@ import type {
   SheetAdapter,
   SpreadsheetSelection,
 } from "@anytime-markdown/spreadsheet-core";
+import type { TableRange } from "@anytime-markdown/chart-core";
 import {
   columnLabel,
   DEFAULT_GRID_COLS,
@@ -15,6 +16,13 @@ import {
 } from "@anytime-markdown/spreadsheet-core";
 
 import { createSpreadsheetT, type SpreadsheetT } from "../i18n/createSpreadsheetT";
+import {
+  getInternalClipboard,
+  parseClipboardTsv,
+  readTsvFromClipboard,
+  writeTsvToClipboard,
+} from "./clipboard";
+import { computeFillValues } from "./fillSeries";
 import { getDivider, getPalette, applySpreadsheetThemeVars, themeCssVars } from "../ui/tokens";
 import { injectSpreadsheetUiStyles } from "../ui/injectStyles";
 import {
@@ -50,6 +58,9 @@ const FILTER_ROW_HEIGHT = 28;
 const RESIZE_HANDLE_THRESHOLD = 4;
 const MIN_RESIZE_ROWS = 2;
 const MIN_RESIZE_COLS = 1;
+// フィルハンドル（選択右下角）の描画サイズと当たり判定の許容半径（px）。
+const FILL_HANDLE_SIZE = 7;
+const FILL_HANDLE_HIT = 5;
 const AUTO_WIDTH_MIN = 60;
 const AUTO_WIDTH_MAX = 300;
 const AUTO_WIDTH_CHAR_PX = 8;
@@ -86,6 +97,11 @@ export interface SpreadsheetGridOptions {
   onRedo?: () => void;
   /** 適用ボタンを表示するか（デフォルト: false） */
   showApply?: boolean;
+  /**
+   * 内容変更のたびに adapter へ即時同期するか（デフォルト: false）。
+   * true の場合、Apply を待たずセル編集等が adapter.subscribe へ伝播する（ライブプレビュー用）。
+   */
+  liveSync?: boolean;
   /** データ範囲の青枠とリサイズハンドルを表示するか（デフォルト: false） */
   showRange?: boolean;
   /** 1行目をヘッダー行（H）として表示するか（デフォルト: false） */
@@ -124,6 +140,8 @@ export interface SpreadsheetGridOptions {
   t?: SpreadsheetT;
   /** t 未指定時のロケール（未指定時は navigator.language） */
   locale?: string;
+  /** 選択範囲からチャート作成コールバック（未指定時はコンテキストメニュー非表示）。 */
+  onCreateChart?: (range: TableRange) => void;
 }
 
 export interface SpreadsheetGridHandle {
@@ -211,6 +229,7 @@ export function mountSpreadsheetGrid(
     gridRows: GRID_ROWS = DEFAULT_GRID_ROWS,
     gridCols: GRID_COLS = DEFAULT_GRID_COLS,
     showApply = false,
+    liveSync = false,
     showRange = false,
     showHeaderRow = false,
     columnHeaders,
@@ -251,6 +270,8 @@ export function mountSpreadsheetGrid(
   let filters = new Map<number, ColumnFilterState>();
   let filterRowVisible = false;
   let previewRange: DataRange | null = null;
+  // フィルハンドルのドラッグ中の補完先プレビュー（選択 + 拡張ぶんの矩形）。
+  let fillPreview: { minR: number; minC: number; maxR: number; maxC: number } | null = null;
   let reorderDrag: { type: "row" | "col"; sourceIndex: number; targetIndex: number | null } | null =
     null;
   let suppressClick = false;
@@ -285,8 +306,24 @@ export function mountSpreadsheetGrid(
     onContentChange: () => {
       markDirty();
       if (filterRowVisible) renderFilterRow();
+      // liveSync 時は Apply を待たず adapter へ即時反映（初期同期前は抑止）。
+      if (liveSync && initialized) syncToAdapter();
     },
   });
+
+  // 行高/列幅は state 外（グリッドローカル）の Map なので、履歴 extra フックで undo 対象に含める。
+  state.setHistoryExtra(
+    () => ({ rowHeights: [...rowHeightOverrides], colWidths: [...colWidthOverrides] }),
+    (extra) => {
+      const e = extra as
+        | { rowHeights?: [number, number][]; colWidths?: [number, number][] }
+        | undefined;
+      rowHeightOverrides = new Map(e?.rowHeights ?? []);
+      colWidthOverrides = new Map(e?.colWidths ?? []);
+      // フィルタ行は列幅に追従するため、表示中のみ作り直す（非表示時の無駄な再生成を避ける）。
+      if (filterRowVisible) renderFilterRow();
+    },
+  );
 
   /* ---------------------------------------------------------------- */
   /*  Derived layout helpers                                           */
@@ -472,8 +509,8 @@ export function mountSpreadsheetGrid(
     }
   };
 
-  /** 適用ボタン: グリッド全体を adapter に一括反映（React handleApply と同一） */
-  const handleApply = (): void => {
+  /** グリッド全体（state）を adapter へ一括反映する。skipSyncCount で自身の再同期を抑止。 */
+  const syncToAdapter = (): void => {
     if (readOnly) return;
     const cells: string[][] = [];
     const aligns: CellAlign[][] = [];
@@ -489,6 +526,12 @@ export function mountSpreadsheetGrid(
     }
     skipSyncCount++;
     adapter.replaceAll({ cells, alignments: aligns, range: state.dataRange });
+  };
+
+  /** 適用ボタン: グリッド全体を adapter に一括反映（React handleApply と同一） */
+  const handleApply = (): void => {
+    if (readOnly) return;
+    syncToAdapter();
     if (dirty) {
       dirty = false;
       options.onDirtyChange?.(false);
@@ -744,7 +787,29 @@ export function mountSpreadsheetGrid(
   input.readOnly = readOnly;
   input.style.display = "none";
 
-  scrollEl.append(canvas, filterRowEl, input);
+  // 外部アプリ（Excel 等）からの貼り付け捕捉用の隠し編集要素（paste-bin）。
+  // VS Code webview では navigator.clipboard.readText が遮断され、かつ非編集の canvas には
+  // ネイティブ paste イベントが届かない。Ctrl+V 時にこの textarea へ一瞬フォーカスを移し、
+  // ここに発火する paste イベントの clipboardData を読むことで外部貼り付けを成立させる。
+  // tabIndex=-1 で Tab 順から外し、画面外・不可視にしてユーザーには見えないようにする。
+  const pasteBin = document.createElement("textarea");
+  pasteBin.tabIndex = -1;
+  // aria-hidden は付けない（focus を受ける要素に aria-hidden は ARIA 仕様違反のため）。
+  // 代わりにラベルを与え、SR には貼り付け領域として伝える。視覚的非表示は CSS で担保する。
+  pasteBin.setAttribute("aria-label", t("spreadsheetPasteArea"));
+  Object.assign(pasteBin.style, {
+    position: "fixed",
+    top: "0",
+    left: "0",
+    width: "1px",
+    height: "1px",
+    opacity: "0",
+    border: "0",
+    padding: "0",
+    resize: "none",
+  });
+
+  scrollEl.append(canvas, filterRowEl, input, pasteBin);
   root.appendChild(scrollEl);
   container.appendChild(root);
 
@@ -1272,6 +1337,35 @@ export function mountSpreadsheetGrid(
       ctx.fillRect(drRight - 5, drBottom - 5, 10, 10);
     }
 
+    // フィルドラッグ中のプレビュー（補完先を破線で示す）。
+    if (fillPreview) {
+      const pTopVi = gridRowToVisualIndex(lay, fillPreview.minR);
+      const pBotVi = gridRowToVisualIndex(lay, fillPreview.maxR);
+      if (pTopVi >= 0 && pBotVi >= 0) {
+        const px = getColX(fillPreview.minC);
+        const py = topOffset + rowYs[pTopVi];
+        let pw = 0;
+        for (let c = fillPreview.minC; c <= fillPreview.maxC; c++) pw += getColWidth(c);
+        const ph = rowYs[pBotVi + 1] - rowYs[pTopVi];
+        ctx.strokeStyle = primaryColor;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 2]);
+        ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
+        ctx.setLineDash([]);
+      }
+    }
+
+    // フィルハンドル（選択右下角の小さな四角）。readOnly 時や選択なしは描かれない。
+    const fillPos = getFillHandlePos(lay);
+    if (fillPos) {
+      const s = FILL_HANDLE_SIZE;
+      ctx.fillStyle = primaryColor;
+      ctx.fillRect(fillPos.x - s / 2, fillPos.y - s / 2, s, s);
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(fillPos.x - s / 2, fillPos.y - s / 2, s, s);
+    }
+
     if (reorderDrag?.targetIndex != null) {
       ctx.strokeStyle = primaryColor;
       ctx.lineWidth = 3;
@@ -1589,12 +1683,14 @@ export function mountSpreadsheetGrid(
           onSwapCols: state.swapCols,
           setDataRange: state.setDataRange,
           setCellValue: state.setCellValue,
+          transact: state.transact,
           onOpenFilter: () => {
             filterRowVisible = true;
             renderFilterRow();
             updateToolbarState();
             scheduleDraw();
           },
+          onCreateChart: options.onCreateChart,
           t,
         },
       );
@@ -1689,9 +1785,141 @@ export function mountSpreadsheetGrid(
     );
   };
 
+  /** cell / range 選択の矩形境界（grid 座標）。row/col ヘッダ選択や未選択は null。 */
+  const getCellRangeBounds = (
+    sel: SpreadsheetSelection | null,
+  ): { minR: number; minC: number; maxR: number; maxC: number } | null => {
+    if (sel?.type === "cell") return { minR: sel.row, minC: sel.col, maxR: sel.row, maxC: sel.col };
+    if (sel?.type === "range") {
+      return {
+        minR: Math.min(sel.startRow, sel.endRow),
+        minC: Math.min(sel.startCol, sel.endCol),
+        maxR: Math.max(sel.startRow, sel.endRow),
+        maxC: Math.max(sel.startCol, sel.endCol),
+      };
+    }
+    return null;
+  };
+
+  /** フィルハンドル（選択右下角）の中心ピクセル座標。非表示条件なら null。 */
+  const getFillHandlePos = (lay: GridLayout): { x: number; y: number } | null => {
+    if (readOnly) return null;
+    const b = getCellRangeBounds(state.selection);
+    if (!b) return null;
+    const bottomVi = gridRowToVisualIndex(lay, b.maxR);
+    if (bottomVi < 0) return null;
+    return {
+      x: getColX(b.maxC) + getColWidth(b.maxC),
+      y: lay.topOffset + lay.rowYs[bottomVi + 1],
+    };
+  };
+
+  /** (x,y) がフィルハンドルの当たり判定内か。 */
+  const isOnFillHandle = (x: number, y: number, lay: GridLayout): boolean => {
+    const pos = getFillHandlePos(lay);
+    if (!pos) return false;
+    return Math.abs(x - pos.x) <= FILL_HANDLE_HIT && Math.abs(y - pos.y) <= FILL_HANDLE_HIT;
+  };
+
+  /** フィル確定: src を起点に target まで下 or 右へ補完値を書き込む。 */
+  const applyFill = (
+    src: { minR: number; minC: number; maxR: number; maxC: number },
+    target: { minR: number; minC: number; maxR: number; maxC: number },
+  ): void => {
+    if (readOnly) return;
+    const down = target.maxR > src.maxR;
+    const right = target.maxC > src.maxC;
+    if (!down && !right) return;
+
+    // 補完元ベクトルを拡張前に読み取る。
+    const sources: string[][] = [];
+    if (down) {
+      for (let c = src.minC; c <= src.maxC; c++) {
+        const col: string[] = [];
+        for (let r = src.minR; r <= src.maxR; r++) col.push(state.grid[r]?.[c] ?? "");
+        sources.push(col);
+      }
+    } else {
+      for (let r = src.minR; r <= src.maxR; r++) {
+        const row: string[] = [];
+        for (let c = src.minC; c <= src.maxC; c++) row.push(state.grid[r]?.[c] ?? "");
+        sources.push(row);
+      }
+    }
+
+    // 範囲拡張 + 全書き込みを 1 つの undo 単位にまとめる。
+    state.transact(() => {
+      // 補完先がデータ範囲を超える場合は範囲を拡張（永続・可視範囲に含める）。
+      const neededRows = Math.max(state.dataRange.rows, target.maxR + 1);
+      const neededCols = Math.max(state.dataRange.cols, target.maxC + 1);
+      if (neededRows !== state.dataRange.rows || neededCols !== state.dataRange.cols) {
+        state.setDataRange({ rows: neededRows, cols: neededCols });
+      }
+
+      if (down) {
+        const count = target.maxR - src.maxR;
+        for (let ci = 0; ci < sources.length; ci++) {
+          const values = computeFillValues(sources[ci], count);
+          for (let i = 0; i < count; i++) state.setCellValue(src.maxR + 1 + i, src.minC + ci, values[i]);
+        }
+      } else {
+        const count = target.maxC - src.maxC;
+        for (let ri = 0; ri < sources.length; ri++) {
+          const values = computeFillValues(sources[ri], count);
+          for (let i = 0; i < count; i++) state.setCellValue(src.minR + ri, src.maxC + 1 + i, values[i]);
+        }
+      }
+    });
+
+    // 補完後の範囲を選択する（Excel 同様）。
+    state.setSelection({
+      type: "range",
+      startRow: src.minR,
+      startCol: src.minC,
+      endRow: target.maxR,
+      endCol: target.maxC,
+    });
+  };
+
   const onCanvasMouseDown = (e: MouseEvent): void => {
     const lay = computeLayout();
     const { x, y } = getCanvasCoords(e);
+
+    // フィルハンドル（選択右下角）のドラッグ開始。showRange 端ドラッグより優先する。
+    if (isOnFillHandle(x, y, lay)) {
+      const src = getCellRangeBounds(state.selection);
+      if (src) {
+        e.preventDefault();
+        fillPreview = { ...src };
+        trackDrag(
+          (ev) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = ev.clientX - rect.left;
+            const my = ev.clientY - rect.top;
+            const col = getColAtX(mx);
+            const vi = getViAtY(lay, my - lay.topOffset);
+            const row = vi >= 0 && vi < lay.visibleRows.length ? lay.visibleRows[vi] : vi;
+            const downExt = Math.max(0, row - src.maxR);
+            const rightExt = Math.max(0, col - src.maxC);
+            if (downExt === 0 && rightExt === 0) {
+              fillPreview = { ...src };
+            } else if (downExt >= rightExt) {
+              fillPreview = { ...src, maxR: Math.min(row, GRID_ROWS - 1) };
+            } else {
+              fillPreview = { ...src, maxC: Math.min(col, GRID_COLS - 1) };
+            }
+            scheduleDraw();
+          },
+          () => {
+            if (fillPreview) applyFill(src, fillPreview);
+            fillPreview = null;
+            suppressClick = true;
+            scheduleDraw();
+          },
+        );
+      }
+      return;
+    }
 
     // 列ヘッダ右端ドラッグで個別列幅をリサイズ
     const colEdge = findColEdgeAtX(lay, x, y);
@@ -1699,6 +1927,7 @@ export function mountSpreadsheetGrid(
       e.preventDefault();
       const startClientX = e.clientX;
       const startWidth = getColWidth(colEdge);
+      state.beginHistoryPoint();
       trackDrag(
         (ev) => {
           const newWidth = Math.max(40, Math.min(800, startWidth + ev.clientX - startClientX));
@@ -1708,6 +1937,7 @@ export function mountSpreadsheetGrid(
         },
         () => {
           suppressClick = true;
+          state.commitHistoryPoint(getColWidth(colEdge) !== startWidth);
         },
       );
       return;
@@ -1720,6 +1950,7 @@ export function mountSpreadsheetGrid(
       const startClientY = e.clientY;
       const startHeight = getRowHeightByVi(lay, rowEdgeVi);
       const targetRow = lay.visibleRows[rowEdgeVi];
+      state.beginHistoryPoint();
       trackDrag(
         (ev) => {
           const newHeight = Math.max(16, Math.min(400, startHeight + ev.clientY - startClientY));
@@ -1728,6 +1959,7 @@ export function mountSpreadsheetGrid(
         },
         () => {
           suppressClick = true;
+          state.commitHistoryPoint((rowHeightOverrides.get(targetRow) ?? rowHeight()) !== startHeight);
         },
       );
       return;
@@ -1829,7 +2061,9 @@ export function mountSpreadsheetGrid(
     const colEdge = findColEdgeAtX(lay, x, y);
     const rowEdgeVi = findRowEdgeAtY(lay, x, y);
 
-    if (colEdge !== null) {
+    if (isOnFillHandle(x, y, lay)) {
+      canvas.style.cursor = "crosshair";
+    } else if (colEdge !== null) {
       canvas.style.cursor = "col-resize";
     } else if (rowEdgeVi !== null) {
       canvas.style.cursor = "row-resize";
@@ -1895,21 +2129,66 @@ export function mountSpreadsheetGrid(
     if (editing) cancelEditing();
   };
 
+  // 貼り付け先の起点（選択範囲の左上）。paste-bin の paste イベント or バックストップで使う。
+  let pendingPasteAnchor: { minR: number; minC: number } | null = null;
+  let pasteHandledByBin = false;
+
+  /** TSV を anchor を起点にセルへ書き込む。CRLF を正規化し末尾の空行は無視する。 */
+  const applyPasteTsv = (anchor: { minR: number; minC: number }, text: string): void => {
+    if (readOnly || !text) return;
+    const lines = parseClipboardTsv(text);
+    const g = state.grid;
+    const cols = g[0]?.length ?? 0;
+    state.transact(() => {
+      for (let r = 0; r < lines.length; r++) {
+        for (let c = 0; c < lines[r].length; c++) {
+          const targetRow = anchor.minR + r;
+          const targetCol = anchor.minC + c;
+          if (targetRow < g.length && targetCol < cols) {
+            state.setCellValue(targetRow, targetCol, lines[r][c]);
+          }
+        }
+      }
+    });
+  };
+
+  // paste-bin に発火したネイティブ paste を捕捉する（外部アプリ・システムクリップボード由来）。
+  const onPasteBinPaste = (e: ClipboardEvent): void => {
+    if (!pendingPasteAnchor) return;
+    e.preventDefault();
+    pasteHandledByBin = true;
+    const anchor = pendingPasteAnchor;
+    pendingPasteAnchor = null;
+    // clipboardData が空なら内部バッファ（直近のグリッド内コピー）にフォールバック。
+    const text = e.clipboardData?.getData("text/plain") || getInternalClipboard();
+    applyPasteTsv(anchor, text);
+    pasteBin.value = "";
+    canvas.focus();
+  };
+
   const onCanvasKeyDown = (e: KeyboardEvent): void => {
     if (editing) return;
     const { key, shiftKey, ctrlKey, metaKey, altKey } = e;
     const selection = state.selection;
     const grid = state.grid;
 
+    // ホストが onUndo/onRedo を渡していればそれを優先し、無ければグリッド内部履歴を使う。
     if ((ctrlKey || metaKey) && key === "z") {
       e.preventDefault();
-      if (shiftKey) options.onRedo?.();
-      else options.onUndo?.();
+      if (shiftKey) {
+        if (options.onRedo) options.onRedo();
+        else state.redo();
+      } else if (options.onUndo) {
+        options.onUndo();
+      } else {
+        state.undo();
+      }
       return;
     }
     if ((ctrlKey || metaKey) && key === "y") {
       e.preventDefault();
-      options.onRedo?.();
+      if (options.onRedo) options.onRedo();
+      else state.redo();
       return;
     }
 
@@ -1941,39 +2220,39 @@ export function mountSpreadsheetGrid(
           for (let c = anchor.minC; c <= anchor.maxC; c++) cells.push(grid[r]?.[c] ?? "");
           lines.push(cells.join("\t"));
         }
-        navigator.clipboard.writeText(lines.join("\n")).catch((err) => {
-          console.warn("[SpreadsheetGrid] clipboard write failed", err);
-        });
+        // navigator.clipboard が使えない環境（VS Code webview 等）でも、内部バッファ +
+        // execCommand フォールバックでコピーを成立させる（writeTsvToClipboard 内で吸収）。
+        void writeTsvToClipboard(lines.join("\n"));
         if (key === "x" && !readOnly) {
-          for (let r = anchor.minR; r <= anchor.maxR; r++) {
-            for (let c = anchor.minC; c <= anchor.maxC; c++) {
-              state.setCellValue(r, c, "");
+          state.transact(() => {
+            for (let r = anchor.minR; r <= anchor.maxR; r++) {
+              for (let c = anchor.minC; c <= anchor.maxC; c++) {
+                state.setCellValue(r, c, "");
+              }
             }
-          }
+          });
         }
         return;
       }
       if (key === "v") {
         if (readOnly) return;
-        e.preventDefault();
-        navigator.clipboard
-          .readText()
-          .then((text) => {
-            if (!text) return;
-            const lines = text.split("\n").map((line) => line.split("\t"));
-            for (let r = 0; r < lines.length; r++) {
-              for (let c = 0; c < lines[r].length; c++) {
-                const targetRow = anchor.minR + r;
-                const targetCol = anchor.minC + c;
-                if (targetRow < grid.length && targetCol < (grid[0]?.length ?? 0)) {
-                  state.setCellValue(targetRow, targetCol, lines[r][c]);
-                }
-              }
-            }
-          })
-          .catch((err) => {
-            console.warn("[SpreadsheetGrid] clipboard read failed", err);
+        // 外部アプリ（Excel 等）からの貼り付けを捕捉するため paste-bin へフォーカスを移し、
+        // ネイティブ paste イベント（clipboardData）を待つ。preventDefault しない（paste を発火させる）。
+        pendingPasteAnchor = { minR: anchor.minR, minC: anchor.minC };
+        pasteHandledByBin = false;
+        pasteBin.value = "";
+        pasteBin.focus();
+        // バックストップ: paste イベントが発火しない環境では、システムクリップボード読取 →
+        // 内部バッファ（VS Code webview 等で readText 不可時）で代替する。
+        setTimeout(() => {
+          if (destroyed || pasteHandledByBin || !pendingPasteAnchor) return;
+          const anchorTarget = pendingPasteAnchor;
+          pendingPasteAnchor = null;
+          void readTsvFromClipboard().then((text) => {
+            applyPasteTsv(anchorTarget, text);
+            canvas.focus();
           });
+        }, 0);
         return;
       }
     }
@@ -2000,11 +2279,13 @@ export function mountSpreadsheetGrid(
         const maxR = Math.max(selection.startRow, selection.endRow);
         const minC = Math.min(selection.startCol, selection.endCol);
         const maxC = Math.max(selection.startCol, selection.endCol);
-        for (let r = minR; r <= maxR; r++) {
-          for (let c = minC; c <= maxC; c++) {
-            state.setCellValue(r, c, "");
+        state.transact(() => {
+          for (let r = minR; r <= maxR; r++) {
+            for (let c = minC; c <= maxC; c++) {
+              state.setCellValue(r, c, "");
+            }
           }
-        }
+        });
       }
       return;
     }
@@ -2050,6 +2331,7 @@ export function mountSpreadsheetGrid(
   canvas.addEventListener("mousedown", onCanvasMouseDown);
   canvas.addEventListener("mousemove", onCanvasMouseMove);
   canvas.addEventListener("keydown", onCanvasKeyDown);
+  pasteBin.addEventListener("paste", onPasteBinPaste);
   input.addEventListener("keydown", onInputKeyDown);
   input.addEventListener("blur", onInputBlur);
 
@@ -2068,6 +2350,8 @@ export function mountSpreadsheetGrid(
       Array.from({ length: GRID_COLS }, (_, c) => snap.alignments[r]?.[c] ?? null),
     );
     state.setAlignments(fullAligns);
+    // 外部シード（初期・外部更新）は baseline。これを跨いで undo させない。
+    state.resetHistory();
   };
 
   // 初期同期は dirty 追跡を有効化する前に行う（mount 直後に dirty=true にならないように）。
@@ -2113,6 +2397,7 @@ export function mountSpreadsheetGrid(
       for (const cleanup of [...activeDragCleanups]) cleanup();
       for (const dispose of disposers) dispose();
       scrollEl.removeEventListener("scroll", onScroll);
+      pasteBin.removeEventListener("paste", onPasteBinPaste);
       root.remove();
     },
   };

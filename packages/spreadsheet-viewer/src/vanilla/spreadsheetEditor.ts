@@ -43,6 +43,13 @@ function triggerDownload(filename: string, text: string, mime: string): void {
   URL.revokeObjectURL(url);
 }
 
+import type { ChartKind, TableRange } from "@anytime-markdown/chart-core";
+import { createChartPanel, type ChartPanelHandle } from "../ui-vanilla/chartPanel";
+import { createChartLayer } from "./chartLayer";
+import type { ChartDefinition } from "./chartLayer.types";
+
+export type { ChartDefinition };
+
 export interface SpreadsheetEditorOptions {
   locale?: string;
   t?: SpreadsheetT;
@@ -55,14 +62,30 @@ export interface SpreadsheetEditorOptions {
   headerRight?: Node;
   showApply?: boolean;
   showRange?: boolean;
+  /** 1 行目をヘッダー行（H）として表示するか（既定 false）。 */
+  showHeaderRow?: boolean;
   showImportExport?: boolean;
   showToolbar?: boolean;
+  /** 内容変更のたびに adapter へ即時同期するか（ライブプレビュー用・既定 false）。 */
+  liveSync?: boolean;
   onColumnHeaderDoubleClick?: (col: number) => void;
   onDirtyChange?: (dirty: boolean) => void;
   onClose?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
   pagination?: PaginationProps;
+  /** 選択範囲からチャート作成コールバック（未指定時はコンテキストメニュー非表示）。 */
+  onCreateChart?: (range: TableRange) => void;
+  /**
+   * 初期チャート定義（ホスト側の永続化ストアから復元する場合に指定）。
+   * mount 後に内部 chartLayer へ適用するが、この適用では onChartsChange を呼ばない。
+   */
+  initialCharts?: ChartDefinition[];
+  /**
+   * チャート定義がユーザー操作で変化したときのコールバック。
+   * initialCharts の適用時は呼ばれない。
+   */
+  onChartsChange?: (charts: ChartDefinition[]) => void;
 }
 
 export interface SpreadsheetEditorUpdatePatch {
@@ -76,6 +99,15 @@ export interface SpreadsheetEditorHandle {
   el: HTMLDivElement;
   update(patch: SpreadsheetEditorUpdatePatch): void;
   destroy(): void;
+  /** 現在のチャート定義一覧を返す。 */
+  getCharts(): ChartDefinition[];
+  /**
+   * チャート定義を一括設定する。
+   * この呼び出しは onChartsChange を発火しない（プログラム的な復元用）。
+   */
+  setCharts(defs: ChartDefinition[]): void;
+  /** 指定 id のチャートの現在の ChartSpec を ```anytime-chart フェンス文字列で返す。id 不正は空文字。 */
+  exportChartFence(id: string): string;
 }
 
 export function mountSpreadsheetEditor(
@@ -215,17 +247,32 @@ export function mountSpreadsheetEditor(
 
   let grid: SpreadsheetGridHandle | null = null;
   let currentColumnHeaders: readonly string[] | undefined;
+  // chartLayer はこの後で初期化するが、mountGrid の closure で参照するため前方宣言する。
+  let chartLayer: ReturnType<typeof createChartLayer> | null = null;
+  // charts 機能が有効か（いずれかの charts オプション指定時）。コンテキストメニュー表示の可否に使う。
+  const chartsEnabled =
+    !!options.onCreateChart || !!options.onChartsChange || !!options.initialCharts;
 
   const mountGrid = (): void => {
     grid?.destroy();
     currentColumnHeaders = effectiveAdapter.getColumnHeaders?.();
+    // charts 有効時はチャート作成をメニューに出す。状態は単一の chartLayer に集約し、
+    // パネル表示は reconcileChartPanels が担う。options.onCreateChart は任意のホストフック。
+    const onCreateChartForGrid = chartsEnabled
+      ? (range: import("@anytime-markdown/chart-core").TableRange) => {
+          chartLayer?.addChart({ kind: "line", range });
+          options.onCreateChart?.(range);
+        }
+      : undefined;
     grid = mountSpreadsheetGrid(gridWrap, {
       adapter: effectiveAdapter,
       isDark: themeMode === "dark",
       gridRows,
       gridCols,
       showApply: options.showApply ?? false,
+      liveSync: options.liveSync ?? false,
       showRange: options.showRange ?? false,
+      showHeaderRow: options.showHeaderRow ?? false,
       showToolbar: options.showToolbar ?? true,
       columnHeaders: currentColumnHeaders,
       onColumnHeaderDoubleClick: options.onColumnHeaderDoubleClick,
@@ -233,6 +280,7 @@ export function mountSpreadsheetEditor(
       onClose: options.onClose,
       onUndo: options.onUndo,
       onRedo: options.onRedo,
+      onCreateChart: onCreateChartForGrid,
       t,
     });
   };
@@ -303,6 +351,86 @@ export function mountSpreadsheetEditor(
   };
   setPagination(options.pagination);
 
+  /* ---- chartLayer（charts 関連オプションがある場合に初期化） ---- */
+  chartLayer = chartsEnabled ? createChartLayer(effectiveAdapter) : null;
+  let applyingCharts = false;
+  let unsubscribeChartLayer: (() => void) | null = null;
+
+  if (chartLayer) {
+    // initialCharts を適用（onChartsChange は呼ばない）
+    if (options.initialCharts && options.initialCharts.length > 0) {
+      applyingCharts = true;
+      try {
+        chartLayer.setCharts(options.initialCharts);
+      } finally {
+        applyingCharts = false;
+      }
+    }
+    // ユーザー操作による変更を onChartsChange へ通知
+    if (options.onChartsChange) {
+      const onChartsChange = options.onChartsChange;
+      unsubscribeChartLayer = chartLayer.subscribe(() => {
+        if (applyingCharts) return;
+        onChartsChange(chartLayer.getCharts());
+      });
+    }
+  }
+
+  /* ---- チャートパネル管理（ホスト埋め込み時の可視化） ---- */
+  // chartLayer の定義に追従してフローティングパネルを生成/破棄/更新する。
+  // overflow:hidden の root にクリップされないよう document.body に append する（WC と同方式）。
+  const chartPanels = new Map<string, ChartPanelHandle>();
+
+  /** 指定チャートの kind を更新する（ユーザー操作なので onChartsChange も発火させる）。 */
+  const updateChartKind = (id: string, kind: ChartKind): void => {
+    if (!chartLayer) return;
+    const next = chartLayer.getCharts().map((c) => (c.id === id ? { ...c, kind } : c));
+    chartLayer.setCharts(next);
+  };
+
+  const reconcileChartPanels = (): void => {
+    if (!chartLayer) return;
+    const charts = chartLayer.getCharts();
+    const liveIds = new Set(charts.map((c) => c.id));
+    // 消えたチャートのパネルを破棄
+    for (const [id, panel] of chartPanels) {
+      if (!liveIds.has(id)) {
+        panel.destroy();
+        panel.el.remove();
+        chartPanels.delete(id);
+      }
+    }
+    // 新規チャートのパネルを生成、既存は再描画
+    for (const def of charts) {
+      const existing = chartPanels.get(def.id);
+      if (existing) {
+        existing.update();
+        continue;
+      }
+      try {
+        const panel = createChartPanel({
+          t,
+          isDark: () => themeMode === "dark",
+          getSpec: () => chartLayer!.getSpec(def.id),
+          kind: def.kind,
+          onKindChange: (kind) => updateChartKind(def.id, kind),
+          onClose: () => chartLayer!.removeChart(def.id),
+        });
+        document.body.appendChild(panel.el);
+        chartPanels.set(def.id, panel);
+      } catch (err) {
+        // チャート描画の失敗（2D context 不可など）でエディタ全体を壊さない。
+        console.error("[SpreadsheetEditor] chart panel mount failed", { id: def.id, err });
+      }
+    }
+  };
+
+  let unsubscribeChartPanels: (() => void) | null = null;
+  if (chartLayer) {
+    unsubscribeChartPanels = chartLayer.subscribe(() => reconcileChartPanels());
+    reconcileChartPanels();
+  }
+
   container.appendChild(root);
 
   return {
@@ -325,8 +453,33 @@ export function mountSpreadsheetEditor(
         setPagination(patch.pagination);
       }
     },
+    getCharts() {
+      return chartLayer?.getCharts() ?? [];
+    },
+    setCharts(defs) {
+      if (!chartLayer) return;
+      applyingCharts = true;
+      try {
+        chartLayer.setCharts(defs);
+      } finally {
+        applyingCharts = false;
+      }
+    },
+    exportChartFence(id) {
+      const spec = chartLayer?.getSpec(id);
+      if (!spec) return "";
+      return `\`\`\`anytime-chart\n${JSON.stringify(spec, null, 2)}\n\`\`\``;
+    },
     destroy() {
       destroyed = true;
+      unsubscribeChartPanels?.();
+      for (const panel of chartPanels.values()) {
+        panel.destroy();
+        panel.el.remove();
+      }
+      chartPanels.clear();
+      unsubscribeChartLayer?.();
+      chartLayer?.destroy();
       unsubscribeHeaders?.();
       unsubscribeWorkbook?.();
       sheetTabs?.destroy();

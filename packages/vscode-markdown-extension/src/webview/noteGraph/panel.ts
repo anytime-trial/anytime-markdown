@@ -10,16 +10,29 @@ import {
   buildNoteGraph,
   buildNoteNeighborhood,
   GraphView,
+  RELATION_TYPES,
+  resolveRelationEdgeStyle,
   type NoteGraphDocInput,
   type NoteGraphEdgeLayers,
+  type RelationType,
 } from '@anytime-markdown/graph-core';
+
+/** 関係種別 → i18n キー（凡例・型ピッカーのラベル）。語彙は graph-core と一致。 */
+const TYPE_LABEL_KEY: Record<RelationType, string> = {
+  references: 'noteGraphTypeReferences',
+  'depends-on': 'noteGraphTypeDependsOn',
+  implements: 'noteGraphTypeImplements',
+  'part-of': 'noteGraphTypePartOf',
+  supersedes: 'noteGraphTypeSupersedes',
+  refines: 'noteGraphTypeRefines',
+};
 
 export interface NoteGraphPanelOptions {
   t: (key: string) => string;
   /** ノードクリック（接続モード以外）→ ファイルを開く。 */
   onOpenDoc: (path: string) => void;
-  /** 接続モードで 2 ノードを選択 → 関連付け。 */
-  onConnect: (from: string, to: string) => void;
+  /** 接続モードで 2 ノードを選択し型を確定 → 型付き関連付け。 */
+  onConnect: (from: string, to: string, type: RelationType) => void;
   /** 再スキャン要求（ホストへ）。 */
   onRefresh: () => void;
 }
@@ -107,11 +120,16 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
   const resizeHandle = el('div', { className: 'ng-resize' });
   const inner = el('div', { className: 'ng-inner' });
   const toolbar = el('div', { className: 'ng-toolbar' });
+  // 型→色の凡例（トグル表示）と、接続確定時の型ピッカー（A→B 選択後に出現）。
+  const legend = el('div', { className: 'ng-legend' });
+  legend.hidden = true;
+  const typePicker = el('div', { className: 'ng-typepicker' });
+  typePicker.hidden = true;
   const canvasWrap = el('div', { className: 'ng-canvas' });
   const canvas = document.createElement('canvas');
   canvasWrap.append(canvas);
   const status = el('div', { className: 'ng-status' });
-  inner.append(toolbar, canvasWrap, status);
+  inner.append(toolbar, legend, typePicker, canvasWrap, status);
   root.append(resizeHandle, inner);
 
   let panelWidth = loadWidth();
@@ -123,6 +141,8 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
     layers: { related: true, tags: false, category: false, c4Scope: false } as NoteGraphEdgeLayers,
     connectMode: false,
     pendingSource: null as string | null,
+    pendingTarget: null as string | null,
+    legendVisible: false,
     pinned: loadPinned(),
     // 表示モード: 中心表示（現在 doc 中心の近傍）/ 全体表示（リポジトリ全体）
     mode: 'neighborhood' as 'neighborhood' | 'global',
@@ -185,6 +205,52 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
 
   const activeCenter = (): string | undefined => state.centerOverride ?? state.currentPath;
 
+  // 型→色のスウォッチ（凡例・型ピッカー共通）。色はキャンバスのエッジ色と一致させる。
+  const swatch = (type: RelationType): HTMLElement => {
+    const s = resolveRelationEdgeStyle(type, state.isDark);
+    const line = el('span', { className: 'ng-swatch' });
+    line.style.borderTopColor = s.stroke;
+    line.style.borderTopStyle = s.dashed ? 'dashed' : 'solid';
+    return line;
+  };
+
+  const renderLegend = (): void => {
+    legend.replaceChildren(
+      ...RELATION_TYPES.map((type) =>
+        el('span', { className: 'ng-legend-item' }, [swatch(type), opts.t(TYPE_LABEL_KEY[type])]),
+      ),
+    );
+  };
+
+  // 接続選択（pendingSource / pendingTarget）と型ピッカーを初期化する。
+  const resetConnectSelection = (): void => {
+    state.pendingSource = null;
+    state.pendingTarget = null;
+    typePicker.hidden = true;
+    typePicker.replaceChildren();
+    setStatus(state.connectMode ? 'A → B' : '');
+  };
+
+  // A→B 選択後、関係型を選ばせる型ピッカーを表示する。型確定で onConnect。
+  const showTypePicker = (): void => {
+    const from = state.pendingSource;
+    const to = state.pendingTarget;
+    if (!from || !to) return;
+    const prompt = el('span', { className: 'ng-picker-label', textContent: opts.t('noteGraphSelectType') });
+    const buttons = RELATION_TYPES.map((type) => {
+      const label = opts.t(TYPE_LABEL_KEY[type]);
+      const b = el('button', { className: 'ng-btn ng-type-btn' }, [swatch(type), label]);
+      b.setAttribute('aria-label', label);
+      b.addEventListener('click', () => {
+        opts.onConnect(from, to, type);
+        resetConnectSelection();
+      });
+      return b;
+    });
+    typePicker.replaceChildren(prompt, ...buttons);
+    typePicker.hidden = false;
+  };
+
   const rebuild = (): void => {
     if (state.mode === 'neighborhood' && activeCenter()) {
       const doc = buildNoteNeighborhood(state.docs, activeCenter() as string, {
@@ -209,11 +275,15 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
         setStatus(`→ ${shortName(id)}`);
         return;
       }
-      if (state.pendingSource !== id) {
-        opts.onConnect(state.pendingSource, id);
-        setStatus(`${shortName(state.pendingSource)} → ${shortName(id)}`);
+      if (state.pendingSource === id) {
+        // 同一ノード再クリックで選択解除
+        resetConnectSelection();
+        return;
       }
-      state.pendingSource = null;
+      // A→B 確定。型ピッカーで関係種別を選んでから関連付ける。
+      state.pendingTarget = id;
+      setStatus(`${shortName(state.pendingSource)} → ${shortName(id)}`);
+      showTypePicker();
       return;
     }
     // 中心表示: クリックで再センタリング。既に中心のノードを再クリックで開く。
@@ -240,9 +310,14 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
   const refreshBtn = button(opts.t('noteGraphRefresh'), () => opts.onRefresh());
   const connectBtn = button(opts.t('noteGraphConnect'), () => {
     state.connectMode = !state.connectMode;
-    state.pendingSource = null;
     connectBtn.classList.toggle('active', state.connectMode);
-    setStatus(state.connectMode ? 'A → B' : '');
+    resetConnectSelection();
+  });
+  const legendBtn = button(opts.t('noteGraphLegend'), () => {
+    state.legendVisible = !state.legendVisible;
+    legend.hidden = !state.legendVisible;
+    legendBtn.classList.toggle('active', state.legendVisible);
+    if (state.legendVisible) renderLegend();
   });
   const bodyToggle = layerToggle(opts.t('noteGraphBodyLinks'), (on) => {
     state.includeBodyLinks = on;
@@ -257,7 +332,7 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
   });
   pinBtn.classList.toggle('active', state.pinned);
 
-  toolbar.append(globalBtn, refreshBtn, connectBtn, bodyToggle, pinBtn);
+  toolbar.append(globalBtn, refreshBtn, connectBtn, legendBtn, bodyToggle, pinBtn);
 
   return {
     element: root,
@@ -272,14 +347,15 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
       if (state.isDark !== input.isDark) {
         state.isDark = input.isDark;
         view.setTheme(state.isDark ? 'dark' : 'light');
+        // 凡例のスウォッチ色はテーマ依存のため再描画する
+        if (state.legendVisible) renderLegend();
       }
       rebuild();
     },
     resetInteraction(): void {
       state.connectMode = false;
-      state.pendingSource = null;
       connectBtn.classList.remove('active');
-      setStatus('');
+      resetConnectSelection();
     },
     isPinned(): boolean {
       return state.pinned;
@@ -341,6 +417,12 @@ function injectStyles(): void {
     .ng-panel .ng-btn.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
     .ng-panel .ng-icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 3px 5px; }
     .ng-panel .ng-toggle { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; user-select: none; }
+    .ng-panel .ng-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 4px 8px; border-bottom: 1px solid var(--am-color-divider, var(--vscode-panel-border)); }
+    .ng-panel .ng-legend-item { display: inline-flex; align-items: center; gap: 4px; color: var(--vscode-descriptionForeground); }
+    .ng-panel .ng-swatch { display: inline-block; width: 18px; height: 0; border-top-width: 2px; vertical-align: middle; flex-shrink: 0; }
+    .ng-panel .ng-typepicker { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--am-color-divider, var(--vscode-panel-border)); background: var(--vscode-editorWidget-background, transparent); }
+    .ng-panel .ng-picker-label { color: var(--vscode-descriptionForeground); margin-right: 2px; }
+    .ng-panel .ng-type-btn { display: inline-flex; align-items: center; gap: 4px; }
   `;
   document.head.append(style);
 }

@@ -29,6 +29,7 @@ import { createEditorDOMHandlers } from "../hooks/useEditorDOMEvents";
 import { tryImportDroppedMdFile } from "../utils/editorImageHandlers";
 import { getEditorStorage, getMarkdownFromEditor, type HeadingItem, type TranslationFn } from "../types";
 import { DEFAULT_SETTINGS, type EditorSettings } from "../editorSettings";
+import { measureToEm } from "../utils/measurePreset";
 import type { ThemePresetName } from "../constants/themePresets";
 import type {
   ToolbarFileCapabilities,
@@ -380,6 +381,7 @@ function applyEditorSettings(
   editor.setEditable(!readonlyMode);
   root.style.setProperty("--am-editor-font-size", `${settings.fontSize}px`);
   root.style.setProperty("--am-editor-line-height", String(settings.lineHeight));
+  root.style.setProperty("--am-editor-measure", measureToEm(settings.measure));
   root.style.setProperty("--am-editor-word-break", settings.wordBreak);
   root.style.setProperty("--am-editor-table-width", settings.tableWidth);
   root.dataset.blockAlign = settings.blockAlign;

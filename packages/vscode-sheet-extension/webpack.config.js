@@ -27,7 +27,7 @@ const extensionConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](spreadsheet-core|spreadsheet-viewer))/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](spreadsheet-core|spreadsheet-viewer|chart-core))/,
         use: [{
           loader: 'ts-loader',
           options: {
@@ -57,7 +57,7 @@ const webviewConfig = {
     rules: [
       {
         test: /\.tsx?$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](spreadsheet-core|spreadsheet-viewer|vscode-common))/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](spreadsheet-core|spreadsheet-viewer|chart-core|vscode-common))/,
         use: [
           {
             loader: 'ts-loader',

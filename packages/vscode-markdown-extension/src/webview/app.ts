@@ -292,7 +292,8 @@ function getNoteGraphPanel(): NoteGraphPanelHandle {
     noteGraphPanel = createNoteGraphPanel({
       t: createMarkdownT('MarkdownEditor', state.locale),
       onOpenDoc: (path) => vscode.postMessage({ type: 'noteGraphOpenDoc', path }),
-      onConnect: (from, to) => vscode.postMessage({ type: 'noteGraphConnect', from, to }),
+      onConnect: (from, to, relationType) =>
+        vscode.postMessage({ type: 'noteGraphConnect', from, to, relationType }),
       onRefresh: () => vscode.postMessage({ type: 'requestNoteGraphDocs' }),
     });
   }

@@ -23,6 +23,7 @@
     "spreadsheetCut": "Cut",
     "spreadsheetCopy": "Copy",
     "spreadsheetPaste": "Paste",
+    "spreadsheetPasteArea": "Paste area",
     "spreadsheetFilter": "Filter",
     "spreadsheetFilterClear": "Clear Filter",
     "spreadsheetFilterColumn": "Filter Column",
@@ -38,7 +39,15 @@
     "invalidJson": "Failed to load file",
     "sheetAdd": "Add Sheet",
     "sheetDelete": "Delete Sheet",
-    "sheetRename": "Rename Sheet"
+    "sheetRename": "Rename Sheet",
+    "chartCreate": "Create chart from selection",
+    "chartKindLine": "Line",
+    "chartKindBar": "Bar",
+    "chartKindArea": "Area",
+    "chartKindPie": "Pie",
+    "chartKindScatter": "Scatter",
+    "chartKindCombo": "Combo",
+    "chartClose": "Close chart"
   },
   "Pager": {
     "first": "« First",

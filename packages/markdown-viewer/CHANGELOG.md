@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-20
+
+### Added
+
+- Bundled the new `chart-core` package; `anytime-chart` fenced code blocks are now rendered as `<anytime-chart>` Web Components supporting line, bar, horizontal-bar, stacked, area, pie/donut, scatter, composite, and dual-Y-axis chart types, with DPR correction, hover tooltips, and accessibility. Chart palette follows the Japan Digital Agency Dashboard Guidebook.
+- Added a **Table** tab to the `anytime-chart` edit dialog for converting between tabular data and chart spec with live right-pane preview. Added a `chart` slash command and quick-start sample selector.
+- Added a body-measure width switcher (**Focused / Standard / Wide**) to the settings panel, using em-based presets for improved readability.
+- Added 5 new diagram samples to the Mermaid sample gallery.
+
+### Fixed
+
+- Updated Mermaid sample diagrams to fix deprecated and invalid syntax for Mermaid 11.15.
+- Applied pre-merge review fixes: eliminated duplicate `chartLayer` instantiation, excluded missing-value points from area charts, added a series-name fallback for empty header columns, and fixed tab selection state propagation.
+
 ## [1.3.0] - 2026-06-17
 
 ### Added

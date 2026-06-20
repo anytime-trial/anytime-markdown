@@ -13,6 +13,10 @@ function hasEdge(edges: GraphEdge[], from: string, to: string): boolean {
   });
 }
 
+function findEdge(edges: GraphEdge[], from: string, to: string): GraphEdge | undefined {
+  return edges.find((e) => e.from.nodeId === from && e.to.nodeId === to);
+}
+
 function hasUndirectedEdge(edges: GraphEdge[], a: string, b: string): boolean {
   return edges.some((e) => {
     const [f, t] = endpointPair(e);
@@ -223,5 +227,82 @@ describe('buildNoteNeighborhood', () => {
     // A はノード化されていないが、中心として合成し B からのバックリンクを示す
     expect(center(doc)?.id).toBe(A);
     expect(hasEdge(doc.edges, B, A)).toBe(true);
+  });
+
+  it('styles a typed related edge by its relation type', () => {
+    const docs: NoteGraphDocInput[] = [
+      { path: A, title: 'A', related: [{ to: B, type: 'depends-on' }] },
+      { path: B, title: 'B' },
+    ];
+    const doc = buildNoteNeighborhood(docs, A);
+    const edge = findEdge(doc.edges, A, B);
+    expect(edge?.style.dashed).toBe(false);
+    expect(edge?.label).toBe('depends-on');
+  });
+});
+
+describe('buildNoteGraph typed related', () => {
+  it('accepts object related entries and renders a typed edge with label', () => {
+    const docs: NoteGraphDocInput[] = [
+      { path: A, title: 'A', related: [{ to: B, type: 'depends-on' }] },
+      { path: B, title: 'B' },
+    ];
+    const doc = buildNoteGraph(docs);
+    const edge = findEdge(doc.edges, A, B);
+    expect(edge).toBeDefined();
+    expect(edge?.label).toBe('depends-on');
+    expect(edge?.style.dashed).toBe(false);
+  });
+
+  it('treats a bare string entry as references (backward compatible)', () => {
+    const docs: NoteGraphDocInput[] = [
+      { path: A, title: 'A', related: [B] },
+      { path: B, title: 'B' },
+    ];
+    const doc = buildNoteGraph(docs);
+    const edge = findEdge(doc.edges, A, B);
+    // references = 弱い参照（細・破線・ラベルなし）
+    expect(edge?.style.dashed).toBe(true);
+    expect(edge?.label).toBeUndefined();
+  });
+
+  it('falls back to references for an unknown type (no silent ignore)', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const docs: NoteGraphDocInput[] = [
+        // 未知型は実行時に references へフォールバックする（NoteRelatedEntry.type は string）
+        { path: A, title: 'A', related: [{ to: B, type: 'mentions' }] },
+        { path: B, title: 'B' },
+      ];
+      const doc = buildNoteGraph(docs);
+      const edge = findEdge(doc.edges, A, B);
+      expect(edge?.style.dashed).toBe(true);
+      expect(edge?.label).toBeUndefined();
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('renders distinct typed edges between the same pair', () => {
+    const docs: NoteGraphDocInput[] = [
+      { path: A, title: 'A', related: [{ to: B, type: 'depends-on' }, { to: B, type: 'implements' }] },
+      { path: B, title: 'B' },
+    ];
+    const doc = buildNoteGraph(docs);
+    const ab = doc.edges.filter((e) => e.from.nodeId === A && e.to.nodeId === B);
+    expect(ab).toHaveLength(2);
+    const ids = doc.edges.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('deduplicates identical typed entries', () => {
+    const docs: NoteGraphDocInput[] = [
+      { path: A, title: 'A', related: [{ to: B, type: 'depends-on' }, { to: B, type: 'depends-on' }] },
+      { path: B, title: 'B' },
+    ];
+    const doc = buildNoteGraph(docs);
+    const ab = doc.edges.filter((e) => e.from.nodeId === A && e.to.nodeId === B);
+    expect(ab).toHaveLength(1);
   });
 });

@@ -10,6 +10,7 @@ import {
   createAnytimeGraphHintElement,
   ANYTIME_GRAPH_PLACEHOLDER_HINT_JA,
 } from "../../utils/anytimeGraphPlaceholder";
+import { mountAnytimeChartPreview } from "../../utils/anytimeChartPreview";
 import { buildPlantUmlImageUrl, getPlantUmlConsent } from "../../hooks/usePlantUmlRender";
 import { PLANTUML_CONSENT_KEY } from "@anytime-markdown/markdown-viewer";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
@@ -158,6 +159,7 @@ function renderAnytimeGraph(innerEl: HTMLElement, code: string, ctx: PreviewRend
   }
 }
 
+
 /**
  * previewEl 内の inner 要素を language 別プレビューで更新する。
  * 戻り値は非同期/購読のキャンセル関数（次回再描画・破棄時に呼ぶ）。
@@ -194,6 +196,10 @@ export function renderCodeBlockPreview(
       innerEl.setAttribute("aria-label", extractDiagramAltText(code, "anytime-thinking-model"));
       renderAnytimeGraph(innerEl, code, ctx);
       return () => {};
+    case "anytime-chart":
+      innerEl.setAttribute("role", "img");
+      innerEl.setAttribute("aria-label", extractDiagramAltText(code, "anytime-chart"));
+      return mountAnytimeChartPreview(innerEl, code, ctx.isDark);
     default:
       innerEl.replaceChildren();
       return () => {};

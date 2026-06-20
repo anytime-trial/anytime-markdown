@@ -5,8 +5,10 @@ import type {
   SheetAdapter,
   SheetSnapshot,
 } from "@anytime-markdown/spreadsheet-core";
+import type { TableRange } from "@anytime-markdown/chart-core";
 
 import type { SpreadsheetT } from "../i18n/createSpreadsheetT";
+import { parseClipboardTsv, readTsvFromClipboard, writeTsvToClipboard } from "./clipboard";
 import { createSvDivider } from "../ui-vanilla/controls";
 import { svIcon, type SvIconName } from "../ui-vanilla/icons";
 import { createSvMenuItem, openSvMenu, type SvMenuHandle } from "../ui-vanilla/overlay";
@@ -130,7 +132,11 @@ export interface SpreadsheetContextMenuCallbacks {
   onSwapCols: (a: number, b: number) => void;
   setDataRange: (range: DataRange) => void;
   setCellValue: (row: number, col: number, value: string) => void;
+  /** 複数セル変更（切り取り・貼り付け）を 1 つの undo 単位にまとめる。未指定なら逐次実行。 */
+  transact?: (fn: () => void) => void;
   onOpenFilter: () => void;
+  /** 選択範囲からチャート作成コールバック（未指定時はメニュー項目を非表示）。 */
+  onCreateChart?: (range: TableRange) => void;
   t: SpreadsheetT;
 }
 
@@ -184,46 +190,48 @@ export function openSpreadsheetContextMenu(
     return lines.join("\n");
   };
 
+  // 複数セル変更を 1 つの undo 単位にまとめる（transact 未指定なら逐次実行）。
+  const batch = cb.transact ?? ((fn: () => void) => fn());
+
   const handleCopy = (): void => {
     const range = getTargetCells();
     if (!range) return;
-    navigator.clipboard.writeText(rangesToTsv(range)).catch((err) => {
-      console.warn("[SpreadsheetContextMenu] copy failed", err);
-    });
+    void writeTsvToClipboard(rangesToTsv(range));
     cb.onClose();
   };
 
   const handleCut = (): void => {
     const range = getTargetCells();
     if (!range) return;
-    navigator.clipboard.writeText(rangesToTsv(range)).catch((err) => {
-      console.warn("[SpreadsheetContextMenu] cut copy failed", err);
-    });
-    for (let r = range.startRow; r <= range.endRow; r++) {
-      for (let c = range.startCol; c <= range.endCol; c++) {
-        cb.setCellValue(r, c, "");
+    void writeTsvToClipboard(rangesToTsv(range));
+    batch(() => {
+      for (let r = range.startRow; r <= range.endRow; r++) {
+        for (let c = range.startCol; c <= range.endCol; c++) {
+          cb.setCellValue(r, c, "");
+        }
       }
-    }
+    });
     cb.onClose();
   };
 
   const handlePaste = (): void => {
     const range = getTargetCells();
     if (!range) return;
-    navigator.clipboard
-      .readText()
+    void readTsvFromClipboard()
       .then((text) => {
         if (!text) return;
-        const lines = text.split("\n").map((line) => line.split("\t"));
-        for (let r = 0; r < lines.length; r++) {
-          for (let c = 0; c < lines[r].length; c++) {
-            const row = range.startRow + r;
-            const col = range.startCol + c;
-            if (row < grid.length && col < grid[0].length) {
-              cb.setCellValue(row, col, lines[r][c]);
+        const lines = parseClipboardTsv(text);
+        batch(() => {
+          for (let r = 0; r < lines.length; r++) {
+            for (let c = 0; c < lines[r].length; c++) {
+              const row = range.startRow + r;
+              const col = range.startCol + c;
+              if (row < grid.length && col < grid[0].length) {
+                cb.setCellValue(row, col, lines[r][c]);
+              }
             }
           }
-        }
+        });
       })
       .catch((err) => {
         console.warn("[SpreadsheetContextMenu] paste failed", err);
@@ -319,7 +327,26 @@ export function openSpreadsheetContextMenu(
   ];
 
   if (target.type === "cell") {
-    menu.paper.append(...clipboardItems());
+    const cellItems: Node[] = [...clipboardItems()];
+    if (cb.onCreateChart) {
+      const onCreateChart = cb.onCreateChart;
+      cellItems.push(
+        createSvDivider(),
+        item("BarChart", t("chartCreate"), () => {
+          const range = getTargetCells();
+          if (range) {
+            onCreateChart({
+              startRow: range.startRow,
+              startCol: range.startCol,
+              endRow: range.endRow,
+              endCol: range.endCol,
+            });
+          }
+          cb.onClose();
+        }),
+      );
+    }
+    menu.paper.append(...cellItems);
   } else if (target.type === "row") {
     const maxRowIndex = grid.length - 1;
     menu.paper.append(

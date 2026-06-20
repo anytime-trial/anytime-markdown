@@ -15,6 +15,7 @@ jest.mock('@anytime-markdown/cms-core', () => ({
   })),
   createS3Client: jest.fn(() => ({})),
   uploadReport: jest.fn().mockResolvedValue({ key: 'reports/test.md', name: 'test.md' }),
+  getReport: jest.fn().mockResolvedValue({ key: 'reports/a.md', name: 'a.md', content: '# Report body' }),
   listReportKeys: jest.fn().mockResolvedValue([
     { key: 'reports/a.md', name: 'a.md', size: 100, lastModified: '2026-05-15T00:00:00.000Z' },
   ]),
@@ -41,6 +42,7 @@ describe('mcp-cms integration', () => {
     await client.connect(clientTransport);
     // 直前ケースの mock 呼び出し履歴をクリア
     (cmsCore.uploadReport as jest.Mock).mockClear();
+    (cmsCore.getReport as jest.Mock).mockClear();
     (cmsCore.listReportKeys as jest.Mock).mockClear();
     (cmsCore.uploadDoc as jest.Mock).mockClear();
     (cmsCore.listDocs as jest.Mock).mockClear();
@@ -52,13 +54,15 @@ describe('mcp-cms integration', () => {
     await fs.rm(tmpDir, { recursive: true });
   });
 
-  test('lists all 5 tools', async () => {
+  test('lists all 6 tools', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
     expect(names).toEqual(
-      expect.arrayContaining(['upload_report', 'list_reports', 'upload_doc', 'list_docs', 'delete_doc']),
+      expect.arrayContaining([
+        'upload_report', 'list_reports', 'get_report', 'upload_doc', 'list_docs', 'delete_doc',
+      ]),
     );
-    expect(tools).toHaveLength(5);
+    expect(tools).toHaveLength(6);
   });
 
   test('upload_report reads file content and calls uploadReport', async () => {
@@ -72,6 +76,16 @@ describe('mcp-cms integration', () => {
     const callArgs = (cmsCore.uploadReport as jest.Mock).mock.calls[0][0];
     expect(callArgs.fileName).toBe('report.md');
     expect(callArgs.content).toBe('# Report');
+  });
+
+  test('get_report returns report content as text', async () => {
+    const result = await client.callTool({ name: 'get_report', arguments: { fileName: 'a.md' } });
+    expect(result.isError).not.toBe(true);
+    expect(cmsCore.getReport).toHaveBeenCalledTimes(1);
+    const callArgs = (cmsCore.getReport as jest.Mock).mock.calls[0][0];
+    expect(callArgs.fileName).toBe('a.md');
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toBe('# Report body');
   });
 
   test('list_reports returns JSON-serialized array', async () => {

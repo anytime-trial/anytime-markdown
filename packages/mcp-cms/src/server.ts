@@ -8,6 +8,7 @@ import {
   createS3Client,
   deleteDoc,
   listDocs,
+  getReport,
   listReportKeys,
   uploadDoc,
   uploadReport,
@@ -59,6 +60,16 @@ export function createMcpServer(): McpServer {
     async () => {
       const reports = await listReportKeys(client, config);
       return { content: [{ type: 'text' as const, text: JSON.stringify(reports, null, 2) }] };
+    },
+  );
+
+  registerTool(server, 'get_report',
+    'Get the Markdown content of a report from S3 reports prefix',
+    { fileName: z.string().describe('File name (e.g. "2026-03-28-daily-research.md")') },
+    async (args) => {
+      const fileName = args.fileName as string;
+      const result = await getReport({ fileName }, client, config);
+      return { content: [{ type: 'text' as const, text: result.content }] };
     },
   );
 

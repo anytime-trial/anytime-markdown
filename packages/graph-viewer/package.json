@@ -9,7 +9,16 @@
     ".": "./src/index.ts",
     "./src/*": "./src/*"
   },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "jest"
+  },
   "dependencies": {
     "@anytime-markdown/graph-core": "*"
+  },
+  "devDependencies": {
+    "@types/jest": "30.0.0",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.11"
   }
 }

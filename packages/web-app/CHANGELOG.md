@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-06-20
+
+### Added
+
+- Added `chart-core` to Next.js `transpilePackages`, enabling `anytime-chart` fence rendering (line, bar, area, pie, scatter, composite, dual-axis) in the web app.
+
+### Changed
+
+- Picked up latest changes from markdown-viewer, markdown-rich, and graph-core: `anytime-chart` spreadsheet tab, body-width toggle UI (focused / standard / wide), and typed note relations.
+
 ## [0.30.0] - 2026-06-17
 
 ### Added

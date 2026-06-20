@@ -21,6 +21,7 @@ import type { VanillaSlashCommandItem } from "./SlashCommandMenu";
 /** vendored Material Icons の SVG path（24x24 viewBox）。circle は arc path へ変換済み。 */
 const PATH = {
   accountTree: "M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z",
+  barChart: "M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z",
   article:
     "M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-5 14H7v-2h7zm3-4H7v-2h10zm0-4H7V7h10z",
   calendarToday:
@@ -153,6 +154,50 @@ function insertThinkingDiagram(editor: Editor, template: string): void {
 // 挿入直後は型未指定スケルトンを置き、autoEditOpen で編集ダイアログが自動で開く。
 const THINKING_DIAGRAM_SKELETON =
   "# 思考法ダイアグラム — 右のサンプルから図種を選んでください（例: type: fishbone）";
+
+/** anytime-chart フェンス（チャート）をスケルトンつきで挿入する。 */
+function insertChart(editor: Editor, template: string): void {
+  editor
+    .chain()
+    .focus()
+    .insertContent({
+      type: "codeBlock",
+      attrs: { language: "anytime-chart", autoEditOpen: true },
+      content: [{ type: "text", text: template }],
+    })
+    .run();
+}
+
+// チャートも総称1項目に集約する。種別（line/bar/scatter）は挿入後の編集ダイアログ
+// 「サンプル」パネルから選択する（思考法ダイアグラム・mermaid と同じ流儀）。
+// 挿入直後はコメントのみのスケルトンを置き、autoEditOpen で編集ダイアログが自動で開く。
+const CHART_SKELETON =
+  "# チャート — 右のサンプルから種別を選んでください（例: line / bar / scatter）";
+
+const CHART_ITEMS: readonly VanillaSlashCommandItem[] = [
+  {
+    id: "anytime-chart",
+    labelKey: "anytimeChart",
+    iconPath: PATH.barChart,
+    keywords: [
+      "anytime-chart",
+      "chart",
+      "チャート",
+      "グラフ",
+      "graph",
+      "line",
+      "折れ線",
+      "bar",
+      "棒",
+      "scatter",
+      "散布図",
+      "可視化",
+    ],
+    action: (editor) => {
+      insertChart(editor, CHART_SKELETON);
+    },
+  },
+];
 
 const THINKING_DIAGRAM_ITEMS: readonly VanillaSlashCommandItem[] = [
   {
@@ -331,6 +376,7 @@ export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
     },
   },
   ...THINKING_DIAGRAM_ITEMS,
+  ...CHART_ITEMS,
   {
     id: "math",
     labelKey: "slashMath",

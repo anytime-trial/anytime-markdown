@@ -41,6 +41,14 @@ import type { ThemePresetName } from "../constants/themePresets";
 import { PRESET_NAMES, THEME_PRESETS } from "../constants/themePresets";
 import type { TranslationFn } from "../types";
 import type { EditorSettings } from "../editorSettings";
+import { MEASURE_PRESETS } from "../utils/measurePreset";
+
+/** measure プリセット → i18n ラベルキー。 */
+const MEASURE_LABEL_KEY: Record<EditorSettings["measure"], string> = {
+  focus: "settingMeasureFocus",
+  standard: "settingMeasureStandard",
+  wide: "settingMeasureWide",
+};
 
 // ui/icons.tsx と同一の Material SVG path（Close / RestartAlt）。
 const ICON_CLOSE =
@@ -250,6 +258,19 @@ export function createEditorSettingsPanel(
   handles.push(fontCaption);
   fontCaptionWrap.append(fontCaption.el, fontRow);
   body.appendChild(fontCaptionWrap);
+
+  // --- 本文幅（measure プリセット・Select。フォントと同じ「読みやすさ」グループ） ---
+  const measureSelect = createSelect<EditorSettings["measure"]>({
+    value: settings.measure,
+    ariaLabel: t("settingMeasure"),
+    options: MEASURE_PRESETS.map((preset) => ({
+      value: preset,
+      label: t(MEASURE_LABEL_KEY[preset]),
+    })),
+    onChange: (v) => onUpdate({ measure: v }),
+  });
+  handles.push(measureSelect);
+  body.appendChild(section(caption("settingMeasure"), measureSelect.el));
 
   body.appendChild(dividerEl());
 

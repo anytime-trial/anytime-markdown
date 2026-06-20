@@ -26,12 +26,20 @@ import {
   mountSpreadsheetEditor,
   type SpreadsheetEditorHandle,
 } from "./vanilla/spreadsheetEditor";
+import type { ChartDefinition } from "./vanilla/chartLayer.types";
+
+export type { ChartDefinition };
 
 type SheetFormat = "csv" | "tsv" | "markdown";
 
 /** `detail` が `{ value }` の `change` イベント。 */
 export interface SpreadsheetChangeDetail {
   value: string;
+}
+
+/** `detail` が `{ charts }` の `chartschange` イベント。 */
+export interface SpreadsheetChartsChangeDetail {
+  charts: ChartDefinition[];
 }
 
 /**
@@ -56,6 +64,9 @@ export class AnytimeSpreadsheetElement extends HTMLElementBase {
   private pendingValue: string | null = null;
   /** プログラム的な値適用中は `change` を抑止する（プログラム set でのイベント発火を防ぐ）。 */
   private applying = false;
+
+  /** connect 前に `charts` を set された場合の保留値。 */
+  private pendingCharts: ChartDefinition[] | null = null;
 
   connectedCallback(): void {
     this.mount();
@@ -101,6 +112,31 @@ export class AnytimeSpreadsheetElement extends HTMLElementBase {
     return this.serialize(snapshot);
   }
 
+  /**
+   * 現在のチャート定義一覧を返す / 設定する。状態は単一所有者である
+   * `mountSpreadsheetEditor` の handle（内部 chartLayer）へ委譲する。
+   */
+  get charts(): ChartDefinition[] {
+    return this.handle?.getCharts() ?? this.pendingCharts ?? [];
+  }
+
+  set charts(defs: ChartDefinition[]) {
+    if (!this.handle) {
+      this.pendingCharts = [...defs];
+      return;
+    }
+    // handle.setCharts は onChartsChange を発火しない（プログラム的復元）。
+    this.handle.setCharts(defs);
+  }
+
+  /**
+   * 指定 id のチャートの現在の ChartSpec を ```anytime-chart フェンス形式で返す。
+   * id が不正な場合は空文字を返す。
+   */
+  exportChartFence(id: string): string {
+    return this.handle?.exportChartFence(id) ?? "";
+  }
+
   private mount(): void {
     const initial = this.pendingValue != null ? this.parse(this.pendingValue) : undefined;
     const adapter = createInMemorySheetAdapter(initial, {
@@ -108,12 +144,18 @@ export class AnytimeSpreadsheetElement extends HTMLElementBase {
     });
     this.adapter = adapter;
     this.unsubscribe = adapter.subscribe(() => this.emitChange());
+
+    // チャート状態・パネルは mountSpreadsheetEditor が単一所有する。
+    // onChartsChange でユーザー操作起因の変更のみ chartschange に橋渡しする。
     this.handle = mountSpreadsheetEditor(this, {
       adapter,
       themeMode: this.currentTheme(),
       locale: this.getAttribute("locale") ?? undefined,
+      initialCharts: this.pendingCharts ?? undefined,
+      onChartsChange: () => this.emitChartsChange(),
     });
     this.pendingValue = null;
+    this.pendingCharts = null;
   }
 
   private teardown(): void {
@@ -150,6 +192,18 @@ export class AnytimeSpreadsheetElement extends HTMLElementBase {
     const detail: SpreadsheetChangeDetail = { value: this.value };
     this.dispatchEvent(
       new CustomEvent<SpreadsheetChangeDetail>("change", {
+        detail,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private emitChartsChange(): void {
+    // handle.onChartsChange はユーザー操作起因の変更のみ呼ばれる（プログラム的 setCharts は抑止済み）。
+    const detail: SpreadsheetChartsChangeDetail = { charts: this.charts };
+    this.dispatchEvent(
+      new CustomEvent<SpreadsheetChartsChangeDetail>("chartschange", {
         detail,
         bubbles: true,
         composed: true,
