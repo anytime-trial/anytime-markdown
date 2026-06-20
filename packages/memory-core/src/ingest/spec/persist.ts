@@ -79,11 +79,22 @@ export function upsertSpecDoc(input: UpsertSpecDocInput): UpsertSpecDocResult {
   // c4_scope_json
   const c4_scope_json = JSON.stringify(frontmatter.c4Scope ?? []);
 
-  // INSERT OR REPLACE into memory_spec_documents
+  // Upsert into memory_spec_documents.
+  // summary は ON CONFLICT の更新対象に含めない（既存値を温存）。
+  // 新しい要約は呼び出し側が updateSpecDocSummary で別途上書きする。
+  // これにより、再 ingest で要約生成が失敗しても直前の良い要約が破壊されない。
   db.run(
-    `INSERT OR REPLACE INTO memory_spec_documents
+    `INSERT INTO memory_spec_documents
       (id, rel_path, type, title, c4_scope_json, updated_at, source_hash, summary, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, '', ?)
+     ON CONFLICT(id) DO UPDATE SET
+       rel_path      = excluded.rel_path,
+       type          = excluded.type,
+       title         = excluded.title,
+       c4_scope_json = excluded.c4_scope_json,
+       updated_at    = excluded.updated_at,
+       source_hash   = excluded.source_hash,
+       recorded_at   = excluded.recorded_at`,
     [
       specDocId,
       rel_path,
@@ -92,7 +103,6 @@ export function upsertSpecDoc(input: UpsertSpecDocInput): UpsertSpecDocResult {
       c4_scope_json,
       updated_at,
       source_hash,
-      '', // summary will be updated when extractClaims result is known
       recordedAt,
     ],
   );

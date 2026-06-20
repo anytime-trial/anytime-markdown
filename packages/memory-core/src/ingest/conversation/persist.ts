@@ -58,11 +58,15 @@ export function persistEpisodeFacts(opts: {
   db.run(
     `INSERT INTO memory_episodes
        (id, session_id, message_uuid_start, message_uuid_end,
-        agent_runtime, model, valid_from, recorded_at, raw_excerpt)
-     VALUES (?, ?, ?, ?, 'claude_code', 'unknown', ?, ?, ?)
+        agent_runtime, model, valid_from, recorded_at, raw_excerpt, summary)
+     VALUES (?, ?, ?, ?, 'claude_code', 'unknown', ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        message_uuid_end = excluded.message_uuid_end,
-       raw_excerpt      = excluded.raw_excerpt`,
+       raw_excerpt      = excluded.raw_excerpt,
+       -- 空要約（LLM が summary を省略した再 ingest 等）で既存の要約を破壊しない。
+       -- 非空のときのみ上書きする。
+       summary          = CASE WHEN excluded.summary != '' THEN excluded.summary
+                               ELSE memory_episodes.summary END`,
     [
       epId,
       episode.session_id,
@@ -71,6 +75,7 @@ export function persistEpisodeFacts(opts: {
       episode.valid_from,
       recordedAt,
       episode.raw_excerpt,
+      extracted.summary ?? '',
     ]
   );
 

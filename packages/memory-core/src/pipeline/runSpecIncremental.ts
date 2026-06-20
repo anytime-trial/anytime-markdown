@@ -8,6 +8,7 @@ import { extractClaims } from '../ingest/spec/extractClaims';
 import { linkByC4Scope } from '../ingest/spec/linkByC4Scope';
 import type { ExtractResult } from '../ingest/spec/extractClaims';
 import { upsertSpecDoc, upsertSpecClaims, updateSpecDocSummary } from '../ingest/spec/persist';
+import { summarizeSpecDoc } from '../ingest/spec/summarizeSpecDoc';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import { noopLogger, type MemoryLogger } from '../logger';
 
@@ -313,9 +314,18 @@ export async function runSpecIncremental(
           recordedAt,
         });
 
-        // Update summary if we got one
-        if (extracted.summary) {
-          updateSpecDocSummary(db, specDocId, extracted.summary);
+        // Update summary: 文書全体を読ませる専用要約を優先し、失敗時のみ
+        // claim 抽出の副産物 summary にフォールバックする（新規 doc で空要約を避ける）。
+        const docSummary = await summarizeSpecDoc({
+          title: parsed.frontmatter.title,
+          body: parsed.body,
+          ollama,
+          model,
+          logger,
+        });
+        const summaryToPersist = docSummary ?? extracted.summary;
+        if (summaryToPersist) {
+          updateSpecDocSummary(db, specDocId, summaryToPersist);
         }
 
         // f. Persist claims as edges
