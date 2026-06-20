@@ -63,7 +63,10 @@ export function persistEpisodeFacts(opts: {
      ON CONFLICT(id) DO UPDATE SET
        message_uuid_end = excluded.message_uuid_end,
        raw_excerpt      = excluded.raw_excerpt,
-       summary          = excluded.summary`,
+       -- 空要約（LLM が summary を省略した再 ingest 等）で既存の要約を破壊しない。
+       -- 非空のときのみ上書きする。
+       summary          = CASE WHEN excluded.summary != '' THEN excluded.summary
+                               ELSE memory_episodes.summary END`,
     [
       epId,
       episode.session_id,

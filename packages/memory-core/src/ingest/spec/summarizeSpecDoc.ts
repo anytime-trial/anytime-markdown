@@ -34,6 +34,8 @@ export async function summarizeSpecDoc(
 
   const prompt = buildSpecSummaryPrompt({ title, body });
 
+  const ts = (): string => new Date().toISOString();
+
   let responseText: string;
   try {
     const result = await ollama.generate({
@@ -46,7 +48,7 @@ export async function summarizeSpecDoc(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error(
-      `[anytime-memory] summarizeSpecDoc: Ollama generate failed for "${title}": ${msg}`,
+      `[${ts()}] [ERROR] [anytime-memory] summarizeSpecDoc: Ollama generate failed for "${title}": ${msg}`,
       err,
     );
     return null;
@@ -57,7 +59,7 @@ export async function summarizeSpecDoc(
     parsed = JSON.parse(responseText);
   } catch (err) {
     logger.error(
-      `[anytime-memory] summarizeSpecDoc: JSON.parse failed for "${title}": ${responseText.slice(0, 200)}`,
+      `[${ts()}] [ERROR] [anytime-memory] summarizeSpecDoc: JSON.parse failed for "${title}": ${responseText.slice(0, 200)}`,
       err,
     );
     return null;
@@ -66,7 +68,7 @@ export async function summarizeSpecDoc(
   const validated = SummarySchema.safeParse(parsed);
   if (!validated.success) {
     logger.error(
-      `[anytime-memory] summarizeSpecDoc: zod validation failed for "${title}": ${validated.error.message}`,
+      `[${ts()}] [ERROR] [anytime-memory] summarizeSpecDoc: zod validation failed for "${title}": ${validated.error.message}`,
       validated.error,
     );
     return null;
@@ -75,7 +77,7 @@ export async function summarizeSpecDoc(
   const summary = validated.data.summary.trim();
   if (!summary) {
     logger.warn?.(
-      `[anytime-memory] summarizeSpecDoc: empty summary for "${title}" (skipping update)`,
+      `[${ts()}] [WARN] [anytime-memory] summarizeSpecDoc: empty summary for "${title}" (skipping update)`,
     );
     return null;
   }

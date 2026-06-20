@@ -120,6 +120,28 @@ describe('upsertSpecDoc', () => {
     }
   });
 
+  test('re-upsert preserves existing summary (summary is not reset on conflict)', () => {
+    const db = makeDb();
+    try {
+      const parsed = makeParsedSpec();
+      const { specDocId } = upsertSpecDoc({ db, parsed, source_hash: 'sha-v1', recordedAt: TS });
+      updateSpecDocSummary(db, specDocId, '文書全体を代表する良い要約');
+
+      // 再 ingest（要約生成失敗で updateSpecDocSummary が呼ばれないケースを模擬）
+      upsertSpecDoc({ db, parsed, source_hash: 'sha-v2', recordedAt: TS });
+
+      const rows = db.exec(
+        `SELECT summary, source_hash FROM memory_spec_documents WHERE id = ?`,
+        [specDocId],
+      );
+      // summary は温存、他カラム（source_hash）は更新
+      expect(rows[0]?.values[0][0]).toBe('文書全体を代表する良い要約');
+      expect(rows[0]?.values[0][1]).toBe('sha-v2');
+    } finally {
+      db.close();
+    }
+  });
+
   test('updated date takes precedence over date for updated_at', () => {
     const db = makeDb();
     try {

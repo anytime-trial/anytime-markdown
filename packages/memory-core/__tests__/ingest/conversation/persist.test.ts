@@ -382,6 +382,39 @@ describe('persistEpisodeFacts', () => {
     }
   });
 
+  test('empty summary on re-ingest does NOT overwrite existing summary', () => {
+    const db = makeDb();
+    try {
+      const logger = makeLogger();
+      const episode1 = makeEpisode({ message_uuid_end: 'end-uuid-p1' });
+      persistEpisodeFacts({
+        db,
+        episode: episode1,
+        extracted: makeExtracted({ summary: '良い要約' }),
+        recordedAt: TS,
+        logger,
+      });
+
+      // 再 ingest で LLM が summary を省略（空文字）
+      const episode2 = makeEpisode({ message_uuid_end: 'end-uuid-p2' });
+      persistEpisodeFacts({
+        db,
+        episode: episode2,
+        extracted: makeExtracted({ summary: '' }),
+        recordedAt: TS,
+        logger,
+      });
+
+      const epId = episodeId(episode1.session_id, episode1.message_uuid_start);
+      const rows = db.exec(`SELECT summary, message_uuid_end FROM memory_episodes WHERE id = ?`, [epId]);
+      // summary は温存、他カラム（message_uuid_end）は更新される
+      expect(rows[0]?.values[0][0]).toBe('良い要約');
+      expect(rows[0]?.values[0][1]).toBe('end-uuid-p2');
+    } finally {
+      db.close();
+    }
+  });
+
   test('episode raw_excerpt is updated on conflict', () => {
     const db = makeDb();
     try {
