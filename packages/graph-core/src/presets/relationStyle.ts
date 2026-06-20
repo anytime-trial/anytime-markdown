@@ -10,7 +10,7 @@
  */
 
 import type { ThinkingPalette } from './palette';
-import { withAlpha } from './palette';
+import { thinkingPalette, withAlpha } from './palette';
 import type { EndpointShape } from '../types';
 
 /** 関係種別の controlled vocabulary。 */
@@ -99,4 +99,12 @@ export function relationEdgeStyle(type: RelationType, pal: ThinkingPalette): Rel
     default:
       return { stroke: withAlpha(pal.accent, 0.55), strokeWidth: 1.4, dashed: true, endShape: 'arrow' };
   }
+}
+
+/**
+ * テーマ（dark/light）から直接エッジスタイルを解決する。
+ * webview の凡例・型ピッカーが palette を意識せず色を引けるようにするための薄いラッパ。
+ */
+export function resolveRelationEdgeStyle(type: RelationType, isDark: boolean): RelationEdgeStyle {
+  return relationEdgeStyle(type, thinkingPalette(isDark));
 }

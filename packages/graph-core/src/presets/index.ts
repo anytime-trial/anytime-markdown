@@ -100,5 +100,6 @@ export {
   isRelationType,
   coerceRelationType,
   relationEdgeStyle,
+  resolveRelationEdgeStyle,
 } from './relationStyle';
 export type { RelationType, RelatedRef, RelationEdgeStyle } from './relationStyle';

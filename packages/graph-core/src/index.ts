@@ -18,6 +18,7 @@ export {
   isRelationType,
   coerceRelationType,
   relationEdgeStyle,
+  resolveRelationEdgeStyle,
 } from './presets/index';
 export type {
   ThinkingDiagramSpec,

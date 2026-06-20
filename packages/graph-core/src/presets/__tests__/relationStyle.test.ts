@@ -4,6 +4,7 @@ import {
   isRelationType,
   coerceRelationType,
   relationEdgeStyle,
+  resolveRelationEdgeStyle,
 } from '../relationStyle';
 import { thinkingPalette } from '../palette';
 
@@ -80,5 +81,10 @@ describe('relationEdgeStyle', () => {
     expect(relationEdgeStyle('depends-on', dark).stroke).not.toBe(
       relationEdgeStyle('depends-on', light).stroke,
     );
+  });
+
+  it('resolveRelationEdgeStyle resolves the palette from a dark/light flag', () => {
+    expect(resolveRelationEdgeStyle('depends-on', true)).toEqual(relationEdgeStyle('depends-on', dark));
+    expect(resolveRelationEdgeStyle('depends-on', false)).toEqual(relationEdgeStyle('depends-on', light));
   });
 });

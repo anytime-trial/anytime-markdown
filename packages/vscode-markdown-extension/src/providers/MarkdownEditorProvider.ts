@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import { resolveLocale } from '@anytime-markdown/vscode-common';
 import { resolveRepositoryRoot, scanRepository, resolveDocPath } from '../noteGraph/scan';
 import { addRelatedEntry, isSafeRelPath } from '../noteGraph/frontmatter';
+import { coerceRelationType, type RelationType } from '../noteGraph/relations';
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
 
@@ -813,7 +814,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         );
       }
     };
-    const connectNoteGraph = async (from: string, to: string): Promise<void> => {
+    const connectNoteGraph = async (from: string, to: string, relationType: RelationType): Promise<void> => {
       if (from === to) return;
       // `to` は frontmatter に書き込むため、リポジトリ外/不正パス（YAML 破壊・traversal）を拒否
       if (!isSafeRelPath(to)) {
@@ -831,7 +832,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       }
       try {
         const content = await fs.promises.readFile(fromPath, 'utf8');
-        const next = addRelatedEntry(content, to);
+        const next = addRelatedEntry(content, to, relationType);
         if (next !== content) await fs.promises.writeFile(fromPath, next, 'utf8');
         await sendNoteGraphDocs();
       } catch (err) {
@@ -879,7 +880,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           break;
         case 'noteGraphConnect':
           if (typeof message.from === 'string' && typeof message.to === 'string') {
-            await connectNoteGraph(message.from, message.to);
+            // relationType は webview 由来の未検証値。未知/欠落は references へフォールバック。
+            await connectNoteGraph(message.from, message.to, coerceRelationType(message.relationType));
           }
           break;
       }
