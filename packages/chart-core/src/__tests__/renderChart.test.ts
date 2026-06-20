@@ -234,6 +234,36 @@ describe("renderChart", () => {
     expect(layout.points).toHaveLength(0);
   });
 
+  it("legend:bottom は下部に凡例帯を確保し plot 高さを縮める", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B"],
+      series: [
+        { name: "系列1", values: [1, 2] },
+        { name: "系列2", values: [3, 4] },
+      ],
+      options: { legend: "bottom" },
+    };
+    const bottom = renderChart(ctxStub(), rect, spec, theme);
+    const none = renderChart(ctxStub(), rect, { ...spec, options: { legend: "none" } }, theme);
+    expect(bottom.plotRect.height).toBeLessThan(none.plotRect.height); // 下部予約ぶん低い
+    // bottom は右に列を作らないので none と同等の幅（右余白を食わない）
+    expect(bottom.plotRect.width).toBe(none.plotRect.width);
+    expect(bottom.points).toHaveLength(4);
+  });
+
+  it("横棒 + legend:bottom は下部凡例を描かないので下部予約しない（デッドスペース無し）", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B"],
+      series: [{ name: "x", values: [1, 2] }],
+      options: { horizontal: true, legend: "bottom" },
+    };
+    const withBottom = renderChart(ctxStub(), rect, spec, theme);
+    const none = renderChart(ctxStub(), rect, { ...spec, options: { horizontal: true, legend: "none" } }, theme);
+    expect(withBottom.plotRect.height).toBe(none.plotRect.height);
+  });
+
   it("highlightIndex を渡しても点は変わらず例外も投げない（選択ハイライト）", () => {
     const spec: ChartSpec = {
       kind: "bar",

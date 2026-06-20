@@ -54,7 +54,7 @@ export function ErrorToolsCombinedChart({
       kind: 'combo',
       categories: labels,
       series: [...barSeries, ...lineSeries],
-      options: { stacked: true, ...(hasRates ? { yAxisRight: { label: '%' } } : {}) },
+      options: { stacked: true, legend: 'bottom', ...(hasRates ? { yAxisRight: { label: '%' } } : {}) },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [errorRows, allPeriods, labels, qualityRates, hasRates, getToolCategory, getToolCategoryLabel, getToolCategoryColorByIndex, toolCategoryKeys]);

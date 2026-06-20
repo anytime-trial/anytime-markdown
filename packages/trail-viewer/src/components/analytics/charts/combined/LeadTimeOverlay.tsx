@@ -76,7 +76,7 @@ export function LeadTimeOverlay({
       kind: 'combo',
       categories: labels,
       series: [...barSeries, ...lineSeries],
-      options: { stacked: true, yAxis: { label: 'min' }, yAxisRight: { label: 'min/LOC' } },
+      options: { stacked: true, legend: 'bottom', yAxis: { label: 'min' }, yAxisRight: { label: 'min/LOC' } },
     };
     return { spec: built, fullDates: dates };
   }, [byPrefixSeries, ratioRows, allPrefixes, toolPalette]);

@@ -154,7 +154,7 @@ export function CommitsCombinedChart({
         kind: 'combo',
         categories: dataset.map((row) => String(row.period)),
         series: [...areaSeries, fixRate],
-        options: { stacked: true, yAxisRight: { label: '%' } },
+        options: { stacked: true, legend: 'bottom', yAxisRight: { label: '%' } },
       };
     }
     const rateByPeriod = new Map<string, number | null>();
@@ -179,7 +179,7 @@ export function CommitsCombinedChart({
       kind: 'combo',
       categories: commitDataset.map((row) => String(row.period)),
       series: [...barSeries, ...lineSeries],
-      options: { stacked: true, ...(showRate ? { yAxisRight: { label: '%' } } : {}) },
+      options: { stacked: true, legend: 'bottom', ...(showRate ? { yAxisRight: { label: '%' } } : {}) },
     };
   }, [isCumulative, cumulativeDataset, commitDataset, showRate, aiRateRows, commitPeriods, categoryKeys, getCategoryLabel, getCategoryColorByIndex]);
 

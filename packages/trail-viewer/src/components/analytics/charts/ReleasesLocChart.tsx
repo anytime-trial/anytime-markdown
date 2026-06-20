@@ -31,7 +31,7 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
       { name: t('releases.totalLoc'), color: colors.iceBlue, connectNulls: true, values: dataset.map((d) => d.totalLines) },
       { name: t('releases.releaseTimeMin'), color: colors.warning, axis: 'right', connectNulls: true, values: dataset.map((d) => d.releaseTimeMin) },
     ],
-    options: { yAxis: { label: t('releases.totalLoc') }, yAxisRight: { label: t('releases.releaseTimeMin') } },
+    options: { legend: 'bottom', yAxis: { label: t('releases.totalLoc') }, yAxisRight: { label: t('releases.releaseTimeMin') } },
   };
 
   return (
