@@ -52,6 +52,8 @@ export function renderChart(
   rect: Rect,
   spec: ChartSpec,
   theme: ChartTheme,
+  /** 選択中カテゴリ（クリック選択のハイライト帯）。null は非選択。 */
+  highlightIndex?: number | null,
 ): ChartLayout {
   const legend = spec.options?.legend ?? "near-line";
   const hasTitle = Boolean(spec.title);
@@ -152,6 +154,16 @@ export function renderChart(
       : Array.from({ length: lineBarCount }, (_, i) => spec.categories?.[i] ?? "");
   drawAxes(ctx, plot, leftTicks, leftScale, xLabels, theme, yAxisLabel);
   if (hasRight) drawRightAxis(ctx, plot, rightTicks, rightScale, theme, yAxisRightLabel);
+
+  // 選択ハイライト帯（クリックされたカテゴリ列。系列の背後に淡色で敷く）
+  if (highlightIndex != null && highlightIndex >= 0 && highlightIndex < lineBarCount) {
+    const bandW = plot.width / lineBarCount;
+    ctx.save();
+    ctx.fillStyle = theme.palette.label;
+    ctx.globalAlpha = 0.16;
+    ctx.fillRect(plot.x + bandW * highlightIndex, plot.y, bandW, plot.height);
+    ctx.restore();
+  }
 
   // 参照値帯
   const band = spec.options?.referenceBand;

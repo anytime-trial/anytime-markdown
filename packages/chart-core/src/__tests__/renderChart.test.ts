@@ -234,6 +234,19 @@ describe("renderChart", () => {
     expect(layout.points).toHaveLength(0);
   });
 
+  it("highlightIndex を渡しても点は変わらず例外も投げない（選択ハイライト）", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B", "C"],
+      series: [{ name: "x", values: [1, 2, 3] }],
+    };
+    const base = renderChart(ctxStub(), rect, spec, theme);
+    const sel = renderChart(ctxStub(), rect, spec, theme, 1);
+    expect(sel.points).toHaveLength(base.points.length);
+    expect(() => renderChart(ctxStub(), rect, spec, theme, null)).not.toThrow();
+    expect(() => renderChart(ctxStub(), rect, spec, theme, 99)).not.toThrow();
+  });
+
   it("categoryIndexAt はバンド位置からカテゴリ番号を返し、領域外/pie は null", () => {
     const spec: ChartSpec = {
       kind: "bar",
