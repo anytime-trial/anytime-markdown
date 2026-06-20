@@ -173,6 +173,17 @@ describe("renderChart", () => {
     expect(layout.points).toHaveLength(3);
   });
 
+  it("pie は軸マージンを使わず矩形幅いっぱいに中心配置する", () => {
+    const spec: ChartSpec = {
+      kind: "pie",
+      categories: ["A", "B"],
+      series: [{ name: "x", values: [1, 1] }],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    // 軸 plot（左56+右余白で width<320）ではなく、ほぼ全幅(400-16=384)を使う
+    expect(layout.plotRect.width).toBeGreaterThan(360);
+  });
+
   it("pie(donut) でも例外なく描画する", () => {
     const spec: ChartSpec = {
       kind: "pie",

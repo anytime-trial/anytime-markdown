@@ -74,11 +74,20 @@ export function renderChart(
   ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
   ctx.restore();
 
-  // pie は直交軸を使わないため専用分岐（軸・スケールをスキップ）。
+  // pie は直交軸を使わないため専用分岐（軸マージンを使わず矩形中心に配置）。
   if (spec.kind === "pie") {
-    const piePoints = drawPie(ctx, plot, spec, theme, { donut: spec.options?.donut });
+    const TITLE_GAP = 28;
+    const PAD = 8;
+    const pieTop = rect.y + (hasTitle ? TITLE_GAP : PAD);
+    const pieRect: Rect = {
+      x: rect.x + PAD,
+      y: pieTop,
+      width: Math.max(1, rect.width - PAD * 2),
+      height: Math.max(1, rect.height - (pieTop - rect.y) - PAD),
+    };
+    const piePoints = drawPie(ctx, pieRect, spec, theme, { donut: spec.options?.donut });
     if (spec.title) drawTitle(ctx, rect, spec.title, theme);
-    return { spec, plotRect: plot, points: piePoints };
+    return { spec, plotRect: pieRect, points: piePoints };
   }
 
   // 横棒は数量軸＝x・分類軸＝y で軸が入れ替わるため専用分岐。
