@@ -75,6 +75,12 @@ describe('filterCommunityNodes', () => {
     expect(out.communities).toHaveLength(2);
     expect(out.communities[0]).not.toHaveProperty('nodeTotal');
   });
+
+  test('nodeLimit がノード数以上なら nodeTotal を付与しない', () => {
+    const out = filterCommunityNodes(raw, { communityId: 2, nodeLimit: 5 });
+    expect(out.communities[0].nodes).toHaveLength(1);
+    expect(out.communities[0]).not.toHaveProperty('nodeTotal');
+  });
 });
 
 describe('toSummaryRows', () => {

@@ -309,7 +309,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     async ({ includeMappings, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
       const raw = (await route('list_communities', { repoName }, opts)) as { communities?: RawCommunity[] };
-      const result = projectCommunities(raw, includeMappings ?? false);
+      const result = projectCommunities(raw, includeMappings);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -642,7 +642,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
         incoming?: unknown[];
         outgoing?: unknown[];
       };
-      const result = capDependencies(raw, limit ?? 50);
+      const result = capDependencies(raw, limit);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

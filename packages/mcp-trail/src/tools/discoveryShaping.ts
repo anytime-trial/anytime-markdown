@@ -87,11 +87,14 @@ export function filterCommunityNodes(
   }
   if (opts.nodeLimit !== undefined) {
     const limit = opts.nodeLimit;
-    communities = communities.map((c) => ({
-      communityId: c.communityId,
-      nodes: c.nodes.slice(0, limit),
-      nodeTotal: c.nodes.length,
-    }));
+    communities = communities.map((c) => {
+      const sliced = c.nodes.slice(0, limit);
+      return {
+        communityId: c.communityId,
+        nodes: sliced,
+        ...(sliced.length < c.nodes.length ? { nodeTotal: c.nodes.length } : {}),
+      };
+    });
   }
   return { communities };
 }
