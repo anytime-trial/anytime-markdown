@@ -1,5 +1,5 @@
 import type { FlowGraph, FlowNode } from '@anytime-markdown/trail-core/analyzer';
-import Box from '@mui/material/Box';
+import { Box } from '../../../ui';
 import { memo, useEffect, useRef } from 'react';
 import { getC4Colors } from '../../../theme/c4Tokens';
 
