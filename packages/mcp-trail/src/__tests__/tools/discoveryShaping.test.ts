@@ -93,6 +93,7 @@ describe('capQueryResult', () => {
     expect(out.nodeTotal).toBe(3);
     expect(out.truncated).toBe(true);
     expect(out.edges).toEqual([{ source: 'a', target: 'b' }]);
+    expect(out.edgeTotal).toBe(1);
   });
   test('limit 以内は truncated=false', () => {
     expect(capQueryResult(raw, 10).truncated).toBe(false);
@@ -122,13 +123,15 @@ describe('capQueryResult (induced subgraph)', () => {
     expect(out.truncated).toBe(false);
   });
   test('edge ハード上限 limit*3 で切り詰め truncated', () => {
+    // limit=2 → kept={a,b}, edge cap = 6, induced=10 > 6
     const raw = {
       nodes: ['a', 'b'],
-      edges: Array.from({ length: 10 }, (_, i) => ({ source: 'a', target: 'b' })),
+      edges: Array.from({ length: 10 }, () => ({ source: 'a', target: 'b' })),
     };
-    const out = capQueryResult(raw, 1); // keep only 'a' → induced edges 0 (b dropped)
-    expect(out.nodes).toEqual(['a']);
-    expect(out.edges).toEqual([]);
+    const out = capQueryResult(raw, 2);
+    expect(out.edges).toHaveLength(6);
+    expect(out.edgeTotal).toBe(10);
+    expect(out.truncated).toBe(true);
   });
 });
 

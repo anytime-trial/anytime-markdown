@@ -684,7 +684,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'query_code_graph',
     {
       description:
-        'Search the code graph for nodes whose id/label matches a keyword, ranked by importance. Use to LOCATE where a symbol/file lives. For dependency expansion use get_code_dependencies / find_code_path instead. Returns { nodes, edges, nodeTotal, edgeTotal, truncated }. detail=summary (default) returns matched nodes only (no edges); detail=full adds the induced edges among returned nodes. depth>0 expands neighbors (default 0 = matches only); nodes capped at `limit` (default 30).',
+        'Search the code graph for nodes whose id/label matches a keyword, ranked by importance. Use to LOCATE where a symbol/file lives. For dependency expansion use get_code_dependencies / find_code_path instead. Returns: summary (default) → { nodes, nodeTotal, truncated }; full → { nodes, edges, nodeTotal, edgeTotal, truncated }. detail=summary (default) returns matched nodes only (no edges); detail=full adds the induced edges among returned nodes. depth>0 expands neighbors (default 0 = matches only); nodes capped at `limit` (default 30).',
       inputSchema: {
         q: z.string().describe('Keyword to match against node id/label'),
         detail: z.enum(['summary', 'full']).default('summary').describe('summary = nodes only; full = include induced edges'),
