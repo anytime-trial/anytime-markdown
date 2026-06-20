@@ -148,4 +148,38 @@ describe('CodeGraphApiHandler.handleQuery/Explain/Path (repo aware)', () => {
     await handler.handleQuery(res as never, 'noop', 'missing-repo');
     expect(res.status).toBe(404);
   });
+
+  it('depth パラメータが engine.query に渡される', async () => {
+    const { GraphQueryEngine } = await import('../../analyze/GraphQueryEngine');
+    const querySpy = jest.spyOn(GraphQueryEngine.prototype, 'query');
+
+    const graph = makeGraph('dexter-jp');
+    const svc = makeCodeGraphServiceStub({ 'dexter-jp': graph });
+    const handler = new CodeGraphApiHandler({} as never, NOOP_LOGGER as never);
+    handler.setCodeGraphService(svc);
+
+    const res = makeRes();
+    await handler.handleQuery(res as never, 'noop', 'dexter-jp', 1);
+    expect(res.status).toBe(200);
+    expect(querySpy).toHaveBeenCalledWith('noop', 1);
+
+    querySpy.mockRestore();
+  });
+
+  it('depth 省略時は engine.query をデフォルト引数なしで呼ぶ', async () => {
+    const { GraphQueryEngine } = await import('../../analyze/GraphQueryEngine');
+    const querySpy = jest.spyOn(GraphQueryEngine.prototype, 'query');
+
+    const graph = makeGraph('dexter-jp');
+    const svc = makeCodeGraphServiceStub({ 'dexter-jp': graph });
+    const handler = new CodeGraphApiHandler({} as never, NOOP_LOGGER as never);
+    handler.setCodeGraphService(svc);
+
+    const res = makeRes();
+    await handler.handleQuery(res as never, 'noop', 'dexter-jp');
+    expect(res.status).toBe(200);
+    expect(querySpy).toHaveBeenCalledWith('noop');
+
+    querySpy.mockRestore();
+  });
 });

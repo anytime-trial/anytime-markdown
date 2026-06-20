@@ -947,7 +947,9 @@ export class TrailDataServer {
     }
     if (pathname === '/api/code-graph/query' && method === 'GET') {
       const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.codeGraphApi.handleQuery(res, parsed.searchParams.get('q') ?? '', repo);
+      const depthRaw = parsed.searchParams.get('depth');
+      const depth = depthRaw === null ? undefined : Math.max(0, Math.min(3, Number(depthRaw) || 0));
+      void this.codeGraphApi.handleQuery(res, parsed.searchParams.get('q') ?? '', repo, depth);
       return;
     }
     if (pathname === '/api/code-graph/explain' && method === 'GET') {
