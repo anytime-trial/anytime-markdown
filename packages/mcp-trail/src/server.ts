@@ -684,22 +684,27 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'query_code_graph',
     {
       description:
-        'Find code-graph nodes matching a keyword (id/label substring). Use to locate where a symbol/file lives before reading. Returns { nodes, edges, nodeTotal, truncated }. depth controls neighbor expansion (default 1; keep small to stay cheap); nodes capped at `limit` (default 30); edges are returned in full, so when truncated some edges may reference nodes beyond the returned list.',
+        'Search the code graph for nodes whose id/label matches a keyword, ranked by importance. Use to LOCATE where a symbol/file lives. For dependency expansion use get_code_dependencies / find_code_path instead. Returns { nodes, edges, nodeTotal, edgeTotal, truncated }. detail=summary (default) returns matched nodes only (no edges); detail=full adds the induced edges among returned nodes. depth>0 expands neighbors (default 0 = matches only); nodes capped at `limit` (default 30).',
       inputSchema: {
         q: z.string().describe('Keyword to match against node id/label'),
-        depth: z.number().int().min(0).max(3).default(1).describe('Neighbor hops (default 1)'),
-        limit: z.number().int().min(1).max(200).default(30).describe('Max nodes returned (default 30)'),
+        detail: z.enum(['summary', 'full']).default('summary').describe('summary = nodes only; full = include induced edges'),
+        depth: z.number().int().min(0).max(3).default(0).describe('Neighbor hops (default 0 = matches only)'),
+        limit: z.number().int().min(1).max(200).default(30).describe('Max nodes (default 30)'),
         ...commonParams,
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ q, depth, limit, repoName, serverUrl }) => {
+    async ({ q, detail, depth, limit, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
       const raw = (await route('query_code_graph', { q, depth }, opts)) as {
         nodes?: string[];
         edges?: Array<{ source: string; target: string }>;
       };
-      const result = capQueryResult(raw, limit);
+      const capped = capQueryResult(raw, limit);
+      const result =
+        detail === 'full'
+          ? capped
+          : { nodes: capped.nodes, nodeTotal: capped.nodeTotal, truncated: capped.truncated };
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
