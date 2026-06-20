@@ -26,6 +26,8 @@ import { selectImportantFiles, type FileAnalysisEntry, type ImportantFilesFilter
 import { toCodeGraphNodeId } from './tools/nodeId.js';
 import {
   capDependencies,
+  capQueryResult,
+  filterCochangePartners,
   filterCommunityNodes,
   projectCommunities,
   toSummaryRows,
@@ -675,6 +677,74 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       });
       const out = detail === 'summary' ? toSummaryRows(rows) : rows;
       return { content: [{ type: 'text' as const, text: JSON.stringify(out, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'query_code_graph',
+    {
+      description:
+        'Find code-graph nodes matching a keyword (id/label substring). Use to locate where a symbol/file lives before reading. Returns { nodes, edges, nodeTotal, truncated }. depth controls neighbor expansion (default 1; keep small to stay cheap); nodes capped at `limit` (default 30); edges are returned in full, so when truncated some edges may reference nodes beyond the returned list.',
+      inputSchema: {
+        q: z.string().describe('Keyword to match against node id/label'),
+        depth: z.number().int().min(0).max(3).default(1).describe('Neighbor hops (default 1)'),
+        limit: z.number().int().min(1).max(200).default(30).describe('Max nodes returned (default 30)'),
+        ...commonParams,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ q, depth, limit, repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const raw = (await route('query_code_graph', { q, depth }, opts)) as {
+        nodes?: string[];
+        edges?: Array<{ source: string; target: string }>;
+      };
+      const result = capQueryResult(raw, limit);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'find_code_path',
+    {
+      description:
+        'Find a dependency path between two code-graph nodes. Returns { found, path, hops }. from/to accept a file path (e.g. packages/x/src/Foo.ts) or a raw node id; pass repoName so file paths resolve.',
+      inputSchema: {
+        from: z.string().describe('Start node id or file path'),
+        to: z.string().describe('End node id or file path'),
+        ...commonParams,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ from, to, repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const resolvedFrom = repoName ? toCodeGraphNodeId(repoName, from) : from;
+      const resolvedTo = repoName ? toCodeGraphNodeId(repoName, to) : to;
+      const result = await route('find_code_path', { from: resolvedFrom, to: resolvedTo }, opts);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_cochange_partners',
+    {
+      description:
+        'List files that historically change together with the given file (git temporal coupling). Use to find related files a change should touch, that the import graph misses. Returns up to top_n { partner, jaccard } sorted by jaccard. file is a repo-relative path (e.g. packages/x/src/Foo.ts).',
+      inputSchema: {
+        file: z.string().describe('Repo-relative file path'),
+        top_n: z.number().int().min(1).max(100).default(10).describe('Max partners (default 10)'),
+        windowDays: z.number().int().min(1).max(365).default(90).describe('History window in days (default 90)'),
+        ...commonParams,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ file, top_n, windowDays, repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const raw = (await route('get_cochange_partners', { opts: { windowDays, topK: 500 } }, opts)) as {
+        edges?: Array<{ source: string; target: string; jaccard?: number }>;
+      };
+      const result = filterCochangePartners(raw, file, top_n);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
 
