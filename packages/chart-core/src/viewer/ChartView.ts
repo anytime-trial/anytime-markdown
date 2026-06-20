@@ -21,6 +21,7 @@ export class ChartView {
   private mode: "light" | "dark";
   private palette: PaletteKey;
   private layout: ChartLayout | null = null;
+  private selectedIndex: number | null = null;
   private tooltip: HTMLDivElement | null = null;
   private readonly onMove: (e: MouseEvent) => void;
   private readonly onLeave: () => void;
@@ -47,6 +48,7 @@ export class ChartView {
 
   setSpec(spec: ChartSpec): void {
     this.spec = spec;
+    this.selectedIndex = null; // データ更新で選択をリセット
     this.draw();
   }
 
@@ -103,14 +105,18 @@ export class ChartView {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.ctx.clearRect(0, 0, width, height);
     const theme = getChartTheme(this.mode, this.palette);
-    this.layout = renderChart(this.ctx, { x: 0, y: 0, width, height }, this.spec, theme);
+    this.layout = renderChart(this.ctx, { x: 0, y: 0, width, height }, this.spec, theme, this.selectedIndex);
   }
 
   private handleClick(e: MouseEvent): void {
-    if (!this.layout || !this.onSelectCategory) return;
+    if (!this.layout) return;
     const r = this.canvas.getBoundingClientRect();
     const idx = categoryIndexAt(this.layout, e.clientX - r.left);
-    if (idx != null) this.onSelectCategory(idx);
+    if (idx == null) return;
+    // クリックしたカテゴリを選択ハイライト（コールバック有無に関わらず視覚フィードバック）。
+    this.selectedIndex = idx;
+    this.draw();
+    this.onSelectCategory?.(idx);
   }
 
   private handleHover(e: MouseEvent): void {
