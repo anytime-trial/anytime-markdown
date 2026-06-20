@@ -55,12 +55,18 @@ export async function handleSearchDocs(input: SearchDocsInput): Promise<unknown>
     }
     if (mode === 'semantic') {
       if (!input.query) return { error: 'query is required for semantic' };
+      // クエリは格納済み embedding と同一モデルで埋め込む（モデル/次元の食い違いによる無言の誤結果を防ぐ）。
+      const storedModel = (db.prepare('SELECT model FROM doc_embedding LIMIT 1').get() as
+        | { model: string }
+        | undefined)?.model;
+      if (!storedModel) {
+        return { mode, query: input.query, results: [], note: 'no embeddings present (run daemon embedding backfill with ollama up)' };
+      }
       const baseUrl = process.env['OLLAMA_BASE_URL'];
       const ollama = createOllamaClient(baseUrl ? { baseUrl } : {});
-      const model = process.env['DOC_CORE_EMBED_MODEL'] || 'bge-m3';
       const embed: EmbedFn = async (text) =>
-        Array.from((await ollama.embeddings({ model, prompt: text })).embedding);
-      return { mode, query: input.query, results: await searchSemantic(db, embed, input.query, limit) };
+        Array.from((await ollama.embeddings({ model: storedModel, prompt: text })).embedding);
+      return { mode, query: input.query, model: storedModel, results: await searchSemantic(db, embed, input.query, limit) };
     }
     // keyword (FTS5)
     if (!input.query) return { error: 'query is required for keyword' };

@@ -20,6 +20,9 @@ export function openDocDb(dbPath: string): DocDb {
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  // daemon が書き込み中に mcp-trail が開く競合（WAL でも writer は排他）で即 SQLITE_BUSY に
+  // ならないよう待機する（memory-core と同じ保険）。
+  db.pragma('busy_timeout = 5000');
   runMigrations(db);
   return db;
 }
