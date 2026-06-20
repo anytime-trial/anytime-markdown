@@ -23,6 +23,7 @@ import {
   handleEvaluateReverseSpec,
 } from './tools/evaluateReverseSpec.js';
 import { selectImportantFiles, type FileAnalysisEntry, type ImportantFilesFilter } from './tools/importantFiles.js';
+import { toCodeGraphNodeId } from './tools/nodeId.js';
 
 export interface McpTrailOptions {
   serverUrl?: string;
@@ -596,7 +597,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'get_code_dependencies',
     {
       description:
-        'Return the direct dependents (incoming) and dependencies (outgoing) of a code-graph node. Use to scope the blast radius of a change before editing, instead of grepping for imports. Returns { node, incoming, outgoing } edges (depth 1). nodeId comes from list_community_nodes or get_important_files (filePath).',
+        'Return the direct dependents (incoming) and dependencies (outgoing) of a code-graph node. Use to scope the blast radius of a change before editing, instead of grepping for imports. Returns { node, incoming, outgoing } edges (depth 1). nodeId accepts either a file path from get_important_files (e.g. packages/x/src/Foo.ts) or a raw node id (<repo>:<path-without-extension>); pass repoName so a file path can be resolved.',
       inputSchema: {
         nodeId: z.string().describe('Code-graph node id (often a file path) to inspect'),
         ...commonParams,
@@ -605,7 +606,8 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     },
     async ({ nodeId, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      const result = await route('get_code_dependencies', { nodeId }, opts);
+      const resolvedId = repoName ? toCodeGraphNodeId(repoName, nodeId) : nodeId;
+      const result = await route('get_code_dependencies', { nodeId: resolvedId }, opts);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -614,7 +616,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'get_important_files',
     {
       description:
-        'List the most important files to read first, ranked by precomputed graph signals. Use at the start of discovery to decide where to look, instead of reading files blindly. Returns up to `limit` rows of { rank, filePath, importanceScore, centralityScore, signals, reason }. filter: central|dead|barrel|risky (default = importance). limit default 10.',
+        'List the most important files to read first, ranked by precomputed graph signals. Use at the start of discovery to decide where to look, instead of reading files blindly. Returns up to `limit` rows of { rank, filePath, importanceScore, centralityScore, signals(object flags), reason }. filter: central|dead|barrel|risky (default = importance). limit default 10.',
       inputSchema: {
         limit: z.number().int().min(1).max(100).default(10).describe('Max rows (default 10)'),
         filter: z
