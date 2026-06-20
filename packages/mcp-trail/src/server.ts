@@ -22,6 +22,7 @@ import {
   EvaluateReverseSpecInputSchema,
   handleEvaluateReverseSpec,
 } from './tools/evaluateReverseSpec.js';
+import { selectImportantFiles, type FileAnalysisEntry, type ImportantFilesFilter } from './tools/importantFiles.js';
 
 export interface McpTrailOptions {
   serverUrl?: string;
@@ -584,6 +585,54 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     async (args) => {
       const result = await handleSearchDocs(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Discovery tools (code graph)
+  // -------------------------------------------------------------------------
+
+  server.registerTool(
+    'get_code_dependencies',
+    {
+      description:
+        'Return the direct dependents (incoming) and dependencies (outgoing) of a code-graph node. Use to scope the blast radius of a change before editing, instead of grepping for imports. Returns { node, incoming, outgoing } edges (depth 1). nodeId comes from list_community_nodes or get_important_files (filePath).',
+      inputSchema: {
+        nodeId: z.string().describe('Code-graph node id (often a file path) to inspect'),
+        ...commonParams,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ nodeId, repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const result = await route('get_code_dependencies', { nodeId }, opts);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_important_files',
+    {
+      description:
+        'List the most important files to read first, ranked by precomputed graph signals. Use at the start of discovery to decide where to look, instead of reading files blindly. Returns up to `limit` rows of { rank, filePath, importanceScore, centralityScore, signals, reason }. filter: central|dead|barrel|risky (default = importance). limit default 10.',
+      inputSchema: {
+        limit: z.number().int().min(1).max(100).default(10).describe('Max rows (default 10)'),
+        filter: z
+          .enum(['central', 'dead', 'barrel', 'risky'])
+          .optional()
+          .describe('Ranking lens (default: overall importance)'),
+        ...commonParams,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ limit, filter, repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const raw = (await route('get_important_files', {}, opts)) as { entries: FileAnalysisEntry[] };
+      const rows = selectImportantFiles(raw.entries ?? [], {
+        limit,
+        ...(filter ? { filter: filter as ImportantFilesFilter } : {}),
+      });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(rows, null, 2) }] };
     },
   );
 
