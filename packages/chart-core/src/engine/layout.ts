@@ -1,4 +1,5 @@
 import type { Rect } from "../types";
+import { BOTTOM_LEGEND_PAD, BOTTOM_LEGEND_ROW_H } from "./render/legend";
 
 /** 軸・タイトル・凡例の固定マージン（px）。 */
 const AXIS_LEFT = 56;
@@ -10,9 +11,6 @@ const LEGEND_RIGHT = 72;
 const RIGHT_AXIS = 48;
 /** Y 軸ラベル（縦書き）ぶんの追加余白。 */
 const AXIS_LABEL_PAD = 18;
-/** bottom 凡例の 1 行高さ（legend.ts の BOTTOM_LEGEND_ROW_H と一致）。 */
-const BOTTOM_LEGEND_ROW_H = 18;
-const BOTTOM_LEGEND_PAD = 6;
 
 /**
  * 描画領域 rect から、軸・タイトル・凡例ぶんを差し引いた plot 矩形を返す（純粋関数）。
@@ -40,7 +38,9 @@ export function computePlotRect(
     (o.hasRightAxisLabel ? AXIS_LABEL_PAD : 0);
   const left = rect.x + AXIS_LEFT + (o.hasYAxisLabel ? AXIS_LABEL_PAD : 0);
   const right = rect.x + rect.width - rightInset;
-  const bottomLegend = isBottom ? Math.max(1, o.legendBottomRows ?? 1) * BOTTOM_LEGEND_ROW_H + BOTTOM_LEGEND_PAD : 0;
+  // 実際に bottom 凡例を描く行がある場合のみ下部予約（横棒/pie 等で 0 行ならデッドスペースを作らない）。
+  const legendRows = isBottom ? o.legendBottomRows ?? 0 : 0;
+  const bottomLegend = legendRows > 0 ? legendRows * BOTTOM_LEGEND_ROW_H + BOTTOM_LEGEND_PAD : 0;
   const bottom = rect.y + rect.height - AXIS_BOTTOM - bottomLegend;
   return {
     x: left,

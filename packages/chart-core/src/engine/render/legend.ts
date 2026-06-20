@@ -28,6 +28,8 @@ const BOTTOM_MARKER = 10;
 const BOTTOM_GAP = 6; // マーカーと文字の間
 const BOTTOM_ITEM_GAP = 16; // 項目間
 export const BOTTOM_LEGEND_ROW_H = 18;
+/** bottom 凡例帯の上下パッド（plot 予約と bandTop で共有）。 */
+export const BOTTOM_LEGEND_PAD = 6;
 
 interface LegendItem {
   readonly index: number;

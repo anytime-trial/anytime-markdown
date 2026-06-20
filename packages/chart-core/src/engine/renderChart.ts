@@ -8,7 +8,14 @@ import { drawScatterSeries } from "./render/scatter";
 import { drawAreaSeries } from "./render/area";
 import { drawPie } from "./render/pie";
 import { drawMarkers } from "./render/markers";
-import { drawAdjacentLegend, drawBottomLegend, drawNearLineLabels, layoutBottomLegend } from "./render/legend";
+import {
+  BOTTOM_LEGEND_PAD,
+  BOTTOM_LEGEND_ROW_H,
+  drawAdjacentLegend,
+  drawBottomLegend,
+  drawNearLineLabels,
+  layoutBottomLegend,
+} from "./render/legend";
 
 function finiteValues(series: ReadonlyArray<Series>): number[] {
   const out: number[] = [];
@@ -259,8 +266,8 @@ export function renderChart(
   else if (legendMode === "adjacent") {
     // 右軸ありは凡例を右軸ラベルぶん右へずらす（重なり回避）。
     drawAdjacentLegend(ctx, rect, plot, spec.series, theme, hasRight ? 44 : 0);
-  } else if (legendMode === "bottom" && wantBottomLegend) {
-    const bandTop = rect.y + rect.height - (bottomLegendRows.length * 18 + 6);
+  } else if (legendMode === "bottom" && wantBottomLegend && bottomLegendRows.length > 0) {
+    const bandTop = rect.y + rect.height - (bottomLegendRows.length * BOTTOM_LEGEND_ROW_H + BOTTOM_LEGEND_PAD);
     drawBottomLegend(ctx, rect, bottomLegendRows, spec.series, bandTop, theme);
   }
 

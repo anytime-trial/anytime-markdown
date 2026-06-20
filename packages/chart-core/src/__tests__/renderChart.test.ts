@@ -252,6 +252,18 @@ describe("renderChart", () => {
     expect(bottom.points).toHaveLength(4);
   });
 
+  it("横棒 + legend:bottom は下部凡例を描かないので下部予約しない（デッドスペース無し）", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B"],
+      series: [{ name: "x", values: [1, 2] }],
+      options: { horizontal: true, legend: "bottom" },
+    };
+    const withBottom = renderChart(ctxStub(), rect, spec, theme);
+    const none = renderChart(ctxStub(), rect, { ...spec, options: { horizontal: true, legend: "none" } }, theme);
+    expect(withBottom.plotRect.height).toBe(none.plotRect.height);
+  });
+
   it("highlightIndex を渡しても点は変わらず例外も投げない（選択ハイライト）", () => {
     const spec: ChartSpec = {
       kind: "bar",
