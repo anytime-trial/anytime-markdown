@@ -1,6 +1,14 @@
-import type { ChangeEvent, CSSProperties, InputHTMLAttributes, ReactNode } from "react";
+import type {
+  ChangeEvent,
+  CSSProperties,
+  InputHTMLAttributes,
+  ReactElement,
+  ReactNode,
+} from "react";
+import { Children, isValidElement } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
+import type { MenuItemProps } from "./MenuItem";
 import { sxToStyle } from "./sx";
 
 export interface TextFieldProps
@@ -67,17 +75,29 @@ export function TextField({
     ...(error ? { borderColor: "var(--trv-color-error-main)" } : {}),
   };
 
-  // select=true: MUI compound select pattern — render as <select> with children as <option>s
+  // select=true: MUI compound select pattern — render as <select>. children は MenuItem の
+  // value / children から <option> へ変換する（<select> は <button> を子に持てないため必須）。
   if (select) {
+    const options = Children.toArray(children)
+      .filter(isValidElement)
+      .map((child) => {
+        const el = child as ReactElement<MenuItemProps>;
+        const optValue = String(el.props.value ?? "");
+        return (
+          <option key={optValue} value={optValue} disabled={el.props.disabled}>
+            {el.props.children}
+          </option>
+        );
+      });
     const selectEl = (
       <select
         className={classes}
         value={value}
         disabled={disabled}
-        onChange={onChange as unknown as ChangeEvent<HTMLSelectElement> extends never ? never : (e: ChangeEvent<HTMLSelectElement>) => void}
+        onChange={onChange as unknown as (e: ChangeEvent<HTMLSelectElement>) => void}
         style={{ ...inputStyle, ...(fullWidth ? { width: "100%" } : {}) }}
       >
-        {children}
+        {options}
       </select>
     );
     if (label || helperText) {
