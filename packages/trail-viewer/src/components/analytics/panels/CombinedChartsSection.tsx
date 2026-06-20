@@ -1,10 +1,5 @@
 import { useEffect, useState } from 'react';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import Tooltip from '@mui/material/Tooltip';
+import { Box, CircularProgress, ToggleButton, ToggleButtonGroup, Tooltip, OpenInNew as OpenInNewIcon } from '../../../ui';
 import type {
   AnalyticsData,
   CombinedData,
@@ -209,7 +204,7 @@ export function CombinedChartsSection({
                       '&:hover': onOpenMessagesPopup ? { bgcolor: colors.hoverBg, color: colors.iceBlue } : undefined,
                     }}
                   >
-                    <OpenInNewIcon sx={{ fontSize: 14 }} />
+                    <OpenInNewIcon fontSize={14} />
                   </Box>
                 </Tooltip>
               </ToggleButton>
@@ -250,7 +245,7 @@ export function CombinedChartsSection({
                       '&:hover': onOpenPromptsPopup ? { bgcolor: colors.hoverBg, color: colors.iceBlue } : undefined,
                     }}
                   >
-                    <OpenInNewIcon sx={{ fontSize: 14 }} />
+                    <OpenInNewIcon fontSize={14} />
                   </Box>
                 </Tooltip>
               </ToggleButton>
@@ -297,7 +292,7 @@ export function CombinedChartsSection({
                       '&:hover': onOpenReleasesPopup ? { bgcolor: colors.hoverBg, color: colors.iceBlue } : undefined,
                     }}
                   >
-                    <OpenInNewIcon sx={{ fontSize: 14 }} />
+                    <OpenInNewIcon fontSize={14} />
                   </Box>
                 </Tooltip>
               </ToggleButton>

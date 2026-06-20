@@ -13,9 +13,9 @@ export interface SelectChangeEvent<T = string> {
   };
 }
 
-export interface SelectProps<T extends string = string> {
+export interface SelectProps<T = string> {
   readonly value: T;
-  readonly onChange: (event: SelectChangeEvent<T>) => void;
+  readonly onChange?: (event: SelectChangeEvent<T>) => void;
   readonly children?: ReactNode;
   readonly disabled?: boolean;
   readonly size?: "small" | "medium";
@@ -28,6 +28,10 @@ export interface SelectProps<T extends string = string> {
   readonly displayEmpty?: boolean;
   /** MUI 互換: FormControl の labelId を受け取るが視覚的には未配線。 */
   readonly labelId?: string;
+  /** MUI 互換: accept-and-ignore */
+  readonly inputProps?: Record<string, unknown>;
+  /** MUI 互換: accept-and-ignore */
+  readonly renderValue?: (value: T) => ReactNode;
   readonly sx?: Record<string, unknown>;
 }
 
@@ -35,7 +39,7 @@ export interface SelectProps<T extends string = string> {
  * MUI Select の置換。ネイティブ <select> を使用する。
  * 子要素の MenuItem から value / children を取得して <option> に変換する。
  */
-export function Select<T extends string = string>({
+export function Select<T = string>({
   value,
   onChange,
   children,
@@ -44,6 +48,8 @@ export function Select<T extends string = string>({
   fullWidth,
   label: _label,
   labelId: _labelId, // accepted for MUI compatibility; not visually wired
+  inputProps: _inputProps, // accepted for MUI compatibility; not wired to native select
+  renderValue: _renderValue, // accepted for MUI compatibility; not used in native select
   name,
   multiple,
   style,
@@ -60,7 +66,8 @@ export function Select<T extends string = string>({
     .join(" ");
 
   const handleChange = (e: ChangeEvent<HTMLSelectElement>): void => {
-    onChange({ target: { value: e.target.value as T, name } });
+    if (!onChange) return;
+    onChange({ target: { value: e.target.value as unknown as T, name } });
   };
 
   const options = Children.toArray(children)
@@ -84,7 +91,7 @@ export function Select<T extends string = string>({
   return (
     <select
       className={classes}
-      value={value}
+      value={String(value)}
       onChange={handleChange}
       disabled={disabled}
       name={name}

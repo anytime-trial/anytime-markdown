@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import Box from '@mui/material/Box';
+import { Box } from '../../../ui';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 import type { ToolMetrics, TrailSession } from '../../../domain/parser/types';

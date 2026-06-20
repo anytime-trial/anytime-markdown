@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
+import { Paper, Typography } from '../../../../ui';
 import type { ChartSpec, Series } from '@anytime-markdown/chart-core';
 import { useTrailTheme } from '../../../TrailThemeContext';
 import { capTopN } from '../../../../domain/analytics/calculators';

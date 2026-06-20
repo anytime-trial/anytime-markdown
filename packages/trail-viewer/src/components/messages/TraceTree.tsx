@@ -1,4 +1,4 @@
-import Box from '@mui/material/Box';
+import { Box } from '../../ui';
 
 import type { TrailTreeNode } from '../../domain/parser/types';
 import { useTrailI18n } from '../../i18n';

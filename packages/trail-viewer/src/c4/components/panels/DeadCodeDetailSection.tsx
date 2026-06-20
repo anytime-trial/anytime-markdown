@@ -1,7 +1,5 @@
 import * as React from 'react';
-import { Box, Typography } from '@mui/material';
-import CheckIcon from '@mui/icons-material/Check';
-import CloseIcon from '@mui/icons-material/Close';
+import { Box, Typography, Check as CheckIcon, Close as CloseIcon } from '../../../ui';
 import type { FileAnalysisApiEntry } from '../../hooks/fetchFileAnalysisApi';
 import { aggregateDeadCodeForElement, type DeadCodeJudgment } from '../deadCodeJudgment';
 
@@ -92,9 +90,9 @@ export const DeadCodeDetailSection: React.FC<DeadCodeDetailSectionProps> = ({
           return (
             <Box key={sig.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               {active ? (
-                <CheckIcon sx={{ fontSize: 11, color: '#f44336' }} />
+                <CheckIcon fontSize={11} color="#f44336" />
               ) : (
-                <CloseIcon sx={{ fontSize: 11, color: colors.textMuted }} />
+                <CloseIcon fontSize={11} color={colors.textMuted} />
               )}
               <Typography
                 variant="caption"

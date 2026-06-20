@@ -1,11 +1,4 @@
-import Box from '@mui/material/Box';
-import FormControl from '@mui/material/FormControl';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import Switch from '@mui/material/Switch';
-import Typography from '@mui/material/Typography';
+import { Box, FormControl, FormControlLabel, InputLabel, MenuItem, Select, Switch, Typography } from '../../../ui';
 
 export interface DefectRiskControlsValue {
   enabled: boolean;

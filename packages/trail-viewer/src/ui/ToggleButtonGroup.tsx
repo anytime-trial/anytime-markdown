@@ -5,10 +5,9 @@ import { injectTrailUiStyles } from "./injectStyles";
 import type { ToggleButtonProps } from "./ToggleButton";
 import { sxToStyle } from "./sx";
 
-export interface ToggleButtonGroupProps {
-  readonly value?: string | string[] | null;
-  // accepted for MUI compatibility; consumers may pass a narrower value type
-  readonly onChange?: (e: SyntheticEvent, value: unknown) => void;
+export interface ToggleButtonGroupProps<V = unknown> {
+  readonly value?: V | null;
+  readonly onChange?: (e: SyntheticEvent, value: V | null) => void;
   readonly exclusive?: boolean;
   readonly children?: ReactNode;
   readonly size?: "small" | "medium" | "large";
@@ -19,7 +18,7 @@ export interface ToggleButtonGroupProps {
 }
 
 /** MUI ToggleButtonGroup の置換。exclusive / multiple 選択対応。 */
-export function ToggleButtonGroup({
+export function ToggleButtonGroup<V = unknown>({
   value,
   onChange,
   exclusive = false,
@@ -29,26 +28,27 @@ export function ToggleButtonGroup({
   style,
   className,
   sx,
-}: Readonly<ToggleButtonGroupProps>) {
+}: Readonly<ToggleButtonGroupProps<V>>) {
   injectTrailUiStyles();
   const classes = ["trv-toggle-group", className].filter(Boolean).join(" ");
 
   const handleChange = (e: SyntheticEvent, btnValue: string): void => {
     if (!onChange) return;
     if (exclusive) {
-      onChange(e, btnValue === value ? null : btnValue);
+      const typed = btnValue as unknown as V;
+      onChange(e, (typed as unknown) === (value as unknown) ? null : typed);
     } else {
-      const current = Array.isArray(value) ? value : [];
-      const next = current.includes(btnValue)
-        ? current.filter((v) => v !== btnValue)
-        : [...current, btnValue];
-      onChange(e, next.length > 0 ? next : null);
+      const current = Array.isArray(value) ? (value as unknown[]) : [];
+      const next = current.includes(btnValue as unknown)
+        ? current.filter((v) => v !== (btnValue as unknown))
+        : [...current, btnValue as unknown];
+      onChange(e, (next.length > 0 ? next : null) as unknown as V | null);
     }
   };
 
   const isSelected = (btnValue: string): boolean => {
-    if (exclusive) return value === btnValue;
-    return Array.isArray(value) ? value.includes(btnValue) : false;
+    if (exclusive) return (value as unknown) === (btnValue as unknown);
+    return Array.isArray(value) ? (value as unknown[]).includes(btnValue as unknown) : false;
   };
 
   return (
@@ -57,7 +57,7 @@ export function ToggleButtonGroup({
         if (!isValidElement(child)) return child;
         const el = child as ReactElement<ToggleButtonProps>;
         return cloneElement(el, {
-          selected: isSelected(el.props.value),
+          selected: isSelected(String(el.props.value)),
           onChange: handleChange,
           size: size ?? el.props.size,
         });

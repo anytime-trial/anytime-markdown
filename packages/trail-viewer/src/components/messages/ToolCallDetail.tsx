@@ -1,8 +1,4 @@
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
-import CommitIcon from '@mui/icons-material/Commit';
+import { Box, Chip, Paper, Typography, Commit as CommitIcon } from '../../ui';
 
 import type { TrailToolCall } from '../../domain/parser/types';
 import { useTrailI18n } from '../../i18n';
@@ -47,7 +43,7 @@ export function ToolCallDetail({
             key={hash}
             label={`#${hash.slice(0, 7)}`}
             size="small"
-            icon={<CommitIcon sx={{ fontSize: 12 }} />}
+            icon={<CommitIcon fontSize={12} />}
             sx={{
               height: 18,
               fontSize: '0.65rem',

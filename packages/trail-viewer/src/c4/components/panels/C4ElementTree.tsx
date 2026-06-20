@@ -1,40 +1,25 @@
 import type { C4ReleaseEntry, C4TreeNode } from '@anytime-markdown/trail-core/c4';
 import { findService } from '@anytime-markdown/trail-core/c4/services';
 import type { Action } from '@anytime-markdown/graph-core/state';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
-import AddIcon from '@mui/icons-material/Add';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import ClearIcon from '@mui/icons-material/Clear';
-import DeleteIcon from '@mui/icons-material/Delete';
-import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
-import CodeIcon from '@mui/icons-material/Code';
-import HubIcon from '@mui/icons-material/Hub';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExtensionIcon from '@mui/icons-material/Extension';
-import Inventory2Icon from '@mui/icons-material/Inventory2';
-import PersonIcon from '@mui/icons-material/Person';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Checkbox from '@mui/material/Checkbox';
-import Collapse from '@mui/material/Collapse';
-import IconButton from '@mui/material/IconButton';
-import CircularProgress from '@mui/material/CircularProgress';
-import List from '@mui/material/List';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import Tooltip from '@mui/material/Tooltip';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
-import Typography from '@mui/material/Typography';
+import {
+  AccountTree as AccountTreeIcon,
+  Add as AddIcon,
+  ChevronRight as ChevronRightIcon,
+  Clear as ClearIcon,
+  Delete as DeleteIcon,
+  DeleteSweep as DeleteSweepIcon,
+  Code as CodeIcon,
+  Hub as HubIcon,
+  ExpandMore as ExpandMoreIcon,
+  Extension as ExtensionIcon,
+  Inventory2 as Inventory2Icon,
+  Person as PersonIcon,
+} from '../../../ui';
+import { Box, Button, Checkbox, Collapse, IconButton, CircularProgress, List, ListItemButton, ListItemIcon, ListItemText, MenuItem, Select, Tooltip, Tab, Tabs, Typography } from '../../../ui';
 import type { Dispatch, FC } from 'react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
-import InputAdornment from '@mui/material/InputAdornment';
-import SearchIcon from '@mui/icons-material/Search';
-import TextField from '@mui/material/TextField';
+import { InputAdornment, Search as SearchIcon, TextField } from '../../../ui';
 import { filterTreeBySearch } from '@anytime-markdown/trail-core/c4';
 import { useTrailI18n } from '../../../i18n';
 import { getC4Colors } from '../../../theme/c4Tokens';
@@ -47,8 +32,6 @@ const CURRENT_RELEASE_TAG = 'current';
 
 /** C4要素タイプに対応するアイコン */
 function TypeIcon({ type, serviceType, color }: Readonly<{ type: C4TreeNode['type']; serviceType?: string; color?: string }>) {
-  const sx = { fontSize: 16 };
-
   if (type === 'container' && serviceType) {
     const entry = findService(serviceType);
     if (entry?.iconBody) {
@@ -70,14 +53,14 @@ function TypeIcon({ type, serviceType, color }: Readonly<{ type: C4TreeNode['typ
   }
 
   switch (type) {
-    case 'person': return <PersonIcon sx={sx} />;
+    case 'person': return <PersonIcon fontSize={16} />;
     case 'system':
-    case 'boundary': return <AccountTreeIcon sx={sx} />;
+    case 'boundary': return <AccountTreeIcon fontSize={16} />;
     case 'container':
-    case 'containerDb': return <Inventory2Icon sx={sx} />;
-    case 'component': return <ExtensionIcon sx={sx} />;
-    case 'code': return <CodeIcon sx={sx} />;
-    case 'community': return <HubIcon sx={{ ...sx, color: color ?? 'inherit' }} />;
+    case 'containerDb': return <Inventory2Icon fontSize={16} />;
+    case 'component': return <ExtensionIcon fontSize={16} />;
+    case 'code': return <CodeIcon fontSize={16} />;
+    case 'community': return <HubIcon fontSize={16} color={color ?? 'inherit'} />;
   }
 }
 
@@ -173,8 +156,8 @@ const TreeNodeItem: FC<TreeNodeItemProps> = memo(({ node, depth, selectedId, onS
             onClick={handleChevronClick}
           >
             {isOpen
-              ? <ExpandMoreIcon sx={{ fontSize: 16 }} />
-              : <ChevronRightIcon sx={{ fontSize: 16 }} />}
+              ? <ExpandMoreIcon fontSize={16} />
+              : <ChevronRightIcon fontSize={16} />}
           </ListItemIcon>
         ) : (
           <Box sx={{ width: 20 }} />
@@ -185,7 +168,7 @@ const TreeNodeItem: FC<TreeNodeItemProps> = memo(({ node, depth, selectedId, onS
             checked={isChecked}
             indeterminate={isIndeterminate}
             onClick={handleCheckboxClick}
-            sx={{ p: 0, mr: 0.5, '& .MuiSvgIcon-root': { fontSize: 16 } }}
+            sx={{ p: 0, mr: 0.5 }} /* TODO(mui-removal): dropped pseudo sx '& .MuiSvgIcon-root' */
             inputProps={{ 'aria-label': `Select ${node.name}` }}
           />
         )}
@@ -213,7 +196,7 @@ const TreeNodeItem: FC<TreeNodeItemProps> = memo(({ node, depth, selectedId, onS
               onClick={handleRemoveClick}
               sx={{ p: 0.25, color: 'text.secondary', '&:hover': { color: 'error.main' } }}
             >
-              <DeleteIcon sx={{ fontSize: 14 }} />
+              <DeleteIcon fontSize={14} />
             </IconButton>
           </Tooltip>
         )}
@@ -527,7 +510,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
             input: {
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  <SearchIcon fontSize={16} color="text.secondary" />
                 </InputAdornment>
               ),
               endAdornment: searchText ? (
@@ -538,7 +521,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
                     onClick={() => setSearchText('')}
                     sx={{ p: 0.25, color: 'text.secondary' }}
                   >
-                    <ClearIcon sx={{ fontSize: 14 }} />
+                    <ClearIcon fontSize={14} />
                   </IconButton>
                 </InputAdornment>
               ) : undefined,
@@ -559,7 +542,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
               aria-label="Remove all deleted elements"
               sx={{ color: 'text.secondary', p: 0.25, '&:hover': { color: 'error.main' } }}
             >
-              <DeleteSweepIcon sx={{ fontSize: 18 }} />
+              <DeleteSweepIcon fontSize={18} />
             </IconButton>
           </Tooltip>
         </Box>
@@ -623,7 +606,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
                 <Button
                   size="small"
                   variant="outlined"
-                  startIcon={<PersonIcon sx={{ fontSize: 16 }} />}
+                  startIcon={<PersonIcon fontSize={16} />}
                   onClick={() => onAddElement('person')}
                   sx={addButtonSx}
                   aria-label="Add Person"
@@ -633,7 +616,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
                 <Button
                   size="small"
                   variant="outlined"
-                  startIcon={<AddIcon sx={{ fontSize: 16 }} />}
+                  startIcon={<AddIcon fontSize={16} />}
                   onClick={() => onAddElement('system')}
                   sx={addButtonSx}
                   aria-label="Add System"
@@ -646,7 +629,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
               <Button
                 size="small"
                 variant="outlined"
-                startIcon={<AddIcon sx={{ fontSize: 16 }} />}
+                startIcon={<AddIcon fontSize={16} />}
                 onClick={() => onAddElement('container')}
                 disabled={!selectedSystemId}
                 sx={addButtonSx}
@@ -659,7 +642,7 @@ export const C4ElementTree: FC<C4ElementTreeProps> = memo(({ tree, dispatch, onS
               <Button
                 size="small"
                 variant="outlined"
-                startIcon={<AddIcon sx={{ fontSize: 16 }} />}
+                startIcon={<AddIcon fontSize={16} />}
                 onClick={() => onAddElement('component')}
                 sx={addButtonSx}
                 aria-label="Add Component"

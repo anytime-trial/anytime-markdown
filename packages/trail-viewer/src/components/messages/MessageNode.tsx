@@ -1,17 +1,9 @@
 import { useState } from 'react';
-import Avatar from '@mui/material/Avatar';
-import Box from '@mui/material/Box';
-import ButtonBase from '@mui/material/ButtonBase';
-import Chip from '@mui/material/Chip';
-import Collapse from '@mui/material/Collapse';
-import IconButton from '@mui/material/IconButton';
-import Typography from '@mui/material/Typography';
-import BuildIcon from '@mui/icons-material/Build';
-import CommitIcon from '@mui/icons-material/Commit';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import PersonIcon from '@mui/icons-material/Person';
-import SettingsIcon from '@mui/icons-material/Settings';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
+import {
+  Avatar, Box, ButtonBase, Chip, Collapse, IconButton, Typography,
+  Build as BuildIcon, Commit as CommitIcon, ExpandMore as ExpandMoreIcon,
+  Person as PersonIcon, Settings as SettingsIcon, SmartToy as SmartToyIcon,
+} from '../../ui';
 
 import type { TrailMessage, TrailToolCall } from '../../domain/parser/types';
 import { useTrailI18n } from '../../i18n';
@@ -201,7 +193,7 @@ export function MessageNode({
                 key={hash}
                 label={`#${hash.slice(0, 7)}`}
                 size="small"
-                icon={<CommitIcon sx={{ fontSize: 14 }} />}
+                icon={<CommitIcon fontSize={14} />}
                 sx={{
                   height: 20,
                   fontSize: '0.7rem',
@@ -251,10 +243,10 @@ function ToolCallEntry({
       >
         <ExpandMoreIcon
           fontSize="small"
-          sx={{
+          color={colors.textSecondary}
+          style={{
             transform: expanded ? 'rotate(180deg)' : 'none',
             transition: 'transform 0.2s',
-            color: colors.textSecondary,
             flexShrink: 0,
           }}
         />

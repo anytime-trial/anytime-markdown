@@ -4,7 +4,7 @@ import { injectTrailUiStyles } from "./injectStyles";
 import { sxToStyle } from "./sx";
 
 export interface ToggleButtonProps {
-  readonly value: string;
+  readonly value: string | number;
   readonly children?: ReactNode;
   readonly disabled?: boolean;
   readonly size?: "small" | "medium" | "large";
@@ -44,7 +44,7 @@ export function ToggleButton({
       disabled={disabled}
       aria-pressed={selected}
       style={{ ...sxToStyle(sx), ...style }}
-      onClick={(e) => !disabled && onChange?.(e, value)}
+      onClick={(e) => !disabled && onChange?.(e, String(value))}
     >
       {children}
     </button>

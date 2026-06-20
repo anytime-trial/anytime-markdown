@@ -1,4 +1,4 @@
-import type { ChangeEvent, CSSProperties, InputHTMLAttributes } from "react";
+import type { ChangeEvent, CSSProperties, InputHTMLAttributes, MouseEventHandler } from "react";
 import { useId } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
@@ -7,6 +7,7 @@ import { sxToStyle } from "./sx";
 export interface CheckboxProps {
   readonly checked?: boolean;
   readonly onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
+  readonly onClick?: MouseEventHandler<HTMLElement>;
   readonly indeterminate?: boolean;
   readonly disabled?: boolean;
   readonly size?: "small" | "medium";
@@ -38,6 +39,7 @@ const ICON_INDETERMINATE = (
 export function Checkbox({
   checked = false,
   onChange,
+  onClick,
   indeterminate,
   disabled,
   size: _size,
@@ -60,7 +62,7 @@ export function Checkbox({
     .filter(Boolean)
     .join(" ");
   return (
-    <span className={classes} style={{ ...sxToStyle(sx), ...style }}>
+    <span className={classes} style={{ ...sxToStyle(sx), ...style }} onClick={onClick}>
       <input
         id={inputId}
         type="checkbox"

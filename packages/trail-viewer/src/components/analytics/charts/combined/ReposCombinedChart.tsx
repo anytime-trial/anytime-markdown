@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
+import { Paper, Typography } from '../../../../ui';
 import { useTrailTheme } from '../../../TrailThemeContext';
 import type { ChartMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';

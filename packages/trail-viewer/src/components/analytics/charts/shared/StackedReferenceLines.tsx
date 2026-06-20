@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import Box from '@mui/material/Box';
+import { Box } from '../../../../ui';
 
 export function StackedReferenceLines({
   commitTurns,

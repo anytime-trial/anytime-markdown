@@ -7,6 +7,8 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   readonly size?: "small" | "medium" | "large";
   readonly color?: "inherit" | "primary" | "default" | string;
   readonly edge?: string;
+  /** MUI 互換: accept-and-ignore */
+  readonly disableRipple?: boolean;
   readonly children?: ReactNode;
   readonly sx?: Record<string, unknown>;
   readonly style?: CSSProperties;
@@ -17,6 +19,7 @@ export function IconButton({
   size = "medium",
   color: _color,
   edge: _edge,
+  disableRipple: _disableRipple,
   title,
   className,
   children,

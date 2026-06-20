@@ -7,10 +7,7 @@ import {
   type SpreadsheetGridHandle,
   type SpreadsheetGridOptions,
 } from '@anytime-markdown/spreadsheet-viewer';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import ButtonGroup from '@mui/material/ButtonGroup';
-import Typography from '@mui/material/Typography';
+import { Box, Button, ButtonGroup, Typography } from '../../../ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { getC4Colors } from '../../../theme/c4Tokens';

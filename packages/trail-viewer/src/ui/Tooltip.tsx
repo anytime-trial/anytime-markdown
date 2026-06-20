@@ -10,12 +10,14 @@ export interface TooltipProps {
   readonly children: ReactElement;
   readonly placement?: "top" | "bottom" | "left" | "right" | string;
   readonly arrow?: boolean;
+  /** MUI 互換: accept-and-ignore */
+  readonly slotProps?: Record<string, unknown>;
   readonly sx?: Record<string, unknown>;
   readonly style?: CSSProperties;
 }
 
 /** MUI Tooltip の置換。hover / focus で子要素の上に表示する。 */
-export function Tooltip({ title, children, placement: _placement, arrow: _arrow, sx, style }: Readonly<TooltipProps>) {
+export function Tooltip({ title, children, placement: _placement, arrow: _arrow, slotProps: _slotProps, sx, style }: Readonly<TooltipProps>) {
   injectTrailUiStyles();
   const wrapRef = useRef<HTMLSpanElement>(null);
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);

@@ -1,27 +1,41 @@
-import type { CSSProperties, ElementType, HTMLAttributes, ReactNode } from "react";
+import type { CSSProperties, ElementType, HTMLAttributes, ReactNode, Ref } from "react";
 import { forwardRef } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
 import { sxToStyle } from "./sx";
 
-export interface BoxProps extends HTMLAttributes<HTMLDivElement> {
+export interface BoxProps extends HTMLAttributes<HTMLElement> {
   readonly style?: CSSProperties;
   readonly className?: string;
   readonly children?: ReactNode;
-  /** MUI 互換: 無視して常に div を描画する。 */
+  /** Render as this element type instead of div. */
   readonly component?: ElementType;
+  /** Spread onto element (e.g. for component="img"). */
+  readonly src?: string;
+  /** Spread onto element (e.g. for component="img"). */
+  readonly alt?: string;
+  /** Spread onto element (e.g. for component="svg"). */
+  readonly viewBox?: string;
+  /** Spread onto element (e.g. for component="svg"). */
+  readonly fill?: string;
   readonly sx?: Record<string, unknown>;
 }
 
 /** MUI Box の最小置換。`sx` は sxToStyle で変換してスタイルに反映する。 */
-export const Box = forwardRef<HTMLDivElement, Readonly<BoxProps>>(function Box(
-  { className, children, component: _component, sx, style, ...rest },
-  ref,
+export const Box = forwardRef(function Box(
+  { className, children, component: Tag = "div", sx, style, src, alt, viewBox, fill, ...rest }: Readonly<BoxProps>,
+  ref: Ref<HTMLElement>,
 ) {
   injectTrailUiStyles();
+  const extraProps: Record<string, unknown> = {};
+  if (src !== undefined) extraProps["src"] = src;
+  if (alt !== undefined) extraProps["alt"] = alt;
+  if (viewBox !== undefined) extraProps["viewBox"] = viewBox;
+  if (fill !== undefined) extraProps["fill"] = fill;
   return (
-    <div ref={ref} className={className} style={{ ...sxToStyle(sx), ...style }} {...rest}>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    <Tag ref={ref as any} className={className} style={{ ...sxToStyle(sx), ...style }} {...rest} {...extraProps}>
       {children}
-    </div>
+    </Tag>
   );
 });

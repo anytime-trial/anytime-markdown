@@ -1,9 +1,9 @@
-import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
+import type { CSSProperties, ElementType, HTMLAttributes, ReactNode } from "react";
 
 import { injectTrailUiStyles } from "./injectStyles";
 import { sxToStyle } from "./sx";
 
-export interface FormControlProps extends HTMLAttributes<HTMLDivElement> {
+export interface FormControlProps extends HTMLAttributes<HTMLElement> {
   readonly fullWidth?: boolean;
   readonly size?: "small" | "medium";
   readonly variant?: string;
@@ -12,6 +12,8 @@ export interface FormControlProps extends HTMLAttributes<HTMLDivElement> {
   readonly children?: ReactNode;
   readonly style?: CSSProperties;
   readonly className?: string;
+  /** MUI 互換: render as this element type instead of div. */
+  readonly component?: ElementType;
   readonly sx?: Record<string, unknown>;
 }
 
@@ -25,6 +27,7 @@ export function FormControl({
   children,
   style,
   className,
+  component: Tag = "div",
   sx,
   ...rest
 }: Readonly<FormControlProps>) {
@@ -42,8 +45,9 @@ export function FormControl({
     ...style,
   };
   return (
-    <div className={classes} style={composed} {...rest}>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    <Tag className={classes} style={composed} {...(rest as any)}>
       {children}
-    </div>
+    </Tag>
   );
 }
