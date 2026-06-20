@@ -105,6 +105,7 @@ export function drawBottomLegend(
 
 /**
  * adjacent 凡例: 右側にマーカー + 系列名を縦に並べる（グラフと隣接・順序対応）。
+ * reverseOrder=true で並びを反転する（積み上げの最上段＝凡例最上段に合わせるため）。
  */
 export function drawAdjacentLegend(
   ctx: CanvasRenderingContext2D,
@@ -113,6 +114,7 @@ export function drawAdjacentLegend(
   seriesList: ReadonlyArray<Series>,
   theme: ChartTheme,
   rightOffset = 0,
+  reverseOrder = false,
 ): void {
   ctx.save();
   ctx.font = "11px sans-serif";
@@ -122,8 +124,12 @@ export function drawAdjacentLegend(
   const x = plot.x + plot.width + 12 + rightOffset;
   const lineH = 18;
   const startY = plot.y + 4;
-  seriesList.forEach((series, si) => {
-    const y = startY + lineH * si;
+  // 色は元の系列インデックス、配置行はスタック視覚順（必要なら反転）に対応させる。
+  const order = seriesList.map((_, si) => si);
+  if (reverseOrder) order.reverse();
+  order.forEach((si, row) => {
+    const series = seriesList[si];
+    const y = startY + lineH * row;
     if (y > rect.y + rect.height) return;
     ctx.fillStyle = seriesColor(si, series, theme);
     ctx.fillRect(x, y - 4, 10, 8);

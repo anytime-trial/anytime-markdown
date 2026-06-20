@@ -20,6 +20,36 @@ function ctxStub(): CanvasRenderingContext2D {
   ) as unknown as CanvasRenderingContext2D;
 }
 
+/**
+ * fillText / fillRect の呼び出しと当時の fillStyle を記録するスタブ。
+ * 凡例の描画位置（バー上に重ねていないか）を検証するために使う。
+ */
+function recordingCtx(): {
+  ctx: CanvasRenderingContext2D;
+  fillTexts: { text: string; x: number; y: number; fillStyle: unknown }[];
+} {
+  const fillTexts: { text: string; x: number; y: number; fillStyle: unknown }[] = [];
+  const state: Record<string, unknown> = { fillStyle: "#000000", strokeStyle: "#000000", globalAlpha: 1 };
+  const target: Record<string, unknown> = {
+    measureText: () => ({ width: 10 }),
+    canvas: { width: 400, height: 300 },
+    fillText: (text: string, x: number, y: number) => fillTexts.push({ text, x, y, fillStyle: state.fillStyle }),
+  };
+  const noop = () => {};
+  const ctx = new Proxy(target, {
+    get: (t, p: string) => {
+      if (p in t) return t[p];
+      if (p in state) return state[p];
+      return noop;
+    },
+    set: (_t, p: string, v) => {
+      state[p] = v;
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+  return { ctx, fillTexts };
+}
+
 const rect = { x: 0, y: 0, width: 400, height: 300 };
 const theme = getChartTheme("light");
 
@@ -358,5 +388,71 @@ describe("renderChart", () => {
     const layout = renderChart(ctxStub(), rect, spec, theme);
     expect(layout.spec.markers).toHaveLength(2);
     expect(layout.points).toHaveLength(3); // マーカーは系列点に影響しない
+  });
+
+  it("縦積み上げ棒の既定凡例は系列名をバー上に重ねず右隣接帯に描く（同系色不可視の回帰防止）", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B", "C"],
+      series: [
+        { name: "系列1", values: [10, 20, 30] },
+        { name: "系列2", values: [5, 8, 12] },
+      ],
+      options: { stacked: true }, // legend 未指定 → 既定 near-line だが棒では隣接へ振替
+    };
+    const { ctx, fillTexts } = recordingCtx();
+    const layout = renderChart(ctx, rect, spec, theme);
+    const plotRight = layout.plotRect.x + layout.plotRect.width;
+    const labels = fillTexts.filter((f) => f.text === "系列1" || f.text === "系列2");
+    expect(labels).toHaveLength(2);
+    // 系列名はプロット領域（バー上）ではなく右隣接帯に置かれる
+    for (const f of labels) expect(f.x).toBeGreaterThanOrEqual(plotRight);
+  });
+
+  it("縦積み上げの隣接凡例はスタック視覚順（最上段の積み＝最上段の凡例）で並ぶ", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B"],
+      series: [
+        { name: "系列1", values: [10, 20] }, // 最下段
+        { name: "系列2", values: [5, 8] }, // 最上段（後で描く）
+      ],
+      options: { stacked: true },
+    };
+    const { ctx, fillTexts } = recordingCtx();
+    renderChart(ctx, rect, spec, theme);
+    const labels = fillTexts.filter((f) => f.text.startsWith("系列"));
+    // y が最小（最上段）のラベルは最上段の積み = 系列2
+    const top = labels.reduce((a, b) => (b.y < a.y ? b : a));
+    expect(top.text).toBe("系列2");
+  });
+
+  it("単一系列の棒は near-line 系列名を描かない（重複・重なり回避）", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B"],
+      series: [{ name: "人口", values: [10, 20] }],
+    };
+    const { ctx, fillTexts } = recordingCtx();
+    renderChart(ctx, rect, spec, theme);
+    expect(fillTexts.some((f) => f.text === "人口")).toBe(false);
+  });
+
+  it("折れ線の既定凡例は near-line のまま系列名を線端近傍（プロット内）に描く", () => {
+    const spec: ChartSpec = {
+      kind: "line",
+      categories: ["A", "B", "C"],
+      series: [
+        { name: "系列1", values: [1, 2, 3] },
+        { name: "系列2", values: [3, 2, 1] },
+      ],
+    };
+    const { ctx, fillTexts } = recordingCtx();
+    const layout = renderChart(ctx, rect, spec, theme);
+    const plotRight = layout.plotRect.x + layout.plotRect.width;
+    const labels = fillTexts.filter((f) => f.text.startsWith("系列"));
+    expect(labels).toHaveLength(2);
+    // 折れ線は near-line のまま（線端近傍＝プロット右端より内側）
+    for (const f of labels) expect(f.x).toBeLessThan(plotRight);
   });
 });
