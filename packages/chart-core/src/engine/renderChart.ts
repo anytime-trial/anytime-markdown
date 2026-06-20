@@ -262,10 +262,17 @@ export function renderChart(
   // 凡例: bottom は下部行、それ以外で combo は隣接（near-line は line 端のみで bar を表せない）。
   let legendMode: typeof legend = legend;
   if (legend !== "none" && legend !== "bottom" && spec.kind === "combo") legendMode = "adjacent";
+  // near-line（系列名を線端近傍に置く）は折れ線専用。棒・面では系列色のラベルが
+  // バー/面の塗りに重なり同系色で不可視になるため、複数系列は隣接凡例へ振り替え、
+  // 単一系列は凡例不要として抑止する（デジタル庁ガイドブック p.46「グラフと凡例を隣接させる」）。
+  if (legendMode === "near-line" && (spec.kind === "bar" || spec.kind === "area")) {
+    legendMode = spec.series.length > 1 ? "adjacent" : "none";
+  }
   if (legendMode === "near-line") drawNearLineLabels(ctx, spec.series, pointsBySeries, theme);
   else if (legendMode === "adjacent") {
     // 右軸ありは凡例を右軸ラベルぶん右へずらす（重なり回避）。
-    drawAdjacentLegend(ctx, rect, plot, spec.series, theme, hasRight ? 44 : 0);
+    // 積み上げ（棒/面）は凡例順をスタックの視覚順（上の積み＝上の凡例）に合わせて反転する。
+    drawAdjacentLegend(ctx, rect, plot, spec.series, theme, hasRight ? 44 : 0, stacked);
   } else if (legendMode === "bottom" && wantBottomLegend && bottomLegendRows.length > 0) {
     const bandTop = rect.y + rect.height - (bottomLegendRows.length * BOTTOM_LEGEND_ROW_H + BOTTOM_LEGEND_PAD);
     drawBottomLegend(ctx, rect, bottomLegendRows, spec.series, bandTop, theme);
