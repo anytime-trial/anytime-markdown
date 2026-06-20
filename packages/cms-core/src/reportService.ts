@@ -1,9 +1,22 @@
-import { ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
 
 interface ReportsConfig {
   bucket: string;
   reportsPrefix: string;
+}
+
+function validateReportFileName(fileName: string): void {
+  if (!fileName.endsWith('.md')) {
+    throw new Error('Only .md files are allowed');
+  }
+  if (fileName.includes('..') || /[\x00-\x1f\x7f<>:"|?*;`${}[\]#!~&()']/.test(fileName)) {
+    throw new Error('Invalid file name');
+  }
 }
 
 interface ReportKeyEntry {
@@ -37,12 +50,7 @@ export async function uploadReport(
 ): Promise<{ key: string; name: string }> {
   const { fileName, content } = input;
 
-  if (!fileName.endsWith('.md')) {
-    throw new Error('Only .md files are allowed');
-  }
-  if (fileName.includes('..') || /[\x00-\x1f\x7f<>:"|?*;`${}[\]#!~&()']/.test(fileName)) {
-    throw new Error('Invalid file name');
-  }
+  validateReportFileName(fileName);
 
   const key = `${config.reportsPrefix}${fileName}`;
 
@@ -56,4 +64,24 @@ export async function uploadReport(
   );
 
   return { key, name: fileName };
+}
+
+export async function getReport(
+  input: { fileName: string },
+  client: S3Client,
+  config: ReportsConfig,
+): Promise<{ key: string; name: string; content: string }> {
+  const { fileName } = input;
+
+  validateReportFileName(fileName);
+
+  const key = `${config.reportsPrefix}${fileName}`;
+
+  const response = await client.send(
+    new GetObjectCommand({ Bucket: config.bucket, Key: key }),
+  );
+
+  const content = (await response.Body?.transformToString()) ?? '';
+
+  return { key, name: fileName, content };
 }

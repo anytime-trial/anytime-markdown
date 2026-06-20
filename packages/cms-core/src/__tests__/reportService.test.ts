@@ -1,4 +1,4 @@
-import { listReportKeys, uploadReport } from '../reportService';
+import { getReport, listReportKeys, uploadReport } from '../reportService';
 
 const mockSend = jest.fn();
 
@@ -6,6 +6,7 @@ jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn(),
   ListObjectsV2Command: jest.fn().mockImplementation((input: unknown) => input),
   PutObjectCommand: jest.fn().mockImplementation((input: unknown) => input),
+  GetObjectCommand: jest.fn().mockImplementation((input: unknown) => input),
 }));
 
 beforeEach(() => {
@@ -74,6 +75,44 @@ describe('uploadReport', () => {
         { send: mockSend } as never,
         baseConfig,
       ),
+    ).rejects.toThrow('Invalid file name');
+  });
+});
+
+describe('getReport', () => {
+  it('reportsプレフィックスのmdファイル本文を取得する', async () => {
+    mockSend.mockResolvedValue({
+      Body: { transformToString: async () => '# Daily Report\n本文' },
+    });
+    const result = await getReport(
+      { fileName: '2026-06-20-daily-research.md' },
+      { send: mockSend } as never,
+      baseConfig,
+    );
+    expect(result.key).toBe('reports/2026-06-20-daily-research.md');
+    expect(result.name).toBe('2026-06-20-daily-research.md');
+    expect(result.content).toBe('# Daily Report\n本文');
+  });
+
+  it('Body が undefined の場合は空文字を返す', async () => {
+    mockSend.mockResolvedValue({ Body: undefined });
+    const result = await getReport(
+      { fileName: '2026-06-20-daily-research.md' },
+      { send: mockSend } as never,
+      baseConfig,
+    );
+    expect(result.content).toBe('');
+  });
+
+  it('md以外の拡張子を拒否する', async () => {
+    await expect(
+      getReport({ fileName: 'test.exe' }, { send: mockSend } as never, baseConfig),
+    ).rejects.toThrow('Only .md files are allowed');
+  });
+
+  it('不正なファイル名を拒否する', async () => {
+    await expect(
+      getReport({ fileName: '../etc/passwd.md' }, { send: mockSend } as never, baseConfig),
     ).rejects.toThrow('Invalid file name');
   });
 });
