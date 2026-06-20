@@ -111,3 +111,53 @@ export interface SummaryFileRow {
 export function toSummaryRows(rows: readonly ImportantFileRow[]): SummaryFileRow[] {
   return rows.map((r) => ({ rank: r.rank, filePath: r.filePath, importanceScore: r.importanceScore }));
 }
+
+// --- query_code_graph の node 上限ガード ----------------------------------
+
+export interface CappedQueryResult {
+  nodes: string[];
+  edges: Array<{ source: string; target: string }>;
+  nodeTotal: number;
+  truncated: boolean;
+}
+
+/** query の nodes を limit 件に切り詰め（edges はそのまま）、nodeTotal/truncated を付与。 */
+export function capQueryResult(
+  raw: { nodes?: string[]; edges?: Array<{ source: string; target: string }> },
+  limit: number,
+): CappedQueryResult {
+  const nodes = raw.nodes ?? [];
+  const capped = nodes.slice(0, limit);
+  return {
+    nodes: capped,
+    edges: raw.edges ?? [],
+    nodeTotal: nodes.length,
+    truncated: capped.length < nodes.length,
+  };
+}
+
+// --- get_cochange_partners のファイル絞り込み -----------------------------
+
+interface CochangeEdge {
+  source: string;
+  target: string;
+  jaccard?: number;
+}
+
+export interface CochangePartner {
+  partner: string;
+  jaccard: number;
+}
+
+/** temporal-coupling の edges から file を含むものを抽出し、相手側＋jaccard を降順 top_n で返す。 */
+export function filterCochangePartners(
+  raw: { edges?: CochangeEdge[] },
+  file: string,
+  topN: number,
+): CochangePartner[] {
+  return (raw.edges ?? [])
+    .filter((e) => e.source === file || e.target === file)
+    .map((e) => ({ partner: e.source === file ? e.target : e.source, jaccard: e.jaccard ?? 0 }))
+    .sort((a, b) => b.jaccard - a.jaccard)
+    .slice(0, topN);
+}
