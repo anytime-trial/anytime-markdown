@@ -79,6 +79,13 @@ export function sxToStyle(
   for (const [key, raw] of Object.entries(sx)) {
     if (raw == null) continue;
 
+    // ネスト/擬似セレクタ（`&:hover` / `& .x` / `&::-webkit-scrollbar` 等）や
+    // レスポンシブ/ネストオブジェクト値は inline style では表現できない。
+    // React に渡すと "Unsupported style property" 警告が出るためここで除外する
+    // （元々 inline では効かないため挙動上の損失はなし。必要なら className/CSS で代替）。
+    if (key.startsWith("&") || key.includes(":")) continue;
+    if (typeof raw === "object" && !Array.isArray(raw)) continue;
+
     // spacing shorthand
     const targets = SPACING_SHORTHAND[key];
     if (targets) {
