@@ -125,7 +125,7 @@ claude mcp get mcp-trail | grep TRAIL_SERVER_URL
 
 **処理フロー**
 
-1. **コミュニティ一覧取得**: `mcp__mcp-trail__list_communities` で `community_id` / `label` / `name` / `summary` / `mappings_json` を取得する（既に命名済みなら飛ばすため）。
+1. **コミュニティ一覧取得**: `mcp__mcp-trail__list_communities` で `community_id` / `label` / `name` / `summary` / `mappings_json` を取得する（既に命名済みなら飛ばすため）（`includeMappings=true` を指定して `mappings_json` も取得する）。
 2. **コミュニティ別ノード取得**: `mcp__mcp-trail__list_community_nodes` で `{ communityId, nodes: [{ id, label, package }] }` をコミュニティ単位で取得する（DB 読み取りは MCP に集約）。
 3. **対象選別**: ノード数 3 以上 かつ `name` 未設定のコミュニティのみ要約対象とする。残りは `label` のみで運用するか命名済みとしてスキップ。
 4. **キャッシュ確認**: コミュニティ内ノード ID をソート + 連結 → SHA-256 でハッシュ化する。`${workspaceFolder}/.anytime/.community_summary_cache.json` に同ハッシュのエントリがあれば再利用する。
