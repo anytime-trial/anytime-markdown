@@ -1,4 +1,12 @@
-import { selectImportantFiles, type FileAnalysisEntry } from '../../tools/importantFiles';
+import { selectImportantFiles, type FileAnalysisEntry, type FileSignals } from '../../tools/importantFiles';
+
+const defaultSignals: FileSignals = {
+  orphan: false,
+  fanInZero: false,
+  noRecentChurn: false,
+  zeroCoverage: false,
+  isolatedCommunity: false,
+};
 
 const entry = (over: Partial<FileAnalysisEntry>): FileAnalysisEntry => ({
   filePath: 'a.ts',
@@ -10,16 +18,17 @@ const entry = (over: Partial<FileAnalysisEntry>): FileAnalysisEntry => ({
   deadCodeScore: 0,
   isBarrel: false,
   isIgnored: false,
-  signals: '',
+  signals: defaultSignals,
   category: 'code',
   ...over,
 });
 
 describe('selectImportantFiles', () => {
   test('default: importanceScore 降順で top-N、compact 列のみ', () => {
+    const hotSignals: FileSignals = { orphan: false, fanInZero: false, noRecentChurn: true, zeroCoverage: false, isolatedCommunity: false };
     const rows = [
       entry({ filePath: 'low.ts', importanceScore: 1 }),
-      entry({ filePath: 'high.ts', importanceScore: 9, fanInTotal: 42, signals: 'hot' }),
+      entry({ filePath: 'high.ts', importanceScore: 9, fanInTotal: 42, signals: hotSignals }),
       entry({ filePath: 'mid.ts', importanceScore: 5 }),
     ];
     const out = selectImportantFiles(rows, { limit: 2 });
@@ -29,7 +38,7 @@ describe('selectImportantFiles', () => {
       filePath: 'high.ts',
       importanceScore: 9,
       centralityScore: 0,
-      signals: 'hot',
+      signals: hotSignals,
       reason: 'fanIn=42',
     });
   });
@@ -41,6 +50,15 @@ describe('selectImportantFiles', () => {
     ];
     const out = selectImportantFiles(rows, { limit: 10 });
     expect(out.map((r) => r.filePath)).toEqual(['keep.ts']);
+  });
+
+  test('node_modules/ を含むパスは高スコアでも除外', () => {
+    const rows = [
+      entry({ filePath: 'node_modules/lodash/index.ts', importanceScore: 999 }),
+      entry({ filePath: 'src/real.ts', importanceScore: 1 }),
+    ];
+    const out = selectImportantFiles(rows, { limit: 10 });
+    expect(out.map((r) => r.filePath)).toEqual(['src/real.ts']);
   });
 
   test("filter='dead' は deadCodeScore 降順", () => {
