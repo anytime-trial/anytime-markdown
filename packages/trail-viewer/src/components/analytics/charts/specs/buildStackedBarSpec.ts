@@ -24,7 +24,7 @@ export function buildStackedBarSpec(input: {
     color: s.color,
     type: 'bar',
   }));
-  const base = stacked ? { stacked: true } : { grouped: true };
+  const base = { ...(stacked ? { stacked: true } : { grouped: true }), legend: 'bottom' as const };
   return {
     kind: 'bar',
     title: input.title,

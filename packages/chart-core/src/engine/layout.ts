@@ -10,31 +10,38 @@ const LEGEND_RIGHT = 72;
 const RIGHT_AXIS = 48;
 /** Y 軸ラベル（縦書き）ぶんの追加余白。 */
 const AXIS_LABEL_PAD = 18;
+/** bottom 凡例の 1 行高さ（legend.ts の BOTTOM_LEGEND_ROW_H と一致）。 */
+const BOTTOM_LEGEND_ROW_H = 18;
+const BOTTOM_LEGEND_PAD = 6;
 
 /**
  * 描画領域 rect から、軸・タイトル・凡例ぶんを差し引いた plot 矩形を返す（純粋関数）。
- * near-line / adjacent はどちらも右側に系列ラベル空間を確保する。
+ * near-line / adjacent は右側に系列ラベル空間、bottom は下部に凡例行ぶんを確保する。
  * hasRightAxis 時は右軸ラベル用に右余白を確保する（凡例余白と大きい方を採用）。
  */
 export function computePlotRect(
   rect: Rect,
   o: {
     hasTitle: boolean;
-    legend: "near-line" | "adjacent" | "none";
+    legend: "near-line" | "adjacent" | "none" | "bottom";
     hasRightAxis?: boolean;
     hasYAxisLabel?: boolean;
     hasRightAxisLabel?: boolean;
+    /** bottom 凡例の行数（下部予約高さの算出に使う）。 */
+    legendBottomRows?: number;
   },
 ): Rect {
   const top = rect.y + (o.hasTitle ? TITLE_H : TOP_PAD);
-  const legendInset = o.legend === "none" ? RIGHT_PAD : LEGEND_RIGHT;
-  // 右軸ありは軸ラベルぶんを加算（凡例と右軸ラベルが重ならないよう両方分を確保）。
+  const isBottom = o.legend === "bottom";
+  // bottom 凡例は右に列を作らない（右余白は軸ラベル/最小パッドのみ）。
+  const legendInset = o.legend === "none" || isBottom ? RIGHT_PAD : LEGEND_RIGHT;
   const rightInset =
-    (o.hasRightAxis ? (o.legend === "none" ? RIGHT_AXIS : legendInset + RIGHT_AXIS) : legendInset) +
+    (o.hasRightAxis ? (legendInset === RIGHT_PAD ? RIGHT_AXIS : legendInset + RIGHT_AXIS) : legendInset) +
     (o.hasRightAxisLabel ? AXIS_LABEL_PAD : 0);
   const left = rect.x + AXIS_LEFT + (o.hasYAxisLabel ? AXIS_LABEL_PAD : 0);
   const right = rect.x + rect.width - rightInset;
-  const bottom = rect.y + rect.height - AXIS_BOTTOM;
+  const bottomLegend = isBottom ? Math.max(1, o.legendBottomRows ?? 1) * BOTTOM_LEGEND_ROW_H + BOTTOM_LEGEND_PAD : 0;
+  const bottom = rect.y + rect.height - AXIS_BOTTOM - bottomLegend;
   return {
     x: left,
     y: top,

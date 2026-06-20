@@ -68,6 +68,7 @@ export function buildDailyActivitySpec(
     series: [...barSeries, ...lineSeries],
     options: {
       stacked: opts.isTokens,
+      legend: 'bottom',
       ...(opts.hasOverlay ? { yAxisRight: { label: opts.overlayLabel } } : {}),
     },
   };

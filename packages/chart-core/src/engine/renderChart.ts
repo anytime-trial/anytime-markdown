@@ -8,7 +8,7 @@ import { drawScatterSeries } from "./render/scatter";
 import { drawAreaSeries } from "./render/area";
 import { drawPie } from "./render/pie";
 import { drawMarkers } from "./render/markers";
-import { drawAdjacentLegend, drawNearLineLabels } from "./render/legend";
+import { drawAdjacentLegend, drawBottomLegend, drawNearLineLabels, layoutBottomLegend } from "./render/legend";
 
 function finiteValues(series: ReadonlyArray<Series>): number[] {
   const out: number[] = [];
@@ -62,12 +62,18 @@ export function renderChart(
   const hasRight = supportsDualAxis && spec.series.some((s) => s.axis === "right");
   const yAxisLabel = spec.options?.yAxis?.label;
   const yAxisRightLabel = spec.options?.yAxisRight?.label;
+  // bottom 凡例は下部に行を確保するため、plot 計算前に行レイアウトを求める。
+  const wantBottomLegend = legend === "bottom" && spec.kind !== "pie" && !(spec.kind === "bar" && spec.options?.horizontal);
+  const bottomLegendRows = wantBottomLegend
+    ? layoutBottomLegend(ctx, spec.series, Math.max(40, rect.width - 64))
+    : [];
   const plot = computePlotRect(rect, {
     hasTitle,
     legend,
     hasRightAxis: hasRight,
     hasYAxisLabel: Boolean(yAxisLabel) && spec.kind !== "pie",
     hasRightAxisLabel: Boolean(yAxisRightLabel) && hasRight,
+    legendBottomRows: bottomLegendRows.length,
   });
 
   // 背景
@@ -246,12 +252,16 @@ export function renderChart(
     }
   }
 
-  // combo は bar+line 混在のため隣接凡例（near-line は line 端のみで bar を表せない）。
-  const legendMode = spec.kind === "combo" && legend !== "none" ? "adjacent" : legend;
+  // 凡例: bottom は下部行、それ以外で combo は隣接（near-line は line 端のみで bar を表せない）。
+  let legendMode: typeof legend = legend;
+  if (legend !== "none" && legend !== "bottom" && spec.kind === "combo") legendMode = "adjacent";
   if (legendMode === "near-line") drawNearLineLabels(ctx, spec.series, pointsBySeries, theme);
   else if (legendMode === "adjacent") {
     // 右軸ありは凡例を右軸ラベルぶん右へずらす（重なり回避）。
     drawAdjacentLegend(ctx, rect, plot, spec.series, theme, hasRight ? 44 : 0);
+  } else if (legendMode === "bottom" && wantBottomLegend) {
+    const bandTop = rect.y + rect.height - (bottomLegendRows.length * 18 + 6);
+    drawBottomLegend(ctx, rect, bottomLegendRows, spec.series, bandTop, theme);
   }
 
   if (spec.title) drawTitle(ctx, rect, spec.title, theme);

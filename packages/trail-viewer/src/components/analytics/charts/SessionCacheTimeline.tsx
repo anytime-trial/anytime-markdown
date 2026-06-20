@@ -132,7 +132,8 @@ export function SessionCacheTimeline({
       { name: t('analytics.chartCacheRead'), type: 'line', color: chartColors.cacheRead, values: dataset.map((d) => d.cacheReadTokens) },
       { name: t('analytics.chartCacheWrite'), type: 'line', color: chartColors.cacheWrite, values: dataset.map((d) => d.cacheCreationTokens) },
     ];
-    return { kind: 'combo', categories: cats, series: [bar, ...lines], options: {} };
+    // 凡例なし（旧実装どおり。コンパクトな縦積みチャートで凡例帯を持たない）。
+    return { kind: 'combo', categories: cats, series: [bar, ...lines], options: { legend: 'none' } };
   }, [dataset, mode, chartColors, t, tickStep]);
 
   const timingSpec = useMemo<ChartSpec>(() => {
@@ -148,7 +149,7 @@ export function SessionCacheTimeline({
           { name: t('analytics.chartSkillExecTime'), type: 'bar', color: chartColors.skill, values: dataset.map((d) => d.skillExecMs) },
           cumLine,
         ];
-    return { kind: 'combo', categories: cats, series, options: { stacked: mode === 'tool' } };
+    return { kind: 'combo', categories: cats, series, options: { stacked: mode === 'tool', legend: 'none' } };
   }, [dataset, mode, chartColors, t, tickStep]);
 
   return (

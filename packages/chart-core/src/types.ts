@@ -70,8 +70,8 @@ export interface ChartOptions {
   readonly horizontal?: boolean;
   /** pie のとき中心をくり抜きドーナツにする（中央に全体総量を表示）。 */
   readonly donut?: boolean;
-  /** 既定 "near-line"。 */
-  readonly legend?: "near-line" | "adjacent" | "none";
+  /** 凡例位置。既定 "near-line"。"bottom" はグラフ下部に水平中央寄せ。 */
+  readonly legend?: "near-line" | "adjacent" | "none" | "bottom";
   /** 既定 "auto"（コントラスト判定で併記/ホバーを決める）。 */
   readonly valueLabels?: "auto" | "always" | "hover";
   readonly referenceBand?: ReferenceBand;
