@@ -53,6 +53,7 @@
     "packages/trace-agent-node",
     "packages/trace-viewer",
     "packages/memory-core",
+    "packages/doc-core",
     "packages/llm-core",
     "packages/ollama-core",
     "packages/agent-core",

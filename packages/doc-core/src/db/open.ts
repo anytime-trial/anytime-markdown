@@ -1,0 +1,25 @@
+/**
+ * doc-core.db を開く（WAL・FK 有効化・マイグレーション適用）。
+ */
+
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import Database from 'better-sqlite3';
+import { runMigrations } from './migrations/runner';
+
+export type DocDb = Database.Database;
+
+/**
+ * doc-core.db を開いてマイグレーション適用済みのコネクションを返す。
+ * `:memory:` を渡すとインメモリ DB（テスト用）。
+ */
+export function openDocDb(dbPath: string): DocDb {
+  if (dbPath !== ':memory:') {
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  }
+  const db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+  runMigrations(db);
+  return db;
+}
