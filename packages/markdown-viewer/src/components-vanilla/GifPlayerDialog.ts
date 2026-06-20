@@ -16,7 +16,7 @@
  * 本番未配線（追加のみ）。host（{@link GifDialogHost} 相当）が intent を受けて生成する想定。
  */
 
-import { svgIcon } from "@anytime-markdown/graph-core/ui-vanilla/dom";
+import { svgIcon } from "@anytime-markdown/ui-core/dom";
 import {
   createDialog,
   createIconButton,
@@ -24,7 +24,7 @@ import {
   createToggleButton,
   createToggleButtonGroup,
   nextDialogTitleId,
-} from "@anytime-markdown/graph-core/ui-vanilla";
+} from "@anytime-markdown/ui-core";
 import type { GifSettings } from "../utils/gifEncoder";
 
 // ui/icons.tsx と同一の Material SVG path（GifIcon / PauseIcon / PlayArrowIcon / CloseIcon）。

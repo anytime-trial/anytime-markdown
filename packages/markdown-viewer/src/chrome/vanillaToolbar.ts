@@ -7,10 +7,10 @@
  * currentColor で inline 描画する。
  */
 
-import { svgIcon } from "@anytime-markdown/graph-core/ui-vanilla/dom";
+import { svgIcon } from "@anytime-markdown/ui-core/dom";
 
 // svgIcon は ui-vanilla/dom が唯一の定義元。既存 import 互換のため re-export する。
-export { svgIcon } from "@anytime-markdown/graph-core/ui-vanilla/dom";
+export { svgIcon } from "@anytime-markdown/ui-core/dom";
 
 /** Material アイコン SVG path（24x24・ui/icons と同一）。warning のみ複数 path。 */
 export const ICON = {

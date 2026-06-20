@@ -31,7 +31,7 @@ jest.mock("@floating-ui/dom", () => ({
   shift: (o: unknown) => ({ name: "shift", o }),
 }));
 
-import { createSelect, type SelectOption } from "@anytime-markdown/graph-core/ui-vanilla/Select";
+import { createSelect, type SelectOption } from "@anytime-markdown/ui-core/Select";
 
 const OPTIONS: ReadonlyArray<SelectOption<"a" | "b" | "c">> = [
   { value: "a", label: "Alpha" },

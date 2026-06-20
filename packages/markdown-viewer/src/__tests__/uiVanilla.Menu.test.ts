@@ -32,7 +32,7 @@ jest.mock("@floating-ui/dom", () => ({
   shift: (o: unknown) => ({ name: "shift", o }),
 }));
 
-import { createMenu } from "@anytime-markdown/graph-core/ui-vanilla/Menu";
+import { createMenu } from "@anytime-markdown/ui-core/Menu";
 
 /** テスト用の menuitem li を生成する。 */
 function makeItem(label: string, opts: { disabled?: boolean } = {}): HTMLLIElement {

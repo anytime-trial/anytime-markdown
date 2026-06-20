@@ -11,7 +11,7 @@
 
 // Dialog 系（createDialog / createDialogTitle 等）は ui-vanilla/Dialog.ts の正規モジュールと
 // uiVanilla.Dialog.test.ts で検証する。本ファイルは createBackdrop のみを対象とする。
-import { createBackdrop } from "@anytime-markdown/graph-core/ui-vanilla/Backdrop";
+import { createBackdrop } from "@anytime-markdown/ui-core/Backdrop";
 
 /** documentElement に --am-color-* を注入する（applyEditorThemeCssVars 相当の最小版）。 */
 function injectThemeVars(): void {

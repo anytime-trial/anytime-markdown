@@ -37,7 +37,7 @@ import {
   createToggleButtonGroup,
   svgIcon,
   type TextFieldHandle,
-} from "@anytime-markdown/graph-core/ui-vanilla";
+} from "@anytime-markdown/ui-core";
 import {
   BADGE_NUMBER_FONT_SIZE,
   COMMENT_BODY_FONT_SIZE,

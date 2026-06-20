@@ -12,17 +12,13 @@
     "./types": "./src/types.ts",
     "./viewer": "./src/viewer/index.ts",
     "./element": "./src/element.ts",
-    "./ui-vanilla": "./src/ui-vanilla/index.ts",
-    "./ui-vanilla/*": "./src/ui-vanilla/*.ts",
     "./src/*": "./src/*"
   },
   "scripts": {
     "build": "node esbuild.mjs",
     "test": "jest"
   },
-  "dependencies": {
-    "@floating-ui/dom": "1.7.6"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/jest": "30.0.0",
     "esbuild": "0.27.3",

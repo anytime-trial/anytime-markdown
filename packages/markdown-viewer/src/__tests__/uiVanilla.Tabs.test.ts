@@ -8,7 +8,7 @@
  * 色の computed 値は検証しない。代わりに el.style.cssText が var(--am-...) を含むことを検証する。
  */
 
-import { createTab, createTabs } from "@anytime-markdown/graph-core/ui-vanilla/Tabs";
+import { createTab, createTabs } from "@anytime-markdown/ui-core/Tabs";
 
 describe("createTab", () => {
   afterEach(() => {

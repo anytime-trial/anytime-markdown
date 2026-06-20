@@ -29,7 +29,7 @@ jest.mock("@floating-ui/dom", () => ({
   shift: (o: unknown) => ({ name: "shift", o }),
 }));
 
-import { createPopover } from "@anytime-markdown/graph-core/ui-vanilla/Popover";
+import { createPopover } from "@anytime-markdown/ui-core/Popover";
 
 /** computePosition を即解決させる（x/y/placement を返す）。 */
 function resolvePosition(

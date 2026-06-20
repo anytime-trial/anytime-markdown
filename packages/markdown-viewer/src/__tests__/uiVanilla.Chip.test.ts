@@ -8,7 +8,7 @@
  * inherit の computed 検証は行わず、el.style.cssText が var(--am-...) を含むことを検証する。
  */
 
-import { createChip } from "@anytime-markdown/graph-core/ui-vanilla/Chip";
+import { createChip } from "@anytime-markdown/ui-core/Chip";
 
 describe("createChip", () => {
   afterEach(() => {

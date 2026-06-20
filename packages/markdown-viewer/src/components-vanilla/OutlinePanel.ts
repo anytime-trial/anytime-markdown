@@ -36,7 +36,7 @@ import {
   createText,
   createTooltip,
   svgIcon,
-} from "@anytime-markdown/graph-core/ui-vanilla";
+} from "@anytime-markdown/ui-core";
 import { OUTLINE_FONT_SIZE, PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
 import type { HeadingItem, OutlineKind, TranslationFn } from "../types";
 import { extractHeadings } from "../types";

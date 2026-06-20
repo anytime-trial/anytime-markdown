@@ -40,7 +40,7 @@ import {
   createPopover,
   createTooltip,
   svgIcon,
-} from "@anytime-markdown/graph-core/ui-vanilla";
+} from "@anytime-markdown/ui-core";
 
 // --- Material SVG path（ui/icons.tsx と同一）。React 原版が消費する MUI アイコンの素 DOM 化 ---
 const PATH = {

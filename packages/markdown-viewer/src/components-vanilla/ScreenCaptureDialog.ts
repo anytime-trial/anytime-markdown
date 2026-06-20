@@ -19,7 +19,7 @@ import {
   createText,
   nextDialogTitleId,
   svgIcon,
-} from "@anytime-markdown/graph-core/ui-vanilla";
+} from "@anytime-markdown/ui-core";
 
 /** capture フローのフェーズ（React 原版 CapturePhase と同一）。 */
 type CapturePhase = "idle" | "previewing" | "captured";

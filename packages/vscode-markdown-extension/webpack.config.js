@@ -69,6 +69,8 @@ const webviewConfig = {
       // バレル（完全一致）は index.ts、サブパス（./ui-vanilla/* 等）は src ディレクトリへ。
       '@anytime-markdown/graph-core$': path.resolve(__dirname, '../graph-core/src/index.ts'),
       '@anytime-markdown/graph-core': path.resolve(__dirname, '../graph-core/src'),
+      '@anytime-markdown/ui-core$': path.resolve(__dirname, '../ui-core/src/index.ts'),
+      '@anytime-markdown/ui-core': path.resolve(__dirname, '../ui-core/src'),
     },
   },
   module: {

@@ -30,7 +30,7 @@ import {
   createToggleButton,
   createToggleButtonGroup,
   svgIcon,
-} from "@anytime-markdown/graph-core/ui-vanilla";
+} from "@anytime-markdown/ui-core";
 import {
   PAPER_MARGIN_MAX,
   PAPER_MARGIN_MIN,

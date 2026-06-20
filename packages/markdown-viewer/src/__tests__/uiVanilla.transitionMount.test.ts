@@ -12,7 +12,7 @@
  * rAF は手動 flush できるよう spy で捕捉し、setTimeout は jest fake timers で進める。
  */
 
-import { createTransitionMount } from "@anytime-markdown/graph-core/ui-vanilla/transitionMount";
+import { createTransitionMount } from "@anytime-markdown/ui-core/transitionMount";
 
 /** 捕捉した rAF コールバック（手動 flush 用）。 */
 let rafCallbacks: FrameRequestCallback[] = [];

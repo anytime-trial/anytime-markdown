@@ -8,7 +8,7 @@
  * inherit の computed 検証はしない。代わりに el.style.cssText が var(--am-...) を含むことを検証する。
  */
 
-import { createTextField } from "@anytime-markdown/graph-core/ui-vanilla/TextField";
+import { createTextField } from "@anytime-markdown/ui-core/TextField";
 
 describe("createTextField", () => {
   afterEach(() => {

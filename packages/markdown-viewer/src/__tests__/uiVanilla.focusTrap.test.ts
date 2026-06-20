@@ -6,7 +6,7 @@
  * フォーカス復帰）/ release の冪等性 / オプション（lockScroll・hideBackground・onClose 省略）。
  */
 
-import { createFocusTrap } from "@anytime-markdown/graph-core/ui-vanilla/focusTrap";
+import { createFocusTrap } from "@anytime-markdown/ui-core/focusTrap";
 
 /** body 直下に挿入した container（focusable 群含む）を組み立てるヘルパ。 */
 function mountContainer(focusableCount: number): {
