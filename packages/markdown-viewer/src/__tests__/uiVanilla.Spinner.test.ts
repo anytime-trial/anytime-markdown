@@ -2,7 +2,7 @@
  * createSpinner（ui-vanilla/Spinner.ts）の jsdom ユニットテスト。
  * 生成・属性・テーマ CSS 変数・update・keyframes 注入の冪等性を検証する。
  */
-import { createSpinner } from "@anytime-markdown/graph-core/ui-vanilla/Spinner";
+import { createSpinner } from "@anytime-markdown/ui-core/Spinner";
 
 const STYLE_ID = "am-vanilla-spinner-keyframes";
 

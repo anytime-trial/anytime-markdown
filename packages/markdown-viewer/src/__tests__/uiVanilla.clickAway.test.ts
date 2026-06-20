@@ -7,7 +7,7 @@
  * 振る舞いユーティリティのため要素生成・CSS 変数は扱わない（生成系の検証は対象外）。
  */
 
-import { createClickAway } from "@anytime-markdown/graph-core/ui-vanilla/clickAway";
+import { createClickAway } from "@anytime-markdown/ui-core/clickAway";
 
 describe("createClickAway", () => {
   let node: HTMLDivElement;

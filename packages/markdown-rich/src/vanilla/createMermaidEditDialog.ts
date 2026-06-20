@@ -6,8 +6,8 @@
 import {
   getDivider, MERMAID_SAMPLES,
 } from "@anytime-markdown/markdown-viewer";
-import { createDialog } from "@anytime-markdown/graph-core/ui-vanilla/Dialog";
-import { createTabs } from "@anytime-markdown/graph-core/ui-vanilla/Tabs";
+import { createDialog } from "@anytime-markdown/ui-core/Dialog";
+import { createTabs } from "@anytime-markdown/ui-core/Tabs";
 
 import { createZoomPanState } from "./zoomPanState";
 import type { CodeEditState } from "./codeEditState";

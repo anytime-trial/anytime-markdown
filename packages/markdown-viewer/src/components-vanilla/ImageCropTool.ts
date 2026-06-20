@@ -30,7 +30,7 @@ import {
   createTooltip,
   svgIcon,
   type IconButtonHandle,
-} from "@anytime-markdown/graph-core/ui-vanilla";
+} from "@anytime-markdown/ui-core";
 import {
   CHIP_FONT_SIZE,
   PANEL_BUTTON_FONT_SIZE,

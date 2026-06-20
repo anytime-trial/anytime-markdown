@@ -28,7 +28,7 @@ import {
   svgIcon,
   type IconButtonHandle,
   type TextFieldHandle,
-} from "@anytime-markdown/graph-core/ui-vanilla";
+} from "@anytime-markdown/ui-core";
 import {
   BADGE_NUMBER_FONT_SIZE,
   PANEL_INPUT_FONT_SIZE,

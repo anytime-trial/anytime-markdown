@@ -12,7 +12,7 @@
  * window.matchMedia に差し込んで制御する。
  */
 
-import { createMediaQuery } from "@anytime-markdown/graph-core/ui-vanilla/mediaQuery";
+import { createMediaQuery } from "@anytime-markdown/ui-core/mediaQuery";
 
 /** change を任意発火できる最小 MediaQueryList フェイク。 */
 class FakeMediaQueryList {

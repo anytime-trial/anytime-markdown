@@ -11,7 +11,7 @@ import DOMPurify from "dompurify";
 import {
   getDivider, MATH_SAMPLES, FS_PANEL_HEADER_FONT_SIZE,
 } from "@anytime-markdown/markdown-viewer";
-import { createDialog } from "@anytime-markdown/graph-core/ui-vanilla/Dialog";
+import { createDialog } from "@anytime-markdown/ui-core/Dialog";
 
 import { createZoomPanState } from "./zoomPanState";
 import type { CodeEditState } from "./codeEditState";

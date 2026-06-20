@@ -6,7 +6,7 @@
  * inherit の computed 検証は行わない。代わりに el.style.cssText / 注入 style の textContent が
  * var(--am-...) を含むことを検証する。
  */
-import { createSkeleton } from "@anytime-markdown/graph-core/ui-vanilla/Skeleton";
+import { createSkeleton } from "@anytime-markdown/ui-core/Skeleton";
 
 const STYLE_ID = "am-vanilla-skeleton-keyframes";
 const ROOT_CLASS = "am-vanilla-skeleton";

@@ -22,6 +22,9 @@ const config = {
     // worktree ではなくメインの packages/graph-core を指すため、兄弟ソースへ明示マップする。
     "^@anytime-markdown/graph-core$": "<rootDir>/../graph-core/src/index.ts",
     "^@anytime-markdown/graph-core/(.*)$": "<rootDir>/../graph-core/src/$1",
+    // ui-core（vanilla DOM プリミティブ）も同様に src を直接公開するため兄弟ソースへ明示マップ。
+    "^@anytime-markdown/ui-core$": "<rootDir>/../ui-core/src/index.ts",
+    "^@anytime-markdown/ui-core/(.*)$": "<rootDir>/../ui-core/src/$1",
     // CSS Modules（*.module.css）はクラス名そのものを返す Proxy へ。
     // shim 経由でロードされる markdown-viewer の UI コンポーネント（EditDialogHeader → Button 等）が
     // import するため、markdown-viewer の既存 proxy を共用する。

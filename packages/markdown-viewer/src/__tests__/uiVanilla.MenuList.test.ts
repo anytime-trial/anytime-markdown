@@ -9,7 +9,7 @@
  * 色の computed 値は検証しない。代わりに el.style.cssText の内容を検証する。
  */
 
-import { createMenuList } from "@anytime-markdown/graph-core/ui-vanilla/MenuList";
+import { createMenuList } from "@anytime-markdown/ui-core/MenuList";
 
 /** テスト用の menuitem li を生成する。 */
 function makeItem(label: string, opts: { disabled?: boolean } = {}): HTMLLIElement {

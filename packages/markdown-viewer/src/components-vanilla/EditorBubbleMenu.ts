@@ -28,11 +28,11 @@ import { BubbleMenuPlugin } from "@anytime-markdown/markdown-extension-bubble-me
 import type { EditorState } from "@anytime-markdown/markdown-pm/state";
 import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
-import { svgIcon } from "@anytime-markdown/graph-core/ui-vanilla/dom";
-import { createIconButton } from "@anytime-markdown/graph-core/ui-vanilla";
+import { svgIcon } from "@anytime-markdown/ui-core/dom";
+import { createIconButton } from "@anytime-markdown/ui-core";
 import { ICON } from "../chrome/vanillaToolbar";
-import { createPaper } from "@anytime-markdown/graph-core/ui-vanilla/Paper";
-import { createTooltip } from "@anytime-markdown/graph-core/ui-vanilla/Tooltip";
+import { createPaper } from "@anytime-markdown/ui-core/Paper";
+import { createTooltip } from "@anytime-markdown/ui-core/Tooltip";
 import { modKey } from "../constants/shortcuts";
 import { Z_BUBBLE_MENU } from "../constants/zIndex";
 import { getEditorStorage, type TranslationFn } from "../types";

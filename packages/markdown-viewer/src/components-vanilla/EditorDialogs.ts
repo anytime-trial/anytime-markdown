@@ -28,7 +28,7 @@ import {
   nextDialogTitleId,
   svgIcon,
   type TextFieldHandle,
-} from "@anytime-markdown/graph-core/ui-vanilla";
+} from "@anytime-markdown/ui-core";
 import { SHORTCUT_HINT_FONT_SIZE } from "../constants/dimensions";
 import { KEYBOARD_SHORTCUTS } from "../constants/shortcuts";
 import { APP_VERSION } from "../version";

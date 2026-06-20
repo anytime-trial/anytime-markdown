@@ -11,7 +11,7 @@
  *  7. destroy のクリーンアップ（listener 解除後は callback が呼ばれない）
  */
 
-import { createText } from "@anytime-markdown/graph-core/ui-vanilla/Text";
+import { createText } from "@anytime-markdown/ui-core/Text";
 
 describe("createText", () => {
   afterEach(() => {

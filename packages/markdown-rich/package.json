@@ -18,6 +18,7 @@
     "@anytime-markdown/markdown-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/ui-core": "*",
     "@anytime-markdown/chart-core": "*",
     "@anytime-markdown/spreadsheet-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",

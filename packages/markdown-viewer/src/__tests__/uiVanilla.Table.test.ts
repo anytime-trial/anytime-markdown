@@ -1,15 +1,15 @@
 /**
- * createTable（@anytime-markdown/graph-core/ui-vanilla/Table）の jsdom ユニットテスト。
+ * createTable（@anytime-markdown/ui-core/Table）の jsdom ユニットテスト。
  *
  * 素 DOM の `<table>` ファクトリ。列定義 + 行データから thead/tbody を構築し、
  * テーマ色は `--am-color-*` CSS 変数で追従する。controller 形（update / destroy）。
- * graph-core/ui-vanilla の実体に対し jsdom（DOM）が必要なため markdown-viewer 側に置く
+ * ui-core の実体に対し jsdom（DOM）が必要なため markdown-viewer 側に置く
  * （他の uiVanilla.*.test.ts と同じ配置）。
  */
 import {
   createTable,
   type TableColumn,
-} from "@anytime-markdown/graph-core/ui-vanilla/Table";
+} from "@anytime-markdown/ui-core/Table";
 
 const columns: ReadonlyArray<TableColumn> = [
   { key: "name", header: "Name" },

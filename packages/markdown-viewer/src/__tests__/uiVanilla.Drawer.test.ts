@@ -10,7 +10,7 @@
  * inherit の computed 検証は行わず、el.style.cssText が var(--am-...) を含むことを検証する。
  */
 
-import { createDrawer } from "@anytime-markdown/graph-core/ui-vanilla/Drawer";
+import { createDrawer } from "@anytime-markdown/ui-core/Drawer";
 
 describe("ui-vanilla/Drawer", () => {
   afterEach(() => {

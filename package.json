@@ -24,6 +24,7 @@
     "packages/database-core",
     "packages/database-viewer",
     "packages/graph-core",
+    "packages/ui-core",
     "packages/mcp-markdown",
     "packages/mcp-graph",
     "packages/cms-core",
