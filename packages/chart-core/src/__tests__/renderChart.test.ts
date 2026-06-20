@@ -405,8 +405,29 @@ describe("renderChart", () => {
     const plotRight = layout.plotRect.x + layout.plotRect.width;
     const labels = fillTexts.filter((f) => f.text === "系列1" || f.text === "系列2");
     expect(labels).toHaveLength(2);
-    // 系列名はプロット領域（バー上）ではなく右隣接帯に置かれる
-    for (const f of labels) expect(f.x).toBeGreaterThanOrEqual(plotRight);
+    for (const f of labels) {
+      // 系列名はプロット領域（バー上）ではなく右隣接帯に置かれる
+      expect(f.x).toBeGreaterThanOrEqual(plotRight);
+      // かつ系列色ではなくテキスト色で描く（同系色不可視の本質をガード）
+      expect(f.fillStyle).toBe(theme.palette.text);
+    }
+  });
+
+  it("grouped（非積み上げ）複数系列の隣接凡例は反転せず自然順（最上段＝系列1）で並ぶ", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B"],
+      series: [
+        { name: "系列1", values: [10, 20] },
+        { name: "系列2", values: [5, 8] },
+      ],
+      options: { grouped: true },
+    };
+    const { ctx, fillTexts } = recordingCtx();
+    renderChart(ctx, rect, spec, theme);
+    const labels = fillTexts.filter((f) => f.text.startsWith("系列"));
+    const top = labels.reduce((a, b) => (b.y < a.y ? b : a));
+    expect(top.text).toBe("系列1");
   });
 
   it("縦積み上げの隣接凡例はスタック視覚順（最上段の積み＝最上段の凡例）で並ぶ", () => {
