@@ -6,10 +6,6 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.test.ts'],
-  moduleNameMapper: {
-    '^@anytime-markdown/memory-core$': '<rootDir>/../memory-core/src/index.ts',
-    '^@anytime-markdown/doc-core$': '<rootDir>/../doc-core/src/index.ts',
-  },
   globals: {
     'ts-jest': {
       tsconfig: {

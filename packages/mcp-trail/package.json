@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@anytime-markdown/agent-core": "*",
+    "@anytime-markdown/doc-core": "*",
     "@anytime-markdown/markdown-eval-core": "*",
     "@anytime-markdown/memory-core": "*",
     "@anytime-markdown/trail-core": "*",
