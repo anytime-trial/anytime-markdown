@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, Typography } from '../../ui';
 import { LogsToolbar } from './LogsToolbar';
 import { LogsTable } from './LogsTable';
 import { LogDetailPanel } from './LogDetailPanel';

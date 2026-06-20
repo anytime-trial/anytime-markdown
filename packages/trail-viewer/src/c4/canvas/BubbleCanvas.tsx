@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { Box, Typography } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { Box, Typography } from '../../ui';
+import { useTrailTheme } from '../../components/TrailThemeContext';
 import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
 import { PanPhysics } from './PanPhysics';
 import type { ComplexityTier } from '../components/panels/FunctionScatterPlot';
@@ -70,8 +70,8 @@ export const BubbleCanvas: React.FC<BubbleCanvasProps> = ({
   height = 400,
   focusPoint = null,
 }) => {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+  const trailTheme = useTrailTheme();
+  const isDark = trailTheme.isDark;
 
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const physicsRef = React.useRef(new PanPhysics());

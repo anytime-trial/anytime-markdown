@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
-import Typography from '@mui/material/Typography';
+import { Box, CircularProgress, Tab, Tabs, Typography } from '../ui';
 import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
 import { MEMORY_TAB_DEFS, type MemoryTabValue } from './memoryTabs';
@@ -63,8 +59,8 @@ export function MemoryPanel({ serverUrl, onOpenSessionMessages }: Readonly<Memor
 
   const handleLoadDetail = useCallback((id: string) => reader.getDriftEventDetail(id), [reader]);
 
-  const handleTabChange = useCallback((_e: React.SyntheticEvent, v: MemoryTabValue) => {
-    setActiveTab(v);
+  const handleTabChange = useCallback((_e: React.SyntheticEvent, v: string | number) => {
+    setActiveTab(v as MemoryTabValue);
     if (typeof globalThis.history !== 'undefined') {
       globalThis.history.replaceState(null, '', `#memory/${v}`);
     }
@@ -116,9 +112,7 @@ export function MemoryPanel({ serverUrl, onOpenSessionMessages }: Readonly<Memor
           aria-label="memory sub-tabs"
           sx={{
             minHeight: 36,
-            '& .MuiTab-root': { color: colors.textSecondary, minHeight: 36, fontSize: '0.8rem', py: 0 },
-            '& .Mui-selected': { color: colors.iceBlue },
-            '& .MuiTabs-indicator': { backgroundColor: colors.iceBlue },
+            // TODO(mui-removal): dropped pseudo sx — '& .MuiTab-root', '& .Mui-selected', '& .MuiTabs-indicator' target MUI-internal classes no longer present in the kit
           }}
         >
           {MEMORY_TAB_DEFS.map((def) => (

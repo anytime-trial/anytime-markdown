@@ -1,9 +1,15 @@
 import * as React from 'react';
-import { Box, IconButton, Stack, Tooltip, Typography } from '@mui/material';
-import ScatterPlotIcon from '@mui/icons-material/ScatterPlot';
-import PublicIcon from '@mui/icons-material/Public';
-import ApartmentIcon from '@mui/icons-material/Apartment';
-import TourIcon from '@mui/icons-material/Tour';
+import {
+  Box,
+  IconButton,
+  Stack,
+  Tooltip,
+  Typography,
+  ScatterPlot as ScatterPlotIcon,
+  Public as PublicIcon,
+  Apartment as ApartmentIcon,
+  Tour as TourIcon,
+} from '../../../ui';
 import { BubbleCanvas } from '../../canvas/BubbleCanvas';
 import type { BubblePoint } from '../../canvas/BubbleCanvas';
 import { GalaxyCanvas } from '../../canvas/GalaxyCanvas';
@@ -12,7 +18,7 @@ import { TourMode } from '../../canvas/TourMode';
 import { selectTourTargets } from '../../canvas/tourTargets';
 import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
 import type { FunctionAnalysisApiEntry } from '../../hooks/fetchFunctionAnalysisApi';
-import { useTheme } from '@mui/material/styles';
+import { useTrailTheme } from '../../../components/TrailThemeContext';
 
 interface Colors {
   readonly border: string;
@@ -131,8 +137,8 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
   const [tourTarget, setTourTarget] = React.useState<
     { file: string; label: string; startLine: number } | null
   >(null);
-  const muiTheme = useTheme();
-  const isDark = muiTheme.palette.mode === 'dark';
+  const trailTheme = useTrailTheme();
+  const isDark = trailTheme.isDark;
 
   // Tour is currently scoped to the scatter view (galaxy/city support
   // would require additional focus wiring). Switch to scatter on start.
@@ -197,7 +203,7 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
               sx={{ color: view === 'scatter' ? colors.text : colors.textMuted, p: 0.25 }}
               aria-label="scatter view"
             >
-              <ScatterPlotIcon sx={{ fontSize: 16 }} />
+              <ScatterPlotIcon fontSize={16} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Galaxy">
@@ -207,7 +213,7 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
               sx={{ color: view === 'galaxy' ? colors.text : colors.textMuted, p: 0.25 }}
               aria-label="galaxy view"
             >
-              <PublicIcon sx={{ fontSize: 16 }} />
+              <PublicIcon fontSize={16} />
             </IconButton>
           </Tooltip>
           <Tooltip title="City">
@@ -217,7 +223,7 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
               sx={{ color: view === 'city' ? colors.text : colors.textMuted, p: 0.25 }}
               aria-label="city view"
             >
-              <ApartmentIcon sx={{ fontSize: 16 }} />
+              <ApartmentIcon fontSize={16} />
             </IconButton>
           </Tooltip>
           {/* Tour Mode: scatter 限定で、重要関数を順番にハイライト */}
@@ -238,7 +244,7 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
                 sx={{ color: tourActive ? colors.text : colors.textMuted, p: 0.25 }}
                 aria-label={tourActive ? 'stop tour' : 'start tour'}
               >
-                <TourIcon sx={{ fontSize: 16 }} />
+                <TourIcon fontSize={16} />
               </IconButton>
             </span>
           </Tooltip>

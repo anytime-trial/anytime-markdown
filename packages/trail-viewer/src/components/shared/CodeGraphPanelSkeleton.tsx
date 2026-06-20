@@ -1,4 +1,4 @@
-import { Box, CircularProgress, Skeleton, Typography } from '@mui/material';
+import { Box, CircularProgress, Skeleton, Typography } from '../../ui';
 
 /**
  * CodeGraphPanel (sigma + graphology を内包) の React.lazy fallback。

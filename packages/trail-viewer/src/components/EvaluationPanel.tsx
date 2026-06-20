@@ -1,13 +1,5 @@
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Divider from '@mui/material/Divider';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import Paper from '@mui/material/Paper';
-import Rating from '@mui/material/Rating';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
 import { useCallback, useState } from 'react';
+import { Box, Button, Divider, List, ListItem, Paper, Rating, TextField, Typography } from '../ui';
 
 import type { TrailEvaluation } from '../domain/parser/types';
 import { useTrailI18n } from '../i18n';
@@ -69,7 +61,8 @@ function EvaluationForm({
           value={score}
           onChange={(_event, newValue) => setScore(newValue)}
           size="medium"
-          sx={{ '& .MuiRating-iconFilled': { color: colors.amberGold }, '& .MuiRating-iconEmpty': { color: colors.border } }}
+          // TODO(mui-removal): dropped pseudo sx — '& .MuiRating-iconFilled' and '& .MuiRating-iconEmpty' target MUI-internal classes no longer present in the kit
+          sx={{}}
         />
       </Box>
       <TextField
@@ -80,13 +73,7 @@ function EvaluationForm({
         fullWidth
         sx={{
           mb: 1,
-          '& .MuiOutlinedInput-root': {
-            '& fieldset': { borderColor: colors.border },
-            '&:hover fieldset': { borderColor: colors.textSecondary },
-            '&.Mui-focused fieldset': { borderColor: colors.iceBlue },
-          },
-          '& .MuiInputLabel-root': { color: colors.textSecondary },
-          '& .MuiInputLabel-root.Mui-focused': { color: colors.iceBlue },
+          // TODO(mui-removal): dropped pseudo sx — '& .MuiOutlinedInput-root', '& .MuiInputLabel-root' and Mui-focused variants target MUI-internal classes no longer present in the kit
         }}
       />
       <TextField
@@ -100,13 +87,7 @@ function EvaluationForm({
         fullWidth
         sx={{
           mb: 1,
-          '& .MuiOutlinedInput-root': {
-            '& fieldset': { borderColor: colors.border },
-            '&:hover fieldset': { borderColor: colors.textSecondary },
-            '&.Mui-focused fieldset': { borderColor: colors.iceBlue },
-          },
-          '& .MuiInputLabel-root': { color: colors.textSecondary },
-          '& .MuiInputLabel-root.Mui-focused': { color: colors.iceBlue },
+          // TODO(mui-removal): dropped pseudo sx — '& .MuiOutlinedInput-root', '& .MuiInputLabel-root' and Mui-focused variants target MUI-internal classes no longer present in the kit
         }}
       />
       <Button
@@ -127,7 +108,8 @@ function EvaluationItem({ evaluation }: Readonly<{ evaluation: TrailEvaluation }
   return (
     <ListItem sx={{ flexDirection: 'column', alignItems: 'flex-start', py: 1 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-        <Rating value={evaluation.score} readOnly size="small" sx={{ '& .MuiRating-iconFilled': { color: colors.amberGold }, '& .MuiRating-iconEmpty': { color: colors.border } }} />
+        {/* TODO(mui-removal): dropped pseudo sx — '& .MuiRating-iconFilled' and '& .MuiRating-iconEmpty' target MUI-internal classes no longer present in the kit */}
+        <Rating value={evaluation.score} readOnly size="small" />
         <Typography variant="body2" sx={{ ml: 'auto', color: colors.textSecondary }}>
           {evaluation.evaluator}
         </Typography>

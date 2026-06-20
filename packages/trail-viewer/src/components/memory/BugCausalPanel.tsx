@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react';
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import Divider from '@mui/material/Divider';
-import Tooltip from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
+import { Box, Chip, Divider, Tooltip, Typography } from '../../ui';
 import { useTrailI18n } from '../../i18n';
 import { useTrailTheme } from '../TrailThemeContext';
 import type { MemoryReader } from '../../data/readers/MemoryReader';

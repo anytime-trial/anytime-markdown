@@ -13,12 +13,12 @@ import {
   Tabs,
   Tooltip,
   Typography,
-} from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import LinkIcon from '@mui/icons-material/Link';
-import SyncProblemIcon from '@mui/icons-material/SyncProblem';
+  ChevronRight as ChevronRightIcon,
+  ExpandMore as ExpandMoreIcon,
+  Link as LinkIcon,
+  SyncProblem as SyncProblemIcon,
+} from '../../../ui';
+import { useTrailTheme } from '../../../components/TrailThemeContext';
 import {
   buildHierarchyTreeData,
   replaceItemChildren,
@@ -101,8 +101,8 @@ export const CallHierarchyPanel: React.FC<CallHierarchyPanelProps> = ({
   t,
   isDark,
 }) => {
-  const theme = useTheme();
-  const dark = isDark ?? theme.palette.mode === 'dark';
+  const trailTheme = useTrailTheme();
+  const dark = isDark ?? trailTheme.isDark;
   const [direction, setDirection] = React.useState<Direction>('callees');
   const [scope, setScope] = React.useState<Scope>('project');
   const [excludeTests, setExcludeTests] = React.useState(false);
@@ -234,7 +234,7 @@ export const CallHierarchyPanel: React.FC<CallHierarchyPanelProps> = ({
       <Box
         sx={{
           p: 3,
-          color: theme.palette.text.secondary,
+          color: trailTheme.colors.textSecondary,
           textAlign: 'center',
           fontSize: '0.85rem',
         }}
@@ -248,13 +248,13 @@ export const CallHierarchyPanel: React.FC<CallHierarchyPanelProps> = ({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <Box sx={{ px: 2, py: 1, borderBottom: `1px solid ${theme.palette.divider}` }}>
-        <Typography variant="subtitle2" sx={{ color: theme.palette.text.primary, fontWeight: 700 }}>
+      <Box sx={{ px: 2, py: 1, borderBottom: `1px solid ${trailTheme.colors.border}` }}>
+        <Typography variant="subtitle2" sx={{ color: trailTheme.colors.textPrimary, fontWeight: 700 }}>
           {rootFunction.fnName}
         </Typography>
         <Typography
           variant="caption"
-          sx={{ color: theme.palette.text.secondary, fontSize: '0.72rem' }}
+          sx={{ color: trailTheme.colors.textSecondary, fontSize: '0.72rem' }}
         >
           {rootFunction.filePath}
           {typeof rootFunction.startLine === 'number' ? `:${rootFunction.startLine}` : ''}
@@ -267,7 +267,7 @@ export const CallHierarchyPanel: React.FC<CallHierarchyPanelProps> = ({
           display: 'flex',
           alignItems: 'center',
           gap: 1.5,
-          borderBottom: `1px solid ${theme.palette.divider}`,
+          borderBottom: `1px solid ${trailTheme.colors.border}`,
         }}
       >
         <FormControl size="small" sx={{ minWidth: 140 }}>
@@ -310,7 +310,7 @@ export const CallHierarchyPanel: React.FC<CallHierarchyPanelProps> = ({
       <Tabs
         value={direction}
         onChange={(_, v: Direction) => setDirection(v)}
-        sx={{ borderBottom: `1px solid ${theme.palette.divider}`, minHeight: 36 }}
+        sx={{ borderBottom: `1px solid ${trailTheme.colors.border}`, minHeight: 36 }}
       >
         <Tab
           value="callees"
@@ -331,15 +331,15 @@ export const CallHierarchyPanel: React.FC<CallHierarchyPanelProps> = ({
         {state.loading && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2 }}>
             <CircularProgress size={14} />
-            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+            <Typography variant="body2" sx={{ color: trailTheme.colors.textSecondary }}>
               {t('c4.callHierarchy.loading')}
             </Typography>
           </Box>
         )}
         {state.error && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2 }}>
-            <SyncProblemIcon fontSize="small" sx={{ color: theme.palette.error.main }} />
-            <Typography variant="body2" sx={{ color: theme.palette.error.main }}>
+            <SyncProblemIcon fontSize="small" color={trailTheme.colors.error} />
+            <Typography variant="body2" sx={{ color: trailTheme.colors.error }}>
               {t('c4.callHierarchy.error')}: {state.error}
             </Typography>
           </Box>
@@ -385,7 +385,7 @@ const VirtualRow: React.FC<VirtualRowProps> = ({
   isDark,
   revisitedTooltip,
 }) => {
-  const theme = useTheme();
+  const trailTheme = useTrailTheme();
   const { item, level, hasChildren } = row;
   const isOpen = expanded.has(item.id);
   const isLoading = loadingChildren.has(item.id);
@@ -393,10 +393,10 @@ const VirtualRow: React.FC<VirtualRowProps> = ({
   const hoverBg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(31,30,28,0.04)';
 
   const labelColor = item.cycle
-    ? theme.palette.warning.main
+    ? trailTheme.colors.warning
     : item.revisited
-      ? theme.palette.text.disabled
-      : theme.palette.text.primary;
+      ? trailTheme.colors.textDisabled
+      : trailTheme.colors.textPrimary;
 
   return (
     <Box
@@ -414,7 +414,7 @@ const VirtualRow: React.FC<VirtualRowProps> = ({
       {item.revisited ? (
         <Tooltip title={revisitedTooltip} arrow placement="top">
           <Box sx={{ display: 'inline-flex', width: 22, justifyContent: 'center' }}>
-            <LinkIcon sx={{ fontSize: '0.95rem', color: theme.palette.text.disabled }} />
+            <LinkIcon fontSize="0.95rem" color={trailTheme.colors.textDisabled} />
           </Box>
         </Tooltip>
       ) : canHaveChildren ? (
@@ -433,9 +433,9 @@ const VirtualRow: React.FC<VirtualRowProps> = ({
           ) : !hasChildren ? (
             <Box sx={{ width: 16 }} />
           ) : isOpen ? (
-            <ExpandMoreIcon sx={{ fontSize: '1rem' }} />
+            <ExpandMoreIcon fontSize="1rem" />
           ) : (
-            <ChevronRightIcon sx={{ fontSize: '1rem' }} />
+            <ChevronRightIcon fontSize="1rem" />
           )}
         </IconButton>
       ) : (
@@ -457,7 +457,7 @@ const VirtualRow: React.FC<VirtualRowProps> = ({
         sx={{
           ml: 1,
           fontSize: '0.72rem',
-          color: theme.palette.text.secondary,
+          color: trailTheme.colors.textSecondary,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',

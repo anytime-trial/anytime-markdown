@@ -1,9 +1,4 @@
-import Box from '@mui/material/Box';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemText from '@mui/material/ListItemText';
-import Typography from '@mui/material/Typography';
+import { Box, List, ListItem, ListItemButton, ListItemText, Typography } from '../../ui';
 import { useTrailI18n } from '../../i18n';
 import type { ChatUiSource } from './chatReducer';
 

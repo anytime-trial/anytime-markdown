@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
+import { Box, Typography } from '../../ui';
 import type { QualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
 import { useTrailI18n } from '../../i18n';
 import { useTrailTheme } from '../TrailThemeContext';

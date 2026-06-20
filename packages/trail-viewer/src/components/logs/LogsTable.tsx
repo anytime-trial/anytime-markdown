@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Box, Chip } from '@mui/material';
+import { Box, Chip } from '../../ui';
 import type { LogEntry, LogLevel } from '../../c4/hooks/c4WsMessages';
 
 interface Props {

@@ -1,6 +1,4 @@
-import Box from '@mui/material/Box';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
+import { Box, Paper, Typography } from '../../ui';
 import type { ChatUiMessage, ChatUiSource } from './chatReducer';
 import { CitationChip } from './CitationChip';
 

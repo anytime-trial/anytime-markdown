@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import Box from '@mui/material/Box';
+import { Box } from '../../../ui';
 
 import type { ChartSpec } from '@anytime-markdown/chart-core';
 

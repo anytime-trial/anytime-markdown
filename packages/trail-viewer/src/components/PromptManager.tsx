@@ -1,13 +1,5 @@
-import ExpandLess from '@mui/icons-material/ExpandLess';
-import ExpandMore from '@mui/icons-material/ExpandMore';
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import Collapse from '@mui/material/Collapse';
-import List from '@mui/material/List';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemText from '@mui/material/ListItemText';
-import Typography from '@mui/material/Typography';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Chip, Collapse, ExpandLess, ExpandMore, List, ListItemButton, ListItemText, Typography } from '../ui';
 
 import type { TrailPromptEntry } from '../domain/parser/types';
 import { useTrailI18n } from '../i18n';
@@ -106,9 +98,7 @@ export function PromptManager({
                           alignItems: 'flex-start',
                           py: 1,
                           pl: 3,
-                          '&.Mui-selected': { bgcolor: colors.iceBlueBg },
-                          '&.Mui-selected:hover': { bgcolor: colors.iceBlueSubtle },
-                          '&:hover': { bgcolor: colors.hoverBg },
+                          // TODO(mui-removal): dropped pseudo sx — '&.Mui-selected', '&.Mui-selected:hover', '&:hover' are pseudo-selector keys not expressible as inline style
                         }}
                       >
                         <Typography variant="subtitle2" noWrap sx={{ width: '100%' }}>

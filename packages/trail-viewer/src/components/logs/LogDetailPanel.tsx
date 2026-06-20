@@ -1,4 +1,4 @@
-import { Box, Button, Stack, Typography } from '@mui/material';
+import { Box, Button, Stack, Typography } from '../../ui';
 import { useTrailI18n } from '../../i18n';
 import type { LogEntry } from '../../c4/hooks/c4WsMessages';
 

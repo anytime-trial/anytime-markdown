@@ -1,4 +1,4 @@
-import { Box, Skeleton } from '@mui/material';
+import { Box, Skeleton } from '../../ui';
 
 export function C4PanelSkeleton() {
     return (

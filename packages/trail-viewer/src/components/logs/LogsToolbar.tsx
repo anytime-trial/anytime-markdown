@@ -1,15 +1,4 @@
-import {
-  Box,
-  FormControlLabel,
-  IconButton,
-  Stack,
-  Switch,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-  Tooltip,
-  Typography,
-} from '@mui/material';
+import { Box, FormControlLabel, IconButton, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '../../ui';
 import { useTrailI18n } from '../../i18n';
 import type { LogFilter } from '../../hooks/useLogsDataSource';
 import type { LogLevel, LogSource } from '../../c4/hooks/c4WsMessages';

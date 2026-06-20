@@ -4,10 +4,7 @@ import { usePerfReporter } from '../hooks/usePerfReporter';
 import { TraceViewer } from '@anytime-markdown/trace-viewer';
 import type { TraceFileSource } from '@anytime-markdown/trace-viewer';
 import type { SourceLocation } from '@anytime-markdown/trace-core/types';
-import Box from '@mui/material/Box';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
-import Typography from '@mui/material/Typography';
+import { Box, Tab, Tabs, Typography } from '../ui';
 
 import type {
   TrailFilter,
@@ -381,9 +378,7 @@ function TrailViewerCoreInner({
     fontSize: '0.875rem',
     borderRadius: '8px',
     transition: '250ms cubic-bezier(0.4, 0, 0.2, 1)',
-    '&:hover': { bgcolor: c4Colors.hover },
-    '&:focus-visible': { outline: `2px solid ${c4Colors.accent}`, outlineOffset: '2px' },
-    '&:disabled': { color: c4Colors.textMuted },
+    // TODO(mui-removal): dropped pseudo sx — '&:hover', '&:focus-visible', '&:disabled' are pseudo-selector keys not expressible as inline style
   } as const;
 
   // buildMessageTree は messages を 2 回走査するため、MessageTimeline と TraceTree
@@ -503,13 +498,11 @@ function TrailViewerCoreInner({
       <Box sx={{ borderBottom: 1, borderColor: colors.border, display: 'flex', alignItems: 'center' }}>
         <Tabs
           value={activeTab}
-          onChange={(_e, v: number) => visitTab(v)}
+          onChange={(_e, v) => visitTab(v as number)}
           aria-label="Trail viewer tabs"
           sx={{
             flex: 1,
-            '& .MuiTab-root': { color: colors.textSecondary },
-            '& .Mui-selected': { color: colors.iceBlue },
-            '& .MuiTabs-indicator': { backgroundColor: colors.iceBlue },
+            // TODO(mui-removal): dropped pseudo sx — '& .MuiTab-root', '& .Mui-selected', '& .MuiTabs-indicator' target MUI-internal classes no longer present in the kit
           }}
         >
           {tabDefs.map((tab) => (

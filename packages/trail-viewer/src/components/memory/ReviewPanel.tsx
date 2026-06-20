@@ -1,20 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import FormControl from '@mui/material/FormControl';
-import IconButton from '@mui/material/IconButton';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import Tooltip from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import type { SelectChangeEvent } from '@mui/material/Select';
+import { Box, Chip, FormControl, IconButton, InputLabel, MenuItem, Select, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography, OpenInNew as OpenInNewIcon } from '../../ui';
+import type { SelectChangeEvent } from '../../ui';
 import { useTrailI18n } from '../../i18n';
 import { useTrailTheme } from '../TrailThemeContext';
 import type { MemoryReader } from '../../data/readers/MemoryReader';
@@ -232,7 +218,7 @@ export function ReviewPanel({
                             e.stopPropagation();
                             onOpenSessionMessages(row.sessionId!);
                           }}
-                          sx={{ color: colors.textSecondary, '&:hover': { color: colors.iceBlue } }}
+                          sx={{ color: colors.textSecondary /* TODO(mui-removal): dropped pseudo sx '&:hover' */ }}
                         >
                           <OpenInNewIcon fontSize="small" />
                         </IconButton>

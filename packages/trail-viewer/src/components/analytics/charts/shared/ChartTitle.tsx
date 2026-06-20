@@ -1,7 +1,4 @@
-import Box from '@mui/material/Box';
-import Tooltip from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Box, Tooltip, Typography, HelpOutline as HelpOutlineIcon } from '../../../../ui';
 
 export function ChartTitle({ title, description }: Readonly<{ title: string; description?: string }>) {
   return (
@@ -9,7 +6,7 @@ export function ChartTitle({ title, description }: Readonly<{ title: string; des
       <Typography variant="subtitle2">{title}</Typography>
       {description && (
         <Tooltip title={description} arrow placement="top">
-          <HelpOutlineIcon sx={{ fontSize: 12, color: 'text.disabled', cursor: 'help', flexShrink: 0 }} />
+          <HelpOutlineIcon fontSize={12} color="text.disabled" style={{ cursor: 'help', flexShrink: 0 }} />
         </Tooltip>
       )}
     </Box>

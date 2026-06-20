@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import Paper from '@mui/material/Paper';
+import { Paper } from '../../../ui';
 import { toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';

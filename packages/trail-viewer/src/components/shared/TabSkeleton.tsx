@@ -1,4 +1,4 @@
-import { Box, Skeleton } from '@mui/material';
+import { Box, Skeleton } from '../../ui';
 
 export function TabSkeleton({ height = '70vh' }: Readonly<{ height?: string | number }>) {
     return (

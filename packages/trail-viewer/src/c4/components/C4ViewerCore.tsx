@@ -5,27 +5,7 @@ import { MinimapCanvas } from '@anytime-markdown/graph-react-islands';
 import type { BoundaryInfo, C4Element, C4Model, C4ReleaseEntry, CommunityOverlayEntry, ComplexityMatrix, CoverageDiffMatrix, CoverageMatrix, DocLink, DsmMatrix, FeatureMatrix, HotspotMap, ImportanceMatrix, ManualGroup, MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import { aggregateDsmToC4ComponentLevel, aggregateDsmToC4ContainerLevel, aggregateDsmToC4SystemLevel, aggregateHotspotToC4, buildArchitectureMatrix, buildC4ElementById, buildCommunityTree, buildElementTree, buildLevelView, buildSizeMatrix, c4ToGraphDocument, collectDescendantIds, computeColorMap, computeCommunityOverlay, computeFileHotspot, filterDsmMatrix, filterModelForDrill, filterTreeByLevel, mapFileToC4Elements, resolveSelectedElementCommunity, sortDsmMatrixByName } from '@anytime-markdown/trail-core/c4';
 import type { ArchitectureFileEntry, ArchitectureMatrix, RoleMatrix, SizeMatrix } from '@anytime-markdown/trail-core/c4';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
-import CloseIcon from '@mui/icons-material/Close';
-import DeleteIcon from '@mui/icons-material/Delete';
-import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
-import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
-import HubIcon from '@mui/icons-material/Hub';
-import LayersIcon from '@mui/icons-material/Layers';
-import LinkIcon from '@mui/icons-material/Link';
-import TableChartIcon from '@mui/icons-material/TableChart';
-import ScatterPlotIcon from '@mui/icons-material/ScatterPlot';
-import TimelineIcon from '@mui/icons-material/Timeline';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import IconButton from '@mui/material/IconButton';
-import ButtonGroup from '@mui/material/ButtonGroup';
-import LinearProgress from '@mui/material/LinearProgress';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import Tooltip from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
+import { Box, Button, ButtonGroup, IconButton, LinearProgress, MenuItem, Select, Tooltip, Typography, AccountTree as AccountTreeIcon, Close as CloseIcon, Delete as DeleteIcon, DeleteSweep as DeleteSweepIcon, FilterAltOff as FilterAltOffIcon, Hub as HubIcon, Layers as LayersIcon, Link as LinkIcon, TableChart as TableChartIcon, ScatterPlot as ScatterPlotIcon, Timeline as TimelineIcon, TrendingUp as TrendingUpIcon, GroupWork as GroupWorkIcon } from '../../ui';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { useTrailI18n } from '../../i18n';
@@ -45,8 +25,6 @@ import { FunctionScatterPlot } from './panels/FunctionScatterPlot';
 import { functionAnalysisEntriesForElement } from './functionAnalysisEntriesForElement';
 import { kindBadge } from './kindBadge';
 import { ResizablePopup, type ResizablePopupSize } from './widgets/ResizablePopup';
-import GroupWorkIcon from '@mui/icons-material/GroupWork';
-
 import { CodeGraphPanelSkeleton } from '../../components/shared/CodeGraphPanelSkeleton';
 const CodeGraphPanel = lazy(() =>
   import('../../components/CodeGraphPanel').then((m) => ({ default: m.CodeGraphPanel })),
@@ -1307,7 +1285,7 @@ export function C4ViewerCore({
                 height: 6,
                 borderRadius: 3,
                 bgcolor: colors.hover,
-                '& .MuiLinearProgress-bar': { bgcolor: colors.accent, borderRadius: 3 },
+                // TODO(mui-removal): dropped pseudo/responsive sx ('& .MuiLinearProgress-bar' bar color)
               }}
             />
             <Typography variant="caption" sx={{ color: colors.textMuted, mt: 1, display: 'block' }}>
@@ -1483,7 +1461,7 @@ export function C4ViewerCore({
                             ...(showCommunity && currentLevel >= 3 && { bgcolor: toolbarButtonActiveBg }),
                           }}
                         >
-                          <GroupWorkIcon sx={{ fontSize: 16 }} />
+                          <GroupWorkIcon fontSize={16} />
                         </IconButton>
                       </span>
                     </Tooltip>
@@ -1504,7 +1482,7 @@ export function C4ViewerCore({
                           ...(tcValue.enabled && { bgcolor: toolbarButtonActiveBg }),
                         }}
                       >
-                        <TimelineIcon sx={{ fontSize: 16 }} />
+                        <TimelineIcon fontSize={16} />
                       </IconButton>
                     </Tooltip>
                     {/* Activity Trend */}
@@ -1519,7 +1497,7 @@ export function C4ViewerCore({
                           ...(showActivityTrend && { bgcolor: toolbarButtonActiveBg }),
                         }}
                       >
-                        <TrendingUpIcon sx={{ fontSize: 16 }} />
+                        <TrendingUpIcon fontSize={16} />
                       </IconButton>
                     </Tooltip>
                     {/* Upper Lines */}
@@ -1536,7 +1514,7 @@ export function C4ViewerCore({
                             ...(showAncestorEdges && currentLevel !== 1 && { bgcolor: toolbarButtonActiveBg }),
                           }}
                         >
-                          <LayersIcon sx={{ fontSize: 16 }} />
+                          <LayersIcon fontSize={16} />
                         </IconButton>
                       </span>
                     </Tooltip>
@@ -1553,7 +1531,7 @@ export function C4ViewerCore({
                           aria-label={t('c4.claudeActivity.reset')}
                           sx={toolbarButtonSx}
                         >
-                          <DeleteSweepIcon sx={{ fontSize: 16 }} />
+                          <DeleteSweepIcon fontSize={16} />
                         </IconButton>
                       </span>
                     </Tooltip>
@@ -1584,7 +1562,7 @@ export function C4ViewerCore({
                               ...(showGraphPopup && { bgcolor: toolbarButtonActiveBg }),
                             }}
                           >
-                            <HubIcon sx={{ fontSize: 14 }} />
+                            <HubIcon fontSize={14} />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title={t('viewer.tab.matrix')}>
@@ -1606,7 +1584,7 @@ export function C4ViewerCore({
                               ...(showMatrixPopup && { bgcolor: toolbarButtonActiveBg }),
                             }}
                           >
-                            <TableChartIcon sx={{ fontSize: 14 }} />
+                            <TableChartIcon fontSize={14} />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title={t('viewer.tab.scatter')}>
@@ -1628,7 +1606,7 @@ export function C4ViewerCore({
                               ...(showScatterPopup && { bgcolor: toolbarButtonActiveBg }),
                             }}
                           >
-                            <ScatterPlotIcon sx={{ fontSize: 14 }} />
+                            <ScatterPlotIcon fontSize={14} />
                           </IconButton>
                         </Tooltip>
                       </Box>
@@ -1718,7 +1696,7 @@ export function C4ViewerCore({
                   />
                   <Box sx={{ borderTop: `1px solid ${colors.border}`, mx: -1.5 }} />
                   {soloFrameId !== null && (
-                    <Button size="small" fullWidth startIcon={<FilterAltOffIcon sx={{ fontSize: 14 }} />} onClick={handleClearFrameFilter} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', justifyContent: 'flex-start', color: colors.accent }}>
+                    <Button size="small" fullWidth startIcon={<FilterAltOffIcon fontSize={14} />} onClick={handleClearFrameFilter} sx={{ ...toolbarButtonSx, fontSize: '0.75rem', justifyContent: 'flex-start', color: colors.accent }}>
                       {t('c4.frameFilter.reset')}
                     </Button>
                   )}
@@ -1958,7 +1936,7 @@ export function C4ViewerCore({
                           aria-label={t('viewer.tab.matrix')}
                           sx={{ ...toolbarButtonSx, p: 0.25 }}
                         >
-                          <TableChartIcon sx={{ fontSize: 14 }} />
+                          <TableChartIcon fontSize={14} />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -2096,7 +2074,7 @@ export function C4ViewerCore({
                               aria-label={t('viewer.tab.graph')}
                               sx={{ ...toolbarButtonSx, p: 0.25 }}
                             >
-                              <HubIcon sx={{ fontSize: 14 }} />
+                              <HubIcon fontSize={14} />
                             </IconButton>
                           </Tooltip>
                         </Box>
@@ -2263,7 +2241,7 @@ export function C4ViewerCore({
                                   }}
                                   sx={{ p: 0.25, ml: 0.25, color: colors.textSecondary, '&:hover': { color: colors.codeLink } }}
                                 >
-                                  <AccountTreeIcon sx={{ fontSize: '0.85rem' }} />
+                                  <AccountTreeIcon style={{ fontSize: '0.85rem' }} />
                                 </IconButton>
                               )}
                             </Box>
@@ -2590,7 +2568,7 @@ export function C4ViewerCore({
                             setContextMenu(null);
                           }}
                         >
-                          <LinkIcon sx={{ fontSize: 16 }} />
+                          <LinkIcon fontSize={16} />
                           Rel
                         </button>
                         <button
@@ -2610,7 +2588,7 @@ export function C4ViewerCore({
                           }}
                           onClick={() => handleDeleteElement(contextMenu.c4Id)}
                         >
-                          <DeleteIcon sx={{ fontSize: 16 }} />
+                          <DeleteIcon fontSize={16} />
                           Del
                         </button>
                       </>

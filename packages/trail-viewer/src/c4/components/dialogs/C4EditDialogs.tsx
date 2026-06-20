@@ -1,15 +1,4 @@
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Checkbox from '@mui/material/Checkbox';
-import Dialog from '@mui/material/Dialog';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContent from '@mui/material/DialogContent';
-import DialogTitle from '@mui/material/DialogTitle';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import InputAdornment from '@mui/material/InputAdornment';
-import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
-import SearchIcon from '@mui/icons-material/Search';
+import { Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, InputAdornment, MenuItem, TextField, Search as SearchIcon } from '../../../ui';
 import { memo, useCallback, useEffect, useState } from 'react';
 import { SERVICE_CATALOG, filterServices } from '@anytime-markdown/trail-core/c4/services';
 import type { ServiceEntry } from '@anytime-markdown/trail-core/c4';
@@ -60,7 +49,7 @@ const ServicePicker = memo(({ value, onChange }: Readonly<ServicePickerProps>) =
           input: {
             startAdornment: (
               <InputAdornment position="start">
-                <SearchIcon sx={{ fontSize: 16 }} />
+                <SearchIcon fontSize={16} />
               </InputAdornment>
             ),
           },
@@ -106,8 +95,9 @@ const ServiceCard = memo(({ entry, selected, onClick }: Readonly<ServiceCardProp
       cursor: 'pointer',
       border: '1px solid',
       borderColor: selected ? 'primary.main' : 'divider',
-      bgcolor: selected ? 'primary.main' + '1a' : 'transparent',
-      '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
+      bgcolor: selected ? 'primary.bg' : 'transparent',
+      // TODO(mui-removal): dropped pseudo sx '&:hover' (border/bg)
+      transition: 'border-color 150ms, background-color 150ms',
     }}
   >
     {entry.iconBody ? (

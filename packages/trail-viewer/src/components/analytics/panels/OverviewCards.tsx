@@ -1,11 +1,5 @@
 import { useState } from 'react';
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import Paper from '@mui/material/Paper';
-import Tooltip from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import { useTheme } from '@mui/material/styles';
+import { Box, Chip, Paper, Tooltip, Typography, HelpOutline as HelpOutlineIcon } from '../../../ui';
 import type { QualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailTheme } from '../../TrailThemeContext';
@@ -31,10 +25,8 @@ export function OverviewCards({
   qualityMetrics?: QualityMetrics | null;
   releases?: readonly TrailRelease[];
 }>) {
-  const { cardSx, doraColors } = useTrailTheme();
+  const { cardSx, doraColors, isDark } = useTrailTheme();
   const { t } = useTrailI18n();
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const [usageIdx, setUsageIdx] = useState(0);
   const totalTokens = totals.inputTokens + totals.outputTokens + totals.cacheReadTokens + totals.cacheCreationTokens;
 
@@ -179,7 +171,7 @@ export function OverviewCards({
             </Typography>
             {card.tooltip && (
               <Tooltip title={card.tooltip} arrow placement="top">
-                <HelpOutlineIcon sx={{ fontSize: 12, color: 'text.disabled', cursor: 'help', flexShrink: 0 }} />
+                <HelpOutlineIcon fontSize={12} color="text.disabled" style={{ cursor: 'help', flexShrink: 0 }} />
               </Tooltip>
             )}
           </Box>

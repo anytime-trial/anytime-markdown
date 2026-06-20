@@ -1,14 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
-import Dialog from '@mui/material/Dialog';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContent from '@mui/material/DialogContent';
-import DialogTitle from '@mui/material/DialogTitle';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
+import { Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from '../../ui';
 import { useTrailI18n } from '../../i18n';
 import { useTrailTheme } from '../TrailThemeContext';
 import type { MemoryDriftEventDetail } from '../../data/types';
@@ -137,7 +128,7 @@ export function DriftDetailDialog({ eventId, onClose, onResolve, onLoadDetail }:
                   {t('memory.drift.resolved')} — {detail.resolvedAt?.slice(0, 10)}
                 </Typography>
                 {detail.resolutionNote && (
-                  <Typography variant="caption" display="block" sx={{ color: colors.textPrimary, mt: 0.5 }}>
+                  <Typography variant="caption" sx={{ display: 'block', color: colors.textPrimary, mt: 0.5 }}>
                     {detail.resolutionNote}
                   </Typography>
                 )}
@@ -151,7 +142,7 @@ export function DriftDetailDialog({ eventId, onClose, onResolve, onLoadDetail }:
                 onChange={(e) => setNote(e.target.value)}
                 multiline
                 rows={2}
-                sx={{ mt: 1.5, '& .MuiInputBase-root': { fontSize: '0.75rem' } }}
+                sx={{ mt: 1.5 /* TODO(mui-removal): dropped pseudo sx '& .MuiInputBase-root' */ }}
               />
             )}
           </Box>
@@ -167,7 +158,7 @@ export function DriftDetailDialog({ eventId, onClose, onResolve, onLoadDetail }:
             variant="contained"
             disabled={resolving}
             onClick={() => void handleResolve()}
-            sx={{ fontSize: '0.75rem', bgcolor: colors.iceBlue, '&:hover': { bgcolor: colors.iceBlue } }}
+            sx={{ fontSize: '0.75rem', bgcolor: colors.iceBlue /* TODO(mui-removal): dropped pseudo sx '&:hover' */ }}
           >
             {resolving ? <CircularProgress size={14} /> : t('memory.drift.resolve')}
           </Button>

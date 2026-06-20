@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import Paper from '@mui/material/Paper';
+import { Paper } from '../../../../ui';
 import { useTrailTheme } from '../../../TrailThemeContext';
 import { useTrailI18n } from '../../../../i18n';
 import { fmtPercent } from '../../../../domain/analytics/formatters';

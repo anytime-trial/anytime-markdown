@@ -1,9 +1,5 @@
 import { useCallback, useRef } from 'react';
-import { Box, IconButton, Tooltip, Typography } from '@mui/material';
-import type { SxProps, Theme } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-import FullscreenIcon from '@mui/icons-material/Fullscreen';
-import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import { Box, IconButton, Tooltip, Typography, Close as CloseIcon, Fullscreen as FullscreenIcon, FullscreenExit as FullscreenExitIcon } from '../../../ui';
 import type { C4ThemeColors } from '../../../theme/c4Tokens';
 
 const MIN_WIDTH = 360;
@@ -34,7 +30,7 @@ export interface ResizablePopupProps {
   readonly centered?: boolean;
   /** ポップアップ背後を覆う半透明 + ぼかしの backdrop を表示する。デフォルト false。 */
   readonly withBackdrop?: boolean;
-  readonly toolbarButtonSx: SxProps<Theme>;
+  readonly toolbarButtonSx: Record<string, unknown>;
   readonly i18nMaximize: string;
   readonly i18nRestore: string;
   readonly i18nClose: string;
@@ -106,16 +102,7 @@ export function ResizablePopup({
     flexDirection: 'column' as const,
     overflow: 'hidden' as const,
     zIndex: 11,
-    '&::before': {
-      content: '""',
-      position: 'absolute',
-      inset: 0,
-      backdropFilter: 'blur(10px)',
-      WebkitBackdropFilter: 'blur(10px)',
-      borderRadius: 'inherit',
-      zIndex: -1,
-      pointerEvents: 'none',
-    },
+    // TODO(mui-removal): dropped pseudo/responsive sx ('&::before' backdropFilter)
   };
   const sizeSx = maximized
     ? { top: MARGIN, left: MARGIN, right: MARGIN, bottom: MARGIN }
@@ -155,9 +142,9 @@ export function ResizablePopup({
               size="small"
               onClick={() => onMaximizedChange(!maximized)}
               aria-label={maximized ? i18nRestore : i18nMaximize}
-              sx={{ ...toolbarButtonSx, width: 22, height: 22, minWidth: 22 } as SxProps<Theme>}
+              sx={{ ...toolbarButtonSx, width: 22, height: 22, minWidth: 22 }}
             >
-              {maximized ? <FullscreenExitIcon sx={{ fontSize: 14 }} /> : <FullscreenIcon sx={{ fontSize: 14 }} />}
+              {maximized ? <FullscreenExitIcon fontSize={14} /> : <FullscreenIcon fontSize={14} />}
             </IconButton>
           </Tooltip>
           <Tooltip title={i18nClose}>
@@ -165,9 +152,9 @@ export function ResizablePopup({
               size="small"
               onClick={onClose}
               aria-label={i18nClose}
-              sx={{ ...toolbarButtonSx, width: 22, height: 22, minWidth: 22 } as SxProps<Theme>}
+              sx={{ ...toolbarButtonSx, width: 22, height: 22, minWidth: 22 }}
             >
-              <CloseIcon sx={{ fontSize: 14 }} />
+              <CloseIcon fontSize={14} />
             </IconButton>
           </Tooltip>
         </Box>
@@ -189,16 +176,7 @@ export function ResizablePopup({
             height: HANDLE_SIZE,
             cursor: 'nwse-resize',
             opacity: 0.5,
-            '&:hover': { opacity: 1 },
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              right: 3,
-              bottom: 3,
-              width: 10,
-              height: 10,
-              backgroundImage: `linear-gradient(135deg, transparent 0%, transparent 40%, ${colors.text} 40%, ${colors.text} 50%, transparent 50%, transparent 70%, ${colors.text} 70%, ${colors.text} 80%, transparent 80%)`,
-            },
+            // TODO(mui-removal): dropped pseudo/responsive sx ('&:hover' opacity, '&::before' resize-grip backgroundImage)
           }}
         />
       )}

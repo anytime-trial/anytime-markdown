@@ -1,10 +1,4 @@
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import Paper from '@mui/material/Paper';
-import Tooltip from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
-import type { SxProps, Theme } from '@mui/material/styles';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Box, Chip, Paper, Tooltip, Typography, HelpOutline as HelpOutlineIcon } from '../../../ui';
 import type { MetricItem } from '../types';
 
 export function CyclingCard({
@@ -18,7 +12,7 @@ export function CyclingCard({
   items: readonly MetricItem[];
   index: number;
   onCycle: () => void;
-  cardStyle: SxProps<Theme>;
+  cardStyle: Record<string, unknown>;
 }>) {
   const current = items[index];
   return (
@@ -30,7 +24,7 @@ export function CyclingCard({
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        '&:hover': { backgroundColor: 'action.hover' },
+        // TODO(mui-removal): dropped pseudo/responsive sx — '&:hover': { backgroundColor: 'action.hover' }
         userSelect: 'none',
       }}
       onClick={onCycle}
@@ -46,7 +40,7 @@ export function CyclingCard({
         </Box>
         {current.tooltip && (
           <Tooltip title={current.tooltip} arrow placement="top">
-            <HelpOutlineIcon sx={{ fontSize: 12, color: 'text.disabled', cursor: 'help', flexShrink: 0, mt: 0.2 }} />
+            <HelpOutlineIcon fontSize={12} color="text.disabled" style={{ cursor: 'help', flexShrink: 0, marginTop: '1.6px' }} />
           </Tooltip>
         )}
       </Box>

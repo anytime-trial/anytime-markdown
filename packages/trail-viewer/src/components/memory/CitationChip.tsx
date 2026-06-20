@@ -1,5 +1,4 @@
-import Chip from '@mui/material/Chip';
-import Tooltip from '@mui/material/Tooltip';
+import { Chip, Tooltip } from '../../ui';
 
 export interface CitationChipProps {
   readonly tag: string; // e.g. "entity:abc123"
@@ -16,7 +15,7 @@ export function CitationChip({
 }: Readonly<CitationChipProps>) {
   const label = title ?? tag;
   return (
-    <Tooltip title={summary ?? tag} arrow>
+    <Tooltip title={summary ?? tag}>
       <Chip
         size="small"
         label={label}

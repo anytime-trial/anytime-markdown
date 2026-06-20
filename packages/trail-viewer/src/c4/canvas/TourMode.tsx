@@ -1,10 +1,12 @@
 import * as React from 'react';
-import { Box, IconButton, Stack, Tooltip, Typography } from '@mui/material';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import PauseIcon from '@mui/icons-material/Pause';
-import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
-import SkipNextIcon from '@mui/icons-material/SkipNext';
-import CloseIcon from '@mui/icons-material/Close';
+import {
+  Box, IconButton, Stack, Tooltip, Typography,
+  PlayArrow as PlayArrowIcon,
+  Pause as PauseIcon,
+  SkipPrevious as SkipPreviousIcon,
+  SkipNext as SkipNextIcon,
+  Close as CloseIcon,
+} from '../../ui';
 import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
 import type { TourStep } from './tourTargets';
 
@@ -109,7 +111,7 @@ export const TourMode: React.FC<TourModeProps> = ({
           Tour {current.index} / {current.total}
         </Typography>
         <IconButton size="small" sx={buttonSx} onClick={onClose} aria-label="close tour">
-          <CloseIcon sx={{ fontSize: 16 }} />
+          <CloseIcon fontSize={16} />
         </IconButton>
       </Stack>
 
@@ -191,7 +193,7 @@ export const TourMode: React.FC<TourModeProps> = ({
         <Stack direction="row" spacing={0.25}>
           <Tooltip title="Previous">
             <IconButton size="small" sx={buttonSx} onClick={goPrev} aria-label="previous">
-              <SkipPreviousIcon sx={{ fontSize: 18 }} />
+              <SkipPreviousIcon fontSize={18} />
             </IconButton>
           </Tooltip>
           <Tooltip title={autoPlay ? 'Pause' : 'Play'}>
@@ -202,15 +204,15 @@ export const TourMode: React.FC<TourModeProps> = ({
               aria-label={autoPlay ? 'pause' : 'play'}
             >
               {autoPlay ? (
-                <PauseIcon sx={{ fontSize: 18 }} />
+                <PauseIcon fontSize={18} />
               ) : (
-                <PlayArrowIcon sx={{ fontSize: 18 }} />
+                <PlayArrowIcon fontSize={18} />
               )}
             </IconButton>
           </Tooltip>
           <Tooltip title="Next">
             <IconButton size="small" sx={buttonSx} onClick={goNext} aria-label="next">
-              <SkipNextIcon sx={{ fontSize: 18 }} />
+              <SkipNextIcon fontSize={18} />
             </IconButton>
           </Tooltip>
         </Stack>

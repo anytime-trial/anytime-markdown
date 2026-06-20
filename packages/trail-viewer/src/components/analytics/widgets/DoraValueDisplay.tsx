@@ -1,5 +1,4 @@
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
+import { Box, Typography } from '../../../ui';
 
 export function formatDoraValue(m: { value: number; unit: string }): { primary: string; suffix?: string; unit?: string } {
   if (m.unit === 'perDay') {

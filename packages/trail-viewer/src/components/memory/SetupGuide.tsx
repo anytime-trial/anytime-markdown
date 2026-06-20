@@ -1,8 +1,4 @@
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
+import { Alert, Box, Button, Stack, Typography } from '../../ui';
 import { useTrailI18n } from '../../i18n';
 
 export interface SetupGuideProps {
@@ -14,17 +10,19 @@ export function SetupGuide({ onRecheck, detail }: Readonly<SetupGuideProps>) {
   const { t } = useTrailI18n();
   return (
     <Box sx={{ p: 4, overflowY: 'auto' }}>
-      <Alert severity="warning" sx={{ mb: 2 }}>
-        <Typography variant="h6">{t('memory.chat.setup.title')}</Typography>
-        {detail && (
-          <Typography
-            variant="caption"
-            sx={{ display: 'block', mt: 0.5, fontFamily: 'monospace' }}
-          >
-            {detail}
-          </Typography>
-        )}
-      </Alert>
+      <Box sx={{ mb: 2 }}>
+        <Alert severity="warning">
+          <Typography variant="h6">{t('memory.chat.setup.title')}</Typography>
+          {detail && (
+            <Typography
+              variant="caption"
+              sx={{ display: 'block', mt: 0.5, fontFamily: 'monospace' }}
+            >
+              {detail}
+            </Typography>
+          )}
+        </Alert>
+      </Box>
       <Stack spacing={1}>
         <Typography>{t('memory.chat.setup.step1')}</Typography>
         <Typography>{t('memory.chat.setup.step2')}</Typography>

@@ -1,5 +1,4 @@
-import { Box, Stack, Tooltip, Typography } from '@mui/material';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Box, Stack, Tooltip, Typography, HelpOutline as HelpOutlineIcon } from '../../../ui';
 import type { MetricOverlay } from '@anytime-markdown/trail-core/c4';
 import { getC4Colors } from '../../../theme/c4Tokens';
 import { useTrailI18n } from '../../../i18n/context';
@@ -86,7 +85,9 @@ function MetricHelpHeader({
       >
         <HelpOutlineIcon
           aria-label={title}
-          sx={{ fontSize: 14, color: textColor, opacity: 0.7, cursor: 'help', flexShrink: 0 }}
+          fontSize={14}
+          color={textColor}
+          style={{ opacity: 0.7, cursor: 'help', flexShrink: 0 }}
         />
       </Tooltip>
     </Box>
