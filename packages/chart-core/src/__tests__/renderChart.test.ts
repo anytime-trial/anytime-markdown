@@ -1,5 +1,5 @@
 import { renderChart } from "../engine/renderChart";
-import { hitTest } from "../engine/hitTest";
+import { categoryIndexAt, hitTest } from "../engine/hitTest";
 import { getChartTheme } from "../theme";
 import type { ChartSpec } from "../types";
 
@@ -220,6 +220,21 @@ describe("renderChart", () => {
   it("空 spec でも例外を投げない", () => {
     const layout = renderChart(ctxStub(), rect, { kind: "line", series: [] }, theme);
     expect(layout.points).toHaveLength(0);
+  });
+
+  it("categoryIndexAt はバンド位置からカテゴリ番号を返し、領域外/pie は null", () => {
+    const spec: ChartSpec = {
+      kind: "bar",
+      categories: ["A", "B", "C", "D"],
+      series: [{ name: "x", values: [1, 2, 3, 4] }],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    const { x, width } = layout.plotRect;
+    expect(categoryIndexAt(layout, x + width * 0.01)).toBe(0); // 左端 → 0
+    expect(categoryIndexAt(layout, x + width * 0.99)).toBe(3); // 右端 → 3
+    expect(categoryIndexAt(layout, x - 10)).toBeNull(); // プロット左外
+    const pie = renderChart(ctxStub(), rect, { kind: "pie", categories: ["A"], series: [{ name: "p", values: [1] }] }, theme);
+    expect(categoryIndexAt(pie, pie.plotRect.x + 1)).toBeNull();
   });
 
   it("yAxis.label / yAxisRight.label を spec に保持し例外を投げない", () => {

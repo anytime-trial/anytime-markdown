@@ -19,14 +19,27 @@ export function AnytimeChartView({
   spec,
   height = 300,
   palette,
-}: Readonly<{ spec: ChartSpec; height?: number; palette?: string }>) {
+  onCategoryClick,
+}: Readonly<{
+  spec: ChartSpec;
+  height?: number;
+  palette?: string;
+  /** カテゴリ（分類軸バンド）クリック時に dataIndex を返す（日付ドリルダウン等）。 */
+  onCategoryClick?: (dataIndex: number) => void;
+}>) {
   const hostRef = useRef<HTMLDivElement>(null);
   const elRef = useRef<AnytimeChartElement | null>(null);
+  const clickRef = useRef(onCategoryClick);
+  clickRef.current = onCategoryClick;
   const { isDark } = useTrailTheme();
 
   useEffect(() => {
     let cancelled = false;
     let el: AnytimeChartElement | null = null;
+    const onClick = (e: Event) => {
+      const idx = (e as CustomEvent<{ dataIndex: number }>).detail?.dataIndex;
+      if (typeof idx === 'number') clickRef.current?.(idx);
+    };
     void (async () => {
       await import('@anytime-markdown/chart-core/element');
       if (cancelled || !hostRef.current) return;
@@ -35,12 +48,14 @@ export function AnytimeChartView({
       if (palette) el.setAttribute('palette', palette);
       el.style.width = '100%';
       el.style.height = '100%';
+      el.addEventListener('category-click', onClick);
       hostRef.current.append(el);
       el.spec = spec;
       elRef.current = el;
     })();
     return () => {
       cancelled = true;
+      el?.removeEventListener('category-click', onClick);
       el?.remove();
       elRef.current = null;
     };
