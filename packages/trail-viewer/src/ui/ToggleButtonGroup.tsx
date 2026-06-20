@@ -51,13 +51,24 @@ export function ToggleButtonGroup<V = unknown>({
     return Array.isArray(value) ? (value as unknown[]).includes(btnValue as unknown) : false;
   };
 
+  // ToggleButton が Tooltip 等でラップされている場合、直下の子は value を持たない。
+  // その場合は 1 段下の子（実 ToggleButton）の value を解決する。
+  const resolveValue = (el: ReactElement<ToggleButtonProps>): unknown => {
+    if (el.props.value !== undefined) return el.props.value;
+    const inner = el.props.children;
+    if (isValidElement(inner)) {
+      return (inner as ReactElement<ToggleButtonProps>).props.value;
+    }
+    return undefined;
+  };
+
   return (
     <div className={classes} role="group" style={{ ...sxToStyle(sx), ...style }}>
       {Children.map(children, (child) => {
         if (!isValidElement(child)) return child;
         const el = child as ReactElement<ToggleButtonProps>;
         return cloneElement(el, {
-          selected: isSelected(String(el.props.value)),
+          selected: isSelected(String(resolveValue(el))),
           onChange: handleChange,
           size: size ?? el.props.size,
         });
