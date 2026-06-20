@@ -50,6 +50,7 @@ export function Switch({
         name={name}
         value={value}
         onChange={onChange}
+        readOnly={onChange ? undefined : true}
         {...inputProps}
       />
       <span className="trv-switch-track" style={{ position: "relative" }}>

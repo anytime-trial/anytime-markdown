@@ -61,6 +61,7 @@ export function Radio({
         name={name}
         value={value}
         onChange={onChange}
+        readOnly={onChange ? undefined : true}
         {...inputProps}
       />
       {checked ? ICON_CHECKED : ICON_UNCHECKED}

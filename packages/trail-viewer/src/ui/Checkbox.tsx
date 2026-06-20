@@ -71,6 +71,9 @@ export function Checkbox({
         name={name}
         value={value}
         onChange={onChange}
+        // onChange 不在（呼び元が span の onClick でトグルする）でも controlled checkbox の
+        // read-only field 警告を避けるため readOnly を立てる。
+        readOnly={onChange ? undefined : true}
         {...inputProps}
       />
       {indeterminate ? ICON_INDETERMINATE : checked ? ICON_CHECKED : ICON_UNCHECKED}
