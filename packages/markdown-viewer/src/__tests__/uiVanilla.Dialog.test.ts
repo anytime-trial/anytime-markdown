@@ -12,7 +12,7 @@ import {
   createDialogContentText,
   createDialogTitle,
   nextDialogTitleId,
-} from "../ui-vanilla/Dialog";
+} from "@anytime-markdown/graph-core/ui-vanilla/Dialog";
 
 describe("ui-vanilla/Dialog", () => {
   afterEach(() => {

@@ -6,7 +6,7 @@
  * jsdom は継承された CSS カスタムプロパティを getComputedStyle で解決しないため、
  * テーマ変数の検証は注入 style 内に var(--am-...) を含むことで行う（computed 検証は禁止）。
  */
-import { createSlider } from "../ui-vanilla/Slider";
+import { createSlider } from "@anytime-markdown/graph-core/ui-vanilla/Slider";
 
 const STYLE_ID = "am-vanilla-slider-styles";
 const ROOT_CLASS = "am-vanilla-slider";

@@ -7,10 +7,10 @@
  * React / JSX を import しない。
  */
 
-import { ensureStyle, svgIcon } from "../../ui-vanilla/dom";
-import { createSkeleton } from "../../ui-vanilla/Skeleton";
-import { createIconButton } from "../../ui-vanilla/IconButton";
-import { createTooltip } from "../../ui-vanilla/Tooltip";
+import { ensureStyle, svgIcon } from "@anytime-markdown/graph-core/ui-vanilla/dom";
+import { createSkeleton } from "@anytime-markdown/graph-core/ui-vanilla/Skeleton";
+import { createIconButton } from "@anytime-markdown/graph-core/ui-vanilla/IconButton";
+import { createTooltip } from "@anytime-markdown/graph-core/ui-vanilla/Tooltip";
 import type { EmbedProviders } from "../../types/embedProvider";
 import { getDivider, getBgPaper, getTextPrimary, getTextSecondary, getWarningMain } from "../../constants/colors";
 import { DEFAULT_EMBED_BASELINE, type EmbedBaseline } from "../../utils/embedInfoString";

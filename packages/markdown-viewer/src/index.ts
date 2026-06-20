@@ -42,7 +42,7 @@ export { installBlockOverlays } from './chrome/installBlockOverlays';
 export type { VanillaEditorHostHandle, VanillaEditorHostOptions } from './host/vanillaEditorHost';
 export { createVanillaEditorHost } from './host/vanillaEditorHost';
 // Vanilla ui プリミティブ（F・脱React ui kit。chrome/host が消費する素 DOM 部品）。
-export * from './ui-vanilla';
+export * from '@anytime-markdown/graph-core/ui-vanilla';
 export type { DarkDiagramPrintPreparer } from './types/pdf';
 
 // NodeView chrome は各ブロックの選択駆動オーバーレイ（*BlockOverlay）が提供する。

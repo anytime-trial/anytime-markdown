@@ -12,7 +12,7 @@ import {
   createRadio,
   createRadioGroup,
   createFormControlLabel,
-} from "../ui-vanilla/Radio";
+} from "@anytime-markdown/graph-core/ui-vanilla/Radio";
 
 /** Radio root 内の各パーツを取得するヘルパー（DOM 順: ring → dot → input）。 */
 function radioParts(el: HTMLSpanElement) {

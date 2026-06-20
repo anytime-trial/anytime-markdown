@@ -170,3 +170,11 @@ export {
 } from "./Select";
 export { createDrawer, type CreateDrawerOptions, type DrawerAnchor } from "./Drawer";
 export { confirmWithDialog, type ConfirmWithDialogOptions } from "./confirmDialog";
+export {
+  createTable,
+  type CreateTableOptions,
+  type TableController,
+  type TableColumn,
+  type TableCellAlign,
+  type TableSize,
+} from "./Table";

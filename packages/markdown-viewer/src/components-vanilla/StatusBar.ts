@@ -32,7 +32,7 @@ import {
   createMenuItem,
   createText,
   createTooltip,
-} from "../ui-vanilla";
+} from "@anytime-markdown/graph-core/ui-vanilla";
 
 /** ステータスバーが算出する派生値（React 原版 StatusInfo と同一）。 */
 export interface StatusInfo {

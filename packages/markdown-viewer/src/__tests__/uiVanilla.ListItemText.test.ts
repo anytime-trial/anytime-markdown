@@ -7,7 +7,7 @@
  * 色の computed 値は検証しない。代わりに el.style.cssText の内容を検証する。
  */
 
-import { createListItemText } from "../ui-vanilla/ListItemText";
+import { createListItemText } from "@anytime-markdown/graph-core/ui-vanilla/ListItemText";
 
 describe("ui-vanilla/ListItemText", () => {
   afterEach(() => {

@@ -18,9 +18,9 @@ import {
   SIDE_TOOLBAR_ICON_SIZE,
   SIDE_TOOLBAR_WIDTH,
 } from "../constants/dimensions";
-import { ensureStyle, svgIcon } from "../ui-vanilla/dom";
-import { createIconButton, type IconButtonHandle } from "../ui-vanilla/IconButton";
-import { createTooltip } from "../ui-vanilla/Tooltip";
+import { ensureStyle, svgIcon } from "@anytime-markdown/graph-core/ui-vanilla/dom";
+import { createIconButton, type IconButtonHandle } from "@anytime-markdown/graph-core/ui-vanilla/IconButton";
+import { createTooltip } from "@anytime-markdown/graph-core/ui-vanilla/Tooltip";
 
 /** Material アイコン SVG path（ui/icons と同一）。 */
 const ICON = {

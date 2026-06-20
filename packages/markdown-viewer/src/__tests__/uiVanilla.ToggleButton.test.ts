@@ -12,7 +12,7 @@
 import {
   createToggleButton,
   createToggleButtonGroup,
-} from "../ui-vanilla/ToggleButton";
+} from "@anytime-markdown/graph-core/ui-vanilla/ToggleButton";
 
 describe("createToggleButton", () => {
   afterEach(() => {

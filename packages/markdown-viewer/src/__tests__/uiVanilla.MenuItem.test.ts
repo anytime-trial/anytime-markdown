@@ -8,7 +8,7 @@
  * 色の computed 値は検証しない。代わりに el.style.cssText が var(--am-...) を含むことを検証する。
  */
 
-import { createMenuItem } from "../ui-vanilla/MenuItem";
+import { createMenuItem } from "@anytime-markdown/graph-core/ui-vanilla/MenuItem";
 
 describe("ui-vanilla/MenuItem", () => {
   afterEach(() => {

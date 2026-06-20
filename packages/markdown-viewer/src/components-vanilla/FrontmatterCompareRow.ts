@@ -21,7 +21,7 @@ import { computeDiff, type DiffLine } from "@anytime-markdown/markdown-engine";
 
 import { FRONTMATTER_CODE_FONT_SIZE } from "../constants/dimensions";
 import type { TranslationFn } from "../types";
-import { ensureStyle } from "../ui-vanilla";
+import { ensureStyle } from "@anytime-markdown/graph-core/ui-vanilla";
 
 /** {@link createFrontmatterCompareRow} のオプション。 */
 export interface CreateFrontmatterCompareRowOptions {

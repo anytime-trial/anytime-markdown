@@ -9,7 +9,7 @@
  * 5. クリーンアップ（el を parent から外しても残骸が残らない）
  */
 
-import { createDivider } from "../ui-vanilla/Divider";
+import { createDivider } from "@anytime-markdown/graph-core/ui-vanilla/Divider";
 
 describe("createDivider", () => {
   afterEach(() => {

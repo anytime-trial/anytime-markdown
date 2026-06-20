@@ -18,14 +18,14 @@ import {
   getHljsCssVars,
   getEditDialogBg,
 } from "@anytime-markdown/markdown-viewer";
-import { createDialog } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Dialog";
-import { createTabs } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Tabs";
-import { createButton } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Button";
-import { createIconButton } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/IconButton";
-import { createMenu } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Menu";
-import { createMenuItem } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/MenuItem";
-import { ensureStyle } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/dom";
-import { createMediaQuery } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/mediaQuery";
+import { createDialog } from "@anytime-markdown/graph-core/ui-vanilla/Dialog";
+import { createTabs } from "@anytime-markdown/graph-core/ui-vanilla/Tabs";
+import { createButton } from "@anytime-markdown/graph-core/ui-vanilla/Button";
+import { createIconButton } from "@anytime-markdown/graph-core/ui-vanilla/IconButton";
+import { createMenu } from "@anytime-markdown/graph-core/ui-vanilla/Menu";
+import { createMenuItem } from "@anytime-markdown/graph-core/ui-vanilla/MenuItem";
+import { ensureStyle } from "@anytime-markdown/graph-core/ui-vanilla/dom";
+import { createMediaQuery } from "@anytime-markdown/graph-core/ui-vanilla/mediaQuery";
 import { escapeHtml } from "@anytime-markdown/markdown-viewer/src/utils/escapeHtml";
 import type { ZoomPanController } from "./zoomPanState";
 

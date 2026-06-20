@@ -13,7 +13,7 @@
  * Stack はテーマ色を持たない純レイアウトのため、cssText の直接検証で十分。
  */
 
-import { createStack } from "../ui-vanilla/Stack";
+import { createStack } from "@anytime-markdown/graph-core/ui-vanilla/Stack";
 
 describe("createStack", () => {
   afterEach(() => {

@@ -16,7 +16,7 @@ import {
   createMergeEditorPanel,
   type MergeEditorPanelHandle,
 } from "@anytime-markdown/markdown-viewer/src/components-vanilla/MergeEditorPanel";
-import { createDialog } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Dialog";
+import { createDialog } from "@anytime-markdown/graph-core/ui-vanilla/Dialog";
 import {
   applyMerge,
   computeDiff,

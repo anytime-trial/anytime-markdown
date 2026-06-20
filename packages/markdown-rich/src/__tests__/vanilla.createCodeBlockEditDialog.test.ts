@@ -33,7 +33,7 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
   SMALL_CAPTION_FONT_SIZE: "0.75rem",
 }));
 
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Dialog", () => ({
+jest.mock("@anytime-markdown/graph-core/ui-vanilla/Dialog", () => ({
   createDialog: ({ onClose }: { onClose: () => void }) => {
     const el = document.createElement("div");
     const paper = document.createElement("div");
@@ -43,23 +43,23 @@ jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Dialog", () => ({
   },
 }));
 
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Tabs", () => ({
+jest.mock("@anytime-markdown/graph-core/ui-vanilla/Tabs", () => ({
   createTabs: () => ({ el: document.createElement("div"), update: jest.fn(), destroy: jest.fn() }),
 }));
 
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Button", () => ({
+jest.mock("@anytime-markdown/graph-core/ui-vanilla/Button", () => ({
   createButton: () => ({ el: document.createElement("button"), destroy: jest.fn() }),
 }));
 
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/IconButton", () => ({
+jest.mock("@anytime-markdown/graph-core/ui-vanilla/IconButton", () => ({
   createIconButton: () => ({ el: document.createElement("button"), destroy: jest.fn() }),
 }));
 
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Menu", () => ({
+jest.mock("@anytime-markdown/graph-core/ui-vanilla/Menu", () => ({
   createMenu: () => ({ el: document.createElement("div"), destroy: jest.fn() }),
 }));
 
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/MenuItem", () => ({
+jest.mock("@anytime-markdown/graph-core/ui-vanilla/MenuItem", () => ({
   createMenuItem: () => ({ el: document.createElement("div"), destroy: jest.fn() }),
 }));
 

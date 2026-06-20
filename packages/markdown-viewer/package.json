@@ -23,7 +23,7 @@
   "dependencies": {
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
-    "@floating-ui/dom": "1.7.6",
+    "@anytime-markdown/graph-core": "*",
     "@xmldom/xmldom": "0.9.10",
     "encoding-japanese": "2.2.0",
     "lowlight": "3.3.0",
@@ -34,6 +34,7 @@
     "dompurify": "^3.0.0"
   },
   "devDependencies": {
+    "@floating-ui/dom": "1.7.6",
     "@types/diff": "7.0.2",
     "@types/dompurify": "3.0.5",
     "@types/encoding-japanese": "2.2.1",

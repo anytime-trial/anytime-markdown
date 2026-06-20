@@ -25,7 +25,7 @@ jest.mock("@floating-ui/dom", () => ({
   shift: (o: unknown) => ({ name: "shift", o }),
 }));
 
-import { createTooltip } from "../ui-vanilla/Tooltip";
+import { createTooltip } from "@anytime-markdown/graph-core/ui-vanilla/Tooltip";
 
 beforeEach(() => {
   computePositionMock.mockReset();

@@ -16,7 +16,7 @@
  * テーマ変数の検証は cssText が var(--am-...) を含むことで行う（computed の inherit 検証は禁止）。
  */
 
-import { createCollapse } from "../ui-vanilla/Collapse";
+import { createCollapse } from "@anytime-markdown/graph-core/ui-vanilla/Collapse";
 
 /** 捕捉した rAF コールバック（手動 flush 用）。 */
 let rafCallbacks: FrameRequestCallback[] = [];
