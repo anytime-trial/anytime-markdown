@@ -1,7 +1,7 @@
-import { computeRadialLayout } from '../physics/radial';
-import { createBody } from '../physics/PhysicsBody';
-import { createNode, createEdge } from '../../types';
-import type { PhysicsBody } from '../physics/types';
+import { computeRadialLayout } from '../../../engine/physics/radial';
+import { createBody } from '../../../engine/physics/PhysicsBody';
+import { createNode, createEdge } from '../../../types';
+import type { PhysicsBody } from '../../../engine/physics/types';
 
 function bodies(ids: string[]): Map<string, PhysicsBody> {
   const m = new Map<string, PhysicsBody>();

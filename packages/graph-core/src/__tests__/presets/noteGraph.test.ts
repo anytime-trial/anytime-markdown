@@ -1,4 +1,4 @@
-import { buildNoteGraph, buildNoteNeighborhood, type NoteGraphDocInput } from '../noteGraph';
+import { buildNoteGraph, buildNoteNeighborhood, type NoteGraphDocInput } from '../../presets/noteGraph';
 import type { GraphEdge } from '../../types';
 
 /** related エッジ（from→to の nodeId ペア）を抽出するヘルパー。 */

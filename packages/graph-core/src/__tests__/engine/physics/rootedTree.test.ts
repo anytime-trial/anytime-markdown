@@ -1,7 +1,7 @@
-import { computeRootedTreeLayout } from '../physics/rootedTree';
-import { createBody } from '../physics/PhysicsBody';
-import { createNode, createEdge } from '../../types';
-import type { PhysicsBody } from '../physics/types';
+import { computeRootedTreeLayout } from '../../../engine/physics/rootedTree';
+import { createBody } from '../../../engine/physics/PhysicsBody';
+import { createNode, createEdge } from '../../../types';
+import type { PhysicsBody } from '../../../engine/physics/types';
 
 function bodies(ids: string[]): Map<string, PhysicsBody> {
   const m = new Map<string, PhysicsBody>();

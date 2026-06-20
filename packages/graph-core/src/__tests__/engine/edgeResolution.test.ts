@@ -1,4 +1,4 @@
-import { resolveEdgesForRender } from '../edgeResolution';
+import { resolveEdgesForRender } from '../../engine/edgeResolution';
 import { createNode, createEdge } from '../../types';
 
 function nodeAt(id: string, x: number, y: number) {
