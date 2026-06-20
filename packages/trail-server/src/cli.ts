@@ -358,8 +358,9 @@ program
     }
 
     // doc-core: ドキュメント検索 DB（doc-core.db）の ingest。memory-core/importAll とは独立した
-    // 疎結合ランナーで、失敗は内部で握り潰す。DOC_CORE_DOCS_ROOT 未設定なら無効（既定オフ）。
-    const docCoreDocsRoot = process.env.DOC_CORE_DOCS_ROOT?.trim();
+    // 疎結合ランナーで、失敗は内部で握り潰す。設定は lep.json の sources.docs.root（既定オフ）。
+    // 環境変数 DOC_CORE_DOCS_ROOT があれば上書き優先。
+    const docCoreDocsRoot = (process.env.DOC_CORE_DOCS_ROOT?.trim() || lepConfig.sources.docs.root || '').trim();
     let docCoreRunner: ReturnType<typeof createDocCoreRunner> | null = null;
     let docCoreInterval: ReturnType<typeof setInterval> | null = null;
     if (docCoreDocsRoot) {
