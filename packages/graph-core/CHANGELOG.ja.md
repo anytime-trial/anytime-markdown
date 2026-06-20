@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-20
+
+### 追加
+
+- 型付きノート関連付けの語彙（depends-on / implements / part-of / supersedes / refines）と、関係タイプ別のエッジスタイリングを追加。
+
 ## [0.7.0] - 2026-06-17
 
 ### 追加

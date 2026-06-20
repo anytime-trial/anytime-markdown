@@ -6,6 +6,24 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-20
+
+### 追加
+
+- ノート網パネルに型付きノート関連付け（depends-on / implements / part-of / supersedes / refines）の関係タイプピッカーと凡例を追加し、i18n に対応。フロントマター `related` を gray-matter で型付き解析・書き込み。
+- spec 索引ジェネレータ（`spec:index` スクリプト）と `spec-lookup` スキルを追加。
+
+### 修正
+
+- `related` フロントマターの読み書きパスを堅牢化（マージ前レビュー指摘対処）。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- `chart-core` を同梱。`anytime-chart` フェンスを `<anytime-chart>` Web Component（9 図種・DPR 補正・hover ツールチップ・a11y）で描画。編集ダイアログに「表」タブと `chart` スラッシュコマンドを追加。
+- 設定パネルに本文幅切替 UI（集中 / 標準 / 広い）を em 基準プリセットで追加し、可読性を改善。
+- mermaid サンプルに新規 5 図種を追加し、既存サンプルの Mermaid 11.15 非推奨構文を修正。
+- マージ前レビュー指摘を反映（chartLayer 二重生成・面グラフ欠損点・ヘッダ列フォールバック・タブ状態）。
+
 ## [1.3.0] - 2026-06-17
 
 ### 追加

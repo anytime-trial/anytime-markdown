@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-06-20
+
+### Trail Core (trail-core / trail-server / mcp-trail / memory-core)
+
+- `doc-core` パッケージを新規追加。構造索引・FTS5 キーワード・embedding による意味検索を単一の `doc-core.db` に内包（日本語向け trigram トークナイザ）。
+- `mcp-trail` に `search_docs` ツールを追加し、`doc-core.db` 横断検索を公開。
+- `trail-server` daemon に `doc-core` を配線。ドキュメントルートを `lep.json` の `sources.docs.root` から取得するよう変更（旧 `DOC_CORE_DOCS_ROOT` env 廃止）。
+- `memory-core` episode 要約の永続化漏れを修正（ollama INSERT に `summary` 列を追加）し、文書全体の spec 要約 `summarizeSpecDoc` を新設。
+
 ## [0.27.2] - 2026-06-13
 
 ### Trail Core (trail-core / trail-viewer)

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-20
+
+### Changed
+
+- Wired chart integration in `SheetEditorProvider` (charts channel, sidecar persistence); added `chart-core` to the webpack ts-loader allowlist.
+
+### Spreadsheet Core (spreadsheet-viewer)
+
+- Undo/redo history (up to 100 snapshots, `transact` grouping) with Ctrl+Z / Ctrl+Y support.
+- Fill handle for drag-to-fill (numeric, trailing-digit, arithmetic, cyclic series).
+- Chart creation from a selected range via the charts channel.
+- Fixed copy/paste in VS Code webview (execCommand fallback + internal buffer + paste-bin).
+- Fixed context menu z-index behind the edit dialog.
+- Row/column resize included in undo history; `liveSync` for immediate adapter updates (live chart preview).
+
 ## [0.7.0] - 2026-06-13
 
 ### Spreadsheet Core (spreadsheet-viewer)

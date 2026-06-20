@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-20
+
+### Added
+
+- Added typed note relations (relationship type picker and legend for depends-on / implements / part-of / supersedes / refines) to the note graph panel, with i18n support. Frontmatter `related` entries are parsed and written via gray-matter with typed relationship semantics.
+- Added a spec index generator (`spec:index` script) and the `spec-lookup` skill for searching the spec index.
+
+### Fixed
+
+- Hardened the `related` frontmatter read/write path (pre-merge review fixes).
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Bundled `chart-core`; `anytime-chart` fences render as `<anytime-chart>` Web Components with 9 chart types, DPR correction, hover tooltips, and a11y. Added a Table tab to the chart edit dialog and a `chart` slash command.
+- Added a body-measure width switcher (Focused / Standard / Wide) using em-based presets for improved readability.
+- Added 5 new Mermaid diagram samples; fixed deprecated Mermaid 11.15 syntax in existing samples.
+- Applied pre-merge review fixes (duplicate chartLayer, area missing-value exclusion, header-column fallback, tab state).
+
 ## [1.3.0] - 2026-06-17
 
 ### Added

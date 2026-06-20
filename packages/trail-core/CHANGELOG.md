@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-06-20
+
+### Changed
+
+- Version aligned with the `anytime-trail` extension release v0.28.0 (no functional changes in `trail-core` itself; see the `anytime-trail` extension CHANGELOG for doc-core / trail-server / mcp-trail / memory-core changes bundled in this release).
+
 ## [0.27.2] - 2026-06-13
 
 ### Changed

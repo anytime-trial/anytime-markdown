@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-06-20
+
+### Added
+
+- Added `get_report` tool to retrieve report body content from S3.
+
+### Security
+
+- Bumped `hono` from 4.12.20 to 4.12.26 to address multiple CVEs (CORS wildcard bypass, JWT scheme confusion, Cookie injection, serve-static path traversal, and others).
+
 ## [0.0.7] - 2026-05-27
 
 ### Changed

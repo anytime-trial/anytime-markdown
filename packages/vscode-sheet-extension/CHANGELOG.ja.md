@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-20
+
+### 変更
+
+- `SheetEditorProvider` にチャート連携（charts チャネル・sidecar 永続化）を配線し、webpack の ts-loader allowlist に `chart-core` を追加。
+
+### Spreadsheet Core (spreadsheet-viewer)
+
+- undo/redo 履歴（スナップショット上限100・`transact` グルーピング）を実装し Ctrl+Z / Ctrl+Y 対応。
+- フィルハンドルによるドラッグ連続入力（数値・末尾数字・等差・循環）。
+- 選択範囲からのチャート作成（charts チャネル経由）。
+- VS Code webview でのコピー/ペースト不具合を修正（execCommand フォールバック＋内部バッファ＋paste-bin）。
+- コンテキストメニューが編集ダイアログ背後に隠れる z-index 問題を修正。
+- 行高/列幅リサイズを undo 対象に追加。`liveSync` でセル編集を adapter へ即反映（ライブチャートプレビュー）。
+
 ## [0.7.0] - 2026-06-13
 
 ### Spreadsheet Core (spreadsheet-viewer)

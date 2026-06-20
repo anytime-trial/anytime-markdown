@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-06-20
+
+### 変更
+
+- `anytime-trail` 拡張リリース v0.28.0 に合わせてバージョンを更新（`trail-core` 自体の機能変更なし。同梱の doc-core / trail-server / mcp-trail / memory-core の変更は anytime-trail 拡張の CHANGELOG を参照）。
+
 ## [0.27.2] - 2026-06-13
 
 ### 変更

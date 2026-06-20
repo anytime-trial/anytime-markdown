@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-06-20
+
+### 追加
+
+- `chart-core` を Next.js の `transpilePackages` に追加し、web-app 上で `anytime-chart` フェンス（折れ線/棒/面/円/散布図/複合/左右2軸）の描画に対応。
+
+### 変更
+
+- markdown-viewer / markdown-rich / graph-core の最新変更（anytime-chart 表タブ、本文幅切替 UI、型付きノート関連付け）を取り込み。
+
 ## [0.30.0] - 2026-06-17
 
 ### 追加

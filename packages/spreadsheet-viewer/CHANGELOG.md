@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-20
+
+### Added
+
+- Implemented undo/redo history for the grid (snapshot-based, up to 100 entries; `transact` groups multiple mutations into one unit) and wired Ctrl+Z / Ctrl+Y to the internal history.
+- Added a fill handle at the bottom-right corner of the selection; dragging fills a range automatically (numeric +1, trailing-digit increment, arithmetic progression, cyclic). Added the `computeFillValues` pure function for fill-series generation.
+- Added chart creation from a selected range (outputs an `anytime-chart` fence via the charts channel).
+
+### Fixed
+
+- Fixed copy/paste being silently swallowed in VS Code webview contexts by adding an `execCommand` fallback, an internal clipboard buffer, and a paste-bin approach for pasting from external apps.
+- Fixed the context menu appearing behind the edit dialog due to a z-index stacking issue.
+- Included row-height / column-width resize operations in the undo/redo history; added `liveSync` so cell edits propagate to the adapter immediately (live chart preview). Addressed pre-merge review findings: phantom undo entries (deferred snapshot + equality guard), resize-undo dirty-flag asymmetry, and z-index band alignment.
+
 ## [0.7.0] - 2026-06-13
 
 ### Added

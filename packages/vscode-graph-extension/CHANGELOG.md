@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-20
+
+### Graph Core (graph-core)
+
+- Added typed note-relation vocabulary (depends-on / implements / part-of / supersedes / refines) and per-relation-type edge styling.
+
 ## [0.7.0] - 2026-06-17
 
 ### Graph Core (graph-core)

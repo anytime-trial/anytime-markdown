@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-06-20
+
+### Added
+
+- Added `get_report` feature to retrieve report body content from S3.
+
+### Fixed
+
+- Applied pre-merge review findings (2 warnings resolved).
+
 ## [0.1.6] - 2026-05-27
 
 ### Changed
