@@ -16,6 +16,7 @@ export function buildPieSpec(data: ReadonlyArray<PieDatum>, title?: string): Cha
     title,
     categories: data.map((d) => d.label),
     series: [{ name: title ?? '', values: data.map((d) => d.value) }],
-    options: { donut: true },
+    // legend none: コンパクトなドーナツのためスライス外周ラベルを抑制（色＋中央総量＋hover で識別）。
+    options: { donut: true, legend: 'none' },
   };
 }
