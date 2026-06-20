@@ -16,6 +16,24 @@ import type { GraphDocument, GraphNode, GraphEdge, GraphGroup } from '../types';
 import { ringPoints } from './layout';
 import { thinkingPalette, categoryColor, withAlpha } from './palette';
 import { mkNode, connectorEdge, mkDoc, type NodeOpts } from './build';
+import {
+  type RelationType,
+  type RelatedRef,
+  coerceRelationType,
+  relationEdgeStyle,
+} from './relationStyle';
+
+/**
+ * frontmatter `related` の生エントリ。素の文字列（型なし=references 互換）または
+ * `{ to, type }` オブジェクト（型付き）。`type` は実行時に正規化される。
+ */
+export type NoteRelatedEntry = string | { to: string; type?: string };
+
+/** 生エントリを正規化済み {@link RelatedRef} へ変換する（未知型は references フォールバック）。 */
+function normalizeRelated(entry: NoteRelatedEntry): RelatedRef {
+  if (typeof entry === 'string') return { to: entry, type: 'references' };
+  return { to: entry.to, type: coerceRelationType(entry.type) };
+}
 
 /** ノート網ノードの最小入力（フロントマター由来・呼び出し側で抽出する）。 */
 export interface NoteGraphDocInput {
@@ -27,8 +45,11 @@ export interface NoteGraphDocInput {
   type?: string;
   /** グループ（frontmatter `category`）。 */
   category?: string;
-  /** 明示リンク（frontmatter `related`・ルート相対パス）。 */
-  related?: readonly string[];
+  /**
+   * 明示リンク（frontmatter `related`）。素の文字列（型なし=references）または
+   * `{ to, type }` 型付きオブジェクトの配列。
+   */
+  related?: readonly NoteRelatedEntry[];
   /** 本文の標準 markdown `.md` リンク（root 相対へ解決済み）。 */
   bodyLinks?: readonly string[];
   /** 共有クラスタ用タグ（frontmatter `tags`）。 */
@@ -167,10 +188,11 @@ export function buildNoteGraph(
   if (relatedEnabled) {
     let phIndex = 0;
     for (const d of docs) {
-      for (const target of d.related ?? []) {
-        // 自己参照と重複エッジ（ID 衝突）を除外する
+      for (const ref of d.related ?? []) {
+        const { to: target, type } = normalizeRelated(ref);
+        // 自己参照と重複エッジ（同一 from→to→type）を除外する
         if (target === d.path) continue;
-        const edgeKey = `${d.path}->${target}`;
+        const edgeKey = `${d.path}->${target}->${type}`;
         if (relatedSeen.has(edgeKey)) continue;
         relatedSeen.add(edgeKey);
         if (!known.has(target) && !placeholders.has(target)) {
@@ -198,11 +220,14 @@ export function buildNoteGraph(
           ph.metadata = { path: target, placeholder: 1 };
           placeholders.set(target, ph);
         }
+        const rs = relationEdgeStyle(type, pal);
         edges.push(
-          connectorEdge(`related:${d.path}->${target}`, d.path, target, {
-            stroke: withAlpha(pal.accent, 0.8),
-            strokeWidth: 2,
-            endShape: 'arrow',
+          connectorEdge(`related:${type}:${d.path}->${target}`, d.path, target, {
+            stroke: rs.stroke,
+            strokeWidth: rs.strokeWidth,
+            dashed: rs.dashed,
+            endShape: rs.endShape,
+            label: rs.label,
           }),
         );
       }
@@ -326,15 +351,18 @@ export function buildNoteNeighborhood(
 
   // 全有向エッジ（related 優先で kind を集約）。from/to はパスを分割せず値で保持する
   // （パスにセパレータ文字が含まれても壊れないようにするため）。改行はパスに現れない。
-  const edgeMap = new Map<string, { from: string; to: string; kind: EdgeKind }>();
-  const addEdge = (from: string, to: string, kind: EdgeKind): void => {
+  const edgeMap = new Map<string, { from: string; to: string; kind: EdgeKind; relType?: RelationType }>();
+  const addEdge = (from: string, to: string, kind: EdgeKind, relType?: RelationType): void => {
     if (from === to) return;
     const key = `${from}\n${to}`;
     if (edgeMap.get(key)?.kind === 'related') return;
-    edgeMap.set(key, { from, to, kind });
+    edgeMap.set(key, { from, to, kind, relType });
   };
   for (const d of docs) {
-    for (const t of d.related ?? []) addEdge(d.path, t, 'related');
+    for (const ref of d.related ?? []) {
+      const { to, type } = normalizeRelated(ref);
+      addEdge(d.path, to, 'related', type);
+    }
     if (includeBody) for (const t of d.bodyLinks ?? []) addEdge(d.path, t, 'body');
   }
 
@@ -389,16 +417,29 @@ export function buildNoteNeighborhood(
   // included 内のエッジのみ
   const edges: GraphEdge[] = [];
   let edgeIndex = 0;
-  for (const { from, to, kind } of edgeMap.values()) {
+  for (const { from, to, kind, relType } of edgeMap.values()) {
     if (!included.has(from) || !included.has(to)) continue;
-    const stroke = kind === 'related' ? withAlpha(pal.accent, 0.85) : withAlpha(pal.text, 0.45);
-    edges.push(
-      connectorEdge(`nbEdge${edgeIndex++}`, from, to, {
-        stroke,
-        strokeWidth: kind === 'related' ? 2 : 1.3,
-        endShape: 'arrow',
-      }),
-    );
+    if (kind === 'related') {
+      const rs = relationEdgeStyle(relType ?? 'references', pal);
+      edges.push(
+        connectorEdge(`nbEdge${edgeIndex++}`, from, to, {
+          stroke: rs.stroke,
+          strokeWidth: rs.strokeWidth,
+          dashed: rs.dashed,
+          endShape: rs.endShape,
+          label: rs.label,
+        }),
+      );
+    } else {
+      // 本文 `.md` リンク（型なしの弱い関係）
+      edges.push(
+        connectorEdge(`nbEdge${edgeIndex++}`, from, to, {
+          stroke: withAlpha(pal.text, 0.45),
+          strokeWidth: 1.3,
+          endShape: 'arrow',
+        }),
+      );
+    }
   }
 
   const doc = mkDoc('note-neighborhood', nodes, edges);

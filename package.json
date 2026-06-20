@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "version:sync": "npm version --no-git-tag-version --workspaces",
+    "spec:index": "node scripts/gen-spec-index.mjs",
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
     "lint": "eslint packages/markdown-viewer/src packages/web-app/src",
     "lint:fix": "eslint --fix packages/markdown-viewer/src packages/web-app/src",
