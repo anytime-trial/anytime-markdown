@@ -12,6 +12,7 @@
     "./supabase": "./src/supabase/index.ts"
   },
   "dependencies": {
+    "@anytime-markdown/chart-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trace-viewer": "*",
