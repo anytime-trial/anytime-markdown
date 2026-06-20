@@ -118,21 +118,29 @@ export interface CappedQueryResult {
   nodes: string[];
   edges: Array<{ source: string; target: string }>;
   nodeTotal: number;
+  edgeTotal: number;
   truncated: boolean;
 }
 
-/** query の nodes を limit 件に切り詰め（edges はそのまま）、nodeTotal/truncated を付与。 */
+const QUERY_EDGE_FACTOR = 3;
+
+/** nodes を limit 件に cap し、edges を cap 後ノード内に閉じた induced subgraph へ絞る。
+ *  さらに edge を limit*3 でハードキャップ。node/edge いずれか切り詰めたら truncated。 */
 export function capQueryResult(
   raw: { nodes?: string[]; edges?: Array<{ source: string; target: string }> },
   limit: number,
 ): CappedQueryResult {
   const nodes = raw.nodes ?? [];
   const capped = nodes.slice(0, limit);
+  const kept = new Set(capped);
+  const induced = (raw.edges ?? []).filter((e) => kept.has(e.source) && kept.has(e.target));
+  const cappedEdges = induced.slice(0, limit * QUERY_EDGE_FACTOR);
   return {
     nodes: capped,
-    edges: raw.edges ?? [],
+    edges: cappedEdges,
     nodeTotal: nodes.length,
-    truncated: capped.length < nodes.length,
+    edgeTotal: induced.length,
+    truncated: capped.length < nodes.length || cappedEdges.length < induced.length,
   };
 }
 
