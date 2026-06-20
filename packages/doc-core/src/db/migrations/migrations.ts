@@ -46,6 +46,9 @@ CREATE TABLE doc_embedding (
 
 -- tokenize='trigram': 既定 unicode61 は CJK を語分割せず日本語コーパスでキーワード検索が
 -- 機能しないため、3 文字以上の substring 一致を行う trigram を使う（日英両対応）。
+-- 注意: トークナイザは v1 を直接変更している。doc-core は未デプロイ（0.1.0/private）で既存 DB が
+-- 無い前提のため許容。万一トークナイザ変更前の doc-core.db が手元にある場合は migration が
+-- 適用済 v1 をスキップし旧 doc_fts が残るため、その DB ファイルを削除して再生成（再 ingest）すること。
 CREATE VIRTUAL TABLE doc_fts USING fts5(path, title, excerpt, body, tokenize='trigram');
 `;
 
