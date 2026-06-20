@@ -1,17 +1,10 @@
 /**
  * doc-core スキーマのマイグレーション実行。`_migrations` で適用済みバージョンを管理する。
+ * DDL は {@link ./migrations} にインライン定義（バンドラ非依存・__dirname/.sql 読込なし）。
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import type { Database } from 'better-sqlite3';
-
-interface MigrationDef {
-  readonly version: number;
-  readonly file: string;
-}
-
-const MIGRATIONS: readonly MigrationDef[] = [{ version: 1, file: '001_initial.sql' }];
+import { MIGRATIONS } from './migrations';
 
 /** better-sqlite3 は FTS5 を同梱するが、念のため存在を確認する。 */
 export function hasFts5(db: Database): boolean {
@@ -36,8 +29,7 @@ export function runMigrations(db: Database): void {
   const now = new Date().toISOString();
   for (const m of MIGRATIONS) {
     if (applied.has(m.version)) continue;
-    const sql = fs.readFileSync(path.join(__dirname, m.file), 'utf8');
-    db.exec(sql);
+    db.exec(m.sql);
     insert.run(m.version, now);
   }
 }

@@ -5,8 +5,7 @@
 
 import { createHash } from 'node:crypto';
 import matter from 'gray-matter';
-// barrel(index)は engine/DOM 型を引き込むため、関係語彙はサブパスで取得する（palette+types のみ）。
-import { coerceRelationType, type RelationType } from '@anytime-markdown/graph-core/src/presets/relationStyle';
+import { coerceRelationType, type RelationType } from '../relations';
 import type { DocRelation, ExtractedDoc } from '../types';
 
 const GRAPH_FALSE_VALUES = new Set(['false', 'no', 'off', '0']);

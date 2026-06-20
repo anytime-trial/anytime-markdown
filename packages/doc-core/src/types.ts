@@ -2,7 +2,7 @@
  * doc-core の共有型。関係語彙は graph-core を単一ソースとして再利用する。
  */
 
-import type { RelationType } from '@anytime-markdown/graph-core/src/presets/relationStyle';
+import type { RelationType } from './relations';
 
 export type { RelationType };
 

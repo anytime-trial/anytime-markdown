@@ -12,7 +12,6 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
-    "@anytime-markdown/graph-core": "*",
     "better-sqlite3": "12.4.1",
     "gray-matter": "4.0.3"
   },

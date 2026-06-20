@@ -1,6 +1,7 @@
 // @anytime-markdown/doc-core — ドキュメント検索（構造=型付き関係 / 意味=embedding / キーワード=FTS5）
 
 export type { RelationType, DocRelation, DocMeta, ExtractedDoc, DocHit } from './types';
+export { RELATION_TYPES, DEFAULT_RELATION_TYPE, isRelationType, coerceRelationType } from './relations';
 
 // DB
 export { openDocDb, type DocDb } from './db/open';
