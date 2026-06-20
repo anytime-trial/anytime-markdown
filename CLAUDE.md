@@ -52,6 +52,6 @@
 | --- | --- |
 | `i18n-naming` | i18n キーの追加・変更時 |
 | `screen-design` | UI / 画面コンポーネントの実装・修正時 |
-| `sqlite-table-definition` | SQLite テーブル定義の新規作成・変更・マイグレーション時 |
+| `sqlite-table-definition-trail-core` | SQLite テーブル定義の新規作成・変更・マイグレーション時（trail-core 固有補足。汎用ルールは global スキル `sqlite-table-definition`） |
 | `review-finding-format` | コードレビュー結果の出力時（trail memory-core ingest 対応書式） |
 | `vanilla-ui-conventions` | 脱React vanilla UI（markdown-viewer）・エディタ状態購読の実装・修正時 |
