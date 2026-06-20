@@ -94,4 +94,44 @@ describe('GraphQueryEngine', () => {
     const result = engine.path('src/utils/fetch', 'src/App');
     expect(result.found).toBe(false);
   });
+
+  it('query: size の大きいノードが先頭に来る（depth=0 で BFS なし）', () => {
+    const graph: CodeGraph = {
+      generatedAt: new Date().toISOString(),
+      repositories: [],
+      nodes: [
+        {
+          id: 'src/small/handler',
+          label: 'handler',
+          repo: 'product',
+          package: 'web-app',
+          fileType: 'code',
+          community: 0,
+          communityLabel: 'A',
+          x: 0,
+          y: 0,
+          size: 2,
+        },
+        {
+          id: 'src/big/handler',
+          label: 'handler',
+          repo: 'product',
+          package: 'web-app',
+          fileType: 'code',
+          community: 0,
+          communityLabel: 'A',
+          x: 1,
+          y: 0,
+          size: 10,
+        },
+      ],
+      edges: [],
+      communities: { 0: 'A' },
+      godNodes: [],
+    };
+    const eng = new GraphQueryEngine(graph);
+    const result = eng.query('handler', 0);
+    expect(result.nodes[0]).toBe('src/big/handler');
+    expect(result.nodes[1]).toBe('src/small/handler');
+  });
 });
