@@ -40,6 +40,8 @@
 
   **注意**: Trail 拡張のインポートラグ（数十分〜VS Code リロード）のため直近データは未取込の場合あり。
 
+- **discovery 順序（mcp-trail discovery ツール優先）**: 構造・依存・所在の探索は `get_important_files`（どこから読むか）→ `get_code_dependencies`（影響範囲・filePath 可）/ `query_code_graph`（所在・検索専用）/ `find_code_path` / `get_cochange_partners` → Serena（本文）→ Read（編集箇所）の順。詳細は global `~/.claude/CLAUDE.md`「discovery の順序」。`current_code_graphs.graph_json` の丸読み（約43万トークン）と `list_relationships` の影響範囲用途は禁止（後者は手動 C4 専用）。TrailDataServer 稼働が前提（未起動時はエラー）。
+
 ## 並行セッション検知
 
 - worktree 作成や長時間タスク開始前に `/anytime-markdown/.vscode/claude-code-status-*.json` の `timestamp` を確認。自身以外のセッションが ACTIVE（5 分以内）で別ブランチを触っているなら worktree 採用、同一ブランチで動いているなら衝突回避のためユーザーに確認。
