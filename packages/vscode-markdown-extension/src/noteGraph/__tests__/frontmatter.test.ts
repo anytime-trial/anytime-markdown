@@ -155,4 +155,25 @@ describe('addRelatedEntry', () => {
     const before = FM('title: A');
     expect(addRelatedEntry(before, '../evil.md', 'depends-on')).toBe(before);
   });
+
+  it('escapes YAML special characters in the target so the result re-parses', () => {
+    const before = FM('title: A');
+    const after = addRelatedEntry(before, 'spec/a"b.md', 'depends-on');
+    // 不正 YAML を生成せず、エスケープして round-trip できること
+    expect(() => matter(after)).not.toThrow();
+    expect(rawRelated(after)).toEqual([{ to: 'spec/a"b.md', type: 'depends-on' }]);
+  });
+
+  it('converts a scalar related value to a list without duplicating the key', () => {
+    const before = '---\ntitle: A\nrelated: spec/b.md\n---\n\n# Body\n';
+    const after = addRelatedEntry(before, 'spec/c.md', 'depends-on');
+    // 二重 related: キー（duplicated mapping key）で parse 不能にならないこと
+    expect(() => matter(after)).not.toThrow();
+    expect(rawRelated(after)).toEqual(['spec/b.md', { to: 'spec/c.md', type: 'depends-on' }]);
+  });
+
+  it('reads a scalar related value as a single reference', () => {
+    const doc = extractNoteDoc('spec/a.md', '---\ntitle: A\nrelated: spec/b.md\n---\n\n# Body\n');
+    expect(doc?.related).toEqual([{ to: 'spec/b.md', type: 'references' }]);
+  });
 });

@@ -37,12 +37,15 @@ export function isSafeRelPath(p: string): boolean {
  *
  * - 素の文字列 = `{ to, type: 'references' }`（型なし後方互換）
  * - `{ to, type }` オブジェクト = 型を {@link coerceRelationType} で正規化（未知型は references フォールバック＋警告）
+ * - スカラー文字列（`related: path` の非配列記法）= 単一 references として受ける
  * - `to` が安全でないパス（traversal / 絶対）のエントリは除外する
  */
 function normalizeRelatedData(raw: unknown): RelatedRef[] {
-  if (!Array.isArray(raw)) return [];
+  // スカラー記法（`related: path`）は単一要素として扱う
+  const list = typeof raw === 'string' ? [raw] : raw;
+  if (!Array.isArray(list)) return [];
   const out: RelatedRef[] = [];
-  for (const entry of raw) {
+  for (const entry of list) {
     if (typeof entry === 'string') {
       if (isSafeRelPath(entry)) out.push({ to: entry, type: 'references' });
     } else if (entry && typeof entry === 'object' && typeof (entry as { to?: unknown }).to === 'string') {
@@ -105,10 +108,19 @@ export function extractNoteDoc(relPath: string, content: string): NoteDocInput |
   };
 }
 
+/**
+ * YAML の二重引用符スカラーとして安全にクォートする。
+ * `\` と `"` をエスケープし、`to` に特殊文字（`"` 等）が含まれても不正 YAML を生成しない。
+ */
+function yamlDoubleQuote(value: string): string {
+  return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+}
+
 /** 1 件の related エントリを YAML 行へ描画する。references は素の文字列、型付きはオブジェクト形式。 */
 function relatedEntryLines(ref: RelatedRef, indent: string): string[] {
-  if (ref.type === 'references') return [`${indent}- "${ref.to}"`];
-  return [`${indent}- to: "${ref.to}"`, `${indent}  type: ${ref.type}`];
+  const to = yamlDoubleQuote(ref.to);
+  if (ref.type === 'references') return [`${indent}- ${to}`];
+  return [`${indent}- to: ${to}`, `${indent}  type: ${ref.type}`];
 }
 
 /** content から正規化済みの既存 related を取り出す（gray-matter 解析）。 */
@@ -149,14 +161,18 @@ export function addRelatedEntry(content: string, target: string, type: RelationT
   }
 
   const blockLines = m[1].split(/\r?\n/);
-  const relatedIdx = blockLines.findIndex((l) => /^related:\s*(\[.*\])?\s*$/.test(l));
+  // `related:` 行（ブロックヘッダ・インライン配列・スカラー値のいずれも）を捕捉する。
+  const relatedIdx = blockLines.findIndex((l) => /^related:(\s|$)/.test(l));
+  // コロン以降のインライン内容（ブロックヘッダなら空文字）。
+  const inlineContent = relatedIdx === -1 ? '' : blockLines[relatedIdx].replace(/^related:\s*/, '').trim();
 
   let newBlock: string;
   if (relatedIdx === -1) {
     // related キーなし → ブロック末尾に追加
     newBlock = [...blockLines, 'related:', ...newLines].join(eol);
-  } else if (/^related:\s*\[/.test(blockLines[relatedIdx])) {
-    // インライン配列 → YAML リスト形式へ変換しつつ新エントリを追記する
+  } else if (inlineContent !== '') {
+    // インライン配列 or スカラー値 → YAML リスト形式へ変換しつつ新エントリを追記する。
+    // 二重 `related:` キー（duplicated mapping key で parse 不能）を避けるため既存行を置換する。
     const allLines = existingRelated(content).flatMap((r) => relatedEntryLines(r, indent));
     allLines.push(...newLines);
     blockLines.splice(relatedIdx, 1, 'related:', ...allLines);
