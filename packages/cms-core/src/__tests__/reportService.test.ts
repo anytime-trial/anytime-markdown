@@ -115,4 +115,10 @@ describe('getReport', () => {
       getReport({ fileName: '../etc/passwd.md' }, { send: mockSend } as never, baseConfig),
     ).rejects.toThrow('Invalid file name');
   });
+
+  it('サブパス（スラッシュ）を含むファイル名を拒否する', async () => {
+    await expect(
+      getReport({ fileName: 'sub/dir/x.md' }, { send: mockSend } as never, baseConfig),
+    ).rejects.toThrow('Invalid file name');
+  });
 });

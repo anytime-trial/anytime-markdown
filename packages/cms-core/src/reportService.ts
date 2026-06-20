@@ -14,7 +14,12 @@ function validateReportFileName(fileName: string): void {
   if (!fileName.endsWith('.md')) {
     throw new Error('Only .md files are allowed');
   }
-  if (fileName.includes('..') || /[\x00-\x1f\x7f<>:"|?*;`${}[\]#!~&()']/.test(fileName)) {
+  if (
+    fileName.includes('..') ||
+    fileName.includes('/') ||
+    fileName.includes('\\') ||
+    /[\x00-\x1f\x7f<>:"|?*;`${}[\]#!~&()']/.test(fileName)
+  ) {
     throw new Error('Invalid file name');
   }
 }
