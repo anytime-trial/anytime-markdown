@@ -221,8 +221,6 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
-    "@emotion/react": "11.14.0",
-    "@emotion/styled": "11.14.0",
     "@types/jest": "29.5.14",
     "@types/node": "22.x",
     "@types/pg": "8.20.0",
