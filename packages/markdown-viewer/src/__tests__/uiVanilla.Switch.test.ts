@@ -8,7 +8,7 @@
  * 色の computed 値は検証しない。代わりに el.style.cssText が var(--am-...) を含むことを検証する。
  */
 
-import { createSwitch } from "../ui-vanilla/Switch";
+import { createSwitch } from "@anytime-markdown/graph-core/ui-vanilla/Switch";
 
 /** root 内の各パーツを取得するヘルパー（DOM 順: switchBase → track → input）。 */
 function parts(el: HTMLSpanElement) {

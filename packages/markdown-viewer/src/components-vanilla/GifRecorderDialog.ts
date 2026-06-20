@@ -33,7 +33,7 @@ import {
   svgIcon,
   type ProgressBarHandle,
   type TextFieldHandle,
-} from "../ui-vanilla";
+} from "@anytime-markdown/graph-core/ui-vanilla";
 import {
   type CropRect,
   encodeGif,

@@ -5,7 +5,7 @@
  * jsdom は継承された CSS カスタムプロパティを getComputedStyle で解決しないため、
  * テーマ変数の検証は el.style.cssText / 注入 style 内に var(--am-...) を含むことで行う。
  */
-import { createProgressBar } from "../ui-vanilla/ProgressBar";
+import { createProgressBar } from "@anytime-markdown/graph-core/ui-vanilla/ProgressBar";
 
 const STYLE_ID = "am-vanilla-progressbar-keyframes";
 const ROOT_CLASS = "am-vanilla-progressbar";

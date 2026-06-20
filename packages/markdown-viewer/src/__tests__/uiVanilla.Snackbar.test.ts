@@ -14,7 +14,7 @@
  * rAF は手動 flush できるよう spy で捕捉し、setTimeout は jest fake timers で進める。
  */
 
-import { createSnackbar } from "../ui-vanilla/Snackbar";
+import { createSnackbar } from "@anytime-markdown/graph-core/ui-vanilla/Snackbar";
 
 /** 捕捉した rAF コールバック（手動 flush 用）。 */
 let rafCallbacks: FrameRequestCallback[] = [];

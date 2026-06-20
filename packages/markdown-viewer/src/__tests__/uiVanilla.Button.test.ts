@@ -4,7 +4,7 @@
  * 検証観点: DOM 生成 / 属性 / CSS 変数応答 / イベント発火 / update / destroy のクリーンアップ。
  */
 
-import { createButton } from "../ui-vanilla/Button";
+import { createButton } from "@anytime-markdown/graph-core/ui-vanilla/Button";
 
 describe("createButton", () => {
   afterEach(() => {

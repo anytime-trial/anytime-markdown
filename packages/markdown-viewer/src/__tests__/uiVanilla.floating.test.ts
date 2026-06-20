@@ -31,7 +31,7 @@ jest.mock("@floating-ui/dom", () => ({
 import {
   createFloating,
   createVirtualAnchor,
-} from "../ui-vanilla/floating";
+} from "@anytime-markdown/graph-core/ui-vanilla/floating";
 
 /** computePosition を即解決させる（x/y/placement を返す）。 */
 function resolvePosition(

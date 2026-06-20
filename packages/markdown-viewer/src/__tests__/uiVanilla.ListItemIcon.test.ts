@@ -7,7 +7,7 @@
  * 色の computed 値は検証しない。代わりに el.style.cssText が var(--am-...) を含むことを検証する。
  */
 
-import { createListItemIcon } from "../ui-vanilla/ListItemIcon";
+import { createListItemIcon } from "@anytime-markdown/graph-core/ui-vanilla/ListItemIcon";
 
 describe("ui-vanilla/ListItemIcon", () => {
   afterEach(() => {

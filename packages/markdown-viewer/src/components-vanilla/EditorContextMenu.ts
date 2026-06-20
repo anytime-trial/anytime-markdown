@@ -40,7 +40,7 @@ import {
   createMenu,
   createMenuItem,
   svgIcon,
-} from "../ui-vanilla";
+} from "@anytime-markdown/graph-core/ui-vanilla";
 
 // --- Material SVG path（ui/icons.tsx と同一）。React 原版が使うアイコンを補う ---
 const PATH = {

@@ -5,7 +5,7 @@
  * close イベント発火 / update / destroy のクリーンアップ。
  */
 
-import { createAlert } from "../ui-vanilla/Alert";
+import { createAlert } from "@anytime-markdown/graph-core/ui-vanilla/Alert";
 
 describe("createAlert", () => {
   afterEach(() => {

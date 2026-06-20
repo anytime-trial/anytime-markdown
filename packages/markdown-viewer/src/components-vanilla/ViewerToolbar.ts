@@ -8,8 +8,8 @@
  */
 
 import type { TranslationFn } from "../types";
-import { svgIcon } from "../ui-vanilla/dom";
-import { createIconButton } from "../ui-vanilla/IconButton";
+import { svgIcon } from "@anytime-markdown/graph-core/ui-vanilla/dom";
+import { createIconButton } from "@anytime-markdown/graph-core/ui-vanilla/IconButton";
 
 /** dark モード時に表示する太陽アイコン（クリックで light へ）。MUI Brightness7 相当。 */
 const SUN_PATH = [

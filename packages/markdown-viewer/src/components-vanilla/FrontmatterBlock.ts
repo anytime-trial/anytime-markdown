@@ -21,7 +21,7 @@
 
 import { FRONTMATTER_CODE_FONT_SIZE } from "../constants/dimensions";
 import type { TranslationFn } from "../types";
-import { createIconButton, type IconButtonHandle } from "../ui-vanilla";
+import { createIconButton, type IconButtonHandle } from "@anytime-markdown/graph-core/ui-vanilla";
 
 /** {@link createFrontmatterBlock} のオプション（React `FrontmatterBlockProps` の vanilla 再現）。 */
 export interface CreateFrontmatterBlockOptions {

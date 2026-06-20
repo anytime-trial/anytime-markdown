@@ -12,7 +12,7 @@
 import {
   createIconButton,
   type IconButtonHandle,
-} from "../ui-vanilla/IconButton";
+} from "@anytime-markdown/graph-core/ui-vanilla/IconButton";
 
 describe("createIconButton", () => {
   const root = document.documentElement;
