@@ -15,6 +15,7 @@ export function buildStackedBarSpec(input: {
   series: ReadonlyArray<StackedBarSeries>;
   title?: string;
   stacked?: boolean;
+  yAxisLabel?: string;
 }): ChartSpec {
   const stacked = input.stacked ?? true;
   const series: Series[] = input.series.map((s) => ({
@@ -23,11 +24,12 @@ export function buildStackedBarSpec(input: {
     color: s.color,
     type: 'bar',
   }));
+  const base = stacked ? { stacked: true } : { grouped: true };
   return {
     kind: 'bar',
     title: input.title,
     categories: [...input.categories],
     series,
-    options: stacked ? { stacked: true } : { grouped: true },
+    options: input.yAxisLabel ? { ...base, yAxis: { label: input.yAxisLabel } } : base,
   };
 }

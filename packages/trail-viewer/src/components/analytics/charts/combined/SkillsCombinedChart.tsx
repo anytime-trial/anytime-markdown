@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import { BarChart } from '@mui/x-charts/BarChart';
 import { useTrailTheme } from '../../../TrailThemeContext';
-import { fmtNum } from '../../../../domain/analytics/formatters';
 import type { CombinedAxisInfo } from './axisInfo';
-import { hideZero, makeAxisClick } from './axisInfo';
+import { makeCategoryClick } from './axisInfo';
 import { useSkillCategory } from '../../../SkillCategoryContext';
+import { AnytimeChartView } from '../AnytimeChartView';
+import { buildStackedBarSpec } from '../specs/buildStackedBarSpec';
 
 export function SkillsCombinedChart({
   axisInfo,
@@ -21,21 +21,21 @@ export function SkillsCombinedChart({
   const { getSkillCategory, getSkillCategoryLabel, getSkillCategoryColorByIndex, skillCategoryKeys } = useSkillCategory();
   const { skillRows, allPeriods, labels } = axisInfo;
 
-  const dataset = useMemo(() => {
+  const spec = useMemo(() => {
     const valMap = new Map<string, number>();
     for (const r of skillRows) {
       const cat = getSkillCategory(r.skill);
-      const key = `${r.period}::${cat}`;
-      valMap.set(key, (valMap.get(key) ?? 0) + r.count);
+      valMap.set(`${r.period}::${cat}`, (valMap.get(`${r.period}::${cat}`) ?? 0) + r.count);
     }
-    return allPeriods.map((p, pi) => {
-      const entry: Record<string, string | number> = { period: labels[pi] };
-      for (const cat of skillCategoryKeys) {
-        entry[`s${cat}`] = valMap.get(`${p}::${cat}`) ?? 0;
-      }
-      return entry;
+    return buildStackedBarSpec({
+      categories: labels,
+      series: skillCategoryKeys.map((cat) => ({
+        name: getSkillCategoryLabel(cat),
+        values: allPeriods.map((p) => valMap.get(`${p}::${cat}`) ?? 0),
+        color: getSkillCategoryColorByIndex(cat),
+      })),
     });
-  }, [skillRows, allPeriods, labels, getSkillCategory, skillCategoryKeys]);
+  }, [skillRows, allPeriods, labels, getSkillCategory, getSkillCategoryLabel, getSkillCategoryColorByIndex, skillCategoryKeys]);
 
   if (skillRows.length === 0) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;
@@ -43,22 +43,7 @@ export function SkillsCombinedChart({
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      <BarChart
-        dataset={dataset}
-        xAxis={[{ scaleType: 'band', dataKey: 'period' }]}
-        yAxis={[{ valueFormatter: fmtNum }]}
-        series={skillCategoryKeys.map((cat) => ({
-          dataKey: `s${cat}`,
-          label: getSkillCategoryLabel(cat),
-          stack: 'total',
-          color: getSkillCategoryColorByIndex(cat),
-          valueFormatter: hideZero,
-        }))}
-        height={240}
-        margin={{ left: 16, right: 8, top: 8, bottom: 40 }}
-        slotProps={{ legend: { direction: 'horizontal', position: { vertical: 'bottom', horizontal: 'center' } } }}
-        onAxisClick={makeAxisClick(allPeriods, canDrill, onDateClick)}
-      />
+      <AnytimeChartView spec={spec} height={240} onCategoryClick={makeCategoryClick(allPeriods, canDrill, onDateClick)} />
     </Paper>
   );
 }
