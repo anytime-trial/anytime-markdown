@@ -44,7 +44,9 @@ CREATE TABLE doc_embedding (
   FOREIGN KEY (path) REFERENCES doc (path) ON DELETE CASCADE
 ) STRICT;
 
-CREATE VIRTUAL TABLE doc_fts USING fts5(path, title, excerpt, body);
+-- tokenize='trigram': 既定 unicode61 は CJK を語分割せず日本語コーパスでキーワード検索が
+-- 機能しないため、3 文字以上の substring 一致を行う trigram を使う（日英両対応）。
+CREATE VIRTUAL TABLE doc_fts USING fts5(path, title, excerpt, body, tokenize='trigram');
 `;
 
 export const MIGRATIONS: readonly DocMigration[] = [{ version: 1, sql: INITIAL }];

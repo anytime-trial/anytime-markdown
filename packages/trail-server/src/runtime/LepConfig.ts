@@ -159,10 +159,19 @@ export interface LepCodexSourceConfig {
   sessionsDir: string;
 }
 
+/**
+ * ドキュメント検索（doc-core）の取込元。`root` はドキュメントリポジトリのルート
+ * （例 `/Shared/anytime-markdown-docs`）。空文字は doc-core ingest を無効化（既定オフ）。
+ */
+export interface LepDocsSourceConfig {
+  root: string;
+}
+
 export interface LepSourcesConfig {
   github: LepGitHubSourceConfig;
   claude: LepClaudeSourceConfig;
   codex: LepCodexSourceConfig;
+  docs: LepDocsSourceConfig;
   /**
    * 解析対象 git リポジトリのルート群 (拡張・daemon 共通の監視対象)。
    * daemon は CLI 引数 → home-tier lep.json の順で bootstrap する (workspace lep.json は
@@ -355,6 +364,7 @@ export interface PartialLepConfig {
     github?: Partial<LepGitHubSourceConfig>;
     claude?: Partial<LepClaudeSourceConfig>;
     codex?: Partial<LepCodexSourceConfig>;
+    docs?: Partial<LepDocsSourceConfig>;
     gitRoots?: string[];
   };
   database?: Partial<LepDatabaseConfig>;
@@ -392,6 +402,7 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
     github: { enabled: false, tokenEnv: 'GITHUB_TOKEN', maxPrs: 30, since: '' },
     claude: { projectsDir: '' },
     codex: { sessionsDir: '' },
+    docs: { root: '' },
     gitRoots: [],
   },
   database: { storagePath: '.anytime/trail/db' },
@@ -556,6 +567,17 @@ function validateSourcesSection(
       sources.codex = codex;
     } else {
       warnings.push(`${sourceLabel}: sources.codex はオブジェクトである必要があります (無視)`);
+    }
+  }
+
+  if (raw['docs'] !== undefined) {
+    if (isPlainObject(raw['docs'])) {
+      const dc = raw['docs'];
+      const docs: Partial<LepDocsSourceConfig> = {};
+      if (typeof dc['root'] === 'string') docs.root = dc['root'];
+      sources.docs = docs;
+    } else {
+      warnings.push(`${sourceLabel}: sources.docs はオブジェクトである必要があります (無視)`);
     }
   }
 
@@ -796,6 +818,9 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
       },
       codex: {
         sessionsDir: override.sources?.codex?.sessionsDir ?? base.sources.codex.sessionsDir,
+      },
+      docs: {
+        root: override.sources?.docs?.root ?? base.sources.docs.root,
       },
       gitRoots: override.sources?.gitRoots ?? base.sources.gitRoots,
     },
@@ -1151,6 +1176,11 @@ export function serializeLepConfigWithComments(config: LepConfig): string {
         _comment:
           'Codex セッションログ(rollout JSONL)の探索元。空文字=未指定で os.homedir()/.codex/sessions を使う。',
         ...config.sources.codex,
+      },
+      docs: {
+        _comment:
+          'ドキュメント検索(doc-core)の取込元ルート。例 /Shared/anytime-markdown-docs。空文字=無効(既定オフ)。設定すると daemon が spec を ingest し doc-core.db(構造/FTS/embedding)を作る。',
+        ...config.sources.docs,
       },
       gitRoots: [...config.sources.gitRoots],
     },
