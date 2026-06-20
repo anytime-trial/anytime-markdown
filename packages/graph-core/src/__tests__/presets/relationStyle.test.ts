@@ -5,8 +5,8 @@ import {
   coerceRelationType,
   relationEdgeStyle,
   resolveRelationEdgeStyle,
-} from '../relationStyle';
-import { thinkingPalette } from '../palette';
+} from '../../presets/relationStyle';
+import { thinkingPalette } from '../../presets/palette';
 
 describe('relation vocabulary', () => {
   it('exposes the controlled vocabulary including references default', () => {
