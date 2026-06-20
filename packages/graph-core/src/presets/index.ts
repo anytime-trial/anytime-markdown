@@ -90,4 +90,15 @@ export type {
   NoteGraphOptions,
   NoteGraphEdgeLayers,
   NoteNeighborhoodOptions,
+  NoteRelatedEntry,
 } from './noteGraph';
+
+// 型付きノート関係の語彙・スタイル
+export {
+  RELATION_TYPES,
+  DEFAULT_RELATION_TYPE,
+  isRelationType,
+  coerceRelationType,
+  relationEdgeStyle,
+} from './relationStyle';
+export type { RelationType, RelatedRef, RelationEdgeStyle } from './relationStyle';
