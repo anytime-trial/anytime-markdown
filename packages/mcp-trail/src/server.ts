@@ -684,7 +684,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'query_code_graph',
     {
       description:
-        'Find code-graph nodes matching a keyword (id/label substring). Use to locate where a symbol/file lives before reading. Returns { nodes, edges, nodeTotal, truncated }. depth controls neighbor expansion (default 1; keep small to stay cheap); nodes capped at `limit` (default 30).',
+        'Find code-graph nodes matching a keyword (id/label substring). Use to locate where a symbol/file lives before reading. Returns { nodes, edges, nodeTotal, truncated }. depth controls neighbor expansion (default 1; keep small to stay cheap); nodes capped at `limit` (default 30); edges are returned in full, so when truncated some edges may reference nodes beyond the returned list.',
       inputSchema: {
         q: z.string().describe('Keyword to match against node id/label'),
         depth: z.number().int().min(0).max(3).default(1).describe('Neighbor hops (default 1)'),

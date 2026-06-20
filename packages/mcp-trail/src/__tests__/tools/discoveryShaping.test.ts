@@ -92,6 +92,7 @@ describe('capQueryResult', () => {
     expect(out.nodes).toEqual(['a', 'b']);
     expect(out.nodeTotal).toBe(3);
     expect(out.truncated).toBe(true);
+    expect(out.edges).toEqual([{ source: 'a', target: 'b' }]);
   });
   test('limit 以内は truncated=false', () => {
     expect(capQueryResult(raw, 10).truncated).toBe(false);
