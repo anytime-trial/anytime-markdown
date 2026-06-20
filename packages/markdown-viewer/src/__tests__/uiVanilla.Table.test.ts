@@ -80,6 +80,20 @@ describe("ui-vanilla/Table", () => {
     expect(document.body.contains(ctrl.el)).toBe(false);
   });
 
+  it("applies small size padding and font to header and body cells", () => {
+    const { el } = createTable({
+      columns,
+      rows: [{ name: "a", count: "1" }],
+      size: "small",
+    });
+    const th = el.querySelector("thead th") as HTMLElement;
+    expect(th.style.cssText).toContain("6px 8px");
+    expect(th.style.cssText).toContain("0.8125rem");
+    const td = el.querySelector("tbody td") as HTMLElement;
+    expect(td.style.cssText).toContain("6px 8px");
+    expect(td.style.cssText).toContain("0.8125rem");
+  });
+
   it("uses theme CSS variables for colors", () => {
     const { el } = createTable({ columns, rows: [{ name: "a", count: "1" }] });
     const th = el.querySelector("thead th") as HTMLElement;
