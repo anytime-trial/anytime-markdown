@@ -264,6 +264,35 @@ export async function analyzeCurrentCodeWithProgress(
 }
 
 // ---------------------------------------------------------------------------
+//  Discovery / code-graph query API
+// ---------------------------------------------------------------------------
+
+/** GraphQueryEngine.explain の結果（{ node, incoming, outgoing }）。影響範囲調査に使う。 */
+export async function getCodeGraphExplain(
+  serverUrl: string,
+  nodeId: string,
+  repoName: string,
+): Promise<unknown> {
+  return request(
+    serverUrl,
+    `/api/code-graph/explain?id=${encodeURIComponent(nodeId)}&repo=${encodeURIComponent(repoName)}`,
+    'GET',
+  );
+}
+
+/** /api/c4/file-analysis（current tag）の生結果 { entries, elementMatrix }。top-N 射影は呼び出し側。 */
+export async function getFileAnalysis(
+  serverUrl: string,
+  repoName: string,
+): Promise<{ entries: unknown[]; elementMatrix: unknown }> {
+  return request(
+    serverUrl,
+    `/api/c4/file-analysis?repo=${encodeURIComponent(repoName)}&tag=current`,
+    'GET',
+  );
+}
+
+// ---------------------------------------------------------------------------
 //  Community summary / mapping API
 // ---------------------------------------------------------------------------
 

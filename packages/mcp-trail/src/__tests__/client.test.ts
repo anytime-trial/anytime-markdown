@@ -19,6 +19,8 @@ import {
   listCommunities,
   upsertCommunitySummaries,
   upsertCommunityMappings,
+  getCodeGraphExplain,
+  getFileAnalysis,
 } from '../client';
 
 const ORIGINAL_FETCH = globalThis.fetch;
@@ -408,6 +410,24 @@ describe('client.ts', () => {
       expect(res.progressLog).toHaveLength(1);
       expect(res.progressLog[0].phase).toBe('build');
       expect(res.progressLog[0].percent).toBe(50);
+    });
+  });
+
+  describe('discovery HTTP callers', () => {
+    test('getCodeGraphExplain → GET /api/code-graph/explain?id=&repo=', async () => {
+      const payload = { node: { id: 'a.ts' }, incoming: [], outgoing: [] };
+      const fetchMock = mockFetch([{ ok: true, status: 200, body: payload }]);
+      const out = await getCodeGraphExplain(URL, 'pkg/a.ts', 'repo1');
+      expect(out).toEqual(payload);
+      expect(fetchMock.mock.calls[0][0]).toBe(`${URL}/api/code-graph/explain?id=pkg%2Fa.ts&repo=repo1`);
+    });
+
+    test('getFileAnalysis → GET /api/c4/file-analysis?repo=&tag=current', async () => {
+      const payload = { entries: [], elementMatrix: {} };
+      const fetchMock = mockFetch([{ ok: true, status: 200, body: payload }]);
+      const out = await getFileAnalysis(URL, 'repo1');
+      expect(out).toEqual(payload);
+      expect(fetchMock.mock.calls[0][0]).toBe(`${URL}/api/c4/file-analysis?repo=repo1&tag=current`);
     });
   });
 
