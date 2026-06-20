@@ -715,6 +715,17 @@ const CSS = `
 .trv-scroll::-webkit-scrollbar-track { background: transparent; }
 .trv-scroll::-webkit-scrollbar-thumb { background: var(--trv-color-divider); border-radius: 3px; }
 .trv-scroll::-webkit-scrollbar-thumb:hover { background: var(--trv-color-text-secondary); }
+
+/* ---- Prompt markdown preview (dangerouslySetInnerHTML 出力の装飾。inline style では擬似子孫を表現できないため CSS で) ---- */
+.prompt-markdown-preview pre { overflow: auto; padding: 12px; border-radius: 4px; background: var(--trv-color-action-hover); font-size: 13px; }
+.prompt-markdown-preview code { font-family: monospace; font-size: 0.9em; }
+.prompt-markdown-preview :not(pre) > code { padding: 2px 4px; border-radius: 4px; background: var(--trv-color-action-hover); }
+.prompt-markdown-preview table { border-collapse: collapse; width: 100%; }
+.prompt-markdown-preview th, .prompt-markdown-preview td { border: 1px solid var(--trv-color-divider); padding: 4px 8px; }
+.prompt-markdown-preview blockquote { border-left: 4px solid var(--trv-color-divider); margin-left: 0; padding-left: 16px; color: var(--trv-color-text-secondary); }
+.prompt-markdown-preview img { max-width: 100%; }
+.prompt-markdown-preview a { color: var(--trv-color-primary-main); }
+.prompt-markdown-preview h1, .prompt-markdown-preview h2, .prompt-markdown-preview h3, .prompt-markdown-preview h4, .prompt-markdown-preview h5, .prompt-markdown-preview h6 { margin-top: 16px; margin-bottom: 8px; line-height: 1.3; }
 `;
 
 /**

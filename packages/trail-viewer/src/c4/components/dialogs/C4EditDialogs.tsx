@@ -95,8 +95,9 @@ const ServiceCard = memo(({ entry, selected, onClick }: Readonly<ServiceCardProp
       cursor: 'pointer',
       border: '1px solid',
       borderColor: selected ? 'primary.main' : 'divider',
-      bgcolor: selected ? 'primary.main' + '1a' : 'transparent',
-      '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
+      bgcolor: selected ? 'primary.bg' : 'transparent',
+      // TODO(mui-removal): dropped pseudo sx '&:hover' (border/bg)
+      transition: 'border-color 150ms, background-color 150ms',
     }}
   >
     {entry.iconBody ? (

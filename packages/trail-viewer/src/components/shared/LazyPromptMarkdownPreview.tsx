@@ -1,4 +1,4 @@
-import { Box } from '../../ui';
+import { Box, injectTrailUiStyles } from '../../ui';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { useMemo } from 'react';
@@ -29,11 +29,14 @@ export function LazyPromptMarkdownPreview({
     content,
     height,
 }: Readonly<LazyPromptMarkdownPreviewProps>) {
+    injectTrailUiStyles();
     const html = useMemo(() => {
         const rendered = marked.parse(content, { async: false });
         return DOMPurify.sanitize(rendered);
     }, [content]);
 
+    // 子孫要素（pre/code/table/a/blockquote/h*）の装飾は inline style では表現できないため、
+    // injectTrailUiStyles の `.prompt-markdown-preview *` ルールで適用する（CSS 変数追従）。
     return (
         <Box
             className="prompt-markdown-preview"
@@ -46,51 +49,6 @@ export function LazyPromptMarkdownPreview({
                 fontSize: 14,
                 lineHeight: 1.6,
                 wordBreak: 'break-word',
-                '& pre': {
-                    overflow: 'auto',
-                    p: 1.5,
-                    borderRadius: 1,
-                    bgcolor: 'action.hover',
-                    fontSize: 13,
-                },
-                '& code': {
-                    fontFamily: 'monospace',
-                    fontSize: '0.9em',
-                },
-                '& :not(pre) > code': {
-                    px: 0.5,
-                    py: '2px',
-                    borderRadius: '4px',
-                    bgcolor: 'action.hover',
-                },
-                '& table': {
-                    borderCollapse: 'collapse',
-                    width: '100%',
-                },
-                '& th, & td': {
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    px: 1,
-                    py: 0.5,
-                },
-                '& blockquote': {
-                    borderLeft: '4px solid',
-                    borderColor: 'divider',
-                    ml: 0,
-                    pl: 2,
-                    color: 'text.secondary',
-                },
-                '& img': {
-                    maxWidth: '100%',
-                },
-                '& a': {
-                    color: 'primary.main',
-                },
-                '& h1, & h2, & h3, & h4, & h5, & h6': {
-                    mt: 2,
-                    mb: 1,
-                    lineHeight: 1.3,
-                },
             }}
             // marked 出力を DOMPurify.sanitize 済み。
             dangerouslySetInnerHTML={{ __html: html }}

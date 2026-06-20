@@ -31,6 +31,9 @@ const COLOR_TOKEN_MAP: Record<string, string> = {
   "background.default": "var(--trv-color-bg-default)",
   "action.hover": "var(--trv-color-action-hover)",
   "action.selected": "var(--trv-color-action-selected)",
+  "action.disabled": "var(--trv-color-text-disabled)",
+  "action.active": "var(--trv-color-text-secondary)",
+  "primary.bg": "var(--trv-color-primary-bg)",
 };
 
 /** MUI テーマ色トークン文字列なら CSS 変数へ、そうでなければそのまま返す。 */

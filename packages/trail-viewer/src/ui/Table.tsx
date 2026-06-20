@@ -59,9 +59,22 @@ export interface TableRowProps extends HTMLAttributes<HTMLTableRowElement> {
   readonly onClick?: () => void;
   readonly sx?: Record<string, unknown>;
 }
-export function TableRow({ children, selected: _selected, hover: _hover, style, className, sx, onClick, ...rest }: Readonly<TableRowProps>) {
+export function TableRow({ children, selected = false, hover: _hover, style, className, sx, onClick, ...rest }: Readonly<TableRowProps>) {
   injectTrailUiStyles();
-  return <tr style={{ ...sxToStyle(sx), ...style }} className={className} onClick={onClick} {...rest}>{children}</tr>;
+  // selected 行は action-selected 背景でハイライト（MUI TableRow selected 相当）。
+  const selectedStyle: CSSProperties = selected
+    ? { backgroundColor: "var(--trv-color-action-selected)" }
+    : {};
+  return (
+    <tr
+      style={{ ...selectedStyle, ...sxToStyle(sx), ...style }}
+      className={className}
+      onClick={onClick}
+      {...rest}
+    >
+      {children}
+    </tr>
+  );
 }
 
 /* ---- TableCell ---- */
