@@ -2,6 +2,7 @@ import { createRemoteMcpServer } from '../server';
 
 // cms-core のモック
 const mockUploadReport = jest.fn().mockResolvedValue({ key: 'reports/test.md', name: 'test.md' });
+const mockGetReport = jest.fn().mockResolvedValue({ key: 'reports/test.md', name: 'test.md', content: '# Daily Report body' });
 const mockListReportKeys = jest.fn().mockResolvedValue([{ key: 'reports/test.md', name: 'test.md', size: 100 }]);
 const mockUploadDoc = jest.fn().mockResolvedValue({ key: 'docs/test.md', name: 'test.md' });
 const mockListDocs = jest.fn().mockResolvedValue([{ key: 'docs/test.md', name: 'test.md', size: 200 }]);
@@ -12,6 +13,7 @@ const mockListPatentFiles = jest.fn().mockResolvedValue([{ key: 'patents/monthly
 
 jest.mock('@anytime-markdown/cms-core', () => ({
   uploadReport: (...args: unknown[]) => mockUploadReport(...args),
+  getReport: (...args: unknown[]) => mockGetReport(...args),
   listReportKeys: (...args: unknown[]) => mockListReportKeys(...args),
   uploadDoc: (...args: unknown[]) => mockUploadDoc(...args),
   listDocs: (...args: unknown[]) => mockListDocs(...args),
@@ -93,6 +95,23 @@ describe('createRemoteMcpServer', () => {
       expect(result.content[0].type).toBe('text');
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed).toEqual([{ key: 'reports/test.md', name: 'test.md', size: 100 }]);
+    });
+  });
+
+  describe('get_report tool', () => {
+    it('should call getReport and return content as text', async () => {
+      const server = createRemoteMcpServer(mockS3Client, mockConfig);
+      const result = await callTool(server, 'get_report', {
+        fileName: '2026-04-01-daily.md',
+      }) as { content: Array<{ type: string; text: string }> };
+
+      expect(mockGetReport).toHaveBeenCalledWith(
+        { fileName: '2026-04-01-daily.md' },
+        mockS3Client,
+        mockConfig,
+      );
+      expect(result.content[0].type).toBe('text');
+      expect(result.content[0].text).toBe('# Daily Report body');
     });
   });
 

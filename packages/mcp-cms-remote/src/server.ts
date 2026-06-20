@@ -6,6 +6,7 @@ import {
   type CmsConfig,
   deleteDoc,
   getPatentFile,
+  getReport,
   listDocs,
   listPatentFiles,
   listReportKeys,
@@ -52,6 +53,10 @@ const uploadReportParams: Record<string, z.ZodType> = {
   content: z.string().describe('Markdown file content as UTF-8 string'),
 };
 
+const getReportParams: Record<string, z.ZodType> = {
+  fileName: z.string().describe('File name (e.g. "2026-03-28-daily-research.md")'),
+};
+
 const uploadDocParams: Record<string, z.ZodType> = {
   fileName: z.string().describe('File name (e.g. "guide.md" or "diagram.png")'),
   content: z.string().describe('File content: UTF-8 string for .md, base64-encoded string for images'),
@@ -93,6 +98,13 @@ export function createRemoteMcpServer(
     {}, async () => {
       const reports = await listReportKeys(client, config);
       return { content: [{ type: 'text', text: JSON.stringify(reports, null, 2) }] };
+    });
+
+  registerTool(server, 'get_report', 'Get the Markdown content of a report from S3 reports prefix',
+    getReportParams, async (args) => {
+      const fileName = args.fileName as string;
+      const result = await getReport({ fileName }, client, config);
+      return { content: [{ type: 'text', text: result.content }] };
     });
 
   registerTool(server, 'upload_doc', 'Upload a document or image to S3 docs prefix',
