@@ -7,6 +7,7 @@ import { drawBars } from "./render/bar";
 import { drawScatterSeries } from "./render/scatter";
 import { drawAreaSeries } from "./render/area";
 import { drawPie } from "./render/pie";
+import { drawMarkers } from "./render/markers";
 import { drawAdjacentLegend, drawNearLineLabels } from "./render/legend";
 
 function finiteValues(series: ReadonlyArray<Series>): number[] {
@@ -57,7 +58,15 @@ export function renderChart(
   // 第2Y軸: combo / line のみ対応（棒の積み上げ・面の積み上げと右軸の併用は破綻するため除外）。
   const supportsDualAxis = spec.kind === "combo" || spec.kind === "line";
   const hasRight = supportsDualAxis && spec.series.some((s) => s.axis === "right");
-  const plot = computePlotRect(rect, { hasTitle, legend, hasRightAxis: hasRight });
+  const yAxisLabel = spec.options?.yAxis?.label;
+  const yAxisRightLabel = spec.options?.yAxisRight?.label;
+  const plot = computePlotRect(rect, {
+    hasTitle,
+    legend,
+    hasRightAxis: hasRight,
+    hasYAxisLabel: Boolean(yAxisLabel) && spec.kind !== "pie",
+    hasRightAxisLabel: Boolean(yAxisRightLabel) && hasRight,
+  });
 
   // 背景
   ctx.save();
@@ -95,14 +104,25 @@ export function renderChart(
   }
 
   const stacked = Boolean(spec.options?.stacked) && (spec.kind === "bar" || spec.kind === "area");
+  // combo の stacked は棒系列のみ積み上げる（line/area 系列は積まない）。
+  const comboStacked = spec.kind === "combo" && spec.options?.stacked === true;
 
   // 左右軸スケール: 左＝right 以外の系列、右＝right 系列。右が無ければ左単一軸。
   const leftSeries = hasRight ? spec.series.filter((s) => s.axis !== "right") : spec.series;
   const rightSeries = hasRight ? spec.series.filter((s) => s.axis === "right") : [];
-  const leftMax = stacked ? stackedMax(leftSeries) : Math.max(0, ...finiteValues(leftSeries));
+  /** combo stacked では棒系列を積み上げ和、その他系列は素の最大で評価する。 */
+  const axisMax = (list: ReadonlyArray<Series>): number => {
+    if (comboStacked) {
+      const bars = list.filter((s) => (s.type ?? "bar") === "bar");
+      const rest = list.filter((s) => (s.type ?? "bar") !== "bar");
+      return Math.max(stackedMax(bars), 0, ...finiteValues(rest));
+    }
+    return stacked ? stackedMax(list) : Math.max(0, ...finiteValues(list));
+  };
+  const leftMax = axisMax(leftSeries);
   const leftTicks = niceTicks(0, leftMax, 5);
   const leftScale = linearScale([0, leftTicks.at(-1) ?? 1], [plot.y + plot.height, plot.y]);
-  const rightTicks = niceTicks(0, Math.max(0, ...finiteValues(rightSeries)), 5);
+  const rightTicks = niceTicks(0, axisMax(rightSeries), 5);
   const rightScale = linearScale([0, rightTicks.at(-1) ?? 1], [plot.y + plot.height, plot.y]);
   /** 系列の数量軸スケール（right 系列は右軸、それ以外は左軸）。 */
   const scaleFor = (s: Series): ((v: number) => number) =>
@@ -120,8 +140,8 @@ export function renderChart(
     spec.kind === "scatter"
       ? []
       : Array.from({ length: lineBarCount }, (_, i) => spec.categories?.[i] ?? "");
-  drawAxes(ctx, plot, leftTicks, leftScale, xLabels, theme);
-  if (hasRight) drawRightAxis(ctx, plot, rightTicks, rightScale, theme);
+  drawAxes(ctx, plot, leftTicks, leftScale, xLabels, theme, yAxisLabel);
+  if (hasRight) drawRightAxis(ctx, plot, rightTicks, rightScale, theme, yAxisRightLabel);
 
   // 参照値帯
   const band = spec.options?.referenceBand;
@@ -133,6 +153,11 @@ export function renderChart(
     const y1 = leftScale(band.from);
     ctx.fillRect(plot.x, Math.min(y0, y1), plot.width, Math.abs(y1 - y0));
     ctx.restore();
+  }
+
+  // イベント印（系列の背後に縦線/ドットで重ねる）
+  if (spec.markers && spec.markers.length > 0) {
+    drawMarkers(ctx, plot, xLabels, spec.markers, theme);
   }
 
   const points: PlottedPoint[] = [];
@@ -154,21 +179,28 @@ export function renderChart(
       pointsBySeries.push(sp);
     });
   } else if (spec.kind === "combo") {
-    // bar 系列（集合）を描いた上に line 系列を重ねる。色は元の系列インデックスで一貫させる。
+    // bar（背面）→ area → line（前面）の順に重ねる。色は元の系列インデックスで一貫させる。
     const bandW = plot.width / lineBarCount;
     const categoryX = (i: number) => plot.x + bandW * (i + 0.5);
     const barEntries: { s: Series; i: number }[] = [];
     const lineEntries: { s: Series; i: number }[] = [];
+    const areaEntries: { s: Series; i: number }[] = [];
     spec.series.forEach((s, i) => {
       const colored: Series = s.color ? s : { ...s, color: theme.palette.series[i % theme.palette.series.length] };
-      if ((s.type ?? "bar") === "line") lineEntries.push({ s: colored, i });
+      const t = s.type ?? "bar";
+      if (t === "line") lineEntries.push({ s: colored, i });
+      else if (t === "area") areaEntries.push({ s: colored, i });
       else barEntries.push({ s: colored, i });
     });
     // 棒群は1スケールを共有。代表軸は棒系列の axis で判定（全 right なら右軸）。
     const comboBarScale =
       hasRight && barEntries.length > 0 && barEntries.every((e) => e.s.axis === "right") ? rightScale : leftScale;
-    const bp = drawBars(ctx, plot, barEntries.map((e) => e.s), theme, comboBarScale, { grouped: true });
+    const bp = drawBars(ctx, plot, barEntries.map((e) => e.s), theme, comboBarScale, comboStacked ? { stacked: true } : { grouped: true });
     for (const p of bp) points.push({ ...p, seriesIndex: barEntries[p.seriesIndex]?.i ?? p.seriesIndex });
+    for (const e of areaEntries) {
+      const ap = drawAreaSeries(ctx, plot, [e.s], theme, scaleFor(e.s), categoryX, { stacked: false });
+      for (const p of ap) points.push({ ...p, seriesIndex: e.i });
+    }
     for (const e of lineEntries) {
       const lp = drawLineSeries(ctx, plot, e.s, e.i, theme, scaleFor(e.s), categoryX);
       points.push(...lp);

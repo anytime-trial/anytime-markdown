@@ -210,4 +210,72 @@ describe("renderChart", () => {
     const layout = renderChart(ctxStub(), rect, { kind: "line", series: [] }, theme);
     expect(layout.points).toHaveLength(0);
   });
+
+  it("yAxis.label / yAxisRight.label を spec に保持し例外を投げない", () => {
+    const spec: ChartSpec = {
+      kind: "line",
+      categories: ["A", "B"],
+      series: [
+        { name: "left", axis: "left", values: [1, 2] },
+        { name: "right", axis: "right", values: [10, 20] },
+      ],
+      options: { yAxis: { label: "件数" }, yAxisRight: { label: "%" } },
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.spec.options?.yAxis?.label).toBe("件数");
+    expect(layout.spec.options?.yAxisRight?.label).toBe("%");
+    // ラベルぶん左余白が広がる（プロット幅は素のときより狭い）
+    const bare = renderChart(ctxStub(), rect, { ...spec, options: {} }, theme);
+    expect(layout.plotRect.width).toBeLessThan(bare.plotRect.width);
+  });
+
+  it("combo + options.stacked は棒を積み上げ、line を重ねる", () => {
+    const spec: ChartSpec = {
+      kind: "combo",
+      categories: ["Jan", "Feb"],
+      series: [
+        { name: "A", type: "bar", values: [1, 2] },
+        { name: "B", type: "bar", values: [3, 4] },
+        { name: "C", type: "line", values: [5, 6] },
+      ],
+      options: { stacked: true },
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.points).toHaveLength(6); // bar 2系列×2カテゴリ(4) + line 2
+    // 積み上げ: 同カテゴリの2棒は別 y（B が A の上に乗る）
+    const a0 = layout.points.find((p) => p.seriesIndex === 0 && p.dataIndex === 0)!;
+    const b0 = layout.points.find((p) => p.seriesIndex === 1 && p.dataIndex === 0)!;
+    expect(b0.cy).toBeLessThan(a0.cy); // B(上)の top は A(下)の top より上
+  });
+
+  it("combo は bar + area + line の3系列を描く", () => {
+    const spec: ChartSpec = {
+      kind: "combo",
+      categories: ["A", "B"],
+      series: [
+        { name: "Sales", type: "bar", values: [10, 20] },
+        { name: "Cum", type: "area", values: [5, 8] },
+        { name: "Target", type: "line", values: [15, 25] },
+      ],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.points).toHaveLength(6); // 2 bar + 2 area + 2 line
+    // area 系列の点は元インデックス1で引ける
+    expect(layout.points.some((p) => p.seriesIndex === 1)).toBe(true);
+  });
+
+  it("markers を spec に保持し、描画でクラッシュしない", () => {
+    const spec: ChartSpec = {
+      kind: "line",
+      categories: ["Jan", "Feb", "Mar"],
+      series: [{ name: "A", values: [1, 2, 3] }],
+      markers: [
+        { xIndex: 1, label: "v1.0", style: "line", color: "#f00" },
+        { xIndex: 2, style: "point" },
+      ],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    expect(layout.spec.markers).toHaveLength(2);
+    expect(layout.points).toHaveLength(3); // マーカーは系列点に影響しない
+  });
 });
