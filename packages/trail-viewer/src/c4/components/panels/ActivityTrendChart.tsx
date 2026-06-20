@@ -5,22 +5,14 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Typography from '@mui/material/Typography';
-import { BarPlot } from '@mui/x-charts/BarChart';
-import { ChartsDataProvider } from '@mui/x-charts/ChartsDataProvider';
-import { ChartsSurface } from '@mui/x-charts/ChartsSurface';
-import { ChartsWrapper } from '@mui/x-charts/ChartsWrapper';
-import { ChartsAxisHighlight } from '@mui/x-charts/ChartsAxisHighlight';
-import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
-import { ChartsTooltip } from '@mui/x-charts/ChartsTooltip';
-import { ChartsXAxis } from '@mui/x-charts/ChartsXAxis';
-import { ChartsYAxis } from '@mui/x-charts/ChartsYAxis';
-import { LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
+import type { ChartSpec, Series } from '@anytime-markdown/chart-core';
 import { useMemo, useState } from 'react';
 
 import { useTrailI18n } from '../../../i18n/context';
 import type { ActivityTrendResponse } from '../../hooks/fetchActivityTrendApi';
 import { useActivityTrend } from '../../hooks/useActivityTrend';
 import { ACTIVITY_TREND_COLORS } from '../../c4MetricColors';
+import { AnytimeChartView } from '../../../components/analytics/charts/AnytimeChartView';
 
 const PERIOD_OPTIONS: ReadonlyArray<Exclude<TrendPeriod, 'all'>> = ['7d', '30d', '90d'];
 
@@ -175,37 +167,22 @@ export function ActivityTrendChart({
   const error = commitTrend.error ?? readTrend.error ?? writeTrend.error ?? defectTrend.error;
   const loading = commitTrend.loading || readTrend.loading || writeTrend.loading || defectTrend.loading;
   const legendItems = chartProps?.series ?? [];
-  const chartDataset = useMemo(() => {
+  const spec = useMemo<ChartSpec | null>(() => {
     if (!chartProps) return null;
-    return chartProps.xs.map((date, index) => ({
-      date,
-      commit: chartProps.series[0]?.data[index] ?? 0,
-      read: chartProps.series[1]?.data[index] ?? 0,
-      write: chartProps.series[2]?.data[index] ?? 0,
-      defect: chartProps.series[3]?.data[index] ?? 0,
+    const series: Series[] = chartProps.series.map((s) => ({
+      name: s.label,
+      type: s.kind, // 'line' | 'bar'
+      color: s.color,
+      axis: s.yAxisId,
+      values: [...s.data],
     }));
-  }, [chartProps]);
-  const chartSeries = useMemo(() => {
-    if (!chartProps) return [];
-    return chartProps.series.map((series) => {
-      if (series.kind === 'bar') {
-        return {
-          type: 'bar' as const,
-          dataKey: series.key,
-          label: series.label,
-          color: series.color,
-          yAxisId: series.yAxisId,
-        };
-      }
-      return {
-        type: 'line' as const,
-        dataKey: series.key,
-        label: series.label,
-        color: series.color,
-        yAxisId: series.yAxisId,
-        showMark: true,
-      };
-    });
+    return {
+      kind: 'combo',
+      categories: chartProps.xs.map(formatTrendDate),
+      series,
+      // 凡例は左の自前 Box で描くため chart-core 側は抑制。
+      options: { legend: 'none' },
+    };
   }, [chartProps]);
 
   if (!elementId) return null;
@@ -287,34 +264,9 @@ export function ActivityTrendChart({
               {t('c4.trend.loading')}
             </Typography>
           )}
-          {chartProps && (
+          {spec && (
             <Box sx={{ width: '100%', minHeight: 200 }}>
-              <ChartsDataProvider
-                dataset={chartDataset ?? []}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                series={chartSeries as any}
-                xAxis={[{ id: 'date', scaleType: 'band', dataKey: 'date', valueFormatter: formatTrendDate }]}
-                yAxis={[
-                  { id: 'left', min: 0 },
-                  { id: 'right', min: 0, position: 'right' as const, width: 48 },
-                ]}
-                height={200}
-                margin={{ left: 36, right: 56, top: 16, bottom: 28 }}
-              >
-                <ChartsWrapper hideLegend>
-                  <ChartsSurface>
-                    <ChartsGrid horizontal />
-                    <BarPlot />
-                    <LinePlot />
-                    <MarkPlot />
-                    <ChartsAxisHighlight x="band" />
-                    <ChartsXAxis axisId="date" />
-                    <ChartsYAxis axisId="left" />
-                    <ChartsYAxis axisId="right" />
-                  </ChartsSurface>
-                  <ChartsTooltip />
-                </ChartsWrapper>
-              </ChartsDataProvider>
+              <AnytimeChartView spec={spec} height={200} isDark={isDark} />
             </Box>
           )}
         </Box>

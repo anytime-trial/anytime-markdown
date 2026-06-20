@@ -119,12 +119,13 @@ export function renderChart(
   // 左右軸スケール: 左＝right 以外の系列、右＝right 系列。右が無ければ左単一軸。
   const leftSeries = hasRight ? spec.series.filter((s) => s.axis !== "right") : spec.series;
   const rightSeries = hasRight ? spec.series.filter((s) => s.axis === "right") : [];
-  /** combo stacked では棒系列を積み上げ和、その他系列は素の最大で評価する。 */
+  /** combo stacked では棒系列・面系列をそれぞれ積み上げ和、折れ線は素の最大で評価する。 */
   const axisMax = (list: ReadonlyArray<Series>): number => {
     if (comboStacked) {
       const bars = list.filter((s) => (s.type ?? "bar") === "bar");
-      const rest = list.filter((s) => (s.type ?? "bar") !== "bar");
-      return Math.max(stackedMax(bars), 0, ...finiteValues(rest));
+      const areas = list.filter((s) => s.type === "area");
+      const lines = list.filter((s) => s.type === "line");
+      return Math.max(stackedMax(bars), stackedMax(areas), 0, ...finiteValues(lines));
     }
     return stacked ? stackedMax(list) : Math.max(0, ...finiteValues(list));
   };
@@ -206,9 +207,11 @@ export function renderChart(
       hasRight && barEntries.length > 0 && barEntries.every((e) => e.s.axis === "right") ? rightScale : leftScale;
     const bp = drawBars(ctx, plot, barEntries.map((e) => e.s), theme, comboBarScale, comboStacked ? { stacked: true } : { grouped: true });
     for (const p of bp) points.push({ ...p, seriesIndex: barEntries[p.seriesIndex]?.i ?? p.seriesIndex });
-    for (const e of areaEntries) {
-      const ap = drawAreaSeries(ctx, plot, [e.s], theme, scaleFor(e.s), categoryX, { stacked: false });
-      for (const p of ap) points.push({ ...p, seriesIndex: e.i });
+    if (areaEntries.length > 0) {
+      // 面群は代表軸（先頭 area の axis）を共有し、combo stacked のとき積み上げる。
+      const areaScale = scaleFor(areaEntries[0].s);
+      const ap = drawAreaSeries(ctx, plot, areaEntries.map((e) => e.s), theme, areaScale, categoryX, { stacked: comboStacked });
+      for (const p of ap) points.push({ ...p, seriesIndex: areaEntries[p.seriesIndex]?.i ?? p.seriesIndex });
     }
     for (const e of lineEntries) {
       const lp = drawLineSeries(ctx, plot, e.s, e.i, theme, scaleFor(e.s), categoryX);

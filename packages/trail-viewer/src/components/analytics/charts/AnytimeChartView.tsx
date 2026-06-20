@@ -20,18 +20,22 @@ export function AnytimeChartView({
   height = 300,
   palette,
   onCategoryClick,
+  isDark: isDarkProp,
 }: Readonly<{
   spec: ChartSpec;
   height?: number;
   palette?: string;
   /** カテゴリ（分類軸バンド）クリック時に dataIndex を返す（日付ドリルダウン等）。 */
   onCategoryClick?: (dataIndex: number) => void;
+  /** TrailThemeProvider 外で使う場合の明示テーマ（省略時は Context の isDark）。 */
+  isDark?: boolean;
 }>) {
   const hostRef = useRef<HTMLDivElement>(null);
   const elRef = useRef<AnytimeChartElement | null>(null);
   const clickRef = useRef(onCategoryClick);
   clickRef.current = onCategoryClick;
-  const { isDark } = useTrailTheme();
+  const ctxDark = useTrailTheme().isDark;
+  const isDark = isDarkProp ?? ctxDark;
 
   useEffect(() => {
     let cancelled = false;
