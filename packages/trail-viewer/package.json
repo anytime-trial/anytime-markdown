@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./parser": "./src/domain/parser/index.ts",
-    "./supabase": "./src/supabase/index.ts"
+    "./supabase": "./src/supabase/index.ts",
+    "./ui": "./src/ui/index.ts"
   },
   "dependencies": {
     "@anytime-markdown/chart-core": "*",

@@ -1,0 +1,25 @@
+import type { CSSProperties, ElementType, HTMLAttributes, ReactNode } from "react";
+import { forwardRef } from "react";
+
+import { injectTrailUiStyles } from "./injectStyles";
+
+export interface BoxProps extends HTMLAttributes<HTMLDivElement> {
+  readonly style?: CSSProperties;
+  readonly className?: string;
+  readonly children?: ReactNode;
+  /** MUI 互換: 無視して常に div を描画する。 */
+  readonly component?: ElementType;
+}
+
+/** MUI Box の最小置換。`sx` は廃し、レイアウトは呼び出し側の `style` で表現する。 */
+export const Box = forwardRef<HTMLDivElement, Readonly<BoxProps>>(function Box(
+  { className, children, component: _component, ...rest },
+  ref,
+) {
+  injectTrailUiStyles();
+  return (
+    <div ref={ref} className={className} {...rest}>
+      {children}
+    </div>
+  );
+});
