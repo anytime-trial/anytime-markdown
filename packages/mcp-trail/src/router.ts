@@ -42,12 +42,27 @@ const ANALYZE_TOOLS = new Set([
   'get_analyze_status',
 ]);
 
+const DISCOVERY_TOOLS = new Set([
+  'get_code_dependencies',
+  'get_important_files',
+]);
+
 export async function route(
   toolName: string,
   args: Record<string, unknown>,
   opts: RouteOpts,
 ): Promise<unknown> {
   if (ANALYZE_TOOLS.has(toolName)) {
+    const alive = opts.forceDirect ? false : await probeServerAlive(opts.serverUrl);
+    if (!alive) {
+      throw new Error(
+        'TrailDataServer not running. Start "Anytime Trail" sidebar in VS Code or run "Anytime Trail: コード解析" command first.',
+      );
+    }
+    return invokeHttp(toolName, args, opts);
+  }
+
+  if (DISCOVERY_TOOLS.has(toolName)) {
     const alive = opts.forceDirect ? false : await probeServerAlive(opts.serverUrl);
     if (!alive) {
       throw new Error(
@@ -287,6 +302,14 @@ async function invokeHttp(
       return httpClient.analyzeAll(serverUrl);
     case 'get_analyze_status':
       return httpClient.getAnalyzeStatus(serverUrl);
+    case 'get_code_dependencies':
+      return httpClient.getCodeGraphExplain(
+        serverUrl,
+        (args as { nodeId: string }).nodeId,
+        repoName,
+      );
+    case 'get_important_files':
+      return httpClient.getFileAnalysis(serverUrl, repoName);
     default:
       throw new Error(`Unhandled HTTP tool: ${toolName}`);
   }
