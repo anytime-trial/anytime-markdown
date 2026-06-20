@@ -19,11 +19,12 @@ test.describe("Sheet Chart — チャート作成と canvas 描画", () => {
     });
     await page.goto("/sheet");
     // スプレッドシートエディタが描画されるまで待つ
-    await page.locator(".sv-root").waitFor({ state: "visible" });
+    await page.locator(".sv-root").first().waitFor({ state: "visible" });
   });
 
   test("スプレッドシートページが正常に表示される", async ({ page }) => {
-    await expect(page.locator(".sv-root")).toBeVisible();
+    // .sv-root はエディタ枠とグリッドで入れ子に 2 つ存在するため外側（エディタ）を対象にする
+    await expect(page.locator(".sv-root").first()).toBeVisible();
   });
 
   test("セル範囲を選択してコンテキストメニューからチャート作成ができる", async ({
@@ -64,7 +65,7 @@ test.describe("Sheet Chart — チャート作成と canvas 描画", () => {
     }, dummyCharts);
 
     await page.goto("/sheet");
-    await page.locator(".sv-root").waitFor({ state: "visible" });
+    await page.locator(".sv-root").first().waitFor({ state: "visible" });
 
     // localStorage の値が保持されていることを確認
     const stored = await page.evaluate(() =>
