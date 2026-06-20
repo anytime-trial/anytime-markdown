@@ -47,6 +47,7 @@ function makeEpisode(overrides: Partial<Episode> = {}): Episode {
 
 function makeExtracted(overrides: Partial<ExtractionResult> = {}): ExtractionResult {
   return {
+    summary: '',
     entities: [],
     relations: [],
     questions: [],
@@ -329,6 +330,53 @@ describe('persistEpisodeFacts', () => {
       expect(stats.edges_inserted).toBe(1);
       // episode_entities: 3 entities (pkg-1, pkg-2, concept-x)
       expect(countRows(db, 'memory_episode_entities')).toBe(3);
+    } finally {
+      db.close();
+    }
+  });
+
+  test('ollama summary is persisted to memory_episodes.summary', () => {
+    const db = makeDb();
+    try {
+      const logger = makeLogger();
+      const episode = makeEpisode();
+      const extracted = makeExtracted({ summary: 'ユーザーは ollama 要約の保存有無を調査した。' });
+
+      persistEpisodeFacts({ db, episode, extracted, recordedAt: TS, logger });
+
+      const epId = episodeId(episode.session_id, episode.message_uuid_start);
+      const rows = db.exec(`SELECT summary FROM memory_episodes WHERE id = ?`, [epId]);
+      expect(rows[0]?.values[0][0]).toBe('ユーザーは ollama 要約の保存有無を調査した。');
+    } finally {
+      db.close();
+    }
+  });
+
+  test('episode summary is updated on conflict (re-ingest refreshes summary)', () => {
+    const db = makeDb();
+    try {
+      const logger = makeLogger();
+      const episode1 = makeEpisode({ message_uuid_end: 'end-uuid-s1' });
+      persistEpisodeFacts({
+        db,
+        episode: episode1,
+        extracted: makeExtracted({ summary: '初回要約' }),
+        recordedAt: TS,
+        logger,
+      });
+
+      const episode2 = makeEpisode({ message_uuid_end: 'end-uuid-s2' });
+      persistEpisodeFacts({
+        db,
+        episode: episode2,
+        extracted: makeExtracted({ summary: '更新後要約' }),
+        recordedAt: TS,
+        logger,
+      });
+
+      const epId = episodeId(episode1.session_id, episode1.message_uuid_start);
+      const rows = db.exec(`SELECT summary FROM memory_episodes WHERE id = ?`, [epId]);
+      expect(rows[0]?.values[0][0]).toBe('更新後要約');
     } finally {
       db.close();
     }

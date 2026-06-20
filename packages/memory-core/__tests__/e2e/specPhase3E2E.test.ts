@@ -166,8 +166,17 @@ describe('runSpecIncremental E2E — Phase 3', () => {
     expect(types).toEqual(['proposal', 'spec', 'tech']);
   }, 60000);
 
-  it('calls mockOllama.generate exactly 1 time (only spec doc has modality keywords)', () => {
-    expect(mockOllama.generate).toHaveBeenCalledTimes(1);
+  it('calls mockOllama.generate 4 times (1 claim extraction + 1 doc summary per 3 docs)', () => {
+    // claim 抽出は modality キーワードを持つ spec.md のみ（1 回）。
+    // 文書全体要約は処理した 3 doc すべてに対して実行する（3 回）。
+    expect(mockOllama.generate).toHaveBeenCalledTimes(4);
+  }, 60000);
+
+  it('populates summary for all 3 spec documents', () => {
+    const rows = memDb.exec(
+      `SELECT summary FROM memory_spec_documents WHERE summary != ''`,
+    );
+    expect((rows[0]?.values ?? []).length).toBe(3);
   }, 60000);
 
   it('inserts mandatory edge for sql.js dependency', () => {
