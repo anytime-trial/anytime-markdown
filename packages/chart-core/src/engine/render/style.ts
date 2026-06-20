@@ -45,8 +45,11 @@ export function drawMarker(
   ctx.fill();
 }
 
-/** 数値を簡潔に整形（桁区切り）。 */
+/** 数値を簡潔に整形。1万以上は k、100万以上は M に短縮し軸ラベル/ツールチップの可読性を保つ。 */
 export function formatValue(v: number): string {
   if (!Number.isFinite(v)) return "";
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (abs >= 10_000) return `${(v / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
   return v.toLocaleString("en-US");
 }

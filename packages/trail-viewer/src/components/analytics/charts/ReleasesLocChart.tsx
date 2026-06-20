@@ -28,8 +28,8 @@ export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly Tra
     kind: 'line',
     categories: dataset.map((d) => d.tag),
     series: [
-      { name: t('releases.totalLoc'), color: colors.iceBlue, values: dataset.map((d) => d.totalLines) },
-      { name: t('releases.releaseTimeMin'), color: colors.warning, axis: 'right', values: dataset.map((d) => d.releaseTimeMin) },
+      { name: t('releases.totalLoc'), color: colors.iceBlue, connectNulls: true, values: dataset.map((d) => d.totalLines) },
+      { name: t('releases.releaseTimeMin'), color: colors.warning, axis: 'right', connectNulls: true, values: dataset.map((d) => d.releaseTimeMin) },
     ],
     options: { yAxis: { label: t('releases.totalLoc') }, yAxisRight: { label: t('releases.releaseTimeMin') } },
   };

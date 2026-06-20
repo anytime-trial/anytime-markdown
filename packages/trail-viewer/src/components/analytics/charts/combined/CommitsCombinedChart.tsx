@@ -147,6 +147,7 @@ export function CommitsCombinedChart({
         type: 'line',
         axis: 'right',
         color: LEAD_TIME_LOC_COLOR,
+        connectNulls: true,
         values: dataset.map((row) => (typeof row.fixRate === 'number' ? row.fixRate : null)),
       };
       return {
@@ -170,6 +171,7 @@ export function CommitsCombinedChart({
           type: 'line',
           axis: 'right',
           color: LEAD_TIME_LOC_COLOR,
+          connectNulls: true,
           values: commitDataset.map((_row, i) => rateByPeriod.get(commitPeriods[i]) ?? null),
         }]
       : [];

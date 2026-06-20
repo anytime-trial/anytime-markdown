@@ -45,9 +45,9 @@ export function ErrorToolsCombinedChart({
     }));
     const lineSeries: Series[] = hasRates
       ? [
-          { name: 'Retry Rate (%)', type: 'line', axis: 'right', color: RETRY_COLOR, values: allPeriods.map((p) => rateByPeriod.get(p)?.retry ?? null) },
-          { name: 'Build Fail (%)', type: 'line', axis: 'right', color: BUILD_FAIL_COLOR, values: allPeriods.map((p) => rateByPeriod.get(p)?.build ?? null) },
-          { name: 'Test Fail (%)', type: 'line', axis: 'right', color: TEST_FAIL_COLOR, values: allPeriods.map((p) => rateByPeriod.get(p)?.test ?? null) },
+          { name: 'Retry Rate (%)', type: 'line', axis: 'right', color: RETRY_COLOR, connectNulls: true, values: allPeriods.map((p) => rateByPeriod.get(p)?.retry ?? null) },
+          { name: 'Build Fail (%)', type: 'line', axis: 'right', color: BUILD_FAIL_COLOR, connectNulls: true, values: allPeriods.map((p) => rateByPeriod.get(p)?.build ?? null) },
+          { name: 'Test Fail (%)', type: 'line', axis: 'right', color: TEST_FAIL_COLOR, connectNulls: true, values: allPeriods.map((p) => rateByPeriod.get(p)?.test ?? null) },
         ]
       : [];
     return {

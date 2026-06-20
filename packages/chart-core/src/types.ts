@@ -26,6 +26,8 @@ export interface Series {
   readonly color?: string;
   /** 目標値などを破線で描く場合 true。 */
   readonly dashed?: boolean;
+  /** line で欠損(null)を跨いで線を連結する（既定 false=欠損で線を切る）。 */
+  readonly connectNulls?: boolean;
   /** 強調しない（減色）系列は false。既定 true。 */
   readonly emphasized?: boolean;
   /** combo グラフでの系列描画種別（既定 "bar"）。 */

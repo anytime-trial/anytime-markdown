@@ -69,6 +69,7 @@ export function LeadTimeOverlay({
       type: 'line',
       axis: 'right',
       color: LEAD_TIME_LOC_COLOR,
+      connectNulls: true,
       values: bucketKeys.map((b) => ratioByBucket.get(b) ?? null),
     }];
     const built: ChartSpec = {

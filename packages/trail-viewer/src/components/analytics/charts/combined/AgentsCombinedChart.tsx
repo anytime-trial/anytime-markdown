@@ -47,8 +47,7 @@ export function AgentsCombinedChart({
         color: agentBrandColors[agent] ?? toolPalette[i % toolPalette.length],
       })),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentRows, agentPeriods, agentLabels, agents, agentMap, agentMetric, toolPalette]);
+  }, [agentRows, agentPeriods, agentLabels, agents, agentMap, agentMetric, toolPalette, t, agentMissingByDisplay]);
 
   return (
     <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>

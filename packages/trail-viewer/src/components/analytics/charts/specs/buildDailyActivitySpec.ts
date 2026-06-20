@@ -57,6 +57,7 @@ export function buildDailyActivitySpec(
           type: 'line',
           axis: 'right',
           color: colors.overlayPerLoc,
+          connectNulls: true,
           values: dataset.map((d) => d.overlayValue),
         },
       ]

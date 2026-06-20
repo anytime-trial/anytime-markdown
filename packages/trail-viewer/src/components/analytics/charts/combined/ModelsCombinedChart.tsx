@@ -48,8 +48,7 @@ export function ModelsCombinedChart({
         color: getModelBrandColor(model) ?? toolPalette[i % toolPalette.length],
       })),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modelRows, modelPeriods, modelLabels, models, modelMap, modelMetric, toolPalette]);
+  }, [modelRows, modelPeriods, modelLabels, models, modelMap, modelMetric, toolPalette, t, modelMissingByDisplay]);
 
   if (models.length === 0) {
     return <Typography variant="body2" color="text.secondary">0</Typography>;

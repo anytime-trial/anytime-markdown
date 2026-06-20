@@ -45,6 +45,18 @@ describe("renderChart", () => {
     expect(layout.points).toHaveLength(2);
   });
 
+  it("connectNulls=true でも欠損は点に含めない（線のみ連結）", () => {
+    const spec: ChartSpec = {
+      kind: "line",
+      categories: ["a", "b", "c"],
+      series: [{ name: "A", connectNulls: true, values: [1, null, 3] }],
+    };
+    const layout = renderChart(ctxStub(), rect, spec, theme);
+    // 欠損カテゴリには点を打たない（描画は跨いで連結するが hit-test 点は2つ）
+    expect(layout.points).toHaveLength(2);
+    expect(layout.points.map((p) => p.dataIndex)).toEqual([0, 2]);
+  });
+
   it("bar の集合グラフは系列×カテゴリぶんの点を返す", () => {
     const spec: ChartSpec = {
       kind: "bar",
