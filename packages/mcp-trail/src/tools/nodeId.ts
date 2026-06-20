@@ -5,6 +5,7 @@
  */
 export function toCodeGraphNodeId(repoName: string, pathOrId: string): string {
   if (pathOrId.includes(':')) return pathOrId;
-  const noExt = pathOrId.replace(/\.[^./]+$/, '');
+  // .d.ts / .d.mts / .d.cts などの複合拡張子を先に除去してから末尾拡張子を剥がす
+  const noExt = pathOrId.replace(/\.d\.[cm]?ts$/, '').replace(/\.[^./]+$/, '');
   return `${repoName}:${noExt}`;
 }

@@ -14,4 +14,7 @@ describe('toCodeGraphNodeId', () => {
   test('拡張子なしパスはそのまま prefix', () => {
     expect(toCodeGraphNodeId('repo', 'a/B')).toBe('repo:a/B');
   });
+  test('.d.ts は複合拡張子をまとめて除去', () => {
+    expect(toCodeGraphNodeId('repo', 'packages/x/Foo.d.ts')).toBe('repo:packages/x/Foo');
+  });
 });

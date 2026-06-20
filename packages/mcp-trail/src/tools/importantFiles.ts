@@ -1,9 +1,9 @@
 export interface FileSignals {
-  orphan: boolean;
-  fanInZero: boolean;
-  noRecentChurn: boolean;
-  zeroCoverage: boolean;
-  isolatedCommunity: boolean;
+  readonly orphan: boolean;
+  readonly fanInZero: boolean;
+  readonly noRecentChurn: boolean;
+  readonly zeroCoverage: boolean;
+  readonly isolatedCommunity: boolean;
 }
 
 /** TrailDataServer /api/c4/file-analysis の entries[i] のうち本ツールが使う列。 */
@@ -73,7 +73,7 @@ export function selectImportantFiles(
   const key = sortKey(opts.filter);
   const pool = entries
     .filter((e) => !e.isIgnored)
-    .filter((e) => !e.filePath.includes('node_modules/'))
+    .filter((e) => !/(?:^|\/)node_modules\//.test(e.filePath))
     .filter((e) => (opts.filter === 'barrel' ? e.isBarrel : true));
   const sorted = [...pool].sort((a, b) => key(b) - key(a));
   return sorted.slice(0, opts.limit).map((e, i) => ({
