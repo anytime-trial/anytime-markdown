@@ -24,6 +24,13 @@ import {
 } from './tools/evaluateReverseSpec.js';
 import { selectImportantFiles, type FileAnalysisEntry, type ImportantFilesFilter } from './tools/importantFiles.js';
 import { toCodeGraphNodeId } from './tools/nodeId.js';
+import {
+  capDependencies,
+  filterCommunityNodes,
+  projectCommunities,
+  toSummaryRows,
+  type RawCommunity,
+} from './tools/discoveryShaping.js';
 
 export interface McpTrailOptions {
   serverUrl?: string;
@@ -291,20 +298,42 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'list_communities',
-    { description: 'List code graph communities for a repo with their label / name / summary / mappings_json / stableKey. Used by anytime-reverse-engineer skill for filtering and cache lookup. The stableKey is a content hash of the community member node IDs and is preserved across community_id re-numbering during re-analysis (use it as a cache key).', inputSchema: { ...commonParams } },
-    async ({ repoName, serverUrl }) => {
+    {
+      description:
+        'List code graph communities (communityId / label / name / summary / stableKey). mappingsJson (C4 role mappings, large) is omitted by default; pass includeMappings=true to include it (e.g. anytime-reverse-engineer cache lookup). stableKey is a content hash stable across re-analysis.',
+      inputSchema: {
+        includeMappings: z.boolean().default(false).describe('Include the large mappingsJson field (default false)'),
+        ...commonParams,
+      },
+    },
+    async ({ includeMappings, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      const result = await route('list_communities', { repoName }, opts);
+      const raw = (await route('list_communities', { repoName }, opts)) as { communities?: RawCommunity[] };
+      const result = projectCommunities(raw, includeMappings ?? false);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
 
   server.registerTool(
     'list_community_nodes',
-    { description: 'List code graph nodes grouped by community for a repo, projected to { id, label, package }. Used by anytime-reverse-engineer skill to aggregate nodes for AI naming (Step 2) and role determination (Step 3) without opening the SQLite DB directly. Returns empty array when no graph is stored. Communities are sorted by communityId ascending; nodes within each community are sorted by id ascending.', inputSchema: { ...commonParams } },
-    async ({ repoName, serverUrl }) => {
+    {
+      description:
+        'List code graph nodes grouped by community, projected to { id, label, package }. Pass communityId to fetch one community (the full graph has ~1,900 nodes); nodeLimit caps nodes per community (adds nodeTotal when truncated). Returns empty array when no graph is stored.',
+      inputSchema: {
+        communityId: z.number().int().optional().describe('Restrict to a single community id'),
+        nodeLimit: z.number().int().min(1).max(500).optional().describe('Max nodes per community'),
+        ...commonParams,
+      },
+    },
+    async ({ communityId, nodeLimit, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      const result = await route('list_community_nodes', { repoName }, opts);
+      const raw = (await route('list_community_nodes', { repoName }, opts)) as {
+        communities?: Array<{ communityId: number; nodes: unknown[] }>;
+      };
+      const result = filterCommunityNodes(raw, {
+        ...(communityId !== undefined ? { communityId } : {}),
+        ...(nodeLimit !== undefined ? { nodeLimit } : {}),
+      });
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -597,17 +626,23 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'get_code_dependencies',
     {
       description:
-        'Return the direct dependents (incoming) and dependencies (outgoing) of a code-graph node. Use to scope the blast radius of a change before editing, instead of grepping for imports. Returns { node, incoming, outgoing } edges (depth 1). nodeId accepts either a file path from get_important_files (e.g. packages/x/src/Foo.ts) or a raw node id (<repo>:<path-without-extension>); pass repoName so a file path can be resolved.',
+        'Return the direct dependents (incoming) and dependencies (outgoing) of a code-graph node. Use to scope the blast radius of a change before editing, instead of grepping for imports. Returns { node, incoming, outgoing, incomingTotal, outgoingTotal, truncated } (depth 1; edges capped at `limit`, default 50). nodeId accepts a file path from get_important_files (e.g. packages/x/src/Foo.ts) or a raw node id (<repo>:<path-without-extension>); pass repoName so a file path can be resolved.',
       inputSchema: {
-        nodeId: z.string().describe('Code-graph node id (often a file path) to inspect'),
+        nodeId: z.string().describe('Code-graph node id or file path to inspect'),
+        limit: z.number().int().min(1).max(500).default(50).describe('Max incoming/outgoing edges each (default 50)'),
         ...commonParams,
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ nodeId, repoName, serverUrl }) => {
+    async ({ nodeId, limit, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
       const resolvedId = repoName ? toCodeGraphNodeId(repoName, nodeId) : nodeId;
-      const result = await route('get_code_dependencies', { nodeId: resolvedId }, opts);
+      const raw = (await route('get_code_dependencies', { nodeId: resolvedId }, opts)) as {
+        node?: unknown;
+        incoming?: unknown[];
+        outgoing?: unknown[];
+      };
+      const result = capDependencies(raw, limit ?? 50);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -623,18 +658,23 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
           .enum(['central', 'dead', 'barrel', 'risky'])
           .optional()
           .describe('Ranking lens (default: overall importance)'),
+        detail: z
+          .enum(['summary', 'full'])
+          .default('full')
+          .describe('summary = rank/filePath/importanceScore only; full = include centralityScore/signals/reason'),
         ...commonParams,
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ limit, filter, repoName, serverUrl }) => {
+    async ({ limit, filter, detail, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
       const raw = (await route('get_important_files', {}, opts)) as { entries: FileAnalysisEntry[] };
       const rows = selectImportantFiles(raw.entries ?? [], {
         limit,
         ...(filter ? { filter: filter as ImportantFilesFilter } : {}),
       });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(rows, null, 2) }] };
+      const out = detail === 'summary' ? toSummaryRows(rows) : rows;
+      return { content: [{ type: 'text' as const, text: JSON.stringify(out, null, 2) }] };
     },
   );
 
