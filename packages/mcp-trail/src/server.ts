@@ -5,6 +5,7 @@ import { probeServerAlive } from './probe.js';
 import { route } from './router.js';
 import type { RouteOpts } from './router.js';
 import { SearchMemoryInputSchema, handleSearchMemory } from './tools/searchMemory.js';
+import { SearchDocsInputSchema, handleSearchDocs } from './tools/searchDocs.js';
 import { ListRecurringBugsInputSchema, handleListRecurringBugs } from './tools/listRecurringBugs.js';
 import { GetBugHistoryInputSchema, handleGetBugHistory } from './tools/getBugHistory.js';
 import { ListUnaddressedReviewFindingsInputSchema, handleListUnaddressedReviewFindings } from './tools/listUnaddressedReviewFindings.js';
@@ -566,6 +567,22 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     }, },
     async (args) => {
       const result = await handleSearchMemory(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'search_docs',
+    { description: 'Search the spec documentation index (doc-core.db): typed relations (backlinks/neighbors), keyword (FTS5), and semantic (cosine, needs ollama)', inputSchema: {
+      query: SearchDocsInputSchema.shape.query,
+      mode: SearchDocsInputSchema.shape.mode,
+      path: SearchDocsInputSchema.shape.path,
+      type: SearchDocsInputSchema.shape.type,
+      hops: SearchDocsInputSchema.shape.hops,
+      limit: SearchDocsInputSchema.shape.limit,
+    }, },
+    async (args) => {
+      const result = await handleSearchDocs(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
