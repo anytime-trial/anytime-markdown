@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 
 import type {
   AnalyticsData,
@@ -20,11 +20,7 @@ import type {
   ReleaseQualityBucket,
 } from '@anytime-markdown/trail-core/domain/metrics';
 
-import { useAnalyticsData } from './useAnalyticsData';
-import { usePromptsData } from './usePromptsData';
-import { useReleasesData } from './useReleasesData';
-import { useSessionsData } from './useSessionsData';
-import { useTokenBudgetsWs } from './useTokenBudgetsWs';
+import { createTrailDataStore } from './stores/trailDataStore';
 
 // ---------------------------------------------------------------------------
 // Re-exports
@@ -64,15 +60,9 @@ export interface TrailDataSourceResult {
 }
 
 // ---------------------------------------------------------------------------
-// Orchestrator
+// Options
 // ---------------------------------------------------------------------------
 
-/**
- * Composes the five domain-specific sub-hooks into the original
- * `TrailDataSourceResult` shape. The public surface (return type and parameter
- * signature) is preserved so that `TrailViewerApp` and downstream consumers
- * importing from `@anytime-markdown/trail-viewer` keep working unchanged.
- */
 export interface UseTrailDataSourceOptions {
   /**
    * prompts データの取得を有効化するか。プロンプトポップアップ初回オープンまで
@@ -81,62 +71,26 @@ export interface UseTrailDataSourceOptions {
   readonly promptsEnabled?: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Thin adapter hook — delegates all logic to the vanilla TrailDataStore
+// ---------------------------------------------------------------------------
+
 export function useTrailDataSource(
   serverUrl: string,
   options?: UseTrailDataSourceOptions,
 ): TrailDataSourceResult {
-  const sessions = useSessionsData(serverUrl);
-  const analytics = useAnalyticsData(serverUrl);
-  const releases = useReleasesData(serverUrl);
-  const prompts = usePromptsData(serverUrl, options?.promptsEnabled ?? true);
+  const promptsEnabled = options?.promptsEnabled ?? true;
 
-  // Bridge the WS `sessions-updated` event to the sessions + analytics
-  // sub-hooks, reproducing the cross-cutting refresh that the original
-  // useTrailDataSource performed inside its WS handler.
-  const handleSessionsUpdated = useCallback(() => {
-    void sessions.refetchAll();
-    void analytics.refresh();
-  }, [sessions, analytics]);
+  const store = useMemo(
+    () => createTrailDataStore(serverUrl, { promptsEnabled }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [serverUrl, promptsEnabled],
+  );
 
-  const tokens = useTokenBudgetsWs(serverUrl, {
-    onSessionsUpdated: handleSessionsUpdated,
-  });
+  const [, forceUpdate] = useReducer((c: number) => c + 1, 0);
 
-  return {
-    // sessions / messages
-    sessions: sessions.sessions,
-    allSessions: sessions.allSessions,
-    sessionsLoading: sessions.sessionsLoading,
-    messages: sessions.messages,
-    loadSession: sessions.loadSession,
-    searchSessions: sessions.searchSessions,
-    fetchSessionMessages: sessions.fetchSessionMessages,
-    fetchSessionCommits: sessions.fetchSessionCommits,
+  useEffect(() => store.subscribe(forceUpdate), [store]);
+  useEffect(() => () => store.dispose(), [store]);
 
-    // analytics / cost
-    analytics: analytics.analytics,
-    costOptimization: analytics.costOptimization,
-    fetchCombinedData: analytics.fetchCombinedData,
-    fetchSessionToolMetrics: analytics.fetchSessionToolMetrics,
-    fetchDayToolMetrics: analytics.fetchDayToolMetrics,
-    fetchCostOptimization: analytics.fetchCostOptimization,
-
-    // releases / quality
-    releases: releases.releases,
-    fetchReleases: releases.fetchReleases,
-    fetchQualityMetrics: releases.fetchQualityMetrics,
-    fetchDeploymentFrequency: releases.fetchDeploymentFrequency,
-    fetchReleaseQuality: releases.fetchReleaseQuality,
-
-    // ws / tokens
-    connected: tokens.connected,
-    tokenBudgets: tokens.tokenBudgets,
-
-    // prompts
-    prompts: prompts.prompts,
-
-    // cross-cutting (owned by useSessionsData since only session ops mutate them)
-    loading: sessions.loading,
-    error: sessions.error,
-  };
+  return store.getState();
 }

@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 import type { TraceFileSource } from '@anytime-markdown/trace-viewer';
+
+import { createTraceFilesStore } from './stores/traceFilesStore';
 
 export interface TraceFileListing {
     name: string;
@@ -17,33 +19,16 @@ export interface TraceFileListing {
 export function useTraceFiles(
     fetchList: (() => Promise<readonly TraceFileListing[]>) | null,
 ): readonly TraceFileSource[] {
-    const [sources, setSources] = useState<readonly TraceFileSource[]>([]);
+  const store = useMemo(
+    () => createTraceFilesStore(fetchList),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fetchList],
+  );
 
-    useEffect(() => {
-        if (!fetchList) {
-            setSources((prev) => (prev.length > 0 ? [] : prev));
-            return;
-        }
-        let cancelled = false;
-        fetchList().then((listings) => {
-            if (cancelled) return;
-            setSources(
-                listings.map((listing): TraceFileSource => ({
-                    name: listing.name,
-                    load: async () => {
-                        const res = await fetch(listing.url);
-                        if (!res.ok) throw new Error(`Failed to fetch ${listing.url}: ${res.status}`);
-                        return res.text();
-                    },
-                })),
-            );
-        }).catch((err: unknown) => {
-            if (cancelled) return;
-            const msg = err instanceof Error ? err.message : String(err);
-            console.error(`[useTraceFiles] Failed to fetch trace file list: ${msg}`, err);
-        });
-        return () => { cancelled = true; };
-    }, [fetchList]);
+  const [, forceUpdate] = useReducer((c: number) => c + 1, 0);
 
-    return sources;
+  useEffect(() => store.subscribe(forceUpdate), [store]);
+  useEffect(() => () => store.dispose(), [store]);
+
+  return store.getState();
 }
