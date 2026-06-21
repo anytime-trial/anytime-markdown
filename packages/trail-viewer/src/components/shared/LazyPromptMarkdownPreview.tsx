@@ -1,6 +1,6 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
 export interface LazyPromptMarkdownPreviewProps {
     readonly content: string;
@@ -10,11 +10,10 @@ export interface LazyPromptMarkdownPreviewProps {
     readonly contentKey?: string | number;
 }
 
-// marked は GFM (table / strikethrough / task list) を既定で有効化する。
+// marked は GFM (table / strikethrough / task list) を呼び出し側オプションで有効化する。
 // tiptap ベースの MarkdownEditorPage と違い mermaid / katex / jsxgraph 等の
 // リッチ描画は行わず、コードフェンスはプレーンな <pre><code> 表示にフォールバックする。
-// プロンプトプレビューは読み取り専用のため、重量モジュール連鎖を避けてバンドルを軽量化する。
-marked.setOptions({ gfm: true, breaks: false });
+// （setOptions のグローバル汚染を避け、parse の都度オプションを渡す。）
 
 // 子孫要素（pre/code/table/a/blockquote/h*）の装飾。旧 src/ui の injectTrailUiStyles から
 // 当該ルールのみを移設し、ローカルで 1 度だけ注入する（テーマ変数 --trv-color-* は
@@ -52,9 +51,11 @@ export function LazyPromptMarkdownPreview({
     content,
     height,
 }: Readonly<LazyPromptMarkdownPreviewProps>) {
-    ensurePreviewStyle();
+    useEffect(() => {
+        ensurePreviewStyle();
+    }, []);
     const html = useMemo(() => {
-        const rendered = marked.parse(content, { async: false });
+        const rendered = marked.parse(content, { async: false, gfm: true, breaks: false });
         return DOMPurify.sanitize(rendered);
     }, [content]);
 
