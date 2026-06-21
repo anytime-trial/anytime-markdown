@@ -77,6 +77,25 @@ describe('mountC4Viewer', () => {
     handle.destroy();
   });
 
+  // Regression: c4Model が null→到着したとき（store の遅延ロード後）ツリーへ要素を
+  // 描画する。実データ render パス（rebuildDocument + tree update）が壊れていない検証。
+  it('c4Model 到着時に要素ツリーを描画する（空→データ）', () => {
+    const handle = mountC4Viewer(container, makeProps()); // c4Model: null
+    // 初期は要素なし
+    expect(container.textContent ?? '').not.toContain('MySystem');
+    // データ到着をシミュレート（store fetch 後の update 相当）
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c4Model: any = {
+      title: 'Test',
+      level: 'context',
+      elements: [{ id: 'sys1', type: 'system', name: 'MySystem' }],
+      relationships: [],
+    };
+    expect(() => handle.update(makeProps({ c4Model }))).not.toThrow();
+    expect(container.textContent ?? '').toContain('MySystem');
+    handle.destroy();
+  });
+
   it('creates level buttons C1-C5', () => {
     const handle = mountC4Viewer(container, makeProps());
     const buttons = container.querySelectorAll('button[aria-label^="Level "]');
