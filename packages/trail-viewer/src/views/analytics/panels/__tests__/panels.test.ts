@@ -21,8 +21,9 @@ jest.mock('../../charts/dailyActivityChart', () => ({
 jest.mock('../../charts/releasesLocChart', () => ({
   mountReleasesLocChart: () => ({ update: () => {}, destroy: () => {} }),
 }));
+const mockMountCombinedContent = jest.fn((_p: unknown) => ({ update: () => {}, destroy: () => {} }));
 jest.mock('../../charts/combined/combinedChartsContent', () => ({
-  mountCombinedChartsContent: () => ({ update: () => {}, destroy: () => {} }),
+  mountCombinedChartsContent: (_c: HTMLElement, p: unknown) => mockMountCombinedContent(p),
 }));
 jest.mock('../../charts/sessionCacheTimeline', () => ({
   mountSessionCacheTimeline: () => ({ update: () => {}, destroy: () => {} }),
@@ -559,6 +560,45 @@ describe('mountCombinedChartsSection', () => {
     const handle = mountCombinedChartsSection(container, baseProps);
     handle.destroy();
     expect(container.innerHTML).toBe('');
+  });
+
+  // Regression: 非 period の update（頻繁な store 通知）で初回 combined fetch が
+  // キャンセルされ、token 以外のチャートが永久に表示されない不具合を防ぐ。
+  it('非 period update は進行中の combined fetch をキャンセルしない', async () => {
+    mockMountCombinedContent.mockClear();
+    const container = document.createElement('div');
+    let resolveFetch: (d: unknown) => void = () => {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const combinedData: any = {
+      toolCounts: [], errorRate: [], skillStats: [], modelStats: [{ name: 'm', periods: [], counts: [], tokens: [] }],
+      agentStats: [], commitPrefixStats: [], aiFirstTryRate: [], repoStats: [], qualityRates: [],
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fetchCombinedData = jest.fn(
+      (): Promise<any> => new Promise((res) => { resolveFetch = res as (d: unknown) => void; }),
+    );
+    const props = { ...baseProps, fetchCombinedData };
+    const handle = mountCombinedChartsSection(container, props);
+    expect(fetchCombinedData).toHaveBeenCalledTimes(1);
+
+    // 初回 fetch 解決前に非 period の update が来る（store 通知相当）
+    handle.update({ ...props });
+
+    // 進行中 fetch を解決
+    resolveFetch(combinedData);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // combined metric（models）へ切替
+    const modelBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => (b as HTMLButtonElement).dataset['value'] === 'models',
+    );
+    modelBtn?.click();
+
+    // 解決済みデータ（非 null）で combined content が描画されること
+    expect(mockMountCombinedContent).toHaveBeenCalled();
+    const lastArg = mockMountCombinedContent.mock.calls.at(-1)?.[0] as { data: unknown } | undefined;
+    expect(lastArg?.data).toBe(combinedData);
   });
 });
 
