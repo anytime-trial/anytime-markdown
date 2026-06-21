@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import matter from 'gray-matter';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 
@@ -52,7 +53,8 @@ export async function updateFrontmatter(input: UpdateFrontmatterInput, rootDir: 
 
   const next = matter.stringify(parsed.content, data);
   // atomic write: 同一ディレクトリの tmp に書いて rename（部分書込みでの破損を防ぐ）。
-  const tmp = `${filePath}.tmp-${process.pid}`;
+  // tmp 名は UUID で一意化（単一プロセス内の同一ファイル並行更新でも衝突しない）。
+  const tmp = `${filePath}.tmp-${randomUUID()}`;
   await fs.writeFile(tmp, next, 'utf-8');
   await fs.rename(tmp, filePath);
 }
