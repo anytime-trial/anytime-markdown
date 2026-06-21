@@ -24,5 +24,6 @@
   "viewsContainer.title": "Anytime Markdown",
   "viewsWelcome.timeline": "履歴を見るには Markdown ファイルを開いてください。",
   "command.compareWithCommit": "このコミットと比較",
+  "command.registerMcpServer": "MCP サーバーを登録 (.mcp.json を書き出す)",
   "configuration.noteGraph.repositoryPath.description": "ノート網パネルの対象 git リポジトリ。絶対パスで指定。空の場合は現在のドキュメントが属する git リポジトリを使用します（例: ドキュメント用リポジトリのパスを指定）。"
 }
