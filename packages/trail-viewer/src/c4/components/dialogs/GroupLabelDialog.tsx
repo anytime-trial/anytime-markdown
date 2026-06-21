@@ -1,5 +1,9 @@
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '../../../ui';
-import { useCallback, useEffect, useState } from 'react';
+import * as React from 'react';
+import { VanillaIsland } from '../../../shared/vanillaIsland';
+import {
+  mountGroupLabelDialog,
+  type GroupLabelDialogVanillaProps,
+} from '../../../views/c4/dialogs/groupLabelDialog';
 
 interface GroupLabelDialogProps {
   readonly open: boolean;
@@ -8,42 +12,12 @@ interface GroupLabelDialogProps {
   readonly onSave: (label: string) => void;
 }
 
-export function GroupLabelDialog({ open, initialLabel, onClose, onSave }: Readonly<GroupLabelDialogProps>) {
-  const [label, setLabel] = useState(initialLabel ?? '');
-
-  useEffect(() => {
-    if (open) setLabel(initialLabel ?? '');
-  }, [open, initialLabel]);
-
-  const handleSave = useCallback(() => {
-    onSave(label.trim());
-    onClose();
-  }, [label, onSave, onClose]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSave();
-    if (e.key === 'Escape') onClose();
-  }, [handleSave, onClose]);
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>グループラベルの編集</DialogTitle>
-      <DialogContent>
-        <TextField
-          autoFocus
-          fullWidth
-          size="small"
-          label="ラベル"
-          value={label}
-          onChange={e => setLabel(e.target.value)}
-          onKeyDown={handleKeyDown}
-          sx={{ mt: 1 }}
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>キャンセル</Button>
-        <Button variant="contained" onClick={handleSave}>保存</Button>
-      </DialogActions>
-    </Dialog>
-  );
+export function GroupLabelDialog(props: Readonly<GroupLabelDialogProps>): React.ReactElement {
+  const vanillaProps: GroupLabelDialogVanillaProps = {
+    open: props.open,
+    initialLabel: props.initialLabel,
+    onClose: props.onClose,
+    onSave: props.onSave,
+  };
+  return <VanillaIsland mount={mountGroupLabelDialog} props={vanillaProps} />;
 }

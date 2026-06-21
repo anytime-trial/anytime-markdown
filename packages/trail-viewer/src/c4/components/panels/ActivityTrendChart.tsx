@@ -1,5 +1,4 @@
 import type { TrendPeriod } from '@anytime-markdown/trail-core/c4';
-import { Box, FormControl, InputLabel, MenuItem, Select, Typography } from '../../../ui';
 import type { ChartSpec, Series } from '@anytime-markdown/chart-core';
 import { useMemo, useState } from 'react';
 
@@ -7,9 +6,8 @@ import { useTrailI18n } from '../../../i18n/context';
 import type { ActivityTrendResponse } from '../../hooks/fetchActivityTrendApi';
 import { useActivityTrend } from '../../hooks/useActivityTrend';
 import { ACTIVITY_TREND_COLORS } from '../../c4MetricColors';
-import { AnytimeChartView } from '../../../components/analytics/charts/AnytimeChartView';
-
-const PERIOD_OPTIONS: ReadonlyArray<Exclude<TrendPeriod, 'all'>> = ['7d', '30d', '90d'];
+import { VanillaIsland } from '../../../shared/vanillaIsland';
+import { mountActivityTrendPanel, type ActivityTrendPanelProps } from '../../../views/c4/panels/activityTrendPanel';
 
 function formatTrendDate(date: string): string {
   const parsed = new Date(`${date}T00:00:00Z`);
@@ -103,14 +101,14 @@ export function ActivityTrendChart({
   isDark = false,
 }: Readonly<ActivityTrendChartProps>) {
   const { t } = useTrailI18n();
-  const [period, setPeriod] = useState<TrendPeriod>('30d');
+  const [period, setPeriod] = useState<string>('30d');
 
   const enabled = !!elementId;
   const commitTrend = useActivityTrend({
     enabled,
     serverUrl,
     elementId: elementId ?? '',
-    period,
+    period: period as TrendPeriod,
     granularity: 'commit',
     repoName,
   });
@@ -118,7 +116,7 @@ export function ActivityTrendChart({
     enabled,
     serverUrl,
     elementId: elementId ?? '',
-    period,
+    period: period as TrendPeriod,
     granularity: 'session',
     sessionMode: 'read',
     repoName,
@@ -127,7 +125,7 @@ export function ActivityTrendChart({
     enabled,
     serverUrl,
     elementId: elementId ?? '',
-    period,
+    period: period as TrendPeriod,
     granularity: 'session',
     sessionMode: 'write',
     repoName,
@@ -136,12 +134,13 @@ export function ActivityTrendChart({
     enabled,
     serverUrl,
     elementId: elementId ?? '',
-    period,
+    period: period as TrendPeriod,
     granularity: 'defect',
     repoName,
   });
 
   const palette = isDark ? ACTIVITY_TREND_COLORS.dark : ACTIVITY_TREND_COLORS.light;
+  const tStr = (key: string): string => t(key as Parameters<typeof t>[0]);
 
   const chartProps = useMemo(() => {
     return buildActivityTrendSeries(
@@ -166,7 +165,7 @@ export function ActivityTrendChart({
     if (!chartProps) return null;
     const series: Series[] = chartProps.series.map((s) => ({
       name: s.label,
-      type: s.kind, // 'line' | 'bar'
+      type: s.kind,
       color: s.color,
       axis: s.yAxisId,
       values: [...s.data],
@@ -175,97 +174,23 @@ export function ActivityTrendChart({
       kind: 'combo',
       categories: chartProps.xs.map(formatTrendDate),
       series,
-      // 凡例は左の自前 Box で描くため chart-core 側は抑制。
       options: { legend: 'none' },
     };
   }, [chartProps]);
 
   if (!elementId) return null;
 
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 1,
-        p: 1,
-        borderTop: 1,
-        borderColor: 'divider',
-      }}
-      role="region"
-      aria-label="Activity trend"
-    >
-      <Typography variant="subtitle2" sx={{ fontSize: '0.8rem' }}>
-        {t('c4.trend.title')}
-      </Typography>
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          gridTemplateColumns: { xs: '1fr', md: 'max-content minmax(0, 1fr)' },
-          alignItems: 'start',
-        }}
-      >
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-          <FormControl size="small" sx={{ minWidth: 88 }}>
-            <InputLabel id="trend-period-label">{t('c4.hotspot.controls.period')}</InputLabel>
-            <Select
-              labelId="trend-period-label"
-              label={t('c4.hotspot.controls.period')}
-              value={period}
-              onChange={(e) => setPeriod(String(e.target.value) as TrendPeriod)}
-            >
-              {PERIOD_OPTIONS.map((p) => (
-                <MenuItem key={p} value={p}>
-                  {p}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          {chartProps && (
-            <Box component="ul" sx={{ m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-              {legendItems.map((item) => (
-                <Box
-                  component="li"
-                  key={item.label}
-                  sx={{ display: 'flex', alignItems: 'center', gap: 1, listStyle: 'none' }}
-                >
-                  <Box
-                    aria-hidden="true"
-                    sx={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: '2px',
-                      bgcolor: item.color,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <Typography variant="caption" sx={{ lineHeight: 1.2 }}>
-                    {item.label}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-          )}
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
-          {error && (
-            <Typography variant="caption" color="error" role="alert">
-              {error.message}
-            </Typography>
-          )}
-          {loading && !chartProps && (
-            <Typography variant="caption" color="text.secondary" aria-live="polite">
-              {t('c4.trend.loading')}
-            </Typography>
-          )}
-          {spec && (
-            <Box sx={{ width: '100%', minHeight: 200 }}>
-              <AnytimeChartView spec={spec} height={200} isDark={isDark} />
-            </Box>
-          )}
-        </Box>
-      </Box>
-    </Box>
-  );
+  const viewProps: ActivityTrendPanelProps = {
+    elementId,
+    period,
+    onPeriodChange: setPeriod,
+    spec,
+    legendItems,
+    loading,
+    error: error?.message ?? null,
+    isDark,
+    t: tStr,
+  };
+
+  return <VanillaIsland mount={mountActivityTrendPanel} props={viewProps} />;
 }
