@@ -3,8 +3,10 @@
  */
 
 import type { RelationType } from './relations';
+import type { DocSection } from './ingest/splitSections';
 
 export type { RelationType };
+export type { DocSection };
 
 /** 正規化済みの型付き関係（from→to）。 */
 export interface DocRelation {
@@ -29,6 +31,8 @@ export interface ExtractedDoc extends DocMeta {
   body: string;
   /** 型付き関係（正規化済み・traversal 安全な to のみ）。 */
   related: DocRelation[];
+  /** 見出し粒度の節（search_sections の FTS 用）。 */
+  sections: DocSection[];
   /** 内容ハッシュ（増分判定用）。 */
   contentHash: string;
 }
@@ -44,4 +48,17 @@ export interface DocHit {
   excerpt?: string;
   /** キーワード一致箇所の抜粋（FTS5 snippet・keyword 検索時のみ）。 */
   snippet?: string;
+}
+
+/** 節検索（search_sections）結果の 1 行。 */
+export interface SectionHit {
+  path: string;
+  /** 見出しテキスト（`#` マークなし）。リード節は空文字。 */
+  heading: string;
+  /** 見出しレベル（1〜6、リード節は 0）。 */
+  level: number;
+  /** キーワード一致箇所の抜粋（FTS5 snippet）。 */
+  snippet?: string;
+  /** スコア（FTS5 rank・小さいほど良い）。 */
+  score?: number;
 }

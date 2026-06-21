@@ -17,9 +17,10 @@ describe('handleSearchDocs', () => {
       category: 'x',
       body: 'alpha graph engine',
       related: [{ fromPath: 'spec/a.md', toPath: 'spec/b.md', type: 'depends-on' }],
+      sections: [],
       contentHash: 'h1',
     });
-    persistDoc(db, { path: 'spec/b.md', title: 'Beta', category: 'x', body: 'beta core module', related: [], contentHash: 'h2' });
+    persistDoc(db, { path: 'spec/b.md', title: 'Beta', category: 'x', body: 'beta core module', related: [], sections: [], contentHash: 'h2' });
     db.close();
   });
 

@@ -8,11 +8,13 @@ import * as path from 'node:path';
 import {
   openDocDb,
   searchDocs,
+  searchSections,
   backlinks,
   neighbors,
   isRelationType,
   type DocDb,
   type SearchDocsOptions,
+  type SearchSectionsOptions,
   type RelationType,
 } from '@anytime-markdown/doc-core';
 
@@ -38,6 +40,10 @@ function openReadonly(rootDir: string): DocDb {
 
 export function runSearchDocs(rootDir: string, opts: SearchDocsOptions): unknown {
   return searchDocs(openReadonly(rootDir), opts);
+}
+
+export function runSearchSections(rootDir: string, opts: SearchSectionsOptions): unknown {
+  return searchSections(openReadonly(rootDir), opts);
 }
 
 export function runBacklinks(rootDir: string, target: string, type?: string): unknown {

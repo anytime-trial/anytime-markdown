@@ -23,7 +23,7 @@ describe('mcp-markdown integration', () => {
     await fs.rm(tmpDir, { recursive: true });
   });
 
-  it('should list all 10 tools (7 editor + 3 doc-core search)', async () => {
+  it('should list all 14 tools (7 editor + 4 doc-core search + 3 markdown helpers)', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
     // editor tools
@@ -36,9 +36,39 @@ describe('mcp-markdown integration', () => {
     expect(names).toContain('compute_diff');
     // doc-core search tools
     expect(names).toContain('search_docs');
+    expect(names).toContain('search_sections');
     expect(names).toContain('doc_backlinks');
     expect(names).toContain('doc_neighbors');
-    expect(tools).toHaveLength(10);
+    // markdown helper tools (Phase 2)
+    expect(names).toContain('get_frontmatter');
+    expect(names).toContain('update_frontmatter');
+    expect(names).toContain('grep_markdown');
+    expect(tools).toHaveLength(14);
+  });
+
+  it('should get and update frontmatter without touching the body', async () => {
+    await fs.writeFile(path.join(tmpDir, 'fm.md'), '---\ntitle: T\nstatus: draft\n---\n\nbody stays\n');
+
+    const got = await client.callTool({ name: 'get_frontmatter', arguments: { path: 'fm.md' } });
+    const data = JSON.parse((got.content as Array<{ type: string; text: string }>)[0].text);
+    expect(data.status).toBe('draft');
+
+    await client.callTool({
+      name: 'update_frontmatter',
+      arguments: { path: 'fm.md', set: { status: 'published' }, removeKeys: [] },
+    });
+    const updated = await fs.readFile(path.join(tmpDir, 'fm.md'), 'utf-8');
+    expect(updated).toContain('status: published');
+    expect(updated).toContain('body stays');
+  });
+
+  it('should grep markdown with enclosing heading', async () => {
+    await fs.writeFile(path.join(tmpDir, 'g.md'), '# Top\n## Section A\nfind me here\n');
+    const result = await client.callTool({ name: 'grep_markdown', arguments: { path: 'g.md', pattern: 'find me' } });
+    const matches = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].heading).toBe('Section A');
+    expect(matches[0].line).toBe(3);
   });
 
   it('should write and read markdown', async () => {
