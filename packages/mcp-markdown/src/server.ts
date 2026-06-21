@@ -6,6 +6,7 @@ import { getOutline } from './tools/getOutline';
 import { getSection } from './tools/getSection';
 import { updateSection } from './tools/updateSection';
 import { sanitize } from './tools/sanitizeMarkdown';
+import { formatMarkdownTool } from './tools/formatMarkdown';
 import { diff } from './tools/computeDiff';
 import { runSearchDocs, runSearchSections, runBacklinks, runNeighbors } from './tools/docSearch';
 import { getFrontmatter, updateFrontmatter } from './tools/frontmatter';
@@ -119,6 +120,20 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
       const path = args.path as string | undefined;
       const result = await sanitize({ content, path }, rootDir);
       return { content: [{ type: 'text' as const, text: result }] };
+    },
+  );
+
+  registerTool(server, 'format_markdown',
+    'Format a Markdown file in place to the markdown-check style rules (heading blank lines, block spacing, list indent, trailing whitespace, blank-line collapse, table pipe escape). Returns only a diff summary (changed/rulesApplied/warnings) — never the full body — to save tokens. Fenced code blocks and frontmatter are left untouched; idempotent. Use mode="check" to detect without writing.',
+    {
+      path: z.string().describe('Relative path to the Markdown file to format'),
+      mode: z.enum(['fix', 'check']).optional().describe('"fix" (default) writes the formatted file in place; "check" only reports detections without writing'),
+    },
+    async (args) => {
+      const path = args.path as string;
+      const mode = args.mode as 'fix' | 'check' | undefined;
+      const result = await formatMarkdownTool({ path, mode }, rootDir);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
 
