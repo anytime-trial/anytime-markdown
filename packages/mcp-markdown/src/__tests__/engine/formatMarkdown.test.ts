@@ -131,6 +131,30 @@ describe('formatMarkdown (pure)', () => {
     });
   });
 
+  describe('count accuracy', () => {
+    it('does not report any rule for an already well-formed frontmatter doc', () => {
+      const input = '---\ntitle: x\n---\n\n# H\n\nbody\n';
+      const { result, rulesApplied, warnings } = formatMarkdown(input);
+      expect(result).toBe(input);
+      const total = Object.values(rulesApplied).reduce((a, b) => a + b, 0);
+      expect(total).toBe(0);
+      expect(warnings.length).toBe(0);
+    });
+
+    it('counts a change when only trailing blank lines are removed', () => {
+      const input = '# H\n\nbody\n\n\n';
+      const { result, rulesApplied } = formatMarkdown(input);
+      expect(result).toBe('# H\n\nbody\n');
+      const total = Object.values(rulesApplied).reduce((a, b) => a + b, 0);
+      expect(total).toBeGreaterThan(0);
+    });
+
+    it('counts adding the missing blank line after frontmatter', () => {
+      const { rulesApplied } = formatMarkdown('---\ntitle: x\n---\n# H\n\nbody\n');
+      expect(rulesApplied.collapseBlankLines).toBeGreaterThan(0);
+    });
+  });
+
   describe('idempotency', () => {
     it('is idempotent on a mixed document', () => {
       const input =
