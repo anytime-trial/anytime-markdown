@@ -96,13 +96,22 @@ function tokenize(body: string, lineOffset: number): Unit[] {
       const markerLen = fence[1].length;
       const block = [line];
       let k = i + 1;
+      let closed = false;
       for (; k < lines.length; k++) {
         block.push(lines[k]);
         const cl = CLOSE_FENCE.exec(lines[k]);
-        if (cl && cl[1][0] === markerChar && cl[1].length >= markerLen) break;
+        if (cl && cl[1][0] === markerChar && cl[1].length >= markerLen) {
+          closed = true;
+          break;
+        }
+      }
+      // 未閉鎖フェンスは EOF まで取り込むが、本文末尾の空行（EOF 改行由来）は
+      // code unit に含めない（含めると末尾改行が再実行ごとに増え冪等性が壊れる）。
+      if (!closed) {
+        while (block.length > 1 && block[block.length - 1] === "") block.pop();
       }
       units.push({ kind: "code", text: block.join("\n"), line: i + lineOffset + 1, group: "code" });
-      i = k + 1;
+      i = closed ? k + 1 : lines.length;
       continue;
     }
     if (line.trim() === "") {
@@ -117,7 +126,7 @@ function tokenize(body: string, lineOffset: number): Unit[] {
 }
 
 /** テキスト行の自動修正（インデントのタブ→4スペース・行末空白・テーブルパイプ）。 */
-function transformTextLine(line: string, counts: Record<string, number>): string {
+function transformTextLine(line: string, group: GroupKind, counts: Record<string, number>): string {
   let out = line;
 
   // listIndent: 先頭インデントのタブを 4 スペースへ
@@ -127,9 +136,11 @@ function transformTextLine(line: string, counts: Record<string, number>): string
     counts.listIndent++;
   }
 
-  // trailingWs: 行末空白を除去。ただし 2 スペース以上のハードブレークは 2 に正規化して保持
+  // trailingWs: 行末空白を除去。ただしハードブレークを取り得る本文行（para/cont）でのみ
+  // 2 スペース以上のハードブレークを 2 に正規化して保持する。見出し・テーブル等では完全除去。
   if (/[ \t]+$/.test(out)) {
-    const hardBreak = / {2,}$/.test(out) && out.trim() !== "";
+    const canHardBreak = group === "para" || group === "cont";
+    const hardBreak = canHardBreak && / {2,}$/.test(out) && out.trim() !== "";
     const stripped = out.replace(/[ \t]+$/, "");
     const next = hardBreak ? stripped + "  " : stripped;
     if (next !== out) {
@@ -159,6 +170,9 @@ function requiredBlanks(prev: TextUnit | CodeUnit, next: TextUnit | CodeUnit, or
 
   let req = Math.min(original, 2); // collapseBlankLines: 最大 2
   if (prev.group === "cont" || next.group === "cont") return req; // 継続行は触らない
+  // コードブロック境界では空行を強制しない（リスト項目内のインデントフェンスを
+  // 切り離してリスト構造を壊すのを避ける）。元の空行数（最大 2）を維持する。
+  if (prev.group === "code" || next.group === "code") return req;
 
   const aBlock = BLOCK_GROUPS.has(prev.group);
   const bBlock = BLOCK_GROUPS.has(next.group);
@@ -208,14 +222,19 @@ function collectWarnings(units: Unit[]): FormatWarning[] {
 
 export function formatMarkdown(md: string): FormatResult {
   const counts = emptyCounts();
-  const { frontmatter, body, frontLineCount } = splitFrontmatter(md);
+
+  // 改行コードを LF に正規化して処理し、CRLF 入力には出力で CRLF を復元する。
+  const usesCRLF = md.includes("\r\n");
+  const normalized = usesCRLF ? md.replaceAll("\r\n", "\n").replaceAll("\r", "\n") : md;
+
+  const { frontmatter, body, frontLineCount } = splitFrontmatter(normalized);
 
   const units = tokenize(body, frontLineCount);
   const warnings = collectWarnings(units);
 
   // テキスト行を整形（code/blank は不変）
   const transformed: Unit[] = units.map((u) =>
-    u.kind === "text" ? { ...u, text: transformTextLine(u.text, counts) } : u,
+    u.kind === "text" ? { ...u, text: transformTextLine(u.text, u.group, counts) } : u,
   );
 
   // content unit と、その直前の空行数を集計
@@ -252,6 +271,8 @@ export function formatMarkdown(md: string): FormatResult {
   } else {
     result = bodyOut;
   }
+
+  if (usesCRLF) result = result.replaceAll("\n", "\r\n");
 
   return { result, rulesApplied: counts, warnings };
 }

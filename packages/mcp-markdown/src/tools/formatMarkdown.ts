@@ -11,7 +11,10 @@ export interface FormatMarkdownInput {
 }
 
 export interface FormatMarkdownResult {
+  /** 実際にファイルへ書き込んだか（check モードでは常に false） */
   changed: boolean;
+  /** 整形が必要か（fix/check 共通。check で検出有無を判定するのに使う） */
+  wouldChange: boolean;
   rulesApplied: Record<string, number>;
   warnings: FormatWarning[];
 }
@@ -39,6 +42,7 @@ export async function formatMarkdownTool(
 
   return {
     changed: mode === 'fix' ? wouldChange : false,
+    wouldChange,
     rulesApplied,
     warnings,
   };

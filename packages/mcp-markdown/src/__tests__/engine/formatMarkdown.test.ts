@@ -38,11 +38,16 @@ describe('formatMarkdown (pure)', () => {
       expect(rulesApplied.trailingWs).toBeGreaterThan(0);
     });
 
-    it('preserves a two-space hard break (normalizing 3+ to exactly 2)', () => {
+    it('preserves a two-space hard break on paragraph lines (normalizing 3+ to exactly 2)', () => {
       const { result } = formatMarkdown('a  \nb\n');
       expect(result).toBe('a  \nb\n');
       const { result: r2 } = formatMarkdown('a   \nb\n');
       expect(r2).toBe('a  \nb\n');
+    });
+
+    it('fully strips trailing spaces on a heading line (no hard break)', () => {
+      const { result } = formatMarkdown('# H  \n\nbody\n');
+      expect(result).toBe('# H\n\nbody\n');
     });
   });
 
@@ -83,6 +88,32 @@ describe('formatMarkdown (pure)', () => {
     it('keeps frontmatter verbatim and ensures one blank line after it', () => {
       const { result } = formatMarkdown('---\ntitle: x\n---\n# H\nbody\n');
       expect(result).toBe('---\ntitle: x\n---\n\n# H\n\nbody\n');
+    });
+
+    it('does not insert blank lines around a fenced code block inside a list item', () => {
+      const input = '- まず実行する\n    ```bash\n    npm run build\n    ```\n- 次に確認する\n';
+      const { result } = formatMarkdown(input);
+      expect(result).toBe(input);
+    });
+
+    it('stays idempotent with an unclosed fenced code block', () => {
+      const input = 'text\n```\nno close\n';
+      const once = formatMarkdown(input).result;
+      const twice = formatMarkdown(once).result;
+      expect(twice).toBe(once);
+      expect(once.endsWith('no close\n')).toBe(true);
+    });
+  });
+
+  describe('CRLF handling', () => {
+    it('preserves CRLF line endings on CRLF input', () => {
+      const { result } = formatMarkdown('a\r\n# H\r\nbody\r\n');
+      expect(result).toBe('a\r\n\r\n\r\n# H\r\n\r\nbody\r\n');
+    });
+
+    it('detects frontmatter in CRLF documents', () => {
+      const { result } = formatMarkdown('---\r\ntitle: x\r\n---\r\n# H\r\nbody\r\n');
+      expect(result).toBe('---\r\ntitle: x\r\n---\r\n\r\n# H\r\n\r\nbody\r\n');
     });
   });
 
