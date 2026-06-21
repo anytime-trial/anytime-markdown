@@ -134,13 +134,16 @@ export function mountMinimapCanvas(
 
   // ── DOM: wrapper ──
   const wrapper = document.createElement('div');
+  // in-flow（position:relative）にして leftPanel の列内でコントロール上に積む。
+  // position:absolute にすると host が高さ 0 に潰れ、ミニマップがコントロール
+  // (C4 レベルボタン等)を覆ってクリックを奪う。子ボタンの絶対配置基準も兼ねる。
   wrapper.style.cssText = [
-    'position:absolute',
-    'top:8px',
-    'right:8px',
+    'position:relative',
+    'flex-shrink:0',
+    `width:${width()}px`,
+    `height:${height()}px`,
     'border-radius:8px',
     'backdrop-filter:blur(8px)',
-    'z-index:10',
     'box-shadow:0 2px 8px rgba(0,0,0,0.4)',
     'overflow:hidden',
   ].join(';');

@@ -72,6 +72,19 @@ describe('mountMinimapCanvas', () => {
     handle.destroy();
   });
 
+  // Regression: wrapper は in-flow（position:relative）であること。position:absolute だと
+  // host が高さ 0 に潰れ、ミニマップが兄弟のコントロール（C4 レベルボタン等）を覆って
+  // クリックを奪う。
+  it('wrapper は in-flow (position:relative) でサイズを持つ', () => {
+    const container = document.createElement('div');
+    const handle = mountMinimapCanvas(container, makeProps());
+    const wrapper = container.querySelector('div') as HTMLDivElement;
+    expect(wrapper.style.position).toBe('relative');
+    expect(wrapper.style.width).toBe('200px');
+    expect(wrapper.style.height).toBe('130px');
+    handle.destroy();
+  });
+
   it('creates zoom-in, zoom-out, and (when onFit provided) fit buttons', () => {
     const container = document.createElement('div');
     const handle = mountMinimapCanvas(container, makeProps({ onFit: jest.fn() }));
