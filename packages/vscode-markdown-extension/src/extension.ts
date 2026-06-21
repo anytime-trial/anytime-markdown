@@ -4,11 +4,26 @@ import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { LinkValidationProvider } from './providers/LinkValidationProvider';
 import { ClaudeStatusWatcher, TimelineProvider, TimelineItem } from '@anytime-markdown/vscode-common';
 import { WorkerStatusSource } from './claude/WorkerStatusSource';
+import { McpMarkdownServerProvider } from './providers/McpMarkdownServerProvider';
+import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
+import { MarkdownLogger } from './utils/MarkdownLogger';
 
 export function activate(context: vscode.ExtensionContext) {
 	// 拡張全体のログ出力先（webview からのエディタエラー転送・Timeline 等で共有）
 	const timelineOutput = vscode.window.createOutputChannel('Anytime Markdown');
 	context.subscriptions.push(timelineOutput);
+	MarkdownLogger.init(timelineOutput);
+
+	// 同梱した mcp-markdown サーバーを VS Code ネイティブ MCP 探索へ登録し、
+	// `.mcp.json` 書き出しコマンドも提供する（trail 拡張と同等の配線）。
+	const extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
+	context.subscriptions.push(
+		vscode.lm.registerMcpServerDefinitionProvider(
+			'anytime-markdown.mcp',
+			new McpMarkdownServerProvider(extensionDistPath),
+		),
+	);
+	registerMcpRegistrationCommand(context, extensionDistPath);
 
 	context.subscriptions.push(
 		MarkdownEditorProvider.register(context, (line) => timelineOutput.appendLine(line)),

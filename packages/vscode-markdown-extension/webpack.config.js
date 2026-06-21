@@ -134,4 +134,64 @@ const webviewConfig = {
   devtool: 'nosources-source-map',
 };
 
-module.exports = [extensionConfig, webviewConfig];
+/**
+ * 拡張へ同梱する mcp-markdown サーバー。Node の子プロセスとして起動され vscode API は
+ * 参照しない。`dist/mcp-markdown-server.js` を生成し、MCP provider / .mcp.json から起動する。
+ * @type WebpackConfig
+ */
+const mcpMarkdownServerConfig = {
+  target: 'node',
+  mode: 'none',
+  entry: '../mcp-markdown/src/stdio.ts',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'mcp-markdown-server.js',
+    libraryTarget: 'commonjs2',
+  },
+  externals: {
+    // jsdom / ws が optional に require する native/任意モジュール。mcp-markdown は
+    // これらの機能を使わないため外部化し、バンドルから除外する（runtime に未解決でも
+    // jsdom 側 try/catch で握り潰される）。
+    canvas: 'commonjs canvas',
+    bufferutil: 'commonjs bufferutil',
+    'utf-8-validate': 'commonjs utf-8-validate',
+  },
+  resolve: {
+    extensions: ['.ts', '.js'],
+    // mcp-markdown は ESM 規約で import 文に .js 拡張子を含む（'./server.js' 等）。
+    extensionAlias: { '.js': ['.ts', '.js'] },
+    alias: {
+      // worktree の node_modules symlink が main checkout を指す問題を避け、
+      // 当該 worktree の src を直接解決する。
+      ...buildWebpackAlias(),
+      '@anytime-markdown/markdown-engine': path.resolve(__dirname, '../markdown-engine/src/index.ts'),
+    },
+  },
+  module: {
+    rules: [
+      {
+        // mcp-markdown 本体（node_modules 外の sibling src）を取り込む。
+        test: /\.ts$/,
+        exclude: /node_modules[\\/](?!@anytime-markdown)/,
+        use: [
+          {
+            loader: 'ts-loader',
+            options: {
+              // クロスパッケージ取り込みで拡張の rootDir 制約 (TS6059) を踏まないよう
+              // mcp-markdown 側 tsconfig を使い、型診断は各パッケージ側 (jest/tsc) に委ねる。
+              configFile: path.resolve(__dirname, '../mcp-markdown/tsconfig.json'),
+              transpileOnly: true,
+            },
+          },
+        ],
+      },
+    ],
+  },
+  node: {
+    __dirname: false,
+    __filename: false,
+  },
+  devtool: 'nosources-source-map',
+};
+
+module.exports = [extensionConfig, webviewConfig, mcpMarkdownServerConfig];

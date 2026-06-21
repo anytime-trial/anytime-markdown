@@ -24,5 +24,6 @@
   "viewsContainer.title": "Anytime Markdown",
   "viewsWelcome.timeline": "Open a markdown file to see its history.",
   "command.compareWithCommit": "Compare with this commit",
+  "command.registerMcpServer": "Register MCP Server (write .mcp.json)",
   "configuration.noteGraph.repositoryPath.description": "Target git repository for the Note Graph panel. Absolute path. Defaults to the git repository of the current document when empty (e.g. point this at a docs repository)."
 }
