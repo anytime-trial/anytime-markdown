@@ -38,6 +38,7 @@ export {
 export { createClickAway, type CreateClickAwayOptions } from "./clickAway";
 
 // --- simple ---
+export { createBox, type CreateBoxOptions } from "./Box";
 export {
   createButton,
   type ButtonColor,
