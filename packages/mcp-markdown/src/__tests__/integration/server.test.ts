@@ -23,9 +23,10 @@ describe('mcp-markdown integration', () => {
     await fs.rm(tmpDir, { recursive: true });
   });
 
-  it('should list all 7 tools', async () => {
+  it('should list all 10 tools (7 editor + 3 doc-core search)', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
+    // editor tools
     expect(names).toContain('read_markdown');
     expect(names).toContain('write_markdown');
     expect(names).toContain('get_outline');
@@ -33,7 +34,11 @@ describe('mcp-markdown integration', () => {
     expect(names).toContain('update_section');
     expect(names).toContain('sanitize_markdown');
     expect(names).toContain('compute_diff');
-    expect(tools).toHaveLength(7);
+    // doc-core search tools
+    expect(names).toContain('search_docs');
+    expect(names).toContain('doc_backlinks');
+    expect(names).toContain('doc_neighbors');
+    expect(tools).toHaveLength(10);
   });
 
   it('should write and read markdown', async () => {

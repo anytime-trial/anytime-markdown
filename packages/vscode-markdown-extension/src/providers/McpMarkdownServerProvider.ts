@@ -2,13 +2,16 @@ import * as path from 'node:path';
 
 import * as vscode from 'vscode';
 
+import { resolveDocDbPath } from '../docCore/docDbPath';
+
 /**
  * VS Code ネイティブの MCP 探索 (`vscode.lm.registerMcpServerDefinitionProvider`)
  * に対し、拡張へ同梱した mcp-markdown サーバー (`dist/mcp-markdown-server.js`) の
  * 起動定義を提供する。
  *
  * mcp-markdown はファイル読み書きの基準ディレクトリ (rootDir) を環境変数
- * `ANYTIME_MARKDOWN_ROOT` から取得する。ここでワークスペースルートを渡す。
+ * `ANYTIME_MARKDOWN_ROOT` から、doc 検索 DB を `ANYTIME_MARKDOWN_DOC_DB` から取得する。
+ * ここでワークスペースルートと ingest 側と一致する DB パスを渡す。
  */
 export class McpMarkdownServerProvider
   implements vscode.McpServerDefinitionProvider, vscode.Disposable
@@ -30,6 +33,11 @@ export class McpMarkdownServerProvider
     const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (workspacePath) {
       env['ANYTIME_MARKDOWN_ROOT'] = workspacePath;
+      // 検索 DB を ingest 側と一致させる（dbPath 設定があれば反映）。
+      const configuredDbPath = vscode.workspace
+        .getConfiguration('anytimeMarkdown.docSearch')
+        .get<string>('dbPath');
+      env['ANYTIME_MARKDOWN_DOC_DB'] = resolveDocDbPath(workspacePath, configuredDbPath);
     }
     const definition = new vscode.McpStdioServerDefinition(
       'mcp-markdown',

@@ -15,6 +15,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@anytime-markdown/doc-core": "*",
     "@anytime-markdown/markdown-viewer": "*",
     "@modelcontextprotocol/sdk": "1.27.1",
     "jsdom": "26.1.0",

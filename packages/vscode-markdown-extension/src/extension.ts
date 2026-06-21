@@ -7,6 +7,8 @@ import { WorkerStatusSource } from './claude/WorkerStatusSource';
 import { McpMarkdownServerProvider } from './providers/McpMarkdownServerProvider';
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { MarkdownLogger } from './utils/MarkdownLogger';
+import { DocIngestRunner } from './docCore/DocIngestRunner';
+import { resolveDocDbPath } from './docCore/docDbPath';
 
 export function activate(context: vscode.ExtensionContext) {
 	// 拡張全体のログ出力先（webview からのエディタエラー転送・Timeline 等で共有）
@@ -24,6 +26,36 @@ export function activate(context: vscode.ExtensionContext) {
 		),
 	);
 	registerMcpRegistrationCommand(context, extensionDistPath);
+
+	// doc-core: markdown 拡張専用 doc-core.db を ingest（検索は mcp-markdown が読む）。
+	// docsRoot 未設定なら無効（既定オフ）。DB ドライバは node:sqlite（native 不要）。
+	const docCfg = vscode.workspace.getConfiguration('anytimeMarkdown.docSearch');
+	const docsRoot = (docCfg.get<string>('docsRoot') ?? '').trim();
+	const docWsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	if (docsRoot && docWsRoot) {
+		const dbPath = resolveDocDbPath(docWsRoot, docCfg.get<string>('dbPath'));
+		const subDir = docCfg.get<string>('subDir') ?? 'spec';
+		const ingestScriptPath = path.join(extensionDistPath, 'doc-ingest.js');
+		const ingestRunner = new DocIngestRunner(ingestScriptPath, docsRoot, dbPath, subDir);
+		context.subscriptions.push(ingestRunner);
+		void ingestRunner.runOnce();
+		const intervalMin = docCfg.get<number>('intervalMinutes') ?? 30;
+		if (intervalMin > 0) {
+			const docIngestInterval = setInterval(() => void ingestRunner.runOnce(), intervalMin * 60 * 1000);
+			context.subscriptions.push({ dispose: () => clearInterval(docIngestInterval) });
+		}
+		context.subscriptions.push(
+			vscode.commands.registerCommand('anytime-markdown.rebuildDocIndex', () => { void ingestRunner.runOnce(); }),
+		);
+	} else {
+		context.subscriptions.push(
+			vscode.commands.registerCommand('anytime-markdown.rebuildDocIndex', () => {
+				vscode.window.showWarningMessage(
+					'Anytime Markdown: anytimeMarkdown.docSearch.docsRoot が未設定です。設定後に再実行してください。',
+				);
+			}),
+		);
+	}
 
 	context.subscriptions.push(
 		MarkdownEditorProvider.register(context, (line) => timelineOutput.appendLine(line)),

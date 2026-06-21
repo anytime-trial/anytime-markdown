@@ -25,7 +25,8 @@
   "activationEvents": [
     "onLanguage:markdown",
     "onView:anytimeMarkdown.timeline",
-    "onCommand:anytime-markdown.registerMcpServer"
+    "onCommand:anytime-markdown.registerMcpServer",
+    "onCommand:anytime-markdown.rebuildDocIndex"
   ],
   "icon": "images/camel_markdown.png",
   "main": "./dist/extension.js",
@@ -82,6 +83,11 @@
       {
         "command": "anytime-markdown.registerMcpServer",
         "title": "%command.registerMcpServer%",
+        "category": "Anytime Markdown"
+      },
+      {
+        "command": "anytime-markdown.rebuildDocIndex",
+        "title": "%command.rebuildDocIndex%",
         "category": "Anytime Markdown"
       }
     ],
@@ -198,6 +204,26 @@
           "type": "string",
           "default": "",
           "description": "%configuration.noteGraph.repositoryPath.description%"
+        },
+        "anytimeMarkdown.docSearch.docsRoot": {
+          "type": "string",
+          "default": "",
+          "description": "%configuration.docSearch.docsRoot.description%"
+        },
+        "anytimeMarkdown.docSearch.subDir": {
+          "type": "string",
+          "default": "spec",
+          "description": "%configuration.docSearch.subDir.description%"
+        },
+        "anytimeMarkdown.docSearch.dbPath": {
+          "type": "string",
+          "default": "",
+          "description": "%configuration.docSearch.dbPath.description%"
+        },
+        "anytimeMarkdown.docSearch.intervalMinutes": {
+          "type": "number",
+          "default": 30,
+          "description": "%configuration.docSearch.intervalMinutes.description%"
         }
       }
     },
@@ -323,6 +349,7 @@
     "webpack-cli": "6.0.1"
   },
   "dependencies": {
+    "@anytime-markdown/doc-core": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/markdown-viewer": "*",
     "@anytime-markdown/markdown-rich": "*",

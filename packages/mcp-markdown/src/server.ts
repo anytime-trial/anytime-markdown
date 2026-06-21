@@ -7,6 +7,7 @@ import { getSection } from './tools/getSection';
 import { updateSection } from './tools/updateSection';
 import { sanitize } from './tools/sanitizeMarkdown';
 import { diff } from './tools/computeDiff';
+import { runSearchDocs, runBacklinks, runNeighbors } from './tools/docSearch';
 
 export interface McpEditorOptions {
   rootDir: string;
@@ -132,6 +133,53 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
       const pathB = args.pathB as string | undefined;
       const result = await diff({ contentA, contentB, pathA, pathB }, rootDir);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // --- doc-core 検索（markdown 拡張が ingest した doc-core.db を読む） ---
+
+  registerTool(server, 'search_docs',
+    'Search the document index (doc-core.db) by keyword (FTS5) and/or frontmatter facets (category/type/lang)',
+    {
+      query: z.string().optional().describe('Free-text keyword query (FTS5). Omit to filter by facets only.'),
+      category: z.string().optional().describe('Filter by frontmatter category (exact match)'),
+      type: z.string().optional().describe('Filter by frontmatter type (exact match, e.g. spec/plan)'),
+      lang: z.string().optional().describe('Filter by frontmatter lang (exact match, e.g. ja/en)'),
+      limit: z.number().optional().describe('Max results (default 20)'),
+    },
+    async (args) => {
+      const hits = runSearchDocs(rootDir, {
+        query: args.query as string | undefined,
+        category: args.category as string | undefined,
+        type: args.type as string | undefined,
+        lang: args.lang as string | undefined,
+        limit: args.limit as number | undefined,
+      });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(hits, null, 2) }] };
+    },
+  );
+
+  registerTool(server, 'doc_backlinks',
+    'List documents that link to the given doc (typed relations: who references/depends-on/implements it)',
+    {
+      path: z.string().describe('Target doc path (root-relative, e.g. spec/...)'),
+      type: z.string().optional().describe('Relation type filter: references/depends-on/implements/part-of/supersedes/refines'),
+    },
+    async (args) => {
+      const edges = runBacklinks(rootDir, args.path as string, args.type as string | undefined);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(edges, null, 2) }] };
+    },
+  );
+
+  registerTool(server, 'doc_neighbors',
+    'List related documents via undirected relation-graph BFS (N hops) from the given doc',
+    {
+      path: z.string().describe('Center doc path (root-relative, e.g. spec/...)'),
+      hops: z.number().optional().describe('BFS hops (default 1)'),
+    },
+    async (args) => {
+      const paths = runNeighbors(rootDir, args.path as string, args.hops as number | undefined);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(paths, null, 2) }] };
     },
   );
 
