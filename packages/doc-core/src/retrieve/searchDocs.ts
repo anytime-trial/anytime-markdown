@@ -27,7 +27,7 @@ export interface SearchDocsOptions {
   lang?: string;
   /** 最大件数（既定 8）。 */
   limit?: number;
-  /** snippet のトークン数（FTS5 snippet・既定 24・最大 64）。 */
+  /** snippet のトークン数（FTS5 snippet・既定 24・最大 64）。doc_fts は trigram のため約 N 文字相当。 */
   snippetTokens?: number;
 }
 

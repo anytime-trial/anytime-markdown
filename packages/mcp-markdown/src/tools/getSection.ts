@@ -51,8 +51,12 @@ export async function getSection(input: GetSectionInput, rootDir: string): Promi
   if (section === null) {
     throw new Error(`Heading not found: ${input.heading}`);
   }
-  if (input.maxChars !== undefined && input.maxChars > 0 && section.length > input.maxChars) {
-    return section.slice(0, input.maxChars) + '\n…(truncated)';
+  if (input.maxChars !== undefined && input.maxChars > 0) {
+    // サロゲートペア（絵文字等）の中間で切らないよう書記素寄り（コードポイント単位）に切る。
+    const chars = Array.from(section);
+    if (chars.length > input.maxChars) {
+      return chars.slice(0, input.maxChars).join('') + '\n…(truncated)';
+    }
   }
   return section;
 }

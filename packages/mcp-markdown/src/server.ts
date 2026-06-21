@@ -148,7 +148,7 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
       type: z.string().optional().describe('Filter by frontmatter type (exact match, e.g. spec/plan)'),
       lang: z.string().optional().describe('Filter by frontmatter lang (exact match, e.g. ja/en)'),
       limit: z.number().optional().describe('Max results (default 8)'),
-      snippetTokens: z.number().optional().describe('Keyword-match snippet length in tokens (default 24, max 64)'),
+      snippetTokens: z.number().optional().describe('Keyword-match snippet length in FTS5 trigram tokens (~chars, default 24, max 64)'),
     },
     async (args) => {
       const hits = runSearchDocs(rootDir, {
