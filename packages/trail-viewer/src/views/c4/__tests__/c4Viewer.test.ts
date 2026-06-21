@@ -111,6 +111,28 @@ describe('mountC4Viewer', () => {
     handle.destroy();
   });
 
+  // Regression: C1-C5 レベルボタンをクリックすると選択(aria-pressed)が切り替わる。
+  it('レベルボタンクリックで選択が切り替わる', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c4Model: any = {
+      title: 'T', level: 'context',
+      elements: [{ id: 'sys1', type: 'system', name: 'MySystem' }],
+      relationships: [],
+    };
+    const handle = mountC4Viewer(container, makeProps({ c4Model }));
+    const buttons = Array.from(container.querySelectorAll('button[aria-label^="Level "]'));
+    expect(buttons[0].getAttribute('aria-pressed')).toBe('true'); // C1 既定
+
+    // C3 をクリック
+    buttons[2].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(buttons[2].getAttribute('aria-pressed')).toBe('true'); // C3 が選択
+    expect(buttons[0].getAttribute('aria-pressed')).toBe('false'); // C1 解除
+    handle.destroy();
+  });
+
   it('initialLevel prop sets correct active button', () => {
     const handle = mountC4Viewer(container, makeProps({ initialLevel: 3 }));
     const buttons = Array.from(container.querySelectorAll('button[aria-label^="Level "]'));
