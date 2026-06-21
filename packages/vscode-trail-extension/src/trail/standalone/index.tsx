@@ -1,39 +1,22 @@
-import {
-  applyTrailUiThemeVars,
-  injectTrailUiStyles,
-} from '@anytime-markdown/trail-viewer/ui';
-import { useEffect, useState } from 'react';
-import { createRoot } from 'react-dom/client';
+import { applyTrailThemeVars, mountTrailViewerApp } from '@anytime-markdown/trail-viewer';
+import type { TrailLocale } from '@anytime-markdown/trail-viewer';
 
-import { StandaloneTrailViewer } from './StandaloneTrailViewer';
-
-/** OS のカラースキームを購読する（旧 MUI useMediaQuery 置換）。 */
-function usePrefersDark(): boolean {
-  const [dark, setDark] = useState(
-    () =>
-      typeof globalThis.matchMedia === 'function' &&
-      globalThis.matchMedia('(prefers-color-scheme: dark)').matches,
-  );
-  useEffect(() => {
-    if (typeof globalThis.matchMedia !== 'function') return;
-    const mql = globalThis.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = (e: MediaQueryListEvent) => setDark(e.matches);
-    mql.addEventListener('change', onChange);
-    return () => mql.removeEventListener('change', onChange);
-  }, []);
-  return dark;
+/**
+ * VS Code 拡張機能の Trail Viewer webview エントリ（素 DOM）。
+ *
+ * 旧 React 版（createRoot + TrailViewerApp）を撤去し、vanilla `mountTrailViewerApp`
+ * を container へ直接マウントする。テーマ（--am-color-* / --trv-color-*）は
+ * `applyTrailThemeVars(isDark)` が documentElement に注入する。
+ */
+function detectLocale(): TrailLocale {
+  return globalThis.navigator?.language.startsWith('ja') ? 'ja' : 'en';
 }
 
-function App() {
-  const prefersDark = usePrefersDark();
-  // trail-viewer 自前 UI キット（--trv-* CSS 変数 + スタイル）をホスト側で配線する。
-  useEffect(() => {
-    injectTrailUiStyles();
-  }, []);
-  useEffect(() => {
-    applyTrailUiThemeVars(prefersDark);
-  }, [prefersDark]);
-  return <StandaloneTrailViewer isDark={prefersDark} />;
+function prefersDark(): boolean {
+  return (
+    typeof globalThis.matchMedia === 'function' &&
+    globalThis.matchMedia('(prefers-color-scheme: dark)').matches
+  );
 }
 
 // CssBaseline 相当の最小リセット（body 余白除去・カラースキーム連動）。
@@ -44,6 +27,24 @@ document.head.appendChild(baseline);
 
 const container = document.getElementById('root');
 if (container) {
-  const root = createRoot(container);
-  root.render(<App />);
+  let isDark = prefersDark();
+  const initialTabParam = new URLSearchParams(globalThis.location.search).get('tab');
+  const initialTab = initialTabParam === null ? undefined : Number(initialTabParam);
+  const locale = detectLocale();
+  const serverUrl = globalThis.location.origin;
+
+  const buildProps = () => ({ serverUrl, isDark, editable: true, locale, initialTab });
+
+  applyTrailThemeVars(isDark);
+  const handle = mountTrailViewerApp(container, buildProps());
+
+  // OS のカラースキーム変更を購読し、テーマ変数を再注入してアプリを更新する。
+  if (typeof globalThis.matchMedia === 'function') {
+    const mql = globalThis.matchMedia('(prefers-color-scheme: dark)');
+    mql.addEventListener('change', (e: MediaQueryListEvent) => {
+      isDark = e.matches;
+      applyTrailThemeVars(isDark);
+      handle.update(buildProps());
+    });
+  }
 }
