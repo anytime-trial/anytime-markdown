@@ -25,6 +25,13 @@ const mockMountCombinedContent = jest.fn((_p: unknown) => ({ update: () => {}, d
 jest.mock('../../charts/combined/combinedChartsContent', () => ({
   mountCombinedChartsContent: (_c: HTMLElement, p: unknown) => mockMountCombinedContent(p),
 }));
+const mockDailyHandle = { update: jest.fn(), destroy: jest.fn() };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockMountDaily = jest.fn((_c: HTMLElement, _p: any) => mockDailyHandle);
+jest.mock('../../charts/dailyActivityChart', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mountDailyActivityChart: (c: HTMLElement, p: any) => mockMountDaily(c, p),
+}));
 jest.mock('../../charts/sessionCacheTimeline', () => ({
   mountSessionCacheTimeline: () => ({ update: () => {}, destroy: () => {} }),
 }));
@@ -560,6 +567,31 @@ describe('mountCombinedChartsSection', () => {
     const handle = mountCombinedChartsSection(container, baseProps);
     handle.destroy();
     expect(container.innerHTML).toBe('');
+  });
+
+  // Regression: 棒グラフの選択ハイライトが drill-down / データ更新で消える不具合を防ぐ。
+  // チャートを破棄再生成せず in-place update することで chart-core 内部の選択を温存する。
+  it('drill-down とデータ更新でチャートを破棄再生成しない（選択温存）', () => {
+    mockMountDaily.mockClear();
+    mockDailyHandle.update.mockClear();
+    mockDailyHandle.destroy.mockClear();
+    const container = document.createElement('div');
+    // metric は既定で 'tokens' → DailyActivityChart がマウントされる
+    const handle = mountCombinedChartsSection(container, baseProps);
+    expect(mockMountDaily).toHaveBeenCalledTimes(1);
+    expect(mockDailyHandle.destroy).not.toHaveBeenCalled();
+
+    // drill-down クリック（チャートの onDateClick を発火）
+    const dailyProps = mockMountDaily.mock.calls.at(-1)?.[1] as { onDateClick: (d: string) => void };
+    dailyProps.onDateClick('2026-06-01');
+    expect(mockMountDaily).toHaveBeenCalledTimes(1); // 再生成されない
+    expect(mockDailyHandle.destroy).not.toHaveBeenCalled();
+
+    // 非 period のデータ更新（store 通知相当）
+    handle.update({ ...baseProps });
+    expect(mockMountDaily).toHaveBeenCalledTimes(1); // 再生成されない
+    expect(mockDailyHandle.destroy).not.toHaveBeenCalled();
+    expect(mockDailyHandle.update).toHaveBeenCalled(); // in-place update された
   });
 
   // Regression: 非 period の update（頻繁な store 通知）で初回 combined fetch が

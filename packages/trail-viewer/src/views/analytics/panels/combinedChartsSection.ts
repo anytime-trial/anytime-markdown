@@ -19,6 +19,7 @@ import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import type {
   AgentMetric,
   ChartMetric,
+  CombinedChartKind,
   CombinedMetric,
   CommitMetric,
   DailyViewMode,
@@ -124,11 +125,28 @@ export function mountCombinedChartsSection(
 
   const chartHandles: AnyHandle[] = [];
 
+  // 永続ホスト: ツールバー / チャート / セッションリストを分離して保持する。
+  // drill-down（日付クリック）時はセッションリストのみ差し替え、チャートは破棄せず
+  // chart-core 内部の選択ハイライト（selectedIndex）を温存する。
+  const toolbarHost = document.createElement('div');
+  const chartArea = document.createElement('div');
+  const sessionListHost = document.createElement('div');
+  root.append(toolbarHost, chartArea, sessionListHost);
+  let sessionListHandle: AnyHandle | null = null;
+  // 現在のチャートを in-place 更新する関数（metric ごとに renderChartArea が設定）。
+  let activeChartUpdate: ((p: CombinedChartsSectionProps) => void) | null = null;
+
   function destroyCharts(): void {
     for (const h of chartHandles) {
       h.destroy();
     }
     chartHandles.length = 0;
+  }
+
+  function destroySessionList(): void {
+    sessionListHandle?.destroy();
+    sessionListHandle = null;
+    sessionListHost.replaceChildren();
   }
 
   function createToggleBtn(label: string, value: string, currentVal: string): HTMLButtonElement {
@@ -283,40 +301,64 @@ export function mountCombinedChartsSection(
     return toolbar;
   }
 
+  // drill-down クリック: セッションリストのみ差し替え、チャートは温存する。
+  const handleDateClick = (date: string): void => {
+    selectedDate = selectedDate === date ? null : date;
+    renderSessionList(currentProps);
+  };
+
+  // 各 metric のチャート props を構築（mount / update で共有しデータ更新時の再生成を避ける）。
+  function buildDailyProps(p: CombinedChartsSectionProps) {
+    return {
+      items: p.dailyActivity,
+      period: p.period,
+      mode: tokenMode,
+      onDateClick: handleDateClick,
+      costOptimization: p.costOptimization,
+      overlay: overlay ? { bucket: overlay.bucket, tokens: overlay.tokens, cost: overlay.cost } : null,
+      chartColors: p.chartColors,
+      cardSx: p.cardSx,
+      isDark: p.isDark,
+      t: p.t,
+    };
+  }
+  function buildReleasesProps(p: CombinedChartsSectionProps) {
+    return { releases: p.releases ?? [], colors: p.colors, cardSx: p.cardSx, isDark: p.isDark, t: p.t };
+  }
+  function buildCombinedProps(p: CombinedChartsSectionProps) {
+    return {
+      data: combinedData,
+      periodDays: p.period,
+      // この関数は combined 分岐でのみ呼ばれ metric は tokens/releases 以外（= CombinedChartKind）。
+      activeChart: metric as CombinedChartKind,
+      toolMetric,
+      modelMetric,
+      agentMetric,
+      commitMetric,
+      repoMetric,
+      leadTimeOverlay: overlay
+        ? { leadTimePerLoc: overlay.leadTimePerLoc, unmapped: overlay.leadTimeUnmapped, byPrefix: overlay.leadTimeByPrefix }
+        : null,
+      onDateClick: handleDateClick,
+      theme: p.combinedTheme,
+    };
+  }
+
   function renderChartArea(p: CombinedChartsSectionProps, parent: HTMLElement): void {
     destroyCharts();
+    activeChartUpdate = null;
 
     const chartEl = document.createElement('div');
     parent.appendChild(chartEl);
 
     if (metric === 'tokens') {
-      const handle = mountDailyActivityChart(chartEl, {
-        items: p.dailyActivity,
-        period: p.period,
-        mode: tokenMode,
-        onDateClick: (date) => {
-          selectedDate = selectedDate === date ? null : date;
-          render(currentProps);
-        },
-        costOptimization: p.costOptimization,
-        overlay: overlay
-          ? { bucket: overlay.bucket, tokens: overlay.tokens, cost: overlay.cost }
-          : null,
-        chartColors: p.chartColors,
-        cardSx: p.cardSx,
-        isDark: p.isDark,
-        t: p.t,
-      });
+      const handle = mountDailyActivityChart(chartEl, buildDailyProps(p));
       chartHandles.push(handle as AnyHandle);
+      activeChartUpdate = (np) => handle.update(buildDailyProps(np));
     } else if (metric === 'releases') {
-      const handle = mountReleasesLocChart(chartEl, {
-        releases: p.releases ?? [],
-        colors: p.colors,
-        cardSx: p.cardSx,
-        isDark: p.isDark,
-        t: p.t,
-      });
+      const handle = mountReleasesLocChart(chartEl, buildReleasesProps(p));
       chartHandles.push(handle as AnyHandle);
+      activeChartUpdate = (np) => handle.update(buildReleasesProps(np));
     } else if (p.fetchCombinedData) {
       if (combinedLoading && !combinedData) {
         const loadingEl = document.createElement('div');
@@ -326,49 +368,29 @@ export function mountCombinedChartsSection(
         parent.appendChild(loadingEl);
         return;
       }
-
-      const handle = mountCombinedChartsContent(chartEl, {
-        data: combinedData,
-        periodDays: p.period,
-        activeChart: metric,
-        toolMetric,
-        modelMetric,
-        agentMetric,
-        commitMetric,
-        repoMetric,
-        leadTimeOverlay: overlay
-          ? {
-              leadTimePerLoc: overlay.leadTimePerLoc,
-              unmapped: overlay.leadTimeUnmapped,
-              byPrefix: overlay.leadTimeByPrefix,
-            }
-          : null,
-        onDateClick: (date) => {
-          selectedDate = selectedDate === date ? null : date;
-          render(currentProps);
-        },
-        theme: p.combinedTheme,
-      });
+      const handle = mountCombinedChartsContent(chartEl, buildCombinedProps(p));
       chartHandles.push(handle as AnyHandle);
+      activeChartUpdate = (np) => handle.update(buildCombinedProps(np));
     }
   }
 
-  function render(p: CombinedChartsSectionProps): void {
-    root.innerHTML = '';
-    destroyCharts();
+  // データのみ更新（metric/period 不変）: チャートを破棄せず in-place update。
+  // chart-core 内部の選択ハイライト（selectedIndex）が温存される。
+  function refreshData(p: CombinedChartsSectionProps): void {
+    if (activeChartUpdate) {
+      activeChartUpdate(p);
+      renderSessionList(p);
+    } else {
+      // チャート未生成（loading 等）の場合は通常 render で構築する。
+      render(p);
+    }
+  }
 
-    const toolbar = renderToolbar(p);
-    root.appendChild(toolbar);
-
-    const chartArea = document.createElement('div');
-    root.appendChild(chartArea);
-    renderChartArea(p, chartArea);
-
-    // Daily session list below chart when a date is selected
+  // selectedDate に応じてセッションリストのみを差し替える（チャートは温存）。
+  function renderSessionList(p: CombinedChartsSectionProps): void {
+    destroySessionList();
     if (selectedDate && p.period !== 90) {
-      const sessionListEl = document.createElement('div');
-      root.appendChild(sessionListEl);
-      const sessionListHandle = mountDailySessionList(sessionListEl, {
+      sessionListHandle = mountDailySessionList(sessionListHost, {
         date: selectedDate,
         sessions: p.sessions,
         sessionsLoading: p.sessionsLoading,
@@ -383,9 +405,16 @@ export function mountCombinedChartsSection(
         cardSx: p.cardSx,
         isDark: p.isDark,
         t: p.t,
-      });
-      chartHandles.push(sessionListHandle as AnyHandle);
+      }) as AnyHandle;
     }
+  }
+
+  function render(p: CombinedChartsSectionProps): void {
+    destroyCharts();
+    toolbarHost.replaceChildren(renderToolbar(p));
+    chartArea.replaceChildren();
+    renderChartArea(p, chartArea);
+    renderSessionList(p);
   }
 
   function fetchCombinedData(p: CombinedChartsSectionProps): void {
@@ -448,13 +477,17 @@ export function mountCombinedChartsSection(
         overlay = null;
         fetchCombinedData(newProps);
         fetchOverlay(newProps);
+        render(newProps);
+      } else {
+        // データのみ更新: チャートを破棄せず in-place 更新し、選択ハイライトを温存する。
+        refreshData(newProps);
       }
-      render(newProps);
     },
     destroy() {
       combinedFetchCancelled = true;
       overlayFetchCancelled = true;
       destroyCharts();
+      destroySessionList();
       root.remove();
     },
   };
