@@ -165,7 +165,7 @@ const BLOCK_GROUPS = new Set<GroupKind>(["list", "table", "quote"]);
 
 /** 連続する content unit 間に必要な空行数を決める（heading は厳密値で上書き）。 */
 function requiredBlanks(prev: TextUnit | CodeUnit, next: TextUnit | CodeUnit, original: number): number {
-  if (next.kind === "text" && next.group === "heading") return 2; // 見出しの上: 厳密に 2
+  if (next.kind === "text" && next.group === "heading") return 1; // 見出しの上: 厳密に 1
   if (prev.kind === "text" && prev.group === "heading") return 1; // 見出しの下: 厳密に 1
 
   let req = Math.min(original, 2); // collapseBlankLines: 最大 2

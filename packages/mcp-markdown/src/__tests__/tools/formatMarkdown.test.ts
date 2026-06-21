@@ -20,7 +20,7 @@ describe('formatMarkdownTool', () => {
       expect(res.changed).toBe(true);
       expect(res.rulesApplied.headingBlankLines).toBeGreaterThan(0);
       const written = await fs.readFile(path.join(dir, 'a.md'), 'utf-8');
-      expect(written).toBe('intro\n\n\n# Title\n\nbody\n');
+      expect(written).toBe('intro\n\n# Title\n\nbody\n');
     });
   });
 
