@@ -24,7 +24,8 @@
   ],
   "activationEvents": [
     "onLanguage:markdown",
-    "onView:anytimeMarkdown.timeline"
+    "onView:anytimeMarkdown.timeline",
+    "onCommand:anytime-markdown.registerMcpServer"
   ],
   "icon": "images/camel_markdown.png",
   "main": "./dist/extension.js",
@@ -77,6 +78,17 @@
       {
         "command": "anytime-markdown.compareWithCommit",
         "title": "%command.compareWithCommit%"
+      },
+      {
+        "command": "anytime-markdown.registerMcpServer",
+        "title": "%command.registerMcpServer%",
+        "category": "Anytime Markdown"
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "anytime-markdown.mcp",
+        "label": "Anytime Markdown"
       }
     ],
     "viewsContainers": {
@@ -314,6 +326,7 @@
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/markdown-viewer": "*",
     "@anytime-markdown/markdown-rich": "*",
+    "@anytime-markdown/mcp-markdown": "*",
     "@anytime-markdown/vscode-common": "*",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",
