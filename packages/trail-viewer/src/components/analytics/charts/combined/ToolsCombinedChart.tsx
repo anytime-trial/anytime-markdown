@@ -1,12 +1,9 @@
-import { useMemo } from 'react';
-import { Paper, Typography } from '../../../../ui';
 import { useTrailTheme } from '../../../TrailThemeContext';
 import type { ChartMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';
-import { makeCategoryClick } from './axisInfo';
 import { useToolCategory } from '../../../ToolCategoryContext';
-import { AnytimeChartView } from '../AnytimeChartView';
-import { buildStackedBarSpec } from '../specs/buildStackedBarSpec';
+import { VanillaIsland } from '../../../../shared/vanillaIsland';
+import { mountToolsCombinedChart } from '../../../../views/analytics/charts/combined/toolsCombinedChart';
 
 export function ToolsCombinedChart({
   axisInfo,
@@ -19,35 +16,16 @@ export function ToolsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx } = useTrailTheme();
+  const { cardSx, isDark } = useTrailTheme();
   const { getToolCategory, getToolCategoryLabel, getToolCategoryColorByIndex, toolCategoryKeys } = useToolCategory();
-  const { toolRows, allPeriods, labels } = axisInfo;
-
-  const spec = useMemo(() => {
-    const getValue = (r: { count: number; tokens?: number }): number =>
-      toolMetric === 'tokens' ? (r.tokens ?? 0) : r.count;
-    const valMap = new Map<string, number>();
-    for (const r of toolRows) {
-      const cat = getToolCategory(r.tool);
-      valMap.set(`${r.period}::${cat}`, (valMap.get(`${r.period}::${cat}`) ?? 0) + getValue(r));
-    }
-    return buildStackedBarSpec({
-      categories: labels,
-      series: toolCategoryKeys.map((cat) => ({
-        name: getToolCategoryLabel(cat),
-        values: allPeriods.map((p) => valMap.get(`${p}::${cat}`) ?? 0),
-        color: getToolCategoryColorByIndex(cat),
-      })),
-    });
-  }, [toolRows, allPeriods, labels, toolMetric, getToolCategory, getToolCategoryLabel, getToolCategoryColorByIndex, toolCategoryKeys]);
-
-  if (toolRows.length === 0) {
-    return <Typography variant="body2" color="text.secondary">0</Typography>;
-  }
 
   return (
-    <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      <AnytimeChartView spec={spec} height={240} onCategoryClick={makeCategoryClick(allPeriods, canDrill, onDateClick)} />
-    </Paper>
+    <VanillaIsland
+      mount={mountToolsCombinedChart}
+      props={{
+        axisInfo, toolMetric, canDrill, onDateClick, isDark, cardSx,
+        getToolCategory, getToolCategoryLabel, getToolCategoryColorByIndex, toolCategoryKeys,
+      }}
+    />
   );
 }

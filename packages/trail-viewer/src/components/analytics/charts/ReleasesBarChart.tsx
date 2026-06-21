@@ -1,38 +1,20 @@
-import { Paper, Typography } from '../../../ui';
+import React from 'react';
 import type { ReleaseQualityBucket } from '@anytime-markdown/trail-core/domain/metrics';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
-import { releaseColors } from '../../../theme/designTokens';
-import { AnytimeChartView } from './AnytimeChartView';
-import { buildStackedBarSpec } from './specs/buildStackedBarSpec';
+import { VanillaIsland } from '../../../shared/vanillaIsland';
+import { mountReleasesBarChart } from '../../../views/analytics/charts/releasesBarChart';
 
-export function ReleasesBarChart({ timeSeries }: Readonly<{
-  timeSeries: ReadonlyArray<ReleaseQualityBucket>;
-}>) {
-  const { cardSx } = useTrailTheme();
+export function ReleasesBarChart(
+  props: Readonly<{ timeSeries: ReadonlyArray<ReleaseQualityBucket> }>,
+) {
+  const { colors, cardSx, isDark } = useTrailTheme();
   const { t } = useTrailI18n();
-
-  if (timeSeries.length === 0) {
-    return (
-      <Paper elevation={0} sx={{ ...cardSx, p: 2, minHeight: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="body2" color="text.secondary">{t('metrics.empty')}</Typography>
-      </Paper>
-    );
-  }
-
-  const fmt = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
-  const labels = timeSeries.map((d) => fmt.format(new Date(d.bucketStart)));
-  const spec = buildStackedBarSpec({
-    categories: labels,
-    series: [
-      { name: t('analytics.combined.releaseSucceeded'), values: timeSeries.map((d) => d.succeeded), color: releaseColors.succeeded },
-      { name: t('analytics.combined.releaseFailed'), values: timeSeries.map((d) => d.failed), color: releaseColors.failed },
-    ],
-  });
-
+  const tStr = (k: string): string => t(k as Parameters<typeof t>[0]);
   return (
-    <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      <AnytimeChartView spec={spec} height={240} />
-    </Paper>
+    <VanillaIsland
+      mount={mountReleasesBarChart}
+      props={{ ...props, colors, cardSx, isDark, t: tStr }}
+    />
   );
 }

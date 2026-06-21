@@ -1,41 +1,18 @@
-import { Paper, Typography } from '../../../ui';
-import type { ChartSpec } from '@anytime-markdown/chart-core';
+import React from 'react';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
-import { AnytimeChartView } from './AnytimeChartView';
+import { VanillaIsland } from '../../../shared/vanillaIsland';
+import { mountReleasesLocChart } from '../../../views/analytics/charts/releasesLocChart';
 
-export function ReleasesLocChart({ releases }: Readonly<{ releases: readonly TrailRelease[] }>) {
-  const { cardSx, colors } = useTrailTheme();
+export function ReleasesLocChart(props: Readonly<{ releases: readonly TrailRelease[] }>) {
+  const { colors, cardSx, isDark } = useTrailTheme();
   const { t } = useTrailI18n();
-
-  const dataset = [...releases]
-    .filter((r) => r.totalLines > 0 && r.releasedAt)
-    .sort((a, b) => a.releasedAt.localeCompare(b.releasedAt))
-    .map((r) => ({ tag: r.tag, totalLines: r.totalLines, releaseTimeMin: r.releaseTimeMin ?? null }));
-
-  if (dataset.length === 0) {
-    return (
-      <Paper elevation={0} sx={{ ...cardSx, p: 2, minHeight: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="body2" color="text.secondary">{t('releases.noReleases')}</Typography>
-      </Paper>
-    );
-  }
-
-  // 総 LOC（左軸）とリリース所要時間 min（右軸）のデュアル軸 2 折れ線。
-  const spec: ChartSpec = {
-    kind: 'line',
-    categories: dataset.map((d) => d.tag),
-    series: [
-      { name: t('releases.totalLoc'), color: colors.iceBlue, connectNulls: true, values: dataset.map((d) => d.totalLines) },
-      { name: t('releases.releaseTimeMin'), color: colors.warning, axis: 'right', connectNulls: true, values: dataset.map((d) => d.releaseTimeMin) },
-    ],
-    options: { legend: 'bottom', yAxis: { label: t('releases.totalLoc') }, yAxisRight: { label: t('releases.releaseTimeMin') } },
-  };
-
+  const tStr = (k: string): string => t(k as Parameters<typeof t>[0]);
   return (
-    <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      <AnytimeChartView spec={spec} height={300} />
-    </Paper>
+    <VanillaIsland
+      mount={mountReleasesLocChart}
+      props={{ ...props, colors, cardSx, isDark, t: tStr }}
+    />
   );
 }

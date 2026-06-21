@@ -1,14 +1,9 @@
-import { useMemo } from 'react';
-import { Paper } from '../../../../ui';
 import { useTrailTheme } from '../../../TrailThemeContext';
 import { useTrailI18n } from '../../../../i18n';
-import { fmtPercent } from '../../../../domain/analytics/formatters';
-import { agentBrandColors } from '../../../../theme/designTokens';
 import type { AgentMetric } from '../../types';
 import type { CombinedAxisInfo } from './axisInfo';
-import { makeCategoryClick } from './axisInfo';
-import { AnytimeChartView } from '../AnytimeChartView';
-import { buildStackedBarSpec } from '../specs/buildStackedBarSpec';
+import { VanillaIsland } from '../../../../shared/vanillaIsland';
+import { mountAgentsCombinedChart } from '../../../../views/analytics/charts/combined/agentsCombinedChart';
 
 export function AgentsCombinedChart({
   axisInfo,
@@ -21,37 +16,14 @@ export function AgentsCombinedChart({
   canDrill: boolean;
   onDateClick?: (date: string) => void;
 }>) {
-  const { cardSx, toolPalette } = useTrailTheme();
+  const { cardSx, toolPalette, isDark } = useTrailTheme();
   const { t } = useTrailI18n();
-  const { agentRows, agentPeriods, agentLabels, agents, agentMap, agentMissingByDisplay } = axisInfo;
-
-  const agentSeriesLabel = (agent: string): string => {
-    const missing = agentMissingByDisplay.get(agent);
-    const rate = missing && missing.total > 0 ? missing.missing / missing.total : 0;
-    return `${agent} (${t('analytics.combined.missingRate')} ${fmtPercent(rate)})`;
-  };
-
-  const spec = useMemo(() => {
-    const getValue = (r: { tokens: number; costUsd: number; loc: number }): number =>
-      agentMetric === 'tokens' ? r.tokens : agentMetric === 'cost' ? r.costUsd : r.loc;
-    const valMap = new Map<string, number>();
-    for (const r of agentRows) {
-      const displayKey = agentMap.get(r.agent) ?? r.agent;
-      valMap.set(`${r.period}::${displayKey}`, (valMap.get(`${r.period}::${displayKey}`) ?? 0) + getValue(r));
-    }
-    return buildStackedBarSpec({
-      categories: agentLabels,
-      series: agents.map((agent, i) => ({
-        name: agentSeriesLabel(agent),
-        values: agentPeriods.map((p) => valMap.get(`${p}::${agent}`) ?? 0),
-        color: agentBrandColors[agent] ?? toolPalette[i % toolPalette.length],
-      })),
-    });
-  }, [agentRows, agentPeriods, agentLabels, agents, agentMap, agentMetric, toolPalette, t, agentMissingByDisplay]);
+  const tStr = (key: string): string => t(key as Parameters<typeof t>[0]);
 
   return (
-    <Paper elevation={0} sx={{ ...cardSx, p: 2 }}>
-      <AnytimeChartView spec={spec} height={240} onCategoryClick={makeCategoryClick(agentPeriods, canDrill, onDateClick)} />
-    </Paper>
+    <VanillaIsland
+      mount={mountAgentsCombinedChart}
+      props={{ axisInfo, agentMetric, canDrill, onDateClick, isDark, toolPalette, cardSx, t: tStr }}
+    />
   );
 }
