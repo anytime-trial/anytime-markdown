@@ -48,6 +48,8 @@ export interface TrailDataStoreOptions {
 export interface TrailDataStore {
   getState(): TrailDataSourceResult;
   subscribe(listener: () => void): () => void;
+  /** prompts の遅延取得を有効化する（Prompts ポップアップ初回オープン時に呼ぶ）。 */
+  setPromptsEnabled(enabled: boolean): void;
   dispose(): void;
 }
 
@@ -88,7 +90,7 @@ export function createTrailDataStore(
   options?: TrailDataStoreOptions,
 ): TrailDataStore {
   const baseUrl = serverUrl;
-  const promptsEnabled = options?.promptsEnabled ?? true;
+  let promptsEnabled = options?.promptsEnabled ?? true;
 
   // ----- Mutable state -----
   let disposed = false;
@@ -536,6 +538,17 @@ export function createTrailDataStore(
     return () => listeners.delete(listener);
   }
 
+  /**
+   * prompts の遅延取得を有効化する。store は promptsEnabled=false で生成され得る
+   * （Prompts 未オープン）。false→true で fetchPrompts を起動する（これが無いと
+   * Prompts ポップアップが永久に空になる）。
+   */
+  function setPromptsEnabled(next: boolean): void {
+    if (next === promptsEnabled || disposed) return;
+    promptsEnabled = next;
+    if (next) fetchPrompts();
+  }
+
   function dispose(): void {
     disposed = true;
 
@@ -555,5 +568,5 @@ export function createTrailDataStore(
     listeners.clear();
   }
 
-  return { getState, subscribe, dispose };
+  return { getState, subscribe, setPromptsEnabled, dispose };
 }
