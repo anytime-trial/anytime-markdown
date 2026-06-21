@@ -7,7 +7,9 @@ import { getSection } from './tools/getSection';
 import { updateSection } from './tools/updateSection';
 import { sanitize } from './tools/sanitizeMarkdown';
 import { diff } from './tools/computeDiff';
-import { runSearchDocs, runBacklinks, runNeighbors } from './tools/docSearch';
+import { runSearchDocs, runSearchSections, runBacklinks, runNeighbors } from './tools/docSearch';
+import { getFrontmatter, updateFrontmatter } from './tools/frontmatter';
+import { grepMarkdown } from './tools/grepMarkdown';
 
 export interface McpEditorOptions {
   rootDir: string;
@@ -184,6 +186,80 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
     async (args) => {
       const paths = runNeighbors(rootDir, args.path as string, args.hops as number | undefined);
       return { content: [{ type: 'text' as const, text: JSON.stringify(paths, null, 2) }] };
+    },
+  );
+
+  registerTool(server, 'search_sections',
+    'Search the document index at heading-section granularity (FTS5). Returns path/heading/level (+ snippet) so you can jump straight to the relevant section without get_outline+get_section round-trips. Requires a keyword query.',
+    {
+      query: z.string().describe('Free-text keyword query (FTS5, required)'),
+      category: z.string().optional().describe('Filter by frontmatter category (exact match)'),
+      type: z.string().optional().describe('Filter by frontmatter type (exact match, e.g. spec/plan)'),
+      lang: z.string().optional().describe('Filter by frontmatter lang (exact match, e.g. ja/en)'),
+      limit: z.number().optional().describe('Max results (default 8)'),
+      snippetTokens: z.number().optional().describe('Snippet length in FTS5 trigram tokens (~chars, default 24, max 64)'),
+    },
+    async (args) => {
+      const hits = runSearchSections(rootDir, {
+        query: args.query as string,
+        category: args.category as string | undefined,
+        type: args.type as string | undefined,
+        lang: args.lang as string | undefined,
+        limit: args.limit as number | undefined,
+        snippetTokens: args.snippetTokens as number | undefined,
+      });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(hits, null, 2) }] };
+    },
+  );
+
+  registerTool(server, 'get_frontmatter',
+    'Read only the frontmatter (YAML metadata: related/status/tags/...) of a Markdown file without returning the body.',
+    { path: z.string().describe('Relative path to the Markdown file') },
+    async (args) => {
+      const data = await getFrontmatter({ path: args.path as string }, rootDir);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    },
+  );
+
+  registerTool(server, 'update_frontmatter',
+    'Update a Markdown file frontmatter without rewriting the body: merge keys via "set" and/or delete keys via "removeKeys". Adds frontmatter if absent.',
+    {
+      path: z.string().describe('Relative path to the Markdown file'),
+      set: z.record(z.string(), z.unknown()).optional().describe('Frontmatter keys to set/merge (values may be string/number/array/object)'),
+      removeKeys: z.array(z.string()).optional().describe('Frontmatter keys to remove'),
+    },
+    async (args) => {
+      await updateFrontmatter(
+        {
+          path: args.path as string,
+          set: args.set as Record<string, unknown> | undefined,
+          removeKeys: args.removeKeys as string[] | undefined,
+        },
+        rootDir,
+      );
+      return { content: [{ type: 'text' as const, text: `Updated frontmatter in ${args.path as string}` }] };
+    },
+  );
+
+  registerTool(server, 'grep_markdown',
+    'Literal substring search within a single Markdown file. Returns matching lines with line number, enclosing heading, and a snippet (token-cheap alternative to reading the whole file). Patterns are literal (no regex).',
+    {
+      path: z.string().describe('Relative path to the Markdown file'),
+      pattern: z.string().describe('Literal substring to search for (not a regular expression)'),
+      ignoreCase: z.boolean().optional().describe('Case-insensitive match (default false)'),
+      maxMatches: z.number().optional().describe('Max matches to return (default 20)'),
+    },
+    async (args) => {
+      const matches = await grepMarkdown(
+        {
+          path: args.path as string,
+          pattern: args.pattern as string,
+          ignoreCase: args.ignoreCase as boolean | undefined,
+          maxMatches: args.maxMatches as number | undefined,
+        },
+        rootDir,
+      );
+      return { content: [{ type: 'text' as const, text: JSON.stringify(matches, null, 2) }] };
     },
   );
 
