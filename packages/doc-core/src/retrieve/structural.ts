@@ -16,7 +16,7 @@ export function backlinks(db: DocDb, toPath: string, type?: RelationType): Relat
     ? 'SELECT from_path AS path, type FROM doc_relation WHERE to_path = ? AND type = ?'
     : 'SELECT from_path AS path, type FROM doc_relation WHERE to_path = ?';
   const rows = type ? db.prepare(sql).all(toPath, type) : db.prepare(sql).all(toPath);
-  return rows as RelationEdge[];
+  return rows as unknown as RelationEdge[];
 }
 
 /** X から出る関係（前方リンク）。type で絞り込み可。 */
@@ -25,7 +25,7 @@ export function forwardLinks(db: DocDb, fromPath: string, type?: RelationType): 
     ? 'SELECT to_path AS path, type FROM doc_relation WHERE from_path = ? AND type = ?'
     : 'SELECT to_path AS path, type FROM doc_relation WHERE from_path = ?';
   const rows = type ? db.prepare(sql).all(fromPath, type) : db.prepare(sql).all(fromPath);
-  return rows as RelationEdge[];
+  return rows as unknown as RelationEdge[];
 }
 
 export interface NeighborOptions {
@@ -46,7 +46,10 @@ export function neighbors(db: DocDb, centerPath: string, opts: NeighborOptions =
   const bwd = db.prepare('SELECT from_path AS path, type FROM doc_relation WHERE to_path = ?');
 
   const adj = (node: string): string[] => {
-    const rows = [...(fwd.all(node) as RelationEdge[]), ...(bwd.all(node) as RelationEdge[])];
+    const rows = [
+      ...(fwd.all(node) as unknown as RelationEdge[]),
+      ...(bwd.all(node) as unknown as RelationEdge[]),
+    ];
     return rows.filter((r) => !typeSet || typeSet.has(r.type)).map((r) => r.path);
   };
 
@@ -69,7 +72,7 @@ export function neighbors(db: DocDb, centerPath: string, opts: NeighborOptions =
 
 /** category でドキュメントパスを引く。 */
 export function byCategory(db: DocDb, category: string): string[] {
-  const rows = db.prepare('SELECT path FROM doc WHERE category = ? ORDER BY path').all(category) as {
+  const rows = db.prepare('SELECT path FROM doc WHERE category = ? ORDER BY path').all(category) as unknown as {
     path: string;
   }[];
   return rows.map((r) => r.path);
