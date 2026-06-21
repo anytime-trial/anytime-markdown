@@ -597,7 +597,10 @@ export function mountTrailViewer(
     if (releasesPopupOpen && !releasesPopupHandle) {
       const c4Colors = getC4Colors(props.isDark ?? true);
       const host = document.createElement('div');
-      document.body.appendChild(host);
+      // trail-viewer ルート(position:relative+overflow:hidden)へ append し、ポップアップを
+      // trail-viewer 内に収める。document.body 直下だと埋込(ランディングページ等)で
+      // ページ全体を覆ってしまう。
+      root.appendChild(host);
       releasesPopupHost = host;
 
       const releaseProps: ReleasesPanelProps = {
@@ -644,7 +647,10 @@ export function mountTrailViewer(
     if (promptsPopupOpen && !promptsPopupHandle) {
       const c4Colors = getC4Colors(props.isDark ?? true);
       const host = document.createElement('div');
-      document.body.appendChild(host);
+      // trail-viewer ルート(position:relative+overflow:hidden)へ append し、ポップアップを
+      // trail-viewer 内に収める。document.body 直下だと埋込(ランディングページ等)で
+      // ページ全体を覆ってしまう。
+      root.appendChild(host);
       promptsPopupHost = host;
 
       promptsPopupHandle = mountResizablePopup(host, {
@@ -688,7 +694,10 @@ export function mountTrailViewer(
     if (messagesPopupOpen && !messagesPopupHandle) {
       const c4Colors = getC4Colors(props.isDark ?? true);
       const host = document.createElement('div');
-      document.body.appendChild(host);
+      // trail-viewer ルート(position:relative+overflow:hidden)へ append し、ポップアップを
+      // trail-viewer 内に収める。document.body 直下だと埋込(ランディングページ等)で
+      // ページ全体を覆ってしまう。
+      root.appendChild(host);
       messagesPopupHost = host;
 
       messagesContentHost = document.createElement('div');

@@ -203,7 +203,7 @@ describe('mountTrailViewer', () => {
     }).not.toThrow();
   });
 
-  it('destroy でpopupホストdivがdocument.bodyから撤去される', () => {
+  it('popup ホストは trail-viewer 内に置かれ destroy で撤去される', () => {
     jest.clearAllMocks();
     capturedOnOpenPromptsPopup = undefined;
 
@@ -211,17 +211,19 @@ describe('mountTrailViewer', () => {
     const prompts = [{ id: 'p1', name: 'Prompt 1', content: '# Hello', tags: [], version: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }];
     const h = mountTrailViewer(container, makeBaseProps({ prompts, initialTab: 0 }));
 
-    // Open prompts popup to create a host div in document.body
+    // Open prompts popup — host は document.body ではなく trail-viewer ルート内に置かれる
+    // （埋込時にページ全体を覆わないため）。
     (capturedOnOpenPromptsPopup as unknown as () => void)?.();
 
-    // Count body children before destroy (host div should be present)
-    const bodyChildrenBefore = document.body.children.length;
-    expect(bodyChildrenBefore).toBeGreaterThan(0);
+    // popup の中身（react island sentinel）が container 内に存在する
+    expect(container.querySelector('[data-react-island="true"]')).not.toBeNull();
+    // document.body には漏れない
+    expect(document.body.querySelector('[data-react-island="true"]')).toBeNull();
 
     h.destroy();
 
-    // After destroy, no orphaned host divs should remain in document.body
-    expect(document.body.children.length).toBe(0);
+    // destroy 後は container から撤去される
+    expect(container.querySelector('[data-react-island="true"]')).toBeNull();
   });
 
   it('c4が未指定のときC4タブが現れない', () => {
@@ -279,13 +281,13 @@ describe('mountTrailViewer', () => {
       expect.objectContaining({ prompts }),
     );
 
-    // A sentinel should exist inside document.body (popup host appended to body)
-    const sentinel = document.body.querySelector('[data-react-island="true"]');
+    // A sentinel should exist inside the trail-viewer container (popup host appended to root)
+    const sentinel = container.querySelector('[data-react-island="true"]');
     expect(sentinel).not.toBeNull();
 
     h.destroy();
     // After destroy, the island sentinel should be cleaned up
-    const orphans = document.body.querySelectorAll('[data-react-island="true"]');
+    const orphans = container.querySelectorAll('[data-react-island="true"]');
     expect(orphans.length).toBe(0);
   });
 });
