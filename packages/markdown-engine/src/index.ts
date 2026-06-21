@@ -4,6 +4,7 @@
 export * from "./diffEngine";
 export * from "./sectionParser";
 export * from "./sanitizeMarkdown";
+export * from "./formatMarkdown";
 export * from "./commentHelpers";
 export * from "./footnoteHelpers";
 export * from "./mathHelpers";
