@@ -1,136 +1,31 @@
-import { useCallback, useState } from 'react';
-import { Box, Chip, ContentCopy as ContentCopyIcon, IconButton, List, ListItemButton, ListItemText, Tooltip, Typography } from '../ui';
-
-import { formatLocalDateTime } from '@anytime-markdown/trail-core/formatDate';
 import type { TrailSession } from '../domain/parser/types';
 import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
+import { VanillaIsland } from '../shared/vanillaIsland';
+import { mountSessionList, type SessionListProps } from '../views/sessionList';
 
-interface SessionListProps {
+interface SessionListComponentProps {
   readonly sessions: readonly TrailSession[];
   readonly selectedId?: string;
   readonly onSelect: (id: string) => void;
 }
 
-function formatSessionLabel(session: TrailSession): string {
-  return session.slug || session.id.slice(0, 8);
-}
-
-function formatSessionDate(startTime: string): string {
-  return formatLocalDateTime(startTime);
-}
-
-export function SessionList({ sessions, selectedId, onSelect }: Readonly<SessionListProps>) {
+export function SessionList({ sessions, selectedId, onSelect }: Readonly<SessionListComponentProps>) {
   const { t } = useTrailI18n();
   const { colors } = useTrailTheme();
-  const handleSelect = useCallback(
-    (id: string) => () => {
-      onSelect(id);
+
+  const tStr = (key: string): string => t(key as Parameters<typeof t>[0]);
+
+  const viewProps: SessionListProps = {
+    t: tStr,
+    sessions,
+    selectedId,
+    onSelect,
+    colors: {
+      textSecondary: colors.textSecondary,
+      iceBlue: colors.iceBlue,
     },
-    [onSelect],
-  );
+  };
 
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const handleCopyId = useCallback(
-    (id: string) => (e: React.MouseEvent) => {
-      e.stopPropagation();
-      void navigator.clipboard.writeText(id).then(() => {
-        setCopiedId(id);
-        setTimeout(() => setCopiedId(null), 2000);
-      });
-    },
-    [],
-  );
-
-  if (sessions.length === 0) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="body2" sx={{ color: colors.textSecondary, p: 2 }}>
-          {t('sessionList.noSessions')}
-        </Typography>
-      </Box>
-    );
-  }
-
-  return (
-    <List dense disablePadding>
-      {sessions.map((session) => (
-        <ListItemButton
-          key={session.id}
-          data-testid="session-row"
-          selected={session.id === selectedId}
-          onClick={handleSelect(session.id)}
-          sx={{
-            alignItems: 'flex-start',
-            pr: 1,
-            // TODO(mui-removal): dropped pseudo sx — '&.Mui-selected', '&.Mui-selected:hover', '&:hover' are pseudo-selector keys not expressible as inline style
-          }}
-        >
-          <ListItemText
-            primary={
-              <Box component="span" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography component="span" variant="body2" sx={{ fontWeight: session.id === selectedId ? 600 : 400 }}>
-                  {formatSessionLabel(session)}
-                </Typography>
-                <Tooltip title={copiedId === session.id ? t('sessionList.copied') : t('sessionList.copyId')}>
-                  <IconButton
-                    size="small"
-                    onClick={handleCopyId(session.id)}
-                    sx={{ p: 0.5, color: colors.textSecondary /* TODO(mui-removal): dropped pseudo sx — '&:hover' is a pseudo-selector key */ }}
-                    aria-label={t('sessionList.copyId')}
-                  >
-                    <ContentCopyIcon fontSize={14} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            }
-            secondary={
-              <Box component="span" sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                {session.slug && (
-                  <Typography variant="caption" component="span" sx={{ color: colors.textSecondary, fontFamily: 'monospace' }}>
-                    {session.id.slice(0, 8)}
-                  </Typography>
-                )}
-                <Typography variant="caption" component="span" color="text.secondary">
-                  {session.gitBranch} &middot; {formatSessionDate(session.startTime)}
-                </Typography>
-                <Box component="span" sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                  <Chip
-                    label={session.source ?? 'claude_code'}
-                    size="small"
-                    variant="outlined"
-                    sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue }}
-                  />
-                  <Chip
-                    label={`${session.messageCount} ${t('sessionList.messages')}`}
-                    size="small"
-                    variant="outlined"
-                    sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue }}
-                  />
-                  {session.errorCount != null && session.errorCount > 0 && (
-                    <Chip
-                      label={`${session.errorCount} errors`}
-                      size="small"
-                      variant="outlined"
-                      sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue }}
-                    />
-                  )}
-                  {session.subAgentCount != null && session.subAgentCount > 0 && (
-                    <Chip
-                      label={`${session.subAgentCount} ${t('sessionList.subAgents')}`}
-                      size="small"
-                      variant="outlined"
-                      sx={{ height: 20, fontSize: '0.7rem', borderColor: colors.iceBlue }}
-                    />
-                  )}
-                </Box>
-              </Box>
-            }
-            secondaryTypographyProps={{ component: 'div' }}
-          />
-        </ListItemButton>
-      ))}
-    </List>
-  );
+  return <VanillaIsland mount={mountSessionList} props={viewProps} />;
 }
