@@ -493,9 +493,10 @@ export function mountCoverageCanvas(
   canvas.addEventListener('focus', handleFocus);
   canvas.addEventListener('blur', handleBlur);
 
+  let resizeObserver: ResizeObserver | null = null;
   if (typeof ResizeObserver !== 'undefined') {
-    const ro = new ResizeObserver(() => { /* draw loop picks up new size */ });
-    ro.observe(canvas);
+    resizeObserver = new ResizeObserver(() => { /* draw loop picks up new size */ });
+    resizeObserver.observe(canvas);
   }
 
   // ---------------------------------------------------------------------------
@@ -524,6 +525,7 @@ export function mountCoverageCanvas(
     if (destroyed) return;
     destroyed = true;
     if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(rafId);
+    resizeObserver?.disconnect();
     canvas.removeEventListener('mousemove', handleMouseMove);
     canvas.removeEventListener('mousedown', handleMouseDown);
     canvas.removeEventListener('mouseup', handleMouseUp);

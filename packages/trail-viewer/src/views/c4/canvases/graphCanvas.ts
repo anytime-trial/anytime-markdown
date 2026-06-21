@@ -587,17 +587,22 @@ export function mountGraphCanvas(
       return;
     }
 
-    // Normal node hit
+    // Normal node hit: select + start a MOVE drag so individual nodes can be
+    // repositioned (useCanvasBase did this whenever an editor dispatch existed;
+    // dispatch is a required prop here, so the original behavior is to move).
     const c4Id = hit.metadata?.c4Id as string | undefined;
     selectionIds = [hit.id];
     setSelectionAction({ nodeIds: [hit.id], edgeIds: [] });
     props.onNodeSelect?.(c4Id ?? hit.id);
 
-    drag.mode = 'pan';
+    dispatchAction({ type: 'SNAPSHOT' } as unknown as Action);
+    drag.mode = 'move';
     drag.startScreenX = sx;
     drag.startScreenY = sy;
     drag.startWorldX = world.x;
     drag.startWorldY = world.y;
+    drag.moveIds = [hit.id];
+    drag.initialPositions = new Map([[hit.id, { x: hit.x, y: hit.y }]]);
 
     updateCursorStyle();
   }
