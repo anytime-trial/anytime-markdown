@@ -190,6 +190,12 @@ export function mountSessionList(
 
   return {
     update(next: SessionListProps) {
+      // 進行中の copy 表示タイマーをクリアし、update 後の二重再描画を防ぐ。
+      if (copyTimer !== null) {
+        clearTimeout(copyTimer);
+        copyTimer = null;
+        copiedId = null;
+      }
       props = next;
       buildRows();
     },

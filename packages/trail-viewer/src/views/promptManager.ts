@@ -175,7 +175,7 @@ export function mountPromptManagerSidebar(
 
       categoryBtn.addEventListener('click', () => {
         collapsed = !collapsed;
-        iconWrap.replaceChildren(collapsed ? chevronDown() : chevronUp());
+        iconWrap.replaceChildren(collapsed ? chevronUp() : chevronDown());
         collapseHandle.update({ in: !collapsed });
       });
 

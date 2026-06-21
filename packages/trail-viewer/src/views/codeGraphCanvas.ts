@@ -153,7 +153,7 @@ function buildSigmaGraph(props: CodeGraphCanvasViewProps): { g: InstanceType<typ
 
   if (riskMap) {
     g.forEachNode((nodeId) => {
-      const score = riskMap!.get(nodeId);
+      const score = riskMap.get(nodeId);
       if (score !== undefined) {
         g.setNodeAttribute(nodeId, 'color', riskColor(score, isDark ?? false));
       }

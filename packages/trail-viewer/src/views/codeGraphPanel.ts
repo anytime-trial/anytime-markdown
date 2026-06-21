@@ -252,10 +252,13 @@ export function mountCodeGraphPanel(
     }
   }
 
-  // Add spin keyframe once
-  const spinStyle = document.createElement('style');
-  spinStyle.textContent = '@keyframes am-spin{to{transform:rotate(360deg)}}';
-  document.head?.appendChild(spinStyle);
+  // Add spin keyframe once per document (shared across instances — guarded by data attr).
+  if (!document.head?.querySelector('style[data-am-spin]')) {
+    const spinStyle = document.createElement('style');
+    spinStyle.setAttribute('data-am-spin', '');
+    spinStyle.textContent = '@keyframes am-spin{to{transform:rotate(360deg)}}';
+    document.head?.appendChild(spinStyle);
+  }
 
   renderState();
 
@@ -271,7 +274,7 @@ export function mountCodeGraphPanel(
       canvasHandle?.destroy();
       canvasHandle = null;
       searchFieldHandle.destroy();
-      spinStyle.remove();
+      // spin keyframe は文書共有のため remove しない（data-am-spin で重複防止済み）。
       root.remove();
     },
   };

@@ -147,8 +147,9 @@ export function mountFilterBar(
 
   return {
     update(next: FilterBarProps) {
-      props = next;
+      // applyProps が `props`(旧値) を prev として next と比較するため、再代入は applyProps の後。
       applyProps(next);
+      props = next;
     },
     destroy() {
       destroyed = true;
