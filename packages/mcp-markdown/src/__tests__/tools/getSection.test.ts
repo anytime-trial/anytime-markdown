@@ -86,4 +86,16 @@ describe('getSection', () => {
     await fs.writeFile(path.join(tmpDir, 'test.md'), '# Title\n');
     await expect(getSection({ path: 'test.md', heading: '## Missing' }, tmpDir)).rejects.toThrow('not found');
   });
+
+  it('should truncate to maxChars with marker (B-3)', async () => {
+    await fs.writeFile(path.join(tmpDir, 'test.md'), '# Title\n\n## A\n\nThis is a long section body for truncation.\n');
+    const result = await getSection({ path: 'test.md', heading: '## A', maxChars: 10 }, tmpDir);
+    expect(result).toBe('## A\n\nThis' + '\n…(truncated)');
+  });
+
+  it('should not truncate when under maxChars (B-3)', async () => {
+    await fs.writeFile(path.join(tmpDir, 'test.md'), '# Title\n\n## A\n\nShort\n');
+    const result = await getSection({ path: 'test.md', heading: '## A', maxChars: 1000 }, tmpDir);
+    expect(result).toBe('## A\n\nShort\n');
+  });
 });

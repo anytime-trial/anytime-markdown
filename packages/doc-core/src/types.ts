@@ -40,4 +40,8 @@ export interface DocHit {
   category?: string;
   /** スコア（FTS rank / cosine 等。手段により意味が異なる）。 */
   score?: number;
+  /** frontmatter 由来の要約（doc.excerpt）。開かずに関連度判断するための短文。 */
+  excerpt?: string;
+  /** キーワード一致箇所の抜粋（FTS5 snippet・keyword 検索時のみ）。 */
+  snippet?: string;
 }
