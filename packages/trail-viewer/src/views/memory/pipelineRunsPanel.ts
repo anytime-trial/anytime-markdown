@@ -160,6 +160,8 @@ export function mountPipelineRunsPanel(
   initial: PipelineRunsPanelProps,
 ): VanillaViewHandle<PipelineRunsPanelProps> {
   let props = initial;
+  let destroyed = false;
+  let loadToken = 0;
   let runStats: readonly MemoryPipelineRunStatsByDayRow[] = [];
   let entities: readonly MemoryTopEntityRow[] = [];
   let invalidations: readonly MemoryInvalidationRow[] = [];
@@ -278,20 +280,26 @@ export function mountPipelineRunsPanel(
       return;
     }
     const reader = props.reader;
+    loadToken += 1;
+    const token = loadToken;
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     void reader.listPipelineRunStatsByDay({ since }).then((rows) => {
+      if (destroyed || token !== loadToken) return;
       runStats = rows;
       renderSections();
     });
     void reader.listTopEntities({ limit: 20 }).then((rows) => {
+      if (destroyed || token !== loadToken) return;
       entities = rows;
       renderSections();
     });
     void reader.listInvalidations({ limit: 50 }).then((rows) => {
+      if (destroyed || token !== loadToken) return;
       invalidations = rows;
       renderSections();
     });
     void reader.listFailedItems({ limit: 50 }).then((rows) => {
+      if (destroyed || token !== loadToken) return;
       failedItems = rows;
       renderSections();
     });
@@ -322,6 +330,7 @@ export function mountPipelineRunsPanel(
       }
     },
     destroy() {
+      destroyed = true;
       timelineHandle?.destroy();
       topEntitiesHandle?.destroy();
       root.remove();

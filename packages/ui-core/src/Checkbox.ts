@@ -63,6 +63,8 @@ export function createCheckbox(opts: CreateCheckboxOptions = {}): {
   el: HTMLSpanElement;
   /** 外部から checked 状態を更新する。indeterminate は opts 初期値を引き継ぐ。 */
   setChecked: (checked: boolean) => void;
+  /** change リスナーを除去してリソースを解放する。 */
+  destroy: () => void;
 } {
   let checked = opts.checked ?? false;
   let indeterminate = opts.indeterminate ?? false;
@@ -118,6 +120,10 @@ export function createCheckbox(opts: CreateCheckboxOptions = {}): {
     setChecked(nextChecked: boolean): void {
       checked = nextChecked;
       applyState(checked, indeterminate);
+    },
+    destroy(): void {
+      input.removeEventListener("change", onInputChange);
+      changeHandler = undefined;
     },
   };
 }

@@ -434,6 +434,7 @@ export function mountDailySessionList(
   }
 
   function render(p: DailySessionListProps): void {
+    destroyAll(mountedHandles);
     root.innerHTML = '';
 
     const daySessions = p.sessions.filter(

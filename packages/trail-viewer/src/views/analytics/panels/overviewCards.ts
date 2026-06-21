@@ -390,24 +390,24 @@ export function mountOverviewCards(
     if (cyclingHandle) {
       cyclingHandle.destroy();
     }
+    const cycle = (): void => {
+      usageIdx = (usageIdx + 1) % usageCards.length;
+      cyclingHandle?.update({
+        groupName: p.t('analytics.groupUsage'),
+        items: usageCards,
+        index: usageIdx,
+        onCycle: cycle,
+        cardSx: p.cardSx,
+      });
+    };
     cyclingHandle = mountCyclingCard(usageCardEl, {
       groupName: p.t('analytics.groupUsage'),
       items: usageCards,
       index: usageIdx,
-      onCycle: () => {
-        usageIdx = (usageIdx + 1) % usageCards.length;
-        cyclingHandle?.update({
-          groupName: p.t('analytics.groupUsage'),
-          items: usageCards,
-          index: usageIdx,
-          onCycle: cyclingHandle ? (() => {}) : (() => {}),
-          cardSx: p.cardSx,
-        });
-      },
+      onCycle: cycle,
       cardSx: p.cardSx,
     });
 
-    // Fix: reassign onCycle after handle created (closure needed)
     void cardStyle;
 
     // DORA cards

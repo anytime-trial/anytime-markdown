@@ -149,6 +149,22 @@ describe('mountMessageTimeline', () => {
     expect(c.childElementCount).toBe(0);
   });
 
+  it('destroy removes collapse button listener (no callback after destroy)', () => {
+    const c = document.createElement('div');
+    const handle = mountMessageTimeline(c, makeTimelineProps());
+
+    const root = c.querySelector('[data-testid="message-timeline"]') as HTMLElement;
+    const collapseBtn = root?.querySelector('button') as HTMLButtonElement;
+    expect(collapseBtn).not.toBeNull();
+
+    // Spy on removeEventListener to confirm it is called with 'click'
+    const removeSpy = jest.spyOn(collapseBtn, 'removeEventListener');
+    handle.destroy();
+
+    expect(removeSpy).toHaveBeenCalledWith('click', expect.any(Function));
+    removeSpy.mockRestore();
+  });
+
   it('renders AI turn bar for assistant messages', () => {
     const userMsg = makeMessage({ type: 'user', uuid: 'u3', timestamp: '2026-06-21T10:00:00.000Z', userContent: 'hello' });
     const aiMsg = makeMessage({ type: 'assistant', uuid: 'a1', timestamp: '2026-06-21T10:00:05.000Z' });

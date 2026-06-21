@@ -71,6 +71,7 @@ export function mountBugHistoryPanel(
   initial: BugHistoryPanelProps,
 ): VanillaViewHandle<BugHistoryPanelProps> {
   let props = initial;
+  let destroyed = false;
   let recurring: readonly MemoryRecurringBugRow[] = [];
   let history: readonly MemoryBugHistoryRow[] = [];
   let pkgFilter = '';
@@ -192,7 +193,11 @@ export function mountBugHistoryPanel(
     });
   }
 
+  const rowHandles: Array<{ destroy(): void }> = [];
+
   function renderTable(): void {
+    for (const h of rowHandles) h.destroy();
+    rowHandles.length = 0;
     tablePane.replaceChildren();
 
     const rows = filteredHistory();
@@ -285,7 +290,7 @@ export function mountBugHistoryPanel(
       // Open in messages icon button
       const openCell = td('padding:2px 4px;text-align:right;');
       if (props.onOpenSessionMessages && row.sessionId) {
-        const { el: iconBtn } = createIconButton({
+        const iconBtnHandle = createIconButton({
           size: 'small',
           ariaLabel: props.t('memory.bug.openInMessages'),
           onClick: (e?: MouseEvent) => {
@@ -293,9 +298,12 @@ export function mountBugHistoryPanel(
             props.onOpenSessionMessages!(row.sessionId!);
           },
         });
+        rowHandles.push(iconBtnHandle);
+        const { el: iconBtn } = iconBtnHandle;
         const { el: icon } = OpenInNew({ fontSize: 'small', color: 'action' });
         iconBtn.appendChild(icon);
-        createTooltip({ reference: iconBtn, title: props.t('memory.bug.openInMessages') });
+        const tooltipHandle = createTooltip({ reference: iconBtn, title: props.t('memory.bug.openInMessages') });
+        rowHandles.push(tooltipHandle);
         openCell.appendChild(iconBtn);
       }
 
@@ -312,10 +320,11 @@ export function mountBugHistoryPanel(
               }
             : undefined,
         );
-        createTooltip({
+        const precededTooltip = createTooltip({
           reference: precededChip as HTMLElement,
           title: `${props.t('memory.bug.precededByCount')}: ${row.precededByFindingIds.length}`,
         });
+        rowHandles.push(precededTooltip);
         precededCell.appendChild(precededChip);
       }
 
@@ -379,6 +388,7 @@ export function mountBugHistoryPanel(
       props.reader.listRecurringBugs({}),
       props.reader.getBugHistory({}),
     ]).then(([rec, hist]) => {
+      if (destroyed) return;
       recurring = rec;
       history = hist;
       renderAll();
@@ -405,6 +415,9 @@ export function mountBugHistoryPanel(
       }
     },
     destroy() {
+      destroyed = true;
+      for (const h of rowHandles) h.destroy();
+      rowHandles.length = 0;
       pkgSelect.destroy();
       catSelect.destroy();
       causal.destroy();

@@ -144,58 +144,61 @@ export function mountSessionMetricsPanel(
 
     const usageEl = document.createElement('div');
     root.appendChild(usageEl);
+    const cycleUsage = (): void => {
+      usageIdx = (usageIdx + 1) % usageCards.length;
+      usageHandle?.update({
+        groupName: p.t('analytics.groupUsage'),
+        items: usageCards,
+        index: usageIdx,
+        onCycle: cycleUsage,
+        cardSx: p.cardSx,
+      });
+    };
     usageHandle = mountCyclingCard(usageEl, {
       groupName: p.t('analytics.groupUsage'),
       items: usageCards,
       index: usageIdx,
-      onCycle: () => {
-        usageIdx = (usageIdx + 1) % usageCards.length;
-        usageHandle?.update({
-          groupName: p.t('analytics.groupUsage'),
-          items: usageCards,
-          index: usageIdx,
-          onCycle: () => {},
-          cardSx: p.cardSx,
-        });
-      },
+      onCycle: cycleUsage,
       cardSx: p.cardSx,
     });
 
     const productivityEl = document.createElement('div');
     root.appendChild(productivityEl);
+    const cycleProductivity = (): void => {
+      productivityIdx = (productivityIdx + 1) % productivityCards.length;
+      productivityHandle?.update({
+        groupName: p.t('analytics.groupProductivity'),
+        items: productivityCards,
+        index: productivityIdx,
+        onCycle: cycleProductivity,
+        cardSx: p.cardSx,
+      });
+    };
     productivityHandle = mountCyclingCard(productivityEl, {
       groupName: p.t('analytics.groupProductivity'),
       items: productivityCards,
       index: productivityIdx,
-      onCycle: () => {
-        productivityIdx = (productivityIdx + 1) % productivityCards.length;
-        productivityHandle?.update({
-          groupName: p.t('analytics.groupProductivity'),
-          items: productivityCards,
-          index: productivityIdx,
-          onCycle: () => {},
-          cardSx: p.cardSx,
-        });
-      },
+      onCycle: cycleProductivity,
       cardSx: p.cardSx,
     });
 
     const qualityEl = document.createElement('div');
     root.appendChild(qualityEl);
+    const cycleQuality = (): void => {
+      qualityIdx = (qualityIdx + 1) % qualityCards.length;
+      qualityHandle?.update({
+        groupName: p.t('analytics.groupQuality'),
+        items: qualityCards,
+        index: qualityIdx,
+        onCycle: cycleQuality,
+        cardSx: p.cardSx,
+      });
+    };
     qualityHandle = mountCyclingCard(qualityEl, {
       groupName: p.t('analytics.groupQuality'),
       items: qualityCards,
       index: qualityIdx,
-      onCycle: () => {
-        qualityIdx = (qualityIdx + 1) % qualityCards.length;
-        qualityHandle?.update({
-          groupName: p.t('analytics.groupQuality'),
-          items: qualityCards,
-          index: qualityIdx,
-          onCycle: () => {},
-          cardSx: p.cardSx,
-        });
-      },
+      onCycle: cycleQuality,
       cardSx: p.cardSx,
     });
   }

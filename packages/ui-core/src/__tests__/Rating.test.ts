@@ -119,4 +119,81 @@ describe("createRating", () => {
     const filledAfter = [...btns].filter((b) => b.textContent === "★").length;
     expect(filledAfter).toBe(2);
   });
+
+  it("destroy 後は星クリックで onClick が呼ばれない", () => {
+    const handler = jest.fn();
+    const { el, destroy } = createRating({ value: 1, max: 3, onClick: handler });
+    destroy();
+    const btns = el.querySelectorAll("button");
+    btns[2].click();
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("destroy 後は mouseenter/mouseleave でも星の表示が変わらない", () => {
+    const { el, destroy } = createRating({ value: 2, max: 5 });
+    destroy();
+    const btns = el.querySelectorAll("button");
+    // hover しても表示変化なし（リスナー除去済み）
+    btns[4].dispatchEvent(new MouseEvent("mouseenter"));
+    const filled = [...btns].filter((b) => b.textContent === "★").length;
+    expect(filled).toBe(2);
+  });
+
+  it("インタラクティブ時、コンテナが role=radiogroup を持つ", () => {
+    const { el } = createRating({ max: 5 });
+    expect(el.getAttribute("role")).toBe("radiogroup");
+  });
+
+  it("インタラクティブ時、各星ボタンが role=radio を持つ", () => {
+    const { el } = createRating({ max: 3 });
+    const btns = el.querySelectorAll("button");
+    for (const btn of btns) {
+      expect(btn.getAttribute("role")).toBe("radio");
+    }
+  });
+
+  it("インタラクティブ時、選択中の星は aria-checked=true、それ以外は false", () => {
+    const { el } = createRating({ value: 2, max: 3 });
+    const btns = el.querySelectorAll("button");
+    expect(btns[0].getAttribute("aria-checked")).toBe("false");
+    expect(btns[1].getAttribute("aria-checked")).toBe("true");
+    expect(btns[2].getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("readOnly 時、コンテナが role=img を持つ", () => {
+    const { el } = createRating({ value: 3, max: 5, readOnly: true });
+    expect(el.getAttribute("role")).toBe("img");
+    expect(el.getAttribute("aria-label")).toContain("3/5 stars");
+  });
+
+  it("disabled 時、コンテナが role=img を持つ", () => {
+    const { el } = createRating({ value: 2, max: 5, disabled: true });
+    expect(el.getAttribute("role")).toBe("img");
+  });
+
+  it("ArrowRight キーでフォーカスが次の星に移る", () => {
+    const { el } = createRating({ max: 3 });
+    document.body.appendChild(el);
+    try {
+      const btns = el.querySelectorAll("button") as NodeListOf<HTMLButtonElement>;
+      btns[0].focus();
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+      expect(document.activeElement).toBe(btns[1]);
+    } finally {
+      document.body.removeChild(el);
+    }
+  });
+
+  it("ArrowLeft キーでフォーカスが前の星に移る", () => {
+    const { el } = createRating({ max: 3 });
+    document.body.appendChild(el);
+    try {
+      const btns = el.querySelectorAll("button") as NodeListOf<HTMLButtonElement>;
+      btns[2].focus();
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+      expect(document.activeElement).toBe(btns[1]);
+    } finally {
+      document.body.removeChild(el);
+    }
+  });
 });

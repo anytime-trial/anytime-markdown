@@ -79,6 +79,7 @@ export function mountReviewPanel(
   initial: ReviewPanelProps,
 ): VanillaViewHandle<ReviewPanelProps> {
   let props = initial;
+  let destroyed = false;
   let unaddressed: readonly MemoryUnaddressedReviewFindingRow[] = [];
   let history: readonly MemoryReviewHistoryRow[] = [];
   let severityFilter = '';
@@ -200,7 +201,11 @@ export function mountReviewPanel(
     });
   }
 
+  const rowHandles: Array<{ destroy(): void }> = [];
+
   function renderTable(): void {
+    for (const h of rowHandles) h.destroy();
+    rowHandles.length = 0;
     tablePane.replaceChildren();
 
     const rows = filteredHistory();
@@ -253,7 +258,7 @@ export function mountReviewPanel(
       fileInner.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
       fileInner.textContent = row.targetFilePath?.split('/').at(-1) ?? '—';
       if (row.targetFilePath) {
-        createTooltip({ reference: fileCell, title: row.targetFilePath, placement: 'top' });
+        rowHandles.push(createTooltip({ reference: fileCell, title: row.targetFilePath, placement: 'top' }));
       }
       fileCell.appendChild(fileInner);
 
@@ -277,7 +282,7 @@ export function mountReviewPanel(
       const findingInner = document.createElement('div');
       findingInner.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.75rem;';
       findingInner.textContent = row.findingText;
-      createTooltip({ reference: findingCell, title: row.findingText, placement: 'top' });
+      rowHandles.push(createTooltip({ reference: findingCell, title: row.findingText, placement: 'top' }));
       findingCell.appendChild(findingInner);
 
       // Status
@@ -309,13 +314,13 @@ export function mountReviewPanel(
       const reviewerInner = document.createElement('div');
       reviewerInner.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.75rem;';
       reviewerInner.textContent = reviewerText;
-      createTooltip({ reference: reviewerCell, title: reviewerText, placement: 'top' });
+      rowHandles.push(createTooltip({ reference: reviewerCell, title: reviewerText, placement: 'top' }));
       reviewerCell.appendChild(reviewerInner);
 
       // Open in messages icon button
       const openCell = td('padding:2px 4px;text-align:right;');
       if (props.onOpenSessionMessages && row.sessionId) {
-        const { el: iconBtn } = createIconButton({
+        const iconBtnHandle = createIconButton({
           size: 'small',
           ariaLabel: props.t('memory.review.openInMessages'),
           onClick: (e?: MouseEvent) => {
@@ -323,9 +328,11 @@ export function mountReviewPanel(
             props.onOpenSessionMessages!(row.sessionId!);
           },
         });
+        rowHandles.push(iconBtnHandle);
+        const { el: iconBtn } = iconBtnHandle;
         const { el: icon } = OpenInNew({ fontSize: 'small', color: 'action' });
         iconBtn.appendChild(icon);
-        createTooltip({ reference: iconBtn, title: props.t('memory.review.openInMessages') });
+        rowHandles.push(createTooltip({ reference: iconBtn, title: props.t('memory.review.openInMessages') }));
         openCell.appendChild(iconBtn);
       }
 
@@ -342,10 +349,10 @@ export function mountReviewPanel(
               }
             : undefined,
         );
-        createTooltip({
+        rowHandles.push(createTooltip({
           reference: precedesChip as HTMLElement,
           title: `${props.t('memory.review.precedesBugCount')}: ${row.precedesBugEntityIds.length}`,
-        });
+        }));
         precedesCell.appendChild(precedesChip);
       }
 
@@ -411,6 +418,7 @@ export function mountReviewPanel(
       props.reader.listUnaddressedReviewFindings({ daysSinceMin: 30 }),
       props.reader.getReviewHistory({}),
     ]).then(([unad, hist]) => {
+      if (destroyed) return;
       unaddressed = unad;
       history = hist;
       renderAll();
@@ -430,6 +438,9 @@ export function mountReviewPanel(
       }
     },
     destroy() {
+      destroyed = true;
+      for (const h of rowHandles) h.destroy();
+      rowHandles.length = 0;
       sevSelect.destroy();
       catSelect.destroy();
       statusSelect.destroy();

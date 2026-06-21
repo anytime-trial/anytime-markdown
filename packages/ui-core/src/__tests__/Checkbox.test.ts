@@ -85,4 +85,14 @@ describe("createCheckbox", () => {
     const { el } = createCheckbox({ style: { opacity: "0.5" } });
     expect(el.style.opacity).toBe("0.5");
   });
+
+  it("destroy 後は change イベントで onChange が呼ばれない", () => {
+    const onChange = jest.fn();
+    const { el, destroy } = createCheckbox({ checked: false, onChange });
+    destroy();
+    const input = el.querySelector("input")!;
+    input.checked = true;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

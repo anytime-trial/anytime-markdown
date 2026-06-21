@@ -63,6 +63,8 @@ export interface CreateRatingOptions {
 export function createRating(opts: CreateRatingOptions = {}): {
   el: HTMLSpanElement;
   setValue: (v: number | null) => void;
+  /** 全イベントリスナーを除去してリソースを解放する。 */
+  destroy: () => void;
 } {
   ensureRatingStyles();
 
@@ -85,22 +87,45 @@ export function createRating(opts: CreateRatingOptions = {}): {
     .join(" ");
   el.className = classes;
 
+  // Interactive rating → radiogroup; read-only → img
+  if (readOnly || disabled) {
+    el.setAttribute("role", "img");
+    el.setAttribute("aria-label", `${currentValue ?? 0}/${max} stars`);
+  } else {
+    el.setAttribute("role", "radiogroup");
+  }
+
   if (opts.testId) el.setAttribute("data-testid", opts.testId);
   applyStyle(el, opts.style);
 
   /** 現在の displayValue（ホバー中はホバー値を優先）に基づき全星ボタンを再描画する。 */
   const renderStars = (): void => {
     const displayValue = hoverValue > 0 ? hoverValue : (currentValue ?? 0);
-    el.setAttribute("aria-label", `${currentValue ?? 0} stars`);
+    if (readOnly || disabled) {
+      el.setAttribute("aria-label", `${currentValue ?? 0}/${max} stars`);
+    } else {
+      el.setAttribute("aria-label", `${currentValue ?? 0} stars`);
+    }
     for (let i = 0; i < starBtns.length; i++) {
       const starValue = i + 1;
       const filled = starValue <= displayValue;
       starBtns[i].textContent = filled ? "★" : "☆";
+      if (!readOnly && !disabled) {
+        starBtns[i].setAttribute("aria-checked", String(starValue === (currentValue ?? 0)));
+      }
     }
   };
 
   // 星ボタンを生成する。
   const starBtns: HTMLButtonElement[] = [];
+  // リスナー参照（destroy 用）
+  const listeners: Array<{ btn: HTMLButtonElement; type: string; handler: EventListener }> = [];
+
+  const addListener = (btn: HTMLButtonElement, type: string, handler: EventListener): void => {
+    btn.addEventListener(type, handler);
+    listeners.push({ btn, type, handler });
+  };
+
   for (let i = 0; i < max; i++) {
     const starValue = i + 1;
     const btn = document.createElement("button");
@@ -110,15 +135,18 @@ export function createRating(opts: CreateRatingOptions = {}): {
     if (disabled) btn.disabled = true;
 
     if (!readOnly && !disabled) {
-      btn.addEventListener("mouseenter", () => {
+      btn.setAttribute("role", "radio");
+      btn.setAttribute("aria-checked", "false");
+
+      addListener(btn, "mouseenter", () => {
         hoverValue = starValue;
         renderStars();
       });
-      btn.addEventListener("mouseleave", () => {
+      addListener(btn, "mouseleave", () => {
         hoverValue = -1;
         renderStars();
       });
-      btn.addEventListener("click", () => {
+      addListener(btn, "click", () => {
         const next = starValue === currentValue ? null : starValue;
         currentValue = next;
         hoverValue = -1;
@@ -131,6 +159,26 @@ export function createRating(opts: CreateRatingOptions = {}): {
     el.appendChild(btn);
   }
 
+  // ArrowLeft / ArrowRight keyboard navigation (interactive only)
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (readOnly || disabled) return;
+    const focused = document.activeElement;
+    const idx = starBtns.indexOf(focused as HTMLButtonElement);
+    if (idx === -1) return;
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = Math.min(idx + 1, max - 1);
+      starBtns[next].focus();
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = Math.max(idx - 1, 0);
+      starBtns[next].focus();
+    }
+  };
+  if (!readOnly && !disabled) {
+    el.addEventListener("keydown", onKeyDown);
+  }
+
   renderStars();
 
   return {
@@ -138,6 +186,16 @@ export function createRating(opts: CreateRatingOptions = {}): {
     setValue(v: number | null) {
       currentValue = v;
       renderStars();
+    },
+    destroy(): void {
+      for (const { btn, type, handler } of listeners) {
+        btn.removeEventListener(type, handler);
+      }
+      listeners.length = 0;
+      if (!readOnly && !disabled) {
+        el.removeEventListener("keydown", onKeyDown);
+      }
+      onClick = undefined;
     },
   };
 }

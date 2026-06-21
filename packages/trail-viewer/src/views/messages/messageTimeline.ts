@@ -248,7 +248,7 @@ export function mountMessageTimeline(
     collapseBtn.appendChild(icon);
   };
 
-  collapseBtn.addEventListener('click', () => {
+  const handleCollapseClick = (): void => {
     collapsed = !collapsed;
     try {
       localStorage.setItem(STORAGE_KEY, String(collapsed));
@@ -257,7 +257,8 @@ export function mountMessageTimeline(
     }
     updateCollapseBtn();
     applyLayout(latestProps);
-  });
+  };
+  collapseBtn.addEventListener('click', handleCollapseClick);
 
   let latestProps = initial;
 
@@ -595,6 +596,7 @@ export function mountMessageTimeline(
       applyLayout(next);
     },
     destroy() {
+      collapseBtn.removeEventListener('click', handleCollapseClick);
       root.remove();
     },
   };

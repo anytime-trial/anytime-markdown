@@ -38,7 +38,8 @@ export function VanillaIsland<P>({
 
   // props が変わるたびに update を呼ぶ（依存配列なし = 毎レンダ。handle 側で差分検知する）。
   useEffect(() => {
-    handle.current?.update(props);
+    if (!handle.current) return;
+    handle.current.update(props);
   });
 
   return <div ref={ref} style={{ display: 'contents' }} />;

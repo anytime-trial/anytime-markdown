@@ -121,4 +121,23 @@ describe("createListItemButton", () => {
     el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
     expect(onContextMenu).toHaveBeenCalledTimes(1);
   });
+
+  it("disabled=false のとき aria-disabled 属性を持たない", () => {
+    const { el } = createListItemButton({ disabled: false });
+    expect(el.hasAttribute("aria-disabled")).toBe(false);
+  });
+
+  it("update で disabled=true にすると aria-disabled=true かつ tabIndex=-1 になる", () => {
+    const { el, update } = createListItemButton({ disabled: false });
+    update({ disabled: true });
+    expect(el.getAttribute("aria-disabled")).toBe("true");
+    expect(el.tabIndex).toBe(-1);
+  });
+
+  it("update で disabled=false にすると aria-disabled が除去され tabIndex=0 になる", () => {
+    const { el, update } = createListItemButton({ disabled: true });
+    update({ disabled: false });
+    expect(el.hasAttribute("aria-disabled")).toBe(false);
+    expect(el.tabIndex).toBe(0);
+  });
 });

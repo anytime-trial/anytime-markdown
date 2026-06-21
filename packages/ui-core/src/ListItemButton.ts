@@ -65,6 +65,10 @@ function buildCss(state: { selected: boolean; disabled: boolean }): string {
 /**
  * ListItemButton（`<li role="button">` クリック可能行）を生成する。
  *
+ * **a11y 制約**: `el` は必ず `<ul>`・`<ol>`・または `role="list"` / `role="listbox"` を持つ
+ * コンテナの直接子として配置すること。`<li>` は list コンテキスト外では
+ * ARIA の implicit role（listitem）を失い、スクリーンリーダーが正しく読み上げない。
+ *
  * @returns `el`（li 要素）と `update`（可変プロパティ反映）/ `destroy`（listener 削除）。
  */
 export function createListItemButton(opts: CreateListItemButtonOptions = {}): {
