@@ -24,6 +24,7 @@ export {
   type NeighborOptions,
 } from './retrieve/structural';
 export { searchFts, toFtsMatch } from './retrieve/fts';
+export { searchDocs, type SearchDocsOptions } from './retrieve/searchDocs';
 export { searchSemantic } from './retrieve/semantic';
 
 // embedding（注入式 EmbedFn。daemon が ollama bge-m3 を、テストが fake を供給）

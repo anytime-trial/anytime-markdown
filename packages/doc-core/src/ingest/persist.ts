@@ -4,6 +4,7 @@
  */
 
 import type { DocDb } from '../db/open';
+import { withTx } from '../db/tx';
 import type { ExtractedDoc } from '../types';
 
 /** 1 ドキュメントを upsert する（related・FTS も同一トランザクションで更新）。 */
@@ -20,7 +21,7 @@ export function persistDoc(db: DocDb, doc: ExtractedDoc, updatedAt = new Date().
   const delFts = db.prepare('DELETE FROM doc_fts WHERE path = ?');
   const insFts = db.prepare('INSERT INTO doc_fts (path, title, excerpt, body) VALUES (?, ?, ?, ?)');
 
-  const tx = db.transaction(() => {
+  withTx(db, () => {
     upsertDoc.run({
       path: doc.path,
       title: doc.title ?? null,
@@ -36,12 +37,11 @@ export function persistDoc(db: DocDb, doc: ExtractedDoc, updatedAt = new Date().
     delFts.run(doc.path);
     insFts.run(doc.path, doc.title ?? '', doc.excerpt ?? '', doc.body);
   });
-  tx();
 }
 
 /** 既存 doc の content_hash を返す（未登録なら undefined）。増分判定用。 */
 export function getStoredHash(db: DocDb, path: string): string | undefined {
-  const row = db.prepare('SELECT content_hash FROM doc WHERE path = ?').get(path) as
+  const row = db.prepare('SELECT content_hash FROM doc WHERE path = ?').get(path) as unknown as
     | { content_hash: string }
     | undefined;
   return row?.content_hash;

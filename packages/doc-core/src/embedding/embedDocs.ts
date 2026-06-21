@@ -49,7 +49,7 @@ export async function embedDocs(db: DocDb, embed: EmbedFn, opts: EmbedOptions): 
        LEFT JOIN doc_fts AS f ON f.path = d.path
        WHERE e.path IS NULL OR e.content_hash != d.content_hash OR e.model != ?`,
     )
-    .all(opts.model) as PendingRow[];
+    .all(opts.model) as unknown as PendingRow[];
 
   const hashOf = db.prepare('SELECT content_hash FROM doc WHERE path = ?');
   const upsert = db.prepare(
@@ -64,7 +64,7 @@ export async function embedDocs(db: DocDb, embed: EmbedFn, opts: EmbedOptions): 
     if (!text) continue;
     const vec = await embed(text);
     if (!Array.isArray(vec) || vec.length === 0) continue;
-    const hash = (hashOf.get(row.path) as { content_hash: string } | undefined)?.content_hash;
+    const hash = (hashOf.get(row.path) as unknown as { content_hash: string } | undefined)?.content_hash;
     if (!hash) continue; // doc が消えた等
     upsert.run({ path: row.path, model: opts.model, dim: vec.length, vec: float32ToBlob(vec), hash });
     embedded += 1;

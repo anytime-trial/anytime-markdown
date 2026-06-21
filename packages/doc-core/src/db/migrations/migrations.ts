@@ -52,4 +52,13 @@ CREATE TABLE doc_embedding (
 CREATE VIRTUAL TABLE doc_fts USING fts5(path, title, excerpt, body, tokenize='trigram');
 `;
 
-export const MIGRATIONS: readonly DocMigration[] = [{ version: 1, sql: INITIAL }];
+// frontmatter ファセット検索（type / lang での絞り込み）用の索引。category は v1 で索引済み。
+const FACET_INDEXES = `
+CREATE INDEX IF NOT EXISTS idx_doc_type ON doc (type);
+CREATE INDEX IF NOT EXISTS idx_doc_lang ON doc (lang);
+`;
+
+export const MIGRATIONS: readonly DocMigration[] = [
+  { version: 1, sql: INITIAL },
+  { version: 2, sql: FACET_INDEXES },
+];

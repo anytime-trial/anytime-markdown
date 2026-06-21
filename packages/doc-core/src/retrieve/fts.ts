@@ -28,7 +28,7 @@ export function searchFts(db: DocDb, query: string, limit = 20): DocHit[] {
        LEFT JOIN doc AS d ON d.path = m.path
        ORDER BY m.score`,
     )
-    .all(match, limit) as { path: string; title: string | null; category: string | null; score: number }[];
+    .all(match, limit) as unknown as { path: string; title: string | null; category: string | null; score: number }[];
   return rows.map((r) => ({
     path: r.path,
     title: r.title ?? undefined,
