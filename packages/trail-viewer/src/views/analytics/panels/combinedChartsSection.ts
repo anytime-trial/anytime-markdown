@@ -436,10 +436,13 @@ export function mountCombinedChartsSection(
     update(newProps: CombinedChartsSectionProps) {
       const periodChanged = newProps.period !== currentProps.period;
       if (periodChanged) selectedDate = null;
-      combinedFetchCancelled = true;
-      overlayFetchCancelled = true;
       currentProps = newProps;
+      // period が変わったときだけ進行中の fetch をキャンセルして再取得する。
+      // 非 period の update（頻繁な store 通知）で初回 fetch を取り消すと combinedData が
+      // null のまま再取得されず、token 以外のチャートが永久に表示されない不具合になる。
       if (periodChanged) {
+        combinedFetchCancelled = true;
+        overlayFetchCancelled = true;
         combinedData = null;
         combinedLoading = false;
         overlay = null;
