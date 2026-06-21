@@ -4,8 +4,40 @@
  * jsdom 環境。DOM 構築・タブ切替・update/destroy のクリーンアップを検証する。
  */
 
+// Mock mountReactIsland so tests don't need a full React DOM render environment.
+// Each call appends a sentinel div to the container and returns spy handles.
+jest.mock('../reactIsland', () => ({
+  mountReactIsland: jest.fn((container: HTMLElement) => {
+    const sentinel = document.createElement('div');
+    sentinel.setAttribute('data-react-island', 'true');
+    container.appendChild(sentinel);
+    return {
+      update: jest.fn(),
+      destroy: jest.fn(() => { sentinel.remove(); }),
+    };
+  }),
+}));
+
+// Also mock PromptManagerIsland and TraceViewer so tsx imports don't blow up in ts-jest.
+jest.mock('../PromptManagerIsland', () => ({ PromptManagerIsland: 'PromptManagerIsland' }));
+jest.mock('@anytime-markdown/trace-viewer', () => ({ TraceViewer: 'TraceViewer' }));
+
+// Mock analyticsPanel so we can capture onOpenPromptsPopup callback for popup tests.
+let capturedOnOpenPromptsPopup: (() => void) | undefined;
+jest.mock('../analytics/analyticsPanel', () => {
+  const actual = jest.requireActual<typeof import('../analytics/analyticsPanel')>('../analytics/analyticsPanel');
+  return {
+    ...actual,
+    mountAnalyticsPanel: jest.fn((container: HTMLElement, props: Record<string, unknown>) => {
+      capturedOnOpenPromptsPopup = props['onOpenPromptsPopup'] as () => void;
+      return actual.mountAnalyticsPanel(container, props as never);
+    }),
+  };
+});
+
 import { mountTrailViewer } from '../trailViewer';
 import type { TrailViewerViewProps } from '../trailViewer';
+import { mountReactIsland } from '../reactIsland';
 import { getTokens } from '../../theme/designTokens';
 import type { TrailSession, TrailFilter } from '../../domain/parser/types';
 
@@ -178,6 +210,62 @@ describe('mountTrailViewer', () => {
     const c4Panel = container.querySelector('#trail-panel-4');
     expect(c4Panel).toBeNull();
     h.destroy();
+  });
+
+  it('traceFilesあり: Traceタブ訪問でReact islandをマウントする', () => {
+    const container = document.createElement('div');
+    const traceFiles = [{ name: 'trace.json', load: async () => '{}' }];
+    const h = mountTrailViewer(container, makeBaseProps({ traceFiles, initialTab: 5 }));
+
+    // The trace panel (tab 5) should exist
+    const tracePanel = container.querySelector('#trail-panel-5');
+    expect(tracePanel).not.toBeNull();
+
+    // A react island sentinel should be inside the trace panel
+    const island = tracePanel?.querySelector('[data-react-island="true"]');
+    expect(island).not.toBeNull();
+
+    // mountReactIsland should have been called with TraceViewer
+    expect(mountReactIsland).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      'TraceViewer',
+      expect.objectContaining({ traceFiles }),
+    );
+
+    h.destroy();
+
+    // After destroy, the island sentinel should be removed by the mock's destroy()
+    expect(tracePanel?.querySelector('[data-react-island="true"]')).toBeNull();
+  });
+
+  it('Promptsポップアップ開放でmountReactIslandがPromptManagerIslandで呼ばれdestroyでクリーンアップされる', () => {
+    jest.clearAllMocks();
+    capturedOnOpenPromptsPopup = undefined;
+
+    const container = document.createElement('div');
+    const prompts = [{ id: 'p1', name: 'Prompt 1', content: '# Hello', tags: [], version: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }];
+    const h = mountTrailViewer(container, makeBaseProps({ prompts, initialTab: 0 }));
+
+    // capturedOnOpenPromptsPopup was set by the mocked mountAnalyticsPanel.
+    // Invoke it to open the prompts popup — this calls syncPromptsPopup() internally.
+    expect(capturedOnOpenPromptsPopup).toBeDefined();
+    (capturedOnOpenPromptsPopup as unknown as () => void)();
+
+    // mountReactIsland should have been called with PromptManagerIsland
+    expect(mountReactIsland).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      'PromptManagerIsland',
+      expect.objectContaining({ prompts }),
+    );
+
+    // A sentinel should exist inside document.body (popup host appended to body)
+    const sentinel = document.body.querySelector('[data-react-island="true"]');
+    expect(sentinel).not.toBeNull();
+
+    h.destroy();
+    // After destroy, the island sentinel should be cleaned up
+    const orphans = document.body.querySelectorAll('[data-react-island="true"]');
+    expect(orphans.length).toBe(0);
   });
 });
 

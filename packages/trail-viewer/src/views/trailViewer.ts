@@ -8,11 +8,16 @@
  *  - Owns tab bar (createTabs from ui-core), visitedTabs Set, and popup state.
  *  - Lazily mounts sub-views on first tab visit.
  *  - Messages popup owns FilterBar / SessionList / MessageTimeline / TraceTree / StatsBar.
- *  - TraceViewer (React component) is represented by a placeholder; the React
- *    wrapper TrailViewerCore renders the real component via its own Suspense.
+ *  - TraceViewer and PromptManager (React components) are mounted via
+ *    `mountReactIsland` (vanilla→React bridge in reactIsland.tsx).
  */
 
 import { createTabs } from '@anytime-markdown/ui-core';
+import { mountReactIsland } from './reactIsland';
+import { TraceViewer } from '@anytime-markdown/trace-viewer';
+import type { TraceViewerProps } from '@anytime-markdown/trace-viewer';
+import { PromptManagerIsland } from './PromptManagerIsland';
+import type { PromptManagerIslandProps } from './PromptManagerIsland';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import type { TrailViewerCoreProps } from '../components/TrailViewerCore';
 import type { TrailThemeTokens } from '../theme/designTokens';
@@ -215,6 +220,10 @@ export function mountTrailViewer(
   let logsHandle: ReturnType<typeof mountLogsTab> | null = null;
   let callHierarchyHandle: ReturnType<typeof mountCallHierarchyPanel> | null = null;
 
+  // ── React island handles ──
+  let traceIsland: ReturnType<typeof mountReactIsland<TraceViewerProps>> | null = null;
+  let promptsIsland: ReturnType<typeof mountReactIsland<PromptManagerIslandProps>> | null = null;
+
   // Panel containers for each tab (keyed by tab index)
   const panelContainers: Record<number, HTMLDivElement> = {};
   function getPanelContainer(tabValue: number): HTMLDivElement {
@@ -304,6 +313,15 @@ export function mountTrailViewer(
       selectedSessionId && messages.length > 0
         ? `${messages.length} ${t('stats.messages')} ${t('viewer.loaded')}`
         : '';
+  }
+
+  // ── Derive TraceViewer props ──
+  function buildTraceProps(): TraceViewerProps {
+    return {
+      traceFiles: props.traceFiles ?? [],
+      isDark: props.isDark ?? true,
+      onJumpToSource: props.onJumpToSource,
+    };
   }
 
   // ── Derive analytics panel props ──
@@ -620,6 +638,8 @@ export function mountTrailViewer(
         ariaLabel: t('viewer.tab.prompts'),
         onClose: () => {
           promptsPopupOpen = false;
+          promptsIsland?.destroy();
+          promptsIsland = null;
           promptsPopupHandle?.destroy();
           promptsPopupHandle = null;
           host.remove();
@@ -638,11 +658,12 @@ export function mountTrailViewer(
         i18nClose: t('c4.popup.close'),
         i18nResize: t('c4.popup.resize'),
         mountContent: (contentContainer) => {
-          // PromptManager placeholder — full PromptManager needs the React island
-          const placeholder = document.createElement('div');
-          placeholder.style.cssText = 'padding:16px;font-size:0.875rem;';
-          placeholder.textContent = `${props.prompts?.length ?? 0} prompts`;
-          contentContainer.appendChild(placeholder);
+          const pmProps: PromptManagerIslandProps = {
+            prompts: props.prompts ?? [],
+            isDark: props.isDark ?? true,
+            locale: props.locale,
+          };
+          promptsIsland = mountReactIsland(contentContainer, PromptManagerIsland, pmProps);
         },
       });
     }
@@ -712,11 +733,10 @@ export function mountTrailViewer(
         break;
       }
       case 5: {
-        // TraceViewer is a React component — placeholder for vanilla mount
-        const placeholder = document.createElement('div');
-        placeholder.style.cssText = `display:flex;align-items:center;justify-content:center;flex:1;color:${colors.textSecondary};font-size:0.875rem;padding:32px;`;
-        placeholder.textContent = '(Trace viewer is a React component — rendered by React wrapper)';
-        panelEl.appendChild(placeholder);
+        if (!traceIsland && (props.traceFiles || props.c4)) {
+          const traceProps = buildTraceProps();
+          traceIsland = mountReactIsland(panelEl, TraceViewer, traceProps);
+        }
         break;
       }
       case 6: {
@@ -798,6 +818,17 @@ export function mountTrailViewer(
     if (callHierarchyHandle) {
       callHierarchyHandle.update(buildCallHierarchyProps());
     }
+    if (traceIsland) {
+      traceIsland.update(buildTraceProps());
+    }
+    if (promptsIsland) {
+      const pmProps: PromptManagerIslandProps = {
+        prompts: props.prompts ?? [],
+        isDark: props.isDark ?? true,
+        locale: props.locale,
+      };
+      promptsIsland.update(pmProps);
+    }
 
     // Update messages popup content
     if (messagesPopupOpen && messagesContentHost) {
@@ -817,6 +848,10 @@ export function mountTrailViewer(
     memoryHandle?.destroy();
     logsHandle?.destroy();
     callHierarchyHandle?.destroy();
+    traceIsland?.destroy();
+    traceIsland = null;
+    promptsIsland?.destroy();
+    promptsIsland = null;
 
     destroyMessagesContent();
     releasesPopupHandle?.destroy();
