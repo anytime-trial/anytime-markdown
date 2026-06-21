@@ -237,6 +237,29 @@ describe('createTrailDataStore', () => {
     expect(Array.isArray(state.tokenBudgets)).toBe(true);
     store.dispose();
   });
+
+  // Regression: promptsEnabled=false で生成された store は setPromptsEnabled(true) で
+  // 初めて prompts を取得する（これが無いと Prompts ポップアップが永久に空になる）。
+  it('promptsEnabled=false では fetch せず setPromptsEnabled(true) で取得する', async () => {
+    setupFetch();
+    const store = createTrailDataStore('http://localhost:3000', { promptsEnabled: false });
+    const promptsFetched = (): boolean =>
+      (globalThis.fetch as jest.Mock).mock.calls.some(([u]) => String(u).includes('/api/trail/prompts'));
+
+    await new Promise((r) => setTimeout(r, 20));
+    expect(promptsFetched()).toBe(false);
+    expect(store.getState().prompts).toEqual([]);
+
+    store.setPromptsEnabled(true);
+    await new Promise<void>((resolve) => {
+      const inner = store.subscribe(() => {
+        if (store.getState().prompts.length > 0) { inner(); resolve(); }
+      });
+    });
+    expect(promptsFetched()).toBe(true);
+    expect(store.getState().prompts.length).toBeGreaterThan(0);
+    store.dispose();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -404,5 +427,30 @@ describe('createC4DataStore', () => {
 
     await new Promise((r) => setTimeout(r, 30));
     expect(count).toBe(0);
+  });
+
+  // Regression: store は enabled=false で生成され得る（C4 タブ未訪問）。setEnabled(true)
+  // で初回 fetch が起動しないと C4 モデルが永久に空になる（表示崩れの真因）。
+  it('enabled=false では fetch せず setEnabled(true) で c4 model を取得する', async () => {
+    setupFetch();
+    const store = createC4DataStore('http://localhost:3000', true /* no WS */, false /* disabled */);
+    const modelFetched = (): boolean =>
+      (globalThis.fetch as jest.Mock).mock.calls.some(([u]) => String(u).includes('/api/c4/model'));
+
+    // enabled=false: 初回は model fetch されない
+    await new Promise((r) => setTimeout(r, 20));
+    expect(modelFetched()).toBe(false);
+    expect(store.getState().c4Model).toBeNull();
+
+    // 有効化 → model fetch + 取得
+    store.setEnabled(true);
+    await new Promise<void>((resolve) => {
+      const inner = store.subscribe(() => {
+        if (store.getState().c4Model !== null) { inner(); resolve(); }
+      });
+    });
+    expect(modelFetched()).toBe(true);
+    expect(store.getState().c4Model).not.toBeNull();
+    store.dispose();
   });
 });

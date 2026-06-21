@@ -115,6 +115,11 @@ export interface C4DataSourceResult {
 export interface C4DataStore {
   getState(): C4DataSourceResult;
   subscribe(listener: () => void): () => void;
+  /**
+   * c4 データ取得の有効化/無効化（遅延ロード）。React hook の reactive な `enabled` 相当。
+   * false→true で初回 fetch + WS 接続を起動する（C4 タブ訪問時に呼ぶ）。
+   */
+  setEnabled(enabled: boolean): void;
   dispose(): void;
 }
 
@@ -586,6 +591,19 @@ export function createC4DataStore(
     connectWs();
   }
 
+  /**
+   * 遅延有効化。store は enabled=false で生成され得る（c4 タブ未訪問）。true 化時に
+   * 初回 fetch + WS 接続を起動する。React の useEffect([enabled]) 相当。
+   */
+  function setEnabled(next: boolean): void {
+    if (next === enabled || disposed) return;
+    enabled = next;
+    if (next) {
+      void runInitialFetch();
+      if (!disableWebSocket) connectWs();
+    }
+  }
+
   // ------------------------------------------------------------------
   // Store API
   // ------------------------------------------------------------------
@@ -652,5 +670,5 @@ export function createC4DataStore(
     listeners.clear();
   }
 
-  return { getState, subscribe, dispose };
+  return { getState, subscribe, setEnabled, dispose };
 }

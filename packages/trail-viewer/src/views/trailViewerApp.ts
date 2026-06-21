@@ -329,13 +329,16 @@ export function mountTrailViewerApp(
       onTabVisit: (tab: number) => {
         if (isC4RelatedTab(tab)) {
           c4Enabled = true;
-          // Note: c4Store is already created; re-enabling is handled by store
+          // store は enabled=false で生成されているため、訪問時に有効化して
+          // 初回 fetch + WS 接続を起動する（これが無いと C4 モデルが永久に空になる）。
+          c4Store.setEnabled(true);
         }
       },
       onPromptsOpen: () => {
         promptsEnabled = true;
-        // Prompts enabled state is passed to the store at creation time;
-        // after initial creation we rely on the data refreshing automatically
+        // store は promptsEnabled=false で生成されているため、初回オープン時に有効化して
+        // prompts を取得する（これが無いと Prompts ポップアップが空になる）。
+        trailStore.setPromptsEnabled(true);
       },
       sendCommand: c4.sendCommand,
       wsConnected: c4.connected,
