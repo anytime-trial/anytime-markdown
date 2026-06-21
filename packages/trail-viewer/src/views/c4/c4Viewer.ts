@@ -19,6 +19,7 @@ import { DEFAULT_VIEWPORT, engine, layoutWithSubgroups, state as graphState } fr
 import type {
   BoundaryInfo,
   C4Element,
+  C4ElementType,
   C4GhostEdge,
   C4Model,
   C4ReleaseEntry,
@@ -133,8 +134,13 @@ import type { TourModeVanillaProps } from './tourMode';
 import { buildActivityTrendSeries } from '../../c4/components/panels/ActivityTrendChart';
 import { fetchActivityTrendApi } from '../../c4/hooks/fetchActivityTrendApi';
 import type { ActivityTrendResponse } from '../../c4/hooks/fetchActivityTrendApi';
-import { ACTIVITY_TREND_COLORS } from '../../c4/c4MetricColors';
+import { ACTIVITY_TREND_COLORS, getCoverageColor } from '../../c4/c4MetricColors';
 import type { ChartSpec, Series } from '@anytime-markdown/chart-core';
+import {
+  createInMemorySheetAdapter,
+  type SpreadsheetGridOptions,
+} from '@anytime-markdown/spreadsheet-viewer';
+import type { CellAlign, HeaderSpan } from '@anytime-markdown/spreadsheet-core';
 
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import type { C4ViewerCoreProps } from '../../c4/components/types';
@@ -206,6 +212,218 @@ const ICONS = {
   accountTree: 'M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z',
   close: 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
 } as const;
+
+// ---------------------------------------------------------------------------
+// Matrix grid computation helpers (port of MatrixPanel.tsx logic)
+// ---------------------------------------------------------------------------
+
+function matrixBuildSpansFromKey(keys: readonly string[]): HeaderSpan[] {
+  const spans: HeaderSpan[] = [];
+  let currentLabel = '';
+  let currentSpan = 0;
+  for (const key of keys) {
+    if (key === currentLabel) {
+      currentSpan++;
+    } else {
+      if (currentSpan > 0) spans.push({ label: currentLabel, span: currentSpan });
+      currentLabel = key;
+      currentSpan = 1;
+    }
+  }
+  if (currentSpan > 0) spans.push({ label: currentLabel, span: currentSpan });
+  return spans;
+}
+
+function matrixBuildCoverageBreadcrumb(
+  elementId: string,
+  level: 'package' | 'component' | 'code',
+  elementById: ReadonlyMap<string, C4Element>,
+): string {
+  const elem = elementById.get(elementId);
+  if (!elem) return elementId;
+  if (level === 'package') return elem.name;
+  if (level === 'component') {
+    const container = elem.boundaryId ? elementById.get(elem.boundaryId) : null;
+    return container ? `${container.name} / ${elem.name}` : elem.name;
+  }
+  const component = elem.boundaryId ? elementById.get(elem.boundaryId) : null;
+  const container = component?.boundaryId ? elementById.get(component.boundaryId) : null;
+  return [container?.name, component?.name, elem.name].filter(Boolean).join(' / ');
+}
+
+interface MatrixSheetData {
+  cells: string[][];
+  alignments: CellAlign[][];
+  range: { rows: number; cols: number };
+}
+
+function matrixCoverageToSheet(
+  matrix: CoverageMatrix,
+  c4Model: C4Model,
+  complexityMatrix: ComplexityMatrix | null,
+  churnCountMap: ReadonlyMap<string, number> | null,
+): MatrixSheetData {
+  const elementById = new Map(c4Model.elements.map(e => [e.id, e]));
+  const complexityMap = new Map(complexityMatrix?.entries.map(e => [e.elementId, e.totalCount]) ?? []);
+  const headerRow = ['Component', 'Lines%', 'Branches%', 'Functions%', 'Complexity', 'LOC', 'Commits'];
+  const dataRows = matrix.entries.map(e => {
+    const complexity = complexityMap.get(e.elementId);
+    const commits = churnCountMap?.get(e.elementId);
+    return [
+      elementById.get(e.elementId)?.name ?? e.elementId,
+      String(Math.round(e.lines.pct * 10) / 10),
+      String(Math.round(e.branches.pct * 10) / 10),
+      String(Math.round(e.functions.pct * 10) / 10),
+      complexity != null ? String(complexity) : '',
+      e.lines.total > 0 ? String(e.lines.total) : '',
+      commits != null ? String(commits) : '',
+    ];
+  });
+  const cells = [headerRow, ...dataRows];
+  const alignments = cells.map(r => r.map((): CellAlign => 'right'));
+  return { cells, alignments, range: { rows: cells.length, cols: 7 } };
+}
+
+function matrixMakeSheetResult(sheet: MatrixSheetData): {
+  colHeaders: string[];
+  rowHeaders: string[];
+  adapter: ReturnType<typeof createInMemorySheetAdapter>;
+} {
+  const colHeaders = sheet.cells[0]?.slice(1) ?? [];
+  const dataRows = sheet.cells.slice(1).map(r => r.slice(1));
+  const dataAligns = sheet.alignments.slice(1).map(r => r.slice(1));
+  const rowHeaders = sheet.cells.slice(1).map(r => r[0] ?? '');
+  const cols = Math.max(0, sheet.range.cols - 1);
+  const adapter = createInMemorySheetAdapter(
+    { cells: dataRows, alignments: dataAligns, range: { rows: dataRows.length, cols } },
+    { readOnly: true },
+  );
+  return { colHeaders, rowHeaders, adapter };
+}
+
+export function computeMatrixGridOptions(
+  level: 'package' | 'component' | 'code',
+  c4Model: C4Model | null,
+  coverageMatrix: CoverageMatrix | null,
+  complexityMatrix: ComplexityMatrix | null,
+  hotspotData: HotspotResponse | null,
+  codeGraph: CodeGraph | null,
+  selectedRepo: string,
+  filterElementId: string | null,
+  showCommunity: boolean,
+): Omit<SpreadsheetGridOptions, 'isDark'> | null {
+  if (!c4Model || !coverageMatrix) return null;
+
+  // Churn count map from hotspot data
+  const churnCountMap: ReadonlyMap<string, number> | null = (() => {
+    if (!hotspotData?.files.length) return null;
+    const elementById = buildC4ElementById(c4Model.elements);
+    const map = new Map<string, number>();
+    for (const entry of hotspotData.files) {
+      for (const m of mapFileToC4Elements(entry.filePath, elementById)) {
+        map.set(m.elementId, (map.get(m.elementId) ?? 0) + entry.churn);
+      }
+    }
+    return map.size > 0 ? map : null;
+  })();
+
+  // Filter scope by descendant element if requested
+  const filterScopeIds: ReadonlySet<string> | null = (() => {
+    if (!filterElementId) return null;
+    const ids = collectDescendantIds(c4Model.elements, filterElementId);
+    return ids.size > 0 ? ids : null;
+  })();
+
+  // Filter coverage matrix by level and scope
+  const typeFilter: Set<C4ElementType> =
+    level === 'package' ? new Set(['container', 'containerDb'] as C4ElementType[]) :
+    level === 'code'    ? new Set(['code'] as C4ElementType[]) :
+                             new Set(['component'] as C4ElementType[]);
+  let validIds = new Set(c4Model.elements.filter(e => typeFilter.has(e.type)).map(e => e.id));
+  if (filterScopeIds) {
+    validIds = new Set([...validIds].filter(id => filterScopeIds.has(id)));
+  }
+  const elementById = new Map(c4Model.elements.map(e => [e.id, e]));
+  const filteredEntries = coverageMatrix.entries
+    .filter(e => validIds.has(e.elementId))
+    .sort((a, b) =>
+      matrixBuildCoverageBreadcrumb(a.elementId, level, elementById)
+        .localeCompare(matrixBuildCoverageBreadcrumb(b.elementId, level, elementById)),
+    );
+
+  if (filteredEntries.length === 0) return null;
+
+  const filteredMatrix: CoverageMatrix = { ...coverageMatrix, entries: filteredEntries };
+  const sheetData = matrixCoverageToSheet(filteredMatrix, c4Model, complexityMatrix, churnCountMap);
+  const { colHeaders, rowHeaders, adapter } = matrixMakeSheetResult(sheetData);
+  const snap = adapter.getSnapshot();
+  const gridRows = snap.range.rows;
+  const gridCols = snap.range.cols;
+
+  // Row header groups (hierarchy spans)
+  const coverageRowHeaderGroups: readonly (readonly HeaderSpan[])[] | undefined = (() => {
+    if (level === 'package') return undefined;
+    if (level === 'component') {
+      const containerKeys = filteredEntries.map(e => {
+        const el = elementById.get(e.elementId);
+        return (el?.boundaryId ? elementById.get(el.boundaryId)?.name : undefined) ?? '';
+      });
+      return [matrixBuildSpansFromKey(containerKeys)];
+    }
+    // code: container + component spans
+    const containerKeys = filteredEntries.map(e => {
+      const el = elementById.get(e.elementId);
+      const comp = el?.boundaryId ? elementById.get(el.boundaryId) : null;
+      return (comp?.boundaryId ? elementById.get(comp.boundaryId)?.name : undefined) ?? '';
+    });
+    const componentKeys = filteredEntries.map(e => {
+      const el = elementById.get(e.elementId);
+      return (el?.boundaryId ? elementById.get(el.boundaryId)?.name : undefined) ?? '';
+    });
+    return [matrixBuildSpansFromKey(containerKeys), matrixBuildSpansFromKey(componentKeys)];
+  })();
+
+  // Community color per element
+  const communityColorByElement: ReadonlyMap<string, string> | null = (() => {
+    if (!showCommunity || !codeGraph) return null;
+    const overlay = computeCommunityOverlay(c4Model, codeGraph, 3, selectedRepo || null);
+    if (!overlay || overlay.size === 0) return null;
+    const map = new Map<string, string>();
+    for (const [elementId, entry] of overlay) {
+      map.set(elementId, communityColor(entry.dominantCommunity));
+    }
+    return map.size > 0 ? map : null;
+  })();
+
+  const getRowHeaderBackground = communityColorByElement
+    ? (rowIndex: number) => communityColorByElement.get(filteredEntries[rowIndex]?.elementId ?? '')
+    : undefined;
+
+  const getCellBackground = (_row: number, col: number, value: string): string | undefined => {
+    if (col > 2) return undefined;
+    const pct = Number.parseFloat(value);
+    if (Number.isNaN(pct)) return undefined;
+    return getCoverageColor(pct) + '55';
+  };
+
+  return {
+    adapter,
+    showApply: false,
+    showRange: false,
+    showToolbar: false,
+    columnHeaders: colHeaders,
+    rowHeaders,
+    rowHeaderWidth:
+      level === 'code'      ? 280 :
+      level === 'component' ? 200 :
+      120,
+    rowHeaderGroups: coverageRowHeaderGroups,
+    gridRows,
+    gridCols,
+    getCellBackground,
+    getRowHeaderBackground: showCommunity ? getRowHeaderBackground : undefined,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Vanilla async data fetchers (inline ports of the 6 hooks)
@@ -304,7 +522,7 @@ export function mountC4Viewer(
   let showCommunity = false;
   let codeGraphEnabled = false;
   let showActivityTrend = false;
-  let dsmLevel: 'component' | 'package' = 'component';
+  let dsmLevel: 'package' | 'component' | 'code' = 'component';
   let selectedRepoInternal = '';
 
   // ── Data states ──
@@ -549,6 +767,7 @@ export function mountC4Viewer(
   let tcSettingsPopupHandle: ReturnType<typeof mountTemporalCouplingSettingsPopup> | null = null;
   let overlayLegendHandle: ReturnType<typeof mountOverlayLegend> | null = null;
   let matrixPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
+  let matrixInnerHandle: ReturnType<typeof mountMatrixPanel> | null = null;
   let scatterPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
   let graphPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
   let trendPanelHandle: ReturnType<typeof mountActivityTrendPanel> | null = null;
@@ -1833,6 +2052,26 @@ export function mountC4Viewer(
     }
 
     // ── Matrix popup ──
+    const matrixGridOptions = computeMatrixGridOptions(
+      dsmLevel,
+      props.c4Model ?? null,
+      props.coverageMatrix ?? null,
+      props.complexityMatrix ?? null,
+      hotspotState.data,
+      codeGraphState.graph,
+      selectedRepo,
+      matrixPopup?.filterElementId ?? null,
+      showCommunity,
+    );
+    const matrixPanelColors: MatrixPanelVanillaProps['colors'] = {
+      bg: colors.bg,
+      border: colors.border,
+      accent: colors.accent,
+      hover: colors.hover,
+      focus: colors.focus,
+      textMuted: colors.textMuted,
+      textSecondary: colors.textSecondary,
+    };
     if (matrixPopup) {
       if (!matrixPopupHandle) {
         matrixPopupHandle = mountResizablePopup(popupHost, {
@@ -1851,22 +2090,16 @@ export function mountC4Viewer(
           i18nResize: props.t('c4.popup.resize'),
           mountContent: (c: HTMLElement) => {
             const mpProps: MatrixPanelVanillaProps = {
-              gridOptions: null,
+              gridOptions: matrixGridOptions,
               isDark,
-              level: dsmLevel as 'package' | 'component' | 'code',
-              onLevelChange: (lv: 'package' | 'component' | 'code') => { dsmLevel = lv === 'code' ? 'component' : lv; scheduleRender(); },
-              colors: {
-                bg: colors.bg,
-                border: colors.border,
-                accent: colors.accent,
-                hover: colors.hover,
-                focus: colors.focus,
-                textMuted: colors.textMuted,
-                textSecondary: colors.textSecondary,
-              },
+              level: dsmLevel,
+              onLevelChange: (lv: 'package' | 'component' | 'code') => { dsmLevel = lv; scheduleRender(); },
+              colors: matrixPanelColors,
               t: props.t,
             };
-            return mountMatrixPanel(c, mpProps);
+            const handle = mountMatrixPanel(c, mpProps);
+            matrixInnerHandle = handle;
+            return handle;
           },
         });
       } else {
@@ -1885,28 +2118,34 @@ export function mountC4Viewer(
           i18nClose: props.t('c4.popup.close'),
           i18nResize: props.t('c4.popup.resize'),
           mountContent: (c: HTMLElement) => {
+            // mountContent is only called once by resizablePopup; this branch is unreachable
+            // but kept for API compatibility.
             const mpProps: MatrixPanelVanillaProps = {
-              gridOptions: null,
+              gridOptions: matrixGridOptions,
               isDark,
-              level: dsmLevel as 'package' | 'component' | 'code',
-              onLevelChange: (lv: 'package' | 'component' | 'code') => { dsmLevel = lv === 'code' ? 'component' : lv; scheduleRender(); },
-              colors: {
-                bg: colors.bg,
-                border: colors.border,
-                accent: colors.accent,
-                hover: colors.hover,
-                focus: colors.focus,
-                textMuted: colors.textMuted,
-                textSecondary: colors.textSecondary,
-              },
+              level: dsmLevel,
+              onLevelChange: (lv: 'package' | 'component' | 'code') => { dsmLevel = lv; scheduleRender(); },
+              colors: matrixPanelColors,
               t: props.t,
             };
-            return mountMatrixPanel(c, mpProps);
+            const handle = mountMatrixPanel(c, mpProps);
+            matrixInnerHandle = handle;
+            return handle;
           },
+        });
+        // Update the inner matrix panel handle directly with current data
+        matrixInnerHandle?.update({
+          gridOptions: matrixGridOptions,
+          isDark,
+          level: dsmLevel,
+          onLevelChange: (lv: 'package' | 'component' | 'code') => { dsmLevel = lv; scheduleRender(); },
+          colors: matrixPanelColors,
+          t: props.t,
         });
       }
     } else {
       if (matrixPopupHandle) { matrixPopupHandle.destroy(); matrixPopupHandle = null; }
+      if (matrixInnerHandle) { matrixInnerHandle = null; /* destroyed via matrixPopupHandle.destroy() */ }
     }
 
     // ── Scatter popup ──

@@ -10,8 +10,9 @@ if (typeof globalThis.structuredClone === 'undefined') {
   globalThis.structuredClone = <T>(val: T): T => JSON.parse(JSON.stringify(val)) as T;
 }
 
-import { mountC4Viewer } from '../c4Viewer';
+import { mountC4Viewer, computeMatrixGridOptions } from '../c4Viewer';
 import type { C4ViewerViewProps } from '../c4Viewer';
+import type { C4Model, CoverageMatrix } from '@anytime-markdown/trail-core/c4';
 
 // ── Minimal mock for canvas context (jsdom has no canvas ctx) ──
 const mockGetContext = jest.fn(() => null);
@@ -203,5 +204,141 @@ describe('mountC4Viewer', () => {
     // At minimum the loading dialog and the 3 mount dialogs (even if closed)
     expect(dialogs.length).toBeGreaterThanOrEqual(1);
     handle.destroy();
+  });
+});
+
+// ── Minimal test data ──
+function makeC4Model(): C4Model {
+  return {
+    level: 'component',
+    elements: [
+      { id: 'sys1', type: 'system', name: 'My System' },
+      { id: 'ctr1', type: 'container', name: 'Backend', boundaryId: 'sys1' },
+      { id: 'cmp1', type: 'component', name: 'AuthService', boundaryId: 'ctr1' },
+      { id: 'cmp2', type: 'component', name: 'UserService', boundaryId: 'ctr1' },
+    ],
+    relationships: [],
+  };
+}
+
+function makeCoverageMatrix(): CoverageMatrix {
+  return {
+    generatedAt: Date.now(),
+    entries: [
+      {
+        elementId: 'cmp1',
+        lines: { covered: 80, total: 100, pct: 80 },
+        branches: { covered: 60, total: 100, pct: 60 },
+        functions: { covered: 90, total: 100, pct: 90 },
+      },
+      {
+        elementId: 'cmp2',
+        lines: { covered: 50, total: 100, pct: 50 },
+        branches: { covered: 40, total: 100, pct: 40 },
+        functions: { covered: 70, total: 100, pct: 70 },
+      },
+    ],
+  };
+}
+
+describe('computeMatrixGridOptions', () => {
+  it('returns null when c4Model is null', () => {
+    const result = computeMatrixGridOptions(
+      'component', null, makeCoverageMatrix(), null, null, null, '', null, false,
+    );
+    expect(result).toBeNull();
+  });
+
+  it('returns null when coverageMatrix is null', () => {
+    const result = computeMatrixGridOptions(
+      'component', makeC4Model(), null, null, null, null, '', null, false,
+    );
+    expect(result).toBeNull();
+  });
+
+  it('returns null when no entries match the level type', () => {
+    // 'package' level requires container/containerDb elements; only component entries exist
+    const result = computeMatrixGridOptions(
+      'package', makeC4Model(), makeCoverageMatrix(), null, null, null, '', null, false,
+    );
+    // coverageMatrix entries are 'component' type, so after filtering by 'package' level → 0 entries
+    expect(result).toBeNull();
+  });
+
+  it('returns non-null gridOptions for component level with matching entries', () => {
+    const result = computeMatrixGridOptions(
+      'component', makeC4Model(), makeCoverageMatrix(), null, null, null, '', null, false,
+    );
+    expect(result).not.toBeNull();
+    expect(result?.adapter).toBeDefined();
+    expect(result?.columnHeaders).toBeDefined();
+    expect(result?.rowHeaders).toBeDefined();
+    expect(result?.rowHeaders?.length).toBe(2); // cmp1 + cmp2
+    expect(result?.showToolbar).toBe(false);
+    expect(result?.showApply).toBe(false);
+    expect(result?.rowHeaderWidth).toBe(200); // component level
+  });
+
+  it('sets rowHeaderWidth correctly per level', () => {
+    const model = makeC4Model();
+    const coverage = makeCoverageMatrix();
+
+    const componentResult = computeMatrixGridOptions('component', model, coverage, null, null, null, '', null, false);
+    expect(componentResult?.rowHeaderWidth).toBe(200);
+
+    // Add code-level entries for 'code' test
+    const codeModel: C4Model = {
+      ...model,
+      elements: [
+        ...model.elements,
+        { id: 'code1', type: 'code', name: 'auth.ts', boundaryId: 'cmp1' },
+      ],
+    };
+    const codeCoverage: CoverageMatrix = {
+      generatedAt: Date.now(),
+      entries: [{ elementId: 'code1', lines: { covered: 10, total: 20, pct: 50 }, branches: { covered: 5, total: 10, pct: 50 }, functions: { covered: 3, total: 5, pct: 60 } }],
+    };
+    const codeResult = computeMatrixGridOptions('code', codeModel, codeCoverage, null, null, null, '', null, false);
+    expect(codeResult?.rowHeaderWidth).toBe(280);
+  });
+
+  it('provides getCellBackground that colors coverage columns', () => {
+    const result = computeMatrixGridOptions(
+      'component', makeC4Model(), makeCoverageMatrix(), null, null, null, '', null, false,
+    );
+    expect(result?.getCellBackground).toBeDefined();
+    // col 0 = Lines%, col 3 = Complexity (no color)
+    const coloredCell = result?.getCellBackground?.(0, 0, '80');
+    expect(coloredCell).toBeDefined(); // Lines% at 80 → colored
+    const uncoloredCell = result?.getCellBackground?.(0, 3, '42');
+    expect(uncoloredCell).toBeUndefined(); // Complexity col → no color
+  });
+
+  it('returns rowHeaderGroups for component level (container span)', () => {
+    const result = computeMatrixGridOptions(
+      'component', makeC4Model(), makeCoverageMatrix(), null, null, null, '', null, false,
+    );
+    expect(result?.rowHeaderGroups).toBeDefined();
+    expect(result?.rowHeaderGroups?.length).toBe(1); // one span row (container level)
+  });
+
+  it('returns no rowHeaderGroups for package level', () => {
+    // Use container entries so we get a result
+    const packageModel: C4Model = {
+      level: 'container',
+      elements: [
+        { id: 'sys1', type: 'system', name: 'Sys' },
+        { id: 'ctr1', type: 'container', name: 'Web', boundaryId: 'sys1' },
+      ],
+      relationships: [],
+    };
+    const packageCoverage: CoverageMatrix = {
+      generatedAt: Date.now(),
+      entries: [{ elementId: 'ctr1', lines: { covered: 70, total: 100, pct: 70 }, branches: { covered: 50, total: 100, pct: 50 }, functions: { covered: 80, total: 100, pct: 80 } }],
+    };
+    const result = computeMatrixGridOptions('package', packageModel, packageCoverage, null, null, null, '', null, false);
+    expect(result).not.toBeNull();
+    expect(result?.rowHeaderGroups).toBeUndefined();
+    expect(result?.rowHeaderWidth).toBe(120);
   });
 });
