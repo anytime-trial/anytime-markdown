@@ -1,6 +1,6 @@
 ---
 name: markdown-mcp-tactics
-description: anytime-markdown の Markdown ドキュメントを検索・調査・編集する時、特にトークン（cache_read 加重）を抑えたい時に使用する。mcp-markdown の search_docs/get_outline/get_section/update_section/compute_diff を使う時、検索・調査をサブエージェントへ委譲する時の運用手順と委任プロンプト雛形。
+description: anytime-markdown の Markdown ドキュメントを検索・調査・編集・整形する時、特にトークン（cache_read 加重）を抑えたい時に使用する。mcp-markdown の search_docs/search_sections/grep_markdown/get_outline/get_section/update_section/get_frontmatter/update_frontmatter/format_markdown/compute_diff を使う時、検索・調査をサブエージェントへ委譲する時の運用手順と委任プロンプト雛形。
 ---
 
 # Markdown 検索・編集のトークン削減タクティクス
@@ -15,14 +15,20 @@ mcp-markdown ツールはそれを実現する手段（[[markdown-ext-doc-core-p
 | 目的 | 使うツール | 避ける（高コスト） |
 |---|---|---|
 | どのファイルか特定 | `search_docs`（path/title/**excerpt/snippet** を返す＝開かず判断） | Grep で複数ファイルを開く |
+| 節単位で検索 | `search_sections`（見出し＋snippet・search_docs→outline→section を1コールに圧縮） | 全文 Read |
+| ファイル内を文字列検索 | `grep_markdown`（行番号＋囲み見出し＋snippet・search_docs の文書内版） | 全文 Read して目視 |
 | 関係をたどる | `doc_backlinks` / `doc_neighbors` | 多数の frontmatter を Read |
 | ファイル内の場所把握 | `get_outline`（見出し+行番号のみ） | 全文 Read |
 | 必要な節だけ取得 | `get_section`（`maxChars` で上限） | 全文 Read |
+| frontmatter の取得・更新 | `get_frontmatter` / `update_frontmatter`（本文を読まず） | 全文 Read＋Edit |
 | 節を書き換え | `update_section`（見出し＋新内容のみ） | Read＋Edit（全文＋old_string 再現＝二重コスト） |
+| 規約準拠の整形 | `format_markdown`（mode fix/check・**差分サマリのみ返す**＝本文を載せない） | 本文を往復させて手で整形 |
+| HTML 無害化・tiptap 往復正規化 | `sanitize_markdown`（**整形目的では使わない**） | — |
 | 変更検証 | `compute_diff` | 両ファイル再 Read |
-| 整形・無害化 | `sanitize_markdown` | 本文を往復させて手で整形 |
 
-黄金ルート: **検索** `search_docs`→snippet で選別→`get_outline`→`get_section`。**編集** `get_section`→修正→`update_section`→`compute_diff`。
+> `format_markdown` と `sanitize_markdown` は別物。**整形（markdown-check 規約準拠）は `format_markdown`**。`sanitize_markdown` は DOMPurify による HTML 無害化＋tiptap ラウンドトリップ用マーカー付与で、整形目的に使うと ZWSP/ZWNJ・ハードブレークを注入してしまう。
+
+黄金ルート: **検索** `search_docs`/`search_sections`→snippet で選別→`get_outline`→`get_section`。**編集** `get_section`→修正→`update_section`→`compute_diff`。**整形** `format_markdown(path, mode="fix")`（ルート外は不可）。
 
 ## 注意（実装仕様）
 
