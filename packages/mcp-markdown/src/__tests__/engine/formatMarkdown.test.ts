@@ -2,9 +2,9 @@ import { formatMarkdown } from '@anytime-markdown/markdown-engine';
 
 describe('formatMarkdown (pure)', () => {
   describe('heading blank lines', () => {
-    it('ensures 2 blank lines above and 1 below a heading', () => {
+    it('ensures exactly 1 blank line above and below a heading', () => {
       const { result } = formatMarkdown('intro\n# Title\nbody\n');
-      expect(result).toBe('intro\n\n\n# Title\n\nbody\n');
+      expect(result).toBe('intro\n\n# Title\n\nbody\n');
     });
 
     it('does not add blank lines above a heading that is the first body line', () => {
@@ -12,9 +12,9 @@ describe('formatMarkdown (pure)', () => {
       expect(result).toBe('# Title\n\nbody\n');
     });
 
-    it('puts exactly 2 blank lines before a following heading', () => {
-      const { result } = formatMarkdown('# A\n\ntext\n## B\n\ntext\n');
-      expect(result).toBe('# A\n\ntext\n\n\n## B\n\ntext\n');
+    it('collapses extra blank lines above a heading to exactly 1', () => {
+      const { result } = formatMarkdown('# A\n\ntext\n\n\n## B\n\ntext\n');
+      expect(result).toBe('# A\n\ntext\n\n## B\n\ntext\n');
     });
   });
 
@@ -108,7 +108,7 @@ describe('formatMarkdown (pure)', () => {
   describe('CRLF handling', () => {
     it('preserves CRLF line endings on CRLF input', () => {
       const { result } = formatMarkdown('a\r\n# H\r\nbody\r\n');
-      expect(result).toBe('a\r\n\r\n\r\n# H\r\n\r\nbody\r\n');
+      expect(result).toBe('a\r\n\r\n# H\r\n\r\nbody\r\n');
     });
 
     it('detects frontmatter in CRLF documents', () => {
