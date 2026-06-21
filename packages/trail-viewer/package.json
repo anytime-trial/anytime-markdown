@@ -17,6 +17,7 @@
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trace-viewer": "*",
+    "@anytime-markdown/ui-core": "*",
     "dompurify": "3.4.0",
     "graphology": "0.26.0",
     "marked": "17.0.3",

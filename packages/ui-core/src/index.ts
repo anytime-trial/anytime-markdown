@@ -38,6 +38,7 @@ export {
 export { createClickAway, type CreateClickAwayOptions } from "./clickAway";
 
 // --- simple ---
+export { createBox, type CreateBoxOptions } from "./Box";
 export {
   createButton,
   type ButtonColor,
@@ -178,3 +179,30 @@ export {
   type TableCellAlign,
   type TableSize,
 } from "./Table";
+
+// --- trail-viewer parity 層（S0: vanilla 化のために追加したプリミティブ + アイコン） ---
+// icons.ts は createIcon / IconFactory / IconOptions / IconFontSize + 49 アイコンを公開。
+export * from "./icons";
+export { createButtonBase, type CreateButtonBaseOptions } from "./ButtonBase";
+export { createButtonGroup, type CreateButtonGroupOptions } from "./ButtonGroup";
+export { createToolbar, type CreateToolbarOptions } from "./Toolbar";
+export { createAvatar, type CreateAvatarOptions } from "./Avatar";
+export { createRating, type CreateRatingOptions } from "./Rating";
+export { createCheckbox, type CreateCheckboxOptions } from "./Checkbox";
+export { createFormControl, type CreateFormControlOptions } from "./FormControl";
+export { createFormLabel, type CreateFormLabelOptions } from "./FormLabel";
+export {
+  createInputAdornment,
+  type CreateInputAdornmentOptions,
+} from "./InputAdornment";
+export { createInputLabel, type CreateInputLabelOptions } from "./InputLabel";
+export {
+  createTextareaAutosize,
+  type CreateTextareaAutosizeOptions,
+} from "./TextareaAutosize";
+export { createList, type CreateListOptions } from "./List";
+export { createListItem, type CreateListItemOptions } from "./ListItem";
+export {
+  createListItemButton,
+  type CreateListItemButtonOptions,
+} from "./ListItemButton";

@@ -1,33 +1,18 @@
-import { Box, Paper, Typography } from '../../../ui';
+import React from 'react';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 import type { ToolMetrics } from '../../../domain/parser/types';
-import { ChartTitle } from './shared/ChartTitle';
-import { AnytimeChartView } from './AnytimeChartView';
-import { buildPieSpec } from './specs/buildPieSpec';
+import { VanillaIsland } from '../../../shared/vanillaIsland';
+import { mountSessionToolUsageChart } from '../../../views/analytics/charts/sessionToolUsageChart';
 
-export function SessionToolUsageChart({ toolMetrics }: Readonly<{ toolMetrics: ToolMetrics | null }>) {
-  const { colors, cardSx } = useTrailTheme();
+export function SessionToolUsageChart(props: Readonly<{ toolMetrics: ToolMetrics | null }>) {
+  const { colors, cardSx, isDark } = useTrailTheme();
   const { t } = useTrailI18n();
-  const usage = toolMetrics?.toolUsage;
-  if (!usage || usage.length === 0) {
-    return (
-      <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
-        <ChartTitle title={t('analytics.toolUsageTitle')} description={t('analytics.toolUsageTitle.description')} />
-        <Box sx={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Typography variant="h5" sx={{ color: colors.textSecondary }}>0</Typography>
-        </Box>
-      </Paper>
-    );
-  }
-
-  const sorted = [...usage].sort((a, b) => b.count - a.count);
-  const spec = buildPieSpec(sorted.map((e) => ({ label: `${e.tool} (${e.count})`, value: e.count })));
-
+  const tStr = (k: string): string => t(k as Parameters<typeof t>[0]);
   return (
-    <Paper elevation={0} sx={{ ...cardSx, pt: 1.5, pb: 1, flex: 1, minWidth: 0 }}>
-      <ChartTitle title={t('analytics.toolUsageTitle')} description={t('analytics.toolUsageTitle.description')} />
-      <AnytimeChartView spec={spec} height={130} />
-    </Paper>
+    <VanillaIsland
+      mount={mountSessionToolUsageChart}
+      props={{ ...props, colors, cardSx, isDark, t: tStr }}
+    />
   );
 }
