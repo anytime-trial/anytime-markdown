@@ -1,10 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Box, Button, Typography } from '../../ui';
-import { LogsToolbar } from './LogsToolbar';
-import { LogsTable } from './LogsTable';
-import { LogDetailPanel } from './LogDetailPanel';
 import { useLogsDataSource, type LogFilter, type WsSubscribe } from '../../hooks/useLogsDataSource';
 import { useTrailI18n } from '../../i18n';
+import { VanillaIsland } from '../../shared/vanillaIsland';
+import { mountLogsView, type LogsViewProps } from '../../views/logs/logsView';
 
 interface Props {
   /** Daemon base URL, e.g. `http://127.0.0.1:7531` */
@@ -21,11 +19,15 @@ const DEFAULT_FILTER: LogFilter = {
   q: '',
 };
 
+/**
+ * logs タブの React 境界。データソース（useLogsDataSource）と mode/filter/autoScroll を保持し、
+ * 表示は VanillaIsland 経由で vanilla view（mountLogsView）へ委譲する。
+ * S5 で hooks が vanilla 化したらこの薄いラッパごと撤去する。
+ */
 export function LogsTab(props: Readonly<Props>): React.ReactElement {
   const { t } = useTrailI18n();
   const [mode, setMode] = useState<'live' | 'history'>('live');
   const [filter, setFilter] = useState<LogFilter>(DEFAULT_FILTER);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
 
   const subscribe = useMemo(() => props.subscribe, [props.subscribe]);
@@ -36,43 +38,27 @@ export function LogsTab(props: Readonly<Props>): React.ReactElement {
     subscribe,
   });
 
-  const selected = ds.logs.find((l) => l.id === selectedId) ?? null;
+  // vanilla view は動的キー（`logs.level.${lv}` 等）を string で渡すため、境界で型を緩める。
+  const tStr = (key: string): string => t(key as Parameters<typeof t>[0]);
 
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <LogsToolbar
-        mode={mode}
-        onModeChange={setMode}
-        filter={filter}
-        onFilterChange={setFilter}
-        paused={ds.paused}
-        pendingCount={ds.pendingCount}
-        onPause={ds.pause}
-        onResume={ds.resume}
-        onClear={ds.clear}
-        autoScroll={autoScroll}
-        onAutoScrollChange={setAutoScroll}
-      />
-      {ds.logs.length === 0 ? (
-        <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary', flex: 1 }}>
-          <Typography>{t('logs.empty')}</Typography>
-        </Box>
-      ) : (
-        <LogsTable
-          logs={ds.logs}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          autoScroll={autoScroll}
-        />
-      )}
-      {mode === 'history' && ds.nextCursor && (
-        <Box sx={{ p: 1, textAlign: 'center', borderTop: 1, borderColor: 'divider' }}>
-          <Button size="small" onClick={() => void ds.loadMore()}>
-            {t('logs.action.loadMore')}
-          </Button>
-        </Box>
-      )}
-      <LogDetailPanel log={selected} onOpenOutputChannel={props.onOpenOutputChannel} />
-    </Box>
-  );
+  const viewProps: LogsViewProps = {
+    t: tStr,
+    mode,
+    filter,
+    autoScroll,
+    logs: ds.logs,
+    paused: ds.paused,
+    pendingCount: ds.pendingCount,
+    nextCursor: ds.nextCursor,
+    onModeChange: setMode,
+    onFilterChange: setFilter,
+    onAutoScrollChange: setAutoScroll,
+    onPause: ds.pause,
+    onResume: ds.resume,
+    onClear: ds.clear,
+    onLoadMore: () => void ds.loadMore(),
+    onOpenOutputChannel: props.onOpenOutputChannel,
+  };
+
+  return <VanillaIsland mount={mountLogsView} props={viewProps} />;
 }
