@@ -1,16 +1,14 @@
-import { useCallback, useRef } from 'react';
-import { Box, IconButton, Tooltip, Typography, Close as CloseIcon, Fullscreen as FullscreenIcon, FullscreenExit as FullscreenExitIcon } from '../../../ui';
+import * as React from 'react';
+import * as ReactDOM from 'react-dom';
 import type { C4ThemeColors } from '../../../theme/c4Tokens';
+import {
+  mountResizablePopupShell,
+  type ResizablePopupShellHandle,
+  type ResizablePopupSize,
+  type ResizablePopupVanillaProps,
+} from '../../../views/c4/widgets/resizablePopup';
 
-const MIN_WIDTH = 360;
-const MIN_HEIGHT = 240;
-const MARGIN = 8;
-const HANDLE_SIZE = 16;
-
-export interface ResizablePopupSize {
-  readonly width: number;
-  readonly height: number;
-}
+export type { ResizablePopupSize };
 
 export interface ResizablePopupProps {
   readonly title: string;
@@ -22,13 +20,9 @@ export interface ResizablePopupProps {
   readonly onSizeChange: (size: ResizablePopupSize) => void;
   readonly maximized: boolean;
   readonly onMaximizedChange: (maximized: boolean) => void;
-  /** size === null のときに使う初期 left オフセット（px）。`centered` 指定時は無視される。 */
   readonly defaultLeft?: number;
-  /** size === null のときに使う maxWidth（px） */
   readonly defaultMaxWidth?: number;
-  /** size === null のときに親領域の中央に水平方向で寄せる。デフォルト false。 */
   readonly centered?: boolean;
-  /** ポップアップ背後を覆う半透明 + ぼかしの backdrop を表示する。デフォルト false。 */
   readonly withBackdrop?: boolean;
   readonly toolbarButtonSx: Record<string, unknown>;
   readonly i18nMaximize: string;
@@ -38,149 +32,74 @@ export interface ResizablePopupProps {
   readonly children: React.ReactNode;
 }
 
-/**
- * C4 ビュー内で使う右ペイン型ポップアップ。
- * - 右下コーナーをドラッグでリサイズ（min 360×240、親領域が上限）
- * - 最大化トグルで親領域全面（margin 8px）に展開
- * - サイズ・最大化状態は呼び出し側で持たせるため state は受け取らない
- */
 export function ResizablePopup({
-  title, ariaLabel, onClose, isDark, colors,
-  size, onSizeChange, maximized, onMaximizedChange,
-  defaultLeft = 244, defaultMaxWidth = 960,
-  centered = false,
-  withBackdrop = false,
-  toolbarButtonSx,
-  i18nMaximize, i18nRestore, i18nClose, i18nResize,
   children,
-}: ResizablePopupProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
+  toolbarButtonSx: _toolbarButtonSx,
+  ...rest
+}: ResizablePopupProps): React.ReactElement {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const handleRef = React.useRef<ResizablePopupShellHandle | null>(null);
+  const [contentEl, setContentEl] = React.useState<HTMLElement | null>(null);
 
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const root = rootRef.current;
-    if (!root) return;
-    const rect = root.getBoundingClientRect();
-    const parent = root.parentElement;
-    const parentRect = parent?.getBoundingClientRect();
-    const offsetLeft = parentRect ? rect.left - parentRect.left : 0;
-    const offsetTop = parentRect ? rect.top - parentRect.top : 0;
-    const parentW = parent?.clientWidth ?? globalThis.innerWidth;
-    const parentH = parent?.clientHeight ?? globalThis.innerHeight;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startW = rect.width;
-    const startH = rect.height;
-    const maxW = Math.max(MIN_WIDTH, parentW - offsetLeft - MARGIN);
-    const maxH = Math.max(MIN_HEIGHT, parentH - offsetTop - MARGIN);
-
-    const onMove = (ev: MouseEvent) => {
-      const w = Math.max(MIN_WIDTH, Math.min(maxW, startW + (ev.clientX - startX)));
-      const h = Math.max(MIN_HEIGHT, Math.min(maxH, startH + (ev.clientY - startY)));
-      onSizeChange({ width: w, height: h });
+  // Mount the vanilla shell once.
+  React.useEffect(() => {
+    if (!containerRef.current) return;
+    const shellProps: Omit<ResizablePopupVanillaProps, 'mountContent'> = {
+      title: rest.title,
+      ariaLabel: rest.ariaLabel,
+      onClose: rest.onClose,
+      isDark: rest.isDark,
+      colors: rest.colors,
+      size: rest.size,
+      onSizeChange: rest.onSizeChange,
+      maximized: rest.maximized,
+      onMaximizedChange: rest.onMaximizedChange,
+      defaultLeft: rest.defaultLeft,
+      defaultMaxWidth: rest.defaultMaxWidth,
+      centered: rest.centered,
+      withBackdrop: rest.withBackdrop,
+      i18nMaximize: rest.i18nMaximize,
+      i18nRestore: rest.i18nRestore,
+      i18nClose: rest.i18nClose,
+      i18nResize: rest.i18nResize,
     };
-    const onUp = () => {
-      globalThis.removeEventListener('mousemove', onMove);
-      globalThis.removeEventListener('mouseup', onUp);
+    handleRef.current = mountResizablePopupShell(containerRef.current, shellProps);
+    setContentEl(handleRef.current.contentEl);
+    return () => {
+      handleRef.current?.destroy();
+      handleRef.current = null;
+      setContentEl(null);
     };
-    globalThis.addEventListener('mousemove', onMove);
-    globalThis.addEventListener('mouseup', onUp);
-  }, [onSizeChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const baseSx = {
-    position: 'absolute' as const,
-    border: `1px solid ${colors.border}`,
-    borderRadius: '8px',
-    bgcolor: isDark ? 'rgba(18,18,18,0.96)' : 'rgba(251,249,243,0.98)',
-    color: colors.text,
-    boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
-    // backdropFilter をこの要素自体に置くと position:fixed の containing block になり
-    // MUI X Charts の Popper tooltip がポップアップ起点でずれる。
-    // ::before 擬似要素に移動することで視覚効果を維持しつつ containing block 問題を回避する。
-    display: 'flex',
-    flexDirection: 'column' as const,
-    overflow: 'hidden' as const,
-    zIndex: 11,
-    // TODO(mui-removal): dropped pseudo/responsive sx ('&::before' backdropFilter)
-  };
-  const sizeSx = maximized
-    ? { top: MARGIN, left: MARGIN, right: MARGIN, bottom: MARGIN }
-    : size
-      ? centered
-        // 中央寄せモードでリサイズ済みの場合は left/right に同値を入れて margin auto で中央維持。
-        ? { top: MARGIN, left: MARGIN, right: MARGIN, marginLeft: 'auto', marginRight: 'auto', width: size.width, height: size.height }
-        : { top: MARGIN, left: defaultLeft, width: size.width, height: size.height }
-      : centered
-        // position: absolute でも left/right + margin auto で水平中央寄せが効く。
-        ? { top: MARGIN, left: MARGIN, right: MARGIN, marginLeft: 'auto', marginRight: 'auto', maxWidth: defaultMaxWidth, height: `calc(100% - ${MARGIN * 2}px)` }
-        : { top: MARGIN, left: defaultLeft, right: MARGIN, maxWidth: defaultMaxWidth, height: `calc(100% - ${MARGIN * 2}px)` };
+  // Propagate prop changes to vanilla shell.
+  React.useEffect(() => {
+    if (!handleRef.current) return;
+    handleRef.current.update({
+      title: rest.title,
+      ariaLabel: rest.ariaLabel,
+      onClose: rest.onClose,
+      isDark: rest.isDark,
+      colors: rest.colors,
+      size: rest.size,
+      onSizeChange: rest.onSizeChange,
+      maximized: rest.maximized,
+      onMaximizedChange: rest.onMaximizedChange,
+      defaultLeft: rest.defaultLeft,
+      defaultMaxWidth: rest.defaultMaxWidth,
+      centered: rest.centered,
+      withBackdrop: rest.withBackdrop,
+      i18nMaximize: rest.i18nMaximize,
+      i18nRestore: rest.i18nRestore,
+      i18nClose: rest.i18nClose,
+      i18nResize: rest.i18nResize,
+    });
+  });
 
   return (
-    <>
-      {withBackdrop && (
-        <Box
-          aria-hidden
-          sx={{
-            position: 'absolute',
-            inset: 0,
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            bgcolor: isDark ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.15)',
-            zIndex: 10,
-          }}
-        />
-      )}
-    <Box ref={rootRef} role="dialog" aria-label={ariaLabel} sx={{ ...baseSx, ...sizeSx }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1.5, py: 0.75, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
-        <Typography variant="caption" sx={{ color: colors.text, fontSize: '0.8rem', fontWeight: 600 }}>
-          {title}
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title={maximized ? i18nRestore : i18nMaximize}>
-            <IconButton
-              size="small"
-              onClick={() => onMaximizedChange(!maximized)}
-              aria-label={maximized ? i18nRestore : i18nMaximize}
-              sx={{ ...toolbarButtonSx, width: 22, height: 22, minWidth: 22 }}
-            >
-              {maximized ? <FullscreenExitIcon fontSize={14} /> : <FullscreenIcon fontSize={14} />}
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={i18nClose}>
-            <IconButton
-              size="small"
-              onClick={onClose}
-              aria-label={i18nClose}
-              sx={{ ...toolbarButtonSx, width: 22, height: 22, minWidth: 22 }}
-            >
-              <CloseIcon fontSize={14} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </Box>
-      <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {children}
-      </Box>
-      {!maximized && (
-        <Box
-          role="separator"
-          aria-orientation="vertical"
-          aria-label={i18nResize}
-          onMouseDown={handleResizeMouseDown}
-          sx={{
-            position: 'absolute',
-            right: 0,
-            bottom: 0,
-            width: HANDLE_SIZE,
-            height: HANDLE_SIZE,
-            cursor: 'nwse-resize',
-            opacity: 0.5,
-            // TODO(mui-removal): dropped pseudo/responsive sx ('&:hover' opacity, '&::before' resize-grip backgroundImage)
-          }}
-        />
-      )}
-    </Box>
-    </>
+    <div ref={containerRef} style={{ display: 'contents' }}>
+      {contentEl !== null && ReactDOM.createPortal(children, contentEl)}
+    </div>
   );
 }

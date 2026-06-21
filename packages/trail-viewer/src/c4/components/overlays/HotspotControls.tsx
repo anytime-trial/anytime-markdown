@@ -1,11 +1,15 @@
-import { Box, FormControl, FormControlLabel, FormLabel, InputLabel, MenuItem, Radio, RadioGroup, Select, Typography } from '../../../ui';
-
+import * as React from 'react';
 import type {
   HotspotGranularity,
   TrendPeriod,
 } from '@anytime-markdown/trail-core/c4';
 
 import { useTrailI18n } from '../../../i18n/context';
+import { VanillaIsland } from '../../../shared/vanillaIsland';
+import {
+  mountHotspotControls,
+  type HotspotControlsVanillaProps,
+} from '../../../views/c4/overlays/hotspotControls';
 
 export interface HotspotControlsValue {
   readonly period: TrendPeriod;
@@ -24,109 +28,20 @@ export interface HotspotControlsProps {
   readonly sx?: Record<string, unknown>;
 }
 
-const PERIOD_OPTIONS: ReadonlyArray<TrendPeriod> = ['7d', '30d', '90d', 'all'];
-const GRANULARITY_OPTIONS: ReadonlyArray<HotspotGranularity> = ['commit', 'session'];
-
-export function HotspotControls({
-  value,
-  onChange,
-  loading,
-  disabled = false,
-  isDark = false,
-  enabled = true,
-  sx: sxOverride,
-}: Readonly<HotspotControlsProps>) {
+export function HotspotControls(props: Readonly<HotspotControlsProps>): React.ReactElement {
   const { t } = useTrailI18n();
-  if (!enabled) return null;
-  const handlePeriod = (period: TrendPeriod): void => onChange({ ...value, period });
-  const handleGranularity = (granularity: HotspotGranularity): void =>
-    onChange({ ...value, granularity });
-  return (
-    <Box
-      role="dialog"
-      aria-label="Hotspot overlay controls"
-      sx={{
-        position: 'absolute',
-        top: 8,
-        left: 8,
-        width: 220,
-        zIndex: 10,
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: '8px',
-        bgcolor: isDark ? 'rgba(18,18,18,0.92)' : 'rgba(251,249,243,0.94)',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
-        backdropFilter: 'blur(10px)',
-        px: 1.5,
-        py: 1.25,
-        ...sxOverride,
-      }}
-    >
-      <Typography
-        variant="caption"
-        sx={{ display: 'block', color: 'text.secondary', fontSize: '0.65rem', mb: 1 }}
-      >
-        Hotspot
-      </Typography>
-
-      <FormControl size="small" fullWidth sx={{ mb: 1.25 }} disabled={disabled}>
-        <InputLabel id="hs-period-label">{t('c4.hotspot.controls.period')}</InputLabel>
-        <Select
-          labelId="hs-period-label"
-          label={t('c4.hotspot.controls.period')}
-          value={value.period}
-          onChange={(e) => handlePeriod(String(e.target.value) as TrendPeriod)}
-          inputProps={{ 'aria-label': t('c4.hotspot.controls.period') }}
-        >
-          {PERIOD_OPTIONS.map((p) => (
-            <MenuItem key={p} value={p}>
-              {p}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-
-      <FormControl
-        component="fieldset"
-        size="small"
-        fullWidth
-        disabled={disabled}
-        sx={{ mb: 0.5 }}
-      >
-        <FormLabel
-          component="legend"
-          sx={{ typography: 'caption', position: 'static', transform: 'none', m: 0, mb: 0.5, fontSize: '0.65rem' }}
-        >
-          {t('c4.hotspot.controls.granularity')}
-        </FormLabel>
-        <RadioGroup
-          value={value.granularity}
-          onChange={(e) => handleGranularity(String(e.target.value) as HotspotGranularity)}
-          aria-label={t('c4.hotspot.controls.granularity')}
-        >
-          {GRANULARITY_OPTIONS.map((g) => (
-            <FormControlLabel
-              key={g}
-              value={g}
-              control={<Radio size="small" sx={{ py: 0.25 }} />}
-              label={
-                <Typography variant="caption">
-                  {g === 'commit'
-                    ? t('c4.hotspot.controls.granularityCommit')
-                    : t('c4.hotspot.controls.granularitySession')}
-                </Typography>
-              }
-              sx={{ m: 0 }}
-            />
-          ))}
-        </RadioGroup>
-      </FormControl>
-
-      {loading && (
-        <Typography variant="caption" color="text.secondary" aria-live="polite" sx={{ display: 'block', mt: 0.5 }}>
-          ...
-        </Typography>
-      )}
-    </Box>
-  );
+  const tStr = (k: string) => t(k as Parameters<typeof t>[0]);
+  const vanillaProps: HotspotControlsVanillaProps = {
+    value: props.value,
+    onChange: props.onChange,
+    loading: props.loading,
+    disabled: props.disabled,
+    isDark: props.isDark,
+    enabled: props.enabled,
+    labelPeriod: tStr('c4.hotspot.controls.period'),
+    labelGranularity: tStr('c4.hotspot.controls.granularity'),
+    labelGranularityCommit: tStr('c4.hotspot.controls.granularityCommit'),
+    labelGranularitySession: tStr('c4.hotspot.controls.granularitySession'),
+  };
+  return <VanillaIsland mount={mountHotspotControls} props={vanillaProps} />;
 }

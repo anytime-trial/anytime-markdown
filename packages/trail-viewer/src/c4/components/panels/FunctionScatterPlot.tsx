@@ -1,15 +1,4 @@
 import * as React from 'react';
-import {
-  Box,
-  IconButton,
-  Stack,
-  Tooltip,
-  Typography,
-  ScatterPlot as ScatterPlotIcon,
-  Public as PublicIcon,
-  Apartment as ApartmentIcon,
-  Tour as TourIcon,
-} from '../../../ui';
 import { BubbleCanvas } from '../../canvas/BubbleCanvas';
 import type { BubblePoint } from '../../canvas/BubbleCanvas';
 import { GalaxyCanvas } from '../../canvas/GalaxyCanvas';
@@ -19,6 +8,8 @@ import { selectTourTargets } from '../../canvas/tourTargets';
 import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
 import type { FunctionAnalysisApiEntry } from '../../hooks/fetchFunctionAnalysisApi';
 import { useTrailTheme } from '../../../components/TrailThemeContext';
+import { VanillaIsland } from '../../../shared/vanillaIsland';
+import { mountFunctionScatterPlotPanel, type FunctionScatterPlotPanelProps } from '../../../views/c4/panels/functionScatterPlotPanel';
 
 interface Colors {
   readonly border: string;
@@ -140,188 +131,57 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
   const trailTheme = useTrailTheme();
   const isDark = trailTheme.isDark;
 
-  // Tour is currently scoped to the scatter view (galaxy/city support
-  // would require additional focus wiring). Switch to scatter on start.
   const tourSteps = React.useMemo(() => selectTourTargets(entries), [entries]);
+
+  if (entries.length === 0) {
+    return (
+      <div style={{ borderTop: `1px solid ${colors.border}`, marginTop: 16, paddingTop: 8, paddingLeft: 8, paddingRight: 8 }}>
+        <span style={{ color: colors.textMuted, fontSize: '0.75rem' }}>{t('c4.scatter.empty')}</span>
+      </div>
+    );
+  }
 
   const startTour = (): void => {
     if (tourSteps.length === 0) return;
     setView('scatter');
     setTourActive(true);
   };
-  const stopTour = React.useCallback((): void => {
+  const stopTour = (): void => {
     setTourActive(false);
     setTourTarget(null);
-  }, []);
-  const handleStepChange = React.useCallback(
-    (target: { file: string; label: string; startLine: number } | null) => {
-      setTourTarget(target);
-    },
-    [],
-  );
+  };
 
-  if (entries.length === 0) {
-    return (
-      <Box sx={{ borderTop: `1px solid ${colors.border}`, mt: 2, pt: 1, px: 1 }}>
-        <Typography variant="caption" sx={{ color: colors.textMuted }}>
-          {t('c4.scatter.empty')}
-        </Typography>
-      </Box>
-    );
-  }
-
-  // 中央値は将来の軸アノテーション用に計算しておく
-  const _medianFanIn = median(entries.map((e) => e.fanIn));
-  const _medianFanOut = median(entries.map((e) => e.fanOut));
+  const toolbarProps: FunctionScatterPlotPanelProps = {
+    view,
+    tourActive,
+    tourStepsCount: tourSteps.length,
+    onViewChange: setView,
+    onTourToggle: tourActive ? stopTour : startTour,
+    colors,
+    t,
+  };
 
   return (
-    <Box
-      sx={{
-        borderTop: `1px solid ${colors.border}`,
-        mt: 2,
-        pt: 1,
-        px: 1,
-        // Fill the popup's flex content area so the BubbleCanvas can grow into
-        // the remaining height. minHeight:0 is required so the flex child can
-        // shrink below its intrinsic height (otherwise BubbleCanvas overflows).
-        flex: 1,
-        minHeight: 0,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      {/* タイトル + View 切替 toolbar */}
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
-        <Typography variant="subtitle2" sx={{ color: colors.textSecondary, fontWeight: 700 }}>
-          {t('c4.scatter.title')}
-        </Typography>
-        <Stack direction="row" spacing={0.25}>
-          <Tooltip title="Scatter">
-            <IconButton
-              size="small"
-              onClick={() => setView('scatter')}
-              sx={{ color: view === 'scatter' ? colors.text : colors.textMuted, p: 0.25 }}
-              aria-label="scatter view"
-            >
-              <ScatterPlotIcon fontSize={16} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Galaxy">
-            <IconButton
-              size="small"
-              onClick={() => setView('galaxy')}
-              sx={{ color: view === 'galaxy' ? colors.text : colors.textMuted, p: 0.25 }}
-              aria-label="galaxy view"
-            >
-              <PublicIcon fontSize={16} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="City">
-            <IconButton
-              size="small"
-              onClick={() => setView('city')}
-              sx={{ color: view === 'city' ? colors.text : colors.textMuted, p: 0.25 }}
-              aria-label="city view"
-            >
-              <ApartmentIcon fontSize={16} />
-            </IconButton>
-          </Tooltip>
-          {/* Tour Mode: scatter 限定で、重要関数を順番にハイライト */}
-          <Tooltip
-            title={
-              tourSteps.length === 0
-                ? 'No data for tour'
-                : tourActive
-                  ? 'Stop tour'
-                  : 'Start tour (top important functions)'
-            }
-          >
-            <span>
-              <IconButton
-                size="small"
-                onClick={tourActive ? stopTour : startTour}
-                disabled={tourSteps.length === 0}
-                sx={{ color: tourActive ? colors.text : colors.textMuted, p: 0.25 }}
-                aria-label={tourActive ? 'stop tour' : 'start tour'}
-              >
-                <TourIcon fontSize={16} />
-              </IconButton>
-            </span>
-          </Tooltip>
-        </Stack>
-      </Stack>
-
-      {/* 凡例（色 = role, サイズ = complexity tier） */}
-      <Stack direction="row" spacing={2} sx={{ mb: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-        {/* 色凡例 */}
-        <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
-          {ALL_ROLES.map((role) => (
-            <Stack key={role} direction="row" alignItems="center" spacing={0.5}>
-              <Box
-                sx={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: '50%',
-                  bgcolor: ROLE_COLORS[role],
-                  flexShrink: 0,
-                }}
-              />
-              <Typography
-                variant="caption"
-                sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}
-              >
-                {role}
-              </Typography>
-            </Stack>
-          ))}
-        </Stack>
-
-        {/* 区切り */}
-        <Box sx={{ width: '1px', height: 12, bgcolor: colors.border, flexShrink: 0 }} />
-
-        {/* サイズ凡例 */}
-        <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
-          {COMPLEXITY_TIERS.map((tierConfig) => (
-            <Stack key={tierConfig.tier} direction="row" alignItems="center" spacing={0.5}>
-              <Box
-                sx={{
-                  width: tierConfig.markerSize,
-                  height: tierConfig.markerSize,
-                  borderRadius: '50%',
-                  bgcolor: colors.textMuted,
-                  flexShrink: 0,
-                }}
-              />
-              <Typography
-                variant="caption"
-                sx={{ color: colors.textSecondary, fontSize: '0.65rem' }}
-              >
-                {tierConfig.label}
-              </Typography>
-            </Stack>
-          ))}
-        </Stack>
-      </Stack>
-
-      {/* キャンバス: 残り高さを全て占有 (Scatter / Galaxy / City 排他切替) */}
-      <Box
-        sx={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-        }}
-      >
+    <div style={{
+      borderTop: `1px solid ${colors.border}`,
+      marginTop: 16,
+      paddingTop: 8,
+      paddingLeft: 8,
+      paddingRight: 8,
+      flex: 1,
+      minHeight: 0,
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      <VanillaIsland mount={mountFunctionScatterPlotPanel} props={toolbarProps} />
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {view === 'scatter' && (
           <BubbleCanvas
             points={toBubblePoints(entries)}
             height="100%"
             focusPoint={tourActive ? tourTarget : null}
             onPointClick={(pt) => {
-              if (onFunctionOpen) {
-                onFunctionOpen(pt.file, pt.label, pt.startLine);
-              }
+              if (onFunctionOpen) onFunctionOpen(pt.file, pt.label, pt.startLine);
             }}
           />
         )}
@@ -334,13 +194,13 @@ export const FunctionScatterPlot: React.FC<FunctionScatterPlotProps> = ({
         {tourActive && view === 'scatter' && (
           <TourMode
             steps={tourSteps}
-            onStepChange={handleStepChange}
+            onStepChange={(target) => setTourTarget(target)}
             onClose={stopTour}
             isDark={isDark}
           />
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 };
 
