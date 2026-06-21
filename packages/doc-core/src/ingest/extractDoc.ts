@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import matter from 'gray-matter';
 import { coerceRelationType, type RelationType } from '../relations';
+import { splitSections } from './splitSections';
 import type { DocRelation, ExtractedDoc } from '../types';
 
 const GRAPH_FALSE_VALUES = new Set(['false', 'no', 'off', '0']);
@@ -64,6 +65,7 @@ export function extractDoc(relPath: string, content: string): ExtractedDoc | nul
   if (!title) return null;
   if (data.graph !== undefined && GRAPH_FALSE_VALUES.has(String(data.graph).toLowerCase())) return null;
 
+  const body = parsed.content.trim();
   return {
     path: relPath,
     title,
@@ -71,8 +73,9 @@ export function extractDoc(relPath: string, content: string): ExtractedDoc | nul
     type: toStr(data.type),
     lang: toStr(data.lang),
     excerpt: toStr(data.excerpt),
-    body: parsed.content.trim(),
+    body,
     related: normalizeRelated(relPath, data.related),
+    sections: splitSections(body),
     contentHash: createHash('sha256').update(content, 'utf8').digest('hex'),
   };
 }

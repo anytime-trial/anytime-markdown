@@ -51,6 +51,12 @@ describe('extractDoc', () => {
     expect(extractDoc('x.md', '# no frontmatter')).toBeNull();
   });
 
+  it('splits body into heading-granular sections', () => {
+    const d = extractDoc('spec/a.md', FM('title: A', '# Top\nintro\n## Sub\nsub body'));
+    expect(d?.sections.map((s) => s.heading)).toEqual(['Top', 'Sub']);
+    expect(d?.sections.find((s) => s.heading === 'Sub')?.text).toContain('sub body');
+  });
+
   it('produces a stable content hash that changes with content', () => {
     const a = extractDoc('spec/a.md', FM('title: A'));
     const b = extractDoc('spec/a.md', FM('title: A'));

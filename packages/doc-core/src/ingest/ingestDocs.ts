@@ -62,12 +62,14 @@ export async function ingestDocs(db: DocDb, docsRoot: string, opts: IngestOption
     const delDoc = db.prepare('DELETE FROM doc WHERE path = ?'); // doc_embedding は FK CASCADE
     const delRel = db.prepare('DELETE FROM doc_relation WHERE from_path = ?');
     const delFts = db.prepare('DELETE FROM doc_fts WHERE path = ?');
+    const delSectionFts = db.prepare('DELETE FROM doc_section_fts WHERE path = ?');
     withTx(db, () => {
       for (const p of existing) {
         if (seen.has(p)) continue;
         delDoc.run(p);
         delRel.run(p);
         delFts.run(p);
+        delSectionFts.run(p);
         removed += 1;
       }
     });
