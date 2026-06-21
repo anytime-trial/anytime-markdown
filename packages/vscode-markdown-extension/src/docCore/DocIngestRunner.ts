@@ -57,7 +57,8 @@ export class DocIngestRunner implements vscode.Disposable {
         if (code === 0) {
           MarkdownLogger.info(`[doc-core] ingest ${out.trim()} (db=${this.dbPath})`);
         } else {
-          MarkdownLogger.error(`[doc-core] ingest exited with code=${code}`);
+          const tail = out.trim();
+          MarkdownLogger.error(`[doc-core] ingest exited with code=${code}${tail ? ` stdout=${tail}` : ''}`);
         }
         this.running = false;
         resolve();

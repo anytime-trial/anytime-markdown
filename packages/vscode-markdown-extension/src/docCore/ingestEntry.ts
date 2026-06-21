@@ -18,7 +18,6 @@ async function main(): Promise<void> {
   if (!dbPath || !docsRoot) {
     process.stderr.write('[doc-ingest] missing ANYTIME_MARKDOWN_DOC_DB or ANYTIME_MARKDOWN_DOCS_ROOT\n');
     process.exit(2);
-    return;
   }
   const db = openDocDb(dbPath);
   try {
