@@ -251,8 +251,16 @@ export function formatMarkdown(md: string): FormatResult {
     pendingBlanks = 0;
   }
 
-  // 先頭の空行を捨てる際の計上
-  if (content.length > 0 && blanksBefore[0] > 0) counts.collapseBlankLines++;
+  const trailingBlanks = pendingBlanks; // 最後の content 以降の空行数（EOF 改行由来の 1 を含む）
+
+  // 先頭・末尾の空行正規化を「実際に出力が変わるとき」だけ計上する。
+  // frontmatter ありの場合は結合時に 1 空行が必ず復元されるため、先頭空行が 1 なら無変化。
+  if (content.length > 0) {
+    const outputLeadingBlanks = frontmatter !== null ? 1 : 0;
+    if (blanksBefore[0] !== outputLeadingBlanks) counts.collapseBlankLines++;
+    // 出力末尾は常に単一終端改行（split 由来の空要素 1 個）。それ以外は正規化が発生。
+    if (trailingBlanks !== 1) counts.collapseBlankLines++;
+  }
 
   let bodyOut = "";
   for (let i = 0; i < content.length; i++) {
