@@ -21,6 +21,11 @@
       "command": "npx",
       "args": ["tsx", "packages/mcp-trail/src/stdio.ts"],
       "cwd": "/anytime-markdown"
+    },
+    "mcp-markdown": {
+      "command": "npx",
+      "args": ["tsx", "--tsconfig", "packages/mcp-markdown/tsconfig.json", "packages/mcp-markdown/src/stdio.ts"],
+      "cwd": "/anytime-markdown"
     }
   }
 }
