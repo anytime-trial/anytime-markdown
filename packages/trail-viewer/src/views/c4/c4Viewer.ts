@@ -1116,6 +1116,15 @@ export function mountC4Viewer(
               if (msg.type === 'code-graph-updated') fetchCodeGraph();
             } catch { /* ignore */ }
           });
+          ws.addEventListener('close', () => {
+            if (codeGraphState.ws === ws) codeGraphState.ws = null;
+          });
+          ws.addEventListener('error', () => {
+            if (codeGraphState.ws === ws) {
+              codeGraphState.ws = null;
+              try { ws.close(); } catch { /* ignore */ }
+            }
+          });
         }
       } catch { /* ignore */ }
     }

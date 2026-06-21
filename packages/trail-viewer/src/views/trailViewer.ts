@@ -249,8 +249,15 @@ export function mountTrailViewer(
 
   // ── Popup handles ──
   let releasesPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
+  let releasesPopupHost: HTMLDivElement | null = null;
   let promptsPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
+  let promptsPopupHost: HTMLDivElement | null = null;
   let messagesPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
+  let messagesPopupHost: HTMLDivElement | null = null;
+
+  // ── Stable WebSocket subscribe reference for LogsTab ──
+  let stableSubscribeToLogs: WsSubscribe | null = null;
+  let stableSubscribeUrl: string | null = null;
 
   // ── Tab bar (created once) ──
   let tabsHandle: ReturnType<typeof createTabs> | null = null;
@@ -424,26 +431,30 @@ export function mountTrailViewer(
   // ── Derive LogsTab props ──
   function buildLogsProps(): LogsTabProps {
     const serverUrl = props.serverUrl ?? '';
-    const subscribeToLogs: WsSubscribe = (handler) => {
-      if (!serverUrl) return () => {};
-      const wsUrl = serverUrl.replace(/^http/, 'ws');
-      const ws = new WebSocket(wsUrl);
-      ws.addEventListener('message', (ev) => {
-        try {
-          const data = typeof ev.data === 'string' ? ev.data : '';
-          const msg = JSON.parse(data) as { type?: string };
-          if (msg && msg.type === 'log-batch') {
-            handler(msg as never);
+    // Recreate subscribe fn only when serverUrl actually changes
+    if (stableSubscribeToLogs === null || serverUrl !== stableSubscribeUrl) {
+      stableSubscribeUrl = serverUrl;
+      stableSubscribeToLogs = (handler) => {
+        if (!serverUrl) return () => {};
+        const wsUrl = serverUrl.replace(/^http/, 'ws');
+        const ws = new WebSocket(wsUrl);
+        ws.addEventListener('message', (ev) => {
+          try {
+            const data = typeof ev.data === 'string' ? ev.data : '';
+            const msg = JSON.parse(data) as { type?: string };
+            if (msg && msg.type === 'log-batch') {
+              handler(msg as never);
+            }
+          } catch {
+            /* noop */
           }
-        } catch {
-          /* noop */
-        }
-      });
-      return () => ws.close();
-    };
+        });
+        return () => ws.close();
+      };
+    }
     return {
       baseUrl: serverUrl,
-      subscribe: subscribeToLogs,
+      subscribe: stableSubscribeToLogs,
       t: props.t,
     };
   }
@@ -587,6 +598,7 @@ export function mountTrailViewer(
       const c4Colors = getC4Colors(props.isDark ?? true);
       const host = document.createElement('div');
       document.body.appendChild(host);
+      releasesPopupHost = host;
 
       const releaseProps: ReleasesPanelProps = {
         releases: props.releases ?? [],
@@ -608,6 +620,7 @@ export function mountTrailViewer(
           releasesPopupHandle?.destroy();
           releasesPopupHandle = null;
           host.remove();
+          releasesPopupHost = null;
         },
         isDark: props.isDark ?? true,
         colors: c4Colors,
@@ -632,6 +645,7 @@ export function mountTrailViewer(
       const c4Colors = getC4Colors(props.isDark ?? true);
       const host = document.createElement('div');
       document.body.appendChild(host);
+      promptsPopupHost = host;
 
       promptsPopupHandle = mountResizablePopup(host, {
         title: t('viewer.tab.prompts'),
@@ -643,6 +657,7 @@ export function mountTrailViewer(
           promptsPopupHandle?.destroy();
           promptsPopupHandle = null;
           host.remove();
+          promptsPopupHost = null;
         },
         isDark: props.isDark ?? true,
         colors: c4Colors,
@@ -674,6 +689,7 @@ export function mountTrailViewer(
       const c4Colors = getC4Colors(props.isDark ?? true);
       const host = document.createElement('div');
       document.body.appendChild(host);
+      messagesPopupHost = host;
 
       messagesContentHost = document.createElement('div');
       messagesContentHost.style.cssText = 'display:flex;flex-direction:column;height:100%;';
@@ -687,6 +703,7 @@ export function mountTrailViewer(
           messagesPopupHandle?.destroy();
           messagesPopupHandle = null;
           host.remove();
+          messagesPopupHost = null;
           messagesContentHost = null;
         },
         isDark: props.isDark ?? true,
@@ -855,8 +872,14 @@ export function mountTrailViewer(
 
     destroyMessagesContent();
     releasesPopupHandle?.destroy();
+    releasesPopupHost?.remove();
+    releasesPopupHost = null;
     promptsPopupHandle?.destroy();
+    promptsPopupHost?.remove();
+    promptsPopupHost = null;
     messagesPopupHandle?.destroy();
+    messagesPopupHost?.remove();
+    messagesPopupHost = null;
 
     tabsHandle?.el.remove();
     root.remove();

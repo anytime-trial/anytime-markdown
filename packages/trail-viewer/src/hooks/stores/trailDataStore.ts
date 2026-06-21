@@ -120,12 +120,6 @@ export function createTrailDataStore(
   let retryCount = 0;
   const budgetTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-  // ----- Guard: skip writes after dispose -----
-  function set<T>(setter: (v: T) => void, v: T): void {
-    if (disposed) return;
-    setter(v);
-  }
-
   // ------------------------------------------------------------------
   // Sessions
   // ------------------------------------------------------------------
@@ -343,12 +337,12 @@ export function createTrailDataStore(
       const res = await fetch(url);
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        console.error(`[fetchQualityMetrics] HTTP ${res.status}: ${body}`);
+        console.error(`[trailDataStore][fetchQualityMetrics] HTTP ${res.status}: ${body}`);
         return null;
       }
       return (await res.json()) as QualityMetrics;
     } catch (err) {
-      console.error('[fetchQualityMetrics] request failed', err);
+      console.error('[trailDataStore][fetchQualityMetrics] request failed', err);
       return null;
     }
   }
@@ -362,12 +356,12 @@ export function createTrailDataStore(
       const res = await fetch(url);
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        console.error(`[fetchDeploymentFrequency] HTTP ${res.status}: ${body}`);
+        console.error(`[trailDataStore][fetchDeploymentFrequency] HTTP ${res.status}: ${body}`);
         return [];
       }
       return (await res.json()) as ReadonlyArray<{ bucketStart: string; value: number }>;
     } catch (err) {
-      console.error('[fetchDeploymentFrequency] request failed', err);
+      console.error('[trailDataStore][fetchDeploymentFrequency] request failed', err);
       return [];
     }
   }
@@ -381,12 +375,12 @@ export function createTrailDataStore(
       const res = await fetch(url);
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        console.error(`[fetchReleaseQuality] HTTP ${res.status}: ${body}`);
+        console.error(`[trailDataStore][fetchReleaseQuality] HTTP ${res.status}: ${body}`);
         return [];
       }
       return (await res.json()) as ReadonlyArray<ReleaseQualityBucket>;
     } catch (err) {
-      console.error('[fetchReleaseQuality] request failed', err);
+      console.error('[trailDataStore][fetchReleaseQuality] request failed', err);
       return [];
     }
   }
@@ -560,9 +554,6 @@ export function createTrailDataStore(
     budgetTimers.clear();
     listeners.clear();
   }
-
-  // suppress unused-variable warning for the `set` helper (retained for safety)
-  void set;
 
   return { getState, subscribe, dispose };
 }

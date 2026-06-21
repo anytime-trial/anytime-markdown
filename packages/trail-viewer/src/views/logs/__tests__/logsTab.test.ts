@@ -194,6 +194,38 @@ describe('mountLogsTab – pause / resume', () => {
   });
 });
 
+describe('mountLogsTab – stable subscribe ref', () => {
+  it('update() with same subscribe ref does NOT re-subscribe', async () => {
+    const ws = makeSubscribe();
+    const { fetcher } = makeFetcher([{ logs: [], nextCursor: null }]);
+    const c = document.createElement('div');
+    const stableSubscribe = ws.subscribe;
+    const handle = mountLogsTab(c, { ...baseProps(), subscribe: stableSubscribe, fetcher });
+
+    const prevUnsub = ws.unsubCount;
+    // Update with different t but SAME subscribe reference — should NOT tear down WS
+    handle.update({ ...baseProps(), subscribe: stableSubscribe, fetcher, t: (k) => `X:${k}` });
+
+    expect(ws.unsubCount).toBe(prevUnsub);
+    handle.destroy();
+  });
+
+  it('update() with a NEW subscribe ref DOES re-subscribe', async () => {
+    const ws1 = makeSubscribe();
+    const ws2 = makeSubscribe();
+    const { fetcher } = makeFetcher([{ logs: [], nextCursor: null }]);
+    const c = document.createElement('div');
+    const handle = mountLogsTab(c, { ...baseProps(), subscribe: ws1.subscribe, fetcher });
+
+    const prevUnsub = ws1.unsubCount;
+    // Update with a DIFFERENT subscribe reference — must tear down and re-open
+    handle.update({ ...baseProps(), subscribe: ws2.subscribe, fetcher });
+
+    expect(ws1.unsubCount).toBeGreaterThan(prevUnsub);
+    handle.destroy();
+  });
+});
+
 describe('mountLogsTab – update / destroy', () => {
   it('update() reflects new t function', () => {
     const { fetcher } = makeFetcher([{ logs: [], nextCursor: null }]);

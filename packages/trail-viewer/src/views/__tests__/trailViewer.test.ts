@@ -203,6 +203,27 @@ describe('mountTrailViewer', () => {
     }).not.toThrow();
   });
 
+  it('destroy でpopupホストdivがdocument.bodyから撤去される', () => {
+    jest.clearAllMocks();
+    capturedOnOpenPromptsPopup = undefined;
+
+    const container = document.createElement('div');
+    const prompts = [{ id: 'p1', name: 'Prompt 1', content: '# Hello', tags: [], version: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }];
+    const h = mountTrailViewer(container, makeBaseProps({ prompts, initialTab: 0 }));
+
+    // Open prompts popup to create a host div in document.body
+    (capturedOnOpenPromptsPopup as unknown as () => void)?.();
+
+    // Count body children before destroy (host div should be present)
+    const bodyChildrenBefore = document.body.children.length;
+    expect(bodyChildrenBefore).toBeGreaterThan(0);
+
+    h.destroy();
+
+    // After destroy, no orphaned host divs should remain in document.body
+    expect(document.body.children.length).toBe(0);
+  });
+
   it('c4が未指定のときC4タブが現れない', () => {
     const container = document.createElement('div');
     const h = mountTrailViewer(container, makeBaseProps({ c4: undefined }));
