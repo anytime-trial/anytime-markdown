@@ -1,178 +1,39 @@
-import { useCallback, useState } from 'react';
-import { Box, Button, Divider, List, ListItem, Paper, Rating, TextField, Typography } from '../ui';
-
 import type { TrailEvaluation } from '../domain/parser/types';
 import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
+import { VanillaIsland } from '../shared/vanillaIsland';
+import { mountEvaluationPanel, type EvaluationPanelProps as VanillaProps } from '../views/evaluationPanel';
 
-interface EvaluationPanelProps {
+export interface EvaluationPanelProps {
   readonly evaluations: readonly TrailEvaluation[];
   readonly selectedSessionId?: string;
   readonly onSave: (evaluation: TrailEvaluation) => void;
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-function EvaluationForm({
-  selectedSessionId,
-  onSave,
-}: Readonly<{ selectedSessionId: string; onSave: (e: TrailEvaluation) => void }>) {
-  const { colors, radius } = useTrailTheme();
-  const { t } = useTrailI18n();
-  const [score, setScore] = useState<number | null>(null);
-  const [comment, setComment] = useState('');
-  const [evaluator, setEvaluator] = useState('');
-
-  const handleSubmit = useCallback(() => {
-    if (score === null || !evaluator.trim()) return;
-
-    const evaluation: TrailEvaluation = {
-      id: `eval-${selectedSessionId}-${Date.now()}`,
-      sessionId: selectedSessionId,
-      score,
-      comment: comment.trim(),
-      evaluator: evaluator.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    onSave(evaluation);
-    setScore(null);
-    setComment('');
-  }, [score, comment, evaluator, selectedSessionId, onSave]);
-
-  const canSubmit = score !== null && evaluator.trim().length > 0;
-
-  return (
-    <Box sx={{ mb: 2 }}>
-      <Typography variant="subtitle2" sx={{ mb: 1 }}>
-        {t('eval.newEvaluation')}
-      </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-          {t('eval.score')}
-        </Typography>
-        <Rating
-          value={score}
-          onChange={(_event, newValue) => setScore(newValue)}
-          size="medium"
-          // TODO(mui-removal): dropped pseudo sx — '& .MuiRating-iconFilled' and '& .MuiRating-iconEmpty' target MUI-internal classes no longer present in the kit
-          sx={{}}
-        />
-      </Box>
-      <TextField
-        label={t('eval.evaluator')}
-        value={evaluator}
-        onChange={(e) => setEvaluator(e.target.value)}
-        size="small"
-        fullWidth
-        sx={{
-          mb: 1,
-          // TODO(mui-removal): dropped pseudo sx — '& .MuiOutlinedInput-root', '& .MuiInputLabel-root' and Mui-focused variants target MUI-internal classes no longer present in the kit
-        }}
-      />
-      <TextField
-        label={t('eval.comment')}
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-        multiline
-        minRows={2}
-        maxRows={4}
-        size="small"
-        fullWidth
-        sx={{
-          mb: 1,
-          // TODO(mui-removal): dropped pseudo sx — '& .MuiOutlinedInput-root', '& .MuiInputLabel-root' and Mui-focused variants target MUI-internal classes no longer present in the kit
-        }}
-      />
-      <Button
-        variant="contained"
-        size="small"
-        disabled={!canSubmit}
-        onClick={handleSubmit}
-        sx={{ bgcolor: colors.amberGold, color: colors.textOnLight, borderRadius: radius.md, '&:hover': { bgcolor: colors.amberGoldHover } }}
-      >
-        {t('eval.save')}
-      </Button>
-    </Box>
-  );
-}
-
-function EvaluationItem({ evaluation }: Readonly<{ evaluation: TrailEvaluation }>) {
-  const { colors } = useTrailTheme();
-  return (
-    <ListItem sx={{ flexDirection: 'column', alignItems: 'flex-start', py: 1 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-        {/* TODO(mui-removal): dropped pseudo sx — '& .MuiRating-iconFilled' and '& .MuiRating-iconEmpty' target MUI-internal classes no longer present in the kit */}
-        <Rating value={evaluation.score} readOnly size="small" />
-        <Typography variant="body2" sx={{ ml: 'auto', color: colors.textSecondary }}>
-          {evaluation.evaluator}
-        </Typography>
-        <Typography variant="caption" sx={{ color: colors.textSecondary }}>
-          {formatDate(evaluation.createdAt)}
-        </Typography>
-      </Box>
-      {evaluation.comment && (
-        <Typography variant="body2" sx={{ mt: 0.5 }}>
-          {evaluation.comment}
-        </Typography>
-      )}
-    </ListItem>
-  );
 }
 
 export function EvaluationPanel({
   evaluations,
   selectedSessionId,
   onSave,
-}: Readonly<EvaluationPanelProps>) {
-  const { colors, cardSx, radius } = useTrailTheme();
+}: Readonly<EvaluationPanelProps>): React.ReactElement {
   const { t } = useTrailI18n();
-  const sessionEvaluations = selectedSessionId
-    ? evaluations.filter((e) => e.sessionId === selectedSessionId)
-    : [];
+  const { colors, radius } = useTrailTheme();
 
-  return (
-    <Paper
-      elevation={0}
-      sx={{
-        ...cardSx,
-        p: 2,
-      }}
-    >
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        {t('eval.title')}
-      </Typography>
+  const tStr = (key: string): string => t(key as Parameters<typeof t>[0]);
 
-      {selectedSessionId ? (
-        <>
-          <EvaluationForm
-            selectedSessionId={selectedSessionId}
-            onSave={onSave}
-          />
-          <Divider sx={{ my: 1, borderColor: colors.border }} />
-          {sessionEvaluations.length > 0 ? (
-            <List disablePadding>
-              {sessionEvaluations.map((evalItem) => (
-                <EvaluationItem key={evalItem.id} evaluation={evalItem} />
-              ))}
-            </List>
-          ) : (
-            <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-              {t('eval.noEvaluations')}
-            </Typography>
-          )}
-        </>
-      ) : (
-        <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-          {t('eval.selectSession')}
-        </Typography>
-      )}
-    </Paper>
-  );
+  const viewProps: VanillaProps = {
+    evaluations,
+    selectedSessionId,
+    onSave,
+    t: tStr,
+    colors: {
+      textSecondary: colors.textSecondary,
+      border: colors.border,
+      amberGold: colors.amberGold,
+      amberGoldHover: colors.amberGoldHover,
+      textOnLight: colors.textOnLight,
+    },
+    radius: { md: radius.md },
+  };
+
+  return <VanillaIsland mount={mountEvaluationPanel} props={viewProps} />;
 }
