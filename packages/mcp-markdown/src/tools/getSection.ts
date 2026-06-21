@@ -7,6 +7,8 @@ const ALLOWED_EXTENSIONS = ['.md', '.markdown'];
 export interface GetSectionInput {
   path: string;
   heading: string;
+  /** 返却するセクション本文の最大文字数。超過分は省略マーカーで切詰める（トークン節約）。 */
+  maxChars?: number;
 }
 
 /**
@@ -48,6 +50,9 @@ export async function getSection(input: GetSectionInput, rootDir: string): Promi
   const section = getSectionFromText(content, input.heading);
   if (section === null) {
     throw new Error(`Heading not found: ${input.heading}`);
+  }
+  if (input.maxChars !== undefined && input.maxChars > 0 && section.length > input.maxChars) {
+    return section.slice(0, input.maxChars) + '\n…(truncated)';
   }
   return section;
 }

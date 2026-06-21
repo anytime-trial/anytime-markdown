@@ -17,7 +17,7 @@ describe('searchDocs (facet + keyword)', () => {
 
   beforeAll(async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-core-facet-'));
-    writeDoc(dir, 'spec/a.ja.md', 'title: spec-ja\ncategory: graph\ntype: spec\nlang: ja', 'graph engine spec');
+    writeDoc(dir, 'spec/a.ja.md', 'title: spec-ja\ncategory: graph\ntype: spec\nlang: ja\nexcerpt: グラフエンジンの設計', 'graph engine spec');
     writeDoc(dir, 'spec/b.en.md', 'title: spec-en\ncategory: graph\ntype: spec\nlang: en', 'graph engine spec english');
     writeDoc(dir, 'spec/c.ja.md', 'title: plan-ja\ncategory: graph\ntype: plan\nlang: ja', 'graph migration plan');
     db = openDocDb(':memory:');
@@ -57,5 +57,47 @@ describe('searchDocs (facet + keyword)', () => {
   it('no facet and no query returns all (path order)', () => {
     const hits = searchDocs(db, {}).map((h) => h.path);
     expect(hits).toEqual(['spec/a.ja.md', 'spec/b.en.md', 'spec/c.ja.md']);
+  });
+
+  it('keyword hit carries snippet and excerpt (B-1)', () => {
+    const hit = searchDocs(db, { query: 'engine' }).find((h) => h.path === 'spec/a.ja.md');
+    expect(hit).toBeDefined();
+    expect(typeof hit!.snippet).toBe('string');
+    expect(hit!.snippet).toMatch(/engine/i);
+    expect(hit!.excerpt).toBe('グラフエンジンの設計');
+  });
+
+  it('facet-only hit carries excerpt but no snippet (B-1)', () => {
+    const hit = searchDocs(db, { type: 'spec', lang: 'ja' })[0];
+    expect(hit.path).toBe('spec/a.ja.md');
+    expect(hit.excerpt).toBe('グラフエンジンの設計');
+    expect(hit.snippet).toBeUndefined();
+  });
+});
+
+describe('searchDocs default limit (B-4)', () => {
+  let dir: string;
+  let db: DocDb;
+
+  beforeAll(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-core-limit-'));
+    for (let i = 0; i < 10; i++) {
+      writeDoc(dir, `spec/n${i}.ja.md`, `title: doc-${i}\ncategory: bulk`, `bulk doc ${i}`);
+    }
+    db = openDocDb(':memory:');
+    await ingestDocs(db, dir, { updatedAt: '2026-06-21T00:00:00.000Z' });
+  });
+
+  afterAll(() => {
+    db?.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('caps facet results at default limit 8', () => {
+    expect(searchDocs(db, { category: 'bulk' }).length).toBe(8);
+  });
+
+  it('honors explicit limit', () => {
+    expect(searchDocs(db, { category: 'bulk', limit: 3 }).length).toBe(3);
   });
 });

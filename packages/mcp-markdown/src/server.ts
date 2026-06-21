@@ -79,11 +79,13 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
     {
       path: z.string().describe('Relative path to the Markdown file'),
       heading: z.string().describe('Full heading line including # marks (e.g. "## Section Name")'),
+      maxChars: z.number().optional().describe('Truncate the returned section to this many characters (token saving)'),
     },
     async (args) => {
       const path = args.path as string;
       const heading = args.heading as string;
-      const section = await getSection({ path, heading }, rootDir);
+      const maxChars = args.maxChars as number | undefined;
+      const section = await getSection({ path, heading, maxChars }, rootDir);
       return { content: [{ type: 'text' as const, text: section }] };
     },
   );
@@ -139,13 +141,14 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
   // --- doc-core 検索（markdown 拡張が ingest した doc-core.db を読む） ---
 
   registerTool(server, 'search_docs',
-    'Search the document index (doc-core.db) by keyword (FTS5) and/or frontmatter facets (category/type/lang)',
+    'Search the document index (doc-core.db) by keyword (FTS5) and/or frontmatter facets (category/type/lang). Returns path/title/excerpt (+ snippet for keyword) so you can judge relevance without opening files.',
     {
       query: z.string().optional().describe('Free-text keyword query (FTS5). Omit to filter by facets only.'),
       category: z.string().optional().describe('Filter by frontmatter category (exact match)'),
       type: z.string().optional().describe('Filter by frontmatter type (exact match, e.g. spec/plan)'),
       lang: z.string().optional().describe('Filter by frontmatter lang (exact match, e.g. ja/en)'),
-      limit: z.number().optional().describe('Max results (default 20)'),
+      limit: z.number().optional().describe('Max results (default 8)'),
+      snippetTokens: z.number().optional().describe('Keyword-match snippet length in tokens (default 24, max 64)'),
     },
     async (args) => {
       const hits = runSearchDocs(rootDir, {
@@ -154,6 +157,7 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
         type: args.type as string | undefined,
         lang: args.lang as string | undefined,
         limit: args.limit as number | undefined,
+        snippetTokens: args.snippetTokens as number | undefined,
       });
       return { content: [{ type: 'text' as const, text: JSON.stringify(hits, null, 2) }] };
     },
