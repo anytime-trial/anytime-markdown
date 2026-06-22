@@ -552,6 +552,16 @@ export async function activate(context: vscode.ExtensionContext) {
 								backupIntervalDays,
 							}
 						: null,
+					// doc-core: ドキュメント検索 DB ingest。docsRoot 空=無効 (既定オフ)。daemon 側で
+					// trail.db と同じ DB ディレクトリに doc-core.db を生成する。
+					...(lepConfig.sources.docs.root.trim()
+						? {
+								docCore: {
+									docsRoot: lepConfig.sources.docs.root,
+									embedModel: lepOllama.models.embedding,
+								},
+							}
+						: {}),
 				};
 				analyzeAllRunner = new AnalyzeAllRunnerClient(trailDaemonHost, cfg);
 				await analyzeAllRunner.configure();

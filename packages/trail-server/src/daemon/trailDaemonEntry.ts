@@ -24,6 +24,9 @@ import { CodeGraphService } from '../analyze/CodeGraphService';
 import { ChatBridge } from '../memory-chat/chatBridge';
 import { RebuildScheduler } from '../memory-chat/rebuildScheduler';
 import { LogService } from '../services/LogService';
+import { wireDocCoreRunner, type WiredDocCore } from '../runtime/docCoreRunner';
+import { createOllamaClient } from '@anytime-markdown/agent-core';
+import type { EmbedFn } from '@anytime-markdown/doc-core';
 import type { Logger } from '../runtime/Logger';
 import {
   runAnalyzeCurrentCodePipeline,
@@ -96,6 +99,12 @@ const childAnalyzeFn = makeChildAnalyzeFn(analyzeChildPath, {
 
 let memoryCoreService: MemoryCoreService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
+/**
+ * doc-core ランナー (ドキュメント検索 DB ingest)。memory pipeline とは独立で、configure() で
+ * cfg.docCore.docsRoot が設定されている時のみ配線する。standalone CLI (cli.ts) と同一の
+ * wireDocCoreRunner ヘルパを消費し、配線ロジックを単一の真実とする。
+ */
+let docCoreWired: WiredDocCore | null = null;
 /**
  * 直近 configure() で受け取った import パイプライン設定。
  *
@@ -172,6 +181,7 @@ let httpExtensionLogsDb: BetterSqlite3MemoryDb | null = null;
 export function _resetForTest(): void {
   memoryCoreService = null;
   analyzeAllRunner = null;
+  docCoreWired = null;
   lastAnalyzeAllCfg = null;
   httpServer = null;
   httpCodeGraphService = null;
@@ -185,6 +195,11 @@ export function _resetForTest(): void {
 /** テスト用: 現在の AnalyzeAllRunner を返す (import パイプライン配線の検証用)。 */
 export function _getAnalyzeAllRunnerForTest(): AnalyzeAllRunner | null {
   return analyzeAllRunner;
+}
+
+/** テスト用: 現在の doc-core ランナーハンドルを返す (doc-core 配線の検証用)。 */
+export function _getDocCoreWiredForTest(): WiredDocCore | null {
+  return docCoreWired;
 }
 
 function requireRunner(): AnalyzeAllRunner {
@@ -217,6 +232,31 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
       llm: cfg.memoryCore.llm,
       backupGenerations: cfg.memoryCore.backupGenerations,
       backupIntervalDays: cfg.memoryCore.backupIntervalDays,
+    });
+  }
+
+  // doc-core: ドキュメント検索 DB (doc-core.db) の ingest。memory pipeline とは独立した疎結合
+  // ランナーで、cfg.docCore.docsRoot が設定されている時のみ配線する。doc-core.db は trail.db と
+  // 同じ DB ディレクトリ (dirname(trailDbPath)) に置く。embedding は ollama 未到達でも構造+FTS は
+  // 成立し embedding だけスキップされる。re-configure 時は既存ランナーを dispose してから再構築する。
+  if (docCoreWired) {
+    docCoreWired.dispose();
+    docCoreWired = null;
+  }
+  if (cfg.docCore && cfg.docCore.docsRoot.trim()) {
+    const docCoreCfg = cfg.docCore;
+    const docEmbedClient = createOllamaClient({ baseUrl: cfg.ollamaBaseUrl });
+    const docEmbed: EmbedFn = async (text) =>
+      Array.from(
+        (await docEmbedClient.embeddings({ model: docCoreCfg.embedModel, prompt: text })).embedding,
+      );
+    docCoreWired = wireDocCoreRunner({
+      docsRoot: docCoreCfg.docsRoot,
+      dbPath: path.join(path.dirname(cfg.trailDbPath), 'doc-core.db'),
+      embed: docEmbed,
+      embedModel: docCoreCfg.embedModel,
+      schedulerEnabled: true,
+      logSink: { appendLine: (m: string) => daemonLogger.info(m) },
     });
   }
 
@@ -533,6 +573,14 @@ async function disposeAll(): Promise<void> {
     analyzeAllRunner = null;
   }
   lastAnalyzeAllCfg = null;
+  if (docCoreWired) {
+    try {
+      docCoreWired.dispose();
+    } catch (err) {
+      daemonLogger.error(`[daemon] doc-core dispose error: ${formatError(err)}`);
+    }
+    docCoreWired = null;
+  }
   if (memoryCoreService) {
     await memoryCoreService.dispose();
     memoryCoreService = null;
