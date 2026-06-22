@@ -48,6 +48,8 @@ async function buildSetup(opts: {
   commitMessage?: string;
   commitAt?: string;
   repoName?: string;
+  reviewedAt?: string;
+  findingRecordedAt?: string;
 }): Promise<SetupResult> {
   const {
     findingText,
@@ -58,6 +60,8 @@ async function buildSetup(opts: {
     commitMessage,
     commitAt,
     repoName = REPO_NAME,
+    reviewedAt = TS_BASE,
+    findingRecordedAt = TS_BASE,
   } = opts;
 
   const tmpPath = makeTmpPath();
@@ -123,7 +127,7 @@ async function buildSetup(opts: {
     `INSERT OR IGNORE INTO memory_reviews
        (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
      VALUES (?, 'review_doc', 'review/test.md', ?, 'code', 'Test Review', ?, ?)`,
-    [reviewId, reviewEntityId, TS_BASE, TS_BASE]
+    [reviewId, reviewEntityId, reviewedAt, TS_BASE]
   );
 
   // 5. Insert memory_entities for finding entity (using Concept as allowed type)
@@ -152,7 +156,7 @@ async function buildSetup(opts: {
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, severity, finding_text, recorded_at)
        VALUES (?, ?, ?, 0, ?, ?, ?, ?)`,
-      [findingId, reviewId, findingEntityId, targetFilePath, severity, findingText, TS_BASE]
+      [findingId, reviewId, findingEntityId, targetFilePath, severity, findingText, findingRecordedAt]
     );
   }
 
@@ -277,6 +281,36 @@ describe('linkAddresses', () => {
       [findingId]
     );
     expect(rows[0]?.values[0][0]).toBeNull();
+
+    close();
+  }, 30000);
+
+  // Regression: コミット窓は recorded_at(ingest 時刻) ではなく reviewed_at(実レビュー時刻) を
+  // アンカーにする。一括 re-ingest で recorded_at が後ろ倒しされても、reviewed_at 直後に行われた
+  // 修正コミットを取りこぼさない（linkPrecedesBugs と同じ不具合が linkAddresses に残っていた）。
+  test('regression — anchors window on reviewed_at, not recorded_at', async () => {
+    const { db, findingId, close } = await buildSetup({
+      findingText: 'border 1px fix needed for the button element',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      reviewedAt: TS_BASE, // 実レビューは 01-01
+      findingRecordedAt: TS_PLUS_31, // 一括 ingest は 02-01（後ろ倒し）
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix(css): border 1px に変更',
+      commitAt: TS_PLUS_1, // 修正は reviewed_at 直後(01-02)＝recorded_at より前
+    });
+
+    const logger = makeLogger();
+    const result = linkAddresses({ db, repoName: REPO_NAME, windowDays: 30, logger });
+
+    // recorded_at アンカーのバグでは window=[02-01, 03-03] となり 01-02 のコミットを取りこぼし 0 になる。
+    expect(result.findings_linked).toBe(1);
+    expect(result.edges_inserted).toBe(1);
+    const rows = db.exec(
+      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      [findingId]
+    );
+    expect(rows[0]?.values[0][0]).toBe('abc123def456');
 
     close();
   }, 30000);
