@@ -1,6 +1,6 @@
 import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
-import type { ParsedFinding } from './findingHelpers';
+import { maxSeverity, type ParsedFinding } from './findingHelpers';
 import type { ParsedReviewDoc } from './parseReviewDoc';
 import type { ParsedReviewSession } from './parseReviewSession';
 import type { MemoryLogger } from '../../logger';
@@ -176,10 +176,10 @@ export function upsertReviewDoc(
     db.run(
       `INSERT OR IGNORE INTO memory_reviews
          (id, source_kind, source_ref, source_hash, review_entity_id,
-          target_kind, target_refs_json, title,
+          target_kind, target_refs_json, title, reviewer, severity_overall,
           reviewed_at, recorded_at)
        VALUES (?, 'review_doc', ?, ?, ?,
-               ?, ?, ?,
+               ?, ?, ?, ?, ?,
                ?, ?)`,
       [
         reviewEntityId,
@@ -189,6 +189,9 @@ export function upsertReviewDoc(
         doc.targetRefs.length > 0 ? 'code' : 'mixed',
         JSON.stringify(doc.targetRefs),
         doc.frontmatter.title ?? relPath,
+        doc.frontmatter.reviewer ?? '',
+        // frontmatter.severity を優先し、無ければ指摘群の最大重大度を採用。
+        doc.frontmatter.severity ?? maxSeverity(doc.findings),
         reviewedAt,
         recordedAt,
       ],
@@ -291,10 +294,10 @@ export function upsertReviewSession(
     db.run(
       `INSERT OR IGNORE INTO memory_reviews
          (id, source_kind, source_ref, source_hash, review_entity_id,
-          target_kind, target_refs_json, title,
+          target_kind, target_refs_json, title, reviewer, severity_overall,
           reviewed_at, recorded_at)
        VALUES (?, 'session', ?, '', ?,
-               ?, ?, ?,
+               ?, ?, ?, ?, ?,
                ?, ?)`,
       [
         reviewEntityId,
@@ -303,6 +306,8 @@ export function upsertReviewSession(
         session.target_kind,
         JSON.stringify(session.target_refs),
         `Session review ${session.session_id.slice(0, 8)}`,
+        session.reviewer,
+        maxSeverity(session.findings),
         session.reviewed_at,
         recordedAt,
       ],

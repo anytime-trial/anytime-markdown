@@ -254,12 +254,17 @@ function buildSessionFromBlock(
     fullBody.length > BODY_EXCERPT_MAX ? fullBody.slice(0, BODY_EXCERPT_MAX) : fullBody;
   const target_refs = Array.from(new Set(rawRefs));
 
+  // reviewer はブロックのラベル（groupIntoBlocks と同じ subagent_type ?? skill）。
+  // 例: code-reviewer subagent なら 'pr-review-toolkit:code-reviewer'、スキル経由なら
+  // 'superpowers:requesting-code-review'。どちらも無ければ 'unknown'。
+  const reviewer = firstRow.subagent_type ?? firstRow.skill ?? 'unknown';
+
   return {
     session_id: block.session_id,
     message_uuid_start: firstRow.uuid,
     message_uuid_end: lastRow.uuid,
     subagent_invocation_id: null,
-    reviewer: 'unknown',
+    reviewer,
     target_kind: inferTargetKind(target_refs),
     target_refs,
     body_excerpt,
