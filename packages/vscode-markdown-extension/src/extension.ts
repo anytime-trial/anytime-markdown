@@ -9,6 +9,7 @@ import { registerMcpRegistrationCommand } from './commands/mcpRegistrationComman
 import { MarkdownLogger } from './utils/MarkdownLogger';
 import { DocIngestRunner } from './docCore/DocIngestRunner';
 import { resolveDocDbPath } from './docCore/docDbPath';
+import { installSkills } from './claude/skillInstaller';
 
 export function activate(context: vscode.ExtensionContext) {
 	// 拡張全体のログ出力先（webview からのエディタエラー転送・Timeline 等で共有）
@@ -26,6 +27,30 @@ export function activate(context: vscode.ExtensionContext) {
 		),
 	);
 	registerMcpRegistrationCommand(context, extensionDistPath);
+
+	// 同梱した Claude Code スキル（anytime-markdown-*・anytime-mermaid）を
+	// ワークスペースの .claude/skills/ へ配置する（manifest のバージョン差分で上書き）。
+	const installSkillsForWorkspace = (force: boolean): void => {
+		const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (!wsRoot) {
+			MarkdownLogger.info('スキル配置スキップ: ワークスペース未オープン');
+			return;
+		}
+		installSkills({
+			extensionFsPath: context.extensionUri.fsPath,
+			workspaceFsPath: wsRoot,
+			force,
+			log: (level, message) =>
+				level === 'error' ? MarkdownLogger.error(message) : MarkdownLogger.info(message),
+		});
+	};
+	installSkillsForWorkspace(false);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-markdown.reinstallSkills', () => {
+			installSkillsForWorkspace(true);
+			vscode.window.showInformationMessage('Anytime Markdown: スキルを再配置しました（.claude/skills/）。');
+		}),
+	);
 
 	// doc-core: markdown 拡張専用 doc-core.db を ingest（検索は mcp-markdown が読む）。
 	// docsRoot 未設定なら無効（既定オフ）。DB ドライバは node:sqlite（native 不要）。

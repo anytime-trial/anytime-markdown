@@ -26,7 +26,8 @@
     "onLanguage:markdown",
     "onView:anytimeMarkdown.timeline",
     "onCommand:anytime-markdown.registerMcpServer",
-    "onCommand:anytime-markdown.rebuildDocIndex"
+    "onCommand:anytime-markdown.rebuildDocIndex",
+    "onCommand:anytime-markdown.reinstallSkills"
   ],
   "icon": "images/camel_markdown.png",
   "main": "./dist/extension.js",
@@ -88,6 +89,11 @@
       {
         "command": "anytime-markdown.rebuildDocIndex",
         "title": "%command.rebuildDocIndex%",
+        "category": "Anytime Markdown"
+      },
+      {
+        "command": "anytime-markdown.reinstallSkills",
+        "title": "%command.reinstallSkills%",
         "category": "Anytime Markdown"
       }
     ],

@@ -1,5 +1,5 @@
 ---
-name: markdown-mcp-tactics
+name: anytime-markdown-mcp-tactics
 description: anytime-markdown の Markdown ドキュメントを検索・調査・編集・整形する時、特にトークン（cache_read 加重）を抑えたい時に使用する。mcp-markdown の search_docs/search_sections/grep_markdown/get_outline/get_section/update_section/get_frontmatter/update_frontmatter/format_markdown/compute_diff を使う時、検索・調査をサブエージェントへ委譲する時の運用手順と委任プロンプト雛形。
 ---
 
@@ -26,7 +26,7 @@ mcp-markdown ツールはそれを実現する手段（[[markdown-ext-doc-core-p
 | HTML 無害化・tiptap 往復正規化 | `sanitize_markdown`（**整形目的では使わない**） | — |
 | 変更検証 | `compute_diff` | 両ファイル再 Read |
 
-> `format_markdown` と `sanitize_markdown` は別物。**整形（markdown-check 規約準拠）は `format_markdown`**。`sanitize_markdown` は DOMPurify による HTML 無害化＋tiptap ラウンドトリップ用マーカー付与で、整形目的に使うと ZWSP/ZWNJ・ハードブレークを注入してしまう。
+> `format_markdown` と `sanitize_markdown` は別物。**整形（anytime-markdown-check 規約準拠）は `format_markdown`**。`sanitize_markdown` は DOMPurify による HTML 無害化＋tiptap ラウンドトリップ用マーカー付与で、整形目的に使うと ZWSP/ZWNJ・ハードブレークを注入してしまう。
 
 黄金ルート: **検索** `search_docs`/`search_sections`→snippet で選別→`get_outline`→`get_section`。**編集** `get_section`→修正→`update_section`→`compute_diff`。**整形** `format_markdown(path, mode="fix")`（ルート外は不可）。
 
