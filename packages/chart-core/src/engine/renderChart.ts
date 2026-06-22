@@ -7,7 +7,15 @@ import { drawBars } from "./render/bar";
 import { drawScatterSeries } from "./render/scatter";
 import { drawAreaSeries } from "./render/area";
 import { drawPie } from "./render/pie";
-import { drawAdjacentLegend, drawNearLineLabels } from "./render/legend";
+import { drawMarkers } from "./render/markers";
+import {
+  BOTTOM_LEGEND_PAD,
+  BOTTOM_LEGEND_ROW_H,
+  drawAdjacentLegend,
+  drawBottomLegend,
+  drawNearLineLabels,
+  layoutBottomLegend,
+} from "./render/legend";
 
 function finiteValues(series: ReadonlyArray<Series>): number[] {
   const out: number[] = [];
@@ -51,13 +59,29 @@ export function renderChart(
   rect: Rect,
   spec: ChartSpec,
   theme: ChartTheme,
+  /** 選択中カテゴリ（クリック選択のハイライト帯）。null は非選択。 */
+  highlightIndex?: number | null,
 ): ChartLayout {
   const legend = spec.options?.legend ?? "near-line";
   const hasTitle = Boolean(spec.title);
   // 第2Y軸: combo / line のみ対応（棒の積み上げ・面の積み上げと右軸の併用は破綻するため除外）。
   const supportsDualAxis = spec.kind === "combo" || spec.kind === "line";
   const hasRight = supportsDualAxis && spec.series.some((s) => s.axis === "right");
-  const plot = computePlotRect(rect, { hasTitle, legend, hasRightAxis: hasRight });
+  const yAxisLabel = spec.options?.yAxis?.label;
+  const yAxisRightLabel = spec.options?.yAxisRight?.label;
+  // bottom 凡例は下部に行を確保するため、plot 計算前に行レイアウトを求める。
+  const wantBottomLegend = legend === "bottom" && spec.kind !== "pie" && !(spec.kind === "bar" && spec.options?.horizontal);
+  const bottomLegendRows = wantBottomLegend
+    ? layoutBottomLegend(ctx, spec.series, Math.max(40, rect.width - 64))
+    : [];
+  const plot = computePlotRect(rect, {
+    hasTitle,
+    legend,
+    hasRightAxis: hasRight,
+    hasYAxisLabel: Boolean(yAxisLabel) && spec.kind !== "pie",
+    hasRightAxisLabel: Boolean(yAxisRightLabel) && hasRight,
+    legendBottomRows: bottomLegendRows.length,
+  });
 
   // 背景
   ctx.save();
@@ -65,11 +89,20 @@ export function renderChart(
   ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
   ctx.restore();
 
-  // pie は直交軸を使わないため専用分岐（軸・スケールをスキップ）。
+  // pie は直交軸を使わないため専用分岐（軸マージンを使わず矩形中心に配置）。
   if (spec.kind === "pie") {
-    const piePoints = drawPie(ctx, plot, spec, theme, { donut: spec.options?.donut });
+    const TITLE_GAP = 28;
+    const PAD = 8;
+    const pieTop = rect.y + (hasTitle ? TITLE_GAP : PAD);
+    const pieRect: Rect = {
+      x: rect.x + PAD,
+      y: pieTop,
+      width: Math.max(1, rect.width - PAD * 2),
+      height: Math.max(1, rect.height - (pieTop - rect.y) - PAD),
+    };
+    const piePoints = drawPie(ctx, pieRect, spec, theme, { donut: spec.options?.donut });
     if (spec.title) drawTitle(ctx, rect, spec.title, theme);
-    return { spec, plotRect: plot, points: piePoints };
+    return { spec, plotRect: pieRect, points: piePoints };
   }
 
   // 横棒は数量軸＝x・分類軸＝y で軸が入れ替わるため専用分岐。
@@ -95,14 +128,26 @@ export function renderChart(
   }
 
   const stacked = Boolean(spec.options?.stacked) && (spec.kind === "bar" || spec.kind === "area");
+  // combo の stacked は棒系列のみ積み上げる（line/area 系列は積まない）。
+  const comboStacked = spec.kind === "combo" && spec.options?.stacked === true;
 
   // 左右軸スケール: 左＝right 以外の系列、右＝right 系列。右が無ければ左単一軸。
   const leftSeries = hasRight ? spec.series.filter((s) => s.axis !== "right") : spec.series;
   const rightSeries = hasRight ? spec.series.filter((s) => s.axis === "right") : [];
-  const leftMax = stacked ? stackedMax(leftSeries) : Math.max(0, ...finiteValues(leftSeries));
+  /** combo stacked では棒系列・面系列をそれぞれ積み上げ和、折れ線は素の最大で評価する。 */
+  const axisMax = (list: ReadonlyArray<Series>): number => {
+    if (comboStacked) {
+      const bars = list.filter((s) => (s.type ?? "bar") === "bar");
+      const areas = list.filter((s) => s.type === "area");
+      const lines = list.filter((s) => s.type === "line");
+      return Math.max(stackedMax(bars), stackedMax(areas), 0, ...finiteValues(lines));
+    }
+    return stacked ? stackedMax(list) : Math.max(0, ...finiteValues(list));
+  };
+  const leftMax = axisMax(leftSeries);
   const leftTicks = niceTicks(0, leftMax, 5);
   const leftScale = linearScale([0, leftTicks.at(-1) ?? 1], [plot.y + plot.height, plot.y]);
-  const rightTicks = niceTicks(0, Math.max(0, ...finiteValues(rightSeries)), 5);
+  const rightTicks = niceTicks(0, axisMax(rightSeries), 5);
   const rightScale = linearScale([0, rightTicks.at(-1) ?? 1], [plot.y + plot.height, plot.y]);
   /** 系列の数量軸スケール（right 系列は右軸、それ以外は左軸）。 */
   const scaleFor = (s: Series): ((v: number) => number) =>
@@ -120,8 +165,18 @@ export function renderChart(
     spec.kind === "scatter"
       ? []
       : Array.from({ length: lineBarCount }, (_, i) => spec.categories?.[i] ?? "");
-  drawAxes(ctx, plot, leftTicks, leftScale, xLabels, theme);
-  if (hasRight) drawRightAxis(ctx, plot, rightTicks, rightScale, theme);
+  drawAxes(ctx, plot, leftTicks, leftScale, xLabels, theme, yAxisLabel);
+  if (hasRight) drawRightAxis(ctx, plot, rightTicks, rightScale, theme, yAxisRightLabel);
+
+  // 選択ハイライト帯（クリックされたカテゴリ列。系列の背後に淡色で敷く）
+  if (highlightIndex != null && highlightIndex >= 0 && highlightIndex < lineBarCount) {
+    const bandW = plot.width / lineBarCount;
+    ctx.save();
+    ctx.fillStyle = theme.palette.label;
+    ctx.globalAlpha = 0.16;
+    ctx.fillRect(plot.x + bandW * highlightIndex, plot.y, bandW, plot.height);
+    ctx.restore();
+  }
 
   // 参照値帯
   const band = spec.options?.referenceBand;
@@ -133,6 +188,11 @@ export function renderChart(
     const y1 = leftScale(band.from);
     ctx.fillRect(plot.x, Math.min(y0, y1), plot.width, Math.abs(y1 - y0));
     ctx.restore();
+  }
+
+  // イベント印（系列の背後に縦線/ドットで重ねる）
+  if (spec.markers && spec.markers.length > 0) {
+    drawMarkers(ctx, plot, xLabels, spec.markers, theme);
   }
 
   const points: PlottedPoint[] = [];
@@ -154,21 +214,30 @@ export function renderChart(
       pointsBySeries.push(sp);
     });
   } else if (spec.kind === "combo") {
-    // bar 系列（集合）を描いた上に line 系列を重ねる。色は元の系列インデックスで一貫させる。
+    // bar（背面）→ area → line（前面）の順に重ねる。色は元の系列インデックスで一貫させる。
     const bandW = plot.width / lineBarCount;
     const categoryX = (i: number) => plot.x + bandW * (i + 0.5);
     const barEntries: { s: Series; i: number }[] = [];
     const lineEntries: { s: Series; i: number }[] = [];
+    const areaEntries: { s: Series; i: number }[] = [];
     spec.series.forEach((s, i) => {
       const colored: Series = s.color ? s : { ...s, color: theme.palette.series[i % theme.palette.series.length] };
-      if ((s.type ?? "bar") === "line") lineEntries.push({ s: colored, i });
+      const t = s.type ?? "bar";
+      if (t === "line") lineEntries.push({ s: colored, i });
+      else if (t === "area") areaEntries.push({ s: colored, i });
       else barEntries.push({ s: colored, i });
     });
     // 棒群は1スケールを共有。代表軸は棒系列の axis で判定（全 right なら右軸）。
     const comboBarScale =
       hasRight && barEntries.length > 0 && barEntries.every((e) => e.s.axis === "right") ? rightScale : leftScale;
-    const bp = drawBars(ctx, plot, barEntries.map((e) => e.s), theme, comboBarScale, { grouped: true });
+    const bp = drawBars(ctx, plot, barEntries.map((e) => e.s), theme, comboBarScale, comboStacked ? { stacked: true } : { grouped: true });
     for (const p of bp) points.push({ ...p, seriesIndex: barEntries[p.seriesIndex]?.i ?? p.seriesIndex });
+    if (areaEntries.length > 0) {
+      // 面群は代表軸（先頭 area の axis）を共有し、combo stacked のとき積み上げる。
+      const areaScale = scaleFor(areaEntries[0].s);
+      const ap = drawAreaSeries(ctx, plot, areaEntries.map((e) => e.s), theme, areaScale, categoryX, { stacked: comboStacked });
+      for (const p of ap) points.push({ ...p, seriesIndex: areaEntries[p.seriesIndex]?.i ?? p.seriesIndex });
+    }
     for (const e of lineEntries) {
       const lp = drawLineSeries(ctx, plot, e.s, e.i, theme, scaleFor(e.s), categoryX);
       points.push(...lp);
@@ -190,12 +259,23 @@ export function renderChart(
     }
   }
 
-  // combo は bar+line 混在のため隣接凡例（near-line は line 端のみで bar を表せない）。
-  const legendMode = spec.kind === "combo" && legend !== "none" ? "adjacent" : legend;
+  // 凡例: bottom は下部行、それ以外で combo は隣接（near-line は line 端のみで bar を表せない）。
+  let legendMode: typeof legend = legend;
+  if (legend !== "none" && legend !== "bottom" && spec.kind === "combo") legendMode = "adjacent";
+  // near-line（系列名を線端近傍に置く）は折れ線専用。棒・面では系列色のラベルが
+  // バー/面の塗りに重なり同系色で不可視になるため、複数系列は隣接凡例へ振り替え、
+  // 単一系列は凡例不要として抑止する（デジタル庁ガイドブック p.46「グラフと凡例を隣接させる」）。
+  if (legendMode === "near-line" && (spec.kind === "bar" || spec.kind === "area")) {
+    legendMode = spec.series.length > 1 ? "adjacent" : "none";
+  }
   if (legendMode === "near-line") drawNearLineLabels(ctx, spec.series, pointsBySeries, theme);
   else if (legendMode === "adjacent") {
     // 右軸ありは凡例を右軸ラベルぶん右へずらす（重なり回避）。
-    drawAdjacentLegend(ctx, rect, plot, spec.series, theme, hasRight ? 44 : 0);
+    // 積み上げ（棒/面）は凡例順をスタックの視覚順（上の積み＝上の凡例）に合わせて反転する。
+    drawAdjacentLegend(ctx, rect, plot, spec.series, theme, hasRight ? 44 : 0, stacked);
+  } else if (legendMode === "bottom" && wantBottomLegend && bottomLegendRows.length > 0) {
+    const bandTop = rect.y + rect.height - (bottomLegendRows.length * BOTTOM_LEGEND_ROW_H + BOTTOM_LEGEND_PAD);
+    drawBottomLegend(ctx, rect, bottomLegendRows, spec.series, bandTop, theme);
   }
 
   if (spec.title) drawTitle(ctx, rect, spec.title, theme);

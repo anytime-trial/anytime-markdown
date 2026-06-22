@@ -42,12 +42,22 @@ const ANALYZE_TOOLS = new Set([
   'get_analyze_status',
 ]);
 
+const DISCOVERY_TOOLS = new Set([
+  'get_code_dependencies',
+  'get_important_files',
+  'query_code_graph',
+  'find_code_path',
+  'get_cochange_partners',
+]);
+
+const HTTP_ONLY_TOOLS = new Set([...ANALYZE_TOOLS, ...DISCOVERY_TOOLS]);
+
 export async function route(
   toolName: string,
   args: Record<string, unknown>,
   opts: RouteOpts,
 ): Promise<unknown> {
-  if (ANALYZE_TOOLS.has(toolName)) {
+  if (HTTP_ONLY_TOOLS.has(toolName)) {
     const alive = opts.forceDirect ? false : await probeServerAlive(opts.serverUrl);
     if (!alive) {
       throw new Error(
@@ -287,6 +297,34 @@ async function invokeHttp(
       return httpClient.analyzeAll(serverUrl);
     case 'get_analyze_status':
       return httpClient.getAnalyzeStatus(serverUrl);
+    case 'get_code_dependencies':
+      return httpClient.getCodeGraphExplain(
+        serverUrl,
+        (args as { nodeId: string }).nodeId,
+        repoName,
+      );
+    case 'get_important_files':
+      return httpClient.getFileAnalysis(serverUrl, repoName);
+    case 'query_code_graph':
+      return httpClient.getCodeGraphQuery(
+        serverUrl,
+        (args as { q: string }).q,
+        repoName,
+        (args as { depth?: number }).depth,
+      );
+    case 'find_code_path':
+      return httpClient.getCodeGraphPath(
+        serverUrl,
+        (args as { from: string }).from,
+        (args as { to: string }).to,
+        repoName,
+      );
+    case 'get_cochange_partners':
+      return httpClient.getTemporalCoupling(
+        serverUrl,
+        repoName,
+        (args as { opts?: { windowDays?: number; topK?: number; granularity?: string } }).opts ?? {},
+      );
     default:
       throw new Error(`Unhandled HTTP tool: ${toolName}`);
   }

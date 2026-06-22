@@ -40,7 +40,7 @@ import {
 } from "@anytime-markdown/markdown-engine";
 
 import type { TranslationFn } from "../types";
-import { createIconButton, createTooltip, ensureStyle, svgIcon } from "../ui-vanilla";
+import { createIconButton, createTooltip, ensureStyle, svgIcon } from "@anytime-markdown/ui-core";
 
 // ui/icons.tsx と同一の Material SVG path（ChevronLeft / ChevronRight / UnfoldMore）。
 const ICON_CHEVRON_LEFT = "M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z";

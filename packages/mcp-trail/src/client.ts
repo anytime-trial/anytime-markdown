@@ -264,6 +264,76 @@ export async function analyzeCurrentCodeWithProgress(
 }
 
 // ---------------------------------------------------------------------------
+//  Discovery / code-graph query API
+// ---------------------------------------------------------------------------
+
+/** GraphQueryEngine.explain の結果（{ node, incoming, outgoing }）。影響範囲調査に使う。 */
+export async function getCodeGraphExplain(
+  serverUrl: string,
+  nodeId: string,
+  repoName: string,
+): Promise<unknown> {
+  return request(
+    serverUrl,
+    `/api/code-graph/explain?id=${encodeURIComponent(nodeId)}&repo=${encodeURIComponent(repoName)}`,
+    'GET',
+  );
+}
+
+/** /api/c4/file-analysis（current tag）の生結果 { entries, elementMatrix }。top-N 射影は呼び出し側。 */
+export async function getFileAnalysis(
+  serverUrl: string,
+  repoName: string,
+): Promise<{ entries: unknown[]; elementMatrix: unknown }> {
+  return request(
+    serverUrl,
+    `/api/c4/file-analysis?repo=${encodeURIComponent(repoName)}&tag=current`,
+    'GET',
+  );
+}
+
+/** GraphQueryEngine.query。depth で BFS 深さを制御（未指定なら server 既定）。 */
+export async function getCodeGraphQuery(
+  serverUrl: string,
+  q: string,
+  repoName: string,
+  depth?: number,
+): Promise<{ nodes?: string[]; edges?: Array<{ source: string; target: string }> }> {
+  const depthParam = depth === undefined ? '' : `&depth=${depth}`;
+  return request(
+    serverUrl,
+    `/api/code-graph/query?q=${encodeURIComponent(q)}&repo=${encodeURIComponent(repoName)}${depthParam}`,
+    'GET',
+  );
+}
+
+/** GraphQueryEngine.path。2 ノード間の接続経路 { found, path, hops }。 */
+export async function getCodeGraphPath(
+  serverUrl: string,
+  from: string,
+  to: string,
+  repoName: string,
+): Promise<unknown> {
+  return request(
+    serverUrl,
+    `/api/code-graph/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&repo=${encodeURIComponent(repoName)}`,
+    'GET',
+  );
+}
+
+/** /api/temporal-coupling。リポジトリ全体の共変更ペア。 */
+export async function getTemporalCoupling(
+  serverUrl: string,
+  repoName: string,
+  opts: { windowDays?: number; topK?: number; granularity?: string } = {},
+): Promise<{ edges?: Array<{ source: string; target: string; jaccard?: number }> }> {
+  const params = new URLSearchParams({ repo: repoName, granularity: opts.granularity ?? 'commit' });
+  if (opts.windowDays !== undefined) params.set('windowDays', String(opts.windowDays));
+  if (opts.topK !== undefined) params.set('topK', String(opts.topK));
+  return request(serverUrl, `/api/temporal-coupling?${params.toString()}`, 'GET');
+}
+
+// ---------------------------------------------------------------------------
 //  Community summary / mapping API
 // ---------------------------------------------------------------------------
 

@@ -3,15 +3,11 @@ import { buildC4ElementById, collectDescendantIds, computeCommunityOverlay, mapF
 import type { CellAlign, HeaderSpan } from '@anytime-markdown/spreadsheet-core';
 import {
   createInMemorySheetAdapter,
-  mountSpreadsheetGrid,
-  type SpreadsheetGridHandle,
   type SpreadsheetGridOptions,
 } from '@anytime-markdown/spreadsheet-viewer';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import ButtonGroup from '@mui/material/ButtonGroup';
-import Typography from '@mui/material/Typography';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { VanillaIsland } from '../../../shared/vanillaIsland';
+import { mountMatrixPanel, type MatrixPanelVanillaProps } from '../../../views/c4/panels/matrixPanel';
 
 import { getC4Colors } from '../../../theme/c4Tokens';
 import { getCoverageColor } from '../../c4MetricColors';
@@ -102,42 +98,6 @@ function makeSheetResult(sheet: { cells: string[][]; alignments: CellAlign[][]; 
   return { colHeaders, rowHeaders, adapter };
 }
 
-// ---------------------------------------------------------------------------
-
-/**
- * spreadsheet-viewer の脱 React に伴う vanilla grid の mount ラッパ。
- * options 変更（レベル切替・adapter 差し替え等）で grid を作り直す
- * （旧 React 版の key={`coverage-${level}`} による remount と同じ運用）。
- * テーマ切替は handle.update({ isDark }) で反映し、再 mount を避ける。
- */
-function VanillaSpreadsheetGridMount({
-  options,
-  isDark,
-}: Readonly<{ options: Omit<SpreadsheetGridOptions, 'isDark'>; isDark: boolean }>) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const handleRef = useRef<SpreadsheetGridHandle | null>(null);
-  const isDarkRef = useRef(isDark);
-  isDarkRef.current = isDark;
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const handle = mountSpreadsheetGrid(container, { ...options, isDark: isDarkRef.current });
-    handleRef.current = handle;
-    return () => {
-      handleRef.current = null;
-      handle.destroy();
-    };
-  }, [options]);
-  useEffect(() => {
-    handleRef.current?.update({ isDark });
-  }, [isDark]);
-  return (
-    <div
-      ref={containerRef}
-      style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
-    />
-  );
-}
 
 export interface MatrixPanelProps {
   readonly coverageMatrix: CoverageMatrix | null;
@@ -321,48 +281,22 @@ export function MatrixPanel({
     isCommunityColor, coverageRowHeaderBackground,
   ]);
 
-  const toolbarButtonSx = {
-    textTransform: 'none' as const,
-    color: colors.accent,
-    borderColor: colors.border,
-    fontSize: '0.75rem',
-    '&:hover': { bgcolor: colors.hover },
-    '&:focus-visible': { outline: `2px solid ${colors.accent}`, outlineOffset: '2px' },
-    '&:disabled': { color: colors.textMuted },
+  const vanillaColors: MatrixPanelVanillaProps['colors'] = {
+    bg: colors.bg,
+    border: colors.border,
+    accent: colors.accent,
+    hover: colors.hover,
+    focus: colors.focus,
+    textMuted: colors.textMuted,
+    textSecondary: colors.textSecondary,
   };
-  const toolbarButtonActiveBg = colors.focus;
 
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', bgcolor: colors.bg }}>
-      {/* Toolbar */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5, borderBottom: `1px solid ${colors.border}`, flexShrink: 0, flexWrap: 'wrap' }}>
-        <ButtonGroup size="small">
-          {(['package', 'component', 'code'] as const).map((lv) => (
-            <Button
-              key={lv}
-              size="small"
-              aria-pressed={level === lv}
-              onClick={() => setLevel(lv)}
-              sx={{ ...toolbarButtonSx, ...(level === lv && { bgcolor: toolbarButtonActiveBg }) }}
-            >
-              {lv === 'package' ? 'C2' : lv === 'component' ? 'C3' : 'C4'}
-            </Button>
-          ))}
-        </ButtonGroup>
-      </Box>
-
-      {/* Sheet */}
-      <Box sx={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        {gridOptions ? (
-          <VanillaSpreadsheetGridMount options={gridOptions} isDark={isDark} />
-        ) : (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <Typography variant="body2" sx={{ color: colors.textSecondary }}>
-              Import a C4 model to view metrics
-            </Typography>
-          </Box>
-        )}
-      </Box>
-    </Box>
-  );
+  return <VanillaIsland mount={mountMatrixPanel} props={{
+    gridOptions,
+    isDark,
+    level,
+    onLevelChange: setLevel,
+    colors: vanillaColors,
+    t: (_: string) => '',
+  }} />;
 }

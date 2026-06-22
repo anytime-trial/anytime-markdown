@@ -30,6 +30,7 @@ export class GraphQueryEngine {
     const lower = keyword.toLowerCase();
     const starts = this.codeGraph.nodes
       .filter((n) => n.label.toLowerCase().includes(lower) || n.id.toLowerCase().includes(lower))
+      .sort((a, b) => b.size - a.size)
       .map((n) => n.id);
 
     const visited = new Set<string>(starts);

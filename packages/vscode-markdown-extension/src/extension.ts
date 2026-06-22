@@ -4,11 +4,83 @@ import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 import { LinkValidationProvider } from './providers/LinkValidationProvider';
 import { ClaudeStatusWatcher, TimelineProvider, TimelineItem } from '@anytime-markdown/vscode-common';
 import { WorkerStatusSource } from './claude/WorkerStatusSource';
+import { McpMarkdownServerProvider } from './providers/McpMarkdownServerProvider';
+import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
+import { MarkdownLogger } from './utils/MarkdownLogger';
+import { DocIngestRunner } from './docCore/DocIngestRunner';
+import { resolveDocDbPath } from './docCore/docDbPath';
+import { installSkills } from './claude/skillInstaller';
 
 export function activate(context: vscode.ExtensionContext) {
 	// 拡張全体のログ出力先（webview からのエディタエラー転送・Timeline 等で共有）
 	const timelineOutput = vscode.window.createOutputChannel('Anytime Markdown');
 	context.subscriptions.push(timelineOutput);
+	MarkdownLogger.init(timelineOutput);
+
+	// 同梱した mcp-markdown サーバーを VS Code ネイティブ MCP 探索へ登録し、
+	// `.mcp.json` 書き出しコマンドも提供する（trail 拡張と同等の配線）。
+	const extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
+	context.subscriptions.push(
+		vscode.lm.registerMcpServerDefinitionProvider(
+			'anytime-markdown.mcp',
+			new McpMarkdownServerProvider(extensionDistPath),
+		),
+	);
+	registerMcpRegistrationCommand(context, extensionDistPath);
+
+	// 同梱した Claude Code スキル（anytime-markdown-*・anytime-mermaid）を
+	// ワークスペースの .claude/skills/ へ配置する（manifest のバージョン差分で上書き）。
+	const installSkillsForWorkspace = (force: boolean): void => {
+		const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (!wsRoot) {
+			MarkdownLogger.info('スキル配置スキップ: ワークスペース未オープン');
+			return;
+		}
+		installSkills({
+			extensionFsPath: context.extensionUri.fsPath,
+			workspaceFsPath: wsRoot,
+			force,
+			log: (level, message) =>
+				level === 'error' ? MarkdownLogger.error(message) : MarkdownLogger.info(message),
+		});
+	};
+	installSkillsForWorkspace(false);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-markdown.reinstallSkills', () => {
+			installSkillsForWorkspace(true);
+			vscode.window.showInformationMessage('Anytime Markdown: スキルを再配置しました（.claude/skills/）。');
+		}),
+	);
+
+	// doc-core: markdown 拡張専用 doc-core.db を ingest（検索は mcp-markdown が読む）。
+	// docsRoot 未設定なら無効（既定オフ）。DB ドライバは node:sqlite（native 不要）。
+	const docCfg = vscode.workspace.getConfiguration('anytimeMarkdown.docSearch');
+	const docsRoot = (docCfg.get<string>('docsRoot') ?? '').trim();
+	const docWsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	if (docsRoot && docWsRoot) {
+		const dbPath = resolveDocDbPath(docWsRoot, docCfg.get<string>('dbPath'));
+		const subDir = docCfg.get<string>('subDir') ?? 'spec';
+		const ingestScriptPath = path.join(extensionDistPath, 'doc-ingest.js');
+		const ingestRunner = new DocIngestRunner(ingestScriptPath, docsRoot, dbPath, subDir);
+		context.subscriptions.push(ingestRunner);
+		void ingestRunner.runOnce();
+		const intervalMin = docCfg.get<number>('intervalMinutes') ?? 30;
+		if (intervalMin > 0) {
+			const docIngestInterval = setInterval(() => void ingestRunner.runOnce(), intervalMin * 60 * 1000);
+			context.subscriptions.push({ dispose: () => clearInterval(docIngestInterval) });
+		}
+		context.subscriptions.push(
+			vscode.commands.registerCommand('anytime-markdown.rebuildDocIndex', () => { void ingestRunner.runOnce(); }),
+		);
+	} else {
+		context.subscriptions.push(
+			vscode.commands.registerCommand('anytime-markdown.rebuildDocIndex', () => {
+				vscode.window.showWarningMessage(
+					'Anytime Markdown: anytimeMarkdown.docSearch.docsRoot が未設定です。設定後に再実行してください。',
+				);
+			}),
+		);
+	}
 
 	context.subscriptions.push(
 		MarkdownEditorProvider.register(context, (line) => timelineOutput.appendLine(line)),

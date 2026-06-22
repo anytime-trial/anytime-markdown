@@ -7,8 +7,8 @@ import {
   getDivider, PLANTUML_SAMPLES,
   PLANTUML_CONSENT_KEY,
 } from "@anytime-markdown/markdown-viewer";
-import { createDialog } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Dialog";
-import { createTabs } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Tabs";
+import { createDialog } from "@anytime-markdown/ui-core/Dialog";
+import { createTabs } from "@anytime-markdown/ui-core/Tabs";
 
 import { createZoomPanState } from "./zoomPanState";
 import type { CodeEditState } from "./codeEditState";

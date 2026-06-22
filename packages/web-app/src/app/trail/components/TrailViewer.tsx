@@ -1,12 +1,12 @@
 'use client';
 
 import type { DocLink } from '@anytime-markdown/trail-core/c4';
-import { TrailViewerApp } from '@anytime-markdown/trail-viewer';
+import { TrailViewerApp, applyTrailThemeVars } from '@anytime-markdown/trail-viewer';
 import CloseIcon from '@mui/icons-material/Close';
 import { Box, Dialog, DialogContent, DialogTitle, IconButton } from '@mui/material';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useLocaleSwitch } from '../../LocaleProvider';
 import { useThemeMode } from '../../providers';
@@ -27,6 +27,11 @@ export function TrailViewer({
 }: Readonly<{ containerHeight?: string; initialTab?: number; initialC4Level?: number }> = {}) {
   const { themeMode } = useThemeMode();
   const isDark = themeMode === 'dark';
+  // vanilla UI（ui-core）の --am-color-* テーマ変数をホスト側で注入する
+  // （素 DOM コンポーネントは擬似クラス等のスタイルを自己注入するため injectTrailUiStyles は不要）。
+  useEffect(() => {
+    applyTrailThemeVars(isDark);
+  }, [isDark]);
   const { locale } = useLocaleSwitch();
   const searchParams = useSearchParams();
   const [docPopupDoc, setDocPopupDoc] = useState<DocLink | null>(null);

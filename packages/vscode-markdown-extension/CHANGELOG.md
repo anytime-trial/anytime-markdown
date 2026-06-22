@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-22
+
+### Added
+
+- Bundle the `mcp-markdown` MCP server in the extension and auto-register it, so the Markdown MCP tools work on install alone.
+- Bundle the `doc-core` document-search pipeline (node:sqlite based ingest + `search_docs` / `doc_backlinks` / `doc_neighbors`).
+- Bundle the Markdown skill set and auto-install it into the workspace `.claude/skills/` on activation.
+
+### Security
+
+- Guard bundled skill names against path traversal (`isSafeSkillName`).
+
+### MCP (mcp-markdown)
+
+- Add `format_markdown`: in-place style fix following the markdown-check conventions, returning only a diff summary to save tokens.
+- Add `search_sections` / `get_frontmatter` / `update_frontmatter` / `grep_markdown`.
+- `search_docs` excerpts/snippets and `get_section` `maxChars`; section-granular FTS.
+- Heading blank-line convention changed from 2 to 1 line above (formatting rule update).
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Extract vanilla UI primitives into `@anytime-markdown/ui-core`.
+- `anytime-chart`: combo-stacked / combo-area / markers samples; chart-core bottom legend, drill-down, pie centering.
+
 ## [1.4.0] - 2026-06-20
 
 ### Added

@@ -1,10 +1,10 @@
-import Box from '@mui/material/Box';
-import FormControl from '@mui/material/FormControl';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Radio from '@mui/material/Radio';
-import RadioGroup from '@mui/material/RadioGroup';
-import Typography from '@mui/material/Typography';
+import React from 'react';
 import { useTrailI18n } from '../../i18n';
+import { VanillaIsland } from '../../shared/vanillaIsland';
+import {
+  mountFiltersPanel,
+  type FiltersPanelProps as FiltersPanelViewProps,
+} from '../../views/memory/filtersPanel';
 
 export type RepoScope = 'all' | 'current';
 
@@ -16,37 +16,15 @@ export interface FiltersPanelProps {
 export function FiltersPanel({
   repoScope,
   onRepoScopeChange,
-}: Readonly<FiltersPanelProps>) {
+}: Readonly<FiltersPanelProps>): React.ReactElement {
   const { t } = useTrailI18n();
-  return (
-    <Box
-      sx={{
-        borderRight: '1px solid',
-        borderColor: 'divider',
-        p: 1,
-        overflowY: 'auto',
-      }}
-    >
-      <Typography variant="overline" sx={{ display: 'block', mb: 1 }}>
-        {t('memory.chat.filters.title')}
-      </Typography>
-      <FormControl>
-        <RadioGroup
-          value={repoScope}
-          onChange={(_, v) => onRepoScopeChange(v as RepoScope)}
-        >
-          <FormControlLabel
-            value="all"
-            control={<Radio size="small" />}
-            label={t('memory.chat.filters.allRepos')}
-          />
-          <FormControlLabel
-            value="current"
-            control={<Radio size="small" />}
-            label={t('memory.chat.filters.currentRepo')}
-          />
-        </RadioGroup>
-      </FormControl>
-    </Box>
-  );
+  const tStr = (k: string): string => t(k as Parameters<typeof t>[0]);
+
+  const viewProps: FiltersPanelViewProps = {
+    t: tStr,
+    repoScope,
+    onRepoScopeChange,
+  };
+
+  return <VanillaIsland mount={mountFiltersPanel} props={viewProps} />;
 }

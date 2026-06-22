@@ -38,7 +38,7 @@ import {
   createDialogContent,
   createDialogTitle,
   nextDialogTitleId,
-} from "../ui-vanilla";
+} from "@anytime-markdown/ui-core";
 import type { GifSettings } from "../utils/gifEncoder";
 import { parseAnnotations, serializeAnnotations } from "../types/imageAnnotation";
 

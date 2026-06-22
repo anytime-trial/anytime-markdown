@@ -17,9 +17,9 @@ import {
 import { Z_TOOLBAR } from "../constants/zIndex";
 import type { SearchReplaceStorage } from "../searchReplaceExtension";
 import type { TranslationFn } from "../types";
-import { svgIcon } from "../ui-vanilla/dom";
-import { createIconButton, type IconButtonHandle } from "../ui-vanilla/IconButton";
-import { createTooltip } from "../ui-vanilla/Tooltip";
+import { svgIcon } from "@anytime-markdown/ui-core/dom";
+import { createIconButton, type IconButtonHandle } from "@anytime-markdown/ui-core/IconButton";
+import { createTooltip } from "@anytime-markdown/ui-core/Tooltip";
 
 /** vendored Material Icons の SVG path（24x24 viewBox・ui/icons と同一）。 */
 const PATH = {

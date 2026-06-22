@@ -40,7 +40,7 @@ import {
   createTooltip,
   ensureStyle,
   svgIcon,
-} from "../ui-vanilla";
+} from "@anytime-markdown/ui-core";
 import {
   ICON,
   mkDivider,

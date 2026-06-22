@@ -1,28 +1,13 @@
 import type { TrendPeriod } from '@anytime-markdown/trail-core/c4';
-import Box from '@mui/material/Box';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import Typography from '@mui/material/Typography';
-import { BarPlot } from '@mui/x-charts/BarChart';
-import { ChartsDataProvider } from '@mui/x-charts/ChartsDataProvider';
-import { ChartsSurface } from '@mui/x-charts/ChartsSurface';
-import { ChartsWrapper } from '@mui/x-charts/ChartsWrapper';
-import { ChartsAxisHighlight } from '@mui/x-charts/ChartsAxisHighlight';
-import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
-import { ChartsTooltip } from '@mui/x-charts/ChartsTooltip';
-import { ChartsXAxis } from '@mui/x-charts/ChartsXAxis';
-import { ChartsYAxis } from '@mui/x-charts/ChartsYAxis';
-import { LinePlot, MarkPlot } from '@mui/x-charts/LineChart';
+import type { ChartSpec, Series } from '@anytime-markdown/chart-core';
 import { useMemo, useState } from 'react';
 
 import { useTrailI18n } from '../../../i18n/context';
 import type { ActivityTrendResponse } from '../../hooks/fetchActivityTrendApi';
 import { useActivityTrend } from '../../hooks/useActivityTrend';
 import { ACTIVITY_TREND_COLORS } from '../../c4MetricColors';
-
-const PERIOD_OPTIONS: ReadonlyArray<Exclude<TrendPeriod, 'all'>> = ['7d', '30d', '90d'];
+import { VanillaIsland } from '../../../shared/vanillaIsland';
+import { mountActivityTrendPanel, type ActivityTrendPanelProps } from '../../../views/c4/panels/activityTrendPanel';
 
 function formatTrendDate(date: string): string {
   const parsed = new Date(`${date}T00:00:00Z`);
@@ -116,14 +101,14 @@ export function ActivityTrendChart({
   isDark = false,
 }: Readonly<ActivityTrendChartProps>) {
   const { t } = useTrailI18n();
-  const [period, setPeriod] = useState<TrendPeriod>('30d');
+  const [period, setPeriod] = useState<string>('30d');
 
   const enabled = !!elementId;
   const commitTrend = useActivityTrend({
     enabled,
     serverUrl,
     elementId: elementId ?? '',
-    period,
+    period: period as TrendPeriod,
     granularity: 'commit',
     repoName,
   });
@@ -131,7 +116,7 @@ export function ActivityTrendChart({
     enabled,
     serverUrl,
     elementId: elementId ?? '',
-    period,
+    period: period as TrendPeriod,
     granularity: 'session',
     sessionMode: 'read',
     repoName,
@@ -140,7 +125,7 @@ export function ActivityTrendChart({
     enabled,
     serverUrl,
     elementId: elementId ?? '',
-    period,
+    period: period as TrendPeriod,
     granularity: 'session',
     sessionMode: 'write',
     repoName,
@@ -149,12 +134,13 @@ export function ActivityTrendChart({
     enabled,
     serverUrl,
     elementId: elementId ?? '',
-    period,
+    period: period as TrendPeriod,
     granularity: 'defect',
     repoName,
   });
 
   const palette = isDark ? ACTIVITY_TREND_COLORS.dark : ACTIVITY_TREND_COLORS.light;
+  const tStr = (key: string): string => t(key as Parameters<typeof t>[0]);
 
   const chartProps = useMemo(() => {
     return buildActivityTrendSeries(
@@ -175,150 +161,36 @@ export function ActivityTrendChart({
   const error = commitTrend.error ?? readTrend.error ?? writeTrend.error ?? defectTrend.error;
   const loading = commitTrend.loading || readTrend.loading || writeTrend.loading || defectTrend.loading;
   const legendItems = chartProps?.series ?? [];
-  const chartDataset = useMemo(() => {
+  const spec = useMemo<ChartSpec | null>(() => {
     if (!chartProps) return null;
-    return chartProps.xs.map((date, index) => ({
-      date,
-      commit: chartProps.series[0]?.data[index] ?? 0,
-      read: chartProps.series[1]?.data[index] ?? 0,
-      write: chartProps.series[2]?.data[index] ?? 0,
-      defect: chartProps.series[3]?.data[index] ?? 0,
+    const series: Series[] = chartProps.series.map((s) => ({
+      name: s.label,
+      type: s.kind,
+      color: s.color,
+      axis: s.yAxisId,
+      values: [...s.data],
     }));
-  }, [chartProps]);
-  const chartSeries = useMemo(() => {
-    if (!chartProps) return [];
-    return chartProps.series.map((series) => {
-      if (series.kind === 'bar') {
-        return {
-          type: 'bar' as const,
-          dataKey: series.key,
-          label: series.label,
-          color: series.color,
-          yAxisId: series.yAxisId,
-        };
-      }
-      return {
-        type: 'line' as const,
-        dataKey: series.key,
-        label: series.label,
-        color: series.color,
-        yAxisId: series.yAxisId,
-        showMark: true,
-      };
-    });
+    return {
+      kind: 'combo',
+      categories: chartProps.xs.map(formatTrendDate),
+      series,
+      options: { legend: 'none' },
+    };
   }, [chartProps]);
 
   if (!elementId) return null;
 
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 1,
-        p: 1,
-        borderTop: 1,
-        borderColor: 'divider',
-      }}
-      role="region"
-      aria-label="Activity trend"
-    >
-      <Typography variant="subtitle2" sx={{ fontSize: '0.8rem' }}>
-        {t('c4.trend.title')}
-      </Typography>
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          gridTemplateColumns: { xs: '1fr', md: 'max-content minmax(0, 1fr)' },
-          alignItems: 'start',
-        }}
-      >
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-          <FormControl size="small" sx={{ minWidth: 88 }}>
-            <InputLabel id="trend-period-label">{t('c4.hotspot.controls.period')}</InputLabel>
-            <Select
-              labelId="trend-period-label"
-              label={t('c4.hotspot.controls.period')}
-              value={period}
-              onChange={(e) => setPeriod(String(e.target.value) as TrendPeriod)}
-            >
-              {PERIOD_OPTIONS.map((p) => (
-                <MenuItem key={p} value={p}>
-                  {p}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          {chartProps && (
-            <Box component="ul" sx={{ m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-              {legendItems.map((item) => (
-                <Box
-                  component="li"
-                  key={item.label}
-                  sx={{ display: 'flex', alignItems: 'center', gap: 1, listStyle: 'none' }}
-                >
-                  <Box
-                    aria-hidden="true"
-                    sx={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: '2px',
-                      bgcolor: item.color,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <Typography variant="caption" sx={{ lineHeight: 1.2 }}>
-                    {item.label}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-          )}
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
-          {error && (
-            <Typography variant="caption" color="error" role="alert">
-              {error.message}
-            </Typography>
-          )}
-          {loading && !chartProps && (
-            <Typography variant="caption" color="text.secondary" aria-live="polite">
-              {t('c4.trend.loading')}
-            </Typography>
-          )}
-          {chartProps && (
-            <Box sx={{ width: '100%', minHeight: 200 }}>
-              <ChartsDataProvider
-                dataset={chartDataset ?? []}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                series={chartSeries as any}
-                xAxis={[{ id: 'date', scaleType: 'band', dataKey: 'date', valueFormatter: formatTrendDate }]}
-                yAxis={[
-                  { id: 'left', min: 0 },
-                  { id: 'right', min: 0, position: 'right' as const, width: 48 },
-                ]}
-                height={200}
-                margin={{ left: 36, right: 56, top: 16, bottom: 28 }}
-              >
-                <ChartsWrapper hideLegend>
-                  <ChartsSurface>
-                    <ChartsGrid horizontal />
-                    <BarPlot />
-                    <LinePlot />
-                    <MarkPlot />
-                    <ChartsAxisHighlight x="band" />
-                    <ChartsXAxis axisId="date" />
-                    <ChartsYAxis axisId="left" />
-                    <ChartsYAxis axisId="right" />
-                  </ChartsSurface>
-                  <ChartsTooltip />
-                </ChartsWrapper>
-              </ChartsDataProvider>
-            </Box>
-          )}
-        </Box>
-      </Box>
-    </Box>
-  );
+  const viewProps: ActivityTrendPanelProps = {
+    elementId,
+    period,
+    onPeriodChange: setPeriod,
+    spec,
+    legendItems,
+    loading,
+    error: error?.message ?? null,
+    isDark,
+    t: tStr,
+  };
+
+  return <VanillaIsland mount={mountActivityTrendPanel} props={viewProps} />;
 }

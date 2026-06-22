@@ -1,225 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
-import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import type { SelectChangeEvent } from '@mui/material/Select';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import Tooltip from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
-import { formatLocalDate } from '@anytime-markdown/trail-core/formatDate';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
-import { getReleaseTableColumns } from './releaseColumns';
-import { formatReleaseStepDisplay } from './releaseStepDisplay';
-
-const UNKNOWN_REPO_KEY = '__unknown__';
+import { VanillaIsland } from '../shared/vanillaIsland';
+import { mountReleasesPanel, type ReleasesPanelProps as VanillaProps } from '../views/releasesPanel';
+import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 
 export interface ReleasesPanelProps {
   readonly releases: readonly TrailRelease[];
 }
 
-function fmtNum(n: number): string {
-  return n.toLocaleString();
-}
-
-function fmtOneDecimal(n: number): string {
-  return n.toFixed(1);
-}
-
-function fmtPercent(n: number): string {
-  return `${(n * 100).toFixed(1)}%`;
-}
-
-interface CommitBreakdownBarProps {
-  readonly release: TrailRelease;
-}
-
-function CommitBreakdownBar({ release }: Readonly<CommitBreakdownBarProps>): React.ReactElement {
-  const { commitColors } = useTrailTheme();
-  const total = release.commitCount;
-  if (total === 0) {
-    return <Typography variant="caption" color="text.secondary">—</Typography>;
-  }
-
-  const segments: Array<{ label: string; count: number; color: string }> = [
-    { label: 'feat', count: release.featCount, color: commitColors.feat },
-    { label: 'fix', count: release.fixCount, color: commitColors.fix },
-    { label: 'refactor', count: release.refactorCount, color: commitColors.refactor },
-    { label: 'test', count: release.testCount, color: commitColors.test },
-    { label: 'other', count: release.otherCount, color: commitColors.other },
-  ];
-
-  const tooltipText = segments
-    .filter((s) => s.count > 0)
-    .map((s) => `${s.label}: ${s.count}`)
-    .join(', ');
-
-  return (
-    <Tooltip title={tooltipText}>
-      <Box sx={{ display: 'flex', height: 12, width: 80, borderRadius: 1, overflow: 'hidden', cursor: 'default' }}>
-        {segments
-          .filter((s) => s.count > 0)
-          .map((s) => (
-            <Box
-              key={s.label}
-              sx={{
-                width: `${(s.count / total) * 100}%`,
-                backgroundColor: s.color,
-                flexShrink: 0,
-              }}
-            />
-          ))}
-      </Box>
-    </Tooltip>
-  );
-}
-
 export function ReleasesPanel({ releases }: Readonly<ReleasesPanelProps>): React.ReactElement {
   const { t } = useTrailI18n();
-  const { scrollbarSx } = useTrailTheme();
+  const { commitColors } = useTrailTheme();
 
-  const repoOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const order: string[] = [];
-    for (const r of releases) {
-      const key = r.repoName ?? UNKNOWN_REPO_KEY;
-      if (!seen.has(key)) {
-        seen.add(key);
-        order.push(key);
-      }
-    }
-    return order;
-  }, [releases]);
+  const tStr = (key: string): string => t(key as Parameters<typeof t>[0]);
 
-  const [selectedRepo, setSelectedRepo] = useState<string>(() => repoOptions[0] ?? '');
-
-  useEffect(() => {
-    if (repoOptions.length === 0) {
-      if (selectedRepo !== '') setSelectedRepo('');
-      return;
-    }
-    if (!repoOptions.includes(selectedRepo)) {
-      setSelectedRepo(repoOptions[0]);
-    }
-  }, [repoOptions, selectedRepo]);
-
-  const filteredReleases = useMemo(() => {
-    if (selectedRepo === '') return releases;
-    return releases.filter((r) => (r.repoName ?? UNKNOWN_REPO_KEY) === selectedRepo);
-  }, [releases, selectedRepo]);
-
-  const handleRepoChange = (event: SelectChangeEvent<string>): void => {
-    setSelectedRepo(event.target.value);
+  const viewProps: VanillaProps = {
+    releases,
+    t: tStr,
+    commitColors,
   };
-  const columns = getReleaseTableColumns();
 
-  if (releases.length === 0) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Typography color="text.secondary">{t('releases.noReleases')}</Typography>
-      </Box>
-    );
-  }
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <Box sx={{ p: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <FormControl size="small" sx={{ minWidth: 200 }}>
-          <InputLabel id="releases-repo-select-label">{t('releases.repository')}</InputLabel>
-          <Select
-            labelId="releases-repo-select-label"
-            value={selectedRepo}
-            label={t('releases.repository')}
-            onChange={handleRepoChange}
-          >
-            {repoOptions.map((key) => (
-              <MenuItem key={key} value={key}>
-                {key === UNKNOWN_REPO_KEY ? t('releases.unknownRepo') : key}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Box>
-      <Box sx={{ overflow: 'auto', flex: 1, ...scrollbarSx }}>
-      <Table size="small" stickyHeader>
-        <TableHead>
-          <TableRow>
-            {columns.map((column) => (
-              <TableCell key={column.key} align={column.align}>{t(column.i18nKey)}</TableCell>
-            ))}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {filteredReleases.map((release) => {
-            const steps = release.linesAdded + release.linesDeleted;
-            const stepDisplay = formatReleaseStepDisplay(release);
-            const fixRate = release.commitCount > 0 ? release.fixCount / release.commitCount : 0;
-
-            return (
-              <TableRow key={release.tag} hover>
-                <TableCell>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                    <Typography variant="body2" fontWeight={600}>{release.tag}</Typography>
-                    {release.packageTags.map((pt) => (
-                      <Chip key={pt} label={pt} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
-                    ))}
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{formatLocalDate(release.releasedAt)}</Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">
-                    {release.durationDays > 0 ? `${fmtOneDecimal(release.durationDays)}${t('releases.days')}` : '—'}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">{fmtNum(release.totalLines)}</Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.05 }}>
-                    <Typography variant="body2" sx={{ lineHeight: 1.1 }}>{stepDisplay.total}</Typography>
-                    <Typography
-                      component="span"
-                      sx={{
-                        color: 'text.secondary',
-                        fontSize: '0.62rem',
-                        lineHeight: 1,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {stepDisplay.breakdown}
-                    </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">{fmtNum(release.filesChanged)}</Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">{fmtNum(release.commitCount)}</Typography>
-                </TableCell>
-                <TableCell>
-                  <CommitBreakdownBar release={release} />
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">
-                    {release.commitCount > 0 ? fmtPercent(fixRate) : '—'}
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-      </Box>
-    </Box>
-  );
+  return <VanillaIsland mount={mountReleasesPanel} props={viewProps} />;
 }

@@ -5,6 +5,7 @@
 
 import * as fsp from 'node:fs/promises';
 import type { DocDb } from '../db/open';
+import { withTx } from '../db/tx';
 import { discoverDocs } from './discoverDocs';
 import { extractDoc } from './extractDoc';
 import { getStoredHash, persistDoc } from './persist';
@@ -57,20 +58,21 @@ export async function ingestDocs(db: DocDb, docsRoot: string, opts: IngestOption
 
   let removed = 0;
   if (opts.prune) {
-    const existing = (db.prepare('SELECT path FROM doc').all() as { path: string }[]).map((r) => r.path);
+    const existing = (db.prepare('SELECT path FROM doc').all() as unknown as { path: string }[]).map((r) => r.path);
     const delDoc = db.prepare('DELETE FROM doc WHERE path = ?'); // doc_embedding は FK CASCADE
     const delRel = db.prepare('DELETE FROM doc_relation WHERE from_path = ?');
     const delFts = db.prepare('DELETE FROM doc_fts WHERE path = ?');
-    const prune = db.transaction((paths: string[]) => {
-      for (const p of paths) {
+    const delSectionFts = db.prepare('DELETE FROM doc_section_fts WHERE path = ?');
+    withTx(db, () => {
+      for (const p of existing) {
         if (seen.has(p)) continue;
         delDoc.run(p);
         delRel.run(p);
         delFts.run(p);
+        delSectionFts.run(p);
         removed += 1;
       }
     });
-    prune(existing);
   }
 
   return { scanned: discovered.length, ingested, skipped, removed };

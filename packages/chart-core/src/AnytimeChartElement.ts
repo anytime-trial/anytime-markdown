@@ -46,6 +46,10 @@ export class AnytimeChartElement extends HTMLElementBase {
     this.view = new ChartView(canvas, {
       theme: this.currentTheme(),
       palette: this.currentPalette(),
+      onSelectCategory: (dataIndex) =>
+        this.dispatchEvent(
+          new CustomEvent("category-click", { detail: { dataIndex }, bubbles: true, composed: true }),
+        ),
     });
 
     this.resizeObserver = new ResizeObserver(() => this.syncCanvasSize());

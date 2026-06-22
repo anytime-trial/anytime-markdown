@@ -22,6 +22,17 @@ import {
   EvaluateReverseSpecInputSchema,
   handleEvaluateReverseSpec,
 } from './tools/evaluateReverseSpec.js';
+import { selectImportantFiles, type FileAnalysisEntry, type ImportantFilesFilter } from './tools/importantFiles.js';
+import { toCodeGraphNodeId } from './tools/nodeId.js';
+import {
+  capDependencies,
+  capQueryResult,
+  filterCochangePartners,
+  filterCommunityNodes,
+  projectCommunities,
+  toSummaryRows,
+  type RawCommunity,
+} from './tools/discoveryShaping.js';
 
 export interface McpTrailOptions {
   serverUrl?: string;
@@ -289,20 +300,42 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'list_communities',
-    { description: 'List code graph communities for a repo with their label / name / summary / mappings_json / stableKey. Used by anytime-reverse-engineer skill for filtering and cache lookup. The stableKey is a content hash of the community member node IDs and is preserved across community_id re-numbering during re-analysis (use it as a cache key).', inputSchema: { ...commonParams } },
-    async ({ repoName, serverUrl }) => {
+    {
+      description:
+        'List code graph communities (communityId / label / name / summary / stableKey). mappingsJson (C4 role mappings, large) is omitted by default; pass includeMappings=true to include it (e.g. anytime-reverse-engineer cache lookup). stableKey is a content hash stable across re-analysis.',
+      inputSchema: {
+        includeMappings: z.boolean().default(false).describe('Include the large mappingsJson field (default false)'),
+        ...commonParams,
+      },
+    },
+    async ({ includeMappings, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      const result = await route('list_communities', { repoName }, opts);
+      const raw = (await route('list_communities', { repoName }, opts)) as { communities?: RawCommunity[] };
+      const result = projectCommunities(raw, includeMappings);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
 
   server.registerTool(
     'list_community_nodes',
-    { description: 'List code graph nodes grouped by community for a repo, projected to { id, label, package }. Used by anytime-reverse-engineer skill to aggregate nodes for AI naming (Step 2) and role determination (Step 3) without opening the SQLite DB directly. Returns empty array when no graph is stored. Communities are sorted by communityId ascending; nodes within each community are sorted by id ascending.', inputSchema: { ...commonParams } },
-    async ({ repoName, serverUrl }) => {
+    {
+      description:
+        'List code graph nodes grouped by community, projected to { id, label, package }. Pass communityId to fetch one community (the full graph has ~1,900 nodes); nodeLimit caps nodes per community (adds nodeTotal when truncated). Returns empty array when no graph is stored.',
+      inputSchema: {
+        communityId: z.number().int().optional().describe('Restrict to a single community id'),
+        nodeLimit: z.number().int().min(1).max(500).optional().describe('Max nodes per community'),
+        ...commonParams,
+      },
+    },
+    async ({ communityId, nodeLimit, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      const result = await route('list_community_nodes', { repoName }, opts);
+      const raw = (await route('list_community_nodes', { repoName }, opts)) as {
+        communities?: Array<{ communityId: number; nodes: unknown[] }>;
+      };
+      const result = filterCommunityNodes(raw, {
+        ...(communityId !== undefined ? { communityId } : {}),
+        ...(nodeLimit !== undefined ? { nodeLimit } : {}),
+      });
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -583,6 +616,139 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     }, },
     async (args) => {
       const result = await handleSearchDocs(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Discovery tools (code graph)
+  // -------------------------------------------------------------------------
+
+  server.registerTool(
+    'get_code_dependencies',
+    {
+      description:
+        'Return the direct dependents (incoming) and dependencies (outgoing) of a code-graph node. Use to scope the blast radius of a change before editing, instead of grepping for imports. Returns { node, incoming, outgoing, incomingTotal, outgoingTotal, truncated } (depth 1; edges capped at `limit`, default 50). nodeId accepts a file path from get_important_files (e.g. packages/x/src/Foo.ts) or a raw node id (<repo>:<path-without-extension>); pass repoName so a file path can be resolved.',
+      inputSchema: {
+        nodeId: z.string().describe('Code-graph node id or file path to inspect'),
+        limit: z.number().int().min(1).max(500).default(50).describe('Max incoming/outgoing edges each (default 50)'),
+        ...commonParams,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ nodeId, limit, repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const resolvedId = repoName ? toCodeGraphNodeId(repoName, nodeId) : nodeId;
+      const raw = (await route('get_code_dependencies', { nodeId: resolvedId }, opts)) as {
+        node?: unknown;
+        incoming?: unknown[];
+        outgoing?: unknown[];
+      };
+      const result = capDependencies(raw, limit);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_important_files',
+    {
+      description:
+        'List the most important files to read first, ranked by precomputed graph signals. Use at the start of discovery to decide where to look, instead of reading files blindly. Returns up to `limit` rows of { rank, filePath, importanceScore, centralityScore, signals(object flags), reason }. filter: central|dead|barrel|risky (default = importance). limit default 10.',
+      inputSchema: {
+        limit: z.number().int().min(1).max(100).default(10).describe('Max rows (default 10)'),
+        filter: z
+          .enum(['central', 'dead', 'barrel', 'risky'])
+          .optional()
+          .describe('Ranking lens (default: overall importance)'),
+        detail: z
+          .enum(['summary', 'full'])
+          .default('full')
+          .describe('summary = rank/filePath/importanceScore only; full = include centralityScore/signals/reason'),
+        ...commonParams,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ limit, filter, detail, repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const raw = (await route('get_important_files', {}, opts)) as { entries: FileAnalysisEntry[] };
+      const rows = selectImportantFiles(raw.entries ?? [], {
+        limit,
+        ...(filter ? { filter: filter as ImportantFilesFilter } : {}),
+      });
+      const out = detail === 'summary' ? toSummaryRows(rows) : rows;
+      return { content: [{ type: 'text' as const, text: JSON.stringify(out, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'query_code_graph',
+    {
+      description:
+        'Search the code graph for nodes whose id/label matches a keyword, ranked by importance. Use to LOCATE where a symbol/file lives. For dependency expansion use get_code_dependencies / find_code_path instead. Returns: summary (default) → { nodes, nodeTotal, truncated }; full → { nodes, edges, nodeTotal, edgeTotal, truncated }. detail=summary (default) returns matched nodes only (no edges); detail=full adds the induced edges among returned nodes. depth>0 expands neighbors (default 0 = matches only); nodes capped at `limit` (default 30).',
+      inputSchema: {
+        q: z.string().describe('Keyword to match against node id/label'),
+        detail: z.enum(['summary', 'full']).default('summary').describe('summary = nodes only; full = include induced edges'),
+        depth: z.number().int().min(0).max(3).default(0).describe('Neighbor hops (default 0 = matches only)'),
+        limit: z.number().int().min(1).max(200).default(30).describe('Max nodes (default 30)'),
+        ...commonParams,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ q, detail, depth, limit, repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const raw = (await route('query_code_graph', { q, depth }, opts)) as {
+        nodes?: string[];
+        edges?: Array<{ source: string; target: string }>;
+      };
+      const capped = capQueryResult(raw, limit);
+      const result =
+        detail === 'full'
+          ? capped
+          : { nodes: capped.nodes, nodeTotal: capped.nodeTotal, truncated: capped.truncated };
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'find_code_path',
+    {
+      description:
+        'Find a dependency path between two code-graph nodes. Returns { found, path, hops }. from/to accept a file path (e.g. packages/x/src/Foo.ts) or a raw node id; pass repoName so file paths resolve.',
+      inputSchema: {
+        from: z.string().describe('Start node id or file path'),
+        to: z.string().describe('End node id or file path'),
+        ...commonParams,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ from, to, repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const resolvedFrom = repoName ? toCodeGraphNodeId(repoName, from) : from;
+      const resolvedTo = repoName ? toCodeGraphNodeId(repoName, to) : to;
+      const result = await route('find_code_path', { from: resolvedFrom, to: resolvedTo }, opts);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_cochange_partners',
+    {
+      description:
+        'List files that historically change together with the given file (git temporal coupling). Use to find related files a change should touch, that the import graph misses. Returns up to top_n { partner, jaccard } sorted by jaccard. file is a repo-relative path (e.g. packages/x/src/Foo.ts).',
+      inputSchema: {
+        file: z.string().describe('Repo-relative file path'),
+        top_n: z.number().int().min(1).max(100).default(10).describe('Max partners (default 10)'),
+        windowDays: z.number().int().min(1).max(365).default(90).describe('History window in days (default 90)'),
+        ...commonParams,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ file, top_n, windowDays, repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const raw = (await route('get_cochange_partners', { opts: { windowDays, topK: 500 } }, opts)) as {
+        edges?: Array<{ source: string; target: string; jaccard?: number }>;
+      };
+      const result = filterCochangePartners(raw, file, top_n);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

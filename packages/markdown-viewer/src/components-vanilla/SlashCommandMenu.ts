@@ -42,7 +42,7 @@ import {
   createMenuList,
   svgIcon,
   type Placement,
-} from "../ui-vanilla";
+} from "@anytime-markdown/ui-core";
 
 /**
  * vanilla 版のスラッシュコマンド項目（React `SlashCommandItem` の vanilla 置換）。

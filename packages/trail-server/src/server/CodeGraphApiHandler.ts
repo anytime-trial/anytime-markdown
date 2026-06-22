@@ -83,7 +83,7 @@ export class CodeGraphApiHandler {
   //  GET /api/code-graph/query?q=...
   // -------------------------------------------------------------------------
 
-  async handleQuery(res: http.ServerResponse, q: string, repo?: string): Promise<void> {
+  async handleQuery(res: http.ServerResponse, q: string, repo?: string, depth?: number): Promise<void> {
     const engine = await this.getOrBuildEngine(repo);
     if (!engine) {
       res.writeHead(404, JSON_HEADERS);
@@ -91,7 +91,7 @@ export class CodeGraphApiHandler {
       return;
     }
     res.writeHead(200, JSON_HEADERS);
-    res.end(JSON.stringify(engine.query(q)));
+    res.end(JSON.stringify(depth === undefined ? engine.query(q) : engine.query(q, depth)));
   }
 
   // -------------------------------------------------------------------------

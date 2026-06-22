@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-06-22
+
+### Trail Core (trail-viewer / mcp-trail / trail-server / chart-core)
+
+- `mcp-trail`: add discovery tools — `get_important_files` and `get_code_dependencies` (wrapping the existing TrailDataServer HTTP analysis), plus `query_code_graph` / `find_code_path` / `get_cochange_partners`.
+- `mcp-trail`: redesign `query_code_graph` as search-only (depth=0 default, ranked by node size, detail mode), with induced-subgraph and edge caps to prevent result blowup.
+- `trail-viewer`: full migration to vanilla DOM on `ui-core` (replacing React/@mui); Trace/Prompts kept as React islands via a vanilla→React bridge. Drop `@mui` / `@mui/x-charts` / `@emotion` dependencies.
+- `trail-viewer`: migrate all charts to the `chart-core` web component (`<anytime-chart>`); add `AnytimeChartView` wrapper and pie/stacked-bar spec transforms.
+- Fix several regressions surfaced during the vanilla/chart migration (C4 level buttons, empty C4/Prompts panels, embedded popup overlay, bar-selection highlight, combined chart series).
+
 ## [0.28.0] - 2026-06-20
 
 ### Trail Core (trail-core / trail-server / mcp-trail / memory-core)

@@ -12,11 +12,9 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
-    "better-sqlite3": "12.4.1",
     "gray-matter": "4.0.3"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "7.6.13",
     "@types/jest": "30.0.0",
     "@types/node": "22.15.21",
     "jest": "30.2.0",

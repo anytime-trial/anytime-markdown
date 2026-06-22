@@ -23,7 +23,7 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
   ...jest.requireActual("@anytime-markdown/markdown-viewer/src/chrome/blockChrome"),
   ...jest.requireActual("@anytime-markdown/markdown-viewer/src/chrome/vanillaToolbar"),
   ...jest.requireActual("@anytime-markdown/markdown-viewer/src/utils/embedInfoString"),
-  ...jest.requireActual("@anytime-markdown/markdown-viewer/src/ui-vanilla"),
+  ...jest.requireActual("@anytime-markdown/ui-core"),
   PREVIEW_MAX_HEIGHT: 400,
   getDivider: () => "#ccc",
   getHljsCssVars: () => ({}),

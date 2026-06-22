@@ -34,7 +34,7 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
   SMALL_CAPTION_FONT_SIZE: "0.75rem",
 }));
 
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Dialog", () => ({
+jest.mock("@anytime-markdown/ui-core/Dialog", () => ({
   createDialog: () => {
     const el = document.createElement("div");
     const paper = document.createElement("div");
@@ -45,7 +45,7 @@ jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Dialog", () => ({
 }));
 
 // 機能版 Tabs モック: タブボタンをクリックすると onChange(value) を発火する。
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Tabs", () => ({
+jest.mock("@anytime-markdown/ui-core/Tabs", () => ({
   createTabs: ({
     tabs,
     onChange,
@@ -64,16 +64,16 @@ jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Tabs", () => ({
   },
 }));
 
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Button", () => ({
+jest.mock("@anytime-markdown/ui-core/Button", () => ({
   createButton: () => ({ el: document.createElement("button"), destroy: jest.fn() }),
 }));
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/IconButton", () => ({
+jest.mock("@anytime-markdown/ui-core/IconButton", () => ({
   createIconButton: () => ({ el: document.createElement("button"), destroy: jest.fn() }),
 }));
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/Menu", () => ({
+jest.mock("@anytime-markdown/ui-core/Menu", () => ({
   createMenu: () => ({ el: document.createElement("div"), destroy: jest.fn() }),
 }));
-jest.mock("@anytime-markdown/markdown-viewer/src/ui-vanilla/MenuItem", () => ({
+jest.mock("@anytime-markdown/ui-core/MenuItem", () => ({
   createMenuItem: () => ({ el: document.createElement("div"), destroy: jest.fn() }),
 }));
 

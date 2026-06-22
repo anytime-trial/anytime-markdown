@@ -1,6 +1,6 @@
 // @anytime-markdown/doc-core — ドキュメント検索（構造=型付き関係 / 意味=embedding / キーワード=FTS5）
 
-export type { RelationType, DocRelation, DocMeta, ExtractedDoc, DocHit } from './types';
+export type { RelationType, DocRelation, DocMeta, ExtractedDoc, DocHit, DocSection, SectionHit } from './types';
 export { RELATION_TYPES, DEFAULT_RELATION_TYPE, isRelationType, coerceRelationType } from './relations';
 
 // DB
@@ -24,6 +24,9 @@ export {
   type NeighborOptions,
 } from './retrieve/structural';
 export { searchFts, toFtsMatch } from './retrieve/fts';
+export { searchDocs, type SearchDocsOptions } from './retrieve/searchDocs';
+export { searchSections, type SearchSectionsOptions } from './retrieve/searchSections';
+export { splitSections } from './ingest/splitSections';
 export { searchSemantic } from './retrieve/semantic';
 
 // embedding（注入式 EmbedFn。daemon が ollama bge-m3 を、テストが fake を供給）

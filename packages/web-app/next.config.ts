@@ -33,6 +33,7 @@ const nextConfig: NextConfig = {
     '@anytime-markdown/trace-core',
     '@anytime-markdown/trace-viewer',
     '@anytime-markdown/trail-viewer',
+    '@anytime-markdown/ui-core',
   ],
   // sql.js は Node 用 require('fs'/'path'/'crypto') を含むためサーバ側では external 扱い
   serverExternalPackages: ['sql.js'],

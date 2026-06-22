@@ -1,13 +1,16 @@
-import { Box, Skeleton } from '@mui/material';
+import { VanillaIsland } from '../../shared/vanillaIsland';
+import { mountC4PanelSkeleton } from '../../views/shared/c4PanelSkeleton';
+
+const EMPTY_PROPS = {} as Record<string, never>;
+
+function mountWrapper(container: HTMLElement, _props: Record<string, never>) {
+  const { el } = mountC4PanelSkeleton(container);
+  return {
+    update() { /* static skeleton — no update needed */ },
+    destroy() { el.remove(); },
+  };
+}
 
 export function C4PanelSkeleton() {
-    return (
-        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '70vh' }}>
-            <Skeleton variant="rectangular" width="100%" height={48} sx={{ mb: 2 }} />
-            <Box sx={{ flex: 1, display: 'flex', gap: 2 }}>
-                <Skeleton variant="rectangular" sx={{ flex: 1 }} />
-                <Skeleton variant="rectangular" width={300} />
-            </Box>
-        </Box>
-    );
+  return <VanillaIsland mount={mountWrapper} props={EMPTY_PROPS} />;
 }

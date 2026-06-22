@@ -4,13 +4,13 @@ import {
   GRANULARITY_DEFAULT_CONFIDENCE,
   GRANULARITY_DEFAULT_DIRECTIONAL_DIFF,
   GRANULARITY_DEFAULT_THRESHOLD,
-  TemporalCouplingSettingsPopup,
   getGhostEdgeMode,
   getPopupGhostEdgeModes,
   getTemporalCouplingGranularities,
   shouldShowTemporalCouplingInlineSettings,
   type TemporalCouplingControlsValue,
 } from '../components/overlays/TemporalCouplingControls';
+import { mountTemporalCouplingSettingsPopup } from '../../views/c4/overlays/temporalCouplingControls';
 
 const baseValue: TemporalCouplingControlsValue = {
   enabled: true,
@@ -141,14 +141,19 @@ describe('TemporalCouplingControls / C4 ghost edge settings popup', () => {
     expect(getPopupGhostEdgeModes()).toEqual(['commit', 'session']);
   });
 
-  it('does not render the settings popup while ghost edges are disabled', () => {
-    const popup = TemporalCouplingSettingsPopup({
+  it('hides the settings popup DOM while ghost edges are disabled', () => {
+    const container = document.createElement('div');
+    const handle = mountTemporalCouplingSettingsPopup(container, {
       value: { ...baseValue, enabled: false },
       onChange: jest.fn(),
       resultCount: 0,
       loading: false,
       isDark: false,
     });
-    expect(popup).toBeNull();
+    // The vanilla view hides via display:none when disabled.
+    const root = container.querySelector('[role="dialog"]') as HTMLElement | null;
+    expect(root).not.toBeNull();
+    expect(root?.style.display).toBe('none');
+    handle.destroy();
   });
 });

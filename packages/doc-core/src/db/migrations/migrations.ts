@@ -52,4 +52,25 @@ CREATE TABLE doc_embedding (
 CREATE VIRTUAL TABLE doc_fts USING fts5(path, title, excerpt, body, tokenize='trigram');
 `;
 
-export const MIGRATIONS: readonly DocMigration[] = [{ version: 1, sql: INITIAL }];
+// frontmatter ファセット検索（type / lang での絞り込み）用の索引。category は v1 で索引済み。
+const FACET_INDEXES = `
+CREATE INDEX IF NOT EXISTS idx_doc_type ON doc (type);
+CREATE INDEX IF NOT EXISTS idx_doc_lang ON doc (lang);
+`;
+
+// search_sections（節粒度 FTS）。doc_fts と同じく trigram で日英両対応。
+// level は検索対象外（UNINDEXED）。snippet は body 列（index 3）から取得する。
+// 注意（移行の罠）: incremental ingest は content_hash 不変の doc をスキップするため、
+// v3 追加後も既存 doc は doc_section_fts が空のまま。doc-core.db を再構築（DB 削除→
+// 拡張「Rebuild Doc Search Index」）して全 doc を再 ingest する必要がある。
+const SECTION_FTS = `
+CREATE VIRTUAL TABLE doc_section_fts USING fts5(
+  path, heading, level UNINDEXED, body, tokenize='trigram'
+);
+`;
+
+export const MIGRATIONS: readonly DocMigration[] = [
+  { version: 1, sql: INITIAL },
+  { version: 2, sql: FACET_INDEXES },
+  { version: 3, sql: SECTION_FTS },
+];

@@ -23,9 +23,11 @@ export function drawPie(
   const values = rawValues.map((v) => (v == null || !Number.isFinite(v) || v < 0 ? 0 : v));
   const total = values.reduce((a, b) => a + b, 0);
 
+  // legend="none" はスライス外周ラベルを描かない（コンパクト表示。色＋中央総量＋hover で識別）。
+  const showLabels = spec.options?.legend !== "none";
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;
-  const radius = Math.max(8, (Math.min(rect.width, rect.height) / 2) * 0.62);
+  const radius = Math.max(8, (Math.min(rect.width, rect.height) / 2) * (showLabels ? 0.62 : 0.82));
   const points: PlottedPoint[] = [];
 
   if (total <= 0) return points;
@@ -48,17 +50,19 @@ export function drawPie(
 
     // ラベル「分類名 N%」（スライス外側中点）
     const mid = angle + slice / 2;
-    const pct = Math.round((v / total) * 100);
-    const lx = cx + Math.cos(mid) * radius * 1.15;
-    const ly = cy + Math.sin(mid) * radius * 1.15;
-    ctx.save();
-    ctx.fillStyle = palette.label;
-    ctx.font = "11px sans-serif";
-    ctx.textAlign = Math.cos(mid) >= 0 ? "left" : "right";
-    ctx.textBaseline = "middle";
-    const label = categories[i] ? `${categories[i]} ${pct}%` : `${pct}%`;
-    ctx.fillText(label, lx, ly);
-    ctx.restore();
+    if (showLabels) {
+      const pct = Math.round((v / total) * 100);
+      const lx = cx + Math.cos(mid) * radius * 1.15;
+      const ly = cy + Math.sin(mid) * radius * 1.15;
+      ctx.save();
+      ctx.fillStyle = palette.label;
+      ctx.font = "11px sans-serif";
+      ctx.textAlign = Math.cos(mid) >= 0 ? "left" : "right";
+      ctx.textBaseline = "middle";
+      const label = categories[i] ? `${categories[i]} ${pct}%` : `${pct}%`;
+      ctx.fillText(label, lx, ly);
+      ctx.restore();
+    }
 
     // hit-test 点（スライス重心）
     points.push({

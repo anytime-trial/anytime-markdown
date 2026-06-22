@@ -12,6 +12,7 @@ export function drawAxes(
   yScale: (v: number) => number,
   xLabels: ReadonlyArray<string>,
   theme: ChartTheme,
+  yAxisLabel?: string,
 ): void {
   const { palette } = theme;
 
@@ -47,6 +48,19 @@ export function drawAxes(
     });
     ctx.restore();
   }
+
+  // 左 Y 軸ラベル（縦書き）
+  if (yAxisLabel) {
+    ctx.save();
+    ctx.fillStyle = palette.text;
+    ctx.font = "bold 12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.translate(plot.x - 38, plot.y + plot.height / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(yAxisLabel, 0, 0);
+    ctx.restore();
+  }
 }
 
 /**
@@ -58,6 +72,7 @@ export function drawRightAxis(
   ticks: ReadonlyArray<number>,
   rightScale: (v: number) => number,
   theme: ChartTheme,
+  rightAxisLabel?: string,
 ): void {
   ctx.save();
   ctx.fillStyle = theme.palette.label;
@@ -68,6 +83,19 @@ export function drawRightAxis(
     ctx.fillText(formatValue(t), plot.x + plot.width + 6, Math.round(rightScale(t)));
   }
   ctx.restore();
+
+  // 右 Y 軸ラベル（縦書き）
+  if (rightAxisLabel) {
+    ctx.save();
+    ctx.fillStyle = theme.palette.text;
+    ctx.font = "bold 12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.translate(plot.x + plot.width + 38, plot.y + plot.height / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillText(rightAxisLabel, 0, 0);
+    ctx.restore();
+  }
 }
 
 /**

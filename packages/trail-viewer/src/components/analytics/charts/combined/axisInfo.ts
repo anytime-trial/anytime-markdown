@@ -135,3 +135,15 @@ export function makeAxisClick(periods: readonly string[], canDrill: boolean, onD
 }
 
 export const hideZero = (v: number | null) => (v == null || v === 0 ? null : String(v));
+
+/** chart-core の onCategoryClick 用。dataIndex → periods[idx] → onDateClick（canDrill 時のみ）。 */
+export function makeCategoryClick(
+  periods: readonly string[],
+  canDrill: boolean,
+  onDateClick?: (date: string) => void,
+): ((dataIndex: number) => void) | undefined {
+  if (!canDrill) return undefined;
+  return (idx: number) => {
+    if (idx >= 0 && idx < periods.length) onDateClick?.(periods[idx]);
+  };
+}

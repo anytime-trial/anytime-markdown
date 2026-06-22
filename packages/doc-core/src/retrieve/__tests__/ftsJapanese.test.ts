@@ -14,6 +14,7 @@ describe('Japanese FTS (trigram tokenizer)', () => {
       excerpt: '関係グラフを型付きで表現する',
       body: 'frontmatter の related を型付き関係（depends-on 等）へ拡張する設計',
       related: [],
+      sections: [],
       contentHash: 'jp1',
     });
     persistDoc(db, {
@@ -22,6 +23,7 @@ describe('Japanese FTS (trigram tokenizer)', () => {
       excerpt: 'グリッドとセル編集',
       body: '表計算のグリッド描画とクリップボード対応',
       related: [],
+      sections: [],
       contentHash: 'jp2',
     });
   });

@@ -1,4 +1,8 @@
-import { useMemo } from 'react';
+import { useTrailTheme } from '../../../TrailThemeContext';
+import { useTrailI18n } from '../../../../i18n';
+import { useToolCategory } from '../../../ToolCategoryContext';
+import { useSkillCategory } from '../../../SkillCategoryContext';
+import { useCommitCategory } from '../../../CommitCategoryContext';
 import type { CombinedData } from '../../../../domain/parser/types';
 import type {
   AgentMetric,
@@ -8,15 +12,8 @@ import type {
   PeriodDays,
   ToolChartMetric,
 } from '../../types';
-import { computeCombinedAxisInfo } from './axisInfo';
-import { ToolsCombinedChart } from './ToolsCombinedChart';
-import { ErrorToolsCombinedChart } from './ErrorToolsCombinedChart';
-import { ReposCombinedChart } from './ReposCombinedChart';
-import { SkillsCombinedChart } from './SkillsCombinedChart';
-import { AgentsCombinedChart } from './AgentsCombinedChart';
-import { CommitsCombinedChart } from './CommitsCombinedChart';
-import { LeadTimeOverlay } from './LeadTimeOverlay';
-import { ModelsCombinedChart } from './ModelsCombinedChart';
+import { VanillaIsland } from '../../../../shared/vanillaIsland';
+import { mountCombinedChartsContent } from '../../../../views/analytics/charts/combined/combinedChartsContent';
 
 export function CombinedChartsContent({
   data,
@@ -48,31 +45,26 @@ export function CombinedChartsContent({
   } | null;
   onDateClick?: (fullDate: string) => void;
 }>) {
-  const axisInfo = useMemo(() => computeCombinedAxisInfo(data, periodDays), [data, periodDays]);
-  if (!axisInfo) return null;
+  const { cardSx, toolPalette, isDark } = useTrailTheme();
+  const { t } = useTrailI18n();
+  const tStr = (key: string): string => t(key as Parameters<typeof t>[0]);
+  const { getToolCategory, getToolCategoryLabel, getToolCategoryColorByIndex, toolCategoryKeys } = useToolCategory();
+  const { getSkillCategory, getSkillCategoryLabel, getSkillCategoryColorByIndex, skillCategoryKeys } = useSkillCategory();
+  const { getCategory, getCategoryLabel, getCategoryColorByIndex, categoryKeys } = useCommitCategory();
 
-  const canDrill = periodDays < 90 && !!onDateClick;
-
-  if (activeChart === 'tools') {
-    if (toolMetric === 'error') {
-      return <ErrorToolsCombinedChart axisInfo={axisInfo} canDrill={canDrill} onDateClick={onDateClick} />;
-    }
-    return <ToolsCombinedChart axisInfo={axisInfo} toolMetric={toolMetric} canDrill={canDrill} onDateClick={onDateClick} />;
-  }
-  if (activeChart === 'repos') {
-    return <ReposCombinedChart axisInfo={axisInfo} repoMetric={repoMetric} canDrill={canDrill} onDateClick={onDateClick} />;
-  }
-  if (activeChart === 'skills') {
-    return <SkillsCombinedChart axisInfo={axisInfo} canDrill={canDrill} onDateClick={onDateClick} />;
-  }
-  if (activeChart === 'agents') {
-    return <AgentsCombinedChart axisInfo={axisInfo} agentMetric={agentMetric} canDrill={canDrill} onDateClick={onDateClick} />;
-  }
-  if (activeChart === 'commits') {
-    return commitMetric === 'leadTime'
-      ? <LeadTimeOverlay leadTimeOverlay={leadTimeOverlay} canDrill={canDrill} onDateClick={onDateClick} />
-      : <CommitsCombinedChart axisInfo={axisInfo} commitMetric={commitMetric} canDrill={canDrill} onDateClick={onDateClick} />;
-  }
-  // default: 'models'
-  return <ModelsCombinedChart axisInfo={axisInfo} modelMetric={modelMetric} canDrill={canDrill} onDateClick={onDateClick} />;
+  return (
+    <VanillaIsland
+      mount={mountCombinedChartsContent}
+      props={{
+        data, periodDays, activeChart, toolMetric, modelMetric,
+        agentMetric, commitMetric, repoMetric, leadTimeOverlay, onDateClick,
+        theme: {
+          isDark, toolPalette, cardSx, t: tStr,
+          getToolCategory, getToolCategoryLabel, getToolCategoryColorByIndex, toolCategoryKeys,
+          getSkillCategory, getSkillCategoryLabel, getSkillCategoryColorByIndex, skillCategoryKeys,
+          getCategory, getCategoryLabel, getCategoryColorByIndex, categoryKeys,
+        },
+      }}
+    />
+  );
 }

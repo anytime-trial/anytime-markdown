@@ -18,19 +18,19 @@ import {
   ensureStyle,
   nextId,
   svgIcon,
-} from "@anytime-markdown/markdown-viewer/src/ui-vanilla/dom";
+} from "@anytime-markdown/ui-core/dom";
 import {
   createIconButton,
-} from "@anytime-markdown/markdown-viewer/src/ui-vanilla/IconButton";
+} from "@anytime-markdown/ui-core/IconButton";
 import {
   createSlider,
-} from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Slider";
+} from "@anytime-markdown/ui-core/Slider";
 import {
   createSpinner,
-} from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Spinner";
+} from "@anytime-markdown/ui-core/Spinner";
 import {
   createTooltip,
-} from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Tooltip";
+} from "@anytime-markdown/ui-core/Tooltip";
 
 import type { GraphMountHandle } from "../components/codeblock/previewContracts";
 import type { GraphExpr } from "../utils/latexToExpr";

@@ -174,7 +174,7 @@ function addHardBreaksToConsecutiveLines(text: string): string {
  * テーブル行内のコードスパンに含まれるパイプ `|` を `&#124;` にエスケープする。
  * tiptap-markdown がコードスパン認識前にパイプでセル分割するのを防ぐ。
  */
-function escapeTableCodeSpanPipes(md: string): string {
+export function escapeTableCodeSpanPipes(md: string): string {
   return md.replaceAll(/^(\|.+\|)$/gm, (line) => {
     return line.replaceAll(/(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)/g, (m, ticks: string, content: string) => {
       if (!content.includes("|")) return m;

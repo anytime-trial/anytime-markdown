@@ -404,3 +404,61 @@ describe('WRITE tools: save() is called after successful direct write', () => {
     expect(mockClose).toHaveBeenCalledTimes(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// DISCOVERY tools — probe alive → HTTP
+// ---------------------------------------------------------------------------
+
+describe('DISCOVERY tools: probe alive → HTTP', () => {
+  beforeEach(() => {
+    jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(true);
+  });
+
+  test('get_code_dependencies → httpClient.getCodeGraphExplain', async () => {
+    const spy = jest.spyOn(httpClient, 'getCodeGraphExplain')
+      .mockResolvedValue({ node: { id: 'a.ts' }, incoming: [], outgoing: [] });
+    await route('get_code_dependencies', { nodeId: 'a.ts' }, BASE_OPTS);
+    expect(spy).toHaveBeenCalledWith(SERVER_URL, 'a.ts', MOCK_REPO);
+  });
+
+  test('get_important_files → httpClient.getFileAnalysis', async () => {
+    const spy = jest.spyOn(httpClient, 'getFileAnalysis')
+      .mockResolvedValue({ entries: [], elementMatrix: {} });
+    await route('get_important_files', { limit: 10 }, BASE_OPTS);
+    expect(spy).toHaveBeenCalledWith(SERVER_URL, MOCK_REPO);
+  });
+
+  test('probe dead → throws helpful error', async () => {
+    jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(false);
+    await expect(route('get_code_dependencies', { nodeId: 'a.ts' }, BASE_OPTS))
+      .rejects.toThrow(/TrailDataServer not running/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DISCOVERY tools (Phase 3): probe alive → HTTP
+// ---------------------------------------------------------------------------
+
+describe('DISCOVERY tools (Phase 3): probe alive → HTTP', () => {
+  beforeEach(() => {
+    jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(true);
+  });
+
+  test('query_code_graph → httpClient.getCodeGraphQuery', async () => {
+    const spy = jest.spyOn(httpClient, 'getCodeGraphQuery').mockResolvedValue({ nodes: [], edges: [] });
+    await route('query_code_graph', { q: 'Foo', depth: 1 }, BASE_OPTS);
+    expect(spy).toHaveBeenCalledWith(SERVER_URL, 'Foo', MOCK_REPO, 1);
+  });
+
+  test('find_code_path → httpClient.getCodeGraphPath', async () => {
+    const spy = jest.spyOn(httpClient, 'getCodeGraphPath').mockResolvedValue({ found: false, path: [], hops: 0 });
+    await route('find_code_path', { from: 'a', to: 'b' }, BASE_OPTS);
+    expect(spy).toHaveBeenCalledWith(SERVER_URL, 'a', 'b', MOCK_REPO);
+  });
+
+  test('get_cochange_partners → httpClient.getTemporalCoupling', async () => {
+    const spy = jest.spyOn(httpClient, 'getTemporalCoupling').mockResolvedValue({ edges: [] });
+    await route('get_cochange_partners', { opts: { windowDays: 90, topK: 500 } }, BASE_OPTS);
+    expect(spy).toHaveBeenCalledWith(SERVER_URL, MOCK_REPO, { windowDays: 90, topK: 500 });
+  });
+});

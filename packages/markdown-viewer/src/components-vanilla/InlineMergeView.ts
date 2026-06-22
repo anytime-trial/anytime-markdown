@@ -34,7 +34,7 @@ import { setMergeEditors } from "../contexts/MergeEditorsContext";
 import { reviewModeStorage } from "../extensions/reviewModeExtension";
 import { computeAlignSpacers } from "../hooks/useBlockAlignment";
 import type { TranslationFn } from "../types";
-import { createIconButton, createTooltip, svgIcon } from "../ui-vanilla";
+import { createIconButton, createTooltip, svgIcon } from "@anytime-markdown/ui-core";
 import {
   computeBlockAlignment,
   computeBlockCollapsePlan,

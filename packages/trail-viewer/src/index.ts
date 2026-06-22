@@ -29,6 +29,12 @@ export type { TrailViewerCoreProps } from './components/TrailViewerCore';
 export { TrailViewerApp } from './components/TrailViewerApp';
 export type { TrailViewerAppProps } from './components/TrailViewerApp';
 
+// vanilla エントリ（素 DOM ホスト用）。React を介さず container へ直接マウントする。
+export { mountTrailViewerApp } from './views/trailViewerApp';
+export type { TrailViewerAppViewProps } from './views/trailViewerApp';
+// vanilla UI（ui-core）の --am-color-* テーマ変数をホストが注入する。
+export { applyTrailThemeVars, trailThemeCssVars } from './theme/applyTrailThemeVars';
+
 export { PromptManager } from './components/PromptManager';
 export type { PromptManagerProps } from './components/PromptManager';
 

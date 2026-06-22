@@ -18,14 +18,14 @@ import {
   getHljsCssVars,
   getEditDialogBg,
 } from "@anytime-markdown/markdown-viewer";
-import { createDialog } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Dialog";
-import { createTabs } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Tabs";
-import { createButton } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Button";
-import { createIconButton } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/IconButton";
-import { createMenu } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Menu";
-import { createMenuItem } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/MenuItem";
-import { ensureStyle } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/dom";
-import { createMediaQuery } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/mediaQuery";
+import { createDialog } from "@anytime-markdown/ui-core/Dialog";
+import { createTabs } from "@anytime-markdown/ui-core/Tabs";
+import { createButton } from "@anytime-markdown/ui-core/Button";
+import { createIconButton } from "@anytime-markdown/ui-core/IconButton";
+import { createMenu } from "@anytime-markdown/ui-core/Menu";
+import { createMenuItem } from "@anytime-markdown/ui-core/MenuItem";
+import { ensureStyle } from "@anytime-markdown/ui-core/dom";
+import { createMediaQuery } from "@anytime-markdown/ui-core/mediaQuery";
 import { escapeHtml } from "@anytime-markdown/markdown-viewer/src/utils/escapeHtml";
 import type { ZoomPanController } from "./zoomPanState";
 

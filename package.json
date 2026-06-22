@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -24,6 +24,7 @@
     "packages/database-core",
     "packages/database-viewer",
     "packages/graph-core",
+    "packages/ui-core",
     "packages/mcp-markdown",
     "packages/mcp-graph",
     "packages/cms-core",

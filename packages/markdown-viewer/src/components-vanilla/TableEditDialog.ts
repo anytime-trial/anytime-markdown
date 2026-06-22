@@ -3,9 +3,9 @@ import type { Editor } from "@anytime-markdown/markdown-core";
 
 import { createTiptapSheetAdapter } from "../spreadsheet/TiptapSheetAdapter";
 import type { TranslationFn } from "../types";
-import { createDialog, nextDialogTitleId } from "../ui-vanilla/Dialog";
-import { confirmWithDialog } from "../ui-vanilla/confirmDialog";
-import { createIconButton } from "../ui-vanilla/IconButton";
+import { createDialog, nextDialogTitleId } from "@anytime-markdown/ui-core/Dialog";
+import { confirmWithDialog } from "@anytime-markdown/ui-core/confirmDialog";
+import { createIconButton } from "@anytime-markdown/ui-core/IconButton";
 
 /**
  * 表の全画面スプレッドシート編集ダイアログ（旧 React TableDialogHost の vanilla 版）。

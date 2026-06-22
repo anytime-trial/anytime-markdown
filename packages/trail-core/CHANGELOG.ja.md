@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-06-22
+
+### 変更
+
+- `anytime-trail` 拡張リリース v0.29.0 に合わせてバージョンを更新（`trail-core` 自体の機能変更なし。同梱の trail-viewer / mcp-trail / trail-server / chart-core の変更は anytime-trail 拡張の CHANGELOG を参照）。
+
 ## [0.28.0] - 2026-06-20
 
 ### 変更

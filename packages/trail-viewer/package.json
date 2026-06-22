@@ -12,10 +12,11 @@
     "./supabase": "./src/supabase/index.ts"
   },
   "dependencies": {
+    "@anytime-markdown/chart-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trace-viewer": "*",
-    "@mui/x-charts": "9.0.1",
+    "@anytime-markdown/ui-core": "*",
     "dompurify": "3.4.0",
     "graphology": "0.26.0",
     "marked": "17.0.3",
@@ -24,8 +25,6 @@
   "peerDependencies": {
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/graph-react-islands": "*",
-    "@mui/icons-material": ">=7",
-    "@mui/material": ">=7",
     "react": ">=19",
     "react-dom": ">=19"
   }

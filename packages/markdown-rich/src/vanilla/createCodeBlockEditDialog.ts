@@ -8,7 +8,7 @@ import {
   getDivider, getHljsCssVars,
   FS_PANEL_HEADER_FONT_SIZE,
 } from "@anytime-markdown/markdown-viewer";
-import { createDialog } from "@anytime-markdown/markdown-viewer/src/ui-vanilla/Dialog";
+import { createDialog } from "@anytime-markdown/ui-core/Dialog";
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
 
 import type { ZoomPanController } from "./zoomPanState";

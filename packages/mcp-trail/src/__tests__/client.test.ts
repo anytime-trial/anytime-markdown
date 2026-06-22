@@ -19,6 +19,11 @@ import {
   listCommunities,
   upsertCommunitySummaries,
   upsertCommunityMappings,
+  getCodeGraphExplain,
+  getFileAnalysis,
+  getCodeGraphQuery,
+  getCodeGraphPath,
+  getTemporalCoupling,
 } from '../client';
 
 const ORIGINAL_FETCH = globalThis.fetch;
@@ -408,6 +413,60 @@ describe('client.ts', () => {
       expect(res.progressLog).toHaveLength(1);
       expect(res.progressLog[0].phase).toBe('build');
       expect(res.progressLog[0].percent).toBe(50);
+    });
+  });
+
+  describe('discovery HTTP callers', () => {
+    test('getCodeGraphExplain → GET /api/code-graph/explain?id=&repo=', async () => {
+      const payload = { node: { id: 'a.ts' }, incoming: [], outgoing: [] };
+      const fetchMock = mockFetch([{ ok: true, status: 200, body: payload }]);
+      const out = await getCodeGraphExplain(URL, 'pkg/a.ts', 'repo1');
+      expect(out).toEqual(payload);
+      expect(fetchMock.mock.calls[0][0]).toBe(`${URL}/api/code-graph/explain?id=pkg%2Fa.ts&repo=repo1`);
+    });
+
+    test('getFileAnalysis → GET /api/c4/file-analysis?repo=&tag=current', async () => {
+      const payload = { entries: [], elementMatrix: {} };
+      const fetchMock = mockFetch([{ ok: true, status: 200, body: payload }]);
+      const out = await getFileAnalysis(URL, 'repo1');
+      expect(out).toEqual(payload);
+      expect(fetchMock.mock.calls[0][0]).toBe(`${URL}/api/c4/file-analysis?repo=repo1&tag=current`);
+    });
+  });
+
+  describe('Phase3 HTTP callers: query / path / temporal-coupling', () => {
+    test('getCodeGraphQuery with depth → exact URL', async () => {
+      const payload = { nodes: ['Foo'], edges: [] };
+      const fetchMock = mockFetch([{ ok: true, status: 200, body: payload }]);
+      const out = await getCodeGraphQuery(URL, 'Foo', 'repo1', 1);
+      expect(out).toEqual(payload);
+      expect(fetchMock.mock.calls[0][0]).toBe(`${URL}/api/code-graph/query?q=Foo&repo=repo1&depth=1`);
+    });
+
+    test('getCodeGraphQuery without depth → no depth param', async () => {
+      const payload = { nodes: [], edges: [] };
+      const fetchMock = mockFetch([{ ok: true, status: 200, body: payload }]);
+      const out = await getCodeGraphQuery(URL, 'Foo', 'repo1');
+      expect(out).toEqual(payload);
+      expect(fetchMock.mock.calls[0][0]).toBe(`${URL}/api/code-graph/query?q=Foo&repo=repo1`);
+    });
+
+    test('getCodeGraphPath → encodes colons in from/to', async () => {
+      const payload = { found: true, path: ['a:x', 'b:y'], hops: 1 };
+      const fetchMock = mockFetch([{ ok: true, status: 200, body: payload }]);
+      const out = await getCodeGraphPath(URL, 'a:x', 'b:y', 'repo1');
+      expect(out).toEqual(payload);
+      expect(fetchMock.mock.calls[0][0]).toBe(`${URL}/api/code-graph/path?from=a%3Ax&to=b%3Ay&repo=repo1`);
+    });
+
+    test('getTemporalCoupling with windowDays+topK → exact URL (repo→granularity→windowDays→topK)', async () => {
+      const payload = { edges: [{ source: 'a.ts', target: 'b.ts', jaccard: 0.8 }] };
+      const fetchMock = mockFetch([{ ok: true, status: 200, body: payload }]);
+      const out = await getTemporalCoupling(URL, 'repo1', { windowDays: 30, topK: 100 });
+      expect(out).toEqual(payload);
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        `${URL}/api/temporal-coupling?repo=repo1&granularity=commit&windowDays=30&topK=100`,
+      );
     });
   });
 

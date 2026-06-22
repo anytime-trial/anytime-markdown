@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-06-22
+
+### Fixed
+
+- Inject the `ui-core` `--am-color-*` theme variables from the host (`applyTrailThemeVars`) so the vanilla trail viewer picks up light/dark theming; add `@anytime-markdown/ui-core` to `transpilePackages`.
+
 ## [0.31.0] - 2026-06-20
 
 ### Added

@@ -29,7 +29,7 @@ export async function searchSemantic(db: DocDb, embed: EmbedFn, query: string, k
        FROM doc_embedding AS e
        LEFT JOIN doc AS d ON d.path = e.path`,
     )
-    .all() as EmbRow[];
+    .all() as unknown as EmbRow[];
 
   const scored: DocHit[] = rows.map((r) => ({
     path: r.path,

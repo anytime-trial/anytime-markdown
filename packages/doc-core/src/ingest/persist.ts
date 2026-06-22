@@ -4,6 +4,7 @@
  */
 
 import type { DocDb } from '../db/open';
+import { withTx } from '../db/tx';
 import type { ExtractedDoc } from '../types';
 
 /** 1 ドキュメントを upsert する（related・FTS も同一トランザクションで更新）。 */
@@ -19,8 +20,12 @@ export function persistDoc(db: DocDb, doc: ExtractedDoc, updatedAt = new Date().
   const insRel = db.prepare('INSERT OR IGNORE INTO doc_relation (from_path, to_path, type) VALUES (?, ?, ?)');
   const delFts = db.prepare('DELETE FROM doc_fts WHERE path = ?');
   const insFts = db.prepare('INSERT INTO doc_fts (path, title, excerpt, body) VALUES (?, ?, ?, ?)');
+  const delSectionFts = db.prepare('DELETE FROM doc_section_fts WHERE path = ?');
+  const insSectionFts = db.prepare(
+    'INSERT INTO doc_section_fts (path, heading, level, body) VALUES (?, ?, ?, ?)',
+  );
 
-  const tx = db.transaction(() => {
+  withTx(db, () => {
     upsertDoc.run({
       path: doc.path,
       title: doc.title ?? null,
@@ -35,13 +40,14 @@ export function persistDoc(db: DocDb, doc: ExtractedDoc, updatedAt = new Date().
     for (const r of doc.related) insRel.run(r.fromPath, r.toPath, r.type);
     delFts.run(doc.path);
     insFts.run(doc.path, doc.title ?? '', doc.excerpt ?? '', doc.body);
+    delSectionFts.run(doc.path);
+    for (const s of doc.sections) insSectionFts.run(doc.path, s.heading, s.level, s.text);
   });
-  tx();
 }
 
 /** 既存 doc の content_hash を返す（未登録なら undefined）。増分判定用。 */
 export function getStoredHash(db: DocDb, path: string): string | undefined {
-  const row = db.prepare('SELECT content_hash FROM doc WHERE path = ?').get(path) as
+  const row = db.prepare('SELECT content_hash FROM doc WHERE path = ?').get(path) as unknown as
     | { content_hash: string }
     | undefined;
   return row?.content_hash;
