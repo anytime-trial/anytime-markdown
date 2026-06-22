@@ -253,6 +253,7 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     docCoreWired = wireDocCoreRunner({
       docsRoot: docCoreCfg.docsRoot,
       dbPath: path.join(path.dirname(cfg.trailDbPath), 'doc-core.db'),
+      statusPath: path.join(path.dirname(cfg.trailDbPath), 'doc-core-status.json'),
       embed: docEmbed,
       embedModel: docCoreCfg.embedModel,
       schedulerEnabled: true,

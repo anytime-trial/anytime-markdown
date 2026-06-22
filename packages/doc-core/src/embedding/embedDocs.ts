@@ -19,6 +19,10 @@ export interface EmbedOptions {
 export interface EmbedResult {
   embedded: number;
   skipped: number;
+  /** embed() が throw した件数（ollama 到達不可・timeout 等）。1 件の失敗でバッチ全体を中断しない（止血）。 */
+  failed: number;
+  /** 最初の失敗のメッセージ。観測用（silent failure 撲滅）。失敗が無ければ未設定。 */
+  firstError?: string;
 }
 
 interface PendingRow {
@@ -59,15 +63,31 @@ export async function embedDocs(db: DocDb, embed: EmbedFn, opts: EmbedOptions): 
   );
 
   let embedded = 0;
+  let failed = 0;
+  let firstError: string | undefined;
   for (const row of pending) {
     const text = buildEmbedText(row, maxChars);
     if (!text) continue;
-    const vec = await embed(text);
+    let vec: number[];
+    try {
+      vec = await embed(text);
+    } catch (err) {
+      // 1 件の embed 失敗（ollama 到達不可・timeout 等）でバッチ全体を中断しない。
+      // 失敗を握り潰さず件数と最初のエラーを呼出側へ返す（止血＋観測）。
+      failed += 1;
+      if (firstError === undefined) firstError = err instanceof Error ? err.message : String(err);
+      continue;
+    }
     if (!Array.isArray(vec) || vec.length === 0) continue;
     const hash = (hashOf.get(row.path) as unknown as { content_hash: string } | undefined)?.content_hash;
     if (!hash) continue; // doc が消えた等
     upsert.run({ path: row.path, model: opts.model, dim: vec.length, vec: float32ToBlob(vec), hash });
     embedded += 1;
   }
-  return { embedded, skipped: pending.length - embedded };
+  return {
+    embedded,
+    skipped: pending.length - embedded - failed,
+    failed,
+    ...(firstError === undefined ? {} : { firstError }),
+  };
 }

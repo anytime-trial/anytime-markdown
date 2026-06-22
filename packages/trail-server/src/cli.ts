@@ -370,6 +370,7 @@ program
       docCore = wireDocCoreRunner({
         docsRoot: docCoreDocsRoot,
         dbPath: join(dbStorageDir, 'doc-core.db'),
+        statusPath: join(dbStorageDir, 'doc-core-status.json'),
         embed: docEmbed,
         embedModel: lepOllama.models.embedding,
         schedulerEnabled,
