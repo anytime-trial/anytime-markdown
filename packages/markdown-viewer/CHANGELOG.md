@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-22
+
+### Changed
+
+- Extracted the vanilla UI primitives (14 components + icon set) from `graph-core` into the shared `@anytime-markdown/ui-core` package (internal refactor, no rendering behavior change).
+- `markdown-rich`: added combo-stacked / combo-area / markers sample charts to the `anytime-chart` fence.
+- `chart-core`: bottom legend layout, category-click drill-down events, and pie charts centered within the full rect.
+
+### Fixed
+
+- `chart-core`: series labels rendered in a near-identical color on bar/area charts now shift their legend adjacently to stay visible.
+
 ## [1.4.0] - 2026-06-20
 
 ### Added

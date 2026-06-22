@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-06-22
+
+### 修正
+
+- ホスト側で `ui-core` の `--am-color-*` テーマ変数を注入（`applyTrailThemeVars`）し、vanilla 化した trail viewer にライト/ダークテーマを反映。`@anytime-markdown/ui-core` を `transpilePackages` に追加。
+
 ## [0.31.0] - 2026-06-20
 
 ### 追加

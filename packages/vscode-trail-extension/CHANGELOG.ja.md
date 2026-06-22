@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-06-22
+
+### Trail Core (trail-viewer / mcp-trail / trail-server / chart-core)
+
+- `mcp-trail`: discovery ツールを追加 — `get_important_files`・`get_code_dependencies`（既存 TrailDataServer の HTTP 解析をラップ）に加え `query_code_graph` / `find_code_path` / `get_cochange_partners`。
+- `mcp-trail`: `query_code_graph` を検索専用に再設計（既定 depth=0・ノードサイズ順ランキング・detail モード）。誘導部分グラフとエッジ上限で結果膨張を抑制。
+- `trail-viewer`: `ui-core` ベースの素 DOM へ全面移行（React/@mui を置換）。Trace/Prompts は vanilla→React ブリッジで島として存置。`@mui` / `@mui/x-charts` / `@emotion` 依存を除去。
+- `trail-viewer`: 全チャートを `chart-core` Web Component（`<anytime-chart>`）へ移行。`AnytimeChartView` ラッパと円・積み上げ棒の spec 変換を追加。
+- vanilla/chart 移行中に表面化した複数のリグレッションを修正（C4 レベルボタン、C4/Prompts 空表示、埋込時のポップアップ覆い、棒グラフ選択ハイライト、combined チャート系列）。
+
 ## [0.28.0] - 2026-06-20
 
 ### Trail Core (trail-core / trail-server / mcp-trail / memory-core)

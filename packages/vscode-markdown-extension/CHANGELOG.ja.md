@@ -6,6 +6,30 @@
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-22
+
+### 追加
+
+- `mcp-markdown` MCP サーバーを拡張に同梱し自動登録。拡張のインストールのみで Markdown MCP ツールが利用可能に。
+- `doc-core` ドキュメント検索パイプラインを同梱（node:sqlite ベースの ingest ＋ `search_docs` / `doc_backlinks` / `doc_neighbors`）。
+- Markdown スキル群を同梱し、起動時にワークスペースの `.claude/skills/` へ自動配置。
+
+### セキュリティ
+
+- 同梱スキル名のパストラバーサルを防止（`isSafeSkillName`）。
+
+### MCP (mcp-markdown)
+
+- `format_markdown` を追加。markdown-check 規約に沿って in-place 整形し、差分サマリのみ返してトークンを削減。
+- `search_sections` / `get_frontmatter` / `update_frontmatter` / `grep_markdown` を追加。
+- `search_docs` の抜粋・`get_section` の `maxChars` に対応し、節単位の FTS を追加。
+- 見出し上の空行を 2 → 1 に変更（整形規約の更新）。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- vanilla UI プリミティブを `@anytime-markdown/ui-core` へ抽出。
+- `anytime-chart` に combo-stacked / combo-area / markers サンプルを追加。chart-core の下部凡例・ドリルダウン・円グラフ中心配置。
+
 ## [1.4.0] - 2026-06-20
 
 ### 追加
