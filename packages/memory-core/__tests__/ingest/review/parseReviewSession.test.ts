@@ -561,8 +561,9 @@ describe('parseReviewSessions', () => {
     trailDb.close();
   }, 30000);
 
-  // Additional: reviewer is 'unknown' (default)
-  test('sets reviewer to unknown', async () => {
+  // reviewer はブロックのラベル(subagent_type)になる。旧実装は 'unknown' 固定で、
+  // memory_reviews.reviewer が全件空になっていた(RC1)。
+  test('sets reviewer from subagent_type label', async () => {
     const mainDb = makeMainDb();
     const trailDb = makeTrailDb();
 
@@ -582,7 +583,35 @@ describe('parseReviewSessions', () => {
       logger: silentLogger,
     });
 
-    expect(results[0].reviewer).toBe('unknown');
+    expect(results[0].reviewer).toBe('superpowers:code-reviewer');
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  // subagent_type が無くスキル経由のレビューは skill ラベルを reviewer にする。
+  test('falls back to skill label when subagent_type is null', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    insertMsg(trailDb, {
+      uuid: 'rev-skill-1',
+      session_id: 'sess-skill',
+      type: 'assistant',
+      timestamp: '2026-05-02T10:00:00.000Z',
+      subagent_type: null,
+      skill: 'superpowers:requesting-code-review',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results[0].reviewer).toBe('superpowers:requesting-code-review');
 
     mainDb.close();
     trailDb.close();

@@ -4,7 +4,24 @@ import {
   inferSeverityFromHeading,
   inferSeverity,
   extractTargetFromFinding,
+  maxSeverity,
 } from '../../../src/ingest/review/findingHelpers';
+
+describe('maxSeverity', () => {
+  test('empty findings → info', () => {
+    expect(maxSeverity([])).toBe('info');
+  });
+  test('all info → info', () => {
+    expect(maxSeverity([{ severity: 'info' }, { severity: 'info' }])).toBe('info');
+  });
+  test('warn present, no error → warn', () => {
+    expect(maxSeverity([{ severity: 'info' }, { severity: 'warn' }])).toBe('warn');
+  });
+  test('error present → error (regardless of order)', () => {
+    expect(maxSeverity([{ severity: 'warn' }, { severity: 'error' }, { severity: 'info' }])).toBe('error');
+    expect(maxSeverity([{ severity: 'error' }, { severity: 'warn' }])).toBe('error');
+  });
+});
 
 describe('extractProblemSuggestionPairs', () => {
   // ── Existing strict format (must keep passing) ────────────────────────────

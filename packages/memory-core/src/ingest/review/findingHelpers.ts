@@ -17,6 +17,21 @@ export type ParsedFinding = {
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 /**
+ * 指摘群の最大重大度を返す（error > warn > info）。memory_reviews.severity_overall に使う。
+ * 指摘が無ければ 'info'。
+ */
+export function maxSeverity(
+  findings: ReadonlyArray<{ severity: ParsedFinding['severity'] }>,
+): ParsedFinding['severity'] {
+  let result: ParsedFinding['severity'] = 'info';
+  for (const f of findings) {
+    if (f.severity === 'error') return 'error';
+    if (f.severity === 'warn') result = 'warn';
+  }
+  return result;
+}
+
+/**
  * Category inference from chapter title.
  * Note: a11y is checked before design so that コントラスト (a11y) takes precedence
  * over カラー (design) when both appear in the same title.
