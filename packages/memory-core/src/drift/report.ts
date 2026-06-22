@@ -1,6 +1,8 @@
 import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
 import type { DriftType, Severity } from './policy';
+import { entityId } from '../canonical/entityId';
+import { canonicalize } from '../canonical/canonicalize';
 
 export type DriftEventInput = {
   subject_entity_id: string;
@@ -34,6 +36,65 @@ function eventId(subjectId: string, predicate: string, driftType: string): strin
   return `drift:${subjectId}:${predicate}:${driftType}`;
 }
 
+function ensureEntity(
+  db: MemoryDbConnection,
+  id: string,
+  type: string,
+  canonicalName: string,
+  displayName: string,
+  recordedAt: string,
+): void {
+  db.run(
+    `INSERT OR IGNORE INTO memory_entities
+       (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
+        first_seen_at, last_updated_at, recorded_at)
+     VALUES (?, ?, ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
+    [id, type, canonicalName, displayName, recordedAt, recordedAt, recordedAt],
+  );
+}
+
+/**
+ * drift candidate の subject_entity_id を **正準 entity id** へ解決し、FK を満たすため
+ * 対応する memory_entities 行を冪等に確保して、解決後の id を返す。
+ *
+ * 一部の検出器は `file:<path>` / `package:<name>` / `spec_clarification:<key>` 等の合成 ID を
+ * subject にする。memory_drift_events.subject_entity_id は memory_entities(id) への FK を持つため、
+ * これを実 entity に写像しないと FK 違反で INSERT が silent に欠落していた（regression_cluster 等が
+ * 常に 0 件だった真因）。さらに memory_entities は UNIQUE(type, canonical_name) を持つので、合成 ID を
+ * 生パスのまま canonical_name にすると既存の実 File entity（canonical_name=canonicalize(path)）と衝突し、
+ * INSERT OR IGNORE が黙ってスキップして FK 違反が再発する。
+ *
+ * 対策:
+ * - `file:`/`package:` は ingest 側と同じ `entityId(type, canonicalize(name))` で正準 id を算出し、
+ *   既存の実 File/Package entity に**連結**する（無ければ正準スキームで作成）。
+ * - `spec_clarification:` は対応する実 entity が無いので、接頭辞付き id をそのまま Question entity として
+ *   確保する（canonical_name も接頭辞付きで実 Question と衝突しない）。
+ * - 接頭辞無し（recurring_root_cause 等の実 entity id）はそのまま返す（既存なら no-op）。
+ */
+function resolveSubjectEntity(db: MemoryDbConnection, subjectId: string, recordedAt: string): string {
+  if (subjectId.startsWith('file:')) {
+    const path = subjectId.slice('file:'.length);
+    const canon = canonicalize(path);
+    const id = entityId('File', canon);
+    ensureEntity(db, id, 'File', canon, path, recordedAt);
+    return id;
+  }
+  if (subjectId.startsWith('package:')) {
+    const pkg = subjectId.slice('package:'.length);
+    const canon = canonicalize(pkg);
+    const id = entityId('Package', canon);
+    ensureEntity(db, id, 'Package', canon, pkg, recordedAt);
+    return id;
+  }
+  if (subjectId.startsWith('spec_clarification:')) {
+    ensureEntity(db, subjectId, 'Question', subjectId, subjectId.slice('spec_clarification:'.length), recordedAt);
+    return subjectId;
+  }
+  // 接頭辞無し = 実 entity id（既存なら no-op。念のため不在時は Concept stub で FK を満たす）。
+  ensureEntity(db, subjectId, 'Concept', subjectId, subjectId, recordedAt);
+  return subjectId;
+}
+
 export function reportDriftEvents(input: {
   db: MemoryDbConnection;
   candidates: DriftEventInput[];
@@ -44,6 +105,13 @@ export function reportDriftEvents(input: {
   const { db, candidates, recordedAt, autoResolveStale = true, logger } = input;
 
   const result: ReportResult = { events_inserted: 0, events_updated: 0, events_resolved: 0 };
+
+  // 0. subject_entity_id を正準 entity id へ正規化し、FK 用に entity を確保する。
+  //    以降の key 計算・突合・INSERT はすべて正規化後の id で行う。
+  const normalizedCandidates = candidates.map((c) => ({
+    ...c,
+    subject_entity_id: resolveSubjectEntity(db, c.subject_entity_id, recordedAt),
+  }));
 
   // 1. 既存の active drift events を取得
   const rows = db.exec(
@@ -58,7 +126,7 @@ export function reportDriftEvents(input: {
 
   // 2. 候補を Set 化
   const candidateKeys = new Set(
-    candidates.map((c) => driftKey(c.subject_entity_id, c.predicate, c.drift_type)),
+    normalizedCandidates.map((c) => driftKey(c.subject_entity_id, c.predicate, c.drift_type)),
   );
 
   // 3. auto-resolve: 候補に含まれなくなった既存 event
@@ -87,7 +155,7 @@ export function reportDriftEvents(input: {
     activeByKey.set(driftKey(ev.subject_entity_id, ev.predicate, ev.drift_type), ev);
   }
 
-  for (const candidate of candidates) {
+  for (const candidate of normalizedCandidates) {
     const key = driftKey(candidate.subject_entity_id, candidate.predicate, candidate.drift_type);
     const existing = activeByKey.get(key);
     const detailJson = JSON.stringify({ ...candidate.detail, policy_version: 'phase4-v1' });
@@ -104,7 +172,8 @@ export function reportDriftEvents(input: {
         logger.error(`[reportDriftEvents] update failed id=${existing.id}: ${String(err)}`);
       }
     } else {
-      // 新規 INSERT（resolved の行があっても新規行として追加）
+      // 新規 INSERT（resolved の行があっても新規行として追加）。
+      // subject entity は step 0 で正規化・確保済みなので FK は満たされる。
       try {
         db.run(
           `INSERT INTO memory_drift_events

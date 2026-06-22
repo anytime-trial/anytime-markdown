@@ -3,6 +3,8 @@ import { runMigrations } from '../../src/db/migrations/runner';
 import { reportDriftEvents } from '../../src/drift/report';
 import type { DriftEventInput } from '../../src/drift/report';
 import type { MemoryLogger } from '../../src/logger';
+import { entityId } from '../../src/canonical/entityId';
+import { canonicalize } from '../../src/canonical/canonicalize';
 
 const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
 
@@ -63,6 +65,112 @@ describe('reportDriftEvents', () => {
       "SELECT severity FROM memory_drift_events WHERE drift_type = 'spec_vs_code' AND resolved_at IS NULL",
     );
     expect(rows[0]?.values[0]?.[0]).toBe('error');
+  });
+
+  // 回帰: 検出器が生成する合成 ID(file:/package:/spec_clarification:)は memory_entities に
+  // 直接存在しないため、旧実装では FK 違反で INSERT が silent に弾かれ regression_cluster 等が
+  // 常に 0 件だった。reportDriftEvents が正準 entity へ写像・確保することで救済する。
+  it('synthetic file: id → 正準 File entity を作成して連結し insert 成功', () => {
+    const db = makeDb(); // foreign_keys = ON
+    const result = reportDriftEvents({
+      db,
+      candidates: [
+        makeCandidate('file:packages/foo/bar.ts', {
+          predicate: 'affects',
+          drift_type: 'regression_cluster',
+          severity: 'error',
+        }),
+      ],
+      recordedAt: TS,
+      logger: silentLogger,
+    });
+
+    expect(result.events_inserted).toBe(1);
+
+    // drift の subject は合成 ID ではなく正準 File entity id（ハッシュ）。
+    const canonId = entityId('File', canonicalize('packages/foo/bar.ts'));
+    const drift = db.exec(
+      "SELECT subject_entity_id FROM memory_drift_events WHERE drift_type = 'regression_cluster'",
+    );
+    expect(drift[0]?.values[0]?.[0]).toBe(canonId);
+    const ent = db.exec(
+      'SELECT type, canonical_name FROM memory_entities WHERE id = ?',
+      [canonId],
+    );
+    expect(ent[0]?.values[0]?.[0]).toBe('File');
+    expect(ent[0]?.values[0]?.[1]).toBe('packages/foo/bar.ts');
+  });
+
+  // 回帰(レビュー#1): 実 File entity が canonicalize 済みで**既存**でも、UNIQUE(type,canonical_name)
+  // 衝突で entity 確保が黙ってスキップされ FK 違反が再発しないこと。合成 file: は既存の実 entity に
+  // 連結し、二重 File entity を作らない。
+  it('real File entity が既存でも file: candidate は連結して insert 成功（重複作成なし）', () => {
+    const db = makeDb();
+    const path = 'packages/foo/bar.ts';
+    const canon = canonicalize(path);
+    const realId = entityId('File', canon);
+    // ingest 相当: 正準 File entity を先行作成
+    db.run(
+      `INSERT INTO memory_entities
+         (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+       VALUES (?, 'File', ?, ?, ?, ?, ?)`,
+      [realId, canon, path, TS, TS, TS],
+    );
+
+    const result = reportDriftEvents({
+      db,
+      candidates: [
+        makeCandidate(`file:${path}`, {
+          predicate: 'affects',
+          drift_type: 'regression_cluster',
+          severity: 'error',
+        }),
+      ],
+      recordedAt: TS,
+      logger: silentLogger,
+    });
+
+    expect(result.events_inserted).toBe(1);
+    // File entity は重複せず 1 件のまま。
+    const cnt = db.exec(
+      "SELECT COUNT(*) FROM memory_entities WHERE type = 'File' AND canonical_name = ?",
+      [canon],
+    );
+    expect(cnt[0]?.values[0]?.[0]).toBe(1);
+    // drift は既存の実 entity に連結。
+    const drift = db.exec("SELECT subject_entity_id FROM memory_drift_events WHERE drift_type='regression_cluster'");
+    expect(drift[0]?.values[0]?.[0]).toBe(realId);
+  });
+
+  it('synthetic package: / spec_clarification: id も entity 確保して insert 成功', () => {
+    const db = makeDb();
+    const result = reportDriftEvents({
+      db,
+      candidates: [
+        makeCandidate('package:trail-viewer', {
+          predicate: 'spec_violation',
+          drift_type: 'spec_violation_cluster',
+          severity: 'warn',
+        }),
+        makeCandidate('spec_clarification:auth-flow', {
+          predicate: 'clarifies',
+          drift_type: 'spec_clarification_recurring',
+          severity: 'info',
+        }),
+      ],
+      recordedAt: TS,
+      logger: silentLogger,
+    });
+    expect(result.events_inserted).toBe(2);
+    // package: は正準 Package entity（canonical_name=canonicalize）へ写像。
+    const pkgId = entityId('Package', canonicalize('trail-viewer'));
+    const pkg = db.exec('SELECT type, canonical_name FROM memory_entities WHERE id = ?', [pkgId]);
+    expect(pkg[0]?.values[0]?.[0]).toBe('Package');
+    // spec_clarification: は対応する実 entity が無いため接頭辞付き id の Question entity。
+    const q = db.exec(
+      "SELECT type FROM memory_entities WHERE id = 'spec_clarification:auth-flow'",
+    );
+    expect(q[0]?.values[0]?.[0]).toBe('Question');
   });
 
   it('I9: three_way 1 件 → events_inserted=1', () => {
