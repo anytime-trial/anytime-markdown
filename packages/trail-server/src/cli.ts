@@ -29,7 +29,7 @@ import {
   OllamaThrottleGovernor,
 } from '@anytime-markdown/agent-core';
 import type { EmbedFn } from '@anytime-markdown/doc-core';
-import { createDocCoreRunner } from './runtime/docCoreRunner';
+import { wireDocCoreRunner, type WiredDocCore } from './runtime/docCoreRunner';
 import { checkLlmAvailability } from './lep/LlmAvailability';
 import { AnalyzeAllRunner, type AnalyzeAllRunnerOptions } from './runner/AnalyzeAllRunner';
 import { createFetchGitHubReviewClient } from './lep/ingesters/github/GitHubReviewClient';
@@ -360,28 +360,20 @@ program
     // doc-core: ドキュメント検索 DB（doc-core.db）の ingest。memory-core/importAll とは独立した
     // 疎結合ランナーで、失敗は内部で握り潰す。設定は lep.json の sources.docs.root のみ（空=既定オフ）。
     const docCoreDocsRoot = lepConfig.sources.docs.root.trim();
-    let docCoreRunner: ReturnType<typeof createDocCoreRunner> | null = null;
-    let docCoreInterval: ReturnType<typeof setInterval> | null = null;
+    let docCore: WiredDocCore | null = null;
     if (docCoreDocsRoot) {
       const docEmbedClient = throttledOllamaFactory
         ? throttledOllamaFactory()
         : createOllamaClient({ baseUrl: resolvedOllamaBaseUrl });
       const docEmbed: EmbedFn = async (text) =>
         Array.from((await docEmbedClient.embeddings({ model: lepOllama.models.embedding, prompt: text })).embedding);
-      docCoreRunner = createDocCoreRunner({
+      docCore = wireDocCoreRunner({
         docsRoot: docCoreDocsRoot,
         dbPath: join(dbStorageDir, 'doc-core.db'),
         embed: docEmbed,
         embedModel: lepOllama.models.embedding,
+        schedulerEnabled,
         logSink: { appendLine: (msg: string) => logger.info(msg) },
-      });
-      void docCoreRunner.runOnce();
-      if (schedulerEnabled) {
-        docCoreInterval = setInterval(() => void docCoreRunner?.runOnce(), 30 * 60 * 1000);
-      }
-      logger.info('doc-core runner wired', {
-        docsRoot: docCoreDocsRoot,
-        dbPath: join(dbStorageDir, 'doc-core.db'),
       });
     }
 
@@ -406,7 +398,7 @@ program
       try { await analyzeAllRunner.dispose(); } catch (err) { logger.error('analyze-all runner dispose failed', err); }
       try { await memoryCoreService.dispose(); } catch (err) { logger.error('memory-core dispose failed', err); }
       try { rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }
-      try { if (docCoreInterval) clearInterval(docCoreInterval); docCoreRunner?.dispose(); } catch (err) { logger.error('doc-core runner dispose failed', err); }
+      try { docCore?.dispose(); } catch (err) { logger.error('doc-core runner dispose failed', err); }
       // ChatBridge holds WebSocket connections; dispose after scheduler/ingest stop but before server closes.
       try { await chatBridge.dispose(); } catch (err) { logger.error('chat bridge dispose failed', err); }
       try { await server.stop(); } catch (err) { logger.error('server stop failed', err); }
