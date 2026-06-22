@@ -43,6 +43,15 @@ export function planSkillInstall(bundled: SkillManifest, installed: SkillManifes
   return plan;
 }
 
+/**
+ * スキル名が単一のディレクトリ名（パス区切り・`..`・絶対パスを含まない）か検証する。
+ * manifest は同梱（信頼境界内）だが、ワークスペース永続領域へ書き込むため
+ * defense-in-depth でパストラバーサルを防ぐ。
+ */
+export function isSafeSkillName(name: string): boolean {
+  return name.length > 0 && !name.includes('..') && path.basename(name) === name;
+}
+
 function readJsonObject(filePath: string): Record<string, unknown> | null {
   try {
     const raw = fs.readFileSync(filePath, 'utf8');
@@ -106,6 +115,10 @@ export function installSkills(opts: InstallOptions): InstallResult {
 
   const succeeded: InstallPlanItem[] = [];
   for (const item of plan) {
+    if (!isSafeSkillName(item.name)) {
+      log('error', `不正なスキル名をスキップ（パストラバーサル防止）: ${item.name}`);
+      continue;
+    }
     try {
       const srcFile = path.join(skillsSrcDir, item.name, 'SKILL.md');
       const destDir = path.join(skillsDestDir, item.name);

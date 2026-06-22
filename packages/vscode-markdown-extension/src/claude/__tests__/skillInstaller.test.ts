@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { planSkillInstall, installSkills, SKILL_MARKER } from '../skillInstaller';
+import { planSkillInstall, installSkills, isSafeSkillName, SKILL_MARKER } from '../skillInstaller';
 
 describe('planSkillInstall', () => {
   it('plans all skills as new when nothing is installed', () => {
@@ -80,6 +80,31 @@ describe('installSkills', () => {
       fs.rmSync(ext, { recursive: true });
       fs.rmSync(ws, { recursive: true });
     }
+  });
+
+  it('rejects unsafe skill names (path traversal) without copying outside the skills dir', () => {
+    const ext = setupExtension({ 'anytime-mermaid': 1 });
+    // 不正名を manifest に注入（同梱は信頼境界内だが defense-in-depth を検証）
+    const manifestPath = path.join(ext, 'skills', 'manifest.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({ '../evil': 1, 'anytime-mermaid': 1 }));
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-'));
+    try {
+      const logs: Array<[string, string]> = [];
+      const res = installSkills({ extensionFsPath: ext, workspaceFsPath: ws, log: (l, m) => logs.push([l, m]) });
+      expect(res.installed.map((i) => i.name)).toEqual(['anytime-mermaid']);
+      expect(logs.some(([l, m]) => l === 'error' && m.includes('../evil'))).toBe(true);
+      expect(fs.existsSync(path.join(ws, 'evil'))).toBe(false);
+    } finally {
+      fs.rmSync(ext, { recursive: true });
+      fs.rmSync(ws, { recursive: true });
+    }
+  });
+
+  it('isSafeSkillName accepts plain names and rejects traversal', () => {
+    expect(isSafeSkillName('anytime-mermaid')).toBe(true);
+    expect(isSafeSkillName('../evil')).toBe(false);
+    expect(isSafeSkillName('a/b')).toBe(false);
+    expect(isSafeSkillName('')).toBe(false);
   });
 
   it('logs an error when the manifest is missing', () => {
