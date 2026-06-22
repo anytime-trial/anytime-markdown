@@ -9,10 +9,22 @@ import { float32ToBlob } from './blob';
 /** テキスト → 埋め込みベクトル。daemon が ollama を、テストが fake を供給する。 */
 export type EmbedFn = (text: string) => Promise<number[]>;
 
+/**
+ * 埋め込み入力テキストの既定最大文字数。
+ *
+ * bge-m3 のコンテキスト上限は 8192 トークンで、超過すると ollama が
+ * `HTTP 500 {"error":"the input length exceeds the context length"}` を返す
+ * （num_ctx を上げてもモデル上限のため解消しない）。日本語 spec は文字あたりの
+ * トークン数が高く（実測で ~6000 文字 ≈ 8192 トークン、密度の高い表・漢字主体の
+ * doc は 4000 文字でも超過）、全 spec を 3000 文字に切り詰めると実測で 91/91 が成功した。
+ * 安全余裕を見て 3000 を既定とする。長文の全体を埋め込むにはチャンク分割が必要（別課題）。
+ */
+export const DEFAULT_MAX_EMBED_CHARS = 3000;
+
 export interface EmbedOptions {
   /** 埋め込みモデル名（doc_embedding.model に記録。モデル変更で再 embed される）。 */
   model: string;
-  /** 埋め込み対象テキストの最大文字数（既定 8000）。 */
+  /** 埋め込み対象テキストの最大文字数（既定 {@link DEFAULT_MAX_EMBED_CHARS}）。 */
   maxChars?: number;
 }
 
@@ -44,7 +56,7 @@ function buildEmbedText(row: PendingRow, maxChars: number): string {
  * @param embed 埋め込み生成関数（注入）
  */
 export async function embedDocs(db: DocDb, embed: EmbedFn, opts: EmbedOptions): Promise<EmbedResult> {
-  const maxChars = opts.maxChars ?? 8000;
+  const maxChars = opts.maxChars ?? DEFAULT_MAX_EMBED_CHARS;
   const pending = db
     .prepare(
       `SELECT d.path AS path, d.title AS title, d.excerpt AS excerpt, f.body AS body

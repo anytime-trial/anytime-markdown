@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { openDocDb, type DocDb } from '../../db/open';
 import { ingestDocs } from '../../ingest/ingestDocs';
-import { embedDocs, type EmbedFn } from '../embedDocs';
+import { embedDocs, DEFAULT_MAX_EMBED_CHARS, type EmbedFn } from '../embedDocs';
 
 /**
  * 止血(RC3): embed() の単発失敗(ollama到達不可・timeout等)でバッチ全体を中断せず、
@@ -55,5 +55,52 @@ describe('embedDocs resilience on per-item embed failure', () => {
     expect(r.embedded).toBe(0);
     expect(r.failed).toBe(3);
     expect(r.firstError).toContain('ollama down');
+  });
+});
+
+/**
+ * RC3 続: bge-m3 の 8192 トークン上限超過(HTTP 500)を防ぐため、埋め込み入力を
+ * 既定 DEFAULT_MAX_EMBED_CHARS(=3000) に切り詰める回帰。旧既定 8000 では密度の高い
+ * 日本語 doc が context length 超過で 500 になり doc_embedding が空になっていた。
+ */
+describe('embedDocs truncates input to maxChars (bge-m3 context guard)', () => {
+  let dir: string;
+  let db: DocDb;
+  const longBody = 'あ'.repeat(20000); // 20k 文字の日本語本文
+
+  beforeEach(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-core-trunc-'));
+    const abs = path.join(dir, 'spec/long/long.ja.md');
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, `---\ntitle: long\ncategory: s\n---\n\n${longBody}\n`, 'utf8');
+    db = openDocDb(':memory:');
+    await ingestDocs(db, dir, { updatedAt: '2026-06-22T00:00:00.000Z' });
+  });
+
+  afterEach(() => {
+    db?.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('既定では embed に渡るテキストが DEFAULT_MAX_EMBED_CHARS 以下', async () => {
+    expect(DEFAULT_MAX_EMBED_CHARS).toBe(3000);
+    let seenLen = -1;
+    const spy: EmbedFn = (text) => {
+      seenLen = text.length;
+      return Promise.resolve([1, 0.5, -0.25]);
+    };
+    const r = await embedDocs(db, spy, { model: 'test-model' });
+    expect(r.embedded).toBe(1);
+    expect(seenLen).toBeLessThanOrEqual(DEFAULT_MAX_EMBED_CHARS);
+  });
+
+  it('maxChars override が効く', async () => {
+    let seenLen = -1;
+    const spy: EmbedFn = (text) => {
+      seenLen = text.length;
+      return Promise.resolve([1, 0.5, -0.25]);
+    };
+    await embedDocs(db, spy, { model: 'test-model', maxChars: 500 });
+    expect(seenLen).toBeLessThanOrEqual(500);
   });
 });
