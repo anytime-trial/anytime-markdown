@@ -1,9 +1,4 @@
-import {
-  DEFAULT_DARK_BG, DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_CODE_BG,
-  DEFAULT_LIGHT_INLINE_CODE,
-  getActionHover, getGrey,
-  HLJS_DARK, HLJS_LIGHT,
-} from "../constants/colors";
+import { HLJS_DARK, HLJS_LIGHT } from "../constants/colors";
 
 /** シンタックスハイライト（hljs）カラー定義 */
 function hljsStyles(h: typeof HLJS_DARK | typeof HLJS_LIGHT) {
@@ -45,31 +40,5 @@ export function getHljsCssVars(isDark: boolean): Record<string, string> {
     "--hljs-addition-bg": h.additionBg,
     "--hljs-deletion": h.deletion,
     "--hljs-deletion-bg": h.deletionBg,
-  };
-}
-
-/** インラインコード・コードブロック・シンタックスハイライトスタイル */
-export function getCodeStyles(isDark: boolean): Record<string, unknown> {
-  return {
-    "& code": {
-      bgcolor: isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG,
-      color: isDark ? getGrey(isDark, 300) : DEFAULT_LIGHT_INLINE_CODE,
-      px: 0.5,
-      py: 0.25,
-      borderRadius: 0.5,
-      fontFamily: "monospace",
-      fontSize: "0.875em",
-    },
-    "& pre": {
-      bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-      border: 1,
-      borderColor: isDark ? getActionHover(isDark) : "transparent",
-      borderRadius: 1,
-      p: 2,
-      my: 1,
-      overflow: "auto",
-      "& code": { bgcolor: "transparent", color: isDark ? getGrey(isDark, 300) : "inherit", p: 0, borderRadius: 0 },
-      ...hljsStyles(isDark ? HLJS_DARK : HLJS_LIGHT),
-    },
   };
 }

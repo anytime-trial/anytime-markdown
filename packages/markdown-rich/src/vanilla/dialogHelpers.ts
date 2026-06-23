@@ -16,7 +16,6 @@ import {
   SMALL_CAPTION_FONT_SIZE,
   CHIP_FONT_SIZE,
   getHljsCssVars,
-  getEditDialogBg,
 } from "@anytime-markdown/markdown-viewer";
 import { createDialog } from "@anytime-markdown/ui-core/Dialog";
 import { createTabs } from "@anytime-markdown/ui-core/Tabs";
@@ -37,17 +36,6 @@ export interface SampleItem {
 }
 
 export { createDialog, createTabs, createButton, createIconButton, createMenu, createMenuItem };
-
-// -------------------------
-// テーマユーティリティ
-// -------------------------
-
-export function applyEditorBg(el: HTMLElement, isDark: boolean, editorBg: string): void {
-  const bg = getEditDialogBg(isDark, { editorBg: editorBg as "white" | "grey" });
-  if (bg !== undefined) {
-    el.style.backgroundColor = bg;
-  }
-}
 
 // -------------------------
 // lineNumberTextarea (vanilla)
