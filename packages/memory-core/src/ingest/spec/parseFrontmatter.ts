@@ -7,7 +7,16 @@ import { z } from 'zod';
 export interface ParsedSpec {
   rel_path: string;
   frontmatter: {
-    type: 'spec' | 'tech' | 'plan' | 'manual' | 'proposal' | 'review' | 'report' | 'test';
+    type:
+      | 'spec'
+      | 'tech'
+      | 'plan'
+      | 'manual'
+      | 'proposal'
+      | 'review'
+      | 'report'
+      | 'test'
+      | 'reference';
     title: string;
     date: string;
     updated?: string;
@@ -44,7 +53,17 @@ const dateOrString = z
   });
 
 const FrontmatterSchema = z.object({
-  type: z.enum(['spec', 'tech', 'plan', 'manual', 'proposal', 'review', 'report', 'test']),
+  type: z.enum([
+    'spec',
+    'tech',
+    'plan',
+    'manual',
+    'proposal',
+    'review',
+    'report',
+    'test',
+    'reference',
+  ]),
   title: z.string().min(1),
   date: dateOrString,
   updated: dateOrString.optional(),
@@ -91,6 +110,22 @@ export function parseFrontmatter(input: {
       ok: false,
       reason: 'missing',
       detail: `no frontmatter block in ${rel_path}`,
+    };
+  }
+
+  // A frontmatter block that carries only non-spec metadata (e.g. typed-note
+  // `related:` links) without any of the spec-identifying keys (type/title/date)
+  // is not meant to be ingested as a spec record. Treat it as a soft skip
+  // (`missing`) rather than a hard `invalid`, so it does not count toward the
+  // quarantine threshold. A block with at least one spec key but invalid/incomplete
+  // values still falls through to zod validation and is reported as `invalid`.
+  const hasSpecKey =
+    'type' in parsed.data || 'title' in parsed.data || 'date' in parsed.data;
+  if (!hasSpecKey) {
+    return {
+      ok: false,
+      reason: 'missing',
+      detail: `frontmatter has no spec keys (type/title/date) in ${rel_path}`,
     };
   }
 
