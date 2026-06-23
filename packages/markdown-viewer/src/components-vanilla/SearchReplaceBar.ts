@@ -41,13 +41,13 @@ const PATH = {
 const SEARCH_DEBOUNCE_MS = 200;
 
 /** {@link createSearchReplaceBar} のオプション。 */
-export interface CreateSearchReplaceBarOptions {
+interface CreateSearchReplaceBarOptions {
   editor: Editor;
   t: TranslationFn;
 }
 
 /** {@link createSearchReplaceBar} の戻り値。 */
-export interface SearchReplaceBarHandle {
+interface SearchReplaceBarHandle {
   /** バーの root（role="search"・初期 display:none）。 */
   el: HTMLElement;
   /** onSearchStateChange の解除・タイマー破棄・DOM 除去。 */

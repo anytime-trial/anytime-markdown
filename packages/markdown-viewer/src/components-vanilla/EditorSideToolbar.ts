@@ -48,7 +48,7 @@ const ICON = {
 const ICON_PX = 20;
 
 /** {@link createEditorSideToolbar} の生成オプション。 */
-export interface CreateEditorSideToolbarOptions {
+interface CreateEditorSideToolbarOptions {
   /** i18n（aria-label / tooltip）。useMarkdownT 相当を opts で受ける。 */
   t: (key: string) => string;
   /** 初期: ソースモード（outline / comment ボタンを無効化）。 */
@@ -79,7 +79,7 @@ export interface CreateEditorSideToolbarOptions {
 }
 
 /** 外部から流し込む可変状態（開閉 / ソースモード）。 */
-export interface EditorSideToolbarState {
+interface EditorSideToolbarState {
   sourceMode?: boolean;
   outlineOpen?: boolean;
   commentOpen?: boolean;

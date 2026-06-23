@@ -131,7 +131,7 @@ export function installHeadingsNotifier(
 }
 
 /** {@link createAutoReloadController} の戻り値。 */
-export interface AutoReloadController {
+interface AutoReloadController {
   /** autoReload の ON/OFF を反映する（baseline 設定 / クリア + キーボードナビ listener）。 */
   set(autoReload: boolean): void;
   dispose(): void;

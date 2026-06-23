@@ -169,7 +169,7 @@ function makeCompactBar(
 
 // ===== YouTube ビュー =====
 
-export interface YouTubeViewResult {
+interface YouTubeViewResult {
   el: HTMLElement;
   destroy(): void;
 }
@@ -214,7 +214,7 @@ export function createYouTubeView(
 
 // ===== Spotify ビュー =====
 
-export interface SpotifyViewResult {
+interface SpotifyViewResult {
   el: HTMLElement;
   destroy(): void;
 }
@@ -258,7 +258,7 @@ export function createSpotifyView(
 
 // ===== Figma ビュー =====
 
-export interface FigmaViewResult {
+interface FigmaViewResult {
   el: HTMLElement;
   destroy(): void;
 }
@@ -302,7 +302,7 @@ export function createFigmaView(
 
 // ===== Draw.io ビュー =====
 
-export interface DrawioViewResult {
+interface DrawioViewResult {
   el: HTMLElement;
   destroy(): void;
 }
@@ -348,7 +348,7 @@ export function createDrawioView(
 // `providers.loadTweetWidgets` フックに委譲する。共有モジュールはリモート
 // エンドポイントを一切持たない（Chrome MV3 のリモートホストコード禁止対策）。
 
-export interface TwitterViewResult {
+interface TwitterViewResult {
   el: HTMLElement;
   destroy(): void;
 }
@@ -464,7 +464,7 @@ export function createTwitterView(
 
 // ===== OGP カードビュー =====
 
-export interface OgpCardViewResult {
+interface OgpCardViewResult {
   el: HTMLElement;
   destroy(): void;
 }

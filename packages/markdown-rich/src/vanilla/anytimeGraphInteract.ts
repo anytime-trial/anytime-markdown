@@ -15,7 +15,7 @@ import { parseGraphDsl } from "@anytime-markdown/graph-core";
 import { applyAnytimeGraphOp, describeNode, type AnytimeGraphOp, type NodeDescriptor } from "./anytimeGraphMutate";
 import { ensureStyle } from "./dialogHelpers";
 
-export interface AttachAnytimeGraphInteractionsOptions {
+interface AttachAnytimeGraphInteractionsOptions {
   /** SVG を内包する要素（= プレビュー innerHTML 先）。 */
   previewEl: HTMLElement;
   /** 現在の DSL を返す。 */

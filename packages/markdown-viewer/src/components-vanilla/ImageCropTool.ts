@@ -76,7 +76,7 @@ export interface CreateImageCropToolOptions {
 }
 
 /** {@link createImageCropTool} の戻り値。`el` を呼び元が配置する（self-append しない）。 */
-export interface ImageCropToolHandle {
+interface ImageCropToolHandle {
   /** ルート要素（toolbar + 画像 + オーバーレイ）。 */
   el: HTMLElement;
   /** listener / tooltip / 子コントロールを解放する。 */

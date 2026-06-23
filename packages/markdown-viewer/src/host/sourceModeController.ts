@@ -22,7 +22,7 @@ import { safeSetItem } from "../utils/storage";
 export type VanillaEditorMode = "wysiwyg" | "source" | "review" | "readonly";
 
 /** {@link createSourceModeController} のオプション。 */
-export interface CreateSourceModeControllerOptions {
+interface CreateSourceModeControllerOptions {
   editor: Editor;
   /** editor がマウントされている要素（textarea を並置する）。 */
   contentEl: HTMLElement;

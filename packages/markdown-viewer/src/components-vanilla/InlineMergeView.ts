@@ -84,7 +84,7 @@ export interface MergeUndoRedo {
 }
 
 /** 右パネルのファイル操作ハンドル（React `onRightFileOpsReady` の payload 相当）。 */
-export interface MergeRightFileOps {
+interface MergeRightFileOps {
   loadFile: () => void;
   exportFile: () => void;
 }

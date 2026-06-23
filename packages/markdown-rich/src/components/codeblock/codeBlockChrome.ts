@@ -27,7 +27,7 @@ import { applySelectionCollapse, codeBlockToolbarLabel } from "./codeBlockOverla
  * グラフトグルは `editor` 属性を直接更新し、その他は intent でホストへ委譲する。
  */
 
-export interface CodeBlockChromeCallbacks {
+interface CodeBlockChromeCallbacks {
   t: (key: string) => string;
   /** math グラフトグルを隠すか（host の useEditorFeaturesContext.hideGraph）。 */
   isGraphHidden: () => boolean;

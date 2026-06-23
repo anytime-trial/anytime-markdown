@@ -16,7 +16,7 @@ import { createIconButton } from "@anytime-markdown/ui-core/IconButton";
  * 同等機能（グリッド編集・適用・dirty 時の破棄確認）を提供する。
  */
 
-export interface OpenTableEditDialogOptions {
+interface OpenTableEditDialogOptions {
   editor: Editor;
   /** 編集対象 table ノードの位置。 */
   pos: number;

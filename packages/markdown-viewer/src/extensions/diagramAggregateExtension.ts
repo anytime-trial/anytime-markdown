@@ -13,7 +13,7 @@ import type { EditorState, Transaction } from "@anytime-markdown/markdown-pm/sta
 import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
 import { AddMarkStep, RemoveMarkStep, ReplaceAroundStep, ReplaceStep } from "@anytime-markdown/markdown-pm/transform";
 
-export interface DiagramAggregate {
+interface DiagramAggregate {
   /** mermaid/plantuml コードブロックが 1 つ以上存在するか */
   hasDiagrams: boolean;
   /** 全 diagram コードブロックが折りたたまれているか（diagram が無い場合は true） */

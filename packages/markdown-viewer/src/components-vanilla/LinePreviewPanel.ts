@@ -19,7 +19,7 @@ import {
 } from "@anytime-markdown/markdown-engine";
 
 /** {@link createLinePreviewPanel} のオプション。 */
-export interface CreateLinePreviewPanelOptions {
+interface CreateLinePreviewPanelOptions {
   /** diff 結果。null の間はパネル本体を描画しない。 */
   diffResult: DiffResult | null;
   /** ソースモードか。false の間はパネル本体を描画しない。 */

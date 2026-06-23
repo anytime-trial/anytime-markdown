@@ -13,7 +13,7 @@ const BASE64_CHARS = new Set(
 const TOKEN_PREFIX = "data:base64-image-";
 const TOKEN_RE = /data:base64-image-\d+/g;
 
-export interface Base64TokenSpan {
+interface Base64TokenSpan {
   start: number;
   end: number;
 }

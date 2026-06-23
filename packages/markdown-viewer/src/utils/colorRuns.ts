@@ -1,6 +1,6 @@
 import { alpha, getErrorMain, getSuccessMain } from "../constants/colors";
 
-export interface ColorRun {
+interface ColorRun {
   color: string;
   count: number;
 }

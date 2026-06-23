@@ -18,7 +18,7 @@ interface CachedError {
     savedAt: number;
 }
 
-export interface EmbedCacheOptions {
+interface EmbedCacheOptions {
     ttlMs?: number;
     errorTtlMs?: number;
 }

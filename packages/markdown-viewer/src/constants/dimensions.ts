@@ -96,7 +96,7 @@ export const EDITOR_PADDING_TOP = 36;
 export const EDITOR_PADDING_BORDER = 4;
 
 // ── 用紙サイズ (mm) ──
-export type PaperSize = "off" | "A3" | "A4" | "B4" | "B5";
+type PaperSize = "off" | "A3" | "A4" | "B4" | "B5";
 
 export const PAPER_WIDTHS_MM: Record<Exclude<PaperSize, "off">, number> = {
   A3: 297,

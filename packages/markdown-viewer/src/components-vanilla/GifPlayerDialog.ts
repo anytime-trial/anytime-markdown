@@ -36,7 +36,7 @@ const ICON_CLOSE =
   "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z";
 
 /** {@link createGifPlayerDialog} のオプション（React `GifPlayerDialogProps` の vanilla 置換）。 */
-export interface CreateGifPlayerDialogOptions {
+interface CreateGifPlayerDialogOptions {
   /** 再生対象 GIF の src。 */
   src: string;
   /** GIF メタ情報（duration / fps / width）。あれば info 行を表示する。 */
@@ -48,7 +48,7 @@ export interface CreateGifPlayerDialogOptions {
 }
 
 /** {@link createGifPlayerDialog} の戻り値。 */
-export interface GifPlayerDialogHandle {
+interface GifPlayerDialogHandle {
   /** Dialog backdrop ルート（createDialog が自前マウント済み・参照用）。 */
   el: HTMLElement;
   /** listener 解除・Dialog cleanup（背景 overflow 復元・フォーカス復帰・el 取り外し）。 */

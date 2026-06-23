@@ -76,7 +76,7 @@ export interface CreateImageAnnotationDialogOptions {
 }
 
 /** {@link createImageAnnotationDialog} の戻り値。 */
-export interface ImageAnnotationDialogHandle {
+interface ImageAnnotationDialogHandle {
   /** ルート要素（fixed overlay・参照用。生成時に document.body へ自前マウント済み）。 */
   el: HTMLElement;
   /** listener / 子コントロール / overlay の解放。閉じる時に必ず呼ぶ。 */

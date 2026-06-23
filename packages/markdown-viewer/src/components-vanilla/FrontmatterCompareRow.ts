@@ -24,7 +24,7 @@ import type { TranslationFn } from "../types";
 import { ensureStyle } from "@anytime-markdown/ui-core";
 
 /** {@link createFrontmatterCompareRow} のオプション。 */
-export interface CreateFrontmatterCompareRowOptions {
+interface CreateFrontmatterCompareRowOptions {
   /** i18n 翻訳関数。 */
   t: TranslationFn;
   /** 比較ファイル（左カラム）の frontmatter（null/空なら無し）。 */

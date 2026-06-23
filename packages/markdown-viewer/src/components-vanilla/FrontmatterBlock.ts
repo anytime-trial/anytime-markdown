@@ -24,7 +24,7 @@ import type { TranslationFn } from "../types";
 import { createIconButton, type IconButtonHandle } from "@anytime-markdown/ui-core";
 
 /** {@link createFrontmatterBlock} のオプション（React `FrontmatterBlockProps` の vanilla 再現）。 */
-export interface CreateFrontmatterBlockOptions {
+interface CreateFrontmatterBlockOptions {
   /** 初期フロントマター（null なら非表示）。 */
   initial: string | null;
   /** 編集・削除を無効化する（readonly / review モード）。 */
