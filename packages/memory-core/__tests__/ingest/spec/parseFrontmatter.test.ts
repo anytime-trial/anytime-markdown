@@ -79,6 +79,53 @@ title: My Document
     expect(result.reason).toBe('invalid');
   });
 
+  // Regression: 'reference' (auto-generated index 等) を type enum に追加
+  test('returns { ok: true } for type "reference"', () => {
+    const content = `---
+type: reference
+title: 設計書 索引（自動生成）
+date: 2026-06-20
+---
+
+# 索引
+`;
+    const result = parseFrontmatter({ rel_path: 'spec/00-index.ja.md', content });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.frontmatter.type).toBe('reference');
+  });
+
+  // Regression: related: のみ（type/title/date を一切持たない）frontmatter は
+  // spec レコードを意図しないため invalid ではなく missing(soft skip) として扱う
+  test('returns { ok: false, reason: "missing" } when frontmatter has only relation metadata', () => {
+    const content = `---
+related:
+  - to: "spec/40.trail-viewer/trail-system.ja.md"
+    type: part-of
+---
+
+# 本文
+`;
+    const result = parseFrontmatter({ rel_path: 'spec/related-only.md', content });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('missing');
+  });
+
+  test('returns { ok: false, reason: "missing" } for related: as plain string array', () => {
+    const content = `---
+related:
+  - "spec/10.web-app/web-app.ja.md"
+---
+
+# 本文
+`;
+    const result = parseFrontmatter({ rel_path: 'spec/related-strings.md', content });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('missing');
+  });
+
   test('includes c4Scope when present', () => {
     const content = `---
 type: spec

@@ -176,7 +176,7 @@ describe('Phase 2 migration', () => {
     const result = db2.exec('SELECT COUNT(*) FROM _migrations');
     const count = result[0]?.values[0][0] as number;
     // migrations 1–7, each applied exactly once
-    expect([12, 13]).toContain(count); // 全 migration 完了。13 は FTS5 有効時のみ
+    expect([13, 14]).toContain(count); // 全 migration 完了。14 は FTS5 有効時のみ
     close2();
   }, 30000);
 });
