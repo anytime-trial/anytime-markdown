@@ -87,6 +87,43 @@ const METRICS: CombinedMetric[] = [
 
 const PERIODS: PeriodDays[] = [7, 30, 90];
 
+/** MUI OpenInNew アイコンの SVG path（↗ ポップアップトリガ用）。 */
+const OPEN_IN_NEW_PATH =
+  'M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z';
+
+interface PopupTriggerSpec {
+  /** data-popup-trigger 値 / テスト・識別子。 */
+  readonly trigger: 'messages' | 'prompts' | 'releases';
+  /** ツールチップ・aria-label の i18n キー。 */
+  readonly i18nKey: string;
+  /** props 上のコールバックフィールド名。 */
+  readonly callbackKey:
+    | 'onOpenMessagesPopup'
+    | 'onOpenPromptsPopup'
+    | 'onOpenReleasesPopup';
+}
+
+/**
+ * metric トグルに埋め込む ↗ ポップアップトリガ定義。
+ * vanilla 化（bcd12d461）で欠落したため復元したもの。
+ */
+const METRIC_POPUP_TRIGGERS: Partial<Record<CombinedMetric, PopupTriggerSpec>> = {
+  agents: { trigger: 'messages', i18nKey: 'message.openPopup', callbackKey: 'onOpenMessagesPopup' },
+  skills: { trigger: 'prompts', i18nKey: 'prompt.openPopup', callbackKey: 'onOpenPromptsPopup' },
+  releases: { trigger: 'releases', i18nKey: 'releases.openPopup', callbackKey: 'onOpenReleasesPopup' },
+};
+
+function createOpenInNewIcon(): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.cssText = 'width:14px;height:14px;fill:currentColor;display:block;';
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', OPEN_IN_NEW_PATH);
+  svg.appendChild(path);
+  return svg;
+}
+
 export function mountCombinedChartsSection(
   container: HTMLElement,
   props: CombinedChartsSectionProps,
@@ -183,6 +220,78 @@ export function mountCombinedChartsSection(
     parent.appendChild(group);
   }
 
+  /**
+   * metric トグル内に ↗ ポップアップトリガ（ResizablePopup を開く）を埋め込む。
+   * 親トグルの metric 切替を発火させないよう click/keydown を stopPropagation する。
+   */
+  function appendPopupTrigger(
+    btn: HTMLButtonElement,
+    p: CombinedChartsSectionProps,
+    spec: PopupTriggerSpec,
+  ): void {
+    const cb = p[spec.callbackKey];
+    const label = p.t(spec.i18nKey);
+    const icon = document.createElement('span');
+    icon.dataset['popupTrigger'] = spec.trigger;
+    icon.setAttribute('role', 'button');
+    icon.setAttribute('aria-label', label);
+    icon.title = label;
+    icon.tabIndex = cb ? 0 : -1;
+    icon.style.cssText = [
+      'display:inline-flex',
+      'align-items:center',
+      'justify-content:center',
+      'width:18px',
+      'height:18px',
+      'margin-left:6px',
+      'border-radius:4px',
+      `color:${p.colors.textSecondary}`,
+      cb ? 'opacity:1' : 'opacity:0.35',
+      cb ? 'cursor:pointer' : 'cursor:default',
+    ].join(';');
+    icon.appendChild(createOpenInNewIcon());
+
+    const activate = (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+      cb?.();
+    };
+    icon.addEventListener('click', activate);
+    icon.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      activate(event);
+    });
+    btn.appendChild(icon);
+  }
+
+  /** metric セレクタ群を構築する。agents/skills/releases には ↗ トリガを埋め込む。 */
+  function createMetricGroup(
+    parent: HTMLElement,
+    p: CombinedChartsSectionProps,
+    labels: readonly string[],
+  ): void {
+    const group = document.createElement('div');
+    group.style.cssText = 'display:inline-flex;border-radius:4px;overflow:hidden;';
+    for (let i = 0; i < METRICS.length; i++) {
+      const value = METRICS[i] ?? '';
+      const btn = createToggleBtn(labels[i] ?? value, value, metric);
+      const spec = METRIC_POPUP_TRIGGERS[value as CombinedMetric];
+      if (spec) {
+        // ↗ をボタン内に並べるため inline レイアウトへ調整する。
+        btn.style.display = 'inline-flex';
+        btn.style.alignItems = 'center';
+        appendPopupTrigger(btn, p, spec);
+      }
+      btn.addEventListener('click', () => {
+        metric = value as CombinedMetric;
+        if (value === 'releases') selectedDate = null;
+        render(currentProps);
+      });
+      group.appendChild(btn);
+    }
+    parent.appendChild(group);
+  }
+
   function renderToolbar(p: CombinedChartsSectionProps): HTMLElement {
     const toolbar = document.createElement('div');
     toolbar.style.cssText =
@@ -203,11 +312,7 @@ export function mountCombinedChartsSection(
       p.t('analytics.combined.commitPrefix'),
       p.t('analytics.combined.release'),
     ];
-    createBtnGroup(leftGroup, METRICS, metricLabels, metric, (v) => {
-      metric = v as CombinedMetric;
-      if (v === 'releases') selectedDate = null;
-      render(currentProps);
-    });
+    createMetricGroup(leftGroup, p, metricLabels);
 
     // Period selector (not for releases)
     if (metric !== 'releases') {
