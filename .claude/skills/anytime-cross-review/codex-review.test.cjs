@@ -48,3 +48,14 @@ test('maxSeverity は error > warn > info', () => {
   assert.strictEqual(cr.maxSeverity([{ severity: 'warn' }, { severity: 'error' }]), 'error');
   assert.strictEqual(cr.maxSeverity([]), 'info');
 });
+
+test('detectMutation は before/after の git status 差分を検出する', () => {
+  const r = cr.detectMutation(' M packages/a.ts', ' M packages/a.ts\n M packages/b.ts');
+  assert.strictEqual(r.mutated, true);
+  assert.deepStrictEqual(r.added, [' M packages/b.ts']);
+});
+test('detectMutation は変化なしなら mutated=false', () => {
+  const r = cr.detectMutation(' M a.ts', ' M a.ts');
+  assert.strictEqual(r.mutated, false);
+  assert.deepStrictEqual(r.added, []);
+});

@@ -74,7 +74,16 @@ function maxSeverity(findings) {
   return r;
 }
 
-module.exports = { buildReviewPrompt, extractReviewSection, parseFindings, maxSeverity, START, END };
+/** git status --porcelain の before/after を比較し codex による新規変更を検出する。 */
+function detectMutation(beforePorcelain, afterPorcelain) {
+  const toSet = (t) => new Set(String(t).split('\n').map((l) => l.trimEnd()).filter(Boolean));
+  const before = toSet(beforePorcelain);
+  const after = toSet(afterPorcelain);
+  const added = [...after].filter((l) => !before.has(l));
+  return { mutated: added.length > 0, added };
+}
+
+module.exports = { buildReviewPrompt, extractReviewSection, parseFindings, maxSeverity, detectMutation, START, END };
 
 if (require.main === module) {
   // CLI: Task 6 で実装
