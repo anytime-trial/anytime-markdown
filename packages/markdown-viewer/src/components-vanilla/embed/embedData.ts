@@ -26,7 +26,7 @@ export interface FetchState<T> {
   error: string | null;
 }
 
-export type EmbedUpdateStatus = "loading" | "seen" | "unseen";
+type EmbedUpdateStatus = "loading" | "seen" | "unseen";
 
 export interface UpdateCheckState {
   status: EmbedUpdateStatus;
@@ -39,7 +39,7 @@ export interface UpdateCheckState {
  * `fetch()` でリクエストを開始し `subscribe()` で状態変化を受け取る。
  * `cancel()` で進行中のリクエストをキャンセルする。
  */
-export interface EmbedFetchController<T extends OgpData | OembedData> {
+interface EmbedFetchController<T extends OgpData | OembedData> {
   /** フェッチを開始し、完了時に subscriber を呼ぶ。 */
   fetch(url: string, keyPrefix: "ogp" | "oembed", fetcher: (url: string) => Promise<T>): void;
   /** 状態変化時に呼ばれるコールバックを登録する。 */
@@ -117,7 +117,7 @@ export function createEmbedFetchController<T extends OgpData | OembedData>(): Em
 
 // ===== RSS 更新チェックコントローラ =====
 
-export interface UpdateCheckController {
+interface UpdateCheckController {
   /** OGP データが揃ったら更新チェックを開始する。 */
   check(
     url: string,

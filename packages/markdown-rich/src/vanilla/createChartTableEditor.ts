@@ -30,7 +30,7 @@ function parseSpec(code: string): ChartSpec {
   return { kind: "line", categories: [], series: [] };
 }
 
-export interface ChartTableEditorContext {
+interface ChartTableEditorContext {
   getCode: () => string;
   setCode: (s: string) => void;
   isDark: boolean;

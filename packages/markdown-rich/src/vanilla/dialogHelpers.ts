@@ -52,7 +52,7 @@ function ensureLineTextareaStyle(): void {
 `);
 }
 
-export interface LineNumberTextareaHandle {
+interface LineNumberTextareaHandle {
   el: HTMLElement;
   textarea: HTMLTextAreaElement;
   update: (opts: { value?: string; fontSize?: number; lineHeight?: number; isDark?: boolean; readOnly?: boolean; placeholder?: string }) => void;
@@ -201,7 +201,7 @@ function ensureSamplePanelStyle(): void {
 `);
 }
 
-export interface SamplePanelHandle {
+interface SamplePanelHandle {
   el: HTMLElement;
   destroy: () => void;
 }
@@ -277,7 +277,7 @@ function ensureZoomToolbarStyle(): void {
 `);
 }
 
-export interface ZoomToolbarHandle {
+interface ZoomToolbarHandle {
   el: HTMLElement;
   update: (state: { zoom: number; isDirty: boolean; isDark: boolean }) => void;
   destroy: () => void;
@@ -392,7 +392,7 @@ function ensureZoomPreviewStyle(): void {
 `);
 }
 
-export interface ZoomablePreviewHandle {
+interface ZoomablePreviewHandle {
   el: HTMLElement;
   inner: HTMLElement;
   destroy: () => void;
@@ -462,7 +462,7 @@ function ensureSplitStyle(): void {
 `);
 }
 
-export interface SplitLayoutHandle {
+interface SplitLayoutHandle {
   el: HTMLElement;
   left: HTMLElement;
   right: HTMLElement;
@@ -592,7 +592,7 @@ function ensureDialogHeaderStyle(): void {
 `);
 }
 
-export interface DialogHeaderHandle {
+interface DialogHeaderHandle {
   el: HTMLElement;
   update: (opts: { label?: string; dirty?: boolean; isDark?: boolean }) => void;
   destroy: () => void;

@@ -22,7 +22,7 @@ export interface CollapseRun {
   count: number;
 }
 
-export interface BlockCollapsePlan {
+interface BlockCollapsePlan {
   /** docA（第1引数）用の run 一覧 */
   aRuns: CollapseRun[];
   /** docB（第2引数）用の run 一覧 */

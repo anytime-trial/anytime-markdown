@@ -69,7 +69,7 @@ import { createMermaidEditDialog } from "./createMermaidEditDialog";
 import { createPlantUmlEditDialog } from "./createPlantUmlEditDialog";
 
 /** ダイアログ外観（live 取得用）。 */
-export interface CodeOverlayStyle {
+interface CodeOverlayStyle {
   /**
    * ダイアログ Paper の背景 **CSS 色**（`getEditDialogBgColor` で解決済みの値）。
    * 設定キー（"white" | "grey"）をそのまま渡さないこと（ダークモードで literal

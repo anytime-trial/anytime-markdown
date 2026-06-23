@@ -61,7 +61,7 @@ export interface TableBlockChromeCallbacks {
   onDelete: (pos: number) => void;
 }
 
-export interface TableBlockChromeHandle {
+interface TableBlockChromeHandle {
   /** スプレッドシート編集中のツールバー抑制を切り替える。 */
   setEditing(editing: boolean): void;
   destroy(): void;

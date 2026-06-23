@@ -2,11 +2,11 @@ import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/mode
 import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
 import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
-export type DropDecision =
+type DropDecision =
   | { action: "wrap-left" | "wrap-right"; targetPos: number; targetElement: Element }
   | { action: "default" };
 
-export interface ComputeDropTargetParams {
+interface ComputeDropTargetParams {
   view: EditorView;
   clientX: number;
   clientY: number;

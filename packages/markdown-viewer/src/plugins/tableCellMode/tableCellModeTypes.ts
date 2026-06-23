@@ -1,4 +1,4 @@
-export type TableCellMode = "navigation" | "editing";
+type TableCellMode = "navigation" | "editing";
 
 export interface TableCellModeState {
   /** 現在のモード */

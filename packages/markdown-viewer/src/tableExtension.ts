@@ -4,7 +4,7 @@ import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 import { tableCellModePlugin } from "./plugins/tableCellMode/tableCellModePlugin";
 import type { MdSerializerState } from "./types";
 
-export interface CustomTableOptions {
+interface CustomTableOptions {
   resizable?: boolean;
   /**
    * 描画時に table を div.tableWrapper で包むか。

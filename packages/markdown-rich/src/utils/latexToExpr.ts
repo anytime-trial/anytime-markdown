@@ -1,7 +1,7 @@
 import { type MathNode,parse } from "mathjs";
 
 /** グラフ種別 */
-export type GraphType =
+type GraphType =
   | "explicit2d" // y = f(x)
   | "parametric2d" // x = f(t), y = g(t)
   | "polar" // r = f(θ)

@@ -1,4 +1,4 @@
-export interface ReadFileResult {
+interface ReadFileResult {
   text: string;
   encoding: string;
   lineEnding: string;

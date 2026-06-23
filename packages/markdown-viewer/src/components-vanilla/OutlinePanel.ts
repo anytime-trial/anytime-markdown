@@ -141,7 +141,7 @@ export interface CreateOutlinePanelOptions {
 }
 
 /** {@link createOutlinePanel} の戻り値。 */
-export interface OutlinePanelHandle {
+interface OutlinePanelHandle {
   /** root（Paper + resize handle を内包する wrapper）。呼び元が配置する。 */
   el: HTMLElement;
   /** 幅 / 高さ等の更新（再描画は不要なものは属性のみ書き換え）。 */

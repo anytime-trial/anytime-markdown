@@ -76,7 +76,7 @@ export function mkLabel(text: string): HTMLSpanElement {
   return el;
 }
 
-export interface IconButtonOptions {
+interface IconButtonOptions {
   /** アイコン右上に重ねるバッジ文字（"+" / "x" など）。 */
   badge?: string;
   /** バッジを error 色にする（削除系）。 */

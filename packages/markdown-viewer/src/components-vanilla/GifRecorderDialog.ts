@@ -81,7 +81,7 @@ export interface CreateGifRecorderDialogOptions {
 }
 
 /** {@link createGifRecorderDialog} の戻り値。 */
-export interface GifRecorderDialogHandle {
+interface GifRecorderDialogHandle {
   /** backdrop ルート（createDialog が自前マウント済み・参照用）。 */
   el: HTMLElement;
   /** stream / recorder / interval / listener / blob URL / dialog の解放。閉じる時に必ず呼ぶ。 */

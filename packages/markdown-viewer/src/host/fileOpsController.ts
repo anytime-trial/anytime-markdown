@@ -23,7 +23,7 @@ import { prependFrontmatter } from "../utils/frontmatterHelpers";
 import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
 
 /** {@link createFileOpsController} のオプション。 */
-export interface CreateFileOpsControllerOptions {
+interface CreateFileOpsControllerOptions {
   editor: Editor;
   t: TranslationFn;
   /** ローカル FS provider（web の File System Access / fallback）。 */
@@ -46,7 +46,7 @@ export interface CreateFileOpsControllerOptions {
 }
 
 /** {@link createFileOpsController} の戻り値。 */
-export interface FileOpsController {
+interface FileOpsController {
   /** フロントマター付き全文（保存・コピー用）。 */
   getFullMarkdown(): string;
   openFile(): Promise<void>;

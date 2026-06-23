@@ -89,7 +89,7 @@ export interface CreateStatusBarOptions {
 }
 
 /** {@link createStatusBar} の戻り値。 */
-export interface StatusBarHandle {
+interface StatusBarHandle {
   /** root（position:fixed のステータスバー div、hidden 時は空 div）。 */
   el: HTMLElement;
   /** 状態（sourceMode / sourceText / fileName / encoding 等）を反映して再描画する。 */

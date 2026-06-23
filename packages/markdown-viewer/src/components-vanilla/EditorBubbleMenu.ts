@@ -68,7 +68,7 @@ function tip(t: TranslationFn, key: string): string {
 }
 
 /** {@link createEditorBubbleMenu} のオプション（React `EditorBubbleMenuProps` の vanilla 置換）。 */
-export interface CreateEditorBubbleMenuOptions {
+interface CreateEditorBubbleMenuOptions {
   /** i18n 翻訳関数。 */
   t: TranslationFn;
   /** リンク挿入 intent（ダイアログは host 側）。 */

@@ -1,4 +1,4 @@
-export type EmbedKind =
+type EmbedKind =
     | { kind: "youtube"; videoId: string }
     | { kind: "figma"; path: string }
     | { kind: "spotify"; type: string; id: string }
