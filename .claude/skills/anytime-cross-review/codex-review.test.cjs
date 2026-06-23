@@ -59,3 +59,24 @@ test('detectMutation は変化なしなら mutated=false', () => {
   assert.strictEqual(r.mutated, false);
   assert.deepStrictEqual(r.added, []);
 });
+
+test('runReview は codex 出力を抽出し finding を集計、mutation を検出する', async () => {
+  const fakeStdout = ['<<<CROSS-REVIEW-START>>>','### 1. X','- 重大度: warn','問題: x','提案: y','<<<CROSS-REVIEW-END>>>'].join('\n');
+  const r = await cr.runReview({ base: 'develop', runCodex: async () => ({ code: 0, stdout: fakeStdout, stderr: '' }), gitStatus: () => '', logger: { info() {}, error() {} } });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.findingCount, 1);
+  assert.strictEqual(r.maxSeverity, 'warn');
+  assert.strictEqual(r.mutated, false);
+  assert.match(r.section, /### 1\. X/);
+});
+test('runReview は codex がファイル変更したら mutated=true・ok=false', async () => {
+  let n = 0;
+  const r = await cr.runReview({ base: 'develop', runCodex: async () => ({ code: 0, stdout: '<<<CROSS-REVIEW-START>>>指摘なし<<<CROSS-REVIEW-END>>>', stderr: '' }), gitStatus: () => (n++ === 0 ? '' : ' M leaked.ts'), logger: { info() {}, error() {} } });
+  assert.strictEqual(r.mutated, true);
+  assert.strictEqual(r.ok, false);
+});
+test('runReview は codex 非ゼロ終了で ok=false・error を返す', async () => {
+  const r = await cr.runReview({ base: 'develop', runCodex: async () => ({ code: 1, stdout: '', stderr: 'boom' }), gitStatus: () => '', logger: { info() {}, error() {} } });
+  assert.strictEqual(r.ok, false);
+  assert.match(r.error, /boom|exit 1/);
+});

@@ -83,7 +83,39 @@ function detectMutation(beforePorcelain, afterPorcelain) {
   return { mutated: added.length > 0, added };
 }
 
-module.exports = { buildReviewPrompt, extractReviewSection, parseFindings, maxSeverity, detectMutation, START, END };
+/**
+ * Codex レビューのオーケストレータ。副作用(codex 実行・git status)は注入する。
+ */
+async function runReview(o) {
+  const { base, runCodex, gitStatus, logger } = o;
+  const before = gitStatus();
+  let res;
+  try {
+    res = await runCodex({ base, prompt: buildReviewPrompt() });
+  } catch (e) {
+    logger.error(`[cross-review] codex 起動失敗: ${e && e.message}`);
+    return { ok: false, error: `codex spawn failed: ${e && e.message}`, mutated: false, findingCount: 0, maxSeverity: 'info', section: null };
+  }
+  const after = gitStatus();
+  const mut = detectMutation(before, after);
+  if (mut.mutated) {
+    logger.error(`[cross-review] codex がファイルを変更しました(read-only 逸脱): ${mut.added.join(', ')}`);
+    return { ok: false, error: `workspace mutated: ${mut.added.join(', ')}`, mutated: true, added: mut.added, findingCount: 0, maxSeverity: 'info', section: null };
+  }
+  if (res.code !== 0) {
+    logger.error(`[cross-review] codex exit ${res.code}: ${res.stderr}`);
+    return { ok: false, error: `codex exit ${res.code}: ${res.stderr || ''}`.trim(), mutated: false, findingCount: 0, maxSeverity: 'info', section: null };
+  }
+  const section = extractReviewSection(res.stdout);
+  if (section === null) {
+    logger.error('[cross-review] codex 出力にセンチネルが見つかりません');
+    return { ok: false, error: 'no review section (sentinels missing)', mutated: false, findingCount: 0, maxSeverity: 'info', section: null };
+  }
+  const findings = parseFindings(section);
+  return { ok: true, error: null, mutated: false, findingCount: findings.length, maxSeverity: maxSeverity(findings), section };
+}
+
+module.exports = { buildReviewPrompt, extractReviewSection, parseFindings, maxSeverity, detectMutation, runReview, START, END };
 
 if (require.main === module) {
   // CLI: Task 6 で実装
