@@ -93,13 +93,16 @@ export function mountResizablePopup(
       props.onMaximizedChange(liveMaximized);
     },
   });
-  maximizeBtn.el.style.cssText = 'width:22px;height:22px;min-width:22px;';
+  // Append (not assign) so createIconButton's base styles — notably
+  // `color:inherit`, which lets the `fill:currentColor` SVG icons match the
+  // popup title (colors.text) — survive the size override.
+  maximizeBtn.el.style.cssText += 'width:22px;height:22px;min-width:22px;';
 
   const closeBtn = createIconButton({
     size: 'small',
     onClick: () => props.onClose(),
   });
-  closeBtn.el.style.cssText = 'width:22px;height:22px;min-width:22px;';
+  closeBtn.el.style.cssText += 'width:22px;height:22px;min-width:22px;';
 
   toolbarBtns.appendChild(maximizeBtn.el);
   toolbarBtns.appendChild(closeBtn.el);
