@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-06-23
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- 狭い表示幅でも幅広テーブルを横スクロールできるようにした（table wrapper を既定で描画）。
+
 ## [1.5.0] - 2026-06-22
 
 ### 追加

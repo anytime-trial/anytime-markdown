@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-06-23
+
+### Added
+
+- Bundle the `anytime-dev-health`, `anytime-cross-review`, and `anytime-token-budget` skills and auto-install them into `<workspace>/.claude/skills/` on activation (version-diff overwrite via `installStaticSkillDir`).
+
+### Trail Core (memory-core / doc-core / trail-server)
+
+- `memory-core`: record `reviewer` and `severity_overall` on review ingest, and anchor `linkAddresses` on `reviewed_at` to close the review→fix linkage (RC1).
+- `memory-core`: fix the review session parser dropping findings past a 2048-char message truncation and ignoring the explicit `重大度:` severity marker (now parses from full text and honors the marker).
+- `memory-core`: map synthetic drift subject IDs (`file:` / `package:` …) to canonical entities to stop FK silent drops (RC5).
+- `doc-core` / `trail-server`: wire the doc-core runner into the trail daemon child process, stop the embed silent failure (per-item resilience + status persistence), and cap embed input to 3000 chars to avoid bge-m3 context-length errors (RC3).
+
 ## [0.29.0] - 2026-06-22
 
 ### Trail Core (trail-viewer / mcp-trail / trail-server / chart-core)

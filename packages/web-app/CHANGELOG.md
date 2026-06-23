@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-06-23
+
+### Fixed
+
+- Pick up the markdown editor fix that renders the table wrapper so wide tables scroll horizontally on narrow viewports.
+
 ## [0.31.1] - 2026-06-22
 
 ### Fixed
