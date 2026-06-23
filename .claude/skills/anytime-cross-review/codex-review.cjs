@@ -111,6 +111,13 @@ async function runReview(o) {
     res = await runCodex({ base, prompt });
   } catch (e) {
     logger.error(`[cross-review] codex 起動失敗: ${e && e.message}`);
+    // throw 前に codex がファイル変更していた可能性を排除するため catch でも mutation を検査する。
+    const afterErr = gitStatus();
+    const mutErr = detectMutation(before, afterErr);
+    if (mutErr.mutated) {
+      logger.error(`[cross-review] codex 失敗かつ workspace 変更を検出: ${mutErr.added.join(', ')}`);
+      return { ok: false, error: `codex spawn failed and workspace mutated: ${e && e.message}`, mutated: true, added: mutErr.added, findingCount: 0, maxSeverity: 'info', section: null };
+    }
     return { ok: false, error: `codex spawn failed: ${e && e.message}`, mutated: false, findingCount: 0, maxSeverity: 'info', section: null };
   }
   const after = gitStatus();
@@ -179,7 +186,7 @@ if (require.main === module) {
       const reason = r.error.code === 'ETIMEDOUT' ? `timeout ${CODEX_TIMEOUT_MS}ms` : r.error.message;
       return { code: 1, stdout: r.stdout || '', stderr: `codex spawn error: ${reason}` };
     }
-    return { code: r.status == null ? 1 : r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
+    return { code: r.status === null ? 1 : r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
   };
   runReview({ base, prompt: customPrompt, runCodex, gitStatus, logger }).then((out) => {
     if (!out.ok) {
