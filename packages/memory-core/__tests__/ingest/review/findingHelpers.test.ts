@@ -5,6 +5,7 @@ import {
   inferSeverity,
   extractTargetFromFinding,
   maxSeverity,
+  parseSeverityMarker,
 } from '../../../src/ingest/review/findingHelpers';
 
 describe('maxSeverity', () => {
@@ -369,5 +370,61 @@ describe('inferSeverity (keyword expansion)', () => {
 
   test('no keyword → info (default)', () => {
     expect(inferSeverity('通常の説明文。何の特別な単語もない。')).toBe('info');
+  });
+});
+
+describe('parseSeverityMarker', () => {
+  // review-finding-format スキルが定める `- 重大度: warn` メタ行を明示的に解析する。
+  // 旧実装は本文キーワード/見出し推論のみで、明示マーカーを無視し既定 info に落としていた。
+  test('bullet + bold marker `- **重大度**: warn` → warn', () => {
+    expect(parseSeverityMarker('- **重大度**: warn\n- **カテゴリ**: logic')).toBe('warn');
+  });
+
+  test('bold-colon-inside marker `**重大度:** error` → error', () => {
+    expect(parseSeverityMarker('**重大度:** error')).toBe('error');
+  });
+
+  test('plain marker `重大度: info` → info', () => {
+    expect(parseSeverityMarker('重大度: info')).toBe('info');
+  });
+
+  test('English marker `severity: warn` → warn', () => {
+    expect(parseSeverityMarker('Severity: warn')).toBe('warn');
+  });
+
+  test('Japanese severity words: 警告 → warn, 致命的 → error, 軽微 → info', () => {
+    expect(parseSeverityMarker('- 重大度: 警告')).toBe('warn');
+    expect(parseSeverityMarker('- 重大度: 致命的')).toBe('error');
+    expect(parseSeverityMarker('- 重大度: 軽微')).toBe('info');
+  });
+
+  test('full-width colon `重大度： warn` → warn', () => {
+    expect(parseSeverityMarker('- 重大度： warn')).toBe('warn');
+  });
+
+  test('no marker line → null (so caller falls back to inference)', () => {
+    expect(parseSeverityMarker('通常の本文。重大度の記載なし。')).toBeNull();
+  });
+
+  test('marker not at line start (inside code block) → null (avoid false positive)', () => {
+    expect(parseSeverityMarker('```\nconst 重大度: string = "warn";\n```')).toBeNull();
+  });
+
+  test('first marker wins when multiple findings concatenated', () => {
+    expect(parseSeverityMarker('- 重大度: error\n本文\n- 重大度: info')).toBe('error');
+  });
+
+  // pre-merge レビュー warn1: fenced code block 内の行頭 `重大度:` も除外する。
+  test('line-leading 重大度: inside a fenced code block → null', () => {
+    expect(parseSeverityMarker('```\n重大度: error\n```')).toBeNull();
+  });
+
+  test('marker outside the fence is still parsed when a fence is present', () => {
+    expect(parseSeverityMarker('```\nsample code\n```\n\n- 重大度: warn')).toBe('warn');
+  });
+
+  // pre-merge レビュー warn2: 値側に出た ラベル語 `重大度` を error に誤分類しない。
+  test('value equal to label substring 重大度 is not classified as error', () => {
+    expect(parseSeverityMarker('severity: 重大度')).toBeNull();
   });
 });

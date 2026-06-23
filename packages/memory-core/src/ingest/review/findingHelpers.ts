@@ -322,6 +322,40 @@ export function inferSeverityFromHeading(heading: string): ParsedFinding['severi
   return 'info';
 }
 
+/**
+ * review-finding-format スキルが定める明示メタ行 `- 重大度: <level>` / `severity: <level>`
+ * を解析する。行頭（bullet `- `/`* `/`+ ` と bold `**...**` を許容）に現れた最初のマーカーを
+ * 採用する。明示マーカーが無ければ null を返し、呼び出し側はキーワード/見出し推論へ
+ * フォールバックする。
+ *
+ * level の語彙:
+ * - error: error / エラー / critical / 致命的 / 重大
+ * - warn:  warn / warning / 警告 / 重要 / 注意
+ * - info:  info / 情報 / 軽微 / minor / low
+ *
+ * `^` は multiline で行頭に限定し、加えて fenced code block(``` ... ```)を除去するため、
+ * code 内の行頭 `重大度: ...` も誤検出しない。
+ */
+const SEVERITY_MARKER_RE = new RegExp(
+  String.raw`^${BULLET_PREFIX}\*{0,2}(?:重大度|severity)\*{0,2}\s*[：:]\s*\*{0,2}\s*([^\n*]+)`,
+  'im',
+);
+
+/** fenced code block(``` ... ```)を除去する。code 内の行頭 `重大度:` 誤検出を防ぐ。 */
+const FENCED_BLOCK_RE = /```[\s\S]*?```/g;
+
+export function parseSeverityMarker(body: string): ParsedFinding['severity'] | null {
+  const m = SEVERITY_MARKER_RE.exec(body.replace(FENCED_BLOCK_RE, ''));
+  if (!m) return null;
+  const value = m[1].trim().toLowerCase();
+  // `重大` は ラベル語 `重大度` の部分文字列。値側に `重大度` が連結した場合の誤分類を
+  // 否定先読み `重大(?!度)` で除外する。
+  if (/error|エラー|critical|致命的|重大(?!度)/i.test(value)) return 'error';
+  if (/warn|warning|警告|重要|注意/i.test(value)) return 'warn';
+  if (/info|情報|軽微|minor|low/i.test(value)) return 'info';
+  return null;
+}
+
 // ── Target file path extraction from finding body ────────────────────────────
 
 /**
