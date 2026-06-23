@@ -413,4 +413,18 @@ describe('parseSeverityMarker', () => {
   test('first marker wins when multiple findings concatenated', () => {
     expect(parseSeverityMarker('- 重大度: error\n本文\n- 重大度: info')).toBe('error');
   });
+
+  // pre-merge レビュー warn1: fenced code block 内の行頭 `重大度:` も除外する。
+  test('line-leading 重大度: inside a fenced code block → null', () => {
+    expect(parseSeverityMarker('```\n重大度: error\n```')).toBeNull();
+  });
+
+  test('marker outside the fence is still parsed when a fence is present', () => {
+    expect(parseSeverityMarker('```\nsample code\n```\n\n- 重大度: warn')).toBe('warn');
+  });
+
+  // pre-merge レビュー warn2: 値側に出た ラベル語 `重大度` を error に誤分類しない。
+  test('value equal to label substring 重大度 is not classified as error', () => {
+    expect(parseSeverityMarker('severity: 重大度')).toBeNull();
+  });
 });
