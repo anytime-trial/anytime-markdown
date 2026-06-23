@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-06-23
+
+### Fixed
+
+- Render the table wrapper (`renderWrapper`) by default in `CustomTable` so wide tables scroll horizontally on narrow viewports. CSS `.tableWrapper { overflow-x: auto }` alone had no effect because `resizable: false` disabled the native TableView that creates the wrapper.
+
 ## [1.5.0] - 2026-06-22
 
 ### Changed

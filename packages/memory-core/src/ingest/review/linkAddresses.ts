@@ -98,7 +98,7 @@ type FindingRow = {
   finding_entity_id: string;
   target_file_path: string;
   finding_text: string;
-  recorded_at: string;
+  reviewed_at: string;
 };
 
 // ── Per-finding helper ─────────────────────────────────────────────────────────
@@ -114,6 +114,8 @@ function linkOneFinding(
   effectiveWindowDays: number,
 ): { edgeInserted: boolean } | null {
   // Phase H-4: trail.session_commits / commit_files から repo_name 列を撤去した。
+  // 窓の下限は `committed_at >= reviewed_at`（同時刻の即時修正＝同一セッション内の対処も拾う）。
+  // 兄弟 linkPrecedesBugs は後続バグを探すため `> reviewed_at`（厳密大なり）で、境界差は意図的。
   const commitResult = db.exec(
     `SELECT sc.commit_hash, sc.commit_message, sc.committed_at
      FROM trail.session_commits sc
@@ -125,7 +127,7 @@ function linkOneFinding(
        AND sc.committed_at >= ?
        AND sc.committed_at <= datetime(?, '+' || ? || ' days')
      ORDER BY sc.committed_at ASC`,
-    [finding.target_file_path, repoName, finding.recorded_at, finding.recorded_at, effectiveWindowDays]
+    [finding.target_file_path, repoName, finding.reviewed_at, finding.reviewed_at, effectiveWindowDays]
   );
 
   const commitRows = commitResult[0];
@@ -180,10 +182,15 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
   let findings: FindingRow[];
 
   try {
+    // コミット窓のアンカーは memory_reviews.reviewed_at（実レビュー時刻）を使う。
+    // memory_review_findings.recorded_at は ingest 時刻なので、一括 re-ingest 後に
+    // 全 finding が「今日」付けとなり、reviewed_at 直後の修正コミットを取りこぼす（誤り）。
+    // linkPrecedesBugs と同じ修正。
     const result = db.exec(`
       SELECT mrf.id, mrf.finding_entity_id, mrf.target_file_path,
-             mrf.finding_text, mrf.recorded_at
+             mrf.finding_text, r.reviewed_at
       FROM memory_review_findings mrf
+      JOIN memory_reviews r ON r.id = mrf.review_id
       WHERE mrf.addressed_at IS NULL
         AND mrf.target_file_path IS NOT NULL
         AND mrf.severity != 'info'
@@ -199,7 +206,7 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
       finding_entity_id: String(r[1]),
       target_file_path: String(r[2]),
       finding_text: String(r[3]),
-      recorded_at: String(r[4]),
+      reviewed_at: String(r[4]),
     }));
   } catch (err) {
     logger.warn(

@@ -4,6 +4,7 @@ import {
   inferCategory,
   inferSeverity,
   inferSeverityFromHeading,
+  parseSeverityMarker,
   extractBacktickPaths,
   splitIntoChapters,
   extractProblemSuggestionPairs,
@@ -33,7 +34,8 @@ type MsgRow = {
   session_id: string;
   type: string;
   timestamp: string;
-  text_excerpt: string;
+  /** メッセージ本文全体（finding 抽出に使う。保存用の body_excerpt は別途切り詰める）。 */
+  text_content: string;
   tool_calls: string | null;
   subagent_type: string | null;
   skill: string | null;
@@ -137,9 +139,12 @@ function extractFindings(bodyText: string): ParsedFinding[] {
 
     const chapterBody = chapter.lines.join('\n');
     const { category, is_category_inferred } = inferCategory(chapter.heading);
+    // 明示マーカー `重大度:` を最優先。無ければ本文キーワード→見出しの順で推論する。
+    const markerSeverity = parseSeverityMarker(chapterBody);
     const bodyBasedSeverity = inferSeverity(chapterBody);
     const headingSeverity = inferSeverityFromHeading(chapter.heading);
-    const severity = bodyBasedSeverity === 'info' ? headingSeverity : bodyBasedSeverity;
+    const severity =
+      markerSeverity ?? (bodyBasedSeverity === 'info' ? headingSeverity : bodyBasedSeverity);
 
     // Strategy 1: 既存ペア抽出（拡張 marker + bullet 接頭辞対応済み）
     const pairs = extractProblemSuggestionPairs(chapter.lines);
@@ -244,26 +249,33 @@ function buildSessionFromBlock(
   const parts: string[] = [];
   const rawRefs: string[] = [];
   for (const row of block.rows) {
-    if (row.text_excerpt.length > 0) parts.push(row.text_excerpt);
+    if (row.text_content.length > 0) parts.push(row.text_content);
     rawRefs.push(...extractRefsFromToolCalls(row.tool_calls, logger));
-    if (row.type === 'user') rawRefs.push(...extractBacktickPaths(row.text_excerpt));
+    if (row.type === 'user') rawRefs.push(...extractBacktickPaths(row.text_content));
   }
 
+  // finding 抽出は全文(fullBody)に対して行う。body_excerpt は保存・表示用の切り詰め版で、
+  // ここを抽出に使うと長いレビューの後半 finding が脱落する（根本原因B）。
   const fullBody = parts.join('\n---\n');
   const body_excerpt =
     fullBody.length > BODY_EXCERPT_MAX ? fullBody.slice(0, BODY_EXCERPT_MAX) : fullBody;
   const target_refs = Array.from(new Set(rawRefs));
+
+  // reviewer はブロックのラベル（groupIntoBlocks と同じ subagent_type ?? skill）。
+  // 例: code-reviewer subagent なら 'pr-review-toolkit:code-reviewer'、スキル経由なら
+  // 'superpowers:requesting-code-review'。どちらも無ければ 'unknown'。
+  const reviewer = firstRow.subagent_type ?? firstRow.skill ?? 'unknown';
 
   return {
     session_id: block.session_id,
     message_uuid_start: firstRow.uuid,
     message_uuid_end: lastRow.uuid,
     subagent_invocation_id: null,
-    reviewer: 'unknown',
+    reviewer,
     target_kind: inferTargetKind(target_refs),
     target_refs,
     body_excerpt,
-    findings: extractFindings(body_excerpt),
+    findings: extractFindings(fullBody),
     reviewed_at: firstRow.timestamp,
   };
 }
@@ -278,7 +290,7 @@ export function parseReviewSessions(input: {
   // 1. Query trail.messages for review-related messages
   const stmt = db.prepare(
     `SELECT m.uuid, m.session_id, m.type, m.timestamp,
-            COALESCE(SUBSTR(m.text_content, 1, 2048), '') AS text_excerpt,
+            COALESCE(m.text_content, '') AS text_content,
             m.tool_calls, m.subagent_type, m.skill
      FROM trail.messages m
      WHERE m.timestamp >= ?
@@ -295,7 +307,7 @@ export function parseReviewSessions(input: {
       session_id: row['session_id'] as string,
       type: row['type'] as string,
       timestamp: row['timestamp'] as string,
-      text_excerpt: (row['text_excerpt'] as string | null) ?? '',
+      text_content: (row['text_content'] as string | null) ?? '',
       tool_calls: (row['tool_calls'] as string | null) ?? null,
       subagent_type: (row['subagent_type'] as string | null) ?? null,
       skill: (row['skill'] as string | null) ?? null,

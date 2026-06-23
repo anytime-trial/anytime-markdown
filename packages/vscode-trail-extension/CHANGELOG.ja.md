@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-06-23
+
+### 追加
+
+- `anytime-dev-health`・`anytime-cross-review`・`anytime-token-budget` スキルを同梱し、activate 時に `<workspace>/.claude/skills/` へ自動配置（`installStaticSkillDir` による version 差分上書き）。
+
+### Trail Core (memory-core / doc-core / trail-server)
+
+- `memory-core`: review ingest で `reviewer` / `severity_overall` を記録し、`linkAddresses` のコミット窓を `reviewed_at` アンカーに変更して review→対処ループの紐付けを解消（RC1）。
+- `memory-core`: review session パーサが本文 2048 字切り詰めで後半 finding を脱落させ、明示 `重大度:` マーカーを無視していた問題を修正（全文パース＋マーカー優先）。
+- `memory-core`: drift の合成 subject ID（`file:` / `package:` 等）を正準 entity へ写像し FK silent ドロップを解消（RC5）。
+- `doc-core` / `trail-server`: doc-core ランナーを trail daemon 子プロセスへ配線し、embed の silent failure を止血（per-item 耐性化＋ステータス永続化）、embed 入力を 3000 字に切り詰め bge-m3 の context length 超過を回避（RC3）。
+
 ## [0.29.0] - 2026-06-22
 
 ### Trail Core (trail-viewer / mcp-trail / trail-server / chart-core)

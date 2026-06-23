@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-06-23
+
+### 修正
+
+- `CustomTable` で table wrapper（`renderWrapper`）を既定で描画し、狭い表示幅でも幅広テーブルを横スクロールできるようにした。CSS の `.tableWrapper { overflow-x: auto }` だけでは効かなかった（`resizable: false` で wrapper を生成する native TableView が無効化されていたため）。
+
 ## [1.5.0] - 2026-06-22
 
 ### 変更

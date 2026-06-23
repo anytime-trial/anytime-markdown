@@ -81,8 +81,12 @@ function makeSession(overrides: Partial<ParsedReviewSession> = {}): ParsedReview
   return {
     session_id: 'session-abc-123',
     message_uuid_start: '550e8400-e29b-41d4-a716-446655440000',
+    message_uuid_end: '550e8400-e29b-41d4-a716-446655440001',
+    subagent_invocation_id: null,
+    reviewer: 'pr-review-toolkit:code-reviewer',
     target_kind: 'code',
     target_refs: ['src/bar.ts'],
+    body_excerpt: 'review body',
     reviewed_at: TS,
     findings: [makeFinding({ finding_index: 0 })],
     ...overrides,
@@ -484,6 +488,50 @@ describe('upsertReviewSession', () => {
       expect(result.is_new).toBe(true);
       expect(result.findings_inserted).toBe(0);
       expect(result.edges_inserted).toBe(0);
+    } finally {
+      close();
+    }
+  });
+
+  // RC1: reviewer / severity_overall を memory_reviews に書き込む（旧実装は両列を INSERT から
+  // 省略し、reviewer='' / severity_overall='info' のまま全レビューが記録されていた）。
+  test('persists reviewer label and severity_overall (max finding severity)', async () => {
+    const { db, close } = await openFresh();
+    try {
+      const logger = makeLogger();
+      const session = makeSession({
+        reviewer: 'pr-review-toolkit:code-reviewer',
+        findings: [
+          makeFinding({ finding_index: 0, severity: 'warn' }),
+          makeFinding({ finding_index: 1, severity: 'error' }),
+        ],
+      });
+      const result = upsertReviewSession(db, session, TS, logger);
+
+      const rows = db.exec(
+        `SELECT reviewer, severity_overall FROM memory_reviews WHERE id = ?`,
+        [result.review_id],
+      );
+      expect(rows[0]?.values[0][0]).toBe('pr-review-toolkit:code-reviewer');
+      expect(rows[0]?.values[0][1]).toBe('error'); // error > warn
+    } finally {
+      close();
+    }
+  });
+
+  test('severity_overall falls back to info when there are no findings', async () => {
+    const { db, close } = await openFresh();
+    try {
+      const logger = makeLogger();
+      const session = makeSession({ reviewer: 'superpowers:requesting-code-review', findings: [] });
+      const result = upsertReviewSession(db, session, TS, logger);
+
+      const rows = db.exec(
+        `SELECT reviewer, severity_overall FROM memory_reviews WHERE id = ?`,
+        [result.review_id],
+      );
+      expect(rows[0]?.values[0][0]).toBe('superpowers:requesting-code-review');
+      expect(rows[0]?.values[0][1]).toBe('info');
     } finally {
       close();
     }

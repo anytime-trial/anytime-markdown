@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-06-23
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Wide tables now scroll horizontally on narrow viewports (the table wrapper is rendered by default).
+
 ## [1.5.0] - 2026-06-22
 
 ### Added

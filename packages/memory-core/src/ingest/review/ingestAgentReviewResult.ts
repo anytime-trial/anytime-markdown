@@ -2,6 +2,7 @@ import type { MemoryDbConnection, SqlValue } from '../../db/connection/types';
 import { toUint8ArrayOrNull } from '../../db/connection/blobUtil';
 import { AgentReviewInputSchema } from '../../types/AgentReviewInput';
 import { entityId } from '../../canonical/entityId';
+import { maxSeverity } from './findingHelpers';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import type { MemoryLogger } from '../../logger';
 
@@ -299,12 +300,14 @@ export async function ingestAgentReviewResult(input: {
   db.run(
     `INSERT OR IGNORE INTO memory_reviews
        (id, source_kind, source_ref, review_entity_id,
-        target_kind, target_refs_json, title, reviewed_at, recorded_at)
-     VALUES (?, 'agent', ?, ?, ?, ?, ?, ?, ?)`,
+        target_kind, target_refs_json, title, reviewer, severity_overall,
+        reviewed_at, recorded_at)
+     VALUES (?, 'agent', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       reviewEntityId, parsed.run_id, reviewEntityId,
       parsed.target_kind, JSON.stringify(parsed.target_refs),
       `Agent review ${parsed.run_id.slice(0, 8)}`,
+      parsed.model, maxSeverity(parsed.findings),
       parsed.finished_at, recordedAt,
     ],
   );

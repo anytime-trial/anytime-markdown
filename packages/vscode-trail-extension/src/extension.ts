@@ -177,6 +177,60 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
+	// anytime-dev-health は SKILL.md + grounding.cjs の複数ファイル構成。dir 丸ごと展開する。
+	if (hasClaudeDir && fs.existsSync(claudeDir)) {
+		try {
+			installStaticSkillDir({
+				claudeDir,
+				extensionPath: context.extensionUri.fsPath,
+				skillName: 'anytime-dev-health',
+				logger: {
+					info: (m) => TrailLogger.info(m),
+					warn: (m) => TrailLogger.warn(m),
+					error: (m) => TrailLogger.error(m),
+				},
+			});
+		} catch (err) {
+			TrailLogger.warn(`[install-skills] unexpected failure for anytime-dev-health: ${String(err)}`);
+		}
+	}
+
+	// anytime-cross-review は SKILL.md + codex-review.cjs の複数ファイル構成。dir 丸ごと展開する。
+	if (hasClaudeDir && fs.existsSync(claudeDir)) {
+		try {
+			installStaticSkillDir({
+				claudeDir,
+				extensionPath: context.extensionUri.fsPath,
+				skillName: 'anytime-cross-review',
+				logger: {
+					info: (m) => TrailLogger.info(m),
+					warn: (m) => TrailLogger.warn(m),
+					error: (m) => TrailLogger.error(m),
+				},
+			});
+		} catch (err) {
+			TrailLogger.warn(`[install-skills] unexpected failure for anytime-cross-review: ${String(err)}`);
+		}
+	}
+
+	// anytime-token-budget は SKILL.md + grounding.cjs の複数ファイル構成。dir 丸ごと展開する。
+	if (hasClaudeDir && fs.existsSync(claudeDir)) {
+		try {
+			installStaticSkillDir({
+				claudeDir,
+				extensionPath: context.extensionUri.fsPath,
+				skillName: 'anytime-token-budget',
+				logger: {
+					info: (m) => TrailLogger.info(m),
+					warn: (m) => TrailLogger.warn(m),
+					error: (m) => TrailLogger.error(m),
+				},
+			});
+		} catch (err) {
+			TrailLogger.warn(`[install-skills] unexpected failure for anytime-token-budget: ${String(err)}`);
+		}
+	}
+
 	const reinstallSkills = vscode.commands.registerCommand(
 		'anytime-trail.reinstallSkills',
 		async () => {
@@ -552,6 +606,16 @@ export async function activate(context: vscode.ExtensionContext) {
 								backupIntervalDays,
 							}
 						: null,
+					// doc-core: ドキュメント検索 DB ingest。docsRoot 空=無効 (既定オフ)。daemon 側で
+					// trail.db と同じ DB ディレクトリに doc-core.db を生成する。
+					...(lepConfig.sources.docs.root.trim()
+						? {
+								docCore: {
+									docsRoot: lepConfig.sources.docs.root,
+									embedModel: lepOllama.models.embedding,
+								},
+							}
+						: {}),
 				};
 				analyzeAllRunner = new AnalyzeAllRunnerClient(trailDaemonHost, cfg);
 				await analyzeAllRunner.configure();

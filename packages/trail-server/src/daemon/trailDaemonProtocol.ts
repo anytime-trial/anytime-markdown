@@ -58,6 +58,19 @@ export interface SerializableAnalyzeAllConfig {
   readonly githubPrReview?: SerializableGitHubPrReviewConfig;
   /** null なら memory pipeline をスキップ (Wave 1/2 のみ実行)。 */
   readonly memoryCore: SerializableMemoryCoreConfig | null;
+  /**
+   * ドキュメント検索 (doc-core) の ingest 設定。memory pipeline とは独立した別 DB
+   * (doc-core.db) への取込で、未指定/docsRoot 空なら doc-core を無効化する (既定オフ)。
+   */
+  readonly docCore?: SerializableDocCoreConfig;
+}
+
+/** daemon が doc-core ランナーを配線するのに必要なシリアライズ設定。 */
+export interface SerializableDocCoreConfig {
+  /** ドキュメントリポジトリのルート。空文字なら doc-core 無効。 */
+  readonly docsRoot: string;
+  /** 埋め込みモデル名 (doc_embedding.model)。ollama baseUrl は親 cfg.ollamaBaseUrl を使う。 */
+  readonly embedModel: string;
 }
 
 /**
