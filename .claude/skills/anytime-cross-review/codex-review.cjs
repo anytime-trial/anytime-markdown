@@ -154,7 +154,20 @@ if (require.main === module) {
   const gitStatus = () => {
     const st = spawnSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' });
     const df = spawnSync('git', ['diff', 'HEAD'], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-    return (st.stdout || '') + '\n--- git diff HEAD ---\n' + (df.stdout || '');
+    // 未追跡ファイルの内容も fingerprint に含める(指摘#2): porcelain の `?? file` 行は
+    // 既存 untracked を codex が書き換えても変わらず、git diff HEAD にも含まれないため。
+    const others = spawnSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd, encoding: 'utf8' });
+    const fsMod = require('node:fs');
+    const pathMod = require('node:path');
+    let untracked = '';
+    for (const f of (others.stdout || '').split('\n').map((s) => s.trim()).filter(Boolean)) {
+      try {
+        untracked += `\n--- ${f} ---\n` + fsMod.readFileSync(pathMod.join(cwd, f), 'utf8');
+      } catch (e) {
+        untracked += `\n--- ${f} (read error: ${e.message}) ---\n`;
+      }
+    }
+    return (st.stdout || '') + '\n--- git diff HEAD ---\n' + (df.stdout || '') + '\n--- untracked ---\n' + untracked;
   };
   const runCodex = ({ prompt }) => {
     // `codex exec review --base` は [PROMPT] と併用不可のため汎用 `codex exec` を使い、
