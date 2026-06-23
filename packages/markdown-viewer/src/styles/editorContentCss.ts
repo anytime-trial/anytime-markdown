@@ -431,6 +431,11 @@ ${admonitionCss("tip", ADMONITION_TIP, "Tip")}
 ${admonitionCss("important", ADMONITION_IMPORTANT, "Important")}
 ${admonitionCss("warning", ADMONITION_WARNING, "Warning")}
 ${admonitionCss("caution", ADMONITION_CAUTION, "Caution")}
+/* native TableView の div.tableWrapper を横スクロール容器にする（狭幅で列数の多い表が本文をはみ出さないように） */
+${tiptap(".tableWrapper")} {
+  overflow-x: auto;
+  max-width: 100%;
+}
 ${tiptap("table")} {
   border-collapse: collapse;
   width: var(--am-editor-table-width, auto);

@@ -81,6 +81,18 @@ describe("buildEditorContentCss", () => {
     expect(light).toContain("var(--am-editor-table-width, auto)");
   });
 
+  it("テーブルラッパー（native TableView の .tableWrapper）を横スクロール可能にする（狭幅対応）", () => {
+    // モバイル等の狭幅で列数の多い表が本文をはみ出す問題の回帰防止。
+    // vendored TableView は table を div.tableWrapper でラップするため、
+    // その容器に overflow-x: auto を当てて横スクロールを成立させる。
+    expect(light).toMatch(
+      /\.tableWrapper[^{]*\{[^}]*overflow-x:\s*auto/,
+    );
+    expect(light).toMatch(/\.tableWrapper[^{]*\{[^}]*max-width:\s*100%/);
+    // テーマ非依存ルールであることの担保（将来 isDark 分岐内へ誤移動した場合の回帰検知）。
+    expect(dark).toMatch(/\.tableWrapper[^{]*\{[^}]*overflow-x:\s*auto/);
+  });
+
   it("設定値は CSS 変数（--am-editor-*）経由で参照する", () => {
     expect(light).toContain("var(--am-editor-font-size, 16px)");
     expect(light).toContain("var(--am-editor-line-height, 1.7)");
