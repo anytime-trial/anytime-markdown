@@ -414,8 +414,8 @@ describe('parseReviewSessions', () => {
     const mainDb = makeMainDb();
     const trailDb = makeTrailDb();
 
-    // Each message has 2048-char excerpt (the SQL SUBSTR limit), plus 5-char separator '\n---\n'
-    // 3 messages × 2048 + 2 × 5 = 6144 + 10 = 6154 chars > 4096
+    // body_excerpt は保存用に BODY_EXCERPT_MAX(4096) で切り詰める（finding 抽出は全文）。
+    // 3 messages × 2048 + 2 × 5(separator '\n---\n') = 6154 chars > 4096
     const longText = 'A'.repeat(2048);
 
     insertMsg(trailDb, {
@@ -701,6 +701,123 @@ describe('parseReviewSessions', () => {
     });
 
     expect(results[0].target_refs).toContain('packages/trail-viewer/src/components/App.tsx');
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  // 回帰テスト(根本原因B): 1メッセージに収まる長いレビュー(>2048文字・複数 finding)が
+  // SQL の SUBSTR(text_content,1,2048) で切り詰められ、後半の finding が脱落していた。
+  // 実例: 6836文字・6件のレビューが 2件しか取り込まれなかった。
+  test('extracts all findings from a long single review message (no 2048 truncation)', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    const blocks: string[] = [];
+    for (let i = 1; i <= 6; i++) {
+      blocks.push(
+        `### ${i}. 指摘タイトル${i}\n\n` +
+          `**問題:** これは指摘${i}の問題説明。${'詳細な背景説明を補う。'.repeat(20)}\n\n` +
+          `**提案:** これは指摘${i}の提案。${'具体的な対処方針を述べる。'.repeat(20)}`,
+      );
+    }
+    const reviewText = `## レビュー指摘事項\n\n${blocks.join('\n\n')}`;
+    expect(reviewText.length).toBeGreaterThan(2048); // 旧実装はここで切り詰めていた
+
+    insertMsg(trailDb, {
+      uuid: 'long-review-1',
+      session_id: 'sess-long-review',
+      type: 'assistant',
+      timestamp: '2026-05-10T10:00:00.000Z',
+      text_content: reviewText,
+      subagent_type: 'pr-review-toolkit:code-reviewer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].findings).toHaveLength(6);
+    // 末尾 finding まで取り込まれている（切り詰めなら欠落）
+    expect(results[0].findings[5].finding_text).toContain('指摘6の問題説明');
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  // 回帰テスト(根本原因A): review-finding-format の `- 重大度: warn` 明示マーカーを解析する。
+  // 旧実装は本文キーワード/見出し推論のみで、warn キーワードを含まない warn 指摘を
+  // 既定の info に誤判定していた。
+  test('honors explicit `重大度:` severity marker over keyword inference', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    const reviewText = `### 1. 並行実行の設計
+
+- **重大度**: warn
+- **カテゴリ**: logic
+
+**問題:** setInterval が前回の完了を待たずに次を呼ぶ可能性がある。
+**提案:** 実行中フラグでガードする。`;
+
+    insertMsg(trailDb, {
+      uuid: 'sev-marker-1',
+      session_id: 'sess-sev-marker',
+      type: 'assistant',
+      timestamp: '2026-05-11T10:00:00.000Z',
+      text_content: reviewText,
+      subagent_type: 'pr-review-toolkit:code-reviewer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].findings).toHaveLength(1);
+    expect(results[0].findings[0].severity).toBe('warn');
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  // 明示マーカーが無い場合は従来どおりキーワード/見出し推論にフォールバックする。
+  test('falls back to keyword inference when no severity marker present', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    const reviewText = `### 1. セキュリティ
+
+**問題:** XSS 脆弱性がある。
+**提案:** DOMPurify を適用する。`;
+
+    insertMsg(trailDb, {
+      uuid: 'sev-fallback-1',
+      session_id: 'sess-sev-fallback',
+      type: 'assistant',
+      timestamp: '2026-05-12T10:00:00.000Z',
+      text_content: reviewText,
+      subagent_type: 'pr-review-toolkit:code-reviewer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results[0].findings[0].severity).toBe('error'); // XSS キーワード → error
 
     mainDb.close();
     trailDb.close();
