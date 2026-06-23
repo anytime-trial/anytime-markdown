@@ -9,7 +9,10 @@ import type { OllamaClient } from '@anytime-markdown/agent-core';
 type PipelineStatus = 'success' | 'partial' | 'error';
 
 const RETRY_SCOPE = 'conversation_failed_items_retry';
-const DEFAULT_SOURCE_SCOPE = 'conversation_backfill';
+// Retry covers every conversation ingest scope that records extraction failures.
+// Previously only 'conversation_backfill' was retried, leaving
+// 'conversation_incremental' failures orphaned in memory_failed_items forever.
+const DEFAULT_SOURCE_SCOPES = ['conversation_incremental', 'conversation_backfill'] as const;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const QUARANTINE_THRESHOLD = 3;
 const PROGRESS_LOG_INTERVAL = 5;
@@ -52,14 +55,17 @@ interface ReconstructedEpisode {
   raw_excerpt: string;
 }
 
-function loadFailedItems(db: MemoryDbConnection, sourceScope: string, maxAttempts: number): FailedItemRow[] {
+function loadFailedItems(db: MemoryDbConnection, sourceScopes: readonly string[], maxAttempts: number): FailedItemRow[] {
+  // Guard: an empty scope list would produce a syntactically invalid `scope IN ()`.
+  if (sourceScopes.length === 0) return [];
+  const placeholders = sourceScopes.map(() => '?').join(', ');
   const rows = db.exec(
     `SELECT scope, item_key, attempt_count
      FROM memory_failed_items
-     WHERE scope = ? AND reason IN ('extraction_failed', 'persist_failed', 'episode_not_found')
+     WHERE scope IN (${placeholders}) AND reason IN ('extraction_failed', 'persist_failed', 'episode_not_found')
        AND attempt_count < ?
      ORDER BY failed_at ASC`,
-    [sourceScope, maxAttempts]
+    [...sourceScopes, maxAttempts]
   );
   if (rows.length === 0) return [];
   return (rows[0].values ?? []).map((r) => ({
@@ -291,14 +297,25 @@ export async function runConversationFailedItemsRetry(opts: {
   logger?: MemoryLogger;
   model?: string;
   maxAttempts?: number;
+  /** Single source scope. Deprecated: prefer `sourceScopes`. */
   sourceScope?: string;
+  /** Conversation ingest scopes to retry. Defaults to incremental + backfill. */
+  sourceScopes?: readonly string[];
   save?: () => void;
 }): Promise<FailedItemsRetryResult> {
   const { db, ollama, model } = opts;
   const logger = opts.logger ?? noopLogger;
   const save = opts.save;
   const maxAttempts = opts.maxAttempts ?? resolveMaxAttempts();
-  const sourceScope = opts.sourceScope ?? DEFAULT_SOURCE_SCOPE;
+  // Items from all source scopes are retried in one run, ordered by failed_at.
+  // consecutiveFailures (quarantine) is therefore counted across scopes by design:
+  // a burst of failures in either scope quarantines the whole run, which is
+  // released on the next run. This is intentional — quarantine guards the shared
+  // Ollama extraction path, not a single scope.
+  const sourceScopes =
+    opts.sourceScopes ??
+    (opts.sourceScope !== undefined ? [opts.sourceScope] : DEFAULT_SOURCE_SCOPES);
+  const sourceLabel = sourceScopes.join(',');
   const extractConcurrency = resolveExtractConcurrency();
 
   const startedAt = new Date().toISOString();
@@ -307,7 +324,7 @@ export async function runConversationFailedItemsRetry(opts: {
   insertPipelineRun(db, rId, startedAt);
   upsertPipelineState(db, { status: 'running' });
 
-  const items = loadFailedItems(db, sourceScope, maxAttempts);
+  const items = loadFailedItems(db, sourceScopes, maxAttempts);
   const totals: PersistStats & { items_processed: number; items_failed: number } = {
     items_processed: 0,
     entities_inserted: 0,
@@ -322,7 +339,7 @@ export async function runConversationFailedItemsRetry(opts: {
 
   if (items.length === 0) {
     logger.info(
-      `[anytime-memory] failed-items retry: no items to retry (source=${sourceScope}, maxAttempts=${maxAttempts})`
+      `[anytime-memory] failed-items retry: no items to retry (source=${sourceLabel}, maxAttempts=${maxAttempts})`
     );
     upsertPipelineState(db, { status: 'idle' });
     finalizePipelineRun(db, rId, startedAt, 'success', totals);
@@ -330,7 +347,7 @@ export async function runConversationFailedItemsRetry(opts: {
   }
 
   logger.info(
-    `[anytime-memory] failed-items retry: ${items.length} items to retry (source=${sourceScope})`
+    `[anytime-memory] failed-items retry: ${items.length} items to retry (source=${sourceLabel})`
   );
 
   try {

@@ -435,6 +435,92 @@ describe('runConversationFailedItemsRetry', () => {
     memDb.close();
   }, 30000);
 
+  // ── F12: conversation_incremental scope items are retried (regression) ─────
+  // Regression: retry previously defaulted to scope='conversation_backfill' only,
+  // so conversation_incremental extraction_failed items were never reprocessed
+  // and accumulated in memory_failed_items forever.
+  test('F12: conversation_incremental scope items are picked up and recovered', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    insertSession(trailDb, 'sess_inc');
+    insertMessage(trailDb, 'msg_inc', 'sess_inc', 'user', '2026-05-10T00:00:00.000Z', 'incremental retry me');
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    // scope = conversation_incremental (NOT backfill)
+    insertFailedItem(memDb, 'conversation_incremental', 'sess_inc:msg_inc', 1);
+
+    const ollama = makeValidOllama();
+    // no sourceScope passed → default must cover conversation_incremental
+    const result = await runConversationFailedItemsRetry({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+    });
+
+    expect(result.items_retried).toBe(1);
+    expect(result.items_recovered).toBe(1);
+    expect(getFailedItem(memDb, 'conversation_incremental', 'sess_inc:msg_inc')).toBeNull();
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── F13: both incremental and backfill scopes retried in one run ──────────
+  test('F13: both conversation_incremental and conversation_backfill items are retried together', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    insertSession(trailDb, 'sess_both_i');
+    insertMessage(trailDb, 'msg_both_i', 'sess_both_i', 'user', '2026-05-10T00:00:00.000Z', 'inc');
+    insertSession(trailDb, 'sess_both_b');
+    insertMessage(trailDb, 'msg_both_b', 'sess_both_b', 'user', '2026-05-10T00:00:01.000Z', 'back');
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    insertFailedItem(memDb, 'conversation_incremental', 'sess_both_i:msg_both_i', 1);
+    insertFailedItem(memDb, 'conversation_backfill', 'sess_both_b:msg_both_b', 1);
+
+    const ollama = makeValidOllama();
+    const result = await runConversationFailedItemsRetry({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+    });
+
+    expect(result.items_retried).toBe(2);
+    expect(result.items_recovered).toBe(2);
+    expect(getFailedItem(memDb, 'conversation_incremental', 'sess_both_i:msg_both_i')).toBeNull();
+    expect(getFailedItem(memDb, 'conversation_backfill', 'sess_both_b:msg_both_b')).toBeNull();
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── F14: empty sourceScopes is guarded (no invalid `scope IN ()` SQL) ─────
+  test('F14: empty sourceScopes returns success with zero counts (no SQL error)', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'sess_empty');
+    insertMessage(trailDb, 'msg_empty', 'sess_empty', 'user', '2026-05-10T00:00:00.000Z', 'x');
+    insertFailedItem(memDb, 'conversation_incremental', 'sess_empty:msg_empty', 1);
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const result = await runConversationFailedItemsRetry({
+      db: memDb,
+      ollama,
+      logger: silentLogger,
+      sourceScopes: [],
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.items_retried).toBe(0);
+    expect(ollama.generate).not.toHaveBeenCalled();
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
   // ── F11: malformed item_key (no colon) → episode_not_found ────────────────
   test('F11: malformed item_key with no colon → treated as episode_not_found', async () => {
     const memDb = await makeMemoryDb();
