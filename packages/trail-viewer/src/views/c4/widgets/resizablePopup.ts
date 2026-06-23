@@ -62,6 +62,13 @@ export function mountResizablePopup(
 ): VanillaViewHandle<ResizablePopupVanillaProps> {
   let props = initial;
 
+  // Live render state. The popup self-renders on maximize/resize so it works
+  // regardless of whether the consumer re-feeds props via update() (vanilla
+  // consumers mutate a local variable and never call update()). Synced from
+  // props on update() so controlled (React) consumers keep working.
+  let liveMaximized = props.maximized;
+  let liveSize = props.size;
+
   // --- Backdrop ---
   const backdrop = document.createElement('div');
   backdrop.setAttribute('aria-hidden', 'true');
@@ -80,7 +87,11 @@ export function mountResizablePopup(
 
   const maximizeBtn = createIconButton({
     size: 'small',
-    onClick: () => props.onMaximizedChange(!props.maximized),
+    onClick: () => {
+      liveMaximized = !liveMaximized;
+      applyStyles();
+      props.onMaximizedChange(liveMaximized);
+    },
   });
   maximizeBtn.el.style.cssText = 'width:22px;height:22px;min-width:22px;';
 
@@ -119,7 +130,9 @@ export function mountResizablePopup(
   container.appendChild(root);
 
   function applyStyles(): void {
-    const { colors, isDark, maximized, size, defaultLeft = 244, defaultMaxWidth = 960, centered = false, withBackdrop = false } = props;
+    const { colors, isDark, defaultLeft = 244, defaultMaxWidth = 960, centered = false, withBackdrop = false } = props;
+    const maximized = liveMaximized;
+    const size = liveSize;
 
     // Backdrop
     backdrop.style.cssText = withBackdrop
@@ -170,7 +183,7 @@ export function mountResizablePopup(
     titleEl.textContent = props.title;
 
     // Maximize icon & labels
-    const isMax = props.maximized;
+    const isMax = maximized;
     maximizeBtn.el.setAttribute('aria-label', isMax ? props.i18nRestore : props.i18nMaximize);
     maximizeBtn.el.title = isMax ? props.i18nRestore : props.i18nMaximize;
     maximizeBtn.el.replaceChildren(svgIcon(isMax ? FULLSCREEN_EXIT_PATH : FULLSCREEN_PATH, 14));
@@ -208,7 +221,9 @@ export function mountResizablePopup(
     resizeMoveHandler = (ev: MouseEvent) => {
       const w = Math.max(MIN_WIDTH, Math.min(maxW, startW + (ev.clientX - startX)));
       const h = Math.max(MIN_HEIGHT, Math.min(maxH, startH + (ev.clientY - startY)));
-      props.onSizeChange({ width: w, height: h });
+      liveSize = { width: w, height: h };
+      applyStyles();
+      props.onSizeChange(liveSize);
     };
     resizeUpHandler = () => {
       if (resizeMoveHandler) globalThis.removeEventListener('mousemove', resizeMoveHandler);
@@ -227,6 +242,10 @@ export function mountResizablePopup(
   return {
     update(next) {
       props = next;
+      // Sync live render state from props so controlled (React) consumers that
+      // re-feed maximized/size on every render stay authoritative.
+      liveMaximized = next.maximized;
+      liveSize = next.size;
       applyStyles();
     },
     destroy() {
