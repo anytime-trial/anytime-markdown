@@ -22,15 +22,15 @@ function buildReviewPrompt(base) {
     '指摘を以下の形式で厳密に出力してください。',
     '',
     '出力は必ず ' + START + ' と ' + END + ' で挟むこと。両マーカーの外には何も書かない。',
-    '各指摘は次の review-finding-format に従う:',
+    '各指摘は次の review-finding-format に従う（マーカーの bold ** は必須。ingest パーサが要求する）:',
     '',
     '### N. タイトル',
-    '- 重大度: error | warn | info',
-    '- カテゴリ: bug | logic | spec | security | performance | maintainability | other',
-    '- 対象: <file_path:line>',
+    '- **重大度**: error | warn | info',
+    '- **カテゴリ**: logic | spec | security | perf | naming | a11y | design | other',
+    '- **対象**: <file_path:line>',
     '',
-    '問題: <何が問題か>',
-    '提案: <どう直すか>',
+    '**問題:** <何が問題か>',
+    '**提案:** <どう直すか>',
     '',
     '制約: これはレビューのみ。ファイルを変更しない・コミットしない(read-only)。',
     '指摘が無ければ ' + START + ' の直後に「指摘なし」とだけ書く。',
@@ -98,14 +98,17 @@ function detectMutation(beforeFingerprint, afterFingerprint) {
 }
 
 /**
- * Codex レビューのオーケストレータ。副作用(codex 実行・git status)は注入する。
+ * Codex 実行のオーケストレータ。副作用(codex 実行・git status)は注入する。
+ * o.prompt を渡せば任意プロンプト(相互検証 Round 2 等)も同じ read-only ガード下で実行する。
+ * 省略時は buildReviewPrompt(base)。
  */
 async function runReview(o) {
   const { base, runCodex, gitStatus, logger } = o;
+  const prompt = o.prompt || buildReviewPrompt(base);
   const before = gitStatus();
   let res;
   try {
-    res = await runCodex({ base, prompt: buildReviewPrompt(base) });
+    res = await runCodex({ base, prompt });
   } catch (e) {
     logger.error(`[cross-review] codex 起動失敗: ${e && e.message}`);
     return { ok: false, error: `codex spawn failed: ${e && e.message}`, mutated: false, findingCount: 0, maxSeverity: 'info', section: null };
@@ -138,6 +141,9 @@ if (require.main === module) {
   const base = baseIdx !== -1 ? args[baseIdx + 1] : 'develop';
   const cwdIdx = args.indexOf('--cwd');
   const cwd = cwdIdx !== -1 ? args[cwdIdx + 1] : process.cwd();
+  // --verify: Round 2 の相互検証。stdin のプロンプトを同じ read-only ガード下で codex 実行する。
+  const verify = args.includes('--verify');
+  const customPrompt = verify ? require('node:fs').readFileSync(0, 'utf8') : undefined;
   const logger = {
     info: (m) => process.stderr.write(`[${new Date().toISOString()}] [INFO] ${m}\n`),
     error: (m) => process.stderr.write(`[${new Date().toISOString()}] [ERROR] ${m}\n`),
@@ -162,7 +168,7 @@ if (require.main === module) {
     }
     return { code: r.status == null ? 1 : r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
   };
-  runReview({ base, runCodex, gitStatus, logger }).then((out) => {
+  runReview({ base, prompt: customPrompt, runCodex, gitStatus, logger }).then((out) => {
     if (!out.ok) {
       logger.error(out.error || 'unknown error');
       process.exit(out.mutated ? 3 : 2);

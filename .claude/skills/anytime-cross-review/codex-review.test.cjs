@@ -8,9 +8,10 @@ test('buildReviewPrompt は review-finding-format とセンチネルと read-onl
   const p = cr.buildReviewPrompt('develop');
   assert.match(p, /git diff develop\.\.\.HEAD/);
   assert.match(p, /### N\. タイトル/);
-  assert.match(p, /重大度: error \| warn \| info/);
-  assert.match(p, /問題:/);
-  assert.match(p, /提案:/);
+  // ingest パーサ(parseReviewDoc)が要求する bold マーカーを強制していること。
+  assert.match(p, /- \*\*重大度\*\*: error \| warn \| info/);
+  assert.match(p, /\*\*問題:\*\*/);
+  assert.match(p, /\*\*提案:\*\*/);
   assert.match(p, /<<<CROSS-REVIEW-START>>>/);
   assert.match(p, /<<<CROSS-REVIEW-END>>>/);
   assert.match(p, /ファイルを変更しない|read-only|読み取り専用/);
@@ -83,6 +84,18 @@ test('runReview は codex がファイル変更したら mutated=true・ok=false
   assert.strictEqual(r.mutated, true);
   assert.strictEqual(r.ok, false);
 });
+test('runReview は o.prompt を渡すとそれを codex に使う(Round 2 検証用・指摘#3)', async () => {
+  let seen = null;
+  await cr.runReview({
+    base: 'develop',
+    prompt: 'CUSTOM VERIFY PROMPT',
+    runCodex: async ({ prompt }) => { seen = prompt; return { code: 0, stdout: '<<<CROSS-REVIEW-START>>>指摘なし<<<CROSS-REVIEW-END>>>', stderr: '' }; },
+    gitStatus: () => '',
+    logger: { info() {}, error() {} },
+  });
+  assert.strictEqual(seen, 'CUSTOM VERIFY PROMPT');
+});
+
 test('runReview は codex 非ゼロ終了で ok=false・error を返す', async () => {
   const r = await cr.runReview({ base: 'develop', runCodex: async () => ({ code: 1, stdout: '', stderr: 'boom' }), gitStatus: () => '', logger: { info() {}, error() {} } });
   assert.strictEqual(r.ok, false);
