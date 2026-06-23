@@ -39,7 +39,42 @@ function extractReviewSection(stdout) {
   return s.slice(i + START.length, j).trim();
 }
 
-module.exports = { buildReviewPrompt, extractReviewSection, START, END };
+/** review-finding-format のセクションから {index, severity} 配列を抽出する。 */
+function parseFindings(section) {
+  const text = String(section);
+  const lines = text.split('\n');
+  const findings = [];
+  let current = null;
+  for (const line of lines) {
+    const head = /^###\s+(\d+)\./.exec(line);
+    if (head) {
+      if (current) findings.push(current);
+      current = { index: Number(head[1]), severity: 'info' };
+      continue;
+    }
+    if (current) {
+      const sev = /^[-*]?\s*(?:\*\*)?重大度(?:\*\*)?\s*[：:]\s*(error|warn|warning|info|エラー|警告|軽微)/i.exec(line);
+      if (sev) {
+        const v = sev[1].toLowerCase();
+        current.severity = /error|エラー/.test(v) ? 'error' : /warn|警告/.test(v) ? 'warn' : 'info';
+      }
+    }
+  }
+  if (current) findings.push(current);
+  return findings;
+}
+
+/** 指摘群の最大重大度（error > warn > info）。空なら info。 */
+function maxSeverity(findings) {
+  let r = 'info';
+  for (const f of findings) {
+    if (f.severity === 'error') return 'error';
+    if (f.severity === 'warn') r = 'warn';
+  }
+  return r;
+}
+
+module.exports = { buildReviewPrompt, extractReviewSection, parseFindings, maxSeverity, START, END };
 
 if (require.main === module) {
   // CLI: Task 6 で実装
