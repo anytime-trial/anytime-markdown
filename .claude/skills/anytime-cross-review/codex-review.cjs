@@ -30,7 +30,16 @@ function buildReviewPrompt() {
   ].join('\n');
 }
 
-module.exports = { buildReviewPrompt, START, END };
+/** codex stdout からセンチネル間のレビュー本文を取り出す。不在なら null。 */
+function extractReviewSection(stdout) {
+  const s = String(stdout);
+  const i = s.indexOf(START);
+  const j = s.indexOf(END);
+  if (i === -1 || j === -1 || j <= i) return null;
+  return s.slice(i + START.length, j).trim();
+}
+
+module.exports = { buildReviewPrompt, extractReviewSection, START, END };
 
 if (require.main === module) {
   // CLI: Task 6 で実装
