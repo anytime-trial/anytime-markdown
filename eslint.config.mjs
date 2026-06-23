@@ -1,6 +1,7 @@
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import nextPlugin from "@next/eslint-plugin-next";
+import sonarjs from "eslint-plugin-sonarjs";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
 
 export default tseslint.config(
@@ -16,6 +17,7 @@ export default tseslint.config(
     linterOptions: {
       reportUnusedDisableDirectives: "warn",
     },
+    plugins: { sonarjs },
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
@@ -24,6 +26,7 @@ export default tseslint.config(
       "@typescript-eslint/consistent-type-assertions": ["warn", { assertionStyle: "as", objectLiteralTypeAssertions: "never" }],
       "@typescript-eslint/no-non-null-assertion": "warn",
       "no-console": ["warn", { allow: ["error", "warn"] }],
+      "sonarjs/cognitive-complexity": ["warn", 15],
       // no-magic-numbers: MUI sx prop 内の数値が多くノイズが大きいため
       // コードレビューチェックリストで人的に確認する
     },
