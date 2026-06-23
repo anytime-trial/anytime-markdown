@@ -4,8 +4,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const cr = require('./codex-review.cjs');
 
-test('buildReviewPrompt は review-finding-format とセンチネルと read-only 制約を含む', () => {
-  const p = cr.buildReviewPrompt();
+test('buildReviewPrompt は review-finding-format とセンチネルと read-only 制約と diff 指示を含む', () => {
+  const p = cr.buildReviewPrompt('develop');
+  assert.match(p, /git diff develop\.\.\.HEAD/);
   assert.match(p, /### N\. タイトル/);
   assert.match(p, /重大度: error \| warn \| info/);
   assert.match(p, /問題:/);
@@ -58,6 +59,13 @@ test('detectMutation は変化なしなら mutated=false', () => {
   const r = cr.detectMutation(' M a.ts', ' M a.ts');
   assert.strictEqual(r.mutated, false);
   assert.deepStrictEqual(r.added, []);
+});
+
+test('detectMutation は porcelain 行が同一でも内容(git diff)が変われば mutated=true (dirty file 上書き・指摘#1)', () => {
+  const before = ' M a.ts\n--- git diff HEAD ---\n-old line';
+  const after = ' M a.ts\n--- git diff HEAD ---\n+new line';
+  const r = cr.detectMutation(before, after);
+  assert.strictEqual(r.mutated, true);
 });
 
 test('runReview は codex 出力を抽出し finding を集計、mutation を検出する', async () => {

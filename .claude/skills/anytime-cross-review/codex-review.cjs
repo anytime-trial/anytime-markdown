@@ -9,10 +9,17 @@
 const START = '<<<CROSS-REVIEW-START>>>';
 const END = '<<<CROSS-REVIEW-END>>>';
 
-/** Codex に渡すレビュー指示。review-finding-format を強制し read-only を明示する。 */
-function buildReviewPrompt() {
+/**
+ * Codex に渡すレビュー指示。review-finding-format を強制し read-only を明示する。
+ * `codex exec review --base` は [PROMPT] と併用不可のため、`codex exec`(汎用)に
+ * diff の取得方法を指示する形にする(プロンプト全制御のため)。
+ */
+function buildReviewPrompt(base) {
+  const b = base || 'develop';
   return [
-    'あなたはコードレビュアーです。与えられた diff をレビューし、指摘を以下の形式で厳密に出力してください。',
+    'あなたはコードレビュアーです。現在の作業ブランチが ' + b + ' に対して加えた変更をレビューしてください。',
+    '変更は `git diff ' + b + '...HEAD` で取得すること（必要なら個別ファイルも git で読む）。',
+    '指摘を以下の形式で厳密に出力してください。',
     '',
     '出力は必ず ' + START + ' と ' + END + ' で挟むこと。両マーカーの外には何も書かない。',
     '各指摘は次の review-finding-format に従う:',
@@ -74,13 +81,20 @@ function maxSeverity(findings) {
   return r;
 }
 
-/** git status --porcelain の before/after を比較し codex による新規変更を検出する。 */
-function detectMutation(beforePorcelain, afterPorcelain) {
-  const toSet = (t) => new Set(String(t).split('\n').map((l) => l.trimEnd()).filter(Boolean));
-  const before = toSet(beforePorcelain);
-  const after = toSet(afterPorcelain);
-  const added = [...after].filter((l) => !before.has(l));
-  return { mutated: added.length > 0, added };
+/**
+ * codex 実行前後の worktree fingerprint を比較し変更を検出する。
+ * fingerprint は `git status --porcelain` + `git diff HEAD`(追跡ファイルの内容)を含むため、
+ * 実行前から dirty だったファイルへの上書きも(内容差で)検出できる。
+ * mutated は文字列一致で判定。added は porcelain 行集合の新規分(best-effort・参考用)。
+ */
+function detectMutation(beforeFingerprint, afterFingerprint) {
+  const before = String(beforeFingerprint);
+  const after = String(afterFingerprint);
+  if (before === after) return { mutated: false, added: [] };
+  const toSet = (t) => new Set(t.split('\n').map((l) => l.trimEnd()).filter(Boolean));
+  const beforeSet = toSet(before);
+  const added = [...toSet(after)].filter((l) => !beforeSet.has(l));
+  return { mutated: true, added };
 }
 
 /**
@@ -91,7 +105,7 @@ async function runReview(o) {
   const before = gitStatus();
   let res;
   try {
-    res = await runCodex({ base, prompt: buildReviewPrompt() });
+    res = await runCodex({ base, prompt: buildReviewPrompt(base) });
   } catch (e) {
     logger.error(`[cross-review] codex 起動失敗: ${e && e.message}`);
     return { ok: false, error: `codex spawn failed: ${e && e.message}`, mutated: false, findingCount: 0, maxSeverity: 'info', section: null };
@@ -128,12 +142,24 @@ if (require.main === module) {
     info: (m) => process.stderr.write(`[${new Date().toISOString()}] [INFO] ${m}\n`),
     error: (m) => process.stderr.write(`[${new Date().toISOString()}] [ERROR] ${m}\n`),
   };
+  const CODEX_TIMEOUT_MS = Number(process.env.CROSS_REVIEW_TIMEOUT_MS) || 5 * 60 * 1000;
+  // worktree fingerprint: file レベル変化(porcelain・新規/未追跡含む) + 追跡ファイルの内容差(git diff HEAD)。
+  // 後者により実行前から dirty だったファイルへの上書きも検出できる(指摘#1)。
   const gitStatus = () => {
-    const r = spawnSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' });
-    return r.stdout || '';
+    const st = spawnSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' });
+    const df = spawnSync('git', ['diff', 'HEAD'], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    return (st.stdout || '') + '\n--- git diff HEAD ---\n' + (df.stdout || '');
   };
-  const runCodex = ({ base, prompt }) => {
-    const r = spawnSync('codex', ['exec', 'review', '--base', base, '--dangerously-bypass-approvals-and-sandbox', '-'], { cwd, input: prompt, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  const runCodex = ({ prompt }) => {
+    // `codex exec review --base` は [PROMPT] と併用不可のため汎用 `codex exec` を使い、
+    // diff の取得方法はプロンプト側で指示する。bwrap 不可環境ゆえ bypass。timeout で degrade 可能に(指摘#3)。
+    const r = spawnSync('codex', ['exec', '--dangerously-bypass-approvals-and-sandbox', '-'], {
+      cwd, input: prompt, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: CODEX_TIMEOUT_MS,
+    });
+    if (r.error) {
+      const reason = r.error.code === 'ETIMEDOUT' ? `timeout ${CODEX_TIMEOUT_MS}ms` : r.error.message;
+      return { code: 1, stdout: r.stdout || '', stderr: `codex spawn error: ${reason}` };
+    }
     return { code: r.status == null ? 1 : r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
   };
   runReview({ base, runCodex, gitStatus, logger }).then((out) => {
