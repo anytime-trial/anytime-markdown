@@ -213,6 +213,24 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
+	// anytime-token-budget は SKILL.md + grounding.cjs の複数ファイル構成。dir 丸ごと展開する。
+	if (hasClaudeDir && fs.existsSync(claudeDir)) {
+		try {
+			installStaticSkillDir({
+				claudeDir,
+				extensionPath: context.extensionUri.fsPath,
+				skillName: 'anytime-token-budget',
+				logger: {
+					info: (m) => TrailLogger.info(m),
+					warn: (m) => TrailLogger.warn(m),
+					error: (m) => TrailLogger.error(m),
+				},
+			});
+		} catch (err) {
+			TrailLogger.warn(`[install-skills] unexpected failure for anytime-token-budget: ${String(err)}`);
+		}
+	}
+
 	const reinstallSkills = vscode.commands.registerCommand(
 		'anytime-trail.reinstallSkills',
 		async () => {
