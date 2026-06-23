@@ -202,6 +202,9 @@ export function mountResizablePopup(
   let resizeUpHandler: (() => void) | null = null;
 
   function onResizeMouseDown(e: MouseEvent): void {
+    // Resize is meaningless while maximized (handle is also hidden then); guard
+    // so a stray drag cannot leave a stale liveSize behind.
+    if (liveMaximized) return;
     e.preventDefault();
     e.stopPropagation();
     const rect = root.getBoundingClientRect();
