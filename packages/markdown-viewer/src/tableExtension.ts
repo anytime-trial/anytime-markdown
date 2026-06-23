@@ -6,6 +6,12 @@ import type { MdSerializerState } from "./types";
 
 export interface CustomTableOptions {
   resizable?: boolean;
+  /**
+   * 描画時に table を div.tableWrapper で包むか。
+   * resizable:false では native TableView（wrapper 生成 NodeView）が無効になるため、
+   * 狭幅での横スクロール容器（.tableWrapper の overflow-x:auto）を成立させるには true が必要。
+   */
+  renderWrapper?: boolean;
   /** スプレッドシートのグリッド行数 */
   gridRows?: number;
   /** スプレッドシートのグリッド列数 */
@@ -18,6 +24,9 @@ export const CustomTable = Table.extend<CustomTableOptions>({
   addOptions() {
     return {
       ...this.parent?.(),
+      // 列リサイズ無効（resizable:false）構成では native TableView が付かず wrapper が
+      // 生成されないため、renderHTML 側で .tableWrapper を出力させて横スクロールを成立させる。
+      renderWrapper: true,
       gridRows: undefined,
       gridCols: undefined,
     };
