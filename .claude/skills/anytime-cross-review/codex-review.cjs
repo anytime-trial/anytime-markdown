@@ -118,5 +118,31 @@ async function runReview(o) {
 module.exports = { buildReviewPrompt, extractReviewSection, parseFindings, maxSeverity, detectMutation, runReview, START, END };
 
 if (require.main === module) {
-  // CLI: Task 6 で実装
+  const { spawnSync } = require('node:child_process');
+  const args = process.argv.slice(2);
+  const baseIdx = args.indexOf('--base');
+  const base = baseIdx !== -1 ? args[baseIdx + 1] : 'develop';
+  const cwdIdx = args.indexOf('--cwd');
+  const cwd = cwdIdx !== -1 ? args[cwdIdx + 1] : process.cwd();
+  const logger = {
+    info: (m) => process.stderr.write(`[${new Date().toISOString()}] [INFO] ${m}\n`),
+    error: (m) => process.stderr.write(`[${new Date().toISOString()}] [ERROR] ${m}\n`),
+  };
+  const gitStatus = () => {
+    const r = spawnSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' });
+    return r.stdout || '';
+  };
+  const runCodex = ({ base, prompt }) => {
+    const r = spawnSync('codex', ['exec', 'review', '--base', base, '--dangerously-bypass-approvals-and-sandbox', '-'], { cwd, input: prompt, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+    return { code: r.status == null ? 1 : r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
+  };
+  runReview({ base, runCodex, gitStatus, logger }).then((out) => {
+    if (!out.ok) {
+      logger.error(out.error || 'unknown error');
+      process.exit(out.mutated ? 3 : 2);
+    }
+    process.stdout.write(out.section + '\n');
+    logger.info(`findings=${out.findingCount} maxSeverity=${out.maxSeverity}`);
+    process.exit(0);
+  });
 }
