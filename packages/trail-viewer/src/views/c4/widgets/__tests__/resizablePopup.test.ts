@@ -143,4 +143,33 @@ describe('mountResizablePopup maximize', () => {
     handle.destroy();
     container.remove();
   });
+
+  it('keeps toolbar icon buttons inheriting the themed color (currentColor)', () => {
+    // Regression: the size override used `el.style.cssText = '...'` (assignment,
+    // not `+=`), wiping createIconButton's base styles — including
+    // `color:inherit`. The SVG icons use `fill:currentColor`, so without
+    // inherit they fell back to the UA <button> color and no longer matched the
+    // popup title (colors.text). Both icons must keep inheriting the theme color.
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+
+    const handle = mountResizablePopup(container, baseProps());
+
+    const maximizeBtn = container.querySelector('button[aria-label="Maximize"]') as HTMLButtonElement;
+    const closeBtn = container.querySelector('button[aria-label="Close"]') as HTMLButtonElement;
+    expect(maximizeBtn).toBeTruthy();
+    expect(closeBtn).toBeTruthy();
+
+    // Base styles from createIconButton must survive the size override.
+    expect(maximizeBtn.style.color).toBe('inherit');
+    expect(closeBtn.style.color).toBe('inherit');
+    expect(maximizeBtn.style.background).toBe('transparent');
+    expect(closeBtn.style.background).toBe('transparent');
+    // Size override still applied.
+    expect(maximizeBtn.style.width).toBe('22px');
+    expect(closeBtn.style.width).toBe('22px');
+
+    handle.destroy();
+    container.remove();
+  });
 });
