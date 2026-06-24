@@ -1,19 +1,13 @@
 /**
  * tableBlockChrome.ts — 脱React の table 編集 chrome（vanilla）のテスト。
- * 選択追従 → ツールバー描画 → 列/行操作の editor コマンド発火・edit/delete intent・
- * 編集中サプレッション（setEditing）を検証する。editor / tableHelpers は mock。
+ * 選択追従 → ツールバー描画 → edit/delete intent・編集中サプレッション（setEditing）を検証する。
+ * 列/行の追加削除・整列・入れ替えは編集画面（SpreadsheetGrid）へ集約済みで、
+ * インラインツールバーには描画しないことも回帰ガードする。editor は mock。
  */
-jest.mock("../utils/tableHelpers", () => ({
-  moveTableRow: jest.fn(),
-  moveTableColumn: jest.fn(),
-}));
-
 import { createTableBlockChrome } from "../chrome/tableBlockChrome";
-import { moveTableRow } from "../utils/tableHelpers";
 
 function makeEditor() {
   const listeners: Record<string, Array<() => void>> = {};
-  const chainCalls: string[] = [];
   let selection: any = { node: null, from: -1, $from: null };
   const chain = () => {
     const c: any = new Proxy(
@@ -21,10 +15,7 @@ function makeEditor() {
       {
         get(_t, prop: string) {
           if (prop === "run") return () => true;
-          return (...args: unknown[]) => {
-            chainCalls.push(args.length ? `${prop}(${JSON.stringify(args)})` : prop);
-            return c;
-          };
+          return () => c;
         },
       },
     );
@@ -71,7 +62,7 @@ function makeEditor() {
     selection = { node: null, from: -1, $from: null };
     (listeners.transaction ?? []).forEach((f) => f());
   };
-  return { editor, chainCalls, selectTable, deselect };
+  return { editor, selectTable, deselect };
 }
 
 function cb() {
@@ -83,7 +74,6 @@ const q = (sel: string) => document.querySelector(sel) as HTMLElement | null;
 describe("createTableBlockChrome", () => {
   afterEach(() => {
     document.querySelectorAll("[data-vanilla-block-chrome]").forEach((el) => el.remove());
-    (moveTableRow as jest.Mock).mockClear();
   });
 
   it("table 選択でツールバー表示、解除で非表示", () => {
@@ -102,27 +92,29 @@ describe("createTableBlockChrome", () => {
     expect(q("[data-vanilla-block-chrome]")).toBeNull();
   });
 
-  it("列追加・行追加・整列が editor コマンドを発火する", () => {
-    const { editor, chainCalls, selectTable } = makeEditor();
-    const h = createTableBlockChrome(editor, cb());
-    selectTable(5);
-
-    q('button[aria-label="addColumn"]')!.click();
-    q('button[aria-label="addRow"]')!.click();
-    q('button[aria-label="alignCenter"]')!.click();
-
-    expect(chainCalls).toContain("addColumnAfter");
-    expect(chainCalls).toContain("addRowAfter");
-    expect(chainCalls.some((c) => c.startsWith("setCellAttribute"))).toBe(true);
-    h.destroy();
-  });
-
-  it("行移動は tableHelpers.moveTableRow を呼ぶ", () => {
+  it("列/行操作・整列・入れ替えアイコンはインラインに描画しない（編集画面へ集約）", () => {
     const { editor, selectTable } = makeEditor();
     const h = createTableBlockChrome(editor, cb());
     selectTable(5);
-    q('button[aria-label="moveRowUp"]')!.click();
-    expect(moveTableRow).toHaveBeenCalledWith(editor, "up");
+
+    for (const label of [
+      "addColumn",
+      "removeColumn",
+      "addRow",
+      "removeRow",
+      "alignLeft",
+      "alignCenter",
+      "alignRight",
+      "moveRowUp",
+      "moveRowDown",
+      "moveColLeft",
+      "moveColRight",
+    ]) {
+      expect(q(`button[aria-label="${label}"]`)).toBeNull();
+    }
+    // 編集・削除のインライン intent は残す。
+    expect(q('button[aria-label="edit"]')).not.toBeNull();
+    expect(q('button[aria-label="delete"]')).not.toBeNull();
     h.destroy();
   });
 
