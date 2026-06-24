@@ -215,7 +215,6 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         type: 'setSettings',
         settings: {
           fontSize: config.get<number>('fontSize', 0),
-          editorMaxWidth: config.get<number>('editorMaxWidth', 0),
           language: resolveLanguage(),
           themeMode: resolveThemeMode(),
           themePreset: config.get<string>('themePreset', 'handwritten'),

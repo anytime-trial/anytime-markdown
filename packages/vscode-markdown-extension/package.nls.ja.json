@@ -4,7 +4,6 @@
   "customEditor.displayName": "Markdown エディタ",
   "configuration.title": "Anytime Markdown",
   "configuration.fontSize.description": "エディタのフォントサイズ（px）。0 で VS Code のデフォルトを使用します。",
-  "configuration.editorMaxWidth.description": "エディタコンテンツの最大幅（px）。0 で制限なし。",
   "command.openEditorWithFile": "Open with Anytime Markdown",
   "command.compareWithMarkdownEditor": "Compare with Anytime Markdown",
   "submenu.editorMode": "エディタモード",
