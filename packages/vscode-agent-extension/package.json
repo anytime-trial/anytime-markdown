@@ -2,7 +2,7 @@
   "name": "anytime-agent",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -243,11 +243,6 @@
     "configuration": {
       "title": "Anytime Agent",
       "properties": {
-        "anytimeAgent.claudeStatus.directory": {
-          "type": "string",
-          "default": ".anytime/trail/agent-status",
-          "markdownDescription": "%config.claudeStatus.directory%"
-        },
         "anytimeAgent.budget.dailyLimitTokens": {
           "type": [
             "number",

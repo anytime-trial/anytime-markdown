@@ -1,9 +1,4 @@
-import {
-  DEFAULT_DARK_BG, DEFAULT_DARK_CODE_BG, DEFAULT_LIGHT_BG, DEFAULT_LIGHT_CODE_BG,
-  DEFAULT_LIGHT_INLINE_CODE,
-  getActionHover, getGrey,
-  HLJS_DARK, HLJS_LIGHT,
-} from "../constants/colors";
+import { HLJS_DARK, HLJS_LIGHT } from "../constants/colors";
 
 /** シンタックスハイライト（hljs）カラー定義 */
 function hljsStyles(h: typeof HLJS_DARK | typeof HLJS_LIGHT) {
@@ -27,9 +22,9 @@ export function getHljsStyles(isDark: boolean) {
 }
 
 /**
- * hljs トークン色を CSS 変数（`--hljs-*`）の形で返す。CSS Module 側で `.x :global(.hljs-*)`
- * を CSS 変数参照にして、テーマ依存色を inline style で受けるための対。`getHljsStyles` の
- * CSS-Module 版。
+ * hljs トークン色を CSS 変数（`--hljs-*`）の形で返す。テーマ依存色を要素の inline style で受け、
+ * {@link getHljsTokenCss} が生成する `var(--hljs-*)` 参照ルールと対で着色する。`getHljsStyles` の
+ * CSS 変数版。
  */
 export function getHljsCssVars(isDark: boolean): Record<string, string> {
   const h = isDark ? HLJS_DARK : HLJS_LIGHT;
@@ -48,28 +43,26 @@ export function getHljsCssVars(isDark: boolean): Record<string, string> {
   };
 }
 
-/** インラインコード・コードブロック・シンタックスハイライトスタイル */
-export function getCodeStyles(isDark: boolean): Record<string, unknown> {
-  return {
-    "& code": {
-      bgcolor: isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG,
-      color: isDark ? getGrey(isDark, 300) : DEFAULT_LIGHT_INLINE_CODE,
-      px: 0.5,
-      py: 0.25,
-      borderRadius: 0.5,
-      fontFamily: "monospace",
-      fontSize: "0.875em",
-    },
-    "& pre": {
-      bgcolor: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
-      border: 1,
-      borderColor: isDark ? getActionHover(isDark) : "transparent",
-      borderRadius: 1,
-      p: 2,
-      my: 1,
-      overflow: "auto",
-      "& code": { bgcolor: "transparent", color: isDark ? getGrey(isDark, 300) : "inherit", p: 0, borderRadius: 0 },
-      ...hljsStyles(isDark ? HLJS_DARK : HLJS_LIGHT),
-    },
-  };
+/**
+ * hljs トークンを `var(--hljs-*)` 参照で着色する CSS ルール文字列を返す（{@link getHljsCssVars} が
+ * 要素 inline style に供給する変数を消費する対）。`scope` 配下の `.hljs-*` を着色する。
+ *
+ * vanilla プレビュー（素 DOM で lowlight 出力を描画する CodeBlockEditDialog 等）の
+ * シンタックスハイライト着色の single source of truth。CSS Module を持てない素 DOM 経路で
+ * 各所がアドホックに hljs ルールを書かないよう、本ヘルパに集約する。
+ */
+export function getHljsTokenCss(scope: string): string {
+  return [
+    `${scope} .hljs-keyword,${scope} .hljs-selector-tag,${scope} .hljs-built_in,${scope} .hljs-type{color:var(--hljs-keyword);}`,
+    `${scope} .hljs-string,${scope} .hljs-attr,${scope} .hljs-template-tag,${scope} .hljs-template-variable{color:var(--hljs-string);}`,
+    `${scope} .hljs-comment,${scope} .hljs-doctag{color:var(--hljs-comment);}`,
+    `${scope} .hljs-number,${scope} .hljs-literal,${scope} .hljs-variable,${scope} .hljs-regexp{color:var(--hljs-number);}`,
+    `${scope} .hljs-title,${scope} .hljs-title\\.class_,${scope} .hljs-title\\.function_{color:var(--hljs-title);}`,
+    `${scope} .hljs-params{color:var(--hljs-params);}`,
+    `${scope} .hljs-meta,${scope} .hljs-meta keyword,${scope} .hljs-symbol,${scope} .hljs-bullet{color:var(--hljs-meta);}`,
+    `${scope} .hljs-addition{color:var(--hljs-addition);background:var(--hljs-addition-bg);}`,
+    `${scope} .hljs-addition::before{content:'+ ';font-weight:700;}`,
+    `${scope} .hljs-deletion{color:var(--hljs-deletion);background:var(--hljs-deletion-bg);}`,
+    `${scope} .hljs-deletion::before{content:'- ';font-weight:700;}`,
+  ].join("\n");
 }

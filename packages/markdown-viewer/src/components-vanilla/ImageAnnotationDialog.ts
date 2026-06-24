@@ -46,8 +46,6 @@ const ICON_CIRCLE_OUTLINED =
 const ICON_HORIZONTAL_RULE = "M4 11h16v2H4z";
 const ICON_AUTO_FIX_OFF =
   "m23 1-2.5 1.4L18 1l1.4 2.5L18 6l2.5-1.4L23 6l-1.4-2.5zm-8.34 6.22 2.12 2.12-2.44 2.44.81.81 2.55-2.55c.39-.39.39-1.02 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0L11.4 8.84l.81.81zm-.78 6.65-3.75-3.75-6.86-6.86L2 4.53l6.86 6.86-6.57 6.57c-.39.39-.39 1.02 0 1.41l2.34 2.34c.39.39 1.02.39 1.41 0l6.57-6.57L19.47 22l1.27-1.27z";
-const ICON_CANCEL =
-  "M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2m5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12z";
 const ICON_CLOSE =
   "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z";
 const ICON_DELETE_OUTLINE =
@@ -76,7 +74,7 @@ export interface CreateImageAnnotationDialogOptions {
 }
 
 /** {@link createImageAnnotationDialog} の戻り値。 */
-export interface ImageAnnotationDialogHandle {
+interface ImageAnnotationDialogHandle {
   /** ルート要素（fixed overlay・参照用。生成時に document.body へ自前マウント済み）。 */
   el: HTMLElement;
   /** listener / 子コントロール / overlay の解放。閉じる時に必ず呼ぶ。 */
@@ -187,29 +185,8 @@ export function createImageAnnotationDialog(
   }
   syncSwatchSelection();
 
-  // spacer。
-  const spacer = document.createElement("div");
-  spacer.style.flex = "1";
-  toolbar.appendChild(spacer);
-
-  // undo（最後の注釈を取り消す）。
-  const undoBtn = createIconButton({
-    size: "small",
-    ariaLabel: t("undo"),
-    title: t("undo"),
-    disabled: items.length === 0,
-    children: svgIcon(ICON_CANCEL, 18),
-    onClick: () => {
-      items = items.slice(0, -1);
-      selectedId = null;
-      renderShapes();
-      renderPanel();
-    },
-  });
-  childHandles.push(undoBtn);
-  toolbar.appendChild(undoBtn.el);
-
-  // close（確定）。
+  // close（確定）。位置は他の全画面編集ダイアログ（TableEditDialog / crop 等）に合わせて
+  // ツールバー左端（先頭）へ置く。
   const closeBtn = createIconButton({
     size: "small",
     ariaLabel: t("close"),
@@ -218,7 +195,12 @@ export function createImageAnnotationDialog(
     onClick: () => handleClose(),
   });
   childHandles.push(closeBtn);
-  toolbar.appendChild(closeBtn.el);
+  // tools / colors / undo より前（左端）に挿入する。
+  const closeDivider = document.createElement("div");
+  closeDivider.style.cssText =
+    "width:1px;align-self:stretch;background-color:var(--am-color-divider);margin:4px 0;";
+  toolbar.prepend(closeDivider);
+  toolbar.prepend(closeBtn.el);
 
   overlay.appendChild(toolbar);
 
@@ -413,7 +395,6 @@ export function createImageAnnotationDialog(
     panelBody.replaceChildren();
 
     panelTitle.textContent = `${t("commentPanel")} (${items.length})`;
-    undoBtn.update({ disabled: items.length === 0 });
 
     if (items.length === 0) {
       const empty = document.createElement("span");

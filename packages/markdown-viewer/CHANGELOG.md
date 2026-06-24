@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-06-24
+
+### Removed
+
+- Removed the spell-check feature from the editor entirely.
+
+### Changed
+
+- Source mode now wraps long lines when the width is narrowed, unified with the compare-mode behavior.
+- Disabled the body-measure width while in paper mode and reordered the settings to paper → body width.
+- Consolidated the table inline-toolbar operations into the edit dialog.
+- Removed the source-export icon from the diagram inline toolbar.
+- Added Anytime Chart / Thinking Diagram sections to the `embed-all` template.
+- Unified the image crop-edit screen to a full-screen display.
+
+### Fixed
+
+- Tidied the image-annotation edit toolbar: added a close button to the crop screen, unified the annotation close button to the left edge, and removed the top-right undo button.
+- `markdown-rich`: restored the syntax-highlight colors and layout of the code-block edit preview.
+- `markdown-rich`: show a live preview in the right pane of the HTML edit screen.
+
 ## [1.5.1] - 2026-06-23
 
 ### Fixed

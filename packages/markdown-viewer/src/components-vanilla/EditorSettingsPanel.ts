@@ -259,7 +259,12 @@ export function createEditorSettingsPanel(
   fontCaptionWrap.append(fontCaption.el, fontRow);
   body.appendChild(fontCaptionWrap);
 
-  // --- 本文幅（measure プリセット・Select。フォントと同じ「読みやすさ」グループ） ---
+  body.appendChild(dividerEl());
+
+  // --- 本文幅（measure プリセット・Select）。DOM 追加は用紙サイズの後（順序: 用紙サイズ → 本文の幅）。
+  //     用紙サイズが off 以外のときは本文幅(measure)が用紙幅に CSS で上書きされ無反応になるため、
+  //     off のときのみ操作可能にする（editorContentCss の
+  //     [data-paper-size]:not([..="off"]) .tiptap 規則が measure を上書きする）。 ---
   const measureSelect = createSelect<EditorSettings["measure"]>({
     value: settings.measure,
     ariaLabel: t("settingMeasure"),
@@ -270,9 +275,14 @@ export function createEditorSettingsPanel(
     onChange: (v) => onUpdate({ measure: v }),
   });
   handles.push(measureSelect);
-  body.appendChild(section(caption("settingMeasure"), measureSelect.el));
-
-  body.appendChild(dividerEl());
+  /** 用紙サイズ off のときのみ本文幅を操作可能にする（無効時は視覚・a11y 状態も同期）。 */
+  const setMeasureEnabled = (enabled: boolean): void => {
+    measureSelect.el.disabled = !enabled;
+    measureSelect.el.style.opacity = enabled ? "1" : "0.5";
+    measureSelect.el.style.cursor = enabled ? "pointer" : "not-allowed";
+    measureSelect.el.setAttribute("aria-disabled", enabled ? "false" : "true");
+  };
+  const measureSectionEl = section(caption("settingMeasure"), measureSelect.el);
 
   // テーブル幅（既定: auto）/ ブロック要素の配置（既定: left）の設定は UI から撤去した。
   // 値は EditorSettings の既定（tableWidth:"auto" / blockAlign:"left"）に固定される。
@@ -288,6 +298,7 @@ export function createEditorSettingsPanel(
     onChange: (v) => {
       onUpdate({ paperSize: v });
       marginSection.style.display = v === "off" ? "none" : "";
+      setMeasureEnabled(v === "off");
     },
   });
   handles.push(paperSelect);
@@ -324,27 +335,15 @@ export function createEditorSettingsPanel(
   marginSection.style.display = settings.paperSize === "off" ? "none" : "";
   body.appendChild(marginSection);
 
+  // 本文幅セクションを用紙サイズの後に追加し、初期の有効/無効状態を反映する。
+  setMeasureEnabled(settings.paperSize === "off");
+  body.appendChild(measureSectionEl);
+
   body.appendChild(dividerEl());
 
   // 単語の折り返し（既定: keep-all）の設定は UI から撤去した。
   // 値は EditorSettings の既定（wordBreak:"keep-all"）に固定される。
-
-  // --- スペルチェック ---
-  const spellRow = document.createElement("div");
-  spellRow.style.cssText =
-    "margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;";
-  const spellCaption = createText({ variant: "caption", text: t("settingSpellCheck"), style: CAPTION_STYLE });
-  handles.push(spellCaption);
-  const spellSwitch = createSwitch({
-    checked: settings.spellCheck,
-    ariaLabel: t("settingSpellCheck"),
-    onChange: (checked) => onUpdate({ spellCheck: checked }),
-  });
-  handles.push(spellSwitch);
-  spellRow.append(spellCaption.el, spellSwitch.el);
-  body.appendChild(spellRow);
-
-  body.appendChild(dividerEl());
+  // スペルチェックの設定も撤去した。エディタ DOM 側で常に無効化される。
 
   // --- リセット（confirm → onReset） ---
   const resetBtn = createButton({

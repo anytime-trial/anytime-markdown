@@ -169,7 +169,7 @@ function makeCompactBar(
 
 // ===== YouTube ビュー =====
 
-export interface YouTubeViewResult {
+interface YouTubeViewResult {
   el: HTMLElement;
   destroy(): void;
 }
@@ -214,7 +214,7 @@ export function createYouTubeView(
 
 // ===== Spotify ビュー =====
 
-export interface SpotifyViewResult {
+interface SpotifyViewResult {
   el: HTMLElement;
   destroy(): void;
 }
@@ -258,7 +258,7 @@ export function createSpotifyView(
 
 // ===== Figma ビュー =====
 
-export interface FigmaViewResult {
+interface FigmaViewResult {
   el: HTMLElement;
   destroy(): void;
 }
@@ -302,7 +302,7 @@ export function createFigmaView(
 
 // ===== Draw.io ビュー =====
 
-export interface DrawioViewResult {
+interface DrawioViewResult {
   el: HTMLElement;
   destroy(): void;
 }
@@ -343,24 +343,12 @@ export function createDrawioView(
 }
 
 // ===== Twitter ビュー =====
+//
+// widgets.js 等のリモートスクリプトの読み込みは consumer が注入する
+// `providers.loadTweetWidgets` フックに委譲する。共有モジュールはリモート
+// エンドポイントを一切持たない（Chrome MV3 のリモートホストコード禁止対策）。
 
-const WIDGETS_JS_SRC = "https://platform.twitter.com/widgets.js";
-let widgetsLoaded = false;
-
-function loadWidgetsJs(): void {
-  if (typeof window === "undefined") return;
-  if (widgetsLoaded) return;
-  if ((globalThis as { twttr?: unknown }).twttr) { widgetsLoaded = true; return; }
-  const existing = document.querySelector(`script[src="${WIDGETS_JS_SRC}"]`);
-  if (existing) { widgetsLoaded = true; return; }
-  const script = document.createElement("script");
-  script.src = WIDGETS_JS_SRC;
-  script.async = true;
-  document.head.appendChild(script);
-  widgetsLoaded = true;
-}
-
-export interface TwitterViewResult {
+interface TwitterViewResult {
   el: HTMLElement;
   destroy(): void;
 }
@@ -458,11 +446,9 @@ export function createTwitterView(
     tweetContainer.innerHTML = sanitizeTweetHtml(data.html);
     container.appendChild(tweetContainer);
 
-    loadWidgetsJs();
-    const twttr = (globalThis as { twttr?: { widgets?: { load?: (el?: Element) => void } } }).twttr;
-    if (twttr?.widgets?.load) {
-      twttr.widgets.load(tweetContainer);
-    }
+    // ウィジェット昇格（widgets.js の読み込み等）は consumer に委譲する。
+    // 未提供時は静的な blockquote のまま表示する。
+    providers.loadTweetWidgets?.(tweetContainer);
   });
 
   oembed.fetch(url, "oembed", providers.fetchOembed);
@@ -478,7 +464,7 @@ export function createTwitterView(
 
 // ===== OGP カードビュー =====
 
-export interface OgpCardViewResult {
+interface OgpCardViewResult {
   el: HTMLElement;
   destroy(): void;
 }

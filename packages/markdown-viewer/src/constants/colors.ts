@@ -29,12 +29,10 @@ export const DEFAULT_DARK_HEADING_LINK = "#63B3ED";
 export const DEFAULT_LIGHT_HEADING_LINK = "#1F1E1C";
 
 // ── 見出し装飾色（ボーダー・背景グラデーション） ──
-export const DEFAULT_DARK_H1_BORDER = "rgba(99,179,237,0.12)";
 export const DEFAULT_DARK_H2_BORDER = "rgba(99,179,237,0.6)";
 export const DEFAULT_DARK_H3_BORDER = "rgba(99,179,237,0.35)";
 export const DEFAULT_DARK_H1_GRADIENT = "rgba(99,179,237,0.12)";
 export const DEFAULT_DARK_H2_GRADIENT = "rgba(99,179,237,0.08)";
-export const DEFAULT_LIGHT_H1_BORDER = "rgba(31,30,28,0.06)";
 export const DEFAULT_LIGHT_H2_BORDER = "rgba(31,30,28,0.25)";
 export const DEFAULT_LIGHT_H3_BORDER = "rgba(31,30,28,0.15)";
 export const DEFAULT_LIGHT_H1_GRADIENT = "rgba(31,30,28,0.06)";
@@ -76,7 +74,6 @@ export const DEFAULT_DARK_TABLE_HEADER_BG = "#1A202C";
 export const DEFAULT_LIGHT_TABLE_HEADER_BG = "#DDD9CE";
 
 // ── インラインコード色 ──
-export const DEFAULT_DARK_INLINE_CODE = undefined; // getGrey で動的取得
 // 水墨パレットの焦墨（朱墨の影）。明るい Material 赤を廃し「差し色はアンバーのみ」哲学へ整合。
 export const DEFAULT_LIGHT_INLINE_CODE = "#6B2A20";
 

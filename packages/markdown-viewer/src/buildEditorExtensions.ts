@@ -10,7 +10,7 @@ import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import { SlashCommandExtension } from "./extensions/slashCommandExtension";
 import { SearchReplaceExtension } from "./searchReplaceExtension";
 
-export interface BuildEditorExtensionsOptions {
+interface BuildEditorExtensionsOptions {
   /** main = 本体（編集可能）, compare = 比較ビュー左パネル（read-only） */
   mode: "main" | "compare";
   /** codeBlock 拡張の注入 (rich の CodeBlockWithMermaid)。未指定時は素の CodeBlockLowlight。左右で共有する描画系オプション */

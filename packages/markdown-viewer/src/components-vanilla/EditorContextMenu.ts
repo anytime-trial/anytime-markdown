@@ -55,7 +55,7 @@ const PATH = {
 } as const;
 
 /** {@link createEditorContextMenu} のオプション（React `EditorContextMenuProps` の vanilla 再現）。 */
-export interface CreateEditorContextMenuOptions {
+interface CreateEditorContextMenuOptions {
   /** editor（null 可）。選択・ブロック判定 / chain コマンドに使う。 */
   editor: Editor | null;
   /** 読み取り専用。cut / paste / clear などを無効化する。 */

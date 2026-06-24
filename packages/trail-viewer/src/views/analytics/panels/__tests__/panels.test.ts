@@ -569,6 +569,52 @@ describe('mountCombinedChartsSection', () => {
     expect(container.innerHTML).toBe('');
   });
 
+  // Regression: vanilla 化（bcd12d461）で エージェント/スキル/リリース トグル内の
+  // ↗ ポップアップトリガが欠落し、ポップアップウインドウを開けなくなった不具合を防ぐ。
+  it('エージェント/スキル/リリース トグルの ↗ がポップアップコールバックを発火する', () => {
+    const onOpenMessagesPopup = jest.fn();
+    const onOpenPromptsPopup = jest.fn();
+    const onOpenReleasesPopup = jest.fn();
+    const container = document.createElement('div');
+    mountCombinedChartsSection(container, {
+      ...baseProps,
+      onOpenMessagesPopup,
+      onOpenPromptsPopup,
+      onOpenReleasesPopup,
+    });
+
+    const messagesTrigger = container.querySelector<HTMLElement>('[data-popup-trigger="messages"]');
+    const promptsTrigger = container.querySelector<HTMLElement>('[data-popup-trigger="prompts"]');
+    const releasesTrigger = container.querySelector<HTMLElement>('[data-popup-trigger="releases"]');
+
+    expect(messagesTrigger).not.toBeNull();
+    expect(promptsTrigger).not.toBeNull();
+    expect(releasesTrigger).not.toBeNull();
+
+    messagesTrigger?.click();
+    promptsTrigger?.click();
+    releasesTrigger?.click();
+
+    expect(onOpenMessagesPopup).toHaveBeenCalledTimes(1);
+    expect(onOpenPromptsPopup).toHaveBeenCalledTimes(1);
+    expect(onOpenReleasesPopup).toHaveBeenCalledTimes(1);
+  });
+
+  // Regression: ↗ クリックは親トグルの metric 切替を発火させない（stopPropagation）。
+  it('↗ クリックは親トグルの metric 切替を発火しない', () => {
+    const onOpenReleasesPopup = jest.fn();
+    const container = document.createElement('div');
+    mountCombinedChartsSection(container, { ...baseProps, onOpenReleasesPopup });
+    // 初期 metric は tokens。releases ↗ クリックで releases へ切替わらないこと
+    // （releases に切替わると period セレクタが消える等の副作用が出る）。
+    const releasesTrigger = container.querySelector<HTMLElement>('[data-popup-trigger="releases"]');
+    releasesTrigger?.click();
+    expect(onOpenReleasesPopup).toHaveBeenCalledTimes(1);
+    // metric tokens のままなら token サブトグル（chart.tokens）が残っている
+    const labels = Array.from(container.querySelectorAll('button')).map((b) => b.textContent ?? '');
+    expect(labels.some((l) => l.includes('chart.tokens'))).toBe(true);
+  });
+
   // Regression: 棒グラフの選択ハイライトが drill-down / データ更新で消える不具合を防ぐ。
   // チャートを破棄再生成せず in-place update することで chart-core 内部の選択を温存する。
   it('drill-down とデータ更新でチャートを破棄再生成しない（選択温存）', () => {

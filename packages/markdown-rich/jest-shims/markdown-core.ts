@@ -61,7 +61,7 @@ export {
 
 export { FETCH_TIMEOUT } from "../../markdown-viewer/src/constants/timing";
 
-export { getHljsCssVars, getHljsStyles } from "../../markdown-viewer/src/styles/codeStyles";
+export { getHljsCssVars, getHljsStyles, getHljsTokenCss } from "../../markdown-viewer/src/styles/codeStyles";
 
 // 注: `appLowlight` は意図的に再 export しない。唯一の利用者 RichMarkdownEditorPage は
 // どのテストからもロードされず、ここで export すると ESM の lowlight が全テストに

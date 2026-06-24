@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -151,12 +151,20 @@
           "maximum": 72,
           "description": "%configuration.fontSize.description%"
         },
-        "anytimeMarkdown.editorMaxWidth": {
-          "type": "number",
-          "default": 0,
-          "minimum": 0,
-          "maximum": 10000,
-          "description": "%configuration.editorMaxWidth.description%"
+        "anytimeMarkdown.measure": {
+          "type": "string",
+          "default": "standard",
+          "enum": [
+            "focus",
+            "standard",
+            "wide"
+          ],
+          "enumDescriptions": [
+            "%configuration.measure.focus%",
+            "%configuration.measure.standard%",
+            "%configuration.measure.wide%"
+          ],
+          "description": "%configuration.measure.description%"
         },
         "anytimeMarkdown.language": {
           "type": "string",
@@ -201,25 +209,10 @@
           ],
           "description": "%configuration.themePreset.description%"
         },
-        "anytimeMarkdown.claudeStatus.directory": {
+        "anytimeMarkdown.docsRoot": {
           "type": "string",
           "default": "",
-          "description": "%configuration.claudeStatus.directory.description%"
-        },
-        "anytimeMarkdown.noteGraph.repositoryPath": {
-          "type": "string",
-          "default": "",
-          "description": "%configuration.noteGraph.repositoryPath.description%"
-        },
-        "anytimeMarkdown.docSearch.docsRoot": {
-          "type": "string",
-          "default": "",
-          "description": "%configuration.docSearch.docsRoot.description%"
-        },
-        "anytimeMarkdown.docSearch.subDir": {
-          "type": "string",
-          "default": "spec",
-          "description": "%configuration.docSearch.subDir.description%"
+          "description": "%configuration.docsRoot.description%"
         },
         "anytimeMarkdown.docSearch.dbPath": {
           "type": "string",

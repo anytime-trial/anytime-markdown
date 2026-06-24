@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-06-24
+
+### Added
+
+- Made the body-measure width configurable via the `anytimeMarkdown.measure` VS Code setting, and restored the `fontSize` wiring.
+
+### Changed (Breaking — settings)
+
+- Unified the documentation-root settings into a single top-level `anytimeMarkdown.docsRoot`, used by both doc search indexing and the Note Graph panel. The previous keys `anytimeMarkdown.noteGraph.repositoryPath` and `anytimeMarkdown.docSearch.docsRoot` were removed — reconfigure `anytimeMarkdown.docsRoot` if you had set either.
+- Doc search now indexes the entire `docsRoot` (previously limited to a subdirectory). Removed the `anytimeMarkdown.docSearch.subDir` setting.
+
+### Removed
+
+- Removed the unused `anytimeMarkdown.editorMaxWidth` setting (it was never applied by the editor).
+- Removed the `anytimeMarkdown.claudeStatus.directory` setting. Claude Code editing status is now read from the agent-status worker (DB), so the old `claude-code-status.json` file path is no longer used.
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Removed the spell-check feature; source mode now wraps on narrow widths; image crop edit goes full-screen; table inline-toolbar ops moved into the edit dialog; `embed-all` template gains Anytime Chart / Thinking Diagram sections; HTML edit live preview and code-block preview highlighting restored.
+
 ## [1.5.1] - 2026-06-23
 
 ### Editor Core (markdown-viewer / markdown-rich)

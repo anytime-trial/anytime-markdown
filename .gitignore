@@ -51,3 +51,16 @@ packages/memory-core/dbfile_*
 # build 時生成の第三者ライセンス表記（配布物に同梱・コミットしない。markdown-core のは手書きでコミット）
 packages/vscode-*-extension/THIRD-PARTY-NOTICES.md
 packages/web-app/public/THIRD-PARTY-NOTICES.md
+
+# 変則的な tsc 実行（--emitDeclarationOnly 等で outDir を無視）や file モードが src 隣接に吐く
+# 生成 .d.ts を無視する。正規ビルド（tsc -b）は declaration を各パッケージの dist/ に出力するため
+# src に .d.ts は生じない。手書き ambient .d.ts（.ts 兄弟を持たないモジュール宣言）は下の ! で
+# 明示追跡を維持する。新規 ambient .d.ts を src に追加する場合は negate 行を追記すること。
+/packages/markdown-viewer/src/**/*.d.ts
+!/packages/markdown-viewer/src/css.d.ts
+!/packages/markdown-viewer/src/md.d.ts
+!/packages/markdown-viewer/src/types/stylis.d.ts
+!/packages/markdown-viewer/src/types/vscode.d.ts
+/packages/markdown-rich/src/**/*.d.ts
+!/packages/markdown-rich/src/plotly-gl3d.d.ts
+/packages/markdown-engine/src/**/*.d.ts

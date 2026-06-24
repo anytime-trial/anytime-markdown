@@ -6,6 +6,26 @@
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-06-24
+
+### 追加
+
+- 本文幅(measure)を VS Code 設定 `anytimeMarkdown.measure` で変更可能にし、`fontSize` の配線を復活。
+
+### 変更（破壊的 — 設定）
+
+- ドキュメントルートの設定をトップレベルの `anytimeMarkdown.docsRoot` 1 つに統一。ドキュメント検索の索引とノート網パネルの双方で使用します。旧キー `anytimeMarkdown.noteGraph.repositoryPath` と `anytimeMarkdown.docSearch.docsRoot` は削除したため、いずれかを設定していた場合は `anytimeMarkdown.docsRoot` に再設定してください。
+- ドキュメント検索が `docsRoot` 配下全体を索引対象にするよう変更（従来はサブディレクトリ限定）。`anytimeMarkdown.docSearch.subDir` 設定を削除。
+
+### 削除
+
+- 未使用だった `anytimeMarkdown.editorMaxWidth` 設定を削除（エディタ側で適用されていませんでした）。
+- `anytimeMarkdown.claudeStatus.directory` 設定を削除。Claude Code の編集ステータスは agent-status ワーカー（DB）から取得するようになり、旧 `claude-code-status.json` ファイルパスは不要になりました。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- スペルチェック機能を削除。ソースモードが狭幅で折り返すように。画像 crop 編集を全画面化。表インラインツールバーの操作を編集画面へ集約。`embed-all` テンプレートに Anytime Chart / Thinking Diagram 節を追加。HTML 編集の実プレビューとコードブロックプレビューのハイライトを修復。
+
 ## [1.5.1] - 2026-06-23
 
 ### Editor Core (markdown-viewer / markdown-rich)

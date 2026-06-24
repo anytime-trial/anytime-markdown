@@ -23,6 +23,7 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 11, file: '011_failed_items_retry_scope.sql' },
   { version: 12, file: '012_function_entity_lifecycle.sql' },
   { version: 13, file: '013_rag_fts.sql', requiresFts5: true },
+  { version: 14, file: '014_spec_doc_reference_type.sql' },
 ];
 
 let cachedFts5: WeakMap<MemoryDbConnection, boolean> | null = null;

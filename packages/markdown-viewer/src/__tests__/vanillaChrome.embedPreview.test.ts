@@ -390,6 +390,60 @@ describe("createEmbedPreview — Twitter", () => {
     handle.destroy();
   });
 
+  // MV3 リモートコード違反回避: 共有モジュールは widgets.js を直接注入せず、
+  // consumer が注入する loadTweetWidgets フックへ委譲する。
+  test("card variant: リモートスクリプトを直接注入せず loadTweetWidgets へ委譲する", async () => {
+    const loadTweetWidgets = jest.fn();
+    const providers = makeProviders({
+      fetchOembed: jest.fn().mockResolvedValue({
+        url: TWEET_URL,
+        provider: "twitter",
+        html: '<blockquote class="twitter-tweet"><p>hi</p></blockquote>',
+        authorName: "user",
+      } satisfies OembedData),
+      loadTweetWidgets,
+    });
+    setEmbedProviders(providers);
+
+    const handle = createEmbedPreview(container);
+    handle.render("embed card", TWEET_URL, undefined, jest.fn());
+    await flushPromises();
+
+    // 共有バンドルに platform.twitter.com への script 注入が残っていないこと（MV3 静的スキャン対策）
+    expect(
+      document.querySelector('script[src*="platform.twitter.com"]'),
+    ).toBeNull();
+    // 描画済みの tweet コンテナを引数にフックが呼ばれること。
+    // tweetEl が null/undefined のまま toHaveBeenCalledWith を通さないよう先に存在を保証する。
+    const tweetEl = container.querySelector(".twitter-tweet")?.parentElement;
+    expect(tweetEl).toBeInstanceOf(HTMLElement);
+    expect(loadTweetWidgets).toHaveBeenCalledTimes(1);
+    expect(loadTweetWidgets).toHaveBeenCalledWith(tweetEl);
+    handle.destroy();
+  });
+
+  test("loadTweetWidgets 未提供でも card variant は描画され例外を投げない", async () => {
+    const providers = makeProviders({
+      fetchOembed: jest.fn().mockResolvedValue({
+        url: TWEET_URL,
+        provider: "twitter",
+        html: '<blockquote class="twitter-tweet"><p>hi</p></blockquote>',
+        authorName: "user",
+      } satisfies OembedData),
+    });
+    setEmbedProviders(providers);
+
+    const handle = createEmbedPreview(container);
+    handle.render("embed card", TWEET_URL, undefined, jest.fn());
+    await flushPromises();
+
+    expect(container.querySelector(".twitter-tweet")).not.toBeNull();
+    expect(
+      document.querySelector('script[src*="platform.twitter.com"]'),
+    ).toBeNull();
+    handle.destroy();
+  });
+
   test("fetchOembed 失敗でフォールバックリンク表示", async () => {
     const providers = makeProviders({
       fetchOembed: jest.fn().mockRejectedValue(new Error("boom")),

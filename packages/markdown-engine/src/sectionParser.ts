@@ -126,7 +126,7 @@ function buildSections(lines: string[], start: number, end: number, parentLevel:
 
 // --- セクション LCS マッチング ---
 
-export interface SectionMatch {
+interface SectionMatch {
   type: "matched" | "left-only" | "right-only";
   left: MarkdownSection | null;
   right: MarkdownSection | null;

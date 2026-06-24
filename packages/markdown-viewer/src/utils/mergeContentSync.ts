@@ -29,7 +29,7 @@ export function normalizeCompareMarkdown(editor: Editor, raw: string): string {
   return prependFrontmatter(getMarkdownFromEditor(editor), frontmatter);
 }
 
-export interface CollapsedState {
+interface CollapsedState {
   type: string;
   index: number;
   collapsed?: boolean;

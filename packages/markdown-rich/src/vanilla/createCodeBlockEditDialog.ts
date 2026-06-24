@@ -5,11 +5,12 @@
 
 import { common, createLowlight } from "lowlight";
 import {
-  getDivider, getHljsCssVars,
+  getDivider, getHljsCssVars, getHljsTokenCss,
   FS_PANEL_HEADER_FONT_SIZE,
 } from "@anytime-markdown/markdown-viewer";
 import { createDialog } from "@anytime-markdown/ui-core/Dialog";
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
+import { renderCodeBlockPreview } from "../components/codeblock/codeBlockPreview";
 
 import type { ZoomPanController } from "./zoomPanState";
 import { createZoomPanState } from "./zoomPanState";
@@ -47,6 +48,12 @@ export interface CreateCodeBlockEditDialogOptions {
    */
   renderPreviewHtml?: (code: string, isDark: boolean) => string;
   /**
+   * renderPreview = true 時、構文ハイライト（ソース表示）ではなく言語別の実プレビューを
+   * 本文 NodeView と同じ {@link renderCodeBlockPreview} で描画する。html 等の rendered kind 用。
+   * renderPreviewHtml を指定した場合はそちらが優先される。
+   */
+  renderLanguagePreview?: boolean;
+  /**
    * renderPreview = true 時、プレビュー HTML 設定直後に呼ばれる汎用フック。
    * 描画済みプレビュー要素へ操作層（WYSIWYG ハンドラ等）を装着するために使う。
    * 戻り値のクリーンアップ関数は次回 render 前・dialog 破棄時に呼ばれる。
@@ -82,15 +89,18 @@ function ensureDialogStyle(): void {
   ensureStyle(STYLE_ID, `
 .am-cbed-content{display:flex;flex:1 1 auto;overflow:hidden;min-height:0;}
 .am-cbed-preview{flex:1;display:flex;flex-direction:column;overflow:auto;padding:12px;font-family:monospace;white-space:pre;}
+/* 言語別の実プレビュー（html 等を renderCodeBlockPreview で描画）はコード表示用の
+   monospace / white-space:pre を解除し、通常フローでレンダリングする。 */
+.am-cbed-preview.am-cbed-preview--rendered{display:block;font-family:inherit;white-space:normal;}
 .am-cbed-preview pre{margin:0;}
 .am-cbed-preview code{display:block;white-space:pre-wrap;word-break:break-word;}
 .am-cbed-preview svg{max-width:100%;height:auto;display:block;margin:0 auto;}
 .am-cbed-preview .anytime-graph-error{white-space:pre-wrap;color:var(--am-color-text-secondary, #888);font-family:monospace;margin:0;}
+${getHljsTokenCss(".am-cbed-preview")}
 `);
 }
 
-function buildHighlightHtml(code: string, language: string): string {
-  if (!code) return "";
+function buildHighlightInner(code: string, language: string): string {
   try {
     const langs = lowlight.listLanguages();
     if (!langs.includes(language) || language === "plaintext") {
@@ -101,6 +111,17 @@ function buildHighlightHtml(code: string, language: string): string {
   } catch {
     return code.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
   }
+}
+
+/**
+ * 構文ハイライト済みコードを `<pre><code class="hljs">` でラップして返す。
+ * ラッパ無しの裸 span 列は `.am-cbed-preview`（flex 縦並び）で各 span が縦積みになり
+ * レイアウトが崩れるため、ブロック要素で包む。着色は {@link getHljsTokenCss} のルール
+ * （`var(--hljs-*)`）＋ previewInner に設定した {@link getHljsCssVars} の変数で行う。
+ */
+function buildHighlightHtml(code: string, language: string): string {
+  if (!code) return "";
+  return `<pre><code class="hljs">${buildHighlightInner(code, language)}</code></pre>`;
 }
 
 export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions): CodeBlockEditDialogHandle {
@@ -229,6 +250,8 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
 
     const previewInner = document.createElement("div");
     previewInner.className = "am-cbed-preview";
+    // hljs トークン色は getHljsTokenCss(".am-cbed-preview") の var(--hljs-*) 参照ルールが消費する。
+    // NOTE: isDark はクロージャで固定。テーマ切替時の CSS 変数再設定は未対応（ダイアログ再生成で反映・既存制約）。
     const cssVars = getHljsCssVars(isDark) as Record<string, string>;
     for (const [k, v] of Object.entries(cssVars)) {
       previewInner.style.setProperty(k, v);
@@ -251,10 +274,27 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
         previewCleanup();
         previewCleanup = undefined;
       }
-      previewEl.innerHTML = opts.renderPreviewHtml
-        ? opts.renderPreviewHtml(state.getFsCode(), isDark)
-        : buildHighlightHtml(state.getFsCode(), language);
-      previewCleanup = opts.onPreviewRendered?.(previewEl, isDark);
+      const code = state.getFsCode();
+      if (opts.renderPreviewHtml) {
+        // 独自プレビュー HTML（図 SVG 等・呼び出し側 sanitize 済み）。
+        previewEl.classList.remove("am-cbed-preview--rendered");
+        previewEl.innerHTML = opts.renderPreviewHtml(code, isDark);
+        previewCleanup = opts.onPreviewRendered?.(previewEl, isDark);
+      } else if (opts.renderLanguagePreview) {
+        // 言語別の実プレビュー（html 等）を本文と同じ共通レンダラで描画する。
+        previewEl.classList.add("am-cbed-preview--rendered");
+        const cancel = renderCodeBlockPreview(previewEl, language, code, { isDark, fontSize }, render);
+        const extra = opts.onPreviewRendered?.(previewEl, isDark);
+        previewCleanup = () => {
+          cancel();
+          extra?.();
+        };
+      } else {
+        // regular コードは構文ハイライト（ソース表示）。
+        previewEl.classList.remove("am-cbed-preview--rendered");
+        previewEl.innerHTML = buildHighlightHtml(code, language);
+        previewCleanup = opts.onPreviewRendered?.(previewEl, isDark);
+      }
     }
   }
 

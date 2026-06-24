@@ -22,7 +22,7 @@ import { safeSetItem } from "../utils/storage";
 export type VanillaEditorMode = "wysiwyg" | "source" | "review" | "readonly";
 
 /** {@link createSourceModeController} のオプション。 */
-export interface CreateSourceModeControllerOptions {
+interface CreateSourceModeControllerOptions {
   editor: Editor;
   /** editor がマウントされている要素（textarea を並置する）。 */
   contentEl: HTMLElement;
@@ -85,25 +85,51 @@ const SOURCE_FONT_CSS =
   "font-family:var(--am-source-font-family, ui-monospace, monospace);" +
   "font-size:var(--am-editor-font-size, 16px);line-height:var(--am-editor-line-height, 1.6);";
 
+// textarea・ミラー・ガターの上下 padding。先頭行の縦位置を揃えるため、textarea/ミラーの
+// padding-top と GUTTER_CSS の padding-top は必ず同値でなければならない（共有定数で担保）。
+const SOURCE_EDGE_PADDING = "16px";
+
+// textarea / ミラーで共有する padding。折り返し幅を一致させ、行高計測の整合を保つため
+// 両者で必ず同値にする。
+const SOURCE_PADDING_CSS = `padding:${SOURCE_EDGE_PADDING};`;
+
 const TEXTAREA_CSS =
-  "flex:1 1 auto;height:100%;box-sizing:border-box;border:none;outline:none;resize:none;" +
+  "position:relative;z-index:1;display:block;width:100%;min-height:100%;box-sizing:border-box;" +
+  "border:none;outline:none;resize:none;overflow:hidden;" +
   SOURCE_FONT_CSS +
+  SOURCE_PADDING_CSS +
   // textarea は .tiptap の兄弟（contentEl 直下）のため .tiptap の color を継承できない。
   // host が root へ適用する --am-editor-text を直接参照してテーマ文字色に追従する
   // （color:inherit だとテーマ非対応ページ＝拡張等でダーク時にページ既定の黒へ落ちる）。
-  "background:transparent;color:var(--am-editor-text, inherit);padding:16px;" +
-  // 行番号と 1:1 で対応させるため折り返さず横スクロールにする（コードエディタ流）。
-  "white-space:pre;overflow:auto;";
+  "background:transparent;color:var(--am-editor-text, inherit);" +
+  // 比較モード（MergeEditorPanel）と同じく折り返す。横スクロールはせず、内容高さへ
+  // 伸長して sourceWrap 側を唯一のスクローラにする（overflow:hidden + auto-grow）。
+  "white-space:pre-wrap;overflow-wrap:break-word;";
 
-// textarea + 左端行番号ガターを横並びにする wrapper（textarea が唯一のスクローラ）。
-const SOURCE_WRAP_CSS = "display:flex;width:100%;height:100%;overflow:hidden;";
-
-// 左端の行番号ガター。textarea と同じ行高・上 padding で行位置を揃え、縦スクロールは
-// textarea の scroll に追従させる（自身は overflow:hidden で独自スクロールバーを出さない）。
-const GUTTER_CSS =
-  "flex:0 0 auto;overflow:hidden;text-align:right;white-space:pre;user-select:none;" +
+// textarea 背面のミラー。折り返し後の各論理行の実高さを計測するため、textarea と同じ
+// フォント・幅・padding・pre-wrap で各行を個別 div として描画する（文字は透明）。
+const MIRROR_CSS =
+  "position:absolute;top:0;left:0;right:0;z-index:0;pointer-events:none;color:transparent;" +
+  "box-sizing:border-box;" +
   SOURCE_FONT_CSS +
-  "padding:16px 8px 16px 12px;color:var(--am-color-text-secondary);" +
+  SOURCE_PADDING_CSS +
+  "white-space:pre-wrap;overflow-wrap:break-word;";
+
+// textarea とミラーを重ねるコンテナ（折り返し幅の基準・min-width:0 で flex 縮小を許可）。
+const TEXT_CONTAINER_CSS = "flex:1 1 auto;min-width:0;position:relative;";
+
+// textarea + 左端行番号ガターを横並びにする wrapper（wrapper 自身が縦スクローラ）。
+const SOURCE_WRAP_CSS = "display:flex;width:100%;height:100%;overflow:auto;";
+
+// 左端の行番号ガター。論理行ごとに 1 つの div を並べ、各 div の高さはミラー計測値へ
+// 同期する（折り返した論理行でも行番号が先頭に揃う）。padding-top は textarea と一致させ
+// 先頭行を揃える。wrapper がスクロールするためガター自身はスクロールしない。
+const GUTTER_CSS =
+  "flex:0 0 auto;box-sizing:border-box;text-align:right;white-space:pre;user-select:none;" +
+  SOURCE_FONT_CSS +
+  // 上下 padding は SOURCE_PADDING_CSS と同値（SOURCE_EDGE_PADDING）で先頭行を揃える。
+  `padding:${SOURCE_EDGE_PADDING} 8px ${SOURCE_EDGE_PADDING} 12px;` +
+  "color:var(--am-color-text-secondary);" +
   "border-right:1px solid var(--am-color-divider);";
 
 /** editor mode の vanilla コントローラを生成する。 */
@@ -116,22 +142,67 @@ export function createSourceModeController(
   let textarea: HTMLTextAreaElement | null = null;
   let sourceWrap: HTMLElement | null = null;
   let gutter: HTMLElement | null = null;
-  let lastLineCount = 0;
-  // source モード中に退避する contentEl の overflow（textarea を唯一のスクローラにするため）。
+  // textarea 背面のミラー（折り返し後の各行の実高さ計測用）。
+  let mirror: HTMLElement | null = null;
+  // textContainer の幅変化（＝折り返し再計算）を監視し、行高同期を再実行する。
+  let resizeObserver: ResizeObserver | null = null;
+  let syncScheduled = false;
+  // source モード中に退避する contentEl の overflow（sourceWrap を唯一のスクローラにするため）。
   let prevContentOverflow: string | null = null;
 
-  /** textarea の論理行数（空でも 1 行・末尾改行は +1 行＝textarea の表示挙動に合わせる）。 */
-  const lineCount = (text: string): number => (text.length === 0 ? 1 : text.split("\n").length);
+  /** textarea の論理行（空でも 1 行・末尾改行は +1 行＝textarea の表示挙動に合わせる）。 */
+  const splitLines = (text: string): string[] => (text.length === 0 ? [""] : text.split("\n"));
 
-  /** 行番号ガターを現在の行数に再描画する（行数が変わらない入力では何もしない）。 */
-  const renderGutter = (): void => {
-    if (!gutter) return;
-    const n = lineCount(textarea?.value ?? sourceText);
-    if (n === lastLineCount) return;
-    lastLineCount = n;
-    const nums = new Array(n);
-    for (let i = 0; i < n; i++) nums[i] = String(i + 1);
-    gutter.textContent = nums.join("\n");
+  /**
+   * 行番号ガターとミラーを現在のテキストから再構築する。比較モード（MergeEditorPanel）と
+   * 同じく、ミラーは折り返し後の各行高さ計測用の透明テキスト、ガターは論理行ごとの行番号 div。
+   */
+  const renderLines = (): void => {
+    if (!gutter || !mirror) return;
+    const lines = splitLines(textarea?.value ?? sourceText);
+    gutter.textContent = "";
+    mirror.textContent = "";
+    for (let i = 0; i < lines.length; i++) {
+      const numEl = document.createElement("div");
+      numEl.textContent = String(i + 1);
+      gutter.appendChild(numEl);
+      // 空行も 1 行分の高さを確保するため半角スペースで代替する。
+      const lineEl = document.createElement("div");
+      lineEl.textContent = lines[i] || " ";
+      mirror.appendChild(lineEl);
+    }
+  };
+
+  /** textarea を内容の高さへ伸長する（内部スクロールせず sourceWrap を唯一のスクローラにする）。 */
+  const autoGrow = (): void => {
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    // jsdom では scrollHeight が 0 になることがあるが、ブラウザでは実高さに伸長する。
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  };
+
+  /** ミラー各行の描画高さを計測し、対応する行番号 div の高さへ反映する（折り返し追従）。 */
+  const applyHeights = (): void => {
+    if (!gutter || !mirror) return;
+    for (let i = 0; i < mirror.children.length; i++) {
+      const h = (mirror.children[i] as HTMLElement).getBoundingClientRect().height;
+      if (i < gutter.children.length) {
+        (gutter.children[i] as HTMLElement).style.height = `${h}px`;
+      }
+    }
+  };
+
+  /** 入力・リサイズ後の伸長・行高同期を rAF で 1 フレームに集約する（reflow 抑制）。 */
+  const scheduleSync = (): void => {
+    if (syncScheduled) return;
+    syncScheduled = true;
+    const run = (): void => {
+      syncScheduled = false;
+      autoGrow();
+      applyHeights();
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+    else run();
   };
 
   const persist = (next: VanillaEditorMode): void => {
@@ -176,6 +247,16 @@ export function createSourceModeController(
     gutter.setAttribute("aria-hidden", "true");
     gutter.style.cssText = GUTTER_CSS;
 
+    // textarea + ミラーを重ねるコンテナ。ミラーは折り返し後の行高を計測する透明レイヤ。
+    const textContainer = document.createElement("div");
+    textContainer.setAttribute("data-am-source-text", "");
+    textContainer.style.cssText = TEXT_CONTAINER_CSS;
+
+    mirror = document.createElement("div");
+    mirror.setAttribute("data-am-source-mirror", "");
+    mirror.setAttribute("aria-hidden", "true");
+    mirror.style.cssText = MIRROR_CSS;
+
     textarea = document.createElement("textarea");
     textarea.setAttribute("data-am-source-textarea", "");
     textarea.setAttribute("aria-label", t("sourceMode"));
@@ -184,32 +265,41 @@ export function createSourceModeController(
     textarea.value = sourceText;
     textarea.addEventListener("input", () => {
       sourceText = textarea?.value ?? "";
-      renderGutter();
+      renderLines();
+      scheduleSync();
       options.onSourceSave?.(sourceText);
     });
-    // textarea の縦スクロールにガターを追従させる（ガターは自前スクロールバーを出さない）。
-    textarea.addEventListener("scroll", () => {
-      if (gutter && textarea) gutter.scrollTop = textarea.scrollTop;
-    });
 
-    sourceWrap.append(gutter, textarea);
+    textContainer.append(mirror, textarea);
+    sourceWrap.append(gutter, textContainer);
     editor.view.dom.style.display = "none";
-    // textarea（height:100%）が自前のスクロールを持つため、contentEl 側もスクロールすると
-    // スクロールバーが二重に出る。source 中は contentEl の overflow を hidden にして
-    // textarea を唯一のスクローラにする（退出時に元の overflow を復元する）。
+    // textarea を内容高さへ伸長し（overflow:hidden）、sourceWrap（overflow:auto）を唯一の
+    // スクローラにする。source 中は contentEl の overflow を hidden にしてスクロールバーの
+    // 二重表示を防ぐ（退出時に元の overflow を復元する）。
     prevContentOverflow = contentEl.style.overflow;
     contentEl.style.overflow = "hidden";
     contentEl.appendChild(sourceWrap);
-    lastLineCount = 0;
-    renderGutter();
+    renderLines();
+    scheduleSync();
+    // textContainer の幅変化（パネル幅変更・サイドバー開閉）で折り返しが変わるため再同期する。
+    // jsdom では ResizeObserver 未実装のことがあるためガードする。
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => scheduleSync());
+      resizeObserver.observe(textContainer);
+    }
   };
 
   const doHideTextarea = (): void => {
+    resizeObserver?.disconnect();
+    resizeObserver = null;
+    // 保留中の rAF（発火前に非表示化）を破棄扱いにして、次の showTextarea の
+    // scheduleSync が確実に通る（= 初期 applyHeights が走る）ようにする。
+    syncScheduled = false;
     sourceWrap?.remove();
     sourceWrap = null;
     gutter = null;
+    mirror = null;
     textarea = null;
-    lastLineCount = 0;
     editor.view.dom.style.display = "";
     if (prevContentOverflow !== null) {
       contentEl.style.overflow = prevContentOverflow;
@@ -289,7 +379,8 @@ export function createSourceModeController(
       sourceText = text;
       if (textarea) {
         textarea.value = text;
-        renderGutter();
+        renderLines();
+        scheduleSync();
       }
     },
     switchTo: applyMode,

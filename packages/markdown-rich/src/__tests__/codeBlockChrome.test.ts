@@ -86,7 +86,6 @@ function cb(over: Partial<Record<string, unknown>> = {}) {
     onSelect: jest.fn(),
     onEdit: jest.fn(),
     onExport: jest.fn(),
-    onExportSource: jest.fn(),
     onDelete: jest.fn(),
     ...over,
   } as any;
@@ -113,16 +112,18 @@ describe("createCodeBlockChrome", () => {
     destroy();
   });
 
-  it("diagram(mermaid) で PNG/ソース export ボタンを出し intent を発火する", () => {
+  it("diagram(mermaid) で PNG export ボタンのみ出し intent を発火する（ソース書き出しは編集画面へ集約）", () => {
     const { editor, select } = makeEditor();
     const c = cb();
     const destroy = createCodeBlockChrome(editor, c);
     select("mermaid", {}, 5);
 
     q('button[aria-label="exportPng"]')!.click();
-    q('button[aria-label="exportMmd"]')!.click();
     expect(c.onExport).toHaveBeenCalledWith(5);
-    expect(c.onExportSource).toHaveBeenCalledWith(5);
+    // ソース書き出し（.mmd/.puml/.json）はインラインから撤去済み。
+    expect(q('button[aria-label="exportMmd"]')).toBeNull();
+    expect(q('button[aria-label="exportPuml"]')).toBeNull();
+    expect(q('button[aria-label="exportGraphSrc"]')).toBeNull();
     destroy();
   });
 

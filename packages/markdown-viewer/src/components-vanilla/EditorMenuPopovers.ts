@@ -92,14 +92,14 @@ function mermaidSvg(size = 18): SVGSVGElement {
 }
 
 /** heading popover が受ける引数（React 原版 headingMenu state と同形）。 */
-export interface HeadingMenuTarget {
+interface HeadingMenuTarget {
   anchorEl: HTMLElement;
   pos: number;
   currentLevel: number;
 }
 
 /** {@link createEditorMenuPopovers} のオプション（React `EditorMenuPopoversProps` の vanilla 再現）。 */
-export interface CreateEditorMenuPopoversOptions {
+interface CreateEditorMenuPopoversOptions {
   /** editor（null 可）。各メニュー操作で参照する。 */
   editor: Editor | null;
   /** i18n。 */

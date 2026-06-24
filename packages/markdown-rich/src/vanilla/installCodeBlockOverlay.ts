@@ -69,7 +69,7 @@ import { createMermaidEditDialog } from "./createMermaidEditDialog";
 import { createPlantUmlEditDialog } from "./createPlantUmlEditDialog";
 
 /** ダイアログ外観（live 取得用）。 */
-export interface CodeOverlayStyle {
+interface CodeOverlayStyle {
   /**
    * ダイアログ Paper の背景 **CSS 色**（`getEditDialogBgColor` で解決済みの値）。
    * 設定キー（"white" | "grey"）をそのまま渡さないこと（ダークモードで literal
@@ -463,6 +463,9 @@ export function installCodeBlockOverlay(
       label: isHtml ? t("htmlPreview") : codeBlockToolbarLabel(kind, language, t),
       language: isHtml ? "html" : language || "plaintext",
       renderPreview: true,
+      // html は右ペインに sanitize 済み HTML の実プレビューを描画する（本文 NodeView と同じ
+      // renderCodeBlockPreview）。regular コードは従来どおり構文ハイライト（ソース表示）。
+      renderLanguagePreview: isHtml,
       customSamples: isHtml
         ? (htmlSamples as Array<{ enabled: boolean } & Record<string, unknown>>)
             .filter((s) => s.enabled)
@@ -482,7 +485,6 @@ export function installCodeBlockOverlay(
     },
     onEdit: () => openEdit(),
     onExport: () => doExport(),
-    onExportSource: () => doExportSource(),
     onDelete: () => {
       void confirm(t("clearConfirm")).then((ok) => {
         if (ok) deleteBlockAt(editor, pos);

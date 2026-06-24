@@ -70,7 +70,7 @@ export interface CreateScreenCaptureDialogOptions {
 }
 
 /** {@link createScreenCaptureDialog} の戻り値。 */
-export interface ScreenCaptureDialogHandle {
+interface ScreenCaptureDialogHandle {
   /** backdrop ルート（createDialog が自前マウント済み・参照用）。 */
   el: HTMLElement;
   /** stream / video / listener / dialog の解放。閉じる時に必ず呼ぶ。 */

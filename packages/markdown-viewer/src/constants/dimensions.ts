@@ -17,24 +17,16 @@ export const PREVIEW_MAX_HEIGHT = 400;
 export const STATUSBAR_HEIGHT = 39;
 /** StatusBar フォントサイズ */
 export const STATUSBAR_FONT_SIZE = "0.875rem";
-/** ハンドルバーキャプションのフォントサイズ */
-export const HANDLEBAR_CAPTION_FONT_SIZE = "0.625rem";
 /** スラッシュコマンドメニューのフォントサイズ */
 export const SLASH_COMMAND_FONT_SIZE = "0.875rem";
 /** バッジ番号のフォントサイズ（コメント・アノテーション） */
 export const BADGE_NUMBER_FONT_SIZE = "0.625rem";
 /** 見出しレベルバッジのフォントサイズ */
 export const HEADING_BADGE_FONT_SIZE = "0.625rem";
-/** マージ差分バッジのフォントサイズ */
-export const MERGE_BADGE_FONT_SIZE = "0.625rem";
 /** コンテキストメニュー本文のフォントサイズ */
 export const CONTEXT_MENU_FONT_SIZE = "0.8125rem";
 /** メニュー項目のフォントサイズ */
 export const MENU_ITEM_FONT_SIZE = "0.875rem";
-/** ダイアログヘッダーのフォントサイズ */
-export const DIALOG_HEADER_FONT_SIZE = "0.875rem";
-/** ツールバーボタンのフォントサイズ */
-export const TOOLBAR_FONT_SIZE = "0.8125rem";
 /** アウトラインパネルのフォントサイズ */
 export const OUTLINE_FONT_SIZE = "0.8125rem";
 /** ブロックスタイル（折りたたみラベル等）のフォントサイズ */
@@ -47,8 +39,6 @@ export const PANEL_INPUT_FONT_SIZE = "0.8125rem";
 export const SEARCH_COUNTER_FONT_SIZE = "0.625rem";
 /** 検索バー入力欄のフォントサイズ */
 export const SEARCH_INPUT_FONT_SIZE = "0.8125rem";
-/** スキップリンクのフォントサイズ */
-export const SKIP_LINK_FONT_SIZE = "0.875rem";
 /** コメント入力欄のフォントサイズ */
 export const COMMENT_INPUT_FONT_SIZE = "0.875rem";
 /** チップのフォントサイズ */
@@ -106,7 +96,7 @@ export const EDITOR_PADDING_TOP = 36;
 export const EDITOR_PADDING_BORDER = 4;
 
 // ── 用紙サイズ (mm) ──
-export type PaperSize = "off" | "A3" | "A4" | "B4" | "B5";
+type PaperSize = "off" | "A3" | "A4" | "B4" | "B5";
 
 export const PAPER_WIDTHS_MM: Record<Exclude<PaperSize, "off">, number> = {
   A3: 297,
@@ -118,8 +108,7 @@ export const PAPER_WIDTHS_MM: Record<Exclude<PaperSize, "off">, number> = {
 /** 用紙サイズ選択肢の表示順 */
 export const PAPER_SIZE_OPTIONS: PaperSize[] = ["off", "A3", "A4", "B4", "B5"];
 
-/** 余白デフォルト (mm) */
-export const PAPER_MARGIN_DEFAULT = 20;
+/** 余白最小 (mm) */
 export const PAPER_MARGIN_MIN = 10;
 export const PAPER_MARGIN_MAX = 40;
 export const PAPER_MARGIN_STEP = 5;

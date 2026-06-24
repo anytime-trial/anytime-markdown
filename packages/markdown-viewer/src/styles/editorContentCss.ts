@@ -466,7 +466,6 @@ ${SCOPE}:not([data-table-width="auto"]) .tiptap table .cell-editing {
   outline-offset: -1px;
   background-color: ${alpha(primaryMain, isDark ? 0.08 : 0.04)};
 }
-${tiptap("table .cell-range-selected")} { background-color: ${actionSelected}; }
 ${tiptap("img")} {
   max-width: 100%;
   height: auto;

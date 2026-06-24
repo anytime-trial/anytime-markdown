@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed a vanilla-migration regression where the resizable popup's maximize / resize stopped responding (the component now holds live state and re-renders itself before notifying callbacks).
+- Restored the ↗ popup trigger on combined charts.
+- Matched the popup top-right icon color to the theme color.
+
 ## [0.16.0] - 2026-05-08
 
 ### Added

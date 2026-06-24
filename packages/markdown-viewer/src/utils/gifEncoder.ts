@@ -11,7 +11,7 @@ export interface GifSettings {
   duration: number;
 }
 
-export interface GifRecorderOptions {
+interface GifRecorderOptions {
   maxDuration?: number; // ms, default 30000
   fps?: number; // default 10
   outputWidth?: number; // default 800

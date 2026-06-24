@@ -30,10 +30,9 @@ THRESHOLD_TURNS=50
 read -r -d '' STDIN_DATA || true
 CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||process.cwd())}catch{process.stdout.write(process.cwd())}})" 2>/dev/null)
 [ -z "\$CWD" ] && CWD="\$PWD"
-TRAIL_HOME="\${TRAIL_HOME:-\${CWD}/.anytime/trail}"
-STATE_DIR="\${TRAIL_HOME}/state"
-mkdir -p "\$STATE_DIR" 2>/dev/null || true
-STATE_FILE="\${STATE_DIR}/claude-session-guard.json"
+AGENT_HOME="\${AGENT_HOME:-\${CWD}/.anytime/agent}"
+mkdir -p "\$AGENT_HOME" 2>/dev/null || true
+STATE_FILE="\${AGENT_HOME}/claude-session-guard.json"
 
 JSONL=$(find "$HOME/.claude/projects" -maxdepth 2 -name "*.jsonl" -not -path "*/subagents/*" -printf '%T@ %p\\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
 
@@ -135,15 +134,6 @@ function writeScript(filename: string, content: string): void {
   fs.writeFileSync(scriptPath, content, { encoding: 'utf-8', mode: 0o755 });
 }
 
-function buildStatusFilePath(workspaceRoot?: string, statusDir?: string): string {
-  const dir = statusDir ?? '.anytime';
-  if (path.isAbsolute(dir)) {
-    return path.join(dir, 'claude-code-status.json');
-  }
-  const base = workspaceRoot ?? os.homedir();
-  return path.join(base, dir, 'claude-code-status.json');
-}
-
 interface HookHandler {
   type: 'command';
   command: string;
@@ -165,22 +155,9 @@ interface ClaudeSettings {
   [key: string]: unknown;
 }
 
-export function getStatusFilePath(workspaceRoot?: string, statusDir?: string): string {
-  return buildStatusFilePath(workspaceRoot, statusDir);
-}
-
 /** 指定マーカー文字列を含むフックエントリを除去する（idempotent 更新用） */
 function removeHooksByMarker(entries: HookEntry[], marker: string): HookEntry[] {
   return entries.filter((e) => !e.hooks?.some((h) => h.command?.includes(marker)));
-}
-
-/** セッション ID を含むステータスファイルパスのパターンを返す（glob 用） */
-export function getStatusFileGlob(workspaceRoot?: string, statusDir?: string): string {
-  const dir = statusDir ?? '.anytime';
-  const base = workspaceRoot
-    ? (path.isAbsolute(dir) ? dir : path.join(workspaceRoot, dir))
-    : (path.isAbsolute(dir) ? dir : path.join(os.homedir(), dir));
-  return path.join(base, 'claude-code-status*.json');
 }
 
 /**
@@ -198,7 +175,7 @@ function removeStatusFileHooks(entries: HookEntry[]): HookEntry[] {
   );
 }
 
-export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, trailPort = 19841): boolean {
+export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boolean {
   if (!fs.existsSync(CLAUDE_DIR)) {
     return false;
   }
@@ -243,12 +220,10 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, tra
   while (rootEnd > 0 && rawRoot.charCodeAt(rootEnd - 1) === 0x2f) rootEnd--;
   const workspaceRootForHook = rawRoot.slice(0, rootEnd) + '/';
 
-  // session-guard.sh は自身の警告 state ファイル (claude-session-guard.json) を TRAIL_HOME/state に
-  // 書く。git-state とは無関係のため TRAIL_HOME はそのまま維持する（cwd 相対散乱を防ぐ前置）。
-  const trailHome = workspaceRootForHook + '.anytime/trail';
-
-  // agent-status ワーカーの接続情報は `<workspace>/.anytime/agent/agent-worker.json` にある。
-  // commit-tracker.sh は AGENT_HOME からこれを解決する。inline node フックは agentWorkerJson を直接読む。
+  // agent 拡張が所有する state は `<workspace>/.anytime/agent/` 配下に集約する。
+  // - agent-status ワーカーの接続情報: agent-worker.json（commit-tracker.sh / inline node フックが参照）
+  // - session-guard.sh の警告デデュープ state: claude-session-guard.json（同フックが直接書く）
+  // commit-tracker.sh / session-guard.sh には AGENT_HOME としてこのパスを渡す。
   const agentHome = workspaceRootForHook + '.anytime/agent';
   const agentWorkerJson = agentHome + '/agent-worker.json';
 
@@ -319,7 +294,7 @@ export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, tra
   // UserPromptSubmit hook: session-guard.sh
   settings.hooks.UserPromptSubmit = removeHooksByMarker(settings.hooks.UserPromptSubmit, 'session-guard.sh');
   settings.hooks.UserPromptSubmit.push({
-    hooks: [{ type: 'command', command: `TRAIL_HOME='${trailHome}' bash ~/.claude/scripts/session-guard.sh`, timeout: 5 }],
+    hooks: [{ type: 'command', command: `AGENT_HOME='${agentHome}' bash ~/.claude/scripts/session-guard.sh`, timeout: 5 }],
   });
 
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));

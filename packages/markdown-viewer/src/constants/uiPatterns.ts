@@ -41,14 +41,6 @@ export const DURATION_NORMAL = "0.25s";
 /** 300ms: シャドウ、モーダル開閉、レイアウトシフト */
 export const DURATION_SLOW = "0.3s";
 
-// ── トランジション（deprecated） ──
-
-/** @deprecated DURATION_FAST + EASE_STANDARD を使用 */
-export const TRANSITION_FAST = DURATION_FAST;
-
-/** @deprecated DURATION_NORMAL + EASE_STANDARD を使用 */
-export const TRANSITION_EXPAND = "0.2s";
-
 /** prefers-reduced-motion 対応の sx ルール */
 export const REDUCED_MOTION_SX = {
   "@media (prefers-reduced-motion: reduce)": { transition: "none" },

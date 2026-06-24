@@ -152,7 +152,7 @@ export interface CreateEditorToolbarOptions {
 }
 
 /** {@link createEditorToolbar} の戻り値。 */
-export interface EditorToolbarHandle {
+interface EditorToolbarHandle {
   /** root の Paper 要素（role="toolbar"）。 */
   el: HTMLElement;
   /** 状態（modeState / mergeUndoRedo / editor 派生 state）を反映して再描画する。 */

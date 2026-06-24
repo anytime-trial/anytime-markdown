@@ -16,7 +16,6 @@ import {
   SMALL_CAPTION_FONT_SIZE,
   CHIP_FONT_SIZE,
   getHljsCssVars,
-  getEditDialogBg,
 } from "@anytime-markdown/markdown-viewer";
 import { createDialog } from "@anytime-markdown/ui-core/Dialog";
 import { createTabs } from "@anytime-markdown/ui-core/Tabs";
@@ -39,17 +38,6 @@ export interface SampleItem {
 export { createDialog, createTabs, createButton, createIconButton, createMenu, createMenuItem };
 
 // -------------------------
-// テーマユーティリティ
-// -------------------------
-
-export function applyEditorBg(el: HTMLElement, isDark: boolean, editorBg: string): void {
-  const bg = getEditDialogBg(isDark, { editorBg: editorBg as "white" | "grey" });
-  if (bg !== undefined) {
-    el.style.backgroundColor = bg;
-  }
-}
-
-// -------------------------
 // lineNumberTextarea (vanilla)
 // -------------------------
 
@@ -64,7 +52,7 @@ function ensureLineTextareaStyle(): void {
 `);
 }
 
-export interface LineNumberTextareaHandle {
+interface LineNumberTextareaHandle {
   el: HTMLElement;
   textarea: HTMLTextAreaElement;
   update: (opts: { value?: string; fontSize?: number; lineHeight?: number; isDark?: boolean; readOnly?: boolean; placeholder?: string }) => void;
@@ -213,7 +201,7 @@ function ensureSamplePanelStyle(): void {
 `);
 }
 
-export interface SamplePanelHandle {
+interface SamplePanelHandle {
   el: HTMLElement;
   destroy: () => void;
 }
@@ -289,7 +277,7 @@ function ensureZoomToolbarStyle(): void {
 `);
 }
 
-export interface ZoomToolbarHandle {
+interface ZoomToolbarHandle {
   el: HTMLElement;
   update: (state: { zoom: number; isDirty: boolean; isDark: boolean }) => void;
   destroy: () => void;
@@ -404,7 +392,7 @@ function ensureZoomPreviewStyle(): void {
 `);
 }
 
-export interface ZoomablePreviewHandle {
+interface ZoomablePreviewHandle {
   el: HTMLElement;
   inner: HTMLElement;
   destroy: () => void;
@@ -436,7 +424,6 @@ export function createZoomablePreview(opts: {
   }
 
   function applyTransform(state: { zoom: number; pan: { x: number; y: number }; isDirty: boolean }): void {
-    const DURATION_FAST = "150ms";
     inner.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`;
     inner.style.transformOrigin = opts.origin === "top-left" ? "top left" : "center center";
   }
@@ -474,7 +461,7 @@ function ensureSplitStyle(): void {
 `);
 }
 
-export interface SplitLayoutHandle {
+interface SplitLayoutHandle {
   el: HTMLElement;
   left: HTMLElement;
   right: HTMLElement;
@@ -604,7 +591,7 @@ function ensureDialogHeaderStyle(): void {
 `);
 }
 
-export interface DialogHeaderHandle {
+interface DialogHeaderHandle {
   el: HTMLElement;
   update: (opts: { label?: string; dirty?: boolean; isDark?: boolean }) => void;
   destroy: () => void;

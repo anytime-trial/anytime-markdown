@@ -4,7 +4,7 @@ import { buildOgpFingerprint, buildRssFingerprint } from "./ogpFingerprint";
 import { discoverRssFeed } from "./rssDiscovery";
 import type { RssLatest } from "./rssParser";
 
-export type UpdateCheckResult =
+type UpdateCheckResult =
     | { kind: "initial"; baseline: EmbedBaseline; fingerprint: string }
     | { kind: "updated"; fingerprint: string; newTitle: string | null }
     | { kind: "unchanged" };
