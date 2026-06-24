@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed (Breaking — settings)
+
+- Unified the documentation-root settings into a single top-level `anytimeMarkdown.docsRoot`, used by both doc search indexing and the Note Graph panel. The previous keys `anytimeMarkdown.noteGraph.repositoryPath` and `anytimeMarkdown.docSearch.docsRoot` were removed — reconfigure `anytimeMarkdown.docsRoot` if you had set either.
+- Doc search now indexes the entire `docsRoot` (previously limited to a subdirectory). Removed the `anytimeMarkdown.docSearch.subDir` setting.
+
+### Removed
+
+- Removed the unused `anytimeMarkdown.editorMaxWidth` setting (it was never applied by the editor).
+
 ## [1.5.1] - 2026-06-23
 
 ### Editor Core (markdown-viewer / markdown-rich)

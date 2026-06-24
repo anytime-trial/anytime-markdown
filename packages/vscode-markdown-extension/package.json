@@ -151,13 +151,6 @@
           "maximum": 72,
           "description": "%configuration.fontSize.description%"
         },
-        "anytimeMarkdown.editorMaxWidth": {
-          "type": "number",
-          "default": 0,
-          "minimum": 0,
-          "maximum": 10000,
-          "description": "%configuration.editorMaxWidth.description%"
-        },
         "anytimeMarkdown.language": {
           "type": "string",
           "default": "auto",
@@ -206,20 +199,10 @@
           "default": "",
           "description": "%configuration.claudeStatus.directory.description%"
         },
-        "anytimeMarkdown.noteGraph.repositoryPath": {
+        "anytimeMarkdown.docsRoot": {
           "type": "string",
           "default": "",
-          "description": "%configuration.noteGraph.repositoryPath.description%"
-        },
-        "anytimeMarkdown.docSearch.docsRoot": {
-          "type": "string",
-          "default": "",
-          "description": "%configuration.docSearch.docsRoot.description%"
-        },
-        "anytimeMarkdown.docSearch.subDir": {
-          "type": "string",
-          "default": "spec",
-          "description": "%configuration.docSearch.subDir.description%"
+          "description": "%configuration.docsRoot.description%"
         },
         "anytimeMarkdown.docSearch.dbPath": {
           "type": "string",

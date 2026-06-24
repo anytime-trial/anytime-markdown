@@ -55,13 +55,12 @@ export function activate(context: vscode.ExtensionContext) {
 	// doc-core: markdown 拡張専用 doc-core.db を ingest（検索は mcp-markdown が読む）。
 	// docsRoot 未設定なら無効（既定オフ）。DB ドライバは node:sqlite（native 不要）。
 	const docCfg = vscode.workspace.getConfiguration('anytimeMarkdown.docSearch');
-	const docsRoot = (docCfg.get<string>('docsRoot') ?? '').trim();
+	const docsRoot = (vscode.workspace.getConfiguration('anytimeMarkdown').get<string>('docsRoot') ?? '').trim();
 	const docWsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	if (docsRoot && docWsRoot) {
 		const dbPath = resolveDocDbPath(docWsRoot, docCfg.get<string>('dbPath'));
-		const subDir = docCfg.get<string>('subDir') ?? 'spec';
 		const ingestScriptPath = path.join(extensionDistPath, 'doc-ingest.js');
-		const ingestRunner = new DocIngestRunner(ingestScriptPath, docsRoot, dbPath, subDir);
+		const ingestRunner = new DocIngestRunner(ingestScriptPath, docsRoot, dbPath);
 		context.subscriptions.push(ingestRunner);
 		void ingestRunner.runOnce();
 		const intervalMin = docCfg.get<number>('intervalMinutes') ?? 30;
@@ -76,7 +75,7 @@ export function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(
 			vscode.commands.registerCommand('anytime-markdown.rebuildDocIndex', () => {
 				vscode.window.showWarningMessage(
-					'Anytime Markdown: anytimeMarkdown.docSearch.docsRoot が未設定です。設定後に再実行してください。',
+					'Anytime Markdown: anytimeMarkdown.docsRoot が未設定です。設定後に再実行してください。',
 				);
 			}),
 		);
