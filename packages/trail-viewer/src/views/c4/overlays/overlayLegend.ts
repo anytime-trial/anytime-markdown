@@ -10,6 +10,11 @@ import {
   COVERAGE_LOW,
   METRIC_LEGEND_BLUE,
 } from '../../../c4/c4MetricColors';
+import {
+  ARCHITECTURE_LAYER_ORDER,
+  LAYER_LABEL_KEYS,
+  layerColor,
+} from '../../../components/communityColors';
 
 export interface CommunityLegendItem {
   readonly community: number;
@@ -175,6 +180,7 @@ function buildMetricItems(
   sizeMax: number | undefined,
   textColor: string,
   t: (key: string) => string,
+  isDark: boolean,
 ): HTMLElement | null {
   switch (overlay) {
     case 'coverage-lines':
@@ -238,6 +244,14 @@ function buildMetricItems(
       );
     case 'architecture-ui':
       return makeGradientBar(ARCHITECTURE_UI_GRADIENT, 'Logic', 'UI', textColor);
+    case 'architecture-layer': {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-direction:row;flex-wrap:wrap;gap:8px;';
+      for (const layer of ARCHITECTURE_LAYER_ORDER) {
+        wrap.appendChild(makeSwatch(layerColor(layer, isDark), t(LAYER_LABEL_KEYS[layer])));
+      }
+      return wrap;
+    }
     case 'function-roles': {
       const wrap = document.createElement('div');
       wrap.style.cssText = 'display:flex;flex-direction:row;flex-wrap:wrap;gap:8px;';
@@ -283,6 +297,7 @@ function buildHelpHeader(
     'size-files': { titleKey: 'c4.overlayHelp.size', descKey: 'c4.overlayHelp.size.description' },
     'size-functions': { titleKey: 'c4.overlayHelp.size', descKey: 'c4.overlayHelp.size.description' },
     'architecture-ui': { titleKey: 'c4.overlayHelp.architectureUi', descKey: 'c4.overlayHelp.architectureUi.description' },
+    'architecture-layer': { titleKey: 'c4.overlayHelp.architectureLayer', descKey: 'c4.overlayHelp.architectureLayer.description' },
     'function-roles': { titleKey: 'c4.overlayHelp.functionRoles', descKey: 'c4.overlayHelp.functionRoles.description' },
   };
   const help = helpMap[overlay];
@@ -371,7 +386,7 @@ export function mountOverlayLegend(
     if (hasMetric) {
       const header = buildHelpHeader(props.overlay, props.textColor, props.t);
       if (header) root.appendChild(header);
-      const metricItems = buildMetricItems(props.overlay, props.dsmMax, props.sizeMax, props.textColor, props.t);
+      const metricItems = buildMetricItems(props.overlay, props.dsmMax, props.sizeMax, props.textColor, props.t, props.isDark);
       if (metricItems) root.appendChild(metricItems);
     }
   }

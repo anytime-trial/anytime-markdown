@@ -6,6 +6,8 @@ import type { CentralityMatrix, RoleMatrix, FunctionRole } from '../../centralit
 import type { HotspotMap } from '../../hotspot/types';
 import type { SizeMatrix } from './buildSizeMatrix';
 import type { ArchitectureMatrix } from './buildArchitectureMatrix';
+import type { LayerMatrix } from './buildLayerMatrix';
+import type { ArchitectureLayer } from '../../codeGraph';
 
 // ─── Color constants ──────────────────────────────────────────────────────────
 
@@ -216,6 +218,8 @@ export function computeColorMap(
   centralityMatrix: CentralityMatrix | null = null,
   architectureMatrix: ArchitectureMatrix | null = null,
   roleMatrix: RoleMatrix | null = null,
+  layerMatrix: LayerMatrix | null = null,
+  layerColors: Readonly<Record<ArchitectureLayer, string>> | null = null,
 ): Map<string, string> {
   if (overlay === 'none') return new Map();
 
@@ -315,6 +319,17 @@ export function computeColorMap(
     for (const [elementId, entry] of Object.entries(architectureMatrix)) {
       if (entry.ratio === undefined) continue;
       map.set(elementId, architectureUiColor(entry.ratio));
+    }
+    return map;
+  }
+
+  // ── Architecture: レイヤー（9 層・モジュール粒度）──
+  // 層の色はテーマ依存のため呼び出し側（trail-viewer）から layerColors を受け取る。
+  if (overlay === 'architecture-layer') {
+    if (!layerMatrix || !layerColors) return new Map();
+    const map = new Map<string, string>();
+    for (const [elementId, layer] of Object.entries(layerMatrix)) {
+      map.set(elementId, layerColors[layer]);
     }
     return map;
   }

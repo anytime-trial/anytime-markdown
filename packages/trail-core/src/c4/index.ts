@@ -65,6 +65,8 @@ export type {
   ArchitectureFileEntry,
   FileCategoryValue,
 } from './metrics/buildArchitectureMatrix';
+export { buildLayerMatrix } from './metrics/buildLayerMatrix';
+export type { LayerMatrix } from './metrics/buildLayerMatrix';
 export { mapFilesToC4Elements, mapFileToC4Elements, buildC4ElementById } from '../domain/engine/c4Mapper';
 export type { C4MappingResult } from '../domain/engine/c4Mapper';
 export type { MessageInput } from './metrics/computeComplexityMatrix';

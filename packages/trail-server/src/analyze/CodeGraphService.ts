@@ -13,7 +13,10 @@ import { GraphBuilder } from './GraphBuilder';
 import { GraphClusterer } from './GraphClusterer';
 import { GraphDetector } from './GraphDetector';
 import { GraphLayout } from './GraphLayout';
+import { resolveLayers } from './moduleLayer';
+import { seedLayerContainers } from './seedLayerContainers';
 import { trailGraphToCodeGraphInputs } from './trailGraphToCodeGraphInputs';
+import type { ArchitectureLayer } from '@anytime-markdown/trail-core/codeGraph';
 
 export interface CodeGraphServiceConfig {
   readonly repositories: readonly CodeGraphRepository[];
@@ -224,18 +227,27 @@ export class CodeGraphService {
       )
       .slice(0, 10);
 
-    const nodes: CodeGraphNode[] = graph.nodes().map((id) => ({
-      id,
-      label: graph.getNodeAttribute(id, 'label') as string,
-      repo: graph.getNodeAttribute(id, 'repo') as string,
-      package: graph.getNodeAttribute(id, 'package') as string,
-      fileType: graph.getNodeAttribute(id, 'fileType') as 'code' | 'document',
-      community: graph.getNodeAttribute(id, 'community') as number,
-      communityLabel: graph.getNodeAttribute(id, 'communityLabel') as string,
-      x: graph.getNodeAttribute(id, 'x') as number,
-      y: graph.getNodeAttribute(id, 'y') as number,
-      size: graph.getNodeAttribute(id, 'size') as number,
-    }));
+    // パッケージ単位でアーキテクチャ層を一度ずつ解決し、各ノードへ注釈する。
+    const packages = graph.nodes().map((id) => graph.getNodeAttribute(id, 'package') as string);
+    const layerByPkg = resolveLayers(repo.path, packages, this.logger);
+
+    const nodes: CodeGraphNode[] = graph.nodes().map((id) => {
+      const pkg = graph.getNodeAttribute(id, 'package') as string;
+      const layer = layerByPkg.get(pkg);
+      return {
+        id,
+        label: graph.getNodeAttribute(id, 'label') as string,
+        repo: graph.getNodeAttribute(id, 'repo') as string,
+        package: pkg,
+        fileType: graph.getNodeAttribute(id, 'fileType') as 'code' | 'document',
+        community: graph.getNodeAttribute(id, 'community') as number,
+        communityLabel: graph.getNodeAttribute(id, 'communityLabel') as string,
+        x: graph.getNodeAttribute(id, 'x') as number,
+        y: graph.getNodeAttribute(id, 'y') as number,
+        size: graph.getNodeAttribute(id, 'size') as number,
+        ...(layer ? { layer } : {}),
+      };
+    });
 
     const seenEdgeKeys = new Set<string>();
     const edges: CodeGraphEdge[] = [];
@@ -318,8 +330,35 @@ export class CodeGraphService {
     if (this.config.trailDb && repoName) {
       this.config.trailDb.saveCurrentCodeGraph(repoName, graph);
       this.logger.info(`Code graph saved to DB (repo=${repoName})`);
+      this.seedLayers(repoName, graph);
     } else {
       this.logger.warn('[CodeGraphService] save() skipped: trailDb not configured');
+    }
+  }
+
+  /**
+   * グラフに出現した層から C4 コンテナを冪等・非破壊にシードする。
+   * 手動 C4 編集を保護するためのガードは seedLayerContainers 側に集約（[[永続データ保護]]）。
+   * DB エラーで code graph 保存全体を失敗させないよう、ここで隔離してログに残す。
+   */
+  private seedLayers(repoName: string, graph: CodeGraph): void {
+    if (!this.config.trailDb) return;
+    const layers = graph.nodes
+      .map((n) => n.layer)
+      .filter((l): l is ArchitectureLayer => l !== undefined);
+    if (layers.length === 0) return;
+    try {
+      const { created, skipped } = seedLayerContainers(this.config.trailDb, repoName, layers);
+      if (created.length > 0) {
+        this.logger.info(
+          `[CodeGraphService] seeded ${created.length} layer container(s) for ${repoName}: ${created.join(', ')}`,
+        );
+      } else if (skipped) {
+        this.logger.info(`[CodeGraphService] layer seed skipped for ${repoName} (${skipped})`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err);
+      this.logger.warn(`[CodeGraphService] layer seed failed for ${repoName}: ${message}`);
     }
   }
 }

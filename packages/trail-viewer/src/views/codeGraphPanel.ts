@@ -11,10 +11,32 @@ import { createButton, createTextField } from '@anytime-markdown/ui-core';
 import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import {
+  ARCHITECTURE_LAYER_ORDER,
+  LAYER_LABEL_KEYS,
+  layerColor,
+} from '../components/communityColors';
+import {
   mountCodeGraphCanvas,
+  type CodeGraphColorBy,
   type CodeGraphGhostEdge,
   type CodeGraphGhostEdgeGranularity,
 } from './codeGraphCanvas';
+
+/** t 未注入時の日本語フォールバック（パネルは元来 JP ハードコード）。 */
+const COLOR_BY_FALLBACK: Record<string, string> = {
+  'codeGraph.colorBy.label': '配色',
+  'codeGraph.colorBy.community': 'コミュニティ',
+  'codeGraph.colorBy.layer': '層',
+  'c4.layer.foundation': '基盤',
+  'c4.layer.analysis': '解析',
+  'c4.layer.data': '永続化',
+  'c4.layer.serviceDomain': 'ドメイン/AI',
+  'c4.layer.serviceServer': 'サーバ',
+  'c4.layer.integration': '連携',
+  'c4.layer.presentationUi': 'UI',
+  'c4.layer.presentationExtension': '拡張',
+  'c4.layer.utility': 'ユーティリティ',
+};
 
 // ---------------------------------------------------------------------------
 // Props
@@ -40,6 +62,8 @@ export interface CodeGraphPanelProps {
   readonly onNodeClick: (nodeId: string) => void;
   /** community summaries for the detail panel */
   readonly communitySummaries?: Record<string, { name: string; summary?: string }>;
+  /** i18n translator（未指定時は JP フォールバック）。配色トグル・層凡例で使用。 */
+  readonly t?: (key: string) => string;
 }
 
 // ---------------------------------------------------------------------------
@@ -87,6 +111,58 @@ export function mountCodeGraphPanel(
     onClick: () => props.onSearch(searchQuery),
   });
   toolbar.appendChild(searchBtn);
+
+  // --- Color-by toggle (community / layer) ---
+  let colorBy: CodeGraphColorBy = 'community';
+  const tr = (key: string): string => props.t?.(key) ?? COLOR_BY_FALLBACK[key] ?? key;
+
+  const colorByWrap = document.createElement('label');
+  colorByWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--am-color-text-secondary);';
+  const colorByLabel = document.createElement('span');
+  colorByWrap.appendChild(colorByLabel);
+  const colorBySelect = document.createElement('select');
+  colorBySelect.style.cssText =
+    'font-size:0.75rem;padding:2px 4px;background:transparent;color:inherit;' +
+    'border:1px solid var(--am-color-divider);border-radius:4px;';
+  const optCommunity = document.createElement('option');
+  optCommunity.value = 'community';
+  const optLayer = document.createElement('option');
+  optLayer.value = 'layer';
+  colorBySelect.append(optCommunity, optLayer);
+  colorBySelect.addEventListener('change', () => {
+    colorBy = colorBySelect.value === 'layer' ? 'layer' : 'community';
+    renderState();
+  });
+  colorByWrap.appendChild(colorBySelect);
+  toolbar.appendChild(colorByWrap);
+
+  // --- Layer legend (shown only when colorBy === 'layer') ---
+  const legendEl = document.createElement('div');
+  legendEl.style.cssText =
+    'display:none;gap:8px;align-items:center;flex-wrap:wrap;font-size:0.65rem;' +
+    'color:var(--am-color-text-secondary);';
+  toolbar.appendChild(legendEl);
+
+  function renderLegend(): void {
+    legendEl.replaceChildren();
+    for (const layer of ARCHITECTURE_LAYER_ORDER) {
+      const item = document.createElement('span');
+      item.style.cssText = 'display:inline-flex;align-items:center;gap:3px;';
+      const sw = document.createElement('span');
+      sw.style.cssText =
+        `width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${layerColor(layer, props.isDark ?? false)};`;
+      const txt = document.createElement('span');
+      txt.textContent = tr(LAYER_LABEL_KEYS[layer]);
+      item.append(sw, txt);
+      legendEl.appendChild(item);
+    }
+  }
+
+  function refreshColorByLabels(): void {
+    colorByLabel.textContent = tr('codeGraph.colorBy.label');
+    optCommunity.textContent = tr('codeGraph.colorBy.community');
+    optLayer.textContent = tr('codeGraph.colorBy.layer');
+  }
 
   // --- Hint alert ---
   const hintEl = document.createElement('div');
@@ -143,6 +219,16 @@ export function mountCodeGraphPanel(
     // Hint
     hintEl.style.display = props.showSubagentDirectionalHint ? '' : 'none';
 
+    // Color-by toggle / layer legend
+    refreshColorByLabels();
+    colorBySelect.value = colorBy;
+    if (colorBy === 'layer') {
+      renderLegend();
+      legendEl.style.display = 'flex';
+    } else {
+      legendEl.style.display = 'none';
+    }
+
     const state = props.graphState;
 
     if (state.status === 'loading') {
@@ -197,6 +283,7 @@ export function mountCodeGraphPanel(
       isDark: props.isDark,
       ghostEdges: props.ghostEdgesEnabled ? props.ghostEdges : undefined,
       ghostEdgeGranularity: props.ghostEdgeGranularity,
+      colorBy,
     };
 
     if (!canvasHandle) {

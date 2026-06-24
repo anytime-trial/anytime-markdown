@@ -189,7 +189,8 @@ export type MetricOverlay =
   | 'size-loc'
   | 'size-files'
   | 'size-functions'
-  | 'architecture-ui';
+  | 'architecture-ui'
+  | 'architecture-layer';
 
 /** 複雑度分類（classifyByFeatures の label に対応） */
 export type ComplexityClass =

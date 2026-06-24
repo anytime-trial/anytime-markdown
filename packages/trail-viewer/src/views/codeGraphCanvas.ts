@@ -11,9 +11,9 @@
 import Sigma from 'sigma';
 import { EdgeArrowProgram } from 'sigma/rendering';
 import Graph from 'graphology';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { ArchitectureLayer, CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import type { CouplingDirection } from '@anytime-markdown/trail-core';
-import { COMMUNITY_COLORS, communityColor } from '../components/communityColors';
+import { COMMUNITY_COLORS, communityColor, layerColor } from '../components/communityColors';
 import {
   GHOST_EDGE_COMMIT_DARK,
   GHOST_EDGE_COMMIT_LIGHT,
@@ -52,6 +52,9 @@ export function riskColor(score: number, dark: boolean): string {
 // Props / handle types
 // ---------------------------------------------------------------------------
 
+/** ノードの配色方式。'community'（既定）= コミュニティ番号、'layer' = アーキテクチャ層。 */
+export type CodeGraphColorBy = 'community' | 'layer';
+
 export interface CodeGraphCanvasViewProps {
   readonly graph: CodeGraph;
   readonly highlightedNodes?: ReadonlySet<string>;
@@ -60,6 +63,18 @@ export interface CodeGraphCanvasViewProps {
   readonly ghostEdges?: ReadonlyArray<CodeGraphGhostEdge>;
   readonly ghostEdgeGranularity?: CodeGraphGhostEdgeGranularity;
   readonly riskMap?: ReadonlyMap<string, number> | null;
+  /** ノード配色方式（既定 'community'）。'layer' でアーキテクチャ層配色に切替。 */
+  readonly colorBy?: CodeGraphColorBy;
+}
+
+/** 配色方式に応じたノード色を返す（layer は node.layer から、未付与は utility 色）。 */
+function nodeColor(
+  colorBy: CodeGraphColorBy,
+  community: number,
+  layer: ArchitectureLayer | undefined,
+  isDark: boolean,
+): string {
+  return colorBy === 'layer' ? layerColor(layer, isDark) : communityColor(community);
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +82,7 @@ export interface CodeGraphCanvasViewProps {
 // ---------------------------------------------------------------------------
 
 function buildSigmaGraph(props: CodeGraphCanvasViewProps): { g: InstanceType<typeof Graph>; ghostRendered: number } {
-  const { graph, isDark, ghostEdges, ghostEdgeGranularity = 'commit', riskMap } = props;
+  const { graph, isDark, ghostEdges, ghostEdgeGranularity = 'commit', riskMap, colorBy = 'community' } = props;
   const g = new Graph();
 
   let invalidCoordCount = 0;
@@ -85,8 +100,9 @@ function buildSigmaGraph(props: CodeGraphCanvasViewProps): { g: InstanceType<typ
       x,
       y,
       size: Math.max(3, Math.min((node.size ?? 0) + 4, 20)),
-      color: communityColor(community),
+      color: nodeColor(colorBy, community, node.layer, isDark ?? false),
       community,
+      layer: node.layer,
     });
   }
 
@@ -167,11 +183,13 @@ function applyHighlight(
   sigma: InstanceType<typeof Sigma>,
   highlightedNodes: ReadonlySet<string> | undefined,
   isDark: boolean | undefined,
+  colorBy: CodeGraphColorBy = 'community',
 ): void {
   const g = sigma.getGraph();
   g.forEachNode((node) => {
     const community = (g.getNodeAttribute(node, 'community') as number | undefined) ?? 0;
-    const fullColor = communityColor(community);
+    const layer = g.getNodeAttribute(node, 'layer') as ArchitectureLayer | undefined;
+    const fullColor = nodeColor(colorBy, community, layer, isDark ?? false);
     const dimmed = isDark ? '#333' : '#eee';
     const highlighted =
       !highlightedNodes || highlightedNodes.size === 0 || highlightedNodes.has(node);
@@ -233,7 +251,7 @@ export function mountCodeGraphCanvas(
     }
 
     // Apply initial highlight
-    applyHighlight(sigma, props.highlightedNodes, props.isDark);
+    applyHighlight(sigma, props.highlightedNodes, props.isDark, props.colorBy);
   }
 
   // ResizeObserver (jsdom guard)
@@ -264,6 +282,7 @@ export function mountCodeGraphCanvas(
         next.ghostEdges !== props.ghostEdges ||
         next.ghostEdgeGranularity !== props.ghostEdgeGranularity ||
         next.riskMap !== props.riskMap ||
+        next.colorBy !== props.colorBy ||
         next.onNodeClick !== props.onNodeClick;
 
       const highlightChanged = next.highlightedNodes !== props.highlightedNodes;
@@ -272,7 +291,7 @@ export function mountCodeGraphCanvas(
       if (graphChanged) {
         initSigma();
       } else if (highlightChanged && sigma) {
-        applyHighlight(sigma, props.highlightedNodes, props.isDark);
+        applyHighlight(sigma, props.highlightedNodes, props.isDark, props.colorBy);
       }
     },
     destroy() {
