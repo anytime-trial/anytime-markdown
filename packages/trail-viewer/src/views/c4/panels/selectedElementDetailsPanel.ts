@@ -62,9 +62,9 @@ function sectionDivider(border: string): HTMLElement {
 
 function metricCell(c: SelectedElementDetailColors, label: string, value: string): HTMLElement {
   const cell = el('div', '');
-  const labelEl = el('div', `font-size:0.58rem;color:${c.textMuted};`);
+  const labelEl = el('div', `font-size:0.62rem;color:${c.textMuted};`);
   labelEl.textContent = label;
-  const valueEl = el('div', `font-size:0.72rem;color:${c.text};font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
+  const valueEl = el('div', `font-size:0.75rem;color:${c.text};font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
   valueEl.textContent = value;
   cell.append(labelEl, valueEl);
   return cell;
@@ -81,7 +81,7 @@ function iconButton(c: SelectedElementDetailColors, iconPath: string, label: str
 function appendDsmSection(host: HTMLElement, info: SelectedElementInfo, opts: SelectedElementDetailOptions): void {
   const c = opts.colors;
   const sec = sectionDivider(c.border);
-  const title = el('div', `font-size:0.68rem;color:${c.textSecondary};font-weight:700;margin-bottom:6px;`);
+  const title = el('div', `font-size:0.7rem;color:${c.textSecondary};font-weight:700;margin-bottom:6px;`);
   title.textContent = 'DSM';
   sec.appendChild(title);
   const grid = el('div', 'display:grid;grid-template-columns:1fr 1fr;gap:8px;');
@@ -98,7 +98,7 @@ function appendSizeRow(host: HTMLElement, info: SelectedElementInfo, opts: Selec
   const c = opts.colors;
   const t = opts.t;
   const block = el('div', '');
-  const label = el('div', `font-size:0.62rem;color:${c.textSecondary};font-weight:600;margin-bottom:4px;`);
+  const label = el('div', `font-size:0.65rem;color:${c.textSecondary};font-weight:600;margin-bottom:4px;`);
   label.textContent = t('c4.popup.size');
   block.appendChild(label);
   const s = info.sizeMetrics;
@@ -118,7 +118,7 @@ function appendQualityRow(host: HTMLElement, info: SelectedElementInfo, opts: Se
   const c = opts.colors;
   const t = opts.t;
   const block = el('div', 'margin-top:8px;');
-  const label = el('div', `font-size:0.62rem;color:${c.textSecondary};font-weight:600;margin-bottom:4px;`);
+  const label = el('div', `font-size:0.65rem;color:${c.textSecondary};font-weight:600;margin-bottom:4px;`);
   label.textContent = t('c4.popup.quality');
   block.appendChild(label);
   const cov = info.coverage;
@@ -142,12 +142,12 @@ function appendArchitectureRow(host: HTMLElement, info: SelectedElementInfo, opt
   if (!info.layer) return;
   const c = opts.colors;
   const block = el('div', 'margin-top:8px;');
-  const label = el('div', `font-size:0.62rem;color:${c.textMuted};margin-bottom:2px;`);
+  const label = el('div', `font-size:0.65rem;color:${c.textMuted};margin-bottom:2px;`);
   label.textContent = opts.t('c4.popup.layer');
   block.appendChild(label);
   const row = el('div', 'display:flex;align-items:center;gap:6px;');
   row.appendChild(el('span', `width:10px;height:10px;border-radius:2px;background:${layerColor(info.layer, opts.isDark)};flex-shrink:0;`));
-  const name = el('span', `font-size:0.72rem;color:${c.text};font-weight:700;word-break:break-word;`);
+  const name = el('span', `font-size:0.75rem;color:${c.text};font-weight:700;word-break:break-word;`);
   name.textContent = opts.t(LAYER_LABEL_KEYS[info.layer]);
   row.appendChild(name);
   block.appendChild(row);
@@ -158,7 +158,7 @@ function appendStructureRow(host: HTMLElement, info: SelectedElementInfo, opts: 
   const c = opts.colors;
   const t = opts.t;
   const block = el('div', 'margin-top:8px;');
-  const label = el('div', `font-size:0.62rem;color:${c.textSecondary};font-weight:600;margin-bottom:4px;`);
+  const label = el('div', `font-size:0.65rem;color:${c.textSecondary};font-weight:600;margin-bottom:4px;`);
   label.textContent = t('c4.popup.structure');
   block.appendChild(label);
   const grid = el('div', 'display:grid;grid-template-columns:1fr 1fr;gap:6px;');
@@ -174,7 +174,7 @@ function appendMetricsSection(host: HTMLElement, info: SelectedElementInfo, opts
   const c = opts.colors;
   const sec = sectionDivider(c.border);
   const header = el('div', 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;');
-  const title = el('div', `font-size:0.68rem;color:${c.textSecondary};font-weight:700;`);
+  const title = el('div', `font-size:0.7rem;color:${c.textSecondary};font-weight:700;`);
   title.textContent = opts.t('c4.popup.metrics');
   header.append(title, iconButton(c, opts.matrixIconPath, opts.t('viewer.tab.matrix'), opts.onOpenMatrix));
   sec.appendChild(header);
@@ -203,7 +203,7 @@ function roleBadge(role: string): HTMLElement {
   const bg = getCommunityRoleBgColors();
   const color = bg[role as keyof typeof bg] ?? bg.dependency;
   const label = COMMUNITY_ROLE_LABELS[role as keyof typeof COMMUNITY_ROLE_LABELS] ?? role;
-  const badge = el('span', `display:inline-block;padding:1px 4px;border-radius:4px;background:${color};color:#fff;font-size:0.6rem;font-weight:700;flex-shrink:0;`);
+  const badge = el('span', `display:inline-block;padding:1px 4px;border-radius:4px;background:${color};color:#fff;font-size:0.62rem;font-weight:700;flex-shrink:0;`);
   badge.textContent = label;
   return badge;
 }
@@ -215,7 +215,7 @@ function appendCommunityBreakdown(sec: HTMLElement, info: SelectedElementInfo, o
   const elementId = info.element.id;
   const total = community.breakdown.reduce((sum, e) => sum + e.count, 0);
   const block = el('div', 'margin-top:6px;');
-  const label = el('div', `font-size:0.6rem;color:${c.textMuted};margin-bottom:2px;`);
+  const label = el('div', `font-size:0.62rem;color:${c.textMuted};margin-bottom:2px;`);
   label.textContent = opts.t('c4.community.breakdown');
   block.appendChild(label);
   for (const entry of community.breakdown.slice(0, 3)) {
@@ -226,7 +226,7 @@ function appendCommunityBreakdown(sec: HTMLElement, info: SelectedElementInfo, o
     const bar = el('div', `flex:1;height:4px;background:${c.hover};border-radius:2px;overflow:hidden;`);
     bar.appendChild(el('div', `width:${pct}%;height:100%;background:${communityColor(entry.community)};`));
     const role = roleForCommunity(opts, elementId, entry.community);
-    const pctEl = el('span', `font-size:0.6rem;color:${c.textSecondary};min-width:30px;text-align:right;`);
+    const pctEl = el('span', `font-size:0.62rem;color:${c.textSecondary};min-width:30px;text-align:right;`);
     pctEl.textContent = `${pct}%`;
     row.append(dot, bar);
     if (role) row.appendChild(roleBadge(role));
@@ -236,7 +236,7 @@ function appendCommunityBreakdown(sec: HTMLElement, info: SelectedElementInfo, o
   const otherCount = community.breakdown.slice(3).reduce((sum, e) => sum + e.count, 0);
   if (otherCount > 0) {
     const otherPct = total > 0 ? Math.round((otherCount / total) * 100) : 0;
-    const other = el('div', `font-size:0.58rem;color:${c.textMuted};`);
+    const other = el('div', `font-size:0.62rem;color:${c.textMuted};`);
     other.textContent = `${opts.t('c4.community.other')}: ${otherPct}%`;
     block.appendChild(other);
   }
@@ -251,14 +251,14 @@ function appendCommunitySection(host: HTMLElement, info: SelectedElementInfo, op
   const sec = sectionDivider(c.border);
 
   const header = el('div', 'display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;');
-  const title = el('div', `font-size:0.68rem;color:${c.textSecondary};font-weight:700;`);
+  const title = el('div', `font-size:0.7rem;color:${c.textSecondary};font-weight:700;`);
   title.textContent = opts.t('c4.community.title');
   header.append(title, iconButton(c, opts.graphIconPath, opts.t('viewer.tab.graph'), opts.onOpenGraph));
   sec.appendChild(header);
 
   const nameRow = el('div', 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;');
   nameRow.appendChild(el('div', `width:10px;height:10px;border-radius:50%;background:${communityColor(community.dominantCommunity)};flex-shrink:0;`));
-  const nameEl = el('div', `font-size:0.74rem;color:${c.text};font-weight:600;word-break:break-word;`);
+  const nameEl = el('div', `font-size:0.75rem;color:${c.text};font-weight:600;word-break:break-word;`);
   nameEl.textContent = communityDisplayName(opts, community.dominantCommunity);
   nameRow.appendChild(nameEl);
   const dominantRole = roleForCommunity(opts, elementId, community.dominantCommunity);
@@ -267,13 +267,13 @@ function appendCommunitySection(host: HTMLElement, info: SelectedElementInfo, op
 
   const summaryText = community.communitySummary?.summary;
   if (summaryText) {
-    const sum = el('div', `font-size:0.66rem;color:${c.textSecondary};margin-top:4px;line-height:1.4;`);
+    const sum = el('div', `font-size:0.7rem;color:${c.textSecondary};margin-top:4px;line-height:1.4;`);
     sum.textContent = summaryText;
     sec.appendChild(sum);
   }
 
   if (community.isGodNode) {
-    const hub = el('span', `display:inline-block;margin-top:4px;padding:1px 4px;border-radius:4px;background:${c.accent};color:${opts.isDark ? c.bg : '#fff'};font-size:0.6rem;font-weight:700;`);
+    const hub = el('span', `display:inline-block;margin-top:4px;padding:1px 4px;border-radius:4px;background:${c.accent};color:${opts.isDark ? c.bg : '#fff'};font-size:0.62rem;font-weight:700;`);
     hub.textContent = `★ ${opts.t('c4.community.hubNode')}`;
     sec.appendChild(hub);
   }

@@ -2656,7 +2656,7 @@ export function mountC4Viewer(
         const elem = props.c4Model.elements.find(e => e.id === id);
         if (!elem) continue;
         const row = el('div', `padding:4px 0;border-bottom:1px solid ${colors.border};`);
-        const typeLabel = el('div', `font-size:0.6rem;color:${colors.textMuted};text-transform:uppercase;`);
+        const typeLabel = el('div', `font-size:0.65rem;color:${colors.textMuted};text-transform:uppercase;`);
         typeLabel.textContent = elem.type;
         const nameLabel = el('div', `font-size:0.8rem;color:${colors.text};font-weight:600;word-break:break-word;`);
         nameLabel.textContent = elem.name;
@@ -2696,13 +2696,13 @@ export function mountC4Viewer(
       elemInfoPanel.appendChild(techEl);
     }
     if (element.description) {
-      const descEl = el('div', `font-size:0.72rem;color:${colors.textSecondary};line-height:1.45;margin-top:8px;word-break:break-word;`);
+      const descEl = el('div', `font-size:0.75rem;color:${colors.textSecondary};line-height:1.45;margin-top:8px;word-break:break-word;`);
       descEl.textContent = element.description;
       elemInfoPanel.appendChild(descEl);
     }
 
     // ID
-    const idEl = el('div', `font-size:0.62rem;color:${colors.textMuted};margin-top:8px;word-break:break-all;`);
+    const idEl = el('div', `font-size:0.65rem;color:${colors.textMuted};margin-top:8px;word-break:break-all;`);
     idEl.textContent = element.id;
     elemInfoPanel.appendChild(idEl);
 
@@ -2733,17 +2733,17 @@ export function mountC4Viewer(
     const { docLinks } = props;
     const documents = (docLinks ?? []).filter(doc => matchesDocScope(doc.c4Scope, element.id));
     const docSep = el('div', `border-top:1px solid ${colors.border};margin-top:10px;padding-top:8px;`);
-    const docTitle = el('div', `font-size:0.68rem;color:${colors.textSecondary};font-weight:700;margin-bottom:4px;`);
+    const docTitle = el('div', `font-size:0.7rem;color:${colors.textSecondary};font-weight:700;margin-bottom:4px;`);
     docTitle.textContent = 'Documents';
     docSep.appendChild(docTitle);
     if (documents.length === 0) {
-      const empty = el('div', `font-size:0.68rem;color:${colors.textMuted};`);
+      const empty = el('div', `font-size:0.7rem;color:${colors.textMuted};`);
       empty.textContent = 'No linked documents';
       docSep.appendChild(empty);
     } else {
       for (const doc of documents) {
         const docBtn = el('button', `display:flex;align-items:center;min-height:26px;padding:2px 4px;background:transparent;border:none;cursor:pointer;width:100%;text-align:left;`, { type: 'button' });
-        const badge = el('span', `display:inline-flex;align-items:center;height:16px;padding:0 4px;margin-right:6px;border-radius:4px;background:${DOC_TYPE_COLORS[doc.type] ?? DOC_TYPE_FALLBACK_COLOR};color:#000;font-size:0.58rem;font-weight:700;flex-shrink:0;`);
+        const badge = el('span', `display:inline-flex;align-items:center;height:16px;padding:0 4px;margin-right:6px;border-radius:4px;background:${DOC_TYPE_COLORS[doc.type] ?? DOC_TYPE_FALLBACK_COLOR};color:#000;font-size:0.62rem;font-weight:700;flex-shrink:0;`);
         badge.textContent = doc.type;
         const titleSpan = el('span', `font-size:0.7rem;color:${colors.text};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
         titleSpan.textContent = doc.title;
@@ -2757,7 +2757,7 @@ export function mountC4Viewer(
     // Functions section (code elements)
     if (element.type === 'code') {
       const fnSep = el('div', `border-top:1px solid ${colors.border};margin-top:10px;padding-top:8px;`);
-      const fnTitle = el('div', `font-size:0.68rem;color:${colors.textSecondary};font-weight:700;margin-bottom:4px;`);
+      const fnTitle = el('div', `font-size:0.7rem;color:${colors.textSecondary};font-weight:700;margin-bottom:4px;`);
       fnTitle.textContent = t('c4.popup.functions');
       fnSep.appendChild(fnTitle);
       if (elemFnsState.loading) {
@@ -2773,13 +2773,13 @@ export function mountC4Viewer(
         for (const sym of elemFnsState.data.symbols) {
           const row = el('div', 'display:flex;align-items:center;gap:4px;');
           const badge = kindBadge(sym.kind, t);
-          const kindSpan = el('span', `font-size:0.58rem;font-weight:700;color:${colors.codeLink};flex-shrink:0;text-transform:uppercase;`);
+          const kindSpan = el('span', `font-size:0.62rem;font-weight:700;color:${colors.codeLink};flex-shrink:0;text-transform:uppercase;`);
           kindSpan.title = badge.full;
           kindSpan.setAttribute('aria-label', badge.full);
           kindSpan.textContent = badge.short;
-          const nameSpan = el('span', `font-size:0.68rem;color:${colors.text};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;`);
+          const nameSpan = el('span', `font-size:0.7rem;color:${colors.text};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;`);
           nameSpan.textContent = sym.name;
-          const lineSpan = el('span', `font-size:0.58rem;color:${colors.textMuted};flex-shrink:0;`);
+          const lineSpan = el('span', `font-size:0.62rem;color:${colors.textMuted};flex-shrink:0;`);
           lineSpan.textContent = `:${sym.line + 1}`;
           row.append(kindSpan, nameSpan, lineSpan);
           if ((sym.kind === 'function' || sym.kind === 'method') && props.onOpenFunctionTree) {
@@ -2824,13 +2824,13 @@ export function mountC4Viewer(
     communityInfoPanel.appendChild(nameRow);
 
     if (selectedCommunityInfo.summaryText) {
-      const sumEl = el('div', `font-size:0.72rem;color:${colors.textSecondary};line-height:1.45;margin-top:8px;word-break:break-word;`);
+      const sumEl = el('div', `font-size:0.75rem;color:${colors.textSecondary};line-height:1.45;margin-top:8px;word-break:break-word;`);
       sumEl.textContent = selectedCommunityInfo.summaryText;
       communityInfoPanel.appendChild(sumEl);
     }
 
     const countSep = el('div', `border-top:1px solid ${colors.border};margin-top:10px;padding-top:6px;`);
-    const countLabel = el('div', `font-size:0.62rem;color:${colors.textMuted};`);
+    const countLabel = el('div', `font-size:0.65rem;color:${colors.textMuted};`);
     countLabel.textContent = t('c4.community.nodeCount');
     const countVal = el('div', `font-size:0.8rem;color:${colors.text};font-weight:700;`);
     countVal.textContent = String(selectedCommunityInfo.nodeCount);
@@ -2839,7 +2839,7 @@ export function mountC4Viewer(
 
     if (selectedCommunityInfo.children.length > 0) {
       const childSep = el('div', `border-top:1px solid ${colors.border};margin-top:10px;padding-top:6px;`);
-      const childTitle = el('div', `font-size:0.68rem;color:${colors.textSecondary};font-weight:700;margin-bottom:4px;`);
+      const childTitle = el('div', `font-size:0.7rem;color:${colors.textSecondary};font-weight:700;margin-bottom:4px;`);
       childTitle.textContent = t('c4.community.containers');
       childSep.appendChild(childTitle);
       for (const child of selectedCommunityInfo.children.slice(0, 8)) {
@@ -2848,14 +2848,14 @@ export function mountC4Viewer(
         childSep.appendChild(childEl);
       }
       if (selectedCommunityInfo.children.length > 8) {
-        const more = el('div', `font-size:0.62rem;color:${colors.textMuted};margin-top:2px;`);
+        const more = el('div', `font-size:0.65rem;color:${colors.textMuted};margin-top:2px;`);
         more.textContent = `+ ${selectedCommunityInfo.children.length - 8}`;
         childSep.appendChild(more);
       }
       communityInfoPanel.appendChild(childSep);
     }
 
-    const cidEl = el('div', `font-size:0.62rem;color:${colors.textMuted};margin-top:8px;`);
+    const cidEl = el('div', `font-size:0.65rem;color:${colors.textMuted};margin-top:8px;`);
     cidEl.textContent = `#${selectedCommunityInfo.cid}`;
     communityInfoPanel.appendChild(cidEl);
   }
