@@ -228,6 +228,22 @@ describe("installBlockOverlays — image", () => {
     );
   });
 
+  it("crop 編集画面は他の編集画面と同じく全画面（fullScreen）で開く", () => {
+    const { editor } = makeEditor();
+    const handle = installBlockOverlays(editor, { t, vscodeApi: null });
+    mockImageCb!.onEditCrop(2, { src: "https://x/y.png" });
+
+    const papers = document.querySelectorAll('[data-am-dialog-backdrop] [role="dialog"]');
+    const paper = papers[papers.length - 1] as HTMLElement | undefined;
+    if (!paper) throw new Error("crop ダイアログの paper が見つからない");
+    // fullScreen の paper は width/height/max-width/max-height が 100%（旧 maxWidth:md, fullWidth:true は非該当）。
+    expect(paper.style.width).toBe("100%");
+    expect(paper.style.height).toBe("100%");
+    expect(paper.style.maxWidth).toBe("100%");
+    expect(paper.style.maxHeight).toBe("100%");
+    handle.destroy();
+  });
+
   it("annotate 保存で serialize した annotations を setBlockAttrs", () => {
     const { editor } = makeEditor();
     installBlockOverlays(editor, { t, vscodeApi: null });
