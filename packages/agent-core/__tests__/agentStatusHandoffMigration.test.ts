@@ -103,6 +103,28 @@ describe('agent-status handoff スキーマ移行', () => {
     }
   });
 
+  it('移行済み DB を再度開いても二重移行しない（冪等）', () => {
+    // 旧スキーマ → 1 回目の移行
+    const old = new DatabaseSync(dbPath);
+    old.exec(OLD_DDL);
+    old.prepare(`INSERT INTO agent_sessions (session_id, summary, updated_at) VALUES (?, ?, ?)`).run(
+      's1',
+      '{"goal":"x"}',
+      '2026-06-24T00:00:00.000Z',
+    );
+    old.close();
+    const store1 = new AgentStatusStore(dbPath);
+    store1.close();
+    // 2 回目の起動：handoff_at 既存のため移行は走らず行は保持される
+    const store2 = new AgentStatusStore(dbPath);
+    try {
+      expect(hasColumn(dbPath, 'handoff_at')).toBe(true);
+      expect(store2.queryOne('s1')?.summary).toBe('{"goal":"x"}');
+    } finally {
+      store2.close();
+    }
+  });
+
   it('upsertSummary は編集・コミット列を壊さない', () => {
     const store = new AgentStatusStore(dbPath);
     try {

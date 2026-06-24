@@ -19,7 +19,9 @@ const PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
 const ENV_LINE =
   /^([ \t]*(?:export[ \t]+)?[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY)[A-Z0-9_]*)[ \t]*=[ \t]*.+$/gim;
 
-/** 与えられたテキストから秘密情報を伏字化する。空文字はそのまま返す。 */
+/** 与えられたテキストから秘密情報を伏字化する。空文字はそのまま返す。
+ *  注: PATTERNS は `g` フラグ付きで静的格納するが、`String.replace` は呼び出し毎に lastIndex を
+ *  リセットするため再利用は安全。将来 `.exec()` に変える場合は lastIndex の取り扱いに注意。 */
 export function redact(text: string): string {
   if (!text) return text;
   let out = text;

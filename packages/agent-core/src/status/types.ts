@@ -128,6 +128,7 @@ export interface AgentWorkerInfo {
   /** プロセス起動時刻 UTC ISO 8601 */
   readonly startedAt: string;
   readonly dbPath: string;
-  /** 書き込み系 POST/DELETE を保護する Bearer トークン。hook/拡張はこれを読んで付与する。 */
-  readonly token: string;
+  /** 書き込み系 POST/DELETE を保護する Bearer トークン。hook/拡張はこれを読んで付与する。
+   *  旧 v1 の agent-worker.json には存在しないため optional（consumer は `token ?? ''` で扱う）。 */
+  readonly token?: string;
 }

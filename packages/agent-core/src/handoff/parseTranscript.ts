@@ -120,7 +120,8 @@ export function parseLines(lines: readonly string[]): TranscriptEvent[] {
 export function parse(transcriptPath: string): TranscriptEvent[] {
   try {
     return parseLines(readFileSync(transcriptPath, 'utf-8').split('\n'));
-  } catch {
+  } catch (err) {
+    console.error(`[handoff] failed to read transcript: ${transcriptPath}`, err);
     return [];
   }
 }

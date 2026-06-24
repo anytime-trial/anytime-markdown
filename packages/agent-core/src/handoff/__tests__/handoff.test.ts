@@ -82,6 +82,12 @@ describe('redact', () => {
     expect(clean).toContain('[REDACTED]');
   });
 
+  it('authorization ヘッダ行のトークンを伏字化する（置換後文字列を検証）', () => {
+    const clean = redact('authorization: Bearer sk-ant-abcdef0123456789ABCDEF');
+    expect(clean).not.toContain('sk-ant-abcdef0123456789ABCDEF');
+    expect(clean).toContain('[REDACTED]');
+  });
+
   it('空文字はそのまま返す', () => {
     expect(redact('')).toBe('');
   });

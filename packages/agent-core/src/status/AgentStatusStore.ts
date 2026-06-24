@@ -116,6 +116,9 @@ export class AgentStatusStore {
    */
   private migrateToHandoffSchema(): void {
     if (this.dbPath !== ':memory:') {
+      // WAL に滞留したコミット済みデータを .db 本体へ書き込んでからバックアップする
+      // （.db だけのコピーでは WAL 分が欠落し不整合バックアップになる）。
+      this.db.exec('PRAGMA wal_checkpoint(FULL)');
       copyFileSync(this.dbPath, `${this.dbPath}.bak`);
     }
     this.db.exec('PRAGMA foreign_keys = OFF');
@@ -137,8 +140,10 @@ export class AgentStatusStore {
     } catch (err) {
       this.db.exec('ROLLBACK');
       throw err;
+    } finally {
+      // 失敗・成功いずれでも foreign_keys を必ず復帰する（ROLLBACK throw で取りこぼさない）。
+      this.db.exec('PRAGMA foreign_keys = ON');
     }
-    this.db.exec('PRAGMA foreign_keys = ON');
   }
 
   /**
