@@ -100,6 +100,63 @@ describe("createEditorSettingsPanel", () => {
     handle.destroy();
   });
 
+  it("用紙サイズ Select を本文幅 Select より前に描画する（順序: 用紙サイズ → 本文の幅）", () => {
+    const { handle } = mount();
+    const paperCombo = paper().querySelector(
+      '[role="combobox"][aria-label="settingPaperSize"]',
+    ) as HTMLElement;
+    const measureCombo = paper().querySelector(
+      '[role="combobox"][aria-label="settingMeasure"]',
+    ) as HTMLElement;
+    expect(paperCombo).toBeTruthy();
+    expect(measureCombo).toBeTruthy();
+    // 用紙サイズが本文幅より前（DOCUMENT_POSITION_FOLLOWING = 4）に位置する。
+    const rel = paperCombo.compareDocumentPosition(measureCombo);
+    expect(rel & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    handle.destroy();
+  });
+
+  it("paperSize≠off では本文幅 Select を無効化する（用紙幅が優先されるため）", () => {
+    const { handle } = mount(); // baseSettings.paperSize = "A4"
+    const measureCombo = paper().querySelector(
+      '[role="combobox"][aria-label="settingMeasure"]',
+    ) as HTMLButtonElement;
+    expect(measureCombo.disabled).toBe(true);
+    expect(measureCombo.getAttribute("aria-disabled")).toBe("true");
+    handle.destroy();
+  });
+
+  it("paperSize=off では本文幅 Select を有効化する", () => {
+    const offSettings = { ...baseSettings, paperSize: "off" as const };
+    const { handle } = mount({ settings: offSettings });
+    const measureCombo = paper().querySelector(
+      '[role="combobox"][aria-label="settingMeasure"]',
+    ) as HTMLButtonElement;
+    expect(measureCombo.disabled).toBe(false);
+    expect(measureCombo.getAttribute("aria-disabled")).toBe("false");
+    handle.destroy();
+  });
+
+  it("用紙サイズを off に変更すると本文幅 Select が有効化され、off 以外で無効化される", () => {
+    const offSettings = { ...baseSettings, paperSize: "off" as const };
+    const { handle } = mount({ settings: offSettings });
+    const measureCombo = paper().querySelector(
+      '[role="combobox"][aria-label="settingMeasure"]',
+    ) as HTMLButtonElement;
+    const paperCombo = paper().querySelector(
+      '[role="combobox"][aria-label="settingPaperSize"]',
+    ) as HTMLButtonElement;
+    expect(measureCombo.disabled).toBe(false);
+    // 用紙サイズを A4 に変更 → 本文幅は無効化。
+    paperCombo.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    const a4Option = Array.from(
+      document.body.querySelectorAll('[role="option"]'),
+    ).find((o) => o.textContent === "A4") as HTMLElement;
+    a4Option.click();
+    expect(measureCombo.disabled).toBe(true);
+    handle.destroy();
+  });
+
   it("テーブル幅 / ブロック要素の配置 / 単語の折り返しセクションを描画しない（UI 撤去）", () => {
     const { handle } = mount();
     const text = paper().textContent ?? "";

@@ -18,10 +18,16 @@ import {
   createMarkdownT,
   DEFAULT_DARK_BG,
   DEFAULT_LIGHT_BG,
+  DEFAULT_SETTINGS,
+  type EditorSettings,
   STORAGE_KEY_CONTENT,
   STORAGE_KEY_SETTINGS,
   type ThemePresetName,
 } from '@anytime-markdown/markdown-viewer';
+import {
+  MEASURE_PRESETS,
+  type MeasurePreset,
+} from '@anytime-markdown/markdown-viewer/src/utils/measurePreset';
 import { detectLocale } from '@anytime-markdown/markdown-viewer/src/i18n/createMarkdownT';
 import { setEmbedProviders } from '@anytime-markdown/markdown-viewer/src/embedProviders';
 import type { VanillaMarkdownEditorHandle } from '@anytime-markdown/markdown-viewer/src/host/vanillaMarkdownEditor';
@@ -147,6 +153,10 @@ interface AppState {
   claudeEditing: boolean;
   autoReload: boolean;
   compareContent: string | null;
+  /** VS Code 設定 anytimeMarkdown.fontSize（px・0 = VS Code 既定を使用）。 */
+  fontSize: number;
+  /** VS Code 設定 anytimeMarkdown.measure（本文幅プリセット）。 */
+  measure: MeasurePreset;
 }
 
 const state: AppState = {
@@ -158,7 +168,23 @@ const state: AppState = {
   claudeEditing: false,
   autoReload: true,
   compareContent: null,
+  fontSize: 0,
+  measure: DEFAULT_SETTINGS.measure,
 };
+
+/** fontSize 設定を実値へ解決する（0 = 既定値を使用）。 */
+function resolveFontSize(): number {
+  return state.fontSize > 0 ? state.fontSize : DEFAULT_SETTINGS.fontSize;
+}
+
+/**
+ * VS Code 設定（measure / fontSize）を反映した full EditorSettings を組む。
+ * 拡張は歯車パネル非表示で他の設定変更源がないため、measure/fontSize 以外は常に
+ * DEFAULT_SETTINGS（用紙サイズは off）。host は mount・live patch とも full settings を扱う。
+ */
+function buildEditorSettings(): EditorSettings {
+  return { ...DEFAULT_SETTINGS, measure: state.measure, fontSize: resolveFontSize() };
+}
 
 let rootEl: HTMLElement | null = null;
 let editorHandle: VanillaMarkdownEditorHandle | null = null;
@@ -332,6 +358,9 @@ function buildMountOptions() {
     presetName: state.presetName,
     showFrontmatter: true,
     persistDraft: true,
+    // 初期 mount は full settings 必須（host は current.settings を全置換で読むため）。
+    // 用紙サイズは DEFAULT_SETTINGS の off のまま。measure/fontSize のみ VS Code 設定で上書きする。
+    settings: buildEditorSettings(),
   };
 }
 
@@ -404,6 +433,8 @@ function pushLiveUpdate(): void {
     presetName: state.presetName,
     autoReload: state.autoReload,
     externalCompareContent: state.compareContent,
+    // host 側で settings をマージ → applyAllSettings。measure/fontSize を反映する。
+    settings: buildEditorSettings(),
   });
 }
 
@@ -430,7 +461,13 @@ function handleLoadHistoryContent(message: { content: string }): void {
   dispatchCustomEvent('vscode-set-content', message.content);
 }
 
-function handleSetSettings(s: { themeMode?: string; themePreset?: string; language?: string }): void {
+function handleSetSettings(s: {
+  themeMode?: string;
+  themePreset?: string;
+  language?: string;
+  fontSize?: number;
+  measure?: string;
+}): void {
   let themeChanged = false;
   if (s.themeMode === 'light' || s.themeMode === 'dark') {
     state.themeMode = s.themeMode;
@@ -450,6 +487,23 @@ function handleSetSettings(s: { themeMode?: string; themePreset?: string; langua
       bannerEl = null;
       if (container) syncClaudeBanner(container);
     }
+  }
+  // 本文幅(measure) / フォントサイズ(fontSize) は host の settings 部分パッチでライブ反映する。
+  let editorSettingsChanged = false;
+  if (typeof s.fontSize === 'number' && s.fontSize !== state.fontSize) {
+    state.fontSize = s.fontSize;
+    editorSettingsChanged = true;
+  }
+  if (
+    typeof s.measure === 'string' &&
+    (MEASURE_PRESETS as readonly string[]).includes(s.measure) &&
+    s.measure !== state.measure
+  ) {
+    state.measure = s.measure as MeasurePreset;
+    editorSettingsChanged = true;
+  }
+  if (editorSettingsChanged) {
+    pushLiveUpdate();
   }
   if (s.language === 'en' || s.language === 'ja') {
     document.documentElement.lang = s.language;

@@ -151,6 +151,21 @@
           "maximum": 72,
           "description": "%configuration.fontSize.description%"
         },
+        "anytimeMarkdown.measure": {
+          "type": "string",
+          "default": "standard",
+          "enum": [
+            "focus",
+            "standard",
+            "wide"
+          ],
+          "enumDescriptions": [
+            "%configuration.measure.focus%",
+            "%configuration.measure.standard%",
+            "%configuration.measure.wide%"
+          ],
+          "description": "%configuration.measure.description%"
+        },
         "anytimeMarkdown.language": {
           "type": "string",
           "default": "auto",
