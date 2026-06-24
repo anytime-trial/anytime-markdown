@@ -2024,16 +2024,17 @@ export function mountC4Viewer(
       } else {
         tcControlsHandle.update(tcProps);
       }
-      // TC settings popup
+      // TC settings popup — leftPanel の列に inline 配置（floating だと leftPanel と座標衝突）
       const tcPopupProps: TemporalCouplingSettingsPopupVanillaProps = {
         value: tcValue,
         onChange: (next) => { tcValue = next; scheduleRender(); fetchTC(); },
         resultCount: (tcState.edges as unknown[]).length,
         loading: tcState.loading,
         isDark,
+        variant: 'inline',
       };
       if (!tcSettingsPopupHandle) {
-        tcSettingsPopupHandle = mountTemporalCouplingSettingsPopup(graphCanvasArea, tcPopupProps);
+        tcSettingsPopupHandle = mountTemporalCouplingSettingsPopup(leftPanel, tcPopupProps);
       } else {
         tcSettingsPopupHandle.update(tcPopupProps);
       }
