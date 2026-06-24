@@ -45,6 +45,7 @@ function makeInfo(overrides: Partial<SelectedElementInfo> = {}): SelectedElement
       isGodNode: true,
     },
     sizeMetrics: { loc: 120, locMax: 90, fileCount: 2, functionCount: 4 },
+    layer: 'service-domain',
     ...overrides,
   };
 }
@@ -81,6 +82,9 @@ describe('appendSelectedElementDetailSections', () => {
     expect(text).toContain('c4.popup.structure');
     expect(text).toContain('120(90)'); // LOC(MAX)
     expect(text).toContain('80%'); // coverage lines pct
+    // Architecture layer（i18n キーは恒等関数で素通し: LAYER_LABEL_KEYS['service-domain']）
+    expect(text).toContain('c4.popup.layer');
+    expect(text).toContain('c4.layer.serviceDomain');
     // Community
     expect(text).toContain('c4.community.title');
     expect(text).toContain('Alpha'); // dominant community name from codeGraph
@@ -121,6 +125,7 @@ describe('appendSelectedElementDetailSections', () => {
         hotspot: null,
         community: null,
         sizeMetrics: { loc: null, locMax: null, fileCount: null, functionCount: null },
+        layer: null,
       }),
       makeOpts(),
     );
@@ -128,5 +133,7 @@ describe('appendSelectedElementDetailSections', () => {
     expect(text).toContain('-');
     // community セクションは null のとき描画されない
     expect(text).not.toContain('c4.community.title');
+    // layer 行は null のとき描画されない
+    expect(text).not.toContain('c4.popup.layer');
   });
 });

@@ -7,6 +7,7 @@ import type {
   CoverageMatrix,
   DsmMatrix,
   HotspotMap,
+  LayerMatrix,
   SizeMatrix,
 } from '@anytime-markdown/trail-core/c4';
 import type { HotspotEntry } from '@anytime-markdown/trail-core/c4';
@@ -73,6 +74,7 @@ describe('buildSelectedElementInfo', () => {
     const hotspotEntry: HotspotEntry = { elementId: codeEl.id, churn: 42, churnNorm: 0.5, complexity: 3, complexityNorm: 0.3, risk: 0.7 };
     const hotspotMap: HotspotMap = new Map([[codeEl.id, hotspotEntry]]);
     const sizeMatrix: SizeMatrix = { [codeEl.id]: { loc: 120, locMax: 120, files: 1, functions: 4 } };
+    const layerMatrix: LayerMatrix = { [codeEl.id]: 'service-domain' };
     const dsmDegreeMap = new Map([[codeEl.id, { in: 2, out: 3 }]]);
     const overlayL4 = new Map<string, CommunityOverlayEntry>([
       [codeEl.id, { elementId: codeEl.id, dominantCommunity: 7, dominantRatio: 1, breakdown: [{ community: 7, count: 1 }], isGodNode: false }],
@@ -88,6 +90,7 @@ describe('buildSelectedElementInfo', () => {
       defectRiskMap: new Map([[codeEl.id, 55]]),
       hotspotMap,
       sizeMatrix,
+      layerMatrix,
       communityOverlayL3: null,
       communityOverlayL4: overlayL4,
     });
@@ -101,6 +104,7 @@ describe('buildSelectedElementInfo', () => {
     expect(info.hotspot?.churn).toBe(42);
     expect(info.community?.dominantCommunity).toBe(7);
     expect(info.sizeMetrics).toEqual({ loc: 120, locMax: 120, fileCount: 1, functionCount: 4 });
+    expect(info.layer).toBe('service-domain');
   });
 
   test('returns nulls when no data is available', () => {
@@ -114,6 +118,7 @@ describe('buildSelectedElementInfo', () => {
       defectRiskMap: null,
       hotspotMap: null,
       sizeMatrix: null,
+      layerMatrix: null,
       communityOverlayL3: null,
       communityOverlayL4: null,
     });
@@ -127,5 +132,6 @@ describe('buildSelectedElementInfo', () => {
     expect(info.hotspot).toBeNull();
     expect(info.community).toBeNull();
     expect(info.sizeMetrics).toEqual({ loc: null, locMax: null, fileCount: null, functionCount: null });
+    expect(info.layer).toBeNull();
   });
 });

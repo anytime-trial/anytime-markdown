@@ -337,6 +337,7 @@ export interface TrailI18n {
   'c4.popup.size': string;
   'c4.popup.quality': string;
   'c4.popup.structure': string;
+  'c4.popup.layer': string;
   'c4.popup.metric.coverage': string;
   'c4.popup.metric.branches': string;
   'c4.popup.metric.functions': string;
