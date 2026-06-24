@@ -22,5 +22,6 @@
   "command.deleteAiNotePage": "Delete AI Note Page",
   "command.openAiNotePage": "Open AI Note Page",
   "command.clearAiNote": "Clear AI Note",
-  "command.copyAiNotePath": "Copy AI Note Path"
+  "command.copyAiNotePath": "Copy AI Note Path",
+  "command.mapping.handoffSession": "Hand Off to New Session"
 }
