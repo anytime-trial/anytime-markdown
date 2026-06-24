@@ -168,10 +168,11 @@ describe('setupClaudeHooks', () => {
     );
     // state ファイルは .anytime/agent 配下（AGENT_HOME）に書く
     expect(script).toContain('AGENT_HOME');
+    expect(script).toContain('.anytime/agent');
     expect(script).toContain('${AGENT_HOME}/claude-session-guard.json');
     // 旧 .anytime/trail/state 配下への書き込みが廃止されていること
     expect(script).not.toContain('TRAIL_HOME');
-    expect(script).not.toContain('/state');
+    expect(script).not.toContain('.anytime/trail/state');
   });
 
   test('is idempotent: running twice does not duplicate hook entries', () => {
