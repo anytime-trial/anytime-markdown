@@ -123,6 +123,9 @@ import { mountActivityTrendPanel } from './panels/activityTrendPanel';
 import type { ActivityTrendPanelProps } from './panels/activityTrendPanel';
 import { mountDeadCodeDetailPanel } from './panels/deadCodeDetailPanel';
 import type { DeadCodeDetailPanelProps } from './panels/deadCodeDetailPanel';
+import { buildDsmDegreeMap, buildSelectedElementInfo } from './panels/selectedElementInfo';
+import type { SelectedElementInfo } from './panels/selectedElementInfo';
+import { appendSelectedElementDetailSections } from './panels/selectedElementDetailsPanel';
 import { mountCallHierarchyPanel } from './panels/callHierarchyPanel';
 import type { CallHierarchyPanelVanillaProps } from './panels/callHierarchyPanel';
 import { mountAddElementDialog } from './dialogs/addElementDialog';
@@ -185,6 +188,24 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, css?: string, attrs?:
   if (css) e.style.cssText = css;
   if (attrs) for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
   return e;
+}
+
+/**
+ * 依存を参照等価で比較する 1 スロットのメモ化（React useMemo の vanilla 等価）。
+ * 依存配列の全要素が前回と `===` なら前回値を返す。`render()` がビューポート変更
+ * （pan/zoom）ごとに呼ばれても、依存に viewport を含まない重い算出を再実行しないために使う。
+ */
+function createRefMemo<T>(): (deps: readonly unknown[], compute: () => T) => T {
+  let lastDeps: readonly unknown[] | null = null;
+  let lastValue: T;
+  return (deps, compute) => {
+    if (lastDeps !== null && lastDeps.length === deps.length && lastDeps.every((d, i) => d === deps[i])) {
+      return lastValue;
+    }
+    lastDeps = deps;
+    lastValue = compute();
+    return lastValue;
+  };
 }
 
 function svgIcon(d: string, size = 16): SVGSVGElement {
@@ -680,7 +701,7 @@ export function mountC4Viewer(
   overlayLabel.textContent = '';  // filled by render via t()
 
   const popupBtnRow = el('div', 'display:flex;align-items:center;gap:2px;');
-  const graphPopupBtn = iconBtn('Code Graph', ICONS.accountTree, props.t('c4.graph.title'), () => {
+  function toggleGraphPopup(): void {
     showGraphPopup = !showGraphPopup;
     if (showGraphPopup) {
       matrixPopup = null;
@@ -690,7 +711,23 @@ export function mountC4Viewer(
       fetchCodeGraph();
     }
     scheduleRender();
-  });
+  }
+  // 選択要素の type に応じて Matrix ポップアップを開く（React openMatrixForElement の移植）。
+  function openMatrixForElement(element: C4Element): void {
+    showGraphPopup = false;
+    scatterPopup = null;
+    if (element.type === 'container' || element.type === 'containerDb') {
+      matrixPopup = { initialLevel: 'component', filterElementId: element.id };
+    } else if (element.type === 'component') {
+      matrixPopup = { initialLevel: 'code', filterElementId: element.id };
+    } else if (element.type === 'code') {
+      matrixPopup = { initialLevel: 'code', filterElementId: element.boundaryId ?? null };
+    } else {
+      matrixPopup = { initialLevel: 'component', filterElementId: null };
+    }
+    scheduleRender();
+  }
+  const graphPopupBtn = iconBtn('Code Graph', ICONS.accountTree, props.t('c4.graph.title'), toggleGraphPopup);
   const matrixPopupBtn = iconBtn('Matrix', ICONS.tableChart, props.t('c4.matrix.title'), () => {
     if (matrixPopup) { matrixPopup = null; } else { showGraphPopup = false; scatterPopup = null; matrixPopup = { initialLevel: 'component', filterElementId: null }; }
     scheduleRender();
@@ -1294,6 +1331,54 @@ export function mountC4Viewer(
     return aggregateGhostEdgesToC4(tcState.edges, c4Model, currentLevel as 1 | 2 | 3 | 4, getSelectedRepo() || null);
   }
 
+  // ── Shared metric sources (overlay 着色と選択要素 詳細パネルの双方で参照する) ──
+  // 参照等価メモ化: overlay 着色と詳細パネルが同一レンダーで二重に呼んでも 1 回で済み、
+  // 入力（props 行列・state データ）が不変な viewport 変更（pan/zoom）では再計算しない。
+  const hotspotMapMemo = createRefMemo<HotspotMap | null>();
+  const sizeMatrixMemo = createRefMemo<SizeMatrix | null>();
+  const defectRiskMapMemo = createRefMemo<ReadonlyMap<string, number> | null>();
+
+  function computeHotspotMapData(): HotspotMap | null {
+    const { c4Model, complexityMatrix } = props;
+    return hotspotMapMemo([c4Model, complexityMatrix, hotspotState.data], () => {
+      if (!hotspotState.data || !c4Model) return null;
+      const fileHotspots = computeFileHotspot(hotspotState.data.files);
+      return aggregateHotspotToC4(fileHotspots, c4Model, complexityMatrix ?? null);
+    });
+  }
+
+  function computeSizeMatrixData(): SizeMatrix | null {
+    const { c4Model, fileAnalysisEntries } = props;
+    return sizeMatrixMemo([c4Model, fileAnalysisEntries], () => {
+      if (!fileAnalysisEntries?.length || !c4Model) return null;
+      const sizeEntries = fileAnalysisEntries.filter(r => r.lineCount > 0).map(r => ({
+        elementId: `file::${r.filePath}`, lineCount: r.lineCount, functionCount: r.functionCount,
+      }));
+      if (!sizeEntries.length) return null;
+      return buildSizeMatrix(sizeEntries, c4Model.elements);
+    });
+  }
+
+  function computeDefectRiskMapData(): ReadonlyMap<string, number> | null {
+    const { c4Model } = props;
+    return defectRiskMapMemo([c4Model, defectRiskState.entries], () => {
+      if (!defectRiskState.entries.length || !c4Model) return null;
+      const elementById = buildC4ElementById(c4Model.elements);
+      const map = new Map<string, number>();
+      for (const entry of defectRiskState.entries) {
+        for (const m of mapFileToC4Elements(entry.filePath, elementById)) {
+          map.set(m.elementId, Math.max(map.get(m.elementId) ?? 0, entry.score));
+        }
+      }
+      return map;
+    });
+  }
+
+  // 詳細パネル専用の重い算出（DSM 次数・情報パネル用 community overlay L3/L4）のメモ化。
+  const dsmDegreeMemo = createRefMemo<ReturnType<typeof buildDsmDegreeMap>>();
+  const communityOverlayL3Memo = createRefMemo<ReturnType<typeof computeCommunityOverlay> | null>();
+  const communityOverlayL4Memo = createRefMemo<ReturnType<typeof computeCommunityOverlay> | null>();
+
   // ── Computed overlay maps ──
   function computeEffectiveOverlayMap(): ReadonlyMap<string, string> | null {
     const { c4Model, coverageMatrix, complexityMatrix, importanceMatrix, deadCodeMatrix, centralityMatrix, roleMatrix, dsmMatrix } = props;
@@ -1346,17 +1431,7 @@ export function mountC4Viewer(
     })();
 
     // defect risk map
-    const defectRiskMap = (() => {
-      if (!defectRiskState.entries.length || !c4Model) return null;
-      const elementById = buildC4ElementById(c4Model.elements);
-      const map = new Map<string, number>();
-      for (const entry of defectRiskState.entries) {
-        for (const m of mapFileToC4Elements(entry.filePath, elementById)) {
-          map.set(m.elementId, Math.max(map.get(m.elementId) ?? 0, entry.score));
-        }
-      }
-      return map;
-    })();
+    const defectRiskMap = computeDefectRiskMapData();
 
     const filteredDefectRisk = (() => {
       if (!defectRiskMap) return null;
@@ -1368,11 +1443,7 @@ export function mountC4Viewer(
     })();
 
     // hotspot map
-    const hotspotMap = (() => {
-      if (!hotspotState.data || !c4Model) return null;
-      const fileHotspots = computeFileHotspot(hotspotState.data.files);
-      return aggregateHotspotToC4(fileHotspots, c4Model, complexityMatrix ?? null);
-    })();
+    const hotspotMap = computeHotspotMapData();
 
     const filteredHotspot = (() => {
       if (!hotspotMap) return null;
@@ -1384,15 +1455,7 @@ export function mountC4Viewer(
     })();
 
     // size matrix
-    const sizeMatrix_ = (() => {
-      const { fileAnalysisEntries } = props;
-      if (!fileAnalysisEntries?.length || !c4Model) return null;
-      const sizeEntries = fileAnalysisEntries.filter(r => r.lineCount > 0).map(r => ({
-        elementId: `file::${r.filePath}`, lineCount: r.lineCount, functionCount: r.functionCount,
-      }));
-      if (!sizeEntries.length) return null;
-      return buildSizeMatrix(sizeEntries, c4Model.elements);
-    })();
+    const sizeMatrix_ = computeSizeMatrixData();
 
     const filteredSize = (() => {
       if (!sizeMatrix_) return null;
@@ -1643,6 +1706,32 @@ export function mountC4Viewer(
         summaryText: summary?.summary ?? node.description,
         children: [...node.children] as Array<{ id: string; name: string }>,
       };
+    })();
+
+    // 選択要素（非コミュニティ）の詳細メトリクス（DSM / Metrics / Community セクション用）。
+    // 情報パネル用 community オーバーレイは showCommunity トグルと独立に L3/L4 を解決する。
+    const selectedElementDetail = (() => {
+      if (!selectedElementId || selectedElementId.startsWith('community:') || !c4Model) return null;
+      const element = c4Model.elements.find(e => e.id === selectedElementId);
+      if (!element) return null;
+      const graph = codeGraphState.graph;
+      const overlayForInfo = (level: 3 | 4, memo: typeof communityOverlayL3Memo) =>
+        memo([graph, c4Model, currentLevel, selectedRepo], () =>
+          (graph && currentLevel !== 1) ? computeCommunityOverlay(c4Model, graph, level, selectedRepo || null) : null);
+      return buildSelectedElementInfo({
+        element,
+        c4Model,
+        dsmDegreeMap: dsmDegreeMemo([props.dsmMatrix, c4Model.elements], () => buildDsmDegreeMap(props.dsmMatrix ?? null, c4Model.elements)),
+        coverageMatrix: props.coverageMatrix ?? null,
+        complexityMatrix: props.complexityMatrix ?? null,
+        importanceMatrix: props.importanceMatrix ?? null,
+        defectRiskMap: computeDefectRiskMapData(),
+        hotspotMap: computeHotspotMapData(),
+        sizeMatrix: computeSizeMatrixData(),
+        communityOverlayL3: overlayForInfo(3, communityOverlayL3Memo),
+        communityOverlayL4: overlayForInfo(4, communityOverlayL4Memo),
+        communitySummaries: graph?.communitySummaries,
+      });
     })();
 
     // Update graph canvas
@@ -2410,7 +2499,7 @@ export function mountC4Viewer(
     updateContextMenu(colors);
 
     // Element info panels
-    updateElementInfoPanels(colors, t);
+    updateElementInfoPanels(colors, t, selectedElementDetail);
 
     // Community info panel
     updateCommunityInfoPanel(colors, t, selectedCommunityInfo);
@@ -2545,7 +2634,7 @@ export function mountC4Viewer(
     }
   }
 
-  function updateElementInfoPanels(colors: C4ThemeColors, t: (k: string) => string): void {
+  function updateElementInfoPanels(colors: C4ThemeColors, t: (k: string) => string, detail: SelectedElementInfo | null): void {
     // Multi-select panel
     if (selectedElementIds.length > 1 && props.c4Model) {
       multiSelectPanel.style.display = 'block';
@@ -2611,6 +2700,29 @@ export function mountC4Viewer(
     const idEl = el('div', `font-size:0.62rem;color:${colors.textMuted};margin-top:8px;word-break:break-all;`);
     idEl.textContent = element.id;
     elemInfoPanel.appendChild(idEl);
+
+    // DSM / Metrics / Community セクション（vanilla 移行で欠落していた復元分）
+    if (detail) {
+      appendSelectedElementDetailSections(elemInfoPanel, detail, {
+        colors: {
+          border: colors.border,
+          text: colors.text,
+          textSecondary: colors.textSecondary,
+          textMuted: colors.textMuted,
+          accent: colors.accent,
+          hover: colors.hover,
+          bg: colors.bg,
+        },
+        t,
+        isDark: props.isDark ?? false,
+        codeGraph: codeGraphState.graph,
+        featureMatrix: props.featureMatrix ?? null,
+        matrixIconPath: ICONS.tableChart,
+        graphIconPath: ICONS.accountTree,
+        onOpenMatrix: () => openMatrixForElement(detail.element),
+        onOpenGraph: toggleGraphPopup,
+      });
+    }
 
     // Documents section
     const { docLinks } = props;
