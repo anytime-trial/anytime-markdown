@@ -10,6 +10,22 @@ if (typeof globalThis.structuredClone === 'undefined') {
   globalThis.structuredClone = <T>(val: T): T => JSON.parse(JSON.stringify(val)) as T;
 }
 
+// c4Viewer now statically imports the code-graph popup (mountCodeGraphPanel),
+// which pulls in sigma. Sigma needs WebGL2RenderingContext, absent in jsdom, so
+// mock it at module level. Jest hoists jest.mock() above the imports.
+jest.mock('sigma', () => ({
+  __esModule: true,
+  default: class MockSigma {
+    on() { /* no-op */ }
+    getGraph() { return { forEachNode: () => { /* no-op */ }, setNodeAttribute: () => { /* no-op */ } }; }
+    refresh() { /* no-op */ }
+    kill() { /* no-op */ }
+  },
+}));
+jest.mock('sigma/rendering', () => ({
+  EdgeArrowProgram: class MockEdgeArrowProgram {},
+}));
+
 import { mountC4Viewer, computeMatrixGridOptions } from '../c4Viewer';
 import type { C4ViewerViewProps } from '../c4Viewer';
 import type { C4Model, CoverageMatrix } from '@anytime-markdown/trail-core/c4';
@@ -208,6 +224,26 @@ describe('mountC4Viewer', () => {
     const handle = mountC4Viewer(container, makeProps({ isDark: false }));
     handle.update(makeProps({ isDark: true }));
     handle.update(makeProps({ isDark: false }));
+    handle.destroy();
+  });
+
+  it('Code Graph ボタンで code graph ポップアップを開閉する', async () => {
+    const handle = mountC4Viewer(container, makeProps());
+    const btn = container.querySelector<HTMLButtonElement>('button[aria-label="Code Graph"]');
+    expect(btn).toBeTruthy();
+
+    // Open: showGraphPopup の配線で popup が mount される（旧デッドコードの回帰防止）。
+    btn!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(container.querySelector('[role="dialog"][aria-label="Code graph panel"]')).toBeTruthy();
+
+    // Toggle close.
+    btn!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(container.querySelector('[role="dialog"][aria-label="Code graph panel"]')).toBeNull();
+
     handle.destroy();
   });
 
