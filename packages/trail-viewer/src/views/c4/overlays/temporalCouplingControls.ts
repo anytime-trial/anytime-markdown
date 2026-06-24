@@ -42,6 +42,12 @@ export interface TemporalCouplingSettingsPopupVanillaProps {
   readonly resultCount: number;
   readonly loading: boolean;
   readonly isDark?: boolean;
+  /**
+   * 'floating'（既定）= キャンバス左上に絶対配置するポップアップ。
+   * 'inline' = 親 flex 列のフロー内に積む（左コントロールパネルへ組み込む用途）。
+   * leftPanel に絶対配置で重ねると C4 コントロールと衝突するため inline を使う。
+   */
+  readonly variant?: 'floating' | 'inline';
 }
 
 const WINDOW_OPTIONS = [
@@ -380,8 +386,12 @@ export function mountTemporalCouplingSettingsPopup(
   root.setAttribute('aria-label', 'Ghost Edges 設定');
 
   function applyBg(): void {
+    const positionCss =
+      (props.variant ?? 'floating') === 'inline'
+        ? 'position:static;width:220px;'
+        : 'position:absolute;top:8px;left:8px;width:220px;z-index:10;';
     root.style.cssText =
-      'position:absolute;top:8px;left:8px;width:220px;z-index:10;' +
+      positionCss +
       'border:1px solid var(--am-color-divider);border-radius:8px;' +
       `background:${(props.isDark ?? false) ? 'rgba(18,18,18,0.92)' : 'rgba(251,249,243,0.94)'};` +
       'box-shadow:0 8px 24px rgba(0,0,0,0.28);' +
@@ -468,9 +478,10 @@ export function mountTemporalCouplingSettingsPopup(
   return {
     update(next) {
       const prevIsDark = props.isDark;
+      const prevVariant = props.variant;
       props = next;
 
-      if (prevIsDark !== next.isDark) applyBg();
+      if (prevIsDark !== next.isDark || prevVariant !== next.variant) applyBg();
       applyVisible();
 
       modeSelect.update({ value: getGhostEdgeMode(next.value) });

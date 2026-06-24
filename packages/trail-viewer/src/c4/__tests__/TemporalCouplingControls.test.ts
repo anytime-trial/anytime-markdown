@@ -156,4 +156,35 @@ describe('TemporalCouplingControls / C4 ghost edge settings popup', () => {
     expect(root?.style.display).toBe('none');
     handle.destroy();
   });
+
+  it('floats with absolute positioning by default', () => {
+    const container = document.createElement('div');
+    const handle = mountTemporalCouplingSettingsPopup(container, {
+      value: { ...baseValue, enabled: true },
+      onChange: jest.fn(),
+      resultCount: 0,
+      loading: false,
+      isDark: false,
+    });
+    const root = container.querySelector('[role="dialog"]') as HTMLElement;
+    expect(root.style.position).toBe('absolute');
+    handle.destroy();
+  });
+
+  it('flows inline (no absolute overlap) when variant=inline so it does not cover the C4 controls panel', () => {
+    const container = document.createElement('div');
+    const handle = mountTemporalCouplingSettingsPopup(container, {
+      value: { ...baseValue, enabled: true },
+      onChange: jest.fn(),
+      resultCount: 0,
+      loading: false,
+      isDark: false,
+      variant: 'inline',
+    });
+    const root = container.querySelector('[role="dialog"]') as HTMLElement;
+    expect(root.style.position).toBe('static');
+    expect(root.style.top).toBe('');
+    expect(root.style.left).toBe('');
+    handle.destroy();
+  });
 });
