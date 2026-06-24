@@ -282,6 +282,33 @@ describe('mountC4Viewer', () => {
     expect(dialogs.length).toBeGreaterThanOrEqual(1);
     handle.destroy();
   });
+
+  // Regression: Ghost Edges 詳細コントロールは左コントロールパネル(leftPanel)列に積む。
+  // 旧実装は graphCanvasArea へフロー追加され 100%高 canvas 背後でクリップ→不可視だった。
+  // mount 先が graphCanvasArea に戻ると left:8px の leftPanel 配下から外れ、本テストが落ちる。
+  it('Ghost Edges 詳細コントロールを leftPanel 列に inline 配置する（不可視回帰の防止）', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c4Model: any = {
+      title: 'T', level: 'component',
+      elements: [{ id: 'cmp1', type: 'component', name: 'Svc' }],
+      relationships: [],
+    };
+    // showTC = tcValue.enabled && (level === 3 || 4)。level3 で Ghost Edges を有効化。
+    const handle = mountC4Viewer(container, makeProps({ c4Model, initialLevel: 3 }));
+    const ghostBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Ghost Edges"]');
+    expect(ghostBtn).toBeTruthy();
+    ghostBtn!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const tcGroup = container.querySelector<HTMLElement>('[role="group"][aria-label="時間的結合エッジの表示制御"]');
+    expect(tcGroup).toBeTruthy();
+    // 親が leftPanel（position:absolute;left:8px の列）であること = graphCanvasArea 直下ではない。
+    expect(tcGroup!.parentElement?.style.left).toBe('8px');
+    // inline 縦カードとして描画される。
+    expect(tcGroup!.style.flexDirection).toBe('column');
+    handle.destroy();
+  });
 });
 
 // ── Minimal test data ──

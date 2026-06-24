@@ -20,6 +20,16 @@ export interface DefectRiskControlsVanillaProps {
   readonly labelHalfLife: string;
   readonly labelCalculating: string;
   readonly labelOff: string;
+  readonly isDark?: boolean;
+  /**
+   * 'floating'（既定）= キャンバス下部に並ぶ横並びツールバー帯。
+   * 'inline' = 左コントロールパネル列に積む縦カード（leftPanel 組み込み用途）。
+   */
+  readonly variant?: 'floating' | 'inline';
+}
+
+function buildBg(isDark: boolean): string {
+  return isDark ? 'rgba(18,18,18,0.92)' : 'rgba(251,249,243,0.94)';
 }
 
 const WINDOW_OPTIONS = [
@@ -46,9 +56,23 @@ export function mountDefectRiskControls(
   const root = document.createElement('div');
   root.setAttribute('role', 'group');
   root.setAttribute('aria-label', '欠陥予測リスクの表示制御');
-  root.style.cssText =
-    'display:flex;gap:16px;align-items:center;flex-wrap:wrap;' +
-    'padding:4px 8px;border-top:1px solid var(--am-color-divider);';
+
+  function applyRootStyle(): void {
+    if ((props.variant ?? 'floating') === 'inline') {
+      // 左パネル列の縦カード。横バーだと 220px 列で折り返すため flex-direction:column。
+      root.style.cssText =
+        'display:flex;flex-direction:column;gap:8px;width:220px;' +
+        'border:1px solid var(--am-color-divider);border-radius:8px;' +
+        `background:${buildBg(props.isDark ?? false)};` +
+        'box-shadow:0 8px 24px rgba(0,0,0,0.28);' +
+        'backdrop-filter:blur(10px);padding:10px 12px;';
+    } else {
+      root.style.cssText =
+        'display:flex;gap:16px;align-items:center;flex-wrap:wrap;' +
+        'padding:4px 8px;border-top:1px solid var(--am-color-divider);';
+    }
+  }
+  applyRootStyle();
 
   // --- Switch + label ---
   const switchWrap = document.createElement('label');
@@ -119,6 +143,8 @@ export function mountDefectRiskControls(
     update(next) {
       const prev = props;
       props = next;
+
+      if (prev.isDark !== next.isDark || prev.variant !== next.variant) applyRootStyle();
 
       sw.update({ checked: next.value.enabled });
       windowSelect.update({

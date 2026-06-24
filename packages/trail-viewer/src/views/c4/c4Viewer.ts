@@ -108,8 +108,8 @@ import { mountHotspotControls } from './overlays/hotspotControls';
 import type { HotspotControlsVanillaProps } from './overlays/hotspotControls';
 import { mountDefectRiskControls } from './overlays/defectRiskControls';
 import type { DefectRiskControlsVanillaProps, DefectRiskControlsValue } from './overlays/defectRiskControls';
-import { mountTemporalCouplingControls, mountTemporalCouplingSettingsPopup } from './overlays/temporalCouplingControls';
-import type { TemporalCouplingControlsVanillaProps, TemporalCouplingSettingsPopupVanillaProps } from './overlays/temporalCouplingControls';
+import { mountTemporalCouplingControls } from './overlays/temporalCouplingControls';
+import type { TemporalCouplingControlsVanillaProps } from './overlays/temporalCouplingControls';
 import { mountOverlayLegend } from './overlays/overlayLegend';
 import type { OverlayLegendVanillaProps } from './overlays/overlayLegend';
 import { mountMatrixPanel } from './panels/matrixPanel';
@@ -814,7 +814,6 @@ export function mountC4Viewer(
   let hotspotControlsHandle: ReturnType<typeof mountHotspotControls> | null = null;
   let defectRiskControlsHandle: ReturnType<typeof mountDefectRiskControls> | null = null;
   let tcControlsHandle: ReturnType<typeof mountTemporalCouplingControls> | null = null;
-  let tcSettingsPopupHandle: ReturnType<typeof mountTemporalCouplingSettingsPopup> | null = null;
   let overlayLegendHandle: ReturnType<typeof mountOverlayLegend> | null = null;
   let matrixPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
   let matrixInnerHandle: ReturnType<typeof mountMatrixPanel> | null = null;
@@ -2005,9 +2004,12 @@ export function mountC4Viewer(
         labelHalfLife: props.t('c4.defectRisk.halfLife'),
         labelCalculating: props.t('c4.defectRisk.calculating'),
         labelOff: props.t('c4.defectRisk.off'),
+        isDark,
+        // 左パネル列に縦カードとして表示（旧: graphCanvasArea フロー追加で不可視だった）
+        variant: 'inline',
       };
       if (!defectRiskControlsHandle) {
-        defectRiskControlsHandle = mountDefectRiskControls(graphCanvasArea, drProps);
+        defectRiskControlsHandle = mountDefectRiskControls(leftPanel, drProps);
       } else {
         defectRiskControlsHandle.update(drProps);
       }
@@ -2017,19 +2019,8 @@ export function mountC4Viewer(
     }
 
     if (showTC) {
+      // Ghost Edges 詳細コントロールを左パネル列に縦カードとして表示（設定ポップアップは廃止し本 controls に一本化）
       const tcProps: TemporalCouplingControlsVanillaProps = {
-        value: tcValue,
-        onChange: (next) => { tcValue = next; scheduleRender(); fetchTC(); },
-        resultCount: (tcState.edges as unknown[]).length,
-        loading: tcState.loading,
-      };
-      if (!tcControlsHandle) {
-        tcControlsHandle = mountTemporalCouplingControls(graphCanvasArea, tcProps);
-      } else {
-        tcControlsHandle.update(tcProps);
-      }
-      // TC settings popup — leftPanel の列に inline 配置（floating だと leftPanel と座標衝突）
-      const tcPopupProps: TemporalCouplingSettingsPopupVanillaProps = {
         value: tcValue,
         onChange: (next) => { tcValue = next; scheduleRender(); fetchTC(); },
         resultCount: (tcState.edges as unknown[]).length,
@@ -2037,14 +2028,14 @@ export function mountC4Viewer(
         isDark,
         variant: 'inline',
       };
-      if (!tcSettingsPopupHandle) {
-        tcSettingsPopupHandle = mountTemporalCouplingSettingsPopup(leftPanel, tcPopupProps);
+      if (!tcControlsHandle) {
+        tcControlsHandle = mountTemporalCouplingControls(leftPanel, tcProps);
       } else {
-        tcSettingsPopupHandle.update(tcPopupProps);
+        tcControlsHandle.update(tcProps);
       }
-    } else {
-      if (tcControlsHandle) { tcControlsHandle.destroy(); tcControlsHandle = null; }
-      if (tcSettingsPopupHandle) { tcSettingsPopupHandle.destroy(); tcSettingsPopupHandle = null; }
+    } else if (tcControlsHandle) {
+      tcControlsHandle.destroy();
+      tcControlsHandle = null;
     }
 
     // ── Overlay legend ──
@@ -2938,7 +2929,6 @@ export function mountC4Viewer(
     hotspotControlsHandle?.destroy();
     defectRiskControlsHandle?.destroy();
     tcControlsHandle?.destroy();
-    tcSettingsPopupHandle?.destroy();
     overlayLegendHandle?.destroy();
     matrixPopupHandle?.destroy();
     scatterPopupHandle?.destroy();
