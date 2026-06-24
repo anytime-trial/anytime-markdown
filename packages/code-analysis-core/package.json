@@ -11,6 +11,7 @@
     "./filter": "./src/filter/FilterConfig.ts",
     "./importance": "./src/importance/index.ts",
     "./spi": "./src/spi/index.ts",
+    "./architecture": "./src/architecture/index.ts",
     "./src/*": "./src/*"
   },
   "dependencies": {
