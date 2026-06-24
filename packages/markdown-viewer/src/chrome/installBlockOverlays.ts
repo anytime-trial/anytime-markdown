@@ -35,7 +35,6 @@ import {
   createButton,
   createDialog,
   createDialogActions,
-  createDialogContent,
   createDialogTitle,
   nextDialogTitleId,
 } from "@anytime-markdown/ui-core";
@@ -284,14 +283,18 @@ export function installBlockOverlays(
       label: t("screenCapture"),
       onClick: () => openScreenCapture(pos),
     });
+    // crop ツール（root が flex:1）を全画面で満たすための flex コンテナ。
+    // 他の編集画面（table / annotation ダイアログ）と同じく fullScreen で表示する。
+    const contentWrap = document.createElement("div");
+    contentWrap.style.cssText = "flex:1;min-height:0;display:flex;flex-direction:column;";
+    contentWrap.appendChild(crop.el);
     const dialog = createDialog({
       onClose: closeDialog,
       labelledBy: titleId,
-      maxWidth: "md",
-      fullWidth: true,
+      fullScreen: true,
       children: [
         createDialogTitle({ id: titleId, children: t("image") }).el,
-        createDialogContent({ children: crop.el }).el,
+        contentWrap,
         createDialogActions({ children: [captureBtn.el] }).el,
       ],
     });
