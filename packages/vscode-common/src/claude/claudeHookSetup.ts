@@ -103,6 +103,7 @@ WORKER_JSON="\${AGENT_HOME}/agent-worker.json"
 [ -f "\$WORKER_JSON" ] || exit 0
 URL=$(node -e "try{process.stdout.write(JSON.parse(require('fs').readFileSync('\${WORKER_JSON}','utf8')).url||'')}catch{}")
 [ -z "\$URL" ] && exit 0
+TOKEN=$(node -e "try{process.stdout.write(JSON.parse(require('fs').readFileSync('\${WORKER_JSON}','utf8')).token||'')}catch{}")
 
 CURRENT=$(cd "\$CWD" && git rev-parse HEAD 2>/dev/null || true)
 [ -z "\$CURRENT" ] && exit 0
@@ -123,6 +124,7 @@ fi
 PAYLOAD=$(node -e "const c=Number(process.argv[1])||0;const o={sessionId:process.argv[2],lastHead:process.argv[3],count:c};if(c>0){o.commitHash=process.argv[4];o.committedAt=process.argv[5]}process.stdout.write(JSON.stringify(o))" "\$COUNT" "\$SESSION_ID" "\$CURRENT" "\$HASH" "\$COMMITTED_AT")
 curl -s -m 2 -X POST "\${URL}/api/agent-status/commit" \\
   -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer \${TOKEN}" \\
   -d "\$PAYLOAD" > /dev/null 2>&1 || true
 exit 0
 `;
@@ -234,7 +236,7 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
   // 4. fetch で POST（node18+ の global fetch）。失敗は握りつぶす（exit 0 相当）
   // git branch は execSync で取得し branch フィールドに入れる。timestamp は UTC ISO 8601。
   const postEditCommand = (buildBody: string): string =>
-    `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);const fs=require('fs');let url='';try{url=JSON.parse(fs.readFileSync('${agentWorkerJson}','utf8')).url||''}catch{}if(!url)return;const body=(${buildBody})(i);if(!body)return;fetch(url+'/api/agent-status/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(()=>{})}catch{}})"`;
+    `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);const fs=require('fs');let url='',tok='';try{const w=JSON.parse(fs.readFileSync('${agentWorkerJson}','utf8'));url=w.url||'';tok=w.token||''}catch{}if(!url)return;const body=(${buildBody})(i);if(!body)return;fetch(url+'/api/agent-status/edit',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify(body)}).catch(()=>{})}catch{}})"`;
 
   // Edit|Write フック: file と編集履歴(appendEdit)を更新する。file_path が無ければスキップ。
   // branch は workspaceRoot を cwd として取得する。

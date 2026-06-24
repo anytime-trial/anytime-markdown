@@ -85,6 +85,9 @@ describe('setupClaudeHooks', () => {
     expect(cmd).toContain(`${tmpWorkspace}/.anytime/agent/agent-worker.json`);
     // /edit エンドポイントへ POST する
     expect(cmd).toContain('/api/agent-status/edit');
+    // worker の token を読み Bearer 認証ヘッダを付与する
+    expect(cmd).toContain('w.token');
+    expect(cmd).toContain("'Authorization':'Bearer '+tok");
     // git branch は workspaceRoot を cwd にして取得する
     expect(cmd).toContain(`cwd:'${tmpWorkspace}/'`);
     // 旧方式のファイル書き込み痕跡が無いこと
