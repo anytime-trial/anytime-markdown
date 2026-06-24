@@ -34,18 +34,60 @@ function collectDescendantCheckableIds(node: C4TreeNode): Set<string> {
   return collectCheckableIds(node.children);
 }
 
-function typeIconText(type: C4TreeNode['type']): string {
+// C4 要素タイプ別アイコン（MUI Material Filled パス）。テキストバッジ(S/C/Co)は
+// 「Co」と「C0」が紛らわしいため、種別が一目で区別できる SVG アイコンに置き換える。
+const TYPE_ICON_PATHS: Record<string, string> = {
+  // person
+  person: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
+  // system / boundary — 角丸の枠（システム境界）
+  system: 'M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z',
+  // container — widgets（複数ブロック）
+  container: 'M13 13v8h8v-8h-8zM3 21h8v-8H3v8zM3 3v8h8V3H3zm13.66-1.31L11 7.34 16.66 13l5.66-5.66-5.66-5.65z',
+  // containerDb — storage（DB コンテナ）
+  containerDb: 'M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z',
+  // component — extension（パズルピース）
+  component: 'M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z',
+  // code — </>
+  code: 'M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z',
+  // community — bubble_chart
+  community: 'M7.2 14.4c-1.32 0-2.4 1.08-2.4 2.4s1.08 2.4 2.4 2.4 2.4-1.08 2.4-2.4-1.08-2.4-2.4-2.4zm5.8-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm4.5 9c-1.93 0-3.5 1.57-3.5 3.5s1.57 3.5 3.5 3.5 3.5-1.57 3.5-3.5-1.57-3.5-3.5-3.5z',
+};
+
+export function typeIconPath(type: C4TreeNode['type']): string {
   switch (type) {
-    case 'person': return 'P';
-    case 'system':
-    case 'boundary': return 'S';
-    case 'container':
-    case 'containerDb': return 'C';
-    case 'component': return 'Co';
-    case 'code': return '{}';
-    case 'community': return '#';
-    default: return '·';
+    case 'boundary': return TYPE_ICON_PATHS.system;
+    case 'containerDb': return TYPE_ICON_PATHS.containerDb;
+    default: return TYPE_ICON_PATHS[type] ?? TYPE_ICON_PATHS.system;
   }
+}
+
+// 種別の人間可読ラベル（tooltip / aria-label 用。色のみに依存しない三重表現）。
+export function typeLabel(type: C4TreeNode['type']): string {
+  switch (type) {
+    case 'person': return 'Person';
+    case 'system':
+    case 'boundary': return 'System';
+    case 'container': return 'Container';
+    case 'containerDb': return 'Container (DB)';
+    case 'component': return 'Component';
+    case 'code': return 'Code';
+    case 'community': return 'Community';
+    default: return 'Element';
+  }
+}
+
+function makeTypeIcon(type: C4TreeNode['type'], size = 14): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'currentColor');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', typeLabel(type));
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', typeIconPath(type));
+  svg.appendChild(path);
+  return svg;
 }
 
 export interface C4ElementTreeColors {
@@ -253,12 +295,14 @@ export function mountC4ElementTree(
       rowEl.appendChild(cbEl);
     }
 
-    // Type icon
+    // Type icon（種別を一目で区別できる SVG アイコン。tooltip で種別名も補足）
     const iconSpan = document.createElement('span');
-    iconSpan.style.cssText = 'width:20px;flex-shrink:0;text-align:center;font-size:0.7rem;font-weight:700;';
+    iconSpan.style.cssText =
+      'width:20px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;';
+    iconSpan.title = typeLabel(node.type);
     const color = node.type === 'community' && node.communityId !== undefined ? communityColor(node.communityId) : undefined;
     if (color) iconSpan.style.color = color;
-    iconSpan.textContent = typeIconText(node.type);
+    iconSpan.appendChild(makeTypeIcon(node.type));
     rowEl.appendChild(iconSpan);
 
     // Name
