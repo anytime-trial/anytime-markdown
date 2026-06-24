@@ -30,7 +30,11 @@ import {
 } from '@anytime-markdown/markdown-viewer/src/utils/measurePreset';
 import { detectLocale } from '@anytime-markdown/markdown-viewer/src/i18n/createMarkdownT';
 import { setEmbedProviders } from '@anytime-markdown/markdown-viewer/src/embedProviders';
-import type { VanillaMarkdownEditorHandle } from '@anytime-markdown/markdown-viewer/src/host/vanillaMarkdownEditor';
+import type {
+  VanillaMarkdownEditorHandle,
+  VanillaMarkdownEditorUpdatePatch,
+} from '@anytime-markdown/markdown-viewer/src/host/vanillaMarkdownEditor';
+import { diffLivePatch } from '@anytime-markdown/markdown-viewer/src/host/liveUpdateDiff';
 import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/src/vanilla/mountVanillaRichMarkdownEditor';
 
 import { getVsCodeApi } from './vscodeApi';
@@ -188,6 +192,8 @@ function buildEditorSettings(): EditorSettings {
 
 let rootEl: HTMLElement | null = null;
 let editorHandle: VanillaMarkdownEditorHandle | null = null;
+// 直前に送った live props。pushLiveUpdate はこれとの差分のみ送る（冪等でない sink の不要発火防止）。
+let lastSentLivePatch: VanillaMarkdownEditorUpdatePatch = {};
 let bannerEl: HTMLElement | null = null;
 // 履歴比較フロー（loadHistoryContent → compareModeChanged(active) で remount）の一時保持
 let latestContent: string | null = null;
@@ -371,6 +377,8 @@ function buildMountOptions() {
 function mountEditor(container: HTMLElement): void {
   try {
     editorHandle = mountVanillaRichMarkdownEditor(container, buildMountOptions());
+    // mount 直後の live props を基準値として記録し、最初の pushLiveUpdate での全キー再送を防ぐ。
+    lastSentLivePatch = currentLiveProps();
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     // eslint-disable-next-line no-console
@@ -425,9 +433,9 @@ function renderApp(): void {
   syncClaudeBanner(container);
 }
 
-/** live props を orchestrator へ反映する（remount 不要な変更）。 */
-function pushLiveUpdate(): void {
-  editorHandle?.update({
+/** 現在の live props（update 可能なキーのみ）。mount オプションと同じ値を返す。 */
+function currentLiveProps(): VanillaMarkdownEditorUpdatePatch {
+  return {
     readOnly: state.claudeEditing,
     themeMode: state.themeMode,
     presetName: state.presetName,
@@ -435,7 +443,20 @@ function pushLiveUpdate(): void {
     externalCompareContent: state.compareContent,
     // host 側で settings をマージ → applyAllSettings。measure/fontSize を反映する。
     settings: buildEditorSettings(),
-  });
+  };
+}
+
+/**
+ * live props を orchestrator へ反映する（remount 不要な変更）。
+ * 変化したキーのみを送る差分 patch。autoReload 等の冪等でない sink が
+ * 不変値で再発火し、変更 gutter マーカーが消える回帰を防ぐ。
+ */
+function pushLiveUpdate(): void {
+  const next = currentLiveProps();
+  const diff = diffLivePatch(lastSentLivePatch, next);
+  lastSentLivePatch = next;
+  if (Object.keys(diff).length === 0) return;
+  editorHandle?.update(diff);
 }
 
 // --- メッセージ配線 ---

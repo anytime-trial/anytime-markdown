@@ -142,6 +142,8 @@ interface AutoReloadController {
  */
 export function createAutoReloadController(editor: Editor): AutoReloadController {
   let listening = false;
+  // 直前に適用した autoReload。値が変わったときだけ baseline 再取得 / クリアを行う。
+  let lastAutoReload: boolean | undefined;
   const onKeydown = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
       editor.commands.setChangeGutterBaseline();
@@ -158,10 +160,15 @@ export function createAutoReloadController(editor: Editor): AutoReloadController
   };
   return {
     set(autoReload: boolean): void {
-      if (autoReload) {
-        editor.commands.setChangeGutterBaseline();
-      } else {
-        editor.commands.clearChangeGutter();
+      // 同値の再適用では baseline を取り直さない。テーマ・設定変更等に同梱される
+      // 不変の autoReload で変更 gutter マーカーが消える回帰を防ぐ（冪等化）。
+      if (autoReload !== lastAutoReload) {
+        if (autoReload) {
+          editor.commands.setChangeGutterBaseline();
+        } else {
+          editor.commands.clearChangeGutter();
+        }
+        lastAutoReload = autoReload;
       }
       if (autoReload && !listening) {
         globalThis.addEventListener("keydown", onKeydown);
