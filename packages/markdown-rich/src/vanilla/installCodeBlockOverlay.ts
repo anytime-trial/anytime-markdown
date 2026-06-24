@@ -482,7 +482,6 @@ export function installCodeBlockOverlay(
     },
     onEdit: () => openEdit(),
     onExport: () => doExport(),
-    onExportSource: () => doExportSource(),
     onDelete: () => {
       void confirm(t("clearConfirm")).then((ok) => {
         if (ok) deleteBlockAt(editor, pos);

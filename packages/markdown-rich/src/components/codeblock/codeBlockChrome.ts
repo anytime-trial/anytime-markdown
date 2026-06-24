@@ -37,8 +37,6 @@ interface CodeBlockChromeCallbacks {
   onEdit: (pos: number) => void;
   /** 図 PNG エクスポート intent（host が svg/url から capture）。 */
   onExport: (pos: number) => void;
-  /** 図ソース（.mmd/.puml）エクスポート intent。 */
-  onExportSource: (pos: number) => void;
   /** 削除 intent。 */
   onDelete: (pos: number) => void;
 }
@@ -99,16 +97,12 @@ export function createCodeBlockChrome(
 
     actions.append(mkSpacer());
 
-    // diagram: PNG / ソースのエクスポート（旧 Menu を 2 ボタンに分解）。
+    // diagram: PNG エクスポートのみインラインに残す。ソース（.mmd/.puml）書き出しは
+    // 編集画面（全画面ダイアログの zoom ツールバー）へ集約し、インラインからは撤去した。
     if (kind === "diagram") {
-      const sourceKey =
-        language === "mermaid" ? "exportMmd" : language === "anytime-thinking-model" ? "exportGraphSrc" : "exportPuml";
       actions.append(
         mkIconButton(cb.t("exportPng"), ICON.image, () => {
           if (currentPos >= 0) cb.onExport(currentPos);
-        }),
-        mkIconButton(cb.t(sourceKey), ICON.fileDownload, () => {
-          if (currentPos >= 0) cb.onExportSource(currentPos);
         }),
       );
     }
