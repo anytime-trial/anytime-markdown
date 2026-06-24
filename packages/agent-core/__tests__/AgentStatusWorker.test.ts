@@ -178,4 +178,22 @@ describe('AgentStatusWorker Bearer 認証（token 設定時）', () => {
     const res = await fetch(`${base}/api/agent-status`);
     expect(res.status).toBe(200);
   });
+
+  it('POST /handoff は Authorization 無しで 401', async () => {
+    const res = await fetch(`${base}/api/agent-status/handoff`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: 'x' }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /handoff は sessionId 無しで 400（認証あり）', async () => {
+    const res = await fetch(`${base}/api/agent-status/handoff`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+  });
 });

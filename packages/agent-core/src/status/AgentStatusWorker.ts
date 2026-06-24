@@ -17,6 +17,7 @@
 
 import * as http from 'node:http';
 import type { AgentStatusStore } from './AgentStatusStore';
+import { generateHandoff } from '../handoff/generate';
 import {
   AGENT_STATUS_API_VERSION,
   type CommitUpsertInput,
@@ -156,6 +157,22 @@ export class AgentStatusWorker {
       }
       this.store.upsertSummary(body);
       sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (method === 'POST' && pathname === '/api/agent-status/handoff') {
+      const body = JSON.parse(await readBody(req)) as { sessionId?: string };
+      if (!body?.sessionId) {
+        sendJson(res, 400, { error: 'sessionId required' });
+        return;
+      }
+      // transcript 解決 → 圧縮ステート組成 → summary 保存（handoff_at 確定）→ レンダリング返却。
+      const result = generateHandoff(this.store, body.sessionId);
+      if (!result) {
+        sendJson(res, 404, { error: 'transcript not found' });
+        return;
+      }
+      sendJson(res, 200, { ok: true, ...result });
       return;
     }
 

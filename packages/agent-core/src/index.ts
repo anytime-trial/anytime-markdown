@@ -103,6 +103,8 @@ export { parse as parseTranscript, parseLines } from './handoff/parseTranscript'
 export { buildHandoffState } from './handoff/buildHandoff';
 export { redact as redactSecrets } from './handoff/redact';
 export { renderHandoffMarkdown, renderHandoffInjection } from './handoff/render';
+export { generateHandoff, findTranscriptPath } from './handoff/generate';
+export type { GeneratedHandoff, GenerateHandoffOptions } from './handoff/generate';
 export { HANDOFF_VERSION } from './handoff/types';
 export type {
   HandoffState,
