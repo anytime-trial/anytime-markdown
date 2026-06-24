@@ -59,9 +59,8 @@ export function activate(context: vscode.ExtensionContext) {
 	const docWsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	if (docsRoot && docWsRoot) {
 		const dbPath = resolveDocDbPath(docWsRoot, docCfg.get<string>('dbPath'));
-		const subDir = docCfg.get<string>('subDir') ?? 'spec';
 		const ingestScriptPath = path.join(extensionDistPath, 'doc-ingest.js');
-		const ingestRunner = new DocIngestRunner(ingestScriptPath, docsRoot, dbPath, subDir);
+		const ingestRunner = new DocIngestRunner(ingestScriptPath, docsRoot, dbPath);
 		context.subscriptions.push(ingestRunner);
 		void ingestRunner.runOnce();
 		const intervalMin = docCfg.get<number>('intervalMinutes') ?? 30;

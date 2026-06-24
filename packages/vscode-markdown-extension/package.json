@@ -204,11 +204,6 @@
           "default": "",
           "description": "%configuration.docsRoot.description%"
         },
-        "anytimeMarkdown.docSearch.subDir": {
-          "type": "string",
-          "default": "spec",
-          "description": "%configuration.docSearch.subDir.description%"
-        },
         "anytimeMarkdown.docSearch.dbPath": {
           "type": "string",
           "default": "",

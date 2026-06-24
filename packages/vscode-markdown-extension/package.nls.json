@@ -27,7 +27,6 @@
   "command.rebuildDocIndex": "Rebuild Doc Search Index",
   "command.reinstallSkills": "Reinstall Markdown Skills (.claude/skills)",
   "configuration.docsRoot.description": "Root directory of the documentation repository (e.g. /Shared/anytime-markdown-docs). Absolute path. Used by both doc search indexing and the Note Graph panel. Empty disables doc indexing; the Note Graph then falls back to the git repository of the current document.",
-  "configuration.docSearch.subDir.description": "Subdirectory under docsRoot to scan (default: spec).",
   "configuration.docSearch.dbPath.description": "Path of the doc search database (doc-core.db). Empty defaults to <workspace>/.anytime/markdown/doc-core.db.",
   "configuration.docSearch.intervalMinutes.description": "Auto re-index interval in minutes (0 disables periodic re-indexing; manual rebuild is always available)."
 }

@@ -20,7 +20,6 @@ export class DocIngestRunner implements vscode.Disposable {
     private readonly ingestScriptPath: string,
     private readonly docsRoot: string,
     private readonly dbPath: string,
-    private readonly subDir: string,
   ) {}
 
   /** 1 回 ingest（＋prune）を子プロセスで実行する。失敗はログのみ。 */
@@ -37,7 +36,6 @@ export class DocIngestRunner implements vscode.Disposable {
           ELECTRON_RUN_AS_NODE: '1',
           ANYTIME_MARKDOWN_DOC_DB: this.dbPath,
           ANYTIME_MARKDOWN_DOCS_ROOT: this.docsRoot,
-          ANYTIME_MARKDOWN_DOCS_SUBDIR: this.subDir,
         },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
