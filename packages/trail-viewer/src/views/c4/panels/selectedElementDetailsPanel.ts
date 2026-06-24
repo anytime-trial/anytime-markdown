@@ -10,7 +10,7 @@
  */
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import type { FeatureMatrix } from '@anytime-markdown/trail-core/c4';
-import { communityColor } from '../../../components/communityColors';
+import { communityColor, layerColor, LAYER_LABEL_KEYS } from '../../../components/communityColors';
 import { COMMUNITY_ROLE_LABELS, getCommunityRoleBgColors } from '../../../c4/communityRoleColors';
 import { formatPct } from '../../../c4/utils/c4ViewerHelpers';
 import type { SelectedElementInfo } from './selectedElementInfo';
@@ -138,6 +138,22 @@ function appendQualityRow(host: HTMLElement, info: SelectedElementInfo, opts: Se
   host.appendChild(block);
 }
 
+function appendArchitectureRow(host: HTMLElement, info: SelectedElementInfo, opts: SelectedElementDetailOptions): void {
+  if (!info.layer) return;
+  const c = opts.colors;
+  const block = el('div', 'margin-top:8px;');
+  const label = el('div', `font-size:0.62rem;color:${c.textMuted};margin-bottom:2px;`);
+  label.textContent = opts.t('c4.popup.layer');
+  block.appendChild(label);
+  const row = el('div', 'display:flex;align-items:center;gap:6px;');
+  row.appendChild(el('span', `width:10px;height:10px;border-radius:2px;background:${layerColor(info.layer, opts.isDark)};flex-shrink:0;`));
+  const name = el('span', `font-size:0.72rem;color:${c.text};font-weight:700;word-break:break-word;`);
+  name.textContent = opts.t(LAYER_LABEL_KEYS[info.layer]);
+  row.appendChild(name);
+  block.appendChild(row);
+  host.appendChild(block);
+}
+
 function appendStructureRow(host: HTMLElement, info: SelectedElementInfo, opts: SelectedElementDetailOptions): void {
   const c = opts.colors;
   const t = opts.t;
@@ -165,6 +181,7 @@ function appendMetricsSection(host: HTMLElement, info: SelectedElementInfo, opts
   appendSizeRow(sec, info, opts);
   appendQualityRow(sec, info, opts);
   appendStructureRow(sec, info, opts);
+  appendArchitectureRow(sec, info, opts);
   host.appendChild(sec);
 }
 

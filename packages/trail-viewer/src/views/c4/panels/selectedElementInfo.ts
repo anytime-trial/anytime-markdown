@@ -17,8 +17,10 @@ import type {
   HotspotEntry,
   HotspotMap,
   ImportanceMatrix,
+  LayerMatrix,
   SizeMatrix,
 } from '@anytime-markdown/trail-core/c4';
+import type { ArchitectureLayer } from '@anytime-markdown/trail-core/codeGraph';
 import {
   aggregateDsmToC4ComponentLevel,
   aggregateDsmToC4ContainerLevel,
@@ -50,6 +52,8 @@ export interface SelectedElementInfo {
   readonly hotspot: HotspotEntry | null;
   readonly community: CommunityOverlayEntry | null;
   readonly sizeMetrics: SelectedElementSizeMetrics;
+  /** アーキテクチャ層（classifyLayer の 9 層分類）。コードグラフ未取得時は null。 */
+  readonly layer: ArchitectureLayer | null;
 }
 
 /**
@@ -87,6 +91,7 @@ export interface BuildSelectedElementInfoArgs {
   readonly defectRiskMap: ReadonlyMap<string, number> | null;
   readonly hotspotMap: HotspotMap | null;
   readonly sizeMatrix: SizeMatrix | null;
+  readonly layerMatrix: LayerMatrix | null;
   readonly communityOverlayL3: ReadonlyMap<string, CommunityOverlayEntry> | null;
   readonly communityOverlayL4: ReadonlyMap<string, CommunityOverlayEntry> | null;
   readonly communitySummaries?: Record<number, CommunitySummary>;
@@ -107,6 +112,7 @@ export function buildSelectedElementInfo(args: BuildSelectedElementInfoArgs): Se
     defectRiskMap,
     hotspotMap,
     sizeMatrix,
+    layerMatrix,
     communityOverlayL3,
     communityOverlayL4,
     communitySummaries,
@@ -135,5 +141,6 @@ export function buildSelectedElementInfo(args: BuildSelectedElementInfoArgs): Se
       communitySummaries,
     }),
     sizeMetrics,
+    layer: layerMatrix?.[element.id] ?? null,
   };
 }

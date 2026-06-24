@@ -249,6 +249,7 @@ export const en: TrailI18n = {
   'c4.popup.size': 'Size',
   'c4.popup.quality': 'Coverage',
   'c4.popup.structure': 'Complexity',
+  'c4.popup.layer': 'Layer',
   'c4.popup.metric.coverage': 'Lines',
   'c4.popup.metric.branches': 'Branches',
   'c4.popup.metric.functions': 'Functions',

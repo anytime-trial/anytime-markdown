@@ -1374,6 +1374,21 @@ export function mountC4Viewer(
     });
   }
 
+  const layerMatrixMemo = createRefMemo<LayerMatrix | null>();
+  function computeLayerMatrixData(): LayerMatrix | null {
+    const { c4Model } = props;
+    const graph = codeGraphState.graph;
+    return layerMatrixMemo([c4Model, graph], () => {
+      if (!graph || !c4Model) return null;
+      const layerByPkg = new Map<string, ArchitectureLayer>();
+      for (const n of graph.nodes) {
+        if (n.layer) layerByPkg.set(n.package, n.layer);
+      }
+      if (layerByPkg.size === 0) return null;
+      return buildLayerMatrix(c4Model.elements, layerByPkg);
+    });
+  }
+
   // 詳細パネル専用の重い算出（DSM 次数・情報パネル用 community overlay L3/L4）のメモ化。
   const dsmDegreeMemo = createRefMemo<ReturnType<typeof buildDsmDegreeMap>>();
   const communityOverlayL3Memo = createRefMemo<ReturnType<typeof computeCommunityOverlay> | null>();
@@ -1486,16 +1501,7 @@ export function mountC4Viewer(
     })();
 
     // layer matrix（code graph ノードの package/layer を C4 要素へ集約）
-    const layerMatrix_ = (() => {
-      const g = codeGraphState.graph;
-      if (!g || !c4Model) return null;
-      const layerByPkg = new Map<string, ArchitectureLayer>();
-      for (const n of g.nodes) {
-        if (n.layer) layerByPkg.set(n.package, n.layer);
-      }
-      if (layerByPkg.size === 0) return null;
-      return buildLayerMatrix(c4Model.elements, layerByPkg);
-    })();
+    const layerMatrix_ = computeLayerMatrixData();
 
     const filteredLayer = (() => {
       if (!layerMatrix_) return null;
@@ -1728,6 +1734,7 @@ export function mountC4Viewer(
         defectRiskMap: computeDefectRiskMapData(),
         hotspotMap: computeHotspotMapData(),
         sizeMatrix: computeSizeMatrixData(),
+        layerMatrix: computeLayerMatrixData(),
         communityOverlayL3: overlayForInfo(3, communityOverlayL3Memo),
         communityOverlayL4: overlayForInfo(4, communityOverlayL4Memo),
         communitySummaries: graph?.communitySummaries,
