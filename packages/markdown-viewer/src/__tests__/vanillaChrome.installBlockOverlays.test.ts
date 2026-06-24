@@ -244,6 +244,20 @@ describe("installBlockOverlays — image", () => {
     handle.destroy();
   });
 
+  it("crop 編集画面に閉じるボタンがあり、クリックでダイアログを閉じる", () => {
+    const { editor } = makeEditor();
+    installBlockOverlays(editor, { t, vscodeApi: null });
+    mockImageCb!.onEditCrop(2, { src: "https://x/y.png" });
+
+    const closeBtn = document.querySelector(
+      '[data-am-dialog-backdrop] button[aria-label="close"]',
+    ) as HTMLButtonElement | null;
+    if (!closeBtn) throw new Error("crop 編集画面の閉じるボタンが見つからない");
+    closeBtn.click();
+    // closeDialog → dialog.destroy → backdrop 除去。
+    expect(document.querySelector('[data-am-dialog-backdrop]')).toBeNull();
+  });
+
   it("annotate 保存で serialize した annotations を setBlockAttrs", () => {
     const { editor } = makeEditor();
     installBlockOverlays(editor, { t, vscodeApi: null });

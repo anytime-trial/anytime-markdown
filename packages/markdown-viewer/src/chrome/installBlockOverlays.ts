@@ -35,7 +35,7 @@ import {
   createButton,
   createDialog,
   createDialogActions,
-  createDialogTitle,
+  createIconButton,
   nextDialogTitleId,
 } from "@anytime-markdown/ui-core";
 import type { GifSettings } from "../utils/gifEncoder";
@@ -283,6 +283,25 @@ export function installBlockOverlays(
       label: t("screenCapture"),
       onClick: () => openScreenCapture(pos),
     });
+    // ヘッダー（閉じる + ラベル）。fullScreen では背景クリックで閉じられないため、
+    // 他の全画面編集ダイアログ（TableEditDialog 等）と同じく明示の閉じるボタンを置く。
+    const header = document.createElement("div");
+    header.style.cssText =
+      "display:flex;align-items:center;gap:8px;padding:4px 8px;flex-shrink:0;" +
+      "border-bottom:1px solid var(--am-color-divider);";
+    const closeBtn = createIconButton({
+      size: "small",
+      ariaLabel: t("close"),
+      title: t("close"),
+      children: "✕",
+      onClick: closeDialog,
+    });
+    const label = document.createElement("span");
+    label.id = titleId;
+    label.textContent = t("image");
+    label.style.cssText = "font-weight:600;font-size:0.875rem;";
+    header.append(closeBtn.el, label);
+
     // crop ツール（root が flex:1）を全画面で満たすための flex コンテナ。
     // 他の編集画面（table / annotation ダイアログ）と同じく fullScreen で表示する。
     const contentWrap = document.createElement("div");
@@ -293,7 +312,7 @@ export function installBlockOverlays(
       labelledBy: titleId,
       fullScreen: true,
       children: [
-        createDialogTitle({ id: titleId, children: t("image") }).el,
+        header,
         contentWrap,
         createDialogActions({ children: [captureBtn.el] }).el,
       ],
@@ -302,6 +321,7 @@ export function installBlockOverlays(
       destroy: () => {
         crop.destroy();
         captureBtn.destroy();
+        closeBtn.destroy();
         dialog.destroy();
       },
     };
