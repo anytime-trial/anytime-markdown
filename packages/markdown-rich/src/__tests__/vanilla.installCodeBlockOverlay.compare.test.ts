@@ -27,6 +27,7 @@ jest.mock("@anytime-markdown/markdown-viewer", () => ({
   PREVIEW_MAX_HEIGHT: 400,
   getDivider: () => "#ccc",
   getHljsCssVars: () => ({}),
+  getHljsTokenCss: () => "",
   getEditDialogBg: () => "#fff",
   getTextDisabled: () => "#888",
   getTextPrimary: () => "#000",

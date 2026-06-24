@@ -133,6 +133,39 @@ describe("createCodeBlockEditDialog", () => {
     handle.destroy();
   });
 
+  it("regular コードのプレビューは <pre><code class=hljs> でラップし hljs 着色ルールを注入する", () => {
+    const editor = makeEditor();
+    const node = makeNode("const x = 1;");
+    const state = createCodeEditState({ editor, pos: 0, node, onClose: jest.fn() });
+
+    const handle = createCodeBlockEditDialog({
+      label: "Edit",
+      language: "javascript",
+      isDark: false,
+      editorBg: "#fff",
+      fontSize: 16,
+      lineHeight: 1.5,
+      renderPreview: true,
+      state,
+      t,
+      onClose: jest.fn(),
+    });
+
+    const preview = handle.el.querySelector(".am-cbed-preview");
+    expect(preview).not.toBeNull();
+    // 裸 span 列ではなくブロック要素でラップ（flex 縦並びによるレイアウト崩れの解消）。
+    const codeEl = preview!.querySelector("pre > code.hljs");
+    expect(codeEl).not.toBeNull();
+    expect(codeEl!.textContent).toContain("const x = 1;");
+    // コード表示なので rendered（white-space 解除）モードは付かない。
+    expect(preview!.classList.contains("am-cbed-preview--rendered")).toBe(false);
+    // hljs 着色ルール（getHljsTokenCss）がダイアログ stylesheet に注入される。
+    const styleEl = document.getElementById("am-vanilla-codeblock-dialog");
+    expect(styleEl?.textContent).toContain(".am-cbed-preview .hljs-keyword");
+    expect(styleEl?.textContent).toContain("var(--hljs-keyword)");
+    handle.destroy();
+  });
+
   it("language=html + renderLanguagePreview は sanitize 済み HTML を実レンダリングする（構文ハイライトでなく）", () => {
     const editor = makeEditor();
     const node = makeNode('<p id="html-preview"><strong>Hello</strong></p>');

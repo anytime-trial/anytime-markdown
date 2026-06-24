@@ -5,7 +5,7 @@
 
 import { common, createLowlight } from "lowlight";
 import {
-  getDivider, getHljsCssVars,
+  getDivider, getHljsCssVars, getHljsTokenCss,
   FS_PANEL_HEADER_FONT_SIZE,
 } from "@anytime-markdown/markdown-viewer";
 import { createDialog } from "@anytime-markdown/ui-core/Dialog";
@@ -96,11 +96,11 @@ function ensureDialogStyle(): void {
 .am-cbed-preview code{display:block;white-space:pre-wrap;word-break:break-word;}
 .am-cbed-preview svg{max-width:100%;height:auto;display:block;margin:0 auto;}
 .am-cbed-preview .anytime-graph-error{white-space:pre-wrap;color:var(--am-color-text-secondary, #888);font-family:monospace;margin:0;}
+${getHljsTokenCss(".am-cbed-preview")}
 `);
 }
 
-function buildHighlightHtml(code: string, language: string): string {
-  if (!code) return "";
+function buildHighlightInner(code: string, language: string): string {
   try {
     const langs = lowlight.listLanguages();
     if (!langs.includes(language) || language === "plaintext") {
@@ -111,6 +111,17 @@ function buildHighlightHtml(code: string, language: string): string {
   } catch {
     return code.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
   }
+}
+
+/**
+ * 構文ハイライト済みコードを `<pre><code class="hljs">` でラップして返す。
+ * ラッパ無しの裸 span 列は `.am-cbed-preview`（flex 縦並び）で各 span が縦積みになり
+ * レイアウトが崩れるため、ブロック要素で包む。着色は {@link getHljsTokenCss} のルール
+ * （`var(--hljs-*)`）＋ previewInner に設定した {@link getHljsCssVars} の変数で行う。
+ */
+function buildHighlightHtml(code: string, language: string): string {
+  if (!code) return "";
+  return `<pre><code class="hljs">${buildHighlightInner(code, language)}</code></pre>`;
 }
 
 export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions): CodeBlockEditDialogHandle {
@@ -239,6 +250,8 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
 
     const previewInner = document.createElement("div");
     previewInner.className = "am-cbed-preview";
+    // hljs トークン色は getHljsTokenCss(".am-cbed-preview") の var(--hljs-*) 参照ルールが消費する。
+    // NOTE: isDark はクロージャで固定。テーマ切替時の CSS 変数再設定は未対応（ダイアログ再生成で反映・既存制約）。
     const cssVars = getHljsCssVars(isDark) as Record<string, string>;
     for (const [k, v] of Object.entries(cssVars)) {
       previewInner.style.setProperty(k, v);

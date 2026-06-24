@@ -22,9 +22,9 @@ export function getHljsStyles(isDark: boolean) {
 }
 
 /**
- * hljs トークン色を CSS 変数（`--hljs-*`）の形で返す。CSS Module 側で `.x :global(.hljs-*)`
- * を CSS 変数参照にして、テーマ依存色を inline style で受けるための対。`getHljsStyles` の
- * CSS-Module 版。
+ * hljs トークン色を CSS 変数（`--hljs-*`）の形で返す。テーマ依存色を要素の inline style で受け、
+ * {@link getHljsTokenCss} が生成する `var(--hljs-*)` 参照ルールと対で着色する。`getHljsStyles` の
+ * CSS 変数版。
  */
 export function getHljsCssVars(isDark: boolean): Record<string, string> {
   const h = isDark ? HLJS_DARK : HLJS_LIGHT;
@@ -41,4 +41,28 @@ export function getHljsCssVars(isDark: boolean): Record<string, string> {
     "--hljs-deletion": h.deletion,
     "--hljs-deletion-bg": h.deletionBg,
   };
+}
+
+/**
+ * hljs トークンを `var(--hljs-*)` 参照で着色する CSS ルール文字列を返す（{@link getHljsCssVars} が
+ * 要素 inline style に供給する変数を消費する対）。`scope` 配下の `.hljs-*` を着色する。
+ *
+ * vanilla プレビュー（素 DOM で lowlight 出力を描画する CodeBlockEditDialog 等）の
+ * シンタックスハイライト着色の single source of truth。CSS Module を持てない素 DOM 経路で
+ * 各所がアドホックに hljs ルールを書かないよう、本ヘルパに集約する。
+ */
+export function getHljsTokenCss(scope: string): string {
+  return [
+    `${scope} .hljs-keyword,${scope} .hljs-selector-tag,${scope} .hljs-built_in,${scope} .hljs-type{color:var(--hljs-keyword);}`,
+    `${scope} .hljs-string,${scope} .hljs-attr,${scope} .hljs-template-tag,${scope} .hljs-template-variable{color:var(--hljs-string);}`,
+    `${scope} .hljs-comment,${scope} .hljs-doctag{color:var(--hljs-comment);}`,
+    `${scope} .hljs-number,${scope} .hljs-literal,${scope} .hljs-variable,${scope} .hljs-regexp{color:var(--hljs-number);}`,
+    `${scope} .hljs-title,${scope} .hljs-title\\.class_,${scope} .hljs-title\\.function_{color:var(--hljs-title);}`,
+    `${scope} .hljs-params{color:var(--hljs-params);}`,
+    `${scope} .hljs-meta,${scope} .hljs-meta keyword,${scope} .hljs-symbol,${scope} .hljs-bullet{color:var(--hljs-meta);}`,
+    `${scope} .hljs-addition{color:var(--hljs-addition);background:var(--hljs-addition-bg);}`,
+    `${scope} .hljs-addition::before{content:'+ ';font-weight:700;}`,
+    `${scope} .hljs-deletion{color:var(--hljs-deletion);background:var(--hljs-deletion-bg);}`,
+    `${scope} .hljs-deletion::before{content:'- ';font-weight:700;}`,
+  ].join("\n");
 }
