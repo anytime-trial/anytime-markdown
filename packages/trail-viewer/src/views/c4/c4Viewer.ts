@@ -642,7 +642,9 @@ export function mountC4Viewer(
   graphCanvasArea.appendChild(l5Placeholder);
 
   // Left controls panel (minimap + controls)
-  const leftPanel = el('div', 'position:absolute;top:8px;left:8px;z-index:10;display:flex;flex-direction:column;gap:8px;');
+  // minimap+controls+overlay パネル(hotspot/TC/legend)を縦積みするため、列全体が
+  // キャンバス下端を超えないよう上限を設けて内部スクロールさせる(top:8+下端余白8=16)。
+  const leftPanel = el('div', 'position:absolute;top:8px;left:8px;z-index:10;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 16px);overflow-y:auto;overflow-x:hidden;');
   graphCanvasArea.appendChild(leftPanel);
 
   // Controls box
