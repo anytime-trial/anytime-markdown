@@ -343,23 +343,7 @@ export function createEditorSettingsPanel(
 
   // 単語の折り返し（既定: keep-all）の設定は UI から撤去した。
   // 値は EditorSettings の既定（wordBreak:"keep-all"）に固定される。
-
-  // --- スペルチェック ---
-  const spellRow = document.createElement("div");
-  spellRow.style.cssText =
-    "margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;";
-  const spellCaption = createText({ variant: "caption", text: t("settingSpellCheck"), style: CAPTION_STYLE });
-  handles.push(spellCaption);
-  const spellSwitch = createSwitch({
-    checked: settings.spellCheck,
-    ariaLabel: t("settingSpellCheck"),
-    onChange: (checked) => onUpdate({ spellCheck: checked }),
-  });
-  handles.push(spellSwitch);
-  spellRow.append(spellCaption.el, spellSwitch.el);
-  body.appendChild(spellRow);
-
-  body.appendChild(dividerEl());
+  // スペルチェックの設定も撤去した。エディタ DOM 側で常に無効化される。
 
   // --- リセット（confirm → onReset） ---
   const resetBtn = createButton({

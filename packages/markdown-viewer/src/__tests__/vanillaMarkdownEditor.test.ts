@@ -126,16 +126,17 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     handle.destroy();
   });
 
-  it("settings 適用: spellCheck が editor DOM へ反映される", () => {
+  it("settings 適用: editor DOM の spellcheck は常に無効、font-size が反映される", () => {
     const handle = mountVanillaMarkdownEditor(container, {
       t,
       settings: {
         lineHeight: 1.6, fontSize: 18, measure: "standard", tableWidth: "auto", editorBg: "white",
         lightBgColor: "", lightTextColor: "", darkBgColor: "", darkTextColor: "",
-        spellCheck: true, paperSize: "off", paperMargin: 20, blockAlign: "left", wordBreak: "normal",
+        paperSize: "off", paperMargin: 20, blockAlign: "left", wordBreak: "normal",
       },
     });
-    expect(handle.editor.view.dom.getAttribute("spellcheck")).toBe("true");
+    // スペルチェック機能は撤去済み。editor DOM では常に無効化される。
+    expect(handle.editor.view.dom.getAttribute("spellcheck")).toBe("false");
     // font-size が root の CSS 変数へ反映される。
     const root = container.querySelector("[data-am-editor-root]") as HTMLElement;
     expect(root.style.getPropertyValue("--am-editor-font-size")).toBe("18px");
