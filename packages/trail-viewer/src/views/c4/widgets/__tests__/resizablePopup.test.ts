@@ -144,6 +144,26 @@ describe('mountResizablePopup maximize', () => {
     container.remove();
   });
 
+  it('re-enables pointer events on the popup so content stays interactive inside a pointer-events:none host', () => {
+    // Regression: the C4 viewer mounts popups into `popupHost`, which is
+    // `pointer-events:none` so it does not block the graph canvas behind it.
+    // `pointer-events` is inherited, so the popup root MUST set
+    // `pointer-events:auto` to keep its content (level buttons, scrollable grid)
+    // interactive — otherwise clicks and wheel events never reach it.
+    const host = document.createElement('div');
+    host.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+    document.body.appendChild(host);
+
+    const handle = mountResizablePopup(host, baseProps());
+
+    const root = host.querySelector('[role="dialog"]') as HTMLElement;
+    expect(root).toBeTruthy();
+    expect(root.style.pointerEvents).toBe('auto');
+
+    handle.destroy();
+    host.remove();
+  });
+
   it('keeps toolbar icon buttons inheriting the themed color (currentColor)', () => {
     // Regression: the size override used `el.style.cssText = '...'` (assignment,
     // not `+=`), wiping createIconButton's base styles — including
