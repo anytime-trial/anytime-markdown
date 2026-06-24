@@ -10,7 +10,7 @@ import {
   shouldShowTemporalCouplingInlineSettings,
   type TemporalCouplingControlsValue,
 } from '../components/overlays/TemporalCouplingControls';
-import { mountTemporalCouplingSettingsPopup } from '../../views/c4/overlays/temporalCouplingControls';
+import { mountTemporalCouplingControls } from '../../views/c4/overlays/temporalCouplingControls';
 
 const baseValue: TemporalCouplingControlsValue = {
   enabled: true,
@@ -131,60 +131,70 @@ describe('TemporalCouplingControls / ghost edge mode helpers', () => {
   });
 });
 
-describe('TemporalCouplingControls / C4 ghost edge settings popup', () => {
+describe('TemporalCouplingControls / placement & ghost edge helpers', () => {
   it('hides inline period/threshold/top-k settings when using the combined selector', () => {
     expect(shouldShowTemporalCouplingInlineSettings(true)).toBe(false);
     expect(shouldShowTemporalCouplingInlineSettings(false)).toBe(true);
   });
 
-  it('uses the popup for commit/session mode selection only', () => {
+  it('exposes commit/session as the ghost edge modes', () => {
     expect(getPopupGhostEdgeModes()).toEqual(['commit', 'session']);
   });
 
-  it('hides the settings popup DOM while ghost edges are disabled', () => {
+  it('renders the controls as a horizontal toolbar bar by default (floating)', () => {
     const container = document.createElement('div');
-    const handle = mountTemporalCouplingSettingsPopup(container, {
-      value: { ...baseValue, enabled: false },
+    const handle = mountTemporalCouplingControls(container, {
+      value: baseValue,
       onChange: jest.fn(),
       resultCount: 0,
       loading: false,
-      isDark: false,
     });
-    // The vanilla view hides via display:none when disabled.
-    const root = container.querySelector('[role="dialog"]') as HTMLElement | null;
-    expect(root).not.toBeNull();
-    expect(root?.style.display).toBe('none');
+    const root = container.querySelector('[role="group"]') as HTMLElement;
+    expect(root.style.flexDirection).toBe('');
+    expect(root.style.borderTop).not.toBe('');
     handle.destroy();
   });
 
-  it('floats with absolute positioning by default', () => {
+  it('renders as a vertical card in the left panel column when variant=inline', () => {
     const container = document.createElement('div');
-    const handle = mountTemporalCouplingSettingsPopup(container, {
-      value: { ...baseValue, enabled: true },
-      onChange: jest.fn(),
-      resultCount: 0,
-      loading: false,
-      isDark: false,
-    });
-    const root = container.querySelector('[role="dialog"]') as HTMLElement;
-    expect(root.style.position).toBe('absolute');
-    handle.destroy();
-  });
-
-  it('flows inline (no absolute overlap) when variant=inline so it does not cover the C4 controls panel', () => {
-    const container = document.createElement('div');
-    const handle = mountTemporalCouplingSettingsPopup(container, {
-      value: { ...baseValue, enabled: true },
+    const handle = mountTemporalCouplingControls(container, {
+      value: baseValue,
       onChange: jest.fn(),
       resultCount: 0,
       loading: false,
       isDark: false,
       variant: 'inline',
     });
-    const root = container.querySelector('[role="dialog"]') as HTMLElement;
-    expect(root.style.position).toBe('static');
-    expect(root.style.top).toBe('');
-    expect(root.style.left).toBe('');
+    const root = container.querySelector('[role="group"]') as HTMLElement;
+    expect(root.style.flexDirection).toBe('column');
+    expect(root.style.width).toBe('220px');
+    // 横バーの border-top 区切りではなくカード枠になる
+    expect(root.style.borderTop).toBe('');
+    expect(root.style.borderRadius).toBe('8px');
+    handle.destroy();
+  });
+
+  it('re-applies card background on isDark change without losing inline layout', () => {
+    const container = document.createElement('div');
+    const handle = mountTemporalCouplingControls(container, {
+      value: baseValue,
+      onChange: jest.fn(),
+      resultCount: 0,
+      loading: false,
+      isDark: false,
+      variant: 'inline',
+    });
+    const root = container.querySelector('[role="group"]') as HTMLElement;
+    handle.update({
+      value: baseValue,
+      onChange: jest.fn(),
+      resultCount: 0,
+      loading: false,
+      isDark: true,
+      variant: 'inline',
+    });
+    expect(root.style.flexDirection).toBe('column');
+    expect(root.style.background).toContain('18, 18, 18');
     handle.destroy();
   });
 });
