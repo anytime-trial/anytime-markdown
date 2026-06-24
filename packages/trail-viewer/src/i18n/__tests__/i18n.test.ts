@@ -21,7 +21,7 @@ describe('i18n key parity', () => {
   it('全キーの値が非空文字列', () => {
     for (const [key, value] of Object.entries(en)) {
       expect(typeof value === 'string' && value.length > 0).toBe(true);
-      expect(typeof (ja as Record<string, string>)[key] === 'string').toBe(true);
+      expect(typeof (ja as unknown as Record<string, string>)[key] === 'string').toBe(true);
     }
   });
 });
@@ -45,8 +45,8 @@ describe('C4 popup i18n keys exist (regression)', () => {
   ] as const;
 
   it.each(requiredKeys)('%s が en/ja に定義されキー名と異なる訳語を持つ', (key) => {
-    const enVal = (en as Record<string, string>)[key];
-    const jaVal = (ja as Record<string, string>)[key];
+    const enVal = (en as unknown as Record<string, string>)[key];
+    const jaVal = (ja as unknown as Record<string, string>)[key];
     expect(enVal).toBeTruthy();
     expect(jaVal).toBeTruthy();
     expect(enVal).not.toBe(key);
