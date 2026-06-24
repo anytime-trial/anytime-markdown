@@ -4,6 +4,21 @@
  * jsdom 環境。DOM 構築・タブ切替・update/destroy のクリーンアップを検証する。
  */
 
+// trailViewer → c4Viewer → codeGraphPanel statically pulls sigma, which needs
+// WebGL2RenderingContext (absent in jsdom). Mock it at module level.
+jest.mock('sigma', () => ({
+  __esModule: true,
+  default: class MockSigma {
+    on() { /* no-op */ }
+    getGraph() { return { forEachNode: () => { /* no-op */ }, setNodeAttribute: () => { /* no-op */ } }; }
+    refresh() { /* no-op */ }
+    kill() { /* no-op */ }
+  },
+}));
+jest.mock('sigma/rendering', () => ({
+  EdgeArrowProgram: class MockEdgeArrowProgram {},
+}));
+
 // Mock mountReactIsland so tests don't need a full React DOM render environment.
 // Each call appends a sentinel div to the container and returns spy handles.
 jest.mock('../reactIsland', () => ({

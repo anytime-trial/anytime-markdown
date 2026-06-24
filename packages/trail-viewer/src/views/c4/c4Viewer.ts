@@ -114,8 +114,11 @@ import { mountOverlayLegend } from './overlays/overlayLegend';
 import type { OverlayLegendVanillaProps } from './overlays/overlayLegend';
 import { mountMatrixPanel } from './panels/matrixPanel';
 import type { MatrixPanelVanillaProps } from './panels/matrixPanel';
-import { mountFunctionScatterPlotPanel } from './panels/functionScatterPlotPanel';
-import type { FunctionScatterPlotPanelProps } from './panels/functionScatterPlotPanel';
+import { mountScatterPanel } from './panels/scatterPanel';
+import type { ScatterPanelProps } from './panels/scatterPanel';
+import { mountCodeGraphPanel } from '../codeGraphPanel';
+import type { CodeGraphPanelProps } from '../codeGraphPanel';
+import type { CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import { mountActivityTrendPanel } from './panels/activityTrendPanel';
 import type { ActivityTrendPanelProps } from './panels/activityTrendPanel';
 import { mountDeadCodeDetailPanel } from './panels/deadCodeDetailPanel';
@@ -680,7 +683,13 @@ export function mountC4Viewer(
   const popupBtnRow = el('div', 'display:flex;align-items:center;gap:2px;');
   const graphPopupBtn = iconBtn('Code Graph', ICONS.hub, '', () => {
     showGraphPopup = !showGraphPopup;
-    if (showGraphPopup) { matrixPopup = null; scatterPopup = null; }
+    if (showGraphPopup) {
+      matrixPopup = null;
+      scatterPopup = null;
+      // The popup renders the code graph; ensure it is fetched/enabled.
+      codeGraphEnabled = true;
+      fetchCodeGraph();
+    }
     scheduleRender();
   });
   const matrixPopupBtn = iconBtn('Matrix', ICONS.tableChart, '', () => {
@@ -772,7 +781,11 @@ export function mountC4Viewer(
   let matrixPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
   let matrixInnerHandle: ReturnType<typeof mountMatrixPanel> | null = null;
   let scatterPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
+  let scatterInnerHandle: ReturnType<typeof mountScatterPanel> | null = null;
   let graphPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
+  let graphInnerHandle: ReturnType<typeof mountCodeGraphPanel> | null = null;
+  let graphPanelHighlighted: ReadonlySet<string> = new Set();
+  let graphPanelSelectedNode: CodeGraphNode | null = null;
   let trendPanelHandle: ReturnType<typeof mountActivityTrendPanel> | null = null;
   let deadCodeHandle: ReturnType<typeof mountDeadCodeDetailPanel> | null = null;
   let callHierarchyHandle: ReturnType<typeof mountCallHierarchyPanel> | null = null;
@@ -2187,76 +2200,145 @@ export function mountC4Viewer(
     if (scatterPopup) {
       const fnAnalysisEntries = props.functionAnalysisEntries && scatterPopup.filterElementId
         ? functionAnalysisEntriesForElement(props.functionAnalysisEntries, scatterPopup.filterElementId, props.c4Model?.elements ?? [])
-        : [];
+        : (props.functionAnalysisEntries ?? []);
+      const buildScatterProps = (): ScatterPanelProps => ({
+        entries: fnAnalysisEntries,
+        view: scatterViewMode,
+        tourActive,
+        isDark,
+        onViewChange: (m) => { scatterViewMode = m; scheduleRender(); },
+        onTourToggle: () => {
+          tourActive = !tourActive;
+          // Starting the tour forces the scatter view (tour overlays the bubble plot).
+          if (tourActive) scatterViewMode = 'scatter';
+          scheduleRender();
+        },
+        onFunctionOpen: (filePath) => props.onOpenFile?.(filePath),
+        colors: {
+          border: colors.border,
+          text: colors.text,
+          textSecondary: colors.textSecondary,
+          textMuted: colors.textMuted,
+        },
+        t: props.t,
+      });
+      const scatterShell = {
+        title: props.t('c4.scatter.title'),
+        ariaLabel: 'Scatter plot panel',
+        onClose: () => { scatterPopup = null; scheduleRender(); },
+        isDark,
+        colors,
+        size: null,
+        onSizeChange: () => {},
+        maximized: false,
+        onMaximizedChange: () => {},
+        i18nMaximize: props.t('c4.popup.maximize'),
+        i18nRestore: props.t('c4.popup.restore'),
+        i18nClose: props.t('c4.popup.close'),
+        i18nResize: props.t('c4.popup.resize'),
+        mountContent: (c: HTMLElement) => {
+          const handle = mountScatterPanel(c, buildScatterProps());
+          scatterInnerHandle = handle;
+          return handle;
+        },
+      };
       if (!scatterPopupHandle) {
-        scatterPopupHandle = mountResizablePopup(popupHost, {
-          title: props.t('c4.scatter.title'),
-          ariaLabel: 'Scatter plot panel',
-          onClose: () => { scatterPopup = null; scheduleRender(); },
-          isDark,
-          colors,
-          size: null,
-          onSizeChange: () => {},
-          maximized: false,
-          onMaximizedChange: () => {},
-          i18nMaximize: props.t('c4.popup.maximize'),
-          i18nRestore: props.t('c4.popup.restore'),
-          i18nClose: props.t('c4.popup.close'),
-          i18nResize: props.t('c4.popup.resize'),
-          mountContent: (c: HTMLElement) => {
-            const spProps: FunctionScatterPlotPanelProps = {
-              view: scatterViewMode,
-              tourActive,
-              tourStepsCount: fnAnalysisEntries.length,
-              onViewChange: (m: 'scatter' | 'galaxy' | 'city') => { scatterViewMode = m; scheduleRender(); },
-              onTourToggle: () => { tourActive = !tourActive; scheduleRender(); },
-              colors: {
-                border: colors.border,
-                text: colors.text,
-                textSecondary: colors.textSecondary,
-                textMuted: colors.textMuted,
-              },
-              t: props.t,
-            };
-            return mountFunctionScatterPlotPanel(c, spProps);
-          },
-        });
+        scatterPopupHandle = mountResizablePopup(popupHost, scatterShell);
       } else {
-        scatterPopupHandle.update({
-          title: props.t('c4.scatter.title'),
-          ariaLabel: 'Scatter plot panel',
-          onClose: () => { scatterPopup = null; scheduleRender(); },
-          isDark,
-          colors,
-          size: null,
-          onSizeChange: () => {},
-          maximized: false,
-          onMaximizedChange: () => {},
-          i18nMaximize: props.t('c4.popup.maximize'),
-          i18nRestore: props.t('c4.popup.restore'),
-          i18nClose: props.t('c4.popup.close'),
-          i18nResize: props.t('c4.popup.resize'),
-          mountContent: (c: HTMLElement) => {
-            const spProps: FunctionScatterPlotPanelProps = {
-              view: scatterViewMode,
-              tourActive,
-              tourStepsCount: fnAnalysisEntries.length,
-              onViewChange: (m: 'scatter' | 'galaxy' | 'city') => { scatterViewMode = m; scheduleRender(); },
-              onTourToggle: () => { tourActive = !tourActive; scheduleRender(); },
-              colors: {
-                border: colors.border,
-                text: colors.text,
-                textSecondary: colors.textSecondary,
-                textMuted: colors.textMuted,
-              },
-              t: props.t,
-            };
-            return mountFunctionScatterPlotPanel(c, spProps);
-          },
-        });
+        scatterPopupHandle.update(scatterShell);
+        scatterInnerHandle?.update(buildScatterProps());
       }
     } else {
       if (scatterPopupHandle) { scatterPopupHandle.destroy(); scatterPopupHandle = null; }
+      if (scatterInnerHandle) { scatterInnerHandle = null; /* destroyed via scatterPopupHandle.destroy() */ }
+    }
+
+    // ── Graph popup (code graph) ──
+    if (showGraphPopup) {
+      const repo = getSelectedRepo();
+      const graphState: CodeGraphPanelProps['graphState'] = (() => {
+        if (codeGraphState.loading) return { status: 'loading' };
+        if (!repo) return { status: 'no-repo' };
+        if (!codeGraphState.graph) return { status: 'no-graph' };
+        return { status: 'ready', graph: codeGraphState.graph };
+      })();
+      const runGraphSearch = (query: string): void => {
+        if (!query.trim()) { graphPanelHighlighted = new Set(); scheduleRender(); return; }
+        void (async () => {
+          try {
+            const res = await fetch(`${props.serverUrl}/api/code-graph/query?q=${encodeURIComponent(query)}`);
+            if (!res.ok) return;
+            const data = (await res.json()) as { nodes: string[] };
+            graphPanelHighlighted = new Set(data.nodes);
+            scheduleRender();
+          } catch (err) {
+            console.error('[c4Viewer] code graph search failed', err);
+          }
+        })();
+      };
+      const runGraphNodeClick = (nodeId: string): void => {
+        void (async () => {
+          try {
+            const res = await fetch(`${props.serverUrl}/api/code-graph/explain?id=${encodeURIComponent(nodeId)}`);
+            if (!res.ok) return;
+            const data = (await res.json()) as { node?: CodeGraphNode };
+            graphPanelSelectedNode = data.node ?? null;
+            scheduleRender();
+          } catch (err) {
+            console.error('[c4Viewer] code graph explain failed', err);
+          }
+        })();
+      };
+      const buildGraphProps = (): CodeGraphPanelProps => ({
+        graphState,
+        highlightedNodes: graphPanelHighlighted,
+        selectedNode: graphPanelSelectedNode,
+        // Ghost-edge (temporal coupling) overlay is sourced separately for the
+        // file-level code graph; not wired into this popup yet, so keep it off.
+        showSubagentDirectionalHint: false,
+        ghostEdges: [],
+        ghostEdgesEnabled: false,
+        ghostEdgeGranularity: 'commit',
+        isDark,
+        onSearch: runGraphSearch,
+        onRefetch: () => { codeGraphEnabled = true; fetchCodeGraph(); },
+        onNodeClick: runGraphNodeClick,
+        communitySummaries: codeGraphState.graph?.communitySummaries,
+        t: props.t,
+      });
+      const graphShell = {
+        title: props.t('viewer.tab.graph'),
+        ariaLabel: 'Code graph panel',
+        onClose: () => { showGraphPopup = false; scheduleRender(); },
+        isDark,
+        colors,
+        size: null,
+        onSizeChange: () => {},
+        maximized: false,
+        onMaximizedChange: () => {},
+        i18nMaximize: props.t('c4.popup.maximize'),
+        i18nRestore: props.t('c4.popup.restore'),
+        i18nClose: props.t('c4.popup.close'),
+        i18nResize: props.t('c4.popup.resize'),
+        mountContent: (c: HTMLElement) => {
+          const handle = mountCodeGraphPanel(c, buildGraphProps());
+          graphInnerHandle = handle;
+          return handle;
+        },
+      };
+      if (!graphPopupHandle) {
+        graphPopupHandle = mountResizablePopup(popupHost, graphShell);
+      } else {
+        graphPopupHandle.update(graphShell);
+        graphInnerHandle?.update(buildGraphProps());
+      }
+    } else {
+      if (graphPopupHandle) { graphPopupHandle.destroy(); graphPopupHandle = null; }
+      if (graphInnerHandle) { graphInnerHandle = null; /* destroyed via graphPopupHandle.destroy() */ }
+      // Reset transient search/selection so reopening the popup starts clean
+      // (the React panel got this for free via per-mount state).
+      if (graphPanelHighlighted.size > 0) graphPanelHighlighted = new Set();
+      graphPanelSelectedNode = null;
     }
 
     // ── Add Element Dialog ──
