@@ -233,6 +233,14 @@ describe("createImageAnnotationDialog", () => {
     handle.destroy();
   });
 
+  it("close ボタンはツールバー左端（先頭の button）に配置される（他の編集画面と統一）", () => {
+    const { handle } = open();
+    // DOM 順で最初の button が close（左端）であること（旧: tool 切替が先頭だった）。
+    const firstButton = handle.el.querySelector("button");
+    expect(firstButton?.getAttribute("aria-label")).toBe("close");
+    handle.destroy();
+  });
+
   it("color スウォッチを選ぶと新規注釈にその色が乗る", () => {
     const { handle } = open();
     // 2 番目の色（Blue #3b82f6）スウォッチをクリック。

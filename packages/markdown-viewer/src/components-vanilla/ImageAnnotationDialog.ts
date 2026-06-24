@@ -209,7 +209,8 @@ export function createImageAnnotationDialog(
   childHandles.push(undoBtn);
   toolbar.appendChild(undoBtn.el);
 
-  // close（確定）。
+  // close（確定）。位置は他の全画面編集ダイアログ（TableEditDialog / crop 等）に合わせて
+  // ツールバー左端（先頭）へ置く。
   const closeBtn = createIconButton({
     size: "small",
     ariaLabel: t("close"),
@@ -218,7 +219,12 @@ export function createImageAnnotationDialog(
     onClick: () => handleClose(),
   });
   childHandles.push(closeBtn);
-  toolbar.appendChild(closeBtn.el);
+  // tools / colors / undo より前（左端）に挿入する。
+  const closeDivider = document.createElement("div");
+  closeDivider.style.cssText =
+    "width:1px;align-self:stretch;background-color:var(--am-color-divider);margin:4px 0;";
+  toolbar.prepend(closeDivider);
+  toolbar.prepend(closeBtn.el);
 
   overlay.appendChild(toolbar);
 
