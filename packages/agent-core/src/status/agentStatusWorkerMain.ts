@@ -10,6 +10,7 @@
 //   4. agent-worker.json に接続情報を書く
 //   5. SIGINT/SIGTERM/exit で agent-worker.json を消し DB を閉じる
 
+import { randomBytes } from 'node:crypto';
 import { AgentStatusStore } from './AgentStatusStore';
 import { AgentStatusWorker } from './AgentStatusWorker';
 import {
@@ -24,8 +25,12 @@ export async function runWorker(workspaceRoot: string): Promise<void> {
   const dbPath = agentStatusDbPath(workspaceRoot);
   const jsonPath = agentWorkerJsonPath(workspaceRoot);
 
+  // 書き込み系を保護する Bearer トークン。agent-worker.json（0600）にのみ書き、
+  // それを読める同一ユーザーの hook/拡張だけが POST できる。
+  const token = randomBytes(32).toString('hex');
+
   const store = new AgentStatusStore(dbPath);
-  const worker = new AgentStatusWorker(store);
+  const worker = new AgentStatusWorker(store, token);
   await worker.start(0);
 
   writeWorkerInfo(jsonPath, {
@@ -36,6 +41,7 @@ export async function runWorker(workspaceRoot: string): Promise<void> {
     url: worker.url,
     startedAt: new Date().toISOString(),
     dbPath,
+    token,
   });
 
   let shuttingDown = false;

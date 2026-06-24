@@ -105,4 +105,77 @@ describe('AgentStatusWorker (loopback HTTP)', () => {
     const res = await fetch(`${base}/api/unknown`);
     expect(res.status).toBe(404);
   });
+
+  it('POST /summary で handoff payload を保存し GET /:id で読める', async () => {
+    const payload = JSON.stringify({ handoffVersion: 1, structured: { goal: 'g' }, narrative: null });
+    const postRes = await fetch(`${base}/api/agent-status/summary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: 'h1', summary: payload, handoffAt: '2026-06-24T12:00:00.000Z' }),
+    });
+    expect(postRes.status).toBe(200);
+    const env = await (await fetch(`${base}/api/agent-status/h1`)).json();
+    expect(env.data.summary).toBe(payload);
+    expect(env.data.handoffAt).toBe('2026-06-24T12:00:00.000Z');
+  });
+
+  it('API バージョンは 2', () => {
+    expect(AGENT_STATUS_API_VERSION).toBe(2);
+  });
+});
+
+describe('AgentStatusWorker Bearer 認証（token 設定時）', () => {
+  let dir: string;
+  let store: AgentStatusStore;
+  let worker: AgentStatusWorker;
+  let base: string;
+  const TOKEN = 'test-token-abc';
+
+  beforeEach(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'agent-status-auth-'));
+    store = new AgentStatusStore(join(dir, 'agent-status.db'));
+    worker = new AgentStatusWorker(store, TOKEN);
+    await worker.start(0);
+    base = `http://127.0.0.1:${worker.port}`;
+  });
+  afterEach(async () => {
+    await worker.stop();
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const summaryBody = () =>
+    JSON.stringify({ sessionId: 'x', summary: '{}', handoffAt: '2026-06-24T12:00:00.000Z' });
+
+  it('Authorization 無しの POST /summary は 401', async () => {
+    const res = await fetch(`${base}/api/agent-status/summary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: summaryBody(),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('誤トークンの POST /edit は 401', async () => {
+    const res = await fetch(`${base}/api/agent-status/edit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer wrong' },
+      body: JSON.stringify({ sessionId: 'x', editing: true }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('正トークンの POST /summary は 200', async () => {
+    const res = await fetch(`${base}/api/agent-status/summary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+      body: summaryBody(),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('GET（読み取り）は認証不要', async () => {
+    const res = await fetch(`${base}/api/agent-status`);
+    expect(res.status).toBe(200);
+  });
 });

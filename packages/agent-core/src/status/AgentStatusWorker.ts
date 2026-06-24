@@ -4,10 +4,16 @@
 // AgentStatusStore（node:sqlite 単一所有者）を保持し、POST で書き込み・GET で読み取りを HTTP 公開する。
 //
 // ルーティング:
-//   POST /api/agent-status/edit       — 編集系 UPSERT
-//   POST /api/agent-status/commit     — commit 系 UPSERT
-//   GET  /api/agent-status            — 全行 { version, data: [...] }
-//   GET  /api/agent-status/:sessionId — 単一  { version, data }
+//   POST   /api/agent-status/edit       — 編集系 UPSERT       (要 Bearer)
+//   POST   /api/agent-status/commit     — commit 系 UPSERT    (要 Bearer)
+//   POST   /api/agent-status/summary    — handoff payload 保存 (要 Bearer)
+//   GET    /api/agent-status            — 全行 { version, data: [...] }
+//   GET    /api/agent-status/:sessionId — 単一  { version, data }
+//   DELETE /api/agent-status/:sessionId — 行削除             (要 Bearer)
+//
+// 認証: token を持つ場合、書き込み系（POST/DELETE）に `Authorization: Bearer <token>` を要求する。
+// 同一ホストの任意プロセスが summary を偽装し新セッションへプロンプトインジェクションするのを防ぐ。
+// token 未設定時は認証なし（後方互換）。
 
 import * as http from 'node:http';
 import type { AgentStatusStore } from './AgentStatusStore';
@@ -15,6 +21,7 @@ import {
   AGENT_STATUS_API_VERSION,
   type CommitUpsertInput,
   type EditUpsertInput,
+  type SummaryUpsertInput,
 } from './types';
 
 const BIND_HOST = '127.0.0.1';
@@ -47,7 +54,20 @@ function readBody(req: http.IncomingMessage): Promise<string> {
 export class AgentStatusWorker {
   private server?: http.Server;
 
-  constructor(private readonly store: AgentStatusStore) {}
+  /**
+   * @param store SQLite ストア
+   * @param token 書き込み系を保護する Bearer トークン。省略時は認証なし（後方互換）。
+   */
+  constructor(
+    private readonly store: AgentStatusStore,
+    private readonly token?: string,
+  ) {}
+
+  /** token 未設定なら常に許可。設定時は `Authorization: Bearer <token>` 一致で許可。 */
+  private authorized(req: http.IncomingMessage): boolean {
+    if (!this.token) return true;
+    return req.headers.authorization === `Bearer ${this.token}`;
+  }
 
   /** OS 割り当ての動的ポートで起動する場合は port=0 を渡す */
   start(port: number): Promise<void> {
@@ -96,6 +116,12 @@ export class AgentStatusWorker {
     const pathname = parsed.pathname;
     const method = req.method ?? 'GET';
 
+    // 書き込み系（POST/DELETE）は Bearer 認証を要求する。
+    if ((method === 'POST' || method === 'DELETE') && !this.authorized(req)) {
+      sendJson(res, 401, { error: 'unauthorized' });
+      return;
+    }
+
     if (method === 'POST' && pathname === '/api/agent-status/edit') {
       const body = JSON.parse(await readBody(req)) as EditUpsertInput;
       if (!body?.sessionId) {
@@ -114,6 +140,21 @@ export class AgentStatusWorker {
         return;
       }
       this.store.upsertCommit(body);
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (method === 'POST' && pathname === '/api/agent-status/summary') {
+      const body = JSON.parse(await readBody(req)) as SummaryUpsertInput;
+      if (!body?.sessionId) {
+        sendJson(res, 400, { error: 'sessionId required' });
+        return;
+      }
+      if (typeof body.summary !== 'string') {
+        sendJson(res, 400, { error: 'summary (JSON string) required' });
+        return;
+      }
+      this.store.upsertSummary(body);
       sendJson(res, 200, { ok: true });
       return;
     }

@@ -2,8 +2,9 @@
 //
 // SQLite を一切 import しない純粋な型のみ。ワーカー・クライアント・consumer 拡張が共有する。
 
-/** read API のバージョン。内部スキーマ変更から consumer を保護する安定契約 */
-export const AGENT_STATUS_API_VERSION = 1;
+/** read API のバージョン。内部スキーマ変更から consumer を保護する安定契約。
+ *  v2: handoff payload（summary JSON / handoff_at）と /summary エンドポイント・Bearer 認証を追加。 */
+export const AGENT_STATUS_API_VERSION = 2;
 
 /** セッション内で編集されたファイルの記録 */
 export interface AgentSessionEdit {
@@ -127,4 +128,6 @@ export interface AgentWorkerInfo {
   /** プロセス起動時刻 UTC ISO 8601 */
   readonly startedAt: string;
   readonly dbPath: string;
+  /** 書き込み系 POST/DELETE を保護する Bearer トークン。hook/拡張はこれを読んで付与する。 */
+  readonly token: string;
 }
