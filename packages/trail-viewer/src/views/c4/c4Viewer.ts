@@ -2080,9 +2080,11 @@ export function mountC4Viewer(
         textColor: colors.overlayLegendText,
         bg: colors.overlayLegendBg,
         dividerColor: colors.border,
+        // 右下フロートではなく左パネル列の下に積む（inline = position:static）
+        inline: true,
       };
       if (!overlayLegendHandle) {
-        overlayLegendHandle = mountOverlayLegend(graphCanvasArea, legendProps);
+        overlayLegendHandle = mountOverlayLegend(leftPanel, legendProps);
       } else {
         overlayLegendHandle.update(legendProps);
       }
