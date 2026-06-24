@@ -269,6 +269,7 @@ interface VanillaLayout {
   toolbarSlot: HTMLElement;
   frontmatterEl: HTMLElement;
   contentEl: HTMLElement;
+  contentArea: HTMLElement;
   editorMountEl: HTMLElement;
   mainRow: HTMLElement;
   sidebarSlot: HTMLElement;
@@ -304,7 +305,7 @@ function buildLayout(): VanillaLayout {
 
   const contentEl = document.createElement("div");
   contentEl.setAttribute("data-am-content", "");
-  // position:relative は SearchReplaceBar（absolute・右上）配置の基準。
+  // position:relative は merge ビュー等 contentEl 直下の絶対配置子の基準（従来挙動を維持）。
   // min-width:0 は flex item の自動最小サイズ（min-width:auto）を無効化し、狭幅でも flex
   // コンテナ幅まで縮小可能にする。これがないと noScroll（overflow:visible）時に本文が
   // 折り返されず横にはみ出す（scroll モードは overflow:auto で自動最小サイズが 0 のため不要）。
@@ -317,6 +318,15 @@ function buildLayout(): VanillaLayout {
   editorMountEl.style.display = "contents";
   contentEl.appendChild(editorMountEl);
 
+  // contentEl（overflow:auto のスクロールコンテナ）を非スクロールの relative ラッパで包む。
+  // SearchReplaceBar（absolute・右上）はこの contentArea を基準に配置し、本文スクロールへ
+  // 追従せず常時最上部に留める（contentEl 直下に置くとスクロール内容と一緒に流れてしまう）。
+  const contentArea = document.createElement("div");
+  contentArea.setAttribute("data-am-content-area", "");
+  contentArea.style.cssText =
+    "position:relative;flex:1 1 auto;min-width:0;min-height:0;display:flex;flex-direction:column;";
+  contentArea.appendChild(contentEl);
+
   // Outline / Comment パネルのマウント先（toggle で表示）。
   const sidebarSlot = document.createElement("div");
   sidebarSlot.setAttribute("data-am-sidebar-slot", "");
@@ -327,7 +337,7 @@ function buildLayout(): VanillaLayout {
   sideToolbarSlot.setAttribute("data-am-side-toolbar-slot", "");
   sideToolbarSlot.style.cssText = "flex-shrink:0;display:flex;min-height:0;";
 
-  mainRow.append(contentEl, sidebarSlot);
+  mainRow.append(contentArea, sidebarSlot);
 
   const statusBarSlot = document.createElement("div");
   statusBarSlot.setAttribute("data-am-statusbar-slot", "");
@@ -359,6 +369,7 @@ function buildLayout(): VanillaLayout {
     toolbarSlot,
     frontmatterEl,
     contentEl,
+    contentArea,
     editorMountEl,
     mainRow,
     sidebarSlot,
@@ -422,6 +433,7 @@ export function mountVanillaMarkdownEditor(
     toolbarSlot,
     frontmatterEl,
     contentEl,
+    contentArea,
     editorMountEl,
     sidebarSlot,
     sideToolbarSlot,
@@ -1069,7 +1081,7 @@ export function mountVanillaMarkdownEditor(
 
       // === SearchReplaceBar（Mod-f / openSearch コマンドで表示） ================
       const searchBar = createSearchReplaceBar({ editor, t });
-      contentEl.appendChild(searchBar.el);
+      contentArea.appendChild(searchBar.el);
       disposers.push(() => searchBar.destroy());
 
       // === SlashCommand ========================================================
