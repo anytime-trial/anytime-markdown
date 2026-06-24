@@ -93,6 +93,20 @@ export type {
   AgentWorkerInfo,
   EditUpsertInput,
   CommitUpsertInput,
+  SummaryUpsertInput,
   AgentStatusEnvelope,
   AgentStatusListEnvelope,
 } from './status/types';
+
+// handoff（セッション引き継ぎ）: transcript の決定論抽出 → 圧縮ステート → レンダリング
+export { parse as parseTranscript, parseLines } from './handoff/parseTranscript';
+export { buildHandoffState } from './handoff/buildHandoff';
+export { redact as redactSecrets } from './handoff/redact';
+export { renderHandoffMarkdown, renderHandoffInjection } from './handoff/render';
+export { HANDOFF_VERSION } from './handoff/types';
+export type {
+  HandoffState,
+  HandoffStructured,
+  TranscriptEvent,
+} from './handoff/types';
+export type { BuildHandoffOptions } from './handoff/buildHandoff';
