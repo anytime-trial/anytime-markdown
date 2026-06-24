@@ -133,6 +133,34 @@ describe("createCodeBlockEditDialog", () => {
     handle.destroy();
   });
 
+  it("language=html + renderLanguagePreview は sanitize 済み HTML を実レンダリングする（構文ハイライトでなく）", () => {
+    const editor = makeEditor();
+    const node = makeNode('<p id="html-preview"><strong>Hello</strong></p>');
+    const state = createCodeEditState({ editor, pos: 0, node, onClose: jest.fn() });
+
+    const handle = createCodeBlockEditDialog({
+      label: "htmlPreview",
+      language: "html",
+      isDark: false,
+      editorBg: "#fff",
+      fontSize: 16,
+      lineHeight: 1.5,
+      renderPreview: true,
+      renderLanguagePreview: true,
+      state,
+      t,
+      onClose: jest.fn(),
+    });
+
+    const preview = handle.el.querySelector(".am-cbed-preview");
+    expect(preview).not.toBeNull();
+    // エスケープされたソース文字列でなく実 DOM としてレンダリングされる。
+    expect(preview!.querySelector("p#html-preview strong")?.textContent).toBe("Hello");
+    // rendered モード（monospace / white-space:pre 解除）クラスが付く。
+    expect(preview!.classList.contains("am-cbed-preview--rendered")).toBe(true);
+    handle.destroy();
+  });
+
   it("state 更新時に renderPreviewHtml が再呼ばれライブ再描画される", () => {
     const editor = makeEditor();
     const node = makeNode("type: pyramid\n- a");

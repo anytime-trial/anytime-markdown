@@ -10,6 +10,7 @@ import {
 } from "@anytime-markdown/markdown-viewer";
 import { createDialog } from "@anytime-markdown/ui-core/Dialog";
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
+import { renderCodeBlockPreview } from "../components/codeblock/codeBlockPreview";
 
 import type { ZoomPanController } from "./zoomPanState";
 import { createZoomPanState } from "./zoomPanState";
@@ -47,6 +48,12 @@ export interface CreateCodeBlockEditDialogOptions {
    */
   renderPreviewHtml?: (code: string, isDark: boolean) => string;
   /**
+   * renderPreview = true 時、構文ハイライト（ソース表示）ではなく言語別の実プレビューを
+   * 本文 NodeView と同じ {@link renderCodeBlockPreview} で描画する。html 等の rendered kind 用。
+   * renderPreviewHtml を指定した場合はそちらが優先される。
+   */
+  renderLanguagePreview?: boolean;
+  /**
    * renderPreview = true 時、プレビュー HTML 設定直後に呼ばれる汎用フック。
    * 描画済みプレビュー要素へ操作層（WYSIWYG ハンドラ等）を装着するために使う。
    * 戻り値のクリーンアップ関数は次回 render 前・dialog 破棄時に呼ばれる。
@@ -82,6 +89,9 @@ function ensureDialogStyle(): void {
   ensureStyle(STYLE_ID, `
 .am-cbed-content{display:flex;flex:1 1 auto;overflow:hidden;min-height:0;}
 .am-cbed-preview{flex:1;display:flex;flex-direction:column;overflow:auto;padding:12px;font-family:monospace;white-space:pre;}
+/* 言語別の実プレビュー（html 等を renderCodeBlockPreview で描画）はコード表示用の
+   monospace / white-space:pre を解除し、通常フローでレンダリングする。 */
+.am-cbed-preview.am-cbed-preview--rendered{display:block;font-family:inherit;white-space:normal;}
 .am-cbed-preview pre{margin:0;}
 .am-cbed-preview code{display:block;white-space:pre-wrap;word-break:break-word;}
 .am-cbed-preview svg{max-width:100%;height:auto;display:block;margin:0 auto;}
@@ -251,10 +261,27 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
         previewCleanup();
         previewCleanup = undefined;
       }
-      previewEl.innerHTML = opts.renderPreviewHtml
-        ? opts.renderPreviewHtml(state.getFsCode(), isDark)
-        : buildHighlightHtml(state.getFsCode(), language);
-      previewCleanup = opts.onPreviewRendered?.(previewEl, isDark);
+      const code = state.getFsCode();
+      if (opts.renderPreviewHtml) {
+        // 独自プレビュー HTML（図 SVG 等・呼び出し側 sanitize 済み）。
+        previewEl.classList.remove("am-cbed-preview--rendered");
+        previewEl.innerHTML = opts.renderPreviewHtml(code, isDark);
+        previewCleanup = opts.onPreviewRendered?.(previewEl, isDark);
+      } else if (opts.renderLanguagePreview) {
+        // 言語別の実プレビュー（html 等）を本文と同じ共通レンダラで描画する。
+        previewEl.classList.add("am-cbed-preview--rendered");
+        const cancel = renderCodeBlockPreview(previewEl, language, code, { isDark, fontSize }, render);
+        const extra = opts.onPreviewRendered?.(previewEl, isDark);
+        previewCleanup = () => {
+          cancel();
+          extra?.();
+        };
+      } else {
+        // regular コードは構文ハイライト（ソース表示）。
+        previewEl.classList.remove("am-cbed-preview--rendered");
+        previewEl.innerHTML = buildHighlightHtml(code, language);
+        previewCleanup = opts.onPreviewRendered?.(previewEl, isDark);
+      }
     }
   }
 

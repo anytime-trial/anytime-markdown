@@ -463,6 +463,9 @@ export function installCodeBlockOverlay(
       label: isHtml ? t("htmlPreview") : codeBlockToolbarLabel(kind, language, t),
       language: isHtml ? "html" : language || "plaintext",
       renderPreview: true,
+      // html は右ペインに sanitize 済み HTML の実プレビューを描画する（本文 NodeView と同じ
+      // renderCodeBlockPreview）。regular コードは従来どおり構文ハイライト（ソース表示）。
+      renderLanguagePreview: isHtml,
       customSamples: isHtml
         ? (htmlSamples as Array<{ enabled: boolean } & Record<string, unknown>>)
             .filter((s) => s.enabled)
