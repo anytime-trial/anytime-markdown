@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Anytime Markdown Editor",
   "short_name": "Anytime Markdown",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Markdown エディタを新規タブで開く。anytime-markdown の Web Component をそのまま利用。",
   "icons": {
     "16": "icons/icon-16.png",
