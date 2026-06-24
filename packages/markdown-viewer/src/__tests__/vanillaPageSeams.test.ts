@@ -120,7 +120,7 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
     );
     expect(textarea).not.toBeNull();
     expect(textarea?.value).toContain("Hello");
-    // source 中は contentEl の overflow を hidden にし、textarea を唯一のスクローラにする
+    // source 中は contentEl の overflow を hidden にし、sourceWrap を唯一のスクローラにする
     // （スクロールバー二重表示の防止）。
     expect(contentEl?.style.overflow).toBe("hidden");
 
@@ -150,11 +150,15 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
 
     textarea!.value = "a\nb\nc\nd";
     textarea!.dispatchEvent(new Event("input"));
-    expect(gutter?.textContent).toBe("1\n2\n3\n4");
+    // ガターは論理行ごとの個別 div（比較モードと同じミラー高さ同期方式）。textContent は
+    // 区切りなく連結されるため、子要素数と各行番号で追従を検証する。
+    expect(gutter!.children.length).toBe(4);
+    expect(Array.from(gutter!.children).map((c) => c.textContent)).toEqual(["1", "2", "3", "4"]);
 
     textarea!.value = "x";
     textarea!.dispatchEvent(new Event("input"));
-    expect(gutter?.textContent).toBe("1");
+    expect(gutter!.children.length).toBe(1);
+    expect(gutter!.children[0]?.textContent).toBe("1");
 
     // WYSIWYG 復帰でガターも消える。
     globalThis.dispatchEvent(new CustomEvent("vscode-set-mode", { detail: "wysiwyg" }));
