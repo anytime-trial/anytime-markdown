@@ -7,15 +7,17 @@
 // `--disable-warning=ExperimentalWarning` で起動して警告を抑止する（コード側では握らない）。
 
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, copyFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import {
   CREATE_AGENT_SESSIONS,
+  agentSessionsDDL,
 } from './agentStatusSchema';
 import type {
   AgentSessionRow,
   CommitUpsertInput,
   EditUpsertInput,
+  SummaryUpsertInput,
 } from './types';
 
 interface RawRow {
@@ -32,6 +34,7 @@ interface RawRow {
   last_commit_at: string | null;
   summary: string;
   summary_at: string | null;
+  handoff_at: string | null;
   updated_at: string;
 }
 
@@ -68,12 +71,14 @@ function toRow(r: RawRow): AgentSessionRow {
         : null,
     summary: r.summary,
     summaryAt: r.summary_at,
+    handoffAt: r.handoff_at,
     updatedAt: r.updated_at,
   };
 }
 
 export class AgentStatusStore {
   private readonly db: DatabaseSync;
+  private readonly dbPath: string;
 
   /**
    * @param dbPath DB ファイルのパス。`':memory:'` も可。親ディレクトリは自動作成する。
@@ -82,6 +87,7 @@ export class AgentStatusStore {
     if (dbPath !== ':memory:') {
       mkdirSync(dirname(dbPath), { recursive: true });
     }
+    this.dbPath = dbPath;
     this.db = new DatabaseSync(dbPath);
     this.init();
   }
@@ -90,7 +96,49 @@ export class AgentStatusStore {
     // WAL: 単一 writer だが外部プロセスが同一ファイルを開く場合の保険。
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec('PRAGMA busy_timeout = 3000');
+    // 新規 DB はこの CREATE で最新スキーマになる。既存の旧スキーマ DB は no-op のため、
+    // handoff_at 列の有無で旧スキーマを検出し 12-step 移行を走らせる。
     this.db.exec(CREATE_AGENT_SESSIONS);
+    if (!this.hasColumn('agent_sessions', 'handoff_at')) {
+      this.migrateToHandoffSchema();
+    }
+  }
+
+  private hasColumn(table: string, column: string): boolean {
+    const rows = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    return rows.some((r) => r.name === column);
+  }
+
+  /**
+   * summary を json_valid CHECK 付きにし handoff_at 列を加える 12-step 再作成移行。
+   * 旧スキーマ（summary CHECK 無し・DEFAULT ''）からの一度きりの移行。空/不正な summary は
+   * '{}' へサニタイズする（json_valid CHECK 違反を防ぐ）。移行前に `.bak` バックアップを取る。
+   */
+  private migrateToHandoffSchema(): void {
+    if (this.dbPath !== ':memory:') {
+      copyFileSync(this.dbPath, `${this.dbPath}.bak`);
+    }
+    this.db.exec('PRAGMA foreign_keys = OFF');
+    this.db.exec('BEGIN');
+    try {
+      this.db.exec(agentSessionsDDL('agent_sessions_new'));
+      this.db.exec(`INSERT INTO agent_sessions_new
+        (session_id, editing, file, branch, workspace_path, session_edits, planned_edits,
+         last_head, committed_count, last_commit_hash, last_commit_at,
+         summary, summary_at, handoff_at, updated_at)
+        SELECT session_id, editing, file, branch, workspace_path, session_edits, planned_edits,
+         last_head, committed_count, last_commit_hash, last_commit_at,
+         CASE WHEN json_valid(summary) THEN summary ELSE '{}' END,
+         summary_at, NULL, updated_at
+        FROM agent_sessions`);
+      this.db.exec('DROP TABLE agent_sessions');
+      this.db.exec('ALTER TABLE agent_sessions_new RENAME TO agent_sessions');
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+    this.db.exec('PRAGMA foreign_keys = ON');
   }
 
   /**
@@ -152,6 +200,32 @@ export class AgentStatusStore {
   /** セッション行を削除する（deleteSessionFile 相当）。存在しなくてもエラーにしない。 */
   deleteSession(sessionId: string): void {
     this.db.prepare('DELETE FROM agent_sessions WHERE session_id = ?').run(sessionId);
+  }
+
+  /**
+   * handoff payload（圧縮ステート JSON）と handoff_at のみ UPSERT する。
+   * 編集系・コミット系の列は触らない。`summary` は json_valid である必要がある（CHECK で担保）。
+   * 行が無い場合は最小行として作成する。
+   */
+  upsertSummary(input: SummaryUpsertInput): void {
+    const updatedAt = input.updatedAt ?? nowIso();
+    const handoffAt = input.handoffAt ?? nowIso();
+    const stmt = this.db.prepare(`
+      INSERT INTO agent_sessions
+        (session_id, summary, handoff_at, updated_at)
+      VALUES
+        ($sid, $summary, $handoffAt, $updatedAt)
+      ON CONFLICT(session_id) DO UPDATE SET
+        summary = excluded.summary,
+        handoff_at = excluded.handoff_at,
+        updated_at = excluded.updated_at
+    `);
+    stmt.run({
+      $sid: input.sessionId,
+      $summary: input.summary,
+      $handoffAt: handoffAt,
+      $updatedAt: updatedAt,
+    });
   }
 
   /**

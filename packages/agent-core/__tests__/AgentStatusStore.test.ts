@@ -51,7 +51,8 @@ describe('AgentStatusStore', () => {
     expect(row!.plannedEdits).toEqual(['/ws/b.ts']);
     expect(row!.committedCount).toBe(0);
     expect(row!.lastCommit).toBeNull();
-    expect(row!.summary).toBe('');
+    expect(row!.summary).toBe('{}'); // handoff スキーマ移行で既定 '' → '{}'（json_valid CHECK）
+    expect(row!.handoffAt).toBeNull();
   });
 
   it('upsertEditing は同一セッションを更新する（編集系のみ）', () => {

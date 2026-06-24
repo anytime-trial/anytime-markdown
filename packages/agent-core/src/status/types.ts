@@ -38,10 +38,12 @@ export interface AgentSessionRow {
   readonly committedCount: number;
   /** 最新コミット。未コミットなら null */
   readonly lastCommit: AgentLastCommit | null;
-  /** 予約列（本タスクでは未使用）。実施内容の要約 */
+  /** handoff payload（圧縮ステート JSON 文字列）。未生成なら '{}' */
   readonly summary: string;
-  /** 予約列（本タスクでは未使用）。要約生成時刻 UTC ISO 8601 */
+  /** 将来のナラティブ要約生成時刻 UTC ISO 8601（予約） */
   readonly summaryAt: string | null;
+  /** 引き継ぎ確定時刻 UTC ISO 8601。未引き継ぎなら null */
+  readonly handoffAt: string | null;
   /** 最終更新時刻 UTC ISO 8601 */
   readonly updatedAt: string;
 }
@@ -80,6 +82,15 @@ export interface EditUpsertInput {
  * 初回シード（`count: 0`・commitHash 無し）では last_head のみ更新し、既存 HEAD を
  * 誤って「コミット済み」として表示しない。
  */
+export interface SummaryUpsertInput {
+  readonly sessionId: string;
+  /** handoff payload（圧縮ステート）の JSON 文字列。json_valid である必要がある */
+  readonly summary: string;
+  /** 引き継ぎ確定時刻 UTC ISO 8601。省略時はワーカーが現在時刻を補う */
+  readonly handoffAt?: string;
+  /** 更新時刻。省略時はワーカーが現在時刻を補う */
+  readonly updatedAt?: string;
+}
 export interface CommitUpsertInput {
   readonly sessionId: string;
   /** 検出後の最新 HEAD。次回の差分検出基点として保存する */
