@@ -192,6 +192,38 @@ Editor --> Writer: Show notification
 ```
 
 
+### Anytime Chart — Visualizing Numbers
+
+Numeric data communicates trends at a glance far better as a chart than as a table.\
+Insert it with the "Chart" slash command, then pick a type (line, bar, scatter) from the "Samples" panel in the edit dialog.
+
+```anytime-chart
+{
+  "kind": "bar",
+  "title": "Population by Country",
+  "categories": ["United States", "Canada", "Germany", "France", "Mexico", "Japan"],
+  "series": [
+    { "name": "Population", "values": [1900, 1250, 3750, 3450, 4300, 3250] }
+  ]
+}
+```
+
+
+### Thinking Diagram — Structuring Ideas
+
+Frameworks for ideation and analysis can be structured with dedicated diagrams.\
+Insert one with the "Thinking Diagram" slash command, then pick a diagram type (fishbone, logic tree, SWOT, and more) from the "Samples" panel in the edit dialog.
+
+```anytime-thinking-model
+type: logic-tree
+root: Issue
+- Element A
+  - Detail A1
+  - Detail A2
+- Element B
+```
+
+
 ## Free Expression — HTML Blocks
 
 When you need layouts beyond Markdown's capabilities, HTML blocks are available.
