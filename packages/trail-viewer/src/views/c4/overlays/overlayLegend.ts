@@ -342,7 +342,10 @@ export function mountOverlayLegend(
       `background:${props.bg};color:${props.textColor};` +
       'border-radius:4px;padding:6px 8px;';
     if (props.inline) {
-      root.style.cssText = 'display:flex;flex-direction:column;gap:3px;' + baseStyle;
+      // 左パネル列に積む。長いコミュニティ凡例(最大20件)で列が伸び切らないよう高さ制限+スクロール。
+      root.style.cssText =
+        'display:flex;flex-direction:column;gap:3px;' + baseStyle +
+        'max-height:240px;overflow-y:auto;overflow-x:hidden;max-width:220px;';
     } else {
       root.style.cssText =
         'display:flex;flex-direction:column;gap:3px;' + baseStyle +
