@@ -1,7 +1,7 @@
 /**
  * vanillaChrome.ImageAnnotationDialog.test.ts — 脱React の vanilla DOM「ImageAnnotationDialog」のテスト。
  *
- * ツールバー（tool 切替 / color / undo / close）、SVG ドラッグ描画（mousedown→move→up で注釈生成）、
+ * ツールバー（close / tool 切替 / color）、SVG ドラッグ描画（mousedown→move→up で注釈生成）、
  * コメントパネル（注釈リスト / コメント入力 / 削除）、確定（onSave + onClose）、
  * destroy のクリーンアップ（listener / 子コントロール / overlay）を検証する。
  *
@@ -203,19 +203,12 @@ describe("createImageAnnotationDialog", () => {
     handle.destroy();
   });
 
-  it("undo ボタンで最後の注釈を取り消す（空のとき disabled）", () => {
+  it("undo ボタンは表示しない（注釈削除は各行の削除ボタンで行う）", () => {
     const { handle } = open();
     const undoBtn = [...handle.el.querySelectorAll("button")].find(
       (b) => b.getAttribute("aria-label") === "undo",
-    ) as HTMLButtonElement;
-    expect(undoBtn.disabled).toBe(true);
-
-    const svg = handle.el.querySelector("[data-am-annotation-surface]") as SVGSVGElement;
-    drag(svg, 10, 10, 50, 50);
-    expect(undoBtn.disabled).toBe(false);
-    undoBtn.click();
-    expect(handle.el.textContent).toContain("commentPanel (0)");
-    expect(undoBtn.disabled).toBe(true);
+    );
+    expect(undoBtn).toBeUndefined();
     handle.destroy();
   });
 
