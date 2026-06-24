@@ -41,6 +41,9 @@ function makeInfo(overrides: Partial<SelectedElementInfo> = {}): SelectedElement
       breakdown: [
         { community: 7, count: 6 },
         { community: 3, count: 4 },
+        { community: 1, count: 3 },
+        { community: 2, count: 2 },
+        { community: 5, count: 1 }, // slice(3) → "other" 要素を描画させ floor 検証に通す
       ],
       isGodNode: true,
     },
@@ -90,6 +93,22 @@ describe('appendSelectedElementDetailSections', () => {
     expect(text).toContain('Alpha'); // dominant community name from codeGraph
     expect(text).toContain('c4.community.hubNode'); // god node badge
     expect(text).toContain('c4.community.breakdown');
+  });
+
+  // Regression: 右パネル詳細のフォントが他パネル(左 labels 0.65rem 等)より小さく見えた問題。
+  // 0.62rem 未満の極小フォントを再導入しないことを保証する（floor=0.62rem）。
+  test('詳細セクションのフォントが極小(0.62rem 未満)にならない', () => {
+    const host = document.createElement('div');
+    appendSelectedElementDetailSections(host, makeInfo(), makeOpts());
+    // breakdown 5件 → "other" 要素(本変更で 0.62rem 化)も描画され floor 検証に含まれる
+    expect(host.textContent ?? '').toContain('c4.community.other');
+    const tooSmall: string[] = [];
+    for (const elx of Array.from(host.querySelectorAll<HTMLElement>('*'))) {
+      const fs = elx.style.fontSize;
+      const m = /^([0-9.]+)rem$/.exec(fs);
+      if (m && Number.parseFloat(m[1]) < 0.62) tooSmall.push(fs);
+    }
+    expect(tooSmall).toEqual([]);
   });
 
   test('Matrix and Graph icon buttons fire callbacks', () => {
