@@ -34,6 +34,24 @@ export interface MatrixPanelVanillaProps {
 const LEVELS = ['package', 'component', 'code'] as const;
 const LEVEL_LABELS: Record<string, string> = { package: 'C2', component: 'C3', code: 'C4' };
 
+/**
+ * Structural signature of the grid options. The spreadsheet grid captures its
+ * adapter/dimensions/headers at mount time and its update() only handles theme
+ * (isDark) — it cannot swap the data source. So we remount the grid whenever
+ * this signature changes (e.g. the DSM level switches between C2/C3/C4, which
+ * changes the rows/headers/width). Pure theme toggles keep the same signature
+ * and reuse the existing grid via update().
+ */
+function gridStructureSig(o: Omit<SpreadsheetGridOptions, 'isDark'>): string {
+  return JSON.stringify([
+    o.gridRows ?? null,
+    o.gridCols ?? null,
+    o.rowHeaderWidth ?? null,
+    o.columnHeaders ?? null,
+    o.rowHeaders ?? null,
+  ]);
+}
+
 export function mountMatrixPanel(
   container: HTMLElement,
   initial: MatrixPanelVanillaProps,
@@ -73,6 +91,7 @@ export function mountMatrixPanel(
   root.appendChild(sheetArea);
 
   let gridHandle: SpreadsheetGridHandle | null = null;
+  let gridSig: string | null = null;
   let emptyEl: HTMLElement | null = null;
 
   function applyButtonStyles(): void {
@@ -89,13 +108,21 @@ export function mountMatrixPanel(
   function renderSheet(): void {
     if (props.gridOptions) {
       if (emptyEl) { emptyEl.remove(); emptyEl = null; }
+      const sig = gridStructureSig(props.gridOptions);
+      // The grid's update() only swaps the theme, not the adapter/dimensions, so
+      // a structural change (e.g. DSM level C2/C3/C4) requires a remount.
+      if (gridHandle && sig !== gridSig) {
+        gridHandle.destroy();
+        gridHandle = null;
+      }
       if (!gridHandle) {
         gridHandle = mountSpreadsheetGrid(sheetArea, { ...props.gridOptions, isDark: props.isDark });
+        gridSig = sig;
       } else {
-        gridHandle.update({ ...props.gridOptions, isDark: props.isDark });
+        gridHandle.update({ isDark: props.isDark });
       }
     } else {
-      if (gridHandle) { gridHandle.destroy(); gridHandle = null; }
+      if (gridHandle) { gridHandle.destroy(); gridHandle = null; gridSig = null; }
       if (!emptyEl) {
         emptyEl = document.createElement('div');
         emptyEl.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;width:100%;';
