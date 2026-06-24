@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/browser-extension",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Chrome / Edge (Manifest V3) extension that opens the anytime-markdown rich editor (<anytime-markdown-rich-editor> Web Component, mermaid/katex/plantuml/math/graph) in a full-page tab.",
   "license": "MIT",
   "private": true,
