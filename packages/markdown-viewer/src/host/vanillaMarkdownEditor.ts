@@ -377,7 +377,9 @@ function applyEditorSettings(
   settings: EditorSettings,
   readonlyMode: boolean,
 ): void {
-  editor.view.dom.setAttribute("spellcheck", String(settings.spellCheck));
+  // スペルチェック機能は撤去済み。エディタ DOM では常に無効化する
+  // （未指定だと contenteditable のブラウザ既定で有効化されるため明示的に false 固定）。
+  editor.view.dom.setAttribute("spellcheck", "false");
   editor.setEditable(!readonlyMode);
   root.style.setProperty("--am-editor-font-size", `${settings.fontSize}px`);
   root.style.setProperty("--am-editor-line-height", String(settings.lineHeight));

@@ -19,7 +19,6 @@ export interface EditorSettings {
   lightTextColor: string;  // ライトモード文字色（空文字 = テーマデフォルト）
   darkBgColor: string;     // ダークモード背景色（空文字 = テーマデフォルト）
   darkTextColor: string;   // ダークモード文字色（空文字 = テーマデフォルト）
-  spellCheck: boolean;
   paperSize: "off" | "A3" | "A4" | "B4" | "B5";
   paperMargin: number; // mm単位、10-40
   blockAlign: "left" | "center" | "right";
@@ -36,7 +35,6 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   lightTextColor: "",
   darkBgColor: "",
   darkTextColor: "",
-  spellCheck: false,
   paperSize: "off",
   paperMargin: 20,
   blockAlign: "left",

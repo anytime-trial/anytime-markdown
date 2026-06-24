@@ -27,7 +27,6 @@ const baseSettings: EditorSettings = {
   lightTextColor: "",
   darkBgColor: "",
   darkTextColor: "",
-  spellCheck: false,
   paperSize: "A4",
   paperMargin: 20,
   blockAlign: "left",
@@ -225,15 +224,6 @@ describe("createEditorSettingsPanel", () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(reset).toBe(0);
-    handle.destroy();
-  });
-
-  it("spell check Switch で onUpdate({spellCheck}) を呼ぶ", () => {
-    const { handle, updates } = mount();
-    const sw = paper().querySelector('input[aria-label="settingSpellCheck"]') as HTMLInputElement;
-    sw.checked = true;
-    sw.dispatchEvent(new Event("change"));
-    expect(updates).toContainEqual({ spellCheck: true });
     handle.destroy();
   });
 
