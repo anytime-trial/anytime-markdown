@@ -681,7 +681,7 @@ export function mountC4Viewer(
   overlayLabel.textContent = '';  // filled by render via t()
 
   const popupBtnRow = el('div', 'display:flex;align-items:center;gap:2px;');
-  const graphPopupBtn = iconBtn('Code Graph', ICONS.hub, '', () => {
+  const graphPopupBtn = iconBtn('Code Graph', ICONS.accountTree, props.t('c4.graph.title'), () => {
     showGraphPopup = !showGraphPopup;
     if (showGraphPopup) {
       matrixPopup = null;
@@ -692,11 +692,11 @@ export function mountC4Viewer(
     }
     scheduleRender();
   });
-  const matrixPopupBtn = iconBtn('Matrix', ICONS.tableChart, '', () => {
+  const matrixPopupBtn = iconBtn('Matrix', ICONS.tableChart, props.t('c4.matrix.title'), () => {
     if (matrixPopup) { matrixPopup = null; } else { showGraphPopup = false; scatterPopup = null; matrixPopup = { initialLevel: 'component', filterElementId: null }; }
     scheduleRender();
   });
-  const scatterPopupBtn = iconBtn('Scatter', ICONS.scatterPlot, '', () => {
+  const scatterPopupBtn = iconBtn('Scatter', ICONS.scatterPlot, props.t('c4.scatter.title'), () => {
     if (scatterPopup) { scatterPopup = null; } else { showGraphPopup = false; matrixPopup = null; scatterPopup = { filterElementId: null }; }
     scheduleRender();
   });
@@ -1881,10 +1881,10 @@ export function mountC4Viewer(
         loading: hotspotState.loading,
         isDark,
         enabled: showHotspot,
-        labelPeriod: props.t('c4.hotspot.period'),
-        labelGranularity: props.t('c4.hotspot.granularity'),
-        labelGranularityCommit: props.t('c4.hotspot.granularity.commit'),
-        labelGranularitySession: props.t('c4.hotspot.granularity.session'),
+        labelPeriod: props.t('c4.hotspot.controls.period'),
+        labelGranularity: props.t('c4.hotspot.controls.granularity'),
+        labelGranularityCommit: props.t('c4.hotspot.controls.granularityCommit'),
+        labelGranularitySession: props.t('c4.hotspot.controls.granularitySession'),
       };
       if (!hotspotControlsHandle) {
         hotspotControlsHandle = mountHotspotControls(graphCanvasArea, hcProps);
@@ -2307,7 +2307,7 @@ export function mountC4Viewer(
         t: props.t,
       });
       const graphShell = {
-        title: props.t('viewer.tab.graph'),
+        title: props.t('c4.graph.title'),
         ariaLabel: 'Code graph panel',
         onClose: () => { showGraphPopup = false; scheduleRender(); },
         isDark,

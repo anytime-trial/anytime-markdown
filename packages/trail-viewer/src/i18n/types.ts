@@ -19,6 +19,7 @@ export interface TrailI18n {
   // filter
   'filter.searchPlaceholder': string;
   'filter.workspace': string;
+  'filter.workspaceAll': string;
   'analytics.chartCumulativeInferenceTime': string;
   'analytics.openInTraces': string;
   'filter.searchLabel': string;
@@ -288,6 +289,10 @@ export interface TrailI18n {
   'c4.hotspot.controls.granularity': string;
   'c4.hotspot.controls.granularityCommit': string;
   'c4.hotspot.controls.granularitySession': string;
+  'c4.defectRisk.window': string;
+  'c4.defectRisk.halfLife': string;
+  'c4.defectRisk.calculating': string;
+  'c4.defectRisk.off': string;
   'c4.level.L5': string;
   'c4.level.L5.description': string;
   'c4.level.L5.emptySelection': string;
@@ -314,6 +319,13 @@ export interface TrailI18n {
   'c4.scatter.tooltipRole': string;
   'c4.scatter.tooltipCog': string;
   'c4.scatter.entriesCount': string;
+  'c4.matrix.title': string;
+  'c4.graph.title': string;
+  'c4.scatter.tabScatter': string;
+  'c4.scatter.tabGalaxy': string;
+  'c4.scatter.tabCity': string;
+  'c4.scatter.tour': string;
+  'c4.scatter.tourStop': string;
   'c4.frameFilter.reset': string;
   'c4.elementPanel.searchPlaceholder': string;
   'c4.elementPanel.searchClear': string;
