@@ -55,15 +55,14 @@ describe('setupClaudeHooks', () => {
     return require('../claude/claudeHookSetup');
   }
 
-  test('registers hooks for a multi-segment relative statusDir', () => {
+  test('registers hooks without creating any status file/dir', () => {
     const { setupClaudeHooks } = loadModule();
-    const statusDir = '.anytime/trail/agent-status';
 
-    const registered = setupClaudeHooks(tmpWorkspace, statusDir);
+    const registered = setupClaudeHooks(tmpWorkspace);
 
     expect(registered).toBe(true);
     // 新方式ではフックはファイルを書かず agent-status ワーカーへ POST するため、
-    // statusDir のディレクトリ作成は行わない。
+    // ディレクトリ作成は行わない。
     const settings = JSON.parse(
       fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
     );
@@ -72,7 +71,7 @@ describe('setupClaudeHooks', () => {
 
   test('Edit|Write hook posts to agent-status worker resolved from workspaceRoot', () => {
     const { setupClaudeHooks } = loadModule();
-    setupClaudeHooks(tmpWorkspace, '.anytime/trail/agent-status');
+    setupClaudeHooks(tmpWorkspace);
 
     const settings = JSON.parse(
       fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
@@ -94,7 +93,7 @@ describe('setupClaudeHooks', () => {
 
   test('plan-file hook embeds workspaceRoot for plannedEdits path prefixing', () => {
     const { setupClaudeHooks } = loadModule();
-    setupClaudeHooks(tmpWorkspace, '.anytime/trail/agent-status');
+    setupClaudeHooks(tmpWorkspace);
 
     const settings = JSON.parse(
       fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
@@ -115,7 +114,7 @@ describe('setupClaudeHooks', () => {
 
   test('commit-tracker anchors AGENT_HOME and session-guard anchors TRAIL_HOME at workspaceRoot', () => {
     const { setupClaudeHooks } = loadModule();
-    setupClaudeHooks(tmpWorkspace, '.anytime/trail/agent-status');
+    setupClaudeHooks(tmpWorkspace);
 
     const settings = JSON.parse(
       fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
@@ -146,7 +145,7 @@ describe('setupClaudeHooks', () => {
 
   test('commit-tracker.sh script targets agent-status worker, not trail message-commits', () => {
     const { setupClaudeHooks } = loadModule();
-    setupClaudeHooks(tmpWorkspace, '.anytime/trail/agent-status');
+    setupClaudeHooks(tmpWorkspace);
 
     const script = fs.readFileSync(
       path.join(tmpHome, '.claude', 'scripts', 'commit-tracker.sh'),
@@ -161,8 +160,8 @@ describe('setupClaudeHooks', () => {
 
   test('is idempotent: running twice does not duplicate hook entries', () => {
     const { setupClaudeHooks } = loadModule();
-    setupClaudeHooks(tmpWorkspace, '.anytime/trail/agent-status');
-    setupClaudeHooks(tmpWorkspace, '.anytime/trail/agent-status');
+    setupClaudeHooks(tmpWorkspace);
+    setupClaudeHooks(tmpWorkspace);
 
     const settings = JSON.parse(
       fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
@@ -176,7 +175,7 @@ describe('setupClaudeHooks', () => {
   test('returns false when the .claude directory does not exist', () => {
     fs.rmSync(path.join(tmpHome, '.claude'), { recursive: true, force: true });
     const { setupClaudeHooks } = loadModule();
-    const result = setupClaudeHooks(tmpWorkspace, '.anytime');
+    const result = setupClaudeHooks(tmpWorkspace);
     expect(result).toBe(false);
   });
 
@@ -187,46 +186,14 @@ describe('setupClaudeHooks', () => {
       'utf-8',
     );
     const { setupClaudeHooks } = loadModule();
-    const result = setupClaudeHooks(tmpWorkspace, '.anytime');
+    const result = setupClaudeHooks(tmpWorkspace);
     expect(result).toBe(false);
-  });
-
-  test('getStatusFilePath returns absolute statusDir as-is', () => {
-    const { getStatusFilePath } = loadModule();
-    const abs = path.join(tmpWorkspace, 'custom-abs');
-    const result = getStatusFilePath(tmpWorkspace, abs);
-    expect(result).toBe(path.join(abs, 'claude-code-status.json'));
-  });
-
-  test('getStatusFilePath falls back to homedir when workspaceRoot is undefined', () => {
-    const { getStatusFilePath } = loadModule();
-    const result = getStatusFilePath(undefined, '.anytime');
-    expect(result.startsWith(tmpHome)).toBe(true);
-    expect(result.endsWith('claude-code-status.json')).toBe(true);
-  });
-
-  test('getStatusFileGlob includes wildcard for session-aware files', () => {
-    const { getStatusFileGlob } = loadModule();
-    expect(getStatusFileGlob(tmpWorkspace, '.anytime')).toBe(
-      path.join(tmpWorkspace, '.anytime', 'claude-code-status*.json'),
-    );
-    expect(getStatusFileGlob(undefined, '.anytime')).toBe(
-      path.join(tmpHome, '.anytime', 'claude-code-status*.json'),
-    );
-    // absolute statusDir path
-    const abs = path.join(tmpWorkspace, 'abs-status');
-    expect(getStatusFileGlob(tmpWorkspace, abs)).toBe(
-      path.join(abs, 'claude-code-status*.json'),
-    );
-    expect(getStatusFileGlob(undefined, abs)).toBe(
-      path.join(abs, 'claude-code-status*.json'),
-    );
   });
 
   test('settings.json が存在しない（ENOENT）場合は空の設定で続行する', () => {
     // ENOENT は「設定ファイル未作成」として許容 → hooks を初期化して true を返す
     const { setupClaudeHooks } = loadModule();
-    const result = setupClaudeHooks(tmpWorkspace, '.anytime');
+    const result = setupClaudeHooks(tmpWorkspace);
     expect(result).toBe(true);
     const settingsPath = path.join(tmpHome, '.claude', 'settings.json');
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
@@ -237,7 +204,7 @@ describe('setupClaudeHooks', () => {
   test('workspaceRoot に末尾スラッシュが複数あっても正規化される', () => {
     const { setupClaudeHooks } = loadModule();
     const rootWithSlashes = tmpWorkspace.replace(/\/*$/, '//');
-    const result = setupClaudeHooks(rootWithSlashes, '.anytime');
+    const result = setupClaudeHooks(rootWithSlashes);
     expect(result).toBe(true);
 
     const settings = JSON.parse(
@@ -250,12 +217,5 @@ describe('setupClaudeHooks', () => {
     // 末尾スラッシュが1つに正規化されている
     expect(cmd).toContain(`cwd:'${tmpWorkspace}/'`);
     expect(cmd).not.toContain(`//`);
-  });
-
-  test('statusDir が絶対パスのとき getStatusFileGlob はそのまま使う', () => {
-    const { getStatusFileGlob } = loadModule();
-    const absDir = path.join(tmpWorkspace, 'abs-dir');
-    const result = getStatusFileGlob(undefined, absDir);
-    expect(result).toBe(path.join(absDir, 'claude-code-status*.json'));
   });
 });

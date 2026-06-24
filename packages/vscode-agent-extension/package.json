@@ -243,11 +243,6 @@
     "configuration": {
       "title": "Anytime Agent",
       "properties": {
-        "anytimeAgent.claudeStatus.directory": {
-          "type": "string",
-          "default": ".anytime/trail/agent-status",
-          "markdownDescription": "%config.claudeStatus.directory%"
-        },
         "anytimeAgent.budget.dailyLimitTokens": {
           "type": [
             "number",

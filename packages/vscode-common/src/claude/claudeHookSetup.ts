@@ -135,15 +135,6 @@ function writeScript(filename: string, content: string): void {
   fs.writeFileSync(scriptPath, content, { encoding: 'utf-8', mode: 0o755 });
 }
 
-function buildStatusFilePath(workspaceRoot?: string, statusDir?: string): string {
-  const dir = statusDir ?? '.anytime';
-  if (path.isAbsolute(dir)) {
-    return path.join(dir, 'claude-code-status.json');
-  }
-  const base = workspaceRoot ?? os.homedir();
-  return path.join(base, dir, 'claude-code-status.json');
-}
-
 interface HookHandler {
   type: 'command';
   command: string;
@@ -165,22 +156,9 @@ interface ClaudeSettings {
   [key: string]: unknown;
 }
 
-export function getStatusFilePath(workspaceRoot?: string, statusDir?: string): string {
-  return buildStatusFilePath(workspaceRoot, statusDir);
-}
-
 /** 指定マーカー文字列を含むフックエントリを除去する（idempotent 更新用） */
 function removeHooksByMarker(entries: HookEntry[], marker: string): HookEntry[] {
   return entries.filter((e) => !e.hooks?.some((h) => h.command?.includes(marker)));
-}
-
-/** セッション ID を含むステータスファイルパスのパターンを返す（glob 用） */
-export function getStatusFileGlob(workspaceRoot?: string, statusDir?: string): string {
-  const dir = statusDir ?? '.anytime';
-  const base = workspaceRoot
-    ? (path.isAbsolute(dir) ? dir : path.join(workspaceRoot, dir))
-    : (path.isAbsolute(dir) ? dir : path.join(os.homedir(), dir));
-  return path.join(base, 'claude-code-status*.json');
 }
 
 /**
@@ -198,7 +176,7 @@ function removeStatusFileHooks(entries: HookEntry[]): HookEntry[] {
   );
 }
 
-export function setupClaudeHooks(workspaceRoot?: string, statusDir?: string, trailPort = 19841): boolean {
+export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boolean {
   if (!fs.existsSync(CLAUDE_DIR)) {
     return false;
   }

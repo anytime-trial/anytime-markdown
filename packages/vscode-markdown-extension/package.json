@@ -209,11 +209,6 @@
           ],
           "description": "%configuration.themePreset.description%"
         },
-        "anytimeMarkdown.claudeStatus.directory": {
-          "type": "string",
-          "default": "",
-          "description": "%configuration.claudeStatus.directory.description%"
-        },
         "anytimeMarkdown.docsRoot": {
           "type": "string",
           "default": "",

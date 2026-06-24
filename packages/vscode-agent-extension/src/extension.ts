@@ -217,12 +217,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   const workspacePath = workspaceFolder?.uri.fsPath ?? process.cwd();
 
-  const claudeStatusDirSetting =
-    vscode.workspace
-      .getConfiguration('anytimeAgent')
-      .get<string>('claudeStatus.directory', '.anytime/trail/agent-status') ||
-    '.anytime/trail/agent-status';
-
   // Claude Code hook を ~/.claude/settings.json に自動登録
   // trail サーバ宛 POST (token-budget / message-commits) は trail 拡張側の port 設定を参照する。
   // trail 拡張未インストール時は default port を使い、サーバ未起動なら silent fail する。
@@ -230,11 +224,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     .getConfiguration('anytimeTrail.viewer')
     .get<number>('port', 19841);
   if (workspaceFolder) {
-    const registered = setupClaudeHooks(
-      workspacePath,
-      claudeStatusDirSetting,
-      trailPortForHooks,
-    );
+    const registered = setupClaudeHooks(workspacePath, trailPortForHooks);
     AgentLogger.info(
       `Claude hooks setup: ${registered ? 'registered' : 'skipped (already registered or .claude not found)'}`,
     );
@@ -252,7 +242,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }
 
   // Agent Mapping view
-  // claudeStatusDirSetting はフック登録の互換用に残すが、watcher のデータ源はワーカー HTTP。
+  // watcher のデータ源は agent-status ワーカーの HTTP（agent-status.db）。旧 claude-code-status.json は廃止。
   const agentStatusClient = new AgentStatusClient({ workspaceRoot: workspacePath });
   const watcher = new ClaudeStatusWatcher(agentStatusClient);
   const mappingProvider = new AgentMappingProvider(watcher, workspacePath);
