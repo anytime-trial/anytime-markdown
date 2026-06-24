@@ -67,6 +67,12 @@ function formatLastCommit(lastCommit: { hash: string; timestamp: string }): stri
   return `\`${shortHash}\`${timeStr}`;
 }
 
+/** コンテキスト肥大の警告閾値（トークン）。設定 anytimeAgent.contextWarnTokens（既定 16万）。 */
+function contextWarnTokens(): number {
+  const v = vscode.workspace.getConfiguration('anytimeAgent').get<number>('contextWarnTokens');
+  return typeof v === 'number' && v > 0 ? v : 160000;
+}
+
 export class SessionTreeItem extends vscode.TreeItem {
   constructor(public readonly session: SessionMapping) {
     super(session.sessionId.slice(0, 8));
@@ -76,15 +82,19 @@ export class SessionTreeItem extends vscode.TreeItem {
       : `${Math.round(session.ageSeconds / 60)} min ago`;
     const label = session.sessionTitle || session.fileBasename;
     const tokenStr = session.contextTokens ? `  ${formatTokens(session.contextTokens)}` : '';
+    // コンテキストが閾値を超えたら引き継ぎ推奨バッジ（⚠️）を token の前に出す。
+    const bloated = (session.contextTokens ?? 0) >= contextWarnTokens();
+    const warnStr = bloated ? '  ⚠️' : '';
     // コミットありのときのみ idle/editing の直後に committed(N) を挿入（0 件は非表示で冗長さを避ける）。
     const committed = session.committedCount ?? 0;
     const committedStr = committed > 0 ? ` • committed(${committed})` : '';
-    this.description = `${stateStr}${committedStr} • ${age}${tokenStr}${label ? `    ${label}` : ''}`;
+    this.description = `${stateStr}${committedStr} • ${age}${warnStr}${tokenStr}${label ? `    ${label}` : ''}`;
     this.iconPath = STATE_ICONS[session.state];
-    this.contextValue = `session.${session.state}`;
+    this.contextValue = bloated ? `session.${session.state}.bloated` : `session.${session.state}`;
     this.tooltip = new vscode.MarkdownString(
       `**Session:** \`${session.sessionId}\`\n\n` +
       (session.contextTokens ? `**Context:** ${formatTokens(session.contextTokens)} tokens\n\n` : '') +
+      (bloated ? `⚠️ **引き継ぎ推奨**（コンテキスト肥大）— 新セッションへの引き継ぎを検討してください\n\n` : '') +
       (committed > 0
         ? `**コミット:** ${committed} 件` +
           (session.lastCommit ? ` / 最新 ${formatLastCommit(session.lastCommit)}` : '') +

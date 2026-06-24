@@ -265,6 +265,12 @@
           "minimum": 1,
           "maximum": 100,
           "markdownDescription": "上限に対する警告閾値（%）。"
+        },
+        "anytimeAgent.contextWarnTokens": {
+          "type": "number",
+          "default": 160000,
+          "minimum": 1000,
+          "markdownDescription": "セッションのコンテキストトークンがこの値を超えるとツリーに引き継ぎ推奨バッジ（⚠️）を表示する。"
         }
       }
     }
