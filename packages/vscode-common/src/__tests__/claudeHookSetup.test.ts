@@ -178,6 +178,41 @@ describe('setupClaudeHooks', () => {
     expect(script).not.toContain('.anytime/trail/state');
   });
 
+  test('handoff-inject hook registered, script written, and .anytime/ gitignored', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const inject = settings.hooks.UserPromptSubmit.find(
+      (e: { hooks: Array<{ command: string }> }) =>
+        e.hooks?.[0]?.command?.includes('handoff-inject.sh'),
+    );
+    expect(inject).toBeDefined();
+    expect(inject.hooks[0].command).toContain(`AGENT_HOME='${tmpWorkspace}/.anytime/agent'`);
+
+    const script = fs.readFileSync(
+      path.join(tmpHome, '.claude', 'scripts', 'handoff-inject.sh'),
+      'utf-8',
+    );
+    // additionalContext として JSON 出力し、source==現セッションは除外、rename で消費
+    expect(script).toContain('additionalContext');
+    expect(script).toContain('UserPromptSubmit');
+    expect(script).toContain('.consumed');
+
+    const gi = fs.readFileSync(path.join(tmpWorkspace, '.gitignore'), 'utf-8');
+    expect(gi).toContain('.anytime/');
+  });
+
+  test('ensureAnytimeGitignored は冪等（既存 .anytime/ を重複追加しない）', () => {
+    const { setupClaudeHooks } = loadModule();
+    fs.writeFileSync(path.join(tmpWorkspace, '.gitignore'), 'node_modules/\n.anytime/\n');
+    setupClaudeHooks(tmpWorkspace);
+    const gi = fs.readFileSync(path.join(tmpWorkspace, '.gitignore'), 'utf-8');
+    expect(gi.split('.anytime/').length - 1).toBe(1);
+  });
+
   test('is idempotent: running twice does not duplicate hook entries', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
