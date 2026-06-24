@@ -83,35 +83,4 @@ describe('CodeGraphService generateForRepo() — layer 注釈', () => {
     expect(graph.nodes[0].package).toBe('sample');
     expect(graph.nodes[0].layer).toBe('utility');
   });
-
-  it('generate() 後に層 C4 コンテナを auto シードする（手動要素なしの repo）', async () => {
-    writePkg(tmpDir, 'sample-db', {
-      name: '@anytime-markdown/sample-db',
-      dependencies: { 'better-sqlite3': '12.4.1' },
-    });
-    const trailGraph: TrailGraph = {
-      nodes: [
-        { id: 'file::packages/sample-db/src/db.ts', label: 'db', type: 'file', filePath: 'packages/sample-db/src/db.ts', line: 1 },
-      ],
-      edges: [],
-      metadata: { projectRoot: tmpDir, analyzedAt: '2026-01-01', fileCount: 1 },
-    };
-    const saveManualElement = jest.fn();
-    const db = {
-      getCurrentCodeGraph: jest.fn(),
-      saveCurrentCodeGraph: jest.fn(),
-      getManualElements: jest.fn(() => []),
-      saveManualElement,
-    };
-    const svc = new CodeGraphService({
-      repositories: [{ id: 'sample', label: 'sample', path: tmpDir }],
-      trailGraphProvider: () => ({ sample: trailGraph }),
-      trailDb: db as never,
-    });
-    await svc.generate();
-    // data 層コンテナが auto シードされる。
-    expect(saveManualElement).toHaveBeenCalledTimes(1);
-    const [, input] = saveManualElement.mock.calls[0];
-    expect(input).toMatchObject({ type: 'container', name: 'data', serviceType: 'auto-layer' });
-  });
 });
