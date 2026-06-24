@@ -112,7 +112,7 @@ describe('setupClaudeHooks', () => {
     expect(planCmd).not.toContain(`wr='${wrongWr}'`);
   });
 
-  test('commit-tracker anchors AGENT_HOME and session-guard anchors TRAIL_HOME at workspaceRoot', () => {
+  test('commit-tracker and session-guard both anchor AGENT_HOME at workspaceRoot', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
 
@@ -138,7 +138,7 @@ describe('setupClaudeHooks', () => {
     );
     expect(sessionGuard).toBeDefined();
     expect(sessionGuard.hooks[0].command).toContain(
-      `TRAIL_HOME='${tmpWorkspace}/.anytime/trail'`,
+      `AGENT_HOME='${tmpWorkspace}/.anytime/agent'`,
     );
     expect(sessionGuard.hooks[0].command).not.toContain('${CWD}');
   });
@@ -156,6 +156,23 @@ describe('setupClaudeHooks', () => {
     expect(script).not.toContain('/api/message-commits');
     // git-state ファイルへの書き込みが廃止されていること
     expect(script).not.toContain('git-state');
+  });
+
+  test('session-guard.sh writes its state file under AGENT_HOME (.anytime/agent)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const script = fs.readFileSync(
+      path.join(tmpHome, '.claude', 'scripts', 'session-guard.sh'),
+      'utf-8',
+    );
+    // state ファイルは .anytime/agent 配下（AGENT_HOME）に書く
+    expect(script).toContain('AGENT_HOME');
+    expect(script).toContain('.anytime/agent');
+    expect(script).toContain('${AGENT_HOME}/claude-session-guard.json');
+    // 旧 .anytime/trail/state 配下への書き込みが廃止されていること
+    expect(script).not.toContain('TRAIL_HOME');
+    expect(script).not.toContain('.anytime/trail/state');
   });
 
   test('is idempotent: running twice does not duplicate hook entries', () => {
