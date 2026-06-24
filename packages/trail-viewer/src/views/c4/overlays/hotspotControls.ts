@@ -25,6 +25,12 @@ export interface HotspotControlsVanillaProps {
   readonly labelGranularity: string;
   readonly labelGranularityCommit: string;
   readonly labelGranularitySession: string;
+  /**
+   * 'floating'（既定）= キャンバス左上に絶対配置するパネル。
+   * 'inline' = 親 flex 列のフロー内に積む（左コントロールパネルへ組み込む用途）。
+   * leftPanel に絶対配置で重ねると C4 コントロールと衝突するため inline を使う。
+   */
+  readonly variant?: 'floating' | 'inline';
 }
 
 const PERIOD_OPTIONS: ReadonlyArray<TrendPeriod> = ['7d', '30d', '90d', 'all'];
@@ -44,12 +50,7 @@ export function mountHotspotControls(
   const root = document.createElement('div');
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-label', 'Hotspot overlay controls');
-  root.style.cssText =
-    'position:absolute;top:8px;left:8px;width:220px;z-index:10;' +
-    'border:1px solid var(--am-color-divider);border-radius:8px;' +
-    `background:${buildBg(props.isDark ?? false)};` +
-    'box-shadow:0 8px 24px rgba(0,0,0,0.28);' +
-    'backdrop-filter:blur(10px);padding:10px 12px;';
+  applyRootStyle();
 
   // Caption
   const caption = document.createElement('span');
@@ -117,6 +118,19 @@ export function mountHotspotControls(
   loadingEl.textContent = '...';
   root.appendChild(loadingEl);
 
+  function applyRootStyle(): void {
+    const positionCss =
+      (props.variant ?? 'floating') === 'inline'
+        ? 'position:static;width:220px;'
+        : 'position:absolute;top:8px;left:8px;width:220px;z-index:10;';
+    root.style.cssText =
+      positionCss +
+      'border:1px solid var(--am-color-divider);border-radius:8px;' +
+      `background:${buildBg(props.isDark ?? false)};` +
+      'box-shadow:0 8px 24px rgba(0,0,0,0.28);' +
+      'backdrop-filter:blur(10px);padding:10px 12px;';
+  }
+
   function applyEnabled(): void {
     root.style.display = props.enabled === false ? 'none' : '';
   }
@@ -133,12 +147,13 @@ export function mountHotspotControls(
     update(next) {
       const prevEnabled = props.enabled;
       const prevIsDark = props.isDark;
+      const prevVariant = props.variant;
       props = next;
 
-      if (prevEnabled !== next.enabled) applyEnabled();
-      if (prevIsDark !== next.isDark) {
-        root.style.background = buildBg(next.isDark ?? false);
-      }
+      // applyRootStyle は cssText を作り直すため display を消す。直後に applyEnabled で復元する。
+      const styleChanged = prevIsDark !== next.isDark || prevVariant !== next.variant;
+      if (styleChanged) applyRootStyle();
+      if (styleChanged || prevEnabled !== next.enabled) applyEnabled();
       periodLabel.textContent = next.labelPeriod;
       granularityLegend.textContent = next.labelGranularity;
       periodSelect.update({

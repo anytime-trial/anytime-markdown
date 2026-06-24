@@ -1980,9 +1980,11 @@ export function mountC4Viewer(
         labelGranularity: props.t('c4.hotspot.controls.granularity'),
         labelGranularityCommit: props.t('c4.hotspot.controls.granularityCommit'),
         labelGranularitySession: props.t('c4.hotspot.controls.granularitySession'),
+        // leftPanel の列に inline 配置（floating だと leftPanel と座標衝突）
+        variant: 'inline',
       };
       if (!hotspotControlsHandle) {
-        hotspotControlsHandle = mountHotspotControls(graphCanvasArea, hcProps);
+        hotspotControlsHandle = mountHotspotControls(leftPanel, hcProps);
       } else {
         hotspotControlsHandle.update(hcProps);
       }
