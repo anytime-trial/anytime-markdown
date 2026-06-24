@@ -424,7 +424,6 @@ export function createZoomablePreview(opts: {
   }
 
   function applyTransform(state: { zoom: number; pan: { x: number; y: number }; isDirty: boolean }): void {
-    const DURATION_FAST = "150ms";
     inner.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`;
     inner.style.transformOrigin = opts.origin === "top-left" ? "top left" : "center center";
   }
