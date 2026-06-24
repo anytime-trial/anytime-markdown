@@ -2335,6 +2335,10 @@ export function mountC4Viewer(
     } else {
       if (graphPopupHandle) { graphPopupHandle.destroy(); graphPopupHandle = null; }
       if (graphInnerHandle) { graphInnerHandle = null; /* destroyed via graphPopupHandle.destroy() */ }
+      // Reset transient search/selection so reopening the popup starts clean
+      // (the React panel got this for free via per-mount state).
+      if (graphPanelHighlighted.size > 0) graphPanelHighlighted = new Set();
+      graphPanelSelectedNode = null;
     }
 
     // ── Add Element Dialog ──
