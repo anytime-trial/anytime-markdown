@@ -6,6 +6,8 @@ import { useTemporalCoupling } from '../c4/hooks/useTemporalCoupling';
 import type { TemporalCouplingControlsValue } from '../c4/components/overlays/TemporalCouplingControls';
 import { VanillaIsland } from '../shared/vanillaIsland';
 import { mountCodeGraphPanel, type CodeGraphPanelProps as VanillaProps } from '../views/codeGraphPanel';
+import { useTrailI18n } from '../i18n';
+import type { TrailI18n } from '../i18n';
 
 function toCodeGraphNodeId(repoId: string, filePath: string): string {
   const cleaned = filePath.replace(/\.(tsx?|mdx?)$/, '');
@@ -127,7 +129,8 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     return { status: 'ready', graph };
   }, [loading, error, repoName, graph]);
 
-  const tStr = (key: string): string => key; // CodeGraphPanel has no i18n keys
+  const { t: translate } = useTrailI18n();
+  const t = useCallback((key: string): string => translate(key as keyof TrailI18n), [translate]);
 
   const viewProps: VanillaProps = {
     graphState,
@@ -142,6 +145,7 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     onRefetch: refetch,
     onNodeClick: (n) => void handleNodeClick(n),
     communitySummaries: graph?.communitySummaries,
+    t,
   };
 
   return <VanillaIsland mount={mountCodeGraphPanel} props={viewProps} />;

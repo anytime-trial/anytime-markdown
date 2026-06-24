@@ -41,6 +41,7 @@ import {
   aggregateGhostEdgesToC4,
   aggregateHotspotToC4,
   buildArchitectureMatrix,
+  buildLayerMatrix,
   buildC4ElementById,
   buildCommunityTree,
   buildElementTree,
@@ -58,8 +59,8 @@ import {
   resolveSelectedElementCommunity,
   sortDsmMatrixByName,
 } from '@anytime-markdown/trail-core/c4';
-import type { ArchitectureFileEntry, ArchitectureMatrix, RoleMatrix, SizeMatrix } from '@anytime-markdown/trail-core/c4';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { ArchitectureFileEntry, ArchitectureMatrix, LayerMatrix, RoleMatrix, SizeMatrix } from '@anytime-markdown/trail-core/c4';
+import type { ArchitectureLayer, CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import type { ConfidenceCouplingEdge, DefectRiskEntry, TemporalCouplingEdge } from '@anytime-markdown/trail-core';
 
 import {
@@ -701,6 +702,8 @@ export function mountC4Viewer(
   const overlaySubSelect = el('select', 'font-size:0.75rem;height:28px;width:100%;display:none;');
   overlaySubSelect.addEventListener('change', () => {
     metricOverlay = overlaySubSelect.value as MetricOverlay;
+    // layer overlay は code graph のノード layer を集約するため、未取得なら取得を起動する。
+    if (metricOverlay === 'architecture-layer') fetchCodeGraph();
     scheduleRender();
   });
 
@@ -1068,7 +1071,7 @@ export function mountC4Viewer(
     if (destroyed) return;
     const { serverUrl, selectedRelease, selectedRepo: selectedRepoProp } = props;
     const selectedRepo = selectedRepoProp ?? selectedRepoInternal;
-    const enabled = showCommunity || codeGraphEnabled || currentLevel >= 2;
+    const enabled = showCommunity || codeGraphEnabled || currentLevel >= 2 || metricOverlay === 'architecture-layer';
     if (!enabled || !serverUrl) {
       codeGraphState.ws?.close();
       codeGraphState.ws = null;
@@ -1407,6 +1410,27 @@ export function mountC4Viewer(
       return out;
     })();
 
+    // layer matrix（code graph ノードの package/layer を C4 要素へ集約）
+    const layerMatrix_ = (() => {
+      const g = codeGraphState.graph;
+      if (!g || !c4Model) return null;
+      const layerByPkg = new Map<string, ArchitectureLayer>();
+      for (const n of g.nodes) {
+        if (n.layer) layerByPkg.set(n.package, n.layer);
+      }
+      if (layerByPkg.size === 0) return null;
+      return buildLayerMatrix(c4Model.elements, layerByPkg);
+    })();
+
+    const filteredLayer = (() => {
+      if (!layerMatrix_) return null;
+      const out: LayerMatrix = {};
+      for (const [id, layer] of Object.entries(layerMatrix_)) {
+        if (elementTypeById.get(id) === levelTargetType) out[id] = layer;
+      }
+      return out;
+    })();
+
     const map = computeColorMap(
       metricOverlay,
       filteredCoverage,
@@ -1420,6 +1444,8 @@ export function mountC4Viewer(
       filteredCentrality,
       filteredArch,
       filteredRole,
+      filteredLayer,
+      getC4Colors(props.isDark ?? false).layerColors,
     );
     return map.size > 0 ? map : null;
   }
@@ -2346,7 +2372,7 @@ export function mountC4Viewer(
     else if (overlayCategory === 'hotspot') subOpts.push({ value: 'hotspot-frequency', label: t('c4.overlay.hotspotFrequency') }, { value: 'hotspot-risk', label: t('c4.overlay.hotspotRisk') });
     else if (overlayCategory === 'dead-code') subOpts.push({ value: 'dead-code-score', label: t('c4.overlay.deadCodeScore') });
     else if (overlayCategory === 'size') subOpts.push({ value: 'size-loc', label: t('c4.overlay.sizeLoc') }, { value: 'size-files', label: t('c4.overlay.sizeFiles') }, { value: 'size-functions', label: t('c4.overlay.sizeFunctions') });
-    else if (overlayCategory === 'architecture') subOpts.push({ value: 'architecture-ui', label: t('c4.overlay.architectureUi') });
+    else if (overlayCategory === 'architecture') subOpts.push({ value: 'architecture-ui', label: t('c4.overlay.architectureUi') }, { value: 'architecture-layer', label: t('c4.overlay.architectureLayer') });
 
     if (subOpts.length > 0) {
       overlaySubSelect.style.display = '';

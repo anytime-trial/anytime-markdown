@@ -8,6 +8,33 @@ export interface CodeGraphRepository {
 
 export type EdgeConfidence = 'EXTRACTED' | 'INFERRED' | 'AMBIGUOUS';
 
+/**
+ * アーキテクチャ層のローカルミラー。
+ *
+ * code-analysis-core の `ArchitectureLayer`（`@anytime-markdown/code-analysis-core/architecture`）と
+ * 同一メンバーを **import せず** ここで複製する。trail-core を解析パッケージから疎結合に保つための
+ * 意図的なミラー（`relations.ts` 等の既存ミラー前例に倣う）。
+ *
+ * ミラーずれ防止:
+ * - core 側が層を増減した場合、trail-server で `classifyLayer(...).layer`（core の union）を
+ *   `CodeGraphNode.layer`（本ミラー）へ代入する箇所が型非互換でビルド失敗し検出される。
+ * - 本配列自体の誤編集（メンバー増減）は trail-core の 9 メンバー固定テストで検出される。
+ */
+export const ARCHITECTURE_LAYERS = [
+  'foundation',
+  'analysis',
+  'data',
+  'service-domain',
+  'service-server',
+  'integration',
+  'presentation-ui',
+  'presentation-extension',
+  'utility',
+] as const;
+
+/** アーキテクチャ層。モジュール（パッケージ）単位の分類結果。code-analysis-core の同名型のミラー。 */
+export type ArchitectureLayer = (typeof ARCHITECTURE_LAYERS)[number];
+
 export interface CodeGraphNode {
   readonly id: string;
   readonly label: string;
@@ -19,6 +46,11 @@ export interface CodeGraphNode {
   readonly x: number;
   readonly y: number;
   readonly size: number;
+  /**
+   * アーキテクチャ層（任意）。trail-server の解析パイプラインがパッケージ単位で付与する。
+   * 旧グラフ（未付与）との後方互換のため optional。JSON シリアライズで graph_json に保存される。
+   */
+  readonly layer?: ArchitectureLayer;
 }
 
 export interface CodeGraphEdge {
