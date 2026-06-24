@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+### 変更（破壊的 — 設定）
+
+- ドキュメントルートの設定をトップレベルの `anytimeMarkdown.docsRoot` 1 つに統一。ドキュメント検索の索引とノート網パネルの双方で使用します。旧キー `anytimeMarkdown.noteGraph.repositoryPath` と `anytimeMarkdown.docSearch.docsRoot` は削除したため、いずれかを設定していた場合は `anytimeMarkdown.docsRoot` に再設定してください。
+- ドキュメント検索が `docsRoot` 配下全体を索引対象にするよう変更（従来はサブディレクトリ限定）。`anytimeMarkdown.docSearch.subDir` 設定を削除。
+
+### 削除
+
+- 未使用だった `anytimeMarkdown.editorMaxWidth` 設定を削除（エディタ側で適用されていませんでした）。
+
 ## [1.5.1] - 2026-06-23
 
 ### Editor Core (markdown-viewer / markdown-rich)
