@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/web-app",
-  "version": "0.31.2",
+  "version": "0.31.3",
   "license": "MIT",
   "private": true,
   "scripts": {

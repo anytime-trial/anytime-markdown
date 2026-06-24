@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-06-24
+
+### Trail Core (trail-viewer / memory-core)
+
+- `trail-viewer`: fixed the resizable popup maximize / resize regression, restored the ↗ popup trigger on combined charts, and matched the popup top-right icon color to the theme.
+- `memory-core`: generalized failed-items retry so it also picks up the `conversation_incremental` scope, and resolved the `spec_incremental` partial warning (added the `reference` type and a soft-skip for `related:`-only frontmatter).
+
 ## [0.30.0] - 2026-06-23
 
 ### Added

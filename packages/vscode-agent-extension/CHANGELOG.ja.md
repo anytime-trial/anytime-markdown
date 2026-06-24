@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-06-24
+
+### 変更
+
+- `anytimeAgent.claudeStatus.directory` 設定を削除。エージェントのステータスは agent-status データベースで管理するようになり、旧 `claude-code-status.json` ファイルパスは不要になりました。
+- `session-guard.sh` の警告デデュープ state ファイル（`claude-session-guard.json`）を `.anytime/trail/state/` から `.anytime/agent/` 配下へ移動し、エージェント所有の state を agent ホーム配下へ集約。
+
 ## [0.3.2] - 2026-06-13
 
 ### 変更

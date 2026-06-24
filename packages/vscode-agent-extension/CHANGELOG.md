@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-06-24
+
+### Changed
+
+- Removed the `anytimeAgent.claudeStatus.directory` setting. Agent status is managed in the agent-status database, so the old `claude-code-status.json` file path is no longer used.
+- Moved the `session-guard.sh` warning-dedup state file (`claude-session-guard.json`) from `.anytime/trail/state/` to `.anytime/agent/`, consolidating agent-owned state under the agent home directory.
+
 ## [0.3.2] - 2026-06-13
 
 ### Changed

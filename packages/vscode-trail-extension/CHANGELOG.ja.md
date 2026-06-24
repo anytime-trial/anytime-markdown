@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-06-24
+
+### Trail Core (trail-viewer / memory-core)
+
+- `trail-viewer`: resizable ポップアップの全画面化／リサイズ回帰を修正、combined チャートの ↗ ポップアップトリガを復元、ポップアップ右上アイコンの色をテーマ色に一致。
+- `memory-core`: failed-items retry が `conversation_incremental` scope も拾うよう一般化、`spec_incremental` の partial 警告を解消（`reference` 型追加＋`related:` 専用 frontmatter のソフトスキップ）。
+
 ## [0.30.0] - 2026-06-23
 
 ### 追加

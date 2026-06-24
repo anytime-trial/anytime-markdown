@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.31.3] - 2026-06-24
+
+### Fixed
+
+- Resolved an MV3 remote-hosted-code violation by delegating `widgets.js` injection to the consumer.
+
 ## [0.31.2] - 2026-06-23
 
 ### Fixed
