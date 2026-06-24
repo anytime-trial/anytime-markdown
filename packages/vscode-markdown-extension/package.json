@@ -206,15 +206,10 @@
           "default": "",
           "description": "%configuration.claudeStatus.directory.description%"
         },
-        "anytimeMarkdown.noteGraph.repositoryPath": {
+        "anytimeMarkdown.docsRoot": {
           "type": "string",
           "default": "",
-          "description": "%configuration.noteGraph.repositoryPath.description%"
-        },
-        "anytimeMarkdown.docSearch.docsRoot": {
-          "type": "string",
-          "default": "",
-          "description": "%configuration.docSearch.docsRoot.description%"
+          "description": "%configuration.docsRoot.description%"
         },
         "anytimeMarkdown.docSearch.subDir": {
           "type": "string",

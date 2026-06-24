@@ -30,7 +30,7 @@ export function findGitRoot(startDir: string): string | null {
 /**
  * 対象リポジトリルートを決定する。
  *
- * @param configPath 設定 `repositoryPath`（空文字なら未指定）
+ * @param configPath 設定 `anytimeMarkdown.docsRoot`（空文字なら未指定）
  * @param workspaceDir 既定の workspace フォルダパス（未指定可）
  * @returns ルートパス。解決できなければ null
  */

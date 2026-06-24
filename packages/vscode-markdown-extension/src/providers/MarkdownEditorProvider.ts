@@ -779,7 +779,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     // === ノート網パネル（エディタ右パネル）の host 配線 ======================
     const noteGraphRoot = (): string | null => {
       const configPath =
-        vscode.workspace.getConfiguration('anytimeMarkdown').get<string>('noteGraph.repositoryPath', '') ?? '';
+        vscode.workspace.getConfiguration('anytimeMarkdown').get<string>('docsRoot', '') ?? '';
       return resolveRepositoryRoot(configPath, path.dirname(document.uri.fsPath));
     };
     const ngLog = (line: string): void => this.logLine?.(line);
