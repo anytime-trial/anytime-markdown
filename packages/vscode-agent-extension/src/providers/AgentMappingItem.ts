@@ -98,19 +98,13 @@ export class SessionTreeItem extends vscode.TreeItem {
     // コンテキストが閾値を超えたら引き継ぎ推奨バッジ（⚠️）を token の前に出す。
     const bloated = (session.contextTokens ?? 0) >= contextWarnTokens();
     const warnStr = bloated ? '  ⚠️' : '';
-    // コミット数・タイトル・ファイル名は行には出さず hover（tooltip）にのみ表示する。
+    // コミット数・タイトルは行には出さず hover（tooltip）にのみ表示する。
     const committed = session.committedCount ?? 0;
     this.description = `${stateStr} • ${age}${warnStr}${tokenStr}`;
     this.iconPath = STATE_ICONS[session.state];
     this.contextValue = bloated ? `session.${session.state}.bloated` : `session.${session.state}`;
-    // セッションのタイトル（コメント）と最終ファイルは hover に表示する。
-    let labelInfo = '';
-    if (session.sessionTitle) {
-      labelInfo += `**タイトル:** ${session.sessionTitle}\n\n`;
-    }
-    if (session.file) {
-      labelInfo += `**ファイル:** \`${session.file}\`\n\n`;
-    }
+    // セッションのタイトル（コメント）は hover に表示する。
+    const labelInfo = session.sessionTitle ? `**タイトル:** ${session.sessionTitle}\n\n` : '';
     this.tooltip = new vscode.MarkdownString(
       `**Session:** \`${session.sessionId}\`\n\n` +
       labelInfo +
