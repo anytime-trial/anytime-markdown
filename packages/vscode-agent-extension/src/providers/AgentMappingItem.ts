@@ -94,18 +94,26 @@ export class SessionTreeItem extends vscode.TreeItem {
     super(session.sessionId.slice(0, 8));
     const stateStr = session.state === 'active' ? 'editing' : 'idle';
     const age = formatAge(session.ageSeconds);
-    const label = session.sessionTitle || session.fileBasename;
     const tokenStr = session.contextTokens ? `  ${formatTokens(session.contextTokens)}` : '';
     // コンテキストが閾値を超えたら引き継ぎ推奨バッジ（⚠️）を token の前に出す。
     const bloated = (session.contextTokens ?? 0) >= contextWarnTokens();
     const warnStr = bloated ? '  ⚠️' : '';
-    // コミット数は行には出さず hover（tooltip）にのみ表示する。
+    // コミット数・タイトル・ファイル名は行には出さず hover（tooltip）にのみ表示する。
     const committed = session.committedCount ?? 0;
-    this.description = `${stateStr} • ${age}${warnStr}${tokenStr}${label ? `    ${label}` : ''}`;
+    this.description = `${stateStr} • ${age}${warnStr}${tokenStr}`;
     this.iconPath = STATE_ICONS[session.state];
     this.contextValue = bloated ? `session.${session.state}.bloated` : `session.${session.state}`;
+    // セッションのタイトル（コメント）と最終ファイルは hover に表示する。
+    let labelInfo = '';
+    if (session.sessionTitle) {
+      labelInfo += `**タイトル:** ${session.sessionTitle}\n\n`;
+    }
+    if (session.file) {
+      labelInfo += `**ファイル:** \`${session.file}\`\n\n`;
+    }
     this.tooltip = new vscode.MarkdownString(
       `**Session:** \`${session.sessionId}\`\n\n` +
+      labelInfo +
       (session.contextTokens ? `**Context:** ${formatTokens(session.contextTokens)} tokens\n\n` : '') +
       (bloated ? `⚠️ **引き継ぎ推奨**（コンテキスト肥大）— 新セッションへの引き継ぎを検討してください\n\n` : '') +
       (committed > 0
