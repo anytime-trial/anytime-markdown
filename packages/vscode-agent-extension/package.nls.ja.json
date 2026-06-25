@@ -10,7 +10,6 @@
   "command.mapping.toggleStale": "古いセッションの表示切替",
   "command.mapping.openWorktree": "新しいウィンドウで Worktree を開く",
   "command.mapping.copyWorktreePath": "Worktree パスをコピー",
-  "command.mapping.showSessionEdits": "セッション編集履歴を表示",
   "command.mapping.copySessionId": "セッション ID をコピー",
   "command.mapping.deleteStatusFile": "ステータスファイルを削除",
   "command.startOllama": "Ollama を起動",

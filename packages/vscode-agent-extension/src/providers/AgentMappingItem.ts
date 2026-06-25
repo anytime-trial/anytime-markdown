@@ -100,9 +100,6 @@ export class SessionTreeItem extends vscode.TreeItem {
           (session.lastCommit ? ` / 最新 ${formatLastCommit(session.lastCommit)}` : '') +
           '\n\n'
         : '') +
-      (session.sessionEdits.length > 0
-        ? `**Edits:**\n${session.sessionEdits.map(e => `- \`${e.file}\``).join('\n')}`
-        : '') +
       (session.plannedEdits.length > 0
         ? `\n\n**Planned:**\n${session.plannedEdits.map(f => `- \`${f}\``).join('\n')}`
         : ''),

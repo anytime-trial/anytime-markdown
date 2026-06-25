@@ -95,11 +95,6 @@
         "category": "Anytime Agent"
       },
       {
-        "command": "anytime-agent.mapping.showSessionEdits",
-        "title": "%command.mapping.showSessionEdits%",
-        "category": "Anytime Agent"
-      },
-      {
         "command": "anytime-agent.mapping.handoffSession",
         "title": "%command.mapping.handoffSession%",
         "category": "Anytime Agent"
@@ -222,11 +217,6 @@
           "command": "anytime-agent.mapping.copyWorktreePath",
           "when": "view == anytimeAgent.mapping && viewItem =~ /^worktree/",
           "group": "2_copy@1"
-        },
-        {
-          "command": "anytime-agent.mapping.showSessionEdits",
-          "when": "view == anytimeAgent.mapping && viewItem =~ /^session/",
-          "group": "1_open@1"
         },
         {
           "command": "anytime-agent.mapping.handoffSession",

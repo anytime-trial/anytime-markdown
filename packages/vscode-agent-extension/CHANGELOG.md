@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the "Show Session Edits" display (the session tree right-click QuickPick and the tooltip **Edits:** list). Edit history was hard to interpret. The underlying `session_edits` recording is kept (handoff derives changed files from the transcript independently).
+
 ## [0.3.3] - 2026-06-24
 
 ### Changed
