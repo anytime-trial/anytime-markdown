@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- Periodic cleanup of unused sessions: the agent-status worker deletes sessions whose last activity is older than the retention period from the database, on startup and once per day. The retention period is configurable via `anytimeAgent.sessionRetentionDays` (default 7 days).
+
 ### Removed
 
 - Removed the "Show Session Edits" display (the session tree right-click QuickPick and the tooltip **Edits:** list). Edit history was hard to interpret. The underlying `session_edits` recording is kept (handoff derives changed files from the transcript independently).

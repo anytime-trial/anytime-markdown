@@ -234,10 +234,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // agent-status ワーカーを起動（owner は agent 拡張のみ）。既存ワーカーがいれば接続のみ。
   // SQLite を import するのはこのワーカーバンドルだけ。拡張ホストは HTTP クライアント経由で読む。
   if (workspaceFolder) {
+    const sessionRetentionDays = vscode.workspace
+      .getConfiguration('anytimeAgent')
+      .get<number>('sessionRetentionDays', 7);
     agentStatusWorkerHost = new AgentStatusWorkerHost(
       workspacePath,
       resolveWorkerScriptPath(context.extensionPath),
       AgentLogger,
+      sessionRetentionDays,
     );
     agentStatusWorkerHost.start();
   }
