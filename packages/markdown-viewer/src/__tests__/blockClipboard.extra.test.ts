@@ -2,6 +2,8 @@
  * blockClipboard.ts の追加カバレッジテスト
  * handleBlockClipboardEvent, performBlockCopy, findBlockNode のテスト。
  */
+import type { EditorState } from "@anytime-markdown/markdown-pm/state";
+import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 import {
   handleBlockClipboardEvent,
   performBlockCopy,
@@ -29,7 +31,7 @@ describe("findBlockNode", () => {
         })),
         textBetween: jest.fn(() => ""),
       },
-    } as any;
+    } as unknown as EditorState;
 
     const result = findBlockNode(mockState);
     expect(result).toBeNull();
@@ -50,7 +52,7 @@ describe("findBlockNode", () => {
         nodeAt: jest.fn(() => null),
         textBetween: jest.fn(() => "code content"),
       },
-    } as any;
+    } as unknown as EditorState;
 
     const result = findBlockNode(mockState);
     expect(result).not.toBeNull();
@@ -70,7 +72,7 @@ describe("findBlockNode", () => {
         nodeAt: jest.fn(() => tableNode),
         textBetween: jest.fn(() => "table content"),
       },
-    } as any;
+    } as unknown as EditorState;
 
     const result = findBlockNode(mockState);
     expect(result).not.toBeNull();
@@ -93,7 +95,7 @@ describe("findBlockNode", () => {
         })),
         textBetween: jest.fn(() => "img"),
       },
-    } as any;
+    } as unknown as EditorState;
 
     const result = findBlockNode(mockState);
     expect(result).not.toBeNull();
@@ -118,7 +120,7 @@ describe("findBlockNode", () => {
         })),
         textBetween: jest.fn(() => "gif"),
       },
-    } as any;
+    } as unknown as EditorState;
 
     const result = findBlockNode(mockState);
     expect(result).not.toBeNull();
@@ -142,7 +144,7 @@ describe("performBlockCopy", () => {
         },
       },
       dispatch: jest.fn(),
-    } as any;
+    } as unknown as EditorView;
 
     const result = performBlockCopy(mockView, false, writeClipboard);
     expect(result).toBe(true);
@@ -161,7 +163,7 @@ describe("performBlockCopy", () => {
         },
       },
       dispatch: jest.fn(),
-    } as any;
+    } as unknown as EditorView;
 
     const result = performBlockCopy(mockView, true, writeClipboard);
     expect(result).toBe(true);
@@ -183,7 +185,7 @@ describe("performBlockCopy", () => {
         },
       },
       dispatch: jest.fn(),
-    } as any;
+    } as unknown as EditorView;
 
     const result = performBlockCopy(mockView, false, writeClipboard);
     expect(result).toBe(false);
@@ -198,16 +200,16 @@ describe("handleBlockClipboardEvent", () => {
 
   it("returns true and resets when handledByKeydown is true", () => {
     setHandledByKeydown(true);
-    const mockView = {} as any;
-    const mockEvent = { clipboardData: null, preventDefault: jest.fn() } as any;
+    const mockView = {} as unknown as EditorView;
+    const mockEvent = { clipboardData: null, preventDefault: jest.fn() } as unknown as ClipboardEvent;
 
     const result = handleBlockClipboardEvent(mockView, mockEvent, false);
     expect(result).toBe(true);
   });
 
   it("returns false when clipboardData is null", () => {
-    const mockView = {} as any;
-    const mockEvent = { clipboardData: null, preventDefault: jest.fn() } as any;
+    const mockView = {} as unknown as EditorView;
+    const mockEvent = { clipboardData: null, preventDefault: jest.fn() } as unknown as ClipboardEvent;
 
     const result = handleBlockClipboardEvent(mockView, mockEvent, false);
     expect(result).toBe(false);
@@ -223,11 +225,11 @@ describe("handleBlockClipboardEvent", () => {
         },
         doc: { textBetween: jest.fn(() => "hello") },
       },
-    } as any;
+    } as unknown as EditorView;
     const mockEvent = {
       clipboardData: { setData: jest.fn() },
       preventDefault: jest.fn(),
-    } as any;
+    } as unknown as ClipboardEvent;
 
     const result = handleBlockClipboardEvent(mockView, mockEvent, false);
     expect(result).toBe(false);

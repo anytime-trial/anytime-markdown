@@ -4,7 +4,28 @@
  */
 import { HeadingFoldExtension, headingFoldPluginKey } from "../extensions/headingFoldExtension";
 import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
+import type { EditorState, EditorStateConfig, Transaction } from "@anytime-markdown/markdown-pm/state";
 import { Decoration, DecorationSet } from "@anytime-markdown/markdown-pm/view";
+
+/** makeDoc が生成するトップレベルノードのモック型（実 ProseMirror Node の最小部分集合） */
+type MockNode = {
+  type: { name: string };
+  attrs: { level?: number };
+  nodeSize: number;
+};
+
+/** makeDoc / インラインドキュメントが満たすモック doc 型 */
+type MockDoc = {
+  content: { size: number };
+  forEach: (cb: (node: MockNode, pos: number) => void) => void;
+  nodeAt: (pos: number) => MockNode | null;
+};
+
+/** setFoldedHeadings コマンドの内側関数が受け取るコンテキスト（本体が使う tr.setMeta / dispatch のみ） */
+type SetFoldedHeadingsCtx = {
+  tr: Pick<Transaction, "setMeta">;
+  dispatch: (() => void) | undefined;
+};
 
 // DecorationSet.create は実際の ProseMirror ドキュメントを要求するためモック化
 const mockDecorationSet = { mock: true } as unknown as DecorationSet;
@@ -47,7 +68,7 @@ describe("HeadingFoldExtension", () => {
     it("setFoldedHeadings sets meta and returns true when dispatch is provided", () => {
       const addCommands = HeadingFoldExtension.config.addCommands as () => Record<string, unknown>;
       const commands = addCommands.call({});
-      const setFoldedHeadings = commands.setFoldedHeadings as (indices: Set<number>) => (ctx: any) => boolean;
+      const setFoldedHeadings = commands.setFoldedHeadings as (indices: Set<number>) => (ctx: SetFoldedHeadingsCtx) => boolean;
 
       const indices = new Set([0, 2]);
       const mockTr = { setMeta: jest.fn() };
@@ -62,7 +83,7 @@ describe("HeadingFoldExtension", () => {
     it("setFoldedHeadings returns true but does not set meta when dispatch is undefined", () => {
       const addCommands = HeadingFoldExtension.config.addCommands as () => Record<string, unknown>;
       const commands = addCommands.call({});
-      const setFoldedHeadings = commands.setFoldedHeadings as (indices: Set<number>) => (ctx: any) => boolean;
+      const setFoldedHeadings = commands.setFoldedHeadings as (indices: Set<number>) => (ctx: SetFoldedHeadingsCtx) => boolean;
 
       const indices = new Set([1]);
       const mockTr = { setMeta: jest.fn() };
@@ -94,7 +115,7 @@ describe("HeadingFoldExtension", () => {
     describe("plugin state init", () => {
       it("returns empty state with no foldedIndices and empty DecorationSet", () => {
         const spec = plugin.spec.state!;
-        const initState = spec.init!({} as any, {} as any);
+        const initState = spec.init!({} as unknown as EditorStateConfig, {} as unknown as EditorState);
         expect(initState.foldedIndices.size).toBe(0);
         expect(initState.decorations).toBe(DecorationSet.empty);
       });
@@ -103,7 +124,7 @@ describe("HeadingFoldExtension", () => {
     describe("plugin state apply", () => {
       function makeDoc(nodes: Array<{ type: string; level?: number; nodeSize: number }>) {
         let totalSize = 0;
-        const nodeList: any[] = [];
+        const nodeList: Array<{ node: MockNode; pos: number }> = [];
 
         for (const n of nodes) {
           const node = {
@@ -117,7 +138,7 @@ describe("HeadingFoldExtension", () => {
 
         return {
           content: { size: totalSize },
-          forEach: (cb: (node: any, pos: number) => void) => {
+          forEach: (cb: (node: MockNode, pos: number) => void) => {
             for (const item of nodeList) {
               cb(item.node, item.pos);
             }
@@ -133,18 +154,18 @@ describe("HeadingFoldExtension", () => {
 
       function initState() {
         const spec = plugin.spec.state!;
-        return spec.init!({} as any, {} as any);
+        return spec.init!({} as unknown as EditorStateConfig, {} as unknown as EditorState);
       }
 
-      function applyMeta(doc: any, indices: Set<number>) {
+      function applyMeta(doc: MockDoc, indices: Set<number>) {
         const spec = plugin.spec.state!;
         const prevState = initState();
         const mockTr = {
-          getMeta: (key: any) => (key === headingFoldPluginKey ? indices : undefined),
+          getMeta: (key: PluginKey | string) => (key === headingFoldPluginKey ? indices : undefined),
           doc,
           docChanged: false,
         };
-        return spec.apply!(mockTr as any, prevState, {} as any, {} as any);
+        return spec.apply!(mockTr as unknown as Transaction, prevState, {} as unknown as EditorState, {} as unknown as EditorState);
       }
 
       it("updates state when meta is set with non-empty indices", () => {
@@ -187,7 +208,7 @@ describe("HeadingFoldExtension", () => {
           docChanged: true,
         };
 
-        const newState = spec.apply!(mockTr as any, prevState, {} as any, {} as any);
+        const newState = spec.apply!(mockTr as unknown as Transaction, prevState, {} as unknown as EditorState, {} as unknown as EditorState);
         expect(newState.foldedIndices).toBe(prevState.foldedIndices);
         expect(newState.decorations).toBe(mockDecorationSet);
         expect(DecorationSet.create).toHaveBeenCalled();
@@ -202,7 +223,7 @@ describe("HeadingFoldExtension", () => {
           docChanged: false,
         };
 
-        const newState = spec.apply!(mockTr as any, prevState, {} as any, {} as any);
+        const newState = spec.apply!(mockTr as unknown as Transaction, prevState, {} as unknown as EditorState, {} as unknown as EditorState);
         expect(newState).toBe(prevState);
       });
 
@@ -215,7 +236,7 @@ describe("HeadingFoldExtension", () => {
           docChanged: true,
         };
 
-        const newState = spec.apply!(mockTr as any, prevState, {} as any, {} as any);
+        const newState = spec.apply!(mockTr as unknown as Transaction, prevState, {} as unknown as EditorState, {} as unknown as EditorState);
         expect(newState).toBe(prevState);
       });
 
@@ -298,7 +319,7 @@ describe("HeadingFoldExtension", () => {
       it("handles nodeAt returning null (breaks while loop)", () => {
         const doc = {
           content: { size: 20 },
-          forEach: (cb: (node: any, pos: number) => void) => {
+          forEach: (cb: (node: MockNode, pos: number) => void) => {
             cb(
               { type: { name: "heading" }, attrs: { level: 1 }, nodeSize: 10 },
               0,
@@ -432,7 +453,7 @@ describe("HeadingFoldExtension", () => {
     describe("decorations prop", () => {
       it("returns DecorationSet.empty when plugin state is undefined", () => {
         const decorationsFn = plugin.props.decorations!;
-        const mockState = {} as any;
+        const mockState = {} as unknown as EditorState;
 
         const result = decorationsFn.call(plugin, mockState);
         expect(result).toBe(DecorationSet.empty);
