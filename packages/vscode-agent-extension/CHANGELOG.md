@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- Session age in the Agent mapping tree is now shown as `Xh Ymin ago` for ages of one hour or more (previously minutes only, e.g. `135 min ago`).
+
 ### Added
 
 - Periodic cleanup of unused sessions: the agent-status worker deletes sessions whose last activity is older than the retention period from the database, on startup and once per day. The retention period is configurable via `anytimeAgent.sessionRetentionDays` (default 7 days).
