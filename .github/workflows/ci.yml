@@ -58,6 +58,12 @@ jobs:
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
         run: node scripts/sync-vendored-tsconfig-paths.mjs --check
 
+      # 拡張同梱スキル(packages/*/skills/<name>/SKILL.md)が canonical(.claude/skills)と
+      # byte 一致しているか検証する。手動複製ゆえ canonical 更新時の追随漏れを検出する。
+      - name: Check bundled skills are in sync
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+        run: npm run check-skills
+
       - name: Lint
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
         run: npm run lint
