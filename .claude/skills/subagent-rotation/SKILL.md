@@ -51,8 +51,21 @@ import type { RotationPolicy, HandoffState } from '@anytime-markdown/agent-core'
 | `continue-while-cheap` | (b) サブエージェント回転 | `subagentTokens >= (threshold ?? 120_000)` で回転。それ未満は同一ワーカー継続 |
 | `always-fresh` | (c) 毎タスク compact-seed | threshold を無視して**毎タスク必ず回転** |
 
-- 軽い連続ステップが多い → `continue-while-cheap`（継続で基底再利用、肥大時のみ回転）。
-- 各タスクが独立で都度クリーンな文脈が欲しい → `always-fresh`。
+- **各タスクが独立（前ステップの探索結果を引き継ぐ実利が薄い）→ `always-fresh` を第一候補にする**。
+- ステップ間に依存があり、ワーカーが積み上げた理解を fresh が再導出すると高くつく → `continue-while-cheap`。
+
+> [!IMPORTANT]
+> **policy 選択は threshold より効く。まず「継続に文脈引き継ぎの実利があるか」を判断する。**
+> 実測（2026-06-25・markdown-viewer 脱 any 5ファイル）では、独立タスクで `continue-while-cheap`
+> を選んだ結果、継続（`SendMessage`）が fresh より**約 28K トークン/ステップ余計**にかかった
+> （同規模 16 any: 継続 83K vs fresh 51〜60K）。継続は**累積トランスクリプト全体を毎回読み直す**
+> ため入力が膨らむ。**独立・機械的な作業は `always-fresh`（＋下記バッチ化）の方が安い**。回転＝
+> compact-seed の利点（full 会話を捨て `HandoffState` だけ渡す）は fresh のときに最大化される。
+>
+> さらに独立タスクでは、**回転以前に「サブエージェントへ分けるべきか」を疑う**。1 ファイル＝1 タスクに
+> 細分すると `Agent` 呼び出しの**基底床（≈37K/回）を回数分払う**。小さく独立した単位は **2〜3 件を 1
+> ワーカーにバッチ**して呼び出し回数を減らす方が安い（実測の 5 呼び出し＝床だけで ≈185K）。回転の
+> 粒度より総呼び出し回数を優先する。
 
 ## 回転ループ手順
 
@@ -74,6 +87,10 @@ import type { RotationPolicy, HandoffState } from '@anytime-markdown/agent-core'
 - 累積が取れない / 値が取れない環境では、`policy: always-fresh` または **タスク数上限**（例: N ステップごとに
   強制回転）を併用してフォールバックする。`shouldRotate` は無効トークン（null/NaN/負数/Infinity）を
   `continue-while-cheap` で `false` 扱いするため、トークンに依存しない上限を別に持つこと。
+- **実測（2026-06-25）**: Claude Code の `Agent`/`SendMessage` が返す `subagent_tokens` は**累積でなく
+  呼び出し単位**だった（task1=91K → 継続 task2=87K と減少）。この場合の現実的なフォールバックは
+  **オーケストレータ側で per-call 値を自前合算して `shouldRotate` に渡す**こと。手で駆動する参照実装
+  （対話）でも、各 resume の `subagent_tokens` を足し込んで累積として扱う。
 
 ## 返却契約（指示＋検証で代替）
 
@@ -94,8 +111,23 @@ Claude/拡張文脈では受領した `state` を既存 worker 経路（用途(a
 - `SendMessage` 継続は **model override を保持せず親モデル（opus）に戻る**（PoC 実測）。継続＝opus だが
   基底再利用で安い。
 - サブエージェント基底 ≈ **37K トークンの床**。回転＝haiku で安いが 37K を再払いする。
-- 指針: 軽い連続ステップは継続、肥大したら haiku 回転。`threshold`（既定 `DEFAULT_ROTATION_THRESHOLD`
-  = 120,000）はこの交換点。実運用で観測して調整する。
+- **継続の文脈税**: 継続 resume は累積トランスクリプトを読み直すため、ステップが進むほど 1 回あたりの
+  入力が膨らむ（実測 ≈ **28K/ステップ**）。継続が得なのは累積税が回転の床（≈37K）を下回る間だけ。
+- **モデル階層化**: 単純置換が多いタスクは skill 既定どおり `model=haiku` で十分。設計判断を伴う重い
+  ファイルだけ `sonnet`/`opus` に上げる。実測では機械的な脱 any を全 `sonnet` で回し過剰だった
+  （複雑度でモデルを分けるべき）。
+
+### threshold の妥当値（実測ベース）
+
+- 損益分岐 ≈ **回転の床（37K）＋ fresh 1 本分（≈55K）≒ 90〜100K（累積）**。これを超えると、継続の
+  読み直し税が回転コストを上回る。
+- 既定 `DEFAULT_ROTATION_THRESHOLD = 120,000` は **やや高め＝回転が 1 歩遅れる**。継続を使うワークロード
+  では **90〜100K** に下げると 1 ステップ早く回って僅かに安い。引数 `threshold` で上書きする。
+- **per-call 信号での代替判定**: この環境の `subagent_tokens` は累積でなく**呼び出し単位**で返る（下記
+  「累積前提とフォールバック」参照）。その場合は「継続 resume の呼出コストが fresh 基準（≈55K）＋床
+  （37K）≒ **90K を超えたら回す**」と読み替える。
+- ただし **threshold は二次的なつまみ**。総コストを最も左右するのは policy 選択（独立タスクなら
+  `always-fresh`）とバッチ化であり、continue を選んだ時点で文脈税は閾値調整では消せない。
 
 ## 受入条件
 
