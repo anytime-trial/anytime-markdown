@@ -2,8 +2,9 @@
 //
 // SQLite を一切 import しない純粋な型のみ。ワーカー・クライアント・consumer 拡張が共有する。
 
-/** read API のバージョン。内部スキーマ変更から consumer を保護する安定契約 */
-export const AGENT_STATUS_API_VERSION = 1;
+/** read API のバージョン。内部スキーマ変更から consumer を保護する安定契約。
+ *  v2: handoff payload（summary JSON / handoff_at）と /summary エンドポイント・Bearer 認証を追加。 */
+export const AGENT_STATUS_API_VERSION = 2;
 
 /** セッション内で編集されたファイルの記録 */
 export interface AgentSessionEdit {
@@ -38,10 +39,12 @@ export interface AgentSessionRow {
   readonly committedCount: number;
   /** 最新コミット。未コミットなら null */
   readonly lastCommit: AgentLastCommit | null;
-  /** 予約列（本タスクでは未使用）。実施内容の要約 */
+  /** handoff payload（圧縮ステート JSON 文字列）。未生成なら '{}' */
   readonly summary: string;
-  /** 予約列（本タスクでは未使用）。要約生成時刻 UTC ISO 8601 */
+  /** 将来のナラティブ要約生成時刻 UTC ISO 8601（予約） */
   readonly summaryAt: string | null;
+  /** 引き継ぎ確定時刻 UTC ISO 8601。未引き継ぎなら null */
+  readonly handoffAt: string | null;
   /** 最終更新時刻 UTC ISO 8601 */
   readonly updatedAt: string;
 }
@@ -80,6 +83,15 @@ export interface EditUpsertInput {
  * 初回シード（`count: 0`・commitHash 無し）では last_head のみ更新し、既存 HEAD を
  * 誤って「コミット済み」として表示しない。
  */
+export interface SummaryUpsertInput {
+  readonly sessionId: string;
+  /** handoff payload（圧縮ステート）の JSON 文字列。json_valid である必要がある */
+  readonly summary: string;
+  /** 引き継ぎ確定時刻 UTC ISO 8601。省略時はワーカーが現在時刻を補う */
+  readonly handoffAt?: string;
+  /** 更新時刻。省略時はワーカーが現在時刻を補う */
+  readonly updatedAt?: string;
+}
 export interface CommitUpsertInput {
   readonly sessionId: string;
   /** 検出後の最新 HEAD。次回の差分検出基点として保存する */
@@ -116,4 +128,7 @@ export interface AgentWorkerInfo {
   /** プロセス起動時刻 UTC ISO 8601 */
   readonly startedAt: string;
   readonly dbPath: string;
+  /** 書き込み系 POST/DELETE を保護する Bearer トークン。hook/拡張はこれを読んで付与する。
+   *  旧 v1 の agent-worker.json には存在しないため optional（consumer は `token ?? ''` で扱う）。 */
+  readonly token?: string;
 }

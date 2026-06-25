@@ -103,6 +103,7 @@ WORKER_JSON="\${AGENT_HOME}/agent-worker.json"
 [ -f "\$WORKER_JSON" ] || exit 0
 URL=$(node -e "try{process.stdout.write(JSON.parse(require('fs').readFileSync('\${WORKER_JSON}','utf8')).url||'')}catch{}")
 [ -z "\$URL" ] && exit 0
+TOKEN=$(node -e "try{process.stdout.write(JSON.parse(require('fs').readFileSync('\${WORKER_JSON}','utf8')).token||'')}catch{}")
 
 CURRENT=$(cd "\$CWD" && git rev-parse HEAD 2>/dev/null || true)
 [ -z "\$CURRENT" ] && exit 0
@@ -123,9 +124,76 @@ fi
 PAYLOAD=$(node -e "const c=Number(process.argv[1])||0;const o={sessionId:process.argv[2],lastHead:process.argv[3],count:c};if(c>0){o.commitHash=process.argv[4];o.committedAt=process.argv[5]}process.stdout.write(JSON.stringify(o))" "\$COUNT" "\$SESSION_ID" "\$CURRENT" "\$HASH" "\$COMMITTED_AT")
 curl -s -m 2 -X POST "\${URL}/api/agent-status/commit" \\
   -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer \${TOKEN}" \\
   -d "\$PAYLOAD" > /dev/null 2>&1 || true
 exit 0
 `;
+}
+
+// handoff-inject.sh — UserPromptSubmit フック。新セッションの先頭で pending handoff を
+// 一度だけ additionalContext として注入し、アトミック rename で消費する。
+// - 注入対象は AGENT_HOME/handoff/ の最新 *.md（source==現セッションは除外＝自分へ戻さない）
+// - rename に成功した 1 プロセスだけが注入（二重注入防止）
+// - GC: 14 日より古い handoff を削除
+function handoffInjectScriptContent(): string {
+  return `#!/usr/bin/env bash
+# handoff-inject.sh — inject pending session handoff once on first prompt, then consume
+set -eu
+
+read -r -d '' STDIN_DATA || true
+CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||process.cwd())}catch{process.stdout.write(process.cwd())}})" 2>/dev/null)
+[ -z "\$CWD" ] && CWD="\$PWD"
+SID=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).session_id||'')}catch{}})" 2>/dev/null)
+
+HANDOFF_DIR="\${AGENT_HOME:-\${CWD}/.anytime/agent}/handoff"
+[ -d "\$HANDOFF_DIR" ] || exit 0
+
+# GC: 14 日より古い handoff（*.md / *.consumed）を削除
+find "\$HANDOFF_DIR" -maxdepth 1 -name "*.md*" -mtime +14 -delete 2>/dev/null || true
+
+# 最新の未消費 *.md を選ぶ（source==現セッションは除外）
+FILES=$(ls -t "\$HANDOFF_DIR"/*.md 2>/dev/null) || exit 0
+[ -z "\$FILES" ] && exit 0
+FILE=""
+while IFS= read -r f; do
+  [ -f "\$f" ] || continue
+  base=$(basename "\$f" .md)
+  [ "\$base" = "\$SID" ] && continue
+  FILE="\$f"; break
+done <<< "\$FILES"
+[ -z "\$FILE" ] && exit 0
+
+# アトミックに消費してから注入（rename 成功者のみ注入＝二重注入防止）
+CONSUMED="\${FILE}.consumed"
+mv "\$FILE" "\$CONSUMED" 2>/dev/null || exit 0
+
+node -e "const fs=require('fs');let c='';try{c=fs.readFileSync(process.argv[1],'utf8')}catch{process.exit(0)}process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'UserPromptSubmit',additionalContext:c}}))" "\$CONSUMED"
+exit 0
+`;
+}
+
+// ワークスペースの .gitignore に `.anytime/` を冪等で追加する（handoff doc の絶対パス・
+// 会話由来の ai-title が誤コミットされるのを防ぐ）。失敗はログのみ。
+function ensureAnytimeGitignored(workspaceRoot: string): void {
+  try {
+    const gitignorePath = path.join(workspaceRoot, '.gitignore');
+    let content = '';
+    try {
+      content = fs.readFileSync(gitignorePath, 'utf8');
+    } catch {
+      // 無ければ新規作成
+    }
+    const hasEntry = content
+      .split('\n')
+      .some((line) => line.trim() === '.anytime/' || line.trim() === '.anytime');
+    if (hasEntry) return;
+    const prefix = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
+    fs.appendFileSync(gitignorePath, `${prefix}.anytime/\n`);
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('[agent] Failed to update .gitignore for .anytime/:', err);
+    }
+  }
 }
 
 function writeScript(filename: string, content: string): void {
@@ -197,6 +265,7 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
     writeScript('trail-token-budget.sh', tokenBudgetScriptContent(trailPort));
     writeScript('session-guard.sh', SESSION_GUARD_SCRIPT);
     writeScript('commit-tracker.sh', commitTrackerScriptContent());
+    writeScript('handoff-inject.sh', handoffInjectScriptContent());
   } catch (err) {
     // スクリプト作成失敗はログのみ（フック設定は続行）
     if (process.env.NODE_ENV !== 'test') {
@@ -234,7 +303,7 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
   // 4. fetch で POST（node18+ の global fetch）。失敗は握りつぶす（exit 0 相当）
   // git branch は execSync で取得し branch フィールドに入れる。timestamp は UTC ISO 8601。
   const postEditCommand = (buildBody: string): string =>
-    `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);const fs=require('fs');let url='';try{url=JSON.parse(fs.readFileSync('${agentWorkerJson}','utf8')).url||''}catch{}if(!url)return;const body=(${buildBody})(i);if(!body)return;fetch(url+'/api/agent-status/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(()=>{})}catch{}})"`;
+    `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);const fs=require('fs');let url='',tok='';try{const w=JSON.parse(fs.readFileSync('${agentWorkerJson}','utf8'));url=w.url||'';tok=w.token||''}catch{}if(!url)return;const body=(${buildBody})(i);if(!body)return;fetch(url+'/api/agent-status/edit',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify(body)}).catch(()=>{})}catch{}})"`;
 
   // Edit|Write フック: file と編集履歴(appendEdit)を更新する。file_path が無ければスキップ。
   // branch は workspaceRoot を cwd として取得する。
@@ -296,6 +365,15 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
   settings.hooks.UserPromptSubmit.push({
     hooks: [{ type: 'command', command: `AGENT_HOME='${agentHome}' bash ~/.claude/scripts/session-guard.sh`, timeout: 5 }],
   });
+
+  // UserPromptSubmit hook: handoff-inject.sh（pending handoff を先頭で一度だけ注入し消費）
+  settings.hooks.UserPromptSubmit = removeHooksByMarker(settings.hooks.UserPromptSubmit, 'handoff-inject.sh');
+  settings.hooks.UserPromptSubmit.push({
+    hooks: [{ type: 'command', command: `AGENT_HOME='${agentHome}' bash ~/.claude/scripts/handoff-inject.sh`, timeout: 5 }],
+  });
+
+  // handoff doc・worker state が誤コミットされないよう .anytime/ を .gitignore へ
+  if (workspaceRoot) ensureAnytimeGitignored(workspaceRoot);
 
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
   return true;

@@ -15,7 +15,8 @@ import {
 import { dirname, join } from 'node:path';
 import type { AgentWorkerInfo } from './types';
 
-export const AGENT_WORKER_SCHEMA_VERSION = 1;
+// v2: token フィールド（書き込み系 Bearer 認証）を追加。
+export const AGENT_WORKER_SCHEMA_VERSION = 2;
 
 /** ワークスペース直下の agent-worker.json のパスを返す */
 export function agentWorkerJsonPath(workspaceRoot: string): string {

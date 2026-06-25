@@ -22,5 +22,6 @@
   "command.deleteAiNotePage": "AI ノートページを削除",
   "command.openAiNotePage": "AI ノートページを開く",
   "command.clearAiNote": "AI ノートをクリア",
-  "command.copyAiNotePath": "AI ノートのパスをコピー"
+  "command.copyAiNotePath": "AI ノートのパスをコピー",
+  "command.mapping.handoffSession": "新セッションへ引き継ぎ"
 }

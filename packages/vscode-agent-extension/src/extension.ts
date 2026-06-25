@@ -12,6 +12,7 @@ import {
   AgentStatusWorkerHost,
   resolveWorkerScriptPath,
 } from './worker/AgentStatusWorkerHost';
+import { registerHandoffSessionCommand } from './commands/handoffSession';
 import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import {
   WorktreeTreeItem,
@@ -255,6 +256,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push({ dispose: () => agentStatusWorkerHost?.dispose() });
   }
   void vscode.commands.executeCommand('setContext', 'anytimeAgent.mapping.filterActive', false);
+
+  registerHandoffSessionCommand(context);
 
   context.subscriptions.push(
     vscode.commands.registerCommand('anytime-agent.mapping.refresh', () => {
