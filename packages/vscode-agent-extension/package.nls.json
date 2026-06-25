@@ -10,7 +10,6 @@
   "command.mapping.toggleStale": "Toggle Stale Sessions",
   "command.mapping.openWorktree": "Open Worktree in New Window",
   "command.mapping.copyWorktreePath": "Copy Worktree Path",
-  "command.mapping.showSessionEdits": "Show Session Edits",
   "command.mapping.copySessionId": "Copy Session ID",
   "command.mapping.deleteStatusFile": "Delete Status File",
   "command.startOllama": "Start Ollama",

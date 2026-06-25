@@ -280,14 +280,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('anytime-agent.mapping.copyWorktreePath', (item: WorktreeTreeItem) => {
       void vscode.env.clipboard.writeText(item.mapping.worktreePath);
     }),
-    vscode.commands.registerCommand('anytime-agent.mapping.showSessionEdits', (item: SessionTreeItem) => {
-      const edits = item.session.sessionEdits.map(e => ({ label: e.file, description: e.timestamp }));
-      if (edits.length === 0) {
-        void vscode.window.showInformationMessage('No session edits recorded.');
-        return;
-      }
-      void vscode.window.showQuickPick(edits, { title: `Session Edits: ${item.session.sessionId.slice(0, 8)}` });
-    }),
     vscode.commands.registerCommand('anytime-agent.mapping.copySessionId', (item: SessionTreeItem) => {
       void vscode.env.clipboard.writeText(item.session.sessionId);
     }),
