@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 
 - Session age in the Agent mapping tree is now shown as `Xh Ymin ago` for ages of one hour or more (previously minutes only, e.g. `135 min ago`).
+- Removed the per-session commit count (`committed(N)`) from the Agent mapping tree row. The commit count remains in the session hover (tooltip) and in the Today summary row.
 
 ### Added
 
