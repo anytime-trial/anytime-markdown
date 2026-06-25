@@ -14,10 +14,7 @@ import {
 } from './worker/AgentStatusWorkerHost';
 import { registerHandoffSessionCommand } from './commands/handoffSession';
 import { AgentMappingProvider } from './providers/AgentMappingProvider';
-import {
-  WorktreeTreeItem,
-  SessionTreeItem,
-} from './providers/AgentMappingItem';
+import { SessionTreeItem } from './providers/AgentMappingItem';
 import { AiNoteItem, AiNoteProvider } from './providers/AiNoteProvider';
 import { OllamaProvider } from './providers/OllamaProvider';
 import { AgentLogger } from './utils/AgentLogger';
@@ -277,12 +274,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         'anytimeAgent.mapping.filterActive',
         !mappingProvider.showStale,
       );
-    }),
-    vscode.commands.registerCommand('anytime-agent.mapping.openWorktree', (item: WorktreeTreeItem) => {
-      void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(item.mapping.worktreePath), true);
-    }),
-    vscode.commands.registerCommand('anytime-agent.mapping.copyWorktreePath', (item: WorktreeTreeItem) => {
-      void vscode.env.clipboard.writeText(item.mapping.worktreePath);
     }),
     vscode.commands.registerCommand('anytime-agent.mapping.copySessionId', (item: SessionTreeItem) => {
       void vscode.env.clipboard.writeText(item.session.sessionId);
