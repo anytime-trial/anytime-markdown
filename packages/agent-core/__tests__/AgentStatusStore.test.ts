@@ -257,4 +257,35 @@ describe('AgentStatusStore', () => {
       store.upsertEditing({ sessionId: 's5', editing: false, updatedAt: '2026-05-31T00:00:00Z' }),
     ).not.toThrow();
   });
+
+  describe('pruneSessionsOlderThan', () => {
+    it('cutoff より古い updated_at の行のみ削除し、削除件数を返す', () => {
+      store.upsertEditing({ sessionId: 'ancient', editing: false, updatedAt: '2026-05-01T00:00:00.000Z' });
+      store.upsertEditing({ sessionId: 'old', editing: false, updatedAt: '2026-05-10T00:00:00.000Z' });
+      store.upsertEditing({ sessionId: 'fresh', editing: false, updatedAt: '2026-05-31T00:00:00.000Z' });
+
+      const deleted = store.pruneSessionsOlderThan('2026-05-15T00:00:00.000Z');
+
+      expect(deleted).toBe(2);
+      expect(store.queryOne('ancient')).toBeNull();
+      expect(store.queryOne('old')).toBeNull();
+      expect(store.queryOne('fresh')).not.toBeNull();
+      expect(store.queryAll().map((r) => r.sessionId)).toEqual(['fresh']);
+    });
+
+    it('updated_at == cutoff の行は残す（厳密 < のみ削除）', () => {
+      store.upsertEditing({ sessionId: 'boundary', editing: false, updatedAt: '2026-05-15T00:00:00.000Z' });
+      const deleted = store.pruneSessionsOlderThan('2026-05-15T00:00:00.000Z');
+      expect(deleted).toBe(0);
+      expect(store.queryOne('boundary')).not.toBeNull();
+    });
+
+    it('削除対象が無ければ 0 を返し全行を保持する', () => {
+      store.upsertEditing({ sessionId: 'a', editing: false, updatedAt: '2026-05-31T00:00:00.000Z' });
+      store.upsertEditing({ sessionId: 'b', editing: false, updatedAt: '2026-05-31T01:00:00.000Z' });
+      const deleted = store.pruneSessionsOlderThan('2026-05-01T00:00:00.000Z');
+      expect(deleted).toBe(0);
+      expect(store.queryAll()).toHaveLength(2);
+    });
+  });
 });

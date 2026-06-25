@@ -208,6 +208,19 @@ export class AgentStatusStore {
   }
 
   /**
+   * 最終アクティビティ（updated_at）が cutoffIso より古いセッション行を削除する（破壊的）。
+   * 未使用セッションの定期 prune に使う。境界（updated_at == cutoffIso）は残す（厳密 < のみ削除）。
+   * @param cutoffIso 削除しきい値（UTC ISO 8601）。これより古い行を削除する。
+   * @returns 削除した行数
+   */
+  pruneSessionsOlderThan(cutoffIso: string): number {
+    const result = this.db
+      .prepare('DELETE FROM agent_sessions WHERE updated_at < ?')
+      .run(cutoffIso);
+    return Number(result.changes);
+  }
+
+  /**
    * handoff payload（圧縮ステート JSON）と handoff_at のみ UPSERT する。
    * 編集系・コミット系の列は触らない。`summary` は json_valid である必要がある（CHECK で担保）。
    * 行が無い場合は最小行として作成する。

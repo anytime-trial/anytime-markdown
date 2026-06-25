@@ -21,6 +21,19 @@ import {
   writeWorkerInfo,
 } from './agentWorkerInfo';
 
+const DEFAULT_RETENTION_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 未使用セッションの保持日数を env から解決する。
+ * 不在・非数値・1 未満は既定 7 日へフォールバックする。
+ */
+function resolveRetentionDays(): number {
+  const raw = process.env.ANYTIME_AGENT_SESSION_RETENTION_DAYS;
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : DEFAULT_RETENTION_DAYS;
+}
+
 export async function runWorker(workspaceRoot: string): Promise<void> {
   const dbPath = agentStatusDbPath(workspaceRoot);
   const jsonPath = agentWorkerJsonPath(workspaceRoot);
@@ -44,10 +57,32 @@ export async function runWorker(workspaceRoot: string): Promise<void> {
     token,
   });
 
+  // 未使用セッションの定期 prune: 起動時に 1 回＋日次。古い行を agent_sessions から削除する。
+  const retentionDays = resolveRetentionDays();
+  const runPrune = (): void => {
+    try {
+      const cutoff = new Date(Date.now() - retentionDays * DAY_MS).toISOString();
+      const deleted = store.pruneSessionsOlderThan(cutoff);
+      if (deleted > 0) {
+        console.error(
+          `[agent-status] pruned ${deleted} unused session(s) older than ${cutoff} (retention=${retentionDays}d)`,
+        );
+      }
+    } catch (err) {
+      console.error(
+        `[agent-status] session prune failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+      );
+    }
+  };
+  runPrune();
+  const pruneTimer = setInterval(runPrune, DAY_MS);
+  pruneTimer.unref();
+
   let shuttingDown = false;
   const shutdown = (): void => {
     if (shuttingDown) return;
     shuttingDown = true;
+    clearInterval(pruneTimer);
     removeWorkerInfo(jsonPath);
     void worker.stop().finally(() => {
       store.close();

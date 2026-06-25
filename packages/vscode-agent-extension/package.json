@@ -271,6 +271,12 @@
           "default": 160000,
           "minimum": 1000,
           "markdownDescription": "セッションのコンテキストトークンがこの値を超えるとツリーに引き継ぎ推奨バッジ（⚠️）を表示する。"
+        },
+        "anytimeAgent.sessionRetentionDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 1,
+          "markdownDescription": "未使用セッションを agent-status DB から自動削除するまでの保持日数。最終アクティビティからこの日数を超えたセッションを worker 起動時および 1 日ごとに削除する。"
         }
       }
     }
