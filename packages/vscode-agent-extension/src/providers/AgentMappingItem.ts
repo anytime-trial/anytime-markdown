@@ -99,10 +99,9 @@ export class SessionTreeItem extends vscode.TreeItem {
     // コンテキストが閾値を超えたら引き継ぎ推奨バッジ（⚠️）を token の前に出す。
     const bloated = (session.contextTokens ?? 0) >= contextWarnTokens();
     const warnStr = bloated ? '  ⚠️' : '';
-    // コミットありのときのみ idle/editing の直後に committed(N) を挿入（0 件は非表示で冗長さを避ける）。
+    // コミット数は行には出さず hover（tooltip）にのみ表示する。
     const committed = session.committedCount ?? 0;
-    const committedStr = committed > 0 ? ` • committed(${committed})` : '';
-    this.description = `${stateStr}${committedStr} • ${age}${warnStr}${tokenStr}${label ? `    ${label}` : ''}`;
+    this.description = `${stateStr} • ${age}${warnStr}${tokenStr}${label ? `    ${label}` : ''}`;
     this.iconPath = STATE_ICONS[session.state];
     this.contextValue = bloated ? `session.${session.state}.bloated` : `session.${session.state}`;
     this.tooltip = new vscode.MarkdownString(
