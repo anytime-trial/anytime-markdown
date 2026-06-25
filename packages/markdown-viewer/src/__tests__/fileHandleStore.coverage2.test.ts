@@ -17,7 +17,7 @@ describe("fileHandleStore error paths", () => {
       objectStoreNames: { contains: jest.fn(() => false) },
       createObjectStore: mockCreateObjectStore,
       transaction: jest.fn(() => {
-        const tx = { objectStore: jest.fn(() => ({ get: jest.fn((k: string) => { const r = { result: null, onsuccess: null as any, onerror: null as any }; setTimeout(() => r.onsuccess?.()); return r; }) })), oncomplete: null as any, onerror: null as any };
+        const tx = { objectStore: jest.fn(() => ({ get: jest.fn((k: string) => { const r = { result: null, onsuccess: null as (() => void) | null, onerror: null as (() => void) | null }; setTimeout(() => r.onsuccess?.()); return r; }) })), oncomplete: null as (() => void) | null, onerror: null as (() => void) | null };
         setTimeout(() => tx.oncomplete?.());
         return tx;
       }),
@@ -27,7 +27,7 @@ describe("fileHandleStore error paths", () => {
     Object.defineProperty(globalThis, "indexedDB", {
       value: {
         open: jest.fn(() => {
-          const req = { result: mockDb, onsuccess: null as any, onerror: null as any, onupgradeneeded: null as any };
+          const req = { result: mockDb, onsuccess: null as (() => void) | null, onerror: null as (() => void) | null, onupgradeneeded: null as (() => void) | null };
           setTimeout(() => {
             req.onupgradeneeded?.();
             req.onsuccess?.();
@@ -48,7 +48,7 @@ describe("fileHandleStore error paths", () => {
     Object.defineProperty(globalThis, "indexedDB", {
       value: {
         open: jest.fn(() => {
-          const req = { result: null, error: new Error("DB error"), onsuccess: null as any, onerror: null as any, onupgradeneeded: null as any };
+          const req = { result: null, error: new Error("DB error"), onsuccess: null as (() => void) | null, onerror: null as (() => void) | null, onupgradeneeded: null as (() => void) | null };
           setTimeout(() => req.onerror?.());
           return req;
         }),
@@ -64,7 +64,7 @@ describe("fileHandleStore error paths", () => {
     Object.defineProperty(globalThis, "indexedDB", {
       value: {
         open: jest.fn(() => {
-          const req = { result: null, error: null, onsuccess: null as any, onerror: null as any, onupgradeneeded: null as any };
+          const req = { result: null, error: null, onsuccess: null as (() => void) | null, onerror: null as (() => void) | null, onupgradeneeded: null as (() => void) | null };
           setTimeout(() => req.onerror?.());
           return req;
         }),
@@ -80,7 +80,7 @@ describe("fileHandleStore error paths", () => {
     const mockDb = {
       objectStoreNames: { contains: jest.fn(() => true) },
       transaction: jest.fn(() => {
-        const tx = { objectStore: jest.fn(() => ({ put: jest.fn() })), oncomplete: null as any, onerror: null as any, error: new Error("tx error") };
+        const tx = { objectStore: jest.fn(() => ({ put: jest.fn() })), oncomplete: null as (() => void) | null, onerror: null as (() => void) | null, error: new Error("tx error") };
         setTimeout(() => tx.onerror?.());
         return tx;
       }),
@@ -90,7 +90,7 @@ describe("fileHandleStore error paths", () => {
     Object.defineProperty(globalThis, "indexedDB", {
       value: {
         open: jest.fn(() => {
-          const req = { result: mockDb, onsuccess: null as any, onerror: null as any, onupgradeneeded: null as any };
+          const req = { result: mockDb, onsuccess: null as (() => void) | null, onerror: null as (() => void) | null, onupgradeneeded: null as (() => void) | null };
           setTimeout(() => req.onsuccess?.());
           return req;
         }),
@@ -99,14 +99,14 @@ describe("fileHandleStore error paths", () => {
     });
 
     const { saveNativeHandle } = await import("../utils/fileHandleStore");
-    await expect(saveNativeHandle({ name: "test" } as any)).rejects.toThrow("tx error");
+    await expect(saveNativeHandle({ name: "test" } as unknown as FileSystemFileHandle)).rejects.toThrow("tx error");
   });
 
   it("saveNativeHandle rejects with fallback error when tx.error is null", async () => {
     const mockDb = {
       objectStoreNames: { contains: jest.fn(() => true) },
       transaction: jest.fn(() => {
-        const tx = { objectStore: jest.fn(() => ({ put: jest.fn() })), oncomplete: null as any, onerror: null as any, error: null };
+        const tx = { objectStore: jest.fn(() => ({ put: jest.fn() })), oncomplete: null as (() => void) | null, onerror: null as (() => void) | null, error: null };
         setTimeout(() => tx.onerror?.());
         return tx;
       }),
@@ -116,7 +116,7 @@ describe("fileHandleStore error paths", () => {
     Object.defineProperty(globalThis, "indexedDB", {
       value: {
         open: jest.fn(() => {
-          const req = { result: mockDb, onsuccess: null as any, onerror: null as any, onupgradeneeded: null as any };
+          const req = { result: mockDb, onsuccess: null as (() => void) | null, onerror: null as (() => void) | null, onupgradeneeded: null as (() => void) | null };
           setTimeout(() => req.onsuccess?.());
           return req;
         }),
@@ -125,7 +125,7 @@ describe("fileHandleStore error paths", () => {
     });
 
     const { saveNativeHandle } = await import("../utils/fileHandleStore");
-    await expect(saveNativeHandle({ name: "test" } as any)).rejects.toThrow("Failed to save file handle");
+    await expect(saveNativeHandle({ name: "test" } as unknown as FileSystemFileHandle)).rejects.toThrow("Failed to save file handle");
   });
 
   it("loadNativeHandle rejects on request error", async () => {
@@ -135,13 +135,13 @@ describe("fileHandleStore error paths", () => {
         const tx = {
           objectStore: jest.fn(() => ({
             get: jest.fn(() => {
-              const r = { result: null, error: new Error("req error"), onsuccess: null as any, onerror: null as any };
+              const r = { result: null, error: new Error("req error"), onsuccess: null as (() => void) | null, onerror: null as (() => void) | null };
               setTimeout(() => r.onerror?.());
               return r;
             }),
           })),
-          oncomplete: null as any,
-          onerror: null as any,
+          oncomplete: null as (() => void) | null,
+          onerror: null as (() => void) | null,
         };
         return tx;
       }),
@@ -151,7 +151,7 @@ describe("fileHandleStore error paths", () => {
     Object.defineProperty(globalThis, "indexedDB", {
       value: {
         open: jest.fn(() => {
-          const req = { result: mockDb, onsuccess: null as any, onerror: null as any, onupgradeneeded: null as any };
+          const req = { result: mockDb, onsuccess: null as (() => void) | null, onerror: null as (() => void) | null, onupgradeneeded: null as (() => void) | null };
           setTimeout(() => req.onsuccess?.());
           return req;
         }),
@@ -167,7 +167,7 @@ describe("fileHandleStore error paths", () => {
     const mockDb = {
       objectStoreNames: { contains: jest.fn(() => true) },
       transaction: jest.fn(() => {
-        const tx = { objectStore: jest.fn(() => ({ delete: jest.fn() })), oncomplete: null as any, onerror: null as any, error: new Error("clear error") };
+        const tx = { objectStore: jest.fn(() => ({ delete: jest.fn() })), oncomplete: null as (() => void) | null, onerror: null as (() => void) | null, error: new Error("clear error") };
         setTimeout(() => tx.onerror?.());
         return tx;
       }),
@@ -177,7 +177,7 @@ describe("fileHandleStore error paths", () => {
     Object.defineProperty(globalThis, "indexedDB", {
       value: {
         open: jest.fn(() => {
-          const req = { result: mockDb, onsuccess: null as any, onerror: null as any, onupgradeneeded: null as any };
+          const req = { result: mockDb, onsuccess: null as (() => void) | null, onerror: null as (() => void) | null, onupgradeneeded: null as (() => void) | null };
           setTimeout(() => req.onsuccess?.());
           return req;
         }),
@@ -193,7 +193,7 @@ describe("fileHandleStore error paths", () => {
     const mockDb = {
       objectStoreNames: { contains: jest.fn(() => true) },
       transaction: jest.fn(() => {
-        const tx = { objectStore: jest.fn(() => ({ delete: jest.fn() })), oncomplete: null as any, onerror: null as any, error: null };
+        const tx = { objectStore: jest.fn(() => ({ delete: jest.fn() })), oncomplete: null as (() => void) | null, onerror: null as (() => void) | null, error: null };
         setTimeout(() => tx.onerror?.());
         return tx;
       }),
@@ -203,7 +203,7 @@ describe("fileHandleStore error paths", () => {
     Object.defineProperty(globalThis, "indexedDB", {
       value: {
         open: jest.fn(() => {
-          const req = { result: mockDb, onsuccess: null as any, onerror: null as any, onupgradeneeded: null as any };
+          const req = { result: mockDb, onsuccess: null as (() => void) | null, onerror: null as (() => void) | null, onupgradeneeded: null as (() => void) | null };
           setTimeout(() => req.onsuccess?.());
           return req;
         }),
@@ -222,13 +222,13 @@ describe("fileHandleStore error paths", () => {
         const tx = {
           objectStore: jest.fn(() => ({
             get: jest.fn(() => {
-              const r = { result: null, error: null, onsuccess: null as any, onerror: null as any };
+              const r = { result: null, error: null, onsuccess: null as (() => void) | null, onerror: null as (() => void) | null };
               setTimeout(() => r.onerror?.());
               return r;
             }),
           })),
-          oncomplete: null as any,
-          onerror: null as any,
+          oncomplete: null as (() => void) | null,
+          onerror: null as (() => void) | null,
         };
         return tx;
       }),
@@ -238,7 +238,7 @@ describe("fileHandleStore error paths", () => {
     Object.defineProperty(globalThis, "indexedDB", {
       value: {
         open: jest.fn(() => {
-          const req = { result: mockDb, onsuccess: null as any, onerror: null as any, onupgradeneeded: null as any };
+          const req = { result: mockDb, onsuccess: null as (() => void) | null, onerror: null as (() => void) | null, onupgradeneeded: null as (() => void) | null };
           setTimeout(() => req.onsuccess?.());
           return req;
         }),

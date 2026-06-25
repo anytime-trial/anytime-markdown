@@ -18,14 +18,40 @@ jest.mock("lowlight", () => ({
 
 import { getBaseExtensions } from "../editorExtensions";
 
+/** TipTap extension internal shape used in white-box tests (not part of public API) */
+interface TiptapExtensionTestable {
+  name?: string;
+  config?: {
+    name?: string;
+    addGlobalAttributes?: (this: Record<string, never>) => Array<{
+      types: string[];
+      attributes: Record<string, {
+        default?: unknown;
+        parseHTML?: (el: HTMLElement) => unknown;
+        renderHTML?: (attrs: Record<string, unknown>) => Record<string, unknown> | null;
+      }>;
+    }>;
+    addProseMirrorPlugins?: (this: Record<string, never>) => Array<{
+      spec: {
+        appendTransaction?: (
+          transactions: Array<{ docChanged: boolean }>,
+          oldState: unknown,
+          newState: unknown
+        ) => unknown;
+      };
+    }>;
+    addKeyboardShortcuts?: (this: Record<string, never>) => Record<string, (props?: { editor?: unknown }) => boolean>;
+  };
+  options?: Record<string, unknown>;
+}
+
 describe("editorExtensions coverage - TaskListTight extension", () => {
   it("TaskListTight has addGlobalAttributes that returns taskList config", () => {
-    const extensions = getBaseExtensions();
-    const taskListTight = extensions.find((e: any) => (e.name || e.config?.name) === "taskListTight");
-    expect(taskListTight).toBeDefined();
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "taskListTight")!;
+    expect(ext).toBeDefined();
 
     // Access the global attributes configuration
-    const ext = taskListTight as any;
     const _options = ext.options ?? {};
     // The extension should define globalAttributes via addGlobalAttributes
     // We can check via the extension's config
@@ -41,11 +67,11 @@ describe("editorExtensions coverage - TaskListTight extension", () => {
       // Test parseHTML with data-tight="true"
       const el = document.createElement("ul");
       el.dataset.tight = "true";
-      expect(attrs[0].attributes.tight.parseHTML(el)).toBe(true);
+      expect(attrs[0].attributes.tight.parseHTML!(el)).toBe(true);
 
       // Test parseHTML with no data-tight and no <p> child (tight)
       const el2 = document.createElement("ul");
-      expect(attrs[0].attributes.tight.parseHTML(el2)).toBe(true);
+      expect(attrs[0].attributes.tight.parseHTML!(el2)).toBe(true);
 
       // Test parseHTML with data-tight="false" and <p> child (not tight)
       const el3 = document.createElement("ul");
@@ -53,16 +79,16 @@ describe("editorExtensions coverage - TaskListTight extension", () => {
       const p = document.createElement("p");
       el3.appendChild(document.createElement("li")).appendChild(p);
       // data-tight is "false" so first condition is false, check second: !querySelector("p")
-      const result = attrs[0].attributes.tight.parseHTML(el3);
+      const result = attrs[0].attributes.tight.parseHTML!(el3);
       // "false" !== "true" -> first is false; !el3.querySelector("p") -> false
       expect(result).toBe(false);
 
       // Test renderHTML with tight=true
-      const html = attrs[0].attributes.tight.renderHTML({ tight: true });
+      const html = attrs[0].attributes.tight.renderHTML!({ tight: true });
       expect(html).toEqual({ class: "tight", "data-tight": "true" });
 
       // Test renderHTML with tight=false
-      const html2 = attrs[0].attributes.tight.renderHTML({ tight: false });
+      const html2 = attrs[0].attributes.tight.renderHTML!({ tight: false });
       expect(html2).toEqual({});
     }
   });
@@ -70,12 +96,12 @@ describe("editorExtensions coverage - TaskListTight extension", () => {
 
 describe("editorExtensions coverage - ListTextCleanup extension", () => {
   it("ListTextCleanup extension exists and has ProseMirror plugins", () => {
-    const extensions = getBaseExtensions();
-    const listTextCleanup = extensions.find((e: any) => (e.name || e.config?.name) === "listTextCleanup");
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const listTextCleanup = extensions.find((e) => (e.name || e.config?.name) === "listTextCleanup");
     expect(listTextCleanup).toBeDefined();
 
     // Verify it has addProseMirrorPlugins
-    const ext = listTextCleanup as any;
+    const ext = listTextCleanup!;
     if (ext.config?.addProseMirrorPlugins) {
       const plugins = ext.config.addProseMirrorPlugins.call({});
       expect(Array.isArray(plugins)).toBe(true);
@@ -88,14 +114,14 @@ describe("editorExtensions coverage - ListTextCleanup extension", () => {
   });
 
   it("ListTextCleanup appendTransaction returns null when no doc changes", () => {
-    const extensions = getBaseExtensions();
-    const listTextCleanup = extensions.find((e: any) => (e.name || e.config?.name) === "listTextCleanup");
-    const ext = listTextCleanup as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const listTextCleanup = extensions.find((e) => (e.name || e.config?.name) === "listTextCleanup");
+    const ext = listTextCleanup!;
 
     if (ext.config?.addProseMirrorPlugins) {
       const plugins = ext.config.addProseMirrorPlugins.call({});
       const plugin = plugins[0];
-      const appendTx = plugin.spec.appendTransaction;
+      const appendTx = plugin.spec.appendTransaction!;
 
       // Transaction with no docChanged
       const mockTransactions = [{ docChanged: false }];
@@ -105,19 +131,19 @@ describe("editorExtensions coverage - ListTextCleanup extension", () => {
   });
 
   it("ListTextCleanup appendTransaction processes text nodes ending with newline in list items", () => {
-    const extensions = getBaseExtensions();
-    const listTextCleanup = extensions.find((e: any) => (e.name || e.config?.name) === "listTextCleanup");
-    const ext = listTextCleanup as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const listTextCleanup = extensions.find((e) => (e.name || e.config?.name) === "listTextCleanup");
+    const ext = listTextCleanup!;
 
     if (ext.config?.addProseMirrorPlugins) {
       const plugins = ext.config.addProseMirrorPlugins.call({});
       const plugin = plugins[0];
-      const appendTx = plugin.spec.appendTransaction;
+      const appendTx = plugin.spec.appendTransaction!;
 
       // Transaction with docChanged but no matching nodes
       const mockTransactions = [{ docChanged: true }];
       const mockDoc = {
-        descendants: jest.fn((cb: any) => {
+        descendants: jest.fn((cb: (node: { isText?: boolean; text?: string | null; marks?: unknown[] }, pos: number) => void) => {
           // Call with a non-text node
           cb({ isText: false, text: null }, 0);
           // Call with text node not ending in \n
@@ -134,20 +160,20 @@ describe("editorExtensions coverage - ListTextCleanup extension", () => {
   });
 
   it("ListTextCleanup trims trailing newlines from text in listItem paragraphs", () => {
-    const extensions = getBaseExtensions();
-    const listTextCleanup = extensions.find((e: any) => (e.name || e.config?.name) === "listTextCleanup");
-    const ext = listTextCleanup as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const listTextCleanup = extensions.find((e) => (e.name || e.config?.name) === "listTextCleanup");
+    const ext = listTextCleanup!;
 
     if (ext.config?.addProseMirrorPlugins) {
       const plugins = ext.config.addProseMirrorPlugins.call({});
       const plugin = plugins[0];
-      const appendTx = plugin.spec.appendTransaction;
+      const appendTx = plugin.spec.appendTransaction!;
 
       const mockTransactions = [{ docChanged: true }];
 
       const mockMark = { type: { name: "bold" } };
       const mockSchema = {
-        text: jest.fn((text: string, marks: any) => ({ text, marks })),
+        text: jest.fn((text: string, marks: readonly unknown[]) => ({ text, marks })),
       };
       const mockTr = {
         replaceWith: jest.fn(),
@@ -165,7 +191,7 @@ describe("editorExtensions coverage - ListTextCleanup extension", () => {
       const listItemNode = { type: { name: "listItem" } };
 
       const mockDoc = {
-        descendants: jest.fn((cb: any) => {
+        descendants: jest.fn((cb: (node: { isText?: boolean; text?: string | null; marks?: unknown[] }, pos: number) => void) => {
           cb(nodeWithNewline, 10);
         }),
         resolve: jest.fn((pos: number) => ({
@@ -193,19 +219,19 @@ describe("editorExtensions coverage - ListTextCleanup extension", () => {
   });
 
   it("ListTextCleanup deletes text node when only newlines remain", () => {
-    const extensions = getBaseExtensions();
-    const listTextCleanup = extensions.find((e: any) => (e.name || e.config?.name) === "listTextCleanup");
-    const ext = listTextCleanup as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const listTextCleanup = extensions.find((e) => (e.name || e.config?.name) === "listTextCleanup");
+    const ext = listTextCleanup!;
 
     if (ext.config?.addProseMirrorPlugins) {
       const plugins = ext.config.addProseMirrorPlugins.call({});
       const plugin = plugins[0];
-      const appendTx = plugin.spec.appendTransaction;
+      const appendTx = plugin.spec.appendTransaction!;
 
       const mockTransactions = [{ docChanged: true }];
 
       const mockSchema = {
-        text: jest.fn((text: string, marks: any) => ({ text, marks })),
+        text: jest.fn((text: string, marks: readonly unknown[]) => ({ text, marks })),
       };
       const mockTr = {
         replaceWith: jest.fn(),
@@ -223,7 +249,7 @@ describe("editorExtensions coverage - ListTextCleanup extension", () => {
       const listItemNode = { type: { name: "listItem" } };
 
       const mockDoc = {
-        descendants: jest.fn((cb: any) => {
+        descendants: jest.fn((cb: (node: { isText?: boolean; text?: string | null; marks?: unknown[] }, pos: number) => void) => {
           cb(nodeOnlyNewlines, 5);
         }),
         resolve: jest.fn((pos: number) => ({
@@ -249,14 +275,14 @@ describe("editorExtensions coverage - ListTextCleanup extension", () => {
   });
 
   it("ListTextCleanup skips text nodes not inside paragraph", () => {
-    const extensions = getBaseExtensions();
-    const listTextCleanup = extensions.find((e: any) => (e.name || e.config?.name) === "listTextCleanup");
-    const ext = listTextCleanup as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const listTextCleanup = extensions.find((e) => (e.name || e.config?.name) === "listTextCleanup");
+    const ext = listTextCleanup!;
 
     if (ext.config?.addProseMirrorPlugins) {
       const plugins = ext.config.addProseMirrorPlugins.call({});
       const plugin = plugins[0];
-      const appendTx = plugin.spec.appendTransaction;
+      const appendTx = plugin.spec.appendTransaction!;
 
       const mockTransactions = [{ docChanged: true }];
 
@@ -264,7 +290,7 @@ describe("editorExtensions coverage - ListTextCleanup extension", () => {
       const headingParent = { type: { name: "heading" } };
 
       const mockDoc = {
-        descendants: jest.fn((cb: any) => {
+        descendants: jest.fn((cb: (node: { isText?: boolean; text?: string | null; marks?: unknown[] }, pos: number) => void) => {
           cb(nodeWithNewline, 10);
         }),
         resolve: jest.fn(() => ({
@@ -285,14 +311,14 @@ describe("editorExtensions coverage - ListTextCleanup extension", () => {
   });
 
   it("ListTextCleanup skips text in paragraph not inside listItem", () => {
-    const extensions = getBaseExtensions();
-    const listTextCleanup = extensions.find((e: any) => (e.name || e.config?.name) === "listTextCleanup");
-    const ext = listTextCleanup as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const listTextCleanup = extensions.find((e) => (e.name || e.config?.name) === "listTextCleanup");
+    const ext = listTextCleanup!;
 
     if (ext.config?.addProseMirrorPlugins) {
       const plugins = ext.config.addProseMirrorPlugins.call({});
       const plugin = plugins[0];
-      const appendTx = plugin.spec.appendTransaction;
+      const appendTx = plugin.spec.appendTransaction!;
 
       const mockTransactions = [{ docChanged: true }];
 
@@ -300,7 +326,7 @@ describe("editorExtensions coverage - ListTextCleanup extension", () => {
       const paragraphParent = { type: { name: "paragraph" } };
 
       const mockDoc = {
-        descendants: jest.fn((cb: any) => {
+        descendants: jest.fn((cb: (node: { isText?: boolean; text?: string | null; marks?: unknown[] }, pos: number) => void) => {
           cb(nodeWithNewline, 10);
         }),
         resolve: jest.fn(() => ({
@@ -327,8 +353,8 @@ describe("editorExtensions coverage - ListTextCleanup extension", () => {
 
 describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   it("disableFormattingShortcuts extension has keyboard shortcuts defined", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
     expect(ext).toBeDefined();
 
     if (ext.config?.addKeyboardShortcuts) {
@@ -350,8 +376,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Tab in heading increases level", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -375,8 +401,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Tab in heading at max level (5) returns true without changing", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -394,8 +420,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Tab in non-heading returns true (suppresses focus escape)", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -413,8 +439,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Shift-Tab in heading decreases level", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -435,8 +461,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Shift-Tab in heading at level 1 returns true without changing", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -454,8 +480,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Shift-Tab in non-heading returns true (suppresses focus escape)", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -473,8 +499,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Mod-Enter inserts empty paragraph below", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -505,8 +531,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Mod-Shift-Enter inserts empty paragraph above", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -536,8 +562,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Mod-l selects current block", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -570,8 +596,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Mod-d selects word at cursor", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -607,8 +633,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Mod-d returns false if selection is not collapsed", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -626,8 +652,8 @@ describe("editorExtensions coverage - disableFormattingShortcuts", () => {
   });
 
   it("Mod-d returns true when no word found at cursor", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -660,8 +686,8 @@ describe("editorExtensions coverage - VS Code block movement shortcuts", () => {
   });
 
   it("Alt-ArrowUp moves block up (when __vscode is set)", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -705,8 +731,8 @@ describe("editorExtensions coverage - VS Code block movement shortcuts", () => {
   });
 
   it("Alt-ArrowUp returns false at doc start", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -728,8 +754,8 @@ describe("editorExtensions coverage - VS Code block movement shortcuts", () => {
   });
 
   it("Alt-ArrowDown moves block down", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -772,8 +798,8 @@ describe("editorExtensions coverage - VS Code block movement shortcuts", () => {
   });
 
   it("Alt-ArrowDown returns false at doc end", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -797,8 +823,8 @@ describe("editorExtensions coverage - VS Code block movement shortcuts", () => {
   });
 
   it("Shift-Alt-ArrowUp duplicates block above", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
@@ -835,8 +861,8 @@ describe("editorExtensions coverage - VS Code block movement shortcuts", () => {
   });
 
   it("Shift-Alt-ArrowDown duplicates block below", () => {
-    const extensions = getBaseExtensions();
-    const ext = extensions.find((e: any) => (e.name || e.config?.name) === "disableFormattingShortcuts") as any;
+    const extensions = getBaseExtensions() as unknown as TiptapExtensionTestable[];
+    const ext = extensions.find((e) => (e.name || e.config?.name) === "disableFormattingShortcuts")!;
 
     if (ext.config?.addKeyboardShortcuts) {
       const shortcuts = ext.config.addKeyboardShortcuts.call({});
