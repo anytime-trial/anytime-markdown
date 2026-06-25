@@ -67,6 +67,22 @@ function formatLastCommit(lastCommit: { hash: string; timestamp: string }): stri
   return `\`${shortHash}\`${timeStr}`;
 }
 
+/**
+ * 経過時間を相対表示する。60 秒未満は秒、60 分未満は分、それ以上は「Xh Ymin」。
+ */
+export function formatAge(ageSeconds: number): string {
+  if (ageSeconds < 60) {
+    return `${ageSeconds} sec ago`;
+  }
+  const totalMinutes = Math.round(ageSeconds / 60);
+  if (totalMinutes < 60) {
+    return `${totalMinutes} min ago`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${minutes}min ago`;
+}
+
 /** コンテキスト肥大の警告閾値（トークン）。設定 anytimeAgent.contextWarnTokens（既定 16万）。 */
 function contextWarnTokens(): number {
   const v = vscode.workspace.getConfiguration('anytimeAgent').get<number>('contextWarnTokens');
@@ -77,9 +93,7 @@ export class SessionTreeItem extends vscode.TreeItem {
   constructor(public readonly session: SessionMapping) {
     super(session.sessionId.slice(0, 8));
     const stateStr = session.state === 'active' ? 'editing' : 'idle';
-    const age = session.ageSeconds < 60
-      ? `${session.ageSeconds} sec ago`
-      : `${Math.round(session.ageSeconds / 60)} min ago`;
+    const age = formatAge(session.ageSeconds);
     const label = session.sessionTitle || session.fileBasename;
     const tokenStr = session.contextTokens ? `  ${formatTokens(session.contextTokens)}` : '';
     // コンテキストが閾値を超えたら引き継ぎ推奨バッジ（⚠️）を token の前に出す。
