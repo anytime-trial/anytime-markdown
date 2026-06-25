@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { WorktreeMapping, SessionMapping, MappingState } from '@anytime-markdown/agent-core';
+import type { SessionMapping, MappingState } from '@anytime-markdown/agent-core';
 import type { TodayStats } from '@anytime-markdown/vscode-common';
 
 const STATE_ICONS: Record<MappingState, vscode.ThemeIcon> = {
@@ -7,31 +7,6 @@ const STATE_ICONS: Record<MappingState, vscode.ThemeIcon> = {
   recent: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.yellow')),
   stale: new vscode.ThemeIcon('circle-outline'),
 };
-
-export class WorktreeTreeItem extends vscode.TreeItem {
-  constructor(public readonly mapping: WorktreeMapping) {
-    const collapsible = mapping.sessions.length === 0
-      ? vscode.TreeItemCollapsibleState.None
-      : mapping.aggregatedState === 'active'
-        ? vscode.TreeItemCollapsibleState.Expanded
-        : vscode.TreeItemCollapsibleState.Collapsed;
-    super(mapping.worktreeName, collapsible);
-    const stateLabelMap: Record<MappingState, string> = {
-      active: `[${mapping.activeCount} active]`,
-      recent: `[${mapping.activeCount} recent]`,
-      stale: '[stale]',
-    };
-    const stateLabel = mapping.sessions.length === 0 ? '' : `  ${stateLabelMap[mapping.aggregatedState]}`;
-    this.description = `${mapping.branch}${stateLabel}`;
-    this.iconPath = mapping.aggregatedState === 'active'
-      ? new vscode.ThemeIcon('folder-active')
-      : new vscode.ThemeIcon('folder');
-    this.contextValue = `worktree.${mapping.aggregatedState}`;
-    this.tooltip = new vscode.MarkdownString(
-      `**${mapping.worktreePath}**\n\nbranch: \`${mapping.branch}\`\nsessions: ${mapping.sessions.length}`,
-    );
-  }
-}
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -89,8 +64,17 @@ function contextWarnTokens(): number {
   return typeof v === 'number' && v > 0 ? v : 160000;
 }
 
+/** セッションが最後に利用したブランチ / worktree（hover 表示用）。 */
+export interface SessionWorktreeContext {
+  readonly branch: string;
+  readonly worktreeName: string;
+}
+
 export class SessionTreeItem extends vscode.TreeItem {
-  constructor(public readonly session: SessionMapping) {
+  constructor(
+    public readonly session: SessionMapping,
+    context?: SessionWorktreeContext,
+  ) {
     super(session.sessionId.slice(0, 8));
     const stateStr = session.state === 'active' ? 'editing' : 'idle';
     const age = formatAge(session.ageSeconds);
@@ -103,11 +87,15 @@ export class SessionTreeItem extends vscode.TreeItem {
     this.description = `${stateStr} • ${age}${warnStr}${tokenStr}`;
     this.iconPath = STATE_ICONS[session.state];
     this.contextValue = bloated ? `session.${session.state}.bloated` : `session.${session.state}`;
-    // セッションのタイトル（コメント）は hover に表示する。
+    // セッションのタイトル（コメント）と最後に利用したブランチ / worktree は hover に表示する。
     const labelInfo = session.sessionTitle ? `**タイトル:** ${session.sessionTitle}\n\n` : '';
+    const wtInfo = context
+      ? `**ブランチ:** \`${context.branch}\`  •  **worktree:** \`${context.worktreeName}\`\n\n`
+      : '';
     this.tooltip = new vscode.MarkdownString(
       `**Session:** \`${session.sessionId}\`\n\n` +
       labelInfo +
+      wtInfo +
       (session.contextTokens ? `**Context:** ${formatTokens(session.contextTokens)} tokens\n\n` : '') +
       (bloated ? `⚠️ **引き継ぎ推奨**（コンテキスト肥大）— 新セッションへの引き継ぎを検討してください\n\n` : '') +
       (committed > 0

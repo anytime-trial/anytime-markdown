@@ -2,11 +2,11 @@ import * as cp from 'node:child_process';
 import * as vscode from 'vscode';
 import { ClaudeStatusWatcher, jstDateString } from '@anytime-markdown/vscode-common';
 import { buildAgentMapping, parseWorktreeList } from '@anytime-markdown/agent-core';
-import type { WorktreeEntry, WorktreeMapping } from '@anytime-markdown/agent-core';
-import { WorktreeTreeItem, SessionTreeItem, TodaySummaryItem } from './AgentMappingItem';
+import type { WorktreeEntry } from '@anytime-markdown/agent-core';
+import { SessionTreeItem, TodaySummaryItem } from './AgentMappingItem';
 import { AgentLogger } from '../utils/AgentLogger';
 
-type AgentMappingItem = WorktreeTreeItem | SessionTreeItem | TodaySummaryItem;
+type AgentMappingItem = SessionTreeItem | TodaySummaryItem;
 
 const WORKTREE_CACHE_TTL_MS = 30_000;
 
@@ -43,25 +43,30 @@ export class AgentMappingProvider
     return element;
   }
 
-  getChildren(element?: AgentMappingItem): AgentMappingItem[] {
-    if (element instanceof WorktreeTreeItem) {
-      const sessions = this._showStale
-        ? element.mapping.sessions
-        : element.mapping.sessions.filter(s => s.state !== 'stale');
-      return sessions.map(s => new SessionTreeItem(s));
-    }
+  getChildren(): AgentMappingItem[] {
     const agents = [...this.watcher.getAllAgents().values()];
     const worktrees = this._getWorktreesCached();
     const mappings = buildAgentMapping(agents, worktrees);
-    const filtered = this._showStale
-      ? mappings
-      : mappings.filter(m => m.sessions.some(s => s.state !== 'stale'));
+
+    // worktree / branch でグルーピングせずセッションをフラットに並べる。
+    // 各セッションには最後に利用した worktree のブランチ名 / worktree 名を hover 用に添える。
+    const entries = mappings.flatMap(m =>
+      m.sessions.map(session => ({ session, branch: m.branch, worktreeName: m.worktreeName })),
+    );
+    const visible = this._showStale
+      ? entries
+      : entries.filter(e => e.session.state !== 'stale');
+    // 最近使用順（ageSeconds 昇順＝最終アクティビティが新しいものを上に）。
+    const sorted = [...visible].sort((a, b) => a.session.ageSeconds - b.session.ageSeconds);
 
     const todayStats = this.watcher.getTodayStats();
     const commitCount = this._getTodayCommitCountCached();
     const todayItem = new TodaySummaryItem(todayStats, commitCount);
 
-    return [todayItem, ...filtered.map(m => new WorktreeTreeItem(m))];
+    return [
+      todayItem,
+      ...sorted.map(e => new SessionTreeItem(e.session, { branch: e.branch, worktreeName: e.worktreeName })),
+    ];
   }
 
   dispose(): void {

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- The Agent mapping tree now lists sessions as a flat list sorted by recency (most recently active first), instead of grouping them under worktree/branch nodes. Each session's hover (tooltip) shows the last-used branch and worktree name. The worktree-level nodes and their `Open Worktree` / `Copy Worktree Path` commands were removed.
 - Session age in the Agent mapping tree is now shown as `Xh Ymin ago` for ages of one hour or more (previously minutes only, e.g. `135 min ago`).
 - Removed the per-session commit count (`committed(N)`) from the Agent mapping tree row. The commit count remains in the session hover (tooltip) and in the Today summary row.
 - Removed the session title/last filename from the Agent mapping tree row. The session title is now shown only in the hover (tooltip) as **タイトル**; the last filename is no longer displayed in the tree.

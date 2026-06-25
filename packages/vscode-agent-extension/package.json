@@ -85,16 +85,6 @@
         "category": "Anytime Agent"
       },
       {
-        "command": "anytime-agent.mapping.openWorktree",
-        "title": "%command.mapping.openWorktree%",
-        "category": "Anytime Agent"
-      },
-      {
-        "command": "anytime-agent.mapping.copyWorktreePath",
-        "title": "%command.mapping.copyWorktreePath%",
-        "category": "Anytime Agent"
-      },
-      {
         "command": "anytime-agent.mapping.handoffSession",
         "title": "%command.mapping.handoffSession%",
         "category": "Anytime Agent"
@@ -208,16 +198,6 @@
         }
       ],
       "view/item/context": [
-        {
-          "command": "anytime-agent.mapping.openWorktree",
-          "when": "view == anytimeAgent.mapping && viewItem =~ /^worktree/",
-          "group": "1_open@1"
-        },
-        {
-          "command": "anytime-agent.mapping.copyWorktreePath",
-          "when": "view == anytimeAgent.mapping && viewItem =~ /^worktree/",
-          "group": "2_copy@1"
-        },
         {
           "command": "anytime-agent.mapping.handoffSession",
           "when": "view == anytimeAgent.mapping && viewItem =~ /^session/",
