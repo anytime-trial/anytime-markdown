@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import {
   ClaudeStatusWatcher,
+  installStaticSkillDir,
   installTemplatedSkill,
   setupClaudeHooks,
 } from '@anytime-markdown/vscode-common';
@@ -90,6 +91,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         });
       } catch (err) {
         AgentLogger.warn(`[install-skills] anytime-note unexpected failure: ${String(err)}`);
+      }
+
+      // .claude/skills/anytime-agent-rotation/SKILL.md（静的スキル）を配置。
+      // 旧名 subagent-rotation からのリネームに伴い oldSkillNames で旧 dir を掃除する。
+      try {
+        installStaticSkillDir({
+          claudeDir,
+          extensionPath: context.extensionUri.fsPath,
+          skillName: 'anytime-agent-rotation',
+          oldSkillNames: ['subagent-rotation'],
+          logger: {
+            info: (m) => AgentLogger.info(m),
+            warn: (m) => AgentLogger.warn(m),
+            error: (m) => AgentLogger.error(m),
+          },
+        });
+      } catch (err) {
+        AgentLogger.warn(`[install-skills] anytime-agent-rotation unexpected failure: ${String(err)}`);
       }
     }
   }
