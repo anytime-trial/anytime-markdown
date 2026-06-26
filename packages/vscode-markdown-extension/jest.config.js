@@ -11,6 +11,7 @@ module.exports = {
     '**/noteGraph/__tests__/**/*.test.ts',
     '**/claude/__tests__/**/*.test.ts',
     '**/webview/__tests__/**/*.test.ts',
+    '**/utils/__tests__/**/*.test.ts',
   ],
   transform: {
     '^.+\\.ts$': ['ts-jest', { isolatedModules: true }],

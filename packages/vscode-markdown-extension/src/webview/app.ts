@@ -39,6 +39,7 @@ import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/
 
 import { getVsCodeApi } from './vscodeApi';
 import { buildWebviewFileHandlers } from './fileHandlers';
+import { resolveLinkClickAction } from './linkClick';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
 import { createNoteGraphPanel, type NoteGraphPanelHandle } from './noteGraph/panel';
 
@@ -678,22 +679,25 @@ function installScrollSync(): void {
 // --- リンク横取り（相対リンクを extension host で解決） ---
 
 function installLinkInterception(): void {
-  const openLink = (e: MouseEvent) => {
+  const handle = (e: MouseEvent, dblClick: boolean) => {
     const anchor = (e.target as HTMLElement).closest('a');
-    if (!anchor) return;
-    const href = anchor.getAttribute('href');
-    if (!href) return;
-    if (/^https?:\/\//.test(href)) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    vscode.postMessage({ type: 'openLink', href });
-  };
-  const handleCtrlClick = (e: MouseEvent) => {
-    if (e.ctrlKey || e.metaKey) openLink(e);
+    const href = anchor?.getAttribute('href') ?? null;
+    const action = resolveLinkClickAction({
+      href,
+      ctrlOrMeta: e.ctrlKey || e.metaKey,
+      dblClick,
+    });
+    // 内部リンクは素クリックでもデフォルト遷移を抑止し、webview オリジン
+    // （vscode-resource URL）へのブラウザ遷移を防ぐ。
+    if (action.preventDefault) e.preventDefault();
+    if (action.open && href) {
+      e.stopImmediatePropagation();
+      vscode.postMessage({ type: 'openLink', href });
+    }
   };
   // capture フェーズで VS Code プリロードスクリプトより先にイベントを捕捉
-  document.addEventListener('click', handleCtrlClick, true);
-  document.addEventListener('dblclick', openLink, true);
+  document.addEventListener('click', (e) => handle(e, false), true);
+  document.addEventListener('dblclick', (e) => handle(e, true), true);
 }
 
 // --- 起動 ---
