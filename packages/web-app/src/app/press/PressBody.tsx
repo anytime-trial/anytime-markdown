@@ -138,8 +138,10 @@ export function PressBody() {
           <CtaActions
             primaryLabel={tCta('onlineEditor')}
             secondaryLabel={tCta('vsCode')}
+            tertiaryLabel={tCta('chrome')}
             primaryHref="/markdown"
             secondaryHref="https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-markdown"
+            tertiaryHref="https://chromewebstore.google.com/detail/anytime-markdown-editor/joebjfjekfmmcpboldblhgdbbmldfngh"
           />
         }
       />
