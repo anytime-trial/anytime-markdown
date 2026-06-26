@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- The Agent mapping tree now groups sessions by source under **Claude Code** and **Codex** headings. Codex (OpenAI CLI) sessions for the current workspace are surfaced by a read-only scan of the Codex rollout files (`~/.codex/sessions`); only sessions within the retention period whose working directory is inside the current workspace's worktrees are listed. Codex has no agent-status lifecycle hook, so only **last activity** and **context tokens** (⚠️ handoff-hint badge) are available — editing-lock, commit count, and session handoff are Claude-only. Toggle with `anytimeAgent.showCodexSessions` (default on). The **Today** summary is Claude-only and is now labeled accordingly.
 - Periodic cleanup of unused sessions: the agent-status worker deletes sessions whose last activity is older than the retention period from the database, on startup and once per day. The retention period is configurable via `anytimeAgent.sessionRetentionDays` (default 7 days).
 
 ### Removed
