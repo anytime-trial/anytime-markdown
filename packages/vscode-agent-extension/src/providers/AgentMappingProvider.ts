@@ -35,6 +35,7 @@ export class AgentMappingProvider
     private readonly watcher: ClaudeStatusWatcher,
     private readonly gitRoot: string,
     private readonly codexScanner?: CodexSessionScanner,
+    private readonly iconBaseUri?: vscode.Uri,
   ) {
     watcher.onMultiStatusChange(() => this.refresh());
     if (this.codexScanner) {
@@ -120,7 +121,7 @@ export class AgentMappingProvider
     const items = entries
       .filter(e => e.session.source === source)
       .map(e => new SessionTreeItem(e.session, { branch: e.branch, worktreeName: e.worktreeName }));
-    return items.length > 0 ? new SourceGroupItem(source, items) : null;
+    return items.length > 0 ? new SourceGroupItem(source, items, this.iconBaseUri) : null;
   }
 
   dispose(): void {

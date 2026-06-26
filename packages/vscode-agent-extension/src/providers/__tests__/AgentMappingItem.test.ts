@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import type { SessionMapping } from '@anytime-markdown/agent-core';
 import { SessionTreeItem, SourceGroupItem, TodaySummaryItem } from '../AgentMappingItem';
 
@@ -68,6 +69,19 @@ describe('SourceGroupItem', () => {
   it('labels Claude group', () => {
     const group = new SourceGroupItem('claude', []);
     expect(group.label).toBe('Claude Code');
+  });
+
+  it('uses the bundled brand SVG when an icon base URI is provided', () => {
+    const base = vscode.Uri.file('/ext');
+    const codex = new SourceGroupItem('codex', [], base);
+    const claude = new SourceGroupItem('claude', [], base);
+    expect((codex.iconPath as { fsPath: string }).fsPath).toBe('/ext/images/icons/codex.svg');
+    expect((claude.iconPath as { fsPath: string }).fsPath).toBe('/ext/images/icons/claude.svg');
+  });
+
+  it('falls back to a codicon when no icon base URI is given', () => {
+    const group = new SourceGroupItem('codex', []);
+    expect((group.iconPath as { id?: string }).id).toBe('robot');
   });
 });
 
