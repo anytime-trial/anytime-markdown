@@ -100,6 +100,7 @@ import { createEditorSideToolbar } from "../components-vanilla/EditorSideToolbar
 import { createSearchReplaceBar } from "../components-vanilla/SearchReplaceBar";
 import { createOutlinePanel } from "../components-vanilla/OutlinePanel";
 import { createCommentPanel } from "../components-vanilla/CommentPanel";
+import { createMarkdownMinimap } from "../components-vanilla/MarkdownMinimap";
 
 /** 保存（onContentChange / localStorage）デバウンス（React useMarkdownEditor と同値）。 */
 const SAVE_DEBOUNCE_MS = 500;
@@ -272,6 +273,7 @@ interface VanillaLayout {
   contentArea: HTMLElement;
   editorMountEl: HTMLElement;
   mainRow: HTMLElement;
+  minimapSlot: HTMLElement;
   sidebarSlot: HTMLElement;
   sideToolbarSlot: HTMLElement;
   statusBarSlot: HTMLElement;
@@ -327,6 +329,12 @@ function buildLayout(): VanillaLayout {
     "position:relative;flex:1 1 auto;min-width:0;min-height:0;display:flex;flex-direction:column;";
   contentArea.appendChild(contentEl);
 
+  // 変更オーバービュー（MarkdownMinimap）のマウント先。本文スクロールバーの直右・
+  // sidebar（outline/comment）の手前に縦置きし、旧 React EditorContentArea と同じ位置関係にする。
+  const minimapSlot = document.createElement("div");
+  minimapSlot.setAttribute("data-am-minimap-slot", "");
+  minimapSlot.style.cssText = "flex-shrink:0;display:flex;min-height:0;";
+
   // Outline / Comment パネルのマウント先（toggle で表示）。
   const sidebarSlot = document.createElement("div");
   sidebarSlot.setAttribute("data-am-sidebar-slot", "");
@@ -337,7 +345,7 @@ function buildLayout(): VanillaLayout {
   sideToolbarSlot.setAttribute("data-am-side-toolbar-slot", "");
   sideToolbarSlot.style.cssText = "flex-shrink:0;display:flex;min-height:0;";
 
-  mainRow.append(contentArea, sidebarSlot);
+  mainRow.append(contentArea, minimapSlot, sidebarSlot);
 
   const statusBarSlot = document.createElement("div");
   statusBarSlot.setAttribute("data-am-statusbar-slot", "");
@@ -372,6 +380,7 @@ function buildLayout(): VanillaLayout {
     contentArea,
     editorMountEl,
     mainRow,
+    minimapSlot,
     sidebarSlot,
     sideToolbarSlot,
     statusBarSlot,
@@ -435,6 +444,7 @@ export function mountVanillaMarkdownEditor(
     contentEl,
     contentArea,
     editorMountEl,
+    minimapSlot,
     sidebarSlot,
     sideToolbarSlot,
     statusBarSlot,
@@ -588,6 +598,13 @@ export function mountVanillaMarkdownEditor(
       const onEditorUpdate = (): void => saveContent(() => getMarkdownFromEditorSafe(editor));
       editor.on("update", onEditorUpdate);
       disposers.push(() => editor.off("update", onEditorUpdate));
+
+      // === 変更オーバービュー（MarkdownMinimap・本文スクロールバー横） ============
+      // スクロールコンテナ（contentEl）は overflow:auto。changeGutterExtension の
+      // getChangedPositions を読み、変更箇所マーカー + 前/次ナビを minimapSlot へ縦置きする。
+      const minimap = createMarkdownMinimap({ editor, scrollContainer: contentEl, t });
+      minimapSlot.appendChild(minimap.el);
+      disposers.push(() => minimap.destroy());
 
       // === EditorDialogs（comment/link/image insert → editor コマンド） =========
       const dialogs = createEditorDialogs({
@@ -911,6 +928,9 @@ export function mountVanillaMarkdownEditor(
           modeState.reviewMode = mode === "review";
           modeState.readonlyMode = mode === "readonly" || (current.readOnly ?? false);
           editor.setEditable(!readonlyNow() && mode !== "review");
+          // source モードは WYSIWYG 本文を隠すため、ミニマップも畳む（マーカーが上端に集中して
+          // 表示されるグリッチを防ぐ）。WYSIWYG/review/readonly では本文が見えるので表示する。
+          minimap.setActive(mode !== "source");
           // 比較モード中はモード切替を比較ビューへ反映する（standalone DOM は出さない）。
           // source→wysiwyg では右ペイン diff の基準となる editorMarkdown を最新化する。
           if (modeState.inlineMergeOpen) {

@@ -46,6 +46,8 @@
     "insertSectionNumbers": "セクション番号を挿入",
     "removeSectionNumbers": "セクション番号を削除",
     "noHeadings": "見出しがありません",
+    "minimapPrevChange": "前の変更へ",
+    "minimapNextChange": "次の変更へ",
     "noPermission": "この画面を表示する権限がありません。",
     "skipToEditor": "エディタへスキップ",
     "home": "ホームへ戻る",

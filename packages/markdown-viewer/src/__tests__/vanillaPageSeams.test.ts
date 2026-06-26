@@ -136,6 +136,26 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
     handle.destroy();
   });
 
+  it("本文スクロールバー横に変更オーバービュー（minimap）を常設する（回帰: G4-B 脱React で欠落）", () => {
+    const handle = mountVanillaMarkdownEditor(container, {
+      t,
+      initialContent: "# Hello",
+      persistModeState: false,
+    });
+    // minimap スロットとバー本体が mainRow の content と sidebar の間に存在する。
+    const minimap = handle.root.querySelector("[data-am-minimap]");
+    expect(minimap).not.toBeNull();
+    expect(minimap?.querySelector("[data-am-minimap-bar]")).not.toBeNull();
+    // 前/次の変更ナビボタン（aria-label は t() のキーがそのまま返る）。
+    const labels = Array.from(
+      handle.root.querySelectorAll<HTMLButtonElement>("[data-am-minimap] button"),
+    ).map((b) => b.getAttribute("aria-label"));
+    expect(labels).toEqual(
+      expect.arrayContaining(["minimapPrevChange", "minimapNextChange"]),
+    );
+    handle.destroy();
+  });
+
   it("source モードで左端に行番号ガターを表示し入力行数に追従する", () => {
     const handle = mountVanillaMarkdownEditor(container, {
       t,
