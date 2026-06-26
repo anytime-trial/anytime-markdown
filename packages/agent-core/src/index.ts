@@ -23,12 +23,19 @@ export {
 } from './mapping/agentMapping';
 export { parseWorktreeList } from './mapping/parseWorktreeList';
 export type {
+  AgentSource,
   MappingState,
   SessionMapping,
   SessionLastCommit,
   WorktreeEntry,
   WorktreeMapping,
 } from './mapping/types';
+export {
+  parseCodexSessionMeta,
+  extractCodexContextTokens,
+  extractCodexLastActivity,
+} from './codex/parseCodexRollout';
+export type { CodexSessionMeta } from './codex/parseCodexRollout';
 export {
   createOllamaChatRegistration,
   createOllamaEmbeddingRegistration,
