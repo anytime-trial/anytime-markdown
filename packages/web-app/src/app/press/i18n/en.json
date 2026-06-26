@@ -60,9 +60,7 @@
     "agent2Title": "Switch without losing context — Session handoff",
     "agent2Body": "Migrate a bloated session to a fresh one along with a compressed summary. Launch a new claude session in the terminal with the handoff auto-injected, continuing work without losing context.",
     "agent3Title": "Hand visual information to the AI — AI notes",
-    "agent3Body": "Share images, tables, and free-form memos with AI tools that cannot see the screen. The bundled anytime-note skill lets the AI read note pages on request and act on the visual information.",
-    "agent4Title": "Local LLMs from VS Code — Ollama integration",
-    "agent4Body": "Check the status of the local Ollama runtime and start it with one click when stopped. Manage your local LLM backend without leaving VS Code."
+    "agent3Body": "Share images, tables, and free-form memos with AI tools that cannot see the screen. The bundled anytime-note skill lets the AI read note pages on request and act on the visual information."
   },
   "pullQuote": {
     "text": "Faster tools lead writers astray. We carry words at the caravan's pace.",
