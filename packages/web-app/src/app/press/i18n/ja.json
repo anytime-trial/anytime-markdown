@@ -117,7 +117,8 @@
   "cta": {
     "openViewer": "Open Viewer",
     "onlineEditor": "Online Editor",
-    "vsCode": "VS Code Extension"
+    "vsCode": "VS Code Extension",
+    "chrome": "Chrome 拡張"
   },
   "colophon": {
     "press": "The Press",
