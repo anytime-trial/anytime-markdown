@@ -38,6 +38,10 @@ export interface AgentLastCommit {
  * セッションの出自。`'claude'` は agent-status worker DB（フック経由）、
  * `'codex'` は Codex rollout `.jsonl` の読み取り専用スキャン。変換漏れを Claude 扱いで
  * 隠さないよう必須にする。
+ *
+ * NOTE: agent-core `src/mapping/types.ts` の AgentSource と同内容のローカルミラー。
+ * vscode-common は agent-core の CJS バレル（node:sqlite 含む）を import しないため複製している。
+ * 値を追加・削除するときは **両方同時に更新** すること（codex/parseCodexRollout.ts のミラー注記と同じ理由）。
  */
 export type AgentSource = 'claude' | 'codex';
 

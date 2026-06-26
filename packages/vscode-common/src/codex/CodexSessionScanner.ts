@@ -64,11 +64,16 @@ function isWithin(cwd: string, normWorktrees: readonly string[]): boolean {
   return normWorktrees.some((wt) => cwd === wt || cwd.startsWith(`${wt}/`));
 }
 
-/** [now-(retentionDays+margin), now] を覆う YYYY/MM/DD の相対パス集合を生成。 */
+/**
+ * [now-(retentionDays+margin), now+1day] を覆う YYYY/MM/DD の相対パス集合を生成。
+ * 末尾を UTC 基準で生成するが、Codex がローカル時刻でディレクトリを切る環境（UTC+）では
+ * 当日ローカル日付が UTC より先行し得るため、未来方向に 1 日分の余裕（i=-1）を持たせる。
+ * 採否はパス日付ではなく mtime / 末尾 timestamp で行うため、空振りの 1 readdir 以上の害は無い。
+ */
 function targetDateDirs(now: Date, days: number, margin: number): string[] {
   const out: string[] = [];
   const total = Math.max(0, days + margin);
-  for (let i = 0; i <= total; i++) {
+  for (let i = -1; i <= total; i++) {
     const d = new Date(now.getTime() - i * MS_PER_DAY);
     const y = d.getUTCFullYear().toString().padStart(4, '0');
     const m = (d.getUTCMonth() + 1).toString().padStart(2, '0');
