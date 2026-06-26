@@ -34,9 +34,17 @@ export interface AgentLastCommit {
   readonly timestamp: string;
 }
 
+/**
+ * セッションの出自。`'claude'` は agent-status worker DB（フック経由）、
+ * `'codex'` は Codex rollout `.jsonl` の読み取り専用スキャン。変換漏れを Claude 扱いで
+ * 隠さないよう必須にする。
+ */
+export type AgentSource = 'claude' | 'codex';
+
 /** マルチエージェント監視で使用するエージェント情報 */
 export interface AgentInfo {
   readonly sessionId: string;
+  readonly source: AgentSource;
   readonly editing: boolean;
   readonly file: string;
   readonly timestamp: string;
