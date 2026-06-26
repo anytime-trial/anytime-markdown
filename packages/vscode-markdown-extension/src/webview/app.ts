@@ -39,7 +39,7 @@ import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/
 
 import { getVsCodeApi } from './vscodeApi';
 import { buildWebviewFileHandlers } from './fileHandlers';
-import { resolveLinkClickAction } from './linkClick';
+import { isInternalLink } from './linkClick';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
 import { createNoteGraphPanel, type NoteGraphPanelHandle } from './noteGraph/panel';
 
@@ -679,25 +679,22 @@ function installScrollSync(): void {
 // --- リンク横取り（相対リンクを extension host で解決） ---
 
 function installLinkInterception(): void {
-  const handle = (e: MouseEvent, dblClick: boolean) => {
-    const anchor = (e.target as HTMLElement).closest('a');
+  const handle = (e: MouseEvent) => {
+    const anchor = (e.target as HTMLElement | null)?.closest('a') ?? null;
     const href = anchor?.getAttribute('href') ?? null;
-    const action = resolveLinkClickAction({
-      href,
-      ctrlOrMeta: e.ctrlKey || e.metaKey,
-      dblClick,
-    });
-    // 内部リンクは素クリックでもデフォルト遷移を抑止し、webview オリジン
-    // （vscode-resource URL）へのブラウザ遷移を防ぐ。
-    if (action.preventDefault) e.preventDefault();
-    if (action.open && href) {
-      e.stopImmediatePropagation();
-      vscode.postMessage({ type: 'openLink', href });
-    }
+    if (!isInternalLink(href)) return;
+    // 内部リンク（ファイルを指す相対/ワークスペースルート相対）は、イベント順序に
+    // 依存せず確実に止めるため window の capture フェーズで最初に捕捉し、デフォルトの
+    // ブラウザ遷移（webview オリジン = vscode-resource URL への遷移）と、他リスナー
+    // （VS Code プリロードの外部オープン処理）への伝播を両方遮断したうえで、extension
+    // host にファイルを開かせる。
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    vscode.postMessage({ type: 'openLink', href });
   };
-  // capture フェーズで VS Code プリロードスクリプトより先にイベントを捕捉
-  document.addEventListener('click', (e) => handle(e, false), true);
-  document.addEventListener('dblclick', (e) => handle(e, true), true);
+  // window の capture フェーズ = 最も早く発火（document 上の VS Code プリロードより先）。
+  window.addEventListener('click', handle, true);
+  window.addEventListener('auxclick', handle, true);
 }
 
 // --- 起動 ---
