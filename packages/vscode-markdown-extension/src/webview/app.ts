@@ -38,6 +38,7 @@ import { diffLivePatch } from '@anytime-markdown/markdown-viewer/src/host/liveUp
 import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/src/vanilla/mountVanillaRichMarkdownEditor';
 
 import { getVsCodeApi } from './vscodeApi';
+import { buildWebviewFileHandlers } from './fileHandlers';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
 import { createNoteGraphPanel, type NoteGraphPanelHandle } from './noteGraph/panel';
 
@@ -339,6 +340,9 @@ function buildMountOptions() {
     locale: state.locale,
     hideToolbar: true,
     sideToolbar: true,
+    // Ctrl+S を host の `document.save()` へ配線。未設定だと orchestrator が
+    // onDownload（blob ダウンロード）にフォールバックし「名前を付けて保存」ダイアログが出る。
+    fileHandlers: buildWebviewFileHandlers((message) => vscode.postMessage(message)),
     // ピン留め中は別ファイルを開いた初期表示でもパネルを開いた状態にする
     defaultNoteGraphOpen: getNoteGraphPanel().isPinned(),
     noteGraph: {
