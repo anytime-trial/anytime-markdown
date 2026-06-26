@@ -500,6 +500,7 @@
     "slashCodeBlock": "Code Block",
     "slashTable": "Table",
     "slashHorizontalRule": "Divider",
+    "slashLink": "Link",
     "slashEmbed": "URL Embed (OGP Card)",
     "embedEditTitle": "Edit Embed",
     "embedUrlLabel": "URL",
