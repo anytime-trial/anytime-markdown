@@ -248,6 +248,24 @@ describe("createInlineMergeView", () => {
     expect(counter?.textContent).toBe("2 / 2");
   });
 
+  it("ミニマップ連携: getRightScroller/getDiffBlockRatios を公開し onDiffChange を発火する", () => {
+    const onDiffChange = jest.fn();
+    ({ handle, rightEditor } = mkView({
+      sourceMode: false,
+      editorContent: "l1\nl2\nl3\nl4",
+      compareContent: "L1\nl2\nL3\nl4",
+      onDiffChange,
+    }));
+    document.body.appendChild(handle.el);
+    // 差分ハイライト/アライン適用で onDiffChange が呼ばれる（rAF は同期実行）。
+    expect(onDiffChange).toHaveBeenCalled();
+    // 右ペインスクローラを公開する。
+    const scroller = handle.getRightScroller();
+    expect(scroller).toBeInstanceOf(HTMLElement);
+    // 差分比率は配列で返る（jsdom は scrollHeight=0 のため空配列・throw しないこと）。
+    expect(Array.isArray(handle.getDiffBlockRatios())).toBe(true);
+  });
+
   // 2026-06-16: WYSIWYG 比較モードで frontmatter も比較対象に含める（差分表示を内蔵）。
   describe("frontmatter 比較行", () => {
     it("WYSIWYG: 本ファイル/比較ファイルの frontmatter を比較行に並置する", () => {
