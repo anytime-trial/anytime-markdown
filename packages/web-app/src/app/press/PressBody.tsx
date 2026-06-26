@@ -4,7 +4,8 @@ import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 
 import { useThemeMode } from '../providers';
-import { BriefingPrimary, BriefingRoadmap, BriefingSecondary } from './components/Briefing';
+import { AgentPanelMock } from './components/AgentPanelMock';
+import { BriefingAgent, BriefingPrimary, BriefingRoadmap, BriefingSecondary } from './components/Briefing';
 import { Caravan } from './components/Caravan';
 import { Colophon } from './components/Colophon';
 import { CtaActions } from './components/CtaStrip';
@@ -51,6 +52,19 @@ export function PressBody() {
       <Headline />
       <Caravan />
       <Dispatch />
+      <BriefingAgent
+        subtitle="- セッション"
+        embed={<AgentPanelMock />}
+        embedActions={
+          <CtaActions
+            primaryLabel={tCta('vsCode')}
+            secondaryLabel="GitHub"
+            primaryHref="https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-agent"
+            secondaryHref="https://github.com/anytime-trial/anytime-markdown/tree/master/packages/vscode-agent-extension"
+            primaryExternal
+          />
+        }
+      />
       <BriefingPrimary
         subtitle="- アクティビティ"
         trailKeys={['trail2', 'trail3', 'trail5', 'trail6']}

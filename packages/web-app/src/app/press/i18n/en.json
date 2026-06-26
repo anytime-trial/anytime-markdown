@@ -16,7 +16,7 @@
     "kicker": "This site is an experimental project",
     "title1": "Code, docs, and AI ",
     "title2": " - made visible.",
-    "description": "AI agents are a caravan crossing the harsh terrain of development.\nWYSIWYG Markdown editing with diff review and real-time TypeScript architecture visualization\n— two VS Code extensions that serve as your compass in the age of AI.",
+    "description": "AI agents are a caravan crossing the harsh terrain of development.\nWYSIWYG Markdown editing with diff review, real-time TypeScript architecture visualization, and a bird's-eye view of every AI session with one-click handoff\n— three VS Code extensions that serve as your compass in the age of AI.",
     "byline": "Filed by <b>Claude Code</b> - Kiyotaka Ueda - open access",
     "asideVert": "A long-road companion across the dunes.",
     "asideEditor": "From the editor's desk",
@@ -35,18 +35,34 @@
     "harnessHeading": "The harness dilemma.",
     "harnessBody": "The prevailing approach tries to control AI with upfront constraints — whitelists, guardrails, sandboxes, tool restrictions. But <vermilion>the more you constrain it, the more its autonomy and judgment are lost</vermilion>.",
     "caravanHeading": "Companionship through visibility.",
-    "caravanBody": "Anytime imposes no constraints. We make actions visible (<vermilion>Trail</vermilion>) and artifacts reviewable (<vermilion>Markdown</vermilion>), building trust through verification both before and after — a philosophy embodied in two extensions.",
+    "caravanBody": "Anytime imposes no constraints. We make actions visible (<vermilion>Trail</vermilion>), artifacts reviewable (<vermilion>Markdown</vermilion>), and the caravan itself surveyable (<vermilion>Agent</vermilion>), building trust through verification both before and after — a philosophy embodied in three extensions.",
     "editorHeading": "Editor's note.",
     "editorBody": "This site is an experimental project where design, implementation, and testing are all carried out by <vermilion>Claude Code</vermilion> (an AI coding assistant), with humans only providing instructions. We use Anytime Markdown itself to grasp specifications and verify test content during development. The source code is published on <github>GitHub</github>."
   },
   "briefing": {
     "trailEmbedTitle": "anytime-trail — trail viewer",
     "markdownEmbedTitle": "anytime-markdown — markdown editor",
+    "agentEmbedTitle": "anytime-agent — agent panel",
     "shipped": "— shipped",
     "trailHeader": "Anytime",
     "trailHeaderEm": "Trail.",
     "markdownHeader": "Anytime",
-    "markdownHeaderEm": "Markdown."
+    "markdownHeaderEm": "Markdown.",
+    "agentHeader": "Anytime",
+    "agentHeaderEm": "Agent."
+  },
+  "agent": {
+    "mockPanelTitle": "Agent mapping",
+    "mockPanelMeta": "{count} sessions · recent first",
+    "mockWarnBadge": "context",
+    "agent1Title": "Survey every Claude Code session — Agent mapping",
+    "agent1Body": "List all Claude Code sessions ordered by recent activity. Inspect branch, worktree, commit count, and context warnings on hover, and spot bloated sessions instantly via the ⚠️ badge.",
+    "agent2Title": "Switch without losing context — Session handoff",
+    "agent2Body": "Migrate a bloated session to a fresh one along with a compressed summary. Launch a new claude session in the terminal with the handoff auto-injected, continuing work without losing context.",
+    "agent3Title": "Hand visual information to the AI — AI notes",
+    "agent3Body": "Share images, tables, and free-form memos with AI tools that cannot see the screen. The bundled anytime-note skill lets the AI read note pages on request and act on the visual information.",
+    "agent4Title": "Local LLMs from VS Code — Ollama integration",
+    "agent4Body": "Check the status of the local Ollama runtime and start it with one click when stopped. Manage your local LLM backend without leaving VS Code."
   },
   "pullQuote": {
     "text": "Faster tools lead writers astray. We carry words at the caravan's pace.",
