@@ -71,17 +71,19 @@ describe('SourceGroupItem', () => {
     expect(group.label).toBe('Claude Code');
   });
 
-  it('uses the bundled brand SVG when an icon base URI is provided', () => {
-    const base = vscode.Uri.file('/ext');
-    const codex = new SourceGroupItem('codex', [], base);
-    const claude = new SourceGroupItem('claude', [], base);
-    expect((codex.iconPath as { fsPath: string }).fsPath).toBe('/ext/images/icons/codex.svg');
+  it('uses the bundled Claude SVG when an icon base URI is provided', () => {
+    const claude = new SourceGroupItem('claude', [], vscode.Uri.file('/ext'));
     expect((claude.iconPath as { fsPath: string }).fsPath).toBe('/ext/images/icons/claude.svg');
   });
 
-  it('falls back to a codicon when no icon base URI is given', () => {
-    const group = new SourceGroupItem('codex', []);
-    expect((group.iconPath as { id?: string }).id).toBe('robot');
+  it('uses a neutral codicon for Codex (no trademarked logo bundled)', () => {
+    const codex = new SourceGroupItem('codex', [], vscode.Uri.file('/ext'));
+    expect((codex.iconPath as { id?: string }).id).toBe('terminal');
+  });
+
+  it('falls back to a codicon for Claude when no icon base URI is given', () => {
+    const group = new SourceGroupItem('claude', []);
+    expect((group.iconPath as { id?: string }).id).toBe('account');
   });
 });
 
