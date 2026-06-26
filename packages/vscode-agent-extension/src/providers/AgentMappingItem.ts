@@ -87,10 +87,13 @@ export interface SessionWorktreeContext {
   readonly worktreeName: string;
 }
 
-/** codicon フォールバック（同梱 SVG が使えない場合）。 */
-const SOURCE_FALLBACK_ICONS: Record<AgentSource, string> = {
+/**
+ * ソース別 codicon。Codex は商標ロゴを同梱せず中立アイコン（CLI を表す terminal）を使う。
+ * Claude は同梱ブランド SVG が無いときのフォールバック。
+ */
+const SOURCE_CODICONS: Record<AgentSource, string> = {
   claude: 'account',
-  codex: 'robot',
+  codex: 'terminal',
 };
 
 /** ソース見出しノード（「Claude Code」/「Codex」）。配下にセッションを持つ。 */
@@ -103,10 +106,15 @@ export class SourceGroupItem extends vscode.TreeItem {
     super(SOURCE_LABELS[source], vscode.TreeItemCollapsibleState.Expanded);
     this.description = `${children.length}`;
     this.contextValue = `sourceGroup.${source}`;
-    // 同梱のブランド SVG（images/icons/<source>.svg）を優先し、URI 不明時のみ codicon。
-    this.iconPath = iconBaseUri
-      ? vscode.Uri.joinPath(iconBaseUri, 'images', 'icons', `${source}.svg`)
-      : new vscode.ThemeIcon(SOURCE_FALLBACK_ICONS[source]);
+    this.iconPath = SourceGroupItem._icon(source, iconBaseUri);
+  }
+
+  /** Claude のみ同梱ブランド SVG を使う。Codex は商標配慮で中立 codicon に統一する。 */
+  private static _icon(source: AgentSource, iconBaseUri?: vscode.Uri): vscode.Uri | vscode.ThemeIcon {
+    if (source === 'claude' && iconBaseUri) {
+      return vscode.Uri.joinPath(iconBaseUri, 'images', 'icons', 'claude.svg');
+    }
+    return new vscode.ThemeIcon(SOURCE_CODICONS[source]);
   }
 }
 
