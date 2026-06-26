@@ -610,8 +610,21 @@ export function mountVanillaMarkdownEditor(
       const dialogs = createEditorDialogs({
         t,
         onCommentInsert: (text) => editor.chain().focus().addComment(text.trim()).run(),
-        onLinkInsert: (url) =>
-          editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run(),
+        onLinkInsert: (url) => {
+          const href = url.trim();
+          if (!href) return;
+          // 選択範囲があれば既存挙動（範囲にリンクを付与）。無選択（スラッシュコマンド等）は
+          // URL を可視テキストとしてリンク付きで挿入する。
+          if (editor.state.selection.empty) {
+            editor
+              .chain()
+              .focus()
+              .insertContent({ type: "text", text: href, marks: [{ type: "link", attrs: { href } }] })
+              .run();
+          } else {
+            editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+          }
+        },
         onImageInsert: (src, alt) => editor.chain().focus().setImage({ src: src.trim(), alt }).run(),
       });
       disposers.push(() => dialogs.destroy());
@@ -621,8 +634,11 @@ export function mountVanillaMarkdownEditor(
       const editorStorage = getEditorStorage(editor);
       editorStorage.commentDialog ??= {};
       editorStorage.commentDialog.open = () => dialogs.openComment();
+      editorStorage.linkDialog ??= {};
+      editorStorage.linkDialog.open = () => dialogs.openLink();
       disposers.push(() => {
         if (editorStorage.commentDialog) editorStorage.commentDialog.open = null;
+        if (editorStorage.linkDialog) editorStorage.linkDialog.open = null;
       });
 
       // === settings panel（intent で開閉。onUpdate→store+apply+notify） =========

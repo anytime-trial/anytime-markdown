@@ -500,6 +500,7 @@
     "slashCodeBlock": "コードブロック",
     "slashTable": "テーブル",
     "slashHorizontalRule": "区切り線",
+    "slashLink": "リンク",
     "slashEmbed": "URL 埋め込み（OGP カード）",
     "embedEditTitle": "埋め込みの編集",
     "embedUrlLabel": "URL",
