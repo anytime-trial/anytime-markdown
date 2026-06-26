@@ -7,6 +7,7 @@ interface CtaActionsProps {
   secondaryHref: string;
   primaryLabel?: string;
   secondaryLabel?: string;
+  primaryExternal?: boolean;
 }
 
 export function CtaActions({
@@ -14,15 +15,25 @@ export function CtaActions({
   secondaryHref,
   primaryLabel = 'Online Editor',
   secondaryLabel = 'VS Code Extension',
+  primaryExternal = false,
 }: Readonly<CtaActionsProps>) {
+  const primaryClassName = `${styles.btn} ${styles.btnStamp}`;
   return (
     <div className={styles.ctaActions}>
-      <Link
-        href={primaryHref}
-        className={`${styles.btn} ${styles.btnStamp}`}
-      >
-        {primaryLabel} <span className={styles.btnArrow}>→</span>
-      </Link>
+      {primaryExternal ? (
+        <a
+          className={primaryClassName}
+          href={primaryHref}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {primaryLabel} <span className={styles.btnArrow}>→</span>
+        </a>
+      ) : (
+        <Link href={primaryHref} className={primaryClassName}>
+          {primaryLabel} <span className={styles.btnArrow}>→</span>
+        </Link>
+      )}
       <a
         className={styles.btn}
         href={secondaryHref}
