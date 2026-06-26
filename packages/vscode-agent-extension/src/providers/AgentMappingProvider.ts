@@ -1,14 +1,23 @@
 import * as cp from 'node:child_process';
 import * as vscode from 'vscode';
 import { ClaudeStatusWatcher, jstDateString } from '@anytime-markdown/vscode-common';
+import type { AgentInfo, CodexSessionScanner } from '@anytime-markdown/vscode-common';
 import { buildAgentMapping, parseWorktreeList } from '@anytime-markdown/agent-core';
-import type { WorktreeEntry } from '@anytime-markdown/agent-core';
-import { SessionTreeItem, TodaySummaryItem } from './AgentMappingItem';
+import type { WorktreeEntry, SessionMapping, AgentSource } from '@anytime-markdown/agent-core';
+import { SessionTreeItem, SourceGroupItem, TodaySummaryItem } from './AgentMappingItem';
 import { AgentLogger } from '../utils/AgentLogger';
 
-type AgentMappingItem = SessionTreeItem | TodaySummaryItem;
+type AgentMappingItem = SessionTreeItem | SourceGroupItem | TodaySummaryItem;
 
 const WORKTREE_CACHE_TTL_MS = 30_000;
+/** Codex は getChildren 時読みのため、Claude 無活動でも定期 refresh で更新する（scanner TTL 相当）。 */
+const CODEX_REFRESH_INTERVAL_MS = 15_000;
+
+interface SessionEntry {
+  readonly session: SessionMapping;
+  readonly branch: string;
+  readonly worktreeName: string;
+}
 
 export class AgentMappingProvider
   implements vscode.TreeDataProvider<AgentMappingItem>, vscode.Disposable
@@ -20,12 +29,27 @@ export class AgentMappingProvider
   private _cachedWorktrees: readonly WorktreeEntry[] = [];
   private _worktreeCacheExpiry = 0;
   private _commitCountCache: { count: number; expiry: number } | null = null;
+  private _codexTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly watcher: ClaudeStatusWatcher,
     private readonly gitRoot: string,
+    private readonly codexScanner?: CodexSessionScanner,
   ) {
     watcher.onMultiStatusChange(() => this.refresh());
+    if (this.codexScanner) {
+      this._codexTimer = setInterval(() => {
+        if (this._showCodexSessions()) {
+          this.refresh();
+        }
+      }, CODEX_REFRESH_INTERVAL_MS);
+    }
+  }
+
+  private _showCodexSessions(): boolean {
+    return vscode.workspace
+      .getConfiguration('anytimeAgent')
+      .get<boolean>('showCodexSessions', true);
   }
 
   get showStale(): boolean { return this._showStale; }
@@ -43,13 +67,45 @@ export class AgentMappingProvider
     return element;
   }
 
-  getChildren(): AgentMappingItem[] {
-    const agents = [...this.watcher.getAllAgents().values()];
-    const worktrees = this._getWorktreesCached();
-    const mappings = buildAgentMapping(agents, worktrees);
+  getChildren(element?: AgentMappingItem): AgentMappingItem[] {
+    // 子レベル: ソース見出しノードの配下はそのソースのセッション群。
+    if (element instanceof SourceGroupItem) {
+      return [...element.children];
+    }
+    if (element !== undefined) {
+      return []; // TodaySummaryItem / SessionTreeItem は葉。
+    }
+    return this._buildRoot();
+  }
 
-    // worktree / branch でグルーピングせずセッションをフラットに並べる。
-    // 各セッションには最後に利用した worktree のブランチ名 / worktree 名を hover 用に添える。
+  /** ルート: [Today (Claude), Claude グループ, Codex グループ]。空グループは出さない。 */
+  private _buildRoot(): AgentMappingItem[] {
+    const worktrees = this._getWorktreesCached();
+    const claudeAgents = [...this.watcher.getAllAgents().values()];
+    const codexAgents = this._scanCodexAgents(worktrees);
+
+    // Claude/Codex 双方を buildAgentMapping に通し worktree hover を得てから source で振り分ける。
+    const entries = this._toEntries(buildAgentMapping([...claudeAgents, ...codexAgents], worktrees));
+
+    const todayStats = this.watcher.getTodayStats();
+    const commitCount = this._getTodayCommitCountCached();
+    const root: AgentMappingItem[] = [new TodaySummaryItem(todayStats, commitCount)];
+
+    const claudeGroup = this._buildGroup('claude', entries);
+    if (claudeGroup) root.push(claudeGroup);
+    const codexGroup = this._buildGroup('codex', entries);
+    if (codexGroup) root.push(codexGroup);
+    return root;
+  }
+
+  private _scanCodexAgents(worktrees: readonly WorktreeEntry[]): readonly AgentInfo[] {
+    if (!this.codexScanner || !this._showCodexSessions()) {
+      return [];
+    }
+    return this.codexScanner.scan(worktrees.map(w => w.path));
+  }
+
+  private _toEntries(mappings: readonly { branch: string; worktreeName: string; sessions: readonly SessionMapping[] }[]): SessionEntry[] {
     const entries = mappings.flatMap(m =>
       m.sessions.map(session => ({ session, branch: m.branch, worktreeName: m.worktreeName })),
     );
@@ -57,19 +113,21 @@ export class AgentMappingProvider
       ? entries
       : entries.filter(e => e.session.state !== 'stale');
     // 最近使用順（ageSeconds 昇順＝最終アクティビティが新しいものを上に）。
-    const sorted = [...visible].sort((a, b) => a.session.ageSeconds - b.session.ageSeconds);
+    return visible.sort((a, b) => a.session.ageSeconds - b.session.ageSeconds);
+  }
 
-    const todayStats = this.watcher.getTodayStats();
-    const commitCount = this._getTodayCommitCountCached();
-    const todayItem = new TodaySummaryItem(todayStats, commitCount);
-
-    return [
-      todayItem,
-      ...sorted.map(e => new SessionTreeItem(e.session, { branch: e.branch, worktreeName: e.worktreeName })),
-    ];
+  private _buildGroup(source: AgentSource, entries: readonly SessionEntry[]): SourceGroupItem | null {
+    const items = entries
+      .filter(e => e.session.source === source)
+      .map(e => new SessionTreeItem(e.session, { branch: e.branch, worktreeName: e.worktreeName }));
+    return items.length > 0 ? new SourceGroupItem(source, items) : null;
   }
 
   dispose(): void {
+    if (this._codexTimer !== null) {
+      clearInterval(this._codexTimer);
+      this._codexTimer = null;
+    }
     this._onDidChangeTreeData.dispose();
   }
 
