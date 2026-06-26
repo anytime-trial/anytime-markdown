@@ -104,11 +104,6 @@ export function PressBody() {
           />
         }
       />
-      <BriefingPrimary
-        subtitle="- スキル"
-        trailKeys={['trail4', 'trail12', 'trail13']}
-        embed={null}
-      />
       <BriefingRoadmap
         subtitle="- 将来対応"
         trailKeys={[
