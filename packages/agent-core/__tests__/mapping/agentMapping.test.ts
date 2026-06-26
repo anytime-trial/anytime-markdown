@@ -221,6 +221,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 'a1',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/packages/foo/src/index.ts',
         timestamp: makeTimestamp(10, now),
@@ -230,6 +231,7 @@ describe('buildAgentMapping', () => {
       },
       {
         sessionId: 'a2',
+        source: 'claude' as const,
         editing: true,
         file: '/repo/.worktrees/feat/src/bar.ts',
         timestamp: makeTimestamp(200, now),
@@ -239,6 +241,7 @@ describe('buildAgentMapping', () => {
       },
       {
         sessionId: 'a3',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/packages/baz/index.ts',
         timestamp: makeTimestamp(400, now),
@@ -261,6 +264,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 'o1',
+        source: 'claude' as const,
         editing: false,
         file: '/somewhere/else/src/foo.ts',
         timestamp: makeTimestamp(100, now),
@@ -282,6 +286,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 'o2',
+        source: 'claude' as const,
         editing: false,
         file: '/completely/different/src/foo.ts',
         timestamp: makeTimestamp(100, now),
@@ -304,6 +309,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 'b1',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/src/index.ts',
         timestamp: makeTimestamp(10, now),
@@ -322,6 +328,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 's1',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/src/a.ts',
         timestamp: makeTimestamp(10, now), // active
@@ -331,6 +338,7 @@ describe('buildAgentMapping', () => {
       },
       {
         sessionId: 's2',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/src/b.ts',
         timestamp: makeTimestamp(4000, now), // stale
@@ -349,6 +357,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 's3',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/src/a.ts',
         timestamp: makeTimestamp(400, now), // recent
@@ -358,6 +367,7 @@ describe('buildAgentMapping', () => {
       },
       {
         sessionId: 's4',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/src/b.ts',
         timestamp: makeTimestamp(4000, now), // stale
@@ -376,6 +386,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 'c1',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/src/a.ts',
         timestamp: makeTimestamp(10, now), // active
@@ -385,6 +396,7 @@ describe('buildAgentMapping', () => {
       },
       {
         sessionId: 'c2',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/src/b.ts',
         timestamp: makeTimestamp(100, now), // active (< 300)
@@ -394,6 +406,7 @@ describe('buildAgentMapping', () => {
       },
       {
         sessionId: 'c3',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/src/c.ts',
         timestamp: makeTimestamp(4000, now), // stale
@@ -412,6 +425,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 'd1',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/packages/foo/src/MyFile.ts',
         timestamp: makeTimestamp(10, now),
@@ -430,6 +444,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 'e1',
+        source: 'claude' as const,
         editing: false,
         file: '',
         timestamp: makeTimestamp(10, now),
@@ -448,6 +463,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 'f1',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/src/index.ts',
         timestamp: makeTimestamp(10, now),
@@ -466,6 +482,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 'f2',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/.worktrees/feat/src/index.ts',
         timestamp: makeTimestamp(10, now),
@@ -484,6 +501,7 @@ describe('buildAgentMapping', () => {
     const agents = [
       {
         sessionId: 'g1',
+        source: 'claude' as const,
         editing: false,
         file: '/repo/.worktrees/feat/src/index.ts',
         timestamp: makeTimestamp(10, now),

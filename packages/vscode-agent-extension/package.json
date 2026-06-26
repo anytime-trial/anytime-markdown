@@ -205,7 +205,7 @@
         },
         {
           "command": "anytime-agent.mapping.copySessionId",
-          "when": "view == anytimeAgent.mapping && viewItem =~ /^session/",
+          "when": "view == anytimeAgent.mapping && viewItem =~ /^(session|codexSession)/",
           "group": "2_copy@1"
         },
         {
@@ -256,7 +256,12 @@
           "type": "number",
           "default": 7,
           "minimum": 1,
-          "markdownDescription": "未使用セッションを agent-status DB から自動削除するまでの保持日数。最終アクティビティからこの日数を超えたセッションを worker 起動時および 1 日ごとに削除する。"
+          "markdownDescription": "未使用セッションを agent-status DB から自動削除するまでの保持日数。最終アクティビティからこの日数を超えたセッションを worker 起動時および 1 日ごとに削除する。Codex セッションのツリー表示もこの日数で絞り込む。"
+        },
+        "anytimeAgent.showCodexSessions": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Agent マッピングに Codex（OpenAI CLI）のセッションを「Codex」グループとして表示する。Codex は rollout ファイルの読み取り専用スキャンのため、最終アクティビティとコンテキストトークンのみ表示され、編集中ロック・コミット・引き継ぎは非対応。"
         }
       }
     }

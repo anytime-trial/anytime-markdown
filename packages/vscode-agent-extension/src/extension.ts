@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import {
   ClaudeStatusWatcher,
+  CodexSessionScanner,
   installStaticSkillDir,
   installTemplatedSkill,
   setupClaudeHooks,
@@ -247,12 +248,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
   }
 
+  // セッション保持期間（Claude worker prune と Codex スキャンの recency 絞り込みで共有）。
+  const sessionRetentionDays = vscode.workspace
+    .getConfiguration('anytimeAgent')
+    .get<number>('sessionRetentionDays', 7);
+
   // agent-status ワーカーを起動（owner は agent 拡張のみ）。既存ワーカーがいれば接続のみ。
   // SQLite を import するのはこのワーカーバンドルだけ。拡張ホストは HTTP クライアント経由で読む。
   if (workspaceFolder) {
-    const sessionRetentionDays = vscode.workspace
-      .getConfiguration('anytimeAgent')
-      .get<number>('sessionRetentionDays', 7);
     agentStatusWorkerHost = new AgentStatusWorkerHost(
       workspacePath,
       resolveWorkerScriptPath(context.extensionPath),
@@ -266,7 +269,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // watcher のデータ源は agent-status ワーカーの HTTP（agent-status.db）。旧 claude-code-status.json は廃止。
   const agentStatusClient = new AgentStatusClient({ workspaceRoot: workspacePath });
   const watcher = new ClaudeStatusWatcher(agentStatusClient);
-  const mappingProvider = new AgentMappingProvider(watcher, workspacePath);
+  // Codex セッションは rollout .jsonl の読み取り専用スキャン（worker DB 非対象）。保持期間は Claude と共有。
+  const codexScanner = new CodexSessionScanner({
+    retentionDays: sessionRetentionDays,
+    logger: (m) => AgentLogger.warn(m),
+  });
+  const mappingProvider = new AgentMappingProvider(watcher, workspacePath, codexScanner);
   const mappingTreeView = vscode.window.createTreeView('anytimeAgent.mapping', {
     treeDataProvider: mappingProvider,
     showCollapseAll: true,

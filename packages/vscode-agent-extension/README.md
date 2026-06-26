@@ -32,12 +32,18 @@ If no sessions appear:
 
 ## 3. Agent Mapping
 
-Every Claude Code session is shown as a flat list, sorted by most recent activity. The session row stays minimal; details are on the hover (tooltip).
+Sessions are grouped under **Claude Code** and **Codex** headings, each sorted by most recent activity. The session row stays minimal; details are on the hover (tooltip).
 
-- **Recency-sorted list** — the most recently active session is at the top
+- **Recency-sorted list** — the most recently active session is at the top of its group
 - **Context warning badge** — sessions whose context tokens exceed `anytimeAgent.contextWarnTokens` (default 160,000) are flagged with ⚠️ as a handoff hint
 
-Right-click a session for **Hand Off to New Session**, **Copy Session ID**, or **Delete Status File**.
+Right-click a Claude session for **Hand Off to New Session**, **Copy Session ID**, or **Delete Status File**.
+
+### Codex sessions (read-only)
+
+Codex (OpenAI CLI) sessions for the current workspace are surfaced by scanning the Codex rollout files under `~/.codex/sessions`. Only sessions within the retention period whose working directory is inside the current workspace's worktrees are listed.
+
+Codex has no agent-status lifecycle hook, so the view is **read-only** for Codex: only **last activity** and **context tokens** (⚠️ badge) are shown. Editing-lock, commit count, and session handoff are Claude-only; the right-click menu offers **Copy Session ID** only. The **Today** summary is Claude-only and is labeled *Today (Claude)*. Turn the group off with `anytimeAgent.showCodexSessions`.
 
 
 ## 4. Session Handoff
@@ -74,7 +80,8 @@ The extension installs Claude Code skills into your workspace `.claude/skills/` 
 | Setting | Default | Description |
 | --- | --- | --- |
 | `anytimeAgent.contextWarnTokens` | `160000` | Show the ⚠️ handoff-hint badge when a session's context tokens exceed this value |
-| `anytimeAgent.sessionRetentionDays` | `7` | Days of inactivity before an unused session is auto-deleted from the database |
+| `anytimeAgent.sessionRetentionDays` | `7` | Days of inactivity before an unused session is auto-deleted; also bounds which Codex sessions are listed |
+| `anytimeAgent.showCodexSessions` | `true` | Show the read-only **Codex** session group in Agent Mapping |
 | `anytimeAgent.budget.dailyLimitTokens` | `null` | Daily token limit. `null` disables it |
 | `anytimeAgent.budget.sessionLimitTokens` | `null` | Per-session token limit. `null` disables it |
 | `anytimeAgent.budget.alertThresholdPct` | `80` | Warning threshold (%) against the limit |

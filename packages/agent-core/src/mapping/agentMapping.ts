@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { MappingState, SessionMapping, WorktreeEntry, WorktreeMapping } from './types';
+import type { AgentSource, MappingState, SessionMapping, WorktreeEntry, WorktreeMapping } from './types';
 
 // ---------------------------------------------------------------------------
 // Local AgentInfo-compatible type (trail-core has no dependency on vscode-common)
@@ -7,6 +7,7 @@ import type { MappingState, SessionMapping, WorktreeEntry, WorktreeMapping } fro
 
 interface AgentInfoLike {
   readonly sessionId: string;
+  readonly source: AgentSource;
   readonly editing: boolean;
   readonly file: string;
   readonly timestamp: string;
@@ -161,6 +162,7 @@ export function buildAgentMapping(
     const ageSeconds = (now.getTime() - new Date(agent.timestamp).getTime()) / 1000;
     const session: SessionMapping = {
       sessionId: agent.sessionId,
+      source: agent.source,
       state,
       editing: agent.editing,
       file: agent.file,

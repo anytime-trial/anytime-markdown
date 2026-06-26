@@ -35,6 +35,13 @@ export const ThemeColor = class {
   constructor(public id: string) {}
 };
 
+export class MarkdownString {
+  value: string;
+  constructor(value?: string) {
+    this.value = value ?? '';
+  }
+}
+
 export const window = {
   showInformationMessage: jest.fn(),
   showWarningMessage: jest.fn(),
