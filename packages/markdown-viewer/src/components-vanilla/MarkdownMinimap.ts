@@ -6,10 +6,14 @@
  * 機能が欠落していた（回帰）。本ファイルはその 2 ファイルを 1 つの vanilla ハンドルへ
  * 統合して復元する。
  *
- * - 変更位置は `getChangedPositions(editor.state)`（changeGutterExtension が提供）から取得。
- * - 上下ナビは生存している `goToPrevChange` / `goToNextChange` コマンドへ委譲。
- * - テーマ追従色は CSS 変数（`--am-color-success-main` / `--am-color-action-hover` /
- *   `--am-color-divider`）で表現し、ダーク/ライト切替で自動再評価される（再描画不要）。
+ * 「アクティブソース」抽象を持ち、表示対象を切り替えられる:
+ * - 既定: 変更追跡（changeGutterExtension の getChangedPositions）を本文スクロールコンテナ
+ *   （[data-am-content]）基準で表示。前後ナビは goToPrevChange/goToNextChange へ委譲。
+ * - 比較モード: setDiffSource() で差分位置（右ペインの [data-diff-block]）を右ペインスクロール
+ *   コンテナ基準で表示。前後ナビは右ペインの比率スクロール。
+ *
+ * テーマ追従色は CSS 変数（--am-color-success-main 等）で表現し、ダーク/ライト切替で
+ * 自動再評価される（再描画不要）。
  */
 import type { Editor } from "@anytime-markdown/markdown-core";
 import { createIconButton, svgIcon, type IconButtonHandle } from "@anytime-markdown/ui-core";
@@ -21,9 +25,21 @@ import type { TranslationFn } from "../types";
 const BAR_WIDTH = 16;
 /** マーカー最小高さ(px)。バー高さの 3% と max を取る（旧実装と同値）。 */
 const MARKER_MIN_HEIGHT = 3;
+/** 変更/差分マーカー色（CSS 変数）。本文の右側 diff ハイライト緑と同系で揃える。 */
+const MARKER_COLOR = "var(--am-color-success-main)";
+/** ratio ベースのナビで「現在位置と同一」を弾く許容誤差。 */
+const NAV_EPSILON = 0.001;
 /** ui/icons.tsx と同一の Material SVG path（KeyboardArrowUp / KeyboardArrowDown）。 */
 const ICON_ARROW_UP = "M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z";
 const ICON_ARROW_DOWN = "M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z";
+
+/** ratio 配列を返すマーカー源とスクロールコンテナの組（比較モードで外部注入）。 */
+export interface MarkdownMinimapDiffSource {
+  /** 差分の存在するペインのスクロールコンテナ（右ペイン）。 */
+  scrollContainer: HTMLElement;
+  /** 差分位置を 0〜1 の比率配列で返す。スクロール/リサイズ/更新ごとに呼ばれる。 */
+  getRatios: () => number[];
+}
 
 /** {@link createMarkdownMinimap} のオプション。 */
 export interface CreateMarkdownMinimapOptions {
@@ -50,6 +66,11 @@ export interface MarkdownMinimapHandle {
    * レイアウトを持たない本文に対する誤ったマーカー集中表示を避ける。
    */
   setActive: (active: boolean) => void;
+  /**
+   * 比較モードの差分ソースを設定/解除する。設定中はマーカー源とスクロールコンテナが
+   * 差分ペインへ切り替わり、前後ナビは比率スクロールになる。null で既定（変更追跡）へ戻す。
+   */
+  setDiffSource: (source: MarkdownMinimapDiffSource | null) => void;
   /** editor 購読・listener・子コントロールを解放する。 */
   destroy: () => void;
 }
@@ -59,7 +80,7 @@ export interface MarkdownMinimapHandle {
  *
  * 比率はスクロール位置に依存しない（`elTop - containerTop + scrollTop` で絶対 Y に正規化）。
  */
-function calcMarkerRatios(editor: Editor, container: HTMLElement): number[] {
+function calcChangeRatios(editor: Editor, container: HTMLElement): number[] {
   const { scrollTop, scrollHeight } = container;
   if (scrollHeight <= 0) return [];
   const containerTop = container.getBoundingClientRect().top;
@@ -89,13 +110,42 @@ function calcMarkerRatios(editor: Editor, container: HTMLElement): number[] {
   });
 }
 
+/** 現在のスクロール位置から見て dir 方向の隣接マーカー比率へスムーススクロールする。 */
+function scrollToAdjacentRatio(
+  container: HTMLElement,
+  ratios: readonly number[],
+  dir: 1 | -1,
+): void {
+  const { scrollHeight } = container;
+  if (ratios.length === 0 || scrollHeight <= 0) return;
+  const current = container.scrollTop / scrollHeight;
+  const sorted = [...ratios].sort((a, b) => a - b);
+  // 順方向: 現在位置より下の最初のマーカー、無ければ先頭へ wrap。
+  // 逆方向: 現在位置より上の最後のマーカー、無ければ末尾(最大比率)へ wrap。
+  const target =
+    dir > 0
+      ? (sorted.find((r) => r > current + NAV_EPSILON) ?? sorted[0])
+      : (sorted.findLast((r) => r < current - NAV_EPSILON) ?? sorted.at(-1) ?? sorted[0]);
+  container.scrollTo({ top: target * scrollHeight, behavior: "smooth" });
+}
+
 /**
- * スクロールバー横の変更オーバービューを生成する（旧 React `MarkdownMinimap` の vanilla 置換）。
+ * スクロールバー横の変更/差分オーバービューを生成する（旧 React `MarkdownMinimap` の vanilla 置換）。
  */
 export function createMarkdownMinimap(
   opts: Readonly<CreateMarkdownMinimapOptions>,
 ): MarkdownMinimapHandle {
-  const { editor, scrollContainer, t } = opts;
+  const { editor, scrollContainer: defaultContainer, t } = opts;
+
+  // 比較モードの差分ソース。null の間は既定（変更追跡）で動作する。
+  let diffSource: MarkdownMinimapDiffSource | null = null;
+  let active = true;
+
+  /** 現在の表示対象スクロールコンテナ（既定=本文 / 比較=右ペイン）。 */
+  const activeContainer = (): HTMLElement => diffSource?.scrollContainer ?? defaultContainer;
+  /** 現在のマーカー比率。 */
+  const activeRatios = (): number[] =>
+    diffSource ? diffSource.getRatios() : calcChangeRatios(editor, defaultContainer);
 
   const root = document.createElement("div");
   root.setAttribute("data-am-minimap", "");
@@ -109,12 +159,27 @@ export function createMarkdownMinimap(
     "z-index:5",
   ].join(";");
 
+  const goToPrev = (): void => {
+    if (diffSource) {
+      scrollToAdjacentRatio(activeContainer(), activeRatios(), -1);
+    } else {
+      editor.commands.goToPrevChange();
+    }
+  };
+  const goToNext = (): void => {
+    if (diffSource) {
+      scrollToAdjacentRatio(activeContainer(), activeRatios(), 1);
+    } else {
+      editor.commands.goToNextChange();
+    }
+  };
+
   const prevBtn: IconButtonHandle = createIconButton({
     size: "xs",
     ariaLabel: t("minimapPrevChange"),
     title: t("minimapPrevChange"),
     children: svgIcon(ICON_ARROW_UP, 14),
-    onClick: () => editor.commands.goToPrevChange(),
+    onClick: goToPrev,
   });
 
   // クリックジャンプ可能なバー本体。マーカーを absolute で重ねる基準（position:relative）。
@@ -133,8 +198,9 @@ export function createMarkdownMinimap(
     const rect = bar.getBoundingClientRect();
     if (rect.height <= 0) return;
     const ratio = (e.clientY - rect.top) / rect.height;
-    scrollContainer.scrollTo({
-      top: Math.max(0, Math.min(1, ratio)) * scrollContainer.scrollHeight,
+    const container = activeContainer();
+    container.scrollTo({
+      top: Math.max(0, Math.min(1, ratio)) * container.scrollHeight,
       behavior: "smooth",
     });
   });
@@ -144,19 +210,17 @@ export function createMarkdownMinimap(
     ariaLabel: t("minimapNextChange"),
     title: t("minimapNextChange"),
     children: svgIcon(ICON_ARROW_DOWN, 14),
-    onClick: () => editor.commands.goToNextChange(),
+    onClick: goToNext,
   });
 
   root.append(prevBtn.el, bar, nextBtn.el);
 
-  let active = true;
-
   const refresh = (): void => {
     if (editor.isDestroyed || !active) return;
-    const ratios = calcMarkerRatios(editor, scrollContainer);
-    const hasChanges = ratios.length > 0;
-    prevBtn.update({ disabled: !hasChanges });
-    nextBtn.update({ disabled: !hasChanges });
+    const ratios = activeRatios();
+    const hasMarkers = ratios.length > 0;
+    prevBtn.update({ disabled: !hasMarkers });
+    nextBtn.update({ disabled: !hasMarkers });
 
     bar.replaceChildren();
     const barHeight = bar.clientHeight;
@@ -173,20 +237,30 @@ export function createMarkdownMinimap(
         `height:${markerHeight}px`,
         "border-radius:1px",
         "pointer-events:none",
-        "background-color:var(--am-color-success-main)",
+        `background-color:${MARKER_COLOR}`,
       ].join(";");
       bar.appendChild(marker);
     }
   };
 
+  // スクロール/リサイズ購読は現在のスクロールコンテナへ張り、ソース切替時に張り替える。
+  // editor.update は対象が常に本文 editor（比較モードでも同一インスタンスを右ペインへ移設）の
+  // ため不変。
+  let boundContainer: HTMLElement | null = null;
+  let resizeObserver: ResizeObserver | null = null;
+  const bindContainer = (container: HTMLElement): void => {
+    if (boundContainer === container) return;
+    boundContainer?.removeEventListener("scroll", refresh);
+    resizeObserver?.disconnect();
+    boundContainer = container;
+    container.addEventListener("scroll", refresh, { passive: true });
+    resizeObserver =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(refresh) : null;
+    resizeObserver?.observe(container);
+  };
+
   editor.on("update", refresh);
-  scrollContainer.addEventListener("scroll", refresh, { passive: true });
-
-  // ResizeObserver は jsdom に存在しないことがある（テスト環境）。未定義時はガード。
-  const resizeObserver =
-    typeof ResizeObserver !== "undefined" ? new ResizeObserver(refresh) : null;
-  resizeObserver?.observe(scrollContainer);
-
+  bindContainer(defaultContainer);
   refresh();
 
   return {
@@ -198,9 +272,14 @@ export function createMarkdownMinimap(
       root.style.display = next ? "flex" : "none";
       if (next) refresh();
     },
+    setDiffSource: (source: MarkdownMinimapDiffSource | null) => {
+      diffSource = source;
+      bindContainer(activeContainer());
+      refresh();
+    },
     destroy: () => {
       editor.off("update", refresh);
-      scrollContainer.removeEventListener("scroll", refresh);
+      boundContainer?.removeEventListener("scroll", refresh);
       resizeObserver?.disconnect();
       prevBtn.destroy();
       nextBtn.destroy();

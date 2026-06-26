@@ -1156,9 +1156,17 @@ export function mountVanillaMarkdownEditor(
               saveContent(() => text, false);
             },
             onUndoRedoChange: (handle) => toolbar?.update({ mergeUndoRedo: handle }),
+            // 差分ハイライト/アライン確定時にミニマップの差分マーカーを再計算する。
+            onDiffChange: () => minimap.refresh(),
           });
           contentEl.appendChild(mergeView.el);
           applyCompareEditorVisibility();
+          // ミニマップを差分モードへ切替（右ペインを基準に [data-diff-block] をマーカー表示）。
+          const activeMerge = mergeView;
+          minimap.setDiffSource({
+            scrollContainer: activeMerge.getRightScroller(),
+            getRatios: () => activeMerge.getDiffBlockRatios(),
+          });
         } else if (modeState.inlineMergeOpen && mergeView) {
           mergeView.update({
             sourceMode: modeState.sourceMode === true,
@@ -1172,6 +1180,8 @@ export function mountVanillaMarkdownEditor(
           mergeView.el.remove();
           mergeView = null;
           toolbar?.update({ mergeUndoRedo: null });
+          // ミニマップを既定（本文の変更追跡）へ戻す。
+          minimap.setDiffSource(null);
           // editorMountEl は merge 右パネル内に移設されている場合があるため contentEl へ戻す。
           if (editorMountEl.parentElement !== contentEl) {
             contentEl.appendChild(editorMountEl);

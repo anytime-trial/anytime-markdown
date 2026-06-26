@@ -155,6 +155,71 @@ describe("createMarkdownMinimap", () => {
     delete (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver;
   });
 
+  it("setDiffSource で差分マーカー表示へ切替え、null で既定へ戻る", () => {
+    mockGetChangedPositions.mockReturnValue([]); // 既定ソースは 0 件
+    const editor = makeEditor();
+    const defaultContainer = makeScrollContainer();
+    const handle = createMarkdownMinimap({
+      editor: editor as never,
+      scrollContainer: defaultContainer,
+      t,
+    });
+    expect(handle.el.querySelectorAll("[data-am-minimap-marker]")).toHaveLength(0);
+
+    const diffContainer = makeScrollContainer();
+    handle.setDiffSource({
+      scrollContainer: diffContainer,
+      getRatios: () => [0.25, 0.75],
+    });
+    // 差分ソースの 2 件が描画される。
+    expect(handle.el.querySelectorAll("[data-am-minimap-marker]")).toHaveLength(2);
+
+    handle.setDiffSource(null);
+    // 既定（getChangedPositions=0件）へ戻る。
+    expect(handle.el.querySelectorAll("[data-am-minimap-marker]")).toHaveLength(0);
+    handle.destroy();
+  });
+
+  it("差分モードのバークリックは差分コンテナをスクロールする", () => {
+    mockGetChangedPositions.mockReturnValue([]);
+    const editor = makeEditor();
+    const defaultContainer = makeScrollContainer();
+    const handle = createMarkdownMinimap({
+      editor: editor as never,
+      scrollContainer: defaultContainer,
+      t,
+    });
+    const diffContainer = makeScrollContainer();
+    handle.setDiffSource({ scrollContainer: diffContainer, getRatios: () => [0.5] });
+
+    const bar = handle.el.querySelector<HTMLElement>("[data-am-minimap-bar]")!;
+    bar.getBoundingClientRect = () => ({ top: 0, height: 400 }) as DOMRect;
+    bar.dispatchEvent(new MouseEvent("click", { clientY: 100 }));
+    // 既定コンテナではなく差分コンテナがスクロールされる（ratio 0.25 * 1000 = 250）。
+    expect(diffContainer.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 250 }));
+    expect(defaultContainer.scrollTo).not.toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("差分モードのナビは比率スクロール（editor コマンドを使わない）", () => {
+    mockGetChangedPositions.mockReturnValue([]);
+    const editor = makeEditor();
+    const handle = createMarkdownMinimap({
+      editor: editor as never,
+      scrollContainer: makeScrollContainer(),
+      t,
+    });
+    const diffContainer = makeScrollContainer(); // scrollTop=0, scrollHeight=1000
+    handle.setDiffSource({ scrollContainer: diffContainer, getRatios: () => [0.25, 0.75] });
+
+    const [, nextBtn] = handle.el.querySelectorAll<HTMLButtonElement>("button");
+    nextBtn.click();
+    // 現在位置 0 の次マーカー 0.25 → top 250 へスクロール。editor コマンドは呼ばれない。
+    expect(diffContainer.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 250 }));
+    expect(editor.commands.goToNextChange).not.toHaveBeenCalled();
+    handle.destroy();
+  });
+
   it("setActive(false) でルートを隠し refresh をスキップする", () => {
     mockGetChangedPositions.mockReturnValue([5]);
     const editor = makeEditor();
