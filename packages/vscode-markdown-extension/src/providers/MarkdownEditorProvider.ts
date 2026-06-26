@@ -6,6 +6,7 @@ import { resolveLocale } from '@anytime-markdown/vscode-common';
 import { resolveRepositoryRoot, scanRepository, resolveDocPath } from '../noteGraph/scan';
 import { addRelatedEntry, isSafeRelPath } from '../noteGraph/frontmatter';
 import { coerceRelationType, type RelationType } from '../noteGraph/relations';
+import { buildLinkCandidates } from '../utils/linkCandidates';
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
 
@@ -629,23 +630,6 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
-    const buildLinkCandidates = (filePath: string): string[] | null => {
-      if (path.isAbsolute(filePath)) return null;
-      const docDir = path.dirname(ctx.document.uri.fsPath);
-      const targetPath = path.resolve(docDir, filePath);
-      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      if (workspaceRoot && !targetPath.startsWith(workspaceRoot + path.sep) && targetPath !== workspaceRoot) {
-        const fromRoot = path.resolve(workspaceRoot, filePath);
-        if (!fromRoot.startsWith(workspaceRoot + path.sep)) return null;
-      }
-      const candidates = [targetPath];
-      if (workspaceRoot) {
-        const fromRoot = path.resolve(workspaceRoot, filePath);
-        if (fromRoot !== targetPath) candidates.push(fromRoot);
-      }
-      return candidates;
-    };
-
     const tryOpenCandidate = async (candidate: string, lineMatch: RegExpMatchArray | null): Promise<boolean> => {
       const uri = vscode.Uri.file(candidate);
       try {
@@ -668,7 +652,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       const href = decodeURIComponent(rawHref);
       const lineMatch = /#L(\d+)$/.exec(href);
       const filePath = lineMatch ? href.replace(/#L\d+$/, '') : href;
-      const candidates = buildLinkCandidates(filePath);
+      const docDir = path.dirname(ctx.document.uri.fsPath);
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const candidates = buildLinkCandidates(filePath, docDir, workspaceRoot);
       if (!candidates) {
         vscode.window.showWarningMessage(`Invalid file path: ${filePath}`);
         return;
