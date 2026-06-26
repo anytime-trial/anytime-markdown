@@ -274,7 +274,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     retentionDays: sessionRetentionDays,
     logger: (m) => AgentLogger.warn(m),
   });
-  const mappingProvider = new AgentMappingProvider(watcher, workspacePath, codexScanner);
+  const mappingProvider = new AgentMappingProvider(watcher, workspacePath, codexScanner, context.extensionUri);
   const mappingTreeView = vscode.window.createTreeView('anytimeAgent.mapping', {
     treeDataProvider: mappingProvider,
     showCollapseAll: true,

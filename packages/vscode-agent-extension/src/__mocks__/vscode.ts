@@ -3,6 +3,10 @@
 export const Uri = {
   file: (path: string) => ({ scheme: 'file', fsPath: path, path, toString: () => path }),
   parse: (str: string) => ({ scheme: 'file', fsPath: str, path: str, toString: () => str }),
+  joinPath: (base: { fsPath: string }, ...segments: string[]) => {
+    const joined = [base.fsPath, ...segments].join('/');
+    return { scheme: 'file', fsPath: joined, path: joined, toString: () => joined };
+  },
 };
 
 export enum TreeItemCollapsibleState {

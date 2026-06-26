@@ -87,16 +87,26 @@ export interface SessionWorktreeContext {
   readonly worktreeName: string;
 }
 
+/** codicon フォールバック（同梱 SVG が使えない場合）。 */
+const SOURCE_FALLBACK_ICONS: Record<AgentSource, string> = {
+  claude: 'account',
+  codex: 'robot',
+};
+
 /** ソース見出しノード（「Claude Code」/「Codex」）。配下にセッションを持つ。 */
 export class SourceGroupItem extends vscode.TreeItem {
   constructor(
     public readonly source: AgentSource,
     public readonly children: readonly SessionTreeItem[],
+    iconBaseUri?: vscode.Uri,
   ) {
     super(SOURCE_LABELS[source], vscode.TreeItemCollapsibleState.Expanded);
     this.description = `${children.length}`;
     this.contextValue = `sourceGroup.${source}`;
-    this.iconPath = source === 'codex' ? new vscode.ThemeIcon('robot') : new vscode.ThemeIcon('account');
+    // 同梱のブランド SVG（images/icons/<source>.svg）を優先し、URI 不明時のみ codicon。
+    this.iconPath = iconBaseUri
+      ? vscode.Uri.joinPath(iconBaseUri, 'images', 'icons', `${source}.svg`)
+      : new vscode.ThemeIcon(SOURCE_FALLBACK_ICONS[source]);
   }
 }
 
