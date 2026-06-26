@@ -776,101 +776,13 @@
     min-height: 0;
 }
 
-/* ── Agent panel mock (静的イラスト・テーマ追従) ──────── */
-.agentMock {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 240px;
-    background: var(--paper);
-    font-family: var(--font-mono);
-}
-
-.agentMockToolbar {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    border-bottom: var(--rule-thin) solid var(--ink-light);
-}
-
-.agentMockToolbarTitle {
-    font-family: var(--font-display);
-    font-style: italic;
-    font-weight: 900;
-    font-size: var(--fs-body);
-    color: var(--ink);
-}
-
-.agentMockToolbarMeta {
-    font-size: var(--fs-footnote);
-    letter-spacing: 0.04em;
-    color: var(--ink-light);
-}
-
-.agentMockList {
-    list-style: none;
-    margin: 0;
-    padding: 4px 0;
-    display: flex;
-    flex-direction: column;
-}
-
-.agentMockRow {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 11px 16px;
-    border-bottom: var(--rule-hair) solid var(--ink-light);
-    font-size: var(--fs-caption);
-}
-
-.agentMockRow:last-child {
-    border-bottom: 0;
-}
-
-.agentMockDot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    background: var(--vermilion);
-}
-
-.agentMockTitle {
-    color: var(--ink);
-    font-weight: 600;
-}
-
-.agentMockBranch {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 1px 8px;
-    border: var(--rule-hair) solid var(--ink-light);
-    color: var(--ink-faded);
-    font-size: var(--fs-footnote);
-}
-
-.agentMockBranchGlyph {
-    color: var(--ink-light);
-}
-
-.agentMockCommits {
-    color: var(--ink-light);
-    font-size: var(--fs-footnote);
-}
-
-.agentMockWarn {
-    margin-left: auto;
-    padding: 1px 8px;
-    background: var(--vermilion-wash);
-    color: var(--vermilion);
-    border: var(--rule-hair) solid var(--vermilion);
-    font-size: var(--fs-footnote);
-    letter-spacing: 0.02em;
+/* ── Agent panel screenshot ───────────────────────────── */
+.agentShot {
+    display: block;
+    width: 100%;
+    max-width: 520px;
+    height: auto;
+    margin: 0 auto;
 }
 
 .briefingMain {

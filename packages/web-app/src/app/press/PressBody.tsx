@@ -4,7 +4,6 @@ import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 
 import { useThemeMode } from '../providers';
-import { AgentPanelMock } from './components/AgentPanelMock';
 import { BriefingAgent, BriefingPrimary, BriefingRoadmap, BriefingSecondary } from './components/Briefing';
 import { Caravan } from './components/Caravan';
 import { Colophon } from './components/Colophon';
@@ -45,6 +44,7 @@ const MARKDOWN_PREVIEW_HEIGHT = 'clamp(300px, 42vh, 520px)';
 export function PressBody() {
   const { themeMode } = useThemeMode();
   const tCta = useTranslations('press.cta');
+  const tAgent = useTranslations('press.agent');
   return (
     <div className={`${styles.root} ${FONT_CLASSES}`} data-cp-mode={themeMode}>
       <ProgressRule />
@@ -54,7 +54,10 @@ export function PressBody() {
       <Dispatch />
       <BriefingAgent
         subtitle="- セッション"
-        embed={<AgentPanelMock />}
+        embed={
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className={styles.agentShot} src="/images/agent_mapping.png" alt={tAgent('shotAlt')} />
+        }
         embedActions={
           <CtaActions
             primaryLabel={tCta('vsCode')}
