@@ -52,9 +52,7 @@
     "agentHeaderEm": "Agent."
   },
   "agent": {
-    "mockPanelTitle": "Agent mapping",
-    "mockPanelMeta": "{count} sessions · recent first",
-    "mockWarnBadge": "context",
+    "shotAlt": "Screenshot of the Anytime Agent mapping panel",
     "agent1Title": "Survey every Claude Code session — Agent mapping",
     "agent1Body": "List all Claude Code sessions ordered by recent activity. Inspect branch, worktree, commit count, and context warnings on hover, and spot bloated sessions instantly via the ⚠️ badge.",
     "agent2Title": "Switch without losing context — Session handoff",

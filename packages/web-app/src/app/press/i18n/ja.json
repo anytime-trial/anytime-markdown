@@ -52,9 +52,7 @@
     "agentHeaderEm": "Agent."
   },
   "agent": {
-    "mockPanelTitle": "Agent マッピング",
-    "mockPanelMeta": "{count} sessions · recent first",
-    "mockWarnBadge": "context",
+    "shotAlt": "Anytime Agent の Agent マッピングパネルのスクリーンショット",
     "agent1Title": "Claude Code セッションを一望 ― Agent マッピング",
     "agent1Body": "すべての Claude Code セッションを最近のアクティビティ順に一覧。ブランチ・worktree・コミット数・コンテキスト警告をホバーで把握し、肥大化したセッションを ⚠️ バッジで即座に発見できます。",
     "agent2Title": "文脈を保ったまま乗り換える ― セッション引き継ぎ",
