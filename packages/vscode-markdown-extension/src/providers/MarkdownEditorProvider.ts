@@ -7,6 +7,7 @@ import { resolveRepositoryRoot, scanRepository, resolveDocPath } from '../noteGr
 import { addRelatedEntry, isSafeRelPath } from '../noteGraph/frontmatter';
 import { coerceRelationType, type RelationType } from '../noteGraph/relations';
 import { buildLinkCandidates } from '../utils/linkCandidates';
+import { planLinkOpen } from '../utils/linkOpenTarget';
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
 
@@ -632,11 +633,15 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 
     const tryOpenCandidate = async (candidate: string, lineMatch: RegExpMatchArray | null): Promise<boolean> => {
       const uri = vscode.Uri.file(candidate);
+      const line = lineMatch ? Math.max(0, Number.parseInt(lineMatch[1], 10) - 1) : null;
+      const plan = planLinkOpen(candidate, line);
       try {
-        if (lineMatch) {
-          const line = Math.max(0, Number.parseInt(lineMatch[1], 10) - 1);
+        if (plan.kind === 'customEditor') {
+          // md は Anytime Markdown カスタムエディタ（WYSIWYG）で開く。
+          await vscode.commands.executeCommand('vscode.openWith', uri, plan.viewType);
+        } else if (plan.kind === 'textEditorAtLine') {
           const doc = await vscode.workspace.openTextDocument(uri);
-          await vscode.window.showTextDocument(doc, { selection: new vscode.Range(line, 0, line, 0) });
+          await vscode.window.showTextDocument(doc, { selection: new vscode.Range(plan.line, 0, plan.line, 0) });
         } else {
           await vscode.commands.executeCommand('vscode.open', uri);
         }
