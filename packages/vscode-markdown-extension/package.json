@@ -157,12 +157,14 @@
           "enum": [
             "focus",
             "standard",
-            "wide"
+            "wide",
+            "full"
           ],
           "enumDescriptions": [
             "%configuration.measure.focus%",
             "%configuration.measure.standard%",
-            "%configuration.measure.wide%"
+            "%configuration.measure.wide%",
+            "%configuration.measure.full%"
           ],
           "description": "%configuration.measure.description%"
         },
